@@ -192,6 +192,7 @@ section > h2 { margin-bottom: 10px; }
 .callout.tone-good { border-left: 4px solid var(--good); }
 .callout.tone-muted { border-left: 4px solid var(--axis); }
 .callout ul { margin: 6px 0 0; padding-left: 18px; }
+.callout .fix { margin-top: 6px; color: var(--muted); }
 dl.facts { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 8px 0; }
 dl.facts > div { display: contents; }
 dl.facts dt { color: var(--muted); }

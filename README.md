@@ -191,7 +191,7 @@ kit/labkit/demo.py        데모 데이터·run        kit/template/  새 프로
 bin/lab                   사람용 CLI
 ```
 
-2026-09-16 확인: kit 35 passed, extension 10 passed(실제 aelix 로더 등록, uv 환경의 import·query·run·재실행·취소 포함).
+2026-09-16 확인: kit 37 passed, extension 10 passed(실제 aelix 로더 등록, uv 환경의 import·query·run·재실행·취소 포함).
 독립 리뷰에서 나온 16건(차트 정체성, 재실행 판정, stale 계산, 기록 실패 내성, 읽기 전용 쿼리 봉쇄, 계보 오탐,
 프로젝트 신뢰 등)을 고치고 항목마다 회귀 시험을 추가했습니다. 설치된 aelix 0.1.0b2에서 RPC 로드와
 로컬 모델(ollama) `--print` 세션(lab_status → lab_query → write → lab_run → lab_note)을 실행해 확인했고,

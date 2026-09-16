@@ -525,9 +525,18 @@ def index_page(site: Site) -> str:
             f'<span class="item-meta"><a href="#{esc(e["id"])}">{esc(e["id"])}</a> · {fmt_time(e.get("ts"))}</span>'
             f'{site.refs_html(e.get("refs") or {}, 0)}</li>' for e in reversed(items[-12:])) + "</ul>"
 
+    unreadable = core.unreadable_records(p)
+    skipped = ""
+    if unreadable:
+        detail = ", ".join(f"{schema} {count}건" for schema, count in sorted(unreadable.items()))
+        skipped = ('<div class="callout tone-critical"><strong>이 리포트에서 빠진 기록이 있습니다.</strong> '
+                   f'{esc(detail)} — 더 새로운 kit이 쓴 기록이라 이 버전은 읽지 못합니다. '
+                   'kit을 업데이트한 뒤 리포트를 다시 만드세요.</div>')
+
     overview = f"""
 <section id="overview" class="tab">
   <div class="hero"><h1>{esc(p.title())}</h1>{st_goal}<div class="where">프로젝트 <code>{esc(p.root)}</code></div></div>
+  {skipped}
   <div class="tiles">{tiles}</div>
   <div class="columns">
     <div class="panel"><h2>핵심 정보</h2>{item_list(key_items, '발견·결정·가정이 기록되면 여기에 모입니다.')}</div>
@@ -724,7 +733,9 @@ def run_page(site: Site, run: dict) -> str:
     if run.get("error"):
         err = run["error"]
         where = f' (line <a href="#L-main-{err["line"]}">{err["line"]}</a>)' if err.get("line") else ""
-        callouts += f'<div class="callout tone-critical"><strong>{esc(err.get("summary"))}</strong>{where}</div>'
+        fix = f'<div class="fix">고치는 법: {esc(err["hint"])}</div>' if err.get("hint") else ""
+        callouts += (f'<div class="callout tone-critical"><strong>{esc(err.get("summary"))}</strong>'
+                     f'{where}{fix}</div>')
     repro = run.get("reproduction")
     if repro:
         tone = {"match": "good", "mismatch": "critical", "failed": "critical"}.get(

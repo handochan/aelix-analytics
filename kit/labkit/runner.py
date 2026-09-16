@@ -14,6 +14,7 @@ import builtins
 import contextlib
 import os
 import platform
+import re
 import shutil
 import signal
 import sys
@@ -218,14 +219,53 @@ def _exec_script(code_bytes: bytes, filename: Path, script_dir: Path) -> None:
         sys.stdout, sys.stderr = saved_streams
 
 
+# Failures seen in real sessions: a model reaches for pandas habits or a Polars API that moved.
+# The version line alone does not stop this, so the failure says what to write instead.
+API_HINTS = (
+    (r"No module named 'pandas'",
+     "this project has no pandas: process data with Polars expressions or DuckDB SQL "
+     "(lab.sql(...).pl()); .to_pandas() exists only if you add pandas to the project"),
+    (r"'DataFrame' object has no attribute 'to_string'",
+     "Polars prints itself: print(df), or df.glimpse() for a column summary"),
+    (r"'GroupBy' object has no attribute 'pivot'",
+     "pivot on the DataFrame, not the GroupBy: df.group_by([a, b]).agg(...).pivot("
+     "on=..., index=..., values=...)"),
+    (r"'Expr' object has no attribute 'mask'",
+     "Polars has no Expr.mask: use pl.when(cond).then(x).otherwise(y)"),
+    (r"'Series' object has no attribute 'map'",
+     "Polars renamed it: Series.map_elements(fn, return_dtype=...), or "
+     "replace_strict(mapping) for a lookup table"),
+    (r"'DataFrame' object has no attribute '(apply|iterrows|to_dict|melt|append)'",
+     "that is a pandas method; the Polars equivalents are map_rows / iter_rows / to_dicts / "
+     "unpivot / concat"),
+    (r"'(float|int|str|bool)' object has no attribute 'alias'",
+     "operator precedence: .alias() bound to the literal, not the expression — wrap it, "
+     "e.g. (100.0 * pl.col('a') / pl.col('b')).alias('pct')"),
+    (r"\bcount\b.*deprecated|pl\.count\(\)",
+     "pl.count() is deprecated: pl.len() counts rows, pl.col(x).count() counts non-nulls"),
+)
+
+
+def api_hint(summary: str) -> str | None:
+    for pattern, hint in API_HINTS:
+        if re.search(pattern, summary):
+            return hint
+    return None
+
+
 def _error_info(exc: BaseException, filename: str) -> dict:
     line = None
     for frame in traceback.extract_tb(exc.__traceback__):
         if frame.filename == filename:
             line = frame.lineno
     message = str(exc)
-    return {"type": type(exc).__name__, "message": message[:2000], "line": line,
-            "summary": f"{type(exc).__name__}: {message}".strip()[:300]}
+    summary = f"{type(exc).__name__}: {message}".strip()[:300]
+    info = {"type": type(exc).__name__, "message": message[:2000], "line": line,
+            "summary": summary}
+    hint = api_hint(summary)
+    if hint:
+        info["hint"] = hint
+    return info
 
 
 def snapshot_modules(project: core.Project, code_dir: Path, main_rel: str) -> list[dict]:

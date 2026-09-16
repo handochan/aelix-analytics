@@ -596,3 +596,55 @@ def test_status_warns_when_context_outgrows_the_prompt_budget(project):
     p.context.write_text("# 목표\n" + "긴 배경 설명. " * 900, encoding="utf-8")
     text = core.status_text(core.status(p))
     assert f"only the first {core.CONTEXT_PROMPT_CHARS:,}" in text
+
+
+POLARS_PANDAS_HABIT = '''import polars as pl
+
+df = pl.DataFrame({"a": [1, 2]})
+print(df.to_string())
+'''
+
+
+def test_records_from_a_newer_kit_are_skipped_and_said_so(project):
+    p = core.Project(project)
+    core.append_jsonl(p.journal, {"schema": "lab.event/2", "seq": 99, "id": "e99",
+                                  "kind": "finding", "text": "미래 kit이 쓴 기록"})
+    future = p.runs / "20990101-000000-future"
+    future.mkdir(parents=True)
+    core.write_json(future / "run.json", {"schema": "lab.run/2", "id": future.name, "status": "ok"})
+
+    assert all(e.get("id") != "e99" for e in core.read_events(p))
+    assert future.name not in [r["id"] for r in core.list_runs(p)]
+    assert core.unreadable_records(p) == {"lab.event/2": 1, "lab.run/2": 1}
+    text = core.status_text(core.status(p))
+    assert "lab.event/2" in text and "update the lab kit" in text
+    assert labkit(project, "report")[0] == 0
+    assert "이 리포트에서 빠진 기록이 있습니다" in (p.report / "index.html").read_text(encoding="utf-8")
+
+    marker = json.loads(p.marker.read_text(encoding="utf-8"))
+    p.marker.write_text(json.dumps({**marker, "schema": "lab.project/2"}), encoding="utf-8")
+    try:
+        core.Project(project).title()
+    except core.LabError as exc:
+        assert exc.code == "project_too_new"
+    else:
+        raise AssertionError("a project from a newer kit was read anyway")
+
+
+def test_a_failing_run_says_what_to_write_instead(project):
+    code, result = _run(project, write_script(project, "01_habit.py", POLARS_PANDAS_HABIT), "습관")
+    assert code != 0
+    assert "print(df)" in result["run"]["error"]["hint"]
+    assert labkit(project, "report")[0] == 0
+    page = next((project / "report" / "runs").glob("*01-habit.html")).read_text(encoding="utf-8")
+    assert "고치는 법" in page and "df.glimpse()" in page
+
+    for summary, expected in (
+            ("ModuleNotFoundError: No module named 'pandas'", "no pandas"),
+            ("AttributeError: 'GroupBy' object has no attribute 'pivot'", "pivot on the DataFrame"),
+            ("AttributeError: 'Expr' object has no attribute 'mask'", "pl.when"),
+            ("AttributeError: 'Series' object has no attribute 'map'", "map_elements"),
+            ("AttributeError: 'float' object has no attribute 'alias'", "operator precedence"),
+            ("AttributeError: 'DataFrame' object has no attribute 'iterrows'", "iter_rows")):
+        assert expected in (runner.api_hint(summary) or ""), summary
+    assert runner.api_hint("ZeroDivisionError: division by zero") is None

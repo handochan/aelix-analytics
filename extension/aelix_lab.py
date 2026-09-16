@@ -282,6 +282,8 @@ def render_run(project, value: dict, attached: tuple[int, int] | None = None) ->
     lines = [head, f"title: {run.get('title')}",
              f"code: {script.get('path')} sha256 {str(script.get('sha256'))[:12]} "
              f"(snapshot {script.get('snapshot')})"]
+    if (run.get("error") or {}).get("hint"):
+        lines.insert(1, f"fix: {run['error']['hint']}")
     inputs = run.get("inputs") or []
     lines.append(f"inputs ({len(inputs)}):" if inputs else "inputs: none detected")
     for i in inputs[:MAX_LIST]:

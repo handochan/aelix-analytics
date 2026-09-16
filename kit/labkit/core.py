@@ -109,7 +109,14 @@ class Project:
 
     def config(self) -> dict:
         data = read_json(self.marker)
-        return data if isinstance(data, dict) else {}
+        data = data if isinstance(data, dict) else {}
+        if newer_schema(data.get("schema"), SCHEMA_PROJECT):
+            raise LabError("project_too_new",
+                           f"{self.root}/{MARKER} is {data['schema']}, and this kit reads "
+                           f"{SCHEMA_PROJECT}",
+                           hint="a newer version of the lab kit made this project; update the kit "
+                                "instead of reading it with this one")
+        return data
 
     def title(self) -> str:
         return str(self.config().get("title") or self.root.name)
@@ -368,8 +375,39 @@ def append_event(project: Project, kind: str, text: str, *, refs=None, actor="ag
         return _append_event_locked(project, kind, text, refs, actor, session)
 
 
+def schema_version(value) -> tuple[str, int] | None:
+    """('lab.event', 1) for 'lab.event/1'; None for anything else."""
+    if not isinstance(value, str) or "/" not in value:
+        return None
+    family, _, version = value.rpartition("/")
+    return (family, int(version)) if version.isdigit() else None
+
+
+def newer_schema(value, known: str) -> bool:
+    """True when `value` is the same schema family as `known`, at a version this kit cannot read.
+
+    Records are written by whichever kit version was installed at the time, and projects outlive
+    kit versions, so a record must never be read as if it were a version it is not."""
+    got, want = schema_version(value), schema_version(known)
+    return bool(got and want and got[0] == want[0] and got[1] > want[1])
+
+
 def read_events(project: Project) -> list[dict]:
     return [e for e in read_jsonl(project.journal) if e.get("schema") == SCHEMA_EVENT]
+
+
+def unreadable_records(project: Project) -> dict[str, int]:
+    """Records this kit version skipped, by schema — journal entries and runs from a newer kit."""
+    counts: dict[str, int] = {}
+    for event in read_jsonl(project.journal):
+        if newer_schema(event.get("schema"), SCHEMA_EVENT):
+            counts[event["schema"]] = counts.get(event["schema"], 0) + 1
+    if project.runs.is_dir():
+        for d in sorted(project.runs.iterdir()):
+            record = read_json(d / "run.json") if d.is_dir() else None
+            if isinstance(record, dict) and newer_schema(record.get("schema"), SCHEMA_RUN):
+                counts[record["schema"]] = counts.get(record["schema"], 0) + 1
+    return counts
 
 
 def resolved_targets(events) -> dict[str, dict]:
@@ -482,6 +520,8 @@ def list_runs(project: Project) -> list[dict]:
         if not d.is_dir() or not RUN_ID_RE.match(d.name):
             continue
         rec = read_json(d / "run.json")
+        if isinstance(rec, dict) and newer_schema(rec.get("schema"), SCHEMA_RUN):
+            continue  # written by a newer kit; unreadable_records() reports it
         if not isinstance(rec, dict):
             rec = {"id": d.name, "status": "incomplete", "title": "(run.json missing)"}
         rec["id"] = d.name
@@ -729,6 +769,7 @@ def status(project: Project, limit: int = 8) -> dict:
                    "runs_failed": sum(1 for r in runs if r.get("status") != "ok"),
                    "charts": len(current_charts), "events": len(events),
                    "open": len(open_items), "gaps": len(gaps)},
+        "unreadable": unreadable_records(project),
         "datasets": datasets,
         "views": view_names(datasets),
         "runs": run_rows,
@@ -769,6 +810,9 @@ def status_text(st: dict, max_chars: int = 9000) -> str:
         lines.append(f"goal: {_one_line(p['goal'])}")
     if st.get("versions"):
         lines.append(f"environment: {versions_line(st['versions'])} — use APIs of these versions")
+    for schema, count in sorted((st.get("unreadable") or {}).items()):
+        lines.append(f"{count} record(s) written as {schema} are skipped everywhere, including the "
+                     "report — this kit reads version 1; update the lab kit to read them")
     if p.get("context_chars", 0) > CONTEXT_PROMPT_CHARS:
         lines.append(f"CONTEXT.md is {p['context_chars']:,} characters; only the first "
                      f"{CONTEXT_PROMPT_CHARS:,} reach the system prompt — move settled detail into "
