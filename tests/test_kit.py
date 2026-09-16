@@ -591,11 +591,14 @@ def test_an_external_input_names_the_dataset_it_was_imported_as(project, tmp_pat
     assert any("lab.read('sales')" in w for w in warnings), warnings
 
 
-def test_status_warns_when_context_outgrows_the_prompt_budget(project):
+def test_a_context_with_no_sections_is_cut_and_says_to_split_it(project):
     p = core.Project(project)
     p.context.write_text("# 목표\n" + "긴 배경 설명. " * 900, encoding="utf-8")
+    block = core.context_block(p)
+    assert len(block) < 2 * core.CONTEXT_PROMPT_CHARS
+    assert "`## 제목`으로 섹션을 나누면" in block
     text = core.status_text(core.status(p))
-    assert f"only the first {core.CONTEXT_PROMPT_CHARS:,}" in text
+    assert f"only {core.CONTEXT_PROMPT_CHARS:,} reach the system prompt" in text
 
 
 POLARS_PANDAS_HABIT = '''import polars as pl
@@ -648,3 +651,39 @@ def test_a_failing_run_says_what_to_write_instead(project):
             ("AttributeError: 'DataFrame' object has no attribute 'iterrows'", "iter_rows")):
         assert expected in (runner.api_hint(summary) or ""), summary
     assert runner.api_hint("ZeroDivisionError: division by zero") is None
+
+
+def test_context_is_disclosed_by_section_not_truncated_mid_sentence(project):
+    p = core.Project(project)
+    p.context.write_text(
+        "# 제목\n\n> 안내 문구\n\n"
+        "## 목표 <!-- 항상 -->\n세션 성능 비교.\n\n"
+        "## 데이터 출처\n" + "| a | b |\n" * 400 + "\n"
+        "## 다음 할 일\n- 모델 단위 비교\n", encoding="utf-8")
+
+    block = core.context_block(p)
+    assert "세션 성능 비교." in block and "모델 단위 비교" in block
+    assert "| a | b |" not in block, "the oversized section was injected anyway"
+    assert "### CONTEXT.md sections not repeated here" in block
+    assert "- 데이터 출처 (402 lines): read offset 8 limit 402" in block
+    assert "안내 문구" in block, "the preamble is always part of the block"
+    assert not block.endswith("…"), "sections are dropped whole, never cut mid-sentence"
+
+    st = core.status(p)
+    assert st["project"]["context_omitted"] == ["데이터 출처"]
+    text = core.status_text(st)
+    assert "데이터 출처" in text and "<!-- 항상 -->" in text
+
+    assert labkit(project, "report")[0] == 0
+    index = (p.report / "index.html").read_text(encoding="utf-8")
+    assert "프롬프트에 매번 들어가는 섹션: 목표, 다음 할 일" in index
+    assert "| a | b |" in index, "the report still shows the whole file"
+
+
+def test_a_pinned_section_survives_the_budget(project):
+    p = core.Project(project)
+    p.context.write_text("# 제목\n\n## 채우기\n" + "x" * 5000 + "\n\n"
+                         "## 규칙 <!-- always -->\n- 매출은 세금 제외\n", encoding="utf-8")
+    block = core.context_block(p)
+    assert "매출은 세금 제외" in block
+    assert core.status(p)["project"]["context_omitted"] == ["채우기"]

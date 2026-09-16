@@ -609,9 +609,15 @@ def index_page(site: Site) -> str:
     version_items = "".join(
         f'<li><a href="context.html#v-{esc(v.stem)}">{fmt_time(core._version_time(v))}</a></li>'
         for v in site.versions[::-1][:12])
+    _, injected, omitted, _ = core.context_selection(context_text)
+    prompt_note = (
+        f'<p class="muted">프롬프트에 매번 들어가는 섹션: {esc(", ".join(s["name"] for s in injected)) or "없음"}.'
+        + (f' 제목과 줄 범위만 들어가는 섹션: {esc(", ".join(s["name"] for s in omitted))} '
+           '— 에이전트가 필요할 때 읽어 갑니다.' if omitted else "") + "</p>")
     context = f"""
 <section id="context" class="tab">
   <div class="toolbar"><h2>맥락 <small>CONTEXT.md</small></h2><a href="context.html">버전 기록 {len(site.versions)}개 →</a></div>
+  {prompt_note}
   <div class="columns wide-left">
     <article class="panel markdown">{context_html}</article>
     <aside class="panel"><h3>최근 버전</h3><ul class="plain">{version_items or '<li class="muted">없음</li>'}</ul></aside>

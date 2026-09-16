@@ -41,8 +41,9 @@ MAX_EVENT_TEXT = 4000
 # A run that reads hundreds of files must not turn its journal entry into a path dump: run.json
 # keeps every path, the event keeps a readable head of them.
 MAX_EVENT_REFS = 24
-# CONTEXT.md longer than this is truncated where it goes into the system prompt.
-CONTEXT_PROMPT_CHARS = 6000
+# How much of CONTEXT.md goes into the system prompt every turn. Sections past this budget are
+# listed with their line ranges instead, for the agent to read on demand.
+CONTEXT_PROMPT_CHARS = 4000
 
 # Directories that are never data inputs or outputs of a run.
 IGNORED_DIRS = {".venv", ".lab", "runs", "report", "scripts", ".git", "__pycache__",
@@ -736,6 +737,7 @@ def status(project: Project, limit: int = 8) -> dict:
     resolved = resolved_targets(events)
     context_text = (project.context.read_text(encoding="utf-8", errors="replace")
                     if project.context.is_file() else "")
+    _, _, context_omitted, context_truncated = context_selection(context_text)
     current_charts = [c for c in charts if not c.get("retired")]
     chart_rows = []
     for c in current_charts[:limit * 2]:
@@ -762,6 +764,8 @@ def status(project: Project, limit: int = 8) -> dict:
                     "created_at": project.config().get("created_at"),
                     "goal": context_goal(context_text),
                     "context_chars": len(context_text),
+                    "context_omitted": [s["name"] for s in context_omitted],
+                    "context_truncated": context_truncated,
                     "context_updated": _version_time(versions[-1]) if versions else None},
         "report": str(project.report / "index.html"),
         "versions": locked_versions(project),
@@ -813,10 +817,14 @@ def status_text(st: dict, max_chars: int = 9000) -> str:
     for schema, count in sorted((st.get("unreadable") or {}).items()):
         lines.append(f"{count} record(s) written as {schema} are skipped everywhere, including the "
                      "report — this kit reads version 1; update the lab kit to read them")
-    if p.get("context_chars", 0) > CONTEXT_PROMPT_CHARS:
-        lines.append(f"CONTEXT.md is {p['context_chars']:,} characters; only the first "
-                     f"{CONTEXT_PROMPT_CHARS:,} reach the system prompt — move settled detail into "
-                     "lab_note entries and keep CONTEXT.md to what is true now")
+    if p.get("context_truncated"):
+        lines.append(f"CONTEXT.md has {p['context_chars']:,} characters above its first `## ` "
+                     f"heading, and only {CONTEXT_PROMPT_CHARS:,} reach the system prompt — split "
+                     "it into `## ` sections so the rest can be read on demand")
+    if p.get("context_omitted"):
+        lines.append("CONTEXT.md sections not in the system prompt (read them from the file when "
+                     f"they matter): {', '.join(p['context_omitted'])} — move a section earlier or "
+                     "mark its heading <!-- 항상 --> to pin it")
     lines.append(f"datasets ({counts['datasets']}) — query views: "
                  + (", ".join(st["views"]) or "none"))
     for ds in st["datasets"]:
@@ -861,7 +869,57 @@ def status_text(st: dict, max_chars: int = 9000) -> str:
     return text if len(text) <= max_chars else text[:max_chars - 40] + "\n… (truncated)"
 
 
-def context_block(project: Project, max_context_chars: int = 6000, max_items: int = 12) -> str:
+PIN_RE = re.compile(r"<!--\s*(항상|always)\s*-->", re.IGNORECASE)
+
+
+def context_sections(text: str) -> tuple[str, list[dict]]:
+    """CONTEXT.md split at `## ` headings: (preamble, sections with 1-based line numbers)."""
+    lines = text.splitlines()
+    starts = [i for i, line in enumerate(lines) if line.startswith("## ")]
+    preamble = "\n".join(lines[:starts[0]] if starts else lines).strip()
+    sections = []
+    for n, start in enumerate(starts):
+        end = starts[n + 1] if n + 1 < len(starts) else len(lines)
+        heading = lines[start][3:].strip()
+        body = "\n".join(lines[start:end]).rstrip()
+        sections.append({"name": _one_line(PIN_RE.sub("", heading), 48) or f"섹션 {n + 1}",
+                         "pinned": bool(PIN_RE.search(heading)), "line": start + 1,
+                         "lines": end - start, "chars": len(body), "text": body})
+    return preamble, sections
+
+
+def context_selection(text: str,
+                      budget: int = CONTEXT_PROMPT_CHARS) -> tuple[str, list, list, bool]:
+    """Which CONTEXT.md sections go into the system prompt: pinned ones, then as many as the
+    budget allows in file order. The rest are listed with their line ranges so the agent can
+    read exactly the one it needs — context is never hidden, only fetched on demand.
+
+    Returns (preamble, included, omitted, preamble_truncated). Text above the first `## ` heading
+    cannot be fetched by section, so an oversized one is the only thing ever cut."""
+    preamble, sections = context_sections(text)
+    truncated = len(preamble) > budget
+    if truncated:
+        preamble = preamble[:budget].rstrip() + (
+            f"\n… (머리말이 {budget:,}자를 넘어 잘렸습니다 — `## 제목`으로 섹션을 나누면 "
+            "필요한 부분만 읽어 갈 수 있습니다)")
+    left = budget - len(preamble)
+    included = [s for s in sections if s["pinned"]]
+    left -= sum(s["chars"] for s in included)
+    omitted = []
+    for section in sections:
+        if section["pinned"]:
+            continue
+        if section["chars"] <= left:
+            included.append(section)
+            left -= section["chars"]
+        else:
+            omitted.append(section)
+    included.sort(key=lambda s: s["line"])
+    return preamble, included, omitted, truncated
+
+
+def context_block(project: Project, max_context_chars: int = CONTEXT_PROMPT_CHARS,
+                  max_items: int = 12) -> str:
     """Project context appended to the system prompt. Only slow-changing parts, so it stays
     stable across prompts: CONTEXT.md, unresolved key information and open questions."""
     events = read_events(project)
@@ -869,8 +927,7 @@ def context_block(project: Project, max_context_chars: int = 6000, max_items: in
     context_text = ""
     if project.context.is_file():
         context_text = project.context.read_text(encoding="utf-8", errors="replace").strip()
-    if len(context_text) > max_context_chars:
-        context_text = context_text[:max_context_chars] + "\n… (CONTEXT.md truncated; read the file)"
+    preamble, included, omitted, _ = context_selection(context_text, max_context_chars)
     key = [e for e in events if e.get("kind") in KEY_KINDS and e["id"] not in resolved]
     open_items = [e for e in events if e.get("kind") in OPEN_KINDS and e["id"] not in resolved]
     parts = [
@@ -880,8 +937,15 @@ def context_block(project: Project, max_context_chars: int = 6000, max_items: in
         "Call lab_status for datasets, runs, charts and the recent journal.",
         "",
         "## CONTEXT.md",
-        context_text or "(empty — fill in goal, questions, data sources and definitions)",
+        preamble or "(empty — fill in goal, questions, data sources and definitions)",
     ]
+    parts += [s["text"] for s in included]
+    if omitted:
+        parts += ["", "### CONTEXT.md sections not repeated here",
+                  f"They are part of this project's context — read the one you need from "
+                  f"{project.context}:"]
+        parts += [f"- {s['name']} ({s['lines']} lines): read offset {s['line']} limit {s['lines']}"
+                  for s in omitted]
     if key:
         parts += ["", "## Key information (unresolved journal entries)"]
         parts += [f"- {e['id']} {e['kind']}: {_one_line(e['text'], 300)}"

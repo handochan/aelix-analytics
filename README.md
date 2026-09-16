@@ -145,8 +145,12 @@ my-analysis/
   생기며, 리포트의 맥락 기록 페이지에서 diff로 봅니다(run·import·note·프롬프트 시작·에이전트 턴 종료 때 감지).
 - `journal.jsonl`: 모든 사건의 시간순 기록. 발견·결정·가정은 **핵심 정보**, 질문·할 일은 **열린 항목**이며,
   나중 기록의 `resolves`로 닫힙니다. run·이벤트에는 aelix 세션 파일 경로가 함께 남습니다.
-- **프롬프트 주입**: 매 요청 전에 `CONTEXT.md` + 해결되지 않은 핵심 정보 + 열린 항목을 시스템 프롬프트 뒤에 붙입니다.
-  자주 바뀌지 않는 내용만 넣어 프롬프트 캐시를 덜 깨고, 자주 바뀌는 현황은 `lab_status`로 봅니다.
+- **프롬프트 주입 — 섹션 단위 점진적 공개**: 매 요청 전에 `CONTEXT.md` + 해결되지 않은 핵심 정보 + 열린 항목을
+  시스템 프롬프트 뒤에 붙입니다. CONTEXT.md는 통째로 넣지 않고 **`##` 섹션 단위**로 넣습니다 —
+  `<!-- 항상 -->`을 붙인 섹션과, 앞에서부터 예산(4,000자)이 허락하는 섹션이 본문째 들어가고,
+  **나머지는 제목·줄 범위만** 들어갑니다(`read CONTEXT.md offset N limit M`). 문장 중간에서 잘리는 일이 없고,
+  무엇이 빠졌는지는 `lab_status`와 리포트 맥락 탭이 이름으로 알려 줍니다. 순서를 바꾸거나 `<!-- 항상 -->`을
+  붙이는 것이 통제 수단입니다. 자주 바뀌는 현황은 `lab_status`로 봅니다.
 
 ## 평가에 쓰기
 
@@ -191,7 +195,7 @@ kit/labkit/demo.py        데모 데이터·run        kit/template/  새 프로
 bin/lab                   사람용 CLI
 ```
 
-2026-09-16 확인: kit 37 passed, extension 10 passed(실제 aelix 로더 등록, uv 환경의 import·query·run·재실행·취소 포함).
+2026-09-16 확인: kit 39 passed, extension 10 passed(실제 aelix 로더 등록, uv 환경의 import·query·run·재실행·취소 포함).
 독립 리뷰에서 나온 16건(차트 정체성, 재실행 판정, stale 계산, 기록 실패 내성, 읽기 전용 쿼리 봉쇄, 계보 오탐,
 프로젝트 신뢰 등)을 고치고 항목마다 회귀 시험을 추가했습니다. 설치된 aelix 0.1.0b2에서 RPC 로드와
 로컬 모델(ollama) `--print` 세션(lab_status → lab_query → write → lab_run → lab_note)을 실행해 확인했고,
