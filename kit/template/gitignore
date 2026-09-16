@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+.lab/cache/
+.lab/lock
+.lab/adhoc/
+# Generated from runs/, journal.jsonl and CONTEXT.md; rebuild with `lab report`.
+report/
+# Data may be private. Remove these lines only for data you are allowed to commit.
+data/
+runs/*/charts/*.data.parquet

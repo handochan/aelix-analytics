@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.pyc
+# Demo and scratch projects hold generated data; keep them out of the pack.
+.demo/
+# Session tooling state (oh-my-claudecode hooks).
+.omc/

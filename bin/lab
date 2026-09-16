@@ -1,0 +1,81 @@
+#!/bin/sh
+# lab — human CLI for aelix-analytics-baseline projects (the same kit the aelix extension drives).
+#
+#   lab init DIR [--title T] [--goal G]   create a project and its uv environment
+#   lab demo DIR                          new project with synthetic data and example runs
+#   lab status | context                  overview | the context block agents receive
+#   lab run SCRIPT --title T [--input P] [--timeout S]
+#   lab run --rerun-of RUN_ID --title T   re-execute a run's code snapshot and compare
+#   lab import FILE [--name N] [--description D]
+#   lab query "SQL" [--limit N]
+#   lab note KIND "TEXT" [--ref R] [--resolves eN]
+#   lab report | open                     rebuild | open report/index.html
+#
+# Commands other than init/demo use the nearest lab.json above the current directory, or LAB_PROJECT.
+# Output is one JSON line (status and context print text). Nothing here is a sandbox.
+set -eu
+
+self=$0
+while [ -L "$self" ]; do
+  link=$(readlink "$self")
+  case $link in /*) self=$link ;; *) self=$(dirname "$self")/$link ;; esac
+done
+PACK=$(CDPATH='' cd -- "$(dirname -- "$self")/.." && pwd -P)
+UV=${AELIX_LAB_UV:-uv}
+unset VIRTUAL_ENV
+export PYTHONPATH="$PACK/kit" MPLBACKEND=Agg PYTHONDONTWRITEBYTECODE=1 LAB_ACTOR="${LAB_ACTOR:-human}"
+
+usage() { sed -n '2,15p' "$self" | sed 's/^# \{0,1\}//'; }
+
+find_project() {
+  if [ -n "${LAB_PROJECT:-}" ]; then printf '%s\n' "$LAB_PROJECT"; return 0; fi
+  dir=$(pwd -P)
+  while :; do
+    if [ -f "$dir/lab.json" ]; then printf '%s\n' "$dir"; return 0; fi
+    [ "$dir" = / ] && break
+    dir=$(dirname "$dir")
+  done
+  echo "lab: no lab.json in $(pwd -P) or its parents (cd into a project or set LAB_PROJECT)" >&2
+  return 1
+}
+
+kit() {  # kit PROJECT ARGS...
+  proj=$1; shift
+  "$UV" run --project "$proj" --quiet python -m labkit --project "$proj" "$@"
+}
+
+cmd=${1:-status}
+[ $# -gt 0 ] && shift
+
+case $cmd in
+  -h|--help|help) usage ;;
+  init|demo)
+    [ $# -ge 1 ] || { echo "usage: lab $cmd DIR" >&2; exit 2; }
+    dir=$1; shift
+    "$UV" run --no-project --python 3.12 --quiet python -m labkit init "$dir" "$@"
+    proj=$(CDPATH='' cd -- "$dir" && pwd -P)
+    echo "lab: syncing the project environment (first time can take a minute) ..." >&2
+    "$UV" sync --project "$proj" --quiet || "$UV" sync --project "$proj" --quiet --offline
+    if [ "$cmd" = demo ]; then
+      kit "$proj" demo
+    else
+      kit "$proj" report >/dev/null
+    fi
+    echo "lab: report at $proj/report/index.html (lab open, from inside the project)" >&2
+    ;;
+  status|context)
+    proj=$(find_project)
+    kit "$proj" --text "$cmd"
+    ;;
+  open)
+    proj=$(find_project)
+    [ -f "$proj/report/index.html" ] || kit "$proj" report >/dev/null
+    if command -v open >/dev/null 2>&1; then open "$proj/report/index.html"
+    else xdg-open "$proj/report/index.html"; fi
+    ;;
+  run|import|query|note|report)
+    proj=$(find_project)
+    kit "$proj" "$cmd" "$@"
+    ;;
+  *) usage >&2; exit 2 ;;
+esac

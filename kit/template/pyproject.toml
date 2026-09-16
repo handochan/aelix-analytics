@@ -1,0 +1,19 @@
+# Environment of this analysis project only. Scripts run with `uv run` here, never in the aelix
+# environment. Data is Parquet; processing is DuckDB and Polars.
+[project]
+name = "lab-{{slug}}"
+version = "0.0.0"
+description = "{{title}}"
+requires-python = ">=3.12"
+dependencies = [
+  "duckdb>=1.3,<2",
+  "polars>=1.30,<2",
+  "pyarrow>=17",
+  "matplotlib>=3.9",
+  "plotly>=6,<7",
+  "pygments>=2.18",
+  "markdown-it-py>=3",
+]
+
+[tool.uv]
+package = false
