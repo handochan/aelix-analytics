@@ -368,7 +368,7 @@ class Site:
   <div class="build">빌드 {fmt_time(self.built_at)} · <label><input type="checkbox" id="live" checked> 자동 새로고침</label></div>
 </header>
 <main>{body}</main>
-<footer>aelix-analytics-baseline {core.KIT_VERSION} · run 기록·journal·CONTEXT.md에서 생성된 페이지입니다. 직접 편집하지 마세요.</footer>
+<footer>Aelix Analytics {core.KIT_VERSION} · run 기록·journal·CONTEXT.md에서 생성된 페이지입니다. 직접 편집하지 마세요.</footer>
 {plotly}
 <script src="{root}assets/report.js{v}"></script>
 </body>
@@ -682,7 +682,7 @@ def evaluation_section(site: Site) -> str:
     return f"""
 <section id="evaluation" class="tab">
   <div class="toolbar"><h2>평가</h2></div>
-  <p class="muted">baseline을 쓰면서 드러난 부족한 점을 모읍니다. aelix-analytics와 비교할 근거로 쓰세요.</p>
+  <p class="muted">분석을 진행하며 드러난 부족한 점과 우회가 필요했던 지점을 모읍니다.</p>
   <div class="columns">
     <div class="panel"><h3>gap 기록 ({len(gaps)})</h3>{gap_html}</div>
     <div class="panel"><h3>기록 품질 신호</h3><div class="table-wrap"><table class="kv">{signals}</table></div></div>

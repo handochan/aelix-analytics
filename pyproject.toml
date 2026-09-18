@@ -1,7 +1,7 @@
 [project]
-name = "aelix-analytics-baseline"
+name = "aelix-analytics"
 version = "0.1.0"
-description = "Baseline aelix extension: free-form DuckDB/Polars analysis with recorded code, data and charts"
+description = "Agent-native analytics projects with durable context, metrics, evidence, and reports"
 requires-python = ">=3.12"
 dependencies = []
 

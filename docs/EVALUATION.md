@@ -1,7 +1,12 @@
-# aelix-analytics 평가 가이드 — baseline 대비
+# Aelix Analytics Engine 평가 가이드 — baseline 대비
 
-작성 2026-09-16. 비교 대상은 aelix-analytics **계약 0.2**([계약](../../aelix-analytics/docs/contracts/02-core-contracts.md),
-[ADR-0001](../../aelix-analytics/docs/decisions/0001-verified-analysis-contracts.md))입니다. 그쪽은 slice 3(계약 0.3)이
+> **과거 비교 실험 문서 — 2026-09-17부터 공식 베타의 출시 기준으로 사용하지 않습니다.**
+> 당시 비교 목적과 시나리오는 보존합니다. 현재 동작은 [CONTRACTS.md](CONTRACTS.md),
+> 독립 제품의 방향은 [PRODUCT.md](PRODUCT.md), 출시 판단은 [BETA-QUALITY-GATES.md](BETA-QUALITY-GATES.md)를 따릅니다.
+> 아래 표의 과거 설명을 현재 구현으로 해석하지 마세요. 예를 들어 현재는 run·journal·report 파일 잠금이 있습니다.
+
+작성 2026-09-16. 비교 대상은 Aelix Analytics Engine **계약 0.2**([계약](../../aelix-analytics-engine/docs/contracts/02-core-contracts.md),
+[ADR-0001](../../aelix-analytics-engine/docs/decisions/0001-verified-analysis-contracts.md))입니다. 그쪽은 slice 3(계약 0.3)이
 진행 중이므로 평가할 때 버전을 함께 적으세요.
 
 ## 1. 왜 baseline인가
@@ -9,7 +14,7 @@
 두 확장은 목표가 같습니다 — HTML로 분석하고, 모든 차트에서 데이터와 코드를 확인하고, 맥락과 이력을 남긴다.
 방법이 다릅니다.
 
-- **aelix-analytics**: 검증 가능한 기록을 **계약으로 강제**합니다. hash-chained 원장, 불변 번들, 선언형 ViewSpec,
+- **Aelix Analytics Engine**: 검증 가능한 기록을 **계약으로 강제**합니다. hash-chained 원장, 불변 번들, 선언형 ViewSpec,
   스냅샷에 결박된 SelectionRef, 캐시 없는 재실행 verify, keyed 멱등 작업과 recover, 격리된 DuckDB SQL transform.
 - **baseline**: 자유로운 Python 코드에 **가벼운 규약**(run 기록, journal, CONTEXT.md)만 얹습니다.
 
@@ -18,7 +23,7 @@
 
 ## 2. 비교 축
 
-| # | 축 | baseline | aelix-analytics 0.2 | 관찰할 것 |
+| # | 축 | baseline | Aelix Analytics Engine 0.2 | 관찰할 것 |
 |---|---|---|---|---|
 | 1 | 분석 표현력 | 임의 Python: DuckDB·Polars·matplotlib·plotly·통계 라이브러리 | ViewSpec v2(scatter/line/bar, count/sum/mean, 색 8범주) + DuckDB SQL transform(SELECT 한 문장, 입력 8개, 결과 1–2,000행). Python·Polars transform 없음 | 과제를 끝냈나, 어디서 막혔나(gap 수) |
 | 2 | 차트 → 코드 | run 코드 스냅샷(실행된 바이트), 차트 기록 줄 강조 | 뷰 번들의 실제 실행 코드 + 생성된 reproduce.py (binding exact/generated) | 사람이 코드를 읽고 수치를 이해하는 데 걸린 시간 |
@@ -61,15 +66,15 @@ baseline 쪽:
 - 도구 사용은 `.lab/telemetry.jsonl` → 평가 탭의 도구별 호출·오류·평균 시간, 우회 의심 호출.
 - run 품질 신호(입력 미감지, 플롯 데이터 없음, 프로젝트 밖 입력, stale, 재실행 판정)도 평가 탭에 있습니다.
 
-aelix-analytics 쪽은 같은 형식으로 메모하세요. 결과표:
+Aelix Analytics Engine 쪽은 같은 형식으로 메모하세요. 결과표:
 
-| 시나리오 | baseline 결과 | aelix-analytics 결과 | 차이를 만든 계약·규약 | 조치 (baseline에 추가 / aelix-analytics 완화 / 유지) |
+| 시나리오 | baseline 결과 | Aelix Analytics Engine 결과 | 차이를 만든 계약·규약 | 조치 (baseline에 추가 / Aelix Analytics Engine 완화 / 유지) |
 |---|---|---|---|---|
 | S1 | | | | |
 
 ## 5. 결론을 내리는 기준
 
-- baseline에서 **틀린 결론이나 검증 실패가 실제로 났고** aelix-analytics의 계약이 그것을 막았다 → 그 계약은 필요합니다.
+- baseline에서 **틀린 결론이나 검증 실패가 실제로 났고** Aelix Analytics Engine의 계약이 그것을 막았다 → 그 계약은 필요합니다.
 - baseline의 gap이 반복되지만 **가벼운 규약 추가**로 풀린다 → 경량 대안을 먼저 검토합니다.
-- aelix-analytics의 **제약 때문에 과제를 끝내지 못했다** → 계약 완화 후보입니다.
+- Aelix Analytics Engine의 **제약 때문에 과제를 끝내지 못했다** → 계약 완화 후보입니다.
 - 공통 지표: 차트 1개의 수치를 원본까지 확인하는 **사람 검증 시간**, 시나리오당 **도구 호출·오류 수**, **gap 수**.

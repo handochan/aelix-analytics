@@ -1,6 +1,6 @@
-# baseline 계약 v1
+# Aelix Analytics 계약 v1
 
-aelix-analytics-baseline이 **약속하는 것과 약속하지 않는 것**의 전부입니다. 코드가 기준이며,
+Aelix Analytics가 현재 **약속하는 것과 약속하지 않는 것**의 전부입니다. 코드가 기준이며,
 이 문서와 코드가 다르면 코드가 맞고 문서를 고칩니다. 스키마 이름에 버전(`/1`)이 붙습니다.
 
 ## A. aelix 확장 표면 — 쓰는 것 전부

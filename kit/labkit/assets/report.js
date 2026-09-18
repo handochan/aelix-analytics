@@ -1,4 +1,4 @@
-// aelix-analytics-baseline report: tabs, lazy plotly rendering, timeline filters, live reload.
+// Aelix Analytics report: tabs, lazy plotly rendering, timeline filters, live reload.
 (function () {
   "use strict";
   const doc = document.documentElement;

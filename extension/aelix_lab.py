@@ -1,4 +1,4 @@
-"""aelix-analytics-baseline: analysis lab extension built only from the basic aelix extension contract
+"""Aelix Analytics: analysis extension built only from the basic aelix extension contract.
 (setup, register_flag, register_tool, register_command, on).
 
 Load for one session:   aelix -e <pack>/extension/aelix_lab.py [--lab-project DIR]
@@ -38,7 +38,7 @@ def _load_core():
     path = KIT / "labkit" / "core.py"
     if not path.is_file():
         raise RuntimeError(
-            f"aelix-analytics-baseline: kit not found at {path}. Symlink extension/aelix_lab.py "
+            f"aelix-analytics: kit not found at {path}. Symlink extension/aelix_lab.py "
             "instead of copying it, or set AELIX_LAB_KIT=<pack>/kit.")
     spec = importlib.util.spec_from_file_location("aelix_lab_core", path)
     module = importlib.util.module_from_spec(spec)
@@ -757,7 +757,7 @@ def on_agent_end(event, ctx):
 
 # --- human command ---
 
-HELP = """/lab — analysis lab (aelix-analytics-baseline)
+HELP = """/lab — Aelix Analytics project
   /lab                      status of the active project
   /lab where                project, kit and uv in use
   /lab init DIR [title]     create a project + environment and make it active
@@ -765,7 +765,7 @@ HELP = """/lab — analysis lab (aelix-analytics-baseline)
   /lab use DIR              make DIR the active project for this aelix process
   /lab report | open        rebuild the report | open it in the browser
   /lab note KIND TEXT       journal entry as a human (finding, decision, question, ...)
-  /lab gap TEXT             record a gap: something this baseline lacked or made awkward
+  /lab gap TEXT             record a gap: something this analysis workflow lacked or made awkward
   /lab context              the context block injected into prompts"""
 
 

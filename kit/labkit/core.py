@@ -1,4 +1,4 @@
-"""Project model for aelix-analytics-baseline lab projects. Standard library only.
+"""Project model for Aelix Analytics projects. Standard library only.
 
 The aelix extension loads this file by path inside the aelix process, so it must not import polars,
 duckdb, plotting libraries or other labkit modules. Code that needs those runs inside a project's own

@@ -1,14 +1,32 @@
-# aelix-analytics-baseline
+# Aelix Analytics — 에이전트 시대의 분석
 
-aelix의 **기본 확장 계약만으로** 만든 분석 확장입니다. [aelix-analytics](../aelix-analytics/README.md)를
-평가하기 위한 비교 기준선(baseline) MVP입니다.
+**사람과 에이전트가 검증 가능한 분석과 프로젝트를 함께 이어 가는 새로운 분석 도구·플랫폼을 만듭니다.**
+Jupyter Notebook과 BI가 만들어 온 분석 작업방식을 바탕으로, 목적·질문·지표·데이터·처리·실행·차트·발견·판단·후속 분석을
+연결합니다. 대화나 모델이 바뀌어도 근거를 확인하고 분석을 계속할 수 있는 새로운 분석 패러다임이 목표입니다.
 
-자유로운 Python 분석(DuckDB·Polars·matplotlib·plotly)에 **가벼운 기록 규약**만 얹었을 때 어디까지 되는지
-직접 써 보면서, aelix-analytics의 무거운 계약(원장·ViewSpec·SelectionRef·verify·recover) 중 무엇이 실제로
-필요한지 가려내는 것이 목적입니다.
+분석 방향은 목적과 지표를 중심으로 유지합니다. 모호한 지표의 구체화, 여러 지표의 병행과 파생을 기록하고,
+각 탐색·계산·발견을 현재 질문과 다음 판단에 연결하는 것이 설계의 중심입니다.
+
+이 Aelix 확장은 그 비전의 첫 제품 형태이며 **공식 베타 출시를 준비**합니다.
+베타 이후의 지속적인 발전을 위해 지표·근거·버전 계약을 보존하고, 정책·저장소·실행·게시 구현을 교체할 수 있는 구조를 설계합니다.
+이 저장소는 비교 실험용 `aelix-analytics-baseline`에서 출발해 2026-09-18에 정식 제품 이름인
+`aelix-analytics`로 변경했습니다. 과거 평가 문서에는 당시의 baseline 명칭이 이력으로 남아 있습니다.
+아래 사용법은 현재 구현 기준입니다. 새 인사이트 화면·재사용 제안·메모리 조회는 아직 설계 단계입니다.
+진행 중인 분석을 팀원에게 전달하는 독립 HTML 빌드와 `publish` 흐름도 설계에 포함합니다.
+
+그래프 표현의 도입 방향은 [분석 근거 그래프 제안 0.2](docs/PROPOSAL-EVIDENCE-GRAPH-2026-09-17.md)에 기록되어 있습니다.
+각 요소에서 관계를 확인하고 정확한 버전으로 이동하는 흐름, 현재 기록의 한계와 단계별 도입 범위를 담은 후속 제안입니다.
+
+자유로운 Python 분석(DuckDB·Polars·matplotlib·plotly), 프로젝트별 uv 환경, 파일로 읽을 수 있는 기록과 정적 HTML을
+유지합니다. 개선의 기준은 분석의 연속성, 근거의 정확성, 사람의 탐색 편의, 에이전트의 문맥·토큰 비용입니다.
+모델이 새로운 방법·코드·라이브러리·그림을 선택할 자유를 보존합니다. 지원 설계의 하단 기준은 사용자 지정 **Qwen3.8 27B**이며,
+실제 모델·설정별 검증은 아직 필요합니다. 작은 문맥 수치로 모델의 능력이나 분석 범위를 강제 제한하지 않습니다.
+
+인접한 [Aelix Analytics Engine](https://github.com/handochan/aelix-analytics-engine)은 원장·불변 번들·선택·검증·복구의 엄격한 계약을
+검증하는 기반 프로젝트입니다. 이 저장소가 사용자 제품과 공식 확장의 대표 이름을 사용합니다.
 
 - 분석은 HTML 리포트로 봅니다. 모든 차트에서 **그 차트를 만든 코드(실행된 바이트 그대로, 줄 강조)**,
-  **입력 데이터(sha256, 지금 파일과 비교)**, **플롯된 데이터(parquet + 미리보기)** 로 바로 이동합니다.
+  **입력 데이터(sha256, 지금 파일과 비교)**, **차트에 첨부한 데이터(parquet + 미리보기)** 로 바로 이동합니다.
 - 데이터는 Parquet, 처리는 DuckDB·Polars입니다.
 - 프로젝트 맥락(CONTEXT.md, 버전 기록), 중요 정보(발견·결정·가정·열린 질문), 시간순 이력(journal)을
   파일로 남기고, 리포트와 에이전트 프롬프트에 함께 보여 줍니다.
@@ -16,10 +34,25 @@ aelix의 **기본 확장 계약만으로** 만든 분석 확장입니다. [aelix
 > 샌드박스가 아닙니다. aelix는 확장 도구를 실행하기 전에 승인을 묻지 않으므로 `lab_run`은 확인 없이
 > 코드를 실행합니다. 실데이터에는 이 점을 알고 쓰세요. [한계](#한계)를 먼저 읽으세요.
 
+## 공식 베타 준비 문서
+
+- [제품 방향](docs/PRODUCT.md): 정체성, 분석 발견·재사용 제안·사용 중 문제의 구별, 개선 기준.
+- [플랫폼 아키텍처](docs/ARCHITECTURE.md): Strategy 적용 영역, 포트·어댑터·의존 방향, 장기 호환성과 공개 계약, 첫 구현의 검증 기준.
+- [메모리·skill 벤치마킹](docs/RESEARCH-MEMORY-AND-SKILLS-2026-09-17.md): Hermes 구현, Letta·Graphiti·Mem0와 관련 논문, 현재 코드에서 확인한 한계.
+- [제품화 참고 세션 검토](docs/REVIEW-REFERENCE-SESSION-2026-09-18.md): 실제 분석의 전개·오류 복구·지표 형성, 보존할 자유도와 기록 개선점.
+- [빌드·공유·게시 설계](docs/PUBLISH-AND-SHARING.md): 독립 HTML/ZIP, 공유 범위, 진행 중 상태, 버전별·최신 게시 주소, 팀 접근과 갱신.
+- [맥락·재사용·탐색 설계](docs/DESIGN-CONTINUITY-AND-REUSE.md): 기록·검색·관계 그래프·HTML 동선, 토큰 사용 성능 측정, 배포 구조와 호환성.
+- [지표 중심 분석 설계](docs/METRIC-DRIVEN-ANALYSIS.md): 분석 목적과 현재 지표·질문의 연결, 모호한 정의·여러 지표·수정·파생·관측의 구별.
+- [Skill 제안 정책](docs/SKILL-PROPOSAL-POLICY.md): 요청 시/상시 모드, 제안 임계값·빈도·별도 비용 측정. 기본 제안은 사용자 요청 시에만 수행.
+- [베타 품질 기준과 순서](docs/BETA-QUALITY-GATES.md): 출시 전 검증, 작은 문맥·규모 시험, 재실행·복구·멱등성의 후속 우선순위.
+- [기여 가이드](CONTRIBUTING.md): 변경의 개선 효과와 검증 근거를 남기는 방법.
+
+제안된 필드·명령·구조는 구현 완료를 뜻하지 않습니다. 현재 기능과 보장 범위는 [현재 계약](docs/CONTRACTS.md)을 따릅니다.
+
 ## 5분 시작
 
 ```sh
-PACK=/Users/handochan/dev/aelix-extensions/aelix-analytics-baseline
+PACK=/Users/handochan/dev/aelix-extensions/aelix-analytics
 
 # 1) 모델 없이 결과물 모양 보기: 합성 데이터 + 예제 run 3개 + 메모 + 재실행 검증
 $PACK/bin/lab demo ~/analyses/lab-demo          # 처음엔 uv 환경 준비로 1분 안팎
@@ -49,7 +82,8 @@ aelix 안에서: `/lab`(현황) · `/lab open`(리포트) · "지역별 성장�
   프로젝트 경로를 `~/.aelix/agent/lab-projects.json`에 적고, 그 목록에 있는 프로젝트 안에서 aelix를 실행할 때만
   활성화됩니다. 남에게 받은 사본은 `/lab use DIR` 한 번이 필요합니다(그 CONTEXT.md가 프롬프트에 들어가고
   `lab_run`이 그 코드를 실행하기 때문입니다).
-- aelix-analytics 어댑터와 이름이 겹치지 않습니다(`lab_*`·`/lab` vs `analysis_*`·`/analysis`).
+- Aelix Analytics Engine 어댑터와 이름이 겹치지 않습니다
+  (`lab_*`·`/lab` vs `analytics_engine_*`·`/analytics-engine`).
   다만 비교 평가는 한 번에 하나만 로드해야 공정합니다.
 
 프로젝트는 `/lab use` → `--lab-project` → `AELIX_LAB_PROJECT` → 작업 디렉터리와 그 조상의 `lab.json` 순서로 찾습니다.
@@ -81,7 +115,7 @@ PNG 차트는 모델이 이미지 입력을 받을 때 `lab_run` 결과에 이�
 ```text
 /lab                      현황          /lab report | open        리포트 재생성 | 브라우저로 열기
 /lab where                프로젝트·kit·uv  /lab note KIND TEXT       사람 이름으로 journal 기록
-/lab init DIR [제목]      새 프로젝트     /lab gap TEXT             baseline에서 부족했던 점 기록
+/lab init DIR [제목]      새 프로젝트     /lab gap TEXT             사용 중 부족하거나 어색했던 점 기록
 /lab demo DIR             데모 프로젝트   /lab context              프롬프트에 주입되는 맥락 블록 보기
 /lab use DIR              활성 프로젝트 지정
 ```
@@ -101,7 +135,8 @@ lab.note("finding", "…")                                    # 이 run에 연�
 ```
 
 labkit을 쓰지 않은 **관용 코드도 기록됩니다**: `pl.read_parquet("data/…")`, `duckdb.sql("… FROM 'data/….parquet'")`,
-`plt.show()`, plotly `fig.show()`. 다만 **정확히 무엇을 그렸는지(플롯 데이터)** 는 `lab.chart(..., data=df)`만 남깁니다.
+`plt.show()`, plotly `fig.show()`. 차트의 **명시적인 첨부 표**는 `lab.chart(..., data=df)`로 남깁니다.
+첨부 표가 요약 통계나 일부 계열이면 그림 전체를 재구성하는 데 입력·코드도 필요하며, 첨부 자체가 완전한 플롯 대응을 보장하지 않습니다.
 matplotlib에는 한글 폰트와 검증된 기본 팔레트가 적용됩니다(`LAB_STYLE=0`으로 끔).
 
 ## 프로젝트 구조
@@ -152,13 +187,20 @@ my-analysis/
   무엇이 빠졌는지는 `lab_status`와 리포트 맥락 탭이 이름으로 알려 줍니다. 순서를 바꾸거나 `<!-- 항상 -->`을
   붙이는 것이 통제 수단입니다. 자주 바뀌는 현황은 `lab_status`로 봅니다.
 
-## 평가에 쓰기
+현재 4,000자는 일반 섹션 선택의 기준이며 **전체 프롬프트 주입량의 상한은 아닙니다**. 고정 섹션은 이를 넘길 수 있고,
+생략 섹션 목록과 journal 요약도 추가됩니다. 공식 베타 설계는 전체 사용량과 분석 품질을 함께 측정하며,
+토큰 목표를 강제 제한으로 사용하지 않습니다.
+
+## 기록 상태와 사용 중 문제 — 현재 인터페이스
 
 - 쓰다가 부족한 점은 바로 `/lab gap <내용>`. 모델도 막히면 `lab_note(kind="gap")`을 남기도록 지침이 들어 있습니다.
 - 확장이 **모든 도구 호출**을 `.lab/telemetry.jsonl`에 남기고, 규약 우회 의심(`python_via_bash`, `wrote_managed_path`)을 표시합니다.
 - 리포트 **평가** 탭: gap 목록, 기록 품질 신호(입력 미감지 run, 플롯 데이터 없는 차트, 프로젝트 밖 입력, stale 차트, 재실행 결과),
   도구별 호출·오류·시간, 우회 의심 호출.
-- 비교 축과 시나리오: [docs/EVALUATION.md](docs/EVALUATION.md).
+- 기존 비교 실험의 축과 시나리오: [과거 평가 가이드](docs/EVALUATION.md).
+
+공식 베타에서는 이 탭을 **인사이트**로 전환해 분석 발견과 재사용 제안을 연결하고, 기록 품질·도구 사용은
+진단 정보로 유지할 계획입니다. 기존 gap은 사용 중 문제로 보존합니다. [설계](docs/DESIGN-CONTINUITY-AND-REUSE.md)를 참고하세요.
 
 ## 한계
 
@@ -174,6 +216,8 @@ my-analysis/
   plotly 그림은 JSON째 페이지에 들어갑니다(3 MB 초과는 링크).
 - **개인정보.** 텔레메트리에 bash 명령 앞 300자가 로컬로 남습니다. 리포트는 실데이터 미리보기를 담습니다 — 공유 전에 확인하세요.
   프로젝트 `.gitignore`는 `data/`·`report/`를 기본 제외합니다.
+- **현재 공유 범위.** `report/`는 프로젝트의 차트·데이터 파일을 상대 경로로 참조하므로 그 폴더만으로 독립 공유를 보장하지 않습니다.
+  독립 `build`·`publish`는 위 공유 설계의 후속 구현이며 현재 명령이 아닙니다.
 
 ## 개발
 

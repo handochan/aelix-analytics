@@ -1,5 +1,5 @@
 #!/bin/sh
-# lab — human CLI for aelix-analytics-baseline projects (the same kit the aelix extension drives).
+# lab — human CLI for Aelix Analytics projects (the same kit the aelix extension drives).
 #
 #   lab init DIR [--title T] [--goal G]   create a project and its uv environment
 #   lab demo DIR                          new project with synthetic data and example runs

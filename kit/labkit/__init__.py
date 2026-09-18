@@ -1,4 +1,4 @@
-"""Script API for aelix-analytics-baseline lab projects.
+"""Script API for Aelix Analytics projects.
 
     import labkit as lab
 
