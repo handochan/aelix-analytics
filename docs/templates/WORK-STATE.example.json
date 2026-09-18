@@ -1,0 +1,44 @@
+{
+  "schema": "aelix-analytics.dev-state/1",
+  "run_id": "<new-uuid>",
+  "previous_run_id": null,
+  "repository": "handochan/aelix-analytics",
+  "work_item": {
+    "local_id": "bootstrap/project-operations",
+    "issue_url": null,
+    "project_url": null,
+    "pr_url": null
+  },
+  "agent": "codex",
+  "session_ref": null,
+  "checkout": {
+    "worktree": "<local-absolute-path>",
+    "branch": "<branch>",
+    "base_commit": "<full-sha>",
+    "head_commit": "<full-sha>",
+    "dirty": true
+  },
+  "phase": "design",
+  "checkpoint_id": "<new-checkpoint-uuid>",
+  "checkpoint_at": "<UTC-ISO-8601>",
+  "completed": [],
+  "next_actions": [],
+  "open_decisions": [],
+  "blockers": [],
+  "verification": [
+    {
+      "command": "<exact-command>",
+      "result": "not_run",
+      "exit_code": null,
+      "executed_at": null,
+      "source_snapshot": null,
+      "evidence_path": null
+    }
+  ],
+  "sync": {
+    "state": "unconfigured",
+    "last_synced_at": null,
+    "pending_actions": [],
+    "last_error": null
+  }
+}

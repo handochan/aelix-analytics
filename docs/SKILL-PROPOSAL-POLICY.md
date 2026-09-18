@@ -4,6 +4,9 @@
 [제품 비전](PRODUCT.md)의 분석가 중심 원칙과 [재사용 수명주기](DESIGN-CONTINUITY-AND-REUSE.md#4-재사용-제안에서-라이브러리skill까지)를 구체화한다.
 내부 구현은 [아키텍처](ARCHITECTURE.md)의 ProposalPolicy 경계로 분리한다. 정책을 바꿔도 사용자 모드·거절·빈도·기록의 의미는 유지해야 한다.
 
+명칭·영어 기본 UI는 [용어집](TERMINOLOGY-AND-LANGUAGE.md)을 따른다. 표시명은 On demand / Automatic suggestions이며 저장 모드 `on_demand` / `always_on`의 의미는 유지한다.
+자동 모드의 선택과 실제 제안 기준 통과, 제안 수락과 skill 등록·사용을 각각 구별한다.
+
 ## 1. 분석에 집중할 선택권
 
 분석가는 재사용 자산 관리보다 당장의 질문에 답하는 일에 집중할 수 있어야 한다.

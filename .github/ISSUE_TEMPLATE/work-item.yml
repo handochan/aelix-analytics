@@ -1,0 +1,53 @@
+name: Work item
+description: Research, decide, implement, or verify an Aelix Analytics change.
+projects:
+  - handochan/7
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Work kind
+      options:
+        - Research
+        - Decision
+        - Implementation
+        - Verification
+        - Release
+        - Operations
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and intended outcome
+      description: Explain the concrete problem and the result this work should deliver.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: State what belongs to this work item and any relevant boundaries.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: List observable completion criteria. Separate proposals from implemented behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: references
+    attributes:
+      label: Decisions, dependencies, and design references
+      description: Link parent or blocking issues, ADRs, design sections, and relevant Q gates. Identify open decisions.
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation and evidence
+      description: State the checks and evidence needed to accept this work. Distinguish not run from passed.
+    validations:
+      required: true

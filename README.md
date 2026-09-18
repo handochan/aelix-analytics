@@ -1,7 +1,7 @@
 # Aelix Analytics — 에이전트 시대의 분석
 
 **사람과 에이전트가 검증 가능한 분석과 프로젝트를 함께 이어 가는 새로운 분석 도구·플랫폼을 만듭니다.**
-Jupyter Notebook과 BI가 만들어 온 분석 작업방식을 바탕으로, 목적·질문·지표·데이터·처리·실행·차트·발견·판단·후속 분석을
+Jupyter Notebook과 BI가 만들어 온 분석 작업방식을 바탕으로, 목적·질문·지표·데이터·처리·실행·시각화·발견·판단·후속 분석을
 연결합니다. 대화나 모델이 바뀌어도 근거를 확인하고 분석을 계속할 수 있는 새로운 분석 패러다임이 목표입니다.
 
 분석 방향은 목적과 지표를 중심으로 유지합니다. 모호한 지표의 구체화, 여러 지표의 병행과 파생을 기록하고,
@@ -11,8 +11,15 @@ Jupyter Notebook과 BI가 만들어 온 분석 작업방식을 바탕으로, 목
 베타 이후의 지속적인 발전을 위해 지표·근거·버전 계약을 보존하고, 정책·저장소·실행·게시 구현을 교체할 수 있는 구조를 설계합니다.
 이 저장소는 비교 실험용 `aelix-analytics-baseline`에서 출발해 2026-09-18에 정식 제품 이름인
 `aelix-analytics`로 변경했습니다. 과거 평가 문서에는 당시의 baseline 명칭이 이력으로 남아 있습니다.
-아래 사용법은 현재 구현 기준입니다. 새 인사이트 화면·재사용 제안·메모리 조회는 아직 설계 단계입니다.
+아래 사용법은 현재 구현 기준입니다. 새 인사이트 화면·재사용 제안·메모리 조회·Reports 탭은 아직 설계 단계입니다.
+분석 도중에도 자유 형식 보고서를 만들고, 작성 시점·근거·버전과 컬럼별 반복 보고서 묶음을 관리하는 흐름을 설계합니다.
 진행 중인 분석을 팀원에게 전달하는 독립 HTML 빌드와 `publish` 흐름도 설계에 포함합니다.
+공식 명칭은 `analytics` 명령·SDK, 분석 인터페이스 `Workspace`, 시각화 객체 `Visualization`, 문서 산출물 `Report`로 정리합니다.
+기본 UI·템플릿·속성은 영어, 분석 내용은 사용자 언어를 보존하는 방향입니다. 아직 전환 전이므로 아래 현재 사용법에는 `lab_*`가 남아 있습니다.
+
+사람이 Python·SQL로 직접 분석하는 경로도 정식 사용 시나리오로 설계합니다. 현재도 사람용 `bin/lab` CLI로 Aelix 없이 분석을 실행·기록할 수 있습니다.
+베타에서는 모델 없이 프로젝트 생성부터 발견·보고서 기록과 결과 확인까지 완료하고, 사람 → 에이전트 → 사람이 같은 근거를 이어받는지 검증합니다.
+[직접 분석 설계](docs/DESIGN-CONTINUITY-AND-REUSE.md#사람이-직접-분석하는-경로)와 [Q17 검증 기준](docs/BETA-QUALITY-GATES.md#사람의-직접-분석과-작성-주체-전환-검증)에 범위를 명시합니다. 노트북 실행 기록 연동과 브라우저 분석 편집기는 후속 범위입니다.
 
 그래프 표현의 도입 방향은 [분석 근거 그래프 제안 0.2](docs/PROPOSAL-EVIDENCE-GRAPH-2026-09-17.md)에 기록되어 있습니다.
 각 요소에서 관계를 확인하고 정확한 버전으로 이동하는 흐름, 현재 기록의 한계와 단계별 도입 범위를 담은 후속 제안입니다.
@@ -38,14 +45,18 @@ Jupyter Notebook과 BI가 만들어 온 분석 작업방식을 바탕으로, 목
 
 - [제품 방향](docs/PRODUCT.md): 정체성, 분석 발견·재사용 제안·사용 중 문제의 구별, 개선 기준.
 - [플랫폼 아키텍처](docs/ARCHITECTURE.md): Strategy 적용 영역, 포트·어댑터·의존 방향, 장기 호환성과 공개 계약, 첫 구현의 검증 기준.
+- [용어·기본 언어](docs/TERMINOLOGY-AND-LANGUAGE.md): 제품·도메인·상태·코드·UI의 공통 어휘, 영어 기본값과 다국어 내용 보존.
+- [저장소 전체 용어 점검](docs/REVIEW-TERMINOLOGY-2026-09-18.md): CLI·SDK·저장 형식·시각화·템플릿·데모·시험의 변경 목록과 legacy 전환 기준.
 - [메모리·skill 벤치마킹](docs/RESEARCH-MEMORY-AND-SKILLS-2026-09-17.md): Hermes 구현, Letta·Graphiti·Mem0와 관련 논문, 현재 코드에서 확인한 한계.
 - [제품화 참고 세션 검토](docs/REVIEW-REFERENCE-SESSION-2026-09-18.md): 실제 분석의 전개·오류 복구·지표 형성, 보존할 자유도와 기록 개선점.
+- [보고서 산출물 설계](docs/REPORT-ARTIFACTS.md): Reports 탭, 중간·자유 형식 보고서, 시점·버전·근거 보존, 컬럼별 반복 생성과 공유.
 - [빌드·공유·게시 설계](docs/PUBLISH-AND-SHARING.md): 독립 HTML/ZIP, 공유 범위, 진행 중 상태, 버전별·최신 게시 주소, 팀 접근과 갱신.
 - [맥락·재사용·탐색 설계](docs/DESIGN-CONTINUITY-AND-REUSE.md): 기록·검색·관계 그래프·HTML 동선, 토큰 사용 성능 측정, 배포 구조와 호환성.
 - [지표 중심 분석 설계](docs/METRIC-DRIVEN-ANALYSIS.md): 분석 목적과 현재 지표·질문의 연결, 모호한 정의·여러 지표·수정·파생·관측의 구별.
 - [Skill 제안 정책](docs/SKILL-PROPOSAL-POLICY.md): 요청 시/상시 모드, 제안 임계값·빈도·별도 비용 측정. 기본 제안은 사용자 요청 시에만 수행.
 - [베타 품질 기준과 순서](docs/BETA-QUALITY-GATES.md): 출시 전 검증, 작은 문맥·규모 시험, 재실행·복구·멱등성의 후속 우선순위.
 - [기여 가이드](CONTRIBUTING.md): 변경의 개선 효과와 검증 근거를 남기는 방법.
+- [프로젝트 운영 정책](docs/PROJECT-OPERATIONS.md): Codex·Claude Code 공통 지침, GitHub Issue/Project 관리, 로컬 재개 상태와 인수인계.
 
 제안된 필드·명령·구조는 구현 완료를 뜻하지 않습니다. 현재 기능과 보장 범위는 [현재 계약](docs/CONTRACTS.md)을 따릅니다.
 
@@ -65,7 +76,7 @@ aelix -e $PACK/extension/aelix_lab.py
 
 aelix 안에서: `/lab`(현황) · `/lab open`(리포트) · "지역별 성장률 차트에 플롯 데이터도 기록되게 고쳐줘" 같은 요청.
 
-필요한 것: macOS/Linux, [uv](https://docs.astral.sh/uv/)(PATH 또는 `AELIX_LAB_UV`), aelix 0.1.0b2 이상.
+직접 분석에 필요한 것: macOS/Linux, [uv](https://docs.astral.sh/uv/)(PATH 또는 `AELIX_LAB_UV`). Aelix 연동에는 추가로 aelix 0.1.0b2 이상이 필요합니다.
 분석 라이브러리는 **프로젝트마다 자기 uv 환경**에 설치되며 aelix 환경은 건드리지 않습니다.
 
 ## 확장 등록
