@@ -59,7 +59,8 @@ CLI·환경 변수·JS/CSS·기본 템플릿·데모·시험과 모든 설계 �
 | `lab_init` | `path`, `title`, `goal` | `analytics_init`: Project 생성 |
 
 SDK는 `read/scan/sql/save/datasets/project/path/run_id`를 유지하고 `note → record`, `chart → visualize`로 정리한다.
-CLI `where/use/init/demo/status/context/run/import/query/open`은 뜻을 유지한다. `report → render`, `note → record`, `/lab gap`의 편의 경로는 `record workflow_feedback`으로 정리한다.
+사람용 CLI의 `init/demo/status/context/run/import/query/open`은 뜻을 유지한다. `report → render`, `note → record`로 정리한다.
+`where`·`use`는 CLI 하위 명령이 아닌 Aelix의 `/lab where`·`/lab use`이며 `/analytics` 아래에서도 그 역할을 유지한다. `/lab gap`의 편의 경로는 `record workflow_feedback`으로 정리한다.
 동일한 기능을 옛 이름·새 이름으로 기본 노출하지 않는다. 인자 의미·성공/실패·대응하는 오류 안내를 함께 비교한다.
 
 기록 전환 시 추가 점검할 필드 묶음:

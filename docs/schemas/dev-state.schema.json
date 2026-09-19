@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Aelix Analytics development state v1",
+  "description": "Known fields are validated. Additional legacy fields remain readable and must be preserved. New custom metadata belongs in extensions.",
+  "type": "object",
+  "required": ["schema", "run_id", "previous_run_id", "repository", "work_item", "agent", "session_ref", "checkout", "phase", "checkpoint_id", "checkpoint_at", "completed", "next_actions", "open_decisions", "blockers", "verification", "sync"],
+  "properties": {
+    "schema": {"const": "aelix-analytics.dev-state/1"},
+    "run_id": {"type": "string", "format": "uuid"},
+    "previous_run_id": {"type": ["string", "null"], "format": "uuid"},
+    "repository": {"type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"},
+    "work_item": {
+      "type": "object",
+      "required": ["local_id", "issue_url", "project_url", "pr_url"],
+      "properties": {
+        "local_id": {"type": ["string", "null"], "minLength": 1},
+        "issue_url": {"$ref": "#/$defs/optional_uri"},
+        "project_url": {"$ref": "#/$defs/optional_uri"},
+        "pr_url": {"$ref": "#/$defs/optional_uri"}
+      },
+      "anyOf": [
+        {"properties": {"local_id": {"type": "string", "minLength": 1}}},
+        {"properties": {"issue_url": {"type": "string", "format": "uri"}}}
+      ],
+      "additionalProperties": true
+    },
+    "agent": {"type": "string", "minLength": 1},
+    "session_ref": {"type": ["string", "null"]},
+    "checkout": {"$ref": "#/$defs/checkout"},
+    "source_checkout": {"anyOf": [{"$ref": "#/$defs/checkout"}, {"type": "null"}]},
+    "phase": {"enum": ["investigate", "plan", "design", "implement", "verify", "review", "pr", "handoff"]},
+    "checkpoint_id": {"type": "string", "format": "uuid"},
+    "checkpoint_at": {"type": "string", "format": "date-time"},
+    "completed": {"$ref": "#/$defs/strings"},
+    "next_actions": {"$ref": "#/$defs/strings"},
+    "open_decisions": {"$ref": "#/$defs/strings"},
+    "blockers": {"$ref": "#/$defs/strings"},
+    "verification": {"type": "array", "items": {"$ref": "#/$defs/verification"}},
+    "extensions": {"type": "object", "additionalProperties": true},
+    "sync": {
+      "type": "object",
+      "required": ["state", "last_synced_at", "pending_actions", "last_error"],
+      "properties": {
+        "state": {"enum": ["unconfigured", "pending", "synced"]},
+        "last_synced_at": {"type": ["string", "null"], "format": "date-time"},
+        "pending_actions": {"$ref": "#/$defs/strings"},
+        "last_error": {"type": ["string", "null"]},
+        "handoff_url": {"$ref": "#/$defs/optional_uri"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"state": {"const": "unconfigured"}}},
+          "then": {"properties": {"last_synced_at": {"type": "null"}}}
+        },
+        {
+          "if": {"properties": {"state": {"const": "pending"}}},
+          "then": {"properties": {"pending_actions": {"minItems": 1}}}
+        },
+        {
+          "if": {"properties": {"state": {"const": "synced"}}},
+          "then": {"properties": {
+            "last_synced_at": {"type": "string", "format": "date-time"},
+            "pending_actions": {"maxItems": 0},
+            "last_error": {"type": "null"}
+          }}
+        }
+      ],
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "optional_uri": {"type": ["string", "null"], "format": "uri"},
+    "strings": {"type": "array", "items": {"type": "string"}},
+    "commit": {"type": ["string", "null"], "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$"},
+    "checkout": {
+      "type": "object",
+      "required": ["worktree", "branch", "base_commit", "head_commit", "dirty"],
+      "properties": {
+        "worktree": {"type": "string", "minLength": 1},
+        "branch": {"type": ["string", "null"]},
+        "base_commit": {"$ref": "#/$defs/commit"},
+        "head_commit": {"$ref": "#/$defs/commit"},
+        "dirty": {"type": "boolean"}
+      },
+      "additionalProperties": true
+    },
+    "verification": {
+      "type": "object",
+      "required": ["command", "result", "exit_code", "executed_at", "source_snapshot", "evidence_path"],
+      "properties": {
+        "command": {"type": "string", "minLength": 1},
+        "argv": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "cwd": {"type": "string", "minLength": 1},
+        "result": {"enum": ["pass", "fail", "not_run"]},
+        "exit_code": {"type": ["integer", "null"]},
+        "executed_at": {"type": ["string", "null"], "format": "date-time"},
+        "source_snapshot": {"type": ["string", "null"]},
+        "evidence_path": {"type": ["string", "null"]}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"result": {"const": "not_run"}}},
+          "then": {"properties": {"exit_code": {"type": "null"}, "executed_at": {"type": "null"}}}
+        },
+        {
+          "if": {"properties": {"result": {"const": "pass"}}},
+          "then": {"properties": {
+            "exit_code": {"const": 0},
+            "executed_at": {"type": "string", "format": "date-time"},
+            "source_snapshot": {"type": "string", "minLength": 1},
+            "evidence_path": {"type": "string", "minLength": 1}
+          }}
+        }
+      ],
+      "additionalProperties": true
+    }
+  }
+}

@@ -242,7 +242,7 @@ baseline에는 현재 행 단위 계보·마킹 기록이 없으므로 `선택�
 문서 인용과 수치 계산 입력의 의미를 유지하며, 자격 증명을 그래프에 저장하지 않는다.
 
 Analytics Engine 측의 [기존 그래프 제안](https://github.com/handochan/aelix-analytics-engine/blob/2b64e8f78c93ffa556a1498ce8ddf083ae1577c9/docs/codex/PROPOSAL-EVIDENCE-GRAPH-2026-09-16.md)과 방향을 공유한다.
-이 링크는 같은 상위 디렉터리의 두 저장소가 있는 작업공간 기준이다.
+고정 commit의 문서를 참조하며, 비공개 저장소인 경우 열람 권한이 필요하다.
 당시 baseline에는 Analytics Engine의 불변 번들·원장 리비전·선택 기록이 없으므로 그 보장을 그대로 가져오지 않는다.
 외부 참고 모델은 W3C PROV와 OpenLineage이며, 참고 문서 링크와 적용 경계는 analytics 측 제안에 있다.
 

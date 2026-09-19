@@ -32,9 +32,10 @@ Workspace는 프로젝트를 탐색하는 인터페이스이며 프로젝트 루
 | 프로젝트 화면 생성·열기 | `lab report`, `lab open` | `analytics render`, `analytics open` |
 | 독립 공유 패키지·게시 — 제안 | `lab build`, `lab publish` | `analytics build`, `analytics publish` |
 | 오류·내부 상태 | `LabError`, `Project.lab`, `Project.report` | `AnalyticsError`, `state_dir`, `workspace_dir` |
-| 표시 구현 | `report.py`, `report.js/css`, `ReportRenderer`, `schedule_report` | `workspace` 모듈·자원, `WorkspaceRenderer`, `schedule_workspace_render` |
+| 표시 구현 | `report.py`, `report.js/css`, `schedule_report` | `workspace` 모듈·자원, `WorkspaceRenderer`, `schedule_workspace_render` |
 
 위 CLI 작업은 Aelix의 `/analytics` 아래에서도 같은 의미를 사용한다. 지원하는 하위 명령은 실제 구현 기준으로 공개한다.
+`ReportRenderer`는 이전 아키텍처 제안의 명칭이었으며 현재 코드의 클래스가 아니다. 새 설계에서는 Workspace 표시와 Report 형식 처리를 구별한다.
 `record`는 종류가 있는 journal 기록 쓰기다. 임의 저장소 쓰기·SQL·실행·게시를 하나의 거대한 action 도구로 합치는 뜻이 아니다.
 SDK의 `read`, `scan`, `sql`, `save`, `datasets`, `project`, `path`, `run_id`는 역할이 맞으므로 유지한다.
 SDK `scan`은 지연 데이터 읽기이고 정적 코드 스캔은 `static_scan`으로 표현한다. 기존 SDK와 모델 도구의 인자는 같다고 추정하지 않고 각각 계약을 문서화한다.

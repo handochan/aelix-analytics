@@ -27,11 +27,11 @@ Project에 설계 본문을 복제하지 않고 Issue와 저장소 문서의 링
 - 정책·템플릿은 Git으로 공유하고, 도구의 캐시·개인 설정·로컬 로그는 공유 지침에서 분리한다.
 
 Codex의 AGENTS.md 탐색과 Claude Code의 `@AGENTS.md` import는 각 도구의 공식 경로다. 설정 파일이 있다는 사실만으로 모든 규칙이 기술적으로 강제되는 것은 아니다.
-[Codex 공식 문서](https://learn.chatgpt.com/docs/agent-configuration/agents-md), [Claude Code 공식 문서](https://code.claude.com/docs/en/memory#agentsmd).
+[Codex 공식 문서](https://learn.chatgpt.com/docs/agent-configuration/agents-md), [Claude Code 공식 문서](https://code.claude.com/docs/en/memory).
 
 ## 3. GitHub Project 연결과 관리
 
-새 Project는 사용자가 직접 만든다. 같은 이름의 기존 Project는 저희 영역이 아니므로 읽은 내용을 작업 큐로 가져오거나 설정·항목을 수정하지 않는다.
+새 Project는 사용자가 직접 만든다. 같은 이름의 기존 Project는 이 저장소의 운영 범위 밖이므로 읽은 내용을 작업 큐로 가져오거나 설정·항목을 수정하지 않는다.
 사용자가 알려 준 URL만 [.github/project.json](../.github/project.json)의 `project_url`에 기록한다. `null`은 미연결 상태다.
 2026-09-19에 사용자가 지정한 작업 보드는 [Project 7](https://github.com/users/handochan/projects/7/views/1)이다. 같은 이름의 다른 Project와 구별한다.
 이 파일은 공통 연결 설정이며, 파일을 수정하는 것만으로 GitHub의 저장소 연결·자동 추가·필드가 구성되지는 않는다.
@@ -95,10 +95,33 @@ Issue 등록·코멘트·push·PR·병합은 사용자가 요청하거나 승인
 
 `run-id`는 실행마다 새 UUID를 사용한다. 같은 Issue를 다른 도구가 이어받으면 새 run이 이전 run을 참조한다.
 여러 실행이 하나의 `current.json`을 덮어쓰지 않는다. [state 예시](templates/WORK-STATE.example.json)와 [handoff 양식](templates/WORK-HANDOFF.md)을 사용한다.
+한 run의 쓰기 가능한 정본은 `checkout.worktree/.devstate/runs/<run-id>/` 한 곳이다. 다른 worktree에서 이어받으면 새 run ID와 `previous_run_id`를 기록한다.
+이전 state·events 전체를 같은 run ID의 활성 사본으로 복제하지 않는다. 보존용 사본이 필요하면 원본 위치·복사 시점·읽기 전용 사본임을 표시한다.
+기존 두 사본의 정리는 [보류 작업 #27](https://github.com/handochan/aelix-analytics/issues/27)에서 별도로 다루며 이 규약 추가만으로 과거 파일을 이동·삭제하지 않는다.
 
 필수 state 정보는 schema·run ID·이전 run, repository·Issue/Project URL 또는 임시 작업 ID, 도구, branch/worktree·base/HEAD, phase, checkpoint 시각,
 완료한 일·다음 행동·미결정 사항, 검증 증거, GitHub 동기화 상태다. 에이전트 세션 ID는 선택 정보이며 없어도 재개할 수 있어야 한다.
 phase는 `investigate / plan / design / implement / verify / review / pr / handoff`로 기록한다. 이는 Project Status와 역할이 다르다.
+
+### state의 값과 확장 규칙
+
+기계가 검사할 형식은 [dev-state schema](schemas/dev-state.schema.json)에 둔다. 예시의 UUID·SHA·경로는 설명용이며 실제 실행 증거가 아니다.
+
+| `sync.state` | 의미 | 함께 만족할 조건 |
+|---|---|---|
+| `unconfigured` | 필요한 GitHub 연결이나 작업 대상이 아직 정해지지 않음 | 마지막 동기화 시각은 `null`. 원격 반영 완료를 뜻하지 않음 |
+| `pending` | 반영할 checkpoint·PR·handoff가 남았거나 동기화에 실패함 | `pending_actions`에 남은 일을 기록. 오류는 `last_error`에 보존 |
+| `synced` | 해당 checkpoint의 필요한 원격 반영을 확인함 | `pending_actions=[]`, `last_error=null`, 확인한 `last_synced_at` 존재 |
+
+새 연결은 `unconfigured → pending`, 반영 확인은 `pending → synced`, 새 변경·실패는 `synced → pending`으로 기록한다.
+로컬 테스트 통과나 API 호출 시작만으로 `synced`로 바꾸지 않는다. Project Status의 Done과도 다른 값이다.
+
+공통 선택 필드는 `source_checkout`(다른 원본 작업 폴더의 참조), `sync.handoff_url`(확인한 원격 handoff), 검증 항목의 `argv`·`cwd`다.
+추가 도구·리뷰·전달 메타데이터는 `extensions` 안에서 `review`·`delivery`·도구 이름 등의 키로 묶는다. 공통 필드의 의미를 덮어쓰지 않는다.
+기존 `/1`에 이미 들어 있는 `reviewed`·`merge` 등 알 수 없는 필드는 읽고 다시 저장할 때 보존한다. 새 writer는 새 최상위 필드를 임의로 늘리지 않는다.
+schema는 이 읽기 호환성 때문에 추가 필드를 허용한다. schema 통과만으로 새 writer가 확장 위치 지침까지 준수했다고 판단하지 않는다.
+schema는 한 state의 구조·불변 조건을 검사한다. 실제 전이·원격 반영·작업자 소유·증거 내용의 확인은 writer와 운영 절차의 책임이다.
+필수 필드·값의 의미를 바꾸거나 기존 데이터를 해석할 수 없게 만드는 변경에는 새 schema 버전과 명시적인 전환이 필요하다.
 
 `state.json`·`handoff.md`는 임시 파일 작성 후 같은 디렉터리의 원자적 교체로 갱신한다. `events.jsonl`은 해당 run의 작성자만 추가하며 완료된 줄을 고치지 않는다.
 상태 파일의 원자적 갱신은 코드·여러 파일의 트랜잭션이나 디스크 손실 방지를 뜻하지 않는다. 소스 복구에는 별도 commit·branch 보존이 필요하다.
@@ -118,6 +141,11 @@ phase는 `investigate / plan / design / implement / verify / review / pr / hando
 clean commit이면 SHA를 사용한다. dirty 작업은 HEAD 외에 tracked diff와 검증 범위의 untracked 파일 목록·해시를 보존한다.
 증거에는 그 스냅샷 경로·해시를 연결한다. 같은 HEAD여도 diff가 바뀌면 이전 검증의 적용 범위를 다시 판단한다.
 문서 링크 검사를 실행/설치/실제 모델 E2E의 통과 증거로 쓰지 않는다. 실패하거나 미실행한 검증을 handoff에서 생략하지 않는다.
+문서 검사는 `uv run --locked python tools/check_docs.py --output .devstate/runs/<run-id>/evidence/docs.json`으로 실행한다.
+검사 도구는 Git의 tracked 파일과 ignore되지 않은 새 문서에서 대상을 고르고, `kit/template/CONTEXT.md`도 포함한다. 삭제된 대상·외부 링크의 제외 범위를 보고서에 남긴다.
+보고서의 파일 목록·SHA-256·검사기 해시·명령·HEAD·dirty 정보로 실행 범위를 확인한다. 보고서 출력은 검사 입력을 덮어쓰지 않도록 Git에서 제외된 `.devstate/` 아래에 둔다.
+검증을 다시 실행할 때 이전 handoff가 인용한 증거는 보존하고 새 파일명을 사용한다. `state.json` 등 다른 종류의 기존 파일을 검사 보고서로 덮어쓰는 것은 검사기가 거절한다.
+이전 PR #25의 23개 검사는 템플릿 한 개를 제외한 범위였다. 새 검사의 결과로 당시 검사를 소급 24개 통과로 바꾸지 않는다.
 
 ## 6. 동시 작업과 작성자 변경
 
@@ -162,6 +190,7 @@ handoff만으로 미커밋 코드가 다른 환경에 전달되지는 않는다.
 | 묶음 | 작업 Issue | 처음 확인할 조건 |
 |---|---|---|
 | 운영 기반 | [정책·설계 보존 #2](https://github.com/handochan/aelix-analytics/issues/2), [CI #22](https://github.com/handochan/aelix-analytics/issues/22) | 정확한 URL·저장소, 설정 결과와 실제 강제 범위 |
+| 운영 후속 | [리뷰 보완 #26](https://github.com/handochan/aelix-analytics/issues/26), [원래 폴더 동기화 #27](https://github.com/handochan/aelix-analytics/issues/27) | 재현 가능한 증거와 state 규약. 보류 작업의 실행 여부는 별도 지시 확인 |
 | 설계 결정 | [전환 순서 #3](https://github.com/handochan/aelix-analytics/issues/3), [공통 계약 #4](https://github.com/handochan/aelix-analytics/issues/4), [패키징 #5](https://github.com/handochan/aelix-analytics/issues/5), [제안 빈도 #6](https://github.com/handochan/aelix-analytics/issues/6) | 권장안은 Proposed. 채택·수정한 뒤 관련 구현 Ready로 이동 |
 | A0·N0-a/c | [회귀 기준 #7](https://github.com/handochan/aelix-analytics/issues/7), [최소 설치·경계 #8](https://github.com/handochan/aelix-analytics/issues/8), [명칭 #9](https://github.com/handochan/aelix-analytics/issues/9), [영어 기본값 #10](https://github.com/handochan/aelix-analytics/issues/10) | 기존 코드와 설치·분리 실행 검증 |
 | B1·N0-b | [사용량 측정 #11](https://github.com/handochan/aelix-analytics/issues/11), [관계 읽기 #12](https://github.com/handochan/aelix-analytics/issues/12), [형식 전환 #13](https://github.com/handochan/aelix-analytics/issues/13), [지표·초점 #14](https://github.com/handochan/aelix-analytics/issues/14) | 계약과 정상/실패/혼합 형식 fixture |
