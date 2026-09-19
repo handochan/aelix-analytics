@@ -1,0 +1,7 @@
+order_date,region,channel,units,revenue
+2026-01-01,서울,online,2,200
+2026-01-02,부산,store,1,150
+2026-01-03,서울,store,1,120
+2026-02-01,부산,online,3,360
+2026-02-02,서울,online,2,260
+2026-02-03,대구,store,1,90

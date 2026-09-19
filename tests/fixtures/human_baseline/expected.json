@@ -1,0 +1,17 @@
+{
+  "rows": 6,
+  "total_revenue": 1180,
+  "by_region": [
+    {"region": "대구", "orders": 1, "units": 1, "revenue": 90},
+    {"region": "부산", "orders": 2, "units": 4, "revenue": 510},
+    {"region": "서울", "orders": 3, "units": 5, "revenue": 580}
+  ],
+  "online_by_region": [
+    {"region": "부산", "orders": 1, "units": 3, "revenue": 360},
+    {"region": "서울", "orders": 2, "units": 4, "revenue": 460}
+  ],
+  "by_channel": [
+    {"channel": "online", "revenue": 820},
+    {"channel": "store", "revenue": 360}
+  ]
+}
