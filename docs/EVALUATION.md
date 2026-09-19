@@ -5,8 +5,8 @@
 > 독립 제품의 방향은 [PRODUCT.md](PRODUCT.md), 출시 판단은 [BETA-QUALITY-GATES.md](BETA-QUALITY-GATES.md)를 따릅니다.
 > 아래 표의 과거 설명을 현재 구현으로 해석하지 마세요. 예를 들어 현재는 run·journal·report 파일 잠금이 있습니다.
 
-작성 2026-09-16. 비교 대상은 Aelix Analytics Engine **계약 0.2**([계약](../../aelix-analytics-engine/docs/contracts/02-core-contracts.md),
-[ADR-0001](../../aelix-analytics-engine/docs/decisions/0001-verified-analysis-contracts.md))입니다. 그쪽은 slice 3(계약 0.3)이
+작성 2026-09-16. 비교 대상은 Aelix Analytics Engine **계약 0.2**([계약](https://github.com/handochan/aelix-analytics-engine/blob/2b64e8f78c93ffa556a1498ce8ddf083ae1577c9/docs/contracts/02-core-contracts.md),
+[ADR-0001](https://github.com/handochan/aelix-analytics-engine/blob/2b64e8f78c93ffa556a1498ce8ddf083ae1577c9/docs/decisions/0001-verified-analysis-contracts.md))입니다. 그쪽은 slice 3(계약 0.3)이
 진행 중이므로 평가할 때 버전을 함께 적으세요.
 
 ## 1. 왜 baseline인가

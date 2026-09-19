@@ -7,3 +7,5 @@ __pycache__/
 .demo/
 # Session tooling state (oh-my-claudecode hooks).
 .omc/
+# Shared development execution state; durable policy and templates live in docs/.
+.devstate/
