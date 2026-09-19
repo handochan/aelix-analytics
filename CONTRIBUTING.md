@@ -79,6 +79,17 @@ Aelix 통합 시험은 Aelix와 pytest가 설치된 별도 환경에서도 실�
 시험은 변경에 맞게 선택합니다. 기록·사용량 계측·근거 변경에는 의미 있는 회귀 사례를, UI에는 실제 HTML의 연결과 복귀 확인을 포함합니다.
 문서만 바뀌면 링크·예시·현재 코드와의 일치 여부를 검사합니다.
 
+문서 검사 명령은 다음과 같습니다. `<run-id>`는 현재 작업의 실제 UUID로 바꿉니다.
+
+```sh
+uv run --locked python tools/check_docs.py --output .devstate/runs/<run-id>/evidence/docs.json
+```
+
+검사 대상 Markdown·JSON 목록과 내용 해시, 실행 명령·도구 버전·소스 기준이 결과에 포함됩니다. 템플릿 Markdown도 검사합니다.
+검사 범위는 Markdown 링크·이미지, HTML의 a/img 참조, Markdown 앵커, JSON·Python 예시의 구문과 개발 state 예시입니다.
+외부 URL·그 앵커, 비 Markdown 파일의 fragment, 브라우저 렌더링, 코드 예시의 실행 결과는 범위 밖이며 결과에도 표시합니다. 누락·실패가 있으면 종료 코드 1을 반환합니다.
+검사기와 개발 state schema를 바꾸면 `uv run --locked pytest -q tests/test_doc_checks.py`와 관련 lint도 실행합니다.
+
 ## 첫 공개 전에 남은 운영 결정
 
 라이선스, 배포 이름, 유지관리 책임자, 지원 버전·플랫폼, 보안 신고 경로와 릴리스 절차는 확정해 공개해야 합니다.

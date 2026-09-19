@@ -9,6 +9,7 @@
 - Branch / Base SHA / Current SHA:
 - Dirty changes and their preserved location:
 - Source snapshot for validation:
+- Validation command/script and checked file manifest:
 - Checkpoint time / Last remote sync:
 
 ## Completed

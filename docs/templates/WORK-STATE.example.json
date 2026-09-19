@@ -1,6 +1,6 @@
 {
   "schema": "aelix-analytics.dev-state/1",
-  "run_id": "<new-uuid>",
+  "run_id": "00000000-0000-4000-8000-000000000001",
   "previous_run_id": null,
   "repository": "handochan/aelix-analytics",
   "work_item": {
@@ -12,22 +12,25 @@
   "agent": "codex",
   "session_ref": null,
   "checkout": {
-    "worktree": "<local-absolute-path>",
-    "branch": "<branch>",
-    "base_commit": "<full-sha>",
-    "head_commit": "<full-sha>",
+    "worktree": "/example/aelix-analytics",
+    "branch": "docs/example",
+    "base_commit": "0000000000000000000000000000000000000000",
+    "head_commit": "0000000000000000000000000000000000000000",
     "dirty": true
   },
+  "source_checkout": null,
   "phase": "design",
-  "checkpoint_id": "<new-checkpoint-uuid>",
-  "checkpoint_at": "<UTC-ISO-8601>",
+  "checkpoint_id": "00000000-0000-4000-8000-000000000002",
+  "checkpoint_at": "2026-09-19T00:00:00Z",
   "completed": [],
   "next_actions": [],
   "open_decisions": [],
   "blockers": [],
   "verification": [
     {
-      "command": "<exact-command>",
+      "command": "uv run --locked python tools/check_docs.py",
+      "argv": ["uv", "run", "--locked", "python", "tools/check_docs.py"],
+      "cwd": ".",
       "result": "not_run",
       "exit_code": null,
       "executed_at": null,
@@ -39,6 +42,13 @@
     "state": "unconfigured",
     "last_synced_at": null,
     "pending_actions": [],
-    "last_error": null
+    "last_error": null,
+    "handoff_url": null
+  },
+  "extensions": {
+    "review": {
+      "target_commit": null,
+      "findings": []
+    }
   }
 }
