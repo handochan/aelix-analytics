@@ -26,6 +26,7 @@ from urllib.parse import unquote, urlsplit
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import SchemaError
 from markdown_it import MarkdownIt
+from referencing.exceptions import Unresolvable
 
 STATE_SCHEMA = "docs/schemas/dev-state.schema.json"
 STATE_FAMILY = "aelix-analytics.dev-state/1"
@@ -162,7 +163,8 @@ class Check:
             return
         name = path.resolve().relative_to(self.root).as_posix()
         if path.is_dir():
-            if not any(p.startswith(name + "/") for p in self.selected):
+            prefix = "" if name == "." else name + "/"
+            if not any(p.startswith(prefix) for p in self.selected):
                 self.error(rel, f"directory has no Git-visible content: {target}", line)
             return
         if name not in self.selected:
@@ -245,7 +247,7 @@ class Check:
                     self.check_json(rel)
                 else:
                     self.check_markdown(rel)
-            except (OSError, UnicodeError, ValueError, SchemaError) as exc:
+            except (OSError, UnicodeError, ValueError, SchemaError, Unresolvable) as exc:
                 self.error(rel, str(exc))
         for rel in ["pyproject.toml", "uv.lock"]:
             if rel in self.selected and (self.root / rel).exists():

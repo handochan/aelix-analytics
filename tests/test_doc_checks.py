@@ -101,6 +101,17 @@ def test_broken_anchor_and_missing_link_fail_with_file_and_line(repository):
     assert all(e["path"] == "README.md" and e["line"] for e in report["errors"])
 
 
+@pytest.mark.parametrize(("document", "target"), [
+    ("README.md", "."),
+    ("docs/guide.md", "../"),
+])
+def test_repository_root_links_are_valid(repository, document, target):
+    write(repository, document, f"[Repository root]({target})\n")
+    report = checks.Check(repository).run()
+    assert report["ok"], report["errors"]
+    assert report["counts"]["local_links"] == 1
+
+
 def test_neighbor_repository_and_ignored_target_do_not_pass_locally(repository):
     (repository.parent / "neighbor.md").write_text("# Exists on this machine\n")
     write(repository, ".devstate/private.md", "private\n")
@@ -234,6 +245,56 @@ def test_cli_validates_state_example_against_checked_in_schema(repository, state
     assert proc.returncode == 1
     report = json.loads(proc.stdout)
     assert any("state sync/state" in e["message"] for e in report["errors"])
+
+
+@pytest.mark.parametrize(("field", "invalid_value"), [
+    (("checkpoint_at",), "not-a-date"),
+    (("work_item", "issue_url"), "not a uri"),
+    (("sync", "last_synced_at"), ""),
+    (("verification", 0, "executed_at"), "yesterday"),
+])
+def test_cli_rejects_invalid_state_formats(repository, state_contract, field, invalid_value):
+    _, state = state_contract
+    state["work_item"].update(local_id=None, issue_url="https://github.com/example/repo/issues/1")
+    state["sync"].update(state="synced", last_synced_at="2026-09-19T00:00:00Z")
+    state["verification"][0].update(result="pass", exit_code=0,
+        executed_at="2026-09-19T00:00:00Z", source_snapshot="a" * 40,
+        evidence_path="evidence/test.log")
+    target = state
+    for key in field[:-1]:
+        target = target[key]
+    target[field[-1]] = invalid_value
+    write(repository, checks.STATE_SCHEMA, (ROOT / checks.STATE_SCHEMA).read_text())
+    write(repository, checks.STATE_EXAMPLE, json.dumps(state))
+    output = repository / ".devstate/evidence/docs.json"
+    proc = cli(repository, "--output", output)
+    assert proc.returncode == 1, proc.stdout + proc.stderr
+    report = json.loads(output.read_text())
+    assert not report["ok"]
+    field_path = "/".join(map(str, field))
+    assert any(f"state {field_path}:" in e["message"] for e in report["errors"])
+
+
+def test_unresolved_schema_reference_preserves_failure_evidence(repository, state_contract):
+    _, state = state_contract
+    schema = {"$schema": "https://json-schema.org/draft/2020-12/schema",
+              "$ref": "#/$defs/absent"}
+    write(repository, checks.STATE_SCHEMA, json.dumps(schema))
+    example = write(repository, checks.STATE_EXAMPLE, json.dumps(state))
+    write(repository, "later.md", "# Still checked\n")
+    output = repository / ".devstate/evidence/docs.json"
+    proc = cli(repository, "--output", output)
+    assert proc.returncode == 1
+    assert "Traceback" not in proc.stderr
+    report = json.loads(output.read_text())
+    assert not report["ok"]
+    assert any(e["path"] == checks.STATE_EXAMPLE and "/$defs/absent" in e["message"]
+               for e in report["errors"])
+    files = {item["path"]: item for item in report["files"]}
+    assert files[checks.STATE_EXAMPLE]["sha256"] == hashlib.sha256(example.read_bytes()).hexdigest()
+    assert checks.STATE_SCHEMA in files and "later.md" in files
+    assert report["source"]["head"] == checks.git(repository, "rev-parse", "HEAD").decode().strip()
+    assert report["invocation"]["argv"][-2:] == ["--output", str(output)]
 
 
 def test_state_schema_cannot_trigger_network_retrieval(repository, state_contract):
