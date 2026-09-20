@@ -2,8 +2,10 @@
 
 Date: 2026-09-21
 
-Status: Proposed — 지원 플랫폼은 2026-09-21 사용자가 Linux·macOS·Windows로 확정했다. Python 하한과
-패키징 경계는 [Issue #5](https://github.com/handochan/aelix-analytics/issues/5)의 결정 초안이며 아직 코드에 적용되지 않았다.
+Status: Accepted (2026-09-21) — [Issue #5](https://github.com/handochan/aelix-analytics/issues/5)에서 사용자가 채택했다.
+지원 플랫폼은 Linux·macOS·Windows다. 채택은 결정의 확정이며 구현 완료가 아니다. 아래 결정은 아직 코드에 적용되지 않았고,
+구현과 검증은 [#8](https://github.com/handochan/aelix-analytics/issues/8)에서 수행한다.
+현재 코드가 실제로 하는 것은 [현재 계약](../CONTRACTS.md)의 "실행 환경과 지원 플랫폼" 절에 있다.
 
 ## 배경
 
@@ -53,7 +55,7 @@ Aelix는 `>=3.11`이다. Issue #5는 "진입점 3.11+/분석 3.12+"를 검증 �
 `core.py`는 "aelix 프로세스 안에서 경로로 로드되므로 stdlib만 사용한다"고 스스로 밝히고 있다.
 그 파일의 첫 import가 POSIX 전용이라는 점이 Windows 지원의 첫 번째 장애물이다.
 
-## 결정 제안
+## 결정
 
 1. **지원 플랫폼은 Linux·macOS·Windows로 한다**(사용자 결정). 세 플랫폼을 **지원 목표**로 공개하되,
    문서의 지원표에는 실제 설치·실행 증거가 있는 범위만 "검증됨"으로 적는다. 목표와 검증 완료를 한 칸에 합치지 않는다.
@@ -87,9 +89,9 @@ Aelix는 `>=3.11`이다. Issue #5는 "진입점 3.11+/분석 3.12+"를 검증 �
   한 플랫폼의 통과를 다른 플랫폼의 결과로 옮기지 않는다.
 - 이 ADR은 채택 전까지 현재 계약이 아니다. [현재 계약](../CONTRACTS.md)은 채택·구현 시점에 함께 갱신한다.
 
-## 채택 시 확인할 것
+## 구현에서 확인할 것
 
-Issue #5 완료 조건 3의 A0 검증 계획이다. 각 항목은 실행 명령·환경·결과를 증거로 남긴다.
+Issue #5 완료 조건 3의 A0 검증 계획이다. 채택되었으므로 #8의 수용 조건에 포함한다. 각 항목은 실행 명령·환경·결과를 증거로 남긴다.
 
 1. 진입점 하한: Python 3.11과 3.12 각각에서 `python -m labkit`의 init/import/query/run/note/report/status/context를 실행한다.
 2. 최소 wheel: 새 환경에 설치해 확장 로드와 사람용 CLI 실행을 확인하고, 분석 라이브러리가 진입점 환경에 들어오지 않음을 확인한다.
