@@ -4,7 +4,9 @@ This is the regression baseline for [Issue #7](https://github.com/handochan/aeli
 starting from runtime commit `8b63fd09a1c6452e74ad52579c27c40a7fbe0474`.
 It records the current [contract](CONTRACTS.md) before naming, packaging and storage changes.
 It is separate from the historical Engine comparison in [EVALUATION.md](EVALUATION.md).
-The first recorded execution is in the [2026-09-19 verification result](verification/2026-09-19-baseline.md).
+The first recorded execution is in the [2026-09-19 verification result](verification/2026-09-19-baseline.md),
+and its independent review with the resulting fix is in the
+[2026-09-20 review result](verification/2026-09-20-baseline-review.md).
 
 ## Inputs and expected behavior
 
