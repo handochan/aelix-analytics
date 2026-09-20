@@ -1,0 +1,450 @@
+{
+  "record_kind": "aelix-analytics-development-baseline",
+  "observed_at": "2026-09-19T09:35:41.080560+00:00",
+  "issue": "https://github.com/handochan/aelix-analytics/issues/7",
+  "runtime_revision": "8b63fd09a1c6452e74ad52579c27c40a7fbe0474",
+  "verification_revision": "15e2b3133a04e64a0227d7266a279a3be1c2108e",
+  "verified_bytes_match_commit": true,
+  "kit_environment": {
+    "python": "3.12.13",
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "aelix_installed": false,
+    "packages": {
+      "duckdb": "1.5.5",
+      "polars": "1.44.2",
+      "pyarrow": "25.0.1",
+      "matplotlib": "3.11.2",
+      "plotly": "6.9.0",
+      "markdown-it-py": "4.2.0",
+      "pytest": "9.1.1",
+      "ruff": "0.16.7",
+      "jsonschema": "4.26.0"
+    },
+    "uv": "uv 0.11.19 (Homebrew 2026-06-03 aarch64-apple-darwin)",
+    "repository_lock_sha256": "ddc1d075ad5a614ed90f722455d15551f275aa1e5dff6380f713a8033b5a0f3f"
+  },
+  "fixture_sha256": {
+    "README.md": "1560fe799b185947c6391adbad459842bcf1604382c742c87ddb384a65e8b5b8",
+    "by_region.sql": "7d2899a7d4af4444019bc4259141c7c71250d8e46210131a59bee83047d782e5",
+    "direct_libraries.py": "cbfb24129f290064a51dd9de927f88447043aaad5a53054309c359660acf78b7",
+    "expected.json": "74b82e14455b51593cae07e08812ac07380cd1292b06e6bdbeb021ef2e08293a",
+    "failure.py": "5e67e1b84e977a82202fbb7643211a967c216fdbd0615533e11facee13f1967f",
+    "region_summary.py": "bcc1424962a5b7d4eb869613276d4cd72556b89e00dc604725ae38149891b531",
+    "sales.csv": "2e63a1d33589a30a6273d916224ff4a0b0da53edb31ba55e37135d9467b025b1"
+  },
+  "repository_tests": {
+    "argv": [
+      "uv",
+      "run",
+      "--locked",
+      "pytest",
+      "-q",
+      "-ra",
+      "--basetemp",
+      ".devstate/runs/2dbae30f-5745-4391-956c-f4cfc5f06c59/evidence/kit-suite-tmp",
+      "--junitxml",
+      ".devstate/runs/2dbae30f-5745-4391-956c-f4cfc5f06c59/evidence/kit-suite.xml"
+    ],
+    "executed_at": "2026-09-19T09:31:02.026736+00:00",
+    "exit_code": 0,
+    "counts": {
+      "pass": 68,
+      "fail": 0,
+      "skip": 1
+    },
+    "cases": [
+      {
+        "test": ".tests.test_extension",
+        "result": "skip",
+        "reason": "collection skipped"
+      },
+      {
+        "test": "tests.test_doc_checks.test_cli_includes_templates_and_new_docs_with_replayable_evidence",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_doc_checks.test_markdown_links_tables_reference_links_and_duplicate_headings",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_doc_checks.test_broken_anchor_and_missing_link_fail_with_file_and_line",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_doc_checks.test_repository_root_links_are_valid[README.md-.]",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_doc_checks.test_repository_root_links_are_valid[docs/guide.md-../]",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_doc_checks.test_neighbor_repository_and_ignored_target_do_not_pass_locally",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_doc_checks.test_absolute_link_inside_current_checkout_is_still_not_portable",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_doc_checks.test_fence_validation_is_static_and_rejects_bad_and_unclosed_examples",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_doc_checks.test_output_cannot_overwrite_a_document",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_doc_checks.test_output_cannot_overwrite_existing_development_state",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_doc_checks.test_source_change_is_not_reported_as_a_clean_pass",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_doc_checks.test_state_example_and_legacy_extensions_remain_readable_without_rewrite",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_doc_checks.test_sync_values_do_not_claim_unconfirmed_completion[sync0]",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_doc_checks.test_sync_values_do_not_claim_unconfirmed_completion[sync1]",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_doc_checks.test_sync_values_do_not_claim_unconfirmed_completion[sync2]",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_doc_checks.test_sync_values_do_not_claim_unconfirmed_completion[sync3]",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_doc_checks.test_sync_values_do_not_claim_unconfirmed_completion[sync4]",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_doc_checks.test_pending_and_confirmed_sync_transitions",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_doc_checks.test_unexecuted_verification_cannot_be_promoted_without_evidence",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_doc_checks.test_cli_validates_state_example_against_checked_in_schema",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_doc_checks.test_cli_rejects_invalid_state_formats[field0-not-a-date]",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_doc_checks.test_cli_rejects_invalid_state_formats[field1-not a uri]",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_doc_checks.test_cli_rejects_invalid_state_formats[field2-]",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_doc_checks.test_cli_rejects_invalid_state_formats[field3-yesterday]",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_doc_checks.test_unresolved_schema_reference_preserves_failure_evidence",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_doc_checks.test_state_schema_cannot_trigger_network_retrieval",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_doc_checks.test_future_state_schema_is_not_silently_checked_as_plain_json",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_human_baseline.test_human_cli_analysis_failure_repair_and_snapshot_history",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_human_baseline.test_human_cli_captures_ordinary_libraries_without_sdk",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_init_layout_and_journal",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_lab_api_run_records_inputs_outputs_chart_and_code",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_idiomatic_duckdb_plotly_and_polars_matplotlib_are_captured",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_lab_sql_records_the_views_it_reads",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_failed_run_keeps_error_line_and_traceback",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_timeout_is_recorded",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_rerun_match_and_mismatch",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_charts_turn_stale_when_an_upstream_output_changes",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_query_is_read_only",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_import_is_immutable_and_records_source",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_notes_resolution_and_context_history",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_report_links_point_at_existing_files_and_anchors",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_scan_literals_separates_reads_from_writes",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_one_figure_reused_for_several_named_charts_keeps_each_chart",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_failed_or_incomplete_rerun_is_never_a_match",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_rerun_of_an_old_snapshot_does_not_become_the_current_chart",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_reading_back_an_own_output_is_not_an_input_and_not_stale",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_finalization_survives_bad_notes_replaced_stdout_and_unreadable_outputs",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_timeout_inside_duckdb_is_recorded_as_timeout",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_query_cannot_write_or_read_outside_data",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_sql_lineage_ignores_columns_and_ctes_named_like_datasets",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_import_refuses_a_name_used_by_a_derived_dataset",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_concurrent_runs_do_not_claim_each_others_outputs",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_rerun_ids_and_recorded_paths_are_validated",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_non_utf8_context_does_not_break_status_or_report",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_chart_anchors_are_unique_for_similar_keys",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_dynamic_duckdb_params_quoted_paths_and_polars_io_are_detected",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_replacing_a_chart_id_leaves_no_phantom_chart",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_a_journal_failure_after_the_record_is_still_reported",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_a_bare_chart_id_in_a_note_links_to_the_chart",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_a_run_over_many_files_stays_readable_in_the_journal_and_report",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_import_reads_uuid_as_text_and_warns_about_a_nested_json_object",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_status_calls_out_a_dataset_no_run_produced",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_an_external_input_names_the_dataset_it_was_imported_as",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_a_context_with_no_sections_is_cut_and_says_to_split_it",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_records_from_a_newer_kit_are_skipped_and_said_so",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_a_failing_run_says_what_to_write_instead",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_context_is_disclosed_by_section_not_truncated_mid_sentence",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_kit.test_a_pinned_section_survives_the_budget",
+        "result": "pass"
+      }
+    ],
+    "raw_log_sha256": "24df9551ce3a2edd4d0828b3d25cb25c493c4394cb502b84f87e79e415b8c448"
+  },
+  "host_environment": {
+    "python": "3.12.13",
+    "packages": {
+      "aelix": "0.1.0b2",
+      "aelix-ai": "0.1.0b2",
+      "aelix-agent-core": "0.1.0b2",
+      "aelix-coding-agent": "0.1.0b2",
+      "pytest": "9.0.3"
+    },
+    "head": "e1fef5f9ed6c9010c29869d740e8b6c424844dfc",
+    "tracked_dirty": false
+  },
+  "host_tests": {
+    "argv": [
+      "$AELIX_TEST_PYTHON",
+      "-m",
+      "pytest",
+      "-q",
+      "-ra",
+      "-p",
+      "no:cacheprovider",
+      "tests/test_extension.py",
+      "-o",
+      "addopts=",
+      "--basetemp",
+      ".devstate/runs/2dbae30f-5745-4391-956c-f4cfc5f06c59/evidence/host-suite-tmp",
+      "--junitxml",
+      ".devstate/runs/2dbae30f-5745-4391-956c-f4cfc5f06c59/evidence/host-suite.xml"
+    ],
+    "executed_at": "2026-09-19T09:33:16.507200+00:00",
+    "exit_code": 0,
+    "counts": {
+      "pass": 10,
+      "fail": 0,
+      "skip": 0
+    },
+    "cases": [
+      {
+        "test": "tests.test_extension.test_real_loader_registers_the_basic_contract_surface",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_extension.test_prompt_text_fits_aelix_limits_and_schemas_are_plain",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_extension.test_no_project_is_a_clear_tool_error",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_extension.test_status_note_context_injection_and_telemetry",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_extension.test_lab_command_where_help_and_gap",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_extension.test_import_query_and_run_through_the_project_environment",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_extension.test_a_project_the_user_never_chose_is_not_activated",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_extension.test_an_unusable_project_path_is_an_error_not_a_crash",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_extension.test_rerun_of_is_validated_before_any_subprocess",
+        "result": "pass"
+      },
+      {
+        "test": "tests.test_extension.test_a_run_over_many_inputs_still_shows_stdout_and_says_what_it_hid",
+        "result": "pass"
+      }
+    ],
+    "raw_log_sha256": "98e3b6192fd5c2ed2c3f63572b8d564d0d6d993553986603454813667a1bd093"
+  },
+  "shell_wrapper": {
+    "result": "pass",
+    "environment": {
+      "python": "3.12.13",
+      "platform": "macOS-26.6.2-arm64-arm-64bit",
+      "aelix_installed": false,
+      "packages": {
+        "duckdb": "1.5.5",
+        "polars": "1.44.2",
+        "pyarrow": "25.0.1",
+        "matplotlib": "3.11.2",
+        "plotly": "6.9.0",
+        "markdown-it-py": "4.2.0"
+      }
+    },
+    "commands": 8,
+    "run_id": "20260919-183209-region-summary",
+    "run_status": "ok",
+    "actor": "human",
+    "fixture_sha256": "2e63a1d33589a30a6273d916224ff4a0b0da53edb31ba55e37135d9467b025b1",
+    "project_lock_sha256": "2277ccd63d8f90ec5f4fbb6b671bc7932a9637cf55f9a54757c79e205e456b18",
+    "runtime_source": "8b63fd09a1c6452e74ad52579c27c40a7fbe0474",
+    "scope": "Local shell-wrapper smoke, not Q17 release E2E or model-call instrumentation"
+  },
+  "local_evidence_run": "2dbae30f-5745-4391-956c-f4cfc5f06c59",
+  "not_run": [
+    "Independent review of new fixture/tests",
+    "Clean release-distribution installation",
+    "Live model conversation or human-agent-human handoff",
+    "Model-call blocking/instrumentation",
+    "Human usability study",
+    "Browser navigation",
+    "Other operating systems"
+  ]
+}
