@@ -45,9 +45,14 @@ def human_cli(tmp_path):
                 "started_at": started_at, "exit_code": result.returncode,
                 "stdout": result.stdout, "stderr": result.stderr}, ensure_ascii=False) + "\n")
         assert result.returncode == expected_exit, result.stdout + result.stderr
-        value = json.loads(result.stdout.splitlines()[-1])
+        records = [line for line in result.stdout.splitlines() if line.startswith("{")]
+        assert records, result.stdout + result.stderr
+        value = json.loads(records[-1])
         # A recorded failed run has ok=true but exit 3 and run.status=error.
         assert value["ok"] is (expected_exit != 1), value
+        # import and note embed a report build that degrades to {"error": ...} while still
+        # reporting ok=true and exit 0; only this payload shows that regression.
+        assert "error" not in value.get("report", {}), value
         return value
 
     call("init", root, "--title", "Synthetic human baseline", "--goal", "Compare regional revenue")
@@ -112,8 +117,10 @@ def test_human_cli_analysis_failure_repair_and_snapshot_history(human_cli):
     assert repaired["status"] == "ok" and repaired["id"] != failed["id"]
 
     # Change the live code, then remove it: replay must use the preserved first version.
-    script.write_text(original.decode().replace('sales = lab.read("sales")',
-                      'sales = lab.read("sales").filter(pl.col("channel") == "online")'))
+    edited = original.decode().replace('sales = lab.read("sales")',
+                                       'sales = lab.read("sales").filter(pl.col("channel") == "online")')
+    assert edited != original.decode(), "the fixture read line changed; the edit did nothing"
+    script.write_text(edited)
     second = call("run", "scripts/region_summary.py", "--title", "Online only")["run"]
     assert pl.read_parquet(root / second["charts"][0]["data"]).to_dicts() == EXPECTED["online_by_region"]
     script.unlink()
@@ -131,7 +138,7 @@ def test_human_cli_analysis_failure_repair_and_snapshot_history(human_cli):
     preserved_runs = file_hashes(root / "runs")
     journal_before_report = (root / "journal.jsonl").read_bytes()
     rendered = call("report")
-    assert "error" not in rendered["report"]
+    assert rendered["report"]["pages"] and not rendered["report"].get("skipped")
     assert (root / "report/index.html").is_file()
     for record in (first, failed, repaired, second, rerun):
         assert (root / "report/runs" / f"{record['id']}.html").is_file()
