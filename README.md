@@ -76,7 +76,8 @@ aelix -e $PACK/extension/aelix_lab.py
 
 aelix 안에서: `/lab`(현황) · `/lab open`(리포트) · "지역별 성장률 차트에 플롯 데이터도 기록되게 고쳐줘" 같은 요청.
 
-직접 분석에 필요한 것: macOS/Linux, [uv](https://docs.astral.sh/uv/)(PATH 또는 `AELIX_LAB_UV`). Aelix 연동에는 추가로 aelix 0.1.0b2 이상이 필요합니다.
+직접 분석에 필요한 것: [uv](https://docs.astral.sh/uv/)(PATH 또는 `AELIX_LAB_UV`). Aelix 연동에는 추가로 aelix 0.1.0b2 이상이 필요합니다.
+지원 플랫폼은 Linux·macOS·Windows를 목표로 합니다. **현재 실행 증거가 있는 것은 macOS(arm64)뿐이고 Windows는 아직 동작하지 않습니다** — 범위와 남은 이식 작업은 [ADR-0002](docs/decisions/0002-python-support-and-platform-scope.md)에 있습니다.
 분석 라이브러리는 **프로젝트마다 자기 uv 환경**에 설치되며 aelix 환경은 건드리지 않습니다.
 
 ## 확장 등록

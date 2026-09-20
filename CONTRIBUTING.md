@@ -95,7 +95,8 @@ uv run --locked python tools/check_docs.py --output .devstate/runs/<run-id>/evid
 
 ## 첫 공개 전에 남은 운영 결정
 
-라이선스, 배포 이름, 유지관리 책임자, 지원 버전·플랫폼, 보안 신고 경로와 릴리스 절차는 확정해 공개해야 합니다.
+라이선스, 배포 이름, 유지관리 책임자, 보안 신고 경로와 릴리스 절차는 확정해 공개해야 합니다.
+지원 플랫폼은 Linux·macOS·Windows로 확정했고, Python 하한과 패키징 경계는 [ADR-0002](docs/decisions/0002-python-support-and-platform-scope.md)의 결정 초안입니다. 채택·구현 전까지 현재 계약이 아닙니다.
 현재 LICENSE가 없으므로 이 문서가 사용·재배포의 라이선스를 부여하지 않습니다.
 출시 여부는 [품질 게이트](docs/BETA-QUALITY-GATES.md)의 실제 증거로 판단합니다.
 작성·실행·기록·설치 경로를 바꾸면 [Q17](docs/BETA-QUALITY-GATES.md#사람의-직접-분석과-작성-주체-전환-검증)의 관련 사례를 검증합니다. 노트북에서 SDK를 import한 사실만으로 실행 기록 연동을 지원한다고 안내하지 않습니다.
