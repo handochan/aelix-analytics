@@ -142,7 +142,7 @@ source{path, sha256, bytes, format, modified_at}`.
 | 실제 동작하는 플랫폼 | POSIX만. `kit/labkit/core.py`가 `fcntl`을 최상위에서 import하므로 Windows에서는 확장 로드와 CLI 실행이 import 단계에서 실패합니다 |
 | 검증된 조합 | macOS 26.6.2 arm64 / CPython 3.12.13 ([회귀 기준](BASELINE-VERIFICATION.md)). Linux는 미검증입니다 |
 | 프로세스 경계 | stdlib·aelix API·`kit/labkit/core.py`로 제한되는 것은 **aelix 확장 프로세스**입니다. 확장은 `uv run --project` 자식 프로세스로 CLI를 띄웁니다(`extension/aelix_lab.py:190`). 그 CLI 프로세스는 `runner`·`data`·`report`를 자기 프로세스에서 import하고, `data.py`와 SDK가 그 안에서 duckdb·polars를 import합니다. 실행되는 스크립트도 같은 프로세스입니다 |
-| 잠금·타임아웃·종료 | `fcntl.flock`(journal·run·report 잠금), `signal.SIGALRM`·`signal.setitimer`(run 제한 시간), `os.kill`·`os.killpg`(중단·강제 종료·생존 확인), `start_new_session`(자식 프로세스). 모두 POSIX 전용이며 **이 목록은 완전하지 않습니다** — 파일 교체·예약 파일명·인코딩·경로 표현도 영향을 받습니다 |
+| 잠금·타임아웃·종료 | `fcntl.flock`(journal·run·report 잠금), `signal.SIGALRM`·`signal.setitimer`(run 제한 시간), `os.killpg`(프로세스 그룹 강제 종료), `start_new_session`(자식 프로세스)는 POSIX 전용입니다. `os.kill`은 Windows에도 있으나 의미가 다릅니다 — `SIGINT` 전달이 우아한 중단 대신 강제 종료가 되고, `sig=0` 생존 확인은 `CTRL_C_EVENT` 요청이 됩니다. **이 목록은 완전하지 않습니다** — 파일 교체·예약 파일명·인코딩·경로 표현도 영향을 받습니다 |
 | 사람용 진입점 | `bin/lab`은 POSIX 셸 스크립트입니다. Windows 대응 진입점은 없습니다 |
 | 배포 형태 | 루트 `pyproject.toml`이 `package = false`입니다. 설치 가능한 배포본이 없고 pack 경로에서 직접 실행합니다 |
 
