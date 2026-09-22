@@ -171,6 +171,16 @@ def _tail(path: Path, limit: int = OUTPUT_TAIL) -> str:
     return ("…" + text) if size > limit else text
 
 
+def _flush(streams) -> None:
+    """Flush everything that might still be buffering for fd 1 or 2, including the interpreter's
+    original streams. A stream that is closed or refuses is skipped: this is housekeeping."""
+    for stream in (*streams, sys.__stdout__, sys.__stderr__):
+        if stream is None:
+            continue
+        with contextlib.suppress(Exception):
+            stream.flush()
+
+
 @contextlib.contextmanager
 def _redirected(stdout_path: Path, stderr_path: Path):
     """Send this process's output, and that of anything it starts, to the run's log files.
@@ -180,10 +190,12 @@ def _redirected(stdout_path: Path, stderr_path: Path):
     console it was built for: on Windows `sys.stdout` can wrap a _WindowsConsoleIO that calls
     WriteConsoleW, which fails once fd 1 points at a file. Rebinding also fixes the encoding of a
     run's own log, which would otherwise follow the locale."""
-    sys.stdout.flush()
-    sys.stderr.flush()
-    saved_fds = os.dup(1), os.dup(2)
     saved_streams = sys.stdout, sys.stderr
+    # Everything that could still be holding fd 1, before it becomes the log: an SDK caller may
+    # have replaced sys.stdout while the real one still holds bytes the host wrote, and those
+    # belong to the host, not to this run.
+    _flush(saved_streams)
+    saved_fds = os.dup(1), os.dup(2)
     with open(stdout_path, "wb") as out, open(stderr_path, "wb") as err:
         os.dup2(out.fileno(), 1)
         os.dup2(err.fileno(), 2)
@@ -194,13 +206,10 @@ def _redirected(stdout_path: Path, stderr_path: Path):
         try:
             yield
         finally:
-            # Both the replacements and whatever else still holds the original streams: a script
-            # that wrote through sys.__stdout__ has its bytes sitting in that object's buffer, and
-            # they belong in the log file rather than in the CLI's own output after the restore.
-            for stream in (sys.stdout, sys.stderr, *saved_streams, sys.__stdout__, sys.__stderr__):
-                with contextlib.suppress(Exception):
-                    if stream is not None:
-                        stream.flush()
+            # The same streams again: a script that wrote through sys.__stdout__ has its bytes in
+            # that object's buffer, and they belong in the log rather than in front of the CLI's
+            # own JSON line after the restore. Anything written before the run already went out.
+            _flush((sys.stdout, sys.stderr, *saved_streams))
             sys.stdout, sys.stderr = saved_streams
             os.dup2(saved_fds[0], 1)
             os.dup2(saved_fds[1], 2)
@@ -664,11 +673,16 @@ def run_warnings(record: dict, project: core.Project | None = None) -> list[str]
     else:
         warnings += [f"input outside the project: {p} (import it with lab_import so the analysis "
                      "does not depend on it)" for p in rest]
+    unportable = [out["path"] for out in record["outputs"] if out.get("change") != "deleted"]
+    unportable += [rel for chart in record["charts"]
+                   for rel in (chart.get("files") or {}).values()]
+    for rel in unportable:
+        # Every component, not just the file: `data/derived/con/value.parquet` is as unopenable on
+        # Windows as `con.parquet` is.
+        if any(_platform.reserved_name(part) for part in str(rel).split("/")):
+            warnings.append(f"{rel} uses a reserved device name on Windows; this project cannot be "
+                            "opened there until it is renamed")
     for out in record["outputs"]:
-        stem = out["path"].rsplit("/", 1)[-1].split(".")[0]
-        if out.get("change") != "deleted" and _platform.reserved_name(stem):
-            warnings.append(f"{out['path']} is a reserved device name on Windows; this project "
-                            "cannot be opened there until it is renamed")
         if out.get("outside_data") and out.get("change") != "deleted":
             warnings.append(f"file written outside data/: {out['path']}")
         elif out["path"].startswith("data/raw/"):

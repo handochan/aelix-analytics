@@ -7,6 +7,7 @@ platform verification: constructing the Windows bundle on POSIX proves wiring, n
 
 from __future__ import annotations
 
+import ast
 import contextlib
 import importlib.util
 import json
@@ -299,8 +300,12 @@ IMPLEMENTATIONS = (_platform.PosixFileLocks, _platform.WindowsFileLocks,
 
 
 def port_methods(cls) -> set[str]:
-    return {name for name, value in vars(cls).items()
-            if callable(value) and not name.startswith("_")}
+    """Every public callable the class offers, not only the ones defined on it.
+
+    `vars(cls)` misses an inherited method and a classmethod, and a port that grew one of those
+    would then run for real behind a passing injection test."""
+    return {name for name in dir(cls)
+            if not name.startswith("_") and callable(getattr(cls, name, None))}
 
 
 @pytest.fixture
@@ -384,6 +389,12 @@ def test_a_run_goes_through_the_injected_platform_too(tmp_path, real_ports_refus
     result = runner.execute(project, script="scripts/01_min.py", title="최소 실행", actor="test")
 
     assert result["run"]["status"] == "ok", result["run"].get("error")
+    # A run swallows a failure in the parts that come after the script — the report build and the
+    # bookkeeping — so a poisoned real port would otherwise surface only as a recorded error and
+    # leave this test green.
+    assert "report_error" not in result, result.get("report_error")
+    assert not result.get("finalize_errors"), result.get("finalize_errors")
+    assert not result["run"].get("finalize_errors"), result["run"].get("finalize_errors")
     names = {name for name, _ in calls}
     assert {"runs.cancel_scope", "runs.deadline", "locks.exclusive", "files.replace"} <= names, calls
     assert ("files.replace", "run.json") in calls, calls
@@ -575,6 +586,63 @@ def test_a_kit_that_is_not_there_is_a_clear_error(monkeypatch, tmp_path):
 
 # --- behaviour the review reproduced as broken ---------------------------------------------------
 
+# A leader that starts a long-lived child and exits at once, the shape `uv run` has when it hands
+# off to python and dies. Two plain files rather than nested -c strings, so the quoting is legible.
+LEADER = """
+import subprocess
+import sys
+
+child = subprocess.Popen([sys.executable, sys.argv[1]], stdout=sys.stdout)
+sys.stderr.write(str(child.pid) + chr(10))
+sys.stderr.flush()
+"""
+DESCENDANT = """
+import sys
+import time
+
+sys.stdout.write("CHILD-ALIVE" + chr(10))
+sys.stdout.flush()
+time.sleep(120)
+"""
+
+
+@pytest.mark.skipif(os.name == "nt", reason="process groups are a POSIX concept")
+def test_the_group_is_ended_even_after_its_leader_has_been_reaped(tmp_path):
+    """The case kill_tree exists for: uv exits, its python child keeps the pipes open.
+
+    `os.getpgid(pid)` cannot be used to find that group, because the leader is gone. Addressing it
+    by the leader's pid works and stays safe, because a process group id is not reused while the
+    group still has members."""
+    leader, descendant_script = tmp_path / "leader.py", tmp_path / "descendant.py"
+    leader.write_text(LEADER, encoding="utf-8")
+    descendant_script.write_text(DESCENDANT, encoding="utf-8")
+    proc = subprocess.Popen([sys.executable, str(leader), str(descendant_script)],
+                            start_new_session=True, stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE)
+    descendant = int(proc.stderr.readline().decode().strip())
+    assert proc.stdout.readline().decode().strip() == "CHILD-ALIVE"
+    proc.wait(30)
+    try:
+        assert proc.returncode == 0
+        with pytest.raises(ProcessLookupError):
+            os.getpgid(proc.pid)  # this is what the earlier implementation asked for
+        assert os.getpgid(descendant) == proc.pid
+
+        _platform.detect().processes.kill_tree(proc)
+        for _ in range(100):
+            try:
+                os.kill(descendant, 0)
+            except OSError:
+                break
+            time.sleep(0.05)
+        else:
+            pytest.fail("the surviving descendant was not reached")
+    finally:
+        with contextlib.suppress(OSError):
+            os.kill(descendant, signal.SIGKILL)
+
+
+
 def test_a_cancel_while_the_capture_hooks_install_stops_the_script(project, monkeypatch):
     """The cancel has to reach the script's own phase, not only the record's.
 
@@ -613,84 +681,126 @@ def test_output_written_through_the_original_stdout_still_reaches_the_log(projec
 
 # --- text encoding is explicit everywhere -----------------------------------------------------
 
-# A lookbehind for a dot would have excluded exactly the calls this is for, so `.read_text(` and
-# `io.open(` match. Deliberately out of scope: tests/ (PR-3 cleans the regression suite up),
-# `bin/lab` (PR-2 rewrites the entry points) and the non-Python template files.
-ENCODING_CALLS = re.compile(
-    r"\b(?:open|read_text|write_text)\s*\(|\bsubprocess\.(?:run|Popen)\s*\(")
-TEXT_MODE = re.compile(r"\b(?:text|universal_newlines)\s*=\s*True")
-# `open` is not always a file: these take a URL, a socket or an archive and have no encoding.
-NON_FILE_OPENERS = frozenset({"webbrowser", "request", "urlopen", "socket", "zipfile", "tarfile",
-                              "gzip", "bz2", "lzma", "shelve", "dbm", "sqlite3"})
-BINARY_MODE = re.compile(r"""["'][rwax+]*b[rwax+]*["']""")
+# Read with the parser rather than with a pattern: the regex version of this test exempted exactly
+# the `Path(...).read_text()` calls it existed to catch, treated a payload that happened to contain
+# "rb" as a binary mode, and rejected a spaced `encoding = "utf-8"`.
+#
+# `open` on these is not a file open, or hands back bytes: they take a URL, a socket or an archive.
+NON_FILE_OPENERS = frozenset({"webbrowser", "request", "socket", "zipfile", "tarfile", "shelve",
+                              "dbm", "sqlite3"})
+TEXT_MODE_KWARGS = ("text", "universal_newlines")
 SOURCE_DIRS = ("kit", "extension", "tools")
 
 
-def _call_source(text: str, start: int) -> str:
-    depth, i = 0, text.index("(", start)
-    for j in range(i, min(len(text), i + 2000)):
-        if text[j] == "(":
-            depth += 1
-        elif text[j] == ")":
-            depth -= 1
-            if depth == 0:
-                return text[i:j + 1]
-    return text[i:i + 2000]
+def _receiver(func: ast.AST) -> str:
+    """`subprocess` for subprocess.run(...), `gzip` for gzip.open(...), '' for a bare call."""
+    value = getattr(func, "value", None)
+    return getattr(value, "id", "") if value is not None else ""
 
 
-def _receiver(text: str, start: int) -> str:
-    """The name the call is made on, so `webbrowser.open(...)` is not read as a file open."""
-    if start == 0 or text[start - 1] != ".":
-        return ""
-    end = start - 1
-    begin = end
-    while begin > 0 and (text[begin - 1].isalnum() or text[begin - 1] == "_"):
-        begin -= 1
-    return text[begin:end]
+def _keyword(call: ast.Call, name: str):
+    for keyword in call.keywords:
+        if keyword.arg == name:
+            return keyword.value
+    return None
+
+
+def _has_encoding(call: ast.Call) -> bool:
+    if _keyword(call, "encoding") is not None:
+        return True
+    # **_platform.text_kwargs() carries it.
+    return any(k.arg is None and isinstance(k.value, ast.Call)
+               and getattr(k.value.func, "attr", "") == "text_kwargs" for k in call.keywords)
+
+
+def _binary_mode(call: ast.Call) -> bool:
+    mode = _keyword(call, "mode")
+    if mode is None and len(call.args) >= 2:
+        mode = call.args[1]
+    return isinstance(mode, ast.Constant) and isinstance(mode.value, str) and "b" in mode.value
+
+
+def _decodes_text(call: ast.Call) -> bool:
+    for name in TEXT_MODE_KWARGS:
+        value = _keyword(call, name)
+        if isinstance(value, ast.Constant) and value.value is True:
+            return True
+    return _has_encoding(call)
 
 
 def unencoded_text_calls(paths) -> list[str]:
+    """Calls that read or write text without saying in which encoding."""
     offenders = []
     for path in paths:
-        text = path.read_text(encoding="utf-8")
-        for match in ENCODING_CALLS.finditer(text):
-            call = _call_source(text, match.start())
-            if _receiver(text, match.start()) in NON_FILE_OPENERS:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
                 continue
-            if "subprocess." in match.group():
-                if not TEXT_MODE.search(call):
-                    continue  # bytes come back undecoded, so there is nothing to get wrong
-            elif BINARY_MODE.search(call):
+            name = getattr(node.func, "attr", None) or getattr(node.func, "id", "")
+            receiver = _receiver(node.func)
+            if name in ("read_text", "write_text"):
+                bad = not _has_encoding(node)
+            elif name == "open":
+                bad = (receiver not in NON_FILE_OPENERS and not _binary_mode(node)
+                       and not _has_encoding(node))
+            elif name in ("run", "Popen") and receiver == "subprocess":
+                bad = _decodes_text(node) and not _has_encoding(node)
+            else:
                 continue
-            if "encoding=" in call or "_platform.text_kwargs()" in call:
-                continue
-            line = text[:match.start()].count("\n") + 1
-            offenders.append(f"{path}:{line} {call.splitlines()[0][:90]}")
+            if bad:
+                offenders.append(f"{path}:{node.lineno} {name}(...)")
     return offenders
 
 
 def test_every_text_call_in_the_shipped_code_names_its_encoding():
     """A locale-dependent default turns Korean records into an exception on a Windows machine, and
-    reconfiguring this process's streams does not reach a child's pipe or a file."""
+    reconfiguring this process's streams does not reach a child's pipe or a file.
+
+    Scope, deliberately: the Python of `kit`, `extension` and `tools`. `tests/` is PR-3's cleanup,
+    `bin/lab` is PR-2's entry-point work, and the template files are not Python."""
     paths = [p for directory in SOURCE_DIRS
              for p in sorted((PACK / directory).rglob("*.py")) if "__pycache__" not in p.parts]
     offenders = unencoded_text_calls(paths)
     assert not offenders, "text without an explicit encoding:\n" + "\n".join(offenders)
 
 
-def test_the_encoding_scan_catches_the_calls_it_claims_to(tmp_path):
-    planted = tmp_path / "planted.py"
-    planted.write_text(
-        "import io\nimport subprocess\nfrom pathlib import Path\n"
-        "Path('a').write_text('한글')\n"            # 1
-        "Path('b').read_text()\n"                  # 2
-        "io.open('c').read()\n"                    # 3
-        "subprocess.run(['x'], text=True)\n"       # 4
-        "subprocess.run(['y'], universal_newlines=True)\n"  # 5
-        "Path('d').write_text('ok', encoding='utf-8')\n"    # fine
-        "open('e', 'rb').read()\n"                          # fine
-        "subprocess.run(['z'], capture_output=True)\n"      # fine: bytes
-        "webbrowser.open('https://example.invalid')\n",     # fine: not a file
-        encoding="utf-8")
-    offenders = unencoded_text_calls([planted])
-    assert len(offenders) == 5, offenders
+CAUGHT = """
+import gzip
+import io
+import subprocess
+import webbrowser
+from pathlib import Path
+
+Path("a").write_text("한글")
+Path("b").read_text()
+io.open("c").read()
+gzip.open("x.gz", "rt").read()
+subprocess.run(["x"], text=True)
+subprocess.run(["y"], universal_newlines = True)
+Path("h").write_text("rb")
+"""
+ALLOWED = """
+import subprocess
+import webbrowser
+from pathlib import Path
+
+from labkit import _platform
+
+Path("d").write_text("ok", encoding="utf-8")
+Path("e").read_text(encoding = "utf-8")
+open("f", "rb").read()
+open("g", mode="wb").write(b"")
+subprocess.run(["z"], capture_output=True)
+subprocess.run(["w"], capture_output=True, **_platform.text_kwargs())
+webbrowser.open("https://example.invalid")
+"""
+
+
+def test_the_encoding_scan_catches_what_it_claims_and_nothing_else(tmp_path):
+    # `write_text("rb")` belongs in the caught half: the payload is text and the mode argument the
+    # regex version mistook it for does not exist on write_text.
+    caught, allowed = tmp_path / "caught.py", tmp_path / "allowed.py"
+    caught.write_text(CAUGHT, encoding="utf-8")
+    allowed.write_text(ALLOWED, encoding="utf-8")
+    assert len(unencoded_text_calls([caught])) == 7, unencoded_text_calls([caught])
+    assert unencoded_text_calls([allowed]) == []

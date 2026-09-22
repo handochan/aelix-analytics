@@ -186,11 +186,15 @@ class PosixProcessControl:
 
     def kill_tree(self, proc) -> None:
         # The group, by the child's own pid: `spawn_kwargs` starts it in a new session, so its
-        # process group id is its pid. `os.getpgid` would fail here, because this is also used
-        # once the wrapper has been reaped while a descendant still holds the pipes — and that is
-        # exactly the case this has to end. Addressing the group by that id stays safe then: the
-        # kernel does not reuse a pid while a process group is still using it as its id, so this
-        # either reaches the surviving descendants or fails with ESRCH.
+        # process group id is its pid. `os.getpgid` cannot be used, because this is also called
+        # once the wrapper has been reaped while a descendant still holds the pipes — which is
+        # exactly the case this exists to end — and by then the leader is gone.
+        #
+        # While that group still has members the kernel will not hand its id to anything else, so
+        # this reaches the descendants. Once the last of them exits the group ends, and the call
+        # normally fails with ESRCH; the residual risk is that the id has since been taken by an
+        # unrelated group. The caller therefore does this while it is still waiting on the pipes,
+        # not at some later point from a recorded id.
         with contextlib.suppress(ProcessLookupError, OSError):
             os.killpg(proc.pid, signal.SIGKILL)
 
@@ -384,7 +388,11 @@ class WindowsProcessControl:
             done = subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)],
                                   capture_output=True, timeout=KILL_TREE_TIMEOUT_SECONDS,
                                   check=False, **text_kwargs())
-            if done.returncode not in (0, TASKKILL_NOT_FOUND):
+            if done.returncode == TASKKILL_NOT_FOUND:
+                # Nothing to end, but also no proof the descendants are gone: this reports the
+                # pid, and a descendant that outlived its parent is not covered by it.
+                problem = "taskkill found no such process; any descendant of it is unaccounted for"
+            elif done.returncode != 0:
                 problem = f"taskkill exited {done.returncode}: {(done.stderr or '').strip()[:200]}"
         except (OSError, subprocess.SubprocessError) as exc:
             problem = f"{type(exc).__name__}: {exc}"

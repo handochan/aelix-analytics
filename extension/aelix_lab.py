@@ -186,7 +186,10 @@ async def _terminate(proc, processes) -> None:
     # it: its python child can outlive it holding the pipes, and waiting on those is exactly what
     # this call is trying to stop. kill_tree may block, so it runs off the event loop.
     await asyncio.to_thread(processes.kill_tree, proc)
-    await proc.wait()
+    with contextlib.suppress(TimeoutError):
+        # Bounded: if the tree outlived a forced kill there is nothing further to try, and this
+        # returning leaves it running rather than holding the session's event loop open.
+        await asyncio.wait_for(proc.wait(), GRACE_SECONDS)
 
 
 async def _spawn(argv, cwd, env, timeout, processes):
