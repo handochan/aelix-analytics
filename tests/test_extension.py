@@ -248,6 +248,15 @@ def test_an_unusable_project_path_is_an_error_not_a_crash(tmp_path, monkeypatch)
     assert "internal error" not in asyncio.run(module.lab_command("status"))
 
 
+def test_a_new_script_name_windows_cannot_store_is_refused(lab):
+    module, root = lab
+    result = call(tools_of(module)["lab_run"], {"title": "x", "code": "print(1)\n", "name": "con"})
+    assert result.is_error and "name_not_portable" in text_of(result)
+    assert not (root / "scripts" / "con.py").exists()
+    ok = call(tools_of(module)["lab_run"], {"title": "x", "code": "print(1)\n", "name": "console"})
+    assert (root / "scripts" / "console.py").is_file(), text_of(ok)
+
+
 def test_rerun_of_is_validated_before_any_subprocess(lab):
     module, _root = lab
     result = call(tools_of(module)["lab_run"], {"title": "x", "rerun_of": "../../evil"})

@@ -55,18 +55,18 @@ def _load_core():
     package = f"aelix_lab_kit_{hashlib.sha256(str(KIT).encode()).hexdigest()[:12]}"
     spec = importlib.machinery.ModuleSpec(package, None, is_package=True)
     spec.submodule_search_locations = [str(path.parent)]
-    registered = [package]
     sys.modules[package] = importlib.util.module_from_spec(spec)
     try:
         core_spec = importlib.util.spec_from_file_location(f"{package}.core", path)
         module = importlib.util.module_from_spec(core_spec)
         sys.modules[core_spec.name] = module
-        registered.append(core_spec.name)
         core_spec.loader.exec_module(module)
-        registered += [name for name in list(sys.modules) if name.startswith(f"{package}.")]
         return module
     finally:
-        for name in dict.fromkeys(registered):
+        # Everything under the synthetic name, whether the load finished or raised partway: a
+        # sibling that core imported before failing would otherwise be reused by the next attempt.
+        for name in [n for n in list(sys.modules)
+                     if n == package or n.startswith(f"{package}.")]:
             sys.modules.pop(name, None)
 
 
@@ -180,14 +180,13 @@ async def _terminate(proc, processes) -> None:
     if proc.returncode is None:
         # Ask first: uv forwards the interrupt, and the kit records the run as cancelled.
         processes.interrupt(proc)
-    try:
-        await asyncio.wait_for(proc.wait(), GRACE_SECONDS)
-    except TimeoutError:
-        # Then the whole tree, whether or not the wrapper itself is still running: a descendant
-        # that outlived uv and still holds the pipes is exactly what this is waiting for.
-        # kill_tree may block, so it runs off the event loop.
-        await asyncio.to_thread(processes.kill_tree, proc)
-        await proc.wait()
+        with contextlib.suppress(TimeoutError):
+            await asyncio.wait_for(proc.wait(), GRACE_SECONDS)
+    # Then the group, whether or not the wrapper is still running. uv exiting is not the end of
+    # it: its python child can outlive it holding the pipes, and waiting on those is exactly what
+    # this call is trying to stop. kill_tree may block, so it runs off the event loop.
+    await asyncio.to_thread(processes.kill_tree, proc)
+    await proc.wait()
 
 
 async def _spawn(argv, cwd, env, timeout, processes):
@@ -509,6 +508,7 @@ async def tool_run(args, ctx):
             raise core.LabError("run_name", "code needs a name like 02_monthly_sales",
                                 hint="lowercase letters, digits and _; the code is saved to scripts/<name>.py")
         target = project.scripts / f"{name}.py"
+        core.reject_unportable_name(name, kind="script", exists=target.exists())
         note = f" (overwrote scripts/{name}.py)" if target.exists() else ""
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(str(code).rstrip() + "\n", encoding="utf-8")

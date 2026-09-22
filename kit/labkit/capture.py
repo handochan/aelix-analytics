@@ -181,8 +181,7 @@ class RunState:
             for existing in [c for c in self.charts if c["id"] == wanted]:
                 self._discard(existing)
         auto_title = _detect_title(target, kind)
-        record = {"id": self._unique_id(chart_id or title or auto_title,
-                                        explicit=bool(explicit and chart_id)), "kind": kind,
+        record = {"id": self._unique_id(chart_id or title or auto_title), "kind": kind,
                   "title": title or auto_title, "caption": caption, "via": via, "files": {},
                   "line": self._caller_line()}
         if record["title"] is None:
@@ -221,15 +220,10 @@ class RunState:
                                         "caption": None, "via": "file", "line": None,
                                         "files": {p.suffix.lower().lstrip("."): rel}})
 
-    def _unique_id(self, label, *, explicit: bool = False) -> str:
+    def _unique_id(self, label) -> str:
         base = core.slugify(label or "", 40)
         if not any(ch.isalpha() for ch in base):  # e.g. a Korean title leaves only digits
             base = f"chart-{len(self.charts) + 1}"
-        # An id the author chose is the chart's identity across versions, so it is never rewritten;
-        # only the file it is saved to is made openable on Windows (see _save). A generated one has
-        # no such claim on it, so it avoids a device name from the start.
-        if not explicit and _platform.reserved_name(base):
-            base = f"{base}-chart"
         taken = {c["id"] for c in self.charts}
         cid, n = base, 2
         while cid in taken:
@@ -265,8 +259,9 @@ class RunState:
 
     def _save(self, record: dict, obj, kind: str) -> str | None:
         self.charts_dir.mkdir(parents=True, exist_ok=True)
-        # The chart's identity is `script::id` and records and versions point at it, so the id the
-        # author chose is kept. Only the file it is written to has to be openable on Windows.
+        # The chart's identity is `script::id` and records, versions and reruns point at it, so it
+        # is never rewritten — generated or not. Only the file it is written to has to be openable
+        # on Windows, and that mapping cannot collide (see _platform.portable_stem).
         cid = _platform.portable_stem(record["id"])
         if kind == "matplotlib":
             png = _render_png(obj)
@@ -328,9 +323,6 @@ def save_dataset(project: core.Project, obj, name: str, state: RunState | None =
     if not core.DATASET_NAME_RE.match(name or ""):
         raise ValueError(f"dataset name {name!r} must match {core.DATASET_NAME_RE.pattern}")
     dest = project.derived / f"{name}.parquet"
-    # A preserved script that already writes this dataset keeps working; only a new reserved name
-    # is refused, because it would make the project unopenable on Windows.
-    core.reject_unportable_name(name, kind="dataset", exists=dest.exists())
     dest.parent.mkdir(parents=True, exist_ok=True)
     module = type(obj).__module__
     if module.startswith("polars") and type(obj).__name__ == "LazyFrame":

@@ -194,9 +194,13 @@ def _redirected(stdout_path: Path, stderr_path: Path):
         try:
             yield
         finally:
-            with contextlib.suppress(Exception):
-                sys.stdout.flush()
-                sys.stderr.flush()
+            # Both the replacements and whatever else still holds the original streams: a script
+            # that wrote through sys.__stdout__ has its bytes sitting in that object's buffer, and
+            # they belong in the log file rather than in the CLI's own output after the restore.
+            for stream in (sys.stdout, sys.stderr, *saved_streams, sys.__stdout__, sys.__stderr__):
+                with contextlib.suppress(Exception):
+                    if stream is not None:
+                        stream.flush()
             sys.stdout, sys.stderr = saved_streams
             os.dup2(saved_fds[0], 1)
             os.dup2(saved_fds[1], 2)
@@ -321,8 +325,10 @@ def compare_runs(project: core.Project, old: dict, new: dict) -> dict:
                     pl.read_parquet(project.path(before["data"])))
                 state = "same data" if same else "different data"
             elif chart["files"].get("plotly") and before["files"].get("plotly"):
-                a = json.loads(project.path(chart["files"]["plotly"]).read_text("utf-8"))["data"]
-                b = json.loads(project.path(before["files"]["plotly"]).read_text("utf-8"))["data"]
+                a = json.loads(project.path(chart["files"]["plotly"])
+                               .read_text(encoding="utf-8"))["data"]
+                b = json.loads(project.path(before["files"]["plotly"])
+                               .read_text(encoding="utf-8"))["data"]
                 state = "same data" if a == b else "different data"
             elif chart["files"].get("png") and before["files"].get("png"):
                 same = core.sha256_file(project.path(chart["files"]["png"])) == \
@@ -486,25 +492,30 @@ def _run_script(project, state, code_bytes, filename, script_rel, timeout, stdou
     try:
         with _redirected(stdout_path, stderr_path):
             try:
-                os.chdir(project.root)
-                finder = capture.install(state)
-                # Both callbacks only record that the event happened; the port interrupts the main
-                # thread itself. Leaving these scopes restores the flag-only handlers the caller
-                # installed, so the cleanup below is never interrupted.
+                # The callbacks only record that the event happened; the port interrupts the main
+                # thread itself. The scope covers the capture setup as well as the script, so a
+                # cancel that arrives while the hooks are being installed stops the run before the
+                # script can produce anything.
                 with runs.cancel_scope(lambda: signals.__setitem__("cancel", True),
-                                       interrupt=True), \
-                        runs.deadline(timeout, lambda: signals.__setitem__("timeout", True)):
-                    _exec_script(code_bytes, filename, project.path(script_rel).parent)
+                                       interrupt=True):
+                    os.chdir(project.root)
+                    finder = capture.install(state)
+                    with runs.deadline(timeout,
+                                       lambda: signals.__setitem__("timeout", True)):
+                        _exec_script(code_bytes, filename, project.path(script_rel).parent)
             except BaseException as exc:  # noqa: BLE001 - classified below with the timer off
                 failure = exc
-            # Libraries such as DuckDB turn the interrupt into their own error; the flags decide.
-            if failure is not None and not isinstance(failure, SystemExit):
+            # The script has stopped. From here the record is being made, so an interrupt only
+            # sets the flag — which is also why libraries such as DuckDB turning the interrupt
+            # into an error of their own does not change the outcome: the flags decide.
+            with runs.cancel_scope(lambda: signals.__setitem__("cancel", True), interrupt=False):
+                if failure is not None and not isinstance(failure, SystemExit):
+                    with contextlib.suppress(Exception):
+                        traceback.print_exception(failure)
                 with contextlib.suppress(Exception):
-                    traceback.print_exception(failure)
-            with contextlib.suppress(Exception):
-                state.capture_open_figures("auto", close=True)
-            with contextlib.suppress(Exception):
-                state.register_loose_files()
+                    state.capture_open_figures("auto", close=True)
+                with contextlib.suppress(Exception):
+                    state.register_loose_files()
     finally:
         capture.uninstall(finder)
         os.chdir(cwd)
@@ -654,6 +665,10 @@ def run_warnings(record: dict, project: core.Project | None = None) -> list[str]
         warnings += [f"input outside the project: {p} (import it with lab_import so the analysis "
                      "does not depend on it)" for p in rest]
     for out in record["outputs"]:
+        stem = out["path"].rsplit("/", 1)[-1].split(".")[0]
+        if out.get("change") != "deleted" and _platform.reserved_name(stem):
+            warnings.append(f"{out['path']} is a reserved device name on Windows; this project "
+                            "cannot be opened there until it is renamed")
         if out.get("outside_data") and out.get("change") != "deleted":
             warnings.append(f"file written outside data/: {out['path']}")
         elif out["path"].startswith("data/raw/"):

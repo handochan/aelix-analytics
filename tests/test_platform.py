@@ -21,7 +21,7 @@ import types
 from pathlib import Path
 
 import pytest
-from conftest import kit_env, labkit, write_sales_csv
+from conftest import kit_env, labkit, write_sales_csv, write_script
 
 from labkit import _platform, core
 
@@ -49,9 +49,20 @@ def test_portable_name_rejects_what_windows_cannot_store():
 
 
 def test_portable_stem_keeps_a_usable_name_and_leaves_ordinary_ones_alone():
-    assert _platform.portable_stem("con") == "con-file"
+    assert _platform.portable_stem("con") == "con_"
     assert not _platform.reserved_name(_platform.portable_stem("con"))
     assert _platform.portable_stem("monthly-revenue") == "monthly-revenue"
+
+
+def test_portable_stem_never_maps_two_chart_ids_onto_one_file():
+    """A chart id is a slug and holds no underscore, which is what makes the mapping injective.
+    `con` and the ordinary id `con-file` must not land on the same file, or two charts would
+    overwrite each other's image and a rerun comparison would report them as the same."""
+    ids = [core.slugify(text, 40) for text in
+           ("con", "con file", "con-file", "con 1", "nul", "nul data", "aux", "revenue")]
+    stems = [_platform.portable_stem(i) for i in ids]
+    assert len(set(stems)) == len(set(ids)), dict(zip(ids, stems, strict=True))
+    assert all("_" not in i for i in ids), "a slug with an underscore would break the mapping"
 
 
 @pytest.mark.parametrize("recorded, url", [
@@ -142,10 +153,16 @@ def test_the_lock_creates_its_directory_and_does_not_truncate(tmp_path):
 
 # --- the run-control contract -------------------------------------------------------------------
 
+# The contract lets a port interrupt with either exception, and the caller classifies by the flag
+# its callback set: POSIX raises Interrupted from its signal handler, Windows raises
+# KeyboardInterrupt through interrupt_main.
+INTERRUPTIONS = (_platform.Interrupted, KeyboardInterrupt)
+
+
 def test_the_deadline_records_the_expiry_and_interrupts_the_main_thread():
     flags = {"timeout": False}
     runs = _platform.detect().runs
-    with pytest.raises(_platform.Interrupted):
+    with pytest.raises(INTERRUPTIONS):
         with runs.deadline(1.0, lambda: flags.__setitem__("timeout", True)):
             time.sleep(10)
     assert flags["timeout"], "the callback has to run before the interrupt"
@@ -159,7 +176,7 @@ def test_a_callback_that_raises_still_lets_the_port_interrupt(capsys):
         raise RuntimeError("callback bug")
 
     runs = _platform.detect().runs
-    with pytest.raises(_platform.Interrupted):
+    with pytest.raises(INTERRUPTIONS):
         with runs.deadline(1.0, broken):
             time.sleep(10)
     assert calls == [1]
@@ -190,7 +207,7 @@ def test_a_raising_cancel_scope_interrupts_and_a_nested_one_restores_the_outer_h
     outer, inner = {"n": 0}, {"n": 0}
     runs = _platform.detect().runs
     with runs.cancel_scope(lambda: outer.__setitem__("n", outer["n"] + 1), interrupt=False):
-        with pytest.raises(_platform.Interrupted):
+        with pytest.raises(INTERRUPTIONS):
             with runs.cancel_scope(lambda: inner.__setitem__("n", inner["n"] + 1), interrupt=True):
                 os.kill(os.getpid(), signal.SIGINT)
                 time.sleep(0.2)
@@ -275,19 +292,33 @@ def recording_platform():
     return bundle, calls
 
 
+IMPLEMENTATIONS = (_platform.PosixFileLocks, _platform.WindowsFileLocks,
+                   _platform.PosixAtomicFiles, _platform.WindowsAtomicFiles,
+                   _platform.PosixProcessControl, _platform.WindowsProcessControl,
+                   _platform.PosixRunControl, _platform.WindowsRunControl)
+
+
+def port_methods(cls) -> set[str]:
+    return {name for name, value in vars(cls).items()
+            if callable(value) and not name.startswith("_")}
+
+
 @pytest.fixture
 def real_ports_refuse(monkeypatch):
     """Make every real implementation fail, so a path that quietly falls back to the process
-    default cannot pass by producing the same record."""
+    default cannot pass by producing the same record.
+
+    Every public method of every implementation is poisoned rather than a chosen few, so a port
+    that grows a method does not silently fall outside this."""
     def refuse(*_args, **_kwargs):
         raise AssertionError("the real platform implementation was used despite an injected one")
 
-    for cls in (_platform.PosixFileLocks, _platform.WindowsFileLocks):
-        monkeypatch.setattr(cls, "exclusive", refuse, raising=True)
-    for cls in (_platform.PosixAtomicFiles, _platform.WindowsAtomicFiles):
-        monkeypatch.setattr(cls, "replace", refuse, raising=True)
-    for cls in (_platform.PosixProcessControl, _platform.WindowsProcessControl):
-        monkeypatch.setattr(cls, "alive", refuse, raising=True)
+    poisoned = 0
+    for cls in IMPLEMENTATIONS:
+        for name in port_methods(cls):
+            monkeypatch.setattr(cls, name, refuse, raising=True)
+            poisoned += 1
+    assert poisoned >= 18, f"only {poisoned} implementation methods were poisoned"
 
 
 CONTEXT_VERSION_RE = re.compile(r"^\d{8}-\d{6}-\d{6}_")
@@ -342,6 +373,22 @@ def test_the_real_and_the_injected_platform_record_the_same_thing(tmp_path):
     assert with_real == with_fake
 
 
+def test_a_run_goes_through_the_injected_platform_too(tmp_path, real_ports_refuse):
+    from labkit import runner  # noqa: PLC0415 - needs the analysis libraries
+
+    fake, calls = recording_platform()
+    project = core.init_project(tmp_path / "p", title="실행 경계", template_dir=KIT / "template",
+                                actor="test", platform=fake)
+    project.scripts.mkdir(parents=True, exist_ok=True)
+    (project.scripts / "01_min.py").write_text("print('ok')\n", encoding="utf-8")
+    result = runner.execute(project, script="scripts/01_min.py", title="최소 실행", actor="test")
+
+    assert result["run"]["status"] == "ok", result["run"].get("error")
+    names = {name for name, _ in calls}
+    assert {"runs.cancel_scope", "runs.deadline", "locks.exclusive", "files.replace"} <= names, calls
+    assert ("files.replace", "run.json") in calls, calls
+
+
 def test_the_hash_cache_writes_through_the_project_platform(tmp_path, real_ports_refuse):
     fake, calls = recording_platform()
     project = core.init_project(tmp_path / "p", title="캐시", template_dir=KIT / "template",
@@ -377,32 +424,60 @@ def test_a_new_dataset_name_that_windows_cannot_store_is_refused(project, tmp_pa
     assert "con" in exc.value.message
 
 
-def test_a_dataset_the_project_already_has_is_never_refused(project):
-    import polars as pl  # noqa: PLC0415
+def test_a_script_that_writes_a_reserved_name_still_runs_and_is_warned_about(project):
+    # Refusing inside a run would stop a preserved script from re-executing, including one whose
+    # output file has since been deleted, so the run is recorded with the limit stated instead.
+    body = ("import polars as pl\nimport labkit as lab\n"
+            "lab.save(pl.DataFrame({'a': [1]}), 'con')\n")
+    code, result = labkit(project, "run", write_script(project, "21_reserved_save.py", body),
+                          "--title", "예약 이름 저장")
+    assert code == 0 and result["run"]["status"] == "ok", result
+    assert (Path(project) / "data/derived/con.parquet").is_file()
+    assert any("reserved device name on Windows" in w for w in result["run"]["warnings"]), \
+        result["run"]["warnings"]
 
-    from labkit import capture  # noqa: PLC0415
 
-    p = core.Project(project)
-    (p.derived / "con.parquet").parent.mkdir(parents=True, exist_ok=True)
-    pl.DataFrame({"a": [1]}).write_parquet(p.derived / "con.parquet")
-    # A preserved script that already writes this dataset has to keep running.
-    capture.save_dataset(p, pl.DataFrame({"a": [2]}), "con")
-    assert pl.read_parquet(p.derived / "con.parquet")["a"].to_list() == [2]
+def test_reject_unportable_name_never_refuses_a_name_the_project_already_has():
     core.reject_unportable_name("con", kind="dataset", exists=True)
+    core.reject_unportable_name("sales", kind="dataset")
+    with pytest.raises(core.LabError) as exc:
+        core.reject_unportable_name("con", kind="script")
+    assert exc.value.code == "name_not_portable" and "script" in exc.value.message
 
 
-def test_a_chart_keeps_its_id_and_gets_a_file_name_windows_can_open(project):
+def test_two_chart_ids_that_differ_keep_two_files(project):
+    # `con-file` is an ordinary id and has to keep its own file. If the reserved one were mapped
+    # onto it the two charts would overwrite each other's image and plotted data, and a rerun
+    # comparison would then report two different charts as the same.
+    body = ("import matplotlib.pyplot as plt\nimport polars as pl\nimport labkit as lab\n"
+            "for cid, y in (('con', 1), ('con-file', 2)):\n"
+            "    fig, ax = plt.subplots()\n    ax.plot([1, 2], [y, y])\n"
+            "    lab.chart(fig, cid, title=cid, data=pl.DataFrame({'y': [y]}))\n")
+    code, result = labkit(project, "run", write_script(project, "20_reserved.py", body),
+                          "--title", "예약 이름 차트")
+    assert code == 0, result
+    charts = {c["id"]: c for c in result["run"]["charts"]}
+    assert set(charts) == {"con", "con-file"}, "the chart identity is what records point at"
+    assert Path(charts["con"]["files"]["png"]).name == "con_.png"
+    assert Path(charts["con-file"]["files"]["png"]).name == "con-file.png"
+    files = [c["files"]["png"] for c in charts.values()] + [c["data"] for c in charts.values()]
+    assert len(set(files)) == len(files), files
+    for rel in files:
+        assert (Path(project) / rel).is_file(), rel
+
+
+def test_a_title_that_slugifies_to_a_device_name_keeps_the_id_it_always_had(project):
+    # A generated id is still `script::id` identity in the records, so it is not rewritten either:
+    # an unchanged historical script must not start a second chart history.
     body = ("import matplotlib.pyplot as plt\nimport labkit as lab\n"
             "fig, ax = plt.subplots()\nax.plot([1, 2], [1, 2])\n"
-            "lab.chart(fig, 'con', title='예약 이름')\n")
-    (Path(project) / "scripts").mkdir(parents=True, exist_ok=True)
-    (Path(project) / "scripts" / "20_reserved.py").write_text(body, encoding="utf-8")
-    code, result = labkit(project, "run", "scripts/20_reserved.py", "--title", "예약 이름 차트")
+            "lab.chart(fig, title='CON')\n")
+    code, result = labkit(project, "run", write_script(project, "22_generated.py", body),
+                          "--title", "생성된 id")
     assert code == 0, result
     (chart,) = result["run"]["charts"]
-    assert chart["id"] == "con", "the chart identity is what records point at"
-    assert Path(chart["files"]["png"]).name == "con-file.png"
-    assert (Path(project) / chart["files"]["png"]).is_file()
+    assert chart["id"] == "con"
+    assert Path(chart["files"]["png"]).name == "con_.png"
 
 
 # --- the loader the aelix process uses ---------------------------------------------------------
@@ -498,10 +573,56 @@ def test_a_kit_that_is_not_there_is_a_clear_error(monkeypatch, tmp_path):
     assert not [k for k in sys.modules if k.startswith("aelix_lab_kit")]
 
 
+# --- behaviour the review reproduced as broken ---------------------------------------------------
+
+def test_a_cancel_while_the_capture_hooks_install_stops_the_script(project, monkeypatch):
+    """The cancel has to reach the script's own phase, not only the record's.
+
+    Installing the capture hooks used to sit outside the interrupting scope, so a cancel arriving
+    there set the flag and the script ran anyway — the record said `cancelled` while its side
+    effects were on disk."""
+    from labkit import capture, runner  # noqa: PLC0415 - needs the analysis libraries
+
+    real_install = capture.install
+
+    def install_then_cancel(state):
+        os.kill(os.getpid(), signal.SIGINT)
+        return real_install(state)
+
+    monkeypatch.setattr(capture, "install", install_then_cancel)
+    body = ("from pathlib import Path\n"
+            "Path('data/derived/ran.txt').write_text('x', encoding='utf-8')\n")
+    script = write_script(project, "23_cancel_setup.py", body)
+    result = runner.execute(core.Project(project), script=script, title="설치 중 취소", actor="test")
+
+    assert result["run"]["status"] == "cancelled", result["run"]
+    assert not (Path(project) / "data/derived/ran.txt").exists(), "the script ran after the cancel"
+
+
+def test_output_written_through_the_original_stdout_still_reaches_the_log(project):
+    """Anything still holding the stream the run replaced has to be flushed while fd 1 is the log.
+
+    Otherwise the bytes surface after the descriptors are restored and land in front of the CLI's
+    own JSON line, which is the line the extension parses."""
+    body = "import sys\nsys.__stdout__.write('BUFFERED-OUTPUT')\n"
+    code, result = labkit(project, "run", write_script(project, "24_buffered.py", body),
+                          "--title", "원래 스트림")
+    assert code == 0, result
+    assert "BUFFERED-OUTPUT" in result["stdout_tail"], result["stdout_tail"]
+
+
 # --- text encoding is explicit everywhere -----------------------------------------------------
 
+# A lookbehind for a dot would have excluded exactly the calls this is for, so `.read_text(` and
+# `io.open(` match. Deliberately out of scope: tests/ (PR-3 cleans the regression suite up),
+# `bin/lab` (PR-2 rewrites the entry points) and the non-Python template files.
 ENCODING_CALLS = re.compile(
-    r"(?<![\w.])(?:open|read_text|write_text)\s*\(|subprocess\.(?:run|Popen)\s*\(")
+    r"\b(?:open|read_text|write_text)\s*\(|\bsubprocess\.(?:run|Popen)\s*\(")
+TEXT_MODE = re.compile(r"\b(?:text|universal_newlines)\s*=\s*True")
+# `open` is not always a file: these take a URL, a socket or an archive and have no encoding.
+NON_FILE_OPENERS = frozenset({"webbrowser", "request", "urlopen", "socket", "zipfile", "tarfile",
+                              "gzip", "bz2", "lzma", "shelve", "dbm", "sqlite3"})
+BINARY_MODE = re.compile(r"""["'][rwax+]*b[rwax+]*["']""")
 SOURCE_DIRS = ("kit", "extension", "tools")
 
 
@@ -517,23 +638,59 @@ def _call_source(text: str, start: int) -> str:
     return text[i:i + 2000]
 
 
-def test_every_text_call_names_its_encoding():
+def _receiver(text: str, start: int) -> str:
+    """The name the call is made on, so `webbrowser.open(...)` is not read as a file open."""
+    if start == 0 or text[start - 1] != ".":
+        return ""
+    end = start - 1
+    begin = end
+    while begin > 0 and (text[begin - 1].isalnum() or text[begin - 1] == "_"):
+        begin -= 1
+    return text[begin:end]
+
+
+def unencoded_text_calls(paths) -> list[str]:
+    offenders = []
+    for path in paths:
+        text = path.read_text(encoding="utf-8")
+        for match in ENCODING_CALLS.finditer(text):
+            call = _call_source(text, match.start())
+            if _receiver(text, match.start()) in NON_FILE_OPENERS:
+                continue
+            if "subprocess." in match.group():
+                if not TEXT_MODE.search(call):
+                    continue  # bytes come back undecoded, so there is nothing to get wrong
+            elif BINARY_MODE.search(call):
+                continue
+            if "encoding=" in call or "_platform.text_kwargs()" in call:
+                continue
+            line = text[:match.start()].count("\n") + 1
+            offenders.append(f"{path}:{line} {call.splitlines()[0][:90]}")
+    return offenders
+
+
+def test_every_text_call_in_the_shipped_code_names_its_encoding():
     """A locale-dependent default turns Korean records into an exception on a Windows machine, and
     reconfiguring this process's streams does not reach a child's pipe or a file."""
-    offenders = []
-    for directory in SOURCE_DIRS:
-        for path in sorted((PACK / directory).rglob("*.py")):
-            if "__pycache__" in path.parts:
-                continue
-            text = path.read_text(encoding="utf-8")
-            for match in ENCODING_CALLS.finditer(text):
-                call = _call_source(text, match.start())
-                binary = re.search(r'["\'][rwax+]*b[rwax+]*["\']', call)
-                textual = "text=True" in call or "capture_output" in call
-                if match.group().startswith("subprocess") and not textual:
-                    continue
-                if binary or "encoding=" in call or "**_platform.text_kwargs()" in call:
-                    continue
-                line = text[:match.start()].count("\n") + 1
-                offenders.append(f"{path.relative_to(PACK)}:{line} {call.splitlines()[0][:90]}")
+    paths = [p for directory in SOURCE_DIRS
+             for p in sorted((PACK / directory).rglob("*.py")) if "__pycache__" not in p.parts]
+    offenders = unencoded_text_calls(paths)
     assert not offenders, "text without an explicit encoding:\n" + "\n".join(offenders)
+
+
+def test_the_encoding_scan_catches_the_calls_it_claims_to(tmp_path):
+    planted = tmp_path / "planted.py"
+    planted.write_text(
+        "import io\nimport subprocess\nfrom pathlib import Path\n"
+        "Path('a').write_text('한글')\n"            # 1
+        "Path('b').read_text()\n"                  # 2
+        "io.open('c').read()\n"                    # 3
+        "subprocess.run(['x'], text=True)\n"       # 4
+        "subprocess.run(['y'], universal_newlines=True)\n"  # 5
+        "Path('d').write_text('ok', encoding='utf-8')\n"    # fine
+        "open('e', 'rb').read()\n"                          # fine
+        "subprocess.run(['z'], capture_output=True)\n"      # fine: bytes
+        "webbrowser.open('https://example.invalid')\n",     # fine: not a file
+        encoding="utf-8")
+    offenders = unencoded_text_calls([planted])
+    assert len(offenders) == 5, offenders

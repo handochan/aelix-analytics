@@ -185,10 +185,14 @@ class PosixProcessControl:
             os.kill(proc.pid, signal.SIGINT)
 
     def kill_tree(self, proc) -> None:
-        # The whole group, even when the wrapper has already exited: a descendant that outlives
-        # `uv` keeps the pipes open, and that is exactly the case this has to end.
+        # The group, by the child's own pid: `spawn_kwargs` starts it in a new session, so its
+        # process group id is its pid. `os.getpgid` would fail here, because this is also used
+        # once the wrapper has been reaped while a descendant still holds the pipes — and that is
+        # exactly the case this has to end. Addressing the group by that id stays safe then: the
+        # kernel does not reuse a pid while a process group is still using it as its id, so this
+        # either reaches the surviving descendants or fails with ESRCH.
         with contextlib.suppress(ProcessLookupError, OSError):
-            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+            os.killpg(proc.pid, signal.SIGKILL)
 
 
 class PosixRunControl:
@@ -250,6 +254,8 @@ SHARING_WINERRORS = frozenset({32, 33})
 REPLACE_ATTEMPTS = 40
 REPLACE_POLL_SECONDS = 0.05
 KILL_TREE_TIMEOUT_SECONDS = 10
+# taskkill reports "process not found" as 128, which is success for this purpose.
+TASKKILL_NOT_FOUND = 128
 
 
 class WindowsFileLocks:
@@ -332,7 +338,8 @@ class WindowsProcessControl:
         except (TypeError, ValueError):
             return False
         ctypes, kernel32 = self._kernel32()
-        synchronize, wait_timeout, error_invalid_parameter = 0x00100000, 0x00000102, 87
+        synchronize, wait_timeout, wait_failed = 0x00100000, 0x00000102, 0xFFFFFFFF
+        error_invalid_parameter = 87
         handle = kernel32.OpenProcess(synchronize, False, pid_value)
         if not handle:
             if ctypes.get_last_error() == error_invalid_parameter:
@@ -341,7 +348,10 @@ class WindowsProcessControl:
             # answer this port does not have. Neither may downgrade a running record on a guess.
             return True
         try:
-            return kernel32.WaitForSingleObject(handle, 0) == wait_timeout
+            result = kernel32.WaitForSingleObject(handle, 0)
+            if result == wait_failed:
+                return True  # the wait itself failed: that is not evidence the process exited
+            return result == wait_timeout
         finally:
             kernel32.CloseHandle(handle)
 
@@ -364,12 +374,23 @@ class WindowsProcessControl:
         # Killing the process leaves its children running, and the child here is `uv`, which has
         # one. `taskkill /T` is the documented way to end the tree. This blocks, so an event loop
         # calls it off-thread (see ProcessControl).
+        #
+        # A failure here is reported rather than swallowed, because the caller cannot tell from a
+        # silent return whether the descendants are gone: they may still be holding the pipes it
+        # is about to wait on. There is no second way to end the tree, so this is a diagnostic,
+        # not a recovery, and docs/CONTRACTS.md says the run can stay incomplete.
+        problem = None
         try:
-            subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)],
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                           timeout=KILL_TREE_TIMEOUT_SECONDS, check=False)
-        except (OSError, subprocess.SubprocessError):
-            pass  # fall through to ending at least the process we own a handle for
+            done = subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                                  capture_output=True, timeout=KILL_TREE_TIMEOUT_SECONDS,
+                                  check=False, **text_kwargs())
+            if done.returncode not in (0, TASKKILL_NOT_FOUND):
+                problem = f"taskkill exited {done.returncode}: {(done.stderr or '').strip()[:200]}"
+        except (OSError, subprocess.SubprocessError) as exc:
+            problem = f"{type(exc).__name__}: {exc}"
+        if problem:
+            print(f"labkit: could not end the process tree of pid {proc.pid}; its descendants may "
+                  f"still be running ({problem})", file=sys.stderr)
         with contextlib.suppress(OSError, ValueError):
             proc.kill()
 
@@ -500,14 +521,22 @@ def portable_name(name: str) -> bool:
     return text[-1] not in ". "
 
 
-def portable_stem(stem: str) -> str:
-    """`stem`, or a variant of it that is a usable file name on Windows.
+# A chart id is always a slug, so it holds only [a-z0-9-] (core.slugify). An underscore therefore
+# cannot appear in one, which makes the mapping below injective: no reserved id can be turned into
+# a name another id already has. A suffix such as "-file" would not be, because `con-file` is a
+# perfectly ordinary id and both would land on the same file.
+UNPORTABLE_SUFFIX = "_"
 
-    Used where the name on disk may differ from the identity in the record — a chart keeps the id
-    its author chose, and only the file it is written to has to be openable everywhere."""
+
+def portable_stem(stem: str) -> str:
+    """`stem`, or a distinct variant of it that is a usable file name on Windows.
+
+    Used where the name on disk may differ from the identity in the record: a chart keeps the id it
+    was recorded with, and only the file it is written to has to be openable everywhere. Two
+    different stems never map to the same result."""
     text = str(stem)
     if reserved_name(text):
-        return f"{text}-file"
+        return f"{text}{UNPORTABLE_SUFFIX}"
     return text
 
 
