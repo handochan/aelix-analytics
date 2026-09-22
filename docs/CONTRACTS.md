@@ -131,7 +131,22 @@ source{path, sha256, bytes, format, modified_at}`.
 | SQL 계보 | DuckDB 파서(`json_serialize_sql`)로 참조 테이블을 찾고 CTE 이름은 그 범위 안에서만 제외합니다. 파서가 받지 않는 문장은 FROM·JOIN 뒤 이름만 맞춰 보는 대비책을 씁니다 |
 | 프로젝트 활성화 | `/lab use`·flag·env는 명시적 선택입니다. 작업 디렉터리로만 찾은 프로젝트는 신뢰 목록에 있어야 활성화되고, 아니면 `project_untrusted`로 거절하며 맥락 주입·telemetry도 하지 않습니다 |
 
-## F. 약속하지 않는 것
+## F. 실행 환경과 지원 플랫폼
+
+지원 플랫폼은 Linux·macOS·Windows입니다([ADR-0002](decisions/0002-python-support-and-platform-scope.md), 2026-09-21 채택).
+아래 표는 **현재 코드가 실제로 하는 것**이며, 채택한 목표와 구별합니다. 채택된 하한·이식은 [#8](https://github.com/handochan/aelix-analytics/issues/8)에서 적용합니다.
+
+| 항목 | 현재 코드 |
+|---|---|
+| 선언된 Python 하한 | `pyproject.toml`·`kit/template/pyproject.toml`·`uv.lock` 모두 `>=3.12`. ADR-0002가 채택한 진입점 `>=3.11`은 아직 적용되지 않았습니다 |
+| 실제 동작하는 플랫폼 | POSIX만. `kit/labkit/core.py`가 `fcntl`을 최상위에서 import하므로 Windows에서는 확장 로드와 CLI 실행이 import 단계에서 실패합니다 |
+| 검증된 조합 | macOS 26.6.2 arm64 / CPython 3.12.13 ([회귀 기준](BASELINE-VERIFICATION.md)). Linux는 미검증입니다 |
+| 프로세스 경계 | stdlib·aelix API·`kit/labkit/core.py`로 제한되는 것은 **aelix 확장 프로세스**입니다. 확장은 `uv run --project` 자식 프로세스로 CLI를 띄웁니다(`extension/aelix_lab.py:190`). 그 CLI 프로세스는 `runner`·`data`·`report`를 자기 프로세스에서 import하고, `data.py`와 SDK가 그 안에서 duckdb·polars를 import합니다. 실행되는 스크립트도 같은 프로세스입니다 |
+| 잠금·타임아웃·종료 | `fcntl.flock`(journal·run·report 잠금), `signal.SIGALRM`·`signal.setitimer`(run 제한 시간), `os.killpg`(프로세스 그룹 강제 종료), `start_new_session`(자식 프로세스)는 POSIX 전용입니다. `os.kill`은 Windows에도 있으나 의미가 다릅니다 — `SIGINT` 전달이 우아한 중단 대신 강제 종료가 되고, `sig=0` 생존 확인은 `CTRL_C_EVENT` 요청이 됩니다. **이 목록은 완전하지 않습니다** — 파일 교체·예약 파일명·인코딩·경로 표현도 영향을 받습니다 |
+| 사람용 진입점 | `bin/lab`은 POSIX 셸 스크립트입니다. Windows 대응 진입점은 없습니다 |
+| 배포 형태 | 루트 `pyproject.toml`이 `package = false`입니다. 설치 가능한 배포본이 없고 pack 경로에서 직접 실행합니다 |
+
+## G. 약속하지 않는 것
 
 - 격리·샌드박스·승인. `lab_run` 스크립트는 사용자가 읽을 수 있는 모든 파일에 닿습니다(`lab_query`만 `data/`로 묶여 있습니다).
 - 계보의 완전성. 입력 감지는 최선 노력입니다(pyarrow 직접 읽기처럼 훅이 없는 경로는 놓칩니다). 일부만 감지된
@@ -142,3 +157,5 @@ source{path, sha256, bytes, format, modified_at}`.
 - 결정성과 다른 환경 재현. 재실행은 같은 환경을 가정하고 환경 지문을 비교하지 않습니다.
 - 반출 정책·가림. 리포트에는 데이터 미리보기와 로그가 그대로 들어갑니다.
 - 규모 한도. 명시적 상한이 없고 큰 데이터에서는 느려집니다.
+- Windows 동작. 지원 플랫폼으로 채택했지만 현재 코드는 POSIX 전용 호출에 의존하며 import 단계부터 실패합니다.
+  Aelix 호스트가 Windows를 지원하더라도 이 확장의 Windows 지원으로 옮겨 적지 않습니다.

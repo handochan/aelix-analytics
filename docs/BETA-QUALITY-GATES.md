@@ -17,8 +17,10 @@
 공식 표면은 [용어집](TERMINOLOGY-AND-LANGUAGE.md)의 Analytics·Workspace·Visualization·Report로 통일하며 UI·템플릿은 영어를 기본으로 한다. 다국어 사용자 내용과 과거 기록은 보존한다.
 “공식”은 유지관리·설치·호환성·검증 책임을 명시한다는 의미다. 샌드박스·완전 재현·분석 결론 인증을 뜻하지 않는다.
 
-기본 플랫폼 후보는 현재 사용하는 macOS/Linux다. 테스트·실제 설치 증거가 있는 범위만 지원표에 적는다.
-현재 코드가 `fcntl`을 사용하므로 Aelix 호스트의 Windows 지원과 이 확장의 Windows 지원을 동일시하지 않는다.
+지원 플랫폼은 Linux·macOS·Windows로 확정했다([ADR-0002](decisions/0002-python-support-and-platform-scope.md)).
+이는 지원 목표이며, 지원표에는 실제 설치·실행 증거가 있는 범위만 검증됨으로 적는다. 현재 증거는 macOS arm64 / Python 3.12 하나뿐이다.
+Windows는 아직 동작하지 않는다. `kit/labkit/core.py:12`의 `import fcntl`이 가드 없는 최상위 import이므로 확장 로드 자체가 실패하며,
+`flock` 잠금·`SIGALRM` 타임아웃·`killpg` 종료·POSIX 셸 진입점도 함께 이식해야 한다. Aelix 호스트의 Windows 지원을 이 확장의 Windows 지원으로 옮겨 적지 않는다.
 “로컬 모델 지원”도 시험한 모델·양자화·context 설정·도구 호출 경로를 명시한다.
 
 현재 사용자가 지정한 지원 하단 기준은 **Qwen3.8 27B**다. 정확한 serving ID·버전·양자화·backend·tokenizer·실제 context 설정을 고정한 검증이 필요하다.

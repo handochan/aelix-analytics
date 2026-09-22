@@ -36,6 +36,7 @@ Codex·Claude Code의 공통 진입 지침은 [AGENTS.md](AGENTS.md), GitHub 작
 ## 지킬 구조와 의미
 
 - stdlib로 읽는 기록·맥락과 프로젝트 uv 환경에서 실행하는 분석 라이브러리의 경계를 유지합니다.
+- 새 코드는 Linux·macOS·Windows를 모두 가정합니다([ADR-0002](docs/decisions/0002-python-support-and-platform-scope.md)). POSIX 전용 API를 새로 도입하지 않고, 잠금·타임아웃·프로세스 생성과 종료·파일 교체·파일명·경로·인코딩은 처음부터 이식 가능한 경계 뒤에 둡니다. 한 플랫폼의 통과를 다른 플랫폼의 결과로 쓰지 않습니다.
 - 새 공개 이름은 `analytics`로 통일하고, 도구의 구·신 별칭을 동시에 상시 노출하지 않습니다. 과거 프로젝트·실행 스냅샷은 별도 reader·명시적 전환으로 보존합니다.
 - Workspace는 분석 인터페이스, Visualization은 분석 표현 객체, Chart는 그 유형, Report는 문서 산출물입니다. 데이터 표·근거 그래프를 자동으로 모두 Visualization 기록으로 만들지 않습니다.
 - UI·템플릿·속성·오류·접근성 label은 영어를 기본으로 합니다. 사용자 본문·열 이름·보존 코드는 번역하지 않고, Unicode·한국어 조회와 과거 CONTEXT의 읽기를 유지합니다.
@@ -95,7 +96,8 @@ uv run --locked python tools/check_docs.py --output .devstate/runs/<run-id>/evid
 
 ## 첫 공개 전에 남은 운영 결정
 
-라이선스, 배포 이름, 유지관리 책임자, 지원 버전·플랫폼, 보안 신고 경로와 릴리스 절차는 확정해 공개해야 합니다.
+라이선스, 배포 이름, 유지관리 책임자, 보안 신고 경로와 릴리스 절차는 확정해 공개해야 합니다.
+지원 플랫폼은 Linux·macOS·Windows이며 Python 하한과 패키징 경계는 [ADR-0002](docs/decisions/0002-python-support-and-platform-scope.md)로 채택했습니다. 채택은 구현 완료가 아니므로, 현재 코드의 상태는 [현재 계약](docs/CONTRACTS.md)의 실행 환경 절을 따릅니다.
 현재 LICENSE가 없으므로 이 문서가 사용·재배포의 라이선스를 부여하지 않습니다.
 출시 여부는 [품질 게이트](docs/BETA-QUALITY-GATES.md)의 실제 증거로 판단합니다.
 작성·실행·기록·설치 경로를 바꾸면 [Q17](docs/BETA-QUALITY-GATES.md#사람의-직접-분석과-작성-주체-전환-검증)의 관련 사례를 검증합니다. 노트북에서 SDK를 import한 사실만으로 실행 기록 연동을 지원한다고 안내하지 않습니다.
