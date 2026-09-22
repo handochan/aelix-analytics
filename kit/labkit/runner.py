@@ -12,18 +12,18 @@ from __future__ import annotations
 import ast
 import builtins
 import contextlib
+import io
 import os
 import platform
 import re
 import shutil
-import signal
 import sys
 import time
 import traceback
 import types
 from pathlib import Path
 
-from . import capture, core
+from . import _platform, capture, core
 
 WRITE_CALLS = {"write_parquet", "sink_parquet", "write_csv", "sink_csv", "write_ipc", "sink_ipc",
                "write_ndjson", "sink_ndjson", "write_json", "write_excel", "write_delta",
@@ -35,14 +35,6 @@ PROJECT_FILES = {"lab.json", "journal.jsonl", "CONTEXT.md", "pyproject.toml", "u
 PACKAGES = ("duckdb", "polars", "pyarrow", "matplotlib", "plotly", "numpy", "pygments",
             "markdown-it-py")
 OUTPUT_TAIL = 4000
-
-
-class RunTimeout(BaseException):
-    pass
-
-
-class RunTerminated(BaseException):
-    pass
 
 
 def scan_literals(source: str) -> tuple[set[str], set[str]]:
@@ -181,22 +173,35 @@ def _tail(path: Path, limit: int = OUTPUT_TAIL) -> str:
 
 @contextlib.contextmanager
 def _redirected(stdout_path: Path, stderr_path: Path):
+    """Send this process's output, and that of anything it starts, to the run's log files.
+
+    The descriptors are redirected so a C library or a child process lands in the same file, and
+    the Python-level streams are rebound on top of them. A console stream keeps writing to the
+    console it was built for: on Windows `sys.stdout` can wrap a _WindowsConsoleIO that calls
+    WriteConsoleW, which fails once fd 1 points at a file. Rebinding also fixes the encoding of a
+    run's own log, which would otherwise follow the locale."""
     sys.stdout.flush()
     sys.stderr.flush()
-    saved = os.dup(1), os.dup(2)
+    saved_fds = os.dup(1), os.dup(2)
+    saved_streams = sys.stdout, sys.stderr
     with open(stdout_path, "wb") as out, open(stderr_path, "wb") as err:
         os.dup2(out.fileno(), 1)
         os.dup2(err.fileno(), 2)
+        sys.stdout = io.TextIOWrapper(io.FileIO(1, "w", closefd=False), line_buffering=True,
+                                      encoding=_platform.TEXT_ENCODING, errors="replace")
+        sys.stderr = io.TextIOWrapper(io.FileIO(2, "w", closefd=False), line_buffering=True,
+                                      encoding=_platform.TEXT_ENCODING, errors="replace")
         try:
             yield
         finally:
             with contextlib.suppress(Exception):
                 sys.stdout.flush()
                 sys.stderr.flush()
-            os.dup2(saved[0], 1)
-            os.dup2(saved[1], 2)
-            os.close(saved[0])
-            os.close(saved[1])
+            sys.stdout, sys.stderr = saved_streams
+            os.dup2(saved_fds[0], 1)
+            os.dup2(saved_fds[1], 2)
+            os.close(saved_fds[0])
+            os.close(saved_fds[1])
 
 
 def _exec_script(code_bytes: bytes, filename: Path, script_dir: Path) -> None:
@@ -437,7 +442,7 @@ def _execute_locked(project, *, script_rel, exec_file, code_bytes, title, declar
               "rerun_of": rerun_of,
               "script": {"path": script_rel, "sha256": core.sha256_bytes(code_bytes),
                          "snapshot": project.rel(snapshot)}}
-    core.write_json(run_dir / "run.json", record)
+    core.write_json(run_dir / "run.json", record, platform=project.platform)
 
     # Code of a rerun keeps the snapshot path so tracebacks show the lines that actually ran.
     filename = exec_file if rerun_of else project.path(script_rel)
@@ -452,35 +457,22 @@ def _execute_locked(project, *, script_rel, exec_file, code_bytes, title, declar
     stdout_path, stderr_path = run_dir / "stdout.txt", run_dir / "stderr.txt"
 
     signals = {"timeout": False, "cancel": False}
-    originals = {sig: signal.getsignal(sig) for sig in (signal.SIGALRM, signal.SIGTERM,
-                                                        signal.SIGINT)}
-    try:
+    # An interrupt that arrives once the script has stopped only marks the run cancelled: the
+    # status _classify chose stands and the record must still be written. This scope covers the
+    # capture cleanup and the whole of _finalize without a gap, and _run_script nests the raising
+    # scope for the script itself inside it.
+    with project.platform.runs.cancel_scope(lambda: signals.__setitem__("cancel", True),
+                                            interrupt=False):
         status, error, duration = _run_script(project, state, code_bytes, filename, script_rel,
                                               timeout, stdout_path, stderr_path, signals)
-        # Until the record is written, a late interrupt only marks the run cancelled.
-        for sig in (signal.SIGTERM, signal.SIGINT):
-            signal.signal(sig, lambda *_: signals.__setitem__("cancel", True))
         return _finalize(project, state, record, source_run=source_run, before=before,
                          status=status, error=error, duration=duration, code_dir=code_dir,
                          stdout_path=stdout_path, stderr_path=stderr_path, actor=actor,
                          session=session)
-    finally:
-        signal.setitimer(signal.ITIMER_REAL, 0)
-        for sig, handler in originals.items():
-            with contextlib.suppress(Exception):
-                signal.signal(sig, handler)
 
 
 def _run_script(project, state, code_bytes, filename, script_rel, timeout, stdout_path,
                 stderr_path, signals) -> tuple[str, dict | None, float]:
-    def on_alarm(_signum, _frame):
-        signals["timeout"] = True
-        raise RunTimeout()
-
-    def on_cancel(_signum, _frame):
-        signals["cancel"] = True
-        raise RunTerminated()
-
     env_backup = {k: os.environ.get(k) for k in ("LAB_RUN_ID", "LAB_RUN_DIR", "LAB_PROJECT",
                                                  "MPLBACKEND")}
     os.environ.update({"LAB_RUN_ID": state.run_id, "LAB_RUN_DIR": str(state.run_dir),
@@ -489,25 +481,23 @@ def _run_script(project, state, code_bytes, filename, script_rel, timeout, stdou
     cwd = os.getcwd()
     finder = None
     failure: BaseException | None = None
-    signal.signal(signal.SIGALRM, on_alarm)
-    signal.signal(signal.SIGTERM, on_cancel)
-    signal.signal(signal.SIGINT, on_cancel)
+    runs = project.platform.runs
     t0 = time.perf_counter()
     try:
         with _redirected(stdout_path, stderr_path):
             try:
                 os.chdir(project.root)
                 finder = capture.install(state)
-                signal.setitimer(signal.ITIMER_REAL, max(1.0, float(timeout)))
-                try:
+                # Both callbacks only record that the event happened; the port interrupts the main
+                # thread itself. Leaving these scopes restores the flag-only handlers the caller
+                # installed, so the cleanup below is never interrupted.
+                with runs.cancel_scope(lambda: signals.__setitem__("cancel", True),
+                                       interrupt=True), \
+                        runs.deadline(timeout, lambda: signals.__setitem__("timeout", True)):
                     _exec_script(code_bytes, filename, project.path(script_rel).parent)
-                finally:
-                    signal.setitimer(signal.ITIMER_REAL, 0)
             except BaseException as exc:  # noqa: BLE001 - classified below with the timer off
                 failure = exc
             # Libraries such as DuckDB turn the interrupt into their own error; the flags decide.
-            for sig in (signal.SIGTERM, signal.SIGINT):
-                signal.signal(sig, lambda *_: signals.__setitem__("cancel", True))
             if failure is not None and not isinstance(failure, SystemExit):
                 with contextlib.suppress(Exception):
                     traceback.print_exception(failure)
@@ -516,7 +506,6 @@ def _run_script(project, state, code_bytes, filename, script_rel, timeout, stdou
             with contextlib.suppress(Exception):
                 state.register_loose_files()
     finally:
-        signal.setitimer(signal.ITIMER_REAL, 0)
         capture.uninstall(finder)
         os.chdir(cwd)
         for k, v in env_backup.items():
@@ -533,7 +522,7 @@ def _classify(failure, signals, timeout, filename) -> tuple[str, dict | None]:
     if signals["timeout"]:
         return "timeout", {"type": "Timeout", "message": f"exceeded {timeout:.0f} s", "line": None,
                            "summary": f"timed out after {timeout:.0f} s"}
-    if signals["cancel"] or isinstance(failure, (KeyboardInterrupt, RunTerminated)):
+    if signals["cancel"] or isinstance(failure, (KeyboardInterrupt, _platform.Interrupted)):
         return "cancelled", {"type": "Cancelled", "message": "interrupted", "line": None,
                              "summary": "cancelled"}
     if failure is None:
@@ -579,7 +568,7 @@ def _finalize(project, state, record, *, source_run, before, status, error, dura
                                          lambda: compare_runs(project, source_run, record), None)
     if problems:
         record["finalize_errors"] = list(problems)
-    core.write_json(run_dir / "run.json", record)
+    core.write_json(run_dir / "run.json", record, platform=project.platform)
     guarded("hash cache", state.cache.save, None)
 
     ok = status == "ok"
@@ -605,7 +594,7 @@ def _finalize(project, state, record, *, source_run, before, status, error, dura
     if problems and problems != (record.get("finalize_errors") or []):
         record["finalize_errors"] = list(problems)
         with contextlib.suppress(OSError):
-            core.write_json(run_dir / "run.json", record)
+            core.write_json(run_dir / "run.json", record, platform=project.platform)
     result = {"run": record, "event": event["id"] if event else None,
               "stdout_tail": _tail(stdout_path), "stderr_tail": _tail(stderr_path),
               "page": project.rel(project.report / "runs" / f"{run_id}.html")}

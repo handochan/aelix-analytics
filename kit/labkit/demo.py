@@ -13,7 +13,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from . import core, data
+from . import _platform, core, data
 
 SCRIPTS = Path(__file__).resolve().parent / "demo_scripts"
 REGIONS = {"서울": (1.00, 0.55), "경기": (0.80, 0.45), "부산": (0.45, 0.25), "대구": (0.35, 0.12)}
@@ -89,7 +89,8 @@ def _run(project: core.Project, script: str, title: str, actor: str, extra=()) -
     env["MPLBACKEND"] = "Agg"
     cmd = [sys.executable, "-m", "labkit", "--project", str(project.root), "run",
            *([script] if script else []), "--title", title, *extra]
-    proc = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=600)
+    proc = subprocess.run(cmd, capture_output=True, env=env, timeout=600,
+                          **_platform.text_kwargs())
     lines = [line for line in proc.stdout.splitlines() if line.startswith("{")]
     if not lines:
         raise core.LabError("demo_run_failed", f"{script or extra}: no result",

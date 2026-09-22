@@ -16,10 +16,10 @@ import polars as pl
 import pytest
 from conftest import kit_env
 
-from labkit import core
+from labkit import _platform, core
 
 FIXTURE = Path(__file__).parent / "fixtures" / "human_baseline"
-EXPECTED = json.loads((FIXTURE / "expected.json").read_text())
+EXPECTED = json.loads((FIXTURE / "expected.json").read_text(encoding="utf-8"))
 
 
 def file_hashes(directory):
@@ -38,8 +38,8 @@ def human_cli(tmp_path):
     def call(*args, expected_exit=0):
         argv = [sys.executable, "-m", "labkit", "--project", str(root), *map(str, args)]
         started_at = datetime.now(UTC).isoformat()
-        result = subprocess.run(argv, env=env, cwd=tmp_path, capture_output=True,
-                                text=True, timeout=120)
+        result = subprocess.run(argv, env=env, cwd=tmp_path, capture_output=True, timeout=120,
+                                **_platform.text_kwargs())
         with (tmp_path / "commands.jsonl").open("a", encoding="utf-8") as stream:
             stream.write(json.dumps({"argv": argv, "cwd": str(tmp_path),
                 "started_at": started_at, "exit_code": result.returncode,

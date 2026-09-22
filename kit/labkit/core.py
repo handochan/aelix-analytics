@@ -1,15 +1,18 @@
 """Project model for Aelix Analytics projects. Standard library only.
 
-The aelix extension loads this file by path inside the aelix process, so it must not import polars,
-duckdb, plotting libraries or other labkit modules. Code that needs those runs inside a project's own
-uv environment (runner, data, report).
+The aelix extension loads this file inside the aelix process, so it must not import polars, duckdb,
+plotting libraries or any other labkit module except `_platform`, which is standard library only for
+the same reason. Code that needs the analysis libraries runs inside a project's own uv environment
+(runner, data, report).
+
+Every operation that behaves differently on Linux, macOS and Windows goes through the bundle of
+ports a `Project` carries, so nothing in this file tests `sys.platform`. See `_platform`.
 """
 
 from __future__ import annotations
 
 import contextlib
 import difflib
-import fcntl
 import hashlib
 import json
 import os
@@ -17,6 +20,8 @@ import re
 import tomllib
 from datetime import datetime
 from pathlib import Path
+
+from . import _platform
 
 KIT_VERSION = "0.1.0"
 MARKER = "lab.json"
@@ -50,6 +55,10 @@ IGNORED_DIRS = {".venv", ".lab", "runs", "report", "scripts", ".git", "__pycache
                 ".pytest_cache", ".ruff_cache", ".omc", ".aelix", "node_modules",
                 ".ipynb_checkpoints"}
 
+# The OS-dependent operations of this process. A Project takes this unless an entry point or a test
+# hands it another bundle; nothing here looks one up by name or by environment variable.
+PLATFORM = _platform.detect()
+
 
 class LabError(Exception):
     def __init__(self, code: str, message: str, hint: str | None = None, details=None):
@@ -69,10 +78,15 @@ class LabError(Exception):
 
 
 class Project:
-    """Paths of one lab project. Construction does not touch the file system."""
+    """Paths of one lab project, and the platform ports its operations use.
 
-    def __init__(self, root):
+    Construction does not touch the file system. `platform` is the bundle from `_platform`: an
+    entry point passes the one it assembled and a test passes another implementation, so the same
+    project code runs unchanged on Linux, macOS and Windows."""
+
+    def __init__(self, root, *, platform: _platform.Platform | None = None):
         self.root = Path(root).expanduser().resolve()
+        self.platform = platform or PLATFORM
         self.marker = self.root / MARKER
         self.context = self.root / "CONTEXT.md"
         self.journal = self.root / "journal.jsonl"
@@ -141,14 +155,14 @@ def read_json(path, default=None):
         return default
 
 
-def write_json(path, obj) -> None:
+def write_json(path, obj, *, platform: _platform.Platform | None = None) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
     with open(tmp, "w", encoding="utf-8") as fh:
         json.dump(obj, fh, ensure_ascii=False, indent=2, default=str)
         fh.write("\n")
-    os.replace(tmp, path)
+    (platform or PLATFORM).files.replace(tmp, path)
 
 
 def read_jsonl(path) -> list[dict]:
@@ -177,6 +191,22 @@ def append_jsonl(path, obj) -> None:
         fh.write(json.dumps(obj, ensure_ascii=False, default=str) + "\n")
 
 
+def reject_unportable_name(name, *, kind: str, exists: bool = False) -> None:
+    """Refuse a NEW name that Windows cannot use as a file name.
+
+    `con`, `nul`, `aux`, `com1` and their relatives are device names on Windows whatever the
+    extension is, so a project created on Linux with one of them cannot be opened there. A name the
+    project already has is never refused: existing records stay readable and re-runnable on every
+    platform, because a record outlives the machine that wrote it."""
+    if exists or not _platform.reserved_name(name):
+        return
+    raise LabError("name_not_portable",
+                   f"{kind} name {name!r} is a reserved device name on Windows",
+                   hint=f"choose another name, for example {name}_1; records that already use this "
+                        "name keep working, but a new one has to be usable on Linux, macOS and "
+                        "Windows")
+
+
 def slugify(text, max_len: int = 48) -> str:
     s = re.sub(r"[^a-z0-9]+", "-", str(text).lower()).strip("-")
     return s[:max_len].strip("-")
@@ -199,6 +229,7 @@ class HashCache:
 
     def __init__(self, project: Project):
         self.file = project.cache / "hashes.json"
+        self.platform = project.platform
         data = read_json(self.file, {})
         self.data = data if isinstance(data, dict) else {}
         self.dirty = False
@@ -227,32 +258,18 @@ class HashCache:
     def save(self) -> None:
         if self.dirty:
             with contextlib.suppress(OSError):
-                write_json(self.file, self.data)
+                write_json(self.file, self.data, platform=self.platform)
             self.dirty = False
 
 
-@contextlib.contextmanager
 def project_lock(project: Project):
     """Exclusive inter-process lock for journal and context-history writes. Not re-entrant."""
-    project.lab.mkdir(parents=True, exist_ok=True)
-    with open(project.lab / "lock", "a+") as fh:
-        fcntl.flock(fh, fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(fh, fcntl.LOCK_UN)
+    return project.platform.locks.exclusive(project.lab / "lock")
 
 
-@contextlib.contextmanager
 def run_lock(project: Project):
     """Serializes runs of one project (see runner.execute)."""
-    project.lab.mkdir(parents=True, exist_ok=True)
-    with open(project.lab / "run.lock", "a+") as fh:
-        fcntl.flock(fh, fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(fh, fcntl.LOCK_UN)
+    return project.platform.locks.exclusive(project.lab / "run.lock")
 
 
 # --- trust: which projects an aelix session may activate just by being inside them ---
@@ -279,13 +296,14 @@ def is_trusted(root) -> bool:
         return False
 
 
-def trust_project(root) -> None:
+def trust_project(root, *, platform: _platform.Platform | None = None) -> None:
     """Remember a project the user created or chose, so starting aelix inside it activates it."""
     resolved = str(Path(root).expanduser().resolve())
     roots = trusted_roots()
     if resolved in roots:
         return
-    write_json(trust_file(), {"schema": "lab.trust/1", "projects": sorted(roots | {resolved})})
+    write_json(trust_file(), {"schema": "lab.trust/1", "projects": sorted(roots | {resolved})},
+               platform=platform)
 
 
 def find_project(start=None) -> Path | None:
@@ -505,14 +523,6 @@ def context_goal(text: str) -> str:
 
 # --- runs ---
 
-def _pid_alive(pid) -> bool:
-    try:
-        os.kill(int(pid), 0)
-    except (OSError, ValueError, TypeError):
-        return False
-    return True
-
-
 def list_runs(project: Project) -> list[dict]:
     runs = []
     if not project.runs.is_dir():
@@ -526,7 +536,8 @@ def list_runs(project: Project) -> list[dict]:
         if not isinstance(rec, dict):
             rec = {"id": d.name, "status": "incomplete", "title": "(run.json missing)"}
         rec["id"] = d.name
-        if rec.get("status") == "running" and not _pid_alive(rec.get("pid")):
+        if rec.get("status") == "running" \
+                and not project.platform.processes.alive(rec.get("pid")):
             rec["status"] = "incomplete"
         runs.append(rec)
     return runs
@@ -964,8 +975,8 @@ def _refs_suffix(event: dict) -> str:
 
 # --- project creation ---
 
-def init_project(target, *, title=None, goal=None, template_dir, actor="human",
-                 session=None) -> Project:
+def init_project(target, *, title=None, goal=None, template_dir, actor="human", session=None,
+                 platform: _platform.Platform | None = None) -> Project:
     root = Path(target).expanduser()
     if root.exists():
         if not root.is_dir():
@@ -976,7 +987,7 @@ def init_project(target, *, title=None, goal=None, template_dir, actor="human",
                            hint="choose a new directory; init never adopts existing files",
                            details={"entries": sorted(leftovers)[:10]})
     root.mkdir(parents=True, exist_ok=True)
-    project = Project(root)
+    project = Project(root, platform=platform)
     title = (title or "").strip() or project.root.name
     template_dir = Path(template_dir)
     for d in (project.raw, project.derived, project.scripts, project.runs, project.report,
@@ -984,7 +995,7 @@ def init_project(target, *, title=None, goal=None, template_dir, actor="human",
         d.mkdir(parents=True, exist_ok=True)
     created = iso()
     write_json(project.marker, {"schema": SCHEMA_PROJECT, "title": title, "created_at": created,
-                                "kit_version": KIT_VERSION})
+                                "kit_version": KIT_VERSION}, platform=project.platform)
     fill = {"title": title, "date": created[:10],
             "goal": (goal or "").strip() or "- (이 분석으로 답하려는 질문과, 결과를 쓸 사람/의사결정)",
             "slug": slugify(title, 40) or "analysis"}
@@ -999,5 +1010,5 @@ def init_project(target, *, title=None, goal=None, template_dir, actor="human",
     append_event(project, "project", f"project created: {title}", actor=actor, session=session)
     sync_context(project, actor=actor, session=session)
     with contextlib.suppress(OSError):
-        trust_project(project.root)
+        trust_project(project.root, platform=project.platform)
     return project

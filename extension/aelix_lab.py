@@ -5,21 +5,23 @@ Load for one session:   aelix -e <pack>/extension/aelix_lab.py [--lab-project DI
 Register globally:      ln -s <pack>/extension/aelix_lab.py ~/.aelix/agent/extensions/aelix_lab.py
 
 Inside aelix this file imports only the standard library, the aelix API and the pack's stdlib-only
-kit/labkit/core.py (loaded by path, so symlink this file rather than copying it). Analysis code never
-runs in the aelix process: lab_run, lab_import, lab_query and report builds are
-`uv run --project <project> python -m labkit ...` subprocesses in the project's own environment.
+kit/labkit/core.py with its _platform sibling (loaded from the pack, so symlink this file rather
+than copying it). Analysis code never runs in the aelix process: lab_run, lab_import, lab_query and
+report builds are `uv run --project <project> python -m labkit ...` subprocesses in the project's
+own environment.
 Neither side is a sandbox, and aelix does not ask for approval before extension tools run.
 """
 
 import asyncio
 import base64
 import contextlib
+import hashlib
+import importlib.machinery
 import importlib.util
 import json
 import os
 import re
 import shutil
-import signal
 import subprocess
 import sys
 import time
@@ -35,16 +37,37 @@ KIT = Path(os.environ.get("AELIX_LAB_KIT") or PACK / "kit").expanduser().resolve
 
 
 def _load_core():
+    """Load the pack's stdlib-only project model into the aelix process.
+
+    core.py imports one sibling — _platform, stdlib only for the same reason — so it is loaded as a
+    submodule of a synthetic package whose search path is this pack's kit. The package name carries
+    a digest of the resolved kit path, so two packs, or one pack before and after AELIX_LAB_KIT
+    changes, never share a cached submodule. The sys.modules entries exist only while the modules
+    execute and are removed afterwards: the loaded objects stay alive through the reference this
+    returns, a labkit installed in the host environment is never shadowed, and a failed load leaves
+    nothing behind. Reloading a changed kit needs a new aelix process, as it did before.
+    """
     path = KIT / "labkit" / "core.py"
     if not path.is_file():
         raise RuntimeError(
             f"aelix-analytics: kit not found at {path}. Symlink extension/aelix_lab.py "
             "instead of copying it, or set AELIX_LAB_KIT=<pack>/kit.")
-    spec = importlib.util.spec_from_file_location("aelix_lab_core", path)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
+    package = f"aelix_lab_kit_{hashlib.sha256(str(KIT).encode()).hexdigest()[:12]}"
+    spec = importlib.machinery.ModuleSpec(package, None, is_package=True)
+    spec.submodule_search_locations = [str(path.parent)]
+    registered = [package]
+    sys.modules[package] = importlib.util.module_from_spec(spec)
+    try:
+        core_spec = importlib.util.spec_from_file_location(f"{package}.core", path)
+        module = importlib.util.module_from_spec(core_spec)
+        sys.modules[core_spec.name] = module
+        registered.append(core_spec.name)
+        core_spec.loader.exec_module(module)
+        registered += [name for name in list(sys.modules) if name.startswith(f"{package}.")]
+        return module
+    finally:
+        for name in dict.fromkeys(registered):
+            sys.modules.pop(name, None)
 
 
 core = _load_core()
@@ -137,8 +160,11 @@ def resolve_uv() -> str:
     return str(Path(found).resolve())
 
 
-def child_env(actor: str) -> dict:
-    env = {k: os.environ[k] for k in ENV_ALLOW if k in os.environ}
+def child_env(processes, actor: str) -> dict:
+    # What the platform needs to start a process at all goes in first: the allowed list is about
+    # what a run may see, not about what the operating system requires to launch one.
+    env = processes.base_env()
+    env.update({k: os.environ[k] for k in ENV_ALLOW if k in os.environ})
     env.update({k: v for k, v in os.environ.items()
                 if k.startswith("UV_") and not SECRET_NAME.search(k)})
     env.update({"PYTHONPATH": str(KIT), "PYTHONIOENCODING": "utf-8", "PYTHONDONTWRITEBYTECODE": "1",
@@ -150,46 +176,50 @@ def child_env(actor: str) -> dict:
 
 # --- subprocesses ---
 
-async def _terminate(proc) -> None:
-    if proc.returncode is not None:
-        return
-    # SIGINT to uv only: uv forwards it, the kit records the run as cancelled and exits 130.
-    with contextlib.suppress(ProcessLookupError):
-        os.kill(proc.pid, signal.SIGINT)
+async def _terminate(proc, processes) -> None:
+    if proc.returncode is None:
+        # Ask first: uv forwards the interrupt, and the kit records the run as cancelled.
+        processes.interrupt(proc)
     try:
         await asyncio.wait_for(proc.wait(), GRACE_SECONDS)
     except TimeoutError:
-        with contextlib.suppress(ProcessLookupError):
-            os.killpg(proc.pid, signal.SIGKILL)
+        # Then the whole tree, whether or not the wrapper itself is still running: a descendant
+        # that outlived uv and still holds the pipes is exactly what this is waiting for.
+        # kill_tree may block, so it runs off the event loop.
+        await asyncio.to_thread(processes.kill_tree, proc)
         await proc.wait()
 
 
-async def _spawn(argv, cwd, env, timeout):
+async def _spawn(argv, cwd, env, timeout, processes):
     """(timed_out, returncode, stdout, stderr)."""
     try:
         proc = await asyncio.create_subprocess_exec(
             *argv, cwd=str(cwd), env=env, stdin=asyncio.subprocess.DEVNULL,
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, start_new_session=True)
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            **processes.spawn_kwargs())
     except OSError as exc:
         raise core.LabError("spawn_failed", f"could not start {argv[0]}: {exc}") from exc
     try:
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout)
     except TimeoutError:
-        await asyncio.shield(_terminate(proc))
+        await asyncio.shield(_terminate(proc, processes))
         return True, proc.returncode, b"", b""
     except asyncio.CancelledError:
-        await asyncio.shield(_terminate(proc))
+        await asyncio.shield(_terminate(proc, processes))
         raise
     return False, proc.returncode, stdout, stderr
 
 
 async def run_kit(project, args, *, timeout: float, actor: str = "agent"):
     """Run `python -m labkit` in the project's environment. Returns (ok, result object)."""
+    processes = project.platform.processes
     try:
         uv = resolve_uv()
         argv = [uv, "run", "--project", str(project.root), "--quiet", "python", "-m", "labkit",
                 "--project", str(project.root), *args]
-        timed_out, code, stdout, stderr = await _spawn(argv, project.root, child_env(actor), timeout)
+        timed_out, code, stdout, stderr = await _spawn(argv, project.root,
+                                                       child_env(processes, actor), timeout,
+                                                       processes)
     except core.LabError as exc:
         return False, exc.to_json()
     if timed_out:
@@ -212,11 +242,13 @@ async def run_kit(project, args, *, timeout: float, actor: str = "agent"):
 
 async def sync_environment(project):
     uv = resolve_uv()
-    env = child_env("system")
+    processes = project.platform.processes
+    env = child_env(processes, "system")
     last = b""
     for extra in ([], ["--offline"]):
         timed_out, code, _out, err = await _spawn([uv, "sync", "--project", str(project.root),
-                                                   "--quiet", *extra], project.root, env, 900)
+                                                   "--quiet", *extra], project.root, env, 900,
+                                                  processes)
         if not timed_out and code == 0:
             return True, "offline cache" if extra else "network"
         last = err
@@ -236,11 +268,12 @@ def schedule_report(project) -> None:
     if running is not None and running.poll() is None:
         return
     try:
+        processes = project.platform.processes
         argv = [resolve_uv(), "run", "--project", key, "--quiet", "python", "-m", "labkit",
                 "--project", key, "report", "--if-changed"]
         STATE["report_tasks"][key] = subprocess.Popen(
-            argv, cwd=key, env=child_env("system"), stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+            argv, cwd=key, env=child_env(processes, "system"), stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **processes.spawn_kwargs())
     except (core.LabError, OSError):
         return
 

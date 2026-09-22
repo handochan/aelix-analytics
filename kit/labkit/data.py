@@ -138,7 +138,7 @@ def profile(project: core.Project, path: Path, preview_rows: int = 20,
                           "rows": [[cell(v, 120) for v in row] for row in head.rows()]}}
     if sha:
         with contextlib.suppress(OSError):
-            core.write_json(cache_file, result)
+            core.write_json(cache_file, result, platform=project.platform)
     return result
 
 
@@ -162,6 +162,9 @@ def import_file(project: core.Project, source: str, *, name: str | None = None,
     if not core.DATASET_NAME_RE.match(name):
         raise core.LabError("dataset_name", f"invalid dataset name {name!r}",
                             hint="lowercase letters, digits and _, starting with a letter")
+    # An import always creates a name the project does not have yet, so a reserved device name is
+    # always a new one and is refused outright.
+    core.reject_unportable_name(name, kind="dataset")
     dest = project.raw / f"{name}.parquet"
     taken = core.dataset_name_taken(project, name)
     if taken and not dest.exists():
@@ -191,7 +194,7 @@ def import_file(project: core.Project, source: str, *, name: str | None = None,
                 rel = con.read_csv(str(src))
             rel, retyped = _as_polars_types(rel)
             rel.write_parquet(str(tmp), compression="zstd")
-        os.replace(tmp, dest)
+        project.platform.files.replace(tmp, dest)
     except core.LabError:
         raise
     except Exception as exc:
@@ -211,7 +214,7 @@ def import_file(project: core.Project, source: str, *, name: str | None = None,
                        "format": fmt,
                        "modified_at": datetime.fromtimestamp(st.st_mtime).astimezone().isoformat(
                            timespec="seconds")}}
-    core.write_json(dest.with_suffix(".meta.json"), meta)
+    core.write_json(dest.with_suffix(".meta.json"), meta, platform=project.platform)
     text = (f"imported {name}: {info['rows']:,} rows × {len(info['columns'])} columns from "
             f"{src.name}")
     if meta["description"]:

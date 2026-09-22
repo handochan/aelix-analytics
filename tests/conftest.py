@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from labkit import _platform
+
 PACK = Path(__file__).resolve().parents[1]
 KIT = PACK / "kit"
 
@@ -22,7 +24,10 @@ def kit_env(**extra) -> dict:
 def labkit(project, *args, timeout=300):
     """Run `python -m labkit` like the extension does; returns (exit code, last JSON object)."""
     cmd = [sys.executable, "-m", "labkit", "--project", str(project), *map(str, args)]
-    proc = subprocess.run(cmd, capture_output=True, text=True, env=kit_env(), timeout=timeout)
+    # The records are not ASCII and this reads them through a pipe, which follows the locale
+    # unless it is told otherwise.
+    proc = subprocess.run(cmd, capture_output=True, env=kit_env(), timeout=timeout,
+                          **_platform.text_kwargs())
     lines = [line for line in proc.stdout.splitlines() if line.startswith("{")]
     assert lines, f"no JSON from {cmd}\nstdout={proc.stdout}\nstderr={proc.stderr}"
     return proc.returncode, json.loads(lines[-1])

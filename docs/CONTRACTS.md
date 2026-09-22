@@ -17,7 +17,9 @@ Aelix Analytics가 현재 **약속하는 것과 약속하지 않는 것**의 전
 
 쓰지 않는 것: `aelix-plugin.toml` 매니페스트, entry point 패키징, provider·login·API adapter, 메시지 렌더러,
 descriptor·TUI 위젯, MCP, subprocess hook, `send_message`·`append_entry` 같은 세션 조작.
-확장은 aelix 프로세스 안에서 stdlib와 aelix API, 그리고 `kit/labkit/core.py`(stdlib 전용)만 import합니다.
+확장은 aelix 프로세스 안에서 stdlib와 aelix API, 그리고 `kit/labkit/core.py`와 그 형제 `kit/labkit/_platform.py`(둘 다 stdlib 전용)만 import합니다.
+두 파일은 kit 경로를 `__path__`로 갖는 합성 package의 submodule로 로드됩니다. package 이름에 kit 경로의 해시가 들어가고
+로드가 끝나면 `sys.modules` 항목을 지우므로, 호스트 환경에 설치된 `labkit`을 가리거나 두 pack이 캐시를 공유하는 일이 없습니다.
 분석 라이브러리는 전부 프로젝트 uv 환경의 자식 프로세스에서 돕니다.
 
 ## B. 프로젝트 파일 규약
@@ -113,7 +115,8 @@ source{path, sha256, bytes, format, modified_at}`.
   스크립트의 stdout·stderr는 run 동안 파일로 돌려지므로 섞이지 않습니다.
 - 종료 코드: 0 성공, 1 처리된 오류, 2 사용법 오류, 3 run은 기록됐으나 `ok`가 아님, 130 중단.
 - 명령: `init` `status` `context` `run` `import` `query` `note` `report [--if-changed]` `demo`.
-- `run`의 중단: SIGINT(uv가 전달) → `cancelled` 기록, 제한 시간 → `timeout`, SIGTERM → `cancelled`.
+- `run`의 중단(POSIX 기준): SIGINT(uv가 전달) → `cancelled` 기록, 제한 시간 → `timeout`, SIGTERM → `cancelled`.
+  Windows에서는 SIGTERM을 가로챌 수 없어 강제 종료가 `cancelled`가 아니라 `incomplete`로 남습니다. 실제 실행은 미검증입니다.
 
 ## E. 계산 규칙
 
@@ -134,15 +137,17 @@ source{path, sha256, bytes, format, modified_at}`.
 ## F. 실행 환경과 지원 플랫폼
 
 지원 플랫폼은 Linux·macOS·Windows입니다([ADR-0002](decisions/0002-python-support-and-platform-scope.md), 2026-09-21 채택).
-아래 표는 **현재 코드가 실제로 하는 것**이며, 채택한 목표와 구별합니다. 채택된 하한·이식은 [#8](https://github.com/handochan/aelix-analytics/issues/8)에서 적용합니다.
+이식 가능한 경계의 구현 방식은 [ADR-0003](decisions/0003-portable-boundaries-and-in-process-kit-loading.md)입니다.
+아래 표는 **현재 코드가 실제로 하는 것**이며, 채택한 목표와 구별합니다. 남은 하한·패키징은 [#8](https://github.com/handochan/aelix-analytics/issues/8)에서 적용합니다.
 
 | 항목 | 현재 코드 |
 |---|---|
 | 선언된 Python 하한 | `pyproject.toml`·`kit/template/pyproject.toml`·`uv.lock` 모두 `>=3.12`. ADR-0002가 채택한 진입점 `>=3.11`은 아직 적용되지 않았습니다 |
-| 실제 동작하는 플랫폼 | POSIX만. `kit/labkit/core.py`가 `fcntl`을 최상위에서 import하므로 Windows에서는 확장 로드와 CLI 실행이 import 단계에서 실패합니다 |
+| 실제 동작하는 플랫폼 | 실행이 검증된 것은 POSIX뿐입니다. `fcntl`·`signal.SIGALRM`·`os.killpg`는 더 이상 최상위 import가 아니라 `_platform`의 POSIX 구현 안에 있고, Windows 구현이 같은 포트 뒤에 존재하므로 **import 단계에서 실패하지는 않습니다**. 그러나 Windows에서 실행한 적이 없으므로 동작은 `not_run`입니다 — 로드되는 것과 동작하는 것을 같은 칸에 적지 않습니다 |
 | 검증된 조합 | macOS 26.6.2 arm64 / CPython 3.12.13 ([회귀 기준](BASELINE-VERIFICATION.md)). Linux는 미검증입니다 |
-| 프로세스 경계 | stdlib·aelix API·`kit/labkit/core.py`로 제한되는 것은 **aelix 확장 프로세스**입니다. 확장은 `uv run --project` 자식 프로세스로 CLI를 띄웁니다(`extension/aelix_lab.py:190`). 그 CLI 프로세스는 `runner`·`data`·`report`를 자기 프로세스에서 import하고, `data.py`와 SDK가 그 안에서 duckdb·polars를 import합니다. 실행되는 스크립트도 같은 프로세스입니다 |
-| 잠금·타임아웃·종료 | `fcntl.flock`(journal·run·report 잠금), `signal.SIGALRM`·`signal.setitimer`(run 제한 시간), `os.killpg`(프로세스 그룹 강제 종료), `start_new_session`(자식 프로세스)는 POSIX 전용입니다. `os.kill`은 Windows에도 있으나 의미가 다릅니다 — `SIGINT` 전달이 우아한 중단 대신 강제 종료가 되고, `sig=0` 생존 확인은 `CTRL_C_EVENT` 요청이 됩니다. **이 목록은 완전하지 않습니다** — 파일 교체·예약 파일명·인코딩·경로 표현도 영향을 받습니다 |
+| 프로세스 경계 | stdlib·aelix API·`kit/labkit/core.py`와 `_platform`으로 제한되는 것은 **aelix 확장 프로세스**입니다. 확장은 `uv run --project` 자식 프로세스로 CLI를 띄웁니다(`extension/aelix_lab.py:190`). 그 CLI 프로세스는 `runner`·`data`·`report`를 자기 프로세스에서 import하고, `data.py`와 SDK가 그 안에서 duckdb·polars를 import합니다. 실행되는 스크립트도 같은 프로세스입니다 |
+| 잠금·타임아웃·종료 | `kit/labkit/_platform.py`의 네 포트 뒤에 있습니다: `FileLocks`(journal·run·report 잠금), `AtomicFiles`(기록 교체), `ProcessControl`(자식 생성·생존 확인·중단·강제 종료), `RunControl`(run 제한 시간과 취소). 구현은 `detect()`가 한 번 고르고 `Project(root, platform=…)`로 전달되며, 호출부에는 `sys.platform` 분기가 없습니다. POSIX 구현은 기존 동작(`fcntl.flock`, `signal.SIGALRM`, `os.killpg`, `start_new_session`)이고, Windows 구현(`msvcrt.locking`, `threading.Timer`+`interrupt_main`, `CTRL_BREAK_EVENT`, `taskkill /F /T`)은 **한 번도 실행되지 않았습니다** |
+| 파일명·경로·인코딩 | 새로 만드는 dataset 이름이 Windows 예약 장치명(`con`·`nul`·`aux`·`com1` 등)이면 거절합니다. 이미 프로젝트에 있는 이름은 거절하지 않습니다 — 과거 기록과 보존된 스크립트의 재실행이 유지됩니다. 차트의 정체성(`script::id`)은 그대로 두고 저장 파일명만 이식 가능하게 바꿉니다(`con` → `con-file.png`). 리포트의 절대 경로 링크는 기록한 플랫폼 기준으로 해석해 `file:///C:/…` 형태의 URL을 만듭니다. CLI는 시작할 때 표준 스트림을 UTF-8로 고정하고, 텍스트를 읽는 자식 프로세스 호출은 모두 인코딩을 명시합니다 |
 | 사람용 진입점 | `bin/lab`은 POSIX 셸 스크립트입니다. Windows 대응 진입점은 없습니다 |
 | 배포 형태 | 루트 `pyproject.toml`이 `package = false`입니다. 설치 가능한 배포본이 없고 pack 경로에서 직접 실행합니다 |
 
@@ -157,5 +162,6 @@ source{path, sha256, bytes, format, modified_at}`.
 - 결정성과 다른 환경 재현. 재실행은 같은 환경을 가정하고 환경 지문을 비교하지 않습니다.
 - 반출 정책·가림. 리포트에는 데이터 미리보기와 로그가 그대로 들어갑니다.
 - 규모 한도. 명시적 상한이 없고 큰 데이터에서는 느려집니다.
-- Windows 동작. 지원 플랫폼으로 채택했지만 현재 코드는 POSIX 전용 호출에 의존하며 import 단계부터 실패합니다.
-  Aelix 호스트가 Windows를 지원하더라도 이 확장의 Windows 지원으로 옮겨 적지 않습니다.
+- Windows 동작. 지원 플랫폼으로 채택했고 이식 가능한 경계와 Windows 구현이 코드에 있지만, Windows에서 실행한 적이 없습니다.
+  잠금의 상호 배제, `uv`로의 CTRL_BREAK 전달, `time.sleep` 중 취소, 블로킹 DuckDB 호출의 제한 시간, `taskkill`의 트리 종료는 모두 미검증입니다.
+  구현이 존재한다는 사실을 동작 증거로 쓰지 않으며, Aelix 호스트가 Windows를 지원하더라도 이 확장의 Windows 지원으로 옮겨 적지 않습니다.

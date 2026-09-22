@@ -15,7 +15,7 @@ import os
 import sys
 from pathlib import Path
 
-from . import core
+from . import _platform, core
 
 TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "template"
 
@@ -76,6 +76,9 @@ def main(argv=None) -> int:
     p = sub.add_parser("demo", help="fill a new project with synthetic data and example runs")
 
     args = parser.parse_args(argv)
+    # The extension reads this process's stdout through a pipe, and a pipe follows the locale
+    # rather than the console, so the records' non-ASCII text needs this to survive.
+    _platform.configure_stdio()
     actor = os.environ.get("LAB_ACTOR") or "human"
     session = os.environ.get("LAB_SESSION") or None
     try:
