@@ -711,15 +711,17 @@ def cli_cancel_the_way_the_extension_does(ctx):
             ctx.bundle.processes.kill_tree(proc)
             code = finish(proc, 30)
         seconds = round(time.perf_counter() - t0, 2)
-    status = run_record(root, run_id).get("status")
-    listed = next((r.get("status") for r in _list_runs(root) if r.get("id") == run_id), None)
     kit_gone = wait_gone(ctx, int(kit_pid), 15) if kit_pid else None
     if kit_pid and not kit_gone:
         force_kill(int(kit_pid))
+    status = run_record(root, run_id).get("status")
+    listed = next((r.get("status") for r in _list_runs(root) if r.get("id") == run_id), None)
+    # No declaration applies: the contracts declare that a *forced* termination on Windows cannot
+    # be recorded as cancelled, not that the interrupt the extension sends fails to be recorded.
     holds = status == "cancelled" and not forced and bool(kit_gone)
-    declared = DECLARED["sigterm"] if WINDOWS and not holds and status in ("running", None) else None
-    return {"holds": holds, "declared": declared,
-            "observed": {"recorded_status": status, "listed_status": listed, "exit_code": code,
+    return {"holds": holds,
+            "observed": {"recorded_status": status, "listed_status": listed,
+                         "exit_code": code, "exit_code_hex": hex(code) if code is not None else None,
                          "forced": forced, "seconds_to_exit": seconds, "kit_process_gone": kit_gone}}
 
 
@@ -833,6 +835,126 @@ def cli_a_script_saving_a_reserved_name_is_warned_about(ctx):
         # the evidence either way.
         return {"holds": True, "observation": True, "observed": observed}
     return {"holds": record.get("status") == "ok" and warned, "observed": observed}
+
+
+# --- design probes ----------------------------------------------------------------------------
+#
+# Observations for a design question, not promises: how an interrupt behaves when it goes through
+# `uv run`, and whether another thread can wake a main thread that is blocked in a sleep. They never
+# fail the run; they are the evidence the next design is judged against.
+
+PROBE_CHILD = """\
+import os, signal, sys, threading, time
+from pathlib import Path
+ready, marker, mode = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3]
+WINDOWS = os.name == "nt"
+
+def on_signal(signum, frame):
+    marker.write_text(f"handler-entered:{signum}", encoding="utf-8")
+    time.sleep(1.0)  # roughly what writing a run record costs
+    marker.write_text(f"handler-finished:{signum}", encoding="utf-8")
+    sys.exit(130)
+
+for name in ("SIGINT", "SIGBREAK"):
+    if hasattr(signal, name):
+        signal.signal(getattr(signal, name), on_signal)
+
+if mode.startswith("file:"):
+    request = Path(mode[5:])
+    main = threading.main_thread().ident
+
+    def watch():
+        while not request.exists():
+            time.sleep(0.1)
+        # Wake the main thread the way a real Ctrl+C would, so a blocking sleep returns too.
+        if WINDOWS:
+            signal.raise_signal(signal.SIGINT)
+        else:
+            signal.pthread_kill(main, signal.SIGINT)
+
+    threading.Thread(target=watch, daemon=True).start()
+
+ready.write_text(str(os.getpid()), encoding="utf-8")
+time.sleep(120)  # one long sleep: the hard case for waking
+"""
+
+
+def _probe_through_uv(ctx, label: str, use_file: bool) -> dict:
+    d = ctx.fresh(label)
+    child = write_script(d, "child", PROBE_CHILD)
+    request = d / "cancel-request"
+    mode = f"file:{request}" if use_file else "signal"
+    argv = [ctx.uv, "run", "--no-project", "--quiet", "--python", sys.executable, "python",
+            str(child), str(d / "ready"), str(d / "marker"), mode]
+    proc = subprocess.Popen(argv, env=child_env(), stdin=subprocess.DEVNULL,
+                            **ctx.bundle.processes.spawn_kwargs())
+    text = wait_for_text(d / "ready", 120)
+    if text is None:
+        ctx.bundle.processes.kill_tree(proc)
+        return {"started": False}
+    child_pid = int(text)
+    t0 = time.perf_counter()
+    if use_file:
+        request.write_text("cancel", encoding="utf-8")
+    else:
+        ctx.bundle.processes.interrupt(proc)
+    code = finish(proc, 20)
+    seconds = round(time.perf_counter() - t0, 2)
+    if code is None:
+        ctx.bundle.processes.kill_tree(proc)
+        code = finish(proc, 30)
+    child_gone = wait_gone(ctx, child_pid, 10)
+    if not child_gone:
+        force_kill(child_pid)
+    return {"uv_exit_code": code, "uv_exit_code_hex": hex(code) if code is not None else None,
+            "seconds_to_exit": seconds, "child_marker": wait_for_text(d / "marker", 1),
+            "child_gone": child_gone}
+
+
+@check("probe", observation=True, needs_uv=True)
+def probe_interrupt_through_uv_run(ctx):
+    """What ProcessControl.interrupt does to a `uv run` child whose handler needs a second."""
+    return {"holds": True, "observed": _probe_through_uv(ctx, "probe-uv-signal", use_file=False)}
+
+
+@check("probe", observation=True, needs_uv=True)
+def probe_cancel_request_file_through_uv_run(ctx):
+    """A cooperative cancel: the child watches a file and wakes its own main thread."""
+    return {"holds": True, "observed": _probe_through_uv(ctx, "probe-uv-file", use_file=True)}
+
+
+@check("probe", observation=True)
+def probe_waking_a_sleeping_main_thread(ctx):
+    """Which primitive, called from another thread, interrupts a main thread blocked in a sleep."""
+    import _thread
+
+    main = threading.main_thread().ident
+    primitives = {"_thread.interrupt_main": _thread.interrupt_main}
+    if WINDOWS:
+        primitives["signal.raise_signal(SIGINT)"] = lambda: signal.raise_signal(signal.SIGINT)
+    else:
+        primitives["signal.pthread_kill(main, SIGINT)"] = lambda: signal.pthread_kill(
+            main, signal.SIGINT)
+    observed = {}
+    for name, wake in primitives.items():
+        def raising(_signum, _frame):
+            raise _platform.Interrupted("woken")
+
+        previous = signal.getsignal(signal.SIGINT)
+        signal.signal(signal.SIGINT, raising)
+        timer = threading.Timer(1.0, wake)
+        t0 = time.perf_counter()
+        woke_by = None
+        try:
+            timer.start()
+            time.sleep(10)
+        except (_platform.Interrupted, KeyboardInterrupt) as exc:
+            woke_by = type(exc).__name__
+        finally:
+            timer.cancel()
+            signal.signal(signal.SIGINT, previous)
+        observed[name] = {"interrupted_by": woke_by, "seconds": round(time.perf_counter() - t0, 2)}
+    return {"holds": True, "observed": observed}
 
 
 # --- running and reporting ------------------------------------------------------------------------
