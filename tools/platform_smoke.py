@@ -433,7 +433,8 @@ def base_env_is_enough_to_start_a_child(ctx):
     python = [sys.executable, "-c", "print('ok')"]
     observed = {"base_env_keys": sorted(ctx.bundle.processes.base_env()),
                 "python_with_base_env": trial(with_base, python),
-                "python_with_path_only": trial(path_only, python)}
+                "python_with_path_only": trial(path_only, python),
+                "python_with_empty_env": trial({}, python)}
     if ctx.uv:
         observed["uv_with_base_env"] = trial(with_base, [ctx.uv, "--version"])
         observed["uv_with_path_only"] = trial(path_only, [ctx.uv, "--version"])
@@ -449,7 +450,8 @@ def device_names_on_this_file_system(ctx):
     d = ctx.fresh("reserved")
     observed = {}
     # AUX, COM1 and LPT1 are left out on purpose: opening a serial or printer device can block.
-    for name in ("con.txt", "nul.parquet", f"{_platform.portable_stem('con')}.png"):
+    # CON and NUL are safe to open: the console and the null device.
+    for name in ("con", "nul", "con.txt", "nul.parquet", f"{_platform.portable_stem('con')}.png"):
         path = d / name
         try:
             with open(path, "wb") as fh:
