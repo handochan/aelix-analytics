@@ -193,12 +193,15 @@ def test_the_deadline_disarms_when_the_body_finishes_first():
     assert not flags["timeout"]
 
 
+# These tests deliver SIGINT to this process with signal.raise_signal, never os.kill(os.getpid(), …):
+# on Windows os.kill with anything but a console event calls TerminateProcess, which would end the
+# test runner instead of exercising the handler under test.
 def test_a_cancel_scope_can_record_without_raising_and_restores_the_handler():
     before = signal.getsignal(signal.SIGINT)
     seen = {"cancel": False}
     runs = _platform.detect().runs
     with runs.cancel_scope(lambda: seen.__setitem__("cancel", True), interrupt=False):
-        os.kill(os.getpid(), signal.SIGINT)
+        signal.raise_signal(signal.SIGINT)
         time.sleep(0.05)
     assert seen["cancel"], "the cancel was not recorded"
     assert signal.getsignal(signal.SIGINT) is before
@@ -210,12 +213,12 @@ def test_a_raising_cancel_scope_interrupts_and_a_nested_one_restores_the_outer_h
     with runs.cancel_scope(lambda: outer.__setitem__("n", outer["n"] + 1), interrupt=False):
         with pytest.raises(INTERRUPTIONS):
             with runs.cancel_scope(lambda: inner.__setitem__("n", inner["n"] + 1), interrupt=True):
-                os.kill(os.getpid(), signal.SIGINT)
+                signal.raise_signal(signal.SIGINT)
                 time.sleep(0.2)
         assert (inner["n"], outer["n"]) == (1, 0)
         # Leaving the inner scope must hand the signal back to the flag-only one, which is what
         # keeps a run's record from being interrupted while it is written.
-        os.kill(os.getpid(), signal.SIGINT)
+        signal.raise_signal(signal.SIGINT)
         time.sleep(0.05)
     assert (inner["n"], outer["n"]) == (1, 1)
 
@@ -654,7 +657,7 @@ def test_a_cancel_while_the_capture_hooks_install_stops_the_script(project, monk
     real_install = capture.install
 
     def install_then_cancel(state):
-        os.kill(os.getpid(), signal.SIGINT)
+        signal.raise_signal(signal.SIGINT)
         return real_install(state)
 
     monkeypatch.setattr(capture, "install", install_then_cancel)
