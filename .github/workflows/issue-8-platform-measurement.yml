@@ -1,7 +1,9 @@
 name: Issue 8 platform measurement
 
 # Evidence for Issue #8 (portable boundaries). This is not the repository's CI — that is Issue #22:
-# it gates nothing, keeps going past a failing step, and uploads every result for the record.
+# it gates nothing, keeps going past a failing step, and uploads every result for the record. A
+# step's outcome is still meaningful: the smoke steps fail when a check the platform is judged on
+# did not hold (--gate required), and the test steps when a test failed.
 # Linux and Windows run here. macOS is measured on a developer machine: a macOS runner costs ten
 # times a Linux one, for the one platform that is already measured locally.
 
@@ -37,15 +39,17 @@ jobs:
       - name: Platform smoke — the ports and the CLI
         id: smoke
         continue-on-error: true
-        run: uv run --locked python tools/platform_smoke.py --output measurement/smoke-${{ runner.os }}-py3.12.json
+        run: uv run --locked python tools/platform_smoke.py --gate required --output measurement/smoke-${{ runner.os }}-py3.12.json
+      # pytest-timeout's default method on Linux is SIGALRM, which the run guard holds during an
+      # in-process run; a thread keeps the two apart.
       - name: Repository test suite
         id: suite
         continue-on-error: true
-        run: uv run --locked --with pytest-timeout pytest -q -ra -p no:cacheprovider --timeout 900 --junitxml measurement/suite-${{ runner.os }}-py3.12.xml
+        run: uv run --locked --with pytest-timeout pytest -q -ra -p no:cacheprovider --timeout 900 --timeout-method=thread --junitxml measurement/suite-${{ runner.os }}-py3.12.xml
       - name: Aelix integration with aelix 0.1.0b2 from PyPI
         id: aelix
         continue-on-error: true
-        run: uv run --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest --with pytest-timeout python -m pytest -q -ra -p no:cacheprovider --timeout 900 --junitxml measurement/aelix-${{ runner.os }}-py3.12.xml tests/test_extension.py
+        run: uv run --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest --with pytest-timeout python -m pytest -q -ra -p no:cacheprovider --timeout 900 --timeout-method=thread --junitxml measurement/aelix-${{ runner.os }}-py3.12.xml tests/test_extension.py
       - name: Outcome
         if: always()
         run: echo "smoke=${{ steps.smoke.outcome }} suite=${{ steps.suite.outcome }} aelix=${{ steps.aelix.outcome }}"
@@ -74,7 +78,7 @@ jobs:
       - name: Platform smoke — what the aelix process loads
         id: smoke
         continue-on-error: true
-        run: python tools/platform_smoke.py --stdlib-only --output measurement/stdlib-${{ runner.os }}-py3.11.json
+        run: python tools/platform_smoke.py --stdlib-only --gate required --output measurement/stdlib-${{ runner.os }}-py3.11.json
       - name: Outcome
         if: always()
         run: echo "smoke=${{ steps.smoke.outcome }}"

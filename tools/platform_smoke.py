@@ -11,8 +11,13 @@ An observation records a platform fact without a promise attached.
 `--stdlib-only` runs only what the aelix process itself loads (core and _platform). It needs neither
 uv nor the analysis libraries, so it can run on the entry-point floor being measured.
 
-Exit status: 0 when every check holds or fails only in a declared way, 1 otherwise, 2 on usage error.
-Nothing here is a test of Windows until it has actually run on Windows; the output says where it ran.
+Exit status: 0 when no check was violated, 1 otherwise, 2 on usage error. A check that holds, fails
+only in a declared way, is an observation, or could not run (`not_run`: uv missing) does not count
+against it. With `--gate required` the status is the `required` block's verdict instead: every
+check this platform is judged on (NOT_REQUIRED below) among those this invocation selected has to
+have run and held; a check `--only` or `--stdlib-only` left out is not judged at all. The report
+carries the block either way. Nothing here is a test of Windows until it has actually run on
+Windows; the output says where it ran.
 """
 
 from __future__ import annotations
@@ -53,17 +58,35 @@ WINDOWS = os.name == "nt"
 # ever applied on Windows: on POSIX every one of these promises is meant to hold.
 DECLARED = {
     "kill_tree": "ADR-0003 결과와 비용 — taskkill이 실패하면 자식 프로세스가 살아남으며 이를 정리 성공으로 적지 않는다",
-    "blocking": "ADR-0003 결과와 비용 — time.sleep 중의 취소와 블로킹 호출의 제한 시간은 보장되지 않는다",
     "sigterm": "docs/CONTRACTS.md D — Windows에서는 SIGTERM을 가로챌 수 없어 강제 종료가 incomplete로 남는다",
+    # Planned with Issue #8 PR-1 revision 3 (design D10) and 3.1 (AS-4). Until docs/CONTRACTS.md G
+    # states them, a run that shows them reports them as violated rather than borrowing a
+    # declaration.
+    "gil": None,
+    "subprocess_wait": None,
 }
+# Checks that are expected to be violated on a platform until the documents declare the limitation
+# they show; every other check that makes a promise is required there. On Linux that is everything
+# (Issue #8, design revision 3 section 4). On Windows it is more than the minimum that section names
+# — replace, the CLI cancel through the port, the sleep and DuckDB deadlines, and the aelix abort,
+# which tests/test_extension.py measures rather than this tool.
+NOT_REQUIRED = {"windows": frozenset({"cli_cancel_reaches_a_run_inside_a_regular_expression",
+                                      "cli_cancel_reaches_a_run_waiting_on_a_subprocess"}),
+                "posix": frozenset()}
+# How long the extension waits for a kit it asked to stop before it ends the tree by force
+# (extension/aelix_lab.py GRACE_SECONDS; a test keeps the two equal). A stop that takes longer is
+# a forced one there, so it is one here.
+EXTENSION_GRACE_SECONDS = 10
 
 CHECKS: list[tuple[str, str, object]] = []
 
 
-def check(group: str, *, observation: bool = False, needs_uv: bool = False):
+def check(group: str, *, observation: bool = False, needs_uv: bool = False,
+          only_when_named: bool = False):
     def register(fn):
         fn.observation = observation
         fn.needs_uv = needs_uv
+        fn.only_when_named = only_when_named
         CHECKS.append((group, fn.__name__, fn))
         return fn
     return register
@@ -297,24 +320,34 @@ def liveness_of_a_live_an_exited_and_a_bogus_pid(ctx):
 
 
 @check("ports")
-def interrupt_reaches_a_python_child(ctx):
+def interrupt_asks_a_python_child_or_declines(ctx):
+    """POSIX asks with SIGINT and the child stops gracefully. Windows sends no signal — its one
+    console event ends a `uv run` wrapper at once (see the probes below) — and without a request
+    file it declines; with one, it creates the file."""
     d = ctx.fresh("interrupt")
     proc = spawn(write_script(d, "child", INTERRUPTIBLE), d / "ready", d / "marker",
                  **ctx.bundle.processes.spawn_kwargs())
     if wait_for_text(d / "ready", 60) is None:
-        ctx.bundle.processes.kill_tree(proc)
+        ctx.bundle.processes.kill_tree(proc.pid)
         return {"holds": False, "observed": {"child": "never became ready"}}
+    request = d / "cancel-request"
+    if WINDOWS:
+        created = ctx.bundle.processes.interrupt(proc, request) and request.exists()
+        if not created:
+            ctx.bundle.processes.kill_tree(proc.pid)
+            return {"holds": False, "observed": {"request_created": False}}
     t0 = time.perf_counter()
-    ctx.bundle.processes.interrupt(proc)
-    code, forced = finish(proc, 15), False
+    asked = ctx.bundle.processes.interrupt(proc)
+    code, forced = finish(proc, 15 if asked else 2), False
     if code is None:
         forced = True
-        ctx.bundle.processes.kill_tree(proc)
+        ctx.bundle.processes.kill_tree(proc.pid)
         code = finish(proc, 30)
     marker = wait_for_text(d / "marker", 1)
     graceful = bool(marker and marker.startswith("graceful"))
-    return {"holds": graceful and not forced,
-            "observed": {"exit_code": code, "marker": marker, "forced": forced,
+    holds = (asked and graceful and not forced) if not WINDOWS else (asked is False and not marker)
+    return {"holds": holds,
+            "observed": {"asked": asked, "exit_code": code, "marker": marker, "forced": forced,
                          "seconds": round(time.perf_counter() - t0, 3)}}
 
 
@@ -330,9 +363,9 @@ def _tree(ctx, label: str, mode: str):
 def kill_tree_ends_the_child_and_its_grandchild(ctx):
     proc, grandchild = _tree(ctx, "tree-stay", "stay")
     if grandchild is None:
-        ctx.bundle.processes.kill_tree(proc)
+        ctx.bundle.processes.kill_tree(proc.pid)
         return {"holds": False, "observed": {"child": "never started its grandchild"}}
-    _, diagnostic = captured_stderr(ctx.bundle.processes.kill_tree, proc)
+    _, diagnostic = captured_stderr(ctx.bundle.processes.kill_tree, proc.pid)
     child_gone = finish(proc, 30) is not None
     grandchild_gone = wait_gone(ctx, grandchild, 15)
     if not grandchild_gone:
@@ -349,7 +382,7 @@ def kill_tree_after_the_leader_exited(ctx):
     finish(proc, 30)
     if grandchild is None:
         return {"holds": False, "observed": {"leader": "never started its grandchild"}}
-    _, diagnostic = captured_stderr(ctx.bundle.processes.kill_tree, proc)
+    _, diagnostic = captured_stderr(ctx.bundle.processes.kill_tree, proc.pid)
     gone = wait_gone(ctx, grandchild, 15)
     if not gone:
         force_kill(grandchild)
@@ -359,16 +392,16 @@ def kill_tree_after_the_leader_exited(ctx):
 
 
 def _deadline(ctx, body) -> dict:
-    flags = {"timeout": False}
     t0 = time.perf_counter()
     interrupted_by = None
-    try:
-        with ctx.bundle.runs.deadline(1.0, lambda: flags.__setitem__("timeout", True)):
-            body(t0)
-    except (_platform.Interrupted, KeyboardInterrupt) as exc:
-        interrupted_by = type(exc).__name__
-    return {"interrupted_by": interrupted_by, "flag_set": flags["timeout"],
-            "seconds": round(time.perf_counter() - t0, 3)}
+    with ctx.bundle.runs.guard() as guard:
+        try:
+            with guard.interruptible(deadline=1.0):
+                body(t0)
+        except (_platform.Interrupted, KeyboardInterrupt) as exc:
+            interrupted_by = type(exc).__name__
+    return {"interrupted_by": interrupted_by, "flag_set": guard.expired,
+            "cancel_flag": guard.cancelled, "seconds": round(time.perf_counter() - t0, 3)}
 
 
 @check("ports")
@@ -378,43 +411,100 @@ def deadline_interrupts_python_code(ctx):
             pass
 
     observed = _deadline(ctx, busy)
-    holds = bool(observed["interrupted_by"]) and observed["flag_set"] and observed["seconds"] < 5
-    return {"holds": holds, "observed": observed}
+    return {"holds": _deadline_held(observed), "observed": observed}
 
 
 @check("ports")
 def deadline_interrupts_a_sleep(ctx):
     observed = _deadline(ctx, lambda _t0: time.sleep(15))
-    holds = bool(observed["interrupted_by"]) and observed["flag_set"] and observed["seconds"] < 5
-    return {"holds": holds, "declared": DECLARED["blocking"] if WINDOWS and not holds else None,
-            "observed": observed}
+    return {"holds": _deadline_held(observed), "observed": observed}
+
+
+def _deadline_held(observed: dict) -> bool:
+    # Interrupted in time, counted as the deadline, and not also as a cancel: on Windows the
+    # deadline arrives through the SIGINT a cancel uses (review 4 CH-16, review 6 CH-10).
+    return bool(observed["interrupted_by"]) and observed["flag_set"] \
+        and not observed["cancel_flag"] and observed["seconds"] < 5
 
 
 @check("ports")
-def cancel_scope_records_and_interrupts(ctx):
+def the_cancel_request_wakes_a_sleeping_run(ctx):
+    """The kit's half of the ask. Windows: the request file, watched by a thread, interrupts a main
+    thread asleep inside a guarded region. POSIX: nothing to watch — the ask is SIGINT — so no
+    thread is started."""
+    d = ctx.fresh("cancel-request")
+    request = d / "cancel-request"
     runs = ctx.bundle.runs
-    before = signal.getsignal(signal.SIGINT)
+    if not WINDOWS:
+        before = threading.active_count()
+        stop = runs.watch_for_cancel(request)
+        started = threading.active_count() - before
+        stop()
+        return {"holds": started == 0, "observed": {"threads_started": started}}
+    stop = runs.watch_for_cancel(request)
+    threading.Timer(1.0, request.touch).start()
+    t0 = time.perf_counter()
+    woken_by = None
+    try:
+        with runs.guard() as guard:
+            try:
+                with guard.interruptible():
+                    time.sleep(15)
+            except (_platform.Interrupted, KeyboardInterrupt) as exc:
+                woken_by = type(exc).__name__
+    finally:
+        stop()
+    seconds = round(time.perf_counter() - t0, 3)
+    return {"holds": bool(woken_by) and seconds < 5 and guard.cancelled,
+            "observed": {"woken_by": woken_by, "seconds": seconds, "timeout": guard.expired,
+                         "cancel": guard.cancelled}}
+
+
+@check("ports")
+def the_guard_records_outside_regions_and_interrupts_inside_once(ctx):
+    before = {name: signal.getsignal(getattr(signal, name))
+              for name in ("SIGINT", "SIGTERM", "SIGBREAK", "SIGALRM") if hasattr(signal, name)}
     names = ["SIGINT"] + (["SIGBREAK"] if hasattr(signal, "SIGBREAK") else [])
     observed = {}
     for name in names:
         signum = getattr(signal, name)
-        seen = {"n": 0}
-        with runs.cancel_scope(lambda seen=seen: seen.__setitem__("n", seen["n"] + 1),
-                               interrupt=False):
+        raised, second = None, None
+        with ctx.bundle.runs.guard() as guard:
             signal.raise_signal(signum)
             time.sleep(0.2)
-        raised = None
-        try:
-            with runs.cancel_scope(lambda: None, interrupt=True):
+            recorded = guard.cancelled
+            guard.cancelled = False  # or the region below would raise as it is entered
+            try:
+                with guard.interruptible():
+                    try:
+                        signal.raise_signal(signum)
+                        time.sleep(0.5)
+                    except (_platform.Interrupted, KeyboardInterrupt) as exc:
+                        raised = type(exc).__name__  # swallowed, as a script may
+                    try:
+                        signal.raise_signal(signum)  # a second one in the same region
+                        time.sleep(0.2)
+                    except BaseException as exc:  # noqa: BLE001 - recorded as a violation
+                        second = type(exc).__name__
+            except BaseException as exc:  # noqa: BLE001 - recorded as a violation
+                second = f"escaped the region: {type(exc).__name__}"
+            try:
                 signal.raise_signal(signum)
-                time.sleep(0.5)
-        except (_platform.Interrupted, KeyboardInterrupt) as exc:
-            raised = type(exc).__name__
-        observed[name] = {"recorded_without_raising": seen["n"] == 1, "interrupting_scope_raised": raised}
-    restored = signal.getsignal(signal.SIGINT) is before
-    holds = restored and all(v["recorded_without_raising"] and v["interrupting_scope_raised"]
+                time.sleep(0.2)
+            except BaseException as exc:  # noqa: BLE001 - recorded as a violation
+                third = type(exc).__name__
+            else:
+                third = None
+        observed[name] = {"recorded_without_raising": recorded, "region_raised": raised,
+                          "second_in_the_region": second or "only recorded",
+                          "after_the_region": third or "only recorded"}
+    after = {name: signal.getsignal(getattr(signal, name)) for name in before}
+    restored = after == before
+    holds = restored and all(v["recorded_without_raising"] and v["region_raised"]
+                             and v["second_in_the_region"] == "only recorded"
+                             and v["after_the_region"] == "only recorded"
                              for v in observed.values())
-    return {"holds": holds, "observed": {**observed, "handler_restored": restored}}
+    return {"holds": holds, "observed": {**observed, "handlers_restored": restored}}
 
 
 @check("ports")
@@ -662,32 +752,24 @@ def cli_run_timeout_in_python_code(ctx):
 def cli_run_timeout_in_a_blocking_duckdb_query(ctx):
     observed = _timed_run(ctx, "03_duckdb.py", DUCKDB, 3)
     holds = observed["status"] == "timeout" and (observed["recorded_s"] or 99) < 13
-    return {"holds": holds, "declared": DECLARED["blocking"] if WINDOWS and not holds else None,
-            "observed": observed}
+    return {"holds": holds, "observed": observed}
 
 
-SLOW = """\
-import time
-print("started", flush=True)
-for _ in range(3000):
-    time.sleep(0.1)
-"""
-
-
-@check("cli", needs_uv=True)
-def cli_cancel_the_way_the_extension_does(ctx):
-    """Spawn `uv run ... labkit run` in its own group, interrupt it, and see what gets recorded.
-
-    The script sleeps in 0.1 s steps so this measures whether the interrupt reaches the kit through
-    uv, not whether a single long sleep wakes up."""
+def _cancel_a_cli_run(ctx, name: str, source: str, *, wait: float) -> dict:
+    """Spawn `uv run ... labkit run` in its own group, wait until its run is recorded as running,
+    ask it to stop exactly as the extension does — ProcessControl.interrupt, with a request file
+    where the platform asks through one — and give it the extension's grace period."""
     root = project(ctx)
-    rel = script(root, "04_slow.py", SLOW)
-    logs = root.parent / "cancel-logs"
+    rel = script(root, name, source)
+    processes = ctx.bundle.processes
+    logs = root.parent / f"{Path(name).stem}-logs"
     logs.mkdir(exist_ok=True)
+    request = logs / "cancel-request" if processes.asks_by_request else None
+    env = {**kit_env(ctx), **({"LAB_CANCEL_FILE": str(request)} if request else {})}
     with open(logs / "stdout.txt", "wb") as out, open(logs / "stderr.txt", "wb") as err:
-        proc = subprocess.Popen(labkit_argv(ctx, root, "run", rel, "--title", "취소 대상"), cwd=root,
-                                env=kit_env(ctx), stdin=subprocess.DEVNULL, stdout=out, stderr=err,
-                                **ctx.bundle.processes.spawn_kwargs())
+        proc = subprocess.Popen(labkit_argv(ctx, root, "run", rel, "--title", Path(name).stem),
+                                cwd=root, env=env, stdin=subprocess.DEVNULL, stdout=out,
+                                stderr=err, **processes.spawn_kwargs())
         run_id, kit_pid = None, None
         end = time.monotonic() + 300
         while time.monotonic() < end and run_id is None:
@@ -699,30 +781,123 @@ def cli_cancel_the_way_the_extension_does(ctx):
                         run_id, kit_pid = record_path.parent.name, record.get("pid")
             time.sleep(0.2)
         if run_id is None:
-            ctx.bundle.processes.kill_tree(proc)
+            processes.kill_tree(proc.pid)
             finish(proc, 30)
-            return {"holds": False, "observed": {"run": "never started within 300 s"}}
-        time.sleep(1.0)
+            return {"run": "never started within 300 s", "recorded_status": None, "forced": None}
+        time.sleep(wait)
         t0 = time.perf_counter()
-        ctx.bundle.processes.interrupt(proc)
-        code, forced = finish(proc, 15), False
+        asked = processes.interrupt(proc, request)  # exactly what the extension does
+        code, forced = finish(proc, EXTENSION_GRACE_SECONDS), False
         if code is None:
             forced = True
-            ctx.bundle.processes.kill_tree(proc)
+            processes.kill_tree(proc.pid)
             code = finish(proc, 30)
         seconds = round(time.perf_counter() - t0, 2)
     kit_gone = wait_gone(ctx, int(kit_pid), 15) if kit_pid else None
     if kit_pid and not kit_gone:
         force_kill(int(kit_pid))
-    status = run_record(root, run_id).get("status")
+    record = run_record(root, run_id)
     listed = next((r.get("status") for r in _list_runs(root) if r.get("id") == run_id), None)
-    # No declaration applies: the contracts declare that a *forced* termination on Windows cannot
-    # be recorded as cancelled, not that the interrupt the extension sends fails to be recorded.
-    holds = status == "cancelled" and not forced and bool(kit_gone)
+    return {"asked": asked, "recorded_status": record.get("status"), "listed_status": listed,
+            "exit_code": code, "exit_code_hex": hex(code) if code is not None else None,
+            "forced": forced, "seconds_to_exit": seconds, "kit_process_gone": kit_gone,
+            "stdout_tail": (record.get("stdout") and _tail_text(root / record["stdout"]))}
+
+
+def _tail_text(path: Path) -> str | None:
+    with contextlib.suppress(OSError):
+        return path.read_text(encoding="utf-8", errors="replace")[-400:]
+    return None
+
+
+def _cancelled_in_time(observed: dict) -> bool:
+    return observed.get("recorded_status") == "cancelled" and observed.get("forced") is False \
+        and bool(observed.get("kit_process_gone"))
+
+
+SLOW = """\
+import time
+print("started", flush=True)
+time.sleep(300)
+"""
+
+
+@check("cli", needs_uv=True)
+def cli_cancel_the_way_the_extension_does(ctx):
+    """One long sleep: the hard case, which neither the old console event nor _thread.interrupt_main
+    could wake on Windows. No declaration applies: the contracts declare that a *forced*
+    termination on Windows cannot be recorded as cancelled, not that the ask fails."""
+    observed = _cancel_a_cli_run(ctx, "04_slow.py", SLOW, wait=1.0)
+    return {"holds": _cancelled_in_time(observed), "observed": observed}
+
+
+CATASTROPHIC = """\
+import re
+print("started", flush=True)
+re.search(r"(a+)+$", "a" * 33 + "b")
+print("regex done", flush=True)
+"""
+
+
+@check("cli", needs_uv=True)
+def cli_cancel_reaches_a_run_inside_a_regular_expression(ctx):
+    """_sre holds the GIL and checks for signals. A signal's C handler needs no GIL; a Python thread
+    does. So POSIX, which asks with SIGINT, stops it at once, and Windows, which asks through a
+    thread watching the request file, cannot until the expression returns."""
+    observed = _cancel_a_cli_run(ctx, "08_regex.py", CATASTROPHIC, wait=1.5)
+    holds = _cancelled_in_time(observed)
+    return {"holds": holds, "declared": DECLARED["gil"] if WINDOWS and not holds else None,
+            "observed": observed}
+
+
+WAITS_ON_A_CHILD = """\
+import subprocess, sys
+print("started", flush=True)
+subprocess.run([sys.executable, "-c", "import time; time.sleep(120)"])
+print("child done", flush=True)
+"""
+
+
+@check("cli", needs_uv=True)
+def cli_cancel_reaches_a_run_waiting_on_a_subprocess(ctx):
+    """A script blocked in `subprocess.run` with no timeout (review 6, AS-4). POSIX: the SIGINT
+    interrupts the wait. Windows: the wait is WaitForSingleObject on the child alone, which the
+    SIGINT event does not end, so the ask cannot land until the child exits."""
+    observed = _cancel_a_cli_run(ctx, "09_child.py", WAITS_ON_A_CHILD, wait=1.5)
+    holds = _cancelled_in_time(observed)
     return {"holds": holds,
-            "observed": {"recorded_status": status, "listed_status": listed,
-                         "exit_code": code, "exit_code_hex": hex(code) if code is not None else None,
-                         "forced": forced, "seconds_to_exit": seconds, "kit_process_gone": kit_gone}}
+            "declared": DECLARED["subprocess_wait"] if WINDOWS and not holds else None,
+            "observed": observed}
+
+
+@check("self", only_when_named=True)
+def violated_by_construction(ctx):
+    """For the tool's own tests: a promise that never holds, so a violation turns the exit red."""
+    return {"holds": False, "observed": {"why": "this check exists to fail"}}
+
+
+IGNORES_SIGINT = """\
+import signal, time
+from pathlib import Path
+signal.signal(signal.SIGINT, signal.SIG_IGN)
+t0 = time.perf_counter()
+while time.perf_counter() - t0 < 8:
+    pass
+Path("data/derived/finished.txt").write_text("finished", encoding="utf-8")
+"""
+
+
+@check("cli", observation=True, needs_uv=True)
+def cli_deadline_when_the_script_ignores_sigint(ctx):
+    """What a 2 s deadline does to a script that ignores SIGINT and runs for 8 s. On POSIX the
+    deadline is SIGALRM; on Windows it arrives through SIGINT, which this script has taken over."""
+    root = project(ctx)
+    marker = root / "data" / "derived" / "finished.txt"
+    with contextlib.suppress(OSError):
+        marker.unlink()
+    observed = _timed_run(ctx, "07_ignores_sigint.py", IGNORES_SIGINT, 2)
+    observed["script_finished"] = marker.exists()
+    return {"holds": True, "observed": observed}
 
 
 def _list_runs(root: Path) -> list[dict]:
@@ -758,7 +933,7 @@ def cli_concurrent_runs_are_serialized(ctx):
     observed = {}
     for name, proc in procs.items():
         if finish(proc, 600) is None:
-            ctx.bundle.processes.kill_tree(proc)
+            ctx.bundle.processes.kill_tree(proc.pid)
             observed[name] = {"status": None, "note": "did not finish within 600 s"}
     for out in handles:
         out.close()
@@ -890,18 +1065,20 @@ def _probe_through_uv(ctx, label: str, use_file: bool) -> dict:
                             **ctx.bundle.processes.spawn_kwargs())
     text = wait_for_text(d / "ready", 120)
     if text is None:
-        ctx.bundle.processes.kill_tree(proc)
+        ctx.bundle.processes.kill_tree(proc.pid)
         return {"started": False}
     child_pid = int(text)
     t0 = time.perf_counter()
     if use_file:
         request.write_text("cancel", encoding="utf-8")
+    elif WINDOWS:
+        proc.send_signal(signal.CTRL_BREAK_EVENT)  # what the port used to send
     else:
-        ctx.bundle.processes.interrupt(proc)
+        os.kill(proc.pid, signal.SIGINT)
     code = finish(proc, 20)
     seconds = round(time.perf_counter() - t0, 2)
     if code is None:
-        ctx.bundle.processes.kill_tree(proc)
+        ctx.bundle.processes.kill_tree(proc.pid)
         code = finish(proc, 30)
     child_gone = wait_gone(ctx, child_pid, 10)
     if not child_gone:
@@ -1007,7 +1184,7 @@ def source() -> dict:
 def run_checks(ctx, selected) -> list[dict]:
     results = []
     for group, name, fn in CHECKS:
-        if selected and name not in selected:
+        if (selected and name not in selected) or (fn.only_when_named and name not in selected):
             continue
         entry = {"name": name, "group": group, "observation": fn.observation}
         if fn.needs_uv and not ctx.uv:
@@ -1047,6 +1224,8 @@ def main(argv=None) -> int:
     parser.add_argument("--stdlib-only", action="store_true",
                         help="only what the aelix process loads: no uv, no analysis libraries")
     parser.add_argument("--only", help="comma-separated check names, for debugging a single check")
+    parser.add_argument("--gate", choices=("all", "required"), default="all",
+                        help="what the exit status reflects: every promise, or the required ones")
     args = parser.parse_args(argv)
     selected = set(filter(None, (args.only or "").split(",")))
     unknown = selected - {name for _g, name, _f in CHECKS}
@@ -1062,7 +1241,8 @@ def main(argv=None) -> int:
         ctx = Context(tmp_path)
         if args.stdlib_only:
             ctx.uv = None
-            selected = selected or {name for group, name, _f in CHECKS if group != "cli"}
+            selected = selected or {name for group, name, fn in CHECKS
+                                    if group != "cli" and not fn.only_when_named}
         results = run_checks(ctx, selected)
         report = {
             "schema": SCHEMA,
@@ -1074,13 +1254,31 @@ def main(argv=None) -> int:
             "environment": environment(ctx),
             "summary": {key: sum(1 for r in results if r.get("result") == key)
                         for key in ("holds", "violated", "declared_limitation", "observed", "not_run")},
+            "required": required_summary(results),
             "checks": results,
         }
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({"output": str(output), "summary": report["summary"]}, ensure_ascii=False))
+    print(json.dumps({"output": str(output), "summary": report["summary"],
+                      "required": report["required"]}, ensure_ascii=False))
+    if args.gate == "required":
+        return 0 if report["required"]["hold"] else 1
     return 1 if report["summary"]["violated"] else 0
+
+
+def required_summary(results: list[dict]) -> dict:
+    """The checks this platform is judged on among those this invocation selected: every promise,
+    less the ones NOT_REQUIRED lists until the documents declare what they show. A selected
+    required check that could not run (`not_run`) counts against the verdict; one that was not
+    selected is not judged."""
+    exempt = NOT_REQUIRED["windows" if WINDOWS else "posix"]
+    required = [r for r in results if not r.get("observation") and r["name"] not in exempt]
+    failing = {key: [r["name"] for r in required if r.get("result") == key]
+               for key in ("violated", "declared_limitation", "not_run")}
+    return {"platform": "windows" if WINDOWS else "posix", "checks": [r["name"] for r in required],
+            "exempt_until_declared": sorted(exempt), **failing,
+            "hold": not failing["violated"] and not failing["not_run"]}
 
 
 if __name__ == "__main__":
