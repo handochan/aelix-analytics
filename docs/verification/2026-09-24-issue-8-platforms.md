@@ -1,9 +1,9 @@
 # Issue #8 platform measurement — 2026-09-24
 
 The portable boundaries of [PR #31](https://github.com/handochan/aelix-analytics/pull/31) were run
-on Ubuntu 24.04 and Windows Server 2025 by GitHub Actions and on a macOS developer machine, at one
-commit. On every platform the checks each platform is judged on held, the repository suite and the
-aelix 0.1.0b2 integration suite passed, and ⟦F: Windows showed three declared limitations⟧. This is
+on Ubuntu 24.04 and Windows Server 2025 by GitHub Actions ⟦F: and on a macOS developer machine⟧, at
+one commit. ⟦F: On every platform the checks each platform is judged on held, the repository suite
+and the aelix 0.1.0b2 integration suite passed, and Windows showed three declared limitations⟧. This is
 the durable summary: the CI artifacts expire after GitHub's retention period. What the results mean
 for the contract is in [CONTRACTS.md](../CONTRACTS.md) F and G; the per-check values and test
 counts are in ⟦F: the machine-readable result, 2026-09-24-issue-8-platforms.json⟧.
@@ -13,9 +13,9 @@ counts are in ⟦F: the machine-readable result, 2026-09-24-issue-8-platforms.js
 | Item | Basis |
 |---|---|
 | Measured code | PR #31 at `⟦F: sha⟧` |
-| Measurement branch | `test/issue-8-platform-measurement` at `⟦F: sha⟧`, which is that commit plus the measurement tool (`tools/platform_smoke.py`), its self-tests, the workflow, and test changes that let the suite run on Windows (explicit UTF-8, drive-letter links, an unreadable output file made by a lock). None of it is part of PR #31 |
+| Measurement branch | `test/issue-8-platform-measurement` at `⟦F: sha⟧`, which is that commit plus the measurement tool (`tools/platform_smoke.py`), its self-tests and the workflow, none of which is part of PR #31. The suite it runs is the PR's own plus the tool's self-tests |
 | CI run | [⟦F: id⟧](⟦F: url⟧): `ubuntu-latest` (image ubuntu-24.04 ⟦F⟧) and `windows-latest` (image windows-2025-vs2026 ⟦F⟧), each with CPython ⟦F: 3.12.3 / 3.12.10⟧ from uv 0.11.19; CPython ⟦F: 3.11.x⟧ from `actions/setup-python` for the stdlib-only leg |
-| Developer machine | macOS 26.6.2 arm64: CPython 3.12.13 (smoke, suite, aelix), 3.13.13 and 3.14.5 (suite), uv 0.11.19 |
+| Developer machine | ⟦F: macOS 26.6.2 arm64: CPython 3.12.13 (smoke, suite, aelix), 3.13.13 and 3.14.5 (suite), uv 0.11.19⟧ |
 | aelix | 0.1.0b2 from PyPI, in an environment of its own (`uv run --no-project --with aelix==0.1.0b2`) |
 
 ## Results
@@ -88,14 +88,29 @@ Observations, with no promise attached:
 
 ## The repository suite on Windows
 
-⟦F: counts⟧. The ⟦F: 75⟧ skipped tests are ones that cannot run there: ⟦F: 56⟧ exercise the POSIX
-guard's signals (the Windows guard has its own), and the rest need POSIX names, directory
-symlinks (which need privileges on Windows), `pthread_kill`, process groups, POSIX permissions or
-SIGALRM, or are the declared regular-expression limitation. The test module that needs aelix is
+⟦F: counts, and the skipped tests by reason, from the final run⟧. The test module that needs aelix is
 skipped in the repository suite and run by the integration step.
 
-Two earlier runs had Windows failures, each fixed before the next run and not seen since. The
-first, [35977785169](https://github.com/handochan/aelix-analytics/actions/runs/35977785169) at
+Four earlier runs had Windows failures, each fixed before the next run and not seen since.
+
+The first two, [35886296088](https://github.com/handochan/aelix-analytics/actions/runs/35886296088)
+and [35887916505](https://github.com/handochan/aelix-analytics/actions/runs/35887916505), measured
+the PR as it stood at `17e6e76` (an earlier run, 35885814246, stopped at setting up uv). Each had 7
+of 128 suite tests failing and the aelix integration test failing:
+
+- Five were the tests' and the doc checker's: text read and written without an encoding (Windows
+  used cp1252), `chmod(0)`, which cannot take read access away on Windows, and the doc checker,
+  which read `C:\` as a URL scheme and let a Windows absolute link pass. They were fixed on the
+  measurement branch first and are part of PR #31 since `⟦F: sha⟧`.
+- Two were the kit's: a recorded `/tmp/...` script path, which is not absolute on Windows, was
+  accepted for a rerun, and a test wrote inside a region the Windows file lock holds. Both were
+  fixed in `bbb4ba8`, with the other defects that run and its smoke showed (a replace refused while
+  a reader held the file, pids `0` and `-1` read as alive).
+- The integration test's cancel left the run `running` instead of `cancelled`: a console
+  `CTRL_BREAK_EVENT` ended `uv` at once and left its child without a record. That is why Windows
+  asks through a request file the kit watches (ADR-0003).
+
+The third, [35977785169](https://github.com/handochan/aelix-analytics/actions/runs/35977785169) at
 `bbb4ba8`, had two, fixed in `b0dc099`:
 
 - A test made a directory named `c:` in the project, which Windows reads as a drive. The test is
@@ -108,11 +123,26 @@ first, [35977785169](https://github.com/handochan/aelix-analytics/actions/runs/3
 That run's steps showed success because the measurement keeps going past a failing step; its
 outcomes recorded the failure. The workflow now ends the job red when a step failed.
 
-The second, [35993026796](https://github.com/handochan/aelix-analytics/actions/runs/35993026796)
+The fourth, [35993026796](https://github.com/handochan/aelix-analytics/actions/runs/35993026796)
 at `b0dc099`, had one, fixed in `aa25c3a`: the Office lock file `~$budget.xlsx` in a project was
 not read as the project's file, because Windows' Python guesses a home for any `~name` beside the
 current user's profile (`C:\Users\$budget.xlsx`). A leading `~name` is now expanded only when
 that home exists, on every platform.
+
+## Signals at every check point, and real ones
+
+Two probes of the PR-1 run's evidence check the run guard beyond the suite, on the developer
+machine and in a Linux container (not on Windows, whose guard the suite runs on its own):
+
+- A sweep delivers SIGINT, SIGTERM or SIGALRM at every check point of a run in turn — where CPython
+  3.12-3.14 handles a pending signal — one run per point, with and without a second signal, a host
+  and a script that leave raising handlers, a script that sets its own timer, and a script that
+  prints: ⟦F: points, variants, bad 0⟧. A record never stayed `running`, no handler was left
+  replaced, no timer was left running, and every log held each printed line once.
+- A real-signal fuzz sends a cancel and then, 5-60 µs later, a SIGTERM the script turned into
+  `sys.exit(0)`: ⟦F: 100 of 100 recorded `cancelled` on each of macOS 3.12, 3.13, 3.14 and Linux
+  3.12⟧, including the trials where the SIGTERM cut the cancel's handler short at its first
+  instruction, which the guard counts from the traceback of what cut it short.
 
 ## Not run
 
