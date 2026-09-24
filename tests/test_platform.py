@@ -3283,7 +3283,10 @@ def test_a_forced_end_loses_no_more_of_the_logs_than_main_did(project, unbuffere
         run_id = _wait_for_running_run(project)
         err = Path(project) / "runs" / run_id / "stderr.txt"
         end = time.monotonic() + 30
-        while "ERR-LINE-1" not in err.read_text(encoding="utf-8") and time.monotonic() < end:
+        # The record says `running` before the run's setup has opened its logs (a slow Windows
+        # runner read the file before it existed, measurement run 36044596511).
+        while time.monotonic() < end and not (err.is_file()
+                                              and "ERR-LINE-1" in err.read_text(encoding="utf-8")):
             time.sleep(0.05)
     finally:
         _platform.detect().processes.kill_tree(proc.pid)
@@ -4886,30 +4889,72 @@ def test_the_run_s_stdout_stands_in_for_the_cli_s_until_the_result_is_out(monkey
     """Review 11, rest-1 and review 10, critic-1: after a run the CLI started, its stdout stream
     stays sys.stdout and sys.__stdout__ — so a thread the script left running shares that stream's
     buffer with the result line, whichever way it writes — where the host writes to fd 1 through a
-    plain file; not over a console, and not once the script closed it. give_back_stdout puts the
-    host's own streams back."""
+    plain file; not over a console, and not once the script closed it. Either way a leftover
+    thread's text comes before the line, and give_back_stdout puts the host's streams back."""
     from labkit import runner  # noqa: PLC0415
 
-    raw = io.FileIO(1, "w", closefd=False) if host_kind != "a_console" else object()
-    flushed = []
-    host = types.SimpleNamespace(buffer=types.SimpleNamespace(raw=raw),
-                                 flush=lambda: flushed.append("host"))
-    original = types.SimpleNamespace(buffer=None, flush=lambda: None)
-    monkeypatch.setattr(sys, "stdout", host)
-    monkeypatch.setattr(sys, "__stdout__", original)
-    with runner._redirected(tmp_path / "out.txt", tmp_path / "err.txt", result_follows=True):
-        run_out = sys.stdout
-        if host_kind == "closed_by_the_script":
-            run_out.close()
-    stands_in = host_kind == "a_pipe_or_a_file"
-    assert (sys.stdout is run_out, sys.__stdout__ is run_out) == (stands_in, stands_in)
-    if stands_in:
-        # What a thread wrote through the host's stream just before the swap goes first.
-        flushed.clear()
-        runner.write_result("{}")
-        assert flushed == ["host"], flushed
-    runner.give_back_stdout()
-    assert sys.stdout is host and sys.__stdout__ is original
+    fd1 = tmp_path / "fd1.txt"
+    saved_fd1 = os.dup(1)
+    with open(fd1, "wb") as sink:
+        os.dup2(sink.fileno(), 1)
+    try:
+        raw = io.FileIO(1, "w", closefd=False) if host_kind != "a_console" else object()
+        writes = []
+        host = types.SimpleNamespace(buffer=types.SimpleNamespace(raw=raw),
+                                     write=lambda text: writes.append(("host", text)),
+                                     flush=lambda: writes.append(("host flushed", None)))
+        original = types.SimpleNamespace(buffer=None, flush=lambda: None)
+        monkeypatch.setattr(sys, "stdout", host)
+        monkeypatch.setattr(sys, "__stdout__", original)
+        with runner._redirected(tmp_path / "out.txt", tmp_path / "err.txt", result_follows=True):
+            run_out = sys.stdout
+            if host_kind == "closed_by_the_script":
+                run_out.close()
+        stands_in = host_kind == "a_pipe_or_a_file"
+        assert (sys.stdout is run_out, sys.__stdout__ is run_out) == (stands_in, stands_in)
+        if not run_out.closed:
+            run_out.write("late")  # a leftover thread's text, still in the run stream's buffer
+            writes.clear()
+            runner.write_result("{}")
+            written = fd1.read_text(encoding="utf-8")
+            if stands_in:  # the host's stream flushed first; the line after the text, in one stream
+                assert writes == [("host flushed", None)] and written == "late\n{}\n", \
+                    (writes, written)
+            else:  # the run's stream flushed first; the host's stream carries the line
+                assert written == "late" and writes == [("host", "\n{}\n"), ("host flushed", None)], \
+                    (writes, written)
+        runner.give_back_stdout()
+        assert sys.stdout is host and sys.__stdout__ is original
+    finally:
+        os.dup2(saved_fd1, 1)
+        os.close(saved_fd1)
+
+
+def test_the_cli_gives_its_own_stdout_back_when_it_returns(project, monkeypatch, tmp_path):
+    """Review 11 (U6): the run's stdout stream stands in for the CLI's own until the result is out;
+    main() puts the CLI's own back when it returns — before the interpreter's shutdown flushes
+    sys.stdout, and for a caller that runs the CLI in its own process."""
+    from labkit import __main__ as cli  # noqa: PLC0415
+
+    fd1 = tmp_path / "fd1.txt"
+    saved_fd1 = os.dup(1)
+    with open(fd1, "wb") as sink:
+        os.dup2(sink.fileno(), 1)
+    try:
+        own = io.TextIOWrapper(io.BufferedWriter(io.FileIO(1, "w", closefd=False)),
+                               encoding="utf-8")
+        monkeypatch.setattr(sys, "stdout", own)
+        monkeypatch.setattr(sys, "__stdout__", own)
+        code = cli.main(["--project", str(project), "run",
+                         write_script(project, "96_back.py", "x = 1\n"), "--title", "back"])
+        assert code == 0 and sys.stdout is own and sys.__stdout__ is own
+        own.flush()
+        results = [line for line in fd1.read_text(encoding="utf-8").splitlines()
+                   if line.startswith("{")]
+        assert results and json.loads(results[-1])["ok"] is True, results
+    finally:
+        os.dup2(saved_fd1, 1)
+        os.close(saved_fd1)
 
 
 NUMBERED_LINES = "import itertools\nfor i in itertools.count():\n    print(f'L{i:08d}', flush=True)\n"
