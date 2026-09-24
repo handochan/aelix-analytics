@@ -138,7 +138,12 @@ class Site:
         # answers for the platform rebuilding the report, so a Windows path read on Linux would be
         # linked as if it sat inside report/.
         if _platform.absolute_record_path(rel):
-            return _platform.file_url(rel)
+            # A record is data: a path no link can name (a device path, a UNC path without a
+            # share) gets no link rather than stopping the build.
+            try:
+                return _platform.file_url(rel)
+            except ValueError:
+                return "#"
         return self.up(depth) + href(rel)
 
     def run_link(self, run_id: str, depth: int, anchor: str = "") -> str:

@@ -1,6 +1,7 @@
 import csv
 import json
 import os
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -14,7 +15,9 @@ KIT = PACK / "kit"
 
 
 def kit_env(**extra) -> dict:
-    env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
+    # PYTHONUNBUFFERED changes how a kit lays out its run streams, which tests check; a test that
+    # wants it passes it (review 8, critic-4).
+    env = {k: v for k, v in os.environ.items() if k not in ("VIRTUAL_ENV", "PYTHONUNBUFFERED")}
     env.update({"PYTHONPATH": str(KIT), "MPLBACKEND": "Agg", "LAB_ACTOR": "test",
                 "PYTHONDONTWRITEBYTECODE": "1"})
     env.update(extra)
@@ -43,6 +46,19 @@ def write_sales_csv(path: Path, rows: int = 120) -> Path:
             writer.writerow([f"2025-{month:02d}-{1 + i % 27:02d}", regions[i % 3],
                              "online" if i % 2 else "store", 1000 + (i * 37) % 500])
     return path
+
+
+@pytest.fixture(autouse=True, scope="session")
+def sigint_as_an_interactive_python_has_it():
+    """Tests of the run guard assume SIGINT is handled, as in an interactive Python. A suite started
+    in the background inherits it ignored, and the kits and children the tests start inherit that
+    too (review 8, honesty-2); the ignored disposition is put back afterwards."""
+    ignored = signal.getsignal(signal.SIGINT) is signal.SIG_IGN
+    if ignored:
+        signal.signal(signal.SIGINT, signal.default_int_handler)
+    yield
+    if ignored:
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
 
 
 @pytest.fixture(autouse=True)

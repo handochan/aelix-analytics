@@ -24,6 +24,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -176,24 +177,79 @@ def child_env(processes, actor: str) -> dict:
 
 # --- subprocesses ---
 
-async def _terminate(proc, processes) -> None:
-    if proc.returncode is None:
-        # Ask first: uv forwards the interrupt, and the kit records the run as cancelled.
-        processes.interrupt(proc)
+class _CancelRequest:
+    """The file through which a kit command is asked to stop where no signal can ask it (see
+    _platform's ProcessControl.interrupt and RunControl.watch_for_cancel), in a private temporary
+    directory. Only a platform whose ProcessControl `asks_by_request` gets one.
+
+    Once _terminate has started it owns the directory, so a second cancellation of the tool call,
+    which ends _spawn at once, cannot delete the request before the kit has seen it; and it removes
+    it only once the kit has finished. A _terminate that is itself cancelled — aelix exiting while a
+    command is still stopping — leaves it in place for a kit that has not looked yet: a leftover
+    temporary directory costs less than a lost cancel. If no _terminate started, run_kit removes
+    it."""
+
+    def __init__(self) -> None:
+        try:
+            self.directory = Path(tempfile.mkdtemp(prefix="aelix-lab-"))
+        except OSError as exc:
+            raise core.LabError("spawn_failed",
+                                f"could not create a temporary directory: {exc}") from exc
+        self.path = self.directory / "cancel"
+        self.handed_over = False
+
+    def remove(self) -> None:
+        shutil.rmtree(self.directory, ignore_errors=True)
+
+
+async def _drain(stream) -> None:
+    while stream is not None and await stream.read(65536):
+        pass
+
+
+async def _finished(proc) -> None:
+    """Return once the child has exited and nothing holds its pipes any more; output is discarded.
+
+    `Process.wait` alone is not that: called after the child exited it returns at once, even while
+    a descendant still holds the pipes (measured on CPython 3.11 and 3.12). Both pipes are read at
+    once, so a child blocked writing one cannot hold up the end of the other."""
+    await asyncio.gather(_drain(proc.stdout), _drain(proc.stderr))
+    await proc.wait()
+
+
+async def _terminate(proc, processes, request: _CancelRequest | None = None) -> None:
+    """Stop a child and everything it started: ask first, then end by force only what is left.
+
+    Cancelled itself — aelix exiting runs asyncio.run's shutdown, which cancels this task — it
+    stops where it is: on POSIX the ask has already been sent, on Windows the request stays for the
+    kit to find; nothing ends the tree by force once aelix has gone."""
+    finished = False
+    try:
+        if processes.interrupt(proc, request.path if request is not None else None):
+            try:
+                await asyncio.wait_for(_finished(proc), GRACE_SECONDS)
+                finished = True
+                return  # nothing is left holding the pipes, so there is nothing to end
+            except TimeoutError:
+                pass
+        # The child did not stop in time, or it exited and something it started still holds the
+        # pipes. Only now is the tree ended, while the wait is unfinished (see
+        # ProcessControl.kill_tree). It may block, so it runs off the event loop, with a pid.
+        await asyncio.to_thread(processes.kill_tree, proc.pid)
         with contextlib.suppress(TimeoutError):
-            await asyncio.wait_for(proc.wait(), GRACE_SECONDS)
-    # Then the group, whether or not the wrapper is still running. uv exiting is not the end of
-    # it: its python child can outlive it holding the pipes, and waiting on those is exactly what
-    # this call is trying to stop. kill_tree may block, so it runs off the event loop.
-    await asyncio.to_thread(processes.kill_tree, proc)
-    with contextlib.suppress(TimeoutError):
-        # Bounded: if the tree outlived a forced kill there is nothing further to try, and this
-        # returning leaves it running rather than holding the session's event loop open.
-        await asyncio.wait_for(proc.wait(), GRACE_SECONDS)
+            # Bounded: if the tree outlived a forced kill there is nothing further to try, and
+            # this returning leaves it running rather than holding the session's event loop open.
+            await asyncio.wait_for(_finished(proc), GRACE_SECONDS)
+            finished = True
+    finally:
+        # Only once nothing is left to read it: a kit still running — after this task was
+        # cancelled, or after a forced end it survived — can still find it and stop itself.
+        if request is not None and finished:
+            request.remove()
 
 
-async def _spawn(argv, cwd, env, timeout, processes):
-    """(timed_out, returncode, stdout, stderr)."""
+async def _spawn(argv, cwd, env, timeout, processes, request: _CancelRequest | None = None):
+    """(timed_out, returncode, stdout, stderr). `request` is the kit's cancel request, if any."""
     try:
         proc = await asyncio.create_subprocess_exec(
             *argv, cwd=str(cwd), env=env, stdin=asyncio.subprocess.DEVNULL,
@@ -204,12 +260,29 @@ async def _spawn(argv, cwd, env, timeout, processes):
     try:
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout)
     except TimeoutError:
-        await asyncio.shield(_terminate(proc, processes))
+        await asyncio.shield(_stopping(proc, processes, request))
         return True, proc.returncode, b"", b""
     except asyncio.CancelledError:
-        await asyncio.shield(_terminate(proc, processes))
+        # A second cancellation ends this await at once; the shielded task carries on, and owns
+        # the request from here.
+        await asyncio.shield(_stopping(proc, processes, request))
         raise
     return False, proc.returncode, stdout, stderr
+
+
+# The loop keeps only weak references to tasks, and a termination outlives the _spawn that a second
+# cancellation ended; this keeps it alive until it is done.
+STOPPING: set = set()
+
+
+def _stopping(proc, processes, request):
+    """_terminate as a task that owns the request from the moment it exists."""
+    if request is not None:
+        request.handed_over = True
+    task = asyncio.ensure_future(_terminate(proc, processes, request))
+    STOPPING.add(task)
+    task.add_done_callback(STOPPING.discard)
+    return task
 
 
 async def run_kit(project, args, *, timeout: float, actor: str = "agent"):
@@ -219,9 +292,17 @@ async def run_kit(project, args, *, timeout: float, actor: str = "agent"):
         uv = resolve_uv()
         argv = [uv, "run", "--project", str(project.root), "--quiet", "python", "-m", "labkit",
                 "--project", str(project.root), *args]
-        timed_out, code, stdout, stderr = await _spawn(argv, project.root,
-                                                       child_env(processes, actor), timeout,
-                                                       processes)
+        # Only where the platform asks through it: POSIX asks with a signal and needs no file.
+        request = _CancelRequest() if processes.asks_by_request else None
+        try:
+            env = child_env(processes, actor)
+            if request is not None:
+                env["LAB_CANCEL_FILE"] = str(request.path)
+            timed_out, code, stdout, stderr = await _spawn(argv, project.root, env, timeout,
+                                                           processes, request)
+        finally:
+            if request is not None and not request.handed_over:
+                request.remove()
     except core.LabError as exc:
         return False, exc.to_json()
     if timed_out:
@@ -871,7 +952,9 @@ async def lab_command(args, ctx=None):
             if root is None:
                 return f"{rest} is not inside a lab project (no lab.json)"
             STATE["project"] = str(root)
-            core.trust_project(root)
+            # Off the event loop: on Windows a record being read elsewhere makes the replace wait
+            # up to about two seconds before it fails (_platform.WindowsAtomicFiles).
+            await asyncio.to_thread(core.trust_project, root)
             return f"active project: {root} (trusted: starting aelix inside it activates it)"
         if sub in ("report", "open"):
             project, _ = resolve_project()

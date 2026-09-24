@@ -5,6 +5,9 @@
 The last line of stdout is one JSON object: {"ok": true, ...} or {"ok": false, "error": {...}}.
 Exit codes: 0 success, 1 handled error, 2 usage error, 3 run recorded but not ok, 130 interrupted.
 Run commands with PYTHONPATH=<pack>/kit inside the project's uv environment (see bin/lab).
+
+LAB_CANCEL_FILE names the file through which the aelix extension asks a command it started to
+stop, where the platform cannot ask with a signal (see _platform.RunControl.watch_for_cancel).
 """
 
 from __future__ import annotations
@@ -21,6 +24,12 @@ TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "template"
 
 
 def _emit(obj: dict) -> None:
+    # What a thread a script left running wrote through its run's stream goes out first: the
+    # extension takes the last line that parses as JSON, and main had those lines ahead of it, as
+    # its scripts wrote through this process's own stream.
+    runner = sys.modules.get(f"{__package__}.runner")
+    if runner is not None:
+        runner.flush_run_streams()
     sys.stdout.write(json.dumps(obj, ensure_ascii=False, default=str) + "\n")
     sys.stdout.flush()
 
@@ -35,6 +44,27 @@ def _project(args) -> core.Project:
 
 
 def main(argv=None) -> int:
+    # Before anything can print: the extension reads this process's stdout through a pipe, and a
+    # pipe follows the locale rather than the console, so the records' non-ASCII text — and a
+    # usage error that quotes it — needs this to survive.
+    _platform.configure_stdio()
+    # Taken out of the environment so a script's own subprocesses do not watch the same file.
+    request = os.environ.pop("LAB_CANCEL_FILE", None)
+    stop_watching = None
+    try:
+        if request:
+            stop_watching = core.PLATFORM.runs.watch_for_cancel(Path(request))
+        return _command(argv)
+    except KeyboardInterrupt:
+        _emit({"ok": False, "error": {"code": "interrupted", "message": "interrupted"}})
+        return 130
+    finally:
+        # Bound to this call: nothing is delivered after main() returns.
+        if stop_watching is not None:
+            stop_watching()
+
+
+def _command(argv) -> int:
     parser = argparse.ArgumentParser(prog="labkit", description=(__doc__ or "labkit").splitlines()[0])
     parser.add_argument("--project", help="project directory (default: nearest lab.json above cwd)")
     parser.add_argument("--text", action="store_true", help="human-readable output where supported")
@@ -76,9 +106,6 @@ def main(argv=None) -> int:
     p = sub.add_parser("demo", help="fill a new project with synthetic data and example runs")
 
     args = parser.parse_args(argv)
-    # The extension reads this process's stdout through a pipe, and a pipe follows the locale
-    # rather than the console, so the records' non-ASCII text needs this to survive.
-    _platform.configure_stdio()
     actor = os.environ.get("LAB_ACTOR") or "human"
     session = os.environ.get("LAB_SESSION") or None
     try:
@@ -142,9 +169,6 @@ def main(argv=None) -> int:
     except core.LabError as exc:
         _emit(exc.to_json())
         return 1
-    except KeyboardInterrupt:
-        _emit({"ok": False, "error": {"code": "interrupted", "message": "interrupted"}})
-        return 130
 
 
 def _safe_report(report, project) -> dict:

@@ -101,6 +101,9 @@ class RunState:
         # id(figure) -> (latest record made from it, fingerprint of what was saved)
         self._by_figure: dict[int, tuple[dict, str | None]] = {}
         self._keepalive: list = []
+        # charts/<id><suffix> of every live chart written under its portable name, with the chart
+        # that owns it (_remember_own_names)
+        self._own_names: dict[str, dict] = {}
 
     # --- inputs ---
 
@@ -145,15 +148,17 @@ class RunState:
         except OSError:
             return
         entry = self.inputs.get(rel)
+        # A runtime read records the content as it is when read (the script may have rewritten the
+        # file since the pre-run scan); the hash cache keeps this cheap. The hash comes first, so a
+        # run interrupted while hashing records no entry without a hash or a source.
+        rehash = entry is None or via not in ("scan", "declared") or entry["sha256"] is None
+        sha = self.cache.sha(path) if rehash else None
         if entry is None:
-            entry = {"path": rel, "sha256": None, "bytes": size, "via": set(),
-                     "external": not self.project.inside(path)}
-            self.inputs[rel] = entry
-        if via not in ("scan", "declared") or entry["sha256"] is None:
-            # A runtime read records the content as it is when read (the script may have
-            # rewritten the file since the pre-run scan); the hash cache keeps this cheap.
-            entry["sha256"] = self.cache.sha(path)
-            entry["bytes"] = size
+            self.inputs[rel] = {"path": rel, "sha256": sha, "bytes": size, "via": {via},
+                                "external": not self.project.inside(path)}
+            return
+        if rehash:
+            entry["sha256"], entry["bytes"] = sha, size
         entry["via"].add(via)
 
     # --- derived datasets ---
@@ -189,6 +194,7 @@ class RunState:
         fingerprint = self._save(record, target if target is not None else obj, kind)
         if data is not None:
             self._attach_data(record, data)
+        self._remember_own_names(record)
         self.charts.append(record)
         if target is not None:
             self._by_figure[id(target)] = (record, fingerprint)
@@ -206,6 +212,44 @@ class RunState:
             if close:
                 plt.close(fig)
 
+    def _remember_own_names(self, record: dict) -> None:
+        """A chart whose id is a Windows device name is written under its portable name
+        (charts/con_.png). A file a script writes at the id's own name (charts/con.png) is the file
+        main wrote or overwrote for that chart, not a chart of its own, so the name is remembered
+        here with the chart that owns it. When that chart is replaced or discarded, main unlinked
+        that file, and so does _discard: one the script writes afterwards is a chart of its own, as
+        on main."""
+        portable = _platform.portable_stem(record["id"])
+        if portable == record["id"]:
+            return
+        for rel in [*record["files"].values(), record.get("data")]:
+            path = self.project.path(rel) if rel else None
+            if path is not None and path.parent == self.charts_dir \
+                    and path.name.startswith(f"{portable}."):
+                own = self.project.rel(self.charts_dir / (record["id"] + path.name[len(portable):]))
+                self._own_names[own] = record
+
+    def _forget_own_names(self, record: dict) -> list[str]:
+        """Drop the names `record` owned, and return them."""
+        owned = [own for own, owner in self._own_names.items() if owner is record]
+        for own in owned:
+            del self._own_names[own]
+        return owned
+
+    def _is_own_name(self, rel: str, path: Path) -> bool:
+        """Whether a file the script wrote is at a live chart's own name — also under another case
+        of it (charts/CON.png), where the file system does not tell the two apart: there it is the
+        file main wrote or overwrote, as it is under the name itself."""
+        if rel in self._own_names:
+            return True
+        folded = rel.casefold()
+        for own in self._own_names:
+            if own.casefold() == folded:
+                with contextlib.suppress(OSError):
+                    if os.path.samefile(path, self.project.path(own)):
+                        return True
+        return False
+
     def register_loose_files(self) -> None:
         """Image or HTML files a script wrote into the run directory itself become charts."""
         known = {p for c in self.charts for p in c["files"].values()}
@@ -214,7 +258,8 @@ class RunState:
                 continue
             for p in sorted(base.iterdir()):
                 rel = self.project.rel(p)
-                if p.is_file() and p.suffix.lower() in core.CHART_SUFFIXES and rel not in known:
+                if p.is_file() and p.suffix.lower() in core.CHART_SUFFIXES and rel not in known \
+                        and not self._is_own_name(rel, p):
                     cid = self._unique_id(p.stem)
                     self.charts.append({"id": cid, "kind": "file", "title": p.stem,
                                         "caption": None, "via": "file", "line": None,
@@ -248,7 +293,9 @@ class RunState:
     def _discard(self, record: dict) -> None:
         if record in self.charts:
             self.charts.remove(record)
-        for rel in [*record.get("files", {}).values(), record.get("data")]:
+        # The id's own names go with the chart's files: main's files were there (_remember_own_names).
+        own = self._forget_own_names(record)
+        for rel in [*record.get("files", {}).values(), record.get("data"), *own]:
             if rel and rel.startswith(f"runs/{self.run_id}/"):
                 with contextlib.suppress(OSError):
                     self.project.path(rel).unlink()
@@ -569,9 +616,9 @@ def install(state: RunState) -> PostImportFinder:
     return finder
 
 
-def uninstall(finder: PostImportFinder | None) -> None:
+def uninstall() -> None:
+    """Stop recording and remove the import hook — every one `install` inserted, not only the one
+    the caller got back: a cancel can arrive after the insertion and before `install` returns."""
     global ACTIVE
     ACTIVE = None
-    if finder is not None:
-        with contextlib.suppress(ValueError):
-            sys.meta_path.remove(finder)
+    sys.meta_path[:] = [f for f in sys.meta_path if not isinstance(f, PostImportFinder)]

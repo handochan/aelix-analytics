@@ -10,8 +10,11 @@ code, run and report directories). This is a record, not a sandbox or a determin
 from __future__ import annotations
 
 import ast
+import atexit
 import builtins
+import collections
 import contextlib
+import errno
 import io
 import os
 import platform
@@ -21,6 +24,7 @@ import sys
 import time
 import traceback
 import types
+import weakref
 from pathlib import Path
 
 from . import _platform, capture, core
@@ -62,8 +66,6 @@ def scan_literals(source: str) -> tuple[set[str], set[str]]:
 
 
 def static_input_files(project: core.Project, literals: set[str], writes: set[str]) -> list[Path]:
-    import glob
-
     found: dict[str, Path] = {}
     for literal in literals:
         tokens = {literal, *capture.SQL_FILE_RE.findall(literal)}
@@ -72,15 +74,23 @@ def static_input_files(project: core.Project, literals: set[str], writes: set[st
                 continue
             if "/" not in token and not token.lower().endswith(core.DATA_SUFFIXES):
                 continue
-            path = Path(token).expanduser()
-            path = path if path.is_absolute() else project.root / path
-            text = str(path)
-            candidates = [Path(m) for m in glob.glob(text, recursive=True)[:200]] \
-                if any(ch in text for ch in "*?[") else [path]
-            for c in candidates:
-                if c.is_file() and c.suffix.lower() in core.DATA_SUFFIXES:
-                    found[str(c)] = c
+            # A literal the file system cannot take — a name too long — is skipped on its own, and
+            # does not take the inputs the other literals found with it.
+            with contextlib.suppress(Exception):
+                found.update(_token_inputs(project, token))
     return list(found.values())
+
+
+def _token_inputs(project: core.Project, token: str) -> dict[str, Path]:
+    import glob
+
+    # Project.path takes a `~user` nobody has (an Office lock file's `~$budget.xlsx`) as written.
+    path = project.path(token)
+    text = str(path)
+    candidates = [Path(m) for m in glob.glob(text, recursive=True)[:200]] \
+        if any(ch in text for ch in "*?[") else [path]
+    return {str(c): c for c in candidates
+            if c.is_file() and c.suffix.lower() in core.DATA_SUFFIXES}
 
 
 def tree_stat(project: core.Project) -> dict[str, tuple[int, int]]:
@@ -171,14 +181,64 @@ def _tail(path: Path, limit: int = OUTPUT_TAIL) -> str:
     return ("…" + text) if size > limit else text
 
 
-def _flush(streams) -> None:
-    """Flush everything that might still be buffering for fd 1 or 2, including the interpreter's
-    original streams. A stream that is closed or refuses is skipped: this is housekeeping."""
-    for stream in (*streams, sys.__stdout__, sys.__stderr__):
+STREAM_NAMES = ("stdout", "stderr", "__stdout__", "__stderr__")
+# The run streams of earlier runs in this process. A module a script imported keeps its place in
+# sys.modules, and with it any stream it took from sys.stdout; a later run's output through it lands
+# in that stream's buffer, which is flushed with the later run's own. A thread a script left running
+# can write through one after its run. So they are flushed when a run starts and ends, when the CLI
+# prints its result (flush_run_streams) — main, whose scripts wrote through the CLI's own stream,
+# had such lines ahead of the result, which the extension takes from the last line that parses as
+# JSON — and when the interpreter exits. The latest run's two streams are also held here: a stream
+# whose last other holder is gone, such as a module caught in a reference cycle, would otherwise be
+# collected with its text unwritten, which the collector can do by finalizing its layers in either
+# order. An older run's streams are flushed for as long as something else holds them; text written
+# through one after its last flush can still be lost that way. Holding every run's would make each
+# run's own work grow with the runs before it.
+_EARLIER_RUN_STREAMS: weakref.WeakSet = weakref.WeakSet()
+_HELD_RUN_STREAMS: collections.deque = collections.deque(maxlen=2)
+
+
+def flush_run_streams() -> None:
+    """Write out what earlier runs' streams still hold (see _EARLIER_RUN_STREAMS)."""
+    _flush(list(_EARLIER_RUN_STREAMS))
+
+
+atexit.register(flush_run_streams)
+
+
+def _flush(streams) -> list:
+    """Flush each stream and return the ones that took it. One that is closed or refuses is
+    skipped: this is housekeeping, and a stream a script installed may raise anything, so nothing
+    it raises may stop the caller."""
+    flushed = []
+    for stream in streams:
         if stream is None:
             continue
-        with contextlib.suppress(Exception):
+        with contextlib.suppress(BaseException):  # noqa: BLE001 - see the docstring
             stream.flush()
+            flushed.append(stream)
+    return flushed
+
+
+def _run_stream(fd: int, replaced) -> io.TextIOWrapper:
+    """A text stream over `fd`, layered and buffered as the stream it replaces was — what main's
+    run output had, since main wrote through the interpreter's own streams. CPython builds them
+    over a buffered writer, stderr line-buffered and stdout line-buffered only on a terminal; under
+    `-u` or PYTHONUNBUFFERED both write straight through to the raw file. Copying the layering and
+    both flags keeps the order against child processes, what a forced end loses and the speed of a
+    print-heavy script as they were. A replaced object that is not a text stream gives CPython's
+    defaults for a file."""
+    raw = io.FileIO(fd, "w", closefd=False)
+    raw.name = "<stdout>" if fd == 1 else "<stderr>"
+    unbuffered, line_buffering, write_through = False, fd == 2, False
+    if isinstance(replaced, io.TextIOWrapper):
+        unbuffered = replaced.write_through and not isinstance(replaced.buffer, io.BufferedIOBase)
+        line_buffering, write_through = replaced.line_buffering, replaced.write_through
+    stream = io.TextIOWrapper(raw if unbuffered else io.BufferedWriter(raw),
+                              encoding=_platform.TEXT_ENCODING, errors="replace",
+                              line_buffering=line_buffering, write_through=write_through)
+    stream.mode = "w"
+    return stream
 
 
 @contextlib.contextmanager
@@ -186,35 +246,51 @@ def _redirected(stdout_path: Path, stderr_path: Path):
     """Send this process's output, and that of anything it starts, to the run's log files.
 
     The descriptors are redirected so a C library or a child process lands in the same file, and
-    the Python-level streams are rebound on top of them. A console stream keeps writing to the
-    console it was built for: on Windows `sys.stdout` can wrap a _WindowsConsoleIO that calls
-    WriteConsoleW, which fails once fd 1 points at a file. Rebinding also fixes the encoding of a
-    run's own log, which would otherwise follow the locale."""
-    saved_streams = sys.stdout, sys.stderr
-    # Everything that could still be holding fd 1, before it becomes the log: an SDK caller may
-    # have replaced sys.stdout while the real one still holds bytes the host wrote, and those
-    # belong to the host, not to this run.
-    _flush(saved_streams)
+    the Python-level streams are rebound on top of them — the interpreter's original ones as well
+    (`sys.__stdout__`, `sys.__stderr__`), so whatever name a script writes through reaches the log,
+    and nothing it writes shares a buffer with bytes the host wrote before the run. A console
+    stream keeps writing to the console it was built for: on Windows `sys.stdout` can wrap a
+    _WindowsConsoleIO that calls WriteConsoleW, which fails once fd 1 points at a file. Rebinding
+    also fixes the encoding of a run's own log, which would otherwise follow the locale.
+
+    In-process callers: writes through a reference to a stream taken before the run, or during an
+    earlier run, reach this run's log when that stream is flushed at the end — but after what the
+    script printed, not interleaved with it, because they sit in another buffer. So what a thread
+    a script left running writes through its run's stream while a later run runs goes into that
+    run's log, as it did on main; what it writes between runs reaches the host's output when the
+    next run starts, when the CLI prints its result, or when the interpreter exits."""
+    saved = tuple(getattr(sys, name) for name in STREAM_NAMES)
+    # Before fd 1 becomes the log: the host's own streams (an SDK caller may have replaced
+    # sys.stdout while the real one still holds bytes it wrote), and earlier runs' streams. A host
+    # stream that refused keeps its bytes for the host's own output: it is not flushed again below.
+    host_flushed = _flush(saved)
+    _flush(list(_EARLIER_RUN_STREAMS))
     saved_fds = os.dup(1), os.dup(2)
     with open(stdout_path, "wb") as out, open(stderr_path, "wb") as err:
         os.dup2(out.fileno(), 1)
         os.dup2(err.fileno(), 2)
-        sys.stdout = io.TextIOWrapper(io.FileIO(1, "w", closefd=False), line_buffering=True,
-                                      encoding=_platform.TEXT_ENCODING, errors="replace")
-        sys.stderr = io.TextIOWrapper(io.FileIO(2, "w", closefd=False), line_buffering=True,
-                                      encoding=_platform.TEXT_ENCODING, errors="replace")
+        run_out, run_err = _run_stream(1, saved[0]), _run_stream(2, saved[1])
+        sys.stdout = sys.__stdout__ = run_out
+        sys.stderr = sys.__stderr__ = run_err
         try:
             yield
         finally:
-            # The same streams again: a script that wrote through sys.__stdout__ has its bytes in
-            # that object's buffer, and they belong in the log rather than in front of the CLI's
-            # own JSON line after the restore. Anything written before the run already went out.
-            _flush((sys.stdout, sys.stderr, *saved_streams))
-            sys.stdout, sys.stderr = saved_streams
-            os.dup2(saved_fds[0], 1)
-            os.dup2(saved_fds[1], 2)
-            os.close(saved_fds[0])
-            os.close(saved_fds[1])
+            try:
+                # While fd 1 is still the log, so none of it lands in front of the CLI's JSON line
+                # after the restore: whatever the four names hold now — a script's own stream, when
+                # a signal cut its restore short — the run's streams, the streams of earlier runs,
+                # and the host streams that took the flush before the run.
+                _flush((*(getattr(sys, name) for name in STREAM_NAMES), run_out, run_err,
+                        *list(_EARLIER_RUN_STREAMS), *host_flushed))
+            finally:
+                for name, stream in zip(STREAM_NAMES, saved, strict=True):
+                    setattr(sys, name, stream)
+                os.dup2(saved_fds[0], 1)
+                os.dup2(saved_fds[1], 2)
+                os.close(saved_fds[0])
+                os.close(saved_fds[1])
+                _EARLIER_RUN_STREAMS.update((run_out, run_err))
+                _HELD_RUN_STREAMS.extend((run_out, run_err))
 
 
 def _exec_script(code_bytes: bytes, filename: Path, script_dir: Path) -> None:
@@ -222,7 +298,7 @@ def _exec_script(code_bytes: bytes, filename: Path, script_dir: Path) -> None:
     module.__file__ = str(filename)
     module.__builtins__ = builtins  # type: ignore[attr-defined]
     saved_main, saved_argv, saved_path = sys.modules.get("__main__"), sys.argv[:], sys.path[:]
-    saved_streams = sys.stdout, sys.stderr
+    saved_streams = tuple(getattr(sys, name) for name in STREAM_NAMES)
     sys.modules["__main__"] = module
     sys.argv = [str(filename)]
     sys.path.insert(0, str(script_dir))
@@ -233,8 +309,9 @@ def _exec_script(code_bytes: bytes, filename: Path, script_dir: Path) -> None:
             sys.modules["__main__"] = saved_main
         sys.argv = saved_argv
         sys.path[:] = saved_path
-        # A script may replace sys.stdout/stderr; the CLI result must still reach the real stdout.
-        sys.stdout, sys.stderr = saved_streams
+        # A script may replace any of the four; the runner flushes and restores the ones it knows.
+        for name, stream in zip(STREAM_NAMES, saved_streams, strict=True):
+            setattr(sys, name, stream)
 
 
 # Failures seen in real sessions: a model reaches for pandas habits or a Polars API that moved.
@@ -386,6 +463,30 @@ def reconcile_inputs(entries: dict, outputs: list[dict]) -> list[dict]:
     return sorted(kept, key=lambda i: i["path"])
 
 
+# Directories the kit manages; a script is never taken from one.
+MANAGED_DIRS = (".venv", ".lab", "runs", "report")
+
+
+def _in_managed_dir(rel: str) -> bool:
+    """Whether `rel` names a file in a managed directory on some platform: split on both
+    separators, because Windows reads a backslash in a recorded path as one, and compared without
+    case, because macOS and Windows file systems ignore it by default."""
+    return re.split(r"[\\/]", rel)[0].casefold() in MANAGED_DIRS
+
+
+def _in_managed_dir_here(project: core.Project, rel: str) -> bool:
+    """Whether `rel` is in a managed directory on this machine's file system: `RUNS/x.py` is, where
+    the file system ignores case."""
+    first, _, rest = rel.partition("/")
+    if first in MANAGED_DIRS:
+        return True
+    if not rest or first.casefold() not in MANAGED_DIRS:
+        return False
+    with contextlib.suppress(OSError):
+        return os.path.samefile(project.root / first, project.root / first.casefold())
+    return False
+
+
 def _script_source(project: core.Project, script) -> tuple[str, Path]:
     if not script:
         raise core.LabError("run_needs_script", "no script given")
@@ -396,9 +497,16 @@ def _script_source(project: core.Project, script) -> tuple[str, Path]:
         raise core.LabError("script_missing", f"{script} is not a .py file in the project",
                             hint="write the script under scripts/ first")
     script_rel = project.rel(path)
-    if script_rel.split("/")[0] in (".venv", ".lab", "runs", "report"):
+    if _in_managed_dir_here(project, script_rel):
         raise core.LabError("script_location", f"{script_rel} is inside a managed directory",
                             hint="keep analysis code under scripts/")
+    # Refused before it is recorded, so the kit never writes a path it would not rerun. That
+    # includes a name another platform would read as inside a managed directory (`runs\\x.py` on
+    # Windows, `RUNS/x.py` where the file system minds case).
+    if not _platform.record_relative_path(script_rel) or _in_managed_dir(script_rel):
+        raise core.LabError("script_location",
+                            f"{script_rel} is not a path a record can hold on every platform",
+                            hint="keep analysis code under scripts/ with a plain name")
     return script_rel, path
 
 
@@ -413,13 +521,42 @@ def _rerun_source(project: core.Project, rerun_of: str) -> tuple[dict, str, Path
                             hint="lab_status lists run ids")
     code_root = (project.runs / rerun_of / "code").resolve()
     snapshot = project.path(str(script["snapshot"])).resolve()
-    rel = Path(str(script["path"]))
     if code_root not in snapshot.parents or not snapshot.is_file():
         raise core.LabError("rerun_snapshot", f"run {rerun_of} has no code snapshot under "
                             f"runs/{rerun_of}/code")
-    if rel.is_absolute() or ".." in rel.parts or rel.parts[:1] in ((".venv",), ("runs",), (".lab",)):
-        raise core.LabError("rerun_snapshot", f"run {rerun_of} records an invalid script path {rel}")
-    return record, rel.as_posix(), snapshot
+    # The recorded path decides the directory that goes onto sys.path, so it is checked as the kit
+    # writes one rather than by the running platform (`/tmp/x.py` is not absolute on Windows), and
+    # then where it leads once joined: a directory inside the project may be a link to outside it.
+    recorded = script["path"]
+    target = project.root / recorded
+    if not _platform.record_relative_path(recorded) or _in_managed_dir(recorded) \
+            or not project.inside(target) or _in_managed_dir(project.rel(target)):
+        raise core.LabError("rerun_snapshot",
+                            f"run {rerun_of} records an invalid script path {recorded!r}")
+    return record, recorded, snapshot
+
+
+def _remove_run_dir(run_dir: Path) -> None:
+    shutil.rmtree(run_dir, ignore_errors=True)
+    with contextlib.suppress(OSError):
+        run_dir.rmdir()  # empty, but made unreadable to the kit by its own umask: rmtree cannot list it
+
+
+# Windows' errors for a path beyond its length limit: "path not found", "file name too long".
+_WINDOWS_PATH_TOO_LONG = (3, 206)
+
+
+def _write_failure_hint(exc: Exception) -> str | None:
+    if isinstance(exc, UnicodeError):
+        # POSIX hands over arguments, names and variables it cannot decode with surrogates in them.
+        return "use a title, a script name and LAB_ACTOR/LAB_SESSION values that are valid UTF-8"
+    if not isinstance(exc, OSError):
+        return None
+    if exc.errno == errno.ENAMETOOLONG or getattr(exc, "winerror", None) in _WINDOWS_PATH_TOO_LONG:
+        return "shorten the script's path"
+    if exc.errno == errno.ENOSPC:
+        return "free some space on the disk that holds the project"
+    return "check that the project's runs/ directory can be written"
 
 
 def execute(project: core.Project, *, script: str | None, title: str | None,
@@ -445,41 +582,65 @@ def execute(project: core.Project, *, script: str | None, title: str | None,
 
 def _execute_locked(project, *, script_rel, exec_file, code_bytes, title, declared_inputs,
                     timeout, source_run, actor, session) -> dict:
-    rerun_of = source_run["id"] if source_run else None
-    run_id = core.new_run_dir(project, Path(script_rel).stem)
-    run_dir = project.runs / run_id
-    code_dir = run_dir / "code"
-    snapshot = code_dir / script_rel
-    snapshot.parent.mkdir(parents=True, exist_ok=True)
-    snapshot.write_bytes(code_bytes)
-    record = {"schema": core.SCHEMA_RUN, "id": run_id, "title": title, "status": "running",
-              "pid": os.getpid(), "started_at": core.iso(), "actor": actor, "session": session,
-              "rerun_of": rerun_of,
-              "script": {"path": script_rel, "sha256": core.sha256_bytes(code_bytes),
-                         "snapshot": project.rel(snapshot)}}
-    core.write_json(run_dir / "run.json", record, platform=project.platform)
+    # The run's signal handling is installed once, here, and taken out after the record is
+    # written. Between the two regions below it only records: nothing it does can stop the path to
+    # the record, and inside a region it raises once at most (see _platform.RunControl).
+    with project.platform.runs.guard() as guard:
+        rerun_of = source_run["id"] if source_run else None
+        run_id = core.new_run_dir(project, Path(script_rel).stem)
+        run_dir = project.runs / run_id
+        code_dir = run_dir / "code"
+        snapshot = code_dir / script_rel
+        record = {"schema": core.SCHEMA_RUN, "id": run_id, "title": title, "status": "running",
+                  "pid": os.getpid(), "started_at": core.iso(), "actor": actor, "session": session,
+                  "rerun_of": rerun_of,
+                  "script": {"path": script_rel, "sha256": core.sha256_bytes(code_bytes),
+                             "snapshot": project.rel(snapshot)}}
+        # Nothing has run yet, and until the record exists the directory would stay without one: a
+        # name longer than the file system allows, a path beyond Windows' limit, a full disk, a
+        # directory the kit cannot write, a record holding text that cannot be written as UTF-8.
+        # Removed, and refused.
+        code, what = "snapshot_failed", "code snapshot"
+        try:
+            snapshot.parent.mkdir(parents=True, exist_ok=True)
+            snapshot.write_bytes(code_bytes)
+            code, what = "record_failed", "run record"
+            core.write_json(run_dir / "run.json", record, platform=project.platform)
+        except (OSError, ValueError) as exc:
+            _remove_run_dir(run_dir)
+            raise core.LabError(code, f"could not write the {what} of {script_rel}: {exc}",
+                                hint=_write_failure_hint(exc)) from exc
 
-    # Code of a rerun keeps the snapshot path so tracebacks show the lines that actually ran.
-    filename = exec_file if rerun_of else project.path(script_rel)
-    state = capture.RunState(project, run_id, run_dir, filename)
-    with contextlib.suppress(Exception):
-        reads, writes = scan_literals(code_bytes.decode("utf-8", errors="replace"))
-        for p in static_input_files(project, reads, writes):
-            state.record_read(str(p), "scan")
-    for item in declared_inputs or ():
-        state.record_read(str(project.path(item)), "declared")
-    before = tree_stat(project)
-    stdout_path, stderr_path = run_dir / "stdout.txt", run_dir / "stderr.txt"
-
-    signals = {"timeout": False, "cancel": False}
-    # An interrupt that arrives once the script has stopped only marks the run cancelled: the
-    # status _classify chose stands and the record must still be written. This scope covers the
-    # capture cleanup and the whole of _finalize without a gap, and _run_script nests the raising
-    # scope for the script itself inside it.
-    with project.platform.runs.cancel_scope(lambda: signals.__setitem__("cancel", True),
-                                            interrupt=False):
-        status, error, duration = _run_script(project, state, code_bytes, filename, script_rel,
-                                              timeout, stdout_path, stderr_path, signals)
+        # Code of a rerun keeps the snapshot path so tracebacks show the lines that actually ran.
+        filename = exec_file if rerun_of else project.path(script_rel)
+        state = capture.RunState(project, run_id, run_dir, filename)
+        stdout_path, stderr_path = run_dir / "stdout.txt", run_dir / "stderr.txt"
+        before, setup_interrupted = None, False
+        try:
+            # Hashing the inputs and walking the project can take long for a big project, so a
+            # cancel stops this too, and the run is recorded as cancelled before its script.
+            with guard.interruptible():
+                with contextlib.suppress(Exception):
+                    reads, writes = scan_literals(code_bytes.decode("utf-8", errors="replace"))
+                    for p in static_input_files(project, reads, writes):
+                        state.record_read(str(p), "scan")
+                for item in declared_inputs or ():
+                    state.record_read(str(project.path(item)), "declared")
+                before = tree_stat(project)
+        except _platform.Interrupted:
+            setup_interrupted = True
+        finally:
+            guard.settle()  # also when a signal cut the region's own exit short
+        if setup_interrupted:
+            for log in (stdout_path, stderr_path):
+                with contextlib.suppress(OSError):
+                    log.touch()
+            status, error, duration = "cancelled", _cancelled("cancelled before the script "
+                                                              "started"), 0.0
+        else:
+            status, error, duration = _run_script(project, state, code_bytes, filename,
+                                                  script_rel, timeout, stdout_path, stderr_path,
+                                                  guard)
         return _finalize(project, state, record, source_run=source_run, before=before,
                          status=status, error=error, duration=duration, code_dir=code_dir,
                          stdout_path=stdout_path, stderr_path=stderr_path, actor=actor,
@@ -487,46 +648,45 @@ def _execute_locked(project, *, script_rel, exec_file, code_bytes, title, declar
 
 
 def _run_script(project, state, code_bytes, filename, script_rel, timeout, stdout_path,
-                stderr_path, signals) -> tuple[str, dict | None, float]:
+                stderr_path, guard) -> tuple[str, dict | None, float]:
+    """Run the script in the guard's interruptible region and classify how it ended."""
     env_backup = {k: os.environ.get(k) for k in ("LAB_RUN_ID", "LAB_RUN_DIR", "LAB_PROJECT",
                                                  "MPLBACKEND")}
     os.environ.update({"LAB_RUN_ID": state.run_id, "LAB_RUN_DIR": str(state.run_dir),
                        "LAB_PROJECT": str(project.root)})
     os.environ.setdefault("MPLBACKEND", "Agg")
     cwd = os.getcwd()
-    finder = None
     failure: BaseException | None = None
-    runs = project.platform.runs
     t0 = time.perf_counter()
     try:
         with _redirected(stdout_path, stderr_path):
             try:
-                # The callbacks only record that the event happened; the port interrupts the main
-                # thread itself. The scope covers the capture setup as well as the script, so a
-                # cancel that arrives while the hooks are being installed stops the run before the
-                # script can produce anything.
-                with runs.cancel_scope(lambda: signals.__setitem__("cancel", True),
-                                       interrupt=True):
+                # A cancel recorded before this point raises as the region is entered, so nothing
+                # of the script runs after one: not the capture hooks, not the script.
+                with guard.interruptible(deadline=timeout):
                     os.chdir(project.root)
-                    finder = capture.install(state)
-                    with runs.deadline(timeout,
-                                       lambda: signals.__setitem__("timeout", True)):
-                        _exec_script(code_bytes, filename, project.path(script_rel).parent)
+                    capture.install(state)
+                    _exec_script(code_bytes, filename, (project.root / script_rel).parent)
             except BaseException as exc:  # noqa: BLE001 - classified below with the timer off
                 failure = exc
-            # The script has stopped. From here the record is being made, so an interrupt only
-            # sets the flag — which is also why libraries such as DuckDB turning the interrupt
-            # into an error of their own does not change the outcome: the flags decide.
-            with runs.cancel_scope(lambda: signals.__setitem__("cancel", True), interrupt=False):
-                if failure is not None and not isinstance(failure, SystemExit):
-                    with contextlib.suppress(Exception):
-                        traceback.print_exception(failure)
+            # Whatever the region raised, and even when a signal cut its exit short: this stops the
+            # raising, counts a deadline that passed and a cancel whose handler what the region
+            # raised cut short, disarms, takes the handlers back, and returns what a handler the
+            # script left installed raised meanwhile. From here the guard only records, which is
+            # also why a library such as DuckDB turning the interrupt into an error of its own does
+            # not change the outcome: the flags decide.
+            settled = guard.settle(failure)
+            if failure is None:
+                failure = settled
+            if failure is not None and not isinstance(failure, SystemExit):
                 with contextlib.suppress(Exception):
-                    state.capture_open_figures("auto", close=True)
-                with contextlib.suppress(Exception):
-                    state.register_loose_files()
+                    traceback.print_exception(failure)
+            with contextlib.suppress(Exception):
+                state.capture_open_figures("auto", close=True)
+            with contextlib.suppress(Exception):
+                state.register_loose_files()
     finally:
-        capture.uninstall(finder)
+        capture.uninstall()
         os.chdir(cwd)
         for k, v in env_backup.items():
             if v is None:
@@ -534,17 +694,25 @@ def _run_script(project, state, code_bytes, filename, script_rel, timeout, stdou
             else:
                 os.environ[k] = v
     duration = time.perf_counter() - t0
-    status, error = _classify(failure, signals, timeout, str(filename))
+    status, error = _classify(failure, guard, timeout, str(filename))
     return status, error, duration
 
 
-def _classify(failure, signals, timeout, filename) -> tuple[str, dict | None]:
-    if signals["timeout"]:
+def _cancelled(message: str = "interrupted") -> dict:
+    return {"type": "Cancelled", "message": message, "line": None, "summary": "cancelled"}
+
+
+def _classify(failure, guard, timeout, filename) -> tuple[str, dict | None]:
+    # By the guard's flags (see _platform.RunControl), not by what the script ended with. A deadline
+    # counts when it passed while the script could still be interrupted — whether or not that
+    # stopped the script — and a cancel that came before it had passed takes the region's one
+    # interruption, after which the deadline no longer counts. So a run with both flags set passed
+    # its deadline before anything stopped it: `timeout`.
+    if guard.expired:
         return "timeout", {"type": "Timeout", "message": f"exceeded {timeout:.0f} s", "line": None,
                            "summary": f"timed out after {timeout:.0f} s"}
-    if signals["cancel"] or isinstance(failure, (KeyboardInterrupt, _platform.Interrupted)):
-        return "cancelled", {"type": "Cancelled", "message": "interrupted", "line": None,
-                             "summary": "cancelled"}
+    if guard.cancelled or isinstance(failure, (KeyboardInterrupt, _platform.Interrupted)):
+        return "cancelled", _cancelled()
     if failure is None:
         return "ok", None
     if isinstance(failure, SystemExit):
@@ -568,8 +736,9 @@ def _finalize(project, state, record, *, source_run, before, status, error, dura
             return default
 
     run_id, run_dir = record["id"], state.run_dir
-    outputs = guarded("outputs", lambda: diff_outputs(project, before, tree_stat(project),
-                                                      state.cache), [])
+    # No `before` means the run was cancelled before its script: it wrote nothing.
+    outputs = [] if before is None else guarded(
+        "outputs", lambda: diff_outputs(project, before, tree_stat(project), state.cache), [])
     for out in outputs:
         out["via"] = state.saved.get(out["path"], "diff")
     inputs = guarded("inputs", lambda: reconcile_inputs(state.inputs, outputs), [])
@@ -643,6 +812,33 @@ def imported_sources(project: core.Project) -> dict[str, str]:
     return out
 
 
+def reserved_name_warnings(paths) -> list[str]:
+    """Warnings for recorded paths that use a Windows device name in any component.
+
+    Grouped by the first such component, because `data/derived/con/value.parquet` is as unopenable
+    on Windows as `con.parquet` is, and a directory of a thousand partitions is one problem, not a
+    thousand. Beyond MAX_LISTED_PATHS groups it is one warning, like external inputs."""
+    groups: dict[str, list[str]] = {}
+    for rel in paths:
+        parts = str(rel).split("/")
+        for depth, part in enumerate(parts):
+            if _platform.reserved_name(part):
+                groups.setdefault("/".join(parts[:depth + 1]), []).append(str(rel))
+                break
+    tail = "this project cannot be opened there until it is renamed"
+    if len(groups) > MAX_LISTED_PATHS:
+        return [f"{len(groups):,} paths use a reserved device name on Windows, e.g. "
+                + ", ".join(sorted(groups)[:MAX_LISTED_PATHS]) + f"; {tail}"]
+    out = []
+    for prefix, members in sorted(groups.items()):
+        if members == [prefix]:
+            out.append(f"{prefix} uses a reserved device name on Windows; {tail}")
+        else:
+            out.append(f"{prefix}/ uses a reserved device name on Windows ({len(members):,} "
+                       f"file(s) under it, e.g. {sorted(members)[0]}); {tail}")
+    return out
+
+
 def run_warnings(record: dict, project: core.Project | None = None) -> list[str]:
     warnings = []
     imported = imported_sources(project) if project is not None else {}
@@ -673,15 +869,6 @@ def run_warnings(record: dict, project: core.Project | None = None) -> list[str]
     else:
         warnings += [f"input outside the project: {p} (import it with lab_import so the analysis "
                      "does not depend on it)" for p in rest]
-    unportable = [out["path"] for out in record["outputs"] if out.get("change") != "deleted"]
-    unportable += [rel for chart in record["charts"]
-                   for rel in (chart.get("files") or {}).values()]
-    for rel in unportable:
-        # Every component, not just the file: `data/derived/con/value.parquet` is as unopenable on
-        # Windows as `con.parquet` is.
-        if any(_platform.reserved_name(part) for part in str(rel).split("/")):
-            warnings.append(f"{rel} uses a reserved device name on Windows; this project cannot be "
-                            "opened there until it is renamed")
     for out in record["outputs"]:
         if out.get("outside_data") and out.get("change") != "deleted":
             warnings.append(f"file written outside data/: {out['path']}")
@@ -692,4 +879,9 @@ def run_warnings(record: dict, project: core.Project | None = None) -> list[str]
             warnings.append(f"non-Parquet data written: {out['path']}")
     if "pandas" in sys.modules:
         warnings.append("pandas was imported; this project processes data with DuckDB and Polars")
+    # Last of all, so every warning main gave comes first: the agent's reply shows ten and the run
+    # page twelve, and a partitioned write under a reserved directory would otherwise push them out.
+    written = [out["path"] for out in record["outputs"] if out.get("change") != "deleted"]
+    written += [rel for chart in record["charts"] for rel in (chart.get("files") or {}).values()]
+    warnings += reserved_name_warnings(written)
     return warnings

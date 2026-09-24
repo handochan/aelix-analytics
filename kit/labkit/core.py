@@ -55,8 +55,8 @@ IGNORED_DIRS = {".venv", ".lab", "runs", "report", "scripts", ".git", "__pycache
                 ".pytest_cache", ".ruff_cache", ".omc", ".aelix", "node_modules",
                 ".ipynb_checkpoints"}
 
-# The OS-dependent operations of this process. A Project takes this unless an entry point or a test
-# hands it another bundle; nothing here looks one up by name or by environment variable.
+# The OS-dependent operations of this process. A Project takes this unless a caller — in practice a
+# test — hands it another bundle; nothing here looks one up by name or by environment variable.
 PLATFORM = _platform.detect()
 
 
@@ -77,12 +77,21 @@ class LabError(Exception):
         return {"ok": False, "error": error}
 
 
+def _resolved(path: Path) -> Path:
+    """`path` with its links followed as far as they lead. `os.path.realpath` rather than
+    `Path.resolve`, which on CPython 3.12 raises for a link loop where 3.13 returns the path
+    resolved up to the loop: the same answer on every version."""
+    with contextlib.suppress(OSError):
+        return Path(os.path.realpath(path))
+    return path
+
+
 class Project:
     """Paths of one lab project, and the platform ports its operations use.
 
-    Construction does not touch the file system. `platform` is the bundle from `_platform`: an
-    entry point passes the one it assembled and a test passes another implementation, so the same
-    project code runs unchanged on Linux, macOS and Windows."""
+    Construction does not touch the file system. `platform` is the bundle from `_platform`: this
+    process's (`PLATFORM`) unless a test passes another implementation, so the same project code
+    runs unchanged on Linux, macOS and Windows."""
 
     def __init__(self, root, *, platform: _platform.Platform | None = None):
         self.root = Path(root).expanduser().resolve()
@@ -103,23 +112,22 @@ class Project:
         self.queries = self.lab / "queries.jsonl"
 
     def path(self, rel) -> Path:
-        p = Path(rel).expanduser()
+        p = Path(rel)
+        # A `~user` nobody has, or no home at all, is a path that names no home: taken as written.
+        with contextlib.suppress(RuntimeError):
+            p = p.expanduser()
         return p if p.is_absolute() else self.root / p
 
     def rel(self, path) -> str:
         """Project-relative POSIX path, or the absolute path for files outside the project."""
-        p = self.path(path)
-        with contextlib.suppress(OSError):
-            p = p.resolve()
+        p = _resolved(self.path(path))
         try:
             return p.relative_to(self.root).as_posix()
         except ValueError:
             return str(p)
 
     def inside(self, path) -> bool:
-        p = self.path(path)
-        with contextlib.suppress(OSError):
-            p = p.resolve()
+        p = _resolved(self.path(path))
         return p == self.root or self.root in p.parents
 
     def config(self) -> dict:
