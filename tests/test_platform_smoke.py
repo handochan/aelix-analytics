@@ -225,3 +225,87 @@ def test_the_required_gate_fails_when_a_required_check_could_not_run(tmp_path):
     assert report["summary"]["not_run"] == 1, report["summary"]
     assert every.returncode == 0, every.stdout + every.stderr  # not_run is no violation
     assert required.returncode == 1, required.stdout + required.stderr
+
+
+class _SettleCountsItsFailure:
+    """A run control whose settle(failure) counts a deadline it is handed as a cancel, as revision
+    3.3's Windows guard did (review 9, guard-2)."""
+
+    def guard(self):
+        guard = _platform.PosixRunControl().guard()
+        settle = guard.settle
+
+        def counting(failure=None):
+            if isinstance(failure, _platform.Interrupted):
+                guard.cancelled = True
+            return settle(failure)
+
+        guard.settle = counting
+        return guard
+
+
+@pytest.mark.skipif(os.name == "nt", reason="the stub guard stands in for the POSIX one")
+def test_the_deadline_checks_settle_with_what_the_region_raised():
+    """Review 10, rest-3 and honesty-7 (N10): the deadline checks see a deadline counted as a
+    cancel at settle — where revision 3.3's Windows guard counted it — only because they settle
+    with what the region raised, as the runner does. Nothing failed without that call."""
+    tool = tool_module()
+    saved = {n: signal.getsignal(getattr(signal, n)) for n in ("SIGINT", "SIGTERM", "SIGALRM")}
+    try:
+        ctx = types.SimpleNamespace(bundle=types.SimpleNamespace(runs=_SettleCountsItsFailure()))
+        outcome = tool.deadline_interrupts_a_sleep(ctx)
+    finally:
+        for name, handler in saved.items():
+            signal.signal(getattr(signal, name), handler)
+    assert outcome["observed"]["cancel_flag"] is True and outcome["holds"] is False, outcome
+
+
+# What `_cancel_a_cli_run` observed, by outcome: the form docs/CONTRACTS.md G states for a cancel
+# that cannot land on Windows, and four that are not it.
+CANCEL_OUTCOMES = {
+    "the_stated_form": {"recorded_status": "running", "listed_status": "incomplete",
+                        "forced": True, "kit_process_gone": True},
+    "the_kit_left_alive": {"recorded_status": "running", "listed_status": "running",
+                           "forced": True, "kit_process_gone": False},
+    "recorded_ok": {"recorded_status": "ok", "listed_status": "ok", "forced": False,
+                    "kit_process_gone": True},
+    "recorded_error": {"recorded_status": "error", "listed_status": "error", "forced": False,
+                       "kit_process_gone": True},
+    "never_started": {"run": "never started within 300 s", "recorded_status": None,
+                      "forced": None},
+}
+
+
+@pytest.mark.parametrize("check", ["cli_cancel_reaches_a_run_inside_a_regular_expression",
+                                   "cli_cancel_reaches_a_run_waiting_on_a_subprocess"])
+@pytest.mark.parametrize("outcome", sorted(CANCEL_OUTCOMES))
+def test_a_windows_cancel_check_declares_only_the_form_the_documents_state(monkeypatch, check,
+                                                                           outcome):
+    """Review 10, rest-4 and honesty-4: on Windows the two cancel checks named their declaration
+    whenever they did not hold, so a run recorded ok, a kit left alive or a run that never started
+    held the verdict as well. Only the stated form does now."""
+    tool = tool_module()
+    monkeypatch.setattr(tool, "WINDOWS", True)
+    monkeypatch.setattr(tool, "declared", lambda key: f"stated: {key}")
+    monkeypatch.setattr(tool, "_cancel_a_cli_run",
+                        lambda ctx, name, source, *, wait: dict(CANCEL_OUTCOMES[outcome]))
+    result = getattr(tool, check)(None)
+    assert result["holds"] is False, result
+    assert bool(result["declared"]) is (outcome == "the_stated_form"), result
+
+
+def test_a_declaration_holds_only_while_the_measured_tree_states_it(monkeypatch, tmp_path):
+    """Review 10, rest-4 and honesty-4: the Windows declarations cited docs/CONTRACTS.md G, which
+    the measured tree did not yet contain; the report held the verdict on them regardless. A
+    declaration is the document's own words now, looked up in the tree being measured."""
+    tool = tool_module()
+    path, words = tool.DECLARED["gil"]
+    monkeypatch.setattr(tool, "ROOT", tmp_path)
+    assert tool.declared("gil") is None  # no document at all
+    (tmp_path / path).parent.mkdir(parents=True)
+    (tmp_path / path).write_text("# G\n\nWindows에서 실행한 적이 없습니다.\n", encoding="utf-8")
+    assert tool.declared("gil") is None
+    cut = words.index(" ", len(words) // 2)  # the document wraps its lines at any space
+    (tmp_path / path).write_text(f"# G\n\n- (측정) {words[:cut]}\n  {words[cut + 1:]}.\n",
+                                 encoding="utf-8")
+    assert tool.declared("gil") == f"{path} — {words}"

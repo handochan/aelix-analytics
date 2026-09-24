@@ -3,10 +3,11 @@
     python tools/platform_smoke.py --output <file.json> [--stdlib-only] [--only NAME,...]
 
 Each check does one thing a port in kit/labkit/_platform.py or the labkit CLI promises, for real, on
-this machine, and records what it observed. A check either holds or it does not. When it does not
-and docs/CONTRACTS.md or ADR-0003 already declare that exact limitation for this platform, the
-record names the declaration, so a known limit is neither read as a pass nor hidden as a failure.
-An observation records a platform fact without a promise attached.
+this machine, and records what it observed. A check either holds or it does not. When it does not,
+in exactly the form a document of the tree being measured states as a limitation of this platform,
+and the document still says so in the words DECLARED quotes, the record names the declaration, so
+a known limit is neither read as a pass nor hidden as a failure. An observation records a platform
+fact without a promise attached.
 
 `--stdlib-only` runs only what the aelix process itself loads (core and _platform). It needs neither
 uv nor the analysis libraries, so it can run on the entry-point floor being measured.
@@ -16,8 +17,7 @@ only in a declared way, is an observation, or could not run (`not_run`: uv missi
 against it. With `--gate required` the status is the `required` block's verdict instead: every
 check that makes a promise among those this invocation selected has to have run and either held or
 shown only a limitation the documents declare; a check `--only` or `--stdlib-only` left out is not
-judged at all. The report
-carries the block either way. Nothing here is a test of Windows until it has actually run on
+judged at all. The report carries the block either way. Nothing here is a test of Windows until it has actually run on
 Windows; the output says where it ran.
 """
 
@@ -55,22 +55,38 @@ SCHEMA = "aelix-analytics.platform-smoke/1"
 ANALYSIS_MODULES = ("polars", "duckdb", "pyarrow", "matplotlib", "plotly", "numpy")
 WINDOWS = os.name == "nt"
 
-# The limitations the documents already state, by the check that would show them. They are only
-# ever applied on Windows: on POSIX every one of these promises is meant to hold.
+# The limitations a document of the tree being measured states, by the check that would show them,
+# with the words it states them in. A check reports one as declared only while that document says
+# so (declared) and only on Windows: on POSIX every one of these promises is meant to hold. The
+# last two were measured as violations first (run 35977785169); until the tree states them, a run
+# that shows them reports them as violated rather than borrowing a declaration.
 DECLARED = {
-    "kill_tree": "ADR-0003 결과와 비용 — taskkill이 실패하면 자식 프로세스가 살아남으며 이를 정리 성공으로 적지 않는다",
-    "sigterm": "docs/CONTRACTS.md D — Windows에서는 SIGTERM을 가로챌 수 없어 강제 종료가 incomplete로 남는다",
-    # Measured as violations first (run 35977785169), then stated by docs/CONTRACTS.md G.
-    "gil": "docs/CONTRACTS.md G — GIL을 쥔 채 도는 C 코드 안의 주 스레드에는 그 호출이 반환할 때까지 취소가 닿지 않는다",
-    "subprocess_wait": "docs/CONTRACTS.md G — SIGINT 이벤트를 보지 않는 대기는 취소가 와도 그 대기가 끝날 때까지 이어진다",
+    "kill_tree": ("docs/CONTRACTS.md", "`taskkill /T`는 부모가 이미 끝난 자손에 닿지 않습니다"),
+    "gil": ("docs/CONTRACTS.md",
+            "GIL을 쥔 채 도는 C 코드 안의 주 스레드에는 그 호출이 반환할 때까지 취소가 닿지 않습니다"),
+    "subprocess_wait": ("docs/CONTRACTS.md",
+                        "SIGINT 이벤트를 보지 않는 대기(자식 프로세스를 기다리는 `subprocess` 호출 등)는 "
+                        "취소가 와도 그 대기가 끝날 때까지 이어집니다"),
 }
 # Every check that makes a promise is required on every platform. Until the documents declared
 # them, the two Windows limitations above were exempt instead (Issue #8, design revision 3 section
-# 4); the first Windows run showed them (run 35977785169), and nothing is exempt now.
+# 4); nothing is exempt now.
 # How long the extension waits for a kit it asked to stop before it ends the tree by force
 # (extension/aelix_lab.py GRACE_SECONDS; a test keeps the two equal). A stop that takes longer is
 # a forced one there, so it is one here.
 EXTENSION_GRACE_SECONDS = 10
+
+
+def declared(key: str) -> str | None:
+    """`document — words` for the limitation `key` while the tree being measured states it in those
+    words (line breaks aside), else None: a check whose limitation the tree does not state reports
+    a violation."""
+    path, words = DECLARED[key]
+    try:
+        text = (ROOT / path).read_text(encoding="utf-8")
+    except OSError:
+        return None
+    return f"{path} — {words}" if " ".join(words.split()) in " ".join(text.split()) else None
 
 CHECKS: list[tuple[str, str, object]] = []
 
@@ -380,7 +396,7 @@ def kill_tree_after_the_leader_exited(ctx):
     gone = wait_gone(ctx, grandchild, 15)
     if not gone:
         force_kill(grandchild)
-    return {"holds": gone, "declared": DECLARED["kill_tree"] if WINDOWS and not gone else None,
+    return {"holds": gone, "declared": declared("kill_tree") if WINDOWS and not gone else None,
             "observed": {"leader_exit_code": proc.returncode, "grandchild_gone": gone,
                          "diagnostic": diagnostic or None}}
 
@@ -840,6 +856,15 @@ def _cancelled_in_time(observed: dict) -> bool:
         and bool(observed.get("kit_process_gone"))
 
 
+def _ended_as_declared(observed: dict) -> bool:
+    """The form docs/CONTRACTS.md G states for a cancel that cannot land on Windows: the
+    extension's grace ran out, the run was ended by force, its record was left `running` — listed
+    `incomplete` — and the kit process is gone. Any other outcome is not that limitation."""
+    return observed.get("forced") is True and observed.get("recorded_status") == "running" \
+        and observed.get("listed_status") == "incomplete" \
+        and observed.get("kit_process_gone") is True
+
+
 SLOW = """\
 import time
 print("started", flush=True)
@@ -871,8 +896,8 @@ def cli_cancel_reaches_a_run_inside_a_regular_expression(ctx):
     thread watching the request file, cannot until the expression returns."""
     observed = _cancel_a_cli_run(ctx, "08_regex.py", CATASTROPHIC, wait=1.5)
     holds = _cancelled_in_time(observed)
-    return {"holds": holds, "declared": DECLARED["gil"] if WINDOWS and not holds else None,
-            "observed": observed}
+    stated = WINDOWS and not holds and _ended_as_declared(observed)
+    return {"holds": holds, "declared": declared("gil") if stated else None, "observed": observed}
 
 
 WAITS_ON_A_CHILD = """\
@@ -890,8 +915,8 @@ def cli_cancel_reaches_a_run_waiting_on_a_subprocess(ctx):
     SIGINT event does not end, so the ask cannot land until the child exits."""
     observed = _cancel_a_cli_run(ctx, "09_child.py", WAITS_ON_A_CHILD, wait=1.5)
     holds = _cancelled_in_time(observed)
-    return {"holds": holds,
-            "declared": DECLARED["subprocess_wait"] if WINDOWS and not holds else None,
+    stated = WINDOWS and not holds and _ended_as_declared(observed)
+    return {"holds": holds, "declared": declared("subprocess_wait") if stated else None,
             "observed": observed}
 
 
