@@ -273,6 +273,17 @@ CANCEL_OUTCOMES = {
                        "kit_process_gone": True},
     "never_started": {"run": "never started within 300 s", "recorded_status": None,
                       "forced": None},
+    # Review 11, rest-5: each of these differs from the stated form in one term only. The tool
+    # ends a kit that outlived the forced end before it lists the runs, so a kit left alive is
+    # seen as this.
+    "the_kit_left_alive_as_seen": {"recorded_status": "running", "listed_status": "incomplete",
+                                   "forced": True, "kit_process_gone": False},
+    "ended_unforced": {"recorded_status": "running", "listed_status": "incomplete",
+                       "forced": False, "kit_process_gone": True},
+    "still_listed_running": {"recorded_status": "running", "listed_status": "running",
+                             "forced": True, "kit_process_gone": True},
+    "recorded_cancelled_late": {"recorded_status": "cancelled", "listed_status": "incomplete",
+                                "forced": True, "kit_process_gone": True},
 }
 
 
@@ -309,3 +320,24 @@ def test_a_declaration_holds_only_while_the_measured_tree_states_it(monkeypatch,
     (tmp_path / path).write_text(f"# G\n\n- (측정) {words[:cut]}\n  {words[cut + 1:]}.\n",
                                  encoding="utf-8")
     assert tool.declared("gil") == f"{path} — {words}"
+
+
+@pytest.mark.parametrize("diagnostic", ["", "labkit: could not end the process tree of pid 7"])
+def test_the_windows_tree_check_declares_only_the_form_the_documents_state(monkeypatch,
+                                                                           diagnostic):
+    """Review 11, honesty-9: docs/CONTRACTS.md G states taskkill's limit with its form — the
+    descendant survives and the kit says so on stderr, not counting it ended. The check named the
+    declaration for any surviving descendant, said or not."""
+    tool = tool_module()
+    leader = types.SimpleNamespace(pid=7, returncode=0)
+    monkeypatch.setattr(tool, "WINDOWS", True)
+    monkeypatch.setattr(tool, "declared", lambda key: f"stated: {key}")
+    monkeypatch.setattr(tool, "_tree", lambda ctx, name, mode: (leader, 8))
+    monkeypatch.setattr(tool, "finish", lambda proc, seconds: 0)
+    monkeypatch.setattr(tool, "captured_stderr", lambda fn, *args: (None, diagnostic))
+    monkeypatch.setattr(tool, "wait_gone", lambda ctx, pid, seconds: False)
+    monkeypatch.setattr(tool, "force_kill", lambda pid: None)
+    ctx = types.SimpleNamespace(bundle=types.SimpleNamespace(
+        processes=types.SimpleNamespace(kill_tree=lambda pid: None)))
+    result = tool.kill_tree_after_the_leader_exited(ctx)
+    assert result["holds"] is False and bool(result["declared"]) is bool(diagnostic), result

@@ -396,7 +396,9 @@ def kill_tree_after_the_leader_exited(ctx):
     gone = wait_gone(ctx, grandchild, 15)
     if not gone:
         force_kill(grandchild)
-    return {"holds": gone, "declared": declared("kill_tree") if WINDOWS and not gone else None,
+    # The stated form: the descendant survived, and the kit said so instead of counting it ended.
+    stated = WINDOWS and not gone and bool(diagnostic)
+    return {"holds": gone, "declared": declared("kill_tree") if stated else None,
             "observed": {"leader_exit_code": proc.returncode, "grandchild_gone": gone,
                          "diagnostic": diagnostic or None}}
 
