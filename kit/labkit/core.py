@@ -77,6 +77,19 @@ class LabError(Exception):
         return {"ok": False, "error": error}
 
 
+def expand_home(path: Path) -> Path:
+    """`path` with a leading `~name` expanded where that home exists, and otherwise as written, on
+    every platform. POSIX finds no home for a user nobody has (pathlib then refuses to expand it),
+    and Windows guesses one beside the current user's profile: an Office lock file `~$budget.xlsx`
+    would be C:\\Users\\$budget.xlsx there (Issue #8, the second Windows run)."""
+    head = path.parts[0] if path.parts else ""
+    if head.startswith("~"):
+        with contextlib.suppress(RuntimeError, OSError):
+            if os.path.isdir(os.path.expanduser(head)):
+                return path.expanduser()
+    return path
+
+
 def _resolved(path: Path) -> Path:
     """`path` with its links followed as far as they lead. `os.path.realpath` rather than
     `Path.resolve`, which on CPython 3.12 raises for a link loop where 3.13 returns the path
@@ -112,17 +125,7 @@ class Project:
         self.queries = self.lab / "queries.jsonl"
 
     def path(self, rel) -> Path:
-        p = Path(rel)
-        # A leading `~name` names a home only where that home exists; otherwise the path is taken
-        # as written, on every platform. POSIX finds no home for a user nobody has (pathlib then
-        # refuses to expand it), and Windows guesses one beside the current user's profile: an
-        # Office lock file `~$budget.xlsx` would be C:\Users\$budget.xlsx there (Issue #8, the
-        # second Windows run).
-        head = p.parts[0] if p.parts else ""
-        if head.startswith("~"):
-            with contextlib.suppress(RuntimeError, OSError):
-                if os.path.isdir(os.path.expanduser(head)):
-                    p = p.expanduser()
+        p = expand_home(Path(rel))
         return p if p.is_absolute() else self.root / p
 
     def rel(self, path) -> str:

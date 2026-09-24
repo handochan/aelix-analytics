@@ -1452,7 +1452,7 @@ def test_a_windows_deadline_sigint_after_the_region_is_not_a_cancel(monkeypatch)
 @POSIX_GUARD
 def test_a_later_region_s_deadline_does_not_inherit_an_earlier_mark(monkeypatch):
     """A mark an earlier region's timer left — its SIGINT taken by a script's handler — is not the
-    next region's: that region's arming resets it, so a cancel there is a cancel (review 7, A14)."""
+    next region's: that region's entry resets it, so a cancel there is a cancel (review 7, A14)."""
     with _windows_guard(monkeypatch) as guard:
         with guard.interruptible(deadline=30.0):
             guard._timer.cancel()
@@ -2119,6 +2119,8 @@ def test_a_name_too_long_is_told_where_the_error_does_not_say_so():
     assert hint(einval, run / ("\U0001F600" * 126 + ".py")) == generic
     unc = PureWindowsPath("//" + "h" * 200 + ".example.com/" + "s" * 60 + "/proj/runs/a.py")
     assert len(unc.anchor) > 255 and hint(einval, unc) == generic
+    # A name POSIX could not decode carries a lone surrogate, which counts as one unit (X10).
+    assert hint(einval, run / "caf\udce9.py") == generic
 
 
 def test_a_run_record_that_cannot_be_written_leaves_no_run_behind(project, monkeypatch):
@@ -3236,13 +3238,10 @@ def test_the_output_redirection_is_undone_even_when_a_stream_raises_on_flush(tmp
     assert "RUN-OUTPUT" in (tmp_path / "out.txt").read_text(encoding="utf-8")
 
 
-# The layer is io's class under a stream's buffer: the run's stdout writes through a FileIO of its
-# own since revision 3.5 (runner._RunStdout).
 STREAM_LAYERS = ("import sys\n"
                  "for name in ('stdout', 'stderr'):\n"
                  "    s = getattr(sys, name)\n"
-                 "    layer = next(c for c in type(s.buffer).__mro__ if c.__module__ == '_io')\n"
-                 "    print(name, layer.__name__, s.line_buffering, s.write_through,\n"
+                 "    print(name, type(s.buffer).__name__, s.line_buffering, s.write_through,\n"
                  "          s.mode, s.name)\n")
 
 
@@ -4576,8 +4575,10 @@ def test_a_cancel_cut_short_by_a_second_handler_while_the_region_is_left_is_coun
         monkeypatch):
     """Review 10, honesty-10 (review 9's guard-4 sub-point): settle kept only the first thing a
     handler raised while the region was left. When the script's raising handler had already run
-    once there, a cancel it cut short next was lost. Everything caught there is looked at now."""
+    once there, a cancel it cut short next was lost. Everything caught there is looked at now, and
+    settle still returns the first of it (review 11, guard-4: the two exits differ)."""
     guard = _guard()
+    codes = iter((1, 2))
     injector = _Injector({_platform._RunGuard.on_cancel_signal.__code__},
                          _raises_the_script_s(signal.SIGTERM), entries_only=True)
     real, calls = signal.setitimer, {"on": False, "n": 0}
@@ -4599,7 +4600,7 @@ def test_a_cancel_cut_short_by_a_second_handler_while_the_region_is_left_is_coun
     try:
         with injector, guard:
             with guard.interruptible(deadline=30.0):
-                signal.signal(signal.SIGTERM, lambda *_a: sys.exit(1))  # the script's
+                signal.signal(signal.SIGTERM, lambda *_a: sys.exit(next(codes)))  # the script's
                 calls["on"] = True
             calls["on"] = injector.on = False
             caught = guard.settle()
@@ -4607,6 +4608,7 @@ def test_a_cancel_cut_short_by_a_second_handler_while_the_region_is_left_is_coun
         signal.signal(signal.SIGTERM, saved)
     assert calls["n"] >= 3 and injector.fired and isinstance(caught, SystemExit), \
         (calls, injector.fired, caught)
+    assert caught.code == 1, caught.code
     assert _outcome(guard) == {"timeout": False, "cancel": True}, _outcome(guard)
     assert _handlers() == before and signal.getitimer(signal.ITIMER_REAL) == (0.0, 0.0)
 
@@ -4699,9 +4701,11 @@ def test_a_cancel_s_interruption_stops_the_deadline_s_timer_at_once():
 
 def test_only_a_command_that_ran_a_script_starts_its_result_with_an_empty_line(project):
     """Review 10, rest-8 and honesty-8 (N5): the empty line that keeps a leftover thread's
-    unfinished line out of the result comes after every run whose script started — and only
+    unfinished line out of the result comes after every run that got past its setup, whose output
+    was redirected (review 11, rest-8 and honesty-7: whether or not its script then ran) — and only
     then: a command that ran no script prints its one JSON line alone, as main did, whether or not
-    it loaded the runner (`report` does, for the kit's digest)."""
+    it loaded the runner (`report` does, for the kit's digest; `demo` runs its scripts in child
+    processes)."""
     def stdout_of(*args):
         return subprocess.run([sys.executable, "-m", "labkit", "--project", str(project), *args],
                               capture_output=True, env=kit_env(), timeout=120,
@@ -4796,38 +4800,14 @@ def test_the_scan_leaves_a_name_a_record_cannot_hold_out_of_the_same_glob(projec
     raw = Path(project) / "data" / "raw"
     (raw / "ok.csv").write_text("x\n1\n", encoding="utf-8")
     undecodable = raw / "caf\udce9.csv"  # how POSIX hands over the byte 0xE9
+    in_such_a_directory = raw / "caf\udce9" / "x.csv"  # review 11, honesty-5 (X9): any part
     real_is_file = Path.is_file
-    monkeypatch.setattr(glob, "glob", lambda pattern, **kw: [str(raw / "ok.csv"), str(undecodable)])
-    monkeypatch.setattr(Path, "is_file", lambda self: self == undecodable or real_is_file(self))
+    monkeypatch.setattr(glob, "glob", lambda pattern, **kw: [
+        str(raw / "ok.csv"), str(undecodable), str(in_such_a_directory)])
+    monkeypatch.setattr(Path, "is_file", lambda self: self in (undecodable, in_such_a_directory)
+                        or real_is_file(self))
     found = runner.static_input_files(core.Project(project), {"'data/raw/*.csv'"}, set())
     assert found == [raw / "ok.csv"], found
-
-
-def test_only_a_leftover_thread_takes_the_result_s_lock_to_write(tmp_path, monkeypatch):
-    """Review 10, critic-1: the main thread writes to a run's stdout without the lock — it prints
-    the result itself, and a signal handled between its taking the lock and the block could leave
-    the lock held — and any other thread takes it for one write, waiting at most _RESULT_WAIT."""
-    from labkit import runner  # noqa: PLC0415
-
-    taken = []
-
-    class Recording:
-        def acquire(self, timeout=-1):
-            taken.append((threading.current_thread() is threading.main_thread(), timeout))
-            return True
-
-        def release(self):
-            taken.append("released")
-
-    monkeypatch.setattr(runner, "_RESULT_LOCK", Recording())
-    with open(tmp_path / "out", "wb") as fh:
-        raw = runner._RunStdout(fh.fileno(), "w", closefd=False)
-        raw.write(b"main\n")
-        worker = threading.Thread(target=raw.write, args=(b"leftover\n",))
-        worker.start()
-        worker.join()
-    assert taken == [(False, runner._RESULT_WAIT), "released"], taken
-    assert (tmp_path / "out").read_bytes() == b"main\nleftover\n"
 
 
 LEFTOVER_WRITER = """\
@@ -4841,8 +4821,7 @@ def after_the_run():
         time.sleep(0.001)
     line = "leftover " * 20 + "\\n"
     while True:
-        out.write(line)
-        out.flush()
+        {write}
 
 
 threading.Thread(target=after_the_run, daemon=True).start()
@@ -4854,16 +4833,25 @@ for i in range({count}):
 """
 
 
-def test_a_leftover_thread_s_writes_do_not_split_a_result_longer_than_a_pipe_holds(project):
+LEFTOVER_WRITES = {
+    "through_the_stream_it_took": "out.write(line)\n        out.flush()",
+    "through_print": "print(line, end='', flush=True)",
+}
+
+
+@pytest.mark.parametrize("writes", sorted(LEFTOVER_WRITES))
+def test_a_leftover_thread_s_writes_do_not_split_a_result_longer_than_a_pipe_holds(project,
+                                                                                   writes):
     """Review 10, critic-1: a thread the script left running wrote through its run's stdout stream
     — a buffer of its own over fd 1 — after the run, while the CLI printed a result longer than a
     pipe holds, which goes out in pieces: the thread's line landed inside the result, and the
     extension found none for a run recorded `ok`. Main's scripts wrote through the CLI's own
-    stream, whose buffer kept the two apart. The run's stdout now writes under the lock the result
-    is printed with. The reader takes 4 KiB at a time, as a slow reader would."""
+    stream, whose buffer kept the two apart. The result is written through the run's stream now
+    (revision 3.6; 3.5 used a lock of its own, review 11 rest-1), with sys.stdout that stream while
+    it is, so a thread's print() is kept out too. The reader takes 4 KiB at a time."""
+    body = LEFTOVER_WRITER.format(count=1200, write=LEFTOVER_WRITES[writes])
     cmd = [sys.executable, "-m", "labkit", "--project", str(project), "run",
-           write_script(project, "97_parts.py", LEFTOVER_WRITER.format(count=1200)),
-           "--title", "parts"]
+           write_script(project, f"97_parts_{writes}.py", body), "--title", "parts"]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=kit_env())
     chunks = []
 
@@ -4888,3 +4876,162 @@ def test_a_leftover_thread_s_writes_do_not_split_a_result_longer_than_a_pipe_hol
             break
     assert isinstance(result, dict) and result.get("ok") is True, out[-3000:]
     assert len(result["run"]["outputs"]) == 1200, len(result["run"]["outputs"])
+
+
+# --- review 11 ---------------------------------------------------------------------------------
+
+@pytest.mark.parametrize("host_kind", ["a_pipe_or_a_file", "a_console", "closed_by_the_script"])
+def test_the_run_s_stdout_stands_in_for_the_cli_s_until_the_result_is_out(monkeypatch, tmp_path,
+                                                                          host_kind):
+    """Review 11, rest-1 and review 10, critic-1: after a run the CLI started, its stdout stream
+    stays sys.stdout and sys.__stdout__ — so a thread the script left running shares that stream's
+    buffer with the result line, whichever way it writes — where the host writes to fd 1 through a
+    plain file; not over a console, and not once the script closed it. give_back_stdout puts the
+    host's own streams back."""
+    from labkit import runner  # noqa: PLC0415
+
+    raw = io.FileIO(1, "w", closefd=False) if host_kind != "a_console" else object()
+    flushed = []
+    host = types.SimpleNamespace(buffer=types.SimpleNamespace(raw=raw),
+                                 flush=lambda: flushed.append("host"))
+    original = types.SimpleNamespace(buffer=None, flush=lambda: None)
+    monkeypatch.setattr(sys, "stdout", host)
+    monkeypatch.setattr(sys, "__stdout__", original)
+    with runner._redirected(tmp_path / "out.txt", tmp_path / "err.txt", result_follows=True):
+        run_out = sys.stdout
+        if host_kind == "closed_by_the_script":
+            run_out.close()
+    stands_in = host_kind == "a_pipe_or_a_file"
+    assert (sys.stdout is run_out, sys.__stdout__ is run_out) == (stands_in, stands_in)
+    if stands_in:
+        # What a thread wrote through the host's stream just before the swap goes first.
+        flushed.clear()
+        runner.write_result("{}")
+        assert flushed == ["host"], flushed
+    runner.give_back_stdout()
+    assert sys.stdout is host and sys.__stdout__ is original
+
+
+NUMBERED_LINES = "import itertools\nfor i in itertools.count():\n    print(f'L{i:08d}', flush=True)\n"
+
+
+def _numbers_logged(project, result) -> list[int]:
+    text = (Path(project) / "runs" / result["run"]["id"] / "stdout.txt").read_text(encoding="utf-8")
+    lines = text.split("\n")[:-1]  # what follows the last newline is a line cut short, if any
+    return [int(line[1:]) for line in lines]
+
+
+def test_a_stopped_run_s_log_holds_each_line_once(project, tmp_path):
+    """Review 11, rest-1: revision 3.5 put Python code under the run's stdout buffer, and a cancel
+    or a deadline handled right after a write reached the file raised before the buffer counted it
+    written: the closing flush wrote it again, and the log repeated the line (35 of 40 runs). A
+    script printing numbered lines with flush=True is stopped at varied instants, both ways; its
+    log must count up by one from 0."""
+    runs = []
+    for wait in (0.3, 0.4, 0.5, 0.6):
+        code, result, _elapsed, err = _ask_a_run_to_stop(project, tmp_path, f"98_count_{wait}",
+                                                         NUMBERED_LINES, wait=wait)
+        assert result and result["run"]["status"] == "cancelled", (code, result, err)
+        runs.append(result)
+    for n in range(2):
+        code, result = labkit(project, "run", write_script(project, f"99_count_{n}.py",
+                                                          NUMBERED_LINES),
+                              "--title", "count", "--timeout", "1")
+        assert result["run"]["status"] == "timeout", result
+        runs.append(result)
+    for result in runs:
+        numbers = _numbers_logged(project, result)
+        assert numbers and numbers == list(range(len(numbers))), \
+            [n for i, n in enumerate(numbers) if n != i][:5]
+
+
+@NEEDS_MONITORING
+@POSIX_GUARD
+def test_settle_looks_at_the_region_s_failure_before_what_the_exit_caught():
+    """Review 11, guard-1: revision 3.5 walked what handlers raised while the region was left
+    before the region's own failure, so CHAIN_LIMIT or more of them hid a cancel cut short in the
+    region, which 3.4 counted. The failure comes first now."""
+    guard = _guard()
+    injector = _Injector({_platform._RunGuard.on_cancel_signal.__code__},
+                         _raises_the_script_s(signal.SIGTERM), entries_only=True)
+    saved = signal.getsignal(signal.SIGTERM)
+    failure = None
+    try:
+        with injector, guard:
+            try:
+                with guard.interruptible(deadline=30.0):
+                    signal.signal(signal.SIGTERM, lambda *_a: sys.exit(1))  # the script's
+                    injector.arm(1)
+                    injector.on = True
+                    signal.raise_signal(signal.SIGINT)  # a cancel, cut short at its handler's entry
+                    time.sleep(1)
+            except SystemExit as exc:
+                failure = exc
+            injector.on = False
+            # As if a handler the script left had raised that often while the region was left.
+            guard._caught = tuple(RuntimeError(f"burst {i}")
+                                  for i in range(_platform.CHAIN_LIMIT + 6))
+            guard.settle(failure)
+    finally:
+        signal.signal(signal.SIGTERM, saved)
+    assert injector.fired and isinstance(failure, SystemExit), (injector.fired, failure)
+    assert _outcome(guard) == {"timeout": False, "cancel": True}, _outcome(guard)
+
+
+def test_a_runtime_read_of_a_tilde_name_follows_the_same_rule(project, monkeypatch):
+    """Review 11, critic-2: the ~name rule lived in Project.path only. The runtime input recorder
+    expanded a read name with pathlib, which raised for a `~name` with no such user on POSIX — the
+    read was left out of the record — and guessed a home on Windows."""
+    from labkit import capture  # noqa: PLC0415
+
+    monkeypatch.chdir(project)  # a script's reads are relative to the project, where it runs
+    (Path(project) / "~$budget.csv").write_text("x\n1\n", encoding="utf-8")
+    run_dir = Path(project) / "runs" / "r"
+    run_dir.mkdir(parents=True)
+    state = capture.RunState(core.Project(project), "r", run_dir, Path(project) / "scripts" / "a.py")
+    state.record_read("~" + "$budget.csv", "polars.read_csv")
+    assert list(state.inputs) == ["~$budget.csv"], state.inputs
+
+
+def test_lab_import_takes_a_tilde_name_that_names_no_home_as_written(project):
+    """Review 11, critic-2: `lab import ~nosuchuser/x.csv` ended in a traceback with no JSON line
+    on POSIX, where pathlib refuses the expansion. It follows Project.path's rule now."""
+    source = Path(project) / "~no-such-labkit-user"
+    source.mkdir()
+    (source / "x.csv").write_text("a\n1\n", encoding="utf-8")
+    done = subprocess.run([sys.executable, "-m", "labkit", "--project", str(project), "import",
+                           "~no-such-labkit-user/x.csv", "--name", "x"], cwd=project,
+                          capture_output=True, env=kit_env(), timeout=120,
+                          **_platform.text_kwargs())
+    lines = [line for line in done.stdout.splitlines() if line.startswith("{")]
+    assert lines and json.loads(lines[-1]).get("ok") is True, (done.stdout, done.stderr)
+
+
+def test_a_scanned_name_in_a_directory_a_record_cannot_hold_is_left_out(project):
+    """Review 11, honesty-5 (X9): the filter reads the whole path, a directory's name too."""
+    raw = Path(project) / "data" / "raw"
+    (raw / "ok").mkdir()
+    (raw / "ok" / "x.csv").write_text("x\n1\n", encoding="utf-8")
+    try:
+        os.mkdir(os.path.join(os.fsencode(raw), b"caf\xe9"))
+        with open(os.path.join(os.fsencode(raw), b"caf\xe9", b"x.csv"), "wb") as fh:
+            fh.write(b"x\n2\n")
+    except (OSError, ValueError) as exc:
+        pytest.skip(f"this file system refuses a name that is not UTF-8: {exc!r}")
+    body = "\"\"\"Reads 'data/raw/*/x.csv' with DuckDB later.\"\"\"\nprint('hi')\n"
+    code, result = labkit(project, "run", write_script(project, "94_dir_glob.py", body),
+                          "--title", "glob")
+    assert code == 0 and result["run"]["status"] == "ok", result
+    assert [i["path"] for i in result["run"]["inputs"]] == ["data/raw/ok/x.csv"], result["run"]
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bin/lab is a POSIX shell script")
+def test_lab_help_prints_the_whole_header():
+    """Review 11, honesty-1: usage() printed lines 2-15 of bin/lab, and revision 3.5's header ran
+    to line 16: `lab --help` stopped mid-sentence and dropped 'Nothing here is a sandbox.' It
+    prints the header's comment block to its end now."""
+    lab = Path(__file__).resolve().parents[1] / "bin" / "lab"
+    done = subprocess.run(["sh", str(lab), "--help"], capture_output=True, timeout=30,
+                          **_platform.text_kwargs())
+    assert done.returncode == 0, done.stderr
+    assert done.stdout.rstrip().endswith("Nothing here is a sandbox."), done.stdout

@@ -147,7 +147,7 @@ def import_file(project: core.Project, source: str, *, name: str | None = None,
                 session: str | None = None) -> dict:
     import duckdb
 
-    src = Path(source).expanduser()
+    src = core.expand_home(Path(source))  # the rule Project.path follows
     src = (src if src.is_absolute() else Path.cwd() / src).resolve()
     if not src.is_file():
         raise core.LabError("import_source_missing", f"{src} is not a readable file")

@@ -21,7 +21,6 @@ import platform
 import re
 import shutil
 import sys
-import threading
 import time
 import traceback
 import types
@@ -220,44 +219,50 @@ def flush_run_streams() -> bool:
 
 atexit.register(flush_run_streams)
 
-# The CLI's result line and what a thread a script left running writes to fd 1 through its run's
-# stdout stream after the run (_RunStdout, write_result). A leftover thread waits for it at most
-# this long.
-_RESULT_LOCK = threading.RLock()
-_RESULT_WAIT = 5.0
+# The host's own sys.stdout and sys.__stdout__ while a run's stdout stream stands in for them, from
+# the end of that run to the CLI's result line (_redirected's `result_follows`, give_back_stdout).
+_KEPT_HOST_STDOUT: tuple | None = None
 
 
 def write_result(text: str) -> None:
     """Print the CLI's result line after a run. What earlier runs' streams still hold goes out
     first: the extension takes the last line that parses as JSON, and main had those lines ahead of
     it, as its scripts wrote through this process's own stream. A thread's text need not end its
-    line, so after a run the result starts a line of its own. And it is written under
-    _RESULT_LOCK: a line longer than a pipe holds goes out in pieces, and a leftover thread's write
-    must not land between them."""
+    line, so after a run the result starts a line of its own.
+
+    It is written through sys.stdout, which after a run the CLI started with `result_follows` is
+    that run's stdout stream (_redirected): a thread the script left running writes through the
+    same stream — the one it took during the run, or sys.stdout after it — and the stream's buffer
+    lock, held for a whole write however long, keeps its text before or after the line, never
+    inside it, as with main's one stream. The host's own stream, which such a thread may have taken
+    just before the run's stream replaced it, is flushed first."""
     lead = "\n" if flush_run_streams() else ""
-    with _RESULT_LOCK:
-        sys.stdout.write(lead + text + "\n")
-        sys.stdout.flush()
+    if _KEPT_HOST_STDOUT is not None:
+        _KEPT_HOST_STDOUT[0].flush()
+    sys.stdout.write(lead + text + "\n")
+    sys.stdout.flush()
 
 
-class _RunStdout(io.FileIO):
-    """fd 1 under a run's stdout stream. After the run fd 1 is the host's stdout again, and a
-    thread the script left running may still write through the stream — a logging handler set up
-    with it, a stored `sys.stdout`. Its own buffer is not the host's, so what serialized main's
-    writes with the CLI's result line (one buffer's lock) is _RESULT_LOCK here. The main thread
-    writes without it: it prints the result itself, and a signal handled between its taking a lock
-    and the block could leave the lock held; a leftover thread only waits for it _RESULT_WAIT, so
-    a hold left that way delays it and nothing waits for ever."""
+def give_back_stdout() -> None:
+    """Make the host's own streams sys.stdout and sys.__stdout__ again where a run's stream stood in
+    for them: before the interpreter's shutdown flushes sys.stdout, where a daemon thread holding
+    the run stream's buffer would abort the process (main's did)."""
+    global _KEPT_HOST_STDOUT
+    kept, _KEPT_HOST_STDOUT = _KEPT_HOST_STDOUT, None
+    if kept is not None:
+        sys.stdout, sys.__stdout__ = kept
 
-    def write(self, data) -> int | None:
-        if threading.current_thread() is threading.main_thread():
-            return super().write(data)
-        held = _RESULT_LOCK.acquire(timeout=_RESULT_WAIT)
-        try:
-            return super().write(data)
-        finally:
-            if held:
-                _RESULT_LOCK.release()
+
+def _can_carry_the_result(stream: io.TextIOWrapper, host) -> bool:
+    """Whether a run's stdout stream can stand in for the host's own after the run: it is open, and
+    the host's stream writes to fd 1 through a plain file layer, a pipe or a file. A Windows
+    console is not one — the host writes to it as text through the console, and the run stream's
+    bytes would not read the same — and neither is a host stream this cannot see into."""
+    if stream.closed:
+        return False
+    layer = getattr(host, "buffer", None)
+    raw = getattr(layer, "raw", layer)
+    return isinstance(raw, io.FileIO) and not raw.closed and raw.fileno() == 1
 
 
 def _flush(streams) -> list:
@@ -282,7 +287,7 @@ def _run_stream(fd: int, replaced) -> io.TextIOWrapper:
     both flags keeps the order against child processes, what a forced end loses and the speed of a
     print-heavy script as they were. A replaced object that is not a text stream gives CPython's
     defaults for a file."""
-    raw = (_RunStdout if fd == 1 else io.FileIO)(fd, "w", closefd=False)
+    raw = io.FileIO(fd, "w", closefd=False)
     raw.name = "<stdout>" if fd == 1 else "<stderr>"
     unbuffered, line_buffering, write_through = False, fd == 2, False
     if isinstance(replaced, io.TextIOWrapper):
@@ -296,7 +301,7 @@ def _run_stream(fd: int, replaced) -> io.TextIOWrapper:
 
 
 @contextlib.contextmanager
-def _redirected(stdout_path: Path, stderr_path: Path):
+def _redirected(stdout_path: Path, stderr_path: Path, result_follows: bool = False):
     """Send this process's output, and that of anything it starts, to the run's log files.
 
     The descriptors are redirected so a C library or a child process lands in the same file, and
@@ -312,7 +317,12 @@ def _redirected(stdout_path: Path, stderr_path: Path):
     script printed, not interleaved with it, because they sit in another buffer. So what a thread
     a script left running writes through its run's stream while a later run runs goes into that
     run's log, as it did on main; what it writes between runs reaches the host's output when the
-    next run starts, when the CLI prints its result, or when the interpreter exits."""
+    next run starts, when the CLI prints its result, or when the interpreter exits.
+
+    With `result_follows` (the CLI), the run's stdout stream stays sys.stdout and sys.__stdout__
+    after the run, where it can stand in for the host's (_can_carry_the_result), until the caller
+    gives them back (give_back_stdout): see write_result."""
+    global _KEPT_HOST_STDOUT
     saved = tuple(getattr(sys, name) for name in STREAM_NAMES)
     # Before fd 1 becomes the log: the host's own streams (an SDK caller may have replaced
     # sys.stdout while the real one still holds bytes it wrote), and earlier runs' streams. A host
@@ -345,6 +355,12 @@ def _redirected(stdout_path: Path, stderr_path: Path):
                 os.close(saved_fds[1])
                 _EARLIER_RUN_STREAMS.update((run_out, run_err))
                 _HELD_RUN_STREAMS.extend((run_out, run_err))
+                # A caller that prints a result line next (the CLI, write_result): until it gives
+                # them back, the run's stdout stream stands in for the host's, so a thread the
+                # script left running that writes to stdout shares one buffer with that line.
+                if result_follows and _can_carry_the_result(run_out, saved[0]):
+                    _KEPT_HOST_STDOUT = (saved[0], saved[2])
+                    sys.stdout = sys.__stdout__ = run_out
 
 
 def _exec_script(code_bytes: bytes, filename: Path, script_dir: Path) -> None:
@@ -626,7 +642,11 @@ def _write_failure_hint(exc: Exception, path: Path) -> str | None:
 
 def execute(project: core.Project, *, script: str | None, title: str | None,
             declared_inputs=(), timeout: float = 600.0, rerun_of: str | None = None,
-            actor: str = "agent", session: str | None = None) -> dict:
+            actor: str = "agent", session: str | None = None,
+            result_follows: bool = False) -> dict:
+    """Run a script (or rerun a recorded one) and record it. `result_follows`: the caller prints a
+    result line through write_result after this returns and gives stdout back after that (the
+    CLI); see _redirected."""
     core.sync_context(project, actor="system", session=session)
     source_run = None
     if rerun_of:
@@ -642,11 +662,12 @@ def execute(project: core.Project, *, script: str | None, title: str | None,
         return _execute_locked(project, script_rel=script_rel, exec_file=exec_file,
                                code_bytes=code_bytes, title=title,
                                declared_inputs=declared_inputs, timeout=timeout,
-                               source_run=source_run, actor=actor, session=session)
+                               source_run=source_run, actor=actor, session=session,
+                               result_follows=result_follows)
 
 
 def _execute_locked(project, *, script_rel, exec_file, code_bytes, title, declared_inputs,
-                    timeout, source_run, actor, session) -> dict:
+                    timeout, source_run, actor, session, result_follows=False) -> dict:
     # The run's signal handling is installed once, here, and taken out after the record is
     # written. Between the two regions below it only records: nothing it does can stop the path to
     # the record, and inside a region it raises once at most (see _platform.RunControl).
@@ -705,7 +726,7 @@ def _execute_locked(project, *, script_rel, exec_file, code_bytes, title, declar
         else:
             status, error, duration = _run_script(project, state, code_bytes, filename,
                                                   script_rel, timeout, stdout_path, stderr_path,
-                                                  guard)
+                                                  guard, result_follows)
         return _finalize(project, state, record, source_run=source_run, before=before,
                          status=status, error=error, duration=duration, code_dir=code_dir,
                          stdout_path=stdout_path, stderr_path=stderr_path, actor=actor,
@@ -713,7 +734,7 @@ def _execute_locked(project, *, script_rel, exec_file, code_bytes, title, declar
 
 
 def _run_script(project, state, code_bytes, filename, script_rel, timeout, stdout_path,
-                stderr_path, guard) -> tuple[str, dict | None, float]:
+                stderr_path, guard, result_follows=False) -> tuple[str, dict | None, float]:
     """Run the script in the guard's interruptible region and classify how it ended."""
     env_backup = {k: os.environ.get(k) for k in ("LAB_RUN_ID", "LAB_RUN_DIR", "LAB_PROJECT",
                                                  "MPLBACKEND")}
@@ -724,7 +745,7 @@ def _run_script(project, state, code_bytes, filename, script_rel, timeout, stdou
     failure: BaseException | None = None
     t0 = time.perf_counter()
     try:
-        with _redirected(stdout_path, stderr_path):
+        with _redirected(stdout_path, stderr_path, result_follows):
             try:
                 # A cancel recorded before this point raises as the region is entered, so nothing
                 # of the script runs after one: not the capture hooks, not the script.

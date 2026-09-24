@@ -113,7 +113,7 @@ class RunState:
                 entry = self.inputs.setdefault(item, {"path": item, "via": set(), "external": True})
                 entry["via"].add(via)
                 continue
-            path = Path(item).expanduser()
+            path = core.expand_home(Path(item))  # the rule Project.path follows
             if not path.is_absolute():
                 path = Path.cwd() / path
             text = str(path)

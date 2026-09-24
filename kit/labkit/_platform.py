@@ -154,13 +154,14 @@ class RunControl(Protocol):
     raising handler the script left cuts short there is counted by `settle` from what that handler
     raised: its traceback passes through the handler it cut short. `settle` looks for it in the
     region's failure and in everything a handler raised while the region was left, and in what
-    those lead to through `__context__`, `__cause__` and an exception group's members: up to
-    CHAIN_LIMIT exceptions, newest first. So it is lost when the script catches it and carries on,
-    raises something new outside its `except`, or puts it behind more exceptions than that — a long
-    chain, or a large group with it among the first members; and on Windows once the region's timer
-    has raised the deadline's SIGINT, when the handler's frame may be the deadline's own and the run
-    is a timeout either way. A deadline cut short there is counted by the clock when its region is
-    left; a SIGALRM that is not the guard's timer is not.
+    those lead to through `__context__`, `__cause__` and an exception group's members (the last
+    member first): the failure and what it leads to first, then the others in the order they were
+    raised, up to CHAIN_LIMIT exceptions in all. So it is lost when the script catches it and
+    carries on, raises something new outside its `except`, or puts it behind more exceptions than
+    that — a long chain, or a large group with it among the first members; and on Windows once the
+    region's timer has raised the deadline's SIGINT, when the handler's frame may be the deadline's
+    own and the run is a timeout either way. A deadline cut short there is counted by the clock when
+    its region is left; a SIGALRM that is not the guard's timer is not.
 
     Outside an `interruptible()` region a cancel only records; a caller writes its record there.
     Inside one, the guard raises `Interrupted` in the main thread **at most once**: a handler
@@ -358,7 +359,8 @@ class _RunGuard:
         for _ in _ATTEMPTS:
             try:
                 self._settle()
-                self._count_cut_short(failure, *self._caught)
+                # The region's failure first, then what the handlers raised, in the order they did.
+                self._count_cut_short(*self._caught[::-1], failure)
                 break
             except BaseException as exc:  # noqa: BLE001 - raised at _settle's own entry; kept
                 self._caught += (exc,)
@@ -918,8 +920,9 @@ class _WindowsGuard(_RunGuard):
         # lock is re-entrant: a raising handler run between a `with`'s acquiring and its block —
         # CPython 3.14 checks for signals there, 3.12 and 3.13 under a profile or trace function
         # — leaves it held by this thread, and the retry (_settle) takes it again instead of
-        # waiting for ever. Only the timer thread of this region, whose timer is dropped by then,
-        # can be kept waiting on it.
+        # waiting for ever. Only a timer thread whose timer was dropped can be kept waiting on it:
+        # this region's, or, when this region has no deadline and so no lock of its own (arm),
+        # the last timed region's.
         with self._lock:
             self.armed = False
 
@@ -1127,7 +1130,8 @@ def record_relative_path(path: object) -> bool:
     """True for a project-relative path a record may hold, read the same way on every platform.
 
     Not rooted (`/`, `\\`), no drive (any one character and a colon at the start: `C:`, `é:`, `1:`),
-    no first segment starting with `~` (Project.path would expand it to a home directory), no NUL,
+    no first segment starting with `~` (Project.path expands it where such a home exists, which
+    differs from machine to machine), no NUL,
     and no segment — split on `/` and on `\\`, since Windows reads both — that is empty, `.` or `..`.
     A backslash inside a name recorded on POSIX is otherwise allowed: it cannot climb out of the
     project anywhere. So `/tmp/x.py`, which is not absolute on Windows, and `C:x.py`, which is not

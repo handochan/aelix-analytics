@@ -26,7 +26,7 @@ TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "template"
 def _emit(obj: dict) -> None:
     text = json.dumps(obj, ensure_ascii=False, default=str)
     # Once a script may have run, through the runner: what a thread it left running still writes
-    # goes before the result or after it, never inside (runner.write_result).
+    # through stdout goes before the result or after it, never inside (runner.write_result).
     runner = sys.modules.get(f"{__package__}.runner")
     if runner is not None:
         runner.write_result(text)
@@ -63,6 +63,11 @@ def main(argv=None) -> int:
         # Bound to this call: nothing is delivered after main() returns.
         if stop_watching is not None:
             stop_watching()
+        # A run's stdout stream stood in for this process's own to carry the result line
+        # (runner.write_result); the process's own are back before its shutdown flushes them.
+        runner = sys.modules.get(f"{__package__}.runner")
+        if runner is not None:
+            runner.give_back_stdout()
 
 
 def _command(argv) -> int:
@@ -135,7 +140,8 @@ def _command(argv) -> int:
                 raise core.LabError("run_args", "give either a script or --rerun-of RUN_ID")
             result = runner.execute(project, script=args.script, title=args.title,
                                     declared_inputs=args.inputs, timeout=args.timeout,
-                                    rerun_of=args.rerun_of, actor=actor, session=session)
+                                    rerun_of=args.rerun_of, actor=actor, session=session,
+                                    result_follows=True)
             _emit({"ok": True, **result})
             return 0 if result["run"]["status"] == "ok" else 3
         elif args.command == "import":

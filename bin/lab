@@ -12,8 +12,8 @@
 #   lab report | open                     rebuild | open report/index.html
 #
 # Commands other than init/demo use the nearest lab.json above the current directory, or LAB_PROJECT.
-# Output ends with one JSON line, with an empty line before it when a script ran (status and
-# context print text). Nothing here is a sandbox.
+# Output ends with one JSON line (status and context print text); a run that got past its setup
+# puts an empty line before it. Nothing here is a sandbox.
 set -eu
 
 self=$0
@@ -26,7 +26,7 @@ UV=${AELIX_LAB_UV:-uv}
 unset VIRTUAL_ENV
 export PYTHONPATH="$PACK/kit" MPLBACKEND=Agg PYTHONDONTWRITEBYTECODE=1 LAB_ACTOR="${LAB_ACTOR:-human}"
 
-usage() { sed -n '2,15p' "$self" | sed 's/^# \{0,1\}//'; }
+usage() { awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "$self"; }
 
 find_project() {
   if [ -n "${LAB_PROJECT:-}" ]; then printf '%s\n' "$LAB_PROJECT"; return 0; fi
