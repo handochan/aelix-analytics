@@ -25,7 +25,7 @@ def repository(tmp_path):
     root = tmp_path / "repository"
     root.mkdir()
     subprocess.run(["git", "init", "-q", str(root)], check=True)
-    (root / ".gitignore").write_text(".devstate/\n")
+    (root / ".gitignore").write_text(".devstate/\n", encoding="utf-8")
     subprocess.run(["git", "-C", str(root), "add", ".gitignore"], check=True)
     subprocess.run(["git", "-C", str(root), "-c", "user.name=Fixture",
                     "-c", "user.email=fixture@example.invalid", "commit", "-qm", "fixture"],
@@ -53,7 +53,7 @@ def test_cli_includes_templates_and_new_docs_with_replayable_evidence(repository
     output = repository / ".devstate/evidence/docs.json"
     proc = cli(repository, "--output", output)
     assert proc.returncode == 0, proc.stdout + proc.stderr
-    report = json.loads(output.read_text())
+    report = json.loads(output.read_text(encoding="utf-8"))
     files = {item["path"]: item for item in report["files"]}
     assert report["counts"]["markdown_files"] == 2
     assert set(files) == {"README.md", "kit/template/CONTEXT.md"}
@@ -113,7 +113,7 @@ def test_repository_root_links_are_valid(repository, document, target):
 
 
 def test_neighbor_repository_and_ignored_target_do_not_pass_locally(repository):
-    (repository.parent / "neighbor.md").write_text("# Exists on this machine\n")
+    (repository.parent / "neighbor.md").write_text("# Exists on this machine\n", encoding="utf-8")
     write(repository, ".devstate/private.md", "private\n")
     write(repository, "README.md", "[neighbor](../neighbor.md)\n[local only](.devstate/private.md)\n")
     report = checks.Check(repository).run()
@@ -123,6 +123,17 @@ def test_neighbor_repository_and_ignored_target_do_not_pass_locally(repository):
 
 def test_absolute_link_inside_current_checkout_is_still_not_portable(repository):
     target = write(repository, "docs/target.md", "# Target\n")
+    write(repository, "README.md", f"[local absolute](<{target}>)\n")
+    report = checks.Check(repository).run()
+    assert not report["ok"]
+    assert any("absolute filesystem link" in e["message"] for e in report["errors"])
+
+
+@pytest.mark.parametrize("target", [r"C:\Users\me\docs\target.md", "C:/Users/me/target.md",
+                                    r"\\server\share\target.md"])
+def test_a_windows_absolute_link_is_not_portable_on_any_platform(repository, target):
+    # urlsplit reads `C:` as a URL scheme, which let a Windows checkout's absolute link through as
+    # an external one (Issue #8 measurement on Windows Server 2025).
     write(repository, "README.md", f"[local absolute](<{target}>)\n")
     report = checks.Check(repository).run()
     assert not report["ok"]
@@ -159,7 +170,7 @@ def test_output_cannot_overwrite_a_document(repository):
     doc = write(repository, "README.md", "# Keep me\n")
     proc = cli(repository, "--output", doc)
     assert proc.returncode == 2
-    assert doc.read_text() == "# Keep me\n"
+    assert doc.read_text(encoding="utf-8") == "# Keep me\n"
 
 
 def test_output_cannot_overwrite_existing_development_state(repository):
@@ -178,7 +189,7 @@ def test_source_change_is_not_reported_as_a_clean_pass(repository, monkeypatch):
 
     def modify_after_read(rel):
         original(rel)
-        doc.write_text("# After\n")
+        doc.write_text("# After\n", encoding="utf-8")
 
     monkeypatch.setattr(checker, "check_markdown", modify_after_read)
     report = checker.run()
@@ -188,8 +199,8 @@ def test_source_change_is_not_reported_as_a_clean_pass(repository, monkeypatch):
 
 @pytest.fixture
 def state_contract():
-    schema = json.loads((ROOT / "docs/schemas/dev-state.schema.json").read_text())
-    example = json.loads((ROOT / "docs/templates/WORK-STATE.example.json").read_text())
+    schema = json.loads((ROOT / "docs/schemas/dev-state.schema.json").read_text(encoding="utf-8"))
+    example = json.loads((ROOT / "docs/templates/WORK-STATE.example.json").read_text(encoding="utf-8"))
     Draft202012Validator.check_schema(schema)
     return Draft202012Validator(schema, format_checker=FormatChecker()), example
 
@@ -238,7 +249,7 @@ def test_unexecuted_verification_cannot_be_promoted_without_evidence(state_contr
 
 def test_cli_validates_state_example_against_checked_in_schema(repository, state_contract):
     _, state = state_contract
-    write(repository, checks.STATE_SCHEMA, (ROOT / checks.STATE_SCHEMA).read_text())
+    write(repository, checks.STATE_SCHEMA, (ROOT / checks.STATE_SCHEMA).read_text(encoding="utf-8"))
     state["sync"]["state"] = "done"
     write(repository, "docs/templates/WORK-STATE.example.json", json.dumps(state))
     proc = cli(repository)
@@ -264,12 +275,12 @@ def test_cli_rejects_invalid_state_formats(repository, state_contract, field, in
     for key in field[:-1]:
         target = target[key]
     target[field[-1]] = invalid_value
-    write(repository, checks.STATE_SCHEMA, (ROOT / checks.STATE_SCHEMA).read_text())
+    write(repository, checks.STATE_SCHEMA, (ROOT / checks.STATE_SCHEMA).read_text(encoding="utf-8"))
     write(repository, checks.STATE_EXAMPLE, json.dumps(state))
     output = repository / ".devstate/evidence/docs.json"
     proc = cli(repository, "--output", output)
     assert proc.returncode == 1, proc.stdout + proc.stderr
-    report = json.loads(output.read_text())
+    report = json.loads(output.read_text(encoding="utf-8"))
     assert not report["ok"]
     field_path = "/".join(map(str, field))
     assert any(f"state {field_path}:" in e["message"] for e in report["errors"])
@@ -286,7 +297,7 @@ def test_unresolved_schema_reference_preserves_failure_evidence(repository, stat
     proc = cli(repository, "--output", output)
     assert proc.returncode == 1
     assert "Traceback" not in proc.stderr
-    report = json.loads(output.read_text())
+    report = json.loads(output.read_text(encoding="utf-8"))
     assert not report["ok"]
     assert any(e["path"] == checks.STATE_EXAMPLE and "/$defs/absent" in e["message"]
                for e in report["errors"])
