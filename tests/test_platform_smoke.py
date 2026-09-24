@@ -190,15 +190,21 @@ def test_the_deadline_checks_read_both_flags_from_the_guard(alarm):
 
 
 @pytest.mark.parametrize("platform_name", ["posix", "windows"])
-def test_the_required_verdict_counts_what_could_not_run_and_exempts_only_on_windows(
-        monkeypatch, platform_name):
+def test_the_required_verdict_counts_what_could_not_run_and_what_was_violated(monkeypatch,
+                                                                              platform_name):
+    """Nothing is exempt on either platform since the documents declare the two Windows
+    limitations the first Windows run showed: a check showing one reports `declared_limitation`,
+    which holds the verdict, and one violated fails it everywhere."""
     tool = tool_module()
     monkeypatch.setattr(tool, "WINDOWS", platform_name == "windows")
     regex = "cli_cancel_reaches_a_run_inside_a_regular_expression"
     ran = [{"name": regex, "observation": False, "result": "violated"},
            {"name": "deadline_interrupts_a_sleep", "observation": False, "result": "holds"}]
     verdict = tool.required_summary(ran)
-    assert verdict["hold"] is (platform_name == "windows"), verdict
+    assert verdict["hold"] is False and verdict["violated"] == [regex], verdict
+    declared = [{**ran[0], "result": "declared_limitation"}, ran[1]]
+    verdict = tool.required_summary(declared)
+    assert verdict["hold"] is True and verdict["declared_limitation"] == [regex], verdict
     not_run = [*ran[1:], {"name": "cli_cancel_the_way_the_extension_does", "observation": False,
                           "result": "not_run"}]
     verdict = tool.required_summary(not_run)

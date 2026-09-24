@@ -14,8 +14,9 @@ uv nor the analysis libraries, so it can run on the entry-point floor being meas
 Exit status: 0 when no check was violated, 1 otherwise, 2 on usage error. A check that holds, fails
 only in a declared way, is an observation, or could not run (`not_run`: uv missing) does not count
 against it. With `--gate required` the status is the `required` block's verdict instead: every
-check this platform is judged on (NOT_REQUIRED below) among those this invocation selected has to
-have run and held; a check `--only` or `--stdlib-only` left out is not judged at all. The report
+check that makes a promise among those this invocation selected has to have run and either held or
+shown only a limitation the documents declare; a check `--only` or `--stdlib-only` left out is not
+judged at all. The report
 carries the block either way. Nothing here is a test of Windows until it has actually run on
 Windows; the output says where it ran.
 """
@@ -59,20 +60,13 @@ WINDOWS = os.name == "nt"
 DECLARED = {
     "kill_tree": "ADR-0003 결과와 비용 — taskkill이 실패하면 자식 프로세스가 살아남으며 이를 정리 성공으로 적지 않는다",
     "sigterm": "docs/CONTRACTS.md D — Windows에서는 SIGTERM을 가로챌 수 없어 강제 종료가 incomplete로 남는다",
-    # Planned with Issue #8 PR-1 revision 3 (design D10) and 3.1 (AS-4). Until docs/CONTRACTS.md G
-    # states them, a run that shows them reports them as violated rather than borrowing a
-    # declaration.
-    "gil": None,
-    "subprocess_wait": None,
+    # Measured as violations first (run 35977785169), then stated by docs/CONTRACTS.md G.
+    "gil": "docs/CONTRACTS.md G — GIL을 쥔 채 도는 C 코드 안의 주 스레드에는 그 호출이 반환할 때까지 취소가 닿지 않는다",
+    "subprocess_wait": "docs/CONTRACTS.md G — SIGINT 이벤트를 보지 않는 대기는 취소가 와도 그 대기가 끝날 때까지 이어진다",
 }
-# Checks that are expected to be violated on a platform until the documents declare the limitation
-# they show; every other check that makes a promise is required there. On Linux that is everything
-# (Issue #8, design revision 3 section 4). On Windows it is more than the minimum that section names
-# — replace, the CLI cancel through the port, the sleep and DuckDB deadlines, and the aelix abort,
-# which tests/test_extension.py measures rather than this tool.
-NOT_REQUIRED = {"windows": frozenset({"cli_cancel_reaches_a_run_inside_a_regular_expression",
-                                      "cli_cancel_reaches_a_run_waiting_on_a_subprocess"}),
-                "posix": frozenset()}
+# Every check that makes a promise is required on every platform. Until the documents declared
+# them, the two Windows limitations above were exempt instead (Issue #8, design revision 3 section
+# 4); the first Windows run showed them (run 35977785169), and nothing is exempt now.
 # How long the extension waits for a kit it asked to stop before it ends the tree by force
 # (extension/aelix_lab.py GRACE_SECONDS; a test keeps the two equal). A stop that takes longer is
 # a forced one there, so it is one here.
@@ -393,13 +387,17 @@ def kill_tree_after_the_leader_exited(ctx):
 
 def _deadline(ctx, body) -> dict:
     t0 = time.perf_counter()
-    interrupted_by = None
+    interrupted_by, failure = None, None
     with ctx.bundle.runs.guard() as guard:
         try:
             with guard.interruptible(deadline=1.0):
                 body(t0)
         except (_platform.Interrupted, KeyboardInterrupt) as exc:
-            interrupted_by = type(exc).__name__
+            interrupted_by, failure = type(exc).__name__, exc
+        # As the runner settles after every region, with what the region raised: that is where a
+        # cancel cut short is counted, and where revision 3.3 also counted every Windows deadline as
+        # a cancel (review 9, guard-2), which this check did not see without it.
+        guard.settle(failure)
     return {"interrupted_by": interrupted_by, "flag_set": guard.expired,
             "cancel_flag": guard.cancelled, "seconds": round(time.perf_counter() - t0, 3)}
 
@@ -549,6 +547,33 @@ def device_names_on_this_file_system(ctx):
             observed[name] = {"written": True, "listed_as_a_file": name in os.listdir(d)}
         except OSError as exc:
             observed[name] = {"written": False, "error": f"{type(exc).__name__}: {exc}"}
+    return {"holds": True, "observed": observed}
+
+
+def _made(make, path) -> dict:
+    try:
+        make(path)
+        return {"made": True}
+    except OSError as exc:
+        return {"made": False, "type": type(exc).__name__, "errno": exc.errno,
+                "winerror": getattr(exc, "winerror", None), "strerror": exc.strerror}
+
+
+@check("ports", observation=True)
+def long_names_on_this_file_system(ctx):
+    """What open() and os.mkdir() raise for a name longer than file systems hold, and what a path
+    past Windows' old 260-character limit does. No promise attached: the evidence for how the kit
+    tells a snapshot that could not be written for its length (runner._write_failure_hint)."""
+    d = ctx.fresh("long")
+    deep = d
+    while len(str(deep)) <= 260:
+        deep = deep / ("d" * 40)
+    observed = {"name_300.open": _made(lambda p: open(p, "wb").close(), d / ("a" * 300 + ".py")),
+                "name_300.mkdir": _made(os.mkdir, d / ("a" * 300)),
+                "path_over_260.makedirs": _made(os.makedirs, deep)}
+    if observed["path_over_260.makedirs"]["made"]:
+        observed["path_over_260.open"] = _made(lambda p: open(p, "wb").close(), deep / "a.py")
+    observed["path_over_260.length"] = len(str(deep / "a.py"))
     return {"holds": True, "observed": observed}
 
 
@@ -1268,17 +1293,14 @@ def main(argv=None) -> int:
 
 
 def required_summary(results: list[dict]) -> dict:
-    """The checks this platform is judged on among those this invocation selected: every promise,
-    less the ones NOT_REQUIRED lists until the documents declare what they show. A selected
-    required check that could not run (`not_run`) counts against the verdict; one that was not
-    selected is not judged."""
-    exempt = NOT_REQUIRED["windows" if WINDOWS else "posix"]
-    required = [r for r in results if not r.get("observation") and r["name"] not in exempt]
+    """The checks this platform is judged on among those this invocation selected: every promise.
+    One that shows a limitation the documents declare holds the verdict; a selected check that was
+    violated or could not run (`not_run`) fails it; one that was not selected is not judged."""
+    required = [r for r in results if not r.get("observation")]
     failing = {key: [r["name"] for r in required if r.get("result") == key]
                for key in ("violated", "declared_limitation", "not_run")}
     return {"platform": "windows" if WINDOWS else "posix", "checks": [r["name"] for r in required],
-            "exempt_until_declared": sorted(exempt), **failing,
-            "hold": not failing["violated"] and not failing["not_run"]}
+            **failing, "hold": not failing["violated"] and not failing["not_run"]}
 
 
 if __name__ == "__main__":

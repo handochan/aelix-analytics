@@ -3,7 +3,8 @@ name: Issue 8 platform measurement
 # Evidence for Issue #8 (portable boundaries). This is not the repository's CI — that is Issue #22:
 # it gates nothing, keeps going past a failing step, and uploads every result for the record. A
 # step's outcome is still meaningful: the smoke steps fail when a check the platform is judged on
-# did not hold (--gate required), and the test steps when a test failed.
+# did not hold (--gate required), and the test steps when a test failed. A step that keeps going
+# shows success whatever its outcome, so the last step ends the job red when one of them failed.
 # Linux and Windows run here. macOS is measured on a developer machine: a macOS runner costs ten
 # times a Linux one, for the one platform that is already measured locally.
 
@@ -59,6 +60,9 @@ jobs:
           name: measurement-${{ runner.os }}-py3.12
           path: measurement/
           if-no-files-found: warn
+      - name: Verdict
+        if: always() && (steps.smoke.outcome != 'success' || steps.suite.outcome != 'success' || steps.aelix.outcome != 'success')
+        run: exit 1
 
   stdlib-floor:
     # What the aelix process itself loads (core and _platform), on the entry-point floor ADR-0002
@@ -88,3 +92,6 @@ jobs:
           name: stdlib-${{ runner.os }}-py3.11
           path: measurement/
           if-no-files-found: warn
+      - name: Verdict
+        if: always() && steps.smoke.outcome != 'success'
+        run: exit 1
