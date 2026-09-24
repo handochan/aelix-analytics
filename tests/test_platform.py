@@ -12,6 +12,7 @@ import asyncio
 import contextlib
 import errno
 import gc
+import glob
 import importlib.util
 import io
 import json
@@ -26,7 +27,7 @@ import threading
 import time
 import types
 import warnings
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 import pytest
 from conftest import kit_env, labkit, write_sales_csv, write_script
@@ -1233,9 +1234,9 @@ def test_a_deadline_that_passes_after_a_cancel_interrupted_the_region_is_no_time
 
 @POSIX_GUARD
 def test_a_script_that_takes_sigalrm_over_is_still_timed_out():
-    """`timeout` means the deadline passed while the region could still be interrupted, whoever
-    received its signal (review 6, SG-6/CH-5): a script that took SIGALRM over is not stopped by
-    it, but its run is `timeout`, not `ok`."""
+    """`timeout` means the deadline's signal or its time came while the region could still be
+    interrupted, whoever received the signal (RunControl; review 6, SG-6/CH-5): a script that took
+    SIGALRM over is not stopped by it, but its run is `timeout`, not `ok`."""
     with _guard() as guard:
         with guard.interruptible(deadline=1.0):
             signal.signal(signal.SIGALRM, lambda *a: None)
@@ -1346,12 +1347,17 @@ def _windows_guard(monkeypatch):
     return _platform._WindowsGuard()
 
 
+def _windows_behaviour(monkeypatch):
+    """The Windows guard: itself on Windows, and elsewhere with its delivery simulated."""
+    return _guard() if os.name == "nt" else _windows_guard(monkeypatch)
+
+
 def _fired_without_its_sigint(monkeypatch, guard):
     """What the Windows guard's timer does when the deadline comes, except that the SIGINT it raises
     is left for the test to deliver where it wants."""
     with monkeypatch.context() as patch:
         patch.setattr(_platform, "raise_sigint_in_main", lambda: True)
-        guard._fire()
+        guard._fire(guard._timer)
     assert guard.expired and guard.deadline_due
 
 
@@ -2094,13 +2100,25 @@ def test_a_name_too_long_is_told_where_the_error_does_not_say_so():
     errno and no Windows error, and the hint said to check that runs/ could be written."""
     from labkit import runner  # noqa: PLC0415
 
-    long_name = Path("runs", "20260924-000000-a", "code", "scripts", "a" * 300 + ".py")
+    run = Path("runs", "20260924-000000-a", "code")
+    long_name = run / "scripts" / ("a" * 300 + ".py")
+    generic = "check that the project's runs/ directory can be written"
     for errno_only in (OSError(errno.EINVAL, "Invalid argument"),
                        OSError(errno.ENOENT, "No such file or directory")):
         assert runner._write_failure_hint(errno_only, long_name) == "shorten the script's path"
     denied = OSError(errno.EACCES, "Permission denied")
-    assert runner._write_failure_hint(denied, long_name.with_name("a.py")) == (
-        "check that the project's runs/ directory can be written")
+    assert runner._write_failure_hint(denied, long_name.with_name("a.py")) == generic
+    # Review 10, honesty-8 (N8, N9) and rest-7: any part, not only the name; over 255, not at it;
+    # in UTF-16 units, as NTFS and APFS count (an emoji takes two); and not the anchor.
+    einval = OSError(errno.EINVAL, "Invalid argument")
+    hint = runner._write_failure_hint
+    assert hint(einval, run / ("d" * 300) / "a.py") == "shorten the script's path"
+    assert hint(einval, run / ("a" * 252 + ".py")) == generic
+    assert hint(einval, run / ("a" * 253 + ".py")) == "shorten the script's path"
+    assert hint(einval, run / ("\U0001F600" * 127 + ".py")) == "shorten the script's path"
+    assert hint(einval, run / ("\U0001F600" * 126 + ".py")) == generic
+    unc = PureWindowsPath("//" + "h" * 200 + ".example.com/" + "s" * 60 + "/proj/runs/a.py")
+    assert len(unc.anchor) > 255 and hint(einval, unc) == generic
 
 
 def test_a_run_record_that_cannot_be_written_leaves_no_run_behind(project, monkeypatch):
@@ -3218,10 +3236,13 @@ def test_the_output_redirection_is_undone_even_when_a_stream_raises_on_flush(tmp
     assert "RUN-OUTPUT" in (tmp_path / "out.txt").read_text(encoding="utf-8")
 
 
+# The layer is io's class under a stream's buffer: the run's stdout writes through a FileIO of its
+# own since revision 3.5 (runner._RunStdout).
 STREAM_LAYERS = ("import sys\n"
                  "for name in ('stdout', 'stderr'):\n"
                  "    s = getattr(sys, name)\n"
-                 "    print(name, type(s.buffer).__name__, s.line_buffering, s.write_through,\n"
+                 "    layer = next(c for c in type(s.buffer).__mro__ if c.__module__ == '_io')\n"
+                 "    print(name, layer.__name__, s.line_buffering, s.write_through,\n"
                  "          s.mode, s.name)\n")
 
 
@@ -3848,7 +3869,7 @@ def test_the_windows_timer_counts_its_deadline_before_it_raises_the_signal(monke
         with guard.interruptible(deadline=30.0):
             guard._timer.cancel()
             with pytest.raises(OSError):
-                guard._fire()
+                guard._fire(guard._timer)
         guard.settle()
     assert counted == [True] and guard.expired
 
@@ -3869,7 +3890,7 @@ def test_a_cancel_at_the_start_of_the_region_s_exit_leaves_the_deadline_to_the_s
             guard._timer.cancel()
             with monkeypatch.context() as patch:
                 patch.setattr(_platform, "raise_sigint_in_main", lambda: True)
-                guard._fire()
+                guard._fire(guard._timer)
         else:
             guard.deadline_at = time.monotonic() - 0.001
 
@@ -3923,6 +3944,12 @@ CUT_SHORT_SCRIPTS = {
                        "async def main():\n    async with asyncio.TaskGroup() as group:\n"
                        "        group.create_task(task())\n"
                        "asyncio.run(main())\n",
+    # review 10, honesty-6: a SystemExit member makes a BaseExceptionGroup, which review 9's
+    # honesty-9 raised this way
+    "in_a_base_group_after_its_except": "try:\n    signal.raise_signal(signal.SIGINT)\n"
+                                        "    time.sleep(1)\nexcept SystemExit as exc:\n"
+                                        "    kept = exc\n"
+                                        "raise BaseExceptionGroup('steps', [kept])\n",
 }
 
 
@@ -4121,7 +4148,8 @@ def test_a_literal_naming_a_home_nobody_has_does_not_drop_the_other_scanned_inpu
     open(). Review 9, rest-1: a SQL text naming a quoted data file did the same on every version —
     the scan took the names in it as a regular expression's match tuples. Review 9, rest-5 and
     honesty-1: a `~` name that exists in the project, read as written, is an input like any
-    other."""
+    other. The second Windows run: Windows guessed a home for it (C:\\Users\\$budget.xlsx), so
+    Project.path now expands a leading `~name` only when that home exists, there too."""
     raw = Path(project) / "data" / "raw"
     (raw / "a.csv").write_text("x\n1\n", encoding="utf-8")
     (raw / "b.csv").write_text("x\n2\n", encoding="utf-8")
@@ -4265,16 +4293,15 @@ def test_a_cancel_kept_from_an_earlier_run_is_not_counted_for_a_later_one(projec
 
 
 @NEEDS_MONITORING
-@POSIX_GUARD
-@pytest.mark.parametrize("platform_guard", ["posix", "windows"])
+@pytest.mark.parametrize("platform_guard", [pytest.param("posix", marks=POSIX_GUARD), "windows"])
 def test_a_cancel_cut_short_as_its_region_is_left_is_found_in_what_the_exit_caught(
         monkeypatch, platform_guard):
     """Review 9, critic-2: settle looks for a cut-short cancel in the region's failure and in what a
     handler raised while the region was left, which the region never raises. Only the first was
     tested. Here the region ends normally, a cancel arrives as it disarms, and the script's SIGTERM
-    handler raises at the cancel handler's entry."""
+    handler raises at the cancel handler's entry. The Windows guard runs on Windows itself too."""
     windows = platform_guard == "windows"
-    guard = _windows_guard(monkeypatch) if windows else _guard()
+    guard = _windows_behaviour(monkeypatch) if windows else _guard()
     handler = (_platform._WindowsGuard._on_sigint if windows
                else _platform._RunGuard.on_cancel_signal)
     state = {"on": False}
@@ -4314,18 +4341,25 @@ def test_a_cancel_cut_short_as_its_region_is_left_is_found_in_what_the_exit_caug
 
 
 @pytest.mark.skipif(os.name == "nt", reason="a directory symlink needs privileges on Windows")
-def test_a_rerun_whose_recorded_snapshot_loops_is_refused(project):
+@pytest.mark.parametrize("where", ["snapshot", "code_root"])
+def test_a_rerun_whose_recorded_snapshot_loops_is_refused(project, where):
     """Review 9, rest-8: the recorded snapshot was still resolved with Path.resolve, which raises
     for a link loop on CPython 3.12: a traceback and no JSON line there, a refusal on 3.13 and
-    3.14."""
+    3.14. Review 10, honesty-8 (N7): the run's code directory, which it is checked against, is
+    resolved the same way."""
     code, one = labkit(project, "run", write_script(project, "92_ok.py", "x = 1\n"), "--title", "x")
     assert code == 0, one
     run_id = one["run"]["id"]
-    (Path(project) / "runs" / run_id / "code" / "loop").symlink_to("loop")
-    run_json = Path(project) / "runs" / run_id / "run.json"
-    record = json.loads(run_json.read_text(encoding="utf-8"))
-    record["script"]["snapshot"] = f"runs/{run_id}/code/loop/x.py"
-    run_json.write_text(json.dumps(record), encoding="utf-8")
+    code_dir = Path(project) / "runs" / run_id / "code"
+    if where == "code_root":
+        shutil.rmtree(code_dir)
+        code_dir.symlink_to("code")
+    else:
+        (code_dir / "loop").symlink_to("loop")
+        run_json = Path(project) / "runs" / run_id / "run.json"
+        record = json.loads(run_json.read_text(encoding="utf-8"))
+        record["script"]["snapshot"] = f"runs/{run_id}/code/loop/x.py"
+        run_json.write_text(json.dumps(record), encoding="utf-8")
     code, result = labkit(project, "run", "--rerun-of", run_id, "--title", "loop")
     assert code == 1 and result["error"]["code"] == "rerun_snapshot", result
 
@@ -4350,3 +4384,507 @@ def test_a_leftover_thread_s_unfinished_line_does_not_join_the_result(project, f
     lines = [line for line in proc.stdout.splitlines() if line.startswith("{")]
     assert lines and json.loads(lines[-1]).get("ok") is True, proc.stdout
     assert "saving..." in proc.stdout, proc.stdout
+
+
+# --- review 10 ---------------------------------------------------------------------------------
+
+WINDOWS_LOCK_INTERRUPTED = """\
+import signal, sys, threading, time
+from labkit import _platform
+
+if hasattr(signal, "pthread_kill"):  # POSIX: the timer's SIGINT goes to the main thread, as there
+    def deliver():
+        if not callable(signal.getsignal(signal.SIGINT)):
+            return False
+        signal.pthread_kill(threading.main_thread().ident, signal.SIGINT)
+        return True
+    _platform.raise_sigint_in_main = deliver
+where = sys.argv[1]
+guard = _platform._WindowsGuard()
+disarm = _platform._WindowsGuard.disarm.__code__
+fired = []
+
+
+def the_script_s_sigint():
+    if not fired:
+        fired.append(1)
+        signal.raise_signal(signal.SIGINT)  # the script's handler raises it here
+
+
+def the_guard_s_lock(called, first, name):
+    # A bound method, or (3.14's LOAD_SPECIAL) the class's method with the lock as first argument.
+    lock = guard._lock
+    return getattr(called, "__name__", "") == name and \\
+        (getattr(called, "__self__", None) is lock or first is lock)
+
+
+def after_the_acquiring(code, _offset, called, first):
+    # CPython 3.14 calls a `with`'s __enter__ through a CALL and checks for signals after it.
+    if code is disarm and the_guard_s_lock(called, first, "__enter__"):
+        the_script_s_sigint()
+
+
+def before_the_release(frame, event, called):
+    # A profile function runs before the call that releases the lock.
+    if event == "c_call" and frame.f_code is disarm and the_guard_s_lock(called, None, "__exit__"):
+        the_script_s_sigint()
+
+
+if where == "enter":
+    monitoring = sys.monitoring
+    tool = next(i for i in range(2, 6) if monitoring.get_tool(i) is None)
+    monitoring.use_tool_id(tool, "labkit-test")
+    monitoring.register_callback(tool, monitoring.events.C_RETURN, after_the_acquiring)
+    monitoring.set_local_events(tool, disarm, monitoring.events.CALL)
+with guard:
+    with guard.interruptible(deadline=30.0):
+        signal.signal(signal.SIGINT, signal.default_int_handler)  # the script's
+        if where == "exit":
+            sys.setprofile(before_the_release)
+    sys.setprofile(None)
+    caught = guard.settle()
+    # A later region's timer fires on a lock of its own, whatever the first region's exit left held.
+    t0 = time.monotonic()
+    try:
+        with guard.interruptible(deadline=1.0):
+            time.sleep(3)
+        later = "ran-to-its-end"
+    except _platform.Interrupted:
+        later = "timed-out" if time.monotonic() - t0 < 2.5 else "timed-out-late"
+    guard.settle()
+print("returned", bool(fired), type(caught).__name__, later, flush=True)
+"""
+
+
+@NEEDS_MONITORING
+@pytest.mark.parametrize("where", [
+    pytest.param("enter", marks=pytest.mark.skipif(
+        sys.version_info < (3, 14), reason="before 3.14 a `with` calls __enter__ without a CALL, "
+        "and no signal is handled between its acquiring and the block")),
+    "exit"])
+def test_a_windows_disarm_interrupted_holding_the_guard_s_lock_does_not_hang(where):
+    """Review 10, guard-1: the disarm takes the guard's own lock with a `with`, and a raising
+    handler the script left, run between the acquiring and the block — CPython 3.14 checks for
+    signals at the end of __enter__'s call; a profile function runs before the release's call on
+    every version — left it held; settle's retry then waited on it for ever (revisions 3 to 3.4;
+    17e6e76 had no retry). The lock is re-entrant now, and a later region's timer fires on a lock
+    of its own. Run in a child process, which a hang cannot keep."""
+    try:
+        done = subprocess.run([sys.executable, "-c", WINDOWS_LOCK_INTERRUPTED, where],
+                              capture_output=True, env=kit_env(), timeout=30,
+                              **_platform.text_kwargs())
+    except subprocess.TimeoutExpired:
+        pytest.fail("the region's exit hung on the guard's lock")
+    assert done.stdout.split() == ["returned", "True", "KeyboardInterrupt", "timed-out"], \
+        (done.stdout, done.stderr)
+
+
+def _raises_the_script_s(sig):
+    return lambda: _script_s_own(sig) and signal.raise_signal(sig)
+
+
+@NEEDS_MONITORING
+def test_a_timer_its_disarm_dropped_uncancelled_does_not_time_out_a_later_region(monkeypatch):
+    """Review 10, guard-2 and honesty-3: a raising handler the script left, run at the entry of the
+    timer's cancel, cuts the disarm short after it dropped the timer (revision 3.4's order, against
+    guard-1). The timer fired at the first region's deadline into whatever region of the guard was
+    armed then, and timed a later one out. It now finds that it is no longer the region's timer."""
+    guard = _windows_behaviour(monkeypatch)
+    injector = _Injector({threading.Timer.cancel.__code__}, _raises_the_script_s(signal.SIGINT),
+                         entries_only=True)
+    failure = None
+    with injector, guard:
+        with guard.interruptible(deadline=1.0):
+            signal.signal(signal.SIGINT, signal.default_int_handler)  # the script's
+            injector.arm(1)
+            injector.on = True
+        injector.on = False
+        caught = guard.settle()
+        try:
+            with guard.interruptible(deadline=30.0):
+                time.sleep(1.5)
+        except _platform.Interrupted as exc:
+            failure = exc
+        guard.settle(failure)
+    assert injector.fired and isinstance(caught, KeyboardInterrupt), (injector.fired, caught)
+    assert failure is None and _outcome(guard) == {"timeout": False, "cancel": False}, \
+        (failure, _outcome(guard))
+
+
+@NEEDS_MONITORING
+def test_a_later_region_s_cut_short_cancel_counts_after_an_earlier_region_timed_out(
+        monkeypatch):
+    """Review 10, guard-6: the Windows guard left its SIGINT handler's frame uncounted once the
+    run's deadline flag was set, and that flag is never reset, so after one region timed out a
+    later region's cancel cut short at the handler's entry was not counted on Windows, where POSIX
+    counts it. The mark it reads now is the region's own."""
+    guard = _windows_behaviour(monkeypatch)
+    injector = _Injector({_platform._WindowsGuard._on_sigint.__code__},
+                         _raises_the_script_s(signal.SIGTERM), entries_only=True)
+    saved = signal.getsignal(signal.SIGTERM)
+    failures = []
+    try:
+        with injector, guard:
+            try:
+                with guard.interruptible(deadline=1.0):
+                    time.sleep(5)
+            except _platform.Interrupted as exc:
+                failures.append(exc)
+            guard.settle(failures[-1] if failures else None)
+            try:
+                with guard.interruptible():
+                    signal.signal(signal.SIGTERM, lambda *_a: sys.exit(1))  # the script's
+                    injector.arm(1)
+                    injector.on = True
+                    signal.raise_signal(signal.SIGINT)  # a cancel
+                    time.sleep(1)
+            except SystemExit as exc:
+                failures.append(exc)
+            injector.on = False
+            guard.settle(failures[-1])
+    finally:
+        signal.signal(signal.SIGTERM, saved)
+    assert [type(f).__name__ for f in failures] == ["Interrupted", "SystemExit"], failures
+    assert _outcome(guard) == {"timeout": True, "cancel": True}, _outcome(guard)
+
+
+def test_a_later_region_without_a_deadline_takes_a_cancel_for_a_cancel(monkeypatch):
+    """Review 10, found beside guard-6: the mark that makes the next SIGINT the deadline's was
+    reset only when a later region armed a deadline. After a region whose timer's SIGINT the script
+    took, a region without a deadline took a cancel for that deadline and raised it as one."""
+    guard = _windows_behaviour(monkeypatch)
+    got = []
+    with guard:
+        with guard.interruptible(deadline=1.0):
+            signal.signal(signal.SIGINT, lambda *_a: got.append("the script's"))  # takes it
+            time.sleep(1.5)
+        guard.settle()
+        try:
+            with guard.interruptible():
+                signal.raise_signal(signal.SIGINT)
+                time.sleep(1)
+        except _platform.Interrupted as exc:
+            got.append(str(exc))
+        guard.settle()
+    assert got == ["the script's", "run cancelled"], got
+    assert _outcome(guard) == {"timeout": True, "cancel": True}, _outcome(guard)
+
+
+@NEEDS_MONITORING
+@POSIX_GUARD
+def test_a_cancel_cut_short_by_a_second_handler_while_the_region_is_left_is_counted(
+        monkeypatch):
+    """Review 10, honesty-10 (review 9's guard-4 sub-point): settle kept only the first thing a
+    handler raised while the region was left. When the script's raising handler had already run
+    once there, a cancel it cut short next was lost. Everything caught there is looked at now."""
+    guard = _guard()
+    injector = _Injector({_platform._RunGuard.on_cancel_signal.__code__},
+                         _raises_the_script_s(signal.SIGTERM), entries_only=True)
+    real, calls = signal.setitimer, {"on": False, "n": 0}
+
+    def stopping(which, seconds, *rest):
+        if seconds == 0 and calls["on"]:
+            calls["n"] += 1
+            if calls["n"] == 1:
+                signal.raise_signal(signal.SIGTERM)  # the script's handler raises here
+            elif calls["n"] == 2:
+                injector.arm(1)
+                injector.on = True
+                signal.raise_signal(signal.SIGINT)  # a cancel, cut short at its handler's entry
+        return real(which, seconds, *rest)
+
+    monkeypatch.setattr(signal, "setitimer", stopping)
+    before = _handlers()
+    saved = signal.getsignal(signal.SIGTERM)
+    try:
+        with injector, guard:
+            with guard.interruptible(deadline=30.0):
+                signal.signal(signal.SIGTERM, lambda *_a: sys.exit(1))  # the script's
+                calls["on"] = True
+            calls["on"] = injector.on = False
+            caught = guard.settle()
+    finally:
+        signal.signal(signal.SIGTERM, saved)
+    assert calls["n"] >= 3 and injector.fired and isinstance(caught, SystemExit), \
+        (calls, injector.fired, caught)
+    assert _outcome(guard) == {"timeout": False, "cancel": True}, _outcome(guard)
+    assert _handlers() == before and signal.getitimer(signal.ITIMER_REAL) == (0.0, 0.0)
+
+
+@NEEDS_MONITORING
+def test_a_windows_break_cut_short_at_its_handler_s_entry_is_counted(monkeypatch):
+    """Review 10, honesty-8 (N1): the Windows guard counts a cancel cut short at the entry of its
+    SIGINT handler and, through the base class, of its SIGBREAK handler (a console's Ctrl+Break).
+    Only the first was tested. Where there is no SIGBREAK its handler is given another signal."""
+    if not hasattr(signal, "SIGBREAK"):
+        monkeypatch.setattr(signal, "SIGBREAK", signal.SIGUSR1, raising=False)
+    guard = _windows_behaviour(monkeypatch)
+    injector = _Injector({_platform._RunGuard.on_cancel_signal.__code__},
+                         _raises_the_script_s(signal.SIGTERM), entries_only=True)
+    saved = signal.getsignal(signal.SIGTERM)
+    failure = None
+    try:
+        with injector, guard:
+            try:
+                with guard.interruptible():
+                    signal.signal(signal.SIGTERM, lambda *_a: sys.exit(1))  # the script's
+                    injector.arm(1)
+                    injector.on = True
+                    signal.raise_signal(signal.SIGBREAK)
+                    time.sleep(1)
+            except SystemExit as exc:
+                failure = exc
+            injector.on = False
+            guard.settle(failure)
+    finally:
+        signal.signal(signal.SIGTERM, saved)
+    assert injector.fired and isinstance(failure, SystemExit), (injector.fired, failure)
+    assert _outcome(guard) == {"timeout": False, "cancel": True}, _outcome(guard)
+
+
+@NEEDS_MONITORING
+@POSIX_GUARD
+@pytest.mark.parametrize("position", ["last", "first"])
+def test_the_cut_short_walk_looks_at_chain_limit_exceptions_newest_first(project, monkeypatch,
+                                                                         position):
+    """Review 10, guard-5 and honesty-8 (N3): the walk that finds a cut-short cancel looks at up to
+    CHAIN_LIMIT exceptions, newest first — the bound that keeps a pathological structure cheap. So a
+    group of a hundred finds it among its last members and loses it among its first, as
+    docs/CONTRACTS.md G states."""
+    from labkit import report, runner  # noqa: PLC0415
+
+    monkeypatch.setattr(report, "build", lambda project_, **kw: {})
+    keep = {"first": "errors.insert(0, exc)", "last": "errors.append(exc)"}[position]
+    write_script(Path(project), "96_steps.py",
+                 "import signal, time\nclass Stop(Exception):\n    pass\n"
+                 "def stop(*_a):\n    raise Stop('shut down')\n"
+                 "signal.signal(signal.SIGTERM, stop)\n"
+                 "errors = [ValueError(f'step {i}') for i in range(99)]\n"
+                 "try:\n    signal.raise_signal(signal.SIGINT)\n    time.sleep(1)\n"
+                 f"except Stop as exc:\n    {keep}\n"
+                 "raise ExceptionGroup('steps failed', errors)\n")
+    with _Injector({_platform._RunGuard.on_cancel_signal.__code__},
+                   _raises_the_script_s(signal.SIGTERM), entries_only=True) as injector:
+        injector.arm(1)
+        injector.on = True
+        try:
+            result = runner.execute(core.Project(project), script="scripts/96_steps.py",
+                                    title="t", actor="test", timeout=30)
+        finally:
+            injector.on = False
+    assert injector.fired, injector.count
+    assert result["run"]["status"] == {"last": "cancelled", "first": "error"}[position], \
+        result["run"]
+
+
+@POSIX_GUARD
+def test_a_cancel_s_interruption_stops_the_deadline_s_timer_at_once():
+    """Review 10, honesty-8 (N4): the guard stops ITIMER_REAL as it interrupts the region, not only
+    when the region is left. Without that, a script that caught the cancel and installed its own
+    SIGALRM handler got the old deadline's alarm; nothing tested it."""
+    got = []
+    with _guard() as guard:
+        with guard.interruptible(deadline=1.0):
+            try:
+                signal.raise_signal(signal.SIGINT)
+                time.sleep(1)
+            except _platform.Interrupted:
+                pass
+            signal.signal(signal.SIGALRM, lambda *_a: got.append("alarm"))  # the script's
+            time.sleep(1.5)
+        guard.settle()
+    assert got == [] and _outcome(guard) == {"timeout": False, "cancel": True}, \
+        (got, _outcome(guard))
+
+
+def test_only_a_command_that_ran_a_script_starts_its_result_with_an_empty_line(project):
+    """Review 10, rest-8 and honesty-8 (N5): the empty line that keeps a leftover thread's
+    unfinished line out of the result comes after every run whose script started — and only
+    then: a command that ran no script prints its one JSON line alone, as main did, whether or not
+    it loaded the runner (`report` does, for the kit's digest)."""
+    def stdout_of(*args):
+        return subprocess.run([sys.executable, "-m", "labkit", "--project", str(project), *args],
+                              capture_output=True, env=kit_env(), timeout=120,
+                              **_platform.text_kwargs()).stdout
+
+    for command in ("status", "report"):
+        alone = stdout_of(command)
+        assert alone.startswith("{") and alone.count("\n") == 1, (command, alone)
+    ran = stdout_of("run", write_script(project, "95_quiet.py", "x = 1\n"), "--title", "quiet")
+    assert ran.startswith("\n{") and ran.count("\n") == 2, ran
+
+
+def test_the_length_hint_reads_the_snapshot_s_path(project, monkeypatch):
+    """Review 10, honesty-8 (N21): where the error names no cause — Windows' open() answers a name
+    too long with an errno only — the hint reads the length of the path that was refused, the
+    snapshot's, not the run directory's."""
+    from labkit import runner  # noqa: PLC0415
+
+    run_id = _recorded_as(project, "scripts/" + "a" * 300 + ".py")
+    real = Path.write_bytes
+
+    def as_windows_open_answers(self, data):
+        if len(self.name) > 255:
+            raise OSError(errno.EINVAL, "Invalid argument")
+        return real(self, data)
+
+    monkeypatch.setattr(Path, "write_bytes", as_windows_open_answers)
+    with pytest.raises(core.LabError) as refused:
+        runner.execute(core.Project(project), script=None, rerun_of=run_id, title="long",
+                       actor="test")
+    assert (refused.value.code, refused.value.hint) == \
+        ("snapshot_failed", "shorten the script's path"), refused.value.to_json()
+
+
+def test_a_tilde_name_whose_home_does_not_exist_is_taken_as_written(tmp_path, monkeypatch):
+    """The second Windows run (measurement run 35993026796; review 10, rest-1 and honesty-1):
+    Windows guesses a home for any `~name` beside the current user's profile, so the Office lock
+    file `~$budget.xlsx` in a project was read as C:\\Users\\$budget.xlsx there — not the project's
+    file, as on POSIX, where no home is found. Here the guess is made on any platform; a home that
+    exists is still expanded."""
+    project = core.Project(tmp_path)
+    real = os.path.expanduser
+
+    def guesses_like_windows(path):
+        text = os.fspath(path)
+        if text.startswith("~") and not text.startswith(("~/", "~\\")) and text != "~":
+            return str(tmp_path.parent / "Users" / text[1:])  # a profile directory nobody has
+        return real(path)
+
+    monkeypatch.setattr(os.path, "expanduser", guesses_like_windows)
+    assert project.path("~$budget.xlsx") == tmp_path / "~$budget.xlsx"
+    assert project.path("~nosuchuser/x.csv") == tmp_path / "~nosuchuser" / "x.csv"
+    assert project.path("~/x.csv") == Path(real("~")) / "x.csv"
+
+
+def test_a_tilde_name_pathlib_cannot_expand_is_taken_as_written(tmp_path, monkeypatch):
+    """Where no home is found the expansion leaves the name as it was, and a directory of that name
+    in the working directory makes it look like a home that exists: pathlib then refuses to
+    expand it (RuntimeError), and the path is still taken as written."""
+    monkeypatch.setattr(os.path, "expanduser", os.fspath)  # finds no home
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "~nosuchuser").mkdir()
+    project = core.Project(tmp_path / "project")
+    assert project.path("~nosuchuser/x.csv") == project.root / "~nosuchuser" / "x.csv"
+
+
+def test_a_scanned_name_a_record_cannot_hold_is_left_out(project):
+    """Review 10, rest-2: a record is UTF-8, and POSIX hands over a name that is not UTF-8 with
+    surrogates in it, so the record could not be written: no JSON line, and the run left
+    `running`. Revision 3.4's scan reached such a name from any quoted glob — a docstring's — where
+    main, whose scan lost every SQL-quoted name, recorded the run. The scan leaves it out, and keeps
+    the other files of the same glob."""
+    raw = Path(project) / "data" / "raw"
+    (raw / "ok.csv").write_text("x\n1\n", encoding="utf-8")
+    try:
+        with open(os.path.join(os.fsencode(raw), b"caf\xe9.csv"), "wb") as fh:
+            fh.write(b"x\n2\n")
+    except (OSError, ValueError) as exc:
+        pytest.skip(f"this file system refuses a name that is not UTF-8: {exc!r}")
+    body = "\"\"\"Reads 'data/raw/*.csv' with DuckDB later.\"\"\"\nprint('hi')\n"
+    code, result = labkit(project, "run", write_script(project, "94_glob.py", body),
+                          "--title", "glob")
+    assert code == 0 and result["run"]["status"] == "ok", result
+    assert [i["path"] for i in result["run"]["inputs"]] == ["data/raw/ok.csv"], result["run"]
+
+
+def test_the_scan_leaves_a_name_a_record_cannot_hold_out_of_the_same_glob(project, monkeypatch):
+    """Review 10, rest-2, where the file system at hand refuses such a name (APFS, NTFS): the glob
+    answers with one, as Linux's does for a file whose name is not UTF-8."""
+    from labkit import runner  # noqa: PLC0415
+
+    raw = Path(project) / "data" / "raw"
+    (raw / "ok.csv").write_text("x\n1\n", encoding="utf-8")
+    undecodable = raw / "caf\udce9.csv"  # how POSIX hands over the byte 0xE9
+    real_is_file = Path.is_file
+    monkeypatch.setattr(glob, "glob", lambda pattern, **kw: [str(raw / "ok.csv"), str(undecodable)])
+    monkeypatch.setattr(Path, "is_file", lambda self: self == undecodable or real_is_file(self))
+    found = runner.static_input_files(core.Project(project), {"'data/raw/*.csv'"}, set())
+    assert found == [raw / "ok.csv"], found
+
+
+def test_only_a_leftover_thread_takes_the_result_s_lock_to_write(tmp_path, monkeypatch):
+    """Review 10, critic-1: the main thread writes to a run's stdout without the lock — it prints
+    the result itself, and a signal handled between its taking the lock and the block could leave
+    the lock held — and any other thread takes it for one write, waiting at most _RESULT_WAIT."""
+    from labkit import runner  # noqa: PLC0415
+
+    taken = []
+
+    class Recording:
+        def acquire(self, timeout=-1):
+            taken.append((threading.current_thread() is threading.main_thread(), timeout))
+            return True
+
+        def release(self):
+            taken.append("released")
+
+    monkeypatch.setattr(runner, "_RESULT_LOCK", Recording())
+    with open(tmp_path / "out", "wb") as fh:
+        raw = runner._RunStdout(fh.fileno(), "w", closefd=False)
+        raw.write(b"main\n")
+        worker = threading.Thread(target=raw.write, args=(b"leftover\n",))
+        worker.start()
+        worker.join()
+    assert taken == [(False, runner._RESULT_WAIT), "released"], taken
+    assert (tmp_path / "out").read_bytes() == b"main\nleftover\n"
+
+
+LEFTOVER_WRITER = """\
+import os, sys, threading, time
+out = sys.stdout
+log = os.fstat(1)
+
+
+def after_the_run():
+    while os.path.samestat(os.fstat(1), log):
+        time.sleep(0.001)
+    line = "leftover " * 20 + "\\n"
+    while True:
+        out.write(line)
+        out.flush()
+
+
+threading.Thread(target=after_the_run, daemon=True).start()
+os.makedirs(os.path.join("data", "derived", "parts"), exist_ok=True)
+for i in range({count}):
+    with open(os.path.join("data", "derived", "parts", f"part-{{i:04d}}.csv"), "w",
+              encoding="utf-8") as fh:
+        fh.write("x\\n")
+"""
+
+
+def test_a_leftover_thread_s_writes_do_not_split_a_result_longer_than_a_pipe_holds(project):
+    """Review 10, critic-1: a thread the script left running wrote through its run's stdout stream
+    — a buffer of its own over fd 1 — after the run, while the CLI printed a result longer than a
+    pipe holds, which goes out in pieces: the thread's line landed inside the result, and the
+    extension found none for a run recorded `ok`. Main's scripts wrote through the CLI's own
+    stream, whose buffer kept the two apart. The run's stdout now writes under the lock the result
+    is printed with. The reader takes 4 KiB at a time, as a slow reader would."""
+    cmd = [sys.executable, "-m", "labkit", "--project", str(project), "run",
+           write_script(project, "97_parts.py", LEFTOVER_WRITER.format(count=1200)),
+           "--title", "parts"]
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=kit_env())
+    chunks = []
+
+    def read():
+        while chunk := os.read(proc.stdout.fileno(), 4096):
+            chunks.append(chunk)
+
+    reader = threading.Thread(target=read, daemon=True)
+    reader.start()
+    try:
+        proc.wait(timeout=240)
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+        reader.join(60)
+        proc.stdout.close()
+    out = b"".join(chunks).decode("utf-8", errors="replace")
+    result = None
+    for line in reversed(out.splitlines()):  # as the extension reads it
+        with contextlib.suppress(ValueError):
+            result = json.loads(line)
+            break
+    assert isinstance(result, dict) and result.get("ok") is True, out[-3000:]
+    assert len(result["run"]["outputs"]) == 1200, len(result["run"]["outputs"])

@@ -113,9 +113,16 @@ class Project:
 
     def path(self, rel) -> Path:
         p = Path(rel)
-        # A `~user` nobody has, or no home at all, is a path that names no home: taken as written.
-        with contextlib.suppress(RuntimeError):
-            p = p.expanduser()
+        # A leading `~name` names a home only where that home exists; otherwise the path is taken
+        # as written, on every platform. POSIX finds no home for a user nobody has (pathlib then
+        # refuses to expand it), and Windows guesses one beside the current user's profile: an
+        # Office lock file `~$budget.xlsx` would be C:\Users\$budget.xlsx there (Issue #8, the
+        # second Windows run).
+        head = p.parts[0] if p.parts else ""
+        if head.startswith("~"):
+            with contextlib.suppress(RuntimeError, OSError):
+                if os.path.isdir(os.path.expanduser(head)):
+                    p = p.expanduser()
         return p if p.is_absolute() else self.root / p
 
     def rel(self, path) -> str:

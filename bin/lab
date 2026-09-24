@@ -12,7 +12,8 @@
 #   lab report | open                     rebuild | open report/index.html
 #
 # Commands other than init/demo use the nearest lab.json above the current directory, or LAB_PROJECT.
-# Output is one JSON line (status and context print text). Nothing here is a sandbox.
+# Output ends with one JSON line, with an empty line before it when a script ran (status and
+# context print text). Nothing here is a sandbox.
 set -eu
 
 self=$0

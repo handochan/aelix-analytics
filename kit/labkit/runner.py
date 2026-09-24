@@ -21,6 +21,7 @@ import platform
 import re
 import shutil
 import sys
+import threading
 import time
 import traceback
 import types
@@ -68,7 +69,8 @@ def scan_literals(source: str) -> tuple[set[str], set[str]]:
 def static_input_files(project: core.Project, literals: set[str], writes: set[str]) -> list[Path]:
     found: dict[str, Path] = {}
     for literal in literals:
-        # The literal itself, and the data files a SQL text in it names ('data/raw/sales.parquet').
+        # The literal itself, and the quoted data-file names in it: a SQL text's
+        # 'data/raw/sales.parquet', and as well one a message or a docstring quotes.
         for token in {literal, *capture.sql_file_literals(literal)}:
             # One the kit cannot use — a name longer than the file system takes, say — is skipped
             # on its own, and does not take the inputs the other literals found with it.
@@ -82,14 +84,25 @@ def static_input_files(project: core.Project, literals: set[str], writes: set[st
 def _token_inputs(project: core.Project, token: str) -> dict[str, Path]:
     import glob
 
-    # Project.path takes a `~user` nobody has (an Office lock file's `~$budget.xlsx`) as written,
-    # so such a file in the project is an input like any other.
+    # Project.path takes a `~name` whose home does not exist (an Office lock file's `~$budget.xlsx`)
+    # as written, so such a file in the project is an input like any other.
     path = project.path(token)
     text = str(path)
     candidates = [Path(m) for m in glob.glob(text, recursive=True)[:200]] \
         if any(ch in text for ch in "*?[") else [path]
     return {str(c): c for c in candidates
-            if c.is_file() and c.suffix.lower() in core.DATA_SUFFIXES}
+            if c.is_file() and c.suffix.lower() in core.DATA_SUFFIXES and _recordable(c)}
+
+
+def _recordable(path: Path) -> bool:
+    """Whether a record can hold the name: it is written as UTF-8, and POSIX hands over a name that
+    is not UTF-8 with surrogates in it, which would lose the whole record where it is written
+    (docs/CONTRACTS.md G). The scan only guesses, so it leaves such a name out."""
+    try:
+        str(path).encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return True
 
 
 def tree_stat(project: core.Project) -> dict[str, tuple[int, int]]:
@@ -207,6 +220,45 @@ def flush_run_streams() -> bool:
 
 atexit.register(flush_run_streams)
 
+# The CLI's result line and what a thread a script left running writes to fd 1 through its run's
+# stdout stream after the run (_RunStdout, write_result). A leftover thread waits for it at most
+# this long.
+_RESULT_LOCK = threading.RLock()
+_RESULT_WAIT = 5.0
+
+
+def write_result(text: str) -> None:
+    """Print the CLI's result line after a run. What earlier runs' streams still hold goes out
+    first: the extension takes the last line that parses as JSON, and main had those lines ahead of
+    it, as its scripts wrote through this process's own stream. A thread's text need not end its
+    line, so after a run the result starts a line of its own. And it is written under
+    _RESULT_LOCK: a line longer than a pipe holds goes out in pieces, and a leftover thread's write
+    must not land between them."""
+    lead = "\n" if flush_run_streams() else ""
+    with _RESULT_LOCK:
+        sys.stdout.write(lead + text + "\n")
+        sys.stdout.flush()
+
+
+class _RunStdout(io.FileIO):
+    """fd 1 under a run's stdout stream. After the run fd 1 is the host's stdout again, and a
+    thread the script left running may still write through the stream — a logging handler set up
+    with it, a stored `sys.stdout`. Its own buffer is not the host's, so what serialized main's
+    writes with the CLI's result line (one buffer's lock) is _RESULT_LOCK here. The main thread
+    writes without it: it prints the result itself, and a signal handled between its taking a lock
+    and the block could leave the lock held; a leftover thread only waits for it _RESULT_WAIT, so
+    a hold left that way delays it and nothing waits for ever."""
+
+    def write(self, data) -> int | None:
+        if threading.current_thread() is threading.main_thread():
+            return super().write(data)
+        held = _RESULT_LOCK.acquire(timeout=_RESULT_WAIT)
+        try:
+            return super().write(data)
+        finally:
+            if held:
+                _RESULT_LOCK.release()
+
 
 def _flush(streams) -> list:
     """Flush each stream and return the ones that took it. One that is closed or refuses is
@@ -230,7 +282,7 @@ def _run_stream(fd: int, replaced) -> io.TextIOWrapper:
     both flags keeps the order against child processes, what a forced end loses and the speed of a
     print-heavy script as they were. A replaced object that is not a text stream gives CPython's
     defaults for a file."""
-    raw = io.FileIO(fd, "w", closefd=False)
+    raw = (_RunStdout if fd == 1 else io.FileIO)(fd, "w", closefd=False)
     raw.name = "<stdout>" if fd == 1 else "<stderr>"
     unbuffered, line_buffering, write_through = False, fd == 2, False
     if isinstance(replaced, io.TextIOWrapper):
@@ -545,10 +597,17 @@ def _remove_run_dir(run_dir: Path) -> None:
 
 
 # Windows' errors for a path beyond its length limit: "path not found", "file name too long". Only
-# its os functions say them: open() there reports a C runtime errno and no Windows error, so a
-# name longer than file systems hold (255 bytes or UTF-16 units) is told by its own length.
+# its os functions give them, and not for every such path: os.mkdir answered a 300-character name
+# with "invalid name" (123, Issue #8 measurement), which it gives for a reserved character as
+# well, and open() there reports a C runtime errno and no Windows error. So a name longer than a
+# file system holds is told by its own length, in the UTF-16 units NTFS and APFS count; ext4's
+# 255 bytes the system says itself (ENAMETOOLONG).
 _WINDOWS_PATH_TOO_LONG = (3, 206)
 _NAME_MAX = 255
+
+
+def _name_units(name: str) -> int:
+    return len(name.encode("utf-16-le", "surrogatepass")) // 2  # beyond the BMP, two each
 
 
 def _write_failure_hint(exc: Exception, path: Path) -> str | None:
@@ -558,7 +617,7 @@ def _write_failure_hint(exc: Exception, path: Path) -> str | None:
     if not isinstance(exc, OSError):
         return None
     if (exc.errno == errno.ENAMETOOLONG or getattr(exc, "winerror", None) in _WINDOWS_PATH_TOO_LONG
-            or any(len(part) > _NAME_MAX for part in path.parts)):
+            or any(_name_units(part) > _NAME_MAX for part in path.parts if part != path.anchor)):
         return "shorten the script's path"
     if exc.errno == errno.ENOSPC:
         return "free some space on the disk that holds the project"

@@ -153,13 +153,14 @@ class RunControl(Protocol):
     flag away. Only the handler's first instruction comes before that. A cancel whose handler a
     raising handler the script left cuts short there is counted by `settle` from what that handler
     raised: its traceback passes through the handler it cut short. `settle` looks for it in the
-    region's failure and in what a handler raised while the region was left, and in what those lead
-    to through `__context__`, `__cause__` and an exception group's members, up to CHAIN_LIMIT
-    exceptions. So it is lost when the script catches it and carries on, raises something new
-    outside its `except`, or wraps it deeper than that; and on Windows once the deadline has come,
-    when the handler's frame may be the deadline's own and the run is a timeout either way. A
-    deadline cut short there is counted by the clock when its region is left; a SIGALRM that is not
-    the guard's timer is not.
+    region's failure and in everything a handler raised while the region was left, and in what
+    those lead to through `__context__`, `__cause__` and an exception group's members: up to
+    CHAIN_LIMIT exceptions, newest first. So it is lost when the script catches it and carries on,
+    raises something new outside its `except`, or puts it behind more exceptions than that — a long
+    chain, or a large group with it among the first members; and on Windows once the region's timer
+    has raised the deadline's SIGINT, when the handler's frame may be the deadline's own and the run
+    is a timeout either way. A deadline cut short there is counted by the clock when its region is
+    left; a SIGALRM that is not the guard's timer is not.
 
     Outside an `interruptible()` region a cancel only records; a caller writes its record there.
     Inside one, the guard raises `Interrupted` in the main thread **at most once**: a handler
@@ -175,9 +176,10 @@ class RunControl(Protocol):
     running, and when the script caught the guard's interruption and set a timer of its own after
     it — as main cancelled it after every script. A region that set none leaves a host's own timer
     alone. `settle(failure)` does the same again and counts a cancel cut short at its
-    handler's entry (above), found in `failure` — what the region raised — or in what a handler
-    raised during the settle; the caller runs it after every region whatever the region raised. It
-    never raises: it returns, once, what a handler the script left installed raised meanwhile.
+    handler's entry (above), found in `failure` — what the region raised — or in what handlers
+    raised while the region was left and during the settle; the caller runs it after every region
+    whatever the region raised. It never raises: it returns, once, the first thing a handler the
+    script left installed raised meanwhile.
 
     The one interruption is spent wherever it lands. A script that catches `BaseException` — or
     calls a library that turns the interrupt into an ordinary error it then catches — is not
@@ -253,6 +255,8 @@ class _Region:
 
     def __enter__(self) -> _Region:
         guard = self._guard
+        # An earlier region's deadline marks are not this region's (Windows; see _WindowsGuard).
+        guard.deadline_due = guard.deadline_raised = False
         guard.raising = True
         try:
             if guard.cancelled and guard._stop(None):
@@ -285,10 +289,13 @@ class _RunGuard:
         self.armed = False       # a deadline is running
         self.deadline_at: float | None = None  # when the region's deadline passes (monotonic)
         self.deadline_due = False  # the next SIGINT is the deadline's (Windows); see there
+        self.deadline_raised = False  # the region's timer raised the deadline's SIGINT (Windows)
         self.handlers: list[tuple[int, Callable]] = []
         self._replaced: list[tuple[int, object]] = []
         self._installed = False
-        self._caught: BaseException | None = None
+        # What handlers raised while a region was left, first first: added to with `+=`, which is
+        # no check point, so an `except` that keeps one runs no call (see _ATTEMPTS).
+        self._caught: tuple[BaseException, ...] = ()
         self._interrupted: BaseException | None = None
 
     def __enter__(self) -> _RunGuard:
@@ -310,7 +317,7 @@ class _RunGuard:
         # Before any previous handler is back: this guard's timer must not reach one of them.
         self.disarm()
         interrupted = self._restore()
-        self._caught = None
+        self._caught = ()
         if interrupted is not None and exc_type is None:
             raise interrupted
         return False
@@ -351,13 +358,12 @@ class _RunGuard:
         for _ in _ATTEMPTS:
             try:
                 self._settle()
-                self._count_cut_short(failure, self._caught)
+                self._count_cut_short(failure, *self._caught)
                 break
             except BaseException as exc:  # noqa: BLE001 - raised at _settle's own entry; kept
-                if self._caught is None:
-                    self._caught = exc
-        caught, self._caught = self._caught, None
-        return caught
+                self._caught += (exc,)
+        caught, self._caught = self._caught, ()
+        return caught[0] if caught else None
 
     def _count_cut_short(self, *raised: BaseException | None) -> None:
         """Count a cancel whose handler a raising handler the script left cut short at its first
@@ -394,10 +400,10 @@ class _RunGuard:
         disarm, and put this guard's handlers back where a script replaced one.
 
         A handler the script left installed can interrupt any step, which is then done again — the
-        count is an assignment, so doing it twice changes nothing — and the first thing it raised is
-        kept for `settle` to return. Only this function's first instruction, and the retry's
-        backward jump after something was caught, are outside that (see _ATTEMPTS); the guard's own
-        handlers raise nothing here (see _in_exit)."""
+        count is an assignment, so doing it twice changes nothing — and what it raised is kept for
+        `settle`, which looks through all of it and returns the first. Only this function's first
+        instruction, and the retry's backward jump after something was caught, are outside that
+        (see _ATTEMPTS); the guard's own handlers raise nothing here (see _in_exit)."""
         was_raising, self.raising = self.raising, False
         for _ in _ATTEMPTS:
             try:
@@ -409,8 +415,7 @@ class _RunGuard:
                     self._reassert()
                 return
             except BaseException as exc:  # noqa: BLE001 - kept for settle() to return
-                if self._caught is None:
-                    self._caught = exc
+                self._caught += (exc,)
 
     def _reassert(self) -> None:
         for sig, handler in self.handlers:
@@ -841,7 +846,7 @@ class _WindowsGuard(_RunGuard):
         # process without running a handler, so a forced end leaves the run `incomplete`.
         breaks = [(signal.SIGBREAK, self.on_cancel_signal)] if hasattr(signal, "SIGBREAK") else []
         self.handlers = [*breaks, (signal.SIGINT, self._on_sigint)]
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()  # see arm and disarm
         self._timer: threading.Timer | None = None
 
     def _on_sigint(self, _signum, frame) -> None:
@@ -851,7 +856,7 @@ class _WindowsGuard(_RunGuard):
         # deadline's: one the timer raised as the region ended must not be taken for a cancel, and
         # if a script's own handler took the timer's SIGINT, the next one here interrupts as the
         # deadline — which has passed. Inside the guard's own exit the mark is left alone; after the
-        # region it is used up here; a later region's arming resets it.
+        # region it is used up here; a later region resets it (_Region).
         if not self.deadline_due:
             self.cancelled = True  # first, and by assignment: see RunControl
             if self._stop(frame):
@@ -868,26 +873,31 @@ class _WindowsGuard(_RunGuard):
         if not seconds <= threading.TIMEOUT_MAX:
             # A Timer this long would fail in its own thread and leave the region without one.
             raise OverflowError("timeout value is too large")
-        # A mark left by an earlier region's timer whose SIGINT a script took is not this region's.
-        self.deadline_due = False
+        # A lock of the region's own: one an earlier region's exit left held (disarm) must not keep
+        # this region's timer from firing.
+        self._lock = threading.RLock()
         self.armed = True
         self.deadline_at = time.monotonic() + seconds
-        self._timer = threading.Timer(seconds, self._fire)
-        self._timer.daemon = True
-        self._timer.start()
+        timer = threading.Timer(seconds, self._fire)
+        timer.args = (timer,)  # so it can tell whether it is still the region's (_fire)
+        timer.daemon = True
+        self._timer = timer
+        timer.start()
 
-    def _fire(self) -> None:
+    def _fire(self, timer: threading.Timer) -> None:
         """The deadline, in the timer's thread."""
         with self._lock:
             # Nothing between the test and the assignments lets the main thread run. Either the
             # region is still interruptible, and the deadline counts here, or it was left or
             # interrupted first; then whatever did that counted the deadline if it had already
             # passed (_settle, _stop) — this timer can fire late, held up by C code that keeps the
-            # GIL.
-            if not (self.armed and self.raising):
+            # GIL. A timer the disarm dropped without cancelling it is no longer the region's: it
+            # must not reach a region armed after it.
+            if timer is not self._timer or not (self.armed and self.raising):
                 return
             self.armed = False
             self.expired = True
+            self.deadline_raised = True
             self.deadline_due = True
             # There is no SIGALRM. A script that has taken SIGINT over receives this instead of the
             # kit (the run is still `timeout`, see RunControl); one that ignores SIGINT is not
@@ -899,12 +909,17 @@ class _WindowsGuard(_RunGuard):
         # Dropped before it is cancelled. `Timer.cancel` is Python code: a raising handler the
         # script left, run inside it, can leave the timer's own lock held, and a retry that
         # cancelled the same timer again would wait on that lock for ever. A timer left running
-        # blocks on it, or fires into a disarmed guard (_fire), which does nothing.
+        # blocks on it, or finds that it is no longer the region's (_fire) and does nothing.
         timer, self._timer = self._timer, None
         if timer is not None:
             timer.cancel()
         # `Timer.cancel` does not stop a callback that has started, so disarming takes the same
-        # lock: either the callback finished before this, or it finds the deadline disarmed.
+        # lock: either the callback finished before this, or it finds the deadline disarmed. The
+        # lock is re-entrant: a raising handler run between a `with`'s acquiring and its block —
+        # CPython 3.14 checks for signals there, 3.12 and 3.13 under a profile or trace function
+        # — leaves it held by this thread, and the retry (_settle) takes it again instead of
+        # waiting for ever. Only the timer thread of this region, whose timer is dropped by then,
+        # can be kept waiting on it.
         with self._lock:
             self.armed = False
 
@@ -913,10 +928,10 @@ class _WindowsGuard(_RunGuard):
         self.armed = False
 
     def _shows_a_cancel(self, code) -> bool:
-        # `_on_sigint` records a cancel first too, but it also takes the deadline's SIGINT, which
-        # the timer counted (`expired`) before raising it: once the deadline has come, a frame of it
-        # may be the deadline's, and the run is a timeout whatever it is.
-        return super()._shows_a_cancel(code) or (code is _ON_SIGINT and not self.expired)
+        # `_on_sigint` records a cancel first too, but it also takes the deadline's SIGINT: once the
+        # region's timer has raised it (`deadline_raised`), a frame of the handler may be the
+        # deadline's, and the run is a timeout whatever it is.
+        return super()._shows_a_cancel(code) or (code is _ON_SIGINT and not self.deadline_raised)
 
 
 _ON_SIGINT = _WindowsGuard._on_sigint.__code__
