@@ -464,9 +464,12 @@ def test_a_handler_the_script_replaced_is_taken_back_when_the_region_ends():
 
 # Where CPython 3.12-3.14 handles a pending signal while it runs Python code: a function's entry
 # (RESUME, seen here as a PY_START event), a backward jump, and the CALL family (a C function called
-# there can check too). Injecting before each of those instructions, one run per point, reaches every
-# state a real signal can find a frame in; an injection at an instruction CPython never checks at (a
-# NOP left by a with-block's SETUP/POP_BLOCK) would test a state no signal can cause.
+# there can check too). Injecting before each of those instructions, one run per point, approximates
+# the states a real signal can find a frame in: a call's own check comes once the function it called
+# has returned, a state the injection before the call does not reach (review 9, honesty-4), and the
+# injection before it reaches one a real signal reaches only when a trace or profile function runs
+# there. An injection at an instruction CPython never checks at (a NOP left by a with-block's
+# SETUP/POP_BLOCK) would test a state no signal can cause.
 CHECK_POINT_OPS = ("JUMP_BACKWARD", "CALL", "CALL_KW", "CALL_FUNCTION_EX")
 
 
@@ -1993,6 +1996,7 @@ def test_a_rerun_refuses_a_recorded_script_path_on_every_platform(project, recor
     assert code == 1 and result["error"]["code"] == "rerun_snapshot", result
 
 
+@pytest.mark.skipif(os.name == "nt", reason="names POSIX can hold and Windows reads otherwise")
 def test_a_new_run_of_a_path_no_record_could_rerun_is_refused(project):
     drive_like = Path(project) / "c:"
     drive_like.mkdir()
@@ -2083,6 +2087,20 @@ def test_a_snapshot_that_cannot_be_written_leaves_no_run_behind(project):
     assert code == 1 and result["error"]["code"] == "snapshot_failed", result
     assert result["error"]["hint"] == "shorten the script's path", result
     assert sorted(p.name for p in (Path(project) / "runs").iterdir()) == before
+
+
+def test_a_name_too_long_is_told_where_the_error_does_not_say_so():
+    """Measured on Windows: open() there reports a name longer than NTFS holds with a C runtime
+    errno and no Windows error, and the hint said to check that runs/ could be written."""
+    from labkit import runner  # noqa: PLC0415
+
+    long_name = Path("runs", "20260924-000000-a", "code", "scripts", "a" * 300 + ".py")
+    for errno_only in (OSError(errno.EINVAL, "Invalid argument"),
+                       OSError(errno.ENOENT, "No such file or directory")):
+        assert runner._write_failure_hint(errno_only, long_name) == "shorten the script's path"
+    denied = OSError(errno.EACCES, "Permission denied")
+    assert runner._write_failure_hint(denied, long_name.with_name("a.py")) == (
+        "check that the project's runs/ directory can be written")
 
 
 def test_a_run_record_that_cannot_be_written_leaves_no_run_behind(project, monkeypatch):
@@ -3884,6 +3902,27 @@ CUT_SHORT_SCRIPTS = {
     # what cut the handler short is chained to the error the script raises instead
     "turns_it_into_an_error": "try:\n    signal.raise_signal(signal.SIGINT)\n    time.sleep(1)\n"
                               "except SystemExit as exc:\n    raise RuntimeError('stopped') from exc\n",
+    # review 9, honesty-2: through __context__ alone, through __cause__ alone (raised after the
+    # except block), and three deep
+    "replaces_it_inside_its_except": "try:\n    signal.raise_signal(signal.SIGINT)\n"
+                                     "    time.sleep(1)\nexcept SystemExit:\n"
+                                     "    raise RuntimeError('stopped')\n",
+    "chains_it_after_its_except": "try:\n    signal.raise_signal(signal.SIGINT)\n"
+                                  "    time.sleep(1)\nexcept SystemExit as exc:\n    kept = exc\n"
+                                  "raise RuntimeError('stopped') from kept\n",
+    "wraps_it_twice": "try:\n    try:\n        signal.raise_signal(signal.SIGINT)\n"
+                      "        time.sleep(1)\n    except SystemExit as exc:\n"
+                      "        raise ValueError('inner') from exc\n"
+                      "except ValueError as exc:\n    raise RuntimeError('outer') from exc\n",
+    # review 9, guard-4: asyncio's TaskGroup raises what a task raised as a group's member
+    "in_a_task_group": "import asyncio\n"
+                       "def fail(*_a):\n    raise RuntimeError('shut down')\n"
+                       "signal.signal(signal.SIGTERM, fail)\n"
+                       "async def task():\n    signal.raise_signal(signal.SIGINT)\n"
+                       "    await asyncio.sleep(1)\n"
+                       "async def main():\n    async with asyncio.TaskGroup() as group:\n"
+                       "        group.create_task(task())\n"
+                       "asyncio.run(main())\n",
 }
 
 
@@ -3999,6 +4038,16 @@ CASE_VARIANTS = {
     "chart_then_file": "lab.chart(fig, 'AUX')\nfig.savefig(charts / 'AUX.png')\n",
     "file_then_captured_and_named": "ax.set_title('AUX')\nfig.savefig(charts / 'AUX.png')\n"
                                     "fig.show()\nlab.chart(fig, 'named')\n",
+    # review 9, rest-3: main wrote its chart into the script's file and recorded that file twice
+    "file_then_chart": "fig.savefig(charts / 'AUX.png')\nlab.chart(fig, 'AUX')\n",
+}
+CASE_VARIANT_CHARTS = {
+    ("chart_then_file", True): [("aux", "matplotlib")],
+    ("chart_then_file", False): [("aux", "matplotlib"), ("aux-2", "file")],
+    ("file_then_captured_and_named", True): [("named", "matplotlib")],
+    ("file_then_captured_and_named", False): [("named", "matplotlib"), ("aux", "file")],
+    ("file_then_chart", True): [("aux", "matplotlib")],
+    ("file_then_chart", False): [("aux", "matplotlib"), ("aux-2", "file")],
 }
 
 
@@ -4008,18 +4057,31 @@ def test_a_reserved_id_s_own_name_in_another_case_is_that_file_where_case_is_ign
     """Review 8, rest-3: own names were compared as strings, so where the file system ignores case
     (macOS by default) the script's charts/AUX.png — the file main wrote, overwrote or unlinked for
     chart `aux` — became a second chart with a reserved-name warning. Where case counts, it is a
-    file of its own, as it was on main."""
+    file of its own, as it was on main. Where case is ignored and the file came first, main recorded
+    the one file twice, as `aux` and `aux-2`; it is one chart now (review 9, rest-3)."""
     code, result = labkit(project, "run", write_script(project, f"85_{case}.py",
                                                        CHART_BODY + CASE_VARIANTS[case]),
                           "--title", case)
     assert code == 0, result
     charts = [(c["id"], c["kind"]) for c in result["run"]["charts"]]
     ignores = _ignores_case(Path(project))
-    expected = {("chart_then_file", True): [("aux", "matplotlib")],
-                ("chart_then_file", False): [("aux", "matplotlib"), ("aux-2", "file")],
-                ("file_then_captured_and_named", True): [("named", "matplotlib")],
-                ("file_then_captured_and_named", False): [("named", "matplotlib"), ("aux", "file")]}
-    assert charts == expected[case, ignores], (ignores, charts)
+    assert charts == CASE_VARIANT_CHARTS[case, ignores], (ignores, charts)
+
+
+def test_a_case_variant_is_an_own_name_only_when_it_is_the_same_file(project, monkeypatch):
+    """Review 9, rest-7: whether charts/AUX.png is chart `aux`'s own name is decided by the file
+    system, which on a case-sensitive one says it is another file; nothing but a case-sensitive
+    volume pinned that half. Told it is another file, the kit records it as a chart of its own
+    wherever it runs."""
+    from labkit import report, runner  # noqa: PLC0415
+
+    monkeypatch.setattr(report, "build", lambda project_, **kw: {})
+    monkeypatch.setattr(os.path, "samefile", lambda _a, _b: False)
+    write_script(Path(project), "88_case.py", CHART_BODY + CASE_VARIANTS["chart_then_file"])
+    result = runner.execute(core.Project(project), script="scripts/88_case.py", title="case",
+                            actor="test")
+    charts = [(c["id"], c["kind"]) for c in result["run"]["charts"]]
+    assert charts == CASE_VARIANT_CHARTS["chart_then_file", False], charts
 
 
 def test_a_record_that_cannot_be_written_as_utf8_leaves_no_run_directory(project):
@@ -4056,14 +4118,235 @@ def test_a_literal_naming_a_home_nobody_has_does_not_drop_the_other_scanned_inpu
     """Review 8, critic-1: the static scan expanded every literal with pathlib, which raises for a
     `~user` nobody has — an Office lock file's `~$budget.xlsx` — and that one literal lost every
     input the scan had found. Each literal now fails on its own. Only the scan sees a file read with
-    open()."""
-    (Path(project) / "data" / "raw" / "a.csv").write_text("x\n1\n", encoding="utf-8")
+    open(). Review 9, rest-1: a SQL text naming a quoted data file did the same on every version —
+    the scan took the names in it as a regular expression's match tuples. Review 9, rest-5 and
+    honesty-1: a `~` name that exists in the project, read as written, is an input like any
+    other."""
+    raw = Path(project) / "data" / "raw"
+    (raw / "a.csv").write_text("x\n1\n", encoding="utf-8")
+    (raw / "b.csv").write_text("x\n2\n", encoding="utf-8")
+    (Path(project) / "~$budget.xlsx").write_bytes(b"lock")
     # A name longer than the file system takes fails its own lookup too (on CPython 3.12).
     body = ("LOCK = '~$budget.xlsx'\n"
             f"LONG = 'data/{'x' * 300}.csv'\n"
+            "QUERY = \"SELECT * FROM 'data/raw/b.csv'\"\n"
             "with open('data/raw/a.csv', encoding='utf-8') as fh:\n    fh.read()\n")
     code, result = labkit(project, "run", write_script(project, "87_scan.py", body),
                           "--title", "scan")
     assert code == 0, result
     vias = {i["path"]: i["via"] for i in result["run"]["inputs"]}
-    assert vias.get("data/raw/a.csv") == ["scan"], result["run"]["inputs"]
+    assert vias == {"data/raw/a.csv": ["scan"], "data/raw/b.csv": ["scan"],
+                    "~$budget.xlsx": ["scan"]}, result["run"]["inputs"]
+
+
+# --- review 9 ----------------------------------------------------------------------------------
+
+WINDOWS_DISARM_INTERRUPTED = """\
+import signal, sys, threading
+from labkit import _platform
+
+monitoring = sys.monitoring
+tool = next(i for i in range(2, 6) if monitoring.get_tool(i) is None)
+disarm = _platform._WindowsGuard.disarm.__code__
+fired = []
+
+
+def at_the_entry(code, _offset):
+    frame = sys._getframe(1)
+    while frame is not None and frame.f_code is not disarm:
+        frame = frame.f_back
+    if frame is not None and not fired:
+        fired.append(1)
+        signal.raise_signal(signal.SIGINT)  # the script's handler raises it here
+
+
+monitoring.use_tool_id(tool, "labkit-test")
+monitoring.register_callback(tool, monitoring.events.PY_START, at_the_entry)
+monitoring.set_local_events(tool, threading.Condition.__exit__.__code__,
+                            monitoring.events.PY_START)
+guard = _platform._WindowsGuard()
+with guard:
+    with guard.interruptible(deadline=30.0):
+        signal.signal(signal.SIGINT, signal.default_int_handler)  # the script's
+    caught = guard.settle()
+print("returned", bool(fired), type(caught).__name__, flush=True)
+"""
+
+
+@NEEDS_MONITORING
+def test_a_windows_disarm_interrupted_inside_the_timer_s_cancel_does_not_hang():
+    """Review 9, guard-1: `Timer.cancel` is Python code. A raising handler the script left, run at
+    the entry of the timer's Condition.__exit__, left the timer's lock held; revision 3.3 kept the
+    timer until it was cancelled, so settle's retry cancelled it again and waited on that lock for
+    ever, and the run never reached its record. Run in a child process, which a hang cannot keep."""
+    try:
+        done = subprocess.run([sys.executable, "-c", WINDOWS_DISARM_INTERRUPTED],
+                              capture_output=True, env=kit_env(), timeout=30,
+                              **_platform.text_kwargs())
+    except subprocess.TimeoutExpired:
+        pytest.fail("the region's exit hung in the timer's cancel")
+    assert done.stdout.split() == ["returned", "True", "KeyboardInterrupt"], \
+        (done.stdout, done.stderr)
+
+
+def test_a_windows_deadline_is_not_also_counted_as_a_cancel(monkeypatch):
+    """Review 9, guard-2 and honesty-3: the Windows deadline is raised from the SIGINT handler that
+    also records cancels, so that handler's frame is in the traceback of every deadline it
+    interrupts, and settle(failure) — the runner's call — counted a cancel nobody sent. The record
+    stayed `timeout`, but the flag said otherwise and a later region was refused, unlike POSIX."""
+    guard = _guard() if os.name == "nt" else _windows_guard(monkeypatch)
+    before = _handlers()
+    failure, ran = None, []
+    with guard:
+        try:
+            with guard.interruptible(deadline=1.0):
+                time.sleep(5)
+        except _platform.Interrupted as exc:
+            failure = exc
+        guard.settle(failure)
+        with guard.interruptible():
+            ran.append(1)
+    assert isinstance(failure, _platform.Interrupted), failure
+    assert _outcome(guard) == {"timeout": True, "cancel": False} and ran == [1], _outcome(guard)
+    assert _handlers() == before
+
+
+@POSIX_GUARD
+@pytest.mark.parametrize("interruption", ["cancel", "deadline"])
+def test_a_timer_the_script_sets_after_catching_its_interruption_ends_with_the_run(
+        project, monkeypatch, interruption):
+    """Review 9, critic-1: the guard stopped its timer as it interrupted the region and dropped its
+    mark there, so the region's end left ITIMER_REAL alone. A script that caught the interruption
+    and then set a timer of its own (a `signal.alarm` watchdog) had it fire after the run into the
+    host: an in-process host that kept SIGALRM's default action was killed, and the CLI too,
+    sometimes before its JSON line. Main cancelled ITIMER_REAL after every script."""
+    from labkit import report, runner  # noqa: PLC0415
+
+    monkeypatch.setattr(report, "build", lambda project_, **kw: {})
+    stop = {"cancel": "signal.raise_signal(signal.SIGINT)\n    time.sleep(2)\n",
+            "deadline": "time.sleep(3)\n"}[interruption]
+    write_script(Path(project), "89_timer.py",
+                 "import signal, time\ntry:\n    " + stop + "except BaseException:\n    pass\n"
+                 "signal.setitimer(signal.ITIMER_REAL, 30)\n")
+    saved = signal.signal(signal.SIGALRM, signal.SIG_IGN)
+    try:
+        result = runner.execute(core.Project(project), script="scripts/89_timer.py",
+                                title="timer", timeout=1, actor="test")
+        left = signal.getitimer(signal.ITIMER_REAL)
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, saved)
+    assert result["run"]["status"] == {"cancel": "cancelled", "deadline": "timeout"}[interruption]
+    assert left == (0.0, 0.0), left
+
+
+def test_a_cancel_kept_from_an_earlier_run_is_not_counted_for_a_later_one(project, monkeypatch):
+    """Review 9, guard-3 and honesty-1: a frame of a guard's cancel handler counts only for that
+    guard. A module a script imported stays in sys.modules across the runs of an in-process host,
+    and a later run's error chained to a cancel kept from an earlier run made the later run
+    `cancelled`, though no cancel reached it, once the check was gone."""
+    from labkit import report, runner  # noqa: PLC0415
+
+    monkeypatch.setattr(report, "build", lambda project_, **kw: {})
+    monkeypatch.setitem(sys.modules, "_kept_across_runs", types.SimpleNamespace(last=None))
+    write_script(Path(project), "90_first.py",
+                 "import signal, time\nimport _kept_across_runs as keep\ntry:\n"
+                 "    signal.raise_signal(signal.SIGINT)\n    time.sleep(1)\n"
+                 "except BaseException as exc:\n    keep.last = exc\n    raise\n")
+    write_script(Path(project), "91_second.py",
+                 "import _kept_across_runs as keep\n"
+                 "raise RuntimeError('the previous attempt failed') from keep.last\n")
+    first = runner.execute(core.Project(project), script="scripts/90_first.py", title="first",
+                           actor="test")
+    second = runner.execute(core.Project(project), script="scripts/91_second.py",
+                            title="second", actor="test")
+    assert first["run"]["status"] == "cancelled", first["run"]
+    assert second["run"]["status"] == "error", second["run"]
+
+
+@NEEDS_MONITORING
+@POSIX_GUARD
+@pytest.mark.parametrize("platform_guard", ["posix", "windows"])
+def test_a_cancel_cut_short_as_its_region_is_left_is_found_in_what_the_exit_caught(
+        monkeypatch, platform_guard):
+    """Review 9, critic-2: settle looks for a cut-short cancel in the region's failure and in what a
+    handler raised while the region was left, which the region never raises. Only the first was
+    tested. Here the region ends normally, a cancel arrives as it disarms, and the script's SIGTERM
+    handler raises at the cancel handler's entry."""
+    windows = platform_guard == "windows"
+    guard = _windows_guard(monkeypatch) if windows else _guard()
+    handler = (_platform._WindowsGuard._on_sigint if windows
+               else _platform._RunGuard.on_cancel_signal)
+    state = {"on": False}
+
+    def the_cancel_arrives(call):
+        def wrapped(*args):
+            if state.pop("on", False):
+                signal.raise_signal(signal.SIGINT)
+            return call(*args)
+        return wrapped
+
+    if not windows:
+        monkeypatch.setattr(signal, "setitimer", the_cancel_arrives(signal.setitimer))
+    injector = _Injector({handler.__code__}, lambda: _script_s_own(signal.SIGTERM)
+                         and signal.raise_signal(signal.SIGTERM), entries_only=True)
+    before = _handlers()
+    saved = signal.getsignal(signal.SIGTERM)
+    timers = []
+    try:
+        with injector, guard:
+            with guard.interruptible(deadline=30.0):
+                signal.signal(signal.SIGTERM, lambda *_a: sys.exit(1))  # the script's
+                if windows:
+                    timers.append(guard._timer)
+                    guard._timer.cancel = the_cancel_arrives(guard._timer.cancel)
+                injector.arm(1)
+                injector.on = state["on"] = True
+            injector.on = False
+            caught = guard.settle()
+    finally:
+        signal.signal(signal.SIGTERM, saved)
+        for timer in timers:  # the one the interrupted disarm dropped uncancelled
+            timer.cancel()
+    assert injector.fired and isinstance(caught, SystemExit), (injector.fired, caught)
+    assert _outcome(guard) == {"timeout": False, "cancel": True}, _outcome(guard)
+    assert _handlers() == before
+
+
+@pytest.mark.skipif(os.name == "nt", reason="a directory symlink needs privileges on Windows")
+def test_a_rerun_whose_recorded_snapshot_loops_is_refused(project):
+    """Review 9, rest-8: the recorded snapshot was still resolved with Path.resolve, which raises
+    for a link loop on CPython 3.12: a traceback and no JSON line there, a refusal on 3.13 and
+    3.14."""
+    code, one = labkit(project, "run", write_script(project, "92_ok.py", "x = 1\n"), "--title", "x")
+    assert code == 0, one
+    run_id = one["run"]["id"]
+    (Path(project) / "runs" / run_id / "code" / "loop").symlink_to("loop")
+    run_json = Path(project) / "runs" / run_id / "run.json"
+    record = json.loads(run_json.read_text(encoding="utf-8"))
+    record["script"]["snapshot"] = f"runs/{run_id}/code/loop/x.py"
+    run_json.write_text(json.dumps(record), encoding="utf-8")
+    code, result = labkit(project, "run", "--rerun-of", run_id, "--title", "loop")
+    assert code == 1 and result["error"]["code"] == "rerun_snapshot", result
+
+
+@pytest.mark.parametrize("flushed", [False, True])
+def test_a_leftover_thread_s_unfinished_line_does_not_join_the_result(project, flushed):
+    """Review 9, rest-2: the result followed on the same line whatever such a thread had written
+    without a newline — a progress message written with end='' — and the extension found no result
+    for a run recorded `ok`. Revision 3.2 put the text after the result; a thread that flushed it
+    itself broke every version, main included. After a run the result starts a line of its own."""
+    body = ("import os, sys, threading, time\nout = sys.stdout\nlog = os.fstat(1)\n"
+            "def later():\n"
+            "    while os.path.samestat(os.fstat(1), log):\n"
+            "        time.sleep(0.001)\n"
+            "    out.write('saving...')\n" + ("    out.flush()\n" if flushed else "") +
+            "    threading.Event().wait()\n"
+            "threading.Thread(target=later, daemon=True).start()\n")
+    cmd = [sys.executable, "-m", "labkit", "--project", str(project), "run",
+           write_script(project, "93_partial.py", body), "--title", "partial"]
+    proc = subprocess.run(cmd, capture_output=True, env=kit_env(), timeout=120,
+                          **_platform.text_kwargs())
+    lines = [line for line in proc.stdout.splitlines() if line.startswith("{")]
+    assert lines and json.loads(lines[-1]).get("ok") is True, proc.stdout
+    assert "saving..." in proc.stdout, proc.stdout

@@ -68,23 +68,22 @@ def scan_literals(source: str) -> tuple[set[str], set[str]]:
 def static_input_files(project: core.Project, literals: set[str], writes: set[str]) -> list[Path]:
     found: dict[str, Path] = {}
     for literal in literals:
-        tokens = {literal, *capture.SQL_FILE_RE.findall(literal)}
-        for token in tokens:
-            if len(token) > 400 or "\n" in token or token in writes:
-                continue
-            if "/" not in token and not token.lower().endswith(core.DATA_SUFFIXES):
-                continue
-            # A literal the file system cannot take — a name too long — is skipped on its own, and
-            # does not take the inputs the other literals found with it.
+        # The literal itself, and the data files a SQL text in it names ('data/raw/sales.parquet').
+        for token in {literal, *capture.sql_file_literals(literal)}:
+            # One the kit cannot use — a name longer than the file system takes, say — is skipped
+            # on its own, and does not take the inputs the other literals found with it.
             with contextlib.suppress(Exception):
-                found.update(_token_inputs(project, token))
+                if len(token) <= 400 and "\n" not in token and token not in writes and (
+                        "/" in token or token.lower().endswith(core.DATA_SUFFIXES)):
+                    found.update(_token_inputs(project, token))
     return list(found.values())
 
 
 def _token_inputs(project: core.Project, token: str) -> dict[str, Path]:
     import glob
 
-    # Project.path takes a `~user` nobody has (an Office lock file's `~$budget.xlsx`) as written.
+    # Project.path takes a `~user` nobody has (an Office lock file's `~$budget.xlsx`) as written,
+    # so such a file in the project is an input like any other.
     path = project.path(token)
     text = str(path)
     candidates = [Path(m) for m in glob.glob(text, recursive=True)[:200]] \
@@ -198,9 +197,12 @@ _EARLIER_RUN_STREAMS: weakref.WeakSet = weakref.WeakSet()
 _HELD_RUN_STREAMS: collections.deque = collections.deque(maxlen=2)
 
 
-def flush_run_streams() -> None:
-    """Write out what earlier runs' streams still hold (see _EARLIER_RUN_STREAMS)."""
-    _flush(list(_EARLIER_RUN_STREAMS))
+def flush_run_streams() -> bool:
+    """Write out what earlier runs' streams still hold (see _EARLIER_RUN_STREAMS). True when this
+    process has run a script, whether or not anything was left to write."""
+    streams = list(_EARLIER_RUN_STREAMS)
+    _flush(streams)
+    return bool(streams)
 
 
 atexit.register(flush_run_streams)
@@ -519,8 +521,8 @@ def _rerun_source(project: core.Project, rerun_of: str) -> tuple[dict, str, Path
     if not isinstance(script, dict) or not script.get("snapshot") or not script.get("path"):
         raise core.LabError("rerun_unknown", f"no recorded run {rerun_of!r} with a code snapshot",
                             hint="lab_status lists run ids")
-    code_root = (project.runs / rerun_of / "code").resolve()
-    snapshot = project.path(str(script["snapshot"])).resolve()
+    code_root = core._resolved(project.runs / rerun_of / "code")
+    snapshot = core._resolved(project.path(str(script["snapshot"])))
     if code_root not in snapshot.parents or not snapshot.is_file():
         raise core.LabError("rerun_snapshot", f"run {rerun_of} has no code snapshot under "
                             f"runs/{rerun_of}/code")
@@ -542,17 +544,21 @@ def _remove_run_dir(run_dir: Path) -> None:
         run_dir.rmdir()  # empty, but made unreadable to the kit by its own umask: rmtree cannot list it
 
 
-# Windows' errors for a path beyond its length limit: "path not found", "file name too long".
+# Windows' errors for a path beyond its length limit: "path not found", "file name too long". Only
+# its os functions say them: open() there reports a C runtime errno and no Windows error, so a
+# name longer than file systems hold (255 bytes or UTF-16 units) is told by its own length.
 _WINDOWS_PATH_TOO_LONG = (3, 206)
+_NAME_MAX = 255
 
 
-def _write_failure_hint(exc: Exception) -> str | None:
+def _write_failure_hint(exc: Exception, path: Path) -> str | None:
     if isinstance(exc, UnicodeError):
         # POSIX hands over arguments, names and variables it cannot decode with surrogates in them.
         return "use a title, a script name and LAB_ACTOR/LAB_SESSION values that are valid UTF-8"
     if not isinstance(exc, OSError):
         return None
-    if exc.errno == errno.ENAMETOOLONG or getattr(exc, "winerror", None) in _WINDOWS_PATH_TOO_LONG:
+    if (exc.errno == errno.ENAMETOOLONG or getattr(exc, "winerror", None) in _WINDOWS_PATH_TOO_LONG
+            or any(len(part) > _NAME_MAX for part in path.parts)):
         return "shorten the script's path"
     if exc.errno == errno.ENOSPC:
         return "free some space on the disk that holds the project"
@@ -609,7 +615,7 @@ def _execute_locked(project, *, script_rel, exec_file, code_bytes, title, declar
         except (OSError, ValueError) as exc:
             _remove_run_dir(run_dir)
             raise core.LabError(code, f"could not write the {what} of {script_rel}: {exc}",
-                                hint=_write_failure_hint(exc)) from exc
+                                hint=_write_failure_hint(exc, snapshot)) from exc
 
         # Code of a rerun keeps the snapshot path so tracebacks show the lines that actually ran.
         filename = exec_file if rerun_of else project.path(script_rel)
@@ -704,10 +710,10 @@ def _cancelled(message: str = "interrupted") -> dict:
 
 def _classify(failure, guard, timeout, filename) -> tuple[str, dict | None]:
     # By the guard's flags (see _platform.RunControl), not by what the script ended with. A deadline
-    # counts when it passed while the script could still be interrupted — whether or not that
-    # stopped the script — and a cancel that came before it had passed takes the region's one
-    # interruption, after which the deadline no longer counts. So a run with both flags set passed
-    # its deadline before anything stopped it: `timeout`.
+    # counts when its signal or its time came while the script could still be interrupted —
+    # whether or not that stopped the script — and a cancel that came before it takes the region's
+    # one interruption, after which the deadline no longer counts. So a run with both flags set
+    # reached its deadline before anything stopped it: `timeout`.
     if guard.expired:
         return "timeout", {"type": "Timeout", "message": f"exceeded {timeout:.0f} s", "line": None,
                            "summary": f"timed out after {timeout:.0f} s"}

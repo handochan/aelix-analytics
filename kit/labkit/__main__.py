@@ -26,11 +26,11 @@ TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "template"
 def _emit(obj: dict) -> None:
     # What a thread a script left running wrote through its run's stream goes out first: the
     # extension takes the last line that parses as JSON, and main had those lines ahead of it, as
-    # its scripts wrote through this process's own stream.
+    # its scripts wrote through this process's own stream. Such a thread's text need not end its
+    # line, so after a run the result starts a line of its own.
     runner = sys.modules.get(f"{__package__}.runner")
-    if runner is not None:
-        runner.flush_run_streams()
-    sys.stdout.write(json.dumps(obj, ensure_ascii=False, default=str) + "\n")
+    lead = "\n" if runner is not None and runner.flush_run_streams() else ""
+    sys.stdout.write(lead + json.dumps(obj, ensure_ascii=False, default=str) + "\n")
     sys.stdout.flush()
 
 
