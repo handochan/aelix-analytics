@@ -18,9 +18,11 @@
 “공식”은 유지관리·설치·호환성·검증 책임을 명시한다는 의미다. 샌드박스·완전 재현·분석 결론 인증을 뜻하지 않는다.
 
 지원 플랫폼은 Linux·macOS·Windows로 확정했다([ADR-0002](decisions/0002-python-support-and-platform-scope.md)).
-이는 지원 목표이며, 지원표에는 실제 설치·실행 증거가 있는 범위만 검증됨으로 적는다. 현재 증거는 macOS arm64 / Python 3.12 하나뿐이다.
-Windows는 아직 동작하지 않는다. `kit/labkit/core.py:12`의 `import fcntl`이 가드 없는 최상위 import이므로 확장 로드 자체가 실패하며,
-`flock` 잠금·`SIGALRM` 타임아웃·`killpg` 종료·POSIX 셸 진입점도 함께 이식해야 한다. Aelix 호스트의 Windows 지원을 이 확장의 Windows 지원으로 옮겨 적지 않는다.
+이는 지원 목표이며, 지원표에는 실제 설치·실행 증거가 있는 범위만 검증됨으로 적는다.
+플랫폼에 따라 달라지는 잠금·기록 교체·자식 프로세스 제어·run 제한 시간과 취소는 이식 가능한 경계 뒤에 있고
+([ADR-0003](decisions/0003-portable-boundaries-and-in-process-kit-loading.md)), Linux·macOS·Windows에서 실행한 범위와
+Windows의 선언된 한계, 실행하지 않은 것은 [현재 계약](CONTRACTS.md)의 F·G절에 있다. 사람용 진입점 `bin/lab`은 아직 POSIX 셸
+스크립트이고, 대화형 Windows 콘솔과 Windows의 실제 aelix 세션은 실행하지 않았다. Aelix 호스트의 Windows 지원을 이 확장의 Windows 지원으로 옮겨 적지 않는다.
 “로컬 모델 지원”도 시험한 모델·양자화·context 설정·도구 호출 경로를 명시한다.
 
 현재 사용자가 지정한 지원 하단 기준은 **Qwen3.8 27B**다. 정확한 serving ID·버전·양자화·backend·tokenizer·실제 context 설정을 고정한 검증이 필요하다.
