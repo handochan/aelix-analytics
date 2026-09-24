@@ -1,0 +1,1606 @@
+{
+ "record_kind": "aelix-analytics-platform-measurement",
+ "observed_at": "2026-09-24T19:12:04Z",
+ "issue": "https://github.com/handochan/aelix-analytics/issues/8",
+ "pull_request": "https://github.com/handochan/aelix-analytics/pull/31",
+ "measured_revision": "9bc9d0fbf42614501fee634c2f5eed35ca56eb6b",
+ "measurement_revision": "0cf0660568b08f6d88468ae6864bd3f87acbbfe7",
+ "ci_run": {
+  "id": "36046510524",
+  "url": "https://github.com/handochan/aelix-analytics/actions/runs/36046510524"
+ },
+ "platforms": {
+  "linux": {
+   "where": "GitHub Actions linux, run 36046510524",
+   "smoke_py3_12": {
+    "file_sha256": "35b922572c85d6c0a283648e1820f9d9a6f5a90809d301c296d86c82d3096fb7",
+    "command": [
+     "python3",
+     "tools/platform_smoke.py",
+     "--gate",
+     "required",
+     "--output",
+     "measurement/smoke-Linux-py3.12.json"
+    ],
+    "mode": "full",
+    "source": {
+     "head": "0cf0660568b08f6d88468ae6864bd3f87acbbfe7",
+     "dirty": false
+    },
+    "generated_at": "2026-09-24T19:12:21+00:00",
+    "environment": {
+     "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+     "system": "Linux",
+     "release": "6.17.0-1022-azure",
+     "machine": "x86_64",
+     "python": "3.12.3",
+     "implementation": "CPython",
+     "executable": "/home/runner/work/aelix-analytics/aelix-analytics/.venv/bin/python3",
+     "utf8_mode": 0,
+     "preferred_encoding": "UTF-8",
+     "filesystem_encoding": "utf-8",
+     "stdout_encoding": "utf-8",
+     "cpu_count": 2,
+     "uv": "uv 0.11.19 (x86_64-unknown-linux-gnu)"
+    },
+    "summary": {
+     "holds": 25,
+     "violated": 0,
+     "declared_limitation": 0,
+     "observed": 6,
+     "not_run": 0
+    },
+    "required": {
+     "platform": "posix",
+     "violated": [],
+     "declared_limitation": [],
+     "not_run": [],
+     "hold": true,
+     "checks": 25
+    },
+    "checks": [
+     {
+      "name": "imports_without_analysis_libraries",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.0
+     },
+     {
+      "name": "lock_excludes_another_process",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 2.07
+     },
+     {
+      "name": "lock_released_when_its_holder_is_killed",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.05
+     },
+     {
+      "name": "replace_while_a_reader_holds_the_file",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 5.79
+     },
+     {
+      "name": "liveness_of_a_live_an_exited_and_a_bogus_pid",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.0
+     },
+     {
+      "name": "interrupt_asks_a_python_child_or_declines",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.06
+     },
+     {
+      "name": "kill_tree_ends_the_child_and_its_grandchild",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.05
+     },
+     {
+      "name": "kill_tree_after_the_leader_exited",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.15
+     },
+     {
+      "name": "deadline_interrupts_python_code",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 1.0
+     },
+     {
+      "name": "deadline_interrupts_a_sleep",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 1.0
+     },
+     {
+      "name": "the_cancel_request_wakes_a_sleeping_run",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.0
+     },
+     {
+      "name": "the_guard_records_outside_regions_and_interrupts_inside_once",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.6
+     },
+     {
+      "name": "base_env_is_enough_to_start_a_child",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.05
+     },
+     {
+      "name": "device_names_on_this_file_system",
+      "group": "ports",
+      "result": "observed",
+      "seconds": 0.0,
+      "observed": {
+       "con": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "nul": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "con.txt": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "nul.parquet": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "con_.png": {
+        "written": true,
+        "listed_as_a_file": true
+       }
+      }
+     },
+     {
+      "name": "long_names_on_this_file_system",
+      "group": "ports",
+      "result": "observed",
+      "seconds": 0.0,
+      "observed": {
+       "name_300.open": {
+        "made": false,
+        "type": "OSError",
+        "errno": 36,
+        "winerror": null,
+        "strerror": "File name too long"
+       },
+       "name_300.mkdir": {
+        "made": false,
+        "type": "OSError",
+        "errno": 36,
+        "winerror": null,
+        "strerror": "File name too long"
+       },
+       "path_over_260.makedirs": {
+        "made": true
+       },
+       "path_over_260.open": {
+        "made": true
+       },
+       "path_over_260.length": 285
+      }
+     },
+     {
+      "name": "file_url_leads_back_to_the_file",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.0
+     },
+     {
+      "name": "utf8_survives_a_pipe",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.08
+     },
+     {
+      "name": "cli_end_to_end",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 8.04
+     },
+     {
+      "name": "cli_run_timeout_in_python_code",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 3.63
+     },
+     {
+      "name": "cli_run_timeout_in_a_blocking_duckdb_query",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 3.89
+     },
+     {
+      "name": "cli_cancel_the_way_the_extension_does",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 2.17
+     },
+     {
+      "name": "cli_cancel_reaches_a_run_inside_a_regular_expression",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 2.72
+     },
+     {
+      "name": "cli_cancel_reaches_a_run_waiting_on_a_subprocess",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 2.72
+     },
+     {
+      "name": "cli_deadline_when_the_script_ignores_sigint",
+      "group": "cli",
+      "result": "observed",
+      "seconds": 2.64,
+      "observed": {
+       "status": "timeout",
+       "exit": 3,
+       "recorded_s": 2.002,
+       "cli_seconds": 2.6,
+       "script_finished": false
+      }
+     },
+     {
+      "name": "cli_concurrent_runs_are_serialized",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 5.38
+     },
+     {
+      "name": "cli_refuses_a_new_reserved_dataset_name",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 0.15
+     },
+     {
+      "name": "cli_writes_a_reserved_chart_id_to_a_portable_file",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 2.15
+     },
+     {
+      "name": "cli_a_script_saving_a_reserved_name_is_warned_about",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 0.72
+     },
+     {
+      "name": "probe_interrupt_through_uv_run",
+      "group": "probe",
+      "result": "observed",
+      "seconds": 1.27,
+      "observed": {
+       "uv_exit_code": 130,
+       "uv_exit_code_hex": "0x82",
+       "seconds_to_exit": 1.22,
+       "child_marker": "handler-finished:2",
+       "child_gone": true
+      }
+     },
+     {
+      "name": "probe_cancel_request_file_through_uv_run",
+      "group": "probe",
+      "result": "observed",
+      "seconds": 1.17,
+      "observed": {
+       "uv_exit_code": 130,
+       "uv_exit_code_hex": "0x82",
+       "seconds_to_exit": 1.12,
+       "child_marker": "handler-finished:2",
+       "child_gone": true
+      }
+     },
+     {
+      "name": "probe_waking_a_sleeping_main_thread",
+      "group": "probe",
+      "result": "observed",
+      "seconds": 11.0,
+      "observed": {
+       "_thread.interrupt_main": {
+        "interrupted_by": "Interrupted",
+        "seconds": 10.0
+       },
+       "signal.pthread_kill(main, SIGINT)": {
+        "interrupted_by": "Interrupted",
+        "seconds": 1.0
+       }
+      }
+     }
+    ]
+   },
+   "suite_py3_12": {
+    "file_sha256": "87cfe8c3e4f826520b583ab50bc408af3ee8a69b4a099db7c8540543b9e1ff74",
+    "timestamp": "2026-09-24T19:13:20.345029+00:00",
+    "seconds": 395.866,
+    "counts": {
+     "pass": 454,
+     "fail": 0,
+     "skip": 2
+    },
+    "failed": [],
+    "skipped_by_reason": {
+     "collection skipped": 1,
+     "before 3.14 a `with` calls __enter__ without a CALL, and no signal is handled between its acquiring and the block": 1
+    }
+   },
+   "aelix_0_1_0b2_py3_12": {
+    "file_sha256": "ed17ed90136e9423978f06f8927f42574385766f2d24e685a4118bb1341aa94b",
+    "timestamp": "2026-09-24T19:19:57.643026+00:00",
+    "seconds": 15.431,
+    "counts": {
+     "pass": 11,
+     "fail": 0,
+     "skip": 0
+    },
+    "failed": [],
+    "skipped_by_reason": {}
+   },
+   "stdlib_only_smoke_py3_11": {
+    "file_sha256": "a10332abcf6436329b55cbf6923dd2526d3f57d8c9f52e6b15cff235fccaa0e2",
+    "command": [
+     "python",
+     "tools/platform_smoke.py",
+     "--stdlib-only",
+     "--gate",
+     "required",
+     "--output",
+     "measurement/stdlib-Linux-py3.11.json"
+    ],
+    "mode": "stdlib-only",
+    "source": {
+     "head": "0cf0660568b08f6d88468ae6864bd3f87acbbfe7",
+     "dirty": false
+    },
+    "generated_at": "2026-09-24T19:12:11+00:00",
+    "environment": {
+     "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+     "system": "Linux",
+     "release": "6.17.0-1022-azure",
+     "machine": "x86_64",
+     "python": "3.11.16",
+     "implementation": "CPython",
+     "executable": "/opt/hostedtoolcache/Python/3.11.16/x64/bin/python",
+     "utf8_mode": 0,
+     "preferred_encoding": "UTF-8",
+     "filesystem_encoding": "utf-8",
+     "stdout_encoding": "utf-8",
+     "cpu_count": 2,
+     "uv": null
+    },
+    "summary": {
+     "holds": 15,
+     "violated": 0,
+     "declared_limitation": 0,
+     "observed": 3,
+     "not_run": 2
+    },
+    "required": {
+     "platform": "posix",
+     "violated": [],
+     "declared_limitation": [],
+     "not_run": [],
+     "hold": true,
+     "checks": 15
+    },
+    "checks": [
+     {
+      "name": "imports_without_analysis_libraries",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.0
+     },
+     {
+      "name": "lock_excludes_another_process",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 2.08
+     },
+     {
+      "name": "lock_released_when_its_holder_is_killed",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.05
+     },
+     {
+      "name": "replace_while_a_reader_holds_the_file",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 5.8
+     },
+     {
+      "name": "liveness_of_a_live_an_exited_and_a_bogus_pid",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.0
+     },
+     {
+      "name": "interrupt_asks_a_python_child_or_declines",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.06
+     },
+     {
+      "name": "kill_tree_ends_the_child_and_its_grandchild",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.05
+     },
+     {
+      "name": "kill_tree_after_the_leader_exited",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.15
+     },
+     {
+      "name": "deadline_interrupts_python_code",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 1.0
+     },
+     {
+      "name": "deadline_interrupts_a_sleep",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 1.0
+     },
+     {
+      "name": "the_cancel_request_wakes_a_sleeping_run",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.0
+     },
+     {
+      "name": "the_guard_records_outside_regions_and_interrupts_inside_once",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.6
+     },
+     {
+      "name": "base_env_is_enough_to_start_a_child",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.03
+     },
+     {
+      "name": "device_names_on_this_file_system",
+      "group": "ports",
+      "result": "observed",
+      "seconds": 0.0,
+      "observed": {
+       "con": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "nul": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "con.txt": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "nul.parquet": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "con_.png": {
+        "written": true,
+        "listed_as_a_file": true
+       }
+      }
+     },
+     {
+      "name": "long_names_on_this_file_system",
+      "group": "ports",
+      "result": "observed",
+      "seconds": 0.0,
+      "observed": {
+       "name_300.open": {
+        "made": false,
+        "type": "OSError",
+        "errno": 36,
+        "winerror": null,
+        "strerror": "File name too long"
+       },
+       "name_300.mkdir": {
+        "made": false,
+        "type": "OSError",
+        "errno": 36,
+        "winerror": null,
+        "strerror": "File name too long"
+       },
+       "path_over_260.makedirs": {
+        "made": true
+       },
+       "path_over_260.open": {
+        "made": true
+       },
+       "path_over_260.length": 285
+      }
+     },
+     {
+      "name": "file_url_leads_back_to_the_file",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.0
+     },
+     {
+      "name": "utf8_survives_a_pipe",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.09
+     },
+     {
+      "name": "probe_interrupt_through_uv_run",
+      "group": "probe",
+      "result": "not_run",
+      "seconds": null,
+      "reason": "uv is not on PATH"
+     },
+     {
+      "name": "probe_cancel_request_file_through_uv_run",
+      "group": "probe",
+      "result": "not_run",
+      "seconds": null,
+      "reason": "uv is not on PATH"
+     },
+     {
+      "name": "probe_waking_a_sleeping_main_thread",
+      "group": "probe",
+      "result": "observed",
+      "seconds": 11.0,
+      "observed": {
+       "_thread.interrupt_main": {
+        "interrupted_by": "Interrupted",
+        "seconds": 10.0
+       },
+       "signal.pthread_kill(main, SIGINT)": {
+        "interrupted_by": "Interrupted",
+        "seconds": 1.0
+       }
+      }
+     }
+    ]
+   }
+  },
+  "windows": {
+   "where": "GitHub Actions windows, run 36046510524",
+   "smoke_py3_12": {
+    "file_sha256": "0e30a3e1866626d5c5aa3455c3b4ed68f5ca8aace9c5c77bb4ad3528aa18c60e",
+    "command": [
+     "python.exe",
+     "tools/platform_smoke.py",
+     "--gate",
+     "required",
+     "--output",
+     "measurement/smoke-Windows-py3.12.json"
+    ],
+    "mode": "full",
+    "source": {
+     "head": "0cf0660568b08f6d88468ae6864bd3f87acbbfe7",
+     "dirty": false
+    },
+    "generated_at": "2026-09-24T19:12:39+00:00",
+    "environment": {
+     "platform": "Windows-2025Server-10.0.26100-SP0",
+     "system": "Windows",
+     "release": "2025Server",
+     "machine": "AMD64",
+     "python": "3.12.10",
+     "implementation": "CPython",
+     "executable": "D:\\a\\aelix-analytics\\aelix-analytics\\.venv\\Scripts\\python.exe",
+     "utf8_mode": 0,
+     "preferred_encoding": "cp1252",
+     "filesystem_encoding": "utf-8",
+     "stdout_encoding": "utf-8",
+     "cpu_count": 2,
+     "uv": "uv 0.11.19 (7b2cff1c3 2026-06-03 x86_64-pc-windows-msvc)",
+     "windows": [
+      "2025Server",
+      "10.0.26100",
+      "SP0",
+      "Multiprocessor Free"
+     ],
+     "console_code_pages": {
+      "input": 65001,
+      "output": 65001
+     }
+    },
+    "summary": {
+     "holds": 21,
+     "violated": 0,
+     "declared_limitation": 3,
+     "observed": 7,
+     "not_run": 0
+    },
+    "required": {
+     "platform": "windows",
+     "violated": [],
+     "declared_limitation": [
+      "kill_tree_after_the_leader_exited",
+      "cli_cancel_reaches_a_run_inside_a_regular_expression",
+      "cli_cancel_reaches_a_run_waiting_on_a_subprocess"
+     ],
+     "not_run": [],
+     "hold": true,
+     "checks": 24
+    },
+    "checks": [
+     {
+      "name": "imports_without_analysis_libraries",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.0
+     },
+     {
+      "name": "lock_excludes_another_process",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 2.13
+     },
+     {
+      "name": "lock_released_when_its_holder_is_killed",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.11
+     },
+     {
+      "name": "replace_while_a_reader_holds_the_file",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 5.84
+     },
+     {
+      "name": "liveness_of_a_live_an_exited_and_a_bogus_pid",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.04
+     },
+     {
+      "name": "interrupt_asks_a_python_child_or_declines",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 3.13
+     },
+     {
+      "name": "kill_tree_ends_the_child_and_its_grandchild",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.17
+     },
+     {
+      "name": "kill_tree_after_the_leader_exited",
+      "group": "ports",
+      "result": "declared_limitation",
+      "seconds": 15.2,
+      "declared": "docs/CONTRACTS.md — `taskkill /T`는 부모가 이미 끝난 자손에 닿지 않습니다",
+      "observed": {
+       "leader_exit_code": 0,
+       "grandchild_gone": false,
+       "diagnostic": "labkit: could not end the process tree of pid 664; its descendants may still be running (the wrapper had already exited when taskkill looked; a descendant of it may still be running)"
+      }
+     },
+     {
+      "name": "deadline_interrupts_python_code",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 1.01
+     },
+     {
+      "name": "deadline_interrupts_a_sleep",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 1.0
+     },
+     {
+      "name": "the_cancel_request_wakes_a_sleeping_run",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 1.06
+     },
+     {
+      "name": "the_guard_records_outside_regions_and_interrupts_inside_once",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 1.2
+     },
+     {
+      "name": "base_env_is_enough_to_start_a_child",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.14
+     },
+     {
+      "name": "device_names_on_this_file_system",
+      "group": "ports",
+      "result": "observed",
+      "seconds": 0.0,
+      "observed": {
+       "con": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "nul": {
+        "written": true,
+        "listed_as_a_file": false
+       },
+       "con.txt": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "nul.parquet": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "con_.png": {
+        "written": true,
+        "listed_as_a_file": true
+       }
+      }
+     },
+     {
+      "name": "long_names_on_this_file_system",
+      "group": "ports",
+      "result": "observed",
+      "seconds": 0.0,
+      "observed": {
+       "name_300.open": {
+        "made": false,
+        "type": "OSError",
+        "errno": 22,
+        "winerror": null,
+        "strerror": "Invalid argument"
+       },
+       "name_300.mkdir": {
+        "made": false,
+        "type": "OSError",
+        "errno": 22,
+        "winerror": 123,
+        "strerror": "The filename, directory name, or volume label syntax is incorrect"
+       },
+       "path_over_260.makedirs": {
+        "made": true
+       },
+       "path_over_260.open": {
+        "made": true
+       },
+       "path_over_260.length": 276
+      }
+     },
+     {
+      "name": "file_url_leads_back_to_the_file",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.0
+     },
+     {
+      "name": "utf8_survives_a_pipe",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.17
+     },
+     {
+      "name": "cli_end_to_end",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 34.14
+     },
+     {
+      "name": "cli_run_timeout_in_python_code",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 4.21
+     },
+     {
+      "name": "cli_run_timeout_in_a_blocking_duckdb_query",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 4.17
+     },
+     {
+      "name": "cli_cancel_the_way_the_extension_does",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 2.48
+     },
+     {
+      "name": "cli_cancel_reaches_a_run_inside_a_regular_expression",
+      "group": "cli",
+      "result": "declared_limitation",
+      "seconds": 12.0,
+      "declared": "docs/CONTRACTS.md — GIL을 쥔 채 도는 C 코드 안의 주 스레드에는 그 호출이 반환할 때까지 취소가 닿지 않습니다",
+      "observed": {
+       "asked": true,
+       "recorded_status": "running",
+       "listed_status": "incomplete",
+       "exit_code": 1,
+       "exit_code_hex": "0x1",
+       "forced": true,
+       "seconds_to_exit": 10.09,
+       "kit_process_gone": true,
+       "stdout_tail": null
+      }
+     },
+     {
+      "name": "cli_cancel_reaches_a_run_waiting_on_a_subprocess",
+      "group": "cli",
+      "result": "declared_limitation",
+      "seconds": 12.0,
+      "declared": "docs/CONTRACTS.md — SIGINT 이벤트를 보지 않는 대기(자식 프로세스를 기다리는 `subprocess` 호출 등)는 취소가 와도 그 대기가 끝날 때까지 이어집니다",
+      "observed": {
+       "asked": true,
+       "recorded_status": "running",
+       "listed_status": "incomplete",
+       "exit_code": 1,
+       "exit_code_hex": "0x1",
+       "forced": true,
+       "seconds_to_exit": 10.07,
+       "kit_process_gone": true,
+       "stdout_tail": null
+      }
+     },
+     {
+      "name": "cli_deadline_when_the_script_ignores_sigint",
+      "group": "cli",
+      "result": "observed",
+      "seconds": 9.29,
+      "observed": {
+       "status": "timeout",
+       "exit": 3,
+       "recorded_s": 8.006,
+       "cli_seconds": 9.3,
+       "script_finished": true
+      }
+     },
+     {
+      "name": "cli_concurrent_runs_are_serialized",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 6.94
+     },
+     {
+      "name": "cli_refuses_a_new_reserved_dataset_name",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 0.29
+     },
+     {
+      "name": "cli_writes_a_reserved_chart_id_to_a_portable_file",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 3.72
+     },
+     {
+      "name": "cli_a_script_saving_a_reserved_name_is_warned_about",
+      "group": "cli",
+      "result": "observed",
+      "seconds": 1.55,
+      "observed": {
+       "status": "ok",
+       "exit": 0,
+       "warned": true,
+       "error": null
+      }
+     },
+     {
+      "name": "probe_interrupt_through_uv_run",
+      "group": "probe",
+      "result": "observed",
+      "seconds": 11.24,
+      "observed": {
+       "uv_exit_code": 3221225786,
+       "uv_exit_code_hex": "0xc000013a",
+       "seconds_to_exit": 0.0,
+       "child_marker": null,
+       "child_gone": false
+      }
+     },
+     {
+      "name": "probe_cancel_request_file_through_uv_run",
+      "group": "probe",
+      "result": "observed",
+      "seconds": 1.2,
+      "observed": {
+       "uv_exit_code": 130,
+       "uv_exit_code_hex": "0x82",
+       "seconds_to_exit": 1.09,
+       "child_marker": "handler-finished:2",
+       "child_gone": true
+      }
+     },
+     {
+      "name": "probe_waking_a_sleeping_main_thread",
+      "group": "probe",
+      "result": "observed",
+      "seconds": 11.0,
+      "observed": {
+       "_thread.interrupt_main": {
+        "interrupted_by": "Interrupted",
+        "seconds": 10.0
+       },
+       "signal.raise_signal(SIGINT)": {
+        "interrupted_by": "Interrupted",
+        "seconds": 1.0
+       }
+      }
+     }
+    ]
+   },
+   "suite_py3_12": {
+    "file_sha256": "f69df71987e98e1d90b73695f876c39897b436e9c991cb3a92026a971d5320a9",
+    "timestamp": "2026-09-24T19:15:10.042907+00:00",
+    "seconds": 569.9,
+    "counts": {
+     "pass": 359,
+     "fail": 0,
+     "skip": 96
+    },
+    "failed": [],
+    "skipped_by_reason": {
+     "the POSIX guard's signals": 69,
+     "names POSIX can hold and Windows reads otherwise": 6,
+     "a directory symlink needs privileges on Windows": 6,
+     "the delivery is replaced with pthread_kill": 2,
+     "the stub guards stand in for the POSIX one": 2,
+     "collection skipped": 1,
+     "SIGALRM is POSIX": 1,
+     "a directory the process cannot list: POSIX permissions, not root": 1,
+     "process groups are a POSIX concept": 1,
+     "declared: on Windows the ask is a Python thread, which a regular expression holding the GIL starves": 1,
+     "before 3.14 a `with` calls __enter__ without a CALL, and no signal is handled between its acquiring and the block": 1,
+     "this file system refuses a name that is not UTF-8: UnicodeDecodeError('utf-8', b'C:\\\\Users\\\\runneradmin\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-runneradmin\\\\pytest-0\\\\test_a_scanned_name_a_record_c0\\\\proj\\\\data\\\\raw\\\\caf\\xe9.csv', 120, 121, 'invalid continuation byte')": 1,
+     "this file system refuses a name that is not UTF-8: UnicodeDecodeError('utf-8', b'C:\\\\Users\\\\runneradmin\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-runneradmin\\\\pytest-0\\\\test_a_scanned_name_in_a_direc0\\\\proj\\\\data\\\\raw\\\\caf\\xe9', 120, 121, 'unexpected end of data')": 1,
+     "bin/lab is a POSIX shell script": 1,
+     "the broken guard stands in for the POSIX one": 1,
+     "the stub guard stands in for the POSIX one": 1
+    }
+   },
+   "aelix_0_1_0b2_py3_12": {
+    "file_sha256": "92f763f436f4163c7d9bda981c8a295ecda3fab6d44193f5672dbcc5ef83b5c6",
+    "timestamp": "2026-09-24T19:24:49.669961+00:00",
+    "seconds": 104.721,
+    "counts": {
+     "pass": 11,
+     "fail": 0,
+     "skip": 0
+    },
+    "failed": [],
+    "skipped_by_reason": {}
+   },
+   "stdlib_only_smoke_py3_11": {
+    "file_sha256": "bfb00f52d9c705fe26e8d9f8002267690c9cd6b08f7ccf64003b6ad87cf44ad6",
+    "command": [
+     "python.exe",
+     "tools/platform_smoke.py",
+     "--stdlib-only",
+     "--gate",
+     "required",
+     "--output",
+     "measurement/stdlib-Windows-py3.11.json"
+    ],
+    "mode": "stdlib-only",
+    "source": {
+     "head": "0cf0660568b08f6d88468ae6864bd3f87acbbfe7",
+     "dirty": false
+    },
+    "generated_at": "2026-09-24T19:12:31+00:00",
+    "environment": {
+     "platform": "Windows-10-10.0.26100-SP0",
+     "system": "Windows",
+     "release": "10",
+     "machine": "AMD64",
+     "python": "3.11.9",
+     "implementation": "CPython",
+     "executable": "C:\\hostedtoolcache\\windows\\Python\\3.11.9\\x64\\python.exe",
+     "utf8_mode": 0,
+     "preferred_encoding": "cp1252",
+     "filesystem_encoding": "utf-8",
+     "stdout_encoding": "utf-8",
+     "cpu_count": 2,
+     "uv": null,
+     "windows": [
+      "10",
+      "10.0.26100",
+      "SP0",
+      "Multiprocessor Free"
+     ],
+     "console_code_pages": {
+      "input": 65001,
+      "output": 65001
+     }
+    },
+    "summary": {
+     "holds": 14,
+     "violated": 0,
+     "declared_limitation": 1,
+     "observed": 3,
+     "not_run": 2
+    },
+    "required": {
+     "platform": "windows",
+     "violated": [],
+     "declared_limitation": [
+      "kill_tree_after_the_leader_exited"
+     ],
+     "not_run": [],
+     "hold": true,
+     "checks": 15
+    },
+    "checks": [
+     {
+      "name": "imports_without_analysis_libraries",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.0
+     },
+     {
+      "name": "lock_excludes_another_process",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 2.12
+     },
+     {
+      "name": "lock_released_when_its_holder_is_killed",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.14
+     },
+     {
+      "name": "replace_while_a_reader_holds_the_file",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 5.82
+     },
+     {
+      "name": "liveness_of_a_live_an_exited_and_a_bogus_pid",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.12
+     },
+     {
+      "name": "interrupt_asks_a_python_child_or_declines",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 3.23
+     },
+     {
+      "name": "kill_tree_ends_the_child_and_its_grandchild",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.14
+     },
+     {
+      "name": "kill_tree_after_the_leader_exited",
+      "group": "ports",
+      "result": "declared_limitation",
+      "seconds": 15.31,
+      "declared": "docs/CONTRACTS.md — `taskkill /T`는 부모가 이미 끝난 자손에 닿지 않습니다",
+      "observed": {
+       "leader_exit_code": 0,
+       "grandchild_gone": false,
+       "diagnostic": "labkit: could not end the process tree of pid 6376; its descendants may still be running (the wrapper had already exited when taskkill looked; a descendant of it may still be running)"
+      }
+     },
+     {
+      "name": "deadline_interrupts_python_code",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 1.05
+     },
+     {
+      "name": "deadline_interrupts_a_sleep",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 1.0
+     },
+     {
+      "name": "the_cancel_request_wakes_a_sleeping_run",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 1.07
+     },
+     {
+      "name": "the_guard_records_outside_regions_and_interrupts_inside_once",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 1.2
+     },
+     {
+      "name": "base_env_is_enough_to_start_a_child",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.08
+     },
+     {
+      "name": "device_names_on_this_file_system",
+      "group": "ports",
+      "result": "observed",
+      "seconds": 0.0,
+      "observed": {
+       "con": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "nul": {
+        "written": true,
+        "listed_as_a_file": false
+       },
+       "con.txt": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "nul.parquet": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "con_.png": {
+        "written": true,
+        "listed_as_a_file": true
+       }
+      }
+     },
+     {
+      "name": "long_names_on_this_file_system",
+      "group": "ports",
+      "result": "observed",
+      "seconds": 0.0,
+      "observed": {
+       "name_300.open": {
+        "made": false,
+        "type": "OSError",
+        "errno": 22,
+        "winerror": null,
+        "strerror": "Invalid argument"
+       },
+       "name_300.mkdir": {
+        "made": false,
+        "type": "OSError",
+        "errno": 22,
+        "winerror": 123,
+        "strerror": "The filename, directory name, or volume label syntax is incorrect"
+       },
+       "path_over_260.makedirs": {
+        "made": true
+       },
+       "path_over_260.open": {
+        "made": true
+       },
+       "path_over_260.length": 276
+      }
+     },
+     {
+      "name": "file_url_leads_back_to_the_file",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.0
+     },
+     {
+      "name": "utf8_survives_a_pipe",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.17
+     },
+     {
+      "name": "probe_interrupt_through_uv_run",
+      "group": "probe",
+      "result": "not_run",
+      "seconds": null,
+      "reason": "uv is not on PATH"
+     },
+     {
+      "name": "probe_cancel_request_file_through_uv_run",
+      "group": "probe",
+      "result": "not_run",
+      "seconds": null,
+      "reason": "uv is not on PATH"
+     },
+     {
+      "name": "probe_waking_a_sleeping_main_thread",
+      "group": "probe",
+      "result": "observed",
+      "seconds": 11.01,
+      "observed": {
+       "_thread.interrupt_main": {
+        "interrupted_by": "Interrupted",
+        "seconds": 10.0
+       },
+       "signal.raise_signal(SIGINT)": {
+        "interrupted_by": "Interrupted",
+        "seconds": 1.01
+       }
+      }
+     }
+    ]
+   }
+  },
+  "macos": {
+   "where": "developer machine",
+   "smoke_py3_12": {
+    "file_sha256": "7408f3038fb9f0f0f800e909729a3ef2aecd13fa5b4957789dcde10a80c268f8",
+    "command": [
+     "python3",
+     "tools/platform_smoke.py",
+     "--gate",
+     "required",
+     "--output",
+     "<output dir>/smoke-macOS-py3.12.json"
+    ],
+    "mode": "full",
+    "source": {
+     "head": "0cf0660568b08f6d88468ae6864bd3f87acbbfe7",
+     "dirty": false
+    },
+    "generated_at": "2026-09-24T19:31:32+00:00",
+    "environment": {
+     "platform": "macOS-26.6.2-arm64-arm-64bit",
+     "system": "Darwin",
+     "release": "25.6.0",
+     "machine": "arm64",
+     "python": "3.12.13",
+     "implementation": "CPython",
+     "executable": "<measurement worktree>/.venv/bin/python3",
+     "utf8_mode": 0,
+     "preferred_encoding": "UTF-8",
+     "filesystem_encoding": "utf-8",
+     "stdout_encoding": "utf-8",
+     "cpu_count": 18,
+     "uv": "uv 0.11.19 (Homebrew 2026-06-03 aarch64-apple-darwin)",
+     "macos": "26.6.2"
+    },
+    "summary": {
+     "holds": 25,
+     "violated": 0,
+     "declared_limitation": 0,
+     "observed": 6,
+     "not_run": 0
+    },
+    "required": {
+     "platform": "posix",
+     "violated": [],
+     "declared_limitation": [],
+     "not_run": [],
+     "hold": true,
+     "checks": 25
+    },
+    "checks": [
+     {
+      "name": "imports_without_analysis_libraries",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.0
+     },
+     {
+      "name": "lock_excludes_another_process",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 2.04
+     },
+     {
+      "name": "lock_released_when_its_holder_is_killed",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.06
+     },
+     {
+      "name": "replace_while_a_reader_holds_the_file",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 5.81
+     },
+     {
+      "name": "liveness_of_a_live_an_exited_and_a_bogus_pid",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.0
+     },
+     {
+      "name": "interrupt_asks_a_python_child_or_declines",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.06
+     },
+     {
+      "name": "kill_tree_ends_the_child_and_its_grandchild",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.06
+     },
+     {
+      "name": "kill_tree_after_the_leader_exited",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.16
+     },
+     {
+      "name": "deadline_interrupts_python_code",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 1.0
+     },
+     {
+      "name": "deadline_interrupts_a_sleep",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 1.0
+     },
+     {
+      "name": "the_cancel_request_wakes_a_sleeping_run",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.0
+     },
+     {
+      "name": "the_guard_records_outside_regions_and_interrupts_inside_once",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.61
+     },
+     {
+      "name": "base_env_is_enough_to_start_a_child",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.06
+     },
+     {
+      "name": "device_names_on_this_file_system",
+      "group": "ports",
+      "result": "observed",
+      "seconds": 0.0,
+      "observed": {
+       "con": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "nul": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "con.txt": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "nul.parquet": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "con_.png": {
+        "written": true,
+        "listed_as_a_file": true
+       }
+      }
+     },
+     {
+      "name": "long_names_on_this_file_system",
+      "group": "ports",
+      "result": "observed",
+      "seconds": 0.0,
+      "observed": {
+       "name_300.open": {
+        "made": false,
+        "type": "OSError",
+        "errno": 63,
+        "winerror": null,
+        "strerror": "File name too long"
+       },
+       "name_300.mkdir": {
+        "made": false,
+        "type": "OSError",
+        "errno": 63,
+        "winerror": null,
+        "strerror": "File name too long"
+       },
+       "path_over_260.makedirs": {
+        "made": true
+       },
+       "path_over_260.open": {
+        "made": true
+       },
+       "path_over_260.length": 288
+      }
+     },
+     {
+      "name": "file_url_leads_back_to_the_file",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.0
+     },
+     {
+      "name": "utf8_survives_a_pipe",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.04
+     },
+     {
+      "name": "cli_end_to_end",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 11.67
+     },
+     {
+      "name": "cli_run_timeout_in_python_code",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 3.33
+     },
+     {
+      "name": "cli_run_timeout_in_a_blocking_duckdb_query",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 3.35
+     },
+     {
+      "name": "cli_cancel_the_way_the_extension_does",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 1.92
+     },
+     {
+      "name": "cli_cancel_reaches_a_run_inside_a_regular_expression",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 2.41
+     },
+     {
+      "name": "cli_cancel_reaches_a_run_waiting_on_a_subprocess",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 2.41
+     },
+     {
+      "name": "cli_deadline_when_the_script_ignores_sigint",
+      "group": "cli",
+      "result": "observed",
+      "seconds": 2.35,
+      "observed": {
+       "status": "timeout",
+       "exit": 3,
+       "recorded_s": 2.005,
+       "cli_seconds": 2.4,
+       "script_finished": false
+      }
+     },
+     {
+      "name": "cli_concurrent_runs_are_serialized",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 4.67
+     },
+     {
+      "name": "cli_refuses_a_new_reserved_dataset_name",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 0.08
+     },
+     {
+      "name": "cli_writes_a_reserved_chart_id_to_a_portable_file",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 0.96
+     },
+     {
+      "name": "cli_a_script_saving_a_reserved_name_is_warned_about",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 0.38
+     },
+     {
+      "name": "probe_interrupt_through_uv_run",
+      "group": "probe",
+      "result": "observed",
+      "seconds": 1.28,
+      "observed": {
+       "uv_exit_code": 130,
+       "uv_exit_code_hex": "0x82",
+       "seconds_to_exit": 1.23,
+       "child_marker": "handler-finished:2",
+       "child_gone": true
+      }
+     },
+     {
+      "name": "probe_cancel_request_file_through_uv_run",
+      "group": "probe",
+      "result": "observed",
+      "seconds": 1.14,
+      "observed": {
+       "uv_exit_code": 130,
+       "uv_exit_code_hex": "0x82",
+       "seconds_to_exit": 1.08,
+       "child_marker": "handler-finished:2",
+       "child_gone": true
+      }
+     },
+     {
+      "name": "probe_waking_a_sleeping_main_thread",
+      "group": "probe",
+      "result": "observed",
+      "seconds": 11.01,
+      "observed": {
+       "_thread.interrupt_main": {
+        "interrupted_by": "Interrupted",
+        "seconds": 10.01
+       },
+       "signal.pthread_kill(main, SIGINT)": {
+        "interrupted_by": "Interrupted",
+        "seconds": 1.0
+       }
+      }
+     }
+    ]
+   },
+   "suite_py3_12": {
+    "file_sha256": "8866dce5d31c60cd000c9a33f0cc9a52516751ece16d09ef729f6d5e26354f8a",
+    "timestamp": "2026-09-25T04:32:31.237467+09:00",
+    "seconds": 224.236,
+    "counts": {
+     "pass": 452,
+     "fail": 0,
+     "skip": 4
+    },
+    "failed": [],
+    "skipped_by_reason": {
+     "this file system refuses a name that is not UTF-8: OSError(92, 'Illegal byte sequence')": 2,
+     "collection skipped": 1,
+     "before 3.14 a `with` calls __enter__ without a CALL, and no signal is handled between its acquiring and the block": 1
+    }
+   },
+   "suite_py3_13": {
+    "file_sha256": "8a7a7f5784af4ddf3c5417dd3137f2aedab0940e6cb8528beac72621308e685f",
+    "timestamp": "2026-09-25T04:36:16.408570+09:00",
+    "seconds": 200.059,
+    "counts": {
+     "pass": 452,
+     "fail": 0,
+     "skip": 4
+    },
+    "failed": [],
+    "skipped_by_reason": {
+     "this file system refuses a name that is not UTF-8: OSError(92, 'Illegal byte sequence')": 2,
+     "collection skipped": 1,
+     "before 3.14 a `with` calls __enter__ without a CALL, and no signal is handled between its acquiring and the block": 1
+    }
+   },
+   "suite_py3_14": {
+    "file_sha256": "6881b9ef859ef6b97de52aa98bab5149efc316e8dd15e446ac5f83dd128d8b89",
+    "timestamp": "2026-09-25T04:39:37.608450+09:00",
+    "seconds": 203.787,
+    "counts": {
+     "pass": 453,
+     "fail": 0,
+     "skip": 3
+    },
+    "failed": [],
+    "skipped_by_reason": {
+     "this file system refuses a name that is not UTF-8: OSError(92, 'Illegal byte sequence')": 2,
+     "collection skipped": 1
+    }
+   },
+   "aelix_0_1_0b2_py3_12": {
+    "file_sha256": "811423ee3ba65dd6397aa4eb94122b4891ef4af22938e3016a7445e0f293a0f2",
+    "timestamp": "2026-09-25T04:43:02.887211+09:00",
+    "seconds": 18.673,
+    "counts": {
+     "pass": 11,
+     "fail": 0,
+     "skip": 0
+    },
+    "failed": [],
+    "skipped_by_reason": {}
+   }
+  }
+ }
+}

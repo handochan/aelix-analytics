@@ -67,7 +67,7 @@ ADR-0002 결정 5는 "파일 잠금·실행 타임아웃·자식 프로세스 �
 - POSIX 전용 호출은 `_platform.py` 한 파일에만 남는다. ADR-0002가 나열한 일곱 관심사의 호출부에는 `sys.platform` 분기가 없다.
   남은 예외는 `/lab open`의 브라우저 실행(`extension/aelix_lab.py`)이며, 사람용 진입점을 다루는 다음 PR의 범위다.
 - 확장의 로더가 바뀌었으므로 [현재 계약](../CONTRACTS.md) A절의 "무엇을 import하는가"가 함께 바뀐다.
-- ⟦Windows 구현은 GitHub Actions의 Windows Server 2025에서 이 코드로 측정했다⟧([측정 기록](../verification/2026-09-24-issue-8-platforms.md)).
+- Windows 구현은 GitHub Actions의 Windows Server 2025에서 이 코드로 측정했다([측정 기록](../verification/2026-09-24-issue-8-platforms.md)).
   확인한 것, 선언한 한계, 실행하지 않은 것은 [현재 계약](../CONTRACTS.md) G절 한 곳에 두고 구현의 주석은 그곳을 가리킨다.
   구현의 존재를 동작 증거로 쓰지 않는다.
 - Windows의 취소는 POSIX보다 약하다. SIGTERM을 가로챌 수 없으므로 강제 종료는 `cancelled`가 아니라
@@ -90,7 +90,7 @@ ADR-0002 결정 5는 "파일 잠금·실행 타임아웃·자식 프로세스 �
    호출되지 않는다. (PR-1의 시험) 확장의 자식 프로세스 제어와 CLI의 요청 파일 감시는 이 시험 밖이며, 실행으로 확인했다.
 4. 제한 시간·취소의 분류(D1). 블로킹 DuckDB 호출과 `time.sleep`의 제한 시간, 준비 구간과 스크립트 구간의 취소, 기록
    단계의 취소를 PR-1의 시험과 측정 도구로 확인했다. aelix 중단 경로는 aelix 0.1.0b2에서 `tests/test_extension.py`로
-   확인했다: ⟦macOS(격리 환경) 11 passed, Linux ⟦n⟧, Windows ⟦n⟧⟧.
+   확인했다: macOS·Linux·Windows에서 각각 11 passed([측정 기록](../verification/2026-09-24-issue-8-platforms.md)).
 5. 잠금의 상호 배제, 자식 종료, 제한 시간을 Linux·macOS·Windows에서 측정 도구로 실행했다(PR-1, [측정 기록](../verification/2026-09-24-issue-8-platforms.md)).
    저장소 CI로 상시 실행하는 것은 Issue #8 PR-3의 범위다.
 6. 예약 이름은 Windows Server 2025의 파일 시스템에서 확인했다(`con.txt`·`nul.parquet`는 보통 파일로 저장되고 확장자 없는
