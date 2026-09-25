@@ -275,11 +275,17 @@ def give_back_stdout() -> None:
     sys.stdout, where a daemon thread holding the run stream's buffer would abort the process
     (main's did) — and the descriptor kept for the line is closed."""
     global _ROUTE
-    route, _ROUTE = _ROUTE, None
-    if route is not None:
-        _restore_host(route)
-        with contextlib.suppress(OSError):
-            os.close(route.fd)
+    route = _ROUTE
+    if route is None:
+        return
+    # The route goes only once the host's streams are back: a signal handled as this starts or as
+    # it calls (a second Ctrl+C) leaves it in place for the caller to give back again (main() does).
+    _restore_host(route)
+    _ROUTE = None
+    try:  # no call but the close's own: a signal handled here comes after the close
+        os.close(route.fd)
+    except OSError:
+        pass
 
 
 def _keep_for_the_line(route: _Route) -> None:

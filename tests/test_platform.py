@@ -5394,10 +5394,11 @@ def test_a_home_is_a_directory_and_a_failed_expansion_leaves_the_name(monkeypatc
 @NEEDS_MONITORING
 def test_a_second_ctrl_c_as_the_cli_gives_its_stdout_back_still_gives_it_back(project, monkeypatch,
                                                                               tmp_path):
-    """Review 12, rest-6: a SIGINT handled as main() starts to give the CLI's own stdout back (a
-    second Ctrl+C) raised before anything was given back, and left the run's stream as sys.stdout
-    for a leftover thread to hold at shutdown, which then aborted as main did. main() gives it back
-    once more and lets the interruption go on."""
+    """Review 12, rest-6: a SIGINT handled as main() gave the CLI's own stdout back (a second
+    Ctrl+C) raised before it was back, and left the run's stream as sys.stdout for a leftover thread
+    to hold at shutdown, which then aborted as main did. At every check point of the give-back, the
+    CLI's own stdout is back when main() lets the interruption go on (3.7's sweep found the points
+    after the first: the route was dropped before the streams were back)."""
     from labkit import __main__ as cli  # noqa: PLC0415
     from labkit import runner  # noqa: PLC0415
 
@@ -5408,17 +5409,23 @@ def test_a_second_ctrl_c_as_the_cli_gives_its_stdout_back_still_gives_it_back(pr
     try:
         own = io.TextIOWrapper(io.BufferedWriter(io.FileIO(1, "w", closefd=False)),
                                encoding="utf-8")
-        monkeypatch.setattr(sys, "stdout", own)
-        monkeypatch.setattr(sys, "__stdout__", own)
-        injector = _Injector({runner.give_back_stdout.__code__},
-                             lambda: signal.raise_signal(signal.SIGINT), entries_only=True)
-        with injector, pytest.raises(KeyboardInterrupt):
-            injector.arm(1)
-            injector.on = True
-            cli.main(["--project", str(project), "run",
-                      write_script(project, "93_second.py", "x = 1\n"), "--title", "second"])
-        assert injector.fired and sys.stdout is own and sys.__stdout__ is own
-        assert runner._ROUTE is None
+        script = write_script(project, "93_second.py", "x = 1\n")
+        reached = 0
+        for target in range(1, 40):
+            monkeypatch.setattr(sys, "stdout", own)
+            monkeypatch.setattr(sys, "__stdout__", own)
+            injector = _Injector({runner.give_back_stdout.__code__, runner._restore_host.__code__},
+                                 lambda: signal.raise_signal(signal.SIGINT))
+            with injector:
+                injector.arm(target)
+                injector.on = True
+                with contextlib.suppress(KeyboardInterrupt):
+                    cli.main(["--project", str(project), "run", script, "--title", "second"])
+            if not injector.fired:
+                break
+            reached += 1
+            assert sys.stdout is own and sys.__stdout__ is own and runner._ROUTE is None, target
+        assert reached >= 3, reached
     finally:
         os.dup2(saved_fd1, 1)
         os.close(saved_fd1)
