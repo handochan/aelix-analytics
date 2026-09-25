@@ -88,10 +88,11 @@ def _as_read(item: str, via: str) -> Path | None:
     Windows that is a home guessed beside the current user's profile where USERNAME names the
     profile directory — so that is what it read. DuckDB puts its home directory (HOME, USERPROFILE
     on Windows, or a `home_directory` the script set) in place of the `~` and keeps the rest:
-    `~/x.csv` is the home's x.csv, as os.path.expanduser has it where that variable is set, but
-    `~tmp.csv` is the home directory's own path with `tmp.csv` appended, which the kit does not
-    follow: None, not recorded (3.5 and main recorded nothing there either). The kit's own readers
-    follow Project.path's rule (core.expand_home)."""
+    `~/x.csv` is the home's x.csv, as os.path.expanduser has it where that variable is set (a
+    `home_directory` the script set, or an unset HOME, is not followed), but `~tmp.csv` is the home
+    directory's own path with `tmp.csv` appended, which the kit does not follow: None, not recorded
+    (3.5 and main recorded nothing there, or, where that user has a home, a file of that home, which
+    DuckDB did not read). The kit's own readers follow Project.path's rule (core.expand_home)."""
     if not item.startswith("~"):
         return Path(item)
     if via.startswith("polars."):
