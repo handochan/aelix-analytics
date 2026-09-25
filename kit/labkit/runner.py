@@ -219,50 +219,132 @@ def flush_run_streams() -> bool:
 
 atexit.register(flush_run_streams)
 
-# The host's own sys.stdout and sys.__stdout__ while a run's stdout stream stands in for them, from
-# the end of that run to the CLI's result line (_redirected's `result_follows`, give_back_stdout).
-_KEPT_HOST_STDOUT: tuple | None = None
+# What a run the CLI started with `result_follows` leaves for its result line (_redirected): the
+# host's own sys.stdout and sys.__stdout__; the run stdout's buffer where it can carry the line, else
+# None; the descriptor fd 1 was when the run started, kept open until the line is out; and whether
+# the run's text stream stands in as sys.stdout and sys.__stdout__ until then.
+_Route = collections.namedtuple("_Route", "host buffer fd stood_in")
+_ROUTE: _Route | None = None
+_STDOUT_NAMES = ("stdout", "__stdout__")
 
 
 def write_result(text: str) -> None:
-    """Print the CLI's result line after a run. What earlier runs' streams still hold goes out
-    first: the extension takes the last line that parses as JSON, and main had those lines ahead of
-    it, as its scripts wrote through this process's own stream. A thread's text need not end its
-    line, so after a run the result starts a line of its own.
+    """Print the CLI's result line. What earlier runs' streams still hold goes out first: the
+    extension takes the last line that parses as JSON, and main had those lines ahead of it, as its
+    scripts wrote through this process's own stream. A thread's text need not end its line, so after
+    a run the result starts a line of its own.
 
-    It is written through sys.stdout, which after a run the CLI started with `result_follows` is
-    that run's stdout stream (_redirected): a thread the script left running writes through the
-    same stream — the one it took during the run, or sys.stdout after it — and the stream's buffer
-    lock, held for a whole write however long, keeps its text before or after the line, never
-    inside it, as with main's one stream. The host's own stream, which such a thread may have taken
-    just before the run's stream replaced it, is flushed first."""
+    After a run the CLI started with `result_follows` (_redirected), the line is the kit's own: it
+    is encoded here and written as one write of the run stdout's buffer, the object the kit built and
+    kept, through its type's methods, so nothing the script did to the run's text stream or set on
+    the buffer reaches it. A thread the script left running writes through that buffer too — through
+    the run's text stream it took, through sys.stdout until the host's is given back, or through a
+    stream it built over the buffer — and the buffer's lock, held for a whole write however long,
+    keeps the thread's text before the line or after it, never inside. The host's own stream, which
+    a thread may have taken before the run, is flushed first. Where the buffer cannot carry the line
+    (closed, or its raw file detached), the line goes through the host's stream, as before 3.6; where
+    fd 1 no longer leads where it did when the run started (a stream the script opened on it, closed
+    when collected after the run), through the descriptor kept for it."""
     lead = "\n" if flush_run_streams() else ""
-    if _KEPT_HOST_STDOUT is not None:
-        _KEPT_HOST_STDOUT[0].flush()
-    sys.stdout.write(lead + text + "\n")
-    sys.stdout.flush()
+    route = _ROUTE
+    if route is None:
+        sys.stdout.write(lead + text + "\n")
+        sys.stdout.flush()
+        return
+    data = (lead + text + "\n").replace("\n", os.linesep).encode(_platform.TEXT_ENCODING,
+                                                                 errors="replace")
+    ours = _same_file(1, route.fd)
+    if ours and route.buffer is not None:
+        _flush(route.host[:1])
+        if _write_through(route.buffer, data):
+            return
+    _restore_host(route)
+    if ours:
+        try:
+            route.host[0].write(lead + text + "\n")
+            route.host[0].flush()
+            return
+        except (OSError, ValueError):
+            pass
+    _write_fd(route.fd, data)
 
 
 def give_back_stdout() -> None:
-    """Make the host's own streams sys.stdout and sys.__stdout__ again where a run's stream stood in
-    for them: before the interpreter's shutdown flushes sys.stdout, where a daemon thread holding
-    the run stream's buffer would abort the process (main's did)."""
-    global _KEPT_HOST_STDOUT
-    kept, _KEPT_HOST_STDOUT = _KEPT_HOST_STDOUT, None
-    if kept is not None:
-        sys.stdout, sys.__stdout__ = kept
+    """End what a run left for the CLI's result line: the host's own sys.stdout and sys.__stdout__
+    are back where the run's stream stood in for them — before the interpreter's shutdown flushes
+    sys.stdout, where a daemon thread holding the run stream's buffer would abort the process
+    (main's did) — and the descriptor kept for the line is closed."""
+    global _ROUTE
+    route, _ROUTE = _ROUTE, None
+    if route is not None:
+        _restore_host(route)
+        with contextlib.suppress(OSError):
+            os.close(route.fd)
 
 
-def _can_carry_the_result(stream: io.TextIOWrapper, host) -> bool:
-    """Whether a run's stdout stream can stand in for the host's own after the run: it is open, and
-    the host's stream writes to fd 1 through a plain file layer, a pipe or a file. A Windows
-    console is not one — the host writes to it as text through the console, and the run stream's
-    bytes would not read the same — and neither is a host stream this cannot see into."""
-    if stream.closed:
+def _keep_for_the_line(route: _Route) -> None:
+    global _ROUTE
+    earlier, _ROUTE = _ROUTE, route
+    if earlier is not None:  # a caller that never gave the last one back
+        with contextlib.suppress(OSError):
+            os.close(earlier.fd)
+
+
+def _restore_host(route: _Route) -> None:
+    if route.stood_in:
+        sys.stdout, sys.__stdout__ = route.host
+
+
+def _can_carry_the_line(buffer, host) -> bool:
+    """Whether the run stdout's buffer can carry the CLI's result line after the run: there is one
+    (under -u or PYTHONUNBUFFERED there is not), it is open with its raw file attached, and the
+    host's own stdout writes to fd 1 through a plain file layer — a pipe, a file, a terminal on
+    POSIX. A Windows console is not one: the host writes to it as text through the console. It runs
+    in the run's last cleanup, before the record is written, so nothing it meets may raise out of it
+    (3.6's check raised for a stream the script had detached, and the run lost its record)."""
+    try:
+        if buffer is None or buffer.closed:
+            return False
+        layer = getattr(host, "buffer", None)
+        raw = getattr(layer, "raw", layer)
+        return isinstance(raw, io.FileIO) and not raw.closed and raw.fileno() == 1
+    except Exception:  # noqa: BLE001 - see the docstring
         return False
-    layer = getattr(host, "buffer", None)
-    raw = getattr(layer, "raw", layer)
-    return isinstance(raw, io.FileIO) and not raw.closed and raw.fileno() == 1
+
+
+def _still_attached(stream, buffer) -> bool:
+    """Whether the run's text stream still writes to `buffer` (not detached) and is open. Nothing it
+    meets may raise out of it, as above."""
+    try:
+        return stream.buffer is buffer and not stream.closed
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _same_file(fd: int, other: int) -> bool:
+    """Whether descriptor `fd` leads to the file, pipe or terminal that `other` does."""
+    try:
+        a, b = os.fstat(fd), os.fstat(other)
+    except OSError:
+        return False
+    return (a.st_dev, a.st_ino) == (b.st_dev, b.st_ino)
+
+
+def _write_through(buffer, data: bytes) -> bool:
+    """Write `data` as one write of `buffer` and flush it, through the type's own methods. False
+    when the buffer cannot take it: closed, its raw file detached, or the write failed."""
+    try:
+        io.BufferedWriter.write(buffer, data)
+        io.BufferedWriter.flush(buffer)
+    except (OSError, ValueError):
+        return False
+    return True
+
+
+def _write_fd(fd: int, data: bytes) -> None:
+    view = memoryview(data)
+    while view:
+        view = view[os.write(fd, view):]
 
 
 def _flush(streams) -> list:
@@ -319,10 +401,11 @@ def _redirected(stdout_path: Path, stderr_path: Path, result_follows: bool = Fal
     run's log, as it did on main; what it writes between runs reaches the host's output when the
     next run starts, when the CLI prints its result, or when the interpreter exits.
 
-    With `result_follows` (the CLI), the run's stdout stream stays sys.stdout and sys.__stdout__
-    after the run, where it can stand in for the host's (_can_carry_the_result), until the caller
-    gives them back (give_back_stdout): see write_result."""
-    global _KEPT_HOST_STDOUT
+    With `result_follows` (the CLI), the run leaves a route for the result line (write_result): the
+    run stdout's buffer, taken before the script runs, where it can carry the line; the run's text
+    stream as sys.stdout and sys.__stdout__ from the restore on, where it still writes to that
+    buffer, so print() takes the buffer's lock too; and the duplicate of fd 1 taken to restore it,
+    kept open. The caller ends it with give_back_stdout."""
     saved = tuple(getattr(sys, name) for name in STREAM_NAMES)
     # Before fd 1 becomes the log: the host's own streams (an SDK caller may have replaced
     # sys.stdout while the real one still holds bytes it wrote), and earlier runs' streams. A host
@@ -334,6 +417,7 @@ def _redirected(stdout_path: Path, stderr_path: Path, result_follows: bool = Fal
         os.dup2(out.fileno(), 1)
         os.dup2(err.fileno(), 2)
         run_out, run_err = _run_stream(1, saved[0]), _run_stream(2, saved[1])
+        run_buf = run_out.buffer if type(run_out.buffer) is io.BufferedWriter else None
         sys.stdout = sys.__stdout__ = run_out
         sys.stderr = sys.__stderr__ = run_err
         try:
@@ -347,20 +431,24 @@ def _redirected(stdout_path: Path, stderr_path: Path, result_follows: bool = Fal
                 _flush((*(getattr(sys, name) for name in STREAM_NAMES), run_out, run_err,
                         *list(_EARLIER_RUN_STREAMS), *host_flushed))
             finally:
+                # A caller that prints a result line next (the CLI, write_result): the run's stream
+                # stands in for the host's from here on, not after a moment of the host's own, so a
+                # thread the script left running that looks sys.stdout up shares the line's buffer.
+                buffer = run_buf if result_follows and _can_carry_the_line(run_buf, saved[0]) \
+                    else None
+                stand_in = buffer is not None and _still_attached(run_out, buffer)
                 for name, stream in zip(STREAM_NAMES, saved, strict=True):
-                    setattr(sys, name, stream)
+                    setattr(sys, name, run_out if stand_in and name in _STDOUT_NAMES else stream)
                 os.dup2(saved_fds[0], 1)
                 os.dup2(saved_fds[1], 2)
-                os.close(saved_fds[0])
+                if not result_follows:
+                    os.close(saved_fds[0])
                 os.close(saved_fds[1])
                 _EARLIER_RUN_STREAMS.update((run_out, run_err))
                 _HELD_RUN_STREAMS.extend((run_out, run_err))
-                # A caller that prints a result line next (the CLI, write_result): until it gives
-                # them back, the run's stdout stream stands in for the host's, so a thread the
-                # script left running that writes to stdout shares one buffer with that line.
-                if result_follows and _can_carry_the_result(run_out, saved[0]):
-                    _KEPT_HOST_STDOUT = (saved[0], saved[2])
-                    sys.stdout = sys.__stdout__ = run_out
+                if result_follows:
+                    _keep_for_the_line(_Route((saved[0], saved[2]), buffer, saved_fds[0],
+                                              stand_in))
 
 
 def _exec_script(code_bytes: bytes, filename: Path, script_dir: Path) -> None:
@@ -645,8 +733,8 @@ def execute(project: core.Project, *, script: str | None, title: str | None,
             actor: str = "agent", session: str | None = None,
             result_follows: bool = False) -> dict:
     """Run a script (or rerun a recorded one) and record it. `result_follows`: the caller prints a
-    result line through write_result after this returns and gives stdout back after that (the
-    CLI); see _redirected."""
+    result line through write_result after this returns and then calls give_back_stdout (the CLI);
+    see _redirected."""
     core.sync_context(project, actor="system", session=session)
     source_run = None
     if rerun_of:

@@ -4719,6 +4719,18 @@ def test_only_a_command_that_ran_a_script_starts_its_result_with_an_empty_line(p
         assert alone.startswith("{") and alone.count("\n") == 1, (command, alone)
     ran = stdout_of("run", write_script(project, "95_quiet.py", "x = 1\n"), "--title", "quiet")
     assert ran.startswith("\n{") and ran.count("\n") == 2, ran
+    # Review 12, rest-9: past its setup, a run whose script never started (a timeout no clock can
+    # hold) gives the empty line too; `demo`, whose runs are child processes, gives none.
+    never = stdout_of("run", write_script(project, "95_never.py", "x = 1\n"), "--timeout", "inf")
+    assert never.startswith("\n{") and never.count("\n") == 2, never
+    assert json.loads(never)["run"]["status"] == "error", never
+    fresh = Path(project).parent / "demo-project"
+    subprocess.run([sys.executable, "-m", "labkit", "init", str(fresh)], capture_output=True,
+                   env=kit_env(), timeout=120, check=True)
+    demo = subprocess.run([sys.executable, "-m", "labkit", "--project", str(fresh), "demo"],
+                          capture_output=True, env=kit_env(), timeout=600,
+                          **_platform.text_kwargs()).stdout
+    assert demo.startswith("{") and demo.count("\n") == 1 and json.loads(demo)["ok"], demo[-500:]
 
 
 def test_the_length_hint_reads_the_snapshot_s_path(project, monkeypatch):
@@ -4883,53 +4895,6 @@ def test_a_leftover_thread_s_writes_do_not_split_a_result_longer_than_a_pipe_hol
 
 # --- review 11 ---------------------------------------------------------------------------------
 
-@pytest.mark.parametrize("host_kind", ["a_pipe_or_a_file", "a_console", "closed_by_the_script"])
-def test_the_run_s_stdout_stands_in_for_the_cli_s_until_the_result_is_out(monkeypatch, tmp_path,
-                                                                          host_kind):
-    """Review 11, rest-1 and review 10, critic-1: after a run the CLI started, its stdout stream
-    stays sys.stdout and sys.__stdout__ — so a thread the script left running shares that stream's
-    buffer with the result line, whichever way it writes — where the host writes to fd 1 through a
-    plain file; not over a console, and not once the script closed it. Either way a leftover
-    thread's text comes before the line, and give_back_stdout puts the host's streams back."""
-    from labkit import runner  # noqa: PLC0415
-
-    fd1 = tmp_path / "fd1.txt"
-    saved_fd1 = os.dup(1)
-    with open(fd1, "wb") as sink:
-        os.dup2(sink.fileno(), 1)
-    try:
-        raw = io.FileIO(1, "w", closefd=False) if host_kind != "a_console" else object()
-        writes = []
-        host = types.SimpleNamespace(buffer=types.SimpleNamespace(raw=raw),
-                                     write=lambda text: writes.append(("host", text)),
-                                     flush=lambda: writes.append(("host flushed", None)))
-        original = types.SimpleNamespace(buffer=None, flush=lambda: None)
-        monkeypatch.setattr(sys, "stdout", host)
-        monkeypatch.setattr(sys, "__stdout__", original)
-        with runner._redirected(tmp_path / "out.txt", tmp_path / "err.txt", result_follows=True):
-            run_out = sys.stdout
-            if host_kind == "closed_by_the_script":
-                run_out.close()
-        stands_in = host_kind == "a_pipe_or_a_file"
-        assert (sys.stdout is run_out, sys.__stdout__ is run_out) == (stands_in, stands_in)
-        if not run_out.closed:
-            run_out.write("late")  # a leftover thread's text, still in the run stream's buffer
-            writes.clear()
-            runner.write_result("{}")
-            written = fd1.read_text(encoding="utf-8")
-            if stands_in:  # the host's stream flushed first; the line after the text, in one stream
-                assert writes == [("host flushed", None)] and written == "late\n{}\n", \
-                    (writes, written)
-            else:  # the run's stream flushed first; the host's stream carries the line
-                assert written == "late" and writes == [("host", "\n{}\n"), ("host flushed", None)], \
-                    (writes, written)
-        runner.give_back_stdout()
-        assert sys.stdout is host and sys.__stdout__ is original
-    finally:
-        os.dup2(saved_fd1, 1)
-        os.close(saved_fd1)
-
-
 def test_the_cli_gives_its_own_stdout_back_when_it_returns(project, monkeypatch, tmp_path):
     """Review 11 (U6): the run's stdout stream stands in for the CLI's own until the result is out;
     main() puts the CLI's own back when it returns — before the interpreter's shutdown flushes
@@ -5023,19 +4988,74 @@ def test_settle_looks_at_the_region_s_failure_before_what_the_exit_caught():
     assert _outcome(guard) == {"timeout": False, "cancel": True}, _outcome(guard)
 
 
-def test_a_runtime_read_of_a_tilde_name_follows_the_same_rule(project, monkeypatch):
-    """Review 11, critic-2: the ~name rule lived in Project.path only. The runtime input recorder
-    expanded a read name with pathlib, which raised for a `~name` with no such user on POSIX — the
-    read was left out of the record — and guessed a home on Windows."""
+def test_a_runtime_read_of_a_tilde_name_is_recorded_as_its_reader_resolves_it(project,
+                                                                              monkeypatch, tmp_path):
+    """Review 11, critic-2, and review 12, rest-3/honesty-3: 3.5 expanded a read name with pathlib,
+    which raised for a `~name` with no such user on POSIX, and the read was left out of the record;
+    3.6 read every one by Project.path's rule, which neither reader follows. Polars expands a
+    leading `~` with os.path.expanduser: the file it names is recorded, whether that is the
+    project's file as written or a home Windows guessed. DuckDB puts its home in place of the `~`:
+    `~/x.csv` is recorded as the home's file, and a `~name` (DuckDB's home with `name` appended) is
+    not recorded at all."""
     from labkit import capture  # noqa: PLC0415
 
     monkeypatch.chdir(project)  # a script's reads are relative to the project, where it runs
     (Path(project) / "~$budget.csv").write_text("x\n1\n", encoding="utf-8")
-    run_dir = Path(project) / "runs" / "r"
-    run_dir.mkdir(parents=True)
-    state = capture.RunState(core.Project(project), "r", run_dir, Path(project) / "scripts" / "a.py")
-    state.record_read("~" + "$budget.csv", "polars.read_csv")
-    assert list(state.inputs) == ["~$budget.csv"], state.inputs
+    home = tmp_path / "home"
+    home.mkdir()
+    (home / "x.csv").write_text("x\n2\n", encoding="utf-8")
+    guessed = tmp_path / "guessed" / "$budget.csv"  # where Windows' Python would look
+    real_expanduser = os.path.expanduser
+
+    def recorded(name, via, *, windows_guess=False):
+        run_dir = Path(project) / "runs" / f"r-{len(list((Path(project) / 'runs').glob('r-*')))}"
+        run_dir.mkdir(parents=True)
+        state = capture.RunState(core.Project(project), run_dir.name, run_dir,
+                                 Path(project) / "scripts" / "a.py")
+        with monkeypatch.context() as m:
+            m.setenv("HOME", str(home))
+            m.setenv("USERPROFILE", str(home))
+            if windows_guess:
+                m.setattr(os.path, "expanduser", lambda path: str(guessed) if str(path).startswith(
+                    "~$") else real_expanduser(path))
+            state.record_read(name, via)
+        return sorted(state.inputs)
+
+    assert recorded("~$budget.csv", "polars.read_csv") == ["~$budget.csv"]
+    assert recorded("~$budget.csv", "polars.read_csv", windows_guess=True) == []
+    guessed.parent.mkdir()
+    guessed.write_text("x\n3\n", encoding="utf-8")
+    [only] = recorded("~$budget.csv", "polars.read_csv", windows_guess=True)
+    assert os.path.samefile(only, guessed), only
+    assert recorded("~$budget.csv", "duckdb.read_csv") == []
+    assert recorded("~$budget.csv", "duckdb.sql") == []
+    [only] = recorded("~/x.csv", "duckdb.read_csv")
+    assert os.path.samefile(only, home / "x.csv"), only
+    assert recorded("~$budget.csv", "lab.read") == ["~$budget.csv"]  # the kit's own rule
+
+
+@pytest.mark.skipif(os.name == "nt", reason="names POSIX can hold and Windows reads otherwise")
+def test_the_readers_record_what_they_read_of_a_tilde_name(project, tmp_path):
+    """Review 12, rest-3: through the libraries themselves. The script reads the project's
+    `~tmp.csv` through Polars, which opens it as written, and through DuckDB, which opens its home
+    directory's path with `tmp.csv` appended instead: the record lists the project's file once,
+    as Polars read it."""
+    (Path(project) / "~tmp.csv").write_text("a\n1\n", encoding="utf-8")
+    home = tmp_path / "home"
+    home.mkdir()
+    Path(str(home) + "tmp.csv").write_text("a\n7\n8\n", encoding="utf-8")  # what DuckDB opens
+    body = ("import duckdb\nimport polars as pl\n"
+            "name = '~' + 'tmp.csv'\n"
+            "print(pl.read_csv(name).height, len(duckdb.read_csv(name).fetchall()))\n")
+    done = subprocess.run([sys.executable, "-m", "labkit", "--project", str(project), "run",
+                           write_script(project, "92_tilde_readers.py", body)],
+                          capture_output=True, env=kit_env(HOME=str(home)), timeout=180,
+                          **_platform.text_kwargs())
+    lines = [line for line in done.stdout.splitlines() if line.startswith("{")]
+    result = json.loads(lines[-1])
+    assert result["run"]["status"] == "ok" and "1 2" in result["stdout_tail"], result
+    inputs = {entry["path"]: sorted(entry["via"]) for entry in result["run"]["inputs"]}
+    assert inputs == {"~tmp.csv": ["polars.read_csv"]}, inputs
 
 
 def test_lab_import_takes_a_tilde_name_that_names_no_home_as_written(project):
@@ -5080,3 +5100,325 @@ def test_lab_help_prints_the_whole_header():
                           **_platform.text_kwargs())
     assert done.returncode == 0, done.stderr
     assert done.stdout.rstrip().endswith("Nothing here is a sandbox."), done.stdout
+    # Review 12, honesty-8 (Y12, Y13): from the header's first line, without its comment marks.
+    header = lab.read_text(encoding="utf-8").splitlines()[1]
+    assert done.stdout.splitlines()[0] == header.removeprefix("# "), done.stdout.splitlines()[:2]
+
+
+# --- review 12 ---------------------------------------------------------------------------------
+
+# What a script can do to its stdout during a run (review 12), each the way a script writes it,
+# in the script's globals, which outlive the run as a module's do.
+SCRIPT_STDOUT = {
+    "left_alone": "pass",
+    "closed": "sys.stdout.close()",
+    # The wrapper is dropped with the script's own sys.stdout, and closes the buffer as it goes.
+    "detached": "sys.stdout = io.TextIOWrapper(sys.stdout.detach(), encoding='utf-8')",
+    "detached_and_kept": "sys.stdout = out = io.TextIOWrapper(sys.stdout.detach(), encoding='utf-8')",
+    "buffer_detached": "sys.stdout.buffer.detach()",
+    "reconfigured": "sys.stdout.reconfigure(encoding='ascii', errors='strict')",
+    "methods_replaced": ("sys.stdout.write = lambda text: len(text)\n"
+                         "sys.stdout.buffer.write = lambda data: len(data)"),
+}
+# What can happen to the buffer, or to fd 1, after the run and before the line.
+AFTER_THE_RUN = {
+    "nothing": lambda run_buf: None,
+    "buffer_closed": lambda run_buf: io.BufferedWriter.close(run_buf),  # a wrapper collected
+    "fd_1_closed": lambda run_buf: os.close(1),  # a stream the script opened on fd 1, collected
+}
+
+
+@pytest.mark.parametrize(("host_kind", "script", "after", "expected"), [
+    # expected: the route keeps the buffer, the run's stream stands in, what carries the line
+    ("a_pipe_or_a_file", "left_alone", "nothing", (True, True, "buffer")),
+    ("a_console", "left_alone", "nothing", (False, False, "host")),
+    ("on_another_fd", "left_alone", "nothing", (False, False, "host")),
+    ("a_pipe_or_a_file", "closed", "nothing", (False, False, "host")),
+    ("a_pipe_or_a_file", "detached", "nothing", (True, False, "host")),
+    ("a_pipe_or_a_file", "detached_and_kept", "nothing", (True, False, "buffer")),
+    ("a_pipe_or_a_file", "buffer_detached", "nothing", (False, False, "host")),
+    ("a_pipe_or_a_file", "reconfigured", "nothing", (True, True, "buffer")),
+    ("a_pipe_or_a_file", "methods_replaced", "nothing", (True, True, "buffer")),
+    ("a_pipe_or_a_file", "left_alone", "buffer_closed", (True, True, "host")),
+    ("a_pipe_or_a_file", "left_alone", "fd_1_closed", (True, True, "descriptor")),
+])
+def test_the_result_line_goes_through_the_buffer_the_kit_kept(monkeypatch, tmp_path, host_kind,
+                                                              script, after, expected):
+    """Review 12, result-1/rest-1, result-2/rest-2, honesty-1, critic-1 (review 10's critic-1
+    before them): after a run the CLI started, the result line is the kit's own — encoded here and
+    written as one write of the run stdout's buffer the kit kept, where the host writes to fd 1
+    through a plain file and the buffer is open — so whatever the script did to its text stream does
+    not reach it; the run's text stream stands in as sys.stdout where it is still attached. Where
+    the buffer cannot carry the line, the host's stream does; where fd 1 no longer leads where it
+    did, the descriptor the run kept. 3.6 wrote the line through the script's own text stream: a
+    detached one lost the run's record, a reconfigured one the line. A leftover thread's text and
+    the host's come before the line; give_back_stdout ends it all."""
+    from labkit import runner  # noqa: PLC0415
+
+    fd1 = tmp_path / "fd1.txt"
+    saved_fd1 = os.dup(1)
+    with open(fd1, "wb") as sink:
+        os.dup2(sink.fileno(), 1)
+    other = open(tmp_path / "other.txt", "wb")  # noqa: SIM115 - closed below
+    try:
+        raw = {"a_pipe_or_a_file": io.FileIO(1, "w", closefd=False), "a_console": object(),
+               "on_another_fd": io.FileIO(other.fileno(), "w", closefd=False)}[host_kind]
+        writes, armed = [], []
+
+        def host_flush():
+            writes.append(("host flushed", None))
+            if armed:  # text a thread wrote through the host's own stream reaches fd 1 now
+                os.write(1, b"H")
+
+        host = types.SimpleNamespace(buffer=types.SimpleNamespace(raw=raw),
+                                     write=lambda text: writes.append(("host", text)),
+                                     flush=host_flush)
+        original = types.SimpleNamespace(buffer=None, flush=lambda: None)
+        monkeypatch.setattr(sys, "stdout", host)
+        monkeypatch.setattr(sys, "__stdout__", original)
+        script_globals = {"io": io, "sys": sys}
+        with runner._redirected(tmp_path / "out.txt", tmp_path / "err.txt", result_follows=True):
+            run_out = sys.stdout
+            run_buf = run_out.buffer
+            exec(SCRIPT_STDOUT[script], script_globals)  # noqa: S102 - the script's line
+        route = runner._ROUTE
+        keeps, stands_in, carrier = expected
+        assert (route.buffer is run_buf, sys.stdout is run_out, sys.__stdout__ is run_out) == \
+            (keeps, stands_in, stands_in), (route, script)
+        leftover = stands_in and script != "methods_replaced"  # that one writes nothing
+        if leftover:
+            run_out.write("late")  # a leftover thread's text, still in the run's text stream
+        AFTER_THE_RUN[after](run_buf)
+        writes.clear()
+        armed.append(True)
+        runner.write_result('{"title": "지역별 요약"}')
+        if after == "fd_1_closed":
+            os.dup2(os.open(fd1, os.O_WRONLY | os.O_APPEND), 1)  # fd 1 again, for the restore below
+        written = fd1.read_text(encoding="utf-8")
+        line = '{"title": "지역별 요약"}\n'
+        through_the_host = ("host", "\n" + line) in writes
+        assert (carrier == "host") == through_the_host, (carrier, written, writes)
+        if carrier == "buffer":  # after the thread's text and the host's
+            assert written.endswith("\n" + line) and written.count(line) == 1, written
+            assert written.index("H") < written.index(line), written
+            if leftover:
+                assert written.index("late") < written.index(line), written
+        elif carrier == "descriptor":
+            assert written.endswith("\n" + line) and written.count(line) == 1, written
+        else:
+            assert line not in written and sys.stdout is host and sys.__stdout__ is original
+        kept = route.fd
+        runner.give_back_stdout()
+        assert sys.stdout is host and sys.__stdout__ is original and runner._ROUTE is None
+        with pytest.raises(OSError):
+            os.fstat(kept)
+    finally:
+        os.dup2(saved_fd1, 1)
+        os.close(saved_fd1)
+        other.close()
+
+
+def test_the_run_s_stream_stands_in_from_the_restore_on(monkeypatch, tmp_path):
+    """Review 12, result-3: 3.6 made the host's stream sys.stdout again for the length of the
+    restore and only then the run's, so a thread that looked sys.stdout up in between wrote through
+    another buffer than the line's, and a print() in pieces could land inside it. The run's stream
+    is sys.stdout from the restore on: at each descriptor the restore puts back, it already is."""
+    from labkit import runner  # noqa: PLC0415
+
+    fd1 = tmp_path / "fd1.txt"
+    saved_fd1 = os.dup(1)
+    with open(fd1, "wb") as sink:
+        os.dup2(sink.fileno(), 1)
+    try:
+        host = types.SimpleNamespace(
+            buffer=types.SimpleNamespace(raw=io.FileIO(1, "w", closefd=False)),
+            write=lambda text: None, flush=lambda: None)
+        monkeypatch.setattr(sys, "stdout", host)
+        monkeypatch.setattr(sys, "__stdout__", host)
+        seen, real_dup2 = [], os.dup2
+
+        def watching(fd, fd2, *args, **kwargs):
+            seen.append(sys.stdout)
+            return real_dup2(fd, fd2, *args, **kwargs)
+
+        with runner._redirected(tmp_path / "out.txt", tmp_path / "err.txt", result_follows=True):
+            run_out = sys.stdout
+            monkeypatch.setattr(os, "dup2", watching)
+        monkeypatch.setattr(os, "dup2", real_dup2)
+        assert len(seen) == 2 and all(stream is run_out for stream in seen), seen
+        runner.give_back_stdout()
+    finally:
+        os.dup2(saved_fd1, 1)
+        os.close(saved_fd1)
+
+
+def test_a_run_without_a_result_to_follow_leaves_stdout_alone(project, monkeypatch):
+    """Review 12, honesty-8 (Y18): only a caller that prints a result line next (the CLI) gets the
+    stand-in and the kept descriptor; an in-process caller's sys.stdout is its own after a run."""
+    from labkit import runner  # noqa: PLC0415
+
+    own = io.TextIOWrapper(io.BufferedWriter(io.FileIO(os.dup(1), "w")), encoding="utf-8")
+    monkeypatch.setattr(sys, "stdout", own)
+    monkeypatch.setattr(sys, "__stdout__", own)
+    try:
+        result = runner.execute(core.Project(project), script=write_script(
+            project, "96_inproc.py", "print('hi')\n"), title="inproc")
+        assert result["run"]["status"] == "ok"
+        assert sys.stdout is own and sys.__stdout__ is own and runner._ROUTE is None
+    finally:
+        own.close()
+
+
+# Review 12's scripts: what a script does to its stdout that reached 3.6's result line.
+STDOUT_IDIOMS = {
+    "detached_text": ("import io, sys\n"
+                      "sys.stdout = io.TextIOWrapper(sys.stdout.detach(), encoding='utf-8')\n"
+                      "print('hello')\n"),
+    "detached_codecs": ("import codecs, sys\n"
+                        "sys.stdout = codecs.getwriter('utf-8')(sys.stdout.detach())\n"
+                        "print('hello')\n"),
+    "dunder_detached": "import sys\nraw = sys.__stdout__.detach()\n",
+    "buffer_detached": "import sys\nsys.stdout.buffer.detach()\n",
+    "reconfigured_ascii": ("import sys\nsys.stdout.reconfigure(encoding='ascii', errors='strict')\n"
+                           "print('hello')\n"),
+    "reconfigured_cp1252": ("import sys\nsys.stdout.reconfigure(encoding='cp1252')\n"
+                            "print('hello')\n"),
+    # A wrapper over the run's buffer in the script's globals, which a function puts in a reference
+    # cycle: the collector finalizes it after the run, and it closes the buffer.
+    "rewrapped_and_kept": ("import io, sys\n"
+                           "out = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')\n"
+                           "sys.stdout = out\n"
+                           "def main():\n    print('안녕하세요')\n"
+                           "main()\n"),
+    "tee_written": ("import os, sys\n"
+                    "os.makedirs(os.path.join('data', 'derived'), exist_ok=True)\n"
+                    "tee = open(os.path.join('data', 'derived', 'printed.txt'), 'w', encoding='utf-8')\n"
+                    "write = sys.stdout.write\n"
+                    "def both(text):\n    tee.write(text)\n    tee.flush()\n    return write(text)\n"
+                    "sys.stdout.write = both\n"
+                    "print('hello')\n"),
+    "silenced": "import sys\nsys.stdout.write = lambda text: len(text)\nprint('hidden')\n",
+    # A thread that closes the stdout it took once the run is over (fd 1 no longer the log).
+    "closed_by_a_thread_after_the_run": (
+        "import os, sys, threading, time\n"
+        "out, log = sys.stdout, os.fstat(1)\n"
+        "def later():\n"
+        "    while os.path.samestat(os.fstat(1), log):\n        time.sleep(0.001)\n"
+        "    time.sleep(0.005)\n    out.close()\n"
+        "threading.Thread(target=later).start()\n"),
+    # A stream the script opened on fd 1 itself, which owns the descriptor: collected after the run
+    # (a function makes the globals a cycle), it closes the CLI's own fd 1 (review 12, critic-1).
+    "own_stream_on_fd_1": ("import sys\n"
+                           "out = open(sys.stdout.fileno(), mode='w', encoding='utf-8', buffering=1)\n"
+                           "sys.stdout = out\n"
+                           "def helper():\n    return 1\n"
+                           "print('hello through my own stream')\n"),
+}
+
+
+@pytest.mark.parametrize("idiom", sorted(STDOUT_IDIOMS))
+def test_the_result_line_outlives_what_the_script_did_to_its_stdout(project, idiom):
+    """Review 12 (result-1, rest-1, result-2, rest-2, honesty-1, critic-1): each of these lost the
+    CLI's result line under 3.6, and the detaching ones the run's record too: the line went through
+    the script's own text stream. The line is the kit's own now, and the record is written first:
+    the run is `ok`, its title arrives as it was given, and a file the script wrote through a
+    replaced write() keeps the hash its record gives it."""
+    code, result = labkit(project, "run", write_script(project, f"91_{idiom}.py",
+                                                      STDOUT_IDIOMS[idiom]),
+                          "--title", "지역별 요약")
+    assert code == 0 and result.get("ok") is True and result["run"]["status"] == "ok", \
+        (idiom, code, result)
+    assert result["run"]["title"] == "지역별 요약", result["run"]["title"]
+    record = json.loads((Path(project) / "runs" / result["run"]["id"] / "run.json")
+                        .read_text(encoding="utf-8"))
+    assert record["status"] == "ok"
+    for output in record["outputs"]:
+        assert core.sha256_file(Path(project) / output["path"]) == output["sha256"], output
+
+
+@NEEDS_MONITORING
+@POSIX_GUARD
+@pytest.mark.parametrize("where", ["with_a_large_failure", "first_of_many_caught",
+                                   "last_of_many_caught"])
+def test_settle_walks_the_failure_and_each_caught_exception_with_a_budget_of_its_own(where):
+    """Review 12, rest-4: 3.6 walked the region's failure first and everything handlers raised
+    while the region was left after it, CHAIN_LIMIT exceptions in all, so a failure with that many
+    chained or grouped exceptions (a TaskGroup over many failing tasks) hid a cancel cut short while
+    the region was left, which 3.4 and 3.5 counted. Each is walked with a budget of its own now."""
+    guard = _guard()
+    injector = _Injector({_platform._RunGuard.on_cancel_signal.__code__},
+                         _raises_the_script_s(signal.SIGTERM), entries_only=True)
+    saved = signal.getsignal(signal.SIGTERM)
+    evidence = None
+    many = [RuntimeError(f"burst {i}") for i in range(_platform.CHAIN_LIMIT + 6)]
+    large = ExceptionGroup("downloads", [ConnectionError(i)
+                                         for i in range(_platform.CHAIN_LIMIT + 6)])
+    try:
+        with injector, guard:
+            try:
+                with guard.interruptible(deadline=30.0):
+                    signal.signal(signal.SIGTERM, lambda *_a: sys.exit(1))  # the script's
+                    injector.arm(1)
+                    injector.on = True
+                    signal.raise_signal(signal.SIGINT)  # a cancel, cut short at its handler's entry
+                    time.sleep(1)
+            except SystemExit as exc:
+                evidence = exc  # what cut the cancel short, raised while the region was left
+            injector.on = False
+            guard._caught = {"with_a_large_failure": (evidence,),
+                             "first_of_many_caught": (evidence, *many),
+                             "last_of_many_caught": (*many, evidence)}[where]
+            guard.settle(large)
+    finally:
+        signal.signal(signal.SIGTERM, saved)
+    assert injector.fired and isinstance(evidence, SystemExit), (injector.fired, evidence)
+    assert _outcome(guard) == {"timeout": False, "cancel": True}, _outcome(guard)
+
+
+def test_a_home_is_a_directory_and_a_failed_expansion_leaves_the_name(monkeypatch, tmp_path):
+    """Review 12, honesty-8 (Y9, Y11): expand_home expands a leading `~name` only to a directory —
+    a file where Windows' guess lands is not a home — and a name whose expansion fails is taken as
+    written."""
+    guessed_file = tmp_path / "$budget.xlsx"
+    guessed_file.write_text("", encoding="utf-8")
+    monkeypatch.setattr(os.path, "expanduser", lambda path: str(guessed_file))
+    assert core.expand_home(Path("~$budget.xlsx")) == Path("~$budget.xlsx")
+
+    def refuses(path):
+        raise OSError(errno.EIO, "no home to be had")
+
+    monkeypatch.setattr(os.path, "expanduser", refuses)
+    assert core.expand_home(Path("~someone/x.csv")) == Path("~someone/x.csv")
+
+
+@NEEDS_MONITORING
+def test_a_second_ctrl_c_as_the_cli_gives_its_stdout_back_still_gives_it_back(project, monkeypatch,
+                                                                              tmp_path):
+    """Review 12, rest-6: a SIGINT handled as main() starts to give the CLI's own stdout back (a
+    second Ctrl+C) raised before anything was given back, and left the run's stream as sys.stdout
+    for a leftover thread to hold at shutdown, which then aborted as main did. main() gives it back
+    once more and lets the interruption go on."""
+    from labkit import __main__ as cli  # noqa: PLC0415
+    from labkit import runner  # noqa: PLC0415
+
+    fd1 = tmp_path / "fd1.txt"
+    saved_fd1 = os.dup(1)
+    with open(fd1, "wb") as sink:
+        os.dup2(sink.fileno(), 1)
+    try:
+        own = io.TextIOWrapper(io.BufferedWriter(io.FileIO(1, "w", closefd=False)),
+                               encoding="utf-8")
+        monkeypatch.setattr(sys, "stdout", own)
+        monkeypatch.setattr(sys, "__stdout__", own)
+        injector = _Injector({runner.give_back_stdout.__code__},
+                             lambda: signal.raise_signal(signal.SIGINT), entries_only=True)
+        with injector, pytest.raises(KeyboardInterrupt):
+            injector.arm(1)
+            injector.on = True
+            cli.main(["--project", str(project), "run",
+                      write_script(project, "93_second.py", "x = 1\n"), "--title", "second"])
+        assert injector.fired and sys.stdout is own and sys.__stdout__ is own
+        assert runner._ROUTE is None
+    finally:
+        os.dup2(saved_fd1, 1)
+        os.close(saved_fd1)

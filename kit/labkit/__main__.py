@@ -64,10 +64,16 @@ def main(argv=None) -> int:
         if stop_watching is not None:
             stop_watching()
         # A run's stdout stream stood in for this process's own to carry the result line
-        # (runner.write_result); the process's own are back before its shutdown flushes them.
+        # (runner.write_result); the process's own are back before its shutdown flushes them —
+        # also when a second Ctrl+C is handled as the give-back starts, which would otherwise
+        # leave the run's stream as sys.stdout for a leftover thread to hold at shutdown.
         runner = sys.modules.get(f"{__package__}.runner")
         if runner is not None:
-            runner.give_back_stdout()
+            try:
+                runner.give_back_stdout()
+            except KeyboardInterrupt:
+                runner.give_back_stdout()
+                raise
 
 
 def _command(argv) -> int:

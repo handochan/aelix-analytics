@@ -82,6 +82,25 @@ def _iter_sources(source):
             yield from _iter_sources(item)
 
 
+def _as_read(item: str, via: str) -> Path | None:
+    """The path a reader opens for `item`, as far as the kit can tell. A leading `~` is the
+    reader's to expand, and the readers differ. Polars expands it with os.path.expanduser — on
+    Windows that is a home guessed beside the current user's profile where USERNAME names the
+    profile directory — so that is what it read. DuckDB puts its home directory (HOME, USERPROFILE
+    on Windows, or a `home_directory` the script set) in place of the `~` and keeps the rest:
+    `~/x.csv` is the home's x.csv, as os.path.expanduser has it where that variable is set, but
+    `~tmp.csv` is the home directory's own path with `tmp.csv` appended, which the kit does not
+    follow: None, not recorded (3.5 and main recorded nothing there either). The kit's own readers
+    follow Project.path's rule (core.expand_home)."""
+    if not item.startswith("~"):
+        return Path(item)
+    if via.startswith("polars."):
+        return Path(os.path.expanduser(item))
+    if via.startswith("duckdb."):
+        return Path(os.path.expanduser(item)) if Path(item).parts[0] == "~" else None
+    return core.expand_home(Path(item))
+
+
 def _sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
@@ -113,7 +132,9 @@ class RunState:
                 entry = self.inputs.setdefault(item, {"path": item, "via": set(), "external": True})
                 entry["via"].add(via)
                 continue
-            path = core.expand_home(Path(item))  # the rule Project.path follows
+            path = _as_read(item, via)
+            if path is None:
+                continue
             if not path.is_absolute():
                 path = Path.cwd() / path
             text = str(path)

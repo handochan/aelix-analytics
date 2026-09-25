@@ -290,3 +290,20 @@ def test_a_run_over_many_inputs_still_shows_stdout_and_says_what_it_hid():
     assert "images: 3 of 5 chart PNG(s) attached" in text and "read tool" in text
     assert "charts/c4.png" in text, "a chart with no image must still name its file"
     assert "images:" not in module.render_run(project, value, (0, 0))
+
+
+def test_lab_import_takes_a_tilde_name_by_the_rule_lab_import_follows(lab, tmp_path, monkeypatch):
+    """Review 12, rest-5: the agent's lab_import expanded its source with pathlib, which ended a
+    `~name` with no home in 'RuntimeError: Could not determine home directory' on POSIX and read a
+    guessed home on Windows. It follows `lab import`'s rule now: as written, from where aelix runs."""
+    module, _root = lab
+    seen = []
+
+    async def stopped_here(project, cmd, timeout):
+        seen.append(cmd)
+        return False, {"ok": False, "error": {"code": "stopped_here", "message": "the test ends here"}}
+
+    monkeypatch.setattr(module, "run_kit", stopped_here)
+    result = call(tools_of(module)["lab_import"], {"source": "~no-such-labkit-user/x.csv"})
+    assert seen and seen[0][:2] == ["import", str(tmp_path / "~no-such-labkit-user" / "x.csv")], \
+        (seen, text_of(result))

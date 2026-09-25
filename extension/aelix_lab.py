@@ -541,7 +541,7 @@ async def tool_import(args, ctx):
     source = str(args.get("source") or "").strip()
     if not source:
         raise core.LabError("import_source_missing", "source is empty")
-    src = Path(source).expanduser()
+    src = core.expand_home(Path(source))  # the rule `lab import` and the kit's paths follow
     src = src if src.is_absolute() else Path(os.getcwd()) / src
     cmd = ["import", str(src)]
     if args.get("name"):

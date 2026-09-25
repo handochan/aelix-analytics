@@ -130,7 +130,9 @@ def test_absolute_link_inside_current_checkout_is_still_not_portable(repository)
 
 
 @pytest.mark.parametrize("target", [r"C:\Users\me\docs\target.md", "C:/Users/me/target.md",
-                                    r"\\server\share\target.md"])
+                                    r"\\server\share\target.md",
+                                    # review 12, rest-10: relative to that drive's current directory
+                                    "C:target.md", "d:docs/target.md"])
 def test_a_windows_absolute_link_is_not_portable_on_any_platform(repository, target):
     # urlsplit reads `C:` as a URL scheme, which let a Windows checkout's absolute link through as
     # an external one (Issue #8 measurement on Windows Server 2025).

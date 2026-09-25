@@ -155,10 +155,10 @@ class RunControl(Protocol):
     raised: its traceback passes through the handler it cut short. `settle` looks for it in the
     region's failure and in everything a handler raised while the region was left, and in what
     those lead to through `__context__`, `__cause__` and an exception group's members (the last
-    member first): the failure and what it leads to first, then the others in the order they were
-    raised, up to CHAIN_LIMIT exceptions in all. So it is lost when the script catches it and
-    carries on, raises something new outside its `except`, or puts it behind more exceptions than
-    that — a long chain, or a large group with it among the first members; and on Windows once the
+    member first): up to CHAIN_LIMIT exceptions from the failure, and as many again from each
+    exception a handler raised. So it is lost when the script catches it and carries on, raises
+    something new outside its `except`, or puts it behind more exceptions than that in one of those
+    — a long chain, or a large group with it among the first members; and on Windows once the
     region's timer has raised the deadline's SIGINT, when the handler's frame may be the deadline's
     own and the run is a timeout either way. A deadline cut short there is counted by the clock when
     its region is left; a SIGALRM that is not the guard's timer is not.
@@ -359,38 +359,45 @@ class _RunGuard:
         for _ in _ATTEMPTS:
             try:
                 self._settle()
-                # The region's failure first, then what the handlers raised, in the order they did.
-                self._count_cut_short(*self._caught[::-1], failure)
+                # The region's failure, then what the handlers raised: each with a budget of its own.
+                self._count_cut_short(failure, *self._caught)
                 break
             except BaseException as exc:  # noqa: BLE001 - raised at _settle's own entry; kept
                 self._caught += (exc,)
         caught, self._caught = self._caught, ()
         return caught[0] if caught else None
 
-    def _count_cut_short(self, *raised: BaseException | None) -> None:
+    def _count_cut_short(self, *roots: BaseException | None) -> None:
         """Count a cancel whose handler a raising handler the script left cut short at its first
         instruction, before its assignment (see RunControl): what that handler raised passed
         through the frame of the handler it cut short, so the frame is in its traceback, or in the
         traceback of an exception chained to it or grouped with it. Anywhere else, a frame of this
         guard's cancel handler is one whose assignment already ran, and counting it again changes
-        nothing; a handler that also takes the deadline is the exception (_shows_a_cancel)."""
-        pending, seen = [exc for exc in raised if exc is not None], set()
-        while pending and len(seen) < CHAIN_LIMIT:
-            exc = pending.pop()
-            if id(exc) in seen:
+        nothing; a handler that also takes the deadline is the exception (_shows_a_cancel).
+
+        Each root is walked up to CHAIN_LIMIT exceptions of its own: with one budget for all of
+        them (3.6), a failure with that many chained or grouped exceptions hid what a handler raised
+        while the region was left, and the reverse (review 12, rest-4)."""
+        for root in roots:
+            if root is None:
                 continue
-            seen.add(id(exc))
-            tb = exc.__traceback__
-            while tb is not None:
-                frame = tb.tb_frame
-                if self._shows_a_cancel(frame.f_code) and frame.f_locals.get("self") is self:
-                    self.cancelled = True
-                tb = tb.tb_next
-            pending.extend(chained for chained in (exc.__context__, exc.__cause__)
-                           if chained is not None)
-            # asyncio's TaskGroup, for one, raises what its tasks raised as a group's members.
-            if isinstance(exc, BaseExceptionGroup):
-                pending.extend(exc.exceptions)
+            pending, seen = [root], set()
+            while pending and len(seen) < CHAIN_LIMIT:
+                exc = pending.pop()
+                if id(exc) in seen:
+                    continue
+                seen.add(id(exc))
+                tb = exc.__traceback__
+                while tb is not None:
+                    frame = tb.tb_frame
+                    if self._shows_a_cancel(frame.f_code) and frame.f_locals.get("self") is self:
+                        self.cancelled = True
+                    tb = tb.tb_next
+                pending.extend(chained for chained in (exc.__context__, exc.__cause__)
+                               if chained is not None)
+                # asyncio's TaskGroup, for one, raises what its tasks raised as a group's members.
+                if isinstance(exc, BaseExceptionGroup):
+                    pending.extend(exc.exceptions)
 
     def _shows_a_cancel(self, code) -> bool:
         # By identity: `in` on a set hashes the code object, which for a large script's module takes

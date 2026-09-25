@@ -32,10 +32,11 @@ STATE_SCHEMA = "docs/schemas/dev-state.schema.json"
 STATE_FAMILY = "aelix-analytics.dev-state/1"
 STATE_EXAMPLE = "docs/templates/WORK-STATE.example.json"
 MARKDOWN = MarkdownIt("commonmark").enable("table")
-# A drive path (C:\x, C:/x), or one that starts at a backslash (\x, a UNC \\server\share), as a
-# Windows checkout writes them. Matched after percent-decoding: the Markdown parser encodes a
-# backslash in a link destination as %5C.
-WINDOWS_ABSOLUTE = re.compile(r"^(?:[A-Za-z]:[\\/]|\\)")
+# A drive path (C:\x, C:/x, and C:x, relative to that drive's current directory), or one that
+# starts at a backslash (\x, a UNC \\server\share), as a Windows checkout writes them. Matched after
+# percent-decoding: the Markdown parser encodes a backslash in a link destination as %5C. No URL
+# scheme is one letter long.
+WINDOWS_ABSOLUTE = re.compile(r"^(?:[A-Za-z]:|\\)")
 
 
 def git(root: Path, *args: str) -> bytes:
