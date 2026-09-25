@@ -90,7 +90,7 @@ ADR-0002 결정 5는 "파일 잠금·실행 타임아웃·자식 프로세스 �
    호출되지 않는다. (PR-1의 시험) 확장의 자식 프로세스 제어와 CLI의 요청 파일 감시는 이 시험 밖이며, 실행으로 확인했다.
 4. 제한 시간·취소의 분류(D1). 블로킹 DuckDB 호출과 `time.sleep`의 제한 시간, 준비 구간과 스크립트 구간의 취소, 기록
    단계의 취소를 PR-1의 시험과 측정 도구로 확인했다. aelix 중단 경로는 aelix 0.1.0b2에서 `tests/test_extension.py`로
-   확인했다: macOS·Linux·Windows에서 각각 11 passed([측정 기록](../verification/2026-09-24-issue-8-platforms.md)).
+   확인했다: macOS·Linux·Windows에서 각각 12 passed([측정 기록](../verification/2026-09-24-issue-8-platforms.md)).
 5. 잠금의 상호 배제, 자식 종료, 제한 시간을 Linux·macOS·Windows에서 측정 도구로 실행했다(PR-1, [측정 기록](../verification/2026-09-24-issue-8-platforms.md)).
    저장소 CI로 상시 실행하는 것은 Issue #8 PR-3의 범위다.
 6. 예약 이름은 Windows Server 2025의 파일 시스템에서 확인했다(`con.txt`·`nul.parquet`는 보통 파일로 저장되고 확장자 없는

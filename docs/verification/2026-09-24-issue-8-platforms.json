@@ -1,19 +1,19 @@
 {
  "record_kind": "aelix-analytics-platform-measurement",
- "observed_at": "2026-09-24T19:12:04Z",
+ "observed_at": "2026-09-25T01:14:36Z",
  "issue": "https://github.com/handochan/aelix-analytics/issues/8",
  "pull_request": "https://github.com/handochan/aelix-analytics/pull/31",
- "measured_revision": "9bc9d0fbf42614501fee634c2f5eed35ca56eb6b",
- "measurement_revision": "0cf0660568b08f6d88468ae6864bd3f87acbbfe7",
+ "measured_revision": "1b31a7bb31f6b991606f2957d5f42c14e4f86673",
+ "measurement_revision": "10c1876e4460e8bc26e23edff501b1671f0d07de",
  "ci_run": {
-  "id": "36046510524",
-  "url": "https://github.com/handochan/aelix-analytics/actions/runs/36046510524"
+  "id": "36081152541",
+  "url": "https://github.com/handochan/aelix-analytics/actions/runs/36081152541"
  },
  "platforms": {
   "linux": {
-   "where": "GitHub Actions linux, run 36046510524",
+   "where": "GitHub Actions linux, run 36081152541",
    "smoke_py3_12": {
-    "file_sha256": "35b922572c85d6c0a283648e1820f9d9a6f5a90809d301c296d86c82d3096fb7",
+    "file_sha256": "ddd0252977d84bfe2c85f995bfb73c139502ac137cab4c9dc84387c369736fe9",
     "command": [
      "python3",
      "tools/platform_smoke.py",
@@ -24,10 +24,10 @@
     ],
     "mode": "full",
     "source": {
-     "head": "0cf0660568b08f6d88468ae6864bd3f87acbbfe7",
+     "head": "10c1876e4460e8bc26e23edff501b1671f0d07de",
      "dirty": false
     },
-    "generated_at": "2026-09-24T19:12:21+00:00",
+    "generated_at": "2026-09-25T01:14:50+00:00",
     "environment": {
      "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
      "system": "Linux",
@@ -63,79 +63,178 @@
       "name": "imports_without_analysis_libraries",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.0
+      "seconds": 0.0,
+      "observed": {
+       "bundle": "posix",
+       "analysis_modules_loaded": []
+      }
      },
      {
       "name": "lock_excludes_another_process",
       "group": "ports",
       "result": "holds",
-      "seconds": 2.07
+      "seconds": 2.09,
+      "observed": {
+       "waited_s": 1.975,
+       "holder_kept_it_s": 2.0
+      }
      },
      {
       "name": "lock_released_when_its_holder_is_killed",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.05
+      "seconds": 0.05,
+      "observed": {
+       "acquired_within_15s_after_the_kill": true
+      }
      },
      {
       "name": "replace_while_a_reader_holds_the_file",
       "group": "ports",
       "result": "holds",
-      "seconds": 5.79
+      "seconds": 5.8,
+      "observed": {
+       "reader_holds_0.7s": {
+        "replaced": true,
+        "error": null,
+        "seconds": 0.0,
+        "content_after": "new"
+       },
+       "reader_holds_5.0s": {
+        "replaced": true,
+        "error": null,
+        "seconds": 0.0,
+        "content_after": "new"
+       }
+      }
      },
      {
       "name": "liveness_of_a_live_an_exited_and_a_bogus_pid",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.0
+      "seconds": 0.0,
+      "observed": {
+       "live": true,
+       "exited": false,
+       "bogus": {
+        "None": false,
+        "'x'": false,
+        "0": false,
+        "-1": false
+       }
+      }
      },
      {
       "name": "interrupt_asks_a_python_child_or_declines",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.06
+      "seconds": 0.06,
+      "observed": {
+       "asked": true,
+       "exit_code": 130,
+       "marker": "graceful:2",
+       "forced": false,
+       "seconds": 0.007
+      }
      },
      {
       "name": "kill_tree_ends_the_child_and_its_grandchild",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.05
+      "seconds": 0.05,
+      "observed": {
+       "child_gone": true,
+       "grandchild_gone": true,
+       "diagnostic": null
+      }
      },
      {
       "name": "kill_tree_after_the_leader_exited",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.15
+      "seconds": 0.15,
+      "observed": {
+       "leader_exit_code": 0,
+       "grandchild_gone": true,
+       "diagnostic": null
+      }
      },
      {
       "name": "deadline_interrupts_python_code",
       "group": "ports",
       "result": "holds",
-      "seconds": 1.0
+      "seconds": 1.0,
+      "observed": {
+       "interrupted_by": "Interrupted",
+       "flag_set": true,
+       "cancel_flag": false,
+       "seconds": 1.0
+      }
      },
      {
       "name": "deadline_interrupts_a_sleep",
       "group": "ports",
       "result": "holds",
-      "seconds": 1.0
+      "seconds": 1.0,
+      "observed": {
+       "interrupted_by": "Interrupted",
+       "flag_set": true,
+       "cancel_flag": false,
+       "seconds": 1.0
+      }
      },
      {
       "name": "the_cancel_request_wakes_a_sleeping_run",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.0
+      "seconds": 0.0,
+      "observed": {
+       "threads_started": 0
+      }
      },
      {
       "name": "the_guard_records_outside_regions_and_interrupts_inside_once",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.6
+      "seconds": 0.6,
+      "observed": {
+       "SIGINT": {
+        "recorded_without_raising": true,
+        "region_raised": "Interrupted",
+        "second_in_the_region": "only recorded",
+        "after_the_region": "only recorded"
+       },
+       "handlers_restored": true
+      }
      },
      {
       "name": "base_env_is_enough_to_start_a_child",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.05
+      "seconds": 0.05,
+      "observed": {
+       "base_env_keys": [],
+       "python_with_base_env": {
+        "exit": 0,
+        "stderr": null
+       },
+       "python_with_path_only": {
+        "exit": 0,
+        "stderr": null
+       },
+       "python_with_empty_env": {
+        "exit": 0,
+        "stderr": null
+       },
+       "uv_with_base_env": {
+        "exit": 0,
+        "stderr": null
+       },
+       "uv_with_path_only": {
+        "exit": 0,
+        "stderr": null
+       }
+      }
      },
      {
       "name": "device_names_on_this_file_system",
@@ -198,60 +297,169 @@
       "name": "file_url_leads_back_to_the_file",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.0
+      "seconds": 0.0,
+      "observed": {
+       "url": "file:///tmp/labkit-smoke-l9bqngc4/12-file-url/%EC%9E%85%EB%A0%A5%20%EB%8D%B0%EC%9D%B4%ED%84%B0.csv",
+       "back": "/tmp/labkit-smoke-l9bqngc4/12-file-url/입력 데이터.csv"
+      }
      },
      {
       "name": "utf8_survives_a_pipe",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.08
+      "seconds": 0.07,
+      "observed": {
+       "with_configure_stdio": {
+        "exit": 0,
+        "stdout": "한글 출력 ✓",
+        "stderr": null
+       },
+       "without_it": {
+        "exit": 0,
+        "stdout": "한글 출력 ✓",
+        "stderr": null
+       }
+      }
      },
      {
       "name": "cli_end_to_end",
       "group": "cli",
       "result": "holds",
-      "seconds": 8.04
+      "seconds": 7.24,
+      "observed": {
+       "query": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null,
+        "regions": [
+         "대구",
+         "부산",
+         "서울"
+        ]
+       },
+       "run": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null,
+        "status": "ok",
+        "charts": 1,
+        "stdout_has_korean": true
+       },
+       "note": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null
+       },
+       "rerun": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null,
+        "verdict": "match"
+       },
+       "report": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null,
+        "index_exists": true
+       },
+       "status": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null,
+        "title": "플랫폼 실측"
+       },
+       "context": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null
+       }
+      }
      },
      {
       "name": "cli_run_timeout_in_python_code",
       "group": "cli",
       "result": "holds",
-      "seconds": 3.63
+      "seconds": 3.61,
+      "observed": {
+       "status": "timeout",
+       "exit": 3,
+       "recorded_s": 3.002,
+       "cli_seconds": 3.6
+      }
      },
      {
       "name": "cli_run_timeout_in_a_blocking_duckdb_query",
       "group": "cli",
       "result": "holds",
-      "seconds": 3.89
+      "seconds": 4.05,
+      "observed": {
+       "status": "timeout",
+       "exit": 3,
+       "recorded_s": 3.003,
+       "cli_seconds": 4.1
+      }
      },
      {
       "name": "cli_cancel_the_way_the_extension_does",
       "group": "cli",
       "result": "holds",
-      "seconds": 2.17
+      "seconds": 2.32,
+      "observed": {
+       "asked": true,
+       "recorded_status": "cancelled",
+       "listed_status": "cancelled",
+       "exit_code": 3,
+       "exit_code_hex": "0x3",
+       "forced": false,
+       "seconds_to_exit": 0.92,
+       "kit_process_gone": true,
+       "stdout_tail": "started\n"
+      }
      },
      {
       "name": "cli_cancel_reaches_a_run_inside_a_regular_expression",
       "group": "cli",
       "result": "holds",
-      "seconds": 2.72
+      "seconds": 3.87,
+      "observed": {
+       "asked": true,
+       "recorded_status": "cancelled",
+       "listed_status": "cancelled",
+       "exit_code": 3,
+       "exit_code_hex": "0x3",
+       "forced": false,
+       "seconds_to_exit": 1.97,
+       "kit_process_gone": true,
+       "stdout_tail": "started\n"
+      }
      },
      {
       "name": "cli_cancel_reaches_a_run_waiting_on_a_subprocess",
       "group": "cli",
       "result": "holds",
-      "seconds": 2.72
+      "seconds": 2.67,
+      "observed": {
+       "asked": true,
+       "recorded_status": "cancelled",
+       "listed_status": "cancelled",
+       "exit_code": 3,
+       "exit_code_hex": "0x3",
+       "forced": false,
+       "seconds_to_exit": 0.77,
+       "kit_process_gone": true,
+       "stdout_tail": "started\n"
+      }
      },
      {
       "name": "cli_deadline_when_the_script_ignores_sigint",
       "group": "cli",
       "result": "observed",
-      "seconds": 2.64,
+      "seconds": 4.13,
       "observed": {
        "status": "timeout",
        "exit": 3,
        "recorded_s": 2.002,
-       "cli_seconds": 2.6,
+       "cli_seconds": 4.1,
        "script_finished": false
       }
      },
@@ -259,25 +467,58 @@
       "name": "cli_concurrent_runs_are_serialized",
       "group": "cli",
       "result": "holds",
-      "seconds": 5.38
+      "seconds": 5.44,
+      "observed": {
+       "left_side": {
+        "status": "ok",
+        "outputs": [
+         "data/derived/left_side.parquet"
+        ]
+       },
+       "right_side": {
+        "status": "ok",
+        "outputs": [
+         "data/derived/right_side.parquet"
+        ]
+       }
+      }
      },
      {
       "name": "cli_refuses_a_new_reserved_dataset_name",
       "group": "cli",
       "result": "holds",
-      "seconds": 0.15
+      "seconds": 0.15,
+      "observed": {
+       "exit": 1,
+       "error_code": "name_not_portable"
+      }
      },
      {
       "name": "cli_writes_a_reserved_chart_id_to_a_portable_file",
       "group": "cli",
       "result": "holds",
-      "seconds": 2.15
+      "seconds": 2.05,
+      "observed": {
+       "status": "ok",
+       "exit": 0,
+       "ids": [
+        "con"
+       ],
+       "png": "runs/20260925-011534-06-chart-con/charts/con_.png",
+       "png_readable": true
+      }
      },
      {
       "name": "cli_a_script_saving_a_reserved_name_is_warned_about",
       "group": "cli",
       "result": "holds",
-      "seconds": 0.72
+      "seconds": 0.68,
+      "observed": {
+       "status": "ok",
+       "exit": 0,
+       "warned": true,
+       "error": null
+      }
      },
      {
       "name": "probe_interrupt_through_uv_run",
@@ -324,11 +565,11 @@
     ]
    },
    "suite_py3_12": {
-    "file_sha256": "87cfe8c3e4f826520b583ab50bc408af3ee8a69b4a099db7c8540543b9e1ff74",
-    "timestamp": "2026-09-24T19:13:20.345029+00:00",
-    "seconds": 395.866,
+    "file_sha256": "11722a1bbfc6999028dfceb74679974cb1af93a33fce32562ae8f07eeaaf6009",
+    "timestamp": "2026-09-25T01:15:51.282108+00:00",
+    "seconds": 372.434,
     "counts": {
-     "pass": 454,
+     "pass": 484,
      "fail": 0,
      "skip": 2
     },
@@ -339,11 +580,11 @@
     }
    },
    "aelix_0_1_0b2_py3_12": {
-    "file_sha256": "ed17ed90136e9423978f06f8927f42574385766f2d24e685a4118bb1341aa94b",
-    "timestamp": "2026-09-24T19:19:57.643026+00:00",
-    "seconds": 15.431,
+    "file_sha256": "f14e5e2aed4a04222e8518579ab64c683885f6ae5f58ef3b5dbb07391b72fe6d",
+    "timestamp": "2026-09-25T01:22:05.457227+00:00",
+    "seconds": 15.143,
     "counts": {
-     "pass": 11,
+     "pass": 12,
      "fail": 0,
      "skip": 0
     },
@@ -351,7 +592,7 @@
     "skipped_by_reason": {}
    },
    "stdlib_only_smoke_py3_11": {
-    "file_sha256": "a10332abcf6436329b55cbf6923dd2526d3f57d8c9f52e6b15cff235fccaa0e2",
+    "file_sha256": "4094132e2e9f7666ca57bc71daf6fed768bff8a5aef64ee536f1cf25b810e54e",
     "command": [
      "python",
      "tools/platform_smoke.py",
@@ -363,10 +604,10 @@
     ],
     "mode": "stdlib-only",
     "source": {
-     "head": "0cf0660568b08f6d88468ae6864bd3f87acbbfe7",
+     "head": "10c1876e4460e8bc26e23edff501b1671f0d07de",
      "dirty": false
     },
-    "generated_at": "2026-09-24T19:12:11+00:00",
+    "generated_at": "2026-09-25T01:14:42+00:00",
     "environment": {
      "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
      "system": "Linux",
@@ -402,79 +643,170 @@
       "name": "imports_without_analysis_libraries",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.0
+      "seconds": 0.0,
+      "observed": {
+       "bundle": "posix",
+       "analysis_modules_loaded": []
+      }
      },
      {
       "name": "lock_excludes_another_process",
       "group": "ports",
       "result": "holds",
-      "seconds": 2.08
+      "seconds": 2.09,
+      "observed": {
+       "waited_s": 1.972,
+       "holder_kept_it_s": 2.0
+      }
      },
      {
       "name": "lock_released_when_its_holder_is_killed",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.05
+      "seconds": 0.06,
+      "observed": {
+       "acquired_within_15s_after_the_kill": true
+      }
      },
      {
       "name": "replace_while_a_reader_holds_the_file",
       "group": "ports",
       "result": "holds",
-      "seconds": 5.8
+      "seconds": 5.8,
+      "observed": {
+       "reader_holds_0.7s": {
+        "replaced": true,
+        "error": null,
+        "seconds": 0.0,
+        "content_after": "new"
+       },
+       "reader_holds_5.0s": {
+        "replaced": true,
+        "error": null,
+        "seconds": 0.0,
+        "content_after": "new"
+       }
+      }
      },
      {
       "name": "liveness_of_a_live_an_exited_and_a_bogus_pid",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.0
+      "seconds": 0.0,
+      "observed": {
+       "live": true,
+       "exited": false,
+       "bogus": {
+        "None": false,
+        "'x'": false,
+        "0": false,
+        "-1": false
+       }
+      }
      },
      {
       "name": "interrupt_asks_a_python_child_or_declines",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.06
+      "seconds": 0.06,
+      "observed": {
+       "asked": true,
+       "exit_code": 130,
+       "marker": "graceful:2",
+       "forced": false,
+       "seconds": 0.007
+      }
      },
      {
       "name": "kill_tree_ends_the_child_and_its_grandchild",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.05
+      "seconds": 0.05,
+      "observed": {
+       "child_gone": true,
+       "grandchild_gone": true,
+       "diagnostic": null
+      }
      },
      {
       "name": "kill_tree_after_the_leader_exited",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.15
+      "seconds": 0.15,
+      "observed": {
+       "leader_exit_code": 0,
+       "grandchild_gone": true,
+       "diagnostic": null
+      }
      },
      {
       "name": "deadline_interrupts_python_code",
       "group": "ports",
       "result": "holds",
-      "seconds": 1.0
+      "seconds": 1.0,
+      "observed": {
+       "interrupted_by": "Interrupted",
+       "flag_set": true,
+       "cancel_flag": false,
+       "seconds": 1.0
+      }
      },
      {
       "name": "deadline_interrupts_a_sleep",
       "group": "ports",
       "result": "holds",
-      "seconds": 1.0
+      "seconds": 1.0,
+      "observed": {
+       "interrupted_by": "Interrupted",
+       "flag_set": true,
+       "cancel_flag": false,
+       "seconds": 1.0
+      }
      },
      {
       "name": "the_cancel_request_wakes_a_sleeping_run",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.0
+      "seconds": 0.0,
+      "observed": {
+       "threads_started": 0
+      }
      },
      {
       "name": "the_guard_records_outside_regions_and_interrupts_inside_once",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.6
+      "seconds": 0.6,
+      "observed": {
+       "SIGINT": {
+        "recorded_without_raising": true,
+        "region_raised": "Interrupted",
+        "second_in_the_region": "only recorded",
+        "after_the_region": "only recorded"
+       },
+       "handlers_restored": true
+      }
      },
      {
       "name": "base_env_is_enough_to_start_a_child",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.03
+      "seconds": 0.03,
+      "observed": {
+       "base_env_keys": [],
+       "python_with_base_env": {
+        "exit": 0,
+        "stderr": null
+       },
+       "python_with_path_only": {
+        "exit": 0,
+        "stderr": null
+       },
+       "python_with_empty_env": {
+        "exit": 0,
+        "stderr": null
+       }
+      }
      },
      {
       "name": "device_names_on_this_file_system",
@@ -537,13 +869,29 @@
       "name": "file_url_leads_back_to_the_file",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.0
+      "seconds": 0.0,
+      "observed": {
+       "url": "file:///tmp/labkit-smoke-xpgyekyp/12-file-url/%EC%9E%85%EB%A0%A5%20%EB%8D%B0%EC%9D%B4%ED%84%B0.csv",
+       "back": "/tmp/labkit-smoke-xpgyekyp/12-file-url/입력 데이터.csv"
+      }
      },
      {
       "name": "utf8_survives_a_pipe",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.09
+      "seconds": 0.08,
+      "observed": {
+       "with_configure_stdio": {
+        "exit": 0,
+        "stdout": "한글 출력 ✓",
+        "stderr": null
+       },
+       "without_it": {
+        "exit": 0,
+        "stdout": "한글 출력 ✓",
+        "stderr": null
+       }
+      }
      },
      {
       "name": "probe_interrupt_through_uv_run",
@@ -579,9 +927,9 @@
    }
   },
   "windows": {
-   "where": "GitHub Actions windows, run 36046510524",
+   "where": "GitHub Actions windows, run 36081152541",
    "smoke_py3_12": {
-    "file_sha256": "0e30a3e1866626d5c5aa3455c3b4ed68f5ca8aace9c5c77bb4ad3528aa18c60e",
+    "file_sha256": "e93bb4763c66d1fe3e294fbc5642f67c2e5a383f64700cc56b9302d925cfd8d0",
     "command": [
      "python.exe",
      "tools/platform_smoke.py",
@@ -592,10 +940,10 @@
     ],
     "mode": "full",
     "source": {
-     "head": "0cf0660568b08f6d88468ae6864bd3f87acbbfe7",
+     "head": "10c1876e4460e8bc26e23edff501b1671f0d07de",
      "dirty": false
     },
-    "generated_at": "2026-09-24T19:12:39+00:00",
+    "generated_at": "2026-09-25T01:15:06+00:00",
     "environment": {
      "platform": "Windows-2025Server-10.0.26100-SP0",
      "system": "Windows",
@@ -645,85 +993,203 @@
       "name": "imports_without_analysis_libraries",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.0
+      "seconds": 0.0,
+      "observed": {
+       "bundle": "windows",
+       "analysis_modules_loaded": []
+      }
      },
      {
       "name": "lock_excludes_another_process",
       "group": "ports",
       "result": "holds",
-      "seconds": 2.13
+      "seconds": 2.12,
+      "observed": {
+       "waited_s": 2.013,
+       "holder_kept_it_s": 2.0
+      }
      },
      {
       "name": "lock_released_when_its_holder_is_killed",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.11
+      "seconds": 0.12,
+      "observed": {
+       "acquired_within_15s_after_the_kill": true
+      }
      },
      {
       "name": "replace_while_a_reader_holds_the_file",
       "group": "ports",
       "result": "holds",
-      "seconds": 5.84
+      "seconds": 5.83,
+      "observed": {
+       "reader_holds_0.7s": {
+        "replaced": true,
+        "error": null,
+        "seconds": 0.719,
+        "content_after": "new"
+       },
+       "reader_holds_5.0s": {
+        "replaced": false,
+        "error": "PermissionError: [WinError 5] Access is denied: 'C:\\\\Users\\\\RUNNER~1\\\\AppData\\\\Local\\\\Temp\\\\labkit-smoke-1br4khd_\\\\04-replace-5.0\\\\.record.json.tmp' -> 'C:\\\\Users\\\\RUNNER~1\\\\AppData\\\\Local\\\\Temp\\\\labkit-smoke-1br4khd_\\\\04-replace-5.0\\\\record.json' (winerror=5)",
+        "seconds": 1.97,
+        "content_after": "old"
+       }
+      }
      },
      {
       "name": "liveness_of_a_live_an_exited_and_a_bogus_pid",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.04
+      "seconds": 0.04,
+      "observed": {
+       "live": true,
+       "exited": false,
+       "bogus": {
+        "None": false,
+        "'x'": false,
+        "0": false,
+        "-1": false
+       }
+      }
      },
      {
       "name": "interrupt_asks_a_python_child_or_declines",
       "group": "ports",
       "result": "holds",
-      "seconds": 3.13
+      "seconds": 3.15,
+      "observed": {
+       "asked": false,
+       "exit_code": 1,
+       "marker": null,
+       "forced": true,
+       "seconds": 3.1
+      }
      },
      {
       "name": "kill_tree_ends_the_child_and_its_grandchild",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.17
+      "seconds": 0.15,
+      "observed": {
+       "child_gone": true,
+       "grandchild_gone": true,
+       "diagnostic": null
+      }
      },
      {
       "name": "kill_tree_after_the_leader_exited",
       "group": "ports",
       "result": "declared_limitation",
-      "seconds": 15.2,
+      "seconds": 15.26,
       "declared": "docs/CONTRACTS.md — `taskkill /T`는 부모가 이미 끝난 자손에 닿지 않습니다",
       "observed": {
        "leader_exit_code": 0,
        "grandchild_gone": false,
-       "diagnostic": "labkit: could not end the process tree of pid 664; its descendants may still be running (the wrapper had already exited when taskkill looked; a descendant of it may still be running)"
+       "diagnostic": "labkit: could not end the process tree of pid 7384; its descendants may still be running (the wrapper had already exited when taskkill looked; a descendant of it may still be running)"
       }
      },
      {
       "name": "deadline_interrupts_python_code",
       "group": "ports",
       "result": "holds",
-      "seconds": 1.01
+      "seconds": 1.02,
+      "observed": {
+       "interrupted_by": "Interrupted",
+       "flag_set": true,
+       "cancel_flag": false,
+       "seconds": 1.021
+      }
      },
      {
       "name": "deadline_interrupts_a_sleep",
       "group": "ports",
       "result": "holds",
-      "seconds": 1.0
+      "seconds": 1.0,
+      "observed": {
+       "interrupted_by": "Interrupted",
+       "flag_set": true,
+       "cancel_flag": false,
+       "seconds": 1.001
+      }
      },
      {
       "name": "the_cancel_request_wakes_a_sleeping_run",
       "group": "ports",
       "result": "holds",
-      "seconds": 1.06
+      "seconds": 1.06,
+      "observed": {
+       "woken_by": "Interrupted",
+       "seconds": 1.053,
+       "timeout": false,
+       "cancel": true
+      }
      },
      {
       "name": "the_guard_records_outside_regions_and_interrupts_inside_once",
       "group": "ports",
       "result": "holds",
-      "seconds": 1.2
+      "seconds": 1.2,
+      "observed": {
+       "SIGINT": {
+        "recorded_without_raising": true,
+        "region_raised": "Interrupted",
+        "second_in_the_region": "only recorded",
+        "after_the_region": "only recorded"
+       },
+       "SIGBREAK": {
+        "recorded_without_raising": true,
+        "region_raised": "Interrupted",
+        "second_in_the_region": "only recorded",
+        "after_the_region": "only recorded"
+       },
+       "handlers_restored": true
+      }
      },
      {
       "name": "base_env_is_enough_to_start_a_child",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.14
+      "seconds": 0.15,
+      "observed": {
+       "base_env_keys": [
+        "APPDATA",
+        "COMSPEC",
+        "LOCALAPPDATA",
+        "NUMBER_OF_PROCESSORS",
+        "PATHEXT",
+        "PROCESSOR_ARCHITECTURE",
+        "PROGRAMDATA",
+        "PROGRAMFILES",
+        "SystemDrive",
+        "SystemRoot",
+        "TEMP",
+        "TMP",
+        "USERPROFILE",
+        "windir"
+       ],
+       "python_with_base_env": {
+        "exit": 0,
+        "stderr": null
+       },
+       "python_with_path_only": {
+        "exit": 0,
+        "stderr": null
+       },
+       "python_with_empty_env": {
+        "exit": 0,
+        "stderr": null
+       },
+       "uv_with_base_env": {
+        "exit": 0,
+        "stderr": null
+       },
+       "uv_with_path_only": {
+        "exit": 0,
+        "stderr": null
+       }
+      }
      },
      {
       "name": "device_names_on_this_file_system",
@@ -786,43 +1252,130 @@
       "name": "file_url_leads_back_to_the_file",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.0
+      "seconds": 0.0,
+      "observed": {
+       "url": "file:///C:/Users/runneradmin/AppData/Local/Temp/labkit-smoke-1br4khd_/12-file-url/%EC%9E%85%EB%A0%A5%20%EB%8D%B0%EC%9D%B4%ED%84%B0.csv",
+       "back": "C:\\Users\\runneradmin\\AppData\\Local\\Temp\\labkit-smoke-1br4khd_\\12-file-url\\입력 데이터.csv"
+      }
      },
      {
       "name": "utf8_survives_a_pipe",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.17
+      "seconds": 0.17,
+      "observed": {
+       "with_configure_stdio": {
+        "exit": 0,
+        "stdout": "한글 출력 ✓",
+        "stderr": null
+       },
+       "without_it": {
+        "exit": 1,
+        "stdout": "",
+        "stderr": "3.12.10\\x64\\Lib\\encodings\\cp1252.py\", line 19, in encode\n    return codecs.charmap_encode(input,self.errors,encoding_table)[0]\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nUnicodeEncodeError: 'charmap' codec can't encode characters in position 0-1: character maps to <undefined>"
+       }
+      }
      },
      {
       "name": "cli_end_to_end",
       "group": "cli",
       "result": "holds",
-      "seconds": 34.14
+      "seconds": 36.03,
+      "observed": {
+       "query": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null,
+        "regions": [
+         "대구",
+         "부산",
+         "서울"
+        ]
+       },
+       "run": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null,
+        "status": "ok",
+        "charts": 1,
+        "stdout_has_korean": true
+       },
+       "note": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null
+       },
+       "rerun": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null,
+        "verdict": "match"
+       },
+       "report": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null,
+        "index_exists": true
+       },
+       "status": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null,
+        "title": "플랫폼 실측"
+       },
+       "context": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null
+       }
+      }
      },
      {
       "name": "cli_run_timeout_in_python_code",
       "group": "cli",
       "result": "holds",
-      "seconds": 4.21
+      "seconds": 4.21,
+      "observed": {
+       "status": "timeout",
+       "exit": 3,
+       "recorded_s": 3.015,
+       "cli_seconds": 4.2
+      }
      },
      {
       "name": "cli_run_timeout_in_a_blocking_duckdb_query",
       "group": "cli",
       "result": "holds",
-      "seconds": 4.17
+      "seconds": 4.64,
+      "observed": {
+       "status": "timeout",
+       "exit": 3,
+       "recorded_s": 3.03,
+       "cli_seconds": 4.6
+      }
      },
      {
       "name": "cli_cancel_the_way_the_extension_does",
       "group": "cli",
       "result": "holds",
-      "seconds": 2.48
+      "seconds": 2.53,
+      "observed": {
+       "asked": true,
+       "recorded_status": "cancelled",
+       "listed_status": "cancelled",
+       "exit_code": 3,
+       "exit_code_hex": "0x3",
+       "forced": false,
+       "seconds_to_exit": 1.12,
+       "kit_process_gone": true,
+       "stdout_tail": "started\n"
+      }
      },
      {
       "name": "cli_cancel_reaches_a_run_inside_a_regular_expression",
       "group": "cli",
       "result": "declared_limitation",
-      "seconds": 12.0,
+      "seconds": 11.99,
       "declared": "docs/CONTRACTS.md — GIL을 쥔 채 도는 C 코드 안의 주 스레드에는 그 호출이 반환할 때까지 취소가 닿지 않습니다",
       "observed": {
        "asked": true,
@@ -831,7 +1384,7 @@
        "exit_code": 1,
        "exit_code_hex": "0x1",
        "forced": true,
-       "seconds_to_exit": 10.09,
+       "seconds_to_exit": 10.08,
        "kit_process_gone": true,
        "stdout_tail": null
       }
@@ -849,7 +1402,7 @@
        "exit_code": 1,
        "exit_code_hex": "0x1",
        "forced": true,
-       "seconds_to_exit": 10.07,
+       "seconds_to_exit": 10.08,
        "kit_process_gone": true,
        "stdout_tail": null
       }
@@ -858,12 +1411,12 @@
       "name": "cli_deadline_when_the_script_ignores_sigint",
       "group": "cli",
       "result": "observed",
-      "seconds": 9.29,
+      "seconds": 9.17,
       "observed": {
        "status": "timeout",
        "exit": 3,
-       "recorded_s": 8.006,
-       "cli_seconds": 9.3,
+       "recorded_s": 8.005,
+       "cli_seconds": 9.2,
        "script_finished": true
       }
      },
@@ -871,25 +1424,52 @@
       "name": "cli_concurrent_runs_are_serialized",
       "group": "cli",
       "result": "holds",
-      "seconds": 6.94
+      "seconds": 6.69,
+      "observed": {
+       "left_side": {
+        "status": "ok",
+        "outputs": [
+         "data/derived/left_side.parquet"
+        ]
+       },
+       "right_side": {
+        "status": "ok",
+        "outputs": [
+         "data/derived/right_side.parquet"
+        ]
+       }
+      }
      },
      {
       "name": "cli_refuses_a_new_reserved_dataset_name",
       "group": "cli",
       "result": "holds",
-      "seconds": 0.29
+      "seconds": 0.25,
+      "observed": {
+       "exit": 1,
+       "error_code": "name_not_portable"
+      }
      },
      {
       "name": "cli_writes_a_reserved_chart_id_to_a_portable_file",
       "group": "cli",
       "result": "holds",
-      "seconds": 3.72
+      "seconds": 3.34,
+      "observed": {
+       "status": "ok",
+       "exit": 0,
+       "ids": [
+        "con"
+       ],
+       "png": "runs/20260925-011705-06-chart-con/charts/con_.png",
+       "png_readable": true
+      }
      },
      {
       "name": "cli_a_script_saving_a_reserved_name_is_warned_about",
       "group": "cli",
       "result": "observed",
-      "seconds": 1.55,
+      "seconds": 1.4,
       "observed": {
        "status": "ok",
        "exit": 0,
@@ -901,7 +1481,7 @@
       "name": "probe_interrupt_through_uv_run",
       "group": "probe",
       "result": "observed",
-      "seconds": 11.24,
+      "seconds": 11.22,
       "observed": {
        "uv_exit_code": 3221225786,
        "uv_exit_code_hex": "0xc000013a",
@@ -914,11 +1494,11 @@
       "name": "probe_cancel_request_file_through_uv_run",
       "group": "probe",
       "result": "observed",
-      "seconds": 1.2,
+      "seconds": 1.18,
       "observed": {
        "uv_exit_code": 130,
        "uv_exit_code_hex": "0x82",
-       "seconds_to_exit": 1.09,
+       "seconds_to_exit": 1.08,
        "child_marker": "handler-finished:2",
        "child_gone": true
       }
@@ -942,18 +1522,18 @@
     ]
    },
    "suite_py3_12": {
-    "file_sha256": "f69df71987e98e1d90b73695f876c39897b436e9c991cb3a92026a971d5320a9",
-    "timestamp": "2026-09-24T19:15:10.042907+00:00",
-    "seconds": 569.9,
+    "file_sha256": "f61fb9c9aa450455188698cf92671bae907194777816d02bc005d573ae55a549",
+    "timestamp": "2026-09-25T01:17:38.594026+00:00",
+    "seconds": 574.683,
     "counts": {
-     "pass": 359,
+     "pass": 385,
      "fail": 0,
-     "skip": 96
+     "skip": 100
     },
     "failed": [],
     "skipped_by_reason": {
-     "the POSIX guard's signals": 69,
-     "names POSIX can hold and Windows reads otherwise": 6,
+     "the POSIX guard's signals": 72,
+     "names POSIX can hold and Windows reads otherwise": 7,
      "a directory symlink needs privileges on Windows": 6,
      "the delivery is replaced with pthread_kill": 2,
      "the stub guards stand in for the POSIX one": 2,
@@ -971,11 +1551,11 @@
     }
    },
    "aelix_0_1_0b2_py3_12": {
-    "file_sha256": "92f763f436f4163c7d9bda981c8a295ecda3fab6d44193f5672dbcc5ef83b5c6",
-    "timestamp": "2026-09-24T19:24:49.669961+00:00",
-    "seconds": 104.721,
+    "file_sha256": "3f0270602a99526af91617dbf921d26c830f71681faf59826b1819f93dd6cd37",
+    "timestamp": "2026-09-25T01:27:18.745050+00:00",
+    "seconds": 80.716,
     "counts": {
-     "pass": 11,
+     "pass": 12,
      "fail": 0,
      "skip": 0
     },
@@ -983,7 +1563,7 @@
     "skipped_by_reason": {}
    },
    "stdlib_only_smoke_py3_11": {
-    "file_sha256": "bfb00f52d9c705fe26e8d9f8002267690c9cd6b08f7ccf64003b6ad87cf44ad6",
+    "file_sha256": "541ab2c80496baa849cc5794880986ef063a49e1e22c2d8da870449fb4e496dd",
     "command": [
      "python.exe",
      "tools/platform_smoke.py",
@@ -995,10 +1575,10 @@
     ],
     "mode": "stdlib-only",
     "source": {
-     "head": "0cf0660568b08f6d88468ae6864bd3f87acbbfe7",
+     "head": "10c1876e4460e8bc26e23edff501b1671f0d07de",
      "dirty": false
     },
-    "generated_at": "2026-09-24T19:12:31+00:00",
+    "generated_at": "2026-09-25T01:14:51+00:00",
     "environment": {
      "platform": "Windows-10-10.0.26100-SP0",
      "system": "Windows",
@@ -1046,85 +1626,195 @@
       "name": "imports_without_analysis_libraries",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.0
+      "seconds": 0.0,
+      "observed": {
+       "bundle": "windows",
+       "analysis_modules_loaded": []
+      }
      },
      {
       "name": "lock_excludes_another_process",
       "group": "ports",
       "result": "holds",
-      "seconds": 2.12
+      "seconds": 2.13,
+      "observed": {
+       "waited_s": 2.019,
+       "holder_kept_it_s": 2.0
+      }
      },
      {
       "name": "lock_released_when_its_holder_is_killed",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.14
+      "seconds": 0.12,
+      "observed": {
+       "acquired_within_15s_after_the_kill": true
+      }
      },
      {
       "name": "replace_while_a_reader_holds_the_file",
       "group": "ports",
       "result": "holds",
-      "seconds": 5.82
+      "seconds": 5.95,
+      "observed": {
+       "reader_holds_0.7s": {
+        "replaced": true,
+        "error": null,
+        "seconds": 0.71,
+        "content_after": "new"
+       },
+       "reader_holds_5.0s": {
+        "replaced": false,
+        "error": "PermissionError: [WinError 5] Access is denied: 'C:\\\\Users\\\\RUNNER~1\\\\AppData\\\\Local\\\\Temp\\\\labkit-smoke-y7vioiwy\\\\04-replace-5.0\\\\.record.json.tmp' -> 'C:\\\\Users\\\\RUNNER~1\\\\AppData\\\\Local\\\\Temp\\\\labkit-smoke-y7vioiwy\\\\04-replace-5.0\\\\record.json' (winerror=5)",
+        "seconds": 2.118,
+        "content_after": "old"
+       }
+      }
      },
      {
       "name": "liveness_of_a_live_an_exited_and_a_bogus_pid",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.12
+      "seconds": 0.45,
+      "observed": {
+       "live": true,
+       "exited": false,
+       "bogus": {
+        "None": false,
+        "'x'": false,
+        "0": false,
+        "-1": false
+       }
+      }
      },
      {
       "name": "interrupt_asks_a_python_child_or_declines",
       "group": "ports",
       "result": "holds",
-      "seconds": 3.23
+      "seconds": 3.33,
+      "observed": {
+       "asked": false,
+       "exit_code": 1,
+       "marker": null,
+       "forced": true,
+       "seconds": 3.215
+      }
      },
      {
       "name": "kill_tree_ends_the_child_and_its_grandchild",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.14
+      "seconds": 0.3,
+      "observed": {
+       "child_gone": true,
+       "grandchild_gone": true,
+       "diagnostic": null
+      }
      },
      {
       "name": "kill_tree_after_the_leader_exited",
       "group": "ports",
       "result": "declared_limitation",
-      "seconds": 15.31,
+      "seconds": 15.47,
       "declared": "docs/CONTRACTS.md — `taskkill /T`는 부모가 이미 끝난 자손에 닿지 않습니다",
       "observed": {
        "leader_exit_code": 0,
        "grandchild_gone": false,
-       "diagnostic": "labkit: could not end the process tree of pid 6376; its descendants may still be running (the wrapper had already exited when taskkill looked; a descendant of it may still be running)"
+       "diagnostic": "labkit: could not end the process tree of pid 5728; its descendants may still be running (the wrapper had already exited when taskkill looked; a descendant of it may still be running)"
       }
      },
      {
       "name": "deadline_interrupts_python_code",
       "group": "ports",
       "result": "holds",
-      "seconds": 1.05
+      "seconds": 1.02,
+      "observed": {
+       "interrupted_by": "Interrupted",
+       "flag_set": true,
+       "cancel_flag": false,
+       "seconds": 1.024
+      }
      },
      {
       "name": "deadline_interrupts_a_sleep",
       "group": "ports",
       "result": "holds",
-      "seconds": 1.0
+      "seconds": 1.01,
+      "observed": {
+       "interrupted_by": "Interrupted",
+       "flag_set": true,
+       "cancel_flag": false,
+       "seconds": 1.014
+      }
      },
      {
       "name": "the_cancel_request_wakes_a_sleeping_run",
       "group": "ports",
       "result": "holds",
-      "seconds": 1.07
+      "seconds": 1.09,
+      "observed": {
+       "woken_by": "Interrupted",
+       "seconds": 1.09,
+       "timeout": false,
+       "cancel": true
+      }
      },
      {
       "name": "the_guard_records_outside_regions_and_interrupts_inside_once",
       "group": "ports",
       "result": "holds",
-      "seconds": 1.2
+      "seconds": 1.2,
+      "observed": {
+       "SIGINT": {
+        "recorded_without_raising": true,
+        "region_raised": "Interrupted",
+        "second_in_the_region": "only recorded",
+        "after_the_region": "only recorded"
+       },
+       "SIGBREAK": {
+        "recorded_without_raising": true,
+        "region_raised": "Interrupted",
+        "second_in_the_region": "only recorded",
+        "after_the_region": "only recorded"
+       },
+       "handlers_restored": true
+      }
      },
      {
       "name": "base_env_is_enough_to_start_a_child",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.08
+      "seconds": 0.07,
+      "observed": {
+       "base_env_keys": [
+        "APPDATA",
+        "COMSPEC",
+        "LOCALAPPDATA",
+        "NUMBER_OF_PROCESSORS",
+        "PATHEXT",
+        "PROCESSOR_ARCHITECTURE",
+        "PROGRAMDATA",
+        "PROGRAMFILES",
+        "SystemDrive",
+        "SystemRoot",
+        "TEMP",
+        "TMP",
+        "USERPROFILE",
+        "windir"
+       ],
+       "python_with_base_env": {
+        "exit": 0,
+        "stderr": null
+       },
+       "python_with_path_only": {
+        "exit": 0,
+        "stderr": null
+       },
+       "python_with_empty_env": {
+        "exit": 0,
+        "stderr": null
+       }
+      }
      },
      {
       "name": "device_names_on_this_file_system",
@@ -1187,13 +1877,29 @@
       "name": "file_url_leads_back_to_the_file",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.0
+      "seconds": 0.0,
+      "observed": {
+       "url": "file:///C:/Users/runneradmin/AppData/Local/Temp/labkit-smoke-y7vioiwy/12-file-url/%EC%9E%85%EB%A0%A5%20%EB%8D%B0%EC%9D%B4%ED%84%B0.csv",
+       "back": "C:\\Users\\runneradmin\\AppData\\Local\\Temp\\labkit-smoke-y7vioiwy\\12-file-url\\입력 데이터.csv"
+      }
      },
      {
       "name": "utf8_survives_a_pipe",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.17
+      "seconds": 0.12,
+      "observed": {
+       "with_configure_stdio": {
+        "exit": 0,
+        "stdout": "한글 출력 ✓",
+        "stderr": null
+       },
+       "without_it": {
+        "exit": 1,
+        "stdout": "",
+        "stderr": "\\3.11.9\\x64\\Lib\\encodings\\cp1252.py\", line 19, in encode\n    return codecs.charmap_encode(input,self.errors,encoding_table)[0]\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nUnicodeEncodeError: 'charmap' codec can't encode characters in position 0-1: character maps to <undefined>"
+       }
+      }
      },
      {
       "name": "probe_interrupt_through_uv_run",
@@ -1221,7 +1927,7 @@
        },
        "signal.raise_signal(SIGINT)": {
         "interrupted_by": "Interrupted",
-        "seconds": 1.01
+        "seconds": 1.0
        }
       }
      }
@@ -1231,7 +1937,7 @@
   "macos": {
    "where": "developer machine",
    "smoke_py3_12": {
-    "file_sha256": "7408f3038fb9f0f0f800e909729a3ef2aecd13fa5b4957789dcde10a80c268f8",
+    "file_sha256": "b7fcb78011226ac6a31cbb66bb6cb877b07b329e11340b81fc0809cdbc0e9db1",
     "command": [
      "python3",
      "tools/platform_smoke.py",
@@ -1242,10 +1948,10 @@
     ],
     "mode": "full",
     "source": {
-     "head": "0cf0660568b08f6d88468ae6864bd3f87acbbfe7",
+     "head": "10c1876e4460e8bc26e23edff501b1671f0d07de",
      "dirty": false
     },
-    "generated_at": "2026-09-24T19:31:32+00:00",
+    "generated_at": "2026-09-25T01:50:14+00:00",
     "environment": {
      "platform": "macOS-26.6.2-arm64-arm-64bit",
      "system": "Darwin",
@@ -1282,79 +1988,178 @@
       "name": "imports_without_analysis_libraries",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.0
+      "seconds": 0.0,
+      "observed": {
+       "bundle": "posix",
+       "analysis_modules_loaded": []
+      }
      },
      {
       "name": "lock_excludes_another_process",
       "group": "ports",
       "result": "holds",
-      "seconds": 2.04
+      "seconds": 2.04,
+      "observed": {
+       "waited_s": 1.972,
+       "holder_kept_it_s": 2.0
+      }
      },
      {
       "name": "lock_released_when_its_holder_is_killed",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.06
+      "seconds": 0.06,
+      "observed": {
+       "acquired_within_15s_after_the_kill": true
+      }
      },
      {
       "name": "replace_while_a_reader_holds_the_file",
       "group": "ports",
       "result": "holds",
-      "seconds": 5.81
+      "seconds": 5.82,
+      "observed": {
+       "reader_holds_0.7s": {
+        "replaced": true,
+        "error": null,
+        "seconds": 0.0,
+        "content_after": "new"
+       },
+       "reader_holds_5.0s": {
+        "replaced": true,
+        "error": null,
+        "seconds": 0.0,
+        "content_after": "new"
+       }
+      }
      },
      {
       "name": "liveness_of_a_live_an_exited_and_a_bogus_pid",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.0
+      "seconds": 0.0,
+      "observed": {
+       "live": true,
+       "exited": false,
+       "bogus": {
+        "None": false,
+        "'x'": false,
+        "0": false,
+        "-1": false
+       }
+      }
      },
      {
       "name": "interrupt_asks_a_python_child_or_declines",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.06
+      "seconds": 0.06,
+      "observed": {
+       "asked": true,
+       "exit_code": 130,
+       "marker": "graceful:2",
+       "forced": false,
+       "seconds": 0.005
+      }
      },
      {
       "name": "kill_tree_ends_the_child_and_its_grandchild",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.06
+      "seconds": 0.05,
+      "observed": {
+       "child_gone": true,
+       "grandchild_gone": true,
+       "diagnostic": null
+      }
      },
      {
       "name": "kill_tree_after_the_leader_exited",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.16
+      "seconds": 0.17,
+      "observed": {
+       "leader_exit_code": 0,
+       "grandchild_gone": true,
+       "diagnostic": null
+      }
      },
      {
       "name": "deadline_interrupts_python_code",
       "group": "ports",
       "result": "holds",
-      "seconds": 1.0
+      "seconds": 1.01,
+      "observed": {
+       "interrupted_by": "Interrupted",
+       "flag_set": true,
+       "cancel_flag": false,
+       "seconds": 1.01
+      }
      },
      {
       "name": "deadline_interrupts_a_sleep",
       "group": "ports",
       "result": "holds",
-      "seconds": 1.0
+      "seconds": 1.0,
+      "observed": {
+       "interrupted_by": "Interrupted",
+       "flag_set": true,
+       "cancel_flag": false,
+       "seconds": 1.004
+      }
      },
      {
       "name": "the_cancel_request_wakes_a_sleeping_run",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.0
+      "seconds": 0.0,
+      "observed": {
+       "threads_started": 0
+      }
      },
      {
       "name": "the_guard_records_outside_regions_and_interrupts_inside_once",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.61
+      "seconds": 0.61,
+      "observed": {
+       "SIGINT": {
+        "recorded_without_raising": true,
+        "region_raised": "Interrupted",
+        "second_in_the_region": "only recorded",
+        "after_the_region": "only recorded"
+       },
+       "handlers_restored": true
+      }
      },
      {
       "name": "base_env_is_enough_to_start_a_child",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.06
+      "seconds": 0.07,
+      "observed": {
+       "base_env_keys": [],
+       "python_with_base_env": {
+        "exit": 0,
+        "stderr": null
+       },
+       "python_with_path_only": {
+        "exit": 0,
+        "stderr": null
+       },
+       "python_with_empty_env": {
+        "exit": 0,
+        "stderr": null
+       },
+       "uv_with_base_env": {
+        "exit": 0,
+        "stderr": null
+       },
+       "uv_with_path_only": {
+        "exit": 0,
+        "stderr": null
+       }
+      }
      },
      {
       "name": "device_names_on_this_file_system",
@@ -1417,60 +2222,169 @@
       "name": "file_url_leads_back_to_the_file",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.0
+      "seconds": 0.0,
+      "observed": {
+       "url": "file:///private/var/folders/1x/8y9_c2pn73ngk5md9yh17z900000gn/T/labkit-smoke-0445vscb/12-file-url/%EC%9E%85%EB%A0%A5%20%EB%8D%B0%EC%9D%B4%ED%84%B0.csv",
+       "back": "/private/var/folders/1x/8y9_c2pn73ngk5md9yh17z900000gn/T/labkit-smoke-0445vscb/12-file-url/입력 데이터.csv"
+      }
      },
      {
       "name": "utf8_survives_a_pipe",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.04
+      "seconds": 0.04,
+      "observed": {
+       "with_configure_stdio": {
+        "exit": 0,
+        "stdout": "한글 출력 ✓",
+        "stderr": null
+       },
+       "without_it": {
+        "exit": 0,
+        "stdout": "한글 출력 ✓",
+        "stderr": null
+       }
+      }
      },
      {
       "name": "cli_end_to_end",
       "group": "cli",
       "result": "holds",
-      "seconds": 11.67
+      "seconds": 10.49,
+      "observed": {
+       "query": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null,
+        "regions": [
+         "대구",
+         "부산",
+         "서울"
+        ]
+       },
+       "run": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null,
+        "status": "ok",
+        "charts": 1,
+        "stdout_has_korean": true
+       },
+       "note": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null
+       },
+       "rerun": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null,
+        "verdict": "match"
+       },
+       "report": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null,
+        "index_exists": true
+       },
+       "status": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null,
+        "title": "플랫폼 실측"
+       },
+       "context": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null
+       }
+      }
      },
      {
       "name": "cli_run_timeout_in_python_code",
       "group": "cli",
       "result": "holds",
-      "seconds": 3.33
+      "seconds": 3.29,
+      "observed": {
+       "status": "timeout",
+       "exit": 3,
+       "recorded_s": 3.009,
+       "cli_seconds": 3.3
+      }
      },
      {
       "name": "cli_run_timeout_in_a_blocking_duckdb_query",
       "group": "cli",
       "result": "holds",
-      "seconds": 3.35
+      "seconds": 3.29,
+      "observed": {
+       "status": "timeout",
+       "exit": 3,
+       "recorded_s": 3.006,
+       "cli_seconds": 3.3
+      }
      },
      {
       "name": "cli_cancel_the_way_the_extension_does",
       "group": "cli",
       "result": "holds",
-      "seconds": 1.92
+      "seconds": 1.9,
+      "observed": {
+       "asked": true,
+       "recorded_status": "cancelled",
+       "listed_status": "cancelled",
+       "exit_code": 3,
+       "exit_code_hex": "0x3",
+       "forced": false,
+       "seconds_to_exit": 0.48,
+       "kit_process_gone": true,
+       "stdout_tail": "started\n"
+      }
      },
      {
       "name": "cli_cancel_reaches_a_run_inside_a_regular_expression",
       "group": "cli",
       "result": "holds",
-      "seconds": 2.41
+      "seconds": 2.4,
+      "observed": {
+       "asked": true,
+       "recorded_status": "cancelled",
+       "listed_status": "cancelled",
+       "exit_code": 3,
+       "exit_code_hex": "0x3",
+       "forced": false,
+       "seconds_to_exit": 0.48,
+       "kit_process_gone": true,
+       "stdout_tail": "started\n"
+      }
      },
      {
       "name": "cli_cancel_reaches_a_run_waiting_on_a_subprocess",
       "group": "cli",
       "result": "holds",
-      "seconds": 2.41
+      "seconds": 2.38,
+      "observed": {
+       "asked": true,
+       "recorded_status": "cancelled",
+       "listed_status": "cancelled",
+       "exit_code": 3,
+       "exit_code_hex": "0x3",
+       "forced": false,
+       "seconds_to_exit": 0.47,
+       "kit_process_gone": true,
+       "stdout_tail": "started\n"
+      }
      },
      {
       "name": "cli_deadline_when_the_script_ignores_sigint",
       "group": "cli",
       "result": "observed",
-      "seconds": 2.35,
+      "seconds": 2.3,
       "observed": {
        "status": "timeout",
        "exit": 3,
-       "recorded_s": 2.005,
-       "cli_seconds": 2.4,
+       "recorded_s": 2.007,
+       "cli_seconds": 2.3,
        "script_finished": false
       }
      },
@@ -1478,35 +2392,68 @@
       "name": "cli_concurrent_runs_are_serialized",
       "group": "cli",
       "result": "holds",
-      "seconds": 4.67
+      "seconds": 4.66,
+      "observed": {
+       "left_side": {
+        "status": "ok",
+        "outputs": [
+         "data/derived/left_side.parquet"
+        ]
+       },
+       "right_side": {
+        "status": "ok",
+        "outputs": [
+         "data/derived/right_side.parquet"
+        ]
+       }
+      }
      },
      {
       "name": "cli_refuses_a_new_reserved_dataset_name",
       "group": "cli",
       "result": "holds",
-      "seconds": 0.08
+      "seconds": 0.06,
+      "observed": {
+       "exit": 1,
+       "error_code": "name_not_portable"
+      }
      },
      {
       "name": "cli_writes_a_reserved_chart_id_to_a_portable_file",
       "group": "cli",
       "result": "holds",
-      "seconds": 0.96
+      "seconds": 0.87,
+      "observed": {
+       "status": "ok",
+       "exit": 0,
+       "ids": [
+        "con"
+       ],
+       "png": "runs/20260925-105055-06-chart-con/charts/con_.png",
+       "png_readable": true
+      }
      },
      {
       "name": "cli_a_script_saving_a_reserved_name_is_warned_about",
       "group": "cli",
       "result": "holds",
-      "seconds": 0.38
+      "seconds": 0.32,
+      "observed": {
+       "status": "ok",
+       "exit": 0,
+       "warned": true,
+       "error": null
+      }
      },
      {
       "name": "probe_interrupt_through_uv_run",
       "group": "probe",
       "result": "observed",
-      "seconds": 1.28,
+      "seconds": 1.32,
       "observed": {
        "uv_exit_code": 130,
        "uv_exit_code_hex": "0x82",
-       "seconds_to_exit": 1.23,
+       "seconds_to_exit": 1.26,
        "child_marker": "handler-finished:2",
        "child_gone": true
       }
@@ -1515,11 +2462,11 @@
       "name": "probe_cancel_request_file_through_uv_run",
       "group": "probe",
       "result": "observed",
-      "seconds": 1.14,
+      "seconds": 1.16,
       "observed": {
        "uv_exit_code": 130,
        "uv_exit_code_hex": "0x82",
-       "seconds_to_exit": 1.08,
+       "seconds_to_exit": 1.09,
        "child_marker": "handler-finished:2",
        "child_gone": true
       }
@@ -1528,7 +2475,7 @@
       "name": "probe_waking_a_sleeping_main_thread",
       "group": "probe",
       "result": "observed",
-      "seconds": 11.01,
+      "seconds": 11.02,
       "observed": {
        "_thread.interrupt_main": {
         "interrupted_by": "Interrupted",
@@ -1536,18 +2483,18 @@
        },
        "signal.pthread_kill(main, SIGINT)": {
         "interrupted_by": "Interrupted",
-        "seconds": 1.0
+        "seconds": 1.01
        }
       }
      }
     ]
    },
    "suite_py3_12": {
-    "file_sha256": "8866dce5d31c60cd000c9a33f0cc9a52516751ece16d09ef729f6d5e26354f8a",
-    "timestamp": "2026-09-25T04:32:31.237467+09:00",
-    "seconds": 224.236,
+    "file_sha256": "8c5ffb31049e22c702f1f22d50e032b599c6a0b0ecec358873764ceb7b2cc5cb",
+    "timestamp": "2026-09-25T10:51:11.520359+09:00",
+    "seconds": 200.417,
     "counts": {
-     "pass": 452,
+     "pass": 482,
      "fail": 0,
      "skip": 4
     },
@@ -1559,11 +2506,11 @@
     }
    },
    "suite_py3_13": {
-    "file_sha256": "8a7a7f5784af4ddf3c5417dd3137f2aedab0940e6cb8528beac72621308e685f",
-    "timestamp": "2026-09-25T04:36:16.408570+09:00",
-    "seconds": 200.059,
+    "file_sha256": "e9d1d1a8777ad5ec26368a8cd5d15142db3246964fbf1323eb8be1b8e70a4512",
+    "timestamp": "2026-09-25T10:54:32.775004+09:00",
+    "seconds": 196.416,
     "counts": {
-     "pass": 452,
+     "pass": 482,
      "fail": 0,
      "skip": 4
     },
@@ -1575,11 +2522,11 @@
     }
    },
    "suite_py3_14": {
-    "file_sha256": "6881b9ef859ef6b97de52aa98bab5149efc316e8dd15e446ac5f83dd128d8b89",
-    "timestamp": "2026-09-25T04:39:37.608450+09:00",
-    "seconds": 203.787,
+    "file_sha256": "a2648c29498ea758da8a3c4b334a2c8eb01aacf24923fefac57aafc9fe17c342",
+    "timestamp": "2026-09-25T10:57:51.092427+09:00",
+    "seconds": 198.554,
     "counts": {
-     "pass": 453,
+     "pass": 483,
      "fail": 0,
      "skip": 3
     },
@@ -1590,17 +2537,515 @@
     }
    },
    "aelix_0_1_0b2_py3_12": {
-    "file_sha256": "811423ee3ba65dd6397aa4eb94122b4891ef4af22938e3016a7445e0f293a0f2",
-    "timestamp": "2026-09-25T04:43:02.887211+09:00",
-    "seconds": 18.673,
+    "file_sha256": "85877d164d8ab1b81c0db0093583360aa12f0f25f18226d2156ff5ab6e6312fd",
+    "timestamp": "2026-09-25T11:01:12.033389+09:00",
+    "seconds": 18.32,
     "counts": {
-     "pass": 11,
+     "pass": 12,
      "fail": 0,
      "skip": 0
     },
     "failed": [],
     "skipped_by_reason": {}
    }
+  }
+ },
+ "probes": {
+  "kept": "the PR-1 run's local evidence, not this repository",
+  "sweep": {
+   "kit": "1b31a7b for the seven variants that run as the CLI does; c66060c, which differs only in the give-back, for the others",
+   "where": "developer machine",
+   "variants": 32,
+   "points": 145427,
+   "delivered": 143097,
+   "bad": 0,
+   "wrong_status": 0,
+   "each": [
+    {
+     "variant": "cross-cancel",
+     "points": 18,
+     "delivered": 18,
+     "bad": 0,
+     "wrong_status": 0,
+     "statuses": {
+      "cancelled": 18
+     },
+     "python": "3.12.13",
+     "lines_written": 0
+    },
+    {
+     "variant": "cross-deadline",
+     "points": 18,
+     "delivered": 18,
+     "bad": 0,
+     "wrong_status": 0,
+     "statuses": {
+      "timeout": 18
+     },
+     "python": "3.12.13",
+     "lines_written": 0
+    },
+    {
+     "variant": "cross-early_alarm",
+     "points": 18,
+     "delivered": 18,
+     "bad": 0,
+     "wrong_status": 0,
+     "statuses": {
+      "ok": 1,
+      "timeout": 17
+     },
+     "python": "3.12.13",
+     "lines_written": 0
+    },
+    {
+     "variant": "follows-detaches-SIGALRM",
+     "points": 5227,
+     "delivered": 5037,
+     "bad": 0,
+     "wrong_status": 0,
+     "statuses": {
+      "ok": 4960,
+      "timeout": 267
+     },
+     "python": "3.12.13",
+     "lines_written": 5227
+    },
+    {
+     "variant": "follows-detaches-SIGINT",
+     "points": 5227,
+     "delivered": 5227,
+     "bad": 0,
+     "wrong_status": 0,
+     "statuses": {
+      "null": 146,
+      "cancelled": 1169,
+      "ok": 3912
+     },
+     "python": "3.12.13",
+     "lines_written": 5045
+    },
+    {
+     "variant": "follows-detaches-SIGTERM",
+     "points": 5227,
+     "delivered": 5036,
+     "bad": 0,
+     "wrong_status": 0,
+     "statuses": {
+      "ok": 4050,
+      "cancelled": 1177
+     },
+     "python": "3.12.13",
+     "lines_written": 5227
+    },
+    {
+     "variant": "follows-prints-SIGALRM",
+     "points": 5553,
+     "delivered": 5352,
+     "bad": 0,
+     "wrong_status": 0,
+     "statuses": {
+      "ok": 4886,
+      "timeout": 667
+     },
+     "python": "3.12.13",
+     "lines_written": 5553
+    },
+    {
+     "variant": "follows-prints-SIGINT",
+     "points": 5553,
+     "delivered": 5553,
+     "bad": 0,
+     "wrong_status": 0,
+     "statuses": {
+      "null": 146,
+      "cancelled": 1484,
+      "ok": 3923
+     },
+     "python": "3.12.13",
+     "lines_written": 5363
+    },
+    {
+     "variant": "follows-prints-SIGTERM-host",
+     "points": 5553,
+     "delivered": 5553,
+     "bad": 0,
+     "wrong_status": 0,
+     "statuses": {
+      "null": 138,
+      "cancelled": 1620,
+      "ok": 3795
+     },
+     "python": "3.12.13",
+     "lines_written": 5361
+    },
+    {
+     "variant": "follows-prints-SIGTERM",
+     "points": 5553,
+     "delivered": 5351,
+     "bad": 0,
+     "wrong_status": 0,
+     "statuses": {
+      "ok": 4061,
+      "cancelled": 1492
+     },
+     "python": "3.12.13",
+     "lines_written": 5553
+    },
+    {
+     "variant": "host-SIGALRM-second",
+     "points": 4737,
+     "delivered": 4737,
+     "bad": 0,
+     "wrong_status": 0,
+     "statuses": {
+      "null": 142,
+      "ok": 4542,
+      "timeout": 53
+     },
+     "python": "3.12.13",
+     "lines_written": 0
+    },
+    {
+     "variant": "host-SIGALRM",
+     "points": 4736,
+     "delivered": 4736,
+     "bad": 0,
+     "wrong_status": 0,
+     "statuses": {
+      "null": 142,
+      "ok": 4541,
+      "timeout": 53
+     },
+     "python": "3.12.13",
+     "lines_written": 0
+    },
+    {
+     "variant": "host-SIGINT-second",
+     "points": 4739,
+     "delivered": 4739,
+     "bad": 0,
+     "wrong_status": 0,
+     "statuses": {
+      "null": 146,
+      "cancelled": 714,
+      "ok": 3879
+     },
+     "python": "3.12.13",
+     "lines_written": 0
+    },
+    {
+     "variant": "host-SIGINT",
+     "points": 4736,
+     "delivered": 4736,
+     "bad": 0,
+     "wrong_status": 0,
+     "statuses": {
+      "null": 146,
+      "cancelled": 714,
+      "ok": 3876
+     },
+     "python": "3.12.13",
+     "lines_written": 0
+    },
+    {
+     "variant": "host-SIGTERM-second",
+     "points": 4739,
+     "delivered": 4739,
+     "bad": 0,
+     "wrong_status": 0,
+     "statuses": {
+      "null": 138,
+      "cancelled": 722,
+      "ok": 3879
+     },
+     "python": "3.12.13",
+     "lines_written": 0
+    },
+    {
+     "variant": "host-SIGTERM",
+     "points": 4736,
+     "delivered": 4736,
+     "bad": 0,
+     "wrong_status": 0,
+     "statuses": {
+      "null": 138,
+      "cancelled": 722,
+      "ok": 3876
+     },
+     "python": "3.12.13",
+     "lines_written": 0
+    },
+    {
+     "variant": "left-SIGINT-second",
+     "points": 4872,
+     "delivered": 4872,
+     "bad": 0,
+     "wrong_status": 0,
+     "statuses": {
+      "null": 146,
+      "cancelled": 847,
+      "ok": 3879
+     },
+     "python": "3.12.13",
+     "lines_written": 0
+    },
+    {
+     "variant": "left-SIGINT",
+     "points": 4869,
+     "delivered": 4869,
+     "bad": 0,
+     "wrong_status": 0,
+     "statuses": {
+      "null": 146,
+      "cancelled": 847,
+      "ok": 3876
+     },
+     "python": "3.12.13",
+     "lines_written": 0
+    },
+    {
+     "variant": "left-SIGTERM-second",
+     "points": 4872,
+     "delivered": 4717,
+     "bad": 0,
+     "wrong_status": 0,
+     "statuses": {
+      "ok": 4017,
+      "cancelled": 834,
+      "error": 21
+     },
+     "python": "3.12.13",
+     "lines_written": 0
+    },
+    {
+     "variant": "left-SIGTERM",
+     "points": 4869,
+     "delivered": 4714,
+     "bad": 0,
+     "wrong_status": 0,
+     "statuses": {
+      "ok": 4014,
+      "cancelled": 834,
+      "error": 21
+     },
+     "python": "3.12.13",
+     "lines_written": 0
+    },
+    {
+     "variant": "plain-SIGALRM-second",
+     "points": 4737,
+     "delivered": 4583,
+     "bad": 0,
+     "wrong_status": 0,
+     "statuses": {
+      "ok": 4684,
+      "timeout": 53
+     },
+     "python": "3.12.13",
+     "lines_written": 0
+    },
+    {
+     "variant": "plain-SIGALRM",
+     "points": 4736,
+     "delivered": 4582,
+     "bad": 0,
+     "wrong_status": 0,
+     "statuses": {
+      "ok": 4683,
+      "timeout": 53
+     },
+     "python": "3.12.13",
+     "lines_written": 0
+    },
+    {
+     "variant": "plain-SIGINT-second",
+     "points": 4739,
+     "delivered": 4739,
+     "bad": 0,
+     "wrong_status": 0,
+     "statuses": {
+      "null": 146,
+      "cancelled": 714,
+      "ok": 3879
+     },
+     "python": "3.12.13",
+     "lines_written": 0
+    },
+    {
+     "variant": "plain-SIGINT",
+     "points": 4736,
+     "delivered": 4736,
+     "bad": 0,
+     "wrong_status": 0,
+     "statuses": {
+      "null": 146,
+      "cancelled": 714,
+      "ok": 3876
+     },
+     "python": "3.12.13",
+     "lines_written": 0
+    },
+    {
+     "variant": "plain-SIGTERM-second",
+     "points": 4739,
+     "delivered": 4584,
+     "bad": 0,
+     "wrong_status": 0,
+     "statuses": {
+      "ok": 4017,
+      "cancelled": 722
+     },
+     "python": "3.12.13",
+     "lines_written": 0
+    },
+    {
+     "variant": "plain-SIGTERM",
+     "points": 4736,
+     "delivered": 4581,
+     "bad": 0,
+     "wrong_status": 0,
+     "statuses": {
+      "ok": 4014,
+      "cancelled": 722
+     },
+     "python": "3.12.13",
+     "lines_written": 0
+    },
+    {
+     "variant": "prints-SIGALRM",
+     "points": 5496,
+     "delivered": 5342,
+     "bad": 0,
+     "wrong_status": 0,
+     "statuses": {
+      "ok": 4843,
+      "timeout": 653
+     },
+     "python": "3.12.13",
+     "lines_written": 0
+    },
+    {
+     "variant": "prints-SIGINT",
+     "points": 5496,
+     "delivered": 5496,
+     "bad": 0,
+     "wrong_status": 0,
+     "statuses": {
+      "null": 146,
+      "cancelled": 1474,
+      "ok": 3876
+     },
+     "python": "3.12.13",
+     "lines_written": 0
+    },
+    {
+     "variant": "prints-SIGTERM",
+     "points": 5496,
+     "delivered": 5341,
+     "bad": 0,
+     "wrong_status": 0,
+     "statuses": {
+      "ok": 3918,
+      "cancelled": 1578
+     },
+     "python": "3.12.13",
+     "lines_written": 0
+    },
+    {
+     "variant": "timer-SIGALRM",
+     "points": 4888,
+     "delivered": 4734,
+     "bad": 0,
+     "wrong_status": 0,
+     "statuses": {
+      "ok": 4829,
+      "timeout": 59
+     },
+     "python": "3.12.13",
+     "lines_written": 0
+    },
+    {
+     "variant": "timer-SIGINT",
+     "points": 4888,
+     "delivered": 4888,
+     "bad": 0,
+     "wrong_status": 0,
+     "statuses": {
+      "null": 146,
+      "cancelled": 866,
+      "ok": 3876
+     },
+     "python": "3.12.13",
+     "lines_written": 0
+    },
+    {
+     "variant": "timer-SIGTERM",
+     "points": 4888,
+     "delivered": 4733,
+     "bad": 0,
+     "wrong_status": 0,
+     "statuses": {
+      "ok": 4014,
+      "cancelled": 874
+     },
+     "python": "3.12.13",
+     "lines_written": 0
+    }
+   ]
+  },
+  "real_signal_fuzz": {
+   "kit": "1b31a7b",
+   "runs": [
+    {
+     "interpreter": "3.12.13 (main, Jun  2 2026, 22:42:28) [Clang 22.1.3 ] darwin",
+     "trials": 100,
+     "gap_us": [
+      5,
+      60
+     ],
+     "statuses": {
+      "cancelled": 100
+     },
+     "cut_short_at_the_entry": 8
+    },
+    {
+     "interpreter": "3.13.13 (main, Jun  2 2026, 22:33:40) [Clang 22.1.3 ] darwin",
+     "trials": 100,
+     "gap_us": [
+      5,
+      60
+     ],
+     "statuses": {
+      "cancelled": 100
+     },
+     "cut_short_at_the_entry": 11
+    },
+    {
+     "interpreter": "3.14.5 (main, Jun  2 2026, 22:28:56) [Clang 22.1.3 ] darwin",
+     "trials": 100,
+     "gap_us": [
+      5,
+      60
+     ],
+     "statuses": {
+      "cancelled": 100
+     },
+     "cut_short_at_the_entry": 19
+    },
+    {
+     "interpreter": "3.12.14 (main, Aug 31 2026, 23:47:53) [GCC 14.2.0] linux",
+     "trials": 100,
+     "gap_us": [
+      5,
+      60
+     ],
+     "statuses": {
+      "cancelled": 100
+     },
+     "cut_short_at_the_entry": 11
+    }
+   ]
   }
  }
 }

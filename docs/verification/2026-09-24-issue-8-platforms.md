@@ -13,9 +13,9 @@ counts are in the machine-readable result,
 
 | Item | Basis |
 |---|---|
-| Measured code | PR #31 at `9bc9d0f` |
-| Measurement branch | `test/issue-8-platform-measurement` at `0cf0660`, which is that commit plus the measurement tool (`tools/platform_smoke.py`), its self-tests and the workflow, none of which is part of PR #31. The suite it runs is the PR's own plus the tool's self-tests |
-| CI run | [36046510524](https://github.com/handochan/aelix-analytics/actions/runs/36046510524): `ubuntu-latest` (image ubuntu-24.04, version 20260920.314.1) and `windows-latest` (image windows-2025-vs2026, version 20260907.229.1 for the main job and 20260922.246.2 for the stdlib-only one), each with the image's CPython 3.12.3 / 3.12.10, which uv 0.11.19 ran; CPython 3.11.16 / 3.11.9 from `actions/setup-python` for the stdlib-only leg |
+| Measured code | PR #31 at `1b31a7b` |
+| Measurement branch | `test/issue-8-platform-measurement` at `10c1876`, which is that commit plus the measurement tool (`tools/platform_smoke.py`), its self-tests and the workflow, none of which is part of PR #31. The suite it runs is the PR's own plus the tool's self-tests |
+| CI run | [36081152541](https://github.com/handochan/aelix-analytics/actions/runs/36081152541): `ubuntu-latest` (image ubuntu-24.04, version 20260920.314.1) and `windows-latest` (image windows-2025-vs2026, version 20260922.246.2), each with the image's CPython 3.12.3 / 3.12.10, which uv 0.11.19 ran; CPython 3.11.16 / 3.11.9 from `actions/setup-python` for the stdlib-only leg |
 | Developer machine | macOS 26.6.2 arm64: CPython 3.12.13 (smoke, suite, aelix), 3.13.13 and 3.14.5 (suite), uv 0.11.19; the measurement branch at the same commit, clean, run with the CI's commands |
 | aelix | 0.1.0b2 from PyPI, in an environment of its own (`uv run --no-project --with aelix==0.1.0b2`) |
 
@@ -24,8 +24,8 @@ counts are in the machine-readable result,
 | Check | Linux | Windows | macOS |
 |---|---|---|---|
 | Platform smoke, required gate (`--gate required`) | held: 25 promises hold, none violated; 6 observations | held: 21 hold, 3 declared limitations, none violated; 7 observations | held: 25 hold, none violated; 6 observations |
-| Repository suite (`pytest`) | 454 passed, 2 skipped | 359 passed, 96 skipped, none failed | 452 passed, 4 skipped (3.12); 452, 4 (3.13); 453, 3 (3.14) |
-| aelix 0.1.0b2 integration (`tests/test_extension.py`) | 11 passed | 11 passed | 11 passed |
+| Repository suite (`pytest`) | 484 passed, 2 skipped | 385 passed, 100 skipped, none failed | 482 passed, 4 skipped (3.12); 482, 4 (3.13); 483, 3 (3.14) |
+| aelix 0.1.0b2 integration (`tests/test_extension.py`) | 12 passed | 12 passed | 12 passed |
 | Stdlib-only smoke on CPython 3.11 (what the aelix process loads) | held: 15 hold; the two probes that need uv not run | held: 14 hold, 1 declared limitation (the tree limit); the two probes that need uv not run | — |
 
 A smoke check either makes a promise (it holds, is violated, or shows a limitation the documents
@@ -40,22 +40,22 @@ runs the lock case). Windows's are listed below.
 
 What held, with the values that matter:
 
-- Locks: another process is excluded (it waited 2.025 s for a holder keeping the lock 2 s), and
+- Locks: another process is excluded (it waited 2.013 s for a holder keeping the lock 2 s), and
   a lock is released when its holder is killed.
 - Replacing a record while another process reads it: a reader holding the file for 0.7 s was
-  waited out (replaced after 0.665 s); one holding it for 5 s was refused loudly after
-  1.976 s of retries (`WinError 5`), and the file kept its old content.
+  waited out (replaced after 0.719 s); one holding it for 5 s was refused loudly after
+  1.97 s of retries (`WinError 5`), and the file kept its old content.
 - Liveness: a live, an exited and a bogus pid (`None`, `"x"`, `0`, `-1`) are told apart.
 - Asking a child to stop: `ProcessControl.interrupt` creates the cancel request file when it is
   given one, and without one declines and sends nothing. `taskkill /F /T` ended a child and its
   grandchild.
 - A child printing Korean text to a pipe: with the kit's UTF-8 standard streams it arrived intact;
   without them CPython's `cp1252` default failed with `UnicodeEncodeError`.
-- Deadlines in Python code and in `time.sleep` (1.013 and 1.001 s for a 1 s deadline); a cancel request
+- Deadlines in Python code and in `time.sleep` (1.021 and 1.001 s for a 1 s deadline); a cancel request
   file wakes a sleeping run; the guard records outside its regions and interrupts inside once.
 - The CLI end to end; a run timeout in Python code and in a blocking DuckDB query (recorded
-  `timeout` at 3.043 and 3.017 s for a 3 s deadline); a cancel sent the way the extension
-  sends it (recorded `cancelled`, not forced, 1.07 s); concurrent runs serialized; a new
+  `timeout` at 3.015 and 3.03 s for a 3 s deadline); a cancel sent the way the extension
+  sends it (recorded `cancelled`, not forced, 1.12 s); concurrent runs serialized; a new
   reserved dataset name refused; a reserved chart id written to a portable file.
 
 Declared limitations, as [CONTRACTS.md](../CONTRACTS.md) G states them. The tool reports a
@@ -68,9 +68,9 @@ violation:
   (`could not end the process tree of pid …; its descendants may still be running`).
 - A cancel while the script is inside a catastrophic regular expression: the ask never reached
   the main thread, which held the GIL in `_sre`; the extension ended the tree by force after its
-  10 s wait (10.09 s), and the record stayed `running`, listed as `incomplete`.
+  10 s wait (10.08 s), and the record stayed `running`, listed as `incomplete`.
 - A cancel while the script waits in `subprocess.run` for a child that sleeps 120 s: the same,
-  forced after 10.07 s.
+  forced after 10.08 s.
 
 The deadline in those two situations was not run on Windows; that it does not reach them either
 is inferred from the mechanism (a Python thread raises it) and stated as such.
@@ -83,7 +83,7 @@ Observations, with no promise attached:
   (`EINVAL`, no Windows error code) and by `os.mkdir()` with errno 22 and `WinError 123`; a path of
   276 characters, made of 40-character directory names, was created and a file in it opened.
 - A 2 s deadline for a script that ignores SIGINT and runs 8 s: recorded `timeout` when the script
-  finished (8.006 s); on Windows the deadline arrives as SIGINT, which that script had taken over.
+  finished (8.005 s); on Windows the deadline arrives as SIGINT, which that script had taken over.
   On Linux it is SIGALRM and the run ended at 2.002 s.
 - A script saving a reserved name: the run was `ok` and warned about.
 - Design probes: a console `CTRL_BREAK_EVENT` sent to `uv run` ended `uv` at once
@@ -94,8 +94,8 @@ Observations, with no promise attached:
 
 ## The repository suite on Windows
 
-359 passed, 96 skipped and none failed, of 455. The skipped tests, by the reason each gives: 69 exercise
-the POSIX guard's signals; 6 use names POSIX can hold and Windows reads otherwise; 6 need directory
+385 passed, 100 skipped and none failed, of 485. The skipped tests, by the reason each gives: 72
+exercise the POSIX guard's signals; 7 use names POSIX can hold and Windows reads otherwise; 6 need directory
 symbolic links, which need privileges on Windows; 4 put a stub or broken guard in place of the POSIX
 one; 2 replace the delivery with `pthread_kill`; 2 need names that are not UTF-8, which Windows
 refuses; and one each needs SIGALRM, a directory the process cannot list (POSIX permissions),
@@ -103,21 +103,23 @@ process groups, or `bin/lab` (a POSIX shell script), is the declared regular-exp
 the lock case only CPython 3.14 has, or is the test module that needs aelix, which is skipped in the
 repository suite and run by the integration step.
 
-Four earlier runs had Windows failures, each fixed before the next run and not seen since.
+Five earlier runs had Windows failures. Each failure was fixed before the next commit was measured
+and has not been seen since.
 
 The first two, [35886296088](https://github.com/handochan/aelix-analytics/actions/runs/35886296088)
 and [35887916505](https://github.com/handochan/aelix-analytics/actions/runs/35887916505), measured
-the PR as it stood at `17e6e76` (an earlier run, 35885814246, stopped at setting up uv). Each had 7
-of 128 suite tests failing and the aelix integration test failing:
+the PR as it stood at `17e6e76` (an earlier run, 35885814246, stopped at setting up uv), and failed
+the same way: 7 of 128 suite tests and the aelix integration test.
 
-- Five were the tests' and the doc checker's: text read and written without an encoding (Windows
-  used cp1252), `chmod(0)`, which cannot take read access away on Windows, and the doc checker,
-  which read `C:\` as a URL scheme and let a Windows absolute link pass. They were fixed on the
-  measurement branch first and are part of PR #31 since `3c7891b`.
-- Two were the kit's: a recorded `/tmp/...` script path, which is not absolute on Windows, was
-  accepted for a rerun, and a test wrote inside a region the Windows file lock holds. Both were
-  fixed in `bbb4ba8`, with the other defects that run and its smoke showed (a replace refused while
-  a reader held the file, pids `0` and `-1` read as alive).
+- Six were the tests' and the doc checker's: text read and written without an encoding (Windows
+  used cp1252), `chmod(0)`, which cannot take read access away on Windows, a test that wrote inside
+  a region the Windows file lock holds (a second handle cannot write the byte the lock holds), and
+  the doc checker, which read `C:\` as a URL scheme and let a Windows absolute link pass. The lock
+  test was fixed in `bbb4ba8`; the others on the measurement branch first, and they are part of PR
+  #31 since `3c7891b`.
+- One was the kit's: a recorded `/tmp/...` script path, which is not absolute on Windows, was
+  accepted for a rerun. It was fixed in `bbb4ba8`, with the other defects that run and its smoke
+  showed (a replace refused while a reader held the file, pids `0` and `-1` read as alive).
 - The integration test's cancel left the run `running` instead of `cancelled`: a console
   `CTRL_BREAK_EVENT` ended `uv` at once and left its child without a record. That is why Windows
   asks through a request file the kit watches (ADR-0003).
@@ -141,22 +143,40 @@ not read as the project's file, because Windows' Python guesses a home for any `
 current user's profile (`C:\Users\$budget.xlsx`). A leading `~name` is now expanded only when
 that home exists, on every platform.
 
+The fifth, [36044596511](https://github.com/handochan/aelix-analytics/actions/runs/36044596511) at
+`fabb5eb`, had one: a test of a forced end read the run's log before the child had created it (a
+race in the test, FileNotFoundError); it waits for the log since `9bc9d0f`.
+
+Three runs were green and are superseded: [36017977140](https://github.com/handochan/aelix-analytics/actions/runs/36017977140)
+at `652700e` and [36046510524](https://github.com/handochan/aelix-analytics/actions/runs/36046510524)
+at `9bc9d0f`, after each of which an independent review changed the code (the result line, the
+runtime recorder, the guard's walk), and [36077330757](https://github.com/handochan/aelix-analytics/actions/runs/36077330757)
+at `c66060c`, after which the signal sweep below found the order of the CLI's give-back of its
+stdout (`1b31a7b`). This record is of the run named above.
+
 ## Signals at every check point, and real ones
 
-Two probes of the PR-1 run's evidence check the run guard beyond the suite, on the developer
-machine and in a Linux container (not on Windows, whose guard the suite runs on its own):
+Two probes check the run guard beyond the suite, on the developer machine and in a Linux container
+(not on Windows, whose guard the suite runs on its own). They are the developer's, kept with their
+outputs in the PR-1 run's local evidence rather than in this repository; their tallies are in the
+machine-readable result.
 
 - A sweep, on the developer machine with CPython 3.12, delivers SIGINT, SIGTERM or SIGALRM at every
   check point of a run in turn (a place where CPython handles a pending signal), one run per point,
   with and without a second signal, a host and a script that leave raising handlers, a script that
-  sets its own timer, a script that prints, and the CLI's own run, whose stdout stands in for the
-  host's until the result is out: 129,568 points in 29 variants, none bad. A record never stayed
-  `running`, no handler was left replaced, no timer was left running, every log held each printed
-  line once, and the host's stdout was back after every run.
+  sets its own timer, a script that prints, a script that detaches its stdout, and a run as the CLI
+  runs it — `runner.execute` as the CLI calls it, then the result line and the give-back of the
+  CLI's stdout, as its `_emit` and `main()` do, with the points inside them swept too:
+  145,427 points in 32 variants, none bad. A record never stayed `running`, no handler was left
+  replaced, no timer was left running, every log held each printed line once, every result line
+  that was written arrived whole and once, and the host's stdout was back after every run.
+  `main()`'s own frame was not swept. The seven variants that run as the CLI does ran the kit of
+  `1b31a7b`; the others ran that of `c66060c`, which differs only in the give-back, a path they
+  never take.
 - A real-signal fuzz sends a cancel and then, 5-60 µs later, a SIGTERM the script turned into
-  `sys.exit(0)`: 100 of 100 recorded `cancelled` on each of macOS 3.12, 3.13, 3.14 and Linux
-  3.12, including the trials where the SIGTERM cut the cancel's handler short at its first
-  instruction, which the guard counts from the traceback of what cut it short.
+  `sys.exit(0)`, with the kit of `1b31a7b`: 100 of 100 recorded `cancelled` on each of macOS
+  3.12, 3.13, 3.14 and Linux 3.12, including the trials where the SIGTERM cut the cancel's handler
+  short at its first instruction, which the guard counts from the traceback of what cut it short.
 
 ## Not run
 
