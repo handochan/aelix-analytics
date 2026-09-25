@@ -385,6 +385,10 @@ def kill_tree_ends_the_child_and_its_grandchild(ctx):
                          "diagnostic": diagnostic or None}}
 
 
+# What the kit writes to stderr when taskkill could not end a tree (_platform's kill_tree).
+KIT_TREE_WORDS = "could not end the process tree"
+
+
 @check("ports")
 def kill_tree_after_the_leader_exited(ctx):
     """The case the extension's abort path exists for: uv exits, its child keeps the pipes."""
@@ -396,8 +400,9 @@ def kill_tree_after_the_leader_exited(ctx):
     gone = wait_gone(ctx, grandchild, 15)
     if not gone:
         force_kill(grandchild)
-    # The stated form: the descendant survived, and the kit said so instead of counting it ended.
-    stated = WINDOWS and not gone and bool(diagnostic)
+    # The stated form: the descendant survived, and the kit said so, in its own words, instead of
+    # counting it ended (any other text on stderr is not that).
+    stated = WINDOWS and not gone and KIT_TREE_WORDS in (diagnostic or "")
     return {"holds": gone, "declared": declared("kill_tree") if stated else None,
             "observed": {"leader_exit_code": proc.returncode, "grandchild_gone": gone,
                          "diagnostic": diagnostic or None}}

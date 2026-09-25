@@ -261,7 +261,7 @@ def test_the_deadline_checks_settle_with_what_the_region_raised():
 
 
 # What `_cancel_a_cli_run` observed, by outcome: the form docs/CONTRACTS.md G states for a cancel
-# that cannot land on Windows, and four that are not it.
+# that cannot land on Windows, and eight that are not it.
 CANCEL_OUTCOMES = {
     "the_stated_form": {"recorded_status": "running", "listed_status": "incomplete",
                         "forced": True, "kit_process_gone": True},
@@ -273,9 +273,11 @@ CANCEL_OUTCOMES = {
                        "kit_process_gone": True},
     "never_started": {"run": "never started within 300 s", "recorded_status": None,
                       "forced": None},
-    # Review 11, rest-5: each of these differs from the stated form in one term only. The tool
-    # ends a kit that outlived the forced end before it lists the runs, so a kit left alive is
-    # seen as this.
+    # Review 11, rest-5: each of these four differs from the stated form in one term only. The
+    # tool ends a kit that outlived the forced end before it lists the runs, so a kit left alive is
+    # seen as the first. The last cannot be observed — only a `running` record is listed
+    # `incomplete` — and is here to hold the recorded status to the stated form on its own
+    # (review 12, rest-11).
     "the_kit_left_alive_as_seen": {"recorded_status": "running", "listed_status": "incomplete",
                                    "forced": True, "kit_process_gone": False},
     "ended_unforced": {"recorded_status": "running", "listed_status": "incomplete",
@@ -322,7 +324,9 @@ def test_a_declaration_holds_only_while_the_measured_tree_states_it(monkeypatch,
     assert tool.declared("gil") == f"{path} — {words}"
 
 
-@pytest.mark.parametrize("diagnostic", ["", "labkit: could not end the process tree of pid 7"])
+@pytest.mark.parametrize("diagnostic", ["", "labkit: could not end the process tree of pid 7",
+                                        # review 12, rest-11: stderr, but not the kit's words
+                                        "ERROR: The process with PID 8 could not be terminated."])
 def test_the_windows_tree_check_declares_only_the_form_the_documents_state(monkeypatch,
                                                                            diagnostic):
     """Review 11, honesty-9: docs/CONTRACTS.md G states taskkill's limit with its form — the
@@ -340,4 +344,5 @@ def test_the_windows_tree_check_declares_only_the_form_the_documents_state(monke
     ctx = types.SimpleNamespace(bundle=types.SimpleNamespace(
         processes=types.SimpleNamespace(kill_tree=lambda pid: None)))
     result = tool.kill_tree_after_the_leader_exited(ctx)
-    assert result["holds"] is False and bool(result["declared"]) is bool(diagnostic), result
+    stated = diagnostic.startswith("labkit:")
+    assert result["holds"] is False and bool(result["declared"]) is stated, result
