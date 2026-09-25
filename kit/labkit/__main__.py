@@ -63,7 +63,8 @@ def main(argv=None) -> int:
         # Bound to this call: nothing is delivered after main() returns.
         if stop_watching is not None:
             stop_watching()
-        # A run's stdout stream stood in for this process's own to carry the result line
+        # A run's stdout stream stood in for this process's own until the result line was out, so a
+        # leftover thread's print() shared the buffer the line is written through
         # (runner.write_result); the process's own are back before its shutdown flushes them —
         # also when a second Ctrl+C is handled as the give-back starts, which would otherwise
         # leave the run's stream as sys.stdout for a leftover thread to hold at shutdown.

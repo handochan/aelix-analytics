@@ -82,7 +82,8 @@ def expand_home(path: Path) -> Path:
     every platform. POSIX finds no home for a user nobody has (pathlib then refuses to expand it),
     and Windows' Python guesses one beside the current user's profile where USERNAME is that profile
     directory's name: an Office lock file `~$budget.xlsx` was C:\\Users\\$budget.xlsx there (Issue
-    #8, the second Windows run). A home is a directory: a file where the guess lands is not one."""
+    #8, Windows CI run 35993026796). A home is a directory: a file where the guess lands is not
+    one."""
     head = path.parts[0] if path.parts else ""
     if head.startswith("~"):
         with contextlib.suppress(RuntimeError, OSError):

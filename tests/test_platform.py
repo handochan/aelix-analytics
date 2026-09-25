@@ -4861,9 +4861,10 @@ def test_a_leftover_thread_s_writes_do_not_split_a_result_longer_than_a_pipe_hol
     — a buffer of its own over fd 1 — after the run, while the CLI printed a result longer than a
     pipe holds, which goes out in pieces: the thread's line landed inside the result, and the
     extension found none for a run recorded `ok`. Main's scripts wrote through the CLI's own
-    stream, whose buffer kept the two apart. The result is written through the run's stream now
-    (revision 3.6; 3.5 used a lock of its own, review 11 rest-1), with sys.stdout that stream while
-    it is, so a thread's print() is kept out too. The reader takes 4 KiB at a time."""
+    stream, whose buffer kept the two apart. The result is written through the run stdout's buffer
+    the kit kept now (revision 3.7; 3.6 wrote it through the run's text stream, and 3.5 used a lock
+    of its own, review 11 rest-1), with sys.stdout the run's text stream until then, so a thread's
+    print() is kept out too. The reader takes 4 KiB at a time."""
     body = LEFTOVER_WRITER.format(count=1200, write=LEFTOVER_WRITES[writes])
     cmd = [sys.executable, "-m", "labkit", "--project", str(project), "run",
            write_script(project, f"97_parts_{writes}.py", body), "--title", "parts"]
@@ -5429,3 +5430,71 @@ def test_a_second_ctrl_c_as_the_cli_gives_its_stdout_back_still_gives_it_back(pr
     finally:
         os.dup2(saved_fd1, 1)
         os.close(saved_fd1)
+
+
+# --- review 13 ---------------------------------------------------------------------------------
+
+EXIT_WITH_A_BLOCKED_WRITER = """\
+import atexit, sys, threading, time
+out = sys.stdout
+go = threading.Event()
+
+
+def after_the_run():
+    go.wait()
+    line = "leftover " * 100000 + "\\n"
+    while True:
+        out.write(line)
+        out.flush()
+
+
+def as_the_cli_exits():  # registered after the kit's exit flush, so it runs first
+    go.set()
+    time.sleep(0.5)  # the writer fills the pipe nobody reads and blocks, holding the buffer's lock
+
+
+threading.Thread(target=after_the_run, daemon=True).start()
+atexit.register(as_the_cli_exits)
+"""
+
+
+def test_the_cli_ends_after_its_result_line_though_a_leftover_thread_blocks_writing(project):
+    """Review 13, result-1: a caller read the CLI's stdout up to the result line and then only
+    waited for it, while a daemon thread the script left kept writing through the stdout it took:
+    the thread filled the pipe and blocked in a write, holding the run stdout buffer's lock. The
+    kit's exit flush of earlier runs' streams waited for that lock without end — atexit runs before
+    CPython's one-second grace for such locks — and the CLI never ended; main ended with SIGABRT.
+    The exit flush waits a bounded time now. A thread writing through the stream it took keeps
+    that stream alive, so nothing flushes it at the interpreter's shutdown, which exits 0."""
+    cmd = [sys.executable, "-m", "labkit", "--project", str(project), "run",
+           write_script(project, "98_blocked.py", EXIT_WITH_A_BLOCKED_WRITER), "--title", "blocked"]
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=kit_env())
+    got = {"out": b"", "result": None}
+
+    def read_to_the_result_line():
+        while chunk := os.read(proc.stdout.fileno(), 4096):
+            got["out"] += chunk
+            for line in got["out"].split(b"\n")[:-1]:
+                with contextlib.suppress(ValueError):
+                    if isinstance(parsed := json.loads(line), dict):
+                        got["result"] = parsed
+                        return
+
+    reader = threading.Thread(target=read_to_the_result_line, daemon=True)
+    reader.start()
+    try:
+        reader.join(240)
+        # From here nobody reads the pipe: a caller that took its result and only waits.
+        with contextlib.suppress(subprocess.TimeoutExpired):
+            proc.wait(timeout=60)
+        ended = proc.poll() is not None
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait(timeout=60)
+        reader.join(60)
+        proc.stdout.close()
+    result = got["result"]
+    assert isinstance(result, dict) and result.get("ok") is True, got["out"][-3000:]
+    assert ended, "the CLI did not end after its result line"
+    assert proc.returncode == 0, proc.returncode

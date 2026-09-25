@@ -21,6 +21,7 @@ import platform
 import re
 import shutil
 import sys
+import threading
 import time
 import traceback
 import types
@@ -217,7 +218,25 @@ def flush_run_streams() -> bool:
     return bool(streams)
 
 
-atexit.register(flush_run_streams)
+# How long the interpreter's exit waits for earlier runs' streams to be written out. A thread a
+# script left running can hold one of their buffers' locks, blocked writing to a stdout nobody
+# reads any more; a flush from the exiting thread would wait for it without end, as atexit runs
+# before CPython's own one-second grace for such locks (review 13, result-1). So the flush runs in a
+# thread of its own, and the exit goes on after this long, as main's did: what that thread still
+# had to write is lost, and the shutdown can end with SIGABRT where it flushes that buffer (D).
+EXIT_FLUSH_WAIT = 1.0
+
+
+def _flush_run_streams_at_exit() -> None:
+    flusher = threading.Thread(target=flush_run_streams, name="labkit-exit-flush", daemon=True)
+    try:
+        flusher.start()
+    except RuntimeError:  # an interpreter that starts no thread any more
+        return
+    flusher.join(EXIT_FLUSH_WAIT)
+
+
+atexit.register(_flush_run_streams_at_exit)
 
 # What a run the CLI started with `result_follows` leaves for its result line (_redirected): the
 # host's own sys.stdout and sys.__stdout__; the run stdout's buffer where it can carry the line, else
@@ -328,7 +347,10 @@ def _still_attached(stream, buffer) -> bool:
 
 
 def _same_file(fd: int, other: int) -> bool:
-    """Whether descriptor `fd` leads to the file, pipe or terminal that `other` does."""
+    """Whether descriptor `fd` leads to the file, pipe or terminal that `other` does. On Windows
+    os.fstat gives a pipe or a console no device or inode (both 0), so there any two of them look
+    the same: a closed fd 1, or one reopened on a disk file, is told apart, and one reopened on
+    another pipe is not."""
     try:
         a, b = os.fstat(fd), os.fstat(other)
     except OSError:

@@ -377,7 +377,7 @@ class _RunGuard:
 
         Each root is walked up to CHAIN_LIMIT exceptions of its own: with one budget for all of
         them (3.6), a failure with that many chained or grouped exceptions hid what a handler raised
-        while the region was left, and the reverse (review 12, rest-4)."""
+        while the region was left, and, in 3.5's order, the reverse (review 12, rest-4)."""
         for root in roots:
             if root is None:
                 continue
