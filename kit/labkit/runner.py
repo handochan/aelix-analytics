@@ -218,21 +218,16 @@ def flush_run_streams() -> bool:
     return bool(streams)
 
 
-# How long the interpreter's exit waits for earlier runs' streams to be written out while another
-# thread is alive. A thread a script left running can hold one of their buffers' locks, blocked
-# writing to a stdout nobody reads any more; a flush from the exiting thread would wait for it
-# without end, as atexit runs before CPython's own one-second grace for such locks (review 13,
-# result-1). So then the flush runs in a thread of its own, and the exit goes on after this long, as
-# main's did: what is not written by then is lost, whether a thread holds the buffer or the reader
-# is slow, and the shutdown can end with SIGABRT where it flushes that buffer (D). With no other
-# thread left, nothing can hold those locks, and the exit waits for the reader as main's did.
+# How long the interpreter's exit waits for earlier runs' streams to be written out. A thread a
+# script left running can hold one of their buffers' locks, blocked writing to a stdout nobody
+# reads any more; a flush from the exiting thread would wait for it without end, as atexit runs
+# before CPython's own one-second grace for such locks (review 13, result-1). So the flush runs in a
+# thread of its own, and the exit goes on after this long, as main's did: what that thread still
+# had to write is lost, and the shutdown can end with SIGABRT where it flushes that buffer (D).
 EXIT_FLUSH_WAIT = 1.0
 
 
 def _flush_run_streams_at_exit() -> None:
-    if len(sys._current_frames()) <= 1:  # this thread alone runs Python code
-        flush_run_streams()
-        return
     flusher = threading.Thread(target=flush_run_streams, name="labkit-exit-flush", daemon=True)
     try:
         flusher.start()

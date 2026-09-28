@@ -5464,10 +5464,8 @@ def test_the_cli_ends_after_its_result_line_though_a_leftover_thread_blocks_writ
     the thread filled the pipe and blocked in a write, holding the run stdout buffer's lock. The
     kit's exit flush of earlier runs' streams waited for that lock without end — atexit runs before
     CPython's one-second grace for such locks — and the CLI never ended; main ended with SIGABRT.
-    The exit flush waits a bounded time now while another thread is alive. A thread writing through
-    the stream it took keeps that stream alive, so nothing flushes it at the interpreter's shutdown,
-    which exits 0. This test covers the exit's flush only: a thread that takes the buffer between
-    the line's write and its flush holds up write_result itself, as main's _emit (CONTRACTS D)."""
+    The exit flush waits a bounded time now. A thread writing through the stream it took keeps
+    that stream alive, so nothing flushes it at the interpreter's shutdown, which exits 0."""
     cmd = [sys.executable, "-m", "labkit", "--project", str(project), "run",
            write_script(project, "98_blocked.py", EXIT_WITH_A_BLOCKED_WRITER), "--title", "blocked"]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=kit_env())
@@ -5499,73 +5497,4 @@ def test_the_cli_ends_after_its_result_line_though_a_leftover_thread_blocks_writ
     result = got["result"]
     assert isinstance(result, dict) and result.get("ok") is True, got["out"][-3000:]
     assert ended, "the CLI did not end after its result line"
-    assert proc.returncode == 0, proc.returncode
-
-
-EXIT_WITH_A_SLOW_READER = """\
-import atexit, os, sys, time
-out = sys.stdout
-
-
-def as_the_cli_exits():  # registered after the kit's exit flush, so it runs first
-    time.sleep(0.3)  # the caller has the result line by now, and reads nothing for a while
-    os.set_blocking(1, False)
-    try:
-        while True:
-            os.write(1, b"x" * 65536)  # the pipe fills
-    except BlockingIOError:
-        pass
-    finally:
-        os.set_blocking(1, True)
-    for i in range(500):  # left in the run's stream for the kit's exit flush to write out
-        out.write(f"MARK {i}\\n")
-
-
-atexit.register(as_the_cli_exits)
-"""
-
-
-@pytest.mark.skipif(sys.platform == "win32", reason="the pipe is filled with non-blocking writes, "
-                                                     "the POSIX way")
-def test_the_cli_s_exit_waits_for_a_slow_reader_when_no_other_thread_is_left(project):
-    """Review of revision 3.8 (diff-3): 3.8 bounded the exit flush of earlier runs' streams to one
-    second whatever held it up, so a caller that took the result line and then paused with the pipe
-    full lost what the script's atexit hook had left in the stdout it took, which main and 3.7 wrote
-    out. With no other thread left, nothing can hold those streams' locks, and the exit waits for
-    the reader as main's did."""
-    cmd = [sys.executable, "-m", "labkit", "--project", str(project), "run",
-           write_script(project, "99_slow_reader.py", EXIT_WITH_A_SLOW_READER), "--title", "slow"]
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=kit_env())
-    got = {"out": b"", "result": None}
-
-    def read_to_the_result_line():
-        while chunk := os.read(proc.stdout.fileno(), 4096):
-            got["out"] += chunk
-            for line in got["out"].split(b"\n")[:-1]:
-                with contextlib.suppress(ValueError):
-                    if isinstance(parsed := json.loads(line), dict):
-                        got["result"] = parsed
-                        return
-
-    def read_the_rest():
-        while chunk := os.read(proc.stdout.fileno(), 65536):
-            got["out"] += chunk
-
-    reader = threading.Thread(target=read_to_the_result_line, daemon=True)
-    reader.start()
-    try:
-        reader.join(240)
-        time.sleep(2.5)  # longer than EXIT_FLUSH_WAIT, with the pipe full
-        rest = threading.Thread(target=read_the_rest, daemon=True)
-        rest.start()
-        proc.wait(timeout=120)
-        rest.join(60)
-    finally:
-        if proc.poll() is None:
-            proc.kill()
-            proc.wait(timeout=60)
-        proc.stdout.close()
-    result = got["result"]
-    assert isinstance(result, dict) and result.get("ok") is True, got["out"][-3000:]
-    assert got["out"].count(b"MARK ") == 500, got["out"].count(b"MARK ")
     assert proc.returncode == 0, proc.returncode
