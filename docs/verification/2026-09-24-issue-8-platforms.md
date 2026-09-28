@@ -13,9 +13,9 @@ counts are in the machine-readable result,
 
 | Item | Basis |
 |---|---|
-| Measured code | PR #31 at `4458437` |
-| Measurement branch | `test/issue-8-platform-measurement` at `7c33fcd`, which is that commit plus the measurement tool (`tools/platform_smoke.py`), its self-tests and the workflow, none of which is part of PR #31. The suite it runs is the PR's own plus the tool's self-tests |
-| CI run | [36444257841](https://github.com/handochan/aelix-analytics/actions/runs/36444257841): `ubuntu-latest` (image ubuntu-24.04, version 20260920.314.1) and `windows-latest` (image windows-2025-vs2026, version 20260922.246.2), each with the image's CPython 3.12.3 / 3.12.10, which uv 0.11.19 ran; CPython 3.11.16 / 3.11.9 from `actions/setup-python` for the stdlib-only leg |
+| Measured code | PR #31 at `0c225a9` |
+| Measurement branch | `test/issue-8-platform-measurement` at `e37f142`, which is that commit plus the measurement tool (`tools/platform_smoke.py`), its self-tests and the workflow, none of which is part of PR #31. The suite it runs is the PR's own plus the tool's self-tests |
+| CI run | [36096151504](https://github.com/handochan/aelix-analytics/actions/runs/36096151504): `ubuntu-latest` (image ubuntu-24.04, version 20260920.314.1) and `windows-latest` (image windows-2025-vs2026, version 20260922.246.2), each with the image's CPython 3.12.3 / 3.12.10, which uv 0.11.19 ran; CPython 3.11.16 / 3.11.9 from `actions/setup-python` for the stdlib-only leg |
 | Developer machine | macOS 26.6.2 arm64: CPython 3.12.13 (smoke, suite, aelix), 3.13.13 and 3.14.5 (suite), uv 0.11.19; the measurement branch at the same commit, clean, run with the CI's commands |
 | aelix | 0.1.0b2 from PyPI, in an environment of its own (`uv run --no-project --with aelix==0.1.0b2`) |
 
@@ -24,7 +24,7 @@ counts are in the machine-readable result,
 | Check | Linux | Windows | macOS |
 |---|---|---|---|
 | Platform smoke, required gate (`--gate required`) | held: 25 promises hold, none violated; 6 observations | held: 21 hold, 3 declared limitations, none violated; 7 observations | held: 25 hold, none violated; 6 observations |
-| Repository suite (`pytest`) | 486 passed, 2 skipped | 386 passed, 101 skipped, none failed | 484 passed, 4 skipped (3.12); 484, 4 (3.13); 485, 3 (3.14) |
+| Repository suite (`pytest`) | 485 passed, 2 skipped | 386 passed, 100 skipped, none failed | 483 passed, 4 skipped (3.12); 483, 4 (3.13); 484, 3 (3.14) |
 | aelix 0.1.0b2 integration (`tests/test_extension.py`) | 12 passed | 12 passed | 12 passed |
 | Stdlib-only smoke on CPython 3.11 (what the aelix process loads) | held: 15 hold; the two probes that need uv not run | held: 14 hold, 1 declared limitation (the tree limit); the two probes that need uv not run | — |
 
@@ -40,7 +40,7 @@ runs the lock case). Windows's are listed below.
 
 What held, with the values that matter:
 
-- Locks: another process is excluded (it waited 1.963 s for a holder keeping the lock 2 s), and
+- Locks: another process is excluded (it waited 2.02 s for a holder keeping the lock 2 s), and
   a lock is released when its holder is killed.
 - Replacing a record while another process reads it: a reader holding the file for 0.7 s was
   waited out (replaced after 0.707 s); one holding it for 5 s was refused loudly after
@@ -51,11 +51,11 @@ What held, with the values that matter:
   grandchild.
 - A child printing Korean text to a pipe: with the kit's UTF-8 standard streams it arrived intact;
   without them CPython's `cp1252` default failed with `UnicodeEncodeError`.
-- Deadlines in Python code and in `time.sleep` (1.007 and 1.015 s for a 1 s deadline); a cancel request
+- Deadlines in Python code and in `time.sleep` (1.019 and 1.001 s for a 1 s deadline); a cancel request
   file wakes a sleeping run; the guard records outside its regions and interrupts inside once.
 - The CLI end to end; a run timeout in Python code and in a blocking DuckDB query (recorded
-  `timeout` at 3.014 and 3.007 s for a 3 s deadline); a cancel sent the way the extension
-  sends it (recorded `cancelled`, not forced, 0.73 s); concurrent runs serialized; a new
+  `timeout` at 3.037 and 3.011 s for a 3 s deadline); a cancel sent the way the extension
+  sends it (recorded `cancelled`, not forced, 1.02 s); concurrent runs serialized; a new
   reserved dataset name refused; a reserved chart id written to a portable file.
 
 Declared limitations, as [CONTRACTS.md](../CONTRACTS.md) G states them. The tool reports a
@@ -68,9 +68,9 @@ violation:
   (`could not end the process tree of pid …; its descendants may still be running`).
 - A cancel while the script is inside a catastrophic regular expression: the ask never reached
   the main thread, which held the GIL in `_sre`; the extension ended the tree by force after its
-  10 s wait (10.09 s), and the record stayed `running`, listed as `incomplete`.
+  10 s wait (10.07 s), and the record stayed `running`, listed as `incomplete`.
 - A cancel while the script waits in `subprocess.run` for a child that sleeps 120 s: the same,
-  forced after 10.41 s.
+  forced after 10.07 s.
 
 The deadline in those two situations was not run on Windows; that it does not reach them either
 is inferred from the mechanism (a Python thread raises it) and stated as such.
@@ -94,14 +94,13 @@ Observations, with no promise attached:
 
 ## The repository suite on Windows
 
-386 passed, 101 skipped and none failed, of 487. The skipped tests, by the reason each gives: 72
+386 passed, 100 skipped and none failed, of 486. The skipped tests, by the reason each gives: 72
 exercise the POSIX guard's signals; 7 use names POSIX can hold and Windows reads otherwise; 6 need directory
 symbolic links, which need privileges on Windows; 4 put a stub or broken guard in place of the POSIX
 one; 2 replace the delivery with `pthread_kill`; 2 need names that are not UTF-8, which Windows
 refuses; and one each needs SIGALRM, a directory the process cannot list (POSIX permissions),
 process groups, or `bin/lab` (a POSIX shell script), is the declared regular-expression cancel, is
-the lock case only CPython 3.14 has, fills a pipe with non-blocking writes (the POSIX way), or is the
-test module that needs aelix, which is skipped in the
+the lock case only CPython 3.14 has, or is the test module that needs aelix, which is skipped in the
 repository suite and run by the integration step.
 
 Five earlier runs had Windows failures. Each failure was fixed before the next commit was measured
@@ -148,7 +147,7 @@ The fifth, [36044596511](https://github.com/handochan/aelix-analytics/actions/ru
 `fabb5eb`, had one: a test of a forced end read the run's log before the child had created it (a
 race in the test, FileNotFoundError); it waits for the log since `9bc9d0f`.
 
-Five runs were green and are superseded, each by what was found after it:
+Four earlier runs were green and are superseded, each by what was found after it:
 
 - [36017977140](https://github.com/handochan/aelix-analytics/actions/runs/36017977140) at `652700e` and [36046510524](https://github.com/handochan/aelix-analytics/actions/runs/36046510524) at `9bc9d0f`: an
   independent review changed the code after each (the result line, the runtime recorder, the guard's
@@ -157,10 +156,11 @@ Five runs were green and are superseded, each by what was found after it:
   give-back of its stdout (`1b31a7b`).
 - [36081152541](https://github.com/handochan/aelix-analytics/actions/runs/36081152541) at `1b31a7b`: an independent review found that the CLI could wait
   without end at its exit for a thread the script left (`42faccb`).
-- [36096151504](https://github.com/handochan/aelix-analytics/actions/runs/36096151504) at `0c225a9`: the review of that revision's change found that its
-  exit no longer waited for a reader slower than a second (`4458437`).
 
-This record is of the run named above.
+One later run, [36444257841](https://github.com/handochan/aelix-analytics/actions/runs/36444257841) at `4458437`, measured a change that was then withdrawn
+(`ad20a4e`). The change made the exit wait for a slow reader when no other thread ran Python code. The
+review of that change found that it could then wait without end for a thread with no Python frame. The
+code is again the one this record measured. This record is of the run named above.
 
 ## Signals at every check point, and real ones
 
@@ -189,7 +189,7 @@ machine-readable result.
   3.12, 3.13, 3.14 and Linux 3.12, including the trials where the SIGTERM cut the cancel's handler
   short at its first instruction, which the guard counts from the traceback of what cut it short.
 
-Neither probe was run again for `4458437`: it differs from the kits they ran only in comments and in
+Neither probe was run again for `0c225a9`: it differs from the kits they ran only in comments and in
 how the interpreter's exit writes out earlier runs' streams, which neither probe injects into.
 
 ## Not run
