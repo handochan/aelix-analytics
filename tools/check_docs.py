@@ -32,6 +32,11 @@ STATE_SCHEMA = "docs/schemas/dev-state.schema.json"
 STATE_FAMILY = "aelix-analytics.dev-state/1"
 STATE_EXAMPLE = "docs/templates/WORK-STATE.example.json"
 MARKDOWN = MarkdownIt("commonmark").enable("table")
+# A drive path (C:\x, C:/x, and C:x, relative to that drive's current directory), or one that
+# starts at a backslash (\x, a UNC \\server\share), as a Windows checkout writes them. Matched after
+# percent-decoding: the Markdown parser encodes a backslash in a link destination as %5C. No URL
+# scheme is one letter long.
+WINDOWS_ABSOLUTE = re.compile(r"^(?:[A-Za-z]:|\\)")
 
 
 def git(root: Path, *args: str) -> bytes:
@@ -149,6 +154,11 @@ class Check:
         return self.tokens[rel]
 
     def link(self, rel, target, line):
+        # A Windows path would otherwise read as a URL: urlsplit takes `C:` for a scheme.
+        if WINDOWS_ABSOLUTE.match(unquote(target)):
+            self.counts["local_links"] += 1
+            self.error(rel, f"absolute filesystem link is not portable: {target}", line)
+            return
         parsed = urlsplit(target)
         if parsed.scheme or parsed.netloc:
             self.external_links.append({"source": rel, "line": line, "target": target})

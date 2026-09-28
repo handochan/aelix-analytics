@@ -16,10 +16,10 @@ import polars as pl
 import pytest
 from conftest import kit_env
 
-from labkit import core
+from labkit import _platform, core
 
 FIXTURE = Path(__file__).parent / "fixtures" / "human_baseline"
-EXPECTED = json.loads((FIXTURE / "expected.json").read_text())
+EXPECTED = json.loads((FIXTURE / "expected.json").read_text(encoding="utf-8"))
 
 
 def file_hashes(directory):
@@ -38,8 +38,8 @@ def human_cli(tmp_path):
     def call(*args, expected_exit=0):
         argv = [sys.executable, "-m", "labkit", "--project", str(root), *map(str, args)]
         started_at = datetime.now(UTC).isoformat()
-        result = subprocess.run(argv, env=env, cwd=tmp_path, capture_output=True,
-                                text=True, timeout=120)
+        result = subprocess.run(argv, env=env, cwd=tmp_path, capture_output=True, timeout=120,
+                                **_platform.text_kwargs())
         with (tmp_path / "commands.jsonl").open("a", encoding="utf-8") as stream:
             stream.write(json.dumps({"argv": argv, "cwd": str(tmp_path),
                 "started_at": started_at, "exit_code": result.returncode,
@@ -65,12 +65,12 @@ def test_human_cli_analysis_failure_repair_and_snapshot_history(human_cli):
     project = core.Project(root)
     raw = root / "data/raw/sales.parquet"
     raw_hash = core.sha256_file(raw)
-    meta = json.loads((root / "data/raw/sales.meta.json").read_text())
+    meta = json.loads((root / "data/raw/sales.meta.json").read_text(encoding="utf-8"))
     assert meta["rows"] == EXPECTED["rows"]
     assert meta["source"]["sha256"] == core.sha256_file(FIXTURE / "sales.csv")
     refused = call("import", FIXTURE / "sales.csv", "--name", "sales", expected_exit=1)
     assert refused["error"]["code"] == "dataset_exists"
-    query = call("query", (FIXTURE / "by_region.sql").read_text())
+    query = call("query", (FIXTURE / "by_region.sql").read_text(encoding="utf-8"))
     assert query["tables"] == ["sales"]
     assert [column["name"] for column in query["columns"]] == ["region", "orders", "units", "revenue"]
     assert query["rows"] == [list(row.values()) for row in EXPECTED["by_region"]]
@@ -110,9 +110,9 @@ def test_human_cli_analysis_failure_repair_and_snapshot_history(human_cli):
     failed = call("run", "scripts/failure.py", "--title", "Deliberate failure", expected_exit=3)["run"]
     assert failed["status"] == "error" and failed["error"]["type"] == "ValueError"
     assert failed["error"]["line"] == 6
-    assert "Fixture: revenue requires source correction" in (root / failed["stderr"]).read_text()
+    assert "Fixture: revenue requires source correction" in (root / failed["stderr"]).read_text(encoding="utf-8")
     failed_hashes = file_hashes(root / "runs" / failed["id"])
-    failing.write_text("import labkit as lab\nprint(lab.read('sales').height)\n")
+    failing.write_text("import labkit as lab\nprint(lab.read('sales').height)\n", encoding="utf-8")
     repaired = call("run", "scripts/failure.py", "--title", "Repaired analysis")["run"]
     assert repaired["status"] == "ok" and repaired["id"] != failed["id"]
 
@@ -120,7 +120,7 @@ def test_human_cli_analysis_failure_repair_and_snapshot_history(human_cli):
     edited = original.decode().replace('sales = lab.read("sales")',
                                        'sales = lab.read("sales").filter(pl.col("channel") == "online")')
     assert edited != original.decode(), "the fixture read line changed; the edit did nothing"
-    script.write_text(edited)
+    script.write_text(edited, encoding="utf-8")
     second = call("run", "scripts/region_summary.py", "--title", "Online only")["run"]
     assert pl.read_parquet(root / second["charts"][0]["data"]).to_dicts() == EXPECTED["online_by_region"]
     script.unlink()

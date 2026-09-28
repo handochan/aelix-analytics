@@ -77,7 +77,7 @@ aelix -e $PACK/extension/aelix_lab.py
 aelix 안에서: `/lab`(현황) · `/lab open`(리포트) · "지역별 성장률 차트에 플롯 데이터도 기록되게 고쳐줘" 같은 요청.
 
 직접 분석에 필요한 것: [uv](https://docs.astral.sh/uv/)(PATH 또는 `AELIX_LAB_UV`). Aelix 연동에는 추가로 aelix 0.1.0b2 이상이 필요합니다.
-지원 플랫폼은 Linux·macOS·Windows를 목표로 합니다. **현재 실행 증거가 있는 것은 macOS(arm64)뿐이고 Windows는 아직 동작하지 않습니다** — 범위와 남은 이식 작업은 [ADR-0002](docs/decisions/0002-python-support-and-platform-scope.md)에 있습니다.
+지원 플랫폼은 Linux·macOS·Windows를 목표로 합니다. Linux·macOS·Windows에서 실행한 범위와 Windows의 한계, 아직 실행하지 않은 것(대화형 콘솔, Windows의 실제 aelix 세션, Windows용 `bin/lab`)은 [현재 계약](docs/CONTRACTS.md)의 F·G절에 있습니다.
 분석 라이브러리는 **프로젝트마다 자기 uv 환경**에 설치되며 aelix 환경은 건드리지 않습니다.
 
 ## 확장 등록
@@ -242,11 +242,12 @@ uv run ruff check kit tests extension
 ```
 
 ```text
-extension/aelix_lab.py    aelix 확장 (stdlib + aelix API, kit/labkit/core.py를 경로로 로드)
+extension/aelix_lab.py    aelix 확장 (stdlib + aelix API, kit/labkit의 core·_platform을 경로로 로드)
 kit/labkit/core.py        프로젝트 모델 — stdlib만 (확장과 kit이 공유)
+kit/labkit/_platform.py   플랫폼별 잠금·교체·프로세스·run 중단 — stdlib만 (core와 함께 로드)
 kit/labkit/runner.py      run 실행과 기록        capture.py  입력·차트 캡처 훅
 kit/labkit/data.py        import·프로파일·쿼리    report.py   HTML 리포트 (+ assets/)
-kit/labkit/__init__.py    스크립트 API           __main__.py kit CLI (JSON 한 줄)
+kit/labkit/__init__.py    스크립트 API           __main__.py kit CLI (끝 줄이 JSON)
 kit/labkit/demo.py        데모 데이터·run        kit/template/  새 프로젝트 파일
 bin/lab                   사람용 CLI
 ```

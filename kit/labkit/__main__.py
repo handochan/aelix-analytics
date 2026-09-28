@@ -5,6 +5,9 @@
 The last line of stdout is one JSON object: {"ok": true, ...} or {"ok": false, "error": {...}}.
 Exit codes: 0 success, 1 handled error, 2 usage error, 3 run recorded but not ok, 130 interrupted.
 Run commands with PYTHONPATH=<pack>/kit inside the project's uv environment (see bin/lab).
+
+LAB_CANCEL_FILE names the file through which the aelix extension asks a command it started to
+stop, where the platform cannot ask with a signal (see _platform.RunControl.watch_for_cancel).
 """
 
 from __future__ import annotations
@@ -15,13 +18,20 @@ import os
 import sys
 from pathlib import Path
 
-from . import core
+from . import _platform, core
 
 TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "template"
 
 
 def _emit(obj: dict) -> None:
-    sys.stdout.write(json.dumps(obj, ensure_ascii=False, default=str) + "\n")
+    text = json.dumps(obj, ensure_ascii=False, default=str)
+    # Once a script may have run, through the runner: what a thread it left running still writes
+    # through stdout goes before the result or after it, never inside (runner.write_result).
+    runner = sys.modules.get(f"{__package__}.runner")
+    if runner is not None:
+        runner.write_result(text)
+        return
+    sys.stdout.write(text + "\n")
     sys.stdout.flush()
 
 
@@ -35,6 +45,39 @@ def _project(args) -> core.Project:
 
 
 def main(argv=None) -> int:
+    # Before anything can print: the extension reads this process's stdout through a pipe, and a
+    # pipe follows the locale rather than the console, so the records' non-ASCII text — and a
+    # usage error that quotes it — needs this to survive.
+    _platform.configure_stdio()
+    # Taken out of the environment so a script's own subprocesses do not watch the same file.
+    request = os.environ.pop("LAB_CANCEL_FILE", None)
+    stop_watching = None
+    try:
+        if request:
+            stop_watching = core.PLATFORM.runs.watch_for_cancel(Path(request))
+        return _command(argv)
+    except KeyboardInterrupt:
+        _emit({"ok": False, "error": {"code": "interrupted", "message": "interrupted"}})
+        return 130
+    finally:
+        # Bound to this call: nothing is delivered after main() returns.
+        if stop_watching is not None:
+            stop_watching()
+        # A run's stdout stream stood in for this process's own until the result line was out, so a
+        # leftover thread's print() shared the buffer the line is written through
+        # (runner.write_result); the process's own are back before its shutdown flushes them —
+        # also when a second Ctrl+C is handled as the give-back starts, which would otherwise
+        # leave the run's stream as sys.stdout for a leftover thread to hold at shutdown.
+        runner = sys.modules.get(f"{__package__}.runner")
+        if runner is not None:
+            try:
+                runner.give_back_stdout()
+            except KeyboardInterrupt:
+                runner.give_back_stdout()
+                raise
+
+
+def _command(argv) -> int:
     parser = argparse.ArgumentParser(prog="labkit", description=(__doc__ or "labkit").splitlines()[0])
     parser.add_argument("--project", help="project directory (default: nearest lab.json above cwd)")
     parser.add_argument("--text", action="store_true", help="human-readable output where supported")
@@ -104,7 +147,8 @@ def main(argv=None) -> int:
                 raise core.LabError("run_args", "give either a script or --rerun-of RUN_ID")
             result = runner.execute(project, script=args.script, title=args.title,
                                     declared_inputs=args.inputs, timeout=args.timeout,
-                                    rerun_of=args.rerun_of, actor=actor, session=session)
+                                    rerun_of=args.rerun_of, actor=actor, session=session,
+                                    result_follows=True)
             _emit({"ok": True, **result})
             return 0 if result["run"]["status"] == "ok" else 3
         elif args.command == "import":
@@ -139,9 +183,6 @@ def main(argv=None) -> int:
     except core.LabError as exc:
         _emit(exc.to_json())
         return 1
-    except KeyboardInterrupt:
-        _emit({"ok": False, "error": {"code": "interrupted", "message": "interrupted"}})
-        return 130
 
 
 def _safe_report(report, project) -> dict:

@@ -59,7 +59,7 @@ def test_init_layout_and_journal(tmp_path):
         assert (root / rel).exists(), rel
     kinds = [e["kind"] for e in core.read_events(project)]
     assert kinds == ["project", "context"]
-    assert "{{" not in (root / "pyproject.toml").read_text()
+    assert "{{" not in (root / "pyproject.toml").read_text(encoding="utf-8")
     try:
         core.init_project(root, template_dir=KIT / "template")
     except core.LabError as exc:
@@ -85,7 +85,7 @@ def test_lab_api_run_records_inputs_outputs_chart_and_code(project):
     assert chart["line"] == 12 and chart["data_rows"] == 3
     assert (project / chart["files"]["png"]).is_file() and (project / chart["data"]).is_file()
     snapshot = project / run["script"]["snapshot"]
-    assert snapshot.read_text() == LAB_API
+    assert snapshot.read_text(encoding="utf-8") == LAB_API
     assert run["script"]["sha256"] == core.sha256_file(snapshot)
     assert "rows 3" in result["stdout_tail"]
     assert run["env"]["packages"]["polars"] and run["warnings"] == []
@@ -190,12 +190,12 @@ def test_query_is_read_only(project):
 
 
 def test_import_is_immutable_and_records_source(project, tmp_path):
-    meta = json.loads((project / "data/raw/sales.meta.json").read_text())
+    meta = json.loads((project / "data/raw/sales.meta.json").read_text(encoding="utf-8"))
     assert meta["rows"] == 120 and meta["source"]["format"] == "csv" and meta["source"]["sha256"]
     code, result = labkit(project, "import", tmp_path / "sales.csv", "--name", "sales")
     assert code == 1 and result["error"]["code"] == "dataset_exists"
     ndjson = tmp_path / "events.ndjson"
-    ndjson.write_text('{"a": 1, "b": "x"}\n{"a": 2, "b": "y"}\n')
+    ndjson.write_text('{"a": 1, "b": "x"}\n{"a": 2, "b": "y"}\n', encoding="utf-8")
     code, result = labkit(project, "import", ndjson)
     assert code == 0 and result["dataset"]["name"] == "events" and result["dataset"]["rows"] == 2
 
@@ -208,7 +208,7 @@ def test_notes_resolution_and_context_history(project):
     block = core.context_block(p)
     assert "3월에 넘었다" in block and "언제 넘었나?" not in block
     before = len(core.context_versions(p))
-    p.context.write_text(p.context.read_text() + "\n- 새 정의\n", encoding="utf-8")
+    p.context.write_text(p.context.read_text(encoding="utf-8") + "\n- 새 정의\n", encoding="utf-8")
     event = core.sync_context(p, actor="test")
     assert event and event["text"] == "CONTEXT.md updated (+2 -0 lines)"
     assert core.sync_context(p) is None
@@ -306,7 +306,7 @@ def test_failed_or_incomplete_rerun_is_never_a_match(project):
     first = ("import polars as pl\nimport labkit as lab\nfrom pathlib import Path\n"
              "df = lab.read('sales').head(4)\nlab.save(df, 'base')\n"
              "if Path('data/derived/switch.txt').exists():\n    lab.save(df, 'maybe')\n")
-    (project / "data/derived/switch.txt").write_text("on")
+    (project / "data/derived/switch.txt").write_text("on", encoding="utf-8")
     _, one = _run(project, write_script(project, "06_cond.py", first))
     (project / "data/derived/switch.txt").unlink()
     _, two = labkit(project, "run", "--rerun-of", one["run"]["id"], "--title", "rerun")
@@ -362,9 +362,20 @@ def test_reading_back_an_own_output_is_not_an_input_and_not_stale(project):
     assert not fresh.of(again["run"]["id"])["stale"]
 
 
+# An output the kit cannot read when it hashes it. POSIX takes read access away; Windows cannot
+# with chmod, so the script locks the byte through a second handle it keeps open, and a read of the
+# file through any other handle — the kit's included — is refused (a byte-range lock).
+UNREADABLE = ("if os.name == 'nt':\n"
+              "    import msvcrt\n"
+              "    sys._kept_locked = open('data/derived/secret.bin', 'r+b')\n"
+              "    msvcrt.locking(sys._kept_locked.fileno(), msvcrt.LK_NBLCK, 1)\n"
+              "else:\n"
+              "    os.chmod('data/derived/secret.bin', 0)\n")
+
+
 def test_finalization_survives_bad_notes_replaced_stdout_and_unreadable_outputs(project):
     body = ("import os, sys\nimport labkit as lab\nlab.note('finding', 42)\n"
-            "open('data/derived/secret.bin', 'wb').write(b'x')\nos.chmod('data/derived/secret.bin', 0)\n"
+            "open('data/derived/secret.bin', 'wb').write(b'x')\n" + UNREADABLE +
             "sys.stdout = open('data/derived/log.txt', 'w')\nprint('into the log')\n")
     code, result = _run(project, write_script(project, "11_hostile.py", body))
     assert code == 0 and result["run"]["status"] == "ok"
@@ -436,9 +447,9 @@ def test_rerun_ids_and_recorded_paths_are_validated(project):
     assert code == 1 and result["error"]["code"] == "rerun_id"
     _, one = _run(project, write_script(project, "17_ok.py", "x = 1\n"))
     run_json = project / "runs" / one["run"]["id"] / "run.json"
-    record = json.loads(run_json.read_text())
+    record = json.loads(run_json.read_text(encoding="utf-8"))
     record["script"]["path"] = "/tmp/evil.py"
-    run_json.write_text(json.dumps(record))
+    run_json.write_text(json.dumps(record), encoding="utf-8")
     code, result = labkit(project, "run", "--rerun-of", one["run"]["id"], "--title", "x")
     assert code == 1 and result["error"]["code"] == "rerun_snapshot"
 
@@ -494,7 +505,7 @@ def test_a_journal_failure_after_the_record_is_still_reported(project):
     assert code == 0 and result["run"]["status"] == "ok"
     problems = result["finalize_errors"]
     assert any(p.startswith("journal:") for p in problems) and any(p.startswith("note ") for p in problems)
-    recorded = json.loads((project / "runs" / result["run"]["id"] / "run.json").read_text())
+    recorded = json.loads((project / "runs" / result["run"]["id"] / "run.json").read_text(encoding="utf-8"))
     assert recorded["finalize_errors"] == problems
 
 

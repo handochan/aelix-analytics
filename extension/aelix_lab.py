@@ -5,23 +5,26 @@ Load for one session:   aelix -e <pack>/extension/aelix_lab.py [--lab-project DI
 Register globally:      ln -s <pack>/extension/aelix_lab.py ~/.aelix/agent/extensions/aelix_lab.py
 
 Inside aelix this file imports only the standard library, the aelix API and the pack's stdlib-only
-kit/labkit/core.py (loaded by path, so symlink this file rather than copying it). Analysis code never
-runs in the aelix process: lab_run, lab_import, lab_query and report builds are
-`uv run --project <project> python -m labkit ...` subprocesses in the project's own environment.
+kit/labkit/core.py with its _platform sibling (loaded from the pack, so symlink this file rather
+than copying it). Analysis code never runs in the aelix process: lab_run, lab_import, lab_query and
+report builds are `uv run --project <project> python -m labkit ...` subprocesses in the project's
+own environment.
 Neither side is a sandbox, and aelix does not ask for approval before extension tools run.
 """
 
 import asyncio
 import base64
 import contextlib
+import hashlib
+import importlib.machinery
 import importlib.util
 import json
 import os
 import re
 import shutil
-import signal
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -35,16 +38,37 @@ KIT = Path(os.environ.get("AELIX_LAB_KIT") or PACK / "kit").expanduser().resolve
 
 
 def _load_core():
+    """Load the pack's stdlib-only project model into the aelix process.
+
+    core.py imports one sibling — _platform, stdlib only for the same reason — so it is loaded as a
+    submodule of a synthetic package whose search path is this pack's kit. The package name carries
+    a digest of the resolved kit path, so two packs, or one pack before and after AELIX_LAB_KIT
+    changes, never share a cached submodule. The sys.modules entries exist only while the modules
+    execute and are removed afterwards: the loaded objects stay alive through the reference this
+    returns, a labkit installed in the host environment is never shadowed, and a failed load leaves
+    nothing behind. Reloading a changed kit needs a new aelix process, as it did before.
+    """
     path = KIT / "labkit" / "core.py"
     if not path.is_file():
         raise RuntimeError(
             f"aelix-analytics: kit not found at {path}. Symlink extension/aelix_lab.py "
             "instead of copying it, or set AELIX_LAB_KIT=<pack>/kit.")
-    spec = importlib.util.spec_from_file_location("aelix_lab_core", path)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
+    package = f"aelix_lab_kit_{hashlib.sha256(str(KIT).encode()).hexdigest()[:12]}"
+    spec = importlib.machinery.ModuleSpec(package, None, is_package=True)
+    spec.submodule_search_locations = [str(path.parent)]
+    sys.modules[package] = importlib.util.module_from_spec(spec)
+    try:
+        core_spec = importlib.util.spec_from_file_location(f"{package}.core", path)
+        module = importlib.util.module_from_spec(core_spec)
+        sys.modules[core_spec.name] = module
+        core_spec.loader.exec_module(module)
+        return module
+    finally:
+        # Everything under the synthetic name, whether the load finished or raised partway: a
+        # sibling that core imported before failing would otherwise be reused by the next attempt.
+        for name in [n for n in list(sys.modules)
+                     if n == package or n.startswith(f"{package}.")]:
+            sys.modules.pop(name, None)
 
 
 core = _load_core()
@@ -137,8 +161,11 @@ def resolve_uv() -> str:
     return str(Path(found).resolve())
 
 
-def child_env(actor: str) -> dict:
-    env = {k: os.environ[k] for k in ENV_ALLOW if k in os.environ}
+def child_env(processes, actor: str) -> dict:
+    # What the platform needs to start a process at all goes in first: the allowed list is about
+    # what a run may see, not about what the operating system requires to launch one.
+    env = processes.base_env()
+    env.update({k: os.environ[k] for k in ENV_ALLOW if k in os.environ})
     env.update({k: v for k, v in os.environ.items()
                 if k.startswith("UV_") and not SECRET_NAME.search(k)})
     env.update({"PYTHONPATH": str(KIT), "PYTHONIOENCODING": "utf-8", "PYTHONDONTWRITEBYTECODE": "1",
@@ -150,46 +177,132 @@ def child_env(actor: str) -> dict:
 
 # --- subprocesses ---
 
-async def _terminate(proc) -> None:
-    if proc.returncode is not None:
-        return
-    # SIGINT to uv only: uv forwards it, the kit records the run as cancelled and exits 130.
-    with contextlib.suppress(ProcessLookupError):
-        os.kill(proc.pid, signal.SIGINT)
+class _CancelRequest:
+    """The file through which a kit command is asked to stop where no signal can ask it (see
+    _platform's ProcessControl.interrupt and RunControl.watch_for_cancel), in a private temporary
+    directory. Only a platform whose ProcessControl `asks_by_request` gets one.
+
+    Once _terminate has started it owns the directory, so a second cancellation of the tool call,
+    which ends _spawn at once, cannot delete the request before the kit has seen it; and it removes
+    it only once the kit has finished. A _terminate that is itself cancelled — aelix exiting while a
+    command is still stopping — leaves it in place for a kit that has not looked yet: a leftover
+    temporary directory costs less than a lost cancel. If no _terminate started, run_kit removes
+    it."""
+
+    def __init__(self) -> None:
+        try:
+            self.directory = Path(tempfile.mkdtemp(prefix="aelix-lab-"))
+        except OSError as exc:
+            raise core.LabError("spawn_failed",
+                                f"could not create a temporary directory: {exc}") from exc
+        self.path = self.directory / "cancel"
+        self.handed_over = False
+
+    def remove(self) -> None:
+        shutil.rmtree(self.directory, ignore_errors=True)
+
+
+async def _drain(stream) -> None:
+    while stream is not None and await stream.read(65536):
+        pass
+
+
+async def _finished(proc) -> None:
+    """Return once the child has exited and nothing holds its pipes any more; output is discarded.
+
+    `Process.wait` alone is not that: called after the child exited it returns at once, even while
+    a descendant still holds the pipes (measured on CPython 3.11 and 3.12). Both pipes are read at
+    once, so a child blocked writing one cannot hold up the end of the other."""
+    await asyncio.gather(_drain(proc.stdout), _drain(proc.stderr))
+    await proc.wait()
+
+
+async def _terminate(proc, processes, request: _CancelRequest | None = None) -> None:
+    """Stop a child and everything it started: ask first, then end by force only what is left.
+
+    Cancelled itself — aelix exiting runs asyncio.run's shutdown, which cancels this task — it
+    stops where it is: on POSIX the ask has already been sent, on Windows the request stays for the
+    kit to find; nothing ends the tree by force once aelix has gone."""
+    finished = False
     try:
-        await asyncio.wait_for(proc.wait(), GRACE_SECONDS)
-    except TimeoutError:
-        with contextlib.suppress(ProcessLookupError):
-            os.killpg(proc.pid, signal.SIGKILL)
-        await proc.wait()
+        if processes.interrupt(proc, request.path if request is not None else None):
+            try:
+                await asyncio.wait_for(_finished(proc), GRACE_SECONDS)
+                finished = True
+                return  # nothing is left holding the pipes, so there is nothing to end
+            except TimeoutError:
+                pass
+        # The child did not stop in time, or it exited and something it started still holds the
+        # pipes. Only now is the tree ended, while the wait is unfinished (see
+        # ProcessControl.kill_tree). It may block, so it runs off the event loop, with a pid.
+        await asyncio.to_thread(processes.kill_tree, proc.pid)
+        with contextlib.suppress(TimeoutError):
+            # Bounded: if the tree outlived a forced kill there is nothing further to try, and
+            # this returning leaves it running rather than holding the session's event loop open.
+            await asyncio.wait_for(_finished(proc), GRACE_SECONDS)
+            finished = True
+    finally:
+        # Only once nothing is left to read it: a kit still running — after this task was
+        # cancelled, or after a forced end it survived — can still find it and stop itself.
+        if request is not None and finished:
+            request.remove()
 
 
-async def _spawn(argv, cwd, env, timeout):
-    """(timed_out, returncode, stdout, stderr)."""
+async def _spawn(argv, cwd, env, timeout, processes, request: _CancelRequest | None = None):
+    """(timed_out, returncode, stdout, stderr). `request` is the kit's cancel request, if any."""
     try:
         proc = await asyncio.create_subprocess_exec(
             *argv, cwd=str(cwd), env=env, stdin=asyncio.subprocess.DEVNULL,
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, start_new_session=True)
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            **processes.spawn_kwargs())
     except OSError as exc:
         raise core.LabError("spawn_failed", f"could not start {argv[0]}: {exc}") from exc
     try:
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout)
     except TimeoutError:
-        await asyncio.shield(_terminate(proc))
+        await asyncio.shield(_stopping(proc, processes, request))
         return True, proc.returncode, b"", b""
     except asyncio.CancelledError:
-        await asyncio.shield(_terminate(proc))
+        # A second cancellation ends this await at once; the shielded task carries on, and owns
+        # the request from here.
+        await asyncio.shield(_stopping(proc, processes, request))
         raise
     return False, proc.returncode, stdout, stderr
 
 
+# The loop keeps only weak references to tasks, and a termination outlives the _spawn that a second
+# cancellation ended; this keeps it alive until it is done.
+STOPPING: set = set()
+
+
+def _stopping(proc, processes, request):
+    """_terminate as a task that owns the request from the moment it exists."""
+    if request is not None:
+        request.handed_over = True
+    task = asyncio.ensure_future(_terminate(proc, processes, request))
+    STOPPING.add(task)
+    task.add_done_callback(STOPPING.discard)
+    return task
+
+
 async def run_kit(project, args, *, timeout: float, actor: str = "agent"):
     """Run `python -m labkit` in the project's environment. Returns (ok, result object)."""
+    processes = project.platform.processes
     try:
         uv = resolve_uv()
         argv = [uv, "run", "--project", str(project.root), "--quiet", "python", "-m", "labkit",
                 "--project", str(project.root), *args]
-        timed_out, code, stdout, stderr = await _spawn(argv, project.root, child_env(actor), timeout)
+        # Only where the platform asks through it: POSIX asks with a signal and needs no file.
+        request = _CancelRequest() if processes.asks_by_request else None
+        try:
+            env = child_env(processes, actor)
+            if request is not None:
+                env["LAB_CANCEL_FILE"] = str(request.path)
+            timed_out, code, stdout, stderr = await _spawn(argv, project.root, env, timeout,
+                                                           processes, request)
+        finally:
+            if request is not None and not request.handed_over:
+                request.remove()
     except core.LabError as exc:
         return False, exc.to_json()
     if timed_out:
@@ -212,11 +325,13 @@ async def run_kit(project, args, *, timeout: float, actor: str = "agent"):
 
 async def sync_environment(project):
     uv = resolve_uv()
-    env = child_env("system")
+    processes = project.platform.processes
+    env = child_env(processes, "system")
     last = b""
     for extra in ([], ["--offline"]):
         timed_out, code, _out, err = await _spawn([uv, "sync", "--project", str(project.root),
-                                                   "--quiet", *extra], project.root, env, 900)
+                                                   "--quiet", *extra], project.root, env, 900,
+                                                  processes)
         if not timed_out and code == 0:
             return True, "offline cache" if extra else "network"
         last = err
@@ -236,11 +351,12 @@ def schedule_report(project) -> None:
     if running is not None and running.poll() is None:
         return
     try:
+        processes = project.platform.processes
         argv = [resolve_uv(), "run", "--project", key, "--quiet", "python", "-m", "labkit",
                 "--project", key, "report", "--if-changed"]
         STATE["report_tasks"][key] = subprocess.Popen(
-            argv, cwd=key, env=child_env("system"), stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+            argv, cwd=key, env=child_env(processes, "system"), stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **processes.spawn_kwargs())
     except (core.LabError, OSError):
         return
 
@@ -425,7 +541,7 @@ async def tool_import(args, ctx):
     source = str(args.get("source") or "").strip()
     if not source:
         raise core.LabError("import_source_missing", "source is empty")
-    src = Path(source).expanduser()
+    src = core.expand_home(Path(source))  # the rule `lab import` and the kit's paths follow
     src = src if src.is_absolute() else Path(os.getcwd()) / src
     cmd = ["import", str(src)]
     if args.get("name"):
@@ -476,6 +592,7 @@ async def tool_run(args, ctx):
             raise core.LabError("run_name", "code needs a name like 02_monthly_sales",
                                 hint="lowercase letters, digits and _; the code is saved to scripts/<name>.py")
         target = project.scripts / f"{name}.py"
+        core.reject_unportable_name(name, kind="script", exists=target.exists())
         note = f" (overwrote scripts/{name}.py)" if target.exists() else ""
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(str(code).rstrip() + "\n", encoding="utf-8")
@@ -835,7 +952,9 @@ async def lab_command(args, ctx=None):
             if root is None:
                 return f"{rest} is not inside a lab project (no lab.json)"
             STATE["project"] = str(root)
-            core.trust_project(root)
+            # Off the event loop: on Windows a record being read elsewhere makes the replace wait
+            # up to about two seconds before it fails (_platform.WindowsAtomicFiles).
+            await asyncio.to_thread(core.trust_project, root)
             return f"active project: {root} (trusted: starting aelix inside it activates it)"
         if sub in ("report", "open"):
             project, _ = resolve_project()

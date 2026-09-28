@@ -22,7 +22,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from urllib.parse import quote
 
-from . import core
+from . import _platform, core
 
 ASSETS = Path(__file__).resolve().parent / "assets"
 PLOTLY_EMBED_LIMIT = 3_000_000
@@ -134,7 +134,17 @@ class Site:
     def file_link(self, rel: str, depth: int) -> str:
         if not rel:
             return "#"
-        return href(rel) if os.path.isabs(rel) else self.up(depth) + href(rel)
+        # A path recorded as absolute is absolute on the platform that recorded it. os.path.isabs
+        # answers for the platform rebuilding the report, so a Windows path read on Linux would be
+        # linked as if it sat inside report/.
+        if _platform.absolute_record_path(rel):
+            # A record is data: a path no link can name (a device path, a UNC path without a
+            # share) gets no link rather than stopping the build.
+            try:
+                return _platform.file_url(rel)
+            except ValueError:
+                return "#"
+        return self.up(depth) + href(rel)
 
     def run_link(self, run_id: str, depth: int, anchor: str = "") -> str:
         return f"{self.root(depth)}runs/{href(run_id)}.html{anchor}"
@@ -401,15 +411,8 @@ def fingerprint(project: core.Project) -> str:
 def build(project: core.Project, *, if_changed: bool = False) -> dict:
     """Build the report. Builds are serialized per project; a waiting --if-changed build rechecks
     the fingerprint after the lock, so queued triggers collapse into one build."""
-    import fcntl
-
-    project.lab.mkdir(parents=True, exist_ok=True)
-    with open(project.lab / "report.lock", "a+") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
-        try:
-            return _build_locked(project, if_changed)
-        finally:
-            fcntl.flock(lock, fcntl.LOCK_UN)
+    with project.platform.locks.exclusive(project.lab / "report.lock"):
+        return _build_locked(project, if_changed)
 
 
 def _build_locked(project: core.Project, if_changed: bool) -> dict:
@@ -418,7 +421,7 @@ def _build_locked(project: core.Project, if_changed: bool) -> dict:
     index = project.report / "index.html"
     if if_changed and index.is_file():
         with contextlib.suppress(OSError):
-            if stamp_file.read_text().strip() == current:
+            if stamp_file.read_text(encoding="utf-8").strip() == current:
                 return {"path": str(index), "skipped": True}
     site = Site(project)
     out = project.report
@@ -427,15 +430,15 @@ def _build_locked(project: core.Project, if_changed: bool) -> dict:
     _write_assets(site, out)
     pages = 0
     for run in site.runs:
-        _write(out / "runs" / f"{run['id']}.html", run_page(site, run))
+        _write(out / "runs" / f"{run['id']}.html", run_page(site, run), project.platform)
         pages += 1
     for ds in site.datasets:
         view = site.view_by_path.get(ds["path"])
         if view:
-            _write(out / "data" / f"{view}.html", dataset_page(site, ds, view))
+            _write(out / "data" / f"{view}.html", dataset_page(site, ds, view), project.platform)
             pages += 1
-    _write(out / "context.html", context_page(site))
-    _write(index, index_page(site))
+    _write(out / "context.html", context_page(site), project.platform)
+    _write(index, index_page(site), project.platform)
     pages += 2
     _prune(out / "runs", {f"{r['id']}.html" for r in site.runs})
     _prune(out / "data", {f"{v}.html" for v in site.views})
@@ -443,14 +446,14 @@ def _build_locked(project: core.Project, if_changed: bool) -> dict:
                                              encoding="utf-8")
     site.cache.save()
     project.cache.mkdir(parents=True, exist_ok=True)
-    stamp_file.write_text(current)
+    stamp_file.write_text(current, encoding="utf-8")
     return {"path": str(index), "pages": pages, "build": site.build}
 
 
-def _write(path: Path, text: str) -> None:
+def _write(path: Path, text: str, platform: _platform.Platform) -> None:
     tmp = path.with_name(f".{path.name}.tmp")
     tmp.write_text(text, encoding="utf-8")
-    os.replace(tmp, path)
+    platform.files.replace(tmp, path)
 
 
 def _prune(directory: Path, keep: set[str]) -> None:
