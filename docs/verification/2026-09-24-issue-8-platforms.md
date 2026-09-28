@@ -160,7 +160,8 @@ Four earlier runs were green and are superseded, each by what was found after it
 One later run, [36444257841](https://github.com/handochan/aelix-analytics/actions/runs/36444257841) at `4458437`, measured a change that was then withdrawn
 (`ad20a4e`). The change made the exit wait for a slow reader when no other thread ran Python code. The
 review of that change found that it could then wait without end for a thread with no Python frame. The
-code is again the one this record measured. This record is of the run named above.
+code is again the one this record measured. Restoring the measurement branch to `e37f142` ran it once more,
+as [36459022545](https://github.com/handochan/aelix-analytics/actions/runs/36459022545), with the same results. This record is of the run named above.
 
 ## Signals at every check point, and real ones
 
