@@ -1,0 +1,120 @@
+name: Issue 8 platform measurement
+
+# Evidence for Issue #8. This is not the repository's CI — that is Issue #22 and Issue #8's PR-3:
+# it gates nothing, keeps going past a failing step, and uploads every result for the record. A
+# step's outcome is still meaningful: the smoke steps fail when a check the platform is judged on
+# did not hold (--gate required), and the test steps when a test failed. A step that keeps going
+# shows success whatever its outcome, so the last step ends the job red when one of them failed.
+# Linux and Windows run here. macOS is measured on a developer machine: a macOS runner costs ten
+# times a Linux one, for the one platform that is already measured locally.
+#
+# PR-2 (the minimal distribution) adds, on both platforms: the repository suite with
+# AELIX_ANALYTICS_TEST_INSTALL=1, which builds the wheel, installs it into fresh CPython 3.11 and 3.12
+# environments and runs aelix 0.1.0b2's verify, status, loader and the installed tools, the installed
+# `analytics` through real uv without aelix, `python -m labkit` on 3.11 (the stdlib commands and a run of
+# a script that imports no analysis library), and pip install/uninstall; and the
+# aelix integration tests on CPython 3.11 as well as 3.12.
+
+on:
+  push:
+    branches: [test/issue-8-pr2-measurement]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: issue-8-measurement-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  measure:
+    name: ${{ matrix.os }} · Python 3.12
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+      # setup-uv publishes full version tags only; there is no moving v10.
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          version: "0.11.19"
+      - name: Sync the development environment
+        run: uv sync --locked --python 3.12
+      - name: Platform smoke — the ports and the CLI
+        id: smoke
+        continue-on-error: true
+        run: uv run --locked python tools/platform_smoke.py --gate required --output measurement/smoke-${{ runner.os }}-py3.12.json
+      # pytest-timeout's default method on Linux is SIGALRM, which the run guard holds during an
+      # in-process run; a thread keeps the two apart.
+      - name: Repository test suite, with the distribution's end-to-end leg
+        id: suite
+        continue-on-error: true
+        env:
+          AELIX_ANALYTICS_TEST_INSTALL: "1"
+        run: uv run --locked --with pytest-timeout pytest -q -ra -p no:cacheprovider --timeout 1800 --timeout-method=thread --junitxml measurement/suite-${{ runner.os }}-py3.12.xml
+      - name: Aelix integration with aelix 0.1.0b2 from PyPI, CPython 3.12
+        id: aelix
+        continue-on-error: true
+        run: uv run --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest --with pytest-timeout python -m pytest -q -ra -p no:cacheprovider --timeout 900 --timeout-method=thread --junitxml measurement/aelix-${{ runner.os }}-py3.12.xml tests/test_extension.py
+      - name: Aelix integration with aelix 0.1.0b2 from PyPI, CPython 3.11
+        id: aelix311
+        continue-on-error: true
+        run: uv run --no-project --python 3.11 --with aelix==0.1.0b2 --with pytest --with pytest-timeout python -m pytest -q -ra -p no:cacheprovider --timeout 900 --timeout-method=thread --junitxml measurement/aelix-${{ runner.os }}-py3.11.xml tests/test_extension.py
+      # The interpreters `uv venv --python 3.11|3.12` gave the distribution's tests and `uv run --python`
+      # gave the aelix steps: the same discovery, run after them, so nothing new is downloaded.
+      - name: Interpreters
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p measurement
+          for v in 3.11 3.12; do
+            p=$(uv python find "$v") && "$p" -c "import sys, platform; print('$v', platform.python_version(), platform.python_implementation(), sys.executable)"
+          done | tee "measurement/interpreters-${{ runner.os }}.txt"
+      - name: Outcome
+        if: always()
+        run: echo "smoke=${{ steps.smoke.outcome }} suite=${{ steps.suite.outcome }} aelix=${{ steps.aelix.outcome }} aelix311=${{ steps.aelix311.outcome }}"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: measurement-${{ runner.os }}-py3.12
+          path: measurement/
+          if-no-files-found: warn
+      - name: Verdict
+        if: always() && (steps.smoke.outcome != 'success' || steps.suite.outcome != 'success' || steps.aelix.outcome != 'success' || steps.aelix311.outcome != 'success')
+        run: exit 1
+
+  stdlib-floor:
+    # What the aelix process itself loads (core and _platform), on the entry-point floor ADR-0002
+    # adopted. No uv and no analysis libraries: that is the point of this leg.
+    name: ${{ matrix.os }} · Python 3.11 · stdlib only
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+      - name: Platform smoke — what the aelix process loads
+        id: smoke
+        continue-on-error: true
+        run: python tools/platform_smoke.py --stdlib-only --gate required --output measurement/stdlib-${{ runner.os }}-py3.11.json
+      - name: Outcome
+        if: always()
+        run: echo "smoke=${{ steps.smoke.outcome }}"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: stdlib-${{ runner.os }}-py3.11
+          path: measurement/
+          if-no-files-found: warn
+      - name: Verdict
+        if: always() && steps.smoke.outcome != 'success'
+        run: exit 1
