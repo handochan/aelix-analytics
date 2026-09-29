@@ -5498,3 +5498,28 @@ def test_the_cli_ends_after_its_result_line_though_a_leftover_thread_blocks_writ
     assert isinstance(result, dict) and result.get("ok") is True, got["out"][-3000:]
     assert ended, "the CLI did not end after its result line"
     assert proc.returncode == 0, proc.returncode
+
+
+def test_the_extension_creates_projects_from_the_kit_s_own_template(monkeypatch, tmp_path):
+    """Review of design revision 1, kit-1: the adapter's lab_init and /lab init computed the
+    template's place themselves, and no check called them."""
+    import asyncio
+
+    module = load_extension(monkeypatch, "ext_init")
+
+    async def synced(project):
+        return True, "a stand-in for uv sync"
+
+    async def kit(project, args, **kwargs):
+        return True, {"ok": True}
+
+    monkeypatch.setattr(module, "sync_environment", synced)
+    monkeypatch.setattr(module, "run_kit", kit)
+    text, value = asyncio.run(module.tool_init({"path": str(tmp_path / "by-agent"), "title": "t"},
+                                               None))
+    assert value["synced"] is True, text
+    answer = asyncio.run(module.lab_command(f"init {tmp_path / 'by-human'} 제목"))
+    assert answer.startswith("created "), answer
+    for root in (tmp_path / "by-agent", tmp_path / "by-human"):
+        for name in ("CONTEXT.md", "pyproject.toml", ".gitignore", "lab.json", "journal.jsonl"):
+            assert (root / name).is_file(), (root, name)

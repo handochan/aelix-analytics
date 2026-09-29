@@ -698,3 +698,72 @@ def test_a_pinned_section_survives_the_budget(project):
     block = core.context_block(p)
     assert "매출은 세금 제외" in block
     assert core.status(p)["project"]["context_omitted"] == ["채우기"]
+
+
+def test_init_reads_its_template_before_it_creates_anything(tmp_path):
+    """A kit installed without its template answered with a traceback and left a half-made project
+    that a second init refused as not empty (ADR-0004)."""
+    from importlib import resources
+
+    import pytest
+
+    from labkit import core
+
+    target = tmp_path / "proj"
+    with pytest.raises(core.LabError) as caught:
+        core.init_project(target, template_dir=tmp_path / "no-template", actor="test")
+    assert caught.value.code == "template_missing"
+    assert not target.exists()
+    # The CLI hands it the template as package data, through the resource API.
+    project = core.init_project(target, template_dir=resources.files("labkit") / "template",
+                                actor="test")
+    assert (project.root / "CONTEXT.md").is_file() and (project.root / ".gitignore").is_file()
+
+
+def _kit_copy(tmp_path):
+    import shutil
+
+    from conftest import KIT
+
+    copy = tmp_path / "kit"
+    shutil.copytree(KIT, copy, ignore=shutil.ignore_patterns("__pycache__"))
+    return copy
+
+
+def test_the_kit_fingerprint_covers_its_template(tmp_path):
+    """ADR-0004 moved the template into labkit, so env.kit_sha256 covers it (CONTRACTS F1)."""
+    import subprocess
+    import sys
+
+    from conftest import kit_env
+
+    copy = _kit_copy(tmp_path)
+
+    def fingerprint():
+        done = subprocess.run([sys.executable, "-c", "from labkit import runner; print(runner.kit_sha())"],
+                              env=kit_env(PYTHONPATH=str(copy)), capture_output=True, text=True,
+                              encoding="utf-8", timeout=120)
+        assert done.returncode == 0, done.stderr
+        return done.stdout.strip()
+
+    before = fingerprint()
+    (copy / "labkit" / "template" / "CONTEXT.md").write_text("# changed\n", encoding="utf-8")
+    assert fingerprint() != before
+
+
+def test_cli_init_without_a_template_answers_in_json_and_creates_nothing(tmp_path):
+    import shutil
+    import subprocess
+    import sys
+
+    from conftest import kit_env
+
+    copy = _kit_copy(tmp_path)
+    shutil.rmtree(copy / "labkit" / "template")
+    target = tmp_path / "proj"
+    done = subprocess.run([sys.executable, "-m", "labkit", "init", str(target)],
+                          env=kit_env(PYTHONPATH=str(copy)), capture_output=True, text=True,
+                          encoding="utf-8", timeout=120)
+    assert done.returncode == 1, done.stderr
+    assert json.loads(done.stdout.splitlines()[-1])["error"]["code"] == "template_missing"
+    assert not target.exists()

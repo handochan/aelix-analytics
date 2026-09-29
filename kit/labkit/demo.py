@@ -11,11 +11,12 @@ import shutil
 import subprocess
 import sys
 from datetime import date
+from importlib import resources
 from pathlib import Path
 
 from . import _platform, core, data
 
-SCRIPTS = Path(__file__).resolve().parent / "demo_scripts"
+SCRIPTS = resources.files(__package__) / "demo_scripts"
 REGIONS = {"서울": (1.00, 0.55), "경기": (0.80, 0.45), "부산": (0.45, 0.25), "대구": (0.35, 0.12)}
 
 CONTEXT = """# {title}
@@ -111,8 +112,10 @@ def populate(project: core.Project, actor: str = "human", session=None) -> dict:
                      actor=actor, session=session)
     project.context.write_text(CONTEXT.format(title=project.title()), encoding="utf-8")
     core.sync_context(project, actor=actor, session=session)
-    for script in sorted(SCRIPTS.glob("*.py")):
-        shutil.copyfile(script, project.scripts / script.name)
+    for script in sorted((s for s in SCRIPTS.iterdir() if s.name.endswith(".py")),
+                         key=lambda s: s.name):
+        with resources.as_file(script) as source:
+            shutil.copyfile(source, project.scripts / script.name)
 
     first = _run(project, "scripts/01_monthly_revenue.py", "월별 매출 추세", actor)
     question = core.add_note(project, "question", "온라인 매출은 언제 매장 매출을 넘어섰나?",

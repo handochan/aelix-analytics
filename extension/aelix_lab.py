@@ -638,7 +638,7 @@ async def tool_init(args, ctx):
     target = target if target.is_absolute() else Path(os.getcwd()) / target
     project = await asyncio.to_thread(
         lambda: core.init_project(target, title=args.get("title"), goal=args.get("goal"),
-                                  template_dir=KIT / "labkit" / "template", actor="agent",
+                                  actor="agent",
                                   session=STATE["session"]))
     STATE["project"] = str(project.root)
     synced, detail = await sync_environment(project)
@@ -929,7 +929,7 @@ async def lab_command(args, ctx=None):
             target = target if target.is_absolute() else Path(os.getcwd()) / target
             project = await asyncio.to_thread(
                 lambda: core.init_project(target, title=title.strip() or None,
-                                          template_dir=KIT / "labkit" / "template", actor="human",
+                                          actor="human",
                                           session=STATE["session"]))
             STATE["project"] = str(project.root)
             _notify(ctx, f"lab: syncing the environment of {project.root} …")

@@ -16,11 +16,13 @@ import argparse
 import json
 import os
 import sys
+from importlib import resources
 from pathlib import Path
 
 from . import _platform, core
 
-TEMPLATE_DIR = Path(__file__).resolve().parent / "template"
+# Package data of this package, wherever it is installed (a checkout's kit/, or a wheel's).
+TEMPLATE_DIR = resources.files(__package__) / "template"
 
 
 def _emit(obj: dict) -> None:
