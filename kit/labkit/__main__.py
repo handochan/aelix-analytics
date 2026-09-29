@@ -1,10 +1,11 @@
-"""labkit CLI — shared by the aelix extension (JSON) and people (bin/lab).
+"""labkit CLI — shared by the aelix extension (JSON) and people (bin/lab in a checkout, `lab` installed).
 
     python -m labkit [--project DIR] <command> ...
 
 The last line of stdout is one JSON object: {"ok": true, ...} or {"ok": false, "error": {...}}.
 Exit codes: 0 success, 1 handled error, 2 usage error, 3 run recorded but not ok, 130 interrupted.
-Run commands with PYTHONPATH=<pack>/kit inside the project's uv environment (see bin/lab).
+Run commands with PYTHONPATH set to the kit (the directory holding labkit) inside the project's uv
+environment, as bin/lab and the installed `lab` do.
 
 LAB_CANCEL_FILE names the file through which the aelix extension asks a command it started to
 stop, where the platform cannot ask with a signal (see _platform.RunControl.watch_for_cancel).

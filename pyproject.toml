@@ -2,11 +2,43 @@
 name = "aelix-analytics"
 version = "0.1.0"
 description = "Agent-native analytics projects with durable context, metrics, evidence, and reports"
-requires-python = ">=3.12"
+readme = "README.md"
+# The floor of what runs where this is installed: the `lab` command, the aelix extension and the
+# stdlib core it loads (ADR-0002 decision 2). Analysis runs in each project's own environment, which
+# keeps >=3.12 (kit/labkit/template/pyproject.toml, decision 3).
+requires-python = ">=3.11"
 dependencies = []
 
-# The pack itself is not installed anywhere. This environment exists to test the kit with the same
-# libraries an analysis project gets (see kit/labkit/template/pyproject.toml).
+[project.scripts]
+lab = "aelix_analytics.cli:main"
+
+[project.entry-points."aelix.extensions"]
+aelix-analytics = "aelix_analytics.extension:setup"
+
+# The distribution is one wheel, built from the checkout as it is (ADR-0004): src/aelix_analytics is
+# the package, the checkout's extension/aelix_lab.py becomes aelix_analytics/extension.py, and kit/
+# becomes the package data aelix_analytics/kit/. Pinned so a build does not drift with the backend.
+[build-system]
+requires = ["hatchling==1.32.4"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+only-include = ["src/aelix_analytics", "kit/labkit"]
+
+[tool.hatch.build.targets.wheel.sources]
+"src/aelix_analytics" = "aelix_analytics"
+"kit" = "aelix_analytics/kit"
+
+[tool.hatch.build.targets.wheel.force-include]
+"extension/aelix_lab.py" = "aelix_analytics/extension.py"
+
+[tool.hatch.build.targets.sdist]
+only-include = ["src/aelix_analytics", "extension/aelix_lab.py", "kit/labkit", "README.md",
+                "pyproject.toml"]
+
+# This environment tests the kit with the same libraries an analysis project gets (see
+# kit/labkit/template/pyproject.toml), so it needs what those need: >=3.12. The project itself is
+# not installed into it; the tests build and install the wheel where they need it.
 [dependency-groups]
 dev = [
   "duckdb>=1.3,<2",
@@ -24,9 +56,12 @@ dev = [
 [tool.uv]
 package = false
 
+[tool.uv.dependency-groups]
+dev = { requires-python = ">=3.12" }
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["kit"]
+pythonpath = ["kit", "src"]
 
 [tool.ruff]
 line-length = 100
@@ -37,4 +72,4 @@ select = ["E", "F", "I", "B", "UP"]
 ignore = ["E501"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["labkit"]
+known-first-party = ["labkit", "aelix_analytics"]

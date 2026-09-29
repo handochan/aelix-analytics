@@ -1,0 +1,36 @@
+# The manifest aelix binds to this distribution's `aelix.extensions` entry point (aelix ADR-0204:
+# it has to sit in a package on the entry module's path; here, the package root). Keep `version`
+# equal to pyproject.toml's and to labkit's KIT_VERSION (tests/test_packaging.py checks it); aelix
+# accepts only a semver-like spelling, so a pre-release is written `0.2.0-beta.1`, not `0.2.0b1`.
+[plugin]
+id = "aelix-analytics"
+name = "Aelix Analytics"
+version = "0.1.0"
+description = "Analysis projects with durable context, runs, evidence and reports, for people and agents"
+authors = ["handochan"]
+repository = "https://github.com/handochan/aelix-analytics"
+# No licence has been granted yet (CONTRIBUTING.md). aelix logs a warning for a value outside its
+# list at every load; the owner's licence decision replaces this.
+license = "UNLICENSED"
+
+[plugin.api]
+level = 1
+min_level = 1
+
+[plugin.entry]
+# Also set where the entry point already names it: a copy of this package in aelix's extensions
+# directory is then loaded rather than refused.
+python = "aelix_analytics.extension:setup"
+
+[activation]
+# Loaded when aelix starts, as a file extension is: the tools and the prompt hook are there from
+# the first turn.
+on_startup_finished = true
+
+[capabilities]
+# Declared because they are true. aelix enforces none of them for what this extension does, and
+# a false value is documented as a promise.
+shell_exec = true      # runs uv and analysis scripts
+fs_write = true        # creates projects wherever asked; writes its trust list in aelix's directory
+fs_read_user = true    # lab_import reads files outside the project
+net = true             # uv downloads a project's analysis libraries

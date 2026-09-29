@@ -1,0 +1,321 @@
+"""`lab`, the human command line of Aelix Analytics, as its distribution installs it.
+
+It keeps `bin/lab`'s contract — the commands and their arguments, the usage text, the kit's output
+passed through untouched, and the exit statuses — on every platform: installers make it `lab`, and
+`lab.exe` on Windows, where the POSIX shell script `bin/lab` cannot run (ADR-0002 decision 6,
+ADR-0004). `bin/lab` stays the command of a checkout; tests/test_launcher.py holds the two to one
+contract.
+
+Every command runs the kit in the project's own environment, as `bin/lab` does:
+`uv run --project <project> python -m labkit ...` with PYTHONPATH set to exactly the kit this
+distribution installed. This process uses the standard library only, on Python 3.11 or later.
+"""
+
+from __future__ import annotations
+
+import contextlib
+import hashlib
+import importlib.util
+import os
+import signal
+import subprocess
+import sys
+from pathlib import Path
+
+from . import _install
+
+# bin/lab prints its header comment as its usage; this is the same text, byte for byte.
+USAGE = """\
+lab — human CLI for Aelix Analytics projects (the same kit the aelix extension drives).
+
+  lab init DIR [--title T] [--goal G]   create a project and its uv environment
+  lab demo DIR                          new project with synthetic data and example runs
+  lab status | context                  overview | the context block agents receive
+  lab run SCRIPT --title T [--input P] [--timeout S]
+  lab run --rerun-of RUN_ID --title T   re-execute a run's code snapshot and compare
+  lab import FILE [--name N] [--description D]
+  lab query "SQL" [--limit N]
+  lab note KIND "TEXT" [--ref R] [--resolves eN]
+  lab report | open                     rebuild | open report/index.html
+
+Commands other than init/demo use the nearest lab.json above the current directory, or LAB_PROJECT.
+Output ends with one JSON line (status and context print text); a run that got past its setup
+puts an empty line before it. Nothing here is a sandbox.
+"""
+
+COMMANDS = ("init", "demo", "status", "context", "open", "run", "import", "query", "note", "report")
+
+
+def main(argv: list[str] | None = None) -> int:
+    try:
+        return run(sys.argv[1:] if argv is None else list(argv))
+    except KeyboardInterrupt:
+        # A Ctrl+C before the handlers are in place, or after they are given back: no child is
+        # running then, and a shell would end without a traceback too.
+        return 130
+
+
+def run(args: list[str], kit: Path | None = None, uv: list[str] | None = None) -> int:
+    """`kit` is the kit directory to run, by default the one this distribution installed; `uv` the
+    argv prefix that starts uv, by default the program found as `bin/lab` finds it."""
+    with _Children() as children:
+        return _command(list(args), kit, uv, children)
+
+
+def _command(args: list[str], kit: Path | None, uv_argv: list[str] | None,
+             children: _Children) -> int:
+    command = args.pop(0) if args else "status"
+    if command in ("-h", "--help", "help"):
+        _write(sys.stdout, USAGE)
+        return 0
+    if command not in COMMANDS:
+        _write(sys.stderr, USAGE)
+        return 2
+    if command in ("init", "demo") and not args:
+        _say(f"usage: lab {command} DIR")
+        return 2
+    try:
+        kit = kit or _install.kit_dir()
+    except RuntimeError as exc:
+        _say(str(exc))
+        return 1
+    processes = _load_platform(kit).detect().processes
+    env = child_env(kit)
+
+    if command in ("init", "demo"):
+        uv = uv_argv or _uv(processes)
+        if uv is None:
+            return 127
+        directory, rest = args[0], args[1:]
+        code = children.run([*uv, "run", "--no-project", "--python", "3.12", "--quiet", "python",
+                             "-m", "labkit", "init", directory, *rest], env)
+        if code or children.interrupted:
+            return code or children.stopped
+        project = str(Path(directory).resolve())
+        _say("lab: syncing the project environment (first time can take a minute) ...")
+        code = children.run([*uv, "sync", "--project", project, "--quiet"], env)
+        if code and not children.interrupted:
+            code = children.run([*uv, "sync", "--project", project, "--quiet", "--offline"], env)
+        if code or children.interrupted:
+            return code or children.stopped
+        if command == "demo":
+            code = children.run(kit_argv(uv, project, "demo"), env)
+        else:
+            code = children.run(kit_argv(uv, project, "report"), env, stdout=subprocess.DEVNULL)
+        if code or children.interrupted:
+            return code or children.stopped
+        index = Path(project) / "report" / "index.html"
+        _say(f"lab: report at {index} (lab open, from inside the project)")
+        return 0
+
+    project = find_project()
+    if project is None:
+        return 1
+    uv = uv_argv or _uv(processes)
+    if uv is None:
+        return 127
+    if command in ("status", "context"):
+        return children.run(kit_argv(uv, project, "--text", command), env)
+    if command == "open":
+        index = Path(project) / "report" / "index.html"
+        if not index.is_file():
+            code = children.run(kit_argv(uv, project, "report"), env, stdout=subprocess.DEVNULL)
+            if code or children.interrupted:
+                return code or children.stopped
+        try:
+            status = exit_status(processes.open_document(index, wait=True) or 0)
+        except OSError as exc:
+            _say(f"lab: could not open {index} ({exc}); open it in a browser yourself")
+            return 127 if isinstance(exc, FileNotFoundError) else 1
+        return children.stopped or status
+    return children.run(kit_argv(uv, project, command, *args), env, cancellable=command == "run")
+
+
+def child_env(kit: Path) -> dict[str, str]:
+    """The caller's environment, as `bin/lab` passes it on, and the kit exactly: PYTHONPATH is
+    replaced rather than extended, so an analysis environment sees `labkit` and nothing else of the
+    environment this command is installed in. Children write no bytecode into the installed kit,
+    which an uninstall would otherwise leave behind."""
+    env = {name: value for name, value in os.environ.items() if name != "VIRTUAL_ENV"}
+    env.update({"PYTHONPATH": str(kit), "MPLBACKEND": "Agg", "PYTHONDONTWRITEBYTECODE": "1",
+                "LAB_ACTOR": os.environ.get("LAB_ACTOR") or "human"})
+    return env
+
+
+def kit_argv(uv: list[str], project: str, *args: str) -> list[str]:
+    return [*uv, "run", "--project", project, "--quiet", "python", "-m", "labkit",
+            "--project", project, *args]
+
+
+def find_project() -> str | None:
+    """LAB_PROJECT as it is given (the kit reports one that is not a project), or the nearest
+    directory at or above the working directory that holds a lab.json."""
+    configured = os.environ.get("LAB_PROJECT")
+    if configured:
+        return configured
+    try:
+        here = Path(os.getcwd())
+    except OSError as exc:
+        _say(f"lab: the current directory cannot be read ({exc}); cd into a project or set LAB_PROJECT")
+        return None
+    for directory in (here, *here.parents):
+        if (directory / "lab.json").is_file():
+            return str(directory)
+    _say(f"lab: no lab.json in {here} or its parents (cd into a project or set LAB_PROJECT)")
+    return None
+
+
+def exit_status(returncode: int) -> int:
+    """This process's exit status for a child's return code: the code itself; 128+N for a child a
+    POSIX signal N ended, as a shell reports it; and a Windows status of 2**31 or more (an NTSTATUS
+    such as 0xC000013A) as the negative value it is as a signed 32-bit number, which `sys.exit`
+    turns back into the same status — Python 3.11 and 3.12 overflow on the unsigned one."""
+    if returncode < 0:
+        return 128 - returncode
+    if returncode >= 2**31:
+        return returncode - 2**32
+    return returncode
+
+
+class _Children:
+    """Runs one child at a time with this process's stdin, stdout and stderr, and waits for it.
+
+    A terminal sends Ctrl+C to its whole foreground process group, and a Windows console to every
+    process attached to it: the child — uv, and the kit under it — has it already. So this process
+    only notes it: it neither passes it on (the kit would get two) nor ends (the kit's record and
+    its JSON line are still on their way), and exits with the child's status. It uses a handler,
+    not SIG_IGN, because an ignored SIGINT is inherited across exec and the kit could then not be
+    stopped; exec resets a handler. A signal this process inherited ignored — a background job's
+    SIGINT — stays ignored, and so does its children's, as a shell leaves it. On Windows the C
+    runtime reports every console event other than Ctrl+C (Ctrl+Break, closing the window) as
+    SIGBREAK, which is noted the same way; the wait there is not interrupted by console events, so
+    the handler runs once the child has exited. The handlers are in place from the start of main();
+    a Ctrl+C before that, while the interpreter itself starts, is not.
+
+    SIGTERM sent to this process alone reaches a kit `run` (uv passes it on, and the run's guard
+    records a cancel, CONTRACTS D1). Any other child is left to finish: killing an import or an init
+    part way would leave what it wrote unrecorded, and `bin/lab`'s shell leaves it running too.
+    This process then exits 143.
+
+    Once either signal has arrived, no further child is started. One that arrives while a child is
+    being started may not reach it — before exec it lands on a copy of this process — so it is sent
+    to the child again once it runs, where the platform can (Windows sends SIGINT to no single
+    process)."""
+
+    def __init__(self) -> None:
+        self.stopped = 0
+        self.terminated = False
+        self._child: subprocess.Popen | None = None
+        self._cancellable = False
+        self._saved: list[tuple[int, object]] = []
+
+    @property
+    def interrupted(self) -> bool:
+        return bool(self.stopped)
+
+    def _note(self, signum, frame) -> None:
+        self.stopped = self.stopped or 130
+
+    def _terminate(self, signum, frame) -> None:
+        self.stopped = self.stopped or 128 + signum
+        self.terminated = True
+        if self._cancellable:
+            self._send(signum)
+
+    def _send(self, signum) -> None:
+        child = self._child
+        if child is not None and child.returncode is None:
+            with contextlib.suppress(OSError, ValueError):
+                child.send_signal(signum)
+
+    def __enter__(self) -> _Children:
+        for name, handler in (("SIGINT", self._note), ("SIGBREAK", self._note),
+                              ("SIGTERM", self._terminate)):
+            number = getattr(signal, name, None)
+            if number is None:
+                continue
+            current = signal.getsignal(number)
+            if current is signal.SIG_IGN:
+                continue
+            self._saved.append((number, current))
+            signal.signal(number, handler)
+        return self
+
+    def __exit__(self, *exc_info) -> bool:
+        for number, previous in reversed(self._saved):
+            if previous is not None:
+                signal.signal(number, previous)
+        return False
+
+    def run(self, argv: list[str], env: dict[str, str], stdout=None, *,
+            cancellable: bool = False) -> int:
+        """The child's exit status as this process's own (exit_status); `stopped` without starting
+        it once a signal has arrived, and 143 after a SIGTERM the child was left to finish.
+        `cancellable`: the child is a kit `run`, which SIGTERM may reach."""
+        if self.stopped:
+            return self.stopped
+        self._cancellable = cancellable
+        try:
+            self._child = subprocess.Popen(argv, env=env, stdout=stdout)
+        except OSError as exc:
+            _say(f"lab: could not start {argv[0]}: {exc}")
+            return 127
+        if self.stopped == 130:
+            self._send(signal.SIGINT)
+        elif self.terminated and cancellable:
+            self._send(signal.SIGTERM)
+        try:
+            # A handler that raises nothing leaves the wait to be retried (PEP 475).
+            status = exit_status(self._child.wait())
+        finally:
+            self._child = None
+            self._cancellable = False
+        if self.terminated and not cancellable:
+            return self.stopped
+        return status
+
+
+def _load_platform(kit: Path):
+    """The kit's _platform module — standard library only, importing nothing from labkit — loaded
+    from `kit` under a name of its own, and in sys.modules only while it executes, as the aelix
+    extension loads it (ADR-0003). It chooses how this platform opens a document and finds a
+    program, so this file has no platform branch of its own."""
+    path = kit / "labkit" / "_platform.py"
+    name = f"aelix_analytics_platform_{hashlib.sha256(str(kit).encode()).hexdigest()[:12]}"
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.modules.pop(name, None)
+    return module
+
+
+def _uv(processes) -> list[str] | None:
+    configured = os.environ.get("AELIX_LAB_UV") or "uv"
+    found = processes.find_program(configured)
+    if found is None:
+        _say(f"lab: uv not found ({configured}); install uv (https://docs.astral.sh/uv/) or set "
+             "AELIX_LAB_UV to its path")
+        return None
+    return [found]
+
+
+def _write(stream, text: str) -> None:
+    # As bin/lab does: the text's UTF-8 bytes, whatever the stream's encoding is.
+    buffer = getattr(stream, "buffer", None)
+    if buffer is None:
+        stream.write(text)
+    else:
+        stream.flush()
+        buffer.write(text.encode("utf-8"))
+    stream.flush()
+
+
+def _say(text: str) -> None:
+    _write(sys.stderr, text + "\n")
+
+
+if __name__ == "__main__":
+    sys.exit(main())

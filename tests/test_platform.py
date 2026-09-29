@@ -2372,6 +2372,164 @@ def load_extension(monkeypatch, name: str):
 ANALYSIS_MODULES = ("polars", "duckdb", "matplotlib", "plotly", "pyarrow", "numpy")
 
 
+def test_a_checkout_file_finds_the_kit_next_to_it(monkeypatch):
+    monkeypatch.delenv("AELIX_LAB_KIT", raising=False)
+    module = load_extension(monkeypatch, "ext_route")
+    assert (module.KIT, module.KIT_ROUTE) == (KIT.resolve(), "checkout")
+
+
+def test_a_file_name_with_dots_is_still_a_checkout_file(monkeypatch):
+    # Review of design revision 1, dist-6 and kit-5: deciding the route by __package__ sent a
+    # dotted name (`-e extension.aelix_lab`, a symlink named aelix_lab.v2.py) to the installed one.
+    monkeypatch.delenv("AELIX_LAB_KIT", raising=False)
+    module = load_extension(monkeypatch, "extension.aelix_lab")
+    assert (module.KIT, module.KIT_ROUTE) == (KIT.resolve(), "checkout")
+
+
+def test_the_installed_module_runs_the_kit_installed_with_it(monkeypatch, tmp_path):
+    import aelix_analytics._install
+
+    monkeypatch.setattr(aelix_analytics._install, "kit_dir", lambda: KIT.resolve())
+    monkeypatch.setenv("AELIX_LAB_KIT", str(tmp_path / "another-kit"))  # not followed here
+    module = load_extension(monkeypatch, "aelix_analytics.extension")
+    assert (module.KIT, module.KIT_ROUTE) == (KIT.resolve(), "installed")
+
+
+@pytest.mark.skipif(os.name == "nt", reason="a symbolic link to the kit")
+def test_the_installed_module_loaded_as_a_file_finds_the_kit_beside_it(monkeypatch, tmp_path):
+    package = tmp_path / "aelix_analytics"
+    package.mkdir()
+    (package / "extension.py").write_bytes(EXT.read_bytes())
+    (package / "kit").symlink_to(KIT, target_is_directory=True)
+    monkeypatch.delenv("AELIX_LAB_KIT", raising=False)
+    for key, value in _aelix_stubs().items():
+        monkeypatch.setitem(sys.modules, key, value)
+    spec = importlib.util.spec_from_file_location("_aelix_ext_extension", package / "extension.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert (module.KIT, module.KIT_ROUTE) == ((package / "kit").resolve(), "installed file")
+
+
+def test_each_runtime_starts_the_extension_s_state_over(monkeypatch):
+    """Review of design revision 1, dist-1: aelix sets extensions up again for every session it
+    builds, and the installed module keeps its globals across them. A /lab note before a new
+    session's first prompt recorded the previous session's file."""
+    module = load_extension(monkeypatch, "ext_rebuilt")
+    module.setup(_Api(_EventBus()))
+    module.STATE.update({"session": "/sessions/A.jsonl", "project": "/somewhere"})
+    module.setup(_Api(_EventBus()))
+    assert module.STATE["session"] is None and module.STATE["project"] is None
+
+
+class _EventBus:
+    """aelix's ExtensionAPI.events: synchronous, one per runtime, shared by its extensions."""
+
+    def __init__(self) -> None:
+        self.handlers: dict = {}
+
+    def emit(self, channel, data=None) -> None:
+        for handler in list(self.handlers.get(channel, ())):
+            handler(data)
+
+    def on(self, channel, handler):
+        self.handlers.setdefault(channel, []).append(handler)
+        return lambda: self.handlers[channel].remove(handler)
+
+
+class _Api:
+    def __init__(self, events=None, fail_on_tool: int | None = None) -> None:
+        if events is not None:
+            self.events = events
+        self.registered: list = []
+        self._fail_on_tool = fail_on_tool
+
+    def register_flag(self, name, **kwargs):
+        self.registered.append(("flag", name))
+
+    def register_tool(self, tool):
+        if self._fail_on_tool is not None and len(self.tools()) == self._fail_on_tool:
+            raise RuntimeError("setup failed part way")
+        self.registered.append(("tool", tool.name))
+
+    def register_command(self, name, **kwargs):
+        self.registered.append(("command", name))
+
+    def on(self, event, handler):
+        self.registered.append(("on", event))
+
+    def tools(self) -> list:
+        return [name for kind, name in self.registered if kind == "tool"]
+
+
+def test_a_second_copy_in_one_runtime_is_not_set_up(monkeypatch, capsys):
+    """A checkout's symlink or -e beside the installed package is two copies to aelix, which would
+    fire both copies' hooks (ADR-0004)."""
+    first = load_extension(monkeypatch, "ext_copy_one")
+    second = load_extension(monkeypatch, "ext_copy_two")
+    bus = _EventBus()
+    active, extra = _Api(bus), _Api(bus)
+    first.setup(active)
+    second.setup(extra)
+    assert len(active.tools()) == 6 and ("command", "lab") in active.registered
+    assert extra.registered == []
+    assert "is not set up: this aelix already loaded" in capsys.readouterr().err
+    # Another runtime has another bus: a copy is set up there.
+    elsewhere = _Api(_EventBus())
+    second.setup(elsewhere)
+    assert len(elsewhere.tools()) == 6
+
+
+def test_a_copy_whose_setup_failed_does_not_keep_the_next_one_out(monkeypatch):
+    # Review of design revision 1, Codex F3: answering before registering could suppress the only
+    # working copy.
+    first = load_extension(monkeypatch, "ext_fails")
+    second = load_extension(monkeypatch, "ext_works")
+    bus = _EventBus()
+    with pytest.raises(RuntimeError, match="part way"):
+        first.setup(_Api(bus, fail_on_tool=3))
+    works = _Api(bus)
+    second.setup(works)
+    assert len(works.tools()) == 6
+
+
+def test_a_host_without_an_event_bus_sets_the_extension_up_as_before(monkeypatch):
+    module = load_extension(monkeypatch, "ext_no_bus")
+    api = _Api()
+    module.setup(api)
+    assert len(api.tools()) == 6
+
+
+def _open_through_lab_command(module, project_root):
+    import asyncio
+
+    (project_root / "report").mkdir(exist_ok=True)
+    (project_root / "report" / "index.html").write_text("<html>", encoding="utf-8")
+    return asyncio.run(module.lab_command("open"))
+
+
+def test_lab_open_hands_the_report_to_the_platform_detached(monkeypatch, project):
+    module = load_extension(monkeypatch, "ext_open")
+    monkeypatch.setenv("AELIX_LAB_PROJECT", str(project))
+    handed = []
+    monkeypatch.setattr(module.core.PLATFORM.processes, "open_document",
+                        lambda path, *, wait: handed.append((Path(path), wait)))
+    answer = _open_through_lab_command(module, project)
+    assert handed == [(project / "report" / "index.html", False)]
+    assert answer.startswith("opened ")
+
+
+def test_lab_open_says_so_when_nothing_can_open_the_report(monkeypatch, project):
+    module = load_extension(monkeypatch, "ext_cannot_open")
+    monkeypatch.setenv("AELIX_LAB_PROJECT", str(project))
+
+    def cannot(path, *, wait):
+        raise OSError("no application is associated with this file")
+
+    monkeypatch.setattr(module.core.PLATFORM.processes, "open_document", cannot)
+    answer = _open_through_lab_command(module, project)
+    assert answer.startswith("could not open ") and "yourself" in answer
+
+
 def test_the_extension_loads_the_kit_without_leaving_module_names_behind(monkeypatch):
     before = {k for k in sys.modules if k.startswith("aelix_lab_kit")}
     first = load_extension(monkeypatch, "ext_one")
@@ -2584,7 +2742,7 @@ def _stand_in_kit(ext, monkeypatch, tmp_path, *, delay):
         return proc
 
     monkeypatch.setattr(ext.asyncio, "create_subprocess_exec", stand_in)
-    monkeypatch.setattr(ext, "resolve_uv", lambda: "uv")
+    monkeypatch.setattr(ext, "resolve_uv", lambda processes=None: "uv")
     return marker, started
 
 
@@ -2944,7 +3102,7 @@ def test_the_extension_uses_the_process_control_of_the_project_it_was_given(monk
     bundle = types.SimpleNamespace(name="recording", processes=seen,
                                    locks=_platform.detect().locks, files=_platform.detect().files,
                                    runs=_platform.detect().runs)
-    monkeypatch.setattr(ext, "resolve_uv", lambda: sys.executable)  # `python run ...` fails at once
+    monkeypatch.setattr(ext, "resolve_uv", lambda processes=None: sys.executable)  # `python run ...` fails at once
     ok, _ = asyncio.run(ext.run_kit(ext.core.Project(project, platform=bundle), ["status"],
                                     timeout=60))
     assert not ok
@@ -3660,7 +3818,7 @@ TEMPFILES = frozenset({"TemporaryFile", "NamedTemporaryFile", "SpooledTemporaryF
 SUBPROCESS_DECODING = frozenset({"run", "Popen", "check_output"})
 SUBPROCESS_ALWAYS_TEXT = frozenset({"getoutput", "getstatusoutput"})
 TEXT_MODE_KWARGS = ("text", "universal_newlines")
-SOURCE_DIRS = ("kit", "extension", "tools")
+SOURCE_DIRS = ("kit", "extension", "tools", "src")
 
 
 def _receiver(func: ast.AST) -> str:
@@ -3780,8 +3938,11 @@ def test_the_shipped_code_names_the_encoding_of_every_text_call_the_scan_knows()
     """A locale-dependent default turns Korean records into an exception on a Windows machine, and
     reconfiguring this process's streams does not reach a child's pipe or a file.
 
-    Scope, deliberately: the Python of `kit`, `extension` and `tools`. `tests/` is PR-3's cleanup,
-    `bin/lab` is PR-2's entry-point work, and the template files are not Python."""
+    Scope, deliberately: the Python of `kit`, `extension`, `tools` and `src` (the distribution's
+    `lab` launcher). `tests/` is PR-3's cleanup, `bin/lab` is shell, and the template files are not
+    Python. A directory that is not there would make the scan pass on nothing, so that fails."""
+    missing = [d for d in SOURCE_DIRS if not (PACK / d).is_dir()]
+    assert not missing, f"the scan's directories moved: {missing}"
     paths = [p for directory in SOURCE_DIRS
              for p in sorted((PACK / directory).rglob("*.py")) if "__pycache__" not in p.parts]
     offenders = unencoded_text_calls(paths)
