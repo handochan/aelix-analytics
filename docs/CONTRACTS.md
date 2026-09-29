@@ -230,7 +230,7 @@ Windows의 한계는 G절에 있습니다.
 | 파일명 — run 안 | run 안의 `lab.save`와 스크립트가 직접 쓰는 경로는 거절하지 않습니다. 보존된 스크립트는 출력 파일이 지워진 뒤에도 다시 실행돼야 하기 때문입니다. 대신 run의 `warnings`에 남깁니다 — 출력과 차트 파일의 **모든 경로 구성 요소**를 검사하므로 `data/derived/con/value.parquet`도 걸립니다. 이 경고는 다른 경고를 가리지 않도록 묶어서 마지막에 둡니다 |
 | 파일명 — 차트 | kit이 저장하는 차트 파일(`lab.chart`의 이미지·plotly JSON·플롯 데이터)만 이식 가능한 이름으로 바꿉니다(`con` → `con_.png`). 정체성 `script::id`는 생성된 id까지 그대로입니다. 이 대응은 단사입니다 — 차트 id는 slug이라 `_`를 포함할 수 없으므로 `con-file` 같은 보통 id와 충돌하지 않습니다. 스크립트가 차트 id 본래 이름에 쓴 파일(차트 `con`의 `charts/con.png`, 대소문자를 구별하지 않는 파일 시스템에서는 `charts/CON.png`도)은 이전 구현이 그 차트를 쓰거나 덮어쓴 파일이므로 따로 차트로 기록하지도 경고하지도 않고, 그 차트가 버려지면 함께 지웁니다. 그 밖에 스크립트가 run 디렉터리에 직접 쓴 파일(`register_loose_files`)은 스크립트가 정한 이름 그대로 차트가 되며 위 경고로만 알립니다 |
 | 경로·인코딩 | 리포트의 절대 경로 링크는 기록한 플랫폼 기준으로 해석한 `file://` URL입니다(`C:\…` → `file:///C:/…`, `\\server\share\…` → `file://server/share/…`). 그래서 POSIX에서 이름이 `X:\`나 `\\`로 시작하는 프로젝트 파일은 그 Windows 경로로 링크되거나, 공유 이름이 없으면 링크되지 않습니다. CLI는 인자를 읽기 전에 표준 스트림을 UTF-8(`errors='replace'`)로 고정하고, 텍스트를 읽는 파일·자식 프로세스 호출은 인코딩을 명시합니다. run 로그도 UTF-8이며 인코딩할 수 없는 문자(짝 없는 surrogate)는 `?`로 씁니다. run 동안 stdout·stderr는 파일 기술자와 Python 스트림을 함께 바꾸고, 출력은 이전처럼 블록 단위로 버퍼링됩니다. 이렇게 해서 콘솔 전용 스트림이 파일에 쓰지 못하는 문제를 피하려는 것은 의도이며, 네이티브 대화형 콘솔에서는 실행하지 않았습니다(`not_run`) |
-| 사람용 진입점 | 체크아웃의 `bin/lab`(POSIX 셸)과 설치본의 `lab`(stdlib Python 런처, 모든 플랫폼; Windows에서는 `lab.exe`)입니다. `bin/lab`은 wheel로 설치하지 않습니다. 둘은 같은 명령·인자·usage·종료 코드를 지키고 kit의 출력을 바이트 그대로 넘기며, POSIX에서 같은 stand-in uv로 동등성을 시험합니다. 런처는 자식을 같은 process group·콘솔에서 표준 스트림을 물려준 채 기다리고 SIGINT·SIGBREAK를 기록만 하므로, 터미널의 Ctrl+C는 kit에 한 번 가고 런처는 그 기록을 기다려 kit의 종료 코드로 끝납니다. 런처가 무시된 SIGINT를 물려받으면(셸의 백그라운드 작업) 그대로 두어 kit도 무시한 채 시작합니다. 자식을 시작하는 순간에 온 Ctrl+C는 자식이 뜬 뒤 한 번 더 보냅니다(POSIX). 런처와 `bin/lab`의 차이: 런처만 받은 SIGTERM은 kit의 `run`에만 전하고(run이 `cancelled`로 기록), 그 밖의 단계(init·sync·import·query·note·report·demo)는 끝까지 두고 다음 단계를 시작하지 않은 채 143으로 끝납니다(`bin/lab`의 셸은 kit을 남기고 곧바로 끝납니다). Ctrl+C 뒤에도 다음 단계를 시작하지 않습니다. uv가 없으면 자기 문구로 127, macOS에서만 `open`을 씁니다(`bin/lab`은 `open`이 있으면 어디서나). dash로 도는 `bin/lab`은 Ctrl+C 뒤 SIGINT로 끝납니다. 런처 자신의 글(usage, 안내)은 로캘과 상관없이 UTF-8 바이트입니다. 런처는 `AELIX_LAB_KIT`를 따르지 않고 자기 kit을 씁니다 |
+| 사람용 진입점 | 체크아웃의 `bin/lab`(POSIX 셸)과 설치본의 `lab`(stdlib Python 런처, 모든 플랫폼; Windows에서는 `lab.exe`)입니다. `bin/lab`은 wheel로 설치하지 않습니다. 둘은 같은 명령·인자·usage·종료 코드를 지키고 kit의 출력을 바이트 그대로 넘기며, POSIX에서 같은 stand-in uv로 동등성을 시험합니다. 런처는 자식을 같은 process group·콘솔에서 표준 스트림을 물려준 채 기다리고 SIGINT·SIGBREAK를 기록만 하므로, 터미널의 Ctrl+C는 런처가 다시 보내지 않아 kit에 한 번 가고 런처는 그 기록을 기다려 kit의 종료 코드로 끝납니다. 런처가 무시된 SIGINT를 물려받으면(셸의 백그라운드 작업) 그대로 두어 kit도 무시한 채 시작합니다. 자식을 시작하는 순간에 온 Ctrl+C는 자식이 뜬 뒤 한 번 더 보냅니다(POSIX). 그 순간 터미널의 Ctrl+C를 이미 받은 자식에게는 두 번 가며, kit은 run을 구간마다 한 번만 중단합니다(D1). 런처와 `bin/lab`의 차이: 런처만 받은 SIGTERM은 kit의 `run`에만 전하고(run이 `cancelled`로 기록), 그 밖의 단계(init·sync·import·query·note·report·demo)는 끝까지 두고 다음 단계를 시작하지 않은 채 143으로 끝납니다(`bin/lab`의 셸은 kit을 남기고 곧바로 끝납니다). 이 SIGTERM은 POSIX의 것입니다 — Windows에서는 다른 프로세스가 처리기에 SIGTERM을 보낼 수 없고 `os.kill`·`taskkill /F`가 런처를 곧바로 끝냅니다(강제 종료, D1). Ctrl+C 뒤에도 다음 단계를 — `lab open`의 문서 열기도 — 시작하지 않습니다. uv가 없으면 자기 문구로 127, macOS에서만 `open`을 씁니다(`bin/lab`은 `open`이 있으면 어디서나). dash로 도는 `bin/lab`은 Ctrl+C 뒤 SIGINT로 끝납니다. 빈 첫 인자(`lab ""`)는 `bin/lab`에서 status, 런처에서 usage와 2입니다. `AELIX_LAB_UV`가 디렉터리이거나 실행할 수 없는 파일이면 `bin/lab`은 셸의 오류(126, macOS의 sh에서 실행할 수 없는 파일은 1), 런처는 uv를 찾지 못했다는 문구와 127입니다. 닫힌 파이프에 쓰는 `--help`는 `bin/lab`에서 141, 런처에서 `BrokenPipeError`와 120입니다. symlink로 들어온 작업 디렉터리에서 `init ../DIR`은 `bin/lab`에서 kit이 프로젝트를 만든 뒤 실패하고(셸에 따라 1이나 2), 런처에서는 끝까지 진행합니다. 런처 자신의 글(usage, 안내)은 로캘과 상관없이 UTF-8 바이트이고, 그 안의 UTF-8이 아닌 경로·값은 받은 바이트 그대로입니다. 런처는 `AELIX_LAB_KIT`를 따르지 않고 자기 kit을 씁니다 |
 | 배포 형태 | wheel 하나를 hatchling이 체크아웃에서 만듭니다(`uv build`): package `aelix_analytics` — 런처 `cli.py`, kit 위치 `_install.py`, manifest, 확장 `extension.py`(체크아웃의 `extension/aelix_lab.py`) — 와 package data `aelix_analytics/kit/labkit`(템플릿·assets·데모 스크립트 포함). 의존성은 없고, 분석 라이브러리는 프로젝트 환경에만 설치됩니다. aelix 연동은 이 wheel을 aelix의 환경에 설치하는 것이며 extra는 없습니다. 개발 환경은 `package = false`로 프로젝트를 설치하지 않습니다. 배포 이름·라이선스는 첫 공개 전에 정할 사항이고, 이 wheel은 어디에도 게시하지 않았습니다 |
 
 ### F1. 이전 구현(`48b79cc`)과 달라진 POSIX 동작
@@ -297,8 +297,9 @@ Windows의 한계는 G절에 있습니다.
 - `init`은 무엇이든 만들기 전에 템플릿을 읽습니다. 읽을 수 없으면 `template_missing`으로 답하고 아무것도 만들지
   않습니다(이전에는 traceback으로 끝나며 반쯤 만든 프로젝트를 남겼고, 다시 `init`하면 비어 있지 않다고 거절했습니다).
 - `/lab open`은 opener를 aelix의 터미널과 떼어 놓은 채(자기 session, 표준 스트림 없음) 시작합니다. macOS는 `open`,
-  그 밖의 POSIX는 `xdg-open`이고, 그것이 없으면 이전처럼 `webbrowser`로 엽니다. 열 수 없으면 그렇다고 답합니다. 떼어
-  놓은 opener가 실패하면 알리지 않습니다(이전에는 그 오류가 aelix의 터미널에 찍혔습니다).
+  그 밖의 POSIX는 `xdg-open`이고, 그것이 없으면 이전처럼 `webbrowser`로 엽니다. opener를 시작하지 못하면 그렇다고
+  답합니다. `webbrowser`가 열지 못한 것(이전과 같습니다)과 떼어 놓은 opener가 실패한 것(이전에는 그 오류가 aelix의
+  터미널에 찍혔습니다)은 알리지 않고 열었다고 답합니다.
 - 한 aelix에서 이 확장의 두 번째 사본은 설정되지 않고 stderr에 알립니다(A).
 - 확장이 찾은 uv를 링크를 따라가지 않은 절대 경로로 씁니다(이전에는 링크를 풀었습니다). 그래서 mise의 shim으로 설치한
   uv에서 kit 명령이 mise 자체로 실행되어 실패하던 것이 고쳐지고, `/lab where`는 링크의 경로를 보여 줍니다.
@@ -374,10 +375,11 @@ Windows의 한계는 G절에 있습니다.
   - 사본 하나만 설정하는 확인(A)은 두 사본이 모두 이 버전 이상일 때만 됩니다. 이 확인이 없는 이전 버전의 체크아웃을
     aelix의 extensions 디렉터리에 symlink한 채 설치본을 더하면 두 사본이 모두 설정되어, 도구 호출마다 telemetry가 두 번
     기록되고 맥락 블록이 두 번 붙습니다. 설치본을 쓰면 symlink를 지웁니다(README).
-  - aelix를 다시 설치하면(`install.sh`, `uv tool install --force aelix`) 그 환경에 더한 이 wheel이 빠집니다(측정). 다시
-    설치해야 합니다.
-  - wheel을 zip import로 쓰는 설치는 지원하지 않습니다(자식이 kit을 파일로 import해야 합니다). 실행 중인 run이 import하는
-    kit을 그 자리에서 업그레이드하는 경우는 시험하지 않았습니다.
+  - aelix를 다시 설치하면 그 환경에 더한 이 wheel이 빠집니다: `uv tool install --force aelix`는 측정했고, 같은 명령을
+    `--with` 없이 실행하는 `install.sh`는 추론입니다. 다시 설치해야 합니다.
+  - wheel을 zip import로 쓰는 설치는 지원하지 않습니다. `kit_dir()`이 거절합니다: zip 안의 kit도 자식에서 실행되지만
+    `env.kit_sha256`에 빈 입력의 해시를 기록하고, aelix 프로세스는 `core`를 파일로 로드합니다. 실행 중인 run이
+    import하는 kit을 그 자리에서 업그레이드하는 경우는 시험하지 않았습니다.
   - manifest의 `license = "UNLICENSED"`는 aelix 0.1.0b2가 로드할 때마다 경고로 남깁니다. 라이선스 결정 전의 값입니다.
   - `lab`이라는 이름의 다른 명령이 PATH에 있으면 PATH 순서가 어느 것이 도는지 정합니다. 체크아웃의 `bin/lab`과
     설치본의 `lab`이 한 프로젝트를 번갈아 다루면 run마다 `env.kit_sha256`이 다를 수 있습니다.
@@ -387,7 +389,10 @@ Windows의 한계는 G절에 있습니다.
     호출은 취소 대신 결과를 돌려주며, 자식의 기록은 이미 끝나 있습니다. aelix가 그 결과를 어떻게 다루는지는 확인하지
     않았습니다.
   - 설치본을 업그레이드한 뒤 aelix를 다시 시작하지 않으면 aelix 프로세스는 이전 확장·`core`를, kit의 자식은 새 kit을
-    씁니다. 각 기록은 자기를 쓴 버전을 적습니다. `/reload`로는 바뀌지 않습니다.
+    씁니다. `/reload`로는 바뀌지 않습니다. kit의 버전은 run 기록(`env.kit_version`·`kit_sha256`)과 `lab.json`(만들 때의
+    버전)에만 적힙니다. journal 이벤트와 데이터셋 메타데이터에는 버전이 없으므로, 그동안 aelix 프로세스의 이전 `core`가
+    쓴 journal 이벤트(`/lab note`·`lab_note`, 맥락 동기화)는 기록으로 구별할 수 없습니다. 업그레이드한 뒤에는 aelix를 다시
+    시작합니다.
   - 런처의 신호 처리기는 `main()`이 시작할 때 설치됩니다. 인터프리터가 시작하는 동안 온 Ctrl+C는 traceback이나
     SIGINT로 런처를 끝낼 수 있습니다(시작한 자식은 아직 없습니다). Windows에서는 자식을 시작하는 순간 온 Ctrl+C를 다시
     보낼 수 없습니다(한 프로세스에 SIGINT를 보내는 방법이 없습니다). 실행하지 않았습니다.

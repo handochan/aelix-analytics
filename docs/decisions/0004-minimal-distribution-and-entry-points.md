@@ -53,10 +53,13 @@ ADR-0002는 진입점의 하한을 `>=3.11`로 낮추고(결정 2), Aelix 없이
    --with <wheel>` 또는 `aelix extension install <wheel>`). `[aelix]` extra는 aelix-coding-agent 0.1.0b2의
    `pillow<12` 때문에 dev 환경의 pillow를 바꾸고, 이를 막으려면 lock이 커지고 dev와 aelix를 함께 설치할 수 없게 된다.
 5. **자원은 resource API로 찾는다.** 설치본의 kit은 `importlib.resources.files("aelix_analytics") / "kit"`이며, 풀린
-   파일의 디렉터리여야 한다(zip import는 자식이 실행할 수 없으므로 거절한다). kit 안에서 CLI는 템플릿, 리포트는
-   assets, 데모는 예제 스크립트를 `importlib.resources.files(__package__)`로 읽는다. aelix 프로세스 안의 `core`는
-   resource API를 쓸 수 없으므로(합성 package) 템플릿을 자기 파일 옆에서 찾는다. 호출자가 경로를 계산하지 않으므로
-   확장과 kit의 버전이 달라도 템플릿 위치가 어긋나지 않는다. `init`은 무엇이든 만들기 전에 템플릿부터 읽는다.
+   파일의 디렉터리여야 한다. zip import는 거절한다: 자식은 zip 안의 kit도 실행하지만, kit은 자기 파일을 읽어
+   `env.kit_sha256`을 계산하므로 빈 입력의 해시를 기록하고, aelix 프로세스는 `core`를 파일로 로드한다. kit 안에서
+   CLI는 템플릿, 리포트는 assets, 데모는 예제 스크립트를 `importlib.resources.files(__package__)`로 읽는다. aelix
+   프로세스 안의 `core`는 resource API를 쓸 수 없으므로(합성 package) 템플릿을 자기 파일 옆에서 찾는다. 호출자가
+   경로를 계산하지 않으므로 이 버전부터의 확장과 kit은 버전이 달라도 템플릿 위치가 어긋나지 않는다. 그 전에 복사한
+   확장(README의 복사 경로)은 템플릿 경로를 스스로 계산하므로 다시 복사해야 한다. `init`은 무엇이든 만들기 전에
+   템플릿부터 읽는다.
 6. **확장은 모듈 이름으로 경로를 가린다.** `aelix_analytics.extension`으로 import되면(설치본의 entry point) 5의 설치
    kit을 쓰고 `AELIX_LAB_KIT`를 따르지 않는다. 확장과 kit은 함께 설치된 것이어야 맞물린다. 파일로 로드되면
    `AELIX_LAB_KIT`, 파일 옆의 kit(경로로 로드한 설치본), 체크아웃의 `kit/` 순서다. aelix는 세션을 만들 때마다 확장을
@@ -69,9 +72,11 @@ ADR-0002는 진입점의 하한을 `>=3.11`로 낮추고(결정 2), Aelix 없이
    래퍼로 남고 wheel이 설치하지 않는다. 두 구현은 POSIX에서 같은 stand-in uv로 동등성 시험을 거친다. 런처는 자식을
    같은 process group·콘솔과 표준 스트림을 물려준 채 시작해 기다리고, SIGINT(와 SIGBREAK)는 기록만 한다. 터미널의
    Ctrl+C는 이미 자식에게 가 있으므로, 런처는 다시 보내지도 먼저 끝나지도 않는다. 자식을 시작하는 바로 그 순간 온
-   Ctrl+C만은 자식이 뜬 뒤 한 번 더 보낸다(그 전에는 자식에게 닿지 않는다). 런처만 받은 SIGTERM은 kit의 `run`에만
-   전한다: run만 그것을 취소로 기록하고, 다른 명령은 도중에 죽으면 쓴 것을 기록하지 못한다. 그 밖의 단계는 끝까지 두고,
-   어느 신호든 받은 뒤에는 다음 단계를 시작하지 않는다.
+   Ctrl+C만은 자식이 뜬 뒤 한 번 더 보낸다(그 전에는 자식에게 닿지 않는다; 그 순간 이미 받은 자식에게는 두 번 간다).
+   런처만 받은 SIGTERM은 kit의 `run`에만 전한다: run만 그것을 취소로 기록하고, 다른 명령은 도중에 죽으면 쓴 것을
+   기록하지 못한다. 그 밖의 단계는 끝까지 두고, 어느 신호든 받은 뒤에는 다음 단계(`lab open`이 문서를 여는 프로그램
+   포함)를 시작하지 않는다. 이 SIGTERM 규칙은 POSIX의 것이다. Windows에서는 다른 프로세스가 처리기에 SIGTERM을
+   보낼 수 없다.
 8. **`ProcessControl`에 두 동작을 더한다.** `open_document(path, *, wait)`와 `find_program(name)`. 둘 다 플랫폼마다
    다르고 자식 프로세스의 일이므로 포트는 여전히 넷이다. macOS는 `open`, 그 밖의 POSIX는 `xdg-open`을 `detect()`가
    고른다. 떼어 놓고 여는 쪽(확장)은 opener가 없으면 main처럼 `webbrowser`를 쓴다. Windows는 `os.startfile`,
@@ -129,12 +134,15 @@ ADR-0002는 진입점의 하한을 `>=3.11`로 낮추고(결정 2), Aelix 없이
 - 확장에는 kit을 찾는 경로가 넷이다(설치본, `AELIX_LAB_KIT`, 경로로 로드한 설치본, 체크아웃). 파일 로드에서는 resource
   API를 쓸 수 없으므로 없앨 수 없다.
 - 설치본을 업그레이드하면 aelix를 다시 시작해야 한다. 모듈이 프로세스에 한 번 import되기 때문이다.
-- 사람용 진입점이 두 구현이다(`bin/lab`, `lab`). 동등성 시험이 둘을 묶는다. 알려진 차이: 런처는 SIGTERM을 kit에
-  전하고(`bin/lab`의 셸은 kit을 남기고 끝난다), uv가 없을 때 자기 문구로 127, macOS만 `open`을 쓴다.
+- 사람용 진입점이 두 구현이다(`bin/lab`, `lab`). 동등성 시험이 둘을 묶는다. 알려진 차이: 런처는 POSIX에서 SIGTERM을
+  kit의 run에 전하고(`bin/lab`의 셸은 kit을 남기고 끝난다), uv가 없을 때 자기 문구로 127, macOS만 `open`을 쓴다. 그 밖의
+  작은 차이(빈 첫 인자, 실행할 수 없는 `AELIX_LAB_UV`, 닫힌 파이프, symlink로 들어온 작업 디렉터리의 `init ../DIR`)는
+  CONTRACTS F에 있다.
 - `env.kit_sha256`이 템플릿 파일도 덮으므로 같은 코드에서 값이 한 번 바뀐다. 기록이 이 값을 비교하지 않는다.
 - 빌드에 hatchling이 필요하다(네트워크나 uv 캐시). 체크아웃에 추적되지 않은 파일이 `kit/labkit`·
   `src/aelix_analytics`에 있으면 wheel에 들어가므로, 배포본은 깨끗한 체크아웃에서 빌드하고 시험이 구성원 목록을 확인한다.
-- aelix를 다시 설치하면(`install.sh`, `uv tool install --force aelix`) 이 wheel이 빠진다(측정). 다시 설치한다.
+- aelix를 다시 설치하면 이 wheel이 빠진다(`uv tool install --force aelix`는 측정, 같은 명령을 `--with` 없이 쓰는
+  `install.sh`는 추론). 다시 설치한다.
 - Windows의 Ctrl+Break는 uv를 곧바로 끝내므로(PR-1 측정) 런처가 kit의 기록보다 먼저 돌아올 수 있다(추론). 대화형
   콘솔은 Issue #8 PR-3의 범위다.
 
