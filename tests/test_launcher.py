@@ -278,10 +278,12 @@ def test_a_missing_uv_is_a_message_and_exit_127(fake, tmp_path):
 @pytest.mark.skipif(not POSIX, reason="bytes that are not UTF-8 in the environment are POSIX's")
 def test_a_value_that_is_not_utf8_is_printed_as_its_bytes(fake, tmp_path):
     """Review of 7cfe851, launcher-6: such a value ended the launcher's own message in a
-    UnicodeEncodeError traceback; bin/lab prints the bytes."""
+    UnicodeEncodeError traceback; bin/lab prints the bytes. The rule holds where the filesystem
+    encoding is UTF-8, which PYTHONUTF8 makes it under any locale."""
     project = project_dir(tmp_path)
     env = {os.fsencode(k): os.fsencode(v) for k, v in environment(fake).items()}
     env[b"PYTHONPATH"] = os.fsencode(PACK / "src")
+    env[b"PYTHONUTF8"] = b"1"
     env[b"AELIX_LAB_UV"] = b"/nowhere/caf\xe9"
     done = subprocess.run(launcher_argv("status"), cwd=project, env=env, capture_output=True,
                           timeout=60)

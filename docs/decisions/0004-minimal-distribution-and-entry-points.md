@@ -74,9 +74,9 @@ ADR-0002는 진입점의 하한을 `>=3.11`로 낮추고(결정 2), Aelix 없이
    Ctrl+C는 이미 자식에게 가 있으므로, 런처는 다시 보내지도 먼저 끝나지도 않는다. 자식을 시작하는 바로 그 순간 온
    Ctrl+C만은 자식이 뜬 뒤 한 번 더 보낸다(그 전에는 자식에게 닿지 않는다; 그 순간 이미 받은 자식에게는 두 번 간다).
    런처만 받은 SIGTERM은 kit의 `run`에만 전한다: run만 그것을 취소로 기록하고, 다른 명령은 도중에 죽으면 쓴 것을
-   기록하지 못한다. 그 밖의 단계는 끝까지 두고, 어느 신호든 받은 뒤에는 다음 단계(`lab open`이 문서를 여는 프로그램
-   포함)를 시작하지 않는다. 이 SIGTERM 규칙은 POSIX의 것이다. Windows에서는 다른 프로세스가 처리기에 SIGTERM을
-   보낼 수 없다.
+   기록하지 못한다. 그 밖의 단계는 끝까지 두고, 어느 신호든 기록한 뒤에는 다음 단계(`lab open`이 문서를 여는 프로그램
+   포함)를 시작하지 않는다. 단계를 시작하는 그 순간 온 신호는 그 단계를 막지 못한다. 이 SIGTERM 규칙은 POSIX의
+   것이다. Windows에서는 다른 프로세스가 처리기에 SIGTERM을 보낼 수 없다.
 8. **`ProcessControl`에 두 동작을 더한다.** `open_document(path, *, wait)`와 `find_program(name)`. 둘 다 플랫폼마다
    다르고 자식 프로세스의 일이므로 포트는 여전히 넷이다. macOS는 `open`, 그 밖의 POSIX는 `xdg-open`을 `detect()`가
    고른다. 떼어 놓고 여는 쪽(확장)은 opener가 없으면 main처럼 `webbrowser`를 쓴다. Windows는 `os.startfile`,
@@ -135,9 +135,9 @@ ADR-0002는 진입점의 하한을 `>=3.11`로 낮추고(결정 2), Aelix 없이
   API를 쓸 수 없으므로 없앨 수 없다.
 - 설치본을 업그레이드하면 aelix를 다시 시작해야 한다. 모듈이 프로세스에 한 번 import되기 때문이다.
 - 사람용 진입점이 두 구현이다(`bin/lab`, `lab`). 동등성 시험이 둘을 묶는다. 알려진 차이: 런처는 POSIX에서 SIGTERM을
-  kit의 run에 전하고(`bin/lab`의 셸은 kit을 남기고 끝난다), uv가 없을 때 자기 문구로 127, macOS만 `open`을 쓴다. 그 밖의
-  작은 차이(빈 첫 인자, 실행할 수 없는 `AELIX_LAB_UV`, 닫힌 파이프, symlink로 들어온 작업 디렉터리의 `init ../DIR`)는
-  CONTRACTS F에 있다.
+  kit의 run에 전하고(`bin/lab`의 셸은 kit을 남기고 끝난다), uv가 없을 때 자기 문구로 127, macOS만 `open`을 쓴다. 그 밖에
+  측정한 작은 차이(빈 첫 인자, 실행할 수 없는 uv, `AELIX_LAB_UV`의 `~`·끝의 `/`, 닫힌 파이프·표준 출력, symlink로 들어온
+  작업 디렉터리의 `init ../DIR`, UTF-8이 아닌 로캘의 경로)는 CONTRACTS F에 있다.
 - `env.kit_sha256`이 템플릿 파일도 덮으므로 같은 코드에서 값이 한 번 바뀐다. 기록이 이 값을 비교하지 않는다.
 - 빌드에 hatchling이 필요하다(네트워크나 uv 캐시). 체크아웃에 추적되지 않은 파일이 `kit/labkit`·
   `src/aelix_analytics`에 있으면 wheel에 들어가므로, 배포본은 깨끗한 체크아웃에서 빌드하고 시험이 구성원 목록을 확인한다.

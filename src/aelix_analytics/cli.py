@@ -204,11 +204,13 @@ class _Children:
     This process then exits 143. That is POSIX's SIGTERM: on Windows another process cannot send
     one to a handler (`os.kill` and `taskkill /F` end this process at once).
 
-    Once either signal has arrived, no further child is started, nor the program `lab open` opens
-    the report with. One that arrives while a child is being started may not reach it — before exec
-    it lands on a copy of this process — so it is sent to the child again once it runs, where the
-    platform can (Windows sends SIGINT to no single process). A child the terminal's Ctrl+C reached
-    as well then gets it twice; the kit interrupts a run once per region (CONTRACTS D1)."""
+    Once either signal has been noted, no further child is started, nor the program `lab open` opens
+    the report with. One that arrives while a child is being started does not stop that child: before
+    exec it lands on a copy of this process, so once the child runs a Ctrl+C is sent to it again,
+    where the platform can (Windows sends SIGINT to no single process), and a SIGTERM if it is a kit
+    `run`; the opener is sent neither, and the report can open. A child the terminal's Ctrl+C reached
+    as well then gets it twice, as a kit does when uv's stdin is not a terminal (uv passes it on); the
+    kit interrupts a run once per region (CONTRACTS D1)."""
 
     def __init__(self) -> None:
         self.stopped = 0
@@ -311,8 +313,9 @@ def _uv(processes) -> list[str] | None:
 
 
 def _write(stream, text: str) -> None:
-    # As bin/lab does: the text's UTF-8 bytes, whatever the stream's encoding is, and a path or
-    # value that was not UTF-8 as the bytes it came from.
+    # The text's UTF-8 bytes, whatever the stream's encoding is. A path or value that was not UTF-8
+    # comes back as the bytes it came from where the filesystem encoding is UTF-8 (macOS; Linux under
+    # a UTF-8 or the C locale), as bin/lab prints it; elsewhere as the UTF-8 of what the locale read.
     buffer = getattr(stream, "buffer", None)
     if buffer is None:
         stream.write(text)
