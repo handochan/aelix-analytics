@@ -53,7 +53,7 @@ def test_init_layout_and_journal(tmp_path):
     root = tmp_path / "p"
     from conftest import KIT
 
-    project = core.init_project(root, title="분석", template_dir=KIT / "template", actor="test")
+    project = core.init_project(root, title="분석", template_dir=KIT / "labkit" / "template", actor="test")
     for rel in ("lab.json", "CONTEXT.md", "journal.jsonl", "pyproject.toml", ".python-version",
                 ".gitignore", "data/raw", "data/derived", "scripts", "runs", "report"):
         assert (root / rel).exists(), rel
@@ -61,7 +61,7 @@ def test_init_layout_and_journal(tmp_path):
     assert kinds == ["project", "context"]
     assert "{{" not in (root / "pyproject.toml").read_text(encoding="utf-8")
     try:
-        core.init_project(root, template_dir=KIT / "template")
+        core.init_project(root, template_dir=KIT / "labkit" / "template")
     except core.LabError as exc:
         assert exc.code == "init_not_empty"
     else:

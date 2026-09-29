@@ -248,7 +248,7 @@ kit/labkit/_platform.py   플랫폼별 잠금·교체·프로세스·run 중단 
 kit/labkit/runner.py      run 실행과 기록        capture.py  입력·차트 캡처 훅
 kit/labkit/data.py        import·프로파일·쿼리    report.py   HTML 리포트 (+ assets/)
 kit/labkit/__init__.py    스크립트 API           __main__.py kit CLI (끝 줄이 JSON)
-kit/labkit/demo.py        데모 데이터·run        kit/template/  새 프로젝트 파일
+kit/labkit/demo.py        데모 데이터·run        kit/labkit/template/  새 프로젝트 파일
 bin/lab                   사람용 CLI
 ```
 

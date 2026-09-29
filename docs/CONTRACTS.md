@@ -200,7 +200,7 @@ Windows의 한계는 G절에 있습니다.
 
 | 항목 | 현재 코드 |
 |---|---|
-| 선언된 Python 하한 | `pyproject.toml`·`kit/template/pyproject.toml`·`uv.lock` 모두 `>=3.12`. ADR-0002가 채택한 진입점 `>=3.11`은 아직 적용되지 않았습니다 |
+| 선언된 Python 하한 | `pyproject.toml`·`kit/labkit/template/pyproject.toml`·`uv.lock` 모두 `>=3.12`. ADR-0002가 채택한 진입점 `>=3.11`은 아직 적용되지 않았습니다 |
 | 실행으로 확인한 범위 | 이 코드를 Ubuntu 24.04와 Windows Server 2025(GitHub Actions), macOS 26.6.2 arm64(개발 기기)에서 실행했습니다([측정 기록](verification/2026-09-24-issue-8-platforms.md)). Windows에서 확인한 것, 선언한 한계, 실행하지 않은 것은 G절에 있습니다. 실행하지 않은 조합으로 지원을 넓혀 적지 않습니다 |
 | 검증된 조합 | macOS 26.6.2 arm64 / CPython 3.12.13(저장소 시험·스모크·aelix 0.1.0b2 통합)과 3.13.13·3.14.5(저장소 시험). Ubuntu 24.04·Windows Server 2025 x64 / CPython 3.12.3·3.12.10(저장소 시험·스모크·aelix 0.1.0b2 통합). 두 OS의 CPython 3.11(3.11.16·3.11.9)은 aelix 프로세스가 로드하는 stdlib 부분만 |
 | 프로세스 경계 | stdlib·aelix API·`kit/labkit/core.py`와 `_platform`으로 제한되는 것은 **aelix 확장 프로세스**입니다. 확장은 `uv run --project` 자식 프로세스로 CLI를 띄웁니다(`extension/aelix_lab.py`의 `run_kit`). 그 CLI 프로세스는 `runner`·`data`·`report`를 자기 프로세스에서 import하고, `data.py`와 SDK가 그 안에서 duckdb·polars를 import합니다. 실행되는 스크립트도 같은 프로세스입니다 |

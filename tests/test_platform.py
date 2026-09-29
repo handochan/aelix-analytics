@@ -1666,7 +1666,7 @@ def _stable(value):
 
 def _representative_flow(root: Path, source: Path, platform) -> dict:
     """Create a project, import data, write a journal entry and read the project back."""
-    project = core.init_project(root, title="이식 경계", goal="목표", template_dir=KIT / "template",
+    project = core.init_project(root, title="이식 경계", goal="목표", template_dir=KIT / "labkit" / "template",
                                 actor="test", platform=platform)
     from labkit import data  # noqa: PLC0415 - needs the analysis libraries, unlike core
 
@@ -1706,7 +1706,7 @@ def test_a_run_goes_through_the_injected_platform_too(tmp_path, real_ports_refus
     from labkit import runner  # noqa: PLC0415 - needs the analysis libraries
 
     fake, calls = recording_platform()
-    project = core.init_project(tmp_path / "p", title="실행 경계", template_dir=KIT / "template",
+    project = core.init_project(tmp_path / "p", title="실행 경계", template_dir=KIT / "labkit" / "template",
                                 actor="test", platform=fake)
     project.scripts.mkdir(parents=True, exist_ok=True)
     (project.scripts / "01_min.py").write_text("print('ok')\n", encoding="utf-8")
@@ -1728,7 +1728,7 @@ def test_a_run_goes_through_the_injected_platform_too(tmp_path, real_ports_refus
 
 def test_the_hash_cache_writes_through_the_project_platform(tmp_path, real_ports_refuse):
     fake, calls = recording_platform()
-    project = core.init_project(tmp_path / "p", title="캐시", template_dir=KIT / "template",
+    project = core.init_project(tmp_path / "p", title="캐시", template_dir=KIT / "labkit" / "template",
                                 actor="test", platform=fake)
     cache = core.HashCache(project)
     assert cache.sha(project.marker)  # marks the cache dirty
@@ -1738,7 +1738,7 @@ def test_the_hash_cache_writes_through_the_project_platform(tmp_path, real_ports
 
 def test_a_run_is_listed_through_the_project_platform(tmp_path, real_ports_refuse):
     fake, calls = recording_platform()
-    project = core.init_project(tmp_path / "p", title="실행 목록", template_dir=KIT / "template",
+    project = core.init_project(tmp_path / "p", title="실행 목록", template_dir=KIT / "labkit" / "template",
                                 actor="test", platform=fake)
     run_dir = project.runs / "20260922-101010-x"
     run_dir.mkdir(parents=True)
@@ -3144,7 +3144,7 @@ def test_a_signal_at_sampled_check_points_of_a_run_never_loses_its_record(tmp_pa
         # A project per run: in a shared one each run goes through more points than the last,
         # and a sample fixed in advance would drift off the end of the shorter runs.
         project_ = core.init_project(tmp_path / f"p{n}", title="t", actor="test",
-                                     template_dir=KIT / "template")
+                                     template_dir=KIT / "labkit" / "template")
         (project_.scripts / "a.py").write_text("x = 1\n", encoding="utf-8")
         injector.arm(target)
         delivered_at.clear()

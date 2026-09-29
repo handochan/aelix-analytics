@@ -20,7 +20,7 @@ from pathlib import Path
 
 from . import _platform, core
 
-TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "template"
+TEMPLATE_DIR = Path(__file__).resolve().parent / "template"
 
 
 def _emit(obj: dict) -> None:
