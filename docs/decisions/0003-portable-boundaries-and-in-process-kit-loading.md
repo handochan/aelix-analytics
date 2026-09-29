@@ -66,6 +66,7 @@ ADR-0002 결정 5는 "파일 잠금·실행 타임아웃·자식 프로세스 �
 
 - POSIX 전용 호출은 `_platform.py` 한 파일에만 남는다. ADR-0002가 나열한 일곱 관심사의 호출부에는 `sys.platform` 분기가 없다.
   남은 예외는 `/lab open`의 브라우저 실행(`extension/aelix_lab.py`)이며, 사람용 진입점을 다루는 다음 PR의 범위다.
+  (그 PR에서 `ProcessControl.open_document`로 옮겼다 — [ADR-0004](0004-minimal-distribution-and-entry-points.md).)
 - 확장의 로더가 바뀌었으므로 [현재 계약](../CONTRACTS.md) A절의 "무엇을 import하는가"가 함께 바뀐다.
 - Windows 구현은 GitHub Actions의 Windows Server 2025에서 이 코드로 측정했다([측정 기록](../verification/2026-09-24-issue-8-platforms.md)).
   확인한 것, 선언한 한계, 실행하지 않은 것은 [현재 계약](../CONTRACTS.md) G절 한 곳에 두고 구현의 주석은 그곳을 가리킨다.

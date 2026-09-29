@@ -38,7 +38,7 @@ From the repository root, use the locked development environment:
 uv sync --locked
 uv run --locked pytest -q tests/test_human_baseline.py
 uv run --locked pytest -q tests/test_kit.py tests/test_doc_checks.py
-uv run --locked ruff check kit tests extension tools
+uv run --locked ruff check kit tests extension src tools
 ```
 
 For retained artifacts, replace `<run-id>` with a fresh UUID and keep each execution's

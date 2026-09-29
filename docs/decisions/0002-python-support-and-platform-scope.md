@@ -3,8 +3,11 @@
 Date: 2026-09-21
 
 Status: Accepted (2026-09-21) — [Issue #5](https://github.com/handochan/aelix-analytics/issues/5)에서 사용자가 채택했다.
-지원 플랫폼은 Linux·macOS·Windows다. 채택은 결정의 확정이며 구현 완료가 아니다. 아래 결정은 아직 코드에 적용되지 않았고,
-구현과 검증은 [#8](https://github.com/handochan/aelix-analytics/issues/8)에서 수행한다.
+지원 플랫폼은 Linux·macOS·Windows다. 채택은 결정의 확정이며 구현 완료가 아니다. 구현과 검증은
+[#8](https://github.com/handochan/aelix-analytics/issues/8)에서 수행한다: 결정 5는 첫 PR([ADR-0003](0003-portable-boundaries-and-in-process-kit-loading.md)),
+결정 2·4·6·7은 두 번째 PR([ADR-0004](0004-minimal-distribution-and-entry-points.md))에서 적용했다. ADR-0004는 결정 6을
+이렇게 구현했다: `bin/lab`은 체크아웃의 POSIX 래퍼로 두고, 같은 계약의 `lab` 런처는 Windows를 포함한 모든 플랫폼에서
+설치본의 명령이 된다. 아래 "구현에서 확인할 것" 1을 어떻게 읽었는지도 ADR-0004에 있다.
 현재 코드가 실제로 하는 것은 [현재 계약](../CONTRACTS.md)의 "실행 환경과 지원 플랫폼" 절에 있다.
 채택 후 독립 리뷰에서 근거 과장과 인벤토리 누락을 지적받아 측정 근거·장애 범주·대안·결정 5·6을 개정했다. 결정의 방향은 바뀌지 않았다.
 
