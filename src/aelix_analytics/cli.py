@@ -111,23 +111,29 @@ def _command(args: list[str], kit: Path | None, uv_argv: list[str] | None,
     project = find_project()
     if project is None:
         return 1
-    uv = uv_argv or _uv(processes)
-    if uv is None:
-        return 127
-    if command in ("status", "context"):
-        return children.run(kit_argv(uv, project, "--text", command), env)
     if command == "open":
         index = Path(project) / "report" / "index.html"
         if not index.is_file():
+            # uv only to build the report: opening one needs none, as with bin/lab.
+            uv = uv_argv or _uv(processes)
+            if uv is None:
+                return 127
             code = children.run(kit_argv(uv, project, "report"), env, stdout=subprocess.DEVNULL)
             if code or children.interrupted:
                 return code or children.stopped
+        if children.interrupted:  # the opener is a step too
+            return children.stopped
         try:
             status = exit_status(processes.open_document(index, wait=True) or 0)
         except OSError as exc:
             _say(f"lab: could not open {index} ({exc}); open it in a browser yourself")
             return 127 if isinstance(exc, FileNotFoundError) else 1
         return children.stopped or status
+    uv = uv_argv or _uv(processes)
+    if uv is None:
+        return 127
+    if command in ("status", "context"):
+        return children.run(kit_argv(uv, project, "--text", command), env)
     return children.run(kit_argv(uv, project, command, *args), env, cancellable=command == "run")
 
 
@@ -195,12 +201,14 @@ class _Children:
     SIGTERM sent to this process alone reaches a kit `run` (uv passes it on, and the run's guard
     records a cancel, CONTRACTS D1). Any other child is left to finish: killing an import or an init
     part way would leave what it wrote unrecorded, and `bin/lab`'s shell leaves it running too.
-    This process then exits 143.
+    This process then exits 143. That is POSIX's SIGTERM: on Windows another process cannot send
+    one to a handler (`os.kill` and `taskkill /F` end this process at once).
 
-    Once either signal has arrived, no further child is started. One that arrives while a child is
-    being started may not reach it — before exec it lands on a copy of this process — so it is sent
-    to the child again once it runs, where the platform can (Windows sends SIGINT to no single
-    process)."""
+    Once either signal has arrived, no further child is started, nor the program `lab open` opens
+    the report with. One that arrives while a child is being started may not reach it — before exec
+    it lands on a copy of this process — so it is sent to the child again once it runs, where the
+    platform can (Windows sends SIGINT to no single process). A child the terminal's Ctrl+C reached
+    as well then gets it twice; the kit interrupts a run once per region (CONTRACTS D1)."""
 
     def __init__(self) -> None:
         self.stopped = 0
@@ -303,13 +311,14 @@ def _uv(processes) -> list[str] | None:
 
 
 def _write(stream, text: str) -> None:
-    # As bin/lab does: the text's UTF-8 bytes, whatever the stream's encoding is.
+    # As bin/lab does: the text's UTF-8 bytes, whatever the stream's encoding is, and a path or
+    # value that was not UTF-8 as the bytes it came from.
     buffer = getattr(stream, "buffer", None)
     if buffer is None:
         stream.write(text)
     else:
         stream.flush()
-        buffer.write(text.encode("utf-8"))
+        buffer.write(text.encode("utf-8", "surrogateescape"))
     stream.flush()
 
 

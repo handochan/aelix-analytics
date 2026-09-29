@@ -76,9 +76,9 @@ class AtomicFiles(Protocol):
 class ProcessControl(Protocol):
     """Starting, observing and stopping child processes.
 
-    These are primitives, not a lifecycle: they do not wait. The caller keeps its own grace period
-    and its own ordering, because the policy differs between the extension's abort path and the
-    CLI's.
+    These are primitives, not a lifecycle: they do not wait, except `open_document(wait=True)`. The
+    caller keeps its own grace period and its own ordering, because the policy differs between the
+    extension's abort path and the CLI's.
 
     `alive` answers about a pid the kit recorded for itself. It is False for a value that cannot be
     a pid, for no such process, and for a process another user owns: the kit records its own pid as
@@ -541,6 +541,13 @@ class PosixAtomicFiles:
         os.replace(src, dst)
 
 
+def _absolute(path) -> str:
+    """The path made absolute as it stands. os.path.abspath would also drop `..` by its text, but
+    after a symbolic link `..` is the parent of the link's target: that would name another file."""
+    path = os.fspath(path)
+    return path if os.path.isabs(path) else os.path.join(os.getcwd(), path)
+
+
 class PosixProcessControl:
     # The ask is a signal (see interrupt), so the kit is given no request file.
     asks_by_request = False
@@ -625,9 +632,9 @@ class PosixProcessControl:
     def find_program(self, name: str) -> str | None:
         if "/" in name:
             path = Path(name).expanduser()
-            return os.path.abspath(path) if path.is_file() and os.access(path, os.X_OK) else None
+            return _absolute(path) if path.is_file() and os.access(path, os.X_OK) else None
         found = shutil.which(name)
-        return os.path.abspath(found) if found else None
+        return _absolute(found) if found else None
 
 
 class _PosixGuard(_RunGuard):

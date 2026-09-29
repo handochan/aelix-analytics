@@ -423,6 +423,19 @@ def test_posix_find_program_keeps_the_extension_s_old_uv_rule(tmp_path, monkeypa
     for missing in (str(plain), str(bin_dir / "a-directory"), "no-such-program",
                     str(tmp_path / "nowhere" / "uv")):
         assert control.find_program(missing) is None
+    # After a link, `..` is the parent of the link's target; collapsed by its text it named a
+    # file that is not there (review of 7cfe851, launcher-2). The path is kept as it stands.
+    (tmp_path / "real" / "sub").mkdir(parents=True)
+    real = tmp_path / "real" / "uv"
+    real.write_text("#!/bin/sh\n", encoding="utf-8")
+    real.chmod(0o755)
+    (tmp_path / "link").symlink_to(tmp_path / "real" / "sub")
+    through = f"{tmp_path}/link/../uv"
+    assert control.find_program(through) == through
+    monkeypatch.chdir(tmp_path)
+    assert control.find_program("link/../uv") == os.path.join(os.getcwd(), "link/../uv")
+    monkeypatch.setenv("PATH", f"{tmp_path}/link/..")
+    assert control.find_program("uv") == through
     monkeypatch.chdir(bin_dir)
     monkeypatch.setenv("PATH", str(tmp_path / "empty"))
     assert control.find_program("uv") is None, "the working directory is not searched"

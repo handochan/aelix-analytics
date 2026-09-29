@@ -15,6 +15,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -274,6 +275,21 @@ def test_a_missing_uv_is_a_message_and_exit_127(fake, tmp_path):
     assert "uv not found" in done.stderr.decode("utf-8")
 
 
+@pytest.mark.skipif(not POSIX, reason="bytes that are not UTF-8 in the environment are POSIX's")
+def test_a_value_that_is_not_utf8_is_printed_as_its_bytes(fake, tmp_path):
+    """Review of 7cfe851, launcher-6: such a value ended the launcher's own message in a
+    UnicodeEncodeError traceback; bin/lab prints the bytes."""
+    project = project_dir(tmp_path)
+    env = {os.fsencode(k): os.fsencode(v) for k, v in environment(fake).items()}
+    env[b"PYTHONPATH"] = os.fsencode(PACK / "src")
+    env[b"AELIX_LAB_UV"] = b"/nowhere/caf\xe9"
+    done = subprocess.run(launcher_argv("status"), cwd=project, env=env, capture_output=True,
+                          timeout=60)
+    assert done.returncode == 127, done.stderr
+    assert b"uv not found (/nowhere/caf\xe9)" in done.stderr
+    assert b"Traceback" not in done.stderr
+
+
 # --- init and demo --------------------------------------------------------------------------------
 
 
@@ -343,6 +359,55 @@ def test_open_builds_a_missing_report_then_hands_it_to_the_opener(fake, tmp_path
     assert opened.read_text(encoding="utf-8") == f"{project / 'report' / 'index.html'}\n"
     assert [uv_args(c) for c in calls(fake)] == ([] if built else [kit_call(project, "report")])
     assert done.stdout == b""
+
+
+@pytest.mark.skipif(not POSIX, reason="os.startfile would open a real program on Windows")
+@pytest.mark.parametrize("which", WHICH)
+def test_open_needs_no_uv_for_a_built_report(fake, tmp_path, which):
+    """Review of 7cfe851, launcher-1: bin/lab runs uv only to build a missing report, and the
+    launcher looked it up first and exited 127."""
+    project = project_dir(tmp_path)
+    (project / "report").mkdir()
+    (project / "report" / "index.html").write_text("<html>", encoding="utf-8")
+    opened = tmp_path / "opened.txt"
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for name in ("open", "xdg-open"):
+        opener = bin_dir / name
+        opener.write_text(f"#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{opened}'\n", encoding="utf-8")
+        opener.chmod(0o755)
+    done = launch(fake, "open", cwd=project, which=which, AELIX_LAB_UV=str(tmp_path / "no-uv"),
+                  PATH=f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+    assert done.returncode == 0, done.stderr
+    assert opened.read_text(encoding="utf-8") == f"{project / 'report' / 'index.html'}\n"
+
+
+@pytest.mark.parametrize(("name", "status"), [("SIGINT", 130), ("SIGTERM", 143)])
+def test_open_starts_no_opener_once_a_signal_has_arrived(tmp_path, monkeypatch, name, status):
+    """Review of 7cfe851, R1: the opener started after a signal that arrived once the report was
+    there, which no other step does."""
+    project = project_dir(tmp_path)
+    (project / "report").mkdir()
+    (project / "report" / "index.html").write_text("<html>", encoding="utf-8")
+    opened = []
+
+    class Processes:
+        def find_program(self, program):
+            return program
+
+        def open_document(self, path, *, wait):
+            opened.append(path)
+            return 0
+
+    def detect():
+        signal.raise_signal(getattr(signal, name))  # arrives before the opener starts
+        return SimpleNamespace(processes=Processes())
+
+    monkeypatch.setattr(cli, "_load_platform", lambda kit: SimpleNamespace(detect=detect))
+    monkeypatch.setenv("LAB_PROJECT", str(project))
+    monkeypatch.delenv("AELIX_LAB_UV", raising=False)
+    assert cli.run(["open"], kit=KIT) == status
+    assert opened == []
 
 
 # --- signals --------------------------------------------------------------------------------------

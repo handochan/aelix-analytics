@@ -8,10 +8,11 @@ From a checkout, globally:         ln -s <pack>/extension/aelix_lab.py ~/.aelix/
 Use one of these at a time: a second copy in the same aelix does not set itself up (see setup).
 
 Inside aelix this file imports only the standard library, the aelix API and the kit's stdlib-only
-labkit/core.py with its _platform sibling, from the kit next to it (so symlink this file in a
-checkout rather than copying it). Analysis code never runs in the aelix process: lab_run,
-lab_import, lab_query and report builds are `uv run --project <project> python -m labkit ...`
-subprocesses in the project's own environment.
+labkit/core.py with its _platform sibling — installed, also its own package and the stdlib-only
+aelix_analytics._install, which says where the kit is. From a checkout the kit is the one next to
+it (so symlink this file in a checkout rather than copying it). Analysis code never runs in the
+aelix process: lab_run, lab_import, lab_query and report builds are
+`uv run --project <project> python -m labkit ...` subprocesses in the project's own environment.
 Neither side is a sandbox, and aelix does not ask for approval before extension tools run.
 """
 
