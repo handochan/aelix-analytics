@@ -190,6 +190,14 @@ def test_detect_picks_this_platform_and_can_be_asked_for_either():
         _platform.detect("bsd")
 
 
+def test_the_posix_document_opener_is_chosen_where_the_bundle_is_built(monkeypatch):
+    # Not whichever `open` is on PATH: on Linux that can be another program (ADR-0004).
+    monkeypatch.setattr(_platform.sys, "platform", "darwin")
+    assert _platform.detect("posix").processes.opener == "open"
+    monkeypatch.setattr(_platform.sys, "platform", "linux")
+    assert _platform.detect("posix").processes.opener == "xdg-open"
+
+
 def test_building_the_windows_bundle_does_not_import_its_operating_system_module():
     # So the wiring can be asserted from any platform. It proves nothing about Windows behaviour.
     sys.modules.pop("msvcrt", None)
@@ -337,6 +345,111 @@ def test_windows_asks_the_kit_through_its_request_file_and_nothing_else(tmp_path
     # A child that has exited leaves nothing to ask (review 7, stop-4): the caller waits, and does
     # not end the tree at once.
     assert control.interrupt(types.SimpleNamespace(pid=4242, returncode=0)) is True
+
+
+# --- opening a document, finding a program (ADR-0004) --------------------------------------------------
+
+@pytest.mark.skipif(os.name == "nt", reason="a POSIX shell script stands in for the opener")
+def test_posix_open_document_runs_the_opener_attached_or_detached(tmp_path, monkeypatch):
+    opened = tmp_path / "opened.txt"
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    opener = bin_dir / "fake-open"
+    opener.write_text(f"#!/bin/sh\nprintf '%s\\n' \"$1\" >> '{opened}'\nexit 7\n",
+                      encoding="utf-8")
+    opener.chmod(0o755)
+    monkeypatch.setenv("PATH", str(bin_dir))
+    control = _platform.PosixProcessControl("fake-open")
+    document = tmp_path / "report" / "index.html"
+    assert control.open_document(document, wait=True) == 7
+    assert control.open_document(document, wait=False) is None
+    deadline = time.monotonic() + 30
+    while (not opened.exists() or len(opened.read_text(encoding="utf-8").splitlines()) < 2) \
+            and time.monotonic() < deadline:
+        time.sleep(0.02)
+    assert opened.read_text(encoding="utf-8").splitlines() == [str(document), str(document)]
+
+
+def test_posix_open_document_without_an_opener(tmp_path, monkeypatch):
+    """The human CLI reports it; the extension keeps main's webbrowser route (review of design
+    revision 1, Codex F7)."""
+    import webbrowser
+
+    monkeypatch.setenv("PATH", str(tmp_path / "empty"))
+    control = _platform.PosixProcessControl("no-such-opener")
+    document = tmp_path / "index.html"
+    with pytest.raises(FileNotFoundError):
+        control.open_document(document, wait=True)
+    handed = []
+    monkeypatch.setattr(webbrowser, "open", lambda url: handed.append(url) or True)
+    assert control.open_document(document, wait=False) is None
+    assert handed == [document.resolve().as_uri()]
+
+
+def test_windows_open_document_hands_the_file_to_its_program(monkeypatch, tmp_path):
+    # Written for Windows; os.startfile is stood in for, so this proves the wiring, not Windows.
+    started = []
+    monkeypatch.setattr(_platform.os, "startfile", started.append, raising=False)
+    control = _platform.WindowsProcessControl()
+    document = tmp_path / "index.html"
+    assert control.open_document(document, wait=True) == 0
+    assert control.open_document(document, wait=False) is None
+    assert started == [str(document), str(document)]
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX executables and HOME")
+def test_posix_find_program_keeps_the_extension_s_old_uv_rule(tmp_path, monkeypatch):
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    program = bin_dir / "uv"
+    program.write_text("#!/bin/sh\n", encoding="utf-8")
+    program.chmod(0o755)
+    plain = bin_dir / "plain"
+    plain.write_text("x", encoding="utf-8")
+    plain.chmod(0o644)
+    (bin_dir / "a-directory").mkdir()
+    monkeypatch.setenv("PATH", str(bin_dir))
+    monkeypatch.setenv("HOME", str(tmp_path))
+    control = _platform.PosixProcessControl()
+    assert control.find_program("uv") == os.path.abspath(program)
+    assert control.find_program(str(program)) == os.path.abspath(program)
+    assert control.find_program("~/bin/uv") == os.path.abspath(program)
+    # A shim is a link whose target decides what to be by the name it was started by (critic-1 of
+    # the design review: a mise shim resolved to mise itself).
+    shim = bin_dir / "shimmed"
+    shim.symlink_to(program)
+    assert control.find_program("shimmed") == os.path.abspath(shim)
+    assert control.find_program(str(shim)) == os.path.abspath(shim)
+    for missing in (str(plain), str(bin_dir / "a-directory"), "no-such-program",
+                    str(tmp_path / "nowhere" / "uv")):
+        assert control.find_program(missing) is None
+    monkeypatch.chdir(bin_dir)
+    monkeypatch.setenv("PATH", str(tmp_path / "empty"))
+    assert control.find_program("uv") is None, "the working directory is not searched"
+
+
+def test_windows_find_program_takes_an_exe_from_path_and_never_the_working_directory(tmp_path,
+                                                                                    monkeypatch):
+    """Written for Windows, simulated with this platform's paths: it exercises the rule, not
+    Windows' file system (review of design revision 1, Codex F9: an explicit path is held to it
+    too)."""
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    for name in ("uv.exe", "uv.cmd", "uv.bat"):
+        (tools / name).write_text("", encoding="utf-8")
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "uv.exe").write_text("", encoding="utf-8")
+    monkeypatch.chdir(project)
+    control = _platform.WindowsProcessControl()
+    monkeypatch.setenv("PATH", os.pathsep.join(["", ".", "relative", f'"{tools}"']))
+    assert control.find_program("uv") == os.path.abspath(tools / "uv.exe")
+    assert control.find_program("uv.exe") == os.path.abspath(tools / "uv.exe")
+    assert control.find_program("uv.cmd") is None and control.find_program("uv.bat") is None
+    assert control.find_program(str(tools / "uv.exe")) == os.path.abspath(tools / "uv.exe")
+    assert control.find_program(str(tools / "uv.cmd")) is None
+    monkeypatch.setenv("PATH", os.pathsep.join(["", ".", "relative"]))
+    assert control.find_program("uv") is None, "not the uv.exe in the working directory"
 
 
 def test_posix_asks_with_sigint_and_never_signals_a_reaped_child(monkeypatch, tmp_path):
