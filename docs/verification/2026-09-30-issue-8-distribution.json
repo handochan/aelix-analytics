@@ -1,19 +1,19 @@
 {
  "record_kind": "aelix-analytics-platform-measurement",
- "observed_at": "2026-09-29T23:50:49Z",
+ "observed_at": "2026-09-30T15:16:49Z",
  "issue": "https://github.com/handochan/aelix-analytics/issues/8",
  "pull_request": "https://github.com/handochan/aelix-analytics/pull/33",
- "measured_revision": "7316a8f1c81d9c9def032f59292d77ff2eb2a414",
- "measurement_revision": "cd287d1e695e12de05e0b335e52d18c3a80d9bac",
+ "measured_revision": "d129ae6c92682e9c1eac3cbd2020bde9e9668400",
+ "measurement_revision": "7403e7b462d4f63407d516d1e1e2f8e3a58bebd1",
  "ci_run": {
-  "id": "36647326310",
-  "url": "https://github.com/handochan/aelix-analytics/actions/runs/36647326310"
+  "id": "36735508776",
+  "url": "https://github.com/handochan/aelix-analytics/actions/runs/36735508776"
  },
  "platforms": {
   "linux": {
-   "where": "GitHub Actions linux, run 36647326310",
+   "where": "GitHub Actions linux, run 36735508776",
    "smoke_py3_12": {
-    "file_sha256": "8e8e0dac29515556be2724af842487dfe3f5641a1fc53b6a801ea60467e99325",
+    "file_sha256": "6a02d43de046985946f77c8736881b905200b5676126057e37623a14690368de",
     "command": [
      "python3",
      "tools/platform_smoke.py",
@@ -24,10 +24,10 @@
     ],
     "mode": "full",
     "source": {
-     "head": "cd287d1e695e12de05e0b335e52d18c3a80d9bac",
+     "head": "7403e7b462d4f63407d516d1e1e2f8e3a58bebd1",
      "dirty": false
     },
-    "generated_at": "2026-09-29T23:51:04+00:00",
+    "generated_at": "2026-09-30T15:17:08+00:00",
     "environment": {
      "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
      "system": "Linux",
@@ -73,9 +73,9 @@
       "name": "lock_excludes_another_process",
       "group": "ports",
       "result": "holds",
-      "seconds": 2.08,
+      "seconds": 2.07,
       "observed": {
-       "waited_s": 1.959,
+       "waited_s": 1.951,
        "holder_kept_it_s": 2.0
       }
      },
@@ -83,7 +83,7 @@
       "name": "lock_released_when_its_holder_is_killed",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.05,
+      "seconds": 0.11,
       "observed": {
        "acquired_within_15s_after_the_kill": true
       }
@@ -92,12 +92,12 @@
       "name": "replace_while_a_reader_holds_the_file",
       "group": "ports",
       "result": "holds",
-      "seconds": 5.76,
+      "seconds": 5.8,
       "observed": {
        "reader_holds_0.7s": {
         "replaced": true,
         "error": null,
-        "seconds": 0.021,
+        "seconds": 0.0,
         "content_after": "new"
        },
        "reader_holds_5.0s": {
@@ -134,7 +134,7 @@
        "exit_code": 130,
        "marker": "graceful:2",
        "forced": false,
-       "seconds": 0.007
+       "seconds": 0.008
       }
      },
      {
@@ -211,7 +211,7 @@
       "name": "base_env_is_enough_to_start_a_child",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.05,
+      "seconds": 0.06,
       "observed": {
        "base_env_keys": [],
        "python_with_base_env": {
@@ -299,15 +299,15 @@
       "result": "holds",
       "seconds": 0.0,
       "observed": {
-       "url": "file:///tmp/labkit-smoke-yo9nto0e/12-file-url/%EC%9E%85%EB%A0%A5%20%EB%8D%B0%EC%9D%B4%ED%84%B0.csv",
-       "back": "/tmp/labkit-smoke-yo9nto0e/12-file-url/입력 데이터.csv"
+       "url": "file:///tmp/labkit-smoke-8_498602/12-file-url/%EC%9E%85%EB%A0%A5%20%EB%8D%B0%EC%9D%B4%ED%84%B0.csv",
+       "back": "/tmp/labkit-smoke-8_498602/12-file-url/입력 데이터.csv"
       }
      },
      {
       "name": "utf8_survives_a_pipe",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.07,
+      "seconds": 0.08,
       "observed": {
        "with_configure_stdio": {
         "exit": 0,
@@ -325,7 +325,7 @@
       "name": "cli_end_to_end",
       "group": "cli",
       "result": "holds",
-      "seconds": 11.78,
+      "seconds": 7.88,
       "observed": {
        "query": {
         "exit": 0,
@@ -379,31 +379,31 @@
       "name": "cli_run_timeout_in_python_code",
       "group": "cli",
       "result": "holds",
-      "seconds": 3.6,
+      "seconds": 3.68,
       "observed": {
        "status": "timeout",
        "exit": 3,
        "recorded_s": 3.002,
-       "cli_seconds": 3.6
+       "cli_seconds": 3.7
       }
      },
      {
       "name": "cli_run_timeout_in_a_blocking_duckdb_query",
       "group": "cli",
       "result": "holds",
-      "seconds": 3.86,
+      "seconds": 3.98,
       "observed": {
        "status": "timeout",
        "exit": 3,
        "recorded_s": 3.003,
-       "cli_seconds": 3.9
+       "cli_seconds": 4.0
       }
      },
      {
       "name": "cli_cancel_the_way_the_extension_does",
       "group": "cli",
       "result": "holds",
-      "seconds": 2.29,
+      "seconds": 2.22,
       "observed": {
        "asked": true,
        "recorded_status": "cancelled",
@@ -411,7 +411,7 @@
        "exit_code": 3,
        "exit_code_hex": "0x3",
        "forced": false,
-       "seconds_to_exit": 0.77,
+       "seconds_to_exit": 0.82,
        "kit_process_gone": true,
        "stdout_tail": "started\n"
       }
@@ -420,7 +420,7 @@
       "name": "cli_cancel_reaches_a_run_inside_a_regular_expression",
       "group": "cli",
       "result": "holds",
-      "seconds": 2.67,
+      "seconds": 2.82,
       "observed": {
        "asked": true,
        "recorded_status": "cancelled",
@@ -428,7 +428,7 @@
        "exit_code": 3,
        "exit_code_hex": "0x3",
        "forced": false,
-       "seconds_to_exit": 0.76,
+       "seconds_to_exit": 0.92,
        "kit_process_gone": true,
        "stdout_tail": "started\n"
       }
@@ -445,7 +445,7 @@
        "exit_code": 3,
        "exit_code_hex": "0x3",
        "forced": false,
-       "seconds_to_exit": 0.76,
+       "seconds_to_exit": 0.77,
        "kit_process_gone": true,
        "stdout_tail": "started\n"
       }
@@ -454,12 +454,12 @@
       "name": "cli_deadline_when_the_script_ignores_sigint",
       "group": "cli",
       "result": "observed",
-      "seconds": 2.6,
+      "seconds": 2.69,
       "observed": {
        "status": "timeout",
        "exit": 3,
        "recorded_s": 2.002,
-       "cli_seconds": 2.6,
+       "cli_seconds": 2.7,
        "script_finished": false
       }
      },
@@ -467,7 +467,7 @@
       "name": "cli_concurrent_runs_are_serialized",
       "group": "cli",
       "result": "holds",
-      "seconds": 5.64,
+      "seconds": 5.43,
       "observed": {
        "left_side": {
         "status": "ok",
@@ -487,7 +487,7 @@
       "name": "cli_refuses_a_new_reserved_dataset_name",
       "group": "cli",
       "result": "holds",
-      "seconds": 0.14,
+      "seconds": 0.15,
       "observed": {
        "exit": 1,
        "error_code": "name_not_portable"
@@ -497,14 +497,14 @@
       "name": "cli_writes_a_reserved_chart_id_to_a_portable_file",
       "group": "cli",
       "result": "holds",
-      "seconds": 1.97,
+      "seconds": 2.22,
       "observed": {
        "status": "ok",
        "exit": 0,
        "ids": [
         "con"
        ],
-       "png": "runs/20260929-235150-06-chart-con/charts/con_.png",
+       "png": "runs/20260930-151751-06-chart-con/charts/con_.png",
        "png_readable": true
       }
      },
@@ -512,7 +512,7 @@
       "name": "cli_a_script_saving_a_reserved_name_is_warned_about",
       "group": "cli",
       "result": "holds",
-      "seconds": 0.95,
+      "seconds": 0.73,
       "observed": {
        "status": "ok",
        "exit": 0,
@@ -565,9 +565,9 @@
     ]
    },
    "suite_py3_12": {
-    "file_sha256": "183ff1ffea3370365c641dd05cdc49d77503ae570632602da2b30d3a9edcd4b1",
-    "timestamp": "2026-09-29T23:52:07.291016+00:00",
-    "seconds": 413.762,
+    "file_sha256": "407f0f442d41922d7ef8dadb71d968ef1322bb822925fe6a8c9a2cf3bd556b3e",
+    "timestamp": "2026-09-30T15:18:07.802926+00:00",
+    "seconds": 482.006,
     "counts": {
      "pass": 612,
      "fail": 0,
@@ -622,16 +622,16 @@
      "test_a_checkout_symlink_beside_the_wheel_sets_up_one_copy": "pass",
      "test_the_installed_extension_s_tools_run_a_project[3.11]": "pass",
      "test_the_installed_extension_s_tools_run_a_project[3.12]": "pass",
-     "test_the_installed_lab_drives_a_project_without_aelix[3.11]": "pass",
-     "test_the_installed_lab_drives_a_project_without_aelix[3.12]": "pass",
+     "test_the_installed_command_drives_a_project_without_aelix[3.11]": "pass",
+     "test_the_installed_command_drives_a_project_without_aelix[3.12]": "pass",
      "test_the_kit_s_stdlib_commands_run_on_the_floor": "pass",
      "test_pip_installs_and_uninstalls_the_wheel_without_leftovers": "pass"
     }
    },
    "aelix_0_1_0b2_py3_12": {
-    "file_sha256": "7b097842c104602765cad25ecb01781173631e795dbbf8c76cfee2767f72a28b",
-    "timestamp": "2026-09-29T23:59:01.673581+00:00",
-    "seconds": 14.698,
+    "file_sha256": "0329ee127f968d6a19492605b60c80e7ec76c8661a2f3bac639503ebe04ae1e9",
+    "timestamp": "2026-09-30T15:26:10.648982+00:00",
+    "seconds": 15.606,
     "counts": {
      "pass": 12,
      "fail": 0,
@@ -646,9 +646,9 @@
     }
    },
    "aelix_0_1_0b2_py3_11": {
-    "file_sha256": "b91d283fbbd4688ba22e1f89e96874c4d63d21a18c36b46e2a11b4dea7caa2b2",
-    "timestamp": "2026-09-29T23:59:16.990907+00:00",
-    "seconds": 13.582,
+    "file_sha256": "c079029530ea6d7cf33db2ff037300cecdc1a6414f6a296dcaf1967f07bcbe0b",
+    "timestamp": "2026-09-30T15:26:27.080563+00:00",
+    "seconds": 14.581,
     "counts": {
      "pass": 12,
      "fail": 0,
@@ -663,7 +663,7 @@
     }
    },
    "stdlib_only_smoke_py3_11": {
-    "file_sha256": "23b280498d4411ca8e516cdaaade289f5a5563a87a428229467a20efc852277f",
+    "file_sha256": "0dee73bcaf77a4af0ce16defbafdd81e2589c889a1dfb27ab62fef351fe95c55",
     "command": [
      "python",
      "tools/platform_smoke.py",
@@ -675,10 +675,10 @@
     ],
     "mode": "stdlib-only",
     "source": {
-     "head": "cd287d1e695e12de05e0b335e52d18c3a80d9bac",
+     "head": "7403e7b462d4f63407d516d1e1e2f8e3a58bebd1",
      "dirty": false
     },
-    "generated_at": "2026-09-29T23:50:56+00:00",
+    "generated_at": "2026-09-30T15:16:56+00:00",
     "environment": {
      "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
      "system": "Linux",
@@ -726,7 +726,7 @@
       "result": "holds",
       "seconds": 2.06,
       "observed": {
-       "waited_s": 1.995,
+       "waited_s": 1.997,
        "holder_kept_it_s": 2.0
       }
      },
@@ -942,15 +942,15 @@
       "result": "holds",
       "seconds": 0.0,
       "observed": {
-       "url": "file:///tmp/labkit-smoke-pzmq6co8/12-file-url/%EC%9E%85%EB%A0%A5%20%EB%8D%B0%EC%9D%B4%ED%84%B0.csv",
-       "back": "/tmp/labkit-smoke-pzmq6co8/12-file-url/입력 데이터.csv"
+       "url": "file:///tmp/labkit-smoke-kd9g8ypz/12-file-url/%EC%9E%85%EB%A0%A5%20%EB%8D%B0%EC%9D%B4%ED%84%B0.csv",
+       "back": "/tmp/labkit-smoke-kd9g8ypz/12-file-url/입력 데이터.csv"
       }
      },
      {
       "name": "utf8_survives_a_pipe",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.07,
+      "seconds": 0.08,
       "observed": {
        "with_configure_stdio": {
         "exit": 0,
@@ -1010,9 +1010,9 @@
    }
   },
   "windows": {
-   "where": "GitHub Actions windows, run 36647326310",
+   "where": "GitHub Actions windows, run 36735508776",
    "smoke_py3_12": {
-    "file_sha256": "a9593235df2df7cec870f282f903335626e72800c20ed0f8f8e8edb3d02fd5b0",
+    "file_sha256": "d85f2dbebd399532f2b6ceed2cd0e3484d111e28b6853e4eec7f5bd77f6f31c2",
     "command": [
      "python.exe",
      "tools/platform_smoke.py",
@@ -1023,10 +1023,10 @@
     ],
     "mode": "full",
     "source": {
-     "head": "cd287d1e695e12de05e0b335e52d18c3a80d9bac",
+     "head": "7403e7b462d4f63407d516d1e1e2f8e3a58bebd1",
      "dirty": false
     },
-    "generated_at": "2026-09-29T23:51:22+00:00",
+    "generated_at": "2026-09-30T15:17:24+00:00",
     "environment": {
      "platform": "Windows-2025Server-10.0.26100-SP0",
      "system": "Windows",
@@ -1088,7 +1088,7 @@
       "result": "holds",
       "seconds": 2.12,
       "observed": {
-       "waited_s": 2.013,
+       "waited_s": 2.015,
        "holder_kept_it_s": 2.0
       }
      },
@@ -1096,7 +1096,7 @@
       "name": "lock_released_when_its_holder_is_killed",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.11,
+      "seconds": 0.12,
       "observed": {
        "acquired_within_15s_after_the_kill": true
       }
@@ -1105,7 +1105,7 @@
       "name": "replace_while_a_reader_holds_the_file",
       "group": "ports",
       "result": "holds",
-      "seconds": 5.81,
+      "seconds": 5.82,
       "observed": {
        "reader_holds_0.7s": {
         "replaced": true,
@@ -1115,8 +1115,8 @@
        },
        "reader_holds_5.0s": {
         "replaced": false,
-        "error": "PermissionError: [WinError 5] Access is denied: 'C:\\\\Users\\\\RUNNER~1\\\\AppData\\\\Local\\\\Temp\\\\labkit-smoke-g0dxxv56\\\\04-replace-5.0\\\\.record.json.tmp' -> 'C:\\\\Users\\\\RUNNER~1\\\\AppData\\\\Local\\\\Temp\\\\labkit-smoke-g0dxxv56\\\\04-replace-5.0\\\\record.json' (winerror=5)",
-        "seconds": 1.97,
+        "error": "PermissionError: [WinError 5] Access is denied: 'C:\\\\Users\\\\RUNNER~1\\\\AppData\\\\Local\\\\Temp\\\\labkit-smoke-zbka10it\\\\04-replace-5.0\\\\.record.json.tmp' -> 'C:\\\\Users\\\\RUNNER~1\\\\AppData\\\\Local\\\\Temp\\\\labkit-smoke-zbka10it\\\\04-replace-5.0\\\\record.json' (winerror=5)",
+        "seconds": 1.974,
         "content_after": "old"
        }
       }
@@ -1125,7 +1125,7 @@
       "name": "liveness_of_a_live_an_exited_and_a_bogus_pid",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.03,
+      "seconds": 0.04,
       "observed": {
        "live": true,
        "exited": false,
@@ -1141,20 +1141,20 @@
       "name": "interrupt_asks_a_python_child_or_declines",
       "group": "ports",
       "result": "holds",
-      "seconds": 3.13,
+      "seconds": 3.15,
       "observed": {
        "asked": false,
        "exit_code": 1,
        "marker": null,
        "forced": true,
-       "seconds": 3.074
+       "seconds": 3.093
       }
      },
      {
       "name": "kill_tree_ends_the_child_and_its_grandchild",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.11,
+      "seconds": 0.13,
       "observed": {
        "child_gone": true,
        "grandchild_gone": true,
@@ -1165,12 +1165,12 @@
       "name": "kill_tree_after_the_leader_exited",
       "group": "ports",
       "result": "declared_limitation",
-      "seconds": 15.25,
+      "seconds": 15.27,
       "declared": "docs/CONTRACTS.md — `taskkill /T`는 부모가 이미 끝난 자손에 닿지 않습니다",
       "observed": {
        "leader_exit_code": 0,
        "grandchild_gone": false,
-       "diagnostic": "labkit: could not end the process tree of pid 5208; its descendants may still be running (the wrapper had already exited when taskkill looked; a descendant of it may still be running)"
+       "diagnostic": "labkit: could not end the process tree of pid 5660; its descendants may still be running (the wrapper had already exited when taskkill looked; a descendant of it may still be running)"
       }
      },
      {
@@ -1182,29 +1182,29 @@
        "interrupted_by": "Interrupted",
        "flag_set": true,
        "cancel_flag": false,
-       "seconds": 1.018
+       "seconds": 1.017
       }
      },
      {
       "name": "deadline_interrupts_a_sleep",
       "group": "ports",
       "result": "holds",
-      "seconds": 1.0,
+      "seconds": 1.01,
       "observed": {
        "interrupted_by": "Interrupted",
        "flag_set": true,
        "cancel_flag": false,
-       "seconds": 1.001
+       "seconds": 1.012
       }
      },
      {
       "name": "the_cancel_request_wakes_a_sleeping_run",
       "group": "ports",
       "result": "holds",
-      "seconds": 1.05,
+      "seconds": 1.08,
       "observed": {
        "woken_by": "Interrupted",
-       "seconds": 1.049,
+       "seconds": 1.076,
        "timeout": false,
        "cancel": true
       }
@@ -1234,7 +1234,7 @@
       "name": "base_env_is_enough_to_start_a_child",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.12,
+      "seconds": 0.14,
       "observed": {
        "base_env_keys": [
         "APPDATA",
@@ -1337,15 +1337,15 @@
       "result": "holds",
       "seconds": 0.0,
       "observed": {
-       "url": "file:///C:/Users/runneradmin/AppData/Local/Temp/labkit-smoke-g0dxxv56/12-file-url/%EC%9E%85%EB%A0%A5%20%EB%8D%B0%EC%9D%B4%ED%84%B0.csv",
-       "back": "C:\\Users\\runneradmin\\AppData\\Local\\Temp\\labkit-smoke-g0dxxv56\\12-file-url\\입력 데이터.csv"
+       "url": "file:///C:/Users/runneradmin/AppData/Local/Temp/labkit-smoke-zbka10it/12-file-url/%EC%9E%85%EB%A0%A5%20%EB%8D%B0%EC%9D%B4%ED%84%B0.csv",
+       "back": "C:\\Users\\runneradmin\\AppData\\Local\\Temp\\labkit-smoke-zbka10it\\12-file-url\\입력 데이터.csv"
       }
      },
      {
       "name": "utf8_survives_a_pipe",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.13,
+      "seconds": 0.16,
       "observed": {
        "with_configure_stdio": {
         "exit": 0,
@@ -1363,7 +1363,7 @@
       "name": "cli_end_to_end",
       "group": "cli",
       "result": "holds",
-      "seconds": 25.69,
+      "seconds": 33.34,
       "observed": {
        "query": {
         "exit": 0,
@@ -1417,31 +1417,31 @@
       "name": "cli_run_timeout_in_python_code",
       "group": "cli",
       "result": "holds",
-      "seconds": 3.97,
+      "seconds": 4.15,
       "observed": {
        "status": "timeout",
        "exit": 3,
-       "recorded_s": 3.022,
-       "cli_seconds": 4.0
+       "recorded_s": 3.026,
+       "cli_seconds": 4.2
       }
      },
      {
       "name": "cli_run_timeout_in_a_blocking_duckdb_query",
       "group": "cli",
       "result": "holds",
-      "seconds": 3.95,
+      "seconds": 4.17,
       "observed": {
        "status": "timeout",
        "exit": 3,
-       "recorded_s": 3.01,
-       "cli_seconds": 4.0
+       "recorded_s": 3.009,
+       "cli_seconds": 4.2
       }
      },
      {
       "name": "cli_cancel_the_way_the_extension_does",
       "group": "cli",
       "result": "holds",
-      "seconds": 2.29,
+      "seconds": 2.51,
       "observed": {
        "asked": true,
        "recorded_status": "cancelled",
@@ -1449,7 +1449,7 @@
        "exit_code": 3,
        "exit_code_hex": "0x3",
        "forced": false,
-       "seconds_to_exit": 0.88,
+       "seconds_to_exit": 1.09,
        "kit_process_gone": true,
        "stdout_tail": "started\n"
       }
@@ -1458,7 +1458,7 @@
       "name": "cli_cancel_reaches_a_run_inside_a_regular_expression",
       "group": "cli",
       "result": "declared_limitation",
-      "seconds": 11.98,
+      "seconds": 11.99,
       "declared": "docs/CONTRACTS.md — GIL을 쥔 채 도는 C 코드 안의 주 스레드에는 그 호출이 반환할 때까지 취소가 닿지 않습니다",
       "observed": {
        "asked": true,
@@ -1476,7 +1476,7 @@
       "name": "cli_cancel_reaches_a_run_waiting_on_a_subprocess",
       "group": "cli",
       "result": "declared_limitation",
-      "seconds": 11.97,
+      "seconds": 11.98,
       "declared": "docs/CONTRACTS.md — SIGINT 이벤트를 보지 않는 대기(자식 프로세스를 기다리는 `subprocess` 호출 등)는 취소가 와도 그 대기가 끝날 때까지 이어집니다",
       "observed": {
        "asked": true,
@@ -1494,12 +1494,12 @@
       "name": "cli_deadline_when_the_script_ignores_sigint",
       "group": "cli",
       "result": "observed",
-      "seconds": 8.96,
+      "seconds": 9.17,
       "observed": {
        "status": "timeout",
        "exit": 3,
-       "recorded_s": 8.003,
-       "cli_seconds": 9.0,
+       "recorded_s": 8.004,
+       "cli_seconds": 9.2,
        "script_finished": true
       }
      },
@@ -1507,7 +1507,7 @@
       "name": "cli_concurrent_runs_are_serialized",
       "group": "cli",
       "result": "holds",
-      "seconds": 6.09,
+      "seconds": 6.61,
       "observed": {
        "left_side": {
         "status": "ok",
@@ -1527,7 +1527,7 @@
       "name": "cli_refuses_a_new_reserved_dataset_name",
       "group": "cli",
       "result": "holds",
-      "seconds": 0.25,
+      "seconds": 0.24,
       "observed": {
        "exit": 1,
        "error_code": "name_not_portable"
@@ -1537,14 +1537,14 @@
       "name": "cli_writes_a_reserved_chart_id_to_a_portable_file",
       "group": "cli",
       "result": "holds",
-      "seconds": 2.65,
+      "seconds": 3.23,
       "observed": {
        "status": "ok",
        "exit": 0,
        "ids": [
         "con"
        ],
-       "png": "runs/20260929-235308-06-chart-con/charts/con_.png",
+       "png": "runs/20260930-151919-06-chart-con/charts/con_.png",
        "png_readable": true
       }
      },
@@ -1552,7 +1552,7 @@
       "name": "cli_a_script_saving_a_reserved_name_is_warned_about",
       "group": "cli",
       "result": "observed",
-      "seconds": 1.08,
+      "seconds": 1.38,
       "observed": {
        "status": "ok",
        "exit": 0,
@@ -1564,7 +1564,7 @@
       "name": "probe_interrupt_through_uv_run",
       "group": "probe",
       "result": "observed",
-      "seconds": 11.21,
+      "seconds": 11.22,
       "observed": {
        "uv_exit_code": 3221225786,
        "uv_exit_code_hex": "0xc000013a",
@@ -1577,11 +1577,11 @@
       "name": "probe_cancel_request_file_through_uv_run",
       "group": "probe",
       "result": "observed",
-      "seconds": 1.17,
+      "seconds": 1.18,
       "observed": {
        "uv_exit_code": 130,
        "uv_exit_code_hex": "0x82",
-       "seconds_to_exit": 1.07,
+       "seconds_to_exit": 1.08,
        "child_marker": "handler-finished:2",
        "child_gone": true
       }
@@ -1590,7 +1590,7 @@
       "name": "probe_waking_a_sleeping_main_thread",
       "group": "probe",
       "result": "observed",
-      "seconds": 11.01,
+      "seconds": 11.0,
       "observed": {
        "_thread.interrupt_main": {
         "interrupted_by": "Interrupted",
@@ -1598,16 +1598,16 @@
        },
        "signal.raise_signal(SIGINT)": {
         "interrupted_by": "Interrupted",
-        "seconds": 1.01
+        "seconds": 1.0
        }
       }
      }
     ]
    },
    "suite_py3_12": {
-    "file_sha256": "2fde73db43714535fa3aaff8a2cd19323e236a99c614a5888a3b4f43fe366892",
-    "timestamp": "2026-09-29T23:53:38.873844+00:00",
-    "seconds": 624.348,
+    "file_sha256": "99efd5add915b979854a54b633c6b6740ef77d8933ce70ec0d1e912d62075ab0",
+    "timestamp": "2026-09-30T15:19:52.125646+00:00",
+    "seconds": 831.377,
     "counts": {
      "pass": 464,
      "fail": 0,
@@ -1693,16 +1693,16 @@
      "test_a_checkout_symlink_beside_the_wheel_sets_up_one_copy": "skip: the README's symlink route is POSIX",
      "test_the_installed_extension_s_tools_run_a_project[3.11]": "pass",
      "test_the_installed_extension_s_tools_run_a_project[3.12]": "pass",
-     "test_the_installed_lab_drives_a_project_without_aelix[3.11]": "pass",
-     "test_the_installed_lab_drives_a_project_without_aelix[3.12]": "pass",
+     "test_the_installed_command_drives_a_project_without_aelix[3.11]": "pass",
+     "test_the_installed_command_drives_a_project_without_aelix[3.12]": "pass",
      "test_the_kit_s_stdlib_commands_run_on_the_floor": "pass",
      "test_pip_installs_and_uninstalls_the_wheel_without_leftovers": "pass"
     }
    },
    "aelix_0_1_0b2_py3_12": {
-    "file_sha256": "b780fadf8d44f8ecea7720bd0618e0e6c6d188b83e716ed34c55a7618b963bd1",
-    "timestamp": "2026-09-30T00:04:10.621777+00:00",
-    "seconds": 80.684,
+    "file_sha256": "d83c61013796bf2b3f8cede4837ccad460fa2f077bbb71ccfb99d62d6cfbc978",
+    "timestamp": "2026-09-30T15:33:52.847245+00:00",
+    "seconds": 88.815,
     "counts": {
      "pass": 12,
      "fail": 0,
@@ -1717,9 +1717,9 @@
     }
    },
    "aelix_0_1_0b2_py3_11": {
-    "file_sha256": "7d88388a3968e7bce019959e9b15cf1313cab9337ebfa98343123377d9a057c5",
-    "timestamp": "2026-09-30T00:05:37.024966+00:00",
-    "seconds": 70.391,
+    "file_sha256": "f4b307b207980980c76ebd5149d286607afe40c2047cd15585ba91dc521a99af",
+    "timestamp": "2026-09-30T15:35:24.294663+00:00",
+    "seconds": 89.39,
     "counts": {
      "pass": 12,
      "fail": 0,
@@ -1734,7 +1734,7 @@
     }
    },
    "stdlib_only_smoke_py3_11": {
-    "file_sha256": "3556318d9a7fed40cca605e3e25586349ccfa721bc2376640242eebfd9ff7c69",
+    "file_sha256": "4c52675fb16301ce8982676f08b2de700ef3d64fe3525b9087d3dbd86e8e11a0",
     "command": [
      "python.exe",
      "tools/platform_smoke.py",
@@ -1746,10 +1746,10 @@
     ],
     "mode": "stdlib-only",
     "source": {
-     "head": "cd287d1e695e12de05e0b335e52d18c3a80d9bac",
+     "head": "7403e7b462d4f63407d516d1e1e2f8e3a58bebd1",
      "dirty": false
     },
-    "generated_at": "2026-09-29T23:51:07+00:00",
+    "generated_at": "2026-09-30T15:17:04+00:00",
     "environment": {
      "platform": "Windows-10-10.0.26100-SP0",
      "system": "Windows",
@@ -1807,9 +1807,9 @@
       "name": "lock_excludes_another_process",
       "group": "ports",
       "result": "holds",
-      "seconds": 2.12,
+      "seconds": 2.07,
       "observed": {
-       "waited_s": 2.008,
+       "waited_s": 1.963,
        "holder_kept_it_s": 2.0
       }
      },
@@ -1817,7 +1817,7 @@
       "name": "lock_released_when_its_holder_is_killed",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.31,
+      "seconds": 0.12,
       "observed": {
        "acquired_within_15s_after_the_kill": true
       }
@@ -1826,18 +1826,18 @@
       "name": "replace_while_a_reader_holds_the_file",
       "group": "ports",
       "result": "holds",
-      "seconds": 5.82,
+      "seconds": 5.81,
       "observed": {
        "reader_holds_0.7s": {
         "replaced": true,
         "error": null,
-        "seconds": 0.66,
+        "seconds": 0.709,
         "content_after": "new"
        },
        "reader_holds_5.0s": {
         "replaced": false,
-        "error": "PermissionError: [WinError 5] Access is denied: 'C:\\\\Users\\\\RUNNER~1\\\\AppData\\\\Local\\\\Temp\\\\labkit-smoke-wea7xlx5\\\\04-replace-5.0\\\\.record.json.tmp' -> 'C:\\\\Users\\\\RUNNER~1\\\\AppData\\\\Local\\\\Temp\\\\labkit-smoke-wea7xlx5\\\\04-replace-5.0\\\\record.json' (winerror=5)",
-        "seconds": 2.521,
+        "error": "PermissionError: [WinError 5] Access is denied: 'C:\\\\Users\\\\RUNNER~1\\\\AppData\\\\Local\\\\Temp\\\\labkit-smoke-i3cvyzp1\\\\04-replace-5.0\\\\.record.json.tmp' -> 'C:\\\\Users\\\\RUNNER~1\\\\AppData\\\\Local\\\\Temp\\\\labkit-smoke-i3cvyzp1\\\\04-replace-5.0\\\\record.json' (winerror=5)",
+        "seconds": 1.972,
         "content_after": "old"
        }
       }
@@ -1846,7 +1846,7 @@
       "name": "liveness_of_a_live_an_exited_and_a_bogus_pid",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.99,
+      "seconds": 0.36,
       "observed": {
        "live": true,
        "exited": false,
@@ -1862,20 +1862,20 @@
       "name": "interrupt_asks_a_python_child_or_declines",
       "group": "ports",
       "result": "holds",
-      "seconds": 3.19,
+      "seconds": 3.2,
       "observed": {
        "asked": false,
        "exit_code": 1,
        "marker": null,
        "forced": true,
-       "seconds": 3.086
+       "seconds": 3.148
       }
      },
      {
       "name": "kill_tree_ends_the_child_and_its_grandchild",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.13,
+      "seconds": 0.21,
       "observed": {
        "child_gone": true,
        "grandchild_gone": true,
@@ -1886,46 +1886,46 @@
       "name": "kill_tree_after_the_leader_exited",
       "group": "ports",
       "result": "declared_limitation",
-      "seconds": 15.26,
+      "seconds": 15.23,
       "declared": "docs/CONTRACTS.md — `taskkill /T`는 부모가 이미 끝난 자손에 닿지 않습니다",
       "observed": {
        "leader_exit_code": 0,
        "grandchild_gone": false,
-       "diagnostic": "labkit: could not end the process tree of pid 4260; its descendants may still be running (the wrapper had already exited when taskkill looked; a descendant of it may still be running)"
+       "diagnostic": "labkit: could not end the process tree of pid 6260; its descendants may still be running (the wrapper had already exited when taskkill looked; a descendant of it may still be running)"
       }
      },
      {
       "name": "deadline_interrupts_python_code",
       "group": "ports",
       "result": "holds",
-      "seconds": 1.02,
+      "seconds": 1.03,
       "observed": {
        "interrupted_by": "Interrupted",
        "flag_set": true,
        "cancel_flag": false,
-       "seconds": 1.016
+       "seconds": 1.029
       }
      },
      {
       "name": "deadline_interrupts_a_sleep",
       "group": "ports",
       "result": "holds",
-      "seconds": 1.0,
+      "seconds": 1.01,
       "observed": {
        "interrupted_by": "Interrupted",
        "flag_set": true,
        "cancel_flag": false,
-       "seconds": 1.001
+       "seconds": 1.008
       }
      },
      {
       "name": "the_cancel_request_wakes_a_sleeping_run",
       "group": "ports",
       "result": "holds",
-      "seconds": 1.06,
+      "seconds": 1.07,
       "observed": {
        "woken_by": "Interrupted",
-       "seconds": 1.055,
+       "seconds": 1.07,
        "timeout": false,
        "cancel": true
       }
@@ -1955,7 +1955,7 @@
       "name": "base_env_is_enough_to_start_a_child",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.08,
+      "seconds": 0.06,
       "observed": {
        "base_env_keys": [
         "APPDATA",
@@ -2048,17 +2048,17 @@
       "name": "file_url_leads_back_to_the_file",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.0,
+      "seconds": 0.01,
       "observed": {
-       "url": "file:///C:/Users/runneradmin/AppData/Local/Temp/labkit-smoke-wea7xlx5/12-file-url/%EC%9E%85%EB%A0%A5%20%EB%8D%B0%EC%9D%B4%ED%84%B0.csv",
-       "back": "C:\\Users\\runneradmin\\AppData\\Local\\Temp\\labkit-smoke-wea7xlx5\\12-file-url\\입력 데이터.csv"
+       "url": "file:///C:/Users/runneradmin/AppData/Local/Temp/labkit-smoke-i3cvyzp1/12-file-url/%EC%9E%85%EB%A0%A5%20%EB%8D%B0%EC%9D%B4%ED%84%B0.csv",
+       "back": "C:\\Users\\runneradmin\\AppData\\Local\\Temp\\labkit-smoke-i3cvyzp1\\12-file-url\\입력 데이터.csv"
       }
      },
      {
       "name": "utf8_survives_a_pipe",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.13,
+      "seconds": 0.12,
       "observed": {
        "with_configure_stdio": {
         "exit": 0,
@@ -2090,7 +2090,7 @@
       "name": "probe_waking_a_sleeping_main_thread",
       "group": "probe",
       "result": "observed",
-      "seconds": 11.0,
+      "seconds": 11.01,
       "observed": {
        "_thread.interrupt_main": {
         "interrupted_by": "Interrupted",
@@ -2098,7 +2098,7 @@
        },
        "signal.raise_signal(SIGINT)": {
         "interrupted_by": "Interrupted",
-        "seconds": 1.0
+        "seconds": 1.01
        }
       }
      }
@@ -2120,7 +2120,7 @@
   "macos": {
    "where": "developer machine",
    "smoke_py3_12": {
-    "file_sha256": "311ae90f6ac15f69d1ffdea46b0802975f73347801ba4f6ded8042591d55bfd9",
+    "file_sha256": "1276c05d21d745eeb5032d6d3bb841b15aef9fa99b565da113ec389026d3b924",
     "command": [
      "python3",
      "tools/platform_smoke.py",
@@ -2131,10 +2131,10 @@
     ],
     "mode": "full",
     "source": {
-     "head": "cd287d1e695e12de05e0b335e52d18c3a80d9bac",
+     "head": "7403e7b462d4f63407d516d1e1e2f8e3a58bebd1",
      "dirty": false
     },
-    "generated_at": "2026-09-29T23:51:11+00:00",
+    "generated_at": "2026-09-30T15:18:04+00:00",
     "environment": {
      "platform": "macOS-26.6.2-arm64-arm-64bit",
      "system": "Darwin",
@@ -2200,7 +2200,7 @@
       "name": "replace_while_a_reader_holds_the_file",
       "group": "ports",
       "result": "holds",
-      "seconds": 5.8,
+      "seconds": 5.82,
       "observed": {
        "reader_holds_0.7s": {
         "replaced": true,
@@ -2220,7 +2220,7 @@
       "name": "liveness_of_a_live_an_exited_and_a_bogus_pid",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.01,
+      "seconds": 0.0,
       "observed": {
        "live": true,
        "exited": false,
@@ -2236,13 +2236,13 @@
       "name": "interrupt_asks_a_python_child_or_declines",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.07,
+      "seconds": 0.06,
       "observed": {
        "asked": true,
        "exit_code": 130,
        "marker": "graceful:2",
        "forced": false,
-       "seconds": 0.005
+       "seconds": 0.004
       }
      },
      {
@@ -2260,7 +2260,7 @@
       "name": "kill_tree_after_the_leader_exited",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.17,
+      "seconds": 0.16,
       "observed": {
        "leader_exit_code": 0,
        "grandchild_gone": true,
@@ -2271,24 +2271,24 @@
       "name": "deadline_interrupts_python_code",
       "group": "ports",
       "result": "holds",
-      "seconds": 1.0,
+      "seconds": 1.01,
       "observed": {
        "interrupted_by": "Interrupted",
        "flag_set": true,
        "cancel_flag": false,
-       "seconds": 1.004
+       "seconds": 1.005
       }
      },
      {
       "name": "deadline_interrupts_a_sleep",
       "group": "ports",
       "result": "holds",
-      "seconds": 1.01,
+      "seconds": 1.0,
       "observed": {
        "interrupted_by": "Interrupted",
        "flag_set": true,
        "cancel_flag": false,
-       "seconds": 1.009
+       "seconds": 1.002
       }
      },
      {
@@ -2407,8 +2407,8 @@
       "result": "holds",
       "seconds": 0.0,
       "observed": {
-       "url": "file://<tmp>/labkit-smoke-twwffzq9/12-file-url/%EC%9E%85%EB%A0%A5%20%EB%8D%B0%EC%9D%B4%ED%84%B0.csv",
-       "back": "<tmp>/labkit-smoke-twwffzq9/12-file-url/입력 데이터.csv"
+       "url": "file://<tmp>/labkit-smoke-2e3l8h78/12-file-url/%EC%9E%85%EB%A0%A5%20%EB%8D%B0%EC%9D%B4%ED%84%B0.csv",
+       "back": "<tmp>/labkit-smoke-2e3l8h78/12-file-url/입력 데이터.csv"
       }
      },
      {
@@ -2433,7 +2433,7 @@
       "name": "cli_end_to_end",
       "group": "cli",
       "result": "holds",
-      "seconds": 10.89,
+      "seconds": 10.45,
       "observed": {
        "query": {
         "exit": 0,
@@ -2487,11 +2487,11 @@
       "name": "cli_run_timeout_in_python_code",
       "group": "cli",
       "result": "holds",
-      "seconds": 3.28,
+      "seconds": 3.29,
       "observed": {
        "status": "timeout",
        "exit": 3,
-       "recorded_s": 3.009,
+       "recorded_s": 3.005,
        "cli_seconds": 3.3
       }
      },
@@ -2499,11 +2499,11 @@
       "name": "cli_run_timeout_in_a_blocking_duckdb_query",
       "group": "cli",
       "result": "holds",
-      "seconds": 3.28,
+      "seconds": 3.31,
       "observed": {
        "status": "timeout",
        "exit": 3,
-       "recorded_s": 3.011,
+       "recorded_s": 3.003,
        "cli_seconds": 3.3
       }
      },
@@ -2511,7 +2511,7 @@
       "name": "cli_cancel_the_way_the_extension_does",
       "group": "cli",
       "result": "holds",
-      "seconds": 1.9,
+      "seconds": 1.91,
       "observed": {
        "asked": true,
        "recorded_status": "cancelled",
@@ -2519,7 +2519,7 @@
        "exit_code": 3,
        "exit_code_hex": "0x3",
        "forced": false,
-       "seconds_to_exit": 0.48,
+       "seconds_to_exit": 0.5,
        "kit_process_gone": true,
        "stdout_tail": "started\n"
       }
@@ -2528,7 +2528,7 @@
       "name": "cli_cancel_reaches_a_run_inside_a_regular_expression",
       "group": "cli",
       "result": "holds",
-      "seconds": 2.38,
+      "seconds": 2.36,
       "observed": {
        "asked": true,
        "recorded_status": "cancelled",
@@ -2545,7 +2545,7 @@
       "name": "cli_cancel_reaches_a_run_waiting_on_a_subprocess",
       "group": "cli",
       "result": "holds",
-      "seconds": 2.4,
+      "seconds": 2.41,
       "observed": {
        "asked": true,
        "recorded_status": "cancelled",
@@ -2553,7 +2553,7 @@
        "exit_code": 3,
        "exit_code_hex": "0x3",
        "forced": false,
-       "seconds_to_exit": 0.48,
+       "seconds_to_exit": 0.5,
        "kit_process_gone": true,
        "stdout_tail": "started\n"
       }
@@ -2562,11 +2562,11 @@
       "name": "cli_deadline_when_the_script_ignores_sigint",
       "group": "cli",
       "result": "observed",
-      "seconds": 2.28,
+      "seconds": 2.3,
       "observed": {
        "status": "timeout",
        "exit": 3,
-       "recorded_s": 2.005,
+       "recorded_s": 2.004,
        "cli_seconds": 2.3,
        "script_finished": false
       }
@@ -2595,7 +2595,7 @@
       "name": "cli_refuses_a_new_reserved_dataset_name",
       "group": "cli",
       "result": "holds",
-      "seconds": 0.06,
+      "seconds": 0.08,
       "observed": {
        "exit": 1,
        "error_code": "name_not_portable"
@@ -2605,14 +2605,14 @@
       "name": "cli_writes_a_reserved_chart_id_to_a_portable_file",
       "group": "cli",
       "result": "holds",
-      "seconds": 0.86,
+      "seconds": 1.0,
       "observed": {
        "status": "ok",
        "exit": 0,
        "ids": [
         "con"
        ],
-       "png": "runs/20260930-085153-06-chart-con/charts/con_.png",
+       "png": "runs/20261001-001845-06-chart-con/charts/con_.png",
        "png_readable": true
       }
      },
@@ -2620,7 +2620,7 @@
       "name": "cli_a_script_saving_a_reserved_name_is_warned_about",
       "group": "cli",
       "result": "holds",
-      "seconds": 0.32,
+      "seconds": 0.35,
       "observed": {
        "status": "ok",
        "exit": 0,
@@ -2632,11 +2632,11 @@
       "name": "probe_interrupt_through_uv_run",
       "group": "probe",
       "result": "observed",
-      "seconds": 1.32,
+      "seconds": 1.3,
       "observed": {
        "uv_exit_code": 130,
        "uv_exit_code_hex": "0x82",
-       "seconds_to_exit": 1.26,
+       "seconds_to_exit": 1.25,
        "child_marker": "handler-finished:2",
        "child_gone": true
       }
@@ -2645,11 +2645,11 @@
       "name": "probe_cancel_request_file_through_uv_run",
       "group": "probe",
       "result": "observed",
-      "seconds": 1.19,
+      "seconds": 1.16,
       "observed": {
        "uv_exit_code": 130,
        "uv_exit_code_hex": "0x82",
-       "seconds_to_exit": 1.14,
+       "seconds_to_exit": 1.1,
        "child_marker": "handler-finished:2",
        "child_gone": true
       }
@@ -2658,24 +2658,24 @@
       "name": "probe_waking_a_sleeping_main_thread",
       "group": "probe",
       "result": "observed",
-      "seconds": 11.02,
+      "seconds": 11.01,
       "observed": {
        "_thread.interrupt_main": {
         "interrupted_by": "Interrupted",
-        "seconds": 10.01
+        "seconds": 10.0
        },
        "signal.pthread_kill(main, SIGINT)": {
         "interrupted_by": "Interrupted",
-        "seconds": 1.01
+        "seconds": 1.0
        }
       }
      }
     ]
    },
    "suite_py3_12": {
-    "file_sha256": "1b2e5eeb0f827c197050707cf2e09dbaee78ad49e6edb7565a48d3797ba09724",
-    "timestamp": "2026-09-30T08:52:09.251828+09:00",
-    "seconds": 255.507,
+    "file_sha256": "5c44eee0cce0bf29b79e108f1d03e3a400db4940b5849e7a0e10006060b9e830",
+    "timestamp": "2026-10-01T00:19:01.416019+09:00",
+    "seconds": 271.141,
     "counts": {
      "pass": 610,
      "fail": 0,
@@ -2731,16 +2731,16 @@
      "test_a_checkout_symlink_beside_the_wheel_sets_up_one_copy": "pass",
      "test_the_installed_extension_s_tools_run_a_project[3.11]": "pass",
      "test_the_installed_extension_s_tools_run_a_project[3.12]": "pass",
-     "test_the_installed_lab_drives_a_project_without_aelix[3.11]": "pass",
-     "test_the_installed_lab_drives_a_project_without_aelix[3.12]": "pass",
+     "test_the_installed_command_drives_a_project_without_aelix[3.11]": "pass",
+     "test_the_installed_command_drives_a_project_without_aelix[3.12]": "pass",
      "test_the_kit_s_stdlib_commands_run_on_the_floor": "pass",
      "test_pip_installs_and_uninstalls_the_wheel_without_leftovers": "pass"
     }
    },
    "suite_py3_13": {
-    "file_sha256": "dc5b1e4f4d6d68c2583fcba73e11bfaf5534e42360d942fed22d7215e9fd04f8",
-    "timestamp": "2026-09-30T09:54:52.280358+09:00",
-    "seconds": 243.123,
+    "file_sha256": "52afe40c1982d195a7ddae656436f06493d0afc9ee95cfc2c831e48205084b1d",
+    "timestamp": "2026-10-01T00:24:34.643711+09:00",
+    "seconds": 225.39,
     "counts": {
      "pass": 601,
      "fail": 0,
@@ -2798,16 +2798,16 @@
      "test_a_checkout_symlink_beside_the_wheel_sets_up_one_copy": "skip: set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)",
      "test_the_installed_extension_s_tools_run_a_project[3.11]": "skip: set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)",
      "test_the_installed_extension_s_tools_run_a_project[3.12]": "skip: set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)",
-     "test_the_installed_lab_drives_a_project_without_aelix[3.11]": "skip: set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)",
-     "test_the_installed_lab_drives_a_project_without_aelix[3.12]": "skip: set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)",
+     "test_the_installed_command_drives_a_project_without_aelix[3.11]": "skip: set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)",
+     "test_the_installed_command_drives_a_project_without_aelix[3.12]": "skip: set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)",
      "test_the_kit_s_stdlib_commands_run_on_the_floor": "skip: set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)",
      "test_pip_installs_and_uninstalls_the_wheel_without_leftovers": "skip: set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)"
     }
    },
    "suite_py3_14": {
-    "file_sha256": "2b8d0bd7f2eae70a36014c265de9593977516374d82ebd096875861bf9719d56",
-    "timestamp": "2026-09-30T09:58:56.430727+09:00",
-    "seconds": 247.199,
+    "file_sha256": "4e25a6656c2698bf5f8a31e66b8fbe6bb88346e63ea4c41d8c1ba2d494f2c0bf",
+    "timestamp": "2026-10-01T00:28:20.930262+09:00",
+    "seconds": 232.376,
     "counts": {
      "pass": 602,
      "fail": 0,
@@ -2864,16 +2864,16 @@
      "test_a_checkout_symlink_beside_the_wheel_sets_up_one_copy": "skip: set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)",
      "test_the_installed_extension_s_tools_run_a_project[3.11]": "skip: set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)",
      "test_the_installed_extension_s_tools_run_a_project[3.12]": "skip: set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)",
-     "test_the_installed_lab_drives_a_project_without_aelix[3.11]": "skip: set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)",
-     "test_the_installed_lab_drives_a_project_without_aelix[3.12]": "skip: set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)",
+     "test_the_installed_command_drives_a_project_without_aelix[3.11]": "skip: set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)",
+     "test_the_installed_command_drives_a_project_without_aelix[3.12]": "skip: set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)",
      "test_the_kit_s_stdlib_commands_run_on_the_floor": "skip: set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)",
      "test_pip_installs_and_uninstalls_the_wheel_without_leftovers": "skip: set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)"
     }
    },
    "aelix_0_1_0b2_py3_11": {
-    "file_sha256": "02c4c8b11209d3fd4354ca2618c2801a2aa9200b051e1b5c4be10148a3f8db7d",
-    "timestamp": "2026-09-30T08:56:43.536247+09:00",
-    "seconds": 17.085,
+    "file_sha256": "8512ae12b3b8d4daadd185730f834d344e1a4b8d8ffb91a6d60bae8294ff4667",
+    "timestamp": "2026-10-01T00:23:54.839186+09:00",
+    "seconds": 17.181,
     "counts": {
      "pass": 12,
      "fail": 0,
@@ -2888,9 +2888,9 @@
     }
    },
    "aelix_0_1_0b2_py3_12": {
-    "file_sha256": "e3bbd83e2b1d205d3f301948ad608ecf373dfe0a3ac9d2e724ba612965154485",
-    "timestamp": "2026-09-30T08:56:25.112800+09:00",
-    "seconds": 18.134,
+    "file_sha256": "7d6ea835e678c1df993738a65c8385579aed837182cf9c671bf11baabac48090",
+    "timestamp": "2026-10-01T00:23:33.083355+09:00",
+    "seconds": 17.787,
     "counts": {
      "pass": 12,
      "fail": 0,
@@ -2905,7 +2905,7 @@
     }
    },
    "stdlib_only_smoke_py3_11": {
-    "file_sha256": "6efd02826739079df807c6d3e5da82ad37a23ea3975e33b97e9b83b43528d254",
+    "file_sha256": "6ffe4e9ba32766d168c6816b26ee6594ee535fe5af4904cc40fade99fca478fe",
     "command": [
      "python3.11",
      "tools/platform_smoke.py",
@@ -2917,10 +2917,10 @@
     ],
     "mode": "stdlib-only",
     "source": {
-     "head": "cd287d1e695e12de05e0b335e52d18c3a80d9bac",
+     "head": "7403e7b462d4f63407d516d1e1e2f8e3a58bebd1",
      "dirty": false
     },
-    "generated_at": "2026-09-29T23:57:04+00:00",
+    "generated_at": "2026-09-30T15:24:12+00:00",
     "environment": {
      "platform": "macOS-26.6.2-arm64-arm-64bit",
      "system": "Darwin",
@@ -2967,9 +2967,9 @@
       "name": "lock_excludes_another_process",
       "group": "ports",
       "result": "holds",
-      "seconds": 2.04,
+      "seconds": 2.03,
       "observed": {
-       "waited_s": 1.965,
+       "waited_s": 1.971,
        "holder_kept_it_s": 2.0
       }
      },
@@ -2986,7 +2986,7 @@
       "name": "replace_while_a_reader_holds_the_file",
       "group": "ports",
       "result": "holds",
-      "seconds": 5.85,
+      "seconds": 5.84,
       "observed": {
        "reader_holds_0.7s": {
         "replaced": true,
@@ -3028,7 +3028,7 @@
        "exit_code": 130,
        "marker": "graceful:2",
        "forced": false,
-       "seconds": 0.005
+       "seconds": 0.004
       }
      },
      {
@@ -3057,12 +3057,12 @@
       "name": "deadline_interrupts_python_code",
       "group": "ports",
       "result": "holds",
-      "seconds": 1.01,
+      "seconds": 1.0,
       "observed": {
        "interrupted_by": "Interrupted",
        "flag_set": true,
        "cancel_flag": false,
-       "seconds": 1.01
+       "seconds": 1.002
       }
      },
      {
@@ -3074,7 +3074,7 @@
        "interrupted_by": "Interrupted",
        "flag_set": true,
        "cancel_flag": false,
-       "seconds": 1.002
+       "seconds": 1.003
       }
      },
      {
@@ -3090,7 +3090,7 @@
       "name": "the_guard_records_outside_regions_and_interrupts_inside_once",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.62,
+      "seconds": 0.61,
       "observed": {
        "SIGINT": {
         "recorded_without_raising": true,
@@ -3105,7 +3105,7 @@
       "name": "base_env_is_enough_to_start_a_child",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.05,
+      "seconds": 0.03,
       "observed": {
        "base_env_keys": [],
        "python_with_base_env": {
@@ -3185,15 +3185,15 @@
       "result": "holds",
       "seconds": 0.0,
       "observed": {
-       "url": "file://<tmp>/labkit-smoke-em5wm46z/12-file-url/%EC%9E%85%EB%A0%A5%20%EB%8D%B0%EC%9D%B4%ED%84%B0.csv",
-       "back": "<tmp>/labkit-smoke-em5wm46z/12-file-url/입력 데이터.csv"
+       "url": "file://<tmp>/labkit-smoke-xxdafq11/12-file-url/%EC%9E%85%EB%A0%A5%20%EB%8D%B0%EC%9D%B4%ED%84%B0.csv",
+       "back": "<tmp>/labkit-smoke-xxdafq11/12-file-url/입력 데이터.csv"
       }
      },
      {
       "name": "utf8_survives_a_pipe",
       "group": "ports",
       "result": "holds",
-      "seconds": 0.04,
+      "seconds": 0.03,
       "observed": {
        "with_configure_stdio": {
         "exit": 0,
@@ -3225,15 +3225,15 @@
       "name": "probe_waking_a_sleeping_main_thread",
       "group": "probe",
       "result": "observed",
-      "seconds": 11.02,
+      "seconds": 11.01,
       "observed": {
        "_thread.interrupt_main": {
         "interrupted_by": "Interrupted",
-        "seconds": 10.01
+        "seconds": 10.0
        },
        "signal.pthread_kill(main, SIGINT)": {
         "interrupted_by": "Interrupted",
-        "seconds": 1.01
+        "seconds": 1.0
        }
       }
      }
