@@ -74,7 +74,7 @@ def project(tmp_path):
     from labkit import core
 
     root = tmp_path / "proj"
-    core.init_project(root, title="테스트 분석", goal="테스트 목표", template_dir=KIT / "template",
+    core.init_project(root, title="테스트 분석", goal="테스트 목표", template_dir=KIT / "labkit" / "template",
                       actor="test")
     source = write_sales_csv(tmp_path / "sales.csv")
     code, result = labkit(root, "import", source, "--name", "sales", "--description", "test data")

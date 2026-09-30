@@ -995,8 +995,15 @@ def _refs_suffix(event: dict) -> str:
 
 # --- project creation ---
 
-def init_project(target, *, title=None, goal=None, template_dir, actor="human", session=None,
+TEMPLATE_FILES = ("CONTEXT.md", "pyproject.toml", "gitignore")
+
+
+def init_project(target, *, title=None, goal=None, template_dir=None, actor="human", session=None,
                  platform: _platform.Platform | None = None) -> Project:
+    """`template_dir` is a path or an importlib.resources Traversable. Left out, it is the template
+    next to this file: the aelix process loads this module by path, where the resource API cannot
+    work (ADR-0004), and the kit's own package data is where this file is. The CLI hands over the
+    same template through the resource API."""
     root = Path(target).expanduser()
     if root.exists():
         if not root.is_dir():
@@ -1006,10 +1013,20 @@ def init_project(target, *, title=None, goal=None, template_dir, actor="human", 
             raise LabError("init_not_empty", f"{root} is not empty",
                            hint="choose a new directory; init never adopts existing files",
                            details={"entries": sorted(leftovers)[:10]})
+    # Read before anything is created: a kit installed without its template must not leave a
+    # half-made project that a second init then refuses as not empty.
+    if template_dir is None:
+        template_dir = Path(__file__).resolve().parent / "template"
+    template = Path(template_dir) if isinstance(template_dir, (str, os.PathLike)) else template_dir
+    try:
+        texts = {src: (template / src).read_text(encoding="utf-8") for src in TEMPLATE_FILES}
+    except OSError as exc:
+        raise LabError("template_missing", f"the project template cannot be read: {exc}",
+                       hint="reinstall aelix-analytics; in a checkout, restore kit/labkit/template"
+                       ) from exc
     root.mkdir(parents=True, exist_ok=True)
     project = Project(root, platform=platform)
     title = (title or "").strip() or project.root.name
-    template_dir = Path(template_dir)
     for d in (project.raw, project.derived, project.scripts, project.runs, project.report,
               project.context_history, project.cache):
         d.mkdir(parents=True, exist_ok=True)
@@ -1021,7 +1038,7 @@ def init_project(target, *, title=None, goal=None, template_dir, actor="human", 
             "slug": slugify(title, 40) or "analysis"}
     for src, dest in (("CONTEXT.md", project.context), ("pyproject.toml", "pyproject.toml"),
                       ("gitignore", ".gitignore")):
-        text = (template_dir / src).read_text(encoding="utf-8")
+        text = texts[src]
         for k, v in fill.items():
             text = text.replace("{{" + k + "}}", v)
         project.path(dest).write_text(text, encoding="utf-8")

@@ -1,6 +1,7 @@
 # 제품 용어·코드 명칭·기본 언어
 
-작성: 2026-09-18 · 상태: 구현 전 설계. 아래 명칭·경로·API는 전환 목표이며 아직 실행 가능한 현재 명령이 아니다.
+작성: 2026-09-18 · 상태: 구현 전 설계. 아래 명칭·경로·API는 전환 목표이며, 배포본이 설치하는 명령 `analytics`(하위 명령은 아직 옛 이름)와
+모듈 `aelix_analytics.extension`을 빼면 아직 실행 가능한 현재 명칭이 아니다.
 [현재 계약](CONTRACTS.md)은 구현을, [전체 용어 점검](REVIEW-TERMINOLOGY-2026-09-18.md)은 확인한 위치·변경 범위·전환 순서를 설명한다.
 이 문서는 앞선 설계의 `lab_*` 영구 호환·프로젝트 화면을 `report`로 부르는 안을 대체한다. 과거 기록의 보존 원칙은 유지한다.
 
@@ -21,7 +22,7 @@ Workspace는 프로젝트를 탐색하는 인터페이스이며 프로젝트 루
 |---|---|---|
 | 제품 / 저장소·배포 이름 | Aelix Analytics / `aelix-analytics` | 유지 |
 | Aelix 사람 명령 | `/lab` | `/analytics` |
-| CLI / 모듈 실행 | `bin/lab`, `python -m labkit` | `analytics`, `python -m aelix_analytics` |
+| CLI / 모듈 실행 | `bin/lab`, `python -m labkit`; 설치본의 `analytics`(하위 명령은 아직 옛 이름) | `analytics`, `python -m aelix_analytics` |
 | Python SDK | `import labkit as lab` | `import aelix_analytics as analytics` |
 | 확장 진입 파일 | `extension/aelix_lab.py` | `extension/aelix_analytics.py`; 패키징 이후 `aelix_analytics.extension` |
 | 프로젝트 flag | `--lab-project` | `--analytics-project`; CLI 내부 `--project`는 유지 |

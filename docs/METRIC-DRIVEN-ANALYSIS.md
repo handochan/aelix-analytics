@@ -187,7 +187,7 @@ flowchart LR
 
 ## 7. 기록과 도입 순서
 
-현재는 [CONTEXT.md 템플릿](../kit/template/CONTEXT.md)의 ‘정의와 규칙’, 코드, finding 문장에 지표 의미가 분산되어 있다.
+현재는 [CONTEXT.md 템플릿](../kit/labkit/template/CONTEXT.md)의 ‘정의와 규칙’, 코드, finding 문장에 지표 의미가 분산되어 있다.
 독립적인 지표 ID·정의 버전·결과 참조 계약은 없다. 현재 기록에 새 보장이 이미 있는 것처럼 해석하지 않는다.
 
 첫 구조화 구현은 기존 B1의 스키마 전환에 다음을 포함하는 안으로 시작한다.

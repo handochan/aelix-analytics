@@ -25,6 +25,7 @@ import contextlib
 import errno
 import os
 import re
+import shutil
 import signal
 import subprocess
 import sys
@@ -75,9 +76,9 @@ class AtomicFiles(Protocol):
 class ProcessControl(Protocol):
     """Starting, observing and stopping child processes.
 
-    These are primitives, not a lifecycle: they do not wait. The caller keeps its own grace period
-    and its own ordering, because the policy differs between the extension's abort path and the
-    CLI's.
+    These are primitives, not a lifecycle: they do not wait, except `open_document(wait=True)`. The
+    caller keeps its own grace period and its own ordering, because the policy differs between the
+    extension's abort path and the CLI's.
 
     `alive` answers about a pid the kit recorded for itself. It is False for a value that cannot be
     a pid, for no such process, and for a process another user owns: the kit records its own pid as
@@ -97,7 +98,21 @@ class ProcessControl(Protocol):
     it through `RunControl.watch_for_cancel`) and gives it to `interrupt` as `request`; elsewhere it
     passes None. `kill_tree` ends the process with this pid and its descendants without warning. It
     takes a pid rather than the process object because it **may block**, so an event loop calls it
-    off-thread, where an asyncio object must not be touched."""
+    off-thread, where an asyncio object must not be touched.
+
+    `open_document` hands a file to the program the desktop opens documents with. `wait=True` runs
+    it attached to the caller's terminal and returns its exit status (the human CLI, as `bin/lab`
+    does), and raises OSError when there is no such program (FileNotFoundError: none installed).
+    `wait=False` starts it detached from the caller's terminal and returns None (aelix's TUI, which
+    the opener must not draw on); where the program is missing it hands the file's URL to
+    `webbrowser`, as the extension always has — which, without a display, can run a text browser in
+    the caller's terminal.
+
+    `find_program` answers where the program to start is, as an absolute path, or None. A name with a
+    path separator is a path, checked as it stands (`~` expanded); a bare name is looked up where
+    this platform looks for programs, which on Windows is PATH alone — never the working directory,
+    where a project's files are. A symbolic link is not followed: a shim (mise's, for one) is a link
+    to a program that decides what to be from the name it was started by."""
 
     asks_by_request: bool
 
@@ -110,6 +125,10 @@ class ProcessControl(Protocol):
     def interrupt(self, proc, request: Path | None = None) -> bool: ...
 
     def kill_tree(self, pid: int) -> None: ...
+
+    def open_document(self, path: Path, *, wait: bool) -> int | None: ...
+
+    def find_program(self, name: str) -> str | None: ...
 
 
 class RunGuard(Protocol):
@@ -522,9 +541,22 @@ class PosixAtomicFiles:
         os.replace(src, dst)
 
 
+def _absolute(path) -> str:
+    """The path made absolute as it stands. os.path.abspath would also drop `..` by its text, but
+    after a symbolic link `..` is the parent of the link's target: that would name another file."""
+    path = os.fspath(path)
+    return path if os.path.isabs(path) else os.path.join(os.getcwd(), path)
+
+
 class PosixProcessControl:
     # The ask is a signal (see interrupt), so the kit is given no request file.
     asks_by_request = False
+
+    def __init__(self, opener: str = "xdg-open") -> None:
+        # The desktop's document opener: `open` on macOS, `xdg-open` elsewhere; detect() chooses.
+        # Not whichever `open` is on PATH: on a Linux system that can be another program (Debian's
+        # kbd once installed openvt under that name).
+        self.opener = opener
 
     def alive(self, pid: int | str | None) -> bool:
         value = recorded_pid(pid, POSIX_PID_MAX)
@@ -577,6 +609,32 @@ class PosixProcessControl:
         # residual risk, not a promise.
         with contextlib.suppress(ProcessLookupError, OSError):
             os.killpg(pid, signal.SIGKILL)
+
+    def open_document(self, path: Path, *, wait: bool) -> int | None:
+        program = shutil.which(self.opener)
+        if program is None:
+            if wait:
+                raise FileNotFoundError(errno.ENOENT, f"{self.opener} not found", self.opener)
+            import webbrowser  # noqa: PLC0415 - only this fallback needs it
+
+            webbrowser.open(Path(path).resolve().as_uri())
+            return None
+        argv = [program, os.fspath(path)]
+        if wait:
+            return subprocess.call(argv)
+        # Its own session, and none of the caller's descriptors: neither the opener nor a text
+        # browser it may start can read the caller's keyboard, draw on its screen, or get its
+        # terminal's signals.
+        subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL, start_new_session=True)
+        return None
+
+    def find_program(self, name: str) -> str | None:
+        if "/" in name:
+            path = Path(name).expanduser()
+            return _absolute(path) if path.is_file() and os.access(path, os.X_OK) else None
+        found = shutil.which(name)
+        return _absolute(found) if found else None
 
 
 class _PosixGuard(_RunGuard):
@@ -794,6 +852,35 @@ class WindowsProcessControl:
                 return True
         return proc.returncode is not None
 
+    def open_document(self, path: Path, *, wait: bool) -> int | None:
+        # The file goes to the program associated with it, and this returns once that program has
+        # the request: there is nothing to wait for and no status.
+        os.startfile(os.fspath(path))  # type: ignore[attr-defined]  # Windows only
+        return 0 if wait else None
+
+    def find_program(self, name: str) -> str | None:
+        # PATH only, and only an .exe. shutil.which and CreateProcess (for a bare name) look in the
+        # working directory first — 3.11's shutil.which always does — and a program there would
+        # come from a project's files. A .bat or .cmd runs through cmd.exe, which parses its
+        # arguments again, by rules list2cmdline does not quote for (`&` in a title).
+        if "/" in name or "\\" in name:
+            path = Path(name).expanduser()
+            return (os.path.abspath(path) if path.is_file() and path.suffix.lower() == ".exe"
+                    else None)
+        suffix = os.path.splitext(name)[1].lower()
+        if suffix not in ("", ".exe"):
+            return None
+        filename = name if suffix else name + ".exe"
+        for entry in os.environ.get("PATH", "").split(os.pathsep):
+            entry = entry.strip().strip('"')
+            # A relative entry is a directory relative to wherever the caller happens to be.
+            if not entry or not os.path.isabs(entry):
+                continue
+            candidate = Path(entry) / filename
+            if candidate.is_file():
+                return os.path.abspath(candidate)
+        return None
+
     def kill_tree(self, pid: int) -> None:
         # Killing the process leaves its children running, and the child here is `uv`, which has
         # one. `taskkill /T` is the documented way to end the tree. This blocks, so an event loop
@@ -999,7 +1086,9 @@ def detect(name: str | None = None) -> Platform:
     """The bundle for this platform, or for `name` ('posix' or 'windows') when it is given.
 
     `core.PLATFORM` calls this once, when core is imported, for this process; a test calls it with
-    a name to build the other platform's bundle. Nothing chooses an implementation by reading the
+    a name to build the other platform's bundle. The POSIX bundle's document opener follows this
+    machine (`open` on macOS, `xdg-open` elsewhere); a test that wants the other one builds
+    `PosixProcessControl(opener)` itself. Nothing chooses an implementation by reading the
     environment or by importing a module named in a record. Building a bundle does not
     import the operating-system module it will need, so the wiring can be asserted from either
     platform — constructing the Windows bundle on Linux proves nothing about Windows."""
@@ -1008,7 +1097,8 @@ def detect(name: str | None = None) -> Platform:
         return _Bundle("windows", WindowsFileLocks(), WindowsAtomicFiles(),
                        WindowsProcessControl(), WindowsRunControl())
     if chosen == "posix":
-        return _Bundle("posix", PosixFileLocks(), PosixAtomicFiles(), PosixProcessControl(),
+        opener = "open" if sys.platform == "darwin" else "xdg-open"
+        return _Bundle("posix", PosixFileLocks(), PosixAtomicFiles(), PosixProcessControl(opener),
                        PosixRunControl())
     raise ValueError(f"unknown platform {name!r}; expected 'posix' or 'windows'")
 

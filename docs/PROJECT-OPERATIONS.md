@@ -142,7 +142,7 @@ clean commit이면 SHA를 사용한다. dirty 작업은 HEAD 외에 tracked diff
 증거에는 그 스냅샷 경로·해시를 연결한다. 같은 HEAD여도 diff가 바뀌면 이전 검증의 적용 범위를 다시 판단한다.
 문서 링크 검사를 실행/설치/실제 모델 E2E의 통과 증거로 쓰지 않는다. 실패하거나 미실행한 검증을 handoff에서 생략하지 않는다.
 문서 검사는 `uv run --locked python tools/check_docs.py --output .devstate/runs/<run-id>/evidence/docs.json`으로 실행한다.
-검사 도구는 Git의 tracked 파일과 ignore되지 않은 새 문서에서 대상을 고르고, `kit/template/CONTEXT.md`도 포함한다. 삭제된 대상·외부 링크의 제외 범위를 보고서에 남긴다.
+검사 도구는 Git의 tracked 파일과 ignore되지 않은 새 문서에서 대상을 고르고, `kit/labkit/template/CONTEXT.md`도 포함한다. 삭제된 대상·외부 링크의 제외 범위를 보고서에 남긴다.
 보고서의 파일 목록·SHA-256·검사기 해시·명령·HEAD·dirty 정보로 실행 범위를 확인한다. 보고서 출력은 검사 입력을 덮어쓰지 않도록 Git에서 제외된 `.devstate/` 아래에 둔다.
 검증을 다시 실행할 때 이전 handoff가 인용한 증거는 보존하고 새 파일명을 사용한다. `state.json` 등 다른 종류의 기존 파일을 검사 보고서로 덮어쓰는 것은 검사기가 거절한다.
 이전 PR #25의 23개 검사는 템플릿 한 개를 제외한 범위였다. 새 검사의 결과로 당시 검사를 소급 24개 통과로 바꾸지 않는다.

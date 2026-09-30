@@ -77,20 +77,48 @@ aelix -e $PACK/extension/aelix_lab.py
 aelix 안에서: `/lab`(현황) · `/lab open`(리포트) · "지역별 성장률 차트에 플롯 데이터도 기록되게 고쳐줘" 같은 요청.
 
 직접 분석에 필요한 것: [uv](https://docs.astral.sh/uv/)(PATH 또는 `AELIX_LAB_UV`). Aelix 연동에는 추가로 aelix 0.1.0b2 이상이 필요합니다.
-지원 플랫폼은 Linux·macOS·Windows를 목표로 합니다. Linux·macOS·Windows에서 실행한 범위와 Windows의 한계, 아직 실행하지 않은 것(대화형 콘솔, Windows의 실제 aelix 세션, Windows용 `bin/lab`)은 [현재 계약](docs/CONTRACTS.md)의 F·G절에 있습니다.
+지원 플랫폼은 Linux·macOS·Windows를 목표로 합니다. Linux·macOS·Windows에서 실행한 범위와 Windows의 한계, 아직 실행하지 않은 것(대화형 콘솔, Windows의 실제 aelix 세션과 `analytics open`)은 [현재 계약](docs/CONTRACTS.md)의 F·G절에 있습니다.
 분석 라이브러리는 **프로젝트마다 자기 uv 환경**에 설치되며 aelix 환경은 건드리지 않습니다.
+
+## 설치본(wheel)으로 쓰기
+
+체크아웃 없이 쓰는 방법입니다. Windows에서는 이것이 사람용 명령을 얻는 길입니다(`bin/lab`은 POSIX 셸 스크립트).
+배포본은 아직 어디에도 게시하지 않았으므로 체크아웃에서 직접 만듭니다.
+
+```sh
+cd $PACK && uv build                                   # dist/aelix_analytics-0.1.0-py3-none-any.whl
+uv tool install dist/aelix_analytics-0.1.0-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
+uv tool install aelix==0.1.0b2 --with dist/aelix_analytics-0.1.0-py3-none-any.whl   # aelix와 함께
+```
+
+- `analytics`는 명령 이름 말고는 `bin/lab`과 같은 명령·인자·usage를 쓰고 kit의 출력을 바이트 그대로 넘깁니다
+  (`analytics --help`). `bin/lab`이 셸의 오류에 맡기는 경우(uv가 없거나 시작할 수 없을 때, 문서를 여는 프로그램이 없을 때,
+  작업 디렉터리를 읽을 수 없을 때)에는 자기 문구를 냅니다. 종료 코드가 다른 경우를 포함해 측정한 차이는
+  [현재 계약](docs/CONTRACTS.md)의 F절에 있습니다. 이름은 제품 명칭을 따르며, `bin/lab`과 하위 명령의 이름은 명칭
+  전환(#9)에서 바뀝니다. Python 3.11 이상이면 됩니다. 분석은 프로젝트의 uv 환경(Python 3.12 이상)에서 돕니다.
+- aelix 환경에 설치하면 aelix가 entry point로 확장을 찾습니다. `aelix extension verify aelix-analytics`가 `BOUND`를
+  보여 줍니다. `aelix extension install <wheel>`로도 설치할 수 있습니다.
+- aelix와 같은 환경에서 `analytics`도 쓰려면 `uv tool install aelix==0.1.0b2 --with <wheel> --with-executables-from
+  aelix-analytics`처럼 설치합니다. `analytics`를 따로 설치하면 kit이 두 벌이 되므로 둘을 함께 업그레이드하세요.
+- 설치본을 업그레이드한 뒤에는 aelix를 다시 시작하세요(`/reload`로는 새 코드가 로드되지 않습니다).
+- aelix를 다시 설치하면(`install.sh`, `uv tool install --force aelix`) 함께 넣은 이 wheel이 빠집니다. 다시 설치하세요.
+- **체크아웃의 symlink와 함께 두지 마세요.** 아래 `~/.aelix/agent/extensions/aelix_lab.py` symlink가 있으면 aelix는
+  두 사본을 모두 로드합니다. 이 버전 이상의 두 사본은 먼저 로드된 하나만 설정되지만, 이전 버전의 체크아웃은 이를
+  알지 못해 hook이 두 번 돕니다. 설치본으로 옮길 때 symlink를 지우세요.
 
 ## 확장 등록
 
 | 방법 | 명령 | 언제 |
 |---|---|---|
+| 설치본 | 위 "설치본으로 쓰기" | 체크아웃 없이, Windows |
 | 세션 단위 | `aelix -e $PACK/extension/aelix_lab.py [--lab-project DIR]` | 시험·비교할 때 |
 | 전역 등록 | `mkdir -p ~/.aelix/agent/extensions && ln -s $PACK/extension/aelix_lab.py ~/.aelix/agent/extensions/aelix_lab.py` | 계속 쓸 때 (모든 aelix 세션에 도구 6개가 붙음) |
 | 해제 | `rm ~/.aelix/agent/extensions/aelix_lab.py` | |
 
-- **복사하지 말고 symlink** 하세요. 확장 파일이 옆의 `kit/`을 찾습니다. 복사했다면 `AELIX_LAB_KIT=$PACK/kit`.
+- **복사하지 말고 symlink** 하세요. 확장 파일이 옆의 `kit/`을 찾습니다. 복사했다면 `AELIX_LAB_KIT=$PACK/kit`이고, 체크아웃을
+  업데이트할 때마다 다시 복사해야 합니다.
 - `aelix status`로 로드 여부를 확인할 수 있습니다.
-- **디렉터리로 자동 활성화되는 프로젝트는 "내가 만들었거나 고른 것"뿐입니다.** `lab init`·`lab demo`·`/lab use`가
+- **디렉터리로 자동 활성화되는 프로젝트는 "내가 만들었거나 고른 것"뿐입니다.** `lab init`·`lab demo`(설치본은 `analytics init`·`analytics demo`)·`/lab use`가
   프로젝트 경로를 `~/.aelix/agent/lab-projects.json`에 적고, 그 목록에 있는 프로젝트 안에서 aelix를 실행할 때만
   활성화됩니다. 남에게 받은 사본은 `/lab use DIR` 한 번이 필요합니다(그 CONTEXT.md가 프롬프트에 들어가고
   `lab_run`이 그 코드를 실행하기 때문입니다).
@@ -132,7 +160,7 @@ PNG 차트는 모델이 이미지 입력을 받을 때 `lab_run` 결과에 이�
 /lab use DIR              활성 프로젝트 지정
 ```
 
-셸에서는 같은 기능을 `bin/lab`으로 씁니다(`lab status`, `lab run scripts/x.py --title …`, `lab query "SQL"` 등).
+셸에서는 같은 기능을 체크아웃의 `bin/lab`이나 설치본의 `analytics`로 씁니다(`lab status`, `lab run scripts/x.py --title …`, `lab query "SQL"` 등. 설치본에서는 `lab` 자리에 `analytics`).
 
 ### 스크립트 API
 
@@ -236,20 +264,22 @@ my-analysis/
 ```sh
 cd $PACK
 uv sync
-uv run pytest -q                                  # kit: 프로젝트·run·재실행·stale·쿼리·리포트 링크
+uv run pytest -q                                  # kit, 런처, 배포본(wheel을 빌드해 새 환경에 설치)
 /Users/handochan/dev/aelix-ai/.venv/bin/python -m pytest -q -p no:cacheprovider tests/test_extension.py -o addopts=""
-uv run ruff check kit tests extension
+AELIX_ANALYTICS_TEST_INSTALL=1 uv run pytest -q tests/test_packaging.py   # aelix 0.1.0b2와 실제 uv로 끝까지 (네트워크)
+uv run ruff check kit tests extension src tools
 ```
 
 ```text
-extension/aelix_lab.py    aelix 확장 (stdlib + aelix API, kit/labkit의 core·_platform을 경로로 로드)
+src/aelix_analytics/      배포본의 package: cli.py(`analytics` 런처), _install.py(설치된 kit 찾기), aelix-plugin.toml
+extension/aelix_lab.py    aelix 확장 (stdlib + aelix API, kit/labkit의 core·_platform을 경로로 로드; 설치본의 aelix_analytics/extension.py)
 kit/labkit/core.py        프로젝트 모델 — stdlib만 (확장과 kit이 공유)
 kit/labkit/_platform.py   플랫폼별 잠금·교체·프로세스·run 중단 — stdlib만 (core와 함께 로드)
 kit/labkit/runner.py      run 실행과 기록        capture.py  입력·차트 캡처 훅
 kit/labkit/data.py        import·프로파일·쿼리    report.py   HTML 리포트 (+ assets/)
 kit/labkit/__init__.py    스크립트 API           __main__.py kit CLI (끝 줄이 JSON)
-kit/labkit/demo.py        데모 데이터·run        kit/template/  새 프로젝트 파일
-bin/lab                   사람용 CLI
+kit/labkit/demo.py        데모 데이터·run        kit/labkit/template/  새 프로젝트 파일
+bin/lab                   사람용 CLI (체크아웃, POSIX)
 ```
 
 2026-09-16 확인: kit 39 passed, extension 10 passed(실제 aelix 로더 등록, uv 환경의 import·query·run·재실행·취소 포함).
@@ -263,3 +293,7 @@ bin/lab                   사람용 CLI
 `lab_note(refs=["차트-id"])`가 링크되지 않던 문제(짧은 차트 id → `script.py::id` 해석),
 차트 이미지 3장 상한 무고지, `lab_import`의 UUID→Binary·중첩 JSON(경고와 텍스트 변환),
 이미 import한 외부 입력을 계속 읽을 때의 안내, 생성 run이 없는 데이터셋 표시, CONTEXT.md 주입 한도 경고.
+
+## 라이선스
+
+[Apache License 2.0](LICENSE).

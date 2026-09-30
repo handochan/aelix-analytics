@@ -190,6 +190,14 @@ def test_detect_picks_this_platform_and_can_be_asked_for_either():
         _platform.detect("bsd")
 
 
+def test_the_posix_document_opener_is_chosen_where_the_bundle_is_built(monkeypatch):
+    # Not whichever `open` is on PATH: on Linux that can be another program (ADR-0004).
+    monkeypatch.setattr(_platform.sys, "platform", "darwin")
+    assert _platform.detect("posix").processes.opener == "open"
+    monkeypatch.setattr(_platform.sys, "platform", "linux")
+    assert _platform.detect("posix").processes.opener == "xdg-open"
+
+
 def test_building_the_windows_bundle_does_not_import_its_operating_system_module():
     # So the wiring can be asserted from any platform. It proves nothing about Windows behaviour.
     sys.modules.pop("msvcrt", None)
@@ -337,6 +345,124 @@ def test_windows_asks_the_kit_through_its_request_file_and_nothing_else(tmp_path
     # A child that has exited leaves nothing to ask (review 7, stop-4): the caller waits, and does
     # not end the tree at once.
     assert control.interrupt(types.SimpleNamespace(pid=4242, returncode=0)) is True
+
+
+# --- opening a document, finding a program (ADR-0004) --------------------------------------------------
+
+@pytest.mark.skipif(os.name == "nt", reason="a POSIX shell script stands in for the opener")
+def test_posix_open_document_runs_the_opener_attached_or_detached(tmp_path, monkeypatch):
+    opened = tmp_path / "opened.txt"
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    opener = bin_dir / "fake-open"
+    opener.write_text(f"#!/bin/sh\nprintf '%s\\n' \"$1\" >> '{opened}'\nexit 7\n",
+                      encoding="utf-8")
+    opener.chmod(0o755)
+    monkeypatch.setenv("PATH", str(bin_dir))
+    control = _platform.PosixProcessControl("fake-open")
+    document = tmp_path / "report" / "index.html"
+    assert control.open_document(document, wait=True) == 7
+    assert control.open_document(document, wait=False) is None
+    deadline = time.monotonic() + 30
+    while (not opened.exists() or len(opened.read_text(encoding="utf-8").splitlines()) < 2) \
+            and time.monotonic() < deadline:
+        time.sleep(0.02)
+    assert opened.read_text(encoding="utf-8").splitlines() == [str(document), str(document)]
+
+
+def test_posix_open_document_without_an_opener(tmp_path, monkeypatch):
+    """The human CLI reports it; the extension keeps main's webbrowser route (review of design
+    revision 1, Codex F7)."""
+    import webbrowser
+
+    monkeypatch.setenv("PATH", str(tmp_path / "empty"))
+    control = _platform.PosixProcessControl("no-such-opener")
+    document = tmp_path / "index.html"
+    with pytest.raises(FileNotFoundError):
+        control.open_document(document, wait=True)
+    handed = []
+    monkeypatch.setattr(webbrowser, "open", lambda url: handed.append(url) or True)
+    assert control.open_document(document, wait=False) is None
+    assert handed == [document.resolve().as_uri()]
+
+
+def test_windows_open_document_hands_the_file_to_its_program(monkeypatch, tmp_path):
+    # Written for Windows; os.startfile is stood in for, so this proves the wiring, not Windows.
+    started = []
+    monkeypatch.setattr(_platform.os, "startfile", started.append, raising=False)
+    control = _platform.WindowsProcessControl()
+    document = tmp_path / "index.html"
+    assert control.open_document(document, wait=True) == 0
+    assert control.open_document(document, wait=False) is None
+    assert started == [str(document), str(document)]
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX executables and HOME")
+def test_posix_find_program_keeps_the_extension_s_old_uv_rule(tmp_path, monkeypatch):
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    program = bin_dir / "uv"
+    program.write_text("#!/bin/sh\n", encoding="utf-8")
+    program.chmod(0o755)
+    plain = bin_dir / "plain"
+    plain.write_text("x", encoding="utf-8")
+    plain.chmod(0o644)
+    (bin_dir / "a-directory").mkdir()
+    monkeypatch.setenv("PATH", str(bin_dir))
+    monkeypatch.setenv("HOME", str(tmp_path))
+    control = _platform.PosixProcessControl()
+    assert control.find_program("uv") == os.path.abspath(program)
+    assert control.find_program(str(program)) == os.path.abspath(program)
+    assert control.find_program("~/bin/uv") == os.path.abspath(program)
+    # A shim is a link whose target decides what to be by the name it was started by (critic-1 of
+    # the design review: a mise shim resolved to mise itself).
+    shim = bin_dir / "shimmed"
+    shim.symlink_to(program)
+    assert control.find_program("shimmed") == os.path.abspath(shim)
+    assert control.find_program(str(shim)) == os.path.abspath(shim)
+    for missing in (str(plain), str(bin_dir / "a-directory"), "no-such-program",
+                    str(tmp_path / "nowhere" / "uv")):
+        assert control.find_program(missing) is None
+    # After a link, `..` is the parent of the link's target; collapsed by its text it named a
+    # file that is not there (review of 7cfe851, launcher-2). The path is kept as it stands.
+    (tmp_path / "real" / "sub").mkdir(parents=True)
+    real = tmp_path / "real" / "uv"
+    real.write_text("#!/bin/sh\n", encoding="utf-8")
+    real.chmod(0o755)
+    (tmp_path / "link").symlink_to(tmp_path / "real" / "sub")
+    through = f"{tmp_path}/link/../uv"
+    assert control.find_program(through) == through
+    monkeypatch.chdir(tmp_path)
+    assert control.find_program("link/../uv") == os.path.join(os.getcwd(), "link/../uv")
+    monkeypatch.setenv("PATH", f"{tmp_path}/link/..")
+    assert control.find_program("uv") == through
+    monkeypatch.chdir(bin_dir)
+    monkeypatch.setenv("PATH", str(tmp_path / "empty"))
+    assert control.find_program("uv") is None, "the working directory is not searched"
+
+
+def test_windows_find_program_takes_an_exe_from_path_and_never_the_working_directory(tmp_path,
+                                                                                    monkeypatch):
+    """Written for Windows, simulated with this platform's paths: it exercises the rule, not
+    Windows' file system (review of design revision 1, Codex F9: an explicit path is held to it
+    too)."""
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    for name in ("uv.exe", "uv.cmd", "uv.bat"):
+        (tools / name).write_text("", encoding="utf-8")
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "uv.exe").write_text("", encoding="utf-8")
+    monkeypatch.chdir(project)
+    control = _platform.WindowsProcessControl()
+    monkeypatch.setenv("PATH", os.pathsep.join(["", ".", "relative", f'"{tools}"']))
+    assert control.find_program("uv") == os.path.abspath(tools / "uv.exe")
+    assert control.find_program("uv.exe") == os.path.abspath(tools / "uv.exe")
+    assert control.find_program("uv.cmd") is None and control.find_program("uv.bat") is None
+    assert control.find_program(str(tools / "uv.exe")) == os.path.abspath(tools / "uv.exe")
+    assert control.find_program(str(tools / "uv.cmd")) is None
+    monkeypatch.setenv("PATH", os.pathsep.join(["", ".", "relative"]))
+    assert control.find_program("uv") is None, "not the uv.exe in the working directory"
 
 
 def test_posix_asks_with_sigint_and_never_signals_a_reaped_child(monkeypatch, tmp_path):
@@ -1666,7 +1792,7 @@ def _stable(value):
 
 def _representative_flow(root: Path, source: Path, platform) -> dict:
     """Create a project, import data, write a journal entry and read the project back."""
-    project = core.init_project(root, title="이식 경계", goal="목표", template_dir=KIT / "template",
+    project = core.init_project(root, title="이식 경계", goal="목표", template_dir=KIT / "labkit" / "template",
                                 actor="test", platform=platform)
     from labkit import data  # noqa: PLC0415 - needs the analysis libraries, unlike core
 
@@ -1706,7 +1832,7 @@ def test_a_run_goes_through_the_injected_platform_too(tmp_path, real_ports_refus
     from labkit import runner  # noqa: PLC0415 - needs the analysis libraries
 
     fake, calls = recording_platform()
-    project = core.init_project(tmp_path / "p", title="실행 경계", template_dir=KIT / "template",
+    project = core.init_project(tmp_path / "p", title="실행 경계", template_dir=KIT / "labkit" / "template",
                                 actor="test", platform=fake)
     project.scripts.mkdir(parents=True, exist_ok=True)
     (project.scripts / "01_min.py").write_text("print('ok')\n", encoding="utf-8")
@@ -1728,7 +1854,7 @@ def test_a_run_goes_through_the_injected_platform_too(tmp_path, real_ports_refus
 
 def test_the_hash_cache_writes_through_the_project_platform(tmp_path, real_ports_refuse):
     fake, calls = recording_platform()
-    project = core.init_project(tmp_path / "p", title="캐시", template_dir=KIT / "template",
+    project = core.init_project(tmp_path / "p", title="캐시", template_dir=KIT / "labkit" / "template",
                                 actor="test", platform=fake)
     cache = core.HashCache(project)
     assert cache.sha(project.marker)  # marks the cache dirty
@@ -1738,7 +1864,7 @@ def test_the_hash_cache_writes_through_the_project_platform(tmp_path, real_ports
 
 def test_a_run_is_listed_through_the_project_platform(tmp_path, real_ports_refuse):
     fake, calls = recording_platform()
-    project = core.init_project(tmp_path / "p", title="실행 목록", template_dir=KIT / "template",
+    project = core.init_project(tmp_path / "p", title="실행 목록", template_dir=KIT / "labkit" / "template",
                                 actor="test", platform=fake)
     run_dir = project.runs / "20260922-101010-x"
     run_dir.mkdir(parents=True)
@@ -2259,6 +2385,164 @@ def load_extension(monkeypatch, name: str):
 ANALYSIS_MODULES = ("polars", "duckdb", "matplotlib", "plotly", "pyarrow", "numpy")
 
 
+def test_a_checkout_file_finds_the_kit_next_to_it(monkeypatch):
+    monkeypatch.delenv("AELIX_LAB_KIT", raising=False)
+    module = load_extension(monkeypatch, "ext_route")
+    assert (module.KIT, module.KIT_ROUTE) == (KIT.resolve(), "checkout")
+
+
+def test_a_file_name_with_dots_is_still_a_checkout_file(monkeypatch):
+    # Review of design revision 1, dist-6 and kit-5: deciding the route by __package__ sent a
+    # dotted name (`-e extension.aelix_lab`, a symlink named aelix_lab.v2.py) to the installed one.
+    monkeypatch.delenv("AELIX_LAB_KIT", raising=False)
+    module = load_extension(monkeypatch, "extension.aelix_lab")
+    assert (module.KIT, module.KIT_ROUTE) == (KIT.resolve(), "checkout")
+
+
+def test_the_installed_module_runs_the_kit_installed_with_it(monkeypatch, tmp_path):
+    import aelix_analytics._install
+
+    monkeypatch.setattr(aelix_analytics._install, "kit_dir", lambda: KIT.resolve())
+    monkeypatch.setenv("AELIX_LAB_KIT", str(tmp_path / "another-kit"))  # not followed here
+    module = load_extension(monkeypatch, "aelix_analytics.extension")
+    assert (module.KIT, module.KIT_ROUTE) == (KIT.resolve(), "installed")
+
+
+@pytest.mark.skipif(os.name == "nt", reason="a symbolic link to the kit")
+def test_the_installed_module_loaded_as_a_file_finds_the_kit_beside_it(monkeypatch, tmp_path):
+    package = tmp_path / "aelix_analytics"
+    package.mkdir()
+    (package / "extension.py").write_bytes(EXT.read_bytes())
+    (package / "kit").symlink_to(KIT, target_is_directory=True)
+    monkeypatch.delenv("AELIX_LAB_KIT", raising=False)
+    for key, value in _aelix_stubs().items():
+        monkeypatch.setitem(sys.modules, key, value)
+    spec = importlib.util.spec_from_file_location("_aelix_ext_extension", package / "extension.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert (module.KIT, module.KIT_ROUTE) == ((package / "kit").resolve(), "installed file")
+
+
+def test_each_runtime_starts_the_extension_s_state_over(monkeypatch):
+    """Review of design revision 1, dist-1: aelix sets extensions up again for every session it
+    builds, and the installed module keeps its globals across them. A /lab note before a new
+    session's first prompt recorded the previous session's file."""
+    module = load_extension(monkeypatch, "ext_rebuilt")
+    module.setup(_Api(_EventBus()))
+    module.STATE.update({"session": "/sessions/A.jsonl", "project": "/somewhere"})
+    module.setup(_Api(_EventBus()))
+    assert module.STATE["session"] is None and module.STATE["project"] is None
+
+
+class _EventBus:
+    """aelix's ExtensionAPI.events: synchronous, one per runtime, shared by its extensions."""
+
+    def __init__(self) -> None:
+        self.handlers: dict = {}
+
+    def emit(self, channel, data=None) -> None:
+        for handler in list(self.handlers.get(channel, ())):
+            handler(data)
+
+    def on(self, channel, handler):
+        self.handlers.setdefault(channel, []).append(handler)
+        return lambda: self.handlers[channel].remove(handler)
+
+
+class _Api:
+    def __init__(self, events=None, fail_on_tool: int | None = None) -> None:
+        if events is not None:
+            self.events = events
+        self.registered: list = []
+        self._fail_on_tool = fail_on_tool
+
+    def register_flag(self, name, **kwargs):
+        self.registered.append(("flag", name))
+
+    def register_tool(self, tool):
+        if self._fail_on_tool is not None and len(self.tools()) == self._fail_on_tool:
+            raise RuntimeError("setup failed part way")
+        self.registered.append(("tool", tool.name))
+
+    def register_command(self, name, **kwargs):
+        self.registered.append(("command", name))
+
+    def on(self, event, handler):
+        self.registered.append(("on", event))
+
+    def tools(self) -> list:
+        return [name for kind, name in self.registered if kind == "tool"]
+
+
+def test_a_second_copy_in_one_runtime_is_not_set_up(monkeypatch, capsys):
+    """A checkout's symlink or -e beside the installed package is two copies to aelix, which would
+    fire both copies' hooks (ADR-0004)."""
+    first = load_extension(monkeypatch, "ext_copy_one")
+    second = load_extension(monkeypatch, "ext_copy_two")
+    bus = _EventBus()
+    active, extra = _Api(bus), _Api(bus)
+    first.setup(active)
+    second.setup(extra)
+    assert len(active.tools()) == 6 and ("command", "lab") in active.registered
+    assert extra.registered == []
+    assert "is not set up: this aelix already loaded" in capsys.readouterr().err
+    # Another runtime has another bus: a copy is set up there.
+    elsewhere = _Api(_EventBus())
+    second.setup(elsewhere)
+    assert len(elsewhere.tools()) == 6
+
+
+def test_a_copy_whose_setup_failed_does_not_keep_the_next_one_out(monkeypatch):
+    # Review of design revision 1, Codex F3: answering before registering could suppress the only
+    # working copy.
+    first = load_extension(monkeypatch, "ext_fails")
+    second = load_extension(monkeypatch, "ext_works")
+    bus = _EventBus()
+    with pytest.raises(RuntimeError, match="part way"):
+        first.setup(_Api(bus, fail_on_tool=3))
+    works = _Api(bus)
+    second.setup(works)
+    assert len(works.tools()) == 6
+
+
+def test_a_host_without_an_event_bus_sets_the_extension_up_as_before(monkeypatch):
+    module = load_extension(monkeypatch, "ext_no_bus")
+    api = _Api()
+    module.setup(api)
+    assert len(api.tools()) == 6
+
+
+def _open_through_lab_command(module, project_root):
+    import asyncio
+
+    (project_root / "report").mkdir(exist_ok=True)
+    (project_root / "report" / "index.html").write_text("<html>", encoding="utf-8")
+    return asyncio.run(module.lab_command("open"))
+
+
+def test_lab_open_hands_the_report_to_the_platform_detached(monkeypatch, project):
+    module = load_extension(monkeypatch, "ext_open")
+    monkeypatch.setenv("AELIX_LAB_PROJECT", str(project))
+    handed = []
+    monkeypatch.setattr(module.core.PLATFORM.processes, "open_document",
+                        lambda path, *, wait: handed.append((Path(path), wait)))
+    answer = _open_through_lab_command(module, project)
+    assert handed == [(project / "report" / "index.html", False)]
+    assert answer.startswith("opened ")
+
+
+def test_lab_open_says_so_when_nothing_can_open_the_report(monkeypatch, project):
+    module = load_extension(monkeypatch, "ext_cannot_open")
+    monkeypatch.setenv("AELIX_LAB_PROJECT", str(project))
+
+    def cannot(path, *, wait):
+        raise OSError("no application is associated with this file")
+
+    monkeypatch.setattr(module.core.PLATFORM.processes, "open_document", cannot)
+    answer = _open_through_lab_command(module, project)
+    assert answer.startswith("could not open ") and "yourself" in answer
+
+
 def test_the_extension_loads_the_kit_without_leaving_module_names_behind(monkeypatch):
     before = {k for k in sys.modules if k.startswith("aelix_lab_kit")}
     first = load_extension(monkeypatch, "ext_one")
@@ -2471,7 +2755,7 @@ def _stand_in_kit(ext, monkeypatch, tmp_path, *, delay):
         return proc
 
     monkeypatch.setattr(ext.asyncio, "create_subprocess_exec", stand_in)
-    monkeypatch.setattr(ext, "resolve_uv", lambda: "uv")
+    monkeypatch.setattr(ext, "resolve_uv", lambda processes=None: "uv")
     return marker, started
 
 
@@ -2831,7 +3115,7 @@ def test_the_extension_uses_the_process_control_of_the_project_it_was_given(monk
     bundle = types.SimpleNamespace(name="recording", processes=seen,
                                    locks=_platform.detect().locks, files=_platform.detect().files,
                                    runs=_platform.detect().runs)
-    monkeypatch.setattr(ext, "resolve_uv", lambda: sys.executable)  # `python run ...` fails at once
+    monkeypatch.setattr(ext, "resolve_uv", lambda processes=None: sys.executable)  # `python run ...` fails at once
     ok, _ = asyncio.run(ext.run_kit(ext.core.Project(project, platform=bundle), ["status"],
                                     timeout=60))
     assert not ok
@@ -3144,7 +3428,7 @@ def test_a_signal_at_sampled_check_points_of_a_run_never_loses_its_record(tmp_pa
         # A project per run: in a shared one each run goes through more points than the last,
         # and a sample fixed in advance would drift off the end of the shorter runs.
         project_ = core.init_project(tmp_path / f"p{n}", title="t", actor="test",
-                                     template_dir=KIT / "template")
+                                     template_dir=KIT / "labkit" / "template")
         (project_.scripts / "a.py").write_text("x = 1\n", encoding="utf-8")
         injector.arm(target)
         delivered_at.clear()
@@ -3547,7 +3831,7 @@ TEMPFILES = frozenset({"TemporaryFile", "NamedTemporaryFile", "SpooledTemporaryF
 SUBPROCESS_DECODING = frozenset({"run", "Popen", "check_output"})
 SUBPROCESS_ALWAYS_TEXT = frozenset({"getoutput", "getstatusoutput"})
 TEXT_MODE_KWARGS = ("text", "universal_newlines")
-SOURCE_DIRS = ("kit", "extension", "tools")
+SOURCE_DIRS = ("kit", "extension", "tools", "src")
 
 
 def _receiver(func: ast.AST) -> str:
@@ -3667,8 +3951,11 @@ def test_the_shipped_code_names_the_encoding_of_every_text_call_the_scan_knows()
     """A locale-dependent default turns Korean records into an exception on a Windows machine, and
     reconfiguring this process's streams does not reach a child's pipe or a file.
 
-    Scope, deliberately: the Python of `kit`, `extension` and `tools`. `tests/` is PR-3's cleanup,
-    `bin/lab` is PR-2's entry-point work, and the template files are not Python."""
+    Scope, deliberately: the Python of `kit`, `extension`, `tools` and `src` (the distribution's
+    `analytics` launcher). `tests/` is PR-3's cleanup, `bin/lab` is shell, and the template files
+    are not Python. A directory that is not there would make the scan pass on nothing, so that fails."""
+    missing = [d for d in SOURCE_DIRS if not (PACK / d).is_dir()]
+    assert not missing, f"the scan's directories moved: {missing}"
     paths = [p for directory in SOURCE_DIRS
              for p in sorted((PACK / directory).rglob("*.py")) if "__pycache__" not in p.parts]
     offenders = unencoded_text_calls(paths)
@@ -5498,3 +5785,28 @@ def test_the_cli_ends_after_its_result_line_though_a_leftover_thread_blocks_writ
     assert isinstance(result, dict) and result.get("ok") is True, got["out"][-3000:]
     assert ended, "the CLI did not end after its result line"
     assert proc.returncode == 0, proc.returncode
+
+
+def test_the_extension_creates_projects_from_the_kit_s_own_template(monkeypatch, tmp_path):
+    """Review of design revision 1, kit-1: the adapter's lab_init and /lab init computed the
+    template's place themselves, and no check called them."""
+    import asyncio
+
+    module = load_extension(monkeypatch, "ext_init")
+
+    async def synced(project):
+        return True, "a stand-in for uv sync"
+
+    async def kit(project, args, **kwargs):
+        return True, {"ok": True}
+
+    monkeypatch.setattr(module, "sync_environment", synced)
+    monkeypatch.setattr(module, "run_kit", kit)
+    text, value = asyncio.run(module.tool_init({"path": str(tmp_path / "by-agent"), "title": "t"},
+                                               None))
+    assert value["synced"] is True, text
+    answer = asyncio.run(module.lab_command(f"init {tmp_path / 'by-human'} 제목"))
+    assert answer.startswith("created "), answer
+    for root in (tmp_path / "by-agent", tmp_path / "by-human"):
+        for name in ("CONTEXT.md", "pyproject.toml", ".gitignore", "lab.json", "journal.jsonl"):
+            assert (root / name).is_file(), (root, name)

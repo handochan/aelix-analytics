@@ -19,12 +19,13 @@ import json
 import os
 import shutil
 from collections import Counter, defaultdict
+from importlib import resources
 from pathlib import Path
 from urllib.parse import quote
 
 from . import _platform, core
 
-ASSETS = Path(__file__).resolve().parent / "assets"
+ASSETS = resources.files(__package__) / "assets"
 PLOTLY_EMBED_LIMIT = 3_000_000
 LOG_LIMIT = 200_000
 # A run over hundreds of files would otherwise bury the timeline and its own page in paths.
@@ -467,9 +468,12 @@ def _write_assets(site: Site, out: Path) -> None:
     assets = out / "assets"
     assets.mkdir(parents=True, exist_ok=True)
     for name in ("report.css", "report.js"):
-        shutil.copyfile(ASSETS / name, assets / name)
+        with resources.as_file(ASSETS / name) as source:
+            shutil.copyfile(source, assets / name)
     code_css = assets / "code.css"
-    if not code_css.is_file() or code_css.stat().st_mtime < (ASSETS / "report.css").stat().st_mtime:
+    with resources.as_file(ASSETS / "report.css") as css:
+        stale = not code_css.is_file() or code_css.stat().st_mtime < css.stat().st_mtime
+    if stale:
         with contextlib.suppress(Exception):
             from pygments.formatters import HtmlFormatter
 
@@ -479,8 +483,6 @@ def _write_assets(site: Site, out: Path) -> None:
                                 encoding="utf-8")
     if any((c.get("files") or {}).get("plotly") for r in site.runs for c in r.get("charts") or []):
         with contextlib.suppress(Exception):
-            from importlib import resources
-
             src = resources.files("plotly") / "package_data" / "plotly.min.js"
             dest = assets / "plotly.min.js"
             data = src.read_bytes()

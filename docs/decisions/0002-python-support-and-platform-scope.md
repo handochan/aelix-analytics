@@ -3,8 +3,12 @@
 Date: 2026-09-21
 
 Status: Accepted (2026-09-21) — [Issue #5](https://github.com/handochan/aelix-analytics/issues/5)에서 사용자가 채택했다.
-지원 플랫폼은 Linux·macOS·Windows다. 채택은 결정의 확정이며 구현 완료가 아니다. 아래 결정은 아직 코드에 적용되지 않았고,
-구현과 검증은 [#8](https://github.com/handochan/aelix-analytics/issues/8)에서 수행한다.
+지원 플랫폼은 Linux·macOS·Windows다. 채택은 결정의 확정이며 구현 완료가 아니다. 구현과 검증은
+[#8](https://github.com/handochan/aelix-analytics/issues/8)에서 수행한다: 결정 5는 첫 PR([ADR-0003](0003-portable-boundaries-and-in-process-kit-loading.md)),
+결정 2·4·6·7은 두 번째 PR([ADR-0004](0004-minimal-distribution-and-entry-points.md))에서 적용했다. ADR-0004는 결정 6을
+이렇게 구현했다: `bin/lab`은 체크아웃의 POSIX 래퍼로 두고, 같은 계약의 `analytics` 런처(제품 명칭의 CLI 이름)는 Windows를 포함한 모든 플랫폼에서
+설치본의 명령이 된다. 아래 "구현에서 확인할 것" 1을 어떻게 읽었는지도 ADR-0004에 있으며, 소유자가 그
+해석을 확인했다(2026-09-30).
 현재 코드가 실제로 하는 것은 [현재 계약](../CONTRACTS.md)의 "실행 환경과 지원 플랫폼" 절에 있다.
 채택 후 독립 리뷰에서 근거 과장과 인벤토리 누락을 지적받아 측정 근거·장애 범주·대안·결정 5·6을 개정했다. 결정의 방향은 바뀌지 않았다.
 
@@ -115,7 +119,7 @@ PEP 695와 `itertools.batched`가 없다는 것도 전수 호환성 검사가 �
 - 진입점 하한을 낮추면 검증 대상 조합이 늘어난다. CI 매트릭스는 [#22](https://github.com/handochan/aelix-analytics/issues/22)에서 다룬다.
 - 파일 잠금의 의미는 플랫폼마다 다르다. 동시 실행 시험을 세 플랫폼에서 각각 수행해야 하며,
   한 플랫폼의 통과를 다른 플랫폼의 결과로 옮기지 않는다.
-- 채택했지만 구현 전이므로 이 ADR의 결정은 아직 현재 동작이 아니다. [현재 계약](../CONTRACTS.md)의
+- 채택은 구현이 아니다. 어느 결정을 적용했는지는 위의 상태에 적는다. [현재 계약](../CONTRACTS.md)의
   "실행 환경과 지원 플랫폼" 절이 현재 코드를 기술하며, 구현이 진행되는 대로 그 절을 함께 갱신한다.
 
 ## 구현에서 확인할 것

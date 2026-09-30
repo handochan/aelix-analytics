@@ -1,14 +1,18 @@
 """Aelix Analytics: analysis extension built only from the basic aelix extension contract.
 (setup, register_flag, register_tool, register_command, on).
 
-Load for one session:   aelix -e <pack>/extension/aelix_lab.py [--lab-project DIR]
-Register globally:      ln -s <pack>/extension/aelix_lab.py ~/.aelix/agent/extensions/aelix_lab.py
+Installed (the aelix-analytics wheel in aelix's environment): aelix finds it through the
+`aelix.extensions` entry point, as the module aelix_analytics.extension, with its manifest.
+From a checkout, for one session:  aelix -e <pack>/extension/aelix_lab.py [--lab-project DIR]
+From a checkout, globally:         ln -s <pack>/extension/aelix_lab.py ~/.aelix/agent/extensions/aelix_lab.py
+Use one of these at a time: a second copy in the same aelix does not set itself up (see setup).
 
-Inside aelix this file imports only the standard library, the aelix API and the pack's stdlib-only
-kit/labkit/core.py with its _platform sibling (loaded from the pack, so symlink this file rather
-than copying it). Analysis code never runs in the aelix process: lab_run, lab_import, lab_query and
-report builds are `uv run --project <project> python -m labkit ...` subprocesses in the project's
-own environment.
+Inside aelix this file imports only the standard library, the aelix API and the kit's stdlib-only
+labkit/core.py with its _platform sibling — installed, also its own package and the stdlib-only
+aelix_analytics._install, which says where the kit is. From a checkout the kit is the one next to
+it (so symlink this file in a checkout rather than copying it). Analysis code never runs in the
+aelix process: lab_run, lab_import, lab_query and report builds are
+`uv run --project <project> python -m labkit ...` subprocesses in the project's own environment.
 Neither side is a sandbox, and aelix does not ask for approval before extension tools run.
 """
 
@@ -33,8 +37,31 @@ from aelix_agent_core.types import AgentTool
 from aelix_ai.messages import ImageContent, TextContent
 from aelix_ai.tools import ToolExecutionContext, ToolResult
 
-PACK = Path(__file__).resolve().parents[1]
-KIT = Path(os.environ.get("AELIX_LAB_KIT") or PACK / "kit").expanduser().resolve()
+
+def _kit() -> tuple[Path, str]:
+    """(the kit directory, how it was found). The kit is where `labkit` is: children get exactly
+    this directory on PYTHONPATH, and core.py and _platform.py are loaded from it."""
+    if __name__ == "aelix_analytics.extension":
+        # Imported by name from the installed distribution (its `aelix.extensions` entry point, or
+        # `aelix -e aelix_analytics.extension`). It runs the kit installed with it, found through
+        # importlib.resources, as the installed `analytics` command does: an adapter and a kit of
+        # different versions would not fit each other.
+        from aelix_analytics._install import kit_dir
+
+        return kit_dir(), "installed"
+    configured = os.environ.get("AELIX_LAB_KIT")
+    if configured:
+        return Path(configured).expanduser().resolve(), "AELIX_LAB_KIT"
+    here = Path(__file__).resolve().parent
+    if (here / "kit" / "labkit" / "core.py").is_file():
+        # The installed module loaded as a file (`aelix -e <site-packages>/aelix_analytics/extension.py`).
+        return (here / "kit").resolve(), "installed file"
+    # A checkout's extension/aelix_lab.py, loaded as a file (`aelix -e`, or a symlink in aelix's
+    # extensions directory): its kit is next to its directory.
+    return (here.parent / "kit").resolve(), "checkout"
+
+
+KIT, KIT_ROUTE = _kit()
 
 
 def _load_core():
@@ -50,9 +77,12 @@ def _load_core():
     """
     path = KIT / "labkit" / "core.py"
     if not path.is_file():
-        raise RuntimeError(
-            f"aelix-analytics: kit not found at {path}. Symlink extension/aelix_lab.py "
-            "instead of copying it, or set AELIX_LAB_KIT=<pack>/kit.")
+        remedy = {"AELIX_LAB_KIT": "Point AELIX_LAB_KIT at a directory that holds labkit/, or unset it.",
+                  "checkout": "Symlink extension/aelix_lab.py instead of copying it, or set "
+                              "AELIX_LAB_KIT=<pack>/kit.",
+                  "installed file": "Reinstall the aelix-analytics package.",
+                  "installed": "Reinstall the aelix-analytics package."}[KIT_ROUTE]
+        raise RuntimeError(f"aelix-analytics: kit not found at {path}. {remedy}")
     package = f"aelix_lab_kit_{hashlib.sha256(str(KIT).encode()).hexdigest()[:12]}"
     spec = importlib.machinery.ModuleSpec(package, None, is_package=True)
     spec.submodule_search_locations = [str(path.parent)]
@@ -87,7 +117,8 @@ ENV_ALLOW = ("PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "LC_ALL", "LC_C
 SECRET_NAME = re.compile(r"TOKEN|SECRET|PASSWORD|CREDENTIAL|_KEY$", re.IGNORECASE)
 PYTHON_IN_SHELL = re.compile(r"(^|[\s;&|(`])(python3?(\.\d+)?|uv\s+run|pip3?|ipython|jupyter)\b")
 
-# Plain module-level state: the aelix file loader does not register this module in sys.modules.
+# Module-level state of one aelix runtime. setup() starts it over: the file loader makes a new module
+# for every session aelix builds, but the installed module is imported once per process.
 STATE = {"api": None, "project": None, "session": None, "starts": {}, "report_tasks": {}}
 
 NO_PROJECT = ("No analysis lab project is active (checked /lab use, --lab-project, AELIX_LAB_PROJECT, "
@@ -146,19 +177,15 @@ def _resolve_project():
                              "human can run /lab init DIR or /lab use DIR")
 
 
-def resolve_uv() -> str:
-    configured = os.environ.get("AELIX_LAB_UV")
-    if configured and os.sep in configured:
-        path = Path(configured).expanduser()
-        if path.is_file() and os.access(path, os.X_OK):
-            return str(path.resolve())
-        found = None
-    else:
-        found = shutil.which(configured or "uv")
+def resolve_uv(processes=None) -> str:
+    """AELIX_LAB_UV (a path, or a name) or `uv`, found where the platform looks for programs
+    (ProcessControl.find_program: on Windows PATH alone, never the working directory)."""
+    processes = processes or core.PLATFORM.processes
+    found = processes.find_program(os.environ.get("AELIX_LAB_UV") or "uv")
     if not found:
         raise core.LabError("uv_missing", "uv was not found",
                             hint="install uv (https://docs.astral.sh/uv/) or set AELIX_LAB_UV=/path/to/uv")
-    return str(Path(found).resolve())
+    return found
 
 
 def child_env(processes, actor: str) -> dict:
@@ -289,7 +316,7 @@ async def run_kit(project, args, *, timeout: float, actor: str = "agent"):
     """Run `python -m labkit` in the project's environment. Returns (ok, result object)."""
     processes = project.platform.processes
     try:
-        uv = resolve_uv()
+        uv = resolve_uv(processes)
         argv = [uv, "run", "--project", str(project.root), "--quiet", "python", "-m", "labkit",
                 "--project", str(project.root), *args]
         # Only where the platform asks through it: POSIX asks with a signal and needs no file.
@@ -324,8 +351,8 @@ async def run_kit(project, args, *, timeout: float, actor: str = "agent"):
 
 
 async def sync_environment(project):
-    uv = resolve_uv()
     processes = project.platform.processes
+    uv = resolve_uv(processes)
     env = child_env(processes, "system")
     last = b""
     for extra in ([], ["--offline"]):
@@ -352,12 +379,12 @@ def schedule_report(project) -> None:
         return
     try:
         processes = project.platform.processes
-        argv = [resolve_uv(), "run", "--project", key, "--quiet", "python", "-m", "labkit",
+        argv = [resolve_uv(processes), "run", "--project", key, "--quiet", "python", "-m", "labkit",
                 "--project", key, "report", "--if-changed"]
         STATE["report_tasks"][key] = subprocess.Popen(
             argv, cwd=key, env=child_env(processes, "system"), stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **processes.spawn_kwargs())
-    except (core.LabError, OSError):
+    except Exception:  # noqa: BLE001 - a derived build; it must not fail what was just recorded
         return
 
 
@@ -638,7 +665,7 @@ async def tool_init(args, ctx):
     target = target if target.is_absolute() else Path(os.getcwd()) / target
     project = await asyncio.to_thread(
         lambda: core.init_project(target, title=args.get("title"), goal=args.get("goal"),
-                                  template_dir=KIT / "template", actor="agent",
+                                  actor="agent",
                                   session=STATE["session"]))
     STATE["project"] = str(project.root)
     synced, detail = await sync_environment(project)
@@ -886,17 +913,6 @@ HELP = """/lab — Aelix Analytics project
   /lab context              the context block injected into prompts"""
 
 
-def _open_in_browser(path: Path) -> None:
-    if sys.platform == "darwin":
-        subprocess.Popen(["open", str(path)])
-    elif shutil.which("xdg-open"):
-        subprocess.Popen(["xdg-open", str(path)])
-    else:
-        import webbrowser
-
-        webbrowser.open(path.as_uri())
-
-
 async def lab_command(args, ctx=None):
     text = (args or "").strip()
     sub, _, rest = text.partition(" ")
@@ -915,11 +931,15 @@ async def lab_command(args, ctx=None):
                 lines.append(f"project: {project.root} (via {via})")
             except core.LabError as exc:
                 lines.append(f"project: none — {exc.message}")
-            lines.append(f"kit: {KIT} (labkit {core.KIT_VERSION})")
+            lines.append(f"extension: {Path(__file__).resolve()} "
+                         f"({'installed package' if __package__ else 'checkout file'})")
+            lines.append(f"kit: {KIT} (labkit {core.KIT_VERSION}; {KIT_ROUTE})")
             try:
                 lines.append(f"uv: {resolve_uv()}")
             except core.LabError as exc:
                 lines.append(f"uv: {exc.message}")
+            except Exception as exc:  # noqa: BLE001 - this command is how a broken setup is diagnosed
+                lines.append(f"uv: cannot be looked up with this kit ({type(exc).__name__}: {exc})")
             return "\n".join(lines)
         if sub in ("init", "demo"):
             if not rest:
@@ -929,7 +949,7 @@ async def lab_command(args, ctx=None):
             target = target if target.is_absolute() else Path(os.getcwd()) / target
             project = await asyncio.to_thread(
                 lambda: core.init_project(target, title=title.strip() or None,
-                                          template_dir=KIT / "template", actor="human",
+                                          actor="human",
                                           session=STATE["session"]))
             STATE["project"] = str(project.root)
             _notify(ctx, f"lab: syncing the environment of {project.root} …")
@@ -964,7 +984,10 @@ async def lab_command(args, ctx=None):
                 if not ok:
                     return render_error("/lab report", value)
             if sub == "open":
-                _open_in_browser(index)
+                try:
+                    project.platform.processes.open_document(index, wait=False)
+                except OSError as exc:
+                    return f"could not open {index} ({exc}); open it in a browser yourself"
                 return f"opened {index}"
             return f"report rebuilt: {index}"
         if sub in ("note", "gap"):
@@ -990,8 +1013,44 @@ def _notify(ctx, message: str) -> None:
         ctx.ui.notify(message, "info")
 
 
+# The channel on aelix's shared event bus through which a copy of this extension that is already set
+# up in one aelix runtime answers a later copy (see setup).
+INSTANCE_CHANNEL = "aelix-analytics:instance"
+
+
+def _where_this_copy_is() -> str:
+    return f"{Path(__file__).resolve()} ({KIT_ROUTE})"
+
+
+def _answer_as_the_active_copy(probe) -> None:
+    if isinstance(probe, dict) and probe.get("active") is None:
+        probe["active"] = _where_this_copy_is()
+
+
 def setup(aelix):
-    STATE["api"] = aelix
+    # One copy per aelix runtime. A checkout's file (a symlink in aelix's extensions directory, or
+    # `aelix -e`) next to the installed package's entry point is two copies to aelix, which loads
+    # both: both would register, and both copies' hooks would fire — every tool call telemetered
+    # twice, the context block added to the prompt twice. The copy set up first answers on the
+    # runtime's event bus, shared by every extension of that runtime, and a later copy stays out.
+    # It answers only once it has registered everything, so a copy whose setup failed does not keep
+    # the next one out. A copy older than this check does not answer, so it is not detected (README);
+    # a host without an event bus gets no check.
+    events = getattr(aelix, "events", None)
+    if events is not None:
+        probe = {"active": None}
+        events.emit(INSTANCE_CHANNEL, probe)
+        if probe["active"] is not None:
+            print(f"aelix-analytics: {_where_this_copy_is()} is not set up: this aelix already "
+                  f"loaded {probe['active']}. Keep one of them — remove the checkout's symlink or "
+                  "-e, or uninstall the aelix-analytics package.", file=sys.stderr)
+            return
+    # aelix sets extensions up again for every session it builds (/new, /resume, /fork, /reload).
+    # A file load gets a new module each time; the installed module is imported once per process
+    # and keeps its globals, so what belongs to one session starts over here — otherwise a /lab note
+    # before a new session's first prompt would record the previous session's file.
+    STATE.update({"api": aelix, "project": None, "session": None, "starts": {},
+                  "report_tasks": {}})
     aelix.register_flag("lab-project", type="str",
                         description="Analysis lab project directory (holds lab.json)")
     for tool in TOOLS:
@@ -1003,3 +1062,5 @@ def setup(aelix):
     aelix.on("tool_execution_start", on_tool_start)
     aelix.on("tool_execution_end", on_tool_end)
     aelix.on("agent_end", on_agent_end)
+    if events is not None:
+        events.on(INSTANCE_CHANNEL, _answer_as_the_active_copy)

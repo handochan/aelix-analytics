@@ -1,0 +1,3254 @@
+{
+ "record_kind": "aelix-analytics-platform-measurement",
+ "observed_at": "2026-09-30T15:16:49Z",
+ "issue": "https://github.com/handochan/aelix-analytics/issues/8",
+ "pull_request": "https://github.com/handochan/aelix-analytics/pull/33",
+ "measured_revision": "d129ae6c92682e9c1eac3cbd2020bde9e9668400",
+ "measurement_revision": "7403e7b462d4f63407d516d1e1e2f8e3a58bebd1",
+ "ci_run": {
+  "id": "36735508776",
+  "url": "https://github.com/handochan/aelix-analytics/actions/runs/36735508776"
+ },
+ "platforms": {
+  "linux": {
+   "where": "GitHub Actions linux, run 36735508776",
+   "smoke_py3_12": {
+    "file_sha256": "6a02d43de046985946f77c8736881b905200b5676126057e37623a14690368de",
+    "command": [
+     "python3",
+     "tools/platform_smoke.py",
+     "--gate",
+     "required",
+     "--output",
+     "measurement/smoke-Linux-py3.12.json"
+    ],
+    "mode": "full",
+    "source": {
+     "head": "7403e7b462d4f63407d516d1e1e2f8e3a58bebd1",
+     "dirty": false
+    },
+    "generated_at": "2026-09-30T15:17:08+00:00",
+    "environment": {
+     "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+     "system": "Linux",
+     "release": "6.17.0-1022-azure",
+     "machine": "x86_64",
+     "python": "3.12.3",
+     "implementation": "CPython",
+     "executable": "/home/runner/work/aelix-analytics/aelix-analytics/.venv/bin/python3",
+     "utf8_mode": 0,
+     "preferred_encoding": "UTF-8",
+     "filesystem_encoding": "utf-8",
+     "stdout_encoding": "utf-8",
+     "cpu_count": 2,
+     "uv": "uv 0.11.19 (x86_64-unknown-linux-gnu)"
+    },
+    "summary": {
+     "holds": 25,
+     "violated": 0,
+     "declared_limitation": 0,
+     "observed": 6,
+     "not_run": 0
+    },
+    "required": {
+     "platform": "posix",
+     "violated": [],
+     "declared_limitation": [],
+     "not_run": [],
+     "hold": true,
+     "checks": 25
+    },
+    "checks": [
+     {
+      "name": "imports_without_analysis_libraries",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.0,
+      "observed": {
+       "bundle": "posix",
+       "analysis_modules_loaded": []
+      }
+     },
+     {
+      "name": "lock_excludes_another_process",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 2.07,
+      "observed": {
+       "waited_s": 1.951,
+       "holder_kept_it_s": 2.0
+      }
+     },
+     {
+      "name": "lock_released_when_its_holder_is_killed",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.11,
+      "observed": {
+       "acquired_within_15s_after_the_kill": true
+      }
+     },
+     {
+      "name": "replace_while_a_reader_holds_the_file",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 5.8,
+      "observed": {
+       "reader_holds_0.7s": {
+        "replaced": true,
+        "error": null,
+        "seconds": 0.0,
+        "content_after": "new"
+       },
+       "reader_holds_5.0s": {
+        "replaced": true,
+        "error": null,
+        "seconds": 0.0,
+        "content_after": "new"
+       }
+      }
+     },
+     {
+      "name": "liveness_of_a_live_an_exited_and_a_bogus_pid",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.0,
+      "observed": {
+       "live": true,
+       "exited": false,
+       "bogus": {
+        "None": false,
+        "'x'": false,
+        "0": false,
+        "-1": false
+       }
+      }
+     },
+     {
+      "name": "interrupt_asks_a_python_child_or_declines",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.06,
+      "observed": {
+       "asked": true,
+       "exit_code": 130,
+       "marker": "graceful:2",
+       "forced": false,
+       "seconds": 0.008
+      }
+     },
+     {
+      "name": "kill_tree_ends_the_child_and_its_grandchild",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.05,
+      "observed": {
+       "child_gone": true,
+       "grandchild_gone": true,
+       "diagnostic": null
+      }
+     },
+     {
+      "name": "kill_tree_after_the_leader_exited",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.15,
+      "observed": {
+       "leader_exit_code": 0,
+       "grandchild_gone": true,
+       "diagnostic": null
+      }
+     },
+     {
+      "name": "deadline_interrupts_python_code",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 1.0,
+      "observed": {
+       "interrupted_by": "Interrupted",
+       "flag_set": true,
+       "cancel_flag": false,
+       "seconds": 1.0
+      }
+     },
+     {
+      "name": "deadline_interrupts_a_sleep",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 1.0,
+      "observed": {
+       "interrupted_by": "Interrupted",
+       "flag_set": true,
+       "cancel_flag": false,
+       "seconds": 1.0
+      }
+     },
+     {
+      "name": "the_cancel_request_wakes_a_sleeping_run",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.0,
+      "observed": {
+       "threads_started": 0
+      }
+     },
+     {
+      "name": "the_guard_records_outside_regions_and_interrupts_inside_once",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.6,
+      "observed": {
+       "SIGINT": {
+        "recorded_without_raising": true,
+        "region_raised": "Interrupted",
+        "second_in_the_region": "only recorded",
+        "after_the_region": "only recorded"
+       },
+       "handlers_restored": true
+      }
+     },
+     {
+      "name": "base_env_is_enough_to_start_a_child",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.06,
+      "observed": {
+       "base_env_keys": [],
+       "python_with_base_env": {
+        "exit": 0,
+        "stderr": null
+       },
+       "python_with_path_only": {
+        "exit": 0,
+        "stderr": null
+       },
+       "python_with_empty_env": {
+        "exit": 0,
+        "stderr": null
+       },
+       "uv_with_base_env": {
+        "exit": 0,
+        "stderr": null
+       },
+       "uv_with_path_only": {
+        "exit": 0,
+        "stderr": null
+       }
+      }
+     },
+     {
+      "name": "device_names_on_this_file_system",
+      "group": "ports",
+      "result": "observed",
+      "seconds": 0.0,
+      "observed": {
+       "con": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "nul": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "con.txt": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "nul.parquet": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "con_.png": {
+        "written": true,
+        "listed_as_a_file": true
+       }
+      }
+     },
+     {
+      "name": "long_names_on_this_file_system",
+      "group": "ports",
+      "result": "observed",
+      "seconds": 0.0,
+      "observed": {
+       "name_300.open": {
+        "made": false,
+        "type": "OSError",
+        "errno": 36,
+        "winerror": null,
+        "strerror": "File name too long"
+       },
+       "name_300.mkdir": {
+        "made": false,
+        "type": "OSError",
+        "errno": 36,
+        "winerror": null,
+        "strerror": "File name too long"
+       },
+       "path_over_260.makedirs": {
+        "made": true
+       },
+       "path_over_260.open": {
+        "made": true
+       },
+       "path_over_260.length": 285
+      }
+     },
+     {
+      "name": "file_url_leads_back_to_the_file",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.0,
+      "observed": {
+       "url": "file:///tmp/labkit-smoke-8_498602/12-file-url/%EC%9E%85%EB%A0%A5%20%EB%8D%B0%EC%9D%B4%ED%84%B0.csv",
+       "back": "/tmp/labkit-smoke-8_498602/12-file-url/입력 데이터.csv"
+      }
+     },
+     {
+      "name": "utf8_survives_a_pipe",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.08,
+      "observed": {
+       "with_configure_stdio": {
+        "exit": 0,
+        "stdout": "한글 출력 ✓",
+        "stderr": null
+       },
+       "without_it": {
+        "exit": 0,
+        "stdout": "한글 출력 ✓",
+        "stderr": null
+       }
+      }
+     },
+     {
+      "name": "cli_end_to_end",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 7.88,
+      "observed": {
+       "query": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null,
+        "regions": [
+         "대구",
+         "부산",
+         "서울"
+        ]
+       },
+       "run": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null,
+        "status": "ok",
+        "charts": 1,
+        "stdout_has_korean": true
+       },
+       "note": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null
+       },
+       "rerun": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null,
+        "verdict": "match"
+       },
+       "report": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null,
+        "index_exists": true
+       },
+       "status": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null,
+        "title": "플랫폼 실측"
+       },
+       "context": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null
+       }
+      }
+     },
+     {
+      "name": "cli_run_timeout_in_python_code",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 3.68,
+      "observed": {
+       "status": "timeout",
+       "exit": 3,
+       "recorded_s": 3.002,
+       "cli_seconds": 3.7
+      }
+     },
+     {
+      "name": "cli_run_timeout_in_a_blocking_duckdb_query",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 3.98,
+      "observed": {
+       "status": "timeout",
+       "exit": 3,
+       "recorded_s": 3.003,
+       "cli_seconds": 4.0
+      }
+     },
+     {
+      "name": "cli_cancel_the_way_the_extension_does",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 2.22,
+      "observed": {
+       "asked": true,
+       "recorded_status": "cancelled",
+       "listed_status": "cancelled",
+       "exit_code": 3,
+       "exit_code_hex": "0x3",
+       "forced": false,
+       "seconds_to_exit": 0.82,
+       "kit_process_gone": true,
+       "stdout_tail": "started\n"
+      }
+     },
+     {
+      "name": "cli_cancel_reaches_a_run_inside_a_regular_expression",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 2.82,
+      "observed": {
+       "asked": true,
+       "recorded_status": "cancelled",
+       "listed_status": "cancelled",
+       "exit_code": 3,
+       "exit_code_hex": "0x3",
+       "forced": false,
+       "seconds_to_exit": 0.92,
+       "kit_process_gone": true,
+       "stdout_tail": "started\n"
+      }
+     },
+     {
+      "name": "cli_cancel_reaches_a_run_waiting_on_a_subprocess",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 2.67,
+      "observed": {
+       "asked": true,
+       "recorded_status": "cancelled",
+       "listed_status": "cancelled",
+       "exit_code": 3,
+       "exit_code_hex": "0x3",
+       "forced": false,
+       "seconds_to_exit": 0.77,
+       "kit_process_gone": true,
+       "stdout_tail": "started\n"
+      }
+     },
+     {
+      "name": "cli_deadline_when_the_script_ignores_sigint",
+      "group": "cli",
+      "result": "observed",
+      "seconds": 2.69,
+      "observed": {
+       "status": "timeout",
+       "exit": 3,
+       "recorded_s": 2.002,
+       "cli_seconds": 2.7,
+       "script_finished": false
+      }
+     },
+     {
+      "name": "cli_concurrent_runs_are_serialized",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 5.43,
+      "observed": {
+       "left_side": {
+        "status": "ok",
+        "outputs": [
+         "data/derived/left_side.parquet"
+        ]
+       },
+       "right_side": {
+        "status": "ok",
+        "outputs": [
+         "data/derived/right_side.parquet"
+        ]
+       }
+      }
+     },
+     {
+      "name": "cli_refuses_a_new_reserved_dataset_name",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 0.15,
+      "observed": {
+       "exit": 1,
+       "error_code": "name_not_portable"
+      }
+     },
+     {
+      "name": "cli_writes_a_reserved_chart_id_to_a_portable_file",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 2.22,
+      "observed": {
+       "status": "ok",
+       "exit": 0,
+       "ids": [
+        "con"
+       ],
+       "png": "runs/20260930-151751-06-chart-con/charts/con_.png",
+       "png_readable": true
+      }
+     },
+     {
+      "name": "cli_a_script_saving_a_reserved_name_is_warned_about",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 0.73,
+      "observed": {
+       "status": "ok",
+       "exit": 0,
+       "warned": true,
+       "error": null
+      }
+     },
+     {
+      "name": "probe_interrupt_through_uv_run",
+      "group": "probe",
+      "result": "observed",
+      "seconds": 1.27,
+      "observed": {
+       "uv_exit_code": 130,
+       "uv_exit_code_hex": "0x82",
+       "seconds_to_exit": 1.22,
+       "child_marker": "handler-finished:2",
+       "child_gone": true
+      }
+     },
+     {
+      "name": "probe_cancel_request_file_through_uv_run",
+      "group": "probe",
+      "result": "observed",
+      "seconds": 1.17,
+      "observed": {
+       "uv_exit_code": 130,
+       "uv_exit_code_hex": "0x82",
+       "seconds_to_exit": 1.12,
+       "child_marker": "handler-finished:2",
+       "child_gone": true
+      }
+     },
+     {
+      "name": "probe_waking_a_sleeping_main_thread",
+      "group": "probe",
+      "result": "observed",
+      "seconds": 11.0,
+      "observed": {
+       "_thread.interrupt_main": {
+        "interrupted_by": "Interrupted",
+        "seconds": 10.0
+       },
+       "signal.pthread_kill(main, SIGINT)": {
+        "interrupted_by": "Interrupted",
+        "seconds": 1.0
+       }
+      }
+     }
+    ]
+   },
+   "suite_py3_12": {
+    "file_sha256": "407f0f442d41922d7ef8dadb71d968ef1322bb822925fe6a8c9a2cf3bd556b3e",
+    "timestamp": "2026-09-30T15:18:07.802926+00:00",
+    "seconds": 482.006,
+    "counts": {
+     "pass": 612,
+     "fail": 0,
+     "skip": 2
+    },
+    "failed": [],
+    "skipped_by_reason": {
+     "collection skipped": 1,
+     "before 3.14 a `with` calls __enter__ without a CALL, and no signal is handled between its acquiring and the block": 1
+    },
+    "by_module": {
+     "": {
+      "skip": 1
+     },
+     "test_doc_checks": {
+      "pass": 32
+     },
+     "test_human_baseline": {
+      "pass": 2
+     },
+     "test_kit": {
+      "pass": 42
+     },
+     "test_launcher": {
+      "pass": 87
+     },
+     "test_packaging": {
+      "pass": 20
+     },
+     "test_platform": {
+      "pass": 394,
+      "skip": 1
+     },
+     "test_platform_smoke": {
+      "pass": 35
+     }
+    },
+    "distribution_tests": {
+     "test_the_wheel_holds_the_package_and_nothing_else": "pass",
+     "test_the_extension_module_is_the_checkouts_adapter": "pass",
+     "test_the_wheel_metadata": "pass",
+     "test_the_manifest_agrees_with_the_distribution": "pass",
+     "test_the_sdist_builds_the_same_wheel": "pass",
+     "test_the_sdist_installs_the_same_package": "pass",
+     "test_the_installed_distribution_finds_its_kit[3.11]": "pass",
+     "test_the_installed_distribution_finds_its_kit[3.12]": "pass",
+     "test_the_console_script_is_the_launcher[3.11]": "pass",
+     "test_the_console_script_is_the_launcher[3.12]": "pass",
+     "test_the_console_script_gives_children_exactly_the_installed_kit": "pass",
+     "test_aelix_binds_and_loads_the_installed_extension[3.11]": "pass",
+     "test_aelix_binds_and_loads_the_installed_extension[3.12]": "pass",
+     "test_a_checkout_symlink_beside_the_wheel_sets_up_one_copy": "pass",
+     "test_the_installed_extension_s_tools_run_a_project[3.11]": "pass",
+     "test_the_installed_extension_s_tools_run_a_project[3.12]": "pass",
+     "test_the_installed_command_drives_a_project_without_aelix[3.11]": "pass",
+     "test_the_installed_command_drives_a_project_without_aelix[3.12]": "pass",
+     "test_the_kit_s_stdlib_commands_run_on_the_floor": "pass",
+     "test_pip_installs_and_uninstalls_the_wheel_without_leftovers": "pass"
+    }
+   },
+   "aelix_0_1_0b2_py3_12": {
+    "file_sha256": "0329ee127f968d6a19492605b60c80e7ec76c8661a2f3bac639503ebe04ae1e9",
+    "timestamp": "2026-09-30T15:26:10.648982+00:00",
+    "seconds": 15.606,
+    "counts": {
+     "pass": 12,
+     "fail": 0,
+     "skip": 0
+    },
+    "failed": [],
+    "skipped_by_reason": {},
+    "by_module": {
+     "test_extension": {
+      "pass": 12
+     }
+    }
+   },
+   "aelix_0_1_0b2_py3_11": {
+    "file_sha256": "c079029530ea6d7cf33db2ff037300cecdc1a6414f6a296dcaf1967f07bcbe0b",
+    "timestamp": "2026-09-30T15:26:27.080563+00:00",
+    "seconds": 14.581,
+    "counts": {
+     "pass": 12,
+     "fail": 0,
+     "skip": 0
+    },
+    "failed": [],
+    "skipped_by_reason": {},
+    "by_module": {
+     "test_extension": {
+      "pass": 12
+     }
+    }
+   },
+   "stdlib_only_smoke_py3_11": {
+    "file_sha256": "0dee73bcaf77a4af0ce16defbafdd81e2589c889a1dfb27ab62fef351fe95c55",
+    "command": [
+     "python",
+     "tools/platform_smoke.py",
+     "--stdlib-only",
+     "--gate",
+     "required",
+     "--output",
+     "measurement/stdlib-Linux-py3.11.json"
+    ],
+    "mode": "stdlib-only",
+    "source": {
+     "head": "7403e7b462d4f63407d516d1e1e2f8e3a58bebd1",
+     "dirty": false
+    },
+    "generated_at": "2026-09-30T15:16:56+00:00",
+    "environment": {
+     "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+     "system": "Linux",
+     "release": "6.17.0-1022-azure",
+     "machine": "x86_64",
+     "python": "3.11.16",
+     "implementation": "CPython",
+     "executable": "/opt/hostedtoolcache/Python/3.11.16/x64/bin/python",
+     "utf8_mode": 0,
+     "preferred_encoding": "UTF-8",
+     "filesystem_encoding": "utf-8",
+     "stdout_encoding": "utf-8",
+     "cpu_count": 2,
+     "uv": null
+    },
+    "summary": {
+     "holds": 15,
+     "violated": 0,
+     "declared_limitation": 0,
+     "observed": 3,
+     "not_run": 2
+    },
+    "required": {
+     "platform": "posix",
+     "violated": [],
+     "declared_limitation": [],
+     "not_run": [],
+     "hold": true,
+     "checks": 15
+    },
+    "checks": [
+     {
+      "name": "imports_without_analysis_libraries",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.0,
+      "observed": {
+       "bundle": "posix",
+       "analysis_modules_loaded": []
+      }
+     },
+     {
+      "name": "lock_excludes_another_process",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 2.06,
+      "observed": {
+       "waited_s": 1.997,
+       "holder_kept_it_s": 2.0
+      }
+     },
+     {
+      "name": "lock_released_when_its_holder_is_killed",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.05,
+      "observed": {
+       "acquired_within_15s_after_the_kill": true
+      }
+     },
+     {
+      "name": "replace_while_a_reader_holds_the_file",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 5.8,
+      "observed": {
+       "reader_holds_0.7s": {
+        "replaced": true,
+        "error": null,
+        "seconds": 0.0,
+        "content_after": "new"
+       },
+       "reader_holds_5.0s": {
+        "replaced": true,
+        "error": null,
+        "seconds": 0.0,
+        "content_after": "new"
+       }
+      }
+     },
+     {
+      "name": "liveness_of_a_live_an_exited_and_a_bogus_pid",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.0,
+      "observed": {
+       "live": true,
+       "exited": false,
+       "bogus": {
+        "None": false,
+        "'x'": false,
+        "0": false,
+        "-1": false
+       }
+      }
+     },
+     {
+      "name": "interrupt_asks_a_python_child_or_declines",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.06,
+      "observed": {
+       "asked": true,
+       "exit_code": 130,
+       "marker": "graceful:2",
+       "forced": false,
+       "seconds": 0.007
+      }
+     },
+     {
+      "name": "kill_tree_ends_the_child_and_its_grandchild",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.05,
+      "observed": {
+       "child_gone": true,
+       "grandchild_gone": true,
+       "diagnostic": null
+      }
+     },
+     {
+      "name": "kill_tree_after_the_leader_exited",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.15,
+      "observed": {
+       "leader_exit_code": 0,
+       "grandchild_gone": true,
+       "diagnostic": null
+      }
+     },
+     {
+      "name": "deadline_interrupts_python_code",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 1.0,
+      "observed": {
+       "interrupted_by": "Interrupted",
+       "flag_set": true,
+       "cancel_flag": false,
+       "seconds": 1.0
+      }
+     },
+     {
+      "name": "deadline_interrupts_a_sleep",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 1.0,
+      "observed": {
+       "interrupted_by": "Interrupted",
+       "flag_set": true,
+       "cancel_flag": false,
+       "seconds": 1.0
+      }
+     },
+     {
+      "name": "the_cancel_request_wakes_a_sleeping_run",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.0,
+      "observed": {
+       "threads_started": 0
+      }
+     },
+     {
+      "name": "the_guard_records_outside_regions_and_interrupts_inside_once",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.6,
+      "observed": {
+       "SIGINT": {
+        "recorded_without_raising": true,
+        "region_raised": "Interrupted",
+        "second_in_the_region": "only recorded",
+        "after_the_region": "only recorded"
+       },
+       "handlers_restored": true
+      }
+     },
+     {
+      "name": "base_env_is_enough_to_start_a_child",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.03,
+      "observed": {
+       "base_env_keys": [],
+       "python_with_base_env": {
+        "exit": 0,
+        "stderr": null
+       },
+       "python_with_path_only": {
+        "exit": 0,
+        "stderr": null
+       },
+       "python_with_empty_env": {
+        "exit": 0,
+        "stderr": null
+       }
+      }
+     },
+     {
+      "name": "device_names_on_this_file_system",
+      "group": "ports",
+      "result": "observed",
+      "seconds": 0.0,
+      "observed": {
+       "con": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "nul": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "con.txt": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "nul.parquet": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "con_.png": {
+        "written": true,
+        "listed_as_a_file": true
+       }
+      }
+     },
+     {
+      "name": "long_names_on_this_file_system",
+      "group": "ports",
+      "result": "observed",
+      "seconds": 0.0,
+      "observed": {
+       "name_300.open": {
+        "made": false,
+        "type": "OSError",
+        "errno": 36,
+        "winerror": null,
+        "strerror": "File name too long"
+       },
+       "name_300.mkdir": {
+        "made": false,
+        "type": "OSError",
+        "errno": 36,
+        "winerror": null,
+        "strerror": "File name too long"
+       },
+       "path_over_260.makedirs": {
+        "made": true
+       },
+       "path_over_260.open": {
+        "made": true
+       },
+       "path_over_260.length": 285
+      }
+     },
+     {
+      "name": "file_url_leads_back_to_the_file",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.0,
+      "observed": {
+       "url": "file:///tmp/labkit-smoke-kd9g8ypz/12-file-url/%EC%9E%85%EB%A0%A5%20%EB%8D%B0%EC%9D%B4%ED%84%B0.csv",
+       "back": "/tmp/labkit-smoke-kd9g8ypz/12-file-url/입력 데이터.csv"
+      }
+     },
+     {
+      "name": "utf8_survives_a_pipe",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.08,
+      "observed": {
+       "with_configure_stdio": {
+        "exit": 0,
+        "stdout": "한글 출력 ✓",
+        "stderr": null
+       },
+       "without_it": {
+        "exit": 0,
+        "stdout": "한글 출력 ✓",
+        "stderr": null
+       }
+      }
+     },
+     {
+      "name": "probe_interrupt_through_uv_run",
+      "group": "probe",
+      "result": "not_run",
+      "seconds": null,
+      "reason": "uv is not on PATH"
+     },
+     {
+      "name": "probe_cancel_request_file_through_uv_run",
+      "group": "probe",
+      "result": "not_run",
+      "seconds": null,
+      "reason": "uv is not on PATH"
+     },
+     {
+      "name": "probe_waking_a_sleeping_main_thread",
+      "group": "probe",
+      "result": "observed",
+      "seconds": 11.0,
+      "observed": {
+       "_thread.interrupt_main": {
+        "interrupted_by": "Interrupted",
+        "seconds": 10.0
+       },
+       "signal.pthread_kill(main, SIGINT)": {
+        "interrupted_by": "Interrupted",
+        "seconds": 1.0
+       }
+      }
+     }
+    ]
+   },
+   "distribution_interpreters": {
+    "3.11": {
+     "version": "3.11.15",
+     "implementation": "CPython",
+     "executable": "/home/runner/work/_temp/uv-python-dir/cpython-3.11-linux-x86_64-gnu/bin/python3.11"
+    },
+    "3.12": {
+     "version": "3.12.3",
+     "implementation": "CPython",
+     "executable": "/home/runner/work/aelix-analytics/aelix-analytics/.venv/bin/python3"
+    }
+   }
+  },
+  "windows": {
+   "where": "GitHub Actions windows, run 36735508776",
+   "smoke_py3_12": {
+    "file_sha256": "d85f2dbebd399532f2b6ceed2cd0e3484d111e28b6853e4eec7f5bd77f6f31c2",
+    "command": [
+     "python.exe",
+     "tools/platform_smoke.py",
+     "--gate",
+     "required",
+     "--output",
+     "measurement/smoke-Windows-py3.12.json"
+    ],
+    "mode": "full",
+    "source": {
+     "head": "7403e7b462d4f63407d516d1e1e2f8e3a58bebd1",
+     "dirty": false
+    },
+    "generated_at": "2026-09-30T15:17:24+00:00",
+    "environment": {
+     "platform": "Windows-2025Server-10.0.26100-SP0",
+     "system": "Windows",
+     "release": "2025Server",
+     "machine": "AMD64",
+     "python": "3.12.10",
+     "implementation": "CPython",
+     "executable": "D:\\a\\aelix-analytics\\aelix-analytics\\.venv\\Scripts\\python.exe",
+     "utf8_mode": 0,
+     "preferred_encoding": "cp1252",
+     "filesystem_encoding": "utf-8",
+     "stdout_encoding": "utf-8",
+     "cpu_count": 2,
+     "uv": "uv 0.11.19 (7b2cff1c3 2026-06-03 x86_64-pc-windows-msvc)",
+     "windows": [
+      "2025Server",
+      "10.0.26100",
+      "SP0",
+      "Multiprocessor Free"
+     ],
+     "console_code_pages": {
+      "input": 65001,
+      "output": 65001
+     }
+    },
+    "summary": {
+     "holds": 21,
+     "violated": 0,
+     "declared_limitation": 3,
+     "observed": 7,
+     "not_run": 0
+    },
+    "required": {
+     "platform": "windows",
+     "violated": [],
+     "declared_limitation": [
+      "kill_tree_after_the_leader_exited",
+      "cli_cancel_reaches_a_run_inside_a_regular_expression",
+      "cli_cancel_reaches_a_run_waiting_on_a_subprocess"
+     ],
+     "not_run": [],
+     "hold": true,
+     "checks": 24
+    },
+    "checks": [
+     {
+      "name": "imports_without_analysis_libraries",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.0,
+      "observed": {
+       "bundle": "windows",
+       "analysis_modules_loaded": []
+      }
+     },
+     {
+      "name": "lock_excludes_another_process",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 2.12,
+      "observed": {
+       "waited_s": 2.015,
+       "holder_kept_it_s": 2.0
+      }
+     },
+     {
+      "name": "lock_released_when_its_holder_is_killed",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.12,
+      "observed": {
+       "acquired_within_15s_after_the_kill": true
+      }
+     },
+     {
+      "name": "replace_while_a_reader_holds_the_file",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 5.82,
+      "observed": {
+       "reader_holds_0.7s": {
+        "replaced": true,
+        "error": null,
+        "seconds": 0.707,
+        "content_after": "new"
+       },
+       "reader_holds_5.0s": {
+        "replaced": false,
+        "error": "PermissionError: [WinError 5] Access is denied: 'C:\\\\Users\\\\RUNNER~1\\\\AppData\\\\Local\\\\Temp\\\\labkit-smoke-zbka10it\\\\04-replace-5.0\\\\.record.json.tmp' -> 'C:\\\\Users\\\\RUNNER~1\\\\AppData\\\\Local\\\\Temp\\\\labkit-smoke-zbka10it\\\\04-replace-5.0\\\\record.json' (winerror=5)",
+        "seconds": 1.974,
+        "content_after": "old"
+       }
+      }
+     },
+     {
+      "name": "liveness_of_a_live_an_exited_and_a_bogus_pid",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.04,
+      "observed": {
+       "live": true,
+       "exited": false,
+       "bogus": {
+        "None": false,
+        "'x'": false,
+        "0": false,
+        "-1": false
+       }
+      }
+     },
+     {
+      "name": "interrupt_asks_a_python_child_or_declines",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 3.15,
+      "observed": {
+       "asked": false,
+       "exit_code": 1,
+       "marker": null,
+       "forced": true,
+       "seconds": 3.093
+      }
+     },
+     {
+      "name": "kill_tree_ends_the_child_and_its_grandchild",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.13,
+      "observed": {
+       "child_gone": true,
+       "grandchild_gone": true,
+       "diagnostic": null
+      }
+     },
+     {
+      "name": "kill_tree_after_the_leader_exited",
+      "group": "ports",
+      "result": "declared_limitation",
+      "seconds": 15.27,
+      "declared": "docs/CONTRACTS.md — `taskkill /T`는 부모가 이미 끝난 자손에 닿지 않습니다",
+      "observed": {
+       "leader_exit_code": 0,
+       "grandchild_gone": false,
+       "diagnostic": "labkit: could not end the process tree of pid 5660; its descendants may still be running (the wrapper had already exited when taskkill looked; a descendant of it may still be running)"
+      }
+     },
+     {
+      "name": "deadline_interrupts_python_code",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 1.02,
+      "observed": {
+       "interrupted_by": "Interrupted",
+       "flag_set": true,
+       "cancel_flag": false,
+       "seconds": 1.017
+      }
+     },
+     {
+      "name": "deadline_interrupts_a_sleep",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 1.01,
+      "observed": {
+       "interrupted_by": "Interrupted",
+       "flag_set": true,
+       "cancel_flag": false,
+       "seconds": 1.012
+      }
+     },
+     {
+      "name": "the_cancel_request_wakes_a_sleeping_run",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 1.08,
+      "observed": {
+       "woken_by": "Interrupted",
+       "seconds": 1.076,
+       "timeout": false,
+       "cancel": true
+      }
+     },
+     {
+      "name": "the_guard_records_outside_regions_and_interrupts_inside_once",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 1.2,
+      "observed": {
+       "SIGINT": {
+        "recorded_without_raising": true,
+        "region_raised": "Interrupted",
+        "second_in_the_region": "only recorded",
+        "after_the_region": "only recorded"
+       },
+       "SIGBREAK": {
+        "recorded_without_raising": true,
+        "region_raised": "Interrupted",
+        "second_in_the_region": "only recorded",
+        "after_the_region": "only recorded"
+       },
+       "handlers_restored": true
+      }
+     },
+     {
+      "name": "base_env_is_enough_to_start_a_child",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.14,
+      "observed": {
+       "base_env_keys": [
+        "APPDATA",
+        "COMSPEC",
+        "LOCALAPPDATA",
+        "NUMBER_OF_PROCESSORS",
+        "PATHEXT",
+        "PROCESSOR_ARCHITECTURE",
+        "PROGRAMDATA",
+        "PROGRAMFILES",
+        "SystemDrive",
+        "SystemRoot",
+        "TEMP",
+        "TMP",
+        "USERPROFILE",
+        "windir"
+       ],
+       "python_with_base_env": {
+        "exit": 0,
+        "stderr": null
+       },
+       "python_with_path_only": {
+        "exit": 0,
+        "stderr": null
+       },
+       "python_with_empty_env": {
+        "exit": 0,
+        "stderr": null
+       },
+       "uv_with_base_env": {
+        "exit": 0,
+        "stderr": null
+       },
+       "uv_with_path_only": {
+        "exit": 0,
+        "stderr": null
+       }
+      }
+     },
+     {
+      "name": "device_names_on_this_file_system",
+      "group": "ports",
+      "result": "observed",
+      "seconds": 0.0,
+      "observed": {
+       "con": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "nul": {
+        "written": true,
+        "listed_as_a_file": false
+       },
+       "con.txt": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "nul.parquet": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "con_.png": {
+        "written": true,
+        "listed_as_a_file": true
+       }
+      }
+     },
+     {
+      "name": "long_names_on_this_file_system",
+      "group": "ports",
+      "result": "observed",
+      "seconds": 0.0,
+      "observed": {
+       "name_300.open": {
+        "made": false,
+        "type": "OSError",
+        "errno": 22,
+        "winerror": null,
+        "strerror": "Invalid argument"
+       },
+       "name_300.mkdir": {
+        "made": false,
+        "type": "OSError",
+        "errno": 22,
+        "winerror": 123,
+        "strerror": "The filename, directory name, or volume label syntax is incorrect"
+       },
+       "path_over_260.makedirs": {
+        "made": true
+       },
+       "path_over_260.open": {
+        "made": true
+       },
+       "path_over_260.length": 276
+      }
+     },
+     {
+      "name": "file_url_leads_back_to_the_file",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.0,
+      "observed": {
+       "url": "file:///C:/Users/runneradmin/AppData/Local/Temp/labkit-smoke-zbka10it/12-file-url/%EC%9E%85%EB%A0%A5%20%EB%8D%B0%EC%9D%B4%ED%84%B0.csv",
+       "back": "C:\\Users\\runneradmin\\AppData\\Local\\Temp\\labkit-smoke-zbka10it\\12-file-url\\입력 데이터.csv"
+      }
+     },
+     {
+      "name": "utf8_survives_a_pipe",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.16,
+      "observed": {
+       "with_configure_stdio": {
+        "exit": 0,
+        "stdout": "한글 출력 ✓",
+        "stderr": null
+       },
+       "without_it": {
+        "exit": 1,
+        "stdout": "",
+        "stderr": "3.12.10\\x64\\Lib\\encodings\\cp1252.py\", line 19, in encode\n    return codecs.charmap_encode(input,self.errors,encoding_table)[0]\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nUnicodeEncodeError: 'charmap' codec can't encode characters in position 0-1: character maps to <undefined>"
+       }
+      }
+     },
+     {
+      "name": "cli_end_to_end",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 33.34,
+      "observed": {
+       "query": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null,
+        "regions": [
+         "대구",
+         "부산",
+         "서울"
+        ]
+       },
+       "run": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null,
+        "status": "ok",
+        "charts": 1,
+        "stdout_has_korean": true
+       },
+       "note": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null
+       },
+       "rerun": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null,
+        "verdict": "match"
+       },
+       "report": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null,
+        "index_exists": true
+       },
+       "status": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null,
+        "title": "플랫폼 실측"
+       },
+       "context": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null
+       }
+      }
+     },
+     {
+      "name": "cli_run_timeout_in_python_code",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 4.15,
+      "observed": {
+       "status": "timeout",
+       "exit": 3,
+       "recorded_s": 3.026,
+       "cli_seconds": 4.2
+      }
+     },
+     {
+      "name": "cli_run_timeout_in_a_blocking_duckdb_query",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 4.17,
+      "observed": {
+       "status": "timeout",
+       "exit": 3,
+       "recorded_s": 3.009,
+       "cli_seconds": 4.2
+      }
+     },
+     {
+      "name": "cli_cancel_the_way_the_extension_does",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 2.51,
+      "observed": {
+       "asked": true,
+       "recorded_status": "cancelled",
+       "listed_status": "cancelled",
+       "exit_code": 3,
+       "exit_code_hex": "0x3",
+       "forced": false,
+       "seconds_to_exit": 1.09,
+       "kit_process_gone": true,
+       "stdout_tail": "started\n"
+      }
+     },
+     {
+      "name": "cli_cancel_reaches_a_run_inside_a_regular_expression",
+      "group": "cli",
+      "result": "declared_limitation",
+      "seconds": 11.99,
+      "declared": "docs/CONTRACTS.md — GIL을 쥔 채 도는 C 코드 안의 주 스레드에는 그 호출이 반환할 때까지 취소가 닿지 않습니다",
+      "observed": {
+       "asked": true,
+       "recorded_status": "running",
+       "listed_status": "incomplete",
+       "exit_code": 1,
+       "exit_code_hex": "0x1",
+       "forced": true,
+       "seconds_to_exit": 10.07,
+       "kit_process_gone": true,
+       "stdout_tail": null
+      }
+     },
+     {
+      "name": "cli_cancel_reaches_a_run_waiting_on_a_subprocess",
+      "group": "cli",
+      "result": "declared_limitation",
+      "seconds": 11.98,
+      "declared": "docs/CONTRACTS.md — SIGINT 이벤트를 보지 않는 대기(자식 프로세스를 기다리는 `subprocess` 호출 등)는 취소가 와도 그 대기가 끝날 때까지 이어집니다",
+      "observed": {
+       "asked": true,
+       "recorded_status": "running",
+       "listed_status": "incomplete",
+       "exit_code": 1,
+       "exit_code_hex": "0x1",
+       "forced": true,
+       "seconds_to_exit": 10.06,
+       "kit_process_gone": true,
+       "stdout_tail": null
+      }
+     },
+     {
+      "name": "cli_deadline_when_the_script_ignores_sigint",
+      "group": "cli",
+      "result": "observed",
+      "seconds": 9.17,
+      "observed": {
+       "status": "timeout",
+       "exit": 3,
+       "recorded_s": 8.004,
+       "cli_seconds": 9.2,
+       "script_finished": true
+      }
+     },
+     {
+      "name": "cli_concurrent_runs_are_serialized",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 6.61,
+      "observed": {
+       "left_side": {
+        "status": "ok",
+        "outputs": [
+         "data/derived/left_side.parquet"
+        ]
+       },
+       "right_side": {
+        "status": "ok",
+        "outputs": [
+         "data/derived/right_side.parquet"
+        ]
+       }
+      }
+     },
+     {
+      "name": "cli_refuses_a_new_reserved_dataset_name",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 0.24,
+      "observed": {
+       "exit": 1,
+       "error_code": "name_not_portable"
+      }
+     },
+     {
+      "name": "cli_writes_a_reserved_chart_id_to_a_portable_file",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 3.23,
+      "observed": {
+       "status": "ok",
+       "exit": 0,
+       "ids": [
+        "con"
+       ],
+       "png": "runs/20260930-151919-06-chart-con/charts/con_.png",
+       "png_readable": true
+      }
+     },
+     {
+      "name": "cli_a_script_saving_a_reserved_name_is_warned_about",
+      "group": "cli",
+      "result": "observed",
+      "seconds": 1.38,
+      "observed": {
+       "status": "ok",
+       "exit": 0,
+       "warned": true,
+       "error": null
+      }
+     },
+     {
+      "name": "probe_interrupt_through_uv_run",
+      "group": "probe",
+      "result": "observed",
+      "seconds": 11.22,
+      "observed": {
+       "uv_exit_code": 3221225786,
+       "uv_exit_code_hex": "0xc000013a",
+       "seconds_to_exit": 0.0,
+       "child_marker": null,
+       "child_gone": false
+      }
+     },
+     {
+      "name": "probe_cancel_request_file_through_uv_run",
+      "group": "probe",
+      "result": "observed",
+      "seconds": 1.18,
+      "observed": {
+       "uv_exit_code": 130,
+       "uv_exit_code_hex": "0x82",
+       "seconds_to_exit": 1.08,
+       "child_marker": "handler-finished:2",
+       "child_gone": true
+      }
+     },
+     {
+      "name": "probe_waking_a_sleeping_main_thread",
+      "group": "probe",
+      "result": "observed",
+      "seconds": 11.0,
+      "observed": {
+       "_thread.interrupt_main": {
+        "interrupted_by": "Interrupted",
+        "seconds": 10.0
+       },
+       "signal.raise_signal(SIGINT)": {
+        "interrupted_by": "Interrupted",
+        "seconds": 1.0
+       }
+      }
+     }
+    ]
+   },
+   "suite_py3_12": {
+    "file_sha256": "99efd5add915b979854a54b633c6b6740ef77d8933ce70ec0d1e912d62075ab0",
+    "timestamp": "2026-09-30T15:19:52.125646+00:00",
+    "seconds": 831.377,
+    "counts": {
+     "pass": 464,
+     "fail": 0,
+     "skip": 149
+    },
+    "failed": [],
+    "skipped_by_reason": {
+     "the POSIX guard's signals": 72,
+     "bin/lab is a POSIX shell script": 29,
+     "names POSIX can hold and Windows reads otherwise": 7,
+     "a directory symlink needs privileges on Windows": 6,
+     "os.startfile would open a real program on Windows": 4,
+     "SIGTERM from outside a process is POSIX": 3,
+     "a POSIX signal": 2,
+     "a shell's background job": 2,
+     "the delivery is replaced with pthread_kill": 2,
+     "the stub guards stand in for the POSIX one": 2,
+     "collection skipped": 1,
+     "bytes that are not UTF-8 in the environment are POSIX's": 1,
+     "a terminal's process group; Windows consoles are PR-3's": 1,
+     "signal dispositions as POSIX inherits them": 1,
+     "a POSIX signal sent to one process": 1,
+     "a symbolic link to a program": 1,
+     "the stand-in uv is a script; Windows starts only an .exe": 1,
+     "the README's symlink route is POSIX": 1,
+     "a POSIX shell script stands in for the opener": 1,
+     "POSIX executables and HOME": 1,
+     "SIGALRM is POSIX": 1,
+     "a directory the process cannot list: POSIX permissions, not root": 1,
+     "a symbolic link to the kit": 1,
+     "process groups are a POSIX concept": 1,
+     "declared: on Windows the ask is a Python thread, which a regular expression holding the GIL starves": 1,
+     "before 3.14 a `with` calls __enter__ without a CALL, and no signal is handled between its acquiring and the block": 1,
+     "this file system refuses a name that is not UTF-8: UnicodeDecodeError('utf-8', b'C:\\\\Users\\\\runneradmin\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-runneradmin\\\\pytest-0\\\\test_a_scanned_name_a_record_c0\\\\proj\\\\data\\\\raw\\\\caf\\xe9.csv', 120, 121, 'invalid continuation byte')": 1,
+     "this file system refuses a name that is not UTF-8: UnicodeDecodeError('utf-8', b'C:\\\\Users\\\\runneradmin\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-runneradmin\\\\pytest-0\\\\test_a_scanned_name_in_a_direc0\\\\proj\\\\data\\\\raw\\\\caf\\xe9', 120, 121, 'unexpected end of data')": 1,
+     "the broken guard stands in for the POSIX one": 1,
+     "the stub guard stands in for the POSIX one": 1
+    },
+    "by_module": {
+     "": {
+      "skip": 1
+     },
+     "test_doc_checks": {
+      "pass": 32
+     },
+     "test_human_baseline": {
+      "pass": 2
+     },
+     "test_kit": {
+      "pass": 42
+     },
+     "test_launcher": {
+      "pass": 43,
+      "skip": 44
+     },
+     "test_packaging": {
+      "pass": 18,
+      "skip": 2
+     },
+     "test_platform": {
+      "pass": 296,
+      "skip": 98
+     },
+     "test_platform_smoke": {
+      "pass": 31,
+      "skip": 4
+     }
+    },
+    "distribution_tests": {
+     "test_the_wheel_holds_the_package_and_nothing_else": "pass",
+     "test_the_extension_module_is_the_checkouts_adapter": "pass",
+     "test_the_wheel_metadata": "pass",
+     "test_the_manifest_agrees_with_the_distribution": "pass",
+     "test_the_sdist_builds_the_same_wheel": "pass",
+     "test_the_sdist_installs_the_same_package": "pass",
+     "test_the_installed_distribution_finds_its_kit[3.11]": "pass",
+     "test_the_installed_distribution_finds_its_kit[3.12]": "pass",
+     "test_the_console_script_is_the_launcher[3.11]": "pass",
+     "test_the_console_script_is_the_launcher[3.12]": "pass",
+     "test_the_console_script_gives_children_exactly_the_installed_kit": "skip: the stand-in uv is a script; Windows starts only an .exe",
+     "test_aelix_binds_and_loads_the_installed_extension[3.11]": "pass",
+     "test_aelix_binds_and_loads_the_installed_extension[3.12]": "pass",
+     "test_a_checkout_symlink_beside_the_wheel_sets_up_one_copy": "skip: the README's symlink route is POSIX",
+     "test_the_installed_extension_s_tools_run_a_project[3.11]": "pass",
+     "test_the_installed_extension_s_tools_run_a_project[3.12]": "pass",
+     "test_the_installed_command_drives_a_project_without_aelix[3.11]": "pass",
+     "test_the_installed_command_drives_a_project_without_aelix[3.12]": "pass",
+     "test_the_kit_s_stdlib_commands_run_on_the_floor": "pass",
+     "test_pip_installs_and_uninstalls_the_wheel_without_leftovers": "pass"
+    }
+   },
+   "aelix_0_1_0b2_py3_12": {
+    "file_sha256": "d83c61013796bf2b3f8cede4837ccad460fa2f077bbb71ccfb99d62d6cfbc978",
+    "timestamp": "2026-09-30T15:33:52.847245+00:00",
+    "seconds": 88.815,
+    "counts": {
+     "pass": 12,
+     "fail": 0,
+     "skip": 0
+    },
+    "failed": [],
+    "skipped_by_reason": {},
+    "by_module": {
+     "test_extension": {
+      "pass": 12
+     }
+    }
+   },
+   "aelix_0_1_0b2_py3_11": {
+    "file_sha256": "f4b307b207980980c76ebd5149d286607afe40c2047cd15585ba91dc521a99af",
+    "timestamp": "2026-09-30T15:35:24.294663+00:00",
+    "seconds": 89.39,
+    "counts": {
+     "pass": 12,
+     "fail": 0,
+     "skip": 0
+    },
+    "failed": [],
+    "skipped_by_reason": {},
+    "by_module": {
+     "test_extension": {
+      "pass": 12
+     }
+    }
+   },
+   "stdlib_only_smoke_py3_11": {
+    "file_sha256": "4c52675fb16301ce8982676f08b2de700ef3d64fe3525b9087d3dbd86e8e11a0",
+    "command": [
+     "python.exe",
+     "tools/platform_smoke.py",
+     "--stdlib-only",
+     "--gate",
+     "required",
+     "--output",
+     "measurement/stdlib-Windows-py3.11.json"
+    ],
+    "mode": "stdlib-only",
+    "source": {
+     "head": "7403e7b462d4f63407d516d1e1e2f8e3a58bebd1",
+     "dirty": false
+    },
+    "generated_at": "2026-09-30T15:17:04+00:00",
+    "environment": {
+     "platform": "Windows-10-10.0.26100-SP0",
+     "system": "Windows",
+     "release": "10",
+     "machine": "AMD64",
+     "python": "3.11.9",
+     "implementation": "CPython",
+     "executable": "C:\\hostedtoolcache\\windows\\Python\\3.11.9\\x64\\python.exe",
+     "utf8_mode": 0,
+     "preferred_encoding": "cp1252",
+     "filesystem_encoding": "utf-8",
+     "stdout_encoding": "utf-8",
+     "cpu_count": 2,
+     "uv": null,
+     "windows": [
+      "10",
+      "10.0.26100",
+      "SP0",
+      "Multiprocessor Free"
+     ],
+     "console_code_pages": {
+      "input": 65001,
+      "output": 65001
+     }
+    },
+    "summary": {
+     "holds": 14,
+     "violated": 0,
+     "declared_limitation": 1,
+     "observed": 3,
+     "not_run": 2
+    },
+    "required": {
+     "platform": "windows",
+     "violated": [],
+     "declared_limitation": [
+      "kill_tree_after_the_leader_exited"
+     ],
+     "not_run": [],
+     "hold": true,
+     "checks": 15
+    },
+    "checks": [
+     {
+      "name": "imports_without_analysis_libraries",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.0,
+      "observed": {
+       "bundle": "windows",
+       "analysis_modules_loaded": []
+      }
+     },
+     {
+      "name": "lock_excludes_another_process",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 2.07,
+      "observed": {
+       "waited_s": 1.963,
+       "holder_kept_it_s": 2.0
+      }
+     },
+     {
+      "name": "lock_released_when_its_holder_is_killed",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.12,
+      "observed": {
+       "acquired_within_15s_after_the_kill": true
+      }
+     },
+     {
+      "name": "replace_while_a_reader_holds_the_file",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 5.81,
+      "observed": {
+       "reader_holds_0.7s": {
+        "replaced": true,
+        "error": null,
+        "seconds": 0.709,
+        "content_after": "new"
+       },
+       "reader_holds_5.0s": {
+        "replaced": false,
+        "error": "PermissionError: [WinError 5] Access is denied: 'C:\\\\Users\\\\RUNNER~1\\\\AppData\\\\Local\\\\Temp\\\\labkit-smoke-i3cvyzp1\\\\04-replace-5.0\\\\.record.json.tmp' -> 'C:\\\\Users\\\\RUNNER~1\\\\AppData\\\\Local\\\\Temp\\\\labkit-smoke-i3cvyzp1\\\\04-replace-5.0\\\\record.json' (winerror=5)",
+        "seconds": 1.972,
+        "content_after": "old"
+       }
+      }
+     },
+     {
+      "name": "liveness_of_a_live_an_exited_and_a_bogus_pid",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.36,
+      "observed": {
+       "live": true,
+       "exited": false,
+       "bogus": {
+        "None": false,
+        "'x'": false,
+        "0": false,
+        "-1": false
+       }
+      }
+     },
+     {
+      "name": "interrupt_asks_a_python_child_or_declines",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 3.2,
+      "observed": {
+       "asked": false,
+       "exit_code": 1,
+       "marker": null,
+       "forced": true,
+       "seconds": 3.148
+      }
+     },
+     {
+      "name": "kill_tree_ends_the_child_and_its_grandchild",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.21,
+      "observed": {
+       "child_gone": true,
+       "grandchild_gone": true,
+       "diagnostic": null
+      }
+     },
+     {
+      "name": "kill_tree_after_the_leader_exited",
+      "group": "ports",
+      "result": "declared_limitation",
+      "seconds": 15.23,
+      "declared": "docs/CONTRACTS.md — `taskkill /T`는 부모가 이미 끝난 자손에 닿지 않습니다",
+      "observed": {
+       "leader_exit_code": 0,
+       "grandchild_gone": false,
+       "diagnostic": "labkit: could not end the process tree of pid 6260; its descendants may still be running (the wrapper had already exited when taskkill looked; a descendant of it may still be running)"
+      }
+     },
+     {
+      "name": "deadline_interrupts_python_code",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 1.03,
+      "observed": {
+       "interrupted_by": "Interrupted",
+       "flag_set": true,
+       "cancel_flag": false,
+       "seconds": 1.029
+      }
+     },
+     {
+      "name": "deadline_interrupts_a_sleep",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 1.01,
+      "observed": {
+       "interrupted_by": "Interrupted",
+       "flag_set": true,
+       "cancel_flag": false,
+       "seconds": 1.008
+      }
+     },
+     {
+      "name": "the_cancel_request_wakes_a_sleeping_run",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 1.07,
+      "observed": {
+       "woken_by": "Interrupted",
+       "seconds": 1.07,
+       "timeout": false,
+       "cancel": true
+      }
+     },
+     {
+      "name": "the_guard_records_outside_regions_and_interrupts_inside_once",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 1.2,
+      "observed": {
+       "SIGINT": {
+        "recorded_without_raising": true,
+        "region_raised": "Interrupted",
+        "second_in_the_region": "only recorded",
+        "after_the_region": "only recorded"
+       },
+       "SIGBREAK": {
+        "recorded_without_raising": true,
+        "region_raised": "Interrupted",
+        "second_in_the_region": "only recorded",
+        "after_the_region": "only recorded"
+       },
+       "handlers_restored": true
+      }
+     },
+     {
+      "name": "base_env_is_enough_to_start_a_child",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.06,
+      "observed": {
+       "base_env_keys": [
+        "APPDATA",
+        "COMSPEC",
+        "LOCALAPPDATA",
+        "NUMBER_OF_PROCESSORS",
+        "PATHEXT",
+        "PROCESSOR_ARCHITECTURE",
+        "PROGRAMDATA",
+        "PROGRAMFILES",
+        "SystemDrive",
+        "SystemRoot",
+        "TEMP",
+        "TMP",
+        "USERPROFILE",
+        "windir"
+       ],
+       "python_with_base_env": {
+        "exit": 0,
+        "stderr": null
+       },
+       "python_with_path_only": {
+        "exit": 0,
+        "stderr": null
+       },
+       "python_with_empty_env": {
+        "exit": 0,
+        "stderr": null
+       }
+      }
+     },
+     {
+      "name": "device_names_on_this_file_system",
+      "group": "ports",
+      "result": "observed",
+      "seconds": 0.0,
+      "observed": {
+       "con": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "nul": {
+        "written": true,
+        "listed_as_a_file": false
+       },
+       "con.txt": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "nul.parquet": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "con_.png": {
+        "written": true,
+        "listed_as_a_file": true
+       }
+      }
+     },
+     {
+      "name": "long_names_on_this_file_system",
+      "group": "ports",
+      "result": "observed",
+      "seconds": 0.0,
+      "observed": {
+       "name_300.open": {
+        "made": false,
+        "type": "OSError",
+        "errno": 22,
+        "winerror": null,
+        "strerror": "Invalid argument"
+       },
+       "name_300.mkdir": {
+        "made": false,
+        "type": "OSError",
+        "errno": 22,
+        "winerror": 123,
+        "strerror": "The filename, directory name, or volume label syntax is incorrect"
+       },
+       "path_over_260.makedirs": {
+        "made": true
+       },
+       "path_over_260.open": {
+        "made": true
+       },
+       "path_over_260.length": 276
+      }
+     },
+     {
+      "name": "file_url_leads_back_to_the_file",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.01,
+      "observed": {
+       "url": "file:///C:/Users/runneradmin/AppData/Local/Temp/labkit-smoke-i3cvyzp1/12-file-url/%EC%9E%85%EB%A0%A5%20%EB%8D%B0%EC%9D%B4%ED%84%B0.csv",
+       "back": "C:\\Users\\runneradmin\\AppData\\Local\\Temp\\labkit-smoke-i3cvyzp1\\12-file-url\\입력 데이터.csv"
+      }
+     },
+     {
+      "name": "utf8_survives_a_pipe",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.12,
+      "observed": {
+       "with_configure_stdio": {
+        "exit": 0,
+        "stdout": "한글 출력 ✓",
+        "stderr": null
+       },
+       "without_it": {
+        "exit": 1,
+        "stdout": "",
+        "stderr": "\\3.11.9\\x64\\Lib\\encodings\\cp1252.py\", line 19, in encode\n    return codecs.charmap_encode(input,self.errors,encoding_table)[0]\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nUnicodeEncodeError: 'charmap' codec can't encode characters in position 0-1: character maps to <undefined>"
+       }
+      }
+     },
+     {
+      "name": "probe_interrupt_through_uv_run",
+      "group": "probe",
+      "result": "not_run",
+      "seconds": null,
+      "reason": "uv is not on PATH"
+     },
+     {
+      "name": "probe_cancel_request_file_through_uv_run",
+      "group": "probe",
+      "result": "not_run",
+      "seconds": null,
+      "reason": "uv is not on PATH"
+     },
+     {
+      "name": "probe_waking_a_sleeping_main_thread",
+      "group": "probe",
+      "result": "observed",
+      "seconds": 11.01,
+      "observed": {
+       "_thread.interrupt_main": {
+        "interrupted_by": "Interrupted",
+        "seconds": 10.0
+       },
+       "signal.raise_signal(SIGINT)": {
+        "interrupted_by": "Interrupted",
+        "seconds": 1.01
+       }
+      }
+     }
+    ]
+   },
+   "distribution_interpreters": {
+    "3.11": {
+     "version": "3.11.9",
+     "implementation": "CPython",
+     "executable": "C:\\hostedtoolcache\\windows\\Python\\3.11.9\\x64\\python.exe"
+    },
+    "3.12": {
+     "version": "3.12.10",
+     "implementation": "CPython",
+     "executable": "D:\\a\\aelix-analytics\\aelix-analytics\\.venv\\Scripts\\python.exe"
+    }
+   }
+  },
+  "macos": {
+   "where": "developer machine",
+   "smoke_py3_12": {
+    "file_sha256": "1276c05d21d745eeb5032d6d3bb841b15aef9fa99b565da113ec389026d3b924",
+    "command": [
+     "python3",
+     "tools/platform_smoke.py",
+     "--gate",
+     "required",
+     "--output",
+     "<macos output>/smoke-macOS-py3.12.json"
+    ],
+    "mode": "full",
+    "source": {
+     "head": "7403e7b462d4f63407d516d1e1e2f8e3a58bebd1",
+     "dirty": false
+    },
+    "generated_at": "2026-09-30T15:18:04+00:00",
+    "environment": {
+     "platform": "macOS-26.6.2-arm64-arm-64bit",
+     "system": "Darwin",
+     "release": "25.6.0",
+     "machine": "arm64",
+     "python": "3.12.13",
+     "implementation": "CPython",
+     "executable": "<measurement worktree>/.venv/bin/python3",
+     "utf8_mode": 0,
+     "preferred_encoding": "UTF-8",
+     "filesystem_encoding": "utf-8",
+     "stdout_encoding": "utf-8",
+     "cpu_count": 18,
+     "uv": "uv 0.11.19 (Homebrew 2026-06-03 aarch64-apple-darwin)",
+     "macos": "26.6.2"
+    },
+    "summary": {
+     "holds": 25,
+     "violated": 0,
+     "declared_limitation": 0,
+     "observed": 6,
+     "not_run": 0
+    },
+    "required": {
+     "platform": "posix",
+     "violated": [],
+     "declared_limitation": [],
+     "not_run": [],
+     "hold": true,
+     "checks": 25
+    },
+    "checks": [
+     {
+      "name": "imports_without_analysis_libraries",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.0,
+      "observed": {
+       "bundle": "posix",
+       "analysis_modules_loaded": []
+      }
+     },
+     {
+      "name": "lock_excludes_another_process",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 2.04,
+      "observed": {
+       "waited_s": 1.974,
+       "holder_kept_it_s": 2.0
+      }
+     },
+     {
+      "name": "lock_released_when_its_holder_is_killed",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.06,
+      "observed": {
+       "acquired_within_15s_after_the_kill": true
+      }
+     },
+     {
+      "name": "replace_while_a_reader_holds_the_file",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 5.82,
+      "observed": {
+       "reader_holds_0.7s": {
+        "replaced": true,
+        "error": null,
+        "seconds": 0.0,
+        "content_after": "new"
+       },
+       "reader_holds_5.0s": {
+        "replaced": true,
+        "error": null,
+        "seconds": 0.0,
+        "content_after": "new"
+       }
+      }
+     },
+     {
+      "name": "liveness_of_a_live_an_exited_and_a_bogus_pid",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.0,
+      "observed": {
+       "live": true,
+       "exited": false,
+       "bogus": {
+        "None": false,
+        "'x'": false,
+        "0": false,
+        "-1": false
+       }
+      }
+     },
+     {
+      "name": "interrupt_asks_a_python_child_or_declines",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.06,
+      "observed": {
+       "asked": true,
+       "exit_code": 130,
+       "marker": "graceful:2",
+       "forced": false,
+       "seconds": 0.004
+      }
+     },
+     {
+      "name": "kill_tree_ends_the_child_and_its_grandchild",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.06,
+      "observed": {
+       "child_gone": true,
+       "grandchild_gone": true,
+       "diagnostic": null
+      }
+     },
+     {
+      "name": "kill_tree_after_the_leader_exited",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.16,
+      "observed": {
+       "leader_exit_code": 0,
+       "grandchild_gone": true,
+       "diagnostic": null
+      }
+     },
+     {
+      "name": "deadline_interrupts_python_code",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 1.01,
+      "observed": {
+       "interrupted_by": "Interrupted",
+       "flag_set": true,
+       "cancel_flag": false,
+       "seconds": 1.005
+      }
+     },
+     {
+      "name": "deadline_interrupts_a_sleep",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 1.0,
+      "observed": {
+       "interrupted_by": "Interrupted",
+       "flag_set": true,
+       "cancel_flag": false,
+       "seconds": 1.002
+      }
+     },
+     {
+      "name": "the_cancel_request_wakes_a_sleeping_run",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.0,
+      "observed": {
+       "threads_started": 0
+      }
+     },
+     {
+      "name": "the_guard_records_outside_regions_and_interrupts_inside_once",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.61,
+      "observed": {
+       "SIGINT": {
+        "recorded_without_raising": true,
+        "region_raised": "Interrupted",
+        "second_in_the_region": "only recorded",
+        "after_the_region": "only recorded"
+       },
+       "handlers_restored": true
+      }
+     },
+     {
+      "name": "base_env_is_enough_to_start_a_child",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.06,
+      "observed": {
+       "base_env_keys": [],
+       "python_with_base_env": {
+        "exit": 0,
+        "stderr": null
+       },
+       "python_with_path_only": {
+        "exit": 0,
+        "stderr": null
+       },
+       "python_with_empty_env": {
+        "exit": 0,
+        "stderr": null
+       },
+       "uv_with_base_env": {
+        "exit": 0,
+        "stderr": null
+       },
+       "uv_with_path_only": {
+        "exit": 0,
+        "stderr": null
+       }
+      }
+     },
+     {
+      "name": "device_names_on_this_file_system",
+      "group": "ports",
+      "result": "observed",
+      "seconds": 0.0,
+      "observed": {
+       "con": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "nul": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "con.txt": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "nul.parquet": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "con_.png": {
+        "written": true,
+        "listed_as_a_file": true
+       }
+      }
+     },
+     {
+      "name": "long_names_on_this_file_system",
+      "group": "ports",
+      "result": "observed",
+      "seconds": 0.0,
+      "observed": {
+       "name_300.open": {
+        "made": false,
+        "type": "OSError",
+        "errno": 63,
+        "winerror": null,
+        "strerror": "File name too long"
+       },
+       "name_300.mkdir": {
+        "made": false,
+        "type": "OSError",
+        "errno": 63,
+        "winerror": null,
+        "strerror": "File name too long"
+       },
+       "path_over_260.makedirs": {
+        "made": true
+       },
+       "path_over_260.open": {
+        "made": true
+       },
+       "path_over_260.length": 288
+      }
+     },
+     {
+      "name": "file_url_leads_back_to_the_file",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.0,
+      "observed": {
+       "url": "file://<tmp>/labkit-smoke-2e3l8h78/12-file-url/%EC%9E%85%EB%A0%A5%20%EB%8D%B0%EC%9D%B4%ED%84%B0.csv",
+       "back": "<tmp>/labkit-smoke-2e3l8h78/12-file-url/입력 데이터.csv"
+      }
+     },
+     {
+      "name": "utf8_survives_a_pipe",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.04,
+      "observed": {
+       "with_configure_stdio": {
+        "exit": 0,
+        "stdout": "한글 출력 ✓",
+        "stderr": null
+       },
+       "without_it": {
+        "exit": 0,
+        "stdout": "한글 출력 ✓",
+        "stderr": null
+       }
+      }
+     },
+     {
+      "name": "cli_end_to_end",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 10.45,
+      "observed": {
+       "query": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null,
+        "regions": [
+         "대구",
+         "부산",
+         "서울"
+        ]
+       },
+       "run": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null,
+        "status": "ok",
+        "charts": 1,
+        "stdout_has_korean": true
+       },
+       "note": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null
+       },
+       "rerun": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null,
+        "verdict": "match"
+       },
+       "report": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null,
+        "index_exists": true
+       },
+       "status": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null,
+        "title": "플랫폼 실측"
+       },
+       "context": {
+        "exit": 0,
+        "ok": true,
+        "stderr": null
+       }
+      }
+     },
+     {
+      "name": "cli_run_timeout_in_python_code",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 3.29,
+      "observed": {
+       "status": "timeout",
+       "exit": 3,
+       "recorded_s": 3.005,
+       "cli_seconds": 3.3
+      }
+     },
+     {
+      "name": "cli_run_timeout_in_a_blocking_duckdb_query",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 3.31,
+      "observed": {
+       "status": "timeout",
+       "exit": 3,
+       "recorded_s": 3.003,
+       "cli_seconds": 3.3
+      }
+     },
+     {
+      "name": "cli_cancel_the_way_the_extension_does",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 1.91,
+      "observed": {
+       "asked": true,
+       "recorded_status": "cancelled",
+       "listed_status": "cancelled",
+       "exit_code": 3,
+       "exit_code_hex": "0x3",
+       "forced": false,
+       "seconds_to_exit": 0.5,
+       "kit_process_gone": true,
+       "stdout_tail": "started\n"
+      }
+     },
+     {
+      "name": "cli_cancel_reaches_a_run_inside_a_regular_expression",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 2.36,
+      "observed": {
+       "asked": true,
+       "recorded_status": "cancelled",
+       "listed_status": "cancelled",
+       "exit_code": 3,
+       "exit_code_hex": "0x3",
+       "forced": false,
+       "seconds_to_exit": 0.45,
+       "kit_process_gone": true,
+       "stdout_tail": "started\n"
+      }
+     },
+     {
+      "name": "cli_cancel_reaches_a_run_waiting_on_a_subprocess",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 2.41,
+      "observed": {
+       "asked": true,
+       "recorded_status": "cancelled",
+       "listed_status": "cancelled",
+       "exit_code": 3,
+       "exit_code_hex": "0x3",
+       "forced": false,
+       "seconds_to_exit": 0.5,
+       "kit_process_gone": true,
+       "stdout_tail": "started\n"
+      }
+     },
+     {
+      "name": "cli_deadline_when_the_script_ignores_sigint",
+      "group": "cli",
+      "result": "observed",
+      "seconds": 2.3,
+      "observed": {
+       "status": "timeout",
+       "exit": 3,
+       "recorded_s": 2.004,
+       "cli_seconds": 2.3,
+       "script_finished": false
+      }
+     },
+     {
+      "name": "cli_concurrent_runs_are_serialized",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 4.64,
+      "observed": {
+       "left_side": {
+        "status": "ok",
+        "outputs": [
+         "data/derived/left_side.parquet"
+        ]
+       },
+       "right_side": {
+        "status": "ok",
+        "outputs": [
+         "data/derived/right_side.parquet"
+        ]
+       }
+      }
+     },
+     {
+      "name": "cli_refuses_a_new_reserved_dataset_name",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 0.08,
+      "observed": {
+       "exit": 1,
+       "error_code": "name_not_portable"
+      }
+     },
+     {
+      "name": "cli_writes_a_reserved_chart_id_to_a_portable_file",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 1.0,
+      "observed": {
+       "status": "ok",
+       "exit": 0,
+       "ids": [
+        "con"
+       ],
+       "png": "runs/20261001-001845-06-chart-con/charts/con_.png",
+       "png_readable": true
+      }
+     },
+     {
+      "name": "cli_a_script_saving_a_reserved_name_is_warned_about",
+      "group": "cli",
+      "result": "holds",
+      "seconds": 0.35,
+      "observed": {
+       "status": "ok",
+       "exit": 0,
+       "warned": true,
+       "error": null
+      }
+     },
+     {
+      "name": "probe_interrupt_through_uv_run",
+      "group": "probe",
+      "result": "observed",
+      "seconds": 1.3,
+      "observed": {
+       "uv_exit_code": 130,
+       "uv_exit_code_hex": "0x82",
+       "seconds_to_exit": 1.25,
+       "child_marker": "handler-finished:2",
+       "child_gone": true
+      }
+     },
+     {
+      "name": "probe_cancel_request_file_through_uv_run",
+      "group": "probe",
+      "result": "observed",
+      "seconds": 1.16,
+      "observed": {
+       "uv_exit_code": 130,
+       "uv_exit_code_hex": "0x82",
+       "seconds_to_exit": 1.1,
+       "child_marker": "handler-finished:2",
+       "child_gone": true
+      }
+     },
+     {
+      "name": "probe_waking_a_sleeping_main_thread",
+      "group": "probe",
+      "result": "observed",
+      "seconds": 11.01,
+      "observed": {
+       "_thread.interrupt_main": {
+        "interrupted_by": "Interrupted",
+        "seconds": 10.0
+       },
+       "signal.pthread_kill(main, SIGINT)": {
+        "interrupted_by": "Interrupted",
+        "seconds": 1.0
+       }
+      }
+     }
+    ]
+   },
+   "suite_py3_12": {
+    "file_sha256": "5c44eee0cce0bf29b79e108f1d03e3a400db4940b5849e7a0e10006060b9e830",
+    "timestamp": "2026-10-01T00:19:01.416019+09:00",
+    "seconds": 271.141,
+    "counts": {
+     "pass": 610,
+     "fail": 0,
+     "skip": 4
+    },
+    "failed": [],
+    "skipped_by_reason": {
+     "this file system refuses a name that is not UTF-8: OSError(92, 'Illegal byte sequence')": 2,
+     "collection skipped": 1,
+     "before 3.14 a `with` calls __enter__ without a CALL, and no signal is handled between its acquiring and the block": 1
+    },
+    "by_module": {
+     "": {
+      "skip": 1
+     },
+     "test_doc_checks": {
+      "pass": 32
+     },
+     "test_human_baseline": {
+      "pass": 2
+     },
+     "test_kit": {
+      "pass": 42
+     },
+     "test_launcher": {
+      "pass": 87
+     },
+     "test_packaging": {
+      "pass": 20
+     },
+     "test_platform": {
+      "pass": 392,
+      "skip": 3
+     },
+     "test_platform_smoke": {
+      "pass": 35
+     }
+    },
+    "distribution_tests": {
+     "test_the_wheel_holds_the_package_and_nothing_else": "pass",
+     "test_the_extension_module_is_the_checkouts_adapter": "pass",
+     "test_the_wheel_metadata": "pass",
+     "test_the_manifest_agrees_with_the_distribution": "pass",
+     "test_the_sdist_builds_the_same_wheel": "pass",
+     "test_the_sdist_installs_the_same_package": "pass",
+     "test_the_installed_distribution_finds_its_kit[3.11]": "pass",
+     "test_the_installed_distribution_finds_its_kit[3.12]": "pass",
+     "test_the_console_script_is_the_launcher[3.11]": "pass",
+     "test_the_console_script_is_the_launcher[3.12]": "pass",
+     "test_the_console_script_gives_children_exactly_the_installed_kit": "pass",
+     "test_aelix_binds_and_loads_the_installed_extension[3.11]": "pass",
+     "test_aelix_binds_and_loads_the_installed_extension[3.12]": "pass",
+     "test_a_checkout_symlink_beside_the_wheel_sets_up_one_copy": "pass",
+     "test_the_installed_extension_s_tools_run_a_project[3.11]": "pass",
+     "test_the_installed_extension_s_tools_run_a_project[3.12]": "pass",
+     "test_the_installed_command_drives_a_project_without_aelix[3.11]": "pass",
+     "test_the_installed_command_drives_a_project_without_aelix[3.12]": "pass",
+     "test_the_kit_s_stdlib_commands_run_on_the_floor": "pass",
+     "test_pip_installs_and_uninstalls_the_wheel_without_leftovers": "pass"
+    }
+   },
+   "suite_py3_13": {
+    "file_sha256": "52afe40c1982d195a7ddae656436f06493d0afc9ee95cfc2c831e48205084b1d",
+    "timestamp": "2026-10-01T00:24:34.643711+09:00",
+    "seconds": 225.39,
+    "counts": {
+     "pass": 601,
+     "fail": 0,
+     "skip": 13
+    },
+    "failed": [],
+    "skipped_by_reason": {
+     "set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)": 9,
+     "this file system refuses a name that is not UTF-8: OSError(92, 'Illegal byte sequence')": 2,
+     "collection skipped": 1,
+     "before 3.14 a `with` calls __enter__ without a CALL, and no signal is handled between its acquiring and the block": 1
+    },
+    "by_module": {
+     "": {
+      "skip": 1
+     },
+     "test_doc_checks": {
+      "pass": 32
+     },
+     "test_human_baseline": {
+      "pass": 2
+     },
+     "test_kit": {
+      "pass": 42
+     },
+     "test_launcher": {
+      "pass": 87
+     },
+     "test_packaging": {
+      "pass": 11,
+      "skip": 9
+     },
+     "test_platform": {
+      "pass": 392,
+      "skip": 3
+     },
+     "test_platform_smoke": {
+      "pass": 35
+     }
+    },
+    "distribution_tests": {
+     "test_the_wheel_holds_the_package_and_nothing_else": "pass",
+     "test_the_extension_module_is_the_checkouts_adapter": "pass",
+     "test_the_wheel_metadata": "pass",
+     "test_the_manifest_agrees_with_the_distribution": "pass",
+     "test_the_sdist_builds_the_same_wheel": "pass",
+     "test_the_sdist_installs_the_same_package": "pass",
+     "test_the_installed_distribution_finds_its_kit[3.11]": "pass",
+     "test_the_installed_distribution_finds_its_kit[3.12]": "pass",
+     "test_the_console_script_is_the_launcher[3.11]": "pass",
+     "test_the_console_script_is_the_launcher[3.12]": "pass",
+     "test_the_console_script_gives_children_exactly_the_installed_kit": "pass",
+     "test_aelix_binds_and_loads_the_installed_extension[3.11]": "skip: set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)",
+     "test_aelix_binds_and_loads_the_installed_extension[3.12]": "skip: set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)",
+     "test_a_checkout_symlink_beside_the_wheel_sets_up_one_copy": "skip: set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)",
+     "test_the_installed_extension_s_tools_run_a_project[3.11]": "skip: set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)",
+     "test_the_installed_extension_s_tools_run_a_project[3.12]": "skip: set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)",
+     "test_the_installed_command_drives_a_project_without_aelix[3.11]": "skip: set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)",
+     "test_the_installed_command_drives_a_project_without_aelix[3.12]": "skip: set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)",
+     "test_the_kit_s_stdlib_commands_run_on_the_floor": "skip: set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)",
+     "test_pip_installs_and_uninstalls_the_wheel_without_leftovers": "skip: set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)"
+    }
+   },
+   "suite_py3_14": {
+    "file_sha256": "4e25a6656c2698bf5f8a31e66b8fbe6bb88346e63ea4c41d8c1ba2d494f2c0bf",
+    "timestamp": "2026-10-01T00:28:20.930262+09:00",
+    "seconds": 232.376,
+    "counts": {
+     "pass": 602,
+     "fail": 0,
+     "skip": 12
+    },
+    "failed": [],
+    "skipped_by_reason": {
+     "set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)": 9,
+     "this file system refuses a name that is not UTF-8: OSError(92, 'Illegal byte sequence')": 2,
+     "collection skipped": 1
+    },
+    "by_module": {
+     "": {
+      "skip": 1
+     },
+     "test_doc_checks": {
+      "pass": 32
+     },
+     "test_human_baseline": {
+      "pass": 2
+     },
+     "test_kit": {
+      "pass": 42
+     },
+     "test_launcher": {
+      "pass": 87
+     },
+     "test_packaging": {
+      "pass": 11,
+      "skip": 9
+     },
+     "test_platform": {
+      "pass": 393,
+      "skip": 2
+     },
+     "test_platform_smoke": {
+      "pass": 35
+     }
+    },
+    "distribution_tests": {
+     "test_the_wheel_holds_the_package_and_nothing_else": "pass",
+     "test_the_extension_module_is_the_checkouts_adapter": "pass",
+     "test_the_wheel_metadata": "pass",
+     "test_the_manifest_agrees_with_the_distribution": "pass",
+     "test_the_sdist_builds_the_same_wheel": "pass",
+     "test_the_sdist_installs_the_same_package": "pass",
+     "test_the_installed_distribution_finds_its_kit[3.11]": "pass",
+     "test_the_installed_distribution_finds_its_kit[3.12]": "pass",
+     "test_the_console_script_is_the_launcher[3.11]": "pass",
+     "test_the_console_script_is_the_launcher[3.12]": "pass",
+     "test_the_console_script_gives_children_exactly_the_installed_kit": "pass",
+     "test_aelix_binds_and_loads_the_installed_extension[3.11]": "skip: set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)",
+     "test_aelix_binds_and_loads_the_installed_extension[3.12]": "skip: set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)",
+     "test_a_checkout_symlink_beside_the_wheel_sets_up_one_copy": "skip: set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)",
+     "test_the_installed_extension_s_tools_run_a_project[3.11]": "skip: set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)",
+     "test_the_installed_extension_s_tools_run_a_project[3.12]": "skip: set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)",
+     "test_the_installed_command_drives_a_project_without_aelix[3.11]": "skip: set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)",
+     "test_the_installed_command_drives_a_project_without_aelix[3.12]": "skip: set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)",
+     "test_the_kit_s_stdlib_commands_run_on_the_floor": "skip: set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)",
+     "test_pip_installs_and_uninstalls_the_wheel_without_leftovers": "skip: set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)"
+    }
+   },
+   "aelix_0_1_0b2_py3_11": {
+    "file_sha256": "8512ae12b3b8d4daadd185730f834d344e1a4b8d8ffb91a6d60bae8294ff4667",
+    "timestamp": "2026-10-01T00:23:54.839186+09:00",
+    "seconds": 17.181,
+    "counts": {
+     "pass": 12,
+     "fail": 0,
+     "skip": 0
+    },
+    "failed": [],
+    "skipped_by_reason": {},
+    "by_module": {
+     "test_extension": {
+      "pass": 12
+     }
+    }
+   },
+   "aelix_0_1_0b2_py3_12": {
+    "file_sha256": "7d6ea835e678c1df993738a65c8385579aed837182cf9c671bf11baabac48090",
+    "timestamp": "2026-10-01T00:23:33.083355+09:00",
+    "seconds": 17.787,
+    "counts": {
+     "pass": 12,
+     "fail": 0,
+     "skip": 0
+    },
+    "failed": [],
+    "skipped_by_reason": {},
+    "by_module": {
+     "test_extension": {
+      "pass": 12
+     }
+    }
+   },
+   "stdlib_only_smoke_py3_11": {
+    "file_sha256": "6ffe4e9ba32766d168c6816b26ee6594ee535fe5af4904cc40fade99fca478fe",
+    "command": [
+     "python3.11",
+     "tools/platform_smoke.py",
+     "--stdlib-only",
+     "--gate",
+     "required",
+     "--output",
+     "<macos output>/stdlib-macOS-py3.11.json"
+    ],
+    "mode": "stdlib-only",
+    "source": {
+     "head": "7403e7b462d4f63407d516d1e1e2f8e3a58bebd1",
+     "dirty": false
+    },
+    "generated_at": "2026-09-30T15:24:12+00:00",
+    "environment": {
+     "platform": "macOS-26.6.2-arm64-arm-64bit",
+     "system": "Darwin",
+     "release": "25.6.0",
+     "machine": "arm64",
+     "python": "3.11.15",
+     "implementation": "CPython",
+     "executable": "<uv python>/cpython-3.11-macos-aarch64-none/bin/python3.11",
+     "utf8_mode": 0,
+     "preferred_encoding": "UTF-8",
+     "filesystem_encoding": "utf-8",
+     "stdout_encoding": "utf-8",
+     "cpu_count": 18,
+     "uv": null,
+     "macos": "26.6.2"
+    },
+    "summary": {
+     "holds": 15,
+     "violated": 0,
+     "declared_limitation": 0,
+     "observed": 3,
+     "not_run": 2
+    },
+    "required": {
+     "platform": "posix",
+     "violated": [],
+     "declared_limitation": [],
+     "not_run": [],
+     "hold": true,
+     "checks": 15
+    },
+    "checks": [
+     {
+      "name": "imports_without_analysis_libraries",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.0,
+      "observed": {
+       "bundle": "posix",
+       "analysis_modules_loaded": []
+      }
+     },
+     {
+      "name": "lock_excludes_another_process",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 2.03,
+      "observed": {
+       "waited_s": 1.971,
+       "holder_kept_it_s": 2.0
+      }
+     },
+     {
+      "name": "lock_released_when_its_holder_is_killed",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.06,
+      "observed": {
+       "acquired_within_15s_after_the_kill": true
+      }
+     },
+     {
+      "name": "replace_while_a_reader_holds_the_file",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 5.84,
+      "observed": {
+       "reader_holds_0.7s": {
+        "replaced": true,
+        "error": null,
+        "seconds": 0.0,
+        "content_after": "new"
+       },
+       "reader_holds_5.0s": {
+        "replaced": true,
+        "error": null,
+        "seconds": 0.0,
+        "content_after": "new"
+       }
+      }
+     },
+     {
+      "name": "liveness_of_a_live_an_exited_and_a_bogus_pid",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.0,
+      "observed": {
+       "live": true,
+       "exited": false,
+       "bogus": {
+        "None": false,
+        "'x'": false,
+        "0": false,
+        "-1": false
+       }
+      }
+     },
+     {
+      "name": "interrupt_asks_a_python_child_or_declines",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.06,
+      "observed": {
+       "asked": true,
+       "exit_code": 130,
+       "marker": "graceful:2",
+       "forced": false,
+       "seconds": 0.004
+      }
+     },
+     {
+      "name": "kill_tree_ends_the_child_and_its_grandchild",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.06,
+      "observed": {
+       "child_gone": true,
+       "grandchild_gone": true,
+       "diagnostic": null
+      }
+     },
+     {
+      "name": "kill_tree_after_the_leader_exited",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.16,
+      "observed": {
+       "leader_exit_code": 0,
+       "grandchild_gone": true,
+       "diagnostic": null
+      }
+     },
+     {
+      "name": "deadline_interrupts_python_code",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 1.0,
+      "observed": {
+       "interrupted_by": "Interrupted",
+       "flag_set": true,
+       "cancel_flag": false,
+       "seconds": 1.002
+      }
+     },
+     {
+      "name": "deadline_interrupts_a_sleep",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 1.0,
+      "observed": {
+       "interrupted_by": "Interrupted",
+       "flag_set": true,
+       "cancel_flag": false,
+       "seconds": 1.003
+      }
+     },
+     {
+      "name": "the_cancel_request_wakes_a_sleeping_run",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.0,
+      "observed": {
+       "threads_started": 0
+      }
+     },
+     {
+      "name": "the_guard_records_outside_regions_and_interrupts_inside_once",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.61,
+      "observed": {
+       "SIGINT": {
+        "recorded_without_raising": true,
+        "region_raised": "Interrupted",
+        "second_in_the_region": "only recorded",
+        "after_the_region": "only recorded"
+       },
+       "handlers_restored": true
+      }
+     },
+     {
+      "name": "base_env_is_enough_to_start_a_child",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.03,
+      "observed": {
+       "base_env_keys": [],
+       "python_with_base_env": {
+        "exit": 0,
+        "stderr": null
+       },
+       "python_with_path_only": {
+        "exit": 0,
+        "stderr": null
+       },
+       "python_with_empty_env": {
+        "exit": 0,
+        "stderr": null
+       }
+      }
+     },
+     {
+      "name": "device_names_on_this_file_system",
+      "group": "ports",
+      "result": "observed",
+      "seconds": 0.0,
+      "observed": {
+       "con": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "nul": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "con.txt": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "nul.parquet": {
+        "written": true,
+        "listed_as_a_file": true
+       },
+       "con_.png": {
+        "written": true,
+        "listed_as_a_file": true
+       }
+      }
+     },
+     {
+      "name": "long_names_on_this_file_system",
+      "group": "ports",
+      "result": "observed",
+      "seconds": 0.0,
+      "observed": {
+       "name_300.open": {
+        "made": false,
+        "type": "OSError",
+        "errno": 63,
+        "winerror": null,
+        "strerror": "File name too long"
+       },
+       "name_300.mkdir": {
+        "made": false,
+        "type": "OSError",
+        "errno": 63,
+        "winerror": null,
+        "strerror": "File name too long"
+       },
+       "path_over_260.makedirs": {
+        "made": true
+       },
+       "path_over_260.open": {
+        "made": true
+       },
+       "path_over_260.length": 288
+      }
+     },
+     {
+      "name": "file_url_leads_back_to_the_file",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.0,
+      "observed": {
+       "url": "file://<tmp>/labkit-smoke-xxdafq11/12-file-url/%EC%9E%85%EB%A0%A5%20%EB%8D%B0%EC%9D%B4%ED%84%B0.csv",
+       "back": "<tmp>/labkit-smoke-xxdafq11/12-file-url/입력 데이터.csv"
+      }
+     },
+     {
+      "name": "utf8_survives_a_pipe",
+      "group": "ports",
+      "result": "holds",
+      "seconds": 0.03,
+      "observed": {
+       "with_configure_stdio": {
+        "exit": 0,
+        "stdout": "한글 출력 ✓",
+        "stderr": null
+       },
+       "without_it": {
+        "exit": 0,
+        "stdout": "한글 출력 ✓",
+        "stderr": null
+       }
+      }
+     },
+     {
+      "name": "probe_interrupt_through_uv_run",
+      "group": "probe",
+      "result": "not_run",
+      "seconds": null,
+      "reason": "uv is not on PATH"
+     },
+     {
+      "name": "probe_cancel_request_file_through_uv_run",
+      "group": "probe",
+      "result": "not_run",
+      "seconds": null,
+      "reason": "uv is not on PATH"
+     },
+     {
+      "name": "probe_waking_a_sleeping_main_thread",
+      "group": "probe",
+      "result": "observed",
+      "seconds": 11.01,
+      "observed": {
+       "_thread.interrupt_main": {
+        "interrupted_by": "Interrupted",
+        "seconds": 10.0
+       },
+       "signal.pthread_kill(main, SIGINT)": {
+        "interrupted_by": "Interrupted",
+        "seconds": 1.0
+       }
+      }
+     }
+    ]
+   },
+   "distribution_interpreters": {
+    "3.11": {
+     "version": "3.11.15",
+     "implementation": "CPython"
+    },
+    "3.12": {
+     "version": "3.12.13",
+     "implementation": "CPython"
+    }
+   }
+  }
+ }
+}
