@@ -96,7 +96,9 @@ loaded by its path, whose test links the kit beside it with a directory symbolic
 
 ## Earlier runs
 
-Four earlier runs measured PR #33 before its last changes, with the same checks, and every job passed in each:
+Four earlier runs measured PR #33 before its last changes, with the same legs — the platform smoke, the suite with
+its end-to-end leg, the aelix integration on CPython 3.12 and 3.11, and the stdlib-only smoke; the first did not yet
+record the interpreters uv found — and every job passed in each. Each ran the tests of its own commit:
 
 - [36622190907](https://github.com/handochan/aelix-analytics/actions/runs/36622190907) at `7cfe851` (measurement
   branch `d8eca1a`): the implementation reviews then changed `lab open`, the launcher's messages and `find_program`
