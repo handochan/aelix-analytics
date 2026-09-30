@@ -153,9 +153,11 @@ ADR-0002는 진입점의 하한을 `>=3.11`로 낮추고(결정 2), Aelix 없이
 3. aelix 0.1.0b2와 함께 설치했을 때 `aelix extension verify`가 BOUND, 로더가 도구 6개·`/lab`·hook 4개를 등록하고 분석
    라이브러리가 aelix 프로세스에 들어오지 않음, 체크아웃 symlink와 함께일 때 사본 하나 — 같은 시험의 end-to-end 단계
    (`AELIX_ANALYTICS_TEST_INSTALL=1`).
-4. 설치된 `lab`이 3.11에서 실제 uv로 init → import → query → run → note → report → status → context → open을 수행하고,
+4. 설치된 `lab`이 3.11·3.12에서 실제 uv로 init → import → query → run → note → report → status → context → open을 수행하고,
    run의 스크립트가 설치된 kit의 `labkit`으로 기록됨 — 같은 단계.
 5. `lab`과 `bin/lab`의 계약 동등성, Ctrl+C·SIGTERM, 시작 순간의 Ctrl+C — `tests/test_launcher.py`(POSIX).
 6. aelix가 한 프로세스에서 확장을 두 번 설정할 때 설치본 모듈이 같고 상태가 새로 시작하는지, 설치본 확장의 도구
    (`lab_init`·`lab_import`·`lab_run`·`lab_note`)가 실제 uv로 프로젝트를 다루는지 — `tests/test_packaging.py`의 end-to-end 단계.
-7. Linux·Windows에서 1–4와 6 — Issue #8의 측정 워크플로. Windows의 대화형 콘솔과 Ctrl+Break는 PR-3.
+7. Linux·Windows에서 1–4와 6 — Issue #8의 측정 워크플로로 실행했다. 세 플랫폼에서 적용되는 시험이 모두 통과했다([측정
+   기록](../verification/2026-09-30-issue-8-distribution.md)). Windows에서는 POSIX 전용인 것 — 3의 symlink 경로, 2의 자식
+   PYTHONPATH를 기록하는 stand-in(스크립트), 4의 `open` — 을 실행하지 않았다. Windows의 대화형 콘솔과 Ctrl+Break는 PR-3.
