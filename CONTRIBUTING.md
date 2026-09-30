@@ -79,8 +79,8 @@ wheel에 들어가 구성원 시험이 실패하므로, 배포본은 깨끗한 �
 체크아웃의 `uv sync`는 `[project.scripts]`를 설치하지 않는다는 경고를 냅니다. 정상입니다: 개발 환경은
 `package = false`이고, 이 배치는 editable 설치를 지원하지 않으므로 `package = true`로 바꾸지 마세요. 배포본은 빌드한
 wheel로 확인합니다.
-사람용 진입점은 `bin/lab`(체크아웃, POSIX)과 설치본의 `lab`(`src/aelix_analytics/cli.py`) 둘입니다. 한쪽의 명령·인자·
-출력·종료 코드를 바꾸면 다른 쪽과 `tests/test_launcher.py`의 동등성 시험을 함께 고칩니다.
+사람용 진입점은 `bin/lab`(체크아웃, POSIX)과 설치본의 `analytics`(`src/aelix_analytics/cli.py`) 둘입니다. 명령 이름 말고는
+같은 계약이므로, 한쪽의 명령·인자·출력·종료 코드를 바꾸면 다른 쪽과 `tests/test_launcher.py`의 동등성 시험을 함께 고칩니다.
 
 Aelix 통합 시험은 Aelix와 pytest가 설치된 별도 환경에서도 실행합니다. 예를 들어 이 저장소와 기존 작업공간 배치에서는:
 
@@ -108,8 +108,8 @@ uv run --locked python tools/check_docs.py --output .devstate/runs/<run-id>/evid
 
 ## 첫 공개 전에 남은 운영 결정
 
-라이선스, 배포 이름, 유지관리 책임자, 보안 신고 경로와 릴리스 절차는 확정해 공개해야 합니다.
+배포 이름, 유지관리 책임자, 보안 신고 경로와 릴리스 절차는 확정해 공개해야 합니다.
+라이선스는 Apache License 2.0입니다([LICENSE](LICENSE), 2026-09-30 결정).
 지원 플랫폼은 Linux·macOS·Windows이며 Python 하한과 패키징 경계는 [ADR-0002](docs/decisions/0002-python-support-and-platform-scope.md)로 채택했습니다. 채택은 구현 완료가 아니므로, 현재 코드의 상태는 [현재 계약](docs/CONTRACTS.md)의 실행 환경 절을 따릅니다.
-현재 LICENSE가 없으므로 이 문서가 사용·재배포의 라이선스를 부여하지 않습니다.
 출시 여부는 [품질 게이트](docs/BETA-QUALITY-GATES.md)의 실제 증거로 판단합니다.
 작성·실행·기록·설치 경로를 바꾸면 [Q17](docs/BETA-QUALITY-GATES.md#사람의-직접-분석과-작성-주체-전환-검증)의 관련 사례를 검증합니다. 노트북에서 SDK를 import한 사실만으로 실행 기록 연동을 지원한다고 안내하지 않습니다.

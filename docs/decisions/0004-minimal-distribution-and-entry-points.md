@@ -40,12 +40,12 @@ ADR-0002는 진입점의 하한을 `>=3.11`로 낮추고(결정 2), Aelix 없이
    `kit/labkit/` → `aelix_analytics/kit/labkit/`. 새 프로젝트 템플릿은 `kit/template/`에서 `kit/labkit/template/`로
    옮겨 labkit의 package data가 된다. 그래서 자식의 PYTHONPATH에는 `labkit` 하나만 보인다. 개발 환경은
    `package = false`를 유지하고, 배포본의 확인은 언제나 빌드한 wheel로 한다.
-2. **진입점은 둘이다.** console script `lab`(`aelix_analytics.cli:main`, Windows에서는 `lab.exe`)과 entry point
+2. **진입점은 둘이다.** console script `analytics`(`aelix_analytics.cli:main`, Windows에서는 `analytics.exe`)와 entry point
    `aelix.extensions: aelix-analytics = aelix_analytics.extension:setup`. manifest는 package 최상위의
    `aelix-plugin.toml`이다: `id = "aelix-analytics"`, `version`은 pyproject·`KIT_VERSION`과 같게, 시작할 때 로드
    (`on_startup_finished`), `[plugin.entry] python`도 적는다. capability는 사실인 네 개(`shell_exec`, `fs_write`,
-   `fs_read_user`, `net`)를 참으로 적는다. 스키마는 거짓을 약속으로 읽기 때문이다. 라이선스는 아직 부여된 것이 없으므로
-   `UNLICENSED`이고, aelix는 로드할 때마다 경고를 남긴다. 소유자의 라이선스 결정이 이 값을 대신한다.
+   `fs_read_user`, `net`)를 참으로 적는다. 스키마는 거짓을 약속으로 읽기 때문이다. 라이선스는 Apache-2.0이다(소유자
+   결정, 2026-09-30: `LICENSE`와 `pyproject.toml`의 `license`, manifest의 `license`).
 3. **하한.** 배포본은 `requires-python = ">=3.11"`, dev dependency group은 `[tool.uv.dependency-groups]`로 `>=3.12`.
    분석 프로젝트 환경은 `>=3.12`를 유지한다(ADR-0002 결정 3). 3.11 확인은 lock이 아니라 빌드한 wheel을 새 3.11
    환경에 설치해 한다.
@@ -67,15 +67,17 @@ ADR-0002는 진입점의 하한을 `>=3.11`로 낮추고(결정 2), Aelix 없이
    시작한다. 한 aelix runtime에는 사본 하나만 설정된다. 먼저 설정된 사본이 등록을 마친 뒤 runtime의 event bus
    (`aelix.events`)에서 응답하고, 뒤의 사본은 아무것도 등록하지 않고 stderr에 알린다. 이 확인이 없는 이전 버전의 사본은
    응답하지 않으므로 감지되지 않는다.
-7. **사람용 진입점은 `lab` 런처다.** stdlib만 쓰고 3.11 이상에서 도는 Python 프로그램으로, `bin/lab`의 계약(명령과
-   인자, usage 문구, kit 출력의 바이트 그대로 전달, 종료 코드)을 모든 플랫폼에서 지킨다. `bin/lab`은 체크아웃의 POSIX
+7. **사람용 진입점은 `analytics` 런처다.** 이름은 제품 명칭의 CLI 이름이다(TERMINOLOGY-AND-LANGUAGE). 이 결정이 새로
+   만드는 공개 이름이므로 명칭 전환이 폐기할 `lab`을 쓰지 않는다(CONTRIBUTING). stdlib만 쓰고 3.11 이상에서 도는 Python
+   프로그램으로, `bin/lab`의 계약(명령과 인자, usage 문구, kit 출력의 바이트 그대로 전달, 종료 코드)을 명령 이름 말고는
+   모든 플랫폼에서 지킨다. 하위 명령의 이름(`note`·`report` 등)과 `bin/lab`은 명칭 전환(#9)에서 바뀐다. `bin/lab`은 체크아웃의 POSIX
    래퍼로 남고 wheel이 설치하지 않는다. 두 구현은 POSIX에서 같은 stand-in uv로 동등성 시험을 거친다. 런처는 자식을
    같은 process group·콘솔과 표준 스트림을 물려준 채 시작해 기다리고, SIGINT(와 SIGBREAK)는 기록만 한다. 터미널의
    Ctrl+C는 이미 자식에게 가 있으므로, 런처는 다시 보내지도 먼저 끝나지도 않는다. 자식을 시작하는 바로 그 순간 온
    Ctrl+C만은 자식이 뜬 뒤 한 번 더 보낸다(exec 전의 사본에 온 것은 macOS에서는 사라지고, Linux에서는 그 사본을 끝낼
    수 있다; 그 순간 이미 받은 자식에게는 두 번 간다).
    런처만 받은 SIGTERM은 kit의 `run`에만 전한다: run만 그것을 취소로 기록하고, 다른 명령은 도중에 죽으면 쓴 것을
-   기록하지 못한다. 그 밖의 단계는 끝까지 두고, 어느 신호든 기록한 뒤에는 다음 단계(`lab open`이 문서를 여는 프로그램
+   기록하지 못한다. 그 밖의 단계는 끝까지 두고, 어느 신호든 기록한 뒤에는 다음 단계(`analytics open`이 문서를 여는 프로그램
    포함)를 시작하지 않는다. 단계를 시작하는 그 순간 온 신호는 그 단계를 막지 못할 수 있다. 이 SIGTERM 규칙은 POSIX의
    것이다. Windows에서는 다른 프로세스가 처리기에 SIGTERM을 보낼 수 없다.
 8. **`ProcessControl`에 두 동작을 더한다.** `open_document(path, *, wait)`와 `find_program(name)`. 둘 다 플랫폼마다
@@ -84,7 +86,7 @@ ADR-0002는 진입점의 하한을 `>=3.11`로 낮추고(결정 2), Aelix 없이
    프로그램은 PATH의 절대 경로 항목에서만 찾고 경로로 준 것도 `.exe`만 받는다(작업 디렉터리의 프로그램과, 인자를 다시
    해석하는 `.bat`·`.cmd`를 피한다). 찾은 프로그램은 링크를 따라가지 않은 절대 경로로 실행한다(mise의 shim은 자기
    이름으로 동작을 정하는 링크다). `/lab open`의 `sys.platform` 분기가 이것으로 사라진다.
-9. **SDK는 run의 스크립트가 import하는 `labkit`이다.** run을 시작한 진입점(`lab`, `bin/lab`, 확장)이 PYTHONPATH로
+9. **SDK는 run의 스크립트가 import하는 `labkit`이다.** run을 시작한 진입점(`analytics`, `bin/lab`, 확장)이 PYTHONPATH로
    준다. wheel은 최상위 `labkit`을 설치하지 않는다. 노트북·일반 Python에서의 호출은 run을 기록하는 경로가 아니다
    (PRODUCT). run 밖에서도 `lab.note`는 journal 이벤트(작성자 `script`)를 남기고 `lab.save`는 `data/derived`에 쓰며
    `lab.chart`는 기록되지 않는 파일을 `.lab/adhoc`에 남긴다. `import aelix_analytics as analytics`는
@@ -110,6 +112,7 @@ ADR-0002는 진입점의 하한을 `>=3.11`로 낮추고(결정 2), Aelix 없이
 | hatchling의 파일 단위 `sources`로 확장 파일 이름 바꾸기 | 이름이 바뀌지 않고 최상위 `extension/`이 site-packages에 설치됐다(측정). `force-include`를 쓴다 |
 | wheel이 최상위 `labkit`을 설치 | 자식의 PYTHONPATH가 site-packages 전체가 되고, PyPI의 무관한 `labkit`과 이름이 겹친다 |
 | `.pth`로 kit을 모든 Python의 경로에 추가 | 설치 환경의 모든 프로세스(aelix 포함)의 `sys.path`를 바꾼다 |
+| 설치본의 명령을 `lab`으로 | `bin/lab`과 이름까지 같지만, 명칭 전환(#9)이 폐기할 이름을 새 공개 이름으로 만든다. 첫 구현이 이렇게 했고 소유자의 지적(2026-09-30)으로 바꿨다 |
 | 템플릿을 `kit/template/`에 둠 | 자식에서 labkit의 resource로 닿지 않고, 자식의 PYTHONPATH에 `template`이 namespace package로 보인다 |
 | 확장이 설치본의 `aelix_analytics.kit.labkit.core`를 평범하게 import | `labkit/__init__`과 `capture`까지 aelix 프로세스에 들어오고(ADR-0003·계약 A와 다름) kit 경로별 분리가 사라진다 |
 | `[aelix]` extra | 결정 4 참고 |
@@ -135,7 +138,7 @@ ADR-0002는 진입점의 하한을 `>=3.11`로 낮추고(결정 2), Aelix 없이
 - 확장에는 kit을 찾는 경로가 넷이다(설치본, `AELIX_LAB_KIT`, 경로로 로드한 설치본, 체크아웃). 파일 로드에서는 resource
   API를 쓸 수 없으므로 없앨 수 없다.
 - 설치본을 업그레이드하면 aelix를 다시 시작해야 한다. 모듈이 프로세스에 한 번 import되기 때문이다.
-- 사람용 진입점이 두 구현이다(`bin/lab`, `lab`). 동등성 시험이 둘을 묶는다. 알려진 차이: 런처는 POSIX에서 SIGTERM을
+- 사람용 진입점이 두 구현이다(`bin/lab`, `analytics`). 동등성 시험이 명령 이름 말고는 둘을 묶는다. 알려진 차이: 런처는 POSIX에서 SIGTERM을
   kit의 run에 전하고(`bin/lab`의 셸은 kit을 남기고 끝난다), uv가 없을 때 자기 문구로 127, macOS만 `open`을 쓴다. 그 밖에
   측정한 작은 차이(빈 첫 인자, 실행할 수 없는 uv, `AELIX_LAB_UV`의 `~`·끝의 `/`, 닫힌 파이프·표준 출력, symlink로 들어온
   작업 디렉터리의 `init ../DIR`, UTF-8이 아닌 로캘의 경로)는 CONTRACTS F에 있다.
@@ -154,9 +157,9 @@ ADR-0002는 진입점의 하한을 `>=3.11`로 낮추고(결정 2), Aelix 없이
 3. aelix 0.1.0b2와 함께 설치했을 때 `aelix extension verify`가 BOUND, 로더가 도구 6개·`/lab`·hook 4개를 등록하고 분석
    라이브러리가 aelix 프로세스에 들어오지 않음, 체크아웃 symlink와 함께일 때 사본 하나 — 같은 시험의 end-to-end 단계
    (`AELIX_ANALYTICS_TEST_INSTALL=1`).
-4. 설치된 `lab`이 3.11·3.12에서 실제 uv로 init → import → query → run → note → report → status → context → open을 수행하고,
+4. 설치된 `analytics`가 3.11·3.12에서 실제 uv로 init → import → query → run → note → report → status → context → open을 수행하고,
    run의 스크립트가 설치된 kit의 `labkit`으로 기록됨 — 같은 단계.
-5. `lab`과 `bin/lab`의 계약 동등성, Ctrl+C·SIGTERM, 시작 순간의 Ctrl+C — `tests/test_launcher.py`(POSIX).
+5. `analytics`와 `bin/lab`의 계약 동등성(명령 이름 말고), Ctrl+C·SIGTERM, 시작 순간의 Ctrl+C — `tests/test_launcher.py`(POSIX).
 6. aelix가 한 프로세스에서 확장을 두 번 설정할 때 설치본 모듈이 같고 상태가 새로 시작하는지, 설치본 확장의 도구
    (`lab_init`·`lab_import`·`lab_run`·`lab_note`)가 실제 uv로 프로젝트를 다루는지 — `tests/test_packaging.py`의 end-to-end 단계.
 7. Linux·Windows에서 1–4와 6 — Issue #8의 측정 워크플로로 실행했다. 세 플랫폼에서 적용되는 시험이 모두 통과했다([측정

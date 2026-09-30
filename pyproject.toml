@@ -3,14 +3,16 @@ name = "aelix-analytics"
 version = "0.1.0"
 description = "Agent-native analytics projects with durable context, metrics, evidence, and reports"
 readme = "README.md"
-# The floor of what runs where this is installed: the `lab` command, the aelix extension and the
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+# The floor of what runs where this is installed: the `analytics` command, the aelix extension and the
 # stdlib core it loads (ADR-0002 decision 2). Analysis runs in each project's own environment, which
 # keeps >=3.12 (kit/labkit/template/pyproject.toml, decision 3).
 requires-python = ">=3.11"
 dependencies = []
 
 [project.scripts]
-lab = "aelix_analytics.cli:main"
+analytics = "aelix_analytics.cli:main"
 
 [project.entry-points."aelix.extensions"]
 aelix-analytics = "aelix_analytics.extension:setup"

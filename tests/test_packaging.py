@@ -6,7 +6,7 @@ into fresh virtual environments on the entry-point floor and on 3.12. They need 
 or uv's cache for the pinned build backend.
 
 AELIX_ANALYTICS_TEST_INSTALL=1 adds the end-to-end leg: aelix 0.1.0b2 from PyPI beside the wheel,
-aelix's own verify, status and loader, and a project driven through the installed `lab` by real uv —
+aelix's own verify, status and loader, and a project driven through the installed `analytics` by real uv —
 which syncs an analysis environment, so it needs the network or a warm cache. The Issue #8
 measurement workflow runs it on Linux and Windows.
 """
@@ -148,7 +148,12 @@ def test_the_wheel_metadata(dist):
     assert meta["Version"] == pyproject()["project"]["version"]
     assert meta["Requires-Python"] == ">=3.11"
     assert meta.get_all("Requires-Dist") is None, "the entry point installs no analysis library"
-    assert "[console_scripts]\nlab = aelix_analytics.cli:main" in points
+    assert "[console_scripts]\nanalytics = aelix_analytics.cli:main" in points
+    assert meta["License-Expression"] == "Apache-2.0"
+    assert meta.get_all("License-File") == ["LICENSE"]
+    with zipfile.ZipFile(dist["wheel"]) as wheel:
+        shipped = wheel.read("aelix_analytics-0.1.0.dist-info/licenses/LICENSE")
+    assert shipped == (PACK / "LICENSE").read_bytes()
     assert "[aelix.extensions]\naelix-analytics = aelix_analytics.extension:setup" in points
 
 
@@ -161,14 +166,14 @@ def test_the_manifest_agrees_with_the_distribution(dist):
     assert plugin["entry"]["python"] == "aelix_analytics.extension:setup"
     assert plugin["api"] == {"level": 1, "min_level": 1}
     assert manifest["activation"] == {"on_startup_finished": True}
-    assert plugin["license"] == "UNLICENSED", "the owner's licence decision replaces this"
+    assert plugin["license"] == pyproject()["project"]["license"] == "Apache-2.0"
 
 
 def test_the_sdist_builds_the_same_wheel(dist, tmp_path):
     with tarfile.open(dist["sdist"]) as sdist:
         names = {n.split("/", 1)[1] for n in sdist.getnames() if "/" in n}
     sources = set(tracked("src/aelix_analytics", "kit/labkit")) | {
-        "extension/aelix_lab.py", "README.md", "pyproject.toml"}
+        "extension/aelix_lab.py", "README.md", "pyproject.toml", "LICENSE"}
     assert sources <= names
     assert names - sources <= {"PKG-INFO", ".gitignore"}
     out = tmp_path / "from-sdist"
@@ -224,9 +229,9 @@ def test_the_installed_distribution_finds_its_kit(dist, tmp_path, python):
 @pytest.mark.parametrize("python", [FLOOR, CURRENT])
 def test_the_console_script_is_the_launcher(dist, tmp_path, python):
     venv = installed(tmp_path, dist["wheel"], python, "--no-deps", "--offline")
-    lab = shutil.which("lab", path=str(venv_bin(venv)))
-    assert lab is not None
-    done = run([lab, "--help"], cwd=tmp_path, env=outside_env(tmp_path))
+    analytics = shutil.which("analytics", path=str(venv_bin(venv)))
+    assert analytics is not None
+    done = run([analytics, "--help"], cwd=tmp_path, env=outside_env(tmp_path))
     assert done.returncode == 0, done.stderr
     assert done.stdout == cli.USAGE
 
@@ -243,8 +248,8 @@ def test_the_console_script_gives_children_exactly_the_installed_kit(dist, tmp_p
     project = tmp_path / "proj"
     project.mkdir()
     (project / "lab.json").write_text("{}", encoding="utf-8")
-    lab = shutil.which("lab", path=str(venv_bin(venv)))
-    ok([lab, "status"], cwd=project, env=outside_env(tmp_path, AELIX_LAB_UV=str(fake_uv),
+    analytics = shutil.which("analytics", path=str(venv_bin(venv)))
+    ok([analytics, "status"], cwd=project, env=outside_env(tmp_path, AELIX_LAB_UV=str(fake_uv),
                                                       PYTHONPATH="/somewhere/else"))
     env = json.loads(record.read_text(encoding="utf-8"))
     kit = ok([venv_python(venv), "-c", "from aelix_analytics._install import kit_dir; print(kit_dir())"],
@@ -334,8 +339,11 @@ def test_aelix_binds_and_loads_the_installed_extension(dist, tmp_path, python):
     [ours] = [e for e in status["discovered_extensions"] if e["name"] == "aelix-analytics"]
     assert ours["has_manifest"] is True and ours["scope"] == "entry_point"
     assert status["extension_errors"] == []
-    seen = json.loads(ok([venv_python(venv), "-c", LOAD_PROBE, cwd, env["AELIX_CODING_AGENT_DIR"]],
-                         cwd=cwd, env=env).stdout.splitlines()[-1])
+    loaded = ok([venv_python(venv), "-c", LOAD_PROBE, cwd, env["AELIX_CODING_AGENT_DIR"]], cwd=cwd,
+                env=env)
+    seen = json.loads(loaded.stdout.splitlines()[-1])
+    # Apache-2.0 is on aelix's licence list: no "outside the v1 whitelist" warning at load.
+    assert "whitelist" not in loaded.stderr, loaded.stderr
     [copy] = seen["copies"]
     assert copy["manifest"] == "aelix-analytics"
     assert copy["tools"] == ["lab_import", "lab_init", "lab_note", "lab_query", "lab_run", "lab_status"]
@@ -442,14 +450,14 @@ SDK_SCRIPT = textwrap.dedent("""
 
 @e2e
 @pytest.mark.parametrize("python", [FLOOR, CURRENT])
-def test_the_installed_lab_drives_a_project_without_aelix(dist, tmp_path, python):
+def test_the_installed_command_drives_a_project_without_aelix(dist, tmp_path, python):
     """Issue #8's criterion 1 without Aelix: the console script on the entry-point floor and on 3.12,
     with real uv, runs every command the Issue names in a project whose analysis environment is its
     own (>=3.12); the run's script uses the SDK, `labkit`, from the installed kit."""
     venv = installed(tmp_path, dist["wheel"], python, "--no-deps", "--offline")
     listed = ok([UV, "pip", "list", "--python", venv_python(venv)]).stdout
     assert "aelix" not in listed.replace("aelix-analytics", ""), listed
-    lab = shutil.which("lab", path=str(venv_bin(venv)))
+    analytics = shutil.which("analytics", path=str(venv_bin(venv)))
     env = outside_env(tmp_path)
     if POSIX:  # a stand-in opener; os.startfile would open a real program
         opener_dir = tmp_path / "bin"
@@ -461,16 +469,16 @@ def test_the_installed_lab_drives_a_project_without_aelix(dist, tmp_path, python
         env["PATH"] = f"{opener_dir}{os.pathsep}{env['PATH']}"
     work = tmp_path / "work"
     work.mkdir()
-    ok([lab, "init", "proj", "--title", "설치본 분석"], cwd=work, env=env)
+    ok([analytics, "init", "proj", "--title", "설치본 분석"], cwd=work, env=env)
     project = work / "proj"
     csv = tmp_path / "sales.csv"
     csv.write_text("month,region,revenue\n2025-01,서울,100\n2025-02,부산,250\n", encoding="utf-8")
-    ok([lab, "import", csv, "--name", "sales"], cwd=project, env=env)
-    query = json.loads(ok([lab, "query", "SELECT count(*) AS n FROM sales"], cwd=project,
+    ok([analytics, "import", csv, "--name", "sales"], cwd=project, env=env)
+    query = json.loads(ok([analytics, "query", "SELECT count(*) AS n FROM sales"], cwd=project,
                           env=env).stdout.splitlines()[-1])
     assert query["rows"] == [[2]]
     (project / "scripts" / "totals.py").write_text(SDK_SCRIPT, encoding="utf-8")
-    done = ok([lab, "run", "scripts/totals.py", "--title", "합계"], cwd=project, env=env)
+    done = ok([analytics, "run", "scripts/totals.py", "--title", "합계"], cwd=project, env=env)
     result = json.loads(done.stdout.splitlines()[-1])
     record = result["run"]
     assert record["status"] == "ok", result
@@ -485,12 +493,12 @@ def test_the_installed_lab_drives_a_project_without_aelix(dist, tmp_path, python
                (project / "journal.jsonl").read_text(encoding="utf-8").splitlines()]
     [finding] = [e for e in journal if e["kind"] == "finding"]
     assert record["id"] in json.dumps(finding["refs"]), finding
-    ok([lab, "note", "decision", "계속"], cwd=project, env=env)
-    ok([lab, "report"], cwd=project, env=env)
-    assert "설치본 분석" in ok([lab, "status"], cwd=project, env=env).stdout
-    ok([lab, "context"], cwd=project, env=env)
+    ok([analytics, "note", "decision", "계속"], cwd=project, env=env)
+    ok([analytics, "report"], cwd=project, env=env)
+    assert "설치본 분석" in ok([analytics, "status"], cwd=project, env=env).stdout
+    ok([analytics, "context"], cwd=project, env=env)
     if POSIX:
-        ok([lab, "open"], cwd=project, env=env)
+        ok([analytics, "open"], cwd=project, env=env)
         assert (tmp_path / "opened").read_text(encoding="utf-8").strip().endswith("index.html")
     site = venv_bin(venv).parent
     assert not [p for p in site.rglob("*.pyc")
@@ -520,12 +528,12 @@ def test_pip_installs_and_uninstalls_the_wheel_without_leftovers(dist, tmp_path)
     venv = tmp_path / "venv-pip"
     ok([UV, "venv", "--quiet", "--seed", "--python", FLOOR, venv])
     ok([venv_python(venv), "-m", "pip", "install", "--quiet", "--no-deps", dist["wheel"]])
-    lab = shutil.which("lab", path=str(venv_bin(venv)))
+    analytics = shutil.which("analytics", path=str(venv_bin(venv)))
     env = outside_env(tmp_path)
     work = tmp_path / "work"
     work.mkdir()
-    ok([lab, "init", "proj"], cwd=work, env=env)
-    ok([lab, "status"], cwd=work / "proj", env=env)
+    ok([analytics, "init", "proj"], cwd=work, env=env)
+    ok([analytics, "status"], cwd=work / "proj", env=env)
     ok([venv_python(venv), "-m", "pip", "uninstall", "--quiet", "--yes", "aelix-analytics"])
     site = Path(ok([venv_python(venv), "-c", "import sysconfig; print(sysconfig.get_paths()['purelib'])"],
                    env=env).stdout.strip())

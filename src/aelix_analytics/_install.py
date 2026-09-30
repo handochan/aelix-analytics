@@ -1,7 +1,7 @@
 """Where the installed distribution keeps its kit.
 
 Standard library only: the aelix process imports this (through aelix_analytics.extension), and so
-does the `lab` command line.
+does the `analytics` command line.
 """
 
 from __future__ import annotations

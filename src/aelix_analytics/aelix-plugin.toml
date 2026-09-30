@@ -9,9 +9,8 @@ version = "0.1.0"
 description = "Analysis projects with durable context, runs, evidence and reports, for people and agents"
 authors = ["handochan"]
 repository = "https://github.com/handochan/aelix-analytics"
-# No licence has been granted yet (CONTRIBUTING.md). aelix logs a warning for a value outside its
-# list at every load; the owner's licence decision replaces this.
-license = "UNLICENSED"
+# The distribution's licence (LICENSE, pyproject.toml), as an SPDX identifier.
+license = "Apache-2.0"
 
 [plugin.api]
 level = 1

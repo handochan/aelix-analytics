@@ -21,7 +21,7 @@ Workspace는 프로젝트를 탐색하는 인터페이스이며 프로젝트 루
 |---|---|---|
 | 제품 / 저장소·배포 이름 | Aelix Analytics / `aelix-analytics` | 유지 |
 | Aelix 사람 명령 | `/lab` | `/analytics` |
-| CLI / 모듈 실행 | `bin/lab`, `python -m labkit` | `analytics`, `python -m aelix_analytics` |
+| CLI / 모듈 실행 | `bin/lab`, `python -m labkit`; 설치본의 `analytics`(하위 명령은 아직 옛 이름) | `analytics`, `python -m aelix_analytics` |
 | Python SDK | `import labkit as lab` | `import aelix_analytics as analytics` |
 | 확장 진입 파일 | `extension/aelix_lab.py` | `extension/aelix_analytics.py`; 패키징 이후 `aelix_analytics.extension` |
 | 프로젝트 flag | `--lab-project` | `--analytics-project`; CLI 내부 `--project`는 유지 |

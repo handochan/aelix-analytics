@@ -1,15 +1,18 @@
-"""The `lab` command line of the distribution (src/aelix_analytics/cli.py) against bin/lab's contract.
+"""The `analytics` command line of the distribution (src/aelix_analytics/cli.py) against bin/lab's
+contract.
 
 Both run a stand-in for uv that records how it was called, so what reaches the kit — argv,
 environment, working directory — is compared without running the kit. On POSIX every case also runs
-through bin/lab, which is the other implementation of the same contract (ADR-0002 decision 6).
-tests/test_packaging.py runs the launcher as the installed console script.
+through bin/lab, which is the other implementation of the same contract (ADR-0002 decision 6); its
+text differs only by the command's name. tests/test_packaging.py runs the launcher as the installed
+console script.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -142,6 +145,15 @@ def project_dir(tmp_path, name="proj") -> Path:
 WHICH = ["launcher", pytest.param("bin/lab", marks=pytest.mark.skipif(
     not POSIX, reason="bin/lab is a POSIX shell script"))]
 
+# The command's own name in each: the installed command's in the product's terminology, and the
+# checkout's until Issue #9 renames it.
+NAME = {"launcher": "analytics", "bin/lab": "lab"}
+
+
+def named(usage: str, which: str) -> str:
+    """The launcher's usage as `which` prints it: the same text but for the command's name."""
+    return re.sub(r"(?m)^(\s*)analytics(?= )", r"\1" + NAME[which], usage)
+
 
 # --- usage ------------------------------------------------------------------------------------------
 
@@ -151,15 +163,16 @@ WHICH = ["launcher", pytest.param("bin/lab", marks=pytest.mark.skipif(
 def test_help_is_the_usage_on_stdout(fake, tmp_path, which, args):
     done = launch(fake, *args, cwd=tmp_path, which=which)
     assert done.returncode == 0, done.stderr
-    assert done.stdout.decode("utf-8") == cli.USAGE
+    assert done.stdout.decode("utf-8") == named(cli.USAGE, which)
     assert not calls(fake)
 
 
 @pytest.mark.skipif(not POSIX, reason="bin/lab is a POSIX shell script")
-def test_the_usage_is_bin_labs_byte_for_byte(fake, tmp_path):
+def test_the_usage_is_bin_labs_but_for_the_command_name(fake, tmp_path):
     ours = launch(fake, "--help", cwd=tmp_path)
     theirs = launch(fake, "--help", cwd=tmp_path, which="bin/lab")
-    assert ours.stdout == theirs.stdout
+    assert named(ours.stdout.decode("utf-8"), "bin/lab").encode("utf-8") == theirs.stdout
+    assert ours.stdout != theirs.stdout
 
 
 @pytest.mark.parametrize("which", WHICH)
@@ -167,7 +180,7 @@ def test_an_unknown_command_prints_the_usage_on_stderr_and_exits_2(fake, tmp_pat
     done = launch(fake, "frobnicate", cwd=tmp_path, which=which)
     assert done.returncode == 2
     assert done.stdout == b""
-    assert done.stderr.decode("utf-8") == cli.USAGE
+    assert done.stderr.decode("utf-8") == named(cli.USAGE, which)
 
 
 @pytest.mark.parametrize("which", WHICH)
@@ -175,7 +188,7 @@ def test_an_unknown_command_prints_the_usage_on_stderr_and_exits_2(fake, tmp_pat
 def test_init_and_demo_need_a_directory(fake, tmp_path, which, command):
     done = launch(fake, command, cwd=tmp_path, which=which)
     assert done.returncode == 2
-    assert f"usage: lab {command} DIR" in done.stderr.decode("utf-8")
+    assert f"usage: {NAME[which]} {command} DIR" in done.stderr.decode("utf-8")
     assert not calls(fake)
 
 
@@ -316,8 +329,9 @@ def test_init_and_demo_create_sync_then_build_or_fill(fake, tmp_path, which, com
     # init shows the kit's JSON line and the report's is discarded; demo shows demo's.
     assert done.stdout == (b"DEMO-JSON\n" if command == "demo" else b"")
     stderr = done.stderr.decode("utf-8")
-    assert "lab: syncing the project environment" in stderr
-    assert f"lab: report at {project / 'report' / 'index.html'}" in stderr
+    assert f"{NAME[which]}: syncing the project environment" in stderr
+    assert f"{NAME[which]}: report at {project / 'report' / 'index.html'}" in stderr
+    assert f"({NAME[which]} open, from inside the project)" in stderr
 
 
 @pytest.mark.parametrize("which", WHICH)
@@ -334,7 +348,7 @@ def test_init_stops_at_the_first_failing_step(fake, tmp_path, which):
                   do={"sync": {"exit": 1}, "sync-offline": {"exit": 4}})
     assert done.returncode == 4
     assert len(calls(fake)) == 3
-    assert "lab: report at" not in done.stderr.decode("utf-8")
+    assert f"{NAME[which]}: report at" not in done.stderr.decode("utf-8")
 
 
 # --- open -----------------------------------------------------------------------------------------

@@ -1,10 +1,12 @@
-"""`lab`, the human command line of Aelix Analytics, as its distribution installs it.
+"""`analytics`, the human command line of Aelix Analytics, as its distribution installs it.
 
 It keeps `bin/lab`'s contract — the commands and their arguments, the usage text, the kit's output
-passed through untouched, and the exit statuses — on every platform: installers make it `lab`, and
-`lab.exe` on Windows, where the POSIX shell script `bin/lab` cannot run (ADR-0002 decision 6,
-ADR-0004). `bin/lab` stays the command of a checkout; tests/test_launcher.py holds the two to one
-contract.
+passed through untouched, and the exit statuses — on every platform, under the command's name in the
+product's terminology (docs/TERMINOLOGY-AND-LANGUAGE.md): installers make it `analytics`, and
+`analytics.exe` on Windows, where the POSIX shell script `bin/lab` cannot run (ADR-0002 decision 6,
+ADR-0004). Its text differs from `bin/lab`'s only by that name. `bin/lab` stays the command of a
+checkout, under its old name until the rename of Issue #9; tests/test_launcher.py holds the two to
+one contract.
 
 Every command runs the kit in the project's own environment, as `bin/lab` does:
 `uv run --project <project> python -m labkit ...` with PYTHONPATH set to exactly the kit this
@@ -24,19 +26,19 @@ from pathlib import Path
 
 from . import _install
 
-# bin/lab prints its header comment as its usage; this is the same text, byte for byte.
+# bin/lab prints its header comment as its usage; this is the same text but for the command's name.
 USAGE = """\
-lab — human CLI for Aelix Analytics projects (the same kit the aelix extension drives).
+analytics — human CLI for Aelix Analytics projects (the same kit the aelix extension drives).
 
-  lab init DIR [--title T] [--goal G]   create a project and its uv environment
-  lab demo DIR                          new project with synthetic data and example runs
-  lab status | context                  overview | the context block agents receive
-  lab run SCRIPT --title T [--input P] [--timeout S]
-  lab run --rerun-of RUN_ID --title T   re-execute a run's code snapshot and compare
-  lab import FILE [--name N] [--description D]
-  lab query "SQL" [--limit N]
-  lab note KIND "TEXT" [--ref R] [--resolves eN]
-  lab report | open                     rebuild | open report/index.html
+  analytics init DIR [--title T] [--goal G]   create a project and its uv environment
+  analytics demo DIR                          new project with synthetic data and example runs
+  analytics status | context                  overview | the context block agents receive
+  analytics run SCRIPT --title T [--input P] [--timeout S]
+  analytics run --rerun-of RUN_ID --title T   re-execute a run's code snapshot and compare
+  analytics import FILE [--name N] [--description D]
+  analytics query "SQL" [--limit N]
+  analytics note KIND "TEXT" [--ref R] [--resolves eN]
+  analytics report | open                     rebuild | open report/index.html
 
 Commands other than init/demo use the nearest lab.json above the current directory, or LAB_PROJECT.
 Output ends with one JSON line (status and context print text); a run that got past its setup
@@ -72,7 +74,7 @@ def _command(args: list[str], kit: Path | None, uv_argv: list[str] | None,
         _write(sys.stderr, USAGE)
         return 2
     if command in ("init", "demo") and not args:
-        _say(f"usage: lab {command} DIR")
+        _say(f"usage: analytics {command} DIR")
         return 2
     try:
         kit = kit or _install.kit_dir()
@@ -92,7 +94,7 @@ def _command(args: list[str], kit: Path | None, uv_argv: list[str] | None,
         if code or children.interrupted:
             return code or children.stopped
         project = str(Path(directory).resolve())
-        _say("lab: syncing the project environment (first time can take a minute) ...")
+        _say("analytics: syncing the project environment (first time can take a minute) ...")
         code = children.run([*uv, "sync", "--project", project, "--quiet"], env)
         if code and not children.interrupted:
             code = children.run([*uv, "sync", "--project", project, "--quiet", "--offline"], env)
@@ -105,7 +107,7 @@ def _command(args: list[str], kit: Path | None, uv_argv: list[str] | None,
         if code or children.interrupted:
             return code or children.stopped
         index = Path(project) / "report" / "index.html"
-        _say(f"lab: report at {index} (lab open, from inside the project)")
+        _say(f"analytics: report at {index} (analytics open, from inside the project)")
         return 0
 
     project = find_project()
@@ -126,7 +128,7 @@ def _command(args: list[str], kit: Path | None, uv_argv: list[str] | None,
         try:
             status = exit_status(processes.open_document(index, wait=True) or 0)
         except OSError as exc:
-            _say(f"lab: could not open {index} ({exc}); open it in a browser yourself")
+            _say(f"analytics: could not open {index} ({exc}); open it in a browser yourself")
             return 127 if isinstance(exc, FileNotFoundError) else 1
         return children.stopped or status
     uv = uv_argv or _uv(processes)
@@ -162,12 +164,13 @@ def find_project() -> str | None:
     try:
         here = Path(os.getcwd())
     except OSError as exc:
-        _say(f"lab: the current directory cannot be read ({exc}); cd into a project or set LAB_PROJECT")
+        _say(f"analytics: the current directory cannot be read ({exc}); cd into a project or set "
+             "LAB_PROJECT")
         return None
     for directory in (here, *here.parents):
         if (directory / "lab.json").is_file():
             return str(directory)
-    _say(f"lab: no lab.json in {here} or its parents (cd into a project or set LAB_PROJECT)")
+    _say(f"analytics: no lab.json in {here} or its parents (cd into a project or set LAB_PROJECT)")
     return None
 
 
@@ -204,7 +207,7 @@ class _Children:
     This process then exits 143. That is POSIX's SIGTERM: on Windows another process cannot send
     one to a handler (`os.kill` and `taskkill /F` end this process at once).
 
-    Once either signal has been noted, no further child is started, nor the program `lab open` opens
+    Once either signal has been noted, no further child is started, nor the program `analytics open` opens
     the report with. One that arrives while a child is being started may not stop it — a Ctrl+C to the
     group can land on the copy of this process before exec — so once the child runs a Ctrl+C is sent
     to it again, where the platform can (Windows sends SIGINT to no single process), and a SIGTERM if
@@ -268,7 +271,7 @@ class _Children:
         try:
             self._child = subprocess.Popen(argv, env=env, stdout=stdout)
         except OSError as exc:
-            _say(f"lab: could not start {argv[0]}: {exc}")
+            _say(f"analytics: could not start {argv[0]}: {exc}")
             return 127
         if self.stopped == 130:
             self._send(signal.SIGINT)
@@ -306,7 +309,7 @@ def _uv(processes) -> list[str] | None:
     configured = os.environ.get("AELIX_LAB_UV") or "uv"
     found = processes.find_program(configured)
     if found is None:
-        _say(f"lab: uv not found ({configured}); install uv (https://docs.astral.sh/uv/) or set "
+        _say(f"analytics: uv not found ({configured}); install uv (https://docs.astral.sh/uv/) or set "
              "AELIX_LAB_UV to its path")
         return None
     return [found]
