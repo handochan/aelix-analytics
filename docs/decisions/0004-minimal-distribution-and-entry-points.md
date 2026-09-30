@@ -98,9 +98,10 @@ ADR-0002는 진입점의 하한을 `>=3.11`로 낮추고(결정 2), Aelix 없이
   `bin/lab`과 같이 프로젝트 환경(`>=3.12`)에서 돈다.
 - "구현에서 확인할 것" 1(3.11·3.12에서 `python -m labkit` init/import/query/run/note/report/status/context 실행)은
   글자 그대로는 할 수 없다. import·query·demo는 결정 4가 진입 환경에 넣지 않는 분석 라이브러리를 쓰고, 결정 3이
-  분석 환경을 `>=3.12`로 둔다. 그래서 두 부분으로 확인한다: 설치 환경의 3.11·3.12에서 런처로 모든 명령을 실행하고
-  (명령은 프로젝트 환경에서 돈다), stdlib만 쓰는 명령(init/status/context/note/report)은 3.11에서 `python -m labkit`로도
-  실행한다. 이 해석은 소유자가 확인할 미결정 사항으로 남긴다.
+  분석 환경을 `>=3.12`로 둔다. 그래서 두 부분으로 확인한다: 설치 환경의 3.11·3.12에서 `analytics`로 모든 명령을
+  실행하고(명령은 프로젝트 환경에서 돈다), 분석 라이브러리가 필요 없는 명령(init/status/context/note/report)과 분석
+  라이브러리를 쓰지 않는 스크립트의 run은 3.11에서 `python -m labkit`로도 실행한다. 소유자가 이 해석을 확인했다
+  (2026-09-30).
 - 결정 7의 위치: `bin/lab`은 체크아웃에만 있고, 확장 파일은 설치본에서 `aelix_analytics/extension.py`다.
 
 ## 대안과 선택 이유

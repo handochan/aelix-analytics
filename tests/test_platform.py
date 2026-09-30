@@ -3952,8 +3952,8 @@ def test_the_shipped_code_names_the_encoding_of_every_text_call_the_scan_knows()
     reconfiguring this process's streams does not reach a child's pipe or a file.
 
     Scope, deliberately: the Python of `kit`, `extension`, `tools` and `src` (the distribution's
-    `lab` launcher). `tests/` is PR-3's cleanup, `bin/lab` is shell, and the template files are not
-    Python. A directory that is not there would make the scan pass on nothing, so that fails."""
+    `analytics` launcher). `tests/` is PR-3's cleanup, `bin/lab` is shell, and the template files
+    are not Python. A directory that is not there would make the scan pass on nothing, so that fails."""
     missing = [d for d in SOURCE_DIRS if not (PACK / d).is_dir()]
     assert not missing, f"the scan's directories moved: {missing}"
     paths = [p for directory in SOURCE_DIRS

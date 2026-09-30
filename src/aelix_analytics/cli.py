@@ -4,9 +4,11 @@ It keeps `bin/lab`'s contract — the commands and their arguments, the usage te
 passed through untouched, and the exit statuses — on every platform, under the command's name in the
 product's terminology (docs/TERMINOLOGY-AND-LANGUAGE.md): installers make it `analytics`, and
 `analytics.exe` on Windows, where the POSIX shell script `bin/lab` cannot run (ADR-0002 decision 6,
-ADR-0004). Its text differs from `bin/lab`'s only by that name. `bin/lab` stays the command of a
-checkout, under its old name until the rename of Issue #9; tests/test_launcher.py holds the two to
-one contract.
+ADR-0004). Its usage, and the messages `bin/lab` prints too, differ from `bin/lab`'s only by that
+name; where `bin/lab` leaves an error to the shell (no uv, a program that cannot start, a current
+directory that cannot be read), it prints one of its own. The measured differences are in
+docs/CONTRACTS.md, section F. `bin/lab` stays the command of a checkout, under its old name until
+the rename of Issue #9; tests/test_launcher.py holds the two to one contract.
 
 Every command runs the kit in the project's own environment, as `bin/lab` does:
 `uv run --project <project> python -m labkit ...` with PYTHONPATH set to exactly the kit this

@@ -149,6 +149,8 @@ def test_the_wheel_metadata(dist):
     assert meta["Requires-Python"] == ">=3.11"
     assert meta.get_all("Requires-Dist") is None, "the entry point installs no analysis library"
     assert "[console_scripts]\nanalytics = aelix_analytics.cli:main" in points
+    scripts = points.split("[console_scripts]\n", 1)[1].split("\n[", 1)[0].split()
+    assert scripts == ["analytics", "=", "aelix_analytics.cli:main"], "one command, no `lab` beside it"
     assert meta["License-Expression"] == "Apache-2.0"
     assert meta.get_all("License-File") == ["LICENSE"]
     with zipfile.ZipFile(dist["wheel"]) as wheel:
@@ -508,8 +510,10 @@ def test_the_installed_command_drives_a_project_without_aelix(dist, tmp_path, py
 
 @e2e
 def test_the_kit_s_stdlib_commands_run_on_the_floor(dist, tmp_path):
-    """ADR-0002's check 1, the part the floor can run: `python -m labkit` on CPython 3.11 with the
-    installed kit, for the commands that need no analysis library (ADR-0004)."""
+    """ADR-0002's check 1, the part the floor can run, as ADR-0004 reads it and the owner accepted it
+    on 2026-09-30: `python -m labkit` on CPython 3.11 with the installed kit, for the commands that
+    need no analysis library, and a run of a script that imports none (it records a note through the
+    SDK)."""
     venv = installed(tmp_path, dist["wheel"], FLOOR, "--no-deps", "--offline")
     kit = ok([venv_python(venv), "-c", "from aelix_analytics._install import kit_dir; print(kit_dir())"],
              env=outside_env(tmp_path)).stdout.strip()
@@ -521,6 +525,16 @@ def test_the_kit_s_stdlib_commands_run_on_the_floor(dist, tmp_path):
                  ["--project", project, "report"]):
         done = ok([venv_python(venv), "-m", "labkit", *args], cwd=tmp_path, env=env)
         assert json.loads(done.stdout.splitlines()[-1])["ok"] is True, (args, done.stdout)
+    (project / "scripts").mkdir(exist_ok=True)
+    (project / "scripts" / "plain.py").write_text(
+        "import labkit as lab\n"
+        "lab.note('finding', 'a run on the floor')\n"
+        "print(sum(range(10)))\n", encoding="utf-8")
+    done = ok([venv_python(venv), "-m", "labkit", "--project", project, "run", "scripts/plain.py",
+               "--title", "3.11에서 run"], cwd=tmp_path, env=env)
+    result = json.loads(done.stdout.splitlines()[-1])
+    assert result["ok"] is True and result["run"]["status"] == "ok", done.stdout
+    assert result["run"]["env"]["python"].startswith("3.11."), result["run"]["env"]
 
 
 @e2e

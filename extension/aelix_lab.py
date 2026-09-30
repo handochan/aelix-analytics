@@ -44,8 +44,8 @@ def _kit() -> tuple[Path, str]:
     if __name__ == "aelix_analytics.extension":
         # Imported by name from the installed distribution (its `aelix.extensions` entry point, or
         # `aelix -e aelix_analytics.extension`). It runs the kit installed with it, found through
-        # importlib.resources, as the `lab` command does: an adapter and a kit of different versions
-        # would not fit each other.
+        # importlib.resources, as the installed `analytics` command does: an adapter and a kit of
+        # different versions would not fit each other.
         from aelix_analytics._install import kit_dir
 
         return kit_dir(), "installed"

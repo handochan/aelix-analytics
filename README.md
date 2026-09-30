@@ -91,9 +91,9 @@ uv tool install dist/aelix_analytics-0.1.0-py3-none-any.whl        # 사람용 `
 uv tool install aelix==0.1.0b2 --with dist/aelix_analytics-0.1.0-py3-none-any.whl   # aelix와 함께
 ```
 
-- `analytics`는 `bin/lab`과 명령 이름 말고는 같은 명령·인자·출력·종료 코드를 가집니다(`analytics --help`). 이름은 제품
-  명칭을 따르며, `bin/lab`과 하위 명령의 이름은 명칭 전환(#9)에서 바뀝니다. Python 3.11 이상이면 됩니다. 분석은
-  프로젝트의 uv 환경(Python 3.12 이상)에서 돕니다.
+- `analytics`는 `bin/lab`과 명령 이름 말고는 같은 명령·인자·출력·종료 코드를 지킵니다(`analytics --help`). 측정한 차이는
+  [현재 계약](docs/CONTRACTS.md)의 F절에 있습니다. 이름은 제품 명칭을 따르며, `bin/lab`과 하위 명령의 이름은 명칭
+  전환(#9)에서 바뀝니다. Python 3.11 이상이면 됩니다. 분석은 프로젝트의 uv 환경(Python 3.12 이상)에서 돕니다.
 - aelix 환경에 설치하면 aelix가 entry point로 확장을 찾습니다. `aelix extension verify aelix-analytics`가 `BOUND`를
   보여 줍니다. `aelix extension install <wheel>`로도 설치할 수 있습니다.
 - aelix와 같은 환경에서 `analytics`도 쓰려면 `uv tool install aelix==0.1.0b2 --with <wheel> --with-executables-from

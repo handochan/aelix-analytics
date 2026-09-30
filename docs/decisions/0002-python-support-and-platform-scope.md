@@ -7,7 +7,8 @@ Status: Accepted (2026-09-21) — [Issue #5](https://github.com/handochan/aelix-
 [#8](https://github.com/handochan/aelix-analytics/issues/8)에서 수행한다: 결정 5는 첫 PR([ADR-0003](0003-portable-boundaries-and-in-process-kit-loading.md)),
 결정 2·4·6·7은 두 번째 PR([ADR-0004](0004-minimal-distribution-and-entry-points.md))에서 적용했다. ADR-0004는 결정 6을
 이렇게 구현했다: `bin/lab`은 체크아웃의 POSIX 래퍼로 두고, 같은 계약의 `analytics` 런처(제품 명칭의 CLI 이름)는 Windows를 포함한 모든 플랫폼에서
-설치본의 명령이 된다. 아래 "구현에서 확인할 것" 1을 어떻게 읽었는지도 ADR-0004에 있다.
+설치본의 명령이 된다. 아래 "구현에서 확인할 것" 1을 어떻게 읽었는지도 ADR-0004에 있으며, 소유자가 그
+해석을 확인했다(2026-09-30).
 현재 코드가 실제로 하는 것은 [현재 계약](../CONTRACTS.md)의 "실행 환경과 지원 플랫폼" 절에 있다.
 채택 후 독립 리뷰에서 근거 과장과 인벤토리 누락을 지적받아 측정 근거·장애 범주·대안·결정 5·6을 개정했다. 결정의 방향은 바뀌지 않았다.
 

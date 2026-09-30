@@ -112,7 +112,7 @@ def launcher_argv(*args) -> list[str]:
 
 
 def launch(fake, *args, cwd, do=None, which="launcher", **extra) -> subprocess.CompletedProcess:
-    """Run `lab ARGS` through the launcher or bin/lab, with bytes for stdout and stderr."""
+    """Run ARGS through the launcher (`analytics`) or bin/lab, with bytes for stdout and stderr."""
     env = environment(fake, do, **extra)
     if which == "bin/lab":
         argv = ["sh", str(BIN_LAB), *args]
