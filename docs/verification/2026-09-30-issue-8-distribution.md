@@ -14,10 +14,10 @@ result, [2026-09-30-issue-8-distribution.json](2026-09-30-issue-8-distribution.j
 
 | Item | Basis |
 |---|---|
-| Measured code | PR #33 at `7316a8f`. The later commits change documents, a docstring and a comment only |
+| Measured code | PR #33 at `7316a8f`. The later commits change documents, a docstring and comments only |
 | Measurement branch | `test/issue-8-pr2-measurement` at `cd287d1`, which is that commit plus PR-1's measurement tool (`tools/platform_smoke.py`), its self-tests and the workflow, none of which is part of PR #33. For PR-2 the workflow adds the suite's end-to-end leg (`AELIX_ANALYTICS_TEST_INSTALL=1`), the aelix integration on CPython 3.11, and a record of the interpreters uv found |
 | CI run | [36647326310](https://github.com/handochan/aelix-analytics/actions/runs/36647326310): `ubuntu-latest` (image ubuntu-24.04, version 20260920.314.1) and `windows-latest` (image windows-2025-vs2026, version 20260922.246.2), with uv 0.11.19. The development environment ran on the image's CPython 3.12.3 / 3.12.10. The distribution's install environments and the aelix integration ran on the interpreters uv found, which a step after them recorded: CPython 3.11.15 (uv's own build) and 3.12.3 on Linux, 3.11.9 (the image's) and 3.12.10 on Windows. The stdlib-only leg ran on CPython 3.11.16 / 3.11.9 from `actions/setup-python` |
-| Developer machine | macOS 26.6.2 arm64, uv 0.11.19: CPython 3.12.13 for the smoke and the suite, 3.11.15 and 3.12.13 for the distribution's install environments and the aelix integration, 3.11.15 for the stdlib-only smoke, and 3.13.13 and 3.14.5 for the suite without its end-to-end leg. The measurement branch at the same commit, clean, run with the CI's commands |
+| Developer machine | macOS 26.6.2 arm64, uv 0.11.19: CPython 3.12.13 for the smoke and the suite, 3.11.15 and 3.12.13 for the distribution's install environments and the aelix integration, 3.11.15 for the stdlib-only smoke: the measurement branch at the same commit, clean, run with the CI's commands. Then 3.13.13 and 3.14.5 for the suite without its end-to-end leg, in environments of their own, which have no CI counterpart |
 | aelix | 0.1.0b2 from PyPI: beside the wheel in the distribution's tests, and in an environment of its own for `tests/test_extension.py` (`uv run --no-project --with aelix==0.1.0b2`) |
 
 ## Results
@@ -39,23 +39,25 @@ names that are not UTF-8, which APFS refuses, and on 3.13 and 3.14 the nine end-
 
 ## What the distribution tests ran
 
-Each test builds or installs the artifacts itself; none uses the checkout's environment.
+The suite builds the wheel and the sdist once from the checkout. Every test that runs installed code does so in
+fresh environments of its own, never in the checkout's development environment.
 
 - **The artifacts.** `uv build` makes the wheel and the sdist from the checkout. The wheel holds exactly the tracked
   files of `src/aelix_analytics/` and `kit/labkit/` plus `aelix_analytics/extension.py`, which is the checkout's
   `extension/aelix_lab.py` byte for byte. Its metadata declares `Requires-Python >=3.11`, no dependencies, the `lab`
   console script and the `aelix.extensions` entry point. The manifest agrees with it (id, version, entry point, API
   level, activation) and carries the licence placeholder. The sdist holds the sources, builds the same wheel byte for
-  byte, and installed on CPython 3.12 gives the same kit.
+  byte, and installed on CPython 3.12 gives a kit of files holding `labkit` alone, with its template.
 - **An installation without aelix**, in fresh CPython 3.11 and 3.12 environments: the kit is a directory of files in
   site-packages holding `labkit` alone; there is no top-level `labkit` and no analysis library is imported; `lab --help`
-  prints `bin/lab`'s usage; a child gets exactly the installed kit on `PYTHONPATH` (POSIX: the stand-in uv that
-  records it is a script).
+  prints `bin/lab`'s usage. In the 3.11 environment a child gets exactly the installed kit on `PYTHONPATH` (POSIX: the
+  stand-in uv that records it is a script).
 - **aelix 0.1.0b2 beside the wheel**, on 3.11 and 3.12: `aelix extension verify` reports it BOUND to its manifest;
   `aelix status --json` lists it as an entry-point extension with a manifest and no errors; aelix's loader, run twice
   in one process as aelix does for each session it builds, sets up one copy with the six tools, the `/lab` command and
   its flag, imports one module whose state starts over, takes the installed kit, and imports no analysis library.
-- **The README's symlink route beside the wheel** sets up one copy and says why the other is not set up (POSIX).
+- **The README's symlink route beside the wheel** sets up one copy and says why the other is not set up (POSIX,
+  CPython 3.12).
 - **The installed extension's tools**, on 3.11 and 3.12, called through their own `execute` with no model:
   `lab_init` (with a real `uv sync` of the project environment), `lab_import`, `lab_run` of a script that uses the
   kit, `lab_note`.
@@ -89,21 +91,24 @@ loaded by its path, whose test links the kit beside it with a directory symbolic
 
 ## Earlier runs
 
-Two earlier runs measured PR #33 before the reviews' fixes, with the same checks, and every job passed in both:
+Two earlier runs measured PR #33 before the last of the reviews' fixes, with the same checks, and every job passed in
+both:
 
 - [36622190907](https://github.com/handochan/aelix-analytics/actions/runs/36622190907) at `7cfe851` (measurement
   branch `d8eca1a`): the implementation reviews then changed `lab open`, the launcher's messages and `find_program`
   (`20799e7`) and the documents (`7c80b46`). The launcher tests were 82 then; the fixes added five.
 - [36641189780](https://github.com/handochan/aelix-analytics/actions/runs/36641189780) at `7c80b46` (measurement
-  branch `c177ad6`), with the counts above: the review of those fixes then changed documents, docstrings and one
-  test's environment (`7316a8f`), and this record is of the run that measured them.
+  branch `c177ad6`), with the counts above: the review of those fixes then changed documents, docstrings, a comment
+  and one test's environment (`7316a8f`), and this record is of the run that measured them.
 
 ## Not run
 
 - Windows: `lab open` and `/lab open` through `os.startfile`; the README's symlink route; the launcher at a native
   console (Ctrl+C, Ctrl+Break, closing the window) — Issue #8 PR-3; SIGTERM from another process, which Windows does
   not deliver to a handler; a real aelix session.
-- Any platform: an aelix session with a model using the installed extension; upgrading the installed wheel while
-  aelix runs or while a run imports the kit; `install.sh`; a Korean-locale Windows.
+- Any platform: an aelix session with a model using the installed extension; a real document opener (every
+  `lab open` above used a stand-in `open`/`xdg-open`); `lab demo` and `lab run --rerun-of` through the installed wheel
+  with real uv; upgrading the installed wheel while aelix runs or while a run imports the kit; `install.sh`; a
+  Korean-locale Windows.
 - Other architectures (Linux and Windows on ARM, macOS on x86_64) and other install environments than CPython 3.11
   and 3.12.

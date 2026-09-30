@@ -316,7 +316,7 @@ def _write(stream, text: str) -> None:
     # The text's UTF-8 bytes, whatever the stream's encoding is. In a path or value, what the
     # filesystem encoding read comes out as UTF-8 and the bytes it could not read as they came, so
     # where that encoding is UTF-8 (macOS; Linux under a UTF-8 locale, or the C locale in Python's
-    # default UTF-8 mode) every path and value is the bytes bin/lab would print.
+    # default UTF-8 mode) every path and value it prints itself is the bytes bin/lab would print.
     buffer = getattr(stream, "buffer", None)
     if buffer is None:
         stream.write(text)
