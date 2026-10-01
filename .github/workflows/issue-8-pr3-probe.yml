@@ -1,0 +1,74 @@
+name: Issue 8 PR-3 probe
+
+# A throwaway design input for Issue #8 PR-3, on a branch that is never merged. It observes what the
+# hosted runners allow — links and junctions, long paths, case sensitivity, the session's console —
+# and whether Ctrl+C and Ctrl+Break reach the installed `analytics` through a pseudo console and a
+# classic console. Every step keeps going and uploads what it saw; nothing here is a gate.
+
+on:
+  push:
+    branches: [test/issue-8-pr3-probe]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: issue-8-pr3-probe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.11.19"
+      - name: Runner capabilities
+        continue-on-error: true
+        run: uv run --no-project --python 3.12 python tools/pr3_capability_probe.py --output probe/capabilities-${{ runner.os }}.json
+      - name: PowerShell's view of the console encoding
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        run: |
+          New-Item -ItemType Directory -Force probe | Out-Null
+          "OutputEncoding=$([Console]::OutputEncoding.WebName) cp=$([Console]::OutputEncoding.CodePage) InputEncoding=$([Console]::InputEncoding.WebName) OutputEncodingPref=$($OutputEncoding.WebName)" | Tee-Object probe/pwsh-encoding.txt
+      - name: Build the wheel, install it on 3.12 and 3.11, create a project
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -x
+          uv build --wheel --out-dir probe/dist
+          for v in 3.12 3.11; do
+            uv venv "probe/v$v" --python "$v" && uv pip install --python "probe/v$v/Scripts/python.exe" probe/dist/*.whl
+          done
+          export AELIX_LAB_TRUST_FILE="$PWD/probe/trust.json"
+          probe/v3.12/Scripts/analytics.exe init probe/proj --title "console probe"
+      - name: Console probe through the 3.12 install
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        timeout-minutes: 25
+        run: uv run --no-project --python 3.12 python tools/pr3_console_probe.py --analytics probe\v3.12\Scripts\analytics.exe --project probe\proj --scratch probe\scratch312 --output probe\console-py3.12.json
+      - name: Console probe through the 3.11 install
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        timeout-minutes: 10
+        run: uv run --no-project --python 3.12 python tools/pr3_console_probe.py --cases c_busy,c_sleep,brk_busy --analytics probe\v3.11\Scripts\analytics.exe --project probe\proj --scratch probe\scratch311 --output probe\console-py3.11.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: probe-${{ runner.os }}
+          path: |
+            probe/*.json
+            probe/*.txt
+          if-no-files-found: warn
