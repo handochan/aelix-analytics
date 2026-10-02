@@ -63,7 +63,7 @@ Jupyter Notebook과 BI가 만들어 온 분석 작업방식을 바탕으로, 목
 ## 5분 시작
 
 ```sh
-PACK=/Users/handochan/dev/aelix-extensions/aelix-analytics
+PACK=/path/to/aelix-analytics                   # 이 저장소를 받은 위치
 
 # 1) 모델 없이 결과물 모양 보기: 합성 데이터 + 예제 run 3개 + 메모 + 재실행 검증
 $PACK/bin/lab demo ~/analyses/lab-demo          # 처음엔 uv 환경 준비로 1분 안팎
@@ -265,7 +265,8 @@ my-analysis/
 cd $PACK
 uv sync
 uv run pytest -q                                  # kit, 런처, 배포본(wheel을 빌드해 새 환경에 설치)
-/Users/handochan/dev/aelix-ai/.venv/bin/python -m pytest -q -p no:cacheprovider tests/test_extension.py -o addopts=""
+uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 \
+  python -m pytest -q -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_extension.py   # aelix 통합 (CI와 같은 환경)
 AELIX_ANALYTICS_TEST_INSTALL=1 uv run pytest -q tests/test_packaging.py   # aelix 0.1.0b2와 실제 uv로 끝까지 (네트워크)
 uv run ruff check kit tests extension src tools
 ```

@@ -51,6 +51,7 @@ dev = [
   "pygments>=2.18",
   "markdown-it-py>=3",
   "pytest>=8",
+  "pytest-timeout>=2.3",
   "ruff>=0.12",
   "jsonschema[format-nongpl]>=4,<5",
 ]

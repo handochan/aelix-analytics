@@ -67,10 +67,13 @@ Codex·Claude Code의 공통 진입 지침은 [AGENTS.md](AGENTS.md), GitHub 작
 ## 현재 개발 검증
 
 ```sh
-uv sync
-uv run pytest -q
-uv run ruff check kit tests extension src tools
+uv sync --locked
+uv run --locked pytest -q --timeout 600 --timeout-method=thread
+uv run --locked ruff check kit tests extension src tools
 ```
+
+pytest-timeout은 `--timeout-method=thread`로 씁니다. 기본 방식(SIGALRM)은 run 가드가 프로세스 안의 run 동안 쓰는 시그널과
+겹칩니다.
 
 `tests/test_packaging.py`는 `uv build`로 wheel과 sdist를 만들어 체크아웃 밖의 새 환경에 설치합니다(wheel은 3.11·3.12, sdist는 3.12). 빌드
 backend(hatchling)는 네트워크나 uv 캐시에서 받습니다. 추적하지 않은 파일이 `kit/labkit`·`src/aelix_analytics`에 있으면
@@ -82,13 +85,19 @@ wheel로 확인합니다.
 사람용 진입점은 `bin/lab`(체크아웃, POSIX)과 설치본의 `analytics`(`src/aelix_analytics/cli.py`) 둘입니다. 명령 이름 말고는
 같은 계약이므로, 한쪽의 명령·인자·출력·종료 코드를 바꾸면 다른 쪽과 `tests/test_launcher.py`의 동등성 시험을 함께 고칩니다.
 
-Aelix 통합 시험은 Aelix와 pytest가 설치된 별도 환경에서도 실행합니다. 예를 들어 이 저장소와 기존 작업공간 배치에서는:
+Aelix 통합 시험은 aelix 0.1.0b2(와 그 의존성), pytest, pytest-timeout만 있는 새 환경에서 실행합니다. CI와 같은 격리 환경과 시험
+제한 시간입니다(CI는 보고용으로 `-ra`와 `--junitxml`을 더합니다):
 
 ```sh
-../../aelix-ai/.venv/bin/python -m pytest -q -p no:cacheprovider tests/test_extension.py -o addopts=""
+uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 \
+  python -m pytest -q -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_extension.py
 ```
 
-이는 개발 체크아웃용 예입니다. 첫 베타의 CI는 특정 개발자의 경로에 의존하지 않고 고정된 Aelix 버전의 새 환경을 준비해야 합니다.
+3.11은 `--python 3.11`입니다. `--isolated`를 빼지 마세요. 빼면 3.12에서 uv가 체크아웃의 개발 `.venv` 위에 임시 환경을 얹어
+aelix 프로세스가 분석 라이브러리를 import할 수 있게 되고, 이 시험이 보이려는 것(호스트가 분석 라이브러리를 로드하지 않음)이
+가려집니다. 런처의 하한 시험은 같은 방식으로 `--python 3.11 --with pytest==9.1.1 --with pytest-timeout==2.4.0`에서
+`tests/test_launcher.py`를 실행합니다.
+
 시험은 변경에 맞게 선택합니다. 기록·사용량 계측·근거 변경에는 의미 있는 회귀 사례를, UI에는 실제 HTML의 연결과 복귀 확인을 포함합니다.
 문서만 바뀌면 링크·예시·현재 코드와의 일치 여부를 검사합니다.
 
@@ -105,6 +114,40 @@ uv run --locked python tools/check_docs.py --output .devstate/runs/<run-id>/evid
 검사 범위는 Markdown 링크·이미지, HTML의 a/img 참조, Markdown 앵커, JSON·Python 예시의 구문과 개발 state 예시입니다.
 외부 URL·그 앵커, 비 Markdown 파일의 fragment, 브라우저 렌더링, 코드 예시의 실행 결과는 범위 밖이며 결과에도 표시합니다. 누락·실패가 있으면 종료 코드 1을 반환합니다.
 검사기와 개발 state schema를 바꾸면 `uv run --locked pytest -q tests/test_doc_checks.py`와 관련 lint도 실행합니다.
+
+### 저장소 CI
+
+`.github/workflows/ci.yml`이 저장소 CI입니다.
+
+| 작업 | 언제 | 무엇 | artifact (90일) |
+|---|---|---|---|
+| `lint` | 모든 PR과 main push | ruff, 문서 검사 | 문서 검사 결과, 실행 맥락 |
+| `platform` | Linux(`ubuntu-24.04`)·Windows(`windows-2025`)는 모든 PR과 main push, macOS(`macos-26`)는 아래의 경우 | 플랫폼 스모크(`tools/platform_smoke.py --gate required`), 저장소 시험(`AELIX_ANALYTICS_TEST_INSTALL=1`, 배포본 end-to-end 포함), aelix 0.1.0b2 통합(CPython 3.12·3.11), 런처 시험(CPython 3.11) | 레그별 JUnit, 스모크 JSON(러너 설정 포함), 인터프리터, aelix 환경의 배포판 목록, 실행 맥락 |
+| `floor` | `platform`과 같은 OS | `actions/setup-python`의 CPython 3.11에서 표준 라이브러리만으로 플랫폼 스모크(`--stdlib-only`) | 스모크 JSON, 실행 맥락 |
+
+- macOS runner는 비공개 저장소에서 Linux의 약 10배로 과금되므로 PR에서는 요청할 때만 돕니다. PR에 `ci:macos` 라벨을 붙일
+  때마다 그 순간의 헤드로 한 번 돕니다. 그 뒤의 push로는 다시 돌지 않고, 라벨을 떼고 다시 붙이면 앞선 실행을 취소하지 않고 한 번 더
+  돕니다. 실행이 시작되면 라벨을 떼어 둡니다. 라벨 실행에는 Linux·Windows 작업이 없고 `lint`는 건너뜀(skipped)으로
+  표시됩니다(`ci:macos`가 아닌 라벨이면 모든 작업이 건너뜀). 건너뜀은 검증 결과가 아닙니다. 수동 실행(`workflow_dispatch`, `macos` 선택)과 매주 월요일 03:17 UTC 실행은 세 OS를 모두 돌립니다.
+- 비용(GitHub Free의 월 2,000분 기준): 이 워크플로의 첫 측정(PR #34)에서 Linux+Windows 한 번은 작업마다 분 단위로 올리고
+  Windows를 2배로 세어 58분, macOS 한 번은 10배로 세어 90분이었습니다. 주간 실행만으로 월 약 650분이 듭니다(추정). 레그가 멈춰
+  제한 시간까지 가면 작업 하나가 제한 시간만큼(`platform` 95분, macOS면 그 10배) 과금될 수 있습니다.
+- 시험 레그 하나가 실패해도 다음 레그는 돌고 작업은 실패로 끝납니다. 개발 환경의 sync가 실패하면 `platform`의 시험 레그는 돌지
+  않고 작업이 실패합니다. 플랫폼별 작업은 서로 취소하지 않습니다(`fail-fast: false`). 시험·기록 단계마다 제한 시간이 있고, 작업의
+  제한 시간은 그 합보다 깁니다(artifact 올리기에는 작업의 제한 시간만 있습니다). 단계의 제한이나 시험 하나의 제한(pytest-timeout)에 걸린 레그는 JUnit을 남기지 않습니다.
+- PR 실행은 GitHub가 만드는 병합 커밋이 아니라 PR 헤드를 체크아웃해 측정합니다. 워크플로 파일은 그 병합 커밋의 것이 쓰이므로,
+  실행 맥락(`tools/ci_context.py`)에 `GITHUB_WORKFLOW_SHA`도 남깁니다. aelix 환경의 배포판 목록은 같은 요구 사항을 시험 레그들
+  뒤에 다시 풀어 얻은 것입니다.
+- 서버가 강제하지 않습니다. 이 요금제에서 branch protection·ruleset 조회는 HTTP 403입니다([운영 정책](docs/PROJECT-OPERATIONS.md) §9).
+  빨간 실행을 병합하지 않는 것은 운영 규칙입니다. aelix의 의존성·PyPI·러너 이미지 같은 상류의 변화로 코드 변경 없이 빨개질 수
+  있으니, 원인이 회귀인지 상류 변화인지 구별해 적습니다.
+- Actions 사용량이 바닥나면 CI가 돌지 않습니다. 그 기간의 플랫폼은 `not_run`이지 통과가 아닙니다.
+- 검증 기록이 인용하는 실행은 다시 돌리지(re-run) 않습니다. 다시 돌리면 이전 시도의 artifact를 볼 수 없습니다. 새로 push하거나
+  라벨을 다시 붙이고, 기록에 실행 번호와 시도(attempt)를 함께 적습니다.
+- 플랫폼 스모크는 Windows의 한계를 [현재 계약](docs/CONTRACTS.md) G절의 문장 그대로 읽어 판정합니다(`tools/platform_smoke.py`의
+  `DECLARED`). 그 문장을 바꾸면 같은 커밋에서 `DECLARED`도 고칩니다(`tests/test_platform_smoke.py`가 확인합니다). 그래서 그 문장을
+  바꾸는 커밋은 측정 기록의 신선도를 따질 때 문서만의 변경이 아니고, 앞으로 CI에 경로 필터를 두더라도 `docs/CONTRACTS.md`를
+  빼지 않습니다.
 
 ## 첫 공개 전에 남은 운영 결정
 
