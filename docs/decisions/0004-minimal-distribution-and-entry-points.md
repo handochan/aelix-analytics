@@ -148,21 +148,30 @@ ADR-0002는 진입점의 하한을 `>=3.11`로 낮추고(결정 2), Aelix 없이
   `src/aelix_analytics`에 있으면 wheel에 들어가므로, 배포본은 깨끗한 체크아웃에서 빌드하고 시험이 구성원 목록을 확인한다.
 - aelix를 다시 설치하면 이 wheel이 빠진다(`uv tool install --force aelix`는 측정, 같은 명령을 `--with` 없이 쓰는
   `install.sh`는 추론). 다시 설치한다.
-- Windows의 Ctrl+Break는 uv를 곧바로 끝내므로(PR-1 측정) 런처가 kit의 기록보다 먼저 돌아올 수 있다(추론). 대화형
-  콘솔은 Issue #8 PR-3의 범위다.
+- Windows 콘솔의 Ctrl+Break는 uv를 곧바로 끝내므로 런처가 kit의 기록보다 먼저 돌아온다(측정, [현재 계약](../CONTRACTS.md) G).
+  콘솔의 취소는 Ctrl+C다.
 
 ## 구현에서 확인할 것
 
 1. wheel·sdist의 구성원, METADATA, entry point, manifest 결합과 버전 일치 — `tests/test_packaging.py`.
 2. 체크아웃 밖 새 환경(3.11·3.12)에 설치한 뒤 kit·템플릿 조회와, 자식의 PYTHONPATH가 정확히 kit인지(3.11) — 같은 시험.
+   Windows를 포함한 세 플랫폼에서는 실제 uv를 거친 run이 호출자가 둔 `PYTHONPATH` 대신 정확히 설치된 kit을 받는 것을
+   3.11·3.12에서 확인했다(Issue #8의 Windows 인벤토리, [측정 기록](../verification/2026-10-02-issue-8-windows-inventory.md)).
 3. aelix 0.1.0b2와 함께 설치했을 때 `aelix extension verify`가 BOUND, 로더가 도구 6개·`/lab`·hook 4개를 등록하고 분석
    라이브러리가 aelix 프로세스에 들어오지 않음, 체크아웃 symlink와 함께일 때 사본 하나 — 같은 시험의 end-to-end 단계
    (`AELIX_ANALYTICS_TEST_INSTALL=1`).
 4. 설치된 `analytics`가 3.11·3.12에서 실제 uv로 init → import → query → run → note → report → status → context → open을 수행하고,
-   run의 스크립트가 설치된 kit의 `labkit`으로 기록됨 — 같은 단계.
+   run의 스크립트가 설치된 kit의 `labkit`으로 기록됨 — 같은 단계. 실제 uv의 `run --rerun-of`와, Windows 포트를 거친 `open`
+   (`os.startfile`을 바꿔 넣음: 없는 리포트를 먼저 만들고 열며, 연결된 프로그램이 없으면 1과 안내)은 세 플랫폼에서 확인했다
+   (같은 기록). 실제 opener와 설치본의 `analytics demo`는 `not_run`이다(CONTRACTS G).
 5. `analytics`와 `bin/lab`의 계약 동등성(명령 이름 말고), Ctrl+C·SIGTERM, 시작 순간의 Ctrl+C — `tests/test_launcher.py`(POSIX).
+   Windows 콘솔의 Ctrl+C는 설치본으로 의사 콘솔(ConPTY)과 고전 콘솔에서 측정했고(`tests/test_windows_console.py`), 시작
+   순간의 Ctrl+C를 Windows에서 다시 보내지 않는 것은 `tests/test_launcher.py`의 시험이 고정한다(같은 기록). `bin/lab`과의
+   동등성은 POSIX에 남는다.
 6. aelix가 한 프로세스에서 확장을 두 번 설정할 때 설치본 모듈이 같고 상태가 새로 시작하는지, 설치본 확장의 도구
    (`lab_init`·`lab_import`·`lab_run`·`lab_note`)가 실제 uv로 프로젝트를 다루는지 — `tests/test_packaging.py`의 end-to-end 단계.
 7. Linux·Windows에서 1–4와 6 — Issue #8의 측정 워크플로로 실행했다. 세 플랫폼에서 적용되는 시험이 모두 통과했다([측정
-   기록](../verification/2026-09-30-issue-8-distribution.md)). Windows에서는 POSIX 전용인 것 — 3의 symlink 경로, 2의 자식
-   PYTHONPATH를 기록하는 stand-in(스크립트), 4의 `open` — 을 실행하지 않았다. Windows의 대화형 콘솔과 Ctrl+Break는 PR-3.
+   기록](../verification/2026-09-30-issue-8-distribution.md)). 그 기록에서 Windows에서 실행하지 않았던 것 — 3의 symlink 경로,
+   2의 자식 PYTHONPATH, 4의 `open` — 은 Windows 인벤토리가 실행했다: README의 symlink 경로(`os.symlink`로 만든 파일 링크),
+   위 2·4의 확인, README의 `uv tool install --python 3.12` 두 줄. 저장소 CI가 Linux·Windows에서 PR마다, macOS에서 라벨로
+   1–6을 돌린다. 미실행 항목은 CONTRACTS G에 이유와 함께 있다([측정 기록](../verification/2026-10-02-issue-8-windows-inventory.md)).
