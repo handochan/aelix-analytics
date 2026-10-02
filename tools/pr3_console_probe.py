@@ -116,6 +116,8 @@ def _bind():
         "QueryInformationJobObject": ([w.HANDLE, ctypes.c_int, ctypes.c_void_p, w.DWORD, ctypes.POINTER(w.DWORD)], w.BOOL),
         "WaitForSingleObject": ([w.HANDLE, w.DWORD], w.DWORD),
         "GetExitCodeProcess": ([w.HANDLE, ctypes.POINTER(w.DWORD)], w.BOOL),
+        "OpenProcess": ([w.DWORD, w.BOOL, w.DWORD], w.HANDLE),
+        "QueryFullProcessImageNameW": ([w.HANDLE, w.DWORD, w.LPWSTR, ctypes.POINTER(w.DWORD)], w.BOOL),
     }
     for name, (argtypes, restype) in sig.items():
         fn = getattr(k32, name)
@@ -211,6 +213,20 @@ class Session:
         _check(k32.QueryInformationJobObject(self.job, JobObjectBasicProcessIdList, ctypes.byref(lst),
                                              ctypes.sizeof(lst), None), "QueryJob pids")
         return list(lst.Ids[:lst.InList])
+
+    def names(self, pids) -> dict:
+        out = {}
+        for pid in pids:
+            h = k32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+            if not h:
+                out[pid] = None
+                continue
+            buf = ctypes.create_unicode_buffer(1024)
+            size = w.DWORD(1024)
+            ok = k32.QueryFullProcessImageNameW(h, 0, buf, ctypes.byref(size))
+            k32.CloseHandle(h)
+            out[pid] = os.path.basename(buf.value) if ok else None
+        return out
 
     def active(self) -> int:
         acc = JOBOBJECT_BASIC_ACCOUNTING_INFORMATION()
@@ -329,6 +345,7 @@ def run_case(name, script, keys, *, analytics, project, scratch, conpty=True, co
             raise RuntimeError(f"{name}: never ready\n{s.text()[-2000:]}")
         time.sleep(0.02)
     tree = s.job_pids()
+    tree_names = s.names(tree)
     sent, helper_out = [], []
     for i, key in enumerate(keys):
         if i and gap:
@@ -352,9 +369,11 @@ def run_case(name, script, keys, *, analytics, project, scratch, conpty=True, co
     prompt = json.loads(result.read_text(encoding="utf-8")) if result.exists() else None
     active_at_prompt = s.active()
     pids_at_prompt = s.job_pids()
+    names_at_prompt = s.names(pids_at_prompt)
     # Wait for whatever outlived the prompt (the Ctrl+Break case): the kit should finish on its own.
     deadline = time.time() + 60
-    while s.active() > 1 and time.time() < deadline:   # 1 = the shell, still lingering
+    hosts = sum(1 for n in tree_names.values() if n and n.lower() in ("conhost.exe", "openconsole.exe"))
+    while s.active() > 1 + hosts and time.time() < deadline:   # the shell (and a classic console's host)
         time.sleep(0.1)
     leftover = s.job_pids()
     runs = sorted((p for p in (Path(project) / "runs").glob("*/run.json") if p.stat().st_mtime >= t0 - 1),
@@ -367,7 +386,8 @@ def run_case(name, script, keys, *, analytics, project, scratch, conpty=True, co
     s.close()
     head, _, tail = text.partition("__PROMPT__")
     return {
-        "case": name, "conpty": conpty, "codepage": codepage, "keys": repr(keys),
+        "case": name, "conpty": conpty, "codepage": codepage, "keys": repr(keys), "tree_names": tree_names,
+        "names_at_prompt": names_at_prompt, "leftover_names": s.names(leftover),
         "helper": helper_out, "processes_in_job_during": tree,
         "prompt": prompt, "active_in_job_at_prompt": active_at_prompt, "pids_at_prompt": pids_at_prompt,
         "leftover_after_wait": leftover, "markers": markers,
@@ -412,6 +432,7 @@ if __name__ == "__main__":
     ap.add_argument("--cases", default=",".join(CASES))
     ap.add_argument("--output", required=True)
     a = ap.parse_args()
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
     # The shell runs in the project directory: every path it is handed must be absolute.
     a.analytics, a.project, a.scratch = (str(Path(x).resolve()) for x in (a.analytics, a.project, a.scratch))
     out = []
