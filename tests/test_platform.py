@@ -3988,7 +3988,7 @@ TEMPFILES = frozenset({"TemporaryFile", "NamedTemporaryFile", "SpooledTemporaryF
 SUBPROCESS_DECODING = frozenset({"run", "Popen", "check_output"})
 SUBPROCESS_ALWAYS_TEXT = frozenset({"getoutput", "getstatusoutput"})
 TEXT_MODE_KWARGS = ("text", "universal_newlines")
-SOURCE_DIRS = ("kit", "extension", "tools", "src")
+SOURCE_DIRS = ("kit", "extension", "tools", "src", "tests")
 
 
 def _receiver(func: ast.AST) -> str:
@@ -4108,9 +4108,10 @@ def test_the_shipped_code_names_the_encoding_of_every_text_call_the_scan_knows()
     """A locale-dependent default turns Korean records into an exception on a Windows machine, and
     reconfiguring this process's streams does not reach a child's pipe or a file.
 
-    Scope, deliberately: the Python of `kit`, `extension`, `tools` and `src` (the distribution's
-    `analytics` launcher). `tests/` is PR-3's cleanup, `bin/lab` is shell, and the template files
-    are not Python. A directory that is not there would make the scan pass on nothing, so that fails."""
+    Scope, deliberately: the Python of `kit`, `extension`, `tools`, `src` (the distribution's
+    `analytics` launcher) and `tests` — the tests' own calls, not the script bodies they write as
+    strings (design review T12). `bin/lab` is shell, and the template files are not Python. A
+    directory that is not there would make the scan pass on nothing, so that fails."""
     missing = [d for d in SOURCE_DIRS if not (PACK / d).is_dir()]
     assert not missing, f"the scan's directories moved: {missing}"
     paths = [p for directory in SOURCE_DIRS

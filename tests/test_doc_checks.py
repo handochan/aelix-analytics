@@ -6,6 +6,7 @@ import copy
 import hashlib
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -40,9 +41,11 @@ def write(root, path, content):
     return target
 
 
-def cli(root, *args):
+def cli(root, *args, env=None):
+    # The checker writes UTF-8 whatever the console or the pipe's locale.
     return subprocess.run([sys.executable, str(SCRIPT), "--root", str(root), *map(str, args)],
-                          cwd=root.parent, capture_output=True, text=True)
+                          cwd=root.parent, capture_output=True, text=True, encoding="utf-8",
+                          env=env)
 
 
 def test_cli_includes_templates_and_new_docs_with_replayable_evidence(repository):
@@ -89,6 +92,16 @@ def test_markdown_links_tables_reference_links_and_duplicate_headings(repository
     report = checks.Check(repository).run()
     assert report["ok"], report["errors"]
     assert report["counts"]["local_links"] == 3
+
+
+def test_the_report_on_stdout_is_utf8_whatever_the_locale(repository):
+    """A pipe's text follows the locale (cp1252 on the Windows runner), where a Korean path in the
+    report was an exception instead of a report."""
+    write(repository, "docs/한 글.md", "[없음](missing.md)\n")
+    proc = cli(repository, env={**os.environ, "PYTHONIOENCODING": "cp1252"})
+    assert proc.returncode == 1, proc.stderr
+    report = json.loads(proc.stdout)
+    assert [e["path"] for e in report["errors"]] == ["docs/한 글.md"], report["errors"]
 
 
 def test_broken_anchor_and_missing_link_fail_with_file_and_line(repository):
