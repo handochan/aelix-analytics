@@ -220,8 +220,8 @@ Windows의 한계는 G절에 있습니다.
 | 항목 | 현재 코드 |
 |---|---|
 | 선언된 Python 하한 | 배포본(`pyproject.toml`의 `requires-python`, wheel의 `Requires-Python`)은 `>=3.11`입니다. 이 하한은 설치 환경에서 도는 것 — `analytics` 런처, aelix 확장, 확장이 로드하는 `core`·`_platform` — 의 것입니다. 개발 환경(dev dependency group, `[tool.uv.dependency-groups]`)과 분석 프로젝트 환경(`kit/labkit/template/pyproject.toml`)은 `>=3.12`이고, kit의 명령은 프로젝트 환경에서 돕니다. `uv.lock`의 고정 버전은 바뀌지 않았고 dev group은 3.11에서 sync되지 않습니다. 하한 판정([측정 기록](verification/2026-10-02-issue-8-windows-inventory.md)): `>=3.11`은 설치 환경에서 도는 것에 대해 성립합니다 — 세 플랫폼에서 CPython 3.11·3.12에 설치, CPython 3.11에서 aelix 0.1.0b2 통합, 표준 라이브러리만으로 aelix 프로세스가 로드하는 부분(3.11), 런처 시험(3.11), Windows의 3.11 설치본으로 콘솔 Ctrl+C·Ctrl+Break. 분석 프로젝트는 `>=3.12`로 남습니다. D1의 중단 보장은 kit이 도는 3.12 이상에서 측정했고, 3.11에서는 분석 라이브러리를 쓰지 않는 스크립트의 `run`이 실행되고 기록되는 것만 확인했습니다 |
-| 실행으로 확인한 범위 | 이식 가능한 경계(PR-1)는 Ubuntu 24.04와 Windows Server 2025(GitHub Actions), macOS 26.6.2 arm64(개발 기기)에서 실행했습니다([측정 기록](verification/2026-09-24-issue-8-platforms.md)). 배포본(PR-2)도 같은 세 플랫폼에서 wheel을 빌드해 체크아웃 밖의 새 CPython 3.11·3.12 환경에 설치하고 `tests/test_packaging.py`(end-to-end 단계 포함)로 확인했습니다([측정 기록](verification/2026-09-30-issue-8-distribution.md)). Windows 인벤토리(링크·긴 경로·대소문자·POSIX를 가정하던 시험·콘솔·두 프로젝트 격리)는 저장소 CI(`.github/workflows/ci.yml`)가 Ubuntu 24.04·Windows Server 2025에서 PR마다, macOS 26에서 라벨로 실행했고 개발 기기 macOS에서도 실행했습니다([측정 기록](verification/2026-10-02-issue-8-windows-inventory.md)). 측정한 Windows 구성은 하나입니다: Windows Server 2025 Datacenter(GitHub 호스트 이미지 `windows-2025`, ImageOS `win25-vs2026` 20260925.250.1<!-- final run -->), build 26100 x64, 관리자 계정(High integrity), Developer Mode 켬, LongPathsEnabled=1(긴 경로 시험은 0으로도). 클라이언트 판(같은 build의 Windows 11 24H2 포함), 표준 사용자 토큰, 기본 설정의 Windows는 실행하지 않았습니다. Windows에서 확인한 것, 선언한 한계, 실행하지 않은 것은 G절에 있습니다. 실행하지 않은 조합으로 지원을 넓혀 적지 않습니다 |
-| 검증된 조합 | 마지막 측정([측정 기록](verification/2026-10-02-issue-8-windows-inventory.md), `<!-- final run -->` 커밋): 저장소 CI의 Ubuntu 24.04 x64(CPython 3.12.3·3.11.15), Windows Server 2025 x64(3.12.10·3.11.9), macOS 26.6.2 arm64 호스트 러너(`macos-26`, 3.12.10·3.11.9)<!-- final run -->에서 저장소 시험(배포본 end-to-end 포함)·플랫폼 스모크·aelix 0.1.0b2 통합(3.12·3.11, 분석 라이브러리가 없는 격리 환경)·런처 시험(3.11), `actions/setup-python`의 CPython 3.11에서 aelix 프로세스가 로드하는 stdlib 부분. Windows는 여기에 설치본의 콘솔 시험(3.12·3.11 설치본)과 LongPathsEnabled=0의 긴 경로 시험을 더했습니다. 개발 기기 macOS 26.6.2 arm64: CPython 3.12.13(저장소 시험과 end-to-end·스모크·aelix 0.1.0b2 통합 3.12·3.11), 3.13.13·3.14.5(저장소 시험)<!-- final run -->. 배포본은 설치 환경 CPython 3.11·3.12에서 `analytics` 런처, aelix 0.1.0b2의 확장 결합·로드·도구, aelix 없이 SDK로 기록한 run과 그 run의 실제 uv 재실행(`run --rerun-of`), 호출자가 둔 `PYTHONPATH` 대신 정확히 설치된 kit이 run에 가는 것을 세 플랫폼에서 실행했습니다(wheel·sdist의 구성원은 빌드한 파일로 확인). 3.11에서만 `python -m labkit`의 stdlib 명령과 분석 라이브러리를 쓰지 않는 스크립트의 run, pip 설치·제거를, 3.12에서만 sdist 설치, README의 symlink 경로(Windows에서는 `os.symlink`로 만든 파일 링크), README의 `uv tool install --python 3.12` 두 줄을 세 플랫폼에서 확인했습니다. `analytics open`은 POSIX에서 stand-in opener로, Windows 포트로는 `os.startfile`을 바꿔 넣어 실행했습니다(실제 opener는 G). 프로젝트 환경은 CPython 3.12 이상(시험이 확인) |
+| 실행으로 확인한 범위 | 이식 가능한 경계(PR-1)는 Ubuntu 24.04와 Windows Server 2025(GitHub Actions), macOS 26.6.2 arm64(개발 기기)에서 실행했습니다([측정 기록](verification/2026-09-24-issue-8-platforms.md)). 배포본(PR-2)도 같은 세 플랫폼에서 wheel을 빌드해 체크아웃 밖의 새 CPython 3.11·3.12 환경에 설치하고 `tests/test_packaging.py`(end-to-end 단계 포함)로 확인했습니다([측정 기록](verification/2026-09-30-issue-8-distribution.md)). Windows 인벤토리(링크·긴 경로·대소문자·POSIX를 가정하던 시험·콘솔·두 프로젝트 격리)는 저장소 CI(`.github/workflows/ci.yml`)가 Ubuntu 24.04·Windows Server 2025에서 PR마다, macOS 26에서 라벨로 실행했고 개발 기기 macOS에서도 실행했습니다([측정 기록](verification/2026-10-02-issue-8-windows-inventory.md)). 측정한 Windows 구성은 하나입니다: Windows Server 2025 Datacenter(GitHub 호스트 이미지 `windows-2025`, ImageOS `win25-vs2026` 20260925.250.1), build 26100 x64, 관리자 계정(High integrity는 조사 실행에서 읽음), Developer Mode 켬, LongPathsEnabled=1(긴 경로 시험은 0으로도). 클라이언트 판(같은 build의 Windows 11 24H2 포함), 표준 사용자 토큰, 기본 설정의 Windows는 실행하지 않았습니다. Windows에서 확인한 것, 선언한 한계, 실행하지 않은 것은 G절에 있습니다. 실행하지 않은 조합으로 지원을 넓혀 적지 않습니다 |
+| 검증된 조합 | 마지막 측정([측정 기록](verification/2026-10-02-issue-8-windows-inventory.md), `4eb0955` 커밋): 저장소 CI의 Ubuntu 24.04 x64(CPython 3.12.3·3.11.15), Windows Server 2025 x64(3.12.10·3.11.9), macOS 26.6.2 arm64 호스트 러너(`macos-26`, 3.12.10·3.11.9)에서 저장소 시험(배포본 end-to-end 포함)·플랫폼 스모크·aelix 0.1.0b2 통합(3.12·3.11, 분석 라이브러리가 없는 격리 환경)·런처 시험(3.11), `actions/setup-python`의 CPython 3.11(Ubuntu 3.11.16, Windows·macOS 3.11.9)에서 aelix 프로세스가 로드하는 stdlib 부분. Windows는 여기에 설치본의 콘솔 시험(3.12·3.11 설치본)과 LongPathsEnabled=0의 긴 경로 시험을 더했습니다. 개발 기기 macOS 26.6.2 arm64: CPython 3.12.13(저장소 시험과 end-to-end·스모크·aelix 0.1.0b2 통합), 3.11.15(aelix 0.1.0b2 통합·런처 시험·stdlib 스모크), 3.13.13·3.14.5(저장소 시험, end-to-end 없이). 배포본은 설치 환경 CPython 3.11·3.12에서 `analytics` 런처, aelix 0.1.0b2의 확장 결합·로드·도구, aelix 없이 SDK로 기록한 run과 그 run의 실제 uv 재실행(`run --rerun-of`), 호출자가 둔 `PYTHONPATH` 대신 정확히 설치된 kit이 run에 가는 것을 세 플랫폼에서 실행했습니다(wheel·sdist의 구성원은 빌드한 파일로 확인). 3.11에서만 `python -m labkit`의 stdlib 명령과 분석 라이브러리를 쓰지 않는 스크립트의 run, pip 설치·제거를, 3.12에서만 sdist 설치, README의 symlink 경로(Windows에서는 `os.symlink`로 만든 파일 링크), README의 `uv tool install --python 3.12` 두 줄을 세 플랫폼에서 확인했습니다. `analytics open`은 POSIX에서 stand-in opener로, Windows 포트로는 `os.startfile`을 바꿔 넣어 실행했습니다(실제 opener는 G). 프로젝트 환경은 CPython 3.12 이상(시험이 확인) |
 | 프로세스 경계 | 사람용 `analytics` 런처는 설치 환경에서 stdlib만으로 돌고, kit에서는 `_platform`만 로드합니다. stdlib·aelix API·`kit/labkit/core.py`와 `_platform`으로 제한되는 것은 **aelix 확장 프로세스**입니다. 확장은 `uv run --project` 자식 프로세스로 CLI를 띄웁니다(`extension/aelix_lab.py`의 `run_kit`). 그 CLI 프로세스는 `runner`·`data`·`report`를 자기 프로세스에서 import하고, `data.py`와 SDK가 그 안에서 duckdb·polars를 import합니다. 실행되는 스크립트도 같은 프로세스입니다 |
 | 잠금·타임아웃·종료 | `kit/labkit/_platform.py`의 네 포트 뒤에 있습니다: `FileLocks`(journal·run·report 잠금), `AtomicFiles`(기록 교체), `ProcessControl`(자식 생성·생존 확인·중단 요청·강제 종료), `RunControl`(run 제한 시간과 취소, D1). 구현은 `core.PLATFORM`(모듈을 불러올 때 `_platform.detect()`가 한 번 고른 것)이 기본값이고 `Project(root)`가 그것을 씁니다. 시험과 호출자는 `Project(root, platform=…)`로 다른 구현을 넣습니다. 환경 변수나 기록 속 문자열로 구현을 고르지 않습니다. 호출부에는 `sys.platform` 분기가 없습니다. `ProcessControl`은 문서 열기(`open_document`: macOS `open`, 그 밖의 POSIX `xdg-open`, Windows `os.startfile`)와 프로그램 찾기(`find_program`: POSIX는 `shutil.which`, Windows는 작업 디렉터리와 상대 PATH 항목을 빼고 PATH에서만, 경로로 준 것도 `.exe`만)도 맡습니다. 찾은 프로그램은 절대 경로로, 심볼릭 링크를 따라가지 않고 씁니다(mise의 shim처럼 자기 이름으로 동작을 정하는 링크). POSIX 구현은 `fcntl.flock`, `os.replace`, SIGINT로 묻기, `setitimer`·SIGALRM, `start_new_session`과 `os.killpg(SIGKILL)`입니다. Windows 구현은 `msvcrt.locking`(경합이면 다시 시도), 다른 프로세스가 연 파일의 교체 거절(WinError 5·32·33)을 약 2초 동안 다시 시도하는 `os.replace`, 요청 파일과 `signal.raise_signal(SIGINT)`로 묻기, `threading.Timer`와 `raise_signal`로 제한 시간, `CREATE_NEW_PROCESS_GROUP`과 `taskkill /F /T`입니다. `taskkill`은 시스템 디렉터리(`GetSystemDirectoryW`, 그 호출이 실패하면 `%SystemRoot%\System32`)의 `taskkill.exe`를 절대 경로로 실행합니다 — 이름만 주면 CreateProcess가 호출자의 작업 디렉터리(aelix의 작업 디렉터리, 흔히 프로젝트)를 먼저 찾습니다. 콘솔 이벤트(`CTRL_BREAK_EVENT`)와 `_thread.interrupt_main`은 쓰지 않습니다 — 측정에서 앞의 것은 `uv`를 곧바로 끝내 그 자식을 기록 없이 남겼고, 뒤의 것은 잠든 주 스레드를 깨우지 못했습니다 |
 | 생존 확인 | `running` 기록의 pid가 pid일 수 없는 값(0, 음수, bool, 플랫폼 범위 밖)이면 살아 있지 않습니다. 다른 사용자의 프로세스가 그 id를 가지면 재사용으로 보고 살아 있지 않다고 답합니다. 운영체제가 답하지 않으면 살아 있다고 보아 기록을 낮추지 않습니다. 같은 사용자의 프로세스가 재사용한 pid는 구별하지 못합니다 |
@@ -357,7 +357,7 @@ Windows의 한계는 G절에 있습니다.
   기록에 어떻게 담을지(이스케이프, 치환, 거절)는 정하지 않았습니다. Windows(NTFS)도 짝 없는 surrogate가 든 이름을 짝 없는
   UTF-16 단위로 담고 같은 str로 돌려주므로 같은 경우가 생깁니다: 정적 입력 스캔이 그런 이름을 빼고 run을 `ok`로 기록하는
   것을 Windows에서도 확인했습니다(측정). run이 그런 이름의 파일을 읽거나 쓰는 경우는 Windows에서 실행하지 않았습니다.
-- 프로젝트 안의 디렉터리 링크([측정 기록](verification/2026-10-02-issue-8-windows-inventory.md)).
+- 프로젝트 안의 디렉터리 링크([측정 기록](verification/2026-10-02-issue-8-windows-inventory.md), 후속 [#36](https://github.com/handochan/aelix-analytics/issues/36)).
   - (측정) `data/`가 심볼릭 링크이면 그 아래에 저장한 run의 출력이 기록에서 빠집니다(Linux·Windows CI, macOS 개발 기기):
     run 기록은 `outputs: []`이고, 입력은 링크를 푼 프로젝트 밖의 절대 경로(`external`)로 기록되며, 그 데이터셋에는 producer가
     없습니다. Windows의 junction이면 출력은 `data/derived/…`로 기록되지만 입력과 데이터셋 목록은 푼 절대 경로라, producer와
@@ -369,7 +369,7 @@ Windows의 한계는 G절에 있습니다.
   - 기록 교체는 링크를 따라가지 않습니다. 심볼릭 링크인 기록 파일(dotfiles로 관리하는 신뢰 목록 등)을 고쳐 쓰면 링크가
     보통 파일로 바뀌고 링크 대상은 이전 내용으로 남습니다(macOS에서 관찰, 이전 구현과 같습니다. Linux·Windows에서는 실행하지
     않았습니다).
-- 대소문자와 유니코드 정규화. macOS(APFS)는 입력한 대소문자를 기록에 그대로 둡니다: 다른 대소문자로 적은 스크립트 경로는 다른
+- 대소문자와 유니코드 정규화(후속 [#36](https://github.com/handochan/aelix-analytics/issues/36)). macOS(APFS)는 입력한 대소문자를 기록에 그대로 둡니다: 다른 대소문자로 적은 스크립트 경로는 다른
   차트 정체성이 되고, 디렉터리를 다른 대소문자로 적은 절대 경로는 프로젝트 밖이라고 거절되며, 다른 대소문자로 읽은 입력은
   데이터셋의 producer와 이어지지 않고, 상위 디렉터리를 다른 대소문자로 적어 만든 프로젝트는 그 디렉터리에서 신뢰 목록과
   맞지 않습니다(macOS 조사에서 관찰, 이전 구현과 같습니다). NFC로 적은 이름으로 NFD로 저장된 파일을 여는 것도 APFS에서는
@@ -379,16 +379,17 @@ Windows의 한계는 G절에 있습니다.
   대소문자만 다른 데이터셋 파일이 함께 있을 수 있는 파일 시스템(Linux, 그렇게 표시한 Windows 디렉터리)에서 사람이 `data/`에
   직접 둔 `Sales.parquet`은 정렬 순서 때문에 view 이름 `sales`를 먼저 받고, kit이 가져온 `sales`는 `sales_2`가 됩니다(순수 함수로
   확인). kit이 정하는 이름은 소문자라 kit끼리는 겹치지 않습니다(`--name Sales`는 거절).
-- 줄 끝. 저장소에 `.gitattributes`가 없고 Windows 러너의 Git은 `core.autocrlf=true`(시스템 gitconfig)라 그 체크아웃 — kit,
+- 줄 끝(결정할 일: [#37](https://github.com/handochan/aelix-analytics/issues/37)). 저장소에 `.gitattributes`가 없고 Windows 러너의 Git은 `core.autocrlf=true`(시스템 gitconfig)라 그 체크아웃 — kit,
   템플릿, 시험 fixture — 은 CRLF입니다(측정). 그래서 Windows에서 빌드한 wheel과 그 `env.kit_sha256`은 다른 플랫폼의 것과
   다르고, Windows에서 텍스트 모드로 쓴 스크립트·템플릿 사본·기록도 CRLF라 같은 내용의 해시가 플랫폼마다 다릅니다(추론).
   git의 줄 끝 변환을 거쳐 플랫폼을 오간 프로젝트의 텍스트 입력과 코드는 `changed`로 보일 수 있습니다(추론).
 - aelix 한 세션의 프로젝트 전환. 한 확장이 두 프로젝트를 번갈아 다룰 때 각 도구 호출의 journal·telemetry·맥락 블록은 그때
   활성인 프로젝트의 것이고 다른 프로젝트의 파일은 바뀌지 않았습니다(시험, aelix 0.1.0b2). 도구 호출이 도는 중에 `/lab use`로
   바꾸면 그 호출의 telemetry는 끝날 때 활성인 프로젝트에 기록되고 시작한 프로젝트에는 남지 않습니다(시험이 고정합니다.
-  이전 구현과 같습니다).
+  이전 구현과 같습니다. [#32](https://github.com/handochan/aelix-analytics/issues/32)).
 - Windows의 한계. [측정 기록](verification/2026-09-24-issue-8-platforms.md)과 [Windows 인벤토리 기록](verification/2026-10-02-issue-8-windows-inventory.md)에서 실행한 것과
-  추론한 것을 구별해 적습니다. 측정한 Windows 구성은 F에 있는 하나입니다.
+  추론한 것을 구별해 적습니다. 측정한 Windows 구성은 F에 있는 하나입니다. 이번에 측정한 긴 경로·콘솔·환경의 한계는
+  후속 [#38](https://github.com/handochan/aelix-analytics/issues/38)이 다룹니다.
   - (측정) `taskkill /T`는 부모가 이미 끝난 자손에 닿지 않습니다. 그런 자손이 파이프를 쥐고 있으면 확장은 정해진 시간만
     기다리고 돌아오며 자손은 남습니다. 확장은 이를 정리 성공으로 적지 않고 stderr에 남깁니다.
   - (측정) GIL을 쥔 채 도는 C 코드 안의 주 스레드에는 그 호출이 반환할 때까지 취소가 닿지 않습니다. 요청 파일을 보는
@@ -416,7 +417,7 @@ Windows의 한계는 G절에 있습니다.
   - (추론) 콘솔의 시간 창. 두 번째 Ctrl+C가 CRT·CPython이 처리기를 다시 설치하는 짧은 창에 오면 kit(기록은 `running`으로
     남아 `incomplete`)이나 런처가 끝날 수 있고, uv가 자기 처리기를 설치하기 전에 온 Ctrl+C는 Ctrl+Break처럼 uv를 끝내며,
     kit이 import하는 동안 온 Ctrl+C는 run 없이 traceback으로 끝납니다(POSIX에서 130을 관찰, Windows는 `0xC000013A`로 예상).
-    실행하지 않았습니다.
+    실행하지 않았습니다. POSIX 쪽의 같은 창과 늦은 두 번째 Ctrl+C는 [#32](https://github.com/handochan/aelix-analytics/issues/32)에 있습니다.
   - (측정) PowerShell이 `analytics status`의 출력을 받으면(변수에 담거나 파이프로 넘기면) 그 UTF-8 바이트를 콘솔 코드
     페이지로 읽어 한국어가 깨집니다: 코드 페이지 437과 949에서 그랬습니다. 콘솔에 바로 쓰일 때는 바릅니다(F). 받기 전에
     `[Console]::OutputEncoding = [Text.Encoding]::UTF8`로 두면 바르게 읽는다고 봅니다(추론, 실행하지 않았습니다).
