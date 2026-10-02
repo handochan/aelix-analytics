@@ -84,7 +84,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     # Longer than the step limits below added up, so a hung leg is ended by its own limit and the
     # later legs and the upload still run.
-    timeout-minutes: 95
+    timeout-minutes: 130
     strategy:
       fail-fast: false
       matrix:
@@ -105,13 +105,25 @@ jobs:
         if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
         timeout-minutes: 10
         run: uv run --locked python tools/platform_smoke.py --gate required --output "${{ runner.temp }}/ci/smoke.json"
-      # The thread method: the run guard owns SIGALRM during an in-process run.
+      # The thread method: the run guard owns SIGALRM during an in-process run. What a test measures
+      # without asserting it goes to evidence/ in the uploaded directory. The console module has a
+      # step of its own (below), so a hung console case cannot take the suite's JUnit with it.
       - name: Repository tests, with the distribution's end-to-end leg
         if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
         timeout-minutes: 35
         env:
           AELIX_ANALYTICS_TEST_INSTALL: "1"
-        run: uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread --junitxml "${{ runner.temp }}/ci/suite.xml"
+          AELIX_ANALYTICS_TEST_EVIDENCE_DIR: ${{ runner.temp }}/ci/evidence
+        run: uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread --ignore tests/test_windows_console.py --junitxml "${{ runner.temp }}/ci/suite.xml"
+      # Ctrl+C and Ctrl+Break reach the installed command through a pseudo console and a classic
+      # console: a helper process delivers them, not a person's key press.
+      - name: The native console, Windows
+        if: ${{ !cancelled() && steps.sync.outcome == 'success' && runner.os == 'Windows' }}
+        timeout-minutes: 20
+        env:
+          AELIX_ANALYTICS_TEST_INSTALL: "1"
+          AELIX_ANALYTICS_TEST_EVIDENCE_DIR: ${{ runner.temp }}/ci/evidence
+        run: uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread --junitxml "${{ runner.temp }}/ci/console.xml" tests/test_windows_console.py
       # --isolated: without it, on 3.12 uv lays the ephemeral environment over the checkout's development
       # .venv, and the aelix host could import the analysis libraries this leg must show it never loads.
       - name: aelix 0.1.0b2 integration, CPython 3.12
@@ -134,6 +146,22 @@ jobs:
           for v in 3.12 3.11; do
             uv run --isolated --no-project --python "$v" --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python tools/ci_context.py environment --output "${{ runner.temp }}/ci/aelix-environment-py$v.json"
           done
+      # Last of the test legs, because it changes the machine: long paths turned off, then the
+      # long-path tests again in a new process. They record how far each route gets (the effective
+      # setting included) and assert only that nothing hangs.
+      - name: Turn long paths off, Windows
+        id: longpaths_off
+        if: ${{ !cancelled() && steps.sync.outcome == 'success' && runner.os == 'Windows' }}
+        timeout-minutes: 2
+        shell: pwsh
+        run: Set-ItemProperty -Path HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem -Name LongPathsEnabled -Value 0 -Type DWord
+      - name: Long paths with LongPathsEnabled=0, Windows
+        if: ${{ !cancelled() && steps.longpaths_off.outcome == 'success' }}
+        timeout-minutes: 10
+        env:
+          AELIX_ANALYTICS_TEST_INSTALL: "1"
+          AELIX_ANALYTICS_TEST_EVIDENCE_DIR: ${{ runner.temp }}/ci/evidence-long-paths-off
+        run: uv run --locked pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread --junitxml "${{ runner.temp }}/ci/long-paths-off.xml" tests/test_windows_long_paths.py
       - name: Interpreters
         if: ${{ !cancelled() }}
         timeout-minutes: 3
