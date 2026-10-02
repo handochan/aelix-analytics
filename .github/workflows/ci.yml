@@ -1,0 +1,187 @@
+name: CI
+
+# The repository CI. Linux and Windows run on every pull request and every push to main; macOS runs
+# when asked for: the `ci:macos` label (each time it is added, on the head at that moment), a manual
+# run with `macos` ticked, and the weekly run. A macOS runner bills about ten times a Linux one on this
+# private repository. Nothing here is enforced by the server (branch protection is not available on
+# this plan): a red run is a reason not to merge, by the process in CONTRIBUTING.md.
+#
+# Every leg runs even when an earlier one failed (`!cancelled()`), and any failed leg fails its job;
+# no step keeps going past a failure. Each job uploads what it measured (JUnit, the platform smoke's
+# JSON, the interpreters, the distributions of the aelix environments, and the run's context) so a
+# verification record can cite one run. A record's run is never re-run: push again, or add the label
+# again, and cite that run.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      macos:
+        description: Also run the macOS legs
+        type: boolean
+        default: false
+  schedule:
+    - cron: "17 3 * * 1"
+
+permissions:
+  contents: read
+
+# A pull request's code runs share one group, and a new push cancels the old run. A labelled run gets
+# a group of its own per label name, so neither a push nor another label cancels a ci:macos run. A
+# push, schedule or manual run is a group of its own: every main commit keeps its result.
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('ci-pr-{0}-{1}', github.event.pull_request.number, github.event.action == 'labeled' && format('label-{0}', github.event.label.name) || 'code') || format('ci-run-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  lint:
+    name: lint · ruff and documents
+    if: ${{ github.event.action != 'labeled' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.11.19"
+      - name: Sync the development environment
+        id: sync
+        run: uv sync --locked
+      - name: Ruff
+        if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
+        run: uv run --locked ruff check kit tests extension src tools
+      - name: Documents
+        if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
+        run: uv run --locked python tools/check_docs.py --output .devstate/ci/docs.json
+      - name: Context
+        if: ${{ !cancelled() }}
+        env:
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_ACTION: ${{ github.event.action }}
+          CI_JOB: lint
+        run: uv run --no-project --python 3.12 python tools/ci_context.py context --output .devstate/ci/context.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ !cancelled() }}
+        with:
+          name: ci-lint
+          path: .devstate/ci/
+          if-no-files-found: error
+          retention-days: 90
+
+  platform:
+    name: platform · ${{ matrix.os }}
+    if: ${{ github.event.action != 'labeled' || github.event.label.name == 'ci:macos' }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: ${{ startsWith(matrix.os, 'windows') && 50 || 40 }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(github.event.action == 'labeled' && '["macos-26"]' || (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.macos)) && '["ubuntu-24.04","windows-2025","macos-26"]' || '["ubuntu-24.04","windows-2025"]') }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.11.19"
+      - name: Sync the development environment
+        id: sync
+        run: uv sync --locked --python 3.12
+      - name: Platform smoke — the ports and the CLI, driven as the extension drives it
+        if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
+        timeout-minutes: 10
+        run: uv run --locked python tools/platform_smoke.py --gate required --output "${{ runner.temp }}/ci/smoke.json"
+      # The thread method: the run guard owns SIGALRM during an in-process run.
+      - name: Repository tests, with the distribution's end-to-end leg
+        if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
+        timeout-minutes: 35
+        env:
+          AELIX_ANALYTICS_TEST_INSTALL: "1"
+        run: uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread --junitxml "${{ runner.temp }}/ci/suite.xml"
+      # --isolated: without it, on 3.12 uv lays the ephemeral environment over the checkout's development
+      # .venv, and the aelix host could import the analysis libraries this leg must show it never loads.
+      - name: aelix 0.1.0b2 integration, CPython 3.12
+        if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
+        timeout-minutes: 10
+        run: uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread --junitxml "${{ runner.temp }}/ci/aelix-py3.12.xml" tests/test_extension.py
+      - name: aelix 0.1.0b2 integration, CPython 3.11
+        if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
+        timeout-minutes: 10
+        run: uv run --isolated --no-project --python 3.11 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread --junitxml "${{ runner.temp }}/ci/aelix-py3.11.xml" tests/test_extension.py
+      - name: The launcher on the entry-point floor, CPython 3.11
+        if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
+        timeout-minutes: 5
+        run: uv run --isolated --no-project --python 3.11 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread --junitxml "${{ runner.temp }}/ci/launcher-py3.11.xml" tests/test_launcher.py
+      - name: What the aelix environments resolved to
+        if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
+        shell: bash
+        run: |
+          for v in 3.12 3.11; do
+            uv run --isolated --no-project --python "$v" --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python tools/ci_context.py environment --output "${{ runner.temp }}/ci/aelix-environment-py$v.json"
+          done
+      - name: Interpreters
+        if: ${{ !cancelled() }}
+        run: uv run --no-project --python 3.12 python tools/ci_context.py interpreters --output "${{ runner.temp }}/ci/interpreters.json"
+      - name: Context
+        if: ${{ !cancelled() }}
+        env:
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_ACTION: ${{ github.event.action }}
+          CI_LABEL: ${{ github.event.label.name }}
+          CI_JOB: platform
+        run: uv run --no-project --python 3.12 python tools/ci_context.py context --output "${{ runner.temp }}/ci/context.json"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ !cancelled() }}
+        with:
+          name: ci-platform-${{ matrix.os }}
+          path: ${{ runner.temp }}/ci/
+          if-no-files-found: error
+          retention-days: 90
+
+  # What the aelix process itself loads (core and _platform), on the entry-point floor and with nothing
+  # but the standard library: no uv and no analysis libraries is the point of this leg.
+  floor:
+    name: floor · ${{ matrix.os }} · CPython 3.11, stdlib only
+    if: ${{ github.event.action != 'labeled' || github.event.label.name == 'ci:macos' }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(github.event.action == 'labeled' && '["macos-26"]' || (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.macos)) && '["ubuntu-24.04","windows-2025","macos-26"]' || '["ubuntu-24.04","windows-2025"]') }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+      - name: Platform smoke — what the aelix process loads
+        timeout-minutes: 10
+        run: python tools/platform_smoke.py --stdlib-only --gate required --output "${{ runner.temp }}/ci/stdlib-smoke.json"
+      - name: Context
+        if: ${{ !cancelled() }}
+        env:
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_ACTION: ${{ github.event.action }}
+          CI_LABEL: ${{ github.event.label.name }}
+          CI_JOB: floor
+        run: python tools/ci_context.py context --output "${{ runner.temp }}/ci/context.json"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ !cancelled() }}
+        with:
+          name: ci-floor-${{ matrix.os }}
+          path: ${{ runner.temp }}/ci/
+          if-no-files-found: error
+          retention-days: 90
