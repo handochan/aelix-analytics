@@ -173,5 +173,6 @@ ADR-0002는 진입점의 하한을 `>=3.11`로 낮추고(결정 2), Aelix 없이
 7. Linux·Windows에서 1–4와 6 — Issue #8의 측정 워크플로로 실행했다. 세 플랫폼에서 적용되는 시험이 모두 통과했다([측정
    기록](../verification/2026-09-30-issue-8-distribution.md)). 그 기록에서 Windows에서 실행하지 않았던 것 — 3의 symlink 경로,
    2의 자식 PYTHONPATH, 4의 `open` — 은 Windows 인벤토리가 실행했다: README의 symlink 경로(`os.symlink`로 만든 파일 링크),
-   위 2·4의 확인, README의 `uv tool install --python 3.12` 두 줄. 저장소 CI가 Linux·Windows에서 PR마다, macOS에서 라벨로
+   위 2·4의 확인(4의 `open`은 `os.startfile`을 바꿔 넣은 런처 시험으로, 설치본의 `analytics open`이 실제 opener를 부르는 것은
+   아니다), README의 `uv tool install --python 3.12` 두 줄. 저장소 CI가 Linux·Windows에서 PR마다, macOS에서 라벨로
    1–6을 돌린다. 미실행 항목은 CONTRACTS G에 이유와 함께 있다([측정 기록](../verification/2026-10-02-issue-8-windows-inventory.md)).

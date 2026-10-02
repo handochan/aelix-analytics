@@ -643,7 +643,189 @@
        "test_windows_long_paths": {
         "skip": 6
        }
-      }
+      },
+      "cited_cases": [
+       [
+        "test_doc_checks::test_the_report_on_stdout_is_utf8_whatever_the_locale",
+        "pass"
+       ],
+       [
+        "test_kit::test_query_cannot_write_or_read_outside_data",
+        "pass"
+       ],
+       [
+        "test_kit::test_query_cannot_read_through_a_link_out_of_data[symlink]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_open_through_the_windows_port_builds_a_missing_report_then_starts_it[None]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_open_through_the_windows_port_builds_a_missing_report_then_starts_it[1155]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_a_ctrl_c_while_a_child_starts_is_not_sent_again_on_windows",
+        "skip",
+        "what Windows does; POSIX sends it again (the test above)"
+       ],
+       [
+        "test_packaging::test_a_checkout_symlink_beside_the_wheel_sets_up_one_copy",
+        "pass"
+       ],
+       [
+        "test_packaging::test_the_installed_command_drives_a_project_without_aelix[3.11]",
+        "pass"
+       ],
+       [
+        "test_packaging::test_the_installed_command_drives_a_project_without_aelix[3.12]",
+        "pass"
+       ],
+       [
+        "test_packaging::test_the_readme_s_uv_tool_install_routes",
+        "pass"
+       ],
+       [
+        "test_platform::test_windows_kill_tree_reports_what_taskkill_could_not_do[0-False-False]",
+        "pass"
+       ],
+       [
+        "test_platform::test_windows_kill_tree_reports_what_taskkill_could_not_do[1-True-True]",
+        "pass"
+       ],
+       [
+        "test_platform::test_windows_kill_tree_reports_what_taskkill_could_not_do[128-True-False]",
+        "pass"
+       ],
+       [
+        "test_platform::test_windows_runs_taskkill_from_the_system_directory_and_never_by_its_bare_name",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_taskkill_in_the_working_directory_is_not_the_one_that_runs",
+        "skip",
+        "taskkill and CreateProcess's search are Windows'"
+       ],
+       [
+        "test_platform::test_the_windows_guard_s_handler_under_a_second_signal[cancel-guard]",
+        "pass"
+       ],
+       [
+        "test_platform::test_the_windows_guard_s_handler_under_a_second_signal[cancel-script]",
+        "pass"
+       ],
+       [
+        "test_platform::test_the_windows_guard_s_handler_under_a_second_signal[cancel-script_caught]",
+        "pass"
+       ],
+       [
+        "test_platform::test_the_windows_guard_s_handler_under_a_second_signal[deadline-guard]",
+        "pass"
+       ],
+       [
+        "test_platform::test_the_windows_guard_s_handler_under_a_second_signal[deadline-script]",
+        "pass"
+       ],
+       [
+        "test_platform::test_the_windows_guard_s_handler_under_a_second_signal[deadline-script_caught]",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_signal_at_the_start_of_the_guard_s_own_exit_only_records[region_exit]",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_signal_at_the_start_of_the_guard_s_own_exit_only_records[settle]",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_signal_at_the_start_of_the_guard_s_own_exit_only_records[_settle]",
+        "pass"
+       ],
+       [
+        "test_platform::test_the_windows_guard_refuses_a_deadline_its_timer_cannot_hold",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_new_run_of_a_name_another_platform_reads_differently_is_refused_truthfully[\\xe9:/a.py]",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_new_run_of_a_name_another_platform_reads_differently_is_refused_truthfully[1:/a.py]",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_new_run_of_a_name_another_platform_reads_differently_is_refused_truthfully[runs\\\\x.py]",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_new_run_of_a_name_another_platform_reads_differently_is_refused_truthfully[RUNS/x.py]",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_new_run_of_a_name_another_platform_reads_differently_is_refused_truthfully[~no-such-user-here/a.py]",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_dataset_name_is_lower_case_everywhere",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_project_in_a_case_sensitive_windows_directory_reads_runs_in_another_case_as_linux",
+        "skip",
+        "a directory flagged case-sensitive is Windows'"
+       ],
+       [
+        "test_platform::test_a_rerun_through_a_link_into_a_managed_directory_is_refused[symlink]",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_rerun_through_a_link_loop_runs_as_on_main[symlink]",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_rerun_does_not_follow_a_link_out_of_the_project[symlink]",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_tool_running_across_a_project_switch_is_recorded_where_it_ends",
+        "pass"
+       ],
+       [
+        "test_platform::test_the_installed_module_loaded_as_a_file_finds_the_kit_beside_it[copy]",
+        "pass"
+       ],
+       [
+        "test_platform::test_the_installed_module_loaded_as_a_file_finds_the_kit_beside_it[symlink]",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_rerun_through_an_outward_link_is_refused_behind_a_loop_too[symlink]",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_rerun_whose_recorded_snapshot_loops_is_refused[snapshot-symlink]",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_rerun_whose_recorded_snapshot_loops_is_refused[code_root-symlink]",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_windows_disarm_interrupted_holding_the_guard_s_lock_does_not_hang[enter]",
+        "skip",
+        "before 3.14 a `with` calls __enter__ without a CALL, and no signal is handled between its acquiring and the block"
+       ],
+       [
+        "test_platform::test_a_windows_disarm_interrupted_holding_the_guard_s_lock_does_not_hang[exit]",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_scanned_name_a_record_cannot_hold_is_left_out",
+        "pass"
+       ]
+      ]
      },
      "aelix_py3_12": {
       "file": "aelix-py3.12.xml",
@@ -661,7 +843,13 @@
        "test_extension": {
         "pass": 13
        }
-      }
+      },
+      "cited_cases": [
+       [
+        "test_extension::test_two_projects_in_one_host_keep_their_own_records",
+        "pass"
+       ]
+      ]
      },
      "aelix_py3_11": {
       "file": "aelix-py3.11.xml",
@@ -679,7 +867,13 @@
        "test_extension": {
         "pass": 13
        }
-      }
+      },
+      "cited_cases": [
+       [
+        "test_extension::test_two_projects_in_one_host_keep_their_own_records",
+        "pass"
+       ]
+      ]
      },
      "launcher_py3_11": {
       "file": "launcher-py3.11.xml",
@@ -700,7 +894,22 @@
         "pass": 89,
         "skip": 1
        }
-      }
+      },
+      "cited_cases": [
+       [
+        "test_launcher::test_open_through_the_windows_port_builds_a_missing_report_then_starts_it[None]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_open_through_the_windows_port_builds_a_missing_report_then_starts_it[1155]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_a_ctrl_c_while_a_child_starts_is_not_sent_again_on_windows",
+        "skip",
+        "what Windows does; POSIX sends it again (the test above)"
+       ]
+      ]
      },
      "interpreters": {
       "3.11": {
@@ -4858,7 +5067,61 @@
        "test_extension": {
         "pass": 13
        }
-      }
+      },
+      "cases": [
+       [
+        "test_extension::test_real_loader_registers_the_basic_contract_surface",
+        "pass"
+       ],
+       [
+        "test_extension::test_prompt_text_fits_aelix_limits_and_schemas_are_plain",
+        "pass"
+       ],
+       [
+        "test_extension::test_no_project_is_a_clear_tool_error",
+        "pass"
+       ],
+       [
+        "test_extension::test_status_note_context_injection_and_telemetry",
+        "pass"
+       ],
+       [
+        "test_extension::test_two_projects_in_one_host_keep_their_own_records",
+        "pass"
+       ],
+       [
+        "test_extension::test_lab_command_where_help_and_gap",
+        "pass"
+       ],
+       [
+        "test_extension::test_import_query_and_run_through_the_project_environment",
+        "pass"
+       ],
+       [
+        "test_extension::test_a_project_the_user_never_chose_is_not_activated",
+        "pass"
+       ],
+       [
+        "test_extension::test_an_unusable_project_path_is_an_error_not_a_crash",
+        "pass"
+       ],
+       [
+        "test_extension::test_a_new_script_name_windows_cannot_store_is_refused",
+        "pass"
+       ],
+       [
+        "test_extension::test_rerun_of_is_validated_before_any_subprocess",
+        "pass"
+       ],
+       [
+        "test_extension::test_a_run_over_many_inputs_still_shows_stdout_and_says_what_it_hid",
+        "pass"
+       ],
+       [
+        "test_extension::test_lab_import_takes_a_tilde_name_by_the_rule_lab_import_follows",
+        "pass"
+       ]
+      ]
      },
      "aelix_py3_11": {
       "file": "aelix-py3.11.xml",
@@ -4876,7 +5139,61 @@
        "test_extension": {
         "pass": 13
        }
-      }
+      },
+      "cases": [
+       [
+        "test_extension::test_real_loader_registers_the_basic_contract_surface",
+        "pass"
+       ],
+       [
+        "test_extension::test_prompt_text_fits_aelix_limits_and_schemas_are_plain",
+        "pass"
+       ],
+       [
+        "test_extension::test_no_project_is_a_clear_tool_error",
+        "pass"
+       ],
+       [
+        "test_extension::test_status_note_context_injection_and_telemetry",
+        "pass"
+       ],
+       [
+        "test_extension::test_two_projects_in_one_host_keep_their_own_records",
+        "pass"
+       ],
+       [
+        "test_extension::test_lab_command_where_help_and_gap",
+        "pass"
+       ],
+       [
+        "test_extension::test_import_query_and_run_through_the_project_environment",
+        "pass"
+       ],
+       [
+        "test_extension::test_a_project_the_user_never_chose_is_not_activated",
+        "pass"
+       ],
+       [
+        "test_extension::test_an_unusable_project_path_is_an_error_not_a_crash",
+        "pass"
+       ],
+       [
+        "test_extension::test_a_new_script_name_windows_cannot_store_is_refused",
+        "pass"
+       ],
+       [
+        "test_extension::test_rerun_of_is_validated_before_any_subprocess",
+        "pass"
+       ],
+       [
+        "test_extension::test_a_run_over_many_inputs_still_shows_stdout_and_says_what_it_hid",
+        "pass"
+       ],
+       [
+        "test_extension::test_lab_import_takes_a_tilde_name_by_the_rule_lab_import_follows",
+        "pass"
+       ]
+      ]
      },
      "launcher_py3_11": {
       "file": "launcher-py3.11.xml",
@@ -4906,7 +5223,413 @@
         "pass": 46,
         "skip": 44
        }
-      }
+      },
+      "cases": [
+       [
+        "test_launcher::test_help_is_the_usage_on_stdout[args0-launcher]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_help_is_the_usage_on_stdout[args0-bin/lab]",
+        "skip",
+        "bin/lab is a POSIX shell script"
+       ],
+       [
+        "test_launcher::test_help_is_the_usage_on_stdout[args1-launcher]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_help_is_the_usage_on_stdout[args1-bin/lab]",
+        "skip",
+        "bin/lab is a POSIX shell script"
+       ],
+       [
+        "test_launcher::test_help_is_the_usage_on_stdout[args2-launcher]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_help_is_the_usage_on_stdout[args2-bin/lab]",
+        "skip",
+        "bin/lab is a POSIX shell script"
+       ],
+       [
+        "test_launcher::test_the_usage_is_bin_labs_but_for_the_command_name",
+        "skip",
+        "bin/lab is a POSIX shell script"
+       ],
+       [
+        "test_launcher::test_an_unknown_command_prints_the_usage_on_stderr_and_exits_2[launcher]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_an_unknown_command_prints_the_usage_on_stderr_and_exits_2[bin/lab]",
+        "skip",
+        "bin/lab is a POSIX shell script"
+       ],
+       [
+        "test_launcher::test_init_and_demo_need_a_directory[init-launcher]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_init_and_demo_need_a_directory[init-bin/lab]",
+        "skip",
+        "bin/lab is a POSIX shell script"
+       ],
+       [
+        "test_launcher::test_init_and_demo_need_a_directory[demo-launcher]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_init_and_demo_need_a_directory[demo-bin/lab]",
+        "skip",
+        "bin/lab is a POSIX shell script"
+       ],
+       [
+        "test_launcher::test_each_command_reaches_the_kit_in_the_project_environment[args0-expected0-launcher]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_each_command_reaches_the_kit_in_the_project_environment[args0-expected0-bin/lab]",
+        "skip",
+        "bin/lab is a POSIX shell script"
+       ],
+       [
+        "test_launcher::test_each_command_reaches_the_kit_in_the_project_environment[args1-expected1-launcher]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_each_command_reaches_the_kit_in_the_project_environment[args1-expected1-bin/lab]",
+        "skip",
+        "bin/lab is a POSIX shell script"
+       ],
+       [
+        "test_launcher::test_each_command_reaches_the_kit_in_the_project_environment[args2-expected2-launcher]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_each_command_reaches_the_kit_in_the_project_environment[args2-expected2-bin/lab]",
+        "skip",
+        "bin/lab is a POSIX shell script"
+       ],
+       [
+        "test_launcher::test_each_command_reaches_the_kit_in_the_project_environment[args3-expected3-launcher]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_each_command_reaches_the_kit_in_the_project_environment[args3-expected3-bin/lab]",
+        "skip",
+        "bin/lab is a POSIX shell script"
+       ],
+       [
+        "test_launcher::test_each_command_reaches_the_kit_in_the_project_environment[args4-expected4-launcher]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_each_command_reaches_the_kit_in_the_project_environment[args4-expected4-bin/lab]",
+        "skip",
+        "bin/lab is a POSIX shell script"
+       ],
+       [
+        "test_launcher::test_each_command_reaches_the_kit_in_the_project_environment[args5-expected5-launcher]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_each_command_reaches_the_kit_in_the_project_environment[args5-expected5-bin/lab]",
+        "skip",
+        "bin/lab is a POSIX shell script"
+       ],
+       [
+        "test_launcher::test_each_command_reaches_the_kit_in_the_project_environment[args6-expected6-launcher]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_each_command_reaches_the_kit_in_the_project_environment[args6-expected6-bin/lab]",
+        "skip",
+        "bin/lab is a POSIX shell script"
+       ],
+       [
+        "test_launcher::test_each_command_reaches_the_kit_in_the_project_environment[args7-expected7-launcher]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_each_command_reaches_the_kit_in_the_project_environment[args7-expected7-bin/lab]",
+        "skip",
+        "bin/lab is a POSIX shell script"
+       ],
+       [
+        "test_launcher::test_each_command_reaches_the_kit_in_the_project_environment[args8-expected8-launcher]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_each_command_reaches_the_kit_in_the_project_environment[args8-expected8-bin/lab]",
+        "skip",
+        "bin/lab is a POSIX shell script"
+       ],
+       [
+        "test_launcher::test_lab_actor_and_lab_project_are_passed_as_they_are[launcher]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_lab_actor_and_lab_project_are_passed_as_they_are[bin/lab]",
+        "skip",
+        "bin/lab is a POSIX shell script"
+       ],
+       [
+        "test_launcher::test_no_project_is_a_message_and_exit_1[launcher]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_no_project_is_a_message_and_exit_1[bin/lab]",
+        "skip",
+        "bin/lab is a POSIX shell script"
+       ],
+       [
+        "test_launcher::test_output_passes_through_byte_for_byte[launcher]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_output_passes_through_byte_for_byte[bin/lab]",
+        "skip",
+        "bin/lab is a POSIX shell script"
+       ],
+       [
+        "test_launcher::test_the_exit_status_is_the_kits[0-launcher]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_the_exit_status_is_the_kits[0-bin/lab]",
+        "skip",
+        "bin/lab is a POSIX shell script"
+       ],
+       [
+        "test_launcher::test_the_exit_status_is_the_kits[1-launcher]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_the_exit_status_is_the_kits[1-bin/lab]",
+        "skip",
+        "bin/lab is a POSIX shell script"
+       ],
+       [
+        "test_launcher::test_the_exit_status_is_the_kits[2-launcher]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_the_exit_status_is_the_kits[2-bin/lab]",
+        "skip",
+        "bin/lab is a POSIX shell script"
+       ],
+       [
+        "test_launcher::test_the_exit_status_is_the_kits[3-launcher]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_the_exit_status_is_the_kits[3-bin/lab]",
+        "skip",
+        "bin/lab is a POSIX shell script"
+       ],
+       [
+        "test_launcher::test_the_exit_status_is_the_kits[130-launcher]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_the_exit_status_is_the_kits[130-bin/lab]",
+        "skip",
+        "bin/lab is a POSIX shell script"
+       ],
+       [
+        "test_launcher::test_a_kit_ended_by_a_signal_is_128_plus_its_number[launcher]",
+        "skip",
+        "a POSIX signal"
+       ],
+       [
+        "test_launcher::test_a_kit_ended_by_a_signal_is_128_plus_its_number[bin/lab]",
+        "skip",
+        "a POSIX signal"
+       ],
+       [
+        "test_launcher::test_a_missing_uv_is_a_message_and_exit_127",
+        "pass"
+       ],
+       [
+        "test_launcher::test_a_value_that_is_not_utf8_is_printed_as_its_bytes",
+        "skip",
+        "bytes that are not UTF-8 in the environment are POSIX's"
+       ],
+       [
+        "test_launcher::test_init_and_demo_create_sync_then_build_or_fill[init-launcher]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_init_and_demo_create_sync_then_build_or_fill[init-bin/lab]",
+        "skip",
+        "bin/lab is a POSIX shell script"
+       ],
+       [
+        "test_launcher::test_init_and_demo_create_sync_then_build_or_fill[demo-launcher]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_init_and_demo_create_sync_then_build_or_fill[demo-bin/lab]",
+        "skip",
+        "bin/lab is a POSIX shell script"
+       ],
+       [
+        "test_launcher::test_init_falls_back_to_an_offline_sync[launcher]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_init_falls_back_to_an_offline_sync[bin/lab]",
+        "skip",
+        "bin/lab is a POSIX shell script"
+       ],
+       [
+        "test_launcher::test_init_stops_at_the_first_failing_step[launcher]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_init_stops_at_the_first_failing_step[bin/lab]",
+        "skip",
+        "bin/lab is a POSIX shell script"
+       ],
+       [
+        "test_launcher::test_open_builds_a_missing_report_then_hands_it_to_the_opener[True]",
+        "skip",
+        "os.startfile would open a real program on Windows"
+       ],
+       [
+        "test_launcher::test_open_builds_a_missing_report_then_hands_it_to_the_opener[False]",
+        "skip",
+        "os.startfile would open a real program on Windows"
+       ],
+       [
+        "test_launcher::test_open_needs_no_uv_for_a_built_report[launcher]",
+        "skip",
+        "os.startfile would open a real program on Windows"
+       ],
+       [
+        "test_launcher::test_open_needs_no_uv_for_a_built_report[bin/lab]",
+        "skip",
+        "os.startfile would open a real program on Windows"
+       ],
+       [
+        "test_launcher::test_open_starts_no_opener_once_a_signal_has_arrived[SIGINT-130]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_open_starts_no_opener_once_a_signal_has_arrived[SIGTERM-143]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_open_through_the_windows_port_builds_a_missing_report_then_starts_it[None]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_open_through_the_windows_port_builds_a_missing_report_then_starts_it[1155]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_ctrl_c_reaches_the_kit_once_and_the_launcher_waits_for_its_record",
+        "skip",
+        "a terminal's process group; a Windows console's Ctrl+C is tests/test_windows_console.py's"
+       ],
+       [
+        "test_launcher::test_sigterm_to_the_launcher_alone_is_passed_on_to_the_kit",
+        "skip",
+        "SIGTERM from outside a process is POSIX"
+       ],
+       [
+        "test_launcher::test_no_child_starts_once_ctrl_c_has_arrived",
+        "pass"
+       ],
+       [
+        "test_launcher::test_an_ignored_sigint_stays_ignored_and_a_handled_one_is_given_back",
+        "skip",
+        "signal dispositions as POSIX inherits them"
+       ],
+       [
+        "test_launcher::test_exit_status[0-0]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_exit_status[1-1]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_exit_status[3-3]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_exit_status[130-130]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_exit_status[255-255]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_exit_status[-2-130]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_exit_status[-9-137]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_exit_status[-15-143]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_exit_status[3221225786--1073741510]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_exit_status[4294967295--1]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_exit_status[2147483648--2147483648]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_exit_status[2147483647-2147483647]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_sigterm_lets_a_step_finish_and_starts_no_other",
+        "skip",
+        "SIGTERM from outside a process is POSIX"
+       ],
+       [
+        "test_launcher::test_sigterm_during_an_import_leaves_the_import_to_finish",
+        "skip",
+        "SIGTERM from outside a process is POSIX"
+       ],
+       [
+        "test_launcher::test_a_ctrl_c_while_a_child_starts_still_reaches_it",
+        "skip",
+        "a POSIX signal sent to one process"
+       ],
+       [
+        "test_launcher::test_a_ctrl_c_while_a_child_starts_is_not_sent_again_on_windows",
+        "pass"
+       ],
+       [
+        "test_launcher::test_a_background_job_keeps_sigint_ignored_for_the_kit[launcher]",
+        "skip",
+        "a shell's background job"
+       ],
+       [
+        "test_launcher::test_a_background_job_keeps_sigint_ignored_for_the_kit[bin/lab]",
+        "skip",
+        "a shell's background job"
+       ],
+       [
+        "test_launcher::test_uv_is_started_by_the_name_it_was_found_by",
+        "skip",
+        "a symbolic link to a program"
+       ]
+      ]
      },
      "interpreters": {
       "3.11": {
@@ -8901,7 +9624,190 @@
        "test_windows_long_paths": {
         "skip": 6
        }
-      }
+      },
+      "cited_cases": [
+       [
+        "test_doc_checks::test_the_report_on_stdout_is_utf8_whatever_the_locale",
+        "pass"
+       ],
+       [
+        "test_kit::test_query_cannot_write_or_read_outside_data",
+        "pass"
+       ],
+       [
+        "test_kit::test_query_cannot_read_through_a_link_out_of_data[symlink]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_open_through_the_windows_port_builds_a_missing_report_then_starts_it[None]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_open_through_the_windows_port_builds_a_missing_report_then_starts_it[1155]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_a_ctrl_c_while_a_child_starts_is_not_sent_again_on_windows",
+        "skip",
+        "what Windows does; POSIX sends it again (the test above)"
+       ],
+       [
+        "test_packaging::test_a_checkout_symlink_beside_the_wheel_sets_up_one_copy",
+        "pass"
+       ],
+       [
+        "test_packaging::test_the_installed_command_drives_a_project_without_aelix[3.11]",
+        "pass"
+       ],
+       [
+        "test_packaging::test_the_installed_command_drives_a_project_without_aelix[3.12]",
+        "pass"
+       ],
+       [
+        "test_packaging::test_the_readme_s_uv_tool_install_routes",
+        "pass"
+       ],
+       [
+        "test_platform::test_windows_kill_tree_reports_what_taskkill_could_not_do[0-False-False]",
+        "pass"
+       ],
+       [
+        "test_platform::test_windows_kill_tree_reports_what_taskkill_could_not_do[1-True-True]",
+        "pass"
+       ],
+       [
+        "test_platform::test_windows_kill_tree_reports_what_taskkill_could_not_do[128-True-False]",
+        "pass"
+       ],
+       [
+        "test_platform::test_windows_runs_taskkill_from_the_system_directory_and_never_by_its_bare_name",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_taskkill_in_the_working_directory_is_not_the_one_that_runs",
+        "skip",
+        "taskkill and CreateProcess's search are Windows'"
+       ],
+       [
+        "test_platform::test_the_windows_guard_s_handler_under_a_second_signal[cancel-guard]",
+        "pass"
+       ],
+       [
+        "test_platform::test_the_windows_guard_s_handler_under_a_second_signal[cancel-script]",
+        "pass"
+       ],
+       [
+        "test_platform::test_the_windows_guard_s_handler_under_a_second_signal[cancel-script_caught]",
+        "pass"
+       ],
+       [
+        "test_platform::test_the_windows_guard_s_handler_under_a_second_signal[deadline-guard]",
+        "pass"
+       ],
+       [
+        "test_platform::test_the_windows_guard_s_handler_under_a_second_signal[deadline-script]",
+        "pass"
+       ],
+       [
+        "test_platform::test_the_windows_guard_s_handler_under_a_second_signal[deadline-script_caught]",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_signal_at_the_start_of_the_guard_s_own_exit_only_records[region_exit]",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_signal_at_the_start_of_the_guard_s_own_exit_only_records[settle]",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_signal_at_the_start_of_the_guard_s_own_exit_only_records[_settle]",
+        "pass"
+       ],
+       [
+        "test_platform::test_the_windows_guard_refuses_a_deadline_its_timer_cannot_hold",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_new_run_of_a_name_another_platform_reads_differently_is_refused_truthfully[\\xe9:/a.py]",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_new_run_of_a_name_another_platform_reads_differently_is_refused_truthfully[1:/a.py]",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_new_run_of_a_name_another_platform_reads_differently_is_refused_truthfully[runs\\\\x.py]",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_new_run_of_a_name_another_platform_reads_differently_is_refused_truthfully[RUNS/x.py]",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_new_run_of_a_name_another_platform_reads_differently_is_refused_truthfully[~no-such-user-here/a.py]",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_dataset_name_is_lower_case_everywhere",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_project_in_a_case_sensitive_windows_directory_reads_runs_in_another_case_as_linux",
+        "skip",
+        "a directory flagged case-sensitive is Windows'"
+       ],
+       [
+        "test_platform::test_a_rerun_through_a_link_into_a_managed_directory_is_refused[symlink]",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_rerun_through_a_link_loop_runs_as_on_main[symlink]",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_rerun_does_not_follow_a_link_out_of_the_project[symlink]",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_tool_running_across_a_project_switch_is_recorded_where_it_ends",
+        "pass"
+       ],
+       [
+        "test_platform::test_the_installed_module_loaded_as_a_file_finds_the_kit_beside_it[copy]",
+        "pass"
+       ],
+       [
+        "test_platform::test_the_installed_module_loaded_as_a_file_finds_the_kit_beside_it[symlink]",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_rerun_through_an_outward_link_is_refused_behind_a_loop_too[symlink]",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_rerun_whose_recorded_snapshot_loops_is_refused[snapshot-symlink]",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_rerun_whose_recorded_snapshot_loops_is_refused[code_root-symlink]",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_windows_disarm_interrupted_holding_the_guard_s_lock_does_not_hang[enter]",
+        "skip",
+        "before 3.14 a `with` calls __enter__ without a CALL, and no signal is handled between its acquiring and the block"
+       ],
+       [
+        "test_platform::test_a_windows_disarm_interrupted_holding_the_guard_s_lock_does_not_hang[exit]",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_scanned_name_a_record_cannot_hold_is_left_out",
+        "skip",
+        "this file system refuses a name that is not UTF-8: OSError(92, 'Illegal byte sequence')"
+       ]
+      ]
      },
      "aelix_py3_12": {
       "file": "aelix-py3.12.xml",
@@ -8919,7 +9825,13 @@
        "test_extension": {
         "pass": 13
        }
-      }
+      },
+      "cited_cases": [
+       [
+        "test_extension::test_two_projects_in_one_host_keep_their_own_records",
+        "pass"
+       ]
+      ]
      },
      "aelix_py3_11": {
       "file": "aelix-py3.11.xml",
@@ -8937,7 +9849,13 @@
        "test_extension": {
         "pass": 13
        }
-      }
+      },
+      "cited_cases": [
+       [
+        "test_extension::test_two_projects_in_one_host_keep_their_own_records",
+        "pass"
+       ]
+      ]
      },
      "launcher_py3_11": {
       "file": "launcher-py3.11.xml",
@@ -8958,7 +9876,22 @@
         "pass": 89,
         "skip": 1
        }
-      }
+      },
+      "cited_cases": [
+       [
+        "test_launcher::test_open_through_the_windows_port_builds_a_missing_report_then_starts_it[None]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_open_through_the_windows_port_builds_a_missing_report_then_starts_it[1155]",
+        "pass"
+       ],
+       [
+        "test_launcher::test_a_ctrl_c_while_a_child_starts_is_not_sent_again_on_windows",
+        "skip",
+        "what Windows does; POSIX sends it again (the test above)"
+       ]
+      ]
      },
      "interpreters": {
       "3.11": {
@@ -9556,6 +10489,131 @@
    }
   }
  },
+ "earlier_observations": [
+  {
+   "run": "36993060072",
+   "url": "https://github.com/handochan/aelix-analytics/actions/runs/36993060072",
+   "revision": "2b69cf1",
+   "name": "console/c_child_wait_py312",
+   "file_sha256": "7e9c6620a09c5742423d1d5f3552401550f0374fb3e6b2768ba0b48421738957",
+   "observation": {
+    "active_at_prompt": 3,
+    "case": "c_child_wait_py312",
+    "close_console_returned": true,
+    "codepage": 0,
+    "conpty": true,
+    "deliveries": {
+     "CTRL_BREAK": 0,
+     "CTRL_C": 1,
+     "CTRL_CLOSE": 0,
+     "other": 0
+    },
+    "final": {
+     "deliveries": {
+      "CTRL_BREAK": 0,
+      "CTRL_C": 1,
+      "CTRL_CLOSE": 0,
+      "other": 0
+     },
+     "t": 1790936494.1515455
+    },
+    "helper": [],
+    "keys": "[b'\\x03']",
+    "korean_title_on_console": true,
+    "left_after_close": 0,
+    "left_over_after_kit": [
+     2092,
+     4568
+    ],
+    "leftover_after_wait": {
+     "2092": "python.exe",
+     "4568": "python.exe",
+     "5932": "python.exe"
+    },
+    "markers": [],
+    "names_at_prompt": {
+     "2092": "python.exe",
+     "4568": "python.exe",
+     "5932": "python.exe"
+    },
+    "prompt": {
+     "attached_at_prompt": [
+      2092,
+      4568,
+      5932
+     ],
+     "cp": [
+      437,
+      437
+     ],
+     "deliveries": {
+      "CTRL_BREAK": 0,
+      "CTRL_C": 1,
+      "CTRL_CLOSE": 0,
+      "other": 0
+     },
+     "rc": 3,
+     "shell": 5932,
+     "status_at_prompt": "cancelled",
+     "t": 1790936449.0533164
+    },
+    "prompt_on_console": true,
+    "python": "3.12",
+    "record_error": {
+     "line": null,
+     "message": "interrupted",
+     "summary": "cancelled",
+     "type": "Cancelled"
+    },
+    "record_status": "cancelled",
+    "record_times": [
+     "2026-10-02T10:20:48.537+00:00",
+     "2026-10-02T10:20:48.581+00:00"
+    ],
+    "result_line_after_prompt": false,
+    "result_line_before_prompt": true,
+    "script": "scripts/console_c_child_wait_py312.py",
+    "seconds_key_to_prompt": 0.503,
+    "seconds_to_ready": 0.481,
+    "seconds_to_settle": 46.079,
+    "shell": 5932,
+    "stdout_log": "시작 started\n",
+    "text_tail": ", \\\"exec\\\", dont_inherit=True), module.__dict__)\\r\\n  File \\\"C:\\\\Users\\\\runneradmin\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-runneradmin\\\\pytest-1\\\\console0\\\\work\\\\proj\\\\scripts\\\\console_c_child_wait_py312.py\\\", line 5, in <module>\\r\\n    subprocess.run([sys.executable, '-c', 'import time; time.sleep(120)'])\\r\\n  File \\\"C:\\\\hostedtoolcache\\\\windows\\\\Python\\\\3.12.10\\\\x64\\\\Lib\\\\subprocess.py\\\", line 548, in run\\r\\n    with Popen(*popenargs, **kwargs) as process:\\r\\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^\\r\\n  File \\\"C:\\\\hostedtoolcache\\\\windows\\\\Python\\\\3.12.10\\\\x64\\\\Lib\\\\subprocess.py\\\", line 1026, in __init__\\r\\n    self._execute_child(args, executable, preexec_fn, close_fds,\\r\\n  File \\\"C:\\\\hostedtoolcache\\\\windows\\\\Python\\\\3.12.10\\\\x64\\\\Lib\\\\subprocess.py\\\", line 1538, in _execute_child\\r\\n    hp, ht, pid, tid = _winapi.CreateProcess(executable, args,\\r\\n                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\r\\n  File \\\"C:\\\\Users\\\\runneradmin\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-runneradmin\\\\pytest-1\\\\console0\\\\venv-3.12\\\\Lib\\\\site-packages\\\\aelix_analytics\\\\kit\\\\labkit\\\\_platform.py\\\", line 974, in _on_sigint\\r\\n    raise Interrupted(\\\"run cancelled\\\")\\r\\nlabkit._platform.Interrupted: run cancelled\\r\\n\", \"page\": \"report/runs/20261002-102048-console-c-child-wait-py312.html\", \"report\": {\"path\": \"C:\\\\Users\\\\runneradmin\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-runneradmin\\\\pytest-1\\\\console0\\\\work\\\\proj\\\\report\\\\index.html\", \"pages\": 7, \"build\": \"20261002-102048-805293\"}}\n\n__PROMPT__ rc=0x3\n",
+    "tree_names": {
+     "4284": "python.exe",
+     "4568": "python.exe",
+     "5932": "python.exe",
+     "6784": "uv.exe",
+     "7416": "python.exe",
+     "7864": "python.exe",
+     "7924": "python.exe",
+     "7948": "analytics.exe"
+    }
+   }
+  },
+  {
+   "run": "36986490189",
+   "url": "https://github.com/handochan/aelix-analytics/actions/runs/36986490189",
+   "revision": "8e6cb7e",
+   "name": "long-paths-disabled-root-under-max-path",
+   "file_sha256": "a6e3e9824c6821715252f4a3303c81e3b0da63089d1325ea4e4955aa49a09238",
+   "observation": {
+    "case": "root-under-max-path",
+    "init_project": {
+     "raised": "FileNotFoundError(2, 'No such file or directory')",
+     "winerror": null
+    },
+    "long_paths": false,
+    "python": "3.12.10",
+    "root_length": 230,
+    "setting": {
+     "effective": false,
+     "registry": 0
+    },
+    "venv_python_length": 255
+   }
+  }
+ ],
  "developer_machine": {
   "where": "developer machine",
   "machine": [
@@ -10147,7 +11205,13 @@
     "test_extension": {
      "pass": 13
     }
-   }
+   },
+   "cited_cases": [
+    [
+     "test_extension::test_two_projects_in_one_host_keep_their_own_records",
+     "pass"
+    ]
+   ]
   },
   "aelix_py3_12": {
    "file": "aelix-py3.12.xml",
@@ -10165,7 +11229,13 @@
     "test_extension": {
      "pass": 13
     }
-   }
+   },
+   "cited_cases": [
+    [
+     "test_extension::test_two_projects_in_one_host_keep_their_own_records",
+     "pass"
+    ]
+   ]
   },
   "launcher_py3_11": {
    "file": "launcher-py3.11.xml",
@@ -10186,7 +11256,22 @@
      "pass": 89,
      "skip": 1
     }
-   }
+   },
+   "cited_cases": [
+    [
+     "test_launcher::test_open_through_the_windows_port_builds_a_missing_report_then_starts_it[None]",
+     "pass"
+    ],
+    [
+     "test_launcher::test_open_through_the_windows_port_builds_a_missing_report_then_starts_it[1155]",
+     "pass"
+    ],
+    [
+     "test_launcher::test_a_ctrl_c_while_a_child_starts_is_not_sent_again_on_windows",
+     "skip",
+     "what Windows does; POSIX sends it again (the test above)"
+    ]
+   ]
   },
   "suite_py3_13": {
    "file": "suite-py3.13.xml",
@@ -10241,7 +11326,194 @@
     "test_windows_long_paths": {
      "skip": 6
     }
-   }
+   },
+   "cited_cases": [
+    [
+     "test_doc_checks::test_the_report_on_stdout_is_utf8_whatever_the_locale",
+     "pass"
+    ],
+    [
+     "test_kit::test_query_cannot_write_or_read_outside_data",
+     "pass"
+    ],
+    [
+     "test_kit::test_query_cannot_read_through_a_link_out_of_data[symlink]",
+     "pass"
+    ],
+    [
+     "test_launcher::test_open_through_the_windows_port_builds_a_missing_report_then_starts_it[None]",
+     "pass"
+    ],
+    [
+     "test_launcher::test_open_through_the_windows_port_builds_a_missing_report_then_starts_it[1155]",
+     "pass"
+    ],
+    [
+     "test_launcher::test_a_ctrl_c_while_a_child_starts_is_not_sent_again_on_windows",
+     "skip",
+     "what Windows does; POSIX sends it again (the test above)"
+    ],
+    [
+     "test_packaging::test_a_checkout_symlink_beside_the_wheel_sets_up_one_copy",
+     "skip",
+     "set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)"
+    ],
+    [
+     "test_packaging::test_the_installed_command_drives_a_project_without_aelix[3.11]",
+     "skip",
+     "set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)"
+    ],
+    [
+     "test_packaging::test_the_installed_command_drives_a_project_without_aelix[3.12]",
+     "skip",
+     "set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)"
+    ],
+    [
+     "test_packaging::test_the_readme_s_uv_tool_install_routes",
+     "skip",
+     "set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)"
+    ],
+    [
+     "test_platform::test_windows_kill_tree_reports_what_taskkill_could_not_do[0-False-False]",
+     "pass"
+    ],
+    [
+     "test_platform::test_windows_kill_tree_reports_what_taskkill_could_not_do[1-True-True]",
+     "pass"
+    ],
+    [
+     "test_platform::test_windows_kill_tree_reports_what_taskkill_could_not_do[128-True-False]",
+     "pass"
+    ],
+    [
+     "test_platform::test_windows_runs_taskkill_from_the_system_directory_and_never_by_its_bare_name",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_taskkill_in_the_working_directory_is_not_the_one_that_runs",
+     "skip",
+     "taskkill and CreateProcess's search are Windows'"
+    ],
+    [
+     "test_platform::test_the_windows_guard_s_handler_under_a_second_signal[cancel-guard]",
+     "pass"
+    ],
+    [
+     "test_platform::test_the_windows_guard_s_handler_under_a_second_signal[cancel-script]",
+     "pass"
+    ],
+    [
+     "test_platform::test_the_windows_guard_s_handler_under_a_second_signal[cancel-script_caught]",
+     "pass"
+    ],
+    [
+     "test_platform::test_the_windows_guard_s_handler_under_a_second_signal[deadline-guard]",
+     "pass"
+    ],
+    [
+     "test_platform::test_the_windows_guard_s_handler_under_a_second_signal[deadline-script]",
+     "pass"
+    ],
+    [
+     "test_platform::test_the_windows_guard_s_handler_under_a_second_signal[deadline-script_caught]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_signal_at_the_start_of_the_guard_s_own_exit_only_records[region_exit]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_signal_at_the_start_of_the_guard_s_own_exit_only_records[settle]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_signal_at_the_start_of_the_guard_s_own_exit_only_records[_settle]",
+     "pass"
+    ],
+    [
+     "test_platform::test_the_windows_guard_refuses_a_deadline_its_timer_cannot_hold",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_new_run_of_a_name_another_platform_reads_differently_is_refused_truthfully[\\xe9:/a.py]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_new_run_of_a_name_another_platform_reads_differently_is_refused_truthfully[1:/a.py]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_new_run_of_a_name_another_platform_reads_differently_is_refused_truthfully[runs\\\\x.py]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_new_run_of_a_name_another_platform_reads_differently_is_refused_truthfully[RUNS/x.py]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_new_run_of_a_name_another_platform_reads_differently_is_refused_truthfully[~no-such-user-here/a.py]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_dataset_name_is_lower_case_everywhere",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_project_in_a_case_sensitive_windows_directory_reads_runs_in_another_case_as_linux",
+     "skip",
+     "a directory flagged case-sensitive is Windows'"
+    ],
+    [
+     "test_platform::test_a_rerun_through_a_link_into_a_managed_directory_is_refused[symlink]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_rerun_through_a_link_loop_runs_as_on_main[symlink]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_rerun_does_not_follow_a_link_out_of_the_project[symlink]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_tool_running_across_a_project_switch_is_recorded_where_it_ends",
+     "pass"
+    ],
+    [
+     "test_platform::test_the_installed_module_loaded_as_a_file_finds_the_kit_beside_it[copy]",
+     "pass"
+    ],
+    [
+     "test_platform::test_the_installed_module_loaded_as_a_file_finds_the_kit_beside_it[symlink]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_rerun_through_an_outward_link_is_refused_behind_a_loop_too[symlink]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_rerun_whose_recorded_snapshot_loops_is_refused[snapshot-symlink]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_rerun_whose_recorded_snapshot_loops_is_refused[code_root-symlink]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_windows_disarm_interrupted_holding_the_guard_s_lock_does_not_hang[enter]",
+     "skip",
+     "before 3.14 a `with` calls __enter__ without a CALL, and no signal is handled between its acquiring and the block"
+    ],
+    [
+     "test_platform::test_a_windows_disarm_interrupted_holding_the_guard_s_lock_does_not_hang[exit]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_scanned_name_a_record_cannot_hold_is_left_out",
+     "skip",
+     "this file system refuses a name that is not UTF-8: OSError(92, 'Illegal byte sequence')"
+    ]
+   ]
   },
   "suite_py3_14": {
    "file": "suite-py3.14.xml",
@@ -10295,7 +11567,193 @@
     "test_windows_long_paths": {
      "skip": 6
     }
-   }
+   },
+   "cited_cases": [
+    [
+     "test_doc_checks::test_the_report_on_stdout_is_utf8_whatever_the_locale",
+     "pass"
+    ],
+    [
+     "test_kit::test_query_cannot_write_or_read_outside_data",
+     "pass"
+    ],
+    [
+     "test_kit::test_query_cannot_read_through_a_link_out_of_data[symlink]",
+     "pass"
+    ],
+    [
+     "test_launcher::test_open_through_the_windows_port_builds_a_missing_report_then_starts_it[None]",
+     "pass"
+    ],
+    [
+     "test_launcher::test_open_through_the_windows_port_builds_a_missing_report_then_starts_it[1155]",
+     "pass"
+    ],
+    [
+     "test_launcher::test_a_ctrl_c_while_a_child_starts_is_not_sent_again_on_windows",
+     "skip",
+     "what Windows does; POSIX sends it again (the test above)"
+    ],
+    [
+     "test_packaging::test_a_checkout_symlink_beside_the_wheel_sets_up_one_copy",
+     "skip",
+     "set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)"
+    ],
+    [
+     "test_packaging::test_the_installed_command_drives_a_project_without_aelix[3.11]",
+     "skip",
+     "set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)"
+    ],
+    [
+     "test_packaging::test_the_installed_command_drives_a_project_without_aelix[3.12]",
+     "skip",
+     "set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)"
+    ],
+    [
+     "test_packaging::test_the_readme_s_uv_tool_install_routes",
+     "skip",
+     "set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)"
+    ],
+    [
+     "test_platform::test_windows_kill_tree_reports_what_taskkill_could_not_do[0-False-False]",
+     "pass"
+    ],
+    [
+     "test_platform::test_windows_kill_tree_reports_what_taskkill_could_not_do[1-True-True]",
+     "pass"
+    ],
+    [
+     "test_platform::test_windows_kill_tree_reports_what_taskkill_could_not_do[128-True-False]",
+     "pass"
+    ],
+    [
+     "test_platform::test_windows_runs_taskkill_from_the_system_directory_and_never_by_its_bare_name",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_taskkill_in_the_working_directory_is_not_the_one_that_runs",
+     "skip",
+     "taskkill and CreateProcess's search are Windows'"
+    ],
+    [
+     "test_platform::test_the_windows_guard_s_handler_under_a_second_signal[cancel-guard]",
+     "pass"
+    ],
+    [
+     "test_platform::test_the_windows_guard_s_handler_under_a_second_signal[cancel-script]",
+     "pass"
+    ],
+    [
+     "test_platform::test_the_windows_guard_s_handler_under_a_second_signal[cancel-script_caught]",
+     "pass"
+    ],
+    [
+     "test_platform::test_the_windows_guard_s_handler_under_a_second_signal[deadline-guard]",
+     "pass"
+    ],
+    [
+     "test_platform::test_the_windows_guard_s_handler_under_a_second_signal[deadline-script]",
+     "pass"
+    ],
+    [
+     "test_platform::test_the_windows_guard_s_handler_under_a_second_signal[deadline-script_caught]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_signal_at_the_start_of_the_guard_s_own_exit_only_records[region_exit]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_signal_at_the_start_of_the_guard_s_own_exit_only_records[settle]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_signal_at_the_start_of_the_guard_s_own_exit_only_records[_settle]",
+     "pass"
+    ],
+    [
+     "test_platform::test_the_windows_guard_refuses_a_deadline_its_timer_cannot_hold",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_new_run_of_a_name_another_platform_reads_differently_is_refused_truthfully[\\xe9:/a.py]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_new_run_of_a_name_another_platform_reads_differently_is_refused_truthfully[1:/a.py]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_new_run_of_a_name_another_platform_reads_differently_is_refused_truthfully[runs\\\\x.py]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_new_run_of_a_name_another_platform_reads_differently_is_refused_truthfully[RUNS/x.py]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_new_run_of_a_name_another_platform_reads_differently_is_refused_truthfully[~no-such-user-here/a.py]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_dataset_name_is_lower_case_everywhere",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_project_in_a_case_sensitive_windows_directory_reads_runs_in_another_case_as_linux",
+     "skip",
+     "a directory flagged case-sensitive is Windows'"
+    ],
+    [
+     "test_platform::test_a_rerun_through_a_link_into_a_managed_directory_is_refused[symlink]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_rerun_through_a_link_loop_runs_as_on_main[symlink]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_rerun_does_not_follow_a_link_out_of_the_project[symlink]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_tool_running_across_a_project_switch_is_recorded_where_it_ends",
+     "pass"
+    ],
+    [
+     "test_platform::test_the_installed_module_loaded_as_a_file_finds_the_kit_beside_it[copy]",
+     "pass"
+    ],
+    [
+     "test_platform::test_the_installed_module_loaded_as_a_file_finds_the_kit_beside_it[symlink]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_rerun_through_an_outward_link_is_refused_behind_a_loop_too[symlink]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_rerun_whose_recorded_snapshot_loops_is_refused[snapshot-symlink]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_rerun_whose_recorded_snapshot_loops_is_refused[code_root-symlink]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_windows_disarm_interrupted_holding_the_guard_s_lock_does_not_hang[enter]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_windows_disarm_interrupted_holding_the_guard_s_lock_does_not_hang[exit]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_scanned_name_a_record_cannot_hold_is_left_out",
+     "skip",
+     "this file system refuses a name that is not UTF-8: OSError(92, 'Illegal byte sequence')"
+    ]
+   ]
   },
   "suite": {
    "file": "suite.xml",
@@ -10347,7 +11805,190 @@
     "test_windows_long_paths": {
      "skip": 6
     }
-   }
+   },
+   "cited_cases": [
+    [
+     "test_doc_checks::test_the_report_on_stdout_is_utf8_whatever_the_locale",
+     "pass"
+    ],
+    [
+     "test_kit::test_query_cannot_write_or_read_outside_data",
+     "pass"
+    ],
+    [
+     "test_kit::test_query_cannot_read_through_a_link_out_of_data[symlink]",
+     "pass"
+    ],
+    [
+     "test_launcher::test_open_through_the_windows_port_builds_a_missing_report_then_starts_it[None]",
+     "pass"
+    ],
+    [
+     "test_launcher::test_open_through_the_windows_port_builds_a_missing_report_then_starts_it[1155]",
+     "pass"
+    ],
+    [
+     "test_launcher::test_a_ctrl_c_while_a_child_starts_is_not_sent_again_on_windows",
+     "skip",
+     "what Windows does; POSIX sends it again (the test above)"
+    ],
+    [
+     "test_packaging::test_a_checkout_symlink_beside_the_wheel_sets_up_one_copy",
+     "pass"
+    ],
+    [
+     "test_packaging::test_the_installed_command_drives_a_project_without_aelix[3.11]",
+     "pass"
+    ],
+    [
+     "test_packaging::test_the_installed_command_drives_a_project_without_aelix[3.12]",
+     "pass"
+    ],
+    [
+     "test_packaging::test_the_readme_s_uv_tool_install_routes",
+     "pass"
+    ],
+    [
+     "test_platform::test_windows_kill_tree_reports_what_taskkill_could_not_do[0-False-False]",
+     "pass"
+    ],
+    [
+     "test_platform::test_windows_kill_tree_reports_what_taskkill_could_not_do[1-True-True]",
+     "pass"
+    ],
+    [
+     "test_platform::test_windows_kill_tree_reports_what_taskkill_could_not_do[128-True-False]",
+     "pass"
+    ],
+    [
+     "test_platform::test_windows_runs_taskkill_from_the_system_directory_and_never_by_its_bare_name",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_taskkill_in_the_working_directory_is_not_the_one_that_runs",
+     "skip",
+     "taskkill and CreateProcess's search are Windows'"
+    ],
+    [
+     "test_platform::test_the_windows_guard_s_handler_under_a_second_signal[cancel-guard]",
+     "pass"
+    ],
+    [
+     "test_platform::test_the_windows_guard_s_handler_under_a_second_signal[cancel-script]",
+     "pass"
+    ],
+    [
+     "test_platform::test_the_windows_guard_s_handler_under_a_second_signal[cancel-script_caught]",
+     "pass"
+    ],
+    [
+     "test_platform::test_the_windows_guard_s_handler_under_a_second_signal[deadline-guard]",
+     "pass"
+    ],
+    [
+     "test_platform::test_the_windows_guard_s_handler_under_a_second_signal[deadline-script]",
+     "pass"
+    ],
+    [
+     "test_platform::test_the_windows_guard_s_handler_under_a_second_signal[deadline-script_caught]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_signal_at_the_start_of_the_guard_s_own_exit_only_records[region_exit]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_signal_at_the_start_of_the_guard_s_own_exit_only_records[settle]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_signal_at_the_start_of_the_guard_s_own_exit_only_records[_settle]",
+     "pass"
+    ],
+    [
+     "test_platform::test_the_windows_guard_refuses_a_deadline_its_timer_cannot_hold",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_new_run_of_a_name_another_platform_reads_differently_is_refused_truthfully[\\xe9:/a.py]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_new_run_of_a_name_another_platform_reads_differently_is_refused_truthfully[1:/a.py]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_new_run_of_a_name_another_platform_reads_differently_is_refused_truthfully[runs\\\\x.py]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_new_run_of_a_name_another_platform_reads_differently_is_refused_truthfully[RUNS/x.py]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_new_run_of_a_name_another_platform_reads_differently_is_refused_truthfully[~no-such-user-here/a.py]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_dataset_name_is_lower_case_everywhere",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_project_in_a_case_sensitive_windows_directory_reads_runs_in_another_case_as_linux",
+     "skip",
+     "a directory flagged case-sensitive is Windows'"
+    ],
+    [
+     "test_platform::test_a_rerun_through_a_link_into_a_managed_directory_is_refused[symlink]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_rerun_through_a_link_loop_runs_as_on_main[symlink]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_rerun_does_not_follow_a_link_out_of_the_project[symlink]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_tool_running_across_a_project_switch_is_recorded_where_it_ends",
+     "pass"
+    ],
+    [
+     "test_platform::test_the_installed_module_loaded_as_a_file_finds_the_kit_beside_it[copy]",
+     "pass"
+    ],
+    [
+     "test_platform::test_the_installed_module_loaded_as_a_file_finds_the_kit_beside_it[symlink]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_rerun_through_an_outward_link_is_refused_behind_a_loop_too[symlink]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_rerun_whose_recorded_snapshot_loops_is_refused[snapshot-symlink]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_rerun_whose_recorded_snapshot_loops_is_refused[code_root-symlink]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_windows_disarm_interrupted_holding_the_guard_s_lock_does_not_hang[enter]",
+     "skip",
+     "before 3.14 a `with` calls __enter__ without a CALL, and no signal is handled between its acquiring and the block"
+    ],
+    [
+     "test_platform::test_a_windows_disarm_interrupted_holding_the_guard_s_lock_does_not_hang[exit]",
+     "pass"
+    ],
+    [
+     "test_platform::test_a_scanned_name_a_record_cannot_hold_is_left_out",
+     "skip",
+     "this file system refuses a name that is not UTF-8: OSError(92, 'Illegal byte sequence')"
+    ]
+   ]
   },
   "stdlib_smoke": {
    "file_sha256": "3656da2fc5fc28182e4a29ce67babc0be1dc9ef46fa3ca87983322dab5be6ef4",

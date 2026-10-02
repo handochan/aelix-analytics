@@ -5,11 +5,13 @@ run on the hosted Windows runner and measured what had only been inferred: direc
 with `LongPathsEnabled` at 1 and at 0, case-sensitive directories, names that are not UTF-8, and Ctrl+C and Ctrl+Break at
 a console through the installed `analytics.exe`. It also fixed `taskkill`'s bare-name lookup, the one product change the
 owner allowed. At one commit, the repository CI ran Ubuntu 24.04 and Windows Server 2025 on the pull request and hosted
-macOS 26 by label, and a macOS developer machine ran the same legs. Every leg passed. This is the durable summary: the
+macOS 26 by label, and a macOS developer machine ran the legs that run there. Every leg passed. This is the durable summary: the
 CI artifacts expire after GitHub's retention period. What the results mean for the contract is in
 [CONTRACTS.md](../CONTRACTS.md) F and G; G is the single statement of the limitations and of what was not run. Every
-test's outcome on Windows, each JUnit file's sha256, and the observations the tests kept (each console case, each long-path
-route, the linked-directory runs) are in [2026-10-02-issue-8-windows-inventory.json](2026-10-02-issue-8-windows-inventory.json).
+test's outcome on Windows (every leg), the outcome of each test this record names on every other leg, each JUnit file's
+sha256, and the observations the tests kept (each console case, each long-path route, the linked-directory runs, and the
+two earlier observations this record cites, with their runs and revisions) are in
+[2026-10-02-issue-8-windows-inventory.json](2026-10-02-issue-8-windows-inventory.json).
 
 ## Source and environment
 
@@ -57,8 +59,8 @@ the row says otherwise.
 | Directory links | A `dir_link(kind, …)` helper makes a symbolic link everywhere and, on Windows, a junction as well (`LINK_KINDS`). The rerun and containment tests run for both kinds. A loop is built in one step (symbolic link) or two (junction), and its precondition is a loop's own error from a strict `realpath` (ELOOP or WinError 1921), so a dangling link cannot pass for one | `test_a_rerun_through_a_link_into_a_managed_directory_is_refused`, `…_link_loop_runs_as_on_main`, `…_does_not_follow_a_link_out_of_the_project`, `…_outward_link_is_refused_behind_a_loop_too`, `test_a_rerun_whose_recorded_snapshot_loops_is_refused[snapshot, code_root]`: all pass for `symlink` and `junction` |
 | The kit beside the installed module | A real copy runs everywhere; the symbolic link stays, and Windows adds a junction | `test_the_installed_module_loaded_as_a_file_finds_the_kit_beside_it[copy, symlink, junction]` pass |
 | A linked `data/` (characterization) | Observed. Only what holds everywhere is asserted: both runs end `ok`, and the dataset is at the link's target. With a symbolic link, the saving run records `outputs: []`, its inputs as external absolute paths, and the datasets without a producer — on Windows, Linux, hosted macOS and the developer machine alike. With a junction (Windows), the output is recorded (`data/derived/part.parquet`, by diff), but inputs and datasets are external absolute paths and have no producer. A junction into `runs/` makes the run record `lnk/<id>/stdout.txt` and `stderr.txt` as outputs, with three warnings; a symbolic link records nothing | observations `linked-data-symlink`, `linked-data-junction`, `link-into-runs-*` on each platform. G states it; follow-up [#36](https://github.com/handochan/aelix-analytics/issues/36) |
-| Long paths, `LongPathsEnabled=1` | One route per test at a stated length. Every observation records the setting it ran with (`setting`: registry 1, effective `true`); that field, not the pass, is the evidence of the setting. Root 230 (its interpreter path 255): import works, a run with outputs past 260 records them (an 81-character output; the deepest file 365), and the report builds. Root 300: the extension's `run_kit` and `sync_environment` answer `spawn_failed` (WinError 267, CreateProcess's limit on a working directory). `/lab note` and the context block work, and the report build the note schedules fails to start (WinError 267) without a word. `/lab init` creates `lab.json`, activates the project and answers `spawn_failed`. A program started with that directory fails with WinError 267. The installed `analytics.exe`, started from a short directory with `LAB_PROJECT`, runs `init` (real uv; the environment's interpreter at 325 characters) and `status`, both exit 0 | `tests/test_windows_long_paths.py` (6 pass); observations `long-paths-enabled-*` |
-| Long paths, `LongPathsEnabled=0` | The last step sets the registry to 0, and the new process reads it as 0 (`setting`: registry 0, effective `false`). At 0 the tests assert only that nothing hangs; what each route recorded is the measurement. Root 300: no directory can be made (WinError 3, at a 266-character path). The installed `analytics init` ends with a traceback and exit 1, no JSON line and no `lab.json`; `/lab init` answers `internal error FileNotFoundError`. Root 203 (the template's longest file fits): project, import and report work. A run whose outputs pass 260 ends `error` at the chart write (`FileNotFoundError`, line 9), with `outputs: []`, while the deepest file on disk is 285 characters, the length of the dataset path `lab.save` wrote before the chart — the output record is lost | `long-paths-off.xml` (6 pass); observations `long-paths-disabled-*`. Follow-up [#38](https://github.com/handochan/aelix-analytics/issues/38) |
+| Long paths, `LongPathsEnabled=1` | One route per test at a stated length. Every observation records the setting it ran with (`setting`: registry 1, effective `true`); that field, not the pass, is the evidence of the setting. Root 230 (its environment's interpreter would be 255 characters; the kit ran on the checkout's interpreter): import works, a run with outputs past 260 records them (an 81-character output; the deepest file 365), and the report builds. Root 300: the extension's `run_kit` and `sync_environment` answer `spawn_failed` (WinError 267, CreateProcess's limit on a working directory). `/lab note` and the context block work, and the report build the note schedules fails to start (WinError 267) without a word. `/lab init` creates `lab.json`, activates the project and answers `spawn_failed`. A program started with that directory fails with WinError 267. The installed `analytics.exe`, started from a short directory with `LAB_PROJECT`, runs `init` (real uv; the environment's interpreter at 325 characters) and `status`, both exit 0 | `tests/test_windows_long_paths.py` (6 pass); observations `long-paths-enabled-*` |
+| Long paths, `LongPathsEnabled=0` | The last step sets the registry to 0, and the new process reads it as 0 (`setting`: registry 0, effective `false`). At 0 the tests assert that nothing hangs, and on the 203-character route that its project and script were made; what each route recorded is the measurement. Root 300: no directory can be made (WinError 3, at a 266-character path). The installed `analytics init` ends with a traceback and exit 1, no JSON line and no `lab.json`; `/lab init` answers `internal error FileNotFoundError`. Root 203 (the template's longest file fits): project, import and report work. A run whose outputs pass 260 ends `error` at the chart write (`FileNotFoundError`, line 9), with `outputs: []`, while the deepest file on disk is 285 characters, the length of the dataset path `lab.save` wrote before the chart — the output record is lost | `long-paths-off.xml` (6 pass); observations `long-paths-disabled-*`. Follow-up [#38](https://github.com/handochan/aelix-analytics/issues/38) |
 | Case | The script-path names Windows can hold run there. `runs\x.py` and `RUNS/x.py` are refused as inside a managed directory, and `~no-such-user-here/a.py` by the rule for every platform. `é:`, `1:` and the `c:` test stay POSIX-only (`DRIVE_LIKE`: Windows reads them as a drive, and NTFS a colon as a stream). A dataset name is lower case everywhere: `--name Sales` is refused, and `Sales.csv` is imported as `sales`. A project inside a directory flagged case-sensitive (`fsutil … setCaseSensitiveInfo`; the precondition is asserted at the root and at `runs/`) refuses `RUNS/x.py` by the rule for every platform, as Linux does | `test_a_new_run_of_a_name_another_platform_reads_differently_is_refused_truthfully[runs\x.py, RUNS/x.py, ~no-such-user-here/a.py]`, `test_a_dataset_name_is_lower_case_everywhere`, `test_a_project_in_a_case_sensitive_windows_directory_reads_runs_in_another_case_as_linux` pass |
 | Names that are not UTF-8 | On Windows the name is made as a `str` holding a lone surrogate, which NTFS keeps and lists back (asserted), and the scan leaves it out, as on Linux. The 2026-09-24 record gave the wrong reason for skipping these on Windows ("names that are not UTF-8, which Windows refuses"). Windows decodes a bytes path as UTF-8 before any system call (PEP 529), so such bytes never reached NTFS | `test_a_scanned_name_a_record_cannot_hold_is_left_out` and `…_in_a_directory_…` pass on Windows and Linux; macOS skips them (APFS) |
 | POSIX-assuming tests | The query sandbox now reads the project's own `lab.json`, directly and through `data/..` (both separators on Windows), and a file through a link out of `data/` (both kinds). It expects DuckDB's `Permission Error`, with a file inside `data/` as the positive control. The unreadable output is a byte-range lock on Windows; as root on POSIX, only the assertion that needs the file unreadable is skipped. The encoding scan covers the tests' own calls, and `tools/check_docs.py` writes UTF-8 whatever the locale | `test_query_cannot_write_or_read_outside_data`, `test_query_cannot_read_through_a_link_out_of_data[symlink, junction]`, `test_finalization_survives_…_unreadable_outputs`, `test_the_shipped_code_names_the_encoding_…`, `test_the_report_on_stdout_is_utf8_whatever_the_locale` pass |
@@ -73,7 +75,7 @@ the row says otherwise.
 The installed `analytics.exe` drove a real project with real uv. The wheel was built from the checkout and installed on
 CPython 3.12 and 3.11. The console belonged to the test: either a pseudo console (ConPTY), where Ctrl+C is the input byte
 `\x03`, or a hidden classic console. Ctrl+Break, and the classic console's Ctrl+C, came from a helper process attached to
-the console (`GenerateConsoleCtrlEvent`). None of it is a key a person pressed. Each case ran **once** in this run. The
+the console (`GenerateConsoleCtrlEvent`); one observation typed Ctrl+Break as a win32-input-mode sequence instead. None of it is a key a person pressed. Each case ran **once** in this run. The
 shell, a small program that survives both events, counted what it received. When it got control back, it recorded the
 launcher's exit code and the run's status. All 21 tests passed.
 
@@ -204,37 +206,25 @@ and [#32](https://github.com/handochan/aelix-analytics/issues/32). The only prod
 
 ## Earlier runs
 
-The measured run supersedes these. Each ran the same jobs and legs as the measured code run, on the test code of its own
-commit: lint, the smoke, the suite with its end-to-end leg, the console step and the `LongPathsEnabled=0` step on
-Windows, the aelix and launcher legs, and the floor. All are attempt 1.
+The measured run supersedes these. The three PR #35 runs each ran the same jobs and legs as the measured code run, on
+the test code of its own commit: lint, the smoke, the suite with its end-to-end leg, the console step and the
+`LongPathsEnabled=0` step on Windows, the aelix and launcher legs, and the floor. The runs on main ran the workflow from
+before PR #35 (no console or `LongPathsEnabled=0` step), and the probes a workflow of their own. All are attempt 1.
 
 - [36986490189](https://github.com/handochan/aelix-analytics/actions/runs/36986490189) at `8e6cb7e` was all green
   (Windows suite 522 passed / 121 skipped, console 21, the step at 0 6). Its `LongPathsEnabled=0` route could not make a
-  230-character project, which led to the shorter root.
+  230-character project, which led to the shorter root (that observation is kept in the JSON's `earlier_observations`).
 - [36989520133](https://github.com/handochan/aelix-analytics/actions/runs/36989520133) at `4609ac0` was all green, but at
   0 the script itself could not be written, so no run was measured. This was the review's first finding.
 - [36993060072](https://github.com/handochan/aelix-analytics/actions/runs/36993060072) at `2b69cf1`: the console step
-  failed one case, the child-wait row, with the `CreateProcess` timing described above.
+  failed one case, the child-wait row, with the `CreateProcess` timing described above (kept in `earlier_observations`).
 - On main `61c035a`, before PR #35: [36982675329](https://github.com/handochan/aelix-analytics/actions/runs/36982675329)
   (push) and [36982727732](https://github.com/handochan/aelix-analytics/actions/runs/36982727732) (manual, with macOS).
-- The probes on a throwaway branch (36899933022, 36951715223 and 36952098887) were input to the design, not evidence for
-  this record.
+- The probes on a throwaway branch (36899933022, 36951715223 and 36952098887) were input to the design. This record
+  takes from them only what it attributes to them by name (the token's High integrity above; and in CONTRACTS G, NTFS
+  keeping an NFD name and the checkout's files being CRLF); none of their results stands for a test of the measured code.
 
 ## Not run
 
-See the `not_run` item of [CONTRACTS.md G](../CONTRACTS.md#g-약속하지-않는-것). In short:
-
-- a key a person pressed;
-- the Korean system locale;
-- a real aelix session on Windows, and a model-driven one anywhere;
-- another user's process;
-- a real opener, and the installed `analytics demo`;
-- Windows other than the configuration above;
-- `LongPathsEnabled=0` beyond the routes above;
-- the Windows timeout inside a regular expression or a child wait;
-- upgrading while something runs;
-- the console's timing windows;
-- network file systems and other file systems;
-- the inferred Windows items;
-- `install.sh`;
-- a junction to an ancestor, and links made other ways.
+See the `not_run` item of [CONTRACTS.md G](../CONTRACTS.md#g-약속하지-않는-것): it is the single list, each item with
+its reason, and this record keeps no second one.
