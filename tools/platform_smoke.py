@@ -1212,9 +1212,10 @@ def runner_settings() -> dict:
         except OSError as exc:
             settings["symlink"] = f"refused: {exc!r}"
     with contextlib.suppress(Exception):
-        settings["git_autocrlf"] = subprocess.run(
+        origin, _, value = subprocess.run(
             ["git", "-C", str(ROOT), "config", "--show-origin", "--get", "core.autocrlf"],
-            capture_output=True, timeout=30, **_platform.text_kwargs()).stdout.strip() or None
+            capture_output=True, timeout=30, **_platform.text_kwargs()).stdout.strip().partition("\t")
+        settings["git_autocrlf"], settings["git_autocrlf_origin"] = value or None, origin or None
     if WINDOWS:
         import ctypes
         import winreg
@@ -1333,7 +1334,7 @@ def run_checks(ctx, selected) -> list[dict]:
 
 
 def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
+    parser = argparse.ArgumentParser(description="Measure the portable boundaries on this platform.")
     parser.add_argument("--output", required=True, help="where to write the evidence JSON")
     parser.add_argument("--stdlib-only", action="store_true",
                         help="only what the aelix process loads: no uv, no analysis libraries")

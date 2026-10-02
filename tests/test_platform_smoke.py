@@ -117,25 +117,33 @@ def test_the_smoke_gives_the_kit_the_extension_s_environment_but_for_the_stated_
     monkeypatch.setitem(ext.STATE, "session", None)
 
     class Processes:
+        # PATH is also allow-listed: the variable the run sees must win over the platform's base.
         def base_env(self):
-            return {"BASE_FROM_THE_PLATFORM": "1"}
+            return {"BASE_FROM_THE_PLATFORM": "1", "PATH": "the platform's PATH"}
 
-    # Windows reads environment names without case, so the lower-case proxy names only count where
-    # they are names of their own.
-    lower = {"http_proxy", "https_proxy", "no_proxy", "all_proxy"} if os.name != "nt" else set()
-    names = {n for n in set(tool.ENV_ALLOW) | set(ext.ENV_ALLOW) if n == n.upper()} | lower
-    environ = {name: f"value of {name}" for name in names}
+    class WindowsEnviron(dict):
+        """os.environ as Windows has it: one variable per name, read without regard to case."""
+        def __contains__(self, name):
+            return any(key.upper() == name.upper() for key in self.keys())
+
+        def __getitem__(self, name):
+            return next(value for key, value in self.items() if key.upper() == name.upper())
+
+    names = set(tool.ENV_ALLOW) | set(ext.ENV_ALLOW)
+    environ = {name: f"value of {name}" for name in sorted(names)}
+    if os.name == "nt":
+        environ = WindowsEnviron({name.upper(): f"value of {name.upper()}" for name in names})
     environ.update({"UV_CACHE_DIR": "cache", "UV_INDEX_TOKEN": "secret", "UNRELATED": "no"})
     monkeypatch.setattr(os, "environ", environ)
 
     ctx = types.SimpleNamespace(bundle=types.SimpleNamespace(processes=Processes()))
     smoke, extension = tool.kit_env(ctx), ext.child_env(Processes(), "smoke")
     assert smoke.keys() - extension.keys() == {"AELIX_LAB_TRUST_FILE", "UV_INDEX_TOKEN"}
-    assert extension.keys() - smoke.keys() == lower
+    assert extension.keys() - smoke.keys() == {"http_proxy", "https_proxy", "no_proxy", "all_proxy"}
     shared = (smoke.keys() & extension.keys()) - {"PYTHONPATH"}
     assert {k: smoke[k] for k in shared} == {k: extension[k] for k in shared}
     assert Path(smoke["PYTHONPATH"]).resolve() == Path(extension["PYTHONPATH"]).resolve()
-    assert smoke["LAB_ACTOR"] == "smoke"
+    assert smoke["LAB_ACTOR"] == "smoke" and smoke["PATH"] == "value of PATH"
 
 
 def test_every_declared_limitation_is_still_stated_in_the_tree():

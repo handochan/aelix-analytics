@@ -85,7 +85,8 @@ wheel로 확인합니다.
 사람용 진입점은 `bin/lab`(체크아웃, POSIX)과 설치본의 `analytics`(`src/aelix_analytics/cli.py`) 둘입니다. 명령 이름 말고는
 같은 계약이므로, 한쪽의 명령·인자·출력·종료 코드를 바꾸면 다른 쪽과 `tests/test_launcher.py`의 동등성 시험을 함께 고칩니다.
 
-Aelix 통합 시험은 aelix 0.1.0b2(와 그 의존성), pytest, pytest-timeout만 있는 새 환경에서 실행합니다. CI와 같은 명령입니다:
+Aelix 통합 시험은 aelix 0.1.0b2(와 그 의존성), pytest, pytest-timeout만 있는 새 환경에서 실행합니다. CI와 같은 격리 환경과 시험
+제한 시간입니다(CI는 보고용으로 `-ra`와 `--junitxml`을 더합니다):
 
 ```sh
 uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 \
@@ -126,16 +127,17 @@ uv run --locked python tools/check_docs.py --output .devstate/runs/<run-id>/evid
 
 - macOS runner는 비공개 저장소에서 Linux의 약 10배로 과금되므로 PR에서는 요청할 때만 돕니다. PR에 `ci:macos` 라벨을 붙일
   때마다 그 순간의 헤드로 한 번 돕니다. 그 뒤의 push로는 다시 돌지 않고, 라벨을 떼고 다시 붙이면 앞선 실행을 취소하지 않고 한 번 더
-  돕니다. 실행이 시작되면 라벨을 떼어 둡니다. 라벨 실행에서 `lint`와 다른 OS의 작업은 건너뜀(skipped)으로 표시되며, 이는 검증
-  결과가 아닙니다. 수동 실행(`workflow_dispatch`, `macos` 선택)과 매주 월요일 03:17 UTC 실행은 세 OS를 모두 돌립니다.
+  돕니다. 실행이 시작되면 라벨을 떼어 둡니다. 라벨 실행에는 Linux·Windows 작업이 없고 `lint`는 건너뜀(skipped)으로
+  표시됩니다(`ci:macos`가 아닌 라벨이면 모든 작업이 건너뜀). 건너뜀은 검증 결과가 아닙니다. 수동 실행(`workflow_dispatch`, `macos` 선택)과 매주 월요일 03:17 UTC 실행은 세 OS를 모두 돌립니다.
 - 비용(GitHub Free의 월 2,000분 기준): 이 워크플로의 첫 측정(PR #34)에서 Linux+Windows 한 번은 작업마다 분 단위로 올리고
-  Windows를 2배로 세어 58분, macOS 한 번은 10배로 세어 90분이었습니다. 주간 실행만으로 월 약 650분이 듭니다(추정).
+  Windows를 2배로 세어 58분, macOS 한 번은 10배로 세어 90분이었습니다. 주간 실행만으로 월 약 650분이 듭니다(추정). 레그가 멈춰
+  제한 시간까지 가면 작업 하나가 제한 시간만큼(`platform` 95분, macOS면 그 10배) 과금될 수 있습니다.
 - 시험 레그 하나가 실패해도 다음 레그는 돌고 작업은 실패로 끝납니다. 개발 환경의 sync가 실패하면 `platform`의 시험 레그는 돌지
   않고 작업이 실패합니다. 플랫폼별 작업은 서로 취소하지 않습니다(`fail-fast: false`). 시험·기록 단계마다 제한 시간이 있고, 작업의
-  제한 시간은 그 합보다 깁니다. 단계의 제한이나 시험 하나의 제한(pytest-timeout)에 걸린 레그는 JUnit을 남기지 않습니다.
+  제한 시간은 그 합보다 깁니다(artifact 올리기에는 작업의 제한 시간만 있습니다). 단계의 제한이나 시험 하나의 제한(pytest-timeout)에 걸린 레그는 JUnit을 남기지 않습니다.
 - PR 실행은 GitHub가 만드는 병합 커밋이 아니라 PR 헤드를 체크아웃해 측정합니다. 워크플로 파일은 그 병합 커밋의 것이 쓰이므로,
-  실행 맥락(`tools/ci_context.py`)에 `GITHUB_WORKFLOW_SHA`도 남깁니다. aelix 환경의 배포판 목록은 같은 요구 사항으로 시험 직후 다시
-  풀어 얻은 것입니다.
+  실행 맥락(`tools/ci_context.py`)에 `GITHUB_WORKFLOW_SHA`도 남깁니다. aelix 환경의 배포판 목록은 같은 요구 사항을 시험 레그들
+  뒤에 다시 풀어 얻은 것입니다.
 - 서버가 강제하지 않습니다. 이 요금제에서 branch protection·ruleset 조회는 HTTP 403입니다([운영 정책](docs/PROJECT-OPERATIONS.md) §9).
   빨간 실행을 병합하지 않는 것은 운영 규칙입니다. aelix의 의존성·PyPI·러너 이미지 같은 상류의 변화로 코드 변경 없이 빨개질 수
   있으니, 원인이 회귀인지 상류 변화인지 구별해 적습니다.

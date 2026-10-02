@@ -8,7 +8,7 @@
 CI_ACTION, CI_LABEL, CI_JOB). The commit CI measures is the pull request's head, not the merge
 commit GitHub builds, and a record names it. `environment` runs inside an environment built from the
 same requirements as the leg it describes (for an aelix leg, the same `uv run --isolated --with ...`
-set, resolved again right after the leg), because those resolve fresh from the index on every run. Stdlib only, so it runs on the setup-python floor as well.
+set, resolved again after the test legs), because those resolve fresh from the index on every run. Stdlib only, so it runs on the setup-python floor as well.
 """
 
 from __future__ import annotations

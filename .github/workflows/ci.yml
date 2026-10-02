@@ -7,9 +7,8 @@ name: CI
 # this plan): a red run is a reason not to merge, by the process in CONTRIBUTING.md.
 #
 # Every leg runs even when an earlier one failed (`!cancelled()`), and any failed leg fails its job;
-# no step keeps going past a failure. Each job uploads what it measured (JUnit, the platform smoke's
-# JSON, the interpreters, the distributions of the aelix environments, and the run's context) so a
-# verification record can cite one run. A record's run is never re-run: push again, or add the label
+# no step keeps going past a failure. Each job uploads what it measured, and the run's context, so a
+# verification record can cite one run (CONTRIBUTING.md lists what each job uploads). A record's run is never re-run: push again, or add the label
 # again, and cite that run.
 
 on:
