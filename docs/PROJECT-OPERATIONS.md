@@ -1,6 +1,6 @@
 # Codex·Claude Code 공통 프로젝트 운영 정책
 
-작성: 2026-09-19 · 상태: 운영 정책 초안. Project 7 연결·초기 Issue 등록은 완료했으며, CI·자동 배정·동기화 자동화는 후속 작업이다.
+작성: 2026-09-19 · 상태: 운영 정책 초안. Project 7 연결·초기 Issue 등록은 완료했다. 저장소 CI는 `.github/workflows/ci.yml`([기여 가이드](../CONTRIBUTING.md#저장소-ci))이며, 자동 배정·동기화 자동화는 후속 작업이다.
 적용 대상은 `handochan/aelix-analytics` 개발 작업이다. 분석 사용자가 만드는 프로젝트의 `analytics.json`·journal·run 계약과 구별한다.
 
 ## 1. 어디에 무엇을 남기는가

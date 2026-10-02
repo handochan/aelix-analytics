@@ -7,8 +7,8 @@ or uv's cache for the pinned build backend.
 
 AELIX_ANALYTICS_TEST_INSTALL=1 adds the end-to-end leg: aelix 0.1.0b2 from PyPI beside the wheel,
 aelix's own verify, status and loader, and a project driven through the installed `analytics` by real uv —
-which syncs an analysis environment, so it needs the network or a warm cache. The Issue #8
-measurement workflow runs it on Linux and Windows.
+which syncs an analysis environment, so it needs the network or a warm cache. The repository CI
+(.github/workflows/ci.yml) runs it on Linux and Windows, and on macOS when asked.
 """
 
 from __future__ import annotations
