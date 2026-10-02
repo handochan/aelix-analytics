@@ -118,7 +118,10 @@ def assert_cancelled_before_the_prompt(result):
         assert result["result_line_before_prompt"], result
         assert result["korean_title_on_console"], result
     assert result["left_over_after_kit"] == [], result
-    # At the prompt already, not only after the settle: only the shell and a console host remain.
+    # At the prompt already, not only after the settle: the shell's own list of the processes on
+    # its console, taken when it got control back, holds the shell alone (Codex F3); the job's
+    # sample just after it holds nothing else of the run either.
+    assert prompt["attached_at_prompt"] == [prompt["shell"]], result
     stray = {pid: n for pid, n in result["names_at_prompt"].items()
              if pid != prompt["shell"] and n is not None and n.lower() not in wc.HOSTS}
     assert not stray, result

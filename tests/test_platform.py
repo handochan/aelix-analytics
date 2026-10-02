@@ -375,10 +375,14 @@ def test_a_taskkill_in_the_working_directory_is_not_the_one_that_runs(monkeypatc
     control = _platform.WindowsProcessControl()
     named = tmp_path / "grandchild.pid"
     child = subprocess.Popen([sys.executable, "-c", (
-        "import pathlib, subprocess, sys, time; "
-        "g = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)']); "
-        f"t = pathlib.Path({str(named) + '.tmp'!r}); t.write_text(str(g.pid)); "
-        f"t.replace({str(named)!r}); time.sleep(60)")], **control.spawn_kwargs())
+        "import pathlib, subprocess, sys, time\n"
+        "g = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"
+        "try:\n"
+        f"    t = pathlib.Path({str(named) + '.tmp'!r}); t.write_text(str(g.pid))\n"
+        f"    t.replace({str(named)!r})\n"
+        "except BaseException:\n"
+        "    g.kill(); raise  # never a grandchild nobody knows of (Codex F2)\n"
+        "time.sleep(60)\n")], **control.spawn_kwargs())
     grandchild = None
     try:
         deadline = time.monotonic() + 30
@@ -393,11 +397,11 @@ def test_a_taskkill_in_the_working_directory_is_not_the_one_that_runs(monkeypatc
         while control.alive(grandchild) and time.monotonic() < deadline:
             time.sleep(0.05)
         assert not control.alive(grandchild), "the grandchild outlived the tree"
-    finally:
-        for pid in (grandchild, child.pid):  # whatever a failure left
+    finally:  # whatever a failure left: the tree while its root lives, then the grandchild
+        for pid, tree in ((child.pid, ["/T"]), (grandchild, [])):
             if pid and control.alive(pid):
-                subprocess.run([control.system_program("taskkill.exe"), "/F", "/PID", str(pid)],
-                               capture_output=True, timeout=30)
+                subprocess.run([control.system_program("taskkill.exe"), "/F", *tree, "/PID",
+                                str(pid)], capture_output=True, timeout=30)
     assert "could not end the process tree" not in capfd.readouterr().err
 
 

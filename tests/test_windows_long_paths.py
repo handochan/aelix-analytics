@@ -116,21 +116,44 @@ def attempt(observation: dict, name: str, action):
     return value
 
 
+def bounded(argv, *, timeout: float, cwd=None, env=None) -> dict:
+    """Run `argv` with its whole tree ended at `timeout` and every wait bounded. On Windows,
+    `subprocess.run` reads the output after killing only the direct child with no limit, which
+    descendants holding the pipes can hold up for good (Codex F1); here the tree goes first."""
+    proc = subprocess.Popen([str(a) for a in argv], cwd=cwd, env=env, stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
+    try:
+        out, err = proc.communicate(timeout=timeout)
+        timed_out = False
+    except subprocess.TimeoutExpired:
+        timed_out = True
+        system = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32",
+                              "taskkill.exe")
+        subprocess.run([system, "/F", "/T", "/PID", str(proc.pid)], capture_output=True, timeout=30)
+        try:
+            out, err = proc.communicate(timeout=30)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            out, err = "", "(output not collected: the tree did not end)"
+    return {"timed_out": timed_out, "returncode": proc.returncode, "stdout": out or "",
+            "stderr": err or ""}
+
+
 def kit(root: Path, *args) -> dict:
     """`python -m labkit` from this checkout, started from this directory (not the root), as an
-    interpreter outside the project starts it. Never raises but for its time limit."""
-    done = subprocess.run([sys.executable, "-m", "labkit", "--project", str(root), *map(str, args)],
-                          capture_output=True, env=kit_env(), timeout=KIT_TIMEOUT,
-                          text=True, encoding="utf-8", errors="replace")
+    interpreter outside the project starts it. Fails the test only if it did not end in time."""
+    done = bounded([sys.executable, "-m", "labkit", "--project", str(root), *args],
+                   timeout=KIT_TIMEOUT, env=kit_env())
+    assert not done["timed_out"], done
     result = None
-    for line in reversed(done.stdout.splitlines()):
+    for line in reversed(done["stdout"].splitlines()):
         if line.startswith("{"):
             try:
                 result = json.loads(line)
             except ValueError:
                 continue
             break
-    return {"returncode": done.returncode, "result": result, "stderr": done.stderr[-1500:]}
+    return {"returncode": done["returncode"], "result": result, "stderr": done["stderr"][-1500:]}
 
 
 def deepest_file(root: Path) -> int:
@@ -321,39 +344,26 @@ def _installed_analytics(base: Path) -> str:
     venv = base / "venv"
     for argv, limit in (([uv, "build", "--wheel", "--quiet", "-o", base / "dist", PACK], 180),
                         ([uv, "venv", "--quiet", "--python", "3.12", venv], 60)):
-        done = subprocess.run([str(a) for a in argv], capture_output=True, text=True,
-                              encoding="utf-8", errors="replace", timeout=limit)
-        assert done.returncode == 0, (argv, done.stdout, done.stderr)
+        done = bounded(argv, timeout=limit)
+        assert not done["timed_out"] and done["returncode"] == 0, (argv, done)
     [wheel] = (base / "dist").glob("*.whl")
-    done = subprocess.run([uv, "pip", "install", "--quiet", "--python",
-                           str(venv / "Scripts" / "python.exe"), "--no-deps", "--offline",
-                           str(wheel)], capture_output=True, text=True, encoding="utf-8",
-                          errors="replace", timeout=60)
-    assert done.returncode == 0, (done.stdout, done.stderr)
+    done = bounded([uv, "pip", "install", "--quiet", "--python", venv / "Scripts" / "python.exe",
+                    "--no-deps", "--offline", wheel], timeout=60)
+    assert not done["timed_out"] and done["returncode"] == 0, done
     return str(venv / "Scripts" / "analytics.exe")
 
 
 def _launch(analytics: str, args, *, cwd: Path, env: dict, timeout: float) -> dict:
     """The installed `analytics` (its own kit, real uv), with every process it starts ended at its
     time limit."""
-    argv = [analytics, *map(str, args)]
-    proc = subprocess.Popen(argv, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                            text=True, encoding="utf-8", errors="replace")
-    try:
-        out, err = proc.communicate(timeout=timeout)
-    except subprocess.TimeoutExpired:
-        system = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32", "taskkill.exe")
-        subprocess.run([system, "/F", "/T", "/PID", str(proc.pid)], capture_output=True, timeout=60)
-        out, err = proc.communicate(timeout=60)
-        return {"timed_out": True, "returncode": proc.returncode, "stdout": out[-1500:],
-                "stderr": err[-1500:]}
-    return {"timed_out": False, "returncode": proc.returncode, "stdout": out[-1500:],
-            "stderr": err[-1500:]}
+    done = bounded([analytics, *args], timeout=timeout, cwd=cwd, env=env)
+    return {**done, "stdout": done["stdout"][-1500:], "stderr": done["stderr"][-1500:]}
 
 
-# Longer than its own waits added up (build, environment, install, init, status, and the ends of
-# a timed-out tree), so a slow route ends by its own limit with its observation kept.
-@pytest.mark.timeout(1000)
+# Longer than its own waits added up — build 180, environment 60, install 60, init 360, status
+# 120, and 60 more for each to end a timed-out tree: 1080 — so a slow route ends by its own limit
+# with its observation kept.
+@pytest.mark.timeout(1100)
 @pytest.mark.skipif(os.environ.get("AELIX_ANALYTICS_TEST_INSTALL") != "1",
                     reason="set AELIX_ANALYTICS_TEST_INSTALL=1 (network: uv syncs the project)")
 def test_the_launcher_from_a_short_directory_with_lab_project_past_max_path(tmp_path):

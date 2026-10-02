@@ -492,10 +492,13 @@ SCRIPTS = {
     "long": "import os, time\nfrom pathlib import Path\n" + STARTED +
             "Path(os.environ['PROBE_READY']).touch()\ntime.sleep(120)\n",
     # In a console the script's own child gets the Ctrl+C too, unlike the extension's request file:
-    # the wait ends because the child does (CC-1).
+    # the wait ends because the child does (CC-1). The child itself says ready, once every process
+    # of its chain (the environment's launcher, then the interpreter) runs on the console: a Ctrl+C
+    # while it was still being created left it running past the run (CI 36993060072), which is
+    # another case than a wait.
     "child_wait": "import os, subprocess, sys\nfrom pathlib import Path\n" + STARTED +
-                  "Path(os.environ['PROBE_READY']).touch()\n"
-                  "subprocess.run([sys.executable, '-c', 'import time; time.sleep(120)'])\n",
+                  "subprocess.run([sys.executable, '-c', 'import os, time; from pathlib import "
+                  "Path; Path(os.environ[\"PROBE_READY\"]).touch(); time.sleep(120)'])\n",
     # A console Ctrl+C trips CPython's C-level flag without the GIL, and _sre checks it.
     "regex": "import os, re\nfrom pathlib import Path\n" + STARTED +
              "Path(os.environ['PROBE_READY']).touch()\nre.match(r'(a+)+$', 'a' * 40 + 'b')\n",
