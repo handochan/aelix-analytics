@@ -881,6 +881,21 @@ class WindowsProcessControl:
                 return os.path.abspath(candidate)
         return None
 
+    def system_program(self, name: str) -> str:
+        """A program of Windows itself, by its absolute path in the system directory. A bare name is
+        looked up in the caller's working directory before System32 (CreateProcess), and the
+        extension's working directory is often a project's (see find_program)."""
+        try:
+            import ctypes  # noqa: PLC0415 - only this implementation needs it
+
+            buffer = ctypes.create_unicode_buffer(32768)
+            length = ctypes.windll.kernel32.GetSystemDirectoryW(buffer, len(buffer))
+            if 0 < length < len(buffer):
+                return os.path.join(buffer.value, name)
+        except (AttributeError, OSError):
+            pass
+        return os.path.join(os.environ.get("SystemRoot") or r"C:\Windows", "System32", name)
+
     def kill_tree(self, pid: int) -> None:
         # Killing the process leaves its children running, and the child here is `uv`, which has
         # one. `taskkill /T` is the documented way to end the tree. This blocks, so an event loop
@@ -894,7 +909,7 @@ class WindowsProcessControl:
         # incomplete.
         problem, gone = None, False
         try:
-            done = subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)],
+            done = subprocess.run([self.system_program("taskkill.exe"), "/F", "/T", "/PID", str(pid)],
                                   capture_output=True, timeout=KILL_TREE_TIMEOUT_SECONDS,
                                   check=False, **text_kwargs())
             if done.returncode == TASKKILL_NOT_FOUND:

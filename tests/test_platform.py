@@ -326,11 +326,54 @@ def test_windows_kill_tree_reports_what_taskkill_could_not_do(monkeypatch, capsy
     monkeypatch.setattr(_platform.subprocess, "run", lambda argv, **kw: (
         ran.append(argv), subprocess.CompletedProcess(argv, exit_code, "", "ERROR: fake"))[1])
     monkeypatch.setattr(_platform.os, "kill", lambda pid, sig: killed.append((pid, sig)))
-    _platform.WindowsProcessControl().kill_tree(4242)
-    assert ran == [["taskkill", "/F", "/T", "/PID", "4242"]]
+    control = _platform.WindowsProcessControl()
+    control.kill_tree(4242)
+    assert ran == [[control.system_program("taskkill.exe"), "/F", "/T", "/PID", "4242"]]
     err = capsys.readouterr().err
     assert ("could not end the process tree of pid 4242" in err) is reported, err
     assert killed == ([(4242, signal.SIGTERM)] if fallback else [])
+
+
+def test_windows_runs_taskkill_from_the_system_directory_and_never_by_its_bare_name(monkeypatch):
+    # By its bare name, CreateProcess finds a program in the caller's working directory before
+    # System32, and the extension's working directory is often a project's (PR-3 inventory).
+    control = _platform.WindowsProcessControl()
+    path = control.system_program("taskkill.exe")
+    assert path != "taskkill.exe" and path.endswith("taskkill.exe")
+    if os.name == "nt":
+        assert os.path.isabs(path)
+        assert os.path.normcase(os.path.dirname(path)) == os.path.normcase(
+            os.path.join(os.environ["SystemRoot"], "System32"))
+        assert os.path.isfile(path)
+    monkeypatch.setattr(_platform.os, "environ", {"SystemRoot": r"D:\Win"})
+    monkeypatch.setattr(_platform.WindowsProcessControl, "system_program",
+                        _platform.WindowsProcessControl.system_program)
+    if os.name != "nt":  # no GetSystemDirectoryW here: the fallback is SystemRoot's System32
+        assert control.system_program("taskkill.exe") == os.path.join(r"D:\Win", "System32",
+                                                                       "taskkill.exe")
+
+
+@pytest.mark.skipif(os.name != "nt", reason="taskkill and CreateProcess's search are Windows'")
+def test_a_taskkill_in_the_working_directory_is_not_the_one_that_runs(monkeypatch, tmp_path,
+                                                                      capfd):
+    # A program named taskkill.exe in the working directory (a copy of python.exe, which cannot even
+    # start there without its DLL): run by its bare name it would be the one CreateProcess finds,
+    # fail, and leave the tree; from the system directory the tree ends and nothing is reported.
+    shutil.copy(sys.executable, tmp_path / "taskkill.exe")
+    monkeypatch.chdir(tmp_path)
+    control = _platform.WindowsProcessControl()
+    child = subprocess.Popen([sys.executable, "-c", (
+        "import subprocess, sys, time; "
+        "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)']); time.sleep(60)")],
+        **control.spawn_kwargs())
+    try:
+        time.sleep(1.0)
+        control.kill_tree(child.pid)
+        assert child.wait(timeout=20) is not None
+    finally:
+        if child.poll() is None:
+            child.kill()
+    assert "could not end the process tree" not in capfd.readouterr().err
 
 
 def test_windows_asks_the_kit_through_its_request_file_and_nothing_else(tmp_path):
@@ -828,12 +871,11 @@ def test_a_script_s_raising_handler_run_inside_the_guard_s_handler_cannot_take_i
 
 
 @NEEDS_MONITORING
-@POSIX_GUARD
 @pytest.mark.parametrize("second", ["guard", "script", "script_caught"])
 @pytest.mark.parametrize("first", ["cancel", "deadline"])
 def test_the_windows_guard_s_handler_under_a_second_signal(monkeypatch, first, second):
-    """The same two properties for the Windows guard's SIGINT handler, with its delivery replaced
-    (review 7, guard-7 and A04): a second SIGINT inside it only records and the region is
+    """The same two properties for the Windows guard's SIGINT handler, with its own delivery on
+    Windows and a POSIX stand-in elsewhere (review 7, guard-7 and A04): a second SIGINT inside it only records and the region is
     interrupted once; and a script's raising handler run inside it (SIGTERM, standing in for a
     Ctrl+Break the script took over) cannot take the flag — a deadline is counted by the timer
     itself before its SIGINT is raised, a cancel by the handler's first statement, or at the
@@ -863,7 +905,7 @@ def test_the_windows_guard_s_handler_under_a_second_signal(monkeypatch, first, s
             ran_on, ended = False, None
             injector.arm(target)
             try:
-                with _windows_guard(monkeypatch) as guard:
+                with _windows_behaviour(monkeypatch) as guard:
                     caught = None
                     try:
                         with guard.interruptible(deadline=30.0):
@@ -1487,7 +1529,6 @@ def _fired_without_its_sigint(monkeypatch, guard):
     assert guard.expired and guard.deadline_due
 
 
-@POSIX_GUARD
 @pytest.mark.parametrize("script", ["default_int_handler", "lent_and_given_back", "ignored"])
 def test_the_windows_deadline_counts_whoever_took_its_sigint(monkeypatch, script):
     """Review 6, CH-5 (simulated): a script that reset SIGINT to default_int_handler turned the
@@ -1497,7 +1538,7 @@ def test_the_windows_deadline_counts_whoever_took_its_sigint(monkeypatch, script
     before = _handlers()
     t0 = time.perf_counter()
     outcome = None
-    with _windows_guard(monkeypatch) as guard:
+    with _windows_behaviour(monkeypatch) as guard:
         try:
             with guard.interruptible(deadline=1.0):
                 if script == "default_int_handler":
@@ -1527,13 +1568,12 @@ def test_the_windows_deadline_counts_whoever_took_its_sigint(monkeypatch, script
 
 
 @NEEDS_MONITORING
-@POSIX_GUARD
 def test_a_windows_deadline_sigint_handled_while_settling_is_not_a_cancel(monkeypatch):
     """The timer can count the deadline and raise its SIGINT as the region ends; the SIGINT is then
     handled inside settle, after settle has stopped the raising. It is the deadline's, counted by the
     timer already — a Windows timer may wake a little before the region's own clock says the
     deadline has passed, so the time alone is not relied on — and it is not a cancel."""
-    guard = _windows_guard(monkeypatch)
+    guard = _windows_behaviour(monkeypatch)
     injector = _Injector({_platform._RunGuard._deadline_passed.__code__},
                          lambda: signal.raise_signal(signal.SIGINT), entries_only=True)
     with injector, guard:
@@ -1549,11 +1589,10 @@ def test_a_windows_deadline_sigint_handled_while_settling_is_not_a_cancel(monkey
     assert _outcome(guard) == {"timeout": True, "cancel": False}, _outcome(guard)
 
 
-@POSIX_GUARD
 def test_a_windows_deadline_sigint_pending_past_settle_is_not_a_cancel(monkeypatch):
     # Settle leaves the mark: a SIGINT the timer raised that is handled only after settle is still
     # the deadline's.
-    with _windows_guard(monkeypatch) as guard:
+    with _windows_behaviour(monkeypatch) as guard:
         with guard.interruptible(deadline=30.0):
             guard._timer.cancel()
             _fired_without_its_sigint(monkeypatch, guard)
@@ -1563,11 +1602,10 @@ def test_a_windows_deadline_sigint_pending_past_settle_is_not_a_cancel(monkeypat
     assert _outcome(guard) == {"timeout": True, "cancel": False}, _outcome(guard)
 
 
-@POSIX_GUARD
 def test_a_windows_deadline_sigint_after_the_region_is_not_a_cancel(monkeypatch):
     # The timer marks its SIGINT before raising it; one handled once the region has ended — the
     # timer fired as the region left — must not be recorded as a cancel nobody asked for.
-    with _windows_guard(monkeypatch) as guard:
+    with _windows_behaviour(monkeypatch) as guard:
         guard.deadline_due = True
         signal.raise_signal(signal.SIGINT)
         assert not guard.deadline_due
@@ -1575,11 +1613,10 @@ def test_a_windows_deadline_sigint_after_the_region_is_not_a_cancel(monkeypatch)
     assert _outcome(guard) == {"timeout": False, "cancel": True}
 
 
-@POSIX_GUARD
 def test_a_later_region_s_deadline_does_not_inherit_an_earlier_mark(monkeypatch):
     """A mark an earlier region's timer left — its SIGINT taken by a script's handler — is not the
     next region's: that region's entry resets it, so a cancel there is a cancel (review 7, A14)."""
-    with _windows_guard(monkeypatch) as guard:
+    with _windows_behaviour(monkeypatch) as guard:
         with guard.interruptible(deadline=30.0):
             guard._timer.cancel()
             _fired_without_its_sigint(monkeypatch, guard)
@@ -2998,9 +3035,10 @@ def test_lab_use_writes_the_trust_off_the_event_loop(monkeypatch, project):
     assert threads and threads[0] is not threading.main_thread(), threads
 
 
-# main() with the Windows watcher, its delivery replaced by what a POSIX system has for the same job:
-# the wiring — the variable taken out of the environment, the watcher started inside the try, and
-# stopped when main() returns — is the same code on every platform (review 6, AS-5, CH-8).
+# main() with the Windows watcher: on Windows its own delivery, elsewhere replaced by what a POSIX
+# system has for the same job. The wiring — the variable taken out of the environment, the watcher
+# started inside the try, and stopped when main() returns — is the same code on every platform
+# (review 6, AS-5, CH-8).
 MAIN_WITH_THE_WATCHER = """\
 import os, signal, sys, threading, time
 from pathlib import Path
@@ -3012,7 +3050,8 @@ def deliver():
     signal.pthread_kill(threading.main_thread().ident, signal.SIGINT)
     return True
 
-_platform.raise_sigint_in_main = deliver
+if hasattr(signal, "pthread_kill"):
+    _platform.raise_sigint_in_main = deliver
 watch = _platform.WindowsRunControl().watch_for_cancel
 
 def slow_to_start(request):
@@ -3041,7 +3080,6 @@ sys.exit(code)
 """
 
 
-@pytest.mark.skipif(os.name == "nt", reason="the delivery is replaced with pthread_kill")
 def test_main_honours_a_request_made_before_it_started_even_while_its_watcher_starts(tmp_path):
     request = tmp_path / "cancel"
     request.touch()
@@ -3053,7 +3091,6 @@ def test_main_honours_a_request_made_before_it_started_even_while_its_watcher_st
     assert '"code": "interrupted"' in done.stdout.splitlines()[-1], done.stdout
 
 
-@pytest.mark.skipif(os.name == "nt", reason="the delivery is replaced with pthread_kill")
 def test_main_hides_the_request_from_the_command_and_stops_watching_when_it_returns(tmp_path):
     request = tmp_path / "cancel"
     driver = tmp_path / "driver.py"
