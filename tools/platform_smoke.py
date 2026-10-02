@@ -646,11 +646,11 @@ ENV_ALLOW = ("PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "LC_ALL", "LC_C
 
 def kit_env(ctx) -> dict[str, str]:
     """What extension/aelix_lab.py's child_env gives the kit: the platform's base, the allow-list,
-    the uv settings, and the kit's own variables. Where it differs, on purpose (a test pins the rest
-    to the extension): the allow-list has AELIX_LAB_TRUST_FILE, so a measurement never touches the
-    user's trust list, and not the lower-case proxy names; UV_* is passed without the extension's
-    SECRET_NAME filter; there is no LAB_SESSION (no aelix session is running), and LAB_ACTOR is
-    `smoke`."""
+    the uv settings, and the kit's own variables. Where it differs, on purpose: the allow-list has
+    AELIX_LAB_TRUST_FILE, so a measurement never touches the user's trust list, and not the
+    lower-case proxy names; UV_* is passed without the extension's SECRET_NAME filter; there is no
+    LAB_SESSION (no aelix session is running), and LAB_ACTOR is `smoke`. A test builds both
+    environments from the same inputs and allows only these differences."""
     env = ctx.bundle.processes.base_env()
     env.update({k: os.environ[k] for k in ENV_ALLOW if k in os.environ})
     env.update({k: v for k, v in os.environ.items() if k.startswith("UV_")})
@@ -1202,7 +1202,7 @@ def runner_settings() -> dict:
     record never borrows them from another run: the links, long paths and case the file system
     allows, and who is running. Observations only; none of them is a check."""
     settings: dict = {"image": {k: os.environ.get(k) for k in ("ImageOS", "ImageVersion")}}
-    with tempfile.TemporaryDirectory(prefix="smoke-settings-") as base:
+    with tempfile.TemporaryDirectory(prefix="smoke-settings-", ignore_cleanup_errors=True) as base:
         probe = Path(base) / "Mixed.txt"
         probe.write_text("x", encoding="utf-8")
         settings["temp_ignores_case"] = (Path(base) / "mixed.txt").exists()
@@ -1213,8 +1213,8 @@ def runner_settings() -> dict:
             settings["symlink"] = f"refused: {exc!r}"
     with contextlib.suppress(Exception):
         settings["git_autocrlf"] = subprocess.run(
-            ["git", "-C", str(ROOT), "config", "--get", "core.autocrlf"], capture_output=True,
-            timeout=30, **_platform.text_kwargs()).stdout.strip() or None
+            ["git", "-C", str(ROOT), "config", "--show-origin", "--get", "core.autocrlf"],
+            capture_output=True, timeout=30, **_platform.text_kwargs()).stdout.strip() or None
     if WINDOWS:
         import ctypes
         import winreg
@@ -1230,6 +1230,7 @@ def runner_settings() -> dict:
             enabled = ctypes.windll.ntdll.RtlAreLongPathsEnabled
             enabled.restype = ctypes.c_ubyte
             settings["long_paths_effective"] = bool(enabled())
+        settings["edition"] = platform.win32_edition()
         settings["developer_mode"] = registry(
             r"SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock",
             "AllowDevelopmentWithoutDevLicense")
@@ -1255,8 +1256,12 @@ def environment(ctx) -> dict:
         "stdout_encoding": getattr(sys.stdout, "encoding", None),
         "cpu_count": os.cpu_count(),
         "uv": None,
-        "runner": runner_settings(),
+        "runner": None,
     }
+    try:
+        env["runner"] = runner_settings()
+    except Exception as exc:  # an observation must not cost the report of the checks that ran
+        env["runner"] = {"error": repr(exc)}
     if WINDOWS:
         env["windows"] = list(platform.win32_ver())
         with contextlib.suppress(Exception):
@@ -1267,7 +1272,9 @@ def environment(ctx) -> dict:
                                          "output": kernel32.GetConsoleOutputCP()}
     elif sys.platform == "darwin":
         env["macos"] = platform.mac_ver()[0]
-    if ctx.uv:
+    if getattr(ctx, "stdlib_only", False):
+        env["uv"] = "not used (stdlib-only mode)"
+    elif ctx.uv:
         with contextlib.suppress(Exception):
             env["uv"] = subprocess.run([ctx.uv, "--version"], capture_output=True, timeout=60,
                                        **_platform.text_kwargs()).stdout.strip()
@@ -1293,7 +1300,9 @@ def run_checks(ctx, selected) -> list[dict]:
             continue
         entry = {"name": name, "group": group, "observation": fn.observation}
         if fn.needs_uv and not ctx.uv:
-            entry.update({"holds": None, "result": "not_run", "reason": "uv is not on PATH"})
+            reason = ("the stdlib-only mode does not use uv" if getattr(ctx, "stdlib_only", False)
+                      else "uv is not on PATH")
+            entry.update({"holds": None, "result": "not_run", "reason": reason})
             results.append(entry)
             continue
         t0 = time.perf_counter()
@@ -1345,7 +1354,7 @@ def main(argv=None) -> int:
         os.environ["AELIX_LAB_TRUST_FILE"] = str(tmp_path / "trust" / "lab-projects.json")
         ctx = Context(tmp_path)
         if args.stdlib_only:
-            ctx.uv = None
+            ctx.uv, ctx.stdlib_only = None, True
             selected = selected or {name for group, name, fn in CHECKS
                                     if group != "cli" and not fn.only_when_named}
         results = run_checks(ctx, selected)

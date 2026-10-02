@@ -29,19 +29,19 @@ on:
 permissions:
   contents: read
 
-# A pull request's code runs share one group, and a new push cancels the old run. A labelled run gets
-# a group of its own per label name, so neither a push nor another label cancels a ci:macos run. A
-# push, schedule or manual run is a group of its own: every main commit keeps its result.
+# A pull request's code runs share one group, and a new push cancels the old run. Every other run — a
+# labelled one, a push to main, a manual or scheduled run — is a group of its own, so nothing cancels
+# a ci:macos run (adding the label again starts another) and every push to main keeps its result.
 concurrency:
-  group: ${{ github.event_name == 'pull_request' && format('ci-pr-{0}-{1}', github.event.pull_request.number, github.event.action == 'labeled' && format('label-{0}', github.event.label.name) || 'code') || format('ci-run-{0}', github.run_id) }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ${{ github.event_name == 'pull_request' && github.event.action != 'labeled' && format('ci-pr-{0}-code', github.event.pull_request.number) || format('ci-run-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action != 'labeled' }}
 
 jobs:
   lint:
     name: lint · ruff and documents
     if: ${{ github.event.action != 'labeled' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -52,15 +52,19 @@ jobs:
           version: "0.11.19"
       - name: Sync the development environment
         id: sync
+        timeout-minutes: 5
         run: uv sync --locked
       - name: Ruff
         if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
+        timeout-minutes: 5
         run: uv run --locked ruff check kit tests extension src tools
       - name: Documents
         if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
+        timeout-minutes: 5
         run: uv run --locked python tools/check_docs.py --output .devstate/ci/docs.json
       - name: Context
         if: ${{ !cancelled() }}
+        timeout-minutes: 3
         env:
           CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -79,7 +83,9 @@ jobs:
     name: platform · ${{ matrix.os }}
     if: ${{ github.event.action != 'labeled' || github.event.label.name == 'ci:macos' }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: ${{ startsWith(matrix.os, 'windows') && 50 || 40 }}
+    # Longer than the step limits below added up, so a hung leg is ended by its own limit and the
+    # later legs and the upload still run.
+    timeout-minutes: 95
     strategy:
       fail-fast: false
       matrix:
@@ -94,6 +100,7 @@ jobs:
           version: "0.11.19"
       - name: Sync the development environment
         id: sync
+        timeout-minutes: 5
         run: uv sync --locked --python 3.12
       - name: Platform smoke — the ports and the CLI, driven as the extension drives it
         if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
@@ -110,18 +117,19 @@ jobs:
       # .venv, and the aelix host could import the analysis libraries this leg must show it never loads.
       - name: aelix 0.1.0b2 integration, CPython 3.12
         if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
-        timeout-minutes: 10
-        run: uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread --junitxml "${{ runner.temp }}/ci/aelix-py3.12.xml" tests/test_extension.py
+        timeout-minutes: 8
+        run: uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread --junitxml "${{ runner.temp }}/ci/aelix-py3.12.xml" tests/test_extension.py
       - name: aelix 0.1.0b2 integration, CPython 3.11
         if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
-        timeout-minutes: 10
-        run: uv run --isolated --no-project --python 3.11 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread --junitxml "${{ runner.temp }}/ci/aelix-py3.11.xml" tests/test_extension.py
+        timeout-minutes: 8
+        run: uv run --isolated --no-project --python 3.11 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread --junitxml "${{ runner.temp }}/ci/aelix-py3.11.xml" tests/test_extension.py
       - name: The launcher on the entry-point floor, CPython 3.11
         if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
         timeout-minutes: 5
-        run: uv run --isolated --no-project --python 3.11 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread --junitxml "${{ runner.temp }}/ci/launcher-py3.11.xml" tests/test_launcher.py
+        run: uv run --isolated --no-project --python 3.11 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 120 --timeout-method=thread --junitxml "${{ runner.temp }}/ci/launcher-py3.11.xml" tests/test_launcher.py
       - name: What the aelix environments resolved to
         if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
+        timeout-minutes: 6
         shell: bash
         run: |
           for v in 3.12 3.11; do
@@ -129,6 +137,7 @@ jobs:
           done
       - name: Interpreters
         if: ${{ !cancelled() }}
+        timeout-minutes: 3
         run: uv run --no-project --python 3.12 python tools/ci_context.py interpreters --output "${{ runner.temp }}/ci/interpreters.json"
       - name: Context
         if: ${{ !cancelled() }}
@@ -138,6 +147,7 @@ jobs:
           CI_ACTION: ${{ github.event.action }}
           CI_LABEL: ${{ github.event.label.name }}
           CI_JOB: platform
+        timeout-minutes: 3
         run: uv run --no-project --python 3.12 python tools/ci_context.py context --output "${{ runner.temp }}/ci/context.json"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ !cancelled() }}
@@ -153,7 +163,7 @@ jobs:
     name: floor · ${{ matrix.os }} · CPython 3.11, stdlib only
     if: ${{ github.event.action != 'labeled' || github.event.label.name == 'ci:macos' }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -177,6 +187,7 @@ jobs:
           CI_ACTION: ${{ github.event.action }}
           CI_LABEL: ${{ github.event.label.name }}
           CI_JOB: floor
+        timeout-minutes: 3
         run: python tools/ci_context.py context --output "${{ runner.temp }}/ci/context.json"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ !cancelled() }}

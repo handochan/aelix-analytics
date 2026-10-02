@@ -1,6 +1,9 @@
-"""Extension tests. Run with an interpreter that has aelix installed, e.g.
+"""Extension tests. Run with an interpreter that has aelix installed, as CONTRIBUTING.md and the CI do:
 
-    /Users/handochan/dev/aelix-ai/.venv/bin/python -m pytest -q -p no:cacheprovider tests/test_extension.py
+    uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1
+        --with pytest-timeout==2.4.0 python -m pytest -q -p no:cacheprovider tests/test_extension.py
+
+(one command, split here for width).
 """
 
 import asyncio

@@ -6,9 +6,9 @@
 
 `context` reads GitHub's variables and the ones the workflow passes (CI_HEAD_SHA, CI_BASE_SHA,
 CI_ACTION, CI_LABEL, CI_JOB). The commit CI measures is the pull request's head, not the merge
-commit GitHub builds, and a record names it. `environment` runs inside the environment it describes
-(for an aelix leg, the same `uv run --isolated --with ...` set), because those resolve fresh from the
-index on every run. Stdlib only, so it runs on the setup-python floor as well.
+commit GitHub builds, and a record names it. `environment` runs inside an environment built from the
+same requirements as the leg it describes (for an aelix leg, the same `uv run --isolated --with ...`
+set, resolved again right after the leg), because those resolve fresh from the index on every run. Stdlib only, so it runs on the setup-python floor as well.
 """
 
 from __future__ import annotations
@@ -55,7 +55,7 @@ def interpreters() -> dict:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description="Write down what a CI job ran.")
     parser.add_argument("what", choices=("context", "environment", "interpreters"))
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args(argv)

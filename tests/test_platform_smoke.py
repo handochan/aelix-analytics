@@ -1,8 +1,8 @@
 """The platform measurement tool keeps working and keeps its record honest.
 
 The repository CI (.github/workflows/ci.yml) runs the tool with `--gate required` on Linux and Windows
-for every pull request and push to main, and on macOS when asked (the `ci:macos` label, a manual run,
-the weekly run). A broken tool fails that job; these tests catch it first, locally and in the same run.
+for every pull request and push to main, and on macOS on the `ci:macos` label, a manual run or the weekly
+run. A broken tool fails that job; these tests also run in the suite, and locally before a push.
 """
 
 import ast
@@ -105,33 +105,37 @@ def test_the_smoke_tool_waits_as_long_as_the_extension_before_it_counts_a_stop_a
         [ast.unparse(w) for w in waits]
 
 
-def test_the_smoke_gives_the_kit_the_extension_s_environment_but_for_the_stated_differences():
+def test_the_smoke_gives_the_kit_the_extension_s_environment_but_for_the_stated_differences(
+        monkeypatch):
     """kit_env stands in for the extension's child_env, so the CLI checks measure what the extension
-    runs. Its docstring names where it differs; anything else the extension adds to the allow-list or
-    sets for the kit has to reach the smoke too."""
-    def tree(path: Path):
-        return ast.parse(path.read_text(encoding="utf-8"))
+    runs. Both are built here from the same inputs, and only the differences kit_env's docstring
+    names are allowed: a variable either side adds, drops or sets to another value fails."""
+    from test_platform import load_extension
 
-    def constant(module, name: str):
-        for node in module.body:
-            if isinstance(node, ast.Assign) and any(getattr(t, "id", None) == name
-                                                    for t in node.targets):
-                return ast.literal_eval(node.value)
-        raise AssertionError(name)
+    monkeypatch.delenv("AELIX_LAB_KIT", raising=False)
+    tool, ext = tool_module(), load_extension(monkeypatch, "smoke_env_parity")
+    monkeypatch.setitem(ext.STATE, "session", None)
 
-    def fixed_keys(module, function: str) -> set[str]:
-        body = next(node for node in module.body
-                    if isinstance(node, ast.FunctionDef) and node.name == function)
-        return {key.value for node in ast.walk(body)
-                if isinstance(node, ast.Call) and getattr(node.func, "attr", None) == "update"
-                and node.args and isinstance(node.args[0], ast.Dict)
-                for key in node.args[0].keys}
+    class Processes:
+        def base_env(self):
+            return {"BASE_FROM_THE_PLATFORM": "1"}
 
-    tool, ext = tree(TOOL), tree(EXT)
-    lower_case_proxies = {"http_proxy", "https_proxy", "no_proxy", "all_proxy"}
-    assert set(constant(tool, "ENV_ALLOW")) == \
-        set(constant(ext, "ENV_ALLOW")) - lower_case_proxies | {"AELIX_LAB_TRUST_FILE"}
-    assert fixed_keys(tool, "kit_env") == fixed_keys(ext, "child_env")
+    # Windows reads environment names without case, so the lower-case proxy names only count where
+    # they are names of their own.
+    lower = {"http_proxy", "https_proxy", "no_proxy", "all_proxy"} if os.name != "nt" else set()
+    names = {n for n in set(tool.ENV_ALLOW) | set(ext.ENV_ALLOW) if n == n.upper()} | lower
+    environ = {name: f"value of {name}" for name in names}
+    environ.update({"UV_CACHE_DIR": "cache", "UV_INDEX_TOKEN": "secret", "UNRELATED": "no"})
+    monkeypatch.setattr(os, "environ", environ)
+
+    ctx = types.SimpleNamespace(bundle=types.SimpleNamespace(processes=Processes()))
+    smoke, extension = tool.kit_env(ctx), ext.child_env(Processes(), "smoke")
+    assert smoke.keys() - extension.keys() == {"AELIX_LAB_TRUST_FILE", "UV_INDEX_TOKEN"}
+    assert extension.keys() - smoke.keys() == lower
+    shared = (smoke.keys() & extension.keys()) - {"PYTHONPATH"}
+    assert {k: smoke[k] for k in shared} == {k: extension[k] for k in shared}
+    assert Path(smoke["PYTHONPATH"]).resolve() == Path(extension["PYTHONPATH"]).resolve()
+    assert smoke["LAB_ACTOR"] == "smoke"
 
 
 def test_every_declared_limitation_is_still_stated_in_the_tree():
@@ -385,3 +389,17 @@ def test_the_windows_tree_check_declares_only_the_form_the_documents_state(monke
     result = tool.kill_tree_after_the_leader_exited(ctx)
     stated = diagnostic.startswith("labkit:")
     assert result["holds"] is False and bool(result["declared"]) is stated, result
+
+
+def test_an_observation_that_fails_does_not_cost_the_report(monkeypatch):
+    """The runner settings are read after every check has run. If reading them fails, the report of
+    those checks is still written, with the failure where the settings would be."""
+    tool = tool_module()
+
+    def broken():
+        raise PermissionError(5, "Access is denied")
+
+    monkeypatch.setattr(tool, "runner_settings", broken)
+    env = tool.environment(types.SimpleNamespace(uv=None, stdlib_only=True))
+    assert env["runner"] == {"error": "PermissionError(5, 'Access is denied')"}
+    assert env["uv"] == "not used (stdlib-only mode)"
