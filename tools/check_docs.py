@@ -344,4 +344,7 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
+    # The report holds paths and messages in Korean; a pipe or a console otherwise follows the
+    # locale (cp1252 on the Windows runner), where they cannot be written.
+    sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace")
     raise SystemExit(main())

@@ -6,9 +6,10 @@ from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-from conftest import labkit, write_script
+import pytest
+from conftest import LINK_KINDS, dir_link, labkit, write_script
 
-from labkit import core, runner
+from labkit import _platform, core, runner
 
 LAB_API = '''import matplotlib.pyplot as plt
 import polars as pl
@@ -378,12 +379,15 @@ def test_finalization_survives_bad_notes_replaced_stdout_and_unreadable_outputs(
             "open('data/derived/secret.bin', 'wb').write(b'x')\n" + UNREADABLE +
             "sys.stdout = open('data/derived/log.txt', 'w')\nprint('into the log')\n")
     code, result = _run(project, write_script(project, "11_hostile.py", body))
+    os.chmod(project / "data/derived/secret.bin", 0o600)
     assert code == 0 and result["run"]["status"] == "ok"
-    outs = {o["path"]: o for o in result["run"]["outputs"]}
-    assert outs["data/derived/secret.bin"]["sha256"] is None
     events = core.read_events(core.Project(project))
     assert any(e["kind"] == "finding" and e["text"] == "42" for e in events)
-    os.chmod(project / "data/derived/secret.bin", 0o600)
+    if os.name != "nt" and os.geteuid() == 0:
+        # Only this property needs the output to be unreadable (design review T11).
+        pytest.skip("root reads a file whatever its mode, so the output was not unreadable")
+    outs = {o["path"]: o for o in result["run"]["outputs"]}
+    assert outs["data/derived/secret.bin"]["sha256"] is None
 
 
 def test_timeout_inside_duckdb_is_recorded_as_timeout(project):
@@ -392,14 +396,55 @@ def test_timeout_inside_duckdb_is_recorded_as_timeout(project):
     assert code == 3 and result["run"]["status"] == "timeout", result["run"]["error"]
 
 
+# Both separators where Windows takes both.
+SEPARATORS = ["/", "\\"] if os.name == "nt" else ["/"]
+
+
+def _read_text(project, path: Path, separator: str):
+    """`lab_query` reading one file. `content` only: read_text's last_modified column is a
+    TIMESTAMPTZ, which needs pytz, which no environment here has (design review T9)."""
+    text = str(path).replace(os.sep, separator)
+    return labkit(project, "query", f"SELECT content FROM read_text('{text}')")
+
+
+def _refused(result) -> bool:
+    """DuckDB's own refusal, not some other failure of the same query."""
+    error = result["error"]
+    return error["code"] == "query_failed" and "Permission Error" in error["message"]
+
+
 def test_query_cannot_write_or_read_outside_data(project):
+    """A file that exists outside data/ — the project's own lab.json, directly and through
+    data/.. — is refused by DuckDB's sandbox, while a file inside data/ is read: the refusal is the
+    sandbox's, not a path that does not exist (criterion 9: this read /etc/hosts, which Windows
+    does not have)."""
     code, result = labkit(project, "query", f"EXPLAIN ANALYZE COPY (SELECT * FROM sales) TO '{project}/data/derived/sneaky.parquet'")
     assert code == 1 and result["error"]["code"] == "query_read_only"
     assert not (project / "data/derived/sneaky.parquet").exists()
-    code, result = labkit(project, "query", "SELECT * FROM read_text('/etc/hosts')")
-    assert code == 1 and result["error"]["code"] == "query_failed"
+    (project / "data" / "raw" / "note.txt").write_text("inside", encoding="utf-8")
+    for separator in SEPARATORS:
+        code, result = _read_text(project, project / "data" / "raw" / "note.txt", separator)
+        assert code == 0 and result["rows"] == [["inside"]], (separator, result)
+        for outside in (project / "lab.json", project / "data" / ".." / "lab.json"):
+            assert outside.is_file()
+            code, result = _read_text(project, outside, separator)
+            assert code == 1 and _refused(result), (separator, outside, result)
     code, result = labkit(project, "query", "EXPLAIN SELECT count(*) FROM sales")
     assert code == 0
+
+
+@pytest.mark.parametrize("kind", LINK_KINDS)
+def test_query_cannot_read_through_a_link_out_of_data(project, tmp_path, kind):
+    """A directory inside data/ that links outside it (design review T9): DuckDB checks the path it
+    reaches, not the text, for a symbolic link everywhere and for a junction on Windows."""
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "secret.txt").write_text("secret", encoding="utf-8")
+    dir_link(kind, project / "data" / "raw" / "out", outside)
+    assert (project / "data" / "raw" / "out" / "secret.txt").is_file()
+    for separator in SEPARATORS:
+        code, result = _read_text(project, project / "data" / "raw" / "out" / "secret.txt", separator)
+        assert code == 1 and _refused(result), (separator, result)
 
 
 def test_sql_lineage_ignores_columns_and_ctes_named_like_datasets(project, tmp_path):
@@ -434,7 +479,8 @@ def test_concurrent_runs_do_not_claim_each_others_outputs(project):
                                          "lab.save(lab.read('sales').head(1), 'a_out')\n")
     b = write_script(project, "16_b.py", "import labkit as lab\nlab.save(lab.read('sales').head(1), 'b_out')\n")
     procs = [subprocess.Popen([sys.executable, "-m", "labkit", "--project", str(project), "run", s,
-                               "--title", s], stdout=subprocess.PIPE, text=True, env=kit_env())
+                               "--title", s], stdout=subprocess.PIPE, env=kit_env(),
+                              **_platform.text_kwargs())
              for s in (a, b)]
     results = [json.loads([ln for ln in pr.communicate(timeout=120)[0].splitlines() if ln.startswith("{")][-1])
                for pr in procs]

@@ -122,7 +122,7 @@ uv run --locked python tools/check_docs.py --output .devstate/runs/<run-id>/evid
 | 작업 | 언제 | 무엇 | artifact (90일) |
 |---|---|---|---|
 | `lint` | 모든 PR과 main push | ruff, 문서 검사 | 문서 검사 결과, 실행 맥락 |
-| `platform` | Linux(`ubuntu-24.04`)·Windows(`windows-2025`)는 모든 PR과 main push, macOS(`macos-26`)는 아래의 경우 | 플랫폼 스모크(`tools/platform_smoke.py --gate required`), 저장소 시험(`AELIX_ANALYTICS_TEST_INSTALL=1`, 배포본 end-to-end 포함), aelix 0.1.0b2 통합(CPython 3.12·3.11), 런처 시험(CPython 3.11) | 레그별 JUnit, 스모크 JSON(러너 설정 포함), 인터프리터, aelix 환경의 배포판 목록, 실행 맥락 |
+| `platform` | Linux(`ubuntu-24.04`)·Windows(`windows-2025`)는 모든 PR과 main push, macOS(`macos-26`)는 아래의 경우 | 플랫폼 스모크(`tools/platform_smoke.py --gate required`), 저장소 시험(`AELIX_ANALYTICS_TEST_INSTALL=1`, 배포본 end-to-end 포함), aelix 0.1.0b2 통합(CPython 3.12·3.11), 런처 시험(CPython 3.11). Windows는 저장소 시험 뒤에 네이티브 콘솔 시험(`tests/test_windows_console.py`, 단계 따로)을, 시험 레그의 마지막에 LongPathsEnabled를 0으로 바꾸고 긴 경로 시험(`tests/test_windows_long_paths.py`)을 새 프로세스로 한 번 더 돌립니다 | 레그별 JUnit, 스모크 JSON(러너 설정 포함), 시험이 관찰해 남긴 것(`evidence/`, `evidence-long-paths-off/`; 콘솔 사례는 단언하는 것까지 모두), 인터프리터, aelix 환경의 배포판 목록, 실행 맥락 |
 | `floor` | `platform`과 같은 OS | `actions/setup-python`의 CPython 3.11에서 표준 라이브러리만으로 플랫폼 스모크(`--stdlib-only`) | 스모크 JSON, 실행 맥락 |
 
 - macOS runner는 비공개 저장소에서 Linux의 약 10배로 과금되므로 PR에서는 요청할 때만 돕니다. PR에 `ci:macos` 라벨을 붙일
@@ -131,7 +131,7 @@ uv run --locked python tools/check_docs.py --output .devstate/runs/<run-id>/evid
   표시됩니다(`ci:macos`가 아닌 라벨이면 모든 작업이 건너뜀). 건너뜀은 검증 결과가 아닙니다. 수동 실행(`workflow_dispatch`, `macos` 선택)과 매주 월요일 03:17 UTC 실행은 세 OS를 모두 돌립니다.
 - 비용(GitHub Free의 월 2,000분 기준): 이 워크플로의 첫 측정(PR #34)에서 Linux+Windows 한 번은 작업마다 분 단위로 올리고
   Windows를 2배로 세어 58분, macOS 한 번은 10배로 세어 90분이었습니다. 주간 실행만으로 월 약 650분이 듭니다(추정). 레그가 멈춰
-  제한 시간까지 가면 작업 하나가 제한 시간만큼(`platform` 95분, macOS면 그 10배) 과금될 수 있습니다.
+  제한 시간까지 가면 작업 하나가 제한 시간만큼(`platform` 130분, macOS면 그 10배) 과금될 수 있습니다.
 - 시험 레그 하나가 실패해도 다음 레그는 돌고 작업은 실패로 끝납니다. 개발 환경의 sync가 실패하면 `platform`의 시험 레그는 돌지
   않고 작업이 실패합니다. 플랫폼별 작업은 서로 취소하지 않습니다(`fail-fast: false`). 시험·기록 단계마다 제한 시간이 있고, 작업의
   제한 시간은 그 합보다 깁니다(artifact 올리기에는 작업의 제한 시간만 있습니다). 단계의 제한이나 시험 하나의 제한(pytest-timeout)에 걸린 레그는 JUnit을 남기지 않습니다.

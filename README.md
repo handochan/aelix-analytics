@@ -77,7 +77,7 @@ aelix -e $PACK/extension/aelix_lab.py
 aelix 안에서: `/lab`(현황) · `/lab open`(리포트) · "지역별 성장률 차트에 플롯 데이터도 기록되게 고쳐줘" 같은 요청.
 
 직접 분석에 필요한 것: [uv](https://docs.astral.sh/uv/)(PATH 또는 `AELIX_LAB_UV`). Aelix 연동에는 추가로 aelix 0.1.0b2 이상이 필요합니다.
-지원 플랫폼은 Linux·macOS·Windows를 목표로 합니다. Linux·macOS·Windows에서 실행한 범위와 Windows의 한계, 아직 실행하지 않은 것(대화형 콘솔, Windows의 실제 aelix 세션과 `analytics open`)은 [현재 계약](docs/CONTRACTS.md)의 F·G절에 있습니다.
+지원 플랫폼은 Linux·macOS·Windows를 목표로 합니다. 측정한 조합(Windows는 Windows Server 2025의 한 구성)과 Windows의 한계, 아직 실행하지 않은 것(사람이 누른 콘솔 키, Windows의 실제 aelix 세션, 문서를 실제로 여는 프로그램 등)은 [현재 계약](docs/CONTRACTS.md)의 F·G절에 있습니다. Windows 콘솔의 Ctrl+C·Ctrl+Break는 의사 콘솔과 고전 콘솔에서 측정했습니다.
 분석 라이브러리는 **프로젝트마다 자기 uv 환경**에 설치되며 aelix 환경은 건드리지 않습니다.
 
 ## 설치본(wheel)으로 쓰기
@@ -87,8 +87,8 @@ aelix 안에서: `/lab`(현황) · `/lab open`(리포트) · "지역별 성장�
 
 ```sh
 cd $PACK && uv build                                   # dist/aelix_analytics-0.1.0-py3-none-any.whl
-uv tool install dist/aelix_analytics-0.1.0-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
-uv tool install aelix==0.1.0b2 --with dist/aelix_analytics-0.1.0-py3-none-any.whl   # aelix와 함께
+uv tool install --python 3.12 dist/aelix_analytics-0.1.0-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
+uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.1.0-py3-none-any.whl   # aelix와 함께
 ```
 
 - `analytics`는 명령 이름 말고는 `bin/lab`과 같은 명령·인자·usage를 쓰고 kit의 출력을 바이트 그대로 넘깁니다

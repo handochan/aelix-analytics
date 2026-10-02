@@ -6,13 +6,15 @@ into fresh virtual environments on the entry-point floor and on 3.12. They need 
 or uv's cache for the pinned build backend.
 
 AELIX_ANALYTICS_TEST_INSTALL=1 adds the end-to-end leg: aelix 0.1.0b2 from PyPI beside the wheel,
-aelix's own verify, status and loader, and a project driven through the installed `analytics` by real uv —
-which syncs an analysis environment, so it needs the network or a warm cache. The repository CI
+aelix's own verify, status and loader, README's `uv tool install` lines, and a project driven through
+the installed `analytics` by real uv — which syncs an analysis environment, so it needs the network or
+a warm cache. The repository CI
 (.github/workflows/ci.yml) runs it on Linux and Windows, and on macOS when asked.
 """
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import shutil
@@ -26,6 +28,7 @@ from email.parser import Parser
 from pathlib import Path
 
 import pytest
+from conftest import record_observation
 
 from aelix_analytics import cli
 from labkit import core
@@ -361,15 +364,39 @@ def test_aelix_binds_and_loads_the_installed_extension(dist, tmp_path, python):
     assert seen["state_after_rebuild"] == {"session": None, "project": None}
 
 
+def windows_account() -> dict:
+    """Who may make the link, read as tools/platform_smoke.py reads it."""
+    import ctypes
+    import winreg
+
+    seen = {}
+    with contextlib.suppress(Exception):
+        seen["administrator"] = bool(ctypes.windll.shell32.IsUserAnAdmin())
+    unlock = r"SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock"
+    with contextlib.suppress(OSError), winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, unlock) as key:
+        seen["developer_mode"] = winreg.QueryValueEx(key, "AllowDevelopmentWithoutDevLicense")[0]
+    return seen
+
+
 @e2e
 def test_a_checkout_symlink_beside_the_wheel_sets_up_one_copy(dist, tmp_path):
-    if not POSIX:
-        pytest.skip("the README's symlink route is POSIX")
+    """README's symlink route beside the installed wheel. On Windows the file link is made by
+    `os.symlink`, as this runner's account may; the observation names that account's settings, so a
+    record says only what ran (design review T6): Developer Mode alone, elevation alone, and a link
+    made with `mklink` or `New-Item` are not run."""
     venv = with_aelix(tmp_path, dist, CURRENT)
     env = aelix_env(tmp_path)
     extensions = Path(env["AELIX_CODING_AGENT_DIR"]) / "extensions"
     extensions.mkdir(parents=True)
-    (extensions / "aelix_lab.py").symlink_to(PACK / "extension" / "aelix_lab.py")
+    try:
+        os.symlink(PACK / "extension" / "aelix_lab.py", extensions / "aelix_lab.py")
+    except OSError as exc:
+        if getattr(exc, "winerror", None) == 1314:
+            pytest.skip(f"this account may not create a symbolic link: {exc!r}")
+        raise
+    record_observation("readme-symlink-route", {
+        "os": os.name, "link": "os.symlink of the checkout's extension file",
+        **({} if POSIX else windows_account())})
     cwd = tmp_path / "cwd"
     cwd.mkdir()
     done = ok([venv_python(venv), "-c", LOAD_PROBE, cwd, env["AELIX_CODING_AGENT_DIR"]], cwd=cwd,
@@ -440,8 +467,11 @@ SDK_SCRIPT = textwrap.dedent("""
     import matplotlib.pyplot as plt
     print("RUN", lab.run_id())
     print("LABKIT", os.path.dirname(os.path.dirname(lab.__file__)))
+    print("PYTHONPATH", os.environ.get("PYTHONPATH"))
     sales = lab.read("sales")
+    # Sorted: group_by does not keep an order, and the rerun below compares the chart's data.
     by_region = sales.group_by("region").agg(revenue=__import__("polars").col("revenue").sum())
+    by_region = by_region.sort("region")
     lab.save(by_region, "by_region")
     fig, ax = plt.subplots()
     ax.bar(by_region["region"].to_list(), by_region["revenue"].to_list())
@@ -455,7 +485,9 @@ SDK_SCRIPT = textwrap.dedent("""
 def test_the_installed_command_drives_a_project_without_aelix(dist, tmp_path, python):
     """Issue #8's criterion 1 without Aelix: the console script on the entry-point floor and on 3.12,
     with real uv, runs every command the Issue names in a project whose analysis environment is its
-    own (>=3.12); the run's script uses the SDK, `labkit`, from the installed kit."""
+    own (>=3.12); the run's script uses the SDK, `labkit`, from the installed kit. ADR-0004 check 2
+    with real uv (design review, Codex 6): a PYTHONPATH the caller set reaches the run as exactly
+    the installed kit. A rerun of the run goes through real uv too."""
     venv = installed(tmp_path, dist["wheel"], python, "--no-deps", "--offline")
     listed = ok([UV, "pip", "list", "--python", venv_python(venv)]).stdout
     assert "aelix" not in listed.replace("aelix-analytics", ""), listed
@@ -480,21 +512,30 @@ def test_the_installed_command_drives_a_project_without_aelix(dist, tmp_path, py
                           env=env).stdout.splitlines()[-1])
     assert query["rows"] == [[2]]
     (project / "scripts" / "totals.py").write_text(SDK_SCRIPT, encoding="utf-8")
-    done = ok([analytics, "run", "scripts/totals.py", "--title", "합계"], cwd=project, env=env)
+    unrelated = tmp_path / "unrelated"
+    unrelated.mkdir()
+    done = ok([analytics, "run", "scripts/totals.py", "--title", "합계"], cwd=project,
+              env={**env, "PYTHONPATH": str(unrelated)})
     result = json.loads(done.stdout.splitlines()[-1])
     record = result["run"]
     assert record["status"] == "ok", result
     assert tuple(int(x) for x in record["env"]["python"].split(".")[:2]) >= (3, 12)
     kit = ok([venv_python(venv), "-c", "from aelix_analytics._install import kit_dir; print(kit_dir())"],
              env=env).stdout.strip()
-    assert f"LABKIT {kit}" in result.get("stdout_tail", "")
-    assert "RUN None" not in result.get("stdout_tail", "")
+    tail = result.get("stdout_tail", "")
+    assert f"LABKIT {kit}" in tail
+    assert f"PYTHONPATH {kit}" in tail.splitlines(), tail
+    assert "RUN None" not in tail
     [chart] = record["charts"]
     assert chart["id"] == "by-region" and chart.get("data")
     journal = [json.loads(line) for line in
                (project / "journal.jsonl").read_text(encoding="utf-8").splitlines()]
     [finding] = [e for e in journal if e["kind"] == "finding"]
     assert record["id"] in json.dumps(finding["refs"]), finding
+    again = json.loads(ok([analytics, "run", "--rerun-of", record["id"], "--title", "재실행"],
+                          cwd=project, env=env).stdout.splitlines()[-1])["run"]
+    assert again["status"] == "ok" and again["rerun_of"] == record["id"], again
+    assert again["reproduction"]["verdict"] == "match", again["reproduction"]
     ok([analytics, "note", "decision", "계속"], cwd=project, env=env)
     ok([analytics, "report"], cwd=project, env=env)
     assert "설치본 분석" in ok([analytics, "status"], cwd=project, env=env).stdout
@@ -506,6 +547,33 @@ def test_the_installed_command_drives_a_project_without_aelix(dist, tmp_path, py
     assert not [p for p in site.rglob("*.pyc")
                 if "aelix_analytics" in p.parts and f"cpython-{python.replace('.', '')}" not in p.name], \
         "a child wrote bytecode of another Python into the installation"
+
+
+@e2e
+def test_the_readme_s_uv_tool_install_routes(dist, tmp_path):
+    """README's two install lines as written there (design review crit-3): `uv tool install
+    --python 3.12` of the wheel, whose `analytics` then creates and reads a project with real uv;
+    and aelix with the wheel beside it, whose verify binds the extension. The tools and their
+    commands go under the test's directory; aelix's own directories are the test's as well."""
+    tools = {"UV_TOOL_DIR": str(tmp_path / "tools"), "UV_TOOL_BIN_DIR": str(tmp_path / "tool-bin")}
+    env = outside_env(tmp_path, **tools)
+    ok([UV, "tool", "install", "--python", CURRENT, dist["wheel"]], cwd=tmp_path, env=env)
+    cfg = (tmp_path / "tools" / "aelix-analytics" / "pyvenv.cfg").read_text(encoding="utf-8")
+    assert f"version_info = {CURRENT}." in cfg, cfg
+    analytics = shutil.which("analytics", path=tools["UV_TOOL_BIN_DIR"])
+    assert analytics is not None, sorted(os.listdir(tools["UV_TOOL_BIN_DIR"]))
+    work = tmp_path / "work"
+    work.mkdir()
+    ok([analytics, "init", "proj", "--title", "도구 설치본"], cwd=work, env=env)
+    assert "도구 설치본" in ok([analytics, "status"], cwd=work / "proj", env=env).stdout
+    ok([UV, "tool", "install", "--python", CURRENT, AELIX, "--with", dist["wheel"]], cwd=tmp_path,
+       env=env)
+    aelix = shutil.which("aelix", path=tools["UV_TOOL_BIN_DIR"])
+    assert aelix is not None, sorted(os.listdir(tools["UV_TOOL_BIN_DIR"]))
+    verify = run([aelix, "extension", "verify", "aelix-analytics"], cwd=work,
+                 env={**aelix_env(tmp_path), **tools})
+    assert verify.returncode == 0, verify.stdout + verify.stderr
+    assert "BOUND" in verify.stdout and "plugin 'aelix-analytics'" in verify.stdout
 
 
 @e2e

@@ -96,4 +96,8 @@ ADR-0002 결정 5는 "파일 잠금·실행 타임아웃·자식 프로세스 �
    저장소 CI(`.github/workflows/ci.yml`, Issue #8 PR-3a)가 같은 측정 도구와 저장소 시험을 Linux·Windows에서는 모든 PR과
    main push마다, macOS에서는 `ci:macos` 라벨·수동 실행·주간 실행에서 돌린다(소유자 결정, 2026-10-02).
 6. 예약 이름은 Windows Server 2025의 파일 시스템에서 확인했다(`con.txt`·`nul.parquet`는 보통 파일로 저장되고 확장자 없는
-   `nul`은 여전히 장치다). 대화형 콘솔의 인코딩과 Ctrl+C·Ctrl+Break는 `not_run`이며 Issue #8 PR-3의 범위다.
+   `nul`은 여전히 장치다). 콘솔: 설치본 `analytics`의 run에 Ctrl+C와 Ctrl+Break를 보내 측정했다 — 의사 콘솔(ConPTY)에서는
+   입력 `\x03`(Ctrl+C)과 도우미 프로세스의 `GenerateConsoleCtrlEvent`·win32-input-mode 입력(Ctrl+Break)으로, 고전 콘솔에서는
+   도우미로(Ctrl+C는 `cancelled` 기록 뒤 3, Ctrl+Break는 uv가 먼저 끝나고 kit이 나중에 `cancelled`). Python의 콘솔 경로로
+   쓴 kit의 출력(결과 줄의 한국어 제목)은 콘솔 코드 페이지 437과 949에서 바르게 보였다(런처의 글은 같은 경로이나 실행하지
+   않았다). 사람이 보이는 창에서 누른 키와 콘솔 파일 기술자에 직접 쓴 바이트는 `not_run`이다([측정 기록](../verification/2026-10-02-issue-8-windows-inventory.md), CONTRACTS G).

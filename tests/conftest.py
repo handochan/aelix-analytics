@@ -36,6 +36,47 @@ def labkit(project, *args, timeout=300):
     return proc.returncode, json.loads(lines[-1])
 
 
+# The kinds of directory link a project can hold: a symbolic link everywhere, and on Windows a
+# junction as well (no privilege needed; `os.path.islink` is False for it, `os.path.isjunction` True).
+LINK_KINDS = ["symlink", "junction"] if os.name == "nt" else ["symlink"]
+
+
+def dir_link(kind: str, link, target) -> Path:
+    """Make `link` a directory link of `kind` to `target`. A symbolic link keeps `target`'s text as
+    given (so a relative target stays relative); a junction stores an absolute path, so a relative
+    `target` is taken from `link`'s directory. A symbolic link the account may not create (WinError
+    1314) skips the test with that error: the hosted Windows runner allows them, and a record that
+    cites a run checks that its link tests ran rather than skipped."""
+    link = Path(link)
+    if kind == "symlink":
+        try:
+            os.symlink(target, link, target_is_directory=True)
+        except OSError as exc:
+            if getattr(exc, "winerror", None) == 1314:
+                pytest.skip(f"this account may not create a symbolic link: {exc!r}")
+            raise
+    elif kind == "junction":
+        import _winapi
+
+        _winapi.CreateJunction(os.path.abspath(os.path.join(link.parent, target)), str(link))
+    else:
+        raise ValueError(kind)
+    return link
+
+
+def record_observation(name: str, data) -> None:
+    """Keep what a test measured but does not assert, as `<name>.json` in the directory
+    AELIX_ANALYTICS_TEST_EVIDENCE_DIR names (the CI sets it inside the directory it uploads); nothing
+    when it is unset."""
+    directory = os.environ.get("AELIX_ANALYTICS_TEST_EVIDENCE_DIR")
+    if not directory:
+        return
+    path = Path(directory) / f"{name}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=1, sort_keys=True, default=str),
+                    encoding="utf-8")
+
+
 def write_sales_csv(path: Path, rows: int = 120) -> Path:
     regions = ["서울", "부산", "대구"]
     with open(path, "w", newline="", encoding="utf-8") as fh:

@@ -9,6 +9,7 @@
 
 import asyncio
 import csv
+import hashlib
 import importlib.util
 import json
 import shutil
@@ -131,6 +132,65 @@ def test_status_note_context_injection_and_telemetry(lab):
     lines = [json.loads(line) for line in (root / ".lab/telemetry.jsonl").read_text(encoding="utf-8").splitlines()]
     assert [(t["tool"], t["flags"], t["error"]) for t in lines] == [
         ("bash", ["python_via_bash"], False), ("write", ["wrote_managed_path"], True)]
+
+
+def test_two_projects_in_one_host_keep_their_own_records(tmp_path, monkeypatch):
+    """Issue #8's criterion 3, as design review T3 asks: one extension aelix loaded serves two
+    projects in turn. Each project's journal and telemetry hold its own tool call and nothing of the
+    other's, the prompt's context block follows `/lab use`, and no file of the first project changes
+    while the second is used. A tool call still running across `/lab use` is recorded in the project
+    active when it ends: that is not checked here."""
+    from aelix_coding_agent.extensions.loader import load_extensions
+
+    monkeypatch.delenv("AELIX_LAB_PROJECT", raising=False)
+    monkeypatch.chdir(tmp_path)
+    # No uv to find: the report build a note schedules starts nothing.
+    monkeypatch.setenv("AELIX_LAB_UV", str(tmp_path / "no-uv" / "uv"))
+    core = fresh_module().core
+    roots = {}
+    for name in ("A", "B"):
+        roots[name] = tmp_path / name
+        core.init_project(roots[name], title=f"프로젝트 {name}",
+                          template_dir=PACK / "kit" / "labkit" / "template", actor="test")
+    loaded = asyncio.run(load_extensions([str(EXT)]))
+    assert loaded.errors == []
+    (ext,) = loaded.extensions
+    lab = ext.commands["lab"].handler
+    [before], [start], [end] = (ext.handlers[k] for k in ("before_agent_start",
+                                                         "tool_execution_start",
+                                                         "tool_execution_end"))
+    ctx = SimpleNamespace()
+
+    def use_and_note(name: str) -> str:
+        assert "active project" in asyncio.run(lab(f"use {roots[name]}"))
+        args = {"kind": "finding", "text": f"{name}에서만 본 것"}
+        start(ToolExecutionStartHookEvent(tool_call_id=f"n-{name}", tool_name="lab_note", args=args),
+              ctx)
+        noted = call(ext.tools["lab_note"], args)
+        end(ToolExecutionEndHookEvent(tool_call_id=f"n-{name}", tool_name="lab_note"), ctx)
+        assert not noted.is_error, text_of(noted)
+        out = asyncio.run(before(BeforeAgentStartHookEvent(prompt="hi", system_prompt="BASE"), ctx))
+        return out.system_prompt
+
+    def files(root: Path) -> dict:
+        return {p.relative_to(root).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+                for p in sorted(root.rglob("*")) if p.is_file()}
+
+    blocks = {"A": use_and_note("A")}
+    a_files = files(roots["A"])
+    blocks["B"] = use_and_note("B")
+    assert files(roots["A"]) == a_files, "using B changed A's files"
+    for name, other in (("A", "B"), ("B", "A")):
+        assert f"title: 프로젝트 {name}" in blocks[name] and f"{name}에서만 본 것" in blocks[name]
+        assert f"프로젝트 {other}" not in blocks[name] and f"{other}에서만" not in blocks[name]
+        telemetry = [json.loads(line) for line in (roots[name] / ".lab" / "telemetry.jsonl")
+                     .read_text(encoding="utf-8").splitlines()]
+        assert [row["tool"] for row in telemetry] == ["lab_note"], telemetry
+        assert f"{name}에서만 본 것" in telemetry[0]["summary"], telemetry
+        notes = [e["text"] for e in core.read_events(core.Project(roots[name]))
+                 if e.get("kind") == "finding"]
+        assert notes == [f"{name}에서만 본 것"], notes
+    assert lab.__globals__["STATE"]["report_tasks"] == {}, "a report build was started"
 
 
 def test_lab_command_where_help_and_gap(lab):

@@ -426,6 +426,44 @@ def test_open_starts_no_opener_once_a_signal_has_arrived(tmp_path, monkeypatch, 
     assert opened == []
 
 
+@pytest.mark.parametrize("winerror", [None, 1155])
+def test_open_through_the_windows_port_builds_a_missing_report_then_starts_it(
+        fake, tmp_path, monkeypatch, capsys, winerror):
+    """ADR-0004 check 4 on Windows (design review, Codex 6): `analytics open` through the Windows
+    port with os.startfile replaced, so no program opens. A missing report is built first and the
+    file then goes to os.startfile: exit 0. A file no program is associated with (WinError 1155) is
+    exit 1 and the message. Off Windows the Windows port is built by name; a real opener is not run."""
+    project = project_dir(tmp_path)
+    index = project / "report" / "index.html"
+    started = []
+
+    def startfile(path, *args, **kwargs):
+        started.append(path)
+        if winerror:
+            raise OSError(22, "No application is associated with the specified file for this "
+                              "operation", path, winerror)
+
+    monkeypatch.setattr(os, "startfile", startfile, raising=False)
+    if POSIX:
+        port = cli._load_platform(KIT)
+        monkeypatch.setattr(cli, "_load_platform",
+                            lambda kit: SimpleNamespace(detect=lambda: port.detect("windows")))
+    monkeypatch.setenv("LAB_PROJECT", str(project))
+    monkeypatch.setenv("FAKE_UV_LOG", str(fake["log"]))
+    monkeypatch.delenv("FAKE_UV_DO", raising=False)
+    status = cli.run(["open"], kit=KIT, uv=[sys.executable, str(fake["uv"])])
+    assert [uv_args(c) for c in calls(fake)] == [kit_call(project, "report")]
+    assert started == [os.fspath(index)]
+    err = capsys.readouterr().err
+    if winerror:
+        assert status == 1
+        assert f"analytics: could not open {index} (" in err
+        assert "); open it in a browser yourself" in err
+    else:
+        assert status == 0, err
+        assert err == ""
+
+
 # --- signals --------------------------------------------------------------------------------------
 
 
@@ -448,7 +486,8 @@ def signals_the_kit_got(fake) -> list[int]:
     return json.loads(Path(str(fake["log"]) + ".signals").read_text(encoding="utf-8"))
 
 
-@pytest.mark.skipif(not POSIX, reason="a terminal's process group; Windows consoles are PR-3's")
+@pytest.mark.skipif(not POSIX, reason="a terminal's process group; a Windows console's Ctrl+C is "
+                                       "tests/test_windows_console.py's")
 def test_ctrl_c_reaches_the_kit_once_and_the_launcher_waits_for_its_record(fake, tmp_path):
     """A terminal sends SIGINT to the whole foreground group. The kit records the run as cancelled
     and exits 3 (CONTRACTS D1); the launcher must neither die first nor pass the signal on again."""
@@ -570,6 +609,33 @@ def test_a_ctrl_c_while_a_child_starts_still_reaches_it(fake, tmp_path, monkeypa
         status = children.run(argv, env=dict(os.environ), cancellable=True)
     # It reached the child: here one that had not set a handler yet, as uv has none that early.
     assert status == 130
+
+
+@pytest.mark.skipif(POSIX, reason="what Windows does; POSIX sends it again (the test above)")
+def test_a_ctrl_c_while_a_child_starts_is_not_sent_again_on_windows(fake, monkeypatch):
+    """Investigation con-13: Windows has no SIGINT to send to one process (Popen.send_signal takes
+    SIGTERM, CTRL_C_EVENT and CTRL_BREAK_EVENT), so a Ctrl+C noted while the child is being started
+    is not sent to it again: the child runs to its end, its status is the launcher's, and no later
+    step starts. A console's Ctrl+C reaches every process attached to it, the child as well, which
+    tests/test_windows_console.py measures; this pins the part only the launcher decides."""
+    real_popen = subprocess.Popen
+
+    def popen_hit_by_ctrl_c(*args, **kwargs):
+        signal.raise_signal(signal.SIGINT)  # the launcher's handler notes it, as a console's
+        return real_popen(*args, **kwargs)
+
+    monkeypatch.setattr(cli.subprocess, "Popen", popen_hit_by_ctrl_c)
+    monkeypatch.setenv("FAKE_UV_LOG", str(fake["log"]))
+    # With a Ctrl+C sent to it the stand-in would stop waiting at once and record the signal.
+    monkeypatch.setenv("FAKE_UV_DO", json.dumps({"run": {"wait": 2, "exit": 3}}))
+    argv = [sys.executable, str(fake["uv"]), *kit_call(fake["tmp"], "run", "a.py")]
+    with cli._Children() as children:
+        status = children.run(argv, env=dict(os.environ), cancellable=True)
+        assert children.interrupted
+        assert children.run(argv, env=dict(os.environ)) == 130
+    assert status == 3, "the child ran to its end"
+    assert signals_the_kit_got(fake) == []
+    assert len(calls(fake)) == 1
 
 
 @pytest.mark.skipif(not POSIX, reason="a shell's background job")
