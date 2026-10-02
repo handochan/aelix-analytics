@@ -30,7 +30,15 @@ import warnings
 from pathlib import Path, PureWindowsPath
 
 import pytest
-from conftest import kit_env, labkit, write_sales_csv, write_script
+from conftest import (
+    LINK_KINDS,
+    dir_link,
+    kit_env,
+    labkit,
+    record_observation,
+    write_sales_csv,
+    write_script,
+)
 
 from labkit import _platform, core
 
@@ -2165,7 +2173,11 @@ def test_a_rerun_refuses_a_recorded_script_path_on_every_platform(project, recor
     assert code == 1 and result["error"]["code"] == "rerun_snapshot", result
 
 
-@pytest.mark.skipif(os.name == "nt", reason="names POSIX can hold and Windows reads otherwise")
+DRIVE_LIKE = pytest.mark.skipif(os.name == "nt", reason="Windows reads one character and a colon "
+                                "as a drive, and NTFS a colon in a name as a stream")
+
+
+@DRIVE_LIKE
 def test_a_new_run_of_a_path_no_record_could_rerun_is_refused(project):
     drive_like = Path(project) / "c:"
     drive_like.mkdir()
@@ -2174,9 +2186,9 @@ def test_a_new_run_of_a_path_no_record_could_rerun_is_refused(project):
     assert code == 1 and result["error"]["code"] == "script_location", result
 
 
-@pytest.mark.skipif(os.name == "nt", reason="names POSIX can hold and Windows reads otherwise")
-@pytest.mark.parametrize("rel", ["\u00e9:/a.py", "1:/a.py", "runs\\x.py", "RUNS/x.py",
-                                 "~no-such-user-here/a.py"])
+@pytest.mark.parametrize("rel", [pytest.param("\u00e9:/a.py", marks=DRIVE_LIKE),
+                                 pytest.param("1:/a.py", marks=DRIVE_LIKE), "runs\\x.py",
+                                 "RUNS/x.py", "~no-such-user-here/a.py"])
 def test_a_new_run_of_a_name_another_platform_reads_differently_is_refused_truthfully(project,
                                                                                      rel):
     """Review 6, ONC-4 and ONC-8: Windows reads any one character before a colon as a drive and a
@@ -2184,33 +2196,105 @@ def test_a_new_run_of_a_name_another_platform_reads_differently_is_refused_truth
     root file named `runs\\x.py` sits in a managed directory, which on POSIX it does not, but that
     `RUNS/x.py` does where this file system ignores case (review 7, output-9). A first segment
     starting with `~` that names no home is refused too, where it used to end the CLI with a
-    traceback."""
+    traceback. Issue #8 PR-3 (case-2, inv-10): the names Windows can hold run there as well, where
+    `runs\\x.py` is runs/x.py, in a managed directory."""
     path = Path(project) / rel
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("x = 1\n", encoding="utf-8")
     code, result = labkit(project, "run", rel, "--title", "name")
     assert code == 1 and result["error"]["code"] == "script_location", result
-    folds_case = rel == "RUNS/x.py" and (Path(project) / "runs").is_dir() and \
-        os.path.samefile(Path(project) / "RUNS", Path(project) / "runs")
-    expected = "inside a managed directory" if folds_case else "every platform"
+    in_runs = os.path.samefile(path.parent, Path(project) / "runs")
+    expected = "inside a managed directory" if in_runs else "every platform"
     assert expected in result["error"]["message"], result
 
 
-@pytest.mark.skipif(os.name == "nt", reason="a directory symlink needs privileges on Windows")
-def test_a_rerun_through_a_link_into_a_managed_directory_is_refused(project):
+def test_a_dataset_name_is_lower_case_everywhere(project, tmp_path):
+    """Issue #8 PR-3 (case-1): the names the kit chooses never differ only in case, so no file
+    system — one that ignores case or one that minds it — holds two datasets the kit named. A name
+    given in upper case is refused, and a file named in upper case is imported under its lower-case
+    stem, which here is taken."""
+    source = write_sales_csv(tmp_path / "Sales.csv")
+    code, result = labkit(project, "import", source, "--name", "Sales")
+    assert code == 1 and result["error"]["code"] == "dataset_name", result
+    code, result = labkit(project, "import", source)
+    assert code == 1 and result["error"]["code"] == "dataset_exists", result
+    assert "data/raw/sales.parquet" in result["error"]["message"], result
+
+
+@pytest.mark.skipif(os.name != "nt", reason="a directory flagged case-sensitive is Windows'")
+def test_a_project_in_a_case_sensitive_windows_directory_reads_runs_in_another_case_as_linux(
+        tmp_path):
+    """Issue #8 PR-3 (case-6, T4): Windows can mark an empty directory case-sensitive — the hosted
+    runner allows it — and directories created inside it inherit the flag. The project is made in
+    one, and its root and runs/ are first shown to hold two names that differ only in case, so the
+    test cannot pass on an ordinary directory. `RUNS/x.py` is then a directory of its own, and it is
+    refused by the rule for every platform, as on Linux. A refused flag fails the test."""
+    flagged = tmp_path / "case-sensitive"
+    flagged.mkdir()
+    done = subprocess.run(["fsutil.exe", "file", "setCaseSensitiveInfo", str(flagged), "enable"],
+                          capture_output=True, timeout=60, **_platform.text_kwargs())
+    assert done.returncode == 0, (done.stdout, done.stderr)
+    root = flagged / "proj"
+    core.init_project(root, title="대소문자", goal="대소문자 구분", actor="test",
+                      template_dir=KIT / "labkit" / "template")
+    for directory in (root, root / "runs"):
+        (directory / "Case-Probe").write_bytes(b"upper")
+        (directory / "case-probe").write_bytes(b"lower")
+        held = ((directory / "Case-Probe").read_bytes(), (directory / "case-probe").read_bytes())
+        (directory / "Case-Probe").unlink()
+        (directory / "case-probe").unlink()
+        assert held == (b"upper", b"lower"), (directory, held)
+    path = root / "RUNS" / "x.py"
+    path.parent.mkdir()
+    path.write_text("x = 1\n", encoding="utf-8")
+    assert not os.path.samefile(path.parent, root / "runs")
+    code, result = labkit(root, "run", "RUNS/x.py", "--title", "case")
+    assert code == 1 and result["error"]["code"] == "script_location", result
+    assert "every platform" in result["error"]["message"], result
+
+
+def _link_loop(kind: str, link: Path) -> Path:
+    """`link` made into a link loop of `kind`. A symbolic link names itself by its relative name, as
+    these tests always made it. A junction stores an absolute target that exists, so it cannot name
+    itself: two junctions name each other, `link` and `<link>-partner`, the partner made first as a
+    directory and then, once removed, as a junction back (T1). Either way the loop is shown to be
+    one, so a link to nothing cannot pass for it."""
+    if kind == "symlink":
+        dir_link(kind, link, link.name)
+    else:
+        partner = link.with_name(f"{link.name}-partner")
+        partner.mkdir()
+        dir_link(kind, link, partner)
+        partner.rmdir()
+        dir_link(kind, partner, link)
+    with pytest.raises(OSError):  # ELOOP, or WinError 1921 on Windows
+        os.path.realpath(link, strict=True)
+    return link
+
+
+@pytest.mark.parametrize("kind", LINK_KINDS)
+def test_a_rerun_through_a_link_into_a_managed_directory_is_refused(project, kind):
     """Review 7, output-7: the managed-directory test on a rerun's path was lexical, so a directory
-    linked to runs/ put runs/ on sys.path, where a new run of the same path is refused."""
-    (Path(project) / "lnk").symlink_to(Path(project) / "runs", target_is_directory=True)
+    linked to runs/ put runs/ on sys.path, where a new run of the same path is refused. Issue #8
+    PR-3: a junction as well, which any Windows account can make. What the first run recorded
+    through the link is kept as an observation: `os.walk` descends a junction, not a symbolic link
+    (T5)."""
+    dir_link(kind, Path(project) / "lnk", Path(project) / "runs")
     run_id = _recorded_as(project, "lnk/x.py")
+    first = json.loads((Path(project) / "runs" / run_id / "run.json").read_text(encoding="utf-8"))
+    record_observation(f"link-into-runs-{kind}", {key: first.get(key)
+                                                  for key in ("outputs", "warnings")})
     code, result = labkit(project, "run", "--rerun-of", run_id, "--title", "link")
     assert code == 1 and result["error"]["code"] == "rerun_snapshot", result
 
 
-@pytest.mark.skipif(os.name == "nt", reason="a directory symlink needs privileges on Windows")
-def test_a_rerun_through_a_link_loop_runs_as_on_main(project):
+@pytest.mark.parametrize("kind", LINK_KINDS)
+def test_a_rerun_through_a_link_loop_runs_as_on_main(project, kind):
     """Review 7, output-3: resolving a path through a link loop raises RuntimeError on CPython 3.12
-    (not on 3.13+), and the new containment check turned a record main reran into a traceback."""
-    (Path(project) / "loop").symlink_to("loop")
+    (not on 3.13+), and the new containment check turned a record main reran into a traceback.
+    Issue #8 PR-3 (crit-1): Windows' realpath follows a loop of junctions to the partner's stored
+    target, which here is inside the project too, so that rerun runs as well."""
+    _link_loop(kind, Path(project) / "loop")
     run_id = _recorded_as(project, "loop/x.py")
     code, result = labkit(project, "run", "--rerun-of", run_id, "--title", "loop")
     assert code == 0 and result["run"]["status"] == "ok", result
@@ -2234,17 +2318,48 @@ def _recorded_as(project, script_path: str) -> str:
     return one["run"]["id"]
 
 
-@pytest.mark.skipif(os.name == "nt", reason="a directory symlink needs privileges on Windows")
-def test_a_rerun_does_not_follow_a_link_out_of_the_project(project, tmp_path):
+@pytest.mark.parametrize("kind", LINK_KINDS)
+def test_a_rerun_does_not_follow_a_link_out_of_the_project(project, tmp_path, kind):
     """Review 6, ONC-5: the recorded path was checked only as text, so a directory inside the
-    project that links outside it put outside code at sys.path[0]."""
+    project that links outside it put outside code at sys.path[0]. Issue #8 PR-3: a junction as
+    well."""
     outside = tmp_path / "outside"
     outside.mkdir()
     (outside / "evilmod.py").write_text("print('IMPORTED outside module')\n", encoding="utf-8")
-    (Path(project) / "lnk").symlink_to(outside, target_is_directory=True)
+    dir_link(kind, Path(project) / "lnk", outside)
     run_id = _recorded_as(project, "lnk/x.py")
     code, result = labkit(project, "run", "--rerun-of", run_id, "--title", "link")
     assert code == 1 and result["error"]["code"] == "rerun_snapshot", result
+
+
+@pytest.mark.parametrize("kind", LINK_KINDS)
+def test_a_run_through_a_linked_data_directory_is_recorded_as_measured(project, tmp_path, kind):
+    """Issue #8 PR-3 (sym-9, T5): a project whose data/ is a link to a directory elsewhere, on a
+    larger disk say. What a run saving a dataset there records, what a run reading it back records,
+    and the datasets the project then lists are kept as an observation (`linked-data-<kind>`), from
+    which CONTRACTS G states it per platform. Asserted is only what holds everywhere today: both
+    runs end `ok`, and the dataset is written at the link's target. A junction to an ancestor of
+    the project is not run."""
+    data = Path(project) / "data"
+    elsewhere = tmp_path / "bigdisk" / "data"
+    elsewhere.parent.mkdir()
+    shutil.move(data, elsewhere)
+    dir_link(kind, data, elsewhere)
+    body = "import labkit as lab\nlab.save(lab.read('sales').head(5), 'part')\n"
+    code, saved = labkit(project, "run", write_script(project, "95_save.py", body),
+                         "--title", "save")
+    assert code == 0 and saved["run"]["status"] == "ok", saved
+    assert (elsewhere / "derived" / "part.parquet").is_file()
+    body = "import labkit as lab\nprint(len(lab.read('part')))\n"
+    code, read = labkit(project, "run", write_script(project, "96_read.py", body),
+                        "--title", "read")
+    assert code == 0 and read["run"]["status"] == "ok", read
+    datasets = core.list_datasets(core.Project(project))
+    record_observation(f"linked-data-{kind}", {
+        "save": {key: saved["run"].get(key) for key in ("outputs", "inputs", "warnings")},
+        "read": {key: read["run"].get(key) for key in ("outputs", "inputs", "warnings")},
+        "datasets": [{key: ds.get(key) for key in ("name", "path", "kind", "producer", "used_by")}
+                     for ds in datasets]})
 
 
 def test_a_snapshot_that_cannot_be_written_leaves_no_run_behind(project):
@@ -2445,12 +2560,17 @@ def test_the_installed_module_runs_the_kit_installed_with_it(monkeypatch, tmp_pa
     assert (module.KIT, module.KIT_ROUTE) == (KIT.resolve(), "installed")
 
 
-@pytest.mark.skipif(os.name == "nt", reason="a symbolic link to the kit")
-def test_the_installed_module_loaded_as_a_file_finds_the_kit_beside_it(monkeypatch, tmp_path):
+@pytest.mark.parametrize("kit", ["copy", *LINK_KINDS])
+def test_the_installed_module_loaded_as_a_file_finds_the_kit_beside_it(monkeypatch, tmp_path, kit):
+    """The wheel installs the kit as a real directory beside the module, which the copy is; a link
+    to the kit is found the same way (Issue #8 PR-3, Codex 9: the copy runs on every platform)."""
     package = tmp_path / "aelix_analytics"
     package.mkdir()
     (package / "extension.py").write_bytes(EXT.read_bytes())
-    (package / "kit").symlink_to(KIT, target_is_directory=True)
+    if kit == "copy":
+        shutil.copytree(KIT, package / "kit", ignore=shutil.ignore_patterns("__pycache__"))
+    else:
+        dir_link(kit, package / "kit", KIT)
     monkeypatch.delenv("AELIX_LAB_KIT", raising=False)
     for key, value in _aelix_stubs().items():
         monkeypatch.setitem(sys.modules, key, value)
@@ -4453,15 +4573,16 @@ def test_a_record_that_cannot_be_written_as_utf8_leaves_no_run_directory(project
     assert not list((Path(project) / "runs").glob("*")), list((Path(project) / "runs").glob("*"))
 
 
-@pytest.mark.skipif(os.name == "nt", reason="a directory symlink needs privileges on Windows")
-def test_a_rerun_through_an_outward_link_is_refused_behind_a_loop_too(project, tmp_path):
+@pytest.mark.parametrize("kind", LINK_KINDS)
+def test_a_rerun_through_an_outward_link_is_refused_behind_a_loop_too(project, tmp_path, kind):
     """Review 8, rest-7: Path.resolve raises for a link loop on CPython 3.12 and resolves up to it on
     3.13, so a record reaching outside through a link and then a loop was refused on 3.13 and 3.14
-    and rerun on 3.12. Links are followed with os.path.realpath now, the same on every version."""
+    and rerun on 3.12. Links are followed with os.path.realpath now, the same on every version.
+    Issue #8 PR-3: junctions as well (T1)."""
     outside = tmp_path / "outside"
     outside.mkdir()
-    (outside / "loop").symlink_to("loop")
-    (Path(project) / "out").symlink_to(outside)
+    _link_loop(kind, outside / "loop")
+    dir_link(kind, Path(project) / "out", outside)
     run_id = _recorded_as(project, "out/loop/x.py")
     code, result = labkit(project, "run", "--rerun-of", run_id, "--title", "outward")
     assert code == 1 and result["error"]["code"] == "rerun_snapshot", result
@@ -4666,22 +4787,23 @@ def test_a_cancel_cut_short_as_its_region_is_left_is_found_in_what_the_exit_caug
     assert _handlers() == before
 
 
-@pytest.mark.skipif(os.name == "nt", reason="a directory symlink needs privileges on Windows")
+@pytest.mark.parametrize("kind", LINK_KINDS)
 @pytest.mark.parametrize("where", ["snapshot", "code_root"])
-def test_a_rerun_whose_recorded_snapshot_loops_is_refused(project, where):
+def test_a_rerun_whose_recorded_snapshot_loops_is_refused(project, where, kind):
     """Review 9, rest-8: the recorded snapshot was still resolved with Path.resolve, which raises
     for a link loop on CPython 3.12: a traceback and no JSON line there, a refusal on 3.13 and
     3.14. Review 10, honesty-8 (N7): the run's code directory, which it is checked against, is
-    resolved the same way."""
+    resolved the same way. Issue #8 PR-3: junction loops as well (T1); Windows' realpath leads a
+    junction loop to the partner's stored target (crit-1), where no snapshot is a file either."""
     code, one = labkit(project, "run", write_script(project, "92_ok.py", "x = 1\n"), "--title", "x")
     assert code == 0, one
     run_id = one["run"]["id"]
     code_dir = Path(project) / "runs" / run_id / "code"
     if where == "code_root":
         shutil.rmtree(code_dir)
-        code_dir.symlink_to("code")
+        _link_loop(kind, code_dir)
     else:
-        (code_dir / "loop").symlink_to("loop")
+        _link_loop(kind, code_dir / "loop")
         run_json = Path(project) / "runs" / run_id / "run.json"
         record = json.loads(run_json.read_text(encoding="utf-8"))
         record["script"]["snapshot"] = f"runs/{run_id}/code/loop/x.py"
@@ -5111,6 +5233,18 @@ def test_a_tilde_name_pathlib_cannot_expand_is_taken_as_written(tmp_path, monkey
     assert project.path("~nosuchuser/x.csv") == project.root / "~nosuchuser" / "x.csv"
 
 
+def _not_utf8(*parts) -> str | bytes:
+    """A path whose names hold `\\udce9`, which is how POSIX hands over the byte 0xE9 that UTF-8
+    cannot decode. POSIX names are bytes, so it is made of them there. Windows decodes a bytes path
+    as UTF-8 before any system call (PEP 529), so such bytes never reached NTFS — what the earlier
+    skips said NTFS refused — and the name is made as the str instead: NTFS stores the lone
+    surrogate as an unpaired UTF-16 unit, and lists it back as the same str (Issue #8 PR-3,
+    inv-6)."""
+    if os.name == "nt":
+        return os.path.join(*map(os.fsdecode, parts))
+    return os.path.join(*map(os.fsencode, parts))
+
+
 def test_a_scanned_name_a_record_cannot_hold_is_left_out(project):
     """Review 10, rest-2: a record is UTF-8, and POSIX hands over a name that is not UTF-8 with
     surrogates in it, so the record could not be written: no JSON line, and the run left
@@ -5120,9 +5254,9 @@ def test_a_scanned_name_a_record_cannot_hold_is_left_out(project):
     raw = Path(project) / "data" / "raw"
     (raw / "ok.csv").write_text("x\n1\n", encoding="utf-8")
     try:
-        with open(os.path.join(os.fsencode(raw), b"caf\xe9.csv"), "wb") as fh:
+        with open(_not_utf8(raw, "caf\udce9.csv"), "wb") as fh:
             fh.write(b"x\n2\n")
-    except (OSError, ValueError) as exc:
+    except OSError as exc:
         pytest.skip(f"this file system refuses a name that is not UTF-8: {exc!r}")
     body = "\"\"\"Reads 'data/raw/*.csv' with DuckDB later.\"\"\"\nprint('hi')\n"
     code, result = labkit(project, "run", write_script(project, "94_glob.py", body),
@@ -5132,8 +5266,9 @@ def test_a_scanned_name_a_record_cannot_hold_is_left_out(project):
 
 
 def test_the_scan_leaves_a_name_a_record_cannot_hold_out_of_the_same_glob(project, monkeypatch):
-    """Review 10, rest-2, where the file system at hand refuses such a name (APFS, NTFS): the glob
-    answers with one, as Linux's does for a file whose name is not UTF-8."""
+    """Review 10, rest-2, where the file system at hand refuses such a name (APFS): the glob answers
+    with one, as Linux's does for a file whose name is not UTF-8, and NTFS's for a name holding a
+    lone surrogate."""
     from labkit import runner  # noqa: PLC0415
 
     raw = Path(project) / "data" / "raw"
@@ -5403,10 +5538,10 @@ def test_a_scanned_name_in_a_directory_a_record_cannot_hold_is_left_out(project)
     (raw / "ok").mkdir()
     (raw / "ok" / "x.csv").write_text("x\n1\n", encoding="utf-8")
     try:
-        os.mkdir(os.path.join(os.fsencode(raw), b"caf\xe9"))
-        with open(os.path.join(os.fsencode(raw), b"caf\xe9", b"x.csv"), "wb") as fh:
+        os.mkdir(_not_utf8(raw, "caf\udce9"))
+        with open(_not_utf8(raw, "caf\udce9", "x.csv"), "wb") as fh:
             fh.write(b"x\n2\n")
-    except (OSError, ValueError) as exc:
+    except OSError as exc:
         pytest.skip(f"this file system refuses a name that is not UTF-8: {exc!r}")
     body = "\"\"\"Reads 'data/raw/*/x.csv' with DuckDB later.\"\"\"\nprint('hi')\n"
     code, result = labkit(project, "run", write_script(project, "94_dir_glob.py", body),
