@@ -650,6 +650,10 @@
         "pass"
        ],
        [
+        "test_kit::test_finalization_survives_bad_notes_replaced_stdout_and_unreadable_outputs",
+        "pass"
+       ],
+       [
         "test_kit::test_query_cannot_write_or_read_outside_data",
         "pass"
        ],
@@ -801,6 +805,10 @@
         "pass"
        ],
        [
+        "test_platform::test_the_shipped_code_names_the_encoding_of_every_text_call_the_scan_knows",
+        "pass"
+       ],
+       [
         "test_platform::test_a_rerun_through_an_outward_link_is_refused_behind_a_loop_too[symlink]",
         "pass"
        ],
@@ -823,6 +831,10 @@
        ],
        [
         "test_platform::test_a_scanned_name_a_record_cannot_hold_is_left_out",
+        "pass"
+       ],
+       [
+        "test_platform::test_a_scanned_name_in_a_directory_a_record_cannot_hold_is_left_out",
         "pass"
        ]
       ]
@@ -9631,6 +9643,10 @@
         "pass"
        ],
        [
+        "test_kit::test_finalization_survives_bad_notes_replaced_stdout_and_unreadable_outputs",
+        "pass"
+       ],
+       [
         "test_kit::test_query_cannot_write_or_read_outside_data",
         "pass"
        ],
@@ -9782,6 +9798,10 @@
         "pass"
        ],
        [
+        "test_platform::test_the_shipped_code_names_the_encoding_of_every_text_call_the_scan_knows",
+        "pass"
+       ],
+       [
         "test_platform::test_a_rerun_through_an_outward_link_is_refused_behind_a_loop_too[symlink]",
         "pass"
        ],
@@ -9804,6 +9824,11 @@
        ],
        [
         "test_platform::test_a_scanned_name_a_record_cannot_hold_is_left_out",
+        "skip",
+        "this file system refuses a name that is not UTF-8: OSError(92, 'Illegal byte sequence')"
+       ],
+       [
+        "test_platform::test_a_scanned_name_in_a_directory_a_record_cannot_hold_is_left_out",
         "skip",
         "this file system refuses a name that is not UTF-8: OSError(92, 'Illegal byte sequence')"
        ]
@@ -11333,6 +11358,10 @@
      "pass"
     ],
     [
+     "test_kit::test_finalization_survives_bad_notes_replaced_stdout_and_unreadable_outputs",
+     "pass"
+    ],
+    [
      "test_kit::test_query_cannot_write_or_read_outside_data",
      "pass"
     ],
@@ -11488,6 +11517,10 @@
      "pass"
     ],
     [
+     "test_platform::test_the_shipped_code_names_the_encoding_of_every_text_call_the_scan_knows",
+     "pass"
+    ],
+    [
      "test_platform::test_a_rerun_through_an_outward_link_is_refused_behind_a_loop_too[symlink]",
      "pass"
     ],
@@ -11510,6 +11543,11 @@
     ],
     [
      "test_platform::test_a_scanned_name_a_record_cannot_hold_is_left_out",
+     "skip",
+     "this file system refuses a name that is not UTF-8: OSError(92, 'Illegal byte sequence')"
+    ],
+    [
+     "test_platform::test_a_scanned_name_in_a_directory_a_record_cannot_hold_is_left_out",
      "skip",
      "this file system refuses a name that is not UTF-8: OSError(92, 'Illegal byte sequence')"
     ]
@@ -11574,6 +11612,10 @@
      "pass"
     ],
     [
+     "test_kit::test_finalization_survives_bad_notes_replaced_stdout_and_unreadable_outputs",
+     "pass"
+    ],
+    [
      "test_kit::test_query_cannot_write_or_read_outside_data",
      "pass"
     ],
@@ -11729,6 +11771,10 @@
      "pass"
     ],
     [
+     "test_platform::test_the_shipped_code_names_the_encoding_of_every_text_call_the_scan_knows",
+     "pass"
+    ],
+    [
      "test_platform::test_a_rerun_through_an_outward_link_is_refused_behind_a_loop_too[symlink]",
      "pass"
     ],
@@ -11750,6 +11796,11 @@
     ],
     [
      "test_platform::test_a_scanned_name_a_record_cannot_hold_is_left_out",
+     "skip",
+     "this file system refuses a name that is not UTF-8: OSError(92, 'Illegal byte sequence')"
+    ],
+    [
+     "test_platform::test_a_scanned_name_in_a_directory_a_record_cannot_hold_is_left_out",
      "skip",
      "this file system refuses a name that is not UTF-8: OSError(92, 'Illegal byte sequence')"
     ]
@@ -11812,6 +11863,10 @@
      "pass"
     ],
     [
+     "test_kit::test_finalization_survives_bad_notes_replaced_stdout_and_unreadable_outputs",
+     "pass"
+    ],
+    [
      "test_kit::test_query_cannot_write_or_read_outside_data",
      "pass"
     ],
@@ -11963,6 +12018,10 @@
      "pass"
     ],
     [
+     "test_platform::test_the_shipped_code_names_the_encoding_of_every_text_call_the_scan_knows",
+     "pass"
+    ],
+    [
      "test_platform::test_a_rerun_through_an_outward_link_is_refused_behind_a_loop_too[symlink]",
      "pass"
     ],
@@ -11985,6 +12044,11 @@
     ],
     [
      "test_platform::test_a_scanned_name_a_record_cannot_hold_is_left_out",
+     "skip",
+     "this file system refuses a name that is not UTF-8: OSError(92, 'Illegal byte sequence')"
+    ],
+    [
+     "test_platform::test_a_scanned_name_in_a_directory_a_record_cannot_hold_is_left_out",
      "skip",
      "this file system refuses a name that is not UTF-8: OSError(92, 'Illegal byte sequence')"
     ]
