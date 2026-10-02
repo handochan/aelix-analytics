@@ -87,8 +87,8 @@ aelix 안에서: `/lab`(현황) · `/lab open`(리포트) · "지역별 성장�
 
 ```sh
 cd $PACK && uv build                                   # dist/aelix_analytics-0.1.0-py3-none-any.whl
-uv tool install dist/aelix_analytics-0.1.0-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
-uv tool install aelix==0.1.0b2 --with dist/aelix_analytics-0.1.0-py3-none-any.whl   # aelix와 함께
+uv tool install --python 3.12 dist/aelix_analytics-0.1.0-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
+uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.1.0-py3-none-any.whl   # aelix와 함께
 ```
 
 - `analytics`는 명령 이름 말고는 `bin/lab`과 같은 명령·인자·usage를 쓰고 kit의 출력을 바이트 그대로 넘깁니다
