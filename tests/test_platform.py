@@ -1,8 +1,9 @@
 """The portable boundaries: the rules that are the same everywhere, the ports' contract, the
 injection seam and the loader the aelix process uses.
 
-Running the Windows implementations is out of scope here and stays `not_run` until Issue #8's
-platform verification: constructing the Windows bundle on POSIX proves wiring, never behaviour.
+The Windows implementations run where this suite runs on Windows (the repository CI's Windows leg).
+Constructing the Windows bundle on POSIX proves wiring, never behaviour: a test that needs Windows'
+own delivery runs there only.
 """
 
 from __future__ import annotations

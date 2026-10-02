@@ -14,9 +14,9 @@ everywhere is better than a per-platform one, because a project directory is a r
 stay readable on another machine.
 
 SUPPORT STATUS (ADR-0002). The POSIX implementations keep the kit's POSIX behaviour except where
-docs/CONTRACTS.md lists a change. Every Windows implementation here is written from documentation
-and the Issue #8 measurements, and is not evidence that Windows works until a Windows run of this
-code says so: what a run has to establish is in docs/CONTRACTS.md G.
+docs/CONTRACTS.md lists a change. The Windows implementations are measured by the repository CI on
+the configuration docs/CONTRACTS.md F names. What was measured, what is a declared limitation and
+what was not run are in docs/CONTRACTS.md G; code being here is not evidence that it works.
 """
 
 from __future__ import annotations

@@ -35,6 +35,10 @@ pytestmark = pytest.mark.skipif(os.name != "nt", reason="MAX_PATH and LongPathsE
 VENV_PYTHON = len(r"\.venv\Scripts\python.exe")
 # A root whose environment's interpreter stays under MAX_PATH (260, with its terminating null).
 SHORT_ROOT = 259 - VENV_PYTHON - 4
+# Without long paths a root must leave room for the project's own longest file, a context snapshot;
+# 230 did not (the first LongPathsEnabled=0 run). This one does, and the run's outputs still do not.
+CONTEXT_SNAPSHOT = len(r"\.lab\context\20261002-181930-910564_44593b156b5b.md")
+TEMPLATE_ROOT = 259 - CONTEXT_SNAPSHOT - 4
 # Past MAX_PATH for a working directory and for the root's own files (the probe's 312 failed).
 DEEP_ROOT = 300
 KIT_TIMEOUT = 180
@@ -144,10 +148,12 @@ def make_project(root: Path, observation: dict, title: str = "긴 경로") -> Pa
 def test_a_root_under_max_path_records_and_reports_outputs_past_it(tmp_path):
     """Route 1: a root short enough for its environment's interpreter, and a run whose outputs and
     their records go past MAX_PATH (a 60-character script, a 60-character dataset, a chart and its
-    data). The kit runs by this checkout's interpreter, so no environment is involved."""
+    data). The kit runs by this checkout's interpreter, so no environment is involved. Without long
+    paths the root is shorter still, so that the project can be made and only the run's outputs
+    pass MAX_PATH: what the run then records is the measurement."""
     observation = observe("root-under-max-path")
     try:
-        root = path_of_length(tmp_path, SHORT_ROOT)
+        root = path_of_length(tmp_path, SHORT_ROOT if ENABLED else TEMPLATE_ROOT)
         observation.update(root_length=len(str(root)),
                            venv_python_length=len(str(root)) + VENV_PYTHON)
         if make_project(root, observation) is None:
