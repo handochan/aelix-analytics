@@ -324,7 +324,7 @@ def run_case(name, script, keys, *, analytics, project, scratch, conpty=True, co
     s = Session(subprocess.list2cmdline(argv), str(project), env, conpty=conpty)
     t0 = time.time()
     while not ready.exists():
-        if time.time() - t0 > 120:
+        if time.time() - t0 > 60:
             s.close()
             raise RuntimeError(f"{name}: never ready\n{s.text()[-2000:]}")
         time.sleep(0.02)
@@ -412,6 +412,8 @@ if __name__ == "__main__":
     ap.add_argument("--cases", default=",".join(CASES))
     ap.add_argument("--output", required=True)
     a = ap.parse_args()
+    # The shell runs in the project directory: every path it is handed must be absolute.
+    a.analytics, a.project, a.scratch = (str(Path(x).resolve()) for x in (a.analytics, a.project, a.scratch))
     out = []
     Path(a.output).parent.mkdir(parents=True, exist_ok=True)
     for n in a.cases.split(","):
