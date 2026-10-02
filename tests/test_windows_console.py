@@ -83,6 +83,9 @@ def case(console, name, script, keys, python="3.12", **kwargs) -> dict:
         record_observation(f"console/{tag}", {"python": python, "case_error": str(exc)[:300],
                                               **exc.result})
         raise
+    except Exception as exc:  # the harness's own failure is kept too
+        record_observation(f"console/{tag}", {"python": python, "harness_error": repr(exc)[:300]})
+        raise
     result["python"] = python
     record_observation(f"console/{tag}", result)
     return result
@@ -115,6 +118,10 @@ def assert_cancelled_before_the_prompt(result):
         assert result["result_line_before_prompt"], result
         assert result["korean_title_on_console"], result
     assert result["left_over_after_kit"] == [], result
+    # At the prompt already, not only after the settle: only the shell and a console host remain.
+    stray = {pid: n for pid, n in result["names_at_prompt"].items()
+             if pid != prompt["shell"] and n is not None and n.lower() not in wc.HOSTS}
+    assert not stray, result
     assert result["left_after_close"] == 0, result
 
 
@@ -135,6 +142,9 @@ def test_ctrl_c_cancels_the_run_before_the_prompt(console, script, python):
     that checks for signals (_sre), unlike the extension's cancel and the Windows timeout."""
     result = case(console, f"c_{script}", script, [b"\x03"], python)
     assert_cancelled_before_the_prompt(result)
+    # The Ctrl+C came while the run was where the row says: the traceback names that frame.
+    frame = {"child_wait": ", in _wait", "regex": ", in match"}.get(script)
+    assert frame is None or frame in result["text_tail"], result
 
 
 def test_ctrl_c_a_script_swallowed_is_delivered_again(console):
@@ -176,12 +186,16 @@ def second_run(console):
     def started_after_the_prompt(session, seen):
         alive = [n for p, n in session.names(session.job_pids()).items() if p != session.pid]
         t = time.time()
-        done = subprocess.run([analytics, "run", rel, "--title", "콘솔 second"],
-                              cwd=console.project, env=console.env, capture_output=True,
-                              encoding="utf-8", errors="replace", timeout=120)
+        # In a job of its own, in a hidden console of its own: whatever it starts ends with the
+        # session, and its wait is bounded (Codex R2).
+        cmdline = subprocess.list2cmdline([analytics, "run", rel, "--title", "콘솔 second"])
+        with wc.Session(cmdline, str(console.project), console.env, conpty=False) as second:
+            finished = wc.wait_until(second.root_ended, 120)
+            rc = second.exit_code()
         record = wc.record_of(console.project, rel)
-        return {"processes_of_the_first_run_alive": alive, "rc": done.returncode,
+        return {"processes_of_the_first_run_alive": alive, "rc": rc, "finished": finished,
                 "seconds": round(time.time() - t, 3),
+                "left_after_close": second.left_after_close,
                 "record": record and {k: record.get(k) for k in ("status", "started_at",
                                                                   "ended_at")}}
 
@@ -211,6 +225,7 @@ def test_ctrl_break_ends_uv_at_once_and_the_kit_records_cancelled_later(console,
                 >= datetime.fromisoformat(first_ended)),
             "first_ended_at": first_ended, "second": second}
         record_observation(f"console/{name}_py312", result)
+        assert (result.get("after_prompt") or {}).get("left_after_close") == 0, result
     assert_helper_sent(result)
     prompt = result["prompt"]
     assert prompt and prompt["rc"] == wc.STATUS_CONTROL_C_EXIT, result
@@ -270,8 +285,9 @@ def test_observe_pwsh_capturing_status(console, codepage):
     captured.parent.mkdir(parents=True, exist_ok=True)
     captured.unlink(missing_ok=True)
     command = (f"$o = & '{console.installs['3.12']}' status; $c = $LASTEXITCODE; "
-               "$e = [Console]::OutputEncoding.CodePage; "
-               f"[IO.File]::WriteAllLines('{captured}', [string[]](@('cp=' + $e, 'rc=' + $c) + $o))")
+               "$e = [Console]::OutputEncoding.CodePage; $v = $PSVersionTable.PSVersion; "
+               f"[IO.File]::WriteAllLines('{captured}', "
+               "[string[]](@('cp=' + $e, 'rc=' + $c, 'pwsh=' + $v) + $o))")
     name = f"pwsh_status_{codepage}"
     try:
         result = wc.run_case(name, None, [], analytics=console.installs["3.12"],
@@ -292,9 +308,10 @@ def test_observe_pwsh_capturing_status(console, codepage):
 
 
 def test_closing_the_console_ends_the_run_cancelled_or_incomplete(console):
-    """ClosePseudoConsole, as closing the window: CTRL_CLOSE_EVENT reaches the kit as SIGBREAK, and
-    Windows ends a process once its handler returns. Which of the two the record ends as is
-    measured (the observation says), not promised (CC-2)."""
+    """ClosePseudoConsole, as closing the window does: Windows sends CTRL_CLOSE_EVENT to every
+    process attached and ends each once its handler returns, so the kit may or may not get to write
+    its record. Which of the two the record ends as is measured (the observation says), not promised
+    (CC-2); whether the kit's handler ran is not observed. A person closing a window is not run."""
     result = case(console, "close_busy", "busy", [("close",)])
     assert result["record_status"] in ("cancelled", "incomplete"), result
     assert result["left_over_after_kit"] == [], result

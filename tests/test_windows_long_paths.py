@@ -35,8 +35,10 @@ pytestmark = pytest.mark.skipif(os.name != "nt", reason="MAX_PATH and LongPathsE
 VENV_PYTHON = len(r"\.venv\Scripts\python.exe")
 # A root whose environment's interpreter stays under MAX_PATH (260, with its terminating null).
 SHORT_ROOT = 259 - VENV_PYTHON - 4
-# Without long paths a root must leave room for the project's own longest file, a context snapshot;
-# 230 did not (the first LongPathsEnabled=0 run). This one does, and the run's outputs still do not.
+# Without long paths a root must leave room for the files a new project needs, the longest a
+# context snapshot; 230 did not (the first LongPathsEnabled=0 run). This one does, and the run's
+# outputs still do not. (A dataset's cached profile, `.lab/cache/profiles/<sha256>-20.json`, is
+# longer, but the kit skips it when it cannot be written.)
 CONTEXT_SNAPSHOT = len(r"\.lab\context\20261002-181930-910564_44593b156b5b.md")
 TEMPLATE_ROOT = 259 - CONTEXT_SNAPSHOT - 4
 # Past MAX_PATH for a working directory and for the root's own files (the probe's 312 failed).
@@ -104,7 +106,9 @@ def attempt(observation: dict, name: str, action):
     try:
         value = action()
     except Exception as exc:
-        observation[name] = {"raised": repr(exc), "winerror": getattr(exc, "winerror", None)}
+        failed = getattr(exc, "filename", None)
+        observation[name] = {"raised": repr(exc), "winerror": getattr(exc, "winerror", None),
+                             "filename": failed, "filename_length": failed and len(str(failed))}
         if ENABLED:
             raise
         return None
@@ -147,17 +151,18 @@ def make_project(root: Path, observation: dict, title: str = "긴 경로") -> Pa
 
 def test_a_root_under_max_path_records_and_reports_outputs_past_it(tmp_path):
     """Route 1: a root short enough for its environment's interpreter, and a run whose outputs and
-    their records go past MAX_PATH (a 60-character script, a 60-character dataset, a chart and its
-    data). The kit runs by this checkout's interpreter, so no environment is involved. Without long
-    paths the root is shorter still, so that the project can be made and only the run's outputs
-    pass MAX_PATH: what the run then records is the measurement."""
+    their records go past MAX_PATH (a 60-character script name, a 60-character dataset, a chart
+    and its data). The kit runs by this checkout's interpreter, so no environment is involved.
+    Without long paths the root is shorter still and the script's name short, so that the project
+    and the script can be made and the run starts: only its outputs pass MAX_PATH, and what the run
+    then records is the measurement (Codex R1: the long name kept the run from starting at all)."""
     observation = observe("root-under-max-path")
     try:
         root = path_of_length(tmp_path, SHORT_ROOT if ENABLED else TEMPLATE_ROOT)
         observation.update(root_length=len(str(root)),
                            venv_python_length=len(str(root)) + VENV_PYTHON)
-        if make_project(root, observation) is None:
-            return
+        # Either setting: the measurement is the run, so a project that cannot be made fails it.
+        assert make_project(root, observation) is not None, observation
         source = write_sales_csv(tmp_path / "sales.csv")
         imported = kit(root, "import", source, "--name", "sales")
         observation["import"] = imported
@@ -165,14 +170,15 @@ def test_a_root_under_max_path_records_and_reports_outputs_past_it(tmp_path):
                 "import matplotlib.pyplot as plt\nfig, ax = plt.subplots()\nax.plot([1, 2])\n"
                 "df = lab.read('sales')\nlab.save(df, 'a' * 60)\n"
                 "lab.chart(fig, 'a-chart-id-that-is-forty-characters-long', data=df)\n")
-        script = attempt(observation, "script", lambda: write_script(
-            root, "a_script_name_of_sixty_characters_for_the_long_path_test.py", body))
+        name = "a_script_name_of_sixty_characters_for_the_long_path_test.py" if ENABLED else "lp.py"
+        script = attempt(observation, "script", lambda: write_script(root, name, body))
         ran = kit(root, "run", script, "--title", "long") if script else None
         observation["run"] = ran
         reported = kit(root, "report")
         observation["report"] = reported
         deepest = attempt(observation, "deepest_file", lambda: deepest_file(root))
         if not ENABLED:
+            assert script is not None, observation  # the run was started, not skipped
             return
         assert imported["returncode"] == 0, imported
         assert ran["result"] is not None, ran
@@ -308,16 +314,29 @@ def test_no_program_starts_with_a_working_directory_past_max_path(tmp_path):
         keep(observation)
 
 
-# The launcher's code with this checkout's src and kit: argv is `src kit command...`.
-LAUNCHER = ("import sys\nfrom pathlib import Path\nsrc, kit = sys.argv.pop(1), sys.argv.pop(1)\n"
-            "sys.path.insert(0, src)\nfrom aelix_analytics import cli\n"
-            "raise SystemExit(cli.run(sys.argv[1:], kit=Path(kit)))\n")
+def _installed_analytics(base: Path) -> str:
+    """`analytics.exe` of the wheel built from this checkout, installed in a new environment as
+    tests/test_packaging.py installs it (Codex R7: the route is the installed command's)."""
+    uv = shutil.which("uv")
+    venv = base / "venv"
+    for argv, limit in (([uv, "build", "--wheel", "--quiet", "-o", base / "dist", PACK], 180),
+                        ([uv, "venv", "--quiet", "--python", "3.12", venv], 60)):
+        done = subprocess.run([str(a) for a in argv], capture_output=True, text=True,
+                              encoding="utf-8", errors="replace", timeout=limit)
+        assert done.returncode == 0, (argv, done.stdout, done.stderr)
+    [wheel] = (base / "dist").glob("*.whl")
+    done = subprocess.run([uv, "pip", "install", "--quiet", "--python",
+                           str(venv / "Scripts" / "python.exe"), "--no-deps", "--offline",
+                           str(wheel)], capture_output=True, text=True, encoding="utf-8",
+                          errors="replace", timeout=60)
+    assert done.returncode == 0, (done.stdout, done.stderr)
+    return str(venv / "Scripts" / "analytics.exe")
 
 
-def _launch(args, *, cwd: Path, env: dict, timeout: float) -> dict:
-    """The launcher's code (this checkout's src, kit and real uv) as a program, with every process it
-    starts ended at its time limit."""
-    argv = [sys.executable, "-c", LAUNCHER, str(PACK / "src"), str(KIT), *map(str, args)]
+def _launch(analytics: str, args, *, cwd: Path, env: dict, timeout: float) -> dict:
+    """The installed `analytics` (its own kit, real uv), with every process it starts ended at its
+    time limit."""
+    argv = [analytics, *map(str, args)]
     proc = subprocess.Popen(argv, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                             text=True, encoding="utf-8", errors="replace")
     try:
@@ -332,11 +351,15 @@ def _launch(args, *, cwd: Path, env: dict, timeout: float) -> dict:
             "stderr": err[-1500:]}
 
 
+# Longer than its own waits added up (build, environment, install, init, status, and the ends of
+# a timed-out tree), so a slow route ends by its own limit with its observation kept.
+@pytest.mark.timeout(1000)
 @pytest.mark.skipif(os.environ.get("AELIX_ANALYTICS_TEST_INSTALL") != "1",
                     reason="set AELIX_ANALYTICS_TEST_INSTALL=1 (network: uv syncs the project)")
 def test_the_launcher_from_a_short_directory_with_lab_project_past_max_path(tmp_path):
-    """Route 3: `analytics init` and `analytics status` started from a short directory, the second
-    with LAB_PROJECT naming the root. The launcher starts uv without a working directory; what uv
+    """Route 3: the installed `analytics init` and `analytics status` started from a short
+    directory, the second with LAB_PROJECT naming the root. The launcher starts uv without a working
+    directory; what uv
     then does with an environment past MAX_PATH (`<root>\\.venv\\Scripts\\python.exe`) is measured,
     not assumed: only the init's project files, made by the kit in a process with a short working
     directory, are asserted."""
@@ -345,16 +368,18 @@ def test_the_launcher_from_a_short_directory_with_lab_project_past_max_path(tmp_
     try:
         root = path_of_length(tmp_path / "p", DEEP_ROOT)
         observation.update(root_length=DEEP_ROOT, venv_python_length=DEEP_ROOT + VENV_PYTHON)
+        analytics = _installed_analytics(tmp_path / "install")
         env = {k: v for k, v in kit_env().items() if k not in ("PYTHONPATH", "LAB_PROJECT")}
-        init = _launch(["init", root, "--title", "긴 경로"], cwd=tmp_path, env=env, timeout=360)
+        init = _launch(analytics, ["init", root, "--title", "긴 경로"], cwd=tmp_path, env=env,
+                       timeout=360)
         observation["init"] = init
         observation["lab_json"] = attempt(observation, "lab_json_check",
                                           lambda: (root / "lab.json").is_file())
         observation["venv_python"] = attempt(
             observation, "venv_python_check",
             lambda: (root / ".venv" / "Scripts" / "python.exe").is_file())
-        status = _launch(["status"], cwd=tmp_path, env={**env, "LAB_PROJECT": str(root)},
-                         timeout=120)
+        status = _launch(analytics, ["status"], cwd=tmp_path,
+                         env={**env, "LAB_PROJECT": str(root)}, timeout=120)
         observation["status"] = status
         assert not init["timed_out"] and not status["timed_out"], observation
         if ENABLED:

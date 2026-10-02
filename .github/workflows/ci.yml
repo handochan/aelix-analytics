@@ -105,8 +105,9 @@ jobs:
         if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
         timeout-minutes: 10
         run: uv run --locked python tools/platform_smoke.py --gate required --output "${{ runner.temp }}/ci/smoke.json"
-      # The thread method: the run guard owns SIGALRM during an in-process run. What a test measures
-      # without asserting it goes to evidence/ in the uploaded directory. The console module has a
+      # The thread method: the run guard owns SIGALRM during an in-process run. What tests observe
+      # goes to evidence/ in the uploaded directory (the console's cases all go there, gated or
+      # not). The console module has a
       # step of its own (below), so a hung console case cannot take the suite's JUnit with it.
       - name: Repository tests, with the distribution's end-to-end leg
         if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
@@ -157,7 +158,7 @@ jobs:
         run: Set-ItemProperty -Path HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem -Name LongPathsEnabled -Value 0 -Type DWord
       - name: Long paths with LongPathsEnabled=0, Windows
         if: ${{ !cancelled() && steps.longpaths_off.outcome == 'success' }}
-        timeout-minutes: 10
+        timeout-minutes: 20
         env:
           AELIX_ANALYTICS_TEST_INSTALL: "1"
           AELIX_ANALYTICS_TEST_EVIDENCE_DIR: ${{ runner.temp }}/ci/evidence-long-paths-off

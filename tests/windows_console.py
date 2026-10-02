@@ -342,6 +342,14 @@ class Session:
     def root_ended(self) -> bool:
         return ended(self.process)
 
+    def exit_code(self) -> int | None:
+        """The root's exit status once it has ended, else None."""
+        if not self.root_ended():
+            return None
+        code = w.DWORD()
+        _check(k32().GetExitCodeProcess(self.process, ctypes.byref(code)), "GetExitCodeProcess")
+        return code.value
+
     @staticmethod
     def names(pids) -> dict[int, str | None]:
         out = {}
@@ -660,6 +668,10 @@ def run_case(name: str, script: str | None, keys, *, analytics: str, project, sc
             out["result_line_after_prompt"] = _result_line(tail)
             out["korean_title_on_console"] = f"콘솔 {name}" in text
             out["text_tail"] = text[-1500:]
+            if not session.conpty:  # no output pipe from a classic console: not read, not false
+                for key in ("prompt_on_console", "result_line_before_prompt",
+                            "result_line_after_prompt", "korean_title_on_console", "text_tail"):
+                    out[key] = None
     finally:
         if session is not None:
             out["left_after_close"] = session.left_after_close

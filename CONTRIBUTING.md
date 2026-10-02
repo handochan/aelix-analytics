@@ -122,7 +122,7 @@ uv run --locked python tools/check_docs.py --output .devstate/runs/<run-id>/evid
 | 작업 | 언제 | 무엇 | artifact (90일) |
 |---|---|---|---|
 | `lint` | 모든 PR과 main push | ruff, 문서 검사 | 문서 검사 결과, 실행 맥락 |
-| `platform` | Linux(`ubuntu-24.04`)·Windows(`windows-2025`)는 모든 PR과 main push, macOS(`macos-26`)는 아래의 경우 | 플랫폼 스모크(`tools/platform_smoke.py --gate required`), 저장소 시험(`AELIX_ANALYTICS_TEST_INSTALL=1`, 배포본 end-to-end 포함), aelix 0.1.0b2 통합(CPython 3.12·3.11), 런처 시험(CPython 3.11). Windows는 저장소 시험 뒤에 네이티브 콘솔 시험(`tests/test_windows_console.py`, 단계 따로)을, 시험 레그의 마지막에 LongPathsEnabled를 0으로 바꾸고 긴 경로 시험(`tests/test_windows_long_paths.py`)을 새 프로세스로 한 번 더 돌립니다 | 레그별 JUnit, 스모크 JSON(러너 설정 포함), 시험이 단언하지 않고 측정한 것(`evidence/`, `evidence-long-paths-off/`), 인터프리터, aelix 환경의 배포판 목록, 실행 맥락 |
+| `platform` | Linux(`ubuntu-24.04`)·Windows(`windows-2025`)는 모든 PR과 main push, macOS(`macos-26`)는 아래의 경우 | 플랫폼 스모크(`tools/platform_smoke.py --gate required`), 저장소 시험(`AELIX_ANALYTICS_TEST_INSTALL=1`, 배포본 end-to-end 포함), aelix 0.1.0b2 통합(CPython 3.12·3.11), 런처 시험(CPython 3.11). Windows는 저장소 시험 뒤에 네이티브 콘솔 시험(`tests/test_windows_console.py`, 단계 따로)을, 시험 레그의 마지막에 LongPathsEnabled를 0으로 바꾸고 긴 경로 시험(`tests/test_windows_long_paths.py`)을 새 프로세스로 한 번 더 돌립니다 | 레그별 JUnit, 스모크 JSON(러너 설정 포함), 시험이 관찰해 남긴 것(`evidence/`, `evidence-long-paths-off/`; 콘솔 사례는 단언하는 것까지 모두), 인터프리터, aelix 환경의 배포판 목록, 실행 맥락 |
 | `floor` | `platform`과 같은 OS | `actions/setup-python`의 CPython 3.11에서 표준 라이브러리만으로 플랫폼 스모크(`--stdlib-only`) | 스모크 JSON, 실행 맥락 |
 
 - macOS runner는 비공개 저장소에서 Linux의 약 10배로 과금되므로 PR에서는 요청할 때만 돕니다. PR에 `ci:macos` 라벨을 붙일

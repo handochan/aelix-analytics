@@ -368,20 +368,36 @@ def test_a_taskkill_in_the_working_directory_is_not_the_one_that_runs(monkeypatc
     # A program named taskkill.exe in the working directory (a copy of python.exe, which cannot even
     # start there without its DLL): run by its bare name it would be the one CreateProcess finds,
     # fail, and leave the tree; from the system directory the tree ends and nothing is reported.
+    # The child's own child is watched too: the child's end alone cannot tell a tree from its root
+    # (Codex R4).
     shutil.copy(sys.executable, tmp_path / "taskkill.exe")
     monkeypatch.chdir(tmp_path)
     control = _platform.WindowsProcessControl()
+    named = tmp_path / "grandchild.pid"
     child = subprocess.Popen([sys.executable, "-c", (
-        "import subprocess, sys, time; "
-        "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)']); time.sleep(60)")],
-        **control.spawn_kwargs())
+        "import pathlib, subprocess, sys, time; "
+        "g = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)']); "
+        f"t = pathlib.Path({str(named) + '.tmp'!r}); t.write_text(str(g.pid)); "
+        f"t.replace({str(named)!r}); time.sleep(60)")], **control.spawn_kwargs())
+    grandchild = None
     try:
-        time.sleep(1.0)
+        deadline = time.monotonic() + 30
+        while not named.is_file():
+            assert child.poll() is None and time.monotonic() < deadline, "no grandchild started"
+            time.sleep(0.05)
+        grandchild = int(named.read_text(encoding="utf-8"))
+        assert control.alive(grandchild)
         control.kill_tree(child.pid)
         assert child.wait(timeout=20) is not None
+        deadline = time.monotonic() + 20
+        while control.alive(grandchild) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert not control.alive(grandchild), "the grandchild outlived the tree"
     finally:
-        if child.poll() is None:
-            child.kill()
+        for pid in (grandchild, child.pid):  # whatever a failure left
+            if pid and control.alive(pid):
+                subprocess.run([control.system_program("taskkill.exe"), "/F", "/PID", str(pid)],
+                               capture_output=True, timeout=30)
     assert "could not end the process tree" not in capfd.readouterr().err
 
 
@@ -2268,8 +2284,12 @@ def _link_loop(kind: str, link: Path) -> Path:
         dir_link(kind, link, partner)
         partner.rmdir()
         dir_link(kind, partner, link)
-    with pytest.raises(OSError):  # ELOOP, or WinError 1921 on Windows
+    with pytest.raises(OSError) as raised:
         os.path.realpath(link, strict=True)
+    # A loop's own error, ELOOP or WinError 1921: a link to nothing raises too, FileNotFoundError,
+    # and must not pass for a loop (Codex R3).
+    loop = raised.value.errno == errno.ELOOP or getattr(raised.value, "winerror", None) == 1921
+    assert loop, repr(raised.value)
     return link
 
 
@@ -2277,9 +2297,9 @@ def _link_loop(kind: str, link: Path) -> Path:
 def test_a_rerun_through_a_link_into_a_managed_directory_is_refused(project, kind):
     """Review 7, output-7: the managed-directory test on a rerun's path was lexical, so a directory
     linked to runs/ put runs/ on sys.path, where a new run of the same path is refused. Issue #8
-    PR-3: a junction as well, which any Windows account can make. What the first run recorded
-    through the link is kept as an observation: `os.walk` descends a junction, not a symbolic link
-    (T5)."""
+    PR-3: a junction as well, which any Windows account can make. What the first run (a script in
+    scripts/, run while the link exists) recorded is kept as an observation: the kit's tree walk
+    descends a junction, not a symbolic link, so through a junction it sees runs/ twice (T5)."""
     dir_link(kind, Path(project) / "lnk", Path(project) / "runs")
     run_id = _recorded_as(project, "lnk/x.py")
     first = json.loads((Path(project) / "runs" / run_id / "run.json").read_text(encoding="utf-8"))
@@ -2533,6 +2553,30 @@ def load_extension(monkeypatch, name: str):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def test_a_tool_running_across_a_project_switch_is_recorded_where_it_ends(tmp_path, monkeypatch):
+    """Issue #8 criterion 3 (design review T3, the implementation review's Codex R6): the tool-start
+    hook keeps no project and the tool-end hook records into the project active when the tool ends,
+    so a call started in A and ended after `/lab use B` is in B's telemetry and not in A's. Pinned as
+    it is, a limitation CONTRACTS G states (main does the same); changing it is a decision."""
+    monkeypatch.delenv("AELIX_LAB_PROJECT", raising=False)
+    monkeypatch.setenv("AELIX_LAB_UV", str(tmp_path / "no-uv"))
+    monkeypatch.chdir(tmp_path)
+    module = load_extension(monkeypatch, "ext_switch_mid_tool")
+    roots = {name: tmp_path / name for name in ("A", "B")}
+    for name, root in roots.items():
+        core.init_project(root, title=name, actor="test", template_dir=KIT / "labkit" / "template")
+    asyncio.run(module.lab_command(f"use {roots['A']}"))
+    module.on_tool_start(types.SimpleNamespace(tool_call_id="t1", tool_name="lab_note",
+                                               args={"kind": "finding", "text": "A에서 시작"}), None)
+    asyncio.run(module.lab_command(f"use {roots['B']}"))
+    module.on_tool_end(types.SimpleNamespace(tool_call_id="t1", tool_name="lab_note",
+                                             is_error=False), None)
+    assert not (roots["A"] / ".lab" / "telemetry.jsonl").exists()
+    rows = [json.loads(line) for line in (roots["B"] / ".lab" / "telemetry.jsonl")
+            .read_text(encoding="utf-8").splitlines()]
+    assert [row["tool"] for row in rows] == ["lab_note"] and "A에서 시작" in rows[0]["summary"], rows
 
 
 ANALYSIS_MODULES = ("polars", "duckdb", "matplotlib", "plotly", "pyarrow", "numpy")
@@ -5260,6 +5304,8 @@ def test_a_scanned_name_a_record_cannot_hold_is_left_out(project):
             fh.write(b"x\n2\n")
     except OSError as exc:
         pytest.skip(f"this file system refuses a name that is not UTF-8: {exc!r}")
+    # The file system lists it back as made, so what follows is about a name the record cannot hold.
+    assert "caf\udce9.csv" in os.listdir(raw)
     body = "\"\"\"Reads 'data/raw/*.csv' with DuckDB later.\"\"\"\nprint('hi')\n"
     code, result = labkit(project, "run", write_script(project, "94_glob.py", body),
                           "--title", "glob")
@@ -5545,6 +5591,7 @@ def test_a_scanned_name_in_a_directory_a_record_cannot_hold_is_left_out(project)
             fh.write(b"x\n2\n")
     except OSError as exc:
         pytest.skip(f"this file system refuses a name that is not UTF-8: {exc!r}")
+    assert "caf\udce9" in os.listdir(raw)  # listed back as made
     body = "\"\"\"Reads 'data/raw/*/x.csv' with DuckDB later.\"\"\"\nprint('hi')\n"
     code, result = labkit(project, "run", write_script(project, "94_dir_glob.py", body),
                           "--title", "glob")
