@@ -4,8 +4,9 @@ Date: 2026-10-03
 
 Status: Accepted — 2026-10-03 소유자 결정 (Issue #37)
 
-채택은 구현 완료가 아니다. 구현은 흐름 B의 구현 Issue 하나가 #13의 writer 착수 전에 한다. 그때까지의 동작은
-[현재 계약](../CONTRACTS.md) G절의 '줄 끝' 한계다. 기록의 바이트 규칙은 [ADR-0006](0006-common-record-contract.md) 10절과 같다.
+채택은 구현 완료가 아니다. 구현은 흐름 B의 [#42](https://github.com/handochan/aelix-analytics/issues/42)가 #13의 writer 착수
+전에 한다. 그때까지의 동작은 [현재 계약](../CONTRACTS.md) G절의 '줄 끝' 한계다. 기록의 바이트 규칙은
+[ADR-0006](0006-common-record-contract.md) 10절과 같다.
 
 ## 배경
 
@@ -46,10 +47,11 @@ Status: Accepted — 2026-10-03 소유자 결정 (Issue #37)
    프로젝트는 고치지 않고 #13의 전환 보고서에서 제안한다. #10의 템플릿 전환과는 먼저 들어간 쪽에 맞춘다.
 6. **기존 CRLF 기록은 읽기만 보장한다.** CRLF·LF·혼합을 모두 읽고 기존 파일의 줄 끝을 고쳐 쓰지 않는다. #13의 전환은 바이트
    그대로 복사한다.
-7. **구현은 흐름 B의 구현 Issue 하나다.** #13 writer 착수 전에 병합해 #13이 LF 헬퍼를 그대로 쓰게 한다. 그 Issue가 Windows
-   CI에서 확인할 것: ① 체크아웃한 텍스트에 CRLF가 없다(`-text` fixture 제외) ② 기록·템플릿 사본·inline 스크립트·Workspace의
-   바이트가 LF이고 고정 예제의 sha256이 Linux 레그의 상수와 같다 ③ 빌드한 wheel 구성원에 CRLF가 없고 `kit_sha256`이 Linux
-   레그와 같다(artifact 비교) ④ `-text`로 둔 CRLF `lab.event/1` fixture(`tests/fixtures/records/mixed-version/`)를 읽는다.
+7. **구현은 흐름 B의 [#42](https://github.com/handochan/aelix-analytics/issues/42) 하나다.** #13 writer 착수 전에 병합해 #13이
+   LF 헬퍼를 그대로 쓰게 한다. 그 Issue가 Windows CI에서 확인할 것: ① 체크아웃한 텍스트에 CRLF가 없다(`-text` fixture 제외)
+   ② 기록·템플릿 사본·inline 스크립트·Workspace의 바이트가 LF이고 고정 예제의 sha256이 Linux 레그의 상수와 같다 ③ 빌드한
+   wheel 구성원에 CRLF가 없고 `kit_sha256`이 Linux 레그와 같다(artifact 비교) ④ `-text`로 둔 CRLF `lab.event/1`
+   fixture(`tests/fixtures/records/mixed-version/`)를 읽는다.
 
 ## 대안과 선택 이유
 
@@ -70,7 +72,8 @@ Status: Accepted — 2026-10-03 소유자 결정 (Issue #37)
 - 쓰기 경로 여러 곳과 Windows CI 시험이 바뀐다.
 - 새 프로젝트 안에서는 git이 줄 끝을 바꾸지 않는다. 원하지 않는 사용자는 그 파일을 지울 수 있다.
 - git의 autocrlf로 오간 기존 프로젝트에는 'line endings only' 표시가 계속 보인다.
-- CRLF가 필요한 Windows 전용 파일(`.bat`·`.ps1`)이 생기면 `eol=crlf` 예외를 더한다.
+- 예외는 두지 않는다. 지금 저장소에는 Windows 전용 스크립트(`.bat`·`.cmd`·`.ps1`)가 없다. CRLF가 필요한 파일이 생기면
+  예외 여부는 소유자가 정한다.
 - 이 결정과 같은 PR에서 `tests/fixtures/records/`에 `* -text`를 먼저 두었다. 그 예제는 해시가 기대값이고 의도한 CRLF
   journal을 담는다. 루트 `.gitattributes`를 더할 때 이 규칙을 지우지 않는다.
 - [현재 계약](../CONTRACTS.md) G절의 '줄 끝' 문장을 '결정됨, 구현 전 한계'로 바꿨다. 구현 PR이 그 문장을 지우고 F절에
@@ -78,7 +81,7 @@ Status: Accepted — 2026-10-03 소유자 결정 (Issue #37)
 
 ## 관련
 
-- Issue: [#37](https://github.com/handochan/aelix-analytics/issues/37), 구현 Issue(흐름 B, 등록 예정),
+- Issue: [#37](https://github.com/handochan/aelix-analytics/issues/37), [#42](https://github.com/handochan/aelix-analytics/issues/42)(구현, 흐름 B),
   [#13](https://github.com/handochan/aelix-analytics/issues/13), [#10](https://github.com/handochan/aelix-analytics/issues/10),
   [#22](https://github.com/handochan/aelix-analytics/issues/22)(CI), [#23](https://github.com/handochan/aelix-analytics/issues/23)(Q17-b 인계),
   [#24](https://github.com/handochan/aelix-analytics/issues/24)(배포본 재현성).

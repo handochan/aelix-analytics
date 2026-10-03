@@ -1,10 +1,15 @@
 {
   "case": "mixed-version",
-  "summary": "A converted project whose journal keeps its lab.event/1 lines byte for byte (CRLF, written on Windows) and continues with analytics.event/2 lines (LF) in the same seq space; two runs produced the same bytes at the same path.",
+  "summary": "A converted project whose journal keeps its lab.event/1 lines byte for byte (CRLF, written on Windows), among them a line the /1 writer appended onto a cut-off line and the next line given the same seq, and continues with analytics.event/2 lines (LF) in the same seq space; two runs produced the same bytes at the same path; one visualization name is in two scripts.",
   "journal": {
-    "lines": 8,
-    "damaged": [],
-    "next_seq": 9
+    "lines": 10,
+    "damaged": [
+      7
+    ],
+    "recovered": [
+      7
+    ],
+    "next_seq": 10
   },
   "references": [
     {
@@ -145,7 +150,7 @@
       "confirmed": true
     },
     {
-      "from": "e7",
+      "from": "e8",
       "ref": {
         "index": 0
       },
@@ -155,7 +160,7 @@
       "confirmed": true
     },
     {
-      "from": "e8",
+      "from": "e9",
       "ref": {
         "index": 0
       },
@@ -165,7 +170,7 @@
       "confirmed": true
     },
     {
-      "from": "e8",
+      "from": "e9",
       "ref": {
         "index": 1
       },
@@ -173,6 +178,46 @@
       "version_binding": "author",
       "basis": "declared",
       "confirmed": true
+    },
+    {
+      "from": "e9",
+      "ref": {
+        "index": 2
+      },
+      "state": "ambiguous",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": false,
+      "candidates": [
+        "journal:7",
+        "journal:8"
+      ]
+    },
+    {
+      "from": "e9",
+      "ref": {
+        "index": 3
+      },
+      "state": "missing",
+      "reason": "record_absent",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": false
+    },
+    {
+      "from": "e9",
+      "ref": {
+        "index": 4
+      },
+      "state": "ambiguous",
+      "version_binding": "none",
+      "basis": "declared",
+      "confirmed": false,
+      "candidates": [
+        "20260930-091000-trend/trend",
+        "20260930-092000-trend/trend",
+        "20261001-093000-use-same/trend"
+      ]
     }
   ],
   "records": [
@@ -185,7 +230,7 @@
       "state": "current"
     },
     {
-      "id": "e8",
+      "id": "e9",
       "state": "current"
     }
   ],

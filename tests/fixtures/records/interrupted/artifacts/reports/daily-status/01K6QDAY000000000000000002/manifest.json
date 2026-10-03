@@ -1,0 +1,19 @@
+{
+  "schema": "analytics.report_revision/1",
+  "report_id": "daily-status",
+  "revision_id": "01K6QDAY000000000000000002",
+  "previous_revision": "01K6QDAY000000000000000001",
+  "request_id": "req-day-0002",
+  "request_fingerprint": "af4d8f82e76f274be2cdce3540e6af2edf85052782633c696e8e451e52e08db9",
+  "created_at": "2026-10-01T10:02:20.000+09:00",
+  "actor": "human",
+  "title": "Daily status",
+  "entry": "index.md",
+  "files": [
+    {
+      "path": "index.md",
+      "bytes": 95,
+      "sha256": "1c02daba90737a508983e67ec735e59a10e30432a3bac4c7e88f680a84e693e7"
+    }
+  ]
+}

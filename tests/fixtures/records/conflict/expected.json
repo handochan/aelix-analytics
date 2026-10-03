@@ -1,10 +1,11 @@
 {
   "case": "conflict",
-  "summary": "Conflicts: two corrections of one finding, a save on a previous revision that is no longer the head, the same request_id with another fingerprint and a status change from a state the record is not in.",
+  "summary": "Conflicts: two corrections of one finding, a save on a previous revision that is no longer the head, the same request_id with another fingerprint, a status change from a state the record is not in (as a request, and as a line written without the check) and a baseline known in part.",
   "journal": {
-    "lines": 7,
+    "lines": 8,
     "damaged": [],
-    "next_seq": 8
+    "recovered": [],
+    "next_seq": 9
   },
   "references": [
     {
@@ -46,6 +47,36 @@
       "version_binding": "author",
       "basis": "observed",
       "confirmed": true
+    },
+    {
+      "from": "e8",
+      "ref": {
+        "index": 0
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": true
+    },
+    {
+      "from": "report:q3-review/01K6QCNF000000000000000002",
+      "ref": {
+        "index": 0
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": true
+    },
+    {
+      "from": "report:q3-review/01K6QCNF000000000000000002",
+      "ref": {
+        "index": 1
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": true
     }
   ],
   "records": [
@@ -63,7 +94,10 @@
     },
     {
       "id": "e7",
-      "state": "current"
+      "state": "current",
+      "mismatched_updates": [
+        "e8"
+      ]
     }
   ],
   "runs": [],
@@ -101,8 +135,27 @@
             "sha256": "c354634e3127c841e8957d7f5583ac04bfd9c7e06d48cee7783ad0a7d7947ef0"
           }
         ],
-        "based_on": null,
-        "request_fingerprint": "eca74d65676acc6ea60d7319323395aa605201ea41550fe9b529a5b28bebab89"
+        "based_on": {
+          "as_of_seq": 4,
+          "context_version": null,
+          "refs": [
+            {
+              "type": "event",
+              "event_id": "e3",
+              "relation": "cites",
+              "basis": "declared",
+              "version_binding": "author"
+            },
+            {
+              "type": "event",
+              "event_id": "e4",
+              "relation": "cites",
+              "basis": "declared",
+              "version_binding": "author"
+            }
+          ]
+        },
+        "request_fingerprint": "cd9267114e03b70976e0f6bf35e9ed3559a35295cd58d2b076f19a4a9a677266"
       },
       "result": "revision_conflict",
       "note": "previous_revision is not the head; no branch is made"
@@ -121,8 +174,27 @@
             "sha256": "c354634e3127c841e8957d7f5583ac04bfd9c7e06d48cee7783ad0a7d7947ef0"
           }
         ],
-        "based_on": null,
-        "request_fingerprint": "42078a26ae77ac4088debcc39be592f70fe1d4b32f3a36248c1ef0a3e203bb3c"
+        "based_on": {
+          "as_of_seq": 4,
+          "context_version": null,
+          "refs": [
+            {
+              "type": "event",
+              "event_id": "e3",
+              "relation": "cites",
+              "basis": "declared",
+              "version_binding": "author"
+            },
+            {
+              "type": "event",
+              "event_id": "e4",
+              "relation": "cites",
+              "basis": "declared",
+              "version_binding": "author"
+            }
+          ]
+        },
+        "request_fingerprint": "eb951b3db44d4aee4b2353ab13dc6a0c95b680e1c7829b9d24028eb31048076e"
       },
       "result": "request_conflict"
     },
@@ -140,8 +212,27 @@
             "sha256": "c354634e3127c841e8957d7f5583ac04bfd9c7e06d48cee7783ad0a7d7947ef0"
           }
         ],
-        "based_on": null,
-        "request_fingerprint": "993759faf17ab9e79900db816a64466d9df07ea587e5ea457e7626496a2d1b33"
+        "based_on": {
+          "as_of_seq": 4,
+          "context_version": null,
+          "refs": [
+            {
+              "type": "event",
+              "event_id": "e3",
+              "relation": "cites",
+              "basis": "declared",
+              "version_binding": "author"
+            },
+            {
+              "type": "event",
+              "event_id": "e4",
+              "relation": "cites",
+              "basis": "declared",
+              "version_binding": "author"
+            }
+          ]
+        },
+        "request_fingerprint": "e1e2bb9f14675fe6011556dc20a7917e262d044418f3f1fa902415f95c5eec8b"
       },
       "result": "existing"
     },

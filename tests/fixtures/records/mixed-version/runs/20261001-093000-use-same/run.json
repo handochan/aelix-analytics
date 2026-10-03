@@ -27,7 +27,19 @@
     }
   ],
   "outputs": [],
-  "charts": [],
+  "charts": [
+    {
+      "id": "trend",
+      "kind": "plotly",
+      "title": "Trend of the reused table",
+      "caption": null,
+      "via": "lab.chart",
+      "files": {
+        "plotly": "runs/20261001-093000-use-same/charts/trend.plotly.json"
+      },
+      "line": 9
+    }
+  ],
   "error": null,
   "stdout": "runs/20261001-093000-use-same/stdout.txt",
   "stderr": "runs/20261001-093000-use-same/stderr.txt",

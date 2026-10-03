@@ -1,9 +1,10 @@
 {
   "case": "missing",
-  "summary": "Gone or changed targets: a deleted run, an unknown visualization id, an overwritten derived table, a deleted code snapshot, an absent event, an input recorded without a hash and a Report revision whose content file was deleted.",
+  "summary": "Gone or changed targets: a deleted run, an unknown visualization id, an overwritten derived table, a deleted code snapshot, an absent event, an input recorded without a hash, digests the target record never held and a Report revision whose content file was deleted.",
   "journal": {
     "lines": 4,
     "damaged": [],
+    "recovered": [],
     "next_seq": 5
   },
   "references": [
@@ -78,6 +79,28 @@
       },
       "state": "unknown",
       "reason": "no_digest",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": false
+    },
+    {
+      "from": "e3",
+      "ref": {
+        "index": 6
+      },
+      "state": "missing",
+      "reason": "digest_mismatch",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": false
+    },
+    {
+      "from": "e3",
+      "ref": {
+        "index": 7
+      },
+      "state": "missing",
+      "reason": "digest_mismatch",
       "version_binding": "author",
       "basis": "declared",
       "confirmed": false

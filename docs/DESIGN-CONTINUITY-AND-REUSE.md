@@ -88,7 +88,7 @@ flowchart LR
 
 | 계층 | 정본 또는 역할 | 보존할 내용 |
 |---|---|---|
-| 현재 맥락 | `CONTEXT.md`와 `.analytics/context/`의 버전 — 현재 `.lab/context/`에서 전환 | 목표, 정의, 제약, 현재 작업 방향. 자유 편집 유지 |
+| 현재 맥락 | `CONTEXT.md`와 그 버전 — 지금은 `.lab/context/`, #13 뒤의 새 버전은 `.analytics/context/`. 옛 버전을 둘 위치는 #13이 정하고 reader는 두 곳을 모두 찾는다([ADR-0006](decisions/0006-common-record-contract.md) 4절) | 목표, 정의, 제약, 현재 작업 방향. 자유 편집 유지 |
 | 분석 방향·정의·지식 | `journal.jsonl` | 현재 초점·지표 정의의 버전·발견·결정·가정·질문·정정·재사용 제안·작업 구간 요약 |
 | 실행 근거 | `runs/`, 가져오기 메타데이터, 보존된 Visualization·표·코드 | 실행 시점의 관측, 파일의 존재 여부, 재실행 비교 |
 | 보고서 산출물 — 신설 제안 | 보고서 버전 manifest·보존 본문·첨부, journal의 저장·상태 이벤트 | 자유 형식 내용, 작성 시점·분석 기준·정확한 근거, 반복 묶음의 구성원 버전 |
@@ -135,7 +135,8 @@ CONTEXT를 journal의 복제본으로 자동 덮어쓰지 않는다. 요약에�
 ```
 
 참조는 한 가지 형태이며 `relation`이 근거(`supports`·`contradicts`·`cites`)와 초점·지표·정정 같은 연결을 구별한다.
-확정 연결은 `version_binding=author`이고 해석 상태가 `resolved`인 참조뿐이다. 마지막 참조처럼 추론으로 결박한 근거는 확정으로 세지 않는다.
+확정 연결은 `version_binding=author`이고 `basis`가 `observed`·`declared`이며 해석 상태가 `resolved`인 참조뿐이다([ADR-0006](decisions/0006-common-record-contract.md) 3절).
+마지막 참조처럼 추론으로 결박한 근거와 `basis`가 `inferred`·`unverified`인 참조는 확정으로 세지 않는다.
 `supports`는 작성자의 주장 관계다. 실행 시스템이 통계적 타당성이나 인과관계를 인증한 것으로 처리하지 않는다.
 Visualization의 논리적 이름은 버전 모음의 식별자이고, 과거 근거는 `run_id + visualization_id`로 구별한다. 현재 chart 필드는 legacy reader에서 대응한다.
 데이터 관측은 run·역할·정체성 경로·해시로 가리킨다. 경로 규칙은 ADR-0006 9절, 보존 여부의 표시는 [기존 그래프 제안](PROPOSAL-EVIDENCE-GRAPH-2026-09-17.md)을 따른다.
@@ -147,6 +148,7 @@ Visualization의 논리적 이름은 버전 모음의 식별자이고, 과거 �
 - 질문·할 일의 `resolves`는 계속 완료 처리다. 기존 발견에 붙은 `resolves`도 과거의 닫힘 표시로 읽고, 철회·반박으로 재해석하지 않는다.
 - 같은 발견에 서로 다른 대체 기록이 생기면 충돌을 표시한다. 최신 시각만으로 한쪽을 진실로 고르지 않는다.
 - 상태 변경은 대상이 존재하고 같은 프로젝트에 있는지, 기대한 이전 상태가 맞는지 journal 잠금 안에서 검증하고, 맞지 않으면 `state_conflict`로 거절한다. 이 검증은 전체 실행의 트랜잭션을 뜻하지 않는다.
+- 상태는 journal을 seq 순서로 재생해 계산하며, 대상별 처음 상태와 허용하는 전이는 [ADR-0006](decisions/0006-common-record-contract.md) 6절에 있다. 뒤의 정정이 앞에서 승인된 철회·재개를 지우지 않는다.
 
 기록 순서는 `seq`, 표시 시각은 새 이벤트의 `recorded_at`을 사용하며 기존 `ts`도 해석한다. 데이터가 설명하는 기간은 별도의 적용 범위다.
 예를 들어 9월 17일에 기록한 “8월 매출”은 기록일과 대상 기간이 다르다.

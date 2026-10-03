@@ -1,9 +1,10 @@
 {
   "case": "future-version",
-  "summary": "Records from a newer writer: an unknown family version, an unknown kind, an unknown reference type, an unknown optional field, a foreign family and a run record of an unknown version; the marker requires a newer writer.",
+  "summary": "Records from a newer writer: an unknown family version, an unknown kind, an unknown reference type, references to records of an unknown format, an unknown optional field, a foreign family and a run record of an unknown version; the marker requires a newer writer.",
   "journal": {
     "lines": 7,
     "damaged": [],
+    "recovered": [],
     "next_seq": 8
   },
   "references": [
@@ -21,6 +22,26 @@
       "from": "e5",
       "ref": {
         "index": 1
+      },
+      "state": "unsupported",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": false
+    },
+    {
+      "from": "e5",
+      "ref": {
+        "index": 2
+      },
+      "state": "unsupported",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": false
+    },
+    {
+      "from": "e5",
+      "ref": {
+        "index": 3
       },
       "state": "unsupported",
       "version_binding": "author",
