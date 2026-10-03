@@ -1,7 +1,7 @@
 # 지속적으로 확장하는 분석 플랫폼의 아키텍처
 
-작성: 2026-09-18 · 개정: 2026-09-19 · 상태: 구현을 위한 설계 제안. 제품의 장기 방향은 합의된 요구이며 아래 인터페이스·모듈은 아직 구현되지 않았다.
-상위 목적은 [PRODUCT.md](PRODUCT.md), 설계 결정 초안은 [ADR-0001](decisions/0001-evolvable-platform-boundaries.md), 현재 동작은 [CONTRACTS.md](CONTRACTS.md)를 따른다.
+작성: 2026-09-18 · 개정: 2026-10-03 · 상태: 구현을 위한 설계 제안. 제품의 장기 방향은 합의된 요구이며 아래 인터페이스·모듈은 아직 구현되지 않았다.
+상위 목적은 [PRODUCT.md](PRODUCT.md), 채택한 결정은 [ADR-0001](decisions/0001-evolvable-platform-boundaries.md)(채택은 구현 완료가 아니다), 현재 동작은 [CONTRACTS.md](CONTRACTS.md)를 따른다.
 공개·내부 명칭은 [용어집](TERMINOLOGY-AND-LANGUAGE.md)을 따른다. 아래 현재 소스 링크는 옛 이름이고, 후보 구조·인터페이스는 새 이름이다.
 
 ## 1. 베타 이후에도 유지할 기반
@@ -81,6 +81,7 @@ core 계약에 DataFrame·Aelix ToolResult·브라우저 DOM·특정 클라우�
 
 **조립:** CLI/호스트/worker 진입점에서 설정에 맞는 구현을 만들고 명시적으로 전달한다.
 core가 전역 registry나 환경 변수를 찾아 스스로 provider를 import하는 구조를 피한다.
+예외는 OS마다 동작이 다른 플랫폼 포트다. core가 이 프로세스의 구현을 기본값으로 한 번 고르고(`core.PLATFORM`) 호출자가 `Project(root, platform=…)`로 바꿔 넣는다([ADR-0001](decisions/0001-evolvable-platform-boundaries.md#os마다-다른-구현의-기본값)).
 설정·상태는 프로젝트별로 관리하고, 시작한 작업에서 사용하는 구현·설정 버전은 끝날 때까지 일관되게 유지한다.
 
 ### 사람과 에이전트의 공통 작성 경로

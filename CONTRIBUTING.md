@@ -5,7 +5,7 @@
 사람이 CLI·SDK로 직접 분석을 작성하는 것도 정식 사용 경로입니다. 핵심 분석·기록 기능에 Aelix 세션이나 모델 호출을 필수로 추가하지 않습니다.
 분석 방향은 목적·지표·현재 질문을 중심으로 유지합니다. 기록이나 차트가 늘어나는 것만으로 분석이 진전했다고 판단하지 않습니다.
 먼저 [제품 방향](docs/PRODUCT.md), [현재 계약](docs/CONTRACTS.md), [베타 품질 기준](docs/BETA-QUALITY-GATES.md)을 읽어 주세요.
-구조·확장점을 바꾸는 작업은 [아키텍처](docs/ARCHITECTURE.md)와 [ADR-0001 초안](docs/decisions/0001-evolvable-platform-boundaries.md)도 확인해 주세요.
+구조·확장점을 바꾸는 작업은 [아키텍처](docs/ARCHITECTURE.md)와 [ADR-0001](docs/decisions/0001-evolvable-platform-boundaries.md)(2026-10-03 채택)도 확인해 주세요.
 [용어집](docs/TERMINOLOGY-AND-LANGUAGE.md)의 Project·Workspace·Visualization·Report 구분과 영어 기본값을 적용해 주세요.
 설계 문서의 미구현 API와 디렉터리는 현재 기능이 아닙니다.
 Codex·Claude Code의 공통 진입 지침은 [AGENTS.md](AGENTS.md), GitHub 작업·로컬 상태·인수인계 규약은 [운영 정책](docs/PROJECT-OPERATIONS.md)에 있습니다.
@@ -42,7 +42,7 @@ Codex·Claude Code의 공통 진입 지침은 [AGENTS.md](AGENTS.md), GitHub 작
 - 새 공개 이름은 `analytics`로 통일하고, 도구의 구·신 별칭을 동시에 상시 노출하지 않습니다. 과거 프로젝트·실행 스냅샷은 별도 reader·명시적 전환으로 보존합니다.
 - Workspace는 분석 인터페이스, Visualization은 분석 표현 객체, Chart는 그 유형, Report는 문서 산출물입니다. 데이터 표·근거 그래프를 자동으로 모두 Visualization 기록으로 만들지 않습니다.
 - UI·템플릿·속성·오류·접근성 label은 영어를 기본으로 합니다. 사용자 본문·열 이름·보존 코드는 번역하지 않고, Unicode·한국어 조회와 과거 CONTEXT의 읽기를 유지합니다.
-- 도메인·응용 계약이 Aelix·UI·저장 backend·분석 라이브러리를 역으로 import하지 않게 합니다. 구현 선택은 진입점에서 조립·주입합니다.
+- 도메인·응용 계약이 Aelix·UI·저장 backend·분석 라이브러리를 역으로 import하지 않게 합니다. 구현 선택은 진입점에서 조립·주입합니다. 예외는 OS마다 다른 플랫폼 포트로, 위의 `core.PLATFORM`이 그 기본값입니다([ADR-0001](docs/decisions/0001-evolvable-platform-boundaries.md#os마다-다른-구현의-기본값)).
 - 사람용 CLI·SDK와 Aelix 도구는 같은 응용 기능과 기록 계약을 사용합니다. 작성 주체와 실행 수단을 구별하고, 에이전트 세션이 없는 기록도 읽고 이어 갈 수 있어야 합니다.
 - 정책은 필요한 Strategy 경계로, 저장·실행·표시·게시는 adapter로 분리합니다. 지표·근거·버전 의미와 공통 기록 검증은 구현별로 복제하지 않습니다.
 - journal·run·보존 파일을 정본으로, 프로젝트 탐색 HTML·검색·그래프를 파생물로 다룹니다. 자유 형식 보고서의 본문·첨부는 HTML이어도 보존할 정본입니다. 화면만 아는 관계를 만들지 않습니다.
