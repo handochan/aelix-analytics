@@ -1,0 +1,3 @@
+# Record fixtures are judged by the sha256 of their bytes (ADR-0006, ADR-0007), and
+# mixed-version/journal.jsonl keeps CRLF lines on purpose: Git must not convert line endings here.
+* -text

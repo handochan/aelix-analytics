@@ -1,0 +1,64 @@
+{
+  "schema": "lab.run/1",
+  "id": "20261001-092000-monthly-trend",
+  "title": "Monthly trend",
+  "status": "ok",
+  "started_at": "2026-10-01T09:20:00.000+09:00",
+  "actor": "human",
+  "session": null,
+  "rerun_of": null,
+  "script": {
+    "path": "scripts/monthly_trend.py",
+    "sha256": "b7b2126e93e4b6e387ec3e2e7935f8edf726f6de5eb3074b193d9c97e5e2cf79",
+    "snapshot": "runs/20261001-092000-monthly-trend/code/scripts/monthly_trend.py"
+  },
+  "ended_at": "2026-10-01T09:20:01.000+09:00",
+  "duration_s": 1.0,
+  "modules": [],
+  "inputs": [
+    {
+      "path": "data/derived/region_summary.csv",
+      "bytes": 47,
+      "sha256": "9f6a799bc14ab42c2fa5732905836ba11e96255902c3727361527239baa8cc5b",
+      "via": [
+        "polars.read_csv"
+      ],
+      "external": false
+    }
+  ],
+  "outputs": [
+    {
+      "path": "data/derived/monthly.csv",
+      "change": "created",
+      "bytes": 27,
+      "sha256": "269706f7162fb239930816e75be57b73a4160871d1dd9f27bb8f6ee78bd3d2f2",
+      "via": "diff"
+    }
+  ],
+  "charts": [
+    {
+      "id": "monthly-trend",
+      "kind": "plotly",
+      "title": "Revenue by month",
+      "caption": null,
+      "via": "lab.chart",
+      "files": {
+        "plotly": "runs/20261001-092000-monthly-trend/charts/monthly-trend.plotly.json"
+      },
+      "line": 9
+    }
+  ],
+  "error": null,
+  "stdout": "runs/20261001-092000-monthly-trend/stdout.txt",
+  "stderr": "runs/20261001-092000-monthly-trend/stderr.txt",
+  "env": {
+    "python": "3.12.13",
+    "executable": "python3",
+    "platform": "synthetic",
+    "packages": {},
+    "uv_lock_sha256": null,
+    "kit_version": "0.2.0",
+    "kit_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "warnings": []
+}

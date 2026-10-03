@@ -1,0 +1,106 @@
+{
+  "case": "interrupted",
+  "summary": "Interruptions read as is: a running record whose process is gone, a final run without its completion event, a renamed Report revision without its completion event, a prepared staging directory and a cut-off last journal line.",
+  "journal": {
+    "lines": 4,
+    "damaged": [
+      4
+    ],
+    "next_seq": 4
+  },
+  "references": [
+    {
+      "from": "e2",
+      "ref": {
+        "index": 0
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "observed",
+      "confirmed": true
+    }
+  ],
+  "records": [],
+  "runs": [
+    {
+      "run_id": "20261001-100000-long-job",
+      "execution_status": "incomplete",
+      "recording_status": "incomplete",
+      "reasons": [
+        "not_final",
+        "no_completion_event"
+      ]
+    },
+    {
+      "run_id": "20261001-100100-summary",
+      "execution_status": "ok",
+      "recording_status": "incomplete",
+      "reasons": [
+        "no_completion_event",
+        "finalize_errors"
+      ]
+    }
+  ],
+  "report_revisions": [
+    {
+      "report_id": "weekly-status",
+      "revision_id": "01K6QTRP000000000000000001",
+      "request_id": "req-int-0001",
+      "recording_status": "complete",
+      "content": "resolved",
+      "head": true
+    },
+    {
+      "report_id": "weekly-status",
+      "revision_id": "01K6QTRP000000000000000002",
+      "request_id": "req-int-0002",
+      "recording_status": "incomplete",
+      "content": "resolved",
+      "head": false
+    },
+    {
+      "report_id": "weekly-status",
+      "revision_id": "01K6QTRP000000000000000003",
+      "request_id": "req-int-0003",
+      "recording_status": "prepared",
+      "content": "resolved",
+      "head": false
+    }
+  ],
+  "lineage": [],
+  "writes": [
+    {
+      "operation": "report_save",
+      "request": {
+        "request_id": "req-int-0002",
+        "report_id": "weekly-status",
+        "previous_revision": "01K6QTRP000000000000000001",
+        "title": "Weekly status",
+        "entry": "index.md",
+        "files": [
+          {
+            "path": "index.md",
+            "sha256": "aec63b44d30ad199ec361bca9c11beeb48ef37d8a7520ebc2c75fac0badde524"
+          }
+        ],
+        "based_on": null,
+        "request_fingerprint": "feebd31a5aa94ee0fee2cf1f97e4ce954b76730fd4d89757aecf907585c3f61d"
+      },
+      "result": "resumed",
+      "note": "same request_id and fingerprint: the kit checks the renamed revision and appends only its completion event"
+    },
+    {
+      "operation": "event_append",
+      "request": {
+        "kind": "note",
+        "writer_version": "0.3.0"
+      },
+      "result": "saved",
+      "note": "the writer ends the cut-off line 4 with a newline first; the new event is e4 on line 5"
+    }
+  ],
+  "unsupported": {
+    "count": 0,
+    "items": []
+  }
+}

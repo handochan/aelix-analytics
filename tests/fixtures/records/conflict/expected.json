@@ -1,0 +1,162 @@
+{
+  "case": "conflict",
+  "summary": "Conflicts: two corrections of one finding, a save on a previous revision that is no longer the head, the same request_id with another fingerprint and a status change from a state the record is not in.",
+  "journal": {
+    "lines": 7,
+    "damaged": [],
+    "next_seq": 8
+  },
+  "references": [
+    {
+      "from": "e3",
+      "ref": {
+        "index": 0
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": true
+    },
+    {
+      "from": "e4",
+      "ref": {
+        "index": 0
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": true
+    },
+    {
+      "from": "e5",
+      "ref": {
+        "index": 0
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "observed",
+      "confirmed": true
+    },
+    {
+      "from": "e6",
+      "ref": {
+        "index": 0
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "observed",
+      "confirmed": true
+    }
+  ],
+  "records": [
+    {
+      "id": "e2",
+      "state": "conflict"
+    },
+    {
+      "id": "e3",
+      "state": "current"
+    },
+    {
+      "id": "e4",
+      "state": "current"
+    },
+    {
+      "id": "e7",
+      "state": "current"
+    }
+  ],
+  "runs": [],
+  "report_revisions": [
+    {
+      "report_id": "q3-review",
+      "revision_id": "01K6QCNF000000000000000001",
+      "request_id": "req-cf-0001",
+      "recording_status": "complete",
+      "content": "resolved",
+      "head": false
+    },
+    {
+      "report_id": "q3-review",
+      "revision_id": "01K6QCNF000000000000000002",
+      "request_id": "req-cf-0002",
+      "recording_status": "complete",
+      "content": "resolved",
+      "head": true
+    }
+  ],
+  "lineage": [],
+  "writes": [
+    {
+      "operation": "report_save",
+      "request": {
+        "request_id": "req-cf-0003",
+        "report_id": "q3-review",
+        "previous_revision": "01K6QCNF000000000000000001",
+        "title": "Q3 review (other editor)",
+        "entry": "index.md",
+        "files": [
+          {
+            "path": "index.md",
+            "sha256": "c354634e3127c841e8957d7f5583ac04bfd9c7e06d48cee7783ad0a7d7947ef0"
+          }
+        ],
+        "based_on": null,
+        "request_fingerprint": "eca74d65676acc6ea60d7319323395aa605201ea41550fe9b529a5b28bebab89"
+      },
+      "result": "revision_conflict",
+      "note": "previous_revision is not the head; no branch is made"
+    },
+    {
+      "operation": "report_save",
+      "request": {
+        "request_id": "req-cf-0002",
+        "report_id": "q3-review",
+        "previous_revision": "01K6QCNF000000000000000001",
+        "title": "Q3 review, retitled",
+        "entry": "index.md",
+        "files": [
+          {
+            "path": "index.md",
+            "sha256": "c354634e3127c841e8957d7f5583ac04bfd9c7e06d48cee7783ad0a7d7947ef0"
+          }
+        ],
+        "based_on": null,
+        "request_fingerprint": "42078a26ae77ac4088debcc39be592f70fe1d4b32f3a36248c1ef0a3e203bb3c"
+      },
+      "result": "request_conflict"
+    },
+    {
+      "operation": "report_save",
+      "request": {
+        "request_id": "req-cf-0002",
+        "report_id": "q3-review",
+        "previous_revision": "01K6QCNF000000000000000001",
+        "title": "Q3 review",
+        "entry": "index.md",
+        "files": [
+          {
+            "path": "index.md",
+            "sha256": "c354634e3127c841e8957d7f5583ac04bfd9c7e06d48cee7783ad0a7d7947ef0"
+          }
+        ],
+        "based_on": null,
+        "request_fingerprint": "993759faf17ab9e79900db816a64466d9df07ea587e5ea457e7626496a2d1b33"
+      },
+      "result": "existing"
+    },
+    {
+      "operation": "record_update",
+      "request": {
+        "target": "e7",
+        "expected_state": "withdrawn",
+        "new_state": "current"
+      },
+      "result": "state_conflict"
+    }
+  ],
+  "unsupported": {
+    "count": 0,
+    "items": []
+  }
+}

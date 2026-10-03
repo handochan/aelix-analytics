@@ -1,0 +1,44 @@
+{
+  "schema": "lab.run/1",
+  "id": "20261001-093000-use-same",
+  "title": "use-same",
+  "status": "ok",
+  "started_at": "2026-10-01T09:30:00.000+09:00",
+  "actor": "human",
+  "session": null,
+  "rerun_of": null,
+  "script": {
+    "path": "scripts/use_same.py",
+    "sha256": "96ed52ac5f368e27bd473ea12013043360e33e9d7ffe21c885360b2e5611c625",
+    "snapshot": "runs/20261001-093000-use-same/code/scripts/use_same.py"
+  },
+  "ended_at": "2026-10-01T09:30:01.000+09:00",
+  "duration_s": 1.0,
+  "modules": [],
+  "inputs": [
+    {
+      "path": "data/derived/same.csv",
+      "bytes": 20,
+      "sha256": "7dc87ab8618e73b3df42ca900743ae609ec2e7e74a94655a86a2e63abdb97326",
+      "via": [
+        "polars.read_csv"
+      ],
+      "external": false
+    }
+  ],
+  "outputs": [],
+  "charts": [],
+  "error": null,
+  "stdout": "runs/20261001-093000-use-same/stdout.txt",
+  "stderr": "runs/20261001-093000-use-same/stderr.txt",
+  "env": {
+    "python": "3.12.13",
+    "executable": "python3",
+    "platform": "synthetic",
+    "packages": {},
+    "uv_lock_sha256": null,
+    "kit_version": "0.2.0",
+    "kit_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "warnings": []
+}

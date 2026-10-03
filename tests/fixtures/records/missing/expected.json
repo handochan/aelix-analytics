@@ -1,0 +1,134 @@
+{
+  "case": "missing",
+  "summary": "Gone or changed targets: a deleted run, an unknown visualization id, an overwritten derived table, a deleted code snapshot, an absent event, an input recorded without a hash and a Report revision whose content file was deleted.",
+  "journal": {
+    "lines": 4,
+    "damaged": [],
+    "next_seq": 5
+  },
+  "references": [
+    {
+      "from": "e2",
+      "ref": {
+        "index": 0
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "observed",
+      "confirmed": true
+    },
+    {
+      "from": "e3",
+      "ref": {
+        "index": 0
+      },
+      "state": "missing",
+      "reason": "record_absent",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": false
+    },
+    {
+      "from": "e3",
+      "ref": {
+        "index": 1
+      },
+      "state": "missing",
+      "reason": "record_absent",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": false
+    },
+    {
+      "from": "e3",
+      "ref": {
+        "index": 2
+      },
+      "state": "content_changed",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": false
+    },
+    {
+      "from": "e3",
+      "ref": {
+        "index": 3
+      },
+      "state": "missing",
+      "reason": "file_absent",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": false
+    },
+    {
+      "from": "e3",
+      "ref": {
+        "index": 4
+      },
+      "state": "missing",
+      "reason": "record_absent",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": false
+    },
+    {
+      "from": "e3",
+      "ref": {
+        "index": 5
+      },
+      "state": "unknown",
+      "reason": "no_digest",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": false
+    },
+    {
+      "from": "e4",
+      "ref": {
+        "index": 0
+      },
+      "state": "missing",
+      "reason": "file_absent",
+      "version_binding": "author",
+      "basis": "observed",
+      "confirmed": false
+    }
+  ],
+  "records": [
+    {
+      "id": "e3",
+      "state": "current"
+    }
+  ],
+  "runs": [
+    {
+      "run_id": "20261001-120000-table",
+      "execution_status": "ok",
+      "recording_status": "complete",
+      "reasons": []
+    }
+  ],
+  "report_revisions": [
+    {
+      "report_id": "audit",
+      "revision_id": "01K6QMSS000000000000000001",
+      "request_id": "req-miss-0001",
+      "recording_status": "complete",
+      "content": "missing",
+      "head": true
+    }
+  ],
+  "lineage": [
+    {
+      "run_id": "20261001-120000-table",
+      "path": "data/input.csv",
+      "producer": "unknown",
+      "candidates": []
+    }
+  ],
+  "writes": [],
+  "unsupported": {
+    "count": 0,
+    "items": []
+  }
+}

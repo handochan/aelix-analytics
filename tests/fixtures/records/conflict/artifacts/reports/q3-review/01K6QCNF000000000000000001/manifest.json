@@ -1,0 +1,19 @@
+{
+  "schema": "analytics.report_revision/1",
+  "report_id": "q3-review",
+  "revision_id": "01K6QCNF000000000000000001",
+  "previous_revision": null,
+  "request_id": "req-cf-0001",
+  "request_fingerprint": "b861a0a51fa4bbaa1b6cc09c0fa4b69dc27451d924d1498bc47c1753f04a55aa",
+  "created_at": "2026-10-01T13:10:00.000+09:00",
+  "actor": "human",
+  "title": "Q3 review",
+  "entry": "index.md",
+  "files": [
+    {
+      "path": "index.md",
+      "bytes": 22,
+      "sha256": "dad5e68050842810cf827641ef14b0f7f86c5a7126acf3cb98de44999024189d"
+    }
+  ]
+}

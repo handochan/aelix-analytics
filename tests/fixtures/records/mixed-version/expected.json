@@ -1,0 +1,229 @@
+{
+  "case": "mixed-version",
+  "summary": "A converted project whose journal keeps its lab.event/1 lines byte for byte (CRLF, written on Windows) and continues with analytics.event/2 lines (LF) in the same seq space; two runs produced the same bytes at the same path.",
+  "journal": {
+    "lines": 8,
+    "damaged": [],
+    "next_seq": 9
+  },
+  "references": [
+    {
+      "from": "e2",
+      "ref": {
+        "field": "context",
+        "value": "20260930-090000-000000_7b3b3fb88d82.md"
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": true
+    },
+    {
+      "from": "e3",
+      "ref": {
+        "field": "runs",
+        "value": "20260930-091000-trend"
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": true
+    },
+    {
+      "from": "e3",
+      "ref": {
+        "field": "charts",
+        "value": "scripts/trend.py::trend"
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "observed",
+      "confirmed": true
+    },
+    {
+      "from": "e3",
+      "ref": {
+        "field": "data",
+        "value": "data/derived/same.csv"
+      },
+      "state": "version_unbound",
+      "version_binding": "none",
+      "basis": "declared",
+      "confirmed": false
+    },
+    {
+      "from": "e4",
+      "ref": {
+        "field": "runs",
+        "value": "20260930-092000-trend"
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": true
+    },
+    {
+      "from": "e4",
+      "ref": {
+        "field": "charts",
+        "value": "scripts/trend.py::trend"
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "observed",
+      "confirmed": true
+    },
+    {
+      "from": "e4",
+      "ref": {
+        "field": "data",
+        "value": "data/derived/same.csv"
+      },
+      "state": "version_unbound",
+      "version_binding": "none",
+      "basis": "declared",
+      "confirmed": false
+    },
+    {
+      "from": "e6",
+      "ref": {
+        "field": "runs",
+        "value": "20260930-091000-trend"
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": true
+    },
+    {
+      "from": "e6",
+      "ref": {
+        "field": "charts",
+        "value": "scripts/trend.py::trend"
+      },
+      "state": "version_unbound",
+      "version_binding": "none",
+      "basis": "declared",
+      "confirmed": false,
+      "candidates": [
+        "20260930-091000-trend/trend",
+        "20260930-092000-trend/trend"
+      ]
+    },
+    {
+      "from": "e6",
+      "ref": {
+        "field": "data",
+        "value": "sales"
+      },
+      "state": "version_unbound",
+      "version_binding": "none",
+      "basis": "declared",
+      "confirmed": false
+    },
+    {
+      "from": "e6",
+      "ref": {
+        "field": "other",
+        "value": "지난주 메모"
+      },
+      "state": "unknown",
+      "reason": "unresolved_name",
+      "version_binding": "none",
+      "basis": "declared",
+      "confirmed": false
+    },
+    {
+      "from": "e6",
+      "ref": {
+        "field": "resolves",
+        "value": "e5"
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": true
+    },
+    {
+      "from": "e7",
+      "ref": {
+        "index": 0
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "observed",
+      "confirmed": true
+    },
+    {
+      "from": "e8",
+      "ref": {
+        "index": 0
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": true
+    },
+    {
+      "from": "e8",
+      "ref": {
+        "index": 1
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": true
+    }
+  ],
+  "records": [
+    {
+      "id": "e5",
+      "state": "resolved"
+    },
+    {
+      "id": "e6",
+      "state": "current"
+    },
+    {
+      "id": "e8",
+      "state": "current"
+    }
+  ],
+  "runs": [
+    {
+      "run_id": "20260930-091000-trend",
+      "execution_status": "ok",
+      "recording_status": "complete",
+      "reasons": []
+    },
+    {
+      "run_id": "20260930-092000-trend",
+      "execution_status": "ok",
+      "recording_status": "complete",
+      "reasons": []
+    },
+    {
+      "run_id": "20261001-093000-use-same",
+      "execution_status": "ok",
+      "recording_status": "complete",
+      "reasons": []
+    }
+  ],
+  "report_revisions": [],
+  "lineage": [
+    {
+      "run_id": "20261001-093000-use-same",
+      "path": "data/derived/same.csv",
+      "producer": "ambiguous",
+      "candidates": [
+        "20260930-091000-trend",
+        "20260930-092000-trend"
+      ]
+    }
+  ],
+  "writes": [],
+  "unsupported": {
+    "count": 0,
+    "items": []
+  }
+}

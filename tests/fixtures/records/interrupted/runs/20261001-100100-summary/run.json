@@ -1,0 +1,37 @@
+{
+  "schema": "lab.run/1",
+  "id": "20261001-100100-summary",
+  "title": "summary",
+  "status": "ok",
+  "started_at": "2026-10-01T10:01:00.000+09:00",
+  "actor": "human",
+  "session": null,
+  "rerun_of": null,
+  "script": {
+    "path": "scripts/summary.py",
+    "sha256": "881ec3766cbf892231465b4c7b38717d5e8aaa3801b4fc0cc3d27cba81537ec2",
+    "snapshot": "runs/20261001-100100-summary/code/scripts/summary.py"
+  },
+  "ended_at": "2026-10-01T10:01:02.000+09:00",
+  "duration_s": 1.0,
+  "modules": [],
+  "inputs": [],
+  "outputs": [],
+  "charts": [],
+  "error": null,
+  "stdout": "runs/20261001-100100-summary/stdout.txt",
+  "stderr": "runs/20261001-100100-summary/stderr.txt",
+  "env": {
+    "python": "3.12.13",
+    "executable": "python3",
+    "platform": "synthetic",
+    "packages": {},
+    "uv_lock_sha256": null,
+    "kit_version": "0.2.0",
+    "kit_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "warnings": [],
+  "finalize_errors": [
+    "journal: OSError: [Errno 28] No space left on device"
+  ]
+}

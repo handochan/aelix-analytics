@@ -1,0 +1,64 @@
+{
+  "schema": "lab.run/1",
+  "id": "20261001-091000-region-summary",
+  "title": "All channels",
+  "status": "ok",
+  "started_at": "2026-10-01T09:10:00.000+09:00",
+  "actor": "human",
+  "session": null,
+  "rerun_of": null,
+  "script": {
+    "path": "scripts/region_summary.py",
+    "sha256": "478b42fe5fed1f8fcec2a6df5abf02189674e6517e5fe20b2e2ad77c26ea24fc",
+    "snapshot": "runs/20261001-091000-region-summary/code/scripts/region_summary.py"
+  },
+  "ended_at": "2026-10-01T09:10:01.000+09:00",
+  "duration_s": 1.0,
+  "modules": [],
+  "inputs": [
+    {
+      "path": "data/sales.csv",
+      "bytes": 222,
+      "sha256": "84c1153f79ff53e56e866071904c9140610a698272bb05654776b7eef9400b16",
+      "via": [
+        "polars.read_csv"
+      ],
+      "external": false
+    }
+  ],
+  "outputs": [
+    {
+      "path": "data/derived/region_summary.csv",
+      "change": "created",
+      "bytes": 47,
+      "sha256": "9f6a799bc14ab42c2fa5732905836ba11e96255902c3727361527239baa8cc5b",
+      "via": "diff"
+    }
+  ],
+  "charts": [
+    {
+      "id": "region-revenue",
+      "kind": "plotly",
+      "title": "Revenue by region",
+      "caption": null,
+      "via": "lab.chart",
+      "files": {
+        "plotly": "runs/20261001-091000-region-summary/charts/region-revenue.plotly.json"
+      },
+      "line": 9
+    }
+  ],
+  "error": null,
+  "stdout": "runs/20261001-091000-region-summary/stdout.txt",
+  "stderr": "runs/20261001-091000-region-summary/stderr.txt",
+  "env": {
+    "python": "3.12.13",
+    "executable": "python3",
+    "platform": "synthetic",
+    "packages": {},
+    "uv_lock_sha256": null,
+    "kit_version": "0.2.0",
+    "kit_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "warnings": []
+}

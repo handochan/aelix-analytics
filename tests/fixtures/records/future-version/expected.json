@@ -1,0 +1,76 @@
+{
+  "case": "future-version",
+  "summary": "Records from a newer writer: an unknown family version, an unknown kind, an unknown reference type, an unknown optional field, a foreign family and a run record of an unknown version; the marker requires a newer writer.",
+  "journal": {
+    "lines": 7,
+    "damaged": [],
+    "next_seq": 8
+  },
+  "references": [
+    {
+      "from": "e5",
+      "ref": {
+        "index": 0
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": true
+    },
+    {
+      "from": "e5",
+      "ref": {
+        "index": 1
+      },
+      "state": "unsupported",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": false
+    }
+  ],
+  "records": [
+    {
+      "id": "e5",
+      "state": "current"
+    },
+    {
+      "id": "e6",
+      "state": "current"
+    }
+  ],
+  "runs": [],
+  "report_revisions": [],
+  "lineage": [],
+  "writes": [
+    {
+      "operation": "event_append",
+      "request": {
+        "kind": "note",
+        "writer_version": "0.3.0"
+      },
+      "result": "writer_too_old",
+      "note": "min_writer_version is 9.0.0; the kit reads and does not write"
+    }
+  ],
+  "unsupported": {
+    "count": 4,
+    "items": [
+      {
+        "location": "journal:3",
+        "reason": "unknown_version"
+      },
+      {
+        "location": "journal:4",
+        "reason": "unknown_kind"
+      },
+      {
+        "location": "journal:7",
+        "reason": "unknown_family"
+      },
+      {
+        "location": "runs/20261001-110000-future/run.json",
+        "reason": "unknown_version"
+      }
+    ]
+  }
+}

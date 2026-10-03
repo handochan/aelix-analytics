@@ -172,6 +172,24 @@ Report는 Visualization·설명·발견을 선택해 구성한 문서이며, Vis
 | Token budget | Token usage target / Performance target. 측정 목표이며 강제 절단·거절 한도가 아님 |
 | Threshold / Cooldown / Timeout / Page size | 실제 제안 조건·알림 간격·실행 제한·조회 크기. 측정 목표와 다른 설정임을 명시 |
 | Input tokens / Cached input tokens / Output tokens | provider별 포함 관계를 정규화해 계산. 캐시 입력을 이중 합산하거나 도구 호출 수를 토큰으로 쓰지 않음 |
+| 근거 버전의 고정 방식 | `version_binding`: `author`(기록을 쓴 쪽이 버전까지 지정) / `inferred`(이름만 받아 kit이 쓰는 시점의 최신 성공 버전으로 결박. 확정 연결로 세지 않음) / `none`(논리 키만). `<!-- pin -->`은 맥락 선택 우선순위로만 씀 |
+| 참조를 찾았는지만 보는 판정 | 해석 상태 `resolved` / `content_changed` / `missing`(`record_absent`·`file_absent`) / `version_unbound` / `ambiguous` / `unknown`(`no_digest`·`unresolved_name`) / `unsupported`, 게시본의 `not_included`. 읽기의 결과이며 기록에 쓰지 않음 |
+| 근거가 연결됨 | 확정 연결은 `version_binding=author`이고 `basis`가 observed·declared이며 `resolved`인 참조뿐. 결론의 검토와 별개 |
+| 참조의 관계 | `relation`: `supports`·`contradicts`(작성자의 주장) / `cites`(중립 인용) / `uses` / `derived_from` / `generated_by` / `about` / `includes` / `resolves` / `supersedes` / `updates`. 관계 근거 `basis`와 다른 축 |
+| 기록 기준의 `through_seq`, 마지막 seq | 영속 기준은 `as_of_seq`(그 시점까지 포함한 journal seq)와 `context_version`(CONTEXT 버전 파일 이름). checkpoint 초안의 `through_seq`를 대체 |
+| 조회 페이지의 이어 읽기 | cursor는 `source_revision`에 묶인 불투명 토큰. 기준이 바뀌면 `stale_cursor`, 읽는 동안 계속 바뀌면 `updating` |
+| 같은 요청의 재시도 | `request_id`(쓰기의 선택 필드)와 `request_fingerprint`(요청 의도의 sha256). 같은 키에 다른 지문이면 `request_conflict`. 베타의 보장은 Report 저장과 게시(`publication_id`+대상)뿐 |
+| 버전·상태의 충돌 | `revision_conflict`(기대한 `previous_revision`이 head가 아님), `state_conflict`(`record_update`의 기대 상태 불일치), 정정이 갈린 기록의 `conflict`. 최신 시각으로 한쪽을 고르지 않음 |
+| 저장이 끝나지 않은 기록 | `recording_status`: `complete` / `incomplete`(사유 `not_final`·`no_completion_event`·`finalize_errors`) / Report 저장 준비 단계의 `prepared`. `execution_status`·`render_status`와 별개 |
+| 읽지 못한 기록 | `unsupported`: 모르는 가족·버전·kind·type·relation. 보존하고 셈. `damaged`: 파싱할 수 없는 줄. 줄 번호와 함께 셈. 조용히 건너뛰지 않음 |
+| 쓰기를 허용하는 kit | 표식의 `min_writer_version`. 그보다 낮은 kit의 쓰기는 `writer_too_old`로 거절하고 읽기만 허용하며 필요한 버전을 안내 |
+| 프로젝트 ID | 표식의 `project_id`. 복사본도 같은 값이므로 계통이며 유일성의 보장이 아님 |
+| 기록의 `path`, `external` | `path`는 정체성 경로: 프로젝트 상대 POSIX 경로, 철자는 파일 시스템에 저장된 이름, 밖을 가리키는 디렉터리 링크는 경계. `external`은 정체성이 프로젝트 밖일 때만 참. 보안 판정은 끝까지 푼 경로로 따로 함 |
+| 줄 끝만 다른 변경 | `changed`의 사유 `line_endings_only`. 바이트 해시와 상태 `changed`는 그대로이며 같음으로 바꾸지 않음 |
+| 새 기록 종류 | `analytics.event/2`의 kind `metric_definition`, `reuse_notification`(재사용 후보를 보인 사실, `trigger`: requested·automatic), `report_revision`(Report 저장의 완료), `publication`(게시본 build), `publish_receipt`(전달 결과). Report 버전 manifest의 가족은 `analytics.report_revision/1` |
+
+표의 '근거 버전의 고정 방식' 행부터 '새 기록 종류' 행까지는 [ADR-0006](decisions/0006-common-record-contract.md)과
+[ADR-0007](decisions/0007-line-endings.md)이 채택한 기록 계약의 이름이다. 아직 구현되지 않았고 현재 기록에는 없다.
 
 자동 맥락에 포함되지 않은 부분은 Omitted from current context로 표현하고 더 읽을 위치를 제공한다. 실제 잘린 과거 응답은 Truncated라는 사실을 숨기지 않는다.
 상태를 보여 줄 때 대상과 범위도 함께 보인다. 예를 들어 `Run succeeded · Recording incomplete · Rerun comparison not run`처럼 각각의 사실을 읽을 수 있어야 한다.
