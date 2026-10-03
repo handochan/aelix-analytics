@@ -82,9 +82,9 @@ jobs:
     name: platform · ${{ matrix.os }}
     if: ${{ github.event.action != 'labeled' || github.event.label.name == 'ci:macos' }}
     runs-on: ${{ matrix.os }}
-    # Longer than the step limits below added up, so a hung leg is ended by its own limit and the
-    # later legs and the upload still run.
-    timeout-minutes: 130
+    # Longer than the step limits below added up (130 minutes), so a hung leg is ended by its own
+    # limit and the later legs and the upload still run. A step added below raises this too.
+    timeout-minutes: 140
     strategy:
       fail-fast: false
       matrix:
@@ -130,11 +130,19 @@ jobs:
       - name: aelix 0.1.0b2 integration, CPython 3.12
         if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
         timeout-minutes: 8
-        run: uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread --junitxml "${{ runner.temp }}/ci/aelix-py3.12.xml" tests/test_extension.py
+        run: uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread --junitxml "${{ runner.temp }}/ci/aelix-py3.12.xml" tests/test_extension.py tests/test_usage_report.py
+      # What the extension gives a model, measured on synthetic fixtures (Issue #11): a report, not a
+      # gate. It exits 0 when a target is exceeded or a fact is lost; tests/test_usage_report.py in
+      # the two integration steps judges. Its trust list and uv are inside its own temporary
+      # directory.
+      - name: Usage report (aelix 0.1.0b2, CPython 3.12)
+        if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
+        timeout-minutes: 5
+        run: uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 python tools/usage_report.py --output "${{ runner.temp }}/ci/usage"
       - name: aelix 0.1.0b2 integration, CPython 3.11
         if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
         timeout-minutes: 8
-        run: uv run --isolated --no-project --python 3.11 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread --junitxml "${{ runner.temp }}/ci/aelix-py3.11.xml" tests/test_extension.py
+        run: uv run --isolated --no-project --python 3.11 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread --junitxml "${{ runner.temp }}/ci/aelix-py3.11.xml" tests/test_extension.py tests/test_usage_report.py
       - name: The launcher on the entry-point floor, CPython 3.11
         if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
         timeout-minutes: 5
