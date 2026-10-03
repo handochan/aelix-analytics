@@ -11,7 +11,7 @@
 사람이 CLI·SDK로 에이전트 없이 직접 분석을 완료하는 경로와, 사람 → 에이전트 → 사람이 같은 프로젝트를 이어받는 경로를 필수로 검증한다.
 분석은 목적·현재 지표·질문을 중심으로 이어지고, 미정 정의의 구체화·여러 지표·정의 수정과 파생을 기록한다.
 재사용 제안은 사용자가 선택하는 기능이며, 자동 제안 없이 분석에 집중하는 흐름도 완전한 제품 사용 시나리오다.
-진행 중 분석의 팀 공유는 독립 build와 지원 대상을 명시한 첫 publish 경로까지를 후보 범위로 둔다. 원격 호스팅·공동 편집의 전체 구현을 전제하지 않는다.
+진행 중 분석의 팀 공유는 독립 build와 지원 대상을 명시한 첫 publish 경로까지를 범위로 둔다(2026-10-03 소유자 결정으로 확정). 원격 호스팅·공동 편집의 전체 구현을 전제하지 않는다.
 분석 도중 만드는 자유 형식 보고서는 Reports에서 당시 내용·근거·버전을 보존하고, 여러 컬럼의 반복 보고서와 선택 버전 공유를 지원한다.
 베타는 장기 플랫폼의 첫 검증 범위다. 초기 구현부터 [아키텍처](ARCHITECTURE.md)의 핵심 계약·교체 경계·호환성 기준을 적용한다.
 공식 표면은 [용어집](TERMINOLOGY-AND-LANGUAGE.md)의 Analytics·Workspace·Visualization·Report로 통일하며 UI·템플릿은 영어를 기본으로 한다. 다국어 사용자 내용과 과거 기록은 보존한다.
@@ -302,14 +302,14 @@ B1-b도 기존 기록에 대한 읽기 기능으로 먼저 검토할 수 있다.
 
 2026-10-03 소유자 결정([#39](https://github.com/handochan/aelix-analytics/issues/39))으로 베타까지 플랫폼 보강을 동결한다.
 지원 플랫폼은 [ADR-0002](decisions/0002-python-support-and-platform-scope.md)대로 Linux·macOS·Windows다. 새 코드는 이식 가능한 경계를 쓰고, PR마다 Linux·Windows CI가 회귀를 확인한다.
-[#32](https://github.com/handochan/aelix-analytics/issues/32)·[#36](https://github.com/handochan/aelix-analytics/issues/36)·[#38](https://github.com/handochan/aelix-analytics/issues/38)의 항목은 B 단계 PR이 그 코드를 건드리거나 베타 경로에서 기록 손실이 확인될 때만 다룬다.
-예외로 베타 전에 세 가지를 처리한다.
+[#32](https://github.com/handochan/aelix-analytics/issues/32)·[#36](https://github.com/handochan/aelix-analytics/issues/36)·[#38](https://github.com/handochan/aelix-analytics/issues/38)의 항목은 B 단계 PR이 그 코드를 건드리거나, Q1–Q17 시나리오(지원 구성)에서 기록 손실이 새로 확인될 때만 다룬다.
+이미 측정된 항목은 다음과 같이 처리한다.
 
-- 결과 줄의 U+2028·U+2029·U+0085 때문에 성공한 run이 실패로 보고되는 문제(#32의 1번)
-- 심볼릭 링크인 `data/` 아래의 출력이 기록되지 않을 때의 경고(#36의 1번)
-- 고치지 않는 기록 손실 사례의 사용자 안내(#38의 README·G)
+- #32의 1번: 결과 줄의 U+2028·U+2029·U+0085 때문에 성공한 run이 실패로 보고되는 문제를 베타 전에 고친다.
+- #36: 경로 정체성을 프로젝트 기준 상대 경로로 정한 결정(2026-10-03)에 따라, 기록 손실·계보 단절 항목(1·2·3·5·6번, 4번은 신뢰 목록만)을 #13 전에 고친다. 동결의 예외다.
+- #38: 고치지 않는 기록 손실(2번의 출력, 4·5번)은 README와 [현재 계약](CONTRACTS.md) G에 사용자 안내로 적는다.
 
-#36의 경로 정체성과 [#37](https://github.com/handochan/aelix-analytics/issues/37)의 줄 끝은 기록 계약의 결정이라 동결하지 않는다.
+[#37](https://github.com/handochan/aelix-analytics/issues/37)의 줄 끝은 기록 계약의 결정이라 동결하지 않는다(2026-10-03 결정, 구현은 [#42](https://github.com/handochan/aelix-analytics/issues/42)).
 
 ## 6. 베타 뒤의 가장 중요한 우선순위
 
@@ -340,9 +340,9 @@ PR에는 문제를 재현하는 입력, 변경 후 행동, 바뀐 계약, 비교
 
 출시 리허설 결과표는 최소 다음 열을 가진다.
 
-| Gate | 결과(pass/fail/not run) | commit·artifact | 환경·모델 | 증거 경로 | 제한·후속 작업 |
-|---|---|---|---|---|---|
-| Q1–Q17 각각 | 미실행 | 미정 | 미정 | 미정 | 구현·검증 필요. Q17-a/b는 결과·증거를 각각 기록 |
+| Gate | 결과(pass/fail/not run) | commit·artifact | 환경·모델 | 수행자 | 증거 경로 | 제한·후속 작업 |
+|---|---|---|---|---|---|---|
+| Q1–Q17 각각 | 미실행 | 미정 | 미정 | 미정 | 미정 | 구현·검증 필요. Q17-a/b는 결과·증거를 각각 기록 |
 
 필수 게이트 실패·미실행, 설명되지 않은 기록 유실, 잘못된 버전 연결, 실제 문맥 한계로 과제를 진행하지 못하는 문제,
 설치물 누락은 출시 보류 사유다. 알려진 복구·멱등성 한계는 지원 범위를 제한해 공개하되, 그것을 구현 완료로 표시하지 않는다.
