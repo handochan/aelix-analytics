@@ -421,17 +421,32 @@ def test_hand_edited_records_with_odd_fields_are_read_not_raised(tmp_path):
                      ref("visualization_version", "cites", "none", key=["k"]), "not a dict"]})
     p.line({"schema": "analytics.event/2", "seq": 4, "id": "e4", "kind": "record_update", "recorded_at": at(4),
             "refs": [ref("event", "updates", event_id=["e3"])], "details": ["x"]})
+    # A script that is a string, not an object: its chart key, its snapshot and the chart index.
+    p.write_json("runs/20261001-090100-str/run.json", {
+        "schema": "lab.run/1", "id": "20261001-090100-str", "status": "ok", "started_at": at(1),
+        "script": "scripts/a.py", "charts": [{"id": "c", "files": {}}]})
+    p.line({"schema": "lab.event/1", "seq": 5, "id": "e5", "ts": at(5), "kind": "run",
+            "refs": {"runs": ["20261001-090100-str"], "charts": ["scripts/a.py::c"]}})
+    p.line({"schema": "analytics.event/2", "seq": 6, "id": "e6", "kind": "finding", "recorded_at": at(6),
+            "refs": [ref("code_snapshot", "cites", run_id="20261001-090100-str", path="scripts/a.py",
+                         digest={"sha256": "0" * 64}),
+                     ref("visualization_version", "cites", "none", key="scripts/a.py::c")]})
     calls = []
     model = read(p.root, alive=lambda pid: calls.append(pid) or False)
     assert calls == [None]
     assert model.unsupported == [{"location": "journal:2", "reason": "unknown_kind"}]
     states = [j["state"] for j in model.references()]
-    assert len(states) == 3 + 8 + 1  # e1's two runs and chart key, e3's eight items, e4's one
+    # e1's two runs and chart key, e3's eight items, e4's one, e5's run and chart key, e6's two
+    assert len(states) == 3 + 8 + 1 + 2 + 2
     assert states[:2] == ["resolved", "unsupported"]
+    assert [(j["state"], j.get("reason")) for j in model.references("e5")] == [
+        ("resolved", None), ("missing", "record_absent")]  # no script path: not this key's run
+    assert [(j["state"], j.get("reason"), j.get("candidates")) for j in model.references("e6")] == [
+        ("missing", "record_absent", None), ("version_unbound", None, [])]
     assert model.runs()[0]["execution_status"] == "incomplete"
     assert model.lineage() == []
     assert model.upstream("20261001-090000-odd")["upstream"] == []
-    assert model.journal.replay().unapplied == ["e4"]
+    assert model.journal.replay().unapplied == [{"from": "e4", "reason": "missing"}]
     model.report_revisions()
     model.imports()
 
@@ -448,11 +463,138 @@ def test_imports_and_their_completion_events(tmp_path):
     assert {i["name"]: (i["recording_status"], i["reasons"]) for i in model.imports()} == {
         "sales": ("complete", []), "orders": ("incomplete", ["no_completion_event"]),
         "stores": ("complete", [])}
+    # The data of an import event is the path of the import record it completes (ADR-0006 6), unbound.
+    data = one(model, "e1", field="data")
+    assert (data["type"], data["relation"], data["target"], data["state"], data["version_binding"],
+            "candidates" in data) == ("dataset_import", "about", {"path": sales}, "version_unbound", "none", False)
+
+
+def test_a_v1_reference_to_a_run_that_started_after_it_is_missing(tmp_path):
+    """The run a /1 refs.runs names must not have started after the event, as instants. A time that
+    cannot be read, or a naive one against an aware one, excludes nothing."""
+    p = LegacyProject(tmp_path / "p")
+    early = p.run("20261001-090000-early", started_at=at(0), ts=at(1))
+    same = p.run("20261001-001000-same", started_at="2026-10-01T00:10:00.000+00:00", ts=at(11))  # 09:10 KST
+    late = p.run("20261001-001100-late", started_at="2026-10-01T00:11:00.000+00:00", ts=at(12))  # 09:11 KST
+    unread = p.run("20261001-095000-unread", started_at="sometime", ts=at(51))
+    naive = p.run("20261001-095100-naive", started_at="2026-10-01T09:51:00", ts=at(52))
+    finding = p.event("finding", {"runs": [early, same, late, unread, naive]}, ts=at(10))
+    model = read(p.root)
+    judged = {j["target"]["run_id"]: (j["state"], j.get("reason"), j["confirmed"])
+              for j in model.references(finding)}
+    assert judged == {early: ("resolved", None, True), same: ("resolved", None, True),
+                      late: ("missing", "record_absent", False), unread: ("resolved", None, True),
+                      naive: ("resolved", None, True)}
+
+
+def test_a_run_event_naming_several_runs_binds_its_charts_to_none(tmp_path):
+    """The runner names one run in its completion event. A line naming several does not say whose chart
+    it is, in whatever order; one run that started after the event is not its run."""
+    p = LegacyProject(tmp_path / "p")
+    a = p.run("20261001-090000-a", charts=["trend"], started_at=at(0), ts=at(1))
+    b = p.run("20261001-091000-b", charts=["trend"], started_at=at(10), ts=at(11))
+    both = p.event("run", {"runs": [a, b], "charts": ["scripts/a.py::trend"]}, ts=at(20))
+    reversed_ = p.event("run", {"runs": [b, a, b], "charts": ["scripts/a.py::trend"]}, ts=at(21))
+    late = p.run("20261001-095000-late", charts=["trend"], started_at=at(50), ts=at(51))
+    too_early = p.event("run", {"runs": [late], "charts": ["scripts/a.py::trend"]}, ts=at(30))
+    model = read(p.root)
+    for source in (both, reversed_):
+        judged = one(model, source, field="charts")
+        assert (judged["state"], judged["target"], judged["candidates"], judged["confirmed"]) == (
+            "ambiguous", {"run_id": None, "visualization_id": "trend"}, [f"{a}/trend", f"{b}/trend"], False)
+    for field in ("runs", "charts"):
+        judged = one(model, too_early, field=field)
+        assert (judged["state"], judged["reason"], judged["confirmed"]) == ("missing", "record_absent", False)
+    assert one(model, "e5", field="charts")["confirmed"] is True  # late's own completion event
+
+
+def test_an_id_on_several_lines_is_ambiguous_whatever_their_seqs_and_a_line_without_seq_is_not_found(tmp_path):
+    p = LegacyProject(tmp_path / "p")
+    p.event("note")  # line 1: e1
+    p.event("finding", {"events": ["e1"]})  # line 2: e2
+    p.line({"schema": "lab.event/1", "seq": 3, "id": "e1", "ts": at(3), "kind": "note", "refs": {}})  # hand-edited
+    p.line({"schema": "lab.event/1", "id": "e9", "ts": at(4), "kind": "note", "refs": {}})  # line 4: no seq
+    p.event("finding", {"events": ["e9"]}, seq=5)  # line 5
+    model = read(p.root)
+    duplicated = one(model, "e2", field="events")
+    assert (duplicated["state"], duplicated["candidates"], duplicated["confirmed"]) == (
+        "ambiguous", ["journal:1", "journal:3"], False)
+    unplaced = one(model, "e5", field="events")
+    assert (unplaced["state"], unplaced["reason"], unplaced["confirmed"]) == ("missing", "record_absent", False)
+
+
+def test_a_list_of_resolves_closes_every_question_it_names(tmp_path):
+    """references() and the replay read a list-valued /1 refs.resolves alike: every name in it."""
+    p = LegacyProject(tmp_path / "p")
+    p.event("question")  # e1
+    p.event("todo")  # e2
+    p.event("question")  # e3
+    p.event("note", {"resolves": ["e1", "e2", ["e3"]]})  # e4: a hand-edited list
+    model = read(p.root)
+    assert [(j["state"], j["confirmed"]) for j in model.references("e4")] == [
+        ("resolved", True), ("resolved", True), ("unsupported", False)]
+    states = model.record_states()
+    assert [states[e]["state"] for e in ("e1", "e2", "e3")] == ["resolved", "resolved", "open"]
 
 
 def ref(type_, relation, binding="author", basis="declared", **fields) -> dict:
     return {"type": type_, **fields, "relation": relation, "basis": basis, "version_binding": binding}
 
+
+def v2(p: LegacyProject, seq: int, kind: str, refs=(), details=None, id_: str | None = None) -> str:
+    """Append an analytics.event/2 line as a test states it (no writer of /2 exists before #13)."""
+    line = {"schema": "analytics.event/2", "seq": seq, "id": id_ or f"e{seq}", "recorded_at": at(seq % 60),
+            "kind": kind, "actor": "test", "text": kind, "refs": list(refs)}
+    if details is not None:
+        line["details"] = details
+    p.line(line)
+    return line["id"]
+
+
+# --- analytics.event/2 and Report manifest references ---------------------------------------------
+
+def test_bound_event_references_find_only_targets_before_the_record(tmp_path):
+    """The /1 reading of step 2 holds for /2 events (their seq) and manifests (as_of_seq + 1)."""
+    p = LegacyProject(tmp_path / "p")
+    v2(p, 1, "finding", [ref("event", "cites", event_id="e2")])  # names e2 before it exists
+    v2(p, 2, "finding", [ref("event", "cites", event_id="e1"), ref("analysis_focus", "cites", event_id="e3")])
+    v2(p, 3, "analysis_focus")
+    p.write_json("artifacts/reports/weekly/R1/manifest.json", {
+        "schema": "analytics.report_revision/1", "report_id": "weekly", "revision_id": "R1", "files": [],
+        "based_on": {"as_of_seq": 1, "context_version": None,
+                     "refs": [ref("event", "cites", event_id="e1"), ref("event", "cites", event_id="e2")]}})
+    model = read(p.root)
+    got = {(j["from"], j["ref"]["index"]): (j["state"], j.get("reason"), j["confirmed"]) for j in model.references()}
+    assert got == {("e1", 0): ("missing", "record_absent", False), ("e2", 0): ("resolved", None, True),
+                   ("e2", 1): ("missing", "record_absent", False),
+                   ("report:weekly/R1", 0): ("resolved", None, True),
+                   ("report:weekly/R1", 1): ("missing", "record_absent", False)}
+
+
+def test_a_typed_event_reference_needs_a_record_of_that_type_and_logical_id(tmp_path):
+    """ADR-0006 2: a metric definition by metric_id, a reuse proposal by proposal_id, an analysis focus
+    by kind (it has no logical id)."""
+    p = LegacyProject(tmp_path / "p")
+    v2(p, 1, "metric_definition", details={"metric_id": "revenue"})
+    v2(p, 2, "note")
+    v2(p, 3, "reuse_proposal", details={"proposal_id": "p1"})
+    v2(p, 4, "analysis_focus")
+    v2(p, 5, "finding", [ref("metric_definition", "uses", metric_id="revenue", event_id="e1"),
+                         ref("metric_definition", "uses", metric_id="cost", event_id="e1"),
+                         ref("metric_definition", "uses", metric_id="revenue", event_id="e2"),
+                         ref("reuse_proposal", "cites", proposal_id="p1", event_id="e3"),
+                         ref("reuse_proposal", "cites", proposal_id="p2", event_id="e3"),
+                         ref("analysis_focus", "about", event_id="e4"),
+                         ref("analysis_focus", "about", event_id="e2"),
+                         ref("event", "cites", event_id="e2")])
+    model = read(p.root)
+    assert [(j["state"], j.get("reason"), j["confirmed"]) for j in model.references("e5")] == [
+        ("resolved", None, True), ("missing", "record_absent", False), ("missing", "record_absent", False),
+        ("resolved", None, True), ("missing", "record_absent", False),
+        ("resolved", None, True), ("missing", "record_absent", False), ("resolved", None, True)]
+
+
+# --- the state replay ------------------------------------------------------------------------------
 
 def test_replay_of_report_revisions_reuse_proposals_and_mismatched_updates(tmp_path):
     root = tmp_path / "p"
@@ -484,11 +626,140 @@ def test_replay_of_report_revisions_reuse_proposals_and_mismatched_updates(tmp_p
     assert states["report:weekly/R1"] == {"state": "current", "mismatched_updates": ["e4"]}
     assert states["e5"] == {"state": "proposed", "mismatched_updates": ["e7"]}
     assert states["e11"] == {"state": "current", "mismatched_updates": ["e12"]}
-    assert model.journal.replay().unapplied == ["e13"]
+    assert model.journal.replay().unapplied == [{"from": "e13", "reason": "missing"}]
     assert model.transition_allowed("report:weekly/R1", "current", "withdrawn")
     assert model.transition_allowed("e5", "proposed", "trial")
     assert not model.transition_allowed("e5", "proposed", "registered")
     assert not model.transition_allowed("e99", "current", "withdrawn")
+
+
+def test_records_that_share_an_id_each_keep_a_state_and_references_to_the_id_change_none(tmp_path):
+    """ADR-0006 6: every record with the id is read; a reference to the id is ambiguous and changes no
+    state. Each record's state is under `journal:<line>`."""
+    p = LegacyProject(tmp_path / "p")
+    p.event("note")  # line 1: e1
+    p.raw(b'{"schema": "lab.event/1", "seq": 2, "id": "e2", "kind": "question", "te')  # cut off
+    p.event("question", text="first question")  # e2, appended onto the cut-off line 2
+    p.event("question", seq=2, text="second question")  # line 3: e2 again, as the /1 writer does (#49)
+    p.event("finding", {"events": ["e2"], "resolves": "e2"})  # line 4: e3
+    model = read(p.root)
+    states = model.record_states()
+    assert states["journal:2"] == states["journal:3"] == {"state": "open", "mismatched_updates": []}
+    assert "e2" not in states
+    assert [(j["state"], j["candidates"]) for j in model.references("e3")] == [
+        ("ambiguous", ["journal:2", "journal:3"])] * 2
+    mixed = read(FIXTURES / "mixed-version").record_states()
+    assert mixed["journal:7"] == mixed["journal:8"] == {"state": "current", "mismatched_updates": []}
+
+
+def test_the_replay_changes_a_state_only_through_a_reference_that_resolves_before_the_event(tmp_path):
+    """The references a transition goes through are judged as references() judges them: bound, one
+    record of the type named, before the event, never the event itself."""
+    p = LegacyProject(tmp_path / "p")
+    p.event("question", {"resolves": "e1"})  # e1 closes itself
+    model = read(p.root)
+    assert one(model, "e1", field="resolves")["state"] == "missing"
+    assert model.record_states()["e1"]["state"] == "open"
+
+    q = LegacyProject(tmp_path / "q")
+    withdraw = {"expected_state": "current", "new_state": "withdrawn"}
+    v2(q, 1, "finding")
+    v2(q, 2, "record_update", [ref("event", "updates", "none", event_id="e1", key="e1")], withdraw)
+    v2(q, 3, "metric_definition", details={"metric_id": "revenue"})
+    v2(q, 4, "record_update", [ref("metric_definition", "updates", metric_id="cost", event_id="e3")], withdraw)
+    v2(q, 5, "note")
+    v2(q, 6, "record_update", [ref("metric_definition", "updates", metric_id="revenue", event_id="e5")], withdraw)
+    v2(q, 7, "record_update", [ref("event", "updates", event_id="e8")], withdraw)  # a later record
+    v2(q, 8, "finding")
+    v2(q, 9, "record_update", [ref("event", "updates", event_id="e1"), ref("event", "updates", event_id="e5")],
+       withdraw)
+    v2(q, 10, "record_update", [ref("event", "updates", event_id="e9")], withdraw)  # a record_update: no state
+    v2(q, 11, "question", [ref("event", "resolves", event_id="e11")])  # closes itself
+    v2(q, 12, "record_update", [ref("metric_definition", "updates", metric_id="revenue", event_id="e3")],
+       withdraw)
+    model = read(q.root)
+    states = model.record_states()
+    assert {key: states[key]["state"] for key in ("e1", "e3", "e5", "e8", "e11")} == {
+        "e1": "current", "e3": "withdrawn", "e5": "current", "e8": "current", "e11": "open"}
+    assert model.journal.replay().unapplied == [
+        {"from": "e2", "reason": "version_unbound"}, {"from": "e4", "reason": "missing"},
+        {"from": "e6", "reason": "missing"}, {"from": "e7", "reason": "missing"},
+        {"from": "e9", "reason": "not_one_target"}, {"from": "e10", "reason": "no_state"}]
+    assert [one(model, source, index=0)["state"] for source in ("e2", "e4", "e6", "e7", "e11")] == [
+        "version_unbound", "missing", "missing", "missing", "missing"]
+
+
+def test_two_corrections_that_share_an_id_are_two_corrections(tmp_path):
+    p = LegacyProject(tmp_path / "p")
+    v2(p, 1, "finding")
+    v2(p, 2, "finding", [ref("event", "supersedes", event_id="e1")])
+    v2(p, 2, "finding", [ref("event", "supersedes", event_id="e1")])  # another line with e2 and its seq
+    states = read(p.root).record_states()
+    assert states["e1"]["state"] == "conflict"
+    assert states["journal:2"]["state"] == states["journal:3"]["state"] == "current"
+
+
+# --- names that leave the project ------------------------------------------------------------------
+
+def test_names_that_leave_the_project_name_nothing_and_are_not_hashed(tmp_path):
+    """A manifest file path is relative to its content directory (no root, drive or `..`); a CONTEXT
+    version is a bare file name on every platform (`C:x.md` is drive-relative on Windows)."""
+    p = LegacyProject(tmp_path / "p")
+    outside = tmp_path / "outside.md"
+    outside.write_bytes(b"outside")
+    digest = hashlib.sha256(b"outside").hexdigest()
+    paths = {"R1": "../../../../../../outside.md", "R2": str(outside), "R3": "index.md"}
+    for revision, path in paths.items():
+        p.file(f"artifacts/reports/weekly/{revision}/content/index.md", b"outside")
+        p.write_json(f"artifacts/reports/weekly/{revision}/manifest.json", {
+            "schema": "analytics.report_revision/1", "report_id": "weekly", "revision_id": revision,
+            "files": [{"path": path, "sha256": digest}]})
+    good = "20261001-090000-000000_aaaaaaaaaaaa.md"
+    p.file(f".analytics/context/{good}", b"context")
+    if os.name != "nt":
+        p.file(".analytics/context/C:x.md", b"context")  # a file name here, a drive-relative path on Windows
+    p.event("context", {"context": good})  # e1
+    p.event("context", {"context": "C:x.md"})  # e2
+    calls: list = []
+    model = read(p.root, sha=counting(calls))
+    assert {r["revision_id"]: r["content"] for r in model.report_revisions()} == {
+        "R1": "missing", "R2": "missing", "R3": "resolved"}
+    assert [one(model, e, field="context")["state"] for e in ("e1", "e2")] == ["resolved", "missing"]
+    root = p.root.resolve()
+    assert calls and all(Path(c).resolve().is_relative_to(root) for c in calls), calls
+
+
+# --- costs -----------------------------------------------------------------------------------------
+
+def test_the_import_index_and_the_producer_edges_are_built_once_per_read(tmp_path):
+    p = LegacyProject(tmp_path / "p")
+    imports = [p.dataset(f"d{i}", imported_at=at(i)) for i in range(3)]
+    v2(p, 1, "finding", [ref("dataset_import", "uses", path=path, digest={"sha256": file_sha(p.root / path)})
+                         for path in imports * 3])
+    p.seq = 1
+    chain, previous = [], []
+    for i, name in enumerate("abcd"):
+        output = [(f"data/{name}.csv", p.file(f"data/{name}.csv", name.encode()))]
+        chain.append(p.run(f"20261001-09{i}000-{name}", inputs=previous, outputs=output, started_at=at(10 * i)))
+        previous = output
+    model = read(p.root)
+
+    class Counting(list):
+        iterations = 0
+
+        def __iter__(self):
+            self.iterations += 1
+            return super().__iter__()
+
+    model._metas = Counting(model._metas)
+    assert [j["state"] for j in model.references("e1")] == ["resolved"] * 9
+    assert model._metas.iterations == 1
+    calls: list = []
+    producers = model.producers
+    model.producers = lambda path, sha256, consumer=None: calls.append((path, consumer)) or producers(
+        path, sha256, consumer)
+    assert [model.upstream(run)["upstream"] for run in chain] == [[], chain[:1], chain[:2], chain[:3]]
+    assert len(calls) == len(set(calls)) == 3, calls
 
 
 # --- the source revision ---------------------------------------------------------------------------
@@ -626,4 +897,3 @@ print(json.dumps({{"state": judged["state"], "candidates": judged["candidates"],
     assert result["state"] == "ambiguous" and len(result["candidates"]) == 3
     assert "polars" in result["importable"], result
     assert result["loaded"] == []
-

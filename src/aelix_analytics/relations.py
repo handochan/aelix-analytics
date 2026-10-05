@@ -7,19 +7,40 @@ This module reads; it never writes a record, a cache or an index. It imports nei
 
 - `alive(pid) -> bool`: whether a process of that id still runs (the platform's process port).
 - `sha(path) -> str | None`: the sha256 of a file's current bytes, None when there is no such file.
-  It is called only for a reference whose target keeps a hash of its own, when that reference is
-  judged; reading a `lab.event/1` reference never hashes a file.
+  It is called when a reference whose target keeps a hash of its own is judged, and for every file
+  of every saved and prepared Report revision when `report_revisions()` is called; reading a
+  `lab.event/1` reference never hashes a file.
 
 The rules are those of ADR-0006 (docs/decisions/0006-common-record-contract.md), checked against the
-examples under tests/fixtures/records/. Two readings this module makes where the decision is silent:
+examples under tests/fixtures/records/. Readings this module makes where the decision is silent:
 
-- A `lab.event/1` `refs.events` or `refs.resolves` target whose seq is not below the seq of the
-  record that cites it is `missing` (`record_absent`): it did not exist when the reference was
-  written, which is how section 4 step 2 ("find the target record") is read here. The `/1` writer
-  never checked those targets, so a mistyped id would otherwise become a confirmed link once the
-  journal grew that far.
+- An event target of a `lab.event/1` reference (`refs.events`, `refs.resolves`) or of a bound
+  `analytics.event/2` or Report manifest reference (type `event`, `analysis_focus`,
+  `metric_definition`, `reuse_proposal`) is found only at a seq below the referring record's (its
+  own seq; a manifest's `as_of_seq` + 1, or its completion event). A target at or after that seq,
+  or a line without a seq, is `missing` (`record_absent`): it did not exist, or is not shown to have
+  existed, when the reference was written. This is how section 4 step 2 ("find the target record")
+  is read here. Neither writer checked those targets, so a mistyped id would otherwise become a
+  confirmed link once the journal grew that far. Several lines with the id are `ambiguous` whatever
+  their seqs.
+- A typed event target must be a record of that type: `metric_definition` and `reuse_proposal` a
+  record of that kind whose `details.metric_id` / `details.proposal_id` is the reference's, and
+  `analysis_focus` a record of that kind (it has no logical id, section 2). Anything else is
+  `missing` (`record_absent`), as a run's file is not another run's target.
+- A `lab.event/1` `refs.runs` run whose `started_at` is after the event's `ts` (as instants) is
+  `missing` (`record_absent`); when either time cannot be read, or one is naive and the other
+  aware, nothing is excluded. A `kind=run` event's `refs.charts` are bound only when its `refs.runs`
+  names exactly one run; with several they are `ambiguous` (`<run_id>/<visualization_id>` of each).
+- The state replay changes a record's state only through a reference judged as above that resolves
+  to one record before the event, with a bound version (`author` or `inferred`). Records that share
+  an id each have their own state under `journal:<line>`; a reference to that id changes neither.
 - A cycle among producers is a walk that comes back to a run still on its own path. A run reached
   twice through two producers (a diamond) is not a cycle.
+
+Costs that grow with the project: every judgment is built once per read and kept; an unbound
+reference lists every candidate version before it, so the judgments grow as references times
+versions of a key (a screen shows a count and where to read the rest, CONTRACTS A1); `upstream()`
+of every run of a producer chain returns sets that grow with the chain.
 
 A producer judgment is `{run_id, path, sha256, producer, candidates, basis}`. Its basis is
 `observed` (same path and hash as a successful run's output). It says which runs could have written
@@ -34,7 +55,7 @@ import json
 import os
 import re
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 # The version of this reader's rules, part of every source_revision it gives (ADR-0006 5).
 READER_FORMAT = 1
@@ -68,6 +89,8 @@ RELATIONS = frozenset({"supports", "contradicts", "cites", "uses", "derived_from
 BASES = frozenset({"observed", "declared", "inferred", "unverified"})
 BINDINGS = frozenset({"author", "inferred", "none"})
 EVENT_TARGETS = frozenset({"event", "analysis_focus", "metric_definition", "reuse_proposal"})
+# ADR-0006 2: the logical id a typed event target holds in its details (analysis_focus has none).
+EVENT_LOGICAL_IDS = {"metric_definition": "metric_id", "reuse_proposal": "proposal_id"}
 # Fields that hold a logical key when a reference is left unbound (ADR-0006 2 and 3).
 LOGICAL_KEYS = ("key", "path", "metric_id", "proposal_id", "report_id")
 # ADR-0006 6: the records that have a state, by kind (`gap` is the /1 name of workflow_feedback).
@@ -151,6 +174,28 @@ def _digest(ref: dict):
     return digest.get("sha256") if isinstance(digest, dict) else digest
 
 
+def _script(run: dict) -> dict:
+    """A run record's `script`, or {} when a hand-edited record holds something else there."""
+    script = run.get("script")
+    return script if isinstance(script, dict) else {}
+
+
+def _inside(rel) -> bool:
+    """A relative path that stays under the directory it is joined to, read as POSIX and as Windows:
+    no root, no drive (`C:x.md` included) and no `..`."""
+    if not isinstance(rel, str) or not rel or "\x00" in rel:
+        return False
+    return all(not pure.anchor and ".." not in pure.parts
+               for pure in (PurePosixPath(rel), PureWindowsPath(rel)))
+
+
+def _file_name(name) -> bool:
+    """A bare file name on every platform: its own last part, with no drive."""
+    if not isinstance(name, str) or name in ("", ".", "..") or "\x00" in name:
+        return False
+    return all(pure.name == name and not pure.drive for pure in (PurePosixPath(name), PureWindowsPath(name)))
+
+
 # --- the journal ----------------------------------------------------------------------------------
 
 def _recover(line: bytes) -> dict | None:
@@ -210,6 +255,7 @@ class Journal:
         self.lines_of: dict[str, list[int]] = {}
         self.seq_of: dict[int, int | None] = {}
         self._unsupported_lines: set[int] = set()
+        self._event_at: dict[int, Event] = {}
         self._ordered: list[Event] | None = None
         self._replay: Replay | None = None
         top = 0
@@ -236,6 +282,7 @@ class Journal:
                 self._unsupported_lines.add(number)
             else:
                 self.events.append(Event(number, value))
+                self._event_at[number] = self.events[-1]
         # ADR-0006 6: the next seq follows every parsed and recovered line, unsupported ones too.
         self.as_of_seq = top
         self.next_seq = top + 1
@@ -252,6 +299,33 @@ class Journal:
         if event.id is not None and len(self.lines_of.get(event.id, [])) == 1:
             return event.id
         return f"journal:{event.line}"
+
+    def event_target(self, type_, ref: dict, before: int) -> tuple:
+        """(state, reason, candidates) of step 2 of ADR-0006 4 for an event-family target, as the
+        reference judgments and the state replay both read it. Several lines with the id are
+        `ambiguous` whatever their seqs. One line is found only when its seq is below `before`, the
+        referring record's boundary; a line at or after it, or without a seq, did not exist (or is
+        not shown to have existed) when the reference was written: `missing` (`record_absent`). A
+        typed target must be a record of that type with the reference's logical id."""
+        event_id = ref.get("event_id")
+        lines = self.lines_of.get(event_id, []) if isinstance(event_id, str) else []
+        if len(lines) > 1:
+            return "ambiguous", None, [f"journal:{n}" for n in lines]
+        seq = self.seq_of.get(lines[0]) if lines else None
+        if seq is None or seq >= before:
+            return "missing", "record_absent", None
+        if self.is_unsupported(lines[0]):
+            return "unsupported", None, None
+        target = self._event_at[lines[0]]
+        if type_ != "event" and target.kind != type_:
+            return "missing", "record_absent", None
+        field = EVENT_LOGICAL_IDS.get(type_)
+        if field is not None:
+            details = target.value.get("details")
+            held = _str(details.get(field)) if isinstance(details, dict) else None
+            if held is None or held != ref.get(field):
+                return "missing", "record_absent", None
+        return "resolved", None, None
 
     def in_order(self) -> list[Event]:
         """Seq order, line order among equal seqs (a record without a seq goes last)."""
@@ -329,71 +403,86 @@ def _known_ref(ref) -> bool:
 
 
 class Replay:
-    """Every record's state from one pass over the journal in seq order. An event applies to the
-    state before it, and a later event never undoes a transition applied earlier. A reference whose
-    target is not one record (absent, several lines with its id, or a record without a state)
-    changes nothing."""
+    """Every record's state from one pass over the journal in seq order (line order among equal
+    seqs). An event applies to the states before it, its own included only after its references
+    are applied, and a later event never undoes a transition applied earlier.
+
+    A reference changes a state only when it resolves, as `references()` judges it, to one record
+    before the event (seq below the event's, or below the next seq for a line without one) with a
+    bound version; anything else (absent, later, several lines with its id, the wrong type, unbound,
+    or a record without a state) changes nothing. Records that share an id each get their own state
+    under `journal:<line>`."""
 
     def __init__(self, journal: Journal):
         self.states: dict[str, dict] = {}
-        # record_update events whose target has no state: shown, never applied.
-        self.unapplied: list[str] = []
-        lines_of = journal.lines_of
-
-        def target(event_id) -> dict | None:
-            if isinstance(event_id, str) and len(lines_of.get(event_id, [])) == 1:
-                return self.states.get(event_id)
-            return None
-
+        # record_update events that changed no state, each with why: the state of its target's
+        # judgment (`missing`, `ambiguous`, `unsupported`, `version_unbound`), `no_state` (the target
+        # has none) or `not_one_target` (not exactly one `updates` reference). Shown, never applied.
+        self.unapplied: list[dict] = []
         for event in journal.in_order():
-            unique = event.id is not None and len(lines_of.get(event.id, [])) == 1
-            if unique and event.kind in CONTENT_KINDS:
-                self.states[event.id] = {"group": "content", "withdrawn": False, "by": set(),
-                                         "mismatched": []}
-            elif unique and event.kind in QUESTION_KINDS:
-                self.states[event.id] = {"group": "question", "resolved": False, "mismatched": []}
-            elif unique and event.kind == "reuse_proposal" and event.schema == EVENT_V2:
-                self.states[event.id] = {"group": "reuse", "stage": "proposed", "mismatched": []}
-            if event.kind == "report_revision" and event.schema == EVENT_V2:
-                for ref in _dicts(event.refs):
-                    if _known_ref(ref) and ref["type"] == "report_revision" and ref["relation"] == "about":
-                        key = report_key(ref.get("report_id"), ref.get("revision_id"))
-                        self.states.setdefault(key, {"group": "report", "withdrawn": False,
-                                                     "mismatched": []})
-            for relation, target_id in self._links(event):
-                state = target(target_id)
+            before = event.seq if event.seq is not None else journal.next_seq
+            name = journal.source_of(event)
+            for relation, ref in self._links(event):
+                state, _ = self._target(journal, ref, before)
                 if state is None:
                     continue
                 if relation == "supersedes" and state["group"] == "content":
-                    state["by"].add(event.id or f"journal:{event.line}")
+                    state["by"].add(name)
                 elif relation == "resolves" and state["group"] == "question":
                     state["resolved"] = True
             if event.kind == "record_update" and event.schema == EVENT_V2:
-                self._update(event, target)
+                self._update(journal, event, name, before)
+            if event.kind in CONTENT_KINDS:
+                self.states[name] = {"group": "content", "withdrawn": False, "by": set(), "mismatched": []}
+            elif event.kind in QUESTION_KINDS:
+                self.states[name] = {"group": "question", "resolved": False, "mismatched": []}
+            elif event.kind == "reuse_proposal" and event.schema == EVENT_V2:
+                self.states[name] = {"group": "reuse", "stage": "proposed", "mismatched": []}
+            elif event.kind == "report_revision" and event.schema == EVENT_V2:
+                for ref in _dicts(event.refs):
+                    if _known_ref(ref) and ref["type"] == "report_revision" and ref["relation"] == "about":
+                        key = report_key(ref.get("report_id"), ref.get("revision_id"))
+                        self.states.setdefault(key, {"group": "report", "withdrawn": False, "mismatched": [],
+                                                     "seq": event.seq})
 
     @staticmethod
-    def _links(event: Event) -> list[tuple[str, str]]:
-        """(relation, event id) of the references that can change a record's state."""
+    def _links(event: Event) -> list[tuple[str, dict]]:
+        """(relation, reference) of the references that can close or correct a record."""
         if event.schema == EVENT_V1:
             refs = event.refs if isinstance(event.refs, dict) else {}
-            resolves = refs.get("resolves")
-            return [("resolves", resolves)] if isinstance(resolves, str) else []
-        return [(ref["relation"], ref.get("event_id")) for ref in _dicts(event.refs)
+            return [("resolves", {"type": "event", "event_id": value, "relation": "resolves",
+                                  "basis": "declared", "version_binding": "author"})
+                    for value in _strings(refs.get("resolves")) if isinstance(value, str)]
+        return [(ref["relation"], ref) for ref in _dicts(event.refs)
                 if _known_ref(ref) and ref["type"] in EVENT_TARGETS
                 and ref["relation"] in ("supersedes", "resolves")]
 
-    def _update(self, event: Event, target) -> None:
-        name = event.id or f"journal:{event.line}"
-        updates = [ref for ref in _dicts(event.refs) if _known_ref(ref) and ref["relation"] == "updates"]
-        state = None
+    def _target(self, journal: Journal, ref: dict, before: int) -> tuple[dict | None, str | None]:
+        """(the state a reference reaches, None) or (None, why it reaches none)."""
+        if not _known_ref(ref):
+            return None, "unsupported"
+        if ref["version_binding"] == "none":
+            return None, "version_unbound"
+        if ref["type"] in EVENT_TARGETS:
+            state, _, _ = journal.event_target(ref["type"], ref, before)
+            if state != "resolved":
+                return None, state
+            found = self.states.get(ref["event_id"])
+        elif ref["type"] == "report_revision":
+            found = self.states.get(report_key(ref.get("report_id"), ref.get("revision_id")))
+            if found is None or found["seq"] is None or found["seq"] >= before:
+                return None, "missing"
+        else:
+            return None, "no_state"
+        return (found, None) if found is not None else (None, "no_state")
+
+    def _update(self, journal: Journal, event: Event, name: str, before: int) -> None:
+        updates = [ref for ref in _dicts(event.refs) if ref.get("relation") == "updates"]
+        state, why = None, "not_one_target"
         if len(updates) == 1:
-            ref = updates[0]
-            if ref["type"] in EVENT_TARGETS:
-                state = target(ref.get("event_id"))
-            elif ref["type"] == "report_revision":
-                state = self.states.get(report_key(ref.get("report_id"), ref.get("revision_id")))
+            state, why = self._target(journal, updates[0], before)
         if state is None:
-            self.unapplied.append(name)
+            self.unapplied.append({"from": name, "reason": why})
             return
         details = event.value.get("details")
         details = details if isinstance(details, dict) else {}
@@ -548,8 +637,8 @@ def _load(path: Path) -> tuple[object, str | None]:
 class ReadModel:
     """One read of a project's records. Built by `read`; every judgment comes from what that read
     found. The indexes it needs (completion seq of each run, the versions of each Visualization key
-    in completion order, the successful runs that output each path and hash) are built once, on
-    first use, and kept."""
+    in completion order, the successful runs that output each path and hash, the import records of
+    each path, the producer candidates of each run) are built once, on first use, and kept."""
 
     def __init__(self, root: Path, journal: Journal, *, alive, sha):
         self.root = root
@@ -617,8 +706,11 @@ class ReadModel:
         self._completion: dict[str, int] | None = None
         self._versions: tuple[dict, dict] | None = None
         self._outputs: dict[tuple, list[tuple[str, datetime | None]]] | None = None
+        self._imports_of: dict[str, list[dict]] | None = None
         self._references: list[dict] | None = None
         self._by_source: dict[str, list[dict]] = {}
+        self._edges_of: dict[str, list[str]] = {}
+        self._instants: dict[str, datetime | None] = {}
         self._upstream: dict[str, dict] = {}
 
     # --- runs, imports and Report revisions --------------------------------------------------------
@@ -716,9 +808,13 @@ class ReadModel:
         return out
 
     def _content(self, directory: str, manifest: dict) -> str:
+        """`missing`, `content_changed` or `resolved` for the files a manifest names. A path that is
+        not relative to the revision's content directory (absolute, with a drive, or with `..`)
+        names no preserved file of it and is not hashed: `missing`."""
         states = set()
         for item in _dicts(manifest.get("files")):
-            current = self._sha(self.root / directory / "content" / str(item.get("path")))
+            path = item.get("path")
+            current = self._sha(self.root / directory / "content" / path) if _inside(path) else None
             states.add("missing" if current is None else "resolved" if current == item.get("sha256")
                        else "content_changed")
         for state in ("missing", "content_changed"):
@@ -739,7 +835,7 @@ class ReadModel:
                 done = self.completion_seq(run_id)
                 if run.get("status") != "ok" or done is None:
                     continue
-                script = _str((run.get("script") or {}).get("path")) or "?"
+                script = _str(_script(run).get("path")) or "?"
                 for chart in _dicts(run.get("charts")):
                     chart_id = _str(chart.get("id"))
                     if chart_id is None:
@@ -843,7 +939,7 @@ class ReadModel:
             elif binding == "none":
                 state, reason, candidates = self._unbound(ref, before)
             else:
-                state, reason, candidates = self._resolve(ref)
+                state, reason, candidates = self._resolve(ref, before)
             out.append(self._judgment(source, line, {"index": index}, ref.get("type"),
                                       ref.get("relation"), target, binding, basis, state, reason,
                                       candidates))
@@ -870,26 +966,30 @@ class ReadModel:
         if field not in V1_FIELDS or not isinstance(value, str):
             return None, None, None, None, None, "unsupported", None, None
         if field == "runs":
-            ref = {"type": "run", "run_id": value}
-            return ("run", "about" if about else "cites", {"run_id": value}, "author", "declared",
-                    *self._resolve(ref))
+            if self._started_after(value, event):
+                judged = ("missing", "record_absent", None)
+            else:
+                judged = self._resolve({"type": "run", "run_id": value})
+            return ("run", "about" if about else "cites", {"run_id": value}, "author", "declared", *judged)
         if field in ("events", "resolves"):
             relation = "resolves" if field == "resolves" else "cites"
             return ("event", relation, {"event_id": value}, "author", "declared",
-                    *self._event_target(value, before))
+                    *self.journal.event_target("event", {"event_id": value}, before))
         if field == "context":
             found = self._context_file(value) is not None
             return ("context_version", "about" if event.kind == "context" else "cites",
                     {"version": value}, "author", "declared",
                     *(("resolved", None, None) if found else ("missing", "record_absent", None)))
         if field == "charts" and event.kind == "run":
-            refs = event.refs
-            runs = [r for r in _strings(refs.get("runs", [])) if isinstance(r, str)]
+            runs = sorted({r for r in _strings(event.refs.get("runs", [])) if isinstance(r, str)})
             script, _, chart_id = value.rpartition("::")
-            run_id = runs[0] if runs else None
+            run_id = runs[0] if len(runs) == 1 else None
             target = {"run_id": run_id, "visualization_id": chart_id}
             run = self._runs.get(run_id)
-            if run is not None and (run.get("script") or {}).get("path") != script:
+            if len(runs) > 1:
+                # The runner names one run; a line naming several does not say which run's chart.
+                judged = ("ambiguous", None, [f"{r}/{chart_id}" for r in runs])
+            elif run is not None and (_script(run).get("path") != script or self._started_after(run_id, event)):
                 judged = ("missing", "record_absent", None)
             else:
                 judged = self._resolve({"type": "visualization_version", "run_id": run_id,
@@ -898,9 +998,13 @@ class ReadModel:
         if field == "charts":
             return ("visualization_version", "cites", {"key": value}, "none", "declared",
                     "version_unbound", None, self.visualization_versions(value, before))
+        if field == "data" and event.kind == "import":
+            # ADR-0006 6: the path of the import record the event completes; left unbound (ADR-0006 4).
+            return ("dataset_import", "about", {"path": value}, "none", "declared", "version_unbound",
+                    None, None)
         if field == "data":
             # ADR-0006 4: a name or path, left unbound, with no candidates.
-            return ("data_observation", "about" if event.kind in ("run", "import") else "cites",
+            return ("data_observation", "about" if event.kind == "run" else "cites",
                     {"key": value}, "none", "declared", "version_unbound", None, None)
         return None, "cites", {"token": value}, "none", "declared", "unknown", "unresolved_name", None
 
@@ -923,24 +1027,28 @@ class ReadModel:
             return "version_unbound", None, None
         return "unknown", "unresolved_name", None
 
-    def _event_target(self, event_id, before: int | None = None) -> tuple:
-        """Step 2 of ADR-0006 4 for an event. With `before` (a /1 reference), a line whose seq is not
-        below it did not exist when the reference was written."""
-        lines = self.journal.lines_of.get(event_id, []) if isinstance(event_id, str) else []
-        if before is not None:
-            seq_of = self.journal.seq_of
-            lines = [n for n in lines if seq_of.get(n) is None or seq_of[n] < before]
-        if not lines:
-            return "missing", "record_absent", None
-        if len(lines) > 1:
-            return "ambiguous", None, [f"journal:{n}" for n in lines]
-        if self.journal.is_unsupported(lines[0]):
-            return "unsupported", None, None
-        return "resolved", None, None
+    def _started_after(self, run_id, event: Event) -> bool:
+        """Whether a run started after the event that names it, start and event times compared as
+        instants. A time that cannot be read, or a naive time against an aware one, excludes
+        nothing."""
+        run = self._runs.get(run_id) if isinstance(run_id, str) else None
+        if run is None:
+            return False
+        return not _not_after(self._at(run.get("started_at")), self._at(event.recorded_at))
+
+    def _at(self, text) -> datetime | None:
+        """`_instant` of a time, parsed once per distinct text per read."""
+        if not isinstance(text, str):
+            return None
+        if text not in self._instants:
+            self._instants[text] = _instant(text)
+        return self._instants[text]
 
     def _context_file(self, name) -> Path | None:
-        """A CONTEXT version by file name, in .analytics/context/ and then .lab/context/."""
-        if not isinstance(name, str) or not name or "/" in name or "\\" in name or name in (".", ".."):
+        """A CONTEXT version by file name, in .analytics/context/ and then .lab/context/. A name that
+        is not a bare file name on every platform (a separator, a drive as in `C:x.md`, `.`, `..`)
+        names no version."""
+        if not _file_name(name):
             return None
         for directory in CONTEXT_DIRS:
             path = self.root / directory / name
@@ -948,11 +1056,22 @@ class ReadModel:
                 return path
         return None
 
-    def _resolve(self, ref: dict) -> tuple:
-        """(state, reason, candidates) of one bound reference, in the order of ADR-0006 4."""
+    def _imports(self, path) -> list[dict]:
+        """The import records of a path, in file-name order (one index per read)."""
+        if self._imports_of is None:
+            index: dict[str, list[dict]] = {}
+            for _, meta in self._metas:
+                if isinstance(meta.get("path"), str):
+                    index.setdefault(meta["path"], []).append(meta)
+            self._imports_of = index
+        return self._imports_of.get(path, []) if isinstance(path, str) else []
+
+    def _resolve(self, ref: dict, before: int | None = None) -> tuple:
+        """(state, reason, candidates) of one bound reference, in the order of ADR-0006 4. `before`
+        is the referring record's boundary for an event target (the whole journal when None)."""
         kind = ref["type"]
         if kind in EVENT_TARGETS:
-            return self._event_target(ref.get("event_id"))
+            return self.journal.event_target(kind, ref, self.journal.next_seq if before is None else before)
         if kind == "publication":
             return "unsupported", None, None  # publications are #20's family, unknown here
         if kind == "context_version":
@@ -965,7 +1084,7 @@ class ReadModel:
             return self._report(ref)
         if kind == "dataset_import":
             path = _str(ref.get("path"))
-            metas = [m for _, m in self._metas if path is not None and m.get("path") == path]
+            metas = self._imports(path)
             if not metas:
                 return "missing", "record_absent", None
             return self._against_record(metas[-1].get("sha256"), ref, path)
@@ -997,7 +1116,7 @@ class ReadModel:
                 return "missing", "record_absent", None
             return self._against_record(entries[0].get("sha256"), ref, path)
         # code_snapshot: only this run's snapshots, whatever bytes another run's snapshot holds.
-        script = run.get("script") or {}
+        script = _script(run)
         held = {_str(script.get("snapshot")): script.get("sha256"),
                 **{_str(m.get("snapshot")): m.get("sha256") for m in _dicts(run.get("modules"))}}
         held.pop(None, None)
@@ -1095,10 +1214,13 @@ class ReadModel:
         return out
 
     def _edges(self, run_id: str) -> list[str]:
-        found: set[str] = set()
-        for entry in _dicts((self._runs.get(run_id) or {}).get("inputs")):
-            found.update(self.producers(entry.get("path"), entry.get("sha256"), consumer=run_id))
-        return sorted(found)
+        """The producer candidates of every input of a run (once per run per read)."""
+        if run_id not in self._edges_of:
+            found: set[str] = set()
+            for entry in _dicts((self._runs.get(run_id) or {}).get("inputs")):
+                found.update(self.producers(entry.get("path"), entry.get("sha256"), consumer=run_id))
+            self._edges_of[run_id] = sorted(found)
+        return self._edges_of[run_id]
 
     def upstream(self, run_id: str) -> dict:
         """Every run reached by following all producer candidates from `run_id`, and whether the walk
