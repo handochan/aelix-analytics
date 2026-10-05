@@ -1,0 +1,629 @@
+"""The reader of ADR-0006 (src/aelix_analytics/relations.py): the examples' judgments, and /1 records.
+
+The expected judgments of the six examples under tests/fixtures/records/ are the reader's conformance
+criteria (ADR-0006, "결과와 영향"); the request fingerprints of fingerprint-vectors.json are its
+canonical form. The /1 cases are lab.json projects written record by record (tests/legacy_records.py):
+the same chart id in other runs, references left unbound, several producers, tables not preserved,
+references to later records and cycles, failed runs, records this reader cannot read and damaged
+lines (docs/BETA-QUALITY-GATES.md, B1-b).
+"""
+
+from __future__ import annotations
+
+import ast
+import hashlib
+import json
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+from legacy_records import LegacyProject, at
+
+from aelix_analytics import relations
+
+ROOT = Path(__file__).resolve().parents[1]
+FIXTURES = ROOT / "tests" / "fixtures" / "records"
+CASES = sorted(p.name for p in FIXTURES.iterdir() if p.is_dir())
+DEAD_PID = 4294967295  # the examples' running record; no process has it (README)
+LIVE_PID = 4242
+# What a judgment may hold (no field of verification, causation or row correspondence).
+JUDGMENT_KEYS = {"from", "line", "ref", "type", "relation", "target", "state", "reason", "version_binding",
+                 "basis", "confirmed", "candidates"}
+# The writes of the examples a reader does not decide, and the Issue that does.
+NOT_THIS_READER = {"report_save": "#19", "event_append": "#13"}
+ANALYSIS = ("duckdb", "polars", "pyarrow", "numpy", "pandas", "matplotlib", "plotly", "pygments",
+            "markdown_it")
+
+
+def file_sha(path) -> str | None:
+    path = Path(path)
+    return hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
+
+
+def no_process(pid) -> bool:
+    assert pid in (None, DEAD_PID), pid
+    return False
+
+
+def read(root, *, alive=no_process, sha=file_sha) -> relations.ReadModel:
+    return relations.read(root, alive=alive, sha=sha)
+
+
+def key_of(judged: dict) -> tuple[str, str]:
+    return judged["from"], json.dumps(judged["ref"], ensure_ascii=False, sort_keys=True)
+
+
+def one(model, source: str, **ref) -> dict:
+    [judged] = [j for j in model.references(source) if all(j["ref"].get(k) == v for k, v in ref.items())]
+    return judged
+
+
+@pytest.fixture(params=CASES)
+def case(request):
+    expected = json.loads((FIXTURES / request.param / "expected.json").read_text(encoding="utf-8"))
+    return read(FIXTURES / request.param), expected
+
+
+# --- the examples ----------------------------------------------------------------------------------
+
+def test_the_six_cases_are_read():
+    assert CASES == ["conflict", "future-version", "interrupted", "missing", "mixed-version", "normal"]
+
+
+def test_journal_lines_damage_and_next_seq(case):
+    model, expected = case
+    assert model.journal.summary() == expected["journal"]
+    assert model.as_of_seq == expected["journal"]["next_seq"] - 1
+
+
+def test_every_reference_gets_the_judgment_of_the_case(case):
+    model, expected = case
+    judged = {key_of(j): j for j in model.references()}
+    want = {key_of(j): j for j in expected["references"]}
+    assert len(judged) == len(model.references()), "one judgment per reference"
+    assert set(judged) == set(want)
+    for key, item in want.items():
+        got = judged[key]
+        for field in ("state", "version_binding", "basis", "confirmed"):
+            assert got[field] == item[field], (key, field)
+        assert got.get("reason") == item.get("reason"), key
+        assert got.get("candidates") == item.get("candidates"), key
+
+
+def test_no_reference_is_left_out(case):
+    """Every stored reference of every readable event and saved manifest has its judgment."""
+    model, _ = case
+    stored = 0
+    for event in model.journal.events:
+        refs = event.refs or ({} if event.schema == relations.EVENT_V1 else [])
+        stored += len(refs) if isinstance(refs, list) else sum(
+            len(v) if isinstance(v, list) else 1 for v in refs.values())
+    for path in sorted((model.root / "artifacts" / "reports").glob("*/*/manifest.json")):
+        based_on = json.loads(path.read_text(encoding="utf-8")).get("based_on") or {}
+        stored += len(based_on.get("refs") or [])
+    assert len(model.references()) == stored
+
+
+def test_confirmed_is_the_formula_and_a_judgment_holds_no_verdict(case):
+    model, _ = case
+    for judged in model.references():
+        assert set(judged) <= JUDGMENT_KEYS, judged
+        assert judged["confirmed"] == relations.confirmed(judged["version_binding"], judged["basis"],
+                                                          judged["state"])
+        if judged["basis"] in ("inferred", "unverified") or judged["version_binding"] != "author":
+            assert judged["confirmed"] is False, judged
+
+
+def test_record_states(case):
+    model, expected = case
+    states = model.record_states()
+    for record in expected["records"]:
+        assert states[record["id"]] == {"state": record["state"],
+                                        "mismatched_updates": record.get("mismatched_updates", [])}, record
+
+
+def test_runs_and_their_recording(case):
+    model, expected = case
+    assert sorted(model.runs(), key=lambda r: r["run_id"]) == sorted(expected["runs"], key=lambda r: r["run_id"])
+
+
+def test_report_revisions(case):
+    model, expected = case
+    order = lambda r: (r["report_id"], r["revision_id"])  # noqa: E731
+    assert sorted(model.report_revisions(), key=order) == sorted(expected["report_revisions"], key=order)
+
+
+def test_lineage(case):
+    """Producers by path and hash: every candidate, never the last run, and never a confirmed link."""
+    model, expected = case
+    order = lambda r: (r["run_id"], r["path"])  # noqa: E731
+    lineage = sorted(model.lineage(), key=order)
+    assert [{k: item[k] for k in ("run_id", "path", "producer", "candidates")} for item in lineage] == \
+        sorted(expected["lineage"], key=order)
+    for item in lineage:
+        assert set(item) == {"run_id", "path", "sha256", "producer", "candidates", "basis"}
+        assert item["basis"] == ("observed" if item["candidates"] else None)
+
+
+def test_unsupported_records_are_counted_where_they_are(case):
+    model, expected = case
+    order = lambda i: i["location"]  # noqa: E731
+    assert sorted(model.unsupported, key=order) == sorted(expected["unsupported"]["items"], key=order)
+    assert len(model.unsupported) == expected["unsupported"]["count"]
+    assert model.damaged_files == []
+
+
+def test_the_writes_this_reader_decides(case):
+    """record_update by the replay the writer reuses; saves' fingerprints by the reader's canonical
+    form. The saves themselves and event_append are #19's and #13's."""
+    model, expected = case
+    for write in expected["writes"]:
+        request = write["request"]
+        if write["operation"] == "record_update":
+            allowed = model.transition_allowed(request["target"], request["expected_state"],
+                                               request["new_state"])
+            assert write["result"] == ("saved" if allowed else "state_conflict"), write
+        else:
+            assert write["operation"] in NOT_THIS_READER, write
+            if "request_fingerprint" in request:
+                assert relations.request_fingerprint(request) == request["request_fingerprint"], write
+    for path in (model.root / "artifacts" / "reports").glob("*/*/manifest.json"):
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        assert relations.request_fingerprint(manifest) == manifest["request_fingerprint"], path
+
+
+def test_the_examples_hold_no_write_left_unnamed():
+    operations = set()
+    for name in CASES:
+        expected = json.loads((FIXTURES / name / "expected.json").read_text(encoding="utf-8"))
+        operations |= {w["operation"] for w in expected["writes"]}
+    assert operations == {"record_update", *NOT_THIS_READER}
+
+
+def test_the_journal_alone_gives_the_same_events_and_states():
+    """read_journal reads journal.jsonl and nothing else: what a caller that needs only the events
+    (the context block, a note's checks) pays for."""
+    model = read(FIXTURES / "mixed-version")
+    journal = relations.read_journal(FIXTURES / "mixed-version")
+    assert journal.summary() == model.journal.summary()
+    assert [e.line for e in journal.events] == [e.line for e in model.journal.events]
+    assert journal.replay().record_states() == model.record_states()
+    assert [e.value["text"] for e in journal.events if e.id == "e7"] == ["끊긴 줄 뒤에 붙은 메모.",
+                                                                        "같은 seq를 다시 받은 메모."]
+
+
+def test_fingerprint_vectors():
+    vectors = json.loads((FIXTURES / "fingerprint-vectors.json").read_text(encoding="utf-8"))["vectors"]
+    for vector in vectors:
+        assert relations.canonical(vector["intent"]).decode("utf-8") == vector["canonical"], vector["name"]
+        assert relations.request_fingerprint(vector["intent"]) == vector["sha256"], vector["name"]
+
+
+@pytest.mark.parametrize("change", [
+    {"title": 1.5}, {"based_on": {"제목": 1}}, {"title": "\ud800"},
+    {"files": [{"path": "a.md", "sha256": "0"}, {"path": "a.md", "sha256": "1"}]}])
+def test_an_intent_without_a_canonical_form_has_no_fingerprint(change):
+    intent = {"report_id": "r", "previous_revision": None, "title": "t", "entry": "a.md",
+              "files": [{"path": "a.md", "sha256": "0"}], "based_on": None, **change}
+    with pytest.raises(ValueError):
+        relations.request_fingerprint(intent)
+
+
+# --- /1 records ------------------------------------------------------------------------------------
+
+def test_one_chart_id_in_other_runs_and_scripts_is_other_versions(tmp_path):
+    p = LegacyProject(tmp_path / "p")
+    first = p.run("20261001-091000-a", script="scripts/a.py", charts=["trend"])  # e1
+    second = p.run("20261001-092000-a", script="scripts/a.py", charts=["trend"])  # e2
+    other = p.run("20261001-093000-b", script="scripts/b.py", charts=["trend"])  # e3
+    p.event("run", {"runs": [first], "charts": ["scripts/b.py::trend"]})  # e4: not first's script
+    model = read(p.root)
+    for source, run_id in (("e1", first), ("e2", second), ("e3", other)):
+        judged = one(model, source, field="charts")
+        assert judged["target"] == {"run_id": run_id, "visualization_id": "trend"}
+        assert (judged["state"], judged["version_binding"], judged["basis"], judged["confirmed"]) == \
+            ("resolved", "author", "observed", True)
+    assert model.visualization_versions("scripts/a.py::trend") == [f"{first}/trend", f"{second}/trend"]
+    assert model.visualization_versions("scripts/b.py::trend") == [f"{other}/trend"]
+    elsewhere = one(model, "e4", field="charts")
+    assert (elsewhere["state"], elsewhere["reason"], elsewhere["confirmed"]) == ("missing", "record_absent", False)
+
+
+def test_unbound_references_list_only_the_versions_before_them(tmp_path):
+    p = LegacyProject(tmp_path / "p")
+    first = p.run("20261001-091000-a", charts=["trend"])  # e1
+    p.event("finding", {"charts": ["scripts/a.py::trend"], "data": ["sales"], "other": ["지난주 메모"]})  # e2
+    second = p.run("20261001-092000-a", charts=["trend"])  # e3, after the finding
+    p.event("finding", {"charts": ["scripts/a.py::trend"]})  # e4
+    model = read(p.root)
+    chart = one(model, "e2", field="charts")
+    assert (chart["state"], chart["version_binding"], chart["confirmed"]) == ("version_unbound", "none", False)
+    assert chart["candidates"] == [f"{first}/trend"]  # not the latest version, which came after
+    data = one(model, "e2", field="data")
+    assert (data["state"], data["type"], "candidates" in data) == ("version_unbound", "data_observation", False)
+    other = one(model, "e2", field="other")
+    assert (other["state"], other["reason"]) == ("unknown", "unresolved_name")
+    later = one(model, "e4", field="charts")
+    # Both versions existed before e4; it stays unbound to either.
+    assert (later["state"], later["candidates"]) == ("version_unbound", [f"{first}/trend", f"{second}/trend"])
+
+
+def test_producers_are_every_successful_run_not_started_after_the_consumer(tmp_path):
+    p = LegacyProject(tmp_path / "p")
+    digest = p.file("data/derived/x.csv", b"x\n1\n")
+    out = [("data/derived/x.csv", digest)]
+    # The consumer starts at 01:00 UTC. Text order is not instant order across offsets.
+    p.run("20261001-093000-earlier-kst", outputs=out, started_at="2026-10-01T09:30:00.000+09:00")
+    p.run("20261001-005900-earlier-utc", outputs=out, started_at="2026-10-01T00:59:00.000+00:00")
+    p.run("20261001-100000-same-instant", outputs=out, started_at="2026-10-01T10:00:00.000+09:00")
+    p.run("20260930-233000-later", outputs=out, started_at="2026-09-30T23:30:00.000-05:00")
+    p.run("20261001-000000-failed", outputs=out, status="error", started_at=at(0, hour=0, offset="+00:00"))
+    p.run("20261001-000100-no-time", outputs=out, started_at="sometime")
+    consumer = p.run("20261001-010000-consumer", inputs=out, started_at="2026-10-01T01:00:00.000+00:00")
+    model = read(p.root)
+    judged = model.producer(consumer, "data/derived/x.csv")
+    assert judged == {"run_id": consumer, "path": "data/derived/x.csv", "sha256": digest,
+                      "producer": "ambiguous", "basis": "observed",
+                      "candidates": ["20261001-000100-no-time", "20261001-005900-earlier-utc",
+                                     "20261001-093000-earlier-kst", "20261001-100000-same-instant"]}
+    assert "20260930-233000-later" in model.producers("data/derived/x.csv", digest)
+    assert "20261001-000000-failed" not in model.producers("data/derived/x.csv", digest)
+
+    q = LegacyProject(tmp_path / "q")
+    one_out = [("data/derived/y.csv", q.file("data/derived/y.csv", b"y"))]
+    q.run("20261001-090000-maker", outputs=one_out, started_at=at(0))
+    reader = q.run("20261001-091000-reader", inputs=one_out + [("data/raw.csv", "f" * 64)], started_at=at(10))
+    model = read(q.root)
+    assert model.producer(reader, "data/derived/y.csv")["producer"] == "resolved"
+    assert model.producer(reader, "data/raw.csv")["producer"] == "none"
+
+
+def test_tables_not_preserved(tmp_path):
+    p = LegacyProject(tmp_path / "p")
+    kept = p.file("data/derived/t.csv", b"v1")
+    gone = p.file("data/derived/gone.csv", b"g")
+    run = p.run("20261001-091000-t", outputs=[("data/derived/t.csv", kept), ("data/derived/gone.csv", gone)],
+                inputs=[("data/in.csv", None)])
+    p.file("data/derived/t.csv", b"v2")
+    (p.root / "data" / "derived" / "gone.csv").unlink()
+    model = read(p.root)
+    assert model.observation(run, "output", "data/derived/t.csv") == {"state": "content_changed"}
+    assert model.observation(run, "output", "data/derived/gone.csv") == {"state": "missing", "reason": "file_absent"}
+    assert model.observation(run, "input", "data/in.csv") == {"state": "unknown", "reason": "no_digest"}
+    assert model.producer(run, "data/in.csv")["producer"] == "unknown"
+
+
+def test_references_to_later_records_are_missing_and_mutual_ones_end(tmp_path):
+    """A /1 refs.events or refs.resolves target at or after the citing record's seq did not exist when
+    the reference was written (ADR-0006 4 step 2, as this reader reads it)."""
+    p = LegacyProject(tmp_path / "p")
+    p.event("finding", {"events": ["e2"]})  # e1 names e2 before it exists
+    p.event("finding", {"events": ["e1"]})  # e2
+    p.event("note", {"events": ["e9"], "resolves": "e5"})  # e3: a mistyped id, a later question
+    p.event("note")  # e4
+    p.event("question")  # e5
+    for _ in range(4):
+        p.event("note")  # e6..e9: now there is an e9
+    model = read(p.root)
+    forward = one(model, "e1", field="events")
+    assert (forward["state"], forward["reason"], forward["confirmed"]) == ("missing", "record_absent", False)
+    back = one(model, "e2", field="events")
+    assert (back["state"], back["confirmed"]) == ("resolved", True)
+    for field in ("events", "resolves"):
+        judged = one(model, "e3", field=field)
+        assert (judged["state"], judged["reason"], judged["confirmed"]) == ("missing", "record_absent", False)
+    assert model.record_states()["e5"]["state"] == "open"
+
+
+def test_a_diamond_is_not_a_cycle_and_a_true_cycle_is(tmp_path):
+    p = LegacyProject(tmp_path / "p")
+    a = [("data/a.csv", p.file("data/a.csv", b"a"))]
+    b = [("data/b.csv", p.file("data/b.csv", b"b"))]
+    c = [("data/c.csv", p.file("data/c.csv", b"c"))]
+    p.run("20261001-090000-root", outputs=a, started_at=at(0))
+    p.run("20261001-090500-root-again", outputs=a, started_at=at(5))  # same bytes: two producers
+    p.run("20261001-091000-left", inputs=a, outputs=b, started_at=at(10))
+    p.run("20261001-092000-right", inputs=a, outputs=c, started_at=at(20))
+    top = p.run("20261001-093000-top", inputs=b + c, started_at=at(30))
+    model = read(p.root)
+    assert model.upstream(top) == {"run_id": top, "cycle": False,
+                                   "upstream": ["20261001-090000-root", "20261001-090500-root-again",
+                                                "20261001-091000-left", "20261001-092000-right"]}
+    assert model.producer("20261001-091000-left", "data/a.csv")["producer"] == "ambiguous"
+
+    q = LegacyProject(tmp_path / "q")
+    one_ = [("data/one.csv", q.file("data/one.csv", b"1"))]
+    two = [("data/two.csv", q.file("data/two.csv", b"2"))]
+    # Two runs that started at one instant and read each other's output: each is the other's candidate.
+    q.run("20261001-100000-one", inputs=two, outputs=one_, started_at=at(0, hour=10))
+    q.run("20261001-100000-two", inputs=one_, outputs=two, started_at=at(0, hour=10))
+    model = read(q.root)
+    assert model.upstream("20261001-100000-one") == {"run_id": "20261001-100000-one", "cycle": True,
+                                                     "upstream": ["20261001-100000-two"]}
+
+
+def test_failed_and_interrupted_runs(tmp_path):
+    p = LegacyProject(tmp_path / "p")
+    error = p.run("20261001-090000-error", status="error")
+    timeout = p.run("20261001-090100-timeout", status="timeout")
+    cancelled = p.run("20261001-090200-cancelled", status="cancelled")
+    dead = p.run("20261001-090300-dead", status="running", pid=DEAD_PID, completion=False)
+    live = p.run("20261001-090400-live", status="running", pid=LIVE_PID, completion=False)
+    unfinished = p.run("20261001-090500-unfinished", finalize_errors=["journal: OSError"], completion=False)
+    p.event("finding", {"runs": [error, dead]})
+    model = read(p.root, alive=lambda pid: pid == LIVE_PID)
+    assert {r["run_id"]: (r["execution_status"], r["recording_status"], r["reasons"]) for r in model.runs()} == {
+        error: ("error", "complete", []), timeout: ("timeout", "complete", []),
+        cancelled: ("cancelled", "complete", []),
+        dead: ("incomplete", "incomplete", ["not_final", "no_completion_event"]),
+        live: ("running", "incomplete", ["not_final", "no_completion_event"]),
+        unfinished: ("ok", "incomplete", ["no_completion_event", "finalize_errors"])}
+    assert [j["state"] for j in model.references("e4")] == ["resolved", "resolved"]
+
+
+def test_records_this_reader_cannot_read_and_damaged_lines(tmp_path):
+    p = LegacyProject(tmp_path / "p")
+    p.event("note")  # line 1, e1
+    p.line({"schema": "vendor.custom/1", "seq": 2, "id": "e2"})
+    p.line({"schema": "lab.event/2", "seq": 3, "id": "e3", "kind": "finding", "refs": {}})
+    p.line({"schema": "lab.event/1", "seq": 4, "id": "e4", "kind": "annotation", "refs": {}})
+    p.seq = 4
+    p.raw(b'{"schema": "lab.event/1", "seq": 5, "id": "e5", "kind": "note", "te')  # cut off
+    p.event("note")  # line 5: e5, appended onto the cut-off line
+    p.event("note", seq=5)  # line 6: e5 again, the /1 writer's next seq after an unreadable last line
+    p.event("finding", {"events": ["e5", "e3", "e2", "e4"]})  # line 7, e6
+    p.run("20261001-090000-newer", schema="lab.run/2", completion=False)
+    p.dataset("future", imported_at=at(1), schema="lab.dataset/2")
+    damaged = p.root / "runs" / "20261001-090100-damaged"
+    damaged.mkdir(parents=True)
+    (damaged / "run.json").write_text("{not json", encoding="utf-8")
+    (p.root / "runs" / "20261001-090200-empty").mkdir()
+    p.event("finding", {"runs": ["20261001-090000-newer", "20261001-090100-damaged"]})  # line 8, e7
+    p.raw(b'{"schema": "lab.event/1", "seq": 8, "id": "e8"')  # line 9, cut off at the end
+    model = read(p.root)
+    # The seq left in the cut-off piece is not counted: that write never returned an id.
+    assert model.journal.summary() == {"lines": 9, "damaged": [5, 9], "recovered": [5], "next_seq": 8}
+    assert model.unsupported == [
+        {"location": "journal:2", "reason": "unknown_family"},
+        {"location": "journal:3", "reason": "unknown_version"},
+        {"location": "journal:4", "reason": "unknown_kind"},
+        {"location": "runs/20261001-090000-newer/run.json", "reason": "unknown_version"},
+        {"location": "data/raw/future.meta.json", "reason": "unknown_version"}]
+    assert model.damaged_files == [{"location": "runs/20261001-090100-damaged/run.json", "reason": "unparsable"},
+                                   {"location": "runs/20261001-090200-empty/run.json", "reason": "absent"}]
+    states = [(j["ref"]["value"], j["state"], j.get("candidates")) for j in model.references("e6")]
+    assert states == [("e5", "ambiguous", ["journal:5", "journal:6"]), ("e3", "unsupported", None),
+                      ("e2", "unsupported", None), ("e4", "unsupported", None)]
+    assert [j["state"] for j in model.references("e7")] == ["unsupported", "missing"]
+    assert {j["from"] for j in model.references()} == {"e6", "e7"}  # the two e5 notes cite nothing
+    assert [model.journal.source_of(e) for e in model.journal.events if e.id == "e5"] == ["journal:5", "journal:6"]
+
+
+def test_hand_edited_records_with_odd_fields_are_read_not_raised(tmp_path):
+    """A list or an object where an id belongs names nothing: the reader judges, it does not fail."""
+    p = LegacyProject(tmp_path / "p")
+    p.write_json("runs/20261001-090000-odd/run.json", {
+        "schema": "lab.run/1", "id": "x", "status": "running", "pid": [1], "started_at": ["x"],
+        "script": {"path": ["s"], "snapshot": {"a": 1}}, "modules": [{"snapshot": [1]}],
+        "inputs": [{"path": ["a"], "sha256": ["b"]}, "not a dict"],
+        "outputs": [{"path": {"a": 1}, "sha256": "f" * 64}], "charts": [{"id": {"a": 1}}, {"id": ["b"]}]})
+    p.event("run", {"runs": ["20261001-090000-odd", ["nested"]], "charts": ["scripts/a.py::c"]})
+    p.line({"schema": "lab.event/1", "seq": 2, "id": "e2", "kind": ["finding"], "refs": {}})
+    p.line({"schema": "analytics.event/2", "seq": 3, "id": "e3", "kind": "finding", "recorded_at": at(3),
+            "refs": [ref("run", "cites", run_id=["x"]), {"type": ["event"], "relation": "cites"},
+                     ref("data_observation", "uses", run_id="20261001-090000-odd", role="input", path=["a"]),
+                     ref("code_snapshot", "cites", run_id="20261001-090000-odd", path={"a": 1}),
+                     ref("report_revision", "cites", report_id=["r"], revision_id="x"),
+                     ref("visualization_version", "cites", "none", token=["t"]),
+                     ref("visualization_version", "cites", "none", key=["k"]), "not a dict"]})
+    p.line({"schema": "analytics.event/2", "seq": 4, "id": "e4", "kind": "record_update", "recorded_at": at(4),
+            "refs": [ref("event", "updates", event_id=["e3"])], "details": ["x"]})
+    calls = []
+    model = read(p.root, alive=lambda pid: calls.append(pid) or False)
+    assert calls == [None]
+    assert model.unsupported == [{"location": "journal:2", "reason": "unknown_kind"}]
+    states = [j["state"] for j in model.references()]
+    assert len(states) == 3 + 8 + 1  # e1's two runs and chart key, e3's eight items, e4's one
+    assert states[:2] == ["resolved", "unsupported"]
+    assert model.runs()[0]["execution_status"] == "incomplete"
+    assert model.lineage() == []
+    assert model.upstream("20261001-090000-odd")["upstream"] == []
+    assert model.journal.replay().unapplied == ["e4"]
+    model.report_revisions()
+    model.imports()
+
+
+def test_imports_and_their_completion_events(tmp_path):
+    p = LegacyProject(tmp_path / "p")
+    sales = p.dataset("sales", imported_at=at(10))
+    p.event("import", {"data": [sales]}, ts=at(10))
+    orders = p.dataset("orders", imported_at=at(20))
+    p.event("import", {"data": [orders]}, ts=at(15))  # before the record: not its completion
+    stores = p.dataset("stores", imported_at="2026-10-01T09:30:00.000+09:00")
+    p.event("import", {"data": [stores]}, ts="2026-10-01T00:31:00.000+00:00")  # 09:31 KST
+    model = read(p.root)
+    assert {i["name"]: (i["recording_status"], i["reasons"]) for i in model.imports()} == {
+        "sales": ("complete", []), "orders": ("incomplete", ["no_completion_event"]),
+        "stores": ("complete", [])}
+
+
+def ref(type_, relation, binding="author", basis="declared", **fields) -> dict:
+    return {"type": type_, **fields, "relation": relation, "basis": basis, "version_binding": binding}
+
+
+def test_replay_of_report_revisions_reuse_proposals_and_mismatched_updates(tmp_path):
+    root = tmp_path / "p"
+    root.mkdir()
+    revision = ref("report_revision", "about", basis="observed", report_id="weekly", revision_id="R1",
+                   digest={"sha256": "0" * 64})
+
+    def update(target: dict, expected: str, new: str) -> tuple:
+        return "record_update", [target], {"expected_state": expected, "new_state": new}
+
+    report = ref("report_revision", "updates", report_id="weekly", revision_id="R1", digest={"sha256": "0" * 64})
+    proposal = ref("reuse_proposal", "updates", proposal_id="p1", event_id="e5")
+    rows = [("report_revision", [revision], None), update(report, "current", "withdrawn"),
+            update(report, "withdrawn", "current"), update(report, "withdrawn", "current"),
+            ("reuse_proposal", [], {"proposal_id": "p1"}), update(proposal, "proposed", "trial"),
+            update(proposal, "trial", "registered"), update(proposal, "trial", "validated"),
+            update(proposal, "validated", "deferred"), update(proposal, "deferred", "proposed"),
+            ("finding", [], None), update(ref("event", "updates", event_id="e11"), "current", "superseded"),
+            update(ref("event", "updates", event_id="e99"), "current", "withdrawn")]
+    with open(root / "journal.jsonl", "w", encoding="utf-8", newline="\n") as fh:
+        for seq, (kind, refs, details) in enumerate(rows, 1):
+            line = {"schema": "analytics.event/2", "seq": seq, "id": f"e{seq}", "recorded_at": at(seq),
+                    "kind": kind, "actor": "test", "text": kind, "refs": refs}
+            if details:
+                line["details"] = details
+            fh.write(json.dumps(line) + "\n")
+    model = read(root)
+    states = model.record_states()
+    assert states["report:weekly/R1"] == {"state": "current", "mismatched_updates": ["e4"]}
+    assert states["e5"] == {"state": "proposed", "mismatched_updates": ["e7"]}
+    assert states["e11"] == {"state": "current", "mismatched_updates": ["e12"]}
+    assert model.journal.replay().unapplied == ["e13"]
+    assert model.transition_allowed("report:weekly/R1", "current", "withdrawn")
+    assert model.transition_allowed("e5", "proposed", "trial")
+    assert not model.transition_allowed("e5", "proposed", "registered")
+    assert not model.transition_allowed("e99", "current", "withdrawn")
+
+
+# --- the source revision ---------------------------------------------------------------------------
+
+def test_the_source_revision_follows_the_files_and_not_where_they_are(tmp_path):
+    first = tmp_path / "a" / "normal"
+    shutil.copytree(FIXTURES / "normal", first)
+    moved = tmp_path / "elsewhere" / "b"
+    shutil.copytree(first, moved)  # copy2 keeps sizes and mtimes
+    token = read(first).source_revision
+    assert len(token) == 16 and read(first).source_revision == token
+    assert read(moved).source_revision == token
+    assert str(tmp_path) not in json.dumps(relations._snapshot(first))
+    run_json = first / "runs" / "20261001-091000-region-summary" / "run.json"
+    data = run_json.read_bytes()
+    replacement = run_json.with_name("run.json.tmp")
+    replacement.write_bytes(data)
+    stat = run_json.stat()
+    os.utime(replacement, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000_000))
+    os.replace(replacement, run_json)
+    replaced = read(first).source_revision
+    assert replaced != token
+    with open(first / "journal.jsonl", "ab") as fh:
+        fh.write(b'{"schema": "analytics.event/2", "seq": 16, "id": "e16", "recorded_at": "2026-10-01T11:00:00.000+09:00", '
+                 b'"kind": "note", "actor": "test", "text": "x", "refs": []}\n')
+    appended = read(first)
+    assert appended.source_revision not in (token, replaced) and appended.as_of_seq == 16
+
+
+def test_a_read_that_keeps_changing_says_updating(tmp_path):
+    p = LegacyProject(tmp_path / "p")
+    p.run("20261001-090000-live", status="running", pid=LIVE_PID, completion=False)
+    calls = []
+
+    def appending(pid) -> bool:
+        calls.append(pid)
+        p.event("note")  # a writer appends while the reader reads
+        return True
+
+    model = read(p.root, alive=appending)
+    assert model.updating and len(calls) == 3
+    assert len(set(model.observed_revisions)) == 3 and model.source_revision == model.observed_revisions[-1]
+    steady = read(p.root, alive=lambda pid: True)
+    assert not steady.updating and steady.observed_revisions == [steady.source_revision]
+
+
+# --- what is injected ------------------------------------------------------------------------------
+
+def counting(calls: list):
+    def sha_(path):
+        calls.append(path)
+        return file_sha(path)
+    return sha_
+
+
+def test_reading_lab_references_hashes_no_file(tmp_path):
+    p = LegacyProject(tmp_path / "p")
+    out = [("data/derived/x.csv", p.file("data/derived/x.csv", b"x"))]
+    run = p.run("20261001-090000-a", charts=["trend"], outputs=out)
+    p.event("context", {"context": "20261001-090000-000000_aaaaaaaaaaaa.md"})
+    p.event("finding", {"runs": [run], "events": ["e1"], "charts": ["scripts/a.py::trend"],
+                        "data": ["data/derived/x.csv"], "other": ["memo"], "resolves": "e1"})
+    calls: list = []
+    model = read(p.root, sha=counting(calls))
+    model.references()
+    model.runs()
+    model.record_states()
+    model.lineage()
+    assert calls == []
+
+
+@pytest.mark.parametrize("name", ["normal", "missing"])
+def test_another_sha_gives_the_same_judgments(name):
+    calls: list = []
+    plain = read(FIXTURES / name, sha=counting(calls))
+    judged, revisions = plain.references(), plain.report_revisions()
+    assert calls, "these cases hold references whose targets keep a hash"
+
+    def chunked(path):
+        path = Path(path)
+        if not path.is_file():
+            return None
+        with open(path, "rb") as fh:
+            return hashlib.file_digest(fh, "sha256").hexdigest()
+
+    other = read(FIXTURES / name, sha=chunked)
+    assert other.references() == judged and other.report_revisions() == revisions
+
+
+# --- where it runs ---------------------------------------------------------------------------------
+
+def test_the_module_imports_the_standard_library_only_in_3_11_syntax():
+    source = (ROOT / "src" / "aelix_analytics" / "relations.py").read_text(encoding="utf-8")
+    tree = ast.parse(source, feature_version=(3, 11))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            assert node.level == 0, "no other module of the package"
+            names = [node.module]
+        elif isinstance(node, ast.Import):
+            names = [alias.name for alias in node.names]
+        else:
+            continue
+        for name in names:
+            top = name.split(".")[0]
+            assert top == "__future__" or top in sys.stdlib_module_names, name
+
+
+def test_the_reader_runs_alone_from_its_file(tmp_path):
+    """ADR-0001 check 1: the read model's representative call with no host and no analysis library,
+    in an environment where the analysis libraries could be imported."""
+    code = f"""
+import hashlib, importlib.util, json, sys
+spec = importlib.util.spec_from_file_location("relations_alone", {str(ROOT / "src" / "aelix_analytics" / "relations.py")!r})
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+def sha(path):
+    try:
+        with open(path, "rb") as fh:
+            return hashlib.sha256(fh.read()).hexdigest()
+    except OSError:
+        return None
+model = module.read({str(FIXTURES / "mixed-version")!r}, alive=lambda pid: False, sha=sha)
+[judged] = [j for j in model.references("e9") if j["ref"] == {{"index": 4}}]
+analysis = {ANALYSIS!r}
+print(json.dumps({{"state": judged["state"], "candidates": judged["candidates"],
+                  "importable": [n for n in analysis if importlib.util.find_spec(n) is not None],
+                  "loaded": sorted(m for m in sys.modules
+                                   if m.split(".")[0] in analysis + ("labkit", "aelix_analytics", "aelix"))}}))
+"""
+    env = {k: v for k, v in os.environ.items() if k not in ("PYTHONPATH", "VIRTUAL_ENV")}
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, encoding="utf-8",
+                          cwd=tmp_path, env=env, timeout=120)
+    assert proc.returncode == 0, proc.stderr
+    result = json.loads(proc.stdout)
+    assert result["state"] == "ambiguous" and len(result["candidates"]) == 3
+    assert "polars" in result["importable"], result
+    assert result["loaded"] == []
+
