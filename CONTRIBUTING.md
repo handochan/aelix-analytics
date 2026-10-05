@@ -157,7 +157,7 @@ uv run --locked python tools/check_docs.py --output .devstate/runs/<run-id>/evid
   표시됩니다(`ci:macos`가 아닌 라벨이면 모든 작업이 건너뜀). 건너뜀은 검증 결과가 아닙니다. 수동 실행(`workflow_dispatch`, `macos` 선택)과 매주 월요일 03:17 UTC 실행은 세 OS를 모두 돌립니다.
 - 비용(GitHub Free의 월 2,000분 기준): 이 워크플로의 첫 측정(PR #34)에서 Linux+Windows 한 번은 작업마다 분 단위로 올리고
   Windows를 2배로 세어 58분, macOS 한 번은 10배로 세어 90분이었습니다. 주간 실행만으로 월 약 650분이 듭니다(추정). 레그가 멈춰
-  제한 시간까지 가면 작업 하나가 제한 시간만큼(`platform` 140분, macOS면 그 10배) 과금될 수 있습니다.
+  제한 시간까지 가면 작업 하나가 제한 시간만큼(`platform` 150분, macOS면 그 10배) 과금될 수 있습니다.
 - 시험 레그 하나가 실패해도 다음 레그는 돌고 작업은 실패로 끝납니다. 개발 환경의 sync가 실패하면 `platform`의 시험 레그는 돌지
   않고 작업이 실패합니다. 플랫폼별 작업은 서로 취소하지 않습니다(`fail-fast: false`). 시험·기록 단계마다 제한 시간이 있고, 작업의
   제한 시간은 그 합보다 깁니다(artifact 올리기에는 작업의 제한 시간만 있습니다). 단계의 제한이나 시험 하나의 제한(pytest-timeout)에 걸린 레그는 JUnit을 남기지 않습니다.
