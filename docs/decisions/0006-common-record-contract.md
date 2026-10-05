@@ -9,9 +9,9 @@ Status: Accepted — 2026-10-03 소유자 결정 (Issue #4)
 현재 코드가 하는 일은 [현재 계약](../CONTRACTS.md)에 있고, 그 문서는 이 계약을 구현하는 PR(#12·#13·#19·#36)이 병합될 때
 바뀐다. 기계가 검사할 형태는 [기록 schema](../schemas/analytics-records.schema.json)와
 [사례별 예제](../../tests/fixtures/records/README.md)에 있다. ADR과 schema·예제가 어긋나면 ADR이 기준이고 schema·예제를 고친다.
-이 계약이 기대는 형제 결정은 별도 결정 PR에 있어 번호와 브랜치로만 적고, 나중에 병합되는 PR이 링크로 바꾼다:
+이 계약이 기대는 형제 결정:
 [ADR-0005](0005-names-first-storage-with-the-new-writer.md)(#3 전환 순서), [ADR-0008](0008-reuse-proposal-counting-and-deterministic-always-on.md)(#6 재사용 제안),
-ADR-0009(#21 첫 게시, `docs/issue-21-publish-target`).
+[ADR-0009](0009-first-publish-target.md)(#21 첫 게시).
 
 ## 배경
 
@@ -203,7 +203,7 @@ CONTEXT 버전(`context_version`, `/1`의 `refs.context`)은 버전 파일 이�
 - 영속 기준은 `as_of_seq`(그 시점까지 포함한 journal seq)와 CONTEXT 버전(`context_version`)이다. 기준을 남기는 기록은 둘을
   모두 쓰고, 모르거나 없는 값은 생략하지 않고 null(미확인)로 쓴다. checkpoint의 `details`는 둘을 반드시 담고 `as_of_seq`는
   null이 아니다. Report manifest의 `based_on`은 작성자나 생성 run이 알 때만 쓰며, 쓰면 둘을 담는다(7절). 게시본의 기준은
-  #20의 build manifest가 같은 두 값으로 남긴다(ADR-0009, `docs/issue-21-publish-target` 병합 뒤 링크).
+  #20의 build manifest가 같은 두 값으로 남긴다([ADR-0009](0009-first-publish-target.md)).
 - `source_revision`은 읽기가 본 원본의 싼 변경 토큰이다. journal의 크기와 마지막 seq, run.json·manifest·CONTEXT의 크기와
   mtime(필요한 곳은 해시), reader 형식 버전으로 만든 불투명 값이며 절대 경로를 담지 않는다. 같은 기계의 같은 파일에서만
   비교할 뜻이 있고 스냅샷 보장이 아니다. 목록 응답마다 돌려준다.
@@ -315,7 +315,7 @@ artifacts/reports/<report_id>/
     순서를 바꾼 `files`, escape할 문자의 정규 문자열과 sha256은 [지문 예](../../tests/fixtures/records/fingerprint-vectors.json)에 있다.
   - 게시: 단위는 `publication_id`와 대상이다. 같은 패키지·같은 대상의 재시도는 기존 결과를 재사용하고, 같은 ID의 다른
     내용은 거절한다([게시 설계](../PUBLISH-AND-SHARING.md) 6절). 게시에는 `request_id`를 요구하지 않는다. 세부와 receipt
-    형식은 #21의 결정(ADR-0009, `docs/issue-21-publish-target` 병합 뒤 링크)이 이 계약 위에서 정한다.
+    형식은 #21의 결정([ADR-0009](0009-first-publish-target.md))이 이 계약 위에서 정한다.
 - run·일반 기록 쓰기의 멱등성은 베타 뒤 과제다([베타 기준](../BETA-QUALITY-GATES.md) 6절). 그때까지 그 쓰기는
   `request_id`를 받아 남길 뿐 중복을 막지 않는다.
 
@@ -424,7 +424,7 @@ artifacts/reports/<report_id>/
   [#6](https://github.com/handochan/aelix-analytics/issues/6)(재사용 제안, [ADR-0008](0008-reuse-proposal-counting-and-deterministic-always-on.md)),
   [#12](https://github.com/handochan/aelix-analytics/issues/12), [#13](https://github.com/handochan/aelix-analytics/issues/13),
   [#19](https://github.com/handochan/aelix-analytics/issues/19),
-  [#21](https://github.com/handochan/aelix-analytics/issues/21)(첫 게시, ADR-0009 — `docs/issue-21-publish-target` 병합 뒤 링크),
+  [#21](https://github.com/handochan/aelix-analytics/issues/21)(첫 게시, [ADR-0009](0009-first-publish-target.md)),
   [#37](https://github.com/handochan/aelix-analytics/issues/37)([ADR-0007](0007-line-endings.md), 구현 [#42](https://github.com/handochan/aelix-analytics/issues/42)).
 - 설계: [연속성 설계](../DESIGN-CONTINUITY-AND-REUSE.md) 2·6·7절, [보고서 설계](../REPORT-ARTIFACTS.md) 3·6절,
   [아키텍처](../ARCHITECTURE.md) 7절, [근거 그래프 제안](../PROPOSAL-EVIDENCE-GRAPH-2026-09-17.md) 3·7절,

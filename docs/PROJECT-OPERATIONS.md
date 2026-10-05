@@ -221,7 +221,7 @@ handoff만으로 미커밋 코드가 다른 환경에 전달되지는 않는다.
 | B1·N0-b | [사용량 측정 #11](https://github.com/handochan/aelix-analytics/issues/11), [관계 읽기 #12](https://github.com/handochan/aelix-analytics/issues/12), [형식 전환 #13](https://github.com/handochan/aelix-analytics/issues/13), [지표·초점 #14](https://github.com/handochan/aelix-analytics/issues/14) | 계약과 정상/실패/혼합 형식 fixture |
 | B2·B3 | [맥락 조회 #15](https://github.com/handochan/aelix-analytics/issues/15), [checkpoint·인계 #16](https://github.com/handochan/aelix-analytics/issues/16), [재사용 흐름 #17](https://github.com/handochan/aelix-analytics/issues/17) | 근거 회수와 요청하지 않은 추가 모델 호출 없음 |
 | B4·B4-r | [관계 UI #18](https://github.com/handochan/aelix-analytics/issues/18), [Reports #19](https://github.com/handochan/aelix-analytics/issues/19) | Q4·Q6·Q16 및 사람용 작성 경로 |
-| B4-s·검증·출시 | [독립 build #20](https://github.com/handochan/aelix-analytics/issues/20), [publish #21](https://github.com/handochan/aelix-analytics/issues/21), [Q17 #23](https://github.com/handochan/aelix-analytics/issues/23), [출시 리허설 #24](https://github.com/handochan/aelix-analytics/issues/24) | 실제 대상·설치물·Q1–Q17 결과와 미실행 항목 |
+| B4-s·검증·출시 | [독립 build #20](https://github.com/handochan/aelix-analytics/issues/20), [publish #21](https://github.com/handochan/aelix-analytics/issues/21)([ADR-0009](decisions/0009-first-publish-target.md)), [Q17 #23](https://github.com/handochan/aelix-analytics/issues/23), [출시 리허설 #24](https://github.com/handochan/aelix-analytics/issues/24) | 실제 대상·설치물·Q1–Q17 결과와 미실행 항목 |
 
 최초에는 #1 아래 작업별 하위 Issue로 연결했다. 큰 작업이 구체화되면 그 Issue 아래 한 PR에서 검토 가능한 하위 작업으로 나눈다. 17개 품질 게이트마다 기능을 중복 구현하는 별도 Issue를 만들 필요는 없다.
 조사·Decision Issue도 완료 조건을 가진다. 예를 들어 결정 기록·대안·채택 이유·영향 범위가 저장소에 반영되면 완료할 수 있으며, 제품 구현까지 완료했다고 표시하지 않는다.

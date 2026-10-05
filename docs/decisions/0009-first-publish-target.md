@@ -10,12 +10,12 @@ Status: Accepted — 2026-10-03 소유자 결정, 2026-10-05 소유자 결정으
 채택은 구현이 아니다. `build`·`publish`는 현재 코드에 없고([현재 계약](../CONTRACTS.md)), 구현은
 [#20](https://github.com/handochan/aelix-analytics/issues/20)의 독립 build 뒤에 #21에서 한다. #21은 그 구현을 위해 열려 있다.
 
-이 결정은 아직 병합되지 않은 두 결정에 기댄다. 둘을 담은 PR(`docs/issue-4-record-contract`)이 이 ADR보다 먼저 병합된다.
+이 결정은 다음 두 결정에 기댄다.
 
-- ADR-0006([#4](https://github.com/handochan/aelix-analytics/issues/4) 공통 기록 계약, `docs/issue-4-record-contract` 병합 뒤 링크):
+- [ADR-0006](0006-common-record-contract.md)([#4](https://github.com/handochan/aelix-analytics/issues/4) 공통 기록 계약):
   기록 가족과 kind(`publication`·`publish_receipt`), 완료 기록을 마지막에 쓰는 커밋 규칙, Report 버전의 참조 형태, 프로젝트 밖
   경로의 표기, 게시의 재시도 범위, 표식의 `project_id`.
-- ADR-0007([#37](https://github.com/handochan/aelix-analytics/issues/37) 줄 끝, `docs/issue-4-record-contract` 병합 뒤 링크):
+- [ADR-0007](0007-line-endings.md)([#37](https://github.com/handochan/aelix-analytics/issues/37) 줄 끝):
   kit이 쓰는 텍스트의 UTF-8·LF.
 
 병합 순서가 바뀌거나 채택된 본문이 위와 다르면 이 ADR을 다시 대조한다. 명령의 인자 문법, 대상 안의 이름, 기록의 kind·필드
@@ -348,9 +348,9 @@ P1은 하나의 검증된 대상부터 시작한다([공유 설계](../PUBLISH-A
   [#22](https://github.com/handochan/aelix-analytics/issues/22): CI의 두 번째 계정·HTTP 하위 경로·SMB 루프백 단계.
   [#24](https://github.com/handochan/aelix-analytics/issues/24): 출시 리허설의 실제 다른 독자.
   [#39](https://github.com/handochan/aelix-analytics/issues/39): 사람 검증의 담당.
-- ADR-0006([#4](https://github.com/handochan/aelix-analytics/issues/4), `docs/issue-4-record-contract` 병합 뒤 링크): receipt의 공통
+- [ADR-0006](0006-common-record-contract.md)([#4](https://github.com/handochan/aelix-analytics/issues/4)): receipt의 공통
   기록 형식, 커밋 규칙, 재시도 범위, 프로젝트 밖 경로의 표기, `project_id`.
-  ADR-0007([#37](https://github.com/handochan/aelix-analytics/issues/37), `docs/issue-4-record-contract` 병합 뒤 링크): kit이 쓰는
+  [ADR-0007](0007-line-endings.md)([#37](https://github.com/handochan/aelix-analytics/issues/37)): kit이 쓰는
   텍스트의 UTF-8·LF.
 - [ADR-0002](0002-python-support-and-platform-scope.md): 세 플랫폼. [ADR-0003](0003-portable-boundaries-and-in-process-kit-loading.md): 포트와 새 이름의 거절.
 - [공유 설계](../PUBLISH-AND-SHARING.md) §3·§4·§6·§8, [베타 기준](../BETA-QUALITY-GATES.md) Q14·§4, [아키텍처](../ARCHITECTURE.md) §5,
