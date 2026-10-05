@@ -408,8 +408,9 @@ def schedule_report(project) -> None:
 # A reply that leaves something out says how much, and where to read it (docs/CONTRACTS.md, A1).
 
 def _clip(text: str, where: str, limit: int = MAX_TEXT) -> str:
-    """`text` whole, or cut at a line end to fit in `limit` characters, with a last line that says
-    how much was cut and `where` it can be read."""
+    """`text` whole, or cut to fit in `limit` characters, with a last line that says how much was
+    cut and `where` it can be read. The cut is at the last line end that fits, unless that is more
+    than half the room back (a line that long): then it is inside that line, at the limit."""
     if len(text) <= limit:
         return text
 
@@ -450,14 +451,22 @@ def render_error(label: str, value: dict) -> str:
 
 def _log(name: str, tail, path: Path) -> list[str]:
     """A run's log in a lab_run reply: whole, or its last MAX_LOG characters said to be cut, with
-    the path of the whole log."""
-    text = (tail or "").strip()
+    the path of the whole log. The kit's tail of a log larger than core.OUTPUT_TAIL bytes begins
+    with a "…" of its own (runner._tail): that "…" is taken off, and only then, so a log whose own
+    text begins with "…" keeps it."""
+    text = tail or ""
+    try:
+        cut = path.stat().st_size > core.OUTPUT_TAIL
+    except OSError:
+        cut = False
+    if cut:
+        text = text.removeprefix("…")
+    text = text.strip()
     if not text:
         return []
-    # The kit's tail begins with "…" when it left the start of the log out (runner._tail).
-    if not text.startswith("…") and len(text) <= MAX_LOG:
+    if not cut and len(text) <= MAX_LOG:
         return [f"{name} (tail):", text]
-    shown = text[-MAX_LOG:].removeprefix("…")
+    shown = text[-MAX_LOG:]
     return [f"{name} (truncated: the last {len(shown):,} characters; the whole log: read {path}):",
             shown]
 
@@ -566,21 +575,29 @@ def _cell(value, width: int = MAX_CELL) -> str:
     return s if len(s) <= width else s[:width - 1] + "…"
 
 
-def render_table(columns, rows, width=MAX_CELL) -> str:
+def _table(columns, rows, width=MAX_CELL) -> tuple[list[str], list[str]]:
+    """A query result as render_table lays it out: its three head lines, and a string for each row
+    (a value with a line break in it makes its row more than one line)."""
     names = [c["name"] for c in columns]
     types = [_cell(c["type"], width) for c in columns]
     cells = [[_cell(v, width) for v in row] for row in rows]
     widths = [min(width, max([len(n), len(t)] + [len(r[i]) for r in cells]))
               for i, (n, t) in enumerate(zip(names, types, strict=False))]
-    out = [" | ".join(n.ljust(w) for n, w in zip(names, widths, strict=False)),
-           " | ".join(t.ljust(w) for t, w in zip(types, widths, strict=False)),
-           "-+-".join("-" * w for w in widths)]
-    out += [" | ".join(v.ljust(w) for v, w in zip(r, widths, strict=False)) for r in cells]
-    return "\n".join(out)
+    head = [" | ".join(n.ljust(w) for n, w in zip(names, widths, strict=False)),
+            " | ".join(t.ljust(w) for t, w in zip(types, widths, strict=False)),
+            "-+-".join("-" * w for w in widths)]
+    return head, [" | ".join(v.ljust(w) for v, w in zip(r, widths, strict=False)) for r in cells]
 
 
-QUERY_CELLS = ("a value that ends in … is cut: read it whole in parts with "
-               "substr(<column>, <start>, 200)")
+def render_table(columns, rows, width=MAX_CELL) -> str:
+    head, body = _table(columns, rows, width)
+    return "\n".join(head + body)
+
+
+# How to read a value whole that render_table cut: in parts that each fit a cell.
+QUERY_CELLS = (f"a value cut to fit its cell ends in …: read it whole in parts of {MAX_CELL} "
+               f"characters, substr(<column>, <start>, {MAX_CELL}) for <start> = 1, {MAX_CELL + 1}, "
+               f"{2 * MAX_CELL + 1}, … up to length(<column>)")
 
 
 def render_query(value: dict) -> str:
@@ -588,8 +605,7 @@ def render_query(value: dict) -> str:
     fewer than the kit fetched, the first line says how many are shown of how many, and a last line
     how to page to the rest: query results are not stored."""
     rows = value["rows"]
-    table = render_table(value["columns"], rows).split("\n")
-    head, body = table[:3], table[3:]
+    head, body = _table(value["columns"], rows)  # a row at a time, its line breaks and all
     limit = " (truncated at limit)" if value["truncated"] else ""
     tail = (f" in {value['elapsed_ms']} ms; views used: "
             f"{', '.join(value.get('tables') or []) or '-'}")
@@ -603,7 +619,7 @@ def render_query(value: dict) -> str:
             notes.append(f"… {len(rows) - n:,} more row(s) not shown, after the first {n:,}: query "
                          "results are not stored — select fewer columns, or ORDER BY and page with "
                          "LIMIT/OFFSET")
-        if any(_cell(v).endswith("…") for row in rows[:n] for v in row):
+        if any(v is not None and len(str(v)) > MAX_CELL for row in rows[:n] for v in row):
             notes.append(QUERY_CELLS)
         return "\n".join([first, *head, *body[:n], *notes])
 

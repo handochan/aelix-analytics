@@ -826,7 +826,8 @@ def test_cli_init_without_a_template_answers_in_json_and_creates_nothing(tmp_pat
 # --- Issue #11 PR-2: what the context block and lab_status leave out, and where it is ---
 
 LINE_ENDS = {"lf": None, "crlf": None, "cr": "\r", "u2028": "\u2028", "u2029": "\u2029",
-              "ff": "\x0c", "vt": "\x0b", "nel": "\x85", "lead1": None, "lead3": None}
+              "ff": "\x0c", "vt": "\x0b", "nel": "\x85", "lead1": None, "lead3": None,
+              "trail": None}
 
 
 def _sections_file(variant: str) -> bytes:
@@ -840,6 +841,8 @@ def _sections_file(variant: str) -> bytes:
         return text.replace("\n", "\r\n").encode()
     if variant in ("lead1", "lead3"):
         return ("\n" * int(variant[-1]) + text).encode()
+    if variant == "trail":
+        return (text + "\n \n\n").encode()
     if LINE_ENDS[variant]:
         # Inside a line of rule 03, which str.splitlines would split in two.
         at = text.index("- rule 03 line 2: ") + 10
@@ -867,7 +870,11 @@ def test_section_pointers_are_the_lines_the_read_tool_numbers(tmp_path, variant)
         got = lines[first - 1:first - 1 + n]
         assert got[0].rstrip(b"\r") == f"## {name}".encode(), (name, got[0])
         assert not [line for line in got[1:] if line.startswith(b"## ")], name
-        assert first - 1 + n == len(lines) or lines[first - 1 + n].startswith(b"## "), name
+        # A heading after it, or only blank lines: the last section ends at its last line that is
+        # not blank, as main counted it.
+        rest = lines[first - 1 + n:]
+        assert (rest and rest[0].startswith(b"## ")) or (got[-1].strip() and not
+                                                        b"".join(rest).strip()), name
     assert f"read the one you need from {p.context}:" in block and "- measure" in block
     # The sections chosen are the same whatever the line ends: their length is counted on the text
     # with its line ends as "\n" (design section 18).
@@ -888,6 +895,11 @@ def test_a_context_whose_lines_end_in_a_lone_cr_is_one_line(tmp_path):
     assert f"— all of it: read {p.context} offset 1 limit 1)" in block
     st = core.status(p)
     assert st["project"]["context_truncated"] and st["project"]["context_omitted"] == []
+    # lab_status names the cause: no `## ` heading starts a line, as the read tool counts lines.
+    text = core.status_text(st)
+    assert f"CONTEXT.md ({st['project']['context_chars']:,} characters) ends its lines in a lone " \
+           "CR, which is no line end to the read tool, so it is one line" in text
+    assert "save it with LF or CRLF line ends" in text and "split it into" not in text
 
 
 def test_the_block_counts_the_entries_it_leaves_out_and_says_where_they_are(tmp_path):
@@ -1033,9 +1045,9 @@ def test_an_overview_within_its_length_is_mains_with_counts_and_places_added(tmp
     main = _main_status_text(st)
     assert len(main) <= core.STATUS_CHARS and not main.endswith("… (truncated)"), len(main)
     text = core.status_text(st)
-    assert len(text) <= core.STATUS_CHARS
     added = [line for line in text.split("\n") if line.startswith(("  … ", "journal: "))]
     assert [line for line in text.split("\n") if line not in added] == main.split("\n")
+    assert len(text) == len(main) + sum(len(line) + 1 for line in added)
     if shape == "B":
         assert not added
         return
@@ -1046,6 +1058,64 @@ def test_an_overview_within_its_length_is_mains_with_counts_and_places_added(tmp
     assert f"  … {counts['open'] - 16:,} older open item(s) not listed: in the journal" in added
     assert "  … only the latest 16 are listed; older unresolved ones, if any, are in the journal" \
         in added
+    assert added[-1] == f"  … {counts['events'] - 10:,} earlier entries not listed: in the journal"
+
+
+# The lines of an overview STATUS_CHARS does not count: the journal's path, the count of what a list
+# status() limits leaves out, and what CONTEXT.md's text above its first heading leaves out.
+STATUS_NOTE = re.compile(r"^(?:journal: |  … (?![\d,]+ more dataset)|CONTEXT\.md \([\d,]+ "
+                         r"characters\) )")
+
+
+def _budgeted(text: str) -> int:
+    return len("\n".join(line for line in text.split("\n") if not STATUS_NOTE.match(line)))
+
+
+def _overviews(tmp_path):
+    """Overviews of one scale-S project (300 entries, 30 runs) as it would be with its first n of
+    60 datasets, n = 0, 1, …: (n, the status, main's overview, this overview)."""
+    p = _scale_project(tmp_path / "p", 300, 60, 30)
+    full = core.status(p)
+    names = list(full["views"])
+    for n in range(len(full["datasets"]) + 1):
+        st = {**full, "datasets": full["datasets"][:n], "views": names[:n],
+              "counts": {**full["counts"], "datasets": n}}
+        yield n, st, _main_status_text(st, max_chars=10 ** 9), core.status_text(st)
+
+
+def test_an_overview_main_showed_whole_is_not_shortened_for_the_lines_added(tmp_path):
+    """Issue #11 PR-2 review (Codex): the lines that say what a list leaves out and where are
+    budgeted apart from the 9,000 characters. With 30 runs and the datasets that bring main's
+    overview within those lines of 9,000 characters, every dataset is still listed, and the text
+    is main's with those lines added."""
+    def added(text: str) -> list[str]:
+        return [line for line in text.split("\n") if line.startswith(("  … ", "journal: "))]
+
+    found = next(((n, main, text) for n, _st, main, text in _overviews(tmp_path)
+                  if len(main) <= core.STATUS_CHARS
+                  < len(main) + sum(len(line) + 1 for line in added(text))), None)
+    assert found, "no overview within the added lines of 9,000 characters"
+    n, main, text = found
+    assert [line for line in text.split("\n") if line not in added(text)] == main.split("\n")
+    assert not [line for line in added(text) if "dataset" in line]
+    assert sum(1 for line in text.split("\n") if line.startswith("  raw ")) == n
+
+
+def test_an_overview_just_over_its_length_keeps_as_many_entries_as_fit(tmp_path):
+    """Issue #11 PR-2 review: an overview a little longer than 9,000 characters loses the datasets
+    it has to, not all but 20 of them: the list keeps the most that fit."""
+    found = next(((n, st, text) for n, st, main, text in _overviews(tmp_path)
+                  if _budgeted(main) > core.STATUS_CHARS), None)
+    assert found, "no overview over 9,000 characters"
+    n, st, text = found
+    assert _budgeted(text) <= core.STATUS_CHARS
+    more = re.search(r"^  … ([\d,]+) more dataset\(s\) not listed: call lab_query with ", text,
+                     re.M)
+    shown = sum(1 for line in text.split("\n") if line.startswith("  raw "))
+    assert more and shown + int(more.group(1)) == n, text[-2000:]
+    assert core.STATUS_FLOORS["datasets"] < shown and n - shown <= 4, (n, shown)
+    # One more would not fit.
+    assert core._counted(core._status_lines(st, {"datasets": shown + 1})) > core.STATUS_CHARS
 
 
 def test_an_overview_too_long_shortens_its_unbounded_lists_and_says_how_many_and_where(tmp_path):
@@ -1064,7 +1134,7 @@ def test_an_overview_too_long_shortens_its_unbounded_lists_and_says_how_many_and
     full = core.status_text(st, max_chars=10 ** 9)
     assert len(full) > core.STATUS_CHARS
     text = core.status_text(st)
-    assert len(text) <= core.STATUS_CHARS
+    assert _budgeted(text) <= core.STATUS_CHARS
     lines = text.split("\n")
     for head in ("datasets (503)", "runs (", "charts (", "open questions/todos (1):",
                  "key information", "recent journal:"):
@@ -1075,10 +1145,22 @@ def test_an_overview_too_long_shortens_its_unbounded_lists_and_says_how_many_and
     for line in changed:
         assert re.search(r"\b[\d,]+ more\b", line), line
         assert re.search(r"\bread \S*[/\\]|\bcall lab_query with\b", line), line
+    # The datasets save the most, then the sections: both are at their floors and it is still too
+    # long. The views come last and keep the most names that fit.
     assert f"and 180 more (the system prompt lists every one with its line range in read " \
            f"{p.context})" in text
-    assert "  … 483 more dataset(s) not listed: call lab_query with " \
-           f"\"{core.VIEWS_SQL}\" to list every view" in text
+    paging = (f"call lab_query with \"{core.VIEWS_SQL}\" and again with OFFSET 50, 100, … until "
+              "it returns fewer than 50 rows")
+    assert f"  … 483 more dataset(s) not listed: {paging} to list every view; an imported one's " \
+           "record is data/raw/<name>.meta.json" in lines
+    views = re.search(r"^datasets \(503\) — query views: (.+) and ([\d,]+) more \((.+)\)$", text,
+                      re.M)
+    shown = views.group(1).split(", ")
+    assert shown == [f"part_{i:03d}" for i in range(len(shown))]
+    assert len(shown) + int(views.group(2)) == 503 and len(shown) > core.STATUS_FLOORS["views"]
+    assert views.group(3) == f"{paging} to list every view"
+    assert core.VIEWS_SQL == ("SELECT table_name FROM information_schema.tables ORDER BY "
+                              "table_name LIMIT 50 OFFSET 0")
 
 
 def test_an_overview_that_still_does_not_fit_ends_at_a_line_and_names_what_it_leaves_out(
@@ -1107,7 +1189,7 @@ def test_an_overview_that_still_does_not_fit_ends_at_a_line_and_names_what_it_le
     st = core.status(p)
     assert all(len(c["changed_inputs"]) == 503 for c in st["charts"])
     text = core.status_text(st)
-    assert len(text) <= core.STATUS_CHARS
+    assert _budgeted(text) <= core.STATUS_CHARS
     full_lines = set(core.status_text(st, max_chars=10 ** 9).split("\n"))
     *kept, last = text.split("\n")
     assert last.startswith(f"… (truncated at {core.STATUS_CHARS:,} characters — not shown: "), last

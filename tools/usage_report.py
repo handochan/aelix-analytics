@@ -920,6 +920,9 @@ class Truth:
             out = []
             for n, start in enumerate(starts):
                 end = starts[n + 1] if n + 1 < len(starts) else len(lines)
+                # The file's blank last lines are no part of its last section: nothing is in them.
+                while n + 1 == len(starts) and end > start + 1 and not lines[end - 1].strip():
+                    end -= 1
                 out.append(HostSection(lines[start].rstrip("\r"), start + 1, end - start,
                                        lines[start:end]))
             self._cache["sections"] = out
@@ -1340,10 +1343,16 @@ def status_journal(text: str) -> Path | None:
     return Path(m.group("path")) if m and Path(m.group("path")).is_file() else None
 
 
+# A line of a lab_status list that says what the list leaves out, not an entry of it.
+STATUS_OMISSION = "  … "
+
+
 def status_located(line: str, journal: Path | None) -> bool:
-    """Whether a line of a lab_status list names where the rest is: a path to read, a tool to call,
-    or the journal, when the reply names the journal's file."""
-    return located(line) or (journal is not None and bool(SAYS_JOURNAL.search(line)))
+    """Whether an omission line of a lab_status list names where the rest is: a path to read, a
+    tool to call, or the journal, when the reply names the journal's file. An entry's own text that
+    says so is no omission line, and is not asked."""
+    return line.startswith(STATUS_OMISSION) and (
+        located(line) or (journal is not None and bool(SAYS_JOURNAL.search(line))))
 
 
 # A count an omission line gives: "latest 12 of 42" (shown of total) or "30 more" / "30 older".
@@ -1461,12 +1470,13 @@ def status_invariants(host: Host, text: str, project) -> list[dict]:
                  all(k in sections for k in expected),
                  {"expected": expected, "missing": [k for k in expected if k not in sections]})]
     totals = {"datasets": st["counts"]["datasets"], "runs": st["counts"]["runs"],
-              "charts": st["counts"]["charts"], "open": st["counts"]["open"], "key": key_total}
+              "charts": st["counts"]["charts"], "open": st["counts"]["open"], "key": key_total,
+              "recent": st["counts"]["events"]}
     journal = status_journal(text)
     lists = {}
     for key, total in totals.items():
         lines = sections.get(key, [])
-        shown = sum(1 for line in lines if not status_located(line, journal))
+        shown = sum(1 for line in lines if not line.startswith(STATUS_OMISSION))
         lists[key] = {"total": total, "shown": shown,
                       "rest_located": any(status_located(line, journal) for line in lines)}
     out.append(check("lists", "every list is complete, or says how many are left out and where "
@@ -1560,41 +1570,92 @@ def run_invariants(host: Host, text: str, truth: Truth, project_root: Path) -> l
     return out
 
 
-def query_invariants(text: str, result: dict, render_table) -> list[dict]:
-    """A lab_query reply against the kit's result it was made from: a row counts as shown when
-    its line, as the extension's render_table renders that row, is in the reply whole."""
+def cell_shown(value, width: int) -> str:
+    """A value as a lab_query table shows it in a cell `width` characters wide: its first
+    width - 1 characters and "…" when it is longer."""
+    whole = "null" if value is None else str(value)
+    return whole if len(whole) <= width else whole[:width - 1] + "…"
+
+
+def table_rows(render_table, columns: list, rows: list, width: int) -> list[str]:
+    """The rows of render_table's table of `rows`, each one string: a value with a line break in
+    it makes its row more than one line of the table."""
+    lines = render_table(columns, rows).split("\n")[3:]
+    out, at = [], 0
+    for row in rows:
+        n = 1 + sum(cell_shown(v, width).count("\n") for v in row)
+        out.append("\n".join(lines[at:at + n]))
+        at += n
+    return out
+
+
+def rows_shown(text: str, rows: list[str]) -> int:
+    """How many of the rendered `rows` a lab_query reply shows, each whole and in order, right
+    after its first line and the table's three head lines."""
+    parts = text.split("\n", 4)
+    body = parts[4] if len(parts) == 5 else ""
+    at, n = 0, 0
+    for row in rows:
+        end = at + len(row)
+        if body[at:end] != row or (end < len(body) and body[end] != "\n"):
+            break
+        at, n = end + 1, n + 1
+    return n
+
+
+# How a lab_query reply says to read a cut value whole: parts of N characters, at 1, N + 1, ….
+CELL_PARTS = re.compile(r"\bsubstr\(<column>, <start>, (?P<n>\d+)\) for <start> = 1, "
+                        r"(?P<next>\d+), ")
+
+
+def query_invariants(text: str, result: dict, render_table, width: int) -> list[dict]:
+    """A lab_query reply against the kit's result it was made from: a row counts as shown when the
+    reply has it, every line of it as the extension's render_table renders that row, in order."""
     lines = text.split("\n")
     head = re.match(r"^lab_query: ok — ([\d,]+) row\(s\)", lines[0])
-    rows = render_table(result["columns"], result["rows"]).split("\n")[3:]
-    reply_lines = set(lines[1:])
-    shown = [row for row in rows if row in reply_lines]
-    clipped = len(shown) < len(result["rows"])
+    rows = table_rows(render_table, result["columns"], result["rows"], width)
+    shown = rows_shown(text, rows)
+    clipped = shown < len(result["rows"])
     claimed = int(head.group(1).replace(",", "")) if head else None
-    out = [check("rows", "the reply shows as many rows as its first line says",
-                 claimed == len(shown), {"claimed": claimed, "shown": len(shown)})]
+    out = [check("rows", "the reply shows as many rows as its first line says, each whole",
+                 claimed == shown, {"claimed": claimed, "shown": shown})]
     # Query results are not stored and the report has no page for them: the one place to read the
     # rows left out is the query itself, paged (design G7). The reply has to give their true count,
     # the rows before them, and the paging.
     said = re.search(r"^… ([\d,]+) more row\(s\) not shown, after the first ([\d,]+):.*\bLIMIT/"
                      r"OFFSET\b", text, re.M)
     paged = bool(said) and (int(said.group(1).replace(",", "")),
-                            int(said.group(2).replace(",", ""))) == (len(result["rows"]) -
-                                                                     len(shown), len(shown))
+                            int(said.group(2).replace(",", ""))) == (len(result["rows"]) - shown,
+                                                                     shown)
     out.append(check("location", "a reply that leaves rows out says how many, after which rows, "
                      "and how to page to them (query results are not stored)",
                      not clipped or paged,
-                     {"result_rows": len(result["rows"]), "rows_shown": len(shown),
+                     {"result_rows": len(result["rows"]), "rows_shown": shown,
                       "paging_said": said.group(0)[:200] if said else None}))
     types = [cell.strip() for cell in lines[2].split(" | ")] if len(lines) > 2 else []
     wanted = [c["type"] for c in result["columns"]]
     cut_types = [w for w, t in zip(wanted, types, strict=False) if t != w]
     out.append(check("types", "every column type is shown whole", not cut_types,
                      {"cut": cut_types[:6]}))
-    cut_cells = sum(1 for row in shown for cell in row.split(" | ")
-                    if cell.rstrip().endswith("…"))
-    out.append(check("cells", "a cut cell says how to read the whole value",
-                     not cut_cells or bool(re.search(r"(?i)\bsubstr|\blength\(", text)),
-                     {"cut_cells": cut_cells}))
+    # A cut value is read whole by following the reply's hint: each part, as render_table shows
+    # it, has to be whole, and the parts in order are the value.
+    cut = [v for row in result["rows"][:shown] for v in row
+           if cell_shown(v, width) != ("null" if v is None else str(v))]
+    hint = CELL_PARTS.search(text)
+    size = int(hint.group("n")) if hint else 0
+    followed = bool(hint) and size > 0 and int(hint.group("next")) == size + 1
+    for value in cut[:20] if followed else []:
+        whole = str(value)
+        parts = [whole[i:i + size] for i in range(0, len(whole), size)]
+        got = table_rows(render_table, [{"name": "part", "type": "VARCHAR"}],
+                         [[part] for part in parts], width)
+        followed = followed and "".join(parts) == whole and all(
+            row[:len(part)] == part and not row[len(part):].strip(" ")
+            for row, part in zip(got, parts, strict=True))
+    out.append(check("cells", "a cut cell says how to read the whole value, and following it "
+                     "gives the value whole", not cut or followed,
+                     {"cut_cells": len(cut), "part_chars": size or None,
+                      "parts_whole": followed if cut else None}))
     return out
 
 
@@ -2193,7 +2254,8 @@ QUERY_COLUMNS = [("n", "BIGINT"), ("region", "VARCHAR"), ("note", "VARCHAR"),
 
 
 def query_result(ctx: Ctx, lang: str) -> dict:
-    """A lab_query result as the kit prints it: 500 rows, cells through data.cell."""
+    """A lab_query result as the kit prints it: 500 rows, cells through data.cell, a value with a
+    line break in every fifth."""
     from datetime import date
     from decimal import Decimal
 
@@ -2204,9 +2266,12 @@ def query_result(ctx: Ctx, lang: str) -> dict:
                  if lang == "ko" else
                  "Orders before returns and cancellations; coupons and points are counted apart. "
                  * 4)
+    # Every fifth note has a line break near its start: its row is two lines of the table.
+    two_lines = "두 줄로 적은 메모:\n" if lang == "ko" else "a note on two lines:\n"
     rows = []
     for i in range(500):
-        rows.append([cell(v) for v in (i, regions[i % 4], f"{i:03d} {long_note}",
+        note = f"{i:03d} {two_lines if i % 5 == 2 else ''}{long_note}"
+        rows.append([cell(v) for v in (i, regions[i % 4], note,
                                        Decimal(f"{1000 + i * 7}.125"),
                                        date(2025, 1 + i % 12, 1 + i % 28), round(i / 499, 4))])
     return {"ok": True, "columns": [{"name": n, "type": t} for n, t in QUERY_COLUMNS],
@@ -2226,7 +2291,8 @@ def measure_query(ctx: Ctx, spec: Spec) -> None:
     reply = host.tool("query", {"sql": "SELECT * FROM orders", "limit": 500})
     # The result as the extension got it (through JSON, as _run_kit hands it over).
     given = json.loads(json.dumps(result, ensure_ascii=False, default=str))
-    checks = query_invariants(reply.text, given, host.module.render_table)
+    checks = query_invariants(reply.text, given, host.module.render_table,
+                              host.module.MAX_CELL)
     rows = next(c for c in checks if c["id"] == "location")["detail"]
     # A reply that shows fewer rows than the result has was cut to its length, by its clip or by
     # rendering only the rows that fit.

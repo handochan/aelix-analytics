@@ -12,6 +12,7 @@ import csv
 import hashlib
 import importlib.util
 import json
+import re
 import shutil
 import uuid
 from pathlib import Path
@@ -468,6 +469,46 @@ def test_a_clipped_reply_says_where_the_rest_is_for_its_tool(lab, monkeypatch):
     assert reply.endswith(f"every column and its type: read {root / 'data/raw/wide.meta.json'})")
 
 
+def test_a_clip_cuts_inside_a_line_only_when_one_line_is_that_long(lab):
+    """CONTRACTS A1: the 14,000-character clip ends at a line end, unless the last line end that
+    fits is more than half the room back: a line that long is cut inside, at the limit."""
+    module, _root = lab
+    text = "first\n" + "가나다라" * 5_000
+    clipped = module._clip(text, "where: read /x/y")
+    assert len(clipped) <= module.MAX_TEXT
+    kept, last = clipped.rsplit("\n", 1)
+    assert kept.startswith("first\n가나다라") and text.startswith(kept)
+    assert len(kept) > module.MAX_TEXT // 2
+    assert last == f"… (truncated: {len(text) - len(kept):,} more characters; where: read /x/y)"
+
+
+def test_a_log_is_said_to_be_cut_only_when_its_file_is_larger_than_the_tail(lab):
+    """Issue #11 PR-2 review: a "…" that begins a log's tail is the kit's mark only when the log
+    file is larger than the kit's tail (core.OUTPUT_TAIL bytes). A whole log that begins with "…"
+    keeps it and is not said to be cut; the tail of a larger one loses the mark and says it is
+    cut, here a Korean log whose tail is shorter than 3,000 characters."""
+    module, root = lab
+    project = module.core.Project(root)
+    run_dir = project.runs / "20260916-100727-01-build"
+    run_dir.mkdir(parents=True)
+    own = "… 중요한 결과\nok"
+    (run_dir / "stdout.txt").write_text(own + "\n", encoding="utf-8")
+    lines = module.render_run(project, _many(module, root, stdout_tail=own + "\n")).split("\n")
+    at = lines.index("stdout (tail):")
+    assert lines[at + 1:at + 3] == own.split("\n")
+    data = "한국어 진행 로그\n".encode() * 400
+    (run_dir / "stdout.txt").write_bytes(data)
+    start = len(data) - module.core.OUTPUT_TAIL
+    while 0x80 <= data[start] <= 0xBF:  # as runner._tail starts at a whole character
+        start += 1
+    tail = "…" + data[start:].decode("utf-8")
+    shown = data[start:].decode("utf-8").strip()
+    assert len(shown) < module.MAX_LOG
+    reply = module.render_run(project, _many(module, root, stdout_tail=tail))
+    assert f"stdout (truncated: the last {len(shown):,} characters; the whole log: read " \
+           f"{run_dir / 'stdout.txt'}):\n{shown}\n" in reply
+
+
 def _query_result(rows: int, note: str) -> dict:
     return {"ok": True, "columns": [{"name": "n", "type": "BIGINT"},
                                     {"name": "note", "type": "VARCHAR"}],
@@ -497,12 +538,101 @@ def test_a_query_reply_shows_whole_rows_and_says_how_many_of_how_many(lab, monke
     assert f"… {500 - len(shown):,} more row(s) not shown, after the first {len(shown):,}: query " \
            "results are not stored — select fewer columns, or ORDER BY and page with " \
            "LIMIT/OFFSET" in lines
-    assert "substr(<column>, <start>, 200)" in lines[-1]
+    assert lines[-1] == module.QUERY_CELLS
     assert sum(len(line) + 1 for line in lines) - 1 <= module.MAX_TEXT
     results.append(_query_result(3, "short"))
     small = text_of(call(query, {"sql": "SELECT * FROM orders"})).split("\n")
     assert small[0] == "lab_query: ok — 3 row(s) (truncated at limit) in 1.5 ms; views used: orders"
     assert len(small) == 7 and small[-1].startswith("2 "), small  # no note: all rows, none cut
+
+
+def test_a_cut_value_is_read_whole_by_following_the_reply(lab, monkeypatch):
+    """Issue #11 PR-2 review: the reply's hint for a cut value reads it whole. Its parts, read with
+    substr as it says (DuckDB's substr counts characters, as Python's slices do) and each shown by
+    lab_query in a cell of its own, put together are the value."""
+    module, _root = lab
+    results = []
+
+    async def queried(project, cmd, timeout):
+        return True, results.pop(0)
+
+    monkeypatch.setattr(module, "run_kit", queried)
+    query = tools_of(module)["lab_query"]
+    value = "가나다라마바사아자차카타파하 — 한 셀에 들어가지 않는 값 😀 " * 7
+    results.append({"ok": True, "columns": [{"name": "note", "type": "VARCHAR"}],
+                    "rows": [[value]], "truncated": False, "limit": 50, "tables": ["t"],
+                    "elapsed_ms": 1.0})
+    reply = text_of(call(query, {"sql": "SELECT note FROM t"}))
+    hint = re.search(r"substr\(<column>, <start>, (\d+)\) for <start> = 1, (\d+), (\d+), … up "
+                     r"to length\(<column>\)$", reply)
+    assert hint, reply
+    size, second, third = (int(g) for g in hint.groups())
+    assert (second, third) == (1 + size, 1 + 2 * size)
+    got = []
+    for start in range(1, len(value) + 1, size):
+        part = value[start - 1:start - 1 + size]  # substr(note, start, size)
+        results.append({"ok": True, "columns": [{"name": "part", "type": "VARCHAR"}],
+                        "rows": [[part]], "truncated": False, "limit": 50, "tables": ["t"],
+                        "elapsed_ms": 1.0})
+        lines = text_of(call(query, {"sql": f"SELECT substr(note, {start}, {size}) AS part "
+                                            "FROM t"})).split("\n")
+        assert lines[0].startswith("lab_query: ok — 1 row(s) "), lines
+        assert len(lines) == 5, lines  # whole: no note that a value is cut
+        got.append(lines[4][:len(part)])
+        assert not lines[4][len(part):].strip(" ")
+    assert "".join(got) == value
+
+
+def test_a_query_reply_counts_rows_not_lines(lab, monkeypatch):
+    """Issue #11 PR-2 review: a value with a line break makes its row more than one line. The
+    reply's rows are rows: when they fit it is main's reply, every row whole, and when they do not
+    it shows the rows that fit, each whole and in order, says how many, and one more would not have
+    fitted."""
+    module, _root = lab
+    results = []
+
+    async def queried(project, cmd, timeout):
+        return True, results.pop(0)
+
+    monkeypatch.setattr(module, "run_kit", queried)
+    query = tools_of(module)["lab_query"]
+    columns = [{"name": "n", "type": "BIGINT"}, {"name": "note", "type": "VARCHAR"}]
+
+    def result(rows):
+        return {"ok": True, "columns": columns, "rows": rows, "truncated": False,
+                "limit": len(rows), "tables": ["t"], "elapsed_ms": 1.0}
+
+    def has_row(text: str, row: list) -> bool:
+        # Its number first, then every line of its value, in order.
+        first, *more = row[1].split("\n")
+        return text.startswith(f"{row[0]} ") and f" | {first}" in text and all(
+            f"\n{line}" in text for line in more)
+
+    few = [[1, "첫째 줄\n둘째 줄"], [2, "row two a\nrow two b"], [3, "마지막 행"]]
+    results.append(result(few))
+    reply = text_of(call(query, {"sql": "SELECT * FROM t"}))
+    # As main replied: the first line and the whole table.
+    assert reply == ("lab_query: ok — 3 row(s) in 1.0 ms; views used: t\n"
+                     + module.render_table(columns, few))
+    head, rows = module._table(columns, few)
+    assert reply.split("\n", 4)[4] == "\n".join(rows)
+    assert all(has_row(text, row) for text, row in zip(rows, few, strict=True))
+    # 600 rows of 3 to 6 lines each: more than 14,000 characters.
+    many = [[i, "\n".join(f"line {j}" for j in range(3 + i % 4))] for i in range(600)]
+    results.append(result(many))
+    reply = text_of(call(query, {"sql": "SELECT * FROM t"}))
+    assert len(reply) <= module.MAX_TEXT
+    said = re.match(r"^lab_query: ok — (\d+) row\(s\) shown of 600 fetched in 1\.0 ms; ", reply)
+    assert said, reply[:200]
+    shown = int(said.group(1))
+    assert 0 < shown < 600
+    head, rows = module._table(columns, many)
+    rest = f"… {600 - shown:,} more row(s) not shown, after the first {shown:,}: query results " \
+           "are not stored — select fewer columns, or ORDER BY and page with LIMIT/OFFSET"
+    assert reply.split("\n", 4)[4] == "\n".join(rows[:shown]) + "\n" + rest
+    assert all(has_row(text, row) for text, row in zip(rows[:shown], many, strict=False))
+    assert reply.split("\n")[1:4] == head
+    assert len(reply) + len(rows[shown]) + 1 > module.MAX_TEXT  # one more would not fit
 
 
 def test_a_note_cut_to_the_journal_limit_says_so(lab):

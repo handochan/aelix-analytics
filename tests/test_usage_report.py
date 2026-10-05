@@ -482,13 +482,32 @@ def test_the_invariants_judge_a_cut_by_what_was_cut(monkeypatch, tmp_path):
     table = host.module.render_table(columns, rows)
     first = "lab_query: ok — 3 row(s) in 1 ms; views used: t\n"
 
-    def query(text: str) -> dict:
+    def query(text: str, rows=rows, columns=columns) -> dict:
         return {c["id"]: c["holds"] for c in usage.query_invariants(
-            text, {"columns": columns, "rows": rows}, host.module.render_table)}
+            text, {"columns": columns, "rows": rows}, host.module.render_table,
+            host.module.MAX_CELL)}
 
     assert query(first + table) == {"rows": True, "location": True, "types": True, "cells": True}
     short = query(first + "\n".join(table.split("\n")[:5]) + "\n… (cut short)")
     assert (short["rows"], short["location"]) == (False, False), short
+    # A row is every line of it: a reply with as many table lines as there are rows (the first
+    # row's two) leaves the second row out.
+    columns = [{"name": "n", "type": "BIGINT"}, {"name": "note", "type": "VARCHAR"}]
+    rows = [[1, "첫째\n둘째"], [2, "마지막 행"]]
+    table = host.module.render_table(columns, rows)
+    first = "lab_query: ok — 2 row(s) in 1 ms; views used: t\n"
+    assert query(first + table, rows, columns) == {"rows": True, "location": True,
+                                                   "types": True, "cells": True}
+    lines_only = query(first + "\n".join(table.split("\n")[:5]), rows, columns)
+    assert (lines_only["rows"], lines_only["location"]) == (False, False), lines_only
+    # A cut value: the hint has to read it whole, part by part, each part whole in its cell.
+    rows = [[1, "가나다라마바사아자차카타파하" * 10]]
+    table = host.module.render_table(columns, rows)
+    first = "lab_query: ok — 1 row(s) in 1 ms; views used: t\n"
+    assert query(f"{first}{table}\n{host.module.QUERY_CELLS}", rows, columns)["cells"]
+    wide = "read it whole in parts with substr(<column>, <start>, 200) for <start> = 1, 201, …"
+    assert not query(f"{first}{table}\n{wide}", rows, columns)["cells"]
+    assert not query(f"{first}{table}", rows, columns)["cells"]
 
 
 def test_fixture_files_are_the_bytes_they_record(measured):

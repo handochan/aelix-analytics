@@ -39,7 +39,7 @@ PROJECT_FILES = {"lab.json", "journal.jsonl", "CONTEXT.md", "pyproject.toml", "u
                  ".python-version", ".gitignore"}
 PACKAGES = ("duckdb", "polars", "pyarrow", "matplotlib", "plotly", "numpy", "pygments",
             "markdown-it-py")
-OUTPUT_TAIL = 4000
+OUTPUT_TAIL = core.OUTPUT_TAIL
 
 
 def scan_literals(source: str) -> tuple[set[str], set[str]]:

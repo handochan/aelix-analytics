@@ -49,18 +49,19 @@ aelix는 세션을 만들 때마다(시작, `/new`, `/resume`, `/fork`, `/reload
 | 맥락 블록의 CONTEXT.md 섹션 | 고정하지 않았고 4,000자 예산에 들지 않는 섹션 | 섹션마다 이름과 `read offset N limit M`. 파일 경로는 목록의 머리 줄에 한 번 |
 | 맥락 블록의 머리말(첫 `## ` 위) | 4,000자 뒤 | 뺀 글자 수와 `read <CONTEXT.md> offset 1 limit <첫 제목 앞의 줄 수>` |
 | 맥락 블록의 핵심 정보·열린 항목 | 최근 12개 밖의 항목, 300자 뒤의 글 | 목록마다 한 줄: 뺀 항목 수(최근 12 / 전체), 300자에서 잘린 항목이 있다는 사실, `read <journal.jsonl>`(id로 찾음) |
-| `lab_status` | 최근 run 8개, 차트·열린 항목·핵심 정보 16개, 최근 기록 10개 밖 | 목록마다 뺀 개수와 journal(run은 `runs/<id>/run.json`도). journal 경로는 `journal:` 줄에 한 번. 핵심 정보는 전체 수를 세지 않고 "최근 16개만, 더 있으면 journal"로 적습니다 |
-| `lab_status`가 9,000자를 넘을 때 | 상한이 없는 목록 — 맥락에서 뺀 섹션 이름, view 이름, 데이터셋, 차트별 STALE 입력 — 을 줄이는 효과가 큰 것부터 20·40·20·5개로 | 뺀 개수와 위치(`CONTEXT.md`, `lab_query`로 view를 모두 보는 SQL, `runs/<id>/run.json`). 그래도 넘으면 줄 끝에서 자르고, 마지막 줄에 보이지 않는 절과 항목 수, journal 경로. 9,000자 안이면 이 목록들을 줄이지 않습니다 |
-| `lab_run` | 입력·출력·경고 10개, 차트 12개, 출력 열 12개 밖, stdout·stderr의 꼬리 | `read <runs/<id>/run.json>`(모두 있음), `+N more columns`, 목록 밖 차트 수와 run.json, 로그는 `truncated: the last N characters`와 로그 파일. ok인 run의 1,500자 이상 stderr를 보이지 않을 때도 그 사실과 파일 |
-| `lab_query` | 14,000자에 들지 않는 행(행 단위) | 첫 줄 `N row(s) shown of M fetched`, 마지막 줄에 뺀 행 수와 결과가 저장되지 않으니 `LIMIT/OFFSET`으로 나눠 읽으라는 안내. 잘린 셀은 `substr`로 읽는 방법 |
-| `lab_run`·`lab_import`·`lab_query`의 14,000자 절단 | 줄 끝에서 자름 | 뺀 글자 수와 run 페이지·run.json / 데이터셋 페이지·meta.json(전체 schema) / 결과가 저장되지 않음 |
+| `lab_status` | 최근 run 8개, 차트·열린 항목·핵심 정보 16개, 최근 기록 10개 밖 | 목록마다 뺀 개수와 journal(run은 `runs/<id>/run.json`도). journal 경로는 `journal:` 줄에 한 번. 핵심 정보는 전체 수를 세지 않고 "최근 16개만, 더 있으면 journal"로 적습니다. 한 줄로 줄인 글 — 항목 글(열린 항목·핵심 정보 160자, 최근 기록 120자), 목표(160자), run·차트 제목(80·70자), 오류 요약(100자) — 은 `…`로 끝날 뿐 따로 적지 않습니다. 전문은 journal(id로 찾음), `CONTEXT.md`, `runs/<id>/run.json`에 있습니다 |
+| `lab_status`가 9,000자를 넘을 때 | 상한이 없는 목록 — 맥락에서 뺀 섹션 이름, view 이름, 데이터셋, 차트별 STALE 입력 — 을 줄이는 효과가 큰 것부터, 들어가는 가장 많은 개수(적어도 20·40·20·5개)로 | 뺀 개수와 위치(`CONTEXT.md`, `runs/<id>/run.json`, view 이름을 모두 보는 순서 있는 `lab_query` 호출: `ORDER BY table_name LIMIT 50 OFFSET 0`, 이어서 `OFFSET 50, 100, …`을 50행보다 적게 올 때까지). 그래도 넘으면 줄 끝에서 자르고, 마지막 줄에 보이지 않는 절과 항목 수, journal 경로. 9,000자는 위 행의 개수·위치 줄(`journal:` 줄 포함)과 머리말이 4,000자를 넘는다는 줄을 빼고 셉니다. 그래서 그 줄들을 더해 9,000자를 넘는 것만으로는 목록을 줄이지 않고, 응답은 그 줄들만큼 9,000자보다 길 수 있습니다 |
+| `lab_run` | 입력·출력·경고 10개, 차트 12개, 출력 열 12개 밖, stdout·stderr의 꼬리 | `read <runs/<id>/run.json>`(모두 있음), `+N more columns`, 목록 밖 차트 수와 run.json, 로그는 `truncated: the last N characters`와 로그 파일. 로그가 잘렸는지는 로그 파일이 kit의 꼬리(4,000 bytes)보다 큰지로 정하고, 그때만 꼬리 앞에 kit이 붙인 `…`를 뗍니다(로그가 스스로 `…`로 시작하면 그대로). ok인 run의 1,500자 이상 stderr를 보이지 않을 때도 그 사실과 파일 |
+| `lab_query` | 14,000자에 들지 않는 행(행 단위: 줄바꿈이 든 값의 행도 한 행) | 첫 줄 `N row(s) shown of M fetched`, 마지막 줄에 뺀 행 수와 결과가 저장되지 않으니 `LIMIT/OFFSET`으로 나눠 읽으라는 안내. 셀(48자)에 맞게 잘린 값은 셀에 들어가는 48자씩 읽는 방법: `substr(<column>, <start>, 48)`, `<start>` = 1, 49, 97, … |
+| `lab_run`·`lab_import`·`lab_query`의 14,000자 절단 | 들어가는 마지막 줄 끝에서 자름. 그 줄 끝이 남은 길이의 절반보다 앞이면(그만큼 긴 한 줄) 그 줄 안에서 길이에 맞춰 자름 | 뺀 글자 수와 run 페이지·run.json / 데이터셋 페이지·meta.json(전체 schema) / 결과가 저장되지 않음 |
 | `lab_note`, `/lab note`, `/lab gap` | 4,000자 뒤(C1) | 기록된 길이와 나머지가 journal에 없다는 사실 |
 | 오류 응답 | `details`의 2,000자 뒤, `kit_failed`가 담는 stderr 1,500자 앞 | 뺀 글자 수, `the last 1,500 characters` |
 
 줄 번호는 aelix read 도구가 세는 방식과 같습니다: 파일을 UTF-8로 읽어 `\n`으로만 나누고 1부터 세며, 앞의 빈 줄도 셉니다.
 CRLF의 `\r`은 제목을 찾고 이름을 붙일 때만 떼고, 블록에 넣는 텍스트와 섹션 선택에 쓰는 섹션 길이는 줄 끝을 `\n`으로 바꾼
-텍스트로 셉니다(CRLF 파일도 LF 파일과 같은 섹션이 들어감). 단독 CR·U+2028·FF 같은 문자는 줄을 나누지 않으므로, 단독 CR로만 줄을
-나눈 CONTEXT.md는 한 줄이고 전부 머리말입니다(앞 4,000자와 `offset 1 limit 1`).
+텍스트로 셉니다(CRLF 파일도 LF 파일과 같은 섹션이 들어감). 마지막 섹션은 파일 끝의 빈 줄을 빼고 셉니다. 단독 CR·U+2028·FF
+같은 문자는 줄을 나누지 않으므로, 단독 CR로만 줄을 나눈 CONTEXT.md는 한 줄이고 전부 머리말입니다(앞 4,000자와
+`offset 1 limit 1`). 이때 `lab_status`는 줄 끝이 단독 CR이라 한 줄이라고 적고 LF나 CRLF로 저장하라고 안내합니다.
 
 한계: 위치는 경로·줄 범위·도구 호출이고 텍스트를 만든 시점을 고정하지 않습니다. 텍스트를 만든 뒤 CONTEXT.md가 바뀌면 줄 범위가
 맞지 않을 수 있고, journal과 run 기록은 그 뒤에 더해진 것도 함께 보여 줍니다. 커서·다음 페이지·부분 조회는 없습니다(#15).
