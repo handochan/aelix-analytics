@@ -683,11 +683,21 @@ def test_records_from_a_newer_kit_are_skipped_and_said_so(project):
 
     assert all(e.get("id") != "e99" for e in core.read_events(p))
     assert future.name not in [r["id"] for r in core.list_runs(p)]
-    assert core.unreadable_records(p) == {"lab.event/2": 1, "lab.run/2": 1}
-    text = core.status_text(core.status(p))
-    assert "lab.event/2" in text and "update the analytics kit" in text
+    line = len(p.journal.read_bytes().splitlines())
+    st = core.status(p)
+    # Issue #12 PR-2: counted where they are and why (ADR-0006 1.4), by the read the overview is.
+    assert st["unsupported"] == [{"location": f"journal:{line}", "reason": "unknown_version"},
+                                 {"location": f"runs/{future.name}/run.json",
+                                  "reason": "unknown_version"}]
+    assert future.name not in [r["id"] for r in st["runs"]]
+    text = core.status_text(st)
+    assert (f"unsupported: 2 record(s) this kit cannot read are in no list here and not in the "
+            f"report — journal:{line} (unknown_version), runs/{future.name}/run.json "
+            "(unknown_version); a newer kit may read them") in text
     assert kit_cli(project, "render")[0] == 0
-    assert "이 리포트에서 빠진 기록이 있습니다" in (p.report / "index.html").read_text(encoding="utf-8")
+    index = (p.report / "index.html").read_text(encoding="utf-8")
+    assert "Unsupported: 2 record(s) this kit cannot read" in index
+    assert f"journal:{line} (unknown_version)" in index
 
     marker = json.loads(p.marker.read_text(encoding="utf-8"))
     p.marker.write_text(json.dumps({**marker, "schema": "lab.project/2"}), encoding="utf-8")
@@ -922,18 +932,23 @@ def test_the_block_counts_the_entries_it_leaves_out_and_says_where_they_are(tmp_
 
 
 def _main_status_text(st: dict, max_chars: int = 9000) -> str:
-    """analytics_status's overview as main (bc77176) made it before Issue #11 PR-2, to compare with."""
+    """analytics_status's overview as main (bc77176) made it before Issue #11 PR-2, to compare with, with
+    the lines Issue #12 PR-2 changed or added: the read the overview is (`read:`), the records the
+    lists cannot show, a dataset's origin as the read judges it, a run's recording status, a chart's
+    producer flags, the line of an id several lines share and a key entry's references. Those lines
+    come from the kit's own helpers (their content is tested on its own); what this compares is
+    that an overview within its length is these lines with only the omission notes added."""
     _one_line, versions_line, _fmt_int = core._one_line, core.versions_line, core._fmt_int
     CONTEXT_PROMPT_CHARS = core.CONTEXT_PROMPT_CHARS  # noqa: N806 - as main spelled it
     p, counts = st["project"], st["counts"]
     lines = [f"project: {p['title']} ({p['root']})", f"report: {st['report']}"]
+    if st.get("source_revision"):
+        lines.append(core._read_line(st))
     if p.get("goal"):
         lines.append(f"goal: {_one_line(p['goal'])}")
     if st.get("versions"):
         lines.append(f"environment: {versions_line(st['versions'])} — use APIs of these versions")
-    for schema, count in sorted((st.get("unreadable") or {}).items()):
-        lines.append(f"{count} record(s) written as {schema} are skipped everywhere, including the "
-                     "report — this kit reads version 1; update the analytics kit to read them")
+    lines += core._records_lines(st, Path(p["root"]) / "journal.jsonl")
     if p.get("context_truncated"):
         lines.append(f"CONTEXT.md has {p['context_chars']:,} characters above its first `## ` "
                      f"heading, and only {CONTEXT_PROMPT_CHARS:,} reach the system prompt — split "
@@ -945,17 +960,16 @@ def _main_status_text(st: dict, max_chars: int = 9000) -> str:
     lines.append(f"datasets ({counts['datasets']}) — query views: "
                  + (", ".join(st["views"]) or "none"))
     for ds in st["datasets"]:
-        origin = (f"← run {ds['producer']}" if ds.get("producer")
-                  else f"from {ds['source']}" if ds.get("source")
-                  else "NO PRODUCING RUN (written outside analytics_run: no code or inputs recorded)")
         lines.append(f"  {ds['kind']:<7} {ds['name']}: {_fmt_int(ds.get('rows'))} rows × "
-                     f"{ds.get('columns') or '?'} cols · {ds['path']} · {origin} · used by "
-                     f"{len(ds.get('used_by') or [])} run(s)")
+                     f"{ds.get('columns') or '?'} cols · {ds['path']} · {core.dataset_origin(ds)} · "
+                     f"used by {len(ds.get('used_by') or [])} run(s)")
     lines.append(f"runs ({counts['runs']} total, {counts['runs_failed']} not ok; latest first):")
     for r in st["runs"]:
         extra = f" — {_one_line(r['error'], 100)}" if r.get("error") else ""
         if r.get("rerun_of"):
             extra += f" [rerun of {r['rerun_of']}: {r.get('verdict')}]"
+        if r.get("recording_status") == "incomplete":
+            extra += f" · recording incomplete ({', '.join(r.get('reasons') or [])})"
         dur = f"{r['duration_s']:.1f}s" if isinstance(r.get("duration_s"), (int, float)) else "-"
         lines.append(f"  {r['id']} {r.get('status')} {dur} charts={r['charts']} "
                      f"\"{_one_line(r.get('title'), 80)}\"{extra}")
@@ -965,6 +979,10 @@ def _main_status_text(st: dict, max_chars: int = 9000) -> str:
         if c["stale"]:
             flags.append("STALE(" + ", ".join(c["changed_inputs"] + [
                 f"upstream {u}" for u in c["stale_upstream"]]) + ")")
+        if c.get("ambiguous_inputs"):
+            flags.append(f"producer ambiguous for {len(c['ambiguous_inputs'])} input(s)")
+        if c.get("cycle"):
+            flags.append("producer cycle")
         if c["code"] == "changed":
             flags.append("script edited since")
         elif c["code"] == "missing":
@@ -973,14 +991,16 @@ def _main_status_text(st: dict, max_chars: int = 9000) -> str:
             flags.append("plotted data not recorded")
         lines.append(f"  {c['key']} \"{_one_line(c.get('title'), 70)}\" run {c['run']} "
                      f"v{c['versions']}" + (" · " + "; ".join(flags) if flags else ""))
+    name = core._entry_name
     if st["open"]:
         lines.append(f"open questions/todos ({counts['open']}):")
-        lines += [f"  {e['id']} {e['kind']}: {_one_line(e['text'])}" for e in st["open"]]
+        lines += [f"  {name(e)} {e['kind']}: {_one_line(e['text'])}" for e in st["open"]]
     if st["key"]:
         lines.append("key information (findings, decisions, assumptions):")
-        lines += [f"  {e['id']} {e['kind']}: {_one_line(e['text'])}" for e in st["key"]]
+        lines += [f"  {name(e)} {e['kind']}: {_one_line(e['text'])}"
+                  f"{core._references_text(e.get('references'))}" for e in st["key"]]
     lines.append("recent journal:")
-    lines += [f"  {e['id']} {str(e.get('ts', ''))[:16].replace('T', ' ')} {e['kind']}: "
+    lines += [f"  {name(e)} {str(e.get('ts', ''))[:16].replace('T', ' ')} {e['kind']}: "
               f"{_one_line(e['text'], 120)}" for e in st["recent"]]
     text = "\n".join(lines)
     return text if len(text) <= max_chars else text[:max_chars - 40] + "\n… (truncated)"

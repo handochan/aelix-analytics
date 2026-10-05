@@ -28,15 +28,15 @@ Aelix Analytics는 베타 이후에도 지표·맥락·재사용·근거 탐색�
 
 ## 적용 현황
 
-코드 `d7b6f18` 기준이다(2026-10-03 확인).
+코드 `d7b6f18` 기준이다(2026-10-03 확인). 행 1·5와 아래 확인 1은 #12의 둘째 PR(2026-10-06)에서 그 PR의 코드로 고쳤다.
 
 | 결정 | 적용한 것 | 남은 것과 맡는 곳 |
 |---|---|---|
-| 1 단일 배포 패키지, 책임 구분 | wheel 하나와 진입점 둘(`analytics` 런처, aelix 확장). aelix 프로세스는 `core`·`_platform`만 로드하고 분석 라이브러리는 프로젝트 환경에서만 쓴다(ADR-0003 결정 3, ADR-0004 결정 1·2) | 도메인·응용·포트의 모듈 구분. 아래 "배치"대로 새 책임이 생기는 #12·#13부터 |
+| 1 단일 배포 패키지, 책임 구분 | wheel 하나와 진입점 둘(`analytics` 런처, aelix 확장). aelix 프로세스는 `core`·`_platform`·`relations`만 로드하고 분석 라이브러리는 프로젝트 환경에서만 쓴다(ADR-0003 결정 3, ADR-0004 결정 1·2). 첫 새 책임: 읽기 모델 `relations`(#12, stdlib, 패키지의 형제를 import하지 않음, 의존 방향 `core → relations`) | 도메인·응용·포트의 모듈 구분. 아래 "배치"대로 새 책임이 생기는 #12·#13부터 |
 | 2 core의 의미 소유 | 적용 전. 기록의 의미가 `core.py`·`runner.py`·`report.py`에 나뉘어 있다(아키텍처 §2) | 공통 기록 계약 #4, 공통 writer #13, 지표·초점 #14 |
 | 3 Strategy·어댑터 경계 | 적용 전 | 첫 교체 사례인 두 제안 모드 #17, 두 공유 프로필 #20 |
 | 4 작은 Protocol과 명시적 주입 | 플랫폼 포트 넷(`FileLocks`·`AtomicFiles`·`ProcessControl`·`RunControl`), `Project(root, platform=…)` 주입, 실제 구현을 실패하도록 무장한 계약 시험(ADR-0003) | 정책 Strategy와 저장·게시 어댑터의 주입. 그 구현을 만드는 Issue(#17·#20 등) |
-| 5 공통 쓰기 경로와 읽기 모델 | 적용 전 | 읽기 모델 #12, 공통 writer #13, 보고서 본문·버전 #19 |
+| 5 공통 쓰기 경로와 읽기 모델 | 읽기 모델 `relations`(#12 PR-1·PR-2): `analytics_status`·`/analytics status`·kit `status`와 Workspace가 기록을 한 번 읽어 같은 판정·식별자·읽기 기준(`as_of_seq`·`source_revision`)을 보인다. 맥락 블록은 journal만 읽는다 | 옛 절대 경로의 추론 대응 #12 PR-3, 공통 writer #13, 질의·인덱스 #15, 보고서 본문·버전 #19 |
 | 6 계약별 버전·호환성 | 적용 전. 이 결정 전부터 기록에 schema 가족·버전이 있고, 같은 가족의 미래 버전만 가려낸다 | 기록 #4·#13, 스크립트 API #9, 게시 형식 #20·#21, 배포 #24 |
 | 7·8 자유 Python, 도구 수 | 현재 동작이 지키는 원칙이다(자유 Python 실행, 모델 도구 여섯 개) | 새 기능 PR의 리뷰 기준(Q11·Q13) |
 | 9 공개 명칭과 영어 기본값 | 설치본의 명령 이름 `analytics`(ADR-0004 결정 7). #9의 첫 PR(2026-10-06): kit이 package `aelix_analytics`이고 스크립트 API가 `import aelix_analytics`, 모듈 실행이 `python -m aelix_analytics`다(ADR-0004 결정 9 개정) | 함수·명령·도구·flag·환경 변수의 이름 #9의 둘째 PR, 영어 기본값 #10, 저장 이름 #13(ADR-0005) |
@@ -92,7 +92,9 @@ ADR-0003 결정 2·3은 그 PR에서 고쳤다).
 
 1. host/분석 라이브러리 없이 core의 대표 읽기 흐름이 동작하는가? 지금 있는 증거는 import·로드와 기존 명령이다: 분석 라이브러리가 없는
    격리 환경의 aelix 0.1.0b2 통합(저장소 CI), 확장 로드 뒤 분석 라이브러리가 aelix 프로세스에 없음(`tests/test_platform.py`), 설치본의 3.11에서
-   stdlib 명령(`tests/test_packaging.py`). 새 읽기 모델의 대표 호출은 #12가 더한다.
+   stdlib 명령(`tests/test_packaging.py`). 새 읽기 모델의 대표 호출: `relations.py`를 파일 경로만으로 `python -S`에서 로드해 예제를 읽는 시험과
+   분석 라이브러리를 부르지 않는다는 확인(`tests/test_relations.py`, #12 PR-1), `core → relations` 로드를 덮는 3.11 stdlib 스모크(`floor`)와 aelix 통합
+   레그, 확장이 같은 판정으로 `analytics_status`를 내는 시험(`tests/test_extension.py`, #12 PR-2).
 2. 실제 대체 정책·테스트 어댑터를 주입해도 ID·버전·근거·상태 의미가 유지되는가? 플랫폼 포트는 #8의 계약 시험
    (`tests/test_platform.py`의 `test_the_injected_platform_is_the_one_actually_used` 등)이 확인한다. 그 시험 방식을 교체 구현의 공용 계약 시험으로
    옮기는 일은 #43, 제안 정책의 두 모드는 [#17](https://github.com/handochan/aelix-analytics/issues/17),

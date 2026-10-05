@@ -175,6 +175,7 @@ Report는 Visualization·설명·발견을 선택해 구성한 문서이며, Vis
 | Token budget | Token usage target / Performance target. 측정 목표이며 강제 절단·거절 한도가 아님 |
 | Threshold / Cooldown / Timeout / Page size | 실제 제안 조건·알림 간격·실행 제한·조회 크기. 측정 목표와 다른 설정임을 명시 |
 | Input tokens / Cached input tokens / Output tokens | provider별 포함 관계를 정규화해 계산. 캐시 입력을 이중 합산하거나 도구 호출 수를 토큰으로 쓰지 않음 |
+| 데이터셋·입력의 생산자(`producer`) | 생산자 판정 `producer_state`(입력은 `producer`): `resolved`(같은 경로·바이트를 출력한 성공 run 하나) / `ambiguous`(여럿, `producer_candidates`에 모두) / `none` / `unknown`(해시 없음). 후보는 같은 바이트를 출력했다는 관측(`observed`)이며 확정 연결이 아니다. 소비 run보다 늦게 시작한 run은 후보가 아니고, 마지막 run을 고르지 않는다. 화면은 `same bytes as run X's output`, `Producer ambiguous`로 표시 |
 | 근거 버전의 고정 방식 | `version_binding`: `author`(기록을 쓴 쪽이 버전까지 지정) / `inferred`(이름만 받아 kit이 쓰는 시점의 최신 성공 버전으로 결박. 확정 연결로 세지 않음) / `none`(논리 키만). `<!-- pin -->`은 맥락 선택 우선순위로만 씀 |
 | 참조를 찾았는지만 보는 판정 | 해석 상태 `resolved` / `content_changed` / `missing`(`record_absent`·`digest_mismatch`·`file_absent`) / `version_unbound` / `ambiguous` / `unknown`(`no_digest`·`unresolved_name`) / `unsupported`, 게시본의 `not_included`. 읽기의 결과이며 기록에 쓰지 않음. `digest`는 대상 기록이 남긴 해시를 옮긴 값 |
 | 근거가 연결됨 | 확정 연결은 `version_binding=author`이고 `basis`가 observed·declared이며 `resolved`인 참조뿐. 결론의 검토와 별개 |
@@ -193,7 +194,9 @@ Report는 Visualization·설명·발견을 선택해 구성한 문서이며, Vis
 | 새 기록 종류 | `analytics.event/2`의 kind `metric_definition`, `reuse_notification`(재사용 후보를 보인 사실, `trigger`: requested·automatic), `reuse_mode`(제안 모드의 변경, `scope`: project·session), `report_revision`(Report 저장의 완료), `publication`(게시본 build), `publish_receipt`(전달 결과). Report 버전 manifest의 가족은 `analytics.report_revision/1` |
 
 표의 '근거 버전의 고정 방식' 행부터 '새 기록 종류' 행까지는 [ADR-0006](decisions/0006-common-record-contract.md)과
-[ADR-0007](decisions/0007-line-endings.md)이 채택한 기록 계약의 이름이다. 아직 구현되지 않았고 현재 기록에는 없다.
+[ADR-0007](decisions/0007-line-endings.md)이 채택한 기록 계약의 이름이다. 그 기록(쓰기)은 아직 구현되지 않았고 현재 기록에는 없다.
+읽기의 이름 — 해석 상태, `confirmed`, `recording_status`, `unsupported`·`damaged`, `source_revision`·`as_of_seq`·`updating` — 은 #12의 읽기 모델이
+현재 기록(`lab.*/1`)을 읽어 `analytics_status`와 Workspace에 보인다([현재 계약](CONTRACTS.md) E).
 
 자동 맥락에 포함되지 않은 부분은 Omitted from current context로 표현하고 더 읽을 위치를 제공한다. 실제 잘린 과거 응답은 Truncated라는 사실을 숨기지 않는다.
 상태를 보여 줄 때 대상과 범위도 함께 보인다. 예를 들어 `Run succeeded · Recording incomplete · Rerun comparison not run`처럼 각각의 사실을 읽을 수 있어야 한다.

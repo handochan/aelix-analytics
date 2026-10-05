@@ -184,13 +184,17 @@ def path_forms(path: Path) -> list[str]:
 
 TIMESTAMP = re.compile(r"\b(\d{4}-\d{2}-\d{2})[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?"
                        r"(?:[+-]\d{2}:\d{2}|Z)?")
+# The read analytics_status names (Issue #12): its source_revision is made of the record files'
+# sizes and mtimes, so a fixture written again has another one, as it has another write time.
+REVISION = re.compile(r"\bsource_revision [0-9a-f]{16}\b")
 
 
 def normalize(text: str, root: Path | None, base: Path | None) -> tuple[str, dict]:
     """The text with the project root as <ROOT> and the fixture directory as <BASE> (each in its
-    native, POSIX and JSON-escaped spellings), and timestamps the measured code added while it was
-    measured as <TIME>: those of the fixed clock stay."""
-    counts = {"root": 0, "base": 0, "masked_timestamps": 0}
+    native, POSIX and JSON-escaped spellings), timestamps the measured code added while it was
+    measured as <TIME> (those of the fixed clock stay), and the source_revision of a read, which
+    follows when the files were written, as <REVISION>."""
+    counts = {"root": 0, "base": 0, "masked_timestamps": 0, "masked_revisions": 0}
     for key, label, path in (("root", "<ROOT>", root), ("base", "<BASE>", base)):
         if path is None:
             continue
@@ -206,6 +210,7 @@ def normalize(text: str, root: Path | None, base: Path | None) -> tuple[str, dic
         counts["masked_timestamps"] += 1
         return "<TIME>"
 
+    text, counts["masked_revisions"] = REVISION.subn("source_revision <REVISION>", text)
     return TIMESTAMP.sub(mask, text), counts
 
 
@@ -1725,7 +1730,8 @@ class Ctx:
                  "size": size_of(text),
                  "root_normalized": {"size": size_of(normal), "root_occurrences": counts["root"],
                                      "base_occurrences": counts["base"],
-                                     "masked_timestamps": counts["masked_timestamps"]},
+                                     "masked_timestamps": counts["masked_timestamps"],
+                                     "masked_revisions": counts["masked_revisions"]},
                  "tokens": self.counters.count(text), "length_cuts": sorted(cuts),
                  "text_file": rel, **extra}
         self.surfaces.append(entry)
@@ -2883,7 +2889,9 @@ def conventions() -> dict:
                  f"clock from {CLOCK_START.isoformat()}, one second per call: records the harness "
                  "writes and records the measured code adds while it is measured get the same "
                  "timestamps on every run; any other timestamp is masked as <TIME> in the "
-                 "root-normalized text and counted in masked_timestamps",
+                 "root-normalized text and counted in masked_timestamps. The source_revision "
+                 "analytics_status names is made of the files' mtimes, which the clock does not "
+                 "fix: it is masked as <REVISION> there and counted in masked_revisions",
     }
 
 

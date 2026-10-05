@@ -197,7 +197,7 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
-  # What the aelix process itself loads (core and _platform), on the entry-point floor and with nothing
+  # What the aelix process itself loads (core, _platform and relations), on the entry-point floor and with nothing
   # but the standard library: no uv and no analysis libraries is the point of this leg.
   floor:
     name: floor · ${{ matrix.os }} · CPython 3.11, stdlib only

@@ -1,9 +1,9 @@
 """Project model for Aelix Analytics projects. Standard library only.
 
 The aelix extension loads this file inside the aelix process, so it must not import polars, duckdb,
-plotting libraries or any other aelix_analytics module except `_platform`, which is standard library only for
-the same reason. Code that needs the analysis libraries runs inside a project's own uv environment
-(runner, data, report).
+plotting libraries or any other aelix_analytics module except `_platform` and `relations` (the
+records read as ADR-0006 says), which are standard library only for the same reason. Code that
+needs the analysis libraries runs inside a project's own uv environment (runner, data, report).
 
 Every operation that behaves differently on Linux, macOS and Windows goes through the bundle of
 ports a `Project` carries, so nothing in this file tests `sys.platform`. See `_platform`.
@@ -21,7 +21,7 @@ import tomllib
 from datetime import datetime
 from pathlib import Path
 
-from . import _platform
+from . import _platform, relations
 
 KIT_VERSION = "0.3.0"
 MARKER = "lab.json"
@@ -479,22 +479,22 @@ def newer_schema(value, known: str) -> bool:
     return bool(got and want and got[0] == want[0] and got[1] > want[1])
 
 
-def read_events(project: Project) -> list[dict]:
-    return [e for e in read_jsonl(project.journal) if e.get("schema") == SCHEMA_EVENT]
+def read_events(project: Project, journal: relations.Journal | None = None) -> list[dict]:
+    """The lab.event/1 records of the journal, in line order, as relations.Journal reads it: a line
+    that does not parse is left out and the record a /1 writer appended onto it is recovered, and
+    every line of an id several lines share is kept. Records of another family or version, or of a
+    kind this kit does not know, are not here: status() counts them. Only journal.jsonl is read
+    (this runs before every prompt, through context_block), unless `journal` is one already read."""
+    journal = relations.read_journal(project.root) if journal is None else journal
+    return [event.value for event in journal.events if event.schema == SCHEMA_EVENT]
 
 
-def unreadable_records(project: Project) -> dict[str, int]:
-    """Records this kit version skipped, by schema — journal entries and runs from a newer kit."""
-    counts: dict[str, int] = {}
-    for event in read_jsonl(project.journal):
-        if newer_schema(event.get("schema"), SCHEMA_EVENT):
-            counts[event["schema"]] = counts.get(event["schema"], 0) + 1
-    if project.runs.is_dir():
-        for d in sorted(project.runs.iterdir()):
-            record = read_json(d / "run.json") if d.is_dir() else None
-            if isinstance(record, dict) and newer_schema(record.get("schema"), SCHEMA_RUN):
-                counts[record["schema"]] = counts.get(record["schema"], 0) + 1
-    return counts
+def read_model(project: Project, cache: HashCache | None = None) -> relations.ReadModel:
+    """One read of the project's records as ADR-0006 says (relations.read): this platform's process
+    port says whether a running run's process is alive, and the project's hash cache hashes the
+    current files."""
+    cache = cache or HashCache(project)
+    return relations.read(project.root, alive=project.platform.processes.alive, sha=cache.sha)
 
 
 def resolved_targets(events) -> dict[str, dict]:
@@ -600,13 +600,39 @@ def list_runs(project: Project) -> list[dict]:
             continue
         rec = read_json(d / "run.json")
         if isinstance(rec, dict) and newer_schema(rec.get("schema"), SCHEMA_RUN):
-            continue  # written by a newer kit; unreadable_records() reports it
+            continue  # written by a newer kit; status() counts it as unsupported
         if not isinstance(rec, dict):
             rec = {"id": d.name, "status": "incomplete", "title": "(run.json missing)"}
         rec["id"] = d.name
         if rec.get("status") == "running" \
                 and not project.platform.processes.alive(rec.get("pid")):
             rec["status"] = "incomplete"
+        runs.append(rec)
+    return runs
+
+
+def model_runs(project: Project, model: relations.ReadModel) -> list[dict]:
+    """The rows list_runs gives, from the run records one read of the project found: a running run
+    whose process is gone is `incomplete`, and a run directory whose run.json is missing or does not
+    parse is the row list_runs makes for it. A run.json of a family or version this kit does not
+    know is not here; the read counts it as unsupported. Nothing is read again."""
+    runs: list[dict] = []
+    if not project.runs.is_dir():
+        return runs
+    damaged = {item["location"] for item in model.damaged_files}
+    execution = {r["run_id"]: r["execution_status"] for r in model.runs()}
+    for d in sorted(project.runs.iterdir()):
+        if not d.is_dir() or not RUN_ID_RE.match(d.name):
+            continue
+        record = model.run(d.name)
+        if record is not None:
+            rec = {**record, "id": d.name}
+            if rec.get("status") == "running" and execution.get(d.name) == "incomplete":
+                rec["status"] = "incomplete"
+        elif f"runs/{d.name}/run.json" in damaged:
+            rec = {"id": d.name, "status": "incomplete", "title": "(run.json missing)"}
+        else:
+            continue  # unsupported, or made after the read: the next read has it
         runs.append(rec)
     return runs
 
@@ -630,20 +656,25 @@ def chart_key(run: dict, chart: dict) -> str:
 
 
 class Freshness:
-    """Whether a run's recorded inputs and code still match the files on disk (transitively)."""
+    """Whether a run's recorded inputs and code still match the files on disk, and whether a run
+    that may have made one of its inputs is stale (ADR-0006 4).
 
-    def __init__(self, project: Project, runs: list[dict], cache: HashCache | None = None):
+    The runs that may have made an input are its producer candidates (ReadModel.producers): every
+    successful run, other than the consumer, that output the input's path with its recorded bytes
+    and did not start after the consumer. None of them is chosen as the producer: each is followed.
+    A run is stale when one of its inputs changed or is missing, or when a producer candidate of
+    one of its inputs is stale, which is to say when a run reached through producer candidates has
+    a changed or missing input. A cycle among the candidates (only runs that started at the same
+    instant can make one) ends that walk and is said (`cycle`); a run reached twice is no cycle."""
+
+    def __init__(self, project: Project, runs: list[dict], cache: HashCache | None = None,
+                 model: relations.ReadModel | None = None):
         self.project = project
         self.cache = cache or HashCache(project)
+        self.model = model or read_model(project, self.cache)
         self.runs = {r["id"]: r for r in runs}
-        self.producers: dict[tuple[str, str], str] = {}
-        for r in runs:
-            if r.get("status") != "ok":
-                continue
-            for out in r.get("outputs") or []:
-                if out.get("sha256"):
-                    self.producers[(out["path"], out["sha256"])] = r["id"]
         self._memo: dict[str, dict] = {}
+        self._changed: dict[str, bool] = {}
 
     def input_state(self, entry: dict, own_outputs: dict | None = None) -> str:
         recorded = entry.get("sha256")
@@ -671,23 +702,44 @@ class Freshness:
             return "missing"
         return "same" if current == script.get("sha256") else "changed"
 
-    def of(self, run_id: str, _depth: int = 0) -> dict:
+    @staticmethod
+    def _own(run: dict) -> dict:
+        return {o.get("path"): o.get("sha256") for o in run.get("outputs") or []
+                if o.get("change") != "deleted"}
+
+    def _input_changed(self, run_id: str) -> bool:
+        """Whether one of a run's own inputs changed or is missing (once per run)."""
+        if run_id not in self._changed:
+            run = self.runs.get(run_id) or self.model.run(run_id) or {}
+            own = self._own(run)
+            self._changed[run_id] = any(self.input_state(entry, own) in ("changed", "missing")
+                                        for entry in run.get("inputs") or [])
+        return self._changed[run_id]
+
+    def stale_run(self, run_id: str) -> bool:
+        """Whether a run is stale: its own input changed, or that of a run its producer candidates
+        reach. The walk is the read model's, which visits each run once."""
+        return self._input_changed(run_id) or any(
+            self._input_changed(u) for u in self.model.upstream(run_id)["upstream"])
+
+    def of(self, run_id: str) -> dict:
         if run_id in self._memo:
             return self._memo[run_id]
         run = self.runs.get(run_id) or {}
-        inputs, upstream = [], []
-        own = {o.get("path"): o.get("sha256") for o in run.get("outputs") or []
-               if o.get("change") != "deleted"}
+        inputs, upstream, ambiguous = [], [], []
+        own = self._own(run)
         for entry in run.get("inputs") or []:
             state = self.input_state(entry, own)
             inputs.append({"path": entry.get("path"), "state": state,
                            "sha256": entry.get("sha256")})
-            producer = self.producers.get((entry.get("path"), entry.get("sha256")))
-            if producer and producer != run_id and _depth < 20:
-                if self.of(producer, _depth + 1)["stale"]:
-                    upstream.append(producer)
+            candidates = self.model.producers(entry.get("path"), entry.get("sha256"),
+                                              consumer=run_id)
+            if len(candidates) > 1 and entry.get("path") not in ambiguous:
+                ambiguous.append(entry.get("path"))
+            upstream += [c for c in candidates if c not in upstream and self.stale_run(c)]
         direct = [i["path"] for i in inputs if i["state"] in ("changed", "missing")]
         result = {"inputs": inputs, "changed_inputs": direct, "stale_upstream": upstream,
+                  "ambiguous_inputs": ambiguous, "cycle": self.model.upstream(run_id)["cycle"],
                   "code": self.code_state(run), "stale": bool(direct or upstream)}
         self._memo[run_id] = result
         return result
@@ -720,11 +772,26 @@ def chart_index(runs: list[dict]) -> list[dict]:
 
 # --- datasets ---
 
-def list_datasets(project: Project, runs: list[dict] | None = None) -> list[dict]:
+def list_datasets(project: Project, runs: list[dict] | None = None, *,
+                  model: relations.ReadModel | None = None, sha=None) -> list[dict]:
+    """Every dataset under data/raw and data/derived. `producers` are the successful runs that output
+    its path, in run order, whatever bytes they wrote; `used_by` the successful runs that read it.
+
+    With a read model and `sha` (the hash of a file's current bytes), each dataset also says which
+    runs may have made its current bytes (ADR-0006 4): `producer_state` is `resolved` (one successful
+    run output this path with these bytes), `ambiguous` (several, all in `producer_candidates`),
+    `none` or `unknown` (the file could not be hashed), `producer` is the one candidate when there is
+    one, and `written_by` holds every run that output the path, whatever its status. A candidate is
+    a run whose output had the same path and bytes (basis observed), never a confirmed link. Without
+    them nothing is hashed: the query views, imports and the SDK list datasets at no more cost."""
     runs = list_runs(project) if runs is None else runs
     produced: dict[str, list[dict]] = {}
     used: dict[str, list[str]] = {}
+    written: dict[str, list[str]] = {}
     for r in runs:
+        for out in r.get("outputs") or []:
+            if out.get("change") != "deleted":
+                written.setdefault(out.get("path"), []).append(r["id"])
         if r.get("status") != "ok":
             continue
         for out in r.get("outputs") or []:
@@ -751,12 +818,20 @@ def list_datasets(project: Project, runs: list[dict] | None = None) -> list[dict
             history = produced.get(rel)
             if history:
                 last = history[-1]
-                item["producer"] = last["run"]
                 item["producers"] = [h["run"] for h in history]
                 item.setdefault("rows", last.get("rows"))
                 item.setdefault("columns", len(last.get("schema") or []) or None)
                 item.setdefault("sha256", last.get("sha256"))
             item["used_by"] = sorted(set(used.get(rel, [])))
+            if model is not None and sha is not None:
+                current = sha(p)
+                candidates = model.producers(rel, current) if current else []
+                item["producer_state"] = ("unknown" if not current else "none" if not candidates
+                                          else "resolved" if len(candidates) == 1 else "ambiguous")
+                item["producer_candidates"] = candidates
+                if len(candidates) == 1:
+                    item["producer"] = candidates[0]
+                item["written_by"] = list(dict.fromkeys(written.get(rel, [])))
             items.append(item)
     return items
 
@@ -812,11 +887,18 @@ STATUS_LIMIT = 8
 
 
 def status(project: Project, limit: int = STATUS_LIMIT) -> dict:
-    events = read_events(project)
-    runs = list_runs(project)
-    datasets = list_datasets(project, runs)
+    """The project overview analytics_status, /analytics status and the kit's `status` give, from
+    one read of the records (read_model): the identifiers and the read's `as_of_seq` and
+    `source_revision` are those the Workspace shows."""
     cache = HashCache(project)
-    fresh = Freshness(project, runs, cache)
+    model = read_model(project, cache)
+    journal = model.journal
+    listed = [e for e in journal.events if e.schema == SCHEMA_EVENT]
+    events = [e.value for e in listed]
+    source = {id(e.value): journal.source_of(e) for e in listed}
+    runs = model_runs(project, model)
+    datasets = list_datasets(project, runs, model=model, sha=cache.sha)
+    fresh = Freshness(project, runs, cache, model)
     charts = chart_index(runs)
     resolved = resolved_targets(events)
     context_text = context_file_text(project)
@@ -829,17 +911,27 @@ def status(project: Project, limit: int = STATUS_LIMIT) -> dict:
                            "kind": c.get("kind"), "versions": len(c.get("versions") or []),
                            "has_data": bool(c.get("data")), "stale": f["stale"],
                            "changed_inputs": f["changed_inputs"],
-                           "stale_upstream": f["stale_upstream"], "code": f["code"]})
+                           "stale_upstream": f["stale_upstream"],
+                           "ambiguous_inputs": f["ambiguous_inputs"], "cycle": f["cycle"],
+                           "code": f["code"]})
+    recording = {r["run_id"]: r for r in model.runs()}
     run_rows = []
     for r in runs[-limit:][::-1]:
+        rec = recording.get(r["id"]) or {}
         run_rows.append({"id": r["id"], "status": r.get("status"), "title": r.get("title"),
                          "duration_s": r.get("duration_s"), "charts": len(r.get("charts") or []),
                          "error": (r.get("error") or {}).get("summary"),
                          "rerun_of": r.get("rerun_of"),
-                         "verdict": (r.get("reproduction") or {}).get("verdict")})
+                         "verdict": (r.get("reproduction") or {}).get("verdict"),
+                         "recording_status": rec.get("recording_status"),
+                         "reasons": rec.get("reasons", [])})
     open_items = [e for e in events if e.get("kind") in OPEN_KINDS and e["id"] not in resolved]
     key_items = [e for e in events if e.get("kind") in KEY_KINDS and e["id"] not in resolved]
     gaps = [e for e in events if e.get("kind") == "gap"]
+    key_rows = []
+    for e in key_items[-limit * 2:]:
+        name = source[id(e)]
+        key_rows.append({**_brief(e, name), "references": references_summary(model.references(name))})
     cache.save()
     versions = context_versions(project)
     return {
@@ -856,15 +948,59 @@ def status(project: Project, limit: int = STATUS_LIMIT) -> dict:
                    "runs_failed": sum(1 for r in runs if r.get("status") != "ok"),
                    "charts": len(current_charts), "events": len(events),
                    "open": len(open_items), "gaps": len(gaps)},
-        "unreadable": unreadable_records(project),
+        "as_of_seq": model.as_of_seq,
+        "source_revision": model.source_revision,
+        "updating": model.updating,
+        "unsupported": list(model.unsupported),
+        "damaged": {"journal": [f"journal:{n}" for n in journal.damaged],
+                    "recovered": [f"journal:{n}" for n in journal.recovered],
+                    "files": list(model.damaged_files)},
+        "not_listed": [f"journal:{e.line}" for e in journal.events if e.schema != SCHEMA_EVENT],
+        "shared_ids": {i: [f"journal:{n}" for n in lines]
+                       for i, lines in journal.lines_of.items() if len(lines) > 1},
         "datasets": datasets,
         "views": view_names(datasets),
         "runs": run_rows,
         "charts": chart_rows,
-        "open": [_brief(e) for e in open_items[-limit * 2:]],
-        "key": [_brief(e) for e in key_items[-limit * 2:]],
-        "recent": [_brief(e) for e in events[-10:]],
+        "open": [_brief(e, source[id(e)]) for e in open_items[-limit * 2:]],
+        "key": key_rows,
+        "recent": [_brief(e, source[id(e)]) for e in events[-10:]],
     }
+
+
+# The order a judgment's states are counted in (ADR-0006 4).
+REFERENCE_STATES = ("resolved", "content_changed", "missing", "version_unbound", "ambiguous",
+                    "unknown", "unsupported")
+
+
+def reference_label(judgment: dict) -> str:
+    """The identifier a screen gives a reference's target, the same on every screen: a logical key
+    (`script::chart`, a path), an event id, `<run_id>/<visualization_id>`, a run id, a CONTEXT
+    version, a Report revision, or the name a writer gave."""
+    target = judgment.get("target") or {}
+    if "key" in target:
+        return str(target["key"])
+    if target.get("visualization_id") is not None:
+        run = target.get("run_id")
+        return f"{run}/{target['visualization_id']}" if run else str(target["visualization_id"])
+    if "report_id" in target:
+        return f"report:{target.get('report_id')}/{target.get('revision_id')}"
+    for field in ("event_id", "run_id", "version", "path", "token"):
+        if field in target:
+            return str(target[field])
+    return "?"
+
+
+def references_summary(judgments: list[dict]) -> dict:
+    """How many of a record's references are in each state, how many are confirmed links (ADR-0006
+    3), and the target of every one that is not `resolved`."""
+    states: dict[str, int] = {}
+    for judged in judgments:
+        states[judged["state"]] = states.get(judged["state"], 0) + 1
+    return {"states": {s: states[s] for s in REFERENCE_STATES if s in states},
+            "confirmed": sum(1 for judged in judgments if judged["confirmed"]),
+            "not_resolved": [{"state": judged["state"], "target": reference_label(judged)}
+                             for judged in judgments if judged["state"] != "resolved"]}
 
 
 def _version_time(path: Path) -> str | None:
@@ -875,9 +1011,11 @@ def _version_time(path: Path) -> str | None:
         return None
 
 
-def _brief(event: dict) -> dict:
-    return {"id": event.get("id"), "ts": event.get("ts"), "kind": event.get("kind"),
-            "actor": event.get("actor"), "text": event.get("text"),
+def _brief(event: dict, source: str | None = None) -> dict:
+    """An entry of a status list. `source` is how the read names the record: its id, or
+    `journal:<line>` when several lines have that id."""
+    return {"id": event.get("id"), "source": source or event.get("id"), "ts": event.get("ts"),
+            "kind": event.get("kind"), "actor": event.get("actor"), "text": event.get("text"),
             "refs": event.get("refs") or {}}
 
 
@@ -998,6 +1136,8 @@ def _status_lines(st: dict, caps: dict[str, int]) -> list[tuple[str, str, bool]]
     earlier = counts["events"] - len(st["recent"])
     add("head", f"project: {p['title']} ({p['root']})")
     add("head", f"report: {st['report']}")
+    if st.get("source_revision"):
+        add("head", _read_line(st))
     if older_runs > 0 or more_charts > 0 or older_open > 0 or key_at_limit or earlier > 0:
         # Where the entries the lists below leave out are: said once, and the lists refer to it.
         add("head", f"journal: {journal}", note=True)
@@ -1005,9 +1145,8 @@ def _status_lines(st: dict, caps: dict[str, int]) -> list[tuple[str, str, bool]]
         add("head", f"goal: {_one_line(p['goal'])}")
     if st.get("versions"):
         add("head", f"environment: {versions_line(st['versions'])} — use APIs of these versions")
-    for schema, count in sorted((st.get("unreadable") or {}).items()):
-        add("head", f"{count} record(s) written as {schema} are skipped everywhere, including the "
-                    "report — this kit reads version 1; update the analytics kit to read them")
+    for line in _records_lines(st, journal):
+        add("head", line)
     if p.get("context_truncated"):
         reach = (f"only the first {CONTEXT_PROMPT_CHARS:,} reach the system prompt, which says "
                  "where to read the rest")
@@ -1042,12 +1181,9 @@ def _status_lines(st: dict, caps: dict[str, int]) -> list[tuple[str, str, bool]]
     add("datasets", f"datasets ({counts['datasets']}) — query views: {view_text}")
     datasets = _capped(st["datasets"], caps.get("datasets"))
     for ds in datasets:
-        origin = (f"← run {ds['producer']}" if ds.get("producer")
-                  else f"from {ds['source']}" if ds.get("source")
-                  else "NO PRODUCING RUN (written outside analytics_run: no code or inputs recorded)")
         add("datasets", f"  {ds['kind']:<7} {ds['name']}: {_fmt_int(ds.get('rows'))} rows × "
-                        f"{ds.get('columns') or '?'} cols · {ds['path']} · {origin} · used by "
-                        f"{len(ds.get('used_by') or [])} run(s)")
+                        f"{ds.get('columns') or '?'} cols · {ds['path']} · {dataset_origin(ds)} · "
+                        f"used by {len(ds.get('used_by') or [])} run(s)")
     if len(datasets) < len(st["datasets"]):
         add("datasets", f"  … {len(st['datasets']) - len(datasets):,} more dataset(s) not listed: "
                         f"{VIEWS_PAGES} to list every view; an imported one's record is "
@@ -1057,6 +1193,8 @@ def _status_lines(st: dict, caps: dict[str, int]) -> list[tuple[str, str, bool]]
         extra = f" — {_one_line(r['error'], 100)}" if r.get("error") else ""
         if r.get("rerun_of"):
             extra += f" [rerun of {r['rerun_of']}: {r.get('verdict')}]"
+        if r.get("recording_status") == "incomplete":
+            extra += f" · recording incomplete ({', '.join(r.get('reasons') or [])})"
         dur = f"{r['duration_s']:.1f}s" if isinstance(r.get("duration_s"), (int, float)) else "-"
         add("runs", f"  {r['id']} {r.get('status')} {dur} charts={r['charts']} "
                     f"\"{_one_line(r.get('title'), 80)}\"{extra}")
@@ -1074,6 +1212,10 @@ def _status_lines(st: dict, caps: dict[str, int]) -> list[tuple[str, str, bool]]
                 more = (f" and {len(changed) - len(shown):,} more, among the run's inputs in "
                         f"runs/{c['run']}/run.json")
             flags.append("STALE(" + ", ".join(shown) + more + ")")
+        if c.get("ambiguous_inputs"):
+            flags.append(f"producer ambiguous for {len(c['ambiguous_inputs'])} input(s)")
+        if c.get("cycle"):
+            flags.append("producer cycle")
         if c["code"] == "changed":
             flags.append("script edited since")
         elif c["code"] == "missing":
@@ -1088,24 +1230,141 @@ def _status_lines(st: dict, caps: dict[str, int]) -> list[tuple[str, str, bool]]
     if st["open"]:
         add("open", f"open questions/todos ({counts['open']}):")
         for e in st["open"]:
-            add("open", f"  {e['id']} {e['kind']}: {_one_line(e['text'])}")
+            add("open", f"  {_entry_name(e)} {e['kind']}: {_one_line(e['text'])}")
         if older_open > 0:
             add("open", f"  … {older_open:,} older open item(s) not listed: in the journal",
                 note=True)
     if st["key"]:
         add("key", "key information (findings, decisions, assumptions):")
         for e in st["key"]:
-            add("key", f"  {e['id']} {e['kind']}: {_one_line(e['text'])}")
+            add("key", f"  {_entry_name(e)} {e['kind']}: {_one_line(e['text'])}"
+                       f"{_references_text(e.get('references'))}")
         if key_at_limit:
             add("key", f"  … only the latest {len(st['key'])} are listed; older unresolved ones, if "
                        "any, are in the journal", note=True)
     add("recent", "recent journal:")
     for e in st["recent"]:
-        add("recent", f"  {e['id']} {str(e.get('ts', ''))[:16].replace('T', ' ')} {e['kind']}: "
-                      f"{_one_line(e['text'], 120)}")
+        add("recent", f"  {_entry_name(e)} {str(e.get('ts', ''))[:16].replace('T', ' ')} "
+                      f"{e['kind']}: {_one_line(e['text'], 120)}")
     if earlier > 0:
         add("recent", f"  … {earlier:,} earlier entries not listed: in the journal", note=True)
     return out
+
+
+# How many places, producer candidates or targets one line of the overview names before it says how
+# many more there are.
+STATUS_PLACES = 5
+STATUS_CANDIDATES = 3
+STATUS_TARGETS = 3
+# Where every unsupported or damaged record is listed when a line names only the first ones.
+EVERY_RECORD = "the kit's `status` command lists every one in its JSON"
+
+
+def _places(items: list[str], cap: int, where: str) -> str:
+    shown = ", ".join(items[:cap])
+    return shown + (f" and {len(items) - cap:,} more ({where})" if len(items) > cap else "")
+
+
+def _read_line(st: dict) -> str:
+    """The read the overview was made from, as the Workspace's pages name it."""
+    line = f"read: as_of_seq {st.get('as_of_seq')} · source_revision {st.get('source_revision')}"
+    if st.get("updating"):
+        line += (" · updating: the records changed while they were read (read three times); "
+                 "ask again for a settled overview")
+    return line
+
+
+def _records_lines(st: dict, journal: Path) -> list[str]:
+    """What the lists below cannot show: records this kit cannot read, lines that do not parse,
+    record files not read, records of the next format, and ids that several lines share."""
+    out = []
+    unsupported = st.get("unsupported") or []
+    if unsupported:
+        places = [f"{u['location']} ({u['reason']})" for u in unsupported]
+        out.append(f"unsupported: {len(unsupported):,} record(s) this kit cannot read are in no list "
+                   f"here and not in the report — {_places(places, STATUS_PLACES, EVERY_RECORD)}; "
+                   "a newer kit may read them")
+    damaged = st.get("damaged") or {}
+    parts = []
+    if damaged.get("journal"):
+        parts.append(f"{len(damaged['journal']):,} journal line(s) do not parse "
+                     f"({_places(damaged['journal'], STATUS_PLACES, EVERY_RECORD)})")
+    if damaged.get("recovered"):
+        parts.append(f"the record a later write appended onto {len(damaged['recovered']):,} of them "
+                     f"is read ({_places(damaged['recovered'], STATUS_PLACES, EVERY_RECORD)})")
+    if damaged.get("files"):
+        files = [f"{f['location']} ({f['reason']})" for f in damaged["files"]]
+        parts.append(f"{len(files):,} record file(s) not read "
+                     f"({_places(files, STATUS_PLACES, EVERY_RECORD)})")
+    if parts:
+        out.append("damaged: " + "; ".join(parts))
+    not_listed = st.get("not_listed") or []
+    if not_listed:
+        out.append(f"not listed: {len(not_listed):,} analytics.event/2 record(s) "
+                   f"({_places(not_listed, STATUS_PLACES, EVERY_RECORD)}) — this kit lists "
+                   f"lab.event/1 records only; they are in {journal}")
+    shared = st.get("shared_ids") or {}
+    if shared:
+        ids = [f"{i} ({', '.join(lines)})" for i, lines in shared.items()]
+        out.append(f"ids on several lines: {_places(ids, STATUS_PLACES, EVERY_RECORD)} — each line "
+                   "is its own record, and a reference to the id is ambiguous")
+    return out
+
+
+def dataset_origin(ds: dict) -> str:
+    """Where a dataset's current bytes come from, as far as the records say (ADR-0006 4): the runs
+    whose recorded output had this path and these bytes, the file it was imported from, or neither.
+    A run is named as having output the same bytes, not as having made them."""
+    state = ds.get("producer_state")
+    candidates = ds.get("producer_candidates") or []
+    if state == "resolved":
+        return f"same bytes as run {candidates[0]}'s output"
+    if state == "ambiguous":
+        listed = _places(candidates, STATUS_CANDIDATES, "each run's outputs are in runs/<id>/run.json")
+        return f"producer ambiguous: same bytes as the output of {len(candidates):,} runs, {listed}"
+    if ds.get("source"):
+        return f"from {ds['source']}"
+    if state == "unknown":
+        return "producer unknown: the file could not be hashed"
+    written = ds.get("written_by") or []
+    if written:
+        listed = _places(written[::-1], STATUS_CANDIDATES, "each run's outputs are in runs/<id>/run.json")
+        return (f"no successful run output these bytes (changed since, or written by a run that did "
+                f"not succeed); runs that wrote this path, latest first: {listed}")
+    return "NO PRODUCING RUN (written outside analytics_run: no code or inputs recorded)"
+
+
+def _entry_name(entry: dict) -> str:
+    """An entry's id, and the line that names it when several lines have that id."""
+    source = entry.get("source")
+    return entry["id"] if not source or source == entry["id"] else f"{entry['id']} ({source})"
+
+
+# The reference states whose targets the overview names: the ones that need a look. A /1 note's
+# chart and data references are left unbound and its other names unresolved as a rule, so those are
+# counted only (their targets are in the entry's refs, and in the JSON's not_resolved).
+NAMED_STATES = ("missing", "ambiguous", "content_changed", "unsupported")
+
+
+def _references_text(summary: dict | None) -> str:
+    """A key entry's references: how many are in each state, how many are confirmed links, and the
+    targets of those missing, ambiguous, changed or unsupported (the first STATUS_TARGETS of a
+    state; the rest are in the entry's refs in the journal)."""
+    if not summary or not summary.get("states"):
+        return ""
+    targets: dict[str, list[str]] = {}
+    for item in summary.get("not_resolved") or []:
+        targets.setdefault(item["state"], []).append(item["target"])
+    parts = []
+    for state, count in summary["states"].items():
+        if state == "resolved":
+            parts.append(f"{count} resolved ({summary.get('confirmed', 0)} confirmed)")
+        elif state in NAMED_STATES:
+            named = _places(targets.get(state, []), STATUS_TARGETS, "in the entry's refs in the journal")
+            parts.append(f"{count} {state} ({named})")
+        else:
+            parts.append(f"{count} {state}")
+    return " · refs: " + ", ".join(parts)
 
 
 def _status_cut(lines: list[tuple[str, str, bool]], root: Path, max_chars: int) -> str:

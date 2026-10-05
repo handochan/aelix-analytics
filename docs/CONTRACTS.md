@@ -23,12 +23,13 @@ manifest는 설치본이 aelix에 자기를 밝히는 데만 씁니다: `id = "a
 `license = "Apache-2.0"`(배포본의 라이선스, `LICENSE`). 체크아웃의 파일 로드
 (`aelix -e`·symlink)는 manifest 없이 로드됩니다.
 확장은 aelix 프로세스 안에서 stdlib와 aelix API, 그리고 실행 루트(kit 디렉터리: package `aelix_analytics`를 담은 디렉터리, D)의
-`aelix_analytics/core.py`와 그 형제 `aelix_analytics/_platform.py`(둘 다 stdlib 전용)만 import합니다.
+`aelix_analytics/core.py`와 그 형제 `aelix_analytics/_platform.py`·`aelix_analytics/relations.py`(기록을 ADR-0006대로 읽는 읽기 모델, E)
+(셋 다 stdlib 전용)만 import합니다.
 설치본에서는 그 앞에 package `aelix_analytics`와 `aelix_analytics._install`(실행 루트의 위치)이 import됩니다. kit 0.2.0부터 이
 package가 kit 전체이지만, 그 `__init__`은 모듈 수준에서 stdlib만 import합니다: SDK 함수의 정의뿐이고 kit 모듈은 함수를 부를 때,
 `core`는 `__version__`을 물을 때 import됩니다. 그래서 aelix 프로세스의 `aelix_analytics.*`는 package와 `_install`·`extension`뿐입니다.
 호스트에서 SDK 함수를 부를 수는 있지만 run을 기록하는 경로가 아닙니다([ADR-0004](decisions/0004-minimal-distribution-and-entry-points.md) 결정 9).
-두 kit 파일은 실행 루트의 package 디렉터리를 `__path__`로 갖는 합성 package의 submodule로 로드됩니다. package 이름에 kit 경로의 해시가 들어가고
+세 kit 파일은 실행 루트의 package 디렉터리를 `__path__`로 갖는 합성 package의 submodule로 로드됩니다. package 이름에 kit 경로의 해시가 들어가고
 로드가 끝나면 `sys.modules` 항목을 지우므로, 호스트 환경에 설치된 `aelix_analytics`(배포본 자신의 package)를 가리거나 두 pack이
 캐시를 공유하는 일이 없습니다.
 kit은 모듈 이름으로 정합니다: `aelix_analytics.extension`으로 import된 설치본은 `importlib.resources`로 찾은 자기 kit을
@@ -69,6 +70,7 @@ aelix는 세션을 만들 때마다(시작, `/new`, `/resume`, `/fork`, `/reload
 | 맥락 블록의 머리말(첫 `## ` 위) | 4,000자 뒤 | 뺀 글자 수와 `read <CONTEXT.md> offset 1 limit <첫 제목 앞의 줄 수>` |
 | 맥락 블록의 핵심 정보·열린 항목 | 최근 12개 밖의 항목, 300자 뒤의 글 | 목록마다 한 줄: 뺀 항목 수(최근 12 / 전체), 300자에서 잘린 항목이 있다는 사실, `read <journal.jsonl>`(id로 찾음) |
 | `analytics_status` | 최근 run 8개, 차트·열린 항목·핵심 정보 16개, 최근 기록 10개 밖 | 목록마다 뺀 개수와 journal(run은 `runs/<id>/run.json`도). journal 경로는 `journal:` 줄에 한 번. 핵심 정보는 전체 수를 세지 않고 "최근 16개만, 더 있으면 journal"로 적습니다. 한 줄로 줄인 글 — 항목 글(열린 항목·핵심 정보 160자, 최근 기록 120자), 목표(160자), run·차트 제목(80·70자), 오류 요약(100자) — 은 `…`로 끝날 뿐 따로 적지 않습니다. 전문은 journal(id로 찾음), `CONTEXT.md`, `runs/<id>/run.json`에 있습니다 |
+| `analytics_status`의 기록·관계 줄(E) | 머리의 `unsupported:`·`damaged:`·`not listed:`·`ids on several lines:` 줄에서 위치 5개, 데이터셋의 생산자 후보와 그 경로를 쓴 run에서 3개, 핵심 정보의 `refs:` 요약에서 이름을 적는 상태마다 대상 3개 밖 | 뺀 개수와 위치: 위치는 kit의 `status` 명령이 내는 JSON(`unsupported`·`damaged`·`not_listed`·`shared_ids`에 모두 있음), 후보는 각 run의 `runs/<id>/run.json` 출력, 참조 대상은 journal의 그 항목 `refs`. 상태별 참조 수와 확정 연결 수는 줄이지 않습니다. 이 줄들은 9,000자 예산에 듭니다 |
 | `analytics_status`가 9,000자를 넘을 때 | 상한이 없는 목록 — 맥락에서 뺀 섹션 이름, view 이름, 데이터셋, 차트별 STALE 입력 — 을 줄이는 효과가 큰 것부터, 들어가는 가장 많은 개수(적어도 20·40·20·5개)로 | 뺀 개수와 위치(`CONTEXT.md`, `runs/<id>/run.json`, view 이름을 모두 보는 순서 있는 `analytics_query` 호출: `ORDER BY table_name LIMIT 50 OFFSET 0`, 이어서 `OFFSET 50, 100, …`을 50행보다 적게 올 때까지). 그래도 넘으면 줄 끝에서 자르고, 마지막 줄에 보이지 않는 절과 항목 수, journal 경로. 9,000자는 위 행의 개수·위치 줄(`journal:` 줄 포함)과 머리말이 4,000자를 넘는다는 줄을 빼고 셉니다. 그래서 그 줄들을 더해 9,000자를 넘는 것만으로는 목록을 줄이지 않고, 응답은 그 줄들만큼 9,000자보다 길 수 있습니다 |
 | `analytics_run` | 입력·출력·경고 10개, 차트 12개, 출력 열 12개 밖, stdout·stderr의 꼬리 | `read <runs/<id>/run.json>`(모두 있음), `+N more columns`, 목록 밖 차트 수와 run.json, 로그는 `truncated: the last N characters`와 로그 파일. 로그가 잘렸는지는 로그 파일이 kit의 꼬리(4,000 bytes)보다 큰지로 정하고, 그때만 꼬리 앞에 kit이 붙인 `…`를 뗍니다(로그가 스스로 `…`로 시작하면 그대로). ok인 run의 1,500자 이상 stderr를 보이지 않을 때도 그 사실과 파일 |
 | `analytics_query` | 14,000자에 들지 않는 행(행 단위: 줄바꿈이 든 값의 행도 한 행) | 첫 줄 `N row(s) shown of M fetched`, 마지막 줄에 뺀 행 수와 결과가 저장되지 않으니 `LIMIT/OFFSET`으로 나눠 읽으라는 안내. 셀(48자)에 맞게 잘린 값은 셀에 들어가는 48자씩 읽는 방법: `substr(<column>, <start>, 48)`, `<start>` = 1, 49, 97, … |
@@ -124,6 +126,7 @@ run의 **출력 비교 대상**은 프로젝트 루트에서 `.venv .lab runs re
   파일 수백 개를 읽은 run도 저널 한 줄을 경로 덤프로 만들지 않습니다. 전체 목록은 `run.json`에 있습니다.
 - **핵심 정보** = `finding`·`decision`·`assumption` 중 다른 이벤트의 `refs.resolves`가 가리키지 않는 것.
 - **열린 항목** = `question`·`todo` 중 같은 조건. `resolve` 종류는 `resolves`가 필수입니다.
+- **참조의 읽기**: 화면(`analytics_status`·`/analytics status`·kit의 `status`, Workspace)은 `refs`를 고쳐 쓰지 않고 E의 참조 판정으로 보입니다. journal은 바이트로 읽어 LF로 나누고, 파싱하지 못한 줄은 `damaged`, 그 줄 뒤에 붙은 기록은 복구해 읽습니다. 같은 id의 줄이 여럿이면 줄마다 하나의 기록(`journal:<줄>`)입니다. 모르는 가족·버전·kind의 줄은 `unsupported`로 위치와 함께 셉니다(G).
 
 ### C2. run `lab.run/1` (`runs/<id>/run.json`)
 
@@ -144,6 +147,8 @@ run의 **출력 비교 대상**은 프로젝트 루트에서 `.venv .lab runs re
 | `warnings[]` | 기록 품질 경고 |
 
 입력에서 제외: 이 run 디렉터리, `.venv/`, `.lab/`, 그리고 `via`가 `scan`뿐인데 이 run이 만들거나 바꾼 파일.
+
+기록 상태(`recording_status`)는 실행 상태와 따로 읽습니다(ADR-0006 6): run.json이 아직 `running`이거나(`not_final`), journal에 완료 이벤트(그 run을 `refs.runs`에 담은 `kind=run` 이벤트)가 없거나(`no_completion_event`), `finalize_errors`가 있으면 `incomplete`와 사유입니다. `status`의 run 행과 텍스트(`recording incomplete (…)`), run 페이지의 안내가 보입니다. run.json이 없거나 파싱되지 않는 run은 지금처럼 `(run.json missing)` 행이고, 모르는 가족·버전의 run.json은 목록에 없이 `unsupported`로 셉니다.
 
 ### C3. 차트 레코드 (run의 `charts[]`)
 
@@ -243,6 +248,7 @@ Windows에서는 `analytics.exe`)로 부릅니다(kit 0.3.0 전의 `bin/lab`). �
   도중에 시그널 처리기가 예외를 올리면(두 번째 Ctrl+C 등) 그런 스레드도 SIGABRT로 끝날 수 있습니다.
 - 명령: `init` `status` `context` `run` `import` `query` `record` `render [--if-changed]` `demo`. kit 0.3.0 전의 `note`·`report`는
   사용법 오류(2)입니다. 결과 JSON의 키(`report` 등)는 그대로입니다(읽기 모델 #12·#13).
+- `status`의 JSON(`status`)은 한 번의 읽기(E의 읽기 모델)에서 만듭니다: 읽기 기준 `as_of_seq`·`source_revision`·`updating`, `unsupported`(`{location, reason}`), `damaged`(`journal`·`recovered`: `journal:<줄>`, `files`: `{location, reason}`), `not_listed`(`analytics.event/2` 줄), `shared_ids`(여러 줄의 id → 줄), run 행의 `recording_status`·`reasons`, 차트 행의 `ambiguous_inputs`·`cycle`, 데이터셋의 `producer_state`·`producer_candidates`·`producer`(후보가 하나일 때만)·`written_by`, 목록 항목의 `source`(id, 여러 줄이면 `journal:<줄>`), 핵심 정보의 `references`(`states`·`confirmed`·`not_resolved`). 이전 kit(0.2.0·0.3.0)의 `unreadable`(가족·버전별 개수)은 없어졌고, `datasets[].producer`의 뜻이 "그 경로를 출력한 마지막 성공 run"에서 "현재 바이트를 출력한 유일한 성공 run"으로 좁아졌습니다. `producers`는 그대로 그 경로를 출력한 성공 run(바이트 무관)입니다. 배포본을 게시하지 않았으므로 외부 소비자가 없습니다(ADR-0005 결정 8).
 - `run`이 코드 스냅샷이나 첫 기록(`running`)을 쓰지 못하면 만든 run 디렉터리를 지우고 `snapshot_failed`·`record_failed`로
   답합니다. hint는 원인에 따라 경로를 줄이라는 것(운영체제가 이름이나 경로가 너무 길다고 답했거나, 경로의 한 구성
   요소가 UTF-16 단위로 255개를 넘음: NTFS·APFS가 이름을 세는 단위이며 기본 다국어 평면 밖의 문자는 둘로 셉니다),
@@ -285,10 +291,15 @@ Windows의 한계는 G절에 있습니다.
 |---|---|
 | 입력 기록 | 런타임 읽기는 **읽는 시점의 내용**으로 해시합니다. run이 스스로 만든 파일, 또는 다시 쓴 뒤 읽은 파일은 입력에서 제외합니다 |
 | 입력 상태 | 기록 sha256 대비 지금 파일: `same` / `changed` / `missing` / `unknown`(sha 없음·디렉터리·URI). 지금 내용이 그 run 자신의 출력과 같으면 `same`(읽고 다시 쓰는 갱신 패턴). 크기·mtime이 같으면 캐시한 sha를 씀 |
-| stale | 입력 중 `changed`·`missing`이 있거나, 입력 `(path, sha256)`을 만든 성공 run이 stale (전이, 깊이 20) |
+| stale | 입력 중 `changed`·`missing`이 있거나, 입력의 생산자 후보 가운데 stale인 run이 있음(전이). 후보를 모두 따라가고 마지막 run을 고르지 않습니다. 후보가 둘 이상인 입력은 `ambiguous_inputs`, 따라가다 아직 걷는 중인 run으로 돌아오면 `cycle`이며(같은 시각에 시작한 run끼리만 생깁니다. 두 길로 닿는 다이아몬드는 순환이 아님) 깊이 제한 없이 run마다 한 번 방문해 끝납니다 |
+| 생산자 후보 | 입력의 `(path, sha256)`과 같은 출력(`deleted` 아님)을 남긴 `ok` run 가운데, 소비 run이 아니고 그보다 늦게 시작하지 않은 것(시작 시각은 시간대를 반영한 시점, 읽지 못하면 빼지 않음). 0개 `none`, 1개 `resolved`, 여럿 `ambiguous`(모두 보임), 입력에 해시가 없으면 `unknown`. 데이터셋은 현재 바이트로 같은 판정을 합니다(소비 run 없음). 후보는 같은 바이트를 출력했다는 관측(basis `observed`)이며 확정 연결이 아니고, 화면은 `same bytes as run X's output`으로 적습니다(ADR-0006 4) |
+| 참조 판정 | ADR-0006 3·4절대로 읽습니다: `/1` `refs`의 정규화(4절 끝의 목록), 해석 상태, `confirmed`(author ∧ observed/declared ∧ resolved). 이벤트 계열 참조(`/1`의 `refs.events`·`refs.resolves`, `/2`·Report manifest의 결박된 `event`·`analysis_focus`·`metric_definition`·`reuse_proposal`)는 대상의 seq가 참조한 기록의 seq보다 작을 때만 찾고, 같거나 크거나 seq가 없으면 `missing`(`record_absent`)·`confirmed=false`입니다. ADR-0006 4절 2단계("대상 기록을 찾는다")의 읽기입니다(G). `/1` `refs.runs`는 run의 `started_at`이 이벤트 `ts`보다 늦으면 `missing`, `kind=run` 이벤트의 `refs.charts`는 `refs.runs`가 하나일 때 그 run의 버전에 결박되고(여럿이면 `ambiguous`), 그 밖의 `refs.charts`·`refs.data`는 `version_unbound`입니다. 미결박 차트의 후보는 그 이벤트 앞의 완료 이벤트를 가진 성공 run의 버전입니다 |
+| 참조 표시 | run 이벤트의 차트는 그 run 페이지의 차트(`runs/<run>.html#chart-<id>`), 미결박 차트·데이터는 "Version unbound"와 함께 최신 갤러리 카드·데이터셋 페이지로 잇고 "latest, not the cited version"과 후보 수를 적습니다. 그 밖의 상태(`missing`·`ambiguous`·`unknown`·`unsupported`·`content_changed`)는 색이 아니라 글로 적습니다. `analytics_status`의 핵심 정보는 상태별 수와 확정 연결 수, 그리고 살펴볼 상태(`missing`·`ambiguous`·`content_changed`·`unsupported`)의 대상 식별자를 적습니다(`/1` 메모의 차트·데이터는 원래 미결박이라 수만 적고, 대상은 JSON의 `not_resolved`와 journal의 그 항목에 있습니다). 식별자는 두 화면이 같습니다: 이벤트 `e<seq>`(여러 줄이면 `journal:<줄>`), run id, `<run_id>/<chart_id>`, 논리 키 `script::chart`, 경로 |
+| 읽기 기준 | `analytics_status`의 `read:` 줄과 Workspace의 모든 페이지 바닥이 같은 `as_of_seq`(journal의 마지막 seq)와 `source_revision`(journal·run.json·manifest·meta·CONTEXT의 크기와 mtime으로 만든 16자, 절대 경로 없음)을 적습니다. 읽는 동안 파일이 바뀌면 두 번까지 다시 읽고, 그래도 바뀌면 `updating`이라고 적습니다(ADR-0006 5) |
+| 출력의 현재 상태 | run 페이지는 출력마다 지금 파일을 기록한 sha256과 비교합니다: 같음, 다름("Overwritten since this run — this run's bytes are not preserved"), 없음(`file_absent`), 해시 없음(`unknown`) |
 | 코드 상태 | 원래 스크립트 파일 sha256 대비 `same` / `changed` / `missing` (재실행은 `n/a`) |
 | 차트 정체성 | run 안에서는 차트 id가 정체성입니다. 같은 id로 다시 기록하면 나중 것이 이깁니다. 자동 캡처(`plt.show`·`fig.show`·남은 그림)는 이미 저장한 그림이 그대로면 건너뜁니다 |
-| 차트 버전 | `script::id`별 성공 run 순서(재실행 run 제외). 같은 스크립트의 최신 성공 run에 없는 차트는 `retired` |
+| 차트 버전 | `script::id`별 성공 run 순서(재실행 run 제외). 같은 스크립트의 최신 성공 run에 없는 차트는 `retired`. 갤러리와 `status`의 차트 목록의 규칙입니다. 참조 판정의 버전 후보는 ADR-0006대로 재실행 run도 셉니다(완료 이벤트가 있는 성공 run의 버전) |
 | view 이름 | 파일 stem을 `[a-z0-9_]`로. 숫자로 시작하면 `t_`. raw 우선, 겹치는 derived는 `_derived` |
 | 재실행 판정 | 재실행이 `ok`가 아니면 `failed`. 차트: 둘 다 플롯 데이터면 프레임 동등성, plotly면 `data` JSON 동등성, PNG면 바이트. 출력: 바이트. 다르거나 사라지거나(`not written`) 새로 생기면 `mismatch`, 같은 것이 있으면 `match`, 비교할 것이 없으면 `inconclusive`. 입력 동일 여부는 따로 `inputs_same` |
 | 읽기 전용 쿼리 | 한 문장이어야 하고 종류가 SELECT(DESCRIBE·SUMMARIZE·SHOW·PRAGMA 포함)여야 합니다. `EXPLAIN`은 안쪽이 SELECT일 때만, `EXPLAIN ANALYZE`는 거절. 연결은 `allowed_directories=[<project>/data/]` + `enable_external_access=false` + `lock_configuration=true`로 묶습니다 |
@@ -437,6 +448,12 @@ kit 0.3.0([#9](https://github.com/handochan/aelix-analytics/issues/9)의 둘째 
 - 격리·샌드박스·승인. `analytics_run` 스크립트는 사용자가 읽을 수 있는 모든 파일에 닿습니다(`analytics_query`만 `data/`로 묶여 있습니다).
 - 계보의 완전성. 입력 감지는 최선 노력입니다(pyarrow 직접 읽기처럼 훅이 없는 경로는 놓칩니다). 일부만 감지된
   경우 경고도 없습니다 — 경고는 입력이 하나도 없을 때만 나옵니다. 행 단위 계보와 선택(마킹) 기반 후속 분석은 없습니다.
+- 관계의 읽기(#12).
+  - 앞 참조. `/1` writer는 `refs.events`의 대상이 있는지 확인하지 않아, 아직 없는 `e<seq>`나 오타 id를 적을 수 있습니다. reader는 대상 seq ≥ 참조한 기록의 seq인 이벤트 계열 참조를 `missing`(`record_absent`)·`confirmed=false`로 읽습니다(E). ADR-0006 4절 2단계의 읽기이고 ADR 본문은 고치지 않았습니다. 그래서 그런 참조가 나중에 생긴 다른 기록과 확정 연결이 되지는 않지만, 쓰기는 여전히 받습니다(#13 writer).
+  - 핵심 정보·열린 항목의 선택은 C1의 규칙(`refs.resolves`가 가리키는 id) 그대로이며 ADR-0006 6절의 상태 재생과 다를 수 있습니다. 여러 줄의 id를 닫는 `resolves`는 재생에서는 아무것도 닫지 않지만(`ambiguous`), 목록에서는 그 id의 줄을 모두 닫힌 것으로 셉니다. `add_note`의 `resolves` 확인은 journal만 읽고 그 id의 첫 줄로 통과합니다. 상태 재생을 화면에 쓰는 일은 #16, 같은 id를 만드는 쓰기는 #49입니다.
+  - `lab.json` 프로젝트의 `analytics.event/2` 줄은 읽어 그 참조를 판정하지만 목록(핵심 정보·열린 항목·최근 기록·타임라인)에 보이지 않고, 개수와 위치만 적습니다(`not listed:`). 표시는 #13의 첫 PR입니다.
+  - 다른 OS가 기록한 절대 경로는 이 기계에서 파일이 없어 `missing`/`file_absent`로, 그 입력의 생산자는 이 기계의 기록과 경로가 맞지 않아 `none`으로 보입니다(Freshness의 전과 같습니다). 옛 절대 경로의 대응은 #12의 셋째 PR과 #36입니다.
+  - 비용(측정은 이 PR의 기록). 맥락 블록은 프롬프트마다 journal만 읽어 줄마다 기록을 판정하므로 줄 수에 비례하고, `analytics_status`는 run.json을 한 번, 기준 파일들을 두 번 stat합니다. Workspace는 타임라인의 모든 참조를 판정합니다. 영속 인덱스는 없습니다(#15).
 - 무결성. 해시 체인·서명이 없고 불변성은 규약입니다.
 - 원자성·복구·멱등성. 한 프로젝트의 run은 직렬화되지만, 강제 종료된 run은 `incomplete`로 남고 되돌리지 않습니다.
   프로젝트 밖에서 같은 파일을 건드리는 다른 프로세스는 막지 않습니다.

@@ -117,7 +117,7 @@ ADR-0002는 진입점의 하한을 `>=3.11`로 낮추고(결정 2), Aelix 없이
 
 ## ADR-0002와의 관계
 
-- 결정 2의 "진입점"은 설치 환경에서 도는 것 — 런처, 확장, 확장이 로드하는 `core`·`_platform` — 이다. kit의 명령은
+- 결정 2의 "진입점"은 설치 환경에서 도는 것 — 런처, 확장, 확장이 로드하는 `core`·`_platform`·`relations`(#12의 읽기 모델, stdlib) — 이다. kit의 명령은
   `bin/analytics`와 같이 프로젝트 환경(`>=3.12`)에서 돈다.
 - "구현에서 확인할 것" 1(3.11·3.12에서 `python -m labkit` init/import/query/run/note/report/status/context 실행)은
   글자 그대로는 할 수 없다. import·query·demo는 결정 4가 진입 환경에 넣지 않는 분석 라이브러리를 쓰고, 결정 3이
