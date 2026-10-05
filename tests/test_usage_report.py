@@ -220,6 +220,49 @@ def test_tokens_are_counted_only_by_an_identified_tokenizer(measured, monkeypatc
     with pytest.raises(SystemExit) as refused:
         usage.main(["--output", str(tmp_path / "unknown"), "--tokenizer", f"other-model={other}"])
     assert refused.value.code == 2
+    # A counter that raises on a text fails that text and itself: the report is written, exit 1.
+
+    def flaky(text: str) -> int:
+        if text.startswith("lab_status:"):
+            raise RuntimeError("cannot encode this text")
+        return len(text.split())
+
+    broken = usage.TokenCounter("test-flaky", {"library": "test: raises on lab_status"},
+                                encode=flaky)
+    code, failing = usage.run(tmp_path / "flaky", only=["F1-en"], counters=[broken])
+    assert code == 1 and failing["failures"] == [], failing["failures"]
+    (state,) = [c for c in failing["counters"] if c["id"] == "test-flaky"]
+    assert state["state"] == {"status": "failed", "error": "RuntimeError: cannot encode this text"}
+    assert state["failed_texts"] >= 1
+    values = {e["surface"]: e["tokens"]["test-flaky"]["status"] for e in failing["surfaces"]}
+    assert values["S4"] == "failed" and values["S1"] == "measured", values
+    assert "failed (RuntimeError: cannot encode this text)" in (
+        tmp_path / "flaky" / "usage-report.md").read_text(encoding="utf-8")
+
+
+def test_the_command_refuses_before_it_deletes(monkeypatch, tmp_path):
+    """--output is new, empty or a previous report's; anything else, and a missing aelix, are
+    refused before a file is deleted."""
+    isolate(monkeypatch, tmp_path)
+    mine = tmp_path / "mine"
+    (mine / "texts").mkdir(parents=True)
+    (mine / "texts" / "keep.txt").write_bytes(b"not a report's")
+    with pytest.raises(SystemExit) as refused:
+        usage.main(["--output", str(mine), "--only", "T", "--keep-fixtures"])
+    assert refused.value.code == 2 and (mine / "texts" / "keep.txt").is_file()
+    previous = tmp_path / "previous"
+    assert usage.main(["--output", str(previous), "--only", "T"]) == 0
+    assert usage.main(["--output", str(previous), "--only", "T"]) == 0  # a report's: replaced
+    texts = sorted(p.name for p in (previous / "texts").rglob("*.txt"))
+    real = usage.importlib.util.find_spec
+    monkeypatch.setattr(usage.importlib.util, "find_spec",
+                        lambda name, *rest: None if name == "aelix_coding_agent"
+                        else real(name, *rest))
+    with pytest.raises(SystemExit) as no_aelix:
+        usage.main(["--output", str(previous), "--only", "T"])
+    assert no_aelix.value.code == 2
+    assert (previous / "usage-report.json").is_file()
+    assert sorted(p.name for p in (previous / "texts").rglob("*.txt")) == texts
 
 
 def test_targets_never_refuse_or_cut(measured):
@@ -313,6 +356,25 @@ def test_the_checker_tells_retrievable_from_lost(monkeypatch, tmp_path):
     partial = usage.check_fact(host, item, reply(page("some", record["inputs"][:3])), truth)
     assert partial["class"] == "wrong_pointer", partial  # "lists them all" is false
     assert [c for c in partial["claims"] if not c["holds"]]
+    # Every hash but one path: the page does not list them all, though the fact is on it.
+    hashes = tmp_path / "hashes.html"
+    hashes.write_bytes(("<table>" + "".join(
+        f"<tr><td>{i['path'] if i is hidden else '-'}</td><td>{i['sha256'][:12]}</td></tr>"
+        for i in record["inputs"]) + "</table>").encode())
+    hash_only = usage.check_fact(host, item, reply(hashes), truth)
+    assert hash_only["class"] == "wrong_pointer" and hash_only["found_at"] == 1, hash_only
+    assert [c["claim"] for c in hash_only["claims"] if not c["holds"]] == [
+        f"read {hashes} lists every one of the inputs"]
+    # The page lists them all and links the record, which alone has the whole sha256: R2.
+    linked = tmp_path / "linked.html"
+    linked.write_bytes(("<table>" + "".join(f"<tr><td>{i['path']}</td><td>{i['sha256'][:12]}</td>"
+                                            "</tr>" for i in record["inputs"]) + "</table>\n"
+                        '<p>그 외 0개 — 전체 기록: <a href="run.json">run.json</a></p>\n').encode())
+    whole = usage.Fact("input-sha", "S5", "inputs", (hidden["path"], hidden["sha256"]),
+                       (tmp_path / "run.json",), True)
+    chain = usage.check_fact(host, whole, reply(linked), truth)
+    assert (chain["class"], chain["found_at"], chain["host_calls"]) == ("R2", 2, 2), chain
+    assert chain["claims"] and all(c["holds"] for c in chain["claims"]), chain["claims"]
     silent = usage.check_fact(host, item, reply(page("some", []), more=False), truth)
     assert silent["class"] == "silent_omission", silent
     run_id = usage.Fact("run", "S4", "runs", (record["id"],), (tmp_path / "run.json",), True)
@@ -325,6 +387,114 @@ def test_the_checker_tells_retrievable_from_lost(monkeypatch, tmp_path):
     assert derived["class"] == "generic_pointer", derived
     gone = usage.Fact("gone", "S8", "note_text", ("FACT-GONE",), (tmp_path / "run.json",), False)
     assert usage.check_fact(host, gone, "lab_note: ok", truth)["class"] == "not_recorded"
+    # The pointer is right, and the host's read tool refuses the line: one line of 60 KB.
+    long = tmp_path / "LONG.md"
+    long.write_bytes(b"# T\n\n## Long\n" + b"y" * 61_440 + b" FACT-LONG\n\n## After\n- after\n")
+    blocked = usage.check_fact(
+        host, usage.Fact("long", "S1", "context", ("FACT-LONG",), (long,), False, "Long"),
+        f"read the one you need from {long}:\n- Long (3 lines): read offset 3 limit 3",
+        usage.Truth(long))
+    assert blocked["class"] == "host_blocked" and not blocked["passed"], blocked
+    assert all(c["holds"] for c in blocked["claims"]), blocked["claims"]
+
+
+def test_the_invariants_judge_a_cut_by_what_was_cut(monkeypatch, tmp_path):
+    """A cut is found against the text it was cut from, not by the words it adds, and an omission
+    line has to state the count that is true."""
+    isolate(monkeypatch, tmp_path)
+    host = usage.Host()
+    core = host.core
+    project = core.init_project(tmp_path / "project", title="cut", goal="measure", actor="test")
+    for i in range(14):
+        core.add_note(project, "finding", f"finding {i:02d}: returns within 2 days", actor="test")
+    # lab_status: the reply's body against the kit's overview with no length limit.
+    full = core.status_text(core.status(project), max_chars=10 ** 9)
+    head = "lab_status: ok (project found via AELIX_LAB_PROJECT)\n"
+    lines = full.split("\n")
+    kept = "\n".join(lines[:len(lines) // 2])
+    where = f" — read {project.journal}"
+
+    def status_cut(text: str) -> dict:
+        (cut,) = [c for c in usage.status_invariants(host, text, project) if c["id"] == "cut"]
+        return cut
+
+    whole = status_cut(head + full)
+    assert whole["holds"] and whole["detail"] == {"cut": False}, whole
+    at_a_line_end = status_cut(head + kept + "\n… (truncated)" + where)
+    assert at_a_line_end["holds"] and at_a_line_end["detail"]["line_aligned"], at_a_line_end
+    inside = status_cut(head + full[:len(kept) + 5] + "\n… (truncated)" + where)
+    assert not inside["holds"] and not inside["detail"]["line_aligned"], inside
+    reworded = status_cut(head + kept + "\n… (cut short)")  # a wording HEAD does not use
+    assert not reworded["holds"] and reworded["detail"]["cut"], reworded
+    # The block's key information: 12 of 14 listed, and "2" already in every entry's own text.
+    block = core.context_block(project)
+
+    def key_listed(line: str) -> bool:
+        (said,) = [c for c in usage.block_invariants(host, f"{block}\n{line}",
+                                                     usage.Truth(project.context), project)
+                   if c["id"] == "key_listed"]
+        assert said["detail"]["unresolved"] == 14 and said["detail"]["listed"] == 12, said
+        return said["holds"]
+
+    journal = project.journal
+    assert not key_listed(f"- older unresolved entries: read {journal}")  # no count
+    assert not key_listed(f"- … and 99 more: read {journal}")  # a false count
+    assert not key_listed("- … and 2 more")  # no place to read them
+    assert key_listed(f"- … and 2 more: read {journal}")
+    assert key_listed(f"- latest 12 of 14 — older entries: read {journal}")  # design G3
+    # lab_query: rows against the kit's result rows, as the extension renders each row.
+    columns, rows = [{"name": "number", "type": "BIGINT"}], [[1], [2], [3]]  # names as wide
+    table = host.module.render_table(columns, rows)
+    first = "lab_query: ok — 3 row(s) in 1 ms; views used: t\n"
+
+    def query(text: str) -> dict:
+        return {c["id"]: c["holds"] for c in usage.query_invariants(
+            text, {"columns": columns, "rows": rows}, host.module.render_table)}
+
+    assert query(first + table) == {"rows": True, "location": True, "types": True, "cells": True}
+    short = query(first + "\n".join(table.split("\n")[:5]) + "\n… (cut short)")
+    assert (short["rows"], short["location"]) == (False, False), short
+
+
+def test_fixture_files_are_the_bytes_they_record(measured):
+    """The harness writes its fixture files as bytes, so no OS changes their line ends: the script
+    a run recorded is the script on disk, and lab_status does not call F3's charts edited (the
+    Windows legs are where this can fail)."""
+    for fixture in ("F3-en", "F3-ko"):
+        assert "script edited since" not in saved_text(measured, fixture, "S4"), fixture
+        project = measured.output / "fixtures" / fixture / "project"
+        (record_path,) = (project / "runs").glob("*/run.json")
+        record = json.loads(record_path.read_text(encoding="utf-8"))
+        script = (project / record["script"]["path"]).read_bytes()
+        assert b"\r" not in script, fixture
+        assert script == (project / record["script"]["snapshot"]).read_bytes(), fixture
+        assert hashlib.sha256(script).hexdigest() == record["script"]["sha256"], fixture
+        external = [i for i in record["inputs"] if i["external"]]
+        assert len(external) == 3, fixture
+        for item in external:
+            data = Path(item["path"]).read_bytes()
+            assert b"\r" not in data and hashlib.sha256(data).hexdigest() == item["sha256"]
+    journal = (measured.output / "fixtures" / "SC-S" / "project" / "journal.jsonl").read_bytes()
+    appended = [line for line in journal.split(b"\n") if b'"text": "entry ' in line]
+    assert len(appended) == 300 and not [line for line in appended if line.endswith(b"\r")]
+
+
+def test_everything_injected_is_the_reply_with_nothing_left_out(measured):
+    """The comparison control is serialized as the reply is (design 4.3): where the reply leaves
+    nothing out, the two are the same text, and lab_run's lists are not clipped."""
+    same = 0
+    for a in measured.report["all_injected"]:
+        if "S4_everything" in a:
+            left_out = a["S4_left_out"]
+            if not left_out["length_cut"] and not left_out["lists_capped"]:
+                assert a["S4_everything"] == a["S4_measured"], a["fixture"]
+                same += 1
+            else:
+                assert a["S4_everything"]["utf8_bytes"] > a["S4_measured"]["utf8_bytes"], a
+        if "S5_every_list_item" in a:
+            # The 503 inputs and every other list whole: past the reply's 14,000-character clip.
+            assert a["S5_every_list_item"]["chars"] > 14_000, a
+    assert same >= 10, same
 
 
 def fact_cases():

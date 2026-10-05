@@ -34,9 +34,15 @@ and R2 when a pointer of that result does. A pointer whose claim is false fails 
 say what every omission of a surface has to carry.
 
 Exit status: 0 when the report was written (an exceeded target or a lost fact is data, not a
-failure), 1 when a surface or a token counter could not be measured (`failed`, e.g. an aelix API
-changed; the report is still written), 2 on a usage error. The pass/fail judgements are
-tests/test_usage_report.py's.
+failure), 1 when a surface could not be measured or a given token counter failed (`failed`: an
+aelix API changed, a tokenizer file did not load, or counting a text raised; the report is still
+written), 2 on a usage error. A tokenizer file that is not the registered one, or a missing
+tokenizer library, counts nothing (`not_measured`) and is not a failure. The pass/fail judgements
+are tests/test_usage_report.py's.
+
+OUTPUT has to be new, empty or a previous report's directory (one with usage-report.json): the
+command replaces its texts/ (and fixtures/ with --keep-fixtures), and refuses any other directory
+that is not empty before it deletes anything.
 """
 
 from __future__ import annotations
@@ -224,7 +230,8 @@ class UsageError(Exception):
 class TokenCounter:
     """One counter: its id, what identifies it, and `encode` (text -> token count) when this run can
     count with it. Without `encode`, every count is `state` (not_measured with its reason, or
-    failed)."""
+    failed). A text it fails to count is `failed`, and so is the counter from then on (its state
+    keeps the first error): the command exits 1."""
 
     def __init__(self, counter_id: str, info: dict, state: dict | None = None, encode=None):
         self.id = counter_id
@@ -232,6 +239,7 @@ class TokenCounter:
         self.encode = encode
         self.state = state or ({"status": "in_use"} if encode else
                                not_measured("no_tokenizer_given"))
+        self.failed_texts = 0
 
     def count(self, text: str) -> dict:
         if self.encode is None:
@@ -239,10 +247,17 @@ class TokenCounter:
         try:
             return measured(int(self.encode(text)))
         except Exception as exc:  # noqa: BLE001 - a counter that fails is recorded, not raised
-            return failed(f"{type(exc).__name__}: {exc}")
+            value = failed(f"{type(exc).__name__}: {exc}")
+            if self.state.get("status") != "failed":
+                self.state = dict(value)
+            self.failed_texts += 1
+            return value
 
     def describe(self) -> dict:
-        return {"id": self.id, **self.info, "state": dict(self.state)}
+        out = {"id": self.id, **self.info, "state": dict(self.state)}
+        if self.failed_texts:
+            out["failed_texts"] = self.failed_texts
+        return out
 
 
 def registered_counter(spec: str) -> TokenCounter:
@@ -390,6 +405,7 @@ class Reply:
     is_error: bool
     details: object
     elapsed_ms: float
+    clipped: bool = False   # the extension's 14,000-character clip cut the text it was given
 
 
 @dataclass
@@ -434,6 +450,17 @@ class Host:
         self.kit_commands: list[list[str]] = []
         self.module.run_kit = self._run_kit
         self.module.sync_environment = self._sync_environment
+        # Whether a reply was cut by length is read off the clip itself (what it was given and what
+        # it returned), not off the words it adds.
+        self.clips: list[bool] = []
+        real_clip = self.module._clip
+
+        def clip(text, limit=None):
+            out = real_clip(text) if limit is None else real_clip(text, limit)
+            self.clips.append(out != text)
+            return out
+
+        self.module._clip = clip
         self.cwd = ROOT  # where the model works: the active project, as aelix runs inside it
         self._n = 0
 
@@ -470,12 +497,14 @@ class Host:
 
     def tool(self, role: str, args: dict, *, images: bool = False) -> Reply:
         tool = self.tools[TOOL_NAMES[role]]
+        self.clips.clear()
         started = time.perf_counter()
         result = asyncio.run(tool.execute(dict(args), self._ctx(images)))
         elapsed = round((time.perf_counter() - started) * 1000, 1)
         text = "\n".join(c.text for c in result.content if hasattr(c, "text"))
         pictures = [c for c in result.content if isinstance(c, self._image)]
-        return Reply(text, pictures, bool(result.is_error), result.details, elapsed)
+        return Reply(text, pictures, bool(result.is_error), result.details, elapsed,
+                     clipped=any(self.clips))
 
     def command(self, text: str) -> str:
         return asyncio.run(self.module.lab_command(text))
@@ -914,19 +943,28 @@ def run_items(record: dict | None, scope: str) -> list:
     return list((record or {}).get(scope) or [])
 
 
-# What identifies an item of a run in the lab_run reply, and on a page or record that lists it.
+# What identifies an item of a run in the lab_run reply (listed_in: on a page or record).
 REPLY_ID = {
     "inputs": lambda item: f" sha256 {str(item.get('sha256'))[:12]} via ",
     "outputs": lambda item: f"  {item['path']} ",
     "charts": lambda item: f"::{item['id']} ",
     "warnings": lambda item: f"  - {item}",
 }
-LISTED_ID = {
-    "inputs": lambda item: str(item.get("sha256"))[:12],
-    "outputs": lambda item: item["path"],
-    "charts": lambda item: f'"chart-{item["id"]}"',
-    "warnings": lambda item: item,
-}
+
+
+def listed_in(text: str, scope: str, item) -> bool:
+    """Whether a page or record that claims to list the run's `scope` shows this item: an input
+    by its path and its sha256 prefix, an output by its path, a chart by its id (the run page's
+    `chart-<id>` anchor or a JSON string) and its PNG path, a warning by its text."""
+    if scope == "inputs":
+        return present(text, (item["path"], str(item.get("sha256"))[:12]))
+    if scope == "outputs":
+        return present(text, (item["path"],))
+    if scope == "charts":
+        png = (item.get("files") or {}).get("png")
+        named = present(text, (f'"chart-{item["id"]}"',)) or present(text, (f'"{item["id"]}"',))
+        return named and (png is None or present(text, (png,)))
+    return present(text, (item,))
 
 
 # --- HEAD's pointer grammar ---------------------------------------------------------------------
@@ -1093,7 +1131,7 @@ def lists_all_claims(pointer: Pointer, followed: Followed | None, truth: Truth,
                          pointer.claim["more"] == hidden,
                          f"{len(items)} in the record, {len(listed)} in the reply"))
     if followed is not None:
-        missing = [item for item in items if not present(followed.text, (LISTED_ID[scope](item),))]
+        missing = [item for item in items if not listed_in(followed.text, scope, item)]
         out.append(claim(pointer, f"{followed.target} lists every one of the {scope}", not missing,
                          f"{len(missing)} of {len(items)} are not there"))
     return out
@@ -1218,6 +1256,29 @@ def located(text: str) -> bool:
     return bool(LOCATION.search(text))
 
 
+# A count an omission line gives: "latest 12 of 42" (shown of total) or "30 more" / "30 older".
+OMITTED_COUNT = re.compile(r"\blatest (?P<shown>[\d,]+) of (?P<total>[\d,]+)\b|"
+                           r"\b(?P<more>[\d,]+) (?:more|older)\b")
+ENTRY_LINE = re.compile(r"^- e\d+ [a-z_]+:")
+
+
+def omission_counts(part: str) -> list[dict]:
+    """The omission lines of a list (a line that is not an entry and names where to read the
+    rest), each with the counts it states, parsed as numbers: a number elsewhere, such as in an
+    entry's own text, says nothing about what was left out."""
+    out = []
+    for line in part.split("\n"):
+        if ENTRY_LINE.match(line) or not located(line):
+            continue
+        said: dict = {"line": line[:160]}
+        for m in OMITTED_COUNT.finditer(line):
+            for name in ("shown", "total", "more"):
+                if m.group(name) is not None:
+                    said.setdefault(name, int(m.group(name).replace(",", "")))
+        out.append(said)
+    return out
+
+
 def block_invariants(host: Host, text: str, truth: Truth, project) -> list[dict]:
     core = host.core
     flat = collapse(text)
@@ -1266,10 +1327,14 @@ def block_invariants(host: Host, text: str, truth: Truth, project) -> list[dict]
         shown = [e for e in items
                  if re.search(rf"^- {re.escape(e['id'])} {re.escape(e['kind'])}:", part, re.M)]
         hidden = len(items) - len(shown)
+        said = omission_counts(part)
+        exact = [s for s in said if s.get("more") == hidden
+                 or (s.get("shown"), s.get("total")) == (len(shown), len(items))]
         out.append(check(f"{key}_listed", f"every unresolved {label} entry is listed, or the "
                          "count of the rest and where to read them are given",
-                         hidden == 0 or (str(hidden) in part and located(part)),
-                         {"unresolved": len(items), "listed": len(shown)}))
+                         hidden == 0 or bool(exact),
+                         {"unresolved": len(items), "listed": len(shown),
+                          "omission_lines": said[:3]}))
         cut = [e["id"] for e in shown if collapse(e.get("text") or "") not in flat]
         out.append(check(f"{key}_text", f"every listed {label} entry is in full, or says where "
                          "its full text is", not cut or located(part),
@@ -1328,19 +1393,35 @@ def status_invariants(host: Host, text: str, project) -> list[dict]:
                          {"said_chars_above_first_heading": number,
                           "chars_above_first_heading": len(preamble),
                           "file_chars": len(context)}))
-    full = "lab_status: " + core.status_text(st, max_chars=10 ** 9)
-    cut = STATUS_MARK + "\n" in text or text.endswith(STATUS_MARK)
-    if cut:
-        kept = text.split(STATUS_MARK, 1)[0].split("\n", 1)[1]
-        status_full = full.split("\n", 1)[1] if "\n" in full else full
-        aligned = status_full.startswith(kept + "\n")
-        out.append(check("cut", "a cut is at a line end and names what it leaves out and where",
-                         aligned and located(text.split(STATUS_MARK, 1)[1]),
-                         {"cut_at": len(kept), "line_aligned": aligned}))
-    else:
-        out.append(check("cut", "a cut is at a line end and names what it leaves out and where",
-                         True, {"cut": False}))
+    cut = status_cut(host, text, project)
+    out.append(check("cut", "a cut is at a line end and names what it leaves out and where",
+                     not cut["cut"] or (cut["line_aligned"] and located(cut["rest"])),
+                     {k: v for k, v in cut.items() if k != "rest"}))
     return out
+
+
+def status_cut(host: Host, text: str, project) -> dict:
+    """Whether a lab_status reply carries the whole overview, judged against the overview itself:
+    the reply's body (without its first line and the note the extension appends) against the
+    kit's status_text of the same status with no length limit. When it does not: how many whole
+    lines it kept, whether the next line it shows is part of a line (a cut inside a line), and
+    what it shows instead of the rest."""
+    core = host.core
+    full = core.status_text(core.status(project), max_chars=10 ** 9)
+    body = text.split("\n", 1)[1] if "\n" in text else ""
+    note = host.module.bypass_note(project)
+    if note and body.endswith(note):
+        body = body[:-len(note)]
+    if body == full:
+        return {"cut": False}
+    got, want = body.split("\n"), full.split("\n")
+    kept = 0
+    while kept < min(len(got), len(want)) and got[kept] == want[kept]:
+        kept += 1
+    inside = kept < min(len(got), len(want)) and bool(got[kept]) and \
+        want[kept].startswith(got[kept])
+    return {"cut": True, "kept_lines": kept, "overview_lines": len(want),
+            "line_aligned": not inside, "rest": "\n".join(got[kept:])}
 
 
 def run_invariants(host: Host, text: str, truth: Truth, project_root: Path) -> list[dict]:
@@ -1388,24 +1469,28 @@ def run_invariants(host: Host, text: str, truth: Truth, project_root: Path) -> l
     return out
 
 
-def query_invariants(text: str, result: dict) -> list[dict]:
+def query_invariants(text: str, result: dict, render_table) -> list[dict]:
+    """A lab_query reply against the kit's result it was made from: a row counts as shown when
+    its line, as the extension's render_table renders that row, is in the reply whole."""
     lines = text.split("\n")
-    head = re.match(r"^lab_query: ok — (\d+) row\(s\)", lines[0])
-    clipped = text.endswith(CLIP_MARK)
-    table = lines[1:-1] if clipped else lines[1:]
-    rows = max(0, len(table) - 3)
-    claimed = int(head.group(1)) if head else None
-    out = [check("rows", "the reply shows as many rows as its first line says", claimed == rows,
-                 {"claimed": claimed, "shown": rows})]
-    out.append(check("location", "a cut reply points where the rows can be read",
-                     not clipped, {"clipped": clipped, "note": "query results are not stored; the "
-                                                               "report has no page for them"}))
-    types = [cell.strip() for cell in table[1].split(" | ")] if len(table) > 1 else []
+    head = re.match(r"^lab_query: ok — ([\d,]+) row\(s\)", lines[0])
+    rows = render_table(result["columns"], result["rows"]).split("\n")[3:]
+    reply_lines = set(lines[1:])
+    shown = [row for row in rows if row in reply_lines]
+    clipped = len(shown) < len(result["rows"])
+    claimed = int(head.group(1).replace(",", "")) if head else None
+    out = [check("rows", "the reply shows as many rows as its first line says",
+                 claimed == len(shown), {"claimed": claimed, "shown": len(shown)})]
+    out.append(check("location", "a reply that leaves rows out points where the rows can be read",
+                     not clipped, {"result_rows": len(result["rows"]), "rows_shown": len(shown),
+                                   "note": "query results are not stored; the report has no page "
+                                           "for them"}))
+    types = [cell.strip() for cell in lines[2].split(" | ")] if len(lines) > 2 else []
     wanted = [c["type"] for c in result["columns"]]
     cut_types = [w for w, t in zip(wanted, types, strict=False) if t != w]
     out.append(check("types", "every column type is shown whole", not cut_types,
                      {"cut": cut_types[:6]}))
-    cut_cells = sum(1 for row in table[3:] for cell in row.split(" | ")
+    cut_cells = sum(1 for row in shown for cell in row.split(" | ")
                     if cell.rstrip().endswith("…"))
     out.append(check("cells", "a cut cell says how to read the whole value",
                      not cut_cells or bool(re.search(r"(?i)\bsubstr|\blength\(", text)),
@@ -1579,15 +1664,17 @@ def write_run(ctx: Ctx, project, run_id: str, *, title: str, script: str, code: 
     run_dir = project.runs / run_id
     snapshot = run_dir / "code" / script
     snapshot.parent.mkdir(parents=True, exist_ok=True)
-    snapshot.write_text(code, encoding="utf-8")
+    # Bytes, not text mode: a Windows newline translation would make the script differ from the
+    # sha256 the record keeps, and lab_status would call every chart's script edited.
+    snapshot.write_bytes(code.encode("utf-8"))
     (project.root / script).parent.mkdir(parents=True, exist_ok=True)
-    (project.root / script).write_text(code, encoding="utf-8")
+    (project.root / script).write_bytes(snapshot.read_bytes())
     (run_dir / "stdout.txt").write_bytes(stdout.encode("utf-8"))
     (run_dir / "stderr.txt").write_bytes(stderr.encode("utf-8"))
     record = {
         "schema": "lab.run/1", "id": run_id, "title": title, "status": "ok",
         "started_at": core.iso(), "actor": "test", "session": None, "rerun_of": None,
-        "script": {"path": script, "sha256": sha256_bytes(code.encode("utf-8")),
+        "script": {"path": script, "sha256": sha256_bytes((project.root / script).read_bytes()),
                    "snapshot": f"runs/{run_id}/code/{script}"},
         "ended_at": core.iso(), "duration_s": 3.1, "modules": [],
         "inputs": sorted(inputs, key=lambda i: i["path"]), "outputs": outputs, "charts": charts,
@@ -1670,7 +1757,7 @@ def build_f3(ctx: Ctx, spec: Spec, root: Path | None = None) -> SimpleNamespace:
     inputs = []
     for i in range(3):
         path = external / (f"지역_{i}.csv" if ko else f"regions_{i}.csv")
-        path.write_text(f"region,code\nr{i},{i}\n", encoding="utf-8")
+        path.write_bytes(f"region,code\nr{i},{i}\n".encode())
         inputs.append({"path": str(path), "sha256": sha256_bytes(path.read_bytes()),
                        "bytes": path.stat().st_size, "via": ["duckdb.read_csv"], "external": True})
     folder = "data/raw/세션로그" if ko else "data/raw/logs"
@@ -1747,15 +1834,18 @@ def host_prompt(ctx: Ctx, root: Path) -> str:
     return build_system_prompt(str(root), tools=[*ctx.coding_tools, *ctx.host.module.TOOLS])
 
 
-def length_cuts(surface: str, text: str) -> list[str]:
-    cuts = []
-    if surface == "S1" and any(PREAMBLE_MARK.match(line) for line in text.split("\n")):
-        cuts.append("preamble_4000")
-    if STATUS_MARK + "\n" in text or text.endswith(STATUS_MARK):
-        cuts.append("status_9000")
-    if text.endswith(CLIP_MARK):
-        cuts.append("reply_14000")
-    return cuts
+# Length-based cuts are judged against what was cut, never by the words a cut adds: the block
+# against CONTEXT.md, lab_status against the kit's overview with no length limit (status_cut), and
+# a tool reply by the extension's clip itself (Reply.clipped).
+
+def preamble_cut(core, project, block: str) -> bool:
+    """Whether the block lacks part of CONTEXT.md's text above its first heading (the kit's own
+    split of the file)."""
+    if not project.context.is_file():
+        return False
+    text = project.context.read_text(encoding="utf-8", errors="replace").strip()
+    preamble, _ = core.context_sections(text)
+    return bool(preamble) and collapse(preamble) not in collapse(block)
 
 
 def measure_context(ctx: Ctx, spec: Spec, built) -> dict:
@@ -1770,11 +1860,13 @@ def measure_context(ctx: Ctx, spec: Spec, built) -> dict:
         raise RuntimeError("the hook returned no context block")
     block = out[len(prompt):]
     reply = host.tool("status", {})
+    status_cut_ = not reply.is_error and status_cut(host, reply.text, built.project)["cut"]
     built.entries = {
-        "S1": ctx.text(spec.id, "S1", block, root=root, base=base, cuts=length_cuts("S1", block),
-                       hook_returned_block=True, elapsed_ms=elapsed),
+        "S1": ctx.text(spec.id, "S1", block, root=root, base=base,
+                       cuts=["preamble_4000"] if preamble_cut(host.core, built.project, block)
+                       else [], hook_returned_block=True, elapsed_ms=elapsed),
         "S4": ctx.text(spec.id, "S4", reply.text, root=root, base=base,
-                       cuts=length_cuts("S4", reply.text), is_error=reply.is_error,
+                       cuts=["status_9000"] if status_cut_ else [], is_error=reply.is_error,
                        elapsed_ms=reply.elapsed_ms)}
     return {"S1": block, "S4": reply.text}
 
@@ -1789,7 +1881,8 @@ def judge_facts(ctx: Ctx, spec: Spec, built, texts: dict) -> None:
                            if e["fixture"] == spec.id and e["surface"] == fact.first
                            and e["variant"] is None)
         ctx.facts.append({"fixture": spec.id, "family": spec.family, "lang": spec.lang,
-                          "first_text_bytes": first_entry["size"]["utf8_bytes"], **result})
+                          "first_text_bytes": first_entry["size"]["utf8_bytes"],
+                          "first_text_tokens": first_entry["tokens"], **result})
 
 
 def judge(ctx: Ctx, spec: Spec, surface: str, checks: list[dict]) -> None:
@@ -1806,10 +1899,11 @@ def omission_figures(ctx: Ctx, spec: Spec, texts: dict, built) -> None:
                     if len(part) > 1 else "")
     core = ctx.host.core
     st = core.status(built.project)
+    status_cut_ = "status_9000" in built.entries["S4"]["length_cuts"]
     entry = {"fixture": spec.id, "block_sections_listed": sum(
         1 for p in parse_pointers(block) if p.kind == "read" and "context" in p.scopes),
         "block_pointer_list": size_of(pointer_list),
-        "status_cut": "status_9000" in length_cuts("S4", texts.get("S4", "")),
+        "status_cut": status_cut_,
         "status_omitted_names_line": size_of(next(
             (line for line in texts.get("S4", "").split("\n") if line.startswith(STATUS_OMITTED)),
             "")),
@@ -1818,10 +1912,19 @@ def omission_figures(ctx: Ctx, spec: Spec, texts: dict, built) -> None:
     # The kit's own block with no budget and no item limit, as the hook would append it.
     full_block = "\n\n" + core.context_block(built.project, max_context_chars=10 ** 9,
                                               max_items=10 ** 9)
-    full_status = core.status_text(core.status(built.project, limit=10 ** 6), max_chars=10 ** 9)
+    # lab_status serialized as its reply is (the reply's first line, the overview, the note the
+    # extension appends), with no item limit and no length limit.
+    every = core.status(built.project, limit=10 ** 6)
+    header = texts["S4"].split("\n", 1)[0]
+    full_status = (header + "\n" + core.status_text(every, max_chars=10 ** 9)
+                   + ctx.host.module.bypass_note(built.project))
     ctx.all_injected.append({"fixture": spec.id, "S1_everything": size_of(full_block),
                              "S4_everything": size_of(full_status),
                              "S1_measured": size_of(block), "S4_measured": size_of(texts["S4"]),
+                             "S4_left_out": {
+                                 "length_cut": status_cut_,
+                                 "lists_capped": [k for k in ("runs", "charts", "open", "key")
+                                                  if len(every[k]) > len(st[k])]},
                              "journal_utf8_bytes": built.project.journal.stat().st_size})
 
 
@@ -1854,7 +1957,7 @@ def measure_f3(ctx: Ctx, spec: Spec, root: Path | None = None, report_only: bool
         images.append({"mime_type": image.mime_type, "png_bytes": len(base64.b64decode(raw)),
                        "base64_chars": len(image.data), "tokens": ctx.counters.images()})
     ctx.text(spec.id, "S5", reply.text, root=built.project.root, base=built.base,
-             cuts=length_cuts("S5", reply.text), is_error=reply.is_error, images=images,
+             cuts=["reply_14000"] if reply.clipped else [], is_error=reply.is_error, images=images,
              kit_command=host.kit_commands[-1], elapsed_ms=reply.elapsed_ms,
              run_page=size_of((built.project.root / built.kit_result["page"]).read_text(
                  encoding="utf-8")), run_page_build="reduced (no analysis libraries)",
@@ -1867,13 +1970,15 @@ def measure_f3(ctx: Ctx, spec: Spec, root: Path | None = None, report_only: bool
     judge(ctx, spec, "S5", run_invariants(host, texts["S5"], built.truth, built.project.root))
     omission_figures(ctx, spec, texts, built)
     module = host.module
-    saved = (module.MAX_LIST, module.MAX_CHART_LIST, module.MAX_TEXT)
+    saved = (module.MAX_LIST, module.MAX_CHART_LIST, module._clip)
     try:
-        module.MAX_LIST = module.MAX_CHART_LIST = module.MAX_TEXT = 10 ** 9
+        module.MAX_LIST = module.MAX_CHART_LIST = 10 ** 9
+        # Not MAX_TEXT: _clip took its limit when it was defined, so the clip itself is replaced.
+        module._clip = lambda text, limit=None: text
         value = json.loads(json.dumps(built.kit_result, ensure_ascii=False, default=str))
         everything = module.render_run(built.project, value, (len(reply.images), 15))
     finally:
-        module.MAX_LIST, module.MAX_CHART_LIST, module.MAX_TEXT = saved
+        module.MAX_LIST, module.MAX_CHART_LIST, module._clip = saved
     logs = sum((built.run_dir / name).stat().st_size for name in ("stdout.txt", "stderr.txt"))
     page = built.project.root / built.kit_result["page"]
     ctx.all_injected.append({"fixture": spec.id, "S5_every_list_item": size_of(everything),
@@ -2020,9 +2125,11 @@ def measure_query(ctx: Ctx, spec: Spec) -> None:
     host.kit_results.append((True, result))
     reply = host.tool("query", {"sql": "SELECT * FROM orders", "limit": 500})
     ctx.text(spec.id, "S6", reply.text, root=project.root, base=project.root.parent,
-             cuts=length_cuts("S6", reply.text), is_error=reply.is_error,
+             cuts=["reply_14000"] if reply.clipped else [], is_error=reply.is_error,
              kit_command=host.kit_commands[-1])
-    judge(ctx, spec, "S6", query_invariants(reply.text, result))
+    # The result as the extension got it (through JSON, as _run_kit hands it over).
+    given = json.loads(json.dumps(result, ensure_ascii=False, default=str))
+    judge(ctx, spec, "S6", query_invariants(reply.text, given, host.module.render_table))
 
 
 def measure_import(ctx: Ctx, spec: Spec) -> None:
@@ -2031,8 +2138,8 @@ def measure_import(ctx: Ctx, spec: Spec) -> None:
     source = ctx.base / spec.id / "sources" / "wide_table.csv"
     source.parent.mkdir(parents=True, exist_ok=True)
     names = [f"col_{j:03d}_regional_revenue_total" for j in range(300)]
-    source.write_text(",".join(names) + "\n" + ",".join(str(j) for j in range(300)) + "\n",
-                      encoding="utf-8")
+    source.write_bytes((",".join(names) + "\n" + ",".join(str(j) for j in range(300)) + "\n")
+                       .encode())
     columns = [{"name": n, "dtype": "Int64" if j % 3 else "Float64"} for j, n in enumerate(names)]
     meta = write_dataset(ctx, project, "wide_table", rows=50, columns=columns,
                          description="300 columns", source=str(source))
@@ -2058,7 +2165,7 @@ def measure_import(ctx: Ctx, spec: Spec) -> None:
     reply = host.tool("import", {"source": str(source), "name": "wide_table",
                                  "description": "300 columns"})
     ctx.text(spec.id, "S7", reply.text, root=project.root, base=project.root.parent,
-             cuts=length_cuts("S7", reply.text), is_error=reply.is_error,
+             cuts=["reply_14000"] if reply.clipped else [], is_error=reply.is_error,
              kit_command=host.kit_commands[-1])
     judge_facts(ctx, spec, built, {"S7": reply.text})
     judge(ctx, spec, "S7", import_invariants(host, reply.text, meta))
@@ -2134,7 +2241,7 @@ def measure_errors(ctx: Ctx, spec: Spec) -> None:
         full.mkdir(parents=True, exist_ok=True)
         for i in range(12):
             name = f"{i:02d}-" + "quarterly-revenue-by-region-and-channel-" * 5
-            (full / f"{name[:196]}.csv").write_text("x\n", encoding="utf-8")
+            (full / f"{name[:196]}.csv").write_bytes(b"x\n")
     except OSError as exc:
         ctx.not_run.append({"what": "E-en init_not_empty", "reason": f"the OS refused a file name "
                                                                     f"of 200 characters: {exc}"})
@@ -2183,7 +2290,7 @@ def measure_long_root(ctx: Ctx, spec: Spec) -> None:
             long_dir = long_dir / ("g" * 30)
             root = long_dir / "project"
         root.parent.mkdir(parents=True, exist_ok=True)
-        (root.parent / "probe.txt").write_text("x", encoding="utf-8")
+        (root.parent / "probe.txt").write_bytes(b"x")
     except OSError as exc:
         ctx.not_run.append({"what": spec.id, "reason": f"the OS refused a root of "
                                                        f"{len(str(root))} characters: {exc}"})
@@ -2232,8 +2339,8 @@ def measure_scale(ctx: Ctx, spec: Spec) -> None:
                                  "actor": "test",
                                  "text": f"entry {i}: region {i % 17} grew {i % 9}% apart",
                                  "refs": {}}, ensure_ascii=False))
-    with open(project.journal, "a", encoding="utf-8") as fh:
-        fh.write("\n".join(lines) + "\n")
+    with open(project.journal, "ab") as fh:  # bytes: "\n" line ends on every OS
+        fh.write(("\n".join(lines) + "\n").encode("utf-8"))
     for i in range(runs_n):
         run_id = f"20260901-{9 + i // 3600:02d}{(i // 60) % 60:02d}{i % 60:02d}-run-{i:03d}"
         ds = datasets[i % datasets_n]
@@ -2441,9 +2548,13 @@ def task_cost(ctx: Ctx, always: list[dict]) -> list[dict]:
             continue
         a = by_fixture.get(fact["fixture"])
         always_bytes = a["utf8_bytes"] if a else None
-        responses = [] if fact["first"] == "S1" else [fact["first_text_bytes"]]
+        first = fact["first"] != "S1"
+        responses = [fact["first_text_bytes"]] if first else []
+        response_tokens = [fact.get("first_text_tokens") or {}] if first else []
         for s in fact["route"]:
-            responses += [p["utf8_bytes"] for p in s.get("pages", [])] or [s["utf8_bytes"]]
+            pages = s.get("pages") or []
+            responses += [p["utf8_bytes"] for p in pages] or [s["utf8_bytes"]]
+            response_tokens += [p["tokens"] for p in pages] or [{}]
         requests = 1 + len(responses)
         cost = {"fixture": fact["fixture"], "fact": fact["fact"], "class": fact["class"],
                 "requests": requests, "tool_calls": len(responses),
@@ -2452,8 +2563,27 @@ def task_cost(ctx: Ctx, always: list[dict]) -> list[dict]:
             cost["resend_utf8_bytes"] = requests * always_bytes
             cost["no_compaction_input_utf8_bytes"] = sum(
                 always_bytes + sum(responses[:i]) for i in range(requests))
+            cost["tokens_approximate"] = {
+                cid: cost_tokens(value, [t.get(cid) for t in response_tokens], requests)
+                for cid, value in a["tokens_concatenated"].items()}
         out.append(cost)
     return out
+
+
+def cost_tokens(always: dict, responses: list[dict | None], requests: int) -> dict:
+    """The proxy's sums in one counter's tokens: each text counted on its own and added up, so
+    approximate (a counter does not split joined texts at the same places). A sum is a number
+    only when every part is one."""
+    parts = [r or not_measured("not_counted") for r in responses]
+    nothing = measured(0) if always.get("status") == "measured" else dict(always)
+
+    def total(values: list[dict]) -> dict:
+        return token_sum(values) if values else dict(nothing)
+
+    return {"delivered": total(parts), "always_on": dict(always),
+            "resend": total([always] * requests),
+            "no_compaction_input": total([always] * requests
+                                         + [p for i in range(requests) for p in parts[:i]])}
 
 
 def compare_targets(ctx: Ctx, always: list[dict]) -> list[dict]:
@@ -2550,8 +2680,12 @@ def conventions() -> dict:
         "S3": "convert_tools(TOOLS, OpenAICompletionsCompat()) as compact JSON (the size) and as "
               "the pinned Qwen template's tojson lines (the tokens); not a claim about the bytes "
               "an SDK or server sends",
-        "length_cuts": "a length-based cut the measured code made in that text: status_9000, "
-                       "reply_14000, preamble_4000",
+        "length_cuts": "a length-based cut the measured code made in that text, judged against "
+                       "what was cut (never by the words a cut adds): status_9000 (the reply's "
+                       "overview differs from the kit's status_text with no length limit), "
+                       "reply_14000 (the extension's clip returned less than it was given), "
+                       "preamble_4000 (the block lacks part of CONTEXT.md's text above its first "
+                       "heading)",
         "retrieval": "R0 in the first text; R1 through one pointer of it, followed with aelix's "
                      "read tool or the tool it names (the read tool's own continuation counted "
                      "as host calls); R2 through a pointer of that result. A false claim on the "
@@ -2559,9 +2693,16 @@ def conventions() -> dict:
                      "cut_without_explicit_pointer, silent_omission, not_recorded, host_blocked.",
         "task_cost_proxy": "no model: requests = 1 + tool calls (the call that returned the first "
                            "text included); request i carries the always-on bytes and every "
-                           "response before it",
-        "fixtures": "built by code from fixed synthetic text, written as bytes (line ends "
-                    "controlled), with the kit's own functions",
+                           "response before it. tokens_approximate gives the same sums in each "
+                           "counter's tokens, each text counted on its own and added up (the "
+                           "always-on part is its concatenated count): approximate, since a "
+                           "counter does not split joined texts at the same places",
+        "fixtures": "built by code from fixed synthetic text with the kit's own functions. Files "
+                    "the harness writes itself (CONTEXT.md, scripts, logs, CSV and parquet "
+                    "stand-ins, PNGs, journal lines of the scale fixtures) are written as UTF-8 "
+                    "bytes, so their line ends do not depend on the OS, and a recorded sha256 is "
+                    "of the bytes written; files the kit's own functions write (records, journal "
+                    "entries, the project template) are written as the kit writes them",
         "clock": f"while a fixture is built and measured, the kit's clock (core.now) is a fixed "
                  f"clock from {CLOCK_START.isoformat()}, one second per call: records the harness "
                  "writes and records the measured code adds while it is measured get the same "
@@ -2599,6 +2740,7 @@ def build_report(ctx: Ctx, static: dict, counters: Counters, argv: list[str], sp
         "scale": ctx.scale,
         "retrieval": {"facts": ctx.facts, "invariants": ctx.invariants, "recall": recall(ctx)},
         "task_cost_proxy": {"label": "proxy · no model · extension-attributable",
+                            "tokens_note": "tokens_approximate: per-text counts added up",
                             "facts": task_cost(ctx, always)},
         "targets_comparison": compare_targets(ctx, always),
         "caveats": [F3_CAVEAT,
@@ -2754,13 +2896,18 @@ def render_markdown(report: dict) -> str:
                        for i in retrieval["invariants"]])
     cost = report["task_cost_proxy"]
     lines += ["", f"## Task cost ({cost['label']})", ""]
+    lines += [f"Tokens by `{cid}` are approximate: each text is counted on its own and the "
+              "counts are added up.", ""]
     lines += md_table(["fixture", "fact", "class", "requests", "delivered bytes",
-                       "always-on bytes", "resend bytes", "input bytes without compaction"],
+                       "always-on bytes", "resend bytes", "input bytes without compaction",
+                       "delivered tokens (approx.)", "input tokens without compaction (approx.)"],
                       [[c["fixture"], c["fact"], c["class"], c["requests"],
                         f"{c['delivered_utf8_bytes']:,}",
                         f"{c['always_on_utf8_bytes']:,}" if c["always_on_utf8_bytes"] else "-",
                         f"{c.get('resend_utf8_bytes', 0):,}",
-                        f"{c.get('no_compaction_input_utf8_bytes', 0):,}"]
+                        f"{c.get('no_compaction_input_utf8_bytes', 0):,}",
+                        *((token_cell(t["delivered"]), token_cell(t["no_compaction_input"]))
+                          if (t := (c.get("tokens_approximate") or {}).get(cid)) else ("-", "-"))]
                        for c in cost["facts"]])
     lines += ["", "## Everything injected, for comparison", ""]
     rows = []
@@ -2833,6 +2980,16 @@ def run(output: Path, *, only: list[str] | None = None, counters: list[TokenCoun
     started = time.perf_counter()
     specs = select(only)
     output = Path(output)
+    # Everything that can refuse the run is checked before anything is deleted.
+    if importlib.util.find_spec("aelix_coding_agent") is None:
+        raise UsageError("aelix is not installed here: run this in aelix's isolated "
+                         "environment (CONTRIBUTING.md)")
+    if output.exists() and not output.is_dir():
+        raise UsageError(f"{output} is not a directory")
+    if output.is_dir() and any(output.iterdir()) and not (output / "usage-report.json").is_file():
+        raise UsageError(f"{output} is not empty and holds no usage-report.json: give a new or "
+                         "empty directory, or a previous report's (its texts/ and fixtures/ are "
+                         "replaced)")
     output.mkdir(parents=True, exist_ok=True)
     shutil.rmtree(output / "texts", ignore_errors=True)
     for name in ("usage-report.json", "usage-report.md"):
@@ -2849,9 +3006,6 @@ def run(output: Path, *, only: list[str] | None = None, counters: list[TokenCoun
         base.mkdir(parents=True, exist_ok=True)
         base = Path(os.path.realpath(base))
         with isolated_environment(scratch):
-            if importlib.util.find_spec("aelix_coding_agent") is None:
-                raise UsageError("aelix is not installed here: run this in aelix's isolated "
-                                 "environment (CONTRIBUTING.md)")
             kit = load_kit()
             ctx = Ctx(kit, counter_set, output, base)
             static = None
@@ -2893,7 +3047,9 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Measure the extension's context and tool "
                                                  "replies, and whether left-out facts can be read "
                                                  "back.")
-    parser.add_argument("--output", required=True, help="directory for the report and texts/")
+    parser.add_argument("--output", required=True,
+                        help="directory for the report and texts/: new, empty, or a previous "
+                             "report's")
     parser.add_argument("--tokenizer", action="append", default=[], metavar="ID=PATH",
                         help=f"count tokens with a registered counter ({', '.join(COUNTERS)}) "
                              "from its tokenizer.json")
