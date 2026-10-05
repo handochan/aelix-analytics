@@ -732,6 +732,11 @@ KILL_TREE_TIMEOUT_SECONDS = 10
 # parent has exited is not found (Issue #8 measurement). It is reported, not taken as success; the
 # caller's bounded wait shows whether anything still holds the pipes.
 TASKKILL_NOT_FOUND = 128
+# How long the processes a failed taskkill named are looked at again before the failure is
+# reported (see WindowsProcessControl._named_have_ended). `taskkill /F` does not wait for what it
+# ends, so a process it ended a moment ago may still be on its way out.
+KILL_TREE_SETTLE_SECONDS = 2
+KILL_TREE_POLL_SECONDS = 0.05
 
 
 class WindowsFileLocks:
@@ -811,19 +816,26 @@ class WindowsProcessControl:
         pid_value = recorded_pid(pid, WINDOWS_PID_MAX)
         if pid_value is None:
             return False
+        # Not alive when no process has this id, or another user's does (see ProcessControl). No
+        # answer is an answer this port does not have, and does not downgrade a running record.
+        return self._look(pid_value) in ("running", "no answer")
+
+    def _look(self, pid: int) -> str:
+        """What Windows says of a pid: "running", "exited", "no process" (none has the id),
+        "another user's" (it cannot be opened) or "no answer"."""
         ctypes, kernel32 = self._kernel32()
         synchronize, wait_timeout, wait_failed = 0x00100000, 0x00000102, 0xFFFFFFFF
         error_access_denied, error_invalid_parameter = 5, 87
-        handle = kernel32.OpenProcess(synchronize, False, pid_value)
+        handle = kernel32.OpenProcess(synchronize, False, pid)
         if not handle:
-            # No process has this id, or another user's does (see ProcessControl). Any other
-            # failure is an answer this port does not have, and does not downgrade a running record.
-            return ctypes.get_last_error() not in (error_access_denied, error_invalid_parameter)
+            error = ctypes.get_last_error()
+            return ("no process" if error == error_invalid_parameter else
+                    "another user's" if error == error_access_denied else "no answer")
         try:
             result = kernel32.WaitForSingleObject(handle, 0)
             if result == wait_failed:
-                return True  # the wait itself failed: that is not evidence the process exited
-            return result == wait_timeout
+                return "no answer"  # the wait itself failed: that is not evidence the process exited
+            return "running" if result == wait_timeout else "exited"
         finally:
             kernel32.CloseHandle(handle)
 
@@ -906,7 +918,9 @@ class WindowsProcessControl:
         # silent return whether the descendants are gone: they may still be holding the pipes it
         # is about to wait on. The wrapper itself is then ended directly, so at least it does not
         # outlive the call; its descendants may, and docs/CONTRACTS.md says the run can stay
-        # incomplete.
+        # incomplete. A failure taskkill gives only for processes that had ended by themselves is
+        # not one, so what it failed on is looked at again first (_named_have_ended): a bounded
+        # part of this call's blocking, not a grace period — nothing is asked to stop.
         problem, gone = None, False
         try:
             done = subprocess.run([self.system_program("taskkill.exe"), "/F", "/T", "/PID", str(pid)],
@@ -916,7 +930,7 @@ class WindowsProcessControl:
                 gone = True
                 problem = ("the wrapper had already exited when taskkill looked; a descendant of "
                            "it may still be running")
-            elif done.returncode != 0:
+            elif done.returncode != 0 and not self._named_have_ended(pid, done.stderr):
                 problem = f"taskkill exited {done.returncode}: {(done.stderr or '').strip()[:200]}"
         except (OSError, subprocess.SubprocessError) as exc:
             problem = f"{type(exc).__name__}: {exc}"
@@ -927,6 +941,36 @@ class WindowsProcessControl:
             # At least the wrapper, by TerminateProcess. Not after 128: that process has exited.
             with contextlib.suppress(OSError):
                 os.kill(pid, signal.SIGTERM)
+
+    def _named_have_ended(self, pid: int, errors: str | None) -> bool:
+        """Whether a taskkill that failed left running none of the processes it failed on. `/T`
+        lists the tree before it ends it, so a process that exits in between — a launcher whose
+        own child had just been ended — is one taskkill says it could not end, though it is gone
+        (Issue #38: exit 255, "There is no running instance of the task", on Windows Server 2025).
+
+        Every number in the errors is taken for a pid, because their words are in the system's
+        language; each process taskkill could not end is named there with its parent. Those and
+        the wrapper are looked at again until all have ended or KILL_TREE_SETTLE_SECONDS pass. This
+        process is left out: it is the wrapper's parent, which taskkill names as such. A number that
+        is not a pid in the tree only adds a process to look at. The report stays when the errors
+        hold no number that can be a pid, and when a process looked at is still there or cannot be
+        seen — another user's is what taskkill's "Access is denied" leaves. The processes taskkill
+        reported ended are not looked at, as after a taskkill that succeeded, and a descendant it
+        never found is the limit docs/CONTRACTS.md G states."""
+        named = {value for digits in re.findall(r"\d+", errors or "")
+                 if (value := recorded_pid(digits, WINDOWS_PID_MAX)) is not None}
+        named.discard(os.getpid())
+        if not named:
+            return False
+        waiting = named | {pid}
+        deadline = time.monotonic() + KILL_TREE_SETTLE_SECONDS
+        while True:
+            waiting = {each for each in waiting if self._look(each) not in ("exited", "no process")}
+            if not waiting:
+                return True
+            if time.monotonic() >= deadline:
+                return False
+            time.sleep(KILL_TREE_POLL_SECONDS)
 
 
 CANCEL_POLL_SECONDS = 0.1

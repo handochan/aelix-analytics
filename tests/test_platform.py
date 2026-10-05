@@ -325,22 +325,123 @@ def test_windows_replace_waits_out_a_reader_and_nothing_else(monkeypatch, winerr
 
 
 @pytest.mark.parametrize("exit_code, reported, fallback", [(0, False, False), (1, True, True),
+                                                              (255, True, True),
                                                               (128, True, False)])
 def test_windows_kill_tree_reports_what_taskkill_could_not_do(monkeypatch, capsys, exit_code,
                                                                reported, fallback):
     # 128 is "no such process": the wrapper had exited when taskkill looked, and a descendant may
     # still hold the pipes (Issue #8 measurement). There is nothing left to end by pid then; after
-    # any other failure the wrapper itself is ended. os.kill is mocked: 4242 is nobody's here.
+    # any other failure the wrapper itself is ended. os.kill is mocked: 4242 is nobody's here. An
+    # error that names no process is reported without looking at any (Issue #38).
     ran, killed = [], []
     monkeypatch.setattr(_platform.subprocess, "run", lambda argv, **kw: (
         ran.append(argv), subprocess.CompletedProcess(argv, exit_code, "", "ERROR: fake"))[1])
     monkeypatch.setattr(_platform.os, "kill", lambda pid, sig: killed.append((pid, sig)))
     control = _platform.WindowsProcessControl()
+    monkeypatch.setattr(control, "_kernel32", lambda: pytest.fail("a process was looked at"))
     control.kill_tree(4242)
     assert ran == [[control.system_program("taskkill.exe"), "/F", "/T", "/PID", "4242"]]
     err = capsys.readouterr().err
     assert ("could not end the process tree of pid 4242" in err) is reported, err
     assert killed == ([(4242, signal.SIGTERM)] if fallback else [])
+
+
+class _FakeProcessTable:
+    """kernel32 over a table of pids, each "running", "exited", "no process", "another user's" or
+    "no answer"; a list gives one answer per look, its last one staying. A pid not in the table
+    belongs to no process. Every look is kept."""
+
+    ERRORS = {"no process": 87, "another user's": 5, "no answer": 1}
+
+    def __init__(self, table):
+        self.table, self.looks, self.last_error = dict(table), [], 0
+
+    def OpenProcess(self, access, inherit, pid):  # noqa: N802 - the Win32 name
+        self.looks.append(pid)
+        answers = self.table.get(pid, "no process")
+        if isinstance(answers, list):
+            answers = answers.pop(0) if len(answers) > 1 else answers[0]
+        self.last_error = self.ERRORS.get(answers, 0)
+        return 0 if answers in self.ERRORS else (pid, answers)
+
+    def WaitForSingleObject(self, handle, ms):  # noqa: N802
+        return 0x102 if handle[1] == "running" else 0
+
+    def CloseHandle(self, handle):  # noqa: N802
+        return 1
+
+
+# What taskkill wrote in Windows CI run 37330266186 (Issue #38): `/T` had listed the tree, and the
+# process it names had exited by itself — its own child had just been ended — when taskkill came
+# to end it. The wrapper there was 4140.
+RACED = ("ERROR: The process with PID 8880 (child process of PID 3140) could not be terminated.\n"
+         "Reason: There is no running instance of the task.\n")
+# The same for the wrapper itself; 2000 is its parent, the process that called kill_tree.
+RACED_WRAPPER = ("ERROR: The process with PID 4140 (child process of PID 2000) could not be "
+                 "terminated.\nReason: There is no running instance of the task.\n")
+DENIED = ("ERROR: The process with PID 8880 (child process of PID 3140) could not be terminated.\n"
+          "Reason: Access is denied.\n")
+
+
+def _kill_tree_over(monkeypatch, errors, table):
+    """kill_tree(4140) with taskkill exiting 255 with these errors, over a fake process table, in
+    a process whose pid is 2000. What was killed by pid, and the table, are returned."""
+    killed, fake = [], _FakeProcessTable(table)
+    monkeypatch.setattr(_platform.subprocess, "run",
+                        lambda argv, **kw: subprocess.CompletedProcess(argv, 255, "", errors))
+    monkeypatch.setattr(_platform.os, "kill", lambda pid, sig: killed.append((pid, sig)))
+    monkeypatch.setattr(_platform.os, "getpid", lambda: 2000)
+    control = _platform.WindowsProcessControl()
+    stub = types.SimpleNamespace(get_last_error=lambda: fake.last_error)
+    monkeypatch.setattr(control, "_kernel32", lambda: (stub, fake))
+    control.kill_tree(4140)
+    return killed, fake
+
+
+@pytest.mark.parametrize("errors, table, looked_again", [
+    # 3140 was ended by taskkill and is still on its way out at the first look.
+    pytest.param(RACED, {8880: "no process", 3140: ["running", "exited"], 4140: "exited"}, 3140,
+                 id="a-descendant"),
+    pytest.param(RACED, {8880: "exited", 3140: "no process",
+                         4140: ["running", "running", "exited"]}, 4140, id="the-wrapper-ends-late"),
+    pytest.param(RACED_WRAPPER, {4140: "exited", 2000: "running"}, None, id="the-wrapper"),
+])
+def test_windows_kill_tree_does_not_report_a_process_that_ended_before_taskkill_reached_it(
+        monkeypatch, capsys, errors, table, looked_again):
+    # Issue #38: taskkill exited 255 over a process that had already exited, and the tree was
+    # reported as left running though it had ended. Every process the errors name and the wrapper
+    # are looked at again, and each has ended. This process (2000), the wrapper's parent, is not
+    # one of them, though it is still running.
+    killed, fake = _kill_tree_over(monkeypatch, errors, table)
+    assert "could not end the process tree" not in capsys.readouterr().err
+    assert killed == []
+    assert 2000 not in fake.looks and 4140 in fake.looks
+    assert set(fake.looks) == set(table) - {2000}
+    if looked_again:
+        assert fake.looks.count(looked_again) > 1, fake.looks
+
+
+@pytest.mark.parametrize("errors, table", [
+    pytest.param(RACED, {8880: "running", 3140: "exited", 4140: "exited"}, id="running"),
+    pytest.param(DENIED, {8880: "running", 3140: "exited", 4140: "exited"}, id="denied-running"),
+    pytest.param(DENIED, {8880: "another user's", 3140: "exited", 4140: "exited"},
+                 id="denied-unseen"),
+    pytest.param(DENIED, {8880: "no answer", 3140: "exited", 4140: "exited"}, id="no-answer"),
+    pytest.param(RACED, {8880: "no process", 3140: "exited", 4140: "running"},
+                 id="the-wrapper-running"),
+])
+def test_windows_kill_tree_still_reports_a_process_taskkill_left_running(monkeypatch, capsys,
+                                                                         errors, table):
+    # A process that is still there after the looks, or that cannot be seen, keeps the report, and
+    # the wrapper is ended directly as after any other failure. It was looked at more than once:
+    # what taskkill ended a moment ago is given the settling time before it counts as left.
+    monkeypatch.setattr(_platform, "KILL_TREE_SETTLE_SECONDS", 0.2)
+    killed, fake = _kill_tree_over(monkeypatch, errors, table)
+    err = capsys.readouterr().err
+    assert "could not end the process tree of pid 4140" in err and "taskkill exited 255" in err, err
+    assert killed == [(4140, signal.SIGTERM)]
+    left = next(pid for pid, answer in table.items() if answer not in ("exited", "no process"))
+    assert fake.looks.count(left) > 1, fake.looks
 
 
 def test_windows_runs_taskkill_from_the_system_directory_and_never_by_its_bare_name(monkeypatch):
