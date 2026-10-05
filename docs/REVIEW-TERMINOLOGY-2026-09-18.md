@@ -110,7 +110,7 @@ compatibility adapter가 필요해도 모델 도구에 옛 별칭을 다시 노�
 | 묶음 | 변경 범위 | 완료 증거 |
 |---|---|---|
 | N0-a 표면·책임 이름 | CLI·SDK·도구·flag·환경·오류·module, Workspace/Visualization 구분 | 새 이름만 노출하는 여섯 도구, 모든 help·예제·하위 프로세스 호출 일치, 기존 자유 코드 흐름의 동등성 |
-| N0-b 저장·legacy | marker·namespace·refs·paths·reader·전환 | 구버전 fixture 읽기·새 프로젝트 쓰기·미지원 schema·두 marker 충돌·부분 전환·원본 해시 보존·옛 일반 writer 차단 |
+| N0-b 저장·legacy | marker·namespace·refs·paths·reader·전환. [#13](https://github.com/handochan/aelix-analytics/issues/13)에서 B1-c와 함께 한다([ADR-0005](decisions/0005-names-first-storage-with-the-new-writer.md)) | 구버전 fixture 읽기·새 프로젝트 쓰기·미지원 schema·두 marker 충돌·부분 전환·원본 해시 보존·옛 일반 writer 차단 |
 | N0-c 영어 기본값 | template·Workspace label·데모·parser·문자열 카탈로그 | 새 기본 프로젝트와 데모의 영어 UI, 한국어 내용·기존 CONTEXT·Unicode 경로 보존, 모든 주요 화면·오류·접근성 label 확인 |
 | B1/B4 연결 | 새 도메인 field·상태·보고서·Visualization 참조·공유 | 같은 의미 key와 ID를 사람·에이전트가 사용, 보고서·근거·과거 버전으로 이동, 추가 상시 도구 없음 |
 
