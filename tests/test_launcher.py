@@ -25,12 +25,12 @@ import pytest
 from aelix_analytics import cli
 
 PACK = Path(__file__).resolve().parents[1]
-KIT = PACK / "kit"
+KIT = PACK / "src"
 BIN_LAB = PACK / "bin" / "lab"
 POSIX = os.name != "nt"
 
 # The stand-in for uv. It appends {argv, cwd, env} to $FAKE_UV_LOG and then does what $FAKE_UV_DO says
-# for the call it recognises: "init" (`run --no-project ... labkit init DIR`, which it makes the
+# for the call it recognises: "init" (`run --no-project ... aelix_analytics init DIR`, which it makes the
 # directory for, as the kit would), "sync", "sync-offline", or the kit command after `--project P`
 # (`--text status` counts as "status"). A behaviour may set: exit, stdout/stderr (hex bytes),
 # kill_self (a signal number), wait (seconds to wait for a signal, writing $FAKE_UV_LOG.ready first
@@ -52,7 +52,7 @@ elif "--no-project" in argv:
     key = "init"
     Path(argv[argv.index("init") + 1]).mkdir(parents=True, exist_ok=True)
 else:
-    rest = argv[argv.index("labkit") + 3:]
+    rest = argv[argv.index("aelix_analytics") + 3:]
     key = rest[1] if rest[:1] == ["--text"] else rest[0]
 do = json.loads(os.environ.get("FAKE_UV_DO") or "{}").get(key, {})
 got = []
@@ -196,7 +196,7 @@ def test_init_and_demo_need_a_directory(fake, tmp_path, which, command):
 
 
 def kit_call(project: Path, *args) -> list[str]:
-    return ["run", "--project", str(project), "--quiet", "python", "-m", "labkit",
+    return ["run", "--project", str(project), "--quiet", "python", "-m", "aelix_analytics",
             "--project", str(project), *args]
 
 
@@ -320,7 +320,7 @@ def test_init_and_demo_create_sync_then_build_or_fill(fake, tmp_path, which, com
     project = (work / "new").resolve()
     made = calls(fake)
     assert [uv_args(c) for c in made] == [
-        ["run", "--no-project", "--python", "3.12", "--quiet", "python", "-m", "labkit", "init",
+        ["run", "--no-project", "--python", "3.12", "--quiet", "python", "-m", "aelix_analytics", "init",
          "new", "--title", "제목"],
         ["sync", "--project", str(project), "--quiet"],
         kit_call(project, "demo" if command == "demo" else "report"),

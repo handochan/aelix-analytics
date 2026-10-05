@@ -76,7 +76,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[1]
-KIT = ROOT / "kit"
+KIT = ROOT / "src"
 EXT = ROOT / "extension" / "aelix_lab.py"
 
 SCHEMA = "aelix-analytics.usage-report/1"
@@ -393,7 +393,7 @@ def load_kit() -> SimpleNamespace:
     """The checkout's kit, for the functions the kit command would have run (stdlib at import)."""
     if str(KIT) not in sys.path:
         sys.path.insert(0, str(KIT))
-    from labkit import core, data, report, runner
+    from aelix_analytics import core, data, report, runner
 
     return SimpleNamespace(core=core, data=data, report=report, runner=runner)
 
@@ -1868,7 +1868,7 @@ def f2t_records(ctx: Ctx, spec: Spec, project) -> tuple[dict, dict]:
         source=str(ctx.base / spec.id / "sources" / f"{name}.csv"))
     run_id = "20260901-090100-orders-by-region"
     run = write_run(ctx, project, run_id, title="Orders by region" if lang == "en" else "지역별 주문",
-                    script="scripts/01_orders.py", code="import labkit as lab\n",
+                    script="scripts/01_orders.py", code="import aelix_analytics as analytics\n",
                     inputs=[{"path": meta["path"], "sha256": meta["sha256"],
                              "bytes": meta["bytes"], "via": ["lab.read"], "external": False}],
                     outputs=[], charts=[], stdout="rows 1200\n", stderr="")
@@ -1893,9 +1893,9 @@ F3_SCRIPT = """\
 import matplotlib.pyplot as plt
 import polars as pl
 
-import labkit as lab
+import aelix_analytics as analytics
 
-frames = [pl.read_ndjson(p) for p in sorted(lab.path("data/raw").rglob("*.jsonl"))]
+frames = [pl.read_ndjson(p) for p in sorted(analytics.path("data/raw").rglob("*.jsonl"))]
 print(f"read {len(frames)} files")
 for i in range(15):
     fig, ax = plt.subplots()
@@ -2160,7 +2160,7 @@ def measure_f3d(ctx: Ctx, spec: Spec) -> None:
             source=str(ctx.base / spec.id / "sources" / f"sales_region_{i:03d}.csv"))
     run_id = "20260901-090300-read-all-parts"
     run = write_run(ctx, project, run_id, title="Read all parts", script="scripts/01_parts.py",
-                    code="import labkit as lab\n", inputs=[], outputs=[], charts=[],
+                    code="import aelix_analytics as analytics\n", inputs=[], outputs=[], charts=[],
                     stdout="503\n", stderr="")
     core.add_note(project, "question", f"{marker(spec.id, 'OPEN')}: {SENTENCES['en'][1]}",
                   actor="test")

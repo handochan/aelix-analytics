@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from labkit import _platform
+from aelix_analytics import _platform
 
 PACK = Path(__file__).resolve().parents[1]
 TOOL = PACK / "tools" / "platform_smoke.py"
@@ -375,7 +375,7 @@ def test_a_declaration_holds_only_while_the_measured_tree_states_it(monkeypatch,
     assert tool.declared("gil") == f"{path} — {words}"
 
 
-@pytest.mark.parametrize("diagnostic", ["", "labkit: could not end the process tree of pid 7",
+@pytest.mark.parametrize("diagnostic", ["", "aelix_analytics: could not end the process tree of pid 7",
                                         # review 12, rest-11: stderr, but not the kit's words
                                         "ERROR: The process with PID 8 could not be terminated."])
 def test_the_windows_tree_check_declares_only_the_form_the_documents_state(monkeypatch,
@@ -395,7 +395,7 @@ def test_the_windows_tree_check_declares_only_the_form_the_documents_state(monke
     ctx = types.SimpleNamespace(bundle=types.SimpleNamespace(
         processes=types.SimpleNamespace(kill_tree=lambda pid: None)))
     result = tool.kill_tree_after_the_leader_exited(ctx)
-    stated = diagnostic.startswith("labkit:")
+    stated = diagnostic.startswith("aelix_analytics:")
     assert result["holds"] is False and bool(result["declared"]) is stated, result
 
 

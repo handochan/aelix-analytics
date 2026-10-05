@@ -14,14 +14,14 @@
 
 | 확인 | 근거 | 설계에 주는 의미 |
 |---|---|---|
-| 프로젝트·이벤트·run·데이터 스키마가 `/1`이고 기록이 파일로 남음 | [core.py](../kit/labkit/core.py)의 스키마 상수, `read_events`, `list_runs` | 새 메모리 서버보다 기존 기록을 확장하는 편이 작음 |
+| 프로젝트·이벤트·run·데이터 스키마가 `/1`이고 기록이 파일로 남음 | [core.py](../src/aelix_analytics/core.py)의 스키마 상수, `read_events`, `list_runs` | 새 메모리 서버보다 기존 기록을 확장하는 편이 작음 |
 | `finding`, `decision`, `assumption`과 질문·할 일, `resolves`가 있음 | `KEY_KINDS`, `OPEN_KINDS`, `add_note`, `resolved_targets` | 기본 지식 기록은 이미 존재. 정정·철회·적용 시점의 의미를 보강해야 함 |
 | CONTEXT의 본문 일부를 넣고 나머지 섹션 제목·줄 범위를 제공함 | `context_selection`, `context_block` | 점진적 공개가 이미 출발해 있음 |
 | 고정 섹션은 4,000자 예산을 넘겨도 들어가고, 생략 섹션 목록·journal 요약은 별도로 더함 | 동일 함수 | 4,000자는 전체 주입량의 상한이 아님. 아래 합성 재현 참조 |
-| `refs.charts`는 논리적 차트 이름이고, HTML은 현재 갤러리로 연결 | [report.py](../kit/labkit/report.py)의 `refs_html` | 과거 발견의 근거에는 정확한 버전 참조가 필요 |
-| 평가 탭에 gap·기록 품질·도구 사용이 함께 있음 | `evaluation_section`, [report.js](../kit/labkit/assets/report.js) | 자료를 버리지 않고 인사이트·재사용·진단 흐름으로 재배치 가능 |
+| `refs.charts`는 논리적 차트 이름이고, HTML은 현재 갤러리로 연결 | [report.py](../src/aelix_analytics/report.py)의 `refs_html` | 과거 발견의 근거에는 정확한 버전 참조가 필요 |
+| 평가 탭에 gap·기록 품질·도구 사용이 함께 있음 | `evaluation_section`, [report.js](../src/aelix_analytics/assets/report.js) | 자료를 버리지 않고 인사이트·재사용·진단 흐름으로 재배치 가능 |
 | 도구 결과에 14,000자 제한과 이미지 최대 3개가 있음 | [확장 코드](../extension/aelix_lab.py)의 `MAX_TEXT`, `MAX_IMAGES` | 문자·이미지 개수와 모델 토큰 비용을 구별해야 함 |
-| 코드 스냅샷으로 주 스크립트를 재실행하지만 helper는 현재 경로에서 import | [runner.py](../kit/labkit/runner.py)의 `_rerun_source`, `_exec_script`, `_run_script` | 라이브러리화 전에 재실행 의미와 환경 차이를 명시할 필요 |
+| 코드 스냅샷으로 주 스크립트를 재실행하지만 helper는 현재 경로에서 import | [runner.py](../src/aelix_analytics/runner.py)의 `_rerun_source`, `_exec_script`, `_run_script` | 라이브러리화 전에 재실행 의미와 환경 차이를 명시할 필요 |
 | run·journal·report의 잠금은 있지만 여러 파일을 묶는 복구 계약은 없음 | `execute`, `_finalize`, `project_lock`, `report.build` | 직렬화와 트랜잭션·멱등성은 별개 |
 | 리포트는 변경 감지 후 전체 run·데이터 페이지를 다시 생성 | `report._build_locked` | 조회 결과 제한만으로 대규모 생성 비용까지 해결되지는 않음 |
 | 배포용 manifest·빌드 설정·LICENSE·기여 가이드·CI workflow가 작업 시작 시 없음 | 저장소 파일 목록, [pyproject.toml](../pyproject.toml)의 `package = false` | 공식 베타의 배포·기여 기준을 별도로 준비해야 함 |

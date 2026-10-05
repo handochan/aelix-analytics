@@ -16,7 +16,7 @@ import polars as pl
 import pytest
 from conftest import kit_env
 
-from labkit import _platform, core
+from aelix_analytics import _platform, core
 
 FIXTURE = Path(__file__).parent / "fixtures" / "human_baseline"
 EXPECTED = json.loads((FIXTURE / "expected.json").read_text(encoding="utf-8"))
@@ -36,7 +36,7 @@ def human_cli(tmp_path):
         env.pop(key, None)
 
     def call(*args, expected_exit=0):
-        argv = [sys.executable, "-m", "labkit", "--project", str(root), *map(str, args)]
+        argv = [sys.executable, "-m", "aelix_analytics", "--project", str(root), *map(str, args)]
         started_at = datetime.now(UTC).isoformat()
         result = subprocess.run(argv, env=env, cwd=tmp_path, capture_output=True, timeout=120,
                                 **_platform.text_kwargs())
@@ -112,13 +112,13 @@ def test_human_cli_analysis_failure_repair_and_snapshot_history(human_cli):
     assert failed["error"]["line"] == 6
     assert "Fixture: revenue requires source correction" in (root / failed["stderr"]).read_text(encoding="utf-8")
     failed_hashes = file_hashes(root / "runs" / failed["id"])
-    failing.write_text("import labkit as lab\nprint(lab.read('sales').height)\n", encoding="utf-8")
+    failing.write_text("import aelix_analytics as analytics\nprint(analytics.read('sales').height)\n", encoding="utf-8")
     repaired = call("run", "scripts/failure.py", "--title", "Repaired analysis")["run"]
     assert repaired["status"] == "ok" and repaired["id"] != failed["id"]
 
     # Change the live code, then remove it: replay must use the preserved first version.
-    edited = original.decode().replace('sales = lab.read("sales")',
-                                       'sales = lab.read("sales").filter(pl.col("channel") == "online")')
+    edited = original.decode().replace('sales = analytics.read("sales")',
+                                       'sales = analytics.read("sales").filter(pl.col("channel") == "online")')
     assert edited != original.decode(), "the fixture read line changed; the edit did nothing"
     script.write_text(edited, encoding="utf-8")
     second = call("run", "scripts/region_summary.py", "--title", "Online only")["run"]

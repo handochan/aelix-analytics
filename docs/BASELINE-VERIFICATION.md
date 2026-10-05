@@ -59,7 +59,8 @@ retain `run.json`, code snapshots, logs, input hashes, chart files/data and the 
 environment. Repository checks must also retain the inspected source revision or dirty
 snapshot as required by [PROJECT-OPERATIONS.md](PROJECT-OPERATIONS.md).
 
-These automated scenarios use `python -m labkit` in the locked development environment.
+These automated scenarios use `python -m aelix_analytics` (named `labkit` before kit 0.2.0) with the
+checkout's `src/` on `PYTHONPATH` in the locked development environment.
 The shell wrapper is a separate smoke check: use `bin/lab init` with a fresh project and
 an isolated `AELIX_LAB_TRUST_FILE`, then import the fixture and execute its scripts with
 `LAB_PROJECT` pointing at that project. This exercises the wrapper's project environment

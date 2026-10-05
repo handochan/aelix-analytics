@@ -1,8 +1,8 @@
 """Recording layer for one run: data reads, saved datasets and charts.
 
-Scripts do not have to import labkit. Import hooks wrap the usual entry points while a run is active:
+Scripts do not have to import aelix_analytics. Import hooks wrap the usual entry points while a run is active:
 Polars readers and DuckDB reads/SQL record input files; `plt.show()`, `Figure.show()` and plotly's
-`fig.show()` record charts instead of opening windows. `labkit.chart(..., data=df)` adds what a hook
+`fig.show()` record charts instead of opening windows. `aelix_analytics.chart(..., data=df)` adds what a hook
 cannot know: a stable id, a caption and the exact plotted data.
 """
 
@@ -192,7 +192,7 @@ class RunState:
 
     def capture(self, obj, chart_id=None, *, title=None, caption=None, data=None,
                 via="lab.chart") -> dict | None:
-        """Record a chart. Every lab.chart call is its own chart (a later call with the same id
+        """Record a chart. Every analytics.chart call is its own chart (a later call with the same id
         replaces the earlier one). Automatic captures (plt.show, fig.show, figures left open)
         skip a figure that an earlier capture already saved and that has not changed since."""
         target, kind = _figure_kind(obj)
@@ -356,7 +356,7 @@ class RunState:
             return None
         src = self.project.path(os.fspath(obj))
         if not src.is_file():
-            raise FileNotFoundError(f"lab.chart: no file {src}")
+            raise FileNotFoundError(f"analytics.chart: no file {src}")
         dest = self.charts_dir / f"{cid}{src.suffix.lower()}"
         if src.resolve() != dest.resolve():
             shutil.copyfile(src, dest)
@@ -420,7 +420,7 @@ def _figure_kind(obj):
         return obj, "altair"
     if hasattr(obj, "_repr_html_"):
         return obj, "html"
-    raise TypeError(f"lab.chart cannot save a {type(obj).__name__}; pass a matplotlib or plotly "
+    raise TypeError(f"analytics.chart cannot save a {type(obj).__name__}; pass a matplotlib or plotly "
                     "figure, an object with _repr_html_, or a path to an image/HTML file")
 
 
@@ -614,7 +614,7 @@ HOOKS = {"polars": patch_polars, "duckdb": patch_duckdb, "matplotlib": style_mat
 
 @contextlib.contextmanager
 def paused():
-    """Suspend recording inside labkit's own bookkeeping calls."""
+    """Suspend recording inside the kit's own bookkeeping calls."""
     global ACTIVE
     saved, ACTIVE = ACTIVE, None
     try:

@@ -56,7 +56,7 @@ jobs:
       - name: Ruff
         if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
         timeout-minutes: 5
-        run: uv run --locked ruff check kit tests extension src tools
+        run: uv run --locked ruff check tests extension src tools
       - name: Documents
         if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
         timeout-minutes: 5

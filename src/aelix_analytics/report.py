@@ -265,7 +265,7 @@ class Site:
         elif chart.get("kind") == "plotly":
             data_html = '<span class="muted">plotly 그림 JSON에 포함</span>'
         else:
-            data_html = '<span class="muted">기록 안 됨 — lab.chart(..., data=df)</span>'
+            data_html = '<span class="muted">기록 안 됨 — analytics.chart(..., data=df)</span>'
         version_links = ""
         if full and len(versions) > 1:
             version_links = ('<div class="versions">이전 버전: ' + " · ".join(
@@ -585,7 +585,7 @@ def index_page(site: Site) -> str:
     data = f"""
 <section id="data" class="tab">
   <div class="toolbar"><h2>데이터</h2></div>
-  <p class="muted">data/raw는 가져온 원본(불변), data/derived는 run이 만든 Parquet입니다. 이름은 lab_query·lab.sql에서 쓰는 view 이름입니다.</p>
+  <p class="muted">data/raw는 가져온 원본(불변), data/derived는 run이 만든 Parquet입니다. 이름은 lab_query·analytics.sql에서 쓰는 view 이름입니다.</p>
   {('<div class="table-wrap"><table class="list"><thead><tr><th>view</th><th>종류</th><th>행</th><th>열</th><th>크기</th><th>경로</th><th>출처 / 생성 run</th><th>사용 run</th><th>sha256</th></tr></thead><tbody>' + ''.join(data_rows) + '</tbody></table></div>') if data_rows else '<div class="empty">아직 데이터셋이 없습니다. lab_import로 가져오세요.</div>'}
 </section>"""
 
@@ -929,7 +929,7 @@ def dataset_page(site: Site, ds: dict, view: str) -> str:
 <section><h2>미리보기</h2>{site.table(preview.get('columns') or [], preview.get('rows') or [])}</section>
 <section><h2>계보</h2>{''.join(lineage)}</section>
 <section><h2>조회</h2><pre class="cmd">lab_query(sql="SELECT * FROM {esc(view)} LIMIT 20")
-lab.read("{esc(view)}")   ·   lab.sql("SELECT count(*) FROM {esc(view)}").pl()</pre></section>"""
+analytics.read("{esc(view)}")   ·   analytics.sql("SELECT count(*) FROM {esc(view)}").pl()</pre></section>"""
     crumb = f' <span>/</span> <a href="../index.html#data">데이터</a> <span>/</span> {esc(view)}'
     return site.page(1, view, crumb, body, "dataset")
 

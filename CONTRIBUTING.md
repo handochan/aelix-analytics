@@ -38,7 +38,7 @@ Codex·Claude Code의 공통 진입 지침은 [AGENTS.md](AGENTS.md), GitHub 작
 - stdlib로 읽는 기록·맥락과 프로젝트 uv 환경에서 실행하는 분석 라이브러리의 경계를 유지합니다.
 - 새 코드는 Linux·macOS·Windows를 모두 가정합니다([ADR-0002](docs/decisions/0002-python-support-and-platform-scope.md)). POSIX 전용 API를 새로 도입하지 않고, 잠금·타임아웃·프로세스 생성과 종료·파일 교체·파일명·경로·인코딩은 처음부터 이식 가능한 경계 뒤에 둡니다. 한 플랫폼의 통과를 다른 플랫폼의 결과로 쓰지 않습니다.
 - 설치된 자원(kit·템플릿·assets·manifest)은 체크아웃 안의 상대 위치가 아니라 `importlib.resources`로 찾습니다([ADR-0004](docs/decisions/0004-minimal-distribution-and-entry-points.md)). 확장이 aelix 프로세스 안에서 로드하는 `core`·`_platform`만은 resource API를 쓸 수 없어(합성 package) `core`가 템플릿을 자기 파일 옆에서 찾습니다. 확장은 둘을 로드할 kit만 정합니다.
-- 그 경계는 `kit/labkit/_platform.py`의 네 포트입니다. 구현은 `core.PLATFORM`이 기본값이고, 시험은 `Project(root, platform=…)`로 다른 구현을 주입합니다([ADR-0003](docs/decisions/0003-portable-boundaries-and-in-process-kit-loading.md)). 호출부에 `sys.platform` 분기를 두지 말고, 텍스트를 읽는 파일·자식 프로세스 호출에는 인코딩을 명시하세요. 실행해 보지 않은 플랫폼의 동작은 `not_run`으로 남기고, 무엇을 실행했고 무엇을 실행하지 않았는지는 [현재 계약](docs/CONTRACTS.md) G절 한 곳에 적습니다.
+- 그 경계는 `src/aelix_analytics/_platform.py`의 네 포트입니다. 구현은 `core.PLATFORM`이 기본값이고, 시험은 `Project(root, platform=…)`로 다른 구현을 주입합니다([ADR-0003](docs/decisions/0003-portable-boundaries-and-in-process-kit-loading.md)). 호출부에 `sys.platform` 분기를 두지 말고, 텍스트를 읽는 파일·자식 프로세스 호출에는 인코딩을 명시하세요. 실행해 보지 않은 플랫폼의 동작은 `not_run`으로 남기고, 무엇을 실행했고 무엇을 실행하지 않았는지는 [현재 계약](docs/CONTRACTS.md) G절 한 곳에 적습니다.
 - 새 공개 이름은 `analytics`로 통일하고, 도구의 구·신 별칭을 동시에 상시 노출하지 않습니다. 과거 프로젝트·실행 스냅샷은 별도 reader·명시적 전환으로 보존합니다.
 - Workspace는 분석 인터페이스, Visualization은 분석 표현 객체, Chart는 그 유형, Report는 문서 산출물입니다. 데이터 표·근거 그래프를 자동으로 모두 Visualization 기록으로 만들지 않습니다.
 - UI·템플릿·속성·오류·접근성 label은 영어를 기본으로 합니다. 사용자 본문·열 이름·보존 코드는 번역하지 않고, Unicode·한국어 조회와 과거 CONTEXT의 읽기를 유지합니다.
@@ -70,15 +70,18 @@ Codex·Claude Code의 공통 진입 지침은 [AGENTS.md](AGENTS.md), GitHub 작
 ```sh
 uv sync --locked
 uv run --locked pytest -q --timeout 600 --timeout-method=thread
-uv run --locked ruff check kit tests extension src tools
+uv run --locked ruff check tests extension src tools
 ```
 
 pytest-timeout은 `--timeout-method=thread`로 씁니다. 기본 방식(SIGALRM)은 run 가드가 프로세스 안의 run 동안 쓰는 시그널과
 겹칩니다.
 
 `tests/test_packaging.py`는 `uv build`로 wheel과 sdist를 만들어 체크아웃 밖의 새 환경에 설치합니다(wheel은 3.11·3.12, sdist는 3.12). 빌드
-backend(hatchling)는 네트워크나 uv 캐시에서 받습니다. 추적하지 않은 파일이 `kit/labkit`·`src/aelix_analytics`에 있으면
-wheel에 들어가 구성원 시험이 실패하므로, 배포본은 깨끗한 체크아웃에서 빌드합니다. aelix 0.1.0b2와 실제 uv로 프로젝트를
+backend(hatchling)는 네트워크나 uv 캐시에서 받습니다. 추적하지 않은 파일이 `src/aelix_analytics`에 있으면
+wheel에(package와 실행 루트의 사본 두 곳에) 들어가 구성원 시험이 실패합니다. 소스 트리에서 wheel을 바로 만들면(`uv build --wheel`)
+Git이 무시하는 파일(`.demo/`, `__pycache__` 밖의 `*.pyc` 등)도 실행 루트의 사본에 들어갑니다. `force-include`는 `.gitignore`를 보지
+않기 때문입니다. 그래서 배포본은 깨끗한 체크아웃에서 빌드하고, 빌드 전에 `git clean -ndx src/aelix_analytics`가 `__pycache__/` 말고
+아무것도 보이지 않는지 확인합니다. aelix 0.1.0b2와 실제 uv로 프로젝트를
 끝까지 다루는 단계는 `AELIX_ANALYTICS_TEST_INSTALL=1`일 때만 돌며 네트워크가 필요합니다.
 체크아웃의 `uv sync`는 `[project.scripts]`를 설치하지 않는다는 경고를 냅니다. 정상입니다: 개발 환경은
 `package = false`이고, 이 배치는 editable 설치를 지원하지 않으므로 `package = true`로 바꾸지 마세요. 배포본은 빌드한

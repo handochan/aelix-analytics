@@ -2,7 +2,7 @@
 
     python tools/platform_smoke.py --output <file.json> [--stdlib-only] [--only NAME,...]
 
-Each check does one thing a port in kit/labkit/_platform.py or the labkit CLI promises, for real, on
+Each check does one thing a port in src/aelix_analytics/_platform.py or the aelix_analytics CLI promises, for real, on
 this machine, and records what it observed. A check either holds or it does not. When it does not,
 in exactly the form a document of the tree being measured states as a limitation of this platform,
 and the document still says so in the words DECLARED quotes, the record names the declaration, so
@@ -45,11 +45,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-KIT = ROOT / "kit"
+KIT = ROOT / "src"
 if str(KIT) not in sys.path:
     sys.path.insert(0, str(KIT))
 
-from labkit import _platform  # noqa: E402 - the kit is found through KIT above
+from aelix_analytics import _platform  # noqa: E402 - the kit is found through KIT above
 
 SCHEMA = "aelix-analytics.platform-smoke/1"
 ANALYSIS_MODULES = ("polars", "duckdb", "pyarrow", "matplotlib", "plotly", "numpy")
@@ -187,7 +187,7 @@ def captured_stderr(fn, *args):
 LOCK_HOLDER = """\
 import sys, time
 from pathlib import Path
-from labkit import _platform
+from aelix_analytics import _platform
 lock, ready, hold = Path(sys.argv[1]), Path(sys.argv[2]), float(sys.argv[3])
 with _platform.detect().locks.exclusive(lock):
     ready.write_text("held", encoding="utf-8")
@@ -239,7 +239,7 @@ if mode == "stay":
 
 @check("ports")
 def imports_without_analysis_libraries(ctx):
-    from labkit import core  # noqa: F401 - importing is the check
+    from aelix_analytics import core  # noqa: F401 - importing is the check
 
     loaded = sorted(name for name in ANALYSIS_MODULES if name in sys.modules)
     expected = "windows" if WINDOWS else "posix"
@@ -618,7 +618,7 @@ def utf8_survives_a_pipe(ctx):
     d = ctx.fresh("utf8")
     text = "한글 출력 ✓"
     configured = write_script(d, "configured",
-                              "import sys\nfrom labkit import _platform\n_platform.configure_stdio()\n"
+                              "import sys\nfrom aelix_analytics import _platform\n_platform.configure_stdio()\n"
                               f"print({text!r})\n")
     plain = write_script(d, "plain", f"print({text!r})\n")
     env = child_env()
@@ -659,13 +659,13 @@ def kit_env(ctx) -> dict[str, str]:
     return env
 
 
-def labkit_argv(ctx, project: Path, *args) -> list[str]:
-    return [ctx.uv, "run", "--project", str(project), "--quiet", "python", "-m", "labkit",
+def kit_cli_argv(ctx, project: Path, *args) -> list[str]:
+    return [ctx.uv, "run", "--project", str(project), "--quiet", "python", "-m", "aelix_analytics",
             "--project", str(project), *map(str, args)]
 
 
-def labkit(ctx, project: Path, *args, timeout: float = 600):
-    done = subprocess.run(labkit_argv(ctx, project, *args), cwd=project, env=kit_env(ctx),
+def kit_cli(ctx, project: Path, *args, timeout: float = 600):
+    done = subprocess.run(kit_cli_argv(ctx, project, *args), cwd=project, env=kit_env(ctx),
                           stdin=subprocess.DEVNULL, capture_output=True, timeout=timeout,
                           **_platform.text_kwargs())
     result = None
@@ -681,12 +681,12 @@ def project(ctx) -> Path:
     if ctx._project is not None:
         return ctx._project
     root = ctx.fresh("project") / "실측 프로젝트"
-    init = subprocess.run([sys.executable, "-m", "labkit", "init", str(root), "--title", "플랫폼 실측",
+    init = subprocess.run([sys.executable, "-m", "aelix_analytics", "init", str(root), "--title", "플랫폼 실측",
                            "--goal", "포트와 CLI를 이 플랫폼에서 실제로 실행한다"],
                           env=child_env(), capture_output=True, timeout=120,
                           **_platform.text_kwargs())
     if init.returncode != 0:
-        raise RuntimeError(f"labkit init failed: {init.stdout[-800:]} {init.stderr[-800:]}")
+        raise RuntimeError(f"aelix_analytics init failed: {init.stdout[-800:]} {init.stderr[-800:]}")
     sync = subprocess.run([ctx.uv, "sync", "--project", str(root), "--quiet"], env=kit_env(ctx),
                           capture_output=True, timeout=1200, **_platform.text_kwargs())
     if sync.returncode != 0:
@@ -698,7 +698,7 @@ def project(ctx) -> Path:
         for i in range(120):
             writer.writerow([f"2025-{1 + i % 12:02d}-01", ["서울", "부산", "대구"][i % 3],
                              1000 + (i * 37) % 500])
-    code, result, done = labkit(ctx, root, "import", csv_path, "--name", "sales",
+    code, result, done = kit_cli(ctx, root, "import", csv_path, "--name", "sales",
                                 "--description", "합성 매출")
     if code != 0:
         raise RuntimeError(f"import failed: {result} {done.stderr[-800:]}")
@@ -719,16 +719,16 @@ def run_record(root: Path, run_id: str) -> dict:
 
 REGION = """\
 import matplotlib.pyplot as plt
-import labkit as lab
+import aelix_analytics as analytics
 
-sales = lab.read("sales")
-by_region = lab.sql("SELECT region, sum(revenue) AS revenue FROM sales GROUP BY 1 ORDER BY 1").pl()
-lab.save(by_region, "region_revenue")
+sales = analytics.read("sales")
+by_region = analytics.sql("SELECT region, sum(revenue) AS revenue FROM sales GROUP BY 1 ORDER BY 1").pl()
+analytics.save(by_region, "region_revenue")
 fig, ax = plt.subplots()
 ax.bar(by_region["region"], by_region["revenue"])
 ax.set_title("지역별 매출")
-lab.chart(fig, "region-revenue", title="지역별 매출", caption="합계", data=by_region)
-lab.note("finding", "서울 매출이 가장 크다")
+analytics.chart(fig, "region-revenue", title="지역별 매출", caption="합계", data=by_region)
+analytics.note("finding", "서울 매출이 가장 크다")
 print("한글 출력", by_region.height)
 """
 
@@ -739,7 +739,7 @@ def cli_end_to_end(ctx):
     steps = {}
 
     def step(name, *args, ok=0):
-        code, result, done = labkit(ctx, root, *args)
+        code, result, done = kit_cli(ctx, root, *args)
         steps[name] = {"exit": code, "ok": bool(result and result.get("ok")),
                        "stderr": done.stderr.strip()[-400:] or None}
         return code == ok, result
@@ -783,7 +783,7 @@ def _timed_run(ctx, name: str, source: str, timeout: int) -> dict:
     root = project(ctx)
     t0 = time.perf_counter()
     try:
-        code, result, _done = labkit(ctx, root, "run", script(root, name, source), "--title", name,
+        code, result, _done = kit_cli(ctx, root, "run", script(root, name, source), "--title", name,
                                      "--timeout", str(timeout), timeout=600)
     except subprocess.TimeoutExpired:
         return {"status": None, "exit": None, "cli_seconds": round(time.perf_counter() - t0, 1),
@@ -808,7 +808,7 @@ def cli_run_timeout_in_a_blocking_duckdb_query(ctx):
 
 
 def _cancel_a_cli_run(ctx, name: str, source: str, *, wait: float) -> dict:
-    """Spawn `uv run ... labkit run` in its own group, wait until its run is recorded as running,
+    """Spawn `uv run ... aelix_analytics run` in its own group, wait until its run is recorded as running,
     ask it to stop exactly as the extension does — ProcessControl.interrupt, with a request file
     where the platform asks through one — and give it the extension's grace period."""
     root = project(ctx)
@@ -819,7 +819,7 @@ def _cancel_a_cli_run(ctx, name: str, source: str, *, wait: float) -> dict:
     request = logs / "cancel-request" if processes.asks_by_request else None
     env = {**kit_env(ctx), **({"LAB_CANCEL_FILE": str(request)} if request else {})}
     with open(logs / "stdout.txt", "wb") as out, open(logs / "stderr.txt", "wb") as err:
-        proc = subprocess.Popen(labkit_argv(ctx, root, "run", rel, "--title", Path(name).stem),
+        proc = subprocess.Popen(kit_cli_argv(ctx, root, "run", rel, "--title", Path(name).stem),
                                 cwd=root, env=env, stdin=subprocess.DEVNULL, stdout=out,
                                 stderr=err, **processes.spawn_kwargs())
         run_id, kit_pid = None, None
@@ -962,7 +962,7 @@ def cli_deadline_when_the_script_ignores_sigint(ctx):
 
 
 def _list_runs(root: Path) -> list[dict]:
-    from labkit import core
+    from aelix_analytics import core
 
     return core.list_runs(core.Project(root))
 
@@ -971,10 +971,10 @@ CONCURRENT = """\
 import time
 from pathlib import Path
 import polars as pl
-import labkit as lab
+import aelix_analytics as analytics
 
 time.sleep(2)
-lab.save(pl.DataFrame({"who": [Path(__file__).stem]}), "{name}")
+analytics.save(pl.DataFrame({"who": [Path(__file__).stem]}), "{name}")
 """
 
 
@@ -988,7 +988,7 @@ def cli_concurrent_runs_are_serialized(ctx):
         rel = script(root, f"05_{name}.py", CONCURRENT.replace("{name}", name))
         out = open(logs / f"{name}.stdout", "wb")  # noqa: SIM115 - closed below
         handles.append(out)
-        procs[name] = subprocess.Popen(labkit_argv(ctx, root, "run", rel, "--title", name), cwd=root,
+        procs[name] = subprocess.Popen(kit_cli_argv(ctx, root, "run", rel, "--title", name), cwd=root,
                                        env=kit_env(ctx), stdin=subprocess.DEVNULL, stdout=out,
                                        stderr=subprocess.DEVNULL)
     observed = {}
@@ -1014,18 +1014,18 @@ def cli_concurrent_runs_are_serialized(ctx):
 
 CHART_CON = """\
 import matplotlib.pyplot as plt
-import labkit as lab
+import aelix_analytics as analytics
 
 fig, ax = plt.subplots()
 ax.plot([1, 2], [1, 2])
-lab.chart(fig, "con", title="예약 이름")
+analytics.chart(fig, "con", title="예약 이름")
 """
 
 SAVE_CON = """\
 import polars as pl
-import labkit as lab
+import aelix_analytics as analytics
 
-lab.save(pl.DataFrame({"a": [1]}), "con")
+analytics.save(pl.DataFrame({"a": [1]}), "con")
 """
 
 
@@ -1033,7 +1033,7 @@ lab.save(pl.DataFrame({"a": [1]}), "con")
 def cli_refuses_a_new_reserved_dataset_name(ctx):
     root = project(ctx)
     source = root.parent / "매출.csv"
-    code, result, _ = labkit(ctx, root, "import", source, "--name", "con")
+    code, result, _ = kit_cli(ctx, root, "import", source, "--name", "con")
     error = ((result or {}).get("error") or {}).get("code")
     return {"holds": code == 1 and error == "name_not_portable",
             "observed": {"exit": code, "error_code": error}}
@@ -1042,7 +1042,7 @@ def cli_refuses_a_new_reserved_dataset_name(ctx):
 @check("cli", needs_uv=True)
 def cli_writes_a_reserved_chart_id_to_a_portable_file(ctx):
     root = project(ctx)
-    code, result, _ = labkit(ctx, root, "run", script(root, "06_chart_con.py", CHART_CON),
+    code, result, _ = kit_cli(ctx, root, "run", script(root, "06_chart_con.py", CHART_CON),
                              "--title", "예약 차트")
     record = (result or {}).get("run") or {}
     charts = record.get("charts") or []
@@ -1060,7 +1060,7 @@ def cli_writes_a_reserved_chart_id_to_a_portable_file(ctx):
 @check("cli", needs_uv=True)
 def cli_a_script_saving_a_reserved_name_is_warned_about(ctx):
     root = project(ctx)
-    code, result, _ = labkit(ctx, root, "run", script(root, "07_save_con.py", SAVE_CON),
+    code, result, _ = kit_cli(ctx, root, "run", script(root, "07_save_con.py", SAVE_CON),
                              "--title", "예약 저장")
     record = (result or {}).get("run") or {}
     warned = any("reserved device name" in w for w in record.get("warnings") or [])
@@ -1349,7 +1349,7 @@ def main(argv=None) -> int:
 
     _platform.configure_stdio()
     started = datetime.now(UTC)
-    with tempfile.TemporaryDirectory(prefix="labkit-smoke-", ignore_cleanup_errors=True) as tmp:
+    with tempfile.TemporaryDirectory(prefix="aelix-analytics-smoke-", ignore_cleanup_errors=True) as tmp:
         tmp_path = Path(tmp)
         # Never touch the user's real trust file, and keep every project this creates in tmp.
         os.environ["AELIX_LAB_TRUST_FILE"] = str(tmp_path / "trust" / "lab-projects.json")

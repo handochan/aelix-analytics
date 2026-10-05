@@ -32,7 +32,7 @@ import time
 from ctypes import wintypes as w
 from pathlib import Path
 
-from labkit import core
+from aelix_analytics import core
 
 EXTENDED_STARTUPINFO_PRESENT = 0x00080000
 CREATE_UNICODE_ENVIRONMENT = 0x00000400

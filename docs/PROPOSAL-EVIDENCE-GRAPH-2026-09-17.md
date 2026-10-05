@@ -14,8 +14,8 @@ Status: Proposal — 아래 경로·필드·동작은 도입 제안이다. 현�
 자유로운 Python 분석과 기존 HTML·journal 흐름을 유지하며, 기록에서 관계를 계산하는 읽기 전용 탐색으로 시작한다.
 사람과 에이전트는 같은 ID·관계·관측 범위를 사용한다.
 
-baseline `7b205cd`의 [기록 모델](../kit/labkit/core.py), [수집 코드](../kit/labkit/capture.py),
-[실행 기록](../kit/labkit/runner.py), [HTML 리포트](../kit/labkit/report.py), [현재 계약](CONTRACTS.md)을 대조했다.
+baseline `7b205cd`의 [기록 모델](../src/aelix_analytics/core.py), [수집 코드](../src/aelix_analytics/capture.py),
+[실행 기록](../src/aelix_analytics/runner.py), [HTML 리포트](../src/aelix_analytics/report.py), [현재 계약](CONTRACTS.md)을 대조했다.
 초안에서 보완한 중요한 부분은 다음과 같다.
 
 | 초안의 간극 | 확인한 현재 동작 | 보완 방향 |

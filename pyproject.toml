@@ -1,13 +1,13 @@
 [project]
 name = "aelix-analytics"
-version = "0.1.0"
+version = "0.2.0"
 description = "Agent-native analytics projects with durable context, metrics, evidence, and reports"
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 # The floor of what runs where this is installed: the `analytics` command, the aelix extension and the
 # stdlib core it loads (ADR-0002 decision 2). Analysis runs in each project's own environment, which
-# keeps >=3.12 (kit/labkit/template/pyproject.toml, decision 3).
+# keeps >=3.12 (src/aelix_analytics/template/pyproject.toml, decision 3).
 requires-python = ">=3.11"
 dependencies = []
 
@@ -18,28 +18,30 @@ analytics = "aelix_analytics.cli:main"
 aelix-analytics = "aelix_analytics.extension:setup"
 
 # The distribution is one wheel, built from the checkout as it is (ADR-0004): src/aelix_analytics is
-# the package, the checkout's extension/aelix_lab.py becomes aelix_analytics/extension.py, and kit/
-# becomes the package data aelix_analytics/kit/. Pinned so a build does not drift with the backend.
+# the package, the checkout's extension/aelix_lab.py becomes aelix_analytics/extension.py, and a copy
+# of src/aelix_analytics becomes aelix_analytics/kit/aelix_analytics/, which makes aelix_analytics/kit/
+# the runtime root: the one directory a child gets on PYTHONPATH (Issue #9). force-include walks the directory without
+# .gitignore (only __pycache__ is left out), so build from a clean checkout; the tests check the
+# members. Pinned so a build does not drift with the backend.
 [build-system]
 requires = ["hatchling==1.32.4"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-only-include = ["src/aelix_analytics", "kit/labkit"]
+only-include = ["src/aelix_analytics"]
 
 [tool.hatch.build.targets.wheel.sources]
 "src/aelix_analytics" = "aelix_analytics"
-"kit" = "aelix_analytics/kit"
 
 [tool.hatch.build.targets.wheel.force-include]
 "extension/aelix_lab.py" = "aelix_analytics/extension.py"
+"src/aelix_analytics" = "aelix_analytics/kit/aelix_analytics"
 
 [tool.hatch.build.targets.sdist]
-only-include = ["src/aelix_analytics", "extension/aelix_lab.py", "kit/labkit", "README.md",
-                "pyproject.toml"]
+only-include = ["src/aelix_analytics", "extension/aelix_lab.py", "README.md", "pyproject.toml"]
 
 # This environment tests the kit with the same libraries an analysis project gets (see
-# kit/labkit/template/pyproject.toml), so it needs what those need: >=3.12. The project itself is
+# src/aelix_analytics/template/pyproject.toml), so it needs what those need: >=3.12. The project itself is
 # not installed into it; the tests build and install the wheel where they need it.
 [dependency-groups]
 dev = [
@@ -64,7 +66,7 @@ dev = { requires-python = ">=3.12" }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["kit", "src"]
+pythonpath = ["src"]
 
 [tool.ruff]
 line-length = 100
@@ -75,4 +77,4 @@ select = ["E", "F", "I", "B", "UP"]
 ignore = ["E501"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["labkit", "aelix_analytics"]
+known-first-party = ["aelix_analytics"]

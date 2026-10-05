@@ -1,11 +1,11 @@
 # The manifest aelix binds to this distribution's `aelix.extensions` entry point (aelix ADR-0204:
 # it has to sit in a package on the entry module's path; here, the package root). Keep `version`
-# equal to pyproject.toml's and to labkit's KIT_VERSION (tests/test_packaging.py checks it); aelix
+# equal to pyproject.toml's and to core.KIT_VERSION (tests/test_packaging.py checks it); aelix
 # accepts only a semver-like spelling, so a pre-release is written `0.2.0-beta.1`, not `0.2.0b1`.
 [plugin]
 id = "aelix-analytics"
 name = "Aelix Analytics"
-version = "0.1.0"
+version = "0.2.0"
 description = "Analysis projects with durable context, runs, evidence and reports, for people and agents"
 authors = ["handochan"]
 repository = "https://github.com/handochan/aelix-analytics"

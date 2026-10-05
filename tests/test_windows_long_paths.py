@@ -140,9 +140,9 @@ def bounded(argv, *, timeout: float, cwd=None, env=None) -> dict:
 
 
 def kit(root: Path, *args) -> dict:
-    """`python -m labkit` from this checkout, started from this directory (not the root), as an
+    """`python -m aelix_analytics` from this checkout, started from this directory (not the root), as an
     interpreter outside the project starts it. Fails the test only if it did not end in time."""
-    done = bounded([sys.executable, "-m", "labkit", "--project", str(root), *args],
+    done = bounded([sys.executable, "-m", "aelix_analytics", "--project", str(root), *args],
                    timeout=KIT_TIMEOUT, env=kit_env())
     assert not done["timed_out"], done
     result = None
@@ -163,10 +163,10 @@ def deepest_file(root: Path) -> int:
 def make_project(root: Path, observation: dict, title: str = "긴 경로") -> Path | None:
     """A project at `root`, made in this process; None, kept in the observation, where it cannot be
     made (without long paths, past MAX_PATH)."""
-    from labkit import core
+    from aelix_analytics import core
 
     made = attempt(observation, "init_project", lambda: str(core.init_project(
-        root, title=title, template_dir=KIT / "labkit" / "template", actor="test").root))
+        root, title=title, template_dir=KIT / "aelix_analytics" / "template", actor="test").root))
     if made:
         observation["project_root_length"] = len(made)
     return Path(made) if made else None
@@ -189,10 +189,10 @@ def test_a_root_under_max_path_records_and_reports_outputs_past_it(tmp_path):
         source = write_sales_csv(tmp_path / "sales.csv")
         imported = kit(root, "import", source, "--name", "sales")
         observation["import"] = imported
-        body = ("import labkit as lab\nimport matplotlib\nmatplotlib.use('Agg')\n"
+        body = ("import aelix_analytics as analytics\nimport matplotlib\nmatplotlib.use('Agg')\n"
                 "import matplotlib.pyplot as plt\nfig, ax = plt.subplots()\nax.plot([1, 2])\n"
-                "df = lab.read('sales')\nlab.save(df, 'a' * 60)\n"
-                "lab.chart(fig, 'a-chart-id-that-is-forty-characters-long', data=df)\n")
+                "df = analytics.read('sales')\nanalytics.save(df, 'a' * 60)\n"
+                "analytics.chart(fig, 'a-chart-id-that-is-forty-characters-long', data=df)\n")
         name = "a_script_name_of_sixty_characters_for_the_long_path_test.py" if ENABLED else "lp.py"
         script = attempt(observation, "script", lambda: write_script(root, name, body))
         ran = kit(root, "run", script, "--title", "long") if script else None

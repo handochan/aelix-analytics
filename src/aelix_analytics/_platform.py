@@ -1,7 +1,7 @@
 """OS-dependent operations behind small ports, so the rest of the kit has no platform branches.
 
 This module is loaded inside the aelix process together with `core.py` (see
-`extension/aelix_lab.py`), so it uses the standard library only and imports nothing from labkit.
+`extension/aelix_lab.py`), so it uses the standard library only and imports no other module of the kit.
 
 Four operations behave differently on POSIX and Windows and are therefore ports: exclusive file
 locking, atomic file replacement, child-process control, and the deadline and cancellation of a
@@ -936,7 +936,7 @@ class WindowsProcessControl:
         except (OSError, subprocess.SubprocessError) as exc:
             problem = f"{type(exc).__name__}: {exc}"
         if problem:
-            print(f"labkit: could not end the process tree of pid {pid}; its descendants may "
+            print(f"aelix_analytics: could not end the process tree of pid {pid}; its descendants may "
                   f"still be running ({problem})", file=sys.stderr)
         if problem and not gone:
             # At least the wrapper, by TerminateProcess. Not after 128: that process has exited.
@@ -1150,7 +1150,7 @@ class WindowsRunControl:
             with lock:
                 stop.set()
 
-        threading.Thread(target=watch, name="labkit-cancel-request", daemon=True).start()
+        threading.Thread(target=watch, name="aelix-analytics-cancel-request", daemon=True).start()
         return stop_watching
 
 

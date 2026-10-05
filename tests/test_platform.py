@@ -34,17 +34,17 @@ import pytest
 from conftest import (
     LINK_KINDS,
     dir_link,
+    kit_cli,
     kit_env,
-    labkit,
     record_observation,
     write_sales_csv,
     write_script,
 )
 
-from labkit import _platform, core
+from aelix_analytics import _platform, core
 
 PACK = Path(__file__).resolve().parents[1]
-KIT = PACK / "kit"
+KIT = PACK / "src"
 EXT = PACK / "extension" / "aelix_lab.py"
 
 
@@ -136,7 +136,7 @@ def test_file_url_refuses_what_no_link_can_name(recorded):
 
 
 def test_a_record_no_link_can_name_does_not_stop_the_report():
-    from labkit import report  # noqa: PLC0415 - the report module, not only the rule
+    from aelix_analytics import report  # noqa: PLC0415 - the report module, not only the rule
 
     site = object.__new__(report.Site)
     for recorded in (r"\\.\C:\x", "\\\\server\\"):
@@ -159,7 +159,7 @@ def test_absolute_record_path_does_not_ask_the_running_platform(recorded, absolu
 
 
 def test_a_project_directory_named_like_a_drive_is_linked_inside_the_project():
-    from labkit import report  # noqa: PLC0415
+    from aelix_analytics import report  # noqa: PLC0415
 
     site = object.__new__(report.Site)
     assert site.file_link("c:/x.csv", 1) == "../../c:/x.csv"  # what main linked
@@ -883,7 +883,7 @@ class _Injector:
 
     def __enter__(self):
         events = self.monitoring.events
-        self.monitoring.use_tool_id(self.tool, "labkit-guard-injection")
+        self.monitoring.use_tool_id(self.tool, "aelix-analytics-guard-injection")
         self.monitoring.register_callback(self.tool, events.PY_START, self._start)
         self.monitoring.register_callback(self.tool, events.INSTRUCTION, self._instruction)
         for code in self.codes:
@@ -1216,7 +1216,7 @@ def test_a_script_s_raising_handler_at_the_region_s_end_cannot_lose_the_record(p
     the exit short with the region still raising and its deadline armed, and the settle after it
     was skipped, so a cancel — or the deadline alone — during _finalize left the record `running`.
     Now the settle runs whatever the region raised."""
-    from labkit import report, runner  # noqa: PLC0415
+    from aelix_analytics import report, runner  # noqa: PLC0415
 
     monkeypatch.setattr(report, "build", lambda project_, **kw: {})
     delivered = []
@@ -1285,7 +1285,7 @@ def test_what_a_script_s_handler_raised_during_the_reassertion_is_classified(pro
     """Review 6, CH-12: the region's exit reasserted the guard's handlers and dropped what a handler
     the script left raised meanwhile, so a cancel taken by the script's default_int_handler at that
     moment was recorded `ok`. It is now handed to the runner, which records `cancelled`."""
-    from labkit import runner  # noqa: PLC0415
+    from aelix_analytics import runner  # noqa: PLC0415
 
     real_getsignal = signal.getsignal
     fired = []
@@ -1318,7 +1318,7 @@ def test_a_host_handler_that_raises_during_the_restore_still_gets_every_handler_
     host whose SIGTERM handler raises — the graceful-shutdown idiom — kept the guard's handler for
     SIGINT after the run and its Ctrl+C was swallowed. The signal is delivered before each swap a
     run makes, in turn, into whichever handler is installed at that moment, the host's included."""
-    from labkit import report, runner  # noqa: PLC0415
+    from aelix_analytics import report, runner  # noqa: PLC0415
 
     monkeypatch.setattr(report, "build", lambda project_, **kw: {})
     # With two raising handlers, one put back before the other can interrupt the second's swap,
@@ -1633,7 +1633,7 @@ def test_a_deadline_that_passed_before_a_cancel_is_still_the_run_s_deadline(scri
 @POSIX_GUARD
 def test_a_run_cancelled_after_the_deadline_it_kept_from_the_guard_is_timed_out(project,
                                                                                 monkeypatch):
-    from labkit import report, runner  # noqa: PLC0415
+    from aelix_analytics import report, runner  # noqa: PLC0415
 
     monkeypatch.setattr(report, "build", lambda project_, **kw: {})
     body = ("import signal, time\n"
@@ -1653,7 +1653,7 @@ def test_a_deadline_the_platform_cannot_hold_is_an_error_not_a_stuck_guard(proje
     """Review 6, SG-1: `--timeout inf` made the region's entry raise with the region already
     raising, and a Ctrl+C during _finalize then lost the record. It is recorded `error`, as main
     recorded it, and the guard is back to recording only."""
-    from labkit import report, runner  # noqa: PLC0415
+    from aelix_analytics import report, runner  # noqa: PLC0415
 
     monkeypatch.setattr(report, "build", lambda project_, **kw: {})
     real_environment = runner.environment
@@ -2021,9 +2021,9 @@ def _stable(value):
 
 def _representative_flow(root: Path, source: Path, platform) -> dict:
     """Create a project, import data, write a journal entry and read the project back."""
-    project = core.init_project(root, title="이식 경계", goal="목표", template_dir=KIT / "labkit" / "template",
+    project = core.init_project(root, title="이식 경계", goal="목표", template_dir=KIT / "aelix_analytics" / "template",
                                 actor="test", platform=platform)
-    from labkit import data  # noqa: PLC0415 - needs the analysis libraries, unlike core
+    from aelix_analytics import data  # noqa: PLC0415 - needs the analysis libraries, unlike core
 
     data.import_file(project, source, name="sales", description="test data", actor="test")
     core.add_note(project, "finding", "경계 뒤에서도 같은 기록", refs=["sales"], actor="test")
@@ -2058,10 +2058,10 @@ def test_the_real_and_the_injected_platform_record_the_same_thing(tmp_path):
 
 
 def test_a_run_goes_through_the_injected_platform_too(tmp_path, real_ports_refuse):
-    from labkit import runner  # noqa: PLC0415 - needs the analysis libraries
+    from aelix_analytics import runner  # noqa: PLC0415 - needs the analysis libraries
 
     fake, calls = recording_platform()
-    project = core.init_project(tmp_path / "p", title="실행 경계", template_dir=KIT / "labkit" / "template",
+    project = core.init_project(tmp_path / "p", title="실행 경계", template_dir=KIT / "aelix_analytics" / "template",
                                 actor="test", platform=fake)
     project.scripts.mkdir(parents=True, exist_ok=True)
     (project.scripts / "01_min.py").write_text("print('ok')\n", encoding="utf-8")
@@ -2083,7 +2083,7 @@ def test_a_run_goes_through_the_injected_platform_too(tmp_path, real_ports_refus
 
 def test_the_hash_cache_writes_through_the_project_platform(tmp_path, real_ports_refuse):
     fake, calls = recording_platform()
-    project = core.init_project(tmp_path / "p", title="캐시", template_dir=KIT / "labkit" / "template",
+    project = core.init_project(tmp_path / "p", title="캐시", template_dir=KIT / "aelix_analytics" / "template",
                                 actor="test", platform=fake)
     cache = core.HashCache(project)
     assert cache.sha(project.marker)  # marks the cache dirty
@@ -2093,7 +2093,7 @@ def test_the_hash_cache_writes_through_the_project_platform(tmp_path, real_ports
 
 def test_a_run_is_listed_through_the_project_platform(tmp_path, real_ports_refuse):
     fake, calls = recording_platform()
-    project = core.init_project(tmp_path / "p", title="실행 목록", template_dir=KIT / "labkit" / "template",
+    project = core.init_project(tmp_path / "p", title="실행 목록", template_dir=KIT / "aelix_analytics" / "template",
                                 actor="test", platform=fake)
     run_dir = project.runs / "20260922-101010-x"
     run_dir.mkdir(parents=True)
@@ -2108,7 +2108,7 @@ def test_a_run_is_listed_through_the_project_platform(tmp_path, real_ports_refus
 
 def test_a_new_dataset_name_that_windows_cannot_store_is_refused(project, tmp_path):
     source = write_sales_csv(tmp_path / "con.csv")
-    from labkit import data  # noqa: PLC0415
+    from aelix_analytics import data  # noqa: PLC0415
 
     with pytest.raises(core.LabError) as exc:
         data.import_file(core.Project(project), source, name="con", actor="test")
@@ -2119,9 +2119,9 @@ def test_a_new_dataset_name_that_windows_cannot_store_is_refused(project, tmp_pa
 def test_a_script_that_writes_a_reserved_name_still_runs_and_is_warned_about(project):
     # Refusing inside a run would stop a preserved script from re-executing, including one whose
     # output file has since been deleted, so the run is recorded with the limit stated instead.
-    body = ("import polars as pl\nimport labkit as lab\n"
-            "lab.save(pl.DataFrame({'a': [1]}), 'con')\n")
-    code, result = labkit(project, "run", write_script(project, "21_reserved_save.py", body),
+    body = ("import polars as pl\nimport aelix_analytics as analytics\n"
+            "analytics.save(pl.DataFrame({'a': [1]}), 'con')\n")
+    code, result = kit_cli(project, "run", write_script(project, "21_reserved_save.py", body),
                           "--title", "예약 이름 저장")
     assert code == 0 and result["run"]["status"] == "ok", result
     # On Windows this depends on the version: Server 2025 stores `con.parquet` as an ordinary file
@@ -2143,7 +2143,7 @@ def test_reserved_names_are_grouped_and_never_bury_the_data_warnings(project):
             "pl.read_parquet('data/raw/sales.parquet').write_parquet('data/raw/sales.parquet')\n"
             "import os\nfrom pathlib import Path as P\n"
             "P(os.environ['LAB_RUN_DIR'], 'con.html').write_text('<p>x</p>', encoding='utf-8')\n")
-    code, result = labkit(project, "run", write_script(project, "23_partitions.py", body),
+    code, result = kit_cli(project, "run", write_script(project, "23_partitions.py", body),
                           "--title", "예약 디렉터리")
     assert code == 0, result
     warnings = result["run"]["warnings"]
@@ -2162,7 +2162,7 @@ def test_reserved_names_are_grouped_and_never_bury_the_data_warnings(project):
 def test_every_warning_main_gave_still_comes_first(monkeypatch):
     """Review 5, NLL-4: placed before the pandas line, a reserved-name warning pushed main's tenth
     warning out of what the agent sees."""
-    from labkit import runner  # noqa: PLC0415
+    from aelix_analytics import runner  # noqa: PLC0415
 
     record = {"status": "ok", "inputs": [{"path": "data/raw/sales.parquet", "sha256": "x"}],
               "charts": [], "outputs": [{"path": f"data/derived/out{i}.csv", "change": "created"}
@@ -2176,7 +2176,7 @@ def test_every_warning_main_gave_still_comes_first(monkeypatch):
 
 
 def test_many_reserved_paths_become_one_warning():
-    from labkit import runner  # noqa: PLC0415
+    from aelix_analytics import runner  # noqa: PLC0415
 
     paths = [f"data/derived/{name}.parquet" for name in ("con", "nul", "aux", "prn", "com1")]
     (only,) = runner.reserved_name_warnings(paths + ["data/derived/sales.parquet"])
@@ -2186,13 +2186,13 @@ def test_many_reserved_paths_become_one_warning():
 CHART_CASES = {
     # review 4 critic-2: the script saved the figure where the chart lives and handed the file over
     "file_in_charts": ("fig.savefig(charts / 'aux.png')\nplt.close(fig)\n"
-                       "lab.chart(charts / 'aux.png', 'aux')\n"),
+                       "analytics.chart(charts / 'aux.png', 'aux')\n"),
     # review 5 NLL-1: the same with the figure object, an automatic capture, another source file
-    "figure_after_savefig": "fig.savefig(charts / 'aux.png')\nlab.chart(fig, 'aux')\n",
+    "figure_after_savefig": "fig.savefig(charts / 'aux.png')\nanalytics.chart(fig, 'aux')\n",
     "auto_captured": "ax.set_title('aux')\nfig.savefig(charts / 'aux.png')\n",
     "other_source": ("Path('figures').mkdir(exist_ok=True)\nfig.savefig('figures/aux.png')\n"
                      "fig.savefig(charts / 'aux.png')\nplt.close(fig)\n"
-                     "lab.chart('figures/aux.png', 'aux')\n"),
+                     "analytics.chart('figures/aux.png', 'aux')\n"),
 }
 
 
@@ -2202,21 +2202,21 @@ def test_a_file_the_script_wrote_at_a_reserved_chart_id_is_not_a_second_chart(pr
     the file main wrote or overwrote for that same chart, not a second one — recording it again gave
     a duplicate chart and a rerun of an older run a false mismatch."""
     body = ("import os\nfrom pathlib import Path\nimport matplotlib.pyplot as plt\n"
-            "import labkit as lab\n"
+            "import aelix_analytics as analytics\n"
             "charts = Path(os.environ['LAB_RUN_DIR'], 'charts')\ncharts.mkdir(exist_ok=True)\n"
             "fig, ax = plt.subplots()\nax.plot([1, 2], [1, 2])\n" + CHART_CASES[case])
-    code, result = labkit(project, "run", write_script(project, f"24_{case}.py", body),
+    code, result = kit_cli(project, "run", write_script(project, f"24_{case}.py", body),
                           "--title", case)
     assert code == 0, result
     charts = result["run"]["charts"]
     assert [c["id"] for c in charts] == ["aux"], charts
     assert Path(next(iter(charts[0]["files"].values()))).name == "aux_.png", charts
-    code, rerun = labkit(project, "run", "--rerun-of", result["run"]["id"], "--title", "again")
+    code, rerun = kit_cli(project, "run", "--rerun-of", result["run"]["id"], "--title", "again")
     assert code == 0 and rerun["run"]["reproduction"]["verdict"] == "match", rerun["run"]
 
 
 CHART_BODY = ("import os\nfrom pathlib import Path\nimport matplotlib.pyplot as plt\n"
-              "import labkit as lab\n"
+              "import aelix_analytics as analytics\n"
               "charts = Path(os.environ['LAB_RUN_DIR'], 'charts')\ncharts.mkdir(exist_ok=True)\n"
               "fig, ax = plt.subplots()\nax.plot([1, 2], [1, 2])\n")
 
@@ -2226,8 +2226,8 @@ def test_a_chart_captured_under_a_reserved_title_and_named_later_leaves_one_char
     names the figure; main unlinked charts/aux.png with it, but the kit's file is charts/aux_.png, so
     the script's own charts/aux.png became a second chart and a reserved-name warning."""
     body = CHART_BODY + ("ax.set_title('aux')\nfig.savefig(charts / 'aux.png')\nfig.show()\n"
-                         "lab.chart(fig, 'named')\n")
-    code, result = labkit(project, "run", write_script(project, "50_discard.py", body),
+                         "analytics.chart(fig, 'named')\n")
+    code, result = kit_cli(project, "run", write_script(project, "50_discard.py", body),
                           "--title", "discard")
     assert code == 0, result
     assert [c["id"] for c in result["run"]["charts"]] == ["named"], result["run"]["charts"]
@@ -2238,18 +2238,18 @@ def test_a_chart_captured_under_a_reserved_title_and_named_later_leaves_one_char
 
 
 WRITTEN_AFTER_THE_DISCARD = {
-    "shown": "ax.set_title('aux')\nfig.show()\nlab.chart(fig, 'named')\n"
+    "shown": "ax.set_title('aux')\nfig.show()\nanalytics.chart(fig, 'named')\n"
              "fig.savefig(charts / 'aux.png')\n",
-    "plt_shown": "ax.set_title('aux')\nplt.show()\nlab.chart(fig, 'named')\n"
+    "plt_shown": "ax.set_title('aux')\nplt.show()\nanalytics.chart(fig, 'named')\n"
                  "fig.savefig(charts / 'aux.png')\n",
-    "replaced_by_another_kind": "import plotly.graph_objects as go\nlab.chart(fig, 'aux')\n"
-                                "lab.chart(go.Figure(go.Bar(y=[1, 2])), 'aux')\n"
+    "replaced_by_another_kind": "import plotly.graph_objects as go\nanalytics.chart(fig, 'aux')\n"
+                                "analytics.chart(go.Figure(go.Bar(y=[1, 2])), 'aux')\n"
                                 "fig.savefig(charts / 'aux.png')\n",
     # the same bytes before and after, with the first file's size and time: what a file system with
     # one-second times gives a rewrite within the second (review 8, rest-2 and honesty-6)
     "rewritten_as_it_was": "ax.set_title('aux')\nfig.savefig(charts / 'aux.png')\n"
                            "first = os.stat(charts / 'aux.png')\nfig.show()\n"
-                           "lab.chart(fig, 'named')\nfig.savefig(charts / 'aux.png')\n"
+                           "analytics.chart(fig, 'named')\nfig.savefig(charts / 'aux.png')\n"
                            "os.utime(charts / 'aux.png', ns=(first.st_atime_ns, first.st_mtime_ns))\n",
 }
 
@@ -2261,7 +2261,7 @@ def test_a_file_written_at_a_reserved_id_s_own_name_after_its_chart_went_is_a_ch
     had unlinked charts/aux.png itself, so a file the script wrote there afterwards was a chart of its
     own. Revision 3.1 kept the name known for good and dropped that file: neither a chart nor a
     warning, and main's records of it reran as `missing`."""
-    code, result = labkit(project, "run", write_script(project, f"52_{case}.py",
+    code, result = kit_cli(project, "run", write_script(project, f"52_{case}.py",
                                                        CHART_BODY + WRITTEN_AFTER_THE_DISCARD[case]),
                           "--title", case)
     assert code == 0, result
@@ -2269,7 +2269,7 @@ def test_a_file_written_at_a_reserved_id_s_own_name_after_its_chart_went_is_a_ch
     file_chart = charts.get("aux-2" if case == "replaced_by_another_kind" else "aux")
     assert file_chart is not None and file_chart["kind"] == "file", result["run"]["charts"]
     assert file_chart["files"] == {"png": f"runs/{result['run']['id']}/charts/aux.png"}
-    code, rerun = labkit(project, "run", "--rerun-of", result["run"]["id"], "--title", "again")
+    code, rerun = kit_cli(project, "run", "--rerun-of", result["run"]["id"], "--title", "again")
     assert code == 0 and rerun["run"]["reproduction"]["verdict"] == "match", rerun["run"]
 
 
@@ -2298,19 +2298,19 @@ def _as_main_recorded(project: Path, run_id: str, *, image: str, extra_chart: bo
 
 MAIN_RECORDED = {
     # the kit's render replaced the script's earlier file at the chart's own name: match
-    "savefig_then_chart": (CHART_BODY + "fig.savefig(charts / 'aux.png')\nlab.chart(fig, 'aux')\n",
+    "savefig_then_chart": (CHART_BODY + "fig.savefig(charts / 'aux.png')\nanalytics.chart(fig, 'aux')\n",
                            {"image": "kit"}, "match"),
     # main's chart was the script's later overwrite; this kit records its own render: D9 states it
-    "chart_then_savefig": (CHART_BODY + "lab.chart(fig, 'aux')\nfig.savefig(charts / 'aux.png')\n",
+    "chart_then_savefig": (CHART_BODY + "analytics.chart(fig, 'aux')\nfig.savefig(charts / 'aux.png')\n",
                            {"image": "script"}, "mismatch"),
     # an automatic capture under a reserved title, named later: main unlinked its file, and so does
     # this kit now, so the run's directory is main's already
     "captured_then_named": (CHART_BODY + "ax.set_title('aux')\nfig.savefig(charts / 'aux.png')\n"
-                                         "fig.show()\nlab.chart(fig, 'named')\n",
+                                         "fig.show()\nanalytics.chart(fig, 'named')\n",
                             {"image": "as_recorded"}, "match"),
     # a script that writes the kit's portable name itself: main recorded two charts, this one
     "script_writes_the_portable_name": (CHART_BODY + "fig.savefig(charts / 'aux_.png')\n"
-                                                     "lab.chart(fig, 'aux')\n",
+                                                     "analytics.chart(fig, 'aux')\n",
                                         {"image": "kit", "extra_chart": True}, "mismatch"),
     # the script's file written after the automatic capture was named: a chart of its own on main,
     # recorded the same way here, so nothing to rewrite (review 7, output-1)
@@ -2329,14 +2329,14 @@ def test_a_run_recorded_under_main_s_chart_names_reruns_as_d9_says(project, case
     """Review 6, ONC-9: the D9 test only compared this kit with itself. Here the run is rewritten
     into main's layout first, and each rerun verdict is the one D9 states, exceptions included."""
     body, layout, verdict = MAIN_RECORDED[case]
-    code, result = labkit(project, "run", write_script(project, f"51_{case}.py", body),
+    code, result = kit_cli(project, "run", write_script(project, f"51_{case}.py", body),
                           "--title", case)
     assert code == 0, result
     run_id = result["run"]["id"]
     if layout["image"] != "as_recorded":
         _as_main_recorded(project, run_id, image=layout["image"],
                           extra_chart=layout.get("extra_chart", False))
-    code, rerun = labkit(project, "run", "--rerun-of", run_id, "--title", "again")
+    code, rerun = kit_cli(project, "run", "--rerun-of", run_id, "--title", "again")
     assert code == 0, rerun
     assert rerun["run"]["reproduction"]["verdict"] == verdict, rerun["run"]["reproduction"]
 
@@ -2347,13 +2347,13 @@ def test_a_run_recorded_under_main_s_chart_names_reruns_as_d9_says(project, case
                                       "report/x.py", "\u00e9:/evil.py", "1:/evil.py", "RUNS/x.py",
                                       ".Venv/x.py"])
 def test_a_rerun_refuses_a_recorded_script_path_on_every_platform(project, recorded):
-    code, one = labkit(project, "run", write_script(project, "25_ok.py", "x = 1\n"), "--title", "x")
+    code, one = kit_cli(project, "run", write_script(project, "25_ok.py", "x = 1\n"), "--title", "x")
     assert code == 0, one
     run_json = Path(project) / "runs" / one["run"]["id"] / "run.json"
     record = json.loads(run_json.read_text(encoding="utf-8"))
     record["script"]["path"] = recorded
     run_json.write_text(json.dumps(record), encoding="utf-8")
-    code, result = labkit(project, "run", "--rerun-of", one["run"]["id"], "--title", "x")
+    code, result = kit_cli(project, "run", "--rerun-of", one["run"]["id"], "--title", "x")
     assert code == 1 and result["error"]["code"] == "rerun_snapshot", result
 
 
@@ -2366,7 +2366,7 @@ def test_a_new_run_of_a_path_no_record_could_rerun_is_refused(project):
     drive_like = Path(project) / "c:"
     drive_like.mkdir()
     (drive_like / "a.py").write_text("x = 1\n", encoding="utf-8")
-    code, result = labkit(project, "run", "c:/a.py", "--title", "drive")
+    code, result = kit_cli(project, "run", "c:/a.py", "--title", "drive")
     assert code == 1 and result["error"]["code"] == "script_location", result
 
 
@@ -2385,7 +2385,7 @@ def test_a_new_run_of_a_name_another_platform_reads_differently_is_refused_truth
     path = Path(project) / rel
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("x = 1\n", encoding="utf-8")
-    code, result = labkit(project, "run", rel, "--title", "name")
+    code, result = kit_cli(project, "run", rel, "--title", "name")
     assert code == 1 and result["error"]["code"] == "script_location", result
     in_runs = os.path.samefile(path.parent, Path(project) / "runs")
     expected = "inside a managed directory" if in_runs else "every platform"
@@ -2398,9 +2398,9 @@ def test_a_dataset_name_is_lower_case_everywhere(project, tmp_path):
     given in upper case is refused, and a file named in upper case is imported under its lower-case
     stem, which here is taken."""
     source = write_sales_csv(tmp_path / "Sales.csv")
-    code, result = labkit(project, "import", source, "--name", "Sales")
+    code, result = kit_cli(project, "import", source, "--name", "Sales")
     assert code == 1 and result["error"]["code"] == "dataset_name", result
-    code, result = labkit(project, "import", source)
+    code, result = kit_cli(project, "import", source)
     assert code == 1 and result["error"]["code"] == "dataset_exists", result
     assert "data/raw/sales.parquet" in result["error"]["message"], result
 
@@ -2420,7 +2420,7 @@ def test_a_project_in_a_case_sensitive_windows_directory_reads_runs_in_another_c
     assert done.returncode == 0, (done.stdout, done.stderr)
     root = flagged / "proj"
     core.init_project(root, title="대소문자", goal="대소문자 구분", actor="test",
-                      template_dir=KIT / "labkit" / "template")
+                      template_dir=KIT / "aelix_analytics" / "template")
     for directory in (root, root / "runs"):
         (directory / "Case-Probe").write_bytes(b"upper")
         (directory / "case-probe").write_bytes(b"lower")
@@ -2432,7 +2432,7 @@ def test_a_project_in_a_case_sensitive_windows_directory_reads_runs_in_another_c
     path.parent.mkdir()
     path.write_text("x = 1\n", encoding="utf-8")
     assert not os.path.samefile(path.parent, root / "runs")
-    code, result = labkit(root, "run", "RUNS/x.py", "--title", "case")
+    code, result = kit_cli(root, "run", "RUNS/x.py", "--title", "case")
     assert code == 1 and result["error"]["code"] == "script_location", result
     assert "every platform" in result["error"]["message"], result
 
@@ -2472,7 +2472,7 @@ def test_a_rerun_through_a_link_into_a_managed_directory_is_refused(project, kin
     first = json.loads((Path(project) / "runs" / run_id / "run.json").read_text(encoding="utf-8"))
     record_observation(f"link-into-runs-{kind}", {key: first.get(key)
                                                   for key in ("outputs", "warnings")})
-    code, result = labkit(project, "run", "--rerun-of", run_id, "--title", "link")
+    code, result = kit_cli(project, "run", "--rerun-of", run_id, "--title", "link")
     assert code == 1 and result["error"]["code"] == "rerun_snapshot", result
 
 
@@ -2484,7 +2484,7 @@ def test_a_rerun_through_a_link_loop_runs_as_on_main(project, kind):
     target, which here is inside the project too, so that rerun runs as well."""
     _link_loop(kind, Path(project) / "loop")
     run_id = _recorded_as(project, "loop/x.py")
-    code, result = labkit(project, "run", "--rerun-of", run_id, "--title", "loop")
+    code, result = kit_cli(project, "run", "--rerun-of", run_id, "--title", "loop")
     assert code == 0 and result["run"]["status"] == "ok", result
 
 
@@ -2492,12 +2492,12 @@ def test_a_script_inside_a_managed_directory_is_refused_as_such(project):
     path = Path(project) / "report" / "x.py"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("x = 1\n", encoding="utf-8")
-    code, result = labkit(project, "run", "report/x.py", "--title", "managed")
+    code, result = kit_cli(project, "run", "report/x.py", "--title", "managed")
     assert code == 1 and "inside a managed directory" in result["error"]["message"], result
 
 
 def _recorded_as(project, script_path: str) -> str:
-    code, one = labkit(project, "run", write_script(project, "44_ok.py", "x = 1\n"), "--title", "x")
+    code, one = kit_cli(project, "run", write_script(project, "44_ok.py", "x = 1\n"), "--title", "x")
     assert code == 0, one
     run_json = Path(project) / "runs" / one["run"]["id"] / "run.json"
     record = json.loads(run_json.read_text(encoding="utf-8"))
@@ -2516,7 +2516,7 @@ def test_a_rerun_does_not_follow_a_link_out_of_the_project(project, tmp_path, ki
     (outside / "evilmod.py").write_text("print('IMPORTED outside module')\n", encoding="utf-8")
     dir_link(kind, Path(project) / "lnk", outside)
     run_id = _recorded_as(project, "lnk/x.py")
-    code, result = labkit(project, "run", "--rerun-of", run_id, "--title", "link")
+    code, result = kit_cli(project, "run", "--rerun-of", run_id, "--title", "link")
     assert code == 1 and result["error"]["code"] == "rerun_snapshot", result
 
 
@@ -2533,13 +2533,13 @@ def test_a_run_through_a_linked_data_directory_is_recorded_as_measured(project, 
     elsewhere.parent.mkdir()
     shutil.move(data, elsewhere)
     dir_link(kind, data, elsewhere)
-    body = "import labkit as lab\nlab.save(lab.read('sales').head(5), 'part')\n"
-    code, saved = labkit(project, "run", write_script(project, "95_save.py", body),
+    body = "import aelix_analytics as analytics\nanalytics.save(analytics.read('sales').head(5), 'part')\n"
+    code, saved = kit_cli(project, "run", write_script(project, "95_save.py", body),
                          "--title", "save")
     assert code == 0 and saved["run"]["status"] == "ok", saved
     assert (elsewhere / "derived" / "part.parquet").is_file()
-    body = "import labkit as lab\nprint(len(lab.read('part')))\n"
-    code, read = labkit(project, "run", write_script(project, "96_read.py", body),
+    body = "import aelix_analytics as analytics\nprint(len(analytics.read('part')))\n"
+    code, read = kit_cli(project, "run", write_script(project, "96_read.py", body),
                         "--title", "read")
     assert code == 0 and read["run"]["status"] == "ok", read
     datasets = core.list_datasets(core.Project(project))
@@ -2555,7 +2555,7 @@ def test_a_snapshot_that_cannot_be_written_leaves_no_run_behind(project):
     after the run directory existed, leaving it without run.json and the CLI without a JSON line."""
     run_id = _recorded_as(project, "scripts/" + "a" * 300 + ".py")
     before = sorted(p.name for p in (Path(project) / "runs").iterdir())
-    code, result = labkit(project, "run", "--rerun-of", run_id, "--title", "long")
+    code, result = kit_cli(project, "run", "--rerun-of", run_id, "--title", "long")
     assert code == 1 and result["error"]["code"] == "snapshot_failed", result
     assert result["error"]["hint"] == "shorten the script's path", result
     assert sorted(p.name for p in (Path(project) / "runs").iterdir()) == before
@@ -2564,7 +2564,7 @@ def test_a_snapshot_that_cannot_be_written_leaves_no_run_behind(project):
 def test_a_name_too_long_is_told_where_the_error_does_not_say_so():
     """Measured on Windows: open() there reports a name longer than NTFS holds with a C runtime
     errno and no Windows error, and the hint said to check that runs/ could be written."""
-    from labkit import runner  # noqa: PLC0415
+    from aelix_analytics import runner  # noqa: PLC0415
 
     run = Path("runs", "20260924-000000-a", "code")
     long_name = run / "scripts" / ("a" * 300 + ".py")
@@ -2593,7 +2593,7 @@ def test_a_run_record_that_cannot_be_written_leaves_no_run_behind(project, monke
     """Review 7, output-2: a disk that filled one block after the snapshot failed the running
     record's write outside the snapshot's `try`, with a traceback, no JSON line, and a run directory
     holding only code/."""
-    from labkit import runner  # noqa: PLC0415
+    from aelix_analytics import runner  # noqa: PLC0415
 
     real_write_json = core.write_json
 
@@ -2617,7 +2617,7 @@ def test_a_run_record_that_cannot_be_written_leaves_no_run_behind(project, monke
 def test_a_run_directory_the_kit_cannot_list_is_still_removed(project, monkeypatch):
     """Review 7, output-2: with a umask that leaves the new run directory unreadable to the kit
     itself, rmtree could not list it and the refused run left it behind."""
-    from labkit import runner  # noqa: PLC0415
+    from aelix_analytics import runner  # noqa: PLC0415
 
     real_new_run_dir = core.new_run_dir
 
@@ -2651,11 +2651,11 @@ def test_two_chart_ids_that_differ_keep_two_files(project):
     # `con-file` is an ordinary id and has to keep its own file. If the reserved one were mapped
     # onto it the two charts would overwrite each other's image and plotted data, and a rerun
     # comparison would then report two different charts as the same.
-    body = ("import matplotlib.pyplot as plt\nimport polars as pl\nimport labkit as lab\n"
+    body = ("import matplotlib.pyplot as plt\nimport polars as pl\nimport aelix_analytics as analytics\n"
             "for cid, y in (('con', 1), ('con-file', 2)):\n"
             "    fig, ax = plt.subplots()\n    ax.plot([1, 2], [y, y])\n"
-            "    lab.chart(fig, cid, title=cid, data=pl.DataFrame({'y': [y]}))\n")
-    code, result = labkit(project, "run", write_script(project, "20_reserved.py", body),
+            "    analytics.chart(fig, cid, title=cid, data=pl.DataFrame({'y': [y]}))\n")
+    code, result = kit_cli(project, "run", write_script(project, "20_reserved.py", body),
                           "--title", "예약 이름 차트")
     assert code == 0, result
     charts = {c["id"]: c for c in result["run"]["charts"]}
@@ -2671,10 +2671,10 @@ def test_two_chart_ids_that_differ_keep_two_files(project):
 def test_a_title_that_slugifies_to_a_device_name_keeps_the_id_it_always_had(project):
     # A generated id is still `script::id` identity in the records, so it is not rewritten either:
     # an unchanged historical script must not start a second chart history.
-    body = ("import matplotlib.pyplot as plt\nimport labkit as lab\n"
+    body = ("import matplotlib.pyplot as plt\nimport aelix_analytics as analytics\n"
             "fig, ax = plt.subplots()\nax.plot([1, 2], [1, 2])\n"
-            "lab.chart(fig, title='CON')\n")
-    code, result = labkit(project, "run", write_script(project, "22_generated.py", body),
+            "analytics.chart(fig, title='CON')\n")
+    code, result = kit_cli(project, "run", write_script(project, "22_generated.py", body),
                           "--title", "생성된 id")
     assert code == 0, result
     (chart,) = result["run"]["charts"]
@@ -2733,7 +2733,7 @@ def test_a_tool_running_across_a_project_switch_is_recorded_where_it_ends(tmp_pa
     module = load_extension(monkeypatch, "ext_switch_mid_tool")
     roots = {name: tmp_path / name for name in ("A", "B")}
     for name, root in roots.items():
-        core.init_project(root, title=name, actor="test", template_dir=KIT / "labkit" / "template")
+        core.init_project(root, title=name, actor="test", template_dir=KIT / "aelix_analytics" / "template")
     asyncio.run(module.lab_command(f"use {roots['A']}"))
     module.on_tool_start(types.SimpleNamespace(tool_call_id="t1", tool_name="lab_note",
                                                args={"kind": "finding", "text": "A에서 시작"}), None)
@@ -2947,12 +2947,86 @@ def test_loading_the_kit_pulls_no_analysis_library_into_the_host_process(monkeyp
         f"loaded = [n for n in {ANALYSIS_MODULES!r} if n in sys.modules]\n"
         "print('LOADED:' + ','.join(loaded))\n"
         "print('KIT_OK:' + mod.core.SCHEMA_RUN)\n"
+        "print('OURS:' + ','.join(sorted(n for n in sys.modules if n.split('.')[0] == 'aelix_analytics')))\n"
     )
     proc = subprocess.run([sys.executable, "-c", code], capture_output=True, timeout=120,
                           env=kit_env(), **_platform.text_kwargs())
     assert "KIT_OK:lab.run/1" in proc.stdout, proc.stdout + proc.stderr
     loaded = next(line for line in proc.stdout.splitlines() if line.startswith("LOADED:"))
     assert loaded == "LOADED:", f"the aelix process would have imported {loaded[len('LOADED:'):]}"
+    # From a checkout the package itself is not imported at all: core and _platform come from its
+    # directory under the synthetic name (Issue #9: the kit is now the package aelix_analytics).
+    assert "OURS:" in proc.stdout.splitlines(), proc.stdout
+
+
+def test_importing_the_package_imports_nothing_of_the_kit():
+    """Issue #9: the kit is the package aelix_analytics, and aelix imports that package when it loads
+    the installed extension, as the `analytics` command does for cli and _install. In the
+    development environment, where the analysis libraries are installed, importing the package and
+    those two modules — and asking it for a name it does not have — brings in no kit module and no
+    analysis library. `__version__` reads core, which is standard library only (PEP 562)."""
+    code = (
+        "import json, sys\n"
+        "import aelix_analytics\n"
+        "from aelix_analytics import _install, cli\n"
+        "missing = hasattr(aelix_analytics, 'no_such_name')\n"
+        "def ours(): return sorted(n for n in sys.modules if n.split('.')[0] == 'aelix_analytics')\n"
+        f"def analysis(): return sorted(n for n in sys.modules if n.split('.')[0] in {ANALYSIS_MODULES!r})\n"
+        "seen = {'missing': missing, 'ours': ours(), 'analysis': analysis()}\n"
+        "seen['version'] = aelix_analytics.__version__\n"
+        "seen.update(after_version=ours(), analysis_after_version=analysis())\n"
+        "print(json.dumps(seen))\n")
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, timeout=120,
+                          env=kit_env(), **_platform.text_kwargs())
+    assert proc.returncode == 0, proc.stderr
+    seen = json.loads(proc.stdout.splitlines()[-1])
+    assert seen["missing"] is False
+    assert seen["ours"] == ["aelix_analytics", "aelix_analytics._install", "aelix_analytics.cli"]
+    assert seen["analysis"] == [] and seen["analysis_after_version"] == []
+    assert seen["version"] == core.KIT_VERSION
+    assert seen["after_version"] == ["aelix_analytics", "aelix_analytics._install",
+                                     "aelix_analytics._platform", "aelix_analytics.cli",
+                                     "aelix_analytics.core"]
+
+
+@pytest.mark.parametrize("command, flagged", [
+    ("python -m aelix_analytics --project . status", False),
+    ("uv run --project . python -m aelix_analytics run scripts/x.py --title t", False),
+    ("python -c 'import aelix_analytics as analytics; print(analytics.datasets())'", False),
+    ("python -c 'from aelix_analytics import core'", False),
+    ('uv run python -c "import aelix_analytics as analytics; print(analytics.datasets())"', False),
+    ("python -c 'import os; from aelix_analytics.core import Project'", False),
+    ("python - <<'EOF'\nimport aelix_analytics as analytics\nprint(analytics.datasets())\nEOF", False),
+    ("python3.12 -X utf8 -m aelix_analytics status", False),
+    ("bin/lab status", False),
+    # A path or a project name that holds the word is not the kit (Issue #9 design review).
+    ("cd ~/work/aelix_analytics-trials && python scripts/x.py", True),
+    ("python /opt/venv/lib/site-packages/aelix_analytics/kit/x.py", True),
+    ("python scripts/aelix_analytics_tools.py", True),
+    ("python scripts/x.py", True),
+    # Nor is the word in a comment or a string, or `-m` given to the script (Issue #9 PR-1 review).
+    ("python scripts/analyze.py # import aelix_analytics", True),
+    ("python -c 'print(\"import aelix_analytics\")'", True),
+    ("python -u scripts/x.py -m aelix_analytics", True),
+    ("ls -la", False),
+])
+def test_python_via_bash_leaves_out_only_the_kit_itself(monkeypatch, tmp_path, command, flagged):
+    module = load_extension(monkeypatch, "ext_python_via_bash")
+    project = core.Project(core.init_project(tmp_path / "p", title="t", actor="test",
+                                             template_dir=KIT / "aelix_analytics" / "template").root)
+    _, flags = module.summarize_call("bash", {"command": command}, project)
+    assert ("python_via_bash" in flags) is flagged, (command, flags)
+
+
+def test_the_kit_check_of_a_bash_command_takes_time_linear_in_its_length(monkeypatch):
+    """KIT_IN_SHELL reads each option one way and a statement start within its line, so a long
+    command that is not the kit fails fast: a pattern with two readings of `-Xa` took time
+    exponential in the options, and one whose statement start crossed lines, quadratic in them."""
+    module = load_extension(monkeypatch, "ext_kit_in_shell_time")
+    for command in ("python" + " -Xa" * 40 + " x", "python" + " -X" * 40 + " x", "\n" * 50000 + "x"):
+        start = time.monotonic()
+        assert module.KIT_IN_SHELL.search(command) is None
+        assert time.monotonic() - start < 1.0, command[:40]
 
 
 def test_a_kit_that_is_not_there_is_a_clear_error(monkeypatch, tmp_path):
@@ -2965,9 +3039,9 @@ def test_a_kit_that_is_not_there_is_a_clear_error(monkeypatch, tmp_path):
 def test_a_failed_kit_load_leaves_no_module_behind(monkeypatch, tmp_path):
     # core imports its sibling before it fails, which is the case the cleanup exists for.
     kit = tmp_path / "kit"
-    (kit / "labkit").mkdir(parents=True)
-    (kit / "labkit" / "_platform.py").write_text("X = 1\n", encoding="utf-8")
-    (kit / "labkit" / "core.py").write_text("from . import _platform\nraise RuntimeError('broken')\n",
+    (kit / "aelix_analytics").mkdir(parents=True)
+    (kit / "aelix_analytics" / "_platform.py").write_text("X = 1\n", encoding="utf-8")
+    (kit / "aelix_analytics" / "core.py").write_text("from . import _platform\nraise RuntimeError('broken')\n",
                                             encoding="utf-8")
     monkeypatch.setenv("AELIX_LAB_KIT", str(kit))
     with pytest.raises(RuntimeError, match="broken"):
@@ -2979,11 +3053,11 @@ def test_the_cli_writes_utf8_whatever_the_locale_says(project):
     # Review 4, TV-12: nothing noticed the stream pinning being removed. A usage error that quotes
     # the argument has to survive too, which is why it happens before argument parsing.
     env = kit_env(PYTHONIOENCODING="ascii")  # the project's title is Korean (see the fixture)
-    done = subprocess.run([sys.executable, "-m", "labkit", "--project", str(project), "status"],
+    done = subprocess.run([sys.executable, "-m", "aelix_analytics", "--project", str(project), "status"],
                           capture_output=True, env=env, timeout=120, **_platform.text_kwargs())
     assert done.returncode == 0, done.stderr
     assert "테스트 분석" in done.stdout
-    bad = subprocess.run([sys.executable, "-m", "labkit", "--project", str(project), "note", "발견", "x"],
+    bad = subprocess.run([sys.executable, "-m", "aelix_analytics", "--project", str(project), "note", "발견", "x"],
                          capture_output=True, env=env, timeout=120, **_platform.text_kwargs())
     assert bad.returncode == 2 and "발견" in bad.stderr, bad.stderr
 
@@ -3078,7 +3152,7 @@ def test_an_aborted_kit_command_is_asked_the_platform_s_way_and_not_killed(monke
     ext = load_extension(monkeypatch, "ext_abort")
     seen = _ProcessesSeen(ext.core.PLATFORM.processes)
     request = ext._CancelRequest()
-    argv = [sys.executable, "-m", "labkit", "--project", str(project), "run",
+    argv = [sys.executable, "-m", "aelix_analytics", "--project", str(project), "run",
             write_script(project, "34_abort.py", SLEEPER), "--title", "중단"]
     _, elapsed = _spawned(ext, argv, project, kit_env(LAB_CANCEL_FILE=str(request.path)), 120,
                           seen, request, cancels=(0,), wait_first=lambda: _wait_for_running_run(project))
@@ -3089,7 +3163,7 @@ def test_an_aborted_kit_command_is_asked_the_platform_s_way_and_not_killed(monke
     assert run["status"] == "cancelled", run
 
 
-# A stand-in for `uv run ... python -m labkit`: it polls the request the way the kit's watcher does,
+# A stand-in for `uv run ... python -m aelix_analytics`: it polls the request the way the kit's watcher does,
 # every CANCEL_POLL_SECONDS, after a start-up delay like uv's own, and says what it saw in a marker.
 STAND_IN = """\
 import json, os, sys, time
@@ -3374,7 +3448,7 @@ def test_lab_use_writes_the_trust_off_the_event_loop(monkeypatch, project):
 MAIN_WITH_THE_WATCHER = """\
 import os, signal, sys, threading, time
 from pathlib import Path
-from labkit import __main__ as cli, _platform, core
+from aelix_analytics import __main__ as cli, _platform, core
 
 def deliver():
     if not callable(signal.getsignal(signal.SIGINT)):
@@ -3437,7 +3511,7 @@ def test_main_hides_the_request_from_the_command_and_stops_watching_when_it_retu
 
 RAISE_SIGINT = """\
 import signal, sys, time
-from labkit import _platform
+from aelix_analytics import _platform
 got = []
 mode = sys.argv[1]
 if mode == "ignored":
@@ -3556,7 +3630,7 @@ def test_a_cancel_while_the_capture_hooks_install_stops_the_script(project, monk
     Installing the capture hooks used to sit outside the interrupting scope, so a cancel arriving
     there set the flag and the script ran anyway — the record said `cancelled` while its side
     effects were on disk."""
-    from labkit import capture, runner  # noqa: PLC0415 - needs the analysis libraries
+    from aelix_analytics import capture, runner  # noqa: PLC0415 - needs the analysis libraries
 
     real_install = capture.install
 
@@ -3581,7 +3655,7 @@ def test_a_cancel_before_the_script_starts_stops_the_run_before_it(project, monk
     """A cancel handled while only the flag-only scope is in place — here at the redirection of
     the run's output — used to set the flag and let the script run to the end under a record that
     said `cancelled` (review 4, RIO-1)."""
-    from labkit import runner  # noqa: PLC0415 - needs the analysis libraries
+    from aelix_analytics import runner  # noqa: PLC0415 - needs the analysis libraries
 
     real = runner._redirected
 
@@ -3603,7 +3677,7 @@ def test_a_cancel_before_the_script_starts_stops_the_run_before_it(project, monk
 def test_a_cancel_while_the_run_is_being_set_up_is_recorded(project, monkeypatch):
     # Before the flag-only scope covered the run's setup, this raised KeyboardInterrupt out of
     # execute and left a record that said `running`.
-    from labkit import runner  # noqa: PLC0415
+    from aelix_analytics import runner  # noqa: PLC0415
 
     real = runner.tree_stat
     calls = []
@@ -3635,7 +3709,7 @@ def test_a_cancel_while_the_run_is_being_set_up_is_recorded(project, monkeypatch
 def test_a_cancel_while_an_input_is_hashed_records_no_half_made_input(project, monkeypatch):
     """Review 6, SG-7: the input entry used to be created before its hash was taken, so a cancel
     during the hash recorded an input with no hash and no source."""
-    from labkit import runner  # noqa: PLC0415
+    from aelix_analytics import runner  # noqa: PLC0415
 
     real_sha = core.HashCache.sha
 
@@ -3653,7 +3727,7 @@ def test_a_cancel_while_an_input_is_hashed_records_no_half_made_input(project, m
 
 
 def test_a_cancel_just_after_the_import_hook_went_in_leaves_no_hook_behind(project, monkeypatch):
-    from labkit import capture, runner  # noqa: PLC0415
+    from aelix_analytics import capture, runner  # noqa: PLC0415
 
     real = capture.install
 
@@ -3679,7 +3753,7 @@ def test_a_signal_at_any_handler_swap_leaves_the_handlers_and_the_record_intact(
     and RIO-5). A signal is delivered only into the kit's own handler or the CLI's default SIGINT
     handler: the default action would end the test runner, and a harness's handler — pytest-timeout
     uses SIGALRM (review 5, critic-2) — is not what is under test."""
-    from labkit import runner  # noqa: PLC0415
+    from aelix_analytics import runner  # noqa: PLC0415
 
     real_signal = signal.signal
     script = write_script(project, "29_swaps.py", "x = 1\n")
@@ -3723,7 +3797,7 @@ def _kit_code_objects():
     """Every function of runner.py and _platform.py, with the bodies of the generator-based
     context managers a run goes through (runner._redirected, the file lock, capture.paused), which
     live behind contextlib's wrapper."""
-    from labkit import capture, runner  # noqa: PLC0415
+    from aelix_analytics import capture, runner  # noqa: PLC0415
 
     found, stack = set(), []
     for module in (runner, _platform, capture, core):
@@ -3767,7 +3841,7 @@ def test_a_signal_at_sampled_check_points_of_a_run_never_loses_its_record(tmp_pa
     exception table included, and stopped short of the record write and the guard's exit. Each run
     counts its own points here, and the sample reaches past the longest run counted. The full
     sweep over every point is a probe (Issue #8 evidence); this keeps a sample in the suite."""
-    from labkit import report, runner  # noqa: PLC0415
+    from aelix_analytics import report, runner  # noqa: PLC0415
 
     sig = getattr(signal, signame)
     monkeypatch.setattr(report, "build", lambda project_, **kw: {})  # not under test, and slow
@@ -3797,7 +3871,7 @@ def test_a_signal_at_sampled_check_points_of_a_run_never_loses_its_record(tmp_pa
         # A project per run: in a shared one each run goes through more points than the last,
         # and a sample fixed in advance would drift off the end of the shorter runs.
         project_ = core.init_project(tmp_path / f"p{n}", title="t", actor="test",
-                                     template_dir=KIT / "labkit" / "template")
+                                     template_dir=KIT / "aelix_analytics" / "template")
         (project_.scripts / "a.py").write_text("x = 1\n", encoding="utf-8")
         injector.arm(target)
         delivered_at.clear()
@@ -3854,7 +3928,7 @@ def test_a_signal_at_sampled_check_points_of_a_run_never_loses_its_record(tmp_pa
 def test_the_script_s_own_streams_are_taken_back_when_it_ends(tmp_path):
     """_exec_script puts back all four names a script may replace, the interpreter's originals as
     well (review 6, CH-7: a mutant restoring two went unnoticed)."""
-    from labkit import runner  # noqa: PLC0415
+    from aelix_analytics import runner  # noqa: PLC0415
 
     before = tuple(getattr(sys, name) for name in runner.STREAM_NAMES)
     body = b"import io, sys\nfor name in ('stdout', 'stderr', '__stdout__', '__stderr__'):\n" \
@@ -3872,7 +3946,7 @@ def test_the_output_redirection_is_undone_even_when_a_stream_raises_on_flush(tmp
     """Review 6, ONC-12: the end of a run flushes whatever the four names hold and then restores the
     names and the descriptors. A stream installed after the script — by a thread of it, say —
     that raises a BaseException on flush must stop neither the restore nor the caller."""
-    from labkit import runner  # noqa: PLC0415
+    from aelix_analytics import runner  # noqa: PLC0415
 
     names = runner.STREAM_NAMES
     before = tuple(getattr(sys, name) for name in names)
@@ -3905,7 +3979,7 @@ def test_the_run_streams_are_layered_as_the_interpreter_s_own(project, unbuffere
     block-buffered and a forced end lost what main kept. And they carry CPython's `mode` and names
     (ONC-14)."""
     env = kit_env(**({"PYTHONUNBUFFERED": "1"} if unbuffered else {}))
-    done = subprocess.run([sys.executable, "-m", "labkit", "--project", str(project), "run",
+    done = subprocess.run([sys.executable, "-m", "aelix_analytics", "--project", str(project), "run",
                            write_script(project, f"46_layers_{unbuffered}.py", STREAM_LAYERS),
                            "--title", "layers"], capture_output=True, env=env, timeout=120,
                           **_platform.text_kwargs())
@@ -3928,7 +4002,7 @@ def test_a_forced_end_loses_no_more_of_the_logs_than_main_did(project, unbuffere
     """What main kept when a run was killed: stderr always (line-buffered), stdout only when the
     interpreter wrote through (review 6, ONC-1: under PYTHONUNBUFFERED both were lost)."""
     env = kit_env(**({"PYTHONUNBUFFERED": "1"} if unbuffered else {}))
-    proc = subprocess.Popen([sys.executable, "-m", "labkit", "--project", str(project), "run",
+    proc = subprocess.Popen([sys.executable, "-m", "aelix_analytics", "--project", str(project), "run",
                              write_script(project, f"47_killed_{unbuffered}.py", KILLED_MID_RUN),
                              "--title", "killed"], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                             env=env, **_platform.detect().processes.spawn_kwargs())
@@ -3951,7 +4025,7 @@ def test_a_forced_end_loses_no_more_of_the_logs_than_main_did(project, unbuffere
 
 REFERENCES_HOST = """\
 import sys, threading, time, types
-from labkit import core, runner
+from aelix_analytics import core, runner
 project = core.Project(sys.argv[1])
 hostlib = types.ModuleType("hostlib")
 hostlib.out = sys.stdout  # a host library keeps the stream it found
@@ -4008,7 +4082,7 @@ def test_output_through_streams_kept_from_before_the_run_reaches_the_log(project
 def test_a_run_stream_over_a_stream_that_is_not_a_text_wrapper_takes_cpython_s_defaults():
     """A host's StringIO, or None under pythonw: CPython's defaults for a file, stdout
     block-buffered and stderr line-buffered (review 7, output-6)."""
-    from labkit import runner  # noqa: PLC0415
+    from aelix_analytics import runner  # noqa: PLC0415
 
     streams = [runner._run_stream(1, io.StringIO()), runner._run_stream(2, None)]
     try:
@@ -4028,7 +4102,7 @@ def test_a_script_whose_stream_raises_on_flush_cannot_take_the_result_line(proje
             "    def write(self, s): return self.inner.write(s)\n"
             "    def flush(self): raise KeyboardInterrupt\n"
             "sys.__stdout__ = Tee(sys.__stdout__)\nprint('SCRIPT')\n")
-    code, result = labkit(project, "run", write_script(project, "30_tee.py", body),
+    code, result = kit_cli(project, "run", write_script(project, "30_tee.py", body),
                           "--title", "흘리는 스트림")
     assert code == 0 and result["run"]["status"] == "ok", result
     assert "SCRIPT" in result["stdout_tail"]
@@ -4036,7 +4110,7 @@ def test_a_script_whose_stream_raises_on_flush_cannot_take_the_result_line(proje
 
 HOST = """\
 import contextlib, io, sys
-from labkit import core, runner
+from aelix_analytics import core, runner
 project, mode = core.Project(sys.argv[1]), sys.argv[2]
 if mode == "refusing":
     # Refuses while fd 1 is still the host's (a full non-blocking pipe, a reader that has gone),
@@ -4098,7 +4172,7 @@ def _ask_a_run_to_stop(project, tmp_path, name, body, *, wait=0.5):
     (exit code, the JSON result, seconds from the ask to the exit)."""
     request = tmp_path / f"{name}.cancel"
     proc = subprocess.Popen(
-        [sys.executable, "-m", "labkit", "--project", str(project), "run",
+        [sys.executable, "-m", "aelix_analytics", "--project", str(project), "run",
          write_script(project, f"{name}.py", body), "--title", name],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=kit_env(LAB_CANCEL_FILE=str(request)),
         **_platform.detect().processes.spawn_kwargs(), **_platform.text_kwargs())
@@ -4147,7 +4221,7 @@ def test_a_cancel_requested_before_the_command_started_is_not_missed(project, tm
     request = tmp_path / "cancel"
     request.touch()
     done = subprocess.run(
-        [sys.executable, "-m", "labkit", "--project", str(project), "run",
+        [sys.executable, "-m", "aelix_analytics", "--project", str(project), "run",
          write_script(project, "35_early.py", "print('ran')\n"), "--title", "미리 요청"],
         capture_output=True, env=kit_env(LAB_CANCEL_FILE=str(request)), timeout=60,
         **_platform.text_kwargs())
@@ -4165,7 +4239,7 @@ def test_output_written_through_the_original_stdout_still_reaches_the_log(projec
     Otherwise the bytes surface after the descriptors are restored and land in front of the CLI's
     own JSON line, which is the line the extension parses."""
     body = "import sys\nsys.__stdout__.write('BUFFERED-OUTPUT')\n"
-    code, result = labkit(project, "run", write_script(project, "24_buffered.py", body),
+    code, result = kit_cli(project, "run", write_script(project, "24_buffered.py", body),
                           "--title", "원래 스트림")
     assert code == 0, result
     assert "BUFFERED-OUTPUT" in result["stdout_tail"], result["stdout_tail"]
@@ -4200,7 +4274,7 @@ TEMPFILES = frozenset({"TemporaryFile", "NamedTemporaryFile", "SpooledTemporaryF
 SUBPROCESS_DECODING = frozenset({"run", "Popen", "check_output"})
 SUBPROCESS_ALWAYS_TEXT = frozenset({"getoutput", "getstatusoutput"})
 TEXT_MODE_KWARGS = ("text", "universal_newlines")
-SOURCE_DIRS = ("kit", "extension", "tools", "src", "tests")
+SOURCE_DIRS = ("extension", "tools", "src", "tests")
 
 
 def _receiver(func: ast.AST) -> str:
@@ -4320,8 +4394,8 @@ def test_the_shipped_code_names_the_encoding_of_every_text_call_the_scan_knows()
     """A locale-dependent default turns Korean records into an exception on a Windows machine, and
     reconfiguring this process's streams does not reach a child's pipe or a file.
 
-    Scope, deliberately: the Python of `kit`, `extension`, `tools`, `src` (the distribution's
-    `analytics` launcher) and `tests` — the tests' own calls, not the script bodies they write as
+    Scope, deliberately: the Python of `extension`, `tools`, `src` (the kit, the package
+    aelix_analytics, with the distribution's `analytics` launcher) and `tests` — the tests' own calls, not the script bodies they write as
     strings (design review T12). `bin/lab` is shell, and the template files are not Python. A
     directory that is not there would make the scan pass on nothing, so that fails."""
     missing = [d for d in SOURCE_DIRS if not (PACK / d).is_dir()]
@@ -4381,7 +4455,7 @@ import tempfile
 import webbrowser
 from pathlib import Path
 
-from labkit import _platform
+from aelix_analytics import _platform
 
 Path("d").write_text("ok", encoding="utf-8")
 Path("e").read_text(encoding = "utf-8")
@@ -4431,7 +4505,7 @@ def test_the_timer_a_region_set_is_cancelled_whoever_s_sigalrm_ended_it(project,
     or the script's periodic timer, ran on after the run and reached the host: an in-process host
     that kept SIGALRM's default action was killed, the CLI too after its JSON line. Main cancelled
     ITIMER_REAL after every script. Any SIGALRM in the region is the deadline, as on main."""
-    from labkit import report, runner  # noqa: PLC0415
+    from aelix_analytics import report, runner  # noqa: PLC0415
 
     monkeypatch.setattr(report, "build", lambda project_, **kw: {})
     body = {"raised_by_the_script": "signal.raise_signal(signal.SIGALRM)\n",
@@ -4572,7 +4646,7 @@ def test_a_cancel_the_script_swallowed_is_still_recorded(project):
     catches the interruption and runs on to its end was recorded `ok` once the flag went unread."""
     body = ("import signal, time\ntry:\n    signal.raise_signal(signal.SIGINT)\n    time.sleep(1)\n"
             "except BaseException:\n    pass\nprint('ran on')\n")
-    code, result = labkit(project, "run", write_script(project, "81_swallow.py", body),
+    code, result = kit_cli(project, "run", write_script(project, "81_swallow.py", body),
                           "--title", "swallow")
     assert code == 3 and result["run"]["status"] == "cancelled", result["run"]
 
@@ -4624,7 +4698,7 @@ def test_a_cancel_cut_short_by_the_script_s_handler_is_recorded_at_every_point(p
     single statement and settle finds the cancel in the traceback of the SystemExit, or of what the
     script chained it to. The run is `cancelled` every time: not `ok` or `error`, as it was at the
     entry, and as it was at every point once the runner stopped reading the flag."""
-    from labkit import report, runner  # noqa: PLC0415
+    from aelix_analytics import report, runner  # noqa: PLC0415
 
     monkeypatch.setattr(report, "build", lambda project_, **kw: {})
     write_script(Path(project), "82_shutdown.py",
@@ -4663,7 +4737,7 @@ def test_what_a_leftover_thread_wrote_after_its_run_comes_before_the_result(proj
             "    out.write('{\"from\": \"a leftover thread\"}\\n')\n"
             "    threading.Event().wait()\n"
             "threading.Thread(target=later, daemon=True).start()\n")
-    cmd = [sys.executable, "-m", "labkit", "--project", str(project), "run",
+    cmd = [sys.executable, "-m", "aelix_analytics", "--project", str(project), "run",
            write_script(project, "83_leftover.py", body), "--title", "leftover"]
     proc = subprocess.run(cmd, capture_output=True, env=kit_env(), timeout=120,
                           **_platform.text_kwargs())
@@ -4680,7 +4754,7 @@ def test_what_a_thread_wrote_after_its_run_survives_the_collection_of_its_module
     flushed it. Main delivered it. The latest run's streams are held now. Which layer the collector
     finalizes first varies with the process, so the line alone does not show it; the stream's
     survival does."""
-    from labkit import report, runner  # noqa: PLC0415
+    from aelix_analytics import report, runner  # noqa: PLC0415
 
     monkeypatch.setattr(report, "build", lambda project_, **kw: {})
     done = tmp_path / "written"
@@ -4721,11 +4795,11 @@ def _ignores_case(directory: Path) -> bool:
 
 CASE_VARIANTS = {
     # the script names its file after the title as written; the chart's id is its lower-case slug
-    "chart_then_file": "lab.chart(fig, 'AUX')\nfig.savefig(charts / 'AUX.png')\n",
+    "chart_then_file": "analytics.chart(fig, 'AUX')\nfig.savefig(charts / 'AUX.png')\n",
     "file_then_captured_and_named": "ax.set_title('AUX')\nfig.savefig(charts / 'AUX.png')\n"
-                                    "fig.show()\nlab.chart(fig, 'named')\n",
+                                    "fig.show()\nanalytics.chart(fig, 'named')\n",
     # review 9, rest-3: main wrote its chart into the script's file and recorded that file twice
-    "file_then_chart": "fig.savefig(charts / 'AUX.png')\nlab.chart(fig, 'AUX')\n",
+    "file_then_chart": "fig.savefig(charts / 'AUX.png')\nanalytics.chart(fig, 'AUX')\n",
 }
 CASE_VARIANT_CHARTS = {
     ("chart_then_file", True): [("aux", "matplotlib")],
@@ -4745,7 +4819,7 @@ def test_a_reserved_id_s_own_name_in_another_case_is_that_file_where_case_is_ign
     chart `aux` — became a second chart with a reserved-name warning. Where case counts, it is a
     file of its own, as it was on main. Where case is ignored and the file came first, main recorded
     the one file twice, as `aux` and `aux-2`; it is one chart now (review 9, rest-3)."""
-    code, result = labkit(project, "run", write_script(project, f"85_{case}.py",
+    code, result = kit_cli(project, "run", write_script(project, f"85_{case}.py",
                                                        CHART_BODY + CASE_VARIANTS[case]),
                           "--title", case)
     assert code == 0, result
@@ -4759,7 +4833,7 @@ def test_a_case_variant_is_an_own_name_only_when_it_is_the_same_file(project, mo
     system, which on a case-sensitive one says it is another file; nothing but a case-sensitive
     volume pinned that half. Told it is another file, the kit records it as a chart of its own
     wherever it runs."""
-    from labkit import report, runner  # noqa: PLC0415
+    from aelix_analytics import report, runner  # noqa: PLC0415
 
     monkeypatch.setattr(report, "build", lambda project_, **kw: {})
     monkeypatch.setattr(os.path, "samefile", lambda _a, _b: False)
@@ -4775,7 +4849,7 @@ def test_a_record_that_cannot_be_written_as_utf8_leaves_no_run_directory(project
     surrogate — what POSIX hands over for bytes that are not UTF-8 — failed the record's encoding
     with a ValueError: a traceback, no JSON line, and runs/<id> left with the code and a partial
     record."""
-    from labkit import runner  # noqa: PLC0415
+    from aelix_analytics import runner  # noqa: PLC0415
 
     write_script(Path(project), "86_x.py", "x = 1\n")
     with pytest.raises(core.LabError) as exc:
@@ -4797,7 +4871,7 @@ def test_a_rerun_through_an_outward_link_is_refused_behind_a_loop_too(project, t
     _link_loop(kind, outside / "loop")
     dir_link(kind, Path(project) / "out", outside)
     run_id = _recorded_as(project, "out/loop/x.py")
-    code, result = labkit(project, "run", "--rerun-of", run_id, "--title", "outward")
+    code, result = kit_cli(project, "run", "--rerun-of", run_id, "--title", "outward")
     assert code == 1 and result["error"]["code"] == "rerun_snapshot", result
 
 
@@ -4819,7 +4893,7 @@ def test_a_literal_naming_a_home_nobody_has_does_not_drop_the_other_scanned_inpu
             f"LONG = 'data/{'x' * 300}.csv'\n"
             "QUERY = \"SELECT * FROM 'data/raw/b.csv'\"\n"
             "with open('data/raw/a.csv', encoding='utf-8') as fh:\n    fh.read()\n")
-    code, result = labkit(project, "run", write_script(project, "87_scan.py", body),
+    code, result = kit_cli(project, "run", write_script(project, "87_scan.py", body),
                           "--title", "scan")
     assert code == 0, result
     vias = {i["path"]: i["via"] for i in result["run"]["inputs"]}
@@ -4831,7 +4905,7 @@ def test_a_literal_naming_a_home_nobody_has_does_not_drop_the_other_scanned_inpu
 
 WINDOWS_DISARM_INTERRUPTED = """\
 import signal, sys, threading
-from labkit import _platform
+from aelix_analytics import _platform
 
 monitoring = sys.monitoring
 tool = next(i for i in range(2, 6) if monitoring.get_tool(i) is None)
@@ -4848,7 +4922,7 @@ def at_the_entry(code, _offset):
         signal.raise_signal(signal.SIGINT)  # the script's handler raises it here
 
 
-monitoring.use_tool_id(tool, "labkit-test")
+monitoring.use_tool_id(tool, "aelix-analytics-test")
 monitoring.register_callback(tool, monitoring.events.PY_START, at_the_entry)
 monitoring.set_local_events(tool, threading.Condition.__exit__.__code__,
                             monitoring.events.PY_START)
@@ -4908,7 +4982,7 @@ def test_a_timer_the_script_sets_after_catching_its_interruption_ends_with_the_r
     and then set a timer of its own (a `signal.alarm` watchdog) had it fire after the run into the
     host: an in-process host that kept SIGALRM's default action was killed, and the CLI too,
     sometimes before its JSON line. Main cancelled ITIMER_REAL after every script."""
-    from labkit import report, runner  # noqa: PLC0415
+    from aelix_analytics import report, runner  # noqa: PLC0415
 
     monkeypatch.setattr(report, "build", lambda project_, **kw: {})
     stop = {"cancel": "signal.raise_signal(signal.SIGINT)\n    time.sleep(2)\n",
@@ -4933,7 +5007,7 @@ def test_a_cancel_kept_from_an_earlier_run_is_not_counted_for_a_later_one(projec
     guard. A module a script imported stays in sys.modules across the runs of an in-process host,
     and a later run's error chained to a cancel kept from an earlier run made the later run
     `cancelled`, though no cancel reached it, once the check was gone."""
-    from labkit import report, runner  # noqa: PLC0415
+    from aelix_analytics import report, runner  # noqa: PLC0415
 
     monkeypatch.setattr(report, "build", lambda project_, **kw: {})
     monkeypatch.setitem(sys.modules, "_kept_across_runs", types.SimpleNamespace(last=None))
@@ -5008,7 +5082,7 @@ def test_a_rerun_whose_recorded_snapshot_loops_is_refused(project, where, kind):
     3.14. Review 10, honesty-8 (N7): the run's code directory, which it is checked against, is
     resolved the same way. Issue #8 PR-3: junction loops as well (T1); Windows' realpath leads a
     junction loop to the partner's stored target (crit-1), where no snapshot is a file either."""
-    code, one = labkit(project, "run", write_script(project, "92_ok.py", "x = 1\n"), "--title", "x")
+    code, one = kit_cli(project, "run", write_script(project, "92_ok.py", "x = 1\n"), "--title", "x")
     assert code == 0, one
     run_id = one["run"]["id"]
     code_dir = Path(project) / "runs" / run_id / "code"
@@ -5021,7 +5095,7 @@ def test_a_rerun_whose_recorded_snapshot_loops_is_refused(project, where, kind):
         record = json.loads(run_json.read_text(encoding="utf-8"))
         record["script"]["snapshot"] = f"runs/{run_id}/code/loop/x.py"
         run_json.write_text(json.dumps(record), encoding="utf-8")
-    code, result = labkit(project, "run", "--rerun-of", run_id, "--title", "loop")
+    code, result = kit_cli(project, "run", "--rerun-of", run_id, "--title", "loop")
     assert code == 1 and result["error"]["code"] == "rerun_snapshot", result
 
 
@@ -5038,7 +5112,7 @@ def test_a_leftover_thread_s_unfinished_line_does_not_join_the_result(project, f
             "    out.write('saving...')\n" + ("    out.flush()\n" if flushed else "") +
             "    threading.Event().wait()\n"
             "threading.Thread(target=later, daemon=True).start()\n")
-    cmd = [sys.executable, "-m", "labkit", "--project", str(project), "run",
+    cmd = [sys.executable, "-m", "aelix_analytics", "--project", str(project), "run",
            write_script(project, "93_partial.py", body), "--title", "partial"]
     proc = subprocess.run(cmd, capture_output=True, env=kit_env(), timeout=120,
                           **_platform.text_kwargs())
@@ -5051,7 +5125,7 @@ def test_a_leftover_thread_s_unfinished_line_does_not_join_the_result(project, f
 
 WINDOWS_LOCK_INTERRUPTED = """\
 import signal, sys, threading, time
-from labkit import _platform
+from aelix_analytics import _platform
 
 if hasattr(signal, "pthread_kill"):  # POSIX: the timer's SIGINT goes to the main thread, as there
     def deliver():
@@ -5094,7 +5168,7 @@ def before_the_release(frame, event, called):
 if where == "enter":
     monitoring = sys.monitoring
     tool = next(i for i in range(2, 6) if monitoring.get_tool(i) is None)
-    monitoring.use_tool_id(tool, "labkit-test")
+    monitoring.use_tool_id(tool, "aelix-analytics-test")
     monitoring.register_callback(tool, monitoring.events.C_RETURN, after_the_acquiring)
     monitoring.set_local_events(tool, disarm, monitoring.events.CALL)
 with guard:
@@ -5315,7 +5389,7 @@ def test_the_cut_short_walk_looks_at_chain_limit_exceptions_newest_first(project
     CHAIN_LIMIT exceptions, newest first — the bound that keeps a pathological structure cheap. So a
     group of a hundred finds it among its last members and loses it among its first, as
     docs/CONTRACTS.md G states."""
-    from labkit import report, runner  # noqa: PLC0415
+    from aelix_analytics import report, runner  # noqa: PLC0415
 
     monkeypatch.setattr(report, "build", lambda project_, **kw: {})
     keep = {"first": "errors.insert(0, exc)", "last": "errors.append(exc)"}[position]
@@ -5369,7 +5443,7 @@ def test_only_a_command_that_ran_a_script_starts_its_result_with_an_empty_line(p
     it loaded the runner (`report` does, for the kit's digest; `demo` runs its scripts in child
     processes)."""
     def stdout_of(*args):
-        return subprocess.run([sys.executable, "-m", "labkit", "--project", str(project), *args],
+        return subprocess.run([sys.executable, "-m", "aelix_analytics", "--project", str(project), *args],
                               capture_output=True, env=kit_env(), timeout=120,
                               **_platform.text_kwargs()).stdout
 
@@ -5384,9 +5458,9 @@ def test_only_a_command_that_ran_a_script_starts_its_result_with_an_empty_line(p
     assert never.startswith("\n{") and never.count("\n") == 2, never
     assert json.loads(never)["run"]["status"] == "error", never
     fresh = Path(project).parent / "demo-project"
-    subprocess.run([sys.executable, "-m", "labkit", "init", str(fresh)], capture_output=True,
+    subprocess.run([sys.executable, "-m", "aelix_analytics", "init", str(fresh)], capture_output=True,
                    env=kit_env(), timeout=120, check=True)
-    demo = subprocess.run([sys.executable, "-m", "labkit", "--project", str(fresh), "demo"],
+    demo = subprocess.run([sys.executable, "-m", "aelix_analytics", "--project", str(fresh), "demo"],
                           capture_output=True, env=kit_env(), timeout=600,
                           **_platform.text_kwargs()).stdout
     assert demo.startswith("{") and demo.count("\n") == 1 and json.loads(demo)["ok"], demo[-500:]
@@ -5396,7 +5470,7 @@ def test_the_length_hint_reads_the_snapshot_s_path(project, monkeypatch):
     """Review 10, honesty-8 (N21): where the error names no cause — Windows' open() answers a name
     too long with an errno only — the hint reads the length of the path that was refused, the
     snapshot's, not the run directory's."""
-    from labkit import runner  # noqa: PLC0415
+    from aelix_analytics import runner  # noqa: PLC0415
 
     run_id = _recorded_as(project, "scripts/" + "a" * 300 + ".py")
     real = Path.write_bytes
@@ -5474,7 +5548,7 @@ def test_a_scanned_name_a_record_cannot_hold_is_left_out(project):
     # The file system lists it back as made, so what follows is about a name the record cannot hold.
     assert "caf\udce9.csv" in os.listdir(raw)
     body = "\"\"\"Reads 'data/raw/*.csv' with DuckDB later.\"\"\"\nprint('hi')\n"
-    code, result = labkit(project, "run", write_script(project, "94_glob.py", body),
+    code, result = kit_cli(project, "run", write_script(project, "94_glob.py", body),
                           "--title", "glob")
     assert code == 0 and result["run"]["status"] == "ok", result
     assert [i["path"] for i in result["run"]["inputs"]] == ["data/raw/ok.csv"], result["run"]
@@ -5484,7 +5558,7 @@ def test_the_scan_leaves_a_name_a_record_cannot_hold_out_of_the_same_glob(projec
     """Review 10, rest-2, where the file system at hand refuses such a name (APFS): the glob answers
     with one, as Linux's does for a file whose name is not UTF-8, and NTFS's for a name holding a
     lone surrogate."""
-    from labkit import runner  # noqa: PLC0415
+    from aelix_analytics import runner  # noqa: PLC0415
 
     raw = Path(project) / "data" / "raw"
     (raw / "ok.csv").write_text("x\n1\n", encoding="utf-8")
@@ -5540,7 +5614,7 @@ def test_a_leftover_thread_s_writes_do_not_split_a_result_longer_than_a_pipe_hol
     of its own, review 11 rest-1), with sys.stdout the run's text stream until then, so a thread's
     print() is kept out too. The reader takes 4 KiB at a time."""
     body = LEFTOVER_WRITER.format(count=1200, write=LEFTOVER_WRITES[writes])
-    cmd = [sys.executable, "-m", "labkit", "--project", str(project), "run",
+    cmd = [sys.executable, "-m", "aelix_analytics", "--project", str(project), "run",
            write_script(project, f"97_parts_{writes}.py", body), "--title", "parts"]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=kit_env())
     chunks = []
@@ -5574,7 +5648,7 @@ def test_the_cli_gives_its_own_stdout_back_when_it_returns(project, monkeypatch,
     """Review 11 (U6): the run's stdout stream stands in for the CLI's own until the result is out;
     main() puts the CLI's own back when it returns — before the interpreter's shutdown flushes
     sys.stdout, and for a caller that runs the CLI in its own process."""
-    from labkit import __main__ as cli  # noqa: PLC0415
+    from aelix_analytics import __main__ as cli  # noqa: PLC0415
 
     fd1 = tmp_path / "fd1.txt"
     saved_fd1 = os.dup(1)
@@ -5619,7 +5693,7 @@ def test_a_stopped_run_s_log_holds_each_line_once(project, tmp_path):
         assert result and result["run"]["status"] == "cancelled", (code, result, err)
         runs.append(result)
     for n in range(2):
-        code, result = labkit(project, "run", write_script(project, f"99_count_{n}.py",
+        code, result = kit_cli(project, "run", write_script(project, f"99_count_{n}.py",
                                                           NUMBERED_LINES),
                               "--title", "count", "--timeout", "1")
         assert result["run"]["status"] == "timeout", result
@@ -5672,7 +5746,7 @@ def test_a_runtime_read_of_a_tilde_name_is_recorded_as_its_reader_resolves_it(pr
     project's file as written or a home Windows guessed. DuckDB puts its home in place of the `~`:
     `~/x.csv` is recorded as the home's file, and a `~name` (DuckDB's home with `name` appended) is
     not recorded at all."""
-    from labkit import capture  # noqa: PLC0415
+    from aelix_analytics import capture  # noqa: PLC0415
 
     monkeypatch.chdir(project)  # a script's reads are relative to the project, where it runs
     (Path(project) / "~$budget.csv").write_text("x\n1\n", encoding="utf-8")
@@ -5722,7 +5796,7 @@ def test_the_readers_record_what_they_read_of_a_tilde_name(project, tmp_path):
     body = ("import duckdb\nimport polars as pl\n"
             "name = '~' + 'tmp.csv'\n"
             "print(pl.read_csv(name).height, len(duckdb.read_csv(name).fetchall()))\n")
-    done = subprocess.run([sys.executable, "-m", "labkit", "--project", str(project), "run",
+    done = subprocess.run([sys.executable, "-m", "aelix_analytics", "--project", str(project), "run",
                            write_script(project, "92_tilde_readers.py", body)],
                           capture_output=True, env=kit_env(HOME=str(home)), timeout=180,
                           **_platform.text_kwargs())
@@ -5736,11 +5810,11 @@ def test_the_readers_record_what_they_read_of_a_tilde_name(project, tmp_path):
 def test_lab_import_takes_a_tilde_name_that_names_no_home_as_written(project):
     """Review 11, critic-2: `lab import ~nosuchuser/x.csv` ended in a traceback with no JSON line
     on POSIX, where pathlib refuses the expansion. It follows Project.path's rule now."""
-    source = Path(project) / "~no-such-labkit-user"
+    source = Path(project) / "~no-such-aelix-analytics-user"
     source.mkdir()
     (source / "x.csv").write_text("a\n1\n", encoding="utf-8")
-    done = subprocess.run([sys.executable, "-m", "labkit", "--project", str(project), "import",
-                           "~no-such-labkit-user/x.csv", "--name", "x"], cwd=project,
+    done = subprocess.run([sys.executable, "-m", "aelix_analytics", "--project", str(project), "import",
+                           "~no-such-aelix-analytics-user/x.csv", "--name", "x"], cwd=project,
                           capture_output=True, env=kit_env(), timeout=120,
                           **_platform.text_kwargs())
     lines = [line for line in done.stdout.splitlines() if line.startswith("{")]
@@ -5760,7 +5834,7 @@ def test_a_scanned_name_in_a_directory_a_record_cannot_hold_is_left_out(project)
         pytest.skip(f"this file system refuses a name that is not UTF-8: {exc!r}")
     assert "caf\udce9" in os.listdir(raw)  # listed back as made
     body = "\"\"\"Reads 'data/raw/*/x.csv' with DuckDB later.\"\"\"\nprint('hi')\n"
-    code, result = labkit(project, "run", write_script(project, "94_dir_glob.py", body),
+    code, result = kit_cli(project, "run", write_script(project, "94_dir_glob.py", body),
                           "--title", "glob")
     assert code == 0 and result["run"]["status"] == "ok", result
     assert [i["path"] for i in result["run"]["inputs"]] == ["data/raw/ok/x.csv"], result["run"]
@@ -5829,7 +5903,7 @@ def test_the_result_line_goes_through_the_buffer_the_kit_kept(monkeypatch, tmp_p
     did, the descriptor the run kept. 3.6 wrote the line through the script's own text stream: a
     detached one lost the run's record, a reconfigured one the line. A leftover thread's text and
     the host's come before the line; give_back_stdout ends it all."""
-    from labkit import runner  # noqa: PLC0415
+    from aelix_analytics import runner  # noqa: PLC0415
 
     fd1 = tmp_path / "fd1.txt"
     saved_fd1 = os.dup(1)
@@ -5899,7 +5973,7 @@ def test_the_run_s_stream_stands_in_from_the_restore_on(monkeypatch, tmp_path):
     restore and only then the run's, so a thread that looked sys.stdout up in between wrote through
     another buffer than the line's, and a print() in pieces could land inside it. The run's stream
     is sys.stdout from the restore on: at each descriptor the restore puts back, it already is."""
-    from labkit import runner  # noqa: PLC0415
+    from aelix_analytics import runner  # noqa: PLC0415
 
     fd1 = tmp_path / "fd1.txt"
     saved_fd1 = os.dup(1)
@@ -5931,7 +6005,7 @@ def test_the_run_s_stream_stands_in_from_the_restore_on(monkeypatch, tmp_path):
 def test_a_run_without_a_result_to_follow_leaves_stdout_alone(project, monkeypatch):
     """Review 12, honesty-8 (Y18): only a caller that prints a result line next (the CLI) gets the
     stand-in and the kept descriptor; an in-process caller's sys.stdout is its own after a run."""
-    from labkit import runner  # noqa: PLC0415
+    from aelix_analytics import runner  # noqa: PLC0415
 
     own = io.TextIOWrapper(io.BufferedWriter(io.FileIO(os.dup(1), "w")), encoding="utf-8")
     monkeypatch.setattr(sys, "stdout", own)
@@ -5999,7 +6073,7 @@ def test_the_result_line_outlives_what_the_script_did_to_its_stdout(project, idi
     the script's own text stream. The line is the kit's own now, and the record is written first:
     the run is `ok`, its title arrives as it was given, and a file the script wrote through a
     replaced write() keeps the hash its record gives it."""
-    code, result = labkit(project, "run", write_script(project, f"91_{idiom}.py",
+    code, result = kit_cli(project, "run", write_script(project, f"91_{idiom}.py",
                                                       STDOUT_IDIOMS[idiom]),
                           "--title", "지역별 요약")
     assert code == 0 and result.get("ok") is True and result["run"]["status"] == "ok", \
@@ -6075,8 +6149,8 @@ def test_a_second_ctrl_c_as_the_cli_gives_its_stdout_back_still_gives_it_back(pr
     to hold at shutdown, which then aborted as main did. At every check point of the give-back, the
     CLI's own stdout is back when main() lets the interruption go on (3.7's sweep found the points
     after the first: the route was dropped before the streams were back)."""
-    from labkit import __main__ as cli  # noqa: PLC0415
-    from labkit import runner  # noqa: PLC0415
+    from aelix_analytics import __main__ as cli  # noqa: PLC0415
+    from aelix_analytics import runner  # noqa: PLC0415
 
     fd1 = tmp_path / "fd1.txt"
     saved_fd1 = os.dup(1)
@@ -6141,7 +6215,7 @@ def test_the_cli_ends_after_its_result_line_though_a_leftover_thread_blocks_writ
     CPython's one-second grace for such locks — and the CLI never ended; main ended with SIGABRT.
     The exit flush waits a bounded time now. A thread writing through the stream it took keeps
     that stream alive, so nothing flushes it at the interpreter's shutdown, which exits 0."""
-    cmd = [sys.executable, "-m", "labkit", "--project", str(project), "run",
+    cmd = [sys.executable, "-m", "aelix_analytics", "--project", str(project), "run",
            write_script(project, "98_blocked.py", EXIT_WITH_A_BLOCKED_WRITER), "--title", "blocked"]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=kit_env())
     got = {"out": b"", "result": None}

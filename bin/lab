@@ -24,7 +24,7 @@ done
 PACK=$(CDPATH='' cd -- "$(dirname -- "$self")/.." && pwd -P)
 UV=${AELIX_LAB_UV:-uv}
 unset VIRTUAL_ENV
-export PYTHONPATH="$PACK/kit" MPLBACKEND=Agg PYTHONDONTWRITEBYTECODE=1 LAB_ACTOR="${LAB_ACTOR:-human}"
+export PYTHONPATH="$PACK/src" MPLBACKEND=Agg PYTHONDONTWRITEBYTECODE=1 LAB_ACTOR="${LAB_ACTOR:-human}"
 
 usage() { awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "$self"; }
 
@@ -42,7 +42,7 @@ find_project() {
 
 kit() {  # kit PROJECT ARGS...
   proj=$1; shift
-  "$UV" run --project "$proj" --quiet python -m labkit --project "$proj" "$@"
+  "$UV" run --project "$proj" --quiet python -m aelix_analytics --project "$proj" "$@"
 }
 
 cmd=${1:-status}
@@ -53,7 +53,7 @@ case $cmd in
   init|demo)
     [ $# -ge 1 ] || { echo "usage: lab $cmd DIR" >&2; exit 2; }
     dir=$1; shift
-    "$UV" run --no-project --python 3.12 --quiet python -m labkit init "$dir" "$@"
+    "$UV" run --no-project --python 3.12 --quiet python -m aelix_analytics init "$dir" "$@"
     proj=$(CDPATH='' cd -- "$dir" && pwd -P)
     echo "lab: syncing the project environment (first time can take a minute) ..." >&2
     "$UV" sync --project "$proj" --quiet || "$UV" sync --project "$proj" --quiet --offline

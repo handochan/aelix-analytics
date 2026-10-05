@@ -22,10 +22,10 @@ Strategy 패턴은 동작 방식의 교체에 사용한다. 저장소·실행 �
 
 | 현재 위치 | 유지할 장점 | 분리할 책임 |
 |---|---|---|
-| [core.py](../kit/labkit/core.py) | stdlib만으로 프로젝트 기록을 읽을 수 있음 | 파일·잠금·journal 쓰기, 의미 규칙, 상태/관계 계산, 맥락 선택·텍스트 표시 |
-| [runner.py](../kit/labkit/runner.py) | 자유 코드 실행과 실패·스냅샷·산출물 기록 | 실행 backend, 캡처, 작업 조정, 완료 기록·재실행 비교 |
-| [report.py](../kit/labkit/report.py) | 동일 기록에서 탐색 가능한 HTML 생성 | 공통 읽기 모델, 표시 형식, 공유 범위 투영, 파일 빌드 |
-| [capture.py](../kit/labkit/capture.py), [data.py](../kit/labkit/data.py) | 관용 코드와 데이터 도구를 활용 | 라이브러리별 캡처·입출력 어댑터와 기록 의미 |
+| [core.py](../src/aelix_analytics/core.py) | stdlib만으로 프로젝트 기록을 읽을 수 있음 | 파일·잠금·journal 쓰기, 의미 규칙, 상태/관계 계산, 맥락 선택·텍스트 표시 |
+| [runner.py](../src/aelix_analytics/runner.py) | 자유 코드 실행과 실패·스냅샷·산출물 기록 | 실행 backend, 캡처, 작업 조정, 완료 기록·재실행 비교 |
+| [report.py](../src/aelix_analytics/report.py) | 동일 기록에서 탐색 가능한 HTML 생성 | 공통 읽기 모델, 표시 형식, 공유 범위 투영, 파일 빌드 |
+| [capture.py](../src/aelix_analytics/capture.py), [data.py](../src/aelix_analytics/data.py) | 관용 코드와 데이터 도구를 활용 | 라이브러리별 캡처·입출력 어댑터와 기록 의미 |
 | [Aelix 어댑터](../extension/aelix_lab.py) | 프로젝트별 분석 환경으로 실행 위임 | 호스트 이벤트·도구 표현, 프로젝트 선택 상태, core 연결·자원 경로 |
 
 현재의 host/프로젝트 uv 환경 분리는 유지한다. `STATE`, 활성 캡처·연결 같은 상태는 향후 세션·프로젝트·실행 수명에 맞춰 소유한다.
@@ -253,6 +253,8 @@ host 쪽 조립은 가벼운 `core` 읽기와 runtime 호출 bridge만 사용하
 `__init__`의 부작용이나 포트 타입 import 때문에 Aelix가 Polars·DuckDB·그림 라이브러리를 로드해서는 안 된다.
 
 배포된 확장의 실행 자원 경로만 자식 환경에 전달하고 host의 전체 `site-packages`를 노출하지 않는다.
+#9의 첫 PR(2026-10-06)부터 kit이 package `aelix_analytics`이고, 자식은 그 package 하나만 담은 실행 루트(체크아웃의 `src/`, 설치본의
+`aelix_analytics/kit/` 사본)를 받으며, 설치된 package 자신의 `python -m`은 거절한다([ADR-0004](decisions/0004-minimal-distribution-and-entry-points.md) 결정 1·9).
 한 패키지 이름을 사용하더라도 `aelix_analytics.core`의 import가 `runtime`·Workspace·분석 라이브러리를 로드하지 않도록 SDK 진입점은 지연 연결한다.
 설치 위치는 resource API로 찾는다. 프로젝트 루트·세션·현재 작업·정책 선택은 명시적 수명으로 관리한다.
 전역 상태가 필요한 캡처 훅은 실행 worker 안에 가두고 설치·해제를 보장한다. 이를 여러 프로젝트가 공유하는 mutable 상태로 확장하지 않는다.
