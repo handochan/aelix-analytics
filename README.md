@@ -289,6 +289,7 @@ src/aelix_analytics/          kit이자 배포본의 package. src/가 자식에�
   __main__.py                 kit CLI (끝 줄이 JSON; 설치된 package 자신으로는 실행 거절)
   core.py                     프로젝트 모델 — stdlib만 (확장과 kit이 공유)
   _platform.py                플랫폼별 잠금·교체·프로세스·run 중단 — stdlib만 (core와 함께 로드)
+  relations.py                기록의 관계·해석 상태·상태 재생 읽기 모델(ADR-0006) — stdlib만, 아직 어느 명령·화면도 쓰지 않음
   runner.py  capture.py       run 실행과 기록, 입력·차트 캡처 훅
   data.py    report.py        import·프로파일·쿼리, HTML 리포트 (+ assets/)
   demo.py                     데모 데이터·run (+ demo_scripts/)    template/  새 프로젝트 파일

@@ -45,6 +45,11 @@ reader와 #13의 writer가 이 사례로 시험한다.
 확인하고, 참조의 해석 상태·상태 재생·Report 저장과 재시도를 ADR-0006의 규칙대로 계산해 각 판정과 비교한다. reader는
 아니다. 사례를 바꾸면 같은 커밋에서 해시를 고친다. 맞지 않는 해시는 시험이 알려 준다.
 
+[test_relations.py](../../test_relations.py)는 reader(`src/aelix_analytics/relations.py`)가 여섯 사례를 읽어 `journal`·`references`·
+`records`·`runs`·`report_revisions`·`lineage`·`unsupported`를 그대로 내는지와 지문 예를 확인하는 적합성 시험이다. `writes`
+가운데 reader가 정하는 것은 `record_update`의 허용 여부와 요청 지문뿐이고, 저장 자체(`report_save`)는 #19, `event_append`는
+#13이 시험한다.
+
 ```sh
-uv run --locked pytest -q tests/test_record_contract.py
+uv run --locked pytest -q tests/test_record_contract.py tests/test_relations.py
 ```

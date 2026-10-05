@@ -1,8 +1,9 @@
 """The record-contract examples of ADR-0006 hold together.
 
 Each directory under tests/fixtures/records/ is a project as a reader would find it, with the judgments
-a reader of the contract has to report in expected.json. This module is not that reader (Issue #12
-builds it). It computes what the rules of ADR-0006 give for each case — the schemas, every record
+a reader of the contract has to report in expected.json. This module is not that reader
+(src/aelix_analytics/relations.py is, checked against the same judgments by tests/test_relations.py). It
+computes what the rules of ADR-0006 give for each case — the schemas, every record
 against them, hashes and request fingerprints against the bytes, reference states in the order section 4
 gives, the state replay of section 6 for findings and the like and for questions and to-dos (the cases
 hold no Report revision or reuse proposal transition) and the Report saves and retries of section 7 —
@@ -623,10 +624,11 @@ def test_lineage(case):
     for expected in case.expected["lineage"]:
         consumer = case.runs[expected["run_id"]]
         [entry] = [e for e in consumer["inputs"] if e["path"] == expected["path"]]
-        # ADR-0006 4: successful runs that started before the consumer, start times compared as instants.
+        # ADR-0006 4: successful runs that did not start after the consumer, start times compared as
+        # instants.
         candidates = sorted(rid for rid, run in case.runs.items()
                             if rid != consumer["id"] and run.get("status") == "ok"
-                            and instant(run["started_at"]) < instant(consumer["started_at"])
+                            and instant(run["started_at"]) <= instant(consumer["started_at"])
                             and any((o["path"], o["sha256"]) == (entry["path"], entry["sha256"])
                                     for o in run["outputs"]))
         producer = ("unknown" if entry["sha256"] is None else "none" if not candidates
