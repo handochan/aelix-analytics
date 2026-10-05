@@ -105,7 +105,7 @@ def _run(project: core.Project, script: str, title: str, actor: str, extra=()) -
 def populate(project: core.Project, actor: str = "human", session=None) -> dict:
     if core.list_runs(project) or core.list_datasets(project):
         raise core.LabError("demo_not_empty", "demo needs a new, empty project",
-                            hint="lab init NEW_DIR, then lab demo")
+                            hint="analytics demo NEW_DIR creates a new project and fills it")
     csv = generate(project.lab / "demo" / "sales_2024_2025.csv")
     data.import_file(project, str(csv), name="sales",
                      description="합성 주문 데이터 2024–2025 (일×지역×채널, 가상 수치)",

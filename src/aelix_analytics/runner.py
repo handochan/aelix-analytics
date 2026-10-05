@@ -523,6 +523,15 @@ API_HINTS = (
      "(import aelix_analytics as analytics), so change the script's import. A run recorded by an "
      f"earlier kit (its env.kit_version is below {SDK_RENAMED_IN}) re-runs as it was only with that "
      "kit"),
+    # The script API's functions renamed in kit 0.3.0 (Issue #9), no alias kept either: the attribute
+    # (its message, from the package's __getattr__, says the new name) and `from aelix_analytics
+    # import note`, whose ImportError does not.
+    (r"^(AttributeError: aelix_analytics\.(note|chart) was renamed |ImportError: cannot import name "
+     r"'(note|chart)' from 'aelix_analytics')",
+     f"the script API renamed note to record and chart to visualize in kit {core.NAMES_RENAMED_IN} "
+     "(same arguments; what they record is unchanged), so change the script's calls. A run recorded "
+     f"by an earlier kit (its env.kit_version is below {core.NAMES_RENAMED_IN}) re-runs as it was only "
+     "with that kit"),
     (r"No module named 'pandas'",
      "this project has no pandas: process data with Polars expressions or DuckDB SQL "
      "(analytics.sql(...).pl()); .to_pandas() exists only if you add pandas to the project"),

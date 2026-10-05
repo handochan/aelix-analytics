@@ -2852,7 +2852,7 @@ def test_a_second_copy_in_one_runtime_is_not_set_up(monkeypatch, capsys):
     active, extra = _Api(bus), _Api(bus)
     first.setup(active)
     second.setup(extra)
-    assert len(active.tools()) == 6 and ("command", "lab") in active.registered
+    assert len(active.tools()) == 6 and ("command", "analytics") in active.registered
     assert extra.registered == []
     assert "is not set up: this aelix already loaded" in capsys.readouterr().err
     # Another runtime has another bus: a copy is set up there.
@@ -3049,6 +3049,101 @@ def test_a_failed_kit_load_leaves_no_module_behind(monkeypatch, tmp_path):
     assert not [k for k in sys.modules if k.startswith("aelix_analytics_runtime")]
 
 
+# --- Issue #9 PR-2: the old names stop the extension's load ---------------------------------------
+
+# What each old variable's new name is set to beside it in the cases below (the new one does not
+# make the old one acceptable). AELIX_LAB_KIT's new name would point the load elsewhere, so none.
+BESIDE = {"AELIX_LAB_PROJECT": "project", "AELIX_LAB_UV": "uv", "AELIX_LAB_TRUST_FILE": "trust"}
+
+
+@pytest.mark.parametrize("old", ["AELIX_LAB_PROJECT", "AELIX_LAB_UV", "AELIX_LAB_TRUST_FILE",
+                                 "AELIX_LAB_KIT"])
+def test_an_old_variable_stops_the_extension_before_it_registers(monkeypatch, tmp_path, old):
+    """ADR-0005 decision 7: an old variable the extension read is an error that names the new one,
+    at load — what aelix shows as the extension's load error, with nothing registered and nothing
+    written — and not an alias, also beside its new name. The prompt hook swallows errors, so a
+    check there would leave the context block out without a word."""
+    trust = tmp_path / "trust" / "lab-projects.json"
+    monkeypatch.setenv("AELIX_ANALYTICS_TRUST_FILE", str(trust))
+    monkeypatch.setenv(old, str(tmp_path / "old"))
+    if old in BESIDE:
+        monkeypatch.setenv(core.RENAMED_ENV[old], str(tmp_path / BESIDE[old]))
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(RuntimeError) as raised:
+        load_extension(monkeypatch, f"ext_old_{old.lower()}")
+    assert str(raised.value) == f"aelix-analytics: {core.renamed_env_message(old)}"
+    assert core.RENAMED_ENV[old] in str(raised.value)
+    assert not trust.exists() and list(tmp_path.iterdir()) == []
+    assert not [k for k in sys.modules if k.startswith("aelix_analytics_runtime")]
+
+
+def test_the_installed_module_does_not_look_at_the_old_kit_variable(monkeypatch):
+    # It never read AELIX_LAB_KIT (ADR-0004 decision 6), so that name has nothing to refuse there.
+    import aelix_analytics._install
+
+    monkeypatch.setattr(aelix_analytics._install, "kit_dir", lambda: KIT.resolve())
+    monkeypatch.setenv("AELIX_LAB_KIT", "/somewhere/else")
+    module = load_extension(monkeypatch, "aelix_analytics.extension")
+    assert module.KIT_ROUTE == "installed"
+
+
+@pytest.mark.parametrize("argv", [["--lab-project", "/a/project"], ["--lab-project=/a/project"],
+                                  ["-p", "hi", "--lab-project", "/a"]])
+def test_the_old_flag_stops_the_extension_before_it_registers(monkeypatch, tmp_path, argv):
+    """aelix 0.1.0b2 takes a flag nobody registered without a word and get_flag answers None for it:
+    the old --lab-project would be ignored and the project taken from the working directory. So it
+    is a load error that names --analytics-project (owner's decision, 2026-10-05/06), not an alias."""
+    monkeypatch.setattr(sys, "argv", ["aelix", *argv])
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(RuntimeError, match="--lab-project was renamed --analytics-project in kit 0.3.0"):
+        load_extension(monkeypatch, "ext_old_flag")
+    assert not [k for k in sys.modules if k.startswith("aelix_analytics_runtime")]
+
+
+@pytest.mark.parametrize("argv", [["--analytics-project", "/a"], ["--lab-projects", "x"],
+                                  ["-p", "use --lab-project /a"], ["--", "x"]])
+def test_only_the_old_flag_itself_stops_the_extension(monkeypatch, argv):
+    monkeypatch.setattr(sys, "argv", ["aelix", *argv])
+    module = load_extension(monkeypatch, "ext_not_the_old_flag")
+    api = _Api(_EventBus())
+    module.setup(api)
+    assert ("flag", "analytics-project") in api.registered and len(api.tools()) == 6
+
+
+def test_the_extension_registers_only_the_new_names(monkeypatch):
+    module = load_extension(monkeypatch, "ext_new_names")
+    api = _Api(_EventBus())
+    module.setup(api)
+    assert sorted(api.registered) == sorted(
+        [("flag", "analytics-project"), ("command", "analytics"),
+         *[("tool", f"analytics_{n}") for n in ("status", "query", "import", "run", "record", "init")],
+         *[("on", e) for e in ("before_agent_start", "tool_execution_start", "tool_execution_end",
+                                "agent_end")]])
+
+
+def test_the_analytics_command_records_and_has_no_old_subcommands(monkeypatch, tmp_path):
+    """/lab note KIND TEXT and /lab gap TEXT are /analytics record KIND TEXT (kind gap stays the stored
+    kind until #13); /lab report is /analytics render. An old subcommand is not run: it gets the
+    help, which names the new ones."""
+    monkeypatch.setenv("AELIX_ANALYTICS_UV", str(tmp_path / "no-uv"))
+    root = tmp_path / "proj"
+    core.init_project(root, title="t", actor="test", template_dir=KIT / "aelix_analytics" / "template")
+    monkeypatch.setenv("AELIX_ANALYTICS_PROJECT", str(root))
+    module = load_extension(monkeypatch, "ext_record_command")
+    said = asyncio.run(module.analytics_command("record gap 차트 id를 한글로 못 붙인다"))
+    assert said.endswith(" gap recorded"), said
+    said = asyncio.run(module.analytics_command("record finding 발견"))
+    assert said.endswith(" finding recorded"), said
+    before = (root / "journal.jsonl").read_bytes()
+    for old in ("note finding x", "gap x", "report"):
+        assert asyncio.run(module.analytics_command(old)) == module.HELP
+    assert (root / "journal.jsonl").read_bytes() == before
+    kinds = [json.loads(line)["kind"] for line in before.decode("utf-8").splitlines()]
+    assert kinds[-2:] == ["gap", "finding"]
+    assert "/analytics record KIND TEXT" in module.HELP and "/lab" not in module.HELP
+    assert "KIND gap" in module.HELP and "render | open" in module.HELP
+
+
 def test_the_cli_writes_utf8_whatever_the_locale_says(project):
     # Review 4, TV-12: nothing noticed the stream pinning being removed. A usage error that quotes
     # the argument has to survive too, which is why it happens before argument parsing.
@@ -3057,7 +3152,7 @@ def test_the_cli_writes_utf8_whatever_the_locale_says(project):
                           capture_output=True, env=env, timeout=120, **_platform.text_kwargs())
     assert done.returncode == 0, done.stderr
     assert "테스트 분석" in done.stdout
-    bad = subprocess.run([sys.executable, "-m", "aelix_analytics", "--project", str(project), "note", "발견", "x"],
+    bad = subprocess.run([sys.executable, "-m", "aelix_analytics", "--project", str(project), "record", "발견", "x"],
                          capture_output=True, env=env, timeout=120, **_platform.text_kwargs())
     assert bad.returncode == 2 and "발견" in bad.stderr, bad.stderr
 
@@ -5447,7 +5542,7 @@ def test_only_a_command_that_ran_a_script_starts_its_result_with_an_empty_line(p
                               capture_output=True, env=kit_env(), timeout=120,
                               **_platform.text_kwargs()).stdout
 
-    for command in ("status", "report"):
+    for command in ("status", "render"):
         alone = stdout_of(command)
         assert alone.startswith("{") and alone.count("\n") == 1, (command, alone)
     ran = stdout_of("run", write_script(project, "95_quiet.py", "x = 1\n"), "--title", "quiet")
@@ -5841,17 +5936,17 @@ def test_a_scanned_name_in_a_directory_a_record_cannot_hold_is_left_out(project)
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bin/analytics is a POSIX shell script")
-def test_lab_help_prints_the_whole_header():
-    """Review 11, honesty-1: usage() printed lines 2-15 of bin/analytics, and revision 3.5's header ran
-    to line 16: `lab --help` stopped mid-sentence and dropped 'Nothing here is a sandbox.' It
-    prints the header's comment block to its end now."""
-    lab = Path(__file__).resolve().parents[1] / "bin" / "lab"
-    done = subprocess.run(["sh", str(lab), "--help"], capture_output=True, timeout=30,
+def test_bin_help_prints_the_whole_header():
+    """Review 11, honesty-1: usage() printed lines 2-15 of bin/lab (now bin/analytics), and revision
+    3.5's header ran to line 16: `lab --help` stopped mid-sentence and dropped 'Nothing here is a
+    sandbox.' It prints the header's comment block to its end now."""
+    command = Path(__file__).resolve().parents[1] / "bin" / "analytics"
+    done = subprocess.run(["sh", str(command), "--help"], capture_output=True, timeout=30,
                           **_platform.text_kwargs())
     assert done.returncode == 0, done.stderr
     assert done.stdout.rstrip().endswith("Nothing here is a sandbox."), done.stdout
     # Review 12, honesty-8 (Y12, Y13): from the header's first line, without its comment marks.
-    header = lab.read_text(encoding="utf-8").splitlines()[1]
+    header = command.read_text(encoding="utf-8").splitlines()[1]
     assert done.stdout.splitlines()[0] == header.removeprefix("# "), done.stdout.splitlines()[:2]
 
 

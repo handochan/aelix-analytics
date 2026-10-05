@@ -9,8 +9,13 @@ checkout's src/, an installation's aelix_analytics/kit/) inside the project's uv
 bin/analytics, the installed `analytics` and the extension do. The installed distribution's own package is
 not a runtime root, and refuses to run here (not_runtime_root; see _not_the_runtime_root).
 
-AELIX_ANALYTICS_CANCEL_FILE names the file through which the aelix extension asks a command it started to
-stop, where the platform cannot ask with a signal (see _platform.RunControl.watch_for_cancel).
+AELIX_ANALYTICS_CANCEL_FILE names the file through which the aelix extension asks a command it
+started to stop, where the platform cannot ask with a signal (see _platform.RunControl.watch_for_cancel):
+an internal protocol between the two, not a setting.
+
+An environment variable of the kit's old names (core.RENAMED_ENV: LAB_PROJECT, LAB_ACTOR, LAB_SESSION,
+LAB_STYLE, AELIX_LAB_TRUST_FILE) that is set stops every command with env_renamed before it does
+anything: there are no aliases (ADR-0005 decision 7).
 """
 
 from __future__ import annotations
@@ -26,6 +31,8 @@ from . import _platform, core
 
 # Package data of this package, wherever it is (a checkout's src/, or an installation's runtime root).
 TEMPLATE_DIR = resources.files(__package__) / "template"
+# The old names of what this command line and a run in it read (the runner, the SDK, the chart style).
+OLD_ENV = ("LAB_PROJECT", "LAB_ACTOR", "LAB_SESSION", "LAB_STYLE", "AELIX_LAB_TRUST_FILE")
 
 
 def _emit(obj: dict) -> None:
@@ -44,8 +51,8 @@ def _project(args) -> core.Project:
     start = args.project or os.environ.get("AELIX_ANALYTICS_PROJECT") or os.getcwd()
     root = core.find_project(start)
     if root is None:
-        raise core.LabError("no_project", f"no lab project at or above {start}",
-                            hint="create one with: lab init DIR")
+        raise core.LabError("no_project", f"no analytics project at or above {start}",
+                            hint="create one with: analytics init DIR")
     return core.Project(root)
 
 
@@ -87,6 +94,11 @@ def main(argv=None) -> int:
     if refused is not None:
         _emit(refused)
         return 1
+    try:
+        core.refuse_renamed_env(OLD_ENV)
+    except core.LabError as exc:
+        _emit(exc.to_json())
+        return 1
     # Taken out of the environment so a script's own subprocesses do not watch the same file.
     request = os.environ.pop("AELIX_ANALYTICS_CANCEL_FILE", None)
     stop_watching = None
@@ -118,7 +130,8 @@ def main(argv=None) -> int:
 def _command(argv) -> int:
     parser = argparse.ArgumentParser(prog="python -m aelix_analytics",
                                      description=(__doc__ or "").splitlines()[0])
-    parser.add_argument("--project", help="project directory (default: nearest lab.json above cwd)")
+    parser.add_argument("--project", help="project directory (default: AELIX_ANALYTICS_PROJECT, else the "
+                                          "nearest lab.json at or above cwd)")
     parser.add_argument("--text", action="store_true", help="human-readable output where supported")
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -146,13 +159,13 @@ def _command(argv) -> int:
     p.add_argument("sql")
     p.add_argument("--limit", type=int, default=50)
 
-    p = sub.add_parser("note", help="append a journal entry")
+    p = sub.add_parser("record", help="append a journal entry")
     p.add_argument("kind", choices=core.NOTE_KINDS)
     p.add_argument("text")
     p.add_argument("--ref", action="append", default=[], dest="refs")
     p.add_argument("--resolves")
 
-    p = sub.add_parser("report", help="rebuild the HTML report")
+    p = sub.add_parser("render", help="rebuild the HTML report")
     p.add_argument("--if-changed", action="store_true")
 
     p = sub.add_parser("demo", help="fill a new project with synthetic data and example runs")
@@ -202,14 +215,14 @@ def _command(argv) -> int:
             from . import data
 
             _emit({"ok": True, **data.query(project, args.sql, args.limit)})
-        elif args.command == "note":
+        elif args.command == "record":
             from . import report
 
             core.sync_context(project, session=session)
             event = core.add_note(project, args.kind, args.text, refs=args.refs,
                                   resolves=args.resolves, actor=actor, session=session)
             _emit({"ok": True, "event": event, "report": _safe_report(report, project)})
-        elif args.command == "report":
+        elif args.command == "render":
             from . import report
 
             core.sync_context(project, session=session)

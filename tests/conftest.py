@@ -12,12 +12,17 @@ from aelix_analytics import _platform
 
 PACK = Path(__file__).resolve().parents[1]
 KIT = PACK / "src"
+# The environment variables' names before kit 0.3.0 (core.RENAMED_ENV), which the kit refuses: a
+# developer's shell that still sets one must not fail every test, so no test inherits them.
+OLD_ENV = ("LAB_PROJECT", "LAB_ACTOR", "LAB_SESSION", "LAB_STYLE", "AELIX_LAB_PROJECT",
+           "AELIX_LAB_TRUST_FILE", "AELIX_LAB_KIT", "AELIX_LAB_UV")
 
 
 def kit_env(**extra) -> dict:
     # PYTHONUNBUFFERED changes how a kit lays out its run streams, which tests check; a test that
     # wants it passes it (review 8, critic-4).
-    env = {k: v for k, v in os.environ.items() if k not in ("VIRTUAL_ENV", "PYTHONUNBUFFERED")}
+    env = {k: v for k, v in os.environ.items()
+           if k not in ("VIRTUAL_ENV", "PYTHONUNBUFFERED", *OLD_ENV)}
     env.update({"PYTHONPATH": str(KIT), "MPLBACKEND": "Agg", "AELIX_ANALYTICS_ACTOR": "test",
                 "PYTHONDONTWRITEBYTECODE": "1"})
     env.update(extra)
@@ -104,7 +109,10 @@ def sigint_as_an_interactive_python_has_it():
 
 @pytest.fixture(autouse=True)
 def isolated_trust_file(tmp_path, monkeypatch):
-    """Projects created by tests must never be registered in the user's real trust file."""
+    """Projects created by tests must never be registered in the user's real trust file, and no
+    test inherits a variable of the kit's old names (OLD_ENV) from the shell."""
+    for name in OLD_ENV:
+        monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("AELIX_ANALYTICS_TRUST_FILE", str(tmp_path / "trust" / "lab-projects.json"))
 
 

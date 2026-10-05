@@ -1,14 +1,17 @@
 """`analytics`, the human command line of Aelix Analytics, as its distribution installs it.
 
-It keeps `bin/analytics`'s contract — the commands and their arguments, the usage text, the kit's output
-passed through untouched, and the exit statuses — on every platform, under the command's name in the
-product's terminology (docs/TERMINOLOGY-AND-LANGUAGE.md): installers make it `analytics`, and
-`analytics.exe` on Windows, where the POSIX shell script `bin/analytics` cannot run (ADR-0002 decision 6,
-ADR-0004). Its usage, and the messages `bin/analytics` prints too, differ from `bin/analytics`'s only by that
-name; where `bin/analytics` leaves an error to the shell (no uv, a program that cannot start, a current
-directory that cannot be read), it prints one of its own. The measured differences are in
-docs/CONTRACTS.md, section F. `bin/analytics` stays the command of a checkout, under its old name until
-the rename of Issue #9; tests/test_launcher.py holds the two to one contract.
+It keeps the contract of `bin/analytics`, a checkout's command — the commands and their arguments, the
+usage text, the kit's output passed through untouched, and the exit statuses — on every platform:
+installers make it `analytics`, and `analytics.exe` on Windows, where the POSIX shell script cannot run
+(ADR-0002 decision 6, ADR-0004). Its usage and the messages `bin/analytics` prints too are the same
+bytes (before kit 0.3.0 the script was `bin/lab`, and they differed by that name); where `bin/analytics`
+leaves an error to the shell (no uv, a program that cannot start, a current directory that cannot be
+read), it prints one of its own. The measured differences are in docs/CONTRACTS.md, section F;
+tests/test_launcher.py holds the two to one contract.
+
+The kit's old names stop here before anything else runs (ADR-0005 decision 7): the subcommands `note`
+and `report` (now `record` and `render`) are usage errors, and an environment variable this command
+read under an old name (OLD_ENV) is an error that names the new one. Neither is an alias.
 
 Every command runs the kit in the project's own environment, as `bin/analytics` does:
 `uv run --project <project> python -m aelix_analytics ...` with PYTHONPATH set to exactly the
@@ -31,7 +34,7 @@ from pathlib import Path
 
 from . import _install
 
-# bin/analytics prints its header comment as its usage; this is the same text but for the command's name.
+# bin/analytics prints its header comment as its usage; this is the same text.
 USAGE = """\
 analytics — human CLI for Aelix Analytics projects (the same kit the aelix extension drives).
 
@@ -42,15 +45,24 @@ analytics — human CLI for Aelix Analytics projects (the same kit the aelix ext
   analytics run --rerun-of RUN_ID --title T   re-execute a run's code snapshot and compare
   analytics import FILE [--name N] [--description D]
   analytics query "SQL" [--limit N]
-  analytics note KIND "TEXT" [--ref R] [--resolves eN]
-  analytics report | open                     rebuild | open report/index.html
+  analytics record KIND "TEXT" [--ref R] [--resolves eN]
+  analytics render | open                     rebuild | open report/index.html
 
-Commands other than init/demo use the nearest lab.json above the current directory, or AELIX_ANALYTICS_PROJECT.
+Commands other than init/demo use the project in AELIX_ANALYTICS_PROJECT, else the nearest lab.json
+at or above the current directory.
 Output ends with one JSON line (status and context print text); a run that got past its setup
 puts an empty line before it. Nothing here is a sandbox.
 """
 
-COMMANDS = ("init", "demo", "status", "context", "open", "run", "import", "query", "note", "report")
+COMMANDS = ("init", "demo", "status", "context", "open", "run", "import", "query", "record", "render")
+
+# The environment variables this command read under the kit's old names (before kit 0.3.0), each with
+# its new name; bin/analytics refuses the same three in the same order with the same words. The kit
+# refuses the others it read (core.RENAMED_ENV), and a test holds the three to that table.
+OLD_ENV = {"LAB_PROJECT": "AELIX_ANALYTICS_PROJECT", "LAB_ACTOR": "AELIX_ANALYTICS_ACTOR",
+           "AELIX_LAB_UV": "AELIX_ANALYTICS_UV"}
+PROJECT_NOTE = ("the analytics command and the aelix extension both read AELIX_ANALYTICS_PROJECT, "
+                "ahead of the working directory")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -81,6 +93,12 @@ def _command(args: list[str], kit: Path | None, uv_argv: list[str] | None,
     if command in ("init", "demo") and not args:
         _say(f"usage: analytics {command} DIR")
         return 2
+    for old, new in OLD_ENV.items():
+        if os.environ.get(old):
+            note = f" ({PROJECT_NOTE})" if new == "AELIX_ANALYTICS_PROJECT" else ""
+            _say(f"analytics: {old} was renamed {new} in kit 0.3.0{note}; set {new} instead and "
+                 f"unset {old}")
+            return 2
     try:
         kit = kit or _install.kit_dir()
     except RuntimeError as exc:
@@ -108,7 +126,7 @@ def _command(args: list[str], kit: Path | None, uv_argv: list[str] | None,
         if command == "demo":
             code = children.run(kit_argv(uv, project, "demo"), env)
         else:
-            code = children.run(kit_argv(uv, project, "report"), env, stdout=subprocess.DEVNULL)
+            code = children.run(kit_argv(uv, project, "render"), env, stdout=subprocess.DEVNULL)
         if code or children.interrupted:
             return code or children.stopped
         index = Path(project) / "report" / "index.html"
@@ -121,11 +139,11 @@ def _command(args: list[str], kit: Path | None, uv_argv: list[str] | None,
     if command == "open":
         index = Path(project) / "report" / "index.html"
         if not index.is_file():
-            # uv only to build the report: opening one needs none, as with bin/lab.
+            # uv only to build the report: opening one needs none, as with bin/analytics.
             uv = uv_argv or _uv(processes)
             if uv is None:
                 return 127
-            code = children.run(kit_argv(uv, project, "report"), env, stdout=subprocess.DEVNULL)
+            code = children.run(kit_argv(uv, project, "render"), env, stdout=subprocess.DEVNULL)
             if code or children.interrupted:
                 return code or children.stopped
         if children.interrupted:  # the opener is a step too

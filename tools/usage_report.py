@@ -90,7 +90,7 @@ CLOCK_DAY = "2026-09-01"
 # The measured extension's names by role: the one place to change when they are renamed (#9).
 TOOL_NAMES = {"status": "analytics_status", "query": "analytics_query", "import": "analytics_import",
               "run": "analytics_run", "note": "analytics_record", "init": "analytics_init"}
-COMMAND_NAME = "lab"
+COMMAND_NAME = "analytics"
 
 # Counters this report can count tokens with, by id. A file is used only when it has this sha256.
 COUNTERS = {
@@ -330,8 +330,12 @@ def token_sum(values: list[dict]) -> dict:
 
 # --- isolation and the clock -------------------------------------------------------------------
 
-ISOLATED_KEYS = ("AELIX_ANALYTICS_TRUST_FILE", "AELIX_ANALYTICS_UV", "AELIX_ANALYTICS_PROJECT", "AELIX_ANALYTICS_RUNTIME_PATH",
-                 "AELIX_ANALYTICS_PROJECT", "AELIX_ANALYTICS_ACTOR", "AELIX_ANALYTICS_SESSION")
+# The variables the measured code reads, and their names before kit 0.3.0: an old one left set in the
+# shell would make the extension refuse to load (core.RENAMED_ENV), so it is unset while measuring.
+ISOLATED_KEYS = ("AELIX_ANALYTICS_TRUST_FILE", "AELIX_ANALYTICS_UV", "AELIX_ANALYTICS_PROJECT",
+                 "AELIX_ANALYTICS_RUNTIME_PATH", "AELIX_ANALYTICS_ACTOR", "AELIX_ANALYTICS_SESSION",
+                 "AELIX_ANALYTICS_STYLE", "AELIX_LAB_TRUST_FILE", "AELIX_LAB_UV", "AELIX_LAB_PROJECT",
+                 "AELIX_LAB_KIT", "LAB_PROJECT", "LAB_ACTOR", "LAB_SESSION", "LAB_STYLE")
 
 
 @contextlib.contextmanager
@@ -639,8 +643,8 @@ def _specs() -> list[Spec]:
                         (FactSpec("note-tail", "S8", "note_text", False),), ("S8",)))
     for lang in ("en", "ko"):
         out.append(Spec(f"Q-{lang}", "Q", lang, True,
-                        "a analytics_query result of 500 rows x 6 columns with long cells", (), ("S6",)))
-    out.append(Spec("I-en", "I", "en", True, "a analytics_import result of 300 columns",
+                        "an analytics_query result of 500 rows x 6 columns with long cells", (), ("S6",)))
+    out.append(Spec("I-en", "I", "en", True, "an analytics_import result of 300 columns",
                     (FactSpec("column-250", "S7", "columns"),), ("S7",)))
     out.append(Spec("E-en", "E", "en", True,
                     "errors: no_project, run_args, kit_failed (a long stderr), query_failed (503 "
@@ -657,7 +661,7 @@ def _specs() -> list[Spec]:
     out.append(Spec("SC-M", "SC", "-", False,
                     "scale M: 10,000 events, 20 datasets, 300 runs; report only"))
     out.append(Spec("B", "B", "ko", False,
-                    "a project as lab init leaves it (the template), and the analytics_init reply; "
+                    "a project as analytics init leaves it (the template), and the analytics_init reply; "
                     "report only"))
     return out
 
@@ -1338,17 +1342,17 @@ SAYS_JOURNAL = re.compile(r"\bin the journal\b|\bthe journal entry\b")
 
 
 def status_journal(text: str) -> Path | None:
-    """The journal a analytics_status reply names on its `journal:` line, when that is a file."""
+    """The journal an analytics_status reply names on its `journal:` line, when that is a file."""
     m = JOURNAL_LINE.search(text)
     return Path(m.group("path")) if m and Path(m.group("path")).is_file() else None
 
 
-# A line of a analytics_status list that says what the list leaves out, not an entry of it.
+# A line of an analytics_status list that says what the list leaves out, not an entry of it.
 STATUS_OMISSION = "  … "
 
 
 def status_located(line: str, journal: Path | None) -> bool:
-    """Whether an omission line of a analytics_status list names where the rest is: a path to read, a
+    """Whether an omission line of an analytics_status list names where the rest is: a path to read, a
     tool to call, or the journal, when the reply names the journal's file. An entry's own text that
     says so is no omission line, and is not asked."""
     return line.startswith(STATUS_OMISSION) and (
@@ -1502,7 +1506,7 @@ def status_invariants(host: Host, text: str, project) -> list[dict]:
 
 
 def status_cut(host: Host, text: str, project) -> dict:
-    """Whether a analytics_status reply carries the whole overview, judged against the overview itself:
+    """Whether an analytics_status reply carries the whole overview, judged against the overview itself:
     the reply's body (without its first line and the note the extension appends) against the
     kit's status_text of the same status with no length limit. When it does not: how many whole
     lines it kept, whether the next line it shows is part of a line (a cut inside a line), and
@@ -1571,7 +1575,7 @@ def run_invariants(host: Host, text: str, truth: Truth, project_root: Path) -> l
 
 
 def cell_shown(value, width: int) -> str:
-    """A value as a analytics_query table shows it in a cell `width` characters wide: its first
+    """A value as an analytics_query table shows it in a cell `width` characters wide: its first
     width - 1 characters and "…" when it is longer."""
     whole = "null" if value is None else str(value)
     return whole if len(whole) <= width else whole[:width - 1] + "…"
@@ -1590,7 +1594,7 @@ def table_rows(render_table, columns: list, rows: list, width: int) -> list[str]
 
 
 def rows_shown(text: str, rows: list[str]) -> int:
-    """How many of the rendered `rows` a analytics_query reply shows, each whole and in order, right
+    """How many of the rendered `rows` an analytics_query reply shows, each whole and in order, right
     after its first line and the table's three head lines."""
     parts = text.split("\n", 4)
     body = parts[4] if len(parts) == 5 else ""
@@ -1603,13 +1607,13 @@ def rows_shown(text: str, rows: list[str]) -> int:
     return n
 
 
-# How a analytics_query reply says to read a cut value whole: parts of N characters, at 1, N + 1, ….
+# How an analytics_query reply says to read a cut value whole: parts of N characters, at 1, N + 1, ….
 CELL_PARTS = re.compile(r"\bsubstr\(<column>, <start>, (?P<n>\d+)\) for <start> = 1, "
                         r"(?P<next>\d+), ")
 
 
 def query_invariants(text: str, result: dict, render_table, width: int) -> list[dict]:
-    """A analytics_query reply against the kit's result it was made from: a row counts as shown when the
+    """An analytics_query reply against the kit's result it was made from: a row counts as shown when the
     reply has it, every line of it as the extension's render_table renders that row, in order."""
     lines = text.split("\n")
     head = re.match(r"^analytics_query: ok — ([\d,]+) row\(s\)", lines[0])
@@ -1799,7 +1803,7 @@ def dataset_meta(project, name: str, *, rows: int, columns: list[dict], descript
 
 def write_dataset(ctx: Ctx, project, name: str, *, rows: int, columns: list[dict],
                   description: str, source: str, event: bool = True) -> dict:
-    """A dataset as `lab import` leaves it: data/raw/<name>.parquet (a marker file here: nothing in
+    """A dataset as `analytics import` leaves it: data/raw/<name>.parquet (a marker file here: nothing in
     the aelix process reads its content) and the meta.json next to it."""
     core = ctx.host.core
     project.raw.mkdir(parents=True, exist_ok=True)
@@ -2234,7 +2238,7 @@ def measure_note(ctx: Ctx, spec: Spec) -> None:
             reply = host.tool("note", {"kind": "finding", "text": text})
             reply_text, is_error = reply.text, reply.is_error
         else:
-            reply_text, is_error = host.command(f"note finding {text}"), False
+            reply_text, is_error = host.command(f"record finding {text}"), False
         event = core.read_events(project)[-1]
         ctx.text(spec.id, "S8", reply_text, variant=variant, root=project.root,
                  base=project.root.parent, is_error=is_error, given_chars=len(text),
@@ -2254,7 +2258,7 @@ QUERY_COLUMNS = [("n", "BIGINT"), ("region", "VARCHAR"), ("note", "VARCHAR"),
 
 
 def query_result(ctx: Ctx, lang: str) -> dict:
-    """A analytics_query result as the kit prints it: 500 rows, cells through data.cell, a value with a
+    """An analytics_query result as the kit prints it: 500 rows, cells through data.cell, a value with a
     line break in every fifth."""
     from datetime import date
     from decimal import Decimal
@@ -2855,7 +2859,7 @@ def conventions() -> dict:
                        "what was cut (never by the words a cut adds): status_9000 (the reply's "
                        "overview differs from the kit's status_text with no length limit), "
                        "reply_14000 (the extension's clip returned less than it was given, or "
-                       "a analytics_query reply shows fewer rows than the result has), "
+                       "an analytics_query reply shows fewer rows than the result has), "
                        "preamble_4000 (the block lacks part of CONTEXT.md's text above its first "
                        "heading)",
         "retrieval": "R0 in the first text; R1 through one pointer of it, followed with aelix's "

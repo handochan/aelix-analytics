@@ -75,10 +75,38 @@ def test_real_loader_registers_the_basic_contract_surface():
     assert result.errors == []
     (ext,) = result.extensions
     assert set(ext.tools) == TOOL_NAMES
-    assert set(ext.commands) == {"lab"}
+    assert set(ext.commands) == {"analytics"}
     assert set(ext.flags) == {"analytics-project"}
     assert {"before_agent_start", "tool_execution_start", "tool_execution_end",
             "agent_end"} <= set(ext.handlers)
+
+
+@pytest.mark.parametrize("argv", [["--lab-project", "/a/project"], ["--lab-project=/a/project"]])
+def test_the_real_loader_shows_the_old_flag_as_a_load_error(monkeypatch, argv):
+    """Owner's decision (2026-10-05/06): aelix 0.1.0b2 takes the unregistered --lab-project without a
+    word, so the extension's load fails with the new flag's name instead of picking the project from
+    the working directory; nothing is registered."""
+    from aelix_coding_agent.extensions.loader import load_extensions
+
+    monkeypatch.setattr("sys.argv", ["aelix", *argv])
+    result = asyncio.run(load_extensions([str(EXT)]))
+    assert result.extensions == []
+    assert len(result.errors) == 1
+    assert "--lab-project was renamed --analytics-project" in str(result.errors[0]), result.errors
+
+
+@pytest.mark.parametrize("old", ["AELIX_LAB_PROJECT", "AELIX_LAB_UV", "AELIX_LAB_TRUST_FILE",
+                                 "AELIX_LAB_KIT"])
+def test_the_real_loader_shows_an_old_variable_as_a_load_error(monkeypatch, tmp_path, old):
+    from aelix_coding_agent.extensions.loader import load_extensions
+
+    monkeypatch.setenv(old, str(tmp_path / "old"))
+    result = asyncio.run(load_extensions([str(EXT)]))
+    assert result.extensions == []
+    new = {"AELIX_LAB_PROJECT": "AELIX_ANALYTICS_PROJECT", "AELIX_LAB_UV": "AELIX_ANALYTICS_UV",
+           "AELIX_LAB_TRUST_FILE": "AELIX_ANALYTICS_TRUST_FILE",
+           "AELIX_LAB_KIT": "AELIX_ANALYTICS_RUNTIME_PATH"}[old]
+    assert f"{old} was renamed {new}" in str(result.errors[0]), result.errors
 
 
 def test_prompt_text_fits_aelix_limits_and_schemas_are_plain():
@@ -121,7 +149,7 @@ def test_status_note_context_injection_and_telemetry(lab):
     out = asyncio.run(module.on_before_agent_start(
         BeforeAgentStartHookEvent(prompt="hi", system_prompt="BASE PROMPT"), ctx))
     assert isinstance(out, BeforeAgentStartResult)
-    assert out.system_prompt.startswith("BASE PROMPT\n\n# Active analysis lab project")
+    assert out.system_prompt.startswith("BASE PROMPT\n\n# Active analytics project")
     assert "3월에 달라졌다" in out.system_prompt and "무엇이 달라졌나?" not in out.system_prompt
 
     module.on_tool_start(ToolExecutionStartHookEvent(tool_call_id="b1", tool_name="bash",
@@ -156,7 +184,7 @@ def test_two_projects_in_one_host_keep_their_own_records(tmp_path, monkeypatch):
     loaded = asyncio.run(load_extensions([str(EXT)]))
     assert loaded.errors == []
     (ext,) = loaded.extensions
-    lab = ext.commands["lab"].handler
+    lab = ext.commands["analytics"].handler
     [before], [start], [end] = (ext.handlers[k] for k in ("before_agent_start",
                                                          "tool_execution_start",
                                                          "tool_execution_end"))
@@ -198,7 +226,7 @@ def test_lab_command_where_help_and_gap(lab):
     module, root = lab
     assert "kit:" in asyncio.run(module.analytics_command("where"))
     assert "/analytics init DIR" in asyncio.run(module.analytics_command("help"))
-    assert "gap recorded" in asyncio.run(module.analytics_command("gap 차트 id를 한글로 못 붙인다"))
+    assert "gap recorded" in asyncio.run(module.analytics_command("record gap 차트 id를 한글로 못 붙인다"))
     events = module.core.read_events(module.core.Project(root))
     assert events[-1]["kind"] == "gap" and events[-1]["actor"] == "human"
 
@@ -363,7 +391,7 @@ def test_a_run_over_many_inputs_still_shows_stdout_and_says_what_it_hid():
 def test_lab_import_takes_a_tilde_name_by_the_rule_lab_import_follows(lab, tmp_path, monkeypatch):
     """Review 12, rest-5: the agent's analytics_import expanded its source with pathlib, which ended a
     `~name` with no home in 'RuntimeError: Could not determine home directory' on POSIX and read a
-    guessed home on Windows. It follows `lab import`'s rule now: as written, from where aelix runs."""
+    guessed home on Windows. It follows `analytics import`'s rule now: as written, from where aelix runs."""
     module, _root = lab
     seen = []
 
@@ -637,15 +665,16 @@ def test_a_query_reply_counts_rows_not_lines(lab, monkeypatch):
 
 def test_a_note_cut_to_the_journal_limit_says_so(lab):
     """Issue #11 G9 (D11): a note longer than 4,000 characters is recorded cut (C1); the replies
-    of analytics_record, /analytics record and /analytics record gap say so. aelix_analytics note and analytics.record() do not change."""
+    of analytics_record, /analytics record and /analytics record gap say so. aelix_analytics record and
+    analytics.record() do not change."""
     module, root = lab
     text = "근거와 한계를 함께 적는다. " * 300 + "END"
     said = (f"Truncated: the note has {len(text):,} characters and only the first 4,000 were "
             "recorded; the rest is not in the journal — record it as another note")
     reply = text_of(call(tools_of(module)["analytics_record"], {"kind": "finding", "text": text}))
     assert reply.split("\n")[1] == said
-    assert asyncio.run(module.analytics_command(f"note finding {text}")).endswith(f" — {said}")
-    assert asyncio.run(module.analytics_command(f"gap {text}")).endswith(f" — {said}")
+    assert asyncio.run(module.analytics_command(f"record finding {text}")).endswith(f" — {said}")
+    assert asyncio.run(module.analytics_command(f"record gap {text}")).endswith(f" — {said}")
     events = module.core.read_events(module.core.Project(root))
     assert [len(e["text"]) for e in events[-3:]] == [4000] * 3
     assert "Truncated" not in text_of(call(tools_of(module)["analytics_record"],

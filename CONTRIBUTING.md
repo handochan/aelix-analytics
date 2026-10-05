@@ -86,8 +86,10 @@ Git이 무시하는 파일(`.demo/`, `__pycache__` 밖의 `*.pyc` 등)도 실행
 체크아웃의 `uv sync`는 `[project.scripts]`를 설치하지 않는다는 경고를 냅니다. 정상입니다: 개발 환경은
 `package = false`이고, 이 배치는 editable 설치를 지원하지 않으므로 `package = true`로 바꾸지 마세요. 배포본은 빌드한
 wheel로 확인합니다.
-사람용 진입점은 `bin/lab`(체크아웃, POSIX)과 설치본의 `analytics`(`src/aelix_analytics/cli.py`) 둘입니다. 명령 이름 말고는
-같은 계약이므로, 한쪽의 명령·인자·출력·종료 코드를 바꾸면 다른 쪽과 `tests/test_launcher.py`의 동등성 시험을 함께 고칩니다.
+사람용 진입점은 `bin/analytics`(체크아웃, POSIX)과 설치본의 `analytics`(`src/aelix_analytics/cli.py`) 둘입니다. usage와 메시지의
+바이트까지 같은 계약이므로, 한쪽의 명령·인자·출력·종료 코드를 바꾸면 다른 쪽과 `tests/test_launcher.py`의 동등성 시험을 함께 고칩니다.
+kit 0.3.0부터 옛 이름의 환경 변수(`LAB_*`·`AELIX_LAB_*`)는 kit·명령·확장이 오류로 거절합니다. 셸이나 도구 설정에 남아 있으면 시험과
+측정이 그 오류로 멈추므로 `AELIX_ANALYTICS_*`로 바꾸세요(시험 helper와 `tools/usage_report.py`는 상속한 옛 이름을 지웁니다).
 
 Aelix 통합 시험은 aelix 0.1.0b2(와 그 의존성), pytest, pytest-timeout만 있는 새 환경에서 실행합니다. CI와 같은 격리 환경과 시험
 제한 시간입니다(CI는 보고용으로 `-ra`와 `--junitxml`을 더합니다):

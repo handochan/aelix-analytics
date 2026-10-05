@@ -11,8 +11,8 @@ CLI·환경 변수·JS/CSS·기본 템플릿·데모·시험과 모든 설계 �
 
 | 확인 영역 | 현재 위치 | 확인한 문제와 결정 |
 |---|---|---|
-| 배포·실행 진입점 | [pyproject.toml](../pyproject.toml), [bin/lab](../bin/lab), [CLI](../src/aelix_analytics/__main__.py) | 배포 이름은 이미 Analytics지만 CLI·module·help는 lab. 단일 `analytics` 표면으로 전환 |
-| Aelix 연동 | [aelix_lab.py](../extension/aelix_lab.py) | flag·명령·6 tools·환경 변수·help·복구 hint·하위 프로세스·telemetry 분류의 이름을 함께 변경 |
+| 배포·실행 진입점 | [pyproject.toml](../pyproject.toml), [bin/lab](../bin/analytics), [CLI](../src/aelix_analytics/__main__.py) | 배포 이름은 이미 Analytics지만 CLI·module·help는 lab. 단일 `analytics` 표면으로 전환 |
+| Aelix 연동 | [aelix_lab.py](../extension/aelix_analytics.py) | flag·명령·6 tools·환경 변수·help·복구 hint·하위 프로세스·telemetry 분류의 이름을 함께 변경 |
 | SDK·관용 코드 캡처 | [SDK](../src/aelix_analytics/__init__.py), [capture.py](../src/aelix_analytics/capture.py) | `labkit as lab`, `lab.note`, `lab.chart`, 관측 `via`·backend·file format·style 설정 점검. record/visualize 및 Visualization 상위 객체 채택 |
 | 프로젝트·원본 기록 | [core.py](../src/aelix_analytics/core.py) | marker·state·schema·trust·event kinds·refs·context·status·캐시·읽기 정책 전환 필요 |
 | 실행·재실행 | [runner.py](../src/aelix_analytics/runner.py) | run·입출력·환경·기록 완료·비교 결과의 구별. `reproduction`을 Rerun comparison으로 명시 |

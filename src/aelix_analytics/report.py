@@ -872,7 +872,7 @@ def run_page(site: Site, run: dict) -> str:
 <section id="journal"><h2>관련 기록</h2>{site.events_html(related, 1)}</section>
 <section id="reproduce"><h2>재현</h2><p>같은 코드 스냅샷을 다시 실행하고 차트 데이터·출력을 비교합니다.</p>
 <pre class="cmd">aelix: analytics_run(title="재실행 검증", rerun_of="{esc(rid)}")
-CLI:   lab run --rerun-of {esc(rid)}</pre></section>"""
+CLI:   analytics run --rerun-of {esc(rid)}</pre></section>"""
     crumb = f' <span>/</span> <a href="../index.html#runs">실행</a> <span>/</span> {esc(rid)}'
     return site.page(1, run.get("title") or rid, crumb, body, "run")
 

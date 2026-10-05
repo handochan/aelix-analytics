@@ -237,7 +237,7 @@ class _Links(HTMLParser):
 def test_report_links_point_at_existing_files_and_anchors(project):
     _run(project, write_script(project, "01_region.py", LAB_API))
     _run(project, write_script(project, "02_mix.py", DUCKDB_PLOTLY))
-    code, result = kit_cli(project, "report")
+    code, result = kit_cli(project, "render")
     assert code == 0
     report = project / "report"
     pages = sorted(report.rglob("*.html"))
@@ -503,7 +503,7 @@ def test_rerun_ids_and_recorded_paths_are_validated(project):
 def test_non_utf8_context_does_not_break_status_or_report(project):
     (project / "CONTEXT.md").write_bytes("# 목표\n매출 분석\n".encode("cp949"))
     assert kit_cli(project, "status")[0] == 0
-    assert kit_cli(project, "report")[0] == 0
+    assert kit_cli(project, "render")[0] == 0
 
 
 def test_chart_anchors_are_unique_for_similar_keys():
@@ -602,7 +602,7 @@ def test_a_run_over_many_files_stays_readable_in_the_journal_and_report(project)
     assert "input file(s)" in event["text"]
     assert len(json.dumps(event, ensure_ascii=False)) < 4000
 
-    assert kit_cli(project, "report")[0] == 0
+    assert kit_cli(project, "render")[0] == 0
     index = (project / "report" / "index.html").read_text(encoding="utf-8")
     assert "그 외 12개" in index, "the timeline does not say how many refs it hid"
     assert index.count("part_") <= 2 * core.MAX_EVENT_REFS, "the timeline dumped every input path"
@@ -685,8 +685,8 @@ def test_records_from_a_newer_kit_are_skipped_and_said_so(project):
     assert future.name not in [r["id"] for r in core.list_runs(p)]
     assert core.unreadable_records(p) == {"lab.event/2": 1, "lab.run/2": 1}
     text = core.status_text(core.status(p))
-    assert "lab.event/2" in text and "update the lab kit" in text
-    assert kit_cli(project, "report")[0] == 0
+    assert "lab.event/2" in text and "update the analytics kit" in text
+    assert kit_cli(project, "render")[0] == 0
     assert "이 리포트에서 빠진 기록이 있습니다" in (p.report / "index.html").read_text(encoding="utf-8")
 
     marker = json.loads(p.marker.read_text(encoding="utf-8"))
@@ -703,7 +703,7 @@ def test_a_failing_run_says_what_to_write_instead(project):
     code, result = _run(project, write_script(project, "01_habit.py", POLARS_PANDAS_HABIT), "습관")
     assert code != 0
     assert "print(df)" in result["run"]["error"]["hint"]
-    assert kit_cli(project, "report")[0] == 0
+    assert kit_cli(project, "render")[0] == 0
     page = next((project / "report" / "runs").glob("*01-habit.html")).read_text(encoding="utf-8")
     assert "고치는 법" in page and "df.glimpse()" in page
 
@@ -739,7 +739,7 @@ def test_context_is_disclosed_by_section_not_truncated_mid_sentence(project):
     text = core.status_text(st)
     assert "데이터 출처" in text and "<!-- 항상 -->" in text
 
-    assert kit_cli(project, "report")[0] == 0
+    assert kit_cli(project, "render")[0] == 0
     index = (p.report / "index.html").read_text(encoding="utf-8")
     assert "프롬프트에 매번 들어가는 섹션: 목표, 다음 할 일" in index
     assert "| a | b |" in index, "the report still shows the whole file"
@@ -933,7 +933,7 @@ def _main_status_text(st: dict, max_chars: int = 9000) -> str:
         lines.append(f"environment: {versions_line(st['versions'])} — use APIs of these versions")
     for schema, count in sorted((st.get("unreadable") or {}).items()):
         lines.append(f"{count} record(s) written as {schema} are skipped everywhere, including the "
-                     "report — this kit reads version 1; update the lab kit to read them")
+                     "report — this kit reads version 1; update the analytics kit to read them")
     if p.get("context_truncated"):
         lines.append(f"CONTEXT.md has {p['context_chars']:,} characters above its first `## ` "
                      f"heading, and only {CONTEXT_PROMPT_CHARS:,} reach the system prompt — split "
@@ -987,7 +987,7 @@ def _main_status_text(st: dict, max_chars: int = 9000) -> str:
 
 
 def _datasets(p, n: int, prefix: str = "part") -> list[dict]:
-    """`n` imported datasets as `lab import` leaves them: a parquet file (a marker: nothing here
+    """`n` imported datasets as `analytics import` leaves them: a parquet file (a marker: nothing here
     reads its content) and its meta.json."""
     p.raw.mkdir(parents=True, exist_ok=True)
     out = []
@@ -1036,7 +1036,7 @@ def _scale_project(root: Path, events: int, datasets: int, runs: int):
 def test_an_overview_within_its_length_is_mains_with_counts_and_places_added(tmp_path, shape):
     """Issue #11 G4 and design section 18: an overview of at most 9,000 characters shortens only
     the lists main shortened, and is main's text but for the lines that say how many entries a
-    list leaves out and where they are (the project as lab init leaves it; scale S and M)."""
+    list leaves out and where they are (the project as analytics init leaves it; scale S and M)."""
     if shape == "B":
         p = core.init_project(tmp_path / "b", title="새 분석", goal="측정", actor="test")
     else:
@@ -1273,7 +1273,7 @@ def test_python_m_runs_only_from_a_runtime_root(tmp_path):
     before = (_tree(project), trust.read_bytes())
     fresh = tmp_path / "fresh"
     for path, args in ((site, ["aelix_analytics", "--project", project, "status"]),
-                       (site, ["aelix_analytics", "--project", project, "note", "finding", "x"]),
+                       (site, ["aelix_analytics", "--project", project, "record", "finding", "x"]),
                        (site, ["aelix_analytics", "init", fresh]),
                        (site, ["aelix_analytics.kit.aelix_analytics", "--project", project, "status"])):
         code, answer, done = _module(path, *args, cwd=tmp_path)
@@ -1365,10 +1365,10 @@ def test_storage_names_stay_until_the_new_writer(project, tmp_path):
     journal = (project / "journal.jsonl").read_bytes()
 
     assert kit_cli(project, "status")[0] == 0
-    assert kit_cli(project, "note", "finding", "새 kit의 기록")[0] == 0
+    assert kit_cli(project, "record", "finding", "새 kit의 기록")[0] == 0
     code, result = _run(project, write_script(project, "01_new_kit.py", SDK_CALLS), "새 kit")
     assert code == 0 and result["run"]["status"] == "ok", result
-    assert kit_cli(project, "report")[0] == 0
+    assert kit_cli(project, "render")[0] == 0
 
     after = _tree(project)
     assert {rel: after.get(rel) for rel in kept} == kept
@@ -1396,3 +1396,182 @@ def test_storage_names_stay_until_the_new_writer(project, tmp_path):
     assert (core.MARKER, core.SCHEMA_PROJECT, core.SCHEMA_RUN, core.SCHEMA_EVENT,
             core.SCHEMA_DATASET) == ("lab.json", "lab.project/1", "lab.run/1", "lab.event/1",
                                      "lab.dataset/1")
+
+
+# --- Issue #9 PR-2: the public names are analytics, and the old ones stop with the new name -------
+
+# ADR-0005 decision 7's list: every variable the kit, its SDK, the command lines and the extension
+# read under an old name, with the name TERMINOLOGY section 3 gives it.
+ADR_RENAMED = {"LAB_PROJECT": "AELIX_ANALYTICS_PROJECT", "LAB_ACTOR": "AELIX_ANALYTICS_ACTOR",
+               "LAB_SESSION": "AELIX_ANALYTICS_SESSION", "LAB_STYLE": "AELIX_ANALYTICS_STYLE",
+               "AELIX_LAB_PROJECT": "AELIX_ANALYTICS_PROJECT",
+               "AELIX_LAB_TRUST_FILE": "AELIX_ANALYTICS_TRUST_FILE",
+               "AELIX_LAB_KIT": "AELIX_ANALYTICS_RUNTIME_PATH", "AELIX_LAB_UV": "AELIX_ANALYTICS_UV"}
+
+
+def _kit_in(cwd, env_extra, *args):
+    """`python -m aelix_analytics ARGS` from `cwd`, with this checkout's runtime root and `env_extra`
+    on top of the tests' environment; (exit code, last JSON object or None, the process)."""
+    import subprocess
+    import sys
+
+    from conftest import kit_env
+
+    done = subprocess.run([sys.executable, "-m", "aelix_analytics", *map(str, args)],
+                          capture_output=True, env=kit_env(**env_extra), cwd=cwd, timeout=300,
+                          **_platform.text_kwargs())
+    lines = [line for line in done.stdout.splitlines() if line.startswith("{")]
+    return done.returncode, (json.loads(lines[-1]) if lines else None), done
+
+
+def test_the_renamed_variables_are_the_adrs_list():
+    from aelix_analytics import __main__ as kit_main
+
+    assert core.RENAMED_ENV == ADR_RENAMED
+    assert set(kit_main.OLD_ENV) <= set(ADR_RENAMED) and core.NAMES_RENAMED_IN == "0.3.0"
+    assert core.KIT_VERSION == "0.3.0"
+
+
+@pytest.mark.parametrize("old", ["LAB_PROJECT", "LAB_ACTOR", "LAB_SESSION", "LAB_STYLE",
+                                 "AELIX_LAB_TRUST_FILE"])
+def test_an_old_variable_stops_the_kit_before_it_writes(project, tmp_path, old):
+    """ADR-0005 decision 7: the kit command line refuses each old name it, a run in it or init read,
+    with env_renamed and the new name, also beside the new one, before anything is written: not the
+    journal, not the trust list, not a new project."""
+    new = ADR_RENAMED[old]
+    trust = Path(os.environ["AELIX_ANALYTICS_TRUST_FILE"])
+    before, trusted = _tree(project), (trust.read_bytes() if trust.exists() else None)
+    extra = {old: "x", new: os.environ[new] if new in os.environ else "y"}
+    for args in (["--project", project, "record", "finding", "x"], ["--project", project, "status"],
+                 ["init", tmp_path / "new-project"]):
+        code, result, done = _kit_in(tmp_path, extra, *args)
+        assert code == 1 and result["error"]["code"] == "env_renamed", (args, done.stderr)
+        assert result["error"]["details"] == {"renamed": {old: new}}
+        assert result["error"]["message"] == core.renamed_env_message(old, remedy=False)
+        assert new in result["error"]["message"] and f"unset {old}" in result["error"]["hint"]
+    assert _tree(project) == before
+    assert (trust.read_bytes() if trust.exists() else None) == trusted
+    assert not (tmp_path / "new-project").exists()
+
+
+def test_an_empty_old_variable_is_not_set(project, tmp_path):
+    # The old readers took an empty value as unset; so does the check.
+    code, result, done = _kit_in(tmp_path, {"LAB_ACTOR": "", "LAB_PROJECT": ""},
+                                 "--project", project, "status")
+    assert code == 0 and result["ok"], done.stderr
+
+
+def test_the_trust_list_refuses_its_old_variable(monkeypatch, tmp_path):
+    monkeypatch.setenv("AELIX_LAB_TRUST_FILE", str(tmp_path / "old.json"))
+    with pytest.raises(core.LabError) as raised:
+        core.trust_file()
+    assert raised.value.code == "env_renamed" and "AELIX_ANALYTICS_TRUST_FILE" in raised.value.message
+    assert not (tmp_path / "old.json").exists()
+
+
+def test_the_test_helpers_do_not_pass_on_an_old_variable(project, monkeypatch):
+    """Design revision 3 (critic 16): a shell that still sets an old name must not fail the suite."""
+    from conftest import OLD_ENV, kit_env
+
+    for name in OLD_ENV:
+        monkeypatch.setenv(name, "left over")
+    assert not set(OLD_ENV) & set(kit_env())
+    assert kit_cli(project, "status")[0] == 0
+
+
+def test_one_project_variable_is_read_ahead_of_the_working_directory(project, tmp_path):
+    """TERMINOLOGY section 3 makes LAB_PROJECT and AELIX_LAB_PROJECT one AELIX_ANALYTICS_PROJECT
+    (design section 9, R6): set for aelix, it also picks the project of a command run inside another
+    project. The record lands in the variable's project, and the other is untouched."""
+    other = tmp_path / "other"
+    core.init_project(other, title="다른 프로젝트", actor="test",
+                      template_dir=Path(core.__file__).parent / "template")
+    before = _tree(other)
+    code, result, done = _kit_in(other, {"AELIX_ANALYTICS_PROJECT": str(project)},
+                                 "record", "finding", "변수의 프로젝트에")
+    assert code == 0 and result["ok"], done.stderr
+    assert _tree(other) == before
+    assert core.read_events(core.Project(project))[-1]["text"] == "변수의 프로젝트에"
+
+
+@pytest.mark.parametrize("old", ["note", "report"])
+def test_the_old_subcommands_are_usage_errors(project, tmp_path, old):
+    before = _tree(project)
+    code, result, done = _kit_in(tmp_path, {}, "--project", project, old, "finding", "x")
+    assert code == 2 and result is None and "invalid choice" in done.stderr, done.stderr
+    assert _tree(project) == before
+
+
+def test_the_sdk_names_record_and_visualize_and_tells_the_old_ones(project):
+    """note became record and chart became visualize (kit 0.3.0): the old names are not aliases.
+    The attribute names the new one without importing anything, a run that uses it fails with that
+    message and a hint (also for `from aelix_analytics import note`, whose ImportError cannot carry
+    it), and what the new names record is what the old ones did (via lab.chart, kind finding)."""
+    import subprocess
+    import sys
+
+    from conftest import kit_env
+
+    probe = ("import json, sys\nimport aelix_analytics as a\nbefore = set(sys.modules)\nsaid = {}\n"
+             "for name in ('note', 'chart', 'nothing'):\n"
+             "    try:\n        getattr(a, name)\n    except AttributeError as exc:\n"
+             "        said[name] = str(exc)\n"
+             "print(json.dumps({'said': said, 'new': sorted(set(sys.modules) - before),\n"
+             "                  'all': a.__all__, 'has': hasattr(a, 'note'), 'in': a._RENAMED_IN}))\n")
+    done = subprocess.run([sys.executable, "-c", probe], capture_output=True, env=kit_env(),
+                          timeout=120, **_platform.text_kwargs())
+    seen = json.loads(done.stdout)
+    assert seen["new"] == [] and seen["has"] is False and seen["in"] == core.NAMES_RENAMED_IN
+    assert "aelix_analytics.note was renamed aelix_analytics.record in kit 0.3.0" in seen["said"]["note"]
+    assert "aelix_analytics.chart was renamed aelix_analytics.visualize" in seen["said"]["chart"]
+    assert seen["said"]["nothing"] == "module 'aelix_analytics' has no attribute 'nothing'"
+    assert {"record", "visualize"} <= set(seen["all"]) and not {"note", "chart"} & set(seen["all"])
+
+    for name, body in (("01_attr.py", "import aelix_analytics as analytics\nanalytics.note('finding', 'x')\n"),
+                       ("02_from.py", "from aelix_analytics import chart\n")):
+        code, result = _run(project, write_script(project, name, body), "옛 SDK 이름")
+        assert code == 3 and result["run"]["status"] == "error", result
+        error = result["run"]["error"]
+        assert "renamed note to record and chart to visualize in kit 0.3.0" in error["hint"], error
+    assert result["run"]["error"]["summary"].startswith(
+        "ImportError: cannot import name 'chart' from 'aelix_analytics'")
+
+    body = ("import matplotlib.pyplot as plt\nimport aelix_analytics as analytics\n"
+            "fig, ax = plt.subplots()\nax.plot([1, 2])\nanalytics.visualize(fig, 'new-name')\n"
+            "analytics.record('finding', '새 이름으로 기록')\n")
+    code, result = _run(project, write_script(project, "03_new.py", body), "새 SDK 이름")
+    assert code == 0 and result["run"]["status"] == "ok", result
+    assert [c["via"] for c in result["run"]["charts"]] == ["lab.chart"]
+    last = core.read_events(core.Project(project))[-1]
+    assert (last["kind"], last["text"]) == ("finding", "새 이름으로 기록")
+
+
+def test_an_sdk_project_lookup_refuses_the_old_variable(project, monkeypatch):
+    import aelix_analytics
+
+    monkeypatch.setenv("LAB_PROJECT", str(project))
+    with pytest.raises(RuntimeError, match="LAB_PROJECT was renamed AELIX_ANALYTICS_PROJECT"):
+        aelix_analytics.project()
+    monkeypatch.delenv("LAB_PROJECT")
+    monkeypatch.setenv("AELIX_ANALYTICS_PROJECT", str(project))
+    assert aelix_analytics.project().root == core.Project(project).root
+
+
+def test_the_kit_names_the_analytics_commands(project, tmp_path):
+    """The kit cannot tell which entry point called it, and names the commands as `analytics`
+    (Issue #9 comment, 2026-09-30): the hint for no project, the run page's rerun line, the
+    template's .gitignore and the demo's refusal."""
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    code, result, _ = _kit_in(empty, {}, "status")
+    assert code == 1 and result["error"]["hint"] == "create one with: analytics init DIR", result
+    assert "no analytics project at or above" in result["error"]["message"]
+    assert "rebuild with `analytics render`." in (project / ".gitignore").read_text(encoding="utf-8")
+    code, ran = _run(project, write_script(project, "01_x.py", "print(1)\n"))
+    assert code == 0
+    kit_cli(project, "render")
+    page = (project / "report" / "runs" / f"{ran['run']['id']}.html").read_text(encoding="utf-8")
+    assert f"CLI:   analytics run --rerun-of {ran['run']['id']}" in page
+    assert f'aelix: analytics_run(title="재실행 검증", rerun_of="{ran["run"]["id"]}")' in page
+    code, refused = kit_cli(project, "demo")
+    assert code == 1 and refused["error"]["hint"].startswith("analytics demo NEW_DIR"), refused

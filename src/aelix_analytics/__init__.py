@@ -10,7 +10,9 @@
 Inside a run every call is recorded. Plain `pl.read_parquet(...)`, DuckDB SQL over file literals,
 `plt.show()` and plotly `fig.show()` are captured too; `analytics.visualize(..., data=df)` additionally
 keeps a stable chart id, a caption and the exact plotted data. Outside a run the calls still work but
-record nothing. Before kit 0.2.0 this API was the module `labkit` (`import labkit as lab`).
+record nothing. Before kit 0.2.0 this API was the module `labkit` (`import labkit as lab`); before kit
+0.3.0 `record` was `note` and `visualize` was `chart`. No alias is kept: the old names fail with the new
+one in the error (ADR-0005 decision 9), and what they recorded is unchanged (`via` stays "lab.chart").
 
 A run gets this package from the entry point that started it: `analytics`, `bin/analytics` and the aelix
 extension give the project's environment exactly one directory on PYTHONPATH — the runtime root, the
@@ -20,7 +22,8 @@ command line (`cli`), where its kit is (`_install`), the aelix extension (`exten
 manifest, with a copy of the whole package as the runtime root under `kit/`. aelix imports this
 package when it loads the extension, so at module level it imports the standard library only: the
 SDK's functions import the kit's modules when they are called, and `__version__` reads `core` when it
-is asked for (PEP 562). Nothing else is answered by `__getattr__`.
+is asked for (PEP 562). `__getattr__` imports nothing else: the functions' old names get an
+AttributeError that says the new one, and any other name a plain one.
 """
 
 from __future__ import annotations
@@ -33,7 +36,12 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from . import core
 
-__all__ = ["chart", "datasets", "note", "path", "project", "read", "run_id", "save", "scan", "sql"]
+__all__ = ["datasets", "path", "project", "read", "record", "run_id", "save", "scan", "sql", "visualize"]
+
+# The script API's functions renamed in kit 0.3.0 (Issue #9), by their old names. The version is fixed:
+# it names the boundary, core.NAMES_RENAMED_IN, which this module may not import at load.
+_RENAMED = {"note": "record", "chart": "visualize"}
+_RENAMED_IN = "0.3.0"
 
 
 def __getattr__(name: str):
@@ -43,6 +51,11 @@ def __getattr__(name: str):
         from .core import KIT_VERSION
 
         return KIT_VERSION
+    if name in _RENAMED:
+        raise AttributeError(
+            f"{__name__}.{name} was renamed {__name__}.{_RENAMED[name]} in kit {_RENAMED_IN}; call "
+            f"{_RENAMED[name]}(...) with the same arguments. A run recorded by an earlier kit (its "
+            f"env.kit_version is below {_RENAMED_IN}) re-runs as it was only with that kit")
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
@@ -54,9 +67,12 @@ def project() -> core.Project:
 
     if capture.ACTIVE is not None:
         return capture.ACTIVE.project
+    if os.environ.get("LAB_PROJECT"):
+        # Outside a run; in one, the kit's command line has refused it already.
+        raise RuntimeError(core.renamed_env_message("LAB_PROJECT"))
     root = core.find_project(os.environ.get("AELIX_ANALYTICS_PROJECT") or os.getcwd())
     if root is None:
-        raise RuntimeError("not inside a lab project (no lab.json in this directory or above)")
+        raise RuntimeError("not inside an analytics project (no lab.json in this directory or above)")
     return core.Project(root)
 
 
@@ -143,11 +159,12 @@ def save(obj, name: str) -> Path:
     return capture.save_dataset(project(), obj, name)
 
 
-def chart(obj, id: str | None = None, *, title: str | None = None, caption: str | None = None,
-          data=None) -> dict:
-    """Record a chart: a matplotlib Figure/Axes, a plotly Figure, an object with _repr_html_, or a
-    path to an image/HTML file. `id` should be short ASCII (it names the chart across versions);
-    `data` is the table that was plotted and is saved next to the chart."""
+def visualize(obj, id: str | None = None, *, title: str | None = None, caption: str | None = None,
+              data=None) -> dict:
+    """Record a visualization — a chart: a matplotlib Figure/Axes, a plotly Figure, an object with
+    _repr_html_, or a path to an image/HTML file. `id` should be short ASCII (it names the chart
+    across versions); `data` is the table that was plotted and is saved next to the chart. Named
+    `chart` before kit 0.3.0; the record is the same (its `via` is "lab.chart")."""
     from . import capture, core
 
     state = capture.ACTIVE
@@ -157,14 +174,15 @@ def chart(obj, id: str | None = None, *, title: str | None = None, caption: str 
         run_dir = p.lab / "adhoc" / stamp
         state = capture.RunState(p, f"adhoc-{stamp}", run_dir, Path(sys.argv[0]).resolve())
         record = state.capture(obj, id, title=title, caption=caption, data=data)
-        print(f"aelix_analytics: not inside a lab run; chart saved under {run_dir} but not recorded",
-              file=sys.stderr)
+        print(f"aelix_analytics: not inside an analytics run; chart saved under {run_dir} but not "
+              "recorded", file=sys.stderr)
         return record
     return state.capture(obj, id, title=title, caption=caption, data=data)
 
 
-def note(kind: str, text: str) -> None:
-    """Journal entry linked to the current run (written when the run finishes)."""
+def record(kind: str, text: str) -> None:
+    """Journal entry linked to the current run (written when the run finishes). Named `note` before
+    kit 0.3.0."""
     from . import capture, core
 
     if kind not in core.NOTE_KINDS or kind == "resolve":

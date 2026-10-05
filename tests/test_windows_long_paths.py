@@ -197,7 +197,7 @@ def test_a_root_under_max_path_records_and_reports_outputs_past_it(tmp_path):
         script = attempt(observation, "script", lambda: write_script(root, name, body))
         ran = kit(root, "run", script, "--title", "long") if script else None
         observation["run"] = ran
-        reported = kit(root, "report")
+        reported = kit(root, "render")
         observation["report"] = reported
         deepest = attempt(observation, "deepest_file", lambda: deepest_file(root))
         if not ENABLED:
@@ -278,7 +278,7 @@ def test_the_extension_s_in_process_commands_work_in_a_root_past_max_path(tmp_pa
 
         monkeypatch.setattr(module.subprocess, "Popen", recording_popen)
         observation["use"] = asyncio.run(module.analytics_command(f"use {root}"))
-        observation["note"] = asyncio.run(module.analytics_command("note finding 깊은 경로의 발견"))
+        observation["note"] = asyncio.run(module.analytics_command("record finding 깊은 경로의 발견"))
         observation["report_start_refused"] = [repr(e) for e in refused]
         observation["report_task"] = str(module.STATE["report_tasks"].get(str(root)))
         observation["context"] = asyncio.run(module.analytics_command("context"))

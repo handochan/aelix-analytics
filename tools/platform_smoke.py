@@ -649,7 +649,8 @@ def kit_env(ctx) -> dict[str, str]:
     the uv settings, and the kit's own variables. Where it differs, on purpose: the allow-list has
     AELIX_ANALYTICS_TRUST_FILE, so a measurement never touches the user's trust list, and not the
     lower-case proxy names; UV_* is passed without the extension's SECRET_NAME filter; there is no
-    AELIX_ANALYTICS_SESSION (no aelix session is running), and AELIX_ANALYTICS_ACTOR is `smoke`. A test builds both
+    AELIX_ANALYTICS_SESSION (no aelix session is running), and AELIX_ANALYTICS_ACTOR is `smoke`. A
+    test builds both
     environments from the same inputs and allows only these differences."""
     env = ctx.bundle.processes.base_env()
     env.update({k: os.environ[k] for k in ENV_ALLOW if k in os.environ})
@@ -757,13 +758,15 @@ def cli_end_to_end(ctx):
     all_ok = all_ok and good and record.get("status") == "ok" and steps["run"]["stdout_has_korean"]
     run_id = record.get("id")
 
-    good, _ = step("note", "note", "finding", "측정 완료", "--ref", run_id or "none")
+    # The steps keep their names in the result ("note", "report") across the kit 0.3.0 rename of the
+    # commands (record, render), so that results before and after it compare.
+    good, _ = step("note", "record", "finding", "측정 완료", "--ref", run_id or "none")
     all_ok = all_ok and good
     good, result = step("rerun", "run", "--rerun-of", run_id or "none", "--title", "재실행")
     verdict = (((result or {}).get("run") or {}).get("reproduction") or {}).get("verdict")
     steps["rerun"]["verdict"] = verdict
     all_ok = all_ok and good and verdict == "match"
-    good, _ = step("report", "report")
+    good, _ = step("report", "render")
     index = root / "report" / "index.html"
     steps["report"]["index_exists"] = index.is_file()
     all_ok = all_ok and good and index.is_file()

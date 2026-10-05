@@ -12,10 +12,14 @@ core.py with its _platform sibling, from the runtime root (the directory that ho
 aelix_analytics) — installed, also its own package, whose __init__ imports only the standard library,
 and the stdlib-only aelix_analytics._install, which says where the runtime root is. From a checkout
 the runtime root is the checkout's src/ (so symlink this file in a checkout rather than copying it).
-Analysis code never runs in the aelix process: analytics_run, analytics_import, analytics_query and report builds are
-`uv run --project <project> python -m aelix_analytics ...` subprocesses in the project's own
-environment.
+Analysis code never runs in the aelix process: analytics_run, analytics_import, analytics_query and
+report builds are `uv run --project <project> python -m aelix_analytics ...` subprocesses in the
+project's own environment.
 Neither side is a sandbox, and aelix does not ask for approval before extension tools run.
+
+Before kit 0.3.0 this file was extension/aelix_lab.py, with the command /lab, the tools lab_*, the
+flag --lab-project and the variables AELIX_LAB_*. None of them is registered or read any more, and the
+old flag or an old variable stops the load with an error that names the new one (_refuse_old_names).
 """
 
 import asyncio
@@ -80,11 +84,16 @@ def _load_core():
     """
     path = KIT / "aelix_analytics" / "core.py"
     if not path.is_file():
-        remedy = {"AELIX_ANALYTICS_RUNTIME_PATH": "Point AELIX_ANALYTICS_RUNTIME_PATH at a directory that holds aelix_analytics/, or unset it.",
+        remedy = {"AELIX_ANALYTICS_RUNTIME_PATH": "Point AELIX_ANALYTICS_RUNTIME_PATH at a directory "
+                                                  "that holds aelix_analytics/, or unset it.",
                   "checkout": "Symlink extension/aelix_analytics.py instead of copying it, or set "
                               "AELIX_ANALYTICS_RUNTIME_PATH=<pack>/src.",
                   "installed file": "Reinstall the aelix-analytics package.",
                   "installed": "Reinstall the aelix-analytics package."}[KIT_ROUTE]
+        if KIT_ROUTE != "installed" and os.environ.get("AELIX_LAB_KIT"):
+            # Before the kit is found the renamed-variable error (_refuse_old_names) cannot be given.
+            remedy += (" AELIX_LAB_KIT is not read: it was renamed AELIX_ANALYTICS_RUNTIME_PATH in "
+                       "kit 0.3.0.")
         raise RuntimeError(f"aelix-analytics: kit not found at {path}. {remedy}")
     package = f"aelix_analytics_runtime_{hashlib.sha256(str(KIT).encode()).hexdigest()[:12]}"
     spec = importlib.machinery.ModuleSpec(package, None, is_package=True)
@@ -106,6 +115,36 @@ def _load_core():
 
 core = _load_core()
 
+# The aelix flag this file registered before the public names became analytics (kit 0.3.0, Issue #9).
+OLD_FLAG = "--lab-project"
+
+
+def _refuse_old_names(argv) -> None:
+    """Stop the load, before anything is registered, when an old name of something this file read is
+    given: an environment variable (core.RENAMED_ENV; AELIX_LAB_KIT only where this file read it, which
+    the installed module never did) or the old flag on aelix's command line. aelix 0.1.0b2 takes a flag
+    nobody registered without a word (cli/args.py), and get_flag answers None for it, so the old flag
+    would be ignored and the project picked from the working directory instead: the record would land
+    in another project. The command line is what aelix was started with; a host that embeds aelix
+    without one has no flag to give either. aelix shows this as the extension's load error and
+    registers nothing, as with a missing kit — the prompt hook, which swallows errors, would leave the
+    context block out without a word. There are no aliases (ADR-0005 decision 7)."""
+    names = ["AELIX_LAB_PROJECT", "AELIX_LAB_UV", "AELIX_LAB_TRUST_FILE"]
+    if KIT_ROUTE != "installed":
+        names.append("AELIX_LAB_KIT")
+    for name in names:
+        if os.environ.get(name):
+            raise RuntimeError(f"aelix-analytics: {core.renamed_env_message(name)}")
+    for token in argv:
+        if token == OLD_FLAG or token.startswith(f"{OLD_FLAG}="):
+            raise RuntimeError(
+                f"aelix-analytics: {OLD_FLAG} was renamed --analytics-project in kit "
+                f"{core.NAMES_RENAMED_IN}; start aelix with --analytics-project DIR instead "
+                f"({OLD_FLAG} is not read, so the project would not be the one given)")
+
+
+_refuse_old_names(sys.argv[1:])
+
 GRACE_SECONDS = 10
 MAX_TEXT = 14_000
 MAX_IMAGE_BYTES = 1_500_000
@@ -114,7 +153,7 @@ MAX_IMAGES = 3
 MAX_LIST = 10
 MAX_CHART_LIST = 12
 MAX_COLUMNS = 12
-# How much of a run's stdout and stderr tails a analytics_run reply shows; an ok run's stderr is shown
+# How much of a run's stdout and stderr tails an analytics_run reply shows; an ok run's stderr is shown
 # only when it is shorter than OK_STDERR (a warning, not a traceback).
 MAX_LOG = 3000
 OK_STDERR = 1500
@@ -147,8 +186,8 @@ KIT_IN_SHELL = re.compile(
 # for every session aelix builds, but the installed module is imported once per process.
 STATE = {"api": None, "project": None, "session": None, "starts": {}, "report_tasks": {}}
 
-NO_PROJECT = ("No analysis lab project is active (checked /analytics use, --analytics-project, AELIX_ANALYTICS_PROJECT, "
-              "and lab.json in the working directory and its parents).")
+NO_PROJECT = ("No analytics project is active (checked /analytics use, --analytics-project, "
+              "AELIX_ANALYTICS_PROJECT, and lab.json in the working directory and its parents).")
 
 
 def _error(code, message, hint=None, details=None):
@@ -185,7 +224,7 @@ def _resolve_project():
         if isinstance(value, str) and value.strip():
             project = core.Project(value.strip())
             if not project.marker.is_file():
-                raise core.LabError("project_invalid", f"{via} {project.root} is not a lab project "
+                raise core.LabError("project_invalid", f"{via} {project.root} is not an analytics project "
                                     "(no lab.json)", hint="create it with /analytics init DIR")
             return project, via
     root = core.find_project(os.getcwd())
@@ -398,7 +437,7 @@ async def sync_environment(project):
 
 
 def schedule_report(project) -> None:
-    """Start a detached `report --if-changed` build unless one for this project is still running.
+    """Start a detached `render --if-changed` build unless one for this project is still running.
 
     Deliberately not an asyncio task: a cancelled `uv run` whose Python child still holds the pipes
     keeps Process.wait() pending, which would stall aelix's loop shutdown. The kit serializes builds
@@ -412,7 +451,7 @@ def schedule_report(project) -> None:
     try:
         processes = project.platform.processes
         argv = [resolve_uv(processes), "run", "--project", key, "--quiet", "python", "-m", "aelix_analytics",
-                "--project", key, "report", "--if-changed"]
+                "--project", key, "render", "--if-changed"]
         STATE["report_tasks"][key] = subprocess.Popen(
             argv, cwd=key, env=child_env(processes, "system"), stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **processes.spawn_kwargs())
@@ -466,7 +505,7 @@ def render_error(label: str, value: dict) -> str:
 
 
 def _log(name: str, tail, path: Path) -> list[str]:
-    """A run's log in a analytics_run reply: whole, or its last MAX_LOG characters said to be cut, with
+    """A run's log in an analytics_run reply: whole, or its last MAX_LOG characters said to be cut, with
     the path of the whole log. The kit's tail of a log larger than core.OUTPUT_TAIL bytes begins
     with a "…" of its own (runner._tail): that "…" is taken off, and only then, so a log whose own
     text begins with "…" keeps it."""
@@ -617,7 +656,7 @@ QUERY_CELLS = (f"a value cut to fit its cell ends in …: read it whole in parts
 
 
 def render_query(value: dict) -> str:
-    """A analytics_query reply: the result's rows, as many whole rows as fit in MAX_TEXT. When that is
+    """An analytics_query reply: the result's rows, as many whole rows as fit in MAX_TEXT. When that is
     fewer than the kit fetched, the first line says how many are shown of how many, and a last line
     how to page to the rest: query results are not stored."""
     rows = value["rows"]
@@ -701,7 +740,7 @@ async def tool_import(args, ctx):
     source = str(args.get("source") or "").strip()
     if not source:
         raise core.LabError("import_source_missing", "source is empty")
-    src = core.expand_home(Path(source))  # the rule `lab import` and the kit's paths follow
+    src = core.expand_home(Path(source))  # the rule `analytics import` and the kit's paths follow
     src = src if src.is_absolute() else Path(os.getcwd()) / src
     cmd = ["import", str(src)]
     if args.get("name"):
@@ -819,7 +858,7 @@ async def tool_init(args, ctx):
     synced, detail = await sync_environment(project)
     lines = [f"analytics_init: ok — project {project.title()} at {project.root} (now the active project)"]
     if synced:
-        await run_kit(project, ["report"], timeout=240)
+        await run_kit(project, ["render"], timeout=240)
         lines.append(f"environment: synced from {detail} (DuckDB, Polars, PyArrow, matplotlib, plotly)")
     else:
         lines.append("environment: uv sync FAILED — runs will fail until it succeeds. uv said:\n" + detail)
@@ -841,7 +880,7 @@ def _tool(name, description, properties, required, handler, snippet, guidelines=
             raise
         except Exception as exc:  # noqa: BLE001 - report instead of failing the turn
             value = _error("internal_error", f"{type(exc).__name__}: {exc}",
-                           hint="this is a bug in the lab extension; analytics_status shows what was recorded")
+                           hint="this is a bug in the analytics extension; analytics_status shows what was recorded")
             return ToolResult(content=[TextContent(text=render_error(name, value))], details=value,
                               is_error=True)
         content, details = out[0], out[1]
@@ -863,7 +902,7 @@ STR = {"type": "string"}
 TOOLS = [
     _tool(
         "analytics_status",
-        "Overview of the active analysis lab project: datasets (Parquet) with query view names, recent "
+        "Overview of the active analytics project: datasets (Parquet) with query view names, recent "
         "runs, the latest version of every chart with staleness (inputs changed since the chart was "
         "made), open questions/todos, key findings/decisions/assumptions and the recent journal. "
         "Read-only. Call it first in a session and whenever you are unsure what already exists.",
@@ -938,7 +977,7 @@ TOOLS = [
             "data=plotted_df) for charts; one script per question, re-run it to version its charts.",
             "Record findings, decisions, assumptions, questions and todos with analytics_record as soon as they "
             "are established, citing run ids; keep CONTEXT.md current by editing it.",
-            "If the lab tools block you or force a workaround, record it with analytics_record kind=gap "
+            "If the analytics tools block you or force a workaround, record it with analytics_record kind=gap "
             "(this tooling is being evaluated).",
         ),
     ),
@@ -959,7 +998,7 @@ TOOLS = [
     ),
     _tool(
         "analytics_init",
-        "Create a new analysis lab project directory (lab.json, CONTEXT.md, journal.jsonl, data/, "
+        "Create a new analytics project directory (lab.json, CONTEXT.md, journal.jsonl, data/, "
         "scripts/, runs/, report/) with its own uv environment (DuckDB, Polars, PyArrow, matplotlib, "
         "plotly) and make it the active project. Only when the user asked to start a new analysis; if "
         "they did not say where, ask them first. The directory must not exist or must be empty.",
@@ -1013,7 +1052,7 @@ def summarize_call(tool: str, args: dict, project) -> tuple[str, list]:
         return path[:300], flags
     if tool == "read":
         return str(args.get("path") or "")[:300], flags
-    if tool.startswith("lab_"):
+    if tool.startswith("analytics_"):
         keep = {k: args[k] for k in ("title", "script", "name", "kind", "rerun_of", "source", "path")
                 if args.get(k)}
         for k, n in (("sql", 200), ("text", 120)):
@@ -1051,15 +1090,15 @@ def on_agent_end(event, ctx):
 # --- human command ---
 
 HELP = """/analytics — Aelix Analytics project
-  /analytics                      status of the active project
-  /analytics where                project, kit and uv in use
-  /analytics init DIR [title]     create a project + environment and make it active
-  /analytics demo DIR             new project with synthetic data and example runs
-  /analytics use DIR              make DIR the active project for this aelix process
-  /analytics render | open        rebuild the report | open it in the browser
-  /analytics record KIND TEXT       journal entry as a human (finding, decision, question, ...)
-  /analytics record gap TEXT             record a gap: something this analysis workflow lacked or made awkward
-  /analytics context              the context block injected into prompts"""
+  /analytics                    status of the active project
+  /analytics where              project, kit and uv in use
+  /analytics init DIR [title]   create a project + environment and make it active
+  /analytics demo DIR           new project with synthetic data and example runs
+  /analytics use DIR            make DIR the active project for this aelix process
+  /analytics render | open      rebuild the report | open it in the browser
+  /analytics record KIND TEXT   journal entry as a human (finding, decision, question, ...);
+                                KIND gap: something this analysis workflow lacked or made awkward
+  /analytics context            the context block injected into prompts"""
 
 
 async def analytics_command(args, ctx=None):
@@ -1101,17 +1140,17 @@ async def analytics_command(args, ctx=None):
                                           actor="human",
                                           session=STATE["session"]))
             STATE["project"] = str(project.root)
-            _notify(ctx, f"lab: syncing the environment of {project.root} …")
+            _notify(ctx, f"analytics: syncing the environment of {project.root} …")
             synced, detail = await sync_environment(project)
             if not synced:
                 return f"created {project.root}, but uv sync failed:\n{detail}"
             if sub == "demo":
-                _notify(ctx, "lab: generating synthetic data and example runs …")
+                _notify(ctx, "analytics: generating synthetic data and example runs …")
                 ok, value = await run_kit(project, ["demo"], timeout=900, actor="human")
                 if not ok:
                     return render_error("/analytics demo", value)
             else:
-                await run_kit(project, ["report"], timeout=240, actor="human")
+                await run_kit(project, ["render"], timeout=240, actor="human")
             return (f"created {project.root} (active). Report: {project.report / 'index.html'}"
                     " — /analytics open to view it.")
         if sub == "use":
@@ -1119,17 +1158,17 @@ async def analytics_command(args, ctx=None):
                 return "usage: /analytics use DIR"
             root = core.find_project(Path(rest).expanduser())
             if root is None:
-                return f"{rest} is not inside a lab project (no lab.json)"
+                return f"{rest} is not inside an analytics project (no lab.json)"
             STATE["project"] = str(root)
             # Off the event loop: on Windows a record being read elsewhere makes the replace wait
             # up to about two seconds before it fails (_platform.WindowsAtomicFiles).
             await asyncio.to_thread(core.trust_project, root)
             return f"active project: {root} (trusted: starting aelix inside it activates it)"
-        if sub in ("report", "open"):
+        if sub in ("render", "open"):
             project, _ = resolve_project()
             index = project.report / "index.html"
-            if sub == "report" or not index.is_file():
-                ok, value = await run_kit(project, ["report"], timeout=240, actor="human")
+            if sub == "render" or not index.is_file():
+                ok, value = await run_kit(project, ["render"], timeout=240, actor="human")
                 if not ok:
                     return render_error("/analytics render", value)
             if sub == "open":
@@ -1139,10 +1178,11 @@ async def analytics_command(args, ctx=None):
                     return f"could not open {index} ({exc}); open it in a browser yourself"
                 return f"opened {index}"
             return f"report rebuilt: {index}"
-        if sub in ("note", "gap"):
+        if sub == "record":
+            # `/analytics record gap TEXT` is what `/lab gap TEXT` was: kind gap stays the stored
+            # kind until the new record kinds (#13).
             project, _ = resolve_project()
-            kind, body = ("gap", rest) if sub == "gap" else (rest.partition(" ")[0],
-                                                             rest.partition(" ")[2])
+            kind, _, body = rest.partition(" ")
             event = await asyncio.to_thread(
                 lambda: core.add_note(project, kind, body, actor="human", session=STATE["session"]))
             schedule_report(project)
@@ -1202,12 +1242,12 @@ def setup(aelix):
     STATE.update({"api": aelix, "project": None, "session": None, "starts": {},
                   "report_tasks": {}})
     aelix.register_flag("analytics-project", type="str",
-                        description="Analysis lab project directory (holds lab.json)")
+                        description="Analytics project directory (holds lab.json)")
     for tool in TOOLS:
         aelix.register_tool(tool)
-    aelix.register_command("lab", handler=analytics_command,
-                           description="Analysis lab: status | init | demo | use | report | open | "
-                                       "note | gap | context")
+    aelix.register_command("analytics", handler=analytics_command,
+                           description="Analytics: status | where | init | demo | use | render | "
+                                       "open | record | context")
     aelix.on("before_agent_start", on_before_agent_start)
     aelix.on("tool_execution_start", on_tool_start)
     aelix.on("tool_execution_end", on_tool_end)

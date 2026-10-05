@@ -25,8 +25,8 @@ failure, timeout, concurrency, query, schema and HTML-reference cases.
 | Report regeneration | Historical run pages exist, no analysis rerun, retained run files unchanged |
 | Ordinary libraries | DuckDB/Polars output and matplotlib capture without an SDK import; missing plotted data remains explicit |
 
-The current rendering command is `report`. This baseline does not add the proposed
-`render` command, change runtime behavior, or treat agent-driven automated CLI execution
+The rendering command is `render` (`report` before kit 0.3.0, which renamed the public names only).
+This baseline does not change runtime behavior, or treat agent-driven automated CLI execution
 as an actual human usability study. It tests the human entrypoint's default `actor=human`
 without an inherited agent session.
 
@@ -61,9 +61,10 @@ snapshot as required by [PROJECT-OPERATIONS.md](PROJECT-OPERATIONS.md).
 
 These automated scenarios use `python -m aelix_analytics` (named `labkit` before kit 0.2.0) with the
 checkout's `src/` on `PYTHONPATH` in the locked development environment.
-The shell wrapper is a separate smoke check: use `bin/lab init` with a fresh project and
-an isolated `AELIX_LAB_TRUST_FILE`, then import the fixture and execute its scripts with
-`LAB_PROJECT` pointing at that project. This exercises the wrapper's project environment
+The shell wrapper is a separate smoke check: use `bin/analytics init` (`bin/lab` before kit 0.3.0) with
+a fresh project and an isolated `AELIX_ANALYTICS_TRUST_FILE`, then import the fixture and execute its scripts with
+`AELIX_ANALYTICS_PROJECT` pointing at that project. The variables' old names (`AELIX_LAB_*`, `LAB_*`) are
+refused with an error since kit 0.3.0, so unset them first. This exercises the wrapper's project environment
 creation; it is not a distribution-installation or cross-platform support claim.
 
 ## Reproduce the Aelix integration checks

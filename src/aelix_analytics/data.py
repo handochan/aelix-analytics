@@ -155,7 +155,7 @@ def import_file(project: core.Project, source: str, *, name: str | None = None,
     if fmt is None:
         raise core.LabError("import_format", f"cannot import {src.suffix or 'this file type'}",
                             hint="supported: .parquet .csv .tsv .txt .json .ndjson .jsonl; convert "
-                                 "other formats inside a analytics_run script and analytics.save the result")
+                                 "other formats inside an analytics_run script and analytics.save the result")
     name = name or re.sub(r"[^a-z0-9_]+", "_", src.stem.lower()).strip("_") or "dataset"
     if name[0].isdigit():
         name = f"d_{name}"
@@ -254,10 +254,10 @@ def import_warnings(name: str, info: dict, retyped: list[str]) -> list[str]:
     if info["rows"] == 1 and len(info["columns"]) <= 2 and nested:
         warnings.append(f"the source is one JSON object, so {name} is {info['rows']} row × "
                         f"{len(info['columns'])} nested column(s) and is not queryable as a table: "
-                        f"unnest it in a analytics_run script (analytics.sql(\"SELECT unnest(...) FROM "
+                        f"unnest it in an analytics_run script (analytics.sql(\"SELECT unnest(...) FROM "
                         f"{name}\")) and analytics.save the flat table")
     elif nested:
-        warnings.append(f"nested column(s) {', '.join(nested[:6])}: flatten them in a analytics_run "
+        warnings.append(f"nested column(s) {', '.join(nested[:6])}: flatten them in an analytics_run "
                         "script before grouping or joining on their fields")
     return warnings
 

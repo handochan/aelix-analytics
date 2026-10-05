@@ -318,7 +318,7 @@ def test_the_installed_package_refuses_to_run_the_kit_itself(dist, tmp_path, pyt
     before = (tree_digest(project), trust.read_bytes())
     fresh = tmp_path / "fresh"
     for argv, cwd in ((["-m", "aelix_analytics", "status"], project),
-                      (["-m", "aelix_analytics", "--project", project, "note", "finding", "x"], tmp_path),
+                      (["-m", "aelix_analytics", "--project", project, "record", "finding", "x"], tmp_path),
                       (["-m", "aelix_analytics", "init", fresh], tmp_path),
                       (["-m", "aelix_analytics.kit.aelix_analytics", "--project", project, "status"],
                        tmp_path)):
@@ -365,7 +365,7 @@ LOAD_PROBE = textwrap.dedent("""
     import aelix_coding_agent.extensions.loader as loader
 
     def ours(result):
-        return [e for e in result.extensions if "analytics_status" in e.tools or "lab" in e.commands]
+        return [e for e in result.extensions if "analytics_status" in e.tools or "analytics" in e.commands]
 
     async def main():
         cwd, agent_dir, configured = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3:]
@@ -420,8 +420,9 @@ def test_aelix_binds_and_loads_the_installed_extension(dist, tmp_path, python):
     assert "whitelist" not in loaded.stderr, loaded.stderr
     [copy] = seen["copies"]
     assert copy["manifest"] == "aelix-analytics"
-    assert copy["tools"] == ["analytics_import", "analytics_init", "analytics_record", "analytics_query", "analytics_run", "analytics_status"]
-    assert copy["commands"] == ["lab"] and copy["flags"] == ["analytics-project"]
+    assert copy["tools"] == ["analytics_import", "analytics_init", "analytics_query", "analytics_record",
+                             "analytics_run", "analytics_status"]
+    assert copy["commands"] == ["analytics"] and copy["flags"] == ["analytics-project"]
     assert sum(copy["handlers"].values()) == 4
     assert seen["errors"] == [] and seen["analysis"] == []
     # The extension's own package, its __init__ that imports nothing of the kit, and _install: core
@@ -609,8 +610,8 @@ def test_the_installed_command_drives_a_project_without_aelix(dist, tmp_path, py
                           cwd=project, env=env).stdout.splitlines()[-1])["run"]
     assert again["status"] == "ok" and again["rerun_of"] == record["id"], again
     assert again["reproduction"]["verdict"] == "match", again["reproduction"]
-    ok([analytics, "note", "decision", "계속"], cwd=project, env=env)
-    ok([analytics, "report"], cwd=project, env=env)
+    ok([analytics, "record", "decision", "계속"], cwd=project, env=env)
+    ok([analytics, "render"], cwd=project, env=env)
     assert "설치본 분석" in ok([analytics, "status"], cwd=project, env=env).stdout
     ok([analytics, "context"], cwd=project, env=env)
     if POSIX:
@@ -663,8 +664,8 @@ def test_the_kit_s_stdlib_commands_run_on_the_floor(dist, tmp_path):
     project = tmp_path / "proj"
     for args in (["init", project], ["--project", project, "status"],
                  ["--project", project, "context"],
-                 ["--project", project, "note", "finding", "3.11에서"],
-                 ["--project", project, "report"]):
+                 ["--project", project, "record", "finding", "3.11에서"],
+                 ["--project", project, "render"]):
         done = ok([venv_python(venv), "-m", "aelix_analytics", *args], cwd=tmp_path, env=env)
         assert json.loads(done.stdout.splitlines()[-1])["ok"] is True, (args, done.stdout)
     (project / "scripts").mkdir(exist_ok=True)
