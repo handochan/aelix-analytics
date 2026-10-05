@@ -732,8 +732,8 @@ KILL_TREE_TIMEOUT_SECONDS = 10
 # parent has exited is not found (Issue #8 measurement). It is reported, not taken as success; the
 # caller's bounded wait shows whether anything still holds the pipes.
 TASKKILL_NOT_FOUND = 128
-# How long the processes a failed taskkill named are looked at again before the failure is
-# reported (see WindowsProcessControl._named_have_ended). `taskkill /F` does not wait for what it
+# How long the processes a failed taskkill reported on are looked at again before the failure is
+# reported (see WindowsProcessControl._reported_have_ended). `taskkill /F` does not wait for what it
 # ends, so a process it ended a moment ago may still be on its way out.
 KILL_TREE_SETTLE_SECONDS = 2
 KILL_TREE_POLL_SECONDS = 0.05
@@ -919,8 +919,8 @@ class WindowsProcessControl:
         # is about to wait on. The wrapper itself is then ended directly, so at least it does not
         # outlive the call; its descendants may, and docs/CONTRACTS.md says the run can stay
         # incomplete. A failure taskkill gives only for processes that had ended by themselves is
-        # not one, so what it failed on is looked at again first (_named_have_ended): a bounded
-        # part of this call's blocking, not a grace period — nothing is asked to stop.
+        # not one, so what it reported on is looked at again first (_reported_have_ended): a
+        # bounded part of this call's blocking, not a grace period — nothing is asked to stop.
         problem, gone = None, False
         try:
             done = subprocess.run([self.system_program("taskkill.exe"), "/F", "/T", "/PID", str(pid)],
@@ -930,7 +930,8 @@ class WindowsProcessControl:
                 gone = True
                 problem = ("the wrapper had already exited when taskkill looked; a descendant of "
                            "it may still be running")
-            elif done.returncode != 0 and not self._named_have_ended(pid, done.stderr):
+            elif done.returncode != 0 and not self._reported_have_ended(pid, done.stdout,
+                                                                        done.stderr):
                 problem = f"taskkill exited {done.returncode}: {(done.stderr or '').strip()[:200]}"
         except (OSError, subprocess.SubprocessError) as exc:
             problem = f"{type(exc).__name__}: {exc}"
@@ -942,27 +943,31 @@ class WindowsProcessControl:
             with contextlib.suppress(OSError):
                 os.kill(pid, signal.SIGTERM)
 
-    def _named_have_ended(self, pid: int, errors: str | None) -> bool:
-        """Whether a taskkill that failed left running none of the processes it failed on. `/T`
+    def _reported_have_ended(self, pid: int, *outputs: str | None) -> bool:
+        """Whether a taskkill that failed left running none of the processes it reported on. `/T`
         lists the tree before it ends it, so a process that exits in between — a launcher whose
         own child had just been ended — is one taskkill says it could not end, though it is gone
         (Issue #38: exit 255, "There is no running instance of the task", on Windows Server 2025).
 
-        Every number in the errors is taken for a pid, because their words are in the system's
-        language; each process taskkill could not end is named there with its parent. Those and
-        the wrapper are looked at again until all have ended or KILL_TREE_SETTLE_SECONDS pass. This
-        process is left out: it is the wrapper's parent, which taskkill names as such. A number that
-        is not a pid in the tree only adds a process to look at. The report stays when the errors
-        hold no number that can be a pid, and when a process looked at is still there or cannot be
-        seen — another user's is what taskkill's "Access is denied" leaves. The processes taskkill
-        reported ended are not looked at, as after a taskkill that succeeded, and a descendant it
-        never found is the limit docs/CONTRACTS.md G states."""
-        named = {value for digits in re.findall(r"\d+", errors or "")
-                 if (value := recorded_pid(digits, WINDOWS_PID_MAX)) is not None}
-        named.discard(os.getpid())
-        if not named:
+        The output is read by its numbers alone, because its words are in the system's language.
+        With `/T` each process taskkill handles, the wrapper included, gets a line naming it and
+        its parent: in stdout when it was ended, in stderr when it was not, there followed by the
+        reason (the stderr lines were seen in that run; the rest is inferred from taskkill's known
+        output, and an output that differs keeps the report). The failure is dismissed only when
+        the output is all such lines (_reported_pids), the wrapper is among the pids they name —
+        taskkill went over this tree — and every one of them has ended: each is looked at again
+        until all have, or until KILL_TREE_SETTLE_SECONDS pass. One reported ended is looked at
+        too, since ending is not waited for. This process is left out: it is the wrapper's parent,
+        which taskkill names on the wrapper's line, and is running. The report stays when a line
+        is not one of those — a failure of the whole call, even one holding a number, names no
+        process — when the wrapper is not named, and when a process is still there or cannot be
+        seen (another user's, which taskkill's "Access is denied" leaves). It checks what taskkill
+        reported, not the tree: a descendant it never found is the limit docs/CONTRACTS.md G
+        states, as after a taskkill that succeeded."""
+        reported = self._reported_pids(*outputs)
+        if reported is None or pid not in reported:
             return False
-        waiting = named | {pid}
+        waiting = reported - {os.getpid()}
         deadline = time.monotonic() + KILL_TREE_SETTLE_SECONDS
         while True:
             waiting = {each for each in waiting if self._look(each) not in ("exited", "no process")}
@@ -971,6 +976,29 @@ class WindowsProcessControl:
             if time.monotonic() >= deadline:
                 return False
             time.sleep(KILL_TREE_POLL_SECONDS)
+
+    @staticmethod
+    def _reported_pids(*outputs: str | None) -> set[int] | None:
+        """Every pid taskkill's output names, or None when a line of it is not part of a report on
+        one process: a line holding exactly two numbers that can be pids (the process and its
+        parent), or a line holding none right after one (why that process was not ended). Blank
+        lines are skipped."""
+        reported: set[int] = set()
+        for output in outputs:
+            after_report = False
+            for line in (output or "").splitlines():
+                if not line.strip():
+                    continue
+                numbers = re.findall(r"\d+", line)
+                if not numbers and after_report:
+                    after_report = False
+                    continue
+                pids = {recorded_pid(each, WINDOWS_PID_MAX) for each in numbers}
+                if len(numbers) != 2 or None in pids:
+                    return None
+                reported |= pids
+                after_report = True
+        return reported
 
 
 CANCEL_POLL_SECONDS = 0.1

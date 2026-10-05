@@ -348,13 +348,16 @@ def test_windows_kill_tree_reports_what_taskkill_could_not_do(monkeypatch, capsy
 
 class _FakeProcessTable:
     """kernel32 over a table of pids, each "running", "exited", "no process", "another user's" or
-    "no answer"; a list gives one answer per look, its last one staying. A pid not in the table
-    belongs to no process. Every look is kept."""
+    "no answer"; a list gives one answer per look, its last one staying. The lists are copied, so a
+    parametrized table is the same every time it is used. A pid not in the table belongs to no
+    process. Every look is kept."""
 
     ERRORS = {"no process": 87, "another user's": 5, "no answer": 1}
 
     def __init__(self, table):
-        self.table, self.looks, self.last_error = dict(table), [], 0
+        self.table = {pid: list(answers) if isinstance(answers, list) else answers
+                      for pid, answers in table.items()}
+        self.looks, self.last_error = [], 0
 
     def OpenProcess(self, access, inherit, pid):  # noqa: N802 - the Win32 name
         self.looks.append(pid)
@@ -371,77 +374,136 @@ class _FakeProcessTable:
         return 1
 
 
-# What taskkill wrote in Windows CI run 37330266186 (Issue #38): `/T` had listed the tree, and the
-# process it names had exited by itself — its own child had just been ended — when taskkill came
-# to end it. The wrapper there was 4140.
+class _FakeClock:
+    """`time` for _platform: it moves only when slept, so how often a process is looked at does not
+    depend on how the test is scheduled. Every sleep is kept."""
+
+    def __init__(self):
+        self.now, self.slept = 0.0, []
+
+    def monotonic(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.slept.append(seconds)
+        self.now += seconds
+
+
+# What taskkill wrote to stderr in Windows CI run 37330266186 (Issue #38): `/T` had listed the tree,
+# and the process it names had exited by itself — its own child had just been ended — when taskkill
+# came to end it. The wrapper there was 4140. Its stdout was not kept (kill_tree prints stderr);
+# ENDED is made up in `/T`'s known form for the rest of that tree: the grandchild 9992 under the
+# launcher 8880, the child 3140, and the wrapper, whose parent 2000 is the process that called
+# kill_tree.
 RACED = ("ERROR: The process with PID 8880 (child process of PID 3140) could not be terminated.\n"
          "Reason: There is no running instance of the task.\n")
-# The same for the wrapper itself; 2000 is its parent, the process that called kill_tree.
+ENDED = ("SUCCESS: The process with PID 9992 (child process of PID 8880) has been terminated.\n"
+         "SUCCESS: The process with PID 3140 (child process of PID 4140) has been terminated.\n"
+         "SUCCESS: The process with PID 4140 (child process of PID 2000) has been terminated.\n")
+# The same race for the wrapper itself, after the rest of its tree was ended.
 RACED_WRAPPER = ("ERROR: The process with PID 4140 (child process of PID 2000) could not be "
                  "terminated.\nReason: There is no running instance of the task.\n")
+ENDED_BELOW_THE_WRAPPER = (
+    "SUCCESS: The process with PID 9992 (child process of PID 8880) has been terminated.\n"
+    "SUCCESS: The process with PID 8880 (child process of PID 3140) has been terminated.\n"
+    "SUCCESS: The process with PID 3140 (child process of PID 4140) has been terminated.\n")
 DENIED = ("ERROR: The process with PID 8880 (child process of PID 3140) could not be terminated.\n"
           "Reason: Access is denied.\n")
+# Failures of the whole call, which name no process (made up: none was observed). The first holds
+# a number all the same.
+WHOLE_CALL = "ERROR: Unable to enumerate the process tree (error 2).\n"
+WORDS_ONLY = "ERROR: The operation could not be completed.\n"
+ALL_ENDED = {9992: "no process", 8880: "no process", 3140: "exited", 4140: "exited"}
 
 
-def _kill_tree_over(monkeypatch, errors, table):
-    """kill_tree(4140) with taskkill exiting 255 with these errors, over a fake process table, in
-    a process whose pid is 2000. What was killed by pid, and the table, are returned."""
-    killed, fake = [], _FakeProcessTable(table)
+def _kill_tree_over(monkeypatch, out, errors, table, exit_code=255):
+    """kill_tree(4140) with taskkill exiting with this code and output, over a fake process table
+    and a fake clock, in a process whose pid is 2000. What was killed by pid, the table and the
+    clock are returned."""
+    killed, fake, clock = [], _FakeProcessTable(table), _FakeClock()
     monkeypatch.setattr(_platform.subprocess, "run",
-                        lambda argv, **kw: subprocess.CompletedProcess(argv, 255, "", errors))
+                        lambda argv, **kw: subprocess.CompletedProcess(argv, exit_code, out, errors))
     monkeypatch.setattr(_platform.os, "kill", lambda pid, sig: killed.append((pid, sig)))
     monkeypatch.setattr(_platform.os, "getpid", lambda: 2000)
+    monkeypatch.setattr(_platform, "time", clock)
     control = _platform.WindowsProcessControl()
     stub = types.SimpleNamespace(get_last_error=lambda: fake.last_error)
     monkeypatch.setattr(control, "_kernel32", lambda: (stub, fake))
     control.kill_tree(4140)
-    return killed, fake
+    return killed, fake, clock
 
 
-@pytest.mark.parametrize("errors, table, looked_again", [
+@pytest.mark.parametrize("out, errors, table, looked_again", [
+    pytest.param(ENDED, RACED, ALL_ENDED, None, id="the-ci-race"),
     # 3140 was ended by taskkill and is still on its way out at the first look.
-    pytest.param(RACED, {8880: "no process", 3140: ["running", "exited"], 4140: "exited"}, 3140,
-                 id="a-descendant"),
-    pytest.param(RACED, {8880: "exited", 3140: "no process",
-                         4140: ["running", "running", "exited"]}, 4140, id="the-wrapper-ends-late"),
-    pytest.param(RACED_WRAPPER, {4140: "exited", 2000: "running"}, None, id="the-wrapper"),
+    pytest.param(ENDED, RACED, {**ALL_ENDED, 3140: ["running", "exited"]}, 3140,
+                 id="a-descendant-ends-late"),
+    pytest.param(ENDED, RACED, {**ALL_ENDED, 4140: ["running", "running", "exited"]}, 4140,
+                 id="the-wrapper-ends-late"),
+    pytest.param(ENDED_BELOW_THE_WRAPPER, RACED_WRAPPER, {**ALL_ENDED, 2000: "running"}, None,
+                 id="the-wrapper"),
 ])
 def test_windows_kill_tree_does_not_report_a_process_that_ended_before_taskkill_reached_it(
-        monkeypatch, capsys, errors, table, looked_again):
+        monkeypatch, capsys, out, errors, table, looked_again):
     # Issue #38: taskkill exited 255 over a process that had already exited, and the tree was
-    # reported as left running though it had ended. Every process the errors name and the wrapper
-    # are looked at again, and each has ended. This process (2000), the wrapper's parent, is not
-    # one of them, though it is still running.
-    killed, fake = _kill_tree_over(monkeypatch, errors, table)
+    # reported as left running though it had ended. Its output names the wrapper, so it went over
+    # this tree, and every process it names — those it reported ended too — is looked at again and
+    # has ended. This process (2000), the wrapper's parent, is not one of them, though it is still
+    # running.
+    killed, fake, _ = _kill_tree_over(monkeypatch, out, errors, table)
     assert "could not end the process tree" not in capsys.readouterr().err
     assert killed == []
-    assert 2000 not in fake.looks and 4140 in fake.looks
     assert set(fake.looks) == set(table) - {2000}
     if looked_again:
-        assert fake.looks.count(looked_again) > 1, fake.looks
+        assert fake.looks.count(looked_again) == len(table[looked_again]), fake.looks
 
 
 @pytest.mark.parametrize("errors, table", [
-    pytest.param(RACED, {8880: "running", 3140: "exited", 4140: "exited"}, id="running"),
-    pytest.param(DENIED, {8880: "running", 3140: "exited", 4140: "exited"}, id="denied-running"),
-    pytest.param(DENIED, {8880: "another user's", 3140: "exited", 4140: "exited"},
-                 id="denied-unseen"),
-    pytest.param(DENIED, {8880: "no answer", 3140: "exited", 4140: "exited"}, id="no-answer"),
-    pytest.param(RACED, {8880: "no process", 3140: "exited", 4140: "running"},
-                 id="the-wrapper-running"),
+    pytest.param(RACED, {**ALL_ENDED, 9992: "running"}, id="reported-ended-but-running"),
+    pytest.param(RACED, {**ALL_ENDED, 8880: "running"}, id="running"),
+    pytest.param(DENIED, {**ALL_ENDED, 8880: "running"}, id="denied-running"),
+    pytest.param(DENIED, {**ALL_ENDED, 8880: "another user's"}, id="denied-unseen"),
+    pytest.param(DENIED, {**ALL_ENDED, 8880: "no answer"}, id="no-answer"),
+    pytest.param(RACED, {**ALL_ENDED, 4140: "running"}, id="the-wrapper-running"),
 ])
 def test_windows_kill_tree_still_reports_a_process_taskkill_left_running(monkeypatch, capsys,
                                                                          errors, table):
     # A process that is still there after the looks, or that cannot be seen, keeps the report, and
-    # the wrapper is ended directly as after any other failure. It was looked at more than once:
-    # what taskkill ended a moment ago is given the settling time before it counts as left.
-    monkeypatch.setattr(_platform, "KILL_TREE_SETTLE_SECONDS", 0.2)
-    killed, fake = _kill_tree_over(monkeypatch, errors, table)
+    # the wrapper is ended directly as after any other failure — also one taskkill reported ended,
+    # since it does not wait for that. What taskkill ended a moment ago is given the settling time,
+    # and no more, before it counts as left.
+    killed, fake, clock = _kill_tree_over(monkeypatch, ENDED, errors, table)
     err = capsys.readouterr().err
     assert "could not end the process tree of pid 4140" in err and "taskkill exited 255" in err, err
     assert killed == [(4140, signal.SIGTERM)]
     left = next(pid for pid, answer in table.items() if answer not in ("exited", "no process"))
-    assert fake.looks.count(left) > 1, fake.looks
+    assert set(clock.slept) == {_platform.KILL_TREE_POLL_SECONDS}
+    assert fake.looks.count(left) == len(clock.slept) + 1, fake.looks
+    assert (clock.now >= _platform.KILL_TREE_SETTLE_SECONDS
+            > clock.now - _platform.KILL_TREE_POLL_SECONDS), clock.now
+
+
+@pytest.mark.parametrize("exit_code, out, errors, table", [
+    # The reviews' counterexample: the wrapper had exited, and a descendant taskkill never named
+    # is running. Before, the number in the error was taken for a process.
+    pytest.param(1, "", WHOLE_CALL, {4140: "exited", 8880: "running", 2: "no process"},
+                 id="the-whole-call-with-a-number"),
+    pytest.param(255, ENDED, WHOLE_CALL, {**ALL_ENDED, 2: "no process"},
+                 id="the-whole-call-beside-reports"),
+    pytest.param(255, ENDED, WORDS_ONLY, ALL_ENDED, id="a-line-of-words-only"),
+    pytest.param(255, "", RACED, ALL_ENDED, id="the-wrapper-not-named"),
+])
+def test_windows_kill_tree_reports_a_failure_whose_output_does_not_show_what_it_was(
+        monkeypatch, capsys, exit_code, out, errors, table):
+    # Only an output made of reports on single processes, one of them the wrapper, can show that
+    # taskkill went over this tree and failed only over what had ended. Any other failure is
+    # reported, and the wrapper ended directly, without a look — as before Issue #38.
+    killed, fake, clock = _kill_tree_over(monkeypatch, out, errors, table, exit_code)
+    err = capsys.readouterr().err
+    assert ("could not end the process tree of pid 4140" in err
+            and f"taskkill exited {exit_code}" in err), err
+    assert killed == [(4140, signal.SIGTERM)]
+    assert fake.looks == [] and clock.slept == []
 
 
 def test_windows_runs_taskkill_from_the_system_directory_and_never_by_its_bare_name(monkeypatch):
