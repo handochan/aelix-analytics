@@ -183,13 +183,21 @@ def environment(project: core.Project) -> dict:
 
 
 def _tail(path: Path, limit: int = OUTPUT_TAIL) -> str:
+    """The last `limit` bytes of a log as text, from the first whole UTF-8 character: a tail that
+    leaves the start out begins with "…"."""
     try:
         size = path.stat().st_size
         with open(path, "rb") as fh:
             fh.seek(max(0, size - limit))
-            text = fh.read().decode("utf-8", errors="replace")
+            data = fh.read()
     except OSError:
         return ""
+    if size > limit:
+        # Skip the continuation bytes (0x80-0xBF) of a character the seek cut. A character has at
+        # most three; more is not UTF-8, and is decoded as it is.
+        start = next((i for i in range(min(4, len(data))) if not 0x80 <= data[i] <= 0xBF), 0)
+        data = data[start:]
+    text = data.decode("utf-8", errors="replace")
     return ("…" + text) if size > limit else text
 
 

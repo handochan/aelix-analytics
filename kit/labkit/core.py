@@ -758,7 +758,12 @@ def versions_line(versions: dict[str, str]) -> str:
     return ", ".join(f"{k} {v}" for k, v in versions.items())
 
 
-def status(project: Project, limit: int = 8) -> dict:
+# How many runs status() lists, latest first; charts, open items and key information get twice as
+# many.
+STATUS_LIMIT = 8
+
+
+def status(project: Project, limit: int = STATUS_LIMIT) -> dict:
     events = read_events(project)
     runs = list_runs(project)
     datasets = list_datasets(project, runs)
@@ -766,8 +771,7 @@ def status(project: Project, limit: int = 8) -> dict:
     fresh = Freshness(project, runs, cache)
     charts = chart_index(runs)
     resolved = resolved_targets(events)
-    context_text = (project.context.read_text(encoding="utf-8", errors="replace")
-                    if project.context.is_file() else "")
+    context_text = context_file_text(project)
     _, _, context_omitted, context_truncated = context_selection(context_text)
     current_charts = [c for c in charts if not c.get("retired")]
     chart_rows = []
@@ -793,8 +797,8 @@ def status(project: Project, limit: int = 8) -> dict:
     return {
         "project": {"root": str(project.root), "title": project.title(),
                     "created_at": project.config().get("created_at"),
-                    "goal": context_goal(context_text),
-                    "context_chars": len(context_text),
+                    "goal": context_goal(_newlines(context_text)),
+                    "context_chars": len(_newlines(context_text)),
                     "context_omitted": [s["name"] for s in context_omitted],
                     "context_truncated": context_truncated,
                     "context_updated": _version_time(versions[-1]) if versions else None},
@@ -838,101 +842,273 @@ def _fmt_int(value) -> str:
     return f"{value:,}" if isinstance(value, int) else "?"
 
 
-def status_text(st: dict, max_chars: int = 9000) -> str:
+# How long lab_status's overview may be (the extension's reply adds its first line).
+STATUS_CHARS = 9000
+# What an overview longer than STATUS_CHARS keeps of each list that has no limit of its own: the
+# CONTEXT.md sections left out of the system prompt, the query views, the datasets, and the changed
+# inputs of a chart.
+STATUS_FLOORS = {"context": 20, "views": 40, "datasets": 20, "stale": 5}
+# A query lab_query runs that lists every dataset view.
+VIEWS_SQL = "SELECT table_name FROM information_schema.tables"
+STATUS_PARTS = {"head": "lines about the project", "datasets": "datasets", "runs": "runs",
+                "charts": "charts", "open": "open questions/todos", "key": "key information",
+                "recent": "recent journal"}
+
+
+def status_text(st: dict, max_chars: int = STATUS_CHARS) -> str:
+    """The overview lab_status replies with. Each list is whole, or says how many it leaves out and
+    where they are.
+
+    Within `max_chars`, the lists status() limits (runs, charts, open items, key information, the
+    recent journal) are the only ones shortened. A longer overview shortens the lists that have no
+    limit of their own, the one that saves the most first, each to its STATUS_FLOORS entries and a
+    count of the rest with where to find them, until it fits. If it still does not, it ends at a
+    line end with a line that names what it leaves out and where to read it."""
+    lines = _status_lines(st, {})
+    text = _joined(lines)
+    if len(text) <= max_chars:
+        return text
+    saved = {name: len(text) - len(_joined(_status_lines(st, {name: floor})))
+             for name, floor in STATUS_FLOORS.items()}
+    caps: dict[str, int] = {}
+    for name in sorted(saved, key=lambda n: -saved[n]):
+        if saved[name] <= 0:
+            continue
+        caps[name] = STATUS_FLOORS[name]
+        lines = _status_lines(st, caps)
+        text = _joined(lines)
+        if len(text) <= max_chars:
+            return text
+    return _status_cut(lines, Path(st["project"]["root"]), max_chars)
+
+
+def _joined(lines: list[tuple[str, str]]) -> str:
+    return "\n".join(line for _, line in lines)
+
+
+def _capped(items: list, cap: int | None) -> list:
+    return items if cap is None or len(items) <= cap else items[:cap]
+
+
+def _status_lines(st: dict, caps: dict[str, int]) -> list[tuple[str, str]]:
+    """The overview's lines, each with the part of it (STATUS_PARTS) it belongs to. `caps`
+    shortens the lists STATUS_FLOORS names."""
     p, counts = st["project"], st["counts"]
-    lines = [f"project: {p['title']} ({p['root']})", f"report: {st['report']}"]
+    root = Path(p["root"])
+    journal = root / "journal.jsonl"
+    out: list[tuple[str, str]] = []
+
+    def add(part: str, line: str) -> None:
+        out.append((part, line))
+
+    older_runs = counts["runs"] - len(st["runs"])
+    more_charts = counts["charts"] - len(st["charts"])
+    older_open = counts["open"] - len(st["open"])
+    key_at_limit = len(st["key"]) >= 2 * STATUS_LIMIT
+    add("head", f"project: {p['title']} ({p['root']})")
+    add("head", f"report: {st['report']}")
+    if older_runs > 0 or more_charts > 0 or older_open > 0 or key_at_limit:
+        # Where the entries the lists below leave out are: said once, and the lists refer to it.
+        add("head", f"journal: {journal}")
     if p.get("goal"):
-        lines.append(f"goal: {_one_line(p['goal'])}")
+        add("head", f"goal: {_one_line(p['goal'])}")
     if st.get("versions"):
-        lines.append(f"environment: {versions_line(st['versions'])} — use APIs of these versions")
+        add("head", f"environment: {versions_line(st['versions'])} — use APIs of these versions")
     for schema, count in sorted((st.get("unreadable") or {}).items()):
-        lines.append(f"{count} record(s) written as {schema} are skipped everywhere, including the "
-                     "report — this kit reads version 1; update the lab kit to read them")
+        add("head", f"{count} record(s) written as {schema} are skipped everywhere, including the "
+                    "report — this kit reads version 1; update the lab kit to read them")
     if p.get("context_truncated"):
-        lines.append(f"CONTEXT.md has {p['context_chars']:,} characters above its first `## ` "
-                     f"heading, and only {CONTEXT_PROMPT_CHARS:,} reach the system prompt — split "
-                     "it into `## ` sections so the rest can be read on demand")
-    if p.get("context_omitted"):
-        lines.append("CONTEXT.md sections not in the system prompt (read them from the file when "
-                     f"they matter): {', '.join(p['context_omitted'])} — move a section earlier or "
-                     "mark its heading <!-- 항상 --> to pin it")
-    lines.append(f"datasets ({counts['datasets']}) — query views: "
-                 + (", ".join(st["views"]) or "none"))
-    for ds in st["datasets"]:
+        add("head", f"CONTEXT.md ({p['context_chars']:,} characters) has more than "
+                    f"{CONTEXT_PROMPT_CHARS:,} characters above its first `## ` heading, and only "
+                    f"the first {CONTEXT_PROMPT_CHARS:,} reach the system prompt, which says where "
+                    "to read the rest — split it into `## ` sections so the rest can be read on "
+                    "demand")
+    omitted = p.get("context_omitted") or []
+    if omitted:
+        names = _capped(omitted, caps.get("context"))
+        listed = ", ".join(names)
+        if len(names) < len(omitted):
+            listed += (f" and {len(omitted) - len(names):,} more (the system prompt lists every "
+                       f"one with its line range in read {root / 'CONTEXT.md'})")
+        add("head", "CONTEXT.md sections not in the system prompt (read them from the file when "
+                    f"they matter): {listed} — move a section earlier or mark its heading "
+                    "<!-- 항상 --> to pin it")
+    views = list(st["views"])
+    shown_views = _capped(views, caps.get("views"))
+    view_text = ", ".join(shown_views) or "none"
+    if len(shown_views) < len(views):
+        view_text += (f" and {len(views) - len(shown_views):,} more (call lab_query with "
+                      f"\"{VIEWS_SQL}\" to list every view)")
+    add("datasets", f"datasets ({counts['datasets']}) — query views: {view_text}")
+    datasets = _capped(st["datasets"], caps.get("datasets"))
+    for ds in datasets:
         origin = (f"← run {ds['producer']}" if ds.get("producer")
                   else f"from {ds['source']}" if ds.get("source")
                   else "NO PRODUCING RUN (written outside lab_run: no code or inputs recorded)")
-        lines.append(f"  {ds['kind']:<7} {ds['name']}: {_fmt_int(ds.get('rows'))} rows × "
-                     f"{ds.get('columns') or '?'} cols · {ds['path']} · {origin} · used by "
-                     f"{len(ds.get('used_by') or [])} run(s)")
-    lines.append(f"runs ({counts['runs']} total, {counts['runs_failed']} not ok; latest first):")
+        add("datasets", f"  {ds['kind']:<7} {ds['name']}: {_fmt_int(ds.get('rows'))} rows × "
+                        f"{ds.get('columns') or '?'} cols · {ds['path']} · {origin} · used by "
+                        f"{len(ds.get('used_by') or [])} run(s)")
+    if len(datasets) < len(st["datasets"]):
+        add("datasets", f"  … {len(st['datasets']) - len(datasets):,} more dataset(s) not listed: "
+                        f"call lab_query with \"{VIEWS_SQL}\" to list every view; an imported "
+                        "one's record is data/raw/<name>.meta.json")
+    add("runs", f"runs ({counts['runs']} total, {counts['runs_failed']} not ok; latest first):")
     for r in st["runs"]:
         extra = f" — {_one_line(r['error'], 100)}" if r.get("error") else ""
         if r.get("rerun_of"):
             extra += f" [rerun of {r['rerun_of']}: {r.get('verdict')}]"
         dur = f"{r['duration_s']:.1f}s" if isinstance(r.get("duration_s"), (int, float)) else "-"
-        lines.append(f"  {r['id']} {r.get('status')} {dur} charts={r['charts']} "
-                     f"\"{_one_line(r.get('title'), 80)}\"{extra}")
-    lines.append(f"charts (latest version per script::chart, {counts['charts']}):")
+        add("runs", f"  {r['id']} {r.get('status')} {dur} charts={r['charts']} "
+                    f"\"{_one_line(r.get('title'), 80)}\"{extra}")
+    if older_runs > 0:
+        add("runs", f"  … {older_runs:,} older run(s) not listed: in the journal, and each in "
+                    "runs/<id>/run.json")
+    add("charts", f"charts (latest version per script::chart, {counts['charts']}):")
     for c in st["charts"]:
         flags = []
         if c["stale"]:
-            flags.append("STALE(" + ", ".join(c["changed_inputs"] + [
-                f"upstream {u}" for u in c["stale_upstream"]]) + ")")
+            changed = c["changed_inputs"] + [f"upstream {u}" for u in c["stale_upstream"]]
+            shown = _capped(changed, caps.get("stale"))
+            more = ""
+            if len(shown) < len(changed):
+                more = (f" and {len(changed) - len(shown):,} more, among the run's inputs in "
+                        f"runs/{c['run']}/run.json")
+            flags.append("STALE(" + ", ".join(shown) + more + ")")
         if c["code"] == "changed":
             flags.append("script edited since")
         elif c["code"] == "missing":
             flags.append("script file no longer exists")
         if not c["has_data"] and c.get("kind") == "matplotlib":
             flags.append("plotted data not recorded")
-        lines.append(f"  {c['key']} \"{_one_line(c.get('title'), 70)}\" run {c['run']} "
-                     f"v{c['versions']}" + (" · " + "; ".join(flags) if flags else ""))
+        add("charts", f"  {c['key']} \"{_one_line(c.get('title'), 70)}\" run {c['run']} "
+                      f"v{c['versions']}" + (" · " + "; ".join(flags) if flags else ""))
+    if more_charts > 0:
+        add("charts", f"  … {more_charts:,} more chart(s) not listed: the journal entry of the run "
+                      "that made each names it")
     if st["open"]:
-        lines.append(f"open questions/todos ({counts['open']}):")
-        lines += [f"  {e['id']} {e['kind']}: {_one_line(e['text'])}" for e in st["open"]]
+        add("open", f"open questions/todos ({counts['open']}):")
+        for e in st["open"]:
+            add("open", f"  {e['id']} {e['kind']}: {_one_line(e['text'])}")
+        if older_open > 0:
+            add("open", f"  … {older_open:,} older open item(s) not listed: in the journal")
     if st["key"]:
-        lines.append("key information (findings, decisions, assumptions):")
-        lines += [f"  {e['id']} {e['kind']}: {_one_line(e['text'])}" for e in st["key"]]
-    lines.append("recent journal:")
-    lines += [f"  {e['id']} {str(e.get('ts', ''))[:16].replace('T', ' ')} {e['kind']}: "
-              f"{_one_line(e['text'], 120)}" for e in st["recent"]]
-    text = "\n".join(lines)
-    return text if len(text) <= max_chars else text[:max_chars - 40] + "\n… (truncated)"
+        add("key", "key information (findings, decisions, assumptions):")
+        for e in st["key"]:
+            add("key", f"  {e['id']} {e['kind']}: {_one_line(e['text'])}")
+        if key_at_limit:
+            add("key", f"  … only the latest {len(st['key'])} are listed; older unresolved ones, if "
+                       "any, are in the journal")
+    add("recent", "recent journal:")
+    for e in st["recent"]:
+        add("recent", f"  {e['id']} {str(e.get('ts', ''))[:16].replace('T', ' ')} {e['kind']}: "
+                      f"{_one_line(e['text'], 120)}")
+    return out
+
+
+def _status_cut(lines: list[tuple[str, str]], root: Path, max_chars: int) -> str:
+    """The overview cut at a line end so that it and a last line naming what it leaves out, and
+    where to read that, fit in `max_chars`."""
+    sizes = [len(line) + 1 for _, line in lines]
+    for keep in range(len(lines) - 1, -1, -1):
+        marker = _status_cut_marker(lines[keep:], root, max_chars)
+        if sum(sizes[:keep]) + len(marker) <= max_chars:
+            return "\n".join([*(line for _, line in lines[:keep]), marker])
+    return marker[:max_chars]
+
+
+def _status_cut_marker(lost: list[tuple[str, str]], root: Path, max_chars: int) -> str:
+    parts: dict[str, list[str]] = {}
+    for part, line in lost:
+        parts.setdefault(part, []).append(line)
+    said = []
+    for part, lines in parts.items():
+        listed = sum(1 for line in lines if line.startswith("  ") and not line.startswith("  … "))
+        label = STATUS_PARTS[part]
+        if part == "head":
+            said.append(f"{len(lines)} {label}")
+        elif lines[0].startswith("  "):
+            said.append(f"the last {listed} of the {label}" if listed else f"the end of the {label}")
+        else:
+            said.append(f"the {label}" + (f" ({listed} listed)" if listed else ""))
+    where = [f"the journal has an entry for every run, import and note: read "
+             f"{root / 'journal.jsonl'}"]
+    if "datasets" in parts:
+        where.append(f"call lab_query with \"{VIEWS_SQL}\" to list every dataset view")
+    return (f"… (truncated at {max_chars:,} characters — not shown: {', '.join(said)}; "
+            + "; ".join(where) + ")")
 
 
 PIN_RE = re.compile(r"<!--\s*(항상|always)\s*-->", re.IGNORECASE)
 
 
+def context_file_text(project: Project) -> str:
+    """CONTEXT.md as aelix's read tool reads it: its bytes as UTF-8 (undecodable bytes replaced) and
+    its line ends as they are. Text mode would turn a CRLF and a lone CR into "\\n", and number the
+    lines differently from the read tool."""
+    if not project.context.is_file():
+        return ""
+    return project.context.read_bytes().decode("utf-8", errors="replace")
+
+
+def _newlines(text: str) -> str:
+    """`text` with its CRLF and lone CR line ends as "\\n", as text mode reads a file."""
+    return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
+def _file_lines(text: str) -> list[str]:
+    """A file's lines as aelix's read tool numbers them from 1: split at "\\n" alone, blank lines
+    kept, and no line after a last "\\n"."""
+    lines = text.split("\n")
+    return lines[:-1] if lines[-1] == "" else lines
+
+
+def _shown(lines: list[str]) -> str:
+    """Lines of CONTEXT.md as the system prompt shows them: every line end str.splitlines knows
+    (a CRLF, a lone CR, a form feed or U+2028 inside a line too) as "\\n"."""
+    return "\n".join("\n".join(lines).splitlines())
+
+
 def context_sections(text: str) -> tuple[str, list[dict]]:
-    """CONTEXT.md split at `## ` headings: (preamble, sections with 1-based line numbers)."""
-    lines = text.splitlines()
+    """CONTEXT.md split at `## ` headings: (preamble, sections).
+
+    `text` is the file as context_file_text reads it. A section's `line` and `lines` are an offset
+    and a limit for aelix's read tool: lines are split at "\\n" alone and numbered from 1, leading
+    blank lines included, so a CRLF, a lone CR, a form feed or U+2028 does not move them. A lone CR
+    is no line end there, so a file whose lines end in lone CRs is one line, all of it preamble.
+    Headings are found and named without a CRLF's "\\r". The preamble and a section's `text` show
+    every line end as "\\n" (_shown), and `chars` is the length of that text."""
+    lines = _file_lines(text)
     starts = [i for i, line in enumerate(lines) if line.startswith("## ")]
-    preamble = "\n".join(lines[:starts[0]] if starts else lines).strip()
+    preamble = _shown(lines[:starts[0]] if starts else lines).strip()
     sections = []
     for n, start in enumerate(starts):
         end = starts[n + 1] if n + 1 < len(starts) else len(lines)
         heading = lines[start][3:].strip()
-        body = "\n".join(lines[start:end]).rstrip()
+        body = _shown(lines[start:end]).rstrip()
         sections.append({"name": _one_line(PIN_RE.sub("", heading), 48) or f"섹션 {n + 1}",
                          "pinned": bool(PIN_RE.search(heading)), "line": start + 1,
                          "lines": end - start, "chars": len(body), "text": body})
     return preamble, sections
 
 
-def context_selection(text: str,
-                      budget: int = CONTEXT_PROMPT_CHARS) -> tuple[str, list, list, bool]:
+def context_selection(text: str, budget: int = CONTEXT_PROMPT_CHARS, *,
+                      path: Path | str | None = None) -> tuple[str, list, list, bool]:
     """Which CONTEXT.md sections go into the system prompt: pinned ones, then as many as the
     budget allows in file order. The rest are listed with their line ranges so the agent can
     read exactly the one it needs — context is never hidden, only fetched on demand.
 
     Returns (preamble, included, omitted, preamble_truncated). Text above the first `## ` heading
-    cannot be fetched by section, so an oversized one is the only thing ever cut."""
+    cannot be fetched by section, so an oversized one is the only thing ever cut: its first
+    `budget` characters are kept, and a line says how much more there is and which lines of the
+    file (`path`) hold all of it."""
     preamble, sections = context_sections(text)
     truncated = len(preamble) > budget
     if truncated:
-        preamble = preamble[:budget].rstrip() + (
-            f"\n… (머리말이 {budget:,}자를 넘어 잘렸습니다 — `## 제목`으로 섹션을 나누면 "
-            "필요한 부분만 읽어 갈 수 있습니다)")
+        kept = preamble[:budget].rstrip()
+        lines = sections[0]["line"] - 1 if sections else len(_file_lines(text))
+        preamble = (f"{kept}\n… (Omitted from current context: {len(preamble) - len(kept):,} more "
+                    f"characters above the first `## ` heading — all of it: read "
+                    f"{path or 'CONTEXT.md'} offset 1 limit {lines})")
     left = budget - len(preamble)
     included = [s for s in sections if s["pinned"]]
     left -= sum(s["chars"] for s in included)
@@ -949,16 +1125,18 @@ def context_selection(text: str,
     return preamble, included, omitted, truncated
 
 
+# How much of a journal entry's text the context block shows.
+ENTRY_CHARS = 300
+
+
 def context_block(project: Project, max_context_chars: int = CONTEXT_PROMPT_CHARS,
                   max_items: int = 12) -> str:
     """Project context appended to the system prompt. Only slow-changing parts, so it stays
     stable across prompts: CONTEXT.md, unresolved key information and open questions."""
     events = read_events(project)
     resolved = resolved_targets(events)
-    context_text = ""
-    if project.context.is_file():
-        context_text = project.context.read_text(encoding="utf-8", errors="replace").strip()
-    preamble, included, omitted, _ = context_selection(context_text, max_context_chars)
+    preamble, included, omitted, _ = context_selection(
+        context_file_text(project), max_context_chars, path=project.context)
     key = [e for e in events if e.get("kind") in KEY_KINDS and e["id"] not in resolved]
     open_items = [e for e in events if e.get("kind") in OPEN_KINDS and e["id"] not in resolved]
     parts = [
@@ -979,13 +1157,30 @@ def context_block(project: Project, max_context_chars: int = CONTEXT_PROMPT_CHAR
                   for s in omitted]
     if key:
         parts += ["", "## Key information (unresolved journal entries)"]
-        parts += [f"- {e['id']} {e['kind']}: {_one_line(e['text'], 300)}"
-                  + _refs_suffix(e) for e in key[-max_items:]]
+        parts += _journal_entries(key, max_items, project.journal, refs=True)
     if open_items:
         parts += ["", "## Open questions and todos"]
-        parts += [f"- {e['id']} {e['kind']}: {_one_line(e['text'], 300)}"
-                  for e in open_items[-max_items:]]
+        parts += _journal_entries(open_items, max_items, project.journal)
     return "\n".join(parts)
+
+
+def _journal_entries(entries: list[dict], max_items: int, journal: Path,
+                     refs: bool = False) -> list[str]:
+    """The latest `max_items` entries, a line each with its text cut at ENTRY_CHARS, and when any
+    are left out or cut, a line with how many and where to read them."""
+    shown = entries[-max_items:]
+    lines = [f"- {e['id']} {e['kind']}: {_one_line(e['text'], ENTRY_CHARS)}"
+             + (_refs_suffix(e) if refs else "") for e in shown]
+    left_out = []
+    if len(entries) > len(shown):
+        left_out.append(f"{len(entries) - len(shown):,} older entries (the latest {len(shown)} of "
+                        f"{len(entries):,} are above)")
+    if any(len(" ".join(str(e.get("text") or "").split())) > ENTRY_CHARS for e in shown):
+        left_out.append(f"the rest of each entry cut at {ENTRY_CHARS} characters (…)")
+    if left_out:
+        lines.append(f"- … Omitted from current context: {' and '.join(left_out)} — read "
+                     f"{journal} and find them by id")
+    return lines
 
 
 def _refs_suffix(event: dict) -> str:

@@ -614,7 +614,8 @@ def index_page(site: Site) -> str:
     version_items = "".join(
         f'<li><a href="context.html#v-{esc(v.stem)}">{fmt_time(core._version_time(v))}</a></li>'
         for v in site.versions[::-1][:12])
-    _, injected, omitted, _ = core.context_selection(context_text)
+    # The context block's own selection, from the file as aelix's read tool numbers its lines.
+    _, injected, omitted, _ = core.context_selection(core.context_file_text(p))
     prompt_note = (
         f'<p class="muted">프롬프트에 매번 들어가는 섹션: {esc(", ".join(s["name"] for s in injected)) or "없음"}.'
         + (f' 제목과 줄 범위만 들어가는 섹션: {esc(", ".join(s["name"] for s in omitted))} '

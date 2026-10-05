@@ -37,6 +37,35 @@ aelix는 세션을 만들 때마다(시작, `/new`, `/resume`, `/fork`, `/reload
 이 확인이 없는 이전 버전의 사본은 응답하지 않으므로 감지되지 않습니다(G).
 분석 라이브러리는 전부 프로젝트 uv 환경의 자식 프로세스에서 돕니다.
 
+### A1. 모델에 가는 텍스트의 생략과 다시 읽을 위치
+
+맥락 블록과 도구 응답은 길이 때문에 일부를 빼거나 자릅니다. 그 자리에는 무엇이 얼마나 빠졌는지와 다시 읽을 위치를 적습니다.
+위치는 정본 파일(`CONTEXT.md`의 줄 범위, `journal.jsonl`, `runs/<id>/run.json`·`stdout.txt`·`stderr.txt`,
+`data/raw/<name>.meta.json`)이나 기존 도구 호출이고, 저장되지 않는 것은 그렇다고 적습니다. 맥락 블록에서 뺀 것은
+`Omitted from current context`, 잘린 응답은 `truncated`/`Truncated`로 적습니다([용어](TERMINOLOGY-AND-LANGUAGE.md) 6절).
+
+| 텍스트 | 빼거나 자르는 것 | 적는 것 |
+|---|---|---|
+| 맥락 블록의 CONTEXT.md 섹션 | 고정하지 않았고 4,000자 예산에 들지 않는 섹션 | 섹션마다 이름과 `read offset N limit M`. 파일 경로는 목록의 머리 줄에 한 번 |
+| 맥락 블록의 머리말(첫 `## ` 위) | 4,000자 뒤 | 뺀 글자 수와 `read <CONTEXT.md> offset 1 limit <첫 제목 앞의 줄 수>` |
+| 맥락 블록의 핵심 정보·열린 항목 | 최근 12개 밖의 항목, 300자 뒤의 글 | 목록마다 한 줄: 뺀 항목 수(최근 12 / 전체), 300자에서 잘린 항목이 있다는 사실, `read <journal.jsonl>`(id로 찾음) |
+| `lab_status` | 최근 run 8개, 차트·열린 항목·핵심 정보 16개, 최근 기록 10개 밖 | 목록마다 뺀 개수와 journal(run은 `runs/<id>/run.json`도). journal 경로는 `journal:` 줄에 한 번. 핵심 정보는 전체 수를 세지 않고 "최근 16개만, 더 있으면 journal"로 적습니다 |
+| `lab_status`가 9,000자를 넘을 때 | 상한이 없는 목록 — 맥락에서 뺀 섹션 이름, view 이름, 데이터셋, 차트별 STALE 입력 — 을 줄이는 효과가 큰 것부터 20·40·20·5개로 | 뺀 개수와 위치(`CONTEXT.md`, `lab_query`로 view를 모두 보는 SQL, `runs/<id>/run.json`). 그래도 넘으면 줄 끝에서 자르고, 마지막 줄에 보이지 않는 절과 항목 수, journal 경로. 9,000자 안이면 이 목록들을 줄이지 않습니다 |
+| `lab_run` | 입력·출력·경고 10개, 차트 12개, 출력 열 12개 밖, stdout·stderr의 꼬리 | `read <runs/<id>/run.json>`(모두 있음), `+N more columns`, 목록 밖 차트 수와 run.json, 로그는 `truncated: the last N characters`와 로그 파일. ok인 run의 1,500자 이상 stderr를 보이지 않을 때도 그 사실과 파일 |
+| `lab_query` | 14,000자에 들지 않는 행(행 단위) | 첫 줄 `N row(s) shown of M fetched`, 마지막 줄에 뺀 행 수와 결과가 저장되지 않으니 `LIMIT/OFFSET`으로 나눠 읽으라는 안내. 잘린 셀은 `substr`로 읽는 방법 |
+| `lab_run`·`lab_import`·`lab_query`의 14,000자 절단 | 줄 끝에서 자름 | 뺀 글자 수와 run 페이지·run.json / 데이터셋 페이지·meta.json(전체 schema) / 결과가 저장되지 않음 |
+| `lab_note`, `/lab note`, `/lab gap` | 4,000자 뒤(C1) | 기록된 길이와 나머지가 journal에 없다는 사실 |
+| 오류 응답 | `details`의 2,000자 뒤, `kit_failed`가 담는 stderr 1,500자 앞 | 뺀 글자 수, `the last 1,500 characters` |
+
+줄 번호는 aelix read 도구가 세는 방식과 같습니다: 파일을 UTF-8로 읽어 `\n`으로만 나누고 1부터 세며, 앞의 빈 줄도 셉니다.
+CRLF의 `\r`은 제목을 찾고 이름을 붙일 때만 떼고, 블록에 넣는 텍스트와 섹션 선택에 쓰는 섹션 길이는 줄 끝을 `\n`으로 바꾼
+텍스트로 셉니다(CRLF 파일도 LF 파일과 같은 섹션이 들어감). 단독 CR·U+2028·FF 같은 문자는 줄을 나누지 않으므로, 단독 CR로만 줄을
+나눈 CONTEXT.md는 한 줄이고 전부 머리말입니다(앞 4,000자와 `offset 1 limit 1`).
+
+한계: 위치는 경로·줄 범위·도구 호출이고 텍스트를 만든 시점을 고정하지 않습니다. 텍스트를 만든 뒤 CONTEXT.md가 바뀌면 줄 범위가
+맞지 않을 수 있고, journal과 run 기록은 그 뒤에 더해진 것도 함께 보여 줍니다. 커서·다음 페이지·부분 조회는 없습니다(#15).
+50 KiB를 넘는 한 줄은 aelix read 도구가 읽지 않습니다. 블록의 생략 섹션 목록과 오류 hint는 길이 상한이 없습니다(#15).
+
 ## B. 프로젝트 파일 규약
 
 | 경로 | 규약 |
@@ -66,7 +95,7 @@ run의 **출력 비교 대상**은 프로젝트 루트에서 `.venv .lab runs re
 | `ts` | 로컬 시간대 ISO 8601 (밀리초) |
 | `kind` | `project` `import` `run` `context` · `finding` `decision` `assumption` `question` `todo` `note` `gap` `resolve` |
 | `actor` | `agent` `human` `system` `script` `test` 등 |
-| `text` | 최대 4,000자 |
+| `text` | 최대 4,000자. 넘는 부분은 기록되지 않습니다. 이를 알리는 것은 모델 도구(`lab_note`)와 `/lab note`·`/lab gap`의 응답뿐이고, SDK `lab.note()`와 `labkit note`는 알리지 않습니다 |
 | `refs` | `runs[]` `charts[]`(`script::chart-id`) `data[]` `events[]` `other[]` `context`(버전 파일명) `resolves`(이벤트 id) |
 | `session` | aelix 세션 파일 경로(있을 때) |
 

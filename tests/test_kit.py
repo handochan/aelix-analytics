@@ -653,9 +653,17 @@ def test_a_context_with_no_sections_is_cut_and_says_to_split_it(project):
     p.context.write_text("# 목표\n" + "긴 배경 설명. " * 900, encoding="utf-8")
     block = core.context_block(p)
     assert len(block) < 2 * core.CONTEXT_PROMPT_CHARS
-    assert "`## 제목`으로 섹션을 나누면" in block
+    preamble = "# 목표\n" + ("긴 배경 설명. " * 900).strip()
+    kept = preamble[:core.CONTEXT_PROMPT_CHARS].rstrip()
+    assert block.split("## CONTEXT.md\n", 1)[1].startswith(kept + "\n")
+    # Two lines, as the read tool numbers them: the pointer reads all of the text that was cut.
+    assert f"\n… (Omitted from current context: {len(preamble) - len(kept):,} more characters " \
+           f"above the first `## ` heading — all of it: read {p.context} offset 1 limit 2)" in block
     text = core.status_text(core.status(p))
-    assert f"only {core.CONTEXT_PROMPT_CHARS:,} reach the system prompt" in text
+    assert f"only the first {core.CONTEXT_PROMPT_CHARS:,} reach the system prompt" in text
+    assert "split it into `## ` sections" in text
+    # The file's length is not said to be the length above the first heading (D4).
+    assert not re.search(r"CONTEXT\.md has [\d,]+ characters above", text)
 
 
 POLARS_PANDAS_HABIT = '''import polars as pl
@@ -813,3 +821,323 @@ def test_cli_init_without_a_template_answers_in_json_and_creates_nothing(tmp_pat
     assert done.returncode == 1, done.stderr
     assert json.loads(done.stdout.splitlines()[-1])["error"]["code"] == "template_missing"
     assert not target.exists()
+
+
+# --- Issue #11 PR-2: what the context block and lab_status leave out, and where it is ---
+
+LINE_ENDS = {"lf": None, "crlf": None, "cr": "\r", "u2028": "\u2028", "u2029": "\u2029",
+              "ff": "\x0c", "vt": "\x0b", "nel": "\x85", "lead1": None, "lead3": None}
+
+
+def _sections_file(variant: str) -> bytes:
+    """A CONTEXT.md of a title, a pinned goal, a background that takes most of the budget and 20
+    sections that do not fit, its lines written as `variant` says."""
+    rules = [f"## Rule {i:02d}\n" + "".join(f"- rule {i:02d} line {j}: {'x' * 60}\n"
+                                            for j in range(6 + i % 3)) for i in range(20)]
+    text = ("# Title\n\n> a note\n\n## Goal <!-- always -->\n- measure\n\n## Background\n"
+            + "b" * 3500 + "\n\n" + "\n".join(rules))
+    if variant == "crlf":
+        return text.replace("\n", "\r\n").encode()
+    if variant in ("lead1", "lead3"):
+        return ("\n" * int(variant[-1]) + text).encode()
+    if LINE_ENDS[variant]:
+        # Inside a line of rule 03, which str.splitlines would split in two.
+        at = text.index("- rule 03 line 2: ") + 10
+        text = text[:at] + LINE_ENDS[variant] + text[at:]
+    return text.encode()
+
+
+@pytest.mark.parametrize("variant", list(LINE_ENDS))
+def test_section_pointers_are_the_lines_the_read_tool_numbers(tmp_path, variant):
+    """Issue #11 G1 (D7): aelix's read tool splits a file at b"\\n" alone and numbers its lines
+    from 1. Every pointer's range is one whole section of the file's bytes split that way: its
+    heading first, no other heading inside, and a heading or the end of the file after it."""
+    p = core.init_project(tmp_path / "p", actor="test")
+    data = _sections_file(variant)
+    p.context.write_bytes(data)
+    lines = data.split(b"\n")
+    if lines[-1] == b"":
+        lines.pop()
+    block = core.context_block(p)
+    pointers = re.findall(r"^- (.+) \((\d+) lines\): read offset (\d+) limit (\d+)$", block, re.M)
+    assert [name for name, *_ in pointers] == [f"Rule {i:02d}" for i in range(20)], block[-1500:]
+    for name, count, offset, limit in pointers:
+        first, n = int(offset), int(limit)
+        assert int(count) == n
+        got = lines[first - 1:first - 1 + n]
+        assert got[0].rstrip(b"\r") == f"## {name}".encode(), (name, got[0])
+        assert not [line for line in got[1:] if line.startswith(b"## ")], name
+        assert first - 1 + n == len(lines) or lines[first - 1 + n].startswith(b"## "), name
+    assert f"read the one you need from {p.context}:" in block and "- measure" in block
+    # The sections chosen are the same whatever the line ends: their length is counted on the text
+    # with its line ends as "\n" (design section 18).
+    assert core.status(p)["project"]["context_omitted"] == [f"Rule {i:02d}" for i in range(20)]
+
+
+def test_a_context_whose_lines_end_in_a_lone_cr_is_one_line(tmp_path):
+    """A lone CR is no line end to aelix's read tool: a CONTEXT.md written with lone-CR line ends
+    is one line. The kit reads it as that one line, all of it preamble: the block shows its first
+    4,000 characters, each CR as a line end, and points at line 1 for the rest (Issue #11 PR-2)."""
+    p = core.init_project(tmp_path / "p", actor="test")
+    p.context.write_bytes(("# Title\r\r## Goal <!-- always -->\r- measure\r\r## Rules\r"
+                           + "- a rule\r" * 600).encode())
+    block = core.context_block(p)
+    assert "### CONTEXT.md sections not repeated here" not in block
+    shown = block.split("## CONTEXT.md\n", 1)[1]
+    assert shown.startswith("# Title\n\n## Goal <!-- always -->\n- measure\n\n## Rules\n- a rule\n")
+    assert f"— all of it: read {p.context} offset 1 limit 1)" in block
+    st = core.status(p)
+    assert st["project"]["context_truncated"] and st["project"]["context_omitted"] == []
+
+
+def test_the_block_counts_the_entries_it_leaves_out_and_says_where_they_are(tmp_path):
+    """Issue #11 G3 (D5): past its latest 12 entries, and past 300 characters of one, the block
+    says how many entries it leaves out and where the journal is, once a list."""
+    p = core.init_project(tmp_path / "p", actor="test")
+    for i in range(14):
+        core.add_note(p, "finding", f"finding {i:02d}", actor="test")
+    core.add_note(p, "finding", "long " * 100, actor="test")
+    for i in range(3):
+        core.add_note(p, "question", f"question {i}", actor="test")
+    block = core.context_block(p)
+    key = block.split("## Key information", 1)[1].split("\n## ", 1)[0]
+    assert key.rstrip("\n").split("\n")[-1] == (
+        "- … Omitted from current context: 3 older entries (the latest 12 of 15 are above) and "
+        f"the rest of each entry cut at 300 characters (…) — read {p.journal} and find them by id")
+    assert len(re.findall(r"^- e\d+ finding:", key, re.M)) == 12
+    assert "Omitted" not in block.split("## Open questions and todos", 1)[1]
+    assert block.count(str(p.journal)) == 1
+
+
+def _main_status_text(st: dict, max_chars: int = 9000) -> str:
+    """lab_status's overview as main (bc77176) made it before Issue #11 PR-2, to compare with."""
+    _one_line, versions_line, _fmt_int = core._one_line, core.versions_line, core._fmt_int
+    CONTEXT_PROMPT_CHARS = core.CONTEXT_PROMPT_CHARS  # noqa: N806 - as main spelled it
+    p, counts = st["project"], st["counts"]
+    lines = [f"project: {p['title']} ({p['root']})", f"report: {st['report']}"]
+    if p.get("goal"):
+        lines.append(f"goal: {_one_line(p['goal'])}")
+    if st.get("versions"):
+        lines.append(f"environment: {versions_line(st['versions'])} — use APIs of these versions")
+    for schema, count in sorted((st.get("unreadable") or {}).items()):
+        lines.append(f"{count} record(s) written as {schema} are skipped everywhere, including the "
+                     "report — this kit reads version 1; update the lab kit to read them")
+    if p.get("context_truncated"):
+        lines.append(f"CONTEXT.md has {p['context_chars']:,} characters above its first `## ` "
+                     f"heading, and only {CONTEXT_PROMPT_CHARS:,} reach the system prompt — split "
+                     "it into `## ` sections so the rest can be read on demand")
+    if p.get("context_omitted"):
+        lines.append("CONTEXT.md sections not in the system prompt (read them from the file when "
+                     f"they matter): {', '.join(p['context_omitted'])} — move a section earlier or "
+                     "mark its heading <!-- 항상 --> to pin it")
+    lines.append(f"datasets ({counts['datasets']}) — query views: "
+                 + (", ".join(st["views"]) or "none"))
+    for ds in st["datasets"]:
+        origin = (f"← run {ds['producer']}" if ds.get("producer")
+                  else f"from {ds['source']}" if ds.get("source")
+                  else "NO PRODUCING RUN (written outside lab_run: no code or inputs recorded)")
+        lines.append(f"  {ds['kind']:<7} {ds['name']}: {_fmt_int(ds.get('rows'))} rows × "
+                     f"{ds.get('columns') or '?'} cols · {ds['path']} · {origin} · used by "
+                     f"{len(ds.get('used_by') or [])} run(s)")
+    lines.append(f"runs ({counts['runs']} total, {counts['runs_failed']} not ok; latest first):")
+    for r in st["runs"]:
+        extra = f" — {_one_line(r['error'], 100)}" if r.get("error") else ""
+        if r.get("rerun_of"):
+            extra += f" [rerun of {r['rerun_of']}: {r.get('verdict')}]"
+        dur = f"{r['duration_s']:.1f}s" if isinstance(r.get("duration_s"), (int, float)) else "-"
+        lines.append(f"  {r['id']} {r.get('status')} {dur} charts={r['charts']} "
+                     f"\"{_one_line(r.get('title'), 80)}\"{extra}")
+    lines.append(f"charts (latest version per script::chart, {counts['charts']}):")
+    for c in st["charts"]:
+        flags = []
+        if c["stale"]:
+            flags.append("STALE(" + ", ".join(c["changed_inputs"] + [
+                f"upstream {u}" for u in c["stale_upstream"]]) + ")")
+        if c["code"] == "changed":
+            flags.append("script edited since")
+        elif c["code"] == "missing":
+            flags.append("script file no longer exists")
+        if not c["has_data"] and c.get("kind") == "matplotlib":
+            flags.append("plotted data not recorded")
+        lines.append(f"  {c['key']} \"{_one_line(c.get('title'), 70)}\" run {c['run']} "
+                     f"v{c['versions']}" + (" · " + "; ".join(flags) if flags else ""))
+    if st["open"]:
+        lines.append(f"open questions/todos ({counts['open']}):")
+        lines += [f"  {e['id']} {e['kind']}: {_one_line(e['text'])}" for e in st["open"]]
+    if st["key"]:
+        lines.append("key information (findings, decisions, assumptions):")
+        lines += [f"  {e['id']} {e['kind']}: {_one_line(e['text'])}" for e in st["key"]]
+    lines.append("recent journal:")
+    lines += [f"  {e['id']} {str(e.get('ts', ''))[:16].replace('T', ' ')} {e['kind']}: "
+              f"{_one_line(e['text'], 120)}" for e in st["recent"]]
+    text = "\n".join(lines)
+    return text if len(text) <= max_chars else text[:max_chars - 40] + "\n… (truncated)"
+
+
+def _datasets(p, n: int, prefix: str = "part") -> list[dict]:
+    """`n` imported datasets as `lab import` leaves them: a parquet file (a marker: nothing here
+    reads its content) and its meta.json."""
+    p.raw.mkdir(parents=True, exist_ok=True)
+    out = []
+    for i in range(n):
+        name = f"{prefix}_{i:03d}"
+        (p.raw / f"{name}.parquet").write_bytes(b"PAR1 marker")
+        meta = {"schema": "lab.dataset/1", "name": name, "path": f"data/raw/{name}.parquet",
+                "sha256": core.sha256_file(p.raw / f"{name}.parquet"), "rows": 100,
+                "columns": [{"name": "v", "dtype": "Int64"}], "description": f"table {i}",
+                "source": {"path": f"/sources/{name}.csv"}}
+        core.write_json(p.raw / f"{name}.meta.json", meta)
+        out.append(meta)
+    return out
+
+
+def _scale_project(root: Path, events: int, datasets: int, runs: int):
+    """The scale fixtures of docs/BETA-QUALITY-GATES.md (tools/usage_report.py's SC-S and SC-M):
+    journal lines and run records written in the kit's formats."""
+    p = core.init_project(root, title=f"scale {events}", goal="compare regional growth",
+                          actor="test")
+    tables = _datasets(p, datasets, "t")
+    kinds = ("finding", "note", "question", "decision", "todo")
+    start = core._last_seq(p.journal)
+    with open(p.journal, "ab") as fh:
+        fh.write("".join(json.dumps({
+            "schema": "lab.event/1", "seq": start + i + 1, "id": f"e{start + i + 1}",
+            "ts": f"2026-09-01T09:{i // 60 % 60:02d}:{i % 60:02d}.000", "kind": kinds[i % 5],
+            "actor": "test", "text": f"entry {i}: region {i % 17} grew {i % 9}% apart",
+            "refs": {}}, ensure_ascii=False) + "\n" for i in range(events)).encode())
+    for i in range(runs):
+        run_id = f"20260901-{9 + i // 3600:02d}{(i // 60) % 60:02d}{i % 60:02d}-run-{i:03d}"
+        ds = tables[i % datasets]
+        (p.runs / run_id).mkdir(parents=True)
+        core.write_json(p.runs / run_id / "run.json", {
+            "schema": "lab.run/1", "id": run_id, "title": f"run {i}", "status": "ok",
+            "started_at": f"2026-09-01T09:{i // 60 % 60:02d}:{i % 60:02d}", "duration_s": 1.0,
+            "script": {"path": f"scripts/s{i % 10}.py", "sha256": "0" * 64},
+            "inputs": [{"path": ds["path"], "sha256": ds["sha256"], "via": ["lab.read"]}],
+            "outputs": [], "charts": [{"id": f"c{i % 10}", "title": f"chart {i % 10}",
+                                       "kind": "matplotlib", "via": "lab.chart", "data": None,
+                                       "files": {}}], "warnings": []})
+    return p
+
+
+@pytest.mark.parametrize("shape", ["B", "S", "M"])
+def test_an_overview_within_its_length_is_mains_with_counts_and_places_added(tmp_path, shape):
+    """Issue #11 G4 and design section 18: an overview of at most 9,000 characters shortens only
+    the lists main shortened, and is main's text but for the lines that say how many entries a
+    list leaves out and where they are (the project as lab init leaves it; scale S and M)."""
+    if shape == "B":
+        p = core.init_project(tmp_path / "b", title="새 분석", goal="측정", actor="test")
+    else:
+        p = _scale_project(tmp_path / shape, *{"S": (300, 5, 30), "M": (10_000, 20, 300)}[shape])
+    st = core.status(p)
+    main = _main_status_text(st)
+    assert len(main) <= core.STATUS_CHARS and not main.endswith("… (truncated)"), len(main)
+    text = core.status_text(st)
+    assert len(text) <= core.STATUS_CHARS
+    added = [line for line in text.split("\n") if line.startswith(("  … ", "journal: "))]
+    assert [line for line in text.split("\n") if line not in added] == main.split("\n")
+    if shape == "B":
+        assert not added
+        return
+    assert added[0] == f"journal: {p.journal}"
+    counts = st["counts"]
+    assert f"  … {counts['runs'] - 8:,} older run(s) not listed: in the journal, and each in " \
+           "runs/<id>/run.json" in added
+    assert f"  … {counts['open'] - 16:,} older open item(s) not listed: in the journal" in added
+    assert "  … only the latest 16 are listed; older unresolved ones, if any, are in the journal" \
+        in added
+
+
+def test_an_overview_too_long_shortens_its_unbounded_lists_and_says_how_many_and_where(tmp_path):
+    """Issue #11 G4 (D2), the shape of B1-a: 200 sections with descriptive headings left out of
+    the prompt and 503 datasets. Every part keeps its heading, each list it shortens says how many
+    it leaves out and where they are, and no line is cut."""
+    p = core.init_project(tmp_path / "p", actor="test")
+    heading = "Section {i:03d}: definition of the monthly active user metric and its denominator"
+    p.context.write_text("# T\n\n## Goal <!-- always -->\n- g\n\n## Background\n" + "b" * 3900
+                         + "\n\n" + "\n\n".join(f"## {heading.format(i=i)}\n" + "- x\n" * 20
+                                                for i in range(200)) + "\n", encoding="utf-8")
+    _datasets(p, 503)
+    core.add_note(p, "question", "an open question", actor="test")
+    core.add_note(p, "finding", "a key finding", actor="test")
+    st = core.status(p)
+    full = core.status_text(st, max_chars=10 ** 9)
+    assert len(full) > core.STATUS_CHARS
+    text = core.status_text(st)
+    assert len(text) <= core.STATUS_CHARS
+    lines = text.split("\n")
+    for head in ("datasets (503)", "runs (", "charts (", "open questions/todos (1):",
+                 "key information", "recent journal:"):
+        assert any(line.startswith(head) for line in lines), head
+    full_lines = set(full.split("\n"))
+    changed = [line for line in lines if line not in full_lines]
+    assert len(changed) == 3, changed  # the sections left out, the views, the datasets
+    for line in changed:
+        assert re.search(r"\b[\d,]+ more\b", line), line
+        assert re.search(r"\bread \S*[/\\]|\bcall lab_query with\b", line), line
+    assert f"and 180 more (the system prompt lists every one with its line range in read " \
+           f"{p.context})" in text
+    assert "  … 483 more dataset(s) not listed: call lab_query with " \
+           f"\"{core.VIEWS_SQL}\" to list every view" in text
+
+
+def test_an_overview_that_still_does_not_fit_ends_at_a_line_and_names_what_it_leaves_out(
+        tmp_path):
+    """Issue #11 G4 (D2), an extreme shape: 503 datasets, 16 charts of a run whose 503 inputs are
+    gone (each chart STALE with all of them), 42 key entries and 23 open items with long texts.
+    Shortened, it is still too long: it ends at a line end, and its last line names every part it
+    leaves out, with how many entries, and where to read them."""
+    p = core.init_project(tmp_path / "p", actor="test")
+    _datasets(p, 503)
+    run_id = "20260901-090000-many-inputs"
+    (p.runs / run_id).mkdir(parents=True)
+    core.write_json(p.runs / run_id / "run.json", {
+        "schema": "lab.run/1", "id": run_id, "title": "many inputs", "status": "ok",
+        "started_at": "2026-09-01T09:00:00", "duration_s": 1.0,
+        "script": {"path": "scripts/many.py", "sha256": "0" * 64},
+        "inputs": [{"path": f"data/raw/gone/input_{i:03d}.jsonl", "sha256": "1" * 64,
+                    "via": ["lab.read"]} for i in range(503)],
+        "outputs": [], "warnings": [],
+        "charts": [{"id": f"chart-{i:02d}", "title": f"chart {i}", "kind": "matplotlib",
+                    "via": "lab.chart", "data": None, "files": {}} for i in range(16)]})
+    for i in range(42):
+        core.add_note(p, "finding", f"finding {i:02d} " + "evidence " * 50, actor="test")
+    for i in range(23):
+        core.add_note(p, "question", f"question {i:02d} " + "detail " * 50, actor="test")
+    st = core.status(p)
+    assert all(len(c["changed_inputs"]) == 503 for c in st["charts"])
+    text = core.status_text(st)
+    assert len(text) <= core.STATUS_CHARS
+    full_lines = set(core.status_text(st, max_chars=10 ** 9).split("\n"))
+    *kept, last = text.split("\n")
+    assert last.startswith(f"… (truncated at {core.STATUS_CHARS:,} characters — not shown: "), last
+    assert last.endswith(f"read {p.journal})"), last
+    for line in kept:
+        assert line in full_lines or re.search(r"\b[\d,]+ more\b", line), line
+    assert any(f"and 498 more, among the run's inputs in runs/{run_id}/run.json)" in line
+               for line in kept)
+    for head, label in (("charts (", "charts"), ("open questions/todos", "open questions/todos"),
+                        ("key information", "key information"), ("recent journal:",
+                                                                 "recent journal")):
+        if not any(line.startswith(head) for line in kept):
+            assert re.search(rf"\bthe {re.escape(label)} \([\d,]+ listed\)", last), (label, last)
+    assert not any(line.startswith("recent journal:") for line in kept)
+
+
+@pytest.mark.parametrize("extra", [0, 1, 2])
+def test_a_log_tail_starts_at_a_whole_character(tmp_path, extra):
+    """Issue #11 G6 (D8): the kit keeps a log's last 4,000 bytes; where they begin inside a
+    character (here each of the three bytes of a Korean one), the tail starts at the next whole
+    character, after the "…" that says the start is left out, never with U+FFFD."""
+    log = tmp_path / "stdout.txt"
+    data = "진행 로그 — 합계\n".encode() * 600 + b"x" * extra
+    log.write_bytes(data)
+    tail = runner._tail(log)
+    assert tail.startswith("…") and "�" not in tail
+    start = len(data) - runner.OUTPUT_TAIL
+    while 0x80 <= data[start] <= 0xBF:
+        start += 1
+    assert tail == "…" + data[start:].decode("utf-8")
+    short = tmp_path / "short.txt"
+    short.write_bytes("짧은 로그\n".encode())
+    assert runner._tail(short) == "짧은 로그\n"

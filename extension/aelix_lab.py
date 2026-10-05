@@ -110,6 +110,16 @@ MAX_IMAGES = 3
 # A run may read hundreds of files; listing them all would push stdout out of the reply.
 MAX_LIST = 10
 MAX_CHART_LIST = 12
+MAX_COLUMNS = 12
+# How much of a run's stdout and stderr tails a lab_run reply shows; an ok run's stderr is shown
+# only when it is shorter than OK_STDERR (a warning, not a traceback).
+MAX_LOG = 3000
+OK_STDERR = 1500
+# How much of the kit's stderr a kit_failed error keeps, and of an error's details its text shows.
+MAX_STDERR = 1500
+MAX_DETAILS = 2000
+# render_table's width of a cell.
+MAX_CELL = 48
 ENV_ALLOW = ("PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "LC_ALL", "LC_CTYPE", "TMPDIR",
              "TZ", "XDG_CACHE_HOME", "XDG_DATA_HOME", "XDG_CONFIG_HOME", "SSL_CERT_FILE",
              "SSL_CERT_DIR", "REQUESTS_CA_BUNDLE", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY",
@@ -342,8 +352,11 @@ async def run_kit(project, args, *, timeout: float, actor: str = "agent"):
                 obj = json.loads(line)
                 if isinstance(obj, dict):
                     return bool(obj.get("ok")), obj
-    tail = stderr.decode("utf-8", errors="replace")[-1500:]
-    hint = "read details.stderr; lab_status shows whether a run was recorded"
+    whole = stderr.decode("utf-8", errors="replace")
+    tail = whole[-MAX_STDERR:]
+    hint = ("read details.stderr" + (f" — the last {len(tail):,} characters of the kit's stderr "
+                                     f"({len(whole):,} in all)" if len(tail) < len(whole) else "")
+            + "; lab_status shows whether a run was recorded")
     if re.search(r"(?i)\b(resolv|sync|lock|no solution|interpreter|python)\b", tail):
         hint += f"; if it is an environment error run `uv sync --project {project.root}`"
     return False, _error("kit_failed", f"labkit {args[0]} exited {code} without a result",
@@ -362,7 +375,10 @@ async def sync_environment(project):
         if not timed_out and code == 0:
             return True, "offline cache" if extra else "network"
         last = err
-    return False, last.decode("utf-8", errors="replace")[-1500:]
+    said = last.decode("utf-8", errors="replace")
+    if len(said) > MAX_STDERR:
+        said = f"(the last {MAX_STDERR:,} characters of {len(said):,})\n{said[-MAX_STDERR:]}"
+    return False, said
 
 
 def schedule_report(project) -> None:
@@ -389,9 +405,22 @@ def schedule_report(project) -> None:
 
 
 # --- rendering ---
+# A reply that leaves something out says how much, and where to read it (docs/CONTRACTS.md, A1).
 
-def _clip(text: str, limit: int = MAX_TEXT) -> str:
-    return text if len(text) <= limit else text[:limit - 60] + "\n… (truncated; see the report page)"
+def _clip(text: str, where: str, limit: int = MAX_TEXT) -> str:
+    """`text` whole, or cut at a line end to fit in `limit` characters, with a last line that says
+    how much was cut and `where` it can be read."""
+    if len(text) <= limit:
+        return text
+
+    def marker(rest: int) -> str:
+        return f"… (truncated: {rest:,} more characters; {where})"
+
+    room = limit - len(marker(len(text))) - 1
+    cut = text.rfind("\n", 0, room + 1)
+    if cut < room // 2:  # no line end near the limit: a line that long is cut where it is
+        cut = room
+    return text[:cut] + "\n" + marker(len(text) - cut)
 
 
 def _one(text, width=160) -> str:
@@ -399,9 +428,10 @@ def _one(text, width=160) -> str:
     return s if len(s) <= width else s[:width - 1] + "…"
 
 
-def _more(items, shown: int, label: str) -> list[str]:
+def _more(items, shown: int, label: str, record: Path) -> list[str]:
     rest = len(items) - shown
-    return [f"  … and {rest:,} more {label} — the run page lists them all"] if rest > 0 else []
+    return [f"  … and {rest:,} more {label} — the run's record lists them all: read {record}"] \
+        if rest > 0 else []
 
 
 def render_error(label: str, value: dict) -> str:
@@ -410,13 +440,32 @@ def render_error(label: str, value: dict) -> str:
     if err.get("hint"):
         lines.append(f"hint: {err['hint']}")
     if err.get("details"):
-        lines.append("details: " + json.dumps(err["details"], ensure_ascii=False)[:2000])
+        details = json.dumps(err["details"], ensure_ascii=False)
+        if len(details) > MAX_DETAILS:
+            details = (f"{details[:MAX_DETAILS]}… (truncated: {len(details) - MAX_DETAILS:,} more "
+                       "characters)")
+        lines.append("details: " + details)
     return "\n".join(lines)
+
+
+def _log(name: str, tail, path: Path) -> list[str]:
+    """A run's log in a lab_run reply: whole, or its last MAX_LOG characters said to be cut, with
+    the path of the whole log."""
+    text = (tail or "").strip()
+    if not text:
+        return []
+    # The kit's tail begins with "…" when it left the start of the log out (runner._tail).
+    if not text.startswith("…") and len(text) <= MAX_LOG:
+        return [f"{name} (tail):", text]
+    shown = text[-MAX_LOG:].removeprefix("…")
+    return [f"{name} (truncated: the last {len(shown):,} characters; the whole log: read {path}):",
+            shown]
 
 
 def render_run(project, value: dict, attached: tuple[int, int] | None = None) -> str:
     run = value["run"]
     status = run.get("status")
+    record = project.runs / run["id"] / "run.json"
     head = f"lab_run: {status} — run {run['id']} ({run.get('duration_s', '?')} s)"
     if run.get("error"):
         err = run["error"]
@@ -431,15 +480,18 @@ def render_run(project, value: dict, attached: tuple[int, int] | None = None) ->
     lines.append(f"inputs ({len(inputs)}):" if inputs else "inputs: none detected")
     for i in inputs[:MAX_LIST]:
         lines.append(f"  {i['path']} sha256 {str(i.get('sha256'))[:12]} via {','.join(i['via'])}")
-    lines += _more(inputs, MAX_LIST, "input file(s)")
+    lines += _more(inputs, MAX_LIST, "input file(s)", record)
     outputs = [o for o in run.get("outputs") or []]
     if outputs:
         lines.append(f"outputs ({len(outputs)}):")
     for o in outputs[:MAX_LIST]:
-        cols = ", ".join(c[0] for c in (o.get("schema") or [])[:12])
+        names = [c[0] for c in (o.get("schema") or [])]
+        cols = ", ".join(names[:MAX_COLUMNS])
+        if len(names) > MAX_COLUMNS:
+            cols += f", +{len(names) - MAX_COLUMNS:,} more columns"
         rows = f" {o['rows']:,} rows [{cols}]" if isinstance(o.get("rows"), int) else ""
         lines.append(f"  {o['path']} {o.get('change')}{rows}")
-    lines += _more(outputs, MAX_LIST, "output file(s)")
+    lines += _more(outputs, MAX_LIST, "output file(s)", record)
     charts = run.get("charts") or []
     lines.append(f"charts ({len(charts)}):" if charts else "charts: none")
     for c in charts[:MAX_CHART_LIST]:
@@ -447,12 +499,16 @@ def render_run(project, value: dict, attached: tuple[int, int] | None = None) ->
         files = ", ".join((c.get("files") or {}).values())
         lines.append(f"  {(script.get('path') or '?')}::{c['id']} \"{_one(c.get('title'), 80)}\" "
                      f"{c.get('kind')} via {c.get('via')} · {data} · {files}")
-    lines += _more(charts, MAX_CHART_LIST, "chart(s)")
+    lines += _more(charts, MAX_CHART_LIST, "chart(s)", record)
     if attached and attached[1]:
         shown, total = attached
-        lines.append(f"images: {shown} of {total} chart PNG(s) attached below"
-                     + ("" if shown >= total else "; open the rest with the read tool at the paths "
-                                                  "above"))
+        line = f"images: {shown} of {total} chart PNG(s) attached below"
+        if shown < total:
+            line += "; open the rest with the read tool at the paths above"
+            unlisted = sum(1 for c in charts[MAX_CHART_LIST:] if (c.get("files") or {}).get("png"))
+            if unlisted:
+                line += f" and, for the {unlisted} chart(s) not listed, at the paths in read {record}"
+        lines.append(line)
     repro = run.get("reproduction")
     if repro:
         parts = [f"{k}: {v}" for k, v in {**repro.get("charts", {}), **repro.get("outputs", {})}.items()]
@@ -471,17 +527,20 @@ def render_run(project, value: dict, attached: tuple[int, int] | None = None) ->
     if run.get("warnings"):
         lines.append("warnings:")
         lines += [f"  - {w}" for w in run["warnings"][:MAX_LIST]]
-        lines += _more(run["warnings"], MAX_LIST, "warning(s)")
-    stdout = (value.get("stdout_tail") or "").strip()
-    if stdout:
-        lines += ["stdout (tail):", stdout[-3000:]]
+        lines += _more(run["warnings"], MAX_LIST, "warning(s)", record)
+    logs = {name: project.path(run.get(name) or f"runs/{run['id']}/{name}.txt")
+            for name in ("stdout", "stderr")}
+    lines += _log("stdout", value.get("stdout_tail"), logs["stdout"])
     stderr = (value.get("stderr_tail") or "").strip()
-    if stderr and (status != "ok" or len(stderr) < 1500):
-        lines += ["stderr (tail):", stderr[-3000:]]
-    lines.append(f"journal: {value.get('event')} · report: {project.root / value.get('page', '')}")
+    if stderr and (status != "ok" or len(stderr) < OK_STDERR):
+        lines += _log("stderr", stderr, logs["stderr"])
+    elif stderr:
+        lines.append(f"stderr (not shown, the run is ok; the whole log: read {logs['stderr']})")
+    page = project.root / value.get("page", "")
+    lines.append(f"journal: {value.get('event')} · report: {page}")
     if value.get("report_error"):
         lines.append(f"report build failed: {value['report_error']}")
-    return _clip("\n".join(lines))
+    return _clip("\n".join(lines), f"the run page is {page}; the whole record: read {record}")
 
 
 def chart_images(project, run: dict, ctx) -> tuple[list, int]:
@@ -502,20 +561,64 @@ def chart_images(project, run: dict, ctx) -> tuple[list, int]:
     return images, len(charts)
 
 
-def render_table(columns, rows, width=48) -> str:
+def _cell(value, width: int = MAX_CELL) -> str:
+    s = "null" if value is None else str(value)
+    return s if len(s) <= width else s[:width - 1] + "…"
+
+
+def render_table(columns, rows, width=MAX_CELL) -> str:
     names = [c["name"] for c in columns]
-
-    def text(v):
-        s = "null" if v is None else str(v)
-        return s if len(s) <= width else s[:width - 1] + "…"
-
-    cells = [[text(v) for v in row] for row in rows]
-    widths = [min(width, max([len(n)] + [len(r[i]) for r in cells])) for i, n in enumerate(names)]
+    types = [_cell(c["type"], width) for c in columns]
+    cells = [[_cell(v, width) for v in row] for row in rows]
+    widths = [min(width, max([len(n), len(t)] + [len(r[i]) for r in cells]))
+              for i, (n, t) in enumerate(zip(names, types, strict=False))]
     out = [" | ".join(n.ljust(w) for n, w in zip(names, widths, strict=False)),
-           " | ".join(c["type"].ljust(w)[:max(w, 1)] for c, w in zip(columns, widths, strict=False)),
+           " | ".join(t.ljust(w) for t, w in zip(types, widths, strict=False)),
            "-+-".join("-" * w for w in widths)]
     out += [" | ".join(v.ljust(w) for v, w in zip(r, widths, strict=False)) for r in cells]
     return "\n".join(out)
+
+
+QUERY_CELLS = ("a value that ends in … is cut: read it whole in parts with "
+               "substr(<column>, <start>, 200)")
+
+
+def render_query(value: dict) -> str:
+    """A lab_query reply: the result's rows, as many whole rows as fit in MAX_TEXT. When that is
+    fewer than the kit fetched, the first line says how many are shown of how many, and a last line
+    how to page to the rest: query results are not stored."""
+    rows = value["rows"]
+    table = render_table(value["columns"], rows).split("\n")
+    head, body = table[:3], table[3:]
+    limit = " (truncated at limit)" if value["truncated"] else ""
+    tail = (f" in {value['elapsed_ms']} ms; views used: "
+            f"{', '.join(value.get('tables') or []) or '-'}")
+
+    def compose(n: int) -> str:
+        notes = []
+        if n == len(rows):
+            first = f"lab_query: ok — {n} row(s){limit}{tail}"
+        else:
+            first = f"lab_query: ok — {n} row(s) shown of {len(rows)} fetched{limit}{tail}"
+            notes.append(f"… {len(rows) - n:,} more row(s) not shown, after the first {n:,}: query "
+                         "results are not stored — select fewer columns, or ORDER BY and page with "
+                         "LIMIT/OFFSET")
+        if any(_cell(v).endswith("…") for row in rows[:n] for v in row):
+            notes.append(QUERY_CELLS)
+        return "\n".join([first, *head, *body[:n], *notes])
+
+    n = len(rows)
+    text = compose(n)
+    if len(text) > MAX_TEXT:
+        room, n = MAX_TEXT - len(compose(0)), 0
+        while n < len(body) and room >= len(body[n]) + 1:
+            room -= len(body[n]) + 1
+            n += 1
+        text = compose(n)
+        while n > 0 and len(text) > MAX_TEXT:
+            n -= 1
+            text = compose(n)
+    return _clip(text, "query results are not stored: select fewer columns")
 
 
 def _int(args, name, default, low, high) -> int:
@@ -558,9 +661,7 @@ async def tool_query(args, ctx):
     ok, value = await run_kit(project, ["query", sql, "--limit", str(limit)], timeout=180)
     if not ok:
         return render_error("lab_query", value), value, True
-    head = (f"lab_query: ok — {len(value['rows'])} row(s){' (truncated at limit)' if value['truncated'] else ''}"
-            f" in {value['elapsed_ms']} ms; views used: {', '.join(value.get('tables') or []) or '-'}")
-    return _clip(head + "\n" + render_table(value["columns"], value["rows"])), value
+    return render_query(value), value
 
 
 async def tool_import(args, ctx):
@@ -594,7 +695,10 @@ async def tool_import(args, ctx):
         lines.append("warnings:")
         lines += [f"  - {w}" for w in value["warnings"]]
     lines.append(f"Query it as view `{ds['name']}` (lab_query) or lab.read(\"{ds['name']}\") in scripts.")
-    return _clip("\n".join(lines)), value
+    meta = project.path(ds["path"]).with_suffix(".meta.json")
+    page = project.report / "data" / f"{ds['name']}.html"
+    return _clip("\n".join(lines), f"the dataset page is {page}; every column and its type: read "
+                                   f"{meta}"), value
 
 
 async def tool_run(args, ctx):
@@ -654,7 +758,19 @@ async def tool_note(args, ctx):
     extra = f"; resolves {event['refs']['resolves']}" if event["refs"].get("resolves") else ""
     refs_text = json.dumps({k: v for k, v in event["refs"].items() if k != "resolves"},
                            ensure_ascii=False)
-    return f"lab_note: ok — {event['id']} {kind} recorded{extra}; refs {refs_text}", event
+    cut = note_cut(str(args.get("text") or ""))
+    return (f"lab_note: ok — {event['id']} {kind} recorded{extra}; refs {refs_text}"
+            + (f"\n{cut}" if cut else "")), event
+
+
+def note_cut(given: str) -> str:
+    """What a note's reply adds when the journal kept only the start of it (MAX_EVENT_TEXT)."""
+    chars = len(given.strip())
+    if chars <= core.MAX_EVENT_TEXT:
+        return ""
+    return (f"Truncated: the note has {chars:,} characters and only the first "
+            f"{core.MAX_EVENT_TEXT:,} were recorded; the rest is not in the journal — record it as "
+            "another note")
 
 
 async def tool_init(args, ctx):
@@ -997,7 +1113,8 @@ async def lab_command(args, ctx=None):
             event = await asyncio.to_thread(
                 lambda: core.add_note(project, kind, body, actor="human", session=STATE["session"]))
             schedule_report(project)
-            return f"{event['id']} {kind} recorded"
+            cut = note_cut(body)
+            return f"{event['id']} {kind} recorded" + (f" — {cut}" if cut else "")
         if sub == "context":
             project, _ = resolve_project()
             return await asyncio.to_thread(core.context_block, project)

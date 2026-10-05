@@ -123,7 +123,8 @@ uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with tokeni
 어떤 텍스트를 세다 실패함. 보고서는 씀), 2(사용법 오류)입니다. 등록된 것과 다른 tokenizer 파일이나 없는 `tokenizers` 라이브러리는
 실패가 아니라 `not_measured`이고 0입니다. `--output`은 새 디렉터리, 빈 디렉터리, 이전 보고서의 디렉터리(`usage-report.json`이 있음)
 중 하나여야 합니다. 그 밖의 비어 있지 않은 디렉터리는 아무것도 지우지 않고 거절합니다(2). 통과·실패는
-`tests/test_usage_report.py`가 판정하고, 지금 코드가 잃는 사례는 설계의 결함 ID(D1–D12)를 이유로 단 strict xfail입니다.
+`tests/test_usage_report.py`가 판정합니다. 모든 필수 사실을 다시 읽을 수 있고, 판정하는 생략 불변식이 모두 성립해야
+합니다([계약 A1](docs/CONTRACTS.md#a1-모델에-가는-텍스트의-생략과-다시-읽을-위치)).
 
 시험은 변경에 맞게 선택합니다. 기록·사용량 계측·근거 변경에는 의미 있는 회귀 사례를, UI에는 실제 HTML의 연결과 복귀 확인을 포함합니다.
 문서만 바뀌면 링크·예시·현재 코드와의 일치 여부를 검사합니다.
