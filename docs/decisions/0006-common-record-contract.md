@@ -10,7 +10,7 @@ Status: Accepted — 2026-10-03 소유자 결정 (Issue #4)
 바뀐다. 기계가 검사할 형태는 [기록 schema](../schemas/analytics-records.schema.json)와
 [사례별 예제](../../tests/fixtures/records/README.md)에 있다. ADR과 schema·예제가 어긋나면 ADR이 기준이고 schema·예제를 고친다.
 이 계약이 기대는 형제 결정은 별도 결정 PR에 있어 번호와 브랜치로만 적고, 나중에 병합되는 PR이 링크로 바꾼다:
-[ADR-0005](0005-names-first-storage-with-the-new-writer.md)(#3 전환 순서), ADR-0008(#6 재사용 제안, `docs/issue-6-reuse-proposals`),
+[ADR-0005](0005-names-first-storage-with-the-new-writer.md)(#3 전환 순서), [ADR-0008](0008-reuse-proposal-counting-and-deterministic-always-on.md)(#6 재사용 제안),
 ADR-0009(#21 첫 게시, `docs/issue-21-publish-target`).
 
 ## 배경
@@ -246,7 +246,7 @@ CONTEXT 버전(`context_version`, `/1`의 `refs.context`)은 버전 파일 이�
 | 발견·결정·가정·메모·작업 피드백·지표 정의·분석 초점(`finding`·`decision`·`assumption`·`note`·`workflow_feedback`·`metric_definition`·`analysis_focus`) | `current` | 정정(`supersedes`): 서로 다른 정정 기록이 하나면 `superseded`, 둘 이상이면 `conflict`이며, 정정이 갈리면 최신 시각으로 한쪽을 고르지 않는다. 철회(`record_update`, `new_state=withdrawn`): `current`·`superseded`·`conflict`에서. 철회한 기록은 정정이 더해져도 `withdrawn`이다. 복원(`expected_state=withdrawn`): 철회가 없을 때의 상태, 곧 정정 수로 정한 `current`·`superseded`·`conflict`로만 |
 | 질문·할 일(`question`·`todo`) | `open` | 닫힘(`resolves` 참조, `/1`의 `refs.resolves`): `resolved`로. 재개(`record_update`): `resolved` → `open` |
 | Report 버전(`report_revision` 참조) | `current` | 철회 `current` → `withdrawn`, 복원 `withdrawn` → `current`(`record_update`) |
-| 재사용 후보(`reuse_proposal`) | `proposed` | `record_update`로 한 단계씩 승격(`proposed` → `trial` → `validated` → `registered`), `registered` 전의 단계에서 `deferred`·`rejected`로, 그 둘에서 재검토로 `proposed`로, `registered`에서 `deprecated`로([연속성 설계](../DESIGN-CONTINUITY-AND-REUSE.md) 4절. 알림·횟수는 ADR-0008, `docs/issue-6-reuse-proposals` 병합 뒤 링크) |
+| 재사용 후보(`reuse_proposal`) | `proposed` | `record_update`로 한 단계씩 승격(`proposed` → `trial` → `validated` → `registered`), `registered` 전의 단계에서 `deferred`·`rejected`로, 그 둘에서 재검토로 `proposed`로, `registered`에서 `deprecated`로([연속성 설계](../DESIGN-CONTINUITY-AND-REUSE.md) 4절. 알림·횟수는 [ADR-0008](0008-reuse-proposal-counting-and-deterministic-always-on.md)) |
 | 그 밖의 kind | 상태 없음 | `record_update`의 대상이 아니다 |
 
 - `supersedes`는 첫 행의 kind만, `resolves`는 질문·할 일만 상태를 바꾼다. 다른 기록을 가리키면 관계로만 남는다(발견에 붙은
@@ -421,7 +421,7 @@ artifacts/reports/<report_id>/
 
 - Issue: [#4](https://github.com/handochan/aelix-analytics/issues/4), [#36](https://github.com/handochan/aelix-analytics/issues/36),
   [#3](https://github.com/handochan/aelix-analytics/issues/3)(전환 순서, [ADR-0005](0005-names-first-storage-with-the-new-writer.md)),
-  [#6](https://github.com/handochan/aelix-analytics/issues/6)(재사용 제안, ADR-0008 — `docs/issue-6-reuse-proposals` 병합 뒤 링크),
+  [#6](https://github.com/handochan/aelix-analytics/issues/6)(재사용 제안, [ADR-0008](0008-reuse-proposal-counting-and-deterministic-always-on.md)),
   [#12](https://github.com/handochan/aelix-analytics/issues/12), [#13](https://github.com/handochan/aelix-analytics/issues/13),
   [#19](https://github.com/handochan/aelix-analytics/issues/19),
   [#21](https://github.com/handochan/aelix-analytics/issues/21)(첫 게시, ADR-0009 — `docs/issue-21-publish-target` 병합 뒤 링크),
