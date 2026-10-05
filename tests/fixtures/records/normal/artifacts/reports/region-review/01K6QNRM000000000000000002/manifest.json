@@ -1,0 +1,37 @@
+{
+  "schema": "analytics.report_revision/1",
+  "report_id": "region-review",
+  "revision_id": "01K6QNRM000000000000000002",
+  "previous_revision": "01K6QNRM000000000000000001",
+  "request_id": "req-normal-0002",
+  "request_fingerprint": "5adbdcaf8b22f4073f069e76dbba40ac0b9a44747672b8ede6468aa921ed4dbe",
+  "created_at": "2026-10-01T10:10:00.000+09:00",
+  "actor": "human",
+  "title": "Regional revenue review",
+  "entry": "index.md",
+  "files": [
+    {
+      "path": "index.md",
+      "bytes": 92,
+      "sha256": "cab78a8511a9d79041408ee9f3047990814ae5a7be8532f419019543ca1b60cc"
+    },
+    {
+      "path": "region_summary.csv",
+      "bytes": 47,
+      "sha256": "9f6a799bc14ab42c2fa5732905836ba11e96255902c3727361527239baa8cc5b"
+    }
+  ],
+  "based_on": {
+    "as_of_seq": 8,
+    "context_version": "20261001-090000-000000_c3c0b6b900db.md",
+    "refs": [
+      {
+        "type": "event",
+        "event_id": "e8",
+        "relation": "cites",
+        "basis": "declared",
+        "version_binding": "author"
+      }
+    ]
+  }
+}

@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Expected judgments of one record-contract fixture",
+  "description": "What a reader of ADR-0006 reports for one case under tests/fixtures/records/, reading it as it is. Each entry of writes is an independent attempt against the case as it is. See README.md next to this file.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["case", "summary", "journal", "references", "records", "runs", "report_revisions", "lineage", "writes",
+               "unsupported"],
+  "properties": {
+    "case": {"type": "string", "minLength": 1},
+    "summary": {"type": "string", "minLength": 1},
+    "journal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lines", "damaged", "recovered", "next_seq"],
+      "properties": {
+        "lines": {"type": "integer", "minimum": 0},
+        "damaged": {"type": "array", "items": {"type": "integer", "minimum": 1}},
+        "recovered": {"type": "array", "items": {"type": "integer", "minimum": 1}},
+        "next_seq": {"type": "integer", "minimum": 1}
+      }
+    },
+    "references": {"type": "array", "items": {"$ref": "#/$defs/reference"}},
+    "records": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "state"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^e[1-9][0-9]*$"},
+          "state": {"enum": ["current", "superseded", "withdrawn", "conflict", "open", "resolved", "proposed", "trial",
+                             "validated", "registered", "deferred", "rejected", "deprecated"]},
+          "mismatched_updates": {"type": "array", "items": {"type": "string", "pattern": "^e[1-9][0-9]*$"}}
+        }
+      }
+    },
+    "runs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["run_id", "execution_status", "recording_status", "reasons"],
+        "properties": {
+          "run_id": {"type": "string", "minLength": 1},
+          "execution_status": {"enum": ["running", "ok", "error", "timeout", "cancelled", "incomplete"]},
+          "recording_status": {"enum": ["complete", "incomplete"]},
+          "reasons": {"type": "array", "items": {"enum": ["not_final", "no_completion_event", "finalize_errors"]}}
+        }
+      }
+    },
+    "report_revisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["report_id", "revision_id", "request_id", "recording_status", "content", "head"],
+        "properties": {
+          "report_id": {"type": "string", "minLength": 1},
+          "revision_id": {"type": "string", "minLength": 1},
+          "request_id": {"type": "string", "minLength": 1},
+          "recording_status": {"enum": ["complete", "incomplete", "prepared"]},
+          "content": {"enum": ["resolved", "content_changed", "missing"]},
+          "head": {"type": "boolean"}
+        }
+      }
+    },
+    "lineage": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["run_id", "path", "producer", "candidates"],
+        "properties": {
+          "run_id": {"type": "string", "minLength": 1},
+          "path": {"type": "string", "minLength": 1},
+          "producer": {"enum": ["resolved", "ambiguous", "none", "unknown"]},
+          "candidates": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "writes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["operation", "request", "result"],
+        "properties": {
+          "operation": {"enum": ["report_save", "record_update", "event_append"]},
+          "request": {"type": "object"},
+          "result": {"enum": ["saved", "existing", "resumed", "request_conflict", "revision_conflict", "state_conflict",
+                              "writer_too_old", "report_path_invalid", "name_not_portable"]},
+          "note": {"type": "string"}
+        }
+      }
+    },
+    "unsupported": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["count", "items"],
+      "properties": {
+        "count": {"type": "integer", "minimum": 0},
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["location", "reason"],
+            "properties": {
+              "location": {"type": "string", "pattern": "^(journal:[1-9][0-9]*|[^:]+\\.json)$"},
+              "reason": {"enum": ["unknown_family", "unknown_version", "unknown_kind"]}
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "ref", "state", "version_binding", "basis", "confirmed"],
+      "properties": {
+        "from": {"type": "string", "pattern": "^(e[1-9][0-9]*|report:[a-z0-9][a-z0-9-]*/[A-Za-z0-9][A-Za-z0-9._-]*)$"},
+        "ref": {
+          "oneOf": [
+            {"type": "object", "additionalProperties": false, "required": ["index"],
+             "properties": {"index": {"type": "integer", "minimum": 0}}},
+            {"type": "object", "additionalProperties": false, "required": ["field", "value"],
+             "properties": {"field": {"enum": ["runs", "events", "charts", "data", "other", "context", "resolves"]},
+                            "value": {"type": "string"}}}
+          ]
+        },
+        "state": {"enum": ["resolved", "content_changed", "missing", "version_unbound", "ambiguous", "unknown",
+                           "unsupported", "not_included"]},
+        "reason": {"enum": ["record_absent", "file_absent", "digest_mismatch", "no_digest", "unresolved_name"]},
+        "version_binding": {"enum": ["author", "inferred", "none"]},
+        "basis": {"enum": ["observed", "declared", "inferred", "unverified"]},
+        "confirmed": {"type": "boolean"},
+        "candidates": {"type": "array", "items": {"type": "string"}}
+      },
+      "allOf": [
+        {"if": {"properties": {"state": {"enum": ["missing", "unknown"]}}}, "then": {"required": ["reason"]}},
+        {"if": {"properties": {"state": {"const": "ambiguous"}}}, "then": {"required": ["candidates"]}}
+      ]
+    }
+  }
+}

@@ -379,7 +379,9 @@ Windows의 한계는 G절에 있습니다.
   대소문자만 다른 데이터셋 파일이 함께 있을 수 있는 파일 시스템(Linux, 그렇게 표시한 Windows 디렉터리)에서 사람이 `data/`에
   직접 둔 `Sales.parquet`은 정렬 순서 때문에 view 이름 `sales`를 먼저 받고, kit이 가져온 `sales`는 `sales_2`가 됩니다(순수 함수로
   확인). kit이 정하는 이름은 소문자라 kit끼리는 겹치지 않습니다(`--name Sales`는 거절).
-- 줄 끝(결정할 일: [#37](https://github.com/handochan/aelix-analytics/issues/37)). 저장소에 `.gitattributes`가 없고 Windows 러너의 Git은 `core.autocrlf=true`(시스템 gitconfig)라 그 체크아웃 — kit,
+- 줄 끝(결정됨, 구현 전까지의 한계: [ADR-0007](decisions/0007-line-endings.md), [#37](https://github.com/handochan/aelix-analytics/issues/37)). 저장소와 kit이 쓰는
+  텍스트를 모든 플랫폼에서 LF로 쓰고 사용자 파일은 바이트 그대로 두기로 했지만 아직 구현하지 않았습니다. 지금은 저장소 루트에
+  `.gitattributes`가 없고(기록 예제 `tests/fixtures/records/`에만 `* -text`가 있습니다) Windows 러너의 Git은 `core.autocrlf=true`(시스템 gitconfig)라 그 체크아웃 — kit,
   템플릿, 시험 fixture — 은 CRLF입니다(`core.autocrlf=true`는 측정 실행의 러너 설정에서, 파일이 CRLF인 것은 조사 실행
   36899933022에서 측정). 그래서 Windows에서 빌드한 wheel과 그 `env.kit_sha256`은 다른 플랫폼의 것과
   다르고, Windows에서 텍스트 모드로 쓴 스크립트·템플릿 사본·기록도 CRLF라 같은 내용의 해시가 플랫폼마다 다릅니다(추론).

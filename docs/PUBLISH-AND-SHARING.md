@@ -86,7 +86,7 @@ Plotly 등 포함한 라이브러리의 버전과 재배포 고지도 함께 보
 | 항목 | 의미 |
 |---|---|
 | `publication_id`, format·renderer 버전 | 공유본의 정체성과 해석 방식 |
-| `source_revision`, `source_cutoff` | 포함한 기록 기준. 현재 구현에 이미 있는 필드라고 가정하지 않음 |
+| `as_of_seq`, `context_version` | 포함한 기록 기준([ADR-0006](decisions/0006-common-record-contract.md) 5절, 모르면 null). `source_revision`은 같은 기계에서만 비교할 뜻이 있는 읽기 토큰이라 기준으로 남기지 않음 |
 | `built_at`, `analysis_state` | 빌드 시각과 진행 중/완료 등 분석 상태. 검증·승인 상태와 별개 |
 | 공유 프로필·포함 범위 | 선택한 지표·질문·run·발견·근거·보고서 버전과 제외한 범주의 설명 |
 | 보고서 원본과 공유 표현의 대응 | 보고서·묶음 버전, 포함 파일 해시, 변환·가림이 있다면 원본 참조와 새 해시 |

@@ -1,0 +1,98 @@
+{
+  "description": "Request fingerprints of ADR-0006 section 8: the sha256 of the UTF-8 bytes of the RFC 8785 form of the intent, files sorted by path in code point order. canonical is that form.",
+  "vectors": [
+    {
+      "name": "korean-title-files-out-of-order",
+      "note": "A Korean title, kept as UTF-8, and files given out of path order",
+      "intent": {
+        "report_id": "region-review",
+        "previous_revision": "01K6QNRM000000000000000002",
+        "title": "지역 매출 검토, 3판",
+        "entry": "index.md",
+        "files": [
+          {
+            "path": "region_summary.csv",
+            "sha256": "9f6a799bc14ab42c2fa5732905836ba11e96255902c3727361527239baa8cc5b"
+          },
+          {
+            "path": "index.md",
+            "sha256": "cab78a8511a9d79041408ee9f3047990814ae5a7be8532f419019543ca1b60cc"
+          }
+        ],
+        "based_on": {
+          "as_of_seq": 8,
+          "context_version": null,
+          "refs": [
+            {
+              "type": "event",
+              "event_id": "e8",
+              "relation": "cites",
+              "basis": "declared",
+              "version_binding": "author"
+            }
+          ]
+        }
+      },
+      "canonical": "{\"based_on\":{\"as_of_seq\":8,\"context_version\":null,\"refs\":[{\"basis\":\"declared\",\"event_id\":\"e8\",\"relation\":\"cites\",\"type\":\"event\",\"version_binding\":\"author\"}]},\"entry\":\"index.md\",\"files\":[{\"path\":\"index.md\",\"sha256\":\"cab78a8511a9d79041408ee9f3047990814ae5a7be8532f419019543ca1b60cc\"},{\"path\":\"region_summary.csv\",\"sha256\":\"9f6a799bc14ab42c2fa5732905836ba11e96255902c3727361527239baa8cc5b\"}],\"previous_revision\":\"01K6QNRM000000000000000002\",\"report_id\":\"region-review\",\"title\":\"지역 매출 검토, 3판\"}",
+      "sha256": "2f39747387d2b184d6eb0bcc659bd04724ee1c1930d2bd73f3680a33c65d80c7"
+    },
+    {
+      "name": "files-in-order",
+      "note": "The same intent with files already in path order: the same bytes and sha256",
+      "intent": {
+        "report_id": "region-review",
+        "previous_revision": "01K6QNRM000000000000000002",
+        "title": "지역 매출 검토, 3판",
+        "entry": "index.md",
+        "files": [
+          {
+            "path": "index.md",
+            "sha256": "cab78a8511a9d79041408ee9f3047990814ae5a7be8532f419019543ca1b60cc"
+          },
+          {
+            "path": "region_summary.csv",
+            "sha256": "9f6a799bc14ab42c2fa5732905836ba11e96255902c3727361527239baa8cc5b"
+          }
+        ],
+        "based_on": {
+          "as_of_seq": 8,
+          "context_version": null,
+          "refs": [
+            {
+              "type": "event",
+              "event_id": "e8",
+              "relation": "cites",
+              "basis": "declared",
+              "version_binding": "author"
+            }
+          ]
+        }
+      },
+      "canonical": "{\"based_on\":{\"as_of_seq\":8,\"context_version\":null,\"refs\":[{\"basis\":\"declared\",\"event_id\":\"e8\",\"relation\":\"cites\",\"type\":\"event\",\"version_binding\":\"author\"}]},\"entry\":\"index.md\",\"files\":[{\"path\":\"index.md\",\"sha256\":\"cab78a8511a9d79041408ee9f3047990814ae5a7be8532f419019543ca1b60cc\"},{\"path\":\"region_summary.csv\",\"sha256\":\"9f6a799bc14ab42c2fa5732905836ba11e96255902c3727361527239baa8cc5b\"}],\"previous_revision\":\"01K6QNRM000000000000000002\",\"report_id\":\"region-review\",\"title\":\"지역 매출 검토, 3판\"}",
+      "sha256": "2f39747387d2b184d6eb0bcc659bd04724ee1c1930d2bd73f3680a33c65d80c7"
+    },
+    {
+      "name": "escapes",
+      "note": "Only the quotation mark, the backslash and U+0000-U+001F are escaped; U+2028 and U+007F are not",
+      "intent": {
+        "report_id": "region-review",
+        "previous_revision": null,
+        "title": "따옴표 \" 역슬래시 \\ 탭\t줄바꿈\n제어\u0001 구분 삭제",
+        "entry": "index.md",
+        "files": [
+          {
+            "path": "region_summary.csv",
+            "sha256": "9f6a799bc14ab42c2fa5732905836ba11e96255902c3727361527239baa8cc5b"
+          },
+          {
+            "path": "index.md",
+            "sha256": "cab78a8511a9d79041408ee9f3047990814ae5a7be8532f419019543ca1b60cc"
+          }
+        ],
+        "based_on": null
+      },
+      "canonical": "{\"based_on\":null,\"entry\":\"index.md\",\"files\":[{\"path\":\"index.md\",\"sha256\":\"cab78a8511a9d79041408ee9f3047990814ae5a7be8532f419019543ca1b60cc\"},{\"path\":\"region_summary.csv\",\"sha256\":\"9f6a799bc14ab42c2fa5732905836ba11e96255902c3727361527239baa8cc5b\"}],\"previous_revision\":null,\"report_id\":\"region-review\",\"title\":\"따옴표 \\\" 역슬래시 \\\\ 탭\\t줄바꿈\\n제어\\u0001 구분 삭제\"}",
+      "sha256": "be0648984310e8d3de51ab8e5c46c3db06047f2b560385d95fc865de98118782"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "schema": "analytics.report_revision/1",
+  "report_id": "weekly-status",
+  "revision_id": "01K6QTRP000000000000000003",
+  "previous_revision": "01K6QTRP000000000000000001",
+  "request_id": "req-int-0003",
+  "request_fingerprint": "095ad0c9f8a9eb2976d5a18d75bafcdbafda363296d3fcb5e78c54efbaddcb70",
+  "created_at": "2026-10-01T10:04:00.000+09:00",
+  "actor": "human",
+  "title": "Weekly status",
+  "entry": "index.md",
+  "files": [
+    {
+      "path": "index.md",
+      "bytes": 47,
+      "sha256": "38267bfc25083ff6aca8b31cacae70d44dd79adebcadf3973ec05ddd53330c5a"
+    }
+  ]
+}

@@ -6,7 +6,7 @@ Status: Accepted — 2026-10-03 소유자 결정 (Issue #3)
 [Issue #3](https://github.com/handochan/aelix-analytics/issues/3)의 권장안을 채택했다. 채택은 결정의 확정이며 구현 완료가 아니다.
 적용은 [#9](https://github.com/handochan/aelix-analytics/issues/9)·[#10](https://github.com/handochan/aelix-analytics/issues/10)·[#13](https://github.com/handochan/aelix-analytics/issues/13)의 구현 PR이 한다.
 현재 코드가 실제로 하는 것은 [현재 계약](../CONTRACTS.md)에 있고, 이 결정만으로 현재 계약을 바꾸지 않는다.
-결정 3·6·7은 #4의 공통 기록 계약(ADR-0006)과 #37의 줄 끝(ADR-0007)에 기댄다. 두 ADR은 `docs/issue-4-record-contract` 병합 뒤 링크한다.
+결정 3·6·7은 #4의 공통 기록 계약([ADR-0006](0006-common-record-contract.md))과 #37의 줄 끝([ADR-0007](0007-line-endings.md))에 기댄다.
 
 ## 배경
 
@@ -49,7 +49,7 @@ schema 가족 `lab.project/1`·`lab.event/1`·`lab.run/1`·`lab.dataset/1`, 신�
 3. **사용자 프로젝트는 한 번만 전환한다.** 기존 프로젝트는 #13의 명시적 전환으로 `lab.*/1`에서 새 가족으로 한 번 옮긴다. 이 한 번이
    #14 이후의 기능(지표·초점·정정·재사용 제안·checkpoint·보고서·게시)에서도 지켜지도록 #4가 `analytics.event/2`의 kind와 참조 type을
    B1–B4 전체에 대해 미리 정한다. 그 뒤의 추가는 선택 필드와 새 kind, 표식의 최소 writer 버전 상향으로만 한다. 이 결정은 그 규칙을
-   정하는 #4의 결정(ADR-0006, `docs/issue-4-record-contract` 병합 뒤 링크)에 기댄다. 가족별 버전 번호는 #4·#13의 schema PR이 의미
+   정하는 #4의 결정([ADR-0006](0006-common-record-contract.md))에 기댄다. 가족별 버전 번호는 #4·#13의 schema PR이 의미
    변경의 범위에 따라 정하고 한꺼번에 올리지 않는다(용어집 §3).
 4. **책임은 다음과 같이 나눈다.**
 
@@ -87,8 +87,7 @@ schema 가족 `lab.project/1`·`lab.event/1`·`lab.run/1`·`lab.dataset/1`, 신�
      정한 옛 프로세스의 쓰기를 막지 못하기 때문이다(배경).
 6. **새 kit은 옛 프로젝트를 이렇게 다룬다.** `lab.json`만 있으면 legacy reader로 읽기를 허용하고, 일반 쓰기는 전환이 필요하다는 오류와
    전환 명령 안내로 거절한다. 두 표식이 함께 있으면 정해진 충돌 오류로 거절한다. 모르는 schema 가족과 미래 버전은 건너뛰지 않고 개수와
-   함께 보고한다. 새 writer는 모든 쓰기에서 첫 부수 효과 전에 표식의 가족·버전과 #4가 정하는 최소 writer 요구(ADR-0006,
-   `docs/issue-4-record-contract` 병합 뒤 링크)를 확인한다. 이미 연 프로젝트나 프로세스 시작 때의 확인을 믿지 않고 쓰기 작업을 시작할
+   함께 보고한다. 새 writer는 모든 쓰기에서 첫 부수 효과 전에 표식의 가족·버전과 #4가 정하는 최소 writer 요구([ADR-0006](0006-common-record-contract.md))를 확인한다. 이미 연 프로젝트나 프로세스 시작 때의 확인을 믿지 않고 쓰기 작업을 시작할
    때마다 표식을 다시 읽는다. 대상은 다음을 포함하며 이 목록으로 닫히지 않는다: note·import·run·Workspace 렌더, run 밖의 SDK 쓰기
    (`save`, run 밖의 시각화 파일), 확장의 도구와 hook, 확장이 kit을 부르기 전에 쓰는 inline 스크립트, 읽기 작업의 부수 쓰기(query 기록·
    캐시·telemetry·status와 프롬프트 직전의 맥락 동기화). 확인을 통과하지 못하면 일반 쓰기는 오류로 거절하고, 읽기 작업의 부수 쓰기는
@@ -106,9 +105,9 @@ schema 가족 `lab.project/1`·`lab.event/1`·`lab.run/1`·`lab.dataset/1`, 신�
      사람의 기록이 되고(`LAB_ACTOR`), 격리용 파일 대신 실제 신뢰 목록에 쓰기(`AELIX_LAB_TRUST_FILE`) 때문이다.
    - #13은 #4·#12·#9 뒤이고, 다음 두 구현 PR 뒤에 병합한다. [#36](https://github.com/handochan/aelix-analytics/issues/36)의 기록 손실·
      계보 단절 항목(1·2·3·5·6번, 4번은 신뢰 목록만)을 고친 #36의 PR(2026-10-03 소유자 결정. [#39](https://github.com/handochan/aelix-analytics/issues/39)의
-     베타까지 플랫폼 보강 동결의 예외. 규칙은 ADR-0006의 경로 정체성 절), [#37](https://github.com/handochan/aelix-analytics/issues/37)의
-     줄 끝(ADR-0007)을 구현한 [#42](https://github.com/handochan/aelix-analytics/issues/42)의 PR. 두 ADR은 `docs/issue-4-record-contract`
-     병합 뒤 링크한다. 고치기 전의 경로 정체성과 줄 끝으로 전환과 새 기록을 만들지 않고, 전환이 쓰는 신뢰 목록의 링크 처리(4번)를
+     베타까지 플랫폼 보강 동결의 예외. 규칙은 [ADR-0006](0006-common-record-contract.md)의 경로 정체성 절), [#37](https://github.com/handochan/aelix-analytics/issues/37)의
+     줄 끝([ADR-0007](0007-line-endings.md))을 구현한 [#42](https://github.com/handochan/aelix-analytics/issues/42)의 PR.
+     고치기 전의 경로 정체성과 줄 끝으로 전환과 새 기록을 만들지 않고, 전환이 쓰는 신뢰 목록의 링크 처리(4번)를
      먼저 고치기 위해서다.
    - #13은 세 PR로 나눈다. ① 새 가족과 섞인 journal의 읽기, 모르는 가족의 보고, 두 표식의 충돌 오류 ② 복사 전환(결정 5의 목적지 규칙과
      중단 뒤 잇기)·참조 매핑·전환 보고서·전후 해시 검증. 이 PR에서는 전환을 시험에서만 부르고 명령·도구로 열지 않는다 ③ 새 writer,
@@ -167,8 +166,7 @@ schema 가족 `lab.project/1`·`lab.event/1`·`lab.run/1`·`lab.dataset/1`, 신�
 ## 관련
 
 - Issue: #3, #9, #10, [#12](https://github.com/handochan/aelix-analytics/issues/12), #13, #24, #36, #42. 함께 맞출 결정: #4(공통 기록 계약과
-  `analytics.event/2`의 범위, ADR-0006), #36(경로 정체성, ADR-0006의 한 절), #37(줄 끝, ADR-0007). 두 ADR은
-  `docs/issue-4-record-contract` 병합 뒤 링크한다.
+  `analytics.event/2`의 범위, [ADR-0006](0006-common-record-contract.md)), #36(경로 정체성, ADR-0006의 한 절), #37(줄 끝, [ADR-0007](0007-line-endings.md)).
 - 설계: [전체 용어 점검](../REVIEW-TERMINOLOGY-2026-09-18.md) §5·§6, [용어집](../TERMINOLOGY-AND-LANGUAGE.md) §3·§8,
   [기록 형식과 호환성](../DESIGN-CONTINUITY-AND-REUSE.md#7-기록-형식과-호환성), [베타 기준](../BETA-QUALITY-GATES.md) §2의 Q1·Q7·Q15와 §5.
 - [ADR-0001](0001-evolvable-platform-boundaries.md)(계층과 교체 경계, #9의 패키지 이동), [ADR-0004](0004-minimal-distribution-and-entry-points.md)

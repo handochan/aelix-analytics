@@ -1,0 +1,212 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Aelix Analytics record contract: analytics.project/2, analytics.event/2, analytics.report_revision/1",
+  "description": "ADR-0006 (docs/decisions/0006-common-record-contract.md), adopted 2026-10-03. No kit writes or reads these families yet. Fields the contract does not name are allowed so that a reader keeps the optional fields a later writer adds. Kinds, reference types, relations, bases and bindings are closed: a reader reports a value outside them as unsupported and keeps the record. Rules a schema cannot state are in the ADR: Report file paths in NFC and distinct under casefold (section 7), request_id compared without case (section 8), the record_update transitions (section 6) and the digest of a reference equal to the hash its target record holds (section 3).",
+  "type": "object",
+  "required": ["schema"],
+  "properties": {
+    "schema": {"enum": ["analytics.project/2", "analytics.event/2", "analytics.report_revision/1"]}
+  },
+  "allOf": [
+    {"if": {"properties": {"schema": {"const": "analytics.project/2"}}}, "then": {"$ref": "#/$defs/project_2"}},
+    {"if": {"properties": {"schema": {"const": "analytics.event/2"}}}, "then": {"$ref": "#/$defs/event_2"}},
+    {"if": {"properties": {"schema": {"const": "analytics.report_revision/1"}}}, "then": {"$ref": "#/$defs/report_revision_1"}}
+  ],
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "timestamp": {"type": "string", "format": "date-time"},
+    "event_id": {"type": "string", "pattern": "^e[1-9][0-9]*$"},
+    "run_id": {"type": "string", "pattern": "^[0-9]{8}-[0-9]{6}-[a-z0-9][a-z0-9-]{0,60}$"},
+    "report_id": {"type": "string", "pattern": "^(?!(con|prn|aux|nul|com[1-9]|lpt[1-9])$)[a-z0-9][a-z0-9-]{0,63}$"},
+    "opaque_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "request_id": {"type": "string", "pattern": "^(?!([Cc][Oo][Nn]|[Pp][Rr][Nn]|[Aa][Uu][Xx]|[Nn][Uu][Ll]|[Cc][Oo][Mm][1-9]|[Ll][Pp][Tt][1-9])(\\.|$))[A-Za-z0-9]([A-Za-z0-9._-]{0,126}[A-Za-z0-9_-])?$"},
+    "kit_version": {"type": "string", "pattern": "^(0|[1-9][0-9]*)(\\.(0|[1-9][0-9]*))*((a|b|rc)(0|[1-9][0-9]*))?(\\.post(0|[1-9][0-9]*))?(\\.dev(0|[1-9][0-9]*))?$"},
+    "content_path": {"type": "string", "pattern": "^(?!([Cc][Oo][Nn]|[Pp][Rr][Nn]|[Aa][Uu][Xx]|[Nn][Uu][Ll]|[Cc][Oo][Mm][1-9\u00b9\u00b2\u00b3]|[Ll][Pp][Tt][1-9\u00b9\u00b2\u00b3]|[Cc][Oo][Nn][Ii][Nn]\\$|[Cc][Oo][Nn][Oo][Uu][Tt]\\$) *([./]|$))[^/\\\\:*?\"<>|\\x00-\\x1f]*[^/\\\\:*?\"<>|\\x00-\\x1f. ](/(?!([Cc][Oo][Nn]|[Pp][Rr][Nn]|[Aa][Uu][Xx]|[Nn][Uu][Ll]|[Cc][Oo][Mm][1-9\u00b9\u00b2\u00b3]|[Ll][Pp][Tt][1-9\u00b9\u00b2\u00b3]|[Cc][Oo][Nn][Ii][Nn]\\$|[Cc][Oo][Nn][Oo][Uu][Tt]\\$) *([./]|$))[^/\\\\:*?\"<>|\\x00-\\x1f]*[^/\\\\:*?\"<>|\\x00-\\x1f. ])*$"},
+    "digest": {
+      "type": "object",
+      "required": ["sha256"],
+      "properties": {"sha256": {"$ref": "#/$defs/sha256"}}
+    },
+    "project_2": {
+      "type": "object",
+      "required": ["schema", "project_id", "title", "created_at", "min_writer_version"],
+      "properties": {
+        "schema": {"const": "analytics.project/2"},
+        "project_id": {"$ref": "#/$defs/opaque_id"},
+        "title": {"type": "string"},
+        "created_at": {"$ref": "#/$defs/timestamp"},
+        "min_writer_version": {"$ref": "#/$defs/kit_version"},
+        "kit_version": {"$ref": "#/$defs/kit_version"}
+      }
+    },
+    "reference": {
+      "type": "object",
+      "required": ["type", "relation", "basis", "version_binding"],
+      "properties": {
+        "type": {"enum": ["event", "run", "visualization_version", "data_observation", "dataset_import", "code_snapshot",
+                          "context_version", "metric_definition", "analysis_focus", "reuse_proposal", "report_revision",
+                          "publication"]},
+        "relation": {"enum": ["supports", "contradicts", "cites", "uses", "derived_from", "generated_by", "about",
+                              "includes", "resolves", "supersedes", "updates"]},
+        "basis": {"enum": ["observed", "declared", "inferred", "unverified"]},
+        "version_binding": {"enum": ["author", "inferred", "none"]},
+        "digest": {"$ref": "#/$defs/digest"},
+        "token": {"type": "string", "minLength": 1},
+        "key": {"type": "string", "minLength": 1},
+        "event_id": {"$ref": "#/$defs/event_id"},
+        "run_id": {"$ref": "#/$defs/run_id"},
+        "visualization_id": {"type": "string", "minLength": 1},
+        "role": {"enum": ["input", "output"]},
+        "path": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "minLength": 1},
+        "metric_id": {"type": "string", "minLength": 1},
+        "proposal_id": {"type": "string", "minLength": 1},
+        "report_id": {"$ref": "#/$defs/report_id"},
+        "revision_id": {"$ref": "#/$defs/opaque_id"},
+        "publication_id": {"$ref": "#/$defs/opaque_id"}
+      },
+      "allOf": [
+        {"if": {"properties": {"version_binding": {"const": "inferred"}}}, "then": {"required": ["token"]}},
+        {"if": {"properties": {"type": {"enum": ["event", "run", "analysis_focus", "publication"]}}},
+         "then": {"properties": {"version_binding": {"enum": ["author", "inferred"]}}}},
+        {"if": {"properties": {"type": {"enum": ["event", "analysis_focus"]}}}, "then": {"required": ["event_id"]}},
+        {"if": {"properties": {"type": {"const": "run"}}}, "then": {"required": ["run_id"]}},
+        {"if": {"properties": {"type": {"const": "publication"}}}, "then": {"required": ["publication_id"]}},
+        {"if": {"properties": {"type": {"const": "visualization_version"}, "version_binding": {"enum": ["author", "inferred"]}}},
+         "then": {"required": ["run_id", "visualization_id"]}},
+        {"if": {"properties": {"type": {"const": "data_observation"}, "version_binding": {"enum": ["author", "inferred"]}}},
+         "then": {"required": ["run_id", "role", "path"]}},
+        {"if": {"properties": {"type": {"const": "dataset_import"}, "version_binding": {"enum": ["author", "inferred"]}}},
+         "then": {"required": ["path", "digest"]}},
+        {"if": {"properties": {"type": {"const": "code_snapshot"}, "version_binding": {"enum": ["author", "inferred"]}}},
+         "then": {"required": ["run_id", "path", "digest"]}},
+        {"if": {"properties": {"type": {"const": "context_version"}, "version_binding": {"enum": ["author", "inferred"]}}},
+         "then": {"required": ["version", "digest"]}},
+        {"if": {"properties": {"type": {"const": "metric_definition"}, "version_binding": {"enum": ["author", "inferred"]}}},
+         "then": {"required": ["metric_id", "event_id"]}},
+        {"if": {"properties": {"type": {"const": "reuse_proposal"}, "version_binding": {"enum": ["author", "inferred"]}}},
+         "then": {"required": ["proposal_id", "event_id"]}},
+        {"if": {"properties": {"type": {"const": "report_revision"}, "version_binding": {"enum": ["author", "inferred"]}}},
+         "then": {"required": ["report_id", "revision_id", "digest"]}},
+        {"if": {"properties": {"version_binding": {"const": "none"}}},
+         "then": {"anyOf": [{"required": ["key"]}, {"required": ["path"]}, {"required": ["metric_id"]},
+                            {"required": ["proposal_id"]}, {"required": ["report_id"]}, {"required": ["token"]}]}}
+      ]
+    },
+    "references": {"type": "array", "items": {"$ref": "#/$defs/reference"}},
+    "event_2": {
+      "type": "object",
+      "required": ["schema", "seq", "id", "recorded_at", "kind", "actor", "text", "refs"],
+      "properties": {
+        "schema": {"const": "analytics.event/2"},
+        "seq": {"type": "integer", "minimum": 1},
+        "id": {"$ref": "#/$defs/event_id"},
+        "recorded_at": {"$ref": "#/$defs/timestamp"},
+        "kind": {"enum": ["project", "import", "run", "context", "finding", "decision", "assumption", "question", "todo",
+                          "note", "resolve", "workflow_feedback", "analysis_focus", "metric_definition",
+                          "metric_observation", "record_update", "checkpoint", "reuse_proposal", "reuse_notification",
+                          "reuse_mode", "report_revision", "publication", "publish_receipt"]},
+        "actor": {"type": "string", "minLength": 1},
+        "session": {"type": ["string", "null"]},
+        "request_id": {"$ref": "#/$defs/request_id"},
+        "text": {"type": "string"},
+        "refs": {"$ref": "#/$defs/references"},
+        "details": {"type": "object"}
+      },
+      "allOf": [
+        {"if": {"properties": {"kind": {"const": "project"}}},
+         "then": {"required": ["details"], "properties": {"details": {"required": ["project_id"]}}}},
+        {"if": {"properties": {"kind": {"const": "import"}}},
+         "then": {"properties": {"refs": {"contains": {"required": ["type", "relation"],
+                                                       "properties": {"type": {"const": "dataset_import"},
+                                                                      "relation": {"const": "about"}}},
+                                          "minContains": 1, "maxContains": 1}}}},
+        {"if": {"properties": {"kind": {"const": "run"}}},
+         "then": {"properties": {"refs": {"contains": {"required": ["type", "relation"],
+                                                       "properties": {"type": {"const": "run"}, "relation": {"const": "about"}}}}}}},
+        {"if": {"properties": {"kind": {"const": "context"}}},
+         "then": {"properties": {"refs": {"contains": {"required": ["type"], "properties": {"type": {"const": "context_version"}}}}}}},
+        {"if": {"properties": {"kind": {"const": "resolve"}}},
+         "then": {"properties": {"refs": {"contains": {"required": ["relation"], "properties": {"relation": {"const": "resolves"}}}}}}},
+        {"if": {"properties": {"kind": {"const": "record_update"}}},
+         "then": {"required": ["details"],
+                  "properties": {"refs": {"contains": {"required": ["relation"], "properties": {"relation": {"const": "updates"}}},
+                                          "minContains": 1, "maxContains": 1},
+                                 "details": {"required": ["expected_state", "new_state"],
+                                             "properties": {"expected_state": {"type": "string", "minLength": 1},
+                                                            "new_state": {"type": "string", "minLength": 1}}}}}},
+        {"if": {"properties": {"kind": {"const": "checkpoint"}}},
+         "then": {"required": ["details"],
+                  "properties": {"details": {"required": ["as_of_seq", "context_version"],
+                                             "properties": {"as_of_seq": {"type": "integer", "minimum": 0},
+                                                            "context_version": {"type": ["string", "null"],
+                                                                                "minLength": 1}}}}}},
+        {"if": {"properties": {"kind": {"const": "metric_definition"}}},
+         "then": {"required": ["details"], "properties": {"details": {"required": ["metric_id"]}}}},
+        {"if": {"properties": {"kind": {"const": "reuse_proposal"}}},
+         "then": {"required": ["details"], "properties": {"details": {"required": ["proposal_id"]}}}},
+        {"if": {"properties": {"kind": {"const": "reuse_mode"}}},
+         "then": {"required": ["details"],
+                  "properties": {"details": {"required": ["mode", "scope"],
+                                             "properties": {"mode": {"enum": ["on_demand", "always_on"]},
+                                                            "scope": {"enum": ["project", "session"]}}}}}},
+        {"if": {"properties": {"kind": {"const": "reuse_notification"}}},
+         "then": {"required": ["details"],
+                  "properties": {"details": {"required": ["trigger"],
+                                             "properties": {"trigger": {"enum": ["requested", "automatic"]}}},
+                                 "refs": {"contains": {"required": ["type"], "properties": {"type": {"const": "reuse_proposal"}}}}}}},
+        {"if": {"properties": {"kind": {"const": "report_revision"}}},
+         "then": {"required": ["details"],
+                  "properties": {"refs": {"contains": {"required": ["type", "relation", "digest"],
+                                                       "properties": {"type": {"const": "report_revision"},
+                                                                      "relation": {"const": "about"}}},
+                                          "minContains": 1, "maxContains": 1},
+                                 "details": {"required": ["previous_revision"],
+                                             "properties": {"previous_revision": {"anyOf": [{"$ref": "#/$defs/opaque_id"},
+                                                                                            {"type": "null"}]}}}}}},
+        {"if": {"properties": {"kind": {"enum": ["publication", "publish_receipt"]}}},
+         "then": {"required": ["details"], "properties": {"details": {"required": ["publication_id"]}}}}
+      ]
+    },
+    "report_revision_1": {
+      "type": "object",
+      "required": ["schema", "report_id", "revision_id", "previous_revision", "request_id", "request_fingerprint",
+                   "created_at", "actor", "title", "entry", "files"],
+      "properties": {
+        "schema": {"const": "analytics.report_revision/1"},
+        "report_id": {"$ref": "#/$defs/report_id"},
+        "revision_id": {"$ref": "#/$defs/opaque_id"},
+        "previous_revision": {"anyOf": [{"$ref": "#/$defs/opaque_id"}, {"type": "null"}]},
+        "request_id": {"$ref": "#/$defs/request_id"},
+        "request_fingerprint": {"$ref": "#/$defs/sha256"},
+        "created_at": {"$ref": "#/$defs/timestamp"},
+        "actor": {"type": "string", "minLength": 1},
+        "title": {"type": "string", "minLength": 1},
+        "entry": {"$ref": "#/$defs/content_path"},
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["path", "bytes", "sha256"],
+            "properties": {
+              "path": {"$ref": "#/$defs/content_path"},
+              "bytes": {"type": "integer", "minimum": 0},
+              "sha256": {"$ref": "#/$defs/sha256"},
+              "media_type": {"type": "string", "minLength": 1}
+            }
+          }
+        },
+        "based_on": {
+          "type": "object",
+          "required": ["as_of_seq", "context_version"],
+          "properties": {
+            "as_of_seq": {"type": ["integer", "null"], "minimum": 0},
+            "context_version": {"type": ["string", "null"], "minLength": 1},
+            "refs": {"$ref": "#/$defs/references"}
+          }
+        }
+      }
+    }
+  }
+}

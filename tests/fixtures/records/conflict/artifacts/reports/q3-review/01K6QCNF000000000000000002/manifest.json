@@ -1,0 +1,39 @@
+{
+  "schema": "analytics.report_revision/1",
+  "report_id": "q3-review",
+  "revision_id": "01K6QCNF000000000000000002",
+  "previous_revision": "01K6QCNF000000000000000001",
+  "request_id": "req-cf-0002",
+  "request_fingerprint": "e1e2bb9f14675fe6011556dc20a7917e262d044418f3f1fa902415f95c5eec8b",
+  "created_at": "2026-10-01T13:20:00.000+09:00",
+  "actor": "human",
+  "title": "Q3 review",
+  "entry": "index.md",
+  "files": [
+    {
+      "path": "index.md",
+      "bytes": 25,
+      "sha256": "c354634e3127c841e8957d7f5583ac04bfd9c7e06d48cee7783ad0a7d7947ef0"
+    }
+  ],
+  "based_on": {
+    "as_of_seq": 4,
+    "context_version": null,
+    "refs": [
+      {
+        "type": "event",
+        "event_id": "e3",
+        "relation": "cites",
+        "basis": "declared",
+        "version_binding": "author"
+      },
+      {
+        "type": "event",
+        "event_id": "e4",
+        "relation": "cites",
+        "basis": "declared",
+        "version_binding": "author"
+      }
+    ]
+  }
+}

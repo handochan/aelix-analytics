@@ -1,0 +1,253 @@
+{
+  "case": "conflict",
+  "summary": "Conflicts: two corrections of one finding, a save on a previous revision that is no longer the head, the same request_id with another fingerprint, a status change from a state the record is not in (as a request, and as a line written without the check) and a baseline known in part.",
+  "journal": {
+    "lines": 8,
+    "damaged": [],
+    "recovered": [],
+    "next_seq": 9
+  },
+  "references": [
+    {
+      "from": "e3",
+      "ref": {
+        "index": 0
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": true
+    },
+    {
+      "from": "e4",
+      "ref": {
+        "index": 0
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": true
+    },
+    {
+      "from": "e5",
+      "ref": {
+        "index": 0
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "observed",
+      "confirmed": true
+    },
+    {
+      "from": "e6",
+      "ref": {
+        "index": 0
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "observed",
+      "confirmed": true
+    },
+    {
+      "from": "e8",
+      "ref": {
+        "index": 0
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": true
+    },
+    {
+      "from": "report:q3-review/01K6QCNF000000000000000002",
+      "ref": {
+        "index": 0
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": true
+    },
+    {
+      "from": "report:q3-review/01K6QCNF000000000000000002",
+      "ref": {
+        "index": 1
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": true
+    }
+  ],
+  "records": [
+    {
+      "id": "e2",
+      "state": "conflict"
+    },
+    {
+      "id": "e3",
+      "state": "current"
+    },
+    {
+      "id": "e4",
+      "state": "current"
+    },
+    {
+      "id": "e7",
+      "state": "current",
+      "mismatched_updates": [
+        "e8"
+      ]
+    }
+  ],
+  "runs": [],
+  "report_revisions": [
+    {
+      "report_id": "q3-review",
+      "revision_id": "01K6QCNF000000000000000001",
+      "request_id": "req-cf-0001",
+      "recording_status": "complete",
+      "content": "resolved",
+      "head": false
+    },
+    {
+      "report_id": "q3-review",
+      "revision_id": "01K6QCNF000000000000000002",
+      "request_id": "req-cf-0002",
+      "recording_status": "complete",
+      "content": "resolved",
+      "head": true
+    }
+  ],
+  "lineage": [],
+  "writes": [
+    {
+      "operation": "report_save",
+      "request": {
+        "request_id": "req-cf-0003",
+        "report_id": "q3-review",
+        "previous_revision": "01K6QCNF000000000000000001",
+        "title": "Q3 review (other editor)",
+        "entry": "index.md",
+        "files": [
+          {
+            "path": "index.md",
+            "sha256": "c354634e3127c841e8957d7f5583ac04bfd9c7e06d48cee7783ad0a7d7947ef0"
+          }
+        ],
+        "based_on": {
+          "as_of_seq": 4,
+          "context_version": null,
+          "refs": [
+            {
+              "type": "event",
+              "event_id": "e3",
+              "relation": "cites",
+              "basis": "declared",
+              "version_binding": "author"
+            },
+            {
+              "type": "event",
+              "event_id": "e4",
+              "relation": "cites",
+              "basis": "declared",
+              "version_binding": "author"
+            }
+          ]
+        },
+        "request_fingerprint": "cd9267114e03b70976e0f6bf35e9ed3559a35295cd58d2b076f19a4a9a677266"
+      },
+      "result": "revision_conflict",
+      "note": "previous_revision is not the head; no branch is made"
+    },
+    {
+      "operation": "report_save",
+      "request": {
+        "request_id": "req-cf-0002",
+        "report_id": "q3-review",
+        "previous_revision": "01K6QCNF000000000000000001",
+        "title": "Q3 review, retitled",
+        "entry": "index.md",
+        "files": [
+          {
+            "path": "index.md",
+            "sha256": "c354634e3127c841e8957d7f5583ac04bfd9c7e06d48cee7783ad0a7d7947ef0"
+          }
+        ],
+        "based_on": {
+          "as_of_seq": 4,
+          "context_version": null,
+          "refs": [
+            {
+              "type": "event",
+              "event_id": "e3",
+              "relation": "cites",
+              "basis": "declared",
+              "version_binding": "author"
+            },
+            {
+              "type": "event",
+              "event_id": "e4",
+              "relation": "cites",
+              "basis": "declared",
+              "version_binding": "author"
+            }
+          ]
+        },
+        "request_fingerprint": "eb951b3db44d4aee4b2353ab13dc6a0c95b680e1c7829b9d24028eb31048076e"
+      },
+      "result": "request_conflict"
+    },
+    {
+      "operation": "report_save",
+      "request": {
+        "request_id": "req-cf-0002",
+        "report_id": "q3-review",
+        "previous_revision": "01K6QCNF000000000000000001",
+        "title": "Q3 review",
+        "entry": "index.md",
+        "files": [
+          {
+            "path": "index.md",
+            "sha256": "c354634e3127c841e8957d7f5583ac04bfd9c7e06d48cee7783ad0a7d7947ef0"
+          }
+        ],
+        "based_on": {
+          "as_of_seq": 4,
+          "context_version": null,
+          "refs": [
+            {
+              "type": "event",
+              "event_id": "e3",
+              "relation": "cites",
+              "basis": "declared",
+              "version_binding": "author"
+            },
+            {
+              "type": "event",
+              "event_id": "e4",
+              "relation": "cites",
+              "basis": "declared",
+              "version_binding": "author"
+            }
+          ]
+        },
+        "request_fingerprint": "e1e2bb9f14675fe6011556dc20a7917e262d044418f3f1fa902415f95c5eec8b"
+      },
+      "result": "existing"
+    },
+    {
+      "operation": "record_update",
+      "request": {
+        "target": "e7",
+        "expected_state": "withdrawn",
+        "new_state": "current"
+      },
+      "result": "state_conflict"
+    }
+  ],
+  "unsupported": {
+    "count": 0,
+    "items": []
+  }
+}

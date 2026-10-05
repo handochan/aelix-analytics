@@ -88,7 +88,7 @@ flowchart LR
 
 | 계층 | 정본 또는 역할 | 보존할 내용 |
 |---|---|---|
-| 현재 맥락 | `CONTEXT.md`와 `.analytics/context/`의 버전 — 현재 `.lab/context/`에서 전환 | 목표, 정의, 제약, 현재 작업 방향. 자유 편집 유지 |
+| 현재 맥락 | `CONTEXT.md`와 그 버전 — 지금은 `.lab/context/`, #13 뒤의 새 버전은 `.analytics/context/`. 옛 버전을 둘 위치는 #13이 정하고 reader는 두 곳을 모두 찾는다([ADR-0006](decisions/0006-common-record-contract.md) 4절) | 목표, 정의, 제약, 현재 작업 방향. 자유 편집 유지 |
 | 분석 방향·정의·지식 | `journal.jsonl` | 현재 초점·지표 정의의 버전·발견·결정·가정·질문·정정·재사용 제안·작업 구간 요약 |
 | 실행 근거 | `runs/`, 가져오기 메타데이터, 보존된 Visualization·표·코드 | 실행 시점의 관측, 파일의 존재 여부, 재실행 비교 |
 | 보고서 산출물 — 신설 제안 | 보고서 버전 manifest·보존 본문·첨부, journal의 저장·상태 이벤트 | 자유 형식 내용, 작성 시점·분석 기준·정확한 근거, 반복 묶음의 구성원 버전 |
@@ -103,30 +103,29 @@ CONTEXT를 journal의 복제본으로 자동 덮어쓰지 않는다. 요약에�
 `finding`은 “무엇을 알았나”와 함께 **관련 질문·지표 정의 버전, 적용 대상·기간, 근거, 한계, 다음 확인**을 남길 수 있어야 한다.
 단순 메모에는 필드를 강요하지 않는다. 근거가 없는 발견은 허용하되 미연결 상태가 드러난다.
 새 발견에서 차트를 선택하면 도구가 정확한 run·chart 버전 참조를 채우고, 모델이 복합 ID를 암기하지 않게 한다.
+이름만 주면 쓰는 시점의 최신 성공 버전으로 결박하되 `version_binding=inferred`로 표시하고 확정 연결로 세지 않는다.
 
-새 선택 필드의 개념 예시(아직 지원되는 입력 형식이 아님):
+[ADR-0006](decisions/0006-common-record-contract.md)이 채택한 형식의 예시다. 아직 어떤 kit도 이 형식을 쓰지 않는다:
 
 ```json
 {
   "schema": "analytics.event/2",
-  "id": "e42",
   "seq": 42,
-  "recorded_at": "2026-09-17T17:00:00+09:00",
+  "id": "e42",
+  "recorded_at": "2026-09-17T17:00:00.000+09:00",
   "kind": "finding",
   "actor": "agent",
   "text": "채널 구성을 통제한 후 지역 간 성장률 차이가 줄었다.",
-  "refs": {
-    "analysis_focus": "e40",
-    "metrics": [{"metric_id": "m_region_growth", "definition_ref": "e37"}],
-    "runs": ["20260917-160000-region-growth"],
-    "evidence": [{
-      "type": "visualization_version",
-      "run_id": "20260917-160000-region-growth",
-      "visualization_id": "region-growth",
-      "relation": "supports",
-      "basis": "declared"
-    }]
-  },
+  "refs": [
+    {"type": "analysis_focus", "event_id": "e40",
+     "relation": "about", "basis": "declared", "version_binding": "author"},
+    {"type": "metric_definition", "metric_id": "m_region_growth", "event_id": "e37",
+     "relation": "about", "basis": "declared", "version_binding": "author"},
+    {"type": "visualization_version", "run_id": "20260917-160000-region-growth", "visualization_id": "region-growth",
+     "relation": "supports", "basis": "declared", "version_binding": "author"},
+    {"type": "visualization_version", "run_id": "20260917-153000-channel-mix", "visualization_id": "channel-mix",
+     "token": "channel-mix", "relation": "cites", "basis": "declared", "version_binding": "inferred"}
+  ],
   "details": {
     "scope": "2026년 1~8월, sales_v2, 취소 주문 제외",
     "limitations": "원인을 증명한 결과는 아님",
@@ -135,18 +134,21 @@ CONTEXT를 journal의 복제본으로 자동 덮어쓰지 않는다. 요약에�
 }
 ```
 
-`refs.evidence`는 정확한 근거 버전의 권위 있는 참조이며, `refs.runs`는 실행으로 가는 보조 링크다.
+참조는 한 가지 형태이며 `relation`이 근거(`supports`·`contradicts`·`cites`)와 초점·지표·정정 같은 연결을 구별한다.
+확정 연결은 `version_binding=author`이고 `basis`가 `observed`·`declared`이며 해석 상태가 `resolved`인 참조뿐이다([ADR-0006](decisions/0006-common-record-contract.md) 3절).
+마지막 참조처럼 추론으로 결박한 근거와 `basis`가 `inferred`·`unverified`인 참조는 확정으로 세지 않는다.
 `supports`는 작성자의 주장 관계다. 실행 시스템이 통계적 타당성이나 인과관계를 인증한 것으로 처리하지 않는다.
 Visualization의 논리적 이름은 버전 모음의 식별자이고, 과거 근거는 `run_id + visualization_id`로 구별한다. 현재 chart 필드는 legacy reader에서 대응한다.
-데이터 참조는 [기존 그래프 제안](PROPOSAL-EVIDENCE-GRAPH-2026-09-17.md)의 관측 ID·해시·보존 여부를 따른다.
+데이터 관측은 run·역할·정체성 경로·해시로 가리킨다. 경로 규칙은 ADR-0006 9절, 보존 여부의 표시는 [기존 그래프 제안](PROPOSAL-EVIDENCE-GRAPH-2026-09-17.md)을 따른다.
 
 ### 정정·철회·시간 이력
 
-- 정정은 새 발견과 `supersedes=<이전 이벤트>`로 남긴다. 원래 텍스트와 근거는 수정하지 않는다.
+- 정정은 새 발견과 이전 이벤트를 가리키는 `supersedes` 참조로 남긴다. 원래 텍스트와 근거는 수정하지 않는다.
 - 철회·복원·제안 상태 변경은 별도의 `record_update` 이벤트로 대상·사유·작성자를 남긴다. 내용 버전 `revision_id`와 구별한다.
 - 질문·할 일의 `resolves`는 계속 완료 처리다. 기존 발견에 붙은 `resolves`도 과거의 닫힘 표시로 읽고, 철회·반박으로 재해석하지 않는다.
 - 같은 발견에 서로 다른 대체 기록이 생기면 충돌을 표시한다. 최신 시각만으로 한쪽을 진실로 고르지 않는다.
-- 상태 변경은 대상이 존재하고 같은 프로젝트에 있는지, 기대한 이전 상태가 맞는지 journal 잠금 안에서 검증한다. 이 검증은 전체 실행의 트랜잭션을 뜻하지 않는다.
+- 상태 변경은 대상이 존재하고 같은 프로젝트에 있는지, 기대한 이전 상태가 맞는지 journal 잠금 안에서 검증하고, 맞지 않으면 `state_conflict`로 거절한다. 이 검증은 전체 실행의 트랜잭션을 뜻하지 않는다.
+- 상태는 journal을 seq 순서로 재생해 계산하며, 대상별 처음 상태와 허용하는 전이는 [ADR-0006](decisions/0006-common-record-contract.md) 6절에 있다. 뒤의 정정이 앞에서 승인된 철회·재개를 지우지 않는다.
 
 기록 순서는 `seq`, 표시 시각은 새 이벤트의 `recorded_at`을 사용하며 기존 `ts`도 해석한다. 데이터가 설명하는 기간은 별도의 적용 범위다.
 예를 들어 9월 17일에 기록한 “8월 매출”은 기록일과 대상 기간이 다르다.
@@ -156,7 +158,7 @@ Visualization의 논리적 이름은 버전 모음의 식별자이고, 과거 �
 ### 작업 구간 요약 `checkpoint`
 
 긴 대화 대신 “이 질문에서 어디까지 왔나”를 복원하는 짧은 요약을 남긴다.
-필드는 목적·현재 분석 초점·지표 정의 버전·새 발견·바뀐 판단·열린 질문·다음 행동, 참조 이벤트, `through_seq`, CONTEXT 해시, 작성 주체다.
+필드는 목적·현재 분석 초점·지표 정의 버전·새 발견·바뀐 판단·열린 질문·다음 행동, 참조 이벤트, `as_of_seq`, CONTEXT 버전, 작성 주체다.
 질문이 끝나거나 다른 작업으로 넘어갈 때 생성하며, 매 턴 추가 모델을 호출하지 않는다.
 최초 구현은 구조화된 기존 기록의 결정적 요약 또는 현재 에이전트의 명시적 작성으로 충분하다.
 
@@ -406,11 +408,11 @@ JavaScript를 사용할 수 없을 때도 링크와 관계 목록으로 내용�
 
 검색·관계·프로젝트 탐색 HTML은 공통 읽기 모델을 사용한다. 보존한 보고서 본문·첨부는 이 화면의 입력이다. 새 graph DB나 별도 수동 관계 파일을 정본으로 만들지 않는다.
 생성 기준은 journal의 유효 범위, CONTEXT 해시, run·데이터·보고서 버전 manifest의 내용 지문, 인덱스 형식 버전으로 구성한다.
-여기서 `source_revision`은 새로 설계할 읽기 기준이며, 현재 구현에 그런 필드가 있다는 뜻은 아니다.
+`source_revision`·cursor·영속 기준 `as_of_seq`의 규칙은 [ADR-0006](decisions/0006-common-record-contract.md) 5절이 정했다. 현재 구현에 그런 필드는 아직 없다.
 
 run은 finalize 중 바뀔 수 있으므로 journal의 마지막 seq만으로 전체 일관성을 판단하지 않는다.
-읽기 전후 기준이 다르면 제한된 횟수만 다시 읽고, 계속 바뀌면 `updating`과 관측 기준을 반환한다.
-페이지 cursor도 기준에 묶는다. 기준이 달라진 cursor로 서로 다른 순간의 결과를 이어 붙이지 않는다.
+읽기 전후 기준이 다르면 두 번까지 다시 읽고, 계속 바뀌면 `updating`과 관측 기준을 반환한다.
+페이지 cursor도 기준에 묶는다. 기준이 달라진 cursor에는 `stale_cursor`를 돌려주며, 서로 다른 순간의 결과를 이어 붙이지 않는다.
 이는 파생 읽기의 기준 확인이다. 프로젝트 밖의 직접 파일 수정까지 막는 원자적 스냅샷이나 변조 방지 보장은 아니다.
 
 새 이벤트의 증분 색인과 영향받은 페이지의 갱신을 목표로 한다. 첫 구현에서 전체 재생성을 쓰는 범위는 실측하여 표시한다.
@@ -418,12 +420,13 @@ run은 finalize 중 바뀔 수 있으므로 journal의 마지막 seq만으로 �
 캐시의 확인 시점·부분 결과·명시적 재검사 경로를 보여 준다. 기록 그래프 생성은 대형 데이터 본문을 읽지 않아야 한다.
 
 인덱스 손상·삭제 시 원본을 다시 읽는다. 재구축 중에는 기본 상태·직접 ID 조회를 제공하고, 불완전한 검색을 전체 결과처럼 표시하지 않는다.
-리포트 실패 때문에 이미 성공한 분석 실행을 다시 돌리지 않는다. 둘의 완료 상태와 재시도 단위가 달라야 한다.
+리포트 실패 때문에 이미 성공한 분석 실행을 다시 돌리지 않는다. 둘의 완료 상태와 재시도 단위가 달라야 한다(실행·기록·표시 상태의 분리, ADR-0006 6절).
 
 ## 7. 기록 형식과 호환성
 
 G0의 기존 기록 탐색은 `/1`을 그대로 읽는 파생 기능으로 구현할 수 있다.
-지표 정의·분석 초점·정정·재사용 제안·checkpoint·보고서 버전 등 새 의미를 쓰는 시점에는 `analytics.event/2`와 `analytics.project/2`를 도입하는 방안을 우선 검토한다.
+지표 정의·분석 초점·정정·재사용 제안·checkpoint·보고서 버전 등 새 의미를 쓰는 시점에 `analytics.event/2`와 `analytics.project/2`를 도입한다([ADR-0006](decisions/0006-common-record-contract.md) 1절).
+kind와 참조 type은 B1–B4 전체를 미리 정했고, #13 뒤에는 선택 필드와 새 kind만 더한다. 이전 kit이 지키지 않는 쓰기 규칙이 생기면 표식의 `min_writer_version`을 올린다.
 `lab.*` namespace의 과거 기록과 새 `analytics.*` 기록은 가족 이름까지 명시적으로 해석한다. run·dataset 등은 의미 변경 범위에 따라 버전을 정하고 일괄 증분하지 않는다.
 
 전환 절차의 제안:
@@ -431,12 +434,12 @@ G0의 기존 기록 탐색은 `/1`을 그대로 읽는 파생 기능으로 구�
 1. 변환 계획과 영향을 먼저 보여 주고 원본·백업 위치를 기록한다. 조회만으로 프로젝트를 자동 전환하지 않는다.
 2. 새 reader가 지원하는 schema 가족과 버전을 모두 읽게 한다. 기존 journal 줄은 그대로 보존하고 새 이벤트만 확정한 형식으로 추가한다.
 3. project 표식·schema 가족·최소 reader/writer 요구를 함께 전환하고 구버전의 일반 쓰기 경로가 새 프로젝트를 수정하지 못하게 검증한다. namespace 변경만으로 거절된다고 가정하지 않는다.
-4. 기존 논리적 차트·경로 참조는 `version_unbound`로 읽는다. 최신 버전이나 이벤트 직전 run을 확정 근거로 채우지 않는다.
+4. 기존 논리적 차트·경로 참조는 `version_unbound`로 읽는다. 최신 버전이나 이벤트 직전 run을 확정 근거로 채우지 않는다. `kind=run` 이벤트의 차트만 그 run에 결박한다.
 5. 전환 실패·구버전 열기·알 수 없는 이벤트에는 누락과 복구 방법을 알린다. 원본을 버려 구버전으로 되돌리는 방식은 쓰지 않는다.
 
-새 writer를 열기 전에 혼합 journal·오래된 프로젝트·미래 스키마를 시험한다.
-선택 필드만 `/1`에 더하는 대안은 구버전이 새 상태를 무시하고 잘못 쓸 수 있는지를 먼저 검토해야 한다.
-최종 선택은 구현 PR의 계약 변경으로 확정하고, 이번 문서만으로 현재 저장 형식을 바꾸지 않는다.
+새 writer를 열기 전에 혼합 journal·오래된 프로젝트·미래 스키마를 [기록 예제](../tests/fixtures/records/README.md)로 시험한다.
+선택 필드만 `/1`에 더하는 대안은 구버전이 새 상태를 무시하고 그대로 쓰므로 택하지 않았다(ADR-0006).
+현재 저장 형식은 #13의 구현 전까지 바뀌지 않는다.
 
 ## 8. 배포와 저장소 구조
 

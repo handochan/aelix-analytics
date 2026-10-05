@@ -1,0 +1,655 @@
+{
+  "case": "normal",
+  "summary": "A converted project read as is: exact evidence, one inferred binding that resolves but is not a confirmed link, author references whose basis is inferred or unverified, references left unbound, a correction, a decision withdrawn and then corrected, a question opened again, a checkpoint and two complete Report revisions.",
+  "journal": {
+    "lines": 15,
+    "damaged": [],
+    "recovered": [],
+    "next_seq": 16
+  },
+  "references": [
+    {
+      "from": "e2",
+      "ref": {
+        "index": 0
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "observed",
+      "confirmed": true
+    },
+    {
+      "from": "e4",
+      "ref": {
+        "index": 0
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "observed",
+      "confirmed": true
+    },
+    {
+      "from": "e5",
+      "ref": {
+        "index": 0
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "observed",
+      "confirmed": true
+    },
+    {
+      "from": "e6",
+      "ref": {
+        "index": 0
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": true
+    },
+    {
+      "from": "e6",
+      "ref": {
+        "index": 1
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": true
+    },
+    {
+      "from": "e6",
+      "ref": {
+        "index": 2
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": true
+    },
+    {
+      "from": "e6",
+      "ref": {
+        "index": 3
+      },
+      "state": "resolved",
+      "version_binding": "inferred",
+      "basis": "declared",
+      "confirmed": false
+    },
+    {
+      "from": "e6",
+      "ref": {
+        "index": 4
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": true
+    },
+    {
+      "from": "e7",
+      "ref": {
+        "index": 0
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "observed",
+      "confirmed": true
+    },
+    {
+      "from": "e8",
+      "ref": {
+        "index": 0
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": true
+    },
+    {
+      "from": "e8",
+      "ref": {
+        "index": 1
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": true
+    },
+    {
+      "from": "e10",
+      "ref": {
+        "index": 0
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": true
+    },
+    {
+      "from": "e11",
+      "ref": {
+        "index": 0
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "observed",
+      "confirmed": true
+    },
+    {
+      "from": "e12",
+      "ref": {
+        "index": 0
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": true
+    },
+    {
+      "from": "e13",
+      "ref": {
+        "index": 0
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": true
+    },
+    {
+      "from": "e14",
+      "ref": {
+        "index": 0
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": true
+    },
+    {
+      "from": "e15",
+      "ref": {
+        "index": 0
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "inferred",
+      "confirmed": false
+    },
+    {
+      "from": "e15",
+      "ref": {
+        "index": 1
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "unverified",
+      "confirmed": false
+    },
+    {
+      "from": "e15",
+      "ref": {
+        "index": 2
+      },
+      "state": "version_unbound",
+      "version_binding": "none",
+      "basis": "declared",
+      "confirmed": false,
+      "candidates": [
+        "20261001-091000-region-summary/region-revenue"
+      ]
+    },
+    {
+      "from": "e15",
+      "ref": {
+        "index": 3
+      },
+      "state": "unknown",
+      "reason": "unresolved_name",
+      "version_binding": "none",
+      "basis": "declared",
+      "confirmed": false
+    },
+    {
+      "from": "report:region-review/01K6QNRM000000000000000001",
+      "ref": {
+        "index": 0
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": true
+    },
+    {
+      "from": "report:region-review/01K6QNRM000000000000000002",
+      "ref": {
+        "index": 0
+      },
+      "state": "resolved",
+      "version_binding": "author",
+      "basis": "declared",
+      "confirmed": true
+    }
+  ],
+  "records": [
+    {
+      "id": "e3",
+      "state": "open"
+    },
+    {
+      "id": "e6",
+      "state": "superseded"
+    },
+    {
+      "id": "e8",
+      "state": "current"
+    },
+    {
+      "id": "e9",
+      "state": "withdrawn"
+    },
+    {
+      "id": "e12",
+      "state": "current"
+    },
+    {
+      "id": "e15",
+      "state": "current"
+    }
+  ],
+  "runs": [
+    {
+      "run_id": "20261001-091000-region-summary",
+      "execution_status": "ok",
+      "recording_status": "complete",
+      "reasons": []
+    },
+    {
+      "run_id": "20261001-092000-monthly-trend",
+      "execution_status": "ok",
+      "recording_status": "complete",
+      "reasons": []
+    }
+  ],
+  "report_revisions": [
+    {
+      "report_id": "region-review",
+      "revision_id": "01K6QNRM000000000000000001",
+      "request_id": "req-normal-0001",
+      "recording_status": "complete",
+      "content": "resolved",
+      "head": false
+    },
+    {
+      "report_id": "region-review",
+      "revision_id": "01K6QNRM000000000000000002",
+      "request_id": "req-normal-0002",
+      "recording_status": "complete",
+      "content": "resolved",
+      "head": true
+    }
+  ],
+  "lineage": [
+    {
+      "run_id": "20261001-091000-region-summary",
+      "path": "data/sales.csv",
+      "producer": "none",
+      "candidates": []
+    },
+    {
+      "run_id": "20261001-092000-monthly-trend",
+      "path": "data/derived/region_summary.csv",
+      "producer": "resolved",
+      "candidates": [
+        "20261001-091000-region-summary"
+      ]
+    }
+  ],
+  "writes": [
+    {
+      "operation": "report_save",
+      "request": {
+        "request_id": "req-normal-0003",
+        "report_id": "region-review",
+        "previous_revision": "01K6QNRM000000000000000002",
+        "title": "지역 매출 검토, 3판",
+        "entry": "index.md",
+        "files": [
+          {
+            "path": "region_summary.csv",
+            "sha256": "9f6a799bc14ab42c2fa5732905836ba11e96255902c3727361527239baa8cc5b"
+          },
+          {
+            "path": "index.md",
+            "sha256": "cab78a8511a9d79041408ee9f3047990814ae5a7be8532f419019543ca1b60cc"
+          }
+        ],
+        "based_on": {
+          "as_of_seq": 8,
+          "context_version": "20261001-090000-000000_c3c0b6b900db.md",
+          "refs": [
+            {
+              "type": "event",
+              "event_id": "e8",
+              "relation": "cites",
+              "basis": "declared",
+              "version_binding": "author"
+            }
+          ]
+        },
+        "request_fingerprint": "cc11218532016606d4c7f91585f763720ee329ce916623ffcb1a8c9eb946fc90"
+      },
+      "result": "saved",
+      "note": "previous_revision is the head; a Korean title and files out of path order (the fingerprint sorts them)"
+    },
+    {
+      "operation": "report_save",
+      "request": {
+        "request_id": "req-normal-0004",
+        "report_id": "region-review",
+        "previous_revision": "01K6QNRM000000000000000002",
+        "title": "Regional revenue review",
+        "entry": "../outside.md",
+        "files": [
+          {
+            "path": "../outside.md",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ],
+        "based_on": {
+          "as_of_seq": 8,
+          "context_version": "20261001-090000-000000_c3c0b6b900db.md",
+          "refs": [
+            {
+              "type": "event",
+              "event_id": "e8",
+              "relation": "cites",
+              "basis": "declared",
+              "version_binding": "author"
+            }
+          ]
+        }
+      },
+      "result": "report_path_invalid",
+      "note": "a path that leaves content/"
+    },
+    {
+      "operation": "report_save",
+      "request": {
+        "request_id": "req-normal-0005",
+        "report_id": "region-review",
+        "previous_revision": "01K6QNRM000000000000000002",
+        "title": "Regional revenue review",
+        "entry": "C:/elsewhere/index.md",
+        "files": [
+          {
+            "path": "C:/elsewhere/index.md",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ],
+        "based_on": {
+          "as_of_seq": 8,
+          "context_version": "20261001-090000-000000_c3c0b6b900db.md",
+          "refs": [
+            {
+              "type": "event",
+              "event_id": "e8",
+              "relation": "cites",
+              "basis": "declared",
+              "version_binding": "author"
+            }
+          ]
+        }
+      },
+      "result": "report_path_invalid",
+      "note": "a drive path"
+    },
+    {
+      "operation": "report_save",
+      "request": {
+        "request_id": "req-normal-0006",
+        "report_id": "region-review",
+        "previous_revision": "01K6QNRM000000000000000002",
+        "title": "Regional revenue review",
+        "entry": "index.md",
+        "files": [
+          {
+            "path": "Index.md",
+            "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+          },
+          {
+            "path": "index.md",
+            "sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+          }
+        ],
+        "based_on": {
+          "as_of_seq": 8,
+          "context_version": "20261001-090000-000000_c3c0b6b900db.md",
+          "refs": [
+            {
+              "type": "event",
+              "event_id": "e8",
+              "relation": "cites",
+              "basis": "declared",
+              "version_binding": "author"
+            }
+          ]
+        }
+      },
+      "result": "report_path_invalid",
+      "note": "two paths that are one file where case is ignored"
+    },
+    {
+      "operation": "report_save",
+      "request": {
+        "request_id": "req-normal-0007",
+        "report_id": "region-review",
+        "previous_revision": "01K6QNRM000000000000000002",
+        "title": "Regional revenue review",
+        "entry": "index.md",
+        "files": [
+          {
+            "path": "index.md",
+            "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+          },
+          {
+            "path": "data/con.csv",
+            "sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+          }
+        ],
+        "based_on": {
+          "as_of_seq": 8,
+          "context_version": "20261001-090000-000000_c3c0b6b900db.md",
+          "refs": [
+            {
+              "type": "event",
+              "event_id": "e8",
+              "relation": "cites",
+              "basis": "declared",
+              "version_binding": "author"
+            }
+          ]
+        }
+      },
+      "result": "report_path_invalid",
+      "note": "a reserved device name in a path component (ADR-0003 6)"
+    },
+    {
+      "operation": "report_save",
+      "request": {
+        "request_id": "req-normal-0008",
+        "report_id": "region-review",
+        "previous_revision": "01K6QNRM000000000000000002",
+        "title": "Regional revenue review",
+        "entry": "summary.md",
+        "files": [
+          {
+            "path": "index.md",
+            "sha256": "cab78a8511a9d79041408ee9f3047990814ae5a7be8532f419019543ca1b60cc"
+          },
+          {
+            "path": "region_summary.csv",
+            "sha256": "9f6a799bc14ab42c2fa5732905836ba11e96255902c3727361527239baa8cc5b"
+          }
+        ],
+        "based_on": {
+          "as_of_seq": 8,
+          "context_version": "20261001-090000-000000_c3c0b6b900db.md",
+          "refs": [
+            {
+              "type": "event",
+              "event_id": "e8",
+              "relation": "cites",
+              "basis": "declared",
+              "version_binding": "author"
+            }
+          ]
+        }
+      },
+      "result": "report_path_invalid",
+      "note": "the entry is not one of the files"
+    },
+    {
+      "operation": "report_save",
+      "request": {
+        "request_id": "req-normal-0009",
+        "report_id": "con",
+        "previous_revision": null,
+        "title": "Regional revenue review",
+        "entry": "index.md",
+        "files": [
+          {
+            "path": "index.md",
+            "sha256": "cab78a8511a9d79041408ee9f3047990814ae5a7be8532f419019543ca1b60cc"
+          },
+          {
+            "path": "region_summary.csv",
+            "sha256": "9f6a799bc14ab42c2fa5732905836ba11e96255902c3727361527239baa8cc5b"
+          }
+        ],
+        "based_on": {
+          "as_of_seq": 8,
+          "context_version": "20261001-090000-000000_c3c0b6b900db.md",
+          "refs": [
+            {
+              "type": "event",
+              "event_id": "e8",
+              "relation": "cites",
+              "basis": "declared",
+              "version_binding": "author"
+            }
+          ]
+        }
+      },
+      "result": "name_not_portable",
+      "note": "a new report_id that is a reserved device name"
+    },
+    {
+      "operation": "report_save",
+      "request": {
+        "request_id": "nul.1",
+        "report_id": "region-review",
+        "previous_revision": "01K6QNRM000000000000000002",
+        "title": "Regional revenue review",
+        "entry": "index.md",
+        "files": [
+          {
+            "path": "index.md",
+            "sha256": "cab78a8511a9d79041408ee9f3047990814ae5a7be8532f419019543ca1b60cc"
+          },
+          {
+            "path": "region_summary.csv",
+            "sha256": "9f6a799bc14ab42c2fa5732905836ba11e96255902c3727361527239baa8cc5b"
+          }
+        ],
+        "based_on": {
+          "as_of_seq": 8,
+          "context_version": "20261001-090000-000000_c3c0b6b900db.md",
+          "refs": [
+            {
+              "type": "event",
+              "event_id": "e8",
+              "relation": "cites",
+              "basis": "declared",
+              "version_binding": "author"
+            }
+          ]
+        }
+      },
+      "result": "name_not_portable",
+      "note": "a request_id that is a reserved device name"
+    },
+    {
+      "operation": "record_update",
+      "request": {
+        "target": "e9",
+        "expected_state": "withdrawn",
+        "new_state": "superseded"
+      },
+      "result": "saved",
+      "note": "restored to the state it has without the withdrawal: e12 corrects it"
+    },
+    {
+      "operation": "record_update",
+      "request": {
+        "target": "e9",
+        "expected_state": "withdrawn",
+        "new_state": "current"
+      },
+      "result": "state_conflict",
+      "note": "a corrected record is not restored to current"
+    },
+    {
+      "operation": "record_update",
+      "request": {
+        "target": "e3",
+        "expected_state": "open",
+        "new_state": "withdrawn"
+      },
+      "result": "state_conflict",
+      "note": "a question is not withdrawn"
+    },
+    {
+      "operation": "event_append",
+      "request": {
+        "kind": "note",
+        "writer_version": "0.3.0rc1"
+      },
+      "result": "writer_too_old",
+      "note": "PEP 440: 0.3.0rc1 < min_writer_version 0.3.0"
+    },
+    {
+      "operation": "event_append",
+      "request": {
+        "kind": "note",
+        "writer_version": "0.3.0.dev2"
+      },
+      "result": "writer_too_old",
+      "note": "PEP 440: 0.3.0.dev2 < min_writer_version 0.3.0"
+    },
+    {
+      "operation": "event_append",
+      "request": {
+        "kind": "note",
+        "writer_version": "0.3.0.post1"
+      },
+      "result": "saved",
+      "note": "PEP 440: 0.3.0.post1 >= min_writer_version 0.3.0"
+    },
+    {
+      "operation": "event_append",
+      "request": {
+        "kind": "note",
+        "writer_version": "0.3.1.dev1"
+      },
+      "result": "saved",
+      "note": "PEP 440: 0.3.1.dev1 >= min_writer_version 0.3.0"
+    }
+  ],
+  "unsupported": {
+    "count": 0,
+    "items": []
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "schema": "lab.run/1",
+  "id": "20261001-100000-long-job",
+  "title": "long-job",
+  "status": "running",
+  "started_at": "2026-10-01T10:00:00.000+09:00",
+  "actor": "human",
+  "session": null,
+  "rerun_of": null,
+  "script": {
+    "path": "scripts/long_job.py",
+    "sha256": "b8bd5d6770aeefef99f0d5f1760b5cf68bfab53ddced475ba1ff2f5d89d731cc",
+    "snapshot": "runs/20261001-100000-long-job/code/scripts/long_job.py"
+  },
+  "modules": [],
+  "inputs": [],
+  "outputs": [],
+  "charts": [],
+  "error": null,
+  "stdout": "runs/20261001-100000-long-job/stdout.txt",
+  "stderr": "runs/20261001-100000-long-job/stderr.txt",
+  "env": {
+    "python": "3.12.13",
+    "executable": "python3",
+    "platform": "synthetic",
+    "packages": {},
+    "uv_lock_sha256": null,
+    "kit_version": "0.2.0",
+    "kit_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "warnings": [],
+  "pid": 4294967295
+}

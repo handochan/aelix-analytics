@@ -1,0 +1,54 @@
+{
+  "schema": "lab.run/1",
+  "id": "20260930-091000-trend",
+  "title": "trend",
+  "status": "ok",
+  "started_at": "2026-09-30T09:10:00.000+09:00",
+  "actor": "human",
+  "session": null,
+  "rerun_of": null,
+  "script": {
+    "path": "scripts/trend.py",
+    "sha256": "aa0c3a54d94884c9283c207e7042b2681d9a328184265aa70143dd48e5b2a24d",
+    "snapshot": "runs/20260930-091000-trend/code/scripts/trend.py"
+  },
+  "ended_at": "2026-09-30T09:10:01.000+09:00",
+  "duration_s": 1.0,
+  "modules": [],
+  "inputs": [],
+  "outputs": [
+    {
+      "path": "data/derived/same.csv",
+      "change": "created",
+      "bytes": 20,
+      "sha256": "7dc87ab8618e73b3df42ca900743ae609ec2e7e74a94655a86a2e63abdb97326",
+      "via": "diff"
+    }
+  ],
+  "charts": [
+    {
+      "id": "trend",
+      "kind": "plotly",
+      "title": "Trend",
+      "caption": null,
+      "via": "lab.chart",
+      "files": {
+        "plotly": "runs/20260930-091000-trend/charts/trend.plotly.json"
+      },
+      "line": 9
+    }
+  ],
+  "error": null,
+  "stdout": "runs/20260930-091000-trend/stdout.txt",
+  "stderr": "runs/20260930-091000-trend/stderr.txt",
+  "env": {
+    "python": "3.12.13",
+    "executable": "python3",
+    "platform": "synthetic",
+    "packages": {},
+    "uv_lock_sha256": null,
+    "kit_version": "0.2.0",
+    "kit_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "warnings": []
+}

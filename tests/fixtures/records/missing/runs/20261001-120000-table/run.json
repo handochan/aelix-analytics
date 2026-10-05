@@ -1,0 +1,64 @@
+{
+  "schema": "lab.run/1",
+  "id": "20261001-120000-table",
+  "title": "table",
+  "status": "ok",
+  "started_at": "2026-10-01T12:00:00.000+09:00",
+  "actor": "human",
+  "session": null,
+  "rerun_of": null,
+  "script": {
+    "path": "scripts/table.py",
+    "sha256": "1433b6db239c3a9ac977302a4c5e2abfb51b886f4f431161abe9e581df766126",
+    "snapshot": "runs/20261001-120000-table/code/scripts/table.py"
+  },
+  "ended_at": "2026-10-01T12:00:01.000+09:00",
+  "duration_s": 1.0,
+  "modules": [],
+  "inputs": [
+    {
+      "path": "data/input.csv",
+      "bytes": 7,
+      "sha256": null,
+      "via": [
+        "scan"
+      ],
+      "external": false
+    }
+  ],
+  "outputs": [
+    {
+      "path": "data/derived/table.csv",
+      "change": "created",
+      "bytes": 19,
+      "sha256": "159f8bae5fa563fb61b540de391850552f9fe1d188273b1ca9ce182e4cbf4a26",
+      "via": "diff"
+    }
+  ],
+  "charts": [
+    {
+      "id": "table-view",
+      "kind": "plotly",
+      "title": "Table view",
+      "caption": null,
+      "via": "lab.chart",
+      "files": {
+        "plotly": "runs/20261001-120000-table/charts/table-view.plotly.json"
+      },
+      "line": 9
+    }
+  ],
+  "error": null,
+  "stdout": "runs/20261001-120000-table/stdout.txt",
+  "stderr": "runs/20261001-120000-table/stderr.txt",
+  "env": {
+    "python": "3.12.13",
+    "executable": "python3",
+    "platform": "synthetic",
+    "packages": {},
+    "uv_lock_sha256": null,
+    "kit_version": "0.2.0",
+    "kit_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "warnings": []
+}
