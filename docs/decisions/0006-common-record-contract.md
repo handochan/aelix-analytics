@@ -10,7 +10,7 @@ Status: Accepted — 2026-10-03 소유자 결정 (Issue #4)
 바뀐다. 기계가 검사할 형태는 [기록 schema](../schemas/analytics-records.schema.json)와
 [사례별 예제](../../tests/fixtures/records/README.md)에 있다. ADR과 schema·예제가 어긋나면 ADR이 기준이고 schema·예제를 고친다.
 이 계약이 기대는 형제 결정은 별도 결정 PR에 있어 번호와 브랜치로만 적고, 나중에 병합되는 PR이 링크로 바꾼다:
-ADR-0005(#3 전환 순서, `docs/issue-3-transition-order`), ADR-0008(#6 재사용 제안, `docs/issue-6-reuse-proposals`),
+[ADR-0005](0005-names-first-storage-with-the-new-writer.md)(#3 전환 순서), ADR-0008(#6 재사용 제안, `docs/issue-6-reuse-proposals`),
 ADR-0009(#21 첫 게시, `docs/issue-21-publish-target`).
 
 ## 배경
@@ -48,7 +48,7 @@ ADR-0009(#21 첫 게시, `docs/issue-21-publish-target`).
 
 1. 새 가족은 `analytics.project/2`(표식 `analytics.json`), `analytics.event/2`(`journal.jsonl`에 이어 쓰는 줄),
    `analytics.report_revision/1`(Report 버전 manifest)이다. 표식·관리 디렉터리(`.analytics/`)·가족 이름은 #13의 새 writer와
-   함께 바뀐다(#3의 결정, ADR-0005 — `docs/issue-3-transition-order` 병합 뒤 링크). run·dataset 기록의 다음
+   함께 바뀐다(#3의 결정, [ADR-0005](0005-names-first-storage-with-the-new-writer.md)). run·dataset 기록의 다음
    가족(`analytics.run`·`analytics.dataset`)의 버전과 필드는 #13이 이 계약을 지켜 같은 전환 안에서 정한다.
 2. `analytics.event/2`의 kind와 참조 type·relation은 B1–B4 전체를 지금 정한다(아래 표, 3절). #13 뒤의 기능은 선택 필드와
    새 kind·type·relation만 더한다. 기존 필드의 뜻을 바꾸는 변경은 새 가족 버전과 명시적 전환으로만 하며
@@ -185,7 +185,7 @@ reader는 참조마다 다음 중 하나를 돌려준다. 해석은 읽기의 �
 
 CONTEXT 버전(`context_version`, `/1`의 `refs.context`)은 버전 파일 이름으로 찾는다. reader는 `.analytics/context/`, 그다음
 `.lab/context/`를 보고, 전환 기록에 대응이 있으면 그 대응을 따른다. 전환한 프로젝트의 옛 버전을 어디에 둘지는 #13이 정한다
-(ADR-0005 결정 5, `docs/issue-3-transition-order` 병합 뒤 링크).
+([ADR-0005](0005-names-first-storage-with-the-new-writer.md) 결정 5).
 
 `/1` 참조는 다음처럼 읽고, 기록은 고쳐 쓰지 않는다.
 
@@ -420,7 +420,7 @@ artifacts/reports/<report_id>/
 ## 관련
 
 - Issue: [#4](https://github.com/handochan/aelix-analytics/issues/4), [#36](https://github.com/handochan/aelix-analytics/issues/36),
-  [#3](https://github.com/handochan/aelix-analytics/issues/3)(전환 순서, ADR-0005 — `docs/issue-3-transition-order` 병합 뒤 링크),
+  [#3](https://github.com/handochan/aelix-analytics/issues/3)(전환 순서, [ADR-0005](0005-names-first-storage-with-the-new-writer.md)),
   [#6](https://github.com/handochan/aelix-analytics/issues/6)(재사용 제안, ADR-0008 — `docs/issue-6-reuse-proposals` 병합 뒤 링크),
   [#12](https://github.com/handochan/aelix-analytics/issues/12), [#13](https://github.com/handochan/aelix-analytics/issues/13),
   [#19](https://github.com/handochan/aelix-analytics/issues/19),
