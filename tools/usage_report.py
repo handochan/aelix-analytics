@@ -455,8 +455,8 @@ class Host:
         self.clips: list[bool] = []
         real_clip = self.module._clip
 
-        def clip(text, limit=None):
-            out = real_clip(text) if limit is None else real_clip(text, limit)
+        def clip(text, *args, **kwargs):
+            out = real_clip(text, *args, **kwargs)
             self.clips.append(out != text)
             return out
 
@@ -920,6 +920,9 @@ class Truth:
             out = []
             for n, start in enumerate(starts):
                 end = starts[n + 1] if n + 1 < len(starts) else len(lines)
+                # The file's blank last lines are no part of its last section: nothing is in them.
+                while n + 1 == len(starts) and end > start + 1 and not lines[end - 1].strip():
+                    end -= 1
                 out.append(HostSection(lines[start].rstrip("\r"), start + 1, end - start,
                                        lines[start:end]))
             self._cache["sections"] = out
@@ -967,9 +970,11 @@ def listed_in(text: str, scope: str, item) -> bool:
     return present(text, (item,))
 
 
-# --- HEAD's pointer grammar ---------------------------------------------------------------------
-# How the measured code says that something was left out, and where it is. Issue #11 PR-2 changes
-# these texts, and the parser follows them here and nowhere else.
+# --- the pointer grammar ------------------------------------------------------------------------
+# How the measured code says that something was left out, and where it is: the parser follows the
+# texts here and nowhere else. It reads both the wording Issue #11 PR-1 measured (the base: the
+# checker's hand-made cases are written in it) and the wording PR-2 gives every omission, which
+# names the place to read it (docs/CONTRACTS.md, A1).
 
 CONTEXT_HEADER = re.compile(r"read the one you need from (?P<path>.+):$")
 CONTEXT_ITEM = re.compile(r"^- (?P<name>.*) \((?P<lines>\d+) lines\): read offset (?P<offset>\d+) "
@@ -978,10 +983,27 @@ TOOL_CALL = re.compile(r"\bCall (?P<tool>[a-z_]+) for (?P<what>[^.]+)\.")
 RUN_MORE = re.compile(r"^  … and (?P<n>[\d,]+) more (?P<label>.+?) — the run page lists them all$")
 RUN_PAGE = re.compile(r"^journal: \S* · report: (?P<page>.+)$")
 IMAGES = re.compile(r"^images: (?P<shown>\d+) of (?P<total>\d+) chart PNG\(s\) attached below"
-                    r"(?P<rest>; open the rest with the read tool at the paths above)?$")
+                    r"(?P<rest>; open the rest with the read tool at the paths above"
+                    r"(?: and, for the (?P<unlisted>\d+) chart\(s\) not listed, at the paths in read "
+                    r"(?P<path>.+))?)?$")
 CLIP_MARK = "\n… (truncated; see the report page)"
 STATUS_MARK = "\n… (truncated)"
 PREAMBLE_MARK = re.compile(r"^… \(머리말이 [\d,]+자를 넘어 잘렸습니다")
+# PR-2's wording.
+PREAMBLE_READ = re.compile(r"^… \(Omitted from current context: [\d,]+ more characters above the "
+                           r"first `## ` heading — all of it: read (?P<path>.+) offset "
+                           r"(?P<offset>\d+) limit (?P<limit>\d+)\)$")
+JOURNAL_OMITTED = re.compile(r"^- … Omitted from current context: .+ — read (?P<path>.+) and find "
+                             r"them by id$")
+RUN_RECORD_MORE = re.compile(r"^  … and (?P<n>[\d,]+) more (?P<label>.+?) — the run's record lists "
+                             r"them all: read (?P<path>.+)$")
+LOG_READ = re.compile(r"^(?P<scope>stdout|stderr) \((?:truncated: the last [\d,]+ characters|not "
+                      r"shown, the run is ok); the whole log: read (?P<path>.+)\):?$")
+CLIP_END = re.compile(r"\n… \(truncated: [\d,]+ more characters; (?P<where>[^\n]+)\)$")
+CLIP_READ = re.compile(r"\bread (?P<path>.+)$")
+STATUS_CUT = re.compile(r"^… \(truncated at [\d,]+ characters — not shown: .*?; the journal has an "
+                        r"entry for every run, import and note: read (?P<path>.+?)"
+                        r"(?:; call lab_query with .*)?\)$")
 STATUS_OMITTED = "CONTEXT.md sections not in the system prompt (read them from the file when " \
                  "they matter): "
 ITEM_CUT = re.compile(r"^(?:- |  )e\d+ .*…(?: \(runs: [^)]*\))?$")
@@ -1031,8 +1053,10 @@ def parse_pointers(text: str, *, source: str | None = None) -> list[Pointer]:
     lines = text.split("\n")
     page = next((m.group("page") for m in map(RUN_PAGE.match, lines) if m), None)
     roles = {name: role for role, name in TOOL_NAMES.items()}
-    context_path = None
+    context_path, part = None, ""
     for i, line in enumerate(lines):
+        if line.startswith("## "):
+            part = line
         if m := CONTEXT_HEADER.search(line):
             context_path = m.group("path")
         elif (m := CONTEXT_ITEM.match(line)) and context_path:
@@ -1048,15 +1072,34 @@ def parse_pointers(text: str, *, source: str | None = None) -> list[Pointer]:
             out.append(Pointer("read" if page else "generic", frozenset({scope}), line, path=page,
                                claim={"more": int(m.group("n").replace(",", "")),
                                       "lists_all": True}))
+        elif m := RUN_RECORD_MORE.match(line):
+            scope = MORE_LABELS.get(m.group("label"), m.group("label"))
+            out.append(Pointer("read", frozenset({scope}), line, path=m.group("path"),
+                               claim={"more": int(m.group("n").replace(",", "")),
+                                      "lists_all": True}))
         elif m := IMAGES.match(line):
             if m.group("rest"):
-                out.append(Pointer("claim", frozenset({"charts"}), line,
+                unlisted = m.group("unlisted")
+                out.append(Pointer("claim", frozenset({"charts"}), line, path=m.group("path"),
                                    claim={"paths_above": True, "shown": int(m.group("shown")),
-                                          "index": i}))
+                                          "index": i,
+                                          "unlisted": int(unlisted) if unlisted else None}))
         elif line.startswith(STATUS_OMITTED):
             out.append(Pointer("generic", frozenset({"context"}), line[:len(STATUS_OMITTED)]))
         elif PREAMBLE_MARK.match(line):
             out.append(Pointer("cut", frozenset({"preamble"}), line))
+        elif m := PREAMBLE_READ.match(line):
+            out.append(Pointer("read", frozenset({"preamble"}), line, path=m.group("path"),
+                               offset=int(m.group("offset")), limit=int(m.group("limit"))))
+        elif m := JOURNAL_OMITTED.match(line):
+            scope = ({"journal_key"} if part.startswith("## Key information") else
+                     {"journal_open"} if part.startswith("## Open questions") else set())
+            out.append(Pointer("read", frozenset({"journal_text", *scope}), line,
+                               path=m.group("path")))
+        elif m := LOG_READ.match(line):
+            out.append(Pointer("read", frozenset({m.group("scope")}), line, path=m.group("path")))
+        elif m := STATUS_CUT.match(line):
+            out.append(Pointer("read", frozenset({"*"}), line, path=m.group("path")))
         elif ITEM_CUT.match(line):
             out.append(Pointer("cut", frozenset({"journal_text"}), line))
     for scope, head in LOG_HEADS.items():
@@ -1064,8 +1107,13 @@ def parse_pointers(text: str, *, source: str | None = None) -> list[Pointer]:
             i = lines.index(head)
             if i + 1 < len(lines) and lines[i + 1].startswith("…"):
                 out.append(Pointer("cut", frozenset({scope}), lines[i + 1][:60]))
+    clipped = CLIP_END.search(text)
     if text.endswith(CLIP_MARK):
         out.append(Pointer("generic", frozenset({"*"}), CLIP_MARK.strip()))
+    elif clipped:
+        read = CLIP_READ.search(clipped.group("where"))
+        out.append(Pointer("read" if read else "cut", frozenset({"*"}), clipped.group(0).strip(),
+                           path=read.group("path") if read else None))
     elif STATUS_MARK + "\n" in text or text.endswith(STATUS_MARK):
         out.append(Pointer("cut", frozenset({"*"}), STATUS_MARK.strip()))
     if source and source.endswith(".html"):
@@ -1138,13 +1186,39 @@ def lists_all_claims(pointer: Pointer, followed: Followed | None, truth: Truth,
 
 
 def paths_above_claim(pointer: Pointer, first_text: str, truth: Truth) -> dict:
+    """The image line's claim: every chart not attached has its path above, or — when the line
+    names a record and how many charts are not listed — exactly that many have theirs only in the
+    record, read from the file the line names."""
     above = "\n".join(first_text.split("\n")[:pointer.claim["index"]])
     charts = [c for c in run_items(truth.run, "charts") if (c.get("files") or {}).get("png")]
     rest = charts[pointer.claim["shown"]:]
-    missing = [c["id"] for c in rest if c["files"]["png"] not in above]
-    return claim(pointer, "every chart not attached has its path above", not missing,
-                 f"{len(missing)} of {len(rest)} not attached have no path above"
+    not_above = [c for c in rest if c["files"]["png"] not in above]
+    if pointer.path is None:
+        missing = [c["id"] for c in not_above]
+        return claim(pointer, "every chart not attached has its path above", not missing,
+                     f"{len(missing)} of {len(rest)} not attached have no path above"
+                     + (f" (first: {missing[0]})" if missing else ""))
+    record = ""
+    with contextlib.suppress(OSError):
+        record = Path(pointer.path).read_bytes().decode("utf-8", errors="replace")
+    missing = [c["id"] for c in not_above if not present(record, (c["files"]["png"],))]
+    said = pointer.claim.get("unlisted")
+    return claim(pointer, f"every chart not attached has its path above, and the {said} not listed "
+                          f"have theirs in {pointer.path}",
+                 not missing and said == len(not_above),
+                 f"{len(not_above)} of {len(rest)} not attached have no path above; "
+                 f"{len(missing)} of them are not in the record either"
                  + (f" (first: {missing[0]})" if missing else ""))
+
+
+def preamble_claim(pointer: Pointer, followed: Followed, truth: Truth) -> dict:
+    """A pointer to the text above the first heading reads exactly its lines."""
+    want = len(truth.preamble())
+    holds = pointer.offset == 1 and pointer.limit == want and \
+        followed.text.split("\n") == [line for line in truth.preamble()]
+    return claim(pointer, "the exact lines above the first heading", holds,
+                 f"the file has {want} lines above its first heading; the pointer reads "
+                 f"{pointer.offset}-{(pointer.offset or 0) + (pointer.limit or 0) - 1}")
 
 
 def covers_claim(pointer: Pointer, followed: Followed) -> dict:
@@ -1160,6 +1234,8 @@ def followed_claims(pointer: Pointer, followed: Followed, truth: Truth, first_te
         return [covers_claim(pointer, followed)]
     if "context" in pointer.scopes and pointer.offset is not None:
         return [context_claim(pointer, followed, truth)]
+    if "preamble" in pointer.scopes and pointer.offset is not None:
+        return [preamble_claim(pointer, followed, truth)]
     if pointer.claim.get("lists_all") or pointer.scopes & set(REPLY_ID):
         return lists_all_claims(pointer, followed, truth, first_text)
     return []
@@ -1254,6 +1330,29 @@ LOCATION = re.compile(r"(?i)\bread\s+\S*[/\\]\S*|\bcall\s+[a-z]+_[a-z_]+")
 def located(text: str) -> bool:
     """Whether a passage names a place to read the rest."""
     return bool(LOCATION.search(text))
+
+
+# lab_status names the journal once, on a `journal: <path>` line, and its lists refer to it.
+JOURNAL_LINE = re.compile(r"^journal: (?P<path>.+)$", re.M)
+SAYS_JOURNAL = re.compile(r"\bin the journal\b|\bthe journal entry\b")
+
+
+def status_journal(text: str) -> Path | None:
+    """The journal a lab_status reply names on its `journal:` line, when that is a file."""
+    m = JOURNAL_LINE.search(text)
+    return Path(m.group("path")) if m and Path(m.group("path")).is_file() else None
+
+
+# A line of a lab_status list that says what the list leaves out, not an entry of it.
+STATUS_OMISSION = "  … "
+
+
+def status_located(line: str, journal: Path | None) -> bool:
+    """Whether an omission line of a lab_status list names where the rest is: a path to read, a
+    tool to call, or the journal, when the reply names the journal's file. An entry's own text that
+    says so is no omission line, and is not asked."""
+    return line.startswith(STATUS_OMISSION) and (
+        located(line) or (journal is not None and bool(SAYS_JOURNAL.search(line))))
 
 
 # A count an omission line gives: "latest 12 of 42" (shown of total) or "30 more" / "30 older".
@@ -1371,13 +1470,15 @@ def status_invariants(host: Host, text: str, project) -> list[dict]:
                  all(k in sections for k in expected),
                  {"expected": expected, "missing": [k for k in expected if k not in sections]})]
     totals = {"datasets": st["counts"]["datasets"], "runs": st["counts"]["runs"],
-              "charts": st["counts"]["charts"], "open": st["counts"]["open"], "key": key_total}
+              "charts": st["counts"]["charts"], "open": st["counts"]["open"], "key": key_total,
+              "recent": st["counts"]["events"]}
+    journal = status_journal(text)
     lists = {}
     for key, total in totals.items():
         lines = sections.get(key, [])
-        shown = sum(1 for line in lines if not located(line))
+        shown = sum(1 for line in lines if not line.startswith(STATUS_OMISSION))
         lists[key] = {"total": total, "shown": shown,
-                      "rest_located": any(located(line) for line in lines)}
+                      "rest_located": any(status_located(line, journal) for line in lines)}
     out.append(check("lists", "every list is complete, or says how many are left out and where "
                      "they are", all(v["shown"] >= v["total"] or v["rest_located"]
                                      for k, v in lists.items() if k in sections or v["total"]),
@@ -1469,32 +1570,92 @@ def run_invariants(host: Host, text: str, truth: Truth, project_root: Path) -> l
     return out
 
 
-def query_invariants(text: str, result: dict, render_table) -> list[dict]:
-    """A lab_query reply against the kit's result it was made from: a row counts as shown when
-    its line, as the extension's render_table renders that row, is in the reply whole."""
+def cell_shown(value, width: int) -> str:
+    """A value as a lab_query table shows it in a cell `width` characters wide: its first
+    width - 1 characters and "…" when it is longer."""
+    whole = "null" if value is None else str(value)
+    return whole if len(whole) <= width else whole[:width - 1] + "…"
+
+
+def table_rows(render_table, columns: list, rows: list, width: int) -> list[str]:
+    """The rows of render_table's table of `rows`, each one string: a value with a line break in
+    it makes its row more than one line of the table."""
+    lines = render_table(columns, rows).split("\n")[3:]
+    out, at = [], 0
+    for row in rows:
+        n = 1 + sum(cell_shown(v, width).count("\n") for v in row)
+        out.append("\n".join(lines[at:at + n]))
+        at += n
+    return out
+
+
+def rows_shown(text: str, rows: list[str]) -> int:
+    """How many of the rendered `rows` a lab_query reply shows, each whole and in order, right
+    after its first line and the table's three head lines."""
+    parts = text.split("\n", 4)
+    body = parts[4] if len(parts) == 5 else ""
+    at, n = 0, 0
+    for row in rows:
+        end = at + len(row)
+        if body[at:end] != row or (end < len(body) and body[end] != "\n"):
+            break
+        at, n = end + 1, n + 1
+    return n
+
+
+# How a lab_query reply says to read a cut value whole: parts of N characters, at 1, N + 1, ….
+CELL_PARTS = re.compile(r"\bsubstr\(<column>, <start>, (?P<n>\d+)\) for <start> = 1, "
+                        r"(?P<next>\d+), ")
+
+
+def query_invariants(text: str, result: dict, render_table, width: int) -> list[dict]:
+    """A lab_query reply against the kit's result it was made from: a row counts as shown when the
+    reply has it, every line of it as the extension's render_table renders that row, in order."""
     lines = text.split("\n")
     head = re.match(r"^lab_query: ok — ([\d,]+) row\(s\)", lines[0])
-    rows = render_table(result["columns"], result["rows"]).split("\n")[3:]
-    reply_lines = set(lines[1:])
-    shown = [row for row in rows if row in reply_lines]
-    clipped = len(shown) < len(result["rows"])
+    rows = table_rows(render_table, result["columns"], result["rows"], width)
+    shown = rows_shown(text, rows)
+    clipped = shown < len(result["rows"])
     claimed = int(head.group(1).replace(",", "")) if head else None
-    out = [check("rows", "the reply shows as many rows as its first line says",
-                 claimed == len(shown), {"claimed": claimed, "shown": len(shown)})]
-    out.append(check("location", "a reply that leaves rows out points where the rows can be read",
-                     not clipped, {"result_rows": len(result["rows"]), "rows_shown": len(shown),
-                                   "note": "query results are not stored; the report has no page "
-                                           "for them"}))
+    out = [check("rows", "the reply shows as many rows as its first line says, each whole",
+                 claimed == shown, {"claimed": claimed, "shown": shown})]
+    # Query results are not stored and the report has no page for them: the one place to read the
+    # rows left out is the query itself, paged (design G7). The reply has to give their true count,
+    # the rows before them, and the paging.
+    said = re.search(r"^… ([\d,]+) more row\(s\) not shown, after the first ([\d,]+):.*\bLIMIT/"
+                     r"OFFSET\b", text, re.M)
+    paged = bool(said) and (int(said.group(1).replace(",", "")),
+                            int(said.group(2).replace(",", ""))) == (len(result["rows"]) - shown,
+                                                                     shown)
+    out.append(check("location", "a reply that leaves rows out says how many, after which rows, "
+                     "and how to page to them (query results are not stored)",
+                     not clipped or paged,
+                     {"result_rows": len(result["rows"]), "rows_shown": shown,
+                      "paging_said": said.group(0)[:200] if said else None}))
     types = [cell.strip() for cell in lines[2].split(" | ")] if len(lines) > 2 else []
     wanted = [c["type"] for c in result["columns"]]
     cut_types = [w for w, t in zip(wanted, types, strict=False) if t != w]
     out.append(check("types", "every column type is shown whole", not cut_types,
                      {"cut": cut_types[:6]}))
-    cut_cells = sum(1 for row in shown for cell in row.split(" | ")
-                    if cell.rstrip().endswith("…"))
-    out.append(check("cells", "a cut cell says how to read the whole value",
-                     not cut_cells or bool(re.search(r"(?i)\bsubstr|\blength\(", text)),
-                     {"cut_cells": cut_cells}))
+    # A cut value is read whole by following the reply's hint: each part, as render_table shows
+    # it, has to be whole, and the parts in order are the value.
+    cut = [v for row in result["rows"][:shown] for v in row
+           if cell_shown(v, width) != ("null" if v is None else str(v))]
+    hint = CELL_PARTS.search(text)
+    size = int(hint.group("n")) if hint else 0
+    followed = bool(hint) and size > 0 and int(hint.group("next")) == size + 1
+    for value in cut[:20] if followed else []:
+        whole = str(value)
+        parts = [whole[i:i + size] for i in range(0, len(whole), size)]
+        got = table_rows(render_table, [{"name": "part", "type": "VARCHAR"}],
+                         [[part] for part in parts], width)
+        followed = followed and "".join(parts) == whole and all(
+            row[:len(part)] == part and not row[len(part):].strip(" ")
+            for row, part in zip(got, parts, strict=True))
+    out.append(check("cells", "a cut cell says how to read the whole value, and following it "
+                     "gives the value whole", not cut or followed,
+                     {"cut_cells": len(cut), "part_chars": size or None,
+                      "parts_whole": followed if cut else None}))
     return out
 
 
@@ -1974,7 +2135,7 @@ def measure_f3(ctx: Ctx, spec: Spec, root: Path | None = None, report_only: bool
     try:
         module.MAX_LIST = module.MAX_CHART_LIST = 10 ** 9
         # Not MAX_TEXT: _clip took its limit when it was defined, so the clip itself is replaced.
-        module._clip = lambda text, limit=None: text
+        module._clip = lambda text, *args, **kwargs: text
         value = json.loads(json.dumps(built.kit_result, ensure_ascii=False, default=str))
         everything = module.render_run(built.project, value, (len(reply.images), 15))
     finally:
@@ -2093,7 +2254,8 @@ QUERY_COLUMNS = [("n", "BIGINT"), ("region", "VARCHAR"), ("note", "VARCHAR"),
 
 
 def query_result(ctx: Ctx, lang: str) -> dict:
-    """A lab_query result as the kit prints it: 500 rows, cells through data.cell."""
+    """A lab_query result as the kit prints it: 500 rows, cells through data.cell, a value with a
+    line break in every fifth."""
     from datetime import date
     from decimal import Decimal
 
@@ -2104,9 +2266,12 @@ def query_result(ctx: Ctx, lang: str) -> dict:
                  if lang == "ko" else
                  "Orders before returns and cancellations; coupons and points are counted apart. "
                  * 4)
+    # Every fifth note has a line break near its start: its row is two lines of the table.
+    two_lines = "두 줄로 적은 메모:\n" if lang == "ko" else "a note on two lines:\n"
     rows = []
     for i in range(500):
-        rows.append([cell(v) for v in (i, regions[i % 4], f"{i:03d} {long_note}",
+        note = f"{i:03d} {two_lines if i % 5 == 2 else ''}{long_note}"
+        rows.append([cell(v) for v in (i, regions[i % 4], note,
                                        Decimal(f"{1000 + i * 7}.125"),
                                        date(2025, 1 + i % 12, 1 + i % 28), round(i / 499, 4))])
     return {"ok": True, "columns": [{"name": n, "type": t} for n, t in QUERY_COLUMNS],
@@ -2124,12 +2289,18 @@ def measure_query(ctx: Ctx, spec: Spec) -> None:
     result = query_result(ctx, spec.lang)
     host.kit_results.append((True, result))
     reply = host.tool("query", {"sql": "SELECT * FROM orders", "limit": 500})
-    ctx.text(spec.id, "S6", reply.text, root=project.root, base=project.root.parent,
-             cuts=["reply_14000"] if reply.clipped else [], is_error=reply.is_error,
-             kit_command=host.kit_commands[-1])
     # The result as the extension got it (through JSON, as _run_kit hands it over).
     given = json.loads(json.dumps(result, ensure_ascii=False, default=str))
-    judge(ctx, spec, "S6", query_invariants(reply.text, given, host.module.render_table))
+    checks = query_invariants(reply.text, given, host.module.render_table,
+                              host.module.MAX_CELL)
+    rows = next(c for c in checks if c["id"] == "location")["detail"]
+    # A reply that shows fewer rows than the result has was cut to its length, by its clip or by
+    # rendering only the rows that fit.
+    cut = reply.clipped or rows["rows_shown"] < rows["result_rows"]
+    ctx.text(spec.id, "S6", reply.text, root=project.root, base=project.root.parent,
+             cuts=["reply_14000"] if cut else [], is_error=reply.is_error,
+             kit_command=host.kit_commands[-1])
+    judge(ctx, spec, "S6", checks)
 
 
 def measure_import(ctx: Ctx, spec: Spec) -> None:
@@ -2683,7 +2854,8 @@ def conventions() -> dict:
         "length_cuts": "a length-based cut the measured code made in that text, judged against "
                        "what was cut (never by the words a cut adds): status_9000 (the reply's "
                        "overview differs from the kit's status_text with no length limit), "
-                       "reply_14000 (the extension's clip returned less than it was given), "
+                       "reply_14000 (the extension's clip returned less than it was given, or "
+                       "a lab_query reply shows fewer rows than the result has), "
                        "preamble_4000 (the block lacks part of CONTEXT.md's text above its first "
                        "heading)",
         "retrieval": "R0 in the first text; R1 through one pointer of it, followed with aelix's "

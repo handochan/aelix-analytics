@@ -9,9 +9,8 @@ two aelix integration steps do:
         --timeout-method=thread tests/test_extension.py tests/test_usage_report.py
 
 (one command, split here for width). The repository suite skips it: the development environment has
-no aelix. A required case that a defect of the measured code loses is a strict xfail named after the
-defect in Issue #11's design (D1-D12); it has to be lost the way the design says, so a case lost for
-another reason fails instead. PR-2 of #11 fixes the defects and removes the marks.
+no aelix. Every required fact has to be read back and every judged invariant has to hold: PR-1 of
+Issue #11 marked the cases its defects (D1-D12) lost as strict xfails, and PR-2 fixed them.
 """
 
 import asyncio
@@ -39,46 +38,6 @@ def tool_module():
 
 
 usage = tool_module()
-
-# Required facts the measured code loses today: the defect, and how the design says it is lost.
-LOST_FACTS = {
-    **{(f"F1b-{lang}", "preamble-end"): ("D4", "cut_without_explicit_pointer")
-       for lang in ("en", "ko")},
-    **{(f"F2t-{lang}", fact): ("D2", "wrong_pointer") for lang in ("en", "ko")
-       for fact in ("latest-run", "dataset", "recent-note")},
-    **{(f"F2s-{variant}", "section-137"): ("D7", "wrong_pointer")
-       for variant in ("cr", "u2028", "ff", "lead1", "lead3")},
-    **{(f"F3-{lang}", fact): ("D1", "wrong_pointer") for lang in ("en", "ko")
-       for fact in ("input-300", "input-502")},
-    **{(f"F3-{lang}", "chart-14"): ("D9", "wrong_pointer") for lang in ("en", "ko")},
-    ("F3-en", "stdout-first"): ("D8", "silent_omission"),
-    ("F3-ko", "stdout-first"): ("D8", "cut_without_explicit_pointer"),
-    **{(f"F3-{lang}", "stderr-first"): ("D8", "silent_omission") for lang in ("en", "ko")},
-    **{(f"J-{lang}", "finding-003"): ("D5", "silent_omission") for lang in ("en", "ko")},
-    **{(f"J-{lang}", "long-finding-2500"): ("D5", "cut_without_explicit_pointer")
-       for lang in ("en", "ko")},
-    ("I-en", "column-250"): ("D3", "generic_pointer"),
-}
-
-# Judged invariants that do not hold today: the defects, and the checks allowed to fail with them.
-FAILING_INVARIANTS = {
-    **{(f"F1b-{lang}", "S1"): ("D4", {"preamble"}) for lang in ("en", "ko")},
-    **{(f"F1b-{lang}", "S4"): ("D4", {"context_claim"}) for lang in ("en", "ko")},
-    **{(f"F2t-{lang}", "S4"): ("D2", {"headings", "lists", "cut"}) for lang in ("en", "ko")},
-    **{(f"F2s-{variant}", "S1"): ("D7", {"sections"})
-       for variant in ("cr", "u2028", "ff", "lead1", "lead3")},
-    **{(f"F3-{lang}", "S5"): ("D1, D8, D9", {"inputs", "charts", "warnings", "output_columns",
-                                             "stdout", "stderr"}) for lang in ("en", "ko")},
-    **{(f"J-{lang}", "S1"): ("D5", {"key_listed", "key_text", "open_listed"})
-       for lang in ("en", "ko")},
-    **{(f"J-{lang}", "S4"): ("D2", {"lists"}) for lang in ("en", "ko")},
-    **{(f"N-{lang}", "S8"): ("D11", {"note_cut_tool", "note_cut_command"})
-       for lang in ("en", "ko")},
-    **{(f"Q-{lang}", "S6"): ("D3, D10", {"rows", "location", "types", "cells"})
-       for lang in ("en", "ko")},
-    ("I-en", "S7"): ("D3", {"columns"}),
-    ("E-en", "S10"): ("D12", {"init_not_empty_details", "kit_failed_stderr"}),
-}
 
 # What a token value may say when no tokenizer is given.
 WITHOUT_A_TOKENIZER = {"no_tokenizer_given", "model_not_pinned", "vision_tokens"}
@@ -398,6 +357,78 @@ def test_the_checker_tells_retrievable_from_lost(monkeypatch, tmp_path):
     assert all(c["holds"] for c in blocked["claims"]), blocked["claims"]
 
 
+def test_the_checker_judges_the_wording_pr2_gives(monkeypatch, tmp_path):
+    """PR-2's pointers are followed and their claims checked: a record that misses an item, a count
+    that is not the truth, a preamble range a line short and an image line that miscounts the
+    charts it does not list each fail, and the true ones pass."""
+    isolate(monkeypatch, tmp_path)
+    host = usage.Host()
+    inputs = [{"path": f"data/in_{i}.csv", "sha256": hashlib.sha256(bytes([i])).hexdigest()}
+              for i in range(6)]
+    charts = [{"id": f"c{i:02d}", "files": {"png": f"runs/r/charts/c{i:02d}.png"}}
+              for i in range(15)]
+    record = {"id": "20260901-090000-x", "inputs": inputs, "outputs": [], "warnings": [],
+              "charts": charts}
+    whole, partial = tmp_path / "run.json", tmp_path / "partial.json"
+    whole.write_text(json.dumps(record), encoding="utf-8")
+    partial.write_text(json.dumps({**record, "inputs": inputs[:3]}), encoding="utf-8")
+    hidden = inputs[4]
+    item = usage.Fact("input", "S5", "inputs", (hidden["path"], hidden["sha256"][:12]), (whole,),
+                      True)
+    truth = usage.Truth(None, record)
+
+    def run_reply(target: Path, more: int = 4) -> str:
+        shown = "".join(f"  {i['path']} sha256 {i['sha256'][:12]} via scan\n" for i in inputs[:2])
+        return (f"lab_run: ok — run {record['id']} (1.0 s)\ninputs (6):\n{shown}  … and {more} "
+                f"more input file(s) — the run's record lists them all: read {target}\n"
+                "journal: e1 · report: /nowhere/x.html")
+
+    found = usage.check_fact(host, item, run_reply(whole), truth)
+    assert (found["class"], found["host_calls"]) == ("R1", 1), found
+    assert usage.check_fact(host, item, run_reply(partial), truth)["class"] == "wrong_pointer"
+    miscounted = usage.check_fact(host, item, run_reply(whole, more=5), truth)
+    assert miscounted["class"] == "wrong_pointer", miscounted
+    assert [c["claim"] for c in miscounted["claims"] if not c["holds"]] == ["5 more inputs"]
+    # The image line: 3 attached, 9 more listed above, 3 only in the record.
+    above = "".join(f"  s.py::{c['id']} · {c['files']['png']}\n" for c in charts[:12])
+
+    def images(said: int) -> str:
+        return (f"charts (15):\n{above}images: 3 of 15 chart PNG(s) attached below; open the rest "
+                f"with the read tool at the paths above and, for the {said} chart(s) not listed, "
+                f"at the paths in read {whole}")
+
+    for said, holds in ((3, True), (2, False)):
+        (pointer,) = [q for q in usage.parse_pointers(images(said)) if q.kind == "claim"]
+        assert usage.paths_above_claim(pointer, images(said), truth)["holds"] is holds, said
+    # The text above the first heading: 4 lines, a fact on the 4th.
+    context = tmp_path / "CONTEXT.md"
+    context.write_bytes(b"# T\n\nintro\nFACT-PRE the last line above\n## A\n- a\n")
+    pre = usage.Fact("pre", "S1", "preamble", ("FACT-PRE",), (context,), True)
+
+    def block(limit: int) -> str:
+        return ("## CONTEXT.md\n# T\n… (Omitted from current context: 40 more characters above "
+                f"the first `## ` heading — all of it: read {context} offset 1 limit {limit})")
+
+    assert usage.check_fact(host, pre, block(4), usage.Truth(context))["class"] == "R1"
+    short = usage.check_fact(host, pre, block(5), usage.Truth(context))
+    assert short["class"] == "wrong_pointer", short  # found, but the range is not the preamble
+    # A log shown in part, and the journal behind the block's key information.
+    log = tmp_path / "stdout.txt"
+    log.write_bytes(b"FACT-LOG first\n" + b"progress\n" * 50)
+    first = usage.Fact("log", "S5", "stdout", ("FACT-LOG",), (log,), True)
+    said = f"stdout (truncated: the last 90 characters; the whole log: read {log}):\nprogress"
+    assert usage.check_fact(host, first, said, usage.Truth())["class"] == "R1"
+    journal = tmp_path / "journal.jsonl"
+    journal.write_bytes(b'{"id": "e1", "kind": "finding", "text": "FACT-OLD"}\n')
+    old = usage.Fact("old", "S1", "journal_key", ("FACT-OLD",), (journal,), True)
+    key = ("## Key information (unresolved journal entries)\n- e2 finding: newer\n- … Omitted "
+           "from current context: 1 older entries (the latest 1 of 2 are above) — read "
+           f"{journal} and find them by id")
+    assert usage.check_fact(host, old, key, usage.Truth())["class"] == "R1"
+    assert usage.check_fact(host, old, key.replace("## Key", "## Open questions"),
+                            usage.Truth())["class"] == "silent_omission"  # not the key list's
+
+
 def test_the_invariants_judge_a_cut_by_what_was_cut(monkeypatch, tmp_path):
     """A cut is found against the text it was cut from, not by the words it adds, and an omission
     line has to state the count that is true."""
@@ -426,8 +457,11 @@ def test_the_invariants_judge_a_cut_by_what_was_cut(monkeypatch, tmp_path):
     assert not inside["holds"] and not inside["detail"]["line_aligned"], inside
     reworded = status_cut(head + kept + "\n… (cut short)")  # a wording HEAD does not use
     assert not reworded["holds"] and reworded["detail"]["cut"], reworded
-    # The block's key information: 12 of 14 listed, and "2" already in every entry's own text.
-    block = core.context_block(project)
+    # The block's key information: 12 of 14 listed, and "2" already in every entry's own text. The
+    # kit's own omission line holds; the candidates below are judged in its place.
+    own = core.context_block(project)
+    block = "\n".join(line for line in own.split("\n") if not line.startswith("- … "))
+    assert block != own
 
     def key_listed(line: str) -> bool:
         (said,) = [c for c in usage.block_invariants(host, f"{block}\n{line}",
@@ -437,6 +471,7 @@ def test_the_invariants_judge_a_cut_by_what_was_cut(monkeypatch, tmp_path):
         return said["holds"]
 
     journal = project.journal
+    assert key_listed(own[len(block):].strip()), own[len(block):]
     assert not key_listed(f"- older unresolved entries: read {journal}")  # no count
     assert not key_listed(f"- … and 99 more: read {journal}")  # a false count
     assert not key_listed("- … and 2 more")  # no place to read them
@@ -447,13 +482,32 @@ def test_the_invariants_judge_a_cut_by_what_was_cut(monkeypatch, tmp_path):
     table = host.module.render_table(columns, rows)
     first = "lab_query: ok — 3 row(s) in 1 ms; views used: t\n"
 
-    def query(text: str) -> dict:
+    def query(text: str, rows=rows, columns=columns) -> dict:
         return {c["id"]: c["holds"] for c in usage.query_invariants(
-            text, {"columns": columns, "rows": rows}, host.module.render_table)}
+            text, {"columns": columns, "rows": rows}, host.module.render_table,
+            host.module.MAX_CELL)}
 
     assert query(first + table) == {"rows": True, "location": True, "types": True, "cells": True}
     short = query(first + "\n".join(table.split("\n")[:5]) + "\n… (cut short)")
     assert (short["rows"], short["location"]) == (False, False), short
+    # A row is every line of it: a reply with as many table lines as there are rows (the first
+    # row's two) leaves the second row out.
+    columns = [{"name": "n", "type": "BIGINT"}, {"name": "note", "type": "VARCHAR"}]
+    rows = [[1, "첫째\n둘째"], [2, "마지막 행"]]
+    table = host.module.render_table(columns, rows)
+    first = "lab_query: ok — 2 row(s) in 1 ms; views used: t\n"
+    assert query(first + table, rows, columns) == {"rows": True, "location": True,
+                                                   "types": True, "cells": True}
+    lines_only = query(first + "\n".join(table.split("\n")[:5]), rows, columns)
+    assert (lines_only["rows"], lines_only["location"]) == (False, False), lines_only
+    # A cut value: the hint has to read it whole, part by part, each part whole in its cell.
+    rows = [[1, "가나다라마바사아자차카타파하" * 10]]
+    table = host.module.render_table(columns, rows)
+    first = "lab_query: ok — 1 row(s) in 1 ms; views used: t\n"
+    assert query(f"{first}{table}\n{host.module.QUERY_CELLS}", rows, columns)["cells"]
+    wide = "read it whole in parts with substr(<column>, <start>, 200) for <start> = 1, 201, …"
+    assert not query(f"{first}{table}\n{wide}", rows, columns)["cells"]
+    assert not query(f"{first}{table}", rows, columns)["cells"]
 
 
 def test_fixture_files_are_the_bytes_they_record(measured):
@@ -497,44 +551,25 @@ def test_everything_injected_is_the_reply_with_nothing_left_out(measured):
     assert same >= 10, same
 
 
-def fact_cases():
-    for fixture, fact in usage.required_facts():
-        lost = LOST_FACTS.get((fixture, fact))
-        marks = [pytest.mark.xfail(strict=True, raises=AssertionError,
-                                   reason=f"{lost[0]} — #11 PR-2")] if lost else []
-        yield pytest.param(fixture, fact, id=f"{fixture}-{fact}", marks=marks)
-
-
-@pytest.mark.parametrize(("fixture", "fact"), list(fact_cases()))
+@pytest.mark.parametrize(("fixture", "fact"), [
+    pytest.param(fixture, fact, id=f"{fixture}-{fact}") for fixture, fact in usage.required_facts()])
 def test_required_fact_is_retrievable(measured, fixture, fact):
     found = [f for f in measured.report["retrieval"]["facts"]
              if f["fixture"] == fixture and f["fact"] == fact]
     if len(found) != 1 or not found[0]["required"]:
         raise LookupError(f"{fixture} {fact} was not measured as a required fact")
     (result,) = found
-    lost = LOST_FACTS.get((fixture, fact))
-    if lost and not result["passed"] and result["class"] != lost[1]:
-        raise RuntimeError(f"lost as {result['class']}, where {lost[0]} loses it as {lost[1]}")
     assert result["passed"], {k: result.get(k) for k in ("class", "claims", "route")}
+    assert all(c["holds"] for c in result["claims"]), result["claims"]
 
 
-def invariant_cases():
-    for fixture, surface in usage.judged_invariants():
-        failing = FAILING_INVARIANTS.get((fixture, surface))
-        marks = [pytest.mark.xfail(strict=True, raises=AssertionError,
-                                   reason=f"{failing[0]} — #11 PR-2")] if failing else []
-        yield pytest.param(fixture, surface, id=f"{fixture}-{surface}", marks=marks)
-
-
-@pytest.mark.parametrize(("fixture", "surface"), list(invariant_cases()))
+@pytest.mark.parametrize(("fixture", "surface"), [
+    pytest.param(fixture, surface, id=f"{fixture}-{surface}")
+    for fixture, surface in usage.judged_invariants()])
 def test_omission_invariants_hold(measured, fixture, surface):
     found = [i for i in measured.report["retrieval"]["invariants"]
              if i["fixture"] == fixture and i["surface"] == surface and i["judged"]]
     if len(found) != 1:
         raise LookupError(f"{fixture} {surface} was not judged")
     (result,) = found
-    failing = {c["id"] for c in result["checks"] if not c["holds"]}
-    expected = FAILING_INVARIANTS.get((fixture, surface))
-    if expected and not failing <= expected[1]:
-        raise RuntimeError(f"{sorted(failing - expected[1])} fail too, beyond {expected[0]}")
     assert result["holds"], [c for c in result["checks"] if not c["holds"]]
