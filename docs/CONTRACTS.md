@@ -170,8 +170,9 @@ Windows에서는 `analytics.exe`)로 부릅니다. 두 진입점은 명령 이�
   설치 환경에서 분석 스크립트가 프로젝트 환경 밖에서 돌지 않게 하기 위해서입니다(ADR-0005 확인 1, 소유자 결정 2026-10-06).
   실행 루트의 사본을 다른 이름으로 부른 것(`python -m aelix_analytics.kit.aelix_analytics`)도 같은 오류입니다. 스크립트의
   `import aelix_analytics`가 실행 중인 run을 보지 못하기 때문입니다. 실행 루트를 `PYTHONPATH`로 준 호출은 프로젝트 환경 밖이어도
-  돕니다(진입점, 체크아웃, 3.11 하한 시험). hint는 `analytics` 명령과, 실행 루트를 찾는 방법(`aelix_analytics._install.kit_dir()`)을
-  알립니다. 판정은 무엇이 실행되는지(패키지 이름과 옆의 사본)만 보고 프로젝트 환경인지는 보지 않습니다.
+  돕니다(진입점, 체크아웃, 3.11 하한 시험). hint는 `analytics` 명령을 알립니다. 모듈을 직접 부르려면 실행 루트를 `PYTHONPATH`에
+  두고 프로젝트 환경에서 부르라고 하고(`uv run --project <project> python -m aelix_analytics ...`), 실행 루트를 출력하는
+  명령(`aelix_analytics._install.kit_dir()`)도 알립니다. 판정은 무엇이 실행되는지(패키지 이름과 옆의 사본)만 보고 프로젝트 환경인지는 보지 않습니다.
 - 스크립트 API는 `import aelix_analytics`입니다(예시는 `import aelix_analytics as analytics`). `labkit`이라는 이름은 없고 별칭도
   두지 않습니다. `labkit`을 import하는 스크립트와, 그런 run 스냅샷의 재실행(`run --rerun-of`)은 `No module named 'labkit'`로
   실패하고, run 기록의 `error.hint`가 새 import와, 그 run을 그대로 다시 실행하려면 0.2.0보다 앞선 kit이 필요하다는 것을
@@ -363,10 +364,14 @@ kit 0.2.0([#9](https://github.com/handochan/aelix-analytics/issues/9)의 첫 PR,
   디렉터리에 런처 파일(`cli.py`·`_install.py`·`aelix-plugin.toml`)이 더해져 같은 코드에서 한 번 바뀝니다. 체크아웃과 설치본의
   실행 루트가 같은 파일을 담으므로 같은 커밋이면 같은 값이고, 무엇도 이 값을 비교하지 않습니다.
 - 설치된 배포본 자신의 package를 `python -m aelix_analytics`로 부르면 거절합니다(D).
-- 확장의 telemetry는 kit을 모듈로 부르는 bash 명령(`-m aelix_analytics`, `import`·`from aelix_analytics`)에 `python_via_bash`를
-  붙이지 않습니다. 이전에는 `labkit`이라는 글자가 든 명령이었습니다. 경로에 `aelix_analytics`가 들어 있을 뿐인 명령에는 붙습니다.
-- 도움말·hint·경고·리포트의 SDK 호출 예가 `analytics.read(…)` 형태입니다(이전 `lab.read(…)`). 기록의 `via` 값(`lab.read`·
-  `lab.chart` 등)은 그대로입니다(B·C, ADR-0005 결정 2).
+- 확장의 telemetry는 kit을 모듈로 부르는 bash 명령에 `python_via_bash`를 붙이지 않습니다. python(또는 `uv run`)에 그 옵션
+  다음으로 준 `-m aelix_analytics`와, 문장이 시작하는 자리(명령·줄의 처음, `;` 뒤, `-c` 인자의 여는 따옴표 바로 뒤)의
+  `import aelix_analytics`·`from aelix_analytics import`입니다. 이전에는 `labkit`이라는 글자가 든 명령이었습니다. 경로에
+  `aelix_analytics`가 들어 있을 뿐이거나 그 글자가 주석·문자열에 있을 뿐인 명령에는 붙습니다. 판정은 정규식이라 문자열 안의
+  `; import aelix_analytics`는 구별하지 못합니다.
+- 도움말·hint·경고·오류 메시지·리포트의 SDK 호출 예가 `analytics.read(…)` 형태입니다(이전 `lab.read(…)`). 새 run의 기록에
+  남는 경고·오류의 글도 그렇습니다. 이전 run의 기록은 바이트 그대로이고, 리포트는 다시 만들 때 새 글을 씁니다. 기록의 `via`
+  값(`lab.read`·`lab.chart` 등)은 그대로입니다(B·C, ADR-0005 결정 2).
 
 ## G. 약속하지 않는 것
 
@@ -528,6 +533,9 @@ kit 0.2.0([#9](https://github.com/handochan/aelix-analytics/issues/9)의 첫 PR,
     프로세스가 끝납니다.
   - aelix가 끝날 때 아직 멈추는 중인 명령은 그 뒤 강제로 끝내지 않습니다. 요청 디렉터리는 kit이 볼 수 있도록 임시
     디렉터리에 남습니다(POSIX에서는 SIGINT를 이미 보낸 상태입니다).
+- 작업 디렉터리의 같은 이름. `python -m`은 작업 디렉터리를 `sys.path`의 맨 앞에 둡니다. 그래서 kit을 부르는 작업 디렉터리(확장은
+  프로젝트 루트, `analytics`·`bin/lab`은 부른 곳)에 `aelix_analytics/` 디렉터리가 있으면 그것이 실행 루트보다 먼저 import됩니다.
+  이전의 `labkit/`도 같았습니다.
 - 설치본과 사본(ADR-0004).
   - 사본 하나만 설정하는 확인(A)은 두 사본이 모두 이 버전 이상일 때만 됩니다. 이 확인이 없는 이전 버전의 체크아웃을
     aelix의 extensions 디렉터리에 symlink한 채 설치본을 더하면 두 사본이 모두 설정되어, 도구 호출마다 telemetry가 두 번

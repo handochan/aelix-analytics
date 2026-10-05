@@ -516,7 +516,9 @@ SDK_RENAMED_IN = "0.2.0"
 
 API_HINTS = (
     # A script, or a run's snapshot, from before the rename: no alias is kept (ADR-0005 decision 9).
-    (r"No module named 'labkit'",
+    # Only the failed import of that module, in _error_info's summary form (`import labkit`,
+    # `import labkit.core` and `from labkit import …` all fail so): not any error quoting the text.
+    (r"^ModuleNotFoundError: No module named 'labkit'$",
      f"labkit is the script API's name before kit {SDK_RENAMED_IN}; it is now aelix_analytics "
      "(import aelix_analytics as analytics), so change the script's import. A run recorded by an "
      f"earlier kit (its env.kit_version is below {SDK_RENAMED_IN}) re-runs as it was only with that "

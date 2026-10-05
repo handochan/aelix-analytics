@@ -173,6 +173,9 @@ ADR-0002는 진입점의 하한을 `>=3.11`로 낮추고(결정 2), Aelix 없이
   kit 명령은 `analytics`로 부른다.
 - 빌드에 hatchling이 필요하다(네트워크나 uv 캐시). 체크아웃에 추적되지 않은 파일이 `src/aelix_analytics`(#9-1 전에는
   `kit/labkit`도)에 있으면 wheel에 두 번 들어가므로, 배포본은 깨끗한 체크아웃에서 빌드하고 시험이 구성원 목록을 확인한다.
+  소스 트리에서 wheel을 바로 만들면(`uv build --wheel`) Git이 무시하는 파일(`.demo/`, `__pycache__` 밖의 `*.pyc` 등)도 실행
+  루트의 사본에 든다. `force-include`가 `.gitignore`를 보지 않기 때문이다(측정, 2026-10-06). sdist를 거치는 기본 `uv build`에는
+  들지 않는다. 빌드 전에 `git clean -ndx src/aelix_analytics`가 `__pycache__/` 말고 아무것도 보이지 않는지 확인한다.
 - aelix를 다시 설치하면 이 wheel이 빠진다(`uv tool install --force aelix`는 측정, 같은 명령을 `--with` 없이 쓰는
   `install.sh`는 추론). 다시 설치한다.
 - Windows 콘솔의 Ctrl+Break는 uv를 곧바로 끝내므로 런처가 kit의 기록보다 먼저 돌아온다(측정, [현재 계약](../CONTRACTS.md) G).

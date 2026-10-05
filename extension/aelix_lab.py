@@ -129,10 +129,19 @@ ENV_ALLOW = ("PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "LC_ALL", "LC_C
              "ALL_PROXY", "http_proxy", "https_proxy", "no_proxy", "all_proxy")
 SECRET_NAME = re.compile(r"TOKEN|SECRET|PASSWORD|CREDENTIAL|_KEY$", re.IGNORECASE)
 PYTHON_IN_SHELL = re.compile(r"(^|[\s;&|(`])(python3?(\.\d+)?|uv\s+run|pip3?|ipython|jupyter)\b")
-# A shell command that runs the kit itself (`python -m aelix_analytics …`, or Python that imports it),
-# which is not python_via_bash. Only the module as a module: a path or a project name that merely
-# contains the word is not the kit.
-KIT_IN_SHELL = re.compile(r"(?:(?:^|\s)-m\s*|\bimport\s+|\bfrom\s+)aelix_analytics\b")
+# A shell command that runs the kit itself, which is not python_via_bash: `-m aelix_analytics` given to
+# python (or `uv run`) itself, after its options only; or an `import aelix_analytics` / `from
+# aelix_analytics import` statement where a statement starts — at the start of the command or of a
+# line (a heredoc), after `;`, or right after the quote that opens a `-c` argument. A path or a
+# project name that merely contains the word is not the kit, nor is the word in a comment or a string.
+# Each option has one reading (-X and -W take a value, other short flags do not), so a long command
+# that does not match fails in linear time.
+KIT_IN_SHELL = re.compile(
+    r"(?:^|[\s;&|(`])(?:[^\s;&|()`'\"]*[/\\])?(?:python3?(?:\.\d+)?(?:\.exe)?|uv\s+run)"
+    r"(?:\s+(?:--[\w-]+(?:=\S*)?|-[XW]\s*[^\s-]\S*|-[A-VYZa-z][A-Za-z]*))*\s+-m\s*aelix_analytics\b"
+    r"|(?:^|;|-c\s*['\"])[ \t]*(?:import\s+(?:[\w.]+(?:\s+as\s+\w+)?\s*,\s*)*aelix_analytics\b"
+    r"|from\s+aelix_analytics(?:\.\w+)*\s+import\b)",
+    re.MULTILINE)
 
 # Module-level state of one aelix runtime. setup() starts it over: the file loader makes a new module
 # for every session aelix builds, but the installed module is imported once per process.

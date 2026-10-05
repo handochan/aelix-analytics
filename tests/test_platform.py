@@ -2994,11 +2994,20 @@ def test_importing_the_package_imports_nothing_of_the_kit():
     ("uv run --project . python -m aelix_analytics run scripts/x.py --title t", False),
     ("python -c 'import aelix_analytics as analytics; print(analytics.datasets())'", False),
     ("python -c 'from aelix_analytics import core'", False),
+    ('uv run python -c "import aelix_analytics as analytics; print(analytics.datasets())"', False),
+    ("python -c 'import os; from aelix_analytics.core import Project'", False),
+    ("python - <<'EOF'\nimport aelix_analytics as analytics\nprint(analytics.datasets())\nEOF", False),
+    ("python3.12 -X utf8 -m aelix_analytics status", False),
     ("bin/lab status", False),
     # A path or a project name that holds the word is not the kit (Issue #9 design review).
     ("cd ~/work/aelix_analytics-trials && python scripts/x.py", True),
     ("python /opt/venv/lib/site-packages/aelix_analytics/kit/x.py", True),
+    ("python scripts/aelix_analytics_tools.py", True),
     ("python scripts/x.py", True),
+    # Nor is the word in a comment or a string, or `-m` given to the script (Issue #9 PR-1 review).
+    ("python scripts/analyze.py # import aelix_analytics", True),
+    ("python -c 'print(\"import aelix_analytics\")'", True),
+    ("python -u scripts/x.py -m aelix_analytics", True),
     ("ls -la", False),
 ])
 def test_python_via_bash_leaves_out_only_the_kit_itself(monkeypatch, tmp_path, command, flagged):
@@ -3007,6 +3016,17 @@ def test_python_via_bash_leaves_out_only_the_kit_itself(monkeypatch, tmp_path, c
                                              template_dir=KIT / "aelix_analytics" / "template").root)
     _, flags = module.summarize_call("bash", {"command": command}, project)
     assert ("python_via_bash" in flags) is flagged, (command, flags)
+
+
+def test_the_kit_check_of_a_bash_command_takes_time_linear_in_its_length(monkeypatch):
+    """KIT_IN_SHELL reads each option one way and a statement start within its line, so a long
+    command that is not the kit fails fast: a pattern with two readings of `-Xa` took time
+    exponential in the options, and one whose statement start crossed lines, quadratic in them."""
+    module = load_extension(monkeypatch, "ext_kit_in_shell_time")
+    for command in ("python" + " -Xa" * 40 + " x", "python" + " -X" * 40 + " x", "\n" * 50000 + "x"):
+        start = time.monotonic()
+        assert module.KIT_IN_SHELL.search(command) is None
+        assert time.monotonic() - start < 1.0, command[:40]
 
 
 def test_a_kit_that_is_not_there_is_a_clear_error(monkeypatch, tmp_path):

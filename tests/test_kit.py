@@ -1279,7 +1279,9 @@ def test_python_m_runs_only_from_a_runtime_root(tmp_path):
         code, answer, done = _module(path, *args, cwd=tmp_path)
         assert code == 1, (args, done.stdout, done.stderr)
         assert answer["ok"] is False and answer["error"]["code"] == "not_runtime_root", answer
-        assert "PYTHONPATH" in answer["error"]["hint"] and "analytics" in answer["error"]["hint"]
+        hint = answer["error"]["hint"]
+        assert "analytics --help" in hint and "PYTHONPATH" in hint and "kit_dir()" in hint, hint
+        assert "uv run --project <project> python -m aelix_analytics" in hint, hint
     assert (_tree(project), trust.read_bytes()) == before
     assert not fresh.exists()
     code, status, done = _module(root, "aelix_analytics", "--project", project, "status")
@@ -1292,7 +1294,7 @@ def test_a_script_that_imports_labkit_is_told_the_new_name(project):
     """ADR-0005 decision 9: no `labkit` alias. A script or a run snapshot from before the rename
     fails with a hint that names the new import and the kit version before which the old name
     worked; a rerun of such a run records its failure as a rerun and leaves the snapshot's bytes
-    as they were."""
+    as they were. Only that failed import gets the hint."""
     body = "import labkit as lab\nprint(lab.read('sales').height)\n"
     code, result = _run(project, write_script(project, "01_old_name.py", body), "옛 이름")
     assert code == 3 and result["run"]["status"] == "error", result
@@ -1307,23 +1309,52 @@ def test_a_script_that_imports_labkit_is_told_the_new_name(project):
     assert code == 3 and again["run"]["rerun_of"] == run_id, again
     assert again["run"]["error"]["hint"] == error["hint"], again["run"]["error"]
     assert _tree(project / "runs" / run_id) == before
-    for summary in ("ModuleNotFoundError: No module named 'labkit'",):
-        assert runner.api_hint(summary) == error["hint"]
+    with pytest.raises(ModuleNotFoundError) as caught:
+        __import__("labkit.core")
+    assert runner._error_info(caught.value, "x")["hint"] == error["hint"]
+    # Only the old module's failed import gets it: not an error that quotes the words, not another
+    # module (Issue #9 PR-1 review).
+    for summary in ("ValueError: No module named 'labkit' in the supplied log",
+                    "ModuleNotFoundError: No module named 'labkitx'",
+                    "ModuleNotFoundError: No module named 'labkit_tools'"):
+        assert runner.api_hint(summary) is None, summary
+    body = "raise ValueError(\"No module named 'labkit' in the supplied log\")\n"
+    code, quoted = _run(project, write_script(project, "02_quotes_it.py", body), "인용")
+    assert code == 3 and quoted["run"]["error"]["type"] == "ValueError", quoted
+    assert "hint" not in quoted["run"]["error"], quoted["run"]["error"]
 
 
 # What a project's records are called until the new writer (ADR-0005 decision 2, #13). #9 and #10
 # change public names only: this list stays as it is through them.
 STORED = {"marker": "lab.json", "managed": ".lab", "report": "report", "imported": "data/raw",
           "families": {"lab.project/1", "lab.run/1", "lab.event/1", "lab.dataset/1"},
-          "trust": "lab.trust/1", "via": {"lab.read", "lab.sql", "lab.save", "lab.chart"}}
+          "trust": "lab.trust/1",
+          "via": {"lab.read", "lab.scan", "lab.sql", "lab.save", "lab.chart"}}
+
+# Every SDK call that records something, so a run of it records each `via` of STORED.
+SDK_CALLS = '''import matplotlib.pyplot as plt
+import polars as pl
+
+import aelix_analytics as analytics
+
+rows = analytics.read("sales").height
+counted = analytics.scan("sales").select(pl.len()).collect().item()
+by_region = analytics.sql("SELECT region, sum(revenue) AS revenue FROM sales GROUP BY 1 ORDER BY 1").pl()
+analytics.save(by_region, "region_revenue")
+fig, ax = plt.subplots()
+ax.bar(by_region["region"], by_region["revenue"])
+analytics.chart(fig, "region-revenue", data=by_region)
+print(rows, counted)
+'''
 
 
 def test_storage_names_stay_until_the_new_writer(project, tmp_path):
     """ADR-0005 confirmation 1: the stored names do not change with the public ones. A project as an
     earlier kit left it (its marker says kit 0.1.0, as every kit before the rename wrote) is read and
-    written by this kit — status, a note, a run through the SDK, the report — and what was there keeps
-    its bytes: the marker, the data, the runs, the scripts and CONTEXT.md as they were, the journal
-    only appended to. Everything this kit writes uses the names and families of STORED."""
+    written by this kit — status, a note, a run that makes every SDK call that records (read, scan,
+    sql, save, chart), the report — and what was there keeps its bytes: the marker, the data, the
+    runs, the scripts and CONTEXT.md as they were, the journal only appended to. Everything this kit
+    writes uses the names and families of STORED, and the run records exactly STORED's `via` values."""
     marker = json.loads((project / STORED["marker"]).read_text(encoding="utf-8"))
     assert marker["schema"] == "lab.project/1"
     marker["kit_version"] = "0.1.0"
@@ -1335,7 +1366,7 @@ def test_storage_names_stay_until_the_new_writer(project, tmp_path):
 
     assert kit_cli(project, "status")[0] == 0
     assert kit_cli(project, "note", "finding", "새 kit의 기록")[0] == 0
-    code, result = _run(project, write_script(project, "01_new_kit.py", LAB_API), "새 kit")
+    code, result = _run(project, write_script(project, "01_new_kit.py", SDK_CALLS), "새 kit")
     assert code == 0 and result["run"]["status"] == "ok", result
     assert kit_cli(project, "report")[0] == 0
 
@@ -1348,9 +1379,9 @@ def test_storage_names_stay_until_the_new_writer(project, tmp_path):
     assert {e["schema"] for e in events} == {"lab.event/1"}
     run = json.loads((project / "runs" / result["run"]["id"] / "run.json").read_text(encoding="utf-8"))
     assert run["schema"] == "lab.run/1" and run["env"]["kit_version"] == core.KIT_VERSION
-    vias = {v for i in run["inputs"] for v in i["via"]} | {c["via"] for c in run["charts"]}
-    assert {"lab.read", "lab.chart"} <= vias, vias
-    assert {v for v in vias if v.startswith(("lab.", "analytics."))} <= STORED["via"], vias
+    vias = ({v for i in run["inputs"] for v in i["via"]} | {o.get("via") for o in run["outputs"]}
+            | {c["via"] for c in run["charts"]})
+    assert {v for v in vias if v and v.startswith(("lab.", "analytics."))} == STORED["via"], vias
     chart_files = [f for c in run["charts"] for f in c["files"].values()]
     assert chart_files and all(f.startswith(f"runs/{run['id']}/charts/") for f in chart_files), \
         chart_files

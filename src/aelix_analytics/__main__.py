@@ -72,9 +72,10 @@ def _not_the_runtime_root() -> dict | None:
     return core.LabError(
         "not_runtime_root", f"the kit runs only from a runtime root: {why}",
         hint="use the analytics command (analytics --help), which runs the kit in the project's "
-             "environment; to run the module itself, put the runtime root on PYTHONPATH — "
-             "python -c \"from aelix_analytics._install import kit_dir; print(kit_dir())\" "
-             "prints it").to_json()
+             "environment. To run the module itself, run it in the project's environment with the "
+             "runtime root on PYTHONPATH (uv run --project <project> python -m aelix_analytics ...); "
+             "in this environment, python -c \"from aelix_analytics._install import kit_dir; "
+             "print(kit_dir())\" prints the root").to_json()
 
 
 def main(argv=None) -> int:

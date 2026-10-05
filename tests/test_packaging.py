@@ -17,6 +17,7 @@ from __future__ import annotations
 import contextlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -178,6 +179,16 @@ def test_the_manifest_agrees_with_the_distribution(dist):
     assert plugin["api"] == {"level": 1, "min_level": 1}
     assert manifest["activation"] == {"on_startup_finished": True}
     assert plugin["license"] == pyproject()["project"]["license"] == "Apache-2.0"
+
+
+def test_the_readme_names_the_wheel_this_version_builds():
+    """README's build comment and install lines name the wheel `uv build` makes from this checkout:
+    the version is pyproject's. The 0.1.0 lines once outlived the bump to 0.2.0 (Issue #9 PR-1
+    review)."""
+    readme = (PACK / "README.md").read_text(encoding="utf-8")
+    versions = re.findall(r"aelix_analytics-([^-\s]+)-py3-none-any\.whl", readme)
+    assert versions, "README names no wheel"
+    assert set(versions) == {pyproject()["project"]["version"]}, versions
 
 
 def test_the_sdist_builds_the_same_wheel(dist, tmp_path):

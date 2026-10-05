@@ -30,7 +30,7 @@ P1은 하나의 검증된 대상부터 시작한다([공유 설계](../PUBLISH-A
 
 이 결정을 좁힌 사실은 다음과 같다.
 
-- 지금의 `report/`는 프로젝트 파일을 `../` 상대 경로와 `file://` 절대 URL로 가리킨다(`kit/labkit/report.py`의 `Site.file_link`).
+- 지금의 `report/`는 프로젝트 파일을 `../` 상대 경로와 `file://` 절대 URL로 가리킨다(`src/aelix_analytics/report.py`의 `Site.file_link`).
   그 자체로는 공유본이 아니며, 독립 패키지는 #20이 만든다.
 - 소유자 팀의 실제 환경(웹 호스팅, SSO, 공유 드라이브)을 모른다. 새 자격 증명 없이 CI의 세 OS와 소유자 기기에서 끝까지 시험할 수
   있는 대상이 필요하다.
@@ -42,7 +42,7 @@ P1은 하나의 검증된 대상부터 시작한다([공유 설계](../PUBLISH-A
   저장소가 private이어도 인터넷에 공개되며([Creating a GitHub Pages site](https://docs.github.com/en/pages/getting-started-with-github-pages/creating-a-github-pages-site)),
   비공개 게시는 GitHub Enterprise Cloud의 조직에서만 된다([Changing the visibility](https://docs.github.com/en/pages/getting-started-with-github-pages/changing-the-visibility-of-your-github-pages-site)).
 - 지금의 `AtomicFiles.replace`는 같은 디렉터리 안에서 대상을 덮어쓰는 교체(`os.replace`)이고, `FileLocks.exclusive`는 시간 제한
-  없이 기다린다(`kit/labkit/_platform.py`). 새 이름으로만 옮기는 연산과 대기 상한은 지금 포트에 없다.
+  없이 기다린다(`src/aelix_analytics/_platform.py`). 새 이름으로만 옮기는 연산과 대기 상한은 지금 포트에 없다.
 - 사람 검증의 담당은 [#39](https://github.com/handochan/aelix-analytics/issues/39)의 2026-10-03 운영 결정이 Q6·Q17-a를 소유자에게
   넘겼다. Q14의 실제 다른 독자 열람([#24](https://github.com/handochan/aelix-analytics/issues/24))도 소유자가 한다(2026-10-05 소유자
   결정, 결정 10).
