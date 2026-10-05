@@ -27,9 +27,9 @@
 
 ## 2. 현재 HTML과의 차이
 
-현재 [report.py](../kit/labkit/report.py)의 `Site.file_link()`는 차트·첨부 표 등에 대해 `report/` 밖의 경로를 만든다.
+현재 [report.py](../src/aelix_analytics/report.py)의 `Site.file_link()`는 차트·첨부 표 등에 대해 `report/` 밖의 경로를 만든다.
 CSS·JS는 report assets에 들어가지만 차트·원본·파생 표 등을 모두 독립 패키지로 복사하지 않는다.
-[report.js](../kit/labkit/assets/report.js)의 새로고침은 생성된 `assets/build.js`의 변화를 감지하는 동작이다.
+[report.js](../src/aelix_analytics/assets/report.js)의 새로고침은 생성된 `assets/build.js`의 변화를 감지하는 동작이다.
 그 자체가 다른 컴퓨터로 파일을 전송하거나 팀원의 접근 권한을 관리하는 기능은 아니다.
 
 2026-09-18에 [참고 프로젝트](REVIEW-REFERENCE-SESSION-2026-09-18.md)의 생성 HTML 14개를 읽어 확인했다.

@@ -265,7 +265,7 @@ class Site:
         elif chart.get("kind") == "plotly":
             data_html = '<span class="muted">plotly 그림 JSON에 포함</span>'
         else:
-            data_html = '<span class="muted">기록 안 됨 — lab.chart(..., data=df)</span>'
+            data_html = '<span class="muted">기록 안 됨 — analytics.chart(..., data=df)</span>'
         version_links = ""
         if full and len(versions) > 1:
             version_links = ('<div class="versions">이전 버전: ' + " · ".join(
@@ -929,7 +929,7 @@ def dataset_page(site: Site, ds: dict, view: str) -> str:
 <section><h2>미리보기</h2>{site.table(preview.get('columns') or [], preview.get('rows') or [])}</section>
 <section><h2>계보</h2>{''.join(lineage)}</section>
 <section><h2>조회</h2><pre class="cmd">lab_query(sql="SELECT * FROM {esc(view)} LIMIT 20")
-lab.read("{esc(view)}")   ·   lab.sql("SELECT count(*) FROM {esc(view)}").pl()</pre></section>"""
+analytics.read("{esc(view)}")   ·   analytics.sql("SELECT count(*) FROM {esc(view)}").pl()</pre></section>"""
     crumb = f' <span>/</span> <a href="../index.html#data">데이터</a> <span>/</span> {esc(view)}'
     return site.page(1, view, crumb, body, "dataset")
 

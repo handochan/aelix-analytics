@@ -8,10 +8,10 @@ from pathlib import Path
 
 import pytest
 
-from labkit import _platform
+from aelix_analytics import _platform
 
 PACK = Path(__file__).resolve().parents[1]
-KIT = PACK / "kit"
+KIT = PACK / "src"
 
 
 def kit_env(**extra) -> dict:
@@ -24,9 +24,9 @@ def kit_env(**extra) -> dict:
     return env
 
 
-def labkit(project, *args, timeout=300):
-    """Run `python -m labkit` like the extension does; returns (exit code, last JSON object)."""
-    cmd = [sys.executable, "-m", "labkit", "--project", str(project), *map(str, args)]
+def kit_cli(project, *args, timeout=300):
+    """Run `python -m aelix_analytics` like the extension does; returns (exit code, last JSON object)."""
+    cmd = [sys.executable, "-m", "aelix_analytics", "--project", str(project), *map(str, args)]
     # The records are not ASCII and this reads them through a pipe, which follows the locale
     # unless it is told otherwise.
     proc = subprocess.run(cmd, capture_output=True, env=kit_env(), timeout=timeout,
@@ -112,13 +112,13 @@ def isolated_trust_file(tmp_path, monkeypatch):
 def project(tmp_path):
     """A new project with data/raw/sales.parquet imported."""
     sys.path.insert(0, str(KIT))
-    from labkit import core
+    from aelix_analytics import core
 
     root = tmp_path / "proj"
-    core.init_project(root, title="테스트 분석", goal="테스트 목표", template_dir=KIT / "labkit" / "template",
+    core.init_project(root, title="테스트 분석", goal="테스트 목표", template_dir=KIT / "aelix_analytics" / "template",
                       actor="test")
     source = write_sales_csv(tmp_path / "sales.csv")
-    code, result = labkit(root, "import", source, "--name", "sales", "--description", "test data")
+    code, result = kit_cli(root, "import", source, "--name", "sales", "--description", "test data")
     assert code == 0 and result["ok"], result
     return root
 

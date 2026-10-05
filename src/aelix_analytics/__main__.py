@@ -1,10 +1,10 @@
-"""labkit CLI — shared by the aelix extension (JSON) and people (bin/lab, or `analytics` installed).
+"""aelix_analytics CLI — shared by the aelix extension (JSON) and people (bin/lab, or `analytics` installed).
 
-    python -m labkit [--project DIR] <command> ...
+    python -m aelix_analytics [--project DIR] <command> ...
 
 The last line of stdout is one JSON object: {"ok": true, ...} or {"ok": false, "error": {...}}.
 Exit codes: 0 success, 1 handled error, 2 usage error, 3 run recorded but not ok, 130 interrupted.
-Run commands with PYTHONPATH set to the kit (the directory holding labkit) inside the project's uv
+Run commands with PYTHONPATH set to the kit (the directory holding aelix_analytics) inside the project's uv
 environment, as bin/lab and the installed `analytics` do.
 
 LAB_CANCEL_FILE names the file through which the aelix extension asks a command it started to
@@ -81,7 +81,7 @@ def main(argv=None) -> int:
 
 
 def _command(argv) -> int:
-    parser = argparse.ArgumentParser(prog="labkit", description=(__doc__ or "labkit").splitlines()[0])
+    parser = argparse.ArgumentParser(prog="aelix_analytics", description=(__doc__ or "aelix_analytics").splitlines()[0])
     parser.add_argument("--project", help="project directory (default: nearest lab.json above cwd)")
     parser.add_argument("--text", action="store_true", help="human-readable output where supported")
     sub = parser.add_subparsers(dest="command", required=True)

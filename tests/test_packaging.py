@@ -31,7 +31,7 @@ import pytest
 from conftest import record_observation
 
 from aelix_analytics import cli
-from labkit import core
+from aelix_analytics import core
 
 PACK = Path(__file__).resolve().parents[1]
 UV = shutil.which("uv")
@@ -113,7 +113,7 @@ def outside_env(tmp_path: Path, **extra) -> dict:
 def expected_wheel_members() -> set[str]:
     members = {f"aelix_analytics/{p.removeprefix('src/aelix_analytics/')}"
                for p in tracked("src/aelix_analytics")}
-    members |= {f"aelix_analytics/{p}" for p in tracked("kit/labkit")}
+    members |= {f"aelix_analytics/{p}" for p in tracked("src/aelix_analytics")}
     members.add("aelix_analytics/extension.py")
     return members
 
@@ -123,11 +123,11 @@ def test_the_wheel_holds_the_package_and_nothing_else(dist):
         names = [n for n in wheel.namelist() if not n.startswith("aelix_analytics-")]
     assert len(names) == len(set(names))
     assert set(names) == expected_wheel_members(), (
-        "a build ships the checkout's untracked files under kit/labkit and src/aelix_analytics: "
+        "a build ships the checkout's untracked files under src/aelix_analytics and src/aelix_analytics: "
         "build from a clean checkout")
-    for name in ("kit/labkit/template/CONTEXT.md", "kit/labkit/template/gitignore",
-                 "kit/labkit/template/pyproject.toml", "kit/labkit/assets/report.css",
-                 "kit/labkit/assets/report.js", "kit/labkit/demo_scripts/01_monthly_revenue.py",
+    for name in ("src/aelix_analytics/template/CONTEXT.md", "src/aelix_analytics/template/gitignore",
+                 "src/aelix_analytics/template/pyproject.toml", "src/aelix_analytics/assets/report.css",
+                 "src/aelix_analytics/assets/report.js", "src/aelix_analytics/demo_scripts/01_monthly_revenue.py",
                  "aelix-plugin.toml", "extension.py", "cli.py", "_install.py"):
         assert f"aelix_analytics/{name}" in names
 
@@ -177,7 +177,7 @@ def test_the_manifest_agrees_with_the_distribution(dist):
 def test_the_sdist_builds_the_same_wheel(dist, tmp_path):
     with tarfile.open(dist["sdist"]) as sdist:
         names = {n.split("/", 1)[1] for n in sdist.getnames() if "/" in n}
-    sources = set(tracked("src/aelix_analytics", "kit/labkit")) | {
+    sources = set(tracked("src/aelix_analytics", "src/aelix_analytics")) | {
         "extension/aelix_lab.py", "README.md", "pyproject.toml", "LICENSE"}
     assert sources <= names
     assert names - sources <= {"PKG-INFO", ".gitignore"}
@@ -193,8 +193,8 @@ def test_the_sdist_installs_the_same_package(dist, tmp_path):
     ok([UV, "pip", "install", "--quiet", "--python", venv_python(venv), dist["sdist"]], timeout=600)
     kit = ok([venv_python(venv), "-c", "from aelix_analytics._install import kit_dir; print(kit_dir())"],
              cwd=tmp_path, env=outside_env(tmp_path)).stdout.strip()
-    assert sorted(p.name for p in Path(kit).iterdir()) == ["labkit"]
-    assert (Path(kit) / "labkit" / "template" / "gitignore").is_file()
+    assert sorted(p.name for p in Path(kit).iterdir()) == ["aelix_analytics"]
+    assert (Path(kit) / "aelix_analytics" / "template" / "gitignore").is_file()
 
 
 # --- installed where no checkout is ----------------------------------------------------------------
@@ -214,8 +214,8 @@ def test_the_installed_distribution_finds_its_kit(dist, tmp_path, python):
             "python": list(sys.version_info[:2]),
             "kit": str(kit),
             "entries": sorted(p.name for p in kit.iterdir()),
-            "template": sorted(p.name for p in (kit / "labkit" / "template").iterdir()),
-            "labkit_importable": importlib.util.find_spec("labkit") is not None,
+            "template": sorted(p.name for p in (kit / "aelix_analytics" / "template").iterdir()),
+            "labkit_importable": importlib.util.find_spec("aelix_analytics") is not None,
             "analysis": sorted(m for m in sys.modules if m.split(".")[0] in ANALYSIS),
         }))
     """).replace("ANALYSIS", repr(ANALYSIS))
@@ -225,9 +225,9 @@ def test_the_installed_distribution_finds_its_kit(dist, tmp_path, python):
     site = Path(ok([venv_python(venv), "-c", "import sysconfig; print(sysconfig.get_paths()['purelib'])"],
                    env=outside_env(tmp_path)).stdout.strip())
     assert Path(seen["kit"]) == (site / "aelix_analytics" / "kit").resolve()
-    assert seen["entries"] == ["labkit"], "children get exactly the kit on PYTHONPATH"
+    assert seen["entries"] == ["aelix_analytics"], "children get exactly the kit on PYTHONPATH"
     assert seen["template"] == ["CONTEXT.md", "gitignore", "pyproject.toml"]
-    assert seen["labkit_importable"] is False, "the wheel installs no top-level labkit"
+    assert seen["labkit_importable"] is False, "the wheel installs no top-level aelix_analytics"
     assert seen["analysis"] == []
 
 
@@ -427,9 +427,9 @@ TOOLS_PROBE = textwrap.dedent("""
         await call("lab_init", {"path": str(work / "proj"), "title": "도구로 만든 프로젝트"})
         await call("lab_import", {"source": sys.argv[3], "name": "sales"})
         (work / "proj" / "scripts" / "totals.py").write_text(
-            "import labkit as lab\\n"
-            "lab.save(lab.read('sales'), 'copy')\\n"
-            "lab.note('finding', 'from the installed kit')\\n", encoding="utf-8")
+            "import aelix_analytics as analytics\\n"
+            "analytics.save(analytics.read('sales'), 'copy')\\n"
+            "analytics.note('finding', 'from the installed kit')\\n", encoding="utf-8")
         await call("lab_run", {"script": "scripts/totals.py", "title": "합계", "attach_images": False})
         await call("lab_note", {"kind": "decision", "text": "keep going"})
         print(json.dumps(answers))
@@ -461,22 +461,22 @@ def test_the_installed_extension_s_tools_run_a_project(dist, tmp_path, python):
 
 SDK_SCRIPT = textwrap.dedent("""
     import os
-    import labkit as lab
+    import aelix_analytics as analytics
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    print("RUN", lab.run_id())
-    print("LABKIT", os.path.dirname(os.path.dirname(lab.__file__)))
+    print("RUN", analytics.run_id())
+    print("LABKIT", os.path.dirname(os.path.dirname(analytics.__file__)))
     print("PYTHONPATH", os.environ.get("PYTHONPATH"))
-    sales = lab.read("sales")
+    sales = analytics.read("sales")
     # Sorted: group_by does not keep an order, and the rerun below compares the chart's data.
     by_region = sales.group_by("region").agg(revenue=__import__("polars").col("revenue").sum())
     by_region = by_region.sort("region")
-    lab.save(by_region, "by_region")
+    analytics.save(by_region, "by_region")
     fig, ax = plt.subplots()
     ax.bar(by_region["region"].to_list(), by_region["revenue"].to_list())
-    lab.chart(fig, "by-region", title="지역별", data=by_region)
-    lab.note("finding", "두 지역")
+    analytics.chart(fig, "by-region", title="지역별", data=by_region)
+    analytics.note("finding", "두 지역")
 """)
 
 
@@ -485,7 +485,7 @@ SDK_SCRIPT = textwrap.dedent("""
 def test_the_installed_command_drives_a_project_without_aelix(dist, tmp_path, python):
     """Issue #8's criterion 1 without Aelix: the console script on the entry-point floor and on 3.12,
     with real uv, runs every command the Issue names in a project whose analysis environment is its
-    own (>=3.12); the run's script uses the SDK, `labkit`, from the installed kit. ADR-0004 check 2
+    own (>=3.12); the run's script uses the SDK, `aelix_analytics`, from the installed kit. ADR-0004 check 2
     with real uv (design review, Codex 6): a PYTHONPATH the caller set reaches the run as exactly
     the installed kit. A rerun of the run goes through real uv too."""
     venv = installed(tmp_path, dist["wheel"], python, "--no-deps", "--offline")
@@ -579,7 +579,7 @@ def test_the_readme_s_uv_tool_install_routes(dist, tmp_path):
 @e2e
 def test_the_kit_s_stdlib_commands_run_on_the_floor(dist, tmp_path):
     """ADR-0002's check 1, the part the floor can run, as ADR-0004 reads it and the owner accepted it
-    on 2026-09-30: `python -m labkit` on CPython 3.11 with the installed kit, for the commands that
+    on 2026-09-30: `python -m aelix_analytics` on CPython 3.11 with the installed kit, for the commands that
     need no analysis library, and a run of a script that imports none (it records a note through the
     SDK)."""
     venv = installed(tmp_path, dist["wheel"], FLOOR, "--no-deps", "--offline")
@@ -591,14 +591,14 @@ def test_the_kit_s_stdlib_commands_run_on_the_floor(dist, tmp_path):
                  ["--project", project, "context"],
                  ["--project", project, "note", "finding", "3.11에서"],
                  ["--project", project, "report"]):
-        done = ok([venv_python(venv), "-m", "labkit", *args], cwd=tmp_path, env=env)
+        done = ok([venv_python(venv), "-m", "aelix_analytics", *args], cwd=tmp_path, env=env)
         assert json.loads(done.stdout.splitlines()[-1])["ok"] is True, (args, done.stdout)
     (project / "scripts").mkdir(exist_ok=True)
     (project / "scripts" / "plain.py").write_text(
-        "import labkit as lab\n"
-        "lab.note('finding', 'a run on the floor')\n"
+        "import aelix_analytics as analytics\n"
+        "analytics.note('finding', 'a run on the floor')\n"
         "print(sum(range(10)))\n", encoding="utf-8")
-    done = ok([venv_python(venv), "-m", "labkit", "--project", project, "run", "scripts/plain.py",
+    done = ok([venv_python(venv), "-m", "aelix_analytics", "--project", project, "run", "scripts/plain.py",
                "--title", "3.11에서 run"], cwd=tmp_path, env=env)
     result = json.loads(done.stdout.splitlines()[-1])
     assert result["ok"] is True and result["run"]["status"] == "ok", done.stdout

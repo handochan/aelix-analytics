@@ -254,7 +254,7 @@ def import_warnings(name: str, info: dict, retyped: list[str]) -> list[str]:
     if info["rows"] == 1 and len(info["columns"]) <= 2 and nested:
         warnings.append(f"the source is one JSON object, so {name} is {info['rows']} row × "
                         f"{len(info['columns'])} nested column(s) and is not queryable as a table: "
-                        f"unnest it in a lab_run script (lab.sql(\"SELECT unnest(...) FROM "
+                        f"unnest it in a lab_run script (analytics.sql(\"SELECT unnest(...) FROM "
                         f"{name}\")) and lab.save the flat table")
     elif nested:
         warnings.append(f"nested column(s) {', '.join(nested[:6])}: flatten them in a lab_run "

@@ -1,6 +1,6 @@
 """A deliberate analysis error whose original record must survive repair."""
 
-import labkit as lab
+import aelix_analytics as analytics
 
-sales = lab.read("sales")
+sales = analytics.read("sales")
 raise ValueError("Fixture: revenue requires source correction")

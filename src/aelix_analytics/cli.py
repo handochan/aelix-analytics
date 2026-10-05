@@ -11,7 +11,7 @@ docs/CONTRACTS.md, section F. `bin/lab` stays the command of a checkout, under i
 the rename of Issue #9; tests/test_launcher.py holds the two to one contract.
 
 Every command runs the kit in the project's own environment, as `bin/lab` does:
-`uv run --project <project> python -m labkit ...` with PYTHONPATH set to exactly the kit this
+`uv run --project <project> python -m aelix_analytics ...` with PYTHONPATH set to exactly the kit this
 distribution installed. This process uses the standard library only, on Python 3.11 or later.
 """
 
@@ -92,7 +92,7 @@ def _command(args: list[str], kit: Path | None, uv_argv: list[str] | None,
             return 127
         directory, rest = args[0], args[1:]
         code = children.run([*uv, "run", "--no-project", "--python", "3.12", "--quiet", "python",
-                             "-m", "labkit", "init", directory, *rest], env)
+                             "-m", "aelix_analytics", "init", directory, *rest], env)
         if code or children.interrupted:
             return code or children.stopped
         project = str(Path(directory).resolve())
@@ -143,7 +143,7 @@ def _command(args: list[str], kit: Path | None, uv_argv: list[str] | None,
 
 def child_env(kit: Path) -> dict[str, str]:
     """The caller's environment, as `bin/lab` passes it on, and the kit exactly: PYTHONPATH is
-    replaced rather than extended, so an analysis environment sees `labkit` and nothing else of the
+    replaced rather than extended, so an analysis environment sees `aelix_analytics` and nothing else of the
     environment this command is installed in. Children write no bytecode into the installed kit,
     which an uninstall would otherwise leave behind."""
     env = {name: value for name, value in os.environ.items() if name != "VIRTUAL_ENV"}
@@ -153,7 +153,7 @@ def child_env(kit: Path) -> dict[str, str]:
 
 
 def kit_argv(uv: list[str], project: str, *args: str) -> list[str]:
-    return [*uv, "run", "--project", project, "--quiet", "python", "-m", "labkit",
+    return [*uv, "run", "--project", project, "--quiet", "python", "-m", "aelix_analytics",
             "--project", project, *args]
 
 
@@ -291,11 +291,11 @@ class _Children:
 
 
 def _load_platform(kit: Path):
-    """The kit's _platform module — standard library only, importing nothing from labkit — loaded
+    """The kit's _platform module — standard library only, importing nothing from aelix_analytics — loaded
     from `kit` under a name of its own, and in sys.modules only while it executes, as the aelix
     extension loads it (ADR-0003). It chooses how this platform opens a document and finds a
     program, so this file has no platform branch of its own."""
-    path = kit / "labkit" / "_platform.py"
+    path = kit / "aelix_analytics" / "_platform.py"
     name = f"aelix_analytics_platform_{hashlib.sha256(str(kit).encode()).hexdigest()[:12]}"
     spec = importlib.util.spec_from_file_location(name, path)
     module = importlib.util.module_from_spec(spec)

@@ -1,7 +1,7 @@
 """Project model for Aelix Analytics projects. Standard library only.
 
 The aelix extension loads this file inside the aelix process, so it must not import polars, duckdb,
-plotting libraries or any other labkit module except `_platform`, which is standard library only for
+plotting libraries or any other aelix_analytics module except `_platform`, which is standard library only for
 the same reason. Code that needs the analysis libraries runs inside a project's own uv environment
 (runner, data, report).
 
@@ -1279,7 +1279,7 @@ def init_project(target, *, title=None, goal=None, template_dir=None, actor="hum
         texts = {src: (template / src).read_text(encoding="utf-8") for src in TEMPLATE_FILES}
     except OSError as exc:
         raise LabError("template_missing", f"the project template cannot be read: {exc}",
-                       hint="reinstall aelix-analytics; in a checkout, restore kit/labkit/template"
+                       hint="reinstall aelix-analytics; in a checkout, restore src/aelix_analytics/template"
                        ) from exc
     root.mkdir(parents=True, exist_ok=True)
     project = Project(root, platform=platform)

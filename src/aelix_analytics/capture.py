@@ -1,8 +1,8 @@
 """Recording layer for one run: data reads, saved datasets and charts.
 
-Scripts do not have to import labkit. Import hooks wrap the usual entry points while a run is active:
+Scripts do not have to import aelix_analytics. Import hooks wrap the usual entry points while a run is active:
 Polars readers and DuckDB reads/SQL record input files; `plt.show()`, `Figure.show()` and plotly's
-`fig.show()` record charts instead of opening windows. `labkit.chart(..., data=df)` adds what a hook
+`fig.show()` record charts instead of opening windows. `aelix_analytics.chart(..., data=df)` adds what a hook
 cannot know: a stable id, a caption and the exact plotted data.
 """
 
@@ -614,7 +614,7 @@ HOOKS = {"polars": patch_polars, "duckdb": patch_duckdb, "matplotlib": style_mat
 
 @contextlib.contextmanager
 def paused():
-    """Suspend recording inside labkit's own bookkeeping calls."""
+    """Suspend recording inside aelix_analytics's own bookkeeping calls."""
     global ACTIVE
     saved, ACTIVE = ACTIVE, None
     try:

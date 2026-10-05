@@ -22,10 +22,10 @@ Strategy 패턴은 동작 방식의 교체에 사용한다. 저장소·실행 �
 
 | 현재 위치 | 유지할 장점 | 분리할 책임 |
 |---|---|---|
-| [core.py](../kit/labkit/core.py) | stdlib만으로 프로젝트 기록을 읽을 수 있음 | 파일·잠금·journal 쓰기, 의미 규칙, 상태/관계 계산, 맥락 선택·텍스트 표시 |
-| [runner.py](../kit/labkit/runner.py) | 자유 코드 실행과 실패·스냅샷·산출물 기록 | 실행 backend, 캡처, 작업 조정, 완료 기록·재실행 비교 |
-| [report.py](../kit/labkit/report.py) | 동일 기록에서 탐색 가능한 HTML 생성 | 공통 읽기 모델, 표시 형식, 공유 범위 투영, 파일 빌드 |
-| [capture.py](../kit/labkit/capture.py), [data.py](../kit/labkit/data.py) | 관용 코드와 데이터 도구를 활용 | 라이브러리별 캡처·입출력 어댑터와 기록 의미 |
+| [core.py](../src/aelix_analytics/core.py) | stdlib만으로 프로젝트 기록을 읽을 수 있음 | 파일·잠금·journal 쓰기, 의미 규칙, 상태/관계 계산, 맥락 선택·텍스트 표시 |
+| [runner.py](../src/aelix_analytics/runner.py) | 자유 코드 실행과 실패·스냅샷·산출물 기록 | 실행 backend, 캡처, 작업 조정, 완료 기록·재실행 비교 |
+| [report.py](../src/aelix_analytics/report.py) | 동일 기록에서 탐색 가능한 HTML 생성 | 공통 읽기 모델, 표시 형식, 공유 범위 투영, 파일 빌드 |
+| [capture.py](../src/aelix_analytics/capture.py), [data.py](../src/aelix_analytics/data.py) | 관용 코드와 데이터 도구를 활용 | 라이브러리별 캡처·입출력 어댑터와 기록 의미 |
 | [Aelix 어댑터](../extension/aelix_lab.py) | 프로젝트별 분석 환경으로 실행 위임 | 호스트 이벤트·도구 표현, 프로젝트 선택 상태, core 연결·자원 경로 |
 
 현재의 host/프로젝트 uv 환경 분리는 유지한다. `STATE`, 활성 캡처·연결 같은 상태는 향후 세션·프로젝트·실행 수명에 맞춰 소유한다.

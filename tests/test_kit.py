@@ -7,22 +7,22 @@ from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 import pytest
-from conftest import LINK_KINDS, dir_link, labkit, write_script
+from conftest import LINK_KINDS, dir_link, kit_cli, write_script
 
-from labkit import _platform, core, runner
+from aelix_analytics import _platform, core, runner
 
 LAB_API = '''import matplotlib.pyplot as plt
 import polars as pl
 
-import labkit as lab
+import aelix_analytics as analytics
 
-sales = lab.read("sales")
+sales = analytics.read("sales")
 by_region = sales.group_by("region").agg(pl.col("revenue").sum()).sort("region")
-lab.save(by_region, "region_revenue")
+analytics.save(by_region, "region_revenue")
 fig, ax = plt.subplots()
 ax.bar(by_region["region"], by_region["revenue"])
 ax.set_title("지역별 매출")
-lab.chart(fig, "region-revenue", caption="합계", data=by_region)
+analytics.chart(fig, "region-revenue", caption="합계", data=by_region)
 print("rows", by_region.height)
 '''
 
@@ -47,14 +47,14 @@ plt.show()
 
 
 def _run(project, script, title="t", *extra):
-    return labkit(project, "run", script, "--title", title, *extra)
+    return kit_cli(project, "run", script, "--title", title, *extra)
 
 
 def test_init_layout_and_journal(tmp_path):
     root = tmp_path / "p"
     from conftest import KIT
 
-    project = core.init_project(root, title="분석", template_dir=KIT / "labkit" / "template", actor="test")
+    project = core.init_project(root, title="분석", template_dir=KIT / "aelix_analytics" / "template", actor="test")
     for rel in ("lab.json", "CONTEXT.md", "journal.jsonl", "pyproject.toml", ".python-version",
                 ".gitignore", "data/raw", "data/derived", "scripts", "runs", "report"):
         assert (root / rel).exists(), rel
@@ -62,7 +62,7 @@ def test_init_layout_and_journal(tmp_path):
     assert kinds == ["project", "context"]
     assert "{{" not in (root / "pyproject.toml").read_text(encoding="utf-8")
     try:
-        core.init_project(root, template_dir=KIT / "labkit" / "template")
+        core.init_project(root, template_dir=KIT / "aelix_analytics" / "template")
     except core.LabError as exc:
         assert exc.code == "init_not_empty"
     else:
@@ -114,9 +114,9 @@ def test_idiomatic_duckdb_plotly_and_polars_matplotlib_are_captured(project):
 
 def test_lab_sql_records_the_views_it_reads(project):
     _run(project, write_script(project, "00_part.py",
-                               "import labkit as lab\nlab.save(lab.read('sales').head(5), 'part')\n"))
-    body = ("import labkit as lab\n"
-            "rel = lab.sql(\"WITH p AS (SELECT * FROM part) SELECT s.region, count(*) AS n "
+                               "import aelix_analytics as analytics\nanalytics.save(analytics.read('sales').head(5), 'part')\n"))
+    body = ("import aelix_analytics as analytics\n"
+            "rel = analytics.sql(\"WITH p AS (SELECT * FROM part) SELECT s.region, count(*) AS n "
             "FROM sales s JOIN p USING (region) WHERE s.channel <> 'part' GROUP BY 1\")\n"
             "print(rel.pl().height)\n")
     _, result = _run(project, write_script(project, "04_sql.py", body))
@@ -143,25 +143,25 @@ def test_timeout_is_recorded(project):
 
 def test_rerun_match_and_mismatch(project):
     _, first = _run(project, write_script(project, "01_region.py", LAB_API))
-    _, again = labkit(project, "run", "--rerun-of", first["run"]["id"], "--title", "rerun")
+    _, again = kit_cli(project, "run", "--rerun-of", first["run"]["id"], "--title", "rerun")
     repro = again["run"]["reproduction"]
     assert repro["verdict"] == "match" and repro["inputs_same"]
     assert repro["charts"] == {"region-revenue": "same data"}
 
-    noisy = ("import time\nimport matplotlib.pyplot as plt\nimport polars as pl\nimport labkit as lab\n"
+    noisy = ("import time\nimport matplotlib.pyplot as plt\nimport polars as pl\nimport aelix_analytics as analytics\n"
              "fig, ax = plt.subplots()\n"
-             "lab.chart(fig, 'n', data=pl.DataFrame({'t': [time.time_ns()]}))\n")
+             "analytics.chart(fig, 'n', data=pl.DataFrame({'t': [time.time_ns()]}))\n")
     _, one = _run(project, write_script(project, "noise.py", noisy))
-    _, two = labkit(project, "run", "--rerun-of", one["run"]["id"], "--title", "rerun")
+    _, two = kit_cli(project, "run", "--rerun-of", one["run"]["id"], "--title", "rerun")
     assert two["run"]["reproduction"]["verdict"] == "mismatch"
 
 
 def test_charts_turn_stale_when_an_upstream_output_changes(project):
-    upstream = ("import polars as pl\nimport labkit as lab\n"
-                "lab.save(lab.read('sales').head(10), 'part')\n")
-    downstream = ("import matplotlib.pyplot as plt\nimport labkit as lab\n"
-                  "part = lab.read('part')\nfig, ax = plt.subplots()\nax.plot(part['revenue'])\n"
-                  "lab.chart(fig, 'part-line', data=part)\n")
+    upstream = ("import polars as pl\nimport aelix_analytics as analytics\n"
+                "analytics.save(analytics.read('sales').head(10), 'part')\n")
+    downstream = ("import matplotlib.pyplot as plt\nimport aelix_analytics as analytics\n"
+                  "part = analytics.read('part')\nfig, ax = plt.subplots()\nax.plot(part['revenue'])\n"
+                  "analytics.chart(fig, 'part-line', data=part)\n")
     _run(project, write_script(project, "10_up.py", upstream))
     _run(project, write_script(project, "11_down.py", downstream))
     st = core.status(core.Project(project))
@@ -177,15 +177,15 @@ def test_charts_turn_stale_when_an_upstream_output_changes(project):
 
 
 def test_query_is_read_only(project):
-    code, result = labkit(project, "query", "SELECT region, count(*) AS n FROM sales GROUP BY 1 ORDER BY 1")
+    code, result = kit_cli(project, "query", "SELECT region, count(*) AS n FROM sales GROUP BY 1 ORDER BY 1")
     assert code == 0 and [r[1] for r in result["rows"]] == [40, 40, 40]
     assert result["tables"] == ["sales"]
-    code, result = labkit(project, "query", "SUMMARIZE sales")
+    code, result = kit_cli(project, "query", "SUMMARIZE sales")
     assert code == 0 and result["rows"]
     for sql, expected in (("COPY (SELECT 1) TO 'x.parquet'", "query_read_only"),
                           ("CREATE TABLE t AS SELECT 1", "query_read_only"),
                           ("SELECT 1; SELECT 2", "query_single_statement")):
-        code, result = labkit(project, "query", sql)
+        code, result = kit_cli(project, "query", sql)
         assert code == 1 and result["error"]["code"] == expected
     assert not (Path(project) / "x.parquet").exists()
 
@@ -193,11 +193,11 @@ def test_query_is_read_only(project):
 def test_import_is_immutable_and_records_source(project, tmp_path):
     meta = json.loads((project / "data/raw/sales.meta.json").read_text(encoding="utf-8"))
     assert meta["rows"] == 120 and meta["source"]["format"] == "csv" and meta["source"]["sha256"]
-    code, result = labkit(project, "import", tmp_path / "sales.csv", "--name", "sales")
+    code, result = kit_cli(project, "import", tmp_path / "sales.csv", "--name", "sales")
     assert code == 1 and result["error"]["code"] == "dataset_exists"
     ndjson = tmp_path / "events.ndjson"
     ndjson.write_text('{"a": 1, "b": "x"}\n{"a": 2, "b": "y"}\n', encoding="utf-8")
-    code, result = labkit(project, "import", ndjson)
+    code, result = kit_cli(project, "import", ndjson)
     assert code == 0 and result["dataset"]["name"] == "events" and result["dataset"]["rows"] == 2
 
 
@@ -237,7 +237,7 @@ class _Links(HTMLParser):
 def test_report_links_point_at_existing_files_and_anchors(project):
     _run(project, write_script(project, "01_region.py", LAB_API))
     _run(project, write_script(project, "02_mix.py", DUCKDB_PLOTLY))
-    code, result = labkit(project, "report")
+    code, result = kit_cli(project, "report")
     assert code == 0
     report = project / "report"
     pages = sorted(report.rglob("*.html"))
@@ -284,14 +284,14 @@ def _write_csv(path: Path, header: str, rows: list[str]) -> Path:
 
 
 def test_one_figure_reused_for_several_named_charts_keeps_each_chart(project):
-    body = ("import matplotlib.pyplot as plt\nimport polars as pl\nimport labkit as lab\n"
-            "sales = lab.read('sales')\nfig, ax = plt.subplots()\n"
+    body = ("import matplotlib.pyplot as plt\nimport polars as pl\nimport aelix_analytics as analytics\n"
+            "sales = analytics.read('sales')\nfig, ax = plt.subplots()\n"
             "for n, region in [(5, '서울'), (6, '부산'), (7, '대구')]:\n"
             "    part = sales.filter(pl.col('region') == region).head(n)\n"
             "    ax.clear()\n    ax.plot(part['revenue'])\n    ax.set_title(f'Revenue {region}')\n"
-            "    lab.chart(fig, f'rev-{len(part)}', data=part)\n"
+            "    analytics.chart(fig, f'rev-{len(part)}', data=part)\n"
             "fig2, ax2 = plt.subplots()\nax2.plot([1, 2])\nplt.show()\n"
-            "lab.chart(fig2, 'named-after-show', data=pl.DataFrame({'y': [1, 2]}))\n")
+            "analytics.chart(fig2, 'named-after-show', data=pl.DataFrame({'y': [1, 2]}))\n")
     _, result = _run(project, write_script(project, "05_loop.py", body))
     charts = {c["id"]: c for c in result["run"]["charts"]}
     assert set(charts) == {"rev-5", "rev-6", "rev-7", "named-after-show"}, charts
@@ -304,35 +304,35 @@ def test_one_figure_reused_for_several_named_charts_keeps_each_chart(project):
 
 
 def test_failed_or_incomplete_rerun_is_never_a_match(project):
-    first = ("import polars as pl\nimport labkit as lab\nfrom pathlib import Path\n"
-             "df = lab.read('sales').head(4)\nlab.save(df, 'base')\n"
-             "if Path('data/derived/switch.txt').exists():\n    lab.save(df, 'maybe')\n")
+    first = ("import polars as pl\nimport aelix_analytics as analytics\nfrom pathlib import Path\n"
+             "df = analytics.read('sales').head(4)\nanalytics.save(df, 'base')\n"
+             "if Path('data/derived/switch.txt').exists():\n    analytics.save(df, 'maybe')\n")
     (project / "data/derived/switch.txt").write_text("on", encoding="utf-8")
     _, one = _run(project, write_script(project, "06_cond.py", first))
     (project / "data/derived/switch.txt").unlink()
-    _, two = labkit(project, "run", "--rerun-of", one["run"]["id"], "--title", "rerun")
+    _, two = kit_cli(project, "run", "--rerun-of", one["run"]["id"], "--title", "rerun")
     repro = two["run"]["reproduction"]
     assert repro["verdict"] == "mismatch" and repro["outputs"]["data/derived/maybe.parquet"] == "not written"
 
-    reader = ("import polars as pl\nimport matplotlib.pyplot as plt\nimport labkit as lab\n"
+    reader = ("import polars as pl\nimport matplotlib.pyplot as plt\nimport aelix_analytics as analytics\n"
               "df = pl.read_parquet('data/derived/base.parquet')\nfig, ax = plt.subplots()\n"
-              "ax.plot(df['revenue'])\nlab.chart(fig, 'rev', data=df)\n")
+              "ax.plot(df['revenue'])\nanalytics.chart(fig, 'rev', data=df)\n")
     _, three = _run(project, write_script(project, "07_reader.py", reader))
     (project / "data/derived/base.parquet").unlink()
-    code, four = labkit(project, "run", "--rerun-of", three["run"]["id"], "--title", "rerun")
+    code, four = kit_cli(project, "run", "--rerun-of", three["run"]["id"], "--title", "rerun")
     assert code == 3 and four["run"]["status"] == "error"
     assert four["run"]["reproduction"]["verdict"] == "failed"
 
 
 def test_rerun_of_an_old_snapshot_does_not_become_the_current_chart(project):
-    v1 = ("import matplotlib.pyplot as plt\nimport labkit as lab\ndf = lab.read('sales')\n"
-          "fig, ax = plt.subplots()\nax.plot(df['revenue'])\nlab.chart(fig, 'rev', title='v1', data=df)\n")
+    v1 = ("import matplotlib.pyplot as plt\nimport aelix_analytics as analytics\ndf = analytics.read('sales')\n"
+          "fig, ax = plt.subplots()\nax.plot(df['revenue'])\nanalytics.chart(fig, 'rev', title='v1', data=df)\n")
     _, one = _run(project, write_script(project, "08_versions.py", v1))
     v2 = v1.replace("title='v1'", "title='v2'") + (
-        "fig2, ax2 = plt.subplots()\nax2.plot(df['revenue'])\nlab.chart(fig2, 'orders', data=df)\n")
+        "fig2, ax2 = plt.subplots()\nax2.plot(df['revenue'])\nanalytics.chart(fig2, 'orders', data=df)\n")
     time.sleep(0.01)
     _, two = _run(project, write_script(project, "08_versions.py", v2))
-    labkit(project, "run", "--rerun-of", one["run"]["id"], "--title", "check v1")
+    kit_cli(project, "run", "--rerun-of", one["run"]["id"], "--title", "check v1")
     charts = {c["key"].split("::")[1]: c for c in core.chart_index(core.list_runs(core.Project(project)))}
     assert charts["rev"]["title"] == "v2" and charts["rev"]["run"] == two["run"]["id"]
     assert not charts["orders"]["retired"]
@@ -340,16 +340,16 @@ def test_rerun_of_an_old_snapshot_does_not_become_the_current_chart(project):
 
 
 def test_reading_back_an_own_output_is_not_an_input_and_not_stale(project):
-    body = ("import polars as pl\nimport matplotlib.pyplot as plt\nimport labkit as lab\n"
-            "m = lab.read('sales').group_by('region').agg(pl.col('revenue').sum()).sort('region')\n"
-            "lab.save(m, 'monthly')\nback = pl.read_parquet('data/derived/monthly.parquet')\n"
+    body = ("import polars as pl\nimport matplotlib.pyplot as plt\nimport aelix_analytics as analytics\n"
+            "m = analytics.read('sales').group_by('region').agg(pl.col('revenue').sum()).sort('region')\n"
+            "analytics.save(m, 'monthly')\nback = pl.read_parquet('data/derived/monthly.parquet')\n"
             "fig, ax = plt.subplots()\nax.bar(back['region'], back['revenue'])\n"
-            "lab.chart(fig, 'back', data=back)\n")
+            "analytics.chart(fig, 'back', data=back)\n")
     script = write_script(project, "09_readback.py", body)
     _run(project, script)
     _, second = _run(project, script)
     assert [i["path"] for i in second["run"]["inputs"]] == ["data/raw/sales.parquet"]
-    incremental = ("import polars as pl\nimport labkit as lab\nfrom pathlib import Path\n"
+    incremental = ("import polars as pl\nimport aelix_analytics as analytics\nfrom pathlib import Path\n"
                    "p = Path('data/derived/acc.parquet')\n"
                    "old = pl.read_parquet(p) if p.exists() else pl.DataFrame({'n': []}, schema={'n': pl.Int64})\n"
                    "pl.concat([old, pl.DataFrame({'n': [old.height]})]).write_parquet(p)\n")
@@ -375,7 +375,7 @@ UNREADABLE = ("if os.name == 'nt':\n"
 
 
 def test_finalization_survives_bad_notes_replaced_stdout_and_unreadable_outputs(project):
-    body = ("import os, sys\nimport labkit as lab\nlab.note('finding', 42)\n"
+    body = ("import os, sys\nimport aelix_analytics as analytics\nanalytics.note('finding', 42)\n"
             "open('data/derived/secret.bin', 'wb').write(b'x')\n" + UNREADABLE +
             "sys.stdout = open('data/derived/log.txt', 'w')\nprint('into the log')\n")
     code, result = _run(project, write_script(project, "11_hostile.py", body))
@@ -404,7 +404,7 @@ def _read_text(project, path: Path, separator: str):
     """`lab_query` reading one file. `content` only: read_text's last_modified column is a
     TIMESTAMPTZ, which needs pytz, which no environment here has (design review T9)."""
     text = str(path).replace(os.sep, separator)
-    return labkit(project, "query", f"SELECT content FROM read_text('{text}')")
+    return kit_cli(project, "query", f"SELECT content FROM read_text('{text}')")
 
 
 def _refused(result) -> bool:
@@ -418,7 +418,7 @@ def test_query_cannot_write_or_read_outside_data(project):
     data/.. — is refused by DuckDB's sandbox, while a file inside data/ is read: the refusal is the
     sandbox's, not a path that does not exist (criterion 9: this read /etc/hosts, which Windows
     does not have)."""
-    code, result = labkit(project, "query", f"EXPLAIN ANALYZE COPY (SELECT * FROM sales) TO '{project}/data/derived/sneaky.parquet'")
+    code, result = kit_cli(project, "query", f"EXPLAIN ANALYZE COPY (SELECT * FROM sales) TO '{project}/data/derived/sneaky.parquet'")
     assert code == 1 and result["error"]["code"] == "query_read_only"
     assert not (project / "data/derived/sneaky.parquet").exists()
     (project / "data" / "raw" / "note.txt").write_text("inside", encoding="utf-8")
@@ -429,7 +429,7 @@ def test_query_cannot_write_or_read_outside_data(project):
             assert outside.is_file()
             code, result = _read_text(project, outside, separator)
             assert code == 1 and _refused(result), (separator, outside, result)
-    code, result = labkit(project, "query", "EXPLAIN SELECT count(*) FROM sales")
+    code, result = kit_cli(project, "query", "EXPLAIN SELECT count(*) FROM sales")
     assert code == 0
 
 
@@ -449,23 +449,23 @@ def test_query_cannot_read_through_a_link_out_of_data(project, tmp_path, kind):
 
 def test_sql_lineage_ignores_columns_and_ctes_named_like_datasets(project, tmp_path):
     csv = _write_csv(tmp_path / "region.csv", "region,manager", ["서울,a", "부산,b"])
-    assert labkit(project, "import", csv, "--name", "region")[0] == 0
-    body = ("import labkit as lab\n"
-            "rel = lab.sql(\"WITH sales AS (SELECT * FROM sales) SELECT s.region FROM sales s "
+    assert kit_cli(project, "import", csv, "--name", "region")[0] == 0
+    body = ("import aelix_analytics as analytics\n"
+            "rel = analytics.sql(\"WITH sales AS (SELECT * FROM sales) SELECT s.region FROM sales s "
             "JOIN (SELECT 1 AS k) x ON true WHERE s.region IN (SELECT region FROM sales)\")\n"
             "print(rel.pl().height)\n")
     _, result = _run(project, write_script(project, "13_cte.py", body))
     assert [i["path"] for i in result["run"]["inputs"]] == ["data/raw/sales.parquet"]
-    from labkit import data
+    from aelix_analytics import data
     views = {"sales": "data/raw/sales.parquet", "region": "data/raw/region.parquet"}
     assert data.referenced_views("SELECT * FROM sales s JOIN sales t USING (region)", views) == {"sales"}
 
 
 def test_import_refuses_a_name_used_by_a_derived_dataset(project, tmp_path):
     _run(project, write_script(project, "14_derive.py",
-                               "import labkit as lab\nlab.save(lab.read('sales').head(2), 'monthly')\n"))
+                               "import aelix_analytics as analytics\nanalytics.save(analytics.read('sales').head(2), 'monthly')\n"))
     csv = _write_csv(tmp_path / "monthly.csv", "a", ["1"])
-    code, result = labkit(project, "import", csv, "--name", "monthly")
+    code, result = kit_cli(project, "import", csv, "--name", "monthly")
     assert code == 1 and result["error"]["code"] == "dataset_name_taken"
 
 
@@ -475,10 +475,10 @@ def test_concurrent_runs_do_not_claim_each_others_outputs(project):
 
     from conftest import kit_env
 
-    a = write_script(project, "15_a.py", "import time\nimport labkit as lab\ntime.sleep(1.5)\n"
-                                         "lab.save(lab.read('sales').head(1), 'a_out')\n")
-    b = write_script(project, "16_b.py", "import labkit as lab\nlab.save(lab.read('sales').head(1), 'b_out')\n")
-    procs = [subprocess.Popen([sys.executable, "-m", "labkit", "--project", str(project), "run", s,
+    a = write_script(project, "15_a.py", "import time\nimport aelix_analytics as analytics\ntime.sleep(1.5)\n"
+                                         "analytics.save(analytics.read('sales').head(1), 'a_out')\n")
+    b = write_script(project, "16_b.py", "import aelix_analytics as analytics\nanalytics.save(analytics.read('sales').head(1), 'b_out')\n")
+    procs = [subprocess.Popen([sys.executable, "-m", "aelix_analytics", "--project", str(project), "run", s,
                                "--title", s], stdout=subprocess.PIPE, env=kit_env(),
                               **_platform.text_kwargs())
              for s in (a, b)]
@@ -489,25 +489,25 @@ def test_concurrent_runs_do_not_claim_each_others_outputs(project):
 
 
 def test_rerun_ids_and_recorded_paths_are_validated(project):
-    code, result = labkit(project, "run", "--rerun-of", "../../evil", "--title", "x")
+    code, result = kit_cli(project, "run", "--rerun-of", "../../evil", "--title", "x")
     assert code == 1 and result["error"]["code"] == "rerun_id"
     _, one = _run(project, write_script(project, "17_ok.py", "x = 1\n"))
     run_json = project / "runs" / one["run"]["id"] / "run.json"
     record = json.loads(run_json.read_text(encoding="utf-8"))
     record["script"]["path"] = "/tmp/evil.py"
     run_json.write_text(json.dumps(record), encoding="utf-8")
-    code, result = labkit(project, "run", "--rerun-of", one["run"]["id"], "--title", "x")
+    code, result = kit_cli(project, "run", "--rerun-of", one["run"]["id"], "--title", "x")
     assert code == 1 and result["error"]["code"] == "rerun_snapshot"
 
 
 def test_non_utf8_context_does_not_break_status_or_report(project):
     (project / "CONTEXT.md").write_bytes("# 목표\n매출 분석\n".encode("cp949"))
-    assert labkit(project, "status")[0] == 0
-    assert labkit(project, "report")[0] == 0
+    assert kit_cli(project, "status")[0] == 0
+    assert kit_cli(project, "report")[0] == 0
 
 
 def test_chart_anchors_are_unique_for_similar_keys():
-    from labkit import report
+    from aelix_analytics import report
     keys = [f"scripts/{'x' * 70}.py::growth-rate-by-region-{year}" for year in (2024, 2025)]
     keys += ["scripts/a.py::rev_total", "scripts/a.py::rev-total"]
     assert len({report.slug_key(k) for k in keys}) == len(keys)
@@ -528,12 +528,12 @@ def test_dynamic_duckdb_params_quoted_paths_and_polars_io_are_detected(project):
 
 
 def test_replacing_a_chart_id_leaves_no_phantom_chart(project):
-    body = ("import matplotlib.pyplot as plt\nimport polars as pl\nimport labkit as lab\n"
-            "df = lab.read('sales')\n"
+    body = ("import matplotlib.pyplot as plt\nimport polars as pl\nimport aelix_analytics as analytics\n"
+            "df = analytics.read('sales')\n"
             "fig1, ax1 = plt.subplots()\nax1.plot(df['revenue'].head(3))\nax1.set_title('DRAFT chart')\n"
-            "lab.chart(fig1, 'rev', title='draft', data=df.head(3))\n"
+            "analytics.chart(fig1, 'rev', title='draft', data=df.head(3))\n"
             "fig2, ax2 = plt.subplots()\nax2.plot(df['revenue'].head(9))\nax2.set_title('FINAL chart')\n"
-            "lab.chart(fig2, 'rev', title='final', data=df.head(9))\n")
+            "analytics.chart(fig2, 'rev', title='final', data=df.head(9))\n")
     _, result = _run(project, write_script(project, "21_replace.py", body))
     charts = result["run"]["charts"]
     assert [(c["id"], c["title"], c["via"], c["data_rows"]) for c in charts] == [
@@ -547,7 +547,7 @@ def test_a_journal_failure_after_the_record_is_still_reported(project):
     (project / "journal.jsonl").unlink()
     (project / "journal.jsonl").mkdir()
     code, result = _run(project, write_script(project, "22_note.py",
-                                              "import labkit as lab\nlab.note('finding', 'x')\n"))
+                                              "import aelix_analytics as analytics\nanalytics.note('finding', 'x')\n"))
     assert code == 0 and result["run"]["status"] == "ok"
     problems = result["finalize_errors"]
     assert any(p.startswith("journal:") for p in problems) and any(p.startswith("note ") for p in problems)
@@ -559,19 +559,19 @@ MANY_INPUTS = '''from pathlib import Path
 
 import polars as pl
 
-import labkit as lab
+import aelix_analytics as analytics
 
 parts = sorted(Path("sources").glob("*.parquet"))
 frames = [pl.read_parquet(p) for p in parts]
-lab.save(pl.concat(frames), "combined")
+analytics.save(pl.concat(frames), "combined")
 print("parts", len(frames))
 '''
 
 READS_EXTERNAL = '''import polars as pl
 
-import labkit as lab
+import aelix_analytics as analytics
 
-lab.save(pl.read_csv(r"{source}").head(3), "peek")
+analytics.save(pl.read_csv(r"{source}").head(3), "peek")
 '''
 
 
@@ -602,7 +602,7 @@ def test_a_run_over_many_files_stays_readable_in_the_journal_and_report(project)
     assert "input file(s)" in event["text"]
     assert len(json.dumps(event, ensure_ascii=False)) < 4000
 
-    assert labkit(project, "report")[0] == 0
+    assert kit_cli(project, "report")[0] == 0
     index = (project / "report" / "index.html").read_text(encoding="utf-8")
     assert "그 외 12개" in index, "the timeline does not say how many refs it hid"
     assert index.count("part_") <= 2 * core.MAX_EVENT_REFS, "the timeline dumped every input path"
@@ -616,7 +616,7 @@ def test_import_reads_uuid_as_text_and_warns_about_a_nested_json_object(project,
     src.write_text("\n".join(json.dumps({"session_id": sid, "n": i}) for i, sid in enumerate(
         ("3cdcaca2-c8b0-4a79-9fd7-4d21a1a2f03d", "b81995e3-4776-4175-bc82-eab0d664d109"))),
         encoding="utf-8")
-    code, result = labkit(project, "import", src, "--name", "events")
+    code, result = kit_cli(project, "import", src, "--name", "events")
     assert code == 0, result
     dtypes = {c["name"]: c["dtype"] for c in result["dataset"]["columns"]}
     assert dtypes["session_id"] == "String", dtypes
@@ -625,7 +625,7 @@ def test_import_reads_uuid_as_text_and_warns_about_a_nested_json_object(project,
     obj = tmp_path / "settings.json"
     obj.write_text(json.dumps({"providers": {"ollama": {"models": [{"id": "q"}]}}}),
                    encoding="utf-8")
-    code, result = labkit(project, "import", obj, "--name", "settings")
+    code, result = kit_cli(project, "import", obj, "--name", "settings")
     assert code == 0 and result["dataset"]["rows"] == 1
     assert any("one JSON object" in w for w in result["warnings"]), result["warnings"]
 
@@ -645,7 +645,7 @@ def test_an_external_input_names_the_dataset_it_was_imported_as(project, tmp_pat
     assert code == 0, result
     warnings = result["run"]["warnings"]
     assert any("already imported as dataset 'sales'" in w for w in warnings), warnings
-    assert any("lab.read('sales')" in w for w in warnings), warnings
+    assert any("analytics.read('sales')" in w for w in warnings), warnings
 
 
 def test_a_context_with_no_sections_is_cut_and_says_to_split_it(project):
@@ -686,7 +686,7 @@ def test_records_from_a_newer_kit_are_skipped_and_said_so(project):
     assert core.unreadable_records(p) == {"lab.event/2": 1, "lab.run/2": 1}
     text = core.status_text(core.status(p))
     assert "lab.event/2" in text and "update the lab kit" in text
-    assert labkit(project, "report")[0] == 0
+    assert kit_cli(project, "report")[0] == 0
     assert "이 리포트에서 빠진 기록이 있습니다" in (p.report / "index.html").read_text(encoding="utf-8")
 
     marker = json.loads(p.marker.read_text(encoding="utf-8"))
@@ -703,7 +703,7 @@ def test_a_failing_run_says_what_to_write_instead(project):
     code, result = _run(project, write_script(project, "01_habit.py", POLARS_PANDAS_HABIT), "습관")
     assert code != 0
     assert "print(df)" in result["run"]["error"]["hint"]
-    assert labkit(project, "report")[0] == 0
+    assert kit_cli(project, "report")[0] == 0
     page = next((project / "report" / "runs").glob("*01-habit.html")).read_text(encoding="utf-8")
     assert "고치는 법" in page and "df.glimpse()" in page
 
@@ -739,7 +739,7 @@ def test_context_is_disclosed_by_section_not_truncated_mid_sentence(project):
     text = core.status_text(st)
     assert "데이터 출처" in text and "<!-- 항상 -->" in text
 
-    assert labkit(project, "report")[0] == 0
+    assert kit_cli(project, "report")[0] == 0
     index = (p.report / "index.html").read_text(encoding="utf-8")
     assert "프롬프트에 매번 들어가는 섹션: 목표, 다음 할 일" in index
     assert "| a | b |" in index, "the report still shows the whole file"
@@ -761,7 +761,7 @@ def test_init_reads_its_template_before_it_creates_anything(tmp_path):
 
     import pytest
 
-    from labkit import core
+    from aelix_analytics import core
 
     target = tmp_path / "proj"
     with pytest.raises(core.LabError) as caught:
@@ -769,7 +769,7 @@ def test_init_reads_its_template_before_it_creates_anything(tmp_path):
     assert caught.value.code == "template_missing"
     assert not target.exists()
     # The CLI hands it the template as package data, through the resource API.
-    project = core.init_project(target, template_dir=resources.files("labkit") / "template",
+    project = core.init_project(target, template_dir=resources.files("aelix_analytics") / "template",
                                 actor="test")
     assert (project.root / "CONTEXT.md").is_file() and (project.root / ".gitignore").is_file()
 
@@ -785,7 +785,7 @@ def _kit_copy(tmp_path):
 
 
 def test_the_kit_fingerprint_covers_its_template(tmp_path):
-    """ADR-0004 moved the template into labkit, so env.kit_sha256 covers it (CONTRACTS F1)."""
+    """ADR-0004 moved the template into aelix_analytics, so env.kit_sha256 covers it (CONTRACTS F1)."""
     import subprocess
     import sys
 
@@ -794,14 +794,14 @@ def test_the_kit_fingerprint_covers_its_template(tmp_path):
     copy = _kit_copy(tmp_path)
 
     def fingerprint():
-        done = subprocess.run([sys.executable, "-c", "from labkit import runner; print(runner.kit_sha())"],
+        done = subprocess.run([sys.executable, "-c", "from aelix_analytics import runner; print(runner.kit_sha())"],
                               env=kit_env(PYTHONPATH=str(copy)), capture_output=True, text=True,
                               encoding="utf-8", timeout=120)
         assert done.returncode == 0, done.stderr
         return done.stdout.strip()
 
     before = fingerprint()
-    (copy / "labkit" / "template" / "CONTEXT.md").write_text("# changed\n", encoding="utf-8")
+    (copy / "aelix_analytics" / "template" / "CONTEXT.md").write_text("# changed\n", encoding="utf-8")
     assert fingerprint() != before
 
 
@@ -813,9 +813,9 @@ def test_cli_init_without_a_template_answers_in_json_and_creates_nothing(tmp_pat
     from conftest import kit_env
 
     copy = _kit_copy(tmp_path)
-    shutil.rmtree(copy / "labkit" / "template")
+    shutil.rmtree(copy / "aelix_analytics" / "template")
     target = tmp_path / "proj"
-    done = subprocess.run([sys.executable, "-m", "labkit", "init", str(target)],
+    done = subprocess.run([sys.executable, "-m", "aelix_analytics", "init", str(target)],
                           env=kit_env(PYTHONPATH=str(copy)), capture_output=True, text=True,
                           encoding="utf-8", timeout=120)
     assert done.returncode == 1, done.stderr

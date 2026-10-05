@@ -2,7 +2,7 @@
 
 A run executes the exact bytes it snapshots (compiled under the script's own path, so tracebacks and
 `__file__` stay natural). Inputs come from four sources, each recorded in `via`: runtime hooks
-(Polars/DuckDB/labkit reads), a static scan of path literals in the code, and inputs the caller
+(Polars/DuckDB/aelix_analytics reads), a static scan of path literals in the code, and inputs the caller
 declared. Outputs are every file under the project that the run created or modified (outside the
 code, run and report directories). This is a record, not a sandbox or a determinism guarantee.
 """
@@ -236,7 +236,7 @@ EXIT_FLUSH_WAIT = 1.0
 
 
 def _flush_run_streams_at_exit() -> None:
-    flusher = threading.Thread(target=flush_run_streams, name="labkit-exit-flush", daemon=True)
+    flusher = threading.Thread(target=flush_run_streams, name="aelix-analytics-exit-flush", daemon=True)
     try:
         flusher.start()
     except RuntimeError:  # an interpreter that starts no thread any more
@@ -513,7 +513,7 @@ def _exec_script(code_bytes: bytes, filename: Path, script_dir: Path) -> None:
 API_HINTS = (
     (r"No module named 'pandas'",
      "this project has no pandas: process data with Polars expressions or DuckDB SQL "
-     "(lab.sql(...).pl()); .to_pandas() exists only if you add pandas to the project"),
+     "(analytics.sql(...).pl()); .to_pandas() exists only if you add pandas to the project"),
     (r"'DataFrame' object has no attribute 'to_string'",
      "Polars prints itself: print(df), or df.glimpse() for a column summary"),
     (r"'GroupBy' object has no attribute 'pivot'",
@@ -1067,7 +1067,7 @@ def run_warnings(record: dict, project: core.Project | None = None) -> list[str]
     for path in sorted({p for p in external if imported.get(p)}):
         name = imported[path]
         warnings.append(f"input outside the project: {path} — already imported as dataset "
-                        f"'{name}'; read lab.read('{name}') instead so the run stops depending on "
+                        f"'{name}'; read analytics.read('{name}') instead so the run stops depending on "
                         "a file that keeps changing")
     rest = [p for p in external if not imported.get(p)]
     # One warning per file would be hundreds of lines for a run over a log directory.

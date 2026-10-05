@@ -1,14 +1,14 @@
 """Script API for Aelix Analytics projects.
 
-    import labkit as lab
+    import aelix_analytics as analytics
 
-    sales = lab.read("sales")                          # Polars DataFrame of data/raw/sales.parquet
-    monthly = lab.sql("SELECT ... FROM sales").pl()    # DuckDB over every dataset view
-    lab.save(monthly, "monthly_sales")                 # data/derived/monthly_sales.parquet
-    lab.chart(fig, "monthly-trend", title="…", caption="…", data=monthly)
+    sales = analytics.read("sales")                          # Polars DataFrame of data/raw/sales.parquet
+    monthly = analytics.sql("SELECT ... FROM sales").pl()    # DuckDB over every dataset view
+    analytics.save(monthly, "monthly_sales")                 # data/derived/monthly_sales.parquet
+    analytics.chart(fig, "monthly-trend", title="…", caption="…", data=monthly)
 
 Inside a lab run every call is recorded. Plain `pl.read_parquet(...)`, DuckDB SQL over file literals,
-`plt.show()` and plotly `fig.show()` are captured too; `lab.chart(..., data=df)` additionally keeps a
+`plt.show()` and plotly `fig.show()` are captured too; `analytics.chart(..., data=df)` additionally keeps a
 stable chart id, a caption and the exact plotted data. Outside a run the calls still work but record
 nothing.
 """
@@ -123,7 +123,7 @@ def chart(obj, id: str | None = None, *, title: str | None = None, caption: str 
         run_dir = p.lab / "adhoc" / stamp
         state = capture.RunState(p, f"adhoc-{stamp}", run_dir, Path(sys.argv[0]).resolve())
         record = state.capture(obj, id, title=title, caption=caption, data=data)
-        print(f"labkit: not inside a lab run; chart saved under {run_dir} but not recorded",
+        print(f"aelix_analytics: not inside a lab run; chart saved under {run_dir} but not recorded",
               file=sys.stderr)
         return record
     return state.capture(obj, id, title=title, caption=caption, data=data)
