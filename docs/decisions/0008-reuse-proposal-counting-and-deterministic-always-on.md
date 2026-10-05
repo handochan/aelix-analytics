@@ -7,7 +7,7 @@ Status: Accepted — 2026-10-03 소유자 결정, 결정 5의 순효과와 결�
 모델 기반 상세 검토를 어떻게 하는가 — 에 소유자가 권장안을 골랐다. 채택은 결정의 확정이며 구현이 아니다. 현재 코드에는 재사용
 제안 기능이 없고 [현재 계약](../CONTRACTS.md)도 바뀌지 않는다. 구현은 [#17](https://github.com/handochan/aelix-analytics/issues/17)이 한다.
 아래의 설정 키·이벤트 필드·명령 이름은 제안이며 현재 동작이 아니다.
-계수와 판정은 #4의 공통 기록 계약인 ADR-0006(docs/issue-4-record-contract 병합 뒤 링크)의 논리 키·확정 연결·추론 결박·
+계수와 판정은 #4의 공통 기록 계약인 [ADR-0006](0006-common-record-contract.md)의 논리 키·확정 연결·추론 결박·
 `record_update`에 기댄다. 그 계약이 '결과와 비용'의 기록 요구를 담지 않으면 #17 착수 전에 맞춘다.
 
 ## 배경
@@ -129,7 +129,7 @@ Status: Accepted — 2026-10-03 소유자 결정, 결정 5의 순효과와 결�
 - 24시간은 검증 전 값이다. 너무 드물면 유용한 후보가 늦게 보인다. fixture와 방해 측정으로 기본값을 조정한다.
 - 이력이 journal에 있고 요청 구분이 남으므로, 베타 뒤 모델 기반 자동 검토나 checkpoint 경계를 더해도 기록을 다시 전환하지 않는다.
 - 기록 요구. 상태 이벤트의 kind와 필드 이름은 [#4](https://github.com/handochan/aelix-analytics/issues/4)의 공통 기록 계약
-  (ADR-0006, docs/issue-4-record-contract 병합 뒤 링크)이 정하고 #13의 writer가 쓴다. 이 ADR은 남길 내용만 정한다. 그 계약이
+  ([ADR-0006](0006-common-record-contract.md))이 정하고 #13의 writer가 쓴다. 이 ADR은 남길 내용만 정한다. 그 계약이
   B1–B4의 kind를 미리 정하므로 1–4는 그 계약이 이름을 정한다. 5–6은 #17이 그 계약의 선택 필드나 새 kind로 더한다.
   1. 알림: 결정 3의 필드(표면, 근거 버전 집합, 항목별 점수, 요청 주체·실행 수단 포함).
   2. 후보의 논리 키와 버전, 후보 사이의 중복·통합 관계.
@@ -173,5 +173,5 @@ Status: Accepted — 2026-10-03 소유자 결정, 결정 5의 순효과와 결�
 - [제안 정책](../SKILL-PROPOSAL-POLICY.md) — 이 결정에 맞춰 §1–§5와 설정 예시를 고쳤다.
 - [베타 품질 기준](../BETA-QUALITY-GATES.md) — Q5, §3의 제안 옵션 측정, §5의 B3-b와 B4.
 - [아키텍처](../ARCHITECTURE.md)의 ProposalPolicy, [재사용 수명주기](../DESIGN-CONTINUITY-AND-REUSE.md#4-재사용-제안에서-라이브러리skill까지).
-- Issue #6(이 결정), #17(구현), #13·#4(공통 writer와 기록 계약, ADR-0006), #11(사용량 측정), #15·#16·#18(정정 이력과 B4 의존),
+- Issue #6(이 결정), #17(구현), #13·#4(공통 writer와 기록 계약, [ADR-0006](0006-common-record-contract.md)), #11(사용량 측정), #15·#16·#18(정정 이력과 B4 의존),
   #44(베타 뒤 자동 검토).
