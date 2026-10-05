@@ -10,7 +10,8 @@ Status: Accepted (2026-09-22) — [ADR-0002](0002-python-support-and-platform-sc
 개정: 2026-10-06 — [#9](https://github.com/handochan/aelix-analytics/issues/9)의 첫 PR이 kit을 package `aelix_analytics`로
 옮기면서 결정 2·3의 경로와 이름을 고쳤다([ADR-0005](0005-names-first-storage-with-the-new-writer.md) 결정 7). 결정의 내용(포트의
 위치가 한 파일, 합성 package로 `core`·`_platform`만 로드)은 그대로다. 배경과 대안의 경로는 당시의 것이다.
-#9의 둘째 PR(kit 0.3.0)이 결정 3의 합성 package 이름과 변수 이름을 새 공개 이름에 맞춰 고쳤다. 내용은 그대로다.
+#9의 둘째 PR(kit 0.3.0)이 결정 3의 합성 package 이름과 변수 이름, 결정 6의 도구·SDK 이름을 새 공개 이름에 맞춰 고쳤다. 내용은
+그대로다.
 
 ## 배경
 
@@ -48,9 +49,9 @@ ADR-0002 결정 5는 "파일 잠금·실행 타임아웃·자식 프로세스 �
    `interruptible()` 구간 안에서 **최대 한 번**, 항상 `_platform.Interrupted`로 한다. Windows에서는 요청 파일을 보는 감시
    스레드나 제한 시간 타이머가 `signal.raise_signal`로 올린 SIGINT를 통해서다.
 6. **새 이름만 거절한다.** Windows 예약 장치명은 사용자가 새 이름을 정하는 지점에서만 거절한다:
-   `lab_import --name`과 `lab_run`이 만드는 `scripts/<name>.py`다. run 안의 `lab.save`는 거절하지 않고 run의
-   `warnings`에 한계를 남긴다 — 보존된 스크립트는 출력 파일이 지워진 뒤에도 다시 실행돼야 하고, 거절하면
-   과거 분석의 재실행이 막힌다. 차트는 정체성(`script::id`)을 생성된 id까지 그대로 두고 저장 파일명만 바꾸며,
+   `analytics_import --name`과 `analytics_run`(kit 0.3.0 전 `lab_import`·`lab_run`)이 만드는 `scripts/<name>.py`다. run 안의
+   `analytics.save`는 거절하지 않고 run의 `warnings`에 한계를 남긴다 — 보존된 스크립트는 출력 파일이 지워진 뒤에도 다시
+   실행돼야 하고, 거절하면 과거 분석의 재실행이 막힌다. 차트는 정체성(`script::id`)을 생성된 id까지 그대로 두고 저장 파일명만 바꾸며,
    그 대응은 단사여야 한다. 기록은 그것을 만든 기계보다 오래 살아야 한다.
 
 ## 대안과 선택 이유

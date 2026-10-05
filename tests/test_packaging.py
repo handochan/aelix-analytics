@@ -29,7 +29,7 @@ from email.parser import Parser
 from pathlib import Path
 
 import pytest
-from conftest import record_observation
+from conftest import OLD_ENV, record_observation
 
 from aelix_analytics import cli, core
 
@@ -100,8 +100,8 @@ def installed(tmp_path: Path, wheel: Path, python: str, *extra: str) -> Path:
 def outside_env(tmp_path: Path, **extra) -> dict:
     """An environment with no trace of this checkout and nothing of the caller's aelix."""
     env = {k: v for k, v in os.environ.items()
-           if k not in ("PYTHONPATH", "VIRTUAL_ENV", "AELIX_ANALYTICS_PROJECT", "AELIX_ANALYTICS_ACTOR", "AELIX_ANALYTICS_RUNTIME_PATH",
-                        "AELIX_ANALYTICS_UV", "AELIX_ANALYTICS_PROJECT")}
+           if k not in ("PYTHONPATH", "VIRTUAL_ENV", "AELIX_ANALYTICS_PROJECT", "AELIX_ANALYTICS_ACTOR",
+                        "AELIX_ANALYTICS_RUNTIME_PATH", "AELIX_ANALYTICS_UV", *OLD_ENV)}
     env.update({"AELIX_ANALYTICS_TRUST_FILE": str(tmp_path / "trust.json"),
                 "PYTHONDONTWRITEBYTECODE": "1", **extra})
     return env
@@ -280,7 +280,7 @@ def test_the_console_script_gives_children_exactly_the_installed_kit(dist, tmp_p
     (project / "lab.json").write_text("{}", encoding="utf-8")
     analytics = shutil.which("analytics", path=str(venv_bin(venv)))
     ok([analytics, "status"], cwd=project, env=outside_env(tmp_path, AELIX_ANALYTICS_UV=str(fake_uv),
-                                                      PYTHONPATH="/somewhere/else"))
+                                                           PYTHONPATH="/somewhere/else"))
     env = json.loads(record.read_text(encoding="utf-8"))
     kit = ok([venv_python(venv), "-c", "from aelix_analytics._install import kit_dir; print(kit_dir())"],
              env=outside_env(tmp_path)).stdout.strip()

@@ -203,8 +203,12 @@ kit 0.3.0(#9)에서 공개 이름이 `analytics`로 바뀌었습니다. 옛 이�
 | `LAB_ACTOR`·`LAB_SESSION`·`LAB_STYLE` | `AELIX_ANALYTICS_ACTOR`·`AELIX_ANALYTICS_SESSION`·`AELIX_ANALYTICS_STYLE` |
 | `AELIX_LAB_KIT`·`AELIX_LAB_UV`·`AELIX_LAB_TRUST_FILE` | `AELIX_ANALYTICS_RUNTIME_PATH`·`AELIX_ANALYTICS_UV`·`AELIX_ANALYTICS_TRUST_FILE` |
 
-- 옛 환경 변수가 (새 이름과 함께라도) 설정돼 있으면 kit·`analytics`는 아무것도 쓰기 전에 멈추고, aelix 확장은 로드 오류로 보입니다.
-  옛 flag `--lab-project`를 준 aelix도 확장을 로드하지 않습니다(aelix는 모르는 flag를 말없이 넘기므로, 무시하면 다른 프로젝트에
+- 옛 환경 변수는 그것을 읽던 쪽이 (새 이름과 함께라도) 오류로 거절합니다. `analytics`·`bin/analytics`는 `LAB_PROJECT`·`LAB_ACTOR`·
+  `AELIX_LAB_UV`에, 그것이 부르는 kit은 `LAB_PROJECT`·`LAB_ACTOR`·`LAB_SESSION`·`LAB_STYLE`·`AELIX_LAB_TRUST_FILE`에 아무것도 쓰기
+  전에 멈추고, aelix 확장은 `AELIX_LAB_PROJECT`·`AELIX_LAB_UV`·`AELIX_LAB_TRUST_FILE`(경로로 로드한 확장 파일은 `AELIX_LAB_KIT`도)에
+  로드 오류로 보입니다. 읽은 적 없는 이름은 보지 않습니다(예: `analytics`와 kit은 `AELIX_LAB_PROJECT`를, 확장은 `LAB_PROJECT`를).
+  자세한 것은 [현재 계약](docs/CONTRACTS.md) A·D에 있습니다.
+- 옛 flag `--lab-project`를 준 aelix도 확장을 로드하지 않습니다(aelix는 모르는 flag를 말없이 넘기므로, 무시하면 다른 프로젝트에
   기록될 수 있습니다).
 - 저장 이름(`lab.json`, `.lab/`, `lab.*/1`, `lab-projects.json`, 기록의 `via` 값 `lab.read`·`lab.chart` 등)과 기존 기록의 바이트는
   그대로입니다. 새 run의 `env.kit_version`은 0.3.0입니다. 옛 이름을 쓴 run 스냅샷은 그때의 kit으로만 그대로 다시 실행됩니다.

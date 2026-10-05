@@ -88,8 +88,10 @@ Git이 무시하는 파일(`.demo/`, `__pycache__` 밖의 `*.pyc` 등)도 실행
 wheel로 확인합니다.
 사람용 진입점은 `bin/analytics`(체크아웃, POSIX)과 설치본의 `analytics`(`src/aelix_analytics/cli.py`) 둘입니다. usage와 메시지의
 바이트까지 같은 계약이므로, 한쪽의 명령·인자·출력·종료 코드를 바꾸면 다른 쪽과 `tests/test_launcher.py`의 동등성 시험을 함께 고칩니다.
-kit 0.3.0부터 옛 이름의 환경 변수(`LAB_*`·`AELIX_LAB_*`)는 kit·명령·확장이 오류로 거절합니다. 셸이나 도구 설정에 남아 있으면 시험과
-측정이 그 오류로 멈추므로 `AELIX_ANALYTICS_*`로 바꾸세요(시험 helper와 `tools/usage_report.py`는 상속한 옛 이름을 지웁니다).
+kit 0.3.0부터 옛 이름의 환경 변수(`LAB_*`·`AELIX_LAB_*`)는 그것을 읽던 쪽이 오류로 거절합니다: `analytics`·`bin/analytics`는
+`LAB_PROJECT`·`LAB_ACTOR`·`AELIX_LAB_UV`, kit은 `LAB_PROJECT`·`LAB_ACTOR`·`LAB_SESSION`·`LAB_STYLE`·`AELIX_LAB_TRUST_FILE`, 확장은
+`AELIX_LAB_PROJECT`·`AELIX_LAB_UV`·`AELIX_LAB_TRUST_FILE`와 파일 로드의 `AELIX_LAB_KIT`([현재 계약](docs/CONTRACTS.md) A·D). 셸이나 도구 설정에 남아 있으면 그 진입점을
+거치는 시험과 측정이 그 오류로 멈추므로 `AELIX_ANALYTICS_*`로 바꾸세요(시험 helper와 `tools/usage_report.py`는 상속한 옛 이름을 지웁니다).
 
 Aelix 통합 시험은 aelix 0.1.0b2(와 그 의존성), pytest, pytest-timeout만 있는 새 환경에서 실행합니다. CI와 같은 격리 환경과 시험
 제한 시간입니다(CI는 보고용으로 `-ra`와 `--junitxml`을 더합니다):

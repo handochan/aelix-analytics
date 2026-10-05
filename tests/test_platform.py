@@ -3042,7 +3042,7 @@ def test_a_failed_kit_load_leaves_no_module_behind(monkeypatch, tmp_path):
     (kit / "aelix_analytics").mkdir(parents=True)
     (kit / "aelix_analytics" / "_platform.py").write_text("X = 1\n", encoding="utf-8")
     (kit / "aelix_analytics" / "core.py").write_text("from . import _platform\nraise RuntimeError('broken')\n",
-                                            encoding="utf-8")
+                                                     encoding="utf-8")
     monkeypatch.setenv("AELIX_ANALYTICS_RUNTIME_PATH", str(kit))
     with pytest.raises(RuntimeError, match="broken"):
         load_extension(monkeypatch, "ext_broken")
@@ -3110,6 +3110,18 @@ def test_only_the_old_flag_itself_stops_the_extension(monkeypatch, argv):
     assert ("flag", "analytics-project") in api.registered and len(api.tools()) == 6
 
 
+@pytest.mark.parametrize("argv", [["--append-system-prompt", "--lab-project"],
+                                  ["--system-prompt", "--lab-project=/a"]])
+def test_another_option_s_value_spelled_as_the_old_flag_stops_the_extension_too(monkeypatch, argv):
+    """A known limit (review of 483ef9d, CONTRACTS A): the check reads the command line's tokens as
+    they are, without aelix's parser, so another option's value equal to --lab-project or
+    --lab-project=… stops the load too, though aelix 0.1.0b2 takes it as that option's value."""
+    monkeypatch.setattr(sys, "argv", ["aelix", *argv])
+    with pytest.raises(RuntimeError, match="--lab-project was renamed --analytics-project in kit 0.3.0"):
+        load_extension(monkeypatch, "ext_old_flag_as_a_value")
+    assert not [k for k in sys.modules if k.startswith("aelix_analytics_runtime")]
+
+
 def test_the_extension_registers_only_the_new_names(monkeypatch):
     module = load_extension(monkeypatch, "ext_new_names")
     api = _Api(_EventBus())
@@ -3118,7 +3130,7 @@ def test_the_extension_registers_only_the_new_names(monkeypatch):
         [("flag", "analytics-project"), ("command", "analytics"),
          *[("tool", f"analytics_{n}") for n in ("status", "query", "import", "run", "record", "init")],
          *[("on", e) for e in ("before_agent_start", "tool_execution_start", "tool_execution_end",
-                                "agent_end")]])
+                               "agent_end")]])
 
 
 def test_the_analytics_command_records_and_has_no_old_subcommands(monkeypatch, tmp_path):

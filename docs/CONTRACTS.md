@@ -44,7 +44,9 @@ kit 0.3.0 전의 이름(확장 파일 `extension/aelix_lab.py`, 명령 `/lab`, �
 알리는 `RuntimeError`로 멈춥니다. aelix는 이를 확장의 로드 오류로 보이고 아무것도 등록하지 않습니다. 별칭이 아닙니다([ADR-0005](decisions/0005-names-first-storage-with-the-new-writer.md)
 결정 7). aelix 0.1.0b2는 등록되지 않은 flag를 말없이 받고 `get_flag`가 그 값을 주지 않으므로, 옛 flag를 무시하면 작업
 디렉터리의 프로젝트에 기록되기 때문입니다. 판정은 aelix를 시작한 명령줄(`sys.argv`)이라, 명령줄 없이 aelix를 품은 호스트는
-해당하지 않습니다. 확장 파일을 경로로 로드할 때 kit을 찾지 못하면 이 확인보다 "kit not found"가 먼저입니다(그때 `AELIX_LAB_KIT`가
+해당하지 않습니다. 확인은 그 명령줄의 토큰을 aelix의 해석 없이 그대로 읽으므로, 다른 옵션의 값이 `--lab-project`나
+`--lab-project=…`인 경우(예: `--append-system-prompt --lab-project`)에도 로드가 멈춥니다. 확장은 자기가 읽은 적 없는 옛 이름(kit이
+읽던 `LAB_*`)은 보지 않고, 그 이름은 그것을 읽던 쪽이 거절합니다(D). 확장 파일을 경로로 로드할 때 kit을 찾지 못하면 이 확인보다 "kit not found"가 먼저입니다(그때 `AELIX_LAB_KIT`가
 있으면 읽지 않는다고 덧붙입니다).
 aelix는 세션을 만들 때마다(시작, `/new`, `/resume`, `/fork`, `/reload`) 확장을 다시 설정합니다. 파일 로드는 그때마다 새
 모듈이지만 설치본의 모듈은 프로세스에 한 번 import되므로, `setup()`이 활성 프로젝트·세션 같은 상태를 매번 처음부터
@@ -424,8 +426,9 @@ kit 0.3.0([#9](https://github.com/handochan/aelix-analytics/issues/9)의 둘째 
   설정하던 옛 이름 여덟 개와 옛 flag는 그것을 읽던 쪽이 새 이름을 알리는 오류로 멈춥니다(A, D). 별칭은 없습니다.
 - 새 프로젝트의 `lab.json`의 `kit_version`과 run의 `env.kit_version`이 0.3.0입니다. kit이 명령을 가리키는 글(프로젝트가 없을 때의
   hint `analytics init DIR`, run 쪽의 재실행 안내 `analytics run --rerun-of …`, 템플릿 `.gitignore`의 `analytics render`, 데모의
-  `analytics demo NEW_DIR`)과 도구 설명·도움말·맥락 블록 머리(`# Active analytics project`)가 새 이름을 씁니다. 새 프로젝트의
-  `CONTEXT.md` 템플릿도 도구 이름이 바뀌었고, 기존 프로젝트의 `CONTEXT.md`는 그대로입니다.
+  `analytics demo NEW_DIR`)과 도구 설명·도움말·맥락 블록 머리(`# Active analytics project`)가 새 이름을 씁니다. 새 run의 기록에
+  남는 경고·hint의 글도 새 이름입니다(예: 차트 경고의 `analytics.visualize`, `note`·`chart`를 쓴 run의 `error.hint`). 이전 run의
+  기록은 바이트 그대로입니다. 새 프로젝트의 `CONTEXT.md` 템플릿도 도구 이름이 바뀌었고, 기존 프로젝트의 `CONTEXT.md`는 그대로입니다.
 - 확장의 telemetry `tool` 값은 새 이름이고(C5), 우회 의심 판정은 `bin/analytics`를 부르는 bash 명령에 `python_via_bash`를 붙이지
   않습니다(이전 `bin/lab`). 확장이 core를 로드하는 합성 package의 이름 접두사가 `aelix_analytics_runtime_`입니다(이전 `aelix_lab_kit_`).
 

@@ -22,4 +22,4 @@ ax.set_title("월별 매출 (채널별)")
 ax.set_ylabel("백만 원")
 ax.legend(loc="upper left")
 analytics.visualize(fig, "monthly-revenue", caption="채널별 월 매출 합계. 할인 적용 후 금액 기준.",
-          data=monthly)
+                    data=monthly)

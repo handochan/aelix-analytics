@@ -139,7 +139,7 @@ def test_status_note_context_injection_and_telemetry(lab):
     question = call(tools["analytics_record"], {"kind": "question", "text": "무엇이 달라졌나?"})
     assert not question.is_error and question.details["id"] == "e3"
     finding = call(tools["analytics_record"], {"kind": "finding", "text": "3월에 달라졌다", "resolves": "e3",
-                                       "refs": ["20260916-010101-x", "sales"]})
+                                               "refs": ["20260916-010101-x", "sales"]})
     assert finding.details["refs"] == {"runs": ["20260916-010101-x"], "data": ["sales"],
                                        "resolves": "e3"}
     bad = call(tools["analytics_record"], {"kind": "resolve", "text": "x"})
@@ -250,7 +250,7 @@ def test_import_query_and_run_through_the_project_environment(lab, tmp_path):
     assert "dataset sales (24 rows × 3 columns)" in text_of(imported)
 
     queried = call(tools["analytics_query"], {"sql": "SELECT region, sum(revenue) AS r FROM sales GROUP BY 1 ORDER BY 1",
-                                        "limit": 5})
+                                              "limit": 5})
     assert not queried.is_error and "views used: sales" in text_of(queried)
     refused = call(tools["analytics_query"], {"sql": "COPY sales TO 'out.csv'"})
     assert refused.is_error and "query_read_only" in text_of(refused)
@@ -271,7 +271,7 @@ def test_import_query_and_run_through_the_project_environment(lab, tmp_path):
     assert (root / "report" / "runs" / f"{run_id}.html").is_file()
 
     failed = call(tools["analytics_run"], {"title": "실패", "code": "x = 1\nraise KeyError('amount')\n",
-                                     "name": "02_bad"})
+                                           "name": "02_bad"})
     assert failed.is_error and "KeyError" in text_of(failed) and "at line 2" in text_of(failed)
     both = call(tools["analytics_run"], {"title": "x", "script": "scripts/01_by_region.py", "rerun_of": run_id})
     assert both.is_error and "run_args" in text_of(both)

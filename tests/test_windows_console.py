@@ -25,7 +25,7 @@ from types import SimpleNamespace
 
 import pytest
 import windows_console as wc
-from conftest import record_observation
+from conftest import OLD_ENV, record_observation
 
 PACK = Path(__file__).resolve().parents[1]
 E2E = os.environ.get("AELIX_ANALYTICS_TEST_INSTALL") == "1"
@@ -56,7 +56,7 @@ def console(tmp_path_factory):
     [wheel] = (base / "dist").glob("*.whl")
     env = {k: v for k, v in os.environ.items()
            if k.upper() not in ("PYTHONPATH", "VIRTUAL_ENV", "AELIX_ANALYTICS_PROJECT", "AELIX_ANALYTICS_ACTOR",
-                                "AELIX_ANALYTICS_RUNTIME_PATH", "AELIX_ANALYTICS_UV", "AELIX_ANALYTICS_PROJECT")}
+                                "AELIX_ANALYTICS_RUNTIME_PATH", "AELIX_ANALYTICS_UV", *OLD_ENV)}
     env.update({"AELIX_ANALYTICS_TRUST_FILE": str(base / "trust.json"), "PYTHONDONTWRITEBYTECODE": "1"})
     installs = {}
     for python in ("3.12", "3.11"):

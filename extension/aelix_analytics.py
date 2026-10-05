@@ -18,8 +18,11 @@ project's own environment.
 Neither side is a sandbox, and aelix does not ask for approval before extension tools run.
 
 Before kit 0.3.0 this file was extension/aelix_lab.py, with the command /lab, the tools lab_*, the
-flag --lab-project and the variables AELIX_LAB_*. None of them is registered or read any more, and the
-old flag or an old variable stops the load with an error that names the new one (_refuse_old_names).
+flag --lab-project and the variables AELIX_LAB_*. None of them is registered or read any more. The old
+flag, and an old variable this file read (AELIX_LAB_PROJECT, AELIX_LAB_UV, AELIX_LAB_TRUST_FILE, and
+AELIX_LAB_KIT on a file load), stop the load with an error that names the new one
+(_refuse_old_names). A name this file never read (the kit's LAB_*) is not looked at here: the reader
+that read it refuses it (docs/CONTRACTS.md A, D).
 """
 
 import asyncio
@@ -126,9 +129,12 @@ def _refuse_old_names(argv) -> None:
     nobody registered without a word (cli/args.py), and get_flag answers None for it, so the old flag
     would be ignored and the project picked from the working directory instead: the record would land
     in another project. The command line is what aelix was started with; a host that embeds aelix
-    without one has no flag to give either. aelix shows this as the extension's load error and
-    registers nothing, as with a missing kit — the prompt hook, which swallows errors, would leave the
-    context block out without a word. There are no aliases (ADR-0005 decision 7)."""
+    without one has no flag to give either. Its tokens are read as they are, without aelix's parser,
+    so another option's value equal to --lab-project or --lab-project=… (`--append-system-prompt
+    --lab-project`) stops the load too: a known limit (CONTRACTS A). aelix shows this as the
+    extension's load error and registers nothing, as with a missing kit — the prompt hook, which
+    swallows errors, would leave the context block out without a word. There are no aliases
+    (ADR-0005 decision 7)."""
     names = ["AELIX_LAB_PROJECT", "AELIX_LAB_UV", "AELIX_LAB_TRUST_FILE"]
     if KIT_ROUTE != "installed":
         names.append("AELIX_LAB_KIT")
@@ -220,7 +226,7 @@ def _resolve_project():
     with contextlib.suppress(Exception):
         flag = STATE["api"].get_flag("analytics-project") if STATE["api"] else None
     for value, via in ((flag, "--analytics-project"), (os.environ.get("AELIX_ANALYTICS_PROJECT"),
-                                                  "AELIX_ANALYTICS_PROJECT")):
+                                                       "AELIX_ANALYTICS_PROJECT")):
         if isinstance(value, str) and value.strip():
             project = core.Project(value.strip())
             if not project.marker.is_file():

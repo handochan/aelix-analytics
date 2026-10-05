@@ -12,8 +12,8 @@ ADR-0003과 같이 새 제품 결정이 아니라 승인된 작업 안의 구조
 결정 묶음 D2의 권장안). 결정은 제자리에서 고쳤고(ADR-0001과 같은 방식), 그 전의 문장은 git 이력에 있다. 실행 가드의 범위는
 2026-10-06 소유자 결정(Issue #9)이다.
 
-개정: 2026-10-06 — #9의 둘째 PR(kit 0.3.0)이 공개 이름을 바꾸어 결정 6의 변수 이름, 결정 7, 결정 9의 SDK 함수 이름과
-"구현에서 확인할 것"의 이름을 고쳤다: 체크아웃의 `bin/lab`은
+개정: 2026-10-06 — #9의 둘째 PR(kit 0.3.0)이 공개 이름을 바꾸어 결정 1의 확장 파일, 결정 6의 변수 이름, 결정 7, 결정 8·9의
+명령·진입점·SDK 함수 이름, "ADR-0002와의 관계"와 "구현에서 확인할 것"의 이름을 고쳤다: 체크아웃의 `bin/lab`은
 `bin/analytics`, 하위 명령 `note`·`report`는 `record`·`render`가 되어 두 진입점의 usage와 메시지가 바이트까지 같아졌고("명령 이름
 말고는"이라는 예외가 없어졌다), `AELIX_LAB_KIT`는 `AELIX_ANALYTICS_RUNTIME_PATH`다. 옛 이름은 오류다([ADR-0005](0005-names-first-storage-with-the-new-writer.md)
 결정 7). 배경·대안·결과의 `bin/lab`과 옛 이름은 당시의 것이다.
@@ -47,9 +47,9 @@ ADR-0002는 진입점의 하한을 `>=3.11`로 낮추고(결정 2), Aelix 없이
 ## 결정
 
 1. **배포본은 wheel 하나다.** hatchling(1.32.4로 고정)이 체크아웃을 옮기지 않고 한 package로 묶는다:
-   `src/aelix_analytics/` → `aelix_analytics/`, `extension/aelix_lab.py` → `aelix_analytics/extension.py`, 그리고 같은
-   `src/aelix_analytics/`의 사본 → `aelix_analytics/kit/aelix_analytics/`(force-include). kit은 package `aelix_analytics`
-   자체이고(#9-1 개정. 그 전에는 `kit/labkit/` → `aelix_analytics/kit/labkit/`), 새 프로젝트 템플릿은 그 package data
+   `src/aelix_analytics/` → `aelix_analytics/`, `extension/aelix_analytics.py`(kit 0.3.0 전 `extension/aelix_lab.py`) →
+   `aelix_analytics/extension.py`, 그리고 같은 `src/aelix_analytics/`의 사본 → `aelix_analytics/kit/aelix_analytics/`(force-include).
+   kit은 package `aelix_analytics` 자체이고(#9-1 개정. 그 전에는 `kit/labkit/` → `aelix_analytics/kit/labkit/`), 새 프로젝트 템플릿은 그 package data
    `template/`이다. `aelix_analytics/kit/`이 **실행 루트**다: 자식의 PYTHONPATH에는 그 안의 `aelix_analytics` 하나만 보인다.
    사본에는 `extension.py`가 없고 런처 파일(`cli.py`·`_install.py`·manifest)은 있다. 자식은 그 파일들을 import하지 않고,
    aelix는 entry 모듈 경로의 manifest만 결합한다(e2e 시험의 `aelix extension verify` BOUND). force-include는 디렉터리를
@@ -101,9 +101,9 @@ ADR-0002는 진입점의 하한을 `>=3.11`로 낮추고(결정 2), Aelix 없이
    고른다. 떼어 놓고 여는 쪽(확장)은 opener가 없으면 main처럼 `webbrowser`를 쓴다. Windows는 `os.startfile`,
    프로그램은 PATH의 절대 경로 항목에서만 찾고 경로로 준 것도 `.exe`만 받는다(작업 디렉터리의 프로그램과, 인자를 다시
    해석하는 `.bat`·`.cmd`를 피한다). 찾은 프로그램은 링크를 따라가지 않은 절대 경로로 실행한다(mise의 shim은 자기
-   이름으로 동작을 정하는 링크다). `/lab open`의 `sys.platform` 분기가 이것으로 사라진다.
+   이름으로 동작을 정하는 링크다). `/lab open`(kit 0.3.0부터 `/analytics open`)의 `sys.platform` 분기가 이것으로 사라진다.
 9. **SDK는 run의 스크립트가 import하는 `aelix_analytics`다**(#9-1 개정. 그 전에는 `labkit`). run을 시작한 진입점(`analytics`,
-   `bin/lab`, 확장)이 실행 루트를 PYTHONPATH로 준다. `-m aelix_analytics`의 runpy가 import한 package를 스크립트의
+   `bin/analytics`, 확장)이 실행 루트를 PYTHONPATH로 준다. `-m aelix_analytics`의 runpy가 import한 package를 스크립트의
    `import aelix_analytics`가 그대로 받으므로 SDK가 실행 중인 run을 본다. 설치된 package `aelix_analytics`도 kit 전체지만
    그 `__init__`은 모듈 수준에서 stdlib만 import한다: SDK 함수의 정의와, `core`를 그때 읽는 PEP 562의 `__version__`뿐이다.
    그래서 aelix와 런처가 package를 import해도 kit 모듈은 들어오지 않는다. 설치된 package 자신을 `python -m aelix_analytics`로
@@ -118,15 +118,15 @@ ADR-0002는 진입점의 하한을 `>=3.11`로 낮추고(결정 2), Aelix 없이
 ## ADR-0002와의 관계
 
 - 결정 2의 "진입점"은 설치 환경에서 도는 것 — 런처, 확장, 확장이 로드하는 `core`·`_platform` — 이다. kit의 명령은
-  `bin/lab`과 같이 프로젝트 환경(`>=3.12`)에서 돈다.
+  `bin/analytics`와 같이 프로젝트 환경(`>=3.12`)에서 돈다.
 - "구현에서 확인할 것" 1(3.11·3.12에서 `python -m labkit` init/import/query/run/note/report/status/context 실행)은
   글자 그대로는 할 수 없다. import·query·demo는 결정 4가 진입 환경에 넣지 않는 분석 라이브러리를 쓰고, 결정 3이
   분석 환경을 `>=3.12`로 둔다. 그래서 두 부분으로 확인한다: 설치 환경의 3.11·3.12에서 `analytics`로 모든 명령을
   실행하고(명령은 프로젝트 환경에서 돈다), 분석 라이브러리가 필요 없는 명령(init/status/context/note/report)과 분석
   라이브러리를 쓰지 않는 스크립트의 run은 3.11에서 `python -m labkit`로도 실행한다. 소유자가 이 해석을 확인했다
-  (2026-09-30). kit 0.2.0부터 같은 확인은 실행 루트를 PYTHONPATH로 준 `python -m aelix_analytics`로 하고, 결정 9의 가드는 이
-  호출을 허용한다(소유자 결정 2026-10-06).
-- 결정 7의 위치: `bin/lab`은 체크아웃에만 있고, 확장 파일은 설치본에서 `aelix_analytics/extension.py`다.
+  (2026-09-30). kit 0.2.0부터 같은 확인은 실행 루트를 PYTHONPATH로 준 `python -m aelix_analytics`로 하고(kit 0.3.0부터 `note`·`report`는
+  `record`·`render`), 결정 9의 가드는 이 호출을 허용한다(소유자 결정 2026-10-06).
+- 결정 7의 위치: `bin/analytics`(kit 0.3.0 전 `bin/lab`)는 체크아웃에만 있고, 확장 파일은 설치본에서 `aelix_analytics/extension.py`다.
 
 ## 대안과 선택 이유
 
