@@ -1,7 +1,7 @@
 """OS-dependent operations behind small ports, so the rest of the kit has no platform branches.
 
 This module is loaded inside the aelix process together with `core.py` (see
-`extension/aelix_lab.py`), so it uses the standard library only and imports nothing from aelix_analytics.
+`extension/aelix_lab.py`), so it uses the standard library only and imports no other module of the kit.
 
 Four operations behave differently on POSIX and Windows and are therefore ports: exclusive file
 locking, atomic file replacement, child-process control, and the deadline and cancellation of a

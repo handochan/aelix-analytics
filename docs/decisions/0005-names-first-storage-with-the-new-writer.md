@@ -153,8 +153,11 @@ schema 가족 `lab.project/1`·`lab.event/1`·`lab.run/1`·`lab.dataset/1`, 신�
 ## 구현에서 확인할 것
 
 1. #9·#10: 결정 2의 저장 값이 바뀌지 않는다(기존 프로젝트 fixture의 표식·경로·schema 가족이 PR 전후로 같다). 구·신 모델 도구를 함께
-   노출하지 않는다. #9-1: `import labkit`의 실패에 결정 9의 안내가 붙고, `KIT_VERSION`이 올라가며, 프로젝트 환경 밖의
-   `python -m aelix_analytics`는 kit 명령을 실행하지 않는다. #9-2: 결정 7의 옛 환경 변수마다 새 이름을 알려 주는 오류가 난다.
+   노출하지 않는다. #9-1: `import labkit`의 실패에 결정 9의 안내가 붙고, `KIT_VERSION`이 올라가며, 설치된 패키지를
+   `python -m aelix_analytics`로 부르면 어느 환경에서나 kit 명령을 실행하지 않는다. 진입점·개발·3.11 하한 시험처럼 실행 루트를
+   PYTHONPATH로 명시한 호출은 그대로 허용한다(소유자 결정 2026-10-06, [Issue #9](https://github.com/handochan/aelix-analytics/issues/9)).
+   목적은 분석 스크립트가 프로젝트의 uv 환경 밖에서 실행되는 것을 막는 것이다. #9-2: 결정 7의 옛 환경 변수마다 새 이름을 알려
+   주는 오류가 난다.
 2. #13: Q7의 증거 — schema 가족·버전별 fixture, 두 표식의 충돌, 섞인 journal, 실패하거나 중단된 전환, 원본의 전후 해시 비교, 모든 일반 쓰기
    진입점의 구버전 차단. 기존 파일을 옮기지 않는 전환, 작업 스크립트의 diff, 신뢰 목록·`.gitignore`의 처리. 여기에 더해:
    ①·②·③이 각각 병합된 상태에서 결정 7의 불변식, 읽기 작업의 부수 쓰기와 inline 스크립트를 포함한 결정 6의 확인과 다시 읽기,

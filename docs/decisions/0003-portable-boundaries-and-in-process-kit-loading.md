@@ -7,6 +7,10 @@ Status: Accepted (2026-09-22) — [ADR-0002](0002-python-support-and-platform-sc
 새 제품 결정이 아니라 승인된 작업 안의 구조 선택이므로, 반대 의견은 해당 PR 리뷰에서 다룬다.
 현재 코드가 실제로 하는 것은 [현재 계약](../CONTRACTS.md)의 "실행 환경과 지원 플랫폼" 절에 있다.
 
+개정: 2026-10-06 — [#9](https://github.com/handochan/aelix-analytics/issues/9)의 첫 PR이 kit을 package `aelix_analytics`로
+옮기면서 결정 2·3의 경로와 이름을 고쳤다([ADR-0005](0005-names-first-storage-with-the-new-writer.md) 결정 7). 결정의 내용(포트의
+위치가 한 파일, 합성 package로 `core`·`_platform`만 로드)은 그대로다. 배경과 대안의 경로는 당시의 것이다.
+
 ## 배경
 
 ADR-0002 결정 5는 "파일 잠금·실행 타임아웃·자식 프로세스 생성과 종료·파일 교체·파일명·경로 표현·텍스트 인코딩을
@@ -23,12 +27,15 @@ ADR-0002 결정 5는 "파일 잠금·실행 타임아웃·자식 프로세스 �
 1. **포트는 네 개다.** 플랫폼마다 **동작이 다른** 것만 포트로 만든다: `FileLocks`, `AtomicFiles`,
    `ProcessControl`, `RunControl`. 나머지(예약 파일명, `file://` URL, 텍스트 인코딩)는 세 플랫폼에서 같은 규칙이
    맞으므로 포트로 만들지 않는다. 포트를 일곱 개로 나누지 않는다.
-2. **포트는 `kit/labkit/_platform.py` 한 곳에 둔다.** stdlib만 쓰고 labkit의 다른 모듈을 import하지 않는다.
+2. **포트는 `_platform.py` 한 곳에 둔다**(#9-1부터 `src/aelix_analytics/_platform.py`, 그 전에는 `kit/labkit/_platform.py`).
+   stdlib만 쓰고 kit의 다른 모듈을 import하지 않는다.
    `core.py`가 커져 프로젝트 모델과 OS 계층을 겸하는 것을 피하고, 실행 제한 시간과 자식 프로세스 제어처럼
    프로젝트 모델이 아닌 책임을 같은 파일에 넣지 않는다.
 3. **확장은 kit을 합성 package의 submodule로 로드한다.** package 이름은 `aelix_lab_kit_<kit 경로 해시>`이고
-   `__path__`는 그 pack의 `kit/labkit`이다. `core.py`는 평범한 상대 import를 쓴다. `sys.modules` 항목은 실행 중에만
-   존재하고 끝나면 지운다. 따라서 호스트 환경에 설치된 `labkit`을 가리지 않고, 두 pack이나 `AELIX_LAB_KIT` 변경
+   `__path__`는 그 pack의 실행 루트 안의 package 디렉터리다(#9-1부터 체크아웃의 `src/aelix_analytics`, 설치본의
+   `aelix_analytics/kit/aelix_analytics`. 그 전에는 `kit/labkit`). `core.py`는 평범한 상대 import를 쓴다. `sys.modules` 항목은
+   실행 중에만 존재하고 끝나면 지운다. 따라서 호스트 환경에 설치된 같은 이름의 package(#9-1부터는 배포본 자신의
+   `aelix_analytics`, 그 전에는 `labkit`)를 가리지 않고, 두 pack이나 `AELIX_LAB_KIT` 변경
    전후가 캐시된 형제 모듈을 공유하지 않으며, 실패한 로드는 아무것도 남기지 않는다.
 4. **구현은 `Project`가 나른다.** `core.PLATFORM`은 모듈을 불러올 때 `_platform.detect()`가 한 번 고른 이 프로세스의
    구현이고 `Project(root)`의 기본값이다. 진입점은 번들을 따로 넘기지 않고, 시험과 다른 호출자는

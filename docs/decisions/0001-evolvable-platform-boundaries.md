@@ -39,7 +39,7 @@ Aelix Analytics는 베타 이후에도 지표·맥락·재사용·근거 탐색�
 | 5 공통 쓰기 경로와 읽기 모델 | 적용 전 | 읽기 모델 #12, 공통 writer #13, 보고서 본문·버전 #19 |
 | 6 계약별 버전·호환성 | 적용 전. 이 결정 전부터 기록에 schema 가족·버전이 있고, 같은 가족의 미래 버전만 가려낸다 | 기록 #4·#13, 스크립트 API #9, 게시 형식 #20·#21, 배포 #24 |
 | 7·8 자유 Python, 도구 수 | 현재 동작이 지키는 원칙이다(자유 Python 실행, 모델 도구 여섯 개) | 새 기능 PR의 리뷰 기준(Q11·Q13) |
-| 9 공개 명칭과 영어 기본값 | 설치본의 명령 이름 `analytics`(ADR-0004 결정 7) | 공개 이름 #9, 영어 기본값 #10, 저장 이름 #13(ADR-0005) |
+| 9 공개 명칭과 영어 기본값 | 설치본의 명령 이름 `analytics`(ADR-0004 결정 7). #9의 첫 PR(2026-10-06): kit이 package `aelix_analytics`이고 스크립트 API가 `import aelix_analytics`, 모듈 실행이 `python -m aelix_analytics`다(ADR-0004 결정 9 개정) | 함수·명령·도구·flag·환경 변수의 이름 #9의 둘째 PR, 영어 기본값 #10, 저장 이름 #13(ADR-0005) |
 
 ## OS마다 다른 구현의 기본값
 
@@ -57,9 +57,9 @@ Aelix Analytics는 베타 이후에도 지표·맥락·재사용·근거 탐색�
 병합된 모듈은 #43이 그때 등록한다.
 첫 사례는 [#12](https://github.com/handochan/aelix-analytics/issues/12)의 읽기 모델과 [#13](https://github.com/handochan/aelix-analytics/issues/13)의
 공통 writer다. 계층·Protocol·Strategy를 쓰임보다 먼저 만들지 않는다(아키텍처 §5·§9).
-[#9](https://github.com/handochan/aelix-analytics/issues/9)가 `kit/labkit`을 `aelix_analytics` 패키지로 옮기는 것은 이 일괄 재배치가 아니다.
-모듈 구성을 그대로 둔 채 이름을 바꾸는 명칭 결정의 일부다(ADR-0005 결정 7. ADR-0004 결정 9와 경로가 바뀌는 ADR-0003 결정 2·3은
-그 PR에서 고친다).
+[#9](https://github.com/handochan/aelix-analytics/issues/9)가 `kit/labkit`을 `aelix_analytics` 패키지(`src/aelix_analytics`)로 옮긴 것은
+이 일괄 재배치가 아니다. 모듈 구성을 그대로 둔 채 이름을 바꾸는 명칭 결정의 일부다(ADR-0005 결정 7. ADR-0004 결정 9와 경로가 바뀌는
+ADR-0003 결정 2·3은 그 PR에서 고쳤다).
 
 ## 대안과 선택 이유
 
@@ -101,7 +101,8 @@ Aelix Analytics는 베타 이후에도 지표·맥락·재사용·근거 탐색�
    #9·#13(ADR-0005 결정 5·9), Aelix 경로는 저장소 CI의 aelix 통합, 자유도(Q13)는 [#24](https://github.com/handochan/aelix-analytics/issues/24)의 출시 리허설이 맡는다.
 4. 파일 이동과 스키마·행동 변경을 분리하고, 현재 계약·시험·안내가 같은 구현을 설명하는가? #9-1은 이동과, `labkit`이라는 이름이
    사라지는 데 따른 안내·`KIT_VERSION` 상향·실행 가드만 싣고(기록의 형식과 동작은 그대로) #13은 세 PR로 나눈다(ADR-0005 결정 7).
-   각 PR의 리뷰가 확인한다.
+   각 PR의 리뷰가 확인한다. #9-1은 내용을 바꾸지 않는 이동, 기계적 치환, 손 편집을 커밋으로 나눴고 저장 이름이 그대로임을
+   `tests/test_kit.py`의 `test_storage_names_stay_until_the_new_writer`가 확인한다.
 5. 도메인·공유 응용 코드가 host·UI·분석 라이브러리를 거꾸로 import하지 않는가? 함수 안 import까지 읽는 정적 검사와 제거 조건이 붙은 허용
    목록은 #43이 #9-1 뒤에 만든다. 확장 로드 뒤 `sys.modules`를 보는 런타임 시험은 함께 유지한다. #12·#13은 새 모듈을 계층표에 등록하고,
    #43보다 먼저 병합되면 #43이 그 모듈을 등록한다.

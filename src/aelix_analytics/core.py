@@ -23,7 +23,7 @@ from pathlib import Path
 
 from . import _platform
 
-KIT_VERSION = "0.1.0"
+KIT_VERSION = "0.2.0"
 MARKER = "lab.json"
 SCHEMA_PROJECT = "lab.project/1"
 SCHEMA_RUN = "lab.run/1"

@@ -8,11 +8,13 @@ From a checkout, globally:         ln -s <pack>/extension/aelix_lab.py ~/.aelix/
 Use one of these at a time: a second copy in the same aelix does not set itself up (see setup).
 
 Inside aelix this file imports only the standard library, the aelix API and the kit's stdlib-only
-aelix_analytics/core.py with its _platform sibling — installed, also its own package and the stdlib-only
-aelix_analytics._install, which says where the kit is. From a checkout the kit is the one next to
-it (so symlink this file in a checkout rather than copying it). Analysis code never runs in the
-aelix process: lab_run, lab_import, lab_query and report builds are
-`uv run --project <project> python -m aelix_analytics ...` subprocesses in the project's own environment.
+core.py with its _platform sibling, from the runtime root (the directory that holds the package
+aelix_analytics) — installed, also its own package, whose __init__ imports only the standard library,
+and the stdlib-only aelix_analytics._install, which says where the runtime root is. From a checkout
+the runtime root is the checkout's src/ (so symlink this file in a checkout rather than copying it).
+Analysis code never runs in the aelix process: lab_run, lab_import, lab_query and report builds are
+`uv run --project <project> python -m aelix_analytics ...` subprocesses in the project's own
+environment.
 Neither side is a sandbox, and aelix does not ask for approval before extension tools run.
 """
 
@@ -39,8 +41,9 @@ from aelix_ai.tools import ToolExecutionContext, ToolResult
 
 
 def _kit() -> tuple[Path, str]:
-    """(the kit directory, how it was found). The kit is where `aelix_analytics` is: children get exactly
-    this directory on PYTHONPATH, and core.py and _platform.py are loaded from it."""
+    """(the kit directory, how it was found). The kit directory is the runtime root, the directory
+    that holds the package `aelix_analytics`: children get exactly this directory on PYTHONPATH, and
+    core.py and _platform.py are loaded from its package."""
     if __name__ == "aelix_analytics.extension":
         # Imported by name from the installed distribution (its `aelix.extensions` entry point, or
         # `aelix -e aelix_analytics.extension`). It runs the kit installed with it, found through
@@ -57,8 +60,8 @@ def _kit() -> tuple[Path, str]:
         # The installed module loaded as a file (`aelix -e <site-packages>/aelix_analytics/extension.py`).
         return (here / "kit").resolve(), "installed file"
     # A checkout's extension/aelix_lab.py, loaded as a file (`aelix -e`, or a symlink in aelix's
-    # extensions directory): its kit is next to its directory.
-    return (here.parent / "kit").resolve(), "checkout"
+    # extensions directory): its runtime root is the checkout's src/, next to its directory.
+    return (here.parent / "src").resolve(), "checkout"
 
 
 KIT, KIT_ROUTE = _kit()
@@ -72,14 +75,14 @@ def _load_core():
     a digest of the resolved kit path, so two packs, or one pack before and after AELIX_LAB_KIT
     changes, never share a cached submodule. The sys.modules entries exist only while the modules
     execute and are removed afterwards: the loaded objects stay alive through the reference this
-    returns, a aelix_analytics installed in the host environment is never shadowed, and a failed load leaves
-    nothing behind. Reloading a changed kit needs a new aelix process, as it did before.
+    returns, an aelix_analytics installed in the host environment (the distribution's own package) is
+    never shadowed, and a failed load leaves nothing behind. Reloading a changed kit needs a new aelix process, as it did before.
     """
     path = KIT / "aelix_analytics" / "core.py"
     if not path.is_file():
         remedy = {"AELIX_LAB_KIT": "Point AELIX_LAB_KIT at a directory that holds aelix_analytics/, or unset it.",
                   "checkout": "Symlink extension/aelix_lab.py instead of copying it, or set "
-                              "AELIX_LAB_KIT=<pack>/kit.",
+                              "AELIX_LAB_KIT=<pack>/src.",
                   "installed file": "Reinstall the aelix-analytics package.",
                   "installed": "Reinstall the aelix-analytics package."}[KIT_ROUTE]
         raise RuntimeError(f"aelix-analytics: kit not found at {path}. {remedy}")
@@ -126,6 +129,10 @@ ENV_ALLOW = ("PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "LC_ALL", "LC_C
              "ALL_PROXY", "http_proxy", "https_proxy", "no_proxy", "all_proxy")
 SECRET_NAME = re.compile(r"TOKEN|SECRET|PASSWORD|CREDENTIAL|_KEY$", re.IGNORECASE)
 PYTHON_IN_SHELL = re.compile(r"(^|[\s;&|(`])(python3?(\.\d+)?|uv\s+run|pip3?|ipython|jupyter)\b")
+# A shell command that runs the kit itself (`python -m aelix_analytics …`, or Python that imports it),
+# which is not python_via_bash. Only the module as a module: a path or a project name that merely
+# contains the word is not the kit.
+KIT_IN_SHELL = re.compile(r"(?:(?:^|\s)-m\s*|\bimport\s+|\bfrom\s+)aelix_analytics\b")
 
 # Module-level state of one aelix runtime. setup() starts it over: the file loader makes a new module
 # for every session aelix builds, but the installed module is imported once per process.
@@ -897,7 +904,7 @@ TOOLS = [
         "analytics.chart(fig, 'monthly-revenue', title=..., caption=..., data=plotted_df) for a matplotlib "
         "Figure/Axes or plotly Figure (id: short ASCII, stable across versions); analytics.note('finding', "
         "text) links a journal entry to this run. Plain pl.read_parquet('data/...'), DuckDB SQL over "
-        "'data/...parquet' literals, plt.show() and fig.show() are captured too, but only lab.chart "
+        "'data/...parquet' literals, plt.show() and fig.show() are captured too, but only analytics.chart "
         "with data= records exactly what was plotted. matplotlib has a Korean-capable font preset.",
         {"title": {**STR, "description": "What this run is for, in one line (shown in the journal)."},
          "script": {**STR, "description": "Project-relative path of the script, e.g. scripts/02_monthly_sales.py."},
@@ -915,10 +922,10 @@ TOOLS = [
         "run a Python analysis script with recorded code, data and charts; rebuilds the HTML report",
         guidelines=(
             "Analysis data is Parquet: data/raw is imported and never modified; derived tables go to "
-            "data/derived via lab.save. Process data with DuckDB and Polars, not pandas.",
+            "data/derived via analytics.save. Process data with DuckDB and Polars, not pandas.",
             "Make every chart and derived dataset with lab_run, never by running python through bash, "
             "so its code and input data are recorded and linked from the report.",
-            "In scripts prefer lab.read/lab.sql for data and analytics.chart(fig, id, title=, caption=, "
+            "In scripts prefer analytics.read/analytics.sql for data and analytics.chart(fig, id, title=, caption=, "
             "data=plotted_df) for charts; one script per question, re-run it to version its charts.",
             "Record findings, decisions, assumptions, questions and todos with lab_note as soon as they "
             "are established, citing run ids; keep CONTEXT.md current by editing it.",
@@ -983,7 +990,8 @@ def summarize_call(tool: str, args: dict, project) -> tuple[str, list]:
     flags = []
     if tool == "bash":
         command = str(args.get("command") or "")
-        if PYTHON_IN_SHELL.search(command) and "aelix_analytics" not in command and "bin/lab" not in command:
+        if PYTHON_IN_SHELL.search(command) and not KIT_IN_SHELL.search(command) \
+                and "bin/lab" not in command:
             flags.append("python_via_bash")
         return command[:300], flags
     if tool in ("write", "edit"):

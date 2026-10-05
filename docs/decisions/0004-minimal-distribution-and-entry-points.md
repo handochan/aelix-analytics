@@ -7,6 +7,11 @@ Status: Accepted (2026-09-30) — [ADR-0002](0002-python-support-and-platform-sc
 ADR-0003과 같이 새 제품 결정이 아니라 승인된 작업 안의 구조 선택이므로, 반대 의견은 해당 PR 리뷰에서 다룬다.
 현재 코드가 실제로 하는 것은 [현재 계약](../CONTRACTS.md)의 A·D·F·G절에 있다.
 
+개정: 2026-10-06 — [#9](https://github.com/handochan/aelix-analytics/issues/9)의 첫 PR이 kit을 package `aelix_analytics`로 옮겨
+결정 1·5·6·9와 "ADR-0002와의 관계", 대안 표를 고쳤다([ADR-0005](0005-names-first-storage-with-the-new-writer.md) 결정 7, Issue #3
+결정 묶음 D2의 권장안). 결정은 제자리에서 고쳤고(ADR-0001과 같은 방식), 그 전의 문장은 git 이력에 있다. 실행 가드의 범위는
+2026-10-06 소유자 결정(Issue #9)이다.
+
 ## 배경
 
 ADR-0002는 진입점의 하한을 `>=3.11`로 낮추고(결정 2), Aelix 없이 CLI·SDK만으로 분석을 완결하게 하며(결정 4),
@@ -21,8 +26,8 @@ ADR-0002는 진입점의 하한을 `>=3.11`로 낮추고(결정 2), Aelix 없이
   때만 결합된다. editable 설치는 결합되지 않는다.
 - 확장이 aelix 프로세스 안에서 `core.py`를 로드하는 합성 package(ADR-0003)에서는 `importlib.resources.files()`가
   동작하지 않는다(`ValueError`, 이어서 `ModuleNotFoundError`). 파일 경로로 로드된 모듈에서도 동작하지 않는다.
-- 자식 프로세스는 kit을 최상위 `labkit`으로, 정확히 kit 디렉터리 하나를 PYTHONPATH에 두고 실행해야 한다. 다른
-  이름으로 실행하면 스크립트가 import한 SDK가 실행 중인 run을 보지 못한다. site-packages 전체를 PYTHONPATH에 두는
+- 자식 프로세스는 kit을 최상위 package(당시 `labkit`, #9-1부터 `aelix_analytics`)로, 정확히 kit 디렉터리 하나를 PYTHONPATH에
+  두고 실행해야 한다. 다른 이름으로 실행하면 스크립트가 import한 SDK가 실행 중인 run을 보지 못한다. site-packages 전체를 PYTHONPATH에 두는
   것은 [설계](../DESIGN-CONTINUITY-AND-REUSE.md) 8절이 금한다.
 - uv의 build backend는 파일을 옮기지 않고는 `kit/`와 `extension/`을 한 package로 묶지 못한다. hatchling은 옮기지
   않고 묶으며 `.gitignore`를 따르고 재현 가능하게 만든다.
@@ -36,10 +41,14 @@ ADR-0002는 진입점의 하한을 `>=3.11`로 낮추고(결정 2), Aelix 없이
 ## 결정
 
 1. **배포본은 wheel 하나다.** hatchling(1.32.4로 고정)이 체크아웃을 옮기지 않고 한 package로 묶는다:
-   `src/aelix_analytics/` → `aelix_analytics/`, `extension/aelix_lab.py` → `aelix_analytics/extension.py`,
-   `kit/labkit/` → `aelix_analytics/kit/labkit/`. 새 프로젝트 템플릿은 `kit/template/`에서 `kit/labkit/template/`로
-   옮겨 labkit의 package data가 된다. 그래서 자식의 PYTHONPATH에는 `labkit` 하나만 보인다. 개발 환경은
-   `package = false`를 유지하고, 배포본의 확인은 언제나 빌드한 wheel로 한다.
+   `src/aelix_analytics/` → `aelix_analytics/`, `extension/aelix_lab.py` → `aelix_analytics/extension.py`, 그리고 같은
+   `src/aelix_analytics/`의 사본 → `aelix_analytics/kit/aelix_analytics/`(force-include). kit은 package `aelix_analytics`
+   자체이고(#9-1 개정. 그 전에는 `kit/labkit/` → `aelix_analytics/kit/labkit/`), 새 프로젝트 템플릿은 그 package data
+   `template/`이다. `aelix_analytics/kit/`이 **실행 루트**다: 자식의 PYTHONPATH에는 그 안의 `aelix_analytics` 하나만 보인다.
+   사본에는 `extension.py`가 없고 런처 파일(`cli.py`·`_install.py`·manifest)은 있다. 자식은 그 파일들을 import하지 않고,
+   aelix는 entry 모듈 경로의 manifest만 결합한다(e2e 시험의 `aelix extension verify` BOUND). force-include는 디렉터리를
+   `.gitignore` 없이 걸으므로 배포본은 깨끗한 체크아웃에서 빌드하고 시험이 구성원을 확인한다. 개발 환경은 `package = false`를
+   유지하고, 배포본의 확인은 언제나 빌드한 wheel로 한다.
 2. **진입점은 둘이다.** console script `analytics`(`aelix_analytics.cli:main`, Windows에서는 `analytics.exe`)와 entry point
    `aelix.extensions: aelix-analytics = aelix_analytics.extension:setup`. manifest는 package 최상위의
    `aelix-plugin.toml`이다: `id = "aelix-analytics"`, `version`은 pyproject·`KIT_VERSION`과 같게, 시작할 때 로드
@@ -52,8 +61,8 @@ ADR-0002는 진입점의 하한을 `>=3.11`로 낮추고(결정 2), Aelix 없이
 4. **Aelix extra를 두지 않는다.** Aelix 연동은 이 wheel을 aelix의 환경에 설치하는 것이다(`uv tool install aelix
    --with <wheel>` 또는 `aelix extension install <wheel>`). `[aelix]` extra는 aelix-coding-agent 0.1.0b2의
    `pillow<12` 때문에 dev 환경의 pillow를 바꾸고, 이를 막으려면 lock이 커지고 dev와 aelix를 함께 설치할 수 없게 된다.
-5. **자원은 resource API로 찾는다.** 설치본의 kit은 `importlib.resources.files("aelix_analytics") / "kit"`이며, 풀린
-   파일의 디렉터리여야 한다. zip import는 거절한다: 자식은 zip 안의 kit도 실행하지만, kit은 자기 파일을 읽어
+5. **자원은 resource API로 찾는다.** 설치본의 kit(실행 루트)은 `importlib.resources.files("aelix_analytics") / "kit"`이고
+   그 안에 `aelix_analytics` 사본이 있다(체크아웃의 실행 루트는 `src/`). 풀린 파일의 디렉터리여야 한다. zip import는 거절한다: 자식은 zip 안의 kit도 실행하지만, kit은 자기 파일을 읽어
    `env.kit_sha256`을 계산하므로 빈 입력의 해시를 기록하고, aelix 프로세스는 `core`를 파일로 로드한다. kit 안에서
    CLI는 템플릿, 리포트는 assets, 데모는 예제 스크립트를 `importlib.resources.files(__package__)`로 읽는다. aelix
    프로세스 안의 `core`는 resource API를 쓸 수 없으므로(합성 package) 템플릿을 자기 파일 옆에서 찾는다. 호출자가
@@ -62,7 +71,7 @@ ADR-0002는 진입점의 하한을 `>=3.11`로 낮추고(결정 2), Aelix 없이
    템플릿부터 읽는다.
 6. **확장은 모듈 이름으로 경로를 가린다.** `aelix_analytics.extension`으로 import되면(설치본의 entry point) 5의 설치
    kit을 쓰고 `AELIX_LAB_KIT`를 따르지 않는다. 확장과 kit은 함께 설치된 것이어야 맞물린다. 파일로 로드되면
-   `AELIX_LAB_KIT`, 파일 옆의 kit(경로로 로드한 설치본), 체크아웃의 `kit/` 순서다. aelix는 세션을 만들 때마다 확장을
+   `AELIX_LAB_KIT`(`aelix_analytics/`를 담은 디렉터리), 파일 옆의 kit(경로로 로드한 설치본), 체크아웃의 `src/` 순서다. aelix는 세션을 만들 때마다 확장을
    다시 설정하는데 설치본의 모듈은 프로세스에 한 번만 import되므로, `setup()`이 세션에 속한 상태를 매번 처음부터
    시작한다. 한 aelix runtime에는 사본 하나만 설정된다. 먼저 설정된 사본이 등록을 마친 뒤 runtime의 event bus
    (`aelix.events`)에서 응답하고, 뒤의 사본은 아무것도 등록하지 않고 stderr에 알린다. 이 확인이 없는 이전 버전의 사본은
@@ -86,11 +95,18 @@ ADR-0002는 진입점의 하한을 `>=3.11`로 낮추고(결정 2), Aelix 없이
    프로그램은 PATH의 절대 경로 항목에서만 찾고 경로로 준 것도 `.exe`만 받는다(작업 디렉터리의 프로그램과, 인자를 다시
    해석하는 `.bat`·`.cmd`를 피한다). 찾은 프로그램은 링크를 따라가지 않은 절대 경로로 실행한다(mise의 shim은 자기
    이름으로 동작을 정하는 링크다). `/lab open`의 `sys.platform` 분기가 이것으로 사라진다.
-9. **SDK는 run의 스크립트가 import하는 `labkit`이다.** run을 시작한 진입점(`analytics`, `bin/lab`, 확장)이 PYTHONPATH로
-   준다. wheel은 최상위 `labkit`을 설치하지 않는다. 노트북·일반 Python에서의 호출은 run을 기록하는 경로가 아니다
-   (PRODUCT). run 밖에서도 `lab.note`는 journal 이벤트(작성자 `script`)를 남기고 `lab.save`는 `data/derived`에 쓰며
-   `lab.chart`는 기록되지 않는 파일을 `.lab/adhoc`에 남긴다. `import aelix_analytics as analytics`는
-   [#9](https://github.com/handochan/aelix-analytics/issues/9)의 이름이다.
+9. **SDK는 run의 스크립트가 import하는 `aelix_analytics`다**(#9-1 개정. 그 전에는 `labkit`). run을 시작한 진입점(`analytics`,
+   `bin/lab`, 확장)이 실행 루트를 PYTHONPATH로 준다. `-m aelix_analytics`의 runpy가 import한 package를 스크립트의
+   `import aelix_analytics`가 그대로 받으므로 SDK가 실행 중인 run을 본다. 설치된 package `aelix_analytics`도 kit 전체지만
+   그 `__init__`은 모듈 수준에서 stdlib만 import한다: SDK 함수의 정의와, `core`를 그때 읽는 PEP 562의 `__version__`뿐이다.
+   그래서 aelix와 런처가 package를 import해도 kit 모듈은 들어오지 않는다. 설치된 package 자신을 `python -m aelix_analytics`로
+   부르면 어느 환경에서나 거절하고(`not_runtime_root`), 실행 루트를 PYTHONPATH로 명시한 호출만 kit 명령을 실행한다(소유자
+   결정 2026-10-06, ADR-0005 확인 1). 사본을 다른 이름으로 부른 것도 거절한다. `labkit`은 import할 수 없고 별칭도 없다:
+   `No module named 'labkit'`에는 새 import와, 그런 run을 그대로 다시 실행하려면 0.2.0보다 앞선 kit이 필요하다는 안내가
+   붙는다(ADR-0005 결정 9). 노트북·일반 Python에서의 호출은 run을 기록하는 경로가 아니다(PRODUCT). run 밖에서도
+   `analytics.note`는 journal 이벤트(작성자 `script`)를 남기고 `analytics.save`는 `data/derived`에 쓰며 `analytics.chart`는
+   기록되지 않는 파일을 `.lab/adhoc`에 남긴다. 함수 이름 `note`·`chart`는 [#9](https://github.com/handochan/aelix-analytics/issues/9)의
+   둘째 PR이 바꾼다.
 
 ## ADR-0002와의 관계
 
@@ -101,22 +117,29 @@ ADR-0002는 진입점의 하한을 `>=3.11`로 낮추고(결정 2), Aelix 없이
   분석 환경을 `>=3.12`로 둔다. 그래서 두 부분으로 확인한다: 설치 환경의 3.11·3.12에서 `analytics`로 모든 명령을
   실행하고(명령은 프로젝트 환경에서 돈다), 분석 라이브러리가 필요 없는 명령(init/status/context/note/report)과 분석
   라이브러리를 쓰지 않는 스크립트의 run은 3.11에서 `python -m labkit`로도 실행한다. 소유자가 이 해석을 확인했다
-  (2026-09-30).
+  (2026-09-30). kit 0.2.0부터 같은 확인은 실행 루트를 PYTHONPATH로 준 `python -m aelix_analytics`로 하고, 결정 9의 가드는 이
+  호출을 허용한다(소유자 결정 2026-10-06).
 - 결정 7의 위치: `bin/lab`은 체크아웃에만 있고, 확장 파일은 설치본에서 `aelix_analytics/extension.py`다.
 
 ## 대안과 선택 이유
 
 | 대안 | 검토 결과 |
 |---|---|
-| uv_build로 빌드하고 소스를 `src/aelix_analytics/` 아래로 옮김 | 체크아웃과 설치본의 배치가 같아지지만 `kit/`·`extension/`이 움직인다: 시험·`bin/lab`·문서 링크 31개·사용자의 symlink가 바뀌고, #9의 개명이 한 번 더 옮긴다. `.gitignore`도 따르지 않는다 |
+| uv_build로 빌드하고 소스를 `src/aelix_analytics/` 아래로 옮김 | 체크아웃과 설치본의 배치가 같아지지만 `kit/`·`extension/`이 움직인다: 시험·`bin/lab`·문서 링크 31개·사용자의 symlink가 바뀌고, #9의 개명이 한 번 더 옮긴다. `.gitignore`도 따르지 않는다. (#9-1이 kit을 `src/aelix_analytics/`로 옮긴 뒤에도 `extension/`은 그대로이고 실행 루트의 사본을 만드는 일은 hatchling의 force-include가 한다) |
 | setuptools의 `package-dir` | 소스 트리에 egg-info를 쓰고 sdist에 시험 일부만 담으며 기본으로 재현되지 않는다 |
 | hatchling의 파일 단위 `sources`로 확장 파일 이름 바꾸기 | 이름이 바뀌지 않고 최상위 `extension/`이 site-packages에 설치됐다(측정). `force-include`를 쓴다 |
-| wheel이 최상위 `labkit`을 설치 | 자식의 PYTHONPATH가 site-packages 전체가 되고, PyPI의 무관한 `labkit`과 이름이 겹친다 |
+| 자식이 설치된 최상위 package를 실행(사본 없이, 설치 환경의 site-packages에서) | #9-1부터 wheel은 kit 전체를 최상위 `aelix_analytics`로 설치한다. 그러나 자식이 그것을 쓰려면 PYTHONPATH가 site-packages 전체가 되어 설치 환경의 패키지가 분석 환경에 보이고([설계](../DESIGN-CONTINUITY-AND-REUSE.md) 8절), 설치 환경에서 그대로 부르면 분석이 프로젝트 환경 밖에서 돈다. 그래서 자식은 사본의 실행 루트만 받고, 설치된 package의 `python -m`은 거절한다(결정 9). 그 전의 "wheel이 최상위 `labkit`을 설치"(PyPI의 무관한 `labkit`과 이름이 겹침)는 이름 변경으로 해당하지 않는다 |
 | `.pth`로 kit을 모든 Python의 경로에 추가 | 설치 환경의 모든 프로세스(aelix 포함)의 `sys.path`를 바꾼다 |
 | 설치본의 명령을 `lab`으로 | `bin/lab`과 이름까지 같지만, 명칭 전환(#9)이 폐기할 이름을 새 공개 이름으로 만든다. 첫 구현이 이렇게 했고 소유자의 지적(2026-09-30)으로 바꿨다 |
 | 템플릿을 `kit/template/`에 둠 | 자식에서 labkit의 resource로 닿지 않고, 자식의 PYTHONPATH에 `template`이 namespace package로 보인다 |
-| 확장이 설치본의 `aelix_analytics.kit.labkit.core`를 평범하게 import | `labkit/__init__`과 `capture`까지 aelix 프로세스에 들어오고(ADR-0003·계약 A와 다름) kit 경로별 분리가 사라진다 |
+| 확장이 설치본의 `aelix_analytics.core`를 평범하게 import | #9-1의 `__init__`은 kit 모듈을 import하지 않으므로 평범한 import로도 `core`·`_platform`만 들어온다. 그래도 kit 경로별 분리(합성 package 이름의 digest)가 사라져 두 pack이나 `AELIX_LAB_KIT` 변경이 같은 모듈 이름을 나눠 쓰고, 경로로 로드하는 [ADR-0003](0003-portable-boundaries-and-in-process-kit-loading.md) 결정 3과 다르다 |
 | `[aelix]` extra | 결정 4 참고 |
+| 같은 이름 두 package(#9-1 대안: `kit/labkit/`만 `kit/aelix_analytics/`로 개명, 호스트의 `src/aelix_analytics`는 그대로) | 기계적 변경이 가장 작고 호스트 package가 구조상 stdlib 전용으로 남는다. 그러나 서로 다른 두 package가 한 이름을 써서 설치 환경의 `import aelix_analytics`는 SDK가 없는 런처 package가 되고, 한 pytest 프로세스에서 런처와 SDK를 함께 import할 수 없으며, 목표 구조(ARCHITECTURE §9)로 가려면 한 번 더 옮긴다(Issue #3 결정 묶음 D2) |
+| `labkit`을 내부 이름으로 두고 `aelix_analytics` 퍼사드·별칭 | 런타임 이름을 가장 적게 바꾸고 옛 스냅샷이 그대로 다시 실행된다. 그러나 run 안에서 옛 이름과 새 이름을 함께 import할 수 있어 용어집 §3·§8과 [ADR-0005](0005-names-first-storage-with-the-new-writer.md) 대안 3에 어긋나고, 퍼사드도 호스트 package와 이름이 겹친다(D2) |
+| SDK·런타임을 별도 배포본으로 각 프로젝트 환경에 설치 | 표준 방식이고 런타임 버전이 프로젝트 lock에 고정된다. 그러나 색인 게시가 먼저 있어야 하고(배포 이름·게시 절차 미정), 호스트와 프로젝트의 버전이 어긋날 수 있으며, 베타 전의 #9를 게시 결정에 묶는다(D2) |
+| 설치된 package의 `python -m`을 런처로 위임 | 거절 대신 쓸 수 있는 방식(ADR-0005 결정 7). 그러나 `python -m aelix_analytics`의 문법이 환경마다 달라지고(JSON kit CLI ↔ 사람용 런처), 신호 처리·uv 탐색을 다시 구현해야 한다 |
+| 자식 진입을 내부 모듈로 분리(`-m aelix_analytics`는 공개하지 않음) | 설치된 package의 `-m` 문제가 생기지 않는다. 그러나 CONTRACTS D의 `python -m … <command>` 계약을 감추는 계약 변경이다 |
+| 가드를 `sys.prefix`가 프로젝트 `.venv`인지로 판정 | "프로젝트 환경 밖"을 글자 그대로 읽는다. 그러나 3.11 하한 확인(위 "ADR-0002와의 관계")과 프로젝트 환경이 생기기 전의 `init`을 막고, `UV_PROJECT_ENVIRONMENT`에도 깨진다. 소유자는 설치된 package를 거절하는 범위를 정했다(2026-10-06) |
 | `[tool.uv] environments`로 lock을 3.12 이상만 | 3.11에서는 `--no-dev`로도 sync할 수 없다 |
 | 하한만 `>=3.11`로 바꾸고 uv가 갈라 풀게 둠 | 제품이 쓰지 않는 numpy 2.4.6·contourpy 1.3.3이 lock에 들어간다 |
 | `bin/lab`을 wheel의 script로 설치 | 같은 이름의 console script가 조용히 이기고, 복사본은 kit을 찾지 못한다(측정) |
@@ -133,8 +156,8 @@ ADR-0002는 진입점의 하한을 `>=3.11`로 낮추고(결정 2), Aelix 없이
 
 ## 결과와 비용
 
-- 체크아웃의 경로(`bin/lab`, `aelix -e <pack>/extension/aelix_lab.py`, README의 symlink, `PYTHONPATH=<pack>/kit`)는
-  그대로다. 설치본과 체크아웃을 함께 쓰면 먼저 로드된 사본 하나만 설정된다. 이 PR 이전 버전의 체크아웃 사본은 이를
+- 체크아웃의 경로(`bin/lab`, `aelix -e <pack>/extension/aelix_lab.py`, README의 symlink, `PYTHONPATH=<pack>/kit` — #9-1부터
+  `<pack>/src`)는 그대로다. 설치본과 체크아웃을 함께 쓰면 먼저 로드된 사본 하나만 설정된다. 이 PR 이전 버전의 체크아웃 사본은 이를
   감지하지 못하므로, 설치본을 쓰면 symlink를 지운다(README).
 - 확장에는 kit을 찾는 경로가 넷이다(설치본, `AELIX_LAB_KIT`, 경로로 로드한 설치본, 체크아웃). 파일 로드에서는 resource
   API를 쓸 수 없으므로 없앨 수 없다.
@@ -143,9 +166,13 @@ ADR-0002는 진입점의 하한을 `>=3.11`로 낮추고(결정 2), Aelix 없이
   kit의 run에 전하고(`bin/lab`의 셸은 kit을 남기고 끝난다), uv가 없을 때 자기 문구로 127, macOS만 `open`을 쓴다. 그 밖에
   측정한 작은 차이(빈 첫 인자, 실행할 수 없는 uv, `AELIX_LAB_UV`의 `~`·끝의 `/`, 닫힌 파이프·표준 출력, symlink로 들어온
   작업 디렉터리의 `init ../DIR`, UTF-8이 아닌 로캘의 경로)는 CONTRACTS F에 있다.
-- `env.kit_sha256`이 템플릿 파일도 덮으므로 같은 코드에서 값이 한 번 바뀐다. 기록이 이 값을 비교하지 않는다.
-- 빌드에 hatchling이 필요하다(네트워크나 uv 캐시). 체크아웃에 추적되지 않은 파일이 `kit/labkit`·
-  `src/aelix_analytics`에 있으면 wheel에 들어가므로, 배포본은 깨끗한 체크아웃에서 빌드하고 시험이 구성원 목록을 확인한다.
+- `env.kit_sha256`이 템플릿 파일도 덮으므로 같은 코드에서 값이 한 번 바뀐다. 기록이 이 값을 비교하지 않는다. #9-1에서 해시하는
+  package 디렉터리에 런처 파일(`cli.py`·`_install.py`·manifest)이 더해져 한 번 더 바뀐다. 그 파일을 빼려면 기록을 만드는 코드를
+  바꿔야 하는데 #9-1은 기록의 동작을 바꾸지 않는다. 체크아웃과 설치본의 실행 루트가 같은 파일을 담으므로 같은 커밋이면 같은 값이다.
+- wheel에 kit이 두 벌 든다(호스트 package와 실행 루트의 사본). 설치본의 `python -m aelix_analytics`는 거절되므로, 설치 환경에서
+  kit 명령은 `analytics`로 부른다.
+- 빌드에 hatchling이 필요하다(네트워크나 uv 캐시). 체크아웃에 추적되지 않은 파일이 `src/aelix_analytics`(#9-1 전에는
+  `kit/labkit`도)에 있으면 wheel에 두 번 들어가므로, 배포본은 깨끗한 체크아웃에서 빌드하고 시험이 구성원 목록을 확인한다.
 - aelix를 다시 설치하면 이 wheel이 빠진다(`uv tool install --force aelix`는 측정, 같은 명령을 `--with` 없이 쓰는
   `install.sh`는 추론). 다시 설치한다.
 - Windows 콘솔의 Ctrl+Break는 uv를 곧바로 끝내므로 런처가 kit의 기록보다 먼저 돌아온다(측정, [현재 계약](../CONTRACTS.md) G).
@@ -161,7 +188,7 @@ ADR-0002는 진입점의 하한을 `>=3.11`로 낮추고(결정 2), Aelix 없이
    라이브러리가 aelix 프로세스에 들어오지 않음, 체크아웃 symlink와 함께일 때 사본 하나 — 같은 시험의 end-to-end 단계
    (`AELIX_ANALYTICS_TEST_INSTALL=1`).
 4. 설치된 `analytics`가 3.11·3.12에서 실제 uv로 init → import → query → run → note → report → status → context → open을 수행하고,
-   run의 스크립트가 설치된 kit의 `labkit`으로 기록됨 — 같은 단계. 실제 uv의 `run --rerun-of`와, Windows 포트를 거친 `open`
+   run의 스크립트가 설치된 kit의 SDK(#9-1부터 실행 루트의 `aelix_analytics`)로 기록됨 — 같은 단계. 실제 uv의 `run --rerun-of`와, Windows 포트를 거친 `open`
    (`os.startfile`을 바꿔 넣음: 없는 리포트를 먼저 만들고 열며, 연결된 프로그램이 없으면 1과 안내)은 세 플랫폼에서 확인했다
    (같은 기록). 실제 opener와 설치본의 `analytics demo`는 `not_run`이다(CONTRACTS G).
 5. `analytics`와 `bin/lab`의 계약 동등성(명령 이름 말고), Ctrl+C·SIGTERM, 시작 순간의 Ctrl+C — `tests/test_launcher.py`(POSIX).

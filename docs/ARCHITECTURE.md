@@ -253,6 +253,8 @@ host 쪽 조립은 가벼운 `core` 읽기와 runtime 호출 bridge만 사용하
 `__init__`의 부작용이나 포트 타입 import 때문에 Aelix가 Polars·DuckDB·그림 라이브러리를 로드해서는 안 된다.
 
 배포된 확장의 실행 자원 경로만 자식 환경에 전달하고 host의 전체 `site-packages`를 노출하지 않는다.
+#9의 첫 PR(2026-10-06)부터 kit이 package `aelix_analytics`이고, 자식은 그 package 하나만 담은 실행 루트(체크아웃의 `src/`, 설치본의
+`aelix_analytics/kit/` 사본)를 받으며, 설치된 package 자신의 `python -m`은 거절한다([ADR-0004](decisions/0004-minimal-distribution-and-entry-points.md) 결정 1·9).
 한 패키지 이름을 사용하더라도 `aelix_analytics.core`의 import가 `runtime`·Workspace·분석 라이브러리를 로드하지 않도록 SDK 진입점은 지연 연결한다.
 설치 위치는 resource API로 찾는다. 프로젝트 루트·세션·현재 작업·정책 선택은 명시적 수명으로 관리한다.
 전역 상태가 필요한 캡처 훅은 실행 worker 안에 가두고 설치·해제를 보장한다. 이를 여러 프로젝트가 공유하는 mutable 상태로 확장하지 않는다.

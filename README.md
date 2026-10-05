@@ -115,8 +115,9 @@ uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.1.0-p
 | 전역 등록 | `mkdir -p ~/.aelix/agent/extensions && ln -s $PACK/extension/aelix_lab.py ~/.aelix/agent/extensions/aelix_lab.py` | 계속 쓸 때 (모든 aelix 세션에 도구 6개가 붙음) |
 | 해제 | `rm ~/.aelix/agent/extensions/aelix_lab.py` | |
 
-- **복사하지 말고 symlink** 하세요. 확장 파일이 옆의 `kit/`을 찾습니다. 복사했다면 `AELIX_LAB_KIT=$PACK/kit`이고, 체크아웃을
-  업데이트할 때마다 다시 복사해야 합니다.
+- **복사하지 말고 symlink** 하세요. 확장 파일이 체크아웃의 `src/`(kit, package `aelix_analytics`가 있는 곳)를 찾습니다. 복사했다면
+  `AELIX_LAB_KIT=$PACK/src`이고, 체크아웃을 업데이트할 때마다 다시 복사해야 합니다(kit 0.2.0 전의 `AELIX_LAB_KIT=$PACK/kit`은 이제
+  "kit not found"로 실패합니다).
 - `aelix status`로 로드 여부를 확인할 수 있습니다.
 - **디렉터리로 자동 활성화되는 프로젝트는 "내가 만들었거나 고른 것"뿐입니다.** `lab init`·`lab demo`(설치본은 `analytics init`·`analytics demo`)·`/lab use`가
   프로젝트 경로를 `~/.aelix/agent/lab-projects.json`에 적고, 그 목록에 있는 프로젝트 안에서 aelix를 실행할 때만
@@ -165,17 +166,21 @@ PNG 차트는 모델이 이미지 입력을 받을 때 `lab_run` 결과에 이�
 ### 스크립트 API
 
 ```python
-import labkit as lab
+import aelix_analytics as analytics
 
-sales = lab.read("sales")                                   # Polars DataFrame (data/raw/sales.parquet)
-monthly = lab.sql("SELECT ... FROM sales GROUP BY ALL").pl() # 모든 데이터셋이 view인 DuckDB
-lab.save(monthly, "monthly_revenue")                        # data/derived/monthly_revenue.parquet
-lab.chart(fig, "monthly-revenue", title="…", caption="…", data=monthly)   # matplotlib/plotly
-lab.note("finding", "…")                                    # 이 run에 연결된 journal 기록
+sales = analytics.read("sales")                                    # Polars DataFrame (data/raw/sales.parquet)
+monthly = analytics.sql("SELECT ... FROM sales GROUP BY ALL").pl() # 모든 데이터셋이 view인 DuckDB
+analytics.save(monthly, "monthly_revenue")                         # data/derived/monthly_revenue.parquet
+analytics.chart(fig, "monthly-revenue", title="…", caption="…", data=monthly)   # matplotlib/plotly
+analytics.note("finding", "…")                                     # 이 run에 연결된 journal 기록
 ```
 
-labkit을 쓰지 않은 **관용 코드도 기록됩니다**: `pl.read_parquet("data/…")`, `duckdb.sql("… FROM 'data/….parquet'")`,
-`plt.show()`, plotly `fig.show()`. 차트의 **명시적인 첨부 표**는 `lab.chart(..., data=df)`로 남깁니다.
+run을 시작한 명령(`analytics`, `bin/lab`, aelix 도구)이 이 package를 run에 줍니다. kit 0.2.0 전의 이름 `import labkit as lab`은
+더는 import되지 않습니다: 그런 스크립트는 새 이름을 알려 주는 오류로 실패하니 import 줄을 고치세요. 옛 kit으로 기록한 run을
+그대로 다시 실행하려면 그 kit이 필요합니다. 설치본의 `python -m aelix_analytics`는 거절되므로 셸에서는 `analytics`를 씁니다.
+
+SDK를 쓰지 않은 **관용 코드도 기록됩니다**: `pl.read_parquet("data/…")`, `duckdb.sql("… FROM 'data/….parquet'")`,
+`plt.show()`, plotly `fig.show()`. 차트의 **명시적인 첨부 표**는 `analytics.chart(..., data=df)`로 남깁니다.
 첨부 표가 요약 통계나 일부 계열이면 그림 전체를 재구성하는 데 입력·코드도 필요하며, 첨부 자체가 완전한 플롯 대응을 보장하지 않습니다.
 matplotlib에는 한글 폰트와 검증된 기본 팔레트가 적용됩니다(`LAB_STYLE=0`으로 끔).
 
@@ -205,7 +210,7 @@ my-analysis/
 
 - **기록 단위는 run입니다.** 차트는 반드시 한 run에 속하고, run은 실행한 바이트 그대로의 코드 스냅샷을 가집니다.
   나중에 스크립트를 고쳐도 차트가 가리키는 코드는 바뀌지 않습니다.
-- **입력 감지(최선 노력)**: 런타임 훅(Polars 읽기, DuckDB 읽기·SQL 파일 리터럴, `lab.read/scan/sql`),
+- **입력 감지(최선 노력)**: 런타임 훅(Polars 읽기, DuckDB 읽기·SQL 파일 리터럴, `analytics.read/scan/sql`),
   코드의 경로 리터럴 정적 스캔, 호출 시 선언(`inputs`), 이 셋을 합칩니다. 각 입력에 어느 경로로 감지됐는지(`via`)가 남습니다.
   **출력**은 run 전후 프로젝트 파일 비교로 빠짐없이 잡습니다.
 - **stale**: 차트를 만든 run의 입력 파일 sha256이 지금과 다르거나, 그 입력을 만든 상위 run이 stale이면(전이) 표시됩니다.
@@ -275,19 +280,21 @@ uv run pytest -q                                  # kit, 런처, 배포본(wheel
 uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 \
   python -m pytest -q -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_extension.py tests/test_usage_report.py   # aelix 통합 (CI와 같은 환경)
 AELIX_ANALYTICS_TEST_INSTALL=1 uv run pytest -q tests/test_packaging.py   # aelix 0.1.0b2와 실제 uv로 끝까지 (네트워크)
-uv run ruff check kit tests extension src tools
+uv run ruff check tests extension src tools
 ```
 
 ```text
-src/aelix_analytics/      배포본의 package: cli.py(`analytics` 런처), _install.py(설치된 kit 찾기), aelix-plugin.toml
-extension/aelix_lab.py    aelix 확장 (stdlib + aelix API, kit/labkit의 core·_platform을 경로로 로드; 설치본의 aelix_analytics/extension.py)
-kit/labkit/core.py        프로젝트 모델 — stdlib만 (확장과 kit이 공유)
-kit/labkit/_platform.py   플랫폼별 잠금·교체·프로세스·run 중단 — stdlib만 (core와 함께 로드)
-kit/labkit/runner.py      run 실행과 기록        capture.py  입력·차트 캡처 훅
-kit/labkit/data.py        import·프로파일·쿼리    report.py   HTML 리포트 (+ assets/)
-kit/labkit/__init__.py    스크립트 API           __main__.py kit CLI (끝 줄이 JSON)
-kit/labkit/demo.py        데모 데이터·run        kit/labkit/template/  새 프로젝트 파일
-bin/lab                   사람용 CLI (체크아웃, POSIX)
+src/aelix_analytics/          kit이자 배포본의 package. src/가 자식에게 주는 실행 루트(설치본은 aelix_analytics/kit/의 사본)
+  __init__.py                 스크립트 API (모듈 수준에서는 stdlib만; kit 모듈은 함수를 부를 때 import)
+  __main__.py                 kit CLI (끝 줄이 JSON; 설치된 package 자신으로는 실행 거절)
+  core.py                     프로젝트 모델 — stdlib만 (확장과 kit이 공유)
+  _platform.py                플랫폼별 잠금·교체·프로세스·run 중단 — stdlib만 (core와 함께 로드)
+  runner.py  capture.py       run 실행과 기록, 입력·차트 캡처 훅
+  data.py    report.py        import·프로파일·쿼리, HTML 리포트 (+ assets/)
+  demo.py                     데모 데이터·run (+ demo_scripts/)    template/  새 프로젝트 파일
+  cli.py  _install.py         `analytics` 런처, 설치된 실행 루트 찾기    aelix-plugin.toml  manifest
+extension/aelix_lab.py        aelix 확장 (stdlib + aelix API, 실행 루트의 core·_platform을 경로로 로드; 설치본의 aelix_analytics/extension.py)
+bin/lab                       사람용 CLI (체크아웃, POSIX)
 ```
 
 2026-09-16 확인: kit 39 passed, extension 10 passed(실제 aelix 로더 등록, uv 환경의 import·query·run·재실행·취소 포함).

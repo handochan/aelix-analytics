@@ -1,4 +1,4 @@
-"""Where the installed distribution keeps its kit.
+"""Where the installed distribution keeps its kit: the runtime root, `aelix_analytics/kit/`.
 
 Standard library only: the aelix process imports this (through aelix_analytics.extension), and so
 does the `analytics` command line.
@@ -11,10 +11,11 @@ from pathlib import Path
 
 
 def kit_dir() -> Path:
-    """The directory that holds this distribution's `aelix_analytics` package.
+    """The runtime root: the directory that holds this distribution's copy of the `aelix_analytics`
+    package, `kit/aelix_analytics/` beside this module.
 
-    A child process gets exactly this directory on PYTHONPATH and imports `aelix_analytics` from it — not the
-    site-packages it is in, which would bring the host's packages into an analysis environment
+    A child process gets exactly this directory on PYTHONPATH and imports `aelix_analytics` from it —
+    not the site-packages it is in (where this package itself refuses to run the kit), which would bring the host's packages into an analysis environment
     (docs/DESIGN-CONTINUITY-AND-REUSE.md section 8). It has to be a directory of real files, as an
     installer that unpacks the wheel leaves it: the kit reads its own files (from a zip, a run would
     record the hash of empty input as `env.kit_sha256`), and the aelix process loads `core` and

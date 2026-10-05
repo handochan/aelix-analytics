@@ -11,8 +11,11 @@ docs/CONTRACTS.md, section F. `bin/lab` stays the command of a checkout, under i
 the rename of Issue #9; tests/test_launcher.py holds the two to one contract.
 
 Every command runs the kit in the project's own environment, as `bin/lab` does:
-`uv run --project <project> python -m aelix_analytics ...` with PYTHONPATH set to exactly the kit this
-distribution installed. This process uses the standard library only, on Python 3.11 or later.
+`uv run --project <project> python -m aelix_analytics ...` with PYTHONPATH set to exactly the
+runtime root this distribution installed (aelix_analytics/kit/, which holds a copy of this package;
+the package this file is in refuses `python -m`, see __main__). This process uses the standard
+library only, on Python 3.11 or later, and imports only this package's stdlib-only __init__ and
+_install.
 """
 
 from __future__ import annotations
@@ -143,8 +146,8 @@ def _command(args: list[str], kit: Path | None, uv_argv: list[str] | None,
 
 def child_env(kit: Path) -> dict[str, str]:
     """The caller's environment, as `bin/lab` passes it on, and the kit exactly: PYTHONPATH is
-    replaced rather than extended, so an analysis environment sees `aelix_analytics` and nothing else of the
-    environment this command is installed in. Children write no bytecode into the installed kit,
+    replaced rather than extended, so an analysis environment sees the runtime root's
+    `aelix_analytics` and nothing else of the environment this command is installed in. Children write no bytecode into the installed kit,
     which an uninstall would otherwise leave behind."""
     env = {name: value for name, value in os.environ.items() if name != "VIRTUAL_ENV"}
     env.update({"PYTHONPATH": str(kit), "MPLBACKEND": "Agg", "PYTHONDONTWRITEBYTECODE": "1",
@@ -291,7 +294,7 @@ class _Children:
 
 
 def _load_platform(kit: Path):
-    """The kit's _platform module — standard library only, importing nothing from aelix_analytics — loaded
+    """The kit's _platform module — standard library only, importing no other module of the kit — loaded
     from `kit` under a name of its own, and in sys.modules only while it executes, as the aelix
     extension loads it (ADR-0003). It chooses how this platform opens a document and finds a
     program, so this file has no platform branch of its own."""

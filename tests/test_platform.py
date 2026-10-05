@@ -34,8 +34,8 @@ import pytest
 from conftest import (
     LINK_KINDS,
     dir_link,
-    kit_env,
     kit_cli,
+    kit_env,
     record_observation,
     write_sales_csv,
     write_script,
@@ -2947,12 +2947,66 @@ def test_loading_the_kit_pulls_no_analysis_library_into_the_host_process(monkeyp
         f"loaded = [n for n in {ANALYSIS_MODULES!r} if n in sys.modules]\n"
         "print('LOADED:' + ','.join(loaded))\n"
         "print('KIT_OK:' + mod.core.SCHEMA_RUN)\n"
+        "print('OURS:' + ','.join(sorted(n for n in sys.modules if n.split('.')[0] == 'aelix_analytics')))\n"
     )
     proc = subprocess.run([sys.executable, "-c", code], capture_output=True, timeout=120,
                           env=kit_env(), **_platform.text_kwargs())
     assert "KIT_OK:lab.run/1" in proc.stdout, proc.stdout + proc.stderr
     loaded = next(line for line in proc.stdout.splitlines() if line.startswith("LOADED:"))
     assert loaded == "LOADED:", f"the aelix process would have imported {loaded[len('LOADED:'):]}"
+    # From a checkout the package itself is not imported at all: core and _platform come from its
+    # directory under the synthetic name (Issue #9: the kit is now the package aelix_analytics).
+    assert "OURS:" in proc.stdout.splitlines(), proc.stdout
+
+
+def test_importing_the_package_imports_nothing_of_the_kit():
+    """Issue #9: the kit is the package aelix_analytics, and aelix imports that package when it loads
+    the installed extension, as the `analytics` command does for cli and _install. In the
+    development environment, where the analysis libraries are installed, importing the package and
+    those two modules — and asking it for a name it does not have — brings in no kit module and no
+    analysis library. `__version__` reads core, which is standard library only (PEP 562)."""
+    code = (
+        "import json, sys\n"
+        "import aelix_analytics\n"
+        "from aelix_analytics import _install, cli\n"
+        "missing = hasattr(aelix_analytics, 'no_such_name')\n"
+        "def ours(): return sorted(n for n in sys.modules if n.split('.')[0] == 'aelix_analytics')\n"
+        f"def analysis(): return sorted(n for n in sys.modules if n.split('.')[0] in {ANALYSIS_MODULES!r})\n"
+        "seen = {'missing': missing, 'ours': ours(), 'analysis': analysis()}\n"
+        "seen['version'] = aelix_analytics.__version__\n"
+        "seen.update(after_version=ours(), analysis_after_version=analysis())\n"
+        "print(json.dumps(seen))\n")
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, timeout=120,
+                          env=kit_env(), **_platform.text_kwargs())
+    assert proc.returncode == 0, proc.stderr
+    seen = json.loads(proc.stdout.splitlines()[-1])
+    assert seen["missing"] is False
+    assert seen["ours"] == ["aelix_analytics", "aelix_analytics._install", "aelix_analytics.cli"]
+    assert seen["analysis"] == [] and seen["analysis_after_version"] == []
+    assert seen["version"] == core.KIT_VERSION
+    assert seen["after_version"] == ["aelix_analytics", "aelix_analytics._install",
+                                     "aelix_analytics._platform", "aelix_analytics.cli",
+                                     "aelix_analytics.core"]
+
+
+@pytest.mark.parametrize("command, flagged", [
+    ("python -m aelix_analytics --project . status", False),
+    ("uv run --project . python -m aelix_analytics run scripts/x.py --title t", False),
+    ("python -c 'import aelix_analytics as analytics; print(analytics.datasets())'", False),
+    ("python -c 'from aelix_analytics import core'", False),
+    ("bin/lab status", False),
+    # A path or a project name that holds the word is not the kit (Issue #9 design review).
+    ("cd ~/work/aelix_analytics-trials && python scripts/x.py", True),
+    ("python /opt/venv/lib/site-packages/aelix_analytics/kit/x.py", True),
+    ("python scripts/x.py", True),
+    ("ls -la", False),
+])
+def test_python_via_bash_leaves_out_only_the_kit_itself(monkeypatch, tmp_path, command, flagged):
+    module = load_extension(monkeypatch, "ext_python_via_bash")
+    project = core.Project(core.init_project(tmp_path / "p", title="t", actor="test",
+                                             template_dir=KIT / "aelix_analytics" / "template").root)
+    _, flags = module.summarize_call("bash", {"command": command}, project)
+    assert ("python_via_bash" in flags) is flagged, (command, flags)
 
 
 def test_a_kit_that_is_not_there_is_a_clear_error(monkeypatch, tmp_path):
@@ -4200,7 +4254,7 @@ TEMPFILES = frozenset({"TemporaryFile", "NamedTemporaryFile", "SpooledTemporaryF
 SUBPROCESS_DECODING = frozenset({"run", "Popen", "check_output"})
 SUBPROCESS_ALWAYS_TEXT = frozenset({"getoutput", "getstatusoutput"})
 TEXT_MODE_KWARGS = ("text", "universal_newlines")
-SOURCE_DIRS = ("kit", "extension", "tools", "src", "tests")
+SOURCE_DIRS = ("extension", "tools", "src", "tests")
 
 
 def _receiver(func: ast.AST) -> str:
@@ -4320,8 +4374,8 @@ def test_the_shipped_code_names_the_encoding_of_every_text_call_the_scan_knows()
     """A locale-dependent default turns Korean records into an exception on a Windows machine, and
     reconfiguring this process's streams does not reach a child's pipe or a file.
 
-    Scope, deliberately: the Python of `kit`, `extension`, `tools`, `src` (the distribution's
-    `analytics` launcher) and `tests` — the tests' own calls, not the script bodies they write as
+    Scope, deliberately: the Python of `extension`, `tools`, `src` (the kit, the package
+    aelix_analytics, with the distribution's `analytics` launcher) and `tests` — the tests' own calls, not the script bodies they write as
     strings (design review T12). `bin/lab` is shell, and the template files are not Python. A
     directory that is not there would make the scan pass on nothing, so that fails."""
     missing = [d for d in SOURCE_DIRS if not (PACK / d).is_dir()]

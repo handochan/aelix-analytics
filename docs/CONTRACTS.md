@@ -22,13 +22,18 @@ manifest는 설치본이 aelix에 자기를 밝히는 데만 씁니다: `id = "a
 사실인 capability 네 개(`shell_exec`·`fs_write`·`fs_read_user`·`net` — aelix가 이 확장에는 아무것도 강제하지 않습니다),
 `license = "Apache-2.0"`(배포본의 라이선스, `LICENSE`). 체크아웃의 파일 로드
 (`aelix -e`·symlink)는 manifest 없이 로드됩니다.
-확장은 aelix 프로세스 안에서 stdlib와 aelix API, 그리고 kit의 `labkit/core.py`와 그 형제 `labkit/_platform.py`(둘 다 stdlib 전용)만 import합니다.
-설치본에서는 그 앞에 package `aelix_analytics`(docstring만)와 `aelix_analytics._install`(kit 위치)이 import됩니다.
-두 kit 파일은 kit 경로를 `__path__`로 갖는 합성 package의 submodule로 로드됩니다. package 이름에 kit 경로의 해시가 들어가고
-로드가 끝나면 `sys.modules` 항목을 지우므로, 호스트 환경에 설치된 `labkit`을 가리거나 두 pack이 캐시를 공유하는 일이 없습니다.
+확장은 aelix 프로세스 안에서 stdlib와 aelix API, 그리고 실행 루트(kit 디렉터리: package `aelix_analytics`를 담은 디렉터리, D)의
+`aelix_analytics/core.py`와 그 형제 `aelix_analytics/_platform.py`(둘 다 stdlib 전용)만 import합니다.
+설치본에서는 그 앞에 package `aelix_analytics`와 `aelix_analytics._install`(실행 루트의 위치)이 import됩니다. kit 0.2.0부터 이
+package가 kit 전체이지만, 그 `__init__`은 모듈 수준에서 stdlib만 import합니다: SDK 함수의 정의뿐이고 kit 모듈은 함수를 부를 때,
+`core`는 `__version__`을 물을 때 import됩니다. 그래서 aelix 프로세스의 `aelix_analytics.*`는 package와 `_install`·`extension`뿐입니다.
+호스트에서 SDK 함수를 부를 수는 있지만 run을 기록하는 경로가 아닙니다([ADR-0004](decisions/0004-minimal-distribution-and-entry-points.md) 결정 9).
+두 kit 파일은 실행 루트의 package 디렉터리를 `__path__`로 갖는 합성 package의 submodule로 로드됩니다. package 이름에 kit 경로의 해시가 들어가고
+로드가 끝나면 `sys.modules` 항목을 지우므로, 호스트 환경에 설치된 `aelix_analytics`(배포본 자신의 package)를 가리거나 두 pack이
+캐시를 공유하는 일이 없습니다.
 kit은 모듈 이름으로 정합니다: `aelix_analytics.extension`으로 import된 설치본은 `importlib.resources`로 찾은 자기 kit을
 쓰고 `AELIX_LAB_KIT`를 따르지 않습니다. 파일로 로드된 경우 `AELIX_LAB_KIT`가 있으면 그것, 파일 옆에 kit이 있으면(경로로
-로드한 설치본) 그것, 아니면 체크아웃의 `kit/`입니다(`/lab where`가 어느 것인지 보여 줍니다).
+로드한 설치본) 그것, 아니면 체크아웃의 `src/`입니다(`/lab where`가 어느 것인지 보여 줍니다).
 aelix는 세션을 만들 때마다(시작, `/new`, `/resume`, `/fork`, `/reload`) 확장을 다시 설정합니다. 파일 로드는 그때마다 새
 모듈이지만 설치본의 모듈은 프로세스에 한 번 import되므로, `setup()`이 활성 프로젝트·세션 같은 상태를 매번 처음부터
 시작합니다(체크아웃 경로와 같은 결과). 그래서 설치본을 업그레이드하면 aelix를 다시 시작해야 새 코드가 로드됩니다.
@@ -96,7 +101,7 @@ run의 **출력 비교 대상**은 프로젝트 루트에서 `.venv .lab runs re
 | `ts` | 로컬 시간대 ISO 8601 (밀리초) |
 | `kind` | `project` `import` `run` `context` · `finding` `decision` `assumption` `question` `todo` `note` `gap` `resolve` |
 | `actor` | `agent` `human` `system` `script` `test` 등 |
-| `text` | 최대 4,000자. 넘는 부분은 기록되지 않습니다. 이를 알리는 것은 모델 도구(`lab_note`)와 `/lab note`·`/lab gap`의 응답뿐이고, SDK `lab.note()`와 `labkit note`는 알리지 않습니다 |
+| `text` | 최대 4,000자. 넘는 부분은 기록되지 않습니다. 이를 알리는 것은 모델 도구(`lab_note`)와 `/lab note`·`/lab gap`의 응답뿐이고, SDK `analytics.note()`와 kit CLI의 `note`(`python -m aelix_analytics note`)는 알리지 않습니다 |
 | `refs` | `runs[]` `charts[]`(`script::chart-id`) `data[]` `events[]` `other[]` `context`(버전 파일명) `resolves`(이벤트 id) |
 | `session` | aelix 세션 파일 경로(있을 때) |
 
@@ -154,11 +159,23 @@ source{path, sha256, bytes, format, modified_at}`.
 
 ## D. kit CLI
 
-`uv run --project P python -m labkit --project P <command> …`. `PYTHONPATH`는 정확히 kit 하나입니다: 체크아웃의
-`<pack>/kit`, 설치본의 `aelix_analytics/kit`. 사람은 `bin/lab`(체크아웃, POSIX)이나 설치본의 `analytics`(모든 플랫폼,
+`uv run --project P python -m aelix_analytics --project P <command> …`. `PYTHONPATH`는 정확히 실행 루트 하나입니다: 체크아웃의
+`<pack>/src`, 설치본의 `aelix_analytics/kit`(그 안에 package `aelix_analytics`의 사본이 있습니다). kit 0.2.0 전에는 모듈 이름이
+`labkit`, 체크아웃의 실행 루트가 `<pack>/kit`이었습니다([ADR-0005](decisions/0005-names-first-storage-with-the-new-writer.md) 결정 7). 사람은 `bin/lab`(체크아웃, POSIX)이나 설치본의 `analytics`(모든 플랫폼,
 Windows에서는 `analytics.exe`)로 부릅니다. 두 진입점은 명령 이름 말고는 명령·인자·usage·종료 코드를 같게 지키고 kit의
 출력을 바이트 그대로 넘깁니다. 측정한 차이는 F의 사람용 진입점 행에 있습니다.
 
+- 실행 루트에서만 돕니다. 설치된 배포본 자신의 package(옆에 `kit/aelix_analytics/`를 둔 것)를 `python -m aelix_analytics`로
+  부르면 어느 환경에서든 아무것도 쓰지 않고 거절합니다: `{"ok": false, "error": {"code": "not_runtime_root", …}}`, 종료 코드 1.
+  설치 환경에서 분석 스크립트가 프로젝트 환경 밖에서 돌지 않게 하기 위해서입니다(ADR-0005 확인 1, 소유자 결정 2026-10-06).
+  실행 루트의 사본을 다른 이름으로 부른 것(`python -m aelix_analytics.kit.aelix_analytics`)도 같은 오류입니다. 스크립트의
+  `import aelix_analytics`가 실행 중인 run을 보지 못하기 때문입니다. 실행 루트를 `PYTHONPATH`로 준 호출은 프로젝트 환경 밖이어도
+  돕니다(진입점, 체크아웃, 3.11 하한 시험). hint는 `analytics` 명령과, 실행 루트를 찾는 방법(`aelix_analytics._install.kit_dir()`)을
+  알립니다. 판정은 무엇이 실행되는지(패키지 이름과 옆의 사본)만 보고 프로젝트 환경인지는 보지 않습니다.
+- 스크립트 API는 `import aelix_analytics`입니다(예시는 `import aelix_analytics as analytics`). `labkit`이라는 이름은 없고 별칭도
+  두지 않습니다. `labkit`을 import하는 스크립트와, 그런 run 스냅샷의 재실행(`run --rerun-of`)은 `No module named 'labkit'`로
+  실패하고, run 기록의 `error.hint`가 새 import와, 그 run을 그대로 다시 실행하려면 0.2.0보다 앞선 kit이 필요하다는 것을
+  알립니다(ADR-0005 결정 9). 스냅샷의 바이트는 고치지 않습니다.
 - stdout 마지막 줄이 JSON 하나: `{"ok": true, …}` 또는 `{"ok": false, "error": {code, message, hint?, details?}}`.
   스크립트의 stdout·stderr는 run 동안 파일로 돌려지므로 섞이지 않습니다. 이 줄은 CLI가 직접 UTF-8로 인코딩해 씁니다.
   그래서 스크립트가 자기 stdout을 닫거나 떼어 내거나(`detach()`), 인코딩을 바꾸거나(`reconfigure()`), `write`를
@@ -249,19 +266,19 @@ Windows의 한계는 G절에 있습니다.
 
 | 항목 | 현재 코드 |
 |---|---|
-| 선언된 Python 하한 | 배포본(`pyproject.toml`의 `requires-python`, wheel의 `Requires-Python`)은 `>=3.11`입니다. 이 하한은 설치 환경에서 도는 것 — `analytics` 런처, aelix 확장, 확장이 로드하는 `core`·`_platform` — 의 것입니다. 개발 환경(dev dependency group, `[tool.uv.dependency-groups]`)과 분석 프로젝트 환경(`kit/labkit/template/pyproject.toml`)은 `>=3.12`이고, kit의 명령은 프로젝트 환경에서 돕니다. `uv.lock`의 고정 버전은 바뀌지 않았고 dev group은 3.11에서 sync되지 않습니다. 하한 판정([측정 기록](verification/2026-10-02-issue-8-windows-inventory.md)): `>=3.11`은 설치 환경에서 도는 것에 대해 성립합니다 — 세 플랫폼에서 CPython 3.11·3.12에 설치, CPython 3.11에서 aelix 0.1.0b2 통합, 표준 라이브러리만으로 aelix 프로세스가 로드하는 부분(3.11), 런처 시험(3.11), Windows의 3.11 설치본으로 콘솔 Ctrl+C·Ctrl+Break. 분석 프로젝트는 `>=3.12`로 남습니다. D1의 중단 보장은 kit이 도는 3.12 이상에서 측정했고, 3.11에서는 분석 라이브러리를 쓰지 않는 스크립트의 `run`이 실행되고 기록되는 것만 확인했습니다 |
+| 선언된 Python 하한 | 배포본(`pyproject.toml`의 `requires-python`, wheel의 `Requires-Python`)은 `>=3.11`입니다. 이 하한은 설치 환경에서 도는 것 — `analytics` 런처, aelix 확장, 확장이 로드하는 `core`·`_platform` — 의 것입니다. 개발 환경(dev dependency group, `[tool.uv.dependency-groups]`)과 분석 프로젝트 환경(`src/aelix_analytics/template/pyproject.toml`)은 `>=3.12`이고, kit의 명령은 프로젝트 환경에서 돕니다. `uv.lock`의 고정 버전은 바뀌지 않았고 dev group은 3.11에서 sync되지 않습니다. 하한 판정([측정 기록](verification/2026-10-02-issue-8-windows-inventory.md)): `>=3.11`은 설치 환경에서 도는 것에 대해 성립합니다 — 세 플랫폼에서 CPython 3.11·3.12에 설치, CPython 3.11에서 aelix 0.1.0b2 통합, 표준 라이브러리만으로 aelix 프로세스가 로드하는 부분(3.11), 런처 시험(3.11), Windows의 3.11 설치본으로 콘솔 Ctrl+C·Ctrl+Break. 분석 프로젝트는 `>=3.12`로 남습니다. D1의 중단 보장은 kit이 도는 3.12 이상에서 측정했고, 3.11에서는 분석 라이브러리를 쓰지 않는 스크립트의 `run`이 실행되고 기록되는 것만 확인했습니다 |
 | 실행으로 확인한 범위 | 이식 가능한 경계(PR-1)는 Ubuntu 24.04와 Windows Server 2025(GitHub Actions), macOS 26.6.2 arm64(개발 기기)에서 실행했습니다([측정 기록](verification/2026-09-24-issue-8-platforms.md)). 배포본(PR-2)도 같은 세 플랫폼에서 wheel을 빌드해 체크아웃 밖의 새 CPython 3.11·3.12 환경에 설치하고 `tests/test_packaging.py`(end-to-end 단계 포함)로 확인했습니다([측정 기록](verification/2026-09-30-issue-8-distribution.md)). Windows 인벤토리(링크·긴 경로·대소문자·POSIX를 가정하던 시험·콘솔·두 프로젝트 격리)는 저장소 CI(`.github/workflows/ci.yml`)가 Ubuntu 24.04·Windows Server 2025에서 PR마다, macOS 26에서 라벨로 실행했고 개발 기기 macOS에서도 실행했습니다(콘솔과 긴 경로의 시험은 Windows에서만 돕니다)([측정 기록](verification/2026-10-02-issue-8-windows-inventory.md)). 측정한 Windows 구성은 하나입니다: Windows Server 2025 Datacenter(GitHub 호스트 이미지 `windows-2025`, ImageOS `win25-vs2026` 20260925.250.1), build 26100 x64, 관리자 계정(High integrity는 조사 실행에서 읽음), Developer Mode 켬, LongPathsEnabled=1(긴 경로 시험은 0으로도). 클라이언트 판(같은 build의 Windows 11 24H2 포함), 표준 사용자 토큰, 기본 설정의 Windows는 실행하지 않았습니다. Windows에서 확인한 것, 선언한 한계, 실행하지 않은 것은 G절에 있습니다. 실행하지 않은 조합으로 지원을 넓혀 적지 않습니다 |
 | 검증된 조합 | 마지막 측정([측정 기록](verification/2026-10-02-issue-8-windows-inventory.md), `4eb0955` 커밋): 저장소 CI의 Ubuntu 24.04 x64(CPython 3.12.3·3.11.15), Windows Server 2025 x64(3.12.10·3.11.9), macOS 26.6.2 arm64 호스트 러너(`macos-26`, 3.12.10·3.11.9)에서 저장소 시험(배포본 end-to-end 포함)·플랫폼 스모크·aelix 0.1.0b2 통합(3.12·3.11, 분석 라이브러리가 없는 격리 환경)·런처 시험(3.11), `actions/setup-python`의 CPython 3.11(Ubuntu 3.11.16, Windows·macOS 3.11.9)에서 aelix 프로세스가 로드하는 stdlib 부분. Windows는 여기에 설치본의 콘솔 시험(3.12·3.11 설치본)과 LongPathsEnabled=0의 긴 경로 시험을 더했습니다. 개발 기기 macOS 26.6.2 arm64: CPython 3.12.13(저장소 시험과 end-to-end·스모크·aelix 0.1.0b2 통합), 3.11.15(aelix 0.1.0b2 통합·런처 시험·stdlib 스모크), 3.13.13·3.14.5(저장소 시험, end-to-end 없이). 배포본은 설치 환경 CPython 3.11·3.12에서 `analytics` 런처, aelix 0.1.0b2의 확장 결합·로드·도구, aelix 없이 SDK로 기록한 run과 그 run의 실제 uv 재실행(`run --rerun-of`), 호출자가 둔 `PYTHONPATH` 대신 정확히 설치된 kit이 run에 가는 것을 세 플랫폼에서 실행했습니다(wheel·sdist의 구성원은 빌드한 파일로 확인). 3.11에서만 `python -m labkit`의 stdlib 명령과 분석 라이브러리를 쓰지 않는 스크립트의 run, pip 설치·제거를, 3.12에서만 sdist 설치, README의 symlink 경로(Windows에서는 `os.symlink`로 만든 파일 링크), README의 `uv tool install --python 3.12` 두 줄을 세 플랫폼에서 확인했습니다. `analytics open`은 POSIX에서 stand-in opener로, Windows 포트로는 `os.startfile`을 바꿔 넣어 실행했습니다(실제 opener는 G). 프로젝트 환경은 CPython 3.12 이상(시험이 확인) |
-| 프로세스 경계 | 사람용 `analytics` 런처는 설치 환경에서 stdlib만으로 돌고, kit에서는 `_platform`만 로드합니다. stdlib·aelix API·`kit/labkit/core.py`와 `_platform`으로 제한되는 것은 **aelix 확장 프로세스**입니다. 확장은 `uv run --project` 자식 프로세스로 CLI를 띄웁니다(`extension/aelix_lab.py`의 `run_kit`). 그 CLI 프로세스는 `runner`·`data`·`report`를 자기 프로세스에서 import하고, `data.py`와 SDK가 그 안에서 duckdb·polars를 import합니다. 실행되는 스크립트도 같은 프로세스입니다 |
-| 잠금·타임아웃·종료 | `kit/labkit/_platform.py`의 네 포트 뒤에 있습니다: `FileLocks`(journal·run·report 잠금), `AtomicFiles`(기록 교체), `ProcessControl`(자식 생성·생존 확인·중단 요청·강제 종료), `RunControl`(run 제한 시간과 취소, D1). 구현은 `core.PLATFORM`(모듈을 불러올 때 `_platform.detect()`가 한 번 고른 것)이 기본값이고 `Project(root)`가 그것을 씁니다. 시험과 호출자는 `Project(root, platform=…)`로 다른 구현을 넣습니다. 환경 변수나 기록 속 문자열로 구현을 고르지 않습니다. 호출부에는 `sys.platform` 분기가 없습니다. `ProcessControl`은 문서 열기(`open_document`: macOS `open`, 그 밖의 POSIX `xdg-open`, Windows `os.startfile`)와 프로그램 찾기(`find_program`: POSIX는 `shutil.which`, Windows는 작업 디렉터리와 상대 PATH 항목을 빼고 PATH에서만, 경로로 준 것도 `.exe`만)도 맡습니다. 찾은 프로그램은 절대 경로로, 심볼릭 링크를 따라가지 않고 씁니다(mise의 shim처럼 자기 이름으로 동작을 정하는 링크). POSIX 구현은 `fcntl.flock`, `os.replace`, SIGINT로 묻기, `setitimer`·SIGALRM, `start_new_session`과 `os.killpg(SIGKILL)`입니다. Windows 구현은 `msvcrt.locking`(경합이면 다시 시도), 다른 프로세스가 연 파일의 교체 거절(WinError 5·32·33)을 약 2초 동안 다시 시도하는 `os.replace`, 요청 파일과 `signal.raise_signal(SIGINT)`로 묻기, `threading.Timer`와 `raise_signal`로 제한 시간, `CREATE_NEW_PROCESS_GROUP`과 `taskkill /F /T`입니다. `taskkill`은 시스템 디렉터리(`GetSystemDirectoryW`, 그 호출이 실패하면 `%SystemRoot%\System32`)의 `taskkill.exe`를 절대 경로로 실행합니다 — 이름만 주면 CreateProcess가 호출자의 작업 디렉터리(aelix의 작업 디렉터리, 흔히 프로젝트)를 먼저 찾습니다. 콘솔 이벤트(`CTRL_BREAK_EVENT`)와 `_thread.interrupt_main`은 쓰지 않습니다 — 측정에서 앞의 것은 `uv`를 곧바로 끝내 그 자식을 기록 없이 남겼고, 뒤의 것은 잠든 주 스레드를 깨우지 못했습니다 |
+| 프로세스 경계 | 사람용 `analytics` 런처는 설치 환경에서 stdlib만으로 돌고, kit에서는 `_platform`만 로드합니다. stdlib·aelix API·실행 루트의 `aelix_analytics/core.py`와 `_platform`으로 제한되는 것은 **aelix 확장 프로세스**입니다(설치본은 package의 stdlib 전용 `__init__`과 `_install`도, A). 확장은 `uv run --project` 자식 프로세스로 CLI를 띄웁니다(`extension/aelix_lab.py`의 `run_kit`). 그 CLI 프로세스는 `runner`·`data`·`report`를 자기 프로세스에서 import하고, `data.py`와 SDK가 그 안에서 duckdb·polars를 import합니다. 실행되는 스크립트도 같은 프로세스입니다 |
+| 잠금·타임아웃·종료 | `src/aelix_analytics/_platform.py`의 네 포트 뒤에 있습니다: `FileLocks`(journal·run·report 잠금), `AtomicFiles`(기록 교체), `ProcessControl`(자식 생성·생존 확인·중단 요청·강제 종료), `RunControl`(run 제한 시간과 취소, D1). 구현은 `core.PLATFORM`(모듈을 불러올 때 `_platform.detect()`가 한 번 고른 것)이 기본값이고 `Project(root)`가 그것을 씁니다. 시험과 호출자는 `Project(root, platform=…)`로 다른 구현을 넣습니다. 환경 변수나 기록 속 문자열로 구현을 고르지 않습니다. 호출부에는 `sys.platform` 분기가 없습니다. `ProcessControl`은 문서 열기(`open_document`: macOS `open`, 그 밖의 POSIX `xdg-open`, Windows `os.startfile`)와 프로그램 찾기(`find_program`: POSIX는 `shutil.which`, Windows는 작업 디렉터리와 상대 PATH 항목을 빼고 PATH에서만, 경로로 준 것도 `.exe`만)도 맡습니다. 찾은 프로그램은 절대 경로로, 심볼릭 링크를 따라가지 않고 씁니다(mise의 shim처럼 자기 이름으로 동작을 정하는 링크). POSIX 구현은 `fcntl.flock`, `os.replace`, SIGINT로 묻기, `setitimer`·SIGALRM, `start_new_session`과 `os.killpg(SIGKILL)`입니다. Windows 구현은 `msvcrt.locking`(경합이면 다시 시도), 다른 프로세스가 연 파일의 교체 거절(WinError 5·32·33)을 약 2초 동안 다시 시도하는 `os.replace`, 요청 파일과 `signal.raise_signal(SIGINT)`로 묻기, `threading.Timer`와 `raise_signal`로 제한 시간, `CREATE_NEW_PROCESS_GROUP`과 `taskkill /F /T`입니다. `taskkill`은 시스템 디렉터리(`GetSystemDirectoryW`, 그 호출이 실패하면 `%SystemRoot%\System32`)의 `taskkill.exe`를 절대 경로로 실행합니다 — 이름만 주면 CreateProcess가 호출자의 작업 디렉터리(aelix의 작업 디렉터리, 흔히 프로젝트)를 먼저 찾습니다. 콘솔 이벤트(`CTRL_BREAK_EVENT`)와 `_thread.interrupt_main`은 쓰지 않습니다 — 측정에서 앞의 것은 `uv`를 곧바로 끝내 그 자식을 기록 없이 남겼고, 뒤의 것은 잠든 주 스레드를 깨우지 못했습니다 |
 | 생존 확인 | `running` 기록의 pid가 pid일 수 없는 값(0, 음수, bool, 플랫폼 범위 밖)이면 살아 있지 않습니다. 다른 사용자의 프로세스가 그 id를 가지면 재사용으로 보고 살아 있지 않다고 답합니다. 운영체제가 답하지 않으면 살아 있다고 보아 기록을 낮추지 않습니다. 같은 사용자의 프로세스가 재사용한 pid는 구별하지 못합니다 |
 | 파일명 — 거절 | Windows 예약 장치명(`CON` `PRN` `AUX` `NUL` `CONIN$` `CONOUT$`, 숫자 1–9와 위 첨자 ¹²³이 붙은 `COM`·`LPT` — 첫 점 앞부분을 끝 공백을 빼고 대소문자 없이 비교)은 **사람이나 에이전트가 새 이름을 정하는 두 지점에서만** 거절합니다: `lab_import --name`과 `lab_run`이 만드는 `scripts/<name>.py`. 이미 있는 이름은 거절하지 않습니다 |
 | 파일명 — 스크립트 경로 | run은 어느 플랫폼에서나 같은 뜻으로 읽히는 프로젝트 상대 경로만 기록합니다. 루트(`/`·`\`)나 드라이브(한 글자 뒤 콜론: `C:`, `é:`)로 시작하는 경로, 첫 구성 요소가 `~`로 시작하는 경로, `/`와 `\`로 나눈 구성 요소가 비었거나 `.`·`..`인 경로, 관리 디렉터리(`.venv` `.lab` `runs` `report`) 안의 경로 — `\` 구분자와 대소문자 변형 포함 — 는 기록하기 전에 `script_location`으로 거절합니다. 이전 기록을 재실행할 때도 같은 규칙을 적용하고, 링크를 따라간 실제 위치가 프로젝트 안이며 관리 디렉터리 밖인지 확인합니다 |
-| 파일명 — run 안 | run 안의 `lab.save`와 스크립트가 직접 쓰는 경로는 거절하지 않습니다. 보존된 스크립트는 출력 파일이 지워진 뒤에도 다시 실행돼야 하기 때문입니다. 대신 run의 `warnings`에 남깁니다 — 출력과 차트 파일의 **모든 경로 구성 요소**를 검사하므로 `data/derived/con/value.parquet`도 걸립니다. 이 경고는 다른 경고를 가리지 않도록 묶어서 마지막에 둡니다 |
-| 파일명 — 차트 | kit이 저장하는 차트 파일(`lab.chart`의 이미지·plotly JSON·플롯 데이터)만 이식 가능한 이름으로 바꿉니다(`con` → `con_.png`). 정체성 `script::id`는 생성된 id까지 그대로입니다. 이 대응은 단사입니다 — 차트 id는 slug이라 `_`를 포함할 수 없으므로 `con-file` 같은 보통 id와 충돌하지 않습니다. 스크립트가 차트 id 본래 이름에 쓴 파일(차트 `con`의 `charts/con.png`, 대소문자를 구별하지 않는 파일 시스템에서는 `charts/CON.png`도)은 이전 구현이 그 차트를 쓰거나 덮어쓴 파일이므로 따로 차트로 기록하지도 경고하지도 않고, 그 차트가 버려지면 함께 지웁니다. 그 밖에 스크립트가 run 디렉터리에 직접 쓴 파일(`register_loose_files`)은 스크립트가 정한 이름 그대로 차트가 되며 위 경고로만 알립니다 |
+| 파일명 — run 안 | run 안의 `analytics.save`와 스크립트가 직접 쓰는 경로는 거절하지 않습니다. 보존된 스크립트는 출력 파일이 지워진 뒤에도 다시 실행돼야 하기 때문입니다. 대신 run의 `warnings`에 남깁니다 — 출력과 차트 파일의 **모든 경로 구성 요소**를 검사하므로 `data/derived/con/value.parquet`도 걸립니다. 이 경고는 다른 경고를 가리지 않도록 묶어서 마지막에 둡니다 |
+| 파일명 — 차트 | kit이 저장하는 차트 파일(`analytics.chart`의 이미지·plotly JSON·플롯 데이터)만 이식 가능한 이름으로 바꿉니다(`con` → `con_.png`). 정체성 `script::id`는 생성된 id까지 그대로입니다. 이 대응은 단사입니다 — 차트 id는 slug이라 `_`를 포함할 수 없으므로 `con-file` 같은 보통 id와 충돌하지 않습니다. 스크립트가 차트 id 본래 이름에 쓴 파일(차트 `con`의 `charts/con.png`, 대소문자를 구별하지 않는 파일 시스템에서는 `charts/CON.png`도)은 이전 구현이 그 차트를 쓰거나 덮어쓴 파일이므로 따로 차트로 기록하지도 경고하지도 않고, 그 차트가 버려지면 함께 지웁니다. 그 밖에 스크립트가 run 디렉터리에 직접 쓴 파일(`register_loose_files`)은 스크립트가 정한 이름 그대로 차트가 되며 위 경고로만 알립니다 |
 | 경로·인코딩 | 리포트의 절대 경로 링크는 기록한 플랫폼 기준으로 해석한 `file://` URL입니다(`C:\…` → `file:///C:/…`, `\\server\share\…` → `file://server/share/…`). 그래서 POSIX에서 이름이 `X:\`나 `\\`로 시작하는 프로젝트 파일은 그 Windows 경로로 링크되거나, 공유 이름이 없으면 링크되지 않습니다. CLI는 인자를 읽기 전에 표준 스트림을 UTF-8(`errors='replace'`)로 고정하고, 텍스트를 읽는 파일·자식 프로세스 호출은 인코딩을 명시합니다. run 로그도 UTF-8이며 인코딩할 수 없는 문자(짝 없는 surrogate)는 `?`로 씁니다. run 동안 stdout·stderr는 파일 기술자와 Python 스트림을 함께 바꾸고, 출력은 이전처럼 블록 단위로 버퍼링됩니다. 이렇게 해서 콘솔 전용 스트림이 파일에 쓰지 못하는 문제를 피합니다. Windows에서는 설치본 `analytics`를 의사 콘솔(ConPTY)에서 실행해 확인했습니다(측정): run의 stdout 로그에 스크립트의 한국어 출력이 남았고, 콘솔 코드 페이지 437과 949에서 한국어 제목이 콘솔에 그대로 보였습니다. 이것은 Python의 콘솔 경로로 쓴 kit의 출력(결과 줄의 한국어 제목)에 대한 결과입니다. 런처의 글도 같은 경로로 쓰인다고 봅니다(코드에서 읽음, 실행하지 않았습니다). 콘솔 파일 기술자에 바이트를 직접 쓰는 출력과, 출력 파이프가 없는 고전 콘솔의 글 순서·인코딩은 실행하지 않았습니다(`not_run`) |
 | 사람용 진입점 | 체크아웃의 `bin/lab`(POSIX 셸)과 설치본의 `analytics`(stdlib Python 런처, 모든 플랫폼; Windows에서는 `analytics.exe`)입니다. 설치본의 이름은 제품 명칭의 CLI 이름이고, `bin/lab`은 명칭 전환(#9)까지 옛 이름으로 남으며 wheel로 설치하지 않습니다. 하위 명령(`note`·`report` 등)은 둘 다 아직 지금의 이름입니다. 둘은 명령 이름 말고는 같은 명령·인자·usage·종료 코드를 지키고 kit의 출력을 바이트 그대로 넘기며, POSIX에서 같은 stand-in uv로 동등성을 시험합니다. 런처는 자식을 같은 process group·콘솔에서 표준 스트림을 물려준 채 기다리고 SIGINT·SIGBREAK를 기록만 하므로, 터미널의 Ctrl+C를 런처는 다시 보내지 않고 kit의 기록을 기다려 kit의 종료 코드로 끝납니다. uv는 자기 표준 입력이 터미널이 아니면 200 ms 뒤 kit에 한 번 더 보냅니다(`bin/lab`에서도 같습니다). 런처가 무시된 SIGINT를 물려받으면(셸의 백그라운드 작업) 그대로 두어 kit도 무시한 채 시작합니다. 자식을 시작하는 순간에 온 Ctrl+C는 자식이 뜬 뒤 한 번 더 보냅니다(POSIX). 그 순간 터미널의 Ctrl+C를 이미 받은 자식에게는 두 번 갑니다. Windows에서는 다시 보내지 않습니다 — 한 프로세스에 SIGINT를 보낼 방법이 없고, 시험이 이를 고정합니다. 같은 콘솔의 자식은 콘솔의 Ctrl+C를 직접 받습니다. Windows 콘솔의 Ctrl+C도 런처가 다시 보내지 않고 kit의 기록을 기다려 kit의 종료 코드로 끝납니다(측정: 의사 콘솔과 고전 콘솔에서 런처가 `cancelled` 기록 뒤 3으로 끝났고 남은 프로세스가 없었습니다. Ctrl+Break는 G). 두 번 오더라도 kit은 run을 구간마다 한 번만 중단합니다(D1). 런처와 `bin/lab`의 차이: 런처만 받은 SIGTERM은 kit의 `run`에만 전하고(run이 `cancelled`로 기록), 그 밖의 단계(init·sync·status·context·import·query·note·report·demo와 `analytics open`의 문서 열기)는 끝까지 두고 다음 단계를 시작하지 않은 채 143으로 끝납니다(`bin/lab`의 셸은 그 자식을 남기고 곧바로 끝납니다). 이 SIGTERM은 POSIX의 것입니다 — Windows에서는 다른 프로세스가 처리기에 SIGTERM을 보낼 수 없고 `os.kill`·`taskkill /F`가 런처를 곧바로 끝냅니다(강제 종료, D1). 런처가 Ctrl+C나 SIGTERM을 기록한 뒤에는 다음 단계를 — `analytics open`의 문서 열기도 — 시작하지 않습니다. 단계를 시작하는 그 짧은 순간 온 신호는 그 단계를 막지 못할 수 있습니다. 그러면 Ctrl+C는 그 단계에 다시 보내고 SIGTERM은 kit의 `run`에만 보내며, 문서를 여는 프로그램에는 어느 것도 보내지 않으므로 리포트가 열릴 수 있습니다. uv가 없으면 런처는 자기 문구로 127입니다(`bin/lab`은 셸의 오류로 끝나며, macOS의 sh는 없는 경로에 1). 런처는 macOS에서만 `open`을 씁니다(`bin/lab`은 `open`이 있으면 어디서나). dash로 도는 `bin/lab`은 Ctrl+C 뒤 SIGINT로 끝납니다. 측정한 경계 사례의 차이: 빈 첫 인자(`lab ""`)는 `bin/lab`에서 status, 런처에서 usage와 2입니다. 실행할 수 없는 uv(디렉터리이거나 실행 권한이 없는 파일인 `AELIX_LAB_UV`, PATH에서 실행 권한이 없는 `uv` 파일)는 `bin/lab`에서 셸의 오류와 셸·플랫폼에 따른 종료 코드(126·127·1), 런처에서 uv를 찾지 못했다는 문구와 127입니다. 찾았지만 시작할 수 없는 uv(없는 인터프리터를 가리키는 스크립트)는 `bin/lab`에서 셸의 오류와 126(macOS의 sh)·127(dash), 런처에서 시작할 수 없다는 문구와 127입니다. 문서를 여는 프로그램이 없으면 둘 다 127이고, 런처는 자기 문구를, `bin/lab`은 셸의 오류를 냅니다. 작업 디렉터리가 지워졌으면 런처는 읽을 수 없다는 문구와 1로 끝나고, `bin/lab`은 macOS의 sh에서 셸의 오류와 1로 끝나지만 dash에서는 프로젝트를 찾는 반복이 끝나지 않습니다(main의 `bin/lab`과 같습니다). `AELIX_LAB_UV`의 `~`와 끝의 `/`는 런처만 풀어 uv를 실행합니다(`bin/lab`은 dash 127, macOS의 sh 1). 런처 자신의 글을 닫힌 파이프에 쓰면 `bin/lab`은 141, 런처는 `BrokenPipeError`와 120이고, 표준 출력을 닫은 채(`>&-`) `--help`를 부르면 `bin/lab`은 2, 런처는 traceback과 1입니다. symlink로 들어온 작업 디렉터리에서 `init ../DIR`은 `bin/lab`에서 kit이 프로젝트를 만든 뒤 실패하고(셸에 따라 1이나 2), 런처에서는 끝까지 진행합니다. 런처 자신의 글(usage, 안내)은 로캘과 상관없이 UTF-8 바이트입니다. 그 안의 경로·값은 Python의 파일 시스템 인코딩이 글자로 읽은 부분을 그 글자의 UTF-8로, 읽지 못한 바이트를 받은 그대로 씁니다. 그 인코딩이 UTF-8이면(macOS; Linux의 UTF-8 로캘과, Python이 기본으로 UTF-8 모드로 도는 C 로캘) 모든 경로·값이 받은 바이트 그대로이고, 그 인코딩이 Latin-1·EUC-KR 같은 것이면(그런 로캘의 Linux) UTF-8인 이름도 바뀝니다(`bin/lab`은 늘 받은 바이트). 런처는 `AELIX_LAB_KIT`를 따르지 않고 자기 kit을 씁니다 |
-| 배포 형태 | wheel 하나를 hatchling이 체크아웃에서 만듭니다(`uv build`): package `aelix_analytics` — 런처 `cli.py`, kit 위치 `_install.py`, manifest, 확장 `extension.py`(체크아웃의 `extension/aelix_lab.py`) — 와 package data `aelix_analytics/kit/labkit`(템플릿·assets·데모 스크립트 포함). 의존성은 없고, 분석 라이브러리는 프로젝트 환경에만 설치됩니다. aelix 연동은 이 wheel을 aelix의 환경에 설치하는 것이며 extra는 없습니다. 개발 환경은 `package = false`로 프로젝트를 설치하지 않습니다. 라이선스는 Apache-2.0입니다(`LICENSE`; wheel의 `License-Expression`과 manifest의 `license`). 배포 이름은 첫 공개 전에 정할 사항이고, 이 wheel은 어디에도 게시하지 않았습니다 |
+| 배포 형태 | wheel 하나를 hatchling이 체크아웃에서 만듭니다(`uv build`): package `aelix_analytics` — kit 전체(체크아웃의 `src/aelix_analytics`: 템플릿·assets·데모 스크립트 포함, 런처 `cli.py`, 실행 루트 위치 `_install.py`, manifest)와 확장 `extension.py`(체크아웃의 `extension/aelix_lab.py`) — 와, 같은 소스의 사본 `aelix_analytics/kit/aelix_analytics`(실행 루트 `aelix_analytics/kit`). 자식은 실행 루트만 `PYTHONPATH`로 받고 사본에는 `extension.py`가 없습니다. 버전은 0.2.0입니다(`KIT_VERSION`, manifest와 같음). 의존성은 없고, 분석 라이브러리는 프로젝트 환경에만 설치됩니다. aelix 연동은 이 wheel을 aelix의 환경에 설치하는 것이며 extra는 없습니다. 개발 환경은 `package = false`로 프로젝트를 설치하지 않습니다. 라이선스는 Apache-2.0입니다(`LICENSE`; wheel의 `License-Expression`과 manifest의 `license`). 배포 이름은 첫 공개 전에 정할 사항이고, 이 wheel은 어디에도 게시하지 않았습니다 |
 
 ### F1. 이전 구현(`48b79cc`)과 달라진 POSIX 동작
 
@@ -321,7 +338,7 @@ Windows의 한계는 G절에 있습니다.
 
 배포본을 더하면서(ADR-0004, `d9e7cc5` 대비) POSIX에서 다음이 바뀌었습니다.
 
-- 새 프로젝트 템플릿이 `kit/template/`에서 `kit/labkit/template/`로 옮겨 labkit의 package data가 되었습니다. 그래서
+- 새 프로젝트 템플릿이 `kit/template/`에서 `kit/labkit/template/`(kit 0.2.0부터 `src/aelix_analytics/template/`)로 옮겨 labkit의 package data가 되었습니다. 그래서
   run의 `env.kit_sha256`이 템플릿 파일(`CONTEXT.md`, `pyproject.toml`)도 덮고, 같은 코드에서 값이 한 번 바뀌며 리포트가
   한 번 다시 만들어집니다. 무엇도 이 값을 비교하지 않습니다.
 - `init`은 무엇이든 만들기 전에 템플릿을 읽습니다. 읽을 수 없으면 `template_missing`으로 답하고 아무것도 만들지
@@ -335,6 +352,21 @@ Windows의 한계는 G절에 있습니다.
   uv에서 kit 명령이 mise 자체로 실행되어 실패하던 것이 고쳐지고, `/lab where`는 링크의 경로를 보여 줍니다.
 - `/lab note`·`lab_note` 뒤의 리포트 예약과 `/lab where`의 uv 조회는 어떤 예외로도 명령을 실패시키지 않습니다. 이전에는
   기록한 뒤에 오류로 답할 수 있었습니다.
+
+kit 0.2.0([#9](https://github.com/handochan/aelix-analytics/issues/9)의 첫 PR, kit을 package `aelix_analytics`로 옮김)에서 다음이
+바뀌었습니다. 기록의 형식과 이름(B·C)은 그대로입니다.
+
+- 모듈 이름이 `labkit`에서 `aelix_analytics`로, 체크아웃의 실행 루트가 `<pack>/kit`에서 `<pack>/src`로 바뀌었습니다(D).
+  `labkit`을 import하는 스크립트는 안내와 함께 실패합니다(D). `AELIX_LAB_KIT`는 `aelix_analytics/`를 담은 디렉터리를
+  가리켜야 하고, 이전 값(`<pack>/kit`)이면 확장이 "kit not found"로 로드되지 않습니다.
+- 새 프로젝트의 `lab.json`의 `kit_version`과 run의 `env.kit_version`이 0.2.0입니다. `env.kit_sha256`은 해시하는 package
+  디렉터리에 런처 파일(`cli.py`·`_install.py`·`aelix-plugin.toml`)이 더해져 같은 코드에서 한 번 바뀝니다. 체크아웃과 설치본의
+  실행 루트가 같은 파일을 담으므로 같은 커밋이면 같은 값이고, 무엇도 이 값을 비교하지 않습니다.
+- 설치된 배포본 자신의 package를 `python -m aelix_analytics`로 부르면 거절합니다(D).
+- 확장의 telemetry는 kit을 모듈로 부르는 bash 명령(`-m aelix_analytics`, `import`·`from aelix_analytics`)에 `python_via_bash`를
+  붙이지 않습니다. 이전에는 `labkit`이라는 글자가 든 명령이었습니다. 경로에 `aelix_analytics`가 들어 있을 뿐인 명령에는 붙습니다.
+- 도움말·hint·경고·리포트의 SDK 호출 예가 `analytics.read(…)` 형태입니다(이전 `lab.read(…)`). 기록의 `via` 값(`lab.read`·
+  `lab.chart` 등)은 그대로입니다(B·C, ADR-0005 결정 2).
 
 ## G. 약속하지 않는 것
 

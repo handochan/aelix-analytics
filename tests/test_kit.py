@@ -1223,3 +1223,145 @@ def test_a_log_tail_starts_at_a_whole_character(tmp_path, extra):
     short = tmp_path / "short.txt"
     short.write_bytes("짧은 로그\n".encode())
     assert runner._tail(short) == "짧은 로그\n"
+
+
+# --- Issue #9 PR-1: the kit as the package aelix_analytics -----------------------------------------
+
+
+def _tree(root: Path) -> dict:
+    import hashlib
+
+    return {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest()
+            for p in sorted(root.rglob("*")) if p.is_file()}
+
+
+def _module(pythonpath: Path, *args, cwd=None):
+    """`python -m <args>` with exactly `pythonpath` as the PYTHONPATH (not this checkout's src)."""
+    import subprocess
+    import sys
+
+    from conftest import kit_env
+
+    done = subprocess.run([sys.executable, "-m", *map(str, args)], capture_output=True,
+                          env=kit_env(PYTHONPATH=str(pythonpath)), cwd=cwd, timeout=300,
+                          **_platform.text_kwargs())
+    lines = [line for line in done.stdout.splitlines() if line.startswith("{")]
+    return done.returncode, (json.loads(lines[-1]) if lines else None), done
+
+
+def test_python_m_runs_only_from_a_runtime_root(tmp_path):
+    """Owner's decision of 2026-10-06 (Issue #9, ADR-0005 confirmation 1): the installed
+    distribution's own package — the one with the runtime root's copy as kit/ beside it — refuses
+    `python -m aelix_analytics`, and so does that copy run under another name; the runtime root on
+    PYTHONPATH runs. Laid out here as the wheel installs it, without a build: site/aelix_analytics is
+    the package, site/aelix_analytics/kit the runtime root. Nothing is written by a refused call: not
+    the project, not the trust list, not a directory `init` was asked to make."""
+    import shutil
+
+    from conftest import KIT
+
+    site = tmp_path / "site"
+    ignore = shutil.ignore_patterns("__pycache__")
+    shutil.copytree(KIT / "aelix_analytics", site / "aelix_analytics", ignore=ignore)
+    shutil.copytree(KIT / "aelix_analytics", site / "aelix_analytics" / "kit" / "aelix_analytics",
+                    ignore=ignore)
+    root = site / "aelix_analytics" / "kit"
+    project = tmp_path / "proj"
+    code, made, done = _module(root, "aelix_analytics", "init", project, "--title", "실행 루트")
+    assert code == 0 and made["ok"], done.stderr
+    trust = Path(os.environ["AELIX_LAB_TRUST_FILE"])
+    before = (_tree(project), trust.read_bytes())
+    fresh = tmp_path / "fresh"
+    for path, args in ((site, ["aelix_analytics", "--project", project, "status"]),
+                       (site, ["aelix_analytics", "--project", project, "note", "finding", "x"]),
+                       (site, ["aelix_analytics", "init", fresh]),
+                       (site, ["aelix_analytics.kit.aelix_analytics", "--project", project, "status"])):
+        code, answer, done = _module(path, *args, cwd=tmp_path)
+        assert code == 1, (args, done.stdout, done.stderr)
+        assert answer["ok"] is False and answer["error"]["code"] == "not_runtime_root", answer
+        assert "PYTHONPATH" in answer["error"]["hint"] and "analytics" in answer["error"]["hint"]
+    assert (_tree(project), trust.read_bytes()) == before
+    assert not fresh.exists()
+    code, status, done = _module(root, "aelix_analytics", "--project", project, "status")
+    assert code == 0 and status["ok"], done.stderr
+    code, status, done = _module(KIT, "aelix_analytics", "--project", project, "status")
+    assert code == 0 and status["ok"], done.stderr
+
+
+def test_a_script_that_imports_labkit_is_told_the_new_name(project):
+    """ADR-0005 decision 9: no `labkit` alias. A script or a run snapshot from before the rename
+    fails with a hint that names the new import and the kit version before which the old name
+    worked; a rerun of such a run records its failure as a rerun and leaves the snapshot's bytes
+    as they were."""
+    body = "import labkit as lab\nprint(lab.read('sales').height)\n"
+    code, result = _run(project, write_script(project, "01_old_name.py", body), "옛 이름")
+    assert code == 3 and result["run"]["status"] == "error", result
+    error = result["run"]["error"]
+    assert error["summary"] == "ModuleNotFoundError: No module named 'labkit'", error
+    assert "import aelix_analytics as analytics" in error["hint"], error
+    assert f"before kit {runner.SDK_RENAMED_IN}" in error["hint"], error
+    assert runner.SDK_RENAMED_IN == "0.2.0"
+    run_id = result["run"]["id"]
+    before = _tree(project / "runs" / run_id)
+    code, again = kit_cli(project, "run", "--rerun-of", run_id, "--title", "다시")
+    assert code == 3 and again["run"]["rerun_of"] == run_id, again
+    assert again["run"]["error"]["hint"] == error["hint"], again["run"]["error"]
+    assert _tree(project / "runs" / run_id) == before
+    for summary in ("ModuleNotFoundError: No module named 'labkit'",):
+        assert runner.api_hint(summary) == error["hint"]
+
+
+# What a project's records are called until the new writer (ADR-0005 decision 2, #13). #9 and #10
+# change public names only: this list stays as it is through them.
+STORED = {"marker": "lab.json", "managed": ".lab", "report": "report", "imported": "data/raw",
+          "families": {"lab.project/1", "lab.run/1", "lab.event/1", "lab.dataset/1"},
+          "trust": "lab.trust/1", "via": {"lab.read", "lab.sql", "lab.save", "lab.chart"}}
+
+
+def test_storage_names_stay_until_the_new_writer(project, tmp_path):
+    """ADR-0005 confirmation 1: the stored names do not change with the public ones. A project as an
+    earlier kit left it (its marker says kit 0.1.0, as every kit before the rename wrote) is read and
+    written by this kit — status, a note, a run through the SDK, the report — and what was there keeps
+    its bytes: the marker, the data, the runs, the scripts and CONTEXT.md as they were, the journal
+    only appended to. Everything this kit writes uses the names and families of STORED."""
+    marker = json.loads((project / STORED["marker"]).read_text(encoding="utf-8"))
+    assert marker["schema"] == "lab.project/1"
+    marker["kit_version"] = "0.1.0"
+    (project / STORED["marker"]).write_text(json.dumps(marker, ensure_ascii=False, indent=2) + "\n",
+                                            encoding="utf-8")
+    kept = {rel: digest for rel, digest in _tree(project).items()
+            if rel.split("/")[0] in ("lab.json", "data", "runs", "scripts", "CONTEXT.md")}
+    journal = (project / "journal.jsonl").read_bytes()
+
+    assert kit_cli(project, "status")[0] == 0
+    assert kit_cli(project, "note", "finding", "새 kit의 기록")[0] == 0
+    code, result = _run(project, write_script(project, "01_new_kit.py", LAB_API), "새 kit")
+    assert code == 0 and result["run"]["status"] == "ok", result
+    assert kit_cli(project, "report")[0] == 0
+
+    after = _tree(project)
+    assert {rel: after.get(rel) for rel in kept} == kept
+    assert (project / "journal.jsonl").read_bytes().startswith(journal)
+    assert json.loads((project / STORED["marker"]).read_text(encoding="utf-8"))["kit_version"] == "0.1.0"
+    events = [json.loads(line) for line in
+              (project / "journal.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert {e["schema"] for e in events} == {"lab.event/1"}
+    run = json.loads((project / "runs" / result["run"]["id"] / "run.json").read_text(encoding="utf-8"))
+    assert run["schema"] == "lab.run/1" and run["env"]["kit_version"] == core.KIT_VERSION
+    vias = {v for i in run["inputs"] for v in i["via"]} | {c["via"] for c in run["charts"]}
+    assert {"lab.read", "lab.chart"} <= vias, vias
+    assert {v for v in vias if v.startswith(("lab.", "analytics."))} <= STORED["via"], vias
+    chart_files = [f for c in run["charts"] for f in c["files"].values()]
+    assert chart_files and all(f.startswith(f"runs/{run['id']}/charts/") for f in chart_files), \
+        chart_files
+    datasets = list((project / STORED["imported"]).glob("*.json"))
+    assert {json.loads(p.read_text(encoding="utf-8"))["schema"] for p in datasets} == {"lab.dataset/1"}
+    families = {marker["schema"], run["schema"], *(e["schema"] for e in events),
+                *(json.loads(p.read_text(encoding="utf-8"))["schema"] for p in datasets)}
+    assert families == STORED["families"]
+    assert (project / STORED["managed"]).is_dir() and (project / STORED["report"] / "index.html").is_file()
+    trust = json.loads(Path(os.environ["AELIX_LAB_TRUST_FILE"]).read_text(encoding="utf-8"))
+    assert trust["schema"] == STORED["trust"]
+    assert (core.MARKER, core.SCHEMA_PROJECT, core.SCHEMA_RUN, core.SCHEMA_EVENT,
+            core.SCHEMA_DATASET) == ("lab.json", "lab.project/1", "lab.run/1", "lab.event/1",
+                                     "lab.dataset/1")

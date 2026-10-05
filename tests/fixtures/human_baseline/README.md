@@ -1,7 +1,8 @@
 # Synthetic human analysis baseline
 
 These six invented orders contain no customer data, personal sessions or copied production
-records. They exercise the existing `labkit` CLI and SDK contract at the start of Issue #7.
+records. They exercise the kit's CLI and SDK contract (`python -m aelix_analytics` and
+`import aelix_analytics`, named `labkit` when Issue #7 started).
 The fixture uses current `lab.* /1` records and the `report` command; proposed Analytics
 names and future storage formats are outside its scope.
 

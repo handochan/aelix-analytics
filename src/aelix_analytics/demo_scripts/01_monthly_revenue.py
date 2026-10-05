@@ -1,4 +1,4 @@
-"""월별 매출 추세 — aelix_analytics API 방식 (lab.read / lab.save / lab.chart)."""
+"""월별 매출 추세 — aelix_analytics API 방식 (analytics.read / analytics.save / analytics.chart)."""
 
 import matplotlib.pyplot as plt
 import polars as pl

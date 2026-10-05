@@ -1,11 +1,13 @@
-"""aelix_analytics CLI — shared by the aelix extension (JSON) and people (bin/lab, or `analytics` installed).
+"""The kit's command line — shared by the aelix extension (JSON) and people (bin/lab, or `analytics` installed).
 
     python -m aelix_analytics [--project DIR] <command> ...
 
 The last line of stdout is one JSON object: {"ok": true, ...} or {"ok": false, "error": {...}}.
 Exit codes: 0 success, 1 handled error, 2 usage error, 3 run recorded but not ok, 130 interrupted.
-Run commands with PYTHONPATH set to the kit (the directory holding aelix_analytics) inside the project's uv
-environment, as bin/lab and the installed `analytics` do.
+Run commands with PYTHONPATH set to the runtime root (the directory holding aelix_analytics: a
+checkout's src/, an installation's aelix_analytics/kit/) inside the project's uv environment, as
+bin/lab, the installed `analytics` and the extension do. The installed distribution's own package is
+not a runtime root, and refuses to run here (not_runtime_root; see _not_the_runtime_root).
 
 LAB_CANCEL_FILE names the file through which the aelix extension asks a command it started to
 stop, where the platform cannot ask with a signal (see _platform.RunControl.watch_for_cancel).
@@ -22,7 +24,7 @@ from pathlib import Path
 
 from . import _platform, core
 
-# Package data of this package, wherever it is installed (a checkout's kit/, or a wheel's).
+# Package data of this package, wherever it is (a checkout's src/, or an installation's runtime root).
 TEMPLATE_DIR = resources.files(__package__) / "template"
 
 
@@ -47,11 +49,43 @@ def _project(args) -> core.Project:
     return core.Project(root)
 
 
+def _not_the_runtime_root() -> dict | None:
+    """The error that keeps this command from running here, or None where it may run.
+
+    The kit runs from a runtime root: the one directory an entry point puts on PYTHONPATH (a
+    checkout's src/, an installation's aelix_analytics/kit/), inside the project's environment. The
+    installed distribution's own package — the one with that runtime root as kit/ beside its modules
+    — is importable from wherever it is installed, so `python -m aelix_analytics` from that
+    environment would run an analysis script outside the project's environment, with what is
+    installed there (ADR-0005 confirmation 1, owner's decision of 2026-10-06): refused, in any
+    environment. So is a copy run under another name (`python -m aelix_analytics.kit.aelix_analytics`):
+    a script's `import aelix_analytics` would not be the package running it, and would not see its
+    run (ADR-0004). A call that names the runtime root on PYTHONPATH runs, from any environment, as
+    the entry points, a checkout and the floor tests do. Nothing is written before this."""
+    here = Path(__file__).resolve().parent
+    if __package__ != "aelix_analytics":
+        why = f"this copy of the kit runs as {__package__}, so a script could not see its run"
+    elif (here / "kit" / "aelix_analytics" / "__main__.py").is_file():
+        why = f"{here} is the installed distribution's own package"
+    else:
+        return None
+    return core.LabError(
+        "not_runtime_root", f"the kit runs only from a runtime root: {why}",
+        hint="use the analytics command (analytics --help), which runs the kit in the project's "
+             "environment; to run the module itself, put the runtime root on PYTHONPATH — "
+             "python -c \"from aelix_analytics._install import kit_dir; print(kit_dir())\" "
+             "prints it").to_json()
+
+
 def main(argv=None) -> int:
     # Before anything can print: the extension reads this process's stdout through a pipe, and a
     # pipe follows the locale rather than the console, so the records' non-ASCII text — and a
     # usage error that quotes it — needs this to survive.
     _platform.configure_stdio()
+    refused = _not_the_runtime_root()
+    if refused is not None:
+        _emit(refused)
+        return 1
     # Taken out of the environment so a script's own subprocesses do not watch the same file.
     request = os.environ.pop("LAB_CANCEL_FILE", None)
     stop_watching = None
@@ -81,7 +115,8 @@ def main(argv=None) -> int:
 
 
 def _command(argv) -> int:
-    parser = argparse.ArgumentParser(prog="aelix_analytics", description=(__doc__ or "aelix_analytics").splitlines()[0])
+    parser = argparse.ArgumentParser(prog="python -m aelix_analytics",
+                                     description=(__doc__ or "").splitlines()[0])
     parser.add_argument("--project", help="project directory (default: nearest lab.json above cwd)")
     parser.add_argument("--text", action="store_true", help="human-readable output where supported")
     sub = parser.add_subparsers(dest="command", required=True)
