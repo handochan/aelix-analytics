@@ -12,6 +12,8 @@ Status: Accepted (2026-09-22) — [ADR-0002](0002-python-support-and-platform-sc
 위치가 한 파일, 합성 package로 `core`·`_platform`만 로드)은 그대로다. 배경과 대안의 경로는 당시의 것이다.
 #9의 둘째 PR(kit 0.3.0)이 결정 3의 합성 package 이름과 변수 이름, 결정 6의 도구·SDK 이름을 새 공개 이름에 맞춰 고쳤다. 내용은
 그대로다.
+#12 PR-2부터 `core`가 읽기 모델 `relations`(stdlib 전용, ADR-0006)를 import하므로 합성 package로 로드하는 kit 모듈은
+`core`·`_platform`·`relations` 셋이다. 로드 방식(결정 3)은 같다.
 
 ## 배경
 

@@ -2958,8 +2958,9 @@ def test_loading_the_kit_pulls_no_analysis_library_into_the_host_process(monkeyp
     assert "KIT_OK:lab.run/1" in proc.stdout, proc.stdout + proc.stderr
     loaded = next(line for line in proc.stdout.splitlines() if line.startswith("LOADED:"))
     assert loaded == "LOADED:", f"the aelix process would have imported {loaded[len('LOADED:'):]}"
-    # From a checkout the package itself is not imported at all: core and _platform come from its
-    # directory under the synthetic name (Issue #9: the kit is now the package aelix_analytics).
+    # From a checkout the package itself is not imported at all: core, _platform and relations come
+    # from its directory under the synthetic name (Issue #9: the kit is now the package
+    # aelix_analytics).
     assert "OURS:" in proc.stdout.splitlines(), proc.stdout
 
 

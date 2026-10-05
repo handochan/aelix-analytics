@@ -247,7 +247,7 @@ def test_lab_status_shows_relations_as_the_kit_reads_them(tmp_path, monkeypatch)
     assert not result.is_error, text
     read = f"read: as_of_seq {st['as_of_seq']} · source_revision {st['source_revision']}"
     assert read in text.split("\n")
-    assert f"producer ambiguous: same bytes as the output of 2 runs, {a}, {b}" in text
+    assert f"same bytes as 2 runs: {a}, {b}" in text
     assert ("e3 finding: t grew · refs: 1 resolved (1 confirmed), 1 missing (e99), "
             "1 version_unbound") in text
     command = asyncio.run(module.analytics_command("status"))

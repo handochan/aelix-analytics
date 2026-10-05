@@ -977,8 +977,8 @@ def _main_status_text(st: dict, max_chars: int = 9000) -> str:
     for c in st["charts"]:
         flags = []
         if c["stale"]:
-            flags.append("STALE(" + ", ".join(c["changed_inputs"] + [
-                f"upstream {u}" for u in c["stale_upstream"]]) + ")")
+            flags.append("STALE(" + core._stale_reasons(c["changed_inputs"] + c["stale_upstream"],
+                                                        len(c["changed_inputs"])) + ")")
         if c.get("ambiguous_inputs"):
             flags.append(f"producer ambiguous for {len(c['ambiguous_inputs'])} input(s)")
         if c.get("cycle"):

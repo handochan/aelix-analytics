@@ -11,7 +11,7 @@ Status: Accepted (2026-09-21) — [Issue #5](https://github.com/handochan/aelix-
 해석을 확인했다(2026-09-30).
 현재 코드가 실제로 하는 것은 [현재 계약](../CONTRACTS.md)의 "실행 환경과 지원 플랫폼" 절에 있다.
 #8의 마지막 PR(Windows 인벤토리)이 아래 "구현에서 확인할 것" 1–7을 판정했다([측정 기록](../verification/2026-10-02-issue-8-windows-inventory.md)). 하한 `>=3.11`은
-설치 환경에서 도는 것 — `analytics` 런처, aelix 확장, 확장이 로드하는 `core`·`_platform` — 에 대해 성립했고, 분석 프로젝트는
+설치 환경에서 도는 것 — `analytics` 런처, aelix 확장, 확장이 로드하는 `core`·`_platform`(그 측정 때의 목록. #12 PR-2부터 stdlib 전용 `relations`도) — 에 대해 성립했고, 분석 프로젝트는
 `>=3.12`로 남는다(CONTRACTS F). 실행하지 않은 것은 이유와 함께 CONTRACTS G에 있고, #8은 소유자가 그 목록을 승인한 뒤 닫는다.
 채택 후 독립 리뷰에서 근거 과장과 인벤토리 누락을 지적받아 측정 근거·장애 범주·대안·결정 5·6을 개정했다. 결정의 방향은 바뀌지 않았다.
 

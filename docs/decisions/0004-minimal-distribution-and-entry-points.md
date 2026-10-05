@@ -139,7 +139,7 @@ ADR-0002는 진입점의 하한을 `>=3.11`로 낮추고(결정 2), Aelix 없이
 | `.pth`로 kit을 모든 Python의 경로에 추가 | 설치 환경의 모든 프로세스(aelix 포함)의 `sys.path`를 바꾼다 |
 | 설치본의 명령을 `lab`으로 | `bin/lab`과 이름까지 같지만, 명칭 전환(#9)이 폐기할 이름을 새 공개 이름으로 만든다. 첫 구현이 이렇게 했고 소유자의 지적(2026-09-30)으로 바꿨다 |
 | 템플릿을 `kit/template/`에 둠 | 자식에서 labkit의 resource로 닿지 않고, 자식의 PYTHONPATH에 `template`이 namespace package로 보인다 |
-| 확장이 설치본의 `aelix_analytics.core`를 평범하게 import | #9-1의 `__init__`은 kit 모듈을 import하지 않으므로 평범한 import로도 `core`·`_platform`만 들어온다. 그래도 kit 경로별 분리(합성 package 이름의 digest)가 사라져 두 pack이나 `AELIX_LAB_KIT` 변경이 같은 모듈 이름을 나눠 쓰고, 경로로 로드하는 [ADR-0003](0003-portable-boundaries-and-in-process-kit-loading.md) 결정 3과 다르다 |
+| 확장이 설치본의 `aelix_analytics.core`를 평범하게 import | #9-1의 `__init__`은 kit 모듈을 import하지 않으므로 평범한 import로도 `core`·`_platform`(#12 PR-2부터 `relations`도)만 들어온다. 그래도 kit 경로별 분리(합성 package 이름의 digest)가 사라져 두 pack이나 `AELIX_LAB_KIT` 변경이 같은 모듈 이름을 나눠 쓰고, 경로로 로드하는 [ADR-0003](0003-portable-boundaries-and-in-process-kit-loading.md) 결정 3과 다르다 |
 | `[aelix]` extra | 결정 4 참고 |
 | 같은 이름 두 package(#9-1 대안: `kit/labkit/`만 `kit/aelix_analytics/`로 개명, 호스트의 `src/aelix_analytics`는 그대로) | 기계적 변경이 가장 작고 호스트 package가 구조상 stdlib 전용으로 남는다. 그러나 서로 다른 두 package가 한 이름을 써서 설치 환경의 `import aelix_analytics`는 SDK가 없는 런처 package가 되고, 한 pytest 프로세스에서 런처와 SDK를 함께 import할 수 없으며, 목표 구조(ARCHITECTURE §9)로 가려면 한 번 더 옮긴다(Issue #3 결정 묶음 D2) |
 | `labkit`을 내부 이름으로 두고 `aelix_analytics` 퍼사드·별칭 | 런타임 이름을 가장 적게 바꾸고 옛 스냅샷이 그대로 다시 실행된다. 그러나 run 안에서 옛 이름과 새 이름을 함께 import할 수 있어 용어집 §3·§8과 [ADR-0005](0005-names-first-storage-with-the-new-writer.md) 대안 3에 어긋나고, 퍼사드도 호스트 package와 이름이 겹친다(D2) |

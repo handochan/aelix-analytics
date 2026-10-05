@@ -665,7 +665,8 @@ class Freshness:
     A run is stale when one of its inputs changed or is missing, or when a producer candidate of
     one of its inputs is stale, which is to say when a run reached through producer candidates has
     a changed or missing input. A cycle among the candidates (only runs that started at the same
-    instant can make one) ends that walk and is said (`cycle`); a run reached twice is no cycle."""
+    instant, or whose start time cannot be read, can make one) ends that walk and is said
+    (`cycle`); a run reached twice is no cycle."""
 
     def __init__(self, project: Project, runs: list[dict], cache: HashCache | None = None,
                  model: relations.ReadModel | None = None):
@@ -783,7 +784,11 @@ def list_datasets(project: Project, runs: list[dict] | None = None, *,
     `none` or `unknown` (the file could not be hashed), `producer` is the one candidate when there is
     one, and `written_by` holds every run that output the path, whatever its status. A candidate is
     a run whose output had the same path and bytes (basis observed), never a confirmed link. Without
-    them nothing is hashed: the query views, imports and the SDK list datasets at no more cost."""
+    them nothing is hashed: the query views, imports and the SDK list datasets at no more cost.
+
+    An import record of a family or version this kit cannot read (relations.unsupported_reason) is
+    not used: the file is listed by its path and bytes, and `unsupported_record` says where that
+    record is and why, as the read model counts it."""
     runs = list_runs(project) if runs is None else runs
     produced: dict[str, list[dict]] = {}
     used: dict[str, list[str]] = {}
@@ -810,7 +815,12 @@ def list_datasets(project: Project, runs: list[dict] | None = None, *,
                 continue
             item = {"name": p.stem, "path": rel, "kind": kind, "bytes": size}
             meta = read_json(p.with_suffix(".meta.json")) if kind == "raw" else None
-            if isinstance(meta, dict):
+            unsupported = (relations.unsupported_reason(meta, frozenset({SCHEMA_DATASET}))
+                           if isinstance(meta, dict) else None)
+            if unsupported:
+                item["unsupported_record"] = {"location": project.rel(p.with_suffix(".meta.json")),
+                                              "reason": unsupported}
+            elif isinstance(meta, dict):
                 item.update(rows=meta.get("rows"), columns=len(meta.get("columns") or []),
                             sha256=meta.get("sha256"), description=meta.get("description"),
                             source=(meta.get("source") or {}).get("path"),
@@ -976,7 +986,8 @@ REFERENCE_STATES = ("resolved", "content_changed", "missing", "version_unbound",
 def reference_label(judgment: dict) -> str:
     """The identifier a screen gives a reference's target, the same on every screen: a logical key
     (`script::chart`, a path), an event id, `<run_id>/<visualization_id>`, a run id, a CONTEXT
-    version, a Report revision, or the name a writer gave."""
+    version, a Report revision, or the name a writer gave. A reference this kit cannot read is named
+    by where it is in the record: `refs.<field>` (/1) or `refs[<index>]` (/2)."""
     target = judgment.get("target") or {}
     if "key" in target:
         return str(target["key"])
@@ -988,7 +999,10 @@ def reference_label(judgment: dict) -> str:
     for field in ("event_id", "run_id", "version", "path", "token"):
         if field in target:
             return str(target[field])
-    return "?"
+    ref = judgment.get("ref") or {}
+    if ref.get("field") is not None:
+        return f"refs.{ref['field']}"
+    return f"refs[{ref['index']}]" if ref.get("index") is not None else "refs"
 
 
 def references_summary(judgments: list[dict]) -> dict:
@@ -1107,6 +1121,17 @@ def _status_list_len(st: dict, name: str) -> int:
                 for c in st["charts"] if c["stale"]), default=0)
 
 
+def _stale_reasons(shown: list[str], direct: int) -> str:
+    """Why a chart is stale: its run's changed or missing inputs (the first `direct` of `shown`), then
+    the stale runs upstream. Those output the same bytes as an input: producer candidates, not known
+    producers (ADR-0006 4)."""
+    paths, runs = shown[:direct], shown[direct:]
+    if not runs:
+        return ", ".join(paths)
+    upstream = ("upstream candidate " if len(runs) == 1 else "upstream candidates ") + ", ".join(runs)
+    return "; ".join([", ".join(paths), upstream] if paths else [upstream])
+
+
 def _lone_cr_lines(path: Path) -> bool:
     """Whether a file's lines end in a lone CR: it has a CR and no LF."""
     try:
@@ -1205,13 +1230,13 @@ def _status_lines(st: dict, caps: dict[str, int]) -> list[tuple[str, str, bool]]
     for c in st["charts"]:
         flags = []
         if c["stale"]:
-            changed = c["changed_inputs"] + [f"upstream {u}" for u in c["stale_upstream"]]
+            changed = c["changed_inputs"] + c["stale_upstream"]
             shown = _capped(changed, caps.get("stale"))
             more = ""
             if len(shown) < len(changed):
                 more = (f" and {len(changed) - len(shown):,} more, among the run's inputs in "
                         f"runs/{c['run']}/run.json")
-            flags.append("STALE(" + ", ".join(shown) + more + ")")
+            flags.append(f"STALE({_stale_reasons(shown, len(c['changed_inputs']))}{more})")
         if c.get("ambiguous_inputs"):
             flags.append(f"producer ambiguous for {len(c['ambiguous_inputs'])} input(s)")
         if c.get("cycle"):
@@ -1252,10 +1277,11 @@ def _status_lines(st: dict, caps: dict[str, int]) -> list[tuple[str, str, bool]]
 
 
 # How many places, producer candidates or targets one line of the overview names before it says how
-# many more there are.
+# many more there are. An id several lines share is named with SHARED_LINES of its lines at most.
 STATUS_PLACES = 5
 STATUS_CANDIDATES = 3
 STATUS_TARGETS = 3
+SHARED_LINES = 2
 # Where every unsupported or damaged record is listed when a line names only the first ones.
 EVERY_RECORD = "the kit's `status` command lists every one in its JSON"
 
@@ -1263,6 +1289,24 @@ EVERY_RECORD = "the kit's `status` command lists every one in its JSON"
 def _places(items: list[str], cap: int, where: str) -> str:
     shown = ", ".join(items[:cap])
     return shown + (f" and {len(items) - cap:,} more ({where})" if len(items) > cap else "")
+
+
+def shared_ids_text(shared: dict[str, list[str]], cap: int) -> tuple[str, bool]:
+    """The ids several journal lines share, each with SHARED_LINES of its lines at most and `cap`
+    lines in all, and whether an id or a line is left out (the status JSON's `shared_ids` has them
+    all)."""
+    parts, left, cut = [], cap, False
+    for name, lines in shared.items():
+        if left <= 0:
+            break
+        shown = lines[:min(SHARED_LINES, left)]
+        left -= len(shown)
+        more = len(lines) - len(shown)
+        cut = cut or more > 0
+        parts.append(f"{_one_line(name, 80)} ({', '.join(shown)}"
+                     + (f" and {more:,} more line(s))" if more else ")"))
+    rest = len(shared) - len(parts)
+    return ", ".join(parts) + (f" and {rest:,} more id(s)" if rest else ""), cut or rest > 0
 
 
 def _read_line(st: dict) -> str:
@@ -1281,9 +1325,13 @@ def _records_lines(st: dict, journal: Path) -> list[str]:
     unsupported = st.get("unsupported") or []
     if unsupported:
         places = [f"{u['location']} ({u['reason']})" for u in unsupported]
+        # Only a known family's newer version is one a newer kit may read; another family or an
+        # unknown kind of a known version is not.
+        newer = sum(1 for u in unsupported if u["reason"] == "unknown_version")
         out.append(f"unsupported: {len(unsupported):,} record(s) this kit cannot read are in no list "
-                   f"here and not in the report — {_places(places, STATUS_PLACES, EVERY_RECORD)}; "
-                   "a newer kit may read them")
+                   f"here and not in the report — {_places(places, STATUS_PLACES, EVERY_RECORD)}"
+                   + ("; a newer kit may read them" if newer == len(unsupported) else
+                      f"; a newer kit may read the {newer:,} of an unknown version" if newer else ""))
     damaged = st.get("damaged") or {}
     parts = []
     if damaged.get("journal"):
@@ -1305,9 +1353,11 @@ def _records_lines(st: dict, journal: Path) -> list[str]:
                    f"lab.event/1 records only; they are in {journal}")
     shared = st.get("shared_ids") or {}
     if shared:
-        ids = [f"{i} ({', '.join(lines)})" for i, lines in shared.items()]
-        out.append(f"ids on several lines: {_places(ids, STATUS_PLACES, EVERY_RECORD)} — each line "
-                   "is its own record, and a reference to the id is ambiguous")
+        listed, cut = shared_ids_text(shared, STATUS_PLACES)
+        if cut:
+            listed += " (the kit's `status` command lists every line in its JSON `shared_ids`)"
+        out.append(f"ids on several lines: {listed} — each line is its own record, and a reference "
+                   "to the id is ambiguous")
     return out
 
 
@@ -1320,15 +1370,20 @@ def dataset_origin(ds: dict) -> str:
     if state == "resolved":
         return f"same bytes as run {candidates[0]}'s output"
     if state == "ambiguous":
-        listed = _places(candidates, STATUS_CANDIDATES, "each run's outputs are in runs/<id>/run.json")
-        return f"producer ambiguous: same bytes as the output of {len(candidates):,} runs, {listed}"
+        listed = _places(candidates, STATUS_CANDIDATES,
+                         "the kit's `status` command lists every one in its JSON `producer_candidates`")
+        return f"same bytes as {len(candidates):,} runs: {listed}"
+    if ds.get("unsupported_record"):
+        record = ds["unsupported_record"]
+        return f"import record not read ({record['location']}: {record['reason']})"
     if ds.get("source"):
         return f"from {ds['source']}"
     if state == "unknown":
         return "producer unknown: the file could not be hashed"
     written = ds.get("written_by") or []
     if written:
-        listed = _places(written[::-1], STATUS_CANDIDATES, "each run's outputs are in runs/<id>/run.json")
+        listed = _places(written[::-1], STATUS_CANDIDATES,
+                         "the kit's `status` command lists every one in its JSON `written_by`")
         return (f"no successful run output these bytes (changed since, or written by a run that did "
                 f"not succeed); runs that wrote this path, latest first: {listed}")
     return "NO PRODUCING RUN (written outside analytics_run: no code or inputs recorded)"
@@ -1347,14 +1402,16 @@ NAMED_STATES = ("missing", "ambiguous", "content_changed", "unsupported")
 
 
 def _references_text(summary: dict | None) -> str:
-    """A key entry's references: how many are in each state, how many are confirmed links, and the
-    targets of those missing, ambiguous, changed or unsupported (the first STATUS_TARGETS of a
-    state; the rest are in the entry's refs in the journal)."""
-    if not summary or not summary.get("states"):
+    """A key entry's references when one of them needs a look (NAMED_STATES): how many are in each
+    state, how many are confirmed links, and the targets of those missing, ambiguous, changed or
+    unsupported (the first STATUS_TARGETS of a state; the rest are in the entry's refs in the
+    journal). An entry whose references are all resolved, version_unbound or unknown says nothing
+    here: its counts are in the JSON's `references`, and the overview keeps its room for entries."""
+    if not summary or not any(state in NAMED_STATES for state in summary.get("states") or {}):
         return ""
     targets: dict[str, list[str]] = {}
     for item in summary.get("not_resolved") or []:
-        targets.setdefault(item["state"], []).append(item["target"])
+        targets.setdefault(item["state"], []).append(_one_line(item["target"], 80))
     parts = []
     for state, count in summary["states"].items():
         if state == "resolved":

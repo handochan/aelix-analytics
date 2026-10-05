@@ -118,6 +118,33 @@ def test_a_list_of_targets_names_three_and_says_where_the_rest_are(tmp_path):
             "5 version_unbound") in text
 
 
+def test_a_key_entry_whose_references_need_no_look_has_no_refs_summary(tmp_path):
+    """The overview names an entry's references only when one of them needs a look (missing,
+    ambiguous, changed, unsupported); the counts of one whose references resolve or are left unbound
+    are in the JSON. At M scale those summaries cut the newest entries (review of 8d2ecc7)."""
+    p = LegacyProject(tmp_path / "p")
+    run = p.run("20261001-090000-a", started_at=at(0), ts=at(1))
+    finding = p.event("finding", {"runs": [run], "charts": ["scripts/a.py::c"]}, ts=at(5), text="fine")
+    st, text = overview(p)
+    [entry] = [e for e in st["key"] if e["id"] == finding]
+    assert entry["references"]["states"] == {"resolved": 1, "version_unbound": 1}
+    assert f"  {finding} finding: fine" in text.split("\n")
+    assert "refs:" not in text
+
+
+def test_a_target_is_one_short_line_and_an_unreadable_field_is_named(tmp_path):
+    p = LegacyProject(tmp_path / "p")
+    long_id = "e" + "9" * 200
+    finding = p.event("finding", {"events": [long_id + "\nx"], "weird": ["x"]}, text="odd")
+    st, text = overview(p)
+    [entry] = st["key"]
+    assert entry["references"]["not_resolved"] == [{"state": "missing", "target": long_id + "\nx"},
+                                                   {"state": "unsupported", "target": "refs.weird"}]
+    assert (f"  {finding} finding: odd · refs: 1 missing ({long_id[:79]}…), 1 unsupported "
+            "(refs.weird)") in text.split("\n")
+    assert 'refs.weird <small class="ref-state tone-muted">Unsupported</small>' in built(p)["index.html"]
+
+
 # --- producers --------------------------------------------------------------------------------------
 
 def test_a_dataset_names_every_run_that_output_its_bytes_and_never_the_last_one(tmp_path):
@@ -134,8 +161,7 @@ def test_a_dataset_names_every_run_that_output_its_bytes_and_never_the_last_one(
     assert by_name["w"]["producer_state"] == "none" and by_name["w"]["written_by"] == []
     lines = {ds: next(line for line in text.split("\n") if line.startswith(f"  derived {ds}:"))
              for ds in "tuvwx"}
-    assert (f"producer ambiguous: same bytes as the output of 3 runs, {case.a}, {case.b}, "
-            f"{case.late}") in lines["t"]
+    assert f"same bytes as 3 runs: {case.a}, {case.b}, {case.late}" in lines["t"]
     assert f"same bytes as run {case.c}'s output" in lines["u"]
     assert ("no successful run output these bytes (changed since, or written by a run that did not "
             f"succeed); runs that wrote this path, latest first: {case.failed}") in lines["v"]
@@ -149,8 +175,8 @@ def test_more_than_three_candidates_are_counted_with_where_to_read_them(tmp_path
     runs = [p.run(f"20261001-09{i:02d}00-r{i}", started_at=at(i), ts=at(i), outputs=[table])
             for i in range(5)]
     _, text = overview(p)
-    assert (f"producer ambiguous: same bytes as the output of 5 runs, {runs[0]}, {runs[1]}, "
-            f"{runs[2]} and 2 more (each run's outputs are in runs/<id>/run.json)") in text
+    assert (f"same bytes as 5 runs: {runs[0]}, {runs[1]}, {runs[2]} and 2 more (the kit's `status` "
+            "command lists every one in its JSON `producer_candidates`)") in text
 
 
 def test_a_dataset_that_cannot_be_hashed_has_an_unknown_producer(tmp_path):
@@ -164,6 +190,27 @@ def test_a_dataset_that_cannot_be_hashed_has_an_unknown_producer(tmp_path):
         "producer unknown: the file could not be hashed"
     # Without a read model nothing is hashed and no producer is judged (the views' cost).
     assert all("producer_state" not in ds for ds in core.list_datasets(project))
+
+
+def test_an_import_record_this_kit_cannot_read_gives_only_its_place(tmp_path):
+    """A lab.dataset/2 record was counted unsupported while its rows, hash, description and source
+    filled the dataset's line and page (review of 8d2ecc7)."""
+    p = LegacyProject(tmp_path / "p")
+    p.dataset("future", imported_at=at(1), schema="lab.dataset/2")
+    place = {"location": "data/raw/future.meta.json", "reason": "unknown_version"}
+    st, text = overview(p)
+    assert st["unsupported"] == [place]
+    [ds] = st["datasets"]
+    assert ds["unsupported_record"] == place
+    assert not {"rows", "sha256", "description", "source", "imported_at"} & set(ds)
+    assert ("  raw     future: ? rows × ? cols · data/raw/future.parquet · import record not read "
+            "(data/raw/future.meta.json: unknown_version) · used by 0 run(s)") in text.split("\n")
+    [plain] = core.list_datasets(project_of(p))  # without a read model too
+    assert plain["unsupported_record"] == place and "rows" not in plain
+    pages = built(p)
+    assert "/elsewhere/future.csv" not in pages["data/future.html"]
+    assert "import record not read (data/raw/future.meta.json: unknown_version)" in pages["data/future.html"]
+    assert "Import record not read" in pages["index.html"]
 
 
 def test_stale_follows_every_candidate_and_not_one_that_started_later(tmp_path):
@@ -183,7 +230,32 @@ def test_stale_follows_every_candidate_and_not_one_that_started_later(tmp_path):
     assert row["stale_upstream"] == [case.a, case.b] and row["ambiguous_inputs"] == [
         "data/derived/t.parquet"]
     line = next(line for line in text.split("\n") if line.startswith("  scripts/c.py::summary"))
-    assert f"STALE(upstream {case.a}, upstream {case.b}); producer ambiguous for 1 input(s)" in line
+    assert f"STALE(upstream candidates {case.a}, {case.b}); producer ambiguous for 1 input(s)" in line
+
+
+def _card(page: str, key: str) -> str:
+    """A chart's card in the gallery."""
+    start = page.index(f'id="chart-{report.slug_key(key)}"')
+    return page[start:page.index("</article>", start)]
+
+
+def test_a_stale_candidate_upstream_is_not_said_to_be_a_changed_input(tmp_path):
+    """A run none of whose inputs changed, whose input has the same bytes as a stale run's output,
+    was said to read inputs that differ from the files, with the stale run as its upstream (review of
+    8d2ecc7). That run is a producer candidate; the critical notice is for a changed input."""
+    case = evidence_project(tmp_path)
+    (case.p.root / case.base).write_bytes(b"changed")  # what a and b read; c reads their table
+    pages = built(case.p)
+    consumer = pages[f"runs/{case.c}.html"]
+    assert "이 run의 입력이 지금 파일과 다릅니다." not in consumer
+    assert "<strong>Upstream candidate stale.</strong> An input has the same bytes as the output of " \
+           f'run(s) <a href="../runs/{case.a}.html">{case.a}</a>' in consumer
+    assert "producer candidates, not confirmed links." in consumer
+    assert f"이 run의 입력이 지금 파일과 다릅니다.</strong> {case.base}</div>" in pages[f"runs/{case.a}.html"]
+    card = _card(pages["index.html"], "scripts/c.py::summary")
+    assert "입력 변경됨" not in card and "Upstream candidate stale" in card
+    assert f"output of run(s) {case.a}, {case.b}, whose inputs" in card
+    assert "입력 변경됨" in _card(pages["index.html"], "scripts/a.py::trend")
 
 
 def test_a_diamond_is_no_cycle_and_a_true_cycle_ends(tmp_path):
@@ -253,13 +325,46 @@ def test_records_the_lists_cannot_show_are_counted_where_they_are(tmp_path):
     assert ("unsupported: 7 record(s) this kit cannot read are in no list here and not in the report — "
             "journal:2 (unknown_kind), journal:3 (unknown_kind), journal:4 (unknown_kind), journal:5 "
             "(unknown_kind), journal:6 (unknown_kind) and 2 more (the kit's `status` command lists "
-            "every one in its JSON); a newer kit may read them") in text
+            "every one in its JSON)") in text
+    assert "a newer kit" not in text  # a kind the /1 writer never wrote is no newer version
     assert st["not_listed"] == ["journal:9"]
     assert (f"not listed: 1 analytics.event/2 record(s) (journal:9) — this kit lists lab.event/1 "
             f"records only; they are in {p.root.resolve() / 'journal.jsonl'}") in text
     index = built(p)["index.html"]
     assert "Unsupported: 7 record(s) this kit cannot read" in index
     assert "Not listed: 1 analytics.event/2 record(s)" in index
+
+
+def test_only_records_of_a_newer_version_are_said_to_be_for_a_newer_kit(tmp_path):
+    p = LegacyProject(tmp_path / "p")
+    p.event("note", schema="lab.event/9")
+    p.event("note", schema="other.event/1")
+    st, text = overview(p)
+    assert [u["reason"] for u in st["unsupported"]] == ["unknown_version", "unknown_family"]
+    assert text.count("a newer kit may read the 1 of an unknown version") == 1
+    assert "A newer kit may read the 1 of an unknown version." in built(p)["index.html"]
+
+
+def test_an_id_on_many_lines_names_two_lines_an_id_and_five_in_all(tmp_path):
+    """One id on 1,200 lines named every line: a 15,800-character line that cut the overview to
+    nothing (review of 8d2ecc7). The rest of the lines are in the status JSON's shared_ids."""
+    p = LegacyProject(tmp_path / "p")
+    for n in range(1200):
+        p.event("note", seq=1, text=f"note {n}")
+    for seq in (2, 3, 4):
+        for _ in range(3):
+            p.event("note", seq=seq)
+    st, text = overview(p)
+    assert len(st["shared_ids"]["e1"]) == 1200 and len(st["shared_ids"]) == 4
+    [line] = [line for line in text.split("\n") if line.startswith("ids on several lines:")]
+    assert line == ("ids on several lines: e1 (journal:1, journal:2 and 1,198 more line(s)), e2 "
+                    "(journal:1201, journal:1202 and 1 more line(s)), e3 (journal:1204 and 2 more "
+                    "line(s)) and 1 more id(s) (the kit's `status` command lists every line in its JSON "
+                    "`shared_ids`) — each line is its own record, and a reference to the id is ambiguous")
+    assert "recent journal:" in text and "truncated" not in text
+    index = built(p)["index.html"]
+    assert "e1 (journal:1, journal:2 and 1,198 more line(s)), e2 (journal:1201" in index
+    assert "lists every line in its JSON <code>shared_ids</code>" in index
 
 
 def test_a_cut_line_and_the_record_appended_onto_it(tmp_path):
@@ -327,7 +432,7 @@ def test_the_workspace_shows_producers_and_outputs_not_preserved(tmp_path):
     case = evidence_project(tmp_path)
     pages = built(case.p)
     assert "현재 버전" not in pages["data/t.html"]
-    assert "producer ambiguous: same bytes as the output of 3 runs" in pages["data/t.html"]
+    assert "same bytes as 3 runs:" in pages["data/t.html"]
     assert "same bytes as now" in pages["data/t.html"]
     assert "Producer ambiguous" in pages["index.html"]
     assert "No matching run output" in pages["index.html"]
@@ -337,6 +442,72 @@ def test_the_workspace_shows_producers_and_outputs_not_preserved(tmp_path):
     assert "<th>Producer</th>" in consumer and "Producer ambiguous" in consumer
     assert f'runs/{case.a}.html' in consumer and f'runs/{case.b}.html' in consumer
     assert f'runs/{case.late}.html' not in consumer.split('id="inputs"', 1)[1].split("</section>", 1)[0]
+
+
+def test_a_dataset_page_says_a_run_holds_its_bytes_only_when_one_does(tmp_path):
+    """The dataset page said "A run named here output this path with these bytes" when the runs it
+    named wrote other bytes or failed, and called every run that wrote the path one that made the
+    file, a deletion included (review of 8d2ecc7)."""
+    case = evidence_project(tmp_path)
+    pages = built(case.p)
+    claim = "A run named here output this path with these bytes"
+    assert claim in pages["data/t.html"] and claim in pages["data/u.html"]
+    for name in ("v", "w", "x"):  # failed run, written outside, overwritten: producer none
+        assert claim not in pages[f"data/{name}.html"], name
+    assert not any("이 파일을 만든 run" in page for page in pages.values())
+    x = pages["data/x.html"]
+    assert "<h3>Successful runs that recorded an output at this path</h3>" in x
+    assert case.overwritten in x and "same bytes as now" not in x
+
+    q = LegacyProject(tmp_path / "q")
+    path = "data/derived/t.parquet"
+    made = q.run("20261001-090000-made", started_at=at(0), ts=at(1), outputs=[(path, q.file(path, b"one"))])
+    gone = q.run("20261001-091000-gone", script="scripts/g.py", started_at=at(10), ts=at(11),
+                 outputs=[(path, core.sha256_file(q.root / path))])
+    record = json.loads((q.root / f"runs/{gone}/run.json").read_text(encoding="utf-8"))
+    record["outputs"][0]["change"] = "deleted"
+    q.write_json(f"runs/{gone}/run.json", record)
+    page = built(q)["data/t.html"]
+    assert f"{made}</a> {made} · same bytes as now</li>" in page
+    assert f"{gone}</a> {gone} · deleted this path</li>" in page
+
+
+def test_the_timeline_says_the_state_of_a_closing_reference(tmp_path):
+    """A record closed by an earlier record's refs.resolves (a forward reference the read judges
+    missing, D1) showed "✓ 해결됨" while analytics_status said missing (review of 8d2ecc7). The
+    lists still select as C1 says; the badge says the judgment."""
+    p = LegacyProject(tmp_path / "p")
+    asked = p.event("question", text="asked")
+    closes = p.event("finding", {"resolves": asked}, text="answered")
+    early = p.event("finding", {"resolves": "e4"}, text="early")
+    later = p.event("question", text="later")
+    st, text = overview(p)
+    assert later not in {e["id"] for e in st["open"]}
+    assert f"  {early} finding: early · refs: 1 missing (e4)" in text.split("\n")
+    index = built(p)["index.html"]
+    assert f'<a class="badge tone-good" href="#{closes}">✓ 해결됨 {closes}</a>' in index
+    assert (f'<a class="badge tone-critical" href="#{early}" title="the lists take this record as '
+            f'closed by {early} (refs.resolves), and the read judges that reference missing">closed by '
+            f"{early} · Missing: record_absent</a>") in index
+    assert f"✓ 해결됨 {early}" not in index
+
+
+def test_a_chart_link_from_a_record_is_escaped(tmp_path):
+    p = LegacyProject(tmp_path / "p")
+    run = p.run("20261001-090000-a", started_at=at(0), ts=at(1), charts=["a&copy"])
+    index = built(p)["index.html"]
+    assert f'href="runs/{run}.html#chart-a&amp;copy"' in index
+    assert "#chart-a&copy" not in index
+
+
+def test_an_event_reference_to_an_id_on_several_lines_has_candidate_records(tmp_path):
+    p = LegacyProject(tmp_path / "p")
+    p.event("finding", text="one", seq=1)
+    p.event("finding", text="two", seq=1)
+    p.event("decision", {"events": ["e1"]}, seq=2, text="cites e1")
+    index = built(p)["index.html"]
+    assert 'title="journal:1, journal:2">2 candidate record(s)</small>' in index
+    assert "candidate version(s)" not in index
 
 
 def test_labels_and_paths_from_records_are_escaped(tmp_path):

@@ -245,6 +245,7 @@ my-analysis/
   **출력**은 run 전후 프로젝트 파일 비교로 빠짐없이 잡습니다.
 - **stale**: 차트를 만든 run의 입력 파일 sha256이 지금과 다르거나, 그 입력과 같은 바이트를 출력한 성공 run(그 run보다 늦게 시작하지 않은 것,
   생산자 후보) 가운데 stale인 것이 있으면(전이) 표시됩니다. 후보가 여럿이면 하나를 고르지 않고 모두 따라가며 `producer ambiguous`라고 적습니다.
+  후보는 같은 바이트를 출력했다는 관측이라, stale인 후보는 생산자로 단정하지 않고 `upstream candidate`로 적습니다.
 - **관계의 상태**: `analytics_status`와 리포트는 기록을 한 번 읽어 참조마다 상태를 보입니다(ADR-0006): run 이벤트의 차트는 그 run의 차트로, 버전을
   고정하지 않은 차트·데이터는 `Version unbound`와 최신 버전 링크("latest, not the cited version")로, 없는 대상은 `Missing`으로.
   두 화면은 같은 식별자와 읽기 기준(`as_of_seq`·`source_revision`)을 적습니다.
@@ -328,7 +329,7 @@ src/aelix_analytics/          kit이자 배포본의 package. src/가 자식에�
   data.py    report.py        import·프로파일·쿼리, HTML 리포트 (+ assets/)
   demo.py                     데모 데이터·run (+ demo_scripts/)    template/  새 프로젝트 파일
   cli.py  _install.py         `analytics` 런처, 설치된 실행 루트 찾기    aelix-plugin.toml  manifest
-extension/aelix_analytics.py  aelix 확장 (stdlib + aelix API, 실행 루트의 core·_platform을 경로로 로드; 설치본의 aelix_analytics/extension.py)
+extension/aelix_analytics.py  aelix 확장 (stdlib + aelix API, 실행 루트의 core·_platform·relations를 경로로 로드; 설치본의 aelix_analytics/extension.py)
 bin/analytics                 사람용 CLI (체크아웃, POSIX)
 ```
 
