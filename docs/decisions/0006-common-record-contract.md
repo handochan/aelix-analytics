@@ -9,9 +9,9 @@ Status: Accepted — 2026-10-03 소유자 결정 (Issue #4)
 현재 코드가 하는 일은 [현재 계약](../CONTRACTS.md)에 있고, 그 문서는 이 계약을 구현하는 PR(#12·#13·#19·#36)이 병합될 때
 바뀐다. 기계가 검사할 형태는 [기록 schema](../schemas/analytics-records.schema.json)와
 [사례별 예제](../../tests/fixtures/records/README.md)에 있다. ADR과 schema·예제가 어긋나면 ADR이 기준이고 schema·예제를 고친다.
-이 계약이 기대는 형제 결정은 이 PR 뒤에 병합되므로 번호로만 적는다: ADR-0005(#3 전환 순서, `docs/issue-3-transition-order`
-병합 뒤 링크), ADR-0008(#6 재사용 제안, `docs/issue-6-reuse-proposals` 병합 뒤 링크), ADR-0009(#21 첫 게시,
-`docs/issue-21-publish-target` 병합 뒤 링크).
+이 계약이 기대는 형제 결정은 별도 결정 PR에 있어 번호와 브랜치로만 적고, 나중에 병합되는 PR이 링크로 바꾼다:
+ADR-0005(#3 전환 순서, `docs/issue-3-transition-order`), ADR-0008(#6 재사용 제안, `docs/issue-6-reuse-proposals`),
+ADR-0009(#21 첫 게시, `docs/issue-21-publish-target`).
 
 ## 배경
 
@@ -147,11 +147,11 @@ Status: Accepted — 2026-10-03 소유자 결정 (Issue #4)
 - **확정 연결**은 `version_binding=author`이고 `basis`가 `observed`·`declared`이며 해석 상태가 `resolved`인 참조뿐이다.
   `inferred` 결박은 `resolved`여도 확정 근거로 세지 않는다(Q4의 잘못된 확정 연결 0건). 확정 연결은 결론의 검토가 아니다.
 
-읽을 때 `none` 참조는 결박하지 않는다. 후보는 그 기록 전에 있던 대상이다: 이벤트면 그 seq보다 앞의 완료 이벤트를 가진
-성공 run의 버전, Report manifest면 `based_on.as_of_seq`까지(null이면 그 버전의 완료 이벤트 앞)의 버전이다. `key`(논리 키)가
-있으면 `version_unbound`이고 그 키의 후보를 보인다. `key` 없이 `token`만 있으면 token에 맞는 논리 키가 둘 이상일 때
-`ambiguous`, 하나일 때 `version_unbound`, 없을 때 `unknown`(`unresolved_name`)이다. 읽는 시점에 후보가 하나여도 결박하거나
-확정하지 않는다.
+읽을 때 `none` 참조는 결박하지 않는다. 후보는 그 논리 키의 버전 가운데 그 기록 전에 있던 것이다: 이벤트면 그 seq보다
+앞의 완료 이벤트를 가진 버전(run의 버전이면 성공 run의 것), Report manifest면 `based_on.as_of_seq`까지(null이면 그 버전의
+완료 이벤트 앞)의 버전이다. 논리 키(`key` 또는 2절 표의 논리 키 필드)가 있으면 `version_unbound`이고 그 키의 후보를 보인다.
+논리 키 없이 `token`만 있으면 token에 맞는 논리 키가 둘 이상일 때 `ambiguous`, 하나일 때 `version_unbound`, 없을 때
+`unknown`(`unresolved_name`)이다. 읽는 시점에 후보가 하나여도 결박하거나 확정하지 않는다.
 
 ### 4. 해석 상태
 
@@ -180,7 +180,8 @@ reader는 참조마다 다음 중 하나를 돌려준다. 해석은 읽기의 �
 4. 내용이 대상인 type(데이터 관측·가져온 데이터·코드 스냅샷)의 대상 기록에 해시가 없으면 `unknown`(`no_digest`).
 5. 해시가 있으면 보존 파일의 현재 바이트와 비교한다. 파일이 없으면 `missing`(`file_absent`), 다르면 `content_changed`,
    같으면 `resolved`다. CONTEXT 버전과 Report manifest는 참조의 `digest`와 그 파일을 비교하고, Report 버전은 manifest의
-   `files[]`도 같은 방식으로 본다. 해시가 없는 대상(이벤트, run, `/1`의 차트)은 기록과 보존 파일이 있으면 `resolved`다.
+   `files[]`도 같은 방식으로 본다. 해시가 없는 대상(이벤트, run, `/1`의 차트)은 기록과 보존 파일이 있으면 `resolved`이고,
+   `digest`가 없는 `/1`의 `refs.context`는 그 버전 파일이 있으면 `resolved`다.
 
 CONTEXT 버전(`context_version`, `/1`의 `refs.context`)은 버전 파일 이름으로 찾는다. reader는 `.analytics/context/`, 그다음
 `.lab/context/`를 보고, 전환 기록에 대응이 있으면 그 대응을 따른다. 전환한 프로젝트의 옛 버전을 어디에 둘지는 #13이 정한다
@@ -216,8 +217,9 @@ CONTEXT 버전(`context_version`, `/1`의 `refs.context`)은 버전 파일 이�
 
 - 정본을 먼저 확정하고 journal의 완료 이벤트를 마지막에 쓴다. 정본은 run.json 최종본, 가져오기 기록, Report manifest와
   content다. 완료 이벤트가 그 기록의 커밋 지점이다. `/1` run의 완료 이벤트는 `refs.runs`에 그 run을 담은 `kind=run`
-  이벤트이고, `/1` 가져오기의 완료 이벤트는 `refs.data`에 그 데이터셋의 경로(가져오기 기록의 `path`)를 담은 `kind=import`
-  이벤트다. `/2`의 `import` 이벤트는 그 가져오기 기록을 가리키는 `dataset_import` 참조(relation `about`)를 하나 담는다.
+  이벤트이고, `/1` 가져오기의 완료 이벤트는 `refs.data`에 그 데이터셋의 경로(가져오기 기록의 `path`)를 담고 그 기록의
+  `imported_at`과 같거나 뒤에 기록된 `kind=import` 이벤트다. `/2`의 `import` 이벤트는 그 가져오기 기록을 가리키는
+  `dataset_import` 참조(relation `about`)를 하나 담는다.
 - 정본이 있는데 완료 이벤트가 없으면 `recording_status=incomplete`와 사유로 읽는다. 완료 이벤트가 있는데 파일이 없거나
   다르면 `missing`·`content_changed`로 읽는다.
 - 실행·기록·표시 상태를 따로 둔다. `execution_status`는 running·ok·error·timeout·cancelled이고, 프로세스가 사라진
@@ -288,7 +290,8 @@ artifacts/reports/<report_id>/
   4. manifest의 sha256을 `digest`로 담은 완료 이벤트(`kind=report_revision`, 요청의 `request_id`)를 쓰고 잠금을 놓는다
      (`saved`). 그 밖의 결과면 잠금을 놓은 뒤 이번 시도의 staging을 지운다.
 - head는 완료 이벤트가 있는 마지막 버전이다. 가지를 만들지 않는다. `revision_conflict`를 받은 호출자는 최신 head를
-  기준으로 다시 저장한다.
+  기준으로 새 `request_id`로 다시 저장한다(kit이 만들면 새로 만든다). head가 바뀌어 `incomplete`로 남은 버전의 `request_id`는
+  그 버전의 요청에만 속하고 다른 의도의 저장으로 넘어가지 않는다(같은 값으로 다시 보내면 지문이 달라 `request_conflict`다).
 - 이름을 바꾼 뒤 완료 이벤트 전에 멈춘 버전은 `incomplete`로 보이고 head가 되지 않는다. `.staging/`에 남은 것은
   `prepared`이며 버전이 아니다. 같은 `request_id`의 재시도는 남은 staging을 쓰지 않고 새로 준비한다. 남은 staging의
   정리는 자동으로 하지 않으며 명시적인 정리 명령이 맡는다(#19).
@@ -391,8 +394,9 @@ artifacts/reports/<report_id>/
 - Report 저장은 확인부터 완료 이벤트까지 journal 잠금을 잡으므로 그동안 다른 이벤트 쓰기가 기다린다. 복사는 잠금 밖에서
   한다. 남은 staging은 자동으로 지우지 않아 쌓일 수 있다.
 - 지금 `/1` writer는 끊긴 마지막 줄 뒤에 다음 이벤트를 붙여 써 그 이벤트를 잃고, 그다음 이벤트에 같은 seq를 다시 준다(배경).
-  6절의 줄바꿈 규칙은 #13 writer의 규칙이며 `/1` writer의 수정은 별도 B1 결함 Issue가 맡는다(이 결정의 리뷰에서 등록을
-  요청했다). 그 전에 생긴 줄은 6절의 복구 규칙으로 읽고, 같은 seq를 받은 두 이벤트를 가리키는 참조는 `ambiguous`로 남는다.
+  6절의 줄바꿈 규칙은 #13 writer의 규칙이며 `/1` writer의 수정은 B1 결함 Issue
+  [#49](https://github.com/handochan/aelix-analytics/issues/49)가 맡는다. 그 전에 생긴 줄은 6절의 복구 규칙으로 읽고,
+  같은 seq를 받은 두 이벤트를 가리키는 참조는 `ambiguous`로 남는다.
 - #36의 수정은 링크한 `data/`의 출력과 계보를 고치지만, 옛 기록과 새 기록의 경로 문자열이 달라 옛 run의 재실행이
   '입력 다름'을 보일 수 있다. 링크 대상의 절대 경로로 직접 읽은 입력은 여전히 프로젝트 밖 경로로 남는다(한계).
 - `min_writer_version` 때문에 오래된 kit은 새 기능을 쓴 프로젝트를 읽기만 한다.

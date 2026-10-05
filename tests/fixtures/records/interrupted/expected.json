@@ -1,6 +1,6 @@
 {
   "case": "interrupted",
-  "summary": "Interruptions read as is: a running record whose process is gone, a final run without its completion event, Report revisions renamed before their completion event (one still resumable, one passed by a later save), a prepared staging directory and a cut-off last journal line.",
+  "summary": "Interruptions read as is: a running record whose process is gone, a final run without its completion event, Report revisions renamed before their completion event (one still resumable, one passed by a later save and saved again with a new request_id), a prepared staging directory and a cut-off last journal line.",
   "journal": {
     "lines": 6,
     "damaged": [
@@ -198,6 +198,26 @@
       },
       "result": "revision_conflict",
       "note": "the renamed revision's previous_revision is no longer the head: it stays incomplete"
+    },
+    {
+      "operation": "report_save",
+      "request": {
+        "request_id": "req-day-0004",
+        "report_id": "daily-status",
+        "previous_revision": "01K6QDAY000000000000000003",
+        "title": "Daily status",
+        "entry": "index.md",
+        "files": [
+          {
+            "path": "index.md",
+            "sha256": "1c02daba90737a508983e67ec735e59a10e30432a3bac4c7e88f680a84e693e7"
+          }
+        ],
+        "based_on": null,
+        "request_fingerprint": "99451d8859a58cd57305eff3c742a0f4ed110e81a54d6e0329045bbb6e497e21"
+      },
+      "result": "saved",
+      "note": "after that revision_conflict the caller saves the same content on the head with a new request_id; req-day-0002 stays with the incomplete revision"
     },
     {
       "operation": "event_append",

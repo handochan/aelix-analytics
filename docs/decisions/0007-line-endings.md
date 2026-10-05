@@ -72,8 +72,8 @@ Status: Accepted — 2026-10-03 소유자 결정 (Issue #37)
 - 쓰기 경로 여러 곳과 Windows CI 시험이 바뀐다.
 - 새 프로젝트 안에서는 git이 줄 끝을 바꾸지 않는다. 원하지 않는 사용자는 그 파일을 지울 수 있다.
 - git의 autocrlf로 오간 기존 프로젝트에는 'line endings only' 표시가 계속 보인다.
-- 예외는 두지 않는다. 지금 저장소에는 Windows 전용 스크립트(`.bat`·`.cmd`·`.ps1`)가 없다. CRLF가 필요한 파일이 생기면
-  예외 여부는 소유자가 정한다.
+- `eol=crlf` 예외는 두지 않는다. 지금 저장소에는 Windows 전용 스크립트(`.bat`·`.cmd`·`.ps1`)가 없다. CRLF가 필요한
+  파일이 생기면 예외 여부는 소유자가 정한다.
 - 이 결정과 같은 PR에서 `tests/fixtures/records/`에 `* -text`를 먼저 두었다. 그 예제는 해시가 기대값이고 의도한 CRLF
   journal을 담는다. 루트 `.gitattributes`를 더할 때 이 규칙을 지우지 않는다.
 - [현재 계약](../CONTRACTS.md) G절의 '줄 끝' 문장을 '결정됨, 구현 전 한계'로 바꿨다. 구현 PR이 그 문장을 지우고 F절에

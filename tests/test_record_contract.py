@@ -4,8 +4,10 @@ Each directory under tests/fixtures/records/ is a project as a reader would find
 a reader of the contract has to report in expected.json. This module is not that reader (Issue #12
 builds it). It computes what the rules of ADR-0006 give for each case — the schemas, every record
 against them, hashes and request fingerprints against the bytes, reference states in the order section 4
-gives, the state replay of section 6 and the Report saves and retries of section 7 — and compares that
-with the judgments, so an example cannot drift from the contract or from its own files unnoticed.
+gives, the state replay of section 6 for findings and the like and for questions and to-dos (the cases
+hold no Report revision or reuse proposal transition) and the Report saves and retries of section 7 —
+and compares that with the judgments, so an example cannot drift from the contract or from its own
+files unnoticed.
 """
 
 from __future__ import annotations
@@ -361,7 +363,7 @@ class Case:
         def target(eid: str | None) -> dict | None:
             return states.get(eid) if eid and len(self.lines_of.get(eid, [])) == 1 else None
 
-        for _, event in self.events:
+        for _, event in sorted(self.events, key=lambda item: item[1]["seq"]):  # stable: line order on a tie
             eid, kind = event["id"], event.get("kind")
             if len(self.lines_of[eid]) == 1 and kind in CONTENT_KINDS:
                 states[eid] = {"group": "content", "withdrawn": False, "by": set(), "mismatched": []}

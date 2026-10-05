@@ -8,7 +8,7 @@ reader와 #13의 writer가 이 사례로 시험한다.
 | 사례 | 담은 것 |
 |---|---|
 | `normal` | 정확한 근거, 이름으로 받아 추론 결박한 참조(`resolved`이지만 확정 연결이 아님), basis가 `inferred`·`unverified`인 `author` 참조, 결박하지 않은 참조(`key`·`token`), 정정, 철회한 뒤 정정한 결정, 다시 연 질문, checkpoint, 완료한 Report 버전 둘, 경로와 해시로 찾은 생산자. 쓰기: 한국어 제목과 경로순이 아닌 `files`의 저장, 거절할 저장(경로·이름), 상태 변경, PEP 440 버전 비교 |
-| `interrupted` | 프로세스가 사라진 running 기록, 완료 이벤트가 없는 최종 run, 이름을 바꾼 뒤 완료 이벤트 전에 멈춘 Report 버전 둘(하나는 이어 쓸 수 있고, 하나는 그사이 다른 저장이 끝났다), prepared staging, 끊긴 마지막 journal 줄 |
+| `interrupted` | 프로세스가 사라진 running 기록, 완료 이벤트가 없는 최종 run, 이름을 바꾼 뒤 완료 이벤트 전에 멈춘 Report 버전 둘(하나는 이어 쓸 수 있고, 하나는 그사이 다른 저장이 끝나 새 `request_id`로 다시 저장한다), prepared staging, 끊긴 마지막 journal 줄 |
 | `missing` | 지운 run, 없는 Visualization id, 덮어쓴 파생 표, 지운 코드 스냅샷, 없는 이벤트, 해시 없이 기록한 입력, 대상 기록이 남긴 적 없는 digest 둘, content 파일을 지운 Report 버전 |
 | `conflict` | 한 발견의 두 정정, head가 아닌 이전 버전 위의 저장, 같은 `request_id`의 다른 지문, 기록이 그 상태가 아닐 때의 상태 변경(요청으로, 그리고 확인 없이 쓴 줄로), 일부만 아는 기준(`context_version: null`) |
 | `mixed-version` | 한 seq 공간의 `lab.event/1` 줄(CRLF)과 `analytics.event/2` 줄(LF), `/1` writer가 끊긴 줄 뒤에 붙여 쓴 줄과 같은 seq를 다시 받은 줄, 옛 참조, 같은 경로·해시의 두 생산자, 다른 run의 스냅샷 경로, 두 스크립트에 있는 Visualization 이름 |
