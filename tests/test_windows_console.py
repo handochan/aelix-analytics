@@ -55,9 +55,9 @@ def console(tmp_path_factory):
     ok([uv, "build", "--wheel", "--quiet", "-o", base / "dist", PACK])
     [wheel] = (base / "dist").glob("*.whl")
     env = {k: v for k, v in os.environ.items()
-           if k.upper() not in ("PYTHONPATH", "VIRTUAL_ENV", "LAB_PROJECT", "LAB_ACTOR",
-                                "AELIX_LAB_KIT", "AELIX_LAB_UV", "AELIX_LAB_PROJECT")}
-    env.update({"AELIX_LAB_TRUST_FILE": str(base / "trust.json"), "PYTHONDONTWRITEBYTECODE": "1"})
+           if k.upper() not in ("PYTHONPATH", "VIRTUAL_ENV", "AELIX_ANALYTICS_PROJECT", "AELIX_ANALYTICS_ACTOR",
+                                "AELIX_ANALYTICS_RUNTIME_PATH", "AELIX_ANALYTICS_UV", "AELIX_ANALYTICS_PROJECT")}
+    env.update({"AELIX_ANALYTICS_TRUST_FILE": str(base / "trust.json"), "PYTHONDONTWRITEBYTECODE": "1"})
     installs = {}
     for python in ("3.12", "3.11"):
         venv = base / f"venv-{python}"

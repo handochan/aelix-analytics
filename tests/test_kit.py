@@ -22,7 +22,7 @@ analytics.save(by_region, "region_revenue")
 fig, ax = plt.subplots()
 ax.bar(by_region["region"], by_region["revenue"])
 ax.set_title("지역별 매출")
-analytics.chart(fig, "region-revenue", caption="합계", data=by_region)
+analytics.visualize(fig, "region-revenue", caption="합계", data=by_region)
 print("rows", by_region.height)
 '''
 
@@ -150,7 +150,7 @@ def test_rerun_match_and_mismatch(project):
 
     noisy = ("import time\nimport matplotlib.pyplot as plt\nimport polars as pl\nimport aelix_analytics as analytics\n"
              "fig, ax = plt.subplots()\n"
-             "analytics.chart(fig, 'n', data=pl.DataFrame({'t': [time.time_ns()]}))\n")
+             "analytics.visualize(fig, 'n', data=pl.DataFrame({'t': [time.time_ns()]}))\n")
     _, one = _run(project, write_script(project, "noise.py", noisy))
     _, two = kit_cli(project, "run", "--rerun-of", one["run"]["id"], "--title", "rerun")
     assert two["run"]["reproduction"]["verdict"] == "mismatch"
@@ -161,7 +161,7 @@ def test_charts_turn_stale_when_an_upstream_output_changes(project):
                 "analytics.save(analytics.read('sales').head(10), 'part')\n")
     downstream = ("import matplotlib.pyplot as plt\nimport aelix_analytics as analytics\n"
                   "part = analytics.read('part')\nfig, ax = plt.subplots()\nax.plot(part['revenue'])\n"
-                  "analytics.chart(fig, 'part-line', data=part)\n")
+                  "analytics.visualize(fig, 'part-line', data=part)\n")
     _run(project, write_script(project, "10_up.py", upstream))
     _run(project, write_script(project, "11_down.py", downstream))
     st = core.status(core.Project(project))
@@ -289,9 +289,9 @@ def test_one_figure_reused_for_several_named_charts_keeps_each_chart(project):
             "for n, region in [(5, '서울'), (6, '부산'), (7, '대구')]:\n"
             "    part = sales.filter(pl.col('region') == region).head(n)\n"
             "    ax.clear()\n    ax.plot(part['revenue'])\n    ax.set_title(f'Revenue {region}')\n"
-            "    analytics.chart(fig, f'rev-{len(part)}', data=part)\n"
+            "    analytics.visualize(fig, f'rev-{len(part)}', data=part)\n"
             "fig2, ax2 = plt.subplots()\nax2.plot([1, 2])\nplt.show()\n"
-            "analytics.chart(fig2, 'named-after-show', data=pl.DataFrame({'y': [1, 2]}))\n")
+            "analytics.visualize(fig2, 'named-after-show', data=pl.DataFrame({'y': [1, 2]}))\n")
     _, result = _run(project, write_script(project, "05_loop.py", body))
     charts = {c["id"]: c for c in result["run"]["charts"]}
     assert set(charts) == {"rev-5", "rev-6", "rev-7", "named-after-show"}, charts
@@ -316,7 +316,7 @@ def test_failed_or_incomplete_rerun_is_never_a_match(project):
 
     reader = ("import polars as pl\nimport matplotlib.pyplot as plt\nimport aelix_analytics as analytics\n"
               "df = pl.read_parquet('data/derived/base.parquet')\nfig, ax = plt.subplots()\n"
-              "ax.plot(df['revenue'])\nanalytics.chart(fig, 'rev', data=df)\n")
+              "ax.plot(df['revenue'])\nanalytics.visualize(fig, 'rev', data=df)\n")
     _, three = _run(project, write_script(project, "07_reader.py", reader))
     (project / "data/derived/base.parquet").unlink()
     code, four = kit_cli(project, "run", "--rerun-of", three["run"]["id"], "--title", "rerun")
@@ -326,10 +326,10 @@ def test_failed_or_incomplete_rerun_is_never_a_match(project):
 
 def test_rerun_of_an_old_snapshot_does_not_become_the_current_chart(project):
     v1 = ("import matplotlib.pyplot as plt\nimport aelix_analytics as analytics\ndf = analytics.read('sales')\n"
-          "fig, ax = plt.subplots()\nax.plot(df['revenue'])\nanalytics.chart(fig, 'rev', title='v1', data=df)\n")
+          "fig, ax = plt.subplots()\nax.plot(df['revenue'])\nanalytics.visualize(fig, 'rev', title='v1', data=df)\n")
     _, one = _run(project, write_script(project, "08_versions.py", v1))
     v2 = v1.replace("title='v1'", "title='v2'") + (
-        "fig2, ax2 = plt.subplots()\nax2.plot(df['revenue'])\nanalytics.chart(fig2, 'orders', data=df)\n")
+        "fig2, ax2 = plt.subplots()\nax2.plot(df['revenue'])\nanalytics.visualize(fig2, 'orders', data=df)\n")
     time.sleep(0.01)
     _, two = _run(project, write_script(project, "08_versions.py", v2))
     kit_cli(project, "run", "--rerun-of", one["run"]["id"], "--title", "check v1")
@@ -344,7 +344,7 @@ def test_reading_back_an_own_output_is_not_an_input_and_not_stale(project):
             "m = analytics.read('sales').group_by('region').agg(pl.col('revenue').sum()).sort('region')\n"
             "analytics.save(m, 'monthly')\nback = pl.read_parquet('data/derived/monthly.parquet')\n"
             "fig, ax = plt.subplots()\nax.bar(back['region'], back['revenue'])\n"
-            "analytics.chart(fig, 'back', data=back)\n")
+            "analytics.visualize(fig, 'back', data=back)\n")
     script = write_script(project, "09_readback.py", body)
     _run(project, script)
     _, second = _run(project, script)
@@ -375,7 +375,7 @@ UNREADABLE = ("if os.name == 'nt':\n"
 
 
 def test_finalization_survives_bad_notes_replaced_stdout_and_unreadable_outputs(project):
-    body = ("import os, sys\nimport aelix_analytics as analytics\nanalytics.note('finding', 42)\n"
+    body = ("import os, sys\nimport aelix_analytics as analytics\nanalytics.record('finding', 42)\n"
             "open('data/derived/secret.bin', 'wb').write(b'x')\n" + UNREADABLE +
             "sys.stdout = open('data/derived/log.txt', 'w')\nprint('into the log')\n")
     code, result = _run(project, write_script(project, "11_hostile.py", body))
@@ -401,7 +401,7 @@ SEPARATORS = ["/", "\\"] if os.name == "nt" else ["/"]
 
 
 def _read_text(project, path: Path, separator: str):
-    """`lab_query` reading one file. `content` only: read_text's last_modified column is a
+    """`analytics_query` reading one file. `content` only: read_text's last_modified column is a
     TIMESTAMPTZ, which needs pytz, which no environment here has (design review T9)."""
     text = str(path).replace(os.sep, separator)
     return kit_cli(project, "query", f"SELECT content FROM read_text('{text}')")
@@ -531,9 +531,9 @@ def test_replacing_a_chart_id_leaves_no_phantom_chart(project):
     body = ("import matplotlib.pyplot as plt\nimport polars as pl\nimport aelix_analytics as analytics\n"
             "df = analytics.read('sales')\n"
             "fig1, ax1 = plt.subplots()\nax1.plot(df['revenue'].head(3))\nax1.set_title('DRAFT chart')\n"
-            "analytics.chart(fig1, 'rev', title='draft', data=df.head(3))\n"
+            "analytics.visualize(fig1, 'rev', title='draft', data=df.head(3))\n"
             "fig2, ax2 = plt.subplots()\nax2.plot(df['revenue'].head(9))\nax2.set_title('FINAL chart')\n"
-            "analytics.chart(fig2, 'rev', title='final', data=df.head(9))\n")
+            "analytics.visualize(fig2, 'rev', title='final', data=df.head(9))\n")
     _, result = _run(project, write_script(project, "21_replace.py", body))
     charts = result["run"]["charts"]
     assert [(c["id"], c["title"], c["via"], c["data_rows"]) for c in charts] == [
@@ -547,7 +547,7 @@ def test_a_journal_failure_after_the_record_is_still_reported(project):
     (project / "journal.jsonl").unlink()
     (project / "journal.jsonl").mkdir()
     code, result = _run(project, write_script(project, "22_note.py",
-                                              "import aelix_analytics as analytics\nanalytics.note('finding', 'x')\n"))
+                                              "import aelix_analytics as analytics\nanalytics.record('finding', 'x')\n"))
     assert code == 0 and result["run"]["status"] == "ok"
     problems = result["finalize_errors"]
     assert any(p.startswith("journal:") for p in problems) and any(p.startswith("note ") for p in problems)
@@ -823,7 +823,7 @@ def test_cli_init_without_a_template_answers_in_json_and_creates_nothing(tmp_pat
     assert not target.exists()
 
 
-# --- Issue #11 PR-2: what the context block and lab_status leave out, and where it is ---
+# --- Issue #11 PR-2: what the context block and analytics_status leave out, and where it is ---
 
 LINE_ENDS = {"lf": None, "crlf": None, "cr": "\r", "u2028": "\u2028", "u2029": "\u2029",
               "ff": "\x0c", "vt": "\x0b", "nel": "\x85", "lead1": None, "lead3": None,
@@ -895,7 +895,7 @@ def test_a_context_whose_lines_end_in_a_lone_cr_is_one_line(tmp_path):
     assert f"— all of it: read {p.context} offset 1 limit 1)" in block
     st = core.status(p)
     assert st["project"]["context_truncated"] and st["project"]["context_omitted"] == []
-    # lab_status names the cause: no `## ` heading starts a line, as the read tool counts lines.
+    # analytics_status names the cause: no `## ` heading starts a line, as the read tool counts lines.
     text = core.status_text(st)
     assert f"CONTEXT.md ({st['project']['context_chars']:,} characters) ends its lines in a lone " \
            "CR, which is no line end to the read tool, so it is one line" in text
@@ -922,7 +922,7 @@ def test_the_block_counts_the_entries_it_leaves_out_and_says_where_they_are(tmp_
 
 
 def _main_status_text(st: dict, max_chars: int = 9000) -> str:
-    """lab_status's overview as main (bc77176) made it before Issue #11 PR-2, to compare with."""
+    """analytics_status's overview as main (bc77176) made it before Issue #11 PR-2, to compare with."""
     _one_line, versions_line, _fmt_int = core._one_line, core.versions_line, core._fmt_int
     CONTEXT_PROMPT_CHARS = core.CONTEXT_PROMPT_CHARS  # noqa: N806 - as main spelled it
     p, counts = st["project"], st["counts"]
@@ -947,7 +947,7 @@ def _main_status_text(st: dict, max_chars: int = 9000) -> str:
     for ds in st["datasets"]:
         origin = (f"← run {ds['producer']}" if ds.get("producer")
                   else f"from {ds['source']}" if ds.get("source")
-                  else "NO PRODUCING RUN (written outside lab_run: no code or inputs recorded)")
+                  else "NO PRODUCING RUN (written outside analytics_run: no code or inputs recorded)")
         lines.append(f"  {ds['kind']:<7} {ds['name']}: {_fmt_int(ds.get('rows'))} rows × "
                      f"{ds.get('columns') or '?'} cols · {ds['path']} · {origin} · used by "
                      f"{len(ds.get('used_by') or [])} run(s)")
@@ -1109,7 +1109,7 @@ def test_an_overview_just_over_its_length_keeps_as_many_entries_as_fit(tmp_path)
     assert found, "no overview over 9,000 characters"
     n, st, text = found
     assert _budgeted(text) <= core.STATUS_CHARS
-    more = re.search(r"^  … ([\d,]+) more dataset\(s\) not listed: call lab_query with ", text,
+    more = re.search(r"^  … ([\d,]+) more dataset\(s\) not listed: call analytics_query with ", text,
                      re.M)
     shown = sum(1 for line in text.split("\n") if line.startswith("  raw "))
     assert more and shown + int(more.group(1)) == n, text[-2000:]
@@ -1144,12 +1144,12 @@ def test_an_overview_too_long_shortens_its_unbounded_lists_and_says_how_many_and
     assert len(changed) == 3, changed  # the sections left out, the views, the datasets
     for line in changed:
         assert re.search(r"\b[\d,]+ more\b", line), line
-        assert re.search(r"\bread \S*[/\\]|\bcall lab_query with\b", line), line
+        assert re.search(r"\bread \S*[/\\]|\bcall analytics_query with\b", line), line
     # The datasets save the most, then the sections: both are at their floors and it is still too
     # long. The views come last and keep the most names that fit.
     assert f"and 180 more (the system prompt lists every one with its line range in read " \
            f"{p.context})" in text
-    paging = (f"call lab_query with \"{core.VIEWS_SQL}\" and again with OFFSET 50, 100, … until "
+    paging = (f"call analytics_query with \"{core.VIEWS_SQL}\" and again with OFFSET 50, 100, … until "
               "it returns fewer than 50 rows")
     assert f"  … 483 more dataset(s) not listed: {paging} to list every view; an imported one's " \
            "record is data/raw/<name>.meta.json" in lines
@@ -1269,7 +1269,7 @@ def test_python_m_runs_only_from_a_runtime_root(tmp_path):
     project = tmp_path / "proj"
     code, made, done = _module(root, "aelix_analytics", "init", project, "--title", "실행 루트")
     assert code == 0 and made["ok"], done.stderr
-    trust = Path(os.environ["AELIX_LAB_TRUST_FILE"])
+    trust = Path(os.environ["AELIX_ANALYTICS_TRUST_FILE"])
     before = (_tree(project), trust.read_bytes())
     fresh = tmp_path / "fresh"
     for path, args in ((site, ["aelix_analytics", "--project", project, "status"]),
@@ -1343,7 +1343,7 @@ by_region = analytics.sql("SELECT region, sum(revenue) AS revenue FROM sales GRO
 analytics.save(by_region, "region_revenue")
 fig, ax = plt.subplots()
 ax.bar(by_region["region"], by_region["revenue"])
-analytics.chart(fig, "region-revenue", data=by_region)
+analytics.visualize(fig, "region-revenue", data=by_region)
 print(rows, counted)
 '''
 
@@ -1391,7 +1391,7 @@ def test_storage_names_stay_until_the_new_writer(project, tmp_path):
                 *(json.loads(p.read_text(encoding="utf-8"))["schema"] for p in datasets)}
     assert families == STORED["families"]
     assert (project / STORED["managed"]).is_dir() and (project / STORED["report"] / "index.html").is_file()
-    trust = json.loads(Path(os.environ["AELIX_LAB_TRUST_FILE"]).read_text(encoding="utf-8"))
+    trust = json.loads(Path(os.environ["AELIX_ANALYTICS_TRUST_FILE"]).read_text(encoding="utf-8"))
     assert trust["schema"] == STORED["trust"]
     assert (core.MARKER, core.SCHEMA_PROJECT, core.SCHEMA_RUN, core.SCHEMA_EVENT,
             core.SCHEMA_DATASET) == ("lab.json", "lab.project/1", "lab.run/1", "lab.event/1",

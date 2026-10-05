@@ -18,7 +18,7 @@ def kit_env(**extra) -> dict:
     # PYTHONUNBUFFERED changes how a kit lays out its run streams, which tests check; a test that
     # wants it passes it (review 8, critic-4).
     env = {k: v for k, v in os.environ.items() if k not in ("VIRTUAL_ENV", "PYTHONUNBUFFERED")}
-    env.update({"PYTHONPATH": str(KIT), "MPLBACKEND": "Agg", "LAB_ACTOR": "test",
+    env.update({"PYTHONPATH": str(KIT), "MPLBACKEND": "Agg", "AELIX_ANALYTICS_ACTOR": "test",
                 "PYTHONDONTWRITEBYTECODE": "1"})
     env.update(extra)
     return env
@@ -105,7 +105,7 @@ def sigint_as_an_interactive_python_has_it():
 @pytest.fixture(autouse=True)
 def isolated_trust_file(tmp_path, monkeypatch):
     """Projects created by tests must never be registered in the user's real trust file."""
-    monkeypatch.setenv("AELIX_LAB_TRUST_FILE", str(tmp_path / "trust" / "lab-projects.json"))
+    monkeypatch.setenv("AELIX_ANALYTICS_TRUST_FILE", str(tmp_path / "trust" / "lab-projects.json"))
 
 
 @pytest.fixture

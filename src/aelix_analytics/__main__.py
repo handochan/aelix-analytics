@@ -1,4 +1,4 @@
-"""The kit's command line — shared by the aelix extension (JSON) and people (bin/lab, or `analytics` installed).
+"""The kit's command line — shared by the aelix extension (JSON) and people (bin/analytics, or `analytics` installed).
 
     python -m aelix_analytics [--project DIR] <command> ...
 
@@ -6,10 +6,10 @@ The last line of stdout is one JSON object: {"ok": true, ...} or {"ok": false, "
 Exit codes: 0 success, 1 handled error, 2 usage error, 3 run recorded but not ok, 130 interrupted.
 Run commands with PYTHONPATH set to the runtime root (the directory holding aelix_analytics: a
 checkout's src/, an installation's aelix_analytics/kit/) inside the project's uv environment, as
-bin/lab, the installed `analytics` and the extension do. The installed distribution's own package is
+bin/analytics, the installed `analytics` and the extension do. The installed distribution's own package is
 not a runtime root, and refuses to run here (not_runtime_root; see _not_the_runtime_root).
 
-LAB_CANCEL_FILE names the file through which the aelix extension asks a command it started to
+AELIX_ANALYTICS_CANCEL_FILE names the file through which the aelix extension asks a command it started to
 stop, where the platform cannot ask with a signal (see _platform.RunControl.watch_for_cancel).
 """
 
@@ -41,7 +41,7 @@ def _emit(obj: dict) -> None:
 
 
 def _project(args) -> core.Project:
-    start = args.project or os.environ.get("LAB_PROJECT") or os.getcwd()
+    start = args.project or os.environ.get("AELIX_ANALYTICS_PROJECT") or os.getcwd()
     root = core.find_project(start)
     if root is None:
         raise core.LabError("no_project", f"no lab project at or above {start}",
@@ -88,7 +88,7 @@ def main(argv=None) -> int:
         _emit(refused)
         return 1
     # Taken out of the environment so a script's own subprocesses do not watch the same file.
-    request = os.environ.pop("LAB_CANCEL_FILE", None)
+    request = os.environ.pop("AELIX_ANALYTICS_CANCEL_FILE", None)
     stop_watching = None
     try:
         if request:
@@ -158,8 +158,8 @@ def _command(argv) -> int:
     p = sub.add_parser("demo", help="fill a new project with synthetic data and example runs")
 
     args = parser.parse_args(argv)
-    actor = os.environ.get("LAB_ACTOR") or "human"
-    session = os.environ.get("LAB_SESSION") or None
+    actor = os.environ.get("AELIX_ANALYTICS_ACTOR") or "human"
+    session = os.environ.get("AELIX_ANALYTICS_SESSION") or None
     try:
         if args.command == "init":
             project = core.init_project(args.path, title=args.title, goal=args.goal,

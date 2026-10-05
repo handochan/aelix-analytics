@@ -100,9 +100,9 @@ def installed(tmp_path: Path, wheel: Path, python: str, *extra: str) -> Path:
 def outside_env(tmp_path: Path, **extra) -> dict:
     """An environment with no trace of this checkout and nothing of the caller's aelix."""
     env = {k: v for k, v in os.environ.items()
-           if k not in ("PYTHONPATH", "VIRTUAL_ENV", "LAB_PROJECT", "LAB_ACTOR", "AELIX_LAB_KIT",
-                        "AELIX_LAB_UV", "AELIX_LAB_PROJECT")}
-    env.update({"AELIX_LAB_TRUST_FILE": str(tmp_path / "trust.json"),
+           if k not in ("PYTHONPATH", "VIRTUAL_ENV", "AELIX_ANALYTICS_PROJECT", "AELIX_ANALYTICS_ACTOR", "AELIX_ANALYTICS_RUNTIME_PATH",
+                        "AELIX_ANALYTICS_UV", "AELIX_ANALYTICS_PROJECT")}
+    env.update({"AELIX_ANALYTICS_TRUST_FILE": str(tmp_path / "trust.json"),
                 "PYTHONDONTWRITEBYTECODE": "1", **extra})
     return env
 
@@ -134,14 +134,14 @@ def test_the_wheel_holds_the_package_and_nothing_else(dist):
                  "aelix-plugin.toml", "extension.py", "cli.py", "_install.py"):
         assert f"aelix_analytics/{name}" in names
     # The runtime root's copy is the package less the extension module (which is the checkout's
-    # extension/aelix_lab.py): a child never sees the aelix adapter.
+    # extension/aelix_analytics.py): a child never sees the aelix adapter.
     assert "aelix_analytics/kit/aelix_analytics/extension.py" not in names
 
 
 def test_the_extension_module_is_the_checkouts_adapter(dist):
     with zipfile.ZipFile(dist["wheel"]) as wheel:
         shipped = wheel.read("aelix_analytics/extension.py")
-    assert shipped == (PACK / "extension" / "aelix_lab.py").read_bytes()
+    assert shipped == (PACK / "extension" / "aelix_analytics.py").read_bytes()
 
 
 def wheel_metadata(wheel_path: Path) -> tuple[object, str]:
@@ -195,7 +195,7 @@ def test_the_sdist_builds_the_same_wheel(dist, tmp_path):
     with tarfile.open(dist["sdist"]) as sdist:
         names = {n.split("/", 1)[1] for n in sdist.getnames() if "/" in n}
     sources = set(tracked("src/aelix_analytics")) | {
-        "extension/aelix_lab.py", "README.md", "pyproject.toml", "LICENSE"}
+        "extension/aelix_analytics.py", "README.md", "pyproject.toml", "LICENSE"}
     assert sources <= names
     assert names - sources <= {"PKG-INFO", ".gitignore"}
     out = tmp_path / "from-sdist"
@@ -279,7 +279,7 @@ def test_the_console_script_gives_children_exactly_the_installed_kit(dist, tmp_p
     project.mkdir()
     (project / "lab.json").write_text("{}", encoding="utf-8")
     analytics = shutil.which("analytics", path=str(venv_bin(venv)))
-    ok([analytics, "status"], cwd=project, env=outside_env(tmp_path, AELIX_LAB_UV=str(fake_uv),
+    ok([analytics, "status"], cwd=project, env=outside_env(tmp_path, AELIX_ANALYTICS_UV=str(fake_uv),
                                                       PYTHONPATH="/somewhere/else"))
     env = json.loads(record.read_text(encoding="utf-8"))
     kit = ok([venv_python(venv), "-c", "from aelix_analytics._install import kit_dir; print(kit_dir())"],
@@ -314,7 +314,7 @@ def test_the_installed_package_refuses_to_run_the_kit_itself(dist, tmp_path, pyt
     made = ok([venv_python(venv), "-m", "aelix_analytics", "init", project], cwd=tmp_path,
               env={**env, "PYTHONPATH": kit})
     assert json.loads(made.stdout.splitlines()[-1])["ok"] is True, made.stdout
-    trust = Path(env["AELIX_LAB_TRUST_FILE"])
+    trust = Path(env["AELIX_ANALYTICS_TRUST_FILE"])
     before = (tree_digest(project), trust.read_bytes())
     fresh = tmp_path / "fresh"
     for argv, cwd in ((["-m", "aelix_analytics", "status"], project),
@@ -365,7 +365,7 @@ LOAD_PROBE = textwrap.dedent("""
     import aelix_coding_agent.extensions.loader as loader
 
     def ours(result):
-        return [e for e in result.extensions if "lab_status" in e.tools or "lab" in e.commands]
+        return [e for e in result.extensions if "analytics_status" in e.tools or "lab" in e.commands]
 
     async def main():
         cwd, agent_dir, configured = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3:]
@@ -420,8 +420,8 @@ def test_aelix_binds_and_loads_the_installed_extension(dist, tmp_path, python):
     assert "whitelist" not in loaded.stderr, loaded.stderr
     [copy] = seen["copies"]
     assert copy["manifest"] == "aelix-analytics"
-    assert copy["tools"] == ["lab_import", "lab_init", "lab_note", "lab_query", "lab_run", "lab_status"]
-    assert copy["commands"] == ["lab"] and copy["flags"] == ["lab-project"]
+    assert copy["tools"] == ["analytics_import", "analytics_init", "analytics_record", "analytics_query", "analytics_run", "analytics_status"]
+    assert copy["commands"] == ["lab"] and copy["flags"] == ["analytics-project"]
     assert sum(copy["handlers"].values()) == 4
     assert seen["errors"] == [] and seen["analysis"] == []
     # The extension's own package, its __init__ that imports nothing of the kit, and _install: core
@@ -462,7 +462,7 @@ def test_a_checkout_symlink_beside_the_wheel_sets_up_one_copy(dist, tmp_path):
     extensions = Path(env["AELIX_CODING_AGENT_DIR"]) / "extensions"
     extensions.mkdir(parents=True)
     try:
-        os.symlink(PACK / "extension" / "aelix_lab.py", extensions / "aelix_lab.py")
+        os.symlink(PACK / "extension" / "aelix_analytics.py", extensions / "aelix_analytics.py")
     except OSError as exc:
         if getattr(exc, "winerror", None) == 1314:
             pytest.skip(f"this account may not create a symbolic link: {exc!r}")
@@ -490,21 +490,21 @@ TOOLS_PROBE = textwrap.dedent("""
     async def main():
         work = Path(sys.argv[1])
         result = await loader.discover_and_load_extensions([], cwd=work, agent_dir=Path(sys.argv[2]))
-        [ext] = [e for e in result.extensions if "lab_init" in e.tools]
+        [ext] = [e for e in result.extensions if "analytics_init" in e.tools]
         ctx = ToolExecutionContext(tool_call_id="call", model=SimpleNamespace(input=["text"]))
         answers = {}
         async def call(name, args):
             out = await ext.tools[name].execute(args, ctx)
             answers[name] = {"error": out.is_error,
                              "text": "\\n".join(c.text for c in out.content if hasattr(c, "text"))[:4000]}
-        await call("lab_init", {"path": str(work / "proj"), "title": "도구로 만든 프로젝트"})
-        await call("lab_import", {"source": sys.argv[3], "name": "sales"})
+        await call("analytics_init", {"path": str(work / "proj"), "title": "도구로 만든 프로젝트"})
+        await call("analytics_import", {"source": sys.argv[3], "name": "sales"})
         (work / "proj" / "scripts" / "totals.py").write_text(
             "import aelix_analytics as analytics\\n"
             "analytics.save(analytics.read('sales'), 'copy')\\n"
-            "analytics.note('finding', 'from the installed kit')\\n", encoding="utf-8")
-        await call("lab_run", {"script": "scripts/totals.py", "title": "합계", "attach_images": False})
-        await call("lab_note", {"kind": "decision", "text": "keep going"})
+            "analytics.record('finding', 'from the installed kit')\\n", encoding="utf-8")
+        await call("analytics_run", {"script": "scripts/totals.py", "title": "합계", "attach_images": False})
+        await call("analytics_record", {"kind": "decision", "text": "keep going"})
         print(json.dumps(answers))
 
     asyncio.run(main())
@@ -527,8 +527,8 @@ def test_the_installed_extension_s_tools_run_a_project(dist, tmp_path, python):
     answers = json.loads(done.stdout.splitlines()[-1])
     for name, answer in answers.items():
         assert answer["error"] is False, (name, answer["text"])
-    assert "environment: synced" in answers["lab_init"]["text"]
-    assert answers["lab_run"]["text"].startswith("lab_run: ok")
+    assert "environment: synced" in answers["analytics_init"]["text"]
+    assert answers["analytics_run"]["text"].startswith("analytics_run: ok")
     assert (work / "proj" / "CONTEXT.md").is_file()
 
 
@@ -548,8 +548,8 @@ SDK_SCRIPT = textwrap.dedent("""
     analytics.save(by_region, "by_region")
     fig, ax = plt.subplots()
     ax.bar(by_region["region"].to_list(), by_region["revenue"].to_list())
-    analytics.chart(fig, "by-region", title="지역별", data=by_region)
-    analytics.note("finding", "두 지역")
+    analytics.visualize(fig, "by-region", title="지역별", data=by_region)
+    analytics.record("finding", "두 지역")
 """)
 
 
@@ -670,7 +670,7 @@ def test_the_kit_s_stdlib_commands_run_on_the_floor(dist, tmp_path):
     (project / "scripts").mkdir(exist_ok=True)
     (project / "scripts" / "plain.py").write_text(
         "import aelix_analytics as analytics\n"
-        "analytics.note('finding', 'a run on the floor')\n"
+        "analytics.record('finding', 'a run on the floor')\n"
         "print(sum(range(10)))\n", encoding="utf-8")
     done = ok([venv_python(venv), "-m", "aelix_analytics", "--project", project, "run", "scripts/plain.py",
                "--title", "3.11에서 run"], cwd=tmp_path, env=env)

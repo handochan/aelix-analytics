@@ -32,7 +32,7 @@ def human_cli(tmp_path):
     root = tmp_path / "project"
     env = kit_env()
     # Exercise the CLI's human default; do not inherit an agent's session or actor.
-    for key in ("LAB_ACTOR", "LAB_SESSION", "LAB_PROJECT", "AELIX_LAB_PROJECT"):
+    for key in ("AELIX_ANALYTICS_ACTOR", "AELIX_ANALYTICS_SESSION", "AELIX_ANALYTICS_PROJECT", "AELIX_ANALYTICS_PROJECT"):
         env.pop(key, None)
 
     def call(*args, expected_exit=0):

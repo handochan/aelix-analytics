@@ -31,5 +31,5 @@ on_startup_finished = true
 # a false value is documented as a promise.
 shell_exec = true      # runs uv and analysis scripts
 fs_write = true        # creates projects wherever asked; writes its trust list in aelix's directory
-fs_read_user = true    # lab_import reads files outside the project
+fs_read_user = true    # analytics_import reads files outside the project
 net = true             # uv downloads a project's analysis libraries

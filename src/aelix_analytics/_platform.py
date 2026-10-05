@@ -1,7 +1,7 @@
 """OS-dependent operations behind small ports, so the rest of the kit has no platform branches.
 
 This module is loaded inside the aelix process together with `core.py` (see
-`extension/aelix_lab.py`), so it uses the standard library only and imports no other module of the kit.
+`extension/aelix_analytics.py`), so it uses the standard library only and imports no other module of the kit.
 
 Four operations behave differently on POSIX and Windows and are therefore ports: exclusive file
 locking, atomic file replacement, child-process control, and the deadline and cancellation of a
@@ -94,14 +94,14 @@ class ProcessControl(Protocol):
     could not ask and the child may still be running, so the caller ends it by force; True when it
     asked, or when nothing is left to ask. Each platform asks the one way that works there; see the
     implementations. Where that is the kit's cancel request file (`asks_by_request`), the caller
-    creates the file's directory, passes the path to the kit as `LAB_CANCEL_FILE` (the kit watches
+    creates the file's directory, passes the path to the kit as `AELIX_ANALYTICS_CANCEL_FILE` (the kit watches
     it through `RunControl.watch_for_cancel`) and gives it to `interrupt` as `request`; elsewhere it
     passes None. `kill_tree` ends the process with this pid and its descendants without warning. It
     takes a pid rather than the process object because it **may block**, so an event loop calls it
     off-thread, where an asyncio object must not be touched.
 
     `open_document` hands a file to the program the desktop opens documents with. `wait=True` runs
-    it attached to the caller's terminal and returns its exit status (the human CLI, as `bin/lab`
+    it attached to the caller's terminal and returns its exit status (the human CLI, as `bin/analytics`
     does), and raises OSError when there is no such program (FileNotFoundError: none installed).
     `wait=False` starts it detached from the caller's terminal and returns None (aelix's TUI, which
     the opener must not draw on); where the program is missing it hands the file's URL to

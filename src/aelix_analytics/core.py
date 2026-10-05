@@ -298,7 +298,7 @@ def run_lock(project: Project):
 # --- trust: which projects an aelix session may activate just by being inside them ---
 
 def trust_file() -> Path:
-    explicit = os.environ.get("AELIX_LAB_TRUST_FILE")
+    explicit = os.environ.get("AELIX_ANALYTICS_TRUST_FILE")
     if explicit:
         return Path(explicit).expanduser()
     agent_dir = os.environ.get("AELIX_CODING_AGENT_DIR")
@@ -481,7 +481,7 @@ def add_note(project: Project, kind: str, text: str, *, refs=None, resolves=None
             target = next((e for e in events if e.get("id") == resolves), None)
             if target is None:
                 raise LabError("unknown_event", f"no journal event {resolves!r}",
-                               hint="lab_status lists open questions and todos with their ids")
+                               hint="analytics_status lists open questions and todos with their ids")
             ref_map["resolves"] = resolves
         return _append_event_locked(project, kind, text, ref_map, actor, session)
 
@@ -845,7 +845,7 @@ def _fmt_int(value) -> str:
     return f"{value:,}" if isinstance(value, int) else "?"
 
 
-# How long lab_status's overview may be (the extension's reply adds its first line), not counting
+# How long analytics_status's overview may be (the extension's reply adds its first line), not counting
 # the lines that only say what a list leaves out and where it is (and the journal's path): they are
 # budgeted apart, a few short lines at most, and never make a list shorter.
 STATUS_CHARS = 9000
@@ -853,10 +853,10 @@ STATUS_CHARS = 9000
 # its own: the CONTEXT.md sections left out of the system prompt, the query views, the datasets,
 # and the changed inputs of a chart.
 STATUS_FLOORS = {"context": 20, "views": 40, "datasets": 20, "stale": 5}
-# How to list every dataset view with lab_query: by name, a page of 50 (its default limit) at a
+# How to list every dataset view with analytics_query: by name, a page of 50 (its default limit) at a
 # time.
 VIEWS_SQL = "SELECT table_name FROM information_schema.tables ORDER BY table_name LIMIT 50 OFFSET 0"
-VIEWS_PAGES = (f"call lab_query with \"{VIEWS_SQL}\" and again with OFFSET 50, 100, … until it "
+VIEWS_PAGES = (f"call analytics_query with \"{VIEWS_SQL}\" and again with OFFSET 50, 100, … until it "
                "returns fewer than 50 rows")
 STATUS_PARTS = {"head": "lines about the project", "datasets": "datasets", "runs": "runs",
                 "charts": "charts", "open": "open questions/todos", "key": "key information",
@@ -864,7 +864,7 @@ STATUS_PARTS = {"head": "lines about the project", "datasets": "datasets", "runs
 
 
 def status_text(st: dict, max_chars: int = STATUS_CHARS) -> str:
-    """The overview lab_status replies with. Each list is whole, or says how many it leaves out and
+    """The overview analytics_status replies with. Each list is whole, or says how many it leaves out and
     where they are.
 
     `max_chars` bounds the overview without the lines that only say what a list leaves out and
@@ -999,7 +999,7 @@ def _status_lines(st: dict, caps: dict[str, int]) -> list[tuple[str, str, bool]]
     for ds in datasets:
         origin = (f"← run {ds['producer']}" if ds.get("producer")
                   else f"from {ds['source']}" if ds.get("source")
-                  else "NO PRODUCING RUN (written outside lab_run: no code or inputs recorded)")
+                  else "NO PRODUCING RUN (written outside analytics_run: no code or inputs recorded)")
         add("datasets", f"  {ds['kind']:<7} {ds['name']}: {_fmt_int(ds.get('rows'))} rows × "
                         f"{ds.get('columns') or '?'} cols · {ds['path']} · {origin} · used by "
                         f"{len(ds.get('used_by') or [])} run(s)")
@@ -1205,7 +1205,7 @@ def context_block(project: Project, max_context_chars: int = CONTEXT_PROMPT_CHAR
         "# Active analysis lab project",
         f"root: {project.root} (title: {project.title()})",
         f"report: {project.report / 'index.html'} (rebuilt after runs, imports and notes)",
-        "Call lab_status for datasets, runs, charts and the recent journal.",
+        "Call analytics_status for datasets, runs, charts and the recent journal.",
         "",
         "## CONTEXT.md",
         preamble or "(empty — fill in goal, questions, data sources and definitions)",

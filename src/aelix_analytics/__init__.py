@@ -5,14 +5,14 @@
     sales = analytics.read("sales")                        # Polars DataFrame of data/raw/sales.parquet
     monthly = analytics.sql("SELECT ... FROM sales").pl()  # DuckDB over every dataset view
     analytics.save(monthly, "monthly_sales")               # data/derived/monthly_sales.parquet
-    analytics.chart(fig, "monthly-trend", title="…", caption="…", data=monthly)
+    analytics.visualize(fig, "monthly-trend", title="…", caption="…", data=monthly)
 
 Inside a run every call is recorded. Plain `pl.read_parquet(...)`, DuckDB SQL over file literals,
-`plt.show()` and plotly `fig.show()` are captured too; `analytics.chart(..., data=df)` additionally
+`plt.show()` and plotly `fig.show()` are captured too; `analytics.visualize(..., data=df)` additionally
 keeps a stable chart id, a caption and the exact plotted data. Outside a run the calls still work but
 record nothing. Before kit 0.2.0 this API was the module `labkit` (`import labkit as lab`).
 
-A run gets this package from the entry point that started it: `analytics`, `bin/lab` and the aelix
+A run gets this package from the entry point that started it: `analytics`, `bin/analytics` and the aelix
 extension give the project's environment exactly one directory on PYTHONPATH — the runtime root, the
 checkout's `src/` or an installation's `aelix_analytics/kit/` — and `python -m aelix_analytics` runs
 the kit's command line from it (__main__). The installed distribution is this package too: the human
@@ -54,7 +54,7 @@ def project() -> core.Project:
 
     if capture.ACTIVE is not None:
         return capture.ACTIVE.project
-    root = core.find_project(os.environ.get("LAB_PROJECT") or os.getcwd())
+    root = core.find_project(os.environ.get("AELIX_ANALYTICS_PROJECT") or os.getcwd())
     if root is None:
         raise RuntimeError("not inside a lab project (no lab.json in this directory or above)")
     return core.Project(root)

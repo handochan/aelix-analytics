@@ -18,7 +18,7 @@ analytics = "aelix_analytics.cli:main"
 aelix-analytics = "aelix_analytics.extension:setup"
 
 # The distribution is one wheel, built from the checkout as it is (ADR-0004): src/aelix_analytics is
-# the package, the checkout's extension/aelix_lab.py becomes aelix_analytics/extension.py, and a copy
+# the package, the checkout's extension/aelix_analytics.py becomes aelix_analytics/extension.py, and a copy
 # of src/aelix_analytics becomes aelix_analytics/kit/aelix_analytics/, which makes aelix_analytics/kit/
 # the runtime root: the one directory a child gets on PYTHONPATH (Issue #9). force-include walks the directory without
 # .gitignore (only __pycache__ is left out), so build from a clean checkout; the tests check the
@@ -34,11 +34,11 @@ only-include = ["src/aelix_analytics"]
 "src/aelix_analytics" = "aelix_analytics"
 
 [tool.hatch.build.targets.wheel.force-include]
-"extension/aelix_lab.py" = "aelix_analytics/extension.py"
+"extension/aelix_analytics.py" = "aelix_analytics/extension.py"
 "src/aelix_analytics" = "aelix_analytics/kit/aelix_analytics"
 
 [tool.hatch.build.targets.sdist]
-only-include = ["src/aelix_analytics", "extension/aelix_lab.py", "README.md", "pyproject.toml"]
+only-include = ["src/aelix_analytics", "extension/aelix_analytics.py", "README.md", "pyproject.toml"]
 
 # This environment tests the kit with the same libraries an analysis project gets (see
 # src/aelix_analytics/template/pyproject.toml), so it needs what those need: >=3.12. The project itself is

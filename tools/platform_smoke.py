@@ -72,7 +72,7 @@ DECLARED = {
 # them, the two Windows limitations above were exempt instead (Issue #8, design revision 3 section
 # 4); nothing is exempt now.
 # How long the extension waits for a kit it asked to stop before it ends the tree by force
-# (extension/aelix_lab.py GRACE_SECONDS; a test keeps the two equal). A stop that takes longer is
+# (extension/aelix_analytics.py GRACE_SECONDS; a test keeps the two equal). A stop that takes longer is
 # a forced one there, so it is one here.
 EXTENSION_GRACE_SECONDS = 10
 
@@ -641,21 +641,21 @@ def utf8_survives_a_pipe(ctx):
 ENV_ALLOW = ("PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "LC_ALL", "LC_CTYPE", "TMPDIR", "TZ",
              "XDG_CACHE_HOME", "XDG_DATA_HOME", "XDG_CONFIG_HOME", "SSL_CERT_FILE", "SSL_CERT_DIR",
              "REQUESTS_CA_BUNDLE", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY",
-             "AELIX_LAB_TRUST_FILE")
+             "AELIX_ANALYTICS_TRUST_FILE")
 
 
 def kit_env(ctx) -> dict[str, str]:
-    """What extension/aelix_lab.py's child_env gives the kit: the platform's base, the allow-list,
+    """What extension/aelix_analytics.py's child_env gives the kit: the platform's base, the allow-list,
     the uv settings, and the kit's own variables. Where it differs, on purpose: the allow-list has
-    AELIX_LAB_TRUST_FILE, so a measurement never touches the user's trust list, and not the
+    AELIX_ANALYTICS_TRUST_FILE, so a measurement never touches the user's trust list, and not the
     lower-case proxy names; UV_* is passed without the extension's SECRET_NAME filter; there is no
-    LAB_SESSION (no aelix session is running), and LAB_ACTOR is `smoke`. A test builds both
+    AELIX_ANALYTICS_SESSION (no aelix session is running), and AELIX_ANALYTICS_ACTOR is `smoke`. A test builds both
     environments from the same inputs and allows only these differences."""
     env = ctx.bundle.processes.base_env()
     env.update({k: os.environ[k] for k in ENV_ALLOW if k in os.environ})
     env.update({k: v for k, v in os.environ.items() if k.startswith("UV_")})
     env.update({"PYTHONPATH": str(KIT), "PYTHONIOENCODING": "utf-8", "PYTHONDONTWRITEBYTECODE": "1",
-                "MPLBACKEND": "Agg", "LAB_ACTOR": "smoke"})
+                "MPLBACKEND": "Agg", "AELIX_ANALYTICS_ACTOR": "smoke"})
     return env
 
 
@@ -727,8 +727,8 @@ analytics.save(by_region, "region_revenue")
 fig, ax = plt.subplots()
 ax.bar(by_region["region"], by_region["revenue"])
 ax.set_title("지역별 매출")
-analytics.chart(fig, "region-revenue", title="지역별 매출", caption="합계", data=by_region)
-analytics.note("finding", "서울 매출이 가장 크다")
+analytics.visualize(fig, "region-revenue", title="지역별 매출", caption="합계", data=by_region)
+analytics.record("finding", "서울 매출이 가장 크다")
 print("한글 출력", by_region.height)
 """
 
@@ -817,7 +817,7 @@ def _cancel_a_cli_run(ctx, name: str, source: str, *, wait: float) -> dict:
     logs = root.parent / f"{Path(name).stem}-logs"
     logs.mkdir(exist_ok=True)
     request = logs / "cancel-request" if processes.asks_by_request else None
-    env = {**kit_env(ctx), **({"LAB_CANCEL_FILE": str(request)} if request else {})}
+    env = {**kit_env(ctx), **({"AELIX_ANALYTICS_CANCEL_FILE": str(request)} if request else {})}
     with open(logs / "stdout.txt", "wb") as out, open(logs / "stderr.txt", "wb") as err:
         proc = subprocess.Popen(kit_cli_argv(ctx, root, "run", rel, "--title", Path(name).stem),
                                 cwd=root, env=env, stdin=subprocess.DEVNULL, stdout=out,
@@ -1018,7 +1018,7 @@ import aelix_analytics as analytics
 
 fig, ax = plt.subplots()
 ax.plot([1, 2], [1, 2])
-analytics.chart(fig, "con", title="예약 이름")
+analytics.visualize(fig, "con", title="예약 이름")
 """
 
 SAVE_CON = """\
@@ -1352,7 +1352,7 @@ def main(argv=None) -> int:
     with tempfile.TemporaryDirectory(prefix="aelix-analytics-smoke-", ignore_cleanup_errors=True) as tmp:
         tmp_path = Path(tmp)
         # Never touch the user's real trust file, and keep every project this creates in tmp.
-        os.environ["AELIX_LAB_TRUST_FILE"] = str(tmp_path / "trust" / "lab-projects.json")
+        os.environ["AELIX_ANALYTICS_TRUST_FILE"] = str(tmp_path / "trust" / "lab-projects.json")
         ctx = Context(tmp_path)
         if args.stdlib_only:
             ctx.uv, ctx.stdlib_only = None, True
