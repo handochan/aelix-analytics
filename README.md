@@ -266,7 +266,7 @@ cd $PACK
 uv sync
 uv run pytest -q                                  # kit, 런처, 배포본(wheel을 빌드해 새 환경에 설치)
 uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 \
-  python -m pytest -q -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_extension.py   # aelix 통합 (CI와 같은 환경)
+  python -m pytest -q -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_extension.py tests/test_usage_report.py   # aelix 통합 (CI와 같은 환경)
 AELIX_ANALYTICS_TEST_INSTALL=1 uv run pytest -q tests/test_packaging.py   # aelix 0.1.0b2와 실제 uv로 끝까지 (네트워크)
 uv run ruff check kit tests extension src tools
 ```

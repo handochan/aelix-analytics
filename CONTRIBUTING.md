@@ -91,13 +91,39 @@ Aelix 통합 시험은 aelix 0.1.0b2(와 그 의존성), pytest, pytest-timeout�
 
 ```sh
 uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 \
-  python -m pytest -q -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_extension.py
+  python -m pytest -q -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_extension.py tests/test_usage_report.py
 ```
 
 3.11은 `--python 3.11`입니다. `--isolated`를 빼지 마세요. 빼면 3.12에서 uv가 체크아웃의 개발 `.venv` 위에 임시 환경을 얹어
 aelix 프로세스가 분석 라이브러리를 import할 수 있게 되고, 이 시험이 보이려는 것(호스트가 분석 라이브러리를 로드하지 않음)이
 가려집니다. 런처의 하한 시험은 같은 방식으로 `--python 3.11 --with pytest==9.1.1 --with pytest-timeout==2.4.0`에서
-`tests/test_launcher.py`를 실행합니다.
+`tests/test_launcher.py`를 실행합니다. 개발 환경의 저장소 시험에는 aelix가 없어 두 aelix 시험 파일을 건너뜁니다.
+
+확장이 모델에 보내는 맥락 블록·도구 줄·도구 정의·도구 응답의 크기와, 그 텍스트가 생략한 사실을 다시 읽을 수 있는지는 같은 격리
+환경에서 명령 하나로 잽니다(Issue #11). 합성 fixture를 만들어 재고 `usage-report.json`, 그 JSON에서만 만든 `usage-report.md`,
+잰 텍스트 그대로인 `texts/`를 씁니다. 신뢰 목록과 uv는 명령의 임시 디렉터리 안의 것만 씁니다. 보고서는 생성물이라 커밋하지 않고,
+CI가 push마다 새로 만듭니다(아래 표):
+
+```sh
+uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 \
+  python tools/usage_report.py --output .devstate/runs/<run-id>/evidence/usage
+```
+
+토큰은 등록된 tokenizer(`tools/usage_report.py`의 `COUNTERS`: 출처와 파일 sha256)의 파일을 줄 때만 셉니다. 주지 않거나 파일의
+sha256이 다르면 모든 토큰 값이 `not_measured`와 그 이유이고, bytes·문자 수를 토큰으로 바꾸지 않습니다. Qwen3.8-27B는 고정
+revision의 `tokenizer.json`을 받아 둔 뒤 다음처럼 셉니다:
+
+```sh
+uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with tokenizers==0.23.2 \
+  python tools/usage_report.py --output .devstate/runs/<run-id>/evidence/usage \
+  --tokenizer qwen3.8-27b=<dir>/tokenizer.json
+```
+
+종료 코드는 0(보고서를 씀. 목표 초과와 회수 실패도 데이터로 남김), 1(어떤 표면을 재지 못했거나, 준 tokenizer가 불러지지 않거나
+어떤 텍스트를 세다 실패함. 보고서는 씀), 2(사용법 오류)입니다. 등록된 것과 다른 tokenizer 파일이나 없는 `tokenizers` 라이브러리는
+실패가 아니라 `not_measured`이고 0입니다. `--output`은 새 디렉터리, 빈 디렉터리, 이전 보고서의 디렉터리(`usage-report.json`이 있음)
+중 하나여야 합니다. 그 밖의 비어 있지 않은 디렉터리는 아무것도 지우지 않고 거절합니다(2). 통과·실패는
+`tests/test_usage_report.py`가 판정하고, 지금 코드가 잃는 사례는 설계의 결함 ID(D1–D12)를 이유로 단 strict xfail입니다.
 
 시험은 변경에 맞게 선택합니다. 기록·사용량 계측·근거 변경에는 의미 있는 회귀 사례를, UI에는 실제 HTML의 연결과 복귀 확인을 포함합니다.
 문서만 바뀌면 링크·예시·현재 코드와의 일치 여부를 검사합니다.
@@ -123,7 +149,7 @@ uv run --locked python tools/check_docs.py --output .devstate/runs/<run-id>/evid
 | 작업 | 언제 | 무엇 | artifact (90일) |
 |---|---|---|---|
 | `lint` | 모든 PR과 main push | ruff, 문서 검사 | 문서 검사 결과, 실행 맥락 |
-| `platform` | Linux(`ubuntu-24.04`)·Windows(`windows-2025`)는 모든 PR과 main push, macOS(`macos-26`)는 아래의 경우 | 플랫폼 스모크(`tools/platform_smoke.py --gate required`), 저장소 시험(`AELIX_ANALYTICS_TEST_INSTALL=1`, 배포본 end-to-end 포함), aelix 0.1.0b2 통합(CPython 3.12·3.11), 런처 시험(CPython 3.11). Windows는 저장소 시험 뒤에 네이티브 콘솔 시험(`tests/test_windows_console.py`, 단계 따로)을, 시험 레그의 마지막에 LongPathsEnabled를 0으로 바꾸고 긴 경로 시험(`tests/test_windows_long_paths.py`)을 새 프로세스로 한 번 더 돌립니다 | 레그별 JUnit, 스모크 JSON(러너 설정 포함), 시험이 관찰해 남긴 것(`evidence/`, `evidence-long-paths-off/`; 콘솔 사례는 단언하는 것까지 모두), 인터프리터, aelix 환경의 배포판 목록, 실행 맥락 |
+| `platform` | Linux(`ubuntu-24.04`)·Windows(`windows-2025`)는 모든 PR과 main push, macOS(`macos-26`)는 아래의 경우 | 플랫폼 스모크(`tools/platform_smoke.py --gate required`), 저장소 시험(`AELIX_ANALYTICS_TEST_INSTALL=1`, 배포본 end-to-end 포함), aelix 0.1.0b2 통합(CPython 3.12·3.11, `tests/test_extension.py`·`tests/test_usage_report.py`), 사용량 보고서(`tools/usage_report.py`, CPython 3.12, 판정 없이 보고만), 런처 시험(CPython 3.11). Windows는 저장소 시험 뒤에 네이티브 콘솔 시험(`tests/test_windows_console.py`, 단계 따로)을, 시험 레그의 마지막에 LongPathsEnabled를 0으로 바꾸고 긴 경로 시험(`tests/test_windows_long_paths.py`)을 새 프로세스로 한 번 더 돌립니다 | 레그별 JUnit, 스모크 JSON(러너 설정 포함), 사용량 보고서(`usage/`: JSON·MD·`texts/`), 시험이 관찰해 남긴 것(`evidence/`, `evidence-long-paths-off/`; 콘솔 사례는 단언하는 것까지 모두), 인터프리터, aelix 환경의 배포판 목록, 실행 맥락 |
 | `floor` | `platform`과 같은 OS | `actions/setup-python`의 CPython 3.11에서 표준 라이브러리만으로 플랫폼 스모크(`--stdlib-only`) | 스모크 JSON, 실행 맥락 |
 
 - macOS runner는 비공개 저장소에서 Linux의 약 10배로 과금되므로 PR에서는 요청할 때만 돕니다. PR에 `ci:macos` 라벨을 붙일
@@ -132,7 +158,7 @@ uv run --locked python tools/check_docs.py --output .devstate/runs/<run-id>/evid
   표시됩니다(`ci:macos`가 아닌 라벨이면 모든 작업이 건너뜀). 건너뜀은 검증 결과가 아닙니다. 수동 실행(`workflow_dispatch`, `macos` 선택)과 매주 월요일 03:17 UTC 실행은 세 OS를 모두 돌립니다.
 - 비용(GitHub Free의 월 2,000분 기준): 이 워크플로의 첫 측정(PR #34)에서 Linux+Windows 한 번은 작업마다 분 단위로 올리고
   Windows를 2배로 세어 58분, macOS 한 번은 10배로 세어 90분이었습니다. 주간 실행만으로 월 약 650분이 듭니다(추정). 레그가 멈춰
-  제한 시간까지 가면 작업 하나가 제한 시간만큼(`platform` 130분, macOS면 그 10배) 과금될 수 있습니다.
+  제한 시간까지 가면 작업 하나가 제한 시간만큼(`platform` 150분, macOS면 그 10배) 과금될 수 있습니다.
 - 시험 레그 하나가 실패해도 다음 레그는 돌고 작업은 실패로 끝납니다. 개발 환경의 sync가 실패하면 `platform`의 시험 레그는 돌지
   않고 작업이 실패합니다. 플랫폼별 작업은 서로 취소하지 않습니다(`fail-fast: false`). 시험·기록 단계마다 제한 시간이 있고, 작업의
   제한 시간은 그 합보다 깁니다(artifact 올리기에는 작업의 제한 시간만 있습니다). 단계의 제한이나 시험 하나의 제한(pytest-timeout)에 걸린 레그는 JUnit을 남기지 않습니다.
