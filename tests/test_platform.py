@@ -4457,6 +4457,8 @@ def _text_call_without_encoding(node: ast.Call, subprocess_modules, subprocess_f
     if name == "read_text":
         return not _has_encoding(node, 0)
     if name == "write_text":
+        if receiver == "core":
+            return False  # core.write_text(path, text): the kit's text helper fixes UTF-8 (ADR-0007)
         return not _has_encoding(node, 1)
     if receiver == "subprocess":
         if name in SUBPROCESS_ALWAYS_TEXT:

@@ -327,7 +327,7 @@ def main(argv=None):
     value = json.dumps(result, ensure_ascii=False, indent=2) + "\n"
     if output:
         output.parent.mkdir(parents=True, exist_ok=True)
-        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=output.parent,
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", newline="\n", dir=output.parent,
                                          prefix=".docs-", suffix=".tmp", delete=False) as stream:
             stream.write(value)
             temporary = Path(stream.name)

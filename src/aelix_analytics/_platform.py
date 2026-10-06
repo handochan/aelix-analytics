@@ -1212,6 +1212,10 @@ _DRIVE_ABSOLUTE_RE = re.compile(r"^[A-Za-z]:[\\/]")
 _RECORDED_DRIVE_ABSOLUTE_RE = re.compile(r"^[A-Za-z]:\\")
 _UNC_RE = re.compile(r"^\\\\[^\\/]+\\[^\\/]+")
 TEXT_ENCODING = "utf-8"
+# How a text file the kit writes ends its lines, on every platform (ADR-0007 decision 2): text mode's
+# default would write "\r\n" on Windows. The same rule everywhere, so not a port (ADR-0003
+# decision 1); core.open_text applies it.
+TEXT_NEWLINE = "\n"
 
 
 def reserved_name(name: str) -> bool:

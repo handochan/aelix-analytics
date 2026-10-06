@@ -110,7 +110,7 @@ def populate(project: core.Project, actor: str = "human", session=None) -> dict:
     data.import_file(project, str(csv), name="sales",
                      description="합성 주문 데이터 2024–2025 (일×지역×채널, 가상 수치)",
                      actor=actor, session=session)
-    project.context.write_text(CONTEXT.format(title=project.title()), encoding="utf-8")
+    core.write_text(project.context, CONTEXT.format(title=project.title()))
     core.sync_context(project, actor=actor, session=session)
     for script in sorted((s for s in SCRIPTS.iterdir() if s.name.endswith(".py")),
                          key=lambda s: s.name):
@@ -141,7 +141,7 @@ def populate(project: core.Project, actor: str = "human", session=None) -> dict:
                   "analytics.visualize(data=...)로 바꾸기", refs=[third["id"]], actor=actor, session=session)
     text = project.context.read_text(encoding="utf-8").replace(
         "- (아직 없음)", f"- {finding_text} (run {first['id']})")
-    project.context.write_text(text, encoding="utf-8")
+    core.write_text(project.context, text)
     core.sync_context(project, actor=actor, session=session)
     rerun = _run(project, "", "월별 매출 재실행 검증", actor, ["--rerun-of", first["id"]])
 

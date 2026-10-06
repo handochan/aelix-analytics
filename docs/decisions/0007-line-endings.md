@@ -4,6 +4,8 @@ Date: 2026-10-03
 
 Status: Accepted — 2026-10-03 소유자 결정 (Issue #37)
 
+구현: [#42](https://github.com/handochan/aelix-analytics/issues/42)(kit 0.4.0). 현재 동작과 남은 한계는 [현재 계약](../CONTRACTS.md) B·E·F·G절에 있다.
+
 채택은 구현 완료가 아니다. 구현은 흐름 B의 [#42](https://github.com/handochan/aelix-analytics/issues/42)가 #13의 writer 착수
 전에 한다. 그때까지의 동작은 [현재 계약](../CONTRACTS.md) G절의 '줄 끝' 한계다. 기록의 바이트 규칙은
 [ADR-0006](0006-common-record-contract.md) 10절과 같다.

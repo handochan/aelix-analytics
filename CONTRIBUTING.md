@@ -47,7 +47,7 @@ Codex·Claude Code의 공통 진입 지침은 [AGENTS.md](AGENTS.md), GitHub 작
 - 정책은 필요한 Strategy 경계로, 저장·실행·표시·게시는 adapter로 분리합니다. 지표·근거·버전 의미와 공통 기록 검증은 구현별로 복제하지 않습니다.
 - journal·run·보존 파일을 정본으로, 프로젝트 탐색 HTML·검색·그래프를 파생물로 다룹니다. 자유 형식 보고서의 본문·첨부는 HTML이어도 보존할 정본입니다. 화면만 아는 관계를 만들지 않습니다.
 - 오래된 기록을 덮어쓰지 않고, 스키마를 바꾸면 reader·전환·구버전 거절·원본 보존을 함께 다룹니다.
-- 저장소 파일과 kit이 쓰는 텍스트(기록·템플릿 사본·inline 스크립트·Workspace·로그)는 모든 플랫폼에서 UTF-8·LF로 쓰고, 사용자 파일은 바이트 그대로 둡니다([ADR-0007](docs/decisions/0007-line-endings.md)). 구현 전까지의 동작은 [현재 계약](docs/CONTRACTS.md) G절에 있습니다.
+- 저장소 파일과 kit이 쓰는 텍스트(기록·템플릿 사본·inline 스크립트·Workspace·로그)는 모든 플랫폼에서 UTF-8·LF로 쓰고, 사용자 파일은 바이트 그대로 둡니다([ADR-0007](docs/decisions/0007-line-endings.md), kit 0.4.0). kit이 텍스트 파일을 새로 쓰면 `core.open_text`·`core.write_text`를 거칩니다(`tests/test_line_endings.py`의 가드가 그 밖의 텍스트 쓰기를 찾습니다). 서드파티 라이브러리가 경로를 받아 스스로 여는 쓰기는 가드가 보지 못하므로 문자열·버퍼로 받아 헬퍼로 씁니다. 남은 한계는 [현재 계약](docs/CONTRACTS.md) G절에 있습니다.
 - 실행 성공·기록 상태·재실행 비교·분석 검사·결론 검토를 구별합니다. 미확인을 확정으로 올리지 않습니다.
 - 목록·상시 맥락·도구 응답은 점진적으로 공개하고 필요한 상세를 더 조회할 수 있게 합니다. 토큰 목표는 성능 측정 기준이며 강제 절단·거절 기준이 아닙니다. 추가 LLM·서버에는 측정 근거가 필요합니다.
 - 재사용 코드는 입력·출력·적용 조건을 검사합니다. skill은 사용 절차이며, 작성한 사실만으로 검사나 등록이 완료되지 않습니다.
@@ -75,6 +75,11 @@ uv run --locked ruff check tests extension src tools
 
 pytest-timeout은 `--timeout-method=thread`로 씁니다. 기본 방식(SIGALRM)은 run 가드가 프로세스 안의 run 동안 쓰는 시그널과
 겹칩니다.
+
+저장소는 루트 `.gitattributes`로 모든 텍스트를 LF로 체크아웃합니다(ADR-0007). 이 파일이 생기기 전에 만든 Windows 체크아웃은
+커밋을 받아도 git이 바뀌지 않은 작업 파일을 다시 쓰지 않아 CRLF로 남고, 거기서 빌드한 wheel과 `kit_sha256`이 다른 플랫폼과 달라
+`tests/test_line_endings.py`·`tests/test_packaging.py`의 줄 끝 시험이 실패합니다. 로컬 변경을 먼저 commit하거나 stash한 뒤 한 번
+다시 체크아웃하세요(`git rm -r --cached -q . && git reset --hard`). CI는 매번 새로 체크아웃하므로 해당하지 않습니다.
 
 `tests/test_packaging.py`는 `uv build`로 wheel과 sdist를 만들어 체크아웃 밖의 새 환경에 설치합니다(wheel은 3.11·3.12, sdist는 3.12). 빌드
 backend(hatchling)는 네트워크나 uv 캐시에서 받습니다. 추적하지 않은 파일이 `src/aelix_analytics`에 있으면
