@@ -251,7 +251,8 @@ def test_a_stale_candidate_upstream_is_not_said_to_be_a_changed_input(tmp_path):
     assert "<strong>Upstream candidate stale.</strong> An input has the same bytes as the output of " \
            f'run(s) <a href="../runs/{case.a}.html">{case.a}</a>' in consumer
     assert "producer candidates, not confirmed links." in consumer
-    assert f"This run's inputs differ from the files now.</strong> {case.base}</div>" in pages[f"runs/{case.a}.html"]
+    assert (f'This run\'s inputs differ from the files now.</strong> <span lang="">{case.base}</span></div>'
+            in pages[f"runs/{case.a}.html"])
     card = _card(pages["index.html"], "scripts/c.py::summary")
     assert "Input changed" not in card and "Upstream candidate stale" in card
     assert f"output of run(s) {case.a}, {case.b}, whose inputs" in card
@@ -468,8 +469,8 @@ def test_a_dataset_page_says_a_run_holds_its_bytes_only_when_one_does(tmp_path):
     record["outputs"][0]["change"] = "deleted"
     q.write_json(f"runs/{gone}/run.json", record)
     page = built(q)["data/t.html"]
-    assert f"{made}</a> {made} · same bytes as now</li>" in page
-    assert f"{gone}</a> {gone} · deleted this path</li>" in page
+    assert f'{made}</a> <span lang="">{made}</span> · same bytes as now</li>' in page
+    assert f'{gone}</a> <span lang="">{gone}</span> · deleted this path</li>' in page
 
 
 def test_the_timeline_says_the_state_of_a_closing_reference(tmp_path):

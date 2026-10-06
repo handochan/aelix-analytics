@@ -14,6 +14,8 @@
   function renderPlot(el) {
     if (!pending.has(el)) return;
     if (!window.Plotly) {
+      // The figure's element holds the chart's own text (lang=""); this message is the kit's.
+      el.lang = "en";
       el.textContent = "Could not load plotly.js (assets/plotly.min.js).";
       pending.delete(el);
       return;
@@ -23,6 +25,7 @@
       const fig = JSON.parse(document.getElementById(el.dataset.fig).textContent);
       window.Plotly.newPlot(el, fig.data || [], fig.layout || {}, { responsive: true, displaylogo: false });
     } catch (err) {
+      el.lang = "en";
       el.textContent = "Could not draw the plotly figure: " + err;
     }
   }

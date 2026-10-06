@@ -1,12 +1,15 @@
 """The kit's own words are English; what people and scripts wrote stays as written (Issue #10,
 TERMINOLOGY-AND-LANGUAGE.md 7).
 
-Two guards: the kit's shipped files hold no Hangul but the headings and pin marks of earlier
-CONTEXT.md templates, which the kit still reads (a static check); and every Hangul the status,
-the context block and the Workspace show for a Korean project is part of what was written into
-that project (a check of the output). Then the cases: a Korean project's text, column names,
-dataset name and NFD paths come back byte for byte; a new project, its empty Workspace and the
-demo are English; every pin mark pins.
+Two guards. A static one: the only Hangul in the files the kit ships are the exact lines that read
+the goal heading and the pin mark of earlier CONTEXT.md templates. And checks of the output for a
+Korean project: the status and the context block hold no Hangul once each thing written into the
+project is taken out whole, and every Hangul the Workspace shows sits in an element marked
+lang="" (a language the records do not name) while the kit's labels stay in the page's English —
+so a Korean label of the kit's fails even where a user wrote the same word. Then the cases: a
+Korean project's text, column names, dataset name and NFD paths come back as written; every
+dataset is shown by its name as written, with its SQL view beside it where they differ; a new
+project, its empty Workspace and the demo are English; every pin mark pins.
 """
 
 import html
@@ -15,10 +18,12 @@ import re
 import subprocess
 import sys
 import unicodedata
+from collections import Counter
+from html.parser import HTMLParser
 from pathlib import Path
 
 import pytest
-from conftest import KIT, PACK, kit_cli, kit_env, write_script
+from conftest import KIT, PACK, git_checkout, kit_cli, kit_env, write_script
 
 from aelix_analytics import _platform, core
 
@@ -32,43 +37,91 @@ def nfd(text: str) -> str:
     return unicodedata.normalize("NFD", text)
 
 
-def hangul_outside(text: str, written: str) -> list[str]:
-    """The runs of Hangul in `text` that are not part of `written` (what people and scripts wrote):
-    words of the kit's own."""
-    return sorted({run for run in HANGUL.findall(text) if run not in written})
+def hangul_outside(text: str, written: list[str]) -> list[str]:
+    """The Hangul left in `text` once each thing people and scripts wrote (a title, a line of
+    CONTEXT.md, a cell) is taken out whole: words of the kit's own. Only whole pieces go, so a
+    Korean label of the kit's is found even when a user wrote the same word inside a longer text."""
+    for piece in sorted({piece for piece in written if piece}, key=len, reverse=True):
+        text = text.replace(piece, "")
+    return sorted(set(HANGUL.findall(text)))
+
+
+class LangScopes(HTMLParser):
+    """A page's text nodes and attribute values, each with the language the page gives it: the
+    `lang` of the nearest element that has one (`""`: what people and scripts wrote, in a language
+    the records do not name; `"en"`: the kit's). Script and style content is not text."""
+
+    VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source",
+            "track", "wbr"}
+
+    def __init__(self, page: str):
+        super().__init__(convert_charrefs=True)
+        self.open: list[tuple[str, str | None]] = []
+        self.texts: list[tuple[str | None, str, str]] = []
+        self.attrs: list[tuple[str | None, str, str, str]] = []
+        self.feed(page)
+        self.close()
+
+    def lang(self) -> str | None:
+        return next((lang for _, lang in reversed(self.open) if lang is not None), None)
+
+    def handle_starttag(self, tag, attrs):
+        own = dict(attrs).get("lang")
+        lang = own if own is not None else self.lang()
+        self.attrs += [(lang, tag, name, value) for name, value in attrs if value and name != "lang"]
+        if tag not in self.VOID:
+            self.open.append((tag, own))
+
+    def handle_endtag(self, tag):
+        for i in range(len(self.open) - 1, -1, -1):
+            if self.open[i][0] == tag:
+                del self.open[i:]
+                return
+
+    def handle_data(self, data):
+        tags = [tag for tag, _ in self.open]
+        if data.strip() and "script" not in tags and "style" not in tags:
+            self.texts.append((self.lang(), tags[-1] if tags else "", data))
 
 
 # --- the kit's shipped files ----------------------------------------------------------------------
 
-# Hangul the kit's own files may hold: the heading and the pin mark of the CONTEXT.md template
-# before Issue #10 (`## 목표`, `<!-- 항상 -->`), which projects keep and the kit still reads. Each
-# with the English word on the same line — the alternation it is read with, or its comment's.
-LEGACY_READERS = {("src/aelix_analytics/core.py", "목표"): "goal",
-                  ("src/aelix_analytics/core.py", "항상"): "always"}
+# The only Hangul the kit's own files may hold, each a whole line (stripped) that appears once: the
+# readers of the goal heading and the pin mark of the CONTEXT.md template before Issue #10
+# (`## 목표`, `<!-- 항상 -->`), which projects keep, and the comments that name them.
+LEGACY_READER_LINES = {
+    "src/aelix_analytics/core.py": (
+        '"""First content line under a Goal heading (or 목표, the heading of earlier templates, which',
+        r'if re.match(r"^#{1,3}\s*(목표|goal|objective)", line.strip(), re.IGNORECASE):',
+        "# template writes; `<!-- always -->` and `<!-- 항상 -->` are the marks of earlier templates, which",
+        r'PIN_RE = re.compile(r"<!--\s*(pin|always|항상)\s*-->", re.IGNORECASE)',
+    ),
+}
 
 
-def shipped_files() -> list[Path]:
-    """What the kit ships and shows from: the package (code, Workspace assets, templates, demo,
-    manifest), the aelix extension and the checkout's launcher."""
-    package = PACK / "src" / "aelix_analytics"
-    files = [p for p in package.rglob("*") if p.is_file() and "__pycache__" not in p.parts
-             and p.suffix not in (".pyc", ".png", ".parquet")]
-    return sorted(files) + [PACK / "extension" / "aelix_analytics.py", PACK / "bin" / "analytics"]
+def shipped_files() -> list[str]:
+    """What the kit ships and shows from, as git tracks it (as conftest's tracked_kit_sha lists the
+    package): the package (code, Workspace assets, templates, demo, manifest), the aelix extension
+    and the checkout's launcher. A file git does not track (a .DS_Store) is not the kit's."""
+    listed = git_checkout("ls-files", "-z", "--", "src/aelix_analytics", "extension", "bin")
+    return sorted(name for name in listed.decode("utf-8").split("\0") if name)
 
 
 def test_the_kit_s_own_files_hold_no_hangul_but_the_legacy_readers():
-    found, used = [], set()
-    for path in shipped_files():
-        rel = path.relative_to(PACK).as_posix()
-        for number, line in enumerate(path.read_text(encoding="utf-8").split("\n"), 1):
-            for run in HANGUL.findall(line):
-                word = LEGACY_READERS.get((rel, run))
-                if word is not None and word in line.lower():
-                    used.add((rel, run))
-                else:
-                    found.append(f"{rel}:{number}: {run!r} in {line.strip()[:120]}")
+    found, used = [], Counter()
+    for rel in shipped_files():
+        allowed = LEGACY_READER_LINES.get(rel, ())
+        for number, line in enumerate((PACK / rel).read_text(encoding="utf-8").split("\n"), 1):
+            if not HANGUL.search(line):
+                continue
+            if line.strip() in allowed:
+                used[(rel, line.strip())] += 1
+            else:
+                found.append(f"{rel}:{number}: {line.strip()[:120]}")
     assert not found, "system text that is not English:\n" + "\n".join(found)
-    assert used == set(LEGACY_READERS), f"allowed but no longer there: {set(LEGACY_READERS) - used}"
+    expected = {(rel, line) for rel, lines in LEGACY_READER_LINES.items() for line in lines}
+    assert set(used) == expected, f"allowed but no longer there: {expected - set(used)}"
+    assert all(n == 1 for n in used.values()), f"a reader line copied: {used}"
 
 
 # --- a project written in Korean ------------------------------------------------------------------
@@ -79,7 +132,7 @@ QUESTION = "부산은 왜 낮은가?"
 FINDING = "서울 매출이 가장 크다 — 근거는 첫 실행"
 RUN_TITLE = "지역별 합계 — 첫 실행"
 CHART_TITLE = "지역별 매출 (원) 😀"
-CAPTION = "할인 뒤 금액의 합계. 결합 문자 é 포함"
+CAPTION = "할인 뒤 금액의 합계. 결합 문자 é 포함"
 DESCRIPTION = "합성 매출 — 한국어 설명"
 # Names macOS and some tools hand over decomposed (NFD): they are kept as written, never composed.
 SOURCE_PARTS = (nfd("원본 자료"), nfd("매출 자료.csv"))
@@ -100,6 +153,7 @@ CONTEXT = f"""# {TITLE}
 """
 ROWS = [("서울", "온라인", 300), ("서울", "매장", 280), ("부산", "온라인", 90), ("부산", "매장", 120),
         ("대구", "온라인", 60), ("대구", "매장", 75)]
+CSV = "지역,채널,매출\n" + "".join(f"{r},{c},{v}\n" for r, c, v in ROWS)
 SCRIPT = f'''import matplotlib.pyplot as plt
 import polars as pl
 
@@ -113,18 +167,21 @@ ax.bar(by_region["지역"], by_region["매출"])
 analytics.visualize(fig, "region-sales", title={CHART_TITLE!r}, caption={CAPTION!r}, data=by_region)
 print("지역 수", by_region.height)
 '''
+# Everything written into the project, piece by piece as the outputs show it whole.
+WRITTEN = [TITLE, GOAL, QUESTION, FINDING, RUN_TITLE, CHART_TITLE, CAPTION, DESCRIPTION, DERIVED,
+           DERIVED_NAME, *SOURCE_PARTS, *CONTEXT.split("\n"), *SCRIPT.split("\n"),
+           *CSV.replace(",", "\n").split("\n"), "지역 수 3"]
 
 
 def korean_project(tmp_path: Path):
     """A project whose every text is Korean, with NFD names: returns (root, run id, the source
-    file, everything that was written into it)."""
+    file, the pieces of everything that was written into it)."""
     root = tmp_path / "proj"
     core.init_project(root, title=TITLE, goal=GOAL, template_dir=TEMPLATE, actor="test")
     (root / "CONTEXT.md").write_bytes(CONTEXT.encode("utf-8"))
     source = tmp_path.joinpath(*SOURCE_PARTS)
     source.parent.mkdir()
-    csv = "지역,채널,매출\n" + "".join(f"{r},{c},{v}\n" for r, c, v in ROWS)
-    source.write_bytes(csv.encode("utf-8"))
+    source.write_bytes(CSV.encode("utf-8"))
     code, imported = kit_cli(root, "import", source, "--name", "sales", "--description", DESCRIPTION)
     assert code == 0 and imported["ok"], imported
     code, question = kit_cli(root, "record", "question", QUESTION)
@@ -134,9 +191,14 @@ def korean_project(tmp_path: Path):
     run_id = ran["run"]["id"]
     code, found = kit_cli(root, "record", "finding", FINDING, "--ref", run_id)
     assert code == 0, found
-    written = "\n".join([TITLE, GOAL, CONTEXT, QUESTION, FINDING, RUN_TITLE, CHART_TITLE, CAPTION,
-                         DESCRIPTION, SCRIPT, str(source), csv, "지역 수 3"])
-    return root, run_id, source, written
+    return root, run_id, source, [*WRITTEN, str(source)]
+
+
+def rendered_pages(root: Path) -> dict[str, str]:
+    code, rendered = kit_cli(root, "render")
+    assert code == 0, rendered
+    return {p.relative_to(root / "report").as_posix(): p.read_text(encoding="utf-8")
+            for p in (root / "report").rglob("*.html")}
 
 
 def test_a_korean_project_keeps_its_text_and_gets_english_labels(tmp_path):
@@ -185,37 +247,117 @@ def test_a_korean_project_keeps_its_text_and_gets_english_labels(tmp_path):
     assert hangul_outside(block, written) == []
 
     # The Workspace: English labels around the text as written.
-    code, rendered = kit_cli(root, "render")
-    assert code == 0, rendered
-    pages = {p.relative_to(root / "report").as_posix(): p.read_text(encoding="utf-8")
-             for p in (root / "report").rglob("*.html")}
+    pages = rendered_pages(root)
     view = core.view_names(core.list_datasets(project))
     derived_view = next(v for v, path in view.items() if path == DERIVED)
     assert set(pages) == {"index.html", "context.html", f"runs/{run_id}.html", "data/sales.html",
                           f"data/{derived_view}.html"}
     for name, page in pages.items():
         assert '<html lang="en" ' in page, name
-        assert hangul_outside(page, written) == [], name
         # Nothing composed the decomposed names (the goal holds the composed words on purpose).
         composed = unicodedata.normalize("NFC", DERIVED_NAME)
         assert unicodedata.normalize("NFC", DERIVED) not in page and f">{composed}<" not in page, name
     index, run_page = pages["index.html"], pages[f"runs/{run_id}.html"]
     for value in (TITLE, GOAL, QUESTION, FINDING, RUN_TITLE, CHART_TITLE, CAPTION):
         assert html.escape(value) in index, value
-    assert f'alt="{html.escape(CHART_TITLE)}"' in index
-    assert f"<code>{DERIVED}</code>" in index and f">{DERIVED_NAME}</a>" in index
+    assert f'alt="{html.escape(CHART_TITLE)}" lang=""' in index
+    assert f'<code lang="">{DERIVED}</code>' in index
+    assert (f'<a href="data/{derived_view}.html" lang="">{DERIVED_NAME}</a> '
+            f'<small>view <code>{derived_view}</code></small>') in index
     assert ">Visualizations</h2>" in index and ">Key information</h2>" in index
-    assert f"<h1>{RUN_TITLE}</h1>" in run_page and "<td>지역, 매출</td>" in run_page
-    assert f'title="{DERIVED}">{DERIVED_NAME}</a>' in run_page
-    assert "Attached data · 3 rows" in run_page and "지역 수 3" in run_page
+    assert f'<h1 lang="">{RUN_TITLE}</h1>' in run_page and '<td lang="">지역, 매출</td>' in run_page
+    assert f'title="{DERIVED}" lang="">{DERIVED_NAME}</a>' in run_page
+    assert "Attached data · 3 rows" in run_page and '<pre lang="">지역 수 3' in run_page
     derived_page = pages[f"data/{derived_view}.html"]
-    assert f"<h1>{DERIVED_NAME}</h1>" in derived_page and f"SQL view <code>{derived_view}</code>" in derived_page
-    assert "<td>지역</td>" in derived_page and "<td>매출</td>" in derived_page
+    assert f'<h1 lang="">{DERIVED_NAME}</h1>' in derived_page
+    assert f"SQL view <code>{derived_view}</code>" in derived_page
+    assert '<td lang="">지역</td>' in derived_page and '<th lang="">매출' in derived_page
     raw_page = pages["data/sales.html"]
-    assert html.escape(DESCRIPTION) in raw_page and "<td>서울</td>" in raw_page
-    assert f"<code>{html.escape(raw['source'])}</code>" in raw_page
-    assert "<h1>sales</h1>" in raw_page and "SQL view" not in raw_page
+    assert f'<p class="lead" lang="">{html.escape(DESCRIPTION)}</p>' in raw_page
+    assert '<td lang="">서울</td>' in raw_page
+    assert f'<code lang="">{html.escape(raw["source"])}</code>' in raw_page
+    assert '<h1 lang="">sales</h1>' in raw_page and "SQL view" not in raw_page
     assert html.escape(QUESTION) in pages["context.html"] and nfd("한글 자모") in pages["context.html"]
+
+
+# The kit's labels the Korean project's pages show: each stays in the page's English.
+SYSTEM_LABELS = ("Key information", "Recent journal entries", "Visualizations", "Timeline", "Data",
+                 "Runs", "Evaluation", "Record coverage", "Tool usage", "Attached data",
+                 "Input data", "Code", "Question", "Finding", "Logs", "Environment",
+                 "Journal entries for this run", "Snapshot file", "Same as the current file",
+                 "(empty)", "Schema and statistics", "Preview", "Relations",
+                 "Runs that read this data", "Source file", "Context history", "Changes",
+                 "Auto-reload", "Column", "Type")
+
+
+def test_the_workspace_gives_what_people_wrote_no_language_and_its_own_words_english(tmp_path):
+    """TERMINOLOGY 7: the pages are lang="en"; the elements that hold what people and scripts
+    wrote say lang="" (a language the records do not name), so a screen reader reads them in the
+    reader's own voice. Every Hangul a page shows — text or attribute — is in such an element, the
+    page title (one string with the kit's words) aside, and the kit's labels are not."""
+    root, run_id, _, _ = korean_project(tmp_path)
+    pages = rendered_pages(root)
+    langs: dict[str, set] = {}
+    for name, page in pages.items():
+        scopes = LangScopes(page)
+        misplaced = [(lang, tag, text.strip()[:80]) for lang, tag, text in scopes.texts
+                     if tag != "title" and HANGUL.search(text) and lang != ""]
+        misplaced += [(lang, f"{tag}@{attr}", value[:80]) for lang, tag, attr, value in scopes.attrs
+                      if HANGUL.search(value) and lang != ""]
+        assert misplaced == [], name
+        titles = [text for _, tag, text in scopes.texts if tag == "title"]
+        assert len(titles) == 1 and titles[0].endswith(f" · {TITLE}"), titles
+        assert titles[0].removesuffix(f" · {TITLE}") in ("Workspace", "Context history", RUN_TITLE,
+                                                         DERIVED_NAME, "sales"), titles
+        for lang, _, text in scopes.texts:
+            langs.setdefault(text.strip(), set()).add(lang)
+    for label in SYSTEM_LABELS:
+        assert langs.get(label) == {"en"}, (label, langs.get(label))
+    # What people and scripts wrote: the project's title and goal, CONTEXT.md, records, run and
+    # Visualization titles and captions, a dataset's name, path and description, column names and
+    # values, what a script printed.
+    for value in (TITLE, GOAL, QUESTION, FINDING, RUN_TITLE, CHART_TITLE, CAPTION, DESCRIPTION,
+                  DERIVED_NAME, DERIVED, "sales", "서울", "지역", "지역 수 3",
+                  "옛 템플릿처럼 한국어로 쓴 안내 문구."):
+        assert langs.get(value) == {""}, (value, langs.get(value))
+
+
+# --- a dataset's name and its SQL view ------------------------------------------------------------
+
+DATASET_NAMES = {"My Sales": "my_sales", "my-data": "my_data", "123sales": "t_123sales",
+                 "sales": "sales"}
+
+
+def test_a_dataset_is_shown_by_its_name_as_written_and_its_view_beside_it(tmp_path):
+    """The view spells a name in [a-z0-9_]; the Workspace names the dataset as written wherever it
+    shows it, with the view beside the name where the two differ (and not where they are equal)."""
+    import polars as pl  # not in the aelix legs, which import this module for its Korean project
+
+    root = tmp_path / "names"
+    project = core.init_project(root, title="names", template_dir=TEMPLATE, actor="test")
+    for name in DATASET_NAMES:
+        pl.DataFrame({"a": [1, 2]}).write_parquet(root / "data" / "derived" / f"{name}.parquet")
+    reads = "".join(f'pl.read_parquet("data/derived/{name}.parquet")\n' for name in DATASET_NAMES)
+    code, ran = kit_cli(root, "run", write_script(root, "read.py", f"import polars as pl\n{reads}"),
+                        "--title", "read")
+    assert code == 0 and ran["run"]["status"] == "ok", ran
+    run_id = ran["run"]["id"]
+    views = core.view_names(core.list_datasets(project))
+    assert {Path(path).stem: view for view, path in views.items()} == DATASET_NAMES
+    pages = rendered_pages(root)
+    index, run_page = pages["index.html"], pages[f"runs/{run_id}.html"]
+    for name, view in DATASET_NAMES.items():
+        page, path = pages[f"data/{view}.html"], f"data/derived/{name}.parquet"
+        assert f"<title>{name} · names</title>" in page and f'<h1 lang="">{name}</h1>' in page
+        assert f'<span>/</span> <span lang="">{name}</span></div>' in page
+        assert f'title="{path}" lang="">{name}</a>' in run_page
+        row = f'<a href="data/{view}.html" lang="">{name}</a>'
+        if name == view:
+            assert f"{row}</td>" in index and "SQL view" not in page
+        else:
+            assert f"{row} <small>view <code>{view}</code></small>" in index
+            assert f"SQL view <code>{view}</code>" in page
+        assert f"FROM {view} LIMIT 20" in page
 
 
 # --- the defaults: a new project, its empty Workspace, the demo -----------------------------------

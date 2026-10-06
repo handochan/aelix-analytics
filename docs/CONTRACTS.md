@@ -498,9 +498,14 @@ kit 0.4.0([#42](https://github.com/handochan/aelix-analytics/issues/42), 줄 끝
   등, 재실행 비교는 Matched·Different·Run failed·Inconclusive(기록의 `verdict`는 그대로)입니다. 차트의 첨부 표는 `Attached data`, 같은
   스크립트의 최신 run에 없는 차트는 `Absent from latest run`입니다. 용량 단위가 `KiB`·`MiB`·`GiB`입니다(계산은 이전과 같은 1024 단위).
   URL anchor·요소 id·class·링크 대상은 그대로입니다. CSS 글꼴 목록에 Windows·Linux의 한국어 글꼴이 더해졌습니다.
-- 사용자 내용: 바이트 그대로이고 사용자 내용 영역에는 `lang`이 없습니다(언어를 추정하지 않음). 이름에 ASCII 밖의 글자가 있는
-  데이터셋(예: `data/derived/지역별 매출.parquet`)은 Workspace가 SQL view 이름(`___…`) 대신 데이터셋 이름을 보이고 view를 함께 적습니다
-  (데이터 탭, 데이터셋 페이지의 제목, 입력·출력·참조의 링크 글). view 이름 규칙(E)은 그대로입니다.
+- 사용자 내용(Workspace): 사람과 스크립트가 쓴 글은 번역하거나 Unicode 정규화하지 않고 쓴 그대로 보입니다. `CONTEXT.md`는
+  Markdown으로 그리고(HTML은 그리지 않아 글자로 보임), 그 밖의 글(기록 글, 제목, caption, 열 이름과 값, 데이터셋 이름, 경로)은 HTML
+  escape만 거칩니다(링크 대상은 퍼센트 인코딩, 페이지의 줄 끝은 LF, 표 미리보기는 긴 값을 줄임). 그 글을 담은 요소는 `lang=""`(언어
+  모름)이고 kit의 label은 문서의 `en`을 따릅니다. 언어를 추정하지 않고, 화면 낭독기는 그 글을 읽는 사람의 기본 음성으로 읽습니다
+  (문서 제목 `<title>`은 kit의 글과 이어 쓴 한 문자열이라 `en`). 데이터셋은 쓴 그대로의 이름(파일 stem)으로 보입니다(이전에는 SQL
+  view 이름): 데이터 탭, 데이터셋 페이지의 제목, 입력·출력·참조의 링크 글. 이름과 view가 다르면(예: `My Sales`→`my_sales`,
+  `123sales`→`t_123sales`, `data/derived/지역별 매출.parquet`→`___…`, 겹치는 derived의 `…_derived`) 데이터 탭과 데이터셋 페이지가
+  view를 옆에 적습니다. view 이름 규칙(E)과 데이터셋 페이지의 파일 이름(`report/data/<view>.html`)은 그대로입니다.
 - 새 프로젝트: `CONTEXT.md` 템플릿이 영어이고(섹션 Goal·Analysis focus·Next steps·Current findings·Definitions and rules·Data sources·
   Assumptions and limitations, 고정 표식 `<!-- pin -->`), 목표 없이 만들면 넣는 안내 줄도 영어입니다. uv 프로젝트 이름이
   `analytics-<slug>`입니다(이전 `lab-<slug>`; 새 프로젝트의 `pyproject.toml`과 uv가 만드는 `uv.lock`에만 들어가고 kit은 읽지 않음).

@@ -62,6 +62,10 @@ RECORDING_REASON = {"not_final": "the run record is not final (it is running, or
                     "no_completion_event": "the journal has no completion event for this run",
                     "finalize_errors": "some recording steps failed"}
 SHOWN_CANDIDATES = 3
+# The pages are lang="en" (the kit's words). What people and scripts wrote is in a language the
+# records do not name, so its element says "unknown" (lang=""): a screen reader reads it in the
+# reader's own voice rather than an English one, and nothing guesses the language (TERMINOLOGY 7).
+USER = ' lang=""'
 
 
 def esc(value) -> str:
@@ -119,10 +123,15 @@ def verdict_label(verdict) -> str:
 
 
 def dataset_label(name: str, view: str) -> str:
-    """How the Workspace names a dataset: its SQL view, unless the dataset's own name (its file's
-    stem) has letters outside ASCII, which the view spells as `_` (a Korean file name's view is
-    `___`) — then that name as written."""
-    return view if name.isascii() else name
+    """How the Workspace names a dataset: by its own name (its file's stem) as written. The SQL
+    view spells that name in [a-z0-9_] (`My Sales` is `my_sales`, `123sales` is `t_123sales`, a
+    Korean name `___`); where the two differ, the pages show the view beside the name."""
+    return name or view
+
+
+def user_text(value) -> str:
+    """Text people or scripts wrote, inline in a sentence of the kit's (USER)."""
+    return f"<span{USER}>{esc(value)}</span>"
 
 
 def kind_chip(kind) -> str:
@@ -223,9 +232,9 @@ class Site:
         label = self.dataset_name(path) or path
         if link:
             title = f"{path} — {note}" if note else path
-            return f'<a href="{link}" title="{esc(title)}">{esc(label)}</a>'
+            return f'<a href="{link}" title="{esc(title)}"{USER}>{esc(label)}</a>'
         title = f' title="{esc(note)}"' if note else ""
-        return f'<a href="{self.file_link(path, depth)}"{title}>{esc(path)}</a>'
+        return f'<a href="{self.file_link(path, depth)}"{title}{USER}>{esc(path)}</a>'
 
     def source(self, event: dict) -> str | None:
         """How the read names an event: its id, or `journal:<line>` when several lines have it."""
@@ -343,7 +352,7 @@ class Site:
                                            if k in files)
             loading = ' loading="lazy"' if lazy else ""
             return (f'<a class="chart-img" href="{self.file_link(src, depth)}">'
-                    f'<img src="{self.file_link(src, depth)}" alt="{title}"{loading}></a>')
+                    f'<img src="{self.file_link(src, depth)}" alt="{title}"{USER}{loading}></a>')
         if files.get("plotly"):
             path = self.p.path(files["plotly"])
             try:
@@ -358,11 +367,11 @@ class Site:
             self._fig += 1
             payload = path.read_text(encoding="utf-8").replace("</", "<\\/")
             return (f'<div class="plotly-chart" data-fig="fig{self._fig}" role="img" '
-                    f'aria-label="{title}"></div><script type="application/json" '
+                    f'aria-label="{title}"{USER}></div><script type="application/json" '
                     f'id="fig{self._fig}">{payload}</script>')
         if files.get("html"):
             return (f'<iframe class="chart-frame" src="{self.file_link(files["html"], depth)}" '
-                    f'loading="lazy" title="{title}"></iframe>')
+                    f'loading="lazy" title="{title}"{USER}></iframe>')
         return '<div class="empty">No file to show for this visualization.</div>'
 
     def chart_card(self, chart: dict, depth: int, *, full=False) -> str:
@@ -388,7 +397,7 @@ class Site:
             badges.append(badge("muted", "↺", "Absent from latest run"))
         run_page = self.run_link(chart["run"], depth)
         line = chart.get("line")
-        code_link = (f'<a href="{run_page}#code">{esc(script.get("path"))}</a> '
+        code_link = (f'<a href="{run_page}#code"{USER}>{esc(script.get("path"))}</a> '
                      f'<span class="sha">@{short(script.get("sha256"))}</span>')
         if line:
             code_link += f' · <a href="{run_page}#L-main-{line}">L{line}</a>'
@@ -417,10 +426,11 @@ class Site:
                 for v in versions[-2::-1][:8]) + "</div>")
         classes = "chart-card" + (" is-stale" if fresh["stale"] else "") + \
             (" is-retired" if chart.get("retired") else "")
-        caption = f'<p class="caption">{esc(chart["caption"])}</p>' if chart.get("caption") else ""
+        caption = (f'<p class="caption"{USER}>{esc(chart["caption"])}</p>' if chart.get("caption")
+                   else "")
         return f"""
 <article class="{classes}" id="chart-{slug_key(chart['key'])}">
-  <header><h3>{esc(chart.get('title') or chart['id'])}</h3><div class="badges">{''.join(badges)}</div></header>
+  <header><h3{USER}>{esc(chart.get('title') or chart['id'])}</h3><div class="badges">{''.join(badges)}</div></header>
   <div class="chart-body">{self.chart_html(chart, depth)}</div>
   {caption}
   <dl class="prov">
@@ -434,9 +444,12 @@ class Site:
 
     # --- tables ---
 
-    def table(self, columns, rows, *, types=None, klass="data") -> str:
+    def table(self, columns, rows, *, types=None, klass="data", data_head=True) -> str:
+        """A table of data: its text cells, and its column names when they are the data's
+        (`data_head`), are the data's text (USER); `null` and numbers are the kit's."""
+        lang = USER if data_head else ""
         head = "".join(
-            f'<th>{esc(c)}{f"<small>{esc(types[i])}</small>" if types else ""}</th>'
+            f'<th{lang}>{esc(c)}{f"<small>{esc(types[i])}</small>" if types else ""}</th>'
             for i, c in enumerate(columns))
         body = []
         for row in rows:
@@ -447,7 +460,7 @@ class Site:
                 elif isinstance(v, (int, float)) and not isinstance(v, bool):
                     cells.append(f'<td class="num">{fmt_num(v)}</td>')
                 else:
-                    cells.append(f"<td>{esc(v)}</td>")
+                    cells.append(f"<td{USER}>{esc(v)}</td>")
             body.append("<tr>" + "".join(cells) + "</tr>")
         return (f'<div class="table-wrap"><table class="{klass}"><thead><tr>{head}</tr></thead>'
                 f'<tbody>{"".join(body)}</tbody></table></div>')
@@ -493,7 +506,7 @@ class Site:
                 f'<li class="ev" id="{esc(anchor)}" data-kind="{esc(ev.get("kind"))}">'
                 f'<div class="ev-head"><time>{fmt_time(ts, with_date=False)}</time>{kind_chip(ev.get("kind"))}'
                 f'<span class="ev-id">{shown}</span><span class="actor">{esc(ev.get("actor"))}</span>{state}</div>'
-                f'<div class="ev-text">{esc(ev.get("text"))}</div>{self.refs_html(ev, depth)}</li>')
+                f'<div class="ev-text"{USER}>{esc(ev.get("text"))}</div>{self.refs_html(ev, depth)}</li>')
         chips = ""
         if filters:
             counts = Counter(e.get("kind") for e in events)
@@ -522,7 +535,7 @@ class Site:
 </head>
 <body class="page-{kind}">
 <header class="topbar">
-  <div class="crumbs"><a href="{root}index.html">{esc(self.p.title())}</a>{crumb}</div>
+  <div class="crumbs"><a href="{root}index.html"{USER}>{esc(self.p.title())}</a>{crumb}</div>
   <div class="build">Rendered {fmt_time(self.built_at)} · <label><input type="checkbox" id="live" checked> Auto-reload</label></div>
 </header>
 <main>{body}</main>
@@ -761,7 +774,7 @@ def origin_html(site: Site, ds: dict, depth: int) -> str:
         record = ds["unsupported_record"]
         return badge("muted", "?", "Import record not read", f"{record['location']}: {record['reason']}")
     if ds.get("source"):
-        return esc(Path(ds["source"]).name)
+        return user_text(Path(ds["source"]).name)
     if state == "unknown":
         return badge("muted", "?", "Producer unknown", "the file could not be hashed")
     if ds.get("written_by"):
@@ -797,7 +810,7 @@ def index_page(site: Site) -> str:
                     if p.context.is_file() else "")
     goal = core.context_goal(context_text)
     if goal:
-        st_goal = f'<p class="goal">{esc(goal)}</p>'
+        st_goal = f'<p class="goal"{USER}>{esc(goal)}</p>'
     current = [c for c in site.charts if not c.get("retired")]
     stale = [c for c in current if site.fresh.of(c["run"])["stale"]]
     failed = [r for r in site.runs if r.get("status") != "ok"]
@@ -826,7 +839,7 @@ def index_page(site: Site) -> str:
         if not items:
             return f'<div class="empty">{empty}</div>'
         return '<ul class="items">' + "".join(
-            f'<li id="key-{esc(e["id"])}">{kind_chip(e["kind"])} <span class="item-text">{esc(e["text"])}</span>'
+            f'<li id="key-{esc(e["id"])}">{kind_chip(e["kind"])} <span class="item-text"{USER}>{esc(e["text"])}</span>'
             f'<span class="item-meta"><a href="#{esc(site.anchor(e))}">{esc(site.source(e))}</a> · {fmt_time(e.get("ts"))}</span>'
             f'{site.refs_html(e, 0)}</li>' for e in reversed(items[-12:])) + "</ul>"
 
@@ -834,7 +847,7 @@ def index_page(site: Site) -> str:
 
     overview = f"""
 <section id="overview" class="tab">
-  <div class="hero"><h1>{esc(p.title())}</h1>{st_goal}<div class="where">Project <code>{esc(p.root)}</code></div></div>
+  <div class="hero"><h1{USER}>{esc(p.title())}</h1>{st_goal}<div class="where">Project <code{USER}>{esc(p.root)}</code></div></div>
   {skipped}
   <div class="tiles">{tiles}</div>
   <div class="columns">
@@ -868,15 +881,15 @@ def index_page(site: Site) -> str:
         label = dataset_label(ds["name"], view)
         also = f' <small>view <code>{esc(view)}</code></small>' if label != view else ""
         data_rows.append(
-            f'<tr><td><a href="data/{href(view)}.html">{esc(label)}</a>{also}</td><td>{esc(ds["kind"])}</td>'
+            f'<tr><td><a href="data/{href(view)}.html"{USER}>{esc(label)}</a>{also}</td><td>{esc(ds["kind"])}</td>'
             f'<td class="num">{fmt_num(ds.get("rows"))}</td><td class="num">{fmt_num(ds.get("columns"))}</td>'
-            f'<td class="num">{fmt_bytes(ds.get("bytes"))}</td><td><code>{esc(ds["path"])}</code></td>'
+            f'<td class="num">{fmt_bytes(ds.get("bytes"))}</td><td><code{USER}>{esc(ds["path"])}</code></td>'
             f'<td>{origin}</td><td class="num">{len(ds.get("used_by") or [])}</td>'
             f'<td class="sha">{short(ds.get("sha256"), 12)}</td></tr>')
     data = f"""
 <section id="data" class="tab">
   <div class="toolbar"><h2>Data</h2></div>
-  <p class="muted">data/raw holds imported data (kept unchanged), data/derived the Parquet files runs made. A dataset is named by its SQL view, the name analytics_query and analytics.sql use.</p>
+  <p class="muted">data/raw holds imported data (kept unchanged), data/derived the Parquet files runs made. Each dataset shows its name as written and, where they differ, its SQL view — the name analytics_query and analytics.sql use.</p>
   {('<div class="table-wrap"><table class="list"><thead><tr><th>Dataset</th><th>Kind</th><th>Rows</th><th>Columns</th><th>Size</th><th>Path</th><th>Source / producer candidates</th><th>Used by runs</th><th>sha256</th></tr></thead><tbody>' + ''.join(data_rows) + '</tbody></table></div>') if data_rows else '<div class="empty">No datasets yet. Import one with analytics_import (or analytics import).</div>'}
 </section>"""
 
@@ -890,7 +903,7 @@ def index_page(site: Site) -> str:
             verdict = badge(tone, "↻", f"Rerun {verdict_label(repro.get('verdict'))}")
         run_rows.append(
             f'<tr><td>{fmt_time(run.get("started_at"))}</td><td><a href="runs/{href(run["id"])}.html">{esc(run["id"])}</a></td>'
-            f'<td>{status_badge(run.get("status"))} {verdict}</td><td>{esc(run.get("title"))}</td>'
+            f'<td>{status_badge(run.get("status"))} {verdict}</td><td{USER}>{esc(run.get("title"))}</td>'
             f'<td class="num">{len(run.get("charts") or [])}</td><td class="num">{len(run.get("inputs") or [])}</td>'
             f'<td class="num">{sum(1 for o in run.get("outputs") or [] if o.get("change") != "deleted")}</td>'
             f'<td class="num">{run.get("duration_s", "-")}</td></tr>')
@@ -908,22 +921,33 @@ def index_page(site: Site) -> str:
     # The context block's own selection, from the file as aelix's read tool numbers its lines.
     _, injected, omitted, _ = core.context_selection(core.context_file_text(p))
     prompt_note = (
-        f'<p class="muted">Sections in every prompt: {esc(", ".join(s["name"] for s in injected)) or "none"}.'
+        f'<p class="muted">Sections in every prompt: {section_names(injected) or "none"}.'
         + (f' Sections the prompt names with their line ranges only: '
-           f'{esc(", ".join(s["name"] for s in omitted))} — the agent reads them when it needs them.'
+           f'{section_names(omitted)} — the agent reads them when it needs them.'
            if omitted else "") + "</p>")
     context = f"""
 <section id="context" class="tab">
   <div class="toolbar"><h2>Context <small>CONTEXT.md</small></h2><a href="context.html">{len(site.versions)} recorded version(s) →</a></div>
   {prompt_note}
   <div class="columns wide-left">
-    <article class="panel markdown">{context_html}</article>
+    <article class="panel markdown"{USER if context_text else ""}>{context_html}</article>
     <aside class="panel"><h3>Recent versions</h3><ul class="plain">{version_items or '<li class="muted">None</li>'}</ul></aside>
   </div>
 </section>"""
 
     return site.page(0, "Workspace", "", overview + charts + timeline + data + runs + context
                      + evaluation_section(site), "index")
+
+
+def section_names(sections: list[dict]) -> str:
+    """CONTEXT.md sections by name: a heading's words are the file's (USER); a heading that is
+    only a pin mark is named `Section N` by the kit."""
+    names = []
+    for section in sections:
+        heading = section["text"].split("\n", 1)[0][3:]
+        named = bool(core.PIN_RE.sub("", heading).strip())
+        names.append(user_text(section["name"]) if named else esc(section["name"]))
+    return ", ".join(names)
 
 
 def evaluation_section(site: Site) -> str:
@@ -951,11 +975,11 @@ def evaluation_section(site: Site) -> str:
                                                for k, v in statuses.items())),
         row("Runs with no input detected", len(no_input), run_list(no_input)),
         row("matplotlib charts without attached data", len(undocumented),
-            ", ".join(f'<a href="runs/{href(r["id"])}.html">{esc(c["id"])}</a>' for r, c in undocumented[:6])),
+            ", ".join(f'<a href="runs/{href(r["id"])}.html"{USER}>{esc(c["id"])}</a>' for r, c in undocumented[:6])),
         row("Input files outside the project", len(external),
-            ", ".join(esc(i["path"]) for _, i in external[:4])),
-        row("Files written outside data/", len(outside), ", ".join(esc(o["path"]) for _, o in outside[:4])),
-        row("Visualizations with input changes", len(stale), ", ".join(esc(c["key"]) for c in stale[:4])),
+            ", ".join(user_text(i["path"]) for _, i in external[:4])),
+        row("Files written outside data/", len(outside), ", ".join(user_text(o["path"]) for _, o in outside[:4])),
+        row("Visualizations with input changes", len(stale), ", ".join(user_text(c["key"]) for c in stale[:4])),
         row("Rerun comparisons", len(reruns),
             " · ".join(f"{esc(verdict_label(k))} {v}" for k, v in verdicts.items())),
         row("analytics_query queries", len(site.queries),
@@ -972,7 +996,7 @@ def evaluation_section(site: Site) -> str:
     flagged = [t for t in site.telemetry if t.get("flags")]
     flag_items = "".join(
         f"<li><time>{fmt_time(t.get('ts'))}</time> <code>{esc(t.get('tool'))}</code> "
-        f"{''.join(badge('warning', '⚑', f) for f in t['flags'])} <span class='muted'>{esc(t.get('summary'))}</span></li>"
+        f"{''.join(badge('warning', '⚑', f) for f in t['flags'])} <span class='muted'{USER}>{esc(t.get('summary'))}</span></li>"
         for t in flagged[::-1][:30])
     gap_html = site.events_html(gaps[::-1], 0) if gaps else \
         '<div class="empty">No workflow feedback yet. Record where the tools got in the way or needed a workaround with /analytics record gap or analytics_record(kind="gap").</div>'
@@ -997,6 +1021,7 @@ def evaluation_section(site: Site) -> str:
 # --- run page ---
 
 def code_html(source: str, anchor: str, hl_lines=()) -> str:
+    """A script as written: its comments and strings are the author's text (USER)."""
     try:
         from pygments import highlight
         from pygments.formatters import HtmlFormatter
@@ -1005,10 +1030,11 @@ def code_html(source: str, anchor: str, hl_lines=()) -> str:
         formatter = HtmlFormatter(linenos="table", anchorlinenos=True, lineanchors=f"L-{anchor}",
                                   hl_lines=sorted({n for n in hl_lines if n}), cssclass="code",
                                   wrapcode=True)
-        return highlight(source, PythonLexer(), formatter)
+        return highlight(source, PythonLexer(), formatter).replace(
+            '<div class="code">', f'<div class="code"{USER}>', 1)
     except Exception:  # noqa: BLE001 - fall back to plain text
         lines = source.splitlines()
-        return '<div class="code"><pre>' + "\n".join(
+        return f'<div class="code"{USER}><pre>' + "\n".join(
             f'<a id="L-{anchor}-{i}" href="#L-{anchor}-{i}" class="ln">{i:>4}</a>  {esc(line)}'
             for i, line in enumerate(lines, 1)) + "</pre></div>"
 
@@ -1031,22 +1057,23 @@ def run_page(site: Site, run: dict) -> str:
         sub.append(f'<span title="{esc(run["session"])}">aelix session {esc(Path(run["session"]).name)}</span>')
     head = f"""
 <div class="page-head">
-  <div class="title-row"><h1>{esc(run.get('title'))}</h1>{status_badge(run.get('status'))}</div>
+  <div class="title-row"><h1{USER}>{esc(run.get('title'))}</h1>{status_badge(run.get('status'))}</div>
   <div class="sub">{' · '.join(sub)}</div>
-  <div class="sub">Ran <code>{esc(script.get('path'))}</code> · run {pos + 1} of {len(same_script)} of this script {' '.join(nav)}</div>
+  <div class="sub">Ran <code{USER}>{esc(script.get('path'))}</code> · run {pos + 1} of {len(same_script)} of this script {' '.join(nav)}</div>
 </div>"""
     callouts = ""
     if run.get("error"):
         err = run["error"]
         where = f' (line <a href="#L-main-{err["line"]}">{err["line"]}</a>)' if err.get("line") else ""
         fix = f'<div class="fix">How to fix: {esc(err["hint"])}</div>' if err.get("hint") else ""
-        callouts += (f'<div class="callout tone-critical"><strong>{esc(err.get("summary"))}</strong>'
+        # The summary is the script's exception as it said it; the hint is the kit's.
+        callouts += (f'<div class="callout tone-critical"><strong{USER}>{esc(err.get("summary"))}</strong>'
                      f'{where}{fix}</div>')
     repro = run.get("reproduction")
     if repro:
         tone = {"match": "good", "mismatch": "critical", "failed": "critical"}.get(
             repro.get("verdict"), "muted")
-        details = "".join(f"<li><code>{esc(k)}</code>: {esc(v)}</li>"
+        details = "".join(f"<li><code{USER}>{esc(k)}</code>: {esc(v)}</li>"
                           for k, v in {**repro.get("charts", {}), **repro.get("outputs", {})}.items())
         callouts += (f'<div class="callout tone-{tone}"><strong>Rerun comparison: '
                      f'{esc(verdict_label(repro.get("verdict")))}</strong> — reran the code snapshot of '
@@ -1071,8 +1098,11 @@ def run_page(site: Site, run: dict) -> str:
                                for r in recording.get("reasons") or [])
                      + "</ul></div>")
     if fresh["changed_inputs"]:
+        reasons = fresh.get("change_reasons") or {}
         callouts += ('<div class="callout tone-critical"><strong>This run\'s inputs differ from the files now.</strong> '
-                     + esc(", ".join(changed_inputs_text(fresh))) + "</div>")
+                     + ", ".join(user_text(path) + (f" {esc(core.LINE_ENDINGS_NOTE)}"
+                                                    if reasons.get(path) == core.LINE_ENDINGS_ONLY else "")
+                                 for path in fresh["changed_inputs"]) + "</div>")
     if fresh["stale_upstream"]:
         # The stale runs upstream output the same bytes as an input: candidates, not its producer.
         callouts += ('<div class="callout tone-warning"><strong>Upstream candidate stale.</strong> '
@@ -1094,10 +1124,10 @@ def run_page(site: Site, run: dict) -> str:
         line = f' · code <a href="#L-main-{chart["line"]}">L{chart["line"]}</a>' if chart.get("line") else ""
         charts.append(f"""
 <article class="chart-card wide" id="chart-{esc(chart['id'])}">
-  <header><h3>{esc(chart.get('title'))}</h3><div class="badges"><span class="badge tone-muted">{esc(chart.get('kind'))} · {esc(chart.get('via'))}</span></div></header>
+  <header><h3{USER}>{esc(chart.get('title'))}</h3><div class="badges"><span class="badge tone-muted">{esc(chart.get('kind'))} · {esc(chart.get('via'))}</span></div></header>
   <div class="chart-body">{site.chart_html(chart, 1, lazy=False)}</div>
-  {f'<p class="caption">{esc(chart["caption"])}</p>' if chart.get('caption') else ''}
-  <div class="prov-line">id <code>{esc(key)}</code>{line} · <a href="{site.chart_anchor(key, 1)}">Show in Visualizations</a></div>
+  {f'<p class="caption"{USER}>{esc(chart["caption"])}</p>' if chart.get('caption') else ''}
+  <div class="prov-line">id <code{USER}>{esc(key)}</code>{line} · <a href="{site.chart_anchor(key, 1)}">Show in Visualizations</a></div>
   {data_block}
 </article>""")
     charts_html = "".join(charts) or '<div class="empty">This run made no visualizations.</div>'
@@ -1114,7 +1144,7 @@ def run_page(site: Site, run: dict) -> str:
         if fresh.get("code_reason") == core.LINE_ENDINGS_ONLY:
             state += f" {core.LINE_ENDINGS_NOTE}"
         code_blocks.append(
-            f'<div class="codefile" id="code-main"><div class="file-head"><code>{esc(script.get("path"))}</code>'
+            f'<div class="codefile" id="code-main"><div class="file-head"><code{USER}>{esc(script.get("path"))}</code>'
             f'<span class="sha">sha256 {short(script.get("sha256"), 12)}</span><span>{esc(state)}</span>'
             f'<a href="{site.file_link(snap, 1)}">Snapshot file</a></div>'
             f'{code_html(p.path(snap).read_text(encoding="utf-8", errors="replace"), "main", hl)}</div>')
@@ -1122,7 +1152,7 @@ def run_page(site: Site, run: dict) -> str:
         mp = p.path(mod.get("snapshot", ""))
         if mp.is_file():
             code_blocks.append(
-                f'<details class="codefile"><summary><code>{esc(mod["path"])}</code> <span class="sha">'
+                f'<details class="codefile"><summary><code{USER}>{esc(mod["path"])}</code> <span class="sha">'
                 f'sha256 {short(mod.get("sha256"), 12)}</span> (imported local module)</summary>'
                 f'{code_html(mp.read_text(encoding="utf-8", errors="replace"), f"m{i}")}</details>')
 
@@ -1156,7 +1186,7 @@ def run_page(site: Site, run: dict) -> str:
         output_rows.append(
             f'<tr><td>{site.path_html(out["path"], 1)}</td><td>{esc(out.get("change"))}</td>'
             f'<td>{esc(out.get("via", ""))}</td><td class="num">{fmt_num(out.get("rows"))}</td>'
-            f'<td>{esc(", ".join(c[0] for c in (out.get("schema") or [])[:12]))}</td>'
+            f'<td{USER}>{esc(", ".join(c[0] for c in (out.get("schema") or [])[:12]))}</td>'
             f'<td class="sha">{short(out.get("sha256"), 12)}</td><td>{now}</td></tr>')
 
     def log_block(label, rel):
@@ -1171,8 +1201,10 @@ def run_page(site: Site, run: dict) -> str:
             fh.seek(max(0, size - LOG_LIMIT))
             text = fh.read().decode("utf-8", errors="replace")
         opened = " open" if label == "stderr" and run.get("status") != "ok" and size else ""
+        # What the script printed is its own text; "(empty)" is the kit's.
+        shown = f"<pre{USER}>{esc(text)}</pre>" if text else "<pre>(empty)</pre>"
         return (f'<details class="log"{opened}><summary>{label} · {fmt_bytes(size)}</summary>'
-                f'<pre>{esc(text) or "(empty)"}</pre></details>')
+                f'{shown}</details>')
 
     env = run.get("env") or {}
     env_rows = "".join(f"<tr><th>{esc(k)}</th><td><code>{esc(v)}</code></td></tr>" for k, v in [
@@ -1213,7 +1245,7 @@ def dataset_page(site: Site, ds: dict, view: str) -> str:
     meta = (core.read_json(p.path(ds["path"]).with_suffix(".meta.json"))
             if ds["kind"] == "raw" and not ds.get("unsupported_record") else None)
     label = dataset_label(ds["name"], view)
-    facts = [f'<code>{esc(ds["path"])}</code>',
+    facts = [f'<code{USER}>{esc(ds["path"])}</code>',
              f'{fmt_num(prof.get("rows"))} rows × {len(prof.get("columns") or [])} columns',
              fmt_bytes(prof.get("bytes")), f'sha256 <span class="sha">{short(prof.get("sha256"), 16)}</span>']
     if label != view:
@@ -1221,15 +1253,18 @@ def dataset_page(site: Site, ds: dict, view: str) -> str:
     origin = ""
     if isinstance(meta, dict):
         src = meta.get("source") or {}
-        origin = (f'<dl class="facts"><div><dt>Source file</dt><dd><code>{esc(src.get("path"))}</code></dd></div>'
+        origin = (f'<dl class="facts"><div><dt>Source file</dt><dd><code{USER}>{esc(src.get("path"))}</code></dd></div>'
                   f'<div><dt>Source sha256</dt><dd class="sha">{short(src.get("sha256"), 16)}</dd></div>'
                   f'<div><dt>Format</dt><dd>{esc(src.get("format"))}</dd></div>'
                   f'<div><dt>Imported at</dt><dd>{fmt_time(meta.get("imported_at"))}</dd></div></dl>')
         if meta.get("description"):
-            origin = f'<p class="lead">{esc(meta["description"])}</p>' + origin
+            origin = f'<p class="lead"{USER}>{esc(meta["description"])}</p>' + origin
     producers = ds.get("producers") or []
     candidates = ds.get("producer_candidates") or []
-    current = esc(core.dataset_origin(ds))
+    said = core.dataset_origin(ds)
+    # The file it was imported from is named by the path as written.
+    current = (f"from {user_text(ds['source'])}" if ds.get("source") and said == f"from {ds['source']}"
+               else esc(said))
     if ds.get("producer_state") in ("resolved", "ambiguous"):
         # Only then does a run named here hold these bytes: with `none` the runs named wrote other
         # bytes or did not succeed.
@@ -1248,19 +1283,19 @@ def dataset_page(site: Site, ds: dict, view: str) -> str:
         # deletion as such: none of them is said to have made the file.
         lineage.append("<h3>Successful runs that recorded an output at this path</h3><ul class='plain'>"
                        + "".join(
-            f'<li><a href="{esc(site.run_link(r, 1))}">{esc(r)}</a> {esc((site.run_by_id.get(r) or {}).get("title"))}'
+            f'<li><a href="{esc(site.run_link(r, 1))}">{esc(r)}</a> {user_text((site.run_by_id.get(r) or {}).get("title"))}'
             f'{" · deleted this path" if change(r) == "deleted" else ""}'
             f'{" · same bytes as now" if r in candidates else ""}</li>'
             for r in dict.fromkeys(producers)) + "</ul>")
     users = ds.get("used_by") or []
     lineage.append("<h3>Runs that read this data</h3>" + ("<ul class='plain'>" + "".join(
-        f'<li><a href="{site.run_link(r, 1)}">{esc(r)}</a> {esc((site.run_by_id.get(r) or {}).get("title"))}</li>'
+        f'<li><a href="{site.run_link(r, 1)}">{esc(r)}</a> {user_text((site.run_by_id.get(r) or {}).get("title"))}</li>'
         for r in users) + "</ul>" if users else '<div class="empty">None yet</div>'))
     used_charts = [c for c in site.charts if not c.get("retired") and ds["path"] in
                    {i["path"] for i in (site.run_by_id.get(c["run"]) or {}).get("inputs") or []}]
     if used_charts:
         lineage.append("<h3>Visualizations made from this data (latest versions)</h3><ul class='plain'>" + "".join(
-            f'<li><a href="{site.chart_anchor(c["key"], 1)}">{esc(c.get("title"))}</a> <code>{esc(c["key"])}</code></li>'
+            f'<li><a href="{site.chart_anchor(c["key"], 1)}"{USER}>{esc(c.get("title"))}</a> <code{USER}>{esc(c["key"])}</code></li>'
             for c in used_charts) + "</ul>")
     # A statistic that does not apply to a column type is "–", never "null" (which is a data value).
     schema_rows = [[c["name"], c["dtype"], c.get("nulls"),
@@ -1268,15 +1303,15 @@ def dataset_page(site: Site, ds: dict, view: str) -> str:
                    for c in prof.get("columns") or []]
     preview = prof.get("preview") or {}
     body = f"""
-<div class="page-head"><div class="title-row"><h1>{esc(label)}</h1><span class="badge tone-muted">{esc(ds['kind'])}</span></div>
+<div class="page-head"><div class="title-row"><h1{USER}>{esc(label)}</h1><span class="badge tone-muted">{esc(ds['kind'])}</span></div>
 <div class="sub">{' · '.join(facts)}</div></div>
 {origin}
-<section><h2>Schema and statistics</h2>{site.table(['Column', 'Type', 'null', 'min', 'max', 'mean', 'distinct≈'], schema_rows, klass='list')}</section>
+<section><h2>Schema and statistics</h2>{site.table(['Column', 'Type', 'null', 'min', 'max', 'mean', 'distinct≈'], schema_rows, klass='list', data_head=False)}</section>
 <section><h2>Preview</h2>{site.table(preview.get('columns') or [], preview.get('rows') or [])}</section>
 <section><h2>Relations</h2>{''.join(lineage)}</section>
 <section><h2>Query</h2><pre class="cmd">analytics_query(sql="SELECT * FROM {esc(view)} LIMIT 20")
 analytics.read("{esc(view)}")   ·   analytics.sql("SELECT count(*) FROM {esc(view)}").pl()</pre></section>"""
-    crumb = f' <span>/</span> <a href="../index.html#data">Data</a> <span>/</span> {esc(label)}'
+    crumb = f' <span>/</span> <a href="../index.html#data">Data</a> <span>/</span> {user_text(label)}'
     return site.page(1, label, crumb, body, "dataset")
 
 
@@ -1308,11 +1343,11 @@ def context_page(site: Site) -> str:
         event = next((e for e in site.events if (e.get("refs") or {}).get("context") == v.name), None)
         who = f" · {esc(event.get('actor'))} · {esc(event.get('id'))}" if event else ""
         blocks.append(f'<article class="version" id="v-{esc(v.stem)}"><h3>{fmt_time(core._version_time(v))}{who}</h3>'
-                      f'<pre class="diff">{lines}</pre></article>')
+                      f'<pre class="diff"{USER if diff else ""}>{lines}</pre></article>')
     body = f"""
 <div class="page-head"><h1>Context history</h1><div class="sub">Each change to CONTEXT.md leaves a version in .lab/context/. A new version is noticed at a run, an import, a record and a Workspace render.</div></div>
 <div class="columns wide-left">
-  <article class="panel markdown">{render_markdown(current) if current else '<div class="empty">Empty</div>'}</article>
+  <article class="panel markdown"{USER if current else ""}>{render_markdown(current) if current else '<div class="empty">Empty</div>'}</article>
   <aside class="panel"><h3>{len(versions)} version(s)</h3><ul class="plain">{''.join(f'<li><a href="#v-{esc(v.stem)}">{fmt_time(core._version_time(v))}</a></li>' for v in versions[::-1])}</ul></aside>
 </div>
 <section><h2>Changes</h2>{''.join(blocks) or '<div class="empty">No versions recorded.</div>'}</section>"""

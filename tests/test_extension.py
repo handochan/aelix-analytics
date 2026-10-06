@@ -367,11 +367,9 @@ def test_a_korean_project_through_the_tools(tmp_path, monkeypatch):
     assert synced, detail
     source = tmp_path.joinpath(*ko.SOURCE_PARTS)
     source.parent.mkdir()
-    csv_text = "지역,채널,매출\n" + "".join(f"{r},{c},{v}\n" for r, c, v in ko.ROWS)
-    source.write_bytes(csv_text.encode("utf-8"))
-    written = "\n".join([ko.TITLE, ko.GOAL, ko.CONTEXT, ko.QUESTION, ko.FINDING, ko.RUN_TITLE,
-                         ko.CHART_TITLE, ko.DESCRIPTION, ko.SCRIPT, csv_text, str(source),
-                         "지역 수 3", "합계"])
+    source.write_bytes(ko.CSV.encode("utf-8"))
+    # Each thing the user wrote, whole (tests/test_language.py hangul_outside), and the query's alias.
+    written = [*ko.WRITTEN, str(source), "합계"]
     tools = tools_of(module)
     replies = []
 

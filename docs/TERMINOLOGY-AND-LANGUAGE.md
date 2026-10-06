@@ -231,8 +231,9 @@ HTML의 `lang`은 실제 UI 언어에 맞추고, 알려진 한국어 본문은 �
 1024 기반 용량 표시라면 KiB/MiB, 1000 기반이면 kB/MB처럼 계산 기준과 label을 맞춘다.
 CJK 폰트·Unicode 경로·한국어 검색·접근성 지원을 영어 기본화 과정에서 제거하지 않는다.
 
-새 CONTEXT 템플릿([`template/CONTEXT.md`](../src/aelix_analytics/template/CONTEXT.md), #10부터)의 섹션이다. 짧은 영어 머리말(파일의 역할,
-`pin`, journal과의 구분)이 첫 제목 위에 있다:
+새 CONTEXT 템플릿([`template/CONTEXT.md`](../src/aelix_analytics/template/CONTEXT.md), #10부터)의 섹션 제목과 안내 줄이다(머리말,
+`Data sources`의 표, 빈 `- ` 항목, 끝의 만든 날짜 주석은 생략). 짧은 영어 머리말(파일의 역할, `pin`, journal과의 구분)이 첫 `##` 제목
+위에 있다:
 
 ```markdown
 # {{title}}
@@ -268,19 +269,27 @@ HTML을 그리지 않아 주석이 글자로 보이고, 목표를 읽는 쪽은 
 ### 현재 구현(#10)
 
 - Workspace(정적 HTML)의 탭·제목·배지·버튼·빈 화면·tooltip·aria-label·오류와 kit의 status 안내는 영어다. 문서의 `lang`은 `en`이다.
-  사용자 내용 영역에는 `lang`을 붙이지 않는다. 프로젝트에 언어를 적는 곳이 없어 알려진 언어가 없기 때문이다(추정하지 않음).
-  CSS 글꼴 목록은 macOS·Windows·Linux의 한국어 글꼴을 포함한다.
+  사람과 스크립트가 쓴 내용을 담은 요소는 `lang=""`(언어 모름)이다: CONTEXT 본문과 버전 diff, 기록 글, 프로젝트 제목·목표·경로,
+  run·Visualization 제목·caption·그림의 대체 글, 데이터셋 이름·경로·설명, 열 이름과 값, 스크립트의 코드·출력·오류 요약, 맥락 섹션
+  이름. 프로젝트에 언어를 적는 곳이 없어 알려진 언어가 없으므로 추정하지 않고, 화면 낭독기는 그 글을 영어 음성이 아니라 읽는 사람의
+  기본 음성으로 읽는다(#10 전에는 페이지가 `ko`라 한국어 프로젝트의 글을 한국어로 읽었고, 이 접근성을 잃지 않음). kit의 label은 `en`
+  범위에 남는다. 문서 제목(`<title>`)은 kit의 글과 사용자 글을 한 문자열로 이어 `en`이다. CSS 글꼴 목록은 macOS·Windows·Linux의
+  한국어 글꼴을 포함한다.
 - 지금 탭은 `Overview`, `Visualizations`, `Timeline`, `Data`, `Runs`, `Context`, `Evaluation`이다. `Insights`·`Reports`는 그 기능의 Issue
   ([#18](https://github.com/handochan/aelix-analytics/issues/18)·[#19](https://github.com/handochan/aelix-analytics/issues/19))가 만든다.
   `Evaluation`은 옛 '평가' 탭의 이름을 옮긴 것이고, 안의 구역은 `Workflow feedback`·`Record coverage`·`Tool usage`다. 탭의 URL anchor
   (`#charts`, `#evaluation` 등)는 안정 식별자라 그대로다.
-- 사람이 쓴 글·열 이름·데이터셋 이름·경로는 바이트 그대로 보인다(HTML은 escape만, 링크는 퍼센트 인코딩만). 이름에 ASCII 밖의 글자가
-  있는 데이터셋은 SQL view 이름(`[a-z0-9_]`로 바꾼 기계 식별자) 대신 그 이름을 보이고 view를 함께 적는다.
+- 사람과 스크립트가 쓴 글은 번역하거나 Unicode 정규화(NFC 등)하지 않고 쓴 그대로 보인다. `CONTEXT.md`는 Markdown으로 그린다(HTML은
+  그리지 않아 글자로 보임). 그 밖의 글 — 기록 글, 제목, caption, 열 이름과 값, 데이터셋 이름, 경로(NFD 포함) — 은 HTML escape만
+  거친다(링크 대상은 퍼센트 인코딩, 페이지의 줄 끝은 LF — [ADR-0007](decisions/0007-line-endings.md) 결정 2, 표 미리보기는 긴 값을
+  줄임표로 줄임). 데이터셋은 쓴 그대로의 이름(파일 stem)으로 보인다. SQL view 이름(`[a-z0-9_]`로 바꾼 기계 식별자:
+  `My Sales`→`my_sales`, `my-data`→`my_data`, `123sales`→`t_123sales`, 한국어 이름→`___…`)이 그 이름과 다르면 데이터 탭과 데이터셋
+  페이지가 view를 옆에 적는다.
 - 새 프로젝트의 템플릿(`CONTEXT.md`, uv 프로젝트 이름 `analytics-<slug>`)과 데모(데이터·제목·기록·스크립트)는 영어다.
 - 용량은 1024 단위이므로 `KiB`·`MiB`·`GiB`로 적는다. 시각 표시의 offset은 아직 버린다(남은 일).
 - 문자열은 아직 message key 카탈로그가 아니라 코드 안의 영어 글이다. UI 언어가 하나뿐이라 카탈로그가 바꿀 동작이 없고, 두 번째 UI
-  locale을 도입할 때 함께 만든다. 그동안 `tests/test_language.py`가 출하 파일의 한국어(옛 CONTEXT를 읽는 표식만 허용)와, 한국어
-  프로젝트의 status·맥락 블록·Workspace 출력에서 사용자 내용 밖의 한국어를 막는다.
+  locale을 도입할 때 함께 만든다. 그동안 `tests/test_language.py`가 출하 파일의 한국어(옛 CONTEXT의 목표 제목·고정 표식을 읽는 줄만
+  허용)와, 한국어 프로젝트의 status·맥락 블록에서 사용자가 쓴 글 밖의 한국어, Workspace에서 `lang=""` 요소 밖의 한국어를 막는다.
 - 이미 영어인 표면의 이름(CLI 도움말의 `HTML report`, status 글의 `charts`, 저장 이름 `report/`)은 이 전환의 범위가 아니다(§2·§3).
 
 ## 8. 적용과 변경 관리

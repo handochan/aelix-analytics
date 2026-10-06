@@ -467,7 +467,7 @@ def test_line_endings_only_reaches_status_and_the_workspace(tmp_path):
     code, rendered = kit_cli(project.root, "render")
     assert code == 0, rendered
     page = (project.report / "runs" / f"{run_id}.html").read_text(encoding="utf-8")
-    assert "Line endings only" in page and "data/in.csv (line endings only)" in page
+    assert "Line endings only" in page and '<span lang="">data/in.csv</span> (line endings only)' in page
     assert "Current file edited (line endings only)" in page
     index = (project.report / "index.html").read_text(encoding="utf-8")
     assert "data/in.csv (line endings only)" in index

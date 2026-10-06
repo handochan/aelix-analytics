@@ -751,7 +751,7 @@ def test_context_is_disclosed_by_section_not_truncated_mid_sentence(project):
 
     assert kit_cli(project, "render")[0] == 0
     index = (p.report / "index.html").read_text(encoding="utf-8")
-    assert "Sections in every prompt: 목표, 다음 할 일." in index
+    assert 'Sections in every prompt: <span lang="">목표</span>, <span lang="">다음 할 일</span>.' in index
     assert "| a | b |" in index, "the report still shows the whole file"
 
 
