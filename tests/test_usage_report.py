@@ -258,7 +258,12 @@ def test_measurement_is_deterministic(monkeypatch, tmp_path):
     assert first.keys() == again.keys() == longer.keys()
     judged = 0
     for key, entry in first.items():
-        assert entry["size"] == again[key]["size"], key
+        # analytics_status names the read it was made from; its source_revision follows the files'
+        # mtimes, so the same fixture written again differs there, at the same length (Issue #12
+        # PR-2).
+        assert entry["root_normalized"]["size"] == again[key]["root_normalized"]["size"], key
+        assert entry["size"]["chars"] == again[key]["size"]["chars"], key
+        assert entry["size"] == again[key]["size"] or entry["root_normalized"]["masked_revisions"], key
         assert entry["root_normalized"]["masked_timestamps"] == 0, key
         if entry["length_cuts"] or longer[key]["length_cuts"]:
             continue

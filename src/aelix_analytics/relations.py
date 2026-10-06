@@ -37,7 +37,8 @@ examples under tests/fixtures/records/. Readings this module makes where the dec
 - A cycle among producers is a walk that comes back to a run still on its own path. A run reached
   twice through two producers (a diamond) is not a cycle.
 
-Costs that grow with the project: every judgment is built once per read and kept; an unbound
+Costs that grow with the project: every judgment is built once per read and kept (only one event's
+when only its references are asked for, as a screen showing a few records asks); an unbound
 reference lists every candidate version before it, so the judgments grow as references times
 versions of a key (a screen shows a count and where to read the rest, CONTRACTS A1); `upstream()`
 of every run of a producer chain returns sets that grow with the chain.
@@ -709,6 +710,7 @@ class ReadModel:
         self._imports_of: dict[str, list[dict]] | None = None
         self._references: list[dict] | None = None
         self._by_source: dict[str, list[dict]] = {}
+        self._one_source: dict[str, list[dict]] = {}
         self._edges_of: dict[str, list[str]] = {}
         self._instants: dict[str, datetime | None] = {}
         self._upstream: dict[str, dict] = {}
@@ -868,7 +870,20 @@ class ReadModel:
     def references(self, source: str | None = None) -> list[dict]:
         """One judgment for every reference of every readable event and saved Report manifest, in
         journal order and then manifest order; only those of `source` (`e<seq>`, `journal:<line>` or
-        `report:<report_id>/<revision_id>`) when given."""
+        `report:<report_id>/<revision_id>`) when given.
+
+        Asked for the references of one event before every judgment is made, it judges that event's
+        references alone: one record's judgments do not depend on another's, so they are the same
+        judgments, and a screen that shows a few records does not judge the whole project."""
+        if source is not None and self._references is None:
+            event = self._event_of(source)
+            if event is not None:
+                if source not in self._one_source:
+                    before = event.seq if event.seq is not None else self.journal.next_seq
+                    self._one_source[source] = (
+                        self._judge_v1(event, source, before) if event.schema == EVENT_V1
+                        else self._judge_v2(event.refs, source, event.line, before))
+                return list(self._one_source[source])
         if self._references is None:
             out: list[dict] = []
             for event in self.journal.events:
@@ -899,6 +914,17 @@ class ReadModel:
         if source is None:
             return list(self._references)
         return list(self._by_source.get(source, []))
+
+    def _event_of(self, source: str) -> Event | None:
+        """The readable event `source` names as `source_of` names it, or None (a Report revision, a
+        line that holds no readable event, an id on several lines given as `e<seq>`)."""
+        if source.startswith("journal:"):
+            number = source[len("journal:"):]
+            event = self.journal._event_at.get(int(number)) if number.isdigit() else None
+        else:
+            lines = self.journal.lines_of.get(source, [])
+            event = self.journal._event_at.get(lines[0]) if len(lines) == 1 else None
+        return event if event is not None and self.journal.source_of(event) == source else None
 
     def _completion_seqs(self) -> dict[tuple, int]:
         out: dict[tuple, int] = {}

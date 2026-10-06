@@ -222,6 +222,38 @@ def test_two_projects_in_one_host_keep_their_own_records(tmp_path, monkeypatch):
     assert lab.__globals__["STATE"]["report_tasks"] == {}, "a report build was started"
 
 
+def test_lab_status_shows_relations_as_the_kit_reads_them(tmp_path, monkeypatch):
+    """Issue #12 PR-2: inside the aelix process, analytics_status and /analytics status read the
+    records through the kit's relations module (core's stdlib sibling) and say the read they were
+    made from, the producers of a table two runs output with the same bytes, and a finding's
+    references by the identifiers the Workspace uses."""
+    from legacy_records import LegacyProject, at
+
+    module = fresh_module()
+    monkeypatch.setenv("AELIX_ANALYTICS_TRUST_FILE", str(tmp_path / "trust.json"))
+    p = LegacyProject(tmp_path / "legacy")
+    table = ("data/derived/t.parquet", p.file("data/derived/t.parquet", b"t"))
+    a = p.run("20261001-091000-a", started_at=at(10), ts=at(11), outputs=[table], charts=["trend"])
+    b = p.run("20261001-092000-b", script="scripts/b.py", started_at=at(20), ts=at(21),
+              outputs=[table])
+    p.event("finding", {"runs": [a], "charts": ["scripts/a.py::trend"], "events": ["e99"]},
+            ts=at(30), text="t grew")
+    monkeypatch.setenv("AELIX_ANALYTICS_PROJECT", str(p.root))
+    monkeypatch.chdir(tmp_path)
+
+    assert Path(module.core.relations.__file__) == module.KIT / "aelix_analytics" / "relations.py"
+    result = call(tools_of(module)["analytics_status"], {})
+    text, st = text_of(result), result.details
+    assert not result.is_error, text
+    read = f"read: as_of_seq {st['as_of_seq']} · source_revision {st['source_revision']}"
+    assert read in text.split("\n")
+    assert f"same bytes as 2 runs: {a}, {b}" in text
+    assert ("e3 finding: t grew · refs: 1 resolved (1 confirmed), 1 missing (e99), "
+            "1 version_unbound") in text
+    command = asyncio.run(module.analytics_command("status"))
+    assert read in command.split("\n") and "1 missing (e99)" in command
+
+
 def test_lab_command_where_help_and_gap(lab):
     module, root = lab
     assert "kit:" in asyncio.run(module.analytics_command("where"))

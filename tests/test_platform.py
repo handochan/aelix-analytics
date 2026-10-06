@@ -2542,11 +2542,15 @@ def test_a_run_through_a_linked_data_directory_is_recorded_as_measured(project, 
     code, read = kit_cli(project, "run", write_script(project, "96_read.py", body),
                         "--title", "read")
     assert code == 0 and read["run"]["status"] == "ok", read
-    datasets = core.list_datasets(core.Project(project))
+    # The datasets as the overview judges their producers (Issue #12 PR-2: list_datasets judges
+    # them only when given a read model, as status() and the Workspace give it).
+    datasets = core.status(core.Project(project))["datasets"]
     record_observation(f"linked-data-{kind}", {
         "save": {key: saved["run"].get(key) for key in ("outputs", "inputs", "warnings")},
         "read": {key: read["run"].get(key) for key in ("outputs", "inputs", "warnings")},
-        "datasets": [{key: ds.get(key) for key in ("name", "path", "kind", "producer", "used_by")}
+        "datasets": [{key: ds.get(key) for key in ("name", "path", "kind", "producer",
+                                                    "producer_state", "producer_candidates",
+                                                    "used_by")}
                      for ds in datasets]})
 
 
@@ -2954,8 +2958,9 @@ def test_loading_the_kit_pulls_no_analysis_library_into_the_host_process(monkeyp
     assert "KIT_OK:lab.run/1" in proc.stdout, proc.stdout + proc.stderr
     loaded = next(line for line in proc.stdout.splitlines() if line.startswith("LOADED:"))
     assert loaded == "LOADED:", f"the aelix process would have imported {loaded[len('LOADED:'):]}"
-    # From a checkout the package itself is not imported at all: core and _platform come from its
-    # directory under the synthetic name (Issue #9: the kit is now the package aelix_analytics).
+    # From a checkout the package itself is not imported at all: core, _platform and relations come
+    # from its directory under the synthetic name (Issue #9: the kit is now the package
+    # aelix_analytics).
     assert "OURS:" in proc.stdout.splitlines(), proc.stdout
 
 
@@ -2986,7 +2991,7 @@ def test_importing_the_package_imports_nothing_of_the_kit():
     assert seen["version"] == core.KIT_VERSION
     assert seen["after_version"] == ["aelix_analytics", "aelix_analytics._install",
                                      "aelix_analytics._platform", "aelix_analytics.cli",
-                                     "aelix_analytics.core"]
+                                     "aelix_analytics.core", "aelix_analytics.relations"]
 
 
 @pytest.mark.parametrize("command, flagged", [

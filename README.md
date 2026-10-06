@@ -243,7 +243,12 @@ my-analysis/
 - **입력 감지(최선 노력)**: 런타임 훅(Polars 읽기, DuckDB 읽기·SQL 파일 리터럴, `analytics.read/scan/sql`),
   코드의 경로 리터럴 정적 스캔, 호출 시 선언(`inputs`), 이 셋을 합칩니다. 각 입력에 어느 경로로 감지됐는지(`via`)가 남습니다.
   **출력**은 run 전후 프로젝트 파일 비교로 빠짐없이 잡습니다.
-- **stale**: 차트를 만든 run의 입력 파일 sha256이 지금과 다르거나, 그 입력을 만든 상위 run이 stale이면(전이) 표시됩니다.
+- **stale**: 차트를 만든 run의 입력 파일 sha256이 지금과 다르거나, 그 입력과 같은 바이트를 출력한 성공 run(그 run보다 늦게 시작하지 않은 것,
+  생산자 후보) 가운데 stale인 것이 있으면(전이) 표시됩니다. 후보가 여럿이면 하나를 고르지 않고 모두 따라가며 `producer ambiguous`라고 적습니다.
+  후보는 같은 바이트를 출력했다는 관측이라, stale인 후보는 생산자로 단정하지 않고 `upstream candidate`로 적습니다.
+- **관계의 상태**: `analytics_status`와 리포트는 기록을 한 번 읽어 참조마다 상태를 보입니다(ADR-0006): run 이벤트의 차트는 그 run의 차트로, 버전을
+  고정하지 않은 차트·데이터는 `Version unbound`와 최신 버전 링크("latest, not the cited version")로, 없는 대상은 `Missing`으로.
+  두 화면은 같은 식별자와 읽기 기준(`as_of_seq`·`source_revision`)을 적습니다.
 - **버전**: `스크립트::차트id`마다 최신 성공 run이 현재 버전이고, 이전 버전은 카드와 run 페이지에서 따라갈 수 있습니다.
 - **재실행 검증**: `analytics_run(rerun_of=…)`은 원래 스냅샷을 다시 실행해 플롯 데이터 프레임 동등성, 출력 바이트를 비교하고
   `match / mismatch / failed / inconclusive`를 기록합니다. 재실행이 실패했거나, 차트·출력이 사라지거나 새로 생기면
@@ -319,12 +324,12 @@ src/aelix_analytics/          kit이자 배포본의 package. src/가 자식에�
   __main__.py                 kit CLI (끝 줄이 JSON; 설치된 package 자신으로는 실행 거절)
   core.py                     프로젝트 모델 — stdlib만 (확장과 kit이 공유)
   _platform.py                플랫폼별 잠금·교체·프로세스·run 중단 — stdlib만 (core와 함께 로드)
-  relations.py                기록의 관계·해석 상태·상태 재생 읽기 모델(ADR-0006) — stdlib만, 아직 어느 명령·화면도 쓰지 않음
+  relations.py                기록의 관계·해석 상태·상태 재생 읽기 모델(ADR-0006) — stdlib만 (core가 status·리포트에 씀)
   runner.py  capture.py       run 실행과 기록, 입력·차트 캡처 훅
   data.py    report.py        import·프로파일·쿼리, HTML 리포트 (+ assets/)
   demo.py                     데모 데이터·run (+ demo_scripts/)    template/  새 프로젝트 파일
   cli.py  _install.py         `analytics` 런처, 설치된 실행 루트 찾기    aelix-plugin.toml  manifest
-extension/aelix_analytics.py  aelix 확장 (stdlib + aelix API, 실행 루트의 core·_platform을 경로로 로드; 설치본의 aelix_analytics/extension.py)
+extension/aelix_analytics.py  aelix 확장 (stdlib + aelix API, 실행 루트의 core·_platform·relations를 경로로 로드; 설치본의 aelix_analytics/extension.py)
 bin/analytics                 사람용 CLI (체크아웃, POSIX)
 ```
 

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import contextlib
 import difflib
+import functools
 import hashlib
 import html
 import json
@@ -23,7 +24,7 @@ from importlib import resources
 from pathlib import Path
 from urllib.parse import quote
 
-from . import _platform, core
+from . import _platform, core, relations
 
 ASSETS = resources.files(__package__) / "assets"
 PLOTLY_EMBED_LIMIT = 3_000_000
@@ -39,6 +40,22 @@ STATUS = {"ok": ("good", "✓", "성공"), "error": ("critical", "✕", "오류"
           "incomplete": ("muted", "…", "미완료"), "running": ("muted", "…", "실행 중")}
 INPUT_STATE = {"same": ("good", "✓", "같음"), "changed": ("critical", "⚠", "변경됨"),
                "missing": ("critical", "⚠", "없음"), "unknown": ("muted", "?", "확인 불가")}
+# A reference's state as the read judges it (ADR-0006 4), said in words and not only in colour.
+REF_STATE = {"resolved": ("good", "Resolved"), "content_changed": ("critical", "Content changed"),
+             "missing": ("critical", "Missing"), "version_unbound": ("muted", "Version unbound"),
+             "ambiguous": ("warning", "Ambiguous"), "unknown": ("muted", "Unknown"),
+             "unsupported": ("muted", "Unsupported")}
+LATEST = "latest, not the cited version"
+# The current state of a file a run recorded as its output.
+OUTPUT_STATE = {"resolved": ("good", "✓", "Same as recorded"),
+                "content_changed": ("critical", "⚠",
+                                    "Overwritten since this run — this run's bytes are not preserved"),
+                "missing": ("critical", "⚠", "Missing"),
+                "unknown": ("muted", "?", "Unknown (no hash recorded)")}
+RECORDING_REASON = {"not_final": "the run record is not final (it is running, or stopped while running)",
+                    "no_completion_event": "the journal has no completion event for this run",
+                    "finalize_errors": "some recording steps failed"}
+SHOWN_CANDIDATES = 3
 
 
 def esc(value) -> str:
@@ -95,23 +112,43 @@ def kind_chip(kind) -> str:
             f'{esc(KIND_LABEL.get(kind, kind))}</span>')
 
 
+@functools.lru_cache(maxsize=4096)
 def slug_key(key: str) -> str:
-    """Anchor for a script::chart key: readable prefix plus a hash, so similar keys never collide."""
+    """Anchor for a script::chart key: readable prefix plus a hash, so similar keys never collide.
+    Kept per key: every unbound reference to a chart links its gallery card."""
     digest = hashlib.sha1(key.encode()).hexdigest()[:8]
     return f"{core.slugify(key.replace('::', '--'), 60) or 'chart'}-{digest}"
 
 
 class Site:
-    """Everything a page needs, loaded once per build."""
+    """Everything a page needs, loaded once per build from one read of the records (core.read_model):
+    the events, runs, datasets and the state of every reference the pages show come from it, so they
+    carry the identifiers, as_of_seq and source_revision analytics_status gives for the same
+    files."""
 
     def __init__(self, project: core.Project):
         self.p = project
-        self.events = core.read_events(project)
-        self.runs = core.list_runs(project)
-        self.run_by_id = {r["id"]: r for r in self.runs}
         self.cache = core.HashCache(project)
-        self.fresh = core.Freshness(project, self.runs, self.cache)
-        self.datasets = core.list_datasets(project, self.runs)
+        self.model = core.read_model(project, self.cache)
+        journal = self.model.journal
+        listed = [e for e in journal.events if e.schema == core.SCHEMA_EVENT]
+        self.events = [e.value for e in listed]
+        self.source_of = {id(e.value): journal.source_of(e) for e in listed}
+        self.runs = core.model_runs(project, self.model)
+        self.run_by_id = {r["id"]: r for r in self.runs}
+        self.recording = {r["run_id"]: r for r in self.model.runs()}
+        self.fresh = core.Freshness(project, self.runs, self.cache, self.model)
+        self.datasets = core.list_datasets(project, self.runs, model=self.model,
+                                           sha=self.cache.sha)
+        # The timeline shows every event, so every reference is judged once, here.
+        self.model.references()
+        # The events that name each run in refs.runs, in journal order (a run page's journal).
+        self.related: dict[str, list[dict]] = {}
+        for event in self.events:
+            runs = (event.get("refs") or {}).get("runs") or []
+            for run_id in dict.fromkeys(r for r in (runs if isinstance(runs, list) else [runs])
+                                        if isinstance(r, str)):
+                self.related.setdefault(run_id, []).append(event)
         self.views = core.view_names(self.datasets)
         self.view_by_path = {path: name for name, path in self.views.items()}
         self.charts = core.chart_index(self.runs)
@@ -157,44 +194,120 @@ class Site:
     def chart_anchor(self, key: str, depth: int) -> str:
         return f"{self.root(depth)}index.html#chart-{slug_key(key)}"
 
-    def path_html(self, path: str, depth: int) -> str:
+    def path_html(self, path: str, depth: int, note: str = "") -> str:
         link = self.data_link(path, depth)
         label = self.view_by_path.get(path) or path
         if link:
-            return f'<a href="{link}" title="{esc(path)}">{esc(label)}</a>'
-        return f'<a href="{self.file_link(path, depth)}">{esc(path)}</a>'
+            title = f"{path} — {note}" if note else path
+            return f'<a href="{link}" title="{esc(title)}">{esc(label)}</a>'
+        title = f' title="{esc(note)}"' if note else ""
+        return f'<a href="{self.file_link(path, depth)}"{title}>{esc(path)}</a>'
 
-    def refs_html(self, refs: dict, depth: int) -> str:
-        items = []
-        for run_id in refs.get("runs") or []:
-            if run_id in self.run_by_id:
-                items.append(f'<a class="ref" href="{self.run_link(run_id, depth)}">run {esc(run_id)}</a>')
-            else:
-                items.append(f'<span class="ref">run {esc(run_id)}</span>')
-        for key in (refs.get("charts") or [])[:REF_LIMIT]:
-            items.append(f'<a class="ref" href="{self.chart_anchor(key, depth)}">chart '
-                         f'{esc(key.split("::")[-1])}</a>')
-        data = refs.get("data") or []
-        for item in data[:REF_LIMIT]:
-            path = item if item in self.view_by_path else self.views.get(item)
-            items.append(f'<span class="ref">{self.path_html(path, depth)}</span>' if path
-                         else f'<span class="ref">{esc(item)}</span>')
-        hidden = max(0, len(data) - REF_LIMIT) + max(0, len(refs.get("charts") or []) - REF_LIMIT)
+    def source(self, event: dict) -> str | None:
+        """How the read names an event: its id, or `journal:<line>` when several lines have it."""
+        return self.source_of.get(id(event), event.get("id"))
+
+    def anchor(self, event: dict) -> str:
+        """An event's anchor on the timeline: its id, or `journal-<line>` when several lines have it."""
+        source = self.source(event)
+        return event.get("id") if not source or source == event.get("id") else source.replace(":", "-")
+
+    def refs_html(self, event: dict, depth: int) -> str:
+        """An event's references as the read judges them (ADR-0006 4), the same judgments
+        analytics_status counts. A field that names many targets shows REF_LIMIT of them and how
+        many more; a target left unbound links the latest version and says it is not the cited
+        one."""
+        items, hidden = [], 0
+        groups: dict = {}
+        for judged in self.model.references(self.source(event) or ""):
+            groups.setdefault((judged.get("ref") or {}).get("field"), []).append(judged)
+        for field, group in groups.items():
+            shown = group if field in ("runs", "events", "resolves", "context") else group[:REF_LIMIT]
+            hidden += len(group) - len(shown)
+            if any(j["state"] == "version_unbound" for j in shown):
+                items.append(f'<span class="ref-label" title="the record names no version: the link '
+                             f'is the {LATEST}">Version unbound</span>')
+            items += [self.ref_html(judged, depth) for judged in shown]
         if hidden:
             items.append(f'<span class="ref muted" title="전체 목록은 run 페이지에 있습니다">'
                          f'그 외 {hidden:,}개</span>')
-        for ev in refs.get("events") or []:
-            items.append(f'<a class="ref" href="{self.root(depth)}index.html#{esc(ev)}">{esc(ev)}</a>')
-        if refs.get("resolves"):
-            target = refs["resolves"]
-            items.append(f'<a class="ref" href="{self.root(depth)}index.html#{esc(target)}">'
-                         f'해결: {esc(target)}</a>')
-        if refs.get("context"):
-            items.append(f'<a class="ref" href="{self.root(depth)}context.html#v-'
-                         f'{esc(Path(refs["context"]).stem)}">버전 보기</a>')
-        for other in (refs.get("other") or [])[:REF_LIMIT]:
-            items.append(f'<span class="ref">{esc(other)}</span>')
         return f'<div class="refs">{"".join(items)}</div>' if items else ""
+
+    def ref_html(self, judged: dict, depth: int) -> str:
+        """One reference: its target by the identifier analytics_status uses, linked when the read
+        found it, and its state in words unless it is resolved or (said once for its field)
+        unbound."""
+        kind, state = judged.get("type"), judged["state"]
+        target, label = judged.get("target") or {}, core.reference_label(judged)
+        found = state == "resolved"
+        field = (judged.get("ref") or {}).get("field")
+        if kind == "run":
+            body = (f'<a href="{esc(self.run_link(label, depth))}">run {esc(label)}</a>' if found
+                    else f"run {esc(label)}")
+        elif kind == "visualization_version" and judged.get("version_binding") != "none":
+            run, chart = target.get("run_id"), target.get("visualization_id")
+            anchor = f"#chart-{href(str(chart))}"
+            body = (f'<a href="{esc(self.run_link(run, depth, anchor))}" title="{esc(label)}">'
+                    f"chart {esc(chart)}</a>" if found and run else f"chart {esc(label)}")
+        elif kind == "visualization_version":
+            key = str(target.get("key") or target.get("token") or label)
+            body = (f'<a href="{esc(self.chart_anchor(key, depth))}" title="{LATEST}">'
+                    f"chart {esc(key)}</a>")
+        elif kind in ("data_observation", "dataset_import"):
+            item = str(target.get("key") or target.get("path") or label)
+            path = item if item in self.view_by_path else self.views.get(item)
+            body = self.path_html(path, depth, LATEST) if path else esc(item)
+        elif kind == "event":
+            prefix = "해결: " if field == "resolves" else ""
+            body = (f'<a href="{esc(self.root(depth))}index.html#{esc(label)}">{prefix}{esc(label)}</a>'
+                    if found else f"{prefix}{esc(label)}")
+        elif kind == "context_version" and found:
+            body = (f'<a href="{esc(self.root(depth))}context.html#v-{esc(Path(label).stem)}" '
+                    f'title="{esc(label)}">버전 보기</a>')
+        else:
+            body = esc(label)
+        candidates = judged.get("candidates")
+        if candidates and state in ("version_unbound", "ambiguous"):
+            # An event target's candidates are the journal lines with its id; the others' are
+            # versions.
+            what = "record(s)" if kind in relations.EVENT_TARGETS else "version(s)"
+            body += (f' <small class="ref-note" title="{esc(", ".join(candidates))}">'
+                     f"{len(candidates):,} candidate {what}</small>")
+        if state not in ("resolved", "version_unbound"):
+            tone, words = REF_STATE.get(state, ("muted", state))
+            reason = f": {judged['reason']}" if judged.get("reason") else ""
+            body += f' <small class="ref-state tone-{tone}">{esc(words + reason)}</small>'
+        return f'<span class="ref ref-{esc(state)}">{body}</span>'
+
+    def closed_badge(self, resolver: dict) -> str:
+        """The badge of a record another one closes by refs.resolves, as the lists select (C1):
+        resolved only when the read finds that reference, and otherwise the state it judges, in
+        words (a forward refs.resolves is `missing`, record_absent)."""
+        source = self.source(resolver) or ""
+        link = f"#{esc(self.anchor(resolver))}"
+        judged = next((j for j in self.model.references(source)
+                       if (j.get("ref") or {}).get("field") == "resolves"), None)
+        if judged is not None and judged["state"] == "resolved":
+            return f' <a class="badge tone-good" href="{link}">✓ 해결됨 {esc(source)}</a>'
+        state = judged["state"] if judged is not None else "unknown"
+        tone, words = REF_STATE.get(state, ("muted", state))
+        reason = f": {judged['reason']}" if judged is not None and judged.get("reason") else ""
+        return (f' <a class="badge tone-{tone}" href="{link}" title="the lists take this record as '
+                f'closed by {esc(source)} (refs.resolves), and the read judges that reference '
+                f'{esc(state)}">closed by {esc(source)} · {esc(words + reason)}</a>')
+
+    def read_footer(self) -> str:
+        """The read every page was made from, as analytics_status names it."""
+        text = (f"as_of_seq {self.model.as_of_seq} · source_revision {self.model.source_revision}")
+        if self.model.updating:
+            text += " · updating: the records changed while they were read"
+        return text
+
+    def producer_html(self, candidates: list[str], depth: int) -> str:
+        links = [f'<a href="{esc(self.run_link(r, depth))}">{esc(r)}</a>'
+                 for r in candidates[:SHOWN_CANDIDATES]]
+        more = len(candidates) - SHOWN_CANDIDATES
+        return ", ".join(links) + (f" and {more:,} more" if more > 0 else "")
 
     # --- charts ---
 
@@ -232,9 +345,8 @@ class Site:
         fresh = self.fresh.of(chart["run"])
         script = run.get("script") or {}
         badges = []
-        if fresh["stale"]:
-            reasons = fresh["changed_inputs"] + [f"상위 run {u}" for u in fresh["stale_upstream"]]
-            badges.append(badge("critical", "⚠", "입력 변경됨", "; ".join(reasons)))
+        badges += stale_badges(fresh)
+        badges += producer_badges(fresh)
         if fresh["code"] == "changed":
             badges.append(badge("warning", "✎", "스크립트 수정됨",
                                 "이 차트를 만든 뒤 스크립트 파일이 바뀌었습니다"))
@@ -338,15 +450,18 @@ class Site:
             resolved = self.resolved.get(ev.get("id"))
             state = ""
             if ev.get("kind") in core.OPEN_KINDS + core.KEY_KINDS and resolved:
-                state = (f' <a class="badge tone-good" href="#{esc(resolved["id"])}">✓ 해결됨 '
-                         f'{esc(resolved["id"])}</a>')
+                state = self.closed_badge(resolved)
             elif ev.get("kind") in core.OPEN_KINDS:
                 state = ' <span class="badge tone-warning">● 열림</span>'
+            # A record whose id other lines share is named by its line, and so is its anchor.
+            source, anchor, shown = self.source(ev), self.anchor(ev), esc(ev.get("id"))
+            if anchor != ev.get("id"):
+                shown += f' <small title="several journal lines have this id">{esc(source)}</small>'
             out.append(
-                f'<li class="ev" id="{esc(ev.get("id"))}" data-kind="{esc(ev.get("kind"))}">'
+                f'<li class="ev" id="{esc(anchor)}" data-kind="{esc(ev.get("kind"))}">'
                 f'<div class="ev-head"><time>{fmt_time(ts, with_date=False)}</time>{kind_chip(ev.get("kind"))}'
-                f'<span class="ev-id">{esc(ev.get("id"))}</span><span class="actor">{esc(ev.get("actor"))}</span>{state}</div>'
-                f'<div class="ev-text">{esc(ev.get("text"))}</div>{self.refs_html(ev.get("refs") or {}, depth)}</li>')
+                f'<span class="ev-id">{shown}</span><span class="actor">{esc(ev.get("actor"))}</span>{state}</div>'
+                f'<div class="ev-text">{esc(ev.get("text"))}</div>{self.refs_html(ev, depth)}</li>')
         chips = ""
         if filters:
             counts = Counter(e.get("kind") for e in events)
@@ -379,7 +494,7 @@ class Site:
   <div class="build">빌드 {fmt_time(self.built_at)} · <label><input type="checkbox" id="live" checked> 자동 새로고침</label></div>
 </header>
 <main>{body}</main>
-<footer>Aelix Analytics {core.KIT_VERSION} · run 기록·journal·CONTEXT.md에서 생성된 페이지입니다. 직접 편집하지 마세요.</footer>
+<footer>Aelix Analytics {core.KIT_VERSION} · run 기록·journal·CONTEXT.md에서 생성된 페이지입니다. 직접 편집하지 마세요. · <span class="read-basis">Read at {esc(self.read_footer())}</span></footer>
 {plotly}
 <script src="{root}assets/report.js{v}"></script>
 </body>
@@ -490,6 +605,141 @@ def _write_assets(site: Site, out: Path) -> None:
                 dest.write_bytes(data)
 
 
+# --- relations as the read judges them ---
+
+SHOWN_PLACES = 20
+
+
+def _places(items: list[str]) -> str:
+    more = len(items) - SHOWN_PLACES
+    return ", ".join(items[:SHOWN_PLACES]) + (f" and {more:,} more" if more > 0 else "")
+
+
+def records_notice(site: Site) -> str:
+    """What the pages cannot show, said where the overview starts: records this kit cannot read,
+    lines that do not parse (and the records recovered from them), record files not read, records
+    of the next format, ids several lines share, and a read that kept changing."""
+    m = site.model
+    items = []
+    if m.unsupported:
+        places = [f"{u['location']} ({u['reason']})" for u in m.unsupported]
+        # Only a known family's newer version is one a newer kit may read.
+        newer = sum(1 for u in m.unsupported if u["reason"] == "unknown_version")
+        later = (" A newer kit may read them." if newer == len(places) else
+                 f" A newer kit may read the {newer:,} of an unknown version." if newer else "")
+        items.append(f"<li><strong>Unsupported: {len(places):,} record(s) this kit cannot read</strong> "
+                     f"are in no list of this report — {esc(_places(places))}.{later}</li>")
+    journal = m.journal
+    if journal.damaged:
+        recovered = (f"; the record a later write appended onto {len(journal.recovered):,} of them is "
+                     f"read ({esc(_places([f'journal:{n}' for n in journal.recovered]))})"
+                     if journal.recovered else "")
+        items.append(f"<li><strong>Damaged: {len(journal.damaged):,} journal line(s) do not parse</strong> "
+                     f"({esc(_places([f'journal:{n}' for n in journal.damaged]))}){recovered}.</li>")
+    if m.damaged_files:
+        places = [f"{f['location']} ({f['reason']})" for f in m.damaged_files]
+        items.append(f"<li><strong>Damaged: {len(places):,} record file(s) not read</strong> — "
+                     f"{esc(_places(places))}.</li>")
+    later = [f"journal:{e.line}" for e in journal.events if e.schema != core.SCHEMA_EVENT]
+    if later:
+        items.append(f"<li><strong>Not listed: {len(later):,} analytics.event/2 record(s)</strong> "
+                     f"({esc(_places(later))}) — this kit lists lab.event/1 records only.</li>")
+    shared = {i: [f"journal:{n}" for n in lines] for i, lines in journal.lines_of.items()
+              if len(lines) > 1}
+    if shared:
+        listed, cut = core.shared_ids_text(shared, SHOWN_PLACES)
+        rest = (" (the kit's <code>status</code> command lists every line in its JSON "
+                "<code>shared_ids</code>)" if cut else "")
+        items.append(f"<li><strong>Ids on several lines:</strong> {esc(listed)}{rest} — each line is "
+                     "its own record, and a reference to the id is ambiguous.</li>")
+    if m.updating:
+        items.append("<li><strong>Updating:</strong> the records changed while they were read; this "
+                     "report shows the last of three reads.</li>")
+    if not items:
+        return ""
+    return ('<div class="callout tone-warning"><strong>Records this report does not show as they '
+            f'are</strong><ul>{"".join(items)}</ul></div>')
+
+
+# What a stale producer candidate upstream means for the run that read its bytes (ADR-0006 4).
+UPSTREAM_STALE = ("An input has the same bytes as the output of run(s) {runs}, whose inputs (or those "
+                  "of a run before them) changed: producer candidates, not confirmed links.")
+
+
+def stale_badges(fresh: dict) -> list[str]:
+    """Why a run's charts may be out of date: an input of its own changed or is missing, or a run that
+    output the same bytes as one of its inputs is stale. That run is a producer candidate, so the
+    badge says so and does not say this run's input changed."""
+    out = []
+    if fresh["changed_inputs"]:
+        out.append(badge("critical", "⚠", "입력 변경됨", "; ".join(fresh["changed_inputs"])))
+    if fresh["stale_upstream"]:
+        runs = fresh["stale_upstream"]
+        more = len(runs) - SHOWN_CANDIDATES
+        named = ", ".join(runs[:SHOWN_CANDIDATES]) + (f" and {more:,} more" if more > 0 else "")
+        out.append(badge("warning", "⚠", "Upstream candidate stale", UPSTREAM_STALE.format(runs=named)))
+    return out
+
+
+def producer_badges(fresh: dict) -> list[str]:
+    """Badges for a run whose inputs several runs could have output, or whose producers cycle."""
+    out = []
+    if fresh.get("ambiguous_inputs"):
+        paths = fresh["ambiguous_inputs"]
+        out.append(badge("warning", "?", "Producer ambiguous",
+                         f"several successful runs output the same bytes as {len(paths):,} input(s): "
+                         + ", ".join(paths[:SHOWN_CANDIDATES])
+                         + (f" and {len(paths) - SHOWN_CANDIDATES:,} more" if len(paths) > SHOWN_CANDIDATES else "")))
+    if fresh.get("cycle"):
+        out.append(badge("warning", "↻", "Producer cycle",
+                         "following the runs that output these inputs comes back to a run on the way"))
+    return out
+
+
+def origin_html(site: Site, ds: dict, depth: int) -> str:
+    """Where a dataset's current bytes come from, as far as the records say: the runs whose output
+    had this path and these bytes (named as such, not as the run that made them), the imported file,
+    or neither."""
+    state, candidates = ds.get("producer_state"), ds.get("producer_candidates") or []
+    if state == "resolved":
+        run = candidates[0]
+        return (f'<a href="{esc(site.run_link(run, depth))}" title="same bytes as this run\'s output">'
+                f"{esc(run)}</a>")
+    if state == "ambiguous":
+        return (badge("warning", "?", "Producer ambiguous",
+                      f"same bytes as the output of {len(candidates):,} runs")
+                + " " + site.producer_html(candidates, depth))
+    if ds.get("unsupported_record"):
+        record = ds["unsupported_record"]
+        return badge("muted", "?", "Import record not read", f"{record['location']}: {record['reason']}")
+    if ds.get("source"):
+        return esc(Path(ds["source"]).name)
+    if state == "unknown":
+        return badge("muted", "?", "Producer unknown", "the file could not be hashed")
+    if ds.get("written_by"):
+        return badge("warning", "⚠", "No matching run output",
+                     "no successful run output these bytes; runs that wrote this path: "
+                     + ", ".join(ds["written_by"][::-1][:SHOWN_CANDIDATES]))
+    return badge("critical", "⚠", "생성 run 없음")
+
+
+def producer_cell(site: Site, judged: dict | None, depth: int) -> str:
+    """The producer judgment of one input of a run (ADR-0006 4): every successful run that output
+    its path with its recorded bytes and did not start after the run, none chosen."""
+    if not judged:
+        return '<span class="muted">-</span>'
+    candidates = judged.get("candidates") or []
+    if judged["producer"] == "resolved":
+        return site.producer_html(candidates, depth)
+    if judged["producer"] == "ambiguous":
+        return (badge("warning", "?", "Producer ambiguous",
+                      f"{len(candidates):,} successful runs output these bytes")
+                + " " + site.producer_html(candidates, depth))
+    if judged["producer"] == "unknown":
+        return badge("muted", "?", "Unknown", "the input has no recorded hash")
+    return '<span class="muted">-</span>'
+
+
 # --- index ---
 
 def index_page(site: Site) -> str:
@@ -527,16 +777,10 @@ def index_page(site: Site) -> str:
             return f'<div class="empty">{empty}</div>'
         return '<ul class="items">' + "".join(
             f'<li id="key-{esc(e["id"])}">{kind_chip(e["kind"])} <span class="item-text">{esc(e["text"])}</span>'
-            f'<span class="item-meta"><a href="#{esc(e["id"])}">{esc(e["id"])}</a> · {fmt_time(e.get("ts"))}</span>'
-            f'{site.refs_html(e.get("refs") or {}, 0)}</li>' for e in reversed(items[-12:])) + "</ul>"
+            f'<span class="item-meta"><a href="#{esc(site.anchor(e))}">{esc(site.source(e))}</a> · {fmt_time(e.get("ts"))}</span>'
+            f'{site.refs_html(e, 0)}</li>' for e in reversed(items[-12:])) + "</ul>"
 
-    unreadable = core.unreadable_records(p)
-    skipped = ""
-    if unreadable:
-        detail = ", ".join(f"{schema} {count}건" for schema, count in sorted(unreadable.items()))
-        skipped = ('<div class="callout tone-critical"><strong>이 리포트에서 빠진 기록이 있습니다.</strong> '
-                   f'{esc(detail)} — 더 새로운 kit이 쓴 기록이라 이 버전은 읽지 못합니다. '
-                   'kit을 업데이트한 뒤 리포트를 다시 만드세요.</div>')
+    skipped = records_notice(site)
 
     overview = f"""
 <section id="overview" class="tab">
@@ -570,12 +814,7 @@ def index_page(site: Site) -> str:
     data_rows = []
     for ds in site.datasets:
         view = site.view_by_path.get(ds["path"])
-        if ds.get("producer"):
-            origin = f'<a href="{site.run_link(ds["producer"], 0)}">{esc(ds["producer"])}</a>'
-        elif ds.get("source"):
-            origin = esc(Path(ds["source"]).name)
-        else:
-            origin = badge("critical", "⚠", "생성 run 없음")
+        origin = origin_html(site, ds, 0)
         data_rows.append(
             f'<tr><td><a href="data/{href(view)}.html">{esc(view)}</a></td><td>{esc(ds["kind"])}</td>'
             f'<td class="num">{fmt_num(ds.get("rows"))}</td><td class="num">{fmt_num(ds.get("columns"))}</td>'
@@ -586,7 +825,7 @@ def index_page(site: Site) -> str:
 <section id="data" class="tab">
   <div class="toolbar"><h2>데이터</h2></div>
   <p class="muted">data/raw는 가져온 원본(불변), data/derived는 run이 만든 Parquet입니다. 이름은 analytics_query·analytics.sql에서 쓰는 view 이름입니다.</p>
-  {('<div class="table-wrap"><table class="list"><thead><tr><th>view</th><th>종류</th><th>행</th><th>열</th><th>크기</th><th>경로</th><th>출처 / 생성 run</th><th>사용 run</th><th>sha256</th></tr></thead><tbody>' + ''.join(data_rows) + '</tbody></table></div>') if data_rows else '<div class="empty">아직 데이터셋이 없습니다. analytics_import로 가져오세요.</div>'}
+  {('<div class="table-wrap"><table class="list"><thead><tr><th>view</th><th>종류</th><th>행</th><th>열</th><th>크기</th><th>경로</th><th>Source / producer candidates</th><th>사용 run</th><th>sha256</th></tr></thead><tbody>' + ''.join(data_rows) + '</tbody></table></div>') if data_rows else '<div class="empty">아직 데이터셋이 없습니다. analytics_import로 가져오세요.</div>'}
 </section>"""
 
     run_rows = []
@@ -768,10 +1007,24 @@ def run_page(site: Site, run: dict) -> str:
                      + "".join(f"<li>{esc(w)}</li>" for w in shown)
                      + (f"<li class='muted'>그 외 {rest:,}건</li>" if rest > 0 else "")
                      + "</ul></div>")
-    if fresh["stale"]:
+    recording = site.recording.get(rid) or {}
+    if recording.get("recording_status") == "incomplete":
+        callouts += ('<div class="callout tone-warning"><strong>Recording incomplete</strong><ul>'
+                     + "".join(f"<li><code>{esc(r)}</code>: {esc(RECORDING_REASON.get(r, r))}</li>"
+                               for r in recording.get("reasons") or [])
+                     + "</ul></div>")
+    if fresh["changed_inputs"]:
         callouts += ('<div class="callout tone-critical"><strong>이 run의 입력이 지금 파일과 다릅니다.</strong> '
-                     + esc(", ".join(fresh["changed_inputs"] + [f"상위 run {u}" for u in fresh["stale_upstream"]]))
+                     + esc(", ".join(fresh["changed_inputs"])) + "</div>")
+    if fresh["stale_upstream"]:
+        # The stale runs upstream output the same bytes as an input: candidates, not its producer.
+        callouts += ('<div class="callout tone-warning"><strong>Upstream candidate stale.</strong> '
+                     + UPSTREAM_STALE.format(runs=site.producer_html(fresh["stale_upstream"], 1))
                      + "</div>")
+    if fresh.get("ambiguous_inputs") or fresh.get("cycle"):
+        callouts += ('<div class="callout tone-warning">' + " ".join(producer_badges(fresh))
+                     + " The inputs below name every successful run that output their bytes; none is "
+                     "chosen as the producer.</div>")
 
     charts = []
     for chart in run.get("charts") or []:
@@ -820,22 +1073,29 @@ def run_page(site: Site, run: dict) -> str:
     input_rows = []
     for entry, f_entry in ordered:
         tone, icon, label = INPUT_STATE.get(f_entry["state"], INPUT_STATE["unknown"])
+        producer = producer_cell(site, site.model.producer(rid, entry.get("path")), 1)
         input_rows.append(
             f'<tr><td>{site.path_html(entry["path"], 1)}</td><td>{esc(", ".join(entry.get("via") or []))}</td>'
             f'<td class="num">{fmt_bytes(entry.get("bytes"))}</td><td class="sha">{short(entry.get("sha256"), 12)}</td>'
-            f'<td>{badge(tone, icon, label)}</td></tr>')
+            f'<td>{badge(tone, icon, label)}</td><td>{producer}</td></tr>')
     if n_inputs > len(input_rows):
         input_rows.append(
-            f'<tr><td colspan="5" class="muted">그 외 {n_inputs - len(input_rows):,}개 — 변경된 '
+            f'<tr><td colspan="6" class="muted">그 외 {n_inputs - len(input_rows):,}개 — 변경된 '
             f'입력을 먼저 보여줍니다. 전체 목록은 '
             f'<a href="{site.file_link(f"runs/{rid}/run.json", 1)}">run.json</a>에 있습니다.</td></tr>')
     output_rows = []
     for out in run.get("outputs") or []:
+        if out.get("change") == "deleted":
+            now = '<span class="muted">-</span>'
+        else:
+            seen = site.model.observation(rid, "output", out.get("path"))
+            tone, icon, label = OUTPUT_STATE.get(seen["state"], OUTPUT_STATE["unknown"])
+            now = badge(tone, icon, label, seen.get("reason"))
         output_rows.append(
             f'<tr><td>{site.path_html(out["path"], 1)}</td><td>{esc(out.get("change"))}</td>'
             f'<td>{esc(out.get("via", ""))}</td><td class="num">{fmt_num(out.get("rows"))}</td>'
             f'<td>{esc(", ".join(c[0] for c in (out.get("schema") or [])[:12]))}</td>'
-            f'<td class="sha">{short(out.get("sha256"), 12)}</td></tr>')
+            f'<td class="sha">{short(out.get("sha256"), 12)}</td><td>{now}</td></tr>')
 
     def log_block(label, rel):
         if not rel:
@@ -857,16 +1117,16 @@ def run_page(site: Site, run: dict) -> str:
         ("python", env.get("python")), ("uv.lock sha256", short(env.get("uv_lock_sha256"), 16)),
         ("kit", f"{env.get('kit_version')} · {short(env.get('kit_sha256'), 12)}"),
         *sorted((env.get("packages") or {}).items())])
-    related = [e for e in site.events if rid in ((e.get("refs") or {}).get("runs") or [])]
+    related = site.related.get(rid, [])
 
     body = f"""{head}{callouts}
 <nav class="jump"><a href="#charts">차트</a><a href="#code">코드</a><a href="#inputs">입력</a><a href="#outputs">출력</a><a href="#logs">로그</a><a href="#env">환경</a><a href="#journal">기록</a><a href="#reproduce">재현</a></nav>
 <section id="charts"><h2>차트 ({len(run.get('charts') or [])})</h2>{charts_html}</section>
 <section id="code"><h2>코드</h2><p class="muted">run이 실행한 바이트 그대로의 스냅샷입니다. 강조된 줄은 차트를 기록한 줄과 오류 줄입니다.</p>{''.join(code_blocks) or '<div class="empty">코드 스냅샷이 없습니다.</div>'}</section>
-<section id="inputs"><h2>입력 데이터 ({n_inputs})</h2><p class="muted">via: 런타임 감지(polars·duckdb·lab.*), scan(코드의 경로 리터럴), declared(호출 시 지정). 상태는 지금 파일의 sha256과 기록을 비교합니다.</p>
-{('<div class="table-wrap"><table class="list"><thead><tr><th>경로</th><th>via</th><th>크기</th><th>기록 sha256</th><th>현재</th></tr></thead><tbody>' + ''.join(input_rows) + '</tbody></table></div>') if input_rows else '<div class="empty">감지된 입력이 없습니다.</div>'}</section>
+<section id="inputs"><h2>입력 데이터 ({n_inputs})</h2><p class="muted">via: 런타임 감지(polars·duckdb·lab.*), scan(코드의 경로 리터럴), declared(호출 시 지정). 상태는 지금 파일의 sha256과 기록을 비교합니다. Producer: every successful run that output this path with these bytes and did not start after this run — same bytes, not a confirmed link.</p>
+{('<div class="table-wrap"><table class="list"><thead><tr><th>경로</th><th>via</th><th>크기</th><th>기록 sha256</th><th>현재</th><th>Producer</th></tr></thead><tbody>' + ''.join(input_rows) + '</tbody></table></div>') if input_rows else '<div class="empty">감지된 입력이 없습니다.</div>'}</section>
 <section id="outputs"><h2>출력 ({len(output_rows)})</h2>
-{('<div class="table-wrap"><table class="list"><thead><tr><th>경로</th><th>변경</th><th>via</th><th>행</th><th>열</th><th>sha256</th></tr></thead><tbody>' + ''.join(output_rows) + '</tbody></table></div>') if output_rows else '<div class="empty">프로젝트 파일을 만들거나 바꾸지 않았습니다.</div>'}</section>
+{('<div class="table-wrap"><table class="list"><thead><tr><th>경로</th><th>변경</th><th>via</th><th>행</th><th>열</th><th>sha256</th><th>Now</th></tr></thead><tbody>' + ''.join(output_rows) + '</tbody></table></div>') if output_rows else '<div class="empty">프로젝트 파일을 만들거나 바꾸지 않았습니다.</div>'}</section>
 <section id="logs"><h2>로그</h2>{log_block('stdout', run.get('stdout'))}{log_block('stderr', run.get('stderr'))}</section>
 <section id="env"><h2>환경</h2><div class="table-wrap"><table class="kv">{env_rows}</table></div></section>
 <section id="journal"><h2>관련 기록</h2>{site.events_html(related, 1)}</section>
@@ -887,7 +1147,9 @@ def dataset_page(site: Site, ds: dict, view: str) -> str:
         prof = data.profile(p, p.path(ds["path"]), preview_rows=50, cache=site.cache)
     except Exception as exc:  # noqa: BLE001
         prof = {"columns": [], "preview": {"columns": [], "rows": []}, "error": str(exc)}
-    meta = core.read_json(p.path(ds["path"]).with_suffix(".meta.json")) if ds["kind"] == "raw" else None
+    # An import record this kit cannot read says nothing here (core.list_datasets).
+    meta = (core.read_json(p.path(ds["path"]).with_suffix(".meta.json"))
+            if ds["kind"] == "raw" and not ds.get("unsupported_record") else None)
     facts = [f'<code>{esc(ds["path"])}</code>', f'{fmt_num(prof.get("rows"))}행 × {len(prof.get("columns") or [])}열',
              fmt_bytes(prof.get("bytes")), f'sha256 <span class="sha">{short(prof.get("sha256"), 16)}</span>']
     origin = ""
@@ -900,12 +1162,30 @@ def dataset_page(site: Site, ds: dict, view: str) -> str:
         if meta.get("description"):
             origin = f'<p class="lead">{esc(meta["description"])}</p>' + origin
     producers = ds.get("producers") or []
-    lineage = []
+    candidates = ds.get("producer_candidates") or []
+    current = esc(core.dataset_origin(ds))
+    if ds.get("producer_state") in ("resolved", "ambiguous"):
+        # Only then does a run named here hold these bytes: with `none` the runs named wrote other
+        # bytes or did not succeed.
+        current += (f" ({site.producer_html(candidates, 1)}). A run named here output this path with "
+                    "these bytes, which is what the records show; it is not a confirmed link to the "
+                    "run that made them")
+    lineage = [f"<h3>Current bytes</h3><p>{current}.</p>"]
+
+    def change(run_id: str):
+        changes = [o.get("change") for o in (site.run_by_id.get(run_id) or {}).get("outputs") or []
+                   if o.get("path") == ds["path"]]
+        return changes[-1] if changes else None
+
     if producers:
-        lineage.append("<h3>이 파일을 만든 run</h3><ul class='plain'>" + "".join(
-            f'<li><a href="{site.run_link(r, 1)}">{esc(r)}</a> {esc((site.run_by_id.get(r) or {}).get("title"))}'
-            f'{" · 현재 버전" if i == len(producers) - 1 else ""}</li>'
-            for i, r in enumerate(producers)) + "</ul>")
+        # Every successful run that recorded this path as an output, whatever its bytes, and a
+        # deletion as such: none of them is said to have made the file.
+        lineage.append("<h3>Successful runs that recorded an output at this path</h3><ul class='plain'>"
+                       + "".join(
+            f'<li><a href="{esc(site.run_link(r, 1))}">{esc(r)}</a> {esc((site.run_by_id.get(r) or {}).get("title"))}'
+            f'{" · deleted this path" if change(r) == "deleted" else ""}'
+            f'{" · same bytes as now" if r in candidates else ""}</li>'
+            for r in dict.fromkeys(producers)) + "</ul>")
     users = ds.get("used_by") or []
     lineage.append("<h3>이 데이터를 읽은 run</h3>" + ("<ul class='plain'>" + "".join(
         f'<li><a href="{site.run_link(r, 1)}">{esc(r)}</a> {esc((site.run_by_id.get(r) or {}).get("title"))}</li>'

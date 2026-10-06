@@ -8,7 +8,7 @@ From a checkout, globally:         ln -s <pack>/extension/aelix_analytics.py ~/.
 Use one of these at a time: a second copy in the same aelix does not set itself up (see setup).
 
 Inside aelix this file imports only the standard library, the aelix API and the kit's stdlib-only
-core.py with its _platform sibling, from the runtime root (the directory that holds the package
+core.py with its _platform and relations siblings, from the runtime root (the directory that holds the package
 aelix_analytics) — installed, also its own package, whose __init__ imports only the standard library,
 and the stdlib-only aelix_analytics._install, which says where the runtime root is. From a checkout
 the runtime root is the checkout's src/ (so symlink this file in a checkout rather than copying it).
@@ -50,7 +50,7 @@ from aelix_ai.tools import ToolExecutionContext, ToolResult
 def _kit() -> tuple[Path, str]:
     """(the kit directory, how it was found). The kit directory is the runtime root, the directory
     that holds the package `aelix_analytics`: children get exactly this directory on PYTHONPATH, and
-    core.py and _platform.py are loaded from its package."""
+    core.py and its siblings are loaded from its package."""
     if __name__ == "aelix_analytics.extension":
         # Imported by name from the installed distribution (its `aelix.extensions` entry point, or
         # `aelix -e aelix_analytics.extension`). It runs the kit installed with it, found through
@@ -77,10 +77,10 @@ KIT, KIT_ROUTE = _kit()
 def _load_core():
     """Load the pack's stdlib-only project model into the aelix process.
 
-    core.py imports one sibling — _platform, stdlib only for the same reason — so it is loaded as a
-    submodule of a synthetic package whose search path is this pack's kit. The package name carries
-    a digest of the resolved kit path, so two packs, or one pack before and after AELIX_ANALYTICS_RUNTIME_PATH
-    changes, never share a cached submodule. The sys.modules entries exist only while the modules
+    core.py imports two siblings — _platform and relations, stdlib only for the same reason — so it
+    is loaded as a submodule of a synthetic package whose search path is this pack's kit. The
+    package name carries a digest of the resolved kit path, so two packs, or one pack before and
+    after AELIX_ANALYTICS_RUNTIME_PATH changes, never share a cached submodule. The sys.modules entries exist only while the modules
     execute and are removed afterwards: the loaded objects stay alive through the reference this
     returns, an aelix_analytics installed in the host environment (the distribution's own package) is
     never shadowed, and a failed load leaves nothing behind. Reloading a changed kit needs a new aelix process, as it did before.
