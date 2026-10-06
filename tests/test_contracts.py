@@ -30,11 +30,13 @@ record of a dead process, so its `alive` is the injected implementation's.
 
 from __future__ import annotations
 
+import ast
 import inspect
 import json
 import os
 import re
 import signal
+import textwrap
 import threading
 import time
 from collections.abc import Callable
@@ -92,6 +94,26 @@ def implementation(request) -> Implementation:
 def needs(impl: Implementation, capability: str) -> None:
     if capability not in impl.capabilities:
         pytest.skip(f"the {impl.name} implementation does not declare that it {capability}")
+
+
+def test_every_implementation_of_the_ports_is_in_the_tables():
+    """A new implementation is not left out: every class of _platform named after the port it
+    implements is armed by the assembly cases (REAL_CLASSES), and every bundle detect() can build
+    runs these cases (IMPLEMENTATIONS)."""
+    ports = tuple(protocol.__name__ for protocol in PORTS.values())
+    classes = {obj for name, obj in vars(_platform).items()
+               if inspect.isclass(obj) and obj.__module__ == _platform.__name__
+               and name not in ports and name.endswith(ports)}
+    missing = sorted(cls.__name__ for cls in classes - set(REAL_CLASSES))
+    assert classes and not missing, f"not in platform_doubles.IMPLEMENTATIONS: {missing}"
+    detect = ast.parse(textwrap.dedent(inspect.getsource(_platform.detect)))
+    built = {node.args[0].value for node in ast.walk(detect)
+             if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+             and node.func.id == "_Bundle"}
+    unlisted = sorted(built - set(IMPLEMENTATIONS))
+    assert built and not unlisted, f"detect() builds bundles IMPLEMENTATIONS lacks: {unlisted}"
+    assert {_platform.detect(name).name for name in built} == built
+    assert _platform.detect().name in built
 
 
 # --- every member of the Protocol, called the Protocol's way ---------------------------------------
@@ -314,7 +336,8 @@ def test_watching_for_a_cancel_stops_when_asked(implementation, tmp_path):
 
 # --- the assembly: injected, it is the one used, and the records are the same -------------------
 
-# No process has this pid: beyond the Linux and macOS ranges, and on Windows not a multiple of four.
+# No process has this pid: it is beyond any pid Linux (at most 2**22), macOS (at most 99998) or
+# Windows assigns. Windows ignores a pid's two low bits and asks about 2**31 - 4, still beyond.
 DEAD_PID = 2**31 - 2
 CONTEXT_VERSION_RE = re.compile(r"^\d{8}-\d{6}-\d{6}_")
 

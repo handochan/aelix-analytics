@@ -302,8 +302,8 @@ N0의 명칭·기본 언어 전환을 A0의 경계 정리와 조율한다. 현�
 ### 계층과 의존 방향 검사
 
 §4의 계층과 §9의 목표 배치는 아직 디렉터리로 나뉘지 않았다. [ADR-0001](decisions/0001-evolvable-platform-boundaries.md#배치)대로
-기존 모듈을 옮기지 않고, 지금 모듈마다 책임에 맞는 계층을 정했다(#43). 정본은 `tests/test_layers.py`의 `LAYERS`·`MODULES`·`ALLOWLIST`이고,
-같은 파일의 시험이 아래 두 표가 그 값과 같은지 확인한다. 검사는 저장소 CI의 저장소 시험 레그에서 돈다.
+기존 모듈을 옮기지 않고, 지금 모듈마다 책임에 맞는 계층을 정했다(#43). 정본은 `tests/test_layers.py`의 `LAYERS`·`MODULES`·`EXTERNAL`·`ALLOWLIST`이고,
+같은 파일의 시험이 아래 세 표가 그 값과 같은지 확인한다. 검사는 저장소 CI의 저장소 시험 레그에서 돈다.
 
 | 계층 | 수준 | 역할 | 모듈 | import해도 되는 계층 | 외부 모듈 |
 |---|---|---|---|---|---|
@@ -319,23 +319,39 @@ N0의 명칭·기본 언어 전환을 A0의 경계 정리와 조율한다. 현�
 | `host_adapter` | 3 | Aelix 어댑터(aelix 프로세스 안) | `extension/aelix_analytics.py` | `distribution`, `core`, `ports`, `read_model` | stdlib, 호스트 |
 | `user_scripts` | 4 | 프로젝트에 복사되는 예제 사용자 스크립트 | `src/aelix_analytics/demo_scripts/*.py` | `sdk` | stdlib, 분석 |
 
-외부 모듈: stdlib은 `sys.stdlib_module_names`, 분석은 `polars`·`duckdb`·`numpy`·`pyarrow`·`pandas`·`matplotlib`·`plotly`, 표시는
-`pygments`·`markdown_it`, 호스트는 aelix의 API(`aelix`·`aelix_agent_core`·`aelix_ai`·`aelix_coding_agent`)다. 분류에 없는 서드파티는 위반이다.
+외부 모듈은 아래 분류로 나눈다(`EXTERNAL`). 분류에 없는 서드파티는 위반이다.
+
+| 외부 분류 | 모듈 |
+|---|---|
+| stdlib | `sys.stdlib_module_names`에 있는 모듈 |
+| 분석 | `polars`, `duckdb`, `numpy`, `pyarrow`, `pandas`, `matplotlib`, `plotly` |
+| 표시 | `pygments`, `markdown_it` |
+| 호스트 | aelix의 API: `aelix`, `aelix_agent_core`, `aelix_ai`, `aelix_coding_agent` |
 
 검사가 보는 것: 출하 코드(`src/aelix_analytics`와 `extension/`)의 모든 `.py`에서 모듈 수준, 함수·메서드 안, `if`·`try`·`with`·반복문 안,
-`if TYPE_CHECKING:` 안의 import와 동적 로드(`spec_from_file_location`·`import_module`·`__import__` 등)다. 위반 메시지는 위치(파일·줄·함수·
-`inside try` 등), 간선(`core → workspace`, 파일 둘)과 규칙 이름을 말한다.
+`if TYPE_CHECKING:` 안의 import 문, 그리고 `DYNAMIC_CALLS`가 이름을 든 로더(`spec_from_file_location`·`import_module`·`__import__`·
+`resolve_name` 등)의 사용이다. 로더의 사용은 그 이름으로 부르는 호출과, 다른 이름으로 가져온 것(`from importlib import import_module as load`),
+부르지 않고 값으로 둔 것(`_im = importlib.import_module`), 문자열로 이름을 댄 것(`getattr(importlib, "import_module")`)이다. 위반 메시지는
+위치(파일·줄·함수·`inside try` 등), 간선(`core → workspace`, 파일 둘)과 규칙 이름을 말한다.
 
 - `registration`: 출하 코드의 `.py`는 모두 표에 있다. 표의 항목은 실제 파일이다.
 - `layer-direction`: 패키지 모듈 사이의 import는 가져오는 계층이 허용한 계층으로만 간다. 낮은 수준이 높은 수준을 가져오는 역방향, 같은
   수준의 형제 계층끼리(어댑터는 진입점이 조립한다), 호스트 쪽이 프로젝트 환경의 계층을 가져오는 것은 아래 허용 목록에 없으면 실패한다.
 - `external-library`: 외부 모듈은 계층이 허용한 분류만. 도메인·공유 응용(`core`)과 그 아래(`ports`·`read_model`·`distribution`)는 stdlib뿐이다.
-- `import-time`: aelix가 설치본 확장을 로드할 때 실행되는 `src/aelix_analytics/__init__.py`의 모듈 수준은 stdlib만 가져온다(함수 안은 `sdk` 계층의 규칙).
-- `dynamic-load`: 동적 로드는 `DYNAMIC_LOADS`에 무엇을 로드하는지 선언하고, 그 대상은 import처럼 판정한다(확장 → `core`, 런처 → `_platform`).
-- `allowlist`: 허용 목록의 항목마다 이유와 제거 조건이 있고, 그 간선이 아직 있으며, 표가 이미 허용하는 간선이 아니다.
+- `import-time`: aelix가 설치본 확장을 로드할 때 실행되는 `src/aelix_analytics/__init__.py`의 모듈 수준은 stdlib만 가져온다. 선언한 동적 로드도
+  같다(함수 안은 `sdk` 계층의 규칙).
+- `dynamic-load`: 로더의 사용은 `DYNAMIC_LOADS`에 (파일, 함수, 로더)로 무엇을 로드하는지 선언한다(확장 → `core`, 런처 → `_platform`,
+  `capture`의 import hook은 로드하는 것이 없음). 선언은 그 함수 안의 로드 하나를 덮는다: 그 함수가 로더를 한 번만 쓰고, 함수의 문자열이
+  선언한 파일을 파일 이름(`"core.py"`)이나 점 이름(`"aelix_analytics.core"`)으로 가리키며 패키지의 다른 모듈은 가리키지 않아야 한다. 그러면
+  그 파일을 import처럼 판정한다. 선언은 표의 예외가 아니라 의도한 간선(확장의 `core` 로드는 ADR-0003 결정 3)의 기재라 제거 조건이 없다.
+  표가 허용하지 않는 간선이면 허용 목록에 따로 올린다.
+- `allowlist`: 허용 목록의 항목마다 import가 있는 함수(아래 표의 위치), 이유와 제거 조건이 있고, 그 함수마다 간선이 아직 있으며, 표가 이미
+  허용하는 간선이 아니다. 같은 두 파일 사이라도 적힌 함수 밖의 import는 `layer-direction`으로 실패한다.
 
-`if TYPE_CHECKING:` 안의 import도 방향 규칙의 대상이다(타입으로도 결합하지 않는다). 검사가 보지 못하는 것: 문자열로 만든 코드의 `exec`,
-자원 읽기, 실제로 로드된 모듈 — 마지막은 aelix 프로세스의 `sys.modules`를 보는 런타임 시험(`tests/test_platform.py`)이 함께 확인한다.
+`if TYPE_CHECKING:` 안의 import도 방향 규칙의 대상이다(타입으로도 결합하지 않는다). 검사가 보지 못하는 것: 문자열로 만든 코드의
+`exec`·`eval`·`compile`, `DYNAMIC_CALLS`에 없는 로더와 이름을 실행 중에 만든 로더(`getattr(importlib, name)`), 선언한 로드가 함수 밖에서
+받는 경로(비교하는 것은 docstring을 뺀 그 함수의 문자열이다), 이미 import된 모듈의 `importlib.reload`, 자원 읽기, 실제로 로드된 모듈 —
+마지막은 aelix 프로세스의 `sys.modules`를 보는 런타임 시험(`tests/test_platform.py`)이 함께 확인한다.
 `tools/`(저장소 측정 도구)와 `tests/`는 범위 밖이다.
 
 지금 코드에 남은 예외는 넷이고, 항목마다 제거 조건이 있다.
@@ -344,13 +360,13 @@ N0의 명칭·기본 언어 전환을 A0의 경계 정리와 조율한다. 현�
 |---|---|---|---|
 | `runner.py` → `report.py` | `runner._finalize` | run이 끝나면 Workspace를 다시 빌드해 결과에 싣는다 | Workspace 갱신을 진입점이나 공통 쓰기 경로의 후속 처리(§7)가 부르게 되면 |
 | `report.py` → `runner.py` | `report.fingerprint` | Workspace 지문에 kit의 해시 `runner.kit_sha()`가 들어간다 | `kit_sha`가 둘 다 import해도 되는 계층(`core` 등)으로 옮겨지면 |
-| `report.py` → `data.py` | `report.dataset_page`, `Site.frame_preview` | dataset 페이지가 데이터 어댑터로 프로필을 만들고 셀을 서식화한다 | Workspace가 프로필·셀 서식을 읽기 모델이나 진입점이 넘긴 값으로 받게 되면 |
+| `report.py` → `data.py` | `report.dataset_page`, `report.Site.frame_preview` | dataset 페이지가 데이터 어댑터로 프로필을 만들고 셀을 서식화한다 | Workspace가 프로필·셀 서식을 읽기 모델이나 진입점이 넘긴 값으로 받게 되면 |
 | `demo.py` → `report.py` | `demo.populate` | 데모가 끝에서 Workspace를 빌드해 결과에 싣는다 | 진입점의 `demo` 명령이 populate 뒤에 빌드하면(`import`·`record`처럼) |
 
 새 모듈을 더하는 PR은 그 파일을 `tests/test_layers.py`의 `MODULES`와 위 계층표에 등록한다. 등록하지 않으면 `registration`으로 실패한다.
 기존 계층에 맞지 않는 책임이면 계층을 더하는 것이 그 PR의 설계 결정이고 `LAYERS`와 표에 수준·허용 계층·외부 분류를 함께 적는다.
-표가 허용하지 않는 import는 먼저 의존을 뒤집거나(진입점이 값을 넘김) 코드를 옮기고, 그래도 남기면 `ALLOWLIST`와 위 표에 이유와 제거 조건을
-적는다. 새 외부 라이브러리는 `EXTERNAL`에 분류를 적는다. #12의 `relations`는 #43이 등록했고, #13(공통 writer)부터는 자기 모듈을 등록한다.
+표가 허용하지 않는 import는 먼저 의존을 뒤집거나(진입점이 값을 넘김) 코드를 옮기고, 그래도 남기면 `ALLOWLIST`와 위 표에 그 import가 있는
+함수, 이유와 제거 조건을 적는다. 새 외부 라이브러리는 `EXTERNAL`에 분류를 적는다. #12의 `relations`는 #43이 등록했고, #13(공통 writer)부터는 자기 모듈을 등록한다.
 
 교체 가능한 구현의 공통 계약 시험은 `tests/test_contracts.py`다. 지금 대상은 플랫폼 포트 넷의 세 구현(POSIX·Windows·시험 adapter)이고,
 포트의 계약과 조립(주입한 구현만 쓰이고 기록이 같음)을 같은 사례로 확인한다. 새 구현은 그 파일의 구현 표에 지원 능력과 함께 등록한다.
