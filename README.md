@@ -79,7 +79,7 @@ aelix -e $PACK/extension/aelix_analytics.py
 aelix 안에서: `/analytics`(현황) · `/analytics open`(리포트) · "지역별 성장률 차트에 플롯 데이터도 기록되게 고쳐줘" 같은 요청.
 
 직접 분석에 필요한 것: [uv](https://docs.astral.sh/uv/)(PATH 또는 `AELIX_ANALYTICS_UV`). Aelix 연동에는 추가로 aelix 0.1.0b2 이상이 필요합니다.
-지원 플랫폼은 Linux·macOS·Windows를 목표로 합니다. 측정한 조합(Windows는 Windows Server 2025의 한 구성)과 Windows의 한계, 아직 실행하지 않은 것(사람이 누른 콘솔 키, Windows의 실제 aelix 세션, 문서를 실제로 여는 프로그램 등)은 [현재 계약](docs/CONTRACTS.md)의 F·G절에 있습니다. Windows 콘솔의 Ctrl+C·Ctrl+Break는 의사 콘솔과 고전 콘솔에서 측정했습니다.
+지원 플랫폼은 Linux·macOS·Windows를 목표로 합니다. 측정한 조합(Windows는 Windows Server 2025의 한 구성)과 Windows의 한계, 아직 실행하지 않은 것(사람이 누른 콘솔 키, Windows의 실제 aelix 세션, 문서를 실제로 여는 프로그램 등)은 [현재 계약](docs/CONTRACTS.md)의 F·G절에 있습니다. Windows 콘솔의 Ctrl+C·Ctrl+Break는 의사 콘솔과 고전 콘솔에서 측정했습니다. Windows에서 알아 둘 것은 [Windows에서 쓸 때](#windows에서-쓸-때)에 있습니다.
 분석 라이브러리는 **프로젝트마다 자기 uv 환경**에 설치되며 aelix 환경은 건드리지 않습니다.
 
 ## 설치본(wheel)으로 쓰기
@@ -106,6 +106,60 @@ uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.4.0-p
 - **체크아웃의 symlink와 함께 두지 마세요.** 아래 `~/.aelix/agent/extensions/aelix_analytics.py` symlink가 있으면 aelix는
   두 사본을 모두 로드합니다. 이 버전 이상의 두 사본은 먼저 로드된 하나만 설정되지만, 이전 버전의 체크아웃은 이를
   알지 못해 hook이 두 번 돕니다. 설치본으로 옮길 때 symlink를 지우세요.
+
+## Windows에서 쓸 때
+
+측정한 Windows는 Windows Server 2025의 한 구성입니다(관리자 계정, LongPathsEnabled=1, [현재 계약](docs/CONTRACTS.md#f-실행-환경과-지원-플랫폼) F).
+아래 한계는 베타 전에 고치지 않습니다([플랫폼 보강 동결](docs/BETA-QUALITY-GATES.md#베타까지의-플랫폼-보강), 후속 [#38](https://github.com/handochan/aelix-analytics/issues/38)).
+항목마다 측정한 구성과 근거는 [현재 계약 G](docs/CONTRACTS.md#g-약속하지-않는-것)의 'Windows의 한계'와
+[측정 기록](docs/verification/2026-10-02-issue-8-windows-inventory.md)에 있습니다. (추론)으로 적은 것은 Windows에서 실행하지 않았습니다.
+
+**프로젝트 경로는 짧게 둡니다.** 예: `C:\work\sales`.
+
+- 프로젝트 루트가 MAX_PATH(260자)를 넘으면 aelix 확장이 kit을 시작하지 못합니다. kit을 시작하는 `analytics_run`·`analytics_import`·
+  `analytics_query`는 `spawn_failed`로 답합니다. 측정은 300자 루트에서 kit 명령의 시작과 환경 동기화로 했습니다. 실행되지 않을 뿐
+  기록을 잃지는 않습니다.
+- 이미 그런 루트라면 더 짧은 디렉터리에서 `AELIX_ANALYTICS_PROJECT`로 그 루트를 가리켜 `analytics`를 부릅니다. `init`과 `status`는
+  이렇게 됐습니다(측정). 다른 명령은 이 방법으로 실행하지 않았습니다.
+- LongPathsEnabled가 0이면 Python이 260자를 넘는 경로에 파일을 만들지 못합니다. 이때는 **출력 기록을 잃을 수 있습니다**.
+  `analytics.save`는 260자를 넘는 경로에 파일을 썼지만 그 파일은 run의 출력 목록에도 경고에도 없었습니다. 그 run은 뒤에서 차트
+  파일을 쓰지 못해 `error`로 기록됐습니다(측정). run이 `ok`로 끝나도 그런 파일은 출력 목록에서 빠진다고 봅니다(추론). run이 쓰는
+  모든 경로가 260자 안에 들게 루트와 스크립트·데이터셋·차트 이름을 짧게 둡니다.
+- 설정은 PowerShell의 `Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem -Name LongPathsEnabled`로 봅니다. 값이 없거나
+  1이 아니면 꺼져 있습니다. 켜려면 관리자 권한이 필요합니다([Microsoft 문서](https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation#enable-long-paths-in-windows-10-version-1607-and-later)).
+  1에서는 루트 230자의 run이 312자 경로의 출력과 더 깊은 차트 파일까지 기록했습니다(측정). 루트 자체가 MAX_PATH를 넘는 한계는 1에서도 남습니다.
+
+**run을 멈출 때는 Ctrl+C를 한 번 누르고 결과 줄을 기다립니다.** run은 `cancelled`로 기록되고 `analytics`는 3으로 끝납니다(측정).
+
+- Ctrl+Break는 쓰지 않습니다. uv가 곧바로 끝나 프롬프트가 먼저 돌아오지만 kit은 계속 돕니다. 그동안 그 run의 기록은 `running`이고,
+  kit이 프로젝트의 run 잠금을 쥐고 있어 같은 프로젝트의 다음 run은 기다립니다. kit은 나중에 `cancelled`를 기록하고(자는 스크립트는
+  잠이 끝난 뒤), 결과 줄은 프롬프트 뒤에 나옵니다(측정). 그 결과 줄이 나올 때까지 콘솔을 닫지 않습니다.
+- run이 도는 콘솔 창을 닫지 않습니다. 닫으면 그 run은 `incomplete`로 남았습니다(측정). 그 기록에는 입력·출력·차트·오류가 없습니다.
+  남은 프로세스는 없었고, run 잠금도 함께 풀린다고 봅니다(추론). 기록은 고쳐지지 않으니 스크립트를 다시 실행합니다.
+- Ctrl+C를 거듭 누르지 않습니다. 두 번째 Ctrl+C가 처리기를 다시 설치하는 짧은 순간에 오면 kit이 끝나 run이 `incomplete`로 남을 수
+  있습니다(추론). 결과 줄 없이 끝났으면 `analytics status`로 그 run을 봅니다.
+- 자식 프로세스를 시작하는 스크립트는 Ctrl+C 뒤에 남은 프로세스를 확인합니다. 자식을 시작하는 바로 그 순간 온 Ctrl+C는 그 자식에
+  닿지 않아, run은 `cancelled`로 기록됐지만 자식은 남았습니다(측정, 한 번). 남은 자식이 그 뒤에 쓰는 파일은 기록되지 않습니다(추론).
+  작업 관리자나 PowerShell의 `Get-Process python`으로 찾아 `Stop-Process -Id <pid>`로 끝냅니다.
+
+**PowerShell로 출력을 받을 때는 인코딩을 먼저 맞춥니다.** `$o = analytics status`처럼 변수에 담으면 PowerShell이 kit의 UTF-8 출력을
+콘솔 코드 페이지로 읽어 한국어가 깨집니다(코드 페이지 437·949에서 측정). 파이프로 넘겨도 같다고 봅니다. 콘솔에 바로 보이는 출력은
+바릅니다. 같은 세션에서 먼저 다음을 실행합니다(추론, Windows에서는 실행하지 않음):
+
+```powershell
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
+```
+
+이 줄은 PowerShell이 받은 바이트를 읽는 방식과 그 콘솔의 출력 코드 페이지만 바꿉니다. kit이 쓰는 바이트와 기록은 그대로 UTF-8입니다.
+PowerShell 안에서 실행한 `chcp 65001`은 PowerShell이 이미 읽어 둔 인코딩을 바꾸지 않아 효과가 없을 수 있습니다.
+
+**aelix의 `analytics_run`은 환경 변수를 모두 넘기지 않습니다.** Windows에서 확장은 시스템의 기본 변수와 허용 목록만 넘기므로
+`USERNAME`·`HOMEDRIVE`·`HOMEPATH`·사용자가 둔 `PYTHONUTF8` 등이 빠집니다. 그래서 `getpass.getuser()`를 부르는 스크립트는
+`analytics_run`에서 실패할 수 있습니다. 셸의 `analytics run`은 환경을 그대로 넘기므로 될 수 있습니다(추론, 실행하지 않음). 우회:
+
+- aelix를 시작하기 전에 `$env:USER = $env:USERNAME`(PowerShell)을 둡니다. 확장은 `USER`를 넘기고, `getpass.getuser()`는
+  `USERNAME`보다 `USER`를 먼저 읽습니다.
+- `PYTHONUTF8`에 기대지 말고 텍스트 파일을 열 때 `encoding="utf-8"`을 적습니다.
 
 ## 확장 등록
 
