@@ -333,7 +333,7 @@ def test_the_checker_tells_retrievable_from_lost(monkeypatch, tmp_path):
     linked = tmp_path / "linked.html"
     linked.write_bytes(("<table>" + "".join(f"<tr><td>{i['path']}</td><td>{i['sha256'][:12]}</td>"
                                             "</tr>" for i in record["inputs"]) + "</table>\n"
-                        '<p>그 외 0개 — 전체 기록: <a href="run.json">run.json</a></p>\n').encode())
+                        '<p>0 more — the full list is in <a href="run.json">run.json</a></p>\n').encode())
     whole = usage.Fact("input-sha", "S5", "inputs", (hidden["path"], hidden["sha256"]),
                        (tmp_path / "run.json",), True)
     chain = usage.check_fact(host, whole, reply(linked), truth)

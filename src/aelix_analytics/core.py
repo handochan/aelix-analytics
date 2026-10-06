@@ -701,7 +701,8 @@ def sync_context(project: Project, actor="system", session=None) -> dict | None:
 
 
 def context_goal(text: str) -> str:
-    """First content line under a Goal/목표 heading, else the first paragraph line."""
+    """First content line under a Goal heading (or 목표, the heading of earlier templates, which
+    projects keep), else the first paragraph line."""
     lines = text.splitlines()
     for i, line in enumerate(lines):
         if re.match(r"^#{1,3}\s*(목표|goal|objective)", line.strip(), re.IGNORECASE):
@@ -1353,7 +1354,7 @@ def _status_lines(st: dict, caps: dict[str, int]) -> list[tuple[str, str, bool]]
                        f"one with its line range in read {root / 'CONTEXT.md'})")
         add("head", "CONTEXT.md sections not in the system prompt (read them from the file when "
                     f"they matter): {listed} — move a section earlier or mark its heading "
-                    "<!-- 항상 --> to pin it")
+                    "<!-- pin --> to pin it")
     views = list(st["views"])
     shown_views = _capped(views, caps.get("views"))
     view_text = ", ".join(shown_views) or "none"
@@ -1618,7 +1619,10 @@ def _status_cut_marker(lost: list[tuple[str, str, bool]], root: Path, max_chars:
             + "; ".join(where) + ")")
 
 
-PIN_RE = re.compile(r"<!--\s*(항상|always)\s*-->", re.IGNORECASE)
+# A `## ` heading marked with this always reaches the system prompt. `<!-- pin -->` is what the
+# template writes; `<!-- always -->` and `<!-- 항상 -->` are the marks of earlier templates, which
+# projects keep, so they still pin (TERMINOLOGY 6).
+PIN_RE = re.compile(r"<!--\s*(pin|always|항상)\s*-->", re.IGNORECASE)
 
 
 def context_file_text(project: Project) -> str:
@@ -1664,7 +1668,7 @@ def context_sections(text: str) -> tuple[str, list[dict]]:
             end -= 1
         heading = lines[start][3:].strip()
         body = _shown(lines[start:end]).rstrip()
-        sections.append({"name": _one_line(PIN_RE.sub("", heading), 48) or f"섹션 {n + 1}",
+        sections.append({"name": _one_line(PIN_RE.sub("", heading), 48) or f"Section {n + 1}",
                          "pinned": bool(PIN_RE.search(heading)), "line": start + 1,
                          "lines": end - start, "chars": len(body), "text": body})
     return preamble, sections
@@ -1810,7 +1814,8 @@ def init_project(target, *, title=None, goal=None, template_dir=None, actor="hum
     # The copies are text the kit writes, LF on every platform (ADR-0007 decision 2): the template is
     # read in text mode, and a line end inside a value filled in is made LF as well.
     fill = {"title": title, "date": created[:10],
-            "goal": (goal or "").strip() or "- (이 분석으로 답하려는 질문과, 결과를 쓸 사람/의사결정)",
+            "goal": (goal or "").strip() or "- (The question this analysis answers, and who will use the "
+                                             "result for which decision)",
             "slug": slugify(title, 40) or "analysis"}
     for src, dest in (("CONTEXT.md", project.context), ("pyproject.toml", "pyproject.toml"),
                       ("gitignore", ".gitignore"), ("gitattributes", ".gitattributes")):

@@ -1,4 +1,4 @@
-"""2025년 지역별 채널 구성 — DuckDB SQL + plotly, 관용적 방식 (fig.show)."""
+"""Channel mix by region in 2025 — DuckDB SQL and plotly, the usual way (fig.show)."""
 
 import duckdb
 import plotly.express as px
@@ -14,7 +14,7 @@ mix = duckdb.sql(
 ).pl()
 
 fig = px.bar(mix, x="region", y="revenue_m", color="channel",
-             title="2025년 지역별 매출과 채널 구성",
-             labels={"revenue_m": "매출 (백만 원)", "region": "지역", "channel": "채널"})
+             title="Revenue and channel mix by region, 2025",
+             labels={"revenue_m": "Revenue (KRW millions)", "region": "Region", "channel": "Channel"})
 fig.update_traces(marker_line_width=2, marker_line_color="#fcfcfb")
 fig.show()

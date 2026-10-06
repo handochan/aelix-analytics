@@ -604,11 +604,11 @@ def test_a_run_over_many_files_stays_readable_in_the_journal_and_report(project)
 
     assert kit_cli(project, "render")[0] == 0
     index = (project / "report" / "index.html").read_text(encoding="utf-8")
-    assert "그 외 12개" in index, "the timeline does not say how many refs it hid"
+    assert "12 more" in index, "the timeline does not say how many refs it hid"
     assert index.count("part_") <= 2 * core.MAX_EVENT_REFS, "the timeline dumped every input path"
     page = next((project / "report" / "runs").glob("*01-many.html")).read_text(encoding="utf-8")
-    assert "입력 데이터 (70)" in page, "the run page no longer states the real input count"
-    assert "그 외 10개" in page and "run.json" in page
+    assert "Input data (70)" in page, "the run page no longer states the real input count"
+    assert "10 more — changed inputs are listed first" in page and "run.json" in page
 
 
 def test_import_reads_uuid_as_text_and_warns_about_a_nested_json_object(project, tmp_path):
@@ -715,7 +715,7 @@ def test_a_failing_run_says_what_to_write_instead(project):
     assert "print(df)" in result["run"]["error"]["hint"]
     assert kit_cli(project, "render")[0] == 0
     page = next((project / "report" / "runs").glob("*01-habit.html")).read_text(encoding="utf-8")
-    assert "고치는 법" in page and "df.glimpse()" in page
+    assert "How to fix: " in page and "df.glimpse()" in page
 
     for summary, expected in (
             ("ModuleNotFoundError: No module named 'pandas'", "no pandas"),
@@ -747,11 +747,11 @@ def test_context_is_disclosed_by_section_not_truncated_mid_sentence(project):
     st = core.status(p)
     assert st["project"]["context_omitted"] == ["데이터 출처"]
     text = core.status_text(st)
-    assert "데이터 출처" in text and "<!-- 항상 -->" in text
+    assert "데이터 출처" in text and "mark its heading <!-- pin --> to pin it" in text
 
     assert kit_cli(project, "render")[0] == 0
     index = (p.report / "index.html").read_text(encoding="utf-8")
-    assert "프롬프트에 매번 들어가는 섹션: 목표, 다음 할 일" in index
+    assert 'Sections in every prompt: <span lang="">목표</span>, <span lang="">다음 할 일</span>.' in index
     assert "| a | b |" in index, "the report still shows the whole file"
 
 
@@ -935,7 +935,8 @@ def _main_status_text(st: dict, max_chars: int = 9000) -> str:
     """analytics_status's overview as main (bc77176) made it before Issue #11 PR-2, to compare with, with
     the lines Issue #12 PR-2 changed or added: the read the overview is (`read:`), the records the
     lists cannot show, a dataset's origin as the read judges it, a run's recording status, a chart's
-    producer flags, the line of an id several lines share and a key entry's references. Those lines
+    producer flags, the line of an id several lines share and a key entry's references; and the pin
+    mark the template uses since Issue #10 (`<!-- pin -->`, was `<!-- 항상 -->`). Those lines
     come from the kit's own helpers (their content is tested on its own); what this compares is
     that an overview within its length is these lines with only the omission notes added."""
     _one_line, versions_line, _fmt_int = core._one_line, core.versions_line, core._fmt_int
@@ -956,7 +957,7 @@ def _main_status_text(st: dict, max_chars: int = 9000) -> str:
     if p.get("context_omitted"):
         lines.append("CONTEXT.md sections not in the system prompt (read them from the file when "
                      f"they matter): {', '.join(p['context_omitted'])} — move a section earlier or "
-                     "mark its heading <!-- 항상 --> to pin it")
+                     "mark its heading <!-- pin --> to pin it")
     lines.append(f"datasets ({counts['datasets']}) — query views: "
                  + (", ".join(st["views"]) or "none"))
     for ds in st["datasets"]:
@@ -1592,6 +1593,6 @@ def test_the_kit_names_the_analytics_commands(project, tmp_path):
     kit_cli(project, "render")
     page = (project / "report" / "runs" / f"{ran['run']['id']}.html").read_text(encoding="utf-8")
     assert f"CLI:   analytics run --rerun-of {ran['run']['id']}" in page
-    assert f'aelix: analytics_run(title="재실행 검증", rerun_of="{ran["run"]["id"]}")' in page
+    assert f'aelix: analytics_run(title="Rerun comparison", rerun_of="{ran["run"]["id"]}")' in page
     code, refused = kit_cli(project, "demo")
     assert code == 1 and refused["error"]["hint"].startswith("analytics demo NEW_DIR"), refused

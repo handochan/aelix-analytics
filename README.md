@@ -15,7 +15,8 @@ Jupyter Notebook과 BI가 만들어 온 분석 작업방식을 바탕으로, 목
 분석 도중에도 자유 형식 보고서를 만들고, 작성 시점·근거·버전과 컬럼별 반복 보고서 묶음을 관리하는 흐름을 설계합니다.
 진행 중인 분석을 팀원에게 전달하는 독립 HTML 빌드와 `publish` 흐름도 설계에 포함합니다.
 공식 명칭은 `analytics` 명령·SDK, 분석 인터페이스 `Workspace`, 시각화 객체 `Visualization`, 문서 산출물 `Report`로 정리합니다.
-기본 UI·템플릿·속성은 영어, 분석 내용은 사용자 언어를 보존하는 방향입니다. 명령·도구·SDK·환경 변수의 이름은 kit 0.3.0에서
+kit이 보이는 글(Workspace·도구 응답·오류·새 프로젝트 템플릿·데모)은 영어이고, 사람이 쓴 목표·발견·제목·열 이름·데이터·경로는 쓴
+그대로 보입니다(#10, [용어 §7](docs/TERMINOLOGY-AND-LANGUAGE.md#7-영어-기본값과-다국어-내용)). 명령·도구·SDK·환경 변수의 이름은 kit 0.3.0에서
 `analytics`로 바뀌었고, 저장 이름(`lab.json`, `.lab/`, `lab.*/1` 등)은 새 writer의 전환(#13)까지 그대로입니다([옛 이름에서 옮기기](#옛-이름에서-옮기기)).
 
 사람이 Python·SQL로 직접 분석하는 경로도 정식 사용 시나리오로 설계합니다. 현재도 사람용 `bin/analytics` CLI로 Aelix 없이 분석을 실행·기록할 수 있습니다.
@@ -265,15 +266,17 @@ kit이 쓰는 텍스트(기록·템플릿 사본·inline 스크립트·Workspace
 ## 맥락 · 중요 정보 · 시간 흐름
 
 - `CONTEXT.md`: 사람과 모델이 함께 고치는 현재 맥락. 바뀔 때마다 `.lab/context/`에 버전이 남고 journal에 `context` 이벤트가
-  생기며, 리포트의 맥락 기록 페이지에서 diff로 봅니다(run·import·note·프롬프트 시작·에이전트 턴 종료 때 감지).
+  생기며, Workspace의 Context history 페이지에서 diff로 봅니다(run·import·note·프롬프트 시작·에이전트 턴 종료 때 감지).
+  새 프로젝트의 템플릿은 영어 섹션(Goal·Analysis focus·Next steps·Current findings·Definitions and rules·Data sources·
+  Assumptions and limitations)이고, 내용은 어느 언어로 써도 됩니다. 옛 템플릿의 `## 목표`·`<!-- 항상 -->`도 그대로 읽습니다.
 - `journal.jsonl`: 모든 사건의 시간순 기록. 발견·결정·가정은 **핵심 정보**, 질문·할 일은 **열린 항목**이며,
   나중 기록의 `resolves`로 닫힙니다. run·이벤트에는 aelix 세션 파일 경로가 함께 남습니다.
 - **프롬프트 주입 — 섹션 단위 점진적 공개**: 매 요청 전에 `CONTEXT.md` + 해결되지 않은 핵심 정보 + 열린 항목을
   시스템 프롬프트 뒤에 붙입니다. CONTEXT.md는 통째로 넣지 않고 **`##` 섹션 단위**로 넣습니다 —
-  `<!-- 항상 -->`을 붙인 섹션과, 앞에서부터 예산(4,000자)이 허락하는 섹션이 본문째 들어가고,
+  제목에 `<!-- pin -->`(옛 템플릿의 `<!-- 항상 -->`, `<!-- always -->`도)을 붙인 섹션과, 앞에서부터 예산(4,000자)이 허락하는 섹션이 본문째 들어가고,
   **나머지는 제목·줄 범위만** 들어갑니다(`read CONTEXT.md offset N limit M`). 줄 번호는 aelix의 read 도구가
   세는 그대로입니다(`\n`으로만 나누고, 앞의 빈 줄과 CRLF 파일도 같게). 문장 중간에서 잘리는 일이 없고,
-  무엇이 빠졌는지는 `analytics_status`와 리포트 맥락 탭이 이름으로 알려 줍니다. 순서를 바꾸거나 `<!-- 항상 -->`을
+  무엇이 빠졌는지는 `analytics_status`와 Workspace의 Context 탭이 이름으로 알려 줍니다. 순서를 바꾸거나 `<!-- pin -->`을
   붙이는 것이 통제 수단입니다. 자주 바뀌는 현황은 `analytics_status`로 봅니다.
 - **빠진 것과 다시 읽을 위치**: 첫 `##` 위의 머리말이 4,000자를 넘으면 앞 4,000자만 들어가고, 뺀 글자 수와 머리말 전체의 줄 범위
   (`read CONTEXT.md offset 1 limit N`)가 붙습니다. 핵심 정보와 열린 항목은 각각 최근 12개가 들어가고(글은 300자까지),
@@ -290,8 +293,8 @@ kit이 쓰는 텍스트(기록·템플릿 사본·inline 스크립트·Workspace
 
 - 쓰다가 부족한 점은 바로 `/analytics record gap <내용>`. 모델도 막히면 `analytics_record(kind="gap")`을 남기도록 지침이 들어 있습니다.
 - 확장이 **모든 도구 호출**을 `.lab/telemetry.jsonl`에 남기고, 규약 우회 의심(`python_via_bash`, `wrote_managed_path`)을 표시합니다.
-- 리포트 **평가** 탭: gap 목록, 기록 품질 신호(입력 미감지 run, 플롯 데이터 없는 차트, 프로젝트 밖 입력, stale 차트, 재실행 결과),
-  도구별 호출·오류·시간, 우회 의심 호출.
+- Workspace의 **Evaluation** 탭(옛 '평가' 탭): Workflow feedback(gap 목록), Record coverage(입력 미감지 run, 첨부 표 없는 차트,
+  프로젝트 밖 입력, 입력이 바뀐 차트, 재실행 비교 결과), Tool usage(도구별 호출·오류·시간), Possible workarounds(우회 의심 호출).
 - 기존 비교 실험의 축과 시나리오: [과거 평가 가이드](docs/EVALUATION.md).
 
 공식 베타에서는 이 탭을 **인사이트**로 전환해 분석 발견과 재사용 제안을 연결하고, 기록 품질·도구 사용은

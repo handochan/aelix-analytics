@@ -15,6 +15,7 @@ import json
 import re
 import shutil
 import sys
+import unicodedata
 import uuid
 from pathlib import Path
 from types import SimpleNamespace
@@ -344,6 +345,69 @@ def test_import_query_and_run_through_the_project_environment(lab, tmp_path):
     runs = module.core.list_runs(project)
     assert runs[-1]["script"]["path"] == "scripts/03_slow.py"
     assert runs[-1]["status"] == "cancelled"
+
+
+@pytest.mark.skipif(shutil.which("uv") is None, reason="uv is not installed")
+def test_a_korean_project_through_the_tools(tmp_path, monkeypatch):
+    """Issue #10: the tools' own words are English, and what the user wrote — CONTEXT, a
+    Visualization's title, column names, a dataset's file name, paths in NFD — comes back as
+    written in every tool's reply and in the context block (tests/test_language.py does the same
+    through the kit's CLI and the Workspace)."""
+    import test_language as ko
+
+    module = fresh_module()
+    monkeypatch.setenv("AELIX_ANALYTICS_TRUST_FILE", str(tmp_path / "trust.json"))
+    root = tmp_path / "proj"
+    module.core.init_project(root, title=ko.TITLE, goal=ko.GOAL, actor="test",
+                             template_dir=module.KIT / "aelix_analytics" / "template")
+    (root / "CONTEXT.md").write_bytes(ko.CONTEXT.encode("utf-8"))
+    monkeypatch.setenv("AELIX_ANALYTICS_PROJECT", str(root))
+    monkeypatch.chdir(tmp_path)
+    synced, detail = asyncio.run(module.sync_environment(module.core.Project(root)))
+    assert synced, detail
+    source = tmp_path.joinpath(*ko.SOURCE_PARTS)
+    source.parent.mkdir()
+    source.write_bytes(ko.CSV.encode("utf-8"))
+    # Each thing the user wrote, whole (tests/test_language.py hangul_outside), and the query's alias.
+    written = [*ko.WRITTEN, str(source), "합계"]
+    tools = tools_of(module)
+    replies = []
+
+    def reply(name, args, **kw):
+        result = call(tools[name], args, **kw)
+        replies.append(text_of(result))
+        assert not result.is_error, text_of(result)
+        return text_of(result)
+
+    imported = reply("analytics_import", {"source": str(source), "name": "sales",
+                                          "description": ko.DESCRIPTION})
+    assert f"{ko.SOURCE_PARTS[0]}" in imported and f"{ko.SOURCE_PARTS[1]} (csv," in imported
+    assert "  지역: String" in imported and "서울" in imported and "온라인" in imported
+    queried = reply("analytics_query", {"sql": 'SELECT "지역", sum("매출") AS "합계" FROM sales '
+                                               "GROUP BY 1 ORDER BY 2 DESC"})
+    assert "합계" in queried and "서울" in queried and "580" in queried
+    reply("analytics_record", {"kind": "question", "text": ko.QUESTION})
+    ran = reply("analytics_run", {"title": ko.RUN_TITLE, "code": ko.SCRIPT, "name": "01_region"})
+    assert f"title: {ko.RUN_TITLE}" in ran and f'"{ko.CHART_TITLE}"' in ran
+    assert f"  {ko.DERIVED} created 3 rows [지역, 매출]" in ran
+    run_id = ran.split(" — run ", 1)[1].split(" ", 1)[0]
+    recorded = reply("analytics_record", {"kind": "finding", "text": ko.FINDING, "refs": [run_id]})
+    assert recorded.startswith("analytics_record: ok — ") and " finding recorded" in recorded
+    status = reply("analytics_status", {})
+    for value in (f"project: {ko.TITLE} (", f"goal: {ko.GOAL}", f'"{ko.RUN_TITLE}"',
+                  f'"{ko.CHART_TITLE}"', f"{ko.DERIVED_NAME}: 3 rows", ko.DERIVED, ko.QUESTION,
+                  ko.FINDING):
+        assert value in status, value
+    out = asyncio.run(module.on_before_agent_start(
+        BeforeAgentStartHookEvent(prompt="hi", system_prompt="BASE PROMPT"), SimpleNamespace()))
+    block = out.system_prompt
+    replies.append(block)
+    assert f"## 목표 <!-- 항상 -->\n{ko.GOAL}" in block
+    assert ko.FINDING in block and ko.QUESTION in block
+    for text in replies:
+        assert ko.hangul_outside(text, written) == [], text
+        assert unicodedata.normalize("NFC", ko.DERIVED) not in text
+        assert unicodedata.normalize("NFC", ko.SOURCE_PARTS[1]) not in text
 
 
 # --- regressions from the independent review (2026-09-16) ---

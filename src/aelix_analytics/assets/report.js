@@ -1,4 +1,4 @@
-// Aelix Analytics report: tabs, lazy plotly rendering, timeline filters, live reload.
+// Aelix Analytics Workspace: tabs, lazy plotly rendering, timeline filters, live reload.
 (function () {
   "use strict";
   const doc = document.documentElement;
@@ -14,7 +14,9 @@
   function renderPlot(el) {
     if (!pending.has(el)) return;
     if (!window.Plotly) {
-      el.textContent = "plotly.js를 불러오지 못했습니다 (assets/plotly.min.js).";
+      // The figure's element holds the chart's own text (lang=""); this message is the kit's.
+      el.lang = "en";
+      el.textContent = "Could not load plotly.js (assets/plotly.min.js).";
       pending.delete(el);
       return;
     }
@@ -23,7 +25,8 @@
       const fig = JSON.parse(document.getElementById(el.dataset.fig).textContent);
       window.Plotly.newPlot(el, fig.data || [], fig.layout || {}, { responsive: true, displaylogo: false });
     } catch (err) {
-      el.textContent = "plotly 그림을 그리지 못했습니다: " + err;
+      el.lang = "en";
+      el.textContent = "Could not draw the plotly figure: " + err;
     }
   }
   const observer = "IntersectionObserver" in window
@@ -42,12 +45,13 @@
 
   // --- tabs (index page): sections become tabs; any #anchor opens the tab that holds it ---
   const tabs = Array.from(document.querySelectorAll("main > section.tab"));
-  const labels = { overview: "개요", charts: "차트", timeline: "타임라인", data: "데이터", runs: "실행", context: "맥락", evaluation: "평가" };
+  // Tab names are labels; the section ids (URL anchors) stay as they are.
+  const labels = { overview: "Overview", charts: "Visualizations", timeline: "Timeline", data: "Data", runs: "Runs", context: "Context", evaluation: "Evaluation" };
   if (tabs.length) {
     doc.classList.add("js-tabs");
     const nav = document.createElement("nav");
     nav.className = "tabs";
-    nav.setAttribute("aria-label", "리포트 섹션");
+    nav.setAttribute("aria-label", "Workspace sections");
     tabs.forEach((t) => {
       const a = document.createElement("a");
       a.href = "#" + t.id;

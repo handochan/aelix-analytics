@@ -32,14 +32,20 @@ LOG_LIMIT = 200_000
 # A run over hundreds of files would otherwise bury the timeline and its own page in paths.
 REF_LIMIT = 12
 FILE_ROW_LIMIT = 60
-KIND_LABEL = {"project": "프로젝트", "import": "가져오기", "run": "실행", "context": "맥락",
-              "finding": "발견", "decision": "결정", "assumption": "가정", "question": "질문",
-              "todo": "할 일", "note": "메모", "gap": "gap", "resolve": "해결"}
-STATUS = {"ok": ("good", "✓", "성공"), "error": ("critical", "✕", "오류"),
-          "timeout": ("serious", "⏱", "시간 초과"), "cancelled": ("warning", "■", "취소"),
-          "incomplete": ("muted", "…", "미완료"), "running": ("muted", "…", "실행 중")}
-INPUT_STATE = {"same": ("good", "✓", "같음"), "changed": ("critical", "⚠", "변경됨"),
-               "missing": ("critical", "⚠", "없음"), "unknown": ("muted", "?", "확인 불가")}
+# The Workspace's own words are English (TERMINOLOGY 7); what people and scripts wrote is shown as
+# written. An event kind's label: the stored kind stays the machine value (`gap`, `todo`).
+KIND_LABEL = {"project": "Project", "import": "Import", "run": "Run", "context": "Context",
+              "finding": "Finding", "decision": "Decision", "assumption": "Assumption",
+              "question": "Question", "todo": "Next step", "note": "Note",
+              "gap": "Workflow feedback", "resolve": "Resolution"}
+STATUS = {"ok": ("good", "✓", "Succeeded"), "error": ("critical", "✕", "Error"),
+          "timeout": ("serious", "⏱", "Timed out"), "cancelled": ("warning", "■", "Cancelled"),
+          "incomplete": ("muted", "…", "Incomplete"), "running": ("muted", "…", "Running")}
+INPUT_STATE = {"same": ("good", "✓", "Same"), "changed": ("critical", "⚠", "Changed"),
+               "missing": ("critical", "⚠", "Missing"), "unknown": ("muted", "?", "Unknown")}
+# A rerun comparison's verdict as the Workspace says it (TERMINOLOGY 6); the record keeps the value.
+VERDICT = {"match": "Matched", "mismatch": "Different", "failed": "Run failed",
+           "inconclusive": "Inconclusive"}
 # A reference's state as the read judges it (ADR-0006 4), said in words and not only in colour.
 REF_STATE = {"resolved": ("good", "Resolved"), "content_changed": ("critical", "Content changed"),
              "missing": ("critical", "Missing"), "version_unbound": ("muted", "Version unbound"),
@@ -56,6 +62,10 @@ RECORDING_REASON = {"not_final": "the run record is not final (it is running, or
                     "no_completion_event": "the journal has no completion event for this run",
                     "finalize_errors": "some recording steps failed"}
 SHOWN_CANDIDATES = 3
+# The pages are lang="en" (the kit's words). What people and scripts wrote is in a language the
+# records do not name, so its element says "unknown" (lang=""): a screen reader reads it in the
+# reader's own voice rather than an English one, and nothing guesses the language (TERMINOLOGY 7).
+USER = ' lang=""'
 
 
 def esc(value) -> str:
@@ -71,10 +81,11 @@ def short(sha, n=8) -> str:
 
 
 def fmt_bytes(n) -> str:
+    """A size in units of 1024, named as such (KiB, MiB, GiB)."""
     if not isinstance(n, (int, float)):
         return "-"
-    for unit in ("B", "KB", "MB", "GB"):
-        if n < 1024 or unit == "GB":
+    for unit in ("B", "KiB", "MiB", "GiB"):
+        if n < 1024 or unit == "GiB":
             return f"{n:,.0f} {unit}" if unit == "B" else f"{n:,.1f} {unit}"
         n /= 1024
     return str(n)
@@ -105,6 +116,22 @@ def badge(tone: str, icon: str, label: str, title: str | None = None) -> str:
 def status_badge(status) -> str:
     tone, icon, label = STATUS.get(status or "", ("muted", "?", str(status)))
     return badge(tone, icon, label)
+
+
+def verdict_label(verdict) -> str:
+    return VERDICT.get(verdict, str(verdict))
+
+
+def dataset_label(name: str, view: str) -> str:
+    """How the Workspace names a dataset: by its own name (its file's stem) as written. The SQL
+    view spells that name in [a-z0-9_] (`My Sales` is `my_sales`, `123sales` is `t_123sales`, a
+    Korean name `___`); where the two differ, the pages show the view beside the name."""
+    return name or view
+
+
+def user_text(value) -> str:
+    """Text people or scripts wrote, inline in a sentence of the kit's (USER)."""
+    return f"<span{USER}>{esc(value)}</span>"
 
 
 def kind_chip(kind) -> str:
@@ -151,6 +178,7 @@ class Site:
                 self.related.setdefault(run_id, []).append(event)
         self.views = core.view_names(self.datasets)
         self.view_by_path = {path: name for name, path in self.views.items()}
+        self.name_by_path = {ds["path"]: ds["name"] for ds in self.datasets}
         self.charts = core.chart_index(self.runs)
         self.resolved = core.resolved_targets(self.events)
         self.telemetry = core.read_jsonl(project.telemetry)
@@ -194,14 +222,19 @@ class Site:
     def chart_anchor(self, key: str, depth: int) -> str:
         return f"{self.root(depth)}index.html#chart-{slug_key(key)}"
 
+    def dataset_name(self, path: str) -> str | None:
+        """The name the Workspace shows for the dataset at `path` (dataset_label), if it is one."""
+        view = self.view_by_path.get(path)
+        return dataset_label(self.name_by_path.get(path) or view, view) if view else None
+
     def path_html(self, path: str, depth: int, note: str = "") -> str:
         link = self.data_link(path, depth)
-        label = self.view_by_path.get(path) or path
+        label = self.dataset_name(path) or path
         if link:
             title = f"{path} — {note}" if note else path
-            return f'<a href="{link}" title="{esc(title)}">{esc(label)}</a>'
+            return f'<a href="{link}" title="{esc(title)}"{USER}>{esc(label)}</a>'
         title = f' title="{esc(note)}"' if note else ""
-        return f'<a href="{self.file_link(path, depth)}"{title}>{esc(path)}</a>'
+        return f'<a href="{self.file_link(path, depth)}"{title}{USER}>{esc(path)}</a>'
 
     def source(self, event: dict) -> str | None:
         """How the read names an event: its id, or `journal:<line>` when several lines have it."""
@@ -229,8 +262,8 @@ class Site:
                              f'is the {LATEST}">Version unbound</span>')
             items += [self.ref_html(judged, depth) for judged in shown]
         if hidden:
-            items.append(f'<span class="ref muted" title="전체 목록은 run 페이지에 있습니다">'
-                         f'그 외 {hidden:,}개</span>')
+            items.append(f'<span class="ref muted" title="The run page lists them all">'
+                         f'{hidden:,} more</span>')
         return f'<div class="refs">{"".join(items)}</div>' if items else ""
 
     def ref_html(self, judged: dict, depth: int) -> str:
@@ -258,12 +291,12 @@ class Site:
             path = item if item in self.view_by_path else self.views.get(item)
             body = self.path_html(path, depth, LATEST) if path else esc(item)
         elif kind == "event":
-            prefix = "해결: " if field == "resolves" else ""
+            prefix = "Resolves: " if field == "resolves" else ""
             body = (f'<a href="{esc(self.root(depth))}index.html#{esc(label)}">{prefix}{esc(label)}</a>'
                     if found else f"{prefix}{esc(label)}")
         elif kind == "context_version" and found:
             body = (f'<a href="{esc(self.root(depth))}context.html#v-{esc(Path(label).stem)}" '
-                    f'title="{esc(label)}">버전 보기</a>')
+                    f'title="{esc(label)}">View version</a>')
         else:
             body = esc(label)
         candidates = judged.get("candidates")
@@ -288,7 +321,7 @@ class Site:
         judged = next((j for j in self.model.references(source)
                        if (j.get("ref") or {}).get("field") == "resolves"), None)
         if judged is not None and judged["state"] == "resolved":
-            return f' <a class="badge tone-good" href="{link}">✓ 해결됨 {esc(source)}</a>'
+            return f' <a class="badge tone-good" href="{link}">✓ Resolved by {esc(source)}</a>'
         state = judged["state"] if judged is not None else "unknown"
         tone, words = REF_STATE.get(state, ("muted", state))
         reason = f": {judged['reason']}" if judged is not None and judged.get("reason") else ""
@@ -319,26 +352,27 @@ class Site:
                                            if k in files)
             loading = ' loading="lazy"' if lazy else ""
             return (f'<a class="chart-img" href="{self.file_link(src, depth)}">'
-                    f'<img src="{self.file_link(src, depth)}" alt="{title}"{loading}></a>')
+                    f'<img src="{self.file_link(src, depth)}" alt="{title}"{USER}{loading}></a>')
         if files.get("plotly"):
             path = self.p.path(files["plotly"])
             try:
                 size = path.stat().st_size
             except OSError:
-                return '<div class="empty">차트 파일이 없습니다.</div>'
+                return '<div class="empty">The chart file is missing.</div>'
             if size > PLOTLY_EMBED_LIMIT:
-                return (f'<div class="empty">plotly 그림이 커서 ({fmt_bytes(size)}) 이 페이지에 넣지 '
-                        f'않았습니다. <a href="{self.file_link(files["plotly"], depth)}">JSON 열기</a></div>')
+                return (f'<div class="empty">This plotly figure ({fmt_bytes(size)}) is too large to '
+                        f'embed in this page. <a href="{self.file_link(files["plotly"], depth)}">Open '
+                        'the JSON</a></div>')
             self.uses_plotly = True
             self._fig += 1
             payload = path.read_text(encoding="utf-8").replace("</", "<\\/")
             return (f'<div class="plotly-chart" data-fig="fig{self._fig}" role="img" '
-                    f'aria-label="{title}"></div><script type="application/json" '
+                    f'aria-label="{title}"{USER}></div><script type="application/json" '
                     f'id="fig{self._fig}">{payload}</script>')
         if files.get("html"):
             return (f'<iframe class="chart-frame" src="{self.file_link(files["html"], depth)}" '
-                    f'loading="lazy" title="{title}"></iframe>')
-        return '<div class="empty">표시할 차트 파일이 없습니다.</div>'
+                    f'loading="lazy" title="{title}"{USER}></iframe>')
+        return '<div class="empty">No file to show for this visualization.</div>'
 
     def chart_card(self, chart: dict, depth: int, *, full=False) -> str:
         run = self.run_by_id.get(chart["run"]) or {}
@@ -348,21 +382,22 @@ class Site:
         badges += stale_badges(fresh)
         badges += producer_badges(fresh)
         if fresh["code"] == "changed":
-            badges.append(badge("warning", "✎", "스크립트 수정됨",
-                                "이 차트를 만든 뒤 스크립트 파일이 바뀌었습니다"))
+            badges.append(badge("warning", "✎", "Script edited",
+                                "The script file changed after this visualization was made"))
             if fresh.get("code_reason") == core.LINE_ENDINGS_ONLY:
                 badges.append(line_endings_badge())
         elif fresh["code"] == "missing":
-            badges.append(badge("warning", "✎", "스크립트 없음",
-                                "이 차트를 만든 스크립트 파일이 지금은 없습니다(이름 변경·삭제)"))
+            badges.append(badge("warning", "✎", "Script missing",
+                                "The script that made this visualization is no longer there "
+                                "(renamed or deleted)"))
         versions = chart.get("versions") or []
         if len(versions) > 1:
             badges.append(f'<span class="badge tone-muted">v{len(versions)}</span>')
         if chart.get("retired"):
-            badges.append(badge("muted", "↺", "최신 run에 없음"))
+            badges.append(badge("muted", "↺", "Absent from latest run"))
         run_page = self.run_link(chart["run"], depth)
         line = chart.get("line")
-        code_link = (f'<a href="{run_page}#code">{esc(script.get("path"))}</a> '
+        code_link = (f'<a href="{run_page}#code"{USER}>{esc(script.get("path"))}</a> '
                      f'<span class="sha">@{short(script.get("sha256"))}</span>')
         if line:
             code_link += f' · <a href="{run_page}#L-main-{line}">L{line}</a>'
@@ -373,43 +408,48 @@ class Site:
                       else "")
             inputs.append(f'<span class="input">{self.path_html(entry["path"], depth)} '
                           f'<span class="sha">{short(entry.get("sha256"))}</span>'
-                          f'<span class="state tone-{tone}" title="현재 파일: {esc(label)}">{icon}</span>'
+                          f'<span class="state tone-{tone}" title="File now: {esc(label)}">{icon}</span>'
                           f'{reason}</span>')
         if chart.get("data"):
             data_html = (f'<a href="{run_page}#chart-{esc(chart["id"])}-data">'
-                         f'{fmt_num(chart.get("data_rows"))}행 · {len(chart.get("data_columns") or [])}열</a>'
+                         f'{fmt_num(chart.get("data_rows"))} rows · '
+                         f'{len(chart.get("data_columns") or [])} columns</a>'
                          f' · <a href="{self.file_link(chart["data"], depth)}">parquet</a>')
         elif chart.get("kind") == "plotly":
-            data_html = '<span class="muted">plotly 그림 JSON에 포함</span>'
+            data_html = '<span class="muted">In the plotly figure JSON</span>'
         else:
-            data_html = '<span class="muted">기록 안 됨 — analytics.visualize(..., data=df)</span>'
+            data_html = '<span class="muted">Not recorded — analytics.visualize(..., data=df)</span>'
         version_links = ""
         if full and len(versions) > 1:
-            version_links = ('<div class="versions">이전 버전: ' + " · ".join(
+            version_links = ('<div class="versions">Earlier versions: ' + " · ".join(
                 f'<a href="{self.run_link(v["run"], depth)}">{fmt_time(v.get("started_at"))}</a>'
                 for v in versions[-2::-1][:8]) + "</div>")
         classes = "chart-card" + (" is-stale" if fresh["stale"] else "") + \
             (" is-retired" if chart.get("retired") else "")
-        caption = f'<p class="caption">{esc(chart["caption"])}</p>' if chart.get("caption") else ""
+        caption = (f'<p class="caption"{USER}>{esc(chart["caption"])}</p>' if chart.get("caption")
+                   else "")
         return f"""
 <article class="{classes}" id="chart-{slug_key(chart['key'])}">
-  <header><h3>{esc(chart.get('title') or chart['id'])}</h3><div class="badges">{''.join(badges)}</div></header>
+  <header><h3{USER}>{esc(chart.get('title') or chart['id'])}</h3><div class="badges">{''.join(badges)}</div></header>
   <div class="chart-body">{self.chart_html(chart, depth)}</div>
   {caption}
   <dl class="prov">
-    <div><dt>코드</dt><dd>{code_link}</dd></div>
-    <div><dt>입력 데이터</dt><dd>{''.join(inputs) or '<span class="muted">감지된 입력 없음</span>'}</dd></div>
-    <div><dt>플롯 데이터</dt><dd>{data_html}</dd></div>
-    <div><dt>실행</dt><dd><a href="{run_page}">{esc(chart['run'])}</a> · {fmt_time(run.get('started_at'))} · {run.get('duration_s', '-')}s</dd></div>
+    <div><dt>Code</dt><dd>{code_link}</dd></div>
+    <div><dt>Input data</dt><dd>{''.join(inputs) or '<span class="muted">No inputs detected</span>'}</dd></div>
+    <div><dt>Attached data</dt><dd>{data_html}</dd></div>
+    <div><dt>Run</dt><dd><a href="{run_page}">{esc(chart['run'])}</a> · {fmt_time(run.get('started_at'))} · {run.get('duration_s', '-')}s</dd></div>
   </dl>
   {version_links}
 </article>"""
 
     # --- tables ---
 
-    def table(self, columns, rows, *, types=None, klass="data") -> str:
+    def table(self, columns, rows, *, types=None, klass="data", data_head=True) -> str:
+        """A table of data: its text cells, and its column names when they are the data's
+        (`data_head`), are the data's text (USER); `null` and numbers are the kit's."""
+        lang = USER if data_head else ""
         head = "".join(
-            f'<th>{esc(c)}{f"<small>{esc(types[i])}</small>" if types else ""}</th>'
+            f'<th{lang}>{esc(c)}{f"<small>{esc(types[i])}</small>" if types else ""}</th>'
             for i, c in enumerate(columns))
         body = []
         for row in rows:
@@ -420,7 +460,7 @@ class Site:
                 elif isinstance(v, (int, float)) and not isinstance(v, bool):
                     cells.append(f'<td class="num">{fmt_num(v)}</td>')
                 else:
-                    cells.append(f"<td>{esc(v)}</td>")
+                    cells.append(f"<td{USER}>{esc(v)}</td>")
             body.append("<tr>" + "".join(cells) + "</tr>")
         return (f'<div class="table-wrap"><table class="{klass}"><thead><tr>{head}</tr></thead>'
                 f'<tbody>{"".join(body)}</tbody></table></div>')
@@ -435,17 +475,17 @@ class Site:
             schema = lf.collect_schema()
             frame = lf.head(limit).collect()
             total = lf.select(pl.len()).collect().item()
-            note = (f'<p class="muted">{fmt_num(total)}행 중 처음 {min(limit, total):,}행</p>'
+            note = (f'<p class="muted">First {min(limit, total):,} of {fmt_num(total)} rows</p>'
                     if total > limit else "")
             return note + self.table(frame.columns, [[cell(v, 120) for v in r] for r in frame.rows()],
                                      types=[str(t) for t in schema.values()])
-        return '<div class="empty">데이터를 읽지 못했습니다.</div>'
+        return '<div class="empty">Could not read the data.</div>'
 
     # --- events ---
 
     def events_html(self, events, depth: int, *, filters=False) -> str:
         if not events:
-            return '<div class="empty">아직 기록이 없습니다.</div>'
+            return '<div class="empty">No journal entries yet.</div>'
         out, day = [], None
         for ev in events:
             ts = str(ev.get("ts") or "")
@@ -457,7 +497,7 @@ class Site:
             if ev.get("kind") in core.OPEN_KINDS + core.KEY_KINDS and resolved:
                 state = self.closed_badge(resolved)
             elif ev.get("kind") in core.OPEN_KINDS:
-                state = ' <span class="badge tone-warning">● 열림</span>'
+                state = ' <span class="badge tone-warning">● Open</span>'
             # A record whose id other lines share is named by its line, and so is its anchor.
             source, anchor, shown = self.source(ev), self.anchor(ev), esc(ev.get("id"))
             if anchor != ev.get("id"):
@@ -466,11 +506,11 @@ class Site:
                 f'<li class="ev" id="{esc(anchor)}" data-kind="{esc(ev.get("kind"))}">'
                 f'<div class="ev-head"><time>{fmt_time(ts, with_date=False)}</time>{kind_chip(ev.get("kind"))}'
                 f'<span class="ev-id">{shown}</span><span class="actor">{esc(ev.get("actor"))}</span>{state}</div>'
-                f'<div class="ev-text">{esc(ev.get("text"))}</div>{self.refs_html(ev, depth)}</li>')
+                f'<div class="ev-text"{USER}>{esc(ev.get("text"))}</div>{self.refs_html(ev, depth)}</li>')
         chips = ""
         if filters:
             counts = Counter(e.get("kind") for e in events)
-            chips = '<div class="filters" role="group" aria-label="종류 필터"><button class="on" data-kind="">전체</button>' + "".join(
+            chips = '<div class="filters" role="group" aria-label="Filter by kind"><button class="on" data-kind="">All</button>' + "".join(
                 f'<button data-kind="{esc(k)}">{esc(KIND_LABEL.get(k, k))} {n}</button>'
                 for k, n in sorted(counts.items(), key=lambda kv: core.EVENT_KINDS.index(kv[0])
                                    if kv[0] in core.EVENT_KINDS else 99)) + "</div>"
@@ -485,7 +525,7 @@ class Site:
                   if self.uses_plotly else "")
         self.uses_plotly = False
         return f"""<!doctype html>
-<html lang="ko" data-root="{root}" data-build="{self.build}">
+<html lang="en" data-root="{root}" data-build="{self.build}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -495,11 +535,11 @@ class Site:
 </head>
 <body class="page-{kind}">
 <header class="topbar">
-  <div class="crumbs"><a href="{root}index.html">{esc(self.p.title())}</a>{crumb}</div>
-  <div class="build">빌드 {fmt_time(self.built_at)} · <label><input type="checkbox" id="live" checked> 자동 새로고침</label></div>
+  <div class="crumbs"><a href="{root}index.html"{USER}>{esc(self.p.title())}</a>{crumb}</div>
+  <div class="build">Rendered {fmt_time(self.built_at)} · <label><input type="checkbox" id="live" checked> Auto-reload</label></div>
 </header>
 <main>{body}</main>
-<footer>Aelix Analytics {core.KIT_VERSION} · run 기록·journal·CONTEXT.md에서 생성된 페이지입니다. 직접 편집하지 마세요. · <span class="read-basis">Read at {esc(self.read_footer())}</span></footer>
+<footer>Aelix Analytics {core.KIT_VERSION} · Generated from the run records, the journal and CONTEXT.md — do not edit by hand. · <span class="read-basis">Read at {esc(self.read_footer())}</span></footer>
 {plotly}
 <script src="{root}assets/report.js{v}"></script>
 </body>
@@ -693,7 +733,7 @@ def stale_badges(fresh: dict) -> list[str]:
     badge says so and does not say this run's input changed."""
     out = []
     if fresh["changed_inputs"]:
-        out.append(badge("critical", "⚠", "입력 변경됨", "; ".join(changed_inputs_text(fresh))))
+        out.append(badge("critical", "⚠", "Input changed", "; ".join(changed_inputs_text(fresh))))
     if fresh["stale_upstream"]:
         runs = fresh["stale_upstream"]
         more = len(runs) - SHOWN_CANDIDATES
@@ -734,14 +774,14 @@ def origin_html(site: Site, ds: dict, depth: int) -> str:
         record = ds["unsupported_record"]
         return badge("muted", "?", "Import record not read", f"{record['location']}: {record['reason']}")
     if ds.get("source"):
-        return esc(Path(ds["source"]).name)
+        return user_text(Path(ds["source"]).name)
     if state == "unknown":
         return badge("muted", "?", "Producer unknown", "the file could not be hashed")
     if ds.get("written_by"):
         return badge("warning", "⚠", "No matching run output",
                      "no successful run output these bytes; runs that wrote this path: "
                      + ", ".join(ds["written_by"][::-1][:SHOWN_CANDIDATES]))
-    return badge("critical", "⚠", "생성 run 없음")
+    return badge("critical", "⚠", "No run output recorded")
 
 
 def producer_cell(site: Site, judged: dict | None, depth: int) -> str:
@@ -770,7 +810,7 @@ def index_page(site: Site) -> str:
                     if p.context.is_file() else "")
     goal = core.context_goal(context_text)
     if goal:
-        st_goal = f'<p class="goal">{esc(goal)}</p>'
+        st_goal = f'<p class="goal"{USER}>{esc(goal)}</p>'
     current = [c for c in site.charts if not c.get("retired")]
     stale = [c for c in current if site.fresh.of(c["run"])["stale"]]
     failed = [r for r in site.runs if r.get("status") != "ok"]
@@ -785,19 +825,21 @@ def index_page(site: Site) -> str:
                 f'<span class="value">{fmt_num(value)}</span><span class="note">{note}</span></a>')
 
     tiles = "".join([
-        tile("데이터셋", len(site.datasets), f"raw {sum(d['kind'] == 'raw' for d in site.datasets)}"
+        tile("Datasets", len(site.datasets), f"raw {sum(d['kind'] == 'raw' for d in site.datasets)}"
              f" · derived {sum(d['kind'] == 'derived' for d in site.datasets)}", "data"),
-        tile("실행", len(site.runs), f"성공 아님 {len(failed)}" if failed else "모두 성공", "runs"),
-        tile("차트", len(current), f"⚠ 입력 변경 {len(stale)}" if stale else "최신", "charts"),
-        tile("열린 질문·할 일", len(open_items), "", "overview-open"),
-        tile("gap 기록", len(gaps), "평가용", "evaluation"),
+        tile("Runs", len(site.runs), f"{len(failed)} not succeeded" if failed else "All succeeded",
+             "runs"),
+        tile("Visualizations", len(current), f"⚠ {len(stale)} with input changes" if stale
+             else "No input changes", "charts"),
+        tile("Open questions and next steps", len(open_items), "", "overview-open"),
+        tile("Workflow feedback", len(gaps), "In Evaluation", "evaluation"),
     ])
 
     def item_list(items, empty):
         if not items:
             return f'<div class="empty">{empty}</div>'
         return '<ul class="items">' + "".join(
-            f'<li id="key-{esc(e["id"])}">{kind_chip(e["kind"])} <span class="item-text">{esc(e["text"])}</span>'
+            f'<li id="key-{esc(e["id"])}">{kind_chip(e["kind"])} <span class="item-text"{USER}>{esc(e["text"])}</span>'
             f'<span class="item-meta"><a href="#{esc(site.anchor(e))}">{esc(site.source(e))}</a> · {fmt_time(e.get("ts"))}</span>'
             f'{site.refs_html(e, 0)}</li>' for e in reversed(items[-12:])) + "</ul>"
 
@@ -805,30 +847,30 @@ def index_page(site: Site) -> str:
 
     overview = f"""
 <section id="overview" class="tab">
-  <div class="hero"><h1>{esc(p.title())}</h1>{st_goal}<div class="where">프로젝트 <code>{esc(p.root)}</code></div></div>
+  <div class="hero"><h1{USER}>{esc(p.title())}</h1>{st_goal}<div class="where">Project <code{USER}>{esc(p.root)}</code></div></div>
   {skipped}
   <div class="tiles">{tiles}</div>
   <div class="columns">
-    <div class="panel"><h2>핵심 정보</h2>{item_list(key_items, '발견·결정·가정이 기록되면 여기에 모입니다.')}</div>
-    <div class="panel" id="overview-open"><h2>열린 질문 · 할 일</h2>{item_list(open_items, '열린 질문이 없습니다.')}</div>
+    <div class="panel"><h2>Key information</h2>{item_list(key_items, 'Findings, decisions and assumptions appear here once they are recorded.')}</div>
+    <div class="panel" id="overview-open"><h2>Open questions · next steps</h2>{item_list(open_items, 'No open questions or next steps.')}</div>
   </div>
-  <h2 class="section-title">최근 차트</h2>
-  <div class="gallery">{''.join(site.chart_card(c, 0) for c in current[:4]) or '<div class="empty">아직 차트가 없습니다. analytics_run으로 스크립트를 실행하면 여기에 나타납니다.</div>'}</div>
-  <h2 class="section-title">최근 기록</h2>
+  <h2 class="section-title">Recent visualizations</h2>
+  <div class="gallery">{''.join(site.chart_card(c, 0) for c in current[:4]) or '<div class="empty">No visualizations yet. Run a script with analytics_run (or analytics run) and its visualizations appear here.</div>'}</div>
+  <h2 class="section-title">Recent journal entries</h2>
   {site.events_html(site.events[-8:][::-1], 0)}
 </section>"""
 
     all_cards = "".join(site.chart_card(c, 0, full=True) for c in site.charts)
     charts = f"""
 <section id="charts" class="tab">
-  <div class="toolbar"><h2>차트</h2><label class="toggle"><input type="checkbox" id="show-retired"> 최신 run에서 빠진 차트도 보기</label></div>
-  <p class="muted">스크립트::차트 id마다 가장 최근 성공 run의 버전입니다. 각 카드의 코드·입력 데이터·플롯 데이터 링크가 그 차트를 만든 기록을 가리킵니다.</p>
-  <div class="gallery">{all_cards or '<div class="empty">아직 차트가 없습니다.</div>'}</div>
+  <div class="toolbar"><h2>Visualizations</h2><label class="toggle"><input type="checkbox" id="show-retired"> Also show those absent from the latest run</label></div>
+  <p class="muted">The version from the latest successful run, for each script::chart id. Each card's code, input data and attached data links lead to the records that made it.</p>
+  <div class="gallery">{all_cards or '<div class="empty">No visualizations yet.</div>'}</div>
 </section>"""
 
     timeline = f"""
 <section id="timeline" class="tab">
-  <div class="toolbar"><h2>타임라인</h2></div>
+  <div class="toolbar"><h2>Timeline</h2></div>
   {site.events_html(site.events[::-1], 0, filters=True)}
 </section>"""
 
@@ -836,17 +878,19 @@ def index_page(site: Site) -> str:
     for ds in site.datasets:
         view = site.view_by_path.get(ds["path"])
         origin = origin_html(site, ds, 0)
+        label = dataset_label(ds["name"], view)
+        also = f' <small>view <code>{esc(view)}</code></small>' if label != view else ""
         data_rows.append(
-            f'<tr><td><a href="data/{href(view)}.html">{esc(view)}</a></td><td>{esc(ds["kind"])}</td>'
+            f'<tr><td><a href="data/{href(view)}.html"{USER}>{esc(label)}</a>{also}</td><td>{esc(ds["kind"])}</td>'
             f'<td class="num">{fmt_num(ds.get("rows"))}</td><td class="num">{fmt_num(ds.get("columns"))}</td>'
-            f'<td class="num">{fmt_bytes(ds.get("bytes"))}</td><td><code>{esc(ds["path"])}</code></td>'
+            f'<td class="num">{fmt_bytes(ds.get("bytes"))}</td><td><code{USER}>{esc(ds["path"])}</code></td>'
             f'<td>{origin}</td><td class="num">{len(ds.get("used_by") or [])}</td>'
             f'<td class="sha">{short(ds.get("sha256"), 12)}</td></tr>')
     data = f"""
 <section id="data" class="tab">
-  <div class="toolbar"><h2>데이터</h2></div>
-  <p class="muted">data/raw는 가져온 원본(불변), data/derived는 run이 만든 Parquet입니다. 이름은 analytics_query·analytics.sql에서 쓰는 view 이름입니다.</p>
-  {('<div class="table-wrap"><table class="list"><thead><tr><th>view</th><th>종류</th><th>행</th><th>열</th><th>크기</th><th>경로</th><th>Source / producer candidates</th><th>사용 run</th><th>sha256</th></tr></thead><tbody>' + ''.join(data_rows) + '</tbody></table></div>') if data_rows else '<div class="empty">아직 데이터셋이 없습니다. analytics_import로 가져오세요.</div>'}
+  <div class="toolbar"><h2>Data</h2></div>
+  <p class="muted">data/raw holds imported data (kept unchanged), data/derived the Parquet files runs made. Each dataset shows its name as written and, where they differ, its SQL view — the name analytics_query and analytics.sql use.</p>
+  {('<div class="table-wrap"><table class="list"><thead><tr><th>Dataset</th><th>Kind</th><th>Rows</th><th>Columns</th><th>Size</th><th>Path</th><th>Source / producer candidates</th><th>Used by runs</th><th>sha256</th></tr></thead><tbody>' + ''.join(data_rows) + '</tbody></table></div>') if data_rows else '<div class="empty">No datasets yet. Import one with analytics_import (or analytics import).</div>'}
 </section>"""
 
     run_rows = []
@@ -856,42 +900,54 @@ def index_page(site: Site) -> str:
         if repro:
             tone = {"match": "good", "mismatch": "critical", "failed": "critical"}.get(
                 repro.get("verdict"), "muted")
-            verdict = badge(tone, "↻", f"재실행 {repro.get('verdict')}")
+            verdict = badge(tone, "↻", f"Rerun {verdict_label(repro.get('verdict'))}")
         run_rows.append(
             f'<tr><td>{fmt_time(run.get("started_at"))}</td><td><a href="runs/{href(run["id"])}.html">{esc(run["id"])}</a></td>'
-            f'<td>{status_badge(run.get("status"))} {verdict}</td><td>{esc(run.get("title"))}</td>'
+            f'<td>{status_badge(run.get("status"))} {verdict}</td><td{USER}>{esc(run.get("title"))}</td>'
             f'<td class="num">{len(run.get("charts") or [])}</td><td class="num">{len(run.get("inputs") or [])}</td>'
             f'<td class="num">{sum(1 for o in run.get("outputs") or [] if o.get("change") != "deleted")}</td>'
             f'<td class="num">{run.get("duration_s", "-")}</td></tr>')
     runs = f"""
 <section id="runs" class="tab">
-  <div class="toolbar"><h2>실행</h2></div>
-  {('<div class="table-wrap"><table class="list"><thead><tr><th>시작</th><th>run</th><th>상태</th><th>제목</th><th>차트</th><th>입력</th><th>출력</th><th>초</th></tr></thead><tbody>' + ''.join(run_rows) + '</tbody></table></div>') if run_rows else '<div class="empty">아직 실행 기록이 없습니다.</div>'}
+  <div class="toolbar"><h2>Runs</h2></div>
+  {('<div class="table-wrap"><table class="list"><thead><tr><th>Started</th><th>Run</th><th>Status</th><th>Title</th><th>Visualizations</th><th>Inputs</th><th>Outputs</th><th>Seconds</th></tr></thead><tbody>' + ''.join(run_rows) + '</tbody></table></div>') if run_rows else '<div class="empty">No runs yet.</div>'}
 </section>"""
 
     context_html = render_markdown(context_text) if context_text else \
-        '<div class="empty">CONTEXT.md가 비어 있습니다.</div>'
+        '<div class="empty">CONTEXT.md is empty.</div>'
     version_items = "".join(
         f'<li><a href="context.html#v-{esc(v.stem)}">{fmt_time(core._version_time(v))}</a></li>'
         for v in site.versions[::-1][:12])
     # The context block's own selection, from the file as aelix's read tool numbers its lines.
     _, injected, omitted, _ = core.context_selection(core.context_file_text(p))
     prompt_note = (
-        f'<p class="muted">프롬프트에 매번 들어가는 섹션: {esc(", ".join(s["name"] for s in injected)) or "없음"}.'
-        + (f' 제목과 줄 범위만 들어가는 섹션: {esc(", ".join(s["name"] for s in omitted))} '
-           '— 에이전트가 필요할 때 읽어 갑니다.' if omitted else "") + "</p>")
+        f'<p class="muted">Sections in every prompt: {section_names(injected) or "none"}.'
+        + (f' Sections the prompt names with their line ranges only: '
+           f'{section_names(omitted)} — the agent reads them when it needs them.'
+           if omitted else "") + "</p>")
     context = f"""
 <section id="context" class="tab">
-  <div class="toolbar"><h2>맥락 <small>CONTEXT.md</small></h2><a href="context.html">버전 기록 {len(site.versions)}개 →</a></div>
+  <div class="toolbar"><h2>Context <small>CONTEXT.md</small></h2><a href="context.html">{len(site.versions)} recorded version(s) →</a></div>
   {prompt_note}
   <div class="columns wide-left">
-    <article class="panel markdown">{context_html}</article>
-    <aside class="panel"><h3>최근 버전</h3><ul class="plain">{version_items or '<li class="muted">없음</li>'}</ul></aside>
+    <article class="panel markdown"{USER if context_text else ""}>{context_html}</article>
+    <aside class="panel"><h3>Recent versions</h3><ul class="plain">{version_items or '<li class="muted">None</li>'}</ul></aside>
   </div>
 </section>"""
 
-    return site.page(0, "분석 리포트", "", overview + charts + timeline + data + runs + context
+    return site.page(0, "Workspace", "", overview + charts + timeline + data + runs + context
                      + evaluation_section(site), "index")
+
+
+def section_names(sections: list[dict]) -> str:
+    """CONTEXT.md sections by name: a heading's words are the file's (USER); a heading that is
+    only a pin mark is named `Section N` by the kit."""
+    names = []
+    for section in sections:
+        heading = section["text"].split("\n", 1)[0][3:]
+        named = bool(core.PIN_RE.sub("", heading).strip())
+        names.append(user_text(section["name"]) if named else esc(section["name"]))
+    return ", ".join(names)
 
 
 def evaluation_section(site: Site) -> str:
@@ -915,17 +971,19 @@ def evaluation_section(site: Site) -> str:
         return ", ".join(f'<a href="runs/{href(r["id"])}.html">{esc(r["id"])}</a>' for r in items[:6])
 
     signals = "".join([
-        row("run 상태", len(runs), " · ".join(f"{esc(STATUS.get(k, (0, 0, k))[2])} {v}"
-                                             for k, v in statuses.items())),
-        row("입력이 감지되지 않은 run", len(no_input), run_list(no_input)),
-        row("플롯 데이터 없는 matplotlib 차트", len(undocumented),
-            ", ".join(f'<a href="runs/{href(r["id"])}.html">{esc(c["id"])}</a>' for r, c in undocumented[:6])),
-        row("프로젝트 밖 입력 파일", len(external), ", ".join(esc(i["path"]) for _, i in external[:4])),
-        row("data/ 밖에 쓴 파일", len(outside), ", ".join(esc(o["path"]) for _, o in outside[:4])),
-        row("입력 변경으로 stale인 차트", len(stale), ", ".join(esc(c["key"]) for c in stale[:4])),
-        row("재실행 검증", len(reruns), " · ".join(f"{esc(k)} {v}" for k, v in verdicts.items())),
-        row("analytics_query 조회", len(site.queries),
-            f"오류 {sum(1 for q in site.queries if q.get('error'))}"),
+        row("Run status", len(runs), " · ".join(f"{esc(STATUS.get(k, (0, 0, k))[2])} {v}"
+                                               for k, v in statuses.items())),
+        row("Runs with no input detected", len(no_input), run_list(no_input)),
+        row("matplotlib charts without attached data", len(undocumented),
+            ", ".join(f'<a href="runs/{href(r["id"])}.html"{USER}>{esc(c["id"])}</a>' for r, c in undocumented[:6])),
+        row("Input files outside the project", len(external),
+            ", ".join(user_text(i["path"]) for _, i in external[:4])),
+        row("Files written outside data/", len(outside), ", ".join(user_text(o["path"]) for _, o in outside[:4])),
+        row("Visualizations with input changes", len(stale), ", ".join(user_text(c["key"]) for c in stale[:4])),
+        row("Rerun comparisons", len(reruns),
+            " · ".join(f"{esc(verdict_label(k))} {v}" for k, v in verdicts.items())),
+        row("analytics_query queries", len(site.queries),
+            f"{sum(1 for q in site.queries if q.get('error'))} with an error"),
     ])
     by_tool: dict[str, list[dict]] = defaultdict(list)
     for t in site.telemetry:
@@ -938,24 +996,24 @@ def evaluation_section(site: Site) -> str:
     flagged = [t for t in site.telemetry if t.get("flags")]
     flag_items = "".join(
         f"<li><time>{fmt_time(t.get('ts'))}</time> <code>{esc(t.get('tool'))}</code> "
-        f"{''.join(badge('warning', '⚑', f) for f in t['flags'])} <span class='muted'>{esc(t.get('summary'))}</span></li>"
+        f"{''.join(badge('warning', '⚑', f) for f in t['flags'])} <span class='muted'{USER}>{esc(t.get('summary'))}</span></li>"
         for t in flagged[::-1][:30])
     gap_html = site.events_html(gaps[::-1], 0) if gaps else \
-        '<div class="empty">아직 gap 기록이 없습니다. 사용하다 막히거나 우회가 필요했던 지점을 /analytics record gap 또는 analytics_record(kind="gap")로 남기세요.</div>'
-    telemetry_html = (f'<div class="table-wrap"><table class="list"><thead><tr><th>도구</th><th>호출</th>'
-                      f'<th>오류</th><th>평균 ms</th></tr></thead><tbody>{tool_rows}</tbody></table></div>'
-                      if tool_rows else '<div class="empty">aelix 확장이 기록한 도구 호출이 없습니다.</div>')
+        '<div class="empty">No workflow feedback yet. Record where the tools got in the way or needed a workaround with /analytics record gap or analytics_record(kind="gap").</div>'
+    telemetry_html = (f'<div class="table-wrap"><table class="list"><thead><tr><th>Tool</th><th>Calls</th>'
+                      f'<th>Errors</th><th>Mean ms</th></tr></thead><tbody>{tool_rows}</tbody></table></div>'
+                      if tool_rows else '<div class="empty">No tool calls recorded by the aelix extension.</div>')
     return f"""
 <section id="evaluation" class="tab">
-  <div class="toolbar"><h2>평가</h2></div>
-  <p class="muted">분석을 진행하며 드러난 부족한 점과 우회가 필요했던 지점을 모읍니다.</p>
+  <div class="toolbar"><h2>Evaluation</h2></div>
+  <p class="muted">Where the tools fell short or needed a workaround during the analysis, how much the records cover, and how the agent used its tools.</p>
   <div class="columns">
-    <div class="panel"><h3>gap 기록 ({len(gaps)})</h3>{gap_html}</div>
-    <div class="panel"><h3>기록 품질 신호</h3><div class="table-wrap"><table class="kv">{signals}</table></div></div>
+    <div class="panel"><h3>Workflow feedback ({len(gaps)})</h3>{gap_html}</div>
+    <div class="panel"><h3>Record coverage</h3><div class="table-wrap"><table class="kv">{signals}</table></div></div>
   </div>
   <div class="columns">
-    <div class="panel"><h3>에이전트 도구 사용</h3>{telemetry_html}</div>
-    <div class="panel"><h3>우회 의심 호출 ({len(flagged)})</h3>{('<ul class="plain flagged">' + flag_items + '</ul>') if flag_items else '<div class="empty">없음</div>'}</div>
+    <div class="panel"><h3>Tool usage</h3>{telemetry_html}</div>
+    <div class="panel"><h3>Possible workarounds ({len(flagged)})</h3>{('<ul class="plain flagged">' + flag_items + '</ul>') if flag_items else '<div class="empty">None</div>'}</div>
   </div>
 </section>"""
 
@@ -963,6 +1021,7 @@ def evaluation_section(site: Site) -> str:
 # --- run page ---
 
 def code_html(source: str, anchor: str, hl_lines=()) -> str:
+    """A script as written: its comments and strings are the author's text (USER)."""
     try:
         from pygments import highlight
         from pygments.formatters import HtmlFormatter
@@ -971,10 +1030,11 @@ def code_html(source: str, anchor: str, hl_lines=()) -> str:
         formatter = HtmlFormatter(linenos="table", anchorlinenos=True, lineanchors=f"L-{anchor}",
                                   hl_lines=sorted({n for n in hl_lines if n}), cssclass="code",
                                   wrapcode=True)
-        return highlight(source, PythonLexer(), formatter)
+        return highlight(source, PythonLexer(), formatter).replace(
+            '<div class="code">', f'<div class="code"{USER}>', 1)
     except Exception:  # noqa: BLE001 - fall back to plain text
         lines = source.splitlines()
-        return '<div class="code"><pre>' + "\n".join(
+        return f'<div class="code"{USER}><pre>' + "\n".join(
             f'<a id="L-{anchor}-{i}" href="#L-{anchor}-{i}" class="ln">{i:>4}</a>  {esc(line)}'
             for i, line in enumerate(lines, 1)) + "</pre></div>"
 
@@ -988,45 +1048,48 @@ def run_page(site: Site, run: dict) -> str:
     pos = next((i for i, r in enumerate(same_script) if r["id"] == rid), 0)
     nav = []
     if pos > 0:
-        nav.append(f'<a href="{href(same_script[pos - 1]["id"])}.html">← 이전 run</a>')
+        nav.append(f'<a href="{href(same_script[pos - 1]["id"])}.html">← Previous run</a>')
     if pos < len(same_script) - 1:
-        nav.append(f'<a href="{href(same_script[pos + 1]["id"])}.html">다음 run →</a>')
+        nav.append(f'<a href="{href(same_script[pos + 1]["id"])}.html">Next run →</a>')
     sub = [f"run <code>{esc(rid)}</code>", fmt_time(run.get("started_at")),
-           f"{run.get('duration_s', '-')}초", f"actor {esc(run.get('actor') or '-')}"]
+           f"{run.get('duration_s', '-')}s", f"actor {esc(run.get('actor') or '-')}"]
     if run.get("session"):
-        sub.append(f'<span title="{esc(run["session"])}">aelix 세션 {esc(Path(run["session"]).name)}</span>')
+        sub.append(f'<span title="{esc(run["session"])}">aelix session {esc(Path(run["session"]).name)}</span>')
     head = f"""
 <div class="page-head">
-  <div class="title-row"><h1>{esc(run.get('title'))}</h1>{status_badge(run.get('status'))}</div>
+  <div class="title-row"><h1{USER}>{esc(run.get('title'))}</h1>{status_badge(run.get('status'))}</div>
   <div class="sub">{' · '.join(sub)}</div>
-  <div class="sub"><code>{esc(script.get('path'))}</code> 에서 실행 · 같은 스크립트의 run {pos + 1}/{len(same_script)} {' '.join(nav)}</div>
+  <div class="sub">Ran <code{USER}>{esc(script.get('path'))}</code> · run {pos + 1} of {len(same_script)} of this script {' '.join(nav)}</div>
 </div>"""
     callouts = ""
     if run.get("error"):
         err = run["error"]
         where = f' (line <a href="#L-main-{err["line"]}">{err["line"]}</a>)' if err.get("line") else ""
-        fix = f'<div class="fix">고치는 법: {esc(err["hint"])}</div>' if err.get("hint") else ""
-        callouts += (f'<div class="callout tone-critical"><strong>{esc(err.get("summary"))}</strong>'
+        fix = f'<div class="fix">How to fix: {esc(err["hint"])}</div>' if err.get("hint") else ""
+        # The summary is the script's exception as it said it; the hint is the kit's.
+        callouts += (f'<div class="callout tone-critical"><strong{USER}>{esc(err.get("summary"))}</strong>'
                      f'{where}{fix}</div>')
     repro = run.get("reproduction")
     if repro:
         tone = {"match": "good", "mismatch": "critical", "failed": "critical"}.get(
             repro.get("verdict"), "muted")
-        details = "".join(f"<li><code>{esc(k)}</code>: {esc(v)}</li>"
+        details = "".join(f"<li><code{USER}>{esc(k)}</code>: {esc(v)}</li>"
                           for k, v in {**repro.get("charts", {}), **repro.get("outputs", {})}.items())
-        callouts += (f'<div class="callout tone-{tone}"><strong>재실행 검증: {esc(repro.get("verdict"))}</strong> — '
-                     f'원본 <a href="{href(repro.get("of", ""))}.html">{esc(repro.get("of"))}</a>의 코드 스냅샷을 다시 실행했습니다. '
-                     f'입력 {"같음" if repro.get("inputs_same") else "다름"}. 재실행 run은 차트 버전에 포함되지 않습니다.<ul>{details}</ul></div>')
+        callouts += (f'<div class="callout tone-{tone}"><strong>Rerun comparison: '
+                     f'{esc(verdict_label(repro.get("verdict")))}</strong> — reran the code snapshot of '
+                     f'<a href="{href(repro.get("of", ""))}.html">{esc(repro.get("of"))}</a>. Inputs '
+                     f'{"same" if repro.get("inputs_same") else "different"}. A rerun is not counted as '
+                     f'a version of its visualizations.<ul>{details}</ul></div>')
     if run.get("finalize_errors"):
-        callouts += '<div class="callout tone-critical"><strong>기록 중 일부 단계가 실패했습니다</strong><ul>' + "".join(
+        callouts += '<div class="callout tone-critical"><strong>Some recording steps failed</strong><ul>' + "".join(
             f"<li>{esc(w)}</li>" for w in run["finalize_errors"]) + "</ul></div>"
     if run.get("warnings"):
         # Runs recorded before warnings were grouped can carry one line per input file.
         shown = run["warnings"][:REF_LIMIT]
         rest = len(run["warnings"]) - len(shown)
-        callouts += ('<div class="callout tone-warning"><strong>기록 경고</strong><ul>'
+        callouts += ('<div class="callout tone-warning"><strong>Recording warnings</strong><ul>'
                      + "".join(f"<li>{esc(w)}</li>" for w in shown)
-                     + (f"<li class='muted'>그 외 {rest:,}건</li>" if rest > 0 else "")
+                     + (f"<li class='muted'>{rest:,} more</li>" if rest > 0 else "")
                      + "</ul></div>")
     recording = site.recording.get(rid) or {}
     if recording.get("recording_status") == "incomplete":
@@ -1035,8 +1098,11 @@ def run_page(site: Site, run: dict) -> str:
                                for r in recording.get("reasons") or [])
                      + "</ul></div>")
     if fresh["changed_inputs"]:
-        callouts += ('<div class="callout tone-critical"><strong>이 run의 입력이 지금 파일과 다릅니다.</strong> '
-                     + esc(", ".join(changed_inputs_text(fresh))) + "</div>")
+        reasons = fresh.get("change_reasons") or {}
+        callouts += ('<div class="callout tone-critical"><strong>This run\'s inputs differ from the files now.</strong> '
+                     + ", ".join(user_text(path) + (f" {esc(core.LINE_ENDINGS_NOTE)}"
+                                                    if reasons.get(path) == core.LINE_ENDINGS_ONLY else "")
+                                 for path in fresh["changed_inputs"]) + "</div>")
     if fresh["stale_upstream"]:
         # The stale runs upstream output the same bytes as an input: candidates, not its producer.
         callouts += ('<div class="callout tone-warning"><strong>Upstream candidate stale.</strong> '
@@ -1052,19 +1118,19 @@ def run_page(site: Site, run: dict) -> str:
         key = core.chart_key(run, chart)
         data_block = ""
         if chart.get("data"):
-            data_block = (f'<details class="data-block" id="chart-{esc(chart["id"])}-data"><summary>플롯 데이터 · '
-                          f'{fmt_num(chart.get("data_rows"))}행 · <a href="{site.file_link(chart["data"], 1)}">parquet</a></summary>'
+            data_block = (f'<details class="data-block" id="chart-{esc(chart["id"])}-data"><summary>Attached data · '
+                          f'{fmt_num(chart.get("data_rows"))} rows · <a href="{site.file_link(chart["data"], 1)}">parquet</a></summary>'
                           f'{site.frame_preview(chart["data"])}</details>')
-        line = f' · 코드 <a href="#L-main-{chart["line"]}">L{chart["line"]}</a>' if chart.get("line") else ""
+        line = f' · code <a href="#L-main-{chart["line"]}">L{chart["line"]}</a>' if chart.get("line") else ""
         charts.append(f"""
 <article class="chart-card wide" id="chart-{esc(chart['id'])}">
-  <header><h3>{esc(chart.get('title'))}</h3><div class="badges"><span class="badge tone-muted">{esc(chart.get('kind'))} · {esc(chart.get('via'))}</span></div></header>
+  <header><h3{USER}>{esc(chart.get('title'))}</h3><div class="badges"><span class="badge tone-muted">{esc(chart.get('kind'))} · {esc(chart.get('via'))}</span></div></header>
   <div class="chart-body">{site.chart_html(chart, 1, lazy=False)}</div>
-  {f'<p class="caption">{esc(chart["caption"])}</p>' if chart.get('caption') else ''}
-  <div class="prov-line">id <code>{esc(key)}</code>{line} · <a href="{site.chart_anchor(key, 1)}">갤러리에서 보기</a></div>
+  {f'<p class="caption"{USER}>{esc(chart["caption"])}</p>' if chart.get('caption') else ''}
+  <div class="prov-line">id <code{USER}>{esc(key)}</code>{line} · <a href="{site.chart_anchor(key, 1)}">Show in Visualizations</a></div>
   {data_block}
 </article>""")
-    charts_html = "".join(charts) or '<div class="empty">이 run은 차트를 만들지 않았습니다.</div>'
+    charts_html = "".join(charts) or '<div class="empty">This run made no visualizations.</div>'
 
     hl = [c.get("line") for c in run.get("charts") or []]
     if run.get("error") and run["error"].get("line"):
@@ -1072,21 +1138,22 @@ def run_page(site: Site, run: dict) -> str:
     code_blocks = []
     snap = script.get("snapshot")
     if snap and p.path(snap).is_file():
-        state = {"same": "현재 파일과 같음", "changed": "현재 파일은 수정됨", "missing": "현재 파일 없음",
-                 "n/a": "재실행 스냅샷"}.get(fresh["code"], fresh["code"])
+        state = {"same": "Same as the current file", "changed": "Current file edited",
+                 "missing": "Current file missing", "n/a": "Rerun snapshot"}.get(fresh["code"],
+                                                                                fresh["code"])
         if fresh.get("code_reason") == core.LINE_ENDINGS_ONLY:
             state += f" {core.LINE_ENDINGS_NOTE}"
         code_blocks.append(
-            f'<div class="codefile" id="code-main"><div class="file-head"><code>{esc(script.get("path"))}</code>'
+            f'<div class="codefile" id="code-main"><div class="file-head"><code{USER}>{esc(script.get("path"))}</code>'
             f'<span class="sha">sha256 {short(script.get("sha256"), 12)}</span><span>{esc(state)}</span>'
-            f'<a href="{site.file_link(snap, 1)}">스냅샷 파일</a></div>'
+            f'<a href="{site.file_link(snap, 1)}">Snapshot file</a></div>'
             f'{code_html(p.path(snap).read_text(encoding="utf-8", errors="replace"), "main", hl)}</div>')
     for i, mod in enumerate(run.get("modules") or [], 1):
         mp = p.path(mod.get("snapshot", ""))
         if mp.is_file():
             code_blocks.append(
-                f'<details class="codefile"><summary><code>{esc(mod["path"])}</code> <span class="sha">'
-                f'sha256 {short(mod.get("sha256"), 12)}</span> (import된 로컬 모듈)</summary>'
+                f'<details class="codefile"><summary><code{USER}>{esc(mod["path"])}</code> <span class="sha">'
+                f'sha256 {short(mod.get("sha256"), 12)}</span> (imported local module)</summary>'
                 f'{code_html(mp.read_text(encoding="utf-8", errors="replace"), f"m{i}")}</details>')
 
     pairs = list(zip(run.get("inputs") or [], fresh["inputs"], strict=False))
@@ -1105,9 +1172,9 @@ def run_page(site: Site, run: dict) -> str:
             f'</td><td>{producer}</td></tr>')
     if n_inputs > len(input_rows):
         input_rows.append(
-            f'<tr><td colspan="6" class="muted">그 외 {n_inputs - len(input_rows):,}개 — 변경된 '
-            f'입력을 먼저 보여줍니다. 전체 목록은 '
-            f'<a href="{site.file_link(f"runs/{rid}/run.json", 1)}">run.json</a>에 있습니다.</td></tr>')
+            f'<tr><td colspan="6" class="muted">{n_inputs - len(input_rows):,} more — changed inputs '
+            f'are listed first. The full list is in '
+            f'<a href="{site.file_link(f"runs/{rid}/run.json", 1)}">run.json</a>.</td></tr>')
     output_rows = []
     for out in run.get("outputs") or []:
         if out.get("change") == "deleted":
@@ -1119,7 +1186,7 @@ def run_page(site: Site, run: dict) -> str:
         output_rows.append(
             f'<tr><td>{site.path_html(out["path"], 1)}</td><td>{esc(out.get("change"))}</td>'
             f'<td>{esc(out.get("via", ""))}</td><td class="num">{fmt_num(out.get("rows"))}</td>'
-            f'<td>{esc(", ".join(c[0] for c in (out.get("schema") or [])[:12]))}</td>'
+            f'<td{USER}>{esc(", ".join(c[0] for c in (out.get("schema") or [])[:12]))}</td>'
             f'<td class="sha">{short(out.get("sha256"), 12)}</td><td>{now}</td></tr>')
 
     def log_block(label, rel):
@@ -1134,8 +1201,10 @@ def run_page(site: Site, run: dict) -> str:
             fh.seek(max(0, size - LOG_LIMIT))
             text = fh.read().decode("utf-8", errors="replace")
         opened = " open" if label == "stderr" and run.get("status") != "ok" and size else ""
+        # What the script printed is its own text; "(empty)" is the kit's.
+        shown = f"<pre{USER}>{esc(text)}</pre>" if text else "<pre>(empty)</pre>"
         return (f'<details class="log"{opened}><summary>{label} · {fmt_bytes(size)}</summary>'
-                f'<pre>{esc(text) or "(비어 있음)"}</pre></details>')
+                f'{shown}</details>')
 
     env = run.get("env") or {}
     env_rows = "".join(f"<tr><th>{esc(k)}</th><td><code>{esc(v)}</code></td></tr>" for k, v in [
@@ -1145,20 +1214,20 @@ def run_page(site: Site, run: dict) -> str:
     related = site.related.get(rid, [])
 
     body = f"""{head}{callouts}
-<nav class="jump"><a href="#charts">차트</a><a href="#code">코드</a><a href="#inputs">입력</a><a href="#outputs">출력</a><a href="#logs">로그</a><a href="#env">환경</a><a href="#journal">기록</a><a href="#reproduce">재현</a></nav>
-<section id="charts"><h2>차트 ({len(run.get('charts') or [])})</h2>{charts_html}</section>
-<section id="code"><h2>코드</h2><p class="muted">run이 실행한 바이트 그대로의 스냅샷입니다. 강조된 줄은 차트를 기록한 줄과 오류 줄입니다.</p>{''.join(code_blocks) or '<div class="empty">코드 스냅샷이 없습니다.</div>'}</section>
-<section id="inputs"><h2>입력 데이터 ({n_inputs})</h2><p class="muted">via: 런타임 감지(polars·duckdb·lab.*), scan(코드의 경로 리터럴), declared(호출 시 지정). 상태는 지금 파일의 sha256과 기록을 비교합니다. Producer: every successful run that output this path with these bytes and did not start after this run — same bytes, not a confirmed link.</p>
-{('<div class="table-wrap"><table class="list"><thead><tr><th>경로</th><th>via</th><th>크기</th><th>기록 sha256</th><th>현재</th><th>Producer</th></tr></thead><tbody>' + ''.join(input_rows) + '</tbody></table></div>') if input_rows else '<div class="empty">감지된 입력이 없습니다.</div>'}</section>
-<section id="outputs"><h2>출력 ({len(output_rows)})</h2>
-{('<div class="table-wrap"><table class="list"><thead><tr><th>경로</th><th>변경</th><th>via</th><th>행</th><th>열</th><th>sha256</th><th>Now</th></tr></thead><tbody>' + ''.join(output_rows) + '</tbody></table></div>') if output_rows else '<div class="empty">프로젝트 파일을 만들거나 바꾸지 않았습니다.</div>'}</section>
-<section id="logs"><h2>로그</h2>{log_block('stdout', run.get('stdout'))}{log_block('stderr', run.get('stderr'))}</section>
-<section id="env"><h2>환경</h2><div class="table-wrap"><table class="kv">{env_rows}</table></div></section>
-<section id="journal"><h2>관련 기록</h2>{site.events_html(related, 1)}</section>
-<section id="reproduce"><h2>재현</h2><p>같은 코드 스냅샷을 다시 실행하고 차트 데이터·출력을 비교합니다.</p>
-<pre class="cmd">aelix: analytics_run(title="재실행 검증", rerun_of="{esc(rid)}")
+<nav class="jump"><a href="#charts">Visualizations</a><a href="#code">Code</a><a href="#inputs">Inputs</a><a href="#outputs">Outputs</a><a href="#logs">Logs</a><a href="#env">Environment</a><a href="#journal">Journal</a><a href="#reproduce">Rerun</a></nav>
+<section id="charts"><h2>Visualizations ({len(run.get('charts') or [])})</h2>{charts_html}</section>
+<section id="code"><h2>Code</h2><p class="muted">A snapshot of the bytes the run executed. Highlighted lines recorded a visualization or raised the error.</p>{''.join(code_blocks) or '<div class="empty">No code snapshot.</div>'}</section>
+<section id="inputs"><h2>Input data ({n_inputs})</h2><p class="muted">via: runtime (seen while polars, duckdb or lab.* read it), scan (a path literal in the code), declared (given with the run). The state compares the file's sha256 now with the record. Producer: every successful run that output this path with these bytes and did not start after this run — same bytes, not a confirmed link.</p>
+{('<div class="table-wrap"><table class="list"><thead><tr><th>Path</th><th>via</th><th>Size</th><th>Recorded sha256</th><th>Now</th><th>Producer</th></tr></thead><tbody>' + ''.join(input_rows) + '</tbody></table></div>') if input_rows else '<div class="empty">No inputs detected.</div>'}</section>
+<section id="outputs"><h2>Outputs ({len(output_rows)})</h2>
+{('<div class="table-wrap"><table class="list"><thead><tr><th>Path</th><th>Change</th><th>via</th><th>Rows</th><th>Columns</th><th>sha256</th><th>Now</th></tr></thead><tbody>' + ''.join(output_rows) + '</tbody></table></div>') if output_rows else '<div class="empty">The run created or changed no project files.</div>'}</section>
+<section id="logs"><h2>Logs</h2>{log_block('stdout', run.get('stdout'))}{log_block('stderr', run.get('stderr'))}</section>
+<section id="env"><h2>Environment</h2><div class="table-wrap"><table class="kv">{env_rows}</table></div></section>
+<section id="journal"><h2>Journal entries for this run</h2>{site.events_html(related, 1)}</section>
+<section id="reproduce"><h2>Rerun</h2><p>Runs the same code snapshot again and compares its attached data and outputs (a rerun comparison).</p>
+<pre class="cmd">aelix: analytics_run(title="Rerun comparison", rerun_of="{esc(rid)}")
 CLI:   analytics run --rerun-of {esc(rid)}</pre></section>"""
-    crumb = f' <span>/</span> <a href="../index.html#runs">실행</a> <span>/</span> {esc(rid)}'
+    crumb = f' <span>/</span> <a href="../index.html#runs">Runs</a> <span>/</span> {esc(rid)}'
     return site.page(1, run.get("title") or rid, crumb, body, "run")
 
 
@@ -1175,20 +1244,27 @@ def dataset_page(site: Site, ds: dict, view: str) -> str:
     # An import record this kit cannot read says nothing here (core.list_datasets).
     meta = (core.read_json(p.path(ds["path"]).with_suffix(".meta.json"))
             if ds["kind"] == "raw" and not ds.get("unsupported_record") else None)
-    facts = [f'<code>{esc(ds["path"])}</code>', f'{fmt_num(prof.get("rows"))}행 × {len(prof.get("columns") or [])}열',
+    label = dataset_label(ds["name"], view)
+    facts = [f'<code{USER}>{esc(ds["path"])}</code>',
+             f'{fmt_num(prof.get("rows"))} rows × {len(prof.get("columns") or [])} columns',
              fmt_bytes(prof.get("bytes")), f'sha256 <span class="sha">{short(prof.get("sha256"), 16)}</span>']
+    if label != view:
+        facts.append(f"SQL view <code>{esc(view)}</code>")
     origin = ""
     if isinstance(meta, dict):
         src = meta.get("source") or {}
-        origin = (f'<dl class="facts"><div><dt>원본 파일</dt><dd><code>{esc(src.get("path"))}</code></dd></div>'
-                  f'<div><dt>원본 sha256</dt><dd class="sha">{short(src.get("sha256"), 16)}</dd></div>'
-                  f'<div><dt>형식</dt><dd>{esc(src.get("format"))}</dd></div>'
-                  f'<div><dt>가져온 시각</dt><dd>{fmt_time(meta.get("imported_at"))}</dd></div></dl>')
+        origin = (f'<dl class="facts"><div><dt>Source file</dt><dd><code{USER}>{esc(src.get("path"))}</code></dd></div>'
+                  f'<div><dt>Source sha256</dt><dd class="sha">{short(src.get("sha256"), 16)}</dd></div>'
+                  f'<div><dt>Format</dt><dd>{esc(src.get("format"))}</dd></div>'
+                  f'<div><dt>Imported at</dt><dd>{fmt_time(meta.get("imported_at"))}</dd></div></dl>')
         if meta.get("description"):
-            origin = f'<p class="lead">{esc(meta["description"])}</p>' + origin
+            origin = f'<p class="lead"{USER}>{esc(meta["description"])}</p>' + origin
     producers = ds.get("producers") or []
     candidates = ds.get("producer_candidates") or []
-    current = esc(core.dataset_origin(ds))
+    said = core.dataset_origin(ds)
+    # The file it was imported from is named by the path as written.
+    current = (f"from {user_text(ds['source'])}" if ds.get("source") and said == f"from {ds['source']}"
+               else esc(said))
     if ds.get("producer_state") in ("resolved", "ambiguous"):
         # Only then does a run named here hold these bytes: with `none` the runs named wrote other
         # bytes or did not succeed.
@@ -1207,19 +1283,19 @@ def dataset_page(site: Site, ds: dict, view: str) -> str:
         # deletion as such: none of them is said to have made the file.
         lineage.append("<h3>Successful runs that recorded an output at this path</h3><ul class='plain'>"
                        + "".join(
-            f'<li><a href="{esc(site.run_link(r, 1))}">{esc(r)}</a> {esc((site.run_by_id.get(r) or {}).get("title"))}'
+            f'<li><a href="{esc(site.run_link(r, 1))}">{esc(r)}</a> {user_text((site.run_by_id.get(r) or {}).get("title"))}'
             f'{" · deleted this path" if change(r) == "deleted" else ""}'
             f'{" · same bytes as now" if r in candidates else ""}</li>'
             for r in dict.fromkeys(producers)) + "</ul>")
     users = ds.get("used_by") or []
-    lineage.append("<h3>이 데이터를 읽은 run</h3>" + ("<ul class='plain'>" + "".join(
-        f'<li><a href="{site.run_link(r, 1)}">{esc(r)}</a> {esc((site.run_by_id.get(r) or {}).get("title"))}</li>'
-        for r in users) + "</ul>" if users else '<div class="empty">아직 없음</div>'))
+    lineage.append("<h3>Runs that read this data</h3>" + ("<ul class='plain'>" + "".join(
+        f'<li><a href="{site.run_link(r, 1)}">{esc(r)}</a> {user_text((site.run_by_id.get(r) or {}).get("title"))}</li>'
+        for r in users) + "</ul>" if users else '<div class="empty">None yet</div>'))
     used_charts = [c for c in site.charts if not c.get("retired") and ds["path"] in
                    {i["path"] for i in (site.run_by_id.get(c["run"]) or {}).get("inputs") or []}]
     if used_charts:
-        lineage.append("<h3>이 데이터를 쓴 차트 (최신 버전)</h3><ul class='plain'>" + "".join(
-            f'<li><a href="{site.chart_anchor(c["key"], 1)}">{esc(c.get("title"))}</a> <code>{esc(c["key"])}</code></li>'
+        lineage.append("<h3>Visualizations made from this data (latest versions)</h3><ul class='plain'>" + "".join(
+            f'<li><a href="{site.chart_anchor(c["key"], 1)}"{USER}>{esc(c.get("title"))}</a> <code{USER}>{esc(c["key"])}</code></li>'
             for c in used_charts) + "</ul>")
     # A statistic that does not apply to a column type is "–", never "null" (which is a data value).
     schema_rows = [[c["name"], c["dtype"], c.get("nulls"),
@@ -1227,16 +1303,16 @@ def dataset_page(site: Site, ds: dict, view: str) -> str:
                    for c in prof.get("columns") or []]
     preview = prof.get("preview") or {}
     body = f"""
-<div class="page-head"><div class="title-row"><h1>{esc(view)}</h1><span class="badge tone-muted">{esc(ds['kind'])}</span></div>
+<div class="page-head"><div class="title-row"><h1{USER}>{esc(label)}</h1><span class="badge tone-muted">{esc(ds['kind'])}</span></div>
 <div class="sub">{' · '.join(facts)}</div></div>
 {origin}
-<section><h2>스키마와 통계</h2>{site.table(['열', '타입', 'null', 'min', 'max', 'mean', 'distinct≈'], schema_rows, klass='list')}</section>
-<section><h2>미리보기</h2>{site.table(preview.get('columns') or [], preview.get('rows') or [])}</section>
-<section><h2>계보</h2>{''.join(lineage)}</section>
-<section><h2>조회</h2><pre class="cmd">analytics_query(sql="SELECT * FROM {esc(view)} LIMIT 20")
+<section><h2>Schema and statistics</h2>{site.table(['Column', 'Type', 'null', 'min', 'max', 'mean', 'distinct≈'], schema_rows, klass='list', data_head=False)}</section>
+<section><h2>Preview</h2>{site.table(preview.get('columns') or [], preview.get('rows') or [])}</section>
+<section><h2>Relations</h2>{''.join(lineage)}</section>
+<section><h2>Query</h2><pre class="cmd">analytics_query(sql="SELECT * FROM {esc(view)} LIMIT 20")
 analytics.read("{esc(view)}")   ·   analytics.sql("SELECT count(*) FROM {esc(view)}").pl()</pre></section>"""
-    crumb = f' <span>/</span> <a href="../index.html#data">데이터</a> <span>/</span> {esc(view)}'
-    return site.page(1, view, crumb, body, "dataset")
+    crumb = f' <span>/</span> <a href="../index.html#data">Data</a> <span>/</span> {user_text(label)}'
+    return site.page(1, label, crumb, body, "dataset")
 
 
 # --- context page ---
@@ -1263,16 +1339,16 @@ def context_page(site: Site) -> str:
         diff = list(difflib.unified_diff(old, new, lineterm="", n=2))[2:]
         lines = "".join(
             f'<span class="{"add" if d.startswith("+") else "del" if d.startswith("-") else "hunk" if d.startswith("@@") else "ctx"}">{esc(d)}</span>\n'
-            for d in diff) or '<span class="ctx">(첫 버전)</span>\n'
+            for d in diff) or '<span class="ctx">(first version)</span>\n'
         event = next((e for e in site.events if (e.get("refs") or {}).get("context") == v.name), None)
         who = f" · {esc(event.get('actor'))} · {esc(event.get('id'))}" if event else ""
         blocks.append(f'<article class="version" id="v-{esc(v.stem)}"><h3>{fmt_time(core._version_time(v))}{who}</h3>'
-                      f'<pre class="diff">{lines}</pre></article>')
+                      f'<pre class="diff"{USER if diff else ""}>{lines}</pre></article>')
     body = f"""
-<div class="page-head"><h1>맥락 기록</h1><div class="sub">CONTEXT.md가 바뀔 때마다 .lab/context/에 버전이 남습니다. 새 버전은 run·import·note·리포트 빌드 때 감지됩니다.</div></div>
+<div class="page-head"><h1>Context history</h1><div class="sub">Each change to CONTEXT.md leaves a version in .lab/context/. A new version is noticed at a run, an import, a record and a Workspace render.</div></div>
 <div class="columns wide-left">
-  <article class="panel markdown">{render_markdown(current) if current else '<div class="empty">비어 있음</div>'}</article>
-  <aside class="panel"><h3>버전 {len(versions)}개</h3><ul class="plain">{''.join(f'<li><a href="#v-{esc(v.stem)}">{fmt_time(core._version_time(v))}</a></li>' for v in versions[::-1])}</ul></aside>
+  <article class="panel markdown"{USER if current else ""}>{render_markdown(current) if current else '<div class="empty">Empty</div>'}</article>
+  <aside class="panel"><h3>{len(versions)} version(s)</h3><ul class="plain">{''.join(f'<li><a href="#v-{esc(v.stem)}">{fmt_time(core._version_time(v))}</a></li>' for v in versions[::-1])}</ul></aside>
 </div>
-<section><h2>변경 내역</h2>{''.join(blocks) or '<div class="empty">기록된 버전이 없습니다.</div>'}</section>"""
-    return site.page(0, "맥락 기록", ' <span>/</span> 맥락 기록', body, "context")
+<section><h2>Changes</h2>{''.join(blocks) or '<div class="empty">No versions recorded.</div>'}</section>"""
+    return site.page(0, "Context history", ' <span>/</span> Context history', body, "context")

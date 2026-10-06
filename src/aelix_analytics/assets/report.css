@@ -20,7 +20,7 @@
   --k-run: #2a78d6; --k-import: #1baf7a; --k-finding: #008300; --k-decision: #4a3aa7;
   --k-assumption: #eda100; --k-question: #eb6834; --k-todo: #e87ba4; --k-gap: #e34948;
   --k-note: #898781; --k-context: #52514e; --k-project: #52514e; --k-resolve: #008300;
-  --sans: system-ui, -apple-system, "Apple SD Gothic Neo", "Segoe UI", sans-serif;
+  --sans: system-ui, -apple-system, "Apple SD Gothic Neo", "Segoe UI", "Malgun Gothic", "Noto Sans CJK KR", "Noto Sans KR", sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --radius: 10px;
 }

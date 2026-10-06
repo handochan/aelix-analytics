@@ -247,15 +247,16 @@ def test_a_stale_candidate_upstream_is_not_said_to_be_a_changed_input(tmp_path):
     (case.p.root / case.base).write_bytes(b"changed")  # what a and b read; c reads their table
     pages = built(case.p)
     consumer = pages[f"runs/{case.c}.html"]
-    assert "이 run의 입력이 지금 파일과 다릅니다." not in consumer
+    assert "This run's inputs differ from the files now." not in consumer
     assert "<strong>Upstream candidate stale.</strong> An input has the same bytes as the output of " \
            f'run(s) <a href="../runs/{case.a}.html">{case.a}</a>' in consumer
     assert "producer candidates, not confirmed links." in consumer
-    assert f"이 run의 입력이 지금 파일과 다릅니다.</strong> {case.base}</div>" in pages[f"runs/{case.a}.html"]
+    assert (f'This run\'s inputs differ from the files now.</strong> <span lang="">{case.base}</span></div>'
+            in pages[f"runs/{case.a}.html"])
     card = _card(pages["index.html"], "scripts/c.py::summary")
-    assert "입력 변경됨" not in card and "Upstream candidate stale" in card
+    assert "Input changed" not in card and "Upstream candidate stale" in card
     assert f"output of run(s) {case.a}, {case.b}, whose inputs" in card
-    assert "입력 변경됨" in _card(pages["index.html"], "scripts/a.py::trend")
+    assert "Input changed" in _card(pages["index.html"], "scripts/a.py::trend")
 
 
 def test_a_diamond_is_no_cycle_and_a_true_cycle_ends(tmp_path):
@@ -431,7 +432,7 @@ def test_the_workspace_shows_producers_and_outputs_not_preserved(tmp_path):
     """F11: the dataset page called the last producer the current version."""
     case = evidence_project(tmp_path)
     pages = built(case.p)
-    assert "현재 버전" not in pages["data/t.html"]
+    assert "current version" not in pages["data/t.html"].lower()
     assert "same bytes as 3 runs:" in pages["data/t.html"]
     assert "same bytes as now" in pages["data/t.html"]
     assert "Producer ambiguous" in pages["index.html"]
@@ -454,7 +455,7 @@ def test_a_dataset_page_says_a_run_holds_its_bytes_only_when_one_does(tmp_path):
     assert claim in pages["data/t.html"] and claim in pages["data/u.html"]
     for name in ("v", "w", "x"):  # failed run, written outside, overwritten: producer none
         assert claim not in pages[f"data/{name}.html"], name
-    assert not any("이 파일을 만든 run" in page for page in pages.values())
+    assert not any("the run that made this file" in page.lower() for page in pages.values())
     x = pages["data/x.html"]
     assert "<h3>Successful runs that recorded an output at this path</h3>" in x
     assert case.overwritten in x and "same bytes as now" not in x
@@ -468,13 +469,13 @@ def test_a_dataset_page_says_a_run_holds_its_bytes_only_when_one_does(tmp_path):
     record["outputs"][0]["change"] = "deleted"
     q.write_json(f"runs/{gone}/run.json", record)
     page = built(q)["data/t.html"]
-    assert f"{made}</a> {made} · same bytes as now</li>" in page
-    assert f"{gone}</a> {gone} · deleted this path</li>" in page
+    assert f'{made}</a> <span lang="">{made}</span> · same bytes as now</li>' in page
+    assert f'{gone}</a> <span lang="">{gone}</span> · deleted this path</li>' in page
 
 
 def test_the_timeline_says_the_state_of_a_closing_reference(tmp_path):
     """A record closed by an earlier record's refs.resolves (a forward reference the read judges
-    missing, D1) showed "✓ 해결됨" while analytics_status said missing (review of 8d2ecc7). The
+    missing, D1) showed "✓ 해결됨" (now "✓ Resolved by") while analytics_status said missing (review of 8d2ecc7). The
     lists still select as C1 says; the badge says the judgment."""
     p = LegacyProject(tmp_path / "p")
     asked = p.event("question", text="asked")
@@ -485,11 +486,11 @@ def test_the_timeline_says_the_state_of_a_closing_reference(tmp_path):
     assert later not in {e["id"] for e in st["open"]}
     assert f"  {early} finding: early · refs: 1 missing (e4)" in text.split("\n")
     index = built(p)["index.html"]
-    assert f'<a class="badge tone-good" href="#{closes}">✓ 해결됨 {closes}</a>' in index
+    assert f'<a class="badge tone-good" href="#{closes}">✓ Resolved by {closes}</a>' in index
     assert (f'<a class="badge tone-critical" href="#{early}" title="the lists take this record as '
             f'closed by {early} (refs.resolves), and the read judges that reference missing">closed by '
             f"{early} · Missing: record_absent</a>") in index
-    assert f"✓ 해결됨 {early}" not in index
+    assert f"✓ Resolved by {early}" not in index
 
 
 def test_a_chart_link_from_a_record_is_escaped(tmp_path):
