@@ -161,6 +161,9 @@ def test_status_note_context_injection_and_telemetry(lab):
     lines = [json.loads(line) for line in (root / ".lab/telemetry.jsonl").read_text(encoding="utf-8").splitlines()]
     assert [(t["tool"], t["flags"], t["error"]) for t in lines] == [
         ("bash", ["python_via_bash"], False), ("write", ["wrote_managed_path"], True)]
+    # Written by append_jsonl inside the aelix process (on the 3.11 floor too): LF everywhere (ADR-0007).
+    assert b"\r" not in (root / ".lab/telemetry.jsonl").read_bytes()
+    assert b"\r" not in (root / "journal.jsonl").read_bytes()
 
 
 def test_two_projects_in_one_host_keep_their_own_records(tmp_path, monkeypatch):
@@ -263,6 +266,10 @@ def test_lab_command_where_help_and_gap(lab):
     assert events[-1]["kind"] == "gap" and events[-1]["actor"] == "human"
 
 
+# sha256 of the inline code below as the extension writes it: the same on every platform.
+INLINE_CODE_SHA256 = "7e1a4d5c39353e0cbb3bba620215a9569551d874c611e54ae083e8f003a3ecf6"
+
+
 @pytest.mark.skipif(shutil.which("uv") is None, reason="uv is not installed")
 def test_import_query_and_run_through_the_project_environment(lab, tmp_path):
     module, root = lab
@@ -301,6 +308,15 @@ def test_import_query_and_run_through_the_project_environment(lab, tmp_path):
     assert any(isinstance(c, ImageContent) for c in ran.content)
     run_id = ran.details["run"]["id"]
     assert (root / "report" / "runs" / f"{run_id}.html").is_file()
+    # Inline code is text the kit writes (ADR-0007 decision 2): LF, so its sha256 is this constant on
+    # every leg (7 ②); code sent with CR line ends is written with LF and runs the same.
+    assert (root / "scripts" / "01_by_region.py").read_bytes() == code.encode("utf-8")
+    assert ran.details["run"]["script"]["sha256"] == INLINE_CODE_SHA256
+    crlf = call(tools["analytics_run"], {"title": "CR", "name": "04_crlf",
+                                         "code": "print('x')\r\nprint('y')\r"})
+    assert not crlf.is_error, text_of(crlf)
+    assert (root / "scripts" / "04_crlf.py").read_bytes() == b"print('x')\nprint('y')\n"
+    assert (root / "runs" / crlf.details["run"]["id"] / "stdout.txt").read_bytes() == b"x\ny\n"
 
     failed = call(tools["analytics_run"], {"title": "실패", "code": "x = 1\nraise KeyError('amount')\n",
                                            "name": "02_bad"})

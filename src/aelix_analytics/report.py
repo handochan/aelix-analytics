@@ -350,6 +350,8 @@ class Site:
         if fresh["code"] == "changed":
             badges.append(badge("warning", "✎", "스크립트 수정됨",
                                 "이 차트를 만든 뒤 스크립트 파일이 바뀌었습니다"))
+            if fresh.get("code_reason") == core.LINE_ENDINGS_ONLY:
+                badges.append(line_endings_badge())
         elif fresh["code"] == "missing":
             badges.append(badge("warning", "✎", "스크립트 없음",
                                 "이 차트를 만든 스크립트 파일이 지금은 없습니다(이름 변경·삭제)"))
@@ -367,9 +369,12 @@ class Site:
         inputs = []
         for entry in fresh["inputs"]:
             tone, icon, label = INPUT_STATE.get(entry["state"], INPUT_STATE["unknown"])
+            reason = (f" {line_endings_badge()}" if entry.get("reason") == core.LINE_ENDINGS_ONLY
+                      else "")
             inputs.append(f'<span class="input">{self.path_html(entry["path"], depth)} '
                           f'<span class="sha">{short(entry.get("sha256"))}</span>'
-                          f'<span class="state tone-{tone}" title="현재 파일: {esc(label)}">{icon}</span></span>')
+                          f'<span class="state tone-{tone}" title="현재 파일: {esc(label)}">{icon}</span>'
+                          f'{reason}</span>')
         if chart.get("data"):
             data_html = (f'<a href="{run_page}#chart-{esc(chart["id"])}-data">'
                          f'{fmt_num(chart.get("data_rows"))}행 · {len(chart.get("data_columns") or [])}열</a>'
@@ -558,17 +563,18 @@ def _build_locked(project: core.Project, if_changed: bool) -> dict:
     pages += 2
     _prune(out / "runs", {f"{r['id']}.html" for r in site.runs})
     _prune(out / "data", {f"{v}.html" for v in site.views})
-    (out / "assets" / "build.js").write_text(f'window.__LAB_BUILD__ = "{site.build}";\n',
-                                             encoding="utf-8")
+    core.write_text(out / "assets" / "build.js", f'window.__LAB_BUILD__ = "{site.build}";\n')
     site.cache.save()
     project.cache.mkdir(parents=True, exist_ok=True)
-    stamp_file.write_text(current, encoding="utf-8")
+    core.write_text(stamp_file, current)
     return {"path": str(index), "pages": pages, "build": site.build}
 
 
 def _write(path: Path, text: str, platform: _platform.Platform) -> None:
+    """A Workspace page: text the kit writes, UTF-8 and LF on every platform, inside as well — a CR
+    from a record's text or a run's log is read as LF by a browser anyway (ADR-0007 decision 2)."""
     tmp = path.with_name(f".{path.name}.tmp")
-    tmp.write_text(text, encoding="utf-8")
+    core.write_text(tmp, core.newlines_as_lf(text))
     platform.files.replace(tmp, path)
 
 
@@ -594,8 +600,7 @@ def _write_assets(site: Site, out: Path) -> None:
 
             light = HtmlFormatter(style="default").get_style_defs(".code")
             dark = HtmlFormatter(style="github-dark").get_style_defs(".code")
-            code_css.write_text(f"{light}\n@media (prefers-color-scheme: dark) {{\n{dark}\n}}\n",
-                                encoding="utf-8")
+            core.write_text(code_css, f"{light}\n@media (prefers-color-scheme: dark) {{\n{dark}\n}}\n")
     if any((c.get("files") or {}).get("plotly") for r in site.runs for c in r.get("charts") or []):
         with contextlib.suppress(Exception):
             src = resources.files("plotly") / "package_data" / "plotly.min.js"
@@ -666,13 +671,29 @@ UPSTREAM_STALE = ("An input has the same bytes as the output of run(s) {runs}, w
                   "of a run before them) changed: producer candidates, not confirmed links.")
 
 
+# A changed file whose bytes differ from the record only in their line ends (ADR-0007 decision 4).
+LINE_ENDINGS_TITLE = ("Only the line endings differ from the recorded bytes (CRLF/LF); the hash "
+                      "compares bytes, so it still counts as changed")
+
+
+def line_endings_badge() -> str:
+    return badge("muted", "↵", "Line endings only", LINE_ENDINGS_TITLE)
+
+
+def changed_inputs_text(fresh: dict) -> list[str]:
+    """A run's changed or missing inputs, each that differs only in its line ends saying so."""
+    reasons = fresh.get("change_reasons") or {}
+    return [f"{path} {core.LINE_ENDINGS_NOTE}" if reasons.get(path) == core.LINE_ENDINGS_ONLY
+            else path for path in fresh["changed_inputs"]]
+
+
 def stale_badges(fresh: dict) -> list[str]:
     """Why a run's charts may be out of date: an input of its own changed or is missing, or a run that
     output the same bytes as one of its inputs is stale. That run is a producer candidate, so the
     badge says so and does not say this run's input changed."""
     out = []
     if fresh["changed_inputs"]:
-        out.append(badge("critical", "⚠", "입력 변경됨", "; ".join(fresh["changed_inputs"])))
+        out.append(badge("critical", "⚠", "입력 변경됨", "; ".join(changed_inputs_text(fresh))))
     if fresh["stale_upstream"]:
         runs = fresh["stale_upstream"]
         more = len(runs) - SHOWN_CANDIDATES
@@ -1015,7 +1036,7 @@ def run_page(site: Site, run: dict) -> str:
                      + "</ul></div>")
     if fresh["changed_inputs"]:
         callouts += ('<div class="callout tone-critical"><strong>이 run의 입력이 지금 파일과 다릅니다.</strong> '
-                     + esc(", ".join(fresh["changed_inputs"])) + "</div>")
+                     + esc(", ".join(changed_inputs_text(fresh))) + "</div>")
     if fresh["stale_upstream"]:
         # The stale runs upstream output the same bytes as an input: candidates, not its producer.
         callouts += ('<div class="callout tone-warning"><strong>Upstream candidate stale.</strong> '
@@ -1053,6 +1074,8 @@ def run_page(site: Site, run: dict) -> str:
     if snap and p.path(snap).is_file():
         state = {"same": "현재 파일과 같음", "changed": "현재 파일은 수정됨", "missing": "현재 파일 없음",
                  "n/a": "재실행 스냅샷"}.get(fresh["code"], fresh["code"])
+        if fresh.get("code_reason") == core.LINE_ENDINGS_ONLY:
+            state += f" {core.LINE_ENDINGS_NOTE}"
         code_blocks.append(
             f'<div class="codefile" id="code-main"><div class="file-head"><code>{esc(script.get("path"))}</code>'
             f'<span class="sha">sha256 {short(script.get("sha256"), 12)}</span><span>{esc(state)}</span>'
@@ -1077,7 +1100,9 @@ def run_page(site: Site, run: dict) -> str:
         input_rows.append(
             f'<tr><td>{site.path_html(entry["path"], 1)}</td><td>{esc(", ".join(entry.get("via") or []))}</td>'
             f'<td class="num">{fmt_bytes(entry.get("bytes"))}</td><td class="sha">{short(entry.get("sha256"), 12)}</td>'
-            f'<td>{badge(tone, icon, label)}</td><td>{producer}</td></tr>')
+            f'<td>{badge(tone, icon, label)}'
+            f'{" " + line_endings_badge() if f_entry.get("reason") == core.LINE_ENDINGS_ONLY else ""}'
+            f'</td><td>{producer}</td></tr>')
     if n_inputs > len(input_rows):
         input_rows.append(
             f'<tr><td colspan="6" class="muted">그 외 {n_inputs - len(input_rows):,}개 — 변경된 '

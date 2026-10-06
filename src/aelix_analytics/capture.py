@@ -338,20 +338,26 @@ class RunState:
             dest.write_bytes(png)
             record["files"] = {"png": self.project.rel(dest)}
             return _sha(png)
+        # The chart files below are text the kit writes: UTF-8 and LF on every platform (ADR-0007
+        # decision 2). HTML is made LF inside too — a browser reads a CRLF or lone CR in HTML as
+        # LF, <pre> and attributes included, so the page shows the same.
         if kind == "plotly":
             text = obj.to_json()
             dest = self.charts_dir / f"{cid}.plotly.json"
-            dest.write_text(text, encoding="utf-8")
+            core.write_text(dest, text)
             record["files"] = {"plotly": self.project.rel(dest)}
             return _sha(text.encode())
         if kind == "altair":
             dest = self.charts_dir / f"{cid}.html"
-            obj.save(str(dest))
+            # altair opens a path it is given in text mode (CRLF on Windows): take the text instead.
+            buf = io.StringIO()
+            obj.save(buf, format="html")
+            core.write_text(dest, core.newlines_as_lf(buf.getvalue()))
             record["files"] = {"html": self.project.rel(dest)}
             return None
         if kind == "html":
             dest = self.charts_dir / f"{cid}.html"
-            dest.write_text(obj._repr_html_(), encoding="utf-8")
+            core.write_text(dest, core.newlines_as_lf(obj._repr_html_()))
             record["files"] = {"html": self.project.rel(dest)}
             return None
         src = self.project.path(os.fspath(obj))

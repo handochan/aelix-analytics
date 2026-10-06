@@ -15,6 +15,7 @@ a warm cache. The repository CI
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import json
 import os
 import re
@@ -29,7 +30,7 @@ from email.parser import Parser
 from pathlib import Path
 
 import pytest
-from conftest import OLD_ENV, record_observation
+from conftest import OLD_ENV, checkout_eol, record_observation, tracked_kit_sha
 
 from aelix_analytics import cli, core
 
@@ -127,6 +128,7 @@ def test_the_wheel_holds_the_package_and_nothing_else(dist):
         "a build ships the checkout's untracked files under src/aelix_analytics: "
         "build from a clean checkout")
     for name in ("kit/aelix_analytics/template/CONTEXT.md", "kit/aelix_analytics/template/gitignore",
+                 "kit/aelix_analytics/template/gitattributes",
                  "kit/aelix_analytics/template/pyproject.toml", "kit/aelix_analytics/assets/report.css",
                  "kit/aelix_analytics/assets/report.js",
                  "kit/aelix_analytics/demo_scripts/01_monthly_revenue.py",
@@ -136,6 +138,43 @@ def test_the_wheel_holds_the_package_and_nothing_else(dist):
     # The runtime root's copy is the package less the extension module (which is the checkout's
     # extension/aelix_analytics.py): a child never sees the aelix adapter.
     assert "aelix_analytics/kit/aelix_analytics/extension.py" not in names
+
+
+def wheel_source(member: str) -> str | None:
+    """The checkout file a package member of the wheel is built from; None for dist-info."""
+    if member == "aelix_analytics/extension.py":
+        return "extension/aelix_analytics.py"
+    for prefix in ("aelix_analytics/kit/aelix_analytics/", "aelix_analytics/"):
+        if member.startswith(prefix):
+            return "src/aelix_analytics/" + member.removeprefix(prefix)
+    return None
+
+
+def test_the_wheel_members_have_no_crlf(dist):
+    """ADR-0007 decision 1 and 7 ③, Issue #42's second criterion: the wheel this leg's checkout
+    builds (on Windows, a checkout made with core.autocrlf=true) holds its text members with LF —
+    every package member git sees as text, each the checkout file's bytes, and the dist-info. A
+    binary member (git's `i/-text`; none today) is not read for line ends."""
+    eol = checkout_eol()
+    listed, crlf = [], []
+    with zipfile.ZipFile(dist["wheel"]) as wheel:
+        for member in sorted(wheel.namelist()):
+            data = wheel.read(member)
+            listed.append(f"{member} {hashlib.sha256(data).hexdigest()}")
+            source = wheel_source(member)
+            if source is None:
+                assert ".dist-info/" in member, member
+            else:
+                assert data == (PACK / source).read_bytes(), member
+                if eol[source][0] == "i/-text":
+                    continue
+            if b"\r\n" in data:
+                crlf.append(member)
+    record_observation("wheel-members", {
+        "members": len(listed), "crlf": crlf,
+        "list_sha256": hashlib.sha256("\n".join(listed).encode()).hexdigest(),
+        "checkout_kit_sha": tracked_kit_sha()})
+    assert not crlf, f"wheel members with CRLF: {crlf}"
 
 
 def test_the_extension_module_is_the_checkouts_adapter(dist):
@@ -245,7 +284,7 @@ def test_the_installed_distribution_finds_its_kit(dist, tmp_path, python):
                    env=outside_env(tmp_path)).stdout.strip())
     assert Path(seen["kit"]) == (site / "aelix_analytics" / "kit").resolve()
     assert seen["entries"] == ["aelix_analytics"], "children get exactly the runtime root on PYTHONPATH"
-    assert seen["template"] == ["CONTEXT.md", "gitignore", "pyproject.toml"]
+    assert seen["template"] == ["CONTEXT.md", "gitattributes", "gitignore", "pyproject.toml"]
     assert Path(seen["package"]) == site / "aelix_analytics" / "__init__.py"
     # The package's __init__ imports nothing of the kit (Issue #9): what aelix and the launcher get.
     assert seen["ours"] == ["aelix_analytics", "aelix_analytics._install"], seen["ours"]
@@ -293,8 +332,6 @@ def test_the_console_script_gives_children_exactly_the_installed_kit(dist, tmp_p
 
 def tree_digest(root: Path) -> dict:
     """Every file under `root` and its bytes' digest: what a refused command must leave as it was."""
-    import hashlib
-
     return {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest()
             for p in sorted(root.rglob("*")) if p.is_file()}
 
@@ -533,6 +570,9 @@ def test_the_installed_extension_s_tools_run_a_project(dist, tmp_path, python):
     assert (work / "proj" / "CONTEXT.md").is_file()
 
 
+# Written with write_bytes, so its sha256 is this constant on every platform (ADR-0007 7 ②; text mode
+# would make it CRLF on Windows, and the kit keeps a user's bytes).
+SDK_SCRIPT_SHA256 = "024f3144a10e797651150974ba2b3bc0043afa48bd2714d7cb594150c9757abc"
 SDK_SCRIPT = textwrap.dedent("""
     import os
     import aelix_analytics as analytics
@@ -585,7 +625,7 @@ def test_the_installed_command_drives_a_project_without_aelix(dist, tmp_path, py
     query = json.loads(ok([analytics, "query", "SELECT count(*) AS n FROM sales"], cwd=project,
                           env=env).stdout.splitlines()[-1])
     assert query["rows"] == [[2]]
-    (project / "scripts" / "totals.py").write_text(SDK_SCRIPT, encoding="utf-8")
+    (project / "scripts" / "totals.py").write_bytes(SDK_SCRIPT.encode("utf-8"))
     unrelated = tmp_path / "unrelated"
     unrelated.mkdir()
     done = ok([analytics, "run", "scripts/totals.py", "--title", "합계"], cwd=project,
@@ -594,6 +634,13 @@ def test_the_installed_command_drives_a_project_without_aelix(dist, tmp_path, py
     record = result["run"]
     assert record["status"] == "ok", result
     assert tuple(int(x) for x in record["env"]["python"].split(".")[:2]) >= (3, 12)
+    # ADR-0007 7 ②·③: the script's hash and the installed kit's hash are the same on every leg.
+    record_observation(f"installed-run-py{python}", {
+        "script_sha256": record["script"]["sha256"], "kit_sha256": record["env"]["kit_sha256"],
+        "kit_version": record["env"]["kit_version"]})
+    assert record["script"]["sha256"] == SDK_SCRIPT_SHA256
+    assert record["env"]["kit_sha256"] == tracked_kit_sha()
+    assert record["env"]["kit_version"] == core.KIT_VERSION
     kit = ok([venv_python(venv), "-c", "from aelix_analytics._install import kit_dir; print(kit_dir())"],
              env=env).stdout.strip()
     tail = result.get("stdout_tail", "")

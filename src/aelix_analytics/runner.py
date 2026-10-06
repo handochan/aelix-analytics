@@ -36,7 +36,7 @@ WRITE_CALLS = {"write_parquet", "sink_parquet", "write_csv", "sink_csv", "write_
                "write_html", "write_image", "save", "copy", "copyfile", "copy2", "move", "rename",
                "replace", "write_text", "write_bytes", "mkdir", "touch", "unlink", "rmtree", "chart"}
 PROJECT_FILES = {"lab.json", "journal.jsonl", "CONTEXT.md", "pyproject.toml", "uv.lock",
-                 ".python-version", ".gitignore"}
+                 ".python-version", ".gitignore", ".gitattributes"}
 PACKAGES = ("duckdb", "polars", "pyarrow", "matplotlib", "plotly", "numpy", "pygments",
             "markdown-it-py")
 OUTPUT_TAIL = core.OUTPUT_TAIL
@@ -271,7 +271,12 @@ def write_result(text: str) -> None:
     a thread may have taken before the run, is flushed first. Where the buffer cannot carry the line
     (closed, or its raw file detached), the line goes through the host's stream, as before 3.6; where
     fd 1 no longer leads where it did when the run started (a stream the script opened on it, closed
-    when collected after the run), through the descriptor kept for it."""
+    when collected after the run), through the descriptor kept for it.
+
+    The line ends in os.linesep, as the host's own stream would end it: the CLI's output is a stream,
+    not a file the kit writes (ADR-0007 decision 2 does not cover it). What a thread the script left
+    running prints after a run, through the run's stream standing in as sys.stdout, ends in "\n"
+    (_run_stream), so that output can hold both line ends."""
     lead = "\n" if flush_run_streams() else ""
     route = _ROUTE
     if route is None:
@@ -404,7 +409,16 @@ def _run_stream(fd: int, replaced) -> io.TextIOWrapper:
     `-u` or PYTHONUNBUFFERED both write straight through to the raw file. Copying the layering and
     both flags keeps the order against child processes, what a forced end loses and the speed of a
     print-heavy script as they were. A replaced object that is not a text stream gives CPython's
-    defaults for a file."""
+    defaults for a file.
+
+    Line ends are the one thing not copied: the log is text the kit writes, so "\n" stays "\n" on
+    every platform (ADR-0007 decision 2), where Windows' own streams write "\r\n". Bytes a script
+    writes to the buffer or a descriptor, and a child process's output, are the script's and land as
+    they are, so a Windows log can hold both. After a CLI run (`result_follows`) this stream stands in
+    as sys.stdout until the result line is out (_redirected): what a thread the script left running
+    prints then reaches the CLI's output with "\n" ends, beside the result line's os.linesep
+    (write_result) — two line ends in one stream, which the extension (universal newlines) and the
+    launcher (bytes passed through) both read as it is."""
     raw = io.FileIO(fd, "w", closefd=False)
     raw.name = "<stdout>" if fd == 1 else "<stderr>"
     unbuffered, line_buffering, write_through = False, fd == 2, False
@@ -413,7 +427,8 @@ def _run_stream(fd: int, replaced) -> io.TextIOWrapper:
         line_buffering, write_through = replaced.line_buffering, replaced.write_through
     stream = io.TextIOWrapper(raw if unbuffered else io.BufferedWriter(raw),
                               encoding=_platform.TEXT_ENCODING, errors="replace",
-                              line_buffering=line_buffering, write_through=write_through)
+                              newline=_platform.TEXT_NEWLINE, line_buffering=line_buffering,
+                              write_through=write_through)
     stream.mode = "w"
     return stream
 

@@ -1,10 +1,12 @@
 import csv
+import hashlib
 import json
 import os
+import shutil
 import signal
 import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import pytest
 
@@ -79,7 +81,62 @@ def record_observation(name: str, data) -> None:
     path = Path(directory) / f"{name}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, ensure_ascii=False, indent=1, sort_keys=True, default=str),
-                    encoding="utf-8")
+                    encoding="utf-8", newline="\n")
+
+
+# --- the checkout as git has it (ADR-0007: line endings) ----------------------------------------
+
+
+def git_checkout(*args: str) -> bytes:
+    """`git -C <checkout> args` with its output, as bytes. Outside a git checkout, or without git,
+    the test skips — except on CI (the CI variable set, as GitHub Actions sets it), where the
+    checkout is the thing measured, so not having it fails (design review C5)."""
+    done = None
+    if shutil.which("git") is not None:
+        done = subprocess.run(["git", "-C", str(PACK), *args], capture_output=True)
+    if done is None or done.returncode != 0:
+        why = "git is not installed" if done is None else done.stderr.decode(errors="replace")
+        if os.environ.get("CI"):
+            pytest.fail(f"CI measures a git checkout, and git {' '.join(args)} failed: {why}")
+        pytest.skip(f"not a git checkout: {why}")
+    return done.stdout
+
+
+def checkout_eol() -> dict[str, tuple[str, str, str]]:
+    """Every tracked file: (index, work tree, attributes) as `git ls-files --eol` says them, e.g.
+    ("i/lf", "w/lf", "attr/text=auto eol=lf")."""
+    out = {}
+    for entry in git_checkout("ls-files", "--eol", "-z").split(b"\0"):
+        if not entry:
+            continue
+        info, _, name = entry.decode("utf-8").partition("\t")
+        fields = info.split()
+        out[name] = (fields[0], fields[1], " ".join(fields[2:]))
+    return out
+
+
+# The files runner.kit_sha hashes: these suffixes under the package, outside __pycache__.
+KIT_SHA_SUFFIXES = (".py", ".css", ".js", ".md", ".toml")
+
+
+def tracked_kit_sha() -> str:
+    """runner.kit_sha's value as the checkout's tracked files make it, on any platform: each file's
+    name and bytes, in the order of their POSIX path parts compared case by case (what a POSIX
+    `sorted(Path.rglob)` gives). The bytes are git's blobs — LF whatever the checkout's platform —
+    but a file `git ls-files -m` lists (changed locally) is read from the work tree. A leg whose
+    kit_sha differs from this hashed other bytes or another order (Windows sorts paths without
+    case), so every leg asserting it shows the three agree (ADR-0007 decision 7 ③)."""
+    package = "src/aelix_analytics"
+    names = [n for n in git_checkout("ls-files", "-z", "--", package).decode("utf-8").split("\0")
+             if n and PurePosixPath(n).suffix in KIT_SHA_SUFFIXES and "__pycache__" not in n]
+    changed = set(git_checkout("ls-files", "-m", "-z", "--", package).decode("utf-8").split("\0"))
+    digest = hashlib.sha256()
+    for name in sorted(names, key=lambda n: PurePosixPath(n).relative_to(package).parts):
+        data = (PACK / name).read_bytes() if name in changed else git_checkout("cat-file", "blob",
+                                                                                f":{name}")
+        digest.update(PurePosixPath(name).name.encode())
+        digest.update(data)
+    return digest.hexdigest()
 
 
 def write_sales_csv(path: Path, rows: int = 120) -> Path:

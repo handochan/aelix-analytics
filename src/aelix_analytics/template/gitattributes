@@ -1,0 +1,6 @@
+# Git keeps the files of this analysis project byte for byte: no line-ending conversion.
+# The project's records hash the bytes of its inputs and scripts, so a checkout that turned LF into
+# CRLF (or back) would show them as changed on another machine. Inside another Git repository this
+# holds for the project's directory only, over that repository's own line-ending rules.
+# Delete this file to let Git convert line endings again (its default, or the enclosing repository's).
+* -text

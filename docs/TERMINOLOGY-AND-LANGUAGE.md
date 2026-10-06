@@ -196,7 +196,9 @@ Report는 Visualization·설명·발견을 선택해 구성한 문서이며, Vis
 표의 '근거 버전의 고정 방식' 행부터 '새 기록 종류' 행까지는 [ADR-0006](decisions/0006-common-record-contract.md)과
 [ADR-0007](decisions/0007-line-endings.md)이 채택한 기록 계약의 이름이다. 그 기록(쓰기)은 아직 구현되지 않았고 현재 기록에는 없다.
 읽기의 이름 — 해석 상태, `confirmed`, `recording_status`, `unsupported`·`damaged`, `source_revision`·`as_of_seq`·`updating` — 은 #12의 읽기 모델이
-현재 기록(`lab.*/1`)을 읽어 `analytics_status`와 Workspace에 보인다([현재 계약](CONTRACTS.md) E).
+현재 기록(`lab.*/1`)을 읽어 `analytics_status`와 Workspace에 보인다([현재 계약](CONTRACTS.md) E). '줄 끝만 다른 변경'의 사유
+`line_endings_only`는 kit 0.5.0([#42](https://github.com/handochan/aelix-analytics/issues/42))부터 현재 기록의 입력·코드 상태를 읽을 때
+붙는다(기록에 쓰는 필드가 아니라 읽기의 사유, E). 화면의 글은 `(line endings only)`·`Line endings only`다.
 
 자동 맥락에 포함되지 않은 부분은 Omitted from current context로 표현하고 더 읽을 위치를 제공한다. 실제 잘린 과거 응답은 Truncated라는 사실을 숨기지 않는다.
 상태를 보여 줄 때 대상과 범위도 함께 보인다. 예를 들어 `Run succeeded · Recording incomplete · Rerun comparison not run`처럼 각각의 사실을 읽을 수 있어야 한다.

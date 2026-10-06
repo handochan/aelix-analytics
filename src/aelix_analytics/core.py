@@ -23,7 +23,7 @@ from pathlib import Path
 
 from . import _platform, relations
 
-KIT_VERSION = "0.3.0"
+KIT_VERSION = "0.5.0"
 MARKER = "lab.json"
 SCHEMA_PROJECT = "lab.project/1"
 SCHEMA_RUN = "lab.run/1"
@@ -214,6 +214,28 @@ def iso(dt: datetime | None = None) -> str:
     return (dt or now()).isoformat(timespec="milliseconds")
 
 
+def open_text(path, mode: str = "w"):
+    """Open a text file the kit writes (ADR-0007 decision 2): UTF-8 without a BOM, and "\\n" written
+    as "\\n" on every platform — text mode's default (newline=None) writes "\\r\\n" on Windows. The
+    text itself is not changed: a "\\r" the caller passes is written as it is (newlines_as_lf is
+    the caller's to apply where a file's content has to be LF too). Every text file the kit writes
+    is opened here or through write_text (tests/test_line_endings.py checks)."""
+    if mode not in ("w", "a", "x"):
+        raise ValueError(f"open_text writes text: {mode!r}")
+    return open(path, mode, encoding=_platform.TEXT_ENCODING, newline=_platform.TEXT_NEWLINE)
+
+
+def write_text(path, text: str, *, append: bool = False) -> None:
+    """Write (or with `append`, append) `text` as a text file the kit writes: see open_text."""
+    with open_text(path, "a" if append else "w") as fh:
+        fh.write(text)
+
+
+def newlines_as_lf(text: str) -> str:
+    """`text` with its CRLF and lone CR line ends as "\\n", as text mode reads a file."""
+    return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
 def read_json(path, default=None):
     try:
         with open(path, encoding="utf-8") as fh:
@@ -226,7 +248,7 @@ def write_json(path, obj, *, platform: _platform.Platform | None = None) -> None
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
-    with open(tmp, "w", encoding="utf-8") as fh:
+    with open_text(tmp) as fh:
         json.dump(obj, fh, ensure_ascii=False, indent=2, default=str)
         fh.write("\n")
     (platform or PLATFORM).files.replace(tmp, path)
@@ -254,7 +276,7 @@ def read_jsonl(path) -> list[dict]:
 def append_jsonl(path, obj) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "a", encoding="utf-8") as fh:
+    with open_text(path, "a") as fh:
         fh.write(json.dumps(obj, ensure_ascii=False, default=str) + "\n")
 
 
@@ -291,8 +313,71 @@ def sha256_file(path, chunk: int = 1 << 20) -> str:
     return digest.hexdigest()
 
 
+# A change of line endings alone (ADR-0007 decision 4): judged only for a file of at most
+# LINE_ENDINGS_MAX_BYTES with no NUL in its first LINE_ENDINGS_SNIFF_BYTES, read in blocks of
+# LINE_ENDINGS_BLOCK so the aelix process's memory stays bounded.
+LINE_ENDINGS_ONLY = "line_endings_only"
+LINE_ENDINGS_MAX_BYTES = 64 << 20
+LINE_ENDINGS_SNIFF_BYTES = 8 << 10
+LINE_ENDINGS_BLOCK = 1 << 20
+
+
+def _line_ending_digests(blocks) -> tuple[str, str] | None:
+    """The two digests line_ending_digests describes, of the bytes `blocks` yields in order (the
+    first one is the head the NUL rule reads)."""
+    as_lf, as_crlf = hashlib.sha256(), hashlib.sha256()
+    held, total, first = b"", 0, True
+    for block in blocks:
+        total += len(block)
+        if total > LINE_ENDINGS_MAX_BYTES:
+            return None
+        if first and b"\0" in block[:LINE_ENDINGS_SNIFF_BYTES]:
+            return None
+        first = False
+        data = held + block
+        # A CR at the end of a block may start a CRLF the next block ends: keep it for that block.
+        held, data = (b"\r", data[:-1]) if data.endswith(b"\r") else (b"", data)
+        lf = data.replace(b"\r\n", b"\n")
+        as_lf.update(lf)
+        as_crlf.update(lf.replace(b"\n", b"\r\n"))
+    as_lf.update(held)
+    as_crlf.update(held)
+    return as_lf.hexdigest(), as_crlf.hexdigest()
+
+
+def line_ending_digests(path) -> tuple[str, str] | None:
+    """sha256 of a file's bytes (1) with every CRLF as LF and (2) with every line end of (1) as CRLF,
+    or None for a file this rule does not judge: larger than LINE_ENDINGS_MAX_BYTES, a NUL in its
+    first LINE_ENDINGS_SNIFF_BYTES, or unreadable. (2) is made from (1), not from the bytes, so a CRLF
+    already there does not become CR CR LF, and a file whose line ends are mixed now is matched by a
+    record of all-LF or all-CRLF bytes. A lone CR stays a lone CR in both."""
+    path = Path(path)
+    try:
+        if path.stat().st_size > LINE_ENDINGS_MAX_BYTES:
+            return None
+        with open(path, "rb") as fh:
+            def blocks():
+                yield fh.read(LINE_ENDINGS_SNIFF_BYTES)
+                while block := fh.read(LINE_ENDINGS_BLOCK):
+                    yield block
+            return _line_ending_digests(blocks())
+    except OSError:
+        return None
+
+
+def line_ending_digests_of(data: bytes) -> tuple[str, str] | None:
+    """line_ending_digests of bytes already read (CONTEXT.md in sync_context), by the same rules."""
+    head, rest = data[:LINE_ENDINGS_SNIFF_BYTES], data[LINE_ENDINGS_SNIFF_BYTES:]
+    return _line_ending_digests(iter((head, rest)))
+
+
 class HashCache:
-    """sha256 of files keyed by (size, mtime_ns), persisted in .lab/cache/hashes.json."""
+    """sha256 of files keyed by (size, mtime_ns), persisted in .lab/cache/hashes.json.
+
+    An entry is [size, mtime_ns, sha256], and once line_endings_only has judged the file at that
+    size and time a fourth value: [lf, crlf] (line_ending_digests) or null (not judged). A kit that
+    does not know the fourth value reads such an entry as missing and hashes the file again, which
+    drops it: a cost, nothing more (.lab/cache/ is derived)."""
 
     def __init__(self, project: Project):
         self.file = project.cache / "hashes.json"
@@ -300,6 +385,13 @@ class HashCache:
         data = read_json(self.file, {})
         self.data = data if isinstance(data, dict) else {}
         self.dirty = False
+
+    def _entry(self, key: str, st) -> list | None:
+        entry = self.data.get(key)
+        if isinstance(entry, list) and len(entry) in (3, 4) and entry[0] == st.st_size \
+                and entry[1] == st.st_mtime_ns:
+            return entry
+        return None
 
     def sha(self, path) -> str | None:
         path = Path(path)
@@ -310,9 +402,8 @@ class HashCache:
         if not path.is_file():
             return None
         key = str(path)
-        entry = self.data.get(key)
-        if isinstance(entry, list) and len(entry) == 3 and entry[0] == st.st_size \
-                and entry[1] == st.st_mtime_ns:
+        entry = self._entry(key, st)
+        if entry is not None:
             return entry[2]
         try:
             digest = sha256_file(path)
@@ -321,6 +412,37 @@ class HashCache:
         self.data[key] = [st.st_size, st.st_mtime_ns, digest]
         self.dirty = True
         return digest
+
+    def line_endings_only(self, path, recorded) -> bool:
+        """Whether a file whose bytes differ from `recorded` (a sha256) differs only in its line
+        ends: the CRLF-as-LF or all-CRLF form of its bytes (line_ending_digests) hashes to
+        `recorded` (ADR-0007 decision 4). The caller asks only for a file it found `changed`. The two
+        digests are kept with the file's entry, but only when the file's size and time were the
+        same before and after the read: a file that changed while it was read gets no reason."""
+        if not recorded:
+            return False
+        path = Path(path)
+        try:
+            before = path.stat()
+        except OSError:
+            return False
+        key = str(path)
+        entry = self._entry(key, before)
+        if entry is not None and len(entry) == 4:
+            variants = entry[3]
+            return isinstance(variants, list) and recorded in variants
+        digests = line_ending_digests(path)
+        try:
+            after = path.stat()
+        except OSError:
+            return False
+        if (after.st_size, after.st_mtime_ns) != (before.st_size, before.st_mtime_ns):
+            return False
+        entry = self._entry(key, after)
+        if entry is not None:
+            self.data[key] = [*entry[:3], list(digests) if digests else None]
+            self.dirty = True
+        return bool(digests) and recorded in digests
 
     def save(self) -> None:
         if self.dirty:
@@ -540,7 +662,10 @@ def context_versions(project: Project) -> list[Path]:
 
 
 def sync_context(project: Project, actor="system", session=None) -> dict | None:
-    """Snapshot CONTEXT.md into .lab/context/ and log a `context` event when it changed."""
+    """Snapshot CONTEXT.md into .lab/context/ and log a `context` event when it changed. The version
+    is CONTEXT.md's bytes as they are; when only their line ends differ from the last version's
+    (the last version's whole sha256 is one of the new bytes' line_ending_digests_of), the event
+    says so instead of counting lines (ADR-0007 decision 4)."""
     try:
         data = project.context.read_bytes()
     except OSError:
@@ -555,15 +680,19 @@ def sync_context(project: Project, actor="system", session=None) -> dict | None:
         dest = project.context_history / f"{now().strftime('%Y%m%d-%H%M%S-%f')}_{digest}.md"
         dest.write_bytes(data)
         if versions:
-            old = versions[-1].read_text(encoding="utf-8", errors="replace").splitlines()
-            new = data.decode("utf-8", errors="replace").splitlines()
-            added = removed = 0
-            for line in difflib.unified_diff(old, new, lineterm="", n=0):
-                if line.startswith("+") and not line.startswith("+++"):
-                    added += 1
-                elif line.startswith("-") and not line.startswith("---"):
-                    removed += 1
-            text = f"CONTEXT.md updated (+{added} -{removed} lines)"
+            previous = versions[-1].read_bytes()
+            if sha256_bytes(previous) in (line_ending_digests_of(data) or ()):
+                text = "CONTEXT.md line endings changed"
+            else:
+                old = previous.decode("utf-8", errors="replace").splitlines()
+                new = data.decode("utf-8", errors="replace").splitlines()
+                added = removed = 0
+                for line in difflib.unified_diff(old, new, lineterm="", n=0):
+                    if line.startswith("+") and not line.startswith("+++"):
+                        added += 1
+                    elif line.startswith("-") and not line.startswith("---"):
+                        removed += 1
+                text = f"CONTEXT.md updated (+{added} -{removed} lines)"
         else:
             text = "CONTEXT.md recorded"
         return _append_event_locked(project, "context", text, {"context": dest.name}, actor,
@@ -723,25 +852,45 @@ class Freshness:
         return self._input_changed(run_id) or any(
             self._input_changed(u) for u in self.model.upstream(run_id)["upstream"])
 
+    def change_reason(self, path: str, recorded) -> str | None:
+        """Why a `changed` file differs from its record, when that is known: LINE_ENDINGS_ONLY when
+        only its line ends differ (ADR-0007 decision 4). The state stays `changed`."""
+        if self.cache.line_endings_only(self.project.path(path), recorded):
+            return LINE_ENDINGS_ONLY
+        return None
+
     def of(self, run_id: str) -> dict:
+        """The freshness of a run: each input's state, the changed or missing ones, the stale runs
+        upstream, and the code's state. `change_reasons` maps a changed input to why it differs when
+        that is known, and `code_reason` says the same of the code (else None); neither changes a
+        state or `stale`."""
         if run_id in self._memo:
             return self._memo[run_id]
         run = self.runs.get(run_id) or {}
-        inputs, upstream, ambiguous = [], [], []
+        inputs, upstream, ambiguous, reasons = [], [], [], {}
         own = self._own(run)
         for entry in run.get("inputs") or []:
             state = self.input_state(entry, own)
-            inputs.append({"path": entry.get("path"), "state": state,
-                           "sha256": entry.get("sha256")})
+            item = {"path": entry.get("path"), "state": state, "sha256": entry.get("sha256")}
+            reason = (self.change_reason(entry.get("path", ""), entry.get("sha256"))
+                      if state == "changed" else None)
+            if reason:
+                item["reason"] = reasons[entry.get("path")] = reason
+            inputs.append(item)
             candidates = self.model.producers(entry.get("path"), entry.get("sha256"),
                                               consumer=run_id)
             if len(candidates) > 1 and entry.get("path") not in ambiguous:
                 ambiguous.append(entry.get("path"))
             upstream += [c for c in candidates if c not in upstream and self.stale_run(c)]
         direct = [i["path"] for i in inputs if i["state"] in ("changed", "missing")]
+        code = self.code_state(run)
+        script = run.get("script") or {}
+        code_reason = (self.change_reason(script["path"], script.get("sha256"))
+                       if code == "changed" else None)
         result = {"inputs": inputs, "changed_inputs": direct, "stale_upstream": upstream,
                   "ambiguous_inputs": ambiguous, "cycle": self.model.upstream(run_id)["cycle"],
-                  "code": self.code_state(run), "stale": bool(direct or upstream)}
+                  "code": code, "stale": bool(direct or upstream), "change_reasons": reasons,
+                  "code_reason": code_reason}
         self._memo[run_id] = result
         return result
 
@@ -923,7 +1072,8 @@ def status(project: Project, limit: int = STATUS_LIMIT) -> dict:
                            "changed_inputs": f["changed_inputs"],
                            "stale_upstream": f["stale_upstream"],
                            "ambiguous_inputs": f["ambiguous_inputs"], "cycle": f["cycle"],
-                           "code": f["code"]})
+                           "code": f["code"], "change_reasons": f["change_reasons"],
+                           "code_reason": f["code_reason"]})
     recording = {r["run_id"]: r for r in model.runs()}
     run_rows = []
     for r in runs[-limit:][::-1]:
@@ -947,8 +1097,8 @@ def status(project: Project, limit: int = STATUS_LIMIT) -> dict:
     return {
         "project": {"root": str(project.root), "title": project.title(),
                     "created_at": project.config().get("created_at"),
-                    "goal": context_goal(_newlines(context_text)),
-                    "context_chars": len(_newlines(context_text)),
+                    "goal": context_goal(newlines_as_lf(context_text)),
+                    "context_chars": len(newlines_as_lf(context_text)),
                     "context_omitted": [s["name"] for s in context_omitted],
                     "context_truncated": context_truncated,
                     "context_updated": _version_time(versions[-1]) if versions else None},
@@ -1121,11 +1271,17 @@ def _status_list_len(st: dict, name: str) -> int:
                 for c in st["charts"] if c["stale"]), default=0)
 
 
-def _stale_reasons(shown: list[str], direct: int) -> str:
+# How a screen says a `changed` file differs only in its line ends (ADR-0007 decision 4).
+LINE_ENDINGS_NOTE = "(line endings only)"
+
+
+def _stale_reasons(shown: list[str], direct: int, line_endings=frozenset()) -> str:
     """Why a chart is stale: its run's changed or missing inputs (the first `direct` of `shown`), then
     the stale runs upstream. Those output the same bytes as an input: producer candidates, not known
-    producers (ADR-0006 4)."""
-    paths, runs = shown[:direct], shown[direct:]
+    producers (ADR-0006 4). An input in `line_endings` differs from its record only in its line ends
+    and says so."""
+    paths = [f"{p} {LINE_ENDINGS_NOTE}" if p in line_endings else p for p in shown[:direct]]
+    runs = shown[direct:]
     if not runs:
         return ", ".join(paths)
     upstream = ("upstream candidate " if len(runs) == 1 else "upstream candidates ") + ", ".join(runs)
@@ -1236,13 +1392,17 @@ def _status_lines(st: dict, caps: dict[str, int]) -> list[tuple[str, str, bool]]
             if len(shown) < len(changed):
                 more = (f" and {len(changed) - len(shown):,} more, among the run's inputs in "
                         f"runs/{c['run']}/run.json")
-            flags.append(f"STALE({_stale_reasons(shown, len(c['changed_inputs']))}{more})")
+            line_endings = frozenset(p for p, reason in (c.get("change_reasons") or {}).items()
+                                     if reason == LINE_ENDINGS_ONLY)
+            flags.append(f"STALE({_stale_reasons(shown, len(c['changed_inputs']), line_endings)}"
+                         f"{more})")
         if c.get("ambiguous_inputs"):
             flags.append(f"producer ambiguous for {len(c['ambiguous_inputs'])} input(s)")
         if c.get("cycle"):
             flags.append("producer cycle")
         if c["code"] == "changed":
-            flags.append("script edited since")
+            flags.append("script edited since" + (f" {LINE_ENDINGS_NOTE}"
+                                                  if c.get("code_reason") == LINE_ENDINGS_ONLY else ""))
         elif c["code"] == "missing":
             flags.append("script file no longer exists")
         if not c["has_data"] and c.get("kind") == "matplotlib":
@@ -1469,11 +1629,6 @@ def context_file_text(project: Project) -> str:
     return project.context.read_bytes().decode("utf-8", errors="replace")
 
 
-def _newlines(text: str) -> str:
-    """`text` with its CRLF and lone CR line ends as "\\n", as text mode reads a file."""
-    return text.replace("\r\n", "\n").replace("\r", "\n")
-
-
 def _file_lines(text: str) -> list[str]:
     """A file's lines as aelix's read tool numbers them from 1: split at "\\n" alone, blank lines
     kept, and no line after a last "\\n"."""
@@ -1613,7 +1768,7 @@ def _refs_suffix(event: dict) -> str:
 
 # --- project creation ---
 
-TEMPLATE_FILES = ("CONTEXT.md", "pyproject.toml", "gitignore")
+TEMPLATE_FILES = ("CONTEXT.md", "pyproject.toml", "gitignore", "gitattributes")
 
 
 def init_project(target, *, title=None, goal=None, template_dir=None, actor="human", session=None,
@@ -1651,16 +1806,18 @@ def init_project(target, *, title=None, goal=None, template_dir=None, actor="hum
     created = iso()
     write_json(project.marker, {"schema": SCHEMA_PROJECT, "title": title, "created_at": created,
                                 "kit_version": KIT_VERSION}, platform=project.platform)
+    # The copies are text the kit writes, LF on every platform (ADR-0007 decision 2): the template is
+    # read in text mode, and a line end inside a value filled in is made LF as well.
     fill = {"title": title, "date": created[:10],
             "goal": (goal or "").strip() or "- (이 분석으로 답하려는 질문과, 결과를 쓸 사람/의사결정)",
             "slug": slugify(title, 40) or "analysis"}
     for src, dest in (("CONTEXT.md", project.context), ("pyproject.toml", "pyproject.toml"),
-                      ("gitignore", ".gitignore")):
+                      ("gitignore", ".gitignore"), ("gitattributes", ".gitattributes")):
         text = texts[src]
         for k, v in fill.items():
-            text = text.replace("{{" + k + "}}", v)
-        project.path(dest).write_text(text, encoding="utf-8")
-    project.path(".python-version").write_text("3.12\n", encoding="utf-8")
+            text = text.replace("{{" + k + "}}", newlines_as_lf(v))
+        write_text(project.path(dest), text)
+    write_text(project.path(".python-version"), "3.12\n")
     project.journal.touch()
     append_event(project, "project", f"project created: {title}", actor=actor, session=session)
     sync_context(project, actor=actor, session=session)

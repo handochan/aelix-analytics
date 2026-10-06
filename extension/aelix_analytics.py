@@ -803,7 +803,9 @@ async def tool_run(args, ctx):
         core.reject_unportable_name(name, kind="script", exists=target.exists())
         note = f" (overwrote scripts/{name}.py)" if target.exists() else ""
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(str(code).rstrip() + "\n", encoding="utf-8")
+        # Inline code is text the kit writes: LF on every platform, inside as well (ADR-0007
+        # decision 2). Python reads CRLF, CR and LF alike as line ends, so it runs the same.
+        core.write_text(target, core.newlines_as_lf(str(code).rstrip()) + "\n")
         cmd = ["run", f"scripts/{name}.py"]
     else:
         cmd = ["run", str(script)]

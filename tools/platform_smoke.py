@@ -1377,7 +1377,8 @@ def main(argv=None) -> int:
         }
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8",
+                      newline="\n")
     print(json.dumps({"output": str(output), "summary": report["summary"],
                       "required": report["required"]}, ensure_ascii=False))
     if args.gate == "required":

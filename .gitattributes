@@ -1,0 +1,21 @@
+# Line endings (ADR-0007): every text file is LF in the index and in every checkout, whatever
+# core.autocrlf says, so a Windows checkout, the wheel built from it and env.kit_sha256 are the same
+# bytes as on Linux and macOS. Fixtures whose bytes are the expected value keep their own
+# `* -text` (tests/fixtures/records/.gitattributes); do not remove it.
+* text=auto eol=lf
+
+# Binary formats: never converted.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.parquet binary
+*.arrow binary
+*.feather binary
+*.ipc binary
+*.xlsx binary
+*.zip binary
+*.whl binary
+*.gz binary
