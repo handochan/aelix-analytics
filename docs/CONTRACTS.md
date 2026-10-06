@@ -625,8 +625,8 @@ kit 0.4.0([#42](https://github.com/handochan/aelix-analytics/issues/42), 줄 끝
   바꾸면 그 호출의 telemetry는 끝날 때 활성인 프로젝트에 기록되고 시작한 프로젝트에는 남지 않습니다(시험이 고정합니다.
   이전 구현과 같습니다. [#32](https://github.com/handochan/aelix-analytics/issues/32)).
 - Windows의 한계. [측정 기록](verification/2026-09-24-issue-8-platforms.md)과 [Windows 인벤토리 기록](verification/2026-10-02-issue-8-windows-inventory.md)에서 실행한 것과
-  추론한 것을 구별해 적습니다. 측정한 Windows 구성은 F에 있는 하나입니다. 이번에 측정한 긴 경로·콘솔·환경의 한계는
-  후속 [#38](https://github.com/handochan/aelix-analytics/issues/38)이 다룹니다.
+  추론한 것을 구별해 적습니다. 측정한 Windows 구성은 F에 있는 하나입니다. 긴 경로·콘솔·환경의 한계는 끝의
+  [#38](https://github.com/handochan/aelix-analytics/issues/38) 항목들입니다.
   - (측정) `taskkill /T`는 부모가 이미 끝난 자손에 닿지 않습니다. 그런 자손이 파이프를 쥐고 있으면 확장은 정해진 시간만
     기다리고 돌아오며 자손은 남습니다. 확장은 이를 정리 성공으로 적지 않고 stderr에 남깁니다.
   - (관찰과 시험) `taskkill /T`는 트리를 먼저 나열한 뒤 끝내므로, 그 사이 스스로 끝난 프로세스(먼저 끝난 자식을 따라 끝난
@@ -655,51 +655,128 @@ kit 0.4.0([#42](https://github.com/handochan/aelix-analytics/issues/42), 줄 끝
     같은 콘솔의 자식이 그 Ctrl+C로 끝나 대기가 풀렸고 run은 `cancelled`였습니다(측정, 의사 콘솔). 대기 자체가 그 이벤트를
     보는 것은 아니므로, 자기 프로세스 그룹이나 콘솔 없이 시작한 자식, Ctrl+C를 무시하는 자식, 그 밖의 대기는 콘솔의 Ctrl+C에도
     그 대기가 끝날 때까지 이어진다고 봅니다(실행하지 않았습니다).
-  - (측정, 한 번) 스크립트가 자식을 시작하는 바로 그때(`CreateProcess` 안) 콘솔의 Ctrl+C가 오면 run은 `cancelled`로
-    기록되지만, 그 Ctrl+C 뒤에 콘솔에 붙은 자식은 그것을 받지 못해 run이 끝난 뒤에도 남았습니다(의사 콘솔). POSIX에서는
-    실행하지 않았습니다.
   - (추론) Windows의 제한 시간도 Python 스레드가 SIGINT로 올리므로, 위 두 경우에 같은 이유로 닿지 않는다고 봅니다.
     실행하지 않았습니다.
   - 강제 종료는 `cancelled`가 아니라 `incomplete`입니다(D1).
-  - (측정) 콘솔의 Ctrl+Break(SIGBREAK)는 uv를 곧바로 `0xC000013A`로 끝내므로 설치본 `analytics`가 kit의 기록보다 먼저
-    돌아옵니다: 셸에 돌아온 순간 그 run은 `running`이고, kit은 나중에 `cancelled`를 기록하며(자는 kit은 그 잠이 끝난 뒤),
-    kit의 결과 줄은 프롬프트 뒤에 나옵니다(의사 콘솔에서 읽음). 프롬프트 뒤에 시작한 run은 첫 run이 끝난 뒤에야
-    시작했습니다(첫 run의 끝보다 0.7초 뒤): kit이 끝날 때까지 프로젝트의 run 잠금을 쥐고 있기 때문이라고 봅니다. kit이 끝난
-    뒤 남은 프로세스는 없었습니다(의사 콘솔에서 3.12·3.11 설치본, 고전 콘솔에서 3.12 설치본). 콘솔의 취소는 Ctrl+C입니다.
-  - (측정) run이 도는 중에 의사 콘솔을 닫으면(`ClosePseudoConsole`, 콘솔 닫기 이벤트) 기록은 `incomplete`로 남았습니다.
-    남은 프로세스는 없었습니다.
-  - (추론) 콘솔의 시간 창. 두 번째 Ctrl+C가 CRT·CPython이 처리기를 다시 설치하는 짧은 창에 오면 kit(기록은 `running`으로
-    남아 `incomplete`)이나 런처가 끝날 수 있고, uv가 자기 처리기를 설치하기 전에 온 Ctrl+C는 Ctrl+Break처럼 uv를 끝내며,
-    kit이 import하는 동안 온 Ctrl+C는 run 없이 traceback으로 끝납니다(POSIX에서 130을 관찰, Windows는 `0xC000013A`로 예상).
-    실행하지 않았습니다. POSIX 쪽의 같은 창과 늦은 두 번째 Ctrl+C는 [#32](https://github.com/handochan/aelix-analytics/issues/32)에 있습니다.
-  - (측정) PowerShell이 `analytics status`의 출력을 변수에 담으면(`$o = & analytics.exe status`; 파이프로 넘겨도 같다고
-    봅니다) 그 UTF-8 바이트를 콘솔 코드
-    페이지로 읽어 한국어가 깨집니다: 코드 페이지 437과 949에서 그랬습니다. 콘솔에 바로 쓰일 때는 바릅니다(F). 받기 전에
-    `[Console]::OutputEncoding = [Text.Encoding]::UTF8`로 두면 바르게 읽는다고 봅니다(추론, 실행하지 않았습니다).
-  - (측정) 긴 경로, LongPathsEnabled=1. 프로젝트 루트가 그 환경의 `python.exe`를 MAX_PATH(260) 안에 둘 만큼 짧으면(루트
-    230자, 계산한 인터프리터 경로 255자; 이 시험의 kit은 체크아웃의 인터프리터로 돌았습니다) run이 260자를 넘는 파일(가장
-    깊은 파일 365자)을 써도 기록·리포트가 됩니다. 루트가 MAX_PATH를
-    넘으면(300자) 그 루트를 작업 디렉터리로 하는 프로세스는 시작하지 않습니다(CreateProcess, WinError 267): 확장의 kit 명령과
-    환경 동기화는 `spawn_failed`로 답하고, `/analytics init`은 `lab.json`을 만들고 프로젝트를 활성화한 뒤 `spawn_failed`로 답하며,
-    `/analytics record` 뒤의 리포트 빌드는 알리지 않고 시작하지 않습니다. `/analytics record`와 맥락 블록은 aelix 프로세스 안에서 돌아
-    됩니다. 런처는 uv를 작업 디렉터리 없이 시작하므로, 더 짧은 디렉터리에서 `AELIX_ANALYTICS_PROJECT`로 그 루트를 가리키면 `init`(실제
-    uv 동기화, 환경의 인터프리터 경로 325자)과 `status`가 됐습니다(설치본 `analytics.exe`). 그 루트를 작업 디렉터리로 한
-    프로그램은 같은 오류로 시작하지 않았습니다(측정한 것은 Python 하나).
-  - (측정) 긴 경로, LongPathsEnabled=0(레지스트리를 바꾼 뒤 새 프로세스에서 0으로 읽힘). Python이 260자를 넘는 경로에
-    파일을 만들지 못합니다: 루트 230자에는 프로젝트를 만들 수 없었고(앞선 실행 36986490189; 맥락 사본 `.lab/context/…`이 230+52자로
-    260을 넘는다는 것은 계산), 300자
-    루트에 kit의 `init`은 JSON 줄 없이 traceback으로, `/analytics init`은 `internal error`로 끝났습니다. 루트 203자에서는 프로젝트
-    만들기·데이터 가져오기·리포트가 됐고, 260자를 넘는 출력을 쓰는 run은 matplotlib이 차트 파일을 쓰지 못해 `error`로
-    기록됐습니다. 그 앞에서 `lab.save`가 쓴 285자 경로의 데이터셋은 디스크에 있었지만 run의 출력 목록은 비어 있었습니다
-    — 출력 기록을 잃습니다.
-  - Windows에서 확장이 자식에게 넘기는 환경은 플랫폼의 기본 변수와 허용 목록뿐이라 `USERNAME`·`HOMEDRIVE`·`HOMEPATH`와
-    사용자가 둔 `PYTHONUTF8` 등이 빠집니다. 그래서 `getpass.getuser()`를 부르는 스크립트는 `analytics_run`에서 실패하고
-    `analytics run`에서는 될 수 있습니다(추론, 실행하지 않았습니다).
   - (추론) 교체 중인 기록을 그 순간 여는 reader는 거절될 수 있고, 그러면 그 기록을 없는 것으로 읽습니다.
   - (추론) SIGINT가 무시·기본 동작인지 확인하는 것과 올리는 것은 두 호출이라, 그 사이에 스크립트가 기본 동작으로 바꾸면
     프로세스가 끝납니다.
   - aelix가 끝날 때 아직 멈추는 중인 명령은 그 뒤 강제로 끝내지 않습니다. 요청 디렉터리는 kit이 볼 수 있도록 임시
     디렉터리에 남습니다(POSIX에서는 SIGINT를 이미 보낸 상태입니다).
+  - [#38](https://github.com/handochan/aelix-analytics/issues/38)의 1–8번. 베타까지 고치지 않습니다. 2026-10-03 소유자 결정
+    ([#39](https://github.com/handochan/aelix-analytics/issues/39), [베타까지의 플랫폼 보강](BETA-QUALITY-GATES.md#베타까지의-플랫폼-보강))에
+    따라 B 단계 PR이 그 코드를 건드리거나 지원 구성의 시나리오에서 기록 손실이 새로 확인될 때만 다룹니다. 항목마다 무엇이
+    일어나는지, 측정한 구성(추론이면 그 근거), 기록을 잃는지, 대신 할 일을 적습니다. 사용자 안내는
+    [README](../README.md#windows에서-쓸-때)에도 있습니다. 측정은 PR #35에서 했습니다(측정 커밋 `4eb0955`, kit 0.1.0; 앞선 실행은
+    항목에 적음). 그 뒤 이 항목을 고친 변경은 없습니다. 항목은 지금 이름으로 적습니다: 측정 때의 `/lab`·`/lab note`·`lab.save`·
+    `LAB_PROJECT`는 지금의 `/analytics`·`/analytics record`·`analytics.save`·`AELIX_ANALYTICS_PROJECT`입니다. 콘솔 항목은 사람이
+    누른 키가 아니라 의사 콘솔의 입력과 도우미 프로세스의 콘솔 이벤트로 측정했고, 경우마다 한 번 실행했습니다.
+  - (측정, #38-1) 프로젝트 루트가 MAX_PATH(260)를 넘으면 그 루트를 작업 디렉터리로 하는 프로세스는 시작하지 않습니다
+    (CreateProcess, WinError 267). 확장이 kit을 자식으로 시작하는 일(`run_kit`)과 환경 동기화는 `spawn_failed`로 답합니다. 그래서
+    `analytics_query`·`analytics_import`·`analytics_run`·`/analytics render`와, 리포트가 아직 없을 때의 `/analytics open`도
+    `spawn_failed`로 답합니다(이 명령들이 `run_kit`을 거친다는 것은 코드에서 읽음). `/analytics init`은 `lab.json`을 만들고
+    프로젝트를 활성화한 뒤 `spawn_failed`로 답합니다. `analytics_init` 도구와 `/analytics demo`도 같은 순서로 만들고 활성화한 뒤
+    환경 동기화에서 `spawn_failed`로 답합니다(코드에서 읽음). `/analytics record` 뒤의 리포트 빌드는 알리지 않고 시작하지 않습니다.
+    `/analytics record`와 맥락 블록은 aelix 프로세스 안에서 돌아 됩니다. `analytics_record` 도구도 같은 기록과 리포트 예약을
+    거치므로 기록은 되고 리포트는 알리지 않고 다시 만들어지지 않습니다(코드에서 읽음).
+    구성: LongPathsEnabled=1, 루트 300자. 루트가 그 환경의 `python.exe`를 MAX_PATH 안에 둘 만큼 짧으면(루트 230자, 계산한
+    인터프리터 경로 255자; 이 시험의 kit은 루트 밖에서 체크아웃의 인터프리터로 돌았습니다) run이 260자를 넘는 파일을 써도
+    기록·리포트가 됐습니다(출력 312자, 차트 파일 344·353자, 가장 깊은 파일은 코드 사본 365자).
+    기록: 잃지 않습니다. 시작하지 못한 kit 명령은 아무것도 실행하지 않고, `/analytics record`의 기록은 journal에 남습니다. 갱신되지
+    않는 것은 리포트(파생물)입니다.
+    대신: 프로젝트를 짧은 경로에 만듭니다. 이미 그런 루트이면 더 짧은 디렉터리에서 설치본 `analytics`를 부릅니다. 런처는 uv를
+    작업 디렉터리 없이 시작하므로, 짧은 디렉터리에서 루트를 디렉터리 인자로 준 `analytics init <루트>`(실제 uv 동기화, 환경의
+    인터프리터 경로 325자)와 같은 곳에서 `AELIX_ANALYTICS_PROJECT`를 그 루트로 둔 `analytics status`가 됐습니다(설치본
+    `analytics.exe`). 프로젝트 변수를 쓴 것은 `status`뿐입니다. `init`은 그 변수가 아니라 디렉터리 인자로 대상을 받습니다(인자가
+    없으면 거절). 그 밖의 명령은 이 길로 실행하지 않았습니다. 그 루트를 작업 디렉터리로 한 프로그램은 같은 오류로 시작하지
+    않았습니다(측정한 것은 Python 하나).
+    깊은 루트를 지원할지 분명한 문구로 거절할지는 #38의 미결정이고, 동결로 베타까지 그대로입니다.
+  - (측정, #38-2) LongPathsEnabled=0이면 Python이 260자를 넘는 경로에 파일을 만들지 못합니다. 루트 230자에는 프로젝트를 만들 수
+    없었습니다(앞선 실행 36986490189; 맥락 사본 `.lab/context/…`이 230+52자로 260을 넘는다는 것은 계산). 만들 수 없는 300자
+    루트에 kit의 `init`은 JSON 줄 없이 traceback으로, `/analytics init`은 `internal error`로 끝났습니다(만들 수 없는 경로로의
+    `init`이 traceback인 것은 모든 플랫폼이 같습니다). 루트 203자에서는 프로젝트 만들기·데이터 가져오기·리포트가 됐습니다. 이
+    경로의 kit은 체크아웃의 인터프리터로 돌아 그 깊이에 프로젝트의 uv 환경을 만들지 않았습니다. 루트 아래의 프로젝트 환경
+    (`.venv`)의 파일도 200자 안팎의 루트에서는 260자를 넘을 것으로 봅니다(추론, 실행하지 않음). 그 루트에서 260자를 넘는 출력을
+    쓰는 run은 kit이 Python으로 쓰는 차트 파일(오류에 적힌 경로 279자)을 만들지 못해(`FileNotFoundError`) `error`로 기록됐습니다.
+    그 앞에서 `analytics.save`가 쓴 285자 경로의 데이터셋은 디스크에 있었습니다. `analytics.save`는 DataFrame을 Polars로 쓰고(코드에서
+    읽음), Polars는 그 경로에 파일을 만들었습니다. 그러나 run의 출력 목록은 비어 있었고, 그 데이터셋의 누락을 알리는 경고는
+    없었습니다. run의 경고 둘은 차트에 관한 것이었고(`error`인 run의 차트는 리포트 갤러리에서 빠진다는 것, 차트의 데이터가
+    기록되지 않았다는 것), `finalize_errors`는 없었습니다.
+    구성: 레지스트리를 0으로 바꾼 뒤 새 프로세스에서 0으로 읽힘(러너의 값은 1).
+    기록: 출력 기록을 잃습니다. 그 파일은 어느 run의 출력으로도 기록되지 않습니다. kit은 출력을 실행 전후의 파일 목록과 각
+    파일의 상태로 찾고, 상태를 읽지 못한 파일은 말없이 건너뜁니다(코드에서 읽음). 그 파일은 목록에는 들지만 Python이 260자를
+    넘는 그 경로의 상태를 읽지 못해 빠졌다고 봅니다(`os.stat`의 실패 자체는 관찰하지 않았습니다). 그래서 run이 `ok`로 끝나도
+    그런 파일은 출력 목록에서 빠진다고 봅니다(추론).
+    대신: 0이면 run이 쓰는 모든 경로(`data/derived/…`, `runs/<id>/charts/…`)가 260자 안에 들게 루트와 스크립트·데이터셋·차트
+    이름을 짧게 둡니다. 관리자가 LongPathsEnabled를 1로 둘 수도 있습니다. 1에서는 1번의 루트 230자 run이 312자 경로의 출력과
+    344·353자의 차트 파일을 기록했고(가장 깊은 파일은 365자의 코드 사본), 루트가 MAX_PATH를 넘으면 1번은 남습니다. 이미 이렇게
+    끝난 run의 파일은 기록되지 않은 파일이니, 경로를 줄여 다시 실행해 기록을 남깁니다. 고치지 않는 기록 손실이라 README에도
+    적었고, 동결로 베타까지 그대로입니다.
+  - (측정, #38-3) 콘솔의 Ctrl+Break(SIGBREAK)는 uv를 곧바로 `0xC000013A`로 끝내므로 설치본 `analytics`가 kit의 기록보다 먼저
+    돌아옵니다: 셸에 돌아온 순간 그 run은 `running`이고, kit은 나중에 `cancelled`를 기록하며(자는 kit은 그 잠이 끝난 뒤),
+    kit의 결과 줄은 프롬프트 뒤에 나옵니다(의사 콘솔에서 읽음). 프롬프트 뒤에 시작한 run은 첫 run이 끝난 뒤에야
+    시작했습니다(첫 run의 끝보다 0.7초 뒤): kit이 끝날 때까지 프로젝트의 run 잠금을 쥐고 있기 때문이라고 봅니다. kit이 끝난
+    뒤 남은 프로세스는 없었습니다.
+    구성: 의사 콘솔에서 3.12·3.11 설치본, 고전 콘솔에서 3.12 설치본.
+    기록: 잃지 않습니다(`cancelled`). 다만 프롬프트가 돌아온 때의 기록은 아직 `running`입니다.
+    대신: 콘솔의 취소는 Ctrl+C입니다. Ctrl+Break를 눌렀으면 kit의 결과 줄이 나올 때까지 콘솔을 닫거나 같은 프로젝트의 다음 run을
+    시작하지 않습니다. 그 사이에 콘솔을 닫으면 4번처럼 된다고 봅니다(추론). 동결로 베타까지 그대로입니다.
+  - (측정, #38-4) run이 도는 중에 의사 콘솔을 닫으면(`ClosePseudoConsole`, 콘솔 닫기 이벤트) 기록은 `incomplete`로 남았습니다.
+    남은 프로세스는 없었습니다. kit의 처리기가 돌았는지는 관찰하지 않았습니다.
+    구성: 의사 콘솔, 3.12 설치본, 쉬지 않고 도는 스크립트. 고전 콘솔의 창을 닫는 것과 사람이 창을 닫는 것은 실행하지 않았고,
+    같다고 봅니다(추론).
+    기록: 그 run의 기록을 잃습니다. 기록은 run을 시작할 때 쓴 `running`(제목, 스크립트와 그 스냅샷, 시작 시각)에서 끝나 입력·출력·
+    차트·오류가 없습니다(코드에서 읽음). 강제 종료된 run처럼 되돌리거나 고치지 않습니다.
+    대신: run이 도는 콘솔을 닫지 않습니다. 멈출 때는 Ctrl+C를 누르고 결과 줄을 기다립니다. 닫혔으면 스크립트를 다시 실행합니다.
+    프로세스가 모두 끝났으므로 run 잠금도 풀린다고 봅니다(추론, 닫은 뒤의 run은 실행하지 않았습니다). 고치지 않는 기록 손실이라
+    README에도 적었고, 동결로 베타까지 그대로입니다.
+  - (측정, 한 번, #38-5) 스크립트가 자식을 시작하는 바로 그때(`CreateProcess` 안) 콘솔의 Ctrl+C가 오면 run은 `cancelled`로
+    기록되고 런처는 3으로 끝나지만, 그 Ctrl+C 뒤에 콘솔에 붙은 자식은 그것을 받지 못해 run이 끝난 뒤에도 남았습니다(자식 하나를
+    시작한 스크립트 뒤에 python.exe 프로세스 둘이 남음).
+    구성: 앞선 실행 36993060072(`2b69cf1`)의 의사 콘솔, 3.12 설치본, 120초 자는 Python 자식. POSIX에서는 실행하지 않았습니다.
+    기록: run의 기록은 남지만, 남은 자식이 run 뒤에 하는 일은 어느 run의 기록에도 들지 않습니다(측정한 자식은 자기만 했으므로
+    그 뒤의 쓰기는 추론).
+    대신: 자식 프로세스를 시작하는 스크립트를 Ctrl+C로 멈춘 뒤에는 남은 프로세스를 명령줄로 가려 끝냅니다. PowerShell(Windows
+    PowerShell 5.1과 PowerShell 7)에서
+    `Get-CimInstance Win32_Process -Filter "Name='python.exe'" | Select-Object ProcessId, ParentProcessId, CommandLine`으로 보고,
+    `CommandLine`이 그 스크립트가 시작한 자식의 명령인 프로세스만 `Stop-Process -Id`로 끝냅니다. Python이 아닌 자식은
+    `python.exe` 대신 그 프로그램의 이름으로 찾습니다. aelix나 다른 작업의 프로세스는 끝내지 않습니다. aelix와 설치본
+    `analytics`도 Python으로 돌아 이름만으로는 가려지지 않습니다. 이 명령은 Windows에서 실행하지 않았습니다(개발 기기의 pwsh로
+    구문만 확인). 고치지 않는 기록 손실이라 README에도 적었고, 동결로 베타까지 그대로입니다.
+  - (추론, #38-6) 콘솔의 시간 창. 두 번째 Ctrl+C가 CRT·CPython이 처리기를 다시 설치하는 짧은 창에 오면 kit(기록은 `running`으로
+    남아 `incomplete`)이나 런처가 끝날 수 있고, uv가 자기 처리기를 설치하기 전에 온 Ctrl+C는 Ctrl+Break처럼 uv를 끝내며,
+    kit이 import하는 동안 온 Ctrl+C는 run 없이 traceback으로 끝납니다(POSIX에서 130을 관찰, Windows는 `0xC000013A`로 예상).
+    기록: 첫 경우에 kit이 끝나면 4번처럼 그 run의 기록을 잃습니다. 둘째는 3번처럼 프롬프트가 kit의 기록보다 먼저 돌아오고(그때
+    uv가 kit을 아직 시작하지 않았으면 run이 없습니다), 셋째는 run을 만들지 않습니다.
+    대신: Ctrl+C는 한 번 누르고 결과 줄을 기다립니다. 결과 줄 없이 끝났으면 `analytics status`로 그 run의 상태를 봅니다.
+    추론으로 남긴 이유: 창이 짧아 하네스가 그 순간에 이벤트를 맞출 방법이 없고, 콘솔 측정은 경우마다 한 번이었습니다. 동결
+    동안에는 그 창을 겨냥하는 하네스를 만들지 않고, 베타까지 그대로입니다. POSIX 쪽의 같은 창과 늦은 두 번째 Ctrl+C는
+    [#32](https://github.com/handochan/aelix-analytics/issues/32)에 있습니다.
+  - (측정, #38-7) PowerShell이 `analytics status`의 출력을 변수에 담으면(`$o = & analytics.exe status`) 그 UTF-8 바이트를 콘솔
+    코드 페이지로 읽어 한국어가 깨집니다: 코드 페이지 437과 949에서 그랬습니다. 콘솔에 바로 쓰일 때는 바릅니다(F). cmdlet에
+    파이프로 넘겨 문자열로 받을 때도 같다고 봅니다(추론; 개발 기기 macOS의 pwsh 7.6.5에서 437로 두고 `ForEach-Object`·
+    `Select-String`으로 받으면 깨졌습니다). PowerShell 7.4부터 외부 프로그램끼리의 파이프와 `>` 리디렉션은 바이트를 그대로
+    넘깁니다(PowerShell 문서 about_Redirection; 개발 기기의 pwsh 7.6.5에서 437로 두고도 바이트가 같았습니다).
+    구성: pwsh 7.6.6, 의사 콘솔. Windows PowerShell 5.1은 실행하지 않았습니다.
+    기록: 잃지 않습니다. kit이 쓰는 바이트와 기록은 UTF-8 그대로이고, 깨지는 것은 PowerShell이 읽은 글뿐입니다.
+    대신: 받기 전에 같은 세션에서 `[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()`를 둡니다. PowerShell은 외부
+    프로그램의 출력을 이 값으로 읽고, 이 값을 바꾸면 그 콘솔의 출력 코드 페이지도 바뀝니다(PowerShell 7.6과 .NET의 소스에서
+    읽음). kit의 출력은 바뀌지 않습니다. PowerShell 안에서 실행한 `chcp 65001`은 .NET이 이미 읽어 둔 값을 바꾸지 않으므로 효과가
+    없을 수 있습니다(같은 소스). 이 해결은 Windows에서 실행하지 않았습니다(추론). 개발 기기 macOS의 pwsh 7.6.5에서 이 값을
+    437로 두면 캡처가 측정과 같은 글자(`∞╜ÿ∞åö δ╢ä∞ä¥`)로 깨지고, 이 줄 뒤에는 바르게 읽혔습니다. 출력 인코딩의 결정은 #38의
+    미결정이고, 동결로 베타까지 그대로입니다.
+  - (추론, #38-8) Windows에서 확장이 kit에게 넘기는 환경은 플랫폼의 기본 변수(`SystemRoot`·`TEMP`·`USERPROFILE`·`APPDATA` 등)와
+    허용 목록(`PATH`·`HOME`·`USER`·`LOGNAME`·`LANG`·프록시 등과 비밀이 아닌 `UV_*`)뿐입니다. 그래서 `USERNAME`·`HOMEDRIVE`·
+    `HOMEPATH`와 사용자가 둔 `PYTHONUTF8` 등이 빠집니다(코드에서 읽음). `getpass.getuser()`는 `LOGNAME`·`USER`·`LNAME`·`USERNAME`
+    순서로 읽고 없으면 `pwd`를 찾으므로, 이를 부르는 스크립트는 `analytics_run`에서 실패하고 `analytics run`(런처는 호출자의 환경을
+    넘깁니다)에서는 될 수 있습니다. `PYTHONUTF8`에 기대어 인코딩 없이 텍스트를 여는 스크립트는 `analytics_run`에서 로캘의
+    인코딩으로 읽을 수 있습니다.
+    기록: 잃지 않습니다. 실패한 run은 `error`로 기록됩니다. 다만 인코딩 없이 텍스트를 여는 스크립트는 실패하지 않고 로캘의
+    코덱으로 다른 글자를 읽은 채 `ok`로 끝날 수 있습니다(추론). 그 run은 기록되지만 결과가 틀립니다.
+    대신: aelix를 시작하기 전에 `USER`를 둡니다(PowerShell: `$env:USER = $env:USERNAME`). 확장은 `USER`를 넘기고
+    `getpass.getuser()`는 그것을 `USERNAME`보다 먼저 읽습니다. 텍스트 파일은 `encoding="utf-8"`처럼 인코딩을 적어 엽니다.
+    추론으로 남긴 이유: aelix 통합 시험은 Windows에서도 `analytics_run`을 부르지만, 그 스크립트에 사용자 이름이나 `PYTHONUTF8`을
+    읽는 것이 없습니다. 동결 동안 그 시험을 더하지 않습니다. 확장의 환경 허용 목록은 #38의 미결정이고, 베타까지 그대로입니다.
 - 작업 디렉터리의 같은 이름. `python -m`은 작업 디렉터리를 `sys.path`의 맨 앞에 둡니다. 그래서 kit을 부르는 작업 디렉터리(확장은
   프로젝트 루트, `analytics`·`bin/analytics`는 부른 곳)에 `aelix_analytics/` 디렉터리가 있으면 그것이 실행 루트보다 먼저 import됩니다.
   이전의 `labkit/`도 같았습니다.

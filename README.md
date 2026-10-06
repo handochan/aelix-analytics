@@ -79,7 +79,7 @@ aelix -e $PACK/extension/aelix_analytics.py
 aelix 안에서: `/analytics`(현황) · `/analytics open`(리포트) · "지역별 성장률 차트에 플롯 데이터도 기록되게 고쳐줘" 같은 요청.
 
 직접 분석에 필요한 것: [uv](https://docs.astral.sh/uv/)(PATH 또는 `AELIX_ANALYTICS_UV`). Aelix 연동에는 추가로 aelix 0.1.0b2 이상이 필요합니다.
-지원 플랫폼은 Linux·macOS·Windows를 목표로 합니다. 측정한 조합(Windows는 Windows Server 2025의 한 구성)과 Windows의 한계, 아직 실행하지 않은 것(사람이 누른 콘솔 키, Windows의 실제 aelix 세션, 문서를 실제로 여는 프로그램 등)은 [현재 계약](docs/CONTRACTS.md)의 F·G절에 있습니다. Windows 콘솔의 Ctrl+C·Ctrl+Break는 의사 콘솔과 고전 콘솔에서 측정했습니다.
+지원 플랫폼은 Linux·macOS·Windows를 목표로 합니다. 측정한 조합(Windows는 Windows Server 2025의 한 구성)과 Windows의 한계, 아직 실행하지 않은 것(사람이 누른 콘솔 키, Windows의 실제 aelix 세션, 문서를 실제로 여는 프로그램 등)은 [현재 계약](docs/CONTRACTS.md)의 F·G절에 있습니다. Windows 콘솔의 Ctrl+C·Ctrl+Break는 의사 콘솔과 고전 콘솔에서 측정했습니다. Windows에서 알아 둘 것은 [Windows에서 쓸 때](#windows에서-쓸-때)에 있습니다.
 분석 라이브러리는 **프로젝트마다 자기 uv 환경**에 설치되며 aelix 환경은 건드리지 않습니다.
 
 ## 설치본(wheel)으로 쓰기
@@ -106,6 +106,79 @@ uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.4.0-p
 - **체크아웃의 symlink와 함께 두지 마세요.** 아래 `~/.aelix/agent/extensions/aelix_analytics.py` symlink가 있으면 aelix는
   두 사본을 모두 로드합니다. 이 버전 이상의 두 사본은 먼저 로드된 하나만 설정되지만, 이전 버전의 체크아웃은 이를
   알지 못해 hook이 두 번 돕니다. 설치본으로 옮길 때 symlink를 지우세요.
+
+## Windows에서 쓸 때
+
+측정한 Windows는 Windows Server 2025의 한 구성입니다(관리자 계정, LongPathsEnabled=1, [현재 계약](docs/CONTRACTS.md#f-실행-환경과-지원-플랫폼) F).
+아래 한계는 베타 전에 고치지 않습니다([플랫폼 보강 동결](docs/BETA-QUALITY-GATES.md#베타까지의-플랫폼-보강), 후속 [#38](https://github.com/handochan/aelix-analytics/issues/38)).
+항목마다 측정한 구성과 근거는 [현재 계약 G](docs/CONTRACTS.md#g-약속하지-않는-것)의 'Windows의 한계'와
+[측정 기록](docs/verification/2026-10-02-issue-8-windows-inventory.md)에 있습니다. (추론)으로 적은 것은 Windows에서 실행하지 않았습니다.
+
+**프로젝트 경로는 짧게 둡니다.** 예: `C:\work\sales`.
+
+- 프로젝트 루트가 MAX_PATH(260자)를 넘으면 aelix 확장이 kit을 시작하지 못합니다. kit을 시작하는 `analytics_run`·`analytics_import`·
+  `analytics_query`·`/analytics render`와, 리포트가 아직 없을 때의 `/analytics open`은 `spawn_failed`로 답합니다. `analytics_init`과
+  `/analytics init`·`/analytics demo`는 `lab.json`을 만들고 그 프로젝트를 활성화한 뒤 `spawn_failed`로 답합니다.
+  `analytics_record`·`/analytics record`의 기록은 되지만 리포트는 알리지 않고 다시 만들어지지 않습니다. 측정은 300자 루트에서
+  kit 명령의 시작, 환경 동기화, `/analytics init`, `/analytics record`로 했고 나머지는 코드에서 읽었습니다. 실행되지 않을 뿐 기록을
+  잃지는 않습니다.
+- 이미 그런 루트라면 설치본 `analytics`를 더 짧은 디렉터리에서 부릅니다. 짧은 디렉터리에서 `analytics init <루트>`(디렉터리 인자)로
+  그 루트에 프로젝트를 만들었고, 같은 곳에서 `AELIX_ANALYTICS_PROJECT`로 그 루트를 가리킨 `analytics status`가 됐습니다(측정).
+  `init`은 이 변수가 아니라 디렉터리 인자로 대상을 받습니다. 다른 명령은 이 방법으로 실행하지 않았습니다.
+- LongPathsEnabled가 0이면 Python이 260자를 넘는 경로에 파일을 만들지 못합니다. kit이 Python으로 쓰는 차트 파일(279자)이 그랬고,
+  그 run은 `error`로 기록됐습니다(측정). 그런데 그 앞에서 `analytics.save`가 쓴 285자 경로의 데이터셋은 만들어졌습니다(측정).
+  `analytics.save`는 데이터셋을 Polars로 쓰고, kit은 상태를 읽지 못한 파일을 말없이 건너뜁니다(코드에서 읽음). 그래서 그 데이터셋은
+  run의 출력 목록에도 경고에도 없었습니다(측정). 이렇게 **출력 기록을 잃을 수 있습니다**. run이 `ok`로 끝나도 그런 파일은 출력
+  목록에서 빠진다고 봅니다(추론). run이 쓰는 모든 경로가 260자 안에 들게 루트와 스크립트·데이터셋·차트 이름을 짧게 둡니다.
+  루트 아래의 프로젝트 환경(`.venv`)의 파일도 200자 안팎의 루트에서는 260자를 넘을 것으로 봅니다(추론, 실행하지 않음: 측정한
+  203자 루트의 kit은 체크아웃의 인터프리터로 돌아 프로젝트 환경을 만들지 않았습니다).
+- 설정은 PowerShell의 `Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem -Name LongPathsEnabled`로 봅니다. 값이
+  1이 아니거나, 값이 없어 이 명령이 'does not exist' 오류로 끝나면 꺼져 있습니다. 켜려면 관리자 권한이 필요합니다([Microsoft 문서](https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation#enable-long-paths-in-windows-10-version-1607-and-later)).
+  이 값은 프로세스마다 처음 한 번 읽히므로 켠 뒤에는 aelix와 터미널을 다시 시작합니다(같은 문서는 재부팅이 필요할 수도 있다고
+  합니다). 1에서는 루트 230자의 run이 312자 경로의 출력과 더 깊은 차트 파일까지 기록했습니다(측정). 루트 자체가 MAX_PATH를 넘는
+  한계는 1에서도 남습니다.
+
+**run을 멈출 때는 Ctrl+C를 한 번 누르고 결과 줄을 기다립니다.** run은 `cancelled`로 기록되고 `analytics`는 3으로 끝납니다(측정).
+
+- Ctrl+Break는 쓰지 않습니다. uv가 곧바로 끝나 프롬프트가 먼저 돌아오지만 kit은 계속 돕니다. 그동안 그 run의 기록은 `running`이고,
+  kit이 프로젝트의 run 잠금을 쥐고 있어 같은 프로젝트의 다음 run은 기다립니다. kit은 나중에 `cancelled`를 기록하고(자는 스크립트는
+  잠이 끝난 뒤), 결과 줄은 프롬프트 뒤에 나옵니다(측정). 그 결과 줄이 나올 때까지 콘솔을 닫지 않습니다.
+- run이 도는 콘솔 창을 닫지 않습니다. 의사 콘솔을 `ClosePseudoConsole`로 닫은 시험에서 그 run은 `incomplete`로 남았습니다(측정).
+  고전 콘솔의 창을 닫거나 사람이 창을 닫는 것은 실행하지 않았지만 같다고 봅니다(추론). 그 기록에는 입력·출력·차트·오류가
+  없습니다(코드에서 읽음). 남은 프로세스는 없었고(측정), run 잠금도 함께 풀린다고 봅니다(추론). 기록은 고쳐지지 않으니
+  스크립트를 다시 실행합니다.
+- Ctrl+C를 거듭 누르지 않습니다. 두 번째 Ctrl+C가 처리기를 다시 설치하는 짧은 순간에 오면 kit이 끝나 run이 `incomplete`로 남을 수
+  있습니다(추론). 결과 줄 없이 끝났으면 `analytics status`로 그 run을 봅니다.
+- 자식 프로세스를 시작하는 스크립트는 Ctrl+C 뒤에 남은 프로세스를 확인합니다. 자식을 시작하는 바로 그 순간 온 Ctrl+C는 그 자식에
+  닿지 않아, run은 `cancelled`로 기록됐지만 자식은 남았습니다(측정, 한 번). 남은 자식이 그 뒤에 쓰는 파일은 기록되지 않습니다(추론).
+  남은 프로세스는 이름이 아니라 명령줄로 가려냅니다. aelix와 설치본 `analytics`도 Python으로 돌아 python.exe 프로세스가 있을 수
+  있기 때문입니다. PowerShell(Windows PowerShell 5.1과 PowerShell 7)에서
+  `Get-CimInstance Win32_Process -Filter "Name='python.exe'" | Select-Object ProcessId, ParentProcessId, CommandLine`으로 보고,
+  `CommandLine`이 그 스크립트가 시작한 자식의 명령인 프로세스만 `Stop-Process -Id <ProcessId>`로 끝냅니다(측정에서는 자식 하나를
+  시작한 스크립트 뒤에 python.exe 둘이 남았습니다). Python이 아닌 자식은 `python.exe` 대신 그 프로그램의 이름으로 찾습니다. aelix나 다른 작업의
+  프로세스는 끝내지 않습니다. 이 명령은 Windows에서 실행하지 않았습니다.
+
+**PowerShell로 출력을 받을 때는 인코딩을 먼저 맞춥니다.** `$o = analytics status`처럼 변수에 담으면 PowerShell이 kit의 UTF-8 출력을
+콘솔 코드 페이지로 읽어 한국어가 깨집니다(pwsh 7.6.6, 코드 페이지 437·949에서 측정; Windows PowerShell 5.1은 실행하지 않음).
+`ForEach-Object` 같은 cmdlet에 파이프로 넘겨 문자열로 받아도 같다고 봅니다(추론). PowerShell 7.4부터 외부 프로그램끼리의 파이프와
+`>` 리디렉션은 바이트를 그대로 넘깁니다([PowerShell 문서](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_redirection?view=powershell-7.6#example-7-redirecting-binary-data-from-a-native-command)).
+콘솔에 바로 보이는 출력은 바릅니다. 같은 세션에서 먼저 다음을 실행합니다(추론, Windows에서는 실행하지 않음):
+
+```powershell
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
+```
+
+이 줄은 PowerShell이 받은 바이트를 읽는 방식과 그 콘솔의 출력 코드 페이지만 바꿉니다. kit이 쓰는 바이트와 기록은 그대로 UTF-8입니다.
+PowerShell 안에서 실행한 `chcp 65001`은 PowerShell이 이미 읽어 둔 인코딩을 바꾸지 않아 효과가 없을 수 있습니다.
+
+**aelix의 `analytics_run`은 환경 변수를 모두 넘기지 않습니다.** Windows에서 확장은 시스템의 기본 변수와 허용 목록만 넘기므로
+`USERNAME`·`HOMEDRIVE`·`HOMEPATH`·사용자가 둔 `PYTHONUTF8` 등이 빠집니다. 그래서 `getpass.getuser()`를 부르는 스크립트는
+`analytics_run`에서 실패할 수 있습니다. 셸의 `analytics run`은 환경을 그대로 넘기므로 될 수 있습니다(추론, 실행하지 않음). 우회:
+
+- aelix를 시작하기 전에 `$env:USER = $env:USERNAME`(PowerShell)을 둡니다. 확장은 `USER`를 넘기고, `getpass.getuser()`는
+  `USERNAME`보다 `USER`를 먼저 읽습니다.
+- `PYTHONUTF8`에 기대지 말고 텍스트 파일을 열 때 `encoding="utf-8"`을 적습니다. 적지 않으면 오류 없이 로캘의 인코딩으로 다른
+  글자를 읽고 run이 `ok`로 끝날 수 있습니다(추론).
 
 ## 확장 등록
 
