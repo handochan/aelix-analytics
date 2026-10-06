@@ -4,7 +4,8 @@
     python tools/eval_fixtures.py q10 [--seed N] [--format v1] --out DIR
     python tools/eval_fixtures.py q13 [--seed N] [--format v1] --out DIR
     python tools/eval_fixtures.py check DIR
-    python tools/eval_fixtures.py environment --out FILE [--cache-state cold|warm|unknown] [--browser NAME=VERSION]
+    python tools/eval_fixtures.py environment --out FILE [--disk PATH] [--cache-state cold|warm|unknown]
+        [--browser NAME=VERSION]
 
 Run it in the development environment (`uv run --locked python tools/eval_fixtures.py ...`): it needs the
 analysis libraries the kit runs scripts with.
@@ -13,7 +14,8 @@ What it makes (docs/BETA-QUALITY-GATES.md §2-§4, tools/eval_fixtures_data/READ
 
 - `scale`: a lab.json project of the S or M size of BETA §4 (SCALES), holding the cases every fixture of §4
   has: corrections, withdrawals, data no longer preserved, a repeated chart id, reference cycles and long
-  Korean content (CASES, with the judgments a reader of ADR-0006 gives them).
+  Korean content (CASES, with the judgments a reader of ADR-0006 gives them), and the imported files in
+  input/.
 - `q10`: the Q10 analysis-check examples (aggregation key, unit, denominator, period), a flawed and a sound
   analysis of each, with the expected verdicts in expected.json.
 - `q13`: a synthetic reproduction of the reference session (docs/REVIEW-REFERENCE-SESSION-2026-09-18.md):
@@ -27,12 +29,14 @@ of a scale fixture (S 27, M 297) are not executed (each executed run rebuilds th
 their run record are made here and written with core.write_json, the record's outputs described by
 runner.parquet_info and its warnings by runner.run_warnings, and their completion event with
 core.append_event, in the key order runner._execute_locked and runner._finalize give (the tests compare them
-with the executed runs' records).
+with the executed runs' records). Their code (analysis_code) reads the record's inputs, saves its outputs
+and visualizes its charts, but their output bytes come from the seed: running that code does not give them.
 
 Determinism: the seed drives random.Random and the data; the kit's clock (core.now) is a planned clock while
 the fixture is written, so no wall-clock time reaches a record. The same seed in the same environment gives
 the same bytes but for the fields VOLATILE declares; `tree_digest` hashes the tree with those fields masked,
-and manifest.json holds the digest. The kit's derived files (`.lab/cache/`, `report/`) are emptied at the end
+and manifest.json holds the digest. Generated at the same --out, only the executed runs' duration_s differs.
+The kit's derived files (`.lab/cache/`, `report/`) are emptied at the end of a generation and of a `check`
 (the fixture is cold for the kit) and are not part of the digest.
 
 While it writes, AELIX_ANALYTICS_TRUST_FILE and AELIX_ANALYTICS_UV point into a temporary directory and the
@@ -40,7 +44,8 @@ kit's other variables (and their names before kit 0.3.0) are unset, so no trust 
 touched; they come back afterwards.
 
 Exit status: 0 done, 1 the kit failed or `check` found a problem, 2 a usage error (an output directory that
-is not new or empty, a format not available yet).
+is not new or empty, a format not available yet). A generation that fails removes what it wrote, so the
+same --out can be given again.
 """
 
 from __future__ import annotations
@@ -56,6 +61,7 @@ import math
 import os
 import platform
 import random
+import re
 import shutil
 import sqlite3
 import sys
@@ -110,18 +116,22 @@ SCALES = {
 # The upper bound BETA §4 gives M's data.
 M_DATA_LIMIT = 1 << 30
 
-# Fields whose value is not the seed's to decide. `tree_digest` reads them as "<volatile>"; a file `text`
-# names has the project's absolute path read as "<project>".
+# Fields whose value is not the seed's to decide. `tree_digest` reads them as "<volatile>"; in a file `text`
+# names, a traceback's path up to the project directory (File "…/project/ or File "…\project\) reads as
+# File "<project>/, so a fixture moved or copied elsewhere has the same digest.
 VOLATILE = [
     {"files": "project/runs/*/run.json", "fields": ["duration_s", "env"],
      "why": "duration_s of an executed run is its measured time; env holds the Python executable's path, the "
             "platform and the library versions"},
     {"files": "project/data/raw/*.meta.json", "fields": ["source.path", "source.modified_at"],
-     "why": "the source is a temporary file of the generator (an absolute path), and its modification time "
-            "is written in the machine's time zone"},
+     "why": "the source is the fixture's own input/ file named by its absolute path (the same --out gives the "
+            "same path), and its modification time, the planned time, is written in the machine's time zone"},
     {"files": "project/runs/*/stderr.txt", "text": "project_path",
-     "why": "a failed run's traceback names the script by its absolute path"},
+     "why": "a failed run's traceback names the script by its absolute path, which holds where the fixture "
+            "was generated"},
 ]
+# A traceback's frame line, up to and including the project directory, with either separator.
+TRACEBACK_PROJECT = re.compile(rb'File "[^"\r\n]*[\\/]' + PROJECT_DIR.encode() + rb'[\\/]')
 # Not hashed: the two files about the generation itself, and the kit's derived files, which a read of the
 # project may rebuild (the hash cache, the Workspace).
 NOT_DIGESTED = ["manifest.json", "environment.json", "project/.lab/cache/*", "project/report/*"]
@@ -237,6 +247,27 @@ def prepare_out(out) -> Path:
     return out
 
 
+@contextlib.contextmanager
+def output_directory(out):
+    """`out` prepared (prepare_out); when the generation fails, what it wrote there is removed, so the same
+    --out can be given again: the directory itself when it was new, else everything in it (it was empty)."""
+    created = not Path(out).exists()
+    out = prepare_out(out)
+    try:
+        yield out
+    except BaseException:
+        if created:
+            shutil.rmtree(out, ignore_errors=True)
+        else:
+            for child in sorted(out.iterdir()):
+                if child.is_dir() and not child.is_symlink():
+                    shutil.rmtree(child, ignore_errors=True)
+                else:
+                    with contextlib.suppress(OSError):
+                        child.unlink()
+        raise
+
+
 # Polars sums floating-point values in an order that depends on its thread pool, so a multi-threaded
 # group_by can give other last bits each time. The scripts the kit runs here use Polars; on one thread they
 # give the same bits. The command sets it before Polars is imported (main); the Python API refuses a process
@@ -292,7 +323,7 @@ def _mask(value: dict, dotted: str) -> None:
         value[last] = "<volatile>"
 
 
-def masked_bytes(rel: str, data: bytes, project_path: str) -> bytes:
+def masked_bytes(rel: str, data: bytes) -> bytes:
     """A file's bytes as the digest reads them: VOLATILE's fields masked."""
     for rule in VOLATILE:
         if not fnmatch.fnmatchcase(rel, rule["files"]):
@@ -302,19 +333,18 @@ def masked_bytes(rel: str, data: bytes, project_path: str) -> bytes:
             for dotted in rule["fields"]:
                 _mask(value, dotted)
             return json_text(value).encode("utf-8")
-        return data.replace(project_path.encode("utf-8"), b"<project>")
+        return TRACEBACK_PROJECT.sub(b'File "<project>/', data)
     return data
 
 
 def tree_digest(out) -> str:
     """sha256 over (path, sha256 of the masked bytes) of every digested file, in path order."""
     out = Path(out)
-    project_path = str((out / PROJECT_DIR).resolve())
     digest = hashlib.sha256()
     for rel, path in _tree_files(out):
         if not _digested(rel):
             continue
-        content = masked_bytes(rel, path.read_bytes(), project_path)
+        content = masked_bytes(rel, path.read_bytes())
         digest.update(f"{rel}\0{sha256_bytes(content)}\n".encode())
     return "sha256:" + digest.hexdigest()
 
@@ -523,7 +553,7 @@ class V1Writer:
         self.root = root
         self.project = None
         self.env = None
-        self.datasets: dict[str, dict] = {}      # name -> path, sha256, bytes, rows, source
+        self.datasets: dict[str, dict] = {}      # name -> path, sha256, bytes, rows, source, columns
         self.derived: dict[str, tuple[str, int]] = {}  # path -> (sha256, bytes) of the bytes on disk
         self.runs: list[dict] = []               # every run: id, status, script, charts (keys)
         self.kit_runs: list[str] = []
@@ -552,7 +582,7 @@ class V1Writer:
         meta = result["dataset"]
         self.datasets[name] = {"name": name, "path": meta["path"], "sha256": meta["sha256"],
                                "bytes": meta["bytes"], "rows": meta["rows"],
-                               "source": source.suffix.lstrip(".")}
+                               "source": source.suffix.lstrip("."), "columns": [c["name"] for c in meta["columns"]]}
         return meta
 
     # runs the kit executes
@@ -576,6 +606,10 @@ class V1Writer:
                 self.derived[out["path"]] = (out["sha256"], out["bytes"])
         return record
 
+    def rows(self, path: str) -> int:
+        """The rows of a Parquet file of the project."""
+        return self.kit.runner.parquet_info(self.project.root / path)["rows"]
+
     def _remember(self, record: dict) -> None:
         keys = [f"{record['script']['path']}::{c['id']}" for c in record.get("charts") or []]
         self.runs.append({"id": record["id"], "status": record["status"], "script": record["script"]["path"],
@@ -589,8 +623,11 @@ class V1Writer:
         return event["id"]
 
     # runs not executed
-    def input_entry(self, path: str, via=("lab.read", "polars.read_parquet"), digest: bool = True) -> dict:
-        """An input as the runner records it: path, the hash and size of the bytes read, how, external."""
+    def input_entry(self, path: str, digest: bool = True) -> dict:
+        """An input as the runner records it: path, the hash and size of the bytes read, how, external. The
+        code reads it with analytics.read (analysis_code): a dataset by its name, a derived table by its path,
+        a literal the runner's static scan of the code also finds ("scan")."""
+        via = ["lab.read", "polars.read_parquet"] + (["scan"] if path.startswith("data/derived/") else [])
         known = {d["path"]: (d["sha256"], d["bytes"]) for d in self.datasets.values()}
         if path in known:
             sha, size = known[path]
@@ -684,23 +721,46 @@ class V1Writer:
 TOPICS = ["region_trend", "channel_mix", "sensor_daily", "anomaly_scan", "cohort_view", "funnel_check",
           "price_band", "weekly_kpi", "basket_size", "delivery_delay", "repeat_rate", "store_compare"]
 
-FILLER_SCRIPT = '''"""{title} (평가 fixture의 스크립트, 버전 {version})."""
+def _key_value(source: str) -> tuple[str, str]:
+    """The column a source's rows are grouped by and the column averaged: sales_kr's region and amount, a
+    sensor table's sensor and value, a derived table's key and value."""
+    if source == "sales_kr":
+        return "지역", "매출액"
+    if source.startswith("sensor_"):
+        return "sensor", "value"
+    return "key", "value"
 
-import plotly.graph_objects as go
-import polars as pl
 
-import aelix_analytics as analytics
+def analysis_code(title: str, source: str, *, upstream: str | None = None, save: str | None = None,
+                  charts=(), group_by: str | None = None) -> str:
+    """The code of a run written here (not executed), saying what its record says: it reads `source` (a
+    dataset by its name, a derived table by its path) and `upstream`, averages per key into a table of key
+    and value, saves it as `save` and visualizes `charts`, (id, title, with data) each, and prints the rows
+    the record's stdout has. `group_by` names a column the source lacks, for a run that fails there.
+    Running it does not give the bytes the record holds: the fixture's tables are made from the seed."""
+    key, value = _key_value(source)
+    lines = [f'"""{title} (평가 fixture의 스크립트, kit이 실행하지 않은 run)."""', ""]
+    if charts:
+        lines.append("import plotly.graph_objects as go")
+    lines += ["import polars as pl", "", "import aelix_analytics as analytics", "",
+              f'frame = analytics.read("{source}")']
+    if upstream:
+        lines += [f'upstream = analytics.read("{upstream}")', 'print(f"upstream rows {upstream.height}")']
+    lines.append(f'table = frame.group_by(pl.col("{group_by or key}").alias("key"), maintain_order=True)'
+                 f'.agg(pl.col("{value}").mean().alias("value")).sort("key")')
+    if save:
+        lines.append(f'analytics.save(table, "{save}")')
+    for chart_id, chart_title, with_data in charts:
+        lines += ['fig = go.Figure(go.Bar(x=table["key"].to_list(), y=table["value"].to_list()))',
+                  f'analytics.visualize(fig, "{chart_id}", title="{chart_title}"' + (", data=table)" if with_data
+                                                                                    else ")")]
+    lines.append('print(f"rows {table.height}")')
+    return "\n".join(lines) + "\n"
 
-THRESHOLD = {threshold}
 
-frame = analytics.read("{dataset}"){upstream}
-table = frame.group_by("{key}").agg(pl.col("{value}").mean().alias("value")).sort("{key}")
-analytics.save(table, "{table}")
-fig = go.Figure(go.Bar(x=table["{key}"].to_list(), y=table["value"].to_list()))
-analytics.visualize(fig, "{chart}", title="{chart_title}", data=table)
-fig = go.Figure(go.Scatter(x=table["{key}"].to_list(), y=table["value"].to_list(), mode="markers"))
-analytics.visualize(fig, "{chart}-detail", title="{chart_title} (상세)")
-'''
+# A case's table (ScaleFixture._small_table) has this many keys, so its code prints this many rows.
+SMALL_TABLE_ROWS = 6
+SMALL_TABLE_STDOUT = f"rows {SMALL_TABLE_ROWS}\n"
 
 
 def _script_lines(code: str, needle: str) -> int:
@@ -739,7 +799,9 @@ class ScaleFixture:
 
     # sources
     def make_sources(self) -> list[tuple[str, Path, str]]:
-        sources = self.scratch / "sources"
+        """The files imported, under input/ as q10's and q13's are: an import records its source's absolute
+        path, which is then the same for the same --out."""
+        sources = self.out / "input"
         out = [("sales_kr", sources / "sales_kr.csv", "지역·채널별 일 매출(2025년, 한국어 열, 합성)")]
         write_sales_kr(out[0][1], self.rng)
         for index, rows in enumerate(self.spec.bulk_rows, start=1):
@@ -830,17 +892,18 @@ class ScaleFixture:
                                  "table": f"data/derived/t{index + 1:02d}_{topic}.parquet",
                                  "upstream": index - 1 if index and index % 3 else None,
                                  "chart": topic.replace("_", "-"), "last_bytes": None, "code": None,
-                                 "dataset": None, "upstream_table": None})
+                                 "dataset": None, "upstream_table": None, "detail": False})
 
-    def script_code(self, script: dict, dataset: str, upstream_table: str | None) -> str:
-        sales = dataset == "sales_kr"
-        upstream = (f'\nupstream = analytics.read("{upstream_table}")\nprint(upstream.height)'
-                    if upstream_table else "")
-        return FILLER_SCRIPT.format(
-            title=f"{script['topic']} 요약", version=script["version"], threshold=round(self.rng.uniform(1, 3), 2),
-            dataset=dataset, upstream=upstream, key="지역" if sales else "sensor",
-            value="매출액" if sales else "value", table=Path(script["table"]).stem, chart=script["chart"],
-            chart_title=f"{script['topic']} 요약 차트")
+    def script_code(self, script: dict, group_by: str | None = None) -> str:
+        """A version of a generic script: its dataset, its upstream table, its table and its charts (the
+        detail chart only in some versions)."""
+        title = f"{script['topic']} 요약 차트"
+        charts = [(script["chart"], title, True)]
+        if script["detail"]:
+            charts.append((f"{script['chart']}-detail", f"{title} (상세)", False))
+        return analysis_code(f"{script['topic']} 요약, 버전 {script['version']}", script["dataset"],
+                             upstream=script["upstream_table"], save=Path(script["table"]).stem, charts=charts,
+                             group_by=group_by)
 
     def generic_run(self, index: int, noted: bool) -> None:
         w, rng = self.w, self.rng
@@ -855,24 +918,33 @@ class ScaleFixture:
                 upstream = candidate if candidate in w.derived else None
             script["upstream_table"] = upstream
             script["version"] += 1
-            script["code"] = self.script_code(script, script["dataset"], upstream)
+            script["detail"] = rng.random() < 0.5
+            script["code"] = self.script_code(script)
         code = script["code"]
-        inputs = [w.input_entry(w.datasets[script["dataset"]]["path"])]
+        dataset = w.datasets[script["dataset"]]
+        inputs = [w.input_entry(dataset["path"])]
+        stdout = ""
         if script["upstream_table"]:
             inputs.append(w.input_entry(script["upstream_table"]))
+            stdout = f"upstream rows {w.rows(script['upstream_table'])}\n"
         failed = index % 15 == 7
         title = f"{script['topic']} 요약 #{index + 1}"
         duration = round(rng.uniform(0.4, 25.0), 3)
         if failed:
+            # This run's code groups by a column the dataset lacks; the next run of the script has the
+            # version's code again.
+            missing = f"{script['topic']}_코드"
+            code = self.script_code(script, group_by=missing)
             line = _script_lines(code, "group_by")
-            message = f'unable to find column "{script["topic"]}_코드"; valid columns: ["sensor", "value"]'
+            message = (f'unable to find column "{missing}"; valid columns: '
+                       f"{json.dumps(dataset['columns'], ensure_ascii=False)}")
             error = {"type": "ColumnNotFoundError", "message": message, "line": line,
                      "summary": f"ColumnNotFoundError: {message}"}
             # As a failed run's log is: the script named by its absolute path (VOLATILE masks it).
             stderr = (f'Traceback (most recent call last):\n  File "{w.project.root / script["path"]}", line {line}, '
                       f"in <module>\npolars.exceptions.{error['summary']}\n")
             w.written_run(script_rel=script["path"], code=code, title=title, started=self.when, duration=duration,
-                          status="error", inputs=inputs, error=error, stderr=stderr)
+                          status="error", inputs=inputs, error=error, stdout=stdout, stderr=stderr)
             self.generic_runs += 1
             return
         import polars as pl
@@ -889,13 +961,13 @@ class ScaleFixture:
                   "layout": {"title": {"text": f"{script['topic']} 요약 차트"}}}
         charts = [{"id": script["chart"], "title": f"{script['topic']} 요약 차트", "line": _script_lines(code, f'"{script["chart"]}"'),
                    "figure": figure, "data": frame}]
-        if rng.random() < 0.5:
+        if script["detail"]:
             charts.append({"id": f"{script['chart']}-detail", "title": f"{script['topic']} 요약 차트 (상세)",
                            "line": _script_lines(code, "-detail"), "figure": figure})
         notes = [(rng.choice(["finding", "note"]), korean_sentence(rng))] if noted else []
         w.written_run(script_rel=script["path"], code=code, title=title, started=self.when, duration=duration,
                       inputs=inputs, outputs=[(script["table"], content)], charts=charts,
-                      stdout=f"rows {frame.height}\n", notes=notes)
+                      stdout=f"{stdout}rows {frame.height}\n", notes=notes)
         self.generic_runs += 1
 
     def generic_note(self, resolve: bool) -> None:
@@ -1001,16 +1073,21 @@ class ScaleFixture:
         record["note"] = self.w.note("note", text)
         record["original_chars"] = len(text)
 
-    def _case_script(self, stem: str, chart: str, dataset: str = "sensor_01") -> tuple[str, str]:
-        script = {"topic": stem, "version": 1, "table": f"data/derived/{stem}.parquet", "chart": chart}
-        return f"scripts/{stem}.py", self.script_code(script, dataset, None)
+    def _case_script(self, stem: str, source: str = "sensor_01", save: str | None = None,
+                     charts=()) -> tuple[str, str]:
+        """A case's script and its code: it reads `source`, saves `save` and visualizes `charts`, (id, title)
+        each with the table as its data, as the case's record says."""
+        code = analysis_code(f"사례 {stem}", source, save=save,
+                             charts=[(chart_id, title, True) for chart_id, title in charts])
+        return f"scripts/{stem}.py", code
 
     def _small_table(self, salt: str) -> bytes:
+        """A case's table: SMALL_TABLE_ROWS keys, one row each."""
         import polars as pl
 
         rng = random.Random(f"{self.seed}/{salt}")
-        return parquet_bytes(pl.DataFrame({"key": [f"k{n}" for n in range(6)],
-                                           "value": [round(rng.uniform(0, 10), 3) for _ in range(6)]}))
+        return parquet_bytes(pl.DataFrame({"key": [f"k{n}" for n in range(SMALL_TABLE_ROWS)],
+                                           "value": [round(rng.uniform(0, 10), 3) for _ in range(SMALL_TABLE_ROWS)]}))
 
     def _chart(self, chart_id: str, title: str, code: str, table: bytes | None = None) -> dict:
         import polars as pl
@@ -1023,23 +1100,24 @@ class ScaleFixture:
                 "data": frame}
 
     def trend_run(self, n: int) -> None:
-        script_rel, code = self._case_script("case_trend", "trend")
+        script_rel, code = self._case_script("case_trend", save="case_trend", charts=[("trend", "추세 비교")])
         table = self._small_table(f"trend/{n}")
         run_id, _ = self.w.written_run(
             script_rel=script_rel, code=code, title=f"추세 비교 {n}", started=self.when, duration=3.2,
             inputs=[self.w.input_entry(self.w.datasets["sensor_01"]["path"])],
             outputs=[("data/derived/case_trend.parquet", table)],
-            charts=[self._chart("trend", "추세 비교", code, table)])
+            charts=[self._chart("trend", "추세 비교", code, table)], stdout=SMALL_TABLE_STDOUT)
         self.case("same_chart_id")["records"][f"trend_run_{n}"] = run_id
 
     def region_total_run(self) -> None:
-        script_rel, code = self._case_script("case_region_total", "region-total", dataset="sales_kr")
+        script_rel, code = self._case_script("case_region_total", "sales_kr", save="case_region_total",
+                                             charts=[("region-total", "지역 합계")])
         table = self._small_table("region-total")
         run_id, _ = self.w.written_run(
             script_rel=script_rel, code=code, title="지역 합계(다른 스크립트)", started=self.when, duration=2.1,
             inputs=[self.w.input_entry(self.w.datasets["sales_kr"]["path"])],
             outputs=[("data/derived/case_region_total.parquet", table)],
-            charts=[self._chart("region-total", "지역 합계", code, table)])
+            charts=[self._chart("region-total", "지역 합계", code, table)], stdout=SMALL_TABLE_STDOUT)
         self.case("same_chart_id")["records"]["region_total_run"] = run_id
 
     def trend_note(self) -> None:
@@ -1056,17 +1134,18 @@ class ScaleFixture:
         w = self.w
         records = self.case("unpreserved_data")["records"]
         stem = f"case_{kind}"
-        script_rel, code = self._case_script(stem, kind.replace("_", "-"))
+        chart_id, chart_title = kind.replace("_", "-"), f"{kind} 사례"
+        script_rel, code = self._case_script(stem, save=stem, charts=[(chart_id, chart_title)])
         path = f"data/derived/{stem}.parquet"
         table = self._small_table(f"{kind}/{n}")
         inputs = [w.input_entry(w.datasets["sensor_01"]["path"])]
-        charts = [self._chart(kind.replace("_", "-"), f"{kind} 사례", code, table)]
+        charts = [self._chart(chart_id, chart_title, code, table)]
         if kind == "no_digest":
             # An input whose bytes could not be hashed when the run read it (the runner records sha256 null).
             inputs = [w.input_entry(w.datasets["sensor_01"]["path"], digest=False)]
         run_id, event_id = w.written_run(script_rel=script_rel, code=code, title=f"미보존 사례: {kind} {n}",
                                          started=self.when, duration=1.5, inputs=inputs, outputs=[(path, table)],
-                                         charts=charts)
+                                         charts=charts, stdout=SMALL_TABLE_STDOUT)
         records[f"{kind}_run_{n}"] = run_id
         records[f"{kind}_path"] = path
         if kind == "chart_gone":
@@ -1078,9 +1157,9 @@ class ScaleFixture:
     def unpreserved_reader(self) -> None:
         w = self.w
         path = self.case("unpreserved_data")["records"]["deleted_path"]
-        script_rel, code = self._case_script("case_deleted_reader", "deleted-reader")
+        script_rel, code = self._case_script("case_deleted_reader", path)
         run_id, _ = w.written_run(script_rel=script_rel, code=code, title="지운 표를 읽은 run", started=self.when,
-                                  duration=1.1, inputs=[w.input_entry(path)])
+                                  duration=1.1, inputs=[w.input_entry(path)], stdout=SMALL_TABLE_STDOUT)
         self.case("unpreserved_data")["records"]["deleted_reader"] = run_id
 
     def cycle_runs(self) -> None:
@@ -1093,9 +1172,10 @@ class ScaleFixture:
         started = self.when
         ids = []
         for stem, read, write, content in (("case_cycle_a", y, x, bx), ("case_cycle_b", x, y, by)):
-            script_rel, code = self._case_script(stem, stem.replace("_", "-"))
+            script_rel, code = self._case_script(stem, read, save=Path(write).stem)
             run_id, _ = w.written_run(script_rel=script_rel, code=code, title=f"순환 사례 {stem[-1]}", started=started,
-                                      duration=0.8, inputs=[w.input_entry(read)], outputs=[(write, content)])
+                                      duration=0.8, inputs=[w.input_entry(read)], outputs=[(write, content)],
+                                      stdout=SMALL_TABLE_STDOUT)
             ids.append(run_id)
         self.case("reference_cycle")["records"].update(cycle_runs=ids)
 
@@ -1112,20 +1192,20 @@ class ScaleFixture:
 
     def same_bytes_run(self, n: int) -> None:
         w = self.w
-        script_rel, code = self._case_script(f"case_same_bytes_{n}", f"same-bytes-{n}")
         path = "data/derived/case_same_bytes.parquet"
+        script_rel, code = self._case_script(f"case_same_bytes_{n}", save=Path(path).stem)
         run_id, _ = w.written_run(script_rel=script_rel, code=code, title=f"같은 바이트 {n}", started=self.when,
                                   duration=0.9, inputs=[w.input_entry(w.datasets["sensor_01"]["path"])],
-                                  outputs=[(path, self._small_table("same-bytes"))])
+                                  outputs=[(path, self._small_table("same-bytes"))], stdout=SMALL_TABLE_STDOUT)
         self.case("ambiguous_producer")["records"][f"producer_{n}"] = run_id
         self.case("ambiguous_producer")["records"]["path"] = path
 
     def same_bytes_reader(self) -> None:
         w = self.w
         path = self.case("ambiguous_producer")["records"]["path"]
-        script_rel, code = self._case_script("case_same_bytes_reader", "same-bytes-reader")
+        script_rel, code = self._case_script("case_same_bytes_reader", path)
         run_id, _ = w.written_run(script_rel=script_rel, code=code, title="같은 바이트를 읽은 run", started=self.when,
-                                  duration=0.7, inputs=[w.input_entry(path)])
+                                  duration=0.7, inputs=[w.input_entry(path)], stdout=SMALL_TABLE_STDOUT)
         self.case("ambiguous_producer")["records"]["consumer"] = run_id
 
     def display_note(self) -> None:
@@ -1171,7 +1251,8 @@ class ScaleFixture:
         manifest.update(counts=counts, sizes=sizes, datasets=[
             {k: d[k] for k in ("name", "path", "rows", "bytes", "source")} for d in sorted(w.datasets.values(),
                                                                                         key=lambda d: d["name"])],
-            runs_executed=list(w.kit_runs), cases=scale_cases(self))
+            runs_executed=list(w.kit_runs), cases=scale_cases(self),
+            inputs=sorted(path.relative_to(self.out).as_posix() for path in (self.out / "input").iterdir()))
         return manifest
 
 
@@ -1312,11 +1393,10 @@ def write_outputs(out: Path, manifest: dict, kind: str, scale: str | None, seed:
     clear_derived(out / PROJECT_DIR)
     manifest["digest"] = tree_digest(out)
     phase = time.perf_counter()
-    problems = check(out, manifest=manifest)
+    problems = check(out, manifest=manifest)  # leaves the project cold
     timings["self_check"] = time.perf_counter() - phase
     if problems:
         raise FixtureError("the fixture does not hold what its manifest says:\n- " + "\n- ".join(problems))
-    clear_derived(out / PROJECT_DIR)  # the check's reads rebuilt the hash cache
     write_lf(out / "manifest.json", json_text(manifest))
     timings["total"] = time.perf_counter() - started
     generation = {"kind": kind, "scale": scale, "seed": seed,
@@ -1326,12 +1406,17 @@ def write_outputs(out: Path, manifest: dict, kind: str, scale: str | None, seed:
 
 
 def generate_scale(out, scale: str = "S", seed: int = 0, fmt: str = "v1") -> dict:
-    """Write the scale fixture `scale` (S or M) under `out` (new or empty) and return its manifest."""
+    """Write the scale fixture `scale` (S or M) under `out` (new or empty) and return its manifest. When it
+    fails, nothing it wrote stays (output_directory)."""
     if scale not in SCALES:
         raise UsageError(f"unknown scale {scale!r}; known: {', '.join(SCALES)}")
     check_format(fmt)
     require_deterministic_process()
-    out = prepare_out(out)
+    with output_directory(out) as prepared:
+        return _write_scale(prepared, scale, seed)
+
+
+def _write_scale(out: Path, scale: str, seed: int) -> dict:
     started = time.perf_counter()
     with tempfile.TemporaryDirectory(prefix="eval-fixtures-") as scratch:
         fixture = ScaleFixture(scale, seed, out, Path(scratch))
@@ -1361,18 +1446,20 @@ Q10_EXAMPLES = [
      "9월 데이터가 있는 1–20일끼리 8월과 비교했다."),
 ]
 Q10_LAST_DAY = date(2026, 9, 20)
+# September's sessions per day against August's: enough that the same-days comparison shows an increase while
+# the partial month (20 days against 31) shows a decrease; write_q10_sources makes sure of both.
+Q10_SEPTEMBER_GROWTH = 1.25
+Q10_ATTEMPTS = 50
+Q10_TABLES = ("orders", "order_items", "sessions", "store_sales")
 
 
-def write_q10_sources(directory: Path, rng: random.Random) -> dict[str, Path]:
-    """Synthetic orders, items, sessions and store sales (2026-08-01 to 2026-09-20; September a little
-    busier per day, so the partial-month comparison and the same-days comparison disagree)."""
-    directory.mkdir(parents=True, exist_ok=True)
+def _q10_rows(rng: random.Random) -> tuple[list, list, list]:
     customers = [f"U{n:04d}" for n in range(1, 1501)]
     sessions, orders, items = [], [], []
     day = date(2026, 8, 1)
     session_id = order_id = 0
     while day <= Q10_LAST_DAY:
-        per_day = int(rng.uniform(175, 205) * (1.08 if day.month == 9 else 1.0))
+        per_day = int(rng.uniform(175, 205) * (Q10_SEPTEMBER_GROWTH if day.month == 9 else 1.0))
         for _ in range(per_day):
             session_id += 1
             customer = rng.choice(customers)
@@ -1385,6 +1472,33 @@ def write_q10_sources(directory: Path, rng: random.Random) -> dict[str, Path]:
                 for line in range(rng.choice((1, 1, 2, 2, 3, 4))):
                     items.append((order_id, f"SKU-{rng.randrange(1, 400):04d}", rng.randint(1, 3) + line * 0))
         day += timedelta(days=1)
+    return sessions, orders, items
+
+
+def _q10_period_holds(orders: list) -> bool:
+    """The partial-month comparison is a decrease and the same-days one an increase."""
+    totals: dict[tuple[int, bool], int] = {}
+    for _, _, day, _, amount in orders:
+        month, first_days = int(day[5:7]), int(day[8:10]) <= 20
+        totals[(month, first_days)] = totals.get((month, first_days), 0) + amount
+    august = totals.get((8, True), 0) + totals.get((8, False), 0)
+    september = totals.get((9, True), 0) + totals.get((9, False), 0)
+    return september < august and totals.get((9, True), 0) > totals.get((8, True), 0)
+
+
+def write_q10_sources(directory: Path, seed: int) -> dict[str, Path]:
+    """Synthetic orders, items, sessions and store sales (2026-08-01 to 2026-09-20; September busier per
+    day, so the partial-month comparison and the same-days comparison disagree). Data where they would not
+    is drawn again from the same random stream, so the seed still decides it."""
+    directory.mkdir(parents=True, exist_ok=True)
+    rng = random.Random(f"eval-fixtures/q10/{seed}")
+    for _ in range(Q10_ATTEMPTS):
+        sessions, orders, items = _q10_rows(rng)
+        if _q10_period_holds(orders):
+            break
+    else:
+        raise FixtureError(f"seed {seed}: {Q10_ATTEMPTS} drawings of the Q10 data gave no partial-month decrease "
+                           "with a same-days increase")
     store = []
     day = date(2026, 8, 1)
     while day <= Q10_LAST_DAY:
@@ -1408,14 +1522,25 @@ def write_q10_sources(directory: Path, rng: random.Random) -> dict[str, Path]:
     return paths
 
 
-def q10_evidence(project_root: Path) -> dict:
-    """The numbers each Q10 example claims and the right ones, from the imported tables (DuckDB)."""
+def _quoted(path: Path) -> str:
+    return "'" + str(path).replace("'", "''") + "'"
+
+
+def q10_project_tables(project_root: Path) -> dict[str, str]:
+    """The imported Q10 tables as DuckDB reads them: name -> table expression."""
+    return {name: f"read_parquet({_quoted(project_root / 'data' / 'raw' / f'{name}.parquet')})"
+            for name in Q10_TABLES}
+
+
+def q10_source_tables(directory: Path) -> dict[str, str]:
+    """The Q10 source CSVs (input/) as DuckDB reads them: name -> table expression."""
+    return {name: f"read_csv({_quoted(directory / f'{name}.csv')})" for name in Q10_TABLES}
+
+
+def q10_numbers(tables: dict[str, str]) -> dict:
+    """The numbers each Q10 example claims and the right ones, exact: integer sums and the ratios unrounded,
+    which are what the scripts format (q10_claim_text). `tables`: q10_project_tables or q10_source_tables."""
     import duckdb
-
-    raw = project_root / "data" / "raw"
-
-    def table(name: str) -> str:
-        return "read_parquet('" + str(raw / f"{name}.parquet").replace("'", "''") + "')"
 
     connection = duckdb.connect()
     try:
@@ -1424,8 +1549,8 @@ def q10_evidence(project_root: Path) -> dict:
         def one(sql: str):
             return connection.execute(sql).fetchone()[0]
 
-        orders, items = table("orders"), table("order_items")
-        sessions, store = table("sessions"), table("store_sales")
+        orders, items = tables["orders"], tables["order_items"]
+        sessions, store = tables["sessions"], tables["store_sales"]
         seoul_joined = one(f"SELECT sum(o.금액_원) FROM {orders} o JOIN {items} i USING (order_id) WHERE o.지역 = '서울'")
         seoul = one(f"SELECT sum(금액_원) FROM {orders} WHERE 지역 = '서울'")
         aug_online = one(f"SELECT sum(금액_원) FROM {orders} WHERE month(주문일) = 8")
@@ -1434,10 +1559,10 @@ def q10_evidence(project_root: Path) -> dict:
         aug_converted = one(f"SELECT count(*) FROM {sessions} WHERE month(세션일) = 8 AND 주문여부")
         aug_orders = one(f"SELECT count(*) FROM {orders} WHERE month(주문일) = 8")
         aug_customers = one(f"SELECT count(DISTINCT customer_id) FROM {sessions} WHERE month(세션일) = 8")
-        aug_total = one(f"SELECT sum(금액_원) FROM {orders} WHERE month(주문일) = 8")
-        sep_total = one(f"SELECT sum(금액_원) FROM {orders} WHERE month(주문일) = 9")
-        aug_20 = one(f"SELECT sum(금액_원) FROM {orders} WHERE month(주문일) = 8 AND day(주문일) <= 20")
-        sep_20 = one(f"SELECT sum(금액_원) FROM {orders} WHERE month(주문일) = 9 AND day(주문일) <= 20")
+        aug_total = int(one(f"SELECT sum(금액_원) FROM {orders} WHERE month(주문일) = 8"))
+        sep_total = int(one(f"SELECT sum(금액_원) FROM {orders} WHERE month(주문일) = 9"))
+        aug_20 = int(one(f"SELECT sum(금액_원) FROM {orders} WHERE month(주문일) = 8 AND day(주문일) <= 20"))
+        sep_20 = int(one(f"SELECT sum(금액_원) FROM {orders} WHERE month(주문일) = 9 AND day(주문일) <= 20"))
         last_day = one(f"SELECT max(주문일) FROM {orders}")
         return {
             "aggregation_key": {"orders_rows": one(f"SELECT count(*) FROM {orders}"),
@@ -1446,38 +1571,60 @@ def q10_evidence(project_root: Path) -> dict:
             "unit": {"online_won": int(aug_online), "store_thousand_won": int(aug_store),
                      "flawed_value": int(aug_online + aug_store), "sound_value": int(aug_online + aug_store * 1000)},
             "denominator": {"sessions": aug_sessions, "converted_sessions": aug_converted, "orders": aug_orders,
-                            "customers": aug_customers, "flawed_value": round(aug_orders / aug_customers, 6),
-                            "sound_value": round(aug_converted / aug_sessions, 6)},
-            "period": {"last_day": last_day.isoformat(), "august_total": int(aug_total),
-                       "september_total": int(sep_total), "august_1_20": int(aug_20),
-                       "september_1_20": int(sep_20), "flawed_value": round(sep_total / aug_total - 1, 6),
-                       "sound_value": round(sep_20 / aug_20 - 1, 6)},
+                            "customers": aug_customers, "flawed_value": aug_orders / aug_customers,
+                            "sound_value": aug_converted / aug_sessions},
+            "period": {"last_day": last_day.isoformat(), "august_total": aug_total, "september_total": sep_total,
+                       "august_1_20": aug_20, "september_1_20": sep_20, "flawed_value": sep_total / aug_total - 1,
+                       "sound_value": sep_20 / aug_20 - 1},
         }
     finally:
         connection.close()
 
 
-def q10_claim_text(check_name: str, value) -> str:
-    """The text the Q10 scripts record for a value (the same format strings)."""
+def q10_evidence(numbers: dict) -> dict:
+    """q10_numbers as expected.json keeps them: the ratios rounded to 6 digits. The claims' text is made from
+    the exact ratios, not from these."""
+    return {check_name: {key: round(value, 6) if isinstance(value, float) else value for key, value in values.items()}
+            for check_name, values in numbers.items()}
+
+
+def q10_claim_text(check_name: str, verdict: str, value) -> str:
+    """The text the Q10 script of `check_name` and `verdict` records for the exact `value` (the scripts'
+    format strings)."""
     if check_name == "aggregation_key":
         return f"서울 지역의 주문 금액 합계(8월 1일–9월 20일)는 {value:,}원이다."
     if check_name == "unit":
         return f"8월 전체 매출(온라인+매장)은 {value:,}원이다."
     if check_name == "denominator":
         return f"8월 세션당 전환율은 {value:.1%}다."
+    if check_name == "period":
+        span = "9월 주문 금액은 8월보다" if verdict == "fail" else "9월 1–20일 주문 금액은 8월 1–20일보다"
+        return f"{span} {abs(value):.1%} {'감소' if value < 0 else '증가'}했다."
     raise ValueError(check_name)
 
 
+def q10_claims(numbers: dict) -> dict[str, str]:
+    """Each Q10 example's claim (example id -> text), as its script formats the exact numbers (q10_numbers):
+    a ratio rounded to 6 digits first can format otherwise (0.05049965 is 5.0%, 0.0505 is 5.1%)."""
+    return {example_id: q10_claim_text(check_name, verdict,
+                                       numbers[check_name]["flawed_value" if verdict == "fail" else "sound_value"])
+            for example_id, check_name, verdict, *_ in Q10_EXAMPLES}
+
+
 def generate_q10(out, seed: int = 0, fmt: str = "v1") -> dict:
-    """Write the Q10 examples under `out` (new or empty) and return the manifest."""
+    """Write the Q10 examples under `out` (new or empty) and return the manifest. When it fails, nothing it
+    wrote stays (output_directory)."""
     check_format(fmt)
     require_deterministic_process()
-    out = prepare_out(out)
+    with output_directory(out) as prepared:
+        return _write_q10(prepared, seed)
+
+
+def _write_q10(out: Path, seed: int) -> dict:
     started = time.perf_counter()
     timings: dict[str, float] = {}
-    rng = random.Random(f"eval-fixtures/q10/{seed}")
     start = datetime(2026, 9, 21, 10, 0, tzinfo=KST)
-    sources = write_q10_sources(out / "input", rng)
+    sources = write_q10_sources(out / "input", seed)
     with tempfile.TemporaryDirectory(prefix="eval-fixtures-") as scratch, \
             kit_session(Path(scratch), start) as (kit, clock):
         w = V1Writer(kit, clock, out / PROJECT_DIR)
@@ -1507,21 +1654,14 @@ def generate_q10(out, seed: int = 0, fmt: str = "v1") -> dict:
                              "why": why})
         timings["kit_runs"] = time.perf_counter() - phase
         root = w.project.root
-        evidence = q10_evidence(root)
+        numbers = q10_numbers(q10_project_tables(root))
+        evidence, claims = q10_evidence(numbers), q10_claims(numbers)
         for example in examples:
-            numbers = evidence[example["check"]]
-            example["evidence"] = numbers
-            value = numbers["flawed_value" if example["verdict"] == "fail" else "sound_value"]
-            if example["check"] == "period":
-                direction = "감소" if value < 0 else "증가"
-                span = "9월 주문 금액은 8월보다" if example["verdict"] == "fail" else \
-                    "9월 1–20일 주문 금액은 8월 1–20일보다"
-                text = f"{span} {abs(value):.1%} {direction}했다."
-            else:
-                text = q10_claim_text(example["check"], value)
+            example["evidence"] = evidence[example["check"]]
+            text = claims[example["id"]]
             if example["claim"] != text:
                 raise FixtureError(f"{example['id']}: the script claimed {example['claim']!r}, the data gives {text!r}")
-        if evidence["period"]["flawed_value"] >= 0 or evidence["period"]["sound_value"] <= 0:
+        if numbers["period"]["flawed_value"] >= 0 or numbers["period"]["sound_value"] <= 0:
             raise FixtureError("the Q10 period example does not show a partial-month decrease and a same-days increase")
         expected = {"schema": EXPECTED_SCHEMA, "fixture": "q10", "gate": "Q10", "project": PROJECT_DIR,
                     "verdicts": {"fail": "the claim does not follow from the computation for the reason given",
@@ -1671,7 +1811,7 @@ Q13_METRICS = [
      "aggregation_unit": "트레이스(context_id) × 센서", "reference_population": "같은 센서의 트레이스 평균 80개",
      "applied_to": "같은 학습 트레이스"},
     {"id": "context_step_score", "name": "컨텍스트×스텝 점수", "script": "scripts/02_step_profiles.py",
-     "computation": "트레이스의 스텝 평균을 sensor×step의 전체 샘플 평균·표준편차로 표준화",
+     "computation": "(트레이스의 스텝 평균 − sensor×step 전체 샘플의 평균) ÷ sensor×step 전체 샘플의 표준편차",
      "aggregation_unit": "평가 값은 컨텍스트×센서×스텝의 평균, 분모 표준편차는 sensor×step의 개별 샘플",
      "reference_population": "같은 sensor×step의 모든 샘플(80 트레이스 × 15 시점)", "applied_to": "같은 학습 트레이스"},
     {"id": "timepoint_sample_z", "name": "시점별 샘플 점수", "script": "scripts/03_sample_zscores.py",
@@ -1683,6 +1823,37 @@ Q13_METRICS = [
      "aggregation_unit": "컨텍스트×센서(60 시점)", "reference_population": "시점별 샘플 점수와 같음",
      "applied_to": "같은 학습 트레이스"},
 ]
+
+# What the CONTEXT's definitions add to a metric's computation (Q13_METRICS): its name and computation are
+# written there as they are, so the CONTEXT and expected.json state one formula.
+Q13_CONTEXT_NOTES = {"context_step_score": "평가 값(스텝 평균)과 분모(개별 샘플의 표준편차)의 집계 단위가 다르다.",
+                     "timepoint_sample_z": "주요 점수."}
+
+
+def q13_definition_lines() -> list[str]:
+    """The definitions section's lines of the second CONTEXT version, one per metric."""
+    return [" ".join(filter(None, (f"- {m['name']}: {m['computation']}.", Q13_CONTEXT_NOTES.get(m["id"]))))
+            for m in Q13_METRICS]
+
+
+Q13_CONTEXT_2 = """# 장비 트레이스 이상 탐지
+
+## 목표 <!-- pin -->
+- 학습 트레이스에서 장비 이상 후보를 찾고, 후보를 판단할 지표를 정한다.
+
+## 핵심 질문 <!-- pin -->
+- 센서별 분포에서 벗어나는 트레이스가 있는가?
+- 기준 프로파일을 같은 학습 데이터로 추정한 판정이 별도 검증 트레이스에서도 유지되는가?
+
+## 다음 할 일 <!-- pin -->
+- 모든 센서에 대해 시점별 밴드 그림을 그린다.
+
+## 정의
+{definitions}
+
+## 데이터
+- traces: 80 컨텍스트 × 4 센서 × 4 스텝 × 15 시점(합성). 센서 단위는 추정이다.
+""".replace("{definitions}", "\n".join(q13_definition_lines()))
 
 Q13_SESSION = [
     {"step": 1, "request": "장비 트레이스 데이터(input/traces.csv)를 가져와서 EDA를 해 줘. 센서별 분포와 이상해 보이는 후보가 궁금해.",
@@ -1704,10 +1875,15 @@ Q13_SESSION = [
 
 
 def generate_q13(out, seed: int = 0, fmt: str = "v1") -> dict:
-    """Write the reproduction of the reference session under `out` (new or empty) and return the manifest."""
+    """Write the reproduction of the reference session under `out` (new or empty) and return the manifest.
+    When it fails, nothing it wrote stays (output_directory)."""
     check_format(fmt)
     require_deterministic_process()
-    out = prepare_out(out)
+    with output_directory(out) as prepared:
+        return _write_q13(prepared, seed)
+
+
+def _write_q13(out: Path, seed: int) -> dict:
     started = time.perf_counter()
     timings: dict[str, float] = {}
     rng = random.Random(f"eval-fixtures/q13/{seed}")
@@ -1821,27 +1997,6 @@ Q13_CONTEXT_1 = """# 장비 트레이스 이상 탐지
 - traces: 80 컨텍스트 × 4 센서 × 4 스텝 × 15 시점(합성). 센서 단위는 추정이다.
 """
 
-Q13_CONTEXT_2 = """# 장비 트레이스 이상 탐지
-
-## 목표 <!-- pin -->
-- 학습 트레이스에서 장비 이상 후보를 찾고, 후보를 판단할 지표를 정한다.
-
-## 핵심 질문 <!-- pin -->
-- 센서별 분포에서 벗어나는 트레이스가 있는가?
-- 기준 프로파일을 같은 학습 데이터로 추정한 판정이 별도 검증 트레이스에서도 유지되는가?
-
-## 다음 할 일 <!-- pin -->
-- 모든 센서에 대해 시점별 밴드 그림을 그린다.
-
-## 정의
-- 트레이스 평균의 3σ 이탈: 센서별 트레이스 평균 분포에서의 |z| > 3.
-- 컨텍스트×스텝 점수: 스텝 평균 ÷ sensor×step 전체 샘플의 표준편차(집계 단위가 다름).
-- 시점별 샘플 점수: 같은 sensor×step×rel_time 프로파일 대비 z. 주요 점수.
-- 점수 표: 컨텍스트×센서별 최대 |z|, |z| > 3 횟수와 비율.
-
-## 데이터
-- traces: 80 컨텍스트 × 4 센서 × 4 스텝 × 15 시점(합성). 센서 단위는 추정이다.
-"""
 
 
 def q13_records(kit: SimpleNamespace, root: Path, runs: dict, decision: str, question: str) -> dict:
@@ -1885,7 +2040,8 @@ def _validate(value, schema_name: str, label: str) -> list[str]:
         import jsonschema
     except ImportError:
         return [f"{label}: jsonschema is not installed, the schema was not checked"]
-    validator = jsonschema.Draft202012Validator(_schema(schema_name))
+    validator = jsonschema.Draft202012Validator(_schema(schema_name),
+                                                format_checker=jsonschema.Draft202012Validator.FORMAT_CHECKER)
     return [f"{label}: {'/'.join(map(str, e.absolute_path)) or '(root)'}: {e.message}"
             for e in sorted(validator.iter_errors(value), key=lambda e: list(e.absolute_path))]
 
@@ -1973,7 +2129,8 @@ def evaluate_case_check(kit, project, model, status, fresh, item: dict) -> str |
 def check(out, *, manifest: dict | None = None, verify_digest: bool = True) -> list[str]:
     """What is wrong with the fixture under `out`, as a list (empty when nothing is): the manifest, its
     digest, the counts, a read of the records (no damaged line or file, nothing unreadable), every case's
-    judgments and the expected file."""
+    judgments and the expected file. The kit's reads rebuild its derived files (the hash cache); they are
+    emptied again at the end (clear_derived), so the fixture is cold afterwards as it was generated."""
     out = Path(out)
     if manifest is None:
         try:
@@ -1985,8 +2142,15 @@ def check(out, *, manifest: dict | None = None, verify_digest: bool = True) -> l
         return problems
     if verify_digest and manifest.get("digest") != tree_digest(out):
         problems.append("the tree's digest is not the manifest's (a file changed since it was generated)")
-    kit = load_kit()
     root = out / manifest["project"]
+    try:
+        return _check_records(out, root, manifest, problems)
+    finally:
+        clear_derived(root)
+
+
+def _check_records(out: Path, root: Path, manifest: dict, problems: list[str]) -> list[str]:
+    kit = load_kit()
     project = kit.core.Project(root)
     model = kit.relations.read(root, alive=project.platform.processes.alive,
                                sha=lambda p: sha256_file(p) if Path(p).is_file() else None)
@@ -2028,7 +2192,7 @@ def check_expected(kit, root: Path, model, expected: dict) -> list[str]:
     texts = {e.id: e.value.get("text") for e in model.journal.events}
     runs = {r["run_id"]: r for r in model.runs()}
     if expected["fixture"] == "q10":
-        evidence = q10_evidence(root)
+        evidence = q10_evidence(q10_numbers(q10_project_tables(root)))
         for example in expected["examples"]:
             if texts.get(example["claim_event"]) != example["claim"]:
                 problems.append(f"{example['id']}: the claim is not the text of {example['claim_event']}")
@@ -2073,6 +2237,8 @@ def main(argv=None) -> int:
     checked.add_argument("fixture")
     env = sub.add_parser("environment", help="write a measurement environment record")
     env.add_argument("--out", required=True)
+    env.add_argument("--disk", help="a path on the disk measured, the fixture's directory (default: the folder "
+                                    "of --out)")
     env.add_argument("--cache-state", choices=("cold", "warm", "unknown"), default="unknown")
     env.add_argument("--browser")
     try:
@@ -2094,7 +2260,8 @@ def main(argv=None) -> int:
             return 1 if problems else 0
         else:
             target = Path(args.out)
-            write_lf(target, json_text(environment_record(target.parent, cache_state=args.cache_state,
+            disk = Path(args.disk) if args.disk else target.parent
+            write_lf(target, json_text(environment_record(disk, cache_state=args.cache_state,
                                                           browser=args.browser)))
             print(json.dumps({"ok": True, "out": str(target)}))
             return 0
@@ -2103,6 +2270,9 @@ def main(argv=None) -> int:
         return 2
     except FixtureError as exc:
         print(f"eval_fixtures.py: {exc}", file=sys.stderr)
+        if args.command in ("scale", "q10", "q13"):
+            print(f"eval_fixtures.py: nothing the generation wrote under {args.out} was kept; the same --out can "
+                  "be given again", file=sys.stderr)
         return 1
     print(json.dumps({"ok": True, "digest": manifest["digest"], "counts": manifest["counts"]}, ensure_ascii=False))
     return 0

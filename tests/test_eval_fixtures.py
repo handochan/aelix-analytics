@@ -3,12 +3,15 @@
 The generator runs as a command, as a person runs it: it sets POLARS_MAX_THREADS=1 before Polars loads, which
 this test process cannot promise for itself (another test may have imported Polars on every core). The
 fixtures it writes are then read here: the same seed gives the same bytes but for the declared volatile
-fields, another seed another fixture; S has the sizes of docs/BETA-QUALITY-GATES.md §4; every case the
-manifest names reads as it says through the kit's own reader (relations.read, core.status); the run
-records and journal lines the generator writes itself are those the /1 writer writes; and the expected
-judgments of Q10 and Q13 are true to their data, recomputed here by other means than the generator's.
+fields (at the same --out, but for the executed runs' measured time), another seed another fixture; S has
+the sizes of docs/BETA-QUALITY-GATES.md §4; every case the manifest names reads as it says through the
+kit's own reader (relations.read, core.status); the run records and journal lines the generator writes
+itself are those the /1 writer writes, and their code reads, saves and visualizes what the records say;
+and the expected judgments of Q10 and Q13 are true to their data, recomputed here by other means than the
+generator's.
 
-M is generated only with AELIX_ANALYTICS_TEST_SCALE_M=1 (two generations of about 220 MB each).
+M is generated only with AELIX_ANALYTICS_TEST_SCALE_M=1 (two generations of about 440 MB each: the
+project's 217 MB of imported data and the sources under input/).
 """
 
 from __future__ import annotations
@@ -21,6 +24,7 @@ import shutil
 import subprocess
 import sys
 import time
+import types
 from datetime import datetime
 from pathlib import Path
 
@@ -70,6 +74,9 @@ GENERATED = {
     "q13a": ("q13", "--seed", "0"),
     "q13b": ("q13", "--seed", "0"),
 }
+# Generated at one --out and moved away after: the two S fixtures are compared byte for byte unmasked, and
+# every test reads a fixture that is no longer where it was generated.
+SAME_OUT = {"s0a": "s0", "s0b": "s0"}
 
 
 @pytest.fixture(scope="module")
@@ -78,11 +85,13 @@ def fixtures(tmp_path_factory) -> dict[str, Path]:
     env = tool_env(base)
     out, seconds = {}, {}
     for name, args in GENERATED.items():
-        target = base / name
+        target = base / SAME_OUT.get(name, name)
         started = time.perf_counter()
         done = run_tool(*args, "--out", target, env=env)
         seconds[name] = round(time.perf_counter() - started, 3)
         assert done.returncode == 0, f"{name}: {done.stdout}\n{done.stderr}"
+        if name in SAME_OUT:
+            target = target.rename(base / name)
         out[name] = target
     record_observation("eval-fixtures-generation", {
         "command_seconds": seconds,
@@ -98,12 +107,19 @@ def read_json(path: Path):
 def schema_errors(value, name: str) -> list[str]:
     import jsonschema
 
-    validator = jsonschema.Draft202012Validator(read_json(SCHEMAS / name))
+    validator = jsonschema.Draft202012Validator(read_json(SCHEMAS / name),
+                                                format_checker=jsonschema.Draft202012Validator.FORMAT_CHECKER)
     return [f"{list(e.absolute_path)}: {e.message}" for e in validator.iter_errors(value)]
 
 
 def files_of(root: Path) -> dict[str, Path]:
     return {rel: path for rel, path in tool._tree_files(root)}
+
+
+def digested_files(root: Path) -> dict[str, Path]:
+    """The files the digest covers: not manifest.json, environment.json or the kit's derived files, which a
+    read of the project in another test may rebuild."""
+    return {rel: path for rel, path in files_of(root).items() if tool._digested(rel)}
 
 
 def volatile(rel: str) -> bool:
@@ -118,17 +134,23 @@ def test_the_same_seed_gives_the_same_bytes(fixtures, pair):
     assert (first / "manifest.json").read_bytes() == (second / "manifest.json").read_bytes()
     digest = read_json(first / "manifest.json")["digest"]
     assert tool.tree_digest(first) == tool.tree_digest(second) == digest
-    a, b = files_of(first), files_of(second)
+    assert (first / "environment.json").is_file() and (second / "environment.json").is_file()
+    a, b = digested_files(first), digested_files(second)
     assert sorted(a) == sorted(b)
     differ = sorted(rel for rel in a if a[rel].read_bytes() != b[rel].read_bytes())
-    # Only the generation's own record and the fields VOLATILE declares differ; masked, they are equal.
-    assert "environment.json" in differ
+    # Only the fields VOLATILE declares differ; masked, they are equal.
     for rel in differ:
-        if rel == "environment.json":
-            continue
         assert volatile(rel), rel
-        assert tool.masked_bytes(rel, a[rel].read_bytes(), str((first / "project").resolve())) == \
-            tool.masked_bytes(rel, b[rel].read_bytes(), str((second / "project").resolve())), rel
+        assert tool.masked_bytes(rel, a[rel].read_bytes()) == tool.masked_bytes(rel, b[rel].read_bytes()), rel
+    if pair[0] in SAME_OUT:
+        # The same --out: every byte is the same but the executed runs' measured time (which two
+        # generations may also happen to measure alike).
+        manifest = read_json(first / "manifest.json")
+        assert set(differ) <= {f"project/runs/{run}/run.json" for run in manifest["runs_executed"]}
+        for rel in differ:
+            one, other = read_json(a[rel]), read_json(b[rel])
+            del one["duration_s"], other["duration_s"]
+            assert one == other, rel
 
 
 def test_another_seed_gives_another_fixture(fixtures):
@@ -230,6 +252,12 @@ def test_every_case_is_there_and_reads_as_the_manifest_says(fixtures):
 
 
 def test_check_finds_a_changed_fixture(fixtures, tmp_path):
+    # A copy elsewhere checks clean: the failed runs' tracebacks name the project where it was generated.
+    for name in ("s0a", "q13a"):
+        copy = tmp_path / name
+        shutil.copytree(fixtures[name], copy)
+        assert b"Traceback" in b"".join(p.read_bytes() for p in (copy / "project" / "runs").glob("*/stderr.txt"))
+        assert tool.check(copy) == [], name
     copy = tmp_path / "q10"
     shutil.copytree(fixtures["q10a"], copy)
     assert tool.check(copy) == []
@@ -238,6 +266,23 @@ def test_check_finds_a_changed_fixture(fixtures, tmp_path):
                  b'"text": "added", "refs": {}}\n')
     problems = tool.check(copy)
     assert any("digest" in p for p in problems) and any("events" in p for p in problems)
+
+
+def test_check_leaves_the_fixture_cold(fixtures, tmp_path):
+    copy = tmp_path / "s0"
+    shutil.copytree(fixtures["s0a"], copy)  # another test's read may have left the kit's hash cache in it
+    kept = sorted(rel for rel in files_of(copy) if not rel.startswith(("project/.lab/cache/", "project/report/")))
+    assert tool.check(copy) == []
+    assert sorted(files_of(copy)) == kept
+    for name in (".lab/cache", "report"):
+        assert not any((copy / "project" / name).rglob("*")), name
+
+
+def test_the_manifest_s_formats_are_checked(fixtures):
+    manifest = read_json(fixtures["q10a"] / "manifest.json")
+    manifest["clock"]["start"] = "the Monday after"
+    problems = tool.check(fixtures["q10a"], manifest=manifest, verify_digest=False)
+    assert len(problems) == 1 and "clock/start" in problems[0] and "date-time" in problems[0]
 
 
 # --- the records are the /1 writer's ----------------------------------------------------------------------
@@ -281,6 +326,52 @@ def test_written_records_are_the_v1_writer_s(fixtures):
         at = datetime.fromisoformat(event["ts"])
         assert previous is None or at > previous
         previous = at
+
+
+READS = re.compile(r'analytics\.read\("([^"]+)"\)')
+SAVES = re.compile(r'analytics\.save\(\w+, "([^"]+)"\)')
+CHARTS = re.compile(r'analytics\.visualize\(fig, "([^"]+)", title="([^"]*)"(, data=table)?\)')
+PRINTS = re.compile(r'^print\(f"([^{]*)\{')
+
+
+def test_written_runs_code_says_what_their_records_say(fixtures):
+    """A run the generator wrote and did not execute has code that reads the record's inputs (a derived table
+    by a path literal, which the runner's static scan also records), saves its outputs, visualizes its charts
+    on the lines the record names and prints what its stdout holds; a failed one fails on the line its error
+    names, for a column its dataset lacks. (Its output bytes are the seed's, not what running the code gives.)"""
+    out = fixtures["s0a"]
+    project = out / "project"
+    manifest = read_json(out / "manifest.json")
+    datasets = {d["name"]: d["path"] for d in manifest["datasets"]}
+    written = sorted(d for d in (project / "runs").iterdir() if d.name not in manifest["runs_executed"])
+    statuses = set()
+    for directory in written:
+        record = read_json(directory / "run.json")
+        statuses.add(record["status"])
+        code = (project / record["script"]["snapshot"]).read_text(encoding="utf-8")
+        lines = code.splitlines()
+        reads = READS.findall(code)
+        assert sorted(i["path"] for i in record["inputs"]) == sorted(datasets.get(r, r) for r in reads), directory.name
+        for entry in record["inputs"]:
+            assert ("scan" in entry["via"]) == (entry["path"] in reads), (directory.name, entry)
+        stdout = (project / record["stdout"]).read_text(encoding="utf-8").splitlines()
+        if record["status"] == "ok":
+            assert [f"data/derived/{s}.parquet" for s in SAVES.findall(code)] == [o["path"] for o in record["outputs"]]
+            visualized = [(n, m.group(1), m.group(2), bool(m.group(3)))
+                          for n, line in enumerate(lines, 1) if (m := CHARTS.search(line))]
+            assert visualized == [(c["line"], c["id"], c["title"], "data" in c) for c in record["charts"]], directory.name
+            printed = [m.group(1) for line in lines if (m := PRINTS.match(line))]
+        else:
+            assert record["outputs"] == [] and record["charts"] == []
+            failing = record["error"]["line"]
+            [missing] = re.findall(r'unable to find column "([^"]+)"', record["error"]["message"])
+            assert "group_by" in lines[failing - 1] and f'"{missing}"' in lines[failing - 1]
+            [source] = [r for r in reads if r in datasets]
+            columns = [c["name"] for c in read_json(project / "data" / "raw" / f"{source}.meta.json")["columns"]]
+            assert missing not in columns and json.dumps(columns, ensure_ascii=False) in record["error"]["message"]
+            printed = [m.group(1) for line in lines[:failing - 1] if (m := PRINTS.match(line))]
+        assert [re.sub(r"\d+$", "", line) for line in stdout] == printed, directory.name
+    assert statuses == {"ok", "error"}
 
 
 # --- Q10 ------------------------------------------------------------------------------------------------
@@ -334,6 +425,49 @@ def test_q10_examples_have_their_verdicts_and_their_numbers_are_the_data_s(fixtu
     assert "감소" in by_check[("period", "fail")]["claim"] and "증가" in by_check[("period", "pass")]["claim"]
 
 
+def run_q10_script(script: Path, tables: dict, monkeypatch) -> list[str]:
+    """The texts a Q10 script records, run here with the kit's read and record standing in."""
+    recorded: list[str] = []
+    stand_in = types.ModuleType("aelix_analytics")
+    stand_in.read = lambda name: tables[name]
+    stand_in.save = lambda frame, name: None
+    stand_in.record = lambda kind, text, **_: recorded.append(text)
+    with monkeypatch.context() as patched:
+        patched.setitem(sys.modules, "aelix_analytics", stand_in)
+        exec(compile(script.read_text(encoding="utf-8"), str(script), "exec"), {"__name__": "__main__"})
+    return recorded
+
+
+def test_q10_holds_its_design_for_every_seed(tmp_path, monkeypatch, capsys):
+    """For seeds 0-19: the partial month is a decrease and the same days an increase, and every script's
+    claim is the text the generator expects from the exact numbers (no rounding before the format)."""
+    import polars as pl
+
+    numbers = None
+    for seed in range(20):
+        directory = tmp_path / str(seed)
+        paths = tool.write_q10_sources(directory, seed)
+        numbers = tool.q10_numbers(tool.q10_source_tables(directory))
+        assert numbers["period"]["flawed_value"] < 0 < numbers["period"]["sound_value"], seed
+        expected = tool.q10_claims(numbers)
+        tables = {name: pl.read_csv(path, try_parse_dates=True) for name, path in paths.items()}
+        for example_id, _, _, script, *_ in tool.Q10_EXAMPLES:
+            claims = run_q10_script(tool.SCRIPTS / "q10" / script, tables, monkeypatch)
+            assert claims == [expected[example_id]], (seed, script)
+    capsys.readouterr()  # the scripts' prints
+    # A ratio on a rounding boundary (seed 18 of the first generator): formatted as the script does.
+    numbers["period"]["sound_value"] = 0.05049964761428982
+    assert f"{round(0.05049964761428982, 6):.1%}" == "5.1%"
+    assert tool.q10_claims(numbers)["period.sound"] == "9월 1–20일 주문 금액은 8월 1–20일보다 5.0% 증가했다."
+    # Data that would not hold the design is drawn again: even with no September growth it holds.
+    monkeypatch.setattr(tool, "Q10_SEPTEMBER_GROWTH", 1.0)
+    for seed in range(5):
+        directory = tmp_path / f"flat-{seed}"
+        tool.write_q10_sources(directory, seed)
+        numbers = tool.q10_numbers(tool.q10_source_tables(directory))
+        assert numbers["period"]["flawed_value"] < 0 < numbers["period"]["sound_value"], seed
+
+
 # --- Q13 ------------------------------------------------------------------------------------------------
 
 def test_q13_reproduction_has_its_judgments_and_they_are_the_data_s(fixtures):
@@ -380,6 +514,32 @@ def test_q13_reproduction_has_its_judgments_and_they_are_the_data_s(fixtures):
     assert len(expected["metrics"]) == 4 and [s["step"] for s in expected["session"]] == [1, 2, 3]
 
 
+def test_q13_context_defines_the_metrics_as_expected_json_and_the_script_do(fixtures):
+    import polars as pl
+
+    out = fixtures["q13a"]
+    expected = read_json(out / "expected.json")
+    context = (out / "project" / "CONTEXT.md").read_text(encoding="utf-8")
+    section = context.split("\n## 정의\n", 1)[1].split("\n## ", 1)[0]
+    defined = dict(line[2:].split(": ", 1) for line in section.splitlines() if line.startswith("- "))
+    assert list(defined) == [metric["name"] for metric in expected["metrics"]]
+    for metric in expected["metrics"]:
+        assert defined[metric["name"]].startswith(metric["computation"] + "."), metric["id"]
+    # The formula stated is the one 02_step_profiles.py computed: the step mean less the sensor×step mean,
+    # over the sensor×step standard deviation of the samples.
+    [step] = [metric for metric in expected["metrics"] if metric["id"] == "context_step_score"]
+    assert step["computation"] == "(트레이스의 스텝 평균 − sensor×step 전체 샘플의 평균) ÷ sensor×step 전체 샘플의 표준편차"
+    traces = pl.read_parquet(out / "project" / "data" / "raw" / "traces.parquet")
+    profile = traces.group_by("sensor", "step").agg(pl.col("value").mean().alias("m"), pl.col("value").std().alias("s"))
+    means = traces.group_by("context_id", "sensor", "step").agg(pl.col("value").mean().alias("step_mean"))
+    formula = means.join(profile, on=["sensor", "step"]).select(
+        "context_id", "sensor", "step", ((pl.col("step_mean") - pl.col("m")) / pl.col("s")).alias("formula"))
+    saved = pl.read_parquet(out / "project" / "data" / "derived" / "step_scores.parquet")
+    joined = saved.join(formula, on=["context_id", "sensor", "step"])
+    assert joined.height == saved.height == 80 * 4 * 4
+    assert (joined["score"] - joined["formula"]).abs().max() < 1e-9
+
+
 # --- the command and the environment record --------------------------------------------------------------
 
 def test_usage_errors_write_nothing(tmp_path):
@@ -395,6 +555,25 @@ def test_usage_errors_write_nothing(tmp_path):
         done = run_tool("scale", "--scale", "S", "--format", fmt, "--out", target, env=env)
         assert done.returncode == 2 and says in done.stderr and not target.exists()
     assert run_tool("scale", "--scale", "L", "--out", tmp_path / "l", env=env).returncode == 2
+
+
+def test_a_failed_generation_leaves_nothing_behind(tmp_path, monkeypatch):
+    """What a failed generation wrote is removed, so the same --out can be given again."""
+    def fail(*args, **kwargs):
+        raise tool.FixtureError("a planned failure")
+
+    monkeypatch.setattr(tool, "require_deterministic_process", lambda: None)
+    monkeypatch.setattr(tool, "kit_session", fail)  # after the sources are written under input/
+    new = tmp_path / "new"
+    with pytest.raises(tool.FixtureError, match="planned"):
+        tool.generate_q10(new)
+    assert not new.exists()
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    with pytest.raises(tool.FixtureError, match="planned"):
+        tool.generate_q13(empty)
+    assert empty.is_dir() and not any(empty.iterdir())
+    assert tool.prepare_out(empty) == empty
 
 
 def test_the_python_api_refuses_a_process_whose_polars_has_threads():
@@ -419,12 +598,17 @@ def test_the_environment_record(fixtures, tmp_path):
     assert record["browser"] == {"name": "chrome", "version": "141.0"}
     assert record["cache_state"]["measurement"] == "warm" and "generation" not in record
     assert isinstance(record["sqlite"]["fts5"], bool)
+    assert record["disk"]["path"] == str(tmp_path.resolve())
+    # The disk of the fixture measured, when the record is written elsewhere.
+    done = run_tool("environment", "--out", tmp_path / "env-disk.json", "--disk", fixtures["s0a"], env=env)
+    assert done.returncode == 0, done.stderr
+    assert read_json(tmp_path / "env-disk.json")["disk"]["path"] == str(fixtures["s0a"].resolve())
 
 
 # --- M ----------------------------------------------------------------------------------------------------
 
 @pytest.mark.skipif(os.environ.get("AELIX_ANALYTICS_TEST_SCALE_M") != "1",
-                    reason="M writes about 220 MB twice; set AELIX_ANALYTICS_TEST_SCALE_M=1")
+                    reason="M writes about 440 MB twice; set AELIX_ANALYTICS_TEST_SCALE_M=1")
 def test_m_has_its_sizes_and_cases_and_is_the_seed_s(tmp_path):
     env = tool_env(tmp_path)
     seconds = {}

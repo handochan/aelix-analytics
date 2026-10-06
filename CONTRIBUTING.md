@@ -159,13 +159,14 @@ uv run --locked python tools/eval_fixtures.py scale --scale S --seed 0 --out <di
 uv run --locked python tools/eval_fixtures.py q10 --seed 0 --out <dir>
 uv run --locked python tools/eval_fixtures.py q13 --seed 0 --out <dir>
 uv run --locked python tools/eval_fixtures.py check <dir>
-uv run --locked python tools/eval_fixtures.py environment --out <file> --cache-state cold
+uv run --locked python tools/eval_fixtures.py environment --out <file> --disk <dir> --cache-state cold
 ```
 
-같은 seed는 같은 환경에서 같은 바이트를 만듭니다(실행한 run의 시간·환경, 원본 경로 같은 선언된 휘발 필드 제외). `manifest.json`의
-`digest`로 비교하고, `check`가 digest·개수·사례의 판정·기대 판정 파일을 다시 확인합니다. `tests/test_eval_fixtures.py`가 S·Q10·Q13을
-기본 시험에서 확인합니다. M(원본 약 217 MB를 두 번 만듦)은 `AELIX_ANALYTICS_TEST_SCALE_M=1`일 때만 돕니다. 생성기를 바꾸면
-`GENERATOR_VERSION`을 올리고 그 시험도 실행하세요.
+같은 seed는 같은 환경에서 같은 바이트를 만듭니다(실행한 run의 시간·환경, 원본 경로 같은 선언된 휘발 필드 제외. 같은 `--out`이면 실행한
+run의 시간만 다릅니다). `manifest.json`의 `digest`로 비교하고, `check`가 digest·개수·사례의 판정·기대 판정 파일을 다시 확인한 뒤
+fixture를 cold로 둡니다. `tests/test_eval_fixtures.py`가 S·Q10·Q13을 기본 시험에서 확인합니다. M(fixture 하나에 원본과 `input/`을
+합쳐 약 440 MB, 두 번 만듦)은 `AELIX_ANALYTICS_TEST_SCALE_M=1`일 때만 돕니다. 생성기를 바꾸면 `GENERATOR_VERSION`을 올리고 그
+시험도 실행하세요.
 
 문서 검사 명령은 다음과 같습니다. `<run-id>`는 현재 작업의 실제 UUID로 바꿉니다.
 
