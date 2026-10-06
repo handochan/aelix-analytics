@@ -523,6 +523,15 @@ API_HINTS = (
      "(import aelix_analytics as analytics), so change the script's import. A run recorded by an "
      f"earlier kit (its env.kit_version is below {SDK_RENAMED_IN}) re-runs as it was only with that "
      "kit"),
+    # The script API's functions renamed in kit 0.3.0 (Issue #9), no alias kept either: the attribute
+    # (its message, from the package's __getattr__, says the new name) and `from aelix_analytics
+    # import note`, whose ImportError does not.
+    (r"^(AttributeError: aelix_analytics\.(note|chart) was renamed |ImportError: cannot import name "
+     r"'(note|chart)' from 'aelix_analytics')",
+     f"the script API renamed note to record and chart to visualize in kit {core.NAMES_RENAMED_IN} "
+     "(same arguments; what they record is unchanged), so change the script's calls. A run recorded "
+     f"by an earlier kit (its env.kit_version is below {core.NAMES_RENAMED_IN}) re-runs as it was only "
+     "with that kit"),
     (r"No module named 'pandas'",
      "this project has no pandas: process data with Polars expressions or DuckDB SQL "
      "(analytics.sql(...).pl()); .to_pandas() exists only if you add pandas to the project"),
@@ -719,12 +728,12 @@ def _script_source(project: core.Project, script) -> tuple[str, Path]:
 def _rerun_source(project: core.Project, rerun_of: str) -> tuple[dict, str, Path]:
     if not core.RUN_ID_RE.match(rerun_of or ""):
         raise core.LabError("rerun_id", f"{rerun_of!r} is not a run id",
-                            hint="run ids look like 20260916-143012-monthly-sales; lab_status lists them")
+                            hint="run ids look like 20260916-143012-monthly-sales; analytics_status lists them")
     record = core.read_json(project.runs / rerun_of / "run.json")
     script = record.get("script") if isinstance(record, dict) else None
     if not isinstance(script, dict) or not script.get("snapshot") or not script.get("path"):
         raise core.LabError("rerun_unknown", f"no recorded run {rerun_of!r} with a code snapshot",
-                            hint="lab_status lists run ids")
+                            hint="analytics_status lists run ids")
     code_root = core._resolved(project.runs / rerun_of / "code")
     snapshot = core._resolved(project.path(str(script["snapshot"])))
     if code_root not in snapshot.parents or not snapshot.is_file():
@@ -765,7 +774,7 @@ def _name_units(name: str) -> int:
 def _write_failure_hint(exc: Exception, path: Path) -> str | None:
     if isinstance(exc, UnicodeError):
         # POSIX hands over arguments, names and variables it cannot decode with surrogates in them.
-        return "use a title, a script name and LAB_ACTOR/LAB_SESSION values that are valid UTF-8"
+        return "use a title, a script name and AELIX_ANALYTICS_ACTOR/AELIX_ANALYTICS_SESSION values that are valid UTF-8"
     if not isinstance(exc, OSError):
         return None
     if (exc.errno == errno.ENAMETOOLONG or getattr(exc, "winerror", None) in _WINDOWS_PATH_TOO_LONG
@@ -872,10 +881,10 @@ def _execute_locked(project, *, script_rel, exec_file, code_bytes, title, declar
 def _run_script(project, state, code_bytes, filename, script_rel, timeout, stdout_path,
                 stderr_path, guard, result_follows=False) -> tuple[str, dict | None, float]:
     """Run the script in the guard's interruptible region and classify how it ended."""
-    env_backup = {k: os.environ.get(k) for k in ("LAB_RUN_ID", "LAB_RUN_DIR", "LAB_PROJECT",
+    env_backup = {k: os.environ.get(k) for k in ("AELIX_ANALYTICS_RUN_ID", "AELIX_ANALYTICS_RUN_DIR", "AELIX_ANALYTICS_PROJECT",
                                                  "MPLBACKEND")}
-    os.environ.update({"LAB_RUN_ID": state.run_id, "LAB_RUN_DIR": str(state.run_dir),
-                       "LAB_PROJECT": str(project.root)})
+    os.environ.update({"AELIX_ANALYTICS_RUN_ID": state.run_id, "AELIX_ANALYTICS_RUN_DIR": str(state.run_dir),
+                       "AELIX_ANALYTICS_PROJECT": str(project.root)})
     os.environ.setdefault("MPLBACKEND", "Agg")
     cwd = os.getcwd()
     failure: BaseException | None = None
@@ -1074,7 +1083,7 @@ def run_warnings(record: dict, project: core.Project | None = None) -> list[str]
     for chart in record["charts"]:
         if chart["kind"] == "matplotlib" and not chart.get("data"):
             warnings.append(f"chart {chart['id']}: plotted data not recorded "
-                            "(pass data=... to analytics.chart)")
+                            "(pass data=... to analytics.visualize)")
     external = [e["path"] for e in record["inputs"] if e.get("external")]
     for path in sorted({p for p in external if imported.get(p)}):
         name = imported[path]
@@ -1086,10 +1095,10 @@ def run_warnings(record: dict, project: core.Project | None = None) -> list[str]
     if len(rest) > MAX_LISTED_PATHS:
         warnings.append(f"{len(rest):,} inputs outside the project, e.g. "
                         + ", ".join(rest[:MAX_LISTED_PATHS])
-                        + " (import them with lab_import so the analysis does not depend on files "
+                        + " (import them with analytics_import so the analysis does not depend on files "
                           "that keep changing)")
     else:
-        warnings += [f"input outside the project: {p} (import it with lab_import so the analysis "
+        warnings += [f"input outside the project: {p} (import it with analytics_import so the analysis "
                      "does not depend on it)" for p in rest]
     for out in record["outputs"]:
         if out.get("outside_data") and out.get("change") != "deleted":

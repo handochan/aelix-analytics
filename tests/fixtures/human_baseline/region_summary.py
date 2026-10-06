@@ -13,5 +13,5 @@ summary = sales.group_by("region").agg(
 ).sort("region")
 analytics.save(summary, "region_summary")
 figure = go.Figure(go.Bar(x=summary["region"].to_list(), y=summary["revenue"].to_list()))
-analytics.chart(figure, "region-revenue", title="Revenue by region", data=summary)
+analytics.visualize(figure, "region-revenue", title="Revenue by region", data=summary)
 print("Total revenue:", summary["revenue"].sum())

@@ -1,8 +1,8 @@
 # 제품 용어·코드 명칭·기본 언어
 
-작성: 2026-09-18 · 상태: 구현 전 설계. 아래 명칭·경로·API는 전환 목표이며, 배포본이 설치하는 명령 `analytics`(하위 명령은 아직 옛 이름),
-모듈 `aelix_analytics.extension`, 그리고 #9의 첫 PR(2026-10-06)이 적용한 package `aelix_analytics`(스크립트 API `import aelix_analytics`,
-모듈 실행 `python -m aelix_analytics`)를 빼면 아직 실행 가능한 현재 명칭이 아니다.
+작성: 2026-09-18 · 상태: 일부 구현. §2의 명령·하위 명령·도구·flag·SDK·확장 파일·모듈과 §3의 환경 변수는 #9(kit 0.2.0·0.3.0,
+2026-10-06)가 적용한 현재 명칭이다(옛 이름은 별칭 없이 새 이름을 알리는 오류). §2의 오류·내부 상태·표시 구현과 §3의 저장 이름
+(표식·관리 디렉터리·화면·schema namespace·신뢰 목록 등)은 아직 전환 목표다([#13](https://github.com/handochan/aelix-analytics/issues/13)).
 [현재 계약](CONTRACTS.md)은 구현을, [전체 용어 점검](REVIEW-TERMINOLOGY-2026-09-18.md)은 확인한 위치·변경 범위·전환 순서를 설명한다.
 이 문서는 앞선 설계의 `lab_*` 영구 호환·프로젝트 화면을 `report`로 부르는 안을 대체한다. 과거 기록의 보존 원칙은 유지한다.
 
@@ -22,17 +22,17 @@ Workspace는 프로젝트를 탐색하는 인터페이스이며 프로젝트 루
 | 대상 | 현재 명칭 | 공식 전환 목표 |
 |---|---|---|
 | 제품 / 저장소·배포 이름 | Aelix Analytics / `aelix-analytics` | 유지 |
-| Aelix 사람 명령 | `/lab` | `/analytics` |
-| CLI / 모듈 실행 | `bin/lab`, `python -m aelix_analytics`(실행 루트에서만, 2026-10-06부터. 그 전은 `python -m labkit`); 설치본의 `analytics`(하위 명령은 아직 옛 이름) | `analytics`, `python -m aelix_analytics` |
+| Aelix 사람 명령 | `/analytics`(kit 0.3.0부터. 그 전은 `/lab`) | `/analytics` |
+| CLI / 모듈 실행 | 체크아웃의 `bin/analytics`와 설치본의 `analytics`(kit 0.3.0부터. 그 전은 `bin/lab`), `python -m aelix_analytics`(실행 루트에서만, 2026-10-06부터. 그 전은 `python -m labkit`) | `analytics`, `python -m aelix_analytics` |
 | Python SDK | `import aelix_analytics as analytics`(2026-10-06부터. 그 전은 `import labkit as lab`, 별칭 없음) | `import aelix_analytics as analytics` |
-| 확장 진입 파일 | `extension/aelix_lab.py` | `extension/aelix_analytics.py`; 패키징 이후 `aelix_analytics.extension` |
-| 프로젝트 flag | `--lab-project` | `--analytics-project`; CLI 내부 `--project`는 유지 |
-| 모델 읽기·SQL·가져오기 | `lab_status`, `lab_query`, `lab_import` | `analytics_status`, `analytics_query`, `analytics_import` |
-| 모델 실행·기록·초기화 | `lab_run`, `lab_note`, `lab_init` | `analytics_run`, `analytics_record`, `analytics_init` |
-| 사람/SDK의 기록 쓰기 | `lab note`, `analytics.note(...)` | `analytics record`, `analytics.record(...)` |
-| SDK의 시각화 기록 | `analytics.chart(...)` | `analytics.visualize(...)`; 객체와 참조는 `visualization` |
-| 프로젝트 화면 생성·열기 | `lab report`, `lab open` | `analytics render`, `analytics open` |
-| 독립 공유 패키지·게시 — 제안 | `lab build`, `lab publish` | `analytics build`, `analytics publish` |
+| 확장 진입 파일 | `extension/aelix_analytics.py`, 설치본의 `aelix_analytics.extension`(kit 0.3.0부터. 그 전은 `extension/aelix_lab.py`) | `extension/aelix_analytics.py`; 패키징 이후 `aelix_analytics.extension` |
+| 프로젝트 flag | `--analytics-project`(kit 0.3.0부터. 그 전은 `--lab-project`) | `--analytics-project`; CLI 내부 `--project`는 유지 |
+| 모델 읽기·SQL·가져오기 | `analytics_status`, `analytics_query`, `analytics_import`(kit 0.3.0부터. 그 전은 `lab_*`) | `analytics_status`, `analytics_query`, `analytics_import` |
+| 모델 실행·기록·초기화 | `analytics_run`, `analytics_record`, `analytics_init`(kit 0.3.0부터. 그 전은 `lab_run`, `lab_note`, `lab_init`) | `analytics_run`, `analytics_record`, `analytics_init` |
+| 사람/SDK의 기록 쓰기 | `analytics record`, `analytics.record(...)`(kit 0.3.0부터. 그 전은 `lab note`, `note(...)`) | `analytics record`, `analytics.record(...)` |
+| SDK의 시각화 기록 | `analytics.visualize(...)`(kit 0.3.0부터. 그 전은 `chart(...)`; 기록의 `via`는 `lab.chart` 그대로) | `analytics.visualize(...)`; 객체와 참조는 `visualization` |
+| 프로젝트 화면 생성·열기 | `analytics render`, `analytics open`(kit 0.3.0부터. 그 전은 `lab report`, `lab open`) | `analytics render`, `analytics open` |
+| 독립 공유 패키지·게시 — 제안 | 없음(구현 전) | `analytics build`, `analytics publish` |
 | 오류·내부 상태 | `LabError`, `Project.lab`, `Project.report` | `AnalyticsError`, `state_dir`, `workspace_dir` |
 | 표시 구현 | `report.py`, `report.js/css`, `schedule_report` | `workspace` 모듈·자원, `WorkspaceRenderer`, `schedule_workspace_render` |
 
@@ -59,13 +59,14 @@ SDK `scan`은 지연 데이터 읽기이고 정적 코드 스캔은 `static_scan
 | 맥락·사건 기록 | `CONTEXT.md`, `journal.jsonl` | 이름 유지. 현재 맥락과 시간순 사건의 구별 |
 | 신뢰 목록 | `analytics-projects.json` | 호스트의 기존 agent 설정 위치 아래. 활성화 신뢰 범위만 의미 |
 | schema namespace `lab.*` | `analytics.project`, `analytics.event`, `analytics.run`, `analytics.dataset`, `analytics.trust` | 가족 이름과 형식 버전을 함께 식별. 기존 `/1` 원문을 새 namespace로 덮어쓰지 않음 |
-| 제어 환경 변수 | `AELIX_ANALYTICS_*` | `KIT`은 `RUNTIME_PATH`, `PROJECT`, `UV`, `TRUST_FILE` 등은 의미 유지 |
-| 실행 환경 변수 `LAB_*` | `AELIX_ANALYTICS_*` | `ACTOR`, `SESSION`, `RUN_ID`, `RUN_DIR`, `PROJECT`, `STYLE`의 역할 유지 |
+| 제어 환경 변수 | `AELIX_ANALYTICS_*` | `KIT`은 `RUNTIME_PATH`, `PROJECT`, `UV`, `TRUST_FILE` 등은 의미 유지. kit 0.3.0부터 현재 이름이고, 옛 `AELIX_LAB_*`는 오류 |
+| 실행 환경 변수 `LAB_*` | `AELIX_ANALYTICS_*` | `ACTOR`, `SESSION`, `RUN_ID`, `RUN_DIR`, `PROJECT`, `STYLE`의 역할 유지. `LAB_PROJECT`와 `AELIX_LAB_PROJECT`는 `AELIX_ANALYTICS_PROJECT` 하나가 됨. kit 0.3.0부터 현재 이름이고, 사용자가 설정하던 옛 이름은 오류 |
 | 내부 배포 자원 | `core`, `runtime`, `workspace`, `reports`, `publishing`, `templates` | 책임에 따른 이름. `labcore`·`labkit`·`pack`을 새 공개 브랜드로 남기지 않음 |
 | 실행 루트 | package `aelix_analytics` 하나만 담은 디렉터리: 체크아웃의 `src/`, 설치본의 `aelix_analytics/kit/`(같은 소스의 사본) | 진입점이 run의 프로젝트 환경에 `PYTHONPATH`로 주는 유일한 경로(2026-10-06부터). 설치된 package 자신은 실행 루트가 아니어서 `python -m`을 거절한다(오류 코드 `not_runtime_root`). `RUNTIME_PATH`(위 행)가 가리킬 디렉터리 |
 
 호스트가 정한 `AELIX_CODING_AGENT_DIR` 등과 외부 라이브러리의 `MPLBACKEND`, `PYTHONPATH`는 확장 소유 이름이 아니므로 바꾸지 않는다.
-`LAB_API`처럼 시험 스크립트에서만 쓰는 표식은 공개 설정으로 승격하지 않는다.
+`LAB_API`처럼 시험 스크립트에서만 쓰는 표식은 공개 설정으로 승격하지 않는다. 확장이 kit에 취소를 요청하는 파일의 경로
+`AELIX_ANALYTICS_CANCEL_FILE`(옛 `LAB_CANCEL_FILE`)도 내부 프로토콜이라 위 역할 목록에 넣지 않는다([현재 계약](CONTRACTS.md) D).
 스키마 숫자는 의미 변경에 따라 정한다. 단순 namespace 전환과 B1의 새 의미 도입을 같은 변경이라고 가정하지 않는다.
 공유 파일의 `publication.json`과 원래 보고서의 manifest도 각각의 버전을 가진다.
 

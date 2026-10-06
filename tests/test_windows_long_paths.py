@@ -5,7 +5,7 @@ A probe on the hosted runner, with LongPathsEnabled=1, made, replaced, locked an
 directory as its working directory failed with WinError 267: CreateProcess keeps MAX_PATH for a
 working directory. A project is used through several routes, and they meet that limit differently
 (design review T2): the kit run by an interpreter outside the project, the extension's spawned
-commands (working directory = the root), its in-process commands, its report builds, `/lab init`, and
+commands (working directory = the root), its in-process commands, its report builds, `/analytics init`, and
 the launcher, which starts uv without a working directory. Each test takes one route at a stated
 length and keeps the lengths and what happened as an observation (AELIX_ANALYTICS_TEST_EVIDENCE_DIR),
 from which CONTRACTS F and G are written.
@@ -192,12 +192,12 @@ def test_a_root_under_max_path_records_and_reports_outputs_past_it(tmp_path):
         body = ("import aelix_analytics as analytics\nimport matplotlib\nmatplotlib.use('Agg')\n"
                 "import matplotlib.pyplot as plt\nfig, ax = plt.subplots()\nax.plot([1, 2])\n"
                 "df = analytics.read('sales')\nanalytics.save(df, 'a' * 60)\n"
-                "analytics.chart(fig, 'a-chart-id-that-is-forty-characters-long', data=df)\n")
+                "analytics.visualize(fig, 'a-chart-id-that-is-forty-characters-long', data=df)\n")
         name = "a_script_name_of_sixty_characters_for_the_long_path_test.py" if ENABLED else "lp.py"
         script = attempt(observation, "script", lambda: write_script(root, name, body))
         ran = kit(root, "run", script, "--title", "long") if script else None
         observation["run"] = ran
-        reported = kit(root, "report")
+        reported = kit(root, "render")
         observation["report"] = reported
         deepest = attempt(observation, "deepest_file", lambda: deepest_file(root))
         if not ENABLED:
@@ -222,8 +222,8 @@ def _extension(monkeypatch):
     interpreter, which ends at once on `run`/`sync` (only where it can start at all)."""
     from test_platform import load_extension
 
-    monkeypatch.setenv("AELIX_LAB_UV", sys.executable)
-    monkeypatch.delenv("AELIX_LAB_PROJECT", raising=False)
+    monkeypatch.setenv("AELIX_ANALYTICS_UV", sys.executable)
+    monkeypatch.delenv("AELIX_ANALYTICS_PROJECT", raising=False)
     return load_extension(monkeypatch, f"ext_long_{os.getpid()}")
 
 
@@ -237,7 +237,7 @@ def test_the_extension_cannot_start_a_kit_command_in_a_root_past_max_path(tmp_pa
         if make_project(root, observation) is None:
             return
         module = _extension(monkeypatch)
-        observation["use"] = asyncio.run(module.lab_command(f"use {root}"))
+        observation["use"] = asyncio.run(module.analytics_command(f"use {root}"))
         project, _ = module.resolve_project()
         ok, value = asyncio.run(module.run_kit(project, ["status"], timeout=60))
         observation["run_kit"] = value
@@ -256,7 +256,7 @@ def test_the_extension_cannot_start_a_kit_command_in_a_root_past_max_path(tmp_pa
 
 
 def test_the_extension_s_in_process_commands_work_in_a_root_past_max_path(tmp_path, monkeypatch):
-    """Route 2b: `/lab note` and the context block run in this process and work; the report build a
+    """Route 2b: `/analytics record` and the context block run in this process and work; the report build a
     note schedules is started with the root as its working directory, fails to start, and says
     nothing (schedule_report's `except Exception: return`)."""
     observation = observe("extension-in-process")
@@ -277,11 +277,11 @@ def test_the_extension_s_in_process_commands_work_in_a_root_past_max_path(tmp_pa
                 raise
 
         monkeypatch.setattr(module.subprocess, "Popen", recording_popen)
-        observation["use"] = asyncio.run(module.lab_command(f"use {root}"))
-        observation["note"] = asyncio.run(module.lab_command("note finding 깊은 경로의 발견"))
+        observation["use"] = asyncio.run(module.analytics_command(f"use {root}"))
+        observation["note"] = asyncio.run(module.analytics_command("record finding 깊은 경로의 발견"))
         observation["report_start_refused"] = [repr(e) for e in refused]
         observation["report_task"] = str(module.STATE["report_tasks"].get(str(root)))
-        observation["context"] = asyncio.run(module.lab_command("context"))
+        observation["context"] = asyncio.run(module.analytics_command("context"))
         if not ENABLED:
             return
         assert observation["note"].endswith(" finding recorded"), observation["note"]
@@ -296,14 +296,14 @@ def test_the_extension_s_in_process_commands_work_in_a_root_past_max_path(tmp_pa
 
 def test_lab_init_into_a_root_past_max_path_makes_the_project_then_fails_its_sync(tmp_path,
                                                                                  monkeypatch):
-    """Route 2c: `/lab init` makes the project in this process, then its sync cannot start there.
+    """Route 2c: `/analytics init` makes the project in this process, then its sync cannot start there.
     The project exists and is active, and the answer is the sync's error (design review T2)."""
     observation = observe("extension-init")
     try:
         target = path_of_length(tmp_path, DEEP_ROOT)
         observation["root_length"] = DEEP_ROOT
         module = _extension(monkeypatch)
-        observation["answer"] = asyncio.run(module.lab_command(f"init {target} 긴경로"))
+        observation["answer"] = asyncio.run(module.analytics_command(f"init {target} 긴경로"))
         observation["lab_json"] = attempt(observation, "lab_json_check",
                                           lambda: (target / "lab.json").is_file())
         observation["active"] = module.STATE["project"]
@@ -368,7 +368,7 @@ def _launch(analytics: str, args, *, cwd: Path, env: dict, timeout: float) -> di
                     reason="set AELIX_ANALYTICS_TEST_INSTALL=1 (network: uv syncs the project)")
 def test_the_launcher_from_a_short_directory_with_lab_project_past_max_path(tmp_path):
     """Route 3: the installed `analytics init` and `analytics status` started from a short
-    directory, the second with LAB_PROJECT naming the root. The launcher starts uv without a working
+    directory, the second with AELIX_ANALYTICS_PROJECT naming the root. The launcher starts uv without a working
     directory; what uv
     then does with an environment past MAX_PATH (`<root>\\.venv\\Scripts\\python.exe`) is measured,
     not assumed: only the init's project files, made by the kit in a process with a short working
@@ -379,7 +379,7 @@ def test_the_launcher_from_a_short_directory_with_lab_project_past_max_path(tmp_
         root = path_of_length(tmp_path / "p", DEEP_ROOT)
         observation.update(root_length=DEEP_ROOT, venv_python_length=DEEP_ROOT + VENV_PYTHON)
         analytics = _installed_analytics(tmp_path / "install")
-        env = {k: v for k, v in kit_env().items() if k not in ("PYTHONPATH", "LAB_PROJECT")}
+        env = {k: v for k, v in kit_env().items() if k not in ("PYTHONPATH", "AELIX_ANALYTICS_PROJECT")}
         init = _launch(analytics, ["init", root, "--title", "긴 경로"], cwd=tmp_path, env=env,
                        timeout=360)
         observation["init"] = init
@@ -389,7 +389,7 @@ def test_the_launcher_from_a_short_directory_with_lab_project_past_max_path(tmp_
             observation, "venv_python_check",
             lambda: (root / ".venv" / "Scripts" / "python.exe").is_file())
         status = _launch(analytics, ["status"], cwd=tmp_path,
-                         env={**env, "LAB_PROJECT": str(root)}, timeout=120)
+                         env={**env, "AELIX_ANALYTICS_PROJECT": str(root)}, timeout=120)
         observation["status"] = status
         assert not init["timed_out"] and not status["timed_out"], observation
         if ENABLED:

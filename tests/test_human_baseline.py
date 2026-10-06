@@ -32,7 +32,7 @@ def human_cli(tmp_path):
     root = tmp_path / "project"
     env = kit_env()
     # Exercise the CLI's human default; do not inherit an agent's session or actor.
-    for key in ("LAB_ACTOR", "LAB_SESSION", "LAB_PROJECT", "AELIX_LAB_PROJECT"):
+    for key in ("AELIX_ANALYTICS_ACTOR", "AELIX_ANALYTICS_SESSION", "AELIX_ANALYTICS_PROJECT"):
         env.pop(key, None)
 
     def call(*args, expected_exit=0):
@@ -92,8 +92,8 @@ def test_human_cli_analysis_failure_repair_and_snapshot_history(human_cli):
     assert pl.read_parquet(root / "data/derived/region_summary.parquet").to_dicts() == EXPECTED["by_region"]
     first_hashes = file_hashes(root / "runs" / first["id"])
 
-    question = call("note", "question", "어느 지역의 매출이 가장 높은가?")["event"]
-    finding = call("note", "finding", "서울 매출은 580으로 가장 높다.",
+    question = call("record", "question", "어느 지역의 매출이 가장 높은가?")["event"]
+    finding = call("record", "finding", "서울 매출은 580으로 가장 높다.",
                    "--ref", first["id"], "--ref", "region-revenue", "--ref", "sales",
                    "--resolves", question["id"])["event"]
     assert finding["actor"] == "human" and not finding.get("session")
@@ -137,7 +137,7 @@ def test_human_cli_analysis_failure_repair_and_snapshot_history(human_cli):
     assert current["run"] == second["id"] and current["versions"] == 2
     preserved_runs = file_hashes(root / "runs")
     journal_before_report = (root / "journal.jsonl").read_bytes()
-    rendered = call("report")
+    rendered = call("render")
     assert rendered["report"]["pages"] and not rendered["report"].get("skipped")
     assert (root / "report/index.html").is_file()
     for record in (first, failed, repaired, second, rerun):

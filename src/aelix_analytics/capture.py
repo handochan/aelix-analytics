@@ -2,7 +2,7 @@
 
 Scripts do not have to import aelix_analytics. Import hooks wrap the usual entry points while a run is active:
 Polars readers and DuckDB reads/SQL record input files; `plt.show()`, `Figure.show()` and plotly's
-`fig.show()` record charts instead of opening windows. `aelix_analytics.chart(..., data=df)` adds what a hook
+`fig.show()` record charts instead of opening windows. `aelix_analytics.visualize(..., data=df)` adds what a hook
 cannot know: a stable id, a caption and the exact plotted data.
 """
 
@@ -192,7 +192,7 @@ class RunState:
 
     def capture(self, obj, chart_id=None, *, title=None, caption=None, data=None,
                 via="lab.chart") -> dict | None:
-        """Record a chart. Every analytics.chart call is its own chart (a later call with the same id
+        """Record a chart. Every analytics.visualize call is its own chart (a later call with the same id
         replaces the earlier one). Automatic captures (plt.show, fig.show, figures left open)
         skip a figure that an earlier capture already saved and that has not changed since."""
         target, kind = _figure_kind(obj)
@@ -356,7 +356,7 @@ class RunState:
             return None
         src = self.project.path(os.fspath(obj))
         if not src.is_file():
-            raise FileNotFoundError(f"analytics.chart: no file {src}")
+            raise FileNotFoundError(f"analytics.visualize: no file {src}")
         dest = self.charts_dir / f"{cid}{src.suffix.lower()}"
         if src.resolve() != dest.resolve():
             shutil.copyfile(src, dest)
@@ -420,7 +420,7 @@ def _figure_kind(obj):
         return obj, "altair"
     if hasattr(obj, "_repr_html_"):
         return obj, "html"
-    raise TypeError(f"analytics.chart cannot save a {type(obj).__name__}; pass a matplotlib or plotly "
+    raise TypeError(f"analytics.visualize cannot save a {type(obj).__name__}; pass a matplotlib or plotly "
                     "figure, an object with _repr_html_, or a path to an image/HTML file")
 
 
@@ -547,7 +547,7 @@ def patch_duckdb(duckdb) -> None:
 
 
 def style_matplotlib(mpl) -> None:
-    if os.environ.get("LAB_STYLE") == "0":
+    if os.environ.get("AELIX_ANALYTICS_STYLE") == "0":
         return
     rc = mpl.rcParams
     rc.update({
@@ -594,7 +594,7 @@ def patch_plotly_io(pio) -> None:
             ACTIVE.capture(fig, via="fig.show")
 
     pio.show = show
-    if os.environ.get("LAB_STYLE") == "0":
+    if os.environ.get("AELIX_ANALYTICS_STYLE") == "0":
         return
     with contextlib.suppress(Exception):
         axis = {"gridcolor": GRID, "linecolor": AXIS, "zerolinecolor": AXIS, "tickcolor": AXIS,

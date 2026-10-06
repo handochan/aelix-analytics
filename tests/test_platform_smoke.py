@@ -21,7 +21,7 @@ from aelix_analytics import _platform
 
 PACK = Path(__file__).resolve().parents[1]
 TOOL = PACK / "tools" / "platform_smoke.py"
-EXT = PACK / "extension" / "aelix_lab.py"
+EXT = PACK / "extension" / "aelix_analytics.py"
 
 
 def tool_module():
@@ -112,7 +112,7 @@ def test_the_smoke_gives_the_kit_the_extension_s_environment_but_for_the_stated_
     names are allowed: a variable either side adds, drops or sets to another value fails."""
     from test_platform import load_extension
 
-    monkeypatch.delenv("AELIX_LAB_KIT", raising=False)
+    monkeypatch.delenv("AELIX_ANALYTICS_RUNTIME_PATH", raising=False)
     tool, ext = tool_module(), load_extension(monkeypatch, "smoke_env_parity")
     monkeypatch.setitem(ext.STATE, "session", None)
 
@@ -138,12 +138,12 @@ def test_the_smoke_gives_the_kit_the_extension_s_environment_but_for_the_stated_
 
     ctx = types.SimpleNamespace(bundle=types.SimpleNamespace(processes=Processes()))
     smoke, extension = tool.kit_env(ctx), ext.child_env(Processes(), "smoke")
-    assert smoke.keys() - extension.keys() == {"AELIX_LAB_TRUST_FILE", "UV_INDEX_TOKEN"}
+    assert smoke.keys() - extension.keys() == {"AELIX_ANALYTICS_TRUST_FILE", "UV_INDEX_TOKEN"}
     assert extension.keys() - smoke.keys() == {"http_proxy", "https_proxy", "no_proxy", "all_proxy"}
     shared = (smoke.keys() & extension.keys()) - {"PYTHONPATH"}
     assert {k: smoke[k] for k in shared} == {k: extension[k] for k in shared}
     assert Path(smoke["PYTHONPATH"]).resolve() == Path(extension["PYTHONPATH"]).resolve()
-    assert smoke["LAB_ACTOR"] == "smoke" and smoke["PATH"] == "value of PATH"
+    assert smoke["AELIX_ANALYTICS_ACTOR"] == "smoke" and smoke["PATH"] == "value of PATH"
 
 
 def test_every_declared_limitation_is_still_stated_in_the_tree():

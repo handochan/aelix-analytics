@@ -45,7 +45,7 @@ from aelix_analytics import _platform, core
 
 PACK = Path(__file__).resolve().parents[1]
 KIT = PACK / "src"
-EXT = PACK / "extension" / "aelix_lab.py"
+EXT = PACK / "extension" / "aelix_analytics.py"
 
 
 # --- rules that are the same on every platform ----------------------------------------------------
@@ -2142,7 +2142,7 @@ def test_reserved_names_are_grouped_and_never_bury_the_data_warnings(project):
             "    pl.DataFrame({'a': [i]}).write_parquet(d / f'part-{i:02d}.parquet')\n"
             "pl.read_parquet('data/raw/sales.parquet').write_parquet('data/raw/sales.parquet')\n"
             "import os\nfrom pathlib import Path as P\n"
-            "P(os.environ['LAB_RUN_DIR'], 'con.html').write_text('<p>x</p>', encoding='utf-8')\n")
+            "P(os.environ['AELIX_ANALYTICS_RUN_DIR'], 'con.html').write_text('<p>x</p>', encoding='utf-8')\n")
     code, result = kit_cli(project, "run", write_script(project, "23_partitions.py", body),
                           "--title", "예약 디렉터리")
     assert code == 0, result
@@ -2186,13 +2186,13 @@ def test_many_reserved_paths_become_one_warning():
 CHART_CASES = {
     # review 4 critic-2: the script saved the figure where the chart lives and handed the file over
     "file_in_charts": ("fig.savefig(charts / 'aux.png')\nplt.close(fig)\n"
-                       "analytics.chart(charts / 'aux.png', 'aux')\n"),
+                       "analytics.visualize(charts / 'aux.png', 'aux')\n"),
     # review 5 NLL-1: the same with the figure object, an automatic capture, another source file
-    "figure_after_savefig": "fig.savefig(charts / 'aux.png')\nanalytics.chart(fig, 'aux')\n",
+    "figure_after_savefig": "fig.savefig(charts / 'aux.png')\nanalytics.visualize(fig, 'aux')\n",
     "auto_captured": "ax.set_title('aux')\nfig.savefig(charts / 'aux.png')\n",
     "other_source": ("Path('figures').mkdir(exist_ok=True)\nfig.savefig('figures/aux.png')\n"
                      "fig.savefig(charts / 'aux.png')\nplt.close(fig)\n"
-                     "analytics.chart('figures/aux.png', 'aux')\n"),
+                     "analytics.visualize('figures/aux.png', 'aux')\n"),
 }
 
 
@@ -2203,7 +2203,7 @@ def test_a_file_the_script_wrote_at_a_reserved_chart_id_is_not_a_second_chart(pr
     a duplicate chart and a rerun of an older run a false mismatch."""
     body = ("import os\nfrom pathlib import Path\nimport matplotlib.pyplot as plt\n"
             "import aelix_analytics as analytics\n"
-            "charts = Path(os.environ['LAB_RUN_DIR'], 'charts')\ncharts.mkdir(exist_ok=True)\n"
+            "charts = Path(os.environ['AELIX_ANALYTICS_RUN_DIR'], 'charts')\ncharts.mkdir(exist_ok=True)\n"
             "fig, ax = plt.subplots()\nax.plot([1, 2], [1, 2])\n" + CHART_CASES[case])
     code, result = kit_cli(project, "run", write_script(project, f"24_{case}.py", body),
                           "--title", case)
@@ -2217,7 +2217,7 @@ def test_a_file_the_script_wrote_at_a_reserved_chart_id_is_not_a_second_chart(pr
 
 CHART_BODY = ("import os\nfrom pathlib import Path\nimport matplotlib.pyplot as plt\n"
               "import aelix_analytics as analytics\n"
-              "charts = Path(os.environ['LAB_RUN_DIR'], 'charts')\ncharts.mkdir(exist_ok=True)\n"
+              "charts = Path(os.environ['AELIX_ANALYTICS_RUN_DIR'], 'charts')\ncharts.mkdir(exist_ok=True)\n"
               "fig, ax = plt.subplots()\nax.plot([1, 2], [1, 2])\n")
 
 
@@ -2226,7 +2226,7 @@ def test_a_chart_captured_under_a_reserved_title_and_named_later_leaves_one_char
     names the figure; main unlinked charts/aux.png with it, but the kit's file is charts/aux_.png, so
     the script's own charts/aux.png became a second chart and a reserved-name warning."""
     body = CHART_BODY + ("ax.set_title('aux')\nfig.savefig(charts / 'aux.png')\nfig.show()\n"
-                         "analytics.chart(fig, 'named')\n")
+                         "analytics.visualize(fig, 'named')\n")
     code, result = kit_cli(project, "run", write_script(project, "50_discard.py", body),
                           "--title", "discard")
     assert code == 0, result
@@ -2238,18 +2238,18 @@ def test_a_chart_captured_under_a_reserved_title_and_named_later_leaves_one_char
 
 
 WRITTEN_AFTER_THE_DISCARD = {
-    "shown": "ax.set_title('aux')\nfig.show()\nanalytics.chart(fig, 'named')\n"
+    "shown": "ax.set_title('aux')\nfig.show()\nanalytics.visualize(fig, 'named')\n"
              "fig.savefig(charts / 'aux.png')\n",
-    "plt_shown": "ax.set_title('aux')\nplt.show()\nanalytics.chart(fig, 'named')\n"
+    "plt_shown": "ax.set_title('aux')\nplt.show()\nanalytics.visualize(fig, 'named')\n"
                  "fig.savefig(charts / 'aux.png')\n",
-    "replaced_by_another_kind": "import plotly.graph_objects as go\nanalytics.chart(fig, 'aux')\n"
-                                "analytics.chart(go.Figure(go.Bar(y=[1, 2])), 'aux')\n"
+    "replaced_by_another_kind": "import plotly.graph_objects as go\nanalytics.visualize(fig, 'aux')\n"
+                                "analytics.visualize(go.Figure(go.Bar(y=[1, 2])), 'aux')\n"
                                 "fig.savefig(charts / 'aux.png')\n",
     # the same bytes before and after, with the first file's size and time: what a file system with
     # one-second times gives a rewrite within the second (review 8, rest-2 and honesty-6)
     "rewritten_as_it_was": "ax.set_title('aux')\nfig.savefig(charts / 'aux.png')\n"
                            "first = os.stat(charts / 'aux.png')\nfig.show()\n"
-                           "analytics.chart(fig, 'named')\nfig.savefig(charts / 'aux.png')\n"
+                           "analytics.visualize(fig, 'named')\nfig.savefig(charts / 'aux.png')\n"
                            "os.utime(charts / 'aux.png', ns=(first.st_atime_ns, first.st_mtime_ns))\n",
 }
 
@@ -2298,19 +2298,19 @@ def _as_main_recorded(project: Path, run_id: str, *, image: str, extra_chart: bo
 
 MAIN_RECORDED = {
     # the kit's render replaced the script's earlier file at the chart's own name: match
-    "savefig_then_chart": (CHART_BODY + "fig.savefig(charts / 'aux.png')\nanalytics.chart(fig, 'aux')\n",
+    "savefig_then_chart": (CHART_BODY + "fig.savefig(charts / 'aux.png')\nanalytics.visualize(fig, 'aux')\n",
                            {"image": "kit"}, "match"),
     # main's chart was the script's later overwrite; this kit records its own render: D9 states it
-    "chart_then_savefig": (CHART_BODY + "analytics.chart(fig, 'aux')\nfig.savefig(charts / 'aux.png')\n",
+    "chart_then_savefig": (CHART_BODY + "analytics.visualize(fig, 'aux')\nfig.savefig(charts / 'aux.png')\n",
                            {"image": "script"}, "mismatch"),
     # an automatic capture under a reserved title, named later: main unlinked its file, and so does
     # this kit now, so the run's directory is main's already
     "captured_then_named": (CHART_BODY + "ax.set_title('aux')\nfig.savefig(charts / 'aux.png')\n"
-                                         "fig.show()\nanalytics.chart(fig, 'named')\n",
+                                         "fig.show()\nanalytics.visualize(fig, 'named')\n",
                             {"image": "as_recorded"}, "match"),
     # a script that writes the kit's portable name itself: main recorded two charts, this one
     "script_writes_the_portable_name": (CHART_BODY + "fig.savefig(charts / 'aux_.png')\n"
-                                                     "analytics.chart(fig, 'aux')\n",
+                                                     "analytics.visualize(fig, 'aux')\n",
                                         {"image": "kit", "extra_chart": True}, "mismatch"),
     # the script's file written after the automatic capture was named: a chart of its own on main,
     # recorded the same way here, so nothing to rewrite (review 7, output-1)
@@ -2654,7 +2654,7 @@ def test_two_chart_ids_that_differ_keep_two_files(project):
     body = ("import matplotlib.pyplot as plt\nimport polars as pl\nimport aelix_analytics as analytics\n"
             "for cid, y in (('con', 1), ('con-file', 2)):\n"
             "    fig, ax = plt.subplots()\n    ax.plot([1, 2], [y, y])\n"
-            "    analytics.chart(fig, cid, title=cid, data=pl.DataFrame({'y': [y]}))\n")
+            "    analytics.visualize(fig, cid, title=cid, data=pl.DataFrame({'y': [y]}))\n")
     code, result = kit_cli(project, "run", write_script(project, "20_reserved.py", body),
                           "--title", "예약 이름 차트")
     assert code == 0, result
@@ -2673,7 +2673,7 @@ def test_a_title_that_slugifies_to_a_device_name_keeps_the_id_it_always_had(proj
     # an unchanged historical script must not start a second chart history.
     body = ("import matplotlib.pyplot as plt\nimport aelix_analytics as analytics\n"
             "fig, ax = plt.subplots()\nax.plot([1, 2], [1, 2])\n"
-            "analytics.chart(fig, title='CON')\n")
+            "analytics.visualize(fig, title='CON')\n")
     code, result = kit_cli(project, "run", write_script(project, "22_generated.py", body),
                           "--title", "생성된 id")
     assert code == 0, result
@@ -2725,41 +2725,41 @@ def load_extension(monkeypatch, name: str):
 def test_a_tool_running_across_a_project_switch_is_recorded_where_it_ends(tmp_path, monkeypatch):
     """Issue #8 criterion 3 (design review T3, the implementation review's Codex R6): the tool-start
     hook keeps no project and the tool-end hook records into the project active when the tool ends,
-    so a call started in A and ended after `/lab use B` is in B's telemetry and not in A's. Pinned as
+    so a call started in A and ended after `/analytics use B` is in B's telemetry and not in A's. Pinned as
     it is, a limitation CONTRACTS G states (main does the same); changing it is a decision."""
-    monkeypatch.delenv("AELIX_LAB_PROJECT", raising=False)
-    monkeypatch.setenv("AELIX_LAB_UV", str(tmp_path / "no-uv"))
+    monkeypatch.delenv("AELIX_ANALYTICS_PROJECT", raising=False)
+    monkeypatch.setenv("AELIX_ANALYTICS_UV", str(tmp_path / "no-uv"))
     monkeypatch.chdir(tmp_path)
     module = load_extension(monkeypatch, "ext_switch_mid_tool")
     roots = {name: tmp_path / name for name in ("A", "B")}
     for name, root in roots.items():
         core.init_project(root, title=name, actor="test", template_dir=KIT / "aelix_analytics" / "template")
-    asyncio.run(module.lab_command(f"use {roots['A']}"))
-    module.on_tool_start(types.SimpleNamespace(tool_call_id="t1", tool_name="lab_note",
+    asyncio.run(module.analytics_command(f"use {roots['A']}"))
+    module.on_tool_start(types.SimpleNamespace(tool_call_id="t1", tool_name="analytics_record",
                                                args={"kind": "finding", "text": "A에서 시작"}), None)
-    asyncio.run(module.lab_command(f"use {roots['B']}"))
-    module.on_tool_end(types.SimpleNamespace(tool_call_id="t1", tool_name="lab_note",
+    asyncio.run(module.analytics_command(f"use {roots['B']}"))
+    module.on_tool_end(types.SimpleNamespace(tool_call_id="t1", tool_name="analytics_record",
                                              is_error=False), None)
     assert not (roots["A"] / ".lab" / "telemetry.jsonl").exists()
     rows = [json.loads(line) for line in (roots["B"] / ".lab" / "telemetry.jsonl")
             .read_text(encoding="utf-8").splitlines()]
-    assert [row["tool"] for row in rows] == ["lab_note"] and "A에서 시작" in rows[0]["summary"], rows
+    assert [row["tool"] for row in rows] == ["analytics_record"] and "A에서 시작" in rows[0]["summary"], rows
 
 
 ANALYSIS_MODULES = ("polars", "duckdb", "matplotlib", "plotly", "pyarrow", "numpy")
 
 
 def test_a_checkout_file_finds_the_kit_next_to_it(monkeypatch):
-    monkeypatch.delenv("AELIX_LAB_KIT", raising=False)
+    monkeypatch.delenv("AELIX_ANALYTICS_RUNTIME_PATH", raising=False)
     module = load_extension(monkeypatch, "ext_route")
     assert (module.KIT, module.KIT_ROUTE) == (KIT.resolve(), "checkout")
 
 
 def test_a_file_name_with_dots_is_still_a_checkout_file(monkeypatch):
     # Review of design revision 1, dist-6 and kit-5: deciding the route by __package__ sent a
-    # dotted name (`-e extension.aelix_lab`, a symlink named aelix_lab.v2.py) to the installed one.
-    monkeypatch.delenv("AELIX_LAB_KIT", raising=False)
-    module = load_extension(monkeypatch, "extension.aelix_lab")
+    # dotted name (`-e extension.aelix_analytics`, a symlink named aelix_analytics.v2.py) to the installed one.
+    monkeypatch.delenv("AELIX_ANALYTICS_RUNTIME_PATH", raising=False)
+    module = load_extension(monkeypatch, "extension.aelix_analytics")
     assert (module.KIT, module.KIT_ROUTE) == (KIT.resolve(), "checkout")
 
 
@@ -2767,7 +2767,7 @@ def test_the_installed_module_runs_the_kit_installed_with_it(monkeypatch, tmp_pa
     import aelix_analytics._install
 
     monkeypatch.setattr(aelix_analytics._install, "kit_dir", lambda: KIT.resolve())
-    monkeypatch.setenv("AELIX_LAB_KIT", str(tmp_path / "another-kit"))  # not followed here
+    monkeypatch.setenv("AELIX_ANALYTICS_RUNTIME_PATH", str(tmp_path / "another-kit"))  # not followed here
     module = load_extension(monkeypatch, "aelix_analytics.extension")
     assert (module.KIT, module.KIT_ROUTE) == (KIT.resolve(), "installed")
 
@@ -2783,7 +2783,7 @@ def test_the_installed_module_loaded_as_a_file_finds_the_kit_beside_it(monkeypat
         shutil.copytree(KIT, package / "kit", ignore=shutil.ignore_patterns("__pycache__"))
     else:
         dir_link(kit, package / "kit", KIT)
-    monkeypatch.delenv("AELIX_LAB_KIT", raising=False)
+    monkeypatch.delenv("AELIX_ANALYTICS_RUNTIME_PATH", raising=False)
     for key, value in _aelix_stubs().items():
         monkeypatch.setitem(sys.modules, key, value)
     spec = importlib.util.spec_from_file_location("_aelix_ext_extension", package / "extension.py")
@@ -2794,7 +2794,7 @@ def test_the_installed_module_loaded_as_a_file_finds_the_kit_beside_it(monkeypat
 
 def test_each_runtime_starts_the_extension_s_state_over(monkeypatch):
     """Review of design revision 1, dist-1: aelix sets extensions up again for every session it
-    builds, and the installed module keeps its globals across them. A /lab note before a new
+    builds, and the installed module keeps its globals across them. A /analytics record before a new
     session's first prompt recorded the previous session's file."""
     module = load_extension(monkeypatch, "ext_rebuilt")
     module.setup(_Api(_EventBus()))
@@ -2852,7 +2852,7 @@ def test_a_second_copy_in_one_runtime_is_not_set_up(monkeypatch, capsys):
     active, extra = _Api(bus), _Api(bus)
     first.setup(active)
     second.setup(extra)
-    assert len(active.tools()) == 6 and ("command", "lab") in active.registered
+    assert len(active.tools()) == 6 and ("command", "analytics") in active.registered
     assert extra.registered == []
     assert "is not set up: this aelix already loaded" in capsys.readouterr().err
     # Another runtime has another bus: a copy is set up there.
@@ -2886,12 +2886,12 @@ def _open_through_lab_command(module, project_root):
 
     (project_root / "report").mkdir(exist_ok=True)
     (project_root / "report" / "index.html").write_text("<html>", encoding="utf-8")
-    return asyncio.run(module.lab_command("open"))
+    return asyncio.run(module.analytics_command("open"))
 
 
 def test_lab_open_hands_the_report_to_the_platform_detached(monkeypatch, project):
     module = load_extension(monkeypatch, "ext_open")
-    monkeypatch.setenv("AELIX_LAB_PROJECT", str(project))
+    monkeypatch.setenv("AELIX_ANALYTICS_PROJECT", str(project))
     handed = []
     monkeypatch.setattr(module.core.PLATFORM.processes, "open_document",
                         lambda path, *, wait: handed.append((Path(path), wait)))
@@ -2902,7 +2902,7 @@ def test_lab_open_hands_the_report_to_the_platform_detached(monkeypatch, project
 
 def test_lab_open_says_so_when_nothing_can_open_the_report(monkeypatch, project):
     module = load_extension(monkeypatch, "ext_cannot_open")
-    monkeypatch.setenv("AELIX_LAB_PROJECT", str(project))
+    monkeypatch.setenv("AELIX_ANALYTICS_PROJECT", str(project))
 
     def cannot(path, *, wait):
         raise OSError("no application is associated with this file")
@@ -2913,14 +2913,14 @@ def test_lab_open_says_so_when_nothing_can_open_the_report(monkeypatch, project)
 
 
 def test_the_extension_loads_the_kit_without_leaving_module_names_behind(monkeypatch):
-    before = {k for k in sys.modules if k.startswith("aelix_lab_kit")}
+    before = {k for k in sys.modules if k.startswith("aelix_analytics_runtime")}
     first = load_extension(monkeypatch, "ext_one")
     second = load_extension(monkeypatch, "ext_two")
 
     assert first.core is not second.core, "each load has to get its own kit"
     assert first.core._platform is not second.core._platform, "a cached sibling could mix packs"
     assert first.core.SCHEMA_RUN == core.SCHEMA_RUN
-    assert {k for k in sys.modules if k.startswith("aelix_lab_kit")} == before
+    assert {k for k in sys.modules if k.startswith("aelix_analytics_runtime")} == before
     assert first.core.PLATFORM.name == _platform.detect().name
 
 
@@ -2998,7 +2998,7 @@ def test_importing_the_package_imports_nothing_of_the_kit():
     ("python -c 'import os; from aelix_analytics.core import Project'", False),
     ("python - <<'EOF'\nimport aelix_analytics as analytics\nprint(analytics.datasets())\nEOF", False),
     ("python3.12 -X utf8 -m aelix_analytics status", False),
-    ("bin/lab status", False),
+    ("bin/analytics status", False),
     # A path or a project name that holds the word is not the kit (Issue #9 design review).
     ("cd ~/work/aelix_analytics-trials && python scripts/x.py", True),
     ("python /opt/venv/lib/site-packages/aelix_analytics/kit/x.py", True),
@@ -3030,10 +3030,10 @@ def test_the_kit_check_of_a_bash_command_takes_time_linear_in_its_length(monkeyp
 
 
 def test_a_kit_that_is_not_there_is_a_clear_error(monkeypatch, tmp_path):
-    monkeypatch.setenv("AELIX_LAB_KIT", str(tmp_path / "nowhere"))
+    monkeypatch.setenv("AELIX_ANALYTICS_RUNTIME_PATH", str(tmp_path / "nowhere"))
     with pytest.raises(RuntimeError, match="kit not found"):
         load_extension(monkeypatch, "ext_missing")
-    assert not [k for k in sys.modules if k.startswith("aelix_lab_kit")]
+    assert not [k for k in sys.modules if k.startswith("aelix_analytics_runtime")]
 
 
 def test_a_failed_kit_load_leaves_no_module_behind(monkeypatch, tmp_path):
@@ -3042,11 +3042,118 @@ def test_a_failed_kit_load_leaves_no_module_behind(monkeypatch, tmp_path):
     (kit / "aelix_analytics").mkdir(parents=True)
     (kit / "aelix_analytics" / "_platform.py").write_text("X = 1\n", encoding="utf-8")
     (kit / "aelix_analytics" / "core.py").write_text("from . import _platform\nraise RuntimeError('broken')\n",
-                                            encoding="utf-8")
-    monkeypatch.setenv("AELIX_LAB_KIT", str(kit))
+                                                     encoding="utf-8")
+    monkeypatch.setenv("AELIX_ANALYTICS_RUNTIME_PATH", str(kit))
     with pytest.raises(RuntimeError, match="broken"):
         load_extension(monkeypatch, "ext_broken")
-    assert not [k for k in sys.modules if k.startswith("aelix_lab_kit")]
+    assert not [k for k in sys.modules if k.startswith("aelix_analytics_runtime")]
+
+
+# --- Issue #9 PR-2: the old names stop the extension's load ---------------------------------------
+
+# What each old variable's new name is set to beside it in the cases below (the new one does not
+# make the old one acceptable). AELIX_LAB_KIT's new name would point the load elsewhere, so none.
+BESIDE = {"AELIX_LAB_PROJECT": "project", "AELIX_LAB_UV": "uv", "AELIX_LAB_TRUST_FILE": "trust"}
+
+
+@pytest.mark.parametrize("old", ["AELIX_LAB_PROJECT", "AELIX_LAB_UV", "AELIX_LAB_TRUST_FILE",
+                                 "AELIX_LAB_KIT"])
+def test_an_old_variable_stops_the_extension_before_it_registers(monkeypatch, tmp_path, old):
+    """ADR-0005 decision 7: an old variable the extension read is an error that names the new one,
+    at load — what aelix shows as the extension's load error, with nothing registered and nothing
+    written — and not an alias, also beside its new name. The prompt hook swallows errors, so a
+    check there would leave the context block out without a word."""
+    trust = tmp_path / "trust" / "lab-projects.json"
+    monkeypatch.setenv("AELIX_ANALYTICS_TRUST_FILE", str(trust))
+    monkeypatch.setenv(old, str(tmp_path / "old"))
+    if old in BESIDE:
+        monkeypatch.setenv(core.RENAMED_ENV[old], str(tmp_path / BESIDE[old]))
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(RuntimeError) as raised:
+        load_extension(monkeypatch, f"ext_old_{old.lower()}")
+    assert str(raised.value) == f"aelix-analytics: {core.renamed_env_message(old)}"
+    assert core.RENAMED_ENV[old] in str(raised.value)
+    assert not trust.exists() and list(tmp_path.iterdir()) == []
+    assert not [k for k in sys.modules if k.startswith("aelix_analytics_runtime")]
+
+
+def test_the_installed_module_does_not_look_at_the_old_kit_variable(monkeypatch):
+    # It never read AELIX_LAB_KIT (ADR-0004 decision 6), so that name has nothing to refuse there.
+    import aelix_analytics._install
+
+    monkeypatch.setattr(aelix_analytics._install, "kit_dir", lambda: KIT.resolve())
+    monkeypatch.setenv("AELIX_LAB_KIT", "/somewhere/else")
+    module = load_extension(monkeypatch, "aelix_analytics.extension")
+    assert module.KIT_ROUTE == "installed"
+
+
+@pytest.mark.parametrize("argv", [["--lab-project", "/a/project"], ["--lab-project=/a/project"],
+                                  ["-p", "hi", "--lab-project", "/a"]])
+def test_the_old_flag_stops_the_extension_before_it_registers(monkeypatch, tmp_path, argv):
+    """aelix 0.1.0b2 takes a flag nobody registered without a word and get_flag answers None for it:
+    the old --lab-project would be ignored and the project taken from the working directory. So it
+    is a load error that names --analytics-project (owner's decision, 2026-10-05/06), not an alias."""
+    monkeypatch.setattr(sys, "argv", ["aelix", *argv])
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(RuntimeError, match="--lab-project was renamed --analytics-project in kit 0.3.0"):
+        load_extension(monkeypatch, "ext_old_flag")
+    assert not [k for k in sys.modules if k.startswith("aelix_analytics_runtime")]
+
+
+@pytest.mark.parametrize("argv", [["--analytics-project", "/a"], ["--lab-projects", "x"],
+                                  ["-p", "use --lab-project /a"], ["--", "x"]])
+def test_only_the_old_flag_itself_stops_the_extension(monkeypatch, argv):
+    monkeypatch.setattr(sys, "argv", ["aelix", *argv])
+    module = load_extension(monkeypatch, "ext_not_the_old_flag")
+    api = _Api(_EventBus())
+    module.setup(api)
+    assert ("flag", "analytics-project") in api.registered and len(api.tools()) == 6
+
+
+@pytest.mark.parametrize("argv", [["--append-system-prompt", "--lab-project"],
+                                  ["--system-prompt", "--lab-project=/a"]])
+def test_another_option_s_value_spelled_as_the_old_flag_stops_the_extension_too(monkeypatch, argv):
+    """A known limit (review of 483ef9d, CONTRACTS A): the check reads the command line's tokens as
+    they are, without aelix's parser, so another option's value equal to --lab-project or
+    --lab-project=… stops the load too, though aelix 0.1.0b2 takes it as that option's value."""
+    monkeypatch.setattr(sys, "argv", ["aelix", *argv])
+    with pytest.raises(RuntimeError, match="--lab-project was renamed --analytics-project in kit 0.3.0"):
+        load_extension(monkeypatch, "ext_old_flag_as_a_value")
+    assert not [k for k in sys.modules if k.startswith("aelix_analytics_runtime")]
+
+
+def test_the_extension_registers_only_the_new_names(monkeypatch):
+    module = load_extension(monkeypatch, "ext_new_names")
+    api = _Api(_EventBus())
+    module.setup(api)
+    assert sorted(api.registered) == sorted(
+        [("flag", "analytics-project"), ("command", "analytics"),
+         *[("tool", f"analytics_{n}") for n in ("status", "query", "import", "run", "record", "init")],
+         *[("on", e) for e in ("before_agent_start", "tool_execution_start", "tool_execution_end",
+                               "agent_end")]])
+
+
+def test_the_analytics_command_records_and_has_no_old_subcommands(monkeypatch, tmp_path):
+    """/lab note KIND TEXT and /lab gap TEXT are /analytics record KIND TEXT (kind gap stays the stored
+    kind until #13); /lab report is /analytics render. An old subcommand is not run: it gets the
+    help, which names the new ones."""
+    monkeypatch.setenv("AELIX_ANALYTICS_UV", str(tmp_path / "no-uv"))
+    root = tmp_path / "proj"
+    core.init_project(root, title="t", actor="test", template_dir=KIT / "aelix_analytics" / "template")
+    monkeypatch.setenv("AELIX_ANALYTICS_PROJECT", str(root))
+    module = load_extension(monkeypatch, "ext_record_command")
+    said = asyncio.run(module.analytics_command("record gap 차트 id를 한글로 못 붙인다"))
+    assert said.endswith(" gap recorded"), said
+    said = asyncio.run(module.analytics_command("record finding 발견"))
+    assert said.endswith(" finding recorded"), said
+    before = (root / "journal.jsonl").read_bytes()
+    for old in ("note finding x", "gap x", "report"):
+        assert asyncio.run(module.analytics_command(old)) == module.HELP
+    assert (root / "journal.jsonl").read_bytes() == before
+    kinds = [json.loads(line)["kind"] for line in before.decode("utf-8").splitlines()]
+    assert kinds[-2:] == ["gap", "finding"]
+    assert "/analytics record KIND TEXT" in module.HELP and "/lab" not in module.HELP
+    assert "KIND gap" in module.HELP and "render | open" in module.HELP
 
 
 def test_the_cli_writes_utf8_whatever_the_locale_says(project):
@@ -3057,7 +3164,7 @@ def test_the_cli_writes_utf8_whatever_the_locale_says(project):
                           capture_output=True, env=env, timeout=120, **_platform.text_kwargs())
     assert done.returncode == 0, done.stderr
     assert "테스트 분석" in done.stdout
-    bad = subprocess.run([sys.executable, "-m", "aelix_analytics", "--project", str(project), "note", "발견", "x"],
+    bad = subprocess.run([sys.executable, "-m", "aelix_analytics", "--project", str(project), "record", "발견", "x"],
                          capture_output=True, env=env, timeout=120, **_platform.text_kwargs())
     assert bad.returncode == 2 and "발견" in bad.stderr, bad.stderr
 
@@ -3154,7 +3261,7 @@ def test_an_aborted_kit_command_is_asked_the_platform_s_way_and_not_killed(monke
     request = ext._CancelRequest()
     argv = [sys.executable, "-m", "aelix_analytics", "--project", str(project), "run",
             write_script(project, "34_abort.py", SLEEPER), "--title", "중단"]
-    _, elapsed = _spawned(ext, argv, project, kit_env(LAB_CANCEL_FILE=str(request.path)), 120,
+    _, elapsed = _spawned(ext, argv, project, kit_env(AELIX_ANALYTICS_CANCEL_FILE=str(request.path)), 120,
                           seen, request, cancels=(0,), wait_first=lambda: _wait_for_running_run(project))
     assert seen.calls.count("interrupt") == 1 and "kill_tree" not in seen.calls, seen.calls
     assert elapsed < 30
@@ -3172,7 +3279,7 @@ marker = Path(sys.argv[1])
 delay, poll = float(sys.argv[2]), float(sys.argv[3])
 time.sleep(delay)
 marker.with_suffix(".started").write_text("started", encoding="utf-8")
-request = Path(os.environ["LAB_CANCEL_FILE"]) if "LAB_CANCEL_FILE" in os.environ else None
+request = Path(os.environ["AELIX_ANALYTICS_CANCEL_FILE"]) if "AELIX_ANALYTICS_CANCEL_FILE" in os.environ else None
 for _ in range(int(60 / poll) if request else 0):
     if request.exists():
         marker.write_text("saw the request", encoding="utf-8")
@@ -3328,7 +3435,7 @@ def test_the_final_wait_returns_even_when_the_tree_outlives_the_forced_end(monke
 FLOODS_ON_EXIT = """\
 import os, sys, time
 from pathlib import Path
-request = Path(os.environ["LAB_CANCEL_FILE"])
+request = Path(os.environ["AELIX_ANALYTICS_CANCEL_FILE"])
 while not request.exists():
     time.sleep(0.01)
 sys.stderr.write("e" * 4_000_000)
@@ -3346,7 +3453,7 @@ def test_a_child_that_writes_a_lot_while_it_stops_is_not_killed(monkeypatch, tmp
     (tmp_path / "floods.py").write_text(FLOODS_ON_EXIT, encoding="utf-8")
     request = ext._CancelRequest()
     (timed_out, *_), _ = _spawned(ext, [sys.executable, str(tmp_path / "floods.py")], tmp_path,
-                                  kit_env(LAB_CANCEL_FILE=str(request.path)), 0.5, seen, request)
+                                  kit_env(AELIX_ANALYTICS_CANCEL_FILE=str(request.path)), 0.5, seen, request)
     assert timed_out and "kill_tree" not in seen.calls, seen.calls
 
 
@@ -3403,7 +3510,7 @@ def test_a_platform_that_asks_with_a_signal_needs_no_request_file(monkeypatch, p
     ok, result = asyncio.run(ext.run_kit(ext.core.Project(project, platform=bundle), ["status"],
                                          timeout=60))
     assert ok, result
-    assert envs and "LAB_CANCEL_FILE" not in envs[0], envs
+    assert envs and "AELIX_ANALYTICS_CANCEL_FILE" not in envs[0], envs
 
 
 def test_a_wrapper_that_already_exited_is_given_the_grace_period_before_its_group_is_ended(
@@ -3431,12 +3538,12 @@ def test_a_wrapper_that_already_exited_is_given_the_grace_period_before_its_grou
 
 def test_lab_use_writes_the_trust_off_the_event_loop(monkeypatch, project):
     """Review 5, NLL-12 and review 6, CH-7: on Windows a record being read elsewhere makes the replace
-    wait up to about two seconds, so /lab use must not write the trust file on aelix's loop."""
+    wait up to about two seconds, so /analytics use must not write the trust file on aelix's loop."""
     ext = load_extension(monkeypatch, "ext_use")
     threads = []
     monkeypatch.setattr(ext.core, "trust_project",
                         lambda root: threads.append(threading.current_thread()))
-    reply = asyncio.run(ext.lab_command(f"use {project}"))
+    reply = asyncio.run(ext.analytics_command(f"use {project}"))
     assert "active project" in reply, reply
     assert threads and threads[0] is not threading.main_thread(), threads
 
@@ -3469,7 +3576,7 @@ core.PLATFORM.runs.watch_for_cancel = slow_to_start
 mode = sys.argv[1]
 
 def command(argv):
-    print("VARIABLE:" + str("LAB_CANCEL_FILE" in os.environ), flush=True)
+    print("VARIABLE:" + str("AELIX_ANALYTICS_CANCEL_FILE" in os.environ), flush=True)
     if mode == "wait":
         time.sleep(10)
     return 0
@@ -3492,7 +3599,7 @@ def test_main_honours_a_request_made_before_it_started_even_while_its_watcher_st
     driver = tmp_path / "driver.py"
     driver.write_text(MAIN_WITH_THE_WATCHER, encoding="utf-8")
     done = subprocess.run([sys.executable, str(driver), "wait"], capture_output=True, timeout=60,
-                          env=kit_env(LAB_CANCEL_FILE=str(request)), **_platform.text_kwargs())
+                          env=kit_env(AELIX_ANALYTICS_CANCEL_FILE=str(request)), **_platform.text_kwargs())
     assert done.returncode == 130, (done.stdout, done.stderr)
     assert '"code": "interrupted"' in done.stdout.splitlines()[-1], done.stdout
 
@@ -3502,7 +3609,7 @@ def test_main_hides_the_request_from_the_command_and_stops_watching_when_it_retu
     driver = tmp_path / "driver.py"
     driver.write_text(MAIN_WITH_THE_WATCHER, encoding="utf-8")
     done = subprocess.run([sys.executable, str(driver), "after"], capture_output=True, timeout=60,
-                          env=kit_env(LAB_CANCEL_FILE=str(request), REQUEST_PATH=str(request)),
+                          env=kit_env(AELIX_ANALYTICS_CANCEL_FILE=str(request), REQUEST_PATH=str(request)),
                           **_platform.text_kwargs())
     assert done.returncode == 0, (done.stdout, done.stderr)
     assert "VARIABLE:False" in done.stdout, done.stdout
@@ -4174,7 +4281,7 @@ def _ask_a_run_to_stop(project, tmp_path, name, body, *, wait=0.5):
     proc = subprocess.Popen(
         [sys.executable, "-m", "aelix_analytics", "--project", str(project), "run",
          write_script(project, f"{name}.py", body), "--title", name],
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=kit_env(LAB_CANCEL_FILE=str(request)),
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=kit_env(AELIX_ANALYTICS_CANCEL_FILE=str(request)),
         **_platform.detect().processes.spawn_kwargs(), **_platform.text_kwargs())
     try:
         _wait_for_running_run(project)
@@ -4223,7 +4330,7 @@ def test_a_cancel_requested_before_the_command_started_is_not_missed(project, tm
     done = subprocess.run(
         [sys.executable, "-m", "aelix_analytics", "--project", str(project), "run",
          write_script(project, "35_early.py", "print('ran')\n"), "--title", "미리 요청"],
-        capture_output=True, env=kit_env(LAB_CANCEL_FILE=str(request)), timeout=60,
+        capture_output=True, env=kit_env(AELIX_ANALYTICS_CANCEL_FILE=str(request)), timeout=60,
         **_platform.text_kwargs())
     statuses = [r["status"] for r in core.list_runs(core.Project(project))]
     assert "running" not in statuses and "incomplete" not in statuses, statuses
@@ -4396,7 +4503,7 @@ def test_the_shipped_code_names_the_encoding_of_every_text_call_the_scan_knows()
 
     Scope, deliberately: the Python of `extension`, `tools`, `src` (the kit, the package
     aelix_analytics, with the distribution's `analytics` launcher) and `tests` — the tests' own calls, not the script bodies they write as
-    strings (design review T12). `bin/lab` is shell, and the template files are not Python. A
+    strings (design review T12). `bin/analytics` is shell, and the template files are not Python. A
     directory that is not there would make the scan pass on nothing, so that fails."""
     missing = [d for d in SOURCE_DIRS if not (PACK / d).is_dir()]
     assert not missing, f"the scan's directories moved: {missing}"
@@ -4795,11 +4902,11 @@ def _ignores_case(directory: Path) -> bool:
 
 CASE_VARIANTS = {
     # the script names its file after the title as written; the chart's id is its lower-case slug
-    "chart_then_file": "analytics.chart(fig, 'AUX')\nfig.savefig(charts / 'AUX.png')\n",
+    "chart_then_file": "analytics.visualize(fig, 'AUX')\nfig.savefig(charts / 'AUX.png')\n",
     "file_then_captured_and_named": "ax.set_title('AUX')\nfig.savefig(charts / 'AUX.png')\n"
-                                    "fig.show()\nanalytics.chart(fig, 'named')\n",
+                                    "fig.show()\nanalytics.visualize(fig, 'named')\n",
     # review 9, rest-3: main wrote its chart into the script's file and recorded that file twice
-    "file_then_chart": "fig.savefig(charts / 'AUX.png')\nanalytics.chart(fig, 'AUX')\n",
+    "file_then_chart": "fig.savefig(charts / 'AUX.png')\nanalytics.visualize(fig, 'AUX')\n",
 }
 CASE_VARIANT_CHARTS = {
     ("chart_then_file", True): [("aux", "matplotlib")],
@@ -5447,7 +5554,7 @@ def test_only_a_command_that_ran_a_script_starts_its_result_with_an_empty_line(p
                               capture_output=True, env=kit_env(), timeout=120,
                               **_platform.text_kwargs()).stdout
 
-    for command in ("status", "report"):
+    for command in ("status", "render"):
         alone = stdout_of(command)
         assert alone.startswith("{") and alone.count("\n") == 1, (command, alone)
     ran = stdout_of("run", write_script(project, "95_quiet.py", "x = 1\n"), "--title", "quiet")
@@ -5840,18 +5947,18 @@ def test_a_scanned_name_in_a_directory_a_record_cannot_hold_is_left_out(project)
     assert [i["path"] for i in result["run"]["inputs"]] == ["data/raw/ok/x.csv"], result["run"]
 
 
-@pytest.mark.skipif(os.name == "nt", reason="bin/lab is a POSIX shell script")
-def test_lab_help_prints_the_whole_header():
-    """Review 11, honesty-1: usage() printed lines 2-15 of bin/lab, and revision 3.5's header ran
-    to line 16: `lab --help` stopped mid-sentence and dropped 'Nothing here is a sandbox.' It
-    prints the header's comment block to its end now."""
-    lab = Path(__file__).resolve().parents[1] / "bin" / "lab"
-    done = subprocess.run(["sh", str(lab), "--help"], capture_output=True, timeout=30,
+@pytest.mark.skipif(os.name == "nt", reason="bin/analytics is a POSIX shell script")
+def test_bin_help_prints_the_whole_header():
+    """Review 11, honesty-1: usage() printed lines 2-15 of bin/lab (now bin/analytics), and revision
+    3.5's header ran to line 16: `lab --help` stopped mid-sentence and dropped 'Nothing here is a
+    sandbox.' It prints the header's comment block to its end now."""
+    command = Path(__file__).resolve().parents[1] / "bin" / "analytics"
+    done = subprocess.run(["sh", str(command), "--help"], capture_output=True, timeout=30,
                           **_platform.text_kwargs())
     assert done.returncode == 0, done.stderr
     assert done.stdout.rstrip().endswith("Nothing here is a sandbox."), done.stdout
     # Review 12, honesty-8 (Y12, Y13): from the header's first line, without its comment marks.
-    header = lab.read_text(encoding="utf-8").splitlines()[1]
+    header = command.read_text(encoding="utf-8").splitlines()[1]
     assert done.stdout.splitlines()[0] == header.removeprefix("# "), done.stdout.splitlines()[:2]
 
 
@@ -6250,7 +6357,7 @@ def test_the_cli_ends_after_its_result_line_though_a_leftover_thread_blocks_writ
 
 
 def test_the_extension_creates_projects_from_the_kit_s_own_template(monkeypatch, tmp_path):
-    """Review of design revision 1, kit-1: the adapter's lab_init and /lab init computed the
+    """Review of design revision 1, kit-1: the adapter's analytics_init and /analytics init computed the
     template's place themselves, and no check called them."""
     import asyncio
 
@@ -6267,7 +6374,7 @@ def test_the_extension_creates_projects_from_the_kit_s_own_template(monkeypatch,
     text, value = asyncio.run(module.tool_init({"path": str(tmp_path / "by-agent"), "title": "t"},
                                                None))
     assert value["synced"] is True, text
-    answer = asyncio.run(module.lab_command(f"init {tmp_path / 'by-human'} 제목"))
+    answer = asyncio.run(module.analytics_command(f"init {tmp_path / 'by-human'} 제목"))
     assert answer.startswith("created "), answer
     for root in (tmp_path / "by-agent", tmp_path / "by-human"):
         for name in ("CONTEXT.md", "pyproject.toml", ".gitignore", "lab.json", "journal.jsonl"):

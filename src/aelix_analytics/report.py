@@ -265,7 +265,7 @@ class Site:
         elif chart.get("kind") == "plotly":
             data_html = '<span class="muted">plotly 그림 JSON에 포함</span>'
         else:
-            data_html = '<span class="muted">기록 안 됨 — analytics.chart(..., data=df)</span>'
+            data_html = '<span class="muted">기록 안 됨 — analytics.visualize(..., data=df)</span>'
         version_links = ""
         if full and len(versions) > 1:
             version_links = ('<div class="versions">이전 버전: ' + " · ".join(
@@ -548,7 +548,7 @@ def index_page(site: Site) -> str:
     <div class="panel" id="overview-open"><h2>열린 질문 · 할 일</h2>{item_list(open_items, '열린 질문이 없습니다.')}</div>
   </div>
   <h2 class="section-title">최근 차트</h2>
-  <div class="gallery">{''.join(site.chart_card(c, 0) for c in current[:4]) or '<div class="empty">아직 차트가 없습니다. lab_run으로 스크립트를 실행하면 여기에 나타납니다.</div>'}</div>
+  <div class="gallery">{''.join(site.chart_card(c, 0) for c in current[:4]) or '<div class="empty">아직 차트가 없습니다. analytics_run으로 스크립트를 실행하면 여기에 나타납니다.</div>'}</div>
   <h2 class="section-title">최근 기록</h2>
   {site.events_html(site.events[-8:][::-1], 0)}
 </section>"""
@@ -585,8 +585,8 @@ def index_page(site: Site) -> str:
     data = f"""
 <section id="data" class="tab">
   <div class="toolbar"><h2>데이터</h2></div>
-  <p class="muted">data/raw는 가져온 원본(불변), data/derived는 run이 만든 Parquet입니다. 이름은 lab_query·analytics.sql에서 쓰는 view 이름입니다.</p>
-  {('<div class="table-wrap"><table class="list"><thead><tr><th>view</th><th>종류</th><th>행</th><th>열</th><th>크기</th><th>경로</th><th>출처 / 생성 run</th><th>사용 run</th><th>sha256</th></tr></thead><tbody>' + ''.join(data_rows) + '</tbody></table></div>') if data_rows else '<div class="empty">아직 데이터셋이 없습니다. lab_import로 가져오세요.</div>'}
+  <p class="muted">data/raw는 가져온 원본(불변), data/derived는 run이 만든 Parquet입니다. 이름은 analytics_query·analytics.sql에서 쓰는 view 이름입니다.</p>
+  {('<div class="table-wrap"><table class="list"><thead><tr><th>view</th><th>종류</th><th>행</th><th>열</th><th>크기</th><th>경로</th><th>출처 / 생성 run</th><th>사용 run</th><th>sha256</th></tr></thead><tbody>' + ''.join(data_rows) + '</tbody></table></div>') if data_rows else '<div class="empty">아직 데이터셋이 없습니다. analytics_import로 가져오세요.</div>'}
 </section>"""
 
     run_rows = []
@@ -664,7 +664,7 @@ def evaluation_section(site: Site) -> str:
         row("data/ 밖에 쓴 파일", len(outside), ", ".join(esc(o["path"]) for _, o in outside[:4])),
         row("입력 변경으로 stale인 차트", len(stale), ", ".join(esc(c["key"]) for c in stale[:4])),
         row("재실행 검증", len(reruns), " · ".join(f"{esc(k)} {v}" for k, v in verdicts.items())),
-        row("lab_query 조회", len(site.queries),
+        row("analytics_query 조회", len(site.queries),
             f"오류 {sum(1 for q in site.queries if q.get('error'))}"),
     ])
     by_tool: dict[str, list[dict]] = defaultdict(list)
@@ -681,7 +681,7 @@ def evaluation_section(site: Site) -> str:
         f"{''.join(badge('warning', '⚑', f) for f in t['flags'])} <span class='muted'>{esc(t.get('summary'))}</span></li>"
         for t in flagged[::-1][:30])
     gap_html = site.events_html(gaps[::-1], 0) if gaps else \
-        '<div class="empty">아직 gap 기록이 없습니다. 사용하다 막히거나 우회가 필요했던 지점을 /lab gap 또는 lab_note(kind="gap")로 남기세요.</div>'
+        '<div class="empty">아직 gap 기록이 없습니다. 사용하다 막히거나 우회가 필요했던 지점을 /analytics record gap 또는 analytics_record(kind="gap")로 남기세요.</div>'
     telemetry_html = (f'<div class="table-wrap"><table class="list"><thead><tr><th>도구</th><th>호출</th>'
                       f'<th>오류</th><th>평균 ms</th></tr></thead><tbody>{tool_rows}</tbody></table></div>'
                       if tool_rows else '<div class="empty">aelix 확장이 기록한 도구 호출이 없습니다.</div>')
@@ -871,8 +871,8 @@ def run_page(site: Site, run: dict) -> str:
 <section id="env"><h2>환경</h2><div class="table-wrap"><table class="kv">{env_rows}</table></div></section>
 <section id="journal"><h2>관련 기록</h2>{site.events_html(related, 1)}</section>
 <section id="reproduce"><h2>재현</h2><p>같은 코드 스냅샷을 다시 실행하고 차트 데이터·출력을 비교합니다.</p>
-<pre class="cmd">aelix: lab_run(title="재실행 검증", rerun_of="{esc(rid)}")
-CLI:   lab run --rerun-of {esc(rid)}</pre></section>"""
+<pre class="cmd">aelix: analytics_run(title="재실행 검증", rerun_of="{esc(rid)}")
+CLI:   analytics run --rerun-of {esc(rid)}</pre></section>"""
     crumb = f' <span>/</span> <a href="../index.html#runs">실행</a> <span>/</span> {esc(rid)}'
     return site.page(1, run.get("title") or rid, crumb, body, "run")
 
@@ -928,7 +928,7 @@ def dataset_page(site: Site, ds: dict, view: str) -> str:
 <section><h2>스키마와 통계</h2>{site.table(['열', '타입', 'null', 'min', 'max', 'mean', 'distinct≈'], schema_rows, klass='list')}</section>
 <section><h2>미리보기</h2>{site.table(preview.get('columns') or [], preview.get('rows') or [])}</section>
 <section><h2>계보</h2>{''.join(lineage)}</section>
-<section><h2>조회</h2><pre class="cmd">lab_query(sql="SELECT * FROM {esc(view)} LIMIT 20")
+<section><h2>조회</h2><pre class="cmd">analytics_query(sql="SELECT * FROM {esc(view)} LIMIT 20")
 analytics.read("{esc(view)}")   ·   analytics.sql("SELECT count(*) FROM {esc(view)}").pl()</pre></section>"""
     crumb = f' <span>/</span> <a href="../index.html#data">데이터</a> <span>/</span> {esc(view)}'
     return site.page(1, view, crumb, body, "dataset")

@@ -155,7 +155,7 @@ def import_file(project: core.Project, source: str, *, name: str | None = None,
     if fmt is None:
         raise core.LabError("import_format", f"cannot import {src.suffix or 'this file type'}",
                             hint="supported: .parquet .csv .tsv .txt .json .ndjson .jsonl; convert "
-                                 "other formats inside a lab_run script and analytics.save the result")
+                                 "other formats inside an analytics_run script and analytics.save the result")
     name = name or re.sub(r"[^a-z0-9_]+", "_", src.stem.lower()).strip("_") or "dataset"
     if name[0].isdigit():
         name = f"d_{name}"
@@ -169,11 +169,11 @@ def import_file(project: core.Project, source: str, *, name: str | None = None,
     taken = core.dataset_name_taken(project, name)
     if taken and not dest.exists():
         raise core.LabError("dataset_name_taken", f"dataset name {name!r} is already used by {taken}",
-                            hint="choose another name; analytics.read and lab_query resolve datasets by name")
+                            hint="choose another name; analytics.read and analytics_query resolve datasets by name")
     if dest.exists():
         raise core.LabError("dataset_exists", f"data/raw/{name}.parquet already exists",
                             hint=f"imported data is immutable: import under a new name such as "
-                                 f"{name}_v2 and record why with lab_note")
+                                 f"{name}_v2 and record why with analytics_record")
     project.raw.mkdir(parents=True, exist_ok=True)
     tmp = project.raw / f".{name}.{os.getpid()}.tmp.parquet"
     started = time.perf_counter()
@@ -254,10 +254,10 @@ def import_warnings(name: str, info: dict, retyped: list[str]) -> list[str]:
     if info["rows"] == 1 and len(info["columns"]) <= 2 and nested:
         warnings.append(f"the source is one JSON object, so {name} is {info['rows']} row × "
                         f"{len(info['columns'])} nested column(s) and is not queryable as a table: "
-                        f"unnest it in a lab_run script (analytics.sql(\"SELECT unnest(...) FROM "
+                        f"unnest it in an analytics_run script (analytics.sql(\"SELECT unnest(...) FROM "
                         f"{name}\")) and analytics.save the flat table")
     elif nested:
-        warnings.append(f"nested column(s) {', '.join(nested[:6])}: flatten them in a lab_run "
+        warnings.append(f"nested column(s) {', '.join(nested[:6])}: flatten them in an analytics_run "
                         "script before grouping or joining on their fields")
     return warnings
 
@@ -289,7 +289,7 @@ def query(project: core.Project, sql: str, limit: int = 50) -> dict:
     if kind != duckdb.StatementType.SELECT:
         name = getattr(statements[0].type, "name", "this")
         raise core.LabError("query_read_only", f"{name} statements are not allowed here",
-                            hint="lab_query is read-only exploration; write data with lab_run")
+                            hint="analytics_query is read-only exploration; write data with analytics_run")
     con = duckdb.connect()
     views = register_views(con, project)
     # Only the project's data directory is reachable, and the query cannot change that.

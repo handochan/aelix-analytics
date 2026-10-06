@@ -1,0 +1,103 @@
+#!/bin/sh
+# analytics — human CLI for Aelix Analytics projects (the same kit the aelix extension drives).
+#
+#   analytics init DIR [--title T] [--goal G]   create a project and its uv environment
+#   analytics demo DIR                          new project with synthetic data and example runs
+#   analytics status | context                  overview | the context block agents receive
+#   analytics run SCRIPT --title T [--input P] [--timeout S]
+#   analytics run --rerun-of RUN_ID --title T   re-execute a run's code snapshot and compare
+#   analytics import FILE [--name N] [--description D]
+#   analytics query "SQL" [--limit N]
+#   analytics record KIND "TEXT" [--ref R] [--resolves eN]
+#   analytics render | open                     rebuild | open report/index.html
+#
+# Commands other than init/demo use the project in AELIX_ANALYTICS_PROJECT, else the nearest lab.json
+# at or above the current directory.
+# Output ends with one JSON line (status and context print text); a run that got past its setup
+# puts an empty line before it. Nothing here is a sandbox.
+set -eu
+
+self=$0
+while [ -L "$self" ]; do
+  link=$(readlink "$self")
+  case $link in /*) self=$link ;; *) self=$(dirname "$self")/$link ;; esac
+done
+PACK=$(CDPATH='' cd -- "$(dirname -- "$self")/.." && pwd -P)
+UV=${AELIX_ANALYTICS_UV:-uv}
+unset VIRTUAL_ENV
+export PYTHONPATH="$PACK/src" MPLBACKEND=Agg PYTHONDONTWRITEBYTECODE=1 AELIX_ANALYTICS_ACTOR="${AELIX_ANALYTICS_ACTOR:-human}"
+
+usage() { awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "$self"; }
+
+# The environment variables this command read under the kit's old names (before kit 0.3.0): an error
+# that names the new one, not an alias. The same three, order and words as the installed command's
+# OLD_ENV (src/aelix_analytics/cli.py); the kit refuses the others it read.
+refuse_renamed() {
+  for pair in LAB_PROJECT=AELIX_ANALYTICS_PROJECT LAB_ACTOR=AELIX_ANALYTICS_ACTOR AELIX_LAB_UV=AELIX_ANALYTICS_UV; do
+    old=${pair%%=*} new=${pair#*=}
+    eval "value=\${$old:-}"
+    if [ -n "$value" ]; then
+      note=
+      [ "$new" = AELIX_ANALYTICS_PROJECT ] && note=" (the analytics command and the aelix extension both read AELIX_ANALYTICS_PROJECT, ahead of the working directory)"
+      echo "analytics: $old was renamed $new in kit 0.3.0$note; set $new instead and unset $old" >&2
+      exit 2
+    fi
+  done
+}
+
+find_project() {
+  if [ -n "${AELIX_ANALYTICS_PROJECT:-}" ]; then printf '%s\n' "$AELIX_ANALYTICS_PROJECT"; return 0; fi
+  dir=$(pwd -P)
+  while :; do
+    if [ -f "$dir/lab.json" ]; then printf '%s\n' "$dir"; return 0; fi
+    [ "$dir" = / ] && break
+    dir=$(dirname "$dir")
+  done
+  echo "analytics: no lab.json in $(pwd -P) or its parents (cd into a project or set AELIX_ANALYTICS_PROJECT)" >&2
+  return 1
+}
+
+kit() {  # kit PROJECT ARGS...
+  proj=$1; shift
+  "$UV" run --project "$proj" --quiet python -m aelix_analytics --project "$proj" "$@"
+}
+
+cmd=${1:-status}
+[ $# -gt 0 ] && shift
+
+case $cmd in
+  -h|--help|help) usage ;;
+  init|demo)
+    [ $# -ge 1 ] || { echo "usage: analytics $cmd DIR" >&2; exit 2; }
+    refuse_renamed
+    dir=$1; shift
+    "$UV" run --no-project --python 3.12 --quiet python -m aelix_analytics init "$dir" "$@"
+    proj=$(CDPATH='' cd -- "$dir" && pwd -P)
+    echo "analytics: syncing the project environment (first time can take a minute) ..." >&2
+    "$UV" sync --project "$proj" --quiet || "$UV" sync --project "$proj" --quiet --offline
+    if [ "$cmd" = demo ]; then
+      kit "$proj" demo
+    else
+      kit "$proj" render >/dev/null
+    fi
+    echo "analytics: report at $proj/report/index.html (analytics open, from inside the project)" >&2
+    ;;
+  status|context)
+    refuse_renamed
+    proj=$(find_project)
+    kit "$proj" --text "$cmd"
+    ;;
+  open)
+    refuse_renamed
+    proj=$(find_project)
+    [ -f "$proj/report/index.html" ] || kit "$proj" render >/dev/null
+    if command -v open >/dev/null 2>&1; then open "$proj/report/index.html"
+    else xdg-open "$proj/report/index.html"; fi
+    ;;
+  run|import|query|record|render)
+    refuse_renamed
+    proj=$(find_project)
+    kit "$proj" "$cmd" "$@"
+    ;;
+  *) usage >&2; exit 2 ;;
+esac

@@ -16,11 +16,11 @@ surfaces (T) are always measured.
 Surfaces: this checkout's extension is loaded the way `aelix -e` loads it and asked for every text a
 model gets from it: the context block its hook appends to the system prompt (S1), the tool lines and
 guidelines aelix renders from it (S2), its tool definitions as aelix's openai-completions adapter
-converts them (S3), and the replies of its tools, its /lab note command and its errors (S4-S10).
-The kit command behind lab_run, lab_query and lab_import is not started: `run_kit` returns a result
+converts them (S3), and the replies of its tools, its /analytics record command and its errors (S4-S10).
+The kit command behind analytics_run, analytics_query and analytics_import is not started: `run_kit` returns a result
 made with the kit's own functions (runner._tail for the log tails, data.cell for query cells,
 report.build for the run page — a reduced build, without the analysis libraries).
-AELIX_LAB_TRUST_FILE and AELIX_LAB_UV point into the temporary directory, so no trust list or uv
+AELIX_ANALYTICS_TRUST_FILE and AELIX_ANALYTICS_UV point into the temporary directory, so no trust list or uv
 outside it is touched.
 
 Sizes are exact: characters, UTF-8 bytes, lines and sha256 of the final string, and the same after
@@ -77,7 +77,7 @@ from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[1]
 KIT = ROOT / "src"
-EXT = ROOT / "extension" / "aelix_lab.py"
+EXT = ROOT / "extension" / "aelix_analytics.py"
 
 SCHEMA = "aelix-analytics.usage-report/1"
 # The fixtures' own version: a change to what they contain changes this.
@@ -88,9 +88,9 @@ CLOCK_START = datetime(2026, 9, 1, 9, 0, tzinfo=UTC)
 CLOCK_DAY = "2026-09-01"
 
 # The measured extension's names by role: the one place to change when they are renamed (#9).
-TOOL_NAMES = {"status": "lab_status", "query": "lab_query", "import": "lab_import",
-              "run": "lab_run", "note": "lab_note", "init": "lab_init"}
-COMMAND_NAME = "lab"
+TOOL_NAMES = {"status": "analytics_status", "query": "analytics_query", "import": "analytics_import",
+              "run": "analytics_run", "note": "analytics_record", "init": "analytics_init"}
+COMMAND_NAME = "analytics"
 
 # Counters this report can count tokens with, by id. A file is used only when it has this sha256.
 COUNTERS = {
@@ -117,7 +117,7 @@ TARGETS = [
     {"id": "explicit_detail_page", "surface": "follow-up read",
      "tokens": {"general": 2048, "reduced": 1536}},
     {"id": "general_query", "surface": "S4", "utf8_bytes": 3072,
-     "note": "provisional: lab_status stands for the general query until the search and relation "
+     "note": "provisional: analytics_status stands for the general query until the search and relation "
              "surfaces exist (#15)"},
     {"id": "search_or_relation_page", "surface": None, "status": "not_applicable",
      "tokens": {"general": 1024, "reduced": 768},
@@ -330,8 +330,12 @@ def token_sum(values: list[dict]) -> dict:
 
 # --- isolation and the clock -------------------------------------------------------------------
 
-ISOLATED_KEYS = ("AELIX_LAB_TRUST_FILE", "AELIX_LAB_UV", "AELIX_LAB_PROJECT", "AELIX_LAB_KIT",
-                 "LAB_PROJECT", "LAB_ACTOR", "LAB_SESSION")
+# The variables the measured code reads, and their names before kit 0.3.0: an old one left set in the
+# shell would make the extension refuse to load (core.RENAMED_ENV), so it is unset while measuring.
+ISOLATED_KEYS = ("AELIX_ANALYTICS_TRUST_FILE", "AELIX_ANALYTICS_UV", "AELIX_ANALYTICS_PROJECT",
+                 "AELIX_ANALYTICS_RUNTIME_PATH", "AELIX_ANALYTICS_ACTOR", "AELIX_ANALYTICS_SESSION",
+                 "AELIX_ANALYTICS_STYLE", "AELIX_LAB_TRUST_FILE", "AELIX_LAB_UV", "AELIX_LAB_PROJECT",
+                 "AELIX_LAB_KIT", "LAB_PROJECT", "LAB_ACTOR", "LAB_SESSION", "LAB_STYLE")
 
 
 @contextlib.contextmanager
@@ -343,8 +347,8 @@ def isolated_environment(scratch: Path):
     try:
         for key in ISOLATED_KEYS:
             os.environ.pop(key, None)
-        os.environ["AELIX_LAB_TRUST_FILE"] = str(scratch / "trust" / "lab-projects.json")
-        os.environ["AELIX_LAB_UV"] = str(scratch / "no-uv" / "uv")
+        os.environ["AELIX_ANALYTICS_TRUST_FILE"] = str(scratch / "trust" / "lab-projects.json")
+        os.environ["AELIX_ANALYTICS_UV"] = str(scratch / "no-uv" / "uv")
         yield
     finally:
         os.chdir(cwd)
@@ -382,8 +386,8 @@ def fixed_clock(*modules):
 # --- the host: aelix 0.1.0b2 as the extension meets it ------------------------------------------
 
 def load_extension():
-    """This checkout's extension/aelix_lab.py, loaded as a file the way `aelix -e` loads it."""
-    spec = importlib.util.spec_from_file_location(f"aelix_lab_usage_{uuid.uuid4().hex[:8]}", EXT)
+    """This checkout's extension/aelix_analytics.py, loaded as a file the way `aelix -e` loads it."""
+    spec = importlib.util.spec_from_file_location(f"aelix_analytics_usage_{uuid.uuid4().hex[:8]}", EXT)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -429,7 +433,7 @@ READ_LONG_LINE = re.compile(r"^\[Line \d+ is [^,]+, exceeds \S+ limit\. Use bash
 
 
 class Host:
-    """The extension in aelix 0.1.0b2: its hook, tools and /lab command, aelix's own read tool for
+    """The extension in aelix 0.1.0b2: its hook, tools and /analytics command, aelix's own read tool for
     following pointers, and aelix's prompt and tool conversion for S2 and S3."""
 
     def __init__(self) -> None:
@@ -481,9 +485,9 @@ class Host:
         self.module.STATE["project"] = None
         self.cwd = root or ROOT
         if root is None:
-            os.environ.pop("AELIX_LAB_PROJECT", None)
+            os.environ.pop("AELIX_ANALYTICS_PROJECT", None)
         else:
-            os.environ["AELIX_LAB_PROJECT"] = str(root)
+            os.environ["AELIX_ANALYTICS_PROJECT"] = str(root)
 
     def _ctx(self, images: bool):
         self._n += 1
@@ -507,7 +511,7 @@ class Host:
                      clipped=any(self.clips))
 
     def command(self, text: str) -> str:
-        return asyncio.run(self.module.lab_command(text))
+        return asyncio.run(self.module.analytics_command(text))
 
     def read(self, path, offset: int | None = None, limit: int | None = None) -> tuple[str, bool]:
         reader = self._create_read_tool(str(self.cwd))
@@ -635,12 +639,12 @@ def _specs() -> list[Spec]:
                          FactSpec("long-finding-2500", "S1", "journal_text")), ("S1", "S4")))
     for lang in ("en", "ko"):
         out.append(Spec(f"N-{lang}", "N", lang, True,
-                        "lab_note and /lab note with 4,610 characters (a fact at the end)",
+                        "analytics_record and /analytics record with 4,610 characters (a fact at the end)",
                         (FactSpec("note-tail", "S8", "note_text", False),), ("S8",)))
     for lang in ("en", "ko"):
         out.append(Spec(f"Q-{lang}", "Q", lang, True,
-                        "a lab_query result of 500 rows x 6 columns with long cells", (), ("S6",)))
-    out.append(Spec("I-en", "I", "en", True, "a lab_import result of 300 columns",
+                        "an analytics_query result of 500 rows x 6 columns with long cells", (), ("S6",)))
+    out.append(Spec("I-en", "I", "en", True, "an analytics_import result of 300 columns",
                     (FactSpec("column-250", "S7", "columns"),), ("S7",)))
     out.append(Spec("E-en", "E", "en", True,
                     "errors: no_project, run_args, kit_failed (a long stderr), query_failed (503 "
@@ -657,7 +661,7 @@ def _specs() -> list[Spec]:
     out.append(Spec("SC-M", "SC", "-", False,
                     "scale M: 10,000 events, 20 datasets, 300 runs; report only"))
     out.append(Spec("B", "B", "ko", False,
-                    "a project as lab init leaves it (the template), and the lab_init reply; "
+                    "a project as analytics init leaves it (the template), and the analytics_init reply; "
                     "report only"))
     return out
 
@@ -946,7 +950,7 @@ def run_items(record: dict | None, scope: str) -> list:
     return list((record or {}).get(scope) or [])
 
 
-# What identifies an item of a run in the lab_run reply (listed_in: on a page or record).
+# What identifies an item of a run in the analytics_run reply (listed_in: on a page or record).
 REPLY_ID = {
     "inputs": lambda item: f" sha256 {str(item.get('sha256'))[:12]} via ",
     "outputs": lambda item: f"  {item['path']} ",
@@ -1003,7 +1007,7 @@ CLIP_END = re.compile(r"\n… \(truncated: [\d,]+ more characters; (?P<where>[^\
 CLIP_READ = re.compile(r"\bread (?P<path>.+)$")
 STATUS_CUT = re.compile(r"^… \(truncated at [\d,]+ characters — not shown: .*?; the journal has an "
                         r"entry for every run, import and note: read (?P<path>.+?)"
-                        r"(?:; call lab_query with .*)?\)$")
+                        r"(?:; call analytics_query with .*)?\)$")
 STATUS_OMITTED = "CONTEXT.md sections not in the system prompt (read them from the file when " \
                  "they matter): "
 ITEM_CUT = re.compile(r"^(?:- |  )e\d+ .*…(?: \(runs: [^)]*\))?$")
@@ -1332,23 +1336,23 @@ def located(text: str) -> bool:
     return bool(LOCATION.search(text))
 
 
-# lab_status names the journal once, on a `journal: <path>` line, and its lists refer to it.
+# analytics_status names the journal once, on a `journal: <path>` line, and its lists refer to it.
 JOURNAL_LINE = re.compile(r"^journal: (?P<path>.+)$", re.M)
 SAYS_JOURNAL = re.compile(r"\bin the journal\b|\bthe journal entry\b")
 
 
 def status_journal(text: str) -> Path | None:
-    """The journal a lab_status reply names on its `journal:` line, when that is a file."""
+    """The journal an analytics_status reply names on its `journal:` line, when that is a file."""
     m = JOURNAL_LINE.search(text)
     return Path(m.group("path")) if m and Path(m.group("path")).is_file() else None
 
 
-# A line of a lab_status list that says what the list leaves out, not an entry of it.
+# A line of an analytics_status list that says what the list leaves out, not an entry of it.
 STATUS_OMISSION = "  … "
 
 
 def status_located(line: str, journal: Path | None) -> bool:
-    """Whether an omission line of a lab_status list names where the rest is: a path to read, a
+    """Whether an omission line of an analytics_status list names where the rest is: a path to read, a
     tool to call, or the journal, when the reply names the journal's file. An entry's own text that
     says so is no omission line, and is not asked."""
     return line.startswith(STATUS_OMISSION) and (
@@ -1502,7 +1506,7 @@ def status_invariants(host: Host, text: str, project) -> list[dict]:
 
 
 def status_cut(host: Host, text: str, project) -> dict:
-    """Whether a lab_status reply carries the whole overview, judged against the overview itself:
+    """Whether an analytics_status reply carries the whole overview, judged against the overview itself:
     the reply's body (without its first line and the note the extension appends) against the
     kit's status_text of the same status with no length limit. When it does not: how many whole
     lines it kept, whether the next line it shows is part of a line (a cut inside a line), and
@@ -1571,7 +1575,7 @@ def run_invariants(host: Host, text: str, truth: Truth, project_root: Path) -> l
 
 
 def cell_shown(value, width: int) -> str:
-    """A value as a lab_query table shows it in a cell `width` characters wide: its first
+    """A value as an analytics_query table shows it in a cell `width` characters wide: its first
     width - 1 characters and "…" when it is longer."""
     whole = "null" if value is None else str(value)
     return whole if len(whole) <= width else whole[:width - 1] + "…"
@@ -1590,7 +1594,7 @@ def table_rows(render_table, columns: list, rows: list, width: int) -> list[str]
 
 
 def rows_shown(text: str, rows: list[str]) -> int:
-    """How many of the rendered `rows` a lab_query reply shows, each whole and in order, right
+    """How many of the rendered `rows` an analytics_query reply shows, each whole and in order, right
     after its first line and the table's three head lines."""
     parts = text.split("\n", 4)
     body = parts[4] if len(parts) == 5 else ""
@@ -1603,16 +1607,16 @@ def rows_shown(text: str, rows: list[str]) -> int:
     return n
 
 
-# How a lab_query reply says to read a cut value whole: parts of N characters, at 1, N + 1, ….
+# How an analytics_query reply says to read a cut value whole: parts of N characters, at 1, N + 1, ….
 CELL_PARTS = re.compile(r"\bsubstr\(<column>, <start>, (?P<n>\d+)\) for <start> = 1, "
                         r"(?P<next>\d+), ")
 
 
 def query_invariants(text: str, result: dict, render_table, width: int) -> list[dict]:
-    """A lab_query reply against the kit's result it was made from: a row counts as shown when the
+    """An analytics_query reply against the kit's result it was made from: a row counts as shown when the
     reply has it, every line of it as the extension's render_table renders that row, in order."""
     lines = text.split("\n")
-    head = re.match(r"^lab_query: ok — ([\d,]+) row\(s\)", lines[0])
+    head = re.match(r"^analytics_query: ok — ([\d,]+) row\(s\)", lines[0])
     rows = table_rows(render_table, result["columns"], result["rows"], width)
     shown = rows_shown(text, rows)
     clipped = shown < len(result["rows"])
@@ -1799,7 +1803,7 @@ def dataset_meta(project, name: str, *, rows: int, columns: list[dict], descript
 
 def write_dataset(ctx: Ctx, project, name: str, *, rows: int, columns: list[dict],
                   description: str, source: str, event: bool = True) -> dict:
-    """A dataset as `lab import` leaves it: data/raw/<name>.parquet (a marker file here: nothing in
+    """A dataset as `analytics import` leaves it: data/raw/<name>.parquet (a marker file here: nothing in
     the aelix process reads its content) and the meta.json next to it."""
     core = ctx.host.core
     project.raw.mkdir(parents=True, exist_ok=True)
@@ -1826,7 +1830,7 @@ def write_run(ctx: Ctx, project, run_id: str, *, title: str, script: str, code: 
     snapshot = run_dir / "code" / script
     snapshot.parent.mkdir(parents=True, exist_ok=True)
     # Bytes, not text mode: a Windows newline translation would make the script differ from the
-    # sha256 the record keeps, and lab_status would call every chart's script edited.
+    # sha256 the record keeps, and analytics_status would call every chart's script edited.
     snapshot.write_bytes(code.encode("utf-8"))
     (project.root / script).parent.mkdir(parents=True, exist_ok=True)
     (project.root / script).write_bytes(snapshot.read_bytes())
@@ -1996,7 +2000,7 @@ def host_prompt(ctx: Ctx, root: Path) -> str:
 
 
 # Length-based cuts are judged against what was cut, never by the words a cut adds: the block
-# against CONTEXT.md, lab_status against the kit's overview with no length limit (status_cut), and
+# against CONTEXT.md, analytics_status against the kit's overview with no length limit (status_cut), and
 # a tool reply by the extension's clip itself (Reply.clipped).
 
 def preamble_cut(core, project, block: str) -> bool:
@@ -2010,7 +2014,7 @@ def preamble_cut(core, project, block: str) -> bool:
 
 
 def measure_context(ctx: Ctx, spec: Spec, built) -> dict:
-    """S1 (hook output minus the base prompt it was given) and S4 (lab_status)."""
+    """S1 (hook output minus the base prompt it was given) and S4 (analytics_status)."""
     host, root, base = ctx.host, built.project.root, built.base
     host.use(root)
     prompt = host_prompt(ctx, root)
@@ -2073,7 +2077,7 @@ def omission_figures(ctx: Ctx, spec: Spec, texts: dict, built) -> None:
     # The kit's own block with no budget and no item limit, as the hook would append it.
     full_block = "\n\n" + core.context_block(built.project, max_context_chars=10 ** 9,
                                               max_items=10 ** 9)
-    # lab_status serialized as its reply is (the reply's first line, the overview, the note the
+    # analytics_status serialized as its reply is (the reply's first line, the overview, the note the
     # extension appends), with no item limit and no length limit.
     every = core.status(built.project, limit=10 ** 6)
     header = texts["S4"].split("\n", 1)[0]
@@ -2234,7 +2238,7 @@ def measure_note(ctx: Ctx, spec: Spec) -> None:
             reply = host.tool("note", {"kind": "finding", "text": text})
             reply_text, is_error = reply.text, reply.is_error
         else:
-            reply_text, is_error = host.command(f"note finding {text}"), False
+            reply_text, is_error = host.command(f"record finding {text}"), False
         event = core.read_events(project)[-1]
         ctx.text(spec.id, "S8", reply_text, variant=variant, root=project.root,
                  base=project.root.parent, is_error=is_error, given_chars=len(text),
@@ -2254,7 +2258,7 @@ QUERY_COLUMNS = [("n", "BIGINT"), ("region", "VARCHAR"), ("note", "VARCHAR"),
 
 
 def query_result(ctx: Ctx, lang: str) -> dict:
-    """A lab_query result as the kit prints it: 500 rows, cells through data.cell, a value with a
+    """An analytics_query result as the kit prints it: 500 rows, cells through data.cell, a value with a
     line break in every fifth."""
     from datetime import date
     from decimal import Decimal
@@ -2855,7 +2859,7 @@ def conventions() -> dict:
                        "what was cut (never by the words a cut adds): status_9000 (the reply's "
                        "overview differs from the kit's status_text with no length limit), "
                        "reply_14000 (the extension's clip returned less than it was given, or "
-                       "a lab_query reply shows fewer rows than the result has), "
+                       "an analytics_query reply shows fewer rows than the result has), "
                        "preamble_4000 (the block lacks part of CONTEXT.md's text above its first "
                        "heading)",
         "retrieval": "R0 in the first text; R1 through one pointer of it, followed with aelix's "
@@ -2918,9 +2922,9 @@ def build_report(ctx: Ctx, static: dict, counters: Counters, argv: list[str], sp
         "caveats": [F3_CAVEAT,
                     "The run page is the kit's report.build run without the analysis libraries "
                     "(a reduced build): no highlighted code and no data previews.",
-                    "lab_run, lab_query and lab_import replies are rendered by the extension from "
+                    "analytics_run, analytics_query and analytics_import replies are rendered by the extension from "
                     "kit results the harness prepares with the kit's own functions; no kit "
-                    "command runs. lab_init's environment sync is reported as done."],
+                    "command runs. analytics_init's environment sync is reported as done."],
         "checks": checks,
         "failures": ctx.failures,
         "not_run": NOT_RUN + ctx.not_run,
@@ -3125,7 +3129,7 @@ def render_markdown(report: dict) -> str:
                             s["journal_read_host_calls"]] for s in report["scale"]])
     lines += ["", "## Omissions", ""]
     lines += md_table(["fixture", "sections listed in the block", "block pointer list bytes",
-                       "lab_status cut", "omitted-names line bytes"],
+                       "analytics_status cut", "omitted-names line bytes"],
                       [[o["fixture"], o["block_sections_listed"],
                         f"{o['block_pointer_list']['utf8_bytes']:,}",
                         "yes" if o["status_cut"] else "no",

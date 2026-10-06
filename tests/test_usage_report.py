@@ -44,8 +44,8 @@ WITHOUT_A_TOKENIZER = {"no_tokenizer_given", "model_not_pinned", "vision_tokens"
 
 
 def isolate(monkeypatch, directory: Path) -> None:
-    monkeypatch.setenv("AELIX_LAB_TRUST_FILE", str(directory / "trust" / "lab-projects.json"))
-    monkeypatch.setenv("AELIX_LAB_UV", str(directory / "no-uv" / "uv"))
+    monkeypatch.setenv("AELIX_ANALYTICS_TRUST_FILE", str(directory / "trust" / "lab-projects.json"))
+    monkeypatch.setenv("AELIX_ANALYTICS_UV", str(directory / "no-uv" / "uv"))
 
 
 @pytest.fixture(scope="module")
@@ -127,13 +127,13 @@ def test_sizes_are_the_exact_strings_the_host_receives(measured, monkeypatch, tm
         assert usage.size_of(text) == entry["size"], entry["text_file"]
         assert entry["size"]["lines"] == (text.count("\n") + 1 if text else 0)
     assert measured.report["checks"]["P1_sizes_recomputed_from_saved_texts"]
-    # S1 is what the hook appends to the prompt it is given, and S4 what lab_status returns: asked
+    # S1 is what the hook appends to the prompt it is given, and S4 what analytics_status returns: asked
     # again here of an extension loaded on its own, on the projects the run kept.
     isolate(monkeypatch, tmp_path)
     extension = usage.load_extension()
-    status = {t.name: t for t in extension.TOOLS}["lab_status"]
+    status = {t.name: t for t in extension.TOOLS}["analytics_status"]
     for fixture in ("F1-ko", "F2-en", "F3-en", "J-ko"):
-        monkeypatch.setenv("AELIX_LAB_PROJECT",
+        monkeypatch.setenv("AELIX_ANALYTICS_PROJECT",
                            str(measured.output / "fixtures" / fixture / "project"))
         out = asyncio.run(extension.on_before_agent_start(
             BeforeAgentStartHookEvent(prompt="hi", system_prompt="BASE"), SimpleNamespace()))
@@ -182,11 +182,11 @@ def test_tokens_are_counted_only_by_an_identified_tokenizer(measured, monkeypatc
     # A counter that raises on a text fails that text and itself: the report is written, exit 1.
 
     def flaky(text: str) -> int:
-        if text.startswith("lab_status:"):
+        if text.startswith("analytics_status:"):
             raise RuntimeError("cannot encode this text")
         return len(text.split())
 
-    broken = usage.TokenCounter("test-flaky", {"library": "test: raises on lab_status"},
+    broken = usage.TokenCounter("test-flaky", {"library": "test: raises on analytics_status"},
                                 encode=flaky)
     code, failing = usage.run(tmp_path / "flaky", only=["F1-en"], counters=[broken])
     assert code == 1 and failing["failures"] == [], failing["failures"]
@@ -306,7 +306,7 @@ def test_the_checker_tells_retrievable_from_lost(monkeypatch, tmp_path):
         shown = "".join(f"  {i['path']} sha256 {i['sha256'][:12]} via scan\n"
                         for i in record["inputs"][:2])
         note = "  … and 4 more input file(s) — the run page lists them all\n" if more else ""
-        return (f"lab_run: ok — run {record['id']} (1.0 s)\ninputs (6):\n{shown}{note}"
+        return (f"analytics_run: ok — run {record['id']} (1.0 s)\ninputs (6):\n{shown}{note}"
                 f"journal: e1 · report: {target}")
 
     truth = usage.Truth(None, record)
@@ -337,15 +337,15 @@ def test_the_checker_tells_retrievable_from_lost(monkeypatch, tmp_path):
     silent = usage.check_fact(host, item, reply(page("some", []), more=False), truth)
     assert silent["class"] == "silent_omission", silent
     run_id = usage.Fact("run", "S4", "runs", (record["id"],), (tmp_path / "run.json",), True)
-    cut = usage.check_fact(host, run_id, "lab_status: ok\nproject: x\n… (truncated)", truth)
+    cut = usage.check_fact(host, run_id, "analytics_status: ok\nproject: x\n… (truncated)", truth)
     assert cut["class"] == "cut_without_explicit_pointer", cut
     (tmp_path / "meta.json").write_text('{"columns": [{"name": "col_250"}]}', encoding="utf-8")
     column = usage.Fact("column", "S7", "columns", ("col_250",), (tmp_path / "meta.json",), True)
-    derived = usage.check_fact(host, column, "lab_import: ok\ncolumns:\n  col_001: Int64\n"
+    derived = usage.check_fact(host, column, "analytics_import: ok\ncolumns:\n  col_001: Int64\n"
                                              "… (truncated; see the report page)", usage.Truth())
     assert derived["class"] == "generic_pointer", derived
     gone = usage.Fact("gone", "S8", "note_text", ("FACT-GONE",), (tmp_path / "run.json",), False)
-    assert usage.check_fact(host, gone, "lab_note: ok", truth)["class"] == "not_recorded"
+    assert usage.check_fact(host, gone, "analytics_record: ok", truth)["class"] == "not_recorded"
     # The pointer is right, and the host's read tool refuses the line: one line of 60 KB.
     long = tmp_path / "LONG.md"
     long.write_bytes(b"# T\n\n## Long\n" + b"y" * 61_440 + b" FACT-LONG\n\n## After\n- after\n")
@@ -379,7 +379,7 @@ def test_the_checker_judges_the_wording_pr2_gives(monkeypatch, tmp_path):
 
     def run_reply(target: Path, more: int = 4) -> str:
         shown = "".join(f"  {i['path']} sha256 {i['sha256'][:12]} via scan\n" for i in inputs[:2])
-        return (f"lab_run: ok — run {record['id']} (1.0 s)\ninputs (6):\n{shown}  … and {more} "
+        return (f"analytics_run: ok — run {record['id']} (1.0 s)\ninputs (6):\n{shown}  … and {more} "
                 f"more input file(s) — the run's record lists them all: read {target}\n"
                 "journal: e1 · report: /nowhere/x.html")
 
@@ -438,9 +438,9 @@ def test_the_invariants_judge_a_cut_by_what_was_cut(monkeypatch, tmp_path):
     project = core.init_project(tmp_path / "project", title="cut", goal="measure", actor="test")
     for i in range(14):
         core.add_note(project, "finding", f"finding {i:02d}: returns within 2 days", actor="test")
-    # lab_status: the reply's body against the kit's overview with no length limit.
+    # analytics_status: the reply's body against the kit's overview with no length limit.
     full = core.status_text(core.status(project), max_chars=10 ** 9)
-    head = "lab_status: ok (project found via AELIX_LAB_PROJECT)\n"
+    head = "analytics_status: ok (project found via AELIX_ANALYTICS_PROJECT)\n"
     lines = full.split("\n")
     kept = "\n".join(lines[:len(lines) // 2])
     where = f" — read {project.journal}"
@@ -477,10 +477,10 @@ def test_the_invariants_judge_a_cut_by_what_was_cut(monkeypatch, tmp_path):
     assert not key_listed("- … and 2 more")  # no place to read them
     assert key_listed(f"- … and 2 more: read {journal}")
     assert key_listed(f"- latest 12 of 14 — older entries: read {journal}")  # design G3
-    # lab_query: rows against the kit's result rows, as the extension renders each row.
+    # analytics_query: rows against the kit's result rows, as the extension renders each row.
     columns, rows = [{"name": "number", "type": "BIGINT"}], [[1], [2], [3]]  # names as wide
     table = host.module.render_table(columns, rows)
-    first = "lab_query: ok — 3 row(s) in 1 ms; views used: t\n"
+    first = "analytics_query: ok — 3 row(s) in 1 ms; views used: t\n"
 
     def query(text: str, rows=rows, columns=columns) -> dict:
         return {c["id"]: c["holds"] for c in usage.query_invariants(
@@ -495,7 +495,7 @@ def test_the_invariants_judge_a_cut_by_what_was_cut(monkeypatch, tmp_path):
     columns = [{"name": "n", "type": "BIGINT"}, {"name": "note", "type": "VARCHAR"}]
     rows = [[1, "첫째\n둘째"], [2, "마지막 행"]]
     table = host.module.render_table(columns, rows)
-    first = "lab_query: ok — 2 row(s) in 1 ms; views used: t\n"
+    first = "analytics_query: ok — 2 row(s) in 1 ms; views used: t\n"
     assert query(first + table, rows, columns) == {"rows": True, "location": True,
                                                    "types": True, "cells": True}
     lines_only = query(first + "\n".join(table.split("\n")[:5]), rows, columns)
@@ -503,7 +503,7 @@ def test_the_invariants_judge_a_cut_by_what_was_cut(monkeypatch, tmp_path):
     # A cut value: the hint has to read it whole, part by part, each part whole in its cell.
     rows = [[1, "가나다라마바사아자차카타파하" * 10]]
     table = host.module.render_table(columns, rows)
-    first = "lab_query: ok — 1 row(s) in 1 ms; views used: t\n"
+    first = "analytics_query: ok — 1 row(s) in 1 ms; views used: t\n"
     assert query(f"{first}{table}\n{host.module.QUERY_CELLS}", rows, columns)["cells"]
     wide = "read it whole in parts with substr(<column>, <start>, 200) for <start> = 1, 201, …"
     assert not query(f"{first}{table}\n{wide}", rows, columns)["cells"]
@@ -512,7 +512,7 @@ def test_the_invariants_judge_a_cut_by_what_was_cut(monkeypatch, tmp_path):
 
 def test_fixture_files_are_the_bytes_they_record(measured):
     """The harness writes its fixture files as bytes, so no OS changes their line ends: the script
-    a run recorded is the script on disk, and lab_status does not call F3's charts edited (the
+    a run recorded is the script on disk, and analytics_status does not call F3's charts edited (the
     Windows legs are where this can fail)."""
     for fixture in ("F3-en", "F3-ko"):
         assert "script edited since" not in saved_text(measured, fixture, "S4"), fixture
@@ -535,7 +535,7 @@ def test_fixture_files_are_the_bytes_they_record(measured):
 
 def test_everything_injected_is_the_reply_with_nothing_left_out(measured):
     """The comparison control is serialized as the reply is (design 4.3): where the reply leaves
-    nothing out, the two are the same text, and lab_run's lists are not clipped."""
+    nothing out, the two are the same text, and analytics_run's lists are not clipped."""
     same = 0
     for a in measured.report["all_injected"]:
         if "S4_everything" in a:

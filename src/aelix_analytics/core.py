@@ -23,7 +23,7 @@ from pathlib import Path
 
 from . import _platform
 
-KIT_VERSION = "0.2.0"
+KIT_VERSION = "0.3.0"
 MARKER = "lab.json"
 SCHEMA_PROJECT = "lab.project/1"
 SCHEMA_RUN = "lab.run/1"
@@ -80,6 +80,50 @@ class LabError(Exception):
         return {"ok": False, "error": error}
 
 
+# The kit version that renamed the public names — commands, tools, SDK functions and environment
+# variables (Issue #9). Fixed: it names the boundary, not the current version.
+NAMES_RENAMED_IN = "0.3.0"
+
+
+# The environment variables the kit, its SDK, the human command line and the aelix extension read
+# before the public names became analytics (Issue #9, kit 0.3.0), each with the name that replaced it.
+# A reader that finds an old one set (not empty) stops with an error that names the new one before it
+# does anything, also when the new one is set too: there are no aliases, and ignoring one would record
+# into another project (LAB_PROJECT), as the wrong actor (LAB_ACTOR) or into the user's real trust list
+# instead of an isolated one (AELIX_LAB_TRUST_FILE) — ADR-0005 decision 7. The command line and the
+# checkout's bin/analytics, which do not load this module, keep their own three of them.
+RENAMED_ENV = {
+    "LAB_PROJECT": "AELIX_ANALYTICS_PROJECT",
+    "LAB_ACTOR": "AELIX_ANALYTICS_ACTOR",
+    "LAB_SESSION": "AELIX_ANALYTICS_SESSION",
+    "LAB_STYLE": "AELIX_ANALYTICS_STYLE",
+    "AELIX_LAB_PROJECT": "AELIX_ANALYTICS_PROJECT",
+    "AELIX_LAB_TRUST_FILE": "AELIX_ANALYTICS_TRUST_FILE",
+    "AELIX_LAB_KIT": "AELIX_ANALYTICS_RUNTIME_PATH",
+    "AELIX_LAB_UV": "AELIX_ANALYTICS_UV",
+}
+# What one project variable now does for both readers that had a name each.
+PROJECT_NOTE = ("the analytics command and the aelix extension both read AELIX_ANALYTICS_PROJECT, "
+                "ahead of the working directory")
+
+
+def renamed_env_message(old: str, *, remedy: bool = True) -> str:
+    """What an old variable's error says: its new name, and with `remedy` what to do."""
+    new = RENAMED_ENV[old]
+    note = f" ({PROJECT_NOTE})" if new == "AELIX_ANALYTICS_PROJECT" else ""
+    said = f"{old} was renamed {new} in kit {NAMES_RENAMED_IN}{note}"
+    return f"{said}; set {new} instead and unset {old}" if remedy else said
+
+
+def refuse_renamed_env(names) -> None:
+    """Raise env_renamed for the first of `names` (old names, RENAMED_ENV's keys) that is set."""
+    for old in names:
+        if os.environ.get(old):
+            raise LabError("env_renamed", renamed_env_message(old, remedy=False),
+                           hint=f"set {RENAMED_ENV[old]} instead and unset {old}",
+                           details={"renamed": {old: RENAMED_ENV[old]}})
+
+
 def expand_home(path: Path) -> Path:
     """`path` with a leading `~name` expanded where that home exists, and otherwise as written, on
     every platform. POSIX finds no home for a user nobody has (pathlib then refuses to expand it),
@@ -105,7 +149,7 @@ def _resolved(path: Path) -> Path:
 
 
 class Project:
-    """Paths of one lab project, and the platform ports its operations use.
+    """Paths of one analytics project, and the platform ports its operations use.
 
     Construction does not touch the file system. `platform` is the bundle from `_platform`: this
     process's (`PLATFORM`) unless a test passes another implementation, so the same project code
@@ -152,7 +196,7 @@ class Project:
             raise LabError("project_too_new",
                            f"{self.root}/{MARKER} is {data['schema']}, and this kit reads "
                            f"{SCHEMA_PROJECT}",
-                           hint="a newer version of the lab kit made this project; update the kit "
+                           hint="a newer version of the analytics kit made this project; update the kit "
                                 "instead of reading it with this one")
         return data
 
@@ -298,7 +342,8 @@ def run_lock(project: Project):
 # --- trust: which projects an aelix session may activate just by being inside them ---
 
 def trust_file() -> Path:
-    explicit = os.environ.get("AELIX_LAB_TRUST_FILE")
+    refuse_renamed_env(("AELIX_LAB_TRUST_FILE",))
+    explicit = os.environ.get("AELIX_ANALYTICS_TRUST_FILE")
     if explicit:
         return Path(explicit).expanduser()
     agent_dir = os.environ.get("AELIX_CODING_AGENT_DIR")
@@ -481,7 +526,7 @@ def add_note(project: Project, kind: str, text: str, *, refs=None, resolves=None
             target = next((e for e in events if e.get("id") == resolves), None)
             if target is None:
                 raise LabError("unknown_event", f"no journal event {resolves!r}",
-                               hint="lab_status lists open questions and todos with their ids")
+                               hint="analytics_status lists open questions and todos with their ids")
             ref_map["resolves"] = resolves
         return _append_event_locked(project, kind, text, ref_map, actor, session)
 
@@ -845,7 +890,7 @@ def _fmt_int(value) -> str:
     return f"{value:,}" if isinstance(value, int) else "?"
 
 
-# How long lab_status's overview may be (the extension's reply adds its first line), not counting
+# How long analytics_status's overview may be (the extension's reply adds its first line), not counting
 # the lines that only say what a list leaves out and where it is (and the journal's path): they are
 # budgeted apart, a few short lines at most, and never make a list shorter.
 STATUS_CHARS = 9000
@@ -853,10 +898,10 @@ STATUS_CHARS = 9000
 # its own: the CONTEXT.md sections left out of the system prompt, the query views, the datasets,
 # and the changed inputs of a chart.
 STATUS_FLOORS = {"context": 20, "views": 40, "datasets": 20, "stale": 5}
-# How to list every dataset view with lab_query: by name, a page of 50 (its default limit) at a
+# How to list every dataset view with analytics_query: by name, a page of 50 (its default limit) at a
 # time.
 VIEWS_SQL = "SELECT table_name FROM information_schema.tables ORDER BY table_name LIMIT 50 OFFSET 0"
-VIEWS_PAGES = (f"call lab_query with \"{VIEWS_SQL}\" and again with OFFSET 50, 100, … until it "
+VIEWS_PAGES = (f"call analytics_query with \"{VIEWS_SQL}\" and again with OFFSET 50, 100, … until it "
                "returns fewer than 50 rows")
 STATUS_PARTS = {"head": "lines about the project", "datasets": "datasets", "runs": "runs",
                 "charts": "charts", "open": "open questions/todos", "key": "key information",
@@ -864,7 +909,7 @@ STATUS_PARTS = {"head": "lines about the project", "datasets": "datasets", "runs
 
 
 def status_text(st: dict, max_chars: int = STATUS_CHARS) -> str:
-    """The overview lab_status replies with. Each list is whole, or says how many it leaves out and
+    """The overview analytics_status replies with. Each list is whole, or says how many it leaves out and
     where they are.
 
     `max_chars` bounds the overview without the lines that only say what a list leaves out and
@@ -962,7 +1007,7 @@ def _status_lines(st: dict, caps: dict[str, int]) -> list[tuple[str, str, bool]]
         add("head", f"environment: {versions_line(st['versions'])} — use APIs of these versions")
     for schema, count in sorted((st.get("unreadable") or {}).items()):
         add("head", f"{count} record(s) written as {schema} are skipped everywhere, including the "
-                    "report — this kit reads version 1; update the lab kit to read them")
+                    "report — this kit reads version 1; update the analytics kit to read them")
     if p.get("context_truncated"):
         reach = (f"only the first {CONTEXT_PROMPT_CHARS:,} reach the system prompt, which says "
                  "where to read the rest")
@@ -999,7 +1044,7 @@ def _status_lines(st: dict, caps: dict[str, int]) -> list[tuple[str, str, bool]]
     for ds in datasets:
         origin = (f"← run {ds['producer']}" if ds.get("producer")
                   else f"from {ds['source']}" if ds.get("source")
-                  else "NO PRODUCING RUN (written outside lab_run: no code or inputs recorded)")
+                  else "NO PRODUCING RUN (written outside analytics_run: no code or inputs recorded)")
         add("datasets", f"  {ds['kind']:<7} {ds['name']}: {_fmt_int(ds.get('rows'))} rows × "
                         f"{ds.get('columns') or '?'} cols · {ds['path']} · {origin} · used by "
                         f"{len(ds.get('used_by') or [])} run(s)")
@@ -1202,10 +1247,10 @@ def context_block(project: Project, max_context_chars: int = CONTEXT_PROMPT_CHAR
     key = [e for e in events if e.get("kind") in KEY_KINDS and e["id"] not in resolved]
     open_items = [e for e in events if e.get("kind") in OPEN_KINDS and e["id"] not in resolved]
     parts = [
-        "# Active analysis lab project",
+        "# Active analytics project",
         f"root: {project.root} (title: {project.title()})",
         f"report: {project.report / 'index.html'} (rebuilt after runs, imports and notes)",
-        "Call lab_status for datasets, runs, charts and the recent journal.",
+        "Call analytics_status for datasets, runs, charts and the recent journal.",
         "",
         "## CONTEXT.md",
         preamble or "(empty — fill in goal, questions, data sources and definitions)",

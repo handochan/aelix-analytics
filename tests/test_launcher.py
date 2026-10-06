@@ -1,18 +1,17 @@
-"""The `analytics` command line of the distribution (src/aelix_analytics/cli.py) against bin/lab's
+"""The `analytics` command line of the distribution (src/aelix_analytics/cli.py) against bin/analytics's
 contract.
 
 Both run a stand-in for uv that records how it was called, so what reaches the kit — argv,
 environment, working directory — is compared without running the kit. On POSIX every case also runs
-through bin/lab, which is the other implementation of the same contract (ADR-0002 decision 6); its
-text differs only by the command's name. tests/test_packaging.py runs the launcher as the installed
-console script.
+through bin/analytics, which is the other implementation of the same contract (ADR-0002 decision 6); its
+text is the same bytes (before kit 0.3.0 the script was bin/lab and its text differed by that name).
+tests/test_packaging.py runs the launcher as the installed console script.
 """
 
 from __future__ import annotations
 
 import json
 import os
-import re
 import signal
 import subprocess
 import sys
@@ -26,7 +25,7 @@ from aelix_analytics import cli
 
 PACK = Path(__file__).resolve().parents[1]
 KIT = PACK / "src"
-BIN_LAB = PACK / "bin" / "lab"
+BIN = PACK / "bin" / "analytics"
 POSIX = os.name != "nt"
 
 # The stand-in for uv. It appends {argv, cwd, env} to $FAKE_UV_LOG and then does what $FAKE_UV_DO says
@@ -41,7 +40,7 @@ from pathlib import Path
 
 argv = sys.argv[1:]
 log = Path(os.environ["FAKE_UV_LOG"])
-keys = ("PYTHONPATH", "MPLBACKEND", "PYTHONDONTWRITEBYTECODE", "LAB_ACTOR", "VIRTUAL_ENV")
+keys = ("PYTHONPATH", "MPLBACKEND", "PYTHONDONTWRITEBYTECODE", "AELIX_ANALYTICS_ACTOR", "VIRTUAL_ENV")
 with open(log, "a", encoding="utf-8") as fh:
     fh.write(json.dumps({"argv": argv, "argv0": os.path.basename(sys.argv[0]), "cwd": os.getcwd(),
                          "sigint_ignored": signal.getsignal(signal.SIGINT) is signal.SIG_IGN,
@@ -96,13 +95,18 @@ def fake(tmp_path):
     return {"uv": uv, "log": tmp_path / "uv-calls.jsonl", "tmp": tmp_path}
 
 
+# What a caller's environment may hold that a case must not inherit: the variables the command reads,
+# and their names before kit 0.3.0, which it refuses (a developer's shell may still have them).
+INHERITED = ("AELIX_ANALYTICS_PROJECT", "AELIX_ANALYTICS_ACTOR", "AELIX_ANALYTICS_UV", "PYTHONPATH",
+             *cli.OLD_ENV)
+
+
 def environment(fake, do=None, **extra) -> dict:
-    env = {k: v for k, v in os.environ.items()
-           if k not in ("LAB_PROJECT", "LAB_ACTOR", "AELIX_LAB_UV", "PYTHONPATH")}
+    env = {k: v for k, v in os.environ.items() if k not in INHERITED}
     env.update({"FAKE_UV_LOG": str(fake["log"]), "FAKE_UV_DO": json.dumps(do or {}),
                 "VIRTUAL_ENV": str(fake["tmp"] / "some-venv")})
     if POSIX:
-        env["AELIX_LAB_UV"] = str(fake["uv"])
+        env["AELIX_ANALYTICS_UV"] = str(fake["uv"])
     env.update(extra)
     return env
 
@@ -112,10 +116,10 @@ def launcher_argv(*args) -> list[str]:
 
 
 def launch(fake, *args, cwd, do=None, which="launcher", **extra) -> subprocess.CompletedProcess:
-    """Run ARGS through the launcher (`analytics`) or bin/lab, with bytes for stdout and stderr."""
+    """Run ARGS through the launcher (`analytics`) or bin/analytics, with bytes for stdout and stderr."""
     env = environment(fake, do, **extra)
-    if which == "bin/lab":
-        argv = ["sh", str(BIN_LAB), *args]
+    if which == "bin/analytics":
+        argv = ["sh", str(BIN), *args]
     else:
         argv = launcher_argv(*args)
         env["PYTHONPATH"] = str(PACK / "src")
@@ -142,17 +146,12 @@ def project_dir(tmp_path, name="proj") -> Path:
     return root.resolve()
 
 
-WHICH = ["launcher", pytest.param("bin/lab", marks=pytest.mark.skipif(
-    not POSIX, reason="bin/lab is a POSIX shell script"))]
+WHICH = ["launcher", pytest.param("bin/analytics", marks=pytest.mark.skipif(
+    not POSIX, reason="bin/analytics is a POSIX shell script"))]
 
-# The command's own name in each: the installed command's in the product's terminology, and the
-# checkout's until Issue #9 renames it.
-NAME = {"launcher": "analytics", "bin/lab": "lab"}
-
-
-def named(usage: str, which: str) -> str:
-    """The launcher's usage as `which` prints it: the same text but for the command's name."""
-    return re.sub(r"(?m)^(\s*)analytics(?= )", r"\1" + NAME[which], usage)
+# The command's own name in each: one name since kit 0.3.0 (Issue #9), when bin/lab became
+# bin/analytics.
+NAME = {"launcher": "analytics", "bin/analytics": "analytics"}
 
 
 # --- usage ------------------------------------------------------------------------------------------
@@ -163,16 +162,15 @@ def named(usage: str, which: str) -> str:
 def test_help_is_the_usage_on_stdout(fake, tmp_path, which, args):
     done = launch(fake, *args, cwd=tmp_path, which=which)
     assert done.returncode == 0, done.stderr
-    assert done.stdout.decode("utf-8") == named(cli.USAGE, which)
+    assert done.stdout.decode("utf-8") == cli.USAGE
     assert not calls(fake)
 
 
-@pytest.mark.skipif(not POSIX, reason="bin/lab is a POSIX shell script")
-def test_the_usage_is_bin_labs_but_for_the_command_name(fake, tmp_path):
+@pytest.mark.skipif(not POSIX, reason="bin/analytics is a POSIX shell script")
+def test_the_usage_is_bin_analytics_byte_for_byte(fake, tmp_path):
     ours = launch(fake, "--help", cwd=tmp_path)
-    theirs = launch(fake, "--help", cwd=tmp_path, which="bin/lab")
-    assert named(ours.stdout.decode("utf-8"), "bin/lab").encode("utf-8") == theirs.stdout
-    assert ours.stdout != theirs.stdout
+    theirs = launch(fake, "--help", cwd=tmp_path, which="bin/analytics")
+    assert ours.stdout == theirs.stdout and b"analytics record KIND" in ours.stdout
 
 
 @pytest.mark.parametrize("which", WHICH)
@@ -180,7 +178,68 @@ def test_an_unknown_command_prints_the_usage_on_stderr_and_exits_2(fake, tmp_pat
     done = launch(fake, "frobnicate", cwd=tmp_path, which=which)
     assert done.returncode == 2
     assert done.stdout == b""
-    assert done.stderr.decode("utf-8") == named(cli.USAGE, which)
+    assert done.stderr.decode("utf-8") == cli.USAGE
+
+
+@pytest.mark.parametrize("which", WHICH)
+@pytest.mark.parametrize("old", ["note", "report"])
+def test_the_old_subcommands_are_usage_errors(fake, tmp_path, which, old):
+    """`note` and `report` became `record` and `render` in kit 0.3.0 (Issue #9): no alias."""
+    project = project_dir(tmp_path)
+    done = launch(fake, old, "finding", "x", cwd=project, which=which)
+    assert (done.returncode, done.stdout, done.stderr.decode("utf-8")) == (2, b"", cli.USAGE)
+    assert not calls(fake)
+
+
+# The renamed variables and the words both commands say for them (ADR-0005 decision 7).
+RENAMED = {
+    "LAB_PROJECT": "analytics: LAB_PROJECT was renamed AELIX_ANALYTICS_PROJECT in kit 0.3.0 (the "
+                   "analytics command and the aelix extension both read AELIX_ANALYTICS_PROJECT, "
+                   "ahead of the working directory); set AELIX_ANALYTICS_PROJECT instead and unset "
+                   "LAB_PROJECT\n",
+    "LAB_ACTOR": "analytics: LAB_ACTOR was renamed AELIX_ANALYTICS_ACTOR in kit 0.3.0; set "
+                 "AELIX_ANALYTICS_ACTOR instead and unset LAB_ACTOR\n",
+    "AELIX_LAB_UV": "analytics: AELIX_LAB_UV was renamed AELIX_ANALYTICS_UV in kit 0.3.0; set "
+                    "AELIX_ANALYTICS_UV instead and unset AELIX_LAB_UV\n",
+}
+
+
+def test_the_commands_refuse_the_old_names_the_kit_lists():
+    from aelix_analytics import core
+
+    assert cli.OLD_ENV == {old: core.RENAMED_ENV[old] for old in RENAMED}
+    for old in RENAMED:
+        assert RENAMED[old] == f"analytics: {core.renamed_env_message(old)}\n"
+    shell = BIN.read_text(encoding="utf-8")
+    assert "LAB_PROJECT=AELIX_ANALYTICS_PROJECT LAB_ACTOR=AELIX_ANALYTICS_ACTOR " \
+           "AELIX_LAB_UV=AELIX_ANALYTICS_UV" in shell
+
+
+@pytest.mark.parametrize("which", WHICH)
+@pytest.mark.parametrize("old", list(RENAMED))
+@pytest.mark.parametrize("command", [["status"], ["run", "scripts/a.py", "--title", "t"], ["open"],
+                                     ["init", "new-project"]])
+def test_an_old_variable_stops_the_command_before_uv(fake, tmp_path, which, old, command):
+    """Set, even beside its new name, an old variable is an error that names the new one, before
+    anything is started or written: no alias (ADR-0005 decision 7)."""
+    project = project_dir(tmp_path)
+    before = sorted(p.name for p in project.iterdir())
+    new = cli.OLD_ENV[old]
+    done = launch(fake, *command, cwd=project, which=which, **{old: "x", new: str(project)})
+    assert (done.returncode, done.stdout, done.stderr.decode("utf-8")) == (2, b"", RENAMED[old])
+    assert not calls(fake)
+    assert sorted(p.name for p in project.iterdir()) == before
+
+
+@pytest.mark.parametrize("which", WHICH)
+def test_an_empty_old_variable_is_not_set(fake, tmp_path, which):
+    """The old readers took an empty value as unset; so does the check."""
+    project = project_dir(tmp_path)
+    done = launch(fake, "status", cwd=project, which=which, LAB_PROJECT="", LAB_ACTOR="",
+                  AELIX_LAB_UV="")
+    assert done.returncode == 0, done.stderr
+    [call] = calls(fake)
+    assert uv_args(call) == kit_call(project, "--text", "status")
 
 
 @pytest.mark.parametrize("which", WHICH)
@@ -208,9 +267,9 @@ CASES = [
      ["run", "scripts/a.py", "--title", "한글 제목 & \"따옴표\""]),
     (["import", "data.csv", "--name", "sales"], ["import", "data.csv", "--name", "sales"]),
     (["query", "SELECT 1 AS x"], ["query", "SELECT 1 AS x"]),
-    (["note", "finding", "text"], ["note", "finding", "text"]),
-    (["report"], ["report"]),
-    (["report", "--if-changed"], ["report", "--if-changed"]),
+    (["record", "finding", "text"], ["record", "finding", "text"]),
+    (["render"], ["render"]),
+    (["render", "--if-changed"], ["render", "--if-changed"]),
 ]
 
 
@@ -225,19 +284,19 @@ def test_each_command_reaches_the_kit_in_the_project_environment(fake, tmp_path,
     [call] = calls(fake)
     assert uv_args(call) == kit_call(project, *expected)
     assert call["env"] == {"PYTHONPATH": str(KIT), "MPLBACKEND": "Agg",
-                           "PYTHONDONTWRITEBYTECODE": "1", "LAB_ACTOR": "human",
+                           "PYTHONDONTWRITEBYTECODE": "1", "AELIX_ANALYTICS_ACTOR": "human",
                            "VIRTUAL_ENV": None}
 
 
 @pytest.mark.parametrize("which", WHICH)
-def test_lab_actor_and_lab_project_are_passed_as_they_are(fake, tmp_path, which):
+def test_the_actor_and_project_variables_are_passed_as_they_are(fake, tmp_path, which):
     elsewhere = str(tmp_path / "not-a-project")  # not checked: the kit reports it
-    done = launch(fake, "status", cwd=tmp_path, which=which, LAB_ACTOR="someone",
-                  LAB_PROJECT=elsewhere)
+    done = launch(fake, "status", cwd=tmp_path, which=which, AELIX_ANALYTICS_ACTOR="someone",
+                  AELIX_ANALYTICS_PROJECT=elsewhere)
     assert done.returncode == 0, done.stderr
     [call] = calls(fake)
     assert uv_args(call) == kit_call(Path(elsewhere), "--text", "status")
-    assert call["env"]["LAB_ACTOR"] == "someone"
+    assert call["env"]["AELIX_ANALYTICS_ACTOR"] == "someone"
 
 
 @pytest.mark.parametrize("which", WHICH)
@@ -265,7 +324,7 @@ def test_output_passes_through_byte_for_byte(fake, tmp_path, which):
 @pytest.mark.parametrize("code", [0, 1, 2, 3, 130])
 def test_the_exit_status_is_the_kits(fake, tmp_path, which, code):
     project = project_dir(tmp_path)
-    done = launch(fake, "report", cwd=project, which=which, do={"report": {"exit": code}})
+    done = launch(fake, "render", cwd=project, which=which, do={"render": {"exit": code}})
     assert done.returncode == code
 
 
@@ -273,14 +332,14 @@ def test_the_exit_status_is_the_kits(fake, tmp_path, which, code):
 @pytest.mark.parametrize("which", WHICH)
 def test_a_kit_ended_by_a_signal_is_128_plus_its_number(fake, tmp_path, which):
     project = project_dir(tmp_path)
-    done = launch(fake, "report", cwd=project, which=which,
-                  do={"report": {"kill_self": int(signal.SIGKILL)}})
+    done = launch(fake, "render", cwd=project, which=which,
+                  do={"render": {"kill_self": int(signal.SIGKILL)}})
     assert done.returncode == 128 + signal.SIGKILL
 
 
 def test_a_missing_uv_is_a_message_and_exit_127(fake, tmp_path):
     project = project_dir(tmp_path)
-    env = environment(fake, AELIX_LAB_UV=str(tmp_path / "no" / "uv"))
+    env = environment(fake, AELIX_ANALYTICS_UV=str(tmp_path / "no" / "uv"))
     env["PYTHONPATH"] = str(PACK / "src")
     done = subprocess.run(launcher_argv("status"), cwd=project, env=env, capture_output=True,
                           timeout=60)
@@ -291,13 +350,13 @@ def test_a_missing_uv_is_a_message_and_exit_127(fake, tmp_path):
 @pytest.mark.skipif(not POSIX, reason="bytes that are not UTF-8 in the environment are POSIX's")
 def test_a_value_that_is_not_utf8_is_printed_as_its_bytes(fake, tmp_path):
     """Review of 7cfe851, launcher-6: such a value ended the launcher's own message in a
-    UnicodeEncodeError traceback; bin/lab prints the bytes. The rule holds where the filesystem
+    UnicodeEncodeError traceback; bin/analytics prints the bytes. The rule holds where the filesystem
     encoding is UTF-8, which PYTHONUTF8 makes it under any locale."""
     project = project_dir(tmp_path)
     env = {os.fsencode(k): os.fsencode(v) for k, v in environment(fake).items()}
     env[b"PYTHONPATH"] = os.fsencode(PACK / "src")
     env[b"PYTHONUTF8"] = b"1"
-    env[b"AELIX_LAB_UV"] = b"/nowhere/caf\xe9"
+    env[b"AELIX_ANALYTICS_UV"] = b"/nowhere/caf\xe9"
     done = subprocess.run(launcher_argv("status"), cwd=project, env=env, capture_output=True,
                           timeout=60)
     assert done.returncode == 127, done.stderr
@@ -314,7 +373,7 @@ def test_init_and_demo_create_sync_then_build_or_fill(fake, tmp_path, which, com
     work = tmp_path / "work"
     work.mkdir()
     done = launch(fake, command, "new", "--title", "제목", cwd=work, which=which,
-                  do={"report": {"stdout": b"REPORT-JSON\n".hex()},
+                  do={"render": {"stdout": b"REPORT-JSON\n".hex()},
                       "demo": {"stdout": b"DEMO-JSON\n".hex()}})
     assert done.returncode == 0, done.stderr
     project = (work / "new").resolve()
@@ -323,7 +382,7 @@ def test_init_and_demo_create_sync_then_build_or_fill(fake, tmp_path, which, com
         ["run", "--no-project", "--python", "3.12", "--quiet", "python", "-m", "aelix_analytics", "init",
          "new", "--title", "제목"],
         ["sync", "--project", str(project), "--quiet"],
-        kit_call(project, "demo" if command == "demo" else "report"),
+        kit_call(project, "demo" if command == "demo" else "render"),
     ]
     assert made[0]["cwd"] == str(work.resolve())
     # init shows the kit's JSON line and the report's is discarded; demo shows demo's.
@@ -369,18 +428,18 @@ def test_open_builds_a_missing_report_then_hands_it_to_the_opener(fake, tmp_path
         opener.write_text(f"#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{opened}'\nexit 5\n",
                           encoding="utf-8")
         opener.chmod(0o755)
-    done = launch(fake, "open", cwd=project, do={"report": {"stdout": b"REPORT\n".hex()}},
+    done = launch(fake, "open", cwd=project, do={"render": {"stdout": b"REPORT\n".hex()}},
                   PATH=f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
     assert done.returncode == 5
     assert opened.read_text(encoding="utf-8") == f"{project / 'report' / 'index.html'}\n"
-    assert [uv_args(c) for c in calls(fake)] == ([] if built else [kit_call(project, "report")])
+    assert [uv_args(c) for c in calls(fake)] == ([] if built else [kit_call(project, "render")])
     assert done.stdout == b""
 
 
 @pytest.mark.skipif(not POSIX, reason="os.startfile would open a real program on Windows")
 @pytest.mark.parametrize("which", WHICH)
 def test_open_needs_no_uv_for_a_built_report(fake, tmp_path, which):
-    """Review of 7cfe851, launcher-1: bin/lab runs uv only to build a missing report, and the
+    """Review of 7cfe851, launcher-1: bin/analytics runs uv only to build a missing report, and the
     launcher looked it up first and exited 127."""
     project = project_dir(tmp_path)
     (project / "report").mkdir()
@@ -392,7 +451,7 @@ def test_open_needs_no_uv_for_a_built_report(fake, tmp_path, which):
         opener = bin_dir / name
         opener.write_text(f"#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{opened}'\n", encoding="utf-8")
         opener.chmod(0o755)
-    done = launch(fake, "open", cwd=project, which=which, AELIX_LAB_UV=str(tmp_path / "no-uv"),
+    done = launch(fake, "open", cwd=project, which=which, AELIX_ANALYTICS_UV=str(tmp_path / "no-uv"),
                   PATH=f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
     assert done.returncode == 0, done.stderr
     assert opened.read_text(encoding="utf-8") == f"{project / 'report' / 'index.html'}\n"
@@ -420,8 +479,8 @@ def test_open_starts_no_opener_once_a_signal_has_arrived(tmp_path, monkeypatch, 
         return SimpleNamespace(processes=Processes())
 
     monkeypatch.setattr(cli, "_load_platform", lambda kit: SimpleNamespace(detect=detect))
-    monkeypatch.setenv("LAB_PROJECT", str(project))
-    monkeypatch.delenv("AELIX_LAB_UV", raising=False)
+    monkeypatch.setenv("AELIX_ANALYTICS_PROJECT", str(project))
+    monkeypatch.delenv("AELIX_ANALYTICS_UV", raising=False)
     assert cli.run(["open"], kit=KIT) == status
     assert opened == []
 
@@ -448,11 +507,11 @@ def test_open_through_the_windows_port_builds_a_missing_report_then_starts_it(
         port = cli._load_platform(KIT)
         monkeypatch.setattr(cli, "_load_platform",
                             lambda kit: SimpleNamespace(detect=lambda: port.detect("windows")))
-    monkeypatch.setenv("LAB_PROJECT", str(project))
+    monkeypatch.setenv("AELIX_ANALYTICS_PROJECT", str(project))
     monkeypatch.setenv("FAKE_UV_LOG", str(fake["log"]))
     monkeypatch.delenv("FAKE_UV_DO", raising=False)
     status = cli.run(["open"], kit=KIT, uv=[sys.executable, str(fake["uv"])])
-    assert [uv_args(c) for c in calls(fake)] == [kit_call(project, "report")]
+    assert [uv_args(c) for c in calls(fake)] == [kit_call(project, "render")]
     assert started == [os.fspath(index)]
     err = capsys.readouterr().err
     if winerror:
@@ -642,14 +701,14 @@ def test_a_ctrl_c_while_a_child_starts_is_not_sent_again_on_windows(fake, monkey
 @pytest.mark.parametrize("which", WHICH)
 def test_a_background_job_keeps_sigint_ignored_for_the_kit(fake, tmp_path, which):
     """A non-interactive shell starts a background job with SIGINT ignored; the kit must inherit
-    that, as it does under bin/lab (review of design revision 1, launcher-5)."""
+    that, as it does under bin/analytics (review of design revision 1, launcher-5)."""
     project = project_dir(tmp_path)
     env = environment(fake)
-    if which == "bin/lab":
-        command = f"sh '{BIN_LAB}' report"
+    if which == "bin/analytics":
+        command = f"sh '{BIN}' render"
     else:
         env["PYTHONPATH"] = str(PACK / "src")
-        command = " ".join("'" + a.replace("'", "'\\''") + "'" for a in launcher_argv("report"))
+        command = " ".join("'" + a.replace("'", "'\\''") + "'" for a in launcher_argv("render"))
     done = subprocess.run(["sh", "-c", f"{command} & wait"], cwd=project, env=env,
                           capture_output=True, timeout=60)
     assert done.returncode == 0, done.stderr
@@ -667,7 +726,7 @@ def test_uv_is_started_by_the_name_it_was_found_by(fake, tmp_path):
     (shim_dir / "uv").symlink_to(fake["uv"])
     for configured in (str(shim_dir / "uv"), "uv"):
         fake["log"].unlink(missing_ok=True)
-        env = environment(fake, AELIX_LAB_UV=configured,
+        env = environment(fake, AELIX_ANALYTICS_UV=configured,
                           PATH=f"{shim_dir}{os.pathsep}{os.environ['PATH']}")
         env["PYTHONPATH"] = str(PACK / "src")
         done = subprocess.run(launcher_argv("status"), cwd=project, env=env, capture_output=True,

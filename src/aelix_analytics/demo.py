@@ -86,7 +86,7 @@ def _run(project: core.Project, script: str, title: str, actor: str, extra=()) -
     env = dict(os.environ)
     kit = str(Path(__file__).resolve().parent.parent)
     env["PYTHONPATH"] = kit + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
-    env["LAB_ACTOR"] = actor
+    env["AELIX_ANALYTICS_ACTOR"] = actor
     env["MPLBACKEND"] = "Agg"
     cmd = [sys.executable, "-m", "aelix_analytics", "--project", str(project.root), "run",
            *([script] if script else []), "--title", title, *extra]
@@ -105,7 +105,7 @@ def _run(project: core.Project, script: str, title: str, actor: str, extra=()) -
 def populate(project: core.Project, actor: str = "human", session=None) -> dict:
     if core.list_runs(project) or core.list_datasets(project):
         raise core.LabError("demo_not_empty", "demo needs a new, empty project",
-                            hint="lab init NEW_DIR, then lab demo")
+                            hint="analytics demo NEW_DIR creates a new project and fills it")
     csv = generate(project.lab / "demo" / "sales_2024_2025.csv")
     data.import_file(project, str(csv), name="sales",
                      description="합성 주문 데이터 2024–2025 (일×지역×채널, 가상 수치)",
@@ -138,7 +138,7 @@ def populate(project: core.Project, actor: str = "human", session=None) -> dict:
     core.add_note(project, "decision", "지역 비교는 2025년 연간 합계로 한다.",
                   refs=[second["id"], third["id"]], actor=actor, session=session)
     core.add_note(project, "todo", "지역별 성장률 차트에 플롯 데이터를 기록하도록 03 스크립트를 "
-                  "analytics.chart(data=...)로 바꾸기", refs=[third["id"]], actor=actor, session=session)
+                  "analytics.visualize(data=...)로 바꾸기", refs=[third["id"]], actor=actor, session=session)
     text = project.context.read_text(encoding="utf-8").replace(
         "- (아직 없음)", f"- {finding_text} (run {first['id']})")
     project.context.write_text(text, encoding="utf-8")
