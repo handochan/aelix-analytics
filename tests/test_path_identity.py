@@ -878,6 +878,36 @@ def test_an_nfc_name_of_an_nfd_file_is_recorded_as_stored(tmp_path):
                                        "recorded_is_nfd": recorded == f"data/raw/{nfd}"})
 
 
+def test_making_finding_and_trusting_a_project_again_lists_none_of_its_parents(tmp_path,
+                                                                               monkeypatch):
+    """Fix-diff check of 13cdc2b: a Project, find_project and is_trusted spelled the root afresh each
+    time, listing every parent of it (180 ms with 200,000 entries beside the project) — and the
+    aelix extension does all three after every tool call. The spelling is remembered while the
+    directories listed for it are unchanged (their modification times), and a Project judges a
+    path below its root from the root. A change beside the project lists the parent once more."""
+    root = bare(tmp_path)
+    write(root / "data" / "raw" / "x.csv")
+    core.trust_project(root)
+    for _ in range(2):
+        core.Project(root), core.find_project(root / "data"), core.is_trusted(root)
+    listed: list[str] = []
+    scandir = os.scandir
+
+    def listing(path="."):
+        listed.append(os.path.realpath(path) if not isinstance(path, int) else str(path))
+        return scandir(path)
+
+    monkeypatch.setattr(os, "scandir", listing)
+    parents = {os.path.realpath(p) for p in Path(root).parents}
+    project = core.Project(root)
+    assert core.find_project(root / "data") == root and core.is_trusted(root)
+    assert project.rel(root / "data" / "raw" / "x.csv") == "data/raw/x.csv"
+    assert not parents & set(listed), listed
+    write(tmp_path / "beside.txt")
+    core.Project(root)
+    assert os.path.realpath(tmp_path) in listed
+
+
 def test_trust_of_a_project_created_under_another_case_of_its_parent(tmp_path, monkeypatch):
     """Item 5d: a project made through another case of its parent directory is trusted from the
     directory aelix starts in (its stored spelling)."""

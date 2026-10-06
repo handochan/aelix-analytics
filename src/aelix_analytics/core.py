@@ -277,6 +277,11 @@ class Spelling:
     def forget_paths(self) -> None:
         self._paths.clear()
 
+    def seed(self, spelled: str) -> None:
+        """Take `spelled`, a real path in its stored spelling, as spelled: paths below it are spelled
+        from there."""
+        self._paths[spelled] = spelled
+
     def _read(self, directory: str) -> dict[str, str] | None:
         try:
             mtime = os.stat(directory).st_mtime_ns
@@ -397,12 +402,52 @@ def canonical(path, spelling: Spelling | None = None) -> str:
     """`path` with its links followed as far as they lead and every component in its stored
     spelling: `os.path.realpath` (the same answer on CPython 3.12 and 3.13 for a link loop, where
     `Path.resolve` differs), then Spelling. The security judgments — a script's place, a rerun's,
-    a module snapshot's — compare this, never a record's path (ADR-0006 9)."""
+    a module snapshot's — compare this, never a record's path (ADR-0006 9). Without a Spelling the
+    answer is the process's remembered one while the directories it listed are unchanged
+    (_spelled)."""
     try:
         real = os.path.realpath(path)
     except (OSError, ValueError):
         real = os.path.abspath(path)
-    return (spelling or Spelling()).path(real)
+    return spelling.path(real) if spelling is not None else _spelled(real)
+
+
+# The stored spelling of real paths spelled without a Spelling of their own, with the stamp of the
+# directories listed to spell each: the aelix extension finds its project, and asks whether it is
+# trusted, after every tool call on aelix's event loop, and a root whose parent holds 200,000
+# entries would list it each time.
+_SPELLED: dict[str, tuple[tuple, str]] = {}
+_SPELLED_MAX = 256
+
+
+def _listing_stamp(real: str) -> tuple:
+    """The modification time of each directory whose listing spells `real` — every parent of it —
+    which a new, removed or renamed entry changes (a rename only of case included)."""
+    stamp = []
+    cur = os.path.dirname(real)
+    while True:
+        try:
+            stamp.append(os.stat(cur).st_mtime_ns)
+        except (OSError, ValueError):
+            stamp.append(None)
+        parent = os.path.dirname(cur)
+        if parent == cur:
+            return tuple(stamp)
+        cur = parent
+
+
+def _spelled(real: str) -> str:
+    """Spelling().path(real), listed again only when a directory it listed changed (_listing_stamp):
+    a stat per parent instead of a listing per parent."""
+    stamp = _listing_stamp(real)
+    kept = _SPELLED.get(real)
+    if kept is not None and kept[0] == stamp:
+        return kept[1]
+    spelled = Spelling().path(real)
+    if len(_SPELLED) >= _SPELLED_MAX:
+        _SPELLED.clear()
+    _SPELLED[real] = (stamp, spelled)
+    return spelled
 
 
 # A path's place after some of its components: the real directory or file reached (`cur`), whether
@@ -434,7 +479,7 @@ class Project:
 
     def __init__(self, root, *, platform: _platform.Platform | None = None):
         self.spelling = Spelling()
-        self.root = Path(canonical(Path(root).expanduser(), self.spelling))
+        self.root = Path(canonical(Path(root).expanduser()))
         self._root = str(self.root)
         self.platform = platform or PLATFORM
         self.marker = self.root / MARKER
@@ -456,6 +501,7 @@ class Project:
         self._managed_places: tuple[list, list] | None = None
         self._kit_names: dict[str, str | None] = {}
         self._table: _Table | None = None
+        self._seed()
 
     def path(self, rel) -> Path:
         p = expand_home(Path(rel))
@@ -522,6 +568,14 @@ class Project:
             self.spelling = Spelling()
         else:
             self.spelling.forget_paths()
+        self._seed()
+
+    def _seed(self) -> None:
+        """Start the judgments and the spelling at the root, already spelled (canonical): a path
+        written below it is judged without listing the root's parents, as main resolved it."""
+        if os.path.isdir(self._root):
+            self._judged[self._root] = _State(self._root, "in", (), True)
+            self.spelling.seed(self._root)
 
     def identity_of_real(self, real) -> str | None:
         """The path a record holds for a real path (canonical) inside the project or below a

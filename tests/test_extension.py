@@ -331,6 +331,33 @@ def test_a_write_s_telemetry_lists_no_directory(lab, tmp_path, monkeypatch):
         assert flags == (["wrote_managed_path"] if flagged else []), (path, flags)
 
 
+def test_a_tool_call_s_project_lookup_lists_no_directory_once_warm(lab, monkeypatch):
+    """Fix-diff check of 13cdc2b: after every tool call the extension resolves the project on
+    aelix's event loop — a Project, and from the working directory also find_project and
+    is_trusted — and spelling the root listed each of its parents every time (~0.5 s per call with
+    200,000 entries beside the project). Once the first call has spelled it, a tool call lists no
+    directory while those directories are unchanged."""
+    module, root = lab
+    module.core.trust_project(root)
+    module.resolve_project()
+    monkeypatch.delenv("AELIX_ANALYTICS_PROJECT")
+    monkeypatch.chdir(root / "data")
+    module.resolve_project()
+
+    def no_listing(*args, **kwargs):
+        raise AssertionError(f"a directory was listed on the event loop: {args}")
+
+    monkeypatch.setattr(module.core.os, "scandir", no_listing)
+    monkeypatch.setattr(module.core.os, "listdir", no_listing)
+    project, how = module.resolve_project()
+    assert (project.root, how) == (module.core.Project(root).root, "working directory")
+    monkeypatch.setenv("AELIX_ANALYTICS_PROJECT", str(root))
+    project, how = module.resolve_project()
+    assert how == "AELIX_ANALYTICS_PROJECT"
+    _, flags = module.summarize_call("write", {"path": str(root / "data" / "x.csv")}, project)
+    assert flags == ["wrote_managed_path"]
+
+
 def test_lab_command_where_help_and_gap(lab):
     module, root = lab
     assert "kit:" in asyncio.run(module.analytics_command("where"))
