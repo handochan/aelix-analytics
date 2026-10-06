@@ -150,6 +150,24 @@ uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with tokeni
 현재 동작의 합성 분석 fixture, 사람용 CLI·SDK 회귀와 Aelix 통합의 분리 검증은
 [회귀 기준 안내](docs/BASELINE-VERIFICATION.md)를 따릅니다. 실행 증거와 미실행 범위를 함께 남깁니다.
 
+평가에 쓰는 fixture — Q9의 S/M 규모, Q10의 분석 검사 예제, Q13의 참고 세션 재현 — 는 `tools/eval_fixtures.py`가 만듭니다(#41,
+[평가 fixture 안내](tools/eval_fixtures_data/README.md)). 저장소에 커밋하지 않고 측정할 때 같은 seed로 다시 만듭니다. `--out`은 새
+디렉터리나 빈 디렉터리여야 합니다.
+
+```sh
+uv run --locked python tools/eval_fixtures.py scale --scale S --seed 0 --out <dir>   # M은 --scale M
+uv run --locked python tools/eval_fixtures.py q10 --seed 0 --out <dir>
+uv run --locked python tools/eval_fixtures.py q13 --seed 0 --out <dir>
+uv run --locked python tools/eval_fixtures.py check <dir>
+uv run --locked python tools/eval_fixtures.py environment --out <file> --disk <dir> --cache-state cold
+```
+
+같은 seed는 같은 환경에서 같은 바이트를 만듭니다(실행한 run의 시간·환경, 원본 경로 같은 선언된 휘발 필드 제외. 같은 `--out`이면 실행한
+run의 시간만 다릅니다). `manifest.json`의 `digest`로 비교하고, `check`가 digest·개수·사례의 판정·기대 판정 파일을 다시 확인한 뒤
+fixture를 cold로 둡니다. `tests/test_eval_fixtures.py`가 S·Q10·Q13을 기본 시험에서 확인합니다. M(fixture 하나에 원본과 `input/`을
+합쳐 약 440 MB, 두 번 만듦)은 `AELIX_ANALYTICS_TEST_SCALE_M=1`일 때만 돕니다. 생성기를 바꾸면 `GENERATOR_VERSION`을 올리고 그
+시험도 실행하세요.
+
 문서 검사 명령은 다음과 같습니다. `<run-id>`는 현재 작업의 실제 UUID로 바꿉니다.
 
 ```sh
