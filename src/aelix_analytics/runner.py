@@ -105,18 +105,36 @@ def _recordable(path: Path) -> bool:
     return True
 
 
-def tree_stat(project: core.Project) -> dict[str, tuple[int, int]]:
+class TreeStat(dict):
+    """{path a record holds: (size, mtime_ns)} of every file of the namespace (core.Project.walk),
+    with each one's real path (`real`) and the boundaries the walk went through (`boundaries`)."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.real: dict[str, str] = {}
+        self.boundaries: tuple = ()
+
+
+def tree_stat(project: core.Project) -> TreeStat:
+    out = TreeStat()
+    for rel, real, _entry in project.walk():
+        with contextlib.suppress(OSError):
+            st = os.stat(real)  # not the listing's: Windows updates it late for a file still open
+            out[rel] = (st.st_size, st.st_mtime_ns)
+            out.real[rel] = real
+    out.boundaries = project.boundaries()
+    return out
+
+
+def rekeyed(project: core.Project, before: dict) -> dict:
+    """`before` with each file under the path a record holds for it now: a run that made or removed
+    a link changed which boundary some files are seen under, and a file that did not change must not
+    show as deleted and created."""
+    real = getattr(before, "real", {})
     out = {}
-    for dirpath, dirnames, filenames in os.walk(project.root):
-        if Path(dirpath) == project.root:
-            dirnames[:] = [d for d in dirnames if d not in core.IGNORED_DIRS]
-        else:
-            dirnames[:] = [d for d in dirnames if d not in ("__pycache__", ".ipynb_checkpoints")]
-        for name in filenames:
-            path = os.path.join(dirpath, name)
-            with contextlib.suppress(OSError):
-                st = os.stat(path)
-                out[os.path.relpath(path, project.root)] = (st.st_size, st.st_mtime_ns)
+    for rel, st in before.items():
+        place = real.get(rel)
+        out[(project.identity_of_real(place) if place else None) or rel] = st
     return out
 
 
@@ -137,16 +155,16 @@ def diff_outputs(project, before, after, cache) -> list[dict]:
         if rel in PROJECT_FILES or before.get(rel) == st:
             continue
         path = project.root / rel
-        entry = {"path": Path(rel).as_posix(), "change": "created" if rel not in before else "modified",
+        entry = {"path": rel, "change": "created" if rel not in before else "modified",
                  "bytes": st[0], "sha256": cache.sha(path)}
         if path.suffix.lower() == ".parquet":
             entry.update(parquet_info(path))
-        if not rel.startswith("data" + os.sep):
+        if not rel.startswith("data/"):
             entry["outside_data"] = True
         outputs.append(entry)
     for rel in sorted(set(before) - set(after)):
         if rel not in PROJECT_FILES:
-            outputs.append({"path": Path(rel).as_posix(), "change": "deleted"})
+            outputs.append({"path": rel, "change": "deleted"})
     return outputs
 
 
@@ -596,14 +614,21 @@ def _error_info(exc: BaseException, filename: str) -> dict:
 
 
 def snapshot_modules(project: core.Project, code_dir: Path, main_rel: str) -> list[dict]:
-    kit_dir = Path(__file__).resolve().parent
+    kit_dir = project.canonical(Path(__file__).parent)
+    root = core.folded(_platform.plain_path(str(project.root))) + os.sep
     modules = []
     for module in list(sys.modules.values()):
         filename = getattr(module, "__file__", None)
         if not filename or not filename.endswith(".py"):
             continue
-        path = Path(filename).resolve()
-        if kit_dir in path.parents or not project.inside(path):
+        # Where the module is, as a security judgment: its real path in its stored spelling, never
+        # a boundary's namespace. Only a real path that is the root's in some case or normalization
+        # can be inside, so the hundreds of library modules are not spelled.
+        with contextlib.suppress(OSError, ValueError):
+            if not core.folded(_platform.plain_path(os.path.realpath(filename))).startswith(root):
+                continue
+        path = Path(project.canonical(filename))
+        if core.within(path, kit_dir) or not project.inside(path):
             continue
         rel = project.rel(path)
         if rel == main_rel or rel.split("/")[0] in (".venv", "runs", ".lab", "report"):
@@ -707,16 +732,14 @@ def _in_managed_dir(rel: str) -> bool:
 
 
 def _in_managed_dir_here(project: core.Project, rel: str) -> bool:
-    """Whether `rel` is in a managed directory on this machine's file system: `RUNS/x.py` is, where
-    the file system ignores case."""
+    """Whether `rel` (a path in its stored spelling) is in a managed directory on this machine's file
+    system: `RUNS/x.py` is, where the file system ignores case and so stores one of the two."""
     first, _, rest = rel.partition("/")
     if first in MANAGED_DIRS:
         return True
-    if not rest or first.casefold() not in MANAGED_DIRS:
+    if not rest or core.folded(first) not in MANAGED_DIRS:
         return False
-    with contextlib.suppress(OSError):
-        return os.path.samefile(project.root / first, project.root / first.casefold())
-    return False
+    return core.same_file(project.root / first, project.root / core.folded(first))
 
 
 def _script_source(project: core.Project, script) -> tuple[str, Path]:
@@ -751,9 +774,12 @@ def _rerun_source(project: core.Project, rerun_of: str) -> tuple[dict, str, Path
     if not isinstance(script, dict) or not script.get("snapshot") or not script.get("path"):
         raise core.LabError("rerun_unknown", f"no recorded run {rerun_of!r} with a code snapshot",
                             hint="analytics_status lists run ids")
-    code_root = core._resolved(project.runs / rerun_of / "code")
-    snapshot = core._resolved(project.path(str(script["snapshot"])))
-    if code_root not in snapshot.parents or not snapshot.is_file():
+    # Both sides by one judgment, the real path in its stored spelling (core.canonical): a snapshot
+    # recorded under the stored name of runs/ (`Runs/…` where the file system ignores case) is the
+    # same place as the kit's own spelling of it.
+    code_root = project.canonical(project.runs / rerun_of / "code")
+    snapshot = Path(project.canonical(project.path(str(script["snapshot"]))))
+    if snapshot == Path(code_root) or not core.within(snapshot, code_root) or not snapshot.is_file():
         raise core.LabError("rerun_snapshot", f"run {rerun_of} has no code snapshot under "
                             f"runs/{rerun_of}/code")
     # The recorded path decides the directory that goes onto sys.path, so it is checked as the kit
@@ -868,15 +894,17 @@ def _execute_locked(project, *, script_rel, exec_file, code_bytes, title, declar
             # Hashing the inputs and walking the project can take long for a big project, so a
             # cancel stops this too, and the run is recorded as cancelled before its script.
             with guard.interruptible():
+                # The walk first: its table says which boundary each input below one is seen under.
+                before = tree_stat(project)
                 with contextlib.suppress(Exception):
                     reads, writes = scan_literals(code_bytes.decode("utf-8", errors="replace"))
                     for p in static_input_files(project, reads, writes):
                         state.record_read(str(p), "scan")
                 for item in declared_inputs or ():
                     state.record_read(str(project.path(item)), "declared")
-                before = tree_stat(project)
         except _platform.Interrupted:
             setup_interrupted = True
+            before = None
         finally:
             guard.settle()  # also when a signal cut the region's own exit short
         if setup_interrupted:
@@ -986,7 +1014,7 @@ def _finalize(project, state, record, *, source_run, before, status, error, dura
     run_id, run_dir = record["id"], state.run_dir
     # No `before` means the run was cancelled before its script: it wrote nothing.
     outputs = [] if before is None else guarded(
-        "outputs", lambda: diff_outputs(project, before, tree_stat(project), state.cache), [])
+        "outputs", lambda: _outputs(project, state, before), [])
     for out in outputs:
         out["via"] = state.saved.get(out["path"], "diff")
     inputs = guarded("inputs", lambda: reconcile_inputs(state.inputs, outputs), [])
@@ -1046,6 +1074,16 @@ def _finalize(project, state, record, *, source_run, before, status, error, dura
     return result
 
 
+def _outputs(project: core.Project, state, before: dict) -> list[dict]:
+    after = tree_stat(project)
+    if getattr(before, "boundaries", ()) != after.boundaries:
+        # The run made or removed a link: what it read and what was there before are named as the
+        # namespace is now, so one file has one path in the record (ADR-0006 9).
+        before = rekeyed(project, before)
+        state.rekey()
+    return diff_outputs(project, before, after, state.cache)
+
+
 MAX_LISTED_PATHS = 3
 
 
@@ -1055,8 +1093,13 @@ def imported_sources(project: core.Project) -> dict[str, str]:
     for meta_file in sorted(project.raw.glob("*.meta.json")) if project.raw.is_dir() else []:
         meta = core.read_json(meta_file)
         source = (meta or {}).get("source") or {}
-        if isinstance(source.get("path"), str) and meta.get("name"):
-            out[source["path"]] = meta["name"]
+        path = source.get("path")
+        if isinstance(path, str) and meta.get("name"):
+            # An earlier kit wrote it as typed (another case on macOS); an input is recorded in its
+            # stored spelling, so both are compared spelled as stored.
+            if os.path.isabs(path):
+                path = project.spelling.path(os.path.normpath(path))
+            out[path] = meta["name"]
     return out
 
 

@@ -11,13 +11,17 @@ ports a `Project` carries, so nothing in this file tests `sys.platform`. See `_p
 
 from __future__ import annotations
 
+import collections
 import contextlib
 import difflib
 import hashlib
+import heapq
 import json
 import os
 import re
+import stat
 import tomllib
+import unicodedata
 from datetime import datetime
 from pathlib import Path
 
@@ -57,6 +61,8 @@ OUTPUT_TAIL = 4000
 IGNORED_DIRS = {".venv", ".lab", "runs", "report", "scripts", ".git", "__pycache__",
                 ".pytest_cache", ".ruff_cache", ".omc", ".aelix", "node_modules",
                 ".ipynb_checkpoints"}
+# Directories a walk of the project's tree leaves out at any depth.
+SKIPPED_DIRS = ("__pycache__", ".ipynb_checkpoints")
 
 # The OS-dependent operations of this process. A Project takes this unless a caller — in practice a
 # test — hands it another bundle; nothing here looks one up by name or by environment variable.
@@ -83,6 +89,11 @@ class LabError(Exception):
 # The kit version that renamed the public names — commands, tools, SDK functions and environment
 # variables (Issue #9). Fixed: it names the boundary, not the current version.
 NAMES_RENAMED_IN = "0.3.0"
+# The kit version from which a record holds a path by one identity across links, case and Unicode
+# normalization (Issue #36, ADR-0006 9). Fixed, like NAMES_RENAMED_IN: a reader tells a run recorded
+# by an earlier kit by its env.kit_version (PEP 440 order), and reads its absolute paths through
+# Project.legacy_identity.
+PATH_IDENTITY_SINCE = "0.4.0"
 
 
 # The environment variables the kit, its SDK, the human command line and the aelix extension read
@@ -139,24 +150,273 @@ def expand_home(path: Path) -> Path:
     return path
 
 
-def _resolved(path: Path) -> Path:
-    """`path` with its links followed as far as they lead. `os.path.realpath` rather than
-    `Path.resolve`, which on CPython 3.12 raises for a link loop where 3.13 returns the path
-    resolved up to the loop: the same answer on every version."""
-    with contextlib.suppress(OSError):
-        return Path(os.path.realpath(path))
-    return path
+# --- path identity (ADR-0006 9, Issue #36) ---
+#
+# A record names a file by one path whichever way a script reached it. Inside the project that is
+# the project-relative POSIX path through the namespace: the tree under the root, where a link that
+# leads inside is followed to where it leads and a link that leads outside is a boundary, the place
+# of a mount, under which its target's tree is seen. Outside it is the absolute path, every name in
+# the spelling the file system stores. Three pieces make it: the stored spelling (Spelling), a
+# judgment of a path's components (Project._judge) and a walk of the namespace (Project.walk), whose
+# table answers which boundary a file outside the root is seen under.
+
+
+def folded(name: str) -> str:
+    """`name` as a file system that ignores case and Unicode normalization compares it."""
+    return unicodedata.normalize("NFC", name).casefold()
+
+
+def _under(child: str, parent: str) -> bool:
+    """Whether `child` is `parent` or a path below it, as text (both real paths, spelled alike)."""
+    child, parent = _platform.plain_path(child), _platform.plain_path(parent)
+    if child == parent:
+        return True
+    return child.startswith(parent if parent.endswith(os.sep) else parent + os.sep)
+
+
+def within(child, parent) -> bool:
+    """Whether the real path `child` is `parent` or below it (both from canonical): the containment
+    the security judgments use."""
+    return _under(os.fspath(child), os.fspath(parent))
+
+
+def _below(child: str, parent: str) -> str:
+    """The POSIX path of `child` under `parent`, "" for `parent` itself. `_under` must hold."""
+    child, parent = _platform.plain_path(child), _platform.plain_path(parent)
+    return child[len(parent):].lstrip(os.sep).replace(os.sep, "/")
+
+
+def _ns_join(ns: str, rest: str) -> str:
+    return f"{ns}/{rest}" if ns and rest else ns or rest
+
+
+def _split(path: str) -> tuple[str, list[str]]:
+    """An absolute path's anchor (`/`, a drive, a UNC share) and its component names, split on
+    every separator this platform takes; `.` and `..` are kept."""
+    drive, rest = os.path.splitdrive(path)
+    seps = os.sep + (os.altsep or "")
+    anchor = drive + (os.sep if rest[:1] and rest[0] in seps else "")
+    return anchor, [name for name in re.split(f"[{re.escape(seps)}]", rest) if name]
+
+
+def file_key(path, spelling: Spelling | None = None) -> tuple:
+    """Which file `path` leads to, its links followed: the target's `(st_dev, st_ino)`. A file
+    system that gives no inode number (`st_ino` 0) is told by the target's real path in its stored
+    spelling instead (ADR-0006 9). Raises OSError for a path that leads nowhere."""
+    st = os.stat(path)
+    if st.st_ino:
+        return (st.st_dev, st.st_ino)
+    return ("path", canonical(path, spelling))
+
+
+def same_file(a, b) -> bool:
+    """Whether `a` and `b` lead to the same file (file_key); False when either leads nowhere."""
+    try:
+        return file_key(a) == file_key(b)
+    except (OSError, ValueError):
+        return False
+
+
+def _kind(entry: os.DirEntry) -> str:
+    try:
+        if _platform.is_link_entry(entry):
+            return "link"
+        return "dir" if entry.is_dir(follow_symlinks=False) else "file"
+    except OSError:
+        return "file"
+
+
+def _stat_kind(st: os.stat_result) -> str:
+    if _platform.is_link(st):
+        return "link"
+    return "dir" if stat.S_ISDIR(st.st_mode) else "file"
+
+
+class Spelling:
+    """The names a file system stores, read from directory listings (ADR-0006 9).
+
+    A name a directory lists as written is that name. Otherwise, among the names whose NFC case fold
+    is the same, the first in code point order that is the same directory entry (the same file where
+    there is no inode number). Without a listing or such a name, the name as written. So whether a
+    file system ignores case or Unicode normalization is found where it is asked, not assumed per
+    platform: where it minds them, another spelling is a file that does not exist.
+
+    One belongs to a Project — one command, one run, one tool call of the extension — and keeps the
+    listings it read. A name missing from one is first looked for among the listed names' other
+    spellings, and the directory is read again when it changed since (a file a run made), less
+    often once it has been read again many times (_read_again). A walk that lists a directory
+    refreshes it. A name only its case
+    changed while the listing was kept, or one a run made and read under another spelling between
+    two readings, can keep the spelling it was read by (docs/CONTRACTS.md G)."""
+
+    def __init__(self) -> None:
+        self._listed: dict[str, tuple[int | None, dict[str, str] | None]] = {}
+        self._folds: dict[str, dict[str, list[str]]] = {}
+        self._paths: dict[str, str] = {}
+        self._misses: dict[str, tuple[int, int]] = {}
+
+    def forget_paths(self) -> None:
+        self._paths.clear()
+
+    def _read(self, directory: str) -> dict[str, str] | None:
+        try:
+            mtime = os.stat(directory).st_mtime_ns
+            with os.scandir(directory) as listing:
+                names = {entry.name: _kind(entry) for entry in listing}
+        except (OSError, ValueError):
+            mtime, names = None, None
+        self._listed[directory] = (mtime, names)
+        self._folds.pop(directory, None)
+        return names
+
+    def remember(self, directory: str, kinds: dict[str, str]) -> None:
+        """Keep a listing a walk read ({name: kind}), with no time: a later miss reads it again."""
+        self._listed[directory] = (None, kinds)
+        self._folds.pop(directory, None)
+
+    def lookup(self, directory: str, typed: str) -> tuple[str, str | None, bool]:
+        """(stored name, kind, listed) of `typed` in the real directory `directory`: kind is
+        `link`, `dir` or `file`, None for a name that is not there; `listed` whether the name came
+        from a listing (an 8.3 short name Windows opens is not in one)."""
+        names = self._listed[directory][1] if directory in self._listed else self._read(directory)
+        if names is not None and typed in names:
+            return typed, names[typed], True
+        try:
+            st = os.lstat(os.path.join(directory, typed))
+        except (OSError, ValueError):
+            return typed, None, False
+        kind = _stat_kind(st)
+        if names is None:
+            return typed, kind, False
+        stored = self._variant(directory, names, typed, st)
+        if stored is None and self._read_again(directory):
+            names = self._read(directory)
+            if names is not None and typed in names:
+                return typed, names[typed], True
+            stored = self._variant(directory, names, typed, st) if names is not None else None
+        if stored is not None:
+            return stored, names[stored], True
+        return typed, kind, False
+
+    def _variant(self, directory: str, names: dict[str, str], typed: str,
+                 st: os.stat_result) -> str | None:
+        """The listed name that is another spelling of `typed` and the same directory entry."""
+        for name in self._index(directory, names).get(folded(typed), ()):
+            if self._same_entry(directory, typed, st, name):
+                return name
+        return None
+
+    # How many times a directory is read again for names it lacked before the readings thin out.
+    READS_AT_ONCE = 8
+
+    def _read_again(self, directory: str) -> bool:
+        """Whether a name the listing lacks is a reason to read `directory` again: the directory
+        changed since the listing (a walk's listing has no time), and this is one of its first
+        READS_AT_ONCE such names, or the 2nd, 4th, 8th… after the last reading. So a run that makes
+        and reads thousands of files there one at a time lists it a few dozen times, not once per
+        file; a name made since and read in between is taken as written (docs/CONTRACTS.md G)."""
+        mtime = self._listed[directory][0]
+        try:
+            if mtime is not None and os.stat(directory).st_mtime_ns == mtime:
+                return False
+        except OSError:
+            return False
+        misses, reads = self._misses.get(directory, (0, 0))
+        misses += 1
+        if misses < 2 ** max(0, reads - self.READS_AT_ONCE + 1):
+            self._misses[directory] = (misses, reads)
+            return False
+        self._misses[directory] = (0, reads + 1)
+        return True
+
+    def _index(self, directory: str, names: dict[str, str]) -> dict[str, list[str]]:
+        index = self._folds.get(directory)
+        if index is None:
+            index = {}
+            for name in sorted(names):
+                index.setdefault(folded(name), []).append(name)
+            self._folds[directory] = index
+        return index
+
+    @staticmethod
+    def _same_entry(directory: str, typed: str, st: os.stat_result, name: str) -> bool:
+        try:
+            other = os.lstat(os.path.join(directory, name))
+        except (OSError, ValueError):
+            return False
+        if st.st_ino and other.st_ino:
+            return (st.st_dev, st.st_ino) == (other.st_dev, other.st_ino)
+        return same_file(os.path.join(directory, typed), os.path.join(directory, name))
+
+    def name(self, directory: str, typed: str) -> str:
+        return self.lookup(directory, typed)[0]
+
+    def path(self, absolute) -> str:
+        """`absolute` (no `.` or `..`) with every component in its stored spelling. The anchor (`/`,
+        a drive, a UNC share, an extended-length prefix) is kept as written."""
+        absolute = os.fspath(absolute)
+        pending = []
+        cur = absolute
+        while True:
+            hit = self._paths.get(cur)
+            if hit is not None:
+                base = hit
+                break
+            parent, name = os.path.split(cur)
+            if not name or parent == cur:
+                base = cur
+                break
+            pending.append((cur, name))
+            cur = parent
+        for full, name in reversed(pending):
+            base = os.path.join(base, self.name(base, name))
+            self._paths[full] = base
+        return base
+
+
+def canonical(path, spelling: Spelling | None = None) -> str:
+    """`path` with its links followed as far as they lead and every component in its stored
+    spelling: `os.path.realpath` (the same answer on CPython 3.12 and 3.13 for a link loop, where
+    `Path.resolve` differs), then Spelling. The security judgments — a script's place, a rerun's,
+    a module snapshot's — compare this, never a record's path (ADR-0006 9)."""
+    try:
+        real = os.path.realpath(path)
+    except (OSError, ValueError):
+        real = os.path.abspath(path)
+    return (spelling or Spelling()).path(real)
+
+
+# A path's place after some of its components: the real directory or file reached (`cur`), whether
+# that is in the project's tree ("in"), below a boundary it crossed ("under") or elsewhere ("out"),
+# the boundaries crossed ((namespace path, target), ...), and whether `cur` exists.
+_State = collections.namedtuple("_State", "cur where crossed exists")
+
+
+class _Table:
+    """What a walk of the namespace found: each directory it walked by file key and by real path,
+    with its namespace path; the files it gave through a file link, by (parent key, name); and the
+    boundaries it walked, in order."""
+
+    def __init__(self) -> None:
+        self.keys: dict[tuple, str] = {}
+        self.paths: dict[str, str] = {}
+        self.key_of_path: dict[str, tuple] = {}
+        self.marks: dict[tuple, str] = {}
+        self.boundaries: list[tuple[str, str]] = []
+        self.ids: dict[str, str | None] = {}
 
 
 class Project:
     """Paths of one analytics project, and the platform ports its operations use.
 
-    Construction does not touch the file system. `platform` is the bundle from `_platform`: this
-    process's (`PLATFORM`) unless a test passes another implementation, so the same project code
-    runs unchanged on Linux, macOS and Windows."""
+    Construction finds the root's real path in its stored spelling (it lists the root's parents).
+    `platform` is the bundle from `_platform`: this process's (`PLATFORM`) unless a test passes
+    another implementation, so the same project code runs unchanged on Linux, macOS and Windows."""
 
     def __init__(self, root, *, platform: _platform.Platform | None = None):
-        self.root = Path(root).expanduser().resolve()
+        self.spelling = Spelling()
+        self.root = Path(canonical(Path(root).expanduser(), self.spelling))
+        self._root = str(self.root)
         self.platform = platform or PLATFORM
         self.marker = self.root / MARKER
         self.context = self.root / "CONTEXT.md"
@@ -172,22 +432,379 @@ class Project:
         self.context_history = self.lab / "context"
         self.telemetry = self.lab / "telemetry.jsonl"
         self.queries = self.lab / "queries.jsonl"
+        self._judged: dict[str, _State] = {}
+        self._keys: dict[str, tuple | None] = {}
+        self._managed_places: tuple[list, list] | None = None
+        self._table: _Table | None = None
 
     def path(self, rel) -> Path:
         p = expand_home(Path(rel))
         return p if p.is_absolute() else self.root / p
 
-    def rel(self, path) -> str:
-        """Project-relative POSIX path, or the absolute path for files outside the project."""
-        p = _resolved(self.path(path))
-        try:
-            return p.relative_to(self.root).as_posix()
-        except ValueError:
-            return str(p)
+    def canonical(self, path) -> str:
+        return canonical(path, self.spelling)
+
+    def rel(self, path, *, table: bool = True) -> str:
+        """The path a record holds for `path` (ADR-0006 9): project-relative POSIX through the
+        namespace, or absolute outside the project. With `table=False`, a path below a boundary is
+        named by the boundaries it crossed, without the walk that would say whether an earlier one
+        reaches the same file (the extension's telemetry, which must not walk on aelix's loop)."""
+        return self.locate(path, table=table)[0]
+
+    def locate(self, path, *, table: bool = True) -> tuple[str, str]:
+        """(the path a record holds, the real path) for `path`."""
+        state = self._judge(os.fspath(self.path(path)))
+        return self._identity(state, table=table), state.cur
 
     def inside(self, path) -> bool:
-        p = _resolved(self.path(path))
-        return p == self.root or self.root in p.parents
+        """Whether `path` leads, its links followed, into the project: a security judgment, so by
+        the real path (canonical), never by the namespace."""
+        return _under(self.canonical(self.path(path)), self._root)
+
+    def identity_of_real(self, real) -> str | None:
+        """The path a record holds for a real path (canonical) inside the project or below a
+        boundary the walk found; None for any other."""
+        real = os.fspath(real)
+        if _under(real, self._root):
+            return self._inside_identity(real)
+        return self._from_table(real)
+
+    def legacy_identity(self, recorded) -> str | None:
+        """What an absolute path a kit before PATH_IDENTITY_SINCE recorded is now: those kits
+        recorded the real path, as typed where the file system ignores case. Spelled as stored, it
+        is the project-relative path inside the root, the path below the first boundary that reaches
+        it as the namespace is linked now, else None — and None for a relative path (a decision Issue
+        #12 is waiting for). An inference from today's links: #12 shows it as `basis: inferred`."""
+        if not isinstance(recorded, str) or not os.path.isabs(recorded):
+            return None
+        return self.identity_of_real(self.spelling.path(os.path.normpath(recorded)))
+
+    def boundaries(self) -> tuple:
+        """The boundaries the last walk of the namespace went through, (namespace path, target)."""
+        return tuple(self._table.boundaries) if self._table is not None else ()
+
+    # -- the judgment of one path's components
+
+    def _key(self, path: str) -> tuple | None:
+        if path not in self._keys:
+            try:
+                self._keys[path] = file_key(path, self.spelling)
+            except (OSError, ValueError):
+                self._keys[path] = None
+        return self._keys[path]
+
+    def _judge(self, absolute: str) -> _State:
+        """Where `absolute` leads, decided a component at a time from the front: links before the
+        root are followed, a link inside it that leads inside is followed to where it leads, one
+        that leads outside is a boundary crossed, and `..` is the parent of the directory reached
+        (on Windows already folded as text, as Win32 opens it). Each directory's answer is kept."""
+        anchor, names = _split(_platform.opened_path(absolute))
+        prefixes = [anchor + os.sep.join(names[:i]) if i else anchor for i in range(len(names) + 1)]
+        i, state = len(names), None
+        while i >= 0 and state is None:
+            state = self._judged.get(prefixes[i])
+            if state is None:
+                i -= 1
+        if state is None:
+            start = self.canonical(anchor or os.sep)
+            state, i = _State(start, "in" if start == self._root else "out", (), True), 0
+        for j in range(i, len(names)):
+            state = self._step(state, names[j])
+            if state.exists:
+                self._judged[prefixes[j + 1]] = state
+        return state
+
+    def _step(self, state: _State, name: str) -> _State:
+        cur, where, crossed, exists = state
+        if not exists:
+            return _State(os.path.join(cur, name), where, crossed, False)
+        if name == ".":
+            return state
+        if name == "..":
+            return self._placed(os.path.dirname(cur), crossed)
+        stored, kind, listed = self.spelling.lookup(cur, name)
+        nxt = os.path.join(cur, stored)
+        if kind is None:
+            return _State(nxt, where, crossed, False)
+        if kind == "link":
+            target = self.canonical(nxt)
+            if _under(target, self._root):
+                return _State(target, "in", crossed, True)
+            if where != "out" and not _under(self._root, target):
+                boundary = (_ns_join(self._ns_of(state), stored), target)
+                return _State(target, "under", (*crossed, boundary), True)
+            return self._placed(target, crossed)
+        if not listed:
+            nxt = self.canonical(nxt)  # a name no listing holds (an 8.3 short name): the real one
+        if where == "out" and (nxt == self._root or (kind == "dir" and self._is_root(nxt))):
+            return _State(self._root, "in", crossed, True)  # the root under another name
+        return _State(nxt, where, crossed, True)
+
+    def _is_root(self, path: str) -> bool:
+        key = self._key(path)
+        return key is not None and key == self._key(self._root)
+
+    def _placed(self, cur: str, crossed: tuple) -> _State:
+        if _under(cur, self._root):
+            return _State(cur, "in", crossed, True)
+        if any(_under(cur, target) for _, target in crossed):
+            return _State(cur, "under", crossed, True)
+        return _State(cur, "out", crossed, True)
+
+    def _ns_of(self, state: _State) -> str:
+        """The namespace path of a directory reached in or under the project, from where it is."""
+        if state.where == "in":
+            ns = self._inside_identity(state.cur)
+            return "" if ns == "." else ns
+        for ns, target in reversed(state.crossed):
+            if _under(state.cur, target):
+                return _ns_join(ns, _below(state.cur, target))
+        return state.cur
+
+    def _identity(self, state: _State, *, table: bool = True) -> str:
+        if state.where == "in":
+            return self._inside_identity(state.cur)
+        if state.where == "under":
+            found = self._from_table(state.cur) if table else None
+            if found is not None:
+                return found
+            # Below a boundary no walk reached (one inside an ignored directory, or one made since
+            # the walk): the first, in code point order, of the boundaries this path crossed.
+            reaching = [(ns, target) for ns, target in state.crossed if _under(state.cur, target)]
+            if reaching:
+                ns, target = min(reaching)
+                return _ns_join(ns, _below(state.cur, target))
+        return state.cur
+
+    def _managed(self) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
+        """The ignored top-level directories (IGNORED_DIRS) that are links, by where they lead:
+        ([(name, real path)] inside the root, [(name, real path)] outside it)."""
+        if self._managed_places is None:
+            inward: list[tuple[str, str]] = []
+            outward: list[tuple[str, str]] = []
+            for name in sorted(IGNORED_DIRS):
+                place = os.path.join(self._root, name)
+                try:
+                    if not _platform.is_link(os.lstat(place)):
+                        continue
+                    real = self.spelling.path(os.path.realpath(place, strict=True))
+                except (OSError, ValueError):
+                    continue
+                (inward if _under(real, self._root) else outward).append((name, real))
+            self._managed_places = (inward, outward)
+        return self._managed_places
+
+    def _inside_identity(self, real: str) -> str:
+        """The path a record holds for a real path inside the root: its project-relative path, but
+        under an ignored top-level directory's name where that directory is a link to this place
+        (so the run's own `runs/<id>/` is told as such wherever runs/ leads)."""
+        for name, place in self._managed()[0]:
+            if _under(real, place):
+                return _ns_join(name, _below(real, place))
+        return _below(real, self._root) or "."
+
+    def _from_table(self, real: str) -> str | None:
+        """The namespace path the walk gave the real path `real`: the file link that gave the file,
+        else the closest directory it walked above it (or the directory itself). None when the walk
+        reached none of them."""
+        table = self._ensure_table()
+        if table.marks:
+            parent, name = os.path.split(real)
+            key = self._key(parent)
+            mark = table.marks.get((key, name)) if key is not None else None
+            if mark is not None:
+                return mark
+        rest: list[str] = []
+        place = real
+        while True:
+            if place in table.ids:
+                ns = table.ids[place]
+            else:
+                ns = table.paths.get(place)
+                if ns is None:
+                    key = self._key(place)
+                    ns = table.keys.get(key) if key is not None else None
+                table.ids[place] = ns
+            if ns is not None:
+                return _ns_join(ns, "/".join(reversed(rest)))
+            parent, name = os.path.split(place)
+            if not name or parent == place:
+                return None
+            rest.append(name)
+            place = parent
+
+    # -- the walk
+
+    def walk(self, start=None):
+        """The files of the namespace, each once, as (path a record holds, real path, directory
+        entry or None).
+
+        Without `start`: the project's tree (the ignored top-level directories, and `__pycache__`
+        and `.ipynb_checkpoints` at any depth, left out), then each boundary — a link in the
+        namespace that leads outside the root, not to the root, one of its ancestors or a place an
+        ignored top-level directory leads to — in code point order of its namespace path, once per
+        target: a directory boundary whose target a walk reached already is not walked again, nor is
+        a file link whose file it gave. Links that lead inside, dangling links and loops are not
+        followed. The walk keeps its table, which `rel` reads, so the path the walk gives a file is
+        the path `rel` gives it, whichever way it is named.
+
+        With `start` (a path, relative to the root or absolute): the tree under the directory it
+        leads to, by the same rule, as (path a record holds, real path, name, entry or None) — the
+        name is the entry's own in the namespace, a link's for a file link. A file link leading
+        inside is given too, as the file it leads to. Nothing is left out by name, and a file is
+        given once per (name, path)."""
+        if start is None:
+            return self._walk_namespace()
+        return self._walk_from(start)
+
+    def _ensure_table(self) -> _Table:
+        if self._table is None:
+            for _ in self._walk_namespace():
+                pass
+        return self._table
+
+    def _claim(self, table: _Table, path: str, ns: str) -> bool:
+        key = self._key(path)
+        if key is None or key in table.keys:
+            return False
+        table.keys[key] = ns
+        table.paths[path] = ns
+        table.key_of_path[path] = key
+        return True
+
+    def _classify(self, link: str) -> tuple[str, str] | None:
+        """("inward" | "dir" | "file", real target) of a link, None for one the walk does not
+        follow: dangling, a loop, to the root or an ancestor of it, or to a place an ignored
+        top-level directory leads to."""
+        try:
+            target = self.spelling.path(os.path.realpath(link, strict=True))
+        except (OSError, ValueError):
+            return None
+        if _under(target, self._root):
+            return "inward", target
+        if _under(self._root, target) or any(_under(target, place)
+                                              for _, place in self._managed()[1]):
+            return None
+        return ("dir" if os.path.isdir(target) else "file"), target
+
+    def _walk_namespace(self):
+        table = _Table()
+        self._judged.clear()
+        self._keys.clear()
+        self.spelling.forget_paths()
+        self._managed_places = None
+        self._claim(table, self._root, "")
+        # What an ignored top-level directory is, wherever it leads, is that directory: no boundary
+        # is walked into it (so a run's own files are never seen under data/).
+        for name in sorted(IGNORED_DIRS):
+            with contextlib.suppress(OSError, ValueError):
+                self._claim(table, self.spelling.path(os.path.realpath(
+                    os.path.join(self._root, name), strict=True)), name)
+        pending: list[tuple[str, str, str]] = []
+        yield from self._walk_tree(table, self._root, "", pending)
+        while pending:
+            ns, kind, target = heapq.heappop(pending)
+            if kind == "dir":
+                if self._claim(table, target, ns):
+                    table.boundaries.append((ns, target))
+                    yield from self._walk_tree(table, target, ns, pending)
+                continue
+            parent, name = os.path.split(target)
+            key = self._key(parent)
+            if key is None or key in table.keys or (key, name) in table.marks:
+                continue  # given already, under a directory walked or through an earlier link
+            table.marks[(key, name)] = ns
+            table.boundaries.append((ns, target))
+            yield ns, target, None
+        self._table = table
+
+    def _walk_tree(self, table: _Table, top: str, top_ns: str, pending: list):
+        stack = [(top, top_ns)]
+        while stack:
+            directory, ns = stack.pop()
+            try:
+                with os.scandir(directory) as listing:
+                    entries = sorted(listing, key=lambda entry: entry.name)
+            except (OSError, ValueError):
+                continue
+            kinds = {entry.name: _kind(entry) for entry in entries}
+            self.spelling.remember(directory, kinds)
+            key = table.key_of_path.get(directory)
+            subdirectories = []
+            for entry in entries:
+                entry_ns = _ns_join(ns, entry.name)
+                kind = kinds[entry.name]
+                if kind == "link":
+                    found = self._classify(entry.path)
+                    if found is not None and found[0] != "inward":
+                        heapq.heappush(pending, (entry_ns, *found))
+                elif kind == "dir":
+                    if (not ns and entry.name in IGNORED_DIRS) or entry.name in SKIPPED_DIRS:
+                        continue
+                    if self._claim(table, entry.path, entry_ns):
+                        subdirectories.append((entry.path, entry_ns))
+                elif not (table.marks and (key, entry.name) in table.marks):
+                    yield entry_ns, entry.path, entry
+            stack.extend(reversed(subdirectories))
+
+    def _through(self, state: _State, name: str, target: str) -> _State:
+        """The state past a link named `name` in the directory `state` reached, to an outward
+        `target`."""
+        if state.where != "out":
+            boundary = (_ns_join(self._ns_of(state), name), target)
+            return _State(target, "under", (*state.crossed, boundary), True)
+        return self._placed(target, state.crossed)
+
+    def _walk_from(self, start):
+        top = self._judge(os.fspath(self.path(start)))
+        if not top.exists or not os.path.isdir(top.cur):
+            return
+        seen_directories = {self._key(top.cur)}
+        given: set[tuple[str, str]] = set()
+        stack = [top]
+        while stack:
+            state = stack.pop()
+            try:
+                with os.scandir(state.cur) as listing:
+                    entries = sorted(listing, key=lambda entry: entry.name)
+            except (OSError, ValueError):
+                continue
+            kinds = {entry.name: _kind(entry) for entry in entries}
+            self.spelling.remember(state.cur, kinds)
+            subdirectories = []
+            for entry in entries:
+                kind = kinds[entry.name]
+                if kind == "dir":
+                    key = self._key(entry.path)
+                    if key is not None and key not in seen_directories:
+                        seen_directories.add(key)
+                        subdirectories.append(state._replace(cur=entry.path))
+                    continue
+                if kind == "link":
+                    found = self._classify(entry.path)
+                    if found is None:
+                        continue
+                    how, target = found
+                    if how == "dir":
+                        key = self._key(target)
+                        if key is not None and key not in seen_directories:
+                            seen_directories.add(key)
+                            subdirectories.append(self._through(state, entry.name, target))
+                        continue
+                    if how == "inward":
+                        if os.path.isdir(target):
+                            continue
+                        item = (self._inside_identity(target), target, entry.name, None)
+                    else:
+                        item = (self._identity(self._through(state, entry.name, target)), target,
+                                entry.name, None)
+                else:
+                    item = (self._identity(state._replace(cur=entry.path)), entry.path, entry.name,
+                            entry)
+                if (item[2], item[0]) not in given:
+                    given.add((item[2], item[0]))
+                    yield item
+            stack.extend(reversed(subdirectories))
 
     def config(self) -> dict:
         data = read_json(self.marker)
@@ -244,8 +861,14 @@ def read_json(path, default=None):
         return default
 
 
-def write_json(path, obj, *, platform: _platform.Platform | None = None) -> None:
+def write_json(path, obj, *, platform: _platform.Platform | None = None,
+               through_link: bool = False) -> None:
+    """Write `obj` as JSON by an atomic replace. A record that is a link is replaced by a file, as
+    the link itself (docs/CONTRACTS.md G); with `through_link` (the trust list, ADR-0006 9) a link
+    whose target exists is followed and the target replaced in its own directory."""
     path = Path(path)
+    if through_link and os.path.islink(path) and os.path.exists(path):
+        path = Path(os.path.realpath(path))
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
     with open_text(tmp) as fh:
@@ -480,26 +1103,51 @@ def trusted_roots() -> set[str]:
     return {str(r) for r in roots} if isinstance(roots, list) else set()
 
 
+# What is_trusted answered, for as long as the trust file is what it was then: the aelix extension
+# asks before every prompt and after every tool call.
+_TRUSTED: dict = {}
+
+
 def is_trusted(root) -> bool:
+    """Whether the trust list holds `root`: its real path in its stored spelling (canonical), or an
+    entry that is that path once spelled as stored — an entry a kit before 0.4.0 wrote as typed
+    (another case on macOS). An entry was a real path when written, so it is not followed again."""
     try:
-        return str(Path(root).expanduser().resolve()) in trusted_roots()
+        resolved = canonical(Path(root).expanduser())
     except (OSError, RuntimeError, ValueError):
         return False
+    file = trust_file()
+    try:
+        st = os.stat(file)
+        stamp = (str(file), st.st_mtime_ns, st.st_size)
+    except OSError:
+        stamp = (str(file), None, None)
+    if _TRUSTED.get("stamp") != stamp:
+        _TRUSTED.clear()
+        _TRUSTED["stamp"] = stamp
+    answers = _TRUSTED.setdefault("answers", {})
+    if resolved not in answers:
+        roots = trusted_roots()
+        spelling = Spelling()
+        answers[resolved] = resolved in roots or any(
+            spelling.path(os.path.normpath(r)) == resolved for r in roots if os.path.isabs(r))
+    return answers[resolved]
 
 
 def trust_project(root, *, platform: _platform.Platform | None = None) -> None:
-    """Remember a project the user created or chose, so starting aelix inside it activates it."""
-    resolved = str(Path(root).expanduser().resolve())
+    """Remember a project the user created or chose, so starting aelix inside it activates it. A
+    trust list that is a link to a file (kept with dotfiles, say) is written at that file."""
+    resolved = canonical(Path(root).expanduser())
     roots = trusted_roots()
     if resolved in roots:
         return
     write_json(trust_file(), {"schema": "lab.trust/1", "projects": sorted(roots | {resolved})},
-               platform=platform)
+               platform=platform, through_link=True)
 
 
 def find_project(start=None) -> Path | None:
     try:
-        here = Path(start or os.getcwd()).expanduser().resolve()
+        here = Path(canonical(Path(start or os.getcwd()).expanduser()))
     except OSError:
         return None
     for candidate in (here, *here.parents):
@@ -926,8 +1574,12 @@ def chart_index(runs: list[dict]) -> list[dict]:
 
 def list_datasets(project: Project, runs: list[dict] | None = None, *,
                   model: relations.ReadModel | None = None, sha=None) -> list[dict]:
-    """Every dataset under data/raw and data/derived. `producers` are the successful runs that output
-    its path, in run order, whatever bytes they wrote; `used_by` the successful runs that read it.
+    """Every dataset under data/raw and data/derived: each `.parquet` file (the suffix in any case)
+    the walk from those directories finds (Project.walk), named by the stem of the name the
+    namespace lists it under and with the path a record holds for it (ADR-0006 9), raw first and
+    each kind in the code point order of its path's components. `producers` are the successful runs
+    that output its path, in run order, whatever bytes they wrote; `used_by` the successful runs
+    that read it.
 
     With a read model and `sha` (the hash of a file's current bytes), each dataset also says which
     runs may have made its current bytes (ADR-0006 4): `producer_state` is `resolved` (one successful
@@ -955,16 +1607,22 @@ def list_datasets(project: Project, runs: list[dict] | None = None, *,
         for entry in r.get("inputs") or []:
             used.setdefault(entry.get("path"), []).append(r["id"])
     items = []
-    for base, kind in ((project.raw, "raw"), (project.derived, "derived")):
-        if not base.is_dir():
-            continue
-        for p in sorted(base.rglob("*.parquet")):
-            rel = project.rel(p)
+    listed: set[tuple[str, str]] = set()
+    for base, kind in (("data/raw", "raw"), ("data/derived", "derived")):
+        found = []
+        for rel, real, name, _entry in project.walk(start=base):
+            if not name.lower().endswith(".parquet") or (name, rel) in listed:
+                continue
             try:
-                size = p.stat().st_size
+                size = os.stat(real).st_size
             except OSError:
                 continue
-            item = {"name": p.stem, "path": rel, "kind": kind, "bytes": size}
+            listed.add((name, rel))
+            found.append((rel.split("/"), rel, name, size))
+        for _, rel, name, size in sorted(found, key=lambda f: (f[0], f[2])):
+            p = project.path(rel)
+            # The name is the one the namespace lists (a link's own), the path the file's identity.
+            item = {"name": Path(name).stem, "path": rel, "kind": kind, "bytes": size}
             meta = read_json(p.with_suffix(".meta.json")) if kind == "raw" else None
             unsupported = (relations.unsupported_reason(meta, frozenset({SCHEMA_DATASET}))
                            if isinstance(meta, dict) else None)
@@ -1005,21 +1663,45 @@ def dataset_name_taken(project: Project, name: str) -> str | None:
     return None
 
 
-def view_names(datasets: list[dict]) -> dict[str, str]:
-    """Dataset view name -> path. Raw datasets keep their name; a colliding derived one gets _derived."""
-    views: dict[str, str] = {}
-    for ds in sorted(datasets, key=lambda d: (d["kind"] != "raw", d["path"])):
+def _views(datasets: list[dict]) -> list[tuple[str, dict]]:
+    """(view name, dataset) in the order names are given: a stem that follows the kit's dataset
+    name rule (DATASET_NAME_RE, the names import and save give) first, then raw before derived, then
+    by path. So a file a person put at data/raw/Sales.parquet never takes `sales` from the dataset
+    the kit imported or saved as `sales` (ADR-0006 9). A later name that collides gets `_derived`
+    (derived) and then `_2`, `_3`…"""
+    out: list[tuple[str, dict]] = []
+    taken: set[str] = set()
+    for ds in sorted(datasets, key=lambda d: (not DATASET_NAME_RE.match(d["name"]),
+                                              d["kind"] != "raw", d["path"])):
         name = re.sub(r"[^a-z0-9_]", "_", ds["name"].lower()) or "dataset"
         if name[0].isdigit():
             name = f"t_{name}"
-        if name in views:
+        if name in taken:
             name = f"{name}_derived" if ds["kind"] == "derived" else name
             n = 2
-            while name in views:
+            while name in taken:
                 name = f"{name.rstrip('0123456789_')}_{n}"
                 n += 1
-        views[name] = ds["path"]
-    return views
+        taken.add(name)
+        out.append((name, ds))
+    return out
+
+
+def view_names(datasets: list[dict]) -> dict[str, str]:
+    """Dataset view name -> path (_views)."""
+    return {name: ds["path"] for name, ds in _views(datasets)}
+
+
+def case_only_datasets(datasets: list[dict]) -> list[list[dict]]:
+    """The datasets whose names differ only in case (or Unicode normalization), each group with
+    every member's name, path and view: a file system that ignores case holds one of them, so
+    the project means another file there."""
+    groups: dict[str, list[dict]] = {}
+    for view, ds in _views(datasets):
+        groups.setdefault(folded(ds["name"]), []).append(
+            {"name": ds["name"], "path": ds["path"], "view": view})
+    return [sorted(group, key=lambda d: (d["name"], d["path"])) for group in groups.values()
+            if len({d["name"] for d in group}) > 1]
 
 
 # --- overview for tools, prompts and the report ---
@@ -1122,6 +1804,7 @@ def status(project: Project, limit: int = STATUS_LIMIT) -> dict:
                        for i, lines in journal.lines_of.items() if len(lines) > 1},
         "datasets": datasets,
         "views": view_names(datasets),
+        "case_only_datasets": case_only_datasets(datasets),
         "runs": run_rows,
         "charts": chart_rows,
         "open": [_brief(e, source[id(e)]) for e in open_items[-limit * 2:]],
@@ -1362,6 +2045,10 @@ def _status_lines(st: dict, caps: dict[str, int]) -> list[tuple[str, str, bool]]
         view_text += (f" and {len(views) - len(shown_views):,} more ({VIEWS_PAGES} to list every "
                       "view)")
     add("datasets", f"datasets ({counts['datasets']}) — query views: {view_text}")
+    for group in st.get("case_only_datasets") or []:
+        named = ", ".join(f"{d['name']} ({d['path']}, view {d['view']})" for d in group)
+        add("datasets", f"dataset names that differ only in case: {named} — a file system that "
+                        "ignores case keeps one of them; rename one")
     datasets = _capped(st["datasets"], caps.get("datasets"))
     for ds in datasets:
         add("datasets", f"  {ds['kind']:<7} {ds['name']}: {_fmt_int(ds.get('rows'))} rows × "

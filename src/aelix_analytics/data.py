@@ -148,7 +148,8 @@ def import_file(project: core.Project, source: str, *, name: str | None = None,
     import duckdb
 
     src = core.expand_home(Path(source))  # the rule Project.path follows
-    src = (src if src.is_absolute() else Path.cwd() / src).resolve()
+    # Where it came from: its real path, every name as the file system stores it (ADR-0006 9).
+    src = Path(project.canonical(src if src.is_absolute() else Path.cwd() / src))
     if not src.is_file():
         raise core.LabError("import_source_missing", f"{src} is not a readable file")
     fmt = IMPORT_FORMATS.get(src.suffix.lower())
@@ -313,8 +314,14 @@ def query(project: core.Project, sql: str, limit: int = 50) -> dict:
     except duckdb.Error as exc:
         entry["error"] = str(exc)[:500]
         core.append_jsonl(project.queries, entry)
-        raise core.LabError("query_failed", str(exc).strip()[:1500],
-                            hint="views: " + ", ".join(views)) from exc
+        hint = "views: " + ", ".join(views)
+        if "Permission Error" in str(exc):
+            # The sandbox judges the real path a read reaches (ADR-0006 9): a dataset below a link
+            # from inside data/ to elsewhere is a view here and is read in a run.
+            hint += ("; analytics_query reads only files whose real path is under the project's "
+                     "data/ — a dataset below a link from data/ to elsewhere is read in a run "
+                     "(analytics.read)")
+        raise core.LabError("query_failed", str(exc).strip()[:1500], hint=hint) from exc
     truncated = len(rows) > limit
     rows = rows[:limit]
     tables = sorted(referenced_views(sql, views))

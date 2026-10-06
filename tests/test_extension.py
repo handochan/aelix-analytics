@@ -21,6 +21,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from conftest import LINK_KINDS, dir_link
 
 pytest.importorskip("aelix_coding_agent")
 
@@ -257,6 +258,44 @@ def test_lab_status_shows_relations_as_the_kit_reads_them(tmp_path, monkeypatch)
             "1 version_unbound") in text
     command = asyncio.run(module.analytics_command("status"))
     assert read in command.split("\n") and "1 missing (e99)" in command
+
+
+@pytest.mark.parametrize("kind", LINK_KINDS)
+def test_status_in_the_aelix_process_names_a_linked_data_directory_s_datasets_by_project_paths(
+        lab, tmp_path, kind):
+    """Issue #36 items 1 and 2 inside the aelix process (CPython 3.11 and 3.12): a data/ that is a
+    link is walked as part of the namespace, so analytics_status lists its datasets by project
+    paths. On Windows' 3.11 a junction is told by its reparse tag (no DirEntry.is_junction)."""
+    module, root = lab
+    (root / "data" / "raw" / "sales.parquet").write_bytes(b"PAR1")
+    elsewhere = tmp_path / "bigdisk"
+    shutil.move(root / "data", elsewhere)
+    dir_link(kind, root / "data", elsewhere)
+    result = call(tools_of(module)["analytics_status"], {})
+    assert not result.is_error, text_of(result)
+    assert [(d["name"], d["path"]) for d in result.details["datasets"]] == \
+        [("sales", "data/raw/sales.parquet")]
+
+
+def test_a_write_through_a_linked_data_directory_is_flagged_without_a_walk(lab, tmp_path,
+                                                                          monkeypatch):
+    """Issue #36 (design review M6): the telemetry of a write or edit runs on aelix's event loop,
+    so it names the path by the links it crosses and never walks the project. A write below a
+    data/ that is a link is a write under data/."""
+    module, root = lab
+    elsewhere = tmp_path / "bigdisk"
+    shutil.move(root / "data", elsewhere)
+    dir_link(LINK_KINDS[-1], root / "data", elsewhere)
+
+    def no_walk(self):
+        raise AssertionError("the project was walked on the event loop")
+        yield  # a generator, like the walk it stands in for
+
+    monkeypatch.setattr(module.core.Project, "_walk_namespace", no_walk)
+    project = module.core.Project(root)
+    for path in (root / "data" / "derived" / "x.parquet", elsewhere / "derived" / "y.parquet"):
+        summary, flags = module.summarize_call("write", {"path": str(path)}, project)
+        assert flags == (["wrote_managed_path"] if path.is_relative_to(root) else []), (path, flags)
 
 
 def test_lab_command_where_help_and_gap(lab):

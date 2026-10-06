@@ -27,6 +27,7 @@ import os
 import re
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import threading
@@ -1329,6 +1330,61 @@ def record_relative_path(path: object) -> bool:
     if path.startswith(("/", "\\")) or _DRIVE_RE.match(path) or path.startswith("~"):
         return False
     return all(part not in ("", ".", "..") for part in re.split(r"[\\/]", path))
+
+
+# The reparse tag of a junction (a mount point): the directory link any Windows account can make. A
+# symbolic link is IO_REPARSE_TAG_SYMLINK, which os.lstat already reports as S_IFLNK.
+IO_REPARSE_TAG_MOUNT_POINT = 0xA0000003
+# Whether stat results carry a reparse tag (Windows): only then can a directory entry be a junction.
+_REPARSE_TAGS = hasattr(os.stat_result, "st_reparse_tag")
+
+
+def is_link(st: os.stat_result) -> bool:
+    """Whether an lstat result is a link the kit treats as one (ADR-0006 9): a symbolic link, to a
+    file or a directory, or a junction. `os.path.islink` is False for a junction, which Windows lets
+    any account make. Another reparse point (a OneDrive placeholder, say) is not a link here. The
+    same line runs on every platform: POSIX has no reparse tag, so only S_ISLNK can be true there."""
+    return stat.S_ISLNK(st.st_mode) or getattr(st, "st_reparse_tag", 0) == IO_REPARSE_TAG_MOUNT_POINT
+
+
+def is_link_entry(entry: os.DirEntry) -> bool:
+    """`is_link` for a directory entry, from what the listing already holds where it can: the
+    entry's own type on POSIX, and `is_junction` (CPython 3.12+) or the listing's reparse tag (3.11,
+    the aelix process) on Windows. An entry that cannot be read is no link."""
+    try:
+        if entry.is_symlink():
+            return True
+        junction = getattr(entry, "is_junction", None)
+        if junction is not None:
+            return bool(junction())
+        if _REPARSE_TAGS:
+            return is_link(entry.stat(follow_symlinks=False))
+    except OSError:
+        pass
+    return False
+
+
+def opened_path(path: str, pathmod=os.path) -> str:
+    """The absolute `path` as the operating system opens it, for a judgment of its components.
+
+    Win32 normalizes a path as text before any file system sees it (GetFullPathNameW folds `.` and
+    `..` and takes both separators), so `data\\b\\..\\x.csv` opens `data\\x.csv` whatever `b` is,
+    and `ntpath.realpath` starts with the same `normpath`. POSIX resolves `..` against the directory
+    a link led to, so there it is left for the judgment to follow. Told by the path syntax
+    (`pathmod`, this platform's `os.path` unless a test passes the other), not by sys.platform."""
+    return pathmod.normpath(path) if pathmod.sep == "\\" else path
+
+
+def plain_path(text: str) -> str:
+    """`text` without an extended-length prefix: `\\\\?\\C:\\x` is `C:\\x` and
+    `\\\\?\\UNC\\srv\\share` is `\\\\srv\\share`. `ntpath.realpath` keeps the prefix on a path it
+    could not resolve without it (a long path where long paths are not enabled), so two spellings of
+    one place are compared without it. A POSIX path never starts so."""
+    if text[:8].upper() == "\\\\?\\UNC\\":
+        return "\\\\" + text[8:]
+    if text.startswith("\\\\?\\"):
+        return text[4:]
+    return text
 
 
 def text_kwargs() -> dict:

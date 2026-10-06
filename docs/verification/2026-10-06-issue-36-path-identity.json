@@ -1,0 +1,864 @@
+{
+ "record_kind": "aelix-analytics-path-identity",
+ "observed_at": "2026-10-06T02:57:24Z",
+ "issue": "https://github.com/handochan/aelix-analytics/issues/36",
+ "pull_request": null,
+ "base_revision": "e9392d93fae7dab36974c8431c7ed10280a3e4d6",
+ "measured_tree": {
+  "what": "the working tree of branch feat/issue-36-path-identity on base_revision, whose code (src, extension, tests, tools, pyproject.toml, uv.lock) is the commit that adds this record: the record and documents were written after the measurement",
+  "code_manifest": "sha256 of each code file, one line each (`shasum -a 256` format), sorted by path",
+  "code_manifest_sha256": "b469ab42fe884cec851f6a860451751e025110dcde622040640d31aea9c14fae",
+  "code_files": 152
+ },
+ "workflow": ".github/workflows/ci.yml, not changed by this change",
+ "runs": {
+  "code": {
+   "status": "pending",
+   "note": "CI 실행 예정: the pull request's `pull_request` run (ubuntu-24.04, windows-2025) fills this, with run id and attempt"
+  },
+  "macos_label": {
+   "status": "pending",
+   "note": "CI 실행 예정: the `ci:macos` labelled run on the same head"
+  }
+ },
+ "developer_machine": {
+  "where": "macOS developer machine, the worktree above, isolation: AELIX_ANALYTICS_TRUST_FILE and AELIX_ANALYTICS_UV inside the run's evidence folder, no LAB_*/AELIX_LAB_* variable",
+  "machine": [
+   "ProductName:\t\tmacOS\nProductVersion:\t\t26.6.2\nBuildVersion:\t\t25G83",
+   "arm64",
+   "uv 0.11.19 (Homebrew 2026-06-03 aarch64-apple-darwin)"
+  ],
+  "suite": {
+   "command": "AELIX_ANALYTICS_TEST_INSTALL=1 uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread --junitxml=suite.xml",
+   "python": "3.12.13",
+   "file": "suite.xml",
+   "file_sha256": "d4a87752cc0a82132edfe02e959453cf85c9cb50cb7543a8cabbe273a09a6ddf",
+   "timestamp": "2026-10-06T11:57:24.649911+09:00",
+   "seconds": 280.064,
+   "counts": {
+    "skip": 37,
+    "pass": 1002
+   },
+   "failed": [],
+   "skipped_by_reason": {
+    "collection skipped": 2,
+    "what Windows does; POSIX sends it again (the test above)": 1,
+    "a directory flagged case-sensitive is Windows'": 2,
+    "8.3 short names are Windows'": 1,
+    "taskkill and CreateProcess's search are Windows'": 1,
+    "before 3.14 a `with` calls __enter__ without a CALL, and no signal is handled between its acquiring and the block": 1,
+    "this file system refuses a name that is not UTF-8: OSError(92, 'Illegal byte sequence')": 2,
+    "the Windows console": 21,
+    "MAX_PATH and LongPathsEnabled are Windows'": 6
+   },
+   "cited_cases": {
+    "tests.test_kit::test_query_cannot_read_through_a_link_out_of_data[symlink]": "pass",
+    "tests.test_kit::test_query_cannot_write_or_read_outside_data": "pass",
+    "tests.test_kit::test_the_renamed_variables_are_the_adrs_list": "pass",
+    "tests.test_packaging::test_the_readme_names_the_wheel_this_version_builds": "pass",
+    "tests.test_path_identity::test_a_case_variant_dataset_file_does_not_take_the_kit_dataset_s_view": "pass",
+    "tests.test_path_identity::test_a_case_variant_dataset_in_a_case_sensitive_windows_directory": "skip",
+    "tests.test_path_identity::test_a_dataset_is_named_by_its_own_entry_and_listed_once_per_name[symlink]": "pass",
+    "tests.test_path_identity::test_a_file_link_out_of_the_project_is_recorded_by_its_own_path": "pass",
+    "tests.test_path_identity::test_a_file_system_without_inode_numbers_is_told_by_path": "pass",
+    "tests.test_path_identity::test_a_link_is_a_symbolic_link_or_a_junction[symlink]": "pass",
+    "tests.test_path_identity::test_a_managed_directory_reached_through_a_boundary_is_not_walked[symlink]": "pass",
+    "tests.test_path_identity::test_a_module_under_an_outward_link_is_not_snapshotted[symlink]": "pass",
+    "tests.test_path_identity::test_a_path_recorded_by_an_earlier_kit_is_read_as_the_namespace_now": "pass",
+    "tests.test_path_identity::test_a_path_through_an_ignored_directory_is_named_by_the_walk_where_it_reached_the_file": "pass",
+    "tests.test_path_identity::test_a_record_that_is_a_link_is_replaced_by_a_file": "pass",
+    "tests.test_path_identity::test_a_rerun_of_a_project_whose_runs_directory_is_stored_in_another_case": "pass",
+    "tests.test_path_identity::test_a_run_that_links_a_directory_names_its_files_as_the_namespace_is_after_it": "pass",
+    "tests.test_path_identity::test_a_script_named_in_another_case_keeps_one_chart_identity": "pass",
+    "tests.test_path_identity::test_a_script_under_an_outward_link_is_still_outside[symlink]": "pass",
+    "tests.test_path_identity::test_a_short_name_of_a_directory_in_the_project_is_recorded_by_its_long_name": "skip",
+    "tests.test_path_identity::test_a_stored_name_wins_and_another_spelling_is_one_only_for_the_same_entry": "pass",
+    "tests.test_path_identity::test_an_alias_link_inside_data_is_a_dataset_of_its_own_at_its_target": "pass",
+    "tests.test_path_identity::test_an_appended_log_that_is_a_link_is_written_at_its_target": "pass",
+    "tests.test_path_identity::test_an_input_read_in_another_case_meets_its_producer": "pass",
+    "tests.test_path_identity::test_an_inward_data_link_keeps_its_datasets_at_their_real_place": "pass",
+    "tests.test_path_identity::test_an_nfc_name_of_an_nfd_file_is_recorded_as_stored": "pass",
+    "tests.test_path_identity::test_an_old_trust_entry_in_another_case_still_trusts": "pass",
+    "tests.test_path_identity::test_query_reads_datasets_under_a_linked_data_directory[symlink]": "pass",
+    "tests.test_path_identity::test_status_warns_of_dataset_names_that_differ_only_in_case": "pass",
+    "tests.test_path_identity::test_the_identity_of_a_path_follows_the_namespace[symlink]": "pass",
+    "tests.test_path_identity::test_the_trust_list_is_replaced_at_its_link_target": "pass",
+    "tests.test_path_identity::test_the_walk_and_the_identity_agree_on_random_links": "pass",
+    "tests.test_path_identity::test_the_walk_at_m_scale_is_observed": "pass",
+    "tests.test_path_identity::test_the_walk_follows_each_outward_target_once_and_no_other_link[symlink]": "pass",
+    "tests.test_path_identity::test_trust_of_a_project_created_under_another_case_of_its_parent": "pass",
+    "tests.test_path_identity::test_two_file_links_to_one_file_give_one_path": "pass",
+    "tests.test_path_identity::test_two_links_to_one_directory_give_one_path[symlink]": "pass",
+    "tests.test_path_identity::test_two_links_to_one_directory_join_a_run_s_input_to_another_s_output[symlink]": "pass",
+    "tests.test_path_identity::test_view_names_give_the_kit_named_stem_first": "pass",
+    "tests.test_path_identity::test_windows_folds_dot_dot_as_text_and_posix_follows_it": "pass",
+    "tests.test_platform::test_a_case_variant_is_an_own_name_only_when_it_is_the_same_file": "pass",
+    "tests.test_platform::test_a_rerun_does_not_follow_a_link_out_of_the_project[symlink]": "pass",
+    "tests.test_platform::test_a_rerun_through_a_link_into_a_managed_directory_is_refused[symlink]": "pass",
+    "tests.test_platform::test_a_rerun_through_a_link_loop_runs_as_on_main[symlink]": "pass",
+    "tests.test_platform::test_a_rerun_through_an_outward_link_is_refused_behind_a_loop_too[symlink]": "pass",
+    "tests.test_platform::test_a_run_through_a_linked_data_directory_records_project_paths[symlink]": "pass"
+   }
+  },
+  "aelix_py3_12": {
+   "command": "uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_extension.py tests/test_usage_report.py",
+   "file": "aelix-3.12.xml",
+   "file_sha256": "5a900f14dff5e5a47207ecde4fcdc8de8b66846ec0cd036eb1153b44206a808c",
+   "timestamp": "2026-10-06T11:57:37.519457+09:00",
+   "seconds": 29.994,
+   "counts": {
+    "pass": 143
+   },
+   "failed": [],
+   "skipped_by_reason": {},
+   "cited_cases": {
+    "tests.test_extension::test_a_write_through_a_linked_data_directory_is_flagged_without_a_walk": "pass",
+    "tests.test_extension::test_status_in_the_aelix_process_names_a_linked_data_directory_s_datasets_by_project_paths[symlink]": "pass"
+   }
+  },
+  "aelix_py3_11": {
+   "command": "the same with --python 3.11",
+   "file": "aelix-3.11.xml",
+   "file_sha256": "c620f24c3ea1f1e867a3ac2ded9811c352f9d065cba3cff52575aa39489f757b",
+   "timestamp": "2026-10-06T11:58:08.443854+09:00",
+   "seconds": 32.534,
+   "counts": {
+    "pass": 143
+   },
+   "failed": [],
+   "skipped_by_reason": {},
+   "cited_cases": {
+    "tests.test_extension::test_a_write_through_a_linked_data_directory_is_flagged_without_a_walk": "pass",
+    "tests.test_extension::test_status_in_the_aelix_process_names_a_linked_data_directory_s_datasets_by_project_paths[symlink]": "pass"
+   }
+  },
+  "launcher_py3_11": {
+   "command": "uv run --isolated --no-project --python 3.11 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread tests/test_launcher.py",
+   "file": "launcher-3.11.xml",
+   "file_sha256": "0340b653f1645105703e18244d2d945ea9906104c4189fdfe3ec4987fb54fa47",
+   "timestamp": "2026-10-06T11:58:41.188568+09:00",
+   "seconds": 24.315,
+   "counts": {
+    "pass": 120,
+    "skip": 1
+   },
+   "failed": [],
+   "skipped_by_reason": {
+    "what Windows does; POSIX sends it again (the test above)": 1
+   },
+   "cited_cases": {}
+  },
+  "case_sensitive_apfs": {
+   "what": "a case-sensitive APFS disk image (hdiutil -fs 'Case-sensitive APFS') as pytest's --basetemp: the identity tests and the link, case and rerun tests of test_platform.py",
+   "command": "uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread --basetemp=<volume>/bt2 tests/test_path_identity.py tests/test_platform.py -k '<link, case, rerun, identity … names>'",
+   "file": "case-sensitive-apfs.xml",
+   "file_sha256": "a9884d0fadc43bbe7fba096ee81858c1462cd4e6a36156ed57e53cdb1a0be33b",
+   "timestamp": "2026-10-06T12:01:53.326867+09:00",
+   "seconds": 71.269,
+   "counts": {
+    "pass": 238,
+    "skip": 6
+   },
+   "failed": [],
+   "skipped_by_reason": {
+    "this file system minds case: `Runs` would be a directory of its own": 1,
+    "a directory flagged case-sensitive is Windows'": 2,
+    "8.3 short names are Windows'": 1,
+    "this file system refuses a name that is not UTF-8: OSError(92, 'Illegal byte sequence')": 2
+   },
+   "cited_cases": {
+    "tests.test_path_identity::test_a_case_variant_dataset_file_does_not_take_the_kit_dataset_s_view": "pass",
+    "tests.test_path_identity::test_a_case_variant_dataset_in_a_case_sensitive_windows_directory": "skip",
+    "tests.test_path_identity::test_a_dataset_is_named_by_its_own_entry_and_listed_once_per_name[symlink]": "pass",
+    "tests.test_path_identity::test_a_file_link_out_of_the_project_is_recorded_by_its_own_path": "pass",
+    "tests.test_path_identity::test_a_file_system_without_inode_numbers_is_told_by_path": "pass",
+    "tests.test_path_identity::test_a_link_is_a_symbolic_link_or_a_junction[symlink]": "pass",
+    "tests.test_path_identity::test_a_managed_directory_reached_through_a_boundary_is_not_walked[symlink]": "pass",
+    "tests.test_path_identity::test_a_module_under_an_outward_link_is_not_snapshotted[symlink]": "pass",
+    "tests.test_path_identity::test_a_path_recorded_by_an_earlier_kit_is_read_as_the_namespace_now": "pass",
+    "tests.test_path_identity::test_a_path_through_an_ignored_directory_is_named_by_the_walk_where_it_reached_the_file": "pass",
+    "tests.test_path_identity::test_a_record_that_is_a_link_is_replaced_by_a_file": "pass",
+    "tests.test_path_identity::test_a_rerun_of_a_project_whose_runs_directory_is_stored_in_another_case": "skip",
+    "tests.test_path_identity::test_a_run_that_links_a_directory_names_its_files_as_the_namespace_is_after_it": "pass",
+    "tests.test_path_identity::test_a_script_named_in_another_case_keeps_one_chart_identity": "pass",
+    "tests.test_path_identity::test_a_script_under_an_outward_link_is_still_outside[symlink]": "pass",
+    "tests.test_path_identity::test_a_short_name_of_a_directory_in_the_project_is_recorded_by_its_long_name": "skip",
+    "tests.test_path_identity::test_a_stored_name_wins_and_another_spelling_is_one_only_for_the_same_entry": "pass",
+    "tests.test_path_identity::test_an_alias_link_inside_data_is_a_dataset_of_its_own_at_its_target": "pass",
+    "tests.test_path_identity::test_an_appended_log_that_is_a_link_is_written_at_its_target": "pass",
+    "tests.test_path_identity::test_an_input_read_in_another_case_meets_its_producer": "pass",
+    "tests.test_path_identity::test_an_inward_data_link_keeps_its_datasets_at_their_real_place": "pass",
+    "tests.test_path_identity::test_an_nfc_name_of_an_nfd_file_is_recorded_as_stored": "pass",
+    "tests.test_path_identity::test_an_old_trust_entry_in_another_case_still_trusts": "pass",
+    "tests.test_path_identity::test_query_reads_datasets_under_a_linked_data_directory[symlink]": "pass",
+    "tests.test_path_identity::test_status_warns_of_dataset_names_that_differ_only_in_case": "pass",
+    "tests.test_path_identity::test_the_identity_of_a_path_follows_the_namespace[symlink]": "pass",
+    "tests.test_path_identity::test_the_trust_list_is_replaced_at_its_link_target": "pass",
+    "tests.test_path_identity::test_the_walk_and_the_identity_agree_on_random_links": "pass",
+    "tests.test_path_identity::test_the_walk_at_m_scale_is_observed": "pass",
+    "tests.test_path_identity::test_the_walk_follows_each_outward_target_once_and_no_other_link[symlink]": "pass",
+    "tests.test_path_identity::test_trust_of_a_project_created_under_another_case_of_its_parent": "pass",
+    "tests.test_path_identity::test_two_file_links_to_one_file_give_one_path": "pass",
+    "tests.test_path_identity::test_two_links_to_one_directory_give_one_path[symlink]": "pass",
+    "tests.test_path_identity::test_two_links_to_one_directory_join_a_run_s_input_to_another_s_output[symlink]": "pass",
+    "tests.test_path_identity::test_view_names_give_the_kit_named_stem_first": "pass",
+    "tests.test_path_identity::test_windows_folds_dot_dot_as_text_and_posix_follows_it": "pass",
+    "tests.test_platform::test_a_case_variant_is_an_own_name_only_when_it_is_the_same_file": "pass",
+    "tests.test_platform::test_a_rerun_does_not_follow_a_link_out_of_the_project[symlink]": "pass",
+    "tests.test_platform::test_a_rerun_through_a_link_into_a_managed_directory_is_refused[symlink]": "pass",
+    "tests.test_platform::test_a_rerun_through_a_link_loop_runs_as_on_main[symlink]": "pass",
+    "tests.test_platform::test_a_rerun_through_an_outward_link_is_refused_behind_a_loop_too[symlink]": "pass",
+    "tests.test_platform::test_a_run_through_a_linked_data_directory_records_project_paths[symlink]": "pass"
+   }
+  },
+  "smoke": {
+   "command": "uv run --locked python tools/platform_smoke.py --gate required",
+   "summary": {
+    "holds": 25,
+    "violated": 0,
+    "declared_limitation": 0,
+    "observed": 6,
+    "not_run": 0
+   },
+   "required_hold": true
+  },
+  "stdlib_smoke_py3_11": {
+   "command": "uv run --isolated --no-project --python 3.11 python tools/platform_smoke.py --stdlib-only --gate required",
+   "summary": {
+    "holds": 15,
+    "violated": 0,
+    "declared_limitation": 0,
+    "observed": 3,
+    "not_run": 2
+   },
+   "required_hold": true
+  },
+  "usage_report": {
+   "command": "uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 python tools/usage_report.py --output <dir>",
+   "required_facts": {
+    "passed": 58,
+    "total": 58
+   },
+   "invariants": {
+    "holding": 42,
+    "total": 42
+   },
+   "sizes_against_base": "the same at e9392d9 but three host-prompt sizes, which hold the checkout's path twice (the base ran from a path 62 characters longer)"
+  },
+  "observations": {
+   "ancestor-link-symlink": {
+    "back_inside": "data/raw/s.parquet",
+    "dot_dot_after_a_boundary": {
+     "opened": "beside ext",
+     "recorded": "<pytest tmp>/test_the_identity_of_a_path_fo0/X/x.csv"
+    },
+    "past_the_ancestor": "<pytest tmp>/test_the_identity_of_a_path_fo0/ext/x.csv"
+   },
+   "append-link-followed": {
+    "link_kept": true,
+    "written_at_target": true
+   },
+   "case-aliases": {
+    "absolute_other_case": {
+     "path": "scripts/analysis.py",
+     "sha256": "949f8b4cb82938a832b9a54b44daf4fa620912bd89c9b7f32e485f9399f44dfb",
+     "snapshot": "runs/20261006-115917-analysis-3/code/scripts/analysis.py"
+    },
+    "ignores_case": true,
+    "second": {
+     "path": "scripts/analysis.py",
+     "sha256": "949f8b4cb82938a832b9a54b44daf4fa620912bd89c9b7f32e485f9399f44dfb",
+     "snapshot": "runs/20261006-115917-analysis-2/code/scripts/analysis.py"
+    }
+   },
+   "case-only-datasets": {
+    "coexist": false
+   },
+   "file-link-out": {
+    "inputs": [
+     {
+      "bytes": 1287,
+      "external": false,
+      "path": "data/raw/big.parquet",
+      "sha256": "048e88fb2ea2516ba778e78a94bd3b59b3c98927a2fc139b518c2fca81f86393",
+      "via": [
+       "lab.read",
+       "polars.read_parquet"
+      ]
+     }
+    ],
+    "warnings": []
+   },
+   "inward-data-link": {
+    "datasets": [
+     [
+      "sales",
+      "storage/data/raw/sales.parquet"
+     ]
+    ],
+    "inputs": [
+     {
+      "bytes": 1287,
+      "external": false,
+      "path": "storage/data/raw/sales.parquet",
+      "sha256": "048e88fb2ea2516ba778e78a94bd3b59b3c98927a2fc139b518c2fca81f86393",
+      "via": [
+       "lab.read",
+       "polars.read_parquet"
+      ]
+     }
+    ],
+    "outputs": []
+   },
+   "link-into-runs-symlink": {
+    "outputs": [],
+    "warnings": []
+   },
+   "linked-data-symlink": {
+    "datasets": [
+     {
+      "kind": "raw",
+      "name": "sales",
+      "path": "data/raw/sales.parquet",
+      "producer": null,
+      "producer_candidates": [],
+      "producer_state": "none",
+      "used_by": [
+       "20261006-120004-95-save"
+      ]
+     },
+     {
+      "kind": "derived",
+      "name": "part",
+      "path": "data/derived/part.parquet",
+      "producer": "20261006-120004-95-save",
+      "producer_candidates": [
+       "20261006-120004-95-save"
+      ],
+      "producer_state": "resolved",
+      "used_by": [
+       "20261006-120004-96-read"
+      ]
+     }
+    ],
+    "read": {
+     "inputs": [
+      {
+       "bytes": 1583,
+       "external": false,
+       "path": "data/derived/part.parquet",
+       "sha256": "1a98c6ff3f0bb1b6b82be911f4573ee1df2c4749b88f71ca1c36289ea78b9184",
+       "via": [
+        "lab.read",
+        "polars.read_parquet"
+       ]
+      }
+     ],
+     "outputs": [],
+     "warnings": []
+    },
+    "save": {
+     "inputs": [
+      {
+       "bytes": 1287,
+       "external": false,
+       "path": "data/raw/sales.parquet",
+       "sha256": "048e88fb2ea2516ba778e78a94bd3b59b3c98927a2fc139b518c2fca81f86393",
+       "via": [
+        "lab.read",
+        "polars.read_parquet"
+       ]
+      }
+     ],
+     "outputs": [
+      {
+       "bytes": 1583,
+       "change": "created",
+       "path": "data/derived/part.parquet",
+       "rows": 5,
+       "schema": [
+        [
+         "order_date",
+         "Date"
+        ],
+        [
+         "region",
+         "String"
+        ],
+        [
+         "channel",
+         "String"
+        ],
+        [
+         "revenue",
+         "Int64"
+        ]
+       ],
+       "sha256": "1a98c6ff3f0bb1b6b82be911f4573ee1df2c4749b88f71ca1c36289ea78b9184",
+       "via": "lab.save"
+      }
+     ],
+     "warnings": []
+    }
+   },
+   "nfd-aliases": {
+    "nfc_opens_the_nfd_file": true,
+    "recorded_is_nfd": true
+   },
+   "query-linked-data-symlink": {
+    "count": [
+     [
+      120
+     ]
+    ],
+    "dataset_below_a_link": {
+     "code": "query_failed",
+     "hint": "views: far, sales; analytics_query reads only files whose real path is under the project's data/ — a dataset below a link from data/ to elsewhere is read in a run (analytics.read)",
+     "message": "Permission Error: Cannot access file \"<pytest tmp>/test_query_reads_datasets_unde0/proj/data/raw/far/far.parquet\" - file system operations are disabled by configuration"
+    },
+    "refused": {
+     "dot_dot": true,
+     "link_out_of_the_target": true,
+     "outside": true
+    }
+   },
+   "readme-symlink-route": {
+    "link": "os.symlink of the checkout's extension file",
+    "os": "posix"
+   },
+   "record-link-replaced": {
+    "link_replaced_by_a_file": true
+   },
+   "trust-link": {
+    "dangling_replaced_by_a_file": true,
+    "link_kept": true
+   },
+   "two-links-one-target-symlink": {
+    "inputs": [
+     {
+      "bytes": 1567,
+      "external": false,
+      "path": "data/a/t.parquet",
+      "sha256": "4ee67f539b4474e573667b4b1aa55c6a5718b2fd1643a8b90f6d244858acee99",
+      "via": [
+       "polars.read_parquet",
+       "scan"
+      ]
+     }
+    ],
+    "outputs": [
+     {
+      "bytes": 1567,
+      "change": "created",
+      "path": "data/a/t.parquet",
+      "rows": 3,
+      "schema": [
+       [
+        "order_date",
+        "Date"
+       ],
+       [
+        "region",
+        "String"
+       ],
+       [
+        "channel",
+        "String"
+       ],
+       [
+        "revenue",
+        "Int64"
+       ]
+      ],
+      "sha256": "4ee67f539b4474e573667b4b1aa55c6a5718b2fd1643a8b90f6d244858acee99",
+      "via": "diff"
+     }
+    ]
+   },
+   "walk-m-scale": {
+    "files": 10001,
+    "identity_10000_ms": 67.1,
+    "identity_of_1000_files_made_after_listing_ms": 7.9,
+    "linked_data_kind": "symlink",
+    "linked_identity_10000_ms": 91.6,
+    "linked_tree_stat_before_files_under_data": 0,
+    "linked_tree_stat_before_ms": 0.0,
+    "linked_tree_stat_ms": 30.1,
+    "list_datasets_10000_ms": 75.0,
+    "make_and_identify_1000_files_one_at_a_time_ms": 135.6,
+    "tree_stat_before_ms": 44.2,
+    "tree_stat_ms": 23.2
+   }
+  },
+  "observations_case_sensitive_apfs": {
+   "ancestor-link-symlink": {
+    "back_inside": "data/raw/s.parquet",
+    "dot_dot_after_a_boundary": {
+     "opened": "beside ext",
+     "recorded": "<case-sensitive APFS volume>/<pytest tmp>/test_the_identity_of_a_path_fo0/X/x.csv"
+    },
+    "past_the_ancestor": "<case-sensitive APFS volume>/<pytest tmp>/test_the_identity_of_a_path_fo0/ext/x.csv"
+   },
+   "append-link-followed": {
+    "link_kept": true,
+    "written_at_target": true
+   },
+   "case-aliases": {
+    "absolute_other_case": {
+     "code": "script_outside",
+     "message": "<case-sensitive APFS volume>/<pytest tmp>/test_a_script_named_in_another0/PROJ/scripts/analysis.py is outside the project"
+    },
+    "ignores_case": false,
+    "second": {
+     "code": "script_missing",
+     "hint": "write the script under scripts/ first",
+     "message": "Scripts/Analysis.py is not a .py file in the project"
+    }
+   },
+   "case-only-datasets": {
+    "coexist": true,
+    "groups": [
+     [
+      {
+       "name": "Sales",
+       "path": "data/raw/Sales.parquet",
+       "view": "sales_2"
+      },
+      {
+       "name": "sales",
+       "path": "data/raw/sales.parquet",
+       "view": "sales"
+      }
+     ]
+    ],
+    "views": {
+     "sales": "data/raw/sales.parquet",
+     "sales_2": "data/raw/Sales.parquet"
+    }
+   },
+   "file-link-out": {
+    "inputs": [
+     {
+      "bytes": 1287,
+      "external": false,
+      "path": "data/raw/big.parquet",
+      "sha256": "048e88fb2ea2516ba778e78a94bd3b59b3c98927a2fc139b518c2fca81f86393",
+      "via": [
+       "lab.read",
+       "polars.read_parquet"
+      ]
+     }
+    ],
+    "warnings": []
+   },
+   "inward-data-link": {
+    "datasets": [
+     [
+      "sales",
+      "storage/data/raw/sales.parquet"
+     ]
+    ],
+    "inputs": [
+     {
+      "bytes": 1287,
+      "external": false,
+      "path": "storage/data/raw/sales.parquet",
+      "sha256": "048e88fb2ea2516ba778e78a94bd3b59b3c98927a2fc139b518c2fca81f86393",
+      "via": [
+       "lab.read",
+       "polars.read_parquet"
+      ]
+     }
+    ],
+    "outputs": []
+   },
+   "link-into-runs-symlink": {
+    "outputs": [],
+    "warnings": []
+   },
+   "linked-data-symlink": {
+    "datasets": [
+     {
+      "kind": "raw",
+      "name": "sales",
+      "path": "data/raw/sales.parquet",
+      "producer": null,
+      "producer_candidates": [],
+      "producer_state": "none",
+      "used_by": [
+       "20261006-120223-95-save"
+      ]
+     },
+     {
+      "kind": "derived",
+      "name": "part",
+      "path": "data/derived/part.parquet",
+      "producer": "20261006-120223-95-save",
+      "producer_candidates": [
+       "20261006-120223-95-save"
+      ],
+      "producer_state": "resolved",
+      "used_by": [
+       "20261006-120223-96-read"
+      ]
+     }
+    ],
+    "read": {
+     "inputs": [
+      {
+       "bytes": 1583,
+       "external": false,
+       "path": "data/derived/part.parquet",
+       "sha256": "1a98c6ff3f0bb1b6b82be911f4573ee1df2c4749b88f71ca1c36289ea78b9184",
+       "via": [
+        "lab.read",
+        "polars.read_parquet"
+       ]
+      }
+     ],
+     "outputs": [],
+     "warnings": []
+    },
+    "save": {
+     "inputs": [
+      {
+       "bytes": 1287,
+       "external": false,
+       "path": "data/raw/sales.parquet",
+       "sha256": "048e88fb2ea2516ba778e78a94bd3b59b3c98927a2fc139b518c2fca81f86393",
+       "via": [
+        "lab.read",
+        "polars.read_parquet"
+       ]
+      }
+     ],
+     "outputs": [
+      {
+       "bytes": 1583,
+       "change": "created",
+       "path": "data/derived/part.parquet",
+       "rows": 5,
+       "schema": [
+        [
+         "order_date",
+         "Date"
+        ],
+        [
+         "region",
+         "String"
+        ],
+        [
+         "channel",
+         "String"
+        ],
+        [
+         "revenue",
+         "Int64"
+        ]
+       ],
+       "sha256": "1a98c6ff3f0bb1b6b82be911f4573ee1df2c4749b88f71ca1c36289ea78b9184",
+       "via": "lab.save"
+      }
+     ],
+     "warnings": []
+    }
+   },
+   "nfd-aliases": {
+    "nfc_opens_the_nfd_file": true,
+    "recorded_is_nfd": true
+   },
+   "query-linked-data-symlink": {
+    "count": [
+     [
+      120
+     ]
+    ],
+    "dataset_below_a_link": {
+     "code": "query_failed",
+     "hint": "views: far, sales; analytics_query reads only files whose real path is under the project's data/ — a dataset below a link from data/ to elsewhere is read in a run (analytics.read)",
+     "message": "Permission Error: Cannot access file \"<case-sensitive APFS volume>/<pytest tmp>/test_query_reads_datasets_unde0/proj/data/raw/far/far.parquet\" - file system operations are disabled by configuration"
+    },
+    "refused": {
+     "dot_dot": true,
+     "link_out_of_the_target": true,
+     "outside": true
+    }
+   },
+   "record-link-replaced": {
+    "link_replaced_by_a_file": true
+   },
+   "trust-link": {
+    "dangling_replaced_by_a_file": true,
+    "link_kept": true
+   },
+   "two-links-one-target-symlink": {
+    "inputs": [
+     {
+      "bytes": 1567,
+      "external": false,
+      "path": "data/a/t.parquet",
+      "sha256": "4ee67f539b4474e573667b4b1aa55c6a5718b2fd1643a8b90f6d244858acee99",
+      "via": [
+       "polars.read_parquet",
+       "scan"
+      ]
+     }
+    ],
+    "outputs": [
+     {
+      "bytes": 1567,
+      "change": "created",
+      "path": "data/a/t.parquet",
+      "rows": 3,
+      "schema": [
+       [
+        "order_date",
+        "Date"
+       ],
+       [
+        "region",
+        "String"
+       ],
+       [
+        "channel",
+        "String"
+       ],
+       [
+        "revenue",
+        "Int64"
+       ]
+      ],
+      "sha256": "4ee67f539b4474e573667b4b1aa55c6a5718b2fd1643a8b90f6d244858acee99",
+      "via": "diff"
+     }
+    ]
+   },
+   "walk-m-scale": {
+    "files": 10001,
+    "identity_10000_ms": 65.8,
+    "identity_of_1000_files_made_after_listing_ms": 7.9,
+    "linked_data_kind": "symlink",
+    "linked_identity_10000_ms": 95.0,
+    "linked_tree_stat_before_files_under_data": 0,
+    "linked_tree_stat_before_ms": 0.0,
+    "linked_tree_stat_ms": 31.1,
+    "list_datasets_10000_ms": 70.3,
+    "make_and_identify_1000_files_one_at_a_time_ms": 131.8,
+    "tree_stat_before_ms": 47.3,
+    "tree_stat_ms": 24.4
+   }
+  },
+  "m_scale": {
+   "fixture": "300 runs, data/raw 2,000 files + data/derived 100 directories × 80 = 10,000 parquet-named files; `linked` moves data/ out and links it back (symbolic link)",
+   "script": "evidence/m-scale/m_scale.py and status_time.py of the run (not in the repository)",
+   "base": {
+    "label": "base-e9392d9",
+    "src": "git archive e9392d9 src",
+    "python": "3.12.13",
+    "plain": {
+     "tree_stat_ms": 44.5,
+     "tree_stat_files": 10006,
+     "tree_stat_files_under_data": 10000,
+     "list_datasets_ms": 398.3,
+     "datasets": 10000,
+     "dataset_paths_relative": 10000,
+     "rel_10000_ms": 345.4,
+     "rel_relative": 10000
+    },
+    "linked": {
+     "tree_stat_ms": 0.1,
+     "tree_stat_files": 6,
+     "tree_stat_files_under_data": 0,
+     "list_datasets_ms": 552.1,
+     "datasets": 10000,
+     "dataset_paths_relative": 0,
+     "rel_10000_ms": 492.2,
+     "rel_relative": 0
+    }
+   },
+   "head": {
+    "label": "head",
+    "src": "the measured tree's src",
+    "python": "3.12.13",
+    "plain": {
+     "tree_stat_ms": 22.8,
+     "tree_stat_files": 10006,
+     "tree_stat_files_under_data": 10000,
+     "list_datasets_ms": 69.6,
+     "datasets": 10000,
+     "dataset_paths_relative": 10000,
+     "rel_10000_ms": 65.3,
+     "rel_relative": 10000
+    },
+    "linked": {
+     "tree_stat_ms": 23.7,
+     "tree_stat_files": 10006,
+     "tree_stat_files_under_data": 10000,
+     "list_datasets_ms": 97.9,
+     "datasets": 10000,
+     "dataset_paths_relative": 10000,
+     "rel_10000_ms": 91.2,
+     "rel_relative": 10000
+    }
+   },
+   "status_base": {
+    "label": "base-e9392d9",
+    "plain": {
+     "status_ms": 509.3,
+     "datasets": 10000,
+     "relative": 10000
+    },
+    "linked": {
+     "status_ms": 679.8,
+     "datasets": 10000,
+     "relative": 0
+    }
+   },
+   "status_head": {
+    "label": "head",
+    "plain": {
+     "status_ms": 219.0,
+     "datasets": 10000,
+     "relative": 10000
+    },
+    "linked": {
+     "status_ms": 258.2,
+     "datasets": 10000,
+     "relative": 10000
+    }
+   }
+  }
+ },
+ "before": {
+  "record": "docs/verification/2026-10-02-issue-8-windows-inventory.json",
+  "measured_revision": "4eb0955f241e1008e34220f8c7e9caa0ebe91e11",
+  "pointers": {
+   "linked-data-symlink": [
+    "/runs/code/jobs/platform ubuntu-24.04/observations/linked-data-symlink",
+    "/runs/code/jobs/platform windows-2025/observations/linked-data-symlink",
+    "/runs/macos_label/jobs/platform macos-26/observations/linked-data-symlink",
+    "/developer_machine/observations/linked-data-symlink"
+   ],
+   "linked-data-junction": [
+    "/runs/code/jobs/platform windows-2025/observations/linked-data-junction"
+   ],
+   "link-into-runs-symlink": [
+    "/runs/code/jobs/platform ubuntu-24.04/observations/link-into-runs-symlink",
+    "/runs/code/jobs/platform windows-2025/observations/link-into-runs-symlink",
+    "/runs/macos_label/jobs/platform macos-26/observations/link-into-runs-symlink",
+    "/developer_machine/observations/link-into-runs-symlink"
+   ],
+   "link-into-runs-junction": [
+    "/runs/code/jobs/platform windows-2025/observations/link-into-runs-junction"
+   ]
+  }
+ },
+ "not_run": [
+  "Linux and Windows, and hosted macOS: CI 실행 예정 (the pull request's runs)",
+  "a Linux casefold directory (ext4 +F)",
+  "HFS+, network and cloud volumes",
+  "a file system whose st_ino is 0 (the fallback by path is a unit test only)",
+  "a bind mount alias (needs privileges; the rule is by file key, unit-tested only through the walk)",
+  "Windows client editions, a standard user token, links made by mklink or New-Item"
+ ]
+}
