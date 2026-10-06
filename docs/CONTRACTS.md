@@ -667,7 +667,8 @@ kit 0.5.0([#36](https://github.com/handochan/aelix-analytics/issues/36), 경로 
   - 대소문자·정규화를 무시하는지는 플랫폼이 아니라 실행 중 같은 디렉터리 항목인지로 정합니다. NTFS·ext4는 NFC와 NFD를 다른
     이름으로 둡니다(그 OS에서는 별칭이 없습니다, 2026-10-02 조사 실행 36899933022에서 측정).
   - kit 0.5.0 전의 기록은 고쳐 쓰지 않습니다(F1). 옛 기록의 **상대** 경로(macOS에서 저장되지 않은 철자로 기록된 스크립트·입력
-    경로)를 추론 대응에 넣을지는 소유자 결정을 기다리며, 그때까지 `Project.legacy_identity`는 절대 경로만 대응합니다.
+    경로)도 #12의 셋째 PR이 같은 함수로 철자를 맞춰 추론 대응(`basis: inferred`)합니다([2026-10-06 소유자 결정](https://github.com/handochan/aelix-analytics/issues/12#issuecomment-6009076270)).
+    그 PR 전까지 `Project.legacy_identity`는 절대 경로만 대응합니다.
   - 대소문자를 구별하는 APFS 볼륨(디스크 이미지)은 개발 기기에서 실행했습니다(측정 기록). 실행하지 않은 것: Linux의 casefold
     디렉터리(ext4 `+F`), HFS+, 네트워크·클라우드 볼륨, `st_ino`가 0인 파일 시스템(경로로 판정하는 대비책은 단위 시험만), bind mount
     별칭.
