@@ -1,0 +1,174 @@
+{
+  "schema": "aelix-analytics.model-eval-tasks/1",
+  "status": "draft",
+  "note": "Issue #40. Requests and setup of the 12 real-model tasks; the answers are in answers/<id>.json. Requests never name a tool, so the same text serves every tool surface (Q11) and both generations of names (#9). {input} is replaced with the absolute path of the run's input directory.",
+  "fixtures": {
+    "S": {"kind": "scale", "scale": "S", "seed": 0, "generator_version": 1},
+    "Q10": {"kind": "q10", "seed": 0, "generator_version": 1},
+    "Q13": {"kind": "q13", "seed": 0, "generator_version": 1}
+  },
+  "tasks": [
+    {
+      "id": "T01",
+      "title": "Resume: goal, questions and next steps",
+      "fixture": "S",
+      "setup": "fixture",
+      "gates": ["Q2", "Q12"],
+      "q11_request": "combination",
+      "scenario": "새 세션에서 이어 하기",
+      "requests": [
+        "새 세션이야. 이 프로젝트를 이어서 하려고 해. 목표, 핵심 질문, 다음에 할 일, 그리고 아직 답이 나오지 않은 질문과 할 일을 근거가 되는 기록 ID와 함께 정리해 줘. 이미 답이 나온 질문은 빼 줘."
+      ],
+      "timeout_s": 1200
+    },
+    {
+      "id": "T02",
+      "title": "Corrected finding and withdrawn decision",
+      "fixture": "S",
+      "setup": "fixture",
+      "gates": ["Q2"],
+      "q11_request": "combination",
+      "scenario": "뒤늦은 정정",
+      "requests": [
+        "다음 분기 계획 자료를 만들려고 해. 세종 지역의 3분기 성장률은 얼마로 써야 하고, 지역 간 비교는 어떤 기간 기준으로 해야 하는지 프로젝트 기록을 근거(기록 ID)로 알려 줘."
+      ],
+      "timeout_s": 1200
+    },
+    {
+      "id": "T03",
+      "title": "An old important finding outside the recent list",
+      "fixture": "S",
+      "setup": "fixture",
+      "gates": ["Q2", "Q3"],
+      "q11_request": "combination",
+      "scenario": "오래된 중요한 발견",
+      "requests": [
+        "반품률이 높은 주문이 특정 배송 시간대에 몰려 있다는 발견이 예전에 있었던 것 같아. 그 기록을 찾아서 내용과 근거(기록 ID, run)를 알려 줘."
+      ],
+      "timeout_s": 1200
+    },
+    {
+      "id": "T04",
+      "title": "A context section left out of the prompt, and a cut record",
+      "fixture": "S",
+      "setup": "fixture",
+      "gates": ["Q3"],
+      "q11_request": "single",
+      "scenario": "중단·누락",
+      "requests": [
+        "CONTEXT.md의 '진행 메모 3' 섹션에 적힌 다음 할 일이 뭐야? 그리고 기록 e74의 글이 끝까지 온전히 남아 있는지도 확인해 줘."
+      ],
+      "timeout_s": 1200
+    },
+    {
+      "id": "T05",
+      "title": "Evidence then and now: an overwritten table",
+      "fixture": "S",
+      "setup": "fixture",
+      "gates": ["Q2", "Q3"],
+      "q11_request": "combination",
+      "scenario": "근거의 현재/과거",
+      "requests": [
+        "run 20260803-191107-case-overwritten이 만든 표를 지금 열면 그 run이 썼던 내용과 같아? 다르다면 지금 내용은 어디서 왔고, 그 run이 썼던 내용은 아직 볼 수 있는지 알려 줘."
+      ],
+      "timeout_s": 1200
+    },
+    {
+      "id": "T06",
+      "title": "One question, one tool (English request)",
+      "fixture": "Q10",
+      "setup": "fixture",
+      "gates": ["Q11", "Q3"],
+      "q11_request": "single",
+      "scenario": "정답 도구가 하나인 요청",
+      "requests": [
+        "How many sessions are there in August 2026 (2026-08-01 to 2026-08-31) in the sessions dataset? Count them from the data and answer with the number."
+      ],
+      "timeout_s": 900
+    },
+    {
+      "id": "T07",
+      "title": "Conversion rate: which definition holds",
+      "fixture": "Q10",
+      "setup": "fixture",
+      "gates": ["Q12", "Q5"],
+      "q11_request": "combination",
+      "scenario": "분석 방향 변경(정의 수정)",
+      "proposal_conditions": ["unrequested", "requested", "always_on"],
+      "requests": [
+        "8월 세션당 전환율이 기록마다 다르게 적혀 있어. 데이터로 어느 값이 맞는지 확인하고, 틀린 기록은 무엇이 틀렸는지와 함께 판단을 프로젝트에 기록해 줘."
+      ],
+      "timeout_s": 1500
+    },
+    {
+      "id": "T08",
+      "title": "Partial-month comparison",
+      "fixture": "Q10",
+      "setup": "fixture",
+      "gates": ["Q12", "Q5", "Q13"],
+      "q11_request": "combination",
+      "scenario": "분석 방향 변경(조건별 조회)",
+      "proposal_conditions": ["unrequested", "requested", "always_on"],
+      "requests": [
+        "9월 주문 금액이 8월보다 22.0% 줄었다는 기록이 있어. 다음 분기 계획에 이 숫자를 써도 되는지 검토하고, 필요하면 바른 비교를 실행해서 결과를 기록해 줘."
+      ],
+      "timeout_s": 1800
+    },
+    {
+      "id": "T09",
+      "title": "Two metrics, two values each",
+      "fixture": "Q10",
+      "setup": "fixture",
+      "gates": ["Q12", "Q2"],
+      "q11_request": "combination",
+      "scenario": "여러 지표의 해석",
+      "requests": [
+        "서울 지역 주문 금액 합계(8월 1일–9월 20일)와 8월 전체 매출(온라인+매장)을 근거 run과 함께 알려 줘. 기록에 서로 다른 값이 있으면 어느 쪽이 맞는지와 그 이유를 밝혀 줘."
+      ],
+      "timeout_s": 1500
+    },
+    {
+      "id": "T10",
+      "title": "Claims against the stored numbers",
+      "fixture": "Q13",
+      "setup": "fixture",
+      "gates": ["Q13", "Q2"],
+      "q11_request": "combination",
+      "scenario": "근거의 현재/과거, 미검증 해석",
+      "requests": [
+        "이 프로젝트에 기록된 주장 e8, e15, e16, e20이 저장된 결과로 뒷받침되는지 하나씩 판정해 줘. 판단할 수 없는 것은 그렇다고 말해 줘."
+      ],
+      "timeout_s": 1500
+    },
+    {
+      "id": "T11",
+      "title": "A failed run and what it left",
+      "fixture": "Q13",
+      "setup": "fixture",
+      "gates": ["Q2", "Q3"],
+      "q11_request": "combination",
+      "scenario": "중단·누락",
+      "requests": [
+        "시점별 점수(03 단계) run이 한 번 실패했지. 실패한 run이 남긴 파일이나 차트가 있는지, 그리고 지금 data/derived/sample_scores.parquet는 어느 run이 만든 것인지 알려 줘."
+      ],
+      "timeout_s": 1200
+    },
+    {
+      "id": "T12",
+      "title": "Free analysis: EDA, profiles and scores, all-sensor figure",
+      "fixture": "Q13",
+      "setup": "fresh_with_input",
+      "fresh_project": {"title": "장비 트레이스 이상 탐지", "goal": "학습 트레이스에서 장비 이상 후보를 찾고, 후보를 판단할 지표를 정한다.", "inputs": ["traces.csv"]},
+      "gates": ["Q13", "Q11", "Q5"],
+      "q11_request": "ambiguous",
+      "scenario": "모호한 EDA → 새 계산 → 방법 비교 → 오류 복구 → 그림 확장 → 맥락 갱신",
+      "proposal_conditions": ["unrequested", "requested", "always_on"],
+      "requests": [
+        "장비 트레이스 데이터({input}/traces.csv)를 가져와서 EDA를 해 줘. 센서별 분포와 이상해 보이는 후보가 궁금해.",
+        "스텝별 특성을 보고 싶어. 스텝 프로파일을 만들고, 시점마다 얼마나 벗어나는지 점수로 계산해 줘.",
+        "pressure 하나만 보지 말고 모든 센서에 대해 같은 밴드 그림을 그려 줘."
+      ],
+      "timeout_s": 3600
+    }
+  ]
+}

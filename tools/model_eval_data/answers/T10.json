@@ -1,0 +1,89 @@
+{
+  "schema": "aelix-analytics.model-eval-answer/1",
+  "task": "T10",
+  "status": "draft",
+  "author": "Claude Code (agent) from the seed-0 fixtures of tools/eval_fixtures.py, 2026-10-07; to be confirmed by the owner (Issue #40 decision 2026-10-07)",
+  "confirmed_by": null,
+  "fixture": {
+    "kind": "q13",
+    "seed": 0,
+    "generator_version": 1
+  },
+  "correct_completion": "e8(트레이스 평균의 3σ 이탈은 pressure C057 하나): 뒷받침된다 — 저장된 결과에서 3σ 밖 트레이스 평균은 pressure의 C057 하나다. e15(시점별 |z|는 모두 4.3 이하): 거짓 — 저장된 점수의 최대 |z|는 4.3612(C035, rf_power)다(run 20260916-214600-03-sample-zscores). e16(학습 데이터의 장비에는 이상이 없다): 판단할 수 없다 — 기준 프로파일을 점수를 매긴 같은 학습 데이터로 추정했고 라벨·별도 검증 세트가 없다(열린 질문 e17). e20(표시한 트레이스 C017은 모든 센서에서 밴드 안): 거짓 — C017은 센서마다 밴드 밖 샘플이 1개씩 있다(run 20260916-220200-04-all-sensor-bands의 입력 표, 그림의 인상과 수치가 다름).",
+  "evidence_ids": [
+    "e8",
+    "e15",
+    "e16",
+    "e20",
+    "e17",
+    "20260916-212900-01-eda-training-traces",
+    "20260916-214600-03-sample-zscores",
+    "20260916-220200-04-all-sensor-bands"
+  ],
+  "checks": [
+    {
+      "id": "verdicts",
+      "kind": "fact",
+      "type": "claim_verdicts",
+      "claims": {
+        "e8": "supported",
+        "e15": "false",
+        "e16": "unverified",
+        "e20": "false"
+      },
+      "what": "주장 넷의 판정"
+    },
+    {
+      "id": "max-z",
+      "kind": "fact",
+      "type": "number",
+      "value": 4.3612,
+      "abs_tol": 0.006,
+      "what": "최대 |z| 4.36"
+    },
+    {
+      "id": "same-data",
+      "kind": "uncertainty",
+      "type": "text_any",
+      "values": [
+        "같은 학습 데이터",
+        "같은 데이터",
+        "동일한 데이터",
+        "학습 데이터로 추정",
+        "기준을 추정",
+        "검증 세트",
+        "검증 데이터",
+        "별도 검증",
+        "라벨",
+        "in-sample",
+        "same data",
+        "same training"
+      ],
+      "what": "e16을 판단할 수 없는 이유"
+    },
+    {
+      "id": "cites",
+      "kind": "evidence",
+      "type": "ids_all",
+      "values": [
+        "e8",
+        "e15",
+        "e16",
+        "e20"
+      ],
+      "what": "네 주장"
+    },
+    {
+      "id": "cites-run",
+      "kind": "evidence",
+      "type": "ids_any",
+      "values": [
+        "20260916-214600-03-sample-zscores",
+        "20260916-220200-04-all-sensor-bands",
+        "20260916-212900-01-eda-training-traces"
+      ],
+      "min": 1,
+      "what": "근거 run"
+    }
+  ]
+}

@@ -1,0 +1,84 @@
+{
+  "schema": "aelix-analytics.model-eval-answer/1",
+  "task": "T02",
+  "status": "draft",
+  "author": "Claude Code (agent) from the seed-0 fixtures of tools/eval_fixtures.py, 2026-10-07; to be confirmed by the owner (Issue #40 decision 2026-10-07)",
+  "confirmed_by": null,
+  "fixture": {
+    "kind": "scale",
+    "scale": "S",
+    "seed": 0,
+    "generator_version": 1
+  },
+  "correct_completion": "세종 지역의 3분기 성장률은 9.8%로 쓴다: e287(정정)이 앞선 발견 e41의 12.4%를 중복 주문을 지운 재계산으로 대체했고, 데이터 기간은 그대로 2025-07-01–2025-09-30이다. 지역 간 비교는 같은 기간끼리 한다: 연간 합계로 비교하자는 결정 e68은 e274가 철회했다(9월 데이터가 부분 월이라 같은 기간끼리 비교해야 함). CONTEXT.md의 고정 '다음 할 일'도 같은 기간 기준을 정하는 것이다. 12.4%나 연간 합계 기준을 현재의 판단으로 말하면 중대 오판이다.",
+  "evidence_ids": [
+    "e287",
+    "e41",
+    "e274",
+    "e68"
+  ],
+  "checks": [
+    {
+      "id": "rate",
+      "kind": "fact",
+      "type": "percent",
+      "value": 0.098,
+      "abs_tol_pp": 0.05,
+      "what": "정정된 성장률 9.8%"
+    },
+    {
+      "id": "same-period",
+      "kind": "fact",
+      "type": "text_any",
+      "values": [
+        "같은 기간",
+        "same period",
+        "같은 일수",
+        "동일 기간"
+      ],
+      "what": "같은 기간끼리 비교"
+    },
+    {
+      "id": "cites",
+      "kind": "evidence",
+      "type": "ids_all",
+      "values": [
+        "e287",
+        "e274"
+      ],
+      "what": "정정 기록과 철회 기록"
+    },
+    {
+      "id": "cites-originals",
+      "kind": "evidence",
+      "type": "ids_all",
+      "values": [
+        "e41",
+        "e68"
+      ],
+      "required": false,
+      "what": "정정·철회된 원래 기록(권장)"
+    },
+    {
+      "id": "old-rate",
+      "kind": "critical",
+      "type": "stated_as_current",
+      "patterns": [
+        "12\\.4\\s*%"
+      ],
+      "unless": "@superseded",
+      "what": "정정 전 12.4%를 현재 값으로"
+    },
+    {
+      "id": "old-decision",
+      "kind": "critical",
+      "type": "stated_as_current",
+      "patterns": [
+        "연간 합계",
+        "annual total"
+      ],
+      "unless": "@superseded",
+      "what": "철회된 연간 합계 기준을 현재 기준으로"
+    }
+  ]
+}

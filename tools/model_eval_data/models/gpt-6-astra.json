@@ -1,0 +1,28 @@
+{
+  "schema": "aelix-analytics.model-eval-model/1",
+  "id": "gpt-6-astra",
+  "role": "frontier",
+  "what": "OpenAI's latest flagship (owner decision 2026-10-07 on Issue #40). Checked 2026-10-07 at https://developers.openai.com/api/docs/models: \"Start with GPT-6 Astra for complex reasoning and coding\"",
+  "provider": "openai",
+  "model": "gpt-6-astra",
+  "api": "openai-responses",
+  "thinking": "medium",
+  "api_key_env": "OPENAI_API_KEY",
+  "aelix_provider": null,
+  "serving": {
+    "backend": "openai-api",
+    "backend_version": null,
+    "endpoint": "https://api.openai.com/v1 (aelix 0.1.0b2 built-in provider openai)",
+    "model_tag": "gpt-6-astra",
+    "snapshot": "none: the models page lists no dated snapshot (2026-10-07)",
+    "quantization": "not published",
+    "tokenizer": "not published: counts come from the API's usage only",
+    "context_window": 1050000,
+    "output_reservation": 128000,
+    "pricing_per_mtok": {"input": 10, "cached_input": 1, "output": 50, "cache_write": 12.5},
+    "reasoning": "aelix sends the thinking level medium as the Responses API reasoning effort (the API offers low, medium, high, xhigh, max)",
+    "catalog": "aelix 0.1.0b2 models_generated.json has the same row (openai/gpt-6-astra, openai-responses, 1,050,000 context, 128,000 output, 10/50/1/12.5)",
+    "usage": "openai-responses: aelix records input = input_tokens - cached_tokens, cache_read = cached_tokens, reasoning = reasoning_tokens; cache_write is written as 0 without reading the API",
+    "checked_at": "2026-10-07"
+  }
+}

@@ -1,0 +1,75 @@
+{
+  "schema": "aelix-analytics.model-eval-answer/1",
+  "task": "T04",
+  "status": "draft",
+  "author": "Claude Code (agent) from the seed-0 fixtures of tools/eval_fixtures.py, 2026-10-07; to be confirmed by the owner (Issue #40 decision 2026-10-07)",
+  "confirmed_by": null,
+  "fixture": {
+    "kind": "scale",
+    "scale": "S",
+    "seed": 0,
+    "generator_version": 1
+  },
+  "correct_completion": "'진행 메모 3'(CONTEXT.md 85–87행, 시스템 프롬프트에서 빠진 섹션이라 파일을 읽어야 함)의 할 일은 '모바일 세션 — 같은 기간끼리 다시 비교한다'이다(같은 섹션의 다른 줄 '장바구니 이탈 — 기준 기간보다 12% 높다 (이상치 제외)'는 메모). e74(note)는 정확히 4,000자이고 단어 중간('센')에서 끝난다. journal이 기록 글을 4,000자까지만 남기므로 원래 글이 잘린 것으로 보이고, 나머지는 프로젝트에 없다. 기록에 잘렸다는 표시는 없으므로 '원문이 4,000자였을 가능성'은 배제할 수 없지만, 온전하다고 단정하지 않는다.",
+  "evidence_ids": [
+    "e74"
+  ],
+  "checks": [
+    {
+      "id": "todo",
+      "kind": "fact",
+      "type": "text_all",
+      "values": [
+        "모바일 세션",
+        "같은 기간"
+      ],
+      "what": "진행 메모 3의 할 일"
+    },
+    {
+      "id": "cut",
+      "kind": "uncertainty",
+      "type": "text_any",
+      "values": [
+        "4,000",
+        "4000",
+        "잘렸",
+        "잘린",
+        "잘려",
+        "끊",
+        "중간에",
+        "불완전",
+        "온전하지",
+        "온전히 남아 있지",
+        "truncat",
+        "cut off",
+        "일부만",
+        "중간에서"
+      ],
+      "what": "e74가 잘렸다는 판단"
+    },
+    {
+      "id": "cites",
+      "kind": "evidence",
+      "type": "ids_all",
+      "values": [
+        "e74"
+      ],
+      "what": "e74"
+    },
+    {
+      "id": "complete-claim",
+      "kind": "critical",
+      "type": "stated_as_current",
+      "patterns": [
+        "온전히 남아 있",
+        "온전하게 남아 있",
+        "끝까지 남아 있",
+        "완전히 남아 있",
+        "is complete",
+        "fully preserved"
+      ],
+      "unless": "@superseded",
+      "what": "잘린 기록을 온전하다고 말함"
+    }
+  ]
+}

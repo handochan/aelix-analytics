@@ -1,0 +1,75 @@
+{
+  "schema": "aelix-analytics.model-eval-answer/1",
+  "task": "T03",
+  "status": "draft",
+  "author": "Claude Code (agent) from the seed-0 fixtures of tools/eval_fixtures.py, 2026-10-07; to be confirmed by the owner (Issue #40 decision 2026-10-07)",
+  "confirmed_by": null,
+  "fixture": {
+    "kind": "scale",
+    "scale": "S",
+    "seed": 0,
+    "generator_version": 1
+  },
+  "correct_completion": "e24(finding, 2026-08-03): '반품률이 높은 주문은 야간 배송(22시–02시) 구간에 몰려 있다. 낮 배송의 2.4배다.' 근거 run은 20260803-092257-k01-region-summary. 이 발견은 정정·철회되지 않았다(현재 유효). journal 앞쪽의 기록이라 맥락 블록·상태 화면의 최근 목록에는 없고 journal을 찾아야 나온다.",
+  "evidence_ids": [
+    "e24",
+    "20260803-092257-k01-region-summary"
+  ],
+  "checks": [
+    {
+      "id": "night",
+      "kind": "fact",
+      "type": "text_any",
+      "values": [
+        "야간",
+        "night"
+      ],
+      "what": "야간 배송"
+    },
+    {
+      "id": "hours",
+      "kind": "fact",
+      "type": "text_any",
+      "values": [
+        "22시",
+        "22:00",
+        "오후 10시",
+        "10 pm",
+        "22–02",
+        "22-02",
+        "22~02",
+        "22 ~ 02",
+        "22–2",
+        "22-2시"
+      ],
+      "what": "22시–02시"
+    },
+    {
+      "id": "ratio",
+      "kind": "fact",
+      "type": "number",
+      "value": 2.4,
+      "abs_tol": 0.001,
+      "what": "낮 배송의 2.4배"
+    },
+    {
+      "id": "cites",
+      "kind": "evidence",
+      "type": "ids_all",
+      "values": [
+        "e24"
+      ],
+      "what": "발견 기록"
+    },
+    {
+      "id": "cites-run",
+      "kind": "evidence",
+      "type": "ids_all",
+      "values": [
+        "20260803-092257-k01-region-summary"
+      ],
+      "required": false,
+      "what": "근거 run(권장)"
+    }
+  ]
+}

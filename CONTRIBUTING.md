@@ -168,6 +168,22 @@ fixture를 cold로 둡니다. `tests/test_eval_fixtures.py`가 S·Q10·Q13을 �
 합쳐 약 440 MB, 두 번 만듦)은 `AELIX_ANALYTICS_TEST_SCALE_M=1`일 때만 돕니다. 생성기를 바꾸면 `GENERATOR_VERSION`을 올리고 그
 시험도 실행하세요.
 
+실제 모델 평가의 과제 12개·정답(초안)·모델 설정과 하네스는 `tools/model_eval.py`와 `tools/model_eval_data/`에 있습니다(#40,
+[실제 모델 평가 안내](tools/model_eval_data/README.md)). 하네스는 과제의 fixture를 위 생성기로 만들고, aelix 0.1.0b2를 `--mode json`으로
+띄워 이 checkout의 확장으로 과제를 실행한 뒤 도구 호출·인자 오류·토큰·프로젝트의 변화를 기록하고 정답 파일로 채점합니다. 모델 없이 전
+경로를 확인하는 dry-run(스크립트를 따르는 가짜 모델)은 `tests/test_model_eval.py`가 돌립니다(uv로 aelix 0.1.0b2를 받을 수 있을 때, 아니면
+건너뜀). 신뢰 목록·uv·aelix의 에이전트 디렉터리는 `--out` 안의 것만 쓰고 `~/.aelix`는 건드리지 않습니다.
+
+```sh
+uv run --locked python tools/model_eval.py validate --fixtures <dir>
+uv run --locked python tools/model_eval.py run --model dry-run --task T06 --out <dir>
+uv run --locked python tools/model_eval.py serving-check --model qwen3.8-27b-local   # 고정 설정으로 ollama를 띄운 뒤
+uv run --locked python tools/model_eval.py run --model qwen3.8-27b-local --task T06 --out <dir>
+```
+
+프론티어 모델(`gpt-6-astra`)의 키는 `OPENAI_API_KEY`로만 받고 저장소·run 기록에 쓰지 않습니다. 키가 없으면 실행하지 않고(`not_run`, 종료
+코드 3) 실행할 명령을 남깁니다.
+
 문서 검사 명령은 다음과 같습니다. `<run-id>`는 현재 작업의 실제 UUID로 바꿉니다.
 
 ```sh

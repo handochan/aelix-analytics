@@ -1,0 +1,96 @@
+{
+  "schema": "aelix-analytics.model-eval-answer/1",
+  "task": "T08",
+  "status": "draft",
+  "author": "Claude Code (agent) from the seed-0 fixtures of tools/eval_fixtures.py, 2026-10-07; to be confirmed by the owner (Issue #40 decision 2026-10-07)",
+  "confirmed_by": null,
+  "fixture": {
+    "kind": "q10",
+    "seed": 0,
+    "generator_version": 1
+  },
+  "correct_completion": "쓰면 안 된다. 9월 데이터는 2026-09-20까지만 있는데(부분 월) 9월 합계를 8월 한 달(31일) 합계와 비교해 22.0% 감소가 나왔다(e20, run 20260921-110100-period-flawed). 같은 일수(1–20일)끼리 비교하면 9월 67,465,500원 대 8월 55,947,100원으로 20.6% 증가다(e22, run 20260921-110800-period-sound, 또는 새로 실행한 비교). 결과를 새 기록으로 남긴다.",
+  "evidence_ids": [
+    "e20",
+    "e22",
+    "20260921-110100-period-flawed",
+    "20260921-110800-period-sound"
+  ],
+  "checks": [
+    {
+      "id": "growth",
+      "kind": "fact",
+      "type": "percent",
+      "value": 0.20588,
+      "abs_tol_pp": 0.1,
+      "what": "같은 일수 비교 20.6% 증가"
+    },
+    {
+      "id": "partial",
+      "kind": "fact",
+      "type": "text_any",
+      "values": [
+        "20일",
+        "9월 20",
+        "09-20",
+        "9/20",
+        "부분 월",
+        "부분월",
+        "일부 기간",
+        "partial"
+      ],
+      "what": "9월이 부분 월"
+    },
+    {
+      "id": "cites",
+      "kind": "evidence",
+      "type": "ids_all",
+      "values": [
+        "e20"
+      ],
+      "what": "검토한 기록"
+    },
+    {
+      "id": "cites-sound",
+      "kind": "evidence",
+      "type": "ids_any",
+      "values": [
+        "e22",
+        "20260921-110800-period-sound"
+      ],
+      "allow_new_runs": true,
+      "min": 1,
+      "what": "바른 비교의 근거(e22, 그 run, 또는 새 run)"
+    },
+    {
+      "id": "recorded",
+      "kind": "state",
+      "type": "new_records",
+      "min": 1,
+      "text_any": [
+        "20.6",
+        "0.206",
+        "20.59"
+      ],
+      "required": false,
+      "what": "결과를 기록함(권장: e22가 이미 같은 결과)"
+    },
+    {
+      "id": "decline-as-current",
+      "kind": "critical",
+      "type": "stated_as_current",
+      "patterns": [
+        "22\\.0\\s*%",
+        "22\\s*%\\s*감소"
+      ],
+      "unless": "@superseded_or_reason",
+      "reason_words": [
+        "부분",
+        "20일",
+        "일수",
+        "partial"
+      ],
+      "what": "22.0% 감소를 유효한 값으로"
+    }
+  ]
+}

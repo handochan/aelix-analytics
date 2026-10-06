@@ -1,0 +1,55 @@
+{
+  "schema": "aelix-analytics.model-eval-model/1",
+  "id": "qwen3.8-27b-local",
+  "role": "reference",
+  "what": "Qwen3.8 27B served on the development Mac (Apple M5 Pro, 64 GiB) by ollama: the support floor's reference model (docs/BETA-QUALITY-GATES.md section 1; owner decision 2026-10-07 on Issue #40)",
+  "provider": "aelix-eval-ollama",
+  "model": "qwen3.8:27b-mtp-q4_K_M",
+  "api": "openai-completions",
+  "thinking": "medium",
+  "api_key_env": null,
+  "aelix_provider": {
+    "baseUrl": "http://127.0.0.1:11435/v1",
+    "apiKey": "ollama-local-no-key",
+    "api": "openai-completions",
+    "compat": {"supportsDeveloperRole": false, "supportsStore": false, "maxTokensField": "max_tokens", "supportsStrictMode": false},
+    "models": [
+      {"id": "qwen3.8:27b-mtp-q4_K_M", "name": "Qwen3.8 27B Q4_K_M (ollama 0.35.1)", "reasoning": true,
+       "input": ["text", "image"], "contextWindow": 131072, "maxTokens": 32768,
+       "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0}}
+    ]
+  },
+  "serving": {
+    "backend": "ollama",
+    "backend_version": "0.35.1",
+    "endpoint": "http://127.0.0.1:11435",
+    "server_env": {
+      "OLLAMA_HOST": "127.0.0.1:11435",
+      "OLLAMA_CONTEXT_LENGTH": "131072",
+      "OLLAMA_NUM_PARALLEL": "1",
+      "OLLAMA_MAX_LOADED_MODELS": "1",
+      "OLLAMA_KV_CACHE_TYPE": "f16",
+      "OLLAMA_KEEP_ALIVE": "30m",
+      "OLLAMA_NOPRUNE": "1",
+      "OLLAMA_NO_CLOUD": "1"
+    },
+    "model_tag": "qwen3.8:27b-mtp-q4_K_M",
+    "manifest_digest": "22130167c4c20e20c7b71454612966ca8e8171e9b3cc8ab6ce8aa6cbfec79643",
+    "model_blob": "sha256:f5f1dd8920d417aac2718b0bda3403da274301efdd6760b4f0f4b864ff2ad57d",
+    "projector_blob": "sha256:ac3714bfdddeca31351f2752bf1a63f266f4df87c0b68c895e44945ca704448e",
+    "source": "ollama library qwen3.8:27b-mtp-q4_K_M (the weights of qwen3.8:27b-q4_K_M with the MTP draft parameter draft_num_predict 4); upstream weights Qwen/Qwen3.8-27B",
+    "upstream_revision": "hf:Qwen/Qwen3.8-27B@1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
+    "format": "gguf",
+    "quantization": "Q4_K_M",
+    "parameters": "27.3B",
+    "architecture": "qwen35: 64 blocks + 1 MTP layer, full attention every 4th layer (16), 4 KV heads x 256",
+    "tokenizer": "embedded in the GGUF (tokenizer.ggml.model gpt2, tokenizer.ggml.pre qwen35); counts come from ollama's usage. Offline counter of the same upstream revision: tools/usage_report.py COUNTERS['qwen3.8-27b']",
+    "context_window": 131072,
+    "output_reservation": 32768,
+    "kv_cache": "f16",
+    "sampling": {"source": "the ollama model's parameters (aelix sends no sampling values)", "temperature": 1.0, "top_p": 0.95, "top_k": 20, "min_p": 0.0, "presence_penalty": 0.0, "repeat_penalty": 1.0, "matches": "Qwen/Qwen3.8-27B README: thinking mode recommended values"},
+    "reasoning": "aelix sends reasoning_effort=medium (thinking medium); the model thinks by default",
+    "usage": "openai-completions: prompt_tokens includes the cached prompt; prompt_tokens_details.cached_tokens is reported by ollama 0.35.1 (measured 2026-10-07)",
+    "check": {"version_url": "/api/version", "tags_url": "/api/tags", "ps_url": "/api/ps"}
+  }
+}

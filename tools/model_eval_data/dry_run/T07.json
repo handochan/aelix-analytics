@@ -1,0 +1,10 @@
+{
+  "schema": "aelix-analytics.model-eval-script/1",
+  "task": "T07",
+  "what": "A reference path for T07: the query, a record of the judgement, the answer.",
+  "steps": [
+    {"tool_calls": [{"tool": "@query", "arguments": {"sql": "SELECT count(*) AS sessions, count(*) FILTER (WHERE 주문여부) AS converted, count(DISTINCT customer_id) AS customers FROM sessions WHERE 세션일 BETWEEN DATE '2026-08-01' AND DATE '2026-08-31'"}}]},
+    {"tool_calls": [{"tool": "@record", "arguments": {"kind": "finding", "text": "8월 세션당 전환율은 11.8%(전환 세션 688 ÷ 세션 5,838)다. e16의 46.8%는 분모를 고객 수(1,471)로 잘못 나눈 값이다(분모 정정).", "refs": ["e16", "e18"]}}]},
+    {"text": "맞는 값은 11.8%(e18)입니다. e16의 46.8%는 분모를 세션이 아니라 고객 수로 나눈 값이라 틀렸고, 지표 정의(분모)를 바로잡는 정정입니다. 판단을 새 발견으로 기록했습니다."}
+  ]
+}
