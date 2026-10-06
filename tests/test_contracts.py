@@ -358,7 +358,16 @@ def _arm_all_but(monkeypatch, chosen) -> None:
         default = getattr(core.PLATFORM, port)
         assert default is not getattr(chosen, port), "the case needs an instance of its own"
         for name in port_methods(type(default)):
-            monkeypatch.setattr(default, name, refuse)
+            _patch_object(monkeypatch, default, name, refuse)
+
+
+def _patch_object(monkeypatch, obj, name: str, value) -> None:
+    """Put `value` in the object's own dict, from where undoing removes it again.
+
+    `monkeypatch.setattr(obj, …)` keeps `getattr(obj, name)` to put back, and once the class is
+    armed that is the refusal itself: undoing then left the process default refusing for every later
+    test (Windows CI run 37422827250, where the recording case is the first armed one)."""
+    monkeypatch.setitem(vars(obj), name, value)
 
 
 def _spy(monkeypatch, bundle) -> list[tuple[str, tuple]]:
@@ -375,8 +384,61 @@ def _spy(monkeypatch, bundle) -> list[tuple[str, tuple]]:
                                            else a for a in args)))
                 return _original(*args, **kwargs)
 
-            monkeypatch.setattr(obj, name, spy)
+            _patch_object(monkeypatch, obj, name, spy)
     return calls
+
+
+def _armed() -> list[str]:
+    """What arming leaves behind when it is not undone: a method of the process default's objects
+    in their own dict (they keep none there), or a real class's method that is not its own."""
+    left = [f"core.PLATFORM.{port}.{name}" for port in PORTS
+            for name in port_methods(type(getattr(core.PLATFORM, port)))
+            if name in vars(getattr(core.PLATFORM, port))]
+    return left + [f"{cls.__name__}.{name}" for (cls, name), value in _class_methods().items()
+                   if value is not _CLASS_METHODS[(cls, name)]]
+
+
+def _class_methods() -> dict[tuple[type, str], object]:
+    return {(cls, name): cls.__dict__.get(name) for cls in REAL_CLASSES for name in port_methods(cls)}
+
+
+_CLASS_METHODS = _class_methods()  # as the real classes define them, before any case runs
+
+
+@pytest.fixture
+def arming():
+    """The MonkeyPatch a case arms with: undone when the case ends, passed or failed, and then
+    checked — the real classes and the process default are as they were. Not `monkeypatch`:
+    tests/conftest.py's autouse fixture takes that one first, so it is undone only after every
+    fixture here is torn down, too late for a check here."""
+    patch = pytest.MonkeyPatch()
+    yield patch
+    patch.undo()
+    left = _armed()
+    assert not left, f"still armed after the case: {left}"
+
+
+@pytest.fixture(autouse=True)
+def nothing_stays_armed():
+    """After every case of this file, nothing is armed: a case that arms with `monkeypatch` instead
+    of `arming` fails here, before that would be undone."""
+    yield
+    left = _armed()
+    assert not left, f"still armed after the case (arm with the `arming` fixture): {left}"
+
+
+def test_arming_is_undone_whichever_implementation_is_armed_first(tmp_path):
+    """Armed for each implementation in turn and undone, as a case does, the real classes and the
+    process default are as they were and the default still writes. On Windows the recording case
+    was the first armed one (the POSIX one is skipped there), with the default's classes armed
+    before its objects (CI run 37422827250)."""
+    for name, impl in sorted(IMPLEMENTATIONS.items(), key=lambda item: item[0] != "recording"):
+        with pytest.MonkeyPatch.context() as monkeypatch:
+            _arm_all_but(monkeypatch, impl.make())
+            assert _armed(), f"arming for {name} armed nothing"
+        assert not _armed(), f"arming for {name} outlived its context: {_armed()}"
+    core.write_json(tmp_path / "record.json", {"written": True})
+    assert json.loads((tmp_path / "record.json").read_text(encoding="utf-8")) == {"written": True}
 
 
 def _stable(value):
@@ -416,10 +478,10 @@ def _flow(root: Path, source: Path, platform) -> dict:
     })
 
 
-def test_the_injected_implementation_is_the_one_used(implementation, tmp_path, monkeypatch):
+def test_the_injected_implementation_is_the_one_used(implementation, tmp_path, arming):
     chosen = implementation.make()
-    _arm_all_but(monkeypatch, chosen)
-    calls = _spy(monkeypatch, chosen)
+    _arm_all_but(arming, chosen)
+    calls = _spy(arming, chosen)
     seen = _flow(tmp_path / "p", write_sales_csv(tmp_path / "sales.csv"), chosen)
 
     assert seen["listed"] == [("20260922-101010-left-running", "incomplete")], seen["listed"]
@@ -429,12 +491,12 @@ def test_the_injected_implementation_is_the_one_used(implementation, tmp_path, m
     assert ("processes.alive", (DEAD_PID,)) in calls, calls
 
 
-def test_a_run_goes_through_the_injected_implementation(implementation, tmp_path, monkeypatch):
+def test_a_run_goes_through_the_injected_implementation(implementation, tmp_path, arming):
     from aelix_analytics import runner  # noqa: PLC0415 - needs the analysis libraries
 
     chosen = implementation.make()
-    _arm_all_but(monkeypatch, chosen)
-    calls = _spy(monkeypatch, chosen)
+    _arm_all_but(arming, chosen)
+    calls = _spy(arming, chosen)
     project = core.init_project(tmp_path / "p", title="실행 계약", template_dir=TEMPLATE,
                                 actor="test", platform=chosen)
     project.scripts.mkdir(parents=True, exist_ok=True)
