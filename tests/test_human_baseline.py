@@ -45,7 +45,7 @@ def human_cli(tmp_path):
                 "started_at": started_at, "exit_code": result.returncode,
                 "stdout": result.stdout, "stderr": result.stderr}, ensure_ascii=False) + "\n")
         assert result.returncode == expected_exit, result.stdout + result.stderr
-        records = [line for line in result.stdout.splitlines() if line.startswith("{")]
+        records = [line for line in result.stdout.split("\n") if line.startswith("{")]
         assert records, result.stdout + result.stderr
         value = json.loads(records[-1])
         # A recorded failed run has ok=true but exit 3 and run.status=error.

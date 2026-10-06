@@ -273,6 +273,8 @@ def write_result(text: str) -> None:
     fd 1 no longer leads where it did when the run started (a stream the script opened on it, closed
     when collected after the run), through the descriptor kept for it.
 
+    `text` holds no line end of its own: the CLI escapes the ones JSON leaves raw (_result_line in
+    __main__, CONTRACTS D), so a reader that splits at any line end still finds the line whole.
     The line ends in os.linesep, as the host's own stream would end it: the CLI's output is a stream,
     not a file the kit writes (ADR-0007 decision 2 does not cover it). What a thread the script left
     running prints after a run, through the run's stream standing in as sys.stdout, ends in "\n"

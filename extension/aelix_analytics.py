@@ -406,7 +406,10 @@ async def run_kit(project, args, *, timeout: float, actor: str = "agent"):
     if timed_out:
         return False, _error("timeout", f"aelix_analytics {args[0]} did not finish within {timeout:.0f} s "
                              "and was interrupted", hint="analytics_status shows whether a run was recorded")
-    for line in reversed(stdout.decode("utf-8", errors="replace").splitlines()):
+    # Lines end at LF alone (strip() takes a CR before it): str.splitlines() would also end one at
+    # U+2028, U+2029 or U+0085, which a kit before Issue #32 item 1 wrote raw inside its result line
+    # (CONTRACTS D). The kit escapes them now; this keeps an older kit's line whole as well.
+    for line in reversed(stdout.decode("utf-8", errors="replace").split("\n")):
         line = line.strip()
         if line.startswith("{"):
             with contextlib.suppress(ValueError):
