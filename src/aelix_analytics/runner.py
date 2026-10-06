@@ -126,16 +126,32 @@ def tree_stat(project: core.Project) -> TreeStat:
     return out
 
 
-def rekeyed(project: core.Project, before: dict) -> dict:
+def rekeyed(project: core.Project, before: TreeStat) -> TreeStat:
     """`before` with each file under the path a record holds for it now: a run that made or removed
     a link changed which boundary some files are seen under, and a file that did not change must not
     show as deleted and created."""
-    real = getattr(before, "real", {})
-    out = {}
+    out = TreeStat()
+    out.boundaries = before.boundaries
     for rel, st in before.items():
-        place = real.get(rel)
-        out[(project.identity_of_real(place) if place else None) or rel] = st
+        place = before.real.get(rel)
+        now = (project.identity_of_real(place) if place else None) or rel
+        out[now] = st
+        if place:
+            out.real[now] = place
     return out
+
+
+def _modified_ns(path: Path) -> int:
+    """When `path` was last modified, by the clock the file system stamps files with (a clock tick
+    behind time.time_ns on Linux and Windows); now where it cannot be read."""
+    try:
+        return os.stat(path).st_mtime_ns
+    except OSError:
+        return time.time_ns()
+
+
+def _below_any(rel: str, places) -> bool:
+    return any(rel == ns or rel.startswith(f"{ns}/") for ns in places)
 
 
 def parquet_info(path: Path) -> dict:
@@ -149,11 +165,23 @@ def parquet_info(path: Path) -> dict:
     return {}
 
 
-def diff_outputs(project, before, after, cache) -> list[dict]:
+def diff_outputs(project, before, after, cache, since: int | None = None) -> list[dict]:
+    """The files the run created, modified or deleted: `after` against `before`, by the path a
+    record holds. A boundary only one of the two walks went through is a link the run made, removed
+    or repointed, not files it wrote: a file below a boundary new in `after` is an output only when
+    it was modified at or after `since` (the script's start, the time the file system stamped on
+    the run's stdout log as it was opened), and a file below one gone from it is deleted only when
+    its real path no longer leads to a file (docs/CONTRACTS.md G)."""
+    made = {ns for ns, _ in set(getattr(after, "boundaries", ())) -
+            set(getattr(before, "boundaries", ()))}
+    gone = {ns for ns, _ in set(getattr(before, "boundaries", ())) -
+            set(getattr(after, "boundaries", ()))}
     outputs = []
     for rel, st in sorted(after.items()):
         if rel in PROJECT_FILES or before.get(rel) == st:
             continue
+        if made and since is not None and st[1] < since and _below_any(rel, made):
+            continue  # there before the run, and seen since through a link it made
         path = project.root / rel
         entry = {"path": rel, "change": "created" if rel not in before else "modified",
                  "bytes": st[0], "sha256": cache.sha(path)}
@@ -162,9 +190,13 @@ def diff_outputs(project, before, after, cache) -> list[dict]:
         if not rel.startswith("data/"):
             entry["outside_data"] = True
         outputs.append(entry)
+    real = getattr(before, "real", {})
     for rel in sorted(set(before) - set(after)):
-        if rel not in PROJECT_FILES:
-            outputs.append({"path": rel, "change": "deleted"})
+        if rel in PROJECT_FILES:
+            continue
+        if gone and rel in real and _below_any(rel, gone) and os.path.isfile(real[rel]):
+            continue  # still there, below a link the run removed or repointed
+        outputs.append({"path": rel, "change": "deleted"})
     return outputs
 
 
@@ -631,7 +663,7 @@ def snapshot_modules(project: core.Project, code_dir: Path, main_rel: str) -> li
         if core.within(path, kit_dir) or not project.inside(path):
             continue
         rel = project.rel(path)
-        if rel == main_rel or rel.split("/")[0] in (".venv", "runs", ".lab", "report"):
+        if rel == main_rel or rel.split("/")[0] in MANAGED_DIRS:
             continue
         dest = code_dir / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -721,7 +753,7 @@ def reconcile_inputs(entries: dict, outputs: list[dict]) -> list[dict]:
 
 
 # Directories the kit manages; a script is never taken from one.
-MANAGED_DIRS = (".venv", ".lab", "runs", "report")
+MANAGED_DIRS = core.MANAGED_DIRS
 
 
 def _in_managed_dir(rel: str) -> bool:
@@ -941,6 +973,10 @@ def _run_script(project, state, code_bytes, filename, script_rel, timeout, stdou
                 # of the script runs after one: not the capture hooks, not the script.
                 with guard.interruptible(deadline=timeout):
                     os.chdir(project.root)
+                    # What the script reads is judged as the namespace is when it reads: the
+                    # judgments and listings the setup kept are dropped, the walk's table kept.
+                    project.forget()
+                    state.since = _modified_ns(stdout_path)
                     capture.install(state)
                     _exec_script(code_bytes, filename, (project.root / script_rel).parent)
             except BaseException as exc:  # noqa: BLE001 - classified below with the timer off
@@ -1074,14 +1110,14 @@ def _finalize(project, state, record, *, source_run, before, status, error, dura
     return result
 
 
-def _outputs(project: core.Project, state, before: dict) -> list[dict]:
+def _outputs(project: core.Project, state, before: TreeStat) -> list[dict]:
     after = tree_stat(project)
-    if getattr(before, "boundaries", ()) != after.boundaries:
-        # The run made or removed a link: what it read and what was there before are named as the
-        # namespace is now, so one file has one path in the record (ADR-0006 9).
+    if before.boundaries != after.boundaries:
+        # The run made, removed or repointed a link: what it read and what was there before are
+        # named as the namespace is now, so one file has one path in the record (ADR-0006 9).
         before = rekeyed(project, before)
         state.rekey()
-    return diff_outputs(project, before, after, state.cache)
+    return diff_outputs(project, before, after, state.cache, since=state.since)
 
 
 MAX_LISTED_PATHS = 3

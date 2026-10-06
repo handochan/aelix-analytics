@@ -255,8 +255,8 @@ def test_two_file_links_to_one_file_give_one_path(tmp_path):
 @pytest.mark.parametrize("kind", LINK_KINDS)
 def test_the_walk_follows_each_outward_target_once_and_no_other_link(tmp_path, kind):
     """Inward links, links to the root or an ancestor of it, loops, dangling links and links to
-    a place an ignored top-level directory leads to are not walked, and the walk ends — a junction
-    to an ancestor included, which Windows' os.walk would descend without end."""
+    a place a managed directory leads to are not walked, and the walk ends — a junction to an
+    ancestor included, which Windows' os.walk would descend without end."""
     root = bare(tmp_path)
     ext = tmp_path / "ext"
     write(ext / "x.csv")
@@ -418,6 +418,136 @@ def test_a_dataset_is_named_by_its_own_entry_and_listed_once_per_name(project, t
     assert core.view_names(datasets)["big"] == "data/raw/a/f.parquet"
 
 
+def test_an_import_record_is_read_beside_the_dataset_s_entry(project):
+    """Review of 3a95f38: `data/raw/sales.parquet → ../../storage/physical.parquet` (the file moved
+    and linked back) keeps its import record — rows, description, source — because the record is
+    the one beside the entry, where import wrote it; the path is the file's identity. An import
+    record this kit cannot read is named where it is, beside the entry."""
+    root = Path(project)
+    (root / "storage").mkdir()
+    shutil.move(root / "data/raw/sales.parquet", root / "storage/physical.parquet")
+    file_link(root / "data/raw/sales.parquet", "../../storage/physical.parquet")
+    file_link(root / "data/raw/other.parquet", "../../storage/physical.parquet")
+    write(root / "data/raw/other.meta.json", json.dumps({"schema": "lab.dataset/9", "name": "other"}))
+    datasets = {d["name"]: d for d in core.list_datasets(core.Project(project))}
+    sales = datasets["sales"]
+    assert (sales["path"], sales["rows"], sales["description"]) == \
+        ("storage/physical.parquet", 120, "test data"), sales
+    assert sales["source"].endswith("sales.csv") and sales["imported_at"], sales
+    assert datasets["other"]["unsupported_record"]["location"] == "data/raw/other.meta.json"
+
+
+def test_a_raw_dataset_and_a_derived_link_to_it_are_both_listed(project):
+    """Review of 3a95f38: `data/derived/sales.parquet → ../raw/sales.parquet` is a raw and a
+    derived dataset with one path, and both views (`sales`, `sales_derived`), as on main: a file is
+    listed once per (name, path) within a kind."""
+    file_link(Path(project) / "data/derived/sales.parquet", "../raw/sales.parquet")
+    datasets = core.list_datasets(core.Project(project))
+    assert [(d["name"], d["kind"], d["path"]) for d in datasets] == [
+        ("sales", "raw", "data/raw/sales.parquet"), ("sales", "derived", "data/raw/sales.parquet")]
+    assert core.view_names(datasets) == {"sales": "data/raw/sales.parquet",
+                                         "sales_derived": "data/raw/sales.parquet"}
+
+
+def _listing_of(monkeypatch) -> list[str]:
+    """The real paths of the directories os.scandir lists from here on."""
+    listed: list[str] = []
+    scandir = os.scandir
+
+    def listing(path="."):
+        if not isinstance(path, int):
+            listed.append(_real(os.fspath(path)))
+        return scandir(path)
+
+    monkeypatch.setattr(os, "scandir", listing)
+    return listed
+
+
+@pytest.mark.parametrize("kind", LINK_KINDS)
+def test_a_walk_from_a_start_that_leads_to_the_root_or_an_ancestor_lists_nothing(tmp_path, kind,
+                                                                                 monkeypatch):
+    """Review of 3a95f38: `data/raw → /` made the dataset listing, the report's fingerprint and a
+    directory read walk the whole file system (main's rglob did too). A start is judged as a link
+    in the walk is: one that leads to the root or an ancestor of it gives nothing."""
+    from aelix_analytics import report
+
+    root = bare(tmp_path)
+    write(root / "data" / "derived" / "d.parquet")
+    sibling = write(tmp_path / "sibling" / "s.parquet").parent
+    (root / "data" / "raw").rmdir()
+    dir_link(kind, root / "data" / "raw", tmp_path)
+    dir_link(kind, root / "data" / "derived" / "self", root)
+    listed = _listing_of(monkeypatch)
+    project = core.Project(root)
+    assert [(d["name"], d["path"]) for d in core.list_datasets(project, [])] == \
+        [("d", "data/derived/d.parquet")]
+    assert list(project.walk(start="data/derived/self")) == []
+    report.fingerprint(project)
+    state = capture.RunState(project, "r", tmp_path / "r", tmp_path / "x.py")
+    state.record_read(str(root / "data" / "raw"), "polars.read_csv")
+    assert state.inputs == {}
+    # The spelling lists a directory to find a name in it; only a walk goes below.
+    assert _real(sibling) not in listed and _real(root / "scripts") not in listed, listed
+
+
+@pytest.mark.parametrize("kind", LINK_KINDS)
+def test_a_walk_from_a_start_does_not_go_back_up_through_a_link(tmp_path, kind):
+    """A data/ that is a link to a store whose derived/ holds a link back to the store (`up → ..`):
+    the walk from data/derived does not go back up through it, so the raw files are not derived
+    datasets too (main's rglob did not follow it; the namespace walk claims the store once)."""
+    root = bare(tmp_path)
+    store = tmp_path / "store"
+    shutil.move(root / "data", store)
+    dir_link(kind, root / "data", store)
+    write(store / "raw" / "s.parquet")
+    dir_link(kind, store / "derived" / "up", store)
+    datasets = core.list_datasets(core.Project(root), [])
+    assert [(d["name"], d["kind"], d["path"]) for d in datasets] == \
+        [("s", "raw", "data/raw/s.parquet")]
+
+
+def test_a_directory_read_records_the_first_500_files_the_walk_finds_and_stops(tmp_path,
+                                                                                monkeypatch):
+    """Review of 3a95f38: a directory read collected its whole tree before taking 500 files. The
+    walk goes depth first in code point order of the names, and the read stops at the 500th data
+    file, so b/ after a/'s 500 files is never listed."""
+    root = bare(tmp_path)
+    for i in range(500):
+        write(root / "data" / "raw" / "a" / f"f{i:03d}.csv")
+    write(root / "data" / "raw" / "b" / "g.csv")
+    project = core.Project(root)
+    listed = _listing_of(monkeypatch)
+    state = capture.RunState(project, "r", tmp_path / "r", tmp_path / "x.py")
+    state.record_read(str(root / "data" / "raw"), "polars.read_csv")
+    assert sorted(state.inputs) == [f"data/raw/a/f{i:03d}.csv" for i in range(500)]
+    assert _real(root / "data" / "raw" / "b") not in listed
+
+
+def test_an_inward_link_to_a_directory_of_the_person_s_is_recorded_at_its_real_place(project,
+                                                                                    tmp_path):
+    """Review of 3a95f38: the name mapping and the walk's claims are the managed directories'
+    alone (core.MANAGED_DIRS). `scripts → src` leads inside to a directory the kit does not
+    manage, so a script run as scripts/gen.py is recorded at src/gen.py and what it writes under
+    src/ is its output, as on main (head named both scripts/… and left src/ out of the
+    comparison). An ignored name that is a link out of the project is still not walked."""
+    root = Path(project)
+    shutil.rmtree(root / "scripts")
+    write(root / "src" / "gen.py", "open('src/out.csv', 'w').write('a\\n1\\n')\n")
+    write(root / "src" / "kept.csv", "a\n0\n")
+    dir_link("symlink", root / "scripts", "src")
+    write(tmp_path / "modules" / "m.csv", "a\n2\n")
+    dir_link("symlink", root / "node_modules", tmp_path / "modules")
+    project_ = core.Project(root)
+    assert project_.rel("scripts/gen.py") == "src/gen.py"
+    walked = runner.tree_stat(project_)
+    assert {"src/gen.py", "src/kept.csv"} <= set(walked)
+    assert not any(rel.startswith("node_modules") for rel in walked), sorted(walked)
+    code, result = kit_cli(project, "run", "scripts/gen.py", "--title", "gen")
+    assert code == 0 and result["run"]["status"] == "ok", result
+    assert result["run"]["script"]["path"] == "src/gen.py"
+    assert [(o["path"], o["change"]) for o in result["run"]["outputs"]] == [("src/out.csv", "created")]
+
+
 def test_a_path_recorded_by_an_earlier_kit_is_read_as_the_namespace_now(tmp_path):
     """Project.legacy_identity, for #12: an absolute path an earlier kit recorded (the real path,
     as typed) is the project-relative path inside the root, the path below the first boundary
@@ -539,6 +669,77 @@ def test_a_run_that_links_a_directory_names_its_files_as_the_namespace_is_after_
     assert [i["path"] for i in result["run"]["inputs"]] == ["data/0/x.csv"], result["run"]["inputs"]
 
 
+REPOINT = ("import os\nimport polars as pl\n"
+           "def repoint(link, target):\n"
+           "    (os.rmdir if os.name == 'nt' else os.remove)(link)\n"
+           "    os.symlink(target, link, target_is_directory=True)\n"
+           "def rows(*names):\n"
+           "    return pl.read_csv(os.path.join(*names)).height\n")
+
+
+def test_a_run_that_repoints_a_link_records_each_file_it_read_through_it(project, tmp_path):
+    """Review of 3a95f38: what was judged through a link is not kept. The script reads through
+    `latest` (→ v3), points it at v4 and reads again; and reads through data/b, which leads where
+    data/a leads, points data/b elsewhere and reads again. Each read is recorded at the file it
+    reached with that file's bytes, as on main (head kept the first answer: v3's path and bytes)."""
+    derived = Path(project) / "data" / "derived"
+    v3, v4 = write(derived / "v3" / "x.csv", "a\n3\n"), write(derived / "v4" / "x.csv", "a\n4\n44\n")
+    first = write(tmp_path / "first" / "y.csv", "a\n1\n")
+    second = write(tmp_path / "second" / "y.csv", "a\n2\n22\n")
+    dir_link("symlink", derived / "latest", "v3")
+    dir_link("symlink", Path(project) / "data" / "a", first.parent)
+    dir_link("symlink", Path(project) / "data" / "b", first.parent)
+    body = (REPOINT + "print(rows('data/derived/latest', 'x' + '.csv'))\n"
+            "repoint('data/derived/latest', 'v4')\n"
+            "print(rows('data/derived/latest', 'x' + '.csv'))\n"
+            "print(rows('data/b', 'y' + '.csv'))\n"
+            f"repoint('data/b', {str(second.parent)!r})\n"
+            "print(rows('data/b', 'y' + '.csv'))\n")
+    code, result = kit_cli(project, "run", write_script(project, "repoint.py", body), "--title", "r")
+    assert code == 0 and result["run"]["status"] == "ok", result
+    inputs = {i["path"]: i["sha256"] for i in result["run"]["inputs"]}
+    assert inputs == {"data/derived/v3/x.csv": core.sha256_file(v3),
+                      "data/derived/v4/x.csv": core.sha256_file(v4),
+                      "data/a/y.csv": core.sha256_file(first),
+                      "data/b/y.csv": core.sha256_file(second)}, result["run"]["inputs"]
+    assert result["run"]["outputs"] == [], result["run"]["outputs"]
+    record_observation("repointed-link", {"inputs": result["run"]["inputs"],
+                                          "outputs": result["run"]["outputs"]})
+
+
+@pytest.mark.parametrize("kind", LINK_KINDS)
+def test_a_link_a_run_makes_or_removes_is_no_output_of_it(project, tmp_path, kind):
+    """Review of 3a95f38: a run that links a directory that was there before into data/ and reads
+    one file through it has that file as its input and none of the directory's files as outputs
+    (head: every file `created`, all hashed, and the input dropped; main: no outputs). A file the
+    run writes through a link it made is its output; a link it removes deletes nothing. The rule
+    is the script's start by the file system's clock against each file's modification time."""
+    lake, old, out = tmp_path / "lake", tmp_path / "old", tmp_path / "out"
+    for i in range(50):
+        write(lake / f"f{i:02d}.csv", f"a\n{i}\n")
+    write(old / "kept.csv", "a\n1\n")
+    out.mkdir()
+    past = time.time() - 3600
+    for path in [*lake.iterdir(), old / "kept.csv"]:
+        os.utime(path, (past, past))
+    dir_link(kind, Path(project) / "data" / "old", old)
+    dir_link("symlink", tmp_path / "probe", out)  # skips where the account may not make one
+    body = (REPOINT + f"os.symlink({str(lake)!r}, 'data/lake', target_is_directory=True)\n"
+            "print(rows('data/lake', 'f00' + '.csv'))\n"
+            f"os.symlink({str(out)!r}, 'data/out', target_is_directory=True)\n"
+            "pl.DataFrame({'a': [1]}).write_csv(os.path.join('data/out', 'new' + '.csv'))\n"
+            "(os.rmdir if os.name == 'nt' else os.remove)('data/old')\n")
+    code, result = kit_cli(project, "run", write_script(project, "lake.py", body), "--title", "l")
+    assert code == 0 and result["run"]["status"] == "ok", result
+    run = result["run"]
+    assert [(i["path"], i["external"], i["sha256"]) for i in run["inputs"]] == \
+        [("data/lake/f00.csv", False, core.sha256_file(lake / "f00.csv"))], run["inputs"]
+    assert [(o["path"], o["change"]) for o in run["outputs"]] == [("data/out/new.csv", "created")], \
+        run["outputs"]
+    record_observation(f"link-made-by-a-run-{kind}", {"inputs": run["inputs"],
+                                                      "outputs": run["outputs"]})
+
+
 @pytest.mark.parametrize("kind", LINK_KINDS)
 def test_a_script_under_an_outward_link_is_still_outside(project, tmp_path, kind):
     """Security judgments stay on the real path (ADR-0006 9): a boundary is no part of the project
@@ -561,20 +762,47 @@ def test_a_module_under_an_outward_link_is_not_snapshotted(project, tmp_path, ki
     assert result["run"]["modules"] == [], result["run"]["modules"]
 
 
-def test_a_rerun_of_a_project_whose_runs_directory_is_stored_in_another_case(project):
-    """M8: where the file system ignores case, a project's runs/ may be stored as `Runs`; the
-    snapshot is recorded under that stored name and the rerun's checks compare one canonical path
-    with another, so it reruns as on main."""
+def test_a_project_whose_managed_directories_are_stored_in_another_case(project):
+    """M8 and the review of 3a95f38: where the file system ignores case, runs/ may be stored as
+    `Runs` and .lab/ as `.LAB`. A managed directory is named by the kit's name whatever case it is
+    stored in (docs/CONTRACTS.md E), as on main, so the kit's own exclusions hold: a file the run
+    writes under its own directory and reads back is no input, nor is one under .lab/; a chart it
+    replaces is removed rather than kept as a chart of its own; the snapshot is recorded under
+    runs/ and the rerun runs; a module under .lab/ is not snapshotted."""
     root = Path(project)
     if not ignores_case(root):
         pytest.skip("this file system minds case: `Runs` would be a directory of its own")
-    os.rename(root / "runs", root / "runs-tmp")
-    os.rename(root / "runs-tmp", root / "Runs")
-    code, first = kit_cli(project, "run", write_script(project, "m8.py", "print(1)\n"), "--title", "m8")
+    for name, stored in (("runs", "Runs"), (".lab", ".LAB")):
+        os.rename(root / name, root / f"{name}-tmp")
+        os.rename(root / f"{name}-tmp", root / stored)
+    write(root / ".LAB" / "kept.csv", "a\n1\n")
+    write(root / "scripts" / "m8_helper.py", "VALUE = 2\n")
+    write(root / ".LAB" / "m8_kit_side.py", "VALUE = 3\n")
+    body = ("import sys\nsys.path.insert(0, '.lab')\nimport m8_kit_side\n"
+            "import matplotlib.pyplot as plt\nimport polars as pl\nimport m8_helper\n"
+            "import aelix_analytics as analytics\n"
+            "own = analytics.path(f'runs/{analytics.run_id()}/own.csv')\n"
+            "pl.DataFrame({'a': [m8_helper.VALUE]}).write_csv(own)\n"
+            "print(pl.read_csv(own).height, pl.read_csv('.lab/kept.csv').height)\n"
+            "fig, ax = plt.subplots()\nax.plot([1, 2])\nanalytics.visualize(fig, 'c1')\n"
+            "class Page:\n"
+            "    def _repr_html_(self):\n"
+            "        return '<p>c1</p>'\n"
+            "analytics.visualize(Page(), 'c1')\n")
+    code, first = kit_cli(project, "run", write_script(project, "m8.py", body), "--title", "m8")
     assert code == 0 and first["run"]["status"] == "ok", first
-    assert first["run"]["script"]["snapshot"].startswith("Runs/"), first["run"]["script"]
-    code, again = kit_cli(project, "run", "--rerun-of", first["run"]["id"], "--title", "again")
+    run = first["run"]
+    assert run["inputs"] == [], run["inputs"]
+    assert run["script"]["snapshot"].startswith("runs/"), run["script"]
+    assert [c["id"] for c in run["charts"]] == ["c1"], run["charts"]
+    assert not (root / "Runs" / run["id"] / "charts" / "c1.png").exists()
+    assert [m["path"] for m in run["modules"]] == ["scripts/m8_helper.py"], run["modules"]
+    code, again = kit_cli(project, "run", "--rerun-of", run["id"], "--title", "again")
     assert code == 0 and again["run"]["status"] == "ok", again
+    assert [m["path"] for m in again["run"]["modules"]] == ["scripts/m8_helper.py"]
+    record_observation("managed-directories-in-another-case", {
+        "inputs": run["inputs"], "snapshot": run["script"]["snapshot"], "charts": run["charts"],
+        "modules": run["modules"], "rerun_modules": again["run"]["modules"]})
 
 
 # --- case and Unicode normalization -------------------------------------------------------------

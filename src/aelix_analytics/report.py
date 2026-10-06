@@ -563,7 +563,7 @@ def fingerprint(project: core.Project) -> str:
                     st = os.stat(os.path.join(dirpath, name))
                     parts.append([os.path.join(dirpath, name), st.st_size, st.st_mtime_ns])
     # data/ as the datasets are listed: the namespace walk from it (core.Project.walk).
-    for rel, real, _name, _entry in project.walk(start="data"):
+    for rel, real, _name, _entry, _place in project.walk(start="data"):
         with contextlib.suppress(OSError):
             st = os.stat(real)
             parts.append([rel, st.st_size, st.st_mtime_ns])

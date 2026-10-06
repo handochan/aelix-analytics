@@ -12,6 +12,7 @@ import csv
 import hashlib
 import importlib.util
 import json
+import os
 import re
 import shutil
 import sys
@@ -296,6 +297,38 @@ def test_a_write_through_a_linked_data_directory_is_flagged_without_a_walk(lab, 
     for path in (root / "data" / "derived" / "x.parquet", elsewhere / "derived" / "y.parquet"):
         summary, flags = module.summarize_call("write", {"path": str(path)}, project)
         assert flags == (["wrote_managed_path"] if path.is_relative_to(root) else []), (path, flags)
+
+
+def test_a_write_s_telemetry_lists_no_directory(lab, tmp_path, monkeypatch):
+    """Review of 3a95f38: the telemetry of a write or edit runs on aelix's event loop after every
+    tool call, so where the write went is told from the path's text (else its real path, as main's
+    `inside`), never by listing the directories on its path (head spelled every one: ~100 ms for a
+    directory of 200,000 entries). A managed directory stored in another case is that directory."""
+    module, root = lab
+    ignores_case = (root / "LAB.JSON").exists()
+    if ignores_case:
+        os.rename(root / "runs", root / "runs-tmp")
+        os.rename(root / "runs-tmp", root / "Runs")
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+    dir_link(LINK_KINDS[-1], tmp_path / "alias", root)
+    project = module.core.Project(root)
+
+    def no_listing(*args, **kwargs):
+        raise AssertionError(f"a directory was listed on the event loop: {args}")
+
+    monkeypatch.setattr(module.core.os, "scandir", no_listing)
+    monkeypatch.setattr(module.core.os, "listdir", no_listing)
+    cases = [(root / "data" / "derived" / "x.parquet", True), ("data/raw/y.csv", True),
+             (root / "report" / "index.html", True), (root / "journal.jsonl", True),
+             (root / "scripts" / "a.py", False), (root / "notes" / "journal.jsonl", False),
+             (outside / "z.csv", False), (tmp_path / "alias" / ".lab" / "x.json", True)]
+    if ignores_case:
+        cases += [(Path(str(root).swapcase()) / "data" / "w.csv", True),
+                  (root / "RUNS" / "r" / "x.txt", True)]
+    for path, flagged in cases:
+        _, flags = module.summarize_call("write", {"path": str(path)}, project)
+        assert flags == (["wrote_managed_path"] if flagged else []), (path, flags)
 
 
 def test_lab_command_where_help_and_gap(lab):

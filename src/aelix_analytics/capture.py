@@ -120,6 +120,9 @@ class RunState:
         # for a run that changes the namespace's links (rekey).
         self._real: dict[str, str] = {}
         self._saved_real: dict[str, str] = {}
+        # The script's start, by the file system's clock (ns): a file below a link the run made is
+        # one it wrote only when it was modified since (runner.diff_outputs).
+        self.since: int | None = None
         self.charts: list[dict] = []
         self.notes: list[tuple[str, str]] = []
         # id(figure) -> (latest record made from it, fingerprint of what was saved)
@@ -149,10 +152,15 @@ class RunState:
                         self._record_file(Path(match), via)
             elif path.is_dir():
                 # The directory's tree as the namespace walk sees it (core.Project.walk): each file
-                # with the path a record holds for it, the first 500 in code point order of that.
-                files = sorted((rel, real) for rel, real, name, _ in self.project.walk(start=path)
-                               if Path(name).suffix.lower() in core.DATA_SUFFIXES)
-                for rel, real in files[:500]:
+                # with the path a record holds for it, the first 500 the walk finds (a directory's
+                # entries in code point order of their names), where the walk stops.
+                files: dict[str, str] = {}
+                for rel, real, name, _entry, _place in self.project.walk(start=path):
+                    if Path(name).suffix.lower() in core.DATA_SUFFIXES:
+                        files.setdefault(rel, real)
+                        if len(files) == 500:
+                            break
+                for rel, real in files.items():
                     self._record_file(Path(real), via, located=(rel, real))
             elif path.is_file():
                 self._record_file(path, via)
@@ -171,11 +179,13 @@ class RunState:
         # The path a record holds (ADR-0006 9): the same whichever link or spelling the script
         # read it by, so it meets the path the walk gives the file as an output.
         rel, real = located or self.project.locate(path)
-        # By that path: a run's own files are left out wherever runs/ leads.
+        # By that path: a run's own files are left out wherever runs/ leads and however it is
+        # spelled (a managed directory is named by the kit's name, core.MANAGED_DIRS).
         if rel.startswith((f"runs/{self.run_id}/", ".venv/", ".lab/")):
             return
-        # Opened by that path, as status opens it later, so the hash cache keeps one entry for it.
-        opened = self.project.path(rel)
+        # The file the judgment reached, as the namespace is now: the path a record holds can come
+        # from the table of the walk before the script, through a link the script has repointed.
+        opened = Path(real)
         try:
             size = opened.stat().st_size
         except OSError:
