@@ -29,13 +29,14 @@ Aelix Analytics는 베타 이후에도 지표·맥락·재사용·근거 탐색�
 ## 적용 현황
 
 코드 `d7b6f18` 기준이다(2026-10-03 확인). 행 1·5와 아래 확인 1은 #12의 둘째 PR(2026-10-06)에서 그 PR의 코드로 고쳤다.
+행 1·4와 확인 2·5는 [#43](https://github.com/handochan/aelix-analytics/issues/43)(2026-10-06)에서 그 PR의 코드로 고쳤다.
 
 | 결정 | 적용한 것 | 남은 것과 맡는 곳 |
 |---|---|---|
-| 1 단일 배포 패키지, 책임 구분 | wheel 하나와 진입점 둘(`analytics` 런처, aelix 확장). aelix 프로세스는 `core`·`_platform`·`relations`만 로드하고 분석 라이브러리는 프로젝트 환경에서만 쓴다(ADR-0003 결정 3, ADR-0004 결정 1·2). 첫 새 책임: 읽기 모델 `relations`(#12, stdlib, 패키지의 형제를 import하지 않음, 의존 방향 `core → relations`) | 도메인·응용·포트의 모듈 구분. 아래 "배치"대로 새 책임이 생기는 #12·#13부터 |
+| 1 단일 배포 패키지, 책임 구분 | wheel 하나와 진입점 둘(`analytics` 런처, aelix 확장). aelix 프로세스는 `core`·`_platform`·`relations`만 로드하고 분석 라이브러리는 프로젝트 환경에서만 쓴다(ADR-0003 결정 3, ADR-0004 결정 1·2). 첫 새 책임: 읽기 모델 `relations`(#12, stdlib, 패키지의 형제를 import하지 않음, 의존 방향 `core → relations`). 모듈마다 계층을 정한 계층표와 그 의존 방향 검사(#43, [아키텍처 §11](../ARCHITECTURE.md#계층과-의존-방향-검사)) | 도메인·응용·포트의 모듈 구분(지금 `core`는 둘을 겸한다). 아래 "배치"대로 새 책임이 생기는 #13부터. 허용 목록의 예외 넷(제거 조건은 아키텍처 §11) |
 | 2 core의 의미 소유 | 적용 전. 기록의 의미가 `core.py`·`runner.py`·`report.py`에 나뉘어 있다(아키텍처 §2) | 공통 기록 계약 #4, 공통 writer #13, 지표·초점 #14 |
 | 3 Strategy·어댑터 경계 | 적용 전 | 첫 교체 사례인 두 제안 모드 #17, 두 공유 프로필 #20 |
-| 4 작은 Protocol과 명시적 주입 | 플랫폼 포트 넷(`FileLocks`·`AtomicFiles`·`ProcessControl`·`RunControl`), `Project(root, platform=…)` 주입, 실제 구현을 실패하도록 무장한 계약 시험(ADR-0003) | 정책 Strategy와 저장·게시 어댑터의 주입. 그 구현을 만드는 Issue(#17·#20 등) |
+| 4 작은 Protocol과 명시적 주입 | 플랫폼 포트 넷(`FileLocks`·`AtomicFiles`·`ProcessControl`·`RunControl`), `Project(root, platform=…)` 주입, 실제 구현을 실패하도록 무장한 계약 시험(ADR-0003). 그 방식을 세 구현(POSIX·Windows·시험 adapter)에 같은 사례로 돌리는 공통 계약 시험(#43, `tests/test_contracts.py`) | 정책 Strategy와 저장·게시 어댑터의 주입. 그 구현을 만드는 Issue(#17·#20 등) |
 | 5 공통 쓰기 경로와 읽기 모델 | 읽기 모델 `relations`(#12 PR-1·PR-2): `analytics_status`·`/analytics status`·kit `status`와 Workspace가 기록을 한 번 읽어 같은 판정·식별자·읽기 기준(`as_of_seq`·`source_revision`)을 보인다. 맥락 블록은 journal만 읽는다 | 옛 절대 경로의 추론 대응 #12 PR-3, 공통 writer #13, 질의·인덱스 #15, 보고서 본문·버전 #19 |
 | 6 계약별 버전·호환성 | 적용 전. 이 결정 전부터 기록에 schema 가족·버전이 있고, 같은 가족의 미래 버전만 가려낸다 | 기록 #4·#13, 스크립트 API #9, 게시 형식 #20·#21, 배포 #24 |
 | 7·8 자유 Python, 도구 수 | 현재 동작이 지키는 원칙이다(자유 Python 실행, 모델 도구 여섯 개) | 새 기능 PR의 리뷰 기준(Q11·Q13) |
@@ -54,7 +55,7 @@ Aelix Analytics는 베타 이후에도 지표·맥락·재사용·근거 탐색�
 
 [아키텍처](../ARCHITECTURE.md) §9의 트리는 목표 배치다. 기존 모듈을 그 트리로 한꺼번에 옮기지 않는다. 새 책임이 생기는 Issue가
 그 모듈을 계층에 맞춰 두고 의존 방향 검사([#43](https://github.com/handochan/aelix-analytics/issues/43))에 등록한다. #43보다 먼저
-병합된 모듈은 #43이 그때 등록한다.
+병합된 모듈은 #43이 그때 등록한다. #43은 #12의 `relations`를 포함해 그때까지의 모듈을 모두 등록했다([아키텍처 §11](../ARCHITECTURE.md#계층과-의존-방향-검사)).
 첫 사례는 [#12](https://github.com/handochan/aelix-analytics/issues/12)의 읽기 모델과 [#13](https://github.com/handochan/aelix-analytics/issues/13)의
 공통 writer다. 계층·Protocol·Strategy를 쓰임보다 먼저 만들지 않는다(아키텍처 §5·§9).
 [#9](https://github.com/handochan/aelix-analytics/issues/9)가 `kit/labkit`을 `aelix_analytics` 패키지(`src/aelix_analytics`)로 옮긴 것은
@@ -96,18 +97,25 @@ ADR-0003 결정 2·3은 그 PR에서 고쳤다).
    분석 라이브러리를 부르지 않는다는 확인(`tests/test_relations.py`, #12 PR-1), `core → relations` 로드를 덮는 3.11 stdlib 스모크(`floor`)와 aelix 통합
    레그, 확장이 같은 판정으로 `analytics_status`를 내는 시험(`tests/test_extension.py`, #12 PR-2).
 2. 실제 대체 정책·테스트 어댑터를 주입해도 ID·버전·근거·상태 의미가 유지되는가? 플랫폼 포트는 #8의 계약 시험
-   (`tests/test_platform.py`의 `test_the_injected_platform_is_the_one_actually_used` 등)이 확인한다. 그 시험 방식을 교체 구현의 공용 계약 시험으로
-   옮기는 일은 #43, 제안 정책의 두 모드는 [#17](https://github.com/handochan/aelix-analytics/issues/17),
-   공유 범위 투영의 read/evidence는 [#20](https://github.com/handochan/aelix-analytics/issues/20)이 맡는다.
+   (`tests/test_platform.py`의 `test_the_injected_platform_is_the_one_actually_used` 등)이 확인한다. 그 방식을 모든 구현으로 넓힌 공통 계약 시험이
+   `tests/test_contracts.py`다(#43): POSIX·Windows·시험 adapter에 포트마다의 계약(Protocol의 구성, 잠금·교체·생존 확인·제한 시간)과 조립(이
+   프로세스의 기본값과 다른 구현을 모두 실패하도록 무장해도 대표 흐름과 run이 주입한 구현으로 돌고, 기록의 ID·버전·참조·상태가 기본값으로 만든
+   것과 같음)을 같은 사례로 확인한다. 각 실제 구현은 자기 OS의 CI 레그에서 돌고, 지원하지 않는다고 선언한 능력(시험 adapter의 프로세스 사이
+   잠금 등)의 사례는 이유와 함께 건너뛴다. 제안 정책의 두 모드는 [#17](https://github.com/handochan/aelix-analytics/issues/17),
+   공유 범위 투영의 read/evidence는 [#20](https://github.com/handochan/aelix-analytics/issues/20)이 같은 형태로 더한다.
 3. 기존 프로젝트·스크립트·Aelix 경로와 실사용 분석의 자유도가 보존되는가? 기존 프로젝트의 읽기와 전환은 #12·#13, 작업 스크립트와 옛 스냅샷은
    #9·#13(ADR-0005 결정 5·9), Aelix 경로는 저장소 CI의 aelix 통합, 자유도(Q13)는 [#24](https://github.com/handochan/aelix-analytics/issues/24)의 출시 리허설이 맡는다.
 4. 파일 이동과 스키마·행동 변경을 분리하고, 현재 계약·시험·안내가 같은 구현을 설명하는가? #9-1은 이동과, `labkit`이라는 이름이
    사라지는 데 따른 안내·`KIT_VERSION` 상향·실행 가드만 싣고(기록의 형식과 동작은 그대로) #13은 세 PR로 나눈다(ADR-0005 결정 7).
    각 PR의 리뷰가 확인한다. #9-1은 내용을 바꾸지 않는 이동, 기계적 치환, 손 편집을 커밋으로 나눴고 저장 이름이 그대로임을
    `tests/test_kit.py`의 `test_storage_names_stay_until_the_new_writer`가 확인한다.
-5. 도메인·공유 응용 코드가 host·UI·분석 라이브러리를 거꾸로 import하지 않는가? 함수 안 import까지 읽는 정적 검사와 제거 조건이 붙은 허용
-   목록은 #43이 #9-1 뒤에 만든다. 확장 로드 뒤 `sys.modules`를 보는 런타임 시험은 함께 유지한다. #12·#13은 새 모듈을 계층표에 등록하고,
-   #43보다 먼저 병합되면 #43이 그 모듈을 등록한다.
+5. 도메인·공유 응용 코드가 host·UI·분석 라이브러리를 거꾸로 import하지 않는가? 함수 안·조건부 import와, `DYNAMIC_CALLS`가 이름을 든 로더의
+   사용(다른 이름으로 가져오거나 값·문자열로 쓴 것 포함)까지 읽는 정적 검사가 `tests/test_layers.py`다(#43, 저장소 CI). 문자열로 만든 코드의
+   `exec`, 실행 중에 이름을 만든 로더, 자원 읽기처럼 이 검사가 보지 못하는 것과 계층표·허용 목록(예외 넷, 항목마다 위치와 제거 조건)은
+   [아키텍처 §11](../ARCHITECTURE.md#계층과-의존-방향-검사)에 있다. 의도적 위반 사례(역방향·형제 계층·외부 라이브러리·import 시점·선언 없는
+   동적 로드·다른 이름으로 쓴 로더·선언과 다른 동적 로드·허용 목록의 함수 밖 import·등록 없는 모듈)마다 검사가 간선과 규칙을 말하며
+   실패하는 시험을 함께 둔다. 확장 로드 뒤 `sys.modules`를 보는 런타임 시험(`tests/test_platform.py`)은 함께 유지한다. #12의 `relations`는 #43이
+   등록했고, #13부터는 새 모듈을 계층표에 등록한다(등록하지 않으면 검사가 실패한다).
 6. 두 프로젝트·세션의 상태가 섞이지 않는가? 한 aelix가 두 프로젝트를 번갈아 다루는 경우는 `tests/test_extension.py`(#8)가 확인한다.
    정책 상태(모드·cooldown·거절 이력)의 격리는 #17이 맡는다.
 

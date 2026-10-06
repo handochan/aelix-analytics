@@ -64,6 +64,8 @@ Q10은 기존의 임의 Python 실행을 샌드박스로 바꾸는 약속이 아
 
 [ADR-0001](decisions/0001-evolvable-platform-boundaries.md)(2026-10-03 채택, 채택은 구현 완료가 아님)의 구조를 따르는 구현은 다음을 확인한다.
 항목별로 맡는 Issue는 그 ADR의 [구현에서 확인할 것](decisions/0001-evolvable-platform-boundaries.md#구현에서-확인할-것)에 있다.
+역방향 import 검사(`tests/test_layers.py`, 계층표는 [아키텍처 §11](ARCHITECTURE.md#계층과-의존-방향-검사))와 플랫폼 포트 세 구현의 공통 계약 시험
+(`tests/test_contracts.py`)은 #43부터 저장소 CI에서 돈다. 정책 Strategy의 계약 시험(#17·#20)과 나머지 항목은 남았고, Q15의 판정은 출시 결과표가 한다.
 
 - core의 의미·읽기 흐름이 Aelix·UI·분석 라이브러리 없이 실제로 호출된다. import만 성공하는 것을 독립성 증거로 삼지 않는다.
 - 대표 Strategy 또는 adapter를 대체해도 ID·버전·근거·상태 계약이 유지된다. 명목적인 base class 상속만 시험하지 않는다.
