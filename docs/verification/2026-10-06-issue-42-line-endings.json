@@ -3,13 +3,18 @@
   "observed_at": "2026-10-06",
   "issue": "https://github.com/handochan/aelix-analytics/issues/42",
   "decision": "docs/decisions/0007-line-endings.md",
-  "pull_request": null,
+  "pull_request": "https://github.com/handochan/aelix-analytics/pull/62",
   "base_revision": "e9392d9",
-  "measured_revision": "the review-fix commit of this PR on feat/issue-42-lf-everywhere (on 7d8e449): its files other than docs/, README.md and CONTRIBUTING.md are measured_tree's",
+  "measured_revision": "d23ddb88d3f8f7884858b8acd06f376adb857093, the review-fix commit of PR #62 on feat/issue-42-lf-everywhere (on 7d8e449): the CI legs checked it out; the developer machine measured the work tree just before the commit, whose files other than docs/, README.md and CONTRIBUTING.md are measured_tree's, as the commit's are (commit below)",
   "measured_tree": {
     "tree": "ea7050c0e2ecf2e9f34ef3c4e39e091b8b434565",
     "non_document_paths_sha256": "f9a9d35c9642b2633cec950049309fc195f71ddb22c0e72f95c2a96669c0dc59",
-    "how": "git write-tree of the work tree (a copy of the index plus `git add -A`); sha256 of `git ls-tree -r <tree>` without docs/, README.md and CONTRIBUTING.md"
+    "how": "git write-tree of the work tree (a copy of the index plus `git add -A`); sha256 of `git ls-tree -r <tree>` without docs/, README.md and CONTRIBUTING.md",
+    "commit": {
+      "sha": "d23ddb88d3f8f7884858b8acd06f376adb857093",
+      "tree": "48cd4309b1f23e90faef0ebe7ec142bf7b072ac1",
+      "non_document_paths_sha256": "f9a9d35c9642b2633cec950049309fc195f71ddb22c0e72f95c2a96669c0dc59"
+    }
   },
   "earlier_measurement": {
     "revision": "7d8e449",
@@ -21,40 +26,988 @@
   "workflow": ".github/workflows/ci.yml (unchanged by this PR)",
   "runs": {
     "code": {
-      "state": "CI 실행 예정",
+      "state": "pass",
+      "id": "37411845626",
+      "url": "https://github.com/handochan/aelix-analytics/actions/runs/37411845626",
+      "attempt": 1,
+      "event": "pull_request (opened)",
+      "head": "d23ddb88d3f8f7884858b8acd06f376adb857093",
+      "base": "e9392d93fae7dab36974c8431c7ed10280a3e4d6",
+      "github_sha": "80f58d75c6125831f2ec25a6a796432514d399f2",
+      "workflow_sha": "80f58d75c6125831f2ec25a6a796432514d399f2",
+      "conclusion": "success",
       "legs": [
         "ubuntu-24.04",
         "windows-2025"
-      ]
+      ],
+      "jobs": {
+        "lint · ruff and documents": {
+          "id": "112101782799",
+          "conclusion": "success",
+          "started_at": "2026-10-06T04:02:57Z",
+          "completed_at": "2026-10-06T04:03:12Z",
+          "duration": "15s"
+        },
+        "floor · ubuntu-24.04 · CPython 3.11, stdlib only": {
+          "id": "112101782885",
+          "conclusion": "success",
+          "started_at": "2026-10-06T04:02:57Z",
+          "completed_at": "2026-10-06T04:03:25Z",
+          "duration": "28s"
+        },
+        "platform · ubuntu-24.04": {
+          "id": "112101782931",
+          "conclusion": "success",
+          "started_at": "2026-10-06T04:02:57Z",
+          "completed_at": "2026-10-06T04:14:31Z",
+          "duration": "11m34s"
+        },
+        "platform · windows-2025": {
+          "id": "112101782964",
+          "conclusion": "success",
+          "started_at": "2026-10-06T04:02:57Z",
+          "completed_at": "2026-10-06T04:31:40Z",
+          "duration": "28m43s"
+        },
+        "floor · windows-2025 · CPython 3.11, stdlib only": {
+          "id": "112101783020",
+          "conclusion": "success",
+          "started_at": "2026-10-06T04:02:57Z",
+          "completed_at": "2026-10-06T04:04:01Z",
+          "duration": "1m04s"
+        }
+      },
+      "lint_documents": {
+        "ok": true,
+        "counts": {
+          "json_files": 9,
+          "markdown_files": 55,
+          "local_links": 499,
+          "python_examples": 2,
+          "json_examples": 4,
+          "dev_state_examples": 1
+        },
+        "errors": [],
+        "sha256": "e6bf49ba83359600d29f3c6a1f50d6cc3328f54e87c736461cae595baae88006"
+      }
     },
     "macos_label": {
-      "state": "CI 실행 예정",
+      "state": "pass",
+      "id": "37411847760",
+      "url": "https://github.com/handochan/aelix-analytics/actions/runs/37411847760",
+      "attempt": 1,
+      "event": "pull_request (labeled ci:macos)",
+      "head": "d23ddb88d3f8f7884858b8acd06f376adb857093",
+      "base": "e9392d93fae7dab36974c8431c7ed10280a3e4d6",
+      "github_sha": "80f58d75c6125831f2ec25a6a796432514d399f2",
+      "workflow_sha": "80f58d75c6125831f2ec25a6a796432514d399f2",
+      "conclusion": "success",
       "legs": [
         "macos-26"
-      ]
-    }
+      ],
+      "jobs": {
+        "platform · macos-26": {
+          "id": "112101790976",
+          "conclusion": "success",
+          "started_at": "2026-10-06T04:03:02Z",
+          "completed_at": "2026-10-06T04:12:00Z",
+          "duration": "8m58s"
+        },
+        "floor · macos-26 · CPython 3.11, stdlib only": {
+          "id": "112101791126",
+          "conclusion": "success",
+          "started_at": "2026-10-06T04:03:01Z",
+          "completed_at": "2026-10-06T04:03:32Z",
+          "duration": "31s"
+        },
+        "lint · ruff and documents": {
+          "id": "112101791858",
+          "conclusion": "skipped"
+        }
+      }
+    },
+    "note": "a pull_request run takes the workflow from GitHub's merge commit (github_sha) and checks out the PR head; the artifacts and job logs are kept in the work run's evidence/ci/ (GitHub deletes the artifacts after 90 days)"
   },
   "legs": {
     "linux": {
-      "result": "CI 실행 예정",
-      "run": null,
-      "attempt": null,
-      "junit": null,
-      "observations": null
+      "result": "pass",
+      "run": "37411845626",
+      "attempt": 1,
+      "jobs": {
+        "platform": {
+          "name": "platform · ubuntu-24.04",
+          "id": "112101782931",
+          "conclusion": "success",
+          "started_at": "2026-10-06T04:02:57Z",
+          "completed_at": "2026-10-06T04:14:31Z",
+          "duration": "11m34s"
+        },
+        "floor": {
+          "name": "floor · ubuntu-24.04 · CPython 3.11, stdlib only",
+          "id": "112101782885",
+          "conclusion": "success",
+          "started_at": "2026-10-06T04:02:57Z",
+          "completed_at": "2026-10-06T04:03:25Z",
+          "duration": "28s"
+        }
+      },
+      "runner": {
+        "image": "ubuntu24 20260927.320.1",
+        "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+        "arch": "X64",
+        "uv": "uv 0.11.19 (x86_64-unknown-linux-gnu)",
+        "python_development": "3.12.3",
+        "python_found_by_uv": {
+          "3.11": "3.11.15",
+          "3.12": "3.12.3"
+        },
+        "python_floor": "3.11.16",
+        "git_core_autocrlf": null,
+        "git_core_autocrlf_origin": null,
+        "checked_out": {
+          "head": "d23ddb88d3f8f7884858b8acd06f376adb857093",
+          "dirty": false
+        }
+      },
+      "junit": {
+        "suite": {
+          "file": "suite.xml",
+          "sha256": "3c7b68a29b1c1edb7114c51f1f3e931d6e4b6a1e1d1b0e6d199cd42ce68cd6ea",
+          "command": "AELIX_ANALYTICS_TEST_INSTALL=1 uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread --ignore tests/test_windows_console.py --junitxml suite.xml",
+          "tests": 1063,
+          "passed": 1051,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 12
+        },
+        "aelix_py3_12": {
+          "file": "aelix-py3.12.xml",
+          "sha256": "1af1f7bbb98c608c24c971fddf118bc610bae01d5084846bfa962544367bb28b",
+          "command": "uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread --basetemp <runner temp> --junitxml aelix-py3.12.xml tests/test_extension.py tests/test_usage_report.py",
+          "tests": 141,
+          "passed": 141,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "aelix_py3_11": {
+          "file": "aelix-py3.11.xml",
+          "sha256": "a19c546ff01e754154d9f995b47a790c90b4c442e7ffa0e2fd31aaf703870a5e",
+          "command": "uv run --isolated --no-project --python 3.11 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread --basetemp <runner temp> --junitxml aelix-py3.11.xml tests/test_extension.py tests/test_usage_report.py",
+          "tests": 141,
+          "passed": 141,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "launcher_py3_11": {
+          "file": "launcher-py3.11.xml",
+          "sha256": "2834149ca3d9b1da10621a09cb5da83e17ba37b5fdff45e54ad337c4044ce189",
+          "command": "uv run --isolated --no-project --python 3.11 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 120 --timeout-method=thread --junitxml launcher-py3.11.xml tests/test_launcher.py",
+          "tests": 121,
+          "passed": 120,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 1
+        }
+      },
+      "in_the_suite": {
+        "tests/test_line_endings.py": {
+          "passed": 80,
+          "skipped": 0,
+          "failed": 0
+        },
+        "tests/test_record_contract.py": {
+          "passed": 91,
+          "skipped": 0,
+          "failed": 0
+        },
+        "end_to_end": {
+          "tests/test_packaging.py": {
+            "passed": 25,
+            "skipped": 0,
+            "failed": 0
+          },
+          "tests/test_launcher.py": {
+            "passed": 120,
+            "skipped": 1,
+            "failed": 0
+          },
+          "passed": 145,
+          "skipped": 1,
+          "failed": 0
+        },
+        "note": "the suite step sets AELIX_ANALYTICS_TEST_INSTALL=1, so the end-to-end leg runs inside it; tests/test_line_endings.py was not run alone in CI"
+      },
+      "named_tests": {
+        "test_kit_text_writes_go_through_the_helper": "passed",
+        "test_the_checkout_is_lf": "passed",
+        "test_the_kit_sha_is_the_tracked_files_digest": "passed",
+        "test_records_are_the_same_bytes_everywhere": "passed",
+        "test_a_new_project_s_text_is_lf": "passed",
+        "test_a_run_writes_lf_and_copies_bytes": "passed",
+        "test_charts_and_the_workspace_are_lf": "passed",
+        "test_line_endings_only_reaches_status_and_the_workspace": "passed",
+        "test_a_context_whose_line_endings_changed_says_so": "passed",
+        "test_old_crlf_records_are_read_and_kept": "passed",
+        "test_the_wheel_members_have_no_crlf": "passed",
+        "test_the_installed_command_drives_a_project_without_aelix[3.11]": "passed",
+        "test_the_installed_command_drives_a_project_without_aelix[3.12]": "passed",
+        "test_journal_bytes_keep_their_line_endings": "passed",
+        "test_import_query_and_run_through_the_project_environment": "passed"
+      },
+      "smoke": {
+        "sha256": "cc74c1895fd285fe67368baa9622fad9c238b899f59061904e59a357632a08ad",
+        "summary": {
+          "holds": 25,
+          "violated": 0,
+          "declared_limitation": 0,
+          "observed": 6,
+          "not_run": 0
+        },
+        "hold": true,
+        "declared_limitation": [],
+        "violated": []
+      },
+      "stdlib_smoke": {
+        "sha256": "13024299f2eeeee50b08a62744f3156a666fddaca328b6ee8c1aec2b6e61a9c1",
+        "python": "3.11.16",
+        "summary": {
+          "holds": 15,
+          "violated": 0,
+          "declared_limitation": 0,
+          "observed": 3,
+          "not_run": 2
+        },
+        "hold": true,
+        "declared_limitation": [],
+        "violated": [],
+        "not_run_probes": [
+          "probe_interrupt_through_uv_run",
+          "probe_cancel_request_file_through_uv_run"
+        ]
+      },
+      "usage_report": {
+        "sha256": "665de983b497ce1ff16f424a882b564b685c9a3ff8e7c4071eb2b7a5641c4a94",
+        "required_facts": "58/58",
+        "invariants": "42/42",
+        "failures": [],
+        "exit": 0,
+        "exit_source": "the step's summary line in the job log"
+      },
+      "observations": {
+        "checkout-eol": {
+          "sha256": "34dea976ca3a8790d953ce02feb67d951c1265416a022f90bedc2e7e22c0d0bf",
+          "data": {
+            "counts": {
+              "i/lf w/lf attr/-text": 90,
+              "i/lf w/lf attr/text=auto eol=lf": 108,
+              "i/mixed w/mixed attr/-text": 1,
+              "i/none w/none attr/-text": 8
+            },
+            "kept_as_is": 99,
+            "kept_as_is_with_crlf": [
+              "tests/fixtures/records/mixed-version/journal.jsonl"
+            ]
+          }
+        },
+        "fixed-records": {
+          "sha256": "1c54dcee964b1de1cebf2155d99a4bac76e89c11b599a112c9435a4e416b1c47",
+          "data": {
+            "journal.jsonl": "c9dff9a10e3cacebdb7d2dc9e7717b5ef7be7e759df6b34630c38a5aba9c11a5",
+            "run.json": "e8129fd88998afcde5678cdf291f835338bdc468d514318c518532a1ad6f0fc9",
+            "trust": "c85000b7e7ffd6291ff97b4a3b1e1354c49ba59ef9553102f5904e49dbd2f7ba"
+          }
+        },
+        "kit-sha": {
+          "sha256": "ea977ef8c319c0670b81d45029a4ab0c0fc48244b550828cfcbf83b6a65e1ec4",
+          "data": {
+            "kit_sha": "a226e3e8c3a1a693e0a1e88138cb08e17734738afc463c596c70714e2139fa79",
+            "tracked": "a226e3e8c3a1a693e0a1e88138cb08e17734738afc463c596c70714e2139fa79"
+          }
+        },
+        "line-endings-only": {
+          "sha256": "2ece3fba154dacdc4ae52ef4038acafcff6a99d6022d91040be176244cf96ef8",
+          "data": {
+            "status_text": "project: Line endings (/tmp/pytest-of-runner/pytest-0/test_line_endings_only_reaches0/proj)\nreport: /tmp/pytest-of-runner/pytest-0/test_line_endings_only_reaches0/proj/report/index.html\nread: as_of_seq 3 · source_revision 46ce13890aacd9e8\ngoal: Keep the bytes\ndatasets (0) — query views: none\nruns (1 total, 0 not ok; latest first):\n  20261006-040605-judged ok 0.0s charts=1 \"judged\"\ncharts (latest version per script::chart, 1):\n  scripts/judged.py::judged \"judged\" run 20261006-040605-judged v1 · STALE(data/in.csv (line endings only))\nrecent journal:\n  e1 2026-10-06 04:06 project: project created: Line endings\n  e2 2026-10-06 04:06 context: CONTEXT.md recorded\n  e3 2026-10-06 04:06 run: judged — ok"
+          }
+        },
+        "new-project": {
+          "sha256": "97a223c5091dac09d872f24ae3bf954b74c255a5511d41b58277a3dba0df80f2",
+          "data": {
+            ".gitattributes": "66b748264be11611b9428c43a486454118278853b83c13397133c946929b6c15",
+            ".gitignore": "aef713a60722de4da421ee30ce5d73f1bb0f2428518b681591967c82f6a0625a",
+            ".python-version": "7b55f8e67b5623c4bef3fa691288da9437d79d3aba156de48d481db32ac7d16d",
+            "pyproject.toml": "c7129862d02f3e56a05ca6b3f1a24354a7575b4ffd542358b5696f6bc4878b53"
+          }
+        },
+        "run-bytes": {
+          "sha256": "8cf5805e835ba3b934f22c9c9303f787a3ff5c360bdda72a226c2a50a94360d6",
+          "data": {
+            "crlf.py": {
+              "kit_sha256": "a226e3e8c3a1a693e0a1e88138cb08e17734738afc463c596c70714e2139fa79",
+              "script.sha256": "e37afdb4de90efb9237b76db6373de43fa8ace22ac94026e13e1ead4aa63d33e",
+              "stdout.txt": "3a7f0fa367b20e0c2c5697774b6a65b91aa129737dad16e272c266195ca3c356"
+            },
+            "lf.py": {
+              "kit_sha256": "a226e3e8c3a1a693e0a1e88138cb08e17734738afc463c596c70714e2139fa79",
+              "script.sha256": "80b2e7c2f32f3eb60eb1806c2d241cdd6bf4fd58ee8f5af1c5d974f697c5800a",
+              "stdout.txt": "3a7f0fa367b20e0c2c5697774b6a65b91aa129737dad16e272c266195ca3c356"
+            }
+          }
+        },
+        "text-mode-default": {
+          "sha256": "8302de64ec891529cd8e40276262b0cee1d2f5a4d3b043210cb0150b3b486948",
+          "data": {
+            "open_w_a_newline": "610a"
+          }
+        },
+        "wheel-members": {
+          "sha256": "8f91b475edb86d8303e3492e763597a5fd98e34d58207dfcf9c5b7cbf4e3b248",
+          "data": {
+            "checkout_kit_sha": "a226e3e8c3a1a693e0a1e88138cb08e17734738afc463c596c70714e2139fa79",
+            "crlf": [],
+            "list_sha256": "4031237c57e3a629b5ccf77403bc15a69e692ad224224776431b2518425a59b4",
+            "members": 50
+          }
+        },
+        "workspace": {
+          "sha256": "1de85bcdab9979aafae91fb167dabd6c98d43aca6fdeecd7ca1f01b66028a974",
+          "data": {
+            "altair_chart": "cd8a3744ac0edfa310c338cb6e844759781132ed6192c902858faf7f9b7e270d",
+            "files": 8,
+            "html_chart": "58801acb0520bd538a6d0ebc0836dbed953723827b19586acc1abe6905e18bc2"
+          }
+        },
+        "installed-run-py3.11": {
+          "sha256": "575e4f96411cb4e66e4852432013ed77bd2928cf85f96e9bf2e41bc9c09caf99",
+          "data": {
+            "kit_sha256": "a226e3e8c3a1a693e0a1e88138cb08e17734738afc463c596c70714e2139fa79",
+            "kit_version": "0.4.0",
+            "script_sha256": "024f3144a10e797651150974ba2b3bc0043afa48bd2714d7cb594150c9757abc"
+          }
+        },
+        "installed-run-py3.12": {
+          "sha256": "575e4f96411cb4e66e4852432013ed77bd2928cf85f96e9bf2e41bc9c09caf99",
+          "data": {
+            "kit_sha256": "a226e3e8c3a1a693e0a1e88138cb08e17734738afc463c596c70714e2139fa79",
+            "kit_version": "0.4.0",
+            "script_sha256": "024f3144a10e797651150974ba2b3bc0043afa48bd2714d7cb594150c9757abc"
+          }
+        }
+      },
+      "other_observation_files_sha256": {
+        "evidence/link-into-runs-symlink.json": "84968cd47bcf06fbac7678479186298462a18353bf6f815e1a3198f266c5e91b",
+        "evidence/linked-data-symlink.json": "e450b4347ce2702fb072d8f7170f0749652c07edb9b4e24986aa7257e70df01b",
+        "evidence/readme-symlink-route.json": "439d85d4cde8ec1d76612e840f0a69172a53a3576480cc2c169255a305f63bc8"
+      }
     },
     "windows": {
-      "result": "CI 실행 예정",
-      "run": null,
-      "attempt": null,
-      "junit": null,
-      "observations": null
+      "result": "pass",
+      "run": "37411845626",
+      "attempt": 1,
+      "jobs": {
+        "platform": {
+          "name": "platform · windows-2025",
+          "id": "112101782964",
+          "conclusion": "success",
+          "started_at": "2026-10-06T04:02:57Z",
+          "completed_at": "2026-10-06T04:31:40Z",
+          "duration": "28m43s"
+        },
+        "floor": {
+          "name": "floor · windows-2025 · CPython 3.11, stdlib only",
+          "id": "112101783020",
+          "conclusion": "success",
+          "started_at": "2026-10-06T04:02:57Z",
+          "completed_at": "2026-10-06T04:04:01Z",
+          "duration": "1m04s"
+        }
+      },
+      "runner": {
+        "image": "win25-vs2026 20260925.250.1",
+        "platform": "Windows-2025Server-10.0.26100-SP0",
+        "arch": "X64",
+        "uv": "uv 0.11.19 (7b2cff1c3 2026-06-03 x86_64-pc-windows-msvc)",
+        "python_development": "3.12.10",
+        "python_found_by_uv": {
+          "3.11": "3.11.9",
+          "3.12": "3.12.10"
+        },
+        "python_floor": "3.11.9",
+        "git_core_autocrlf": "true",
+        "git_core_autocrlf_origin": "file:C:/Program Files/Git/etc/gitconfig",
+        "checked_out": {
+          "head": "d23ddb88d3f8f7884858b8acd06f376adb857093",
+          "dirty": false
+        }
+      },
+      "junit": {
+        "suite": {
+          "file": "suite.xml",
+          "sha256": "50e72dd4cd49b47c9881be46cf8be49ad66770d1343c5cc4a967f26d411514ef",
+          "command": "AELIX_ANALYTICS_TEST_INSTALL=1 uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread --ignore tests/test_windows_console.py --junitxml suite.xml",
+          "tests": 1071,
+          "passed": 934,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 137
+        },
+        "aelix_py3_12": {
+          "file": "aelix-py3.12.xml",
+          "sha256": "3c39a4134a3acf13092aad0c7cd9e87d2e2820721b9ad02180e07c4879821556",
+          "command": "uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread --basetemp <runner temp> --junitxml aelix-py3.12.xml tests/test_extension.py tests/test_usage_report.py",
+          "tests": 141,
+          "passed": 141,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "aelix_py3_11": {
+          "file": "aelix-py3.11.xml",
+          "sha256": "39ce921e47b732654e9e3269c55a7fd018d9429522ec1a86e199903e51f9990d",
+          "command": "uv run --isolated --no-project --python 3.11 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread --basetemp <runner temp> --junitxml aelix-py3.11.xml tests/test_extension.py tests/test_usage_report.py",
+          "tests": 141,
+          "passed": 141,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "launcher_py3_11": {
+          "file": "launcher-py3.11.xml",
+          "sha256": "65794f86380af867668b8aba1210eaa312e4292e26351176b145b555dadca527",
+          "command": "uv run --isolated --no-project --python 3.11 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 120 --timeout-method=thread --junitxml launcher-py3.11.xml tests/test_launcher.py",
+          "tests": 121,
+          "passed": 62,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 59
+        },
+        "console": {
+          "file": "console.xml",
+          "sha256": "400816959f01daa221f4c6323cd5db89864d6e1202d08136f83ec339b734215c",
+          "command": "AELIX_ANALYTICS_TEST_INSTALL=1 uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread --junitxml console.xml tests/test_windows_console.py",
+          "tests": 21,
+          "passed": 21,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "long_paths_off": {
+          "file": "long-paths-off.xml",
+          "sha256": "489fa34b8047bd1784757def9df1dbbff394964e3f3e77bf6e9fcea92702962e",
+          "command": "(after LongPathsEnabled=0) AELIX_ANALYTICS_TEST_INSTALL=1 uv run --locked pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread --junitxml long-paths-off.xml tests/test_windows_long_paths.py",
+          "tests": 6,
+          "passed": 6,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      },
+      "in_the_suite": {
+        "tests/test_line_endings.py": {
+          "passed": 80,
+          "skipped": 0,
+          "failed": 0
+        },
+        "tests/test_record_contract.py": {
+          "passed": 91,
+          "skipped": 0,
+          "failed": 0
+        },
+        "end_to_end": {
+          "tests/test_packaging.py": {
+            "passed": 24,
+            "skipped": 1,
+            "failed": 0
+          },
+          "tests/test_launcher.py": {
+            "passed": 62,
+            "skipped": 59,
+            "failed": 0
+          },
+          "passed": 86,
+          "skipped": 60,
+          "failed": 0
+        },
+        "note": "the suite step sets AELIX_ANALYTICS_TEST_INSTALL=1, so the end-to-end leg runs inside it; tests/test_line_endings.py was not run alone in CI"
+      },
+      "named_tests": {
+        "test_kit_text_writes_go_through_the_helper": "passed",
+        "test_the_checkout_is_lf": "passed",
+        "test_the_kit_sha_is_the_tracked_files_digest": "passed",
+        "test_records_are_the_same_bytes_everywhere": "passed",
+        "test_a_new_project_s_text_is_lf": "passed",
+        "test_a_run_writes_lf_and_copies_bytes": "passed",
+        "test_charts_and_the_workspace_are_lf": "passed",
+        "test_line_endings_only_reaches_status_and_the_workspace": "passed",
+        "test_a_context_whose_line_endings_changed_says_so": "passed",
+        "test_old_crlf_records_are_read_and_kept": "passed",
+        "test_the_wheel_members_have_no_crlf": "passed",
+        "test_the_installed_command_drives_a_project_without_aelix[3.11]": "passed",
+        "test_the_installed_command_drives_a_project_without_aelix[3.12]": "passed",
+        "test_journal_bytes_keep_their_line_endings": "passed",
+        "test_import_query_and_run_through_the_project_environment": "passed"
+      },
+      "smoke": {
+        "sha256": "299321ca504b396ebd3e8556da7db837603fa62e4437abda376d99966dfba759",
+        "summary": {
+          "holds": 21,
+          "violated": 0,
+          "declared_limitation": 3,
+          "observed": 7,
+          "not_run": 0
+        },
+        "hold": true,
+        "declared_limitation": [
+          "kill_tree_after_the_leader_exited",
+          "cli_cancel_reaches_a_run_inside_a_regular_expression",
+          "cli_cancel_reaches_a_run_waiting_on_a_subprocess"
+        ],
+        "violated": []
+      },
+      "stdlib_smoke": {
+        "sha256": "d47c1762f03f88699c81a2087e543bd8a62af5a553cbc9a27a77484002ab63b6",
+        "python": "3.11.9",
+        "summary": {
+          "holds": 14,
+          "violated": 0,
+          "declared_limitation": 1,
+          "observed": 3,
+          "not_run": 2
+        },
+        "hold": true,
+        "declared_limitation": [
+          "kill_tree_after_the_leader_exited"
+        ],
+        "violated": [],
+        "not_run_probes": [
+          "probe_interrupt_through_uv_run",
+          "probe_cancel_request_file_through_uv_run"
+        ]
+      },
+      "usage_report": {
+        "sha256": "5624e041fc737596e77bd8d3d47c9dcdee1f6a258724f5db1786961648227f35",
+        "required_facts": "58/58",
+        "invariants": "42/42",
+        "failures": [],
+        "exit": 0,
+        "exit_source": "the step's summary line in the job log"
+      },
+      "observations": {
+        "checkout-eol": {
+          "sha256": "34dea976ca3a8790d953ce02feb67d951c1265416a022f90bedc2e7e22c0d0bf",
+          "data": {
+            "counts": {
+              "i/lf w/lf attr/-text": 90,
+              "i/lf w/lf attr/text=auto eol=lf": 108,
+              "i/mixed w/mixed attr/-text": 1,
+              "i/none w/none attr/-text": 8
+            },
+            "kept_as_is": 99,
+            "kept_as_is_with_crlf": [
+              "tests/fixtures/records/mixed-version/journal.jsonl"
+            ]
+          }
+        },
+        "fixed-records": {
+          "sha256": "54223a0d353f7ccb926e703c7e68e8d4fa292b8af9017492e1e390d96e6dad20",
+          "data": {
+            "journal.jsonl": "c9dff9a10e3cacebdb7d2dc9e7717b5ef7be7e759df6b34630c38a5aba9c11a5",
+            "run.json": "e8129fd88998afcde5678cdf291f835338bdc468d514318c518532a1ad6f0fc9",
+            "trust": "1f5f04141997c577ff5485d864a9bfd659672f43204f7be344f363e1afcba234"
+          }
+        },
+        "kit-sha": {
+          "sha256": "ea977ef8c319c0670b81d45029a4ab0c0fc48244b550828cfcbf83b6a65e1ec4",
+          "data": {
+            "kit_sha": "a226e3e8c3a1a693e0a1e88138cb08e17734738afc463c596c70714e2139fa79",
+            "tracked": "a226e3e8c3a1a693e0a1e88138cb08e17734738afc463c596c70714e2139fa79"
+          }
+        },
+        "line-endings-only": {
+          "sha256": "ef23c07483187dc7c66de212fd5cd610a22f83e762ccb2c34a706a6f0d3e840c",
+          "data": {
+            "status_text": "project: Line endings (C:\\Users\\runneradmin\\AppData\\Local\\Temp\\pytest-of-runneradmin\\pytest-0\\test_line_endings_only_reaches0\\proj)\nreport: C:\\Users\\runneradmin\\AppData\\Local\\Temp\\pytest-of-runneradmin\\pytest-0\\test_line_endings_only_reaches0\\proj\\report\\index.html\nread: as_of_seq 3 · source_revision 2bdd700be2af88eb\ngoal: Keep the bytes\ndatasets (0) — query views: none\nruns (1 total, 0 not ok; latest first):\n  20261006-040924-judged ok 0.0s charts=1 \"judged\"\ncharts (latest version per script::chart, 1):\n  scripts/judged.py::judged \"judged\" run 20261006-040924-judged v1 · STALE(data/in.csv (line endings only))\nrecent journal:\n  e1 2026-10-06 04:09 project: project created: Line endings\n  e2 2026-10-06 04:09 context: CONTEXT.md recorded\n  e3 2026-10-06 04:09 run: judged — ok"
+          }
+        },
+        "new-project": {
+          "sha256": "97a223c5091dac09d872f24ae3bf954b74c255a5511d41b58277a3dba0df80f2",
+          "data": {
+            ".gitattributes": "66b748264be11611b9428c43a486454118278853b83c13397133c946929b6c15",
+            ".gitignore": "aef713a60722de4da421ee30ce5d73f1bb0f2428518b681591967c82f6a0625a",
+            ".python-version": "7b55f8e67b5623c4bef3fa691288da9437d79d3aba156de48d481db32ac7d16d",
+            "pyproject.toml": "c7129862d02f3e56a05ca6b3f1a24354a7575b4ffd542358b5696f6bc4878b53"
+          }
+        },
+        "run-bytes": {
+          "sha256": "8cf5805e835ba3b934f22c9c9303f787a3ff5c360bdda72a226c2a50a94360d6",
+          "data": {
+            "crlf.py": {
+              "kit_sha256": "a226e3e8c3a1a693e0a1e88138cb08e17734738afc463c596c70714e2139fa79",
+              "script.sha256": "e37afdb4de90efb9237b76db6373de43fa8ace22ac94026e13e1ead4aa63d33e",
+              "stdout.txt": "3a7f0fa367b20e0c2c5697774b6a65b91aa129737dad16e272c266195ca3c356"
+            },
+            "lf.py": {
+              "kit_sha256": "a226e3e8c3a1a693e0a1e88138cb08e17734738afc463c596c70714e2139fa79",
+              "script.sha256": "80b2e7c2f32f3eb60eb1806c2d241cdd6bf4fd58ee8f5af1c5d974f697c5800a",
+              "stdout.txt": "3a7f0fa367b20e0c2c5697774b6a65b91aa129737dad16e272c266195ca3c356"
+            }
+          }
+        },
+        "text-mode-default": {
+          "sha256": "66eca773625d0494939024bf617a677fa8225e8ade4579ff24bf19d0c7352dbd",
+          "data": {
+            "open_w_a_newline": "610d0a"
+          }
+        },
+        "wheel-members": {
+          "sha256": "8f91b475edb86d8303e3492e763597a5fd98e34d58207dfcf9c5b7cbf4e3b248",
+          "data": {
+            "checkout_kit_sha": "a226e3e8c3a1a693e0a1e88138cb08e17734738afc463c596c70714e2139fa79",
+            "crlf": [],
+            "list_sha256": "4031237c57e3a629b5ccf77403bc15a69e692ad224224776431b2518425a59b4",
+            "members": 50
+          }
+        },
+        "workspace": {
+          "sha256": "1de85bcdab9979aafae91fb167dabd6c98d43aca6fdeecd7ca1f01b66028a974",
+          "data": {
+            "altair_chart": "cd8a3744ac0edfa310c338cb6e844759781132ed6192c902858faf7f9b7e270d",
+            "files": 8,
+            "html_chart": "58801acb0520bd538a6d0ebc0836dbed953723827b19586acc1abe6905e18bc2"
+          }
+        },
+        "installed-run-py3.11": {
+          "sha256": "575e4f96411cb4e66e4852432013ed77bd2928cf85f96e9bf2e41bc9c09caf99",
+          "data": {
+            "kit_sha256": "a226e3e8c3a1a693e0a1e88138cb08e17734738afc463c596c70714e2139fa79",
+            "kit_version": "0.4.0",
+            "script_sha256": "024f3144a10e797651150974ba2b3bc0043afa48bd2714d7cb594150c9757abc"
+          }
+        },
+        "installed-run-py3.12": {
+          "sha256": "575e4f96411cb4e66e4852432013ed77bd2928cf85f96e9bf2e41bc9c09caf99",
+          "data": {
+            "kit_sha256": "a226e3e8c3a1a693e0a1e88138cb08e17734738afc463c596c70714e2139fa79",
+            "kit_version": "0.4.0",
+            "script_sha256": "024f3144a10e797651150974ba2b3bc0043afa48bd2714d7cb594150c9757abc"
+          }
+        }
+      },
+      "other_observation_files_sha256": {
+        "evidence/console/brk_busy_classic_py312.json": "541a120c0284d885d5e9d2ce70e45c36890ecc0909c10e41a20f0f1158fda1e5",
+        "evidence/console/brk_busy_py312.json": "db9b7343b232075fc2184f8ff3eb39c28fbd31e9ddadf0ec0c46e9b583603078",
+        "evidence/console/brk_sleep_py311.json": "5d2f66add3da98d8670d9ec5552cbee7fa378e84cb3868ee994c2edc3dca67ad",
+        "evidence/console/brk_sleep_py312.json": "2d5e96983beac5909aae858541d8c5f7e09cf82a7837f6a5a32a0229bdb85a92",
+        "evidence/console/brk_w32im_py312.json": "8279c3b63c59be1d9acc76cf1408f6fbde5dca550a8cdc9b0c0af0437ca91f16",
+        "evidence/console/c_busy_classic_py312.json": "4e091a27054c08a8c52422c953f4a8b067ba71c204be1497ea7408d9b736af31",
+        "evidence/console/c_busy_cp949_py312.json": "d8e16a5408212ff9adbaa62ef204293dd9c9b826495a1adbf9f301ecde8a73ba",
+        "evidence/console/c_busy_py311.json": "b2cd23a32501d578fe36b31288fcadca187e7c45c7e1527d367a5b971e8df068",
+        "evidence/console/c_busy_py312.json": "3fe07842b34ff080b4ac1d7fc11f715cab0822831c5278ba900142d39ea4e3be",
+        "evidence/console/c_child_wait_py312.json": "442da7327c4599c48189eff7a96578956d793877fed7a8ed52627bda188f3204",
+        "evidence/console/c_double_same_write_py312.json": "df3cba31238aafc2b3a0ec6550412fe06400af929aa8825048d5301d6fe4307f",
+        "evidence/console/c_regex_py312.json": "e6e15f594ceea668880bba07cff8fe911da0c59a463bed49b16c2cc70ac7ce2c",
+        "evidence/console/c_sleep_py311.json": "c87d0a7d4e00cf2f18f333e2fe874b298f3b6c3f5537ad8f85f8f6f6e53517e1",
+        "evidence/console/c_sleep_py312.json": "3b66dea387193524747f4e7cc8136692bde6082fafd55acfa35cf1ce739d6f41",
+        "evidence/console/c_swallow_second_py312.json": "ebc1dace35fda9d21086692ca155a321362ea5f0251ca9f23f61b2d8b7a074c4",
+        "evidence/console/close_busy_py312.json": "bd45e4ff7ab23f7f66055a13714d70ad82f55fb95ba2b1641b150353cd85b5d4",
+        "evidence/console/fails_half_way.json": "e60af29acf10cba1fd1df17a474b4b76c2f79d6c18af5f7306e23cc3125ffbbd",
+        "evidence/console/pwsh_status_437.json": "e8117e7e38cfe108f6e2c3abf2ac7570bad4e46efc1dacc2b4912e0045f25ae8",
+        "evidence/console/pwsh_status_949.json": "d8c34ca3499c10c12631b4d47a8347162e8e4d2f3b1048bdc18e56f36656ff53",
+        "evidence/console/typed_cmd.json": "3f186dadbd64b750e32bf3613338b652112a57468aba8fe4fb1659e7abdbcbdb",
+        "evidence/console/typed_pwsh.json": "dfa233d4a0da27c58eed0da6481129da49ef0ac978e341aeebdef34ae3406449",
+        "evidence/link-into-runs-junction.json": "38309c8a4462320e812c3a98039a8312aad77155ea7376d77b5389d37ca1ea35",
+        "evidence/link-into-runs-symlink.json": "84968cd47bcf06fbac7678479186298462a18353bf6f815e1a3198f266c5e91b",
+        "evidence/linked-data-junction.json": "4707cd9cde0f5ee28c4e592e7bf577b6621148af7e65f0469834c51103f9cf1f",
+        "evidence/linked-data-symlink.json": "c33ecbb8316fedb24378f1cda9194913f95211ba54346f56bede192bed708c72",
+        "evidence/long-paths-enabled-extension-in-process.json": "2be3c82b4fccae72fc175cde75e7d26953157a95eeb8d0db70f8c32044d1b603",
+        "evidence/long-paths-enabled-extension-init.json": "beb8e1a354e8e83e10f93e58d5ac426c0ef363e3de8eeaf3b66c8461da4afcd7",
+        "evidence/long-paths-enabled-extension-spawn.json": "f1727d826461b1f0600f192b0de7be01af17f293ffc9aeae77edd104e8656da1",
+        "evidence/long-paths-enabled-launcher.json": "5be2f2e3ebe930f42aa0f5beafaf3814d2813b1fa6e57eed1344afb0e2004084",
+        "evidence/long-paths-enabled-root-under-max-path.json": "4c2d7003ed60b1a9822a0dfe8a2261aa5a8a05e85c38a72633e7ab3659a77ad9",
+        "evidence/long-paths-enabled-working-directory.json": "d1e52d38cb8fc6b9446e171f4af8ac7845f9db05679c30d327c061c78d0b261b",
+        "evidence/readme-symlink-route.json": "fd8a627e04ac31fa154cb2dbd49fb8de083830ec9244cd4ff226c95870b1d4e2",
+        "evidence-long-paths-off/long-paths-disabled-extension-in-process.json": "9d38c5181947f86cde81cc48af6d51066087e8d78f226ed956d0dc23cc39a3e2",
+        "evidence-long-paths-off/long-paths-disabled-extension-init.json": "fdbef0317deea4f31a4e5a1f5769fd90f5be2aaed5382bc508b3f56488517ff5",
+        "evidence-long-paths-off/long-paths-disabled-extension-spawn.json": "984696059b5695286ea5b7d129db1c8ce96156bea03d8126e387edbd6c2e60db",
+        "evidence-long-paths-off/long-paths-disabled-launcher.json": "b4d72256666368e83ea079b13ce8582fb9dd1b535f9155a707d2b304c6ee0731",
+        "evidence-long-paths-off/long-paths-disabled-root-under-max-path.json": "d7520621649759fbfe6c8d836d1d654c495de0552a8d225a185749daf50e145d",
+        "evidence-long-paths-off/long-paths-disabled-working-directory.json": "e6a1f6d30b3f2ba0e8838c378618d966e1208937cc3e6897d1a1bfdac1a8c839"
+      }
     },
     "macos_hosted": {
-      "result": "CI 실행 예정",
-      "run": null,
-      "attempt": null,
-      "junit": null,
-      "observations": null
+      "result": "pass",
+      "run": "37411847760",
+      "attempt": 1,
+      "jobs": {
+        "platform": {
+          "name": "platform · macos-26",
+          "id": "112101790976",
+          "conclusion": "success",
+          "started_at": "2026-10-06T04:03:02Z",
+          "completed_at": "2026-10-06T04:12:00Z",
+          "duration": "8m58s"
+        },
+        "floor": {
+          "name": "floor · macos-26 · CPython 3.11, stdlib only",
+          "id": "112101791126",
+          "conclusion": "success",
+          "started_at": "2026-10-06T04:03:01Z",
+          "completed_at": "2026-10-06T04:03:32Z",
+          "duration": "31s"
+        }
+      },
+      "runner": {
+        "image": "macos26 20260907.0351.1",
+        "platform": "macOS-26.6.2-arm64-arm-64bit",
+        "arch": "ARM64",
+        "uv": "uv 0.11.19 (7b2cff1c3 2026-06-03 aarch64-apple-darwin)",
+        "python_development": "3.12.10",
+        "python_found_by_uv": {
+          "3.11": "3.11.9",
+          "3.12": "3.12.10"
+        },
+        "python_floor": "3.11.9",
+        "git_core_autocrlf": null,
+        "git_core_autocrlf_origin": null,
+        "checked_out": {
+          "head": "d23ddb88d3f8f7884858b8acd06f376adb857093",
+          "dirty": false
+        }
+      },
+      "junit": {
+        "suite": {
+          "file": "suite.xml",
+          "sha256": "974f45ce98ecf21de78b52bf0dc442ef31577bd50aa865f186ccaee1a14c79b7",
+          "command": "AELIX_ANALYTICS_TEST_INSTALL=1 uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread --ignore tests/test_windows_console.py --junitxml suite.xml",
+          "tests": 1063,
+          "passed": 1049,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 14
+        },
+        "aelix_py3_12": {
+          "file": "aelix-py3.12.xml",
+          "sha256": "fc87fc5da53865351bfe366b23f97b8da49f79d76541adb8c4d2b641b0c7e0f8",
+          "command": "uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread --basetemp <runner temp> --junitxml aelix-py3.12.xml tests/test_extension.py tests/test_usage_report.py",
+          "tests": 141,
+          "passed": 141,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "aelix_py3_11": {
+          "file": "aelix-py3.11.xml",
+          "sha256": "91b6b63aa7d58c5ac170f08d0cf6f410e33985823e67be13f43e4643e5e07507",
+          "command": "uv run --isolated --no-project --python 3.11 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread --basetemp <runner temp> --junitxml aelix-py3.11.xml tests/test_extension.py tests/test_usage_report.py",
+          "tests": 141,
+          "passed": 141,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "launcher_py3_11": {
+          "file": "launcher-py3.11.xml",
+          "sha256": "2358ed8af8bea48c2ae3b68dc0878d43c212e178a24b5e20fae4d06d664d98ee",
+          "command": "uv run --isolated --no-project --python 3.11 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 120 --timeout-method=thread --junitxml launcher-py3.11.xml tests/test_launcher.py",
+          "tests": 121,
+          "passed": 120,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 1
+        }
+      },
+      "in_the_suite": {
+        "tests/test_line_endings.py": {
+          "passed": 80,
+          "skipped": 0,
+          "failed": 0
+        },
+        "tests/test_record_contract.py": {
+          "passed": 91,
+          "skipped": 0,
+          "failed": 0
+        },
+        "end_to_end": {
+          "tests/test_packaging.py": {
+            "passed": 25,
+            "skipped": 0,
+            "failed": 0
+          },
+          "tests/test_launcher.py": {
+            "passed": 120,
+            "skipped": 1,
+            "failed": 0
+          },
+          "passed": 145,
+          "skipped": 1,
+          "failed": 0
+        },
+        "note": "the suite step sets AELIX_ANALYTICS_TEST_INSTALL=1, so the end-to-end leg runs inside it; tests/test_line_endings.py was not run alone in CI"
+      },
+      "named_tests": {
+        "test_kit_text_writes_go_through_the_helper": "passed",
+        "test_the_checkout_is_lf": "passed",
+        "test_the_kit_sha_is_the_tracked_files_digest": "passed",
+        "test_records_are_the_same_bytes_everywhere": "passed",
+        "test_a_new_project_s_text_is_lf": "passed",
+        "test_a_run_writes_lf_and_copies_bytes": "passed",
+        "test_charts_and_the_workspace_are_lf": "passed",
+        "test_line_endings_only_reaches_status_and_the_workspace": "passed",
+        "test_a_context_whose_line_endings_changed_says_so": "passed",
+        "test_old_crlf_records_are_read_and_kept": "passed",
+        "test_the_wheel_members_have_no_crlf": "passed",
+        "test_the_installed_command_drives_a_project_without_aelix[3.11]": "passed",
+        "test_the_installed_command_drives_a_project_without_aelix[3.12]": "passed",
+        "test_journal_bytes_keep_their_line_endings": "passed",
+        "test_import_query_and_run_through_the_project_environment": "passed"
+      },
+      "smoke": {
+        "sha256": "47e94eb65af653b6c303a58b105bde5679de95629595e99a728e7d90aabe1d9f",
+        "summary": {
+          "holds": 25,
+          "violated": 0,
+          "declared_limitation": 0,
+          "observed": 6,
+          "not_run": 0
+        },
+        "hold": true,
+        "declared_limitation": [],
+        "violated": []
+      },
+      "stdlib_smoke": {
+        "sha256": "e1b88315e10a55d7907b5b691366ff9b2e07795523028efeaac8df3628230125",
+        "python": "3.11.9",
+        "summary": {
+          "holds": 15,
+          "violated": 0,
+          "declared_limitation": 0,
+          "observed": 3,
+          "not_run": 2
+        },
+        "hold": true,
+        "declared_limitation": [],
+        "violated": [],
+        "not_run_probes": [
+          "probe_interrupt_through_uv_run",
+          "probe_cancel_request_file_through_uv_run"
+        ]
+      },
+      "usage_report": {
+        "sha256": "ebd7a1158ab2b2eabea67313d93b00a5c26bc7fa6fdd00cca59b03b3346ec766",
+        "required_facts": "58/58",
+        "invariants": "42/42",
+        "failures": [],
+        "exit": 0,
+        "exit_source": "the step's summary line in the job log"
+      },
+      "observations": {
+        "checkout-eol": {
+          "sha256": "34dea976ca3a8790d953ce02feb67d951c1265416a022f90bedc2e7e22c0d0bf",
+          "data": {
+            "counts": {
+              "i/lf w/lf attr/-text": 90,
+              "i/lf w/lf attr/text=auto eol=lf": 108,
+              "i/mixed w/mixed attr/-text": 1,
+              "i/none w/none attr/-text": 8
+            },
+            "kept_as_is": 99,
+            "kept_as_is_with_crlf": [
+              "tests/fixtures/records/mixed-version/journal.jsonl"
+            ]
+          }
+        },
+        "fixed-records": {
+          "sha256": "839992f07ff70274e6b6d0489d22934e6bca82358a207be6d23b99a1ad8227b3",
+          "data": {
+            "journal.jsonl": "c9dff9a10e3cacebdb7d2dc9e7717b5ef7be7e759df6b34630c38a5aba9c11a5",
+            "run.json": "e8129fd88998afcde5678cdf291f835338bdc468d514318c518532a1ad6f0fc9",
+            "trust": "cc34b799b21abf31373320bfc8406317f174fc14c6d4d0c916800e779aefa7a8"
+          }
+        },
+        "kit-sha": {
+          "sha256": "ea977ef8c319c0670b81d45029a4ab0c0fc48244b550828cfcbf83b6a65e1ec4",
+          "data": {
+            "kit_sha": "a226e3e8c3a1a693e0a1e88138cb08e17734738afc463c596c70714e2139fa79",
+            "tracked": "a226e3e8c3a1a693e0a1e88138cb08e17734738afc463c596c70714e2139fa79"
+          }
+        },
+        "line-endings-only": {
+          "sha256": "fba237f9b2bb83f85d99e77e0ed70cbf6e4c9bf6019b4956149e280e5e0c78b0",
+          "data": {
+            "status_text": "project: Line endings (/private/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/pytest-of-runner/pytest-0/test_line_endings_only_reaches0/proj)\nreport: /private/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/pytest-of-runner/pytest-0/test_line_endings_only_reaches0/proj/report/index.html\nread: as_of_seq 3 · source_revision 10e1f99b4ccf636c\ngoal: Keep the bytes\ndatasets (0) — query views: none\nruns (1 total, 0 not ok; latest first):\n  20261006-040534-judged ok 0.0s charts=1 \"judged\"\ncharts (latest version per script::chart, 1):\n  scripts/judged.py::judged \"judged\" run 20261006-040534-judged v1 · STALE(data/in.csv (line endings only))\nrecent journal:\n  e1 2026-10-06 04:05 project: project created: Line endings\n  e2 2026-10-06 04:05 context: CONTEXT.md recorded\n  e3 2026-10-06 04:05 run: judged — ok"
+          }
+        },
+        "new-project": {
+          "sha256": "97a223c5091dac09d872f24ae3bf954b74c255a5511d41b58277a3dba0df80f2",
+          "data": {
+            ".gitattributes": "66b748264be11611b9428c43a486454118278853b83c13397133c946929b6c15",
+            ".gitignore": "aef713a60722de4da421ee30ce5d73f1bb0f2428518b681591967c82f6a0625a",
+            ".python-version": "7b55f8e67b5623c4bef3fa691288da9437d79d3aba156de48d481db32ac7d16d",
+            "pyproject.toml": "c7129862d02f3e56a05ca6b3f1a24354a7575b4ffd542358b5696f6bc4878b53"
+          }
+        },
+        "run-bytes": {
+          "sha256": "8cf5805e835ba3b934f22c9c9303f787a3ff5c360bdda72a226c2a50a94360d6",
+          "data": {
+            "crlf.py": {
+              "kit_sha256": "a226e3e8c3a1a693e0a1e88138cb08e17734738afc463c596c70714e2139fa79",
+              "script.sha256": "e37afdb4de90efb9237b76db6373de43fa8ace22ac94026e13e1ead4aa63d33e",
+              "stdout.txt": "3a7f0fa367b20e0c2c5697774b6a65b91aa129737dad16e272c266195ca3c356"
+            },
+            "lf.py": {
+              "kit_sha256": "a226e3e8c3a1a693e0a1e88138cb08e17734738afc463c596c70714e2139fa79",
+              "script.sha256": "80b2e7c2f32f3eb60eb1806c2d241cdd6bf4fd58ee8f5af1c5d974f697c5800a",
+              "stdout.txt": "3a7f0fa367b20e0c2c5697774b6a65b91aa129737dad16e272c266195ca3c356"
+            }
+          }
+        },
+        "text-mode-default": {
+          "sha256": "8302de64ec891529cd8e40276262b0cee1d2f5a4d3b043210cb0150b3b486948",
+          "data": {
+            "open_w_a_newline": "610a"
+          }
+        },
+        "wheel-members": {
+          "sha256": "8f91b475edb86d8303e3492e763597a5fd98e34d58207dfcf9c5b7cbf4e3b248",
+          "data": {
+            "checkout_kit_sha": "a226e3e8c3a1a693e0a1e88138cb08e17734738afc463c596c70714e2139fa79",
+            "crlf": [],
+            "list_sha256": "4031237c57e3a629b5ccf77403bc15a69e692ad224224776431b2518425a59b4",
+            "members": 50
+          }
+        },
+        "workspace": {
+          "sha256": "1de85bcdab9979aafae91fb167dabd6c98d43aca6fdeecd7ca1f01b66028a974",
+          "data": {
+            "altair_chart": "cd8a3744ac0edfa310c338cb6e844759781132ed6192c902858faf7f9b7e270d",
+            "files": 8,
+            "html_chart": "58801acb0520bd538a6d0ebc0836dbed953723827b19586acc1abe6905e18bc2"
+          }
+        },
+        "installed-run-py3.11": {
+          "sha256": "575e4f96411cb4e66e4852432013ed77bd2928cf85f96e9bf2e41bc9c09caf99",
+          "data": {
+            "kit_sha256": "a226e3e8c3a1a693e0a1e88138cb08e17734738afc463c596c70714e2139fa79",
+            "kit_version": "0.4.0",
+            "script_sha256": "024f3144a10e797651150974ba2b3bc0043afa48bd2714d7cb594150c9757abc"
+          }
+        },
+        "installed-run-py3.12": {
+          "sha256": "575e4f96411cb4e66e4852432013ed77bd2928cf85f96e9bf2e41bc9c09caf99",
+          "data": {
+            "kit_sha256": "a226e3e8c3a1a693e0a1e88138cb08e17734738afc463c596c70714e2139fa79",
+            "kit_version": "0.4.0",
+            "script_sha256": "024f3144a10e797651150974ba2b3bc0043afa48bd2714d7cb594150c9757abc"
+          }
+        }
+      },
+      "other_observation_files_sha256": {
+        "evidence/link-into-runs-symlink.json": "84968cd47bcf06fbac7678479186298462a18353bf6f815e1a3198f266c5e91b",
+        "evidence/linked-data-symlink.json": "fc3767c45ec0a4f533e0820d3f97fd6cab4a20da813f540bbc42d1ab520dabdf",
+        "evidence/readme-symlink-route.json": "439d85d4cde8ec1d76612e840f0a69172a53a3576480cc2c169255a305f63bc8"
+      }
     }
   },
   "developer_machine": {
@@ -443,10 +1396,10 @@
   },
   "before": {
     "checkout_crlf_on_windows": "measured (docs/verification/2026-10-02-issue-8-windows-inventory.md; probe run 36899933022)",
-    "kit_writes_crlf_on_windows": "inferred (CPython text mode); no failing Windows run of the new tests"
+    "kit_writes_crlf_on_windows": "inferred (CPython text mode); no failing Windows run of the new tests",
+    "windows_text_mode_control": "run 37411845626's Windows leg: open(p, 'w').write('a\\n') wrote 610d0a (CRLF), the mode e9392d9's kit wrote with; the old kit itself was not run on Windows, so the kit writing CRLF there stays inferred"
   },
   "not_run": [
-    "Linux, Windows and hosted macOS legs (CI 실행 예정)",
     "real altair charts (a stand-in object checks the buffer route)",
     "a Windows client edition or a standard-user token",
     "moving a project between machines through Git with autocrlf (Q17-b, #23)",
@@ -458,37 +1411,41 @@
   "judgement": {
     "issue_42_1_same_hashes_on_three_platforms": {
       "developer_machine": "constants_hold",
-      "linux": "CI 실행 예정",
-      "windows": "CI 실행 예정",
-      "macos_hosted": "CI 실행 예정"
+      "linux": "pass",
+      "windows": "pass",
+      "macos_hosted": "pass",
+      "verdict": "pass",
+      "basis": "each leg ran the tests that assert the constants and they passed (named_tests); the observation files fixed-records (run.json, journal.jsonl), new-project, run-bytes, workspace, kit-sha, wheel-members and installed-run-py3.11/3.12 hold the same values on Linux, Windows, hosted macOS and the developer machine; the aelix inline code constant is asserted in both aelix legs of each OS. The trust list's digest in fixed-records differs by leg because it holds the project's path; it is asserted LF and canonical, not a constant"
     },
     "issue_42_2_windows_wheel_lf": {
-      "windows": "CI 실행 예정"
+      "windows": "pass",
+      "verdict": "pass",
+      "basis": "on the Windows leg (core.autocrlf=true from the system gitconfig; the checkout LF by the root .gitattributes, checkout-eol), test_the_wheel_members_have_no_crlf built the wheel from the checkout with uv build and passed: 50 members, none with CRLF, member-list sha256 4031237c57e3..., the same as Linux, hosted macOS and the developer machine"
     },
     "issue_42_3_contracts_g": "pass (document)",
     "adr_0007_7_1_checkout_lf": {
       "developer_machine": "pass",
-      "linux": "CI 실행 예정",
-      "windows": "CI 실행 예정",
-      "macos_hosted": "CI 실행 예정"
+      "linux": "pass",
+      "windows": "pass",
+      "macos_hosted": "pass"
     },
     "adr_0007_7_2_records_and_copies_lf_and_constants": {
       "developer_machine": "pass",
-      "linux": "CI 실행 예정",
-      "windows": "CI 실행 예정",
-      "macos_hosted": "CI 실행 예정"
+      "linux": "pass",
+      "windows": "pass",
+      "macos_hosted": "pass"
     },
     "adr_0007_7_3_wheel_lf_and_kit_sha256": {
       "developer_machine": "pass",
-      "linux": "CI 실행 예정",
-      "windows": "CI 실행 예정",
-      "macos_hosted": "CI 실행 예정"
+      "linux": "pass",
+      "windows": "pass",
+      "macos_hosted": "pass"
     },
     "adr_0007_7_4_crlf_fixture_read": {
       "developer_machine": "pass",
-      "linux": "CI 실행 예정",
-      "windows": "CI 실행 예정",
-      "macos_hosted": "CI 실행 예정"
+      "linux": "pass",
+      "windows": "pass",
+      "macos_hosted": "pass"
     }
   }
 }
