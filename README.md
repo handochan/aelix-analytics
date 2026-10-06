@@ -87,9 +87,9 @@ aelix 안에서: `/analytics`(현황) · `/analytics open`(리포트) · "지역
 배포본은 아직 어디에도 게시하지 않았으므로 체크아웃에서 직접 만듭니다.
 
 ```sh
-cd $PACK && uv build                                   # dist/aelix_analytics-0.5.0-py3-none-any.whl
-uv tool install --python 3.12 dist/aelix_analytics-0.5.0-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
-uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.5.0-py3-none-any.whl   # aelix와 함께
+cd $PACK && uv build                                   # dist/aelix_analytics-0.4.0-py3-none-any.whl
+uv tool install --python 3.12 dist/aelix_analytics-0.4.0-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
+uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.4.0-py3-none-any.whl   # aelix와 함께
 ```
 
 - `analytics`는 체크아웃의 `bin/analytics`와 같은 명령·인자·usage(바이트까지 같음)를 쓰고 kit의 출력을 바이트 그대로 넘깁니다
@@ -232,7 +232,7 @@ my-analysis/
     stdout.txt, stderr.txt
   report/                  생성된 HTML (index·runs/·data/·context.html) — 직접 편집하지 않음
   .lab/                    context 버전, telemetry, query 로그, 캐시
-  .gitignore, .gitattributes   git 설정 (.gitattributes는 kit 0.5.0부터 새 프로젝트에)
+  .gitignore, .gitattributes   git 설정 (.gitattributes는 kit 0.4.0부터 새 프로젝트에)
 ```
 
 필드 정의는 [docs/CONTRACTS.md](docs/CONTRACTS.md)에 있습니다.
@@ -241,8 +241,8 @@ kit이 쓰는 텍스트(기록·템플릿 사본·inline 스크립트·Workspace
 둡니다([ADR-0007](docs/decisions/0007-line-endings.md)). 새 프로젝트의 `.gitattributes`(`* -text`)는 git이 이 프로젝트 파일의 줄 끝을
 바꾸지 않게 합니다. 기록이 입력·스크립트의 바이트를 해시하므로, git이 LF와 CRLF를 바꾸면 다른 기계에서 `changed`로 보이기
 때문입니다. 다른 git 저장소 안의 하위 디렉터리에 만든 프로젝트에서는 그 하위 트리에 한해 상위 저장소의 줄 끝 규칙(예:
-`* text=auto eol=lf`)을 덮습니다. 원하지 않으면 그 파일을 지우세요(git 기본값이나 상위 저장소의 규칙으로 돌아갑니다). 줄 끝만
-바뀐 입력·스크립트는 상태는 `changed` 그대로이고 사유 `line endings only`가 함께 보입니다.
+`* text=auto eol=lf`)을 덮습니다. 원하지 않으면 그 파일을 지우세요(그러면 git이 `core.autocrlf` 설정이나 상위 저장소의
+규칙대로 줄 끝을 다룹니다). 줄 끝만 바뀐 입력·스크립트는 상태는 `changed` 그대로이고 사유 `line endings only`가 함께 보입니다.
 
 ## 차트에서 데이터·코드까지
 

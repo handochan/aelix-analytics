@@ -23,7 +23,7 @@ from pathlib import Path
 
 from . import _platform, relations
 
-KIT_VERSION = "0.5.0"
+KIT_VERSION = "0.4.0"
 MARKER = "lab.json"
 SCHEMA_PROJECT = "lab.project/1"
 SCHEMA_RUN = "lab.run/1"
@@ -347,22 +347,20 @@ def _line_ending_digests(blocks) -> tuple[str, str] | None:
 
 def line_ending_digests(path) -> tuple[str, str] | None:
     """sha256 of a file's bytes (1) with every CRLF as LF and (2) with every line end of (1) as CRLF,
-    or None for a file this rule does not judge: larger than LINE_ENDINGS_MAX_BYTES, a NUL in its
-    first LINE_ENDINGS_SNIFF_BYTES, or unreadable. (2) is made from (1), not from the bytes, so a CRLF
-    already there does not become CR CR LF, and a file whose line ends are mixed now is matched by a
-    record of all-LF or all-CRLF bytes. A lone CR stays a lone CR in both."""
+    or None for a file this rule does not judge: larger than LINE_ENDINGS_MAX_BYTES or a NUL in its
+    first LINE_ENDINGS_SNIFF_BYTES. (2) is made from (1), not from the bytes, so a CRLF already there
+    does not become CR CR LF, and a file whose line ends are mixed now is matched by a record of
+    all-LF or all-CRLF bytes. A lone CR stays a lone CR in both. A file that cannot be read raises
+    OSError: that says nothing of the file's bytes, so the caller keeps nothing for it."""
     path = Path(path)
-    try:
-        if path.stat().st_size > LINE_ENDINGS_MAX_BYTES:
-            return None
-        with open(path, "rb") as fh:
-            def blocks():
-                yield fh.read(LINE_ENDINGS_SNIFF_BYTES)
-                while block := fh.read(LINE_ENDINGS_BLOCK):
-                    yield block
-            return _line_ending_digests(blocks())
-    except OSError:
+    if path.stat().st_size > LINE_ENDINGS_MAX_BYTES:
         return None
+    with open(path, "rb") as fh:
+        def blocks():
+            yield fh.read(LINE_ENDINGS_SNIFF_BYTES)
+            while block := fh.read(LINE_ENDINGS_BLOCK):
+                yield block
+        return _line_ending_digests(blocks())
 
 
 def line_ending_digests_of(data: bytes) -> tuple[str, str] | None:
@@ -374,10 +372,12 @@ def line_ending_digests_of(data: bytes) -> tuple[str, str] | None:
 class HashCache:
     """sha256 of files keyed by (size, mtime_ns), persisted in .lab/cache/hashes.json.
 
-    An entry is [size, mtime_ns, sha256], and once line_endings_only has judged the file at that
-    size and time a fourth value: [lf, crlf] (line_ending_digests) or null (not judged). A kit that
-    does not know the fourth value reads such an entry as missing and hashes the file again, which
-    drops it: a cost, nothing more (.lab/cache/ is derived)."""
+    An entry is [size, mtime_ns, sha256], and once line_endings_only has read the file at that size
+    and time a fourth value: [lf, crlf] (line_ending_digests) or null (a file the rule does not
+    judge: over the size limit or a NUL in its head). A file that could not be read gets no fourth
+    value, so the next look reads it again. A kit that does not know the fourth value reads such an
+    entry as missing and hashes the file again, which drops it: a cost, nothing more (.lab/cache/ is
+    derived)."""
 
     def __init__(self, project: Project):
         self.file = project.cache / "hashes.json"
@@ -418,7 +418,8 @@ class HashCache:
         ends: the CRLF-as-LF or all-CRLF form of its bytes (line_ending_digests) hashes to
         `recorded` (ADR-0007 decision 4). The caller asks only for a file it found `changed`. The two
         digests are kept with the file's entry, but only when the file's size and time were the
-        same before and after the read: a file that changed while it was read gets no reason."""
+        same before and after the read: a file that changed while it was read gets no reason, and
+        so does one that could not be read, with nothing kept for it."""
         if not recorded:
             return False
         path = Path(path)
@@ -431,11 +432,11 @@ class HashCache:
         if entry is not None and len(entry) == 4:
             variants = entry[3]
             return isinstance(variants, list) and recorded in variants
-        digests = line_ending_digests(path)
         try:
+            digests = line_ending_digests(path)
             after = path.stat()
         except OSError:
-            return False
+            return False  # not read: no reason, and nothing kept for this size and time
         if (after.st_size, after.st_mtime_ns) != (before.st_size, before.st_mtime_ns):
             return False
         entry = self._entry(key, after)

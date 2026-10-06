@@ -140,6 +140,7 @@ def tracked_kit_sha() -> str:
 
 
 def write_sales_csv(path: Path, rows: int = 120) -> Path:
+    # A user's file on purpose, CRLF rows as csv writes them; no constant-hash test uses it (ADR-0007).
     regions = ["서울", "부산", "대구"]
     with open(path, "w", newline="", encoding="utf-8") as fh:
         writer = csv.writer(fh)
@@ -189,6 +190,7 @@ def project(tmp_path):
 
 
 def write_script(project: Path, name: str, body: str) -> str:
+    # A user's file on purpose, in the platform's text mode; no constant-hash test uses it (ADR-0007).
     path = project / "scripts" / name
     path.write_text(body, encoding="utf-8")
     return f"scripts/{name}"

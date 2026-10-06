@@ -18,6 +18,7 @@ import random
 import re
 from collections import Counter
 from pathlib import Path
+from typing import NamedTuple
 
 import pytest
 from conftest import (
@@ -140,7 +141,7 @@ def test_records_are_the_same_bytes_everywhere(tmp_path):
 # The copies of a project made with title "Line endings": the template's bytes with the values
 # filled in (an edit of the template changes these).
 NEW_PROJECT_SHA256 = {
-    ".gitattributes": "6a62913aa094e4a3c4862d1db8dfeb58bb031bc3858423e546392b93cf5d7755",
+    ".gitattributes": "66b748264be11611b9428c43a486454118278853b83c13397133c946929b6c15",
     ".gitignore": "aef713a60722de4da421ee30ce5d73f1bb0f2428518b681591967c82f6a0625a",
     "pyproject.toml": "c7129862d02f3e56a05ca6b3f1a24354a7575b4ffd542358b5696f6bc4878b53",
     ".python-version": "7b55f8e67b5623c4bef3fa691288da9437d79d3aba156de48d481db32ac7d16d",
@@ -382,6 +383,42 @@ def test_the_cache_keeps_the_digests_and_reads_older_entries(tmp_path, monkeypat
     assert len(fresh.data[str(other)]) == 3
 
 
+def test_a_file_not_read_is_not_kept_as_not_judged(tmp_path):
+    """A file that could not be read gets no reason and nothing kept for its size and time, so the
+    next look reads it; only a file the rule does not judge (a NUL in its head here) keeps null, and
+    is not read again for that size and time (implementation review)."""
+    project = new_project(tmp_path)
+    path = project.root / "data" / "t.csv"
+    path.write_bytes(CRLF_TABLE)
+    cache = core.HashCache(project)
+    cache.sha(path)
+    refused = []
+
+    def refuse_once(file, mode="r", *args, **kwargs):
+        if Path(file) == path and not refused:
+            refused.append(file)
+            raise PermissionError(f"denied: {file}")
+        return open(file, mode, *args, **kwargs)
+
+    with pytest.MonkeyPatch.context() as patched:
+        patched.setattr(core, "open", refuse_once, raising=False)
+        assert cache.line_endings_only(path, sha(LF_TABLE)) is False  # could not be read
+        assert refused == [path] and len(cache.data[str(path)]) == 3  # nothing kept
+        assert cache.line_endings_only(path, sha(LF_TABLE)) is True  # read the next time
+    assert cache.data[str(path)][3] == list(reference_digests(CRLF_TABLE))
+    with pytest.raises(OSError):
+        core.line_ending_digests(project.root / "data" / "absent.csv")
+
+    nul = project.root / "data" / "nul.csv"
+    nul.write_bytes(b"\0" + CRLF_TABLE)
+    cache.sha(nul)
+    assert cache.line_endings_only(nul, sha(b"\0" + LF_TABLE)) is False
+    assert cache.data[str(nul)][3] is None
+    with pytest.MonkeyPatch.context() as patched:
+        patched.setattr(core, "line_ending_digests", lambda _path: pytest.fail("read again"))
+        assert cache.line_endings_only(nul, sha(b"\0" + LF_TABLE)) is False
+
+
 JUDGED_SCRIPT = b'''import aelix_analytics as analytics
 
 
@@ -461,7 +498,7 @@ def test_a_context_whose_line_endings_changed_says_so(tmp_path):
 
 
 def test_old_crlf_records_are_read_and_kept(project):
-    """ADR-0007 decision 6: records a kit wrote with CRLF (Windows before kit 0.5.0) are read as they
+    """ADR-0007 decision 6: records a kit wrote with CRLF (Windows before kit 0.4.0) are read as they
     are, and nothing rewrites them for their line ends; a new event is appended with LF after the
     CRLF lines (the mixed-version fixture of tests/test_record_contract.py is such a journal)."""
     root = project
@@ -499,27 +536,76 @@ NON_FILE_OPENERS = frozenset({"webbrowser", "request", "socket", "zipfile", "tar
                               "dbm", "sqlite3"})
 COMPRESSED_OPENERS = frozenset({"gzip", "bz2", "lzma"})
 TEMPFILES = frozenset({"TemporaryFile", "NamedTemporaryFile", "SpooledTemporaryFile"})
+# logging's handlers that open their file in text mode with the platform's line ends.
+FILE_HANDLERS = frozenset({"FileHandler", "WatchedFileHandler", "RotatingFileHandler",
+                           "TimedRotatingFileHandler"})
 HELPER = "open_text"  # core.open_text: the one text-mode open for writing (design 3.2)
+UNKNOWN = object()  # an argument that `*args` or `**kwargs` may give
 
 
-def _receiver(func: ast.AST) -> str:
-    value = getattr(func, "value", None)
-    return getattr(value, "id", "") if value is not None else ""
+class Imports(NamedTuple):
+    """A module's import bindings: a name bound to a module (`import io as x`: x → "io") and a name
+    bound to something a module holds (`from io import open as x`: x → ("io", "open"))."""
+    modules: dict[str, str]
+    names: dict[str, tuple[str, str]]
+
+    @classmethod
+    def of(cls, tree: ast.AST) -> Imports:
+        modules, names = {}, {}
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    bound = alias.asname or alias.name.split(".")[0]
+                    modules[bound] = alias.name.rsplit(".", 1)[-1] if alias.asname else bound
+            elif isinstance(node, ast.ImportFrom):
+                for alias in node.names:
+                    names[alias.asname or alias.name] = ((node.module or "").rsplit(".", 1)[-1],
+                                                         alias.name)
+        return cls(modules, names)
+
+    def module(self, name: str) -> str:
+        """What a receiver's name stands for: `core` for `from . import core as kit`."""
+        if name in self.names:
+            return self.names[name][1]
+        return self.modules.get(name, name)
+
+    def callee(self, func: ast.AST) -> tuple[str, str, bool]:
+        """(receiver, name, bare) of a call's function, through the aliases: `text_open(...)` after
+        `from io import open as text_open` is ("io", "open", False), a builtin `open(...)` is
+        ("", "open", True), `p.open(...)` is ("p", "open", False)."""
+        if isinstance(func, ast.Name):
+            if func.id in self.names:
+                module, name = self.names[func.id]
+                return module, name, False
+            return "", func.id, True
+        if isinstance(func, ast.Attribute):
+            value = func.value
+            return (self.module(value.id) if isinstance(value, ast.Name) else ""), func.attr, False
+        return "", "", False
 
 
 def _argument(call: ast.Call, name: str, position: int | None):
+    """The argument `name` of `call`, by keyword or at `position`: None when it is not given, UNKNOWN
+    when `*args` or `**kwargs` may give it."""
     for keyword in call.keywords:
         if keyword.arg == name:
             return keyword.value
-    if position is not None and len(call.args) > position:
-        return call.args[position]
+    if position is not None:
+        for index, value in enumerate(call.args):
+            if isinstance(value, ast.Starred):
+                return UNKNOWN
+            if index == position:
+                return value
+    if any(keyword.arg is None for keyword in call.keywords):
+        return UNKNOWN
     return None
 
 
 def _writes_text(call: ast.Call, position: int, default: str, *, text_flag: str = "") -> bool:
     """Whether the mode (at `position`, or `mode=`) opens for writing in text mode: a literal mode
     with w, a, x or + and no b (with `text_flag`, only one that has it). A mode that is not a
-    literal cannot be shown to be binary or read-only, so it counts."""
+    literal, or that `*args`/`**kwargs` may give, cannot be shown to be binary or read-only, so it
+    counts."""
     value = _argument(call, "mode", position)
     if value is None:
         mode = default
@@ -532,18 +618,33 @@ def _writes_text(call: ast.Call, position: int, default: str, *, text_flag: str 
     return "b" not in mode and any(c in mode for c in "wax+")
 
 
-def _text_write(node: ast.Call, in_core: bool, in_helper: bool) -> str | None:
+def _writes_lf(call: ast.Call, position: int, imports: Imports) -> bool:
+    """Whether the call's `newline` (by keyword or at `position`) is the literal "\\n" or a reference
+    to _platform.TEXT_NEWLINE. None (the default: "\\r\\n" on Windows), any other constant and a
+    value the guard cannot read are not."""
+    value = _argument(call, "newline", position)
+    if isinstance(value, ast.Constant):
+        return value.value == "\n"
+    if isinstance(value, ast.Name):
+        return imports.names.get(value.id, ("", value.id))[1] == "TEXT_NEWLINE"
+    if isinstance(value, ast.Attribute) and isinstance(value.value, ast.Name):
+        return value.attr == "TEXT_NEWLINE" and imports.module(value.value.id) == "_platform"
+    return False
+
+
+def _text_write(node: ast.Call, imports: Imports, in_core: bool, in_helper: bool) -> str | None:
     """What a call writes as text outside the helper (design 4.4), or None."""
-    func = node.func
-    name = getattr(func, "attr", None) or getattr(func, "id", "")
-    receiver = _receiver(func)
-    bare = isinstance(func, ast.Name)
+    receiver, name, bare = imports.callee(node.func)
     if name == "write_text":
         if (bare and in_core) or receiver == "core":
             return None  # the helper
         return "write_text"
     if name == "TextIOWrapper":
-        return None if _argument(node, "newline", 3) is not None else "TextIOWrapper without newline="
+        return None if _writes_lf(node, 3, imports) else "TextIOWrapper without an LF newline="
+    if name in FILE_HANDLERS:
+        return f"logging.{name}"
+    if name == "basicConfig" and receiver == "logging":
+        return None if _argument(node, "filename", None) is None else "logging.basicConfig(filename=)"
     if name in TEMPFILES:
         return f"tempfile.{name}" if _writes_text(node, 0, "w+b") else None
     if name == "fdopen" and receiver == "os":
@@ -553,8 +654,8 @@ def _text_write(node: ast.Call, in_core: bool, in_helper: bool) -> str | None:
     if receiver in COMPRESSED_OPENERS:
         return f"{receiver}.open" if _writes_text(node, 1, "rb", text_flag="t") else None
     if bare or receiver in ("io", "codecs", "builtins"):
-        if in_helper:
-            return None
+        if in_helper:  # open(file, mode, buffering, encoding, errors, newline)
+            return None if _writes_lf(node, 5, imports) else "open without an LF newline= (the helper)"
         return f"{receiver + '.' if receiver else ''}open" if _writes_text(node, 1, "r") else None
     if receiver in NON_FILE_OPENERS:
         return None
@@ -562,23 +663,32 @@ def _text_write(node: ast.Call, in_core: bool, in_helper: bool) -> str | None:
     return ".open" if _writes_text(node, 0, "r") else None
 
 
+def text_writes_in(tree: ast.AST, where: str, *, in_core: bool) -> list[str]:
+    """Every call in a module's `tree` that writes text without core.open_text or core.write_text;
+    `in_core` for core.py, where the helper's own body opens the file."""
+    imports = Imports.of(tree)
+    helper_body = set()
+    if in_core:
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef) and node.name == HELPER:
+                helper_body |= {id(sub) for sub in ast.walk(node)}
+    found = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            what = _text_write(node, imports, in_core, id(node) in helper_body)
+            if what:
+                found.append(f"{where}:{node.lineno} {what}")
+    return found
+
+
 def kit_text_writes(paths) -> list[str]:
     """Every call in `paths` that writes text without core.open_text or core.write_text."""
     found = []
     for path in paths:
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        in_core = path.name == "core.py" and path.parent == KIT_MODULES
-        helper_body = set()
-        if in_core:
-            for node in ast.walk(tree):
-                if isinstance(node, ast.FunctionDef) and node.name == HELPER:
-                    helper_body |= {id(sub) for sub in ast.walk(node)}
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Call):
-                what = _text_write(node, in_core, id(node) in helper_body)
-                if what:
-                    where = path.relative_to(PACK).as_posix() if PACK in path.parents else path.name
-                    found.append(f"{where}:{node.lineno} {what}")
+        where = path.relative_to(PACK).as_posix() if PACK in path.parents else path.name
+        found += text_writes_in(tree, where,
+                                in_core=path.name == "core.py" and path.parent == KIT_MODULES)
     return found
 
 
@@ -591,24 +701,61 @@ def kit_sources() -> list[Path]:
 def test_kit_text_writes_go_through_the_helper():
     """ADR-0007 decision 2: one helper writes the kit's text, so it is LF on every platform. Scope:
     the kit's modules (core.py too) and the aelix extension; not the demo scripts, which are copied
-    into a project as a user's files. Out of reach of this scan, and covered by a test of its own
-    (test_charts_and_the_workspace_are_lf): a library that opens a path it is given (altair's
-    `save(path)`, W12)."""
+    into a project as a user's files, nor the repository's tools and test helpers. Out of reach of
+    this scan, and covered by a test of its own (test_charts_and_the_workspace_are_lf): a library
+    that opens a path it is given (altair's `save(path)`, W12). Also out of its reach: an opener
+    bound by assignment (`opener = open`) or passed as a value."""
     offenders = kit_text_writes(kit_sources())
     assert not offenders, "text written outside core.open_text/core.write_text:\n" + "\n".join(offenders)
 
 
 @pytest.mark.parametrize(("source", "found"), [
     ("open(p, 'w')", True), ("open(p, 'wb')", False), ("open(p)", False), ("open(p, mode)", True),
+    ("open(p, **kw)", True), ("open(p, *rest)", True), ("open(p, 'w', newline='\\n')", True),
     ("io.open(p, 'a', encoding='utf-8')", True), ("codecs.open(p, 'w')", True),
-    ("p.open('w')", True), ("p.open('rb')", False), ("p.open(mode='x')", True),
-    ("os.fdopen(fd, 'w')", True), ("os.fdopen(fd, 'wb')", False), ("gzip.open(p, 'wt')", True),
+    ("from io import open as text_open\ntext_open(p, 'w')", True),
+    ("from io import open as text_open\ntext_open(p, 'rb')", False),
+    ("from codecs import open as codecs_open\ncodecs_open(p, 'w')", True),
+    ("from builtins import open as builtin_open\nbuiltin_open(p, 'a')", True),
+    ("import io as text_io\ntext_io.open(p, 'w')", True),
+    ("p.open('w')", True), ("p.open('rb')", False), ("p.open(mode='x')", True), ("p.open(**kw)", True),
+    ("os.fdopen(fd, 'w')", True), ("os.fdopen(fd, 'wb')", False),
+    ("from os import fdopen\nfdopen(fd, 'w')", True), ("gzip.open(p, 'wt')", True),
     ("gzip.open(p, 'wb')", False), ("tempfile.NamedTemporaryFile(mode='w')", True),
-    ("tempfile.NamedTemporaryFile()", False), ("io.TextIOWrapper(b, encoding='utf-8')", True),
-    ("io.TextIOWrapper(b, encoding='utf-8', newline='\\n')", False), ("p.write_text('x')", True),
-    ("core.write_text(p, 'x')", False), ("webbrowser.open(url)", False), ("p.write_bytes(b'')", False),
+    ("tempfile.NamedTemporaryFile()", False),
+    ("from tempfile import NamedTemporaryFile as temporary\ntemporary(mode='w')", True),
+    ("io.TextIOWrapper(b, encoding='utf-8')", True),
+    ("io.TextIOWrapper(b, encoding='utf-8', newline=None)", True),
+    ("io.TextIOWrapper(b, 'utf-8', None, None)", True),
+    ("io.TextIOWrapper(b, encoding='utf-8', newline='\\r\\n')", True),
+    ("io.TextIOWrapper(b, encoding='utf-8', newline='')", True),
+    ("io.TextIOWrapper(b, encoding='utf-8', newline=ends)", True),
+    ("io.TextIOWrapper(b, **kw)", True),
+    ("from io import TextIOWrapper as Wrapper\nWrapper(b, encoding='utf-8')", True),
+    ("io.TextIOWrapper(b, encoding='utf-8', newline='\\n')", False),
+    ("io.TextIOWrapper(b, 'utf-8', None, '\\n')", False),
+    ("io.TextIOWrapper(b, encoding='utf-8', newline=_platform.TEXT_NEWLINE)", False),
+    ("io.TextIOWrapper(b, encoding='utf-8', newline=TEXT_NEWLINE)", False),
+    ("logging.FileHandler(p)", True), ("from logging import FileHandler\nFileHandler(p)", True),
+    ("logging.handlers.RotatingFileHandler(p)", True), ("logging.basicConfig(filename=p)", True),
+    ("logging.basicConfig(level=10)", False),
+    ("p.write_text('x')", True), ("core.write_text(p, 'x')", False),
+    ("from aelix_analytics import core as kit\nkit.write_text(p, 'x')", False),
+    ("webbrowser.open(url)", False), ("p.write_bytes(b'')", False),
 ])
 def test_the_guard_finds_each_form(tmp_path, source, found):
     module = tmp_path / "module.py"
     module.write_text(source + "\n", encoding="utf-8")
     assert bool(kit_text_writes([module])) is found
+
+
+@pytest.mark.parametrize(("newline", "found"), [
+    ("_platform.TEXT_NEWLINE", False), ("'\\n'", False), ("None", True), ("'\\r\\n'", True),
+    ("ends", True), ("", True),
+])
+def test_the_guard_reads_the_helper_s_newline(newline, found):
+    """The helper's own open is the one text-mode open the guard allows, and only with LF."""
+    argument = f", newline={newline}" if newline else ""
+    source = (f"def {HELPER}(path, mode):\n"
+              f"    return open(path, mode, encoding='utf-8'{argument})\n")
+    assert bool(text_writes_in(ast.parse(source), "core.py", in_core=True)) is found

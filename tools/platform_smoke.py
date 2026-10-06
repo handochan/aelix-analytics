@@ -128,6 +128,7 @@ def child_env(**extra) -> dict[str, str]:
 
 
 def write_script(directory: Path, name: str, source: str) -> Path:
+    # A user's file on purpose, in the platform's text mode; no check hashes it (ADR-0007).
     path = directory / f"{name}.py"
     path.write_text(source, encoding="utf-8")
     return path
@@ -604,6 +605,7 @@ def long_names_on_this_file_system(ctx):
 def file_url_leads_back_to_the_file(ctx):
     d = ctx.fresh("file-url")
     target = d / "입력 데이터.csv"
+    # A user's file on purpose, in the platform's text mode; no check hashes it (ADR-0007).
     target.write_text("a\n1\n", encoding="utf-8")
     url = _platform.file_url(target.resolve())
     parsed = urllib.parse.urlparse(url)
@@ -693,6 +695,7 @@ def project(ctx) -> Path:
     if sync.returncode != 0:
         raise RuntimeError(f"uv sync failed: {sync.stderr[-1500:]}")
     csv_path = root.parent / "매출.csv"
+    # A user's file on purpose, CRLF rows as csv writes them; no check hashes it (ADR-0007).
     with open(csv_path, "w", newline="", encoding="utf-8") as fh:
         writer = csv.writer(fh)
         writer.writerow(["order_date", "region", "revenue"])
@@ -708,6 +711,7 @@ def project(ctx) -> Path:
 
 
 def script(root: Path, name: str, source: str) -> str:
+    # A user's file on purpose, in the platform's text mode; no check hashes it (ADR-0007).
     path = root / "scripts" / name
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(source, encoding="utf-8")

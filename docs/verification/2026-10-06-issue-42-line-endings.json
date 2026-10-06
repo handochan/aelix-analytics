@@ -5,14 +5,19 @@
   "decision": "docs/decisions/0007-line-endings.md",
   "pull_request": null,
   "base_revision": "e9392d9",
-  "measured_revision": "the implementation commit of this PR on feat/issue-42-lf-everywhere: its files other than docs/, README.md and CONTRIBUTING.md are measured_tree's",
+  "measured_revision": "the review-fix commit of this PR on feat/issue-42-lf-everywhere (on 7d8e449): its files other than docs/, README.md and CONTRIBUTING.md are measured_tree's",
   "measured_tree": {
-    "tree": "ce4022900171dff4d91db2bc56c5d95ebb43d9c3",
-    "non_document_paths_sha256": "8f6d70bdd4da56bf88da70f1b8de5de8b3d58317ffc503b894619af60e91159a",
+    "tree": "ea7050c0e2ecf2e9f34ef3c4e39e091b8b434565",
+    "non_document_paths_sha256": "f9a9d35c9642b2633cec950049309fc195f71ddb22c0e72f95c2a96669c0dc59",
     "how": "git write-tree of the work tree (a copy of the index plus `git add -A`); sha256 of `git ls-tree -r <tree>` without docs/, README.md and CONTRIBUTING.md"
   },
-  "kit_version": "0.5.0",
-  "kit_version_note": "0.5.0 assumes #36 merges first as 0.4.0; if #42 merges first it becomes 0.4.0 and this record is measured again",
+  "earlier_measurement": {
+    "revision": "7d8e449",
+    "non_document_paths_sha256": "8f6d70bdd4da56bf88da70f1b8de5de8b3d58317ffc503b894619af60e91159a",
+    "note": "the implementation commit, measured before the review fixes and before the kit version was set to 0.4.0; this record's values replace that measurement"
+  },
+  "kit_version": "0.4.0",
+  "kit_version_note": "#42 merges before #36, so this PR takes 0.4.0 and #36 takes the next version when it is rebased",
   "workflow": ".github/workflows/ci.yml (unchanged by this PR)",
   "runs": {
     "code": {
@@ -66,12 +71,12 @@
     "suite": {
       "command": "uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread",
       "result": "pass",
-      "passed": 1005,
+      "passed": 1039,
       "skipped": 45,
       "junit": {
         "file": "full-suite.xml",
-        "sha256": "366e659950606e8fc0c737229bfa6d7ae0b45ba0056b8623b2b8eb6953fee4c2",
-        "tests": 1050,
+        "sha256": "add3ce6948faea9de92878f70ba2162203739abf3746fff04c860bc8c05cd3b0",
+        "tests": 1084,
         "failures": 0,
         "errors": 0,
         "skipped": 45
@@ -80,7 +85,16 @@
     "line_endings_tests": {
       "file": "tests/test_line_endings.py",
       "result": "pass",
-      "passed": 46
+      "passed": 80,
+      "command": "uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread tests/test_line_endings.py",
+      "junit": {
+        "file": "line-endings.xml",
+        "sha256": "bba09786cb1bf3fa2509588b92419fd98f4cfd5edfa17ab282fb8f3351ac1312",
+        "tests": 80,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
     },
     "install_suite": {
       "command": "AELIX_ANALYTICS_TEST_INSTALL=1 uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread tests/test_packaging.py tests/test_launcher.py",
@@ -89,7 +103,7 @@
       "skipped": 1,
       "junit": {
         "file": "install-suite.xml",
-        "sha256": "47e79cb0dee71651857d031e60257c13ae55bc87bd19d5f6316d3586898fcf28",
+        "sha256": "06f0308adbb735cc0f70fe72b83fbb4bf97577adeea5e4db4cc2b509c7983d45",
         "tests": 146,
         "failures": 0,
         "errors": 0,
@@ -97,12 +111,12 @@
       }
     },
     "aelix_py3_12": {
-      "command": "uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_extension.py tests/test_usage_report.py",
+      "command": "uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread --basetemp <scratch> --junitxml <file> tests/test_extension.py tests/test_usage_report.py",
       "result": "pass",
       "passed": 141,
       "junit": {
         "file": "aelix-py3.12.xml",
-        "sha256": "9f1e79e00abd642a8c4cf4ac5438f8cf7a132acbc980cb44fc0da69f9aed9988",
+        "sha256": "fe3b423a2f67df5b7a54683e5bc0be8938038f7189853642d645474014c0093f",
         "tests": 141,
         "failures": 0,
         "errors": 0,
@@ -115,7 +129,7 @@
       "passed": 141,
       "junit": {
         "file": "aelix-py3.11.xml",
-        "sha256": "24345e3c77f9848769560da4a466d385f8344fc2b5ffc168cec8566195620cfe",
+        "sha256": "1f0d85ce90703592e531d7399ab92e146dd36d470bfa69dbbfedb3ec61dd2eac",
         "tests": 141,
         "failures": 0,
         "errors": 0,
@@ -123,13 +137,13 @@
       }
     },
     "launcher_py3_11": {
-      "command": "uv run --isolated --no-project --python 3.11 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 120 --timeout-method=thread tests/test_launcher.py",
+      "command": "uv run --isolated --no-project --python 3.11 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 120 --timeout-method=thread --basetemp <scratch> --junitxml <file> tests/test_launcher.py",
       "result": "pass",
       "passed": 120,
       "skipped": 1,
       "junit": {
         "file": "launcher-py3.11.xml",
-        "sha256": "303890d954eae507667a6f69e3c42e4a74a9fa86cb55239ffa42467826ad2c1f",
+        "sha256": "f6973386ec6d46bef523eff4b6dc9fe2b7c1502807b29f2eee63e23671af1b90",
         "tests": 121,
         "failures": 0,
         "errors": 0,
@@ -146,7 +160,7 @@
         "not_run": 0
       },
       "hold": true,
-      "sha256": "9f419aac18e288f18c910b57b435fe0b5d84467c1c0cffba3b068d594e29a6e9"
+      "sha256": "a67515b55dccb1bd95b246a933630a7d5b27c0cfe0b2536a9582d020eac348ba"
     },
     "stdlib_smoke": {
       "command": "uv run --isolated --no-project --python 3.11 python tools/platform_smoke.py --stdlib-only --gate required",
@@ -162,14 +176,14 @@
         "probe_interrupt_through_uv_run",
         "probe_cancel_request_file_through_uv_run"
       ],
-      "sha256": "00a9093c6b7cf5f4002a3f40000a20c9163b05426bdf260ae042324b10cd2003"
+      "sha256": "ecae535e2a29bae6b2da529d2c879963a110c244387ce74e830f2a9ab923c0c3"
     },
     "usage_report": {
-      "command": "uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 python tools/usage_report.py --output <run>/evidence/local/usage",
+      "command": "uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 python tools/usage_report.py --output <run>/evidence/<verification folder>/usage",
       "required_facts": "58/58",
       "invariants": "42/42",
       "exit": 0,
-      "sha256": "7f56d7c17b088006d825f1014356ee59adaaa878c9b3c78c7bdc6c0857a6bd3e"
+      "sha256": "5378404770946be47f73a20b330471606e9e423d5e00de252c4d96f66509d380"
     },
     "ruff": "pass",
     "git_diff_check": "pass",
@@ -177,15 +191,16 @@
       "command": "git add .gitattributes && git add --renormalize . && git diff --cached --name-only",
       "staged": [
         ".gitattributes"
-      ]
+      ],
+      "measured_on": "the work tree of 7d8e449 (the review fixes add and rename no file)"
     },
     "observations_suite": {
       "checkout-eol": {
-        "sha256": "fb5b4b7a879fa61eb978ba6f0b23c1256778fa2e5cfaca9756344ba5f0204977",
+        "sha256": "34dea976ca3a8790d953ce02feb67d951c1265416a022f90bedc2e7e22c0d0bf",
         "data": {
           "counts": {
             "i/lf w/lf attr/-text": 90,
-            "i/lf w/lf attr/text=auto eol=lf": 106,
+            "i/lf w/lf attr/text=auto eol=lf": 108,
             "i/mixed w/mixed attr/-text": 1,
             "i/none w/none attr/-text": 8
           },
@@ -196,24 +211,24 @@
         }
       },
       "fixed-records": {
-        "sha256": "f2336c5d51914d1e55f045e946ef880895ba10c3f61e5f55726522a8a43bcd25",
+        "sha256": "eb0d655314302486ed49e0a926533ee001ff846d8855d3cf9c3dcafb6da3296d",
         "data": {
           "journal.jsonl": "c9dff9a10e3cacebdb7d2dc9e7717b5ef7be7e759df6b34630c38a5aba9c11a5",
           "run.json": "e8129fd88998afcde5678cdf291f835338bdc468d514318c518532a1ad6f0fc9",
-          "trust": "b3d57b0286572a2a495e892be849985de96b434cb8c5071340bfd38ec666c822"
+          "trust": "5672198bc86ae40b8846f3ee93dd215c36bf882d37a7ef3ed32fb05cd2d8cc3d"
         }
       },
       "kit-sha": {
-        "sha256": "511348cc50ae3d239cb9c0e9a82c22bf4a9a0f1ae935b267db860c3226061950",
+        "sha256": "ea977ef8c319c0670b81d45029a4ab0c0fc48244b550828cfcbf83b6a65e1ec4",
         "data": {
-          "kit_sha": "f602202aa658255e0d82079de684db51da344e55a784c87ee007276d4d037a38",
-          "tracked": "f602202aa658255e0d82079de684db51da344e55a784c87ee007276d4d037a38"
+          "kit_sha": "a226e3e8c3a1a693e0a1e88138cb08e17734738afc463c596c70714e2139fa79",
+          "tracked": "a226e3e8c3a1a693e0a1e88138cb08e17734738afc463c596c70714e2139fa79"
         }
       },
       "line-endings-only": {
-        "sha256": "d7d77ff6536fb328ad36012d76cc14857b57f5a36f0d57f4abde6e4ac1e59b32",
+        "sha256": "f91244d6af56653c09a1d5bf4a1c6bf5603704d675c4314fb0748240493f9466",
         "data": {
-          "status_text": "project: Line endings (<basetemp>/test_line_endings_only_reaches0/proj)\nreport: <basetemp>/test_line_endings_only_reaches0/proj/report/index.html\nread: as_of_seq 3 · source_revision a33987d1bdea4aa6\ngoal: Keep the bytes\ndatasets (0) — query views: none\nruns (1 total, 0 not ok; latest first):\n  20261006-120605-judged ok 0.0s charts=1 \"judged\"\ncharts (latest version per script::chart, 1):\n  scripts/judged.py::judged \"judged\" run 20261006-120605-judged v1 · STALE(data/in.csv (line endings only))\nrecent journal:\n  e1 2026-10-06 12:06 project: project created: Line endings\n  e2 2026-10-06 12:06 context: CONTEXT.md recorded\n  e3 2026-10-06 12:06 run: judged — ok"
+          "status_text": "project: Line endings (<basetemp>/test_line_endings_only_reaches0/proj)\nreport: <basetemp>/test_line_endings_only_reaches0/proj/report/index.html\nread: as_of_seq 3 · source_revision 13e7afa4f8ae945d\ngoal: Keep the bytes\ndatasets (0) — query views: none\nruns (1 total, 0 not ok; latest first):\n  20261006-124121-judged ok 0.0s charts=1 \"judged\"\ncharts (latest version per script::chart, 1):\n  scripts/judged.py::judged \"judged\" run 20261006-124121-judged v1 · STALE(data/in.csv (line endings only))\nrecent journal:\n  e1 2026-10-06 12:41 project: project created: Line endings\n  e2 2026-10-06 12:41 context: CONTEXT.md recorded\n  e3 2026-10-06 12:41 run: judged — ok"
         }
       },
       "link-into-runs-symlink": {
@@ -224,7 +239,7 @@
         }
       },
       "linked-data-symlink": {
-        "sha256": "cf001608863068dd3c4cd163d6c1ac171c7afaa21fc855fae59513f0d51b4d9c",
+        "sha256": "80d96ef7081d3fcecd92749cad5462cf0bac1adb3c70f85a6129f29a79a888cb",
         "data": {
           "datasets": [
             {
@@ -235,7 +250,7 @@
               "producer_candidates": [],
               "producer_state": "none",
               "used_by": [
-                "20261006-120704-95-save"
+                "20261006-124219-95-save"
               ]
             },
             {
@@ -246,7 +261,7 @@
               "producer_candidates": [],
               "producer_state": "none",
               "used_by": [
-                "20261006-120705-96-read"
+                "20261006-124219-96-read"
               ]
             }
           ],
@@ -289,24 +304,24 @@
         }
       },
       "new-project": {
-        "sha256": "c8fd571cbb0e523a8633cde8b2233f657f9c7fbe87737f428f71cc94136ca7c5",
+        "sha256": "97a223c5091dac09d872f24ae3bf954b74c255a5511d41b58277a3dba0df80f2",
         "data": {
-          ".gitattributes": "6a62913aa094e4a3c4862d1db8dfeb58bb031bc3858423e546392b93cf5d7755",
+          ".gitattributes": "66b748264be11611b9428c43a486454118278853b83c13397133c946929b6c15",
           ".gitignore": "aef713a60722de4da421ee30ce5d73f1bb0f2428518b681591967c82f6a0625a",
           ".python-version": "7b55f8e67b5623c4bef3fa691288da9437d79d3aba156de48d481db32ac7d16d",
           "pyproject.toml": "c7129862d02f3e56a05ca6b3f1a24354a7575b4ffd542358b5696f6bc4878b53"
         }
       },
       "run-bytes": {
-        "sha256": "7c524fbc9f084b0c04a40ccd05f83d22f71bc8598e72e8d7e8512af523a9ab08",
+        "sha256": "8cf5805e835ba3b934f22c9c9303f787a3ff5c360bdda72a226c2a50a94360d6",
         "data": {
           "crlf.py": {
-            "kit_sha256": "f602202aa658255e0d82079de684db51da344e55a784c87ee007276d4d037a38",
+            "kit_sha256": "a226e3e8c3a1a693e0a1e88138cb08e17734738afc463c596c70714e2139fa79",
             "script.sha256": "e37afdb4de90efb9237b76db6373de43fa8ace22ac94026e13e1ead4aa63d33e",
             "stdout.txt": "3a7f0fa367b20e0c2c5697774b6a65b91aa129737dad16e272c266195ca3c356"
           },
           "lf.py": {
-            "kit_sha256": "f602202aa658255e0d82079de684db51da344e55a784c87ee007276d4d037a38",
+            "kit_sha256": "a226e3e8c3a1a693e0a1e88138cb08e17734738afc463c596c70714e2139fa79",
             "script.sha256": "80b2e7c2f32f3eb60eb1806c2d241cdd6bf4fd58ee8f5af1c5d974f697c5800a",
             "stdout.txt": "3a7f0fa367b20e0c2c5697774b6a65b91aa129737dad16e272c266195ca3c356"
           }
@@ -319,11 +334,11 @@
         }
       },
       "wheel-members": {
-        "sha256": "92a4e71bd4086bd4b9fe283096d6c2279e869328349db878e24ad814cded8b1c",
+        "sha256": "8f91b475edb86d8303e3492e763597a5fd98e34d58207dfcf9c5b7cbf4e3b248",
         "data": {
-          "checkout_kit_sha": "f602202aa658255e0d82079de684db51da344e55a784c87ee007276d4d037a38",
+          "checkout_kit_sha": "a226e3e8c3a1a693e0a1e88138cb08e17734738afc463c596c70714e2139fa79",
           "crlf": [],
-          "list_sha256": "44a0c90fcebff131b9db7271dfe6cb4b55c66a884f80eb1acd5552cc713af4af",
+          "list_sha256": "4031237c57e3a629b5ccf77403bc15a69e692ad224224776431b2518425a59b4",
           "members": 50
         }
       },
@@ -338,18 +353,18 @@
     },
     "observations_install": {
       "installed-run-py3.11": {
-        "sha256": "3124803668be81c677edf55dcb19142e0dd5cfe607f14ad7047f56d44d8b1e08",
+        "sha256": "575e4f96411cb4e66e4852432013ed77bd2928cf85f96e9bf2e41bc9c09caf99",
         "data": {
-          "kit_sha256": "f602202aa658255e0d82079de684db51da344e55a784c87ee007276d4d037a38",
-          "kit_version": "0.5.0",
+          "kit_sha256": "a226e3e8c3a1a693e0a1e88138cb08e17734738afc463c596c70714e2139fa79",
+          "kit_version": "0.4.0",
           "script_sha256": "024f3144a10e797651150974ba2b3bc0043afa48bd2714d7cb594150c9757abc"
         }
       },
       "installed-run-py3.12": {
-        "sha256": "3124803668be81c677edf55dcb19142e0dd5cfe607f14ad7047f56d44d8b1e08",
+        "sha256": "575e4f96411cb4e66e4852432013ed77bd2928cf85f96e9bf2e41bc9c09caf99",
         "data": {
-          "kit_sha256": "f602202aa658255e0d82079de684db51da344e55a784c87ee007276d4d037a38",
-          "kit_version": "0.5.0",
+          "kit_sha256": "a226e3e8c3a1a693e0a1e88138cb08e17734738afc463c596c70714e2139fa79",
+          "kit_version": "0.4.0",
           "script_sha256": "024f3144a10e797651150974ba2b3bc0043afa48bd2714d7cb594150c9757abc"
         }
       },
@@ -361,11 +376,11 @@
         }
       },
       "wheel-members": {
-        "sha256": "92a4e71bd4086bd4b9fe283096d6c2279e869328349db878e24ad814cded8b1c",
+        "sha256": "8f91b475edb86d8303e3492e763597a5fd98e34d58207dfcf9c5b7cbf4e3b248",
         "data": {
-          "checkout_kit_sha": "f602202aa658255e0d82079de684db51da344e55a784c87ee007276d4d037a38",
+          "checkout_kit_sha": "a226e3e8c3a1a693e0a1e88138cb08e17734738afc463c596c70714e2139fa79",
           "crlf": [],
-          "list_sha256": "44a0c90fcebff131b9db7271dfe6cb4b55c66a884f80eb1acd5552cc713af4af",
+          "list_sha256": "4031237c57e3a629b5ccf77403bc15a69e692ad224224776431b2518425a59b4",
           "members": 50
         }
       }
@@ -396,15 +411,20 @@
     "new_tests_on_e9392d9_kit": {
       "result": "20 failed, 26 passed of 46",
       "platform": "macOS (developer machine)",
-      "note": "the tests whose difference is Windows's text mode pass on macOS, which writes LF"
+      "note": "the tests whose difference is Windows's text mode pass on macOS, which writes LF; measured with the tests of 7d8e449, not run again after the review fixes"
     },
-    "windows_ci_run": "not_run (the optional test-first CI run was not used)"
+    "windows_ci_run": "not_run (the optional test-first CI run was not used)",
+    "guard_on_e9392d9_after_review": {
+      "result": "found the same 14 places (W1-W11, W13, W14; the label of W13 is now 'TextIOWrapper without an LF newline='), and none in the measured tree",
+      "how": "the guard of tests/test_line_endings.py as fixed after the implementation review, run over `git archive e9392d9 src extension`",
+      "platform": "macOS (developer machine)"
+    }
   },
   "constants": {
     "fixed_write_json_sha256": "e8129fd88998afcde5678cdf291f835338bdc468d514318c518532a1ad6f0fc9",
     "fixed_append_jsonl_sha256": "c9dff9a10e3cacebdb7d2dc9e7717b5ef7be7e759df6b34630c38a5aba9c11a5",
     "new_project": {
-      ".gitattributes": "6a62913aa094e4a3c4862d1db8dfeb58bb031bc3858423e546392b93cf5d7755",
+      ".gitattributes": "66b748264be11611b9428c43a486454118278853b83c13397133c946929b6c15",
       ".gitignore": "aef713a60722de4da421ee30ce5d73f1bb0f2428518b681591967c82f6a0625a",
       "pyproject.toml": "c7129862d02f3e56a05ca6b3f1a24354a7575b4ffd542358b5696f6bc4878b53",
       ".python-version": "7b55f8e67b5623c4bef3fa691288da9437d79d3aba156de48d481db32ac7d16d"
@@ -419,7 +439,7 @@
     "altair_chart_sha256": "cd8a3744ac0edfa310c338cb6e844759781132ed6192c902858faf7f9b7e270d",
     "installed_sdk_script_sha256": "024f3144a10e797651150974ba2b3bc0043afa48bd2714d7cb594150c9757abc",
     "aelix_inline_code_sha256": "7e1a4d5c39353e0cbb3bba620215a9569551d874c611e54ae083e8f003a3ecf6",
-    "kit_sha256_blob_digest_at_measurement": "f602202aa658255e0d82079de684db51da344e55a784c87ee007276d4d037a38"
+    "kit_sha256_blob_digest_at_measurement": "a226e3e8c3a1a693e0a1e88138cb08e17734738afc463c596c70714e2139fa79"
   },
   "before": {
     "checkout_crlf_on_windows": "measured (docs/verification/2026-10-02-issue-8-windows-inventory.md; probe run 36899933022)",
@@ -437,7 +457,7 @@
   ],
   "judgement": {
     "issue_42_1_same_hashes_on_three_platforms": {
-      "developer_machine": "pass",
+      "developer_machine": "constants_hold",
       "linux": "CI 실행 예정",
       "windows": "CI 실행 예정",
       "macos_hosted": "CI 실행 예정"

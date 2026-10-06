@@ -1449,7 +1449,7 @@ def test_the_renamed_variables_are_the_adrs_list():
 
     assert core.RENAMED_ENV == ADR_RENAMED
     assert set(kit_main.OLD_ENV) <= set(ADR_RENAMED) and core.NAMES_RENAMED_IN == "0.3.0"
-    assert core.KIT_VERSION == "0.5.0"
+    assert core.KIT_VERSION == "0.4.0"
 
 
 @pytest.mark.parametrize("old", ["LAB_PROJECT", "LAB_ACTOR", "LAB_SESSION", "LAB_STYLE",

@@ -9,7 +9,8 @@ Windows, so it is a record-behaviour and platform change and this record is requ
 criteria). What the results mean for the contract is in [CONTRACTS.md](../CONTRACTS.md) B, E, F and G; G is the single
 statement of the limits and of what was not run.
 
-**State of this record.** The developer machine's macOS results are in. The repository CI's Linux and Windows legs (pull
+**State of this record.** The developer machine's macOS results are in, measured again after the implementation review
+(the values of the first measurement, at `7d8e449`, are replaced). The repository CI's Linux and Windows legs (pull
 request push) and its hosted macOS legs (`ci:macos` label) have not run yet: their cells say `CI 실행 예정` (to be run)
 and are filled from the pull request's CI, at the head whose merge order and rebase are settled (design review C2). A
 cell that says so is not a pass. The JSON beside this file,
@@ -20,8 +21,8 @@ evidence files' sha256.
 
 | Item | Basis |
 |---|---|
-| Measured code | Branch `feat/issue-42-lf-everywhere` on `e9392d9` (origin/main: #9 public names, kit 0.3.0; #12 PR-1 and PR-2), the implementation commit of this PR. The developer machine measured its working tree before the commit; the tree's non-document files are those of the commit (the JSON's `measured_tree`: the same digest of every path but `docs/`, `README.md` and `CONTRIBUTING.md`) |
-| Kit version | 0.5.0 (`KIT_VERSION`, pyproject, manifest, `uv.lock`), on the assumption that #36 merges first as 0.4.0; if #42 merges first it becomes 0.4.0 and this record is measured again (design 3.8, review C2) |
+| Measured code | Branch `feat/issue-42-lf-everywhere` on `e9392d9` (origin/main: #9 public names, kit 0.3.0; #12 PR-1 and PR-2), the review-fix commit of this PR (on the implementation commit `7d8e449`). The developer machine measured its working tree before the commit; the tree's non-document files are those of the commit (the JSON's `measured_tree`: the same digest of every path but `docs/`, `README.md` and `CONTRIBUTING.md`) |
+| Kit version | 0.4.0 (`KIT_VERSION`, pyproject, manifest, `uv.lock`): #42 merges before #36, which takes the next version when it is rebased (design 3.8, review C2) |
 | Workflow | `.github/workflows/ci.yml`, unchanged by this PR |
 | Code run (Linux, Windows) | CI 실행 예정 |
 | macOS run (label) | CI 실행 예정 |
@@ -31,9 +32,9 @@ evidence files' sha256.
 
 | Check | Linux | Windows | macOS (hosted) | macOS (developer machine) |
 |---|---|---|---|---|
-| Repository suite | CI 실행 예정 | CI 실행 예정 | CI 실행 예정 | 1005 passed, 45 skipped (the Windows-only tests, the two aelix files without aelix, the end-to-end tests without `AELIX_ANALYTICS_TEST_INSTALL=1`, the cases only CPython 3.14 or another file system has) |
+| Repository suite | CI 실행 예정 | CI 실행 예정 | CI 실행 예정 | 1039 passed, 45 skipped (the Windows-only tests, the two aelix files without aelix, the end-to-end tests without `AELIX_ANALYTICS_TEST_INSTALL=1`, the cases only CPython 3.14 or another file system has) |
 | Distribution with its end-to-end leg (`AELIX_ANALYTICS_TEST_INSTALL=1`, `tests/test_packaging.py tests/test_launcher.py`) | CI 실행 예정 | CI 실행 예정 | CI 실행 예정 | 145 passed, 1 skipped (the Windows-only launcher case) |
-| `tests/test_line_endings.py` (in the suite) | CI 실행 예정 | CI 실행 예정 | CI 실행 예정 | 46 passed |
+| `tests/test_line_endings.py` (in the suite; also run alone) | CI 실행 예정 | CI 실행 예정 | CI 실행 예정 | 80 passed |
 | aelix 0.1.0b2 integration, CPython 3.12 / 3.11 | CI 실행 예정 | CI 실행 예정 | CI 실행 예정 | 141 / 141 passed |
 | The launcher on CPython 3.11 | CI 실행 예정 | CI 실행 예정 | CI 실행 예정 | 120 passed, 1 skipped (the Windows-only case) |
 | Platform smoke, required gate | CI 실행 예정 | CI 실행 예정 | CI 실행 예정 | held: 25 hold, 0 violated |
@@ -51,7 +52,7 @@ Windows legs must meet as well.
   suffixes name them). `tests/fixtures/records/.gitattributes` (`* -text`) stays.
 - `git add --renormalize .` after adding the file staged nothing but the file itself: no renormalization commit
   (developer machine; also measured on a scratch clone with `core.autocrlf=true` during the design).
-- `git ls-files --eol` on the developer machine, when the suite ran (before this record's own two files): 106 text files `i/lf w/lf`, 90 `-text` files `i/lf w/lf`, 8 empty
+- `git ls-files --eol` on the developer machine, when the suite ran: 108 text files `i/lf w/lf` (this record's two files among them), 90 `-text` files `i/lf w/lf`, 8 empty
   `-text` files, 1 `-text` file `i/mixed w/mixed` (the fixture's intended CRLF journal). `test_the_checkout_is_lf`
   asserts no CRLF or mixed file outside `-text`, in the index and in the work tree. Windows (core.autocrlf=true):
   CI 실행 예정.
@@ -61,9 +62,9 @@ Windows legs must meet as well.
 | Value | Linux | Windows | macOS (hosted) | macOS (developer machine) |
 |---|---|---|---|---|
 | Wheel members, CRLF in a text member | CI 실행 예정 | CI 실행 예정 | CI 실행 예정 | 50 members, none |
-| sha256 of the (member, sha256) list | CI 실행 예정 | CI 실행 예정 | CI 실행 예정 | `44a0c90fcebf` |
-| Checkout `kit_sha()` = digest of the tracked files' blobs | CI 실행 예정 | CI 실행 예정 | CI 실행 예정 | `f602202aa658` = `f602202aa658` |
-| Installed run's `env.kit_sha256` (3.11 / 3.12) | CI 실행 예정 | CI 실행 예정 | CI 실행 예정 | `f602202aa658` / `f602202aa658` |
+| sha256 of the (member, sha256) list | CI 실행 예정 | CI 실행 예정 | CI 실행 예정 | `4031237c57e3` |
+| Checkout `kit_sha()` = digest of the tracked files' blobs | CI 실행 예정 | CI 실행 예정 | CI 실행 예정 | `a226e3e8c3a1` = `a226e3e8c3a1` |
+| Installed run's `env.kit_sha256` (3.11 / 3.12) | CI 실행 예정 | CI 실행 예정 | CI 실행 예정 | `a226e3e8c3a1` / `a226e3e8c3a1` |
 
 The expected `kit_sha256` is computed from git's blobs, not from the leg's files: each leg asserting it shows the legs
 agree (ADR-0007 7 ③ by transitivity, review C1). The order is POSIX path parts, case by case; Windows sorts paths
@@ -77,7 +78,7 @@ Every value is a constant in the tests; each leg asserts it.
 |---|---|---|
 | `write_json` of the fixed object (JSON types only, review C12) | `e8129fd88998` (280 bytes) | `test_records_are_the_same_bytes_everywhere` |
 | `append_jsonl` of it and `{"seq": 2}` | `c9dff9a10e3c` (231 bytes, literal bytes asserted) | same |
-| New project `.gitattributes` / `.gitignore` / `pyproject.toml` / `.python-version` | `6a62913aa094` / `aef713a60722` / `c7129862d02f` / `7b55f8e67b56` (`b"3.12\n"`) | `test_a_new_project_s_text_is_lf` |
+| New project `.gitattributes` / `.gitignore` / `pyproject.toml` / `.python-version` | `66b748264be1` / `aef713a60722` / `c7129862d02f` / `7b55f8e67b56` (`b"3.12\n"`) | `test_a_new_project_s_text_is_lf` |
 | Script `scripts/lf.py` / its CRLF twin, as `script.sha256`; snapshot = the bytes written | `80b2e7c2f32f` / `e37afdb4de90` | `test_a_run_writes_lf_and_copies_bytes` |
 | The run's `stdout.txt` (two prints, then `b"raw\r\n"` through the buffer) / `stderr.txt` | `b"a\nb\nraw\r\n"` / `b"e\n"` | same |
 | `html` chart from a `_repr_html_` with CRLF and a lone CR; altair stand-in saved to a buffer | `58801acb0520` / `cd8a3744ac0e` | `test_charts_and_the_workspace_are_lf` |
@@ -99,6 +100,7 @@ longer uses).
 | Size limit (made small): equal / one byte over | the reason / no reason |
 | Block ends (block sizes 1–8, sniff 3, 200 random texts each) | equal to the whole-file digests |
 | Hash cache: the digests kept with the entry, an older three-value entry read, a file changed while read | kept; read; no reason and nothing kept |
+| Hash cache: a file that could not be read once / a file the rule does not judge (NUL in its head) | no reason and nothing kept, then judged at the next look / `null` kept and not read again |
 | Status, its text and the Workspace (input to CRLF, then the script to CRLF, then both edited) | `STALE(data/in.csv (line endings only))`, `script edited since (line endings only)`, `Line endings only` badges and `현재 파일은 수정됨 (line endings only)`; after the edits, no reason and still stale |
 
 Linux, Windows, macOS (hosted): CI 실행 예정.
@@ -121,9 +123,11 @@ before (`tests/test_record_contract.py`).
   [Windows inventory](2026-10-02-issue-8-windows-inventory.md) and probe run 36899933022).
 - The kit writing CRLF on Windows (records, template copies, inline scripts, Workspace, run logs) is **inferred** from
   CPython's text mode; no failing Windows run of the new tests at `e9392d9` was made (the optional test-first CI run
-  was not used). On the developer machine, the new tests run against `e9392d9`'s kit failed 20 of 46 (the guard found
-  W1–W11, W13 and W14; the chart, Workspace, `line_endings_only`, CONTEXT and template tests failed), which shows they
-  look at what changed; the tests whose difference is Windows's text mode passed there, as macOS writes LF.
+  was not used). On the developer machine, the new tests of `7d8e449` run against `e9392d9`'s kit failed 20 of 46 (the
+  guard found W1–W11, W13 and W14; the chart, Workspace, `line_endings_only`, CONTEXT and template tests failed), which
+  shows they look at what changed; the tests whose difference is Windows's text mode passed there, as macOS writes LF.
+  The guard as fixed after the implementation review (an explicit `newline` must be LF; import aliases, `**kwargs` and
+  logging's file handlers counted) found the same 14 places in `e9392d9`'s kit and none in the measured tree.
 
 ## Not run
 
@@ -137,7 +141,7 @@ pull request's CI runs. CONTRACTS G holds the list with its reasons.
 
 | Criterion | Developer machine | Linux | Windows | macOS (hosted) |
 |---|---|---|---|---|
-| #42 ①: records and script copies of the same content hash the same on the three platforms (CI) | pass (constants asserted) | CI 실행 예정 | CI 실행 예정 | CI 실행 예정 |
+| #42 ①: records and script copies of the same content hash the same on the three platforms (CI) | constants hold on this machine; judged by CI | CI 실행 예정 | CI 실행 예정 | CI 실행 예정 |
 | #42 ②: the wheel built from a Windows checkout has LF members | not_run (not Windows) | — | CI 실행 예정 | — |
 | #42 ③: CONTRACTS G's line-ending sentence matches the implementation | pass (document) | | | |
 | ADR-0007 7 ①: no CRLF in the checkout's text (but `-text`) | pass | CI 실행 예정 | CI 실행 예정 | CI 실행 예정 |
