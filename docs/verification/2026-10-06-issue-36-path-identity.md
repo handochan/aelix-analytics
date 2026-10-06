@@ -1,10 +1,10 @@
 # Issue #36 경로 정체성 측정 — 2026-10-06
 
-[#36](https://github.com/handochan/aelix-analytics/issues/36)의 구현(kit 0.4.0)은 기록이 담는 경로를 ADR-0006 9절의 경로 정체성으로
+[#36](https://github.com/handochan/aelix-analytics/issues/36)의 구현(kit 0.5.0)은 기록이 담는 경로를 ADR-0006 9절의 경로 정체성으로
 바꿉니다: 프로젝트 안이면 이름 공간의 프로젝트 상대 경로, 밖을 가리키는 링크는 경계, 철자는 저장된 이름. 기록 형식(경로 값)과 플랫폼
 동작을 바꾸므로 운영 정책 5절의 측정 기록입니다. 이 기록은 **macOS 개발 기기**에서 잰 것입니다. Linux·Windows와 호스트 macOS는
 PR의 CI(`pull_request` 실행과 `ci:macos` 라벨 실행)에서 채우며, 그 칸은 "CI 실행 예정"입니다 — 실행하지 않은 플랫폼은 통과가
-아닙니다. 무엇이 계약에 어떻게 반영됐는지는 [CONTRACTS.md](../CONTRACTS.md) E(경로 정체성)·F1(kit 0.4.0)·G(경로 정체성의 한계)에
+아닙니다. 무엇이 계약에 어떻게 반영됐는지는 [CONTRACTS.md](../CONTRACTS.md) E(경로 정체성)·F1(kit 0.5.0)·G(경로 정체성의 한계)에
 있습니다. 각 시험의 결과, JUnit 파일의 sha256, 시험이 남긴 관찰, M 규모 측정은
 [2026-10-06-issue-36-path-identity.json](2026-10-06-issue-36-path-identity.json)에 있습니다.
 
@@ -78,7 +78,7 @@ PR의 CI(`pull_request` 실행과 `ci:macos` 라벨 실행)에서 채우며, 그
 
 - E: "경로 정체성"·"데이터셋 목록" 행을 새로 두고, "입력 기록"·"view 이름" 행을 고쳤습니다. B에 출력 비교 대상(이름 공간)과
   "기록의 경로", C2·C4에 `path`·`external`·`outside_data`·`source.path`의 규칙, D에 `status`의 `case_only_datasets`를 적었습니다.
-- F: 스크립트 경로의 포함 판정(철자 맞춘 실제 경로), 배포 버전 0.4.0, 이 기록의 링크. F1: kit 0.4.0에서 바뀐 것.
+- F: 스크립트 경로의 포함 판정(철자 맞춘 실제 경로), 배포 버전 0.5.0, 이 기록의 링크. F1: kit 0.5.0에서 바뀐 것.
 - G: "프로젝트 안의 디렉터리 링크"와 "대소문자와 유니코드 정규화" 항목을 지우고 "경로 정체성의 한계"로 바꿨습니다. 실행하지 않은
   것에서 "Linux·Windows에서 심볼릭 링크인 기록 파일을 고쳐 쓰는 것"과 "프로젝트 안에서 조상 디렉터리를 가리키는 junction"을 뺐습니다
   (이 PR의 시험이 세 OS에서 돌림 — Linux·Windows의 결과는 CI 실행 예정).

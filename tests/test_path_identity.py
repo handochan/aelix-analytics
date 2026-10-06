@@ -564,7 +564,7 @@ def test_a_path_recorded_by_an_earlier_kit_is_read_as_the_namespace_now(tmp_path
     assert project.legacy_identity(str(ext / "sub" / "y.csv")) == "data/b/sub/y.csv"
     assert project.legacy_identity(str(tmp_path / "elsewhere" / "z.csv")) is None
     assert project.legacy_identity("data/raw/s.parquet") is None
-    assert core.PATH_IDENTITY_SINCE == "0.4.0"
+    assert core.PATH_IDENTITY_SINCE == "0.5.0"
 
 
 def _query_file(project: Path, path: Path) -> tuple[int, dict]:
@@ -891,7 +891,7 @@ def test_trust_of_a_project_created_under_another_case_of_its_parent(tmp_path, m
 
 
 def test_an_old_trust_entry_in_another_case_still_trusts(tmp_path, monkeypatch):
-    """A trust list a kit before 0.4.0 wrote holds the path as typed; it trusts the project where
+    """A trust list a kit before 0.5.0 wrote holds the path as typed; it trusts the project where
     the file system takes that spelling as the stored one."""
     root = bare(tmp_path, "Proj")
     trust = tmp_path / "trust.json"

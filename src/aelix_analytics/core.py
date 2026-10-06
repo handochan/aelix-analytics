@@ -27,7 +27,7 @@ from pathlib import Path
 
 from . import _platform, relations
 
-KIT_VERSION = "0.4.0"
+KIT_VERSION = "0.5.0"
 MARKER = "lab.json"
 SCHEMA_PROJECT = "lab.project/1"
 SCHEMA_RUN = "lab.run/1"
@@ -100,7 +100,7 @@ NAMES_RENAMED_IN = "0.3.0"
 # normalization (Issue #36, ADR-0006 9). Fixed, like NAMES_RENAMED_IN: a reader tells a run recorded
 # by an earlier kit by its env.kit_version (PEP 440 order), and reads its absolute paths through
 # Project.legacy_identity.
-PATH_IDENTITY_SINCE = "0.4.0"
+PATH_IDENTITY_SINCE = "0.5.0"
 
 
 # The environment variables the kit, its SDK, the human command line and the aelix extension read
@@ -1209,7 +1209,7 @@ _TRUSTED: dict = {}
 
 def is_trusted(root) -> bool:
     """Whether the trust list holds `root`: its real path in its stored spelling (canonical), or an
-    entry that is that path once spelled as stored — an entry a kit before 0.4.0 wrote as typed
+    entry that is that path once spelled as stored — an entry a kit before 0.5.0 wrote as typed
     (another case on macOS). An entry was a real path when written, so it is not followed again."""
     try:
         resolved = canonical(Path(root).expanduser())
