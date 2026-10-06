@@ -51,6 +51,7 @@ import argparse
 import asyncio
 import base64
 import contextlib
+import contextvars
 import hashlib
 import html
 import importlib.metadata
@@ -439,7 +440,12 @@ READ_LONG_LINE = re.compile(r"^\[Line \d+ is [^,]+, exceeds \S+ limit\. Use bash
 
 class Host:
     """The extension in aelix 0.1.0b2: its hook, tools and /analytics command, aelix's own read tool for
-    following pointers, and aelix's prompt and tool conversion for S2 and S3."""
+    following pointers, and aelix's prompt and tool conversion for S2 and S3.
+
+    Every call runs on one event loop, as aelix runs a session on one, until `close()` (or the end of
+    a `with` block). A loop per call, as asyncio.run made, meant a socket pair per call — 2,400 in a
+    measurement — and on Windows CPython makes each from a loopback connection whose accept() can
+    wait for ever: the CI's 3.11 leg hung there twice (Issue #38)."""
 
     def __init__(self) -> None:
         from aelix_agent_core.harness.hooks import BeforeAgentStartHookEvent
@@ -472,6 +478,29 @@ class Host:
         self.module._clip = clip
         self.cwd = ROOT  # where the model works: the active project, as aelix runs inside it
         self._n = 0
+        self._runner = asyncio.Runner()  # makes its loop at the first call
+
+    def __enter__(self) -> Host:
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self.close()
+
+    def close(self) -> None:
+        """End the loop: what asyncio.run did after every call (cancel what is left, finish async
+        generators, join the default executor's threads), once."""
+        self._runner.close()
+
+    def _run(self, coro):
+        """One call to its end, in a copy of the caller's context as asyncio.run ran it. A call that
+        leaves a task running fails: asyncio.run cancelled it, and on one loop it would run on into
+        the next call."""
+        result = self._runner.run(coro, context=contextvars.copy_context())
+        left = asyncio.all_tasks(self._runner.get_loop())
+        if left:
+            raise RuntimeError(f"the call left {len(left)} task(s) running on the host's loop: "
+                               f"{sorted(map(repr, left))}")
+        return result
 
     async def _run_kit(self, project, args, *, timeout, actor="agent"):
         """What the kit command would print, prepared by the fixture: through JSON, as the
@@ -501,14 +530,14 @@ class Host:
 
     def hook(self, base_prompt: str) -> str | None:
         event = self._event(prompt="Continue the analysis.", system_prompt=base_prompt)
-        out = asyncio.run(self.module.on_before_agent_start(event, SimpleNamespace()))
+        out = self._run(self.module.on_before_agent_start(event, SimpleNamespace()))
         return None if out is None else out.system_prompt
 
     def tool(self, role: str, args: dict, *, images: bool = False) -> Reply:
         tool = self.tools[TOOL_NAMES[role]]
         self.clips.clear()
         started = time.perf_counter()
-        result = asyncio.run(tool.execute(dict(args), self._ctx(images)))
+        result = self._run(tool.execute(dict(args), self._ctx(images)))
         elapsed = round((time.perf_counter() - started) * 1000, 1)
         text = "\n".join(c.text for c in result.content if hasattr(c, "text"))
         pictures = [c for c in result.content if isinstance(c, self._image)]
@@ -516,7 +545,7 @@ class Host:
                      clipped=any(self.clips))
 
     def command(self, text: str) -> str:
-        return asyncio.run(self.module.analytics_command(text))
+        return self._run(self.module.analytics_command(text))
 
     def read(self, path, offset: int | None = None, limit: int | None = None) -> tuple[str, bool]:
         reader = self._create_read_tool(str(self.cwd))
@@ -525,7 +554,7 @@ class Host:
             args["offset"] = offset
         if limit is not None:
             args["limit"] = limit
-        result = asyncio.run(reader.execute(args, self._ctx(False)))
+        result = self._run(reader.execute(args, self._ctx(False)))
         text = "\n".join(c.text for c in result.content if hasattr(c, "text"))
         return text, bool(result.is_error)
 
@@ -1718,6 +1747,11 @@ class Ctx:
         self.host = Host()
         tools = create_coding_tools(str(ROOT))
         self.coding_tools = list(tools.values()) if isinstance(tools, dict) else list(tools)
+
+    def close(self) -> None:
+        """The host's one event loop, once the measurement is over."""
+        if self.host is not None:
+            self.host.close()
 
     def text(self, spec_id: str, surface: str, text: str, *, variant: str | None = None,
              root: Path | None = None, base: Path | None = None, cuts=(), **extra) -> dict:
@@ -3193,24 +3227,25 @@ def run(output: Path, *, only: list[str] | None = None, counters: list[TokenCoun
         with isolated_environment(scratch):
             kit = load_kit()
             ctx = Ctx(kit, counter_set, output, base)
-            static = None
-            try:
-                ctx.connect()
-                static = measure_static(ctx)
-            except Exception as exc:  # noqa: BLE001 - the report says what could not be measured
-                ctx.failures.append({"fixture": "host" if ctx.host is None else "T",
-                                     "error": "".join(traceback.format_exception(exc))[-3000:]})
-            for spec in specs if ctx.host is not None else []:
-                print(f"… {spec.id}", flush=True)
-                with fixed_clock(ctx.host.core, kit.core):
-                    try:
-                        MEASURE[spec.family](ctx, spec)
-                    except Exception as exc:  # noqa: BLE001 - a surface that fails is a result
-                        ctx.failures.append({"fixture": spec.id, "error": "".join(
-                            traceback.format_exception(exc))[-3000:]})
-                    finally:
-                        ctx.host.use(None)
-                        ctx.host.kit_results.clear()
+            with contextlib.closing(ctx):  # the host's one event loop ends with the measurement
+                static = None
+                try:
+                    ctx.connect()
+                    static = measure_static(ctx)
+                except Exception as exc:  # noqa: BLE001 - the report says what could not be measured
+                    ctx.failures.append({"fixture": "host" if ctx.host is None else "T",
+                                         "error": "".join(traceback.format_exception(exc))[-3000:]})
+                for spec in specs if ctx.host is not None else []:
+                    print(f"… {spec.id}", flush=True)
+                    with fixed_clock(ctx.host.core, kit.core):
+                        try:
+                            MEASURE[spec.family](ctx, spec)
+                        except Exception as exc:  # noqa: BLE001 - a surface that fails is a result
+                            ctx.failures.append({"fixture": spec.id, "error": "".join(
+                                traceback.format_exception(exc))[-3000:]})
+                        finally:
+                            ctx.host.use(None)
+                            ctx.host.kit_results.clear()
             for spec in SPECS:
                 if spec not in specs:
                     ctx.not_run.append({"what": spec.id, "reason": "not selected (--only)"})

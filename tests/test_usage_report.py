@@ -17,6 +17,7 @@ import asyncio
 import hashlib
 import importlib.util
 import json
+import socket
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -50,14 +51,37 @@ def isolate(monkeypatch, directory: Path) -> None:
 
 @pytest.fixture(scope="module")
 def measured(tmp_path_factory):
-    """One run of the command, the fixtures kept: what most tests read."""
+    """One run of the command, the fixtures kept: what most tests read. It counts the event loops
+    and the socket pairs the run makes (each loop makes one for its wake-ups)."""
     directory = tmp_path_factory.mktemp("usage")
     output = directory / "report"
+    made = {"event_loops": 0, "socket_pairs": 0}
+    loop_init, socketpair = asyncio.BaseEventLoop.__init__, socket.socketpair
+
+    def counted_loop(self, *args, **kwargs):
+        made["event_loops"] += 1
+        loop_init(self, *args, **kwargs)
+
+    def counted_pair(*args, **kwargs):
+        made["socket_pairs"] += 1
+        return socketpair(*args, **kwargs)
+
     with pytest.MonkeyPatch.context() as mp:
         isolate(mp, directory)
+        mp.setattr(asyncio.BaseEventLoop, "__init__", counted_loop)
+        mp.setattr(socket, "socketpair", counted_pair)
         code = usage.main(["--output", str(output), "--keep-fixtures"])
     report = json.loads((output / "usage-report.json").read_text(encoding="utf-8"))
-    return SimpleNamespace(code=code, output=output, report=report)
+    return SimpleNamespace(code=code, output=output, report=report, made=made)
+
+
+@pytest.fixture
+def host(monkeypatch, tmp_path):
+    """The harness's host for hand-made cases, in this test's isolation; its event loop ends with
+    the test."""
+    isolate(monkeypatch, tmp_path)
+    with usage.Host() as host:
+        yield host
 
 
 def saved_text(measured, fixture: str, surface: str) -> str:
@@ -99,6 +123,28 @@ def test_report_is_generated_from_one_command(measured):
     assert any("#46" in caveat for caveat in report["caveats"]), "the F3 caveat"
     assert {(r["family"], r["surface"], r["lang"]) for r in report["retrieval"]["recall"]} >= {
         ("F1", "S1", "ascii"), ("F3", "S5", "ko"), ("J", "S1", "en")}
+
+
+def test_a_measurement_runs_on_one_event_loop(measured):
+    """Every coroutine of a whole measurement runs on one event loop, so the measurement makes one
+    socket pair (Issue #38). An event loop per call made 2,400 of each; on Windows CPython makes a
+    socket pair from a loopback connection, and its accept() waited for ever twice in the CI."""
+    assert measured.code == 0
+    assert measured.made == {"event_loops": 1, "socket_pairs": 1}, measured.made
+
+
+def test_a_call_that_leaves_a_task_running_fails(host):
+    """asyncio.run cancelled what a call left running; on the host's one loop it would run on into
+    the next call, so the call fails instead, and closing the host cancels the task."""
+
+    async def leaves_a_task():
+        return asyncio.get_running_loop().create_task(asyncio.sleep(3600))
+
+    with pytest.raises(RuntimeError, match="left 1 task"):
+        host._run(leaves_a_task())
+    (task,) = asyncio.all_tasks(host._runner.get_loop())
+    host.close()
+    assert task.cancelled()
 
 
 def test_a_surface_that_cannot_be_measured_fails_the_command(monkeypatch, tmp_path):
@@ -272,10 +318,8 @@ def test_measurement_is_deterministic(monkeypatch, tmp_path):
     assert judged >= 0.8 * len(first), (judged, len(first))  # the cut ones are the exception
 
 
-def test_the_checker_tells_retrievable_from_lost(monkeypatch, tmp_path):
+def test_the_checker_tells_retrievable_from_lost(host, tmp_path):
     """Hand-made cases, one per outcome: a checker that passes everything fails here."""
-    isolate(monkeypatch, tmp_path)
-    host = usage.Host()
     context = tmp_path / "CONTEXT.md"
     context.write_bytes(b"# Title\n\n## Goal\n- measure\n\n## Rules\n- rule one\n"
                         b"- FACT-RULE: the rule that matters\n- rule three\n\n## After\n- after\n")
@@ -362,12 +406,10 @@ def test_the_checker_tells_retrievable_from_lost(monkeypatch, tmp_path):
     assert all(c["holds"] for c in blocked["claims"]), blocked["claims"]
 
 
-def test_the_checker_judges_the_wording_pr2_gives(monkeypatch, tmp_path):
+def test_the_checker_judges_the_wording_pr2_gives(host, tmp_path):
     """PR-2's pointers are followed and their claims checked: a record that misses an item, a count
     that is not the truth, a preamble range a line short and an image line that miscounts the
     charts it does not list each fail, and the true ones pass."""
-    isolate(monkeypatch, tmp_path)
-    host = usage.Host()
     inputs = [{"path": f"data/in_{i}.csv", "sha256": hashlib.sha256(bytes([i])).hexdigest()}
               for i in range(6)]
     charts = [{"id": f"c{i:02d}", "files": {"png": f"runs/r/charts/c{i:02d}.png"}}
@@ -434,11 +476,9 @@ def test_the_checker_judges_the_wording_pr2_gives(monkeypatch, tmp_path):
                             usage.Truth())["class"] == "silent_omission"  # not the key list's
 
 
-def test_the_invariants_judge_a_cut_by_what_was_cut(monkeypatch, tmp_path):
+def test_the_invariants_judge_a_cut_by_what_was_cut(host, tmp_path):
     """A cut is found against the text it was cut from, not by the words it adds, and an omission
     line has to state the count that is true."""
-    isolate(monkeypatch, tmp_path)
-    host = usage.Host()
     core = host.core
     project = core.init_project(tmp_path / "project", title="cut", goal="measure", actor="test")
     for i in range(14):
