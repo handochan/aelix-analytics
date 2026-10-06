@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/handochan/aelix-analytics/blob/main/tools/eval_fixtures_data/schemas/manifest.schema.json",
+  "title": "Evaluation fixture manifest (aelix-analytics.eval-manifest/1)",
+  "description": "What tools/eval_fixtures.py wrote: the fixture's kind, seed and counts, its cases with the judgments a reader gives them, the fields that may differ between two generations, and the digest of the rest.",
+  "type": "object",
+  "required": ["schema", "generator", "kind", "scale", "seed", "format", "kit_version", "project", "clock", "volatile",
+               "not_digested", "counts", "runs_executed", "cases", "digest"],
+  "properties": {
+    "schema": {"const": "aelix-analytics.eval-manifest/1"},
+    "generator": {
+      "type": "object",
+      "required": ["path", "version"],
+      "properties": {"path": {"const": "tools/eval_fixtures.py"}, "version": {"type": "integer", "minimum": 1}},
+      "additionalProperties": false
+    },
+    "kind": {"enum": ["scale", "q10", "q13"]},
+    "scale": {"enum": ["S", "M", null]},
+    "seed": {"type": "integer"},
+    "format": {"enum": ["v1"]},
+    "kit_version": {"type": "string", "minLength": 1},
+    "project": {"const": "project"},
+    "clock": {
+      "type": "object",
+      "required": ["start", "timezone"],
+      "properties": {"start": {"type": "string", "format": "date-time"}, "timezone": {"const": "+09:00"}},
+      "additionalProperties": false
+    },
+    "volatile": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["files", "why"],
+        "properties": {
+          "files": {"type": "string"},
+          "fields": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+          "text": {"const": "project_path"},
+          "why": {"type": "string", "minLength": 1}
+        },
+        "oneOf": [{"required": ["fields"]}, {"required": ["text"]}],
+        "additionalProperties": false
+      }
+    },
+    "not_digested": {"type": "array", "items": {"type": "string"}},
+    "counts": {
+      "type": "object",
+      "required": ["runs", "runs_executed", "runs_written", "events", "datasets", "derived_tables", "context_versions"],
+      "additionalProperties": {"type": "integer", "minimum": 0}
+    },
+    "sizes": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
+    "datasets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "path", "rows", "bytes", "source"],
+        "properties": {
+          "name": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+          "path": {"type": "string", "pattern": "^data/raw/[a-z][a-z0-9_]*\\.parquet$"},
+          "rows": {"type": "integer", "minimum": 0},
+          "bytes": {"type": "integer", "minimum": 0},
+          "source": {"enum": ["csv", "parquet"]}
+        },
+        "additionalProperties": false
+      }
+    },
+    "runs_executed": {"type": "array", "items": {"$ref": "#/$defs/run_id"}},
+    "inputs": {"type": "array", "items": {"type": "string", "pattern": "^input/"}},
+    "cases": {"type": "array", "items": {"$ref": "#/$defs/case"}},
+    "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {"properties": {"kind": {"const": "scale"}}},
+      "then": {"properties": {"scale": {"enum": ["S", "M"]}, "cases": {"minItems": 6}}, "required": ["sizes", "datasets"]},
+      "else": {"properties": {"scale": {"const": null}}, "required": ["inputs"]}
+    }
+  ],
+  "$defs": {
+    "run_id": {"type": "string", "pattern": "^\\d{8}-\\d{6}-[a-z0-9][a-z0-9-]{0,60}$"},
+    "case": {
+      "type": "object",
+      "required": ["id", "required", "v1", "records", "checks"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z_]+$"},
+        "required": {"type": "boolean"},
+        "v1": {"type": "string", "minLength": 1},
+        "records": {"type": "object"},
+        "checks": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/check"}}
+      },
+      "additionalProperties": false
+    },
+    "check": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {"enum": ["reference", "record_state", "kit_resolved", "not_in_status", "upstream_cycle", "producer",
+                          "observation", "code_state", "visualization_versions", "event_text", "event_refs",
+                          "context_omitted", "run_status", "run_title"]}
+      }
+    }
+  }
+}

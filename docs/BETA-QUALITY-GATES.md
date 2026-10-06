@@ -60,6 +60,11 @@ Windows의 선언된 한계, 실행하지 않은 것은 [현재 계약](CONTRACT
 Q10은 기존의 임의 Python 실행을 샌드박스로 바꾸는 약속이 아니다. 새 메모리나 skill 후보가 읽기만으로 실행되거나
 프로젝트 밖의 지침으로 승격되지 않는지 확인하는, 이번 기능의 입력 경계다.
 
+Q9의 S/M 규모 fixture, Q10의 분석 검사 예제, Q13의 참고 세션 재현은 `tools/eval_fixtures.py` 하나가 만든다(#41,
+[평가 fixture 안내](../tools/eval_fixtures_data/README.md)). Q10 예제는 집계 키·단위·분모·기간마다 결함 있는 분석과 바른 분석 한 쌍이며
+각각의 기대 판정(`fail`·`pass`)과 근거 수치를 `expected.json`에 적는다. Q10의 표시 경계(HTML 특수문자·경로·악성처럼 보이는 메모)는
+S/M fixture의 `display_safety` 사례가 입력을 준다. 측정은 그 fixture를 쓰는 #15·#18·#24가 한다.
+
 ### 아키텍처 경계의 검증
 
 [ADR-0001](decisions/0001-evolvable-platform-boundaries.md)(2026-10-03 채택, 채택은 구현 완료가 아님)의 구조를 따르는 구현은 다음을 확인한다.
@@ -194,7 +199,8 @@ Q17-b는 Q2·Q13의 실제 모델 과제와 묶어 수행할 수 있다. 사용�
 
 ### 실사용 경험과 자유도의 회귀 검증
 
-참고 세션의 EDA·스텝 프로파일·시점별 점수·전체 센서 그림 흐름을 합성 fixture로 재현한다.
+참고 세션의 EDA·스텝 프로파일·시점별 점수·전체 센서 그림 흐름을 합성 fixture로 재현한다(`tools/eval_fixtures.py q13`: 실제 kit의
+run 6개 중 오류 2, 원본 `input/traces.csv`, 사용자 요청 3개, 사실·주장·기록·지표 정의의 기대 판정을 담은 `expected.json`).
 기존과 동일한 코드·지표·방법을 강제하지 않고, 질문 해결·검사 가능한 근거·적절한 해석·오류 복구·후속 확장을 평가한다.
 Qwen과 프론티어 모델이 서로 다른 올바른 방법을 선택할 수 있어야 한다.
 
@@ -221,7 +227,10 @@ Qwen과 프론티어 모델이 서로 다른 올바른 방법을 선택할 수 �
 | L | 3,000 runs, 100,000 events, 입력이 매우 많은 run | 후속 부하 시험. 측정 전 지원 선언하지 않음 |
 
 각 fixture에는 정정·철회·미보존 데이터·동일 chart ID·순환 참조·긴 한국어 내용을 포함한다.
-장비·디스크·Python·SQLite·브라우저·라이브러리 버전을 고정해 warm/cold를 구분하고,
+S/M은 `tools/eval_fixtures.py scale`이 seed로 결정적으로 만든다([평가 fixture 안내](../tools/eval_fixtures_data/README.md)). runs는 run 기록 수,
+events는 journal 줄 수, datasets는 가져온 원본 수이고(파생 표는 따로 셈), M의 원본은 약 217 MB다. 사례마다 실제 reader의 판정을
+manifest에 적고 `check` 명령이 다시 확인한다. 현재 형식은 `/1`이며 `analytics.event/2`는 #13 뒤에 같은 계획으로 만든다.
+장비·디스크·Python·SQLite·브라우저·라이브러리 버전을 고정해 warm/cold를 구분하고(생성기의 `environment` 명령이 같은 형식으로 남긴다),
 반복 측정의 p50/p95·최대 메모리·읽은 파일량·생성 HTML 크기를 기록한다.
 초기 목표 후보는 M의 warm 제한 조회 p95 500 ms 이내, 캐시가 있는 첫 화면 사용 가능 p95 2초 이내다.
 그림·데이터 프로파일·최초 구축 시간은 별도로 측정하고, 느린 cold 작업을 warm 숫자에 숨기지 않는다.

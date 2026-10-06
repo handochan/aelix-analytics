@@ -1,0 +1,192 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/handochan/aelix-analytics/blob/main/tools/eval_fixtures_data/schemas/expected.schema.json",
+  "title": "Expected judgments of an evaluation fixture (aelix-analytics.eval-expected/1)",
+  "description": "The Q10 examples with their verdicts, or the Q13 reproduction's facts, claims, record judgments, metric definitions and session steps.",
+  "type": "object",
+  "required": ["schema", "fixture", "gate", "project"],
+  "properties": {
+    "schema": {"const": "aelix-analytics.eval-expected/1"},
+    "fixture": {"enum": ["q10", "q13"]},
+    "project": {"const": "project"}
+  },
+  "oneOf": [{"$ref": "#/$defs/q10"}, {"$ref": "#/$defs/q13"}],
+  "$defs": {
+    "run_id": {"type": "string", "pattern": "^\\d{8}-\\d{6}-[a-z0-9][a-z0-9-]{0,60}$"},
+    "event_id": {"type": "string", "pattern": "^e\\d+$"},
+    "text": {"type": "string", "minLength": 1},
+    "q10": {
+      "type": "object",
+      "required": ["schema", "fixture", "gate", "project", "verdicts", "examples"],
+      "properties": {
+        "schema": true,
+        "fixture": {"const": "q10"},
+        "gate": {"const": "Q10"},
+        "project": true,
+        "verdicts": {
+          "type": "object",
+          "required": ["fail", "pass"],
+          "additionalProperties": {"$ref": "#/$defs/text"}
+        },
+        "examples": {
+          "type": "array",
+          "minItems": 8,
+          "items": {
+            "type": "object",
+            "required": ["id", "check", "verdict", "script", "run", "claim_event", "claim", "why", "evidence"],
+            "properties": {
+              "id": {"type": "string", "pattern": "^(aggregation_key|unit|denominator|period)\\.(flawed|sound)$"},
+              "check": {"enum": ["aggregation_key", "unit", "denominator", "period"]},
+              "verdict": {"enum": ["fail", "pass"]},
+              "script": {"type": "string", "pattern": "^scripts/[a-z0-9_]+\\.py$"},
+              "run": {"$ref": "#/$defs/run_id"},
+              "claim_event": {"$ref": "#/$defs/event_id"},
+              "claim": {"$ref": "#/$defs/text"},
+              "why": {"$ref": "#/$defs/text"},
+              "evidence": {
+                "type": "object",
+                "required": ["flawed_value", "sound_value"],
+                "properties": {"flawed_value": {"type": "number"}, "sound_value": {"type": "number"}}
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "q13": {
+      "type": "object",
+      "required": ["schema", "fixture", "gate", "project", "source", "reference", "facts", "claims", "records", "metrics",
+                   "session"],
+      "properties": {
+        "schema": true,
+        "fixture": {"const": "q13"},
+        "gate": {"const": "Q13"},
+        "project": true,
+        "source": {"const": "input/traces.csv"},
+        "reference": {"const": "docs/REVIEW-REFERENCE-SESSION-2026-09-18.md"},
+        "facts": {
+          "type": "object",
+          "required": ["score_table_rows", "exceed_total", "exceed_mean", "contexts_sensors_with_exceed", "max_abs_z",
+                       "max_abs_z_at", "displayed_context", "displayed_out_of_band", "trace_mean_outliers"],
+          "properties": {
+            "score_table_rows": {"type": "integer", "minimum": 1},
+            "exceed_total": {"type": "integer", "minimum": 0},
+            "exceed_mean": {"type": "number", "minimum": 0},
+            "contexts_sensors_with_exceed": {"type": "integer", "minimum": 0},
+            "max_abs_z": {"type": "number", "minimum": 0},
+            "max_abs_z_at": {
+              "type": "object", "required": ["context_id", "sensor"],
+              "properties": {"context_id": {"type": "string"}, "sensor": {"type": "string"}},
+              "additionalProperties": false
+            },
+            "displayed_context": {"type": "string"},
+            "displayed_out_of_band": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
+            "trace_mean_outliers": {
+              "type": "array",
+              "items": {
+                "type": "object", "required": ["sensor", "context_id"],
+                "properties": {"sensor": {"type": "string"}, "context_id": {"type": "string"}},
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "claims": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["event", "text", "verdict", "why"],
+            "properties": {
+              "event": {"$ref": "#/$defs/event_id"},
+              "text": {"$ref": "#/$defs/text"},
+              "verdict": {"enum": ["supported", "false", "unverified"]},
+              "why": {"$ref": "#/$defs/text"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "records": {
+          "type": "object",
+          "required": ["runs", "run_counts", "failed_run_partial_outputs", "attached_data", "context_versions"],
+          "properties": {
+            "runs": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object", "required": ["run", "status"],
+                "properties": {"run": {"$ref": "#/$defs/run_id"}, "status": {"enum": ["ok", "error"]}},
+                "additionalProperties": false
+              }
+            },
+            "run_counts": {
+              "type": "object", "required": ["ok", "error"],
+              "additionalProperties": {"type": "integer", "minimum": 0}
+            },
+            "failed_run_partial_outputs": {
+              "type": "object",
+              "required": ["run", "outputs", "charts", "rewritten_by", "producers_of_current_bytes"],
+              "properties": {
+                "run": {"$ref": "#/$defs/run_id"},
+                "outputs": {"type": "array", "items": {"type": "string"}},
+                "charts": {"type": "array", "items": {"type": "string"}},
+                "rewritten_by": {"$ref": "#/$defs/run_id"},
+                "producers_of_current_bytes": {
+                  "type": "object", "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/run_id"}}
+                }
+              },
+              "additionalProperties": false
+            },
+            "attached_data": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["chart", "run", "data_rows", "data_columns", "scope", "why"],
+                "properties": {
+                  "chart": {"type": "string", "pattern": "^scripts/.+::.+$"},
+                  "run": {"$ref": "#/$defs/run_id"},
+                  "data_rows": {"type": "integer", "minimum": 0},
+                  "data_columns": {"type": "array", "items": {"type": "string"}},
+                  "scope": {"enum": ["summary", "partial", "plotted"]},
+                  "why": {"$ref": "#/$defs/text"}
+                },
+                "additionalProperties": false
+              }
+            },
+            "context_versions": {"type": "integer", "minimum": 1},
+            "decision": {"$ref": "#/$defs/event_id"},
+            "open_question": {"$ref": "#/$defs/event_id"}
+          },
+          "additionalProperties": false
+        },
+        "metrics": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["id", "name", "script", "computation", "aggregation_unit", "reference_population", "applied_to"],
+            "additionalProperties": {"type": "string"}
+          }
+        },
+        "session": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["step", "request", "reproduced_by", "expect"],
+            "properties": {
+              "step": {"type": "integer", "minimum": 1},
+              "request": {"$ref": "#/$defs/text"},
+              "reproduced_by": {"type": "array", "items": {"type": "string"}},
+              "expect": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/text"}}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

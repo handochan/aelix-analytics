@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/handochan/aelix-analytics/blob/main/tools/eval_fixtures_data/schemas/environment.schema.json",
+  "title": "Measurement environment record (aelix-analytics.eval-environment/1)",
+  "description": "The machine, disk, Python, SQLite, browser and libraries a fixture was generated or measured on, and the state of its caches. A value that could not be read is not_measured with the reason.",
+  "type": "object",
+  "required": ["schema", "recorded_at", "machine", "disk", "python", "sqlite", "browser", "libraries", "kit", "cache_state"],
+  "properties": {
+    "schema": {"const": "aelix-analytics.eval-environment/1"},
+    "recorded_at": {"type": "string", "format": "date-time"},
+    "machine": {
+      "type": "object",
+      "required": ["system", "release", "version", "machine", "processor", "cpu_count", "memory_bytes"],
+      "properties": {"memory_bytes": {"oneOf": [{"type": "integer", "minimum": 0}, {"$ref": "#/$defs/not_measured"}]}}
+    },
+    "disk": {
+      "type": "object",
+      "required": ["path", "total_bytes", "free_bytes", "device", "filesystem"],
+      "properties": {
+        "total_bytes": {"type": "integer", "minimum": 0},
+        "free_bytes": {"type": "integer", "minimum": 0},
+        "device": {"oneOf": [{"type": "string"}, {"$ref": "#/$defs/not_measured"}]},
+        "filesystem": {"oneOf": [{"type": "string"}, {"$ref": "#/$defs/not_measured"}]}
+      }
+    },
+    "python": {"type": "object", "required": ["version", "implementation", "executable"]},
+    "sqlite": {
+      "type": "object",
+      "required": ["version", "fts5", "json", "compile_options"],
+      "properties": {"fts5": {"type": "boolean"}, "json": {"type": "boolean"}}
+    },
+    "browser": {
+      "oneOf": [
+        {"type": "object", "required": ["name", "version"],
+         "properties": {"name": {"type": "string", "minLength": 1}, "version": {"type": ["string", "null"]}},
+         "additionalProperties": false},
+        {"$ref": "#/$defs/not_measured"}
+      ]
+    },
+    "libraries": {"type": "object", "additionalProperties": {"type": ["string", "null"]}},
+    "kit": {"type": "object", "required": ["version", "sha256"]},
+    "cache_state": {
+      "type": "object",
+      "required": ["measurement", "kit_caches", "os_file_cache", "definition"],
+      "properties": {
+        "measurement": {"enum": ["cold", "warm", "unknown"]},
+        "kit_caches": {"enum": ["cold", "warm", "unknown"]},
+        "os_file_cache": {"enum": ["cold", "warm", "unknown"]}
+      }
+    },
+    "generation": {
+      "type": "object",
+      "required": ["kind", "scale", "seed", "seconds"],
+      "properties": {
+        "kind": {"enum": ["scale", "q10", "q13"]},
+        "seconds": {"type": "object", "required": ["total"], "additionalProperties": {"type": "number", "minimum": 0}}
+      }
+    }
+  },
+  "$defs": {
+    "not_measured": {
+      "type": "object",
+      "required": ["status", "reason"],
+      "properties": {"status": {"const": "not_measured"}, "reason": {"type": "string", "minLength": 1}},
+      "additionalProperties": false
+    }
+  }
+}
