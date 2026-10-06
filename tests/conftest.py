@@ -38,7 +38,8 @@ def kit_cli(project, *args, timeout=300):
     # unless it is told otherwise.
     proc = subprocess.run(cmd, capture_output=True, env=kit_env(), timeout=timeout,
                           **_platform.text_kwargs())
-    # LF alone ends a line, as the extension reads the kit (CONTRACTS D); text mode made CRLF LF.
+    # Split at LF after text mode has turned CRLF and a lone CR into LF, so U+2028, U+2029 and
+    # U+0085 do not split the line (CONTRACTS D).
     lines = [line for line in proc.stdout.split("\n") if line.startswith("{")]
     assert lines, f"no JSON from {cmd}\nstdout={proc.stdout}\nstderr={proc.stderr}"
     return proc.returncode, json.loads(lines[-1])

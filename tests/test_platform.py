@@ -5748,7 +5748,7 @@ def test_a_leftover_thread_s_writes_do_not_split_a_result_longer_than_a_pipe_hol
         proc.stdout.close()
     out = b"".join(chunks).decode("utf-8", errors="replace")
     result = None
-    for line in reversed(out.splitlines()):  # as the extension reads it
+    for line in reversed(out.splitlines()):
         with contextlib.suppress(ValueError):
             result = json.loads(line)
             break

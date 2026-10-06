@@ -1,10 +1,12 @@
 """The CLI's result line is one line for every reader (Issue #32 item 1, CONTRACTS D).
 
 json.dumps(ensure_ascii=False) leaves U+2028, U+2029 and U+0085 raw, and str.splitlines() ends a
-line at each of them. The extension read the kit's stdout with splitlines(), so a run whose result
-held one (in its stdout or error, its title, a note) was recorded as it ended but reported as
-kit_failed without a result. The kit escapes the three in its result line, and the readers split
-on LF alone. The extension's side, with the line an older kit wrote, is in tests/test_extension.py.
+line at each of them. The extension read the kit's stdout with splitlines(), so a command whose
+result held one (a run's stdout, stderr, error or title, a query's values, an imported dataset's
+description) was carried out, a run recorded as it ended, but reported as kit_failed without a
+result. The CLI's `record` result holds the note's text the same way; the extension records a note
+in process, not through the CLI. The kit escapes the three in its result line, and the readers
+split on LF. The extension's side, with the line an older kit wrote, is in tests/test_extension.py.
 """
 
 import json
@@ -22,8 +24,12 @@ from aelix_analytics import core
 ESCAPED = {"\u2028": "\\u2028", "\u2029": "\\u2029", "\x85": "\\u0085"}
 # The other line ends str.splitlines() knows, which json.dumps escapes itself.
 ESCAPED_BY_JSON = "\n\r\x0b\x0c\x1c\x1d\x1e"
-# Each of them between other text; a backslash before one stays a backslash.
+# Each of them but LF and CR between other text; a backslash before one stays a backslash. A run
+# prints it, and its stdout_tail is compared on its own.
 TEXT = "줄\u2028나눔\u2029문단\x85NEL\x0bVT\x0cFF\x1cFS\x1dGS\x1eRS \\\u2028끝"
+# Every line end str.splitlines() knows, and CRLF, between other text: the kit keeps an error's
+# message and a note's text as they are.
+LINES = "CRLF\r\nCR\rLF\n" + TEXT
 TITLE = "제목\u2028둘\u2029셋\x85넷"
 
 
@@ -60,11 +66,12 @@ def _kit(project, *args) -> subprocess.CompletedProcess:
 
 
 def _one_line(stdout: bytes) -> dict:
-    """The result, which is the last line for every reader: none of the line ends above is in the
-    output, so splitting on each line end str.splitlines() knows finds the line that splitting on
-    LF alone finds."""
+    """The result, which is the last line for every reader: the output holds no line end above but
+    LF and a CR before one, so splitting on each line end str.splitlines() knows finds the line that
+    splitting on LF alone finds."""
     for end in [*ESCAPED, *ESCAPED_BY_JSON[2:]]:
         assert end.encode("utf-8") not in stdout, (end, stdout)
+    assert b"\r" not in stdout.replace(b"\r\n", b""), stdout
     text = stdout.decode("utf-8")
     assert text.endswith("\n"), text
     line = text[:-1].split("\n")[-1].removesuffix("\r")
@@ -75,9 +82,9 @@ def _one_line(stdout: bytes) -> dict:
 @pytest.mark.parametrize("fails", [False, True], ids=["ok", "error"])
 def test_a_run_whose_result_holds_line_ends_is_read_on_one_line(plain_project, fails):
     """Through the CLI (python -m aelix_analytics, which bin/analytics and analytics pass through
-    byte for byte): the run's stdout tail, its title and, when it fails, its error hold the line
-    ends; the result line is whole and reads back as the same text."""
-    body = f"print({TEXT!r})\n" + (f"raise ValueError({TEXT!r})\n" if fails else "")
+    byte for byte): the run's stdout tail, its title and, when it fails, its error (LF, CR and CRLF
+    too) hold the line ends; the result line is whole and reads back as the same text."""
+    body = f"print({TEXT!r})\n" + (f"raise ValueError({LINES!r})\n" if fails else "")
     script = write_script(plain_project, "breaks.py", body)
     done = _kit(plain_project, "run", script, "--title", TITLE)
     assert done.returncode == (3 if fails else 0), done.stderr.decode("utf-8", "replace")
@@ -85,20 +92,21 @@ def test_a_run_whose_result_holds_line_ends_is_read_on_one_line(plain_project, f
     assert result["ok"] is True and result["run"]["status"] == ("error" if fails else "ok")
     assert result["run"]["title"] == TITLE and result["stdout_tail"] == TEXT + "\n"
     if fails:
-        assert result["run"]["error"]["message"] == TEXT
-    # The tests' own reader (conftest.kit_cli) splits on LF alone as well.
+        assert result["run"]["error"]["message"] == LINES
+    # The tests' own reader (conftest.kit_cli) splits on LF too, after text mode's newlines.
     code, again = kit_cli(plain_project, "run", script, "--title", TITLE)
     assert code == done.returncode and again["stdout_tail"] == TEXT + "\n"
 
 
 def test_a_note_s_line_ends_stay_inside_the_result_line(plain_project):
-    """The commands that run no script write their result through the CLI's own stream."""
-    done = _kit(plain_project, "record", "finding", TEXT)
+    """The commands that run no script write their result through the CLI's own stream: `record`
+    holds the note's text (LF, CR and CRLF too), `status` the journal's."""
+    done = _kit(plain_project, "record", "finding", LINES)
     assert done.returncode == 0, done.stderr.decode("utf-8", "replace")
-    assert _one_line(done.stdout)["event"]["text"] == TEXT
+    assert _one_line(done.stdout)["event"]["text"] == LINES
     done = _kit(plain_project, "status")
     assert done.returncode == 0, done.stderr.decode("utf-8", "replace")
-    assert any(TEXT in text for text in _strings(_one_line(done.stdout))), done.stdout
+    assert any(LINES in text for text in _strings(_one_line(done.stdout))), done.stdout
 
 
 def _strings(value):

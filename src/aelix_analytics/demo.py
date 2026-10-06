@@ -92,7 +92,8 @@ def _run(project: core.Project, script: str, title: str, actor: str, extra=()) -
            *([script] if script else []), "--title", title, *extra]
     proc = subprocess.run(cmd, capture_output=True, env=env, timeout=600,
                           **_platform.text_kwargs())
-    # LF alone ends a line, as the extension reads the kit (CONTRACTS D); text mode made CRLF LF.
+    # Split at LF after text mode has turned CRLF and a lone CR into LF, so U+2028, U+2029 and
+    # U+0085 do not split the line (CONTRACTS D). The last line that starts with "{" is the result.
     lines = [line for line in proc.stdout.split("\n") if line.startswith("{")]
     if not lines:
         raise core.LabError("demo_run_failed", f"{script or extra}: no result",

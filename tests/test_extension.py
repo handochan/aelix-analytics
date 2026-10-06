@@ -807,3 +807,31 @@ def test_an_older_kit_s_raw_line_separators_do_not_split_its_result(lab, monkeyp
     monkeypatch.setattr(module, "_spawn", older_kit)
     assert asyncio.run(module.run_kit(module.core.Project(root), ["context"], timeout=60)) \
         == (True, value)
+
+
+@pytest.mark.parametrize("line_end", [b"\n", b"\r\n"], ids=["lf", "crlf"])
+def test_a_line_holding_a_lone_cr_is_not_taken_for_the_result(lab, monkeypatch, line_end):
+    """JSON reads a CR between its tokens as white space, so a thread's text such as {"ok":<CR>true}
+    parses once LF alone ends a line; str.splitlines() ended a line at the CR, and the extension
+    never took that text for the result. A kit escapes a CR inside a string, so its own line never
+    holds one and is still read."""
+    module, root = lab
+    result = {"ok": True, "run": {"status": "ok"}}
+    real = json.dumps(result).encode("utf-8") + line_end
+    fake_error = b'{"ok":\rfalse,"error":{"code":"kit_failed","message":"noise"}}' + line_end
+    outputs = {
+        "only a thread's line, exit 1": (1, b'{"ok":\rtrue}' + line_end),
+        "the result, then a thread's line": (0, line_end + real + fake_error),
+    }
+    monkeypatch.setattr(module, "resolve_uv", lambda processes=None: "uv")
+    read = {}
+    for name, (code, stdout) in outputs.items():
+        async def kit(argv, cwd, env, timeout, processes, request=None, code=code, stdout=stdout):
+            return False, code, stdout, b""
+
+        monkeypatch.setattr(module, "_spawn", kit)
+        read[name] = asyncio.run(module.run_kit(module.core.Project(root), ["run"], timeout=60))
+    ok, value = read["only a thread's line, exit 1"]
+    assert ok is False and value["error"]["code"] == "kit_failed", value
+    assert value["error"]["message"] == "aelix_analytics run exited 1 without a result"
+    assert read["the result, then a thread's line"] == (True, result)

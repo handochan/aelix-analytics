@@ -419,8 +419,8 @@ def _run_stream(fd: int, replaced) -> io.TextIOWrapper:
     they are, so a Windows log can hold both. After a CLI run (`result_follows`) this stream stands in
     as sys.stdout until the result line is out (_redirected): what a thread the script left running
     prints then reaches the CLI's output with "\n" ends, beside the result line's os.linesep
-    (write_result) — two line ends in one stream, which the extension (universal newlines) and the
-    launcher (bytes passed through) both read as it is."""
+    (write_result) — two line ends in one stream: the extension splits it at LF and drops a CR
+    before one, and the launcher passes the bytes through."""
     raw = io.FileIO(fd, "w", closefd=False)
     raw.name = "<stdout>" if fd == 1 else "<stderr>"
     unbuffered, line_buffering, write_through = False, fd == 2, False

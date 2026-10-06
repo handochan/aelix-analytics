@@ -251,10 +251,13 @@ Windows에서는 `analytics.exe`)로 부릅니다(kit 0.3.0 전의 `bin/lab`). �
   그 stdout으로 만든 logging 처리기를 logging이 끝날 때 비우면 기다림에 끝이 없습니다. kit이 끝날 때 이전 run의
   스트림을 비우는 일만 1초까지 기다립니다(F1). `run`이 준비 단계를 지나 출력을 run의 로그로 돌린 뒤에는(스크립트가 시작하지 못했어도)
   결과 줄 앞에 늘 빈 줄 하나를 쓰므로, 그 스레드의 출력이 줄바꿈으로 끝나지 않아도 결과와 한 줄에 붙지 않습니다. 그 밖의
-  명령은 JSON 한 줄만 씁니다(`demo`는 예제 스크립트를 자식 프로세스로 돌립니다). 확장은 stdout을 LF로만 나누고(줄 끝의
-  CR은 버립니다) JSON 객체로 읽히는 마지막 줄을 결과로 받습니다. 그래서 U+2028·U+2029·U+0085를 그대로 쓴 이전 kit의
-  결과 줄도 온전히 읽습니다. kit의 데모와 저장소의 도구·시험 helper도 같은 방식으로 읽습니다. 결과 뒤에 JSON 객체를
-  출력하는 스레드는 결과로 오인될 수 있습니다.
+  명령은 JSON 한 줄만 씁니다(`demo`는 예제 스크립트를 자식 프로세스로 돌립니다). 확장은 kit의 stdout을 LF에서만 나누고(LF
+  앞의 CR은 버립니다) JSON 객체로 읽히는 마지막 줄을 결과로 받습니다. 그래서 U+2028·U+2029·U+0085를 그대로 쓴 이전 kit의
+  결과 줄도 온전히 읽습니다. 앞뒤 공백을 지운 뒤에도 CR이 남은 줄은 결과로 받지 않습니다: kit의 결과 줄은 문자열 안의 CR을
+  이스케이프하고, 이전 확장은 단독 CR에서 줄을 나눴습니다. 결과 뒤에 스크립트가 남긴 스레드가 출력한 JSON 객체 줄은 이전처럼
+  결과로 오인될 수 있습니다(이제는 세 문자를 담은 줄도 그렇습니다). kit의 데모와 저장소 도구(`tools/platform_smoke.py`)·시험
+  helper는 kit의 stdout을 텍스트 모드로 읽어, CRLF와 단독 CR이 LF로 바뀐 뒤 LF에서 나눕니다. 그래서 세 문자는 거기서도 줄을
+  나누지 않습니다. 데모는 `{`로 시작하는 마지막 줄을 결과로 읽고, 그 줄이 JSON이 아니면 앞의 줄로 넘어가지 않고 실패합니다.
 - 종료 코드: 0 성공, 1 처리된 오류, 2 사용법 오류, 3 run은 기록됐으나 `ok`가 아님, 130 중단. 스크립트가 남긴 데몬
   스레드가 run 뒤에도 stdout에 쓰고 있으면, 인터프리터가 끝날 때 결과 줄 뒤에서 SIGABRT(POSIX에서 134)로 끝날 수
   있습니다(이전 구현과 같습니다). `print()`로 쓰거나, `sys.stdout.buffer` 또는 그것을 감싸 만든 스트림으로 쓰는 스레드가
@@ -477,10 +480,14 @@ kit 0.4.0([#42](https://github.com/handochan/aelix-analytics/issues/42), 줄 끝
 
 - CLI의 결과 줄이 U+2028·U+2029·U+0085를 `\u2028`·`\u2029`·`\u0085`로 이스케이프해 씁니다(D). 이전에는
   `json.dumps(ensure_ascii=False)`대로 그대로 썼고, 확장이 kit의 stdout을 `str.splitlines()`로 나누어 그 줄이 끊겼습니다. 그래서
-  run의 stdout·오류·제목이나 note처럼 결과에 그 문자가 들어간 명령은, 기록은 끝났는데도 확장에 `kit_failed … without a
-  result`로 보였습니다(이전 구현 `48b79cc`에도 있던 결함).
-- 확장, kit의 데모, 저장소 도구(`tools/platform_smoke.py`)와 시험 helper는 kit의 stdout을 LF로만 나눕니다(줄 끝의 CR은
-  버립니다). 이전 kit이 그 문자를 그대로 쓴 결과 줄도 온전히 읽습니다.
+  run의 stdout·stderr·오류·제목, `query`의 값, `import`한 데이터셋의 설명처럼 결과에 그 문자가 들어간 명령은, 명령은
+  끝났는데도(run은 기록됐는데도) 확장에 `kit_failed … without a result`로 보였습니다(이전 구현 `48b79cc`에도 있던 결함). CLI
+  `record`의 결과 줄에도 note의 글이 들어가 이제 이스케이프됩니다. 확장의 `analytics_record`·`analytics_status`는 kit을 프로세스
+  안에서 불러 이 줄을 읽지 않고, 스크립트의 `analytics.record` 글은 run의 결과에 들어가지 않습니다.
+- 확장은 kit의 stdout을 LF에서만 나누고 LF 앞의 CR은 버립니다. 이전 kit이 그 문자를 그대로 쓴 결과 줄도 온전히 읽습니다. 앞뒤
+  공백을 지운 뒤에도 CR이 남은 줄은 결과로 받지 않으므로, 단독 CR을 담은 스레드의 글을 결과로 받지 않는 것은 이전과 같습니다.
+- kit의 데모, 저장소 도구(`tools/platform_smoke.py`)와 시험 helper는 `str.splitlines()` 대신 LF에서 나눕니다. 텍스트 모드로
+  읽으므로 CRLF와 단독 CR은 그 전에 LF로 바뀌고, 세 문자는 줄을 나누지 않습니다.
 
 ## G. 약속하지 않는 것
 
@@ -574,8 +581,8 @@ kit 0.4.0([#42](https://github.com/handochan/aelix-analytics/issues/42), 줄 끝
     NUL이 있는 파일, 읽는 동안 바뀐 파일은 사유 없이 `changed`입니다. 상류 후보의 stale, 참조의 `content_changed`, 출력의 현재 상태,
     재실행 비교(`inputs_same`, 출력·차트의 바이트)는 바이트로만 판정합니다.
   - CLI의 표준 출력(결과 JSON 줄과 안내)은 파일이 아니라 스트림이어서 플랫폼의 줄 끝(Windows CRLF)입니다. CLI run 뒤 스크립트가
-    남긴 스레드가 출력하는 글은 LF라 한 스트림에 두 줄 끝이 섞일 수 있습니다(확장은 universal newline으로 읽고, 런처는 바이트를
-    그대로 넘깁니다).
+    남긴 스레드가 출력하는 글은 LF라 한 스트림에 두 줄 끝이 섞일 수 있습니다(확장은 LF에서 나누고 그 앞의 CR을 버리며, 런처는
+    바이트를 그대로 넘깁니다).
   - 기존 프로젝트에는 `.gitattributes`를 만들지 않습니다(#13의 전환 보고서가 제안). git의 줄 끝 변환을 거쳐 플랫폼을 오간 그
     프로젝트의 텍스트 입력과 스크립트는 `changed (line endings only)`로 보입니다. 새 프로젝트의 `.gitattributes`는 다른 git 저장소 안에
     만들면 그 하위 트리에 한해 상위 저장소의 줄 끝 규칙을 덮습니다(B).

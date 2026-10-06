@@ -672,7 +672,8 @@ def kit_cli(ctx, project: Path, *args, timeout: float = 600):
                           stdin=subprocess.DEVNULL, capture_output=True, timeout=timeout,
                           **_platform.text_kwargs())
     result = None
-    # LF alone ends a line, as the extension reads the kit (CONTRACTS D); text mode made CRLF LF.
+    # Split at LF after text mode has turned CRLF and a lone CR into LF, so U+2028, U+2029 and
+    # U+0085 do not split the line (CONTRACTS D).
     for line in reversed(done.stdout.split("\n")):
         if line.strip().startswith("{"):
             with contextlib.suppress(ValueError):
