@@ -338,6 +338,9 @@ def test_a_tool_call_s_project_lookup_lists_no_directory_once_warm(lab, monkeypa
     200,000 entries beside the project). Once the first call has spelled it, a tool call lists no
     directory while those directories are unchanged."""
     module, root = lab
+    # The fixture's directories changed a moment ago, which the spelling does not trust (RACY_NS,
+    # tests/test_path_identity.py); here nothing changes between the calls.
+    monkeypatch.setattr(module.core, "RACY_NS", 0)
     module.core.trust_project(root)
     module.resolve_project()
     monkeypatch.delenv("AELIX_ANALYTICS_PROJECT")

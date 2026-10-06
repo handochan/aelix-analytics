@@ -426,8 +426,12 @@ def test_an_import_record_is_read_beside_the_dataset_s_entry(project):
     root = Path(project)
     (root / "storage").mkdir()
     shutil.move(root / "data/raw/sales.parquet", root / "storage/physical.parquet")
-    file_link(root / "data/raw/sales.parquet", "../../storage/physical.parquet")
-    file_link(root / "data/raw/other.parquet", "../../storage/physical.parquet")
+    # A relative target in the platform's separator: Windows stores a symbolic link's text as given
+    # and does not read `/` in it as one, so `../../storage/x` would lead nowhere there.
+    moved = os.path.join("..", "..", "storage", "physical.parquet")
+    file_link(root / "data/raw/sales.parquet", moved)
+    file_link(root / "data/raw/other.parquet", moved)
+    assert os.path.isfile(root / "data/raw/sales.parquet")
     write(root / "data/raw/other.meta.json", json.dumps({"schema": "lab.dataset/9", "name": "other"}))
     datasets = {d["name"]: d for d in core.list_datasets(core.Project(project))}
     sales = datasets["sales"]
@@ -441,7 +445,8 @@ def test_a_raw_dataset_and_a_derived_link_to_it_are_both_listed(project):
     """Review of 3a95f38: `data/derived/sales.parquet → ../raw/sales.parquet` is a raw and a
     derived dataset with one path, and both views (`sales`, `sales_derived`), as on main: a file is
     listed once per (name, path) within a kind."""
-    file_link(Path(project) / "data/derived/sales.parquet", "../raw/sales.parquet")
+    link = file_link(Path(project) / "data/derived/sales.parquet", os.path.join("..", "raw", "sales.parquet"))
+    assert os.path.isfile(link)  # `/` in a link's text would lead nowhere on Windows
     datasets = core.list_datasets(core.Project(project))
     assert [(d["name"], d["kind"], d["path"]) for d in datasets] == [
         ("sales", "raw", "data/raw/sales.parquet"), ("sales", "derived", "data/raw/sales.parquet")]
@@ -885,6 +890,9 @@ def test_making_finding_and_trusting_a_project_again_lists_none_of_its_parents(t
     aelix extension does all three after every tool call. The spelling is remembered while the
     directories listed for it are unchanged (their modification times), and a Project judges a
     path below its root from the root. A change beside the project lists the parent once more."""
+    # The parents here changed a moment ago, which the spelling does not trust (RACY_NS, its own
+    # test below); a change to one of them is made by its time, not by the clock.
+    monkeypatch.setattr(core, "RACY_NS", 0)
     root = bare(tmp_path)
     write(root / "data" / "raw" / "x.csv")
     core.trust_project(root)
@@ -903,7 +911,40 @@ def test_making_finding_and_trusting_a_project_again_lists_none_of_its_parents(t
     assert core.find_project(root / "data") == root and core.is_trusted(root)
     assert project.rel(root / "data" / "raw" / "x.csv") == "data/raw/x.csv"
     assert not parents & set(listed), listed
-    write(tmp_path / "beside.txt")
+    st = os.stat(tmp_path)
+    os.utime(tmp_path, ns=(st.st_atime_ns, st.st_mtime_ns - 1_000_000_000))
+    core.Project(root)
+    assert os.path.realpath(tmp_path) in listed
+
+
+def test_a_listing_read_in_the_tick_of_a_change_is_not_trusted(tmp_path, monkeypatch):
+    """Windows CI of 13cdc2b: a name made just after a directory was listed, read under another
+    case, kept the spelling it was read by — NTFS stamps the directory from a clock tick (15.6 ms),
+    so the second change left the time the listing was read at. A listing, and a remembered
+    spelling, made less than RACY_NS after the directory's last change keep no time. Here the time
+    is held still by hand, as a coarse clock would."""
+    directory = tmp_path / "d"
+    write(directory / "a.csv")
+    held = time.time_ns()
+    os.utime(directory, ns=(held, held))
+    spelling = core.Spelling()
+    assert spelling.name(str(directory), "a.csv") == "a.csv"
+    later = write(directory / "Later.csv")
+    os.utime(directory, ns=(held, held))
+    assert spelling.name(str(directory), "LATER.CSV") == (
+        "Later.csv" if core.same_file(later, directory / "LATER.CSV") else "LATER.CSV")
+    root = bare(tmp_path, "p2")
+    core.Project(root)
+    os.utime(tmp_path, ns=(held, held))
+    core.Project(root)
+    listed: list[str] = []
+    scandir = os.scandir
+
+    def listing(path="."):
+        listed.append(os.path.realpath(path) if not isinstance(path, int) else str(path))
+        return scandir(path)
+
+    monkeypatch.setattr(os, "scandir", listing)
     core.Project(root)
     assert os.path.realpath(tmp_path) in listed
 

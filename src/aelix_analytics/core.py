@@ -20,6 +20,7 @@ import json
 import os
 import re
 import stat
+import time
 import tomllib
 import unicodedata
 from datetime import datetime
@@ -168,6 +169,18 @@ def expand_home(path: Path) -> Path:
 # table answers which boundary a file outside the root is seen under.
 
 
+# How long after a directory's last change a listing of it does not trust its modification time:
+# a file system stamps a change from a clock tick (Windows' 15.6 ms, Linux' few ms) or keeps coarse
+# times (FAT's two seconds), so a change soon after another can leave the time as it was.
+RACY_NS = 2_000_000_000
+
+
+def _settled(mtime: int | None) -> bool:
+    """Whether a directory last changed at `mtime` changed long enough ago that a later change will
+    show in its modification time (RACY_NS)."""
+    return mtime is not None and time.time_ns() - mtime >= RACY_NS
+
+
 def folded(name: str) -> str:
     """`name` as a file system that ignores case and Unicode normalization compares it."""
     return unicodedata.normalize("NFC", name).casefold()
@@ -289,7 +302,9 @@ class Spelling:
                 names = {entry.name: _kind(entry) for entry in listing}
         except (OSError, ValueError):
             mtime, names = None, None
-        self._listed[directory] = (mtime, names)
+        # A listing read soon after the directory changed keeps no time, as a walk's: a name made
+        # since may have left the time as it was (RACY_NS).
+        self._listed[directory] = (mtime if _settled(mtime) else None, names)
         self._folds.pop(directory, None)
         return names
 
@@ -335,7 +350,8 @@ class Spelling:
 
     def _read_again(self, directory: str) -> bool:
         """Whether a name the listing lacks is a reason to read `directory` again: the directory
-        changed since the listing (a walk's listing has no time), and this is one of its first
+        changed since the listing (a walk's listing, and one read soon after a change, has no
+        time), and this is one of its first
         READS_AT_ONCE such names, or the 2nd, 4th, 8th… after the last reading. So a run that makes
         and reads thousands of files there one at a time lists it a few dozen times, not once per
         file; a name made since and read in between is taken as written (docs/CONTRACTS.md G)."""
@@ -438,15 +454,17 @@ def _listing_stamp(real: str) -> tuple:
 
 def _spelled(real: str) -> str:
     """Spelling().path(real), listed again only when a directory it listed changed (_listing_stamp):
-    a stat per parent instead of a listing per parent."""
+    a stat per parent instead of a listing per parent. Not kept while one of them changed less than
+    RACY_NS ago."""
     stamp = _listing_stamp(real)
     kept = _SPELLED.get(real)
     if kept is not None and kept[0] == stamp:
         return kept[1]
     spelled = Spelling().path(real)
-    if len(_SPELLED) >= _SPELLED_MAX:
-        _SPELLED.clear()
-    _SPELLED[real] = (stamp, spelled)
+    if all(m is None or _settled(m) for m in stamp):  # else a change soon after may not show
+        if len(_SPELLED) >= _SPELLED_MAX:
+            _SPELLED.clear()
+        _SPELLED[real] = (stamp, spelled)
     return spelled
 
 
