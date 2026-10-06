@@ -28,24 +28,36 @@
     {
       "id": "cut",
       "kind": "uncertainty",
-      "type": "text_any",
-      "values": [
-        "4,000",
-        "4000",
-        "잘렸",
-        "잘린",
-        "잘려",
-        "끊",
-        "중간에",
-        "불완전",
-        "온전하지",
-        "온전히 남아 있지",
-        "truncat",
-        "cut off",
-        "일부만",
-        "중간에서"
+      "type": "cooccur",
+      "scope": "sentence",
+      "negation": true,
+      "any": [
+        [
+          "4,000",
+          "4000",
+          "4천",
+          "4 000"
+        ],
+        [
+          "잘렸",
+          "잘린",
+          "잘려",
+          "잘림",
+          "끊겼",
+          "끊긴",
+          "끊어",
+          "끊김",
+          "truncat",
+          "cut off",
+          "cut at",
+          "cut mid",
+          "단어 중간",
+          "중간에 끝",
+          "중간에서 끝",
+          "중간에서 끊"
+        ]
       ],
-      "what": "e74가 잘렸다는 판단"
+      "what": "e74가 4,000자에서 잘렸다는 판단(길이와 잘림을 같은 문장에, 부정되지 않게)"
     },
     {
       "id": "cites",
@@ -65,11 +77,43 @@
         "온전하게 남아 있",
         "끝까지 남아 있",
         "완전히 남아 있",
+        "온전합니다",
+        "온전하다",
+        "온전함",
+        "온전한 상태",
+        "잘리지 않",
+        "잘린 곳은 없",
+        "잘린 부분은 없",
+        "잘린 데가 없",
+        "intact",
+        "not truncated",
+        "isn't truncated",
         "is complete",
-        "fully preserved"
+        "fully preserved",
+        "nothing is cut",
+        "not cut off"
       ],
-      "unless": "@superseded",
-      "what": "잘린 기록을 온전하다고 말함"
+      "unless": [
+        "단정할 수 없",
+        "단정할 수는 없",
+        "단정하지 않",
+        "단정하기 어렵",
+        "확인할 수 없",
+        "알 수 없",
+        "보장할 수 없",
+        "cannot conclude",
+        "can't conclude",
+        "cannot tell",
+        "can't tell",
+        "cannot confirm",
+        "can't confirm",
+        "cannot be sure",
+        "can't be sure",
+        "not certain",
+        "uncertain",
+        "unclear"
+      ],
+      "what": "잘린 기록을 온전하다고 말함(부정·질문 형태는 제외)"
     }
   ]
 }

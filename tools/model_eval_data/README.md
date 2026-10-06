@@ -9,7 +9,7 @@
 | 파일 | 내용 |
 |---|---|
 | [`tasks.json`](tasks.json) | 과제 12개: 사용자 요청 글, fixture, 준비 방식, 게이트, Q11 요청 유형, Q5 조건, 제한 시간 |
-| [`answers/`](answers/) | 과제별 정답: 바른 완료(글), 근거 ID, 채점 검사. **모두 초안**(`status: draft`) |
+| [`answers/`](answers/) | 과제별 정답: 바른 완료(글), 근거 ID, 채점 검사, 쓴 fixture의 seed. **모두 초안**(`status: draft`). T12는 `always_review`(아래 채점) |
 | [`models/`](models/) | 모델 설정: [로컬 Qwen](models/qwen3.8-27b-local.json), [프론티어](models/gpt-6-astra.json), [dry-run](models/dry-run.json) |
 | [`conditions.json`](conditions.json) | 도구 표면(Q11), 제안 조건(Q5), 글 판정에 쓰는 낱말 묶음 |
 | [`dry_run/`](dry_run/) | dry-run의 가짜 모델이 따르는 스크립트(과제별, 없으면 상태 확인 뒤 답 하나) |
@@ -25,7 +25,7 @@
 | T02 | S | Q2 | 정정된 발견(e41 → e287)과 철회된 결정(e68 → e274) |
 | T03 | S | Q2·Q3 | 최근 목록 밖의 오래된 중요한 발견(e24) |
 | T04 | S | Q3 | 맥락 블록에서 빠진 CONTEXT 섹션, 4,000자에서 잘린 기록(e74) |
-| T05 | S | Q2·Q3 | 덮어쓴 표: 당시와 지금, 보존되지 않은 내용 |
+| T05 | S | Q2·Q3 | 덮어쓴 표: 지금 바이트는 뒤의 run(032539)의 것, 첫 run의 원래 표는 그 run의 차트 데이터로 같은 바이트가 남아 있음 |
 | T06 | Q10 | Q11·Q3 | 정답 도구가 하나인 요청(영어) |
 | T07 | Q10 | Q12·Q5 | 분모가 틀린 전환율: 정의 정정과 기록 |
 | T08 | Q10 | Q12·Q5·Q13 | 부분 월 비교: 같은 일수끼리 다시 비교 |
@@ -35,7 +35,8 @@
 | T12 | Q13 입력 | Q13·Q11·Q5 | 새 프로젝트에서 모호한 EDA → 스텝 프로파일·점수 → 모든 센서 그림(요청 3개) |
 
 요청 글은 도구 이름을 말하지 않아 도구 표면과 이름 전환 전후(#9)에 같은 글을 쓴다. 모델에게는 fixture의 `project/`와 `input/`만
-준다(`manifest.json`·`expected.json`은 정답을 담음).
+준다(`manifest.json`·`expected.json`은 정답을 담음). 모델이 일하는 작업 루트는 `OUT` 밖의 새 디렉터리라 그 위로 올라가도 fixture와
+다른 run이 없다(아래 격리).
 
 ## 실행
 
@@ -52,9 +53,11 @@ uv run --locked python tools/model_eval.py score <dir>                        # 
 ```
 
 `run`의 선택: `--task`(여러 번) 또는 `--all`, `--repeats N`(반복 번호는 `--first-repeat`부터), `--surface`, `--proposal`,
-`--checkout DIR`, `--fixtures DIR`(fixture를 만들고 다시 쓰는 곳, 기본 `OUT/fixtures`), `--seed`, `--timeout`(초, 기본은 과제의 값),
-`--script`(dry-run 스크립트). `--out`은 새 디렉터리, 빈 디렉터리, 이전 출력(`summary.json`이 있음) 중 하나다. 이전 출력에는 run을
-더하며 같은 run 이름이 있으면 거절한다.
+`--checkout DIR`, `--fixtures DIR`(fixture를 만들고 다시 쓰는 곳, 기본 `OUT/fixtures`), `--work-root DIR`(run마다 작업 루트를 만드는
+곳, 기본은 시스템 임시 디렉터리, `OUT` 안은 거절), `--seed`, `--timeout`(초, 기본은 과제의 값), `--script`(dry-run 스크립트).
+`--out`은 새 디렉터리, 빈 디렉터리, 이전 출력(`summary.json`이 있음) 중 하나다. 이전 출력에는 run을 더한다. 요청한 run 가운데 하나라도
+이름이 이미 있으면 첫 run 전에 모두 거절한다(아무것도 실행하지 않음). 정답은 seed 0 fixture의 수·ID로 쓰여 있어 `--seed`가 정답의
+`fixture.seed`와 다르면 거절한다(seed마다의 정답은 아직 없음). `summary.json`은 run 도중 하네스가 실패해도 마지막에 다시 쓴다.
 
 종료 코드: 0(요청한 run을 모두 실행·기록함. 과제 실패와 시간 초과는 데이터), 1(어떤 run을 실행하거나 기록하지 못함), 2(사용법·설정
 오류, 아무것도 실행하지 않음), 3(전제가 없어 실행하지 않음: 키 없음, 서빙이 고정 설정과 다름, kit에 없는 조건. `summary.json`에
@@ -104,29 +107,45 @@ llama.cpp 계열의 표준 4비트(Q4_K_M)를 고른다.
 
 [`models/gpt-6-astra.json`](models/gpt-6-astra.json): OpenAI 모델 문서(2026-10-07)가 복잡한 추론·코딩에 먼저 권하는 `gpt-6-astra`(날짜
 snapshot 없음, context 1,050,000, 최대 출력 128,000). aelix 0.1.0b2의 내장 `openai` provider(Responses API)로 부르고, 키는 aelix가
-`OPENAI_API_KEY`에서 읽는다. 하네스는 키 값을 쓰지 않는다: `command.json`에는 변수 이름만 있고, run이 쓴 파일에 키 값이 나오면
-`<redacted>`로 바꾸고 `secret_redacted`를 기록한다. 키가 없으면 실행하지 않고 실행할 명령을 남긴다.
+`OPENAI_API_KEY`에서 읽는다. 하네스는 키 값을 쓰지 않는다: `command.json`에는 변수 이름만 있고, run 기록(`run.json`)은 쓰기 전에
+모든 문자열에서 키를 `<redacted>`로 바꾼다. aelix가 끝난 뒤(그 뒤 하네스가 실패해도) run 디렉터리 아래의 **모든 파일**(`run.json`,
+`events.jsonl`, `stderr.txt`, `command.json`, `fake-requests.json`, `agent/`, 옮겨 온 `work/`의 프로젝트·입력)에서 키의 바이트를 찾아 같은
+길이의 표시(`<redacted***>`)로 덮어쓰고(Parquet 같은 이진 파일도 길이가 그대로), 찾은 파일을 `secret_redacted`에 적는다. 찾는 것은 키의
+바이트 그대로이며(다른 인코딩은 찾지 않음), 모델이 작업 루트 밖에 쓴 파일은 찾지 않는다(그런 경로를 쓴 호출은 `outside_work_root`).
+키가 없으면 실행하지 않고 실행할 명령을 남긴다.
 
 ## run 기록
 
 `OUT/runs/<과제>-<모델>-<표면>-<제안 조건>-r<반복>/`에 `run.json`(아래), `events.jsonl`(aelix `--mode json`의 사건 그대로),
-`stderr.txt`, `command.json`(argv·cwd·하네스가 정한 변수), `agent/`(aelix의 상태와 `models.json`), `work/`(모델이 일한 프로젝트와 입력)이
-남는다. `OUT/summary.json`과 그것에서 만든 `summary.md`가 run과 (모델, 과제, 표면, 조건)별 집계를 담는다.
+`stderr.txt`, `command.json`(argv·cwd·하네스가 정한 변수), `agent/`(aelix의 상태와 `models.json`), `work/`(모델이 일한 작업 루트: 프로젝트와
+입력, aelix가 끝난 뒤 옮겨 옴)이 남는다. `OUT/summary.json`과 그것에서 만든 `summary.md`가 run과 (모델, 과제, 표면, 조건)별 집계를 담는다.
 
 - **모델·서빙**: 설정 id, provider, model, API, thinking, backend와 버전, 양자화, digest, tokenizer, context, 출력 예약, 표본 추출, 서빙 확인
-  결과, 실제로 답한 모델(`observed_models`).
-- **호스트·kit**: aelix 버전, Python·플랫폼, checkout 경로·commit·dirty, kit 버전, 확장 파일 sha256, 이름 세대.
+  결과, 설정 파일 전체(`configuration`, 서버 환경 변수·가중치 blob·원본 revision 포함)와 그 sha256(정규화한 JSON과 파일 바이트), 실제로
+  답한 모델(`observed_models`).
+- **호스트·kit**: aelix 버전, Python·플랫폼, checkout 경로·commit·dirty, kit 버전, 확장 파일 sha256, 이름 세대. checkout이 자기 저장소의
+  최상위가 아니면(다른 저장소 안에 풀어 둔 사본 등) commit·dirty는 `null`이고 이유(`commit_reason`)를 적는다.
 - **조건**: 과제, 반복 번호, seed, fixture(종류·생성기 버전·digest), 표면, 제안 조건, 정답 상태, 제공된 도구 목록(dry-run에서 관측, 그 밖엔
   `--tools` 또는 aelix 기본).
-- **실행**: 시작·끝·걸린 시간, 종료 코드, 시간 초과, 요청과 답(턴마다), 모델 요청 수, 자동 재시도, 압축.
+- **실행**: 시작·끝·걸린 시간, 종료 코드, 시간 초과, 요청과 답(턴마다), 모델 요청 수, 자동 재시도, 압축, 작업 루트(`work.root`).
+  하네스가 aelix가 끝난 뒤 실패하면 `outcome: error`와 `harness_error`를 적은 기록을 남긴다.
 - **도구 호출**: 이름·역할·인자·결과 앞부분·`error_class`. 인자 오류는 `unknown_tool`(없는 도구), `schema`(aelix의 인자 검증 실패),
   `argument`(확장이 인자 때문에 거절한 오류 코드)의 합이다. `query_error`(SQL 실행 오류), `tool_error`, `run_failed`(스크립트가 실패한
-  분석 run)는 따로 센다. bash로 Python을 돌린 호출(`bash_python`)도 센다.
+  분석 run)는 따로 센다. bash로 Python을 돌린 호출(`bash_python`)도 센다. 인자의 경로가 작업 루트 밖을 가리키는 호출(절대 경로, `~`,
+  작업 루트 위로 가는 `../`; `/usr`·`/bin` 같은 시스템 프로그램과 기록 글·검색 패턴은 빼고)은 `outside_work_root`에 적고
+  `needs_review`로 둔다.
 - **토큰**: aelix가 assistant 메시지마다 남긴 API usage의 합. 로컬 Qwen(`openai-completions`): 비캐시 입력 = input − cache_read, 캐시
   입력 = cache_read, 출력 = output, 캐시 쓰기·reasoning은 `not_measured`(usage에 없거나 aelix가 읽지 않음). 프론티어(`openai-responses`):
   비캐시 입력 = input, 캐시 입력 = cache_read, reasoning(출력의 일부), 캐시 쓰기는 `not_measured`(aelix가 0으로 적을 뿐 읽지 않음). usage가
-  없는 요청이 있으면 `complete: false`와 `partial`. dry-run의 수는 스크립트가 정한 값이며 측정이 아니다.
-- **프로젝트의 변화**: 새 기록, 새 run(상태·차트), CONTEXT.md 변경, 실패한 run을 뒤의 run이 고쳤는지.
+  없는 요청이 있으면 `complete: false`와 `partial`이고, 어떤 요청의 usage에 없는 항목은 0이 아니라 `not_measured`다. 실패한 요청
+  (stop reason `error`·`aborted`)에 aelix가 채운 0은 보고로 세지 않는다. `per_request`는 요청마다 턴 번호와 usage, `per_turn`은 사람이 보낸
+  요청(턴)마다의 합이고, 제안 조건 `requested`에서는 덧붙인 제안 요청의 턴을 `proposal_request`로 따로 둔다. 전체 입력(`full_input`)은
+  `not_measured`다(aelix가 요청 본문을 사건으로 내지 않음). dry-run에서는 가짜 서버가 읽은 요청 본문의 도구 schema·시스템 지침 바이트
+  수를 `request_body`에 적고(같은 aelix·표면·checkout의 실제 요청과 도구 schema가 같다. 시스템 지침은 작업 경로처럼 run마다 다른 부분이
+  있다), 실제 모델에서는 `not_measured`다. dry-run의 토큰 수는
+  스크립트가 정한 값이며 측정이 아니다.
+- **프로젝트의 변화**: 새 기록, 새 run(상태·차트와 그 파일·데이터 열·출력 표의 행 수와 열), CONTEXT.md 변경, 실패한 run을 뒤의 run이
+  고쳤는지.
 - **채점**: `outcome`(`success`·`failure`·`error`·`timeout`·`not_run`), 검사별 결과, 필수 사실 회수율, 근거 검사, 답에 나온 없는 ID
   (`fabricated_ids`), 중대 오판(`critical`), 사람이 확인할 것(`needs_review`).
 
@@ -134,24 +153,47 @@ snapshot 없음, context 1,050,000, 최대 출력 128,000). aelix 0.1.0b2의 내
 
 정답 파일의 `checks`가 규칙이다. `kind`는 `fact`(필수 사실), `evidence`(근거 ID), `uncertainty`(한계·불확실성 표시), `state`(실행 뒤의
 프로젝트), `behavior`(도구 사용), `critical`(중대 오판)이다. 성공은 `required` 검사가 모두 통과하고 중대 오판이 없을 때다. 실패한
-실행도 분모에 남는다.
+실행도 분모에 남는다. 자동 검사는 **필요조건**이다: 통과는 정답의 낱말·값·ID·산출물이 있다는 뜻이지 분석이 바르다는 확인이 아니다.
+`needs_review`가 있는 run은 사람이 확정한다(#24).
 
-- 글 검사는 대소문자를 무시한 부분 문자열, 수는 천 단위 쉼표를 지운 수(허용 오차), 비율은 `%`가 붙은 수다. 기록 ID·run id는 ASCII 경계로
-  찾는다(`e41의`는 e41, `e410`은 아님).
-- 중대 오판(`stated_as_current`)은 패턴이 있는 줄에 정정·철회·부정이나 그 값의 원인을 말하는 낱말이 없으면 발생한다. 주장 판정
-  (`claim_verdicts`)은 각 ID가 나온 구간의 판정 표현을 본다. 둘 다 휴리스틱이라 발생하거나 애매한 것은 `needs_review`이고, 확정은
-  사람(#24)이 한다.
+- 답은 문단·줄·문장·절로 나눠 읽는다. 낱말은 대소문자를 무시하고, ASCII 낱말은 다른 낱말 안에서 시작하지 않는다(`correct`는 `incorrect`
+  안에 없음). 부정된 낱말(`미해결`, `해결되지 않은`, `not resolved`, `잘린 곳은 없`)과 물은 낱말(`남아 있는지`, `whether`)은 세지 않는다.
+  글 검사는 기록 ID·run id를 지우고 본다(`case-overwritten`의 `overwr`는 낱말이 아님).
+- 수는 부호를 지닌다(`-20.6%`는 20.6%가 아님). 천 단위 쉼표·(좁은) 띄어쓰기(`5 838`), 지수 표기(`5.838e3`), 한국어 단위(`3,258만 6,900원`,
+  `4억 4,596만 9,600`)를 읽는다. 값 바로 뒤의 부정(`5,838개가 아니라`, `is the old wrong count`)은 그 값을 말한 것으로 치지 않는다. 비율
+  검사는 `%`가 붙은 수와 소수로 쓴 비율(`0.118`)을 받는다. `number_near`는 값과 그 지표의 낱말을 묶는다: 값을 담은 가장 작은 절·문장
+  (·문단)에서 가장 가까운 앞쪽(또는 양쪽) 낱말이 자기 지표의 것이어야 한다(T09: 서울 값과 8월 전체 매출 값을 바꿔 쓰면 둘 다 실패,
+  T08: 20.6%에 가장 가까운 방향 낱말이 증가여야 함).
+- 중대 오판(`stated_as_current`)은 문장 단위다: 패턴이 부정되지 않고 물음이 아닌 채 나온 문장에, 부정되지 않은 정정·철회·원인 낱말
+  (`unless`)이나 그 기록을 닫은 기록 ID(T01의 `resolved_by`, 예: `e56 → e139`)가 없으면 발생한다. 패턴이 나온 문장은 발생하지 않았어도
+  모두 `needs_review`다.
+- 주장 판정(`claim_verdicts`)은 문장마다 판정 표현을 가장 긴 것부터 낱말 단위로 찾고(`not supported`·`뒷받침되지 않`이 `supported`·
+  `뒷받침`보다 먼저, 부정되면 뒷받침↔거짓), 접속어로만 이어진 ID들(`e15와 e20은 거짓`)이 판정을 나눠 가진다. 판정은 앞쪽의 가장 가까운
+  ID 묶음에, 판정이 머리에 오면(`Supported: e8`) 뒤의 묶음에 붙는다. 판정이 없는 ID 한 줄(제목)은 다음 ID 줄 전까지의 판정을 받는다.
+  한 주장에 판정이 둘 이상이면 실패이고 `needs_review`다. 맨 낱말 `뒷받침`은 홀로 쓰였을 때만(표 칸), 영어 형용사는 관사 뒤가 아닐 때만
+  판정이다(`the correct maximum`은 판정이 아님).
+- 답에 나온 없는 ID(`fabricated_ids`)는 실패로 치지 않고 `needs_review`로 둔다(휴리스틱이라). T12(자유 분석)는 정답의 `always_review`로
+  언제나 `needs_review`다. T12의 상태 검사는 활동 수만이 아니라 결과를 본다: 마지막 성공 run의 그림 하나가 네 센서를 모두 담는지(차트
+  spec 파일·데이터의 열과 글 값), 성공한 run이 시점별 점수 표(시점 열과 점수 열, 행 × 점수 열 ≥ 19,200)를 남겼는지(Parquet은 kit이 적은
+  행·열, CSV는 파일의 머리와 줄 수).
+- `summary.json`의 집계는 성공, 사람이 볼 것이 없는 성공(`success_without_review`), `needs_review`·`fabricated_ids`가 있는 run 수를 따로
+  세고, 토큰 중앙값은 모든 요청이 usage를 보고한 run만으로 낸다(`token_runs`, 뺀 run은 `partial_usage_runs`). `summary.md`는 부분 값에
+  `(partial)`을 붙이고, `not_run` 행의 칸은 모두 `—`다.
 - 모델의 자기평가는 쓰지 않는다. 같은 코드·같은 방법을 요구하지 않는다(T12는 결과물과 기록으로 본다).
 
 ## 격리
 
-신뢰 목록, uv(실제 uv로의 링크), aelix의 에이전트 디렉터리(`AELIX_CODING_AGENT_DIR`)와 세션 디렉터리가 모두 `OUT` 안에 있다. 옛 이름의
+신뢰 목록, uv(실제 uv로의 링크), aelix의 에이전트 디렉터리(`AELIX_CODING_AGENT_DIR`)와 세션 디렉터리가 모두 `OUT` 안에 있다. 모델이
+일하는 작업 루트는 `--work-root`(기본: 시스템 임시 디렉터리) 아래의 새 디렉터리로 `OUT` 밖에 있고 `project/`와 `input/`만 담는다:
+`../../`로 올라가도 fixture(정답이 든 `manifest.json`·`expected.json`)와 다른 run이 없다. aelix가 끝나면 작업 루트를 run의 `work/`로 옮긴다.
+모델은 bash로 기기의 다른 경로도 읽을 수 있으므로, 작업 루트 밖을 가리키는 호출은 `outside_work_root`와 `needs_review`로 남긴다. 옛 이름의
 변수(`AELIX_LAB_*`·`LAB_*`)와 호출자의 `AELIX_ANALYTICS_*`는 지운다. `~/.aelix`를 읽거나 쓰지 않는다. aelix는 `--no-session --offline
 --no-context-files`로 띄운다(작업 디렉터리 위의 AGENTS.md를 읽지 않음).
 
 ## 한계
 
-- 정답은 초안이다. 글 기반 판정은 휴리스틱이다.
+- 정답은 초안이다. 글 기반 판정은 휴리스틱이다(필요조건, `needs_review`는 사람이 확정). 정답은 seed 0 fixture에만 있다.
 - Q12의 파생·코드만 수정한 재계산·부모 버전 변경은 지표 기록(#14)이 없어 과제가 없다. Q5의 `always_on`은 kit의 설정(#17)이 생기면 실행한다.
-- aelix는 요청 본문(시스템 지침·도구 schema)을 사건으로 내지 않는다. 전체 입력의 크기는 API의 입력 토큰으로만 안다.
+- aelix는 요청 본문(시스템 지침·도구 schema)을 사건으로 내지 않는다. 실제 모델 run의 전체 입력 크기는 API의 입력 토큰으로만 알고, 그
+  본문의 바이트 수는 같은 조건의 dry-run이 남긴다.
 - 실제 모델 실행은 macOS(이 Mac)에서만 했다. dry-run 시험은 uv와 aelix 0.1.0b2를 쓸 수 있는 모든 플랫폼에서 돈다.

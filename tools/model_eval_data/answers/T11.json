@@ -9,7 +9,7 @@
     "seed": 0,
     "generator_version": 1
   },
-  "correct_completion": "실패한 run 20260916-214200-03-sample-zscores(AttributeError)는 실패하기 전에 data/derived/sample_scores.parquet와 data/derived/timepoint_profile.parquet, 차트 z-distribution·pressure-band를 남겼다(부분 산출물). 고친 run 20260916-214600-03-sample-zscores가 같은 경로에 두 파일을 다시 썼고, 지금 sample_scores.parquet의 바이트는 그 run의 출력과 같다.",
+  "correct_completion": "실패한 run 20260916-214200-03-sample-zscores(AttributeError)는 실패하기 전에 data/derived/sample_scores.parquet와 data/derived/timepoint_profile.parquet, 차트 z-distribution·pressure-band를 남겼다(부분 산출물, 차트는 그 run의 폴더에 그대로 있음). 고친 run 20260916-214600-03-sample-zscores가 같은 경로에 두 파일을 다시 썼는데 바이트는 실패한 run이 쓴 것과 같다(sample_scores.parquet sha256 be304de7…). 지금 sample_scores.parquet를 마지막으로 쓴 run은 20260916-214600-03-sample-zscores이다.",
   "evidence_ids": [
     "20260916-214200-03-sample-zscores",
     "20260916-214600-03-sample-zscores",
@@ -41,11 +41,17 @@
       "id": "producer",
       "kind": "fact",
       "type": "cooccur",
-      "all": [
-        "20260916-214600-03-sample-zscores",
-        "sample_scores"
+      "scope": "paragraph",
+      "any": [
+        [
+          "20260916-214600-03-sample-zscores",
+          "214600"
+        ],
+        [
+          "sample_scores"
+        ]
       ],
-      "what": "지금 바이트의 생산자(같은 줄)"
+      "what": "지금 바이트를 마지막으로 쓴 run(같은 문단)"
     },
     {
       "id": "cites",
@@ -56,6 +62,67 @@
         "20260916-214600-03-sample-zscores"
       ],
       "what": "두 run"
+    },
+    {
+      "id": "left-nothing",
+      "kind": "critical",
+      "type": "stated_as_current",
+      "pattern_kind": "ids",
+      "patterns": [
+        "20260916-214200-03-sample-zscores"
+      ],
+      "together": [
+        "남기지 않",
+        "남긴 것이 없",
+        "남긴 것은 없",
+        "남긴 것도 없",
+        "남긴 파일이 없",
+        "남긴 파일은 없",
+        "남긴 파일도 없",
+        "아무 파일도",
+        "아무것도",
+        "아무 차트도",
+        "산출물이 없",
+        "산출물은 없",
+        "산출물도 없",
+        "파일이 없",
+        "파일은 없",
+        "파일도 없",
+        "차트가 없",
+        "차트는 없",
+        "차트도 없",
+        "no files",
+        "no file",
+        "no charts",
+        "no chart",
+        "no outputs",
+        "no output",
+        "nothing",
+        "did not leave",
+        "didn't leave",
+        "left nothing",
+        "left no",
+        "produced nothing",
+        "no partial"
+      ],
+      "unless": [
+        "남겼",
+        "남긴 파일은 sample",
+        "썼",
+        "만들었",
+        "left two",
+        "left the",
+        "wrote",
+        "created",
+        "produced the",
+        "틀렸",
+        "잘못",
+        "사실이 아니",
+        "wrong",
+        "incorrect",
+        "not true"
+      ],
+      "what": "실패한 run이 아무것도 남기지 않았다고 말함"
     }
   ]
 }

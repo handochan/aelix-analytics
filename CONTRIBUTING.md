@@ -172,7 +172,9 @@ fixture를 cold로 둡니다. `tests/test_eval_fixtures.py`가 S·Q10·Q13을 �
 [실제 모델 평가 안내](tools/model_eval_data/README.md)). 하네스는 과제의 fixture를 위 생성기로 만들고, aelix 0.1.0b2를 `--mode json`으로
 띄워 이 checkout의 확장으로 과제를 실행한 뒤 도구 호출·인자 오류·토큰·프로젝트의 변화를 기록하고 정답 파일로 채점합니다. 모델 없이 전
 경로를 확인하는 dry-run(스크립트를 따르는 가짜 모델)은 `tests/test_model_eval.py`가 돌립니다(uv로 aelix 0.1.0b2를 받을 수 있을 때, 아니면
-건너뜀). 신뢰 목록·uv·aelix의 에이전트 디렉터리는 `--out` 안의 것만 쓰고 `~/.aelix`는 건드리지 않습니다.
+건너뜀). 채점 규칙은 리뷰어의 틀린 답·다르게 쓴 바른 답으로 `tests/test_model_eval_scoring.py`가 확인합니다. 신뢰 목록·uv·aelix의 에이전트
+디렉터리는 `--out` 안의 것만 쓰고, 모델이 일하는 작업 루트는 `--out` 밖(`--work-root`, 기본은 시스템 임시 디렉터리)에 만들었다가 aelix가
+끝나면 run 안으로 옮깁니다. `~/.aelix`는 건드리지 않습니다. 정답은 seed 0 fixture의 것이라 다른 `--seed`는 거절합니다.
 
 ```sh
 uv run --locked python tools/model_eval.py validate --fixtures <dir>
@@ -181,8 +183,10 @@ uv run --locked python tools/model_eval.py serving-check --model qwen3.8-27b-loc
 uv run --locked python tools/model_eval.py run --model qwen3.8-27b-local --task T06 --out <dir>
 ```
 
-프론티어 모델(`gpt-6-astra`)의 키는 `OPENAI_API_KEY`로만 받고 저장소·run 기록에 쓰지 않습니다. 키가 없으면 실행하지 않고(`not_run`, 종료
-코드 3) 실행할 명령을 남깁니다.
+프론티어 모델(`gpt-6-astra`)의 키는 `OPENAI_API_KEY`로만 받고 저장소에 쓰지 않습니다. 하네스는 run 기록을 쓰기 전에 키를 지우고,
+aelix가 끝난 뒤(하네스가 그 뒤 실패해도) run 디렉터리 아래의 모든 파일(`events.jsonl`·`stderr.txt`·`command.json`·`agent/`·`work/` 포함)에서
+키의 바이트를 같은 길이의 표시로 덮어씁니다. 모델이 작업 루트 밖에 쓴 파일은 찾지 않습니다([실제 모델 평가 안내](tools/model_eval_data/README.md#프론티어-모델)).
+키가 없으면 실행하지 않고(`not_run`, 종료 코드 3) 실행할 명령을 남깁니다.
 
 문서 검사 명령은 다음과 같습니다. `<run-id>`는 현재 작업의 실제 UUID로 바꿉니다.
 

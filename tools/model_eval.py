@@ -4,7 +4,8 @@
     python tools/model_eval.py serving-check --model ID
     python tools/model_eval.py run --model ID (--task ID ... | --all) --out DIR [--repeats N]
                                [--surface NAME] [--proposal NAME] [--checkout DIR] [--fixtures DIR]
-                               [--seed N] [--aelix-command CMD] [--timeout S] [--script FILE]
+                               [--work-root DIR] [--seed N] [--aelix-command CMD] [--timeout S]
+                               [--script FILE]
     python tools/model_eval.py score DIR
 
 Run it in the development environment, where the evaluation fixtures can be made:
@@ -13,17 +14,25 @@ Run it in the development environment, where the evaluation fixtures can be made
 
 The tasks, the answers, the model configurations and the conditions are files under
 tools/model_eval_data/ (README.md there says what each holds). Per run the harness makes the task's
-fixture with tools/eval_fixtures.py (seed fixed), copies only its project/ and input/ into the run's
-work directory (manifest.json and expected.json hold answers), starts the real aelix 0.1.0b2 in its
-JSON event mode with this checkout's extension (or another checkout's: --checkout), reads the
-events, and records the model and its serving, the host and kit versions, the conditions, every tool
-call and how it failed, the tokens the host reports, what changed in the project and the score.
+fixture with tools/eval_fixtures.py (seed fixed: the answers are written for one seed, and another
+--seed is refused), copies only its project/ and input/ into a new work root outside OUT
+(manifest.json and expected.json hold answers), starts the real aelix 0.1.0b2 in its JSON event mode
+there with this checkout's extension (or another checkout's: --checkout), moves the work root into
+the run's directory when aelix has exited, reads the events, and records the model and its whole
+serving configuration, the host and kit versions, the conditions, every tool call and how it failed,
+the tokens the host reports, what changed in the project and the score.
 
 Isolation: the trust list, uv (a link to the real one), aelix's agent directory (its models.json and
-state) and its session directory are inside OUT; the old names (AELIX_LAB_*, LAB_*) are unset. Nothing
-under ~/.aelix is read or written. An API key is read from the variable the model configuration
-names and is never written: command.json keeps variable names only, and every written file is
-checked for the key's value.
+state) and its session directory are inside OUT. The model works in a work root that is a new
+directory under --work-root (default: the system's temporary directory), never inside OUT, so the
+fixtures and the other runs are not next to it; tool calls whose paths leave the work root are listed
+in the record and set needs_review. The old names (AELIX_LAB_*, LAB_*) are unset. Nothing under
+~/.aelix is read or written. An API key is read from the variable the model configuration names and
+is never written by the harness: command.json keeps variable names only, the run record is redacted
+before it is written, and after every run, also one that failed after aelix exited, every file under
+the run's directory (run.json, events.jsonl, stderr.txt, command.json, fake-requests.json, agent/ and
+work/) is searched for the key's bytes, which are overwritten in place by a marker of the same length.
+A file the model wrote outside its work root is not searched.
 
 Tokens are what aelix records from the model API's usage (per assistant message). What the API or
 aelix does not report is `not_measured` with the reason; bytes and characters are never turned into
@@ -50,12 +59,14 @@ import shutil
 import statistics
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from functools import lru_cache
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -85,10 +96,13 @@ CHECK_KINDS = ("fact", "evidence", "uncertainty", "state", "behavior", "critical
 # Each check type with the keys it needs.
 CHECK_TYPES = {
     "text_any": ("values",), "text_all": ("values",), "number": ("value",), "percent": ("value",),
-    "number_near": ("value", "words"), "cooccur": ("all",), "claim_verdicts": ("claims",),
+    "number_near": ("value", "words"), "cooccur": (), "claim_verdicts": ("claims",),
     "ids_all": ("values",), "ids_any": ("values",), "stated_as_current": ("patterns", "unless"),
-    "new_records": (), "new_runs": (), "new_charts": (), "context_changed": (), "tool_called": ("role",),
+    "new_records": (), "new_runs": (), "new_charts": (), "chart_covers": ("values",),
+    "derived_table": ("min_cells", "time_columns", "score_columns"), "context_changed": (),
+    "tool_called": ("role",),
 }
+SCOPES = ("clause", "sentence", "line", "paragraph")
 VERDICTS = ("supported", "false", "unverified")
 ROLES = ("status", "query", "import", "run", "record", "init")
 OUTCOMES = ("success", "failure", "error", "timeout", "not_run")
@@ -128,8 +142,17 @@ RUN_REPLY = re.compile(r"^[a-z_]+_run: ([a-z_]+) — run ")
 
 RECORD_ID = re.compile(r"(?<![A-Za-z0-9_])e[0-9]+(?![A-Za-z0-9_])")
 RUN_ID = re.compile(r"(?<![A-Za-z0-9_])[0-9]{8}-[0-9]{6}-[a-z0-9][a-z0-9_-]*[a-z0-9]")
-NUMBER = re.compile(r"(?<![A-Za-z0-9_.,])[0-9][0-9,]*(?:\.[0-9]+)?")
-PERCENT = re.compile(r"(?<![A-Za-z0-9_.,])([0-9][0-9,]*(?:\.[0-9]+)?)\s*(?:%|퍼센트|percent)")
+# A number with its sign, thousands written with commas or (thin) spaces, a decimal part and an
+# exponent: -20.6, 5,838, 5 838, 5.838e3. A hyphen between digits (2026-08-01) is not a sign.
+NUMBER = re.compile(
+    r"(?:(?<![A-Za-z0-9_.,])([-−+]))?(?<![A-Za-z0-9_.,])"
+    r"((?:[0-9]{1,3}(?:,[0-9]{3})+|[0-9]{1,3}(?:[    ][0-9]{3})+(?![0-9])|[0-9]+)"
+    r"(?:\.[0-9]+)?)(?:[eE]([-+]?[0-9]{1,3}))?(?![0-9])")
+# One part of a Korean amount (3,258만 6,900원, 4억 4,596만 9,600, 3,258.69만): a number and its unit.
+KO_PART = re.compile(r"(?<![0-9.,])([0-9][0-9,]*(?:\.[0-9]+)?)\s*([조억만])")
+KO_UNITS = {"조": 10 ** 12, "억": 10 ** 8, "만": 10 ** 4}
+KO_TAIL = re.compile(r"\s*([0-9][0-9,]*(?:\.[0-9]+)?)(?![0-9,.]*\s*[조억만])")
+PERCENT_SIGN = re.compile(r"\s*(?:%p?|퍼센트|percent(?:age points?)?|pct|pp)(?![A-Za-z])", re.IGNORECASE)
 
 TOKEN_NOT_REPORTED = {
     "openai-completions": {
@@ -215,6 +238,7 @@ class Config:
     models: dict
     conditions: dict
     words: dict
+    model_files: dict = field(default_factory=dict)  # model id -> sha256 of its file's bytes
 
 
 def load_config(data: Path = DATA) -> Config:
@@ -225,9 +249,10 @@ def load_config(data: Path = DATA) -> Config:
     answers = {}
     for path in sorted((data / "answers").glob("*.json")):
         answers[path.stem] = read_json(path)
-    models = {}
+    models, model_files = {}, {}
     for path in sorted((data / "models").glob("*.json")):
         models[path.stem] = read_json(path)
+        model_files[path.stem] = sha256_file(path)
     problems += check_tasks(tasks_doc)
     tasks = {t["id"]: t for t in tasks_doc.get("tasks", []) if isinstance(t, dict) and "id" in t}
     problems += check_conditions(conditions)
@@ -241,7 +266,7 @@ def load_config(data: Path = DATA) -> Config:
         problems += [f"models/{model_id}.json: {p}" for p in check_model(model, model_id)]
     if problems:
         raise UsageError("invalid evaluation configuration:\n  " + "\n  ".join(problems))
-    return Config(tasks, tasks_doc["fixtures"], answers, models, conditions, words)
+    return Config(tasks, tasks_doc["fixtures"], answers, models, conditions, words, model_files)
 
 
 def check_tasks(doc) -> list[str]:
@@ -338,6 +363,10 @@ def check_answer(answer, task_id: str, tasks: dict, words: dict) -> list[str]:
         out.append("a confirmed answer names who confirmed it (confirmed_by)")
     if not str(answer.get("correct_completion") or "").strip():
         out.append("correct_completion is empty")
+    if "always_review" in answer and not str(answer["always_review"] or "").strip():
+        out.append("always_review, when present, says why a person reviews every run")
+    if not isinstance((answer.get("fixture") or {}).get("seed"), int):
+        out.append("fixture.seed is missing: an answer is written for one seed")
     checks = answer.get("checks")
     if not isinstance(checks, list) or not checks:
         return out + ["checks is empty"]
@@ -356,20 +385,37 @@ def check_answer(answer, task_id: str, tasks: dict, words: dict) -> list[str]:
         for key in CHECK_TYPES[ctype]:
             if key not in check:
                 out.append(f"check {cid}: {ctype} needs {key}")
+        if check.get("scope") is not None and check["scope"] not in SCOPES:
+            out.append(f"check {cid}: scope {check['scope']!r} is not one of {SCOPES}")
         if kind == "critical" and ctype != "stated_as_current":
             out.append(f"check {cid}: a critical check is a stated_as_current check")
         if ctype == "stated_as_current":
             unless = check.get("unless")
-            if isinstance(unless, str) and unless.startswith("@"):
-                name = unless[1:]
-                if name not in words and name != "superseded_or_reason":
+            if isinstance(unless, str):
+                name = unless[1:] if unless.startswith("@") else None
+                if name is None or (name not in words and name != "superseded_or_reason"):
                     out.append(f"check {cid}: unknown word set {unless}")
+            elif not isinstance(unless, list):
+                out.append(f"check {cid}: unless is a word set (@name) or a list of words")
             if check.get("pattern_kind", "regex") == "regex":
                 for pattern in check.get("patterns", []):
                     try:
                         re.compile(pattern)
                     except re.error as exc:
                         out.append(f"check {cid}: pattern {pattern!r} does not compile: {exc}")
+            for closed, resolver in (check.get("resolved_by") or {}).items():
+                if not (RECORD_ID.fullmatch(closed) and RECORD_ID.fullmatch(str(resolver))):
+                    out.append(f"check {cid}: resolved_by {closed} -> {resolver} is not two record ids")
+        if ctype == "cooccur" and not (check.get("all") or check.get("any")):
+            out.append(f"check {cid}: cooccur needs all (words) or any (groups of words)")
+        if ctype == "number_near" and check.get("prefer", "preceding") not in ("preceding", "nearest"):
+            out.append(f"check {cid}: prefer is preceding or nearest")
+        if ctype == "derived_table":
+            for key in ("time_columns", "score_columns"):
+                try:
+                    re.compile(str(check.get(key)))
+                except re.error as exc:
+                    out.append(f"check {cid}: {key} does not compile: {exc}")
         if ctype == "claim_verdicts":
             for claim, verdict in (check.get("claims") or {}).items():
                 if verdict not in VERDICTS or not RECORD_ID.fullmatch(claim):
@@ -412,7 +458,52 @@ def check_model(model, model_id: str) -> list[str]:
     return out
 
 
-# --- scoring --------------------------------------------------------------------------------------
+# --- reading an answer ----------------------------------------------------------------------------
+#
+# Heuristics, not understanding. An answer is cut into paragraphs, lines, sentences and clauses. A
+# word or a value counts where it is not negated (미해결, 해결되지 않은, not resolved, 46.8%가
+# 아니라) and not asked (해결됐는지, whether). A critical check that fires, and one whose pattern a
+# rescuing word let pass, set needs_review: a person confirms them (#24).
+
+SPLITTERS = {
+    "paragraph": re.compile(r"\n[ \t]*\n"),
+    "line": re.compile(r"\n"),
+    "sentence": re.compile(r"\n|(?<=[.!?。？])\s+"),
+    "clause": re.compile(r"\n|(?<=[.!?。？])\s+|[,;]\s+|:\s+|\s[—–]\s"),
+}
+CLAUSE_BOUNDARY = re.compile(r"\n|(?<=[.!?。？])\s|,\s|;|:\s|\s[—–]\s")
+STRIP = ".,!?\"'`*()[]{}<>“”‘’「」『』|"
+# Korean and English negation: after a word (해결되지 않은, 맞지 않다, 사실이 아니다, 안 됨, is not) or
+# before it (not resolved, never, 안 맞다, 미해결).
+NEG_KO = ("않", "아니", "못", "없", "안되", "안돼", "안됐", "안됨", "안된", "안해", "안했", "안함")
+NEG_EN = frozenset({"not", "never", "no", "cannot", "nor", "without"})
+# A word that ends its own clause: the window of a value's or a word's predicate stops after it.
+CONNECTIVE_KO = ("고", "며", "지만", "는데", "으나")
+CONNECTIVE_EN = frozenset({"and", "but", "while", "whereas", "because", "since", "which", "although",
+                           "though"})
+# What says a value is not the answer, right after it (5,838이 아니라, 46.8% is wrong).
+DENY_KO = ("아니", "않", "틀렸", "틀린", "틀립", "틀리다")
+DENY_EN = frozenset({"not", "never", "wrong", "incorrect", "false"})
+QUESTION_KO = re.compile(r"(는지|은지|인지|을지|할지|될지|는가|은가|인가)")
+# Verdict words that are a verdict only on their own: 뒷받침 as a whole word, not 뒷받침하는 근거;
+# English adjectives not after a determiner (the correct maximum is not a verdict on the claim).
+BARE_ONLY = frozenset({"뒷받침"})
+ATTRIBUTIVE = frozenset({"correct", "incorrect", "true", "untrue", "false", "wrong", "consistent",
+                         "inconsistent", "supported", "unsupported", "confirmed", "unknown"})
+DETERMINERS = frozenset({"the", "a", "an", "this", "that", "these", "those", "its", "their", "his",
+                         "her", "our", "any"})
+# A verdict that heads its claims (Supported: e8) instead of following one (e8: supported).
+HEADING = re.compile(r"\s*\**\s*[:：]\s*\**\s*e[0-9]+(?![0-9A-Za-z_])")
+# What may stand between two claim ids that share one verdict (e15와 e20은, e15(…), e20).
+JOINER = re.compile(r"\s*\**\s*(?:\([^()]*\))?\s*\**\s*(?:,|와|과|및|and|&|/|·|、|or|또는)?\s*",
+                    re.IGNORECASE)
+SYSTEM_PATHS = ("/usr/", "/bin/", "/sbin/", "/dev/null", "/dev/stdin", "/dev/stdout", "/dev/stderr",
+                "/opt/homebrew/", "/System/", "/Library/")
+PATH_SPLIT = re.compile(r"[\s'\"`;|&<>()=,]+")
+# Tool arguments that hold prose or a search pattern, not a path.
+PROSE_KEYS = frozenset({"text", "title", "goal", "pattern", "regex", "summary", "caption",
+                        "description", "message"})
+
 
 def words_of(spec, words: dict, extra=()) -> list[str]:
     if isinstance(spec, str) and spec.startswith("@"):
@@ -428,19 +519,362 @@ def contains_any(text: str, values) -> list[str]:
     return [v for v in values if v.casefold() in low]
 
 
-def numbers_in(text: str) -> list[float]:
-    out = []
-    for match in NUMBER.finditer(text):
-        raw = match.group(0).rstrip(",").replace(",", "")
-        with contextlib.suppress(ValueError):
-            out.append(float(raw))
+def segments(text: str, scope: str) -> list[tuple[int, int]]:
+    """(start, end) of each non-empty paragraph, line, sentence or clause of text."""
+    out, pos = [], 0
+    for m in SPLITTERS[scope].finditer(text):
+        if text[pos:m.start()].strip():
+            out.append((pos, m.start()))
+        pos = m.end()
+    if text[pos:].strip():
+        out.append((pos, len(text)))
     return out
 
 
+def containing(spans: list[tuple[int, int]], pos: int, default: tuple[int, int]) -> tuple[int, int]:
+    return next(((s, e) for s, e in spans if s <= pos < e), default)
+
+
+def clause_of(seg: str, start: int, end: int) -> tuple[int, int]:
+    left = 0
+    for m in CLAUSE_BOUNDARY.finditer(seg, 0, start):
+        left = m.end()
+    m = CLAUSE_BOUNDARY.search(seg, end)
+    return left, (m.start() if m else len(seg))
+
+
+def words_after(seg: str, end: int, limit: int, *, stop_at_number: bool = False) -> tuple[str, list[str]]:
+    """The rest of the word `end` is in, and up to `limit` following words of its clause. A word that
+    ends a clause of its own (…고, …며, and, because) is the last; with stop_at_number a word that is
+    another value ends the window before it."""
+    _, right = clause_of(seg, end, end)
+    tail = seg[end:right]
+    pieces = tail.split()
+    rest = pieces.pop(0) if pieces and tail[:1] and not tail[0].isspace() else ""
+    out = []
+    for piece in pieces:
+        if len(out) >= limit:
+            break
+        word = piece.strip(STRIP)
+        if stop_at_number and re.match(r"[-−+]?[0-9]", word):
+            break
+        out.append(word)
+        if word.endswith(CONNECTIVE_KO) or word.lower() in CONNECTIVE_EN:
+            break
+    return rest, out
+
+
+def words_before(seg: str, start: int, limit: int) -> tuple[str, list[str]]:
+    """The part of the word before `start` (미 of 미해결), and up to `limit` words before it in the
+    clause."""
+    left, _ = clause_of(seg, start, start)
+    head = seg[left:start]
+    pieces = head.split()
+    attached = pieces.pop() if pieces and head[-1:] and not head[-1].isspace() else ""
+    return attached, [p.strip(STRIP) for p in pieces[-limit:]] if limit else []
+
+
+def is_hangul(ch: str) -> bool:
+    return "가" <= ch <= "힣"
+
+
+def negated(seg: str, start: int, end: int) -> bool:
+    """Whether the word at seg[start:end] is negated in its clause."""
+    attached, before = words_before(seg, start, 3)
+    if attached.endswith("미") and is_hangul(seg[start:start + 1] or " "):
+        return True
+    if any(w.lower() in NEG_EN or w.lower().endswith("n't") for w in before):
+        return True
+    if before and before[-1] in ("안", "못") and not attached:
+        return True
+    rest, after = words_after(seg, end, 3)
+    if any(n in rest for n in NEG_KO):
+        return True
+    return any(w.startswith(NEG_KO) or w == "안" or w.lower() in ("not", "never")
+               or w.lower().endswith("n't") for w in after)
+
+
+def asked(seg: str, start: int, end: int) -> bool:
+    """Whether the word is asked about rather than said (온전히 남아 있는지, whether it is intact)."""
+    rest, _ = words_after(seg, end, 0)
+    if QUESTION_KO.search(rest):
+        return True
+    _, before = words_before(seg, start, 4)
+    return any(w.lower() in ("whether", "if") for w in before)
+
+
+def denied(seg: str, start: int, end: int) -> bool:
+    """Whether the value at seg[start:end] is said not to be the answer, right after it."""
+    rest, after = words_after(seg, end, 4, stop_at_number=True)
+    if any(d in rest for d in DENY_KO):
+        return True
+    return any(w.startswith(DENY_KO) or w.lower() in DENY_EN or w.lower().endswith("n't")
+               for w in after)
+
+
+@lru_cache(maxsize=1024)
+def phrase_pattern(phrases: tuple[str, ...], whole: bool) -> re.Pattern | None:
+    """One pattern for all phrases, the longest first. An ASCII phrase does not start inside a word
+    (correct is not in incorrect); with whole it does not end inside one either."""
+    items = sorted({p for p in phrases if p and p.strip()}, key=len, reverse=True)
+    if not items:
+        return None
+    parts = []
+    for p in items:
+        body = re.escape(p)
+        if p[0].isascii() and p[0].isalnum():
+            body = r"(?<![A-Za-z0-9])" + body
+        if whole and p[-1].isascii() and p[-1].isalnum():
+            body += r"(?![A-Za-z])"
+        parts.append(body)
+    return re.compile("|".join(parts), re.IGNORECASE)
+
+
+def find_phrases(seg: str, phrases, *, negation: bool = False, questions: bool = False,
+                 whole: bool = False) -> list[tuple[int, int, str]]:
+    """The phrases found in one segment; negated or asked ones are left out when asked to."""
+    pattern = phrase_pattern(tuple(phrases), whole)
+    if pattern is None:
+        return []
+    out = []
+    for m in pattern.finditer(seg):
+        if negation and negated(seg, m.start(), m.end()):
+            continue
+        if questions and asked(seg, m.start(), m.end()):
+            continue
+        out.append((m.start(), m.end(), m.group(0)))
+    return out
+
+
+def phrases_in(text: str, phrases, *, negation: bool = False) -> list[str]:
+    """The phrases found anywhere in text (negation read per sentence)."""
+    found = []
+    for s, e in segments(text, "sentence"):
+        found += [p for _, _, p in find_phrases(text[s:e], phrases, negation=negation)]
+    return found
+
+
+def masked(text: str) -> str:
+    """Record and run ids blanked: a word check must not be passed by an id (case-overwritten)."""
+    text = RUN_ID.sub(lambda m: "□" * len(m.group(0)), text)
+    return RECORD_ID.sub(lambda m: "□" * len(m.group(0)), text)
+
+
+# --- numbers --------------------------------------------------------------------------------------
+
+def ko_amounts(seg: str) -> list[tuple[float, int, int]]:
+    """Korean amounts written with 조·억·만, each as one value: 4억 4,596만 9,600 is 445,969,600."""
+    parts = list(KO_PART.finditer(seg))
+    out, i = [], 0
+    while i < len(parts):
+        start, end, total, last, j = parts[i].start(), parts[i].end(), 0.0, None, i
+        while j < len(parts):
+            m = parts[j]
+            if last is not None and (seg[end:m.start()].strip() or KO_UNITS[m.group(2)] >= KO_UNITS[last]):
+                break
+            total += float(m.group(1).replace(",", "")) * KO_UNITS[m.group(2)]
+            last, end, j = m.group(2), m.end(), j + 1
+        tail = KO_TAIL.match(seg, end)
+        if tail:
+            value = float(tail.group(1).replace(",", ""))
+            if value < KO_UNITS[last]:
+                total, end = total + value, tail.end()
+        out.append((total, start, end))
+        i = j
+    return out
+
+
+def number_spans(seg: str) -> list[tuple[float, int, int, str]]:
+    """Every number in seg with its sign, as (value, start, end, text); a Korean amount is one more
+    value spanning its parts."""
+    out = []
+    for m in NUMBER.finditer(seg):
+        sign, body, exponent = m.group(1), m.group(2), m.group(3)
+        digits = re.sub(r"[,\s   ]", "", body)
+        with contextlib.suppress(ValueError, OverflowError):
+            value = float(digits + (f"e{exponent}" if exponent else ""))
+            out.append((-value if sign in ("-", "−") else value, m.start(), m.end(), m.group(0)))
+    out += [(v, s, e, seg[s:e]) for v, s, e in ko_amounts(seg)]
+    return out
+
+
+def percent_spans(seg: str, *, fractions: bool = True) -> list[tuple[float, int, int, str]]:
+    """Percentages in seg (in percent: 11.8 for 11.8%); with fractions a written fraction such as
+    0.118 counts as 11.8."""
+    out = []
+    for value, start, end, raw in number_spans(seg):
+        sign = PERCENT_SIGN.match(seg, end)
+        if sign:
+            out.append((value, start, sign.end(), seg[start:sign.end()]))
+        elif fractions and "." in raw and abs(value) < 1 and not re.search(r"[eE조억만]", raw):
+            out.append((value * 100, start, end, raw))
+    return out
+
+
+def numbers_in(text: str) -> list[float]:
+    return [v for v, *_ in number_spans(text)]
+
+
 def number_matches(found: float, value: float, check: dict) -> bool:
+    slack = 1e-9 * max(1.0, abs(value))
     if "rel_tol" in check:
-        return abs(found - value) <= abs(value) * float(check["rel_tol"])
-    return abs(found - value) <= float(check.get("abs_tol", 0))
+        return abs(found - value) <= abs(value) * float(check["rel_tol"]) + slack
+    return abs(found - value) <= float(check.get("abs_tol", 0)) + slack
+
+
+def asserted_values(text: str, check: dict, *, percent: bool) -> list[tuple[int, int, int, int]]:
+    """Where the check's value is said (not denied right after it): (paragraph start, paragraph end,
+    start, end), start and end within the paragraph."""
+    if percent:
+        want, tol = float(check["value"]) * 100, float(check.get("abs_tol_pp", 0.1))
+    out = []
+    for ps, pe in segments(text, "paragraph"):
+        para = text[ps:pe]
+        sentences = segments(para, "sentence")
+        spans = percent_spans(para, fractions=check.get("fractions", True)) if percent else number_spans(para)
+        for value, start, end, _ in spans:
+            ok = abs(value - want) <= tol + 1e-9 if percent else number_matches(value, float(check["value"]), check)
+            if not ok:
+                continue
+            ss, se = containing(sentences, start, (0, len(para)))
+            if denied(para[ss:se], start - ss, end - ss):
+                continue
+            out.append((ps, pe, start, end))
+    return out
+
+
+def bound_to_words(text: str, check: dict, *, percent: bool) -> list[str]:
+    """Where the value is said with its own words nearest: in the smallest of clause, sentence (and
+    paragraph, when the check's scope is paragraph) that holds any of `words` or `against`, the
+    nearest preceding one decides (`prefer: nearest`: the nearest either side)."""
+    own, against = check["words"], check.get("against") or []
+    scopes = ["clause", "sentence"] + (["paragraph"] if check.get("scope") == "paragraph" else [])
+    prefer = check.get("prefer", "preceding")
+    found = []
+    for ps, pe, rel_s, rel_e in asserted_values(text, check, percent=percent):
+        para = text[ps:pe]
+        decided = None
+        for scope in scopes:
+            lo, hi = containing(segments(para, scope), rel_s, (0, len(para))) if scope != "paragraph" \
+                else (0, len(para))
+            seg = para[lo:hi]
+            marks = [(s + lo, e + lo, "own") for s, e, _ in find_phrases(seg, own, negation=True)]
+            marks += [(s + lo, e + lo, "against") for s, e, _ in find_phrases(seg, against, negation=True)]
+            if not marks:
+                continue
+            if prefer == "nearest":
+                decided = min(marks, key=lambda m: rel_s - m[1] if m[1] <= rel_s else m[0] - rel_e)[2]
+            else:
+                before = [m for m in marks if m[1] <= rel_s]
+                decided = (max(before, key=lambda m: m[1]) if before
+                           else min(marks, key=lambda m: m[0]))[2]
+            break
+        if decided == "own":
+            found.append(para[max(0, rel_s - 60):rel_e + 20].strip())
+    return found
+
+
+# --- claims and verdicts --------------------------------------------------------------------------
+
+def verdict_marks(seg: str, words: dict) -> list[tuple[int, int, str, bool]]:
+    """Verdict phrases in one sentence: (start, end, verdict, heading). The longest phrase wins
+    (뒷받침되지 않 over 뒷받침, not supported over supported), ASCII ones as whole words; a negated
+    one turns supported into false and back (not correct, 거짓이 아니다), an asked one is left out."""
+    phrases: dict[str, str] = {}
+    for verdict in VERDICTS:
+        for w in words.get(f"verdict_{verdict}", []):
+            phrases.setdefault(w.casefold(), verdict)
+    out = []
+    for start, end, text in find_phrases(seg, list(phrases), questions=True, whole=True):
+        verdict = phrases.get(text.casefold())
+        rest, _ = words_after(seg, end, 0)
+        if text in BARE_ONLY and rest.strip(STRIP):
+            continue  # 뒷받침하는 근거 is not a verdict; a bare 뒷받침 (a table cell) is
+        _, before = words_before(seg, start, 1)
+        if text.casefold() in ATTRIBUTIVE and before and before[-1].lower() in DETERMINERS:
+            continue  # the correct maximum, a false impression: a word about something else
+        if verdict and negated(seg, start, end):
+            verdict = {"supported": "false", "false": "supported"}.get(verdict)
+        if verdict:
+            out.append((start, end, verdict, bool(HEADING.match(seg, end))))
+    return out
+
+
+def claim_verdicts(text: str, claims, words: dict) -> tuple[dict[str, set], dict[str, bool]]:
+    """The verdicts said for each claim id. Per sentence, ids that only a joiner separates (e15와
+    e20) share one verdict; a verdict goes to the nearest group before it, or to the next one when it
+    heads them (Supported: e8) or no group precedes it. A lone id whose sentence has no verdict (a
+    heading line) takes the verdicts of the sentences after it, up to the next sentence with an id."""
+    info = []
+    mentioned = {c: False for c in claims}
+    for s, e in segments(text, "sentence"):
+        seg = text[s:e]
+        mentions = sorted((m.start(), m.end(), c) for c in claims for m in id_pattern(c).finditer(seg))
+        groups: list[dict] = []
+        for start, end, claim in mentions:
+            mentioned[claim] = True
+            if groups and JOINER.fullmatch(seg[groups[-1]["end"]:start]):
+                groups[-1]["claims"].add(claim)
+                groups[-1]["end"] = end
+            else:
+                groups.append({"start": start, "end": end, "claims": {claim}, "verdicts": set()})
+        loose = set()
+        for start, end, verdict, heading in verdict_marks(seg, words):
+            after = next((g for g in groups if g["start"] >= end), None)
+            before = [g for g in groups if g["end"] <= start]
+            target = after if heading else (before[-1] if before else after)
+            if target is None:
+                loose.add(verdict)
+            else:
+                target["verdicts"].add(verdict)
+        info.append((groups, loose))
+    for i, (groups, _) in enumerate(info):
+        for group in groups:
+            if group["verdicts"] or len(group["claims"]) != 1:
+                continue
+            for later_groups, later_loose in info[i + 1:]:
+                if later_groups:
+                    break
+                group["verdicts"] |= later_loose
+    detected: dict[str, set] = {c: set() for c in claims}
+    for groups, _ in info:
+        for group in groups:
+            for claim in group["claims"]:
+                detected[claim] |= group["verdicts"]
+    return detected, mentioned
+
+
+def stated_as_current(check: dict, text: str, words: dict) -> tuple[list[str], list[str]]:
+    """The segments (sentences by default) that state a pattern as current, and all that mention it.
+    A pattern counts where it is not asked, and (unless it is an id) not negated; a check with
+    `together` needs one of those words in the segment too. A segment is let pass by an `unless`
+    word that is not negated, or for an id by its `resolved_by` id."""
+    scope = check.get("scope", "sentence")
+    unless = words_of(check["unless"], words, check.get("reason_words", ()))
+    together = check.get("together") or []
+    resolved_by = check.get("resolved_by") or {}
+    ids = check.get("pattern_kind") == "ids"
+    patterns = [(p, id_pattern(p) if ids else re.compile(p, re.IGNORECASE)) for p in check["patterns"]]
+    fired, mentioned = [], []
+    for s, e in segments(text, scope):
+        seg = text[s:e]
+        if seg.rstrip().rstrip("*").endswith(("?", "？")):
+            continue
+        hits = []
+        for name, pattern in patterns:
+            for m in pattern.finditer(seg):
+                if asked(seg, m.start(), m.end()) or (not ids and negated(seg, m.start(), m.end())):
+                    continue
+                hits.append(name)
+        if not hits or (together and not find_phrases(seg, together, negation=True)):
+            continue
+        mentioned.append(seg.strip()[:200])
+        if find_phrases(seg, unless, negation=True, questions=True):
+            continue
+        resolver = {h: resolved_by.get(h) for h in hits}
+        if any(not (r and id_present(seg, str(r))) for r in resolver.values()):
+            fired.append(seg.strip()[:200])
+    return fired, mentioned
 
 
 def id_pattern(value: str) -> re.Pattern:
@@ -453,19 +887,47 @@ def id_present(text: str, value: str) -> bool:
     return bool(id_pattern(value).search(text))
 
 
-def claim_segments(text: str, claims) -> dict[str, str]:
-    """For each claim id, the text from each of its mentions to the next mention of another claim."""
-    marks = sorted((m.start(), claim) for claim in claims for m in id_pattern(claim).finditer(text))
-    out: dict[str, list[str]] = {claim: [] for claim in claims}
-    for i, (start, claim) in enumerate(marks):
-        end = len(text)
-        for later, other in marks[i + 1:]:
-            if other != claim:
-                end = later
-                break
-        out[claim].append(text[start:end])
-    return {claim: "\n".join(parts) for claim, parts in out.items()}
+# --- the project's results ------------------------------------------------------------------------
 
+def chart_text(project: Path | None, chart: dict) -> str:
+    """What a chart holds as text: its spec files (JSON, HTML, SVG), its data's column names and the
+    data's text values (when polars can read it)."""
+    parts = [" ".join(str(c) for c in chart.get("data_columns") or [])]
+    if project is None:
+        return parts[0]
+    for rel in (chart.get("files") or {}).values():
+        path = project / str(rel)
+        if path.suffix.lower() in (".json", ".html", ".svg", ".htm") and path.is_file() \
+                and path.stat().st_size <= 50_000_000:
+            parts.append(path.read_text(encoding="utf-8", errors="replace"))
+    data = project / str(chart["data"]) if chart.get("data") else None
+    if data is not None and data.is_file():
+        with contextlib.suppress(Exception):  # polars missing or the file unreadable: spec only
+            import polars as pl
+
+            frame = pl.read_parquet(data)
+            for name, dtype in frame.schema.items():
+                if dtype == pl.String:
+                    parts.append(" ".join(str(v) for v in frame[name].unique().head(10_000).to_list()))
+    return "\n".join(parts)
+
+
+def table_shape(project: Path | None, output: dict) -> tuple[int | None, list[str]]:
+    """Rows and column names of a table a run wrote: the kit records them for Parquet; a CSV file is
+    read (its header and line count)."""
+    if output.get("schema") is not None:
+        return output.get("rows"), [str(c[0]) for c in output["schema"]]
+    path = project / str(output.get("path")) if project is not None and output.get("path") else None
+    if path is None or path.suffix.lower() != ".csv" or not path.is_file() \
+            or path.stat().st_size > 500_000_000:
+        return None, []
+    with open(path, encoding="utf-8", errors="replace", newline="") as f:
+        header = f.readline().strip().split(",")
+        rows = sum(1 for line in f if line.strip())
+    return rows, [h.strip().strip('"') for h in header]
+
+
+# --- scoring --------------------------------------------------------------------------------------
 
 @dataclass
 class Evidence:
@@ -476,6 +938,7 @@ class Evidence:
     tools: dict
     state: dict
     existing_ids: set
+    project: Path | None = None
 
 
 def run_check(check: dict, ev: Evidence, words: dict) -> dict:
@@ -484,45 +947,38 @@ def run_check(check: dict, ev: Evidence, words: dict) -> dict:
     result: dict = {"id": check["id"], "kind": check["kind"], "type": ctype,
                     "required": check.get("required", True), "what": check.get("what")}
     passed, detail, review = False, None, False
-    if ctype == "text_any":
-        hits = contains_any(text, check["values"])
-        passed, detail = bool(hits), {"found": hits}
-    elif ctype == "text_all":
-        hits = contains_any(text, check["values"])
-        missing = [v for v in check["values"] if v not in hits]
-        passed, detail = not missing, {"missing": missing}
-    elif ctype == "number":
-        found = [n for n in numbers_in(text) if number_matches(n, float(check["value"]), check)]
-        passed, detail = bool(found), {"found": found[:5]}
-    elif ctype == "percent":
-        tol = float(check.get("abs_tol_pp", 0.1))
-        want = abs(float(check["value"])) * 100
-        found = []
-        for match in PERCENT.finditer(text):
-            with contextlib.suppress(ValueError):
-                value = float(match.group(1).replace(",", ""))
-                if abs(value - want) <= tol + 1e-9:
-                    found.append(match.group(0))
-        passed, detail = bool(found), {"found": found[:5]}
+    if ctype in ("text_any", "text_all"):
+        hits = phrases_in(masked(text), check["values"], negation=check.get("negation", False))
+        folded = {h.casefold() for h in hits}
+        if ctype == "text_any":
+            passed, detail = bool(hits), {"found": sorted(set(hits))[:10]}
+        else:
+            missing = [v for v in check["values"] if v.casefold() not in folded]
+            passed, detail = not missing, {"missing": missing}
+    elif ctype in ("number", "percent"):
+        found = asserted_values(text, check, percent=ctype == "percent")
+        passed = bool(found)
+        detail = {"found": [text[ps + s:ps + e] for ps, _, s, e in found][:5]}
     elif ctype == "number_near":
-        lines = [line for line in text.splitlines()
-                 if contains_any(line, check["words"])
-                 and any(number_matches(n, float(check["value"]), check) for n in numbers_in(line))]
-        passed, detail = bool(lines), {"lines": [line[:160] for line in lines[:3]]}
+        found = bound_to_words(text, check, percent=bool(check.get("percent")))
+        passed, detail = bool(found), {"found": [f[:160] for f in found[:3]]}
     elif ctype == "cooccur":
-        lines = [line for line in text.splitlines()
-                 if all(v.casefold() in line.casefold() for v in check["all"])]
-        passed, detail = bool(lines), {"lines": [line[:160] for line in lines[:3]]}
+        negation = check.get("negation", False)
+        hits = []
+        for s, e in segments(text, check.get("scope", "sentence")):
+            seg = text[s:e]
+            if all(find_phrases(seg, [w], negation=negation) for w in check.get("all", [])) and \
+                    all(find_phrases(seg, group, negation=negation) for group in check.get("any", [])):
+                hits.append(seg.strip()[:160])
+        passed, detail = bool(hits), {"segments": hits[:3]}
     elif ctype == "claim_verdicts":
-        segments = claim_segments(text, list(check["claims"]))
+        detected, mentioned = claim_verdicts(text, list(check["claims"]), words)
         per = {}
         for claim, expected in check["claims"].items():
-            segment = segments.get(claim, "")
-            seen = [v for v in VERDICTS if contains_any(segment, words.get(f"verdict_{v}", []))]
-            ok = expected in seen
-            per[claim] = {"expected": expected, "detected": seen, "mentioned": bool(segment),
-                          "passed": ok}
-            if ok and len(seen) > 1:
+            seen = [v for v in VERDICTS if v in detected[claim]]
+            per[claim] = {"expected": expected, "detected": seen, "mentioned": mentioned[claim],
+                          "passed": seen == [expected]}
+            if len(seen) > 1:
                 review = True
         passed, detail = all(p["passed"] for p in per.values()), {"claims": per}
         review = review or not passed
@@ -537,23 +993,17 @@ def run_check(check: dict, ev: Evidence, words: dict) -> dict:
         else:
             passed, detail = len(cited) >= int(check.get("min", 1)), {"cited": cited}
     elif ctype == "stated_as_current":
-        unless = words_of(check["unless"], words, check.get("reason_words", ()))
-        if check.get("pattern_kind") == "ids":
-            patterns = [id_pattern(v) for v in check["patterns"]]
-        else:
-            patterns = [re.compile(p, re.IGNORECASE) for p in check["patterns"]]
-        fired = []
-        for line in text.splitlines():
-            if any(p.search(line) for p in patterns) and not contains_any(line, unless):
-                fired.append(line.strip()[:200])
-        # A critical check passes when it does not fire.
-        passed, detail = not fired, {"lines": fired[:5]}
-        review = bool(fired)
+        fired, mentioned = stated_as_current(check, text, words)
+        # A critical check passes when it does not fire; every mention is for a person to read.
+        passed, detail = not fired, {"fired": fired[:5], "mentioned": mentioned[:5]}
+        review = bool(mentioned)
     elif ctype == "new_records":
         records = [r for r in ev.state.get("new_records", [])
                    if not check.get("kinds") or r.get("kind") in check["kinds"]]
-        if check.get("text_any"):
-            records = [r for r in records if contains_any(str(r.get("text", "")), check["text_any"])]
+        if check.get("text_any") or check.get("percent"):
+            records = [r for r in records if (check.get("text_any") and contains_any(
+                str(r.get("text", "")), check["text_any"])) or (check.get("percent") and asserted_values(
+                    str(r.get("text", "")), check["percent"], percent=True))]
         passed = len(records) >= int(check.get("min", 1))
         detail = {"records": [r.get("id") for r in records]}
     elif ctype == "new_runs":
@@ -566,6 +1016,35 @@ def run_check(check: dict, ev: Evidence, words: dict) -> dict:
             ok_runs = ok_runs[-1:]
         charts = [c for r in ok_runs for c in r.get("charts", [])]
         passed, detail = len(charts) >= int(check.get("min", 1)), {"charts": charts[:20]}
+    elif ctype == "chart_covers":
+        ok_runs = [r for r in ev.state.get("new_runs", []) if r.get("status") == "ok"]
+        if check.get("last_run", True):
+            ok_runs = ok_runs[-1:]
+        covering, seen = [], {}
+        for run in ok_runs:
+            for chart in run.get("chart_files") or []:
+                body = chart_text(ev.project, chart).casefold()
+                has = [v for v in check["values"] if v.casefold() in body]
+                seen[f"{run['id']}::{chart.get('id')}"] = has
+                if len(has) == len(check["values"]):
+                    covering.append(f"{run['id']}::{chart.get('id')}")
+        passed, detail = bool(covering), {"covering": covering, "charts": seen}
+    elif ctype == "derived_table":
+        time_re, score_re = re.compile(check["time_columns"]), re.compile(check["score_columns"])
+        tables = []
+        for run in ev.state.get("new_runs", []):
+            if run.get("status") != "ok":
+                continue
+            for output in run.get("outputs") or []:
+                rows, columns = table_shape(ev.project, output)
+                scores = [c for c in columns if score_re.search(c)]
+                times = [c for c in columns if time_re.search(c)]
+                cells = (rows or 0) * len(scores)
+                entry = {"run": run["id"], "path": output.get("path"), "rows": rows, "time": times,
+                         "scores": scores, "cells": cells}
+                if times and scores and cells >= int(check["min_cells"]):
+                    tables.append(entry)
+        passed, detail = bool(tables), {"tables": tables[:5]}
     elif ctype == "context_changed":
         kinds = check.get("or_new_records") or []
         records = [r["id"] for r in ev.state.get("new_records", []) if r.get("kind") in kinds]
@@ -595,7 +1074,13 @@ def score(answer: dict, ev: Evidence, words: dict, extra_checks=()) -> dict:
     facts = [c for c in checks if c["kind"] == "fact"]
     evidence = [c for c in checks if c["kind"] == "evidence"]
     success = all(c["passed"] for c in required) and not critical
-    return {
+    fabricated = fabricated_ids(ev.text, ev.existing_ids)
+    review = [c["id"] for c in checks if c.get("needs_review")]
+    if fabricated:
+        review.append("fabricated_ids")
+    if answer.get("always_review"):
+        review.append("always_review")
+    out = {
         "answer_status": answer["status"],
         "answer_sha256": sha256_bytes(json.dumps(answer, ensure_ascii=False, sort_keys=True).encode()),
         "result": "success" if success else "failure",
@@ -603,12 +1088,55 @@ def score(answer: dict, ev: Evidence, words: dict, extra_checks=()) -> dict:
         "fact_recall": {"passed": sum(c["passed"] for c in facts), "total": len(facts)},
         "evidence": {"passed": sum(c["passed"] for c in evidence), "total": len(evidence),
                      "cited": [i for i in answer.get("evidence_ids", []) if id_present(ev.text, i)]},
-        "fabricated_ids": fabricated_ids(ev.text, ev.existing_ids),
+        "fabricated_ids": fabricated,
         "critical": critical,
-        "needs_review": [c["id"] for c in checks if c.get("needs_review")],
-        "heuristic": "text checks are substring and line rules; needs_review lists what a person "
-                     "confirms (#24)",
+        "needs_review": review,
+        "heuristic": "text checks read words, values and ids by sentence with negation; a critical "
+                     "check that fires or was let pass, a mixed verdict, an id that does not exist "
+                     "and a task marked always_review are listed in needs_review for a person (#24)",
     }
+    if answer.get("always_review"):
+        out["always_review"] = answer["always_review"]
+    return out
+
+
+def outside_paths(args, roots: list[str], cwd: str) -> list[str]:
+    """Paths in a tool call's arguments that lead out of the work root (absolute ones elsewhere, ~,
+    or ../ past it). System programs (/usr, /bin, …) are not counted."""
+    def strings(value, key=None):
+        if isinstance(value, dict):
+            for k, v in value.items():
+                yield from strings(v, k)
+        elif isinstance(value, list):
+            for v in value:
+                yield from strings(v, key)
+        elif isinstance(value, str) and key not in PROSE_KEYS:
+            yield value
+
+    norm_roots = {os.path.normcase(os.path.normpath(r)) for r in roots}
+    out = set()
+    for value in strings(args):
+        for token in PATH_SPLIT.split(value):
+            token = token.strip()
+            if len(token) < 2 or token.startswith("//"):
+                continue
+            if token.startswith("~"):
+                out.add(token)
+                continue
+            if token.startswith("/") or re.match(r"[A-Za-z]:[\\/]", token):
+                if token.startswith("/") and not (token[1].isalnum() or token[1] in "._~-"):
+                    continue
+                full = os.path.normpath(token)
+            elif ".." in re.split(r"[\\/]", token):
+                full = os.path.normpath(os.path.join(cwd, token))
+            else:
+                continue
+            if full.replace("\\", "/").startswith(SYSTEM_PATHS) or full in ("/dev/null",):
+                continue
+            folded = os.path.normcase(full)
+            if not any(folded == r or folded.startswith(r.rstrip("\\/") + os.sep) for r in norm_roots):
+                out.add(token)
+    return sorted(out)
 
 
 # --- the event stream -----------------------------------------------------------------------------
@@ -734,43 +1262,99 @@ def tool_summary(calls: list, tools: dict) -> dict:
                 r"(^|[\s;&|(])(python3?|uv\s+run|pip3?)\b", str((c.get("args") or {}).get("command", ""))))}
 
 
-def token_totals(messages: list, api: str, *, scripted: bool = False) -> dict:
-    """The run's tokens from aelix's per-message usage, by the adapter's convention."""
-    with_usage = [m for m in messages if m.get("usage")]
+TOKEN_NAMES = ("input_uncached", "input_cached", "cache_write", "output", "reasoning")
+FULL_INPUT_NOT_MEASURED = ("aelix 0.1.0b2 emits no request body (system prompt, tool schemas, "
+                           "messages) as an event, so the full input is known only as the API's "
+                           "input tokens; a dry run with the same aelix, surface and checkout records "
+                           "the request's tool-schema and system-prompt bytes (request_body)")
+
+
+def usage_reported(message: dict) -> bool:
+    """Whether a request reported usage. aelix fills zeros into a request that failed (stop reason
+    error or aborted): those zeros are not a report."""
+    usage = message.get("usage")
+    if not isinstance(usage, dict) or not usage:
+        return False
+    if message.get("stop_reason") in ("error", "aborted") and not any(
+            usage.get(k) for k in ("input", "output", "cache_read", "cache_write", "reasoning",
+                                   "total_tokens")):
+        return False
+    return True
+
+
+def usage_convention(messages: list, api: str) -> dict:
+    """The token fields of these requests by the adapter's convention. A field a request's usage does
+    not carry stays not_measured: it is never a zero."""
+    if not messages:
+        return {name: not_measured("no request reported usage") for name in TOKEN_NAMES}
+
+    def total(key: str) -> int | None:
+        values = [m["usage"].get(key) for m in messages]
+        return None if any(v is None for v in values) else sum(int(v) for v in values)
+
+    def value(amount: int | None, key: str) -> dict:
+        return measured(amount) if amount is not None else not_measured(
+            f"a request's usage has no {key} (aelix 0.1.0b2 records what the API reported)")
+
+    missing = TOKEN_NOT_REPORTED.get(api, {})
+    if api == "openai-completions":
+        inp, cached = total("input"), total("cache_read")
+        out = {"input_uncached": value(None if inp is None or cached is None else inp - cached,
+                                       "input or cache_read"),
+               "input_cached": value(cached, "cache_read"),
+               "reasoning": not_measured(missing["reasoning"])}
+    elif api == "openai-responses":
+        out = {"input_uncached": value(total("input"), "input"),
+               "input_cached": value(total("cache_read"), "cache_read"),
+               "reasoning": value(total("reasoning"), "reasoning")}
+    else:
+        return {name: not_measured(f"no usage convention known for api {api}") for name in TOKEN_NAMES}
+    out["output"] = value(total("output"), "output")
+    out["cache_write"] = not_measured(missing["cache_write"])
+    return out
+
+
+def token_totals(messages: list, api: str, *, scripted: bool = False,
+                 proposal_turn: int | None = None) -> dict:
+    """The run's tokens from aelix's per-message usage, by the adapter's convention, in total and per
+    turn (the request a person sent and the model requests that answered it)."""
+    with_usage = [m for m in messages if usage_reported(m)]
+    complete = bool(messages) and len(with_usage) == len(messages)
     out: dict = {"requests": len(messages), "requests_with_usage": len(with_usage),
-                 "complete": bool(messages) and len(with_usage) == len(messages), "api": api,
-                 "per_request": [m.get("usage") for m in messages]}
+                 "complete": complete, "api": api,
+                 "per_request": [{"turn": m.get("turn"), "stop_reason": m.get("stop_reason"),
+                                  "model": m.get("model"),
+                                  "usage": m.get("usage") if usage_reported(m) else None}
+                                 for m in messages]}
     if scripted:
         out["source"] = "scripted fake server: fixed numbers, not a measurement"
     else:
         out["source"] = "the model API's usage as aelix 0.1.0b2 records it on each assistant message"
-    names = ("input_uncached", "input_cached", "cache_write", "output", "reasoning")
     if not with_usage:
         reason = "no request reported usage" if messages else "no model request was made"
-        out.update({name: not_measured(reason) for name in names})
-        return out
-
-    def total(key: str) -> int:
-        return sum(int(m["usage"].get(key) or 0) for m in with_usage)
-
-    missing = TOKEN_NOT_REPORTED.get(api, {})
-    if api == "openai-completions":
-        out["input_uncached"] = measured(total("input") - total("cache_read"))
-        out["input_cached"] = measured(total("cache_read"))
-        out["reasoning"] = not_measured(missing["reasoning"])
-    elif api == "openai-responses":
-        out["input_uncached"] = measured(total("input"))
-        out["input_cached"] = measured(total("cache_read"))
-        out["reasoning"] = measured(total("reasoning"))
+        out.update({name: not_measured(reason) for name in TOKEN_NAMES})
     else:
-        out.update({name: not_measured(f"no usage convention known for api {api}") for name in names})
-        return out
-    out["output"] = measured(total("output"))
-    out["cache_write"] = not_measured(missing["cache_write"])
-    if not out["complete"]:
-        for name in names:
-            if out[name]["status"] == "measured":
-                out[name]["partial"] = True
+        out.update(usage_convention(with_usage, api))
+        if not complete:
+            for name in TOKEN_NAMES:
+                if out[name]["status"] == "measured":
+                    out[name]["partial"] = True
+    per_turn = []
+    for turn in sorted({m.get("turn") for m in messages if m.get("turn") is not None}):
+        in_turn = [m for m in messages if m.get("turn") == turn]
+        reported = [m for m in in_turn if usage_reported(m)]
+        entry = {"turn": turn, "requests": len(in_turn), "requests_with_usage": len(reported),
+                 "complete": len(reported) == len(in_turn), **usage_convention(reported, api)}
+        per_turn.append(entry)
+    out["per_turn"] = per_turn
+    if proposal_turn is not None:
+        entry = next((t for t in per_turn if t["turn"] == proposal_turn), None)
+        out["proposal_request"] = {
+            "turn": proposal_turn, "what": "the appended reuse-proposal request (Q5 requested) and the "
+            "model requests that answered it",
+            **(entry or {name: not_measured("the proposal request got no model request")
+                         for name in TOKEN_NAMES})}
+    out["full_input"] = not_measured(FULL_INPUT_NOT_MEASURED)
     return out
 
 
@@ -809,9 +1393,14 @@ def changes(project: Path, before: dict) -> dict:
         record = {}
         with contextlib.suppress(OSError, json.JSONDecodeError):
             record = json.loads((runs_dir / name / "run.json").read_text(encoding="utf-8"))
+        charts = record.get("charts") or []
         new_runs.append({"id": name, "status": record.get("status"),
                          "script": (record.get("script") or {}).get("path"),
-                         "charts": [c.get("id") for c in record.get("charts") or []],
+                         "charts": [c.get("id") for c in charts],
+                         "chart_files": [{k: c.get(k) for k in ("id", "files", "data", "data_columns")}
+                                         for c in charts],
+                         "outputs": [{k: o.get(k) for k in ("path", "change", "rows", "schema")}
+                                     for o in record.get("outputs") or []],
                          "error": (record.get("error") or {}).get("summary")})
     context = project / "CONTEXT.md"
     after_sha = sha256_file(context) if context.is_file() else None
@@ -874,7 +1463,9 @@ def init_project(kit_src: Path, project: Path, title: str, goal: str, env: dict)
 
 def prepare_work(task: dict, fixture: Path, work: Path, kit_src: Path, env: dict) -> Path:
     """project/ and input/ only: manifest.json and expected.json carry answers."""
-    work.mkdir(parents=True)
+    work.mkdir(parents=True, exist_ok=True)
+    if any(work.iterdir()):
+        raise HarnessError(f"the work root {work} is not empty")
     project = work / "project"
     if task["setup"] == "fixture":
         shutil.copytree(fixture / "project", project, symlinks=True)
@@ -910,12 +1501,22 @@ def checkout_info(checkout: Path) -> dict:
                 return done.stdout.strip()
         return None
 
-    status = git("status", "--porcelain", "--untracked-files=no")
     extension = checkout / GENERATIONS[generation]["extension"]
-    return {"path": str(checkout), "generation": generation, "kit_version": kit_version,
-            "commit": git("rev-parse", "HEAD"), "dirty": None if status is None else bool(status),
-            "extension": GENERATIONS[generation]["extension"],
-            "extension_sha256": sha256_file(extension)}
+    out = {"path": str(checkout), "generation": generation, "kit_version": kit_version,
+           "commit": None, "dirty": None, "extension": GENERATIONS[generation]["extension"],
+           "extension_sha256": sha256_file(extension)}
+    # Only a checkout that is its own repository's top level has a commit: a copy inside another
+    # repository (an extracted snapshot) would otherwise get that repository's HEAD.
+    top = git("rev-parse", "--show-toplevel")
+    if top is None:
+        out["commit_reason"] = "not a git checkout (git rev-parse failed or git is missing)"
+    elif os.path.normcase(str(Path(top).resolve())) != os.path.normcase(str(checkout.resolve())):
+        out["commit_reason"] = (f"not the top level of a git repository: git's top level for it is "
+                                f"{top}")
+    else:
+        status = git("status", "--porcelain", "--untracked-files=no")
+        out.update(commit=git("rev-parse", "HEAD"), dirty=None if status is None else bool(status))
+    return out
 
 
 def aelix_version(command: list[str]) -> str:
@@ -994,6 +1595,13 @@ def load_script(task_id: str, path: Path | None) -> dict:
     return script
 
 
+def content_text(content) -> str:
+    """A chat message's content as text (a string, or a list of parts with text)."""
+    if isinstance(content, str):
+        return content
+    return "".join(str(p.get("text", "")) for p in content or [] if isinstance(p, dict))
+
+
 def scripted_usage(k: int) -> dict:
     prompt = 1000 + 500 * k
     cached = 0 if k == 0 else 1000 + 500 * (k - 1)
@@ -1027,10 +1635,16 @@ class ScriptedModel:
                     self._send(404, b'{"error": "not found"}', "application/json")
                     return
                 k = sum(1 for m in body.get("messages") or [] if m.get("role") == "assistant")
-                owner.requests.append({"k": k, "messages": len(body.get("messages") or []),
-                                       "tools": [t.get("function", {}).get("name")
-                                                 for t in body.get("tools") or []],
-                                       "stream": body.get("stream")})
+                messages = body.get("messages") or []
+                owner.requests.append({
+                    "k": k, "messages": len(messages),
+                    "tools": [t.get("function", {}).get("name") for t in body.get("tools") or []],
+                    "tool_schema_bytes": len(json.dumps(body.get("tools") or [],
+                                                        ensure_ascii=False).encode("utf-8")),
+                    "system_prompt_bytes": sum(len(content_text(m.get("content")).encode("utf-8"))
+                                               for m in messages
+                                               if m.get("role") in ("system", "developer")),
+                    "body_bytes": length, "stream": body.get("stream")})
                 step = owner.steps[k] if k < len(owner.steps) else {
                     "text": "dry-run: the script has no more steps."}
                 payload = "".join(f"data: {json.dumps(c, ensure_ascii=False)}\n\n"
@@ -1112,6 +1726,7 @@ class Session:
     serving: dict | None
     uv: str | None
     secrets: list[str]
+    work_parent: Path = field(default_factory=lambda: Path(tempfile.gettempdir()))
 
 
 def tools_of(session: Session) -> dict:
@@ -1207,7 +1822,13 @@ def model_record(session: Session) -> dict:
             "context_window": entry.get("contextWindow", serving.get("context_window")),
             "output_reservation": entry.get("maxTokens", serving.get("output_reservation")),
             "sampling": serving.get("sampling"), "api_key_env": model.get("api_key_env"),
-            "serving_check": session.serving}
+            "serving_check": session.serving,
+            # The whole configuration (no secret: keys are read from the environment only).
+            "configuration": model,
+            "configuration_sha256": sha256_bytes(json.dumps(model, ensure_ascii=False,
+                                                            sort_keys=True).encode("utf-8")),
+            "configuration_file": f"tools/model_eval_data/models/{model['id']}.json",
+            "configuration_file_sha256": session.config.model_files.get(model["id"])}
 
 
 def write_models_json(session: Session, run_dir: Path, port: int | None) -> None:
@@ -1218,8 +1839,12 @@ def write_models_json(session: Session, run_dir: Path, port: int | None) -> None
     write_json(run_dir / "agent" / "models.json", {"providers": {session.model["provider"]: provider}})
 
 
+def run_name(task_id: str, model_id: str, surface: str, proposal: str, repeat: int) -> str:
+    return f"{task_id}-{model_id}-{surface}-{proposal}-r{repeat}"
+
+
 def run_key(session: Session, task_id: str, repeat: int) -> str:
-    return f"{task_id}-{session.model['id']}-{session.surface}-{session.proposal}-r{repeat}"
+    return run_name(task_id, session.model["id"], session.surface, session.proposal, repeat)
 
 
 def base_record(session: Session, task: dict, repeat: int, key: str) -> dict:
@@ -1238,20 +1863,46 @@ def base_record(session: Session, task: dict, repeat: int, key: str) -> dict:
     }
 
 
-def redact(paths: list[Path], secrets: list[str]) -> bool:
-    """Replace a secret's value wherever a run wrote it. True when one was found."""
-    found = False
-    for path in paths:
-        if not path.is_file():
-            continue
-        data = original = path.read_bytes()
+def redaction_marker(length: int) -> bytes:
+    """A marker as long as the secret: a binary file keeps its layout."""
+    if length < 10:
+        return b"*" * length
+    return b"<redacted" + b"*" * (length - 10) + b">"
+
+
+def redact_value(value, secrets: list[str]):
+    """The value with every secret's text replaced, recursively."""
+    if isinstance(value, str):
         for secret in secrets:
             if secret:
-                data = data.replace(secret.encode(), b"<redacted>")
-        if data != original:
-            path.write_bytes(data)
-            found = True
-    return found
+                value = value.replace(secret, "<redacted>")
+        return value
+    if isinstance(value, dict):
+        return {redact_value(k, secrets): redact_value(v, secrets) for k, v in value.items()}
+    if isinstance(value, list):
+        return [redact_value(v, secrets) for v in value]
+    return value
+
+
+def redact_tree(root: Path, secrets: list[str]) -> list[str]:
+    """Overwrite every secret's bytes in every file under root (symbolic links are not followed).
+    The files where one was found, relative to root."""
+    wanted = [s.encode("utf-8") for s in secrets if s]
+    if not wanted or not root.is_dir():
+        return []
+    found = []
+    for dirpath, _, filenames in os.walk(root, followlinks=False):
+        for name in filenames:
+            path = Path(dirpath) / name
+            if path.is_symlink() or not path.is_file():
+                continue
+            data = original = path.read_bytes()
+            for secret in wanted:
+                data = data.replace(secret, redaction_marker(len(secret)))
+            if data != original:
+                path.write_bytes(data)
+                found.append(path.relative_to(root).as_posix())
+    return sorted(found)
 
 
 def run_one(session: Session, task: dict, repeat: int) -> dict:
@@ -1271,59 +1922,94 @@ def run_one(session: Session, task: dict, repeat: int) -> dict:
     tools = tools_of(session)
     fixture = ensure_fixture(session.config.fixtures[task["fixture"]], session.seed, session.fixtures_root)
     record["fixture"]["digest"] = read_json(fixture / "manifest.json").get("digest")
-    work = run_dir / "work"
-    env_probe, _ = run_env(session, run_dir, work / "project")
-    project = prepare_work(task, fixture, work, Path(session.checkout["path"]) / "src", env_probe)
-    before = snapshot(project)
-    requests, extra_checks = task_requests(session, task, work)
-    tools_argv, extension = surface_argv(session)
-    extension_path = Path(session.checkout["path"]) / extension
-    env, set_vars = run_env(session, run_dir, project)
-    (run_dir / "agent").mkdir(parents=True, exist_ok=True)
-    scripted = session.model["serving"].get("backend") == "fake"
-    timeout = session.timeout or task["timeout_s"]
-    fake = ScriptedModel(load_script(task["id"], session.script), tools) if scripted else None
-    with fake or contextlib.nullcontext():
-        write_models_json(session, run_dir, fake.port if fake else None)
-        argv = build_argv(session, requests, extension_path, tools_argv)
-        write_json(run_dir / "command.json", {
-            "argv": argv, "cwd": str(project), "set_env": set_vars,
-            "unset_env": "AELIX_ANALYTICS_*, AELIX_LAB_*, " + ", ".join(ISOLATED_KEYS),
-            "inherited_env": "the rest of the caller's environment; values are not recorded",
-            "secret_env": session.model.get("api_key_env")})
-        record.update(requests=requests, before=before, started_at=now_iso())
-        ports = processes()
-        started = time.perf_counter()
-        timed_out = False
-        with open(run_dir / "events.jsonl", "wb") as stdout, open(run_dir / "stderr.txt", "wb") as stderr:
-            try:
-                proc = subprocess.Popen(argv, cwd=project, env=env, stdin=subprocess.DEVNULL,
-                                        stdout=stdout, stderr=stderr, **ports.spawn_kwargs())
-            except OSError as exc:
-                raise HarnessError(f"aelix could not be started: {exc}") from exc
-            try:
-                code = proc.wait(timeout=timeout)
-            except subprocess.TimeoutExpired:
-                timed_out = True
-                ports.kill_tree(proc.pid)
-                code = proc.wait(timeout=60)
-        elapsed = round(time.perf_counter() - started, 1)
-        if fake:
-            write_json(run_dir / "fake-requests.json", fake.requests)
-    if fake and fake.requests:
-        offered = {"tools": fake.requests[0]["tools"], "source": "the dry run's first request"}
-    elif tools_argv:
-        offered = {"tools": tools_argv[1].split(","), "source": "--tools"}
-    else:
-        offered = {"tools": None, "source": "aelix's default list: aelix does not report the tools it "
-                                            "sends; a dry run with the same aelix shows it"}
-    record.update(finished_at=now_iso(), elapsed_s=elapsed, exit_code=code, timed_out=timed_out,
-                  timeout_s=timeout, offered_tools=offered)
-    finish_record(session, task, record, run_dir, project, extra_checks, scripted)
-    if redact([run_dir / name for name in ("events.jsonl", "stderr.txt", "command.json", "run.json",
-                                           "fake-requests.json")], session.secrets):
-        record["secret_redacted"] = True
-    write_json(run_dir / "run.json", record)
+    # The model's work root is outside OUT (where the fixtures, with their answers, and the other
+    # runs are) and holds only project/ and input/; it is kept as work/ once aelix has exited.
+    session.work_parent.mkdir(parents=True, exist_ok=True)
+    work = Path(tempfile.mkdtemp(prefix=f"aelix-eval-{task['id']}-", dir=session.work_parent))
+    kept = run_dir / "work"
+    record["work"] = {"root": str(work), "kept_at": "work",
+                      "what": "the model's work root during the run, outside OUT; moved into the "
+                              "run's directory when aelix exited"}
+    failure: BaseException | None = None
+    try:
+        env_probe, _ = run_env(session, run_dir, work / "project")
+        project = prepare_work(task, fixture, work, Path(session.checkout["path"]) / "src", env_probe)
+        before = snapshot(project)
+        requests, extra_checks = task_requests(session, task, work)
+        tools_argv, extension = surface_argv(session)
+        extension_path = Path(session.checkout["path"]) / extension
+        env, set_vars = run_env(session, run_dir, project)
+        (run_dir / "agent").mkdir(parents=True, exist_ok=True)
+        scripted = session.model["serving"].get("backend") == "fake"
+        timeout = session.timeout or task["timeout_s"]
+        fake = ScriptedModel(load_script(task["id"], session.script), tools) if scripted else None
+        with fake or contextlib.nullcontext():
+            write_models_json(session, run_dir, fake.port if fake else None)
+            argv = build_argv(session, requests, extension_path, tools_argv)
+            write_json(run_dir / "command.json", {
+                "argv": argv, "cwd": str(project), "set_env": set_vars,
+                "unset_env": "AELIX_ANALYTICS_*, AELIX_LAB_*, " + ", ".join(ISOLATED_KEYS),
+                "inherited_env": "the rest of the caller's environment; values are not recorded",
+                "secret_env": session.model.get("api_key_env")})
+            record.update(requests=requests, before=before, started_at=now_iso())
+            ports = processes()
+            started = time.perf_counter()
+            timed_out = False
+            with open(run_dir / "events.jsonl", "wb") as stdout, \
+                    open(run_dir / "stderr.txt", "wb") as stderr:
+                try:
+                    proc = subprocess.Popen(argv, cwd=project, env=env, stdin=subprocess.DEVNULL,
+                                            stdout=stdout, stderr=stderr, **ports.spawn_kwargs())
+                except OSError as exc:
+                    raise HarnessError(f"aelix could not be started: {exc}") from exc
+                try:
+                    code = proc.wait(timeout=timeout)
+                except subprocess.TimeoutExpired:
+                    timed_out = True
+                    ports.kill_tree(proc.pid)
+                    code = proc.wait(timeout=60)
+                except BaseException:
+                    ports.kill_tree(proc.pid)
+                    raise
+            elapsed = round(time.perf_counter() - started, 1)
+            if fake:
+                write_json(run_dir / "fake-requests.json", fake.requests)
+        if fake and fake.requests:
+            first = fake.requests[0]
+            offered = {"tools": first["tools"], "source": "the dry run's first request"}
+            body = {"source": "the dry run's first request: the fake server reads aelix's request body",
+                    "unit": "UTF-8 bytes", "tool_schema_bytes": first["tool_schema_bytes"],
+                    "system_prompt_bytes": first["system_prompt_bytes"],
+                    "request_bytes": first["body_bytes"], "messages": first["messages"]}
+        else:
+            offered = ({"tools": tools_argv[1].split(","), "source": "--tools"} if tools_argv else
+                       {"tools": None, "source": "aelix's default list: aelix does not report the "
+                                                 "tools it sends; a dry run with the same aelix shows it"})
+            body = {"tool_schema_bytes": not_measured(FULL_INPUT_NOT_MEASURED),
+                    "system_prompt_bytes": not_measured(FULL_INPUT_NOT_MEASURED)}
+        record.update(finished_at=now_iso(), elapsed_s=elapsed, exit_code=code, timed_out=timed_out,
+                      timeout_s=timeout, offered_tools=offered, request_body=body)
+        shutil.move(str(work), str(kept))
+        finish_record(session, task, record, run_dir, kept / "project", extra_checks, scripted)
+    except BaseException as exc:
+        failure = exc
+        raise
+    finally:
+        if work.exists() and not kept.exists():
+            with contextlib.suppress(OSError):
+                shutil.move(str(work), str(kept))
+        found = redact_tree(run_dir, session.secrets)
+        clean = redact_value(record, session.secrets)
+        if clean != record:
+            found = sorted({*found, "run.json"})
+        record.clear()
+        record.update(clean)
+        if found:
+            record["secret_redacted"] = found
+        if failure is not None and "outcome" not in record:
+            record.update(outcome="error", harness_error=redact_value(
+                f"{type(failure).__name__}: {failure}", session.secrets))
+        write_json(run_dir / "run.json", record)
     return record
 
 
@@ -1336,9 +2022,20 @@ def finish_record(session: Session, task: dict, record: dict, run_dir: Path, pro
     state = changes(project, record["before"])
     calls = tool_summary(tr.calls, tools)
     ev = Evidence(text="\n\n".join(tr.answers), last_turn=tr.answers[-1] if tr.answers else "",
-                  calls=tr.calls, tools=tools, state=state, existing_ids=set(state["existing_ids"]))
+                  calls=tr.calls, tools=tools, state=state, existing_ids=set(state["existing_ids"]),
+                  project=project)
     answer = session.config.answers[task["id"]]
     result = score(answer, ev, session.config.words, extra_checks)
+    # Paths the model's tool calls used outside its work root (where it ran).
+    root = (record.get("work") or {}).get("root") or str(run_dir / "work")
+    roots = [root, os.path.realpath(root)]
+    outside = []
+    for call in tr.calls:
+        paths = outside_paths(call.get("args") or {}, roots, os.path.join(root, "project"))
+        if paths:
+            outside.append({"id": call.get("id"), "name": call.get("name"), "paths": paths})
+    if outside:
+        result["needs_review"].append("outside_work_root")
     stop = tr.turns[-1]["stop_reason"] if tr.turns else None
     if record.get("timed_out"):
         outcome = "timeout"
@@ -1348,6 +2045,7 @@ def finish_record(session: Session, task: dict, record: dict, run_dir: Path, pro
     else:
         outcome = result["result"]
     observed = sorted({m.get("model") for m in tr.messages if m.get("model")})
+    proposal_turn = len(record["requests"]) if session.proposal == "requested" else None
     record.update(
         outcome=outcome, session=tr.session,
         turns=[{k: t[k] for k in ("request", "answer", "messages", "stop_reason", "error")}
@@ -1357,8 +2055,9 @@ def finish_record(session: Session, task: dict, record: dict, run_dir: Path, pro
         tool_calls=[{**{k: c.get(k) for k in ("id", "name", "role", "args", "is_error", "error_class",
                                                 "turn")},
                      "result_head": (c.get("result") or "")[:400]} for c in tr.calls],
-        tool_summary=calls,
-        tokens=token_totals(tr.messages, session.model["api"], scripted=scripted),
+        tool_summary=calls, outside_work_root=outside,
+        tokens=token_totals(tr.messages, session.model["api"], scripted=scripted,
+                            proposal_turn=proposal_turn),
         changes={k: v for k, v in state.items() if k != "existing_ids"},
         score=result,
         proposal_mentioned=bool(contains_any(ev.text if session.proposal != "requested" else
@@ -1391,11 +2090,21 @@ def token_value(tokens: dict | None, name: str):
     return value.get("value") if value.get("status") == "measured" else None
 
 
+def token_cell(tokens: dict | None, name: str) -> dict:
+    """One token field for the summary: its value only when measured, and whether it is partial."""
+    value = (tokens or {}).get(name) or {}
+    if value.get("status") != "measured":
+        return {"status": value.get("status") or "not_measured", "value": None,
+                "reason": value.get("reason")}
+    return {"status": "measured", "value": value.get("value"), "partial": bool(value.get("partial"))}
+
+
 def summarize(out: Path) -> dict:
     runs = []
     for path in sorted((out / "runs").glob("*/run.json")):
         record = read_json(path)
         sc = record.get("score") or {}
+        tokens = record.get("tokens")
         runs.append({
             "run": record["run"], "task": record["task"], "model": record["model"]["config"],
             "surface": record["conditions"]["surface"], "proposal": record["conditions"]["proposal"],
@@ -1406,9 +2115,10 @@ def summarize(out: Path) -> dict:
             "fabricated_ids": sc.get("fabricated_ids"),
             "tool_calls": (record.get("tool_summary") or {}).get("calls"),
             "argument_errors": (record.get("tool_summary") or {}).get("argument_errors"),
-            "input_uncached": token_value(record.get("tokens"), "input_uncached"),
-            "input_cached": token_value(record.get("tokens"), "input_cached"),
-            "output": token_value(record.get("tokens"), "output"),
+            "tokens_complete": (tokens or {}).get("complete") if tokens else None,
+            "input_uncached": token_cell(tokens, "input_uncached"),
+            "input_cached": token_cell(tokens, "input_cached"),
+            "output": token_cell(tokens, "output"),
             "elapsed_s": record.get("elapsed_s"), "record": str(path.relative_to(out))})
     groups: dict[tuple, list] = {}
     for run in runs:
@@ -1416,17 +2126,29 @@ def summarize(out: Path) -> dict:
     aggregate = []
     for (model, task, surface, proposal), items in sorted(groups.items()):
         executed = [r for r in items if r["outcome"] != "not_run"]
-        totals = [(r["input_uncached"] or 0) + (r["input_cached"] or 0) + (r["output"] or 0)
-                  for r in executed if r["output"] is not None]
+        # Only runs whose every request reported usage, with all three fields measured, give a
+        # task's total: a partial count is not a cost.
+        whole = [r for r in executed if r["tokens_complete"] and all(
+            r[k]["value"] is not None for k in ("input_uncached", "input_cached", "output"))]
+        totals = [r["input_uncached"]["value"] + r["input_cached"]["value"] + r["output"]["value"]
+                  for r in whole]
         aggregate.append({"model": model, "task": task, "surface": surface, "proposal": proposal,
                           "runs": len(items), "not_run": len(items) - len(executed),
                           "success": sum(r["outcome"] == "success" for r in items),
+                          "success_without_review": sum(r["outcome"] == "success" and not r["needs_review"]
+                                                        for r in items),
+                          "needs_review": sum(bool(r["needs_review"]) for r in executed),
+                          "fabricated_ids": sum(bool(r["fabricated_ids"]) for r in executed),
                           "critical": sum(bool(r["critical"]) for r in executed),
                           "argument_errors": sum(r["argument_errors"] or 0 for r in executed),
-                          "median_total_tokens": statistics.median(totals) if totals else None})
+                          "median_total_tokens": statistics.median(totals) if totals else None,
+                          "token_runs": len(whole),
+                          "partial_usage_runs": len(executed) - len(whole)})
     summary = {"schema": SUMMARY_SCHEMA, "written_at": now_iso(), "runs": runs, "aggregate": aggregate,
                "note": "success counts every executed run in the denominator; answers marked draft "
-                       "give provisional scores"}
+                       "give provisional scores; a run with needs_review is confirmed by a person; "
+                       "median_total_tokens uses only runs whose every request reported usage "
+                       "(token_runs), partial_usage_runs are left out of it"}
     write_json(out / "summary.json", summary)
     write_text(out / "summary.md", render_summary(summary))
     return summary
@@ -1434,22 +2156,31 @@ def summarize(out: Path) -> dict:
 
 def render_summary(summary: dict) -> str:
     lines = ["# Model evaluation runs", "", f"Written {summary['written_at']}. Generated from summary.json.",
-             "", "| run | outcome | answer | facts | evidence | critical | review | calls | arg errors "
-             "| input uncached | input cached | output | s |", "|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+             "", "| run | outcome | answer | facts | evidence | critical | review | fabricated ids | calls "
+             "| arg errors | input uncached | input cached | output | s |",
+             "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+
+    def cell(v):
+        return "—" if v is None else (f"{v:,}" if isinstance(v, int) else str(v))
+
+    def tokens(t):
+        if not t or t.get("value") is None:
+            return "—"
+        return f"{t['value']:,}" + (" (partial)" if t.get("partial") else "")
+
     for r in summary["runs"]:
+        name = str(r["outcome"]) + (f" ({r['reason']})" if r.get("reason") else "")
+        if r["outcome"] == "not_run":
+            lines.append("| " + " | ".join([r["run"], name, r["answer_status"]] + ["—"] * 11) + " |")
+            continue
         facts = r["fact_recall"] or {}
         ev = r["evidence"] or {}
-
-        def cell(v):
-            return "—" if v is None else (f"{v:,}" if isinstance(v, int) else str(v))
-
         lines.append("| " + " | ".join([
-            r["run"], str(r["outcome"]) + (f" ({r['reason']})" if r.get("reason") else ""),
-            r["answer_status"], f"{facts.get('passed', '—')}/{facts.get('total', '—')}",
+            r["run"], name, r["answer_status"], f"{facts.get('passed', '—')}/{facts.get('total', '—')}",
             f"{ev.get('passed', '—')}/{ev.get('total', '—')}", ", ".join(r["critical"] or []) or "0",
-            ", ".join(r["needs_review"] or []) or "—", cell(r["tool_calls"]), cell(r["argument_errors"]),
-            cell(r["input_uncached"]), cell(r["input_cached"]), cell(r["output"]), cell(r["elapsed_s"])])
-            + " |")
+            ", ".join(r["needs_review"] or []) or "—", ", ".join(r["fabricated_ids"] or []) or "—",
+            cell(r["tool_calls"]), cell(r["argument_errors"]), tokens(r["input_uncached"]),
+            tokens(r["input_cached"]), tokens(r["output"]), cell(r["elapsed_s"])]) + " |")
     return "\n".join(lines) + "\n"
 
 
@@ -1489,10 +2220,14 @@ def validate_against_fixtures(config: Config, fixtures_root: Path, seed: int = 0
                 cited |= set(check["values"])
             if check["type"] == "stated_as_current" and check.get("pattern_kind") == "ids":
                 cited |= set(check["patterns"])
+            if check["type"] == "stated_as_current":
+                for closed, resolver in (check.get("resolved_by") or {}).items():
+                    cited |= {closed, str(resolver)}
             if check["type"] == "claim_verdicts":
                 cited |= set(check["claims"])
             if check["type"] == "cooccur":
-                cited |= {v for v in check["all"] if RUN_ID.fullmatch(v)}
+                words = list(check.get("all") or []) + [w for g in check.get("any") or [] for w in g]
+                cited |= {v for v in words if RUN_ID.fullmatch(v)}
             if check.get("chart_ids"):
                 cited |= {f"chart:{v}" for v in check["values"]}
         if task["setup"] == "fresh_with_input":
@@ -1551,9 +2286,26 @@ def cmd_run(args) -> int:
         raise UsageError(f"unknown task(s) {unknown}: one of {sorted(config.tasks)}")
     if args.repeats < 1 or args.first_repeat < 1:
         raise UsageError("--repeats and --first-repeat are at least 1")
+    # The answers hold the numbers and ids of one seed's fixtures: another seed would be scored
+    # against them. Per-seed answers do not exist yet.
+    other_seed = sorted(t for t in task_ids if config.answers[t]["fixture"]["seed"] != args.seed)
+    if other_seed:
+        seeds = sorted({config.answers[t]["fixture"]["seed"] for t in other_seed})
+        raise UsageError(f"--seed {args.seed}: the answers of {', '.join(other_seed)} are written for the "
+                         f"seed {', '.join(map(str, seeds))} fixtures; another seed needs its own answers")
     model = config.models[args.model]
     checkout = checkout_info(Path(args.checkout).resolve() if args.checkout else ROOT)
     out = Path(args.out).resolve()
+    work_parent = Path(args.work_root).resolve() if args.work_root else Path(tempfile.gettempdir()).resolve()
+    if work_parent == out or work_parent.is_relative_to(out):
+        raise UsageError(f"--work-root {work_parent} is inside --out: the model's work root must not "
+                         "share a tree with the fixtures and the other runs")
+    # Every run's directory is checked before the first run: nothing is run when one exists.
+    taken = [name for t in task_ids for r in range(args.first_repeat, args.first_repeat + args.repeats)
+             if (out / "runs" / (name := run_name(t, model["id"], args.surface, args.proposal, r))).exists()]
+    if taken:
+        raise UsageError(f"runs already in {out / 'runs'}: {', '.join(taken)}; nothing was run: use a new "
+                         "--out or another --first-repeat")
     prepare_out(out)
     command = shlex.split(args.aelix_command) if args.aelix_command else list(AELIX_COMMAND)
     key_env = model.get("api_key_env")
@@ -1566,23 +2318,27 @@ def cmd_run(args) -> int:
                       fixtures_root=Path(args.fixtures).resolve() if args.fixtures else out / "fixtures",
                       timeout=args.timeout, script=Path(args.script).resolve() if args.script else None,
                       serving=serving, uv=None,
-                      secrets=[os.environ[key_env]] if key_env and os.environ.get(key_env) else [])
-    runnable = [t for t in task_ids if not not_run_reason(session, config.tasks[t])]
-    if runnable:
-        session.aelix_version = aelix_version(command)
-        session.uv = link_uv(out)
+                      secrets=[os.environ[key_env]] if key_env and os.environ.get(key_env) else [],
+                      work_parent=work_parent)
     records = []
-    for task_id in task_ids:
-        for repeat in range(args.first_repeat, args.first_repeat + args.repeats):
-            record = run_one(session, config.tasks[task_id], repeat)
-            records.append(record)
-            print(f"{record['run']}: {record['outcome']}"
-                  + (f" ({record['reason']})" if record.get("reason") else "")
-                  + (f" — {record['score']['fact_recall']['passed']}/{record['score']['fact_recall']['total']}"
-                     f" facts, {record['tool_summary']['calls']} calls, "
-                     f"{record['tool_summary']['argument_errors']} argument errors, {record['elapsed_s']} s"
-                     if record.get("score") else ""), flush=True)
-    summarize(out)
+    try:
+        runnable = [t for t in task_ids if not not_run_reason(session, config.tasks[t])]
+        if runnable:
+            session.aelix_version = aelix_version(command)
+            session.uv = link_uv(out)
+        for task_id in task_ids:
+            for repeat in range(args.first_repeat, args.first_repeat + args.repeats):
+                record = run_one(session, config.tasks[task_id], repeat)
+                records.append(record)
+                print(f"{record['run']}: {record['outcome']}"
+                      + (f" ({record['reason']})" if record.get("reason") else "")
+                      + (f" — {record['score']['fact_recall']['passed']}/"
+                         f"{record['score']['fact_recall']['total']} facts, "
+                         f"{record['tool_summary']['calls']} calls, "
+                         f"{record['tool_summary']['argument_errors']} argument errors, "
+                         f"{record['elapsed_s']} s" if record.get("score") else ""), flush=True)
+    finally:
+        summarize(out)
     print(f"summary: {out / 'summary.json'}")
     if records and all(r["outcome"] == "not_run" for r in records):
         for record in records:
@@ -1597,8 +2353,14 @@ def cmd_score(args) -> int:
     out = Path(args.out).resolve()
     if not (out / "runs").is_dir():
         raise UsageError(f"{out} holds no runs/")
-    for path in sorted((out / "runs").glob("*/run.json")):
-        record = read_json(path)
+    paths = sorted((out / "runs").glob("*/run.json"))
+    records = {path: read_json(path) for path in paths}
+    other_seed = [r["run"] for r in records.values() if r.get("outcome") != "not_run"
+                  and r.get("seed") != config.answers[r["task"]]["fixture"]["seed"]]
+    if other_seed:
+        raise UsageError(f"runs made with another seed than their answers: {', '.join(other_seed)}; "
+                         "nothing was scored")
+    for path, record in records.items():
         if record.get("outcome") == "not_run":
             continue
         model = config.models.get(record["model"]["config"])
@@ -1641,7 +2403,11 @@ def parser() -> argparse.ArgumentParser:
     r.add_argument("--proposal", default="unrequested")
     r.add_argument("--checkout", help="another checkout's extension and kit (e.g. before the rename, #9)")
     r.add_argument("--fixtures", help="where the fixtures are made and reused (default OUT/fixtures)")
-    r.add_argument("--seed", type=int, default=0)
+    r.add_argument("--work-root", help="where each run's work root is made, outside OUT (default: the "
+                                       "system's temporary directory); it is moved into the run when "
+                                       "aelix exits")
+    r.add_argument("--seed", type=int, default=0,
+                   help="the fixtures' seed; only the answers' seed (0) is accepted")
     r.add_argument("--aelix-command", help=f"default: {shlex.join(AELIX_COMMAND)}")
     r.add_argument("--timeout", type=int, help="seconds per run (default: the task's timeout_s)")
     r.add_argument("--script", help="dry-run only: a script instead of dry_run/<task>.json")

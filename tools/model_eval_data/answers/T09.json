@@ -24,18 +24,74 @@
     {
       "id": "seoul",
       "kind": "fact",
-      "type": "number",
+      "type": "number_near",
       "value": 32586900,
       "abs_tol": 0,
-      "what": "서울 32,586,900원"
+      "words": [
+        "서울",
+        "Seoul"
+      ],
+      "against": [
+        "8월 전체",
+        "8월의 전체",
+        "8월 매출",
+        "8월의 매출",
+        "8월 총",
+        "전체 매출",
+        "총매출",
+        "총 매출",
+        "온라인+매장",
+        "온라인 + 매장",
+        "온라인과 매장",
+        "온라인·매장",
+        "온라인 및 매장",
+        "August revenue",
+        "August sales",
+        "August total",
+        "total revenue",
+        "total sales",
+        "online and store",
+        "online + store",
+        "online+store"
+      ],
+      "scope": "paragraph",
+      "what": "서울 32,586,900원(서울을 말하는 자리에서)"
     },
     {
       "id": "august",
       "kind": "fact",
-      "type": "number",
+      "type": "number_near",
       "value": 445969600,
       "abs_tol": 0,
-      "what": "8월 445,969,600원"
+      "words": [
+        "8월 전체",
+        "8월의 전체",
+        "8월 매출",
+        "8월의 매출",
+        "8월 총",
+        "전체 매출",
+        "총매출",
+        "총 매출",
+        "온라인+매장",
+        "온라인 + 매장",
+        "온라인과 매장",
+        "온라인·매장",
+        "온라인 및 매장",
+        "August revenue",
+        "August sales",
+        "August total",
+        "total revenue",
+        "total sales",
+        "online and store",
+        "online + store",
+        "online+store"
+      ],
+      "against": [
+        "서울",
+        "Seoul"
+      ],
+      "scope": "paragraph",
+      "what": "8월 전체 매출 445,969,600원(8월 전체 매출을 말하는 자리에서)"
     },
     {
       "id": "join-reason",

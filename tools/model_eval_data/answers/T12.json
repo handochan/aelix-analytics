@@ -107,6 +107,28 @@
       "what": "마지막 성공 run의 그림(모든 센서 밴드)"
     },
     {
+      "id": "all-sensor-figure",
+      "kind": "state",
+      "type": "chart_covers",
+      "last_run": true,
+      "values": [
+        "pressure",
+        "rf_power",
+        "flow",
+        "temperature"
+      ],
+      "what": "마지막 성공 run의 그림 하나가 네 센서를 모두 담음(차트 spec·데이터)"
+    },
+    {
+      "id": "timepoint-scores",
+      "kind": "state",
+      "type": "derived_table",
+      "min_cells": 19200,
+      "time_columns": "(?i)(^|_)(rel_?time|time|t|timepoint|time_?point|time_?idx|time_?index|tidx|시점)($|_)",
+      "score_columns": "(?i)(^|_)(abs_)?(z|zscore|z_score|score|scores|dev|deviation|sigma|점수|이탈)($|_)",
+      "what": "성공한 run이 시점별 점수 표를 남김(시점 열, 점수 열, 행 × 점수 열 ≥ 19,200 = 80 × 4 × 4 × 15)"
+    },
+    {
       "id": "context",
       "kind": "state",
       "type": "context_changed",
@@ -120,5 +142,6 @@
       ],
       "what": "맥락 갱신 또는 판단 기록"
     }
-  ]
+  ],
+  "always_review": "자유 분석: 자동 검사는 필요조건(가져오기·run·차트·시점별 점수 표·네 센서 그림·한계 표시)일 뿐이고, 분석이 바른지는 사람이 본다(#24)"
 }

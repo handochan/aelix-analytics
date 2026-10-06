@@ -10,8 +10,12 @@ names give the right command line; a model whose key is missing and the always_o
 with the reason; no file of the repository holds a key.
 
 With uv and aelix 0.1.0b2 (resolved by uv, as the CI's aelix tests are): the dry run end to end — the
-harness's scripted fake model, the real aelix process, this checkout's extension and kit, the event
-stream, the project's changes, the score — and no secret of the environment in anything it writes.
+harness's scripted fake model, the real aelix process, this checkout's extension and kit in a work root
+outside the output, the event stream, the project's changes, the score — and no secret of the
+environment in anything it writes; a model configuration that names a key variable, with a script
+that puts the key into a bash call, a record and the answer, leaves no copy of it under the output,
+also when the harness fails after aelix exited. tests/test_model_eval_scoring.py holds the reviewers'
+adversarial answers.
 """
 
 from __future__ import annotations
@@ -181,6 +185,9 @@ def test_t01_s_open_and_closed_ids_are_what_the_kit_reads(config, fixtures):
     checks = numbers_of(config, "T01")
     assert set(checks["open-ids"]["values"]) == open_kinds - set(resolved)
     assert set(checks["closed-as-open"]["patterns"]) == open_kinds & set(resolved)
+    # The record that closed each one: naming it next to the closed id says it is closed.
+    assert checks["closed-as-open"]["resolved_by"] == {
+        target: resolved[target]["id"] for target in checks["closed-as-open"]["patterns"]}
 
 
 # --- scoring --------------------------------------------------------------------------------------
@@ -218,8 +225,10 @@ def test_numbers_percentages_and_ids_are_read_with_their_boundaries(config):
         32586900.0, 0.118, 2026.0, 8.0, 1.0, 4.36]
     check = {"id": "p", "kind": "fact", "type": "percent", "value": 0.117849, "abs_tol_pp": 0.1}
     assert me.run_check(check, evidence("전환율은 11.8 %"), {})["passed"]
-    assert not me.run_check(check, evidence("전환율은 0.118"), {})["passed"]  # a ratio is not a percent
+    assert me.run_check(check, evidence("전환율은 0.118"), {})["passed"]  # a written fraction counts
+    assert not me.run_check({**check, "fractions": False}, evidence("전환율은 0.118"), {})["passed"]
     assert not me.run_check(check, evidence("11.9%"), {})["passed"]
+    assert not me.run_check(check, evidence("-11.8%"), {})["passed"]  # the sign is kept
     ids = {"id": "i", "kind": "evidence", "type": "ids_all", "values": ["e41", "20260804-032539-case-overwritten"]}
     assert me.run_check(ids, evidence("e41의 값은 run 20260804-032539-case-overwritten가 바꿨다"), {})["passed"]
     assert not me.run_check(ids, evidence("e410과 20260804-032539-case-overwritten-2"), {})["passed"]
@@ -300,6 +309,11 @@ def test_the_event_stream_gives_turns_calls_and_tokens_by_the_adapters_conventio
     assert tokens["input_cached"]["value"] == 2200 and tokens["output"]["value"] == 60
     assert tokens["reasoning"]["status"] == tokens["cache_write"]["status"] == "not_measured"
     assert tokens["complete"]
+    # Per request (with its turn) and per turn: the second request of turn 1 and turn 2 apart.
+    assert [r["turn"] for r in tokens["per_request"]] == [1, 1, 2]
+    assert [(t["turn"], t["requests"], t["output"]["value"]) for t in tokens["per_turn"]] == [
+        (1, 2, 30), (2, 1, 30)]
+    assert tokens["full_input"]["status"] == "not_measured"
 
     tr = me.parse_events(event_lines("openai-responses", None))
     tokens = me.token_totals(tr.messages, "openai-responses")
@@ -434,8 +448,9 @@ def test_the_dry_run_goes_through_aelix_and_is_scored(aelix_command, fixtures, t
     # A key in the environment must not reach anything the harness writes.
     monkeypatch.setenv("OPENAI_API_KEY", SECRET)
     out = tmp_path / "dry"
+    roots = tmp_path / "roots"
     assert me.main(["run", "--model", "dry-run", "--task", "T06", "--task", "T07", "--out", str(out),
-                    "--fixtures", str(root)]) == 0
+                    "--fixtures", str(root), "--work-root", str(roots)]) == 0
     runs = out / "runs"
     t06 = json.loads((runs / "T06-dry-run-default-unrequested-r1" / "run.json").read_text(encoding="utf-8"))
     assert t06["outcome"] == "success" and t06["exit_code"] == 0 and not t06["timed_out"]
@@ -456,15 +471,24 @@ def test_the_dry_run_goes_through_aelix_and_is_scored(aelix_command, fixtures, t
     [record] = t07["changes"]["new_records"]
     assert record["kind"] == "finding" and "11.8%" in record["text"] and record["refs"]["events"] == ["e16", "e18"]
 
-    # Isolation: the trust list, uv, aelix's agent directory and sessions are under OUT.
+    # Isolation: the trust list, uv, aelix's agent directory and sessions are under OUT; the model
+    # worked in a work root outside OUT (and outside the fixtures), kept as work/ afterwards.
     command = json.loads((runs / "T06-dry-run-default-unrequested-r1" / "command.json").read_text(encoding="utf-8"))
-    for name in ("AELIX_ANALYTICS_TRUST_FILE", "AELIX_ANALYTICS_PROJECT", "AELIX_CODING_AGENT_DIR",
-                 "AELIX_CODING_AGENT_SESSION_DIR"):
+    for name in ("AELIX_ANALYTICS_TRUST_FILE", "AELIX_CODING_AGENT_DIR", "AELIX_CODING_AGENT_SESSION_DIR"):
         assert Path(command["set_env"][name]).is_relative_to(out)
+    project = Path(command["set_env"]["AELIX_ANALYTICS_PROJECT"])
+    assert project.parent == Path(t06["work"]["root"]) and project.is_relative_to(roots)
+    assert not project.is_relative_to(out) and not project.is_relative_to(root)
+    assert not Path(t06["work"]["root"]).exists()  # moved into the run
     assert "--no-context-files" in command["argv"] and "--no-session" in command["argv"]
+    assert t06["outside_work_root"] == [] and "outside_work_root" not in t06["score"]["needs_review"]
     # Only the work copy: the fixture's answers never reach the model's directory.
     work = runs / "T06-dry-run-default-unrequested-r1" / "work"
     assert sorted(p.name for p in work.iterdir()) == ["input", "project"]
+    # The request body the fake server read, and the whole model configuration with its hash.
+    assert t06["request_body"]["tool_schema_bytes"] > 1000 and t06["request_body"]["system_prompt_bytes"] > 0
+    assert t06["model"]["configuration"]["id"] == "dry-run"
+    assert t06["model"]["configuration_file_sha256"] == me.sha256_file(DATA / "models" / "dry-run.json")
 
     leaked = [p for p in out.rglob("*") if p.is_file() and SECRET.encode() in p.read_bytes()]
     assert leaked == []
@@ -476,7 +500,7 @@ def test_the_dry_run_goes_through_aelix_and_is_scored(aelix_command, fixtures, t
     script.write_text(json.dumps({"schema": me.SCRIPT_SCHEMA, "task": "T07", "steps": [
         {"text": "8월 세션당 전환율은 46.8%입니다(e16)."}]}, ensure_ascii=False), encoding="utf-8")
     assert me.main(["run", "--model", "dry-run", "--task", "T07", "--first-repeat", "2", "--out", str(out),
-                    "--fixtures", str(root), "--script", str(script)]) == 0
+                    "--fixtures", str(root), "--script", str(script), "--work-root", str(roots)]) == 0
     wrong = json.loads((runs / "T07-dry-run-default-unrequested-r2" / "run.json").read_text(encoding="utf-8"))
     assert wrong["outcome"] == "failure" and wrong["score"]["critical"] == ["wrong-rate"]
     assert wrong["model_requests"] == 1 and wrong["tool_calls"] == []
@@ -488,3 +512,71 @@ def test_the_dry_run_goes_through_aelix_and_is_scored(aelix_command, fixtures, t
         "T06-dry-run-default-unrequested-r1": "success", "T07-dry-run-default-unrequested-r1": "success",
         "T07-dry-run-default-unrequested-r2": "failure"}
     assert os.environ["OPENAI_API_KEY"] == SECRET
+
+
+LEAK = "sk-test-" + "leakprobe0123456789abcdefXYZ"
+
+
+@pytest.fixture
+def keyed_dry_run(monkeypatch):
+    """The dry-run model with a key variable, as a frontier configuration names one."""
+    original = me.load_config
+
+    def with_key(*args, **kwargs):
+        config = original(*args, **kwargs)
+        config.models["dry-run"] = {**config.models["dry-run"], "api_key_env": "EVAL_PROBE_KEY"}
+        return config
+
+    monkeypatch.setattr(me, "load_config", with_key)
+    monkeypatch.setenv("EVAL_PROBE_KEY", LEAK)
+
+
+def leak_script(tmp_path: Path) -> Path:
+    script = tmp_path / "leak.json"
+    script.write_text(json.dumps({"schema": me.SCRIPT_SCHEMA, "task": "T06", "steps": [
+        {"tool_calls": [{"tool": "bash", "arguments": {
+            "command": "echo key=$EVAL_PROBE_KEY; echo $EVAL_PROBE_KEY > leaked.txt"}}]},
+        {"tool_calls": [{"tool": "@record", "arguments": {"kind": "note", "text": f"probe {LEAK} note"}}]},
+        {"text": f"There are 5,838 sessions. The key is {LEAK}."}]}), encoding="utf-8")
+    return script
+
+
+def files_with(root: Path, secret: str) -> list[str]:
+    return sorted(str(p.relative_to(root)) for p in root.rglob("*")
+                  if p.is_file() and not p.is_symlink() and secret.encode() in p.read_bytes())
+
+
+def test_a_key_the_model_echoes_is_in_no_file_of_the_run(aelix_command, fixtures, tmp_path, keyed_dry_run):
+    root, _ = fixtures
+    out = tmp_path / "leak"
+    assert me.main(["run", "--model", "dry-run", "--task", "T06", "--out", str(out), "--fixtures", str(root),
+                    "--script", str(leak_script(tmp_path)), "--work-root", str(tmp_path / "roots")]) == 0
+    run = out / "runs" / "T06-dry-run-default-unrequested-r1"
+    record = json.loads((run / "run.json").read_text(encoding="utf-8"))
+    # The key was in the bash output, the file bash wrote, the record (journal) and the answer.
+    assert record["tool_calls"][0]["name"] == "bash"
+    assert {"events.jsonl", "work/project/leaked.txt", "work/project/journal.jsonl", "run.json"} <= set(
+        record["secret_redacted"])
+    assert "<redacted>" in record["turns"][0]["answer"]
+    assert files_with(out, LEAK) == []
+    assert files_with(tmp_path / "roots", LEAK) == []
+
+
+def test_a_key_is_overwritten_when_the_harness_fails_after_aelix_exits(aelix_command, fixtures, tmp_path,
+                                                                      keyed_dry_run, monkeypatch):
+    root, _ = fixtures
+
+    def broken(*args, **kwargs):
+        raise me.HarnessError("scoring failed (test)")
+
+    monkeypatch.setattr(me, "finish_record", broken)
+    out = tmp_path / "leak-error"
+    assert me.main(["run", "--model", "dry-run", "--task", "T06", "--out", str(out), "--fixtures", str(root),
+                    "--script", str(leak_script(tmp_path)), "--work-root", str(tmp_path / "roots")]) == 1
+    run = out / "runs" / "T06-dry-run-default-unrequested-r1"
+    record = json.loads((run / "run.json").read_text(encoding="utf-8"))
+    assert record["outcome"] == "error" and "scoring failed" in record["harness_error"]
+    assert (run / "work" / "project" / "leaked.txt").is_file()
+    assert files_with(out, LEAK) == []
+    summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+    assert [r["outcome"] for r in summary["runs"]] == ["error"]

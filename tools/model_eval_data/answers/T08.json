@@ -23,7 +23,54 @@
       "type": "percent",
       "value": 0.20588,
       "abs_tol_pp": 0.1,
-      "what": "같은 일수 비교 20.6% 증가"
+      "what": "같은 일수 비교 20.6% 증가(부호 포함, 비율 0.206도)"
+    },
+    {
+      "id": "growth-direction",
+      "kind": "fact",
+      "type": "number_near",
+      "percent": true,
+      "value": 0.20588,
+      "abs_tol_pp": 0.1,
+      "prefer": "nearest",
+      "words": [
+        "증가",
+        "늘었",
+        "늘어",
+        "늘",
+        "많았",
+        "많다",
+        "상승",
+        "높았",
+        "높다",
+        "높아",
+        "올랐",
+        "increase",
+        "grew",
+        "growth",
+        "higher",
+        "rose"
+      ],
+      "against": [
+        "감소",
+        "줄었",
+        "줄어",
+        "줄",
+        "적었",
+        "적다",
+        "하락",
+        "낮았",
+        "낮다",
+        "낮아",
+        "떨어",
+        "decrease",
+        "decline",
+        "dropped",
+        "drop",
+        "lower",
+        "fell"
+      ],
+      "what": "20.6%가 증가라고 말함(가장 가까운 방향 낱말)"
     },
     {
       "id": "partial",
@@ -88,9 +135,31 @@
         "부분",
         "20일",
         "일수",
-        "partial"
+        "partial",
+        "쓰면 안",
+        "안 됩",
+        "안 된",
+        "쓸 수 없",
+        "쓰지 말",
+        "should not",
+        "shouldn't",
+        "must not",
+        "cannot",
+        "can't be used"
       ],
       "what": "22.0% 감소를 유효한 값으로"
+    },
+    {
+      "id": "growth-as-decline",
+      "kind": "critical",
+      "type": "stated_as_current",
+      "patterns": [
+        "20\\.[56][0-9]*\\s*%?\\s*p?\\s*(?:의\\s*)?(?:감소|줄|하락|떨어|decreas|declin|drop|lower|fell|fall)",
+        "(?:감소|줄어|줄었|하락|떨어|decreas|declin|dropp?|fell|fall)\\S*\\s*(?:폭은\\s*|율은\\s*|률은\\s*|by\\s*|of\\s*)?[-−]?\\s*20\\.[56]",
+        "[-−]\\s*20\\.[56]"
+      ],
+      "unless": [],
+      "what": "같은 일수 비교의 20.6%를 감소로 말함"
     }
   ]
 }
