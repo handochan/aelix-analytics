@@ -1265,7 +1265,7 @@ def _module(pythonpath: Path, *args, cwd=None):
     done = subprocess.run([sys.executable, "-m", *map(str, args)], capture_output=True,
                           env=kit_env(PYTHONPATH=str(pythonpath)), cwd=cwd, timeout=300,
                           **_platform.text_kwargs())
-    lines = [line for line in done.stdout.splitlines() if line.startswith("{")]
+    lines = [line for line in done.stdout.split("\n") if line.startswith("{")]
     return done.returncode, (json.loads(lines[-1]) if lines else None), done
 
 
@@ -1440,7 +1440,7 @@ def _kit_in(cwd, env_extra, *args):
     done = subprocess.run([sys.executable, "-m", "aelix_analytics", *map(str, args)],
                           capture_output=True, env=kit_env(**env_extra), cwd=cwd, timeout=300,
                           **_platform.text_kwargs())
-    lines = [line for line in done.stdout.splitlines() if line.startswith("{")]
+    lines = [line for line in done.stdout.split("\n") if line.startswith("{")]
     return done.returncode, (json.loads(lines[-1]) if lines else None), done
 
 

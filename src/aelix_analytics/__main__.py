@@ -35,8 +35,21 @@ TEMPLATE_DIR = resources.files(__package__) / "template"
 OLD_ENV = ("LAB_PROJECT", "LAB_ACTOR", "LAB_SESSION", "LAB_STYLE", "AELIX_LAB_TRUST_FILE")
 
 
+# The line ends json.dumps(ensure_ascii=False) leaves raw inside a string: str.splitlines() ends a
+# line at each, so a reader that splits the output with it (the extension did) cut the result line in
+# two. Escaped, they are the same JSON value. json.dumps escapes the other line ends splitlines()
+# knows (\n, \r, \x0b, \x0c, \x1c-\x1e) itself. Issue #32 item 1, CONTRACTS D.
+LINE_END_ESCAPES = {0x85: "\\u0085", 0x2028: "\\u2028", 0x2029: "\\u2029"}
+
+
+def _result_line(obj: dict) -> str:
+    """The result line without its line end: one JSON object holding no line end any reader knows.
+    Every other character is as json.dumps(ensure_ascii=False) writes it."""
+    return json.dumps(obj, ensure_ascii=False, default=str).translate(LINE_END_ESCAPES)
+
+
 def _emit(obj: dict) -> None:
-    text = json.dumps(obj, ensure_ascii=False, default=str)
+    text = _result_line(obj)
     # Once a script may have run, through the runner: what a thread it left running still writes
     # through stdout goes before the result or after it, never inside (runner.write_result).
     runner = sys.modules.get(f"{__package__}.runner")

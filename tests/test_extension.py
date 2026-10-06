@@ -14,6 +14,7 @@ import importlib.util
 import json
 import re
 import shutil
+import sys
 import uuid
 from pathlib import Path
 from types import SimpleNamespace
@@ -748,3 +749,89 @@ def test_an_error_says_what_its_details_leave_out(lab, monkeypatch):
     reply = text_of(call(tools_of(module)["analytics_query"], {"sql": "SELECT 1"}))
     assert f"hint: read details.stderr — the last 1,500 characters of the kit's stderr " \
            f"({len(stderr):,} in all)" in reply
+
+
+# --- the result line (Issue #32 item 1) ---
+
+# json.dumps(ensure_ascii=False) leaves U+2028, U+2029 and U+0085 raw and str.splitlines() ends a
+# line at each; the other line ends splitlines() knows (\x0b, \x0c, \x1c-\x1e) json.dumps escapes.
+BREAKS = "줄\u2028나눔\u2029문단\x85NEL\x0bVT\x0cFF\x1cFS\x1dGS\x1eRS끝"
+
+
+def _kit_by_this_interpreter(module, monkeypatch):
+    """The extension's own _spawn and reading of the kit's stdout, with the kit started by this
+    interpreter in place of `uv run --project P --quiet python`: a script that imports only the
+    standard library runs without the project's environment."""
+    spawn = module._spawn
+
+    async def without_uv(argv, cwd, env, timeout, processes, request=None):
+        return await spawn([sys.executable, *argv[argv.index("python") + 1:]], cwd, env, timeout,
+                           processes, request)
+
+    monkeypatch.setattr(module, "resolve_uv", lambda processes=None: "uv")
+    monkeypatch.setattr(module, "_spawn", without_uv)
+
+
+@pytest.mark.parametrize("fails", [False, True], ids=["ok", "error"])
+def test_a_run_whose_result_holds_unicode_line_separators_is_read(lab, monkeypatch, fails):
+    """A run whose result holds U+2028, U+2029 or U+0085 (here its stdout, its title and, when it
+    fails, its error) was recorded as it ended but reported as kit_failed without a result: the
+    extension split the kit's stdout with str.splitlines(). The kit escapes them now and the
+    extension splits on LF alone; either keeps the line whole."""
+    module, _root = lab
+    _kit_by_this_interpreter(module, monkeypatch)
+    code = f"print({BREAKS!r})\n" + (f"raise ValueError({BREAKS!r})\n" if fails else "")
+    title = "제목\u2028둘\u2029셋\x85넷"
+    ran = call(tools_of(module)["analytics_run"], {"title": title, "code": code, "name": "05_breaks"})
+    assert "run" in ran.details, text_of(ran)
+    assert ran.details["run"]["status"] == ("error" if fails else "ok") and ran.is_error is fails
+    assert ran.details["run"]["title"] == title and ran.details["stdout_tail"] == BREAKS + "\n"
+    if fails:
+        assert ran.details["run"]["error"]["message"] == BREAKS
+
+
+@pytest.mark.parametrize("line_end", [b"\n", b"\r\n"], ids=["lf", "crlf"])
+def test_an_older_kit_s_raw_line_separators_do_not_split_its_result(lab, monkeypatch, line_end):
+    """A kit before Issue #32 item 1 wrote U+2028, U+2029 and U+0085 raw in its result line, ended
+    in CRLF on Windows: the extension splits the kit's stdout on LF alone and reads it whole."""
+    module, root = lab
+    value = {"ok": True, "context": BREAKS, BREAKS: [BREAKS, {"n": 1}]}
+    line = json.dumps(value, ensure_ascii=False).encode("utf-8")
+    assert all(raw.encode("utf-8") in line for raw in "\u2028\u2029\x85")
+    stdout = b"a thread's text\xe2\x80\xa8{\n\n" + line + line_end
+
+    async def older_kit(argv, cwd, env, timeout, processes, request=None):
+        return False, 0, stdout, b""
+
+    monkeypatch.setattr(module, "resolve_uv", lambda processes=None: "uv")
+    monkeypatch.setattr(module, "_spawn", older_kit)
+    assert asyncio.run(module.run_kit(module.core.Project(root), ["context"], timeout=60)) \
+        == (True, value)
+
+
+@pytest.mark.parametrize("line_end", [b"\n", b"\r\n"], ids=["lf", "crlf"])
+def test_a_line_holding_a_lone_cr_is_not_taken_for_the_result(lab, monkeypatch, line_end):
+    """JSON reads a CR between its tokens as white space, so a thread's text such as {"ok":<CR>true}
+    parses once LF alone ends a line; str.splitlines() ended a line at the CR, and the extension
+    never took that text for the result. A kit escapes a CR inside a string, so its own line never
+    holds one and is still read."""
+    module, root = lab
+    result = {"ok": True, "run": {"status": "ok"}}
+    real = json.dumps(result).encode("utf-8") + line_end
+    fake_error = b'{"ok":\rfalse,"error":{"code":"kit_failed","message":"noise"}}' + line_end
+    outputs = {
+        "only a thread's line, exit 1": (1, b'{"ok":\rtrue}' + line_end),
+        "the result, then a thread's line": (0, line_end + real + fake_error),
+    }
+    monkeypatch.setattr(module, "resolve_uv", lambda processes=None: "uv")
+    read = {}
+    for name, (code, stdout) in outputs.items():
+        async def kit(argv, cwd, env, timeout, processes, request=None, code=code, stdout=stdout):
+            return False, code, stdout, b""
+
+        monkeypatch.setattr(module, "_spawn", kit)
+        read[name] = asyncio.run(module.run_kit(module.core.Project(root), ["run"], timeout=60))
+    ok, value = read["only a thread's line, exit 1"]
+    assert ok is False and value["error"]["code"] == "kit_failed", value
+    assert value["error"]["message"] == "aelix_analytics run exited 1 without a result"
+    assert read["the result, then a thread's line"] == (True, result)

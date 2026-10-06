@@ -672,7 +672,9 @@ def kit_cli(ctx, project: Path, *args, timeout: float = 600):
                           stdin=subprocess.DEVNULL, capture_output=True, timeout=timeout,
                           **_platform.text_kwargs())
     result = None
-    for line in reversed(done.stdout.splitlines()):
+    # Split at LF after text mode has turned CRLF and a lone CR into LF, so U+2028, U+2029 and
+    # U+0085 do not split the line (CONTRACTS D).
+    for line in reversed(done.stdout.split("\n")):
         if line.strip().startswith("{"):
             with contextlib.suppress(ValueError):
                 result = json.loads(line)
@@ -1009,7 +1011,7 @@ def cli_concurrent_runs_are_serialized(ctx):
         if name in observed:
             continue
         text = (logs / f"{name}.stdout").read_text(encoding="utf-8", errors="replace")
-        line = next((raw for raw in reversed(text.splitlines()) if raw.startswith("{")), "{}")
+        line = next((raw for raw in reversed(text.split("\n")) if raw.startswith("{")), "{}")
         record = (json.loads(line) or {}).get("run") or {}
         outputs = sorted(o["path"] for o in record.get("outputs") or [] if o.get("change") != "deleted")
         observed[name] = {"status": record.get("status"), "outputs": outputs}
