@@ -127,24 +127,40 @@ def test_report_is_generated_from_one_command(measured):
 
 def test_a_measurement_runs_on_one_event_loop(measured):
     """Every coroutine of a whole measurement runs on one event loop, so the measurement makes one
-    socket pair (Issue #38). An event loop per call made 2,400 of each; on Windows CPython makes a
-    socket pair from a loopback connection, and its accept() waited for ever twice in the CI."""
+    socket pair (Issue #38). An event loop per call made about 2,400 of each (the count follows the
+    paths' lengths); on Windows CPython makes a socket pair from a loopback connection, and its
+    accept() waited for ever twice in the CI."""
     assert measured.code == 0
     assert measured.made == {"event_loops": 1, "socket_pairs": 1}, measured.made
 
 
-def test_a_call_that_leaves_a_task_running_fails(host):
-    """asyncio.run cancelled what a call left running; on the host's one loop it would run on into
-    the next call, so the call fails instead, and closing the host cancels the task."""
+@pytest.mark.parametrize("raises", [False, True], ids=["returns", "raises"])
+def test_a_call_that_leaves_a_task_running_fails(host, raises):
+    """asyncio.run cancelled what a call left running. On the host's one loop the call cancels it
+    too, before it returns or raises, so the task does not run on into the next call; and the call
+    fails, with its own error, when it raised one, as the failure's cause."""
+    left, ran_on = [], []
+
+    async def later():
+        await asyncio.sleep(0)
+        ran_on.append("the task ran on")
 
     async def leaves_a_task():
-        return asyncio.get_running_loop().create_task(asyncio.sleep(3600))
+        left.append(asyncio.get_running_loop().create_task(later()))
+        if raises:
+            raise ValueError("the call's own error")
 
-    with pytest.raises(RuntimeError, match="left 1 task"):
+    with pytest.raises(RuntimeError, match="left 1 task") as failed:
         host._run(leaves_a_task())
-    (task,) = asyncio.all_tasks(host._runner.get_loop())
-    host.close()
-    assert task.cancelled()
+    (task,) = left
+    assert task.cancelled()  # right after the call, not at close()
+    assert not asyncio.all_tasks(host._loop)
+    if raises:
+        assert isinstance(failed.value.__cause__, ValueError), failed.value.__cause__
+    else:
+        assert failed.value.__cause__ is None
+    assert host._run(asyncio.sleep(0.01, "next")) == "next"  # the host goes on
+    assert ran_on == []
 
 
 def test_a_surface_that_cannot_be_measured_fails_the_command(monkeypatch, tmp_path):

@@ -438,14 +438,19 @@ READ_MORE_LINES = re.compile(r"\n\n\[(\d+) more lines in file\. Use offset=(\d+)
 READ_LONG_LINE = re.compile(r"^\[Line \d+ is [^,]+, exceeds \S+ limit\. Use bash: ")
 
 
+async def _drain(tasks) -> None:
+    """Wait for cancelled tasks to end; what each of them raises is its own, not the caller's."""
+    await asyncio.gather(*tasks, return_exceptions=True)
+
+
 class Host:
     """The extension in aelix 0.1.0b2: its hook, tools and /analytics command, aelix's own read tool for
     following pointers, and aelix's prompt and tool conversion for S2 and S3.
 
-    Every call runs on one event loop, as aelix runs a session on one, until `close()` (or the end of
-    a `with` block). A loop per call, as asyncio.run made, meant a socket pair per call — 2,400 in a
-    measurement — and on Windows CPython makes each from a loopback connection whose accept() can
-    wait for ever: the CI's 3.11 leg hung there twice (Issue #38)."""
+    Every call runs on one event loop, as aelix runs a session on one, from `Host()` to `close()` (or
+    the end of a `with` block). A loop per call, as asyncio.run made, meant a socket pair per call —
+    about 2,400 in a measurement — and on Windows CPython makes each from a loopback connection whose
+    accept() can wait for ever: the CI's 3.11 leg hung there twice (Issue #38)."""
 
     def __init__(self) -> None:
         from aelix_agent_core.harness.hooks import BeforeAgentStartHookEvent
@@ -478,7 +483,9 @@ class Host:
         self.module._clip = clip
         self.cwd = ROOT  # where the model works: the active project, as aelix runs inside it
         self._n = 0
-        self._runner = asyncio.Runner()  # makes its loop at the first call
+        # The loop is made here, not in the first call, so that no timed call includes making it.
+        self._runner = asyncio.Runner()
+        self._loop = self._runner.get_loop()
 
     def __enter__(self) -> Host:
         return self
@@ -492,15 +499,32 @@ class Host:
         self._runner.close()
 
     def _run(self, coro):
-        """One call to its end, in a copy of the caller's context as asyncio.run ran it. A call that
-        leaves a task running fails: asyncio.run cancelled it, and on one loop it would run on into
-        the next call."""
-        result = self._runner.run(coro, context=contextvars.copy_context())
-        left = asyncio.all_tasks(self._runner.get_loop())
-        if left:
-            raise RuntimeError(f"the call left {len(left)} task(s) running on the host's loop: "
-                               f"{sorted(map(repr, left))}")
-        return result
+        """One call to its end, in a copy of the caller's context as asyncio.run ran it. A task the
+        call leaves running is cancelled and awaited before the call returns or raises, as
+        asyncio.run did, so that it cannot run on into the next call; the call then fails with a
+        RuntimeError whose cause is the call's own error, if it raised one."""
+        error = None
+        try:
+            return self._runner.run(coro, context=contextvars.copy_context())
+        except BaseException as exc:
+            error = exc
+            raise
+        finally:
+            self._end_tasks_left(error)
+
+    def _end_tasks_left(self, error: BaseException | None) -> None:
+        """Cancel and await what a call left on the loop, and fail the call when there was any. An
+        interrupt (KeyboardInterrupt, SystemExit) goes on as it is, after the tasks have ended."""
+        left = asyncio.all_tasks(self._loop)
+        if not left:
+            return
+        names = sorted(map(repr, left))
+        for task in left:
+            task.cancel()
+        self._runner.run(_drain(left))
+        if error is None or isinstance(error, Exception):
+            raise RuntimeError(f"the call left {len(left)} task(s) running on the host's loop, "
+                               f"cancelled them: {names}") from error
 
     async def _run_kit(self, project, args, *, timeout, actor="agent"):
         """What the kit command would print, prepared by the fixture: through JSON, as the
