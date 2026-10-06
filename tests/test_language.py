@@ -280,14 +280,14 @@ def test_a_korean_project_keeps_its_text_and_gets_english_labels(tmp_path):
     assert html.escape(QUESTION) in pages["context.html"] and nfd("한글 자모") in pages["context.html"]
 
 
-# The kit's labels the Korean project's pages show: each stays in the page's English.
+# The kit's labels the Korean project's pages show on every platform: each stays in the page's
+# English. (`(empty)`, what an empty log says, depends on the platform: see the test.)
 SYSTEM_LABELS = ("Key information", "Recent journal entries", "Visualizations", "Timeline", "Data",
                  "Runs", "Evaluation", "Record coverage", "Tool usage", "Attached data",
                  "Input data", "Code", "Question", "Finding", "Logs", "Environment",
                  "Journal entries for this run", "Snapshot file", "Same as the current file",
-                 "(empty)", "Schema and statistics", "Preview", "Relations",
-                 "Runs that read this data", "Source file", "Context history", "Changes",
-                 "Auto-reload", "Column", "Type")
+                 "Schema and statistics", "Preview", "Relations", "Runs that read this data",
+                 "Source file", "Context history", "Changes", "Auto-reload", "Column", "Type")
 
 
 def test_the_workspace_gives_what_people_wrote_no_language_and_its_own_words_english(tmp_path):
@@ -313,6 +313,15 @@ def test_the_workspace_gives_what_people_wrote_no_language_and_its_own_words_eng
             langs.setdefault(text.strip(), set()).add(lang)
     for label in SYSTEM_LABELS:
         assert langs.get(label) == {"en"}, (label, langs.get(label))
+    # The run's stderr is empty where matplotlib finds a Korean font (macOS, Windows) and holds its
+    # warnings of the glyphs it lacks where none is installed (Linux CI). An empty log is said in
+    # the kit's words, in English; a log is what the script printed, in lang="".
+    run = json.loads((root / "runs" / run_id / "run.json").read_text(encoding="utf-8"))
+    stderr = core.newlines_as_lf((root / run["stderr"]).read_bytes().decode("utf-8", "replace"))
+    if stderr.strip():
+        assert langs.get(stderr.strip()) == {""}, stderr[:200]
+    else:
+        assert langs.get("(empty)") == {"en"}, langs.get("(empty)")
     # What people and scripts wrote: the project's title and goal, CONTEXT.md, records, run and
     # Visualization titles and captions, a dataset's name, path and description, column names and
     # values, what a script printed.
