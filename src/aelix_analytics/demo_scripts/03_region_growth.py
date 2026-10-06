@@ -1,4 +1,5 @@
-"""지역별 전년 대비 성장률 — Polars + matplotlib, 관용적 방식 (plt.show, 플롯 데이터 미기록)."""
+"""Year-over-year growth by region — Polars and matplotlib, the usual way (plt.show; the chart
+records no attached data)."""
 
 import matplotlib.pyplot as plt
 import polars as pl
@@ -17,5 +18,5 @@ growth.write_parquet("data/derived/region_growth.parquet")
 fig, ax = plt.subplots(figsize=(7, 3.4))
 ax.barh(growth["region"], growth["growth_pct"], height=0.5)
 ax.axvline(0, color="#c3c2b7", linewidth=1)
-ax.set_title("지역별 매출 성장률 (2025 vs 2024, %)")
+ax.set_title("Revenue growth by region (2025 vs 2024, %)")
 plt.show()

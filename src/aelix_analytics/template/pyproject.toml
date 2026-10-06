@@ -1,7 +1,7 @@
 # Environment of this analysis project only. Scripts run with `uv run` here, never in the aelix
 # environment. Data is Parquet; processing is DuckDB and Polars.
 [project]
-name = "lab-{{slug}}"
+name = "analytics-{{slug}}"
 version = "0.0.0"
 description = "{{title}}"
 requires-python = ">=3.12"

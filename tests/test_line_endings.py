@@ -143,7 +143,7 @@ def test_records_are_the_same_bytes_everywhere(tmp_path):
 NEW_PROJECT_SHA256 = {
     ".gitattributes": "66b748264be11611b9428c43a486454118278853b83c13397133c946929b6c15",
     ".gitignore": "aef713a60722de4da421ee30ce5d73f1bb0f2428518b681591967c82f6a0625a",
-    "pyproject.toml": "c7129862d02f3e56a05ca6b3f1a24354a7575b4ffd542358b5696f6bc4878b53",
+    "pyproject.toml": "09f536b1d9faf106e903d4614a308e28fc23e15cf0c346e939de82e828bb4b28",
     ".python-version": "7b55f8e67b5623c4bef3fa691288da9437d79d3aba156de48d481db32ac7d16d",
 }
 
@@ -468,7 +468,7 @@ def test_line_endings_only_reaches_status_and_the_workspace(tmp_path):
     assert code == 0, rendered
     page = (project.report / "runs" / f"{run_id}.html").read_text(encoding="utf-8")
     assert "Line endings only" in page and "data/in.csv (line endings only)" in page
-    assert "현재 파일은 수정됨 (line endings only)" in page
+    assert "Current file edited (line endings only)" in page
     index = (project.report / "index.html").read_text(encoding="utf-8")
     assert "data/in.csv (line endings only)" in index
 

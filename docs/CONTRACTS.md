@@ -93,7 +93,7 @@ CRLF의 `\r`은 제목을 찾고 이름을 붙일 때만 떼고, 블록에 넣�
 | 경로 | 규약 |
 |---|---|
 | `lab.json` | 있으면 프로젝트. 위치 탐색의 표식 |
-| `CONTEXT.md` | 자유 형식 Markdown. `## 목표`(또는 Goal) 아래 첫 줄이 목표로 쓰임 |
+| `CONTEXT.md` | 자유 형식 Markdown. `## Goal`(옛 템플릿은 `## 목표`, Objective도) 아래에서 `(`로 시작하지 않는 첫 줄이 목표로 쓰임. 제목에 `<!-- pin -->`(옛 템플릿의 `<!-- 항상 -->`, `<!-- always -->`도)을 붙인 `## ` 섹션은 맥락 블록에 늘 들어감(A1). 새 프로젝트의 템플릿은 영어이고(#10), 기존 파일은 고쳐 쓰지 않음 |
 | `journal.jsonl` | append-only. 한 줄에 이벤트 하나. 직접 고치지 않음 |
 | `data/raw/<name>.parquet` | `analytics_import`(kit의 `import`)만 만든다. 같은 이름 재가져오기는 거절. 수정하지 않는 것이 규약(강제 아님) |
 | `data/raw/<name>.meta.json` | 가져오기 기록 |
@@ -308,13 +308,13 @@ Windows의 한계는 G절에 있습니다.
 |---|---|
 | 입력 기록 | 런타임 읽기는 **읽는 시점의 내용**으로 해시합니다. run이 스스로 만든 파일, 또는 다시 쓴 뒤 읽은 파일은 입력에서 제외합니다 |
 | 입력 상태 | 기록 sha256 대비 지금 파일: `same` / `changed` / `missing` / `unknown`(sha 없음·디렉터리·URI). 지금 내용이 그 run 자신의 출력과 같으면 `same`(읽고 다시 쓰는 갱신 패턴). 크기·mtime이 같으면 캐시한 sha를 씀. `changed`인 파일이 64 MiB 이하이고 앞 8 KiB에 NUL이 없을 때, 지금 바이트의 CRLF를 LF로 바꾼 것이나 그 결과의 모든 줄 끝을 CRLF로 바꾼 것의 sha256이 기록과 같으면 사유 `line_endings_only`를 붙입니다(kit 0.4.0부터, [ADR-0007](decisions/0007-line-endings.md) 결정 4). 상태·stale·해시는 바이트 그대로입니다. JSON은 입력의 `reason`과 status 차트 행의 `change_reasons`(`{경로: "line_endings_only"}`), `analytics_status`·kit `status`의 글은 STALE 사유의 경로 뒤 `(line endings only)`, Workspace는 `Line endings only` 배지와 경로 뒤 `(line endings only)`입니다. 두 변형의 해시는 해시 캐시의 그 파일 항목에 함께 두며, 읽기 전후의 크기·mtime이 같을 때만 둡니다(읽는 동안 바뀐 파일은 사유 없음). 판정하지 않는 파일(64 MiB 초과·앞 8 KiB의 NUL)은 그 크기·mtime에 '판정 안 함'을 두고, 읽지 못한 파일은 사유 없이 아무것도 두지 않아 다음에 다시 읽습니다 |
-| stale | 입력 중 `changed`·`missing`이 있거나, 입력의 생산자 후보 가운데 stale인 run이 있음(전이). 후보를 모두 따라가고 마지막 run을 고르지 않습니다. 후보가 둘 이상인 입력은 `ambiguous_inputs`, 따라가다 아직 걷는 중인 run으로 돌아오면 `cycle`이며(같은 시각에 시작했거나 시작 시각을 읽지 못한 run 사이에서만 생깁니다. 두 길로 닿는 다이아몬드는 순환이 아님) 깊이 제한 없이 run마다 한 번 방문해 끝납니다. 화면은 stale인 후보를 생산자로 단정하지 않습니다: `analytics_status`는 `STALE(upstream candidate(s) …)`, Workspace는 입력이 직접 바뀐 run에만 "이 run의 입력이 지금 파일과 다릅니다"를 적고, 후보만 stale이면 "Upstream candidate stale"(같은 바이트를 출력한 run의 입력이 바뀜)을 적습니다 |
+| stale | 입력 중 `changed`·`missing`이 있거나, 입력의 생산자 후보 가운데 stale인 run이 있음(전이). 후보를 모두 따라가고 마지막 run을 고르지 않습니다. 후보가 둘 이상인 입력은 `ambiguous_inputs`, 따라가다 아직 걷는 중인 run으로 돌아오면 `cycle`이며(같은 시각에 시작했거나 시작 시각을 읽지 못한 run 사이에서만 생깁니다. 두 길로 닿는 다이아몬드는 순환이 아님) 깊이 제한 없이 run마다 한 번 방문해 끝납니다. 화면은 stale인 후보를 생산자로 단정하지 않습니다: `analytics_status`는 `STALE(upstream candidate(s) …)`, Workspace는 입력이 직접 바뀐 run에만 "This run's inputs differ from the files now."를 적고, 후보만 stale이면 "Upstream candidate stale"(같은 바이트를 출력한 run의 입력이 바뀜)을 적습니다 |
 | 생산자 후보 | 입력의 `(path, sha256)`과 같은 출력(`deleted` 아님)을 남긴 `ok` run 가운데, 소비 run이 아니고 그보다 늦게 시작하지 않은 것(시작 시각은 시간대를 반영한 시점, 읽지 못하면 빼지 않음). 0개 `none`, 1개 `resolved`, 여럿 `ambiguous`(모두 보임), 입력에 해시가 없으면 `unknown`. 데이터셋은 현재 바이트로 같은 판정을 합니다(소비 run 없음). 후보는 같은 바이트를 출력했다는 관측(basis `observed`)이며 확정 연결이 아니고, 화면은 `same bytes as run X's output`(여럿이면 `same bytes as N runs: X, Y`)으로 적습니다(ADR-0006 4). 데이터셋 페이지는 후보가 있을 때만 "그 run이 이 경로에 이 바이트를 출력했다"고 적고, 그 경로를 출력으로 기록한 성공 run은 바이트와 무관한 목록("Successful runs that recorded an output at this path", 지운 것은 `deleted this path`)으로 따로 적습니다 |
 | 참조 판정 | ADR-0006 3·4절대로 읽습니다: `/1` `refs`의 정규화(4절 끝의 목록), 해석 상태, `confirmed`(author ∧ observed/declared ∧ resolved). 이벤트 계열 참조(`/1`의 `refs.events`·`refs.resolves`, `/2`·Report manifest의 결박된 `event`·`analysis_focus`·`metric_definition`·`reuse_proposal`)는 대상의 seq가 참조한 기록의 seq보다 작을 때만 찾고, 같거나 크거나 seq가 없으면 `missing`(`record_absent`)·`confirmed=false`입니다. ADR-0006 4절 2단계("대상 기록을 찾는다")의 읽기입니다(G). `/1` `refs.runs`는 run의 `started_at`이 이벤트 `ts`보다 늦으면 `missing`, `kind=run` 이벤트의 `refs.charts`는 `refs.runs`가 하나일 때 그 run의 버전에 결박되고(여럿이면 `ambiguous`), 그 밖의 `refs.charts`·`refs.data`는 `version_unbound`입니다. 미결박 차트의 후보는 그 이벤트 앞의 완료 이벤트를 가진 성공 run의 버전입니다 |
-| 참조 표시 | run 이벤트의 차트는 그 run 페이지의 차트(`runs/<run>.html#chart-<id>`), 미결박 차트·데이터는 "Version unbound"와 함께 최신 갤러리 카드·데이터셋 페이지로 잇고 "latest, not the cited version"과 후보 수를 적습니다. 그 밖의 상태(`missing`·`ambiguous`·`unknown`·`unsupported`·`content_changed`)는 색이 아니라 글로 적습니다. 타임라인의 해결 배지는 C1의 선택을 따르되, 닫는 기록의 `refs.resolves` 판정이 `resolved`일 때만 "✓ 해결됨"이고 아니면 그 상태를 적습니다(`closed by e3 · Missing: record_absent`). `analytics_status`의 핵심 정보는 살펴볼 상태(`missing`·`ambiguous`·`content_changed`·`unsupported`)의 참조가 있을 때 상태별 수와 확정 연결 수, 그 상태의 대상 식별자를 적습니다. 참조가 모두 `resolved`·`version_unbound`·`unknown`인 항목은 아무것도 붙이지 않고 수는 JSON의 `references`에 있습니다(`/1` 메모의 차트·데이터는 원래 미결박입니다). 식별자는 두 화면이 같습니다: 이벤트 `e<seq>`(여러 줄이면 `journal:<줄>`), run id, `<run_id>/<chart_id>`, 논리 키 `script::chart`, 경로, 읽지 못하는 참조는 기록 안의 자리(`/1` `refs.<field>`, `/2` `refs[<index>]`). 여러 줄의 id를 가리키는 이벤트 참조의 후보는 기록(`candidate record(s)`), 미결박 차트의 후보는 버전입니다 |
+| 참조 표시 | run 이벤트의 차트는 그 run 페이지의 차트(`runs/<run>.html#chart-<id>`), 미결박 차트·데이터는 "Version unbound"와 함께 최신 갤러리 카드·데이터셋 페이지로 잇고 "latest, not the cited version"과 후보 수를 적습니다. 그 밖의 상태(`missing`·`ambiguous`·`unknown`·`unsupported`·`content_changed`)는 색이 아니라 글로 적습니다. 타임라인의 해결 배지는 C1의 선택을 따르되, 닫는 기록의 `refs.resolves` 판정이 `resolved`일 때만 "✓ Resolved by e3"이고 아니면 그 상태를 적습니다(`closed by e3 · Missing: record_absent`). `analytics_status`의 핵심 정보는 살펴볼 상태(`missing`·`ambiguous`·`content_changed`·`unsupported`)의 참조가 있을 때 상태별 수와 확정 연결 수, 그 상태의 대상 식별자를 적습니다. 참조가 모두 `resolved`·`version_unbound`·`unknown`인 항목은 아무것도 붙이지 않고 수는 JSON의 `references`에 있습니다(`/1` 메모의 차트·데이터는 원래 미결박입니다). 식별자는 두 화면이 같습니다: 이벤트 `e<seq>`(여러 줄이면 `journal:<줄>`), run id, `<run_id>/<chart_id>`, 논리 키 `script::chart`, 경로, 읽지 못하는 참조는 기록 안의 자리(`/1` `refs.<field>`, `/2` `refs[<index>]`). 여러 줄의 id를 가리키는 이벤트 참조의 후보는 기록(`candidate record(s)`), 미결박 차트의 후보는 버전입니다 |
 | 읽기 기준 | `analytics_status`의 `read:` 줄과 Workspace의 모든 페이지 바닥이 같은 `as_of_seq`(journal의 마지막 seq)와 `source_revision`(journal·run.json·manifest·meta·CONTEXT의 크기와 mtime으로 만든 16자, 절대 경로 없음)을 적습니다. 읽는 동안 파일이 바뀌면 두 번까지 다시 읽고, 그래도 바뀌면 `updating`이라고 적습니다(ADR-0006 5) |
 | 출력의 현재 상태 | run 페이지는 출력마다 지금 파일을 기록한 sha256과 비교합니다: 같음, 다름("Overwritten since this run — this run's bytes are not preserved"), 없음(`file_absent`), 해시 없음(`unknown`) |
-| 코드 상태 | 원래 스크립트 파일 sha256 대비 `same` / `changed` / `missing` (재실행은 `n/a`). `changed`인 코드도 입력 상태와 같은 규칙으로 사유를 붙입니다: JSON `code_reason`(`line_endings_only`, 없으면 `null`), 글 `script edited since (line endings only)`, Workspace의 `Line endings only` 배지와 코드 상태 `현재 파일은 수정됨 (line endings only)` |
+| 코드 상태 | 원래 스크립트 파일 sha256 대비 `same` / `changed` / `missing` (재실행은 `n/a`). `changed`인 코드도 입력 상태와 같은 규칙으로 사유를 붙입니다: JSON `code_reason`(`line_endings_only`, 없으면 `null`), 글 `script edited since (line endings only)`, Workspace의 `Line endings only` 배지와 코드 상태 `Current file edited (line endings only)` |
 | 차트 정체성 | run 안에서는 차트 id가 정체성입니다. 같은 id로 다시 기록하면 나중 것이 이깁니다. 자동 캡처(`plt.show`·`fig.show`·남은 그림)는 이미 저장한 그림이 그대로면 건너뜁니다 |
 | 차트 버전 | `script::id`별 성공 run 순서(재실행 run 제외). 같은 스크립트의 최신 성공 run에 없는 차트는 `retired`. 갤러리와 `status`의 차트 목록의 규칙입니다. 참조 판정의 버전 후보는 ADR-0006대로 재실행 run도 셉니다(완료 이벤트가 있는 성공 run의 버전) |
 | view 이름 | 파일 stem을 `[a-z0-9_]`로. 숫자로 시작하면 `t_`. raw 우선, 겹치는 derived는 `_derived` |
@@ -488,6 +488,31 @@ kit 0.4.0([#42](https://github.com/handochan/aelix-analytics/issues/42), 줄 끝
   공백을 지운 뒤에도 CR이 남은 줄은 결과로 받지 않으므로, 단독 CR을 담은 스레드의 글을 결과로 받지 않는 것은 이전과 같습니다.
 - kit의 데모, 저장소 도구(`tools/platform_smoke.py`)와 시험 helper는 `str.splitlines()` 대신 LF에서 나눕니다. 텍스트 모드로
   읽으므로 CRLF와 단독 CR은 그 전에 LF로 바뀌고, 세 문자는 줄을 나누지 않습니다.
+
+[#10](https://github.com/handochan/aelix-analytics/issues/10)(영어 기본 UI와 사용자 글의 보존)에서 다음이 바뀌었습니다. 기록의 형식·필드,
+`kit_version`, 저장 이름은 그대로이고, 바뀐 것은 kit이 보이는 글과 새 프로젝트·데모의 기본값입니다.
+
+- Workspace: 탭·제목·배지·버튼·빈 화면·tooltip·aria-label·오류 글이 영어이고 문서의 `lang`이 `en`입니다(이전 `ko`). 탭 이름은
+  Overview·Visualizations·Timeline·Data·Runs·Context·Evaluation, 평가 탭의 구역은 Workflow feedback·Record coverage·Tool usage·Possible
+  workarounds입니다. 기록 종류의 label은 `todo`가 Next step, `gap`이 Workflow feedback이고(기록의 값은 그대로), run 상태는 Succeeded·Error
+  등, 재실행 비교는 Matched·Different·Run failed·Inconclusive(기록의 `verdict`는 그대로)입니다. 차트의 첨부 표는 `Attached data`, 같은
+  스크립트의 최신 run에 없는 차트는 `Absent from latest run`입니다. 용량 단위가 `KiB`·`MiB`·`GiB`입니다(계산은 이전과 같은 1024 단위).
+  URL anchor·요소 id·class·링크 대상은 그대로입니다. CSS 글꼴 목록에 Windows·Linux의 한국어 글꼴이 더해졌습니다.
+- 사용자 내용: 바이트 그대로이고 사용자 내용 영역에는 `lang`이 없습니다(언어를 추정하지 않음). 이름에 ASCII 밖의 글자가 있는
+  데이터셋(예: `data/derived/지역별 매출.parquet`)은 Workspace가 SQL view 이름(`___…`) 대신 데이터셋 이름을 보이고 view를 함께 적습니다
+  (데이터 탭, 데이터셋 페이지의 제목, 입력·출력·참조의 링크 글). view 이름 규칙(E)은 그대로입니다.
+- 새 프로젝트: `CONTEXT.md` 템플릿이 영어이고(섹션 Goal·Analysis focus·Next steps·Current findings·Definitions and rules·Data sources·
+  Assumptions and limitations, 고정 표식 `<!-- pin -->`), 목표 없이 만들면 넣는 안내 줄도 영어입니다. uv 프로젝트 이름이
+  `analytics-<slug>`입니다(이전 `lab-<slug>`; 새 프로젝트의 `pyproject.toml`과 uv가 만드는 `uv.lock`에만 들어가고 kit은 읽지 않음).
+  기존 프로젝트의 파일은 바꾸지 않습니다.
+- 맥락의 읽기: `<!-- pin -->`도 섹션을 고정합니다(B). 이름이 표식뿐인 섹션의 이름이 `Section N`입니다(이전 `섹션 N`; status JSON의
+  `context_omitted`와 맥락 블록). `analytics_status`·kit `status`의 안내가 `<!-- pin -->`을 권합니다(이전 `<!-- 항상 -->`). #10 전의 kit은
+  `<!-- pin -->`을 모르므로 새 템플릿의 섹션을 고정하지 않고 이름에 표식을 남깁니다(내용을 잃지는 않음: 예산 안이면 들어가고, 아니면
+  줄 범위로 목록에 남음).
+- 데모(`analytics demo`): CONTEXT·데이터셋 설명·run 제목·기록 글·스크립트(제목·축·범례·caption)가 영어이고, 합성 데이터의 지역 값이
+  Seoul·Gyeonggi·Busan·Daegu입니다(이전 한국어 지역명; 그 밖의 값은 같은 시드로 같음). 자동 캡처한 차트의 id는 제목에서 만들므로
+  데모 차트의 id도 달라집니다. 데모의 CONTEXT는 템플릿의 섹션 순서와 고정을 따릅니다.
+- 확장의 도구 설명·응답, CLI·런처의 도움말·오류는 이미 영어였고 바뀌지 않았습니다.
 
 ## G. 약속하지 않는 것
 

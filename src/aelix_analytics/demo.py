@@ -17,37 +17,38 @@ from pathlib import Path
 from . import _platform, core, data
 
 SCRIPTS = resources.files(__package__) / "demo_scripts"
-REGIONS = {"서울": (1.00, 0.55), "경기": (0.80, 0.45), "부산": (0.45, 0.25), "대구": (0.35, 0.12)}
+REGIONS = {"Seoul": (1.00, 0.55), "Gyeonggi": (0.80, 0.45), "Busan": (0.45, 0.25),
+           "Daegu": (0.35, 0.12)}
 
 CONTEXT = """# {title}
 
-> 이 파일은 분석의 **현재 맥락**입니다. 사람과 에이전트가 함께 고칩니다.
-> 바뀔 때마다 `.lab/context/`에 버전이 남고 journal 타임라인에 기록됩니다.
+> The **current context** of this analysis, kept up to date by people and agents together.
+> Each change leaves a version in `.lab/context/` and an entry on the journal's timeline.
 
-## 목표
-온라인 전환 속도가 지역마다 어떻게 다른지 파악해 2026년 매장 운영 계획의 근거로 쓴다.
+## Goal <!-- pin -->
+Find out how fast each region moves its sales online, as a basis for the 2026 store plan.
 
-## 핵심 질문
-- 온라인 매출은 언제 매장 매출을 넘어섰나?
-- 지역별 성장률 차이는 얼마나 큰가?
+## Analysis focus <!-- pin -->
+- When did online revenue overtake store revenue?
+- How far apart are the regions' growth rates?
 
-## 데이터 출처
-| 데이터셋 | 출처 | 기간·범위 | 비고 |
+## Next steps <!-- pin -->
+- Check the monthly trend
+
+## Current findings
+- (none yet)
+
+## Definitions and rules
+- Revenue: the amount after discounts, in KRW
+- Month: the month of the order date (order_date)
+
+## Data sources
+| Dataset | Source | Period and scope | Notes |
 |---|---|---|---|
-| sales | 합성 데모 데이터 | 2024-01 ~ 2025-12, 일×지역×채널 | 가상 수치 |
+| sales | synthetic demo data | 2024-01 to 2025-12, day × region × channel | invented figures |
 
-## 정의와 규칙
-- 매출(revenue): 할인 적용 후 금액, 원 단위
-- 월 기준: 주문일(order_date)의 달
-
-## 가정과 제약
-- 반품·취소는 반영되지 않은 데이터다
-
-## 현재 결론
-- (아직 없음)
-
-## 다음 할 일
-- 월별 추세 확인
+## Assumptions and limitations
+- Returns and cancellations are not in the data
 """
 
 
@@ -110,7 +111,8 @@ def populate(project: core.Project, actor: str = "human", session=None) -> dict:
                             hint="analytics demo NEW_DIR creates a new project and fills it")
     csv = generate(project.lab / "demo" / "sales_2024_2025.csv")
     data.import_file(project, str(csv), name="sales",
-                     description="합성 주문 데이터 2024–2025 (일×지역×채널, 가상 수치)",
+                     description="Synthetic orders 2024–2025 (day × region × channel, invented "
+                                 "figures)",
                      actor=actor, session=session)
     core.write_text(project.context, CONTEXT.format(title=project.title()))
     core.sync_context(project, actor=actor, session=session)
@@ -119,11 +121,11 @@ def populate(project: core.Project, actor: str = "human", session=None) -> dict:
         with resources.as_file(script) as source:
             shutil.copyfile(source, project.scripts / script.name)
 
-    first = _run(project, "scripts/01_monthly_revenue.py", "월별 매출 추세", actor)
-    question = core.add_note(project, "question", "온라인 매출은 언제 매장 매출을 넘어섰나?",
+    first = _run(project, "scripts/01_monthly_revenue.py", "Monthly revenue trend", actor)
+    question = core.add_note(project, "question", "When did online revenue overtake store revenue?",
                              actor=actor, session=session)
-    second = _run(project, "scripts/02_channel_mix.py", "2025년 지역별 채널 구성", actor)
-    third = _run(project, "scripts/03_region_growth.py", "지역별 성장률", actor)
+    second = _run(project, "scripts/02_channel_mix.py", "Channel mix by region in 2025", actor)
+    third = _run(project, "scripts/03_region_growth.py", "Growth by region", actor)
 
     import polars as pl
 
@@ -131,21 +133,22 @@ def populate(project: core.Project, actor: str = "human", session=None) -> dict:
     wide = monthly.pivot(on="channel", index="month", values="revenue").sort("month")
     crossed = wide.filter(pl.col("online") > pl.col("store"))
     month = crossed["month"][0].strftime("%Y-%m") if crossed.height else None
-    finding_text = (f"전체 온라인 월 매출이 {month}에 처음 매장 매출을 넘어섰다." if month
-                    else "기간 내 온라인 월 매출은 매장 매출을 넘지 못했다.")
+    finding_text = (f"Total online revenue first overtook store revenue in {month}." if month
+                    else "Online revenue never overtook store revenue in a month of the period.")
     core.add_note(project, "finding", finding_text, refs=[first["id"]], resolves=question["id"],
                   actor=actor, session=session)
-    core.add_note(project, "assumption", "반품·취소가 없는 데이터로 보고 매출을 그대로 합산한다.",
-                  refs=["sales"], actor=actor, session=session)
-    core.add_note(project, "decision", "지역 비교는 2025년 연간 합계로 한다.",
+    core.add_note(project, "assumption", "The data has no returns or cancellations, so revenue is "
+                  "summed as is.", refs=["sales"], actor=actor, session=session)
+    core.add_note(project, "decision", "Regions are compared by their 2025 annual totals.",
                   refs=[second["id"], third["id"]], actor=actor, session=session)
-    core.add_note(project, "todo", "지역별 성장률 차트에 플롯 데이터를 기록하도록 03 스크립트를 "
-                  "analytics.visualize(data=...)로 바꾸기", refs=[third["id"]], actor=actor, session=session)
+    core.add_note(project, "todo", "Change script 03 to analytics.visualize(data=...) so the growth "
+                  "chart records its data", refs=[third["id"]], actor=actor, session=session)
     text = project.context.read_text(encoding="utf-8").replace(
-        "- (아직 없음)", f"- {finding_text} (run {first['id']})")
+        "- (none yet)", f"- {finding_text} (run {first['id']})")
     core.write_text(project.context, text)
     core.sync_context(project, actor=actor, session=session)
-    rerun = _run(project, "", "월별 매출 재실행 검증", actor, ["--rerun-of", first["id"]])
+    rerun = _run(project, "", "Rerun comparison of the monthly revenue", actor,
+                 ["--rerun-of", first["id"]])
 
     from . import report
 

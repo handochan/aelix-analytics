@@ -1,33 +1,33 @@
 # {{title}}
 
-> 이 파일은 분석의 **현재 맥락**입니다. 사람과 에이전트가 함께 고칩니다.
-> 바뀔 때마다 `.lab/context/`에 버전이 남고 journal 타임라인에 기록됩니다.
-> 시간순 세부 이력은 journal(`analytics_record`)에 두고, 여기에는 지금 유효한 내용만 유지하세요.
+> The **current context** of this analysis, kept up to date by people and agents together.
+> Each change leaves a version in `.lab/context/` and an entry on the journal's timeline.
+> Keep the history in the journal (`analytics_record`, `analytics record`); keep here only what holds now.
 >
-> 프롬프트에는 **앞쪽 섹션부터 예산만큼** 들어가고, 나머지는 제목과 줄 범위만 들어가 에이전트가
-> 필요할 때 읽어 갑니다. 항상 넣을 섹션은 제목 뒤에 `<!-- 항상 -->`을 붙이세요.
-> 무엇이 빠졌는지는 `analytics_status`가 알려 줍니다.
+> The agent's prompt takes the sections marked `<!-- pin -->` and then the others **from the top,
+> as far as the budget allows**; the rest reach it as a heading and a line range it reads when needed.
+> `analytics_status` names what was left out. Write in any language.
 
-## 목표 <!-- 항상 -->
+## Goal <!-- pin -->
 {{goal}}
 
-## 핵심 질문 <!-- 항상 -->
+## Analysis focus <!-- pin -->
+- (Current questions, the metrics they look at, definitions still open)
+
+## Next steps <!-- pin -->
 - 
 
-## 다음 할 일 <!-- 항상 -->
-- 
+## Current findings
+- (Confirmed findings and decisions, with the run ids they rest on and their limits)
 
-## 현재 결론
-- (확정된 finding·decision 요약. 근거 run id를 함께)
+## Definitions and rules
+- (Metric definitions, filters and exclusions, units, periods)
 
-## 정의와 규칙
-- (지표 정의, 필터·제외 조건, 단위, 기간 기준)
-
-## 데이터 출처
-| 데이터셋 | 출처 | 기간·범위 | 비고 |
+## Data sources
+| Dataset | Source | Period and scope | Notes |
 |---|---|---|---|
 
-## 가정과 제약
+## Assumptions and limitations
 - 
 
 <!-- created {{date}} -->

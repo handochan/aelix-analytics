@@ -1017,7 +1017,8 @@ STATUS_OMITTED = "CONTEXT.md sections not in the system prompt (read them from t
                  "they matter): "
 ITEM_CUT = re.compile(r"^(?:- |  )e\d+ .*…(?: \(runs: [^)]*\))?$")
 LOG_HEADS = {"stdout": "stdout (tail):", "stderr": "stderr (tail):"}
-HTML_RUN_JSON = re.compile(r'그 외 [\d,]+개 — .*?<a href="(?P<href>[^"]+)">run\.json</a>')
+# The run page's row under a capped input table (report.run_page).
+HTML_RUN_JSON = re.compile(r'[\d,]+ more — .*?<a href="(?P<href>[^"]+)">run\.json</a>')
 MORE_LABELS = {"input file(s)": "inputs", "output file(s)": "outputs", "chart(s)": "charts",
                "warning(s)": "warnings"}
 COVERS = {"datasets": "datasets", "runs": "runs", "charts": "charts",
@@ -1135,7 +1136,7 @@ def parse_pointers(text: str, *, source: str | None = None) -> list[Pointer]:
 
 def section_name(heading: str) -> str:
     """The name the kit gives a section in its pointer list (what a claim names)."""
-    name = " ".join(re.sub(r"<!--\s*(항상|always)\s*-->", "", heading[3:], flags=re.I).split())
+    name = " ".join(re.sub(r"<!--\s*(pin|always|항상)\s*-->", "", heading[3:], flags=re.I).split())
     return name if len(name) <= 48 else name[:47] + "…"
 
 
