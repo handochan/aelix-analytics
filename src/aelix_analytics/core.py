@@ -428,44 +428,47 @@ def canonical(path, spelling: Spelling | None = None) -> str:
     return spelling.path(real) if spelling is not None else _spelled(real)
 
 
-# The stored spelling of real paths spelled without a Spelling of their own, with the stamp of the
-# directories listed to spell each: the aelix extension finds its project, and asks whether it is
-# trusted, after every tool call on aelix's event loop, and a root whose parent holds 200,000
-# entries would list it each time.
-_SPELLED: dict[str, tuple[tuple, str]] = {}
-_SPELLED_MAX = 256
+# The stored name of each component of the paths spelled without a Spelling of their own, by
+# (directory, name as written), with the directory's modification time: the aelix extension finds
+# its project, and asks whether it is trusted, after every tool call on aelix's event loop, and a
+# root whose parent holds 200,000 entries would list it each time. A directory is listed again only
+# when it changed — the one that changed, not every directory above it.
+_NAMES: dict[tuple[str, str], tuple[int, str]] = {}
+_NAMES_MAX = 4096
 
 
-def _listing_stamp(real: str) -> tuple:
-    """The modification time of each directory whose listing spells `real` — every parent of it —
-    which a new, removed or renamed entry changes (a rename only of case included)."""
-    stamp = []
-    cur = os.path.dirname(real)
-    while True:
-        try:
-            stamp.append(os.stat(cur).st_mtime_ns)
-        except (OSError, ValueError):
-            stamp.append(None)
-        parent = os.path.dirname(cur)
-        if parent == cur:
-            return tuple(stamp)
-        cur = parent
+def _stored_name(directory: str, typed: str) -> str:
+    """Spelling().name(directory, typed), remembered while the directory keeps its modification
+    time; not remembered while that time is less than RACY_NS old."""
+    try:
+        mtime = os.stat(directory).st_mtime_ns
+    except (OSError, ValueError):
+        return typed  # no listing to read: the name as written, as Spelling gives it
+    kept = _NAMES.get((directory, typed))
+    if kept is not None and kept[0] == mtime:
+        return kept[1]
+    stored = Spelling().name(directory, typed)
+    if _settled(mtime):  # else a change soon after may not show in the time
+        if len(_NAMES) >= _NAMES_MAX:
+            _NAMES.clear()
+        _NAMES[(directory, typed)] = (mtime, stored)
+    return stored
 
 
 def _spelled(real: str) -> str:
-    """Spelling().path(real), listed again only when a directory it listed changed (_listing_stamp):
-    a stat per parent instead of a listing per parent. Not kept while one of them changed less than
-    RACY_NS ago."""
-    stamp = _listing_stamp(real)
-    kept = _SPELLED.get(real)
-    if kept is not None and kept[0] == stamp:
-        return kept[1]
-    spelled = Spelling().path(real)
-    if all(m is None or _settled(m) for m in stamp):  # else a change soon after may not show
-        if len(_SPELLED) >= _SPELLED_MAX:
-            _SPELLED.clear()
-        _SPELLED[real] = (stamp, spelled)
-    return spelled
+    """Spelling().path(real), each component's directory listed again only when it changed
+    (_stored_name): a stat per parent, not a listing per parent."""
+    pending = []
+    cur = real
+    while True:
+        parent, name = os.path.split(cur)
+        if not name or parent == cur:
+            break
+        pending.append(name)
+        cur = parent
+    for name in reversed(pending):
+        cur = os.path.join(cur, _stored_name(cur, name))
+    return cur
 
 
 # A path's place after some of its components: the real directory or file reached (`cur`), whether
