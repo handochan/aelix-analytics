@@ -336,8 +336,10 @@ class Site:
             body += (f' <small class="ref-note" title="{esc(", ".join(candidates))}">'
                      f"{len(candidates):,} candidate {what}</small>")
             if inferred:
-                body += (f' <small class="ref-note" title="{esc(", ".join(inferred))}: '
-                         f'{esc(INFERRED_TITLE)}">{len(inferred):,} {esc(core.INFERRED_NOTE)}</small>')
+                # The versions hold Visualization ids people and scripts wrote: only their count
+                # beside the kit's English title (#10, lang="").
+                body += (f' <small class="ref-note" title="{esc(INFERRED_TITLE)}">'
+                         f'{len(inferred):,} {esc(core.INFERRED_NOTE)}</small>')
         if state not in ("resolved", "version_unbound"):
             tone, words = REF_STATE.get(state, ("muted", state))
             reason = f": {judged['reason']}" if judged.get("reason") else ""

@@ -24,7 +24,7 @@ import time
 import tomllib
 import unicodedata
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from . import _platform, relations
 
@@ -614,14 +614,17 @@ class Project:
         stored, it is the project-relative path inside the root, the path below the first boundary
         that reaches it as the namespace is linked now, else None. A relative path is one under the
         root (the owner's decision of 2026-10-06 on Issue #12); one such a kit could not have
-        written — with an empty, `.` or `..` part, a URI, a path absolute on another platform — is
-        None. An inference from today's links and names: the read model (relations) reads it as
-        `basis: inferred`, and only when it names an entry or a run's recorded output."""
+        written — with an empty, `.` or `..` part, a backslash (those kits wrote `/` between the
+        parts on every platform; a POSIX name with one is left as recorded too), a drive (`C:x`), a
+        URI, a path absolute on another platform — is None. An inference from today's links and
+        names: the read model (relations) reads it as `basis: inferred`, and only when it names an
+        entry or a run's recorded output."""
         if not isinstance(recorded, str) or not recorded or "\x00" in recorded:
             return None
         if os.path.isabs(recorded):
             absolute = recorded
-        elif "://" in recorded or _platform.absolute_record_path(recorded) \
+        elif "://" in recorded or "\\" in recorded or PureWindowsPath(recorded).drive \
+                or _platform.absolute_record_path(recorded) \
                 or any(part in ("", ".", "..") for part in recorded.split("/")):
             return None
         else:

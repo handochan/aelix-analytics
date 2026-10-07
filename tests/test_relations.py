@@ -879,6 +879,11 @@ def test_kit_versions_are_ordered_as_pep_440_says():
     for text in ("0.3.0-beta.1", "v0.3.0", "0.3.0+local", "1!0.3.0", "0.3.0.beta1", "03.0", "", None, 5,
                  "0.5.0 ", "dev"):
         assert relations.version_key(text) is None, text
+    # A number longer than Python reads as an integer (sys.get_int_max_str_digits) is no version
+    # either: an older kit's, never an error that stops the read.
+    huge = "9" * 5000
+    for text in (f"0.5.{huge}", huge, f"0.5.0rc{huge}", f"0.5.0.post{huge}", f"0.5.0.dev{huge}"):
+        assert relations.version_key(text) is None and relations.older_kit(text), text[:12]
     assert relations.PATH_IDENTITY_SINCE == core.PATH_IDENTITY_SINCE
     assert [v for v in ("0.4.9", "0.5.0rc1", "0.5.0.dev3", None, "dev", "0.5.0", "0.5.0.post1", "0.5.1",
                         "0.10.0", "1.0") if relations.older_kit(v)] == \
@@ -892,13 +897,14 @@ def older_kit_project(tmp_path) -> tuple[LegacyProject, dict]:
     p = LegacyProject(tmp_path / "p")
     agg = ("data/derived/agg.parquet", p.file("data/derived/agg.parquet", b"agg"))
     absolute = "/an/older/place/data/derived/agg.parquet"
+    elsewhere = "/today/s/place/data/derived/agg.parquet"
     runs = {
         "maker": p.run("20261001-091000-maker", started_at=at(10), ts=at(11), outputs=[agg],
                        kit_version=OLD),
         "absolute": p.run("20261001-092000-absolute", script="scripts/b.py", started_at=at(20),
                           ts=at(21), inputs=[(absolute, agg[1])], kit_version=OLD),
         "today": p.run("20261001-093000-today", script="scripts/c.py", started_at=at(30), ts=at(31),
-                       inputs=[(absolute, agg[1])], kit_version=NEW),
+                       inputs=[(elsewhere, agg[1])], kit_version=NEW),
         "spelling": p.run("20261001-094000-spelling", script="scripts/d.py", started_at=at(40),
                           ts=at(41), inputs=[("data/derived/AGG.parquet", agg[1])]),  # no env
         "nowhere": p.run("20261001-095000-nowhere", script="scripts/e.py", started_at=at(50),
@@ -906,10 +912,10 @@ def older_kit_project(tmp_path) -> tuple[LegacyProject, dict]:
                                             ("data/derived/made-up.parquet", "1" * 64)],
                          kit_version="0.3.0"),
     }
-    mapping = {absolute: agg[0], "data/derived/AGG.parquet": agg[0],
+    mapping = {absolute: agg[0], "data/derived/AGG.parquet": agg[0], elsewhere: agg[0],
                # A mapping that names no entry and no run's output is not taken: never invented.
                "data/derived/made-up.parquet": "data/derived/never-written.parquet"}
-    return p, {"runs": runs, "mapping": mapping, "agg": agg, "absolute": absolute}
+    return p, {"runs": runs, "mapping": mapping, "agg": agg, "absolute": absolute, "elsewhere": elsewhere}
 
 
 def test_an_older_kit_s_path_is_read_as_its_identity_and_the_producer_is_inferred(tmp_path):
@@ -924,9 +930,9 @@ def test_an_older_kit_s_path_is_read_as_its_identity_and_the_producer_is_inferre
     spelled = model.producer(runs["spelling"], "data/derived/AGG.parquet")
     assert (spelled["basis"], spelled["candidates"], spelled["read_as"]) == ("inferred", [runs["maker"]], path)
     # Today's run is read as it recorded, whatever the mapping says.
-    today = model.producer(runs["today"], case["absolute"])
+    today = model.producer(runs["today"], case["elsewhere"])
     assert (today["producer"], today["basis"], "read_as" in today) == ("none", None, False)
-    assert model.read_as(runs["today"], case["absolute"]) is None
+    assert model.read_as(runs["today"], case["elsewhere"]) is None
     # A path that maps to nothing, or to a path nothing knows of, is read as recorded.
     for recorded in ("/elsewhere/x.parquet", "data/derived/made-up.parquet"):
         assert model.read_as(runs["nowhere"], recorded) is None
@@ -1030,8 +1036,13 @@ def test_older_kit_paths_read_through_the_file_system_and_today_s_links(tmp_path
                          ts=at(11), kit_version=OLD,
                          inputs=[(under_root, agg[1]), (through_link, x_sha), (other_case, agg[1]),
                                  (nfd, cafe[1])])
+        # Today's run read the same tables by texts no older run recorded (an older run's text
+        # that a run of today's kit also recorded is the next test's case).
+        (ext / "y.parquet").write_bytes(b"x")
+        today_link = os.path.join(os.path.realpath(ext), "y.parquet")
+        today_case = "data/derived/Agg.parquet"
         today = p.run("20261001-092000-today", script="scripts/c.py", started_at=at(20), ts=at(21),
-                      kit_version=NEW, inputs=[(through_link, x_sha), (other_case, agg[1])])
+                      kit_version=NEW, inputs=[(today_link, x_sha), (today_case, agg[1])])
         before = files_of(p.root)
         model = core.read_model(project)
         folds_case = core.same_file(p.root / agg[0], p.root / other_case)
@@ -1046,10 +1057,108 @@ def test_older_kit_paths_read_through_the_file_system_and_today_s_links(tmp_path
             else:
                 assert (judged["candidates"], judged["basis"], judged["read_as"]) == \
                     (makers, "inferred", identity), (kind, recorded)
-        for recorded in (through_link, other_case):
+        for recorded in (today_link, today_case):
             assert model.read_as(today, recorded) is None
             assert model.producer(today, recorded)["producer"] == "none"
         assert files_of(p.root) == before, "reading rewrites no record"
+
+
+def test_a_path_text_a_run_of_today_s_kit_also_recorded_is_read_as_recorded_for_every_run(tmp_path):
+    """An older kit's run and a run of PATH_IDENTITY_SINCE or later that recorded the same path text
+    match by that text, as observed, even when what the text names changed since (a case-only
+    rename, a link made later): the older run's text is not read as another, so neither run loses
+    the other, and the Visualization key both recorded keeps both versions (reviews of 926adb0)."""
+    p = LegacyProject(tmp_path / "p")
+    # Since today's run: the table and the script renamed (case only), the folder outside linked.
+    agg = p.file("data/derived/Agg.parquet", b"agg")
+    x = p.file("data/ext/x.parquet", b"x")
+    p.file("scripts/Plot.py", b"# plot\n")
+    outside = "/outside/ext/x.parquet"
+    base = ("data/raw/base.parquet", p.file("data/raw/base.parquet", b"base"))
+    old = p.run("20261001-091000-old", script="scripts/plot.py", started_at=at(10), ts=at(11),
+                inputs=[base], outputs=[("data/derived/agg.parquet", agg), (outside, x)], charts=["trend"],
+                kit_version=OLD)  # e1
+    new = p.run("20261001-092000-new", script="scripts/plot.py", started_at=at(20), ts=at(21),
+                inputs=[("data/derived/agg.parquet", agg), (outside, x)], charts=["trend"],
+                kit_version=NEW)  # e2
+    p.event("finding", {"charts": ["scripts/plot.py::trend"]})  # e3
+    mapping = {"data/derived/agg.parquet": "data/derived/Agg.parquet", outside: "data/ext/x.parquet",
+               "scripts/plot.py": "scripts/Plot.py"}
+    model = read(p.root, legacy_path=mapping.get)
+    for recorded, digest in (("data/derived/agg.parquet", agg), (outside, x)):
+        assert model.read_as(old, recorded) is None, recorded
+        assert model.producer(new, recorded) == {
+            "run_id": new, "path": recorded, "sha256": digest, "producer": "resolved", "candidates": [old],
+            "basis": "observed"}, recorded
+    assert model.upstream(new)["upstream"] == [old]
+    versions = [f"{old}/trend", f"{new}/trend"]
+    assert model.chart_key("scripts/plot.py::trend") == "scripts/plot.py::trend"
+    assert model.visualization_versions("scripts/plot.py::trend") == versions
+    assert model.inferred_versions("scripts/plot.py::trend") == []
+    cited = one(model, "e3", field="charts")
+    assert (cited["candidates"], cited.get("inferred_candidates")) == (versions, None)
+    # As every run read as recorded, which is how a reader without the mapping reads them.
+    plain = read(p.root)
+    assert [plain.producer(new, path) for path in ("data/derived/agg.parquet", outside)] == \
+        [model.producer(new, path) for path in ("data/derived/agg.parquet", outside)]
+    assert plain.visualization_versions("scripts/plot.py::trend") == versions
+
+
+def test_today_s_kit_s_text_keeps_its_producer_after_a_rename_or_a_new_link(tmp_path):
+    """The same on a real file system through core (the reviews' cases of 926adb0): a 0.4.0 run
+    output a table and a file outside the root, and a 0.5.0 run read both by the same texts; then
+    the table and the script are renamed (case only) and the folder outside is linked into data/.
+    The 0.5.0 run's producer is still the older run, observed; the older run's changed input still
+    makes the 0.5.0 run's chart stale (a stale chart is not shown current); the script both runs
+    recorded keeps one gallery key with both versions."""
+    for kind in LINK_KINDS:
+        p = LegacyProject(tmp_path / kind / "p")
+        ext = tmp_path / kind / "ext"
+        ext.mkdir()
+        (ext / "x.parquet").write_bytes(b"x")
+        x_sha = file_sha(ext / "x.parquet")
+        outside = os.path.join(os.path.realpath(ext), "x.parquet")
+        agg = p.file("data/derived/agg.parquet", b"agg")
+        p.file("scripts/plot.py", b"# plot\n")
+        base = ("data/raw/base.parquet", p.file("data/raw/base.parquet", b"base"))
+        old = p.run("20261001-091000-old", script="scripts/plot.py", started_at=at(10), ts=at(11),
+                    inputs=[base], outputs=[("data/derived/agg.parquet", agg), (outside, x_sha)],
+                    charts=["trend"], kit_version=OLD)
+        new = p.run("20261001-092000-new", script="scripts/plot.py", started_at=at(20), ts=at(21),
+                    inputs=[("data/derived/agg.parquet", agg), (outside, x_sha)], charts=["trend"],
+                    kit_version=NEW)
+        p.file(base[0], b"base changed")  # the older run's input changed: it is stale
+        for folder, name, renamed in (("data/derived", "agg.parquet", "Agg.parquet"),
+                                      ("scripts", "plot.py", "Plot.py")):
+            os.rename(p.root / folder / name, p.root / folder / "renaming")
+            os.rename(p.root / folder / "renaming", p.root / folder / renamed)
+        dir_link(kind, p.root / "data" / "ext", ext)
+        before = files_of(p.root)
+        project = core.Project(p.root)
+        model = core.read_model(project)
+        for recorded in ("data/derived/agg.parquet", outside):
+            judged = model.producer(new, recorded)
+            assert (judged["producer"], judged["candidates"], judged["basis"], "read_as" in judged) == \
+                ("resolved", [old], "observed", False), (kind, recorded)
+        st = core.status(project)
+        [chart] = [c for c in st["charts"] if c["run"] == new]
+        assert (chart["key"], chart["versions"], chart["inferred_versions"], chart["stale"],
+                chart["stale_upstream"], chart["inferred_upstream"], chart["inferred_inputs"]) == \
+            ("scripts/plot.py::trend", 2, 0, True, [old], [], []), kind
+        assert model.chart_key("scripts/plot.py::trend") == "scripts/plot.py::trend"
+        assert files_of(p.root) == before, "reading rewrites no record"
+
+
+def test_a_kit_version_too_long_to_read_is_an_older_kit_s_and_the_read_goes_on(tmp_path):
+    """A run record whose kit version has a number longer than Python reads as an integer is read
+    as an older kit's, and the project is read (Codex's review of 926adb0)."""
+    p = LegacyProject(tmp_path / "p")
+    t = ("data/derived/t.parquet", p.file("data/derived/t.parquet", b"t"))
+    run = p.run("20261001-091000-a", started_at=at(10), ts=at(11), outputs=[t],
+                kit_version="0.5." + "9" * 5000)
+    project = core.Project(p.root)
+    assert core.read_model(project).older_kit(run)
+    assert [r["id"] for r in core.status(project)["runs"]] == [run]
 
 
 # --- where it runs ---------------------------------------------------------------------------------

@@ -21,13 +21,17 @@ inside it and absolute outside, each name as it was typed where the file system 
 Unicode normalization. A path such a run recorded — absolute under the root or a link's target, or
 relative in another spelling than the stored one — is read as the identity path `legacy_path` gives
 it, when that differs from the recorded one and names an entry now or a path some run recorded as
-an output: never a path made up. A run's kit is its `env.kit_version` in PEP 440 order; a record
-without one, or with one this reader cannot order, is an older kit's. A match made through such a
-reading — a producer candidate, a Visualization version under a logical key — is `inferred`: the
-judgment says so (`basis: inferred`, `inferred_candidates`) and it is never `observed` and never a
-confirmed link. Two records that hold the same path text (an older kit's output and input in one
-spelling) still match as observed. Several runs found so stay `ambiguous`. The records are not
-rewritten. Runs of PATH_IDENTITY_SINCE or later are read as recorded.
+an output: never a path made up. A path text that a run of PATH_IDENTITY_SINCE or later also
+recorded (an input, an output or a script) is not read as another: it was an identity path then, and
+every run that recorded it, older or not, keeps matching it by text even after a rename or a new
+link changed what it is now. A run's kit is its `env.kit_version` in PEP 440 order; a record
+without one (a run still running, or one whose environment could not be recorded, included), or
+with one this reader cannot order, is an older kit's. A match made through such a reading — a
+producer candidate, a Visualization version under a logical key — is `inferred`: the judgment says
+so (`basis: inferred`, `inferred_candidates`) and it is never `observed` and never a confirmed link.
+Any two records that hold the same path text still match as observed. Several runs found so stay
+`ambiguous`. The records are not rewritten. Runs of PATH_IDENTITY_SINCE or later are read as
+recorded.
 
 The rules are those of ADR-0006 (docs/decisions/0006-common-record-contract.md), checked against the
 examples under tests/fixtures/records/. Readings this module makes where the decision is silent:
@@ -143,20 +147,27 @@ def version_key(text) -> tuple | None:
     Trailing zeros of the release do not count (`1.0` is `1`); a development release of a final
     comes before its pre-releases, a final after them, a post-release after the final, and a
     development release before the release it leads to (`0.3.0.dev1 < 0.3.0a1 < 0.3.0rc1 < 0.3.0 <
-    0.3.0.post1`)."""
+    0.3.0.post1`). A number too long for Python to read as an integer (sys.get_int_max_str_digits)
+    is a text this reader cannot order: None."""
     match = VERSION_RE.match(text) if isinstance(text, str) else None
     if match is None:
         return None
-    release = [int(match[1]), *(int(part) for part in match[2].split(".")[1:])]
+    try:
+        release = [int(match[1]), *(int(part) for part in match[2].split(".")[1:])]
+        pre, post, dev = match[3], match[5], match[6]
+        pre_number = int(match[4]) if pre is not None else 0
+        post_number = int(post) if post is not None else 0
+        dev_number = int(dev) if dev is not None else 0
+    except ValueError:
+        return None
     while len(release) > 1 and release[-1] == 0:
         release.pop()
-    pre, post, dev = match[3], match[5], match[6]
     if pre is not None:
-        pre_key = (1, PRE_RELEASES[pre], int(match[4]))
+        pre_key = (1, PRE_RELEASES[pre], pre_number)
     else:
         pre_key = (0, 0, 0) if dev is not None and post is None else (2, 0, 0)
-    post_key = (0, 0) if post is None else (1, int(post))
-    dev_key = (1, 0) if dev is None else (0, int(dev))
+    post_key = (0, 0) if post is None else (1, post_number)
+    dev_key = (1, 0) if dev is None else (0, dev_number)
     return tuple(release), pre_key, post_key, dev_key
 
 
@@ -708,6 +719,7 @@ class ReadModel:
         self._older: dict[str, bool] = {}
         self._read_as: dict[str, str | None] = {}
         self._recorded_outputs: set[str] | None = None
+        self._recorded_now: set[str] | None = None
         self.as_of_seq = journal.as_of_seq
         self.source_revision: str | None = None
         self.updating = False
@@ -831,9 +843,10 @@ class ReadModel:
         return self._older[run_id]
 
     def read_as(self, run_id, path) -> str | None:
-        """The identity path a path that run recorded is read as, when the run is an older kit's and
-        `legacy_path` gives another path that names an entry now or a path some run recorded as an
-        output (an inference, never an observation); else None, and the path is read as recorded."""
+        """The identity path a path that run recorded is read as, when the run is an older kit's,
+        no run of PATH_IDENTITY_SINCE or later recorded the same text, and `legacy_path` gives
+        another path that names an entry now or a path some run recorded as an output (an
+        inference, never an observation); else None, and the path is read as recorded."""
         if self._legacy_path is None or not isinstance(path, str) or not self.older_kit(run_id):
             return None
         if path not in self._read_as:
@@ -841,6 +854,10 @@ class ReadModel:
         return self._read_as[path]
 
     def _mapped(self, path: str) -> str | None:
+        if path in self._recorded_by_current_kits():
+            # An identity path when that run recorded it: every run that recorded this text keeps
+            # matching it by text, as before, whatever it names now (a rename, a new link since).
+            return None
         try:
             mapped = self._legacy_path(path)
         except (OSError, ValueError):
@@ -850,6 +867,16 @@ class ReadModel:
         if mapped in self._outputs_recorded() or os.path.lexists(self.root / mapped):
             return mapped
         return None  # it names nothing anyone knows of: not invented
+
+    def _recorded_by_current_kits(self) -> set[str]:
+        """Every input, output and script path a readable run of PATH_IDENTITY_SINCE or later
+        recorded, as recorded (once per read)."""
+        if self._recorded_now is None:
+            self._recorded_now = {
+                path for run_id, run in self._runs.items() if not self.older_kit(run_id)
+                for entry in (*_dicts(run.get("inputs")), *_dicts(run.get("outputs")), _script(run))
+                if (path := _str(entry.get("path"))) is not None}
+        return self._recorded_now
 
     def _outputs_recorded(self) -> set[str]:
         """Every output path a readable run recorded, as recorded."""

@@ -29,6 +29,7 @@ Aelix Analytics는 베타 이후에도 지표·맥락·재사용·근거 탐색�
 ## 적용 현황
 
 코드 `d7b6f18` 기준이다(2026-10-03 확인). 행 1·5와 아래 확인 1은 #12의 둘째 PR(2026-10-06)에서 그 PR의 코드로 고쳤다.
+행 5는 #12의 셋째 PR(2026-10-08)에서 그 PR의 코드로 다시 고쳤다.
 행 1·4와 확인 2·5는 [#43](https://github.com/handochan/aelix-analytics/issues/43)(2026-10-06)에서 그 PR의 코드로 고쳤다.
 
 | 결정 | 적용한 것 | 남은 것과 맡는 곳 |
@@ -37,7 +38,7 @@ Aelix Analytics는 베타 이후에도 지표·맥락·재사용·근거 탐색�
 | 2 core의 의미 소유 | 적용 전. 기록의 의미가 `core.py`·`runner.py`·`report.py`에 나뉘어 있다(아키텍처 §2) | 공통 기록 계약 #4, 공통 writer #13, 지표·초점 #14 |
 | 3 Strategy·어댑터 경계 | 적용 전 | 첫 교체 사례인 두 제안 모드 #17, 두 공유 프로필 #20 |
 | 4 작은 Protocol과 명시적 주입 | 플랫폼 포트 넷(`FileLocks`·`AtomicFiles`·`ProcessControl`·`RunControl`), `Project(root, platform=…)` 주입, 실제 구현을 실패하도록 무장한 계약 시험(ADR-0003). 그 방식을 세 구현(POSIX·Windows·시험 adapter)에 같은 사례로 돌리는 공통 계약 시험(#43, `tests/test_contracts.py`) | 정책 Strategy와 저장·게시 어댑터의 주입. 그 구현을 만드는 Issue(#17·#20 등) |
-| 5 공통 쓰기 경로와 읽기 모델 | 읽기 모델 `relations`(#12 PR-1·PR-2): `analytics_status`·`/analytics status`·kit `status`와 Workspace가 기록을 한 번 읽어 같은 판정·식별자·읽기 기준(`as_of_seq`·`source_revision`)을 보인다. 맥락 블록은 journal만 읽는다 | 옛 절대 경로의 추론 대응 #12 PR-3, 공통 writer #13, 질의·인덱스 #15, 보고서 본문·버전 #19 |
+| 5 공통 쓰기 경로와 읽기 모델 | 읽기 모델 `relations`(#12 PR-1·PR-2·PR-3): `analytics_status`·`/analytics status`·kit `status`와 Workspace가 기록을 한 번 읽어 같은 판정·식별자·읽기 기준(`as_of_seq`·`source_revision`)을 보인다. 맥락 블록은 journal만 읽는다. kit 0.5.0 전 run이 기록한 옛 경로(절대·상대)는 지금의 정체성 경로로 대응해 읽고 추론(`basis: inferred`)으로 표시한다(PR-3, ADR-0006 9절; 확정 연결로 세지 않고 기록은 고쳐 쓰지 않음) | 공통 writer #13, 질의·인덱스 #15, 보고서 본문·버전 #19 |
 | 6 계약별 버전·호환성 | 적용 전. 이 결정 전부터 기록에 schema 가족·버전이 있고, 같은 가족의 미래 버전만 가려낸다 | 기록 #4·#13, 스크립트 API #9, 게시 형식 #20·#21, 배포 #24 |
 | 7·8 자유 Python, 도구 수 | 현재 동작이 지키는 원칙이다(자유 Python 실행, 모델 도구 여섯 개) | 새 기능 PR의 리뷰 기준(Q11·Q13) |
 | 9 공개 명칭과 영어 기본값 | 설치본의 명령 이름 `analytics`(ADR-0004 결정 7). #9의 첫 PR(2026-10-06): kit이 package `aelix_analytics`이고 스크립트 API가 `import aelix_analytics`, 모듈 실행이 `python -m aelix_analytics`다(ADR-0004 결정 9 개정) | 함수·명령·도구·flag·환경 변수의 이름 #9의 둘째 PR, 영어 기본값 #10, 저장 이름 #13(ADR-0005) |

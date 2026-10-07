@@ -575,8 +575,11 @@ def test_a_path_recorded_by_an_earlier_kit_is_read_as_the_namespace_now(tmp_path
     # Another spelling is the stored one only where the file system takes it as that entry.
     assert project.legacy_identity("Data/RAW/S.parquet") == \
         ("data/raw/s.parquet" if folds else "Data/RAW/S.parquet")
+    # Those kits wrote `/` between the parts on every platform: a backslash or a drive is no part
+    # of a relative path they wrote (`data\..\s.parquet` would name s.parquet on Windows).
     for impossible in ("", "../x.csv", "data/./s.parquet", "data//s.parquet", "s3://bucket/x.csv",
-                       "C:\\elsewhere\\x.csv", None, 7):
+                       "C:\\elsewhere\\x.csv", "data\\..\\s.parquet", "data\\raw\\s.parquet",
+                       "C:data/raw/s.parquet", "C:s.parquet", None, 7):
         assert project.legacy_identity(impossible) is None, impossible
     assert core.PATH_IDENTITY_SINCE == "0.5.0"
 

@@ -558,9 +558,11 @@ def test_one_records_references_are_the_same_judged_alone_or_with_all(name):
 
 def older_kit_screens(tmp_path, monkeypatch, *, folder: str = "", script: str = "plot") -> SimpleNamespace:
     """An older kit's runs that recorded a table and a script in another spelling and an absolute
-    path, today's run with the same paths, and a stale input upstream. Project.legacy_identity is
-    replaced by a mapping so every platform reads the same (the reader's tests read a real file
-    system). `folder` puts the table in a folder of that name, `script` names the script."""
+    path, today's run with the script and a copy of the table outside the root (which the mapping
+    also maps: a run of today's kit is read as recorded), and a stale input upstream.
+    Project.legacy_identity is replaced by a mapping so every platform reads the same (the reader's
+    tests read a real file system). `folder` puts the table in a folder of that name, `script`
+    names the script."""
     p = LegacyProject(tmp_path / "p")
     p.file(f"scripts/{script}.py", b"# plot\n")
     derived = f"data/derived/{folder}/" if folder else "data/derived/"
@@ -568,15 +570,19 @@ def older_kit_screens(tmp_path, monkeypatch, *, folder: str = "", script: str = 
     agg = (f"{derived}agg.parquet", p.file(f"{derived}agg.parquet", b"agg"))
     # The real path an older kit recorded for a table it read (a root reached through a link, say).
     absolute = os.path.join(os.path.realpath(p.root), *agg[0].split("/"))
+    # A copy outside the root that today's run read (the same bytes, so its input is not changed).
+    outside = Path(os.path.realpath(tmp_path)) / "outside" / "agg.parquet"
+    outside.parent.mkdir()
+    outside.write_bytes(b"agg")
     maker = p.run("20261001-091000-maker", script=f"Scripts/{script.title()}.py", started_at=at(10),
                   ts=at(11), inputs=[base], outputs=[(f"{derived}AGG.parquet", agg[1])], charts=["trend"])
     consumer = p.run("20261001-092000-consumer", script="scripts/use.py", started_at=at(20), ts=at(21),
                      inputs=[(absolute, agg[1])], charts=["usage"], kit_version="0.4.0")
     today = p.run("20261001-093000-today", script=f"scripts/{script}.py", started_at=at(30), ts=at(31),
-                  inputs=[(absolute, agg[1])], charts=["trend"], kit_version=core.PATH_IDENTITY_SINCE)
+                  inputs=[(str(outside), agg[1])], charts=["trend"], kit_version=core.PATH_IDENTITY_SINCE)
     p.file(base[0], b"base changed")  # the maker's input changed since: the maker is stale
     mapping = {f"Scripts/{script.title()}.py": f"scripts/{script}.py", f"{derived}AGG.parquet": agg[0],
-               absolute: agg[0]}
+               absolute: agg[0], str(outside): agg[0]}
     monkeypatch.setattr(core.Project, "legacy_identity", lambda self, recorded: mapping.get(recorded))
     return SimpleNamespace(p=p, maker=maker, consumer=consumer, today=today, absolute=absolute)
 
@@ -614,8 +620,13 @@ def test_the_overview_says_which_relations_are_inferred_from_an_older_kit_s_path
 
 def test_the_workspace_marks_what_it_reads_through_an_older_kit_s_path(tmp_path, monkeypatch):
     case = older_kit_screens(tmp_path, monkeypatch)
+    case.p.event("finding", {"charts": ["scripts/plot.py::trend"]})
     before = records_of(case.p.root)
     pages = built(case.p)
+    # The cited key's versions found through the older kit's script spelling: their count beside the
+    # kit's English title, not the versions (Visualization ids people wrote) in it (#10).
+    assert (f'<small class="ref-note" title="{report.esc(report.INFERRED_TITLE)}">1 inferred from an '
+            "older kit&#x27;s path</small>") in pages["index.html"]
     consumer = pages[f"runs/{case.consumer}.html"]
     inputs = consumer.split('id="inputs"', 1)[1].split("</section>", 1)[0]
     assert (f'<span lang="">{case.absolute}</span>' in inputs or f'>{case.absolute}</a>' in inputs)

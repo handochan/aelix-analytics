@@ -17,7 +17,7 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 
 ## [0.5.0] - 2026-10-07
 
-번호를 붙인 PR은 [#68]입니다.
+번호를 붙인 PR은 [#68]입니다. [#12]의 셋째 PR은 그 뒤 번호를 올리지 않고 병합됐습니다.
 
 ### Changed
 
@@ -27,13 +27,20 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
   ([#68], [ADR-0006](docs/decisions/0006-common-record-contract.md) 9절).
 - 프로젝트 밖을 가리키는 링크는 경계로 보고 그 아래 파일을 링크의 경로로 기록합니다(`external: false`). run이 새로 만든 밖으로의
   링크 아래 파일은 run 시작 뒤에 바뀐 것만 출력입니다 ([#68]).
+- 0.5.0 전 kit의 run이 기록한 옛 경로 — 루트나 링크 대상 아래의 실제 절대 경로, 저장된 것과 다른 철자로 기록된 상대 경로(입력
+  `data/derived/AGG.parquet`, 차트 `Scripts/Analysis.py::id`) — 를 지금의 경로로 대응해 읽어 데이터셋·생산자·차트 버전과 잇습니다.
+  그렇게만 이어진 것은 추론(`basis: inferred`)으로 표시하고 확정 연결로 세지 않으며, 기록은 고쳐 쓰지 않습니다. 0.5.0 이후 run도
+  기록한 글자는 옛 run의 것도 기록 그대로 읽습니다 ([#12], [ADR-0006](docs/decisions/0006-common-record-contract.md) 9절).
+- status JSON에 추론을 가리키는 필드가 더해집니다: 생산자 판정의 `inferred_candidates`·`read_as`, 참조 판정의 `inferred_candidates`,
+  차트 행의 `inferred_versions`·`inferred_inputs`·`inferred_upstream`, 데이터셋의 `inferred`. `analytics_status`·kit `status`와
+  Workspace는 그 자리에 `inferred from an older kit's path`를 적습니다 ([#12]).
 
 ### Fixed
 
 - 링크한 `data/` 아래에 저장한 출력이 run에서 빠지던 것, junction인 `data/`의 입력이 생산자와 이어지지 않던 것, `runs/`를 가리키는
   junction 아래 run 자신의 파일이 출력으로 기록되던 것, 대소문자만 다른 데이터셋 파일이 kit의 view 이름을 가져가던 것 ([#68]).
 
-0.5.0 전의 기록은 고쳐 쓰지 않고 그대로 읽습니다. 그 기록의 옛 경로를 새 경로로 잇는 일(추론으로 표시)은 #12의 셋째 PR이 합니다.
+0.5.0 전의 기록은 고쳐 쓰지 않습니다. 그 기록의 옛 경로는 위처럼 지금의 경로로 대응해 읽고 추론으로 표시합니다.
 
 ## [0.4.0] - 2026-10-06
 
@@ -130,6 +137,7 @@ PR도 이 절입니다.
 [`fb06e8a`]: https://github.com/handochan/aelix-analytics/commit/fb06e8ac4555c1769cd17d401a0180247b3dbcb3
 [`7b205cd`]: https://github.com/handochan/aelix-analytics/commit/7b205cd16738bc11de1d23e538c9423e7a55ea27
 [`21b6a3c`]: https://github.com/handochan/aelix-analytics/commit/21b6a3c5d98e688aa3642662c4eb4b9093a12247
+[#12]: https://github.com/handochan/aelix-analytics/issues/12
 [#31]: https://github.com/handochan/aelix-analytics/pull/31
 [#33]: https://github.com/handochan/aelix-analytics/pull/33
 [#35]: https://github.com/handochan/aelix-analytics/pull/35
