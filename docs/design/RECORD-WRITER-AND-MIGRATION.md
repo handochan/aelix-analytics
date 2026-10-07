@@ -10,7 +10,7 @@
 - 따르는 결정: [ADR-0005](../decisions/0005-names-first-storage-with-the-new-writer.md) 결정 2–7,
   [ADR-0006](../decisions/0006-common-record-contract.md) 1·3·6·8·9·10절, [ADR-0001](../decisions/0001-evolvable-platform-boundaries.md),
   [ADR-0003](../decisions/0003-portable-boundaries-and-in-process-kit-loading.md) 결정 1·3·6, [ADR-0007](../decisions/0007-line-endings.md),
-  [ADR-0008](../decisions/0008-reuse-proposal-counting-and-deterministic-always-on.md) 결정 3(요청 주체·실행 수단),
+  [ADR-0008](../decisions/0008-reuse-proposal-counting-and-deterministic-always-on.md) 결정 3(요청 주체·실행 수단)·결정 7(에이전트 요청의 CLI 호출),
   [용어집](../TERMINOLOGY-AND-LANGUAGE.md) §2·§3·§6·§8, [전체 용어 점검](../REVIEW-TERMINOLOGY-2026-09-18.md) §5,
   [연속성 설계](../DESIGN-CONTINUITY-AND-REUSE.md), [아키텍처](../ARCHITECTURE.md) §4·§7·§11, [베타 기준](../BETA-QUALITY-GATES.md) Q4·Q7·Q8·Q17,
   [운영 정책](../PROJECT-OPERATIONS.md)의 리뷰 예산과 검증 증거, 결정 Issue [#3](https://github.com/handochan/aelix-analytics/issues/3)·
@@ -20,9 +20,11 @@
 - 만든 방법: 같은 입력으로 따로 쓴 두 설계안(단계별 PR을 앞세운 안, 원본 보존을 앞세운 안)을 비교했다. 원본 보존 안을 바탕으로
   하고 다른 안의 장점을 옮겼으며, 두 안이 놓친 것을 코드로 확인해 더했다(17절). 두 안·상태 지도·프로브는 Git 밖의 로컬 작업 폴더
   `.devstate/runs/abd7197a-3fd9-432e-b69a-76e02e5b85ba/`에 있다.
-- 리뷰: #13은 기록 형식·전환 PR이므로 구현 전에 이 문서가 설계 리뷰(독립 1회·Codex 1회)를 받는다. 아직 받지 않았다.
-- 소유자 결정: 입력이 정하지 않은 제품 결정 11개가 16절(OQ1–OQ11)에 권장 답과 바뀌는 것과 함께 있다. 답을 받기 전에는 권장 답을
-  전제로 쓴 부분(본문에 "(OQn)" 표시)이 확정이 아니다. ADR이 #13 설계에 맡긴 선택은 15절(D1–D18)이며 설계 리뷰가 정한다.
+- 리뷰: #13은 기록 형식·전환 PR이므로 구현 전에 이 문서가 설계 리뷰(독립 1회·Codex 1회)를 받는다. 그 리뷰(꼭 고칠 것 M1–M8, 검토할 것
+  1–21, 새 소유자 질문 2개)를 받았고, 지적마다 처리한 곳은 19절에 있다. 고친 뒤의 이 문서는 리뷰를 다시 받지 않았다(자기 검토만).
+- 소유자 결정: 입력이 정하지 않은 제품 결정 13개가 16절(OQ1–OQ13)에 권장 답과 바뀌는 것, 채택된 보장을 좁히는지와 함께 있다. 답을 받기
+  전에는 권장 답을 전제로 쓴 부분(본문에 "(OQn)" 표시)이 확정이 아니다. ADR이 #13 설계에 맡겼거나 입력이 정하지 않은 설계 선택은
+  15절(D1–D27)이며 설계 리뷰가 정한다.
 
 ---
 
@@ -35,22 +37,30 @@
 3. 새 모듈은 둘이다. `writer.py`(새 계층 `writer`, 수준 1)와 `migration.py`(새 계층 `migration`, 수준 3). 둘 다 stdlib만 쓰고, `core`
    이상의 수준을 하나씩 올린다. writer가 core를 import하지 못하게 기존 계층 검사가 막는다.
 4. 공통 writer는 모든 진입점에서 `Origin(actor, means, actor_basis, session, request_id)`를 명시적으로 받는다. 실행 수단 필드의 이름은
-   `means`이고 값은 `cli`·`sdk`·`tool`·`command`·`hook`이다.
+   `means`이고 값은 `cli`·`sdk`·`tool`·`command`·`hook`이다. aelix의 bash 도구가 확장이 프로세스 환경에 넣은 변수를 자식에게 넘긴다는 것을
+   프로브로 확인했다(R9). 그래서 확장이 `AELIX_ANALYTICS_ACTOR=agent`를 넣어 에이전트가 부른 CLI를 에이전트 기록으로 남긴다(OQ1).
 5. 같은 상태 변경은 journal 잠금 안에서 표식을 다시 읽고 `relations.Replay`로 재생해 판정한다. 맞지 않으면 `state_conflict`로 거절하고
    아무것도 쓰지 않는다. 끊긴 줄 뒤에는 줄바꿈을 먼저 쓴다. 잠금 안의 단계는 `Writer.locked()` 하나이며 #19의 Report 저장도 쓴다.
 6. 전환 명령은 `analytics migrate --to DEST [--dry-run]`이다. 원본은 다른 명령과 같은 규칙으로 찾은 `lab.json` 프로젝트다. 런처는
    `init`처럼 `uv run --no-project`로 kit을 부른다. 프로브에서 `uv run --project`는 원본에 `.venv/`·`uv.lock`을 만들거나 다시 썼다.
-7. 전환은 원본에 잠금 파일 말고는 쓰지 않는다. 목적지 ledger를 원본 잠금보다 먼저 쓰고, 원본의 `run.lock` → `lock`을 기다리지 않고
-   잡아 계획·복사·원본 재확인 동안만 쥔다. `.lab/`이 없는 원본에는 디렉터리를 만들지 않고 잠금 없이 전후 비교에 맡긴다.
-8. 사본은 같은 상대 경로·같은 바이트다. 기록하는 대응은 둘이다: `.lab/` 안의 이력·로그 → `.analytics/` 같은 이름(ADR-0005 결정 5가 #13에
-   맡긴 배치), `lab.json` → `.analytics/migration/<id>/source-marker.json`(바이트 그대로). `.gitignore`는 줄을 덧붙이고 전후 해시와 diff를 남긴다.
-9. 커밋 지점은 검증·보고서·내구 쓰기 뒤의 `analytics.json` 원자 교체 하나다. 표식이 보고서의 sha256을 담는다. 표식 전의 목적지는
-   옛 kit에는 `no_project`, 새 kit에는 `migration_incomplete`다.
-10. 중단된 전환은 같은 명령으로 잇는다. 목적지에 ledger가 적은 파일만 있고 해시가 맞으며, 이미 복사한 파일이 지금 원본과 같을 때만이다.
-    목적지의 파일을 덮어쓰지 않고, 이 전환이 만든 임시 파일 말고는 지우지 않는다.
-11. ③ 뒤 `lab.json` 프로젝트는 읽기만 된다. 일반 쓰기는 `migration_required`와 전환 명령 안내로 거절하고 부수 쓰기는 건너뛴다.
+7. 전환은 원본에 잠금 파일 말고는 쓰지 않는다. 목적지는 원본 루트뿐 아니라 복사가 읽는 모든 실제 디렉터리(따라가는 바깥 링크의 대상)와도
+   겹치지 않아야 한다. 목적지 ledger를 원본 잠금보다 먼저 쓰고, 원본의 `run.lock` → `lock`을 기다리지 않고 잡아 계획·복사·원본 재확인 동안만
+   쥔다. `.lab/`이 없거나 잠금 파일을 만들 수 없는(읽기 전용) 원본은 잠금 없이 전후 비교로만 지킨다. 결정 5의 수단과 다르다는 것을 15절 D10에 적는다.
+8. 사본은 같은 상대 경로·같은 바이트다. 기록하는 대응은 셋이다: `.lab/` 안의 이력·로그 → `.analytics/` 같은 이름(ADR-0005 결정 5가 #13에
+   맡긴 배치), `lab.json` → `.analytics/migration/<id>/source-marker.json`(바이트 그대로), 보통 파일·디렉터리로 바꾼 링크(링크 경로와 옛 대상의
+   실제 경로). 매핑이 셋을 모두 담아 옛 run의 경로 추론이 전환 뒤에도 같게 풀린다. `.gitignore`는 줄을 덧붙이고 전후 해시와 diff를 남긴다.
+9. 사본·새 파일은 "없을 때만 만드는" 원자 게시로 최종 이름에 놓는다. 목적지에 사용자가 만든 파일을 덮어쓰지 않는다. 커밋 지점은 검증·보고서·
+   내구 쓰기 뒤의 `analytics.json` 게시 하나다. 표식이 보고서의 sha256을 담고, 보고서에는 커밋 전에 알 수 없는 값을 넣지 않는다. 표식 전의
+   목적지는 옛 kit에는 `no_project`, 새 kit에는 `migration_incomplete`다.
+10. 중단된 전환은 같은 명령으로 잇는다. ledger의 줄이 정한 상태만 받는다. 원본 재확인(`source_checked`) 전이면 이미 복사한 파일이 지금 원본과
+    같아야 하고, 그 뒤면 원본을 다시 보지 않고 기록한 스냅샷으로 잇는다. 목적지의 파일을 덮어쓰지 않고, 이 전환이 만든 임시 파일 말고는 지우지 않는다.
+11. 다시 부른 전환은 목적지의 표식 판정을 먼저 본다. 두 표식·깨진 표식·모르는 표식은 그 오류이고, 같은 원본의 커밋된 전환일 때만
+    `already_migrated`다.
+12. 읽기는 run 기록의 `charts[]`(`/1`)와 `visualizations[]`(`/2`)를 `relations`의 한 함수로 같은 보기로 읽고, 재실행 비교를 포함한 모든 소비자가
+    그 함수를 쓴다. 관리 디렉터리와 제외 디렉터리는 표식이 고른 배치(`Layout`·`LegacyLayout`)마다 따로 둔다.
+13. ③ 뒤 `lab.json` 프로젝트는 읽기만 된다. 일반 쓰기는 `migration_required`와 전환 명령 안내로 거절하고 부수 쓰기는 건너뛴다.
     두 표식은 모든 작업에서 `marker_conflict`다.
-12. 측정 기록(md+JSON)은 ①②③에 하나씩 둔다. 실행하지 않은 것(pytest·CI·Windows·Linux·M 규모 등)은 18절에 있고 통과로 보지 않는다.
+14. 측정 기록(md+JSON)은 ①②③에 하나씩 둔다. 실행하지 않은 것(pytest·CI·Windows·Linux·M 규모·전원 손실 등)은 18절에 있고 통과로 보지 않는다.
 
 ---
 
@@ -68,18 +78,24 @@
 
 | 번호 | 보장 | 근거 | 시험 |
 |---|---|---|---|
-| S1 | 전환은 원본에 잠금 파일(없을 때 생김)을 만들거나 잡는 것 말고는 쓰지 않는다. 실패·중단·거절·`--dry-run`도 같다. 잠금 파일을 새로 만들었으면 ledger와 보고서가 그 사실을 적는다 | ADR-0005 결정 4·5 | T1, T6, T18 |
-| S2 | 목적지의 커밋 지점은 `analytics.json`의 원자 교체 하나다. 그 전에는 어떤 kit도 목적지에 기록하지 않고, 표식과 신뢰 항목은 검증 뒤에만 생긴다 | ADR-0005 결정 5 | T3, T6 |
-| S3 | 사본마다 바이트 수·sha256을 보고서에 적고, 표식이 보고서의 sha256을 담는다. 누구든 다시 계산해 대조할 수 있다 | ADR-0005 결정 4 "전후 해시" | T4 |
-| S4 | 사본은 원본과 같은 바이트다. 위치가 다른 것은 매핑이 적은 두 대응뿐이고, 내용이 다른 것은 보고서가 전후 해시·diff로 적은 `.gitignore` 덧붙임뿐이다 | ADR-0005 결정 5, 용어 점검 §5 5항 | T4 |
+| S1 | 전환은 원본에 잠금 파일(없을 때 생김)을 만들거나 잡는 것 말고는 쓰지 않는다. 복사가 읽는 바깥 링크의 대상에도 쓰지 않는다(목적지가 그 안·같은 곳·위이면 거절). 실패·중단·거절·`--dry-run`도 같다. 잠금 파일을 새로 만들었으면 ledger와 보고서가 그 사실을 적는다 | ADR-0005 결정 4·5 | T1, T2, T6, T18 |
+| S2 | 목적지의 커밋 지점은 `analytics.json`이 없을 때만 만드는 원자 게시 하나다. 그 전에는 어떤 kit도 목적지에 기록하지 않고, 표식과 신뢰 항목은 검증 뒤에만 생긴다 | ADR-0005 결정 5 | T3, T6 |
+| S3 | 사본마다 바이트 수·sha256을 보고서에 적고, 표식이 보고서의 sha256을 담는다. 보고서에는 커밋 전에 정해진 값만 있다. 누구든 다시 계산해 대조할 수 있다 | ADR-0005 결정 4 "전후 해시" | T4 |
+| S4 | 사본은 원본과 같은 바이트다. 위치가 다른 것은 매핑이 적은 대응(`.lab/` 접두, `lab.json`, 보통 파일·디렉터리로 바꾼 링크)뿐이고, 내용이 다른 것은 보고서가 전후 해시·diff로 적은 `.gitignore` 덧붙임뿐이다 | ADR-0005 결정 5, 용어 점검 §5 5항 | T4 |
 | S5 | 복사 구간에 원본이 바뀌면(목록·크기·해시) 표식 없이 실패하고 바뀐 경로를 알린다. 사본에서 조용히 빠지는 기록이 없다 | ADR-0005 결정 5 | T5 |
-| S6 | 중단된 목적지는 "이어 쓸 수 있음" 또는 "사유와 함께 거절" 가운데 하나다. ledger에 없거나 해시가 다른 파일을 덮어쓰지 않고, 이 전환의 임시 파일 말고는 지우지 않는다 | ADR-0005 결정 5 | T6 |
+| S6 | 중단된 목적지는 "이어 쓸 수 있음" 또는 "사유와 함께 거절" 가운데 하나다. ledger의 줄이 정한 상태만 받는다. 목적지에 남이 만든 파일을 덮어쓰지 않고(사본·표식은 없을 때만 게시하고, 덮어쓰는 교체는 이 전환이 가진 파일에만), 이 전환이 만든 임시 파일 말고는 지우지 않는다 | ADR-0005 결정 5 | T6, T19 |
 | S7 | 한 목적지에는 한 전환만 돈다. 원본 잠금은 기다리지 않고 시도하며 옛 kit과 같은 잠금 파일·바이트 범위를 쓴다 | ADR-0005 결정 5, ADR-0003 결정 1 | T7, T15 |
 | S8 | 모든 쓰기 작업은 첫 부수 효과 전에 표식을 새로 읽어 판정하고, journal 쓰기는 잠금 안에서 한 번 더 읽는다. 거절한 작업은 프로젝트 트리를 바꾸지 않는다 | ADR-0005 결정 6, ADR-0006 1.3 | T8, T10, T12 |
 | S9 | ①부터 어느 PR이 병합된 main에서도 `analytics.json` 디렉터리에 옛 형식(`lab.*/1`, `.lab/`, `data/raw/`, `runs/<id>/charts/`)이 써지지 않는다 | ADR-0005 결정 7 | T8 |
 | S10 | 같은 상태 변경의 충돌은 `state_conflict`로 거절하거나 `conflict`로 보이고, 중단은 `damaged`·`incomplete`·`migration_incomplete`로 남는다 | ADR-0006 6절, 완료 조건 4 | T13, T6 |
-| S11 | 모든 새 기록에 작성 주체와 실행 수단이 있고, 진입점이 밝히지 않은 작성 주체는 그 사실이 남는다(OQ1). 세션 없는 기록도 모든 읽기에 나온다 | ARCHITECTURE §4, Q17 | T14 |
+| S11 | 모든 새 기록에 작성 주체와 실행 수단이 있고, 진입점이 밝히지 않은 작성 주체는 그 사실이 남는다. aelix 세션의 에이전트가 bash 도구로 부른 CLI는 `agent`로 남는다(OQ1). 세션 없는 기록도 모든 읽기에 나온다 | ARCHITECTURE §4, Q17-b, ADR-0008 결정 7 | T14, T22 |
 | S12 | 새 기록은 writer 한 곳에서 UTF-8(BOM 없음)·LF로 쓰고, 사용자 내용의 사본은 이진 모드로 바이트 그대로 복사한다 | ADR-0006 10절, ADR-0007 결정 2·6 | T16 |
+| S13 | 한 run의 Visualization은 `/1`(`charts[]`)이든 `/2`(`visualizations[]`)이든 같은 보기로 읽히고, 재실행 비교는 두 형식 사이에서도 같은 id끼리 비교한다. `/1` run을 다시 실행해도 비교가 형식 차이로 `missing`·`new`가 되지 않는다 | ADR-0006 2·3절, 현재 계약 C | T9, T11 |
+| S14 | 관리 디렉터리는 그 프로젝트 형식의 것만이다. 새 형식 프로젝트에서 사람이 만든 `report/`의 출력은 run 기록에 출력으로 남는다 | ADR-0006 9절 "관리 디렉터리" | T20 |
+
+S2·S6과 6.11절의 중단 결과는 프로세스 중단(`os._exit`, SIGKILL)에 대한 보장이며 그것으로 시험한다. 전원 손실 뒤에도 표식이 가리키는 사본이
+디스크에 있게 하는 내구 쓰기(6.4절)는 목표이고 보장이 아니다. 시험할 수 없어 측정 기록의 `not_run`에 두고, 플랫폼마다 남는 한계(Windows의
+디렉터리 flush, 원자 교체가 write-through가 아님)를 6.12절에 적는다.
 
 ---
 
@@ -127,8 +143,18 @@
 | run 기록 | `runs/<id>/run.json` = `analytics.run/2` | `lab.run/1` 그대로 | 둘 다 |
 | 신뢰 목록(프로젝트 밖) | `analytics-projects.json`(`analytics.trust/1`) | — | 새 목록과 옛 `lab-projects.json`(읽기 전용, 6.14절) |
 
-`core.IGNORED_DIRS`·`MANAGED_DIRS`와 ADR-0006 9절의 관리 디렉터리 철자 예외는 ③에서 `.analytics`·`workspace`를 더하고 `.lab`·`report`를 남긴다
-(옛 프로젝트를 읽기 위해서다). 결정 2의 개명에 따른 같은 규칙의 적용이며 현재 계약 B·E에 적는다.
+관리 디렉터리(`core.MANAGED_DIRS`)와 run의 입출력에서 빼는 디렉터리(`core.IGNORED_DIRS`), ADR-0006 9절의 관리 디렉터리 철자 예외는 두 형식을
+합친 집합으로 두지 않고 배치마다 따로 둔다(③). 표식이 배치를 고른다.
+
+| 배치 | 관리 디렉터리 | 그 밖에 run 입출력에서 빼는 디렉터리 |
+|---|---|---|
+| `LegacyLayout`(`lab.json`) | `.venv`, `.lab`, `runs`, `report` | 지금 `IGNORED_DIRS`의 나머지(`scripts`, `.git`, `__pycache__` 등) |
+| `Layout`(`analytics.json`) | `.venv`, `.analytics`, `runs`, `workspace` | 같음 |
+
+새 형식 프로젝트에서 `report/`와 `.lab/`은 관리 디렉터리가 아니다. 목적지에는 둘 다 없고(6.5절), 사람이 나중에 `report/`를 만들어 스크립트가
+거기에 쓰면 그 파일은 run의 출력으로 기록되고 저장된 철자 그대로 이름 붙는다. 두 형식을 합친 집합을 쓰면 그 출력이 run 기록에서 빠지고 kit의 이름으로
+철자가 바뀌는 거짓 기록이 된다. 옛 프로젝트를 읽을 때는 `LegacyLayout`이 지금과 같은 판정을 준다. 결정 2의 개명에 따른 같은 규칙의 적용이며
+현재 계약 B·E에 적는다(T20).
 
 ### 2.4 표식 `analytics.project/2`
 
@@ -173,9 +199,18 @@ ADR-0006의 필드에 이 설계가 더하는 선택 필드는 둘이다.
 | 그림 해시 없음 | `sha256`(저장한 그림 파일의 바이트), `data_sha256`(첨부 데이터 parquet) |
 | `via`의 `lab.chart`·`lab.read`·`lab.scan`·`lab.sql`·`lab.save` | `analytics.visualize`·`analytics.read`·`analytics.scan`·`analytics.sql`·`analytics.save`(SDK 함수와 같은 철자). 나머지 `via` 값은 그대로 (OQ5) |
 | `actor`, `session` | 같은 뜻에 `actor_basis`·`means` 추가(그 run을 요청한 진입점) |
+| `reproduction.charts`(재실행 비교의 Visualization별 결과) | `reproduction.visualizations`. 값(`same data`·`missing`·`new` 등)과 `reproduction`·`verdict`의 이름은 그대로 (OQ5) |
 
 `visualization_version` 참조의 `digest`는 그 Visualization의 `sha256`을 옮긴다(ADR-0006 3절). reader는 `/2` Visualization을 해시가 있는
 대상으로 판정한다.
+
+재실행 비교(`runner.compare_runs`)는 원래 run과 새 run의 Visualization을 5.3절의 한 보기로 읽어 Visualization id끼리 비교한다. `/1` run의 `id`와
+`/2` run의 `visualization_id`는 같은 값 공간(같은 스크립트의 `chart(id=…)`·`visualize(id=…)`)이므로, 전환한 프로젝트에서 `/1` run을 다시
+실행해도 형식 차이 때문에 모든 Visualization이 `missing`·`new`가 되고 `verdict`가 `mismatch`가 되는 거짓 기록이 생기지 않는다(S13). 비교 결과는 새
+run(`/2`)의 `reproduction.visualizations`에 쓴다.
+
+이 표(OQ5)와 D2·D4는 ①이 병합되기 전에 정해야 한다. ①이 `analytics.run/2`·`analytics.dataset/1`의 reader를 먼저 싣기 때문이다. ③에서 정의가 바뀌면
+① kit이 ③의 프로젝트를 잘못 읽거나, ADR-0006 1.2에 따라 `/3`을 새로 열어야 한다.
 
 ### 2.7 `analytics.dataset/1`, `analytics.trust/1`, `analytics.migration/1`
 
@@ -198,9 +233,11 @@ ADR-0006의 필드에 이 설계가 더하는 선택 필드는 둘이다.
 ### 2.9 본문 길이 (OQ2)
 
 - 새 writer는 본문을 자르지 않는다. 지금의 `MAX_EVENT_TEXT`(4,000자)와 확장의 `note_cut` 응답은 `/2` 쓰기에서 없어진다.
-- 권장(OQ2): UTF-8 32 KiB 이하는 전부 보존하고, 넘으면 아무것도 쓰지 않고 `text_too_long`(원문 길이, 상한, "긴 글은 파일이나 Report로
-  저장하고 참조하라")으로 거절한다. aelix read 도구는 50 KiB를 넘는 한 줄을 읽지 않으므로(현재 계약 A) 참조 24개와 JSON 머리를 더한
-  줄이 그 아래에 남게 한다.
+- 권장(OQ2): UTF-8 32 KiB 이하의 본문은 전부 보존한다. 그리고 직렬화한 줄 전체(JSON 이스케이프, 참조, 머리 필드, 끝 줄바꿈 포함)가
+  50 KiB(51,200바이트) 미만이어야 한다. 둘 중 하나라도 넘으면 아무것도 쓰지 않고 `text_too_long`(본문 바이트, 줄 바이트, 두 상한, "긴 글은
+  파일이나 Report로 저장하고 참조하라")으로 거절한다. aelix read 도구는 50 KiB를 넘는 한 줄을 읽지 않는다(현재 계약 A). 본문 상한만으로는 줄을
+  지키지 못한다: JSON 이스케이프는 따옴표·역슬래시를 2바이트로, 제어 문자를 6바이트(`\u0001`)로 늘리고, 참조 24개도 바이트를 더한다. 줄 검사는
+  writer가 실제로 쓸 바이트를 직렬화한 뒤에 한다. 시험은 이스케이프가 많은 본문(제어 문자·따옴표·역슬래시만)과 긴 참조 24개로 두 상한의 경계를 잰다.
 - 화면과 맥락 블록은 지금의 생략 표시(#11, 현재 계약 A의 줄임과 다시 읽을 위치)를 그대로 쓴다.
 
 ---
@@ -211,7 +248,7 @@ ADR-0006의 필드에 이 설계가 더하는 선택 필드는 둘이다.
 
 | 모듈 | 책임 | 외부 | 들어오는 PR |
 |---|---|---|---|
-| `src/aelix_analytics/writer.py` | 표식 판정과 게이트, `Origin`, 오류 클래스, 가족 태그·경로 배치표, UTF-8·LF 텍스트와 원자 JSON 쓰기, journal 덧붙이기 규약, `record_update` 확인, 쓰는 시점의 결박 | stdlib | ①(판정·게이트·헬퍼·`Origin`), ③(`Writer`) |
+| `src/aelix_analytics/writer.py` | 표식 판정과 게이트, `Origin`, 오류 클래스, 가족 태그·경로 배치표, 원자 JSON 쓰기, journal 덧붙이기 규약, `record_update` 확인, 참조 분류와 쓰는 시점의 결박 | stdlib | ①(판정·게이트·헬퍼·`Origin`·참조 분류), ③(`Writer`) |
 | `src/aelix_analytics/migration.py` | 복사 전환: 사전 검사, 계획, 복사, 원본 재확인, 사본 검증, 매핑·보고서, 내구 쓰기, 표식, 이어 쓰기 | stdlib | ② |
 
 둘 다 최상위 파일이다. 하위 package를 만들지 않아 줄 끝 검사(`tests/test_line_endings.py`의 최상위 glob)가 범위를 넓히지 않고 두 파일을 본다.
@@ -246,8 +283,16 @@ import하지 않는다")에 쓰인다. writer를 core 아래에 두기 위해 co
 - `KIT_VERSION`은 `core.py`에 남긴다. `tools/model_eval.py`가 `core.py`의 글에서 정규식으로 읽고 `tests/test_packaging.py`가 배포 버전과 비교한다.
   writer는 core를 import하지 않으므로 `writer_version`을 인자로 받고 core가 `KIT_VERSION`을 넘긴다(시험은 다른 값을 넣는다).
 - 오류 클래스(⓪ 뒤 `AnalyticsError`)는 writer로 옮기고 core가 같은 이름으로 다시 내보낸다. JSON 오류 형태는 그대로다.
-- 지금 `core.py`의 `open_text`·`write_text`·`newlines_as_lf`·`write_json`·`append_jsonl`은 ①에서 writer로 옮기고 core가 다시 내보낸다.
-  `tests/test_line_endings.py`의 쓰기 검사가 허용하는 함수 이름을 writer 쪽으로 바꾼다. 다섯 함수의 이동이라 "대규모 파일 이동"이 아니다.
+- UTF-8·LF 텍스트 헬퍼(`open_text`·`write_text`·`newlines_as_lf`)는 ①에서 `_platform`(계층 `ports`, 수준 0)으로 옮긴다. ADR-0007 결정 2가 이
+  헬퍼를 "core나 `_platform`에" 두라고 했으므로 writer로 옮기면 그 결정에서 벗어난다. `_platform`이면 writer와 core가 모두 import할 수 있고,
+  플랫폼마다 다른 동작이 아니므로 포트 메서드가 아니라 모듈 함수다(결정 2의 "포트를 만들지 않는다" 그대로). `write_json`·`append_jsonl`은 writer로
+  옮긴다. 다섯 함수 모두 core가 같은 이름으로 다시 내보낸다. `tests/test_line_endings.py`의 쓰기 검사가 허용하는 함수 이름을 새 위치로 바꾼다.
+  다섯 함수의 이동이라 "대규모 파일 이동"이 아니다.
+- writer는 core를 import하지 못하므로 쓰는 시점의 결박(4.7절)에 필요한 것을 이렇게 나눈다. 문자열 참조를 run·이벤트·Visualization 키·데이터로
+  나누는 순수 함수(`core.classify_refs`와 그것이 쓰는 id 정규식)는 ①에서 writer로 옮기고 core가 다시 내보낸다. 이름만 받은 Visualization id를
+  키로 푸는 일(지금 `core.resolve_ref_aliases`, `Project`가 필요)과 결박은 `relations`(수준 0)의 읽기 모델로 하고,
+  옛 kit 경로의 추론(`Project.legacy_identity`, 전환 매핑, 5.4절)은 core가 `Writer`를 만들 때 `legacy_path=` 함수로 넣는다. 잠금·교체는 지금처럼
+  `platform` 인자로 받는다. 그래서 writer 안에는 core의 `Project`가 없다.
 
 ### 3.3 버린 대안
 
@@ -285,12 +330,14 @@ class Origin:
 | 진입점 | `actor` | `actor_basis` | `means` | `session` |
 |---|---|---|---|---|
 | 런처 `analytics`, `bin/analytics`, `python -m aelix_analytics` | `AELIX_ANALYTICS_ACTOR`, 없으면 `human` (OQ1) | 변수가 있으면 `declared`, 없으면 `inferred` | `cli`. 확장이 부른 kit 자식은 확장이 넘긴 값 | `AELIX_ANALYTICS_SESSION` |
+| 위 CLI를 aelix 세션의 에이전트가 bash 도구로 부름 | `agent`(확장이 aelix 프로세스 환경에 넣은 `AELIX_ANALYTICS_ACTOR`) | `declared` | `cli` | 확장이 넣은 `AELIX_ANALYTICS_SESSION` |
+| 위 CLI를 사람이 aelix의 `!`·`!!` 명령으로 부름 | `human`(확장의 `user_bash` 처리가 그 명령의 환경에 넣음) | `declared` | `cli` | 같음 |
 | 확장의 모델 도구 `analytics_*` | `agent` | `declared` | `tool` | aelix 세션 |
 | 확장의 `/analytics` 명령 | `human` | `declared` | `command` | aelix 세션 |
 | 확장의 hook(프롬프트 직전 맥락 동기화, `agent_end`의 Workspace 예약), 상태 도구 안의 동기화 | `system` | `declared` | `hook`(상태 도구 안이면 `tool`) | aelix 세션 |
 | SDK, run 밖 | `AELIX_ANALYTICS_ACTOR`, 없으면 `human` (OQ1) | 위와 같음 | `sdk` | `AELIX_ANALYTICS_SESSION` |
 | SDK, run 안 | 그 run의 `actor` | 그 run의 값 | `sdk` | 그 run의 값 |
-| 전환 | 명령을 부른 쪽의 값(위 첫 행) | 위와 같음 | `cli` | 위와 같음 |
+| 전환 | 명령을 부른 쪽의 값(위 첫 세 행 가운데 해당하는 것) | 위와 같음 | `cli` | 위와 같음 |
 
 필요한 바뀜(③, 배관은 ①):
 
@@ -298,6 +345,16 @@ class Origin:
   때만 넘기고, 기본값은 kit이 채워 `inferred`로 남긴다.
 - 확장은 kit 자식에 실행 수단을 알리는 내부 변수 `AELIX_ANALYTICS_MEANS`를 넣는다(확장 `child_env`). `AELIX_ANALYTICS_CANCEL_FILE`처럼 내부
   프로토콜이라 용어집 §3의 역할 목록에 넣지 않고 현재 계약 D에 적는다. kit은 이 변수가 없으면 `cli`다.
+- 확장은 로드될 때 aelix 프로세스의 `os.environ`에 `AELIX_ANALYTICS_ACTOR=agent`를 넣고, 세션이 정해지거나 바뀔 때(`before_agent_start`, 지금
+  `STATE["session"]`을 정하는 곳) `AELIX_ANALYTICS_SESSION`을 그 값으로 바꾼다. aelix 0.1.0b2의 bash 도구는 호출마다 `os.environ`을 복사해 자식의
+  환경을 만들므로 에이전트가 부른 `analytics`가 이 값을 받는다(R9 프로브, 18절). `AELIX_ANALYTICS_MEANS`는 `os.environ`에 넣지 않는다(bash로 부른
+  CLI의 실행 수단은 `cli`다). 확장 자신의 kit 자식은 지금처럼 허용 목록으로 만든 환경에 작성 주체를 직접 넣으므로(`child_env`) 영향을 받지 않는다.
+- 같은 `os.environ`은 사람이 aelix에서 친 `!` 명령에도 간다(R9의 D1). 그래서 확장은 `user_bash` 이벤트에서 `UserBashResult(operations=…)`로
+  그 명령의 환경에만 `AELIX_ANALYTICS_ACTOR=human`을 넣는 실행기를 돌려준다(R9의 E1, 같은 aelix 코드 경로에서 확인). aelix는 마지막으로 결과를
+  돌려준 처리기의 것을 쓰므로 다른 확장이 같은 이벤트에 실행기를 돌려주면 둘 중 하나만 적용된다. 이 경우와 RPC 모드의 `bash` 명령(처리기 없이
+  `os.environ`을 그대로 씀)은 사람이 부른 CLI가 `agent`로 남는 반대 방향의 한계이며 현재 계약 A에 적는다(OQ1).
+- 확장이 aelix 프로세스의 환경을 바꾸는 것은 현재 계약 A(확장이 호스트에 남기는 것)의 변경이다. aelix가 띄우는 다른 자식(MCP 서버, 다른 확장의
+  `exec`)도 이 변수를 물려받는다. 출처 기록이며 인증이 아니다: 에이전트가 명령 안에서 변수를 지우거나 바꾸면 그대로 기록된다.
 - run 밖 SDK의 `actor="script"`는 작성 주체와 실행 수단을 섞은 값이다. `/2`에서는 `human`(또는 선언한 값)과 `means="sdk"`로 쓴다(OQ1).
   reader는 옛 값 `script`를 그대로 읽는다.
 
@@ -311,6 +368,10 @@ WRITABLE = frozenset({"lab.project/1"})  # PR 3 makes it {"analytics.project/2"}
 ```
 
 - `marker_state`는 부수 효과 없는 판정이고 매번 두 표식 파일을 새로 읽는다(캐시 없음). 진입점·reader·status가 같은 함수를 쓴다.
+- 없음과 읽기 실패를 구별한다. `stat`이 "없음"(`FileNotFoundError`)이면 그 표식은 없다. 있는데 열기·읽기가 운영체제 오류로 실패하면(Windows에서 다른
+  프로세스가 그 표식을 교체하는 순간의 공유 위반 등, `_platform.AtomicFiles`의 설명) 교체와 같은 재시도 예산(`REPLACE_ATTEMPTS`·`REPLACE_POLL_SECONDS`)
+  안에서 다시 읽고, 그래도 실패하면 `invalid`(`details.reason: unreadable`, 운영체제 오류)로 판정한다. 읽지 못한 표식을 `none`으로 보거나 내용이
+  깨진 표식(다른 `details.reason`의 `invalid`)으로 보지 않으며, 표식 없는 전환 목적지(`incomplete`)로도 보지 않는다.
 - `admit`는 쓰기 작업의 첫 부수 효과(잠금 파일 생성 포함) 전에 부른다. 이미 연 `Project`나 프로세스 시작 때의 판정을 다시 쓰지 않는다
   (ADR-0005 결정 6). 일반 쓰기가 거절이면 오류를 낸다. `side=True`(읽기 작업의 부수 쓰기)이면 오류 대신 `None`을 돌려주고 호출자는 그 쓰기를
   건너뛴다.
@@ -325,7 +386,7 @@ WRITABLE = frozenset({"lab.project/1"})  # PR 3 makes it {"analytics.project/2"}
 | `analytics.json`만: `analytics.project/2`, `min_writer_version` ≤ kit | `current` | `project_too_new`(이 kit에는 `/2` writer가 없다) | 허용 | ①·② 건너뜀, ③ 허용 | 허용 |
 | 같은데 `min_writer_version` > kit | `current` | `project_too_new` | `writer_too_old`(필요한 버전 안내) | 건너뜀 | 허용 |
 | `analytics.json`만: 다른 가족·버전 | `unknown` | `project_too_new` | 같음 | 건너뜀 | 아는 기록만 |
-| `analytics.json`만: JSON 객체가 아님, 필수 필드 없음, `min_writer_version`이 정규형이 아님 | `invalid` | `marker_invalid` | 같음 | 건너뜀 | 아는 기록만, 사유를 보고 |
+| `analytics.json`만: JSON 객체가 아님, 필수 필드 없음, `min_writer_version`이 정규형이 아님, 또는 재시도 뒤에도 읽지 못함(`unreadable`) | `invalid` | `marker_invalid` | 같음 | 건너뜀 | 아는 기록만, 사유를 보고 |
 | 두 표식 | `conflict` | `marker_conflict` | 같음 | 건너뜀 | `marker_conflict`(status는 두 표식의 내용·해시·`migration` 필드와 해결 안내를 오류 `details`에) |
 
 - 깨진 `lab.json`을 `legacy`로 보는 것은 ①에서 main 대비 회귀를 만들지 않기 위해서다(지금 `Project.config`는 깨진 표식을 빈 객체로 읽고
@@ -340,12 +401,19 @@ WRITABLE = frozenset({"lab.project/1"})  # PR 3 makes it {"analytics.project/2"}
 - 시작 디렉터리에서 위로 올라가며 `analytics.json`·`lab.json` 가운데 하나라도 있는 첫 디렉터리에서 멈추고(②부터는 표식 없는 전환 기록
   `.analytics/migration/`이 있는 디렉터리에서도) 그 디렉터리를 위 표로 판정한다. 지금은 `lab.json`만 찾는다(`core.find_project`). 그래서
   `lab.json` 프로젝트 아래의 `analytics.json` 디렉터리에서 위쪽 프로젝트에 쓰는 일(상태 지도의 프로브 P4)이 사라진다.
-- 명시한 루트(`--project`, `AELIX_ANALYTICS_PROJECT`, 확장의 활성 프로젝트, run의 `capture.ACTIVE.project`)도 올라가지 않고 같은 판정을 거친다.
-- 확장의 `_resolve_project`, 런처의 `find_project`, `bin/analytics`의 탐색도 같은 규칙으로 바꾼다. 셸·런처는 표식의 내용을 해석하지 않고 kit이 판정한다.
+- 명시한 루트가 위로 올라가는지는 진입점마다 지금 규칙을 그대로 둔다. 바뀌는 것은 찾는 표식의 집합뿐이다. kit의 `--project`·
+  `AELIX_ANALYTICS_PROJECT`(`__main__._project`)와 SDK(`__init__`)는 지금처럼 그 경로에서 위로 올라가며 가장 가까운 표식에서 멈춘다
+  (`core.find_project(start)`). 확장의 활성 프로젝트(`/analytics use`), `--analytics-project`, 확장이 읽는 `AELIX_ANALYTICS_PROJECT`는 지금처럼
+  그 디렉터리 자체를 판정한다(지금은 `project.marker.is_file()`). run 안의 `capture.ACTIVE.project`는 그 run의 루트다. 모두 찾은 디렉터리를 위 표로
+  판정한다. 그래서 현재 계약 B·D의 탐색 규칙은 "어느 표식을 찾는가"만 바뀐다.
+- 확장의 `_resolve_project`, 런처의 `find_project`, `bin/analytics`의 탐색도 같은 표식 집합으로 바꾼다. 셸·런처는 표식의 내용을 해석하지 않고 kit이 판정한다.
 - ③부터 런처·`bin/analytics`는 찾은 디렉터리가 표식 없는 전환 목적지(`incomplete`)이면 `uv run --project` 대신 `uv run --no-project`로 kit을 불러
   판정만 받는다. 그 자리에서 uv가 `.venv/`를 만들면 이어 쓰기 검사가 낯선 항목으로 보기 때문이다(6.10절에서도 `.venv/`를 무시한다).
-- uv 환경(`.venv/`, uv가 갱신하는 `uv.lock`)은 기록이 아니라 환경이라 게이트의 대상이 아니다. 지금처럼 프로젝트 명령은 그 프로젝트의 환경으로
-  돈다. 환경을 건드리지 않아야 하는 곳은 전환 명령이 다루는 원본과 표식 없는 목적지이며, 둘 다 `--no-project`로 부른다(6.1절).
+- uv 환경(`.venv/`, uv가 갱신하는 `uv.lock`)은 기록이 아니라 환경이라 게이트의 대상이 아니다(OQ13). 지금처럼 프로젝트 명령은 그 프로젝트의
+  환경으로 돈다. 그래서 ③ 뒤 `lab.json` 프로젝트에서 사람이 `analytics status` 같은 읽기 명령을 부르면 uv가 그 프로젝트에 `.venv/`를 만들거나 맞지
+  않는 `uv.lock`을 다시 쓸 수 있다(프로브 `probe-safety`). ADR-0005 결정 6의 "읽기 작업의 부수 쓰기" 목록에 uv 환경 동기화는 없다. 권장 답은
+  이것을 기록의 부수 쓰기로 보지 않고, 현재 계약에 "읽기 전용은 uv 환경 동기화를 포함하지 않는다"를 적는 것이다(OQ13). 환경을 건드리지 않아야
+  하는 곳은 전환 명령이 다루는 원본과 표식 없는 목적지이며, 둘 다 `--no-project`로 부른다(6.1절).
 
 다시 읽기:
 
@@ -360,11 +428,11 @@ WRITABLE = frozenset({"lab.project/1"})  # PR 3 makes it {"analytics.project/2"}
 
 | 함수·상수 | 하는 일 | 지금 위치 |
 |---|---|---|
-| `open_text`·`write_text`·`newlines_as_lf` | UTF-8(BOM 없음)·`\n` 텍스트(ADR-0007 결정 2) | `core` → ① `writer` |
+| `open_text`·`write_text`·`newlines_as_lf` | UTF-8(BOM 없음)·`\n` 텍스트(ADR-0007 결정 2) | `core` → ① `_platform`(3.2절) |
 | `write_json(path, obj, *, platform, through_link=False)` | 임시 파일 + `AtomicFiles.replace`, 끝 줄바꿈 | `core` → ① `writer` |
 | `append_line(path, line: bytes)` | 마지막 바이트가 `\n`이 아니면 `\n`을 먼저 쓰고, 줄과 `\n`을 한 번의 write로 | ③ 새 함수. `/1` writer의 같은 수정은 OQ8 |
 | `FAMILIES` | `{"project": "analytics.project/2", "event": "analytics.event/2", "run": "analytics.run/2", "dataset": "analytics.dataset/1", "trust": "analytics.trust/1", "migration": "analytics.migration/1"}`. 쓰기 함수는 키를 받고 태그 문자열을 받지 않는다 | ③(`migration`은 ②) |
-| `Layout`, `LegacyLayout` | 표식·관리 디렉터리·`workspace/`·`data/imported/`·`runs/<id>/visualizations/`·잠금 파일의 이름표. 옛 배치는 읽기용 | ①에서 `LegacyLayout`, ③에서 `Layout` |
+| `Layout`, `LegacyLayout` | 표식·관리 디렉터리 집합·run 입출력에서 빼는 디렉터리 집합(2.3절)·`workspace/`·`data/imported/`·`runs/<id>/visualizations/`·잠금 파일의 이름표. 옛 배치는 읽기와 ③ 전의 쓰기용 | ①에서 `LegacyLayout`, ③에서 `Layout` |
 
 - 저장 이름의 개명이 `Layout` 한 곳과 reader를 고치는 일이 되게 한다. 경로 문자열을 쓰는 코드에 흩어 두지 않는다.
 - 일반 쓰기는 fsync하지 않는다. 지금 kit 전체가 하지 않고 현재 계약 G가 원자성·복구를 약속하지 않는다. 내구 쓰기는 전환의 커밋 전에만 한다(6.4절).
@@ -374,7 +442,7 @@ WRITABLE = frozenset({"lab.project/1"})  # PR 3 makes it {"analytics.project/2"}
 ```python
 class Writer:
     def __init__(self, root: Path, *, platform, origin: Origin, writer_version: str,
-                 clock=None): ...
+                 legacy_path=None, clock=None): ...  # legacy_path: injected by core (3.2, 5.4)
     def record(self, kind: str, text: str, *, refs=(), details=None,
                requires: str | None = None) -> Written: ...
     def update(self, target: str, *, expected: str, new: str, text: str) -> Written: ...
@@ -392,7 +460,8 @@ class Writer:
    모든 줄의 최대 seq + 1, 끊긴 조각의 seq는 세지 않음)를 얻는다. 마지막 seq가 N이 아니면 결박을 잠금 안에서 다시 계산한다.
 5. `requires`가 표식의 `min_writer_version`보다 높으면 표식을 그 값으로 올린다(4.8절).
 6. 줄을 만들어 `append_line`으로 쓴다. 끊긴 줄 뒤면 `\n`이 먼저다.
-7. 잠금을 놓고 `Written{event, request_id, bindings, state_after?}`를 돌려준다.
+7. 잠금을 놓고 `Written{event, request_id, bindings, targets?}`를 돌려준다. `targets`는 상태를 바꾸는 참조(`resolves`, `supersedes`)의 대상마다
+   잠금 안에서 재생한 `state_before`·`state_after`다(4.6절).
 
 `locked()`는 잠금 안에서 파싱한 journal·재생 결과와 덧붙이기를 한 문맥에 묶는다. `update`가 이것을 쓰고, #19의 Report 저장(확인부터 완료
 이벤트까지 journal 잠금, ADR-0006 7절)도 같은 문맥을 쓴다. 쓸 때마다 journal 전체를 읽으므로 M 규모(10,000줄)의 비용을 ③의 측정 기록에 남긴다.
@@ -404,8 +473,12 @@ class Writer:
   `expected`이며, `transition_allowed`가 그 전이를 허용할 때만 `record_update` 줄을 쓴다. 아니면 `state_conflict`이고 `details`에 지금 상태,
   허용하는 전이, 대상 판정(`target_missing`·`target_ambiguous`), 그 상태를 만든 이벤트의 id와 `request_id`를 담는다. 아무것도 쓰지 않는다.
   reader와 같은 재생 코드라 둘이 갈리지 않는다(ADR-0006 확인 5).
-- 정정은 `record(kind, text, refs=[{… "relation": "supersedes"}])`이고 기대 상태가 없다. 같은 기록의 정정이 둘이면 쓰고, 응답의 `state_after`가
+- 정정은 `record(kind, text, refs=[{… "relation": "supersedes"}])`이고 기대 상태가 없다. 같은 기록의 정정이 둘이면 쓰고, 응답의 `targets`에서 `state_after`가
   `conflict`와 두 정정의 id를 보인다(ADR-0006 6절의 표, 최신 시각으로 고르지 않음).
+- ③에서 공개 입력이 있는 상태 변경은 지금의 `--resolves eN`(질문·할 일을 닫는 `resolve` 기록)뿐이다. 이것은 `record_update`가 아니라 새 기록의
+  relation이라 기대 상태가 없고, 지금처럼 쓴다. 다만 같은 질문을 두 번 닫는 일이 조용히 쓰이지 않도록 응답이 대상의 `state_before`·`state_after`를
+  보인다. 이미 닫힌 대상이면 `state_before: resolved`와 그것을 닫은 이벤트의 id·`request_id`를 담는다. 거절로 바꾸지 않는 것은 지금 동작과 ADR-0006
+  6절(새 기록은 기대 상태 없이 쓴다)을 지키기 위해서다.
 - 이 기능의 공개 입력(CLI·SDK·도구 인자)을 ③에서 열지는 OQ11이다.
 
 ### 4.7 쓰는 시점의 참조 결박 (③)
@@ -420,7 +493,7 @@ class Writer:
 | `script.py::id` | `{type: visualization_version, key}` | 같은 요청의 run이 있으면 그 run(`author`). 없으면 그 키의 최신 성공 버전(`inferred`, `token`, `digest`). 후보가 없으면 `none` |
 | Visualization id만 | `{type: visualization_version, token}` | 키가 하나면 위와 같음. 여러 스크립트에 있거나 없으면 `none`과 후보 목록을 응답에 |
 | 데이터셋 이름·경로 | `{type: dataset_import, path, digest}` 또는 `{type: data_observation, run_id, role: output, path, digest}` | `inferred`. 후보가 없으면 `none`과 `token` |
-| 그 밖 | `{type: visualization_version, token}` | `none`(reader는 `unknown`/`unresolved_name`) |
+| 그 밖 | `{type: visualization_version, token}` | `none`(reader는 `unknown`/`unresolved_name`). 지금 `refs.other`에 가는 문자열을 이 형태로 남기는 것은 15절 D25 |
 
 - 기본 relation은 `cites`, basis는 `declared`다. 다른 relation을 받는 공개 입력은 OQ11과 함께 정한다.
 - 최신 성공 버전은 `execution_status=ok`이고 완료 이벤트의 seq가 가장 큰 run의 것이다(ADR-0006 3절).
@@ -431,8 +504,10 @@ class Writer:
 
 - run: `write_run`이 `analytics.run/2`를 `write_json`으로 쓴다(지금처럼 run 하나에 최대 세 번). run 전체는 run 잠금 안이다. 정본을 확정한 뒤 완료
   이벤트 `record("run", …, refs=[{type: run, run_id, relation: about}])`를 마지막에 쓴다.
-- 가져오기: `data/imported/<name>.parquet`(임시+교체) → `meta.json`(`analytics.dataset/1`) → `import` 이벤트(`dataset_import` 참조 `about`). 둘 사이가
-  끊기면 reader가 `incomplete`로 보인다(이미 `relations`).
+- 가져오기: `data/imported/<name>.parquet`(임시+교체) → `meta.json`(`analytics.dataset/1`) → `import` 이벤트(`dataset_import` 참조 `about`).
+  `meta.json`과 이벤트 사이가 끊기면 reader가 `incomplete`로 보인다(이미 `relations.ReadModel.imports`). parquet 교체 뒤 `meta.json` 전에 끊기면
+  기록 없는 parquet만 남고 reader는 그것을 보이지 않는다. main과 같은 한계이고(현재 계약 G) #13은 바꾸지 않는다. 준비 상태를 따로 두는 설계는
+  완료 조건에 없어 넣지 않는다.
 - 맥락 동기화: 버전 파일(`.analytics/context/<stamp>_<sha12>.md`, 바이트 그대로) → `context` 이벤트. 비교는 `.analytics/context`와 `.lab/context`의
   마지막 버전이다(전환 직후 같은 CONTEXT.md를 새 버전으로 남기지 않는다).
 - `min_writer_version`: init과 전환은 ③의 `KIT_VERSION`을 쓴다. 뒤의 PR이 새 쓰기 규칙(kind·전이 등)을 더하면 그 쓰기의 `requires`에 자기 버전을
@@ -458,26 +533,27 @@ class Writer:
 | `no_project` | 기존 | 표식 없음 | — |
 | `project_too_new` | 기존(뜻을 넓힘) | 이 kit이 쓰지 않는 표식(①·②의 `analytics.json`, 모르는 가족·버전) | ① |
 | `marker_conflict` | 새 | 한 디렉터리에 두 표식 | ① |
-| `marker_invalid` | 새 | `analytics.json`을 읽을 수 없거나 필수 필드·정규형이 맞지 않음 | ① |
+| `marker_invalid` | 새 | `analytics.json`이 JSON 객체가 아니거나 필수 필드·정규형이 맞지 않음, 또는 재시도 뒤에도 읽지 못함(`details.reason: unreadable`, 4.3절) | ① |
 | `migration_incomplete` | 새 | 표식 없는 전환 목적지 | ② |
 | `writer_too_old` | ADR-0006 | `min_writer_version` > kit | ③ |
 | `migration_required` | 새 | ③ 뒤 `lab.json` 프로젝트의 일반 쓰기 | ③ |
 | `state_conflict` | ADR-0006 | `record_update`의 대상·기대 상태·전이가 맞지 않음 | ③ |
-| `text_too_long` | 새(OQ2) | 본문 상한 초과 | ③ |
+| `text_too_long` | 새(OQ2) | 본문 상한 또는 직렬화한 줄의 상한 초과(2.9절) | ③ |
 | `bad_kind` | 기존 | 모르는 kind, `gap`이면 `workflow_feedback` 안내 | ③ |
 | `name_not_portable` | 기존 | 이식할 수 없는 `request_id` | ③ |
 | `source_not_legacy` | 새 | 전환 원본이 `legacy`가 아님(`details.state`) | ② |
 | `nested_project` | 새(OQ10) | 원본 아래에 다른 표식 또는 원본에 `.analytics/` | ② |
-| `destination_invalid` | 새 | `details.reason`: `overlaps_source`·`not_empty`·`inside_project`·`not_a_directory`·`name_collision` | ② |
+| `destination_invalid` | 새 | `details.reason`: `overlaps_source`(원본 루트나 복사가 읽는 바깥 링크 대상과 겹침, `details.with`)·`not_empty`(다른 원본의 전환 포함)·`inside_project`·`not_a_directory`·`name_collision` | ② |
 | `destination_busy` | 새 | 다른 전환이 같은 목적지를 잡고 있음 | ② |
 | `source_busy` | 새 | 원본의 run·journal 잠금을 다른 프로세스가 잡고 있음 | ② |
-| `source_changed` | 새 | 복사 전후나 이어 쓰기 때 원본의 목록·해시가 다름(바뀐 경로 목록) | ② |
-| `source_unreadable` | 새 | 원본 파일을 읽지 못함(권한, 사용 중 파일) | ② |
-| `destination_mismatch` | 새 | 목적지에 ledger가 모르는 항목이나 해시가 다른 사본 | ② |
+| `source_changed` | 새 | 복사 전후나 이어 쓰기 때 원본의 목록·해시가 다름, 또는 연 파일이 걷기 때 본 파일이 아님(바뀐 경로 목록) | ② |
+| `source_unreadable` | 새 | 원본 파일을 읽지 못함(`details.reason`: `permission`·`in_use`·`link_target_missing`(OQ12)·`name_not_utf8`(OQ12와 같은 방식)) | ② |
+| `destination_mismatch` | 새 | 목적지에 ledger가 모르는 항목, 해시가 다른 사본, 또는 게시하려는 최종 경로에 이미 있는 파일(`details.reason: occupied`) | ② |
 | `destination_write_failed` | 새 | 목적지 쓰기를 운영체제가 거절(긴 경로, 예약 이름) | ② |
 | `insufficient_space` | 새 | 필요한 바이트가 목적지의 빈 공간보다 큼(쓰기 전) | ② |
 
-다시 부른 전환이 이미 커밋된 목적지를 만나면 오류가 아니라 `ok`와 `already_migrated: true`다(6.9절).
+다시 부른 전환이 같은 원본의 이미 커밋된 목적지를 만나면 오류가 아니라 `ok`와 `already_migrated: true`다. 목적지의 표식 판정이 먼저이므로
+두 표식·깨진 표식·모르는 표식이면 그 오류다(6.9절).
 
 ---
 
@@ -505,8 +581,17 @@ class Writer:
 
 ### 5.3 경로 (①)
 
-- run: `runs/*/run.json`이 `lab.run/1`이든 `analytics.run/2`이든 읽고, `charts[]`와 `visualizations[]`를 같은 보기로 읽는다(`relations`, `core.list_runs`, Workspace).
+- run: `runs/*/run.json`이 `lab.run/1`이든 `analytics.run/2`이든 읽는다. 한 run의 Visualization은 `relations`의 한 함수
+  `run_visualizations(run) -> list[dict]`가 두 형태(`charts[]`의 `id`, `visualizations[]`의 `visualization_id`)에서 같은 보기(`id`, 논리 키, 제목,
+  파일, 첨부 데이터, `sha256`·`data_sha256`(`/2`에만), 원래 필드 이름)로 돌려준다. run 기록의 `charts`·`visualizations`를 직접 읽는 곳은 모두 이
+  함수로 바꾼다. 지금(`09d22c4`) 직접 읽는 곳: `relations`(Visualization 버전·참조 판정), `core`(`chart_index`·`list_runs`의 수, status·context의
+  목록과 글), Workspace(`report.py`의 run 페이지·목록·문서화되지 않은 그림), `runner.compare_runs`(재실행 비교, 2.6절)와 run 뒤 경고, 확장의 run
+  결과 글과 PNG 첨부(`extension/aelix_analytics.py`의 run 결과 줄·첨부할 그림), 개발 도구(`tools/model_eval.py`의 `new_charts` 검사·run 요약·
+  Visualization id 수집, `tools/eval_fixtures.py`, `tools/platform_smoke.py`). ①이 이 함수와 함께 "run 기록의 `charts`를 이 함수 밖에서 읽지 않는다"는
+  정적 검사(AST)를 더해 새 소비자가 한 형태만 읽는 일을 막는다(S13).
 - 데이터셋: `data/imported`·`data/raw`·`data/derived`를 걷는다(`core.list_datasets`, `relations`).
+- 관리·제외 디렉터리(③, 새 형식 프로젝트에 처음 쓰는 PR): run의 입출력 판정, 스크립트 위치 검사(`runner._in_managed_dir`·`_in_managed_dir_here`,
+  `core.IGNORED_DIRS`), 경로 정체성의 관리 디렉터리 철자 예외(`core.MANAGED_DIRS`를 쓰는 `Project`의 판정)는 표식이 고른 배치의 집합을 쓴다(2.3절, S14).
 - CONTEXT 버전: `.analytics/context` 다음 `.lab/context`(이미 `relations.CONTEXT_DIRS`).
 - 보조 로그: Workspace의 도구 사용표는 `.analytics/telemetry.jsonl`과 `.lab/telemetry.jsonl`을 함께 센다.
 
@@ -514,12 +599,26 @@ class Writer:
 
 - PR #76은 `Project.legacy_identity`로 kit 0.5.0 전 run이 기록한 경로를 지금 루트 기준의 정체성 경로로 대응하고 `basis: inferred`로만 보인다
   (`relations.read(…, legacy_path=)`). 대응은 그 run이 옛 kit의 것일 때만 하고, 대응한 경로가 지금 있거나 어떤 run의 출력일 때만 받는다.
-- 전환하면 루트가 바뀐다. 원본 루트 아래의 옛 절대 경로는 목적지 루트로 대응되지 않는다. ②는 표식의 `migration` 필드로 `mapping.json`(6.7절)을
-  찾아, `legacy_identity`가 지금 루트에 더해 `root.from`의 철자로 시작하는 절대 경로를 **지금** 루트 아래의 상대 경로로 바꾸고 접두 대응(`.lab/` →
-  `.analytics/`)을 적용한 뒤 같은 규칙으로 판정하게 한다. 목적지를 나중에 옮겨도 대응은 지금 루트로 된다. 기록은 고쳐 쓰지 않는다
-  (ADR-0006 9절 마지막 항목).
-- 0.5.0 이후 run의 상대 경로는 전환 뒤에도 같은 경로라 대응이 필요 없다. 0.5.0 이후 run의 프로젝트 밖 절대 경로는 그대로 밖이다.
+- 전환하면 두 가지가 사라진다. 루트가 바뀌어 원본 루트 아래의 옛 절대 경로가 목적지 루트로 대응되지 않는다. 그리고 원본에서 경계였던 링크가
+  목적지에서는 보통 파일·디렉터리가 되어(6.6절) 경계표가 없다. 지금 옛 run이 기록한 `/ext/data/x.parquet`는 원본에서 `data -> /ext/data` 경계를 지나
+  `data/x.parquet`(inferred)로 읽히는데(`Project.legacy_identity` → `identity_of_real` → 경계표, `tests/test_relations.py`의 해당 사례), 목적지에는 그
+  경계가 없어 추론이 사라진다. 그대로 두면 T11(전환 전후 `relations.read`가 같음)이 거짓이다.
+- 그래서 ②는 표식의 `migration` 필드로 `mapping.json`(6.7절)을 찾아 전환한 프로젝트의 `legacy_path`를 이렇게 만든다. 옛 kit의 run(그 run의
+  `env.kit_version`이 `PATH_IDENTITY_SINCE` 전)이 기록한 경로 문자열 하나에 대해:
+  1. 절대 경로가 `root.from`의 철자 가운데 하나로 시작하면 그 나머지를 **지금** 루트 아래의 상대 경로로 바꾼다.
+  2. 1에 해당하지 않는 절대 경로가 `links[].target_real`이나 그 별칭(`target_spellings`) 가운데 하나로 시작하면 그 링크의 경로(`links[].path`)에 나머지를 붙인 상대
+     경로로 바꾼다. 원본에서 경계표가 하던 일을 매핑이 한다.
+  3. 1·2에서 얻었거나 처음부터 상대 경로인 것이 `.lab/`으로 시작하면 접두 대응(`.lab/` → `.analytics/`)을 적용한다. 옛 run이 `.lab/…`을 상대 경로로
+     기록한 경우도 대응한다.
+  4. 그 결과를 지금의 `Project.legacy_identity`(지금 루트의 철자와 링크)로 판정한다. 어느 것에도 해당하지 않으면 `legacy_identity`만 쓴다.
+  PR #76의 조건은 그대로다: 옛 kit의 run에만 하고, 0.5.0 이후 run이 같은 경로 문자열을 기록했으면 대응하지 않으며(`relations.ReadModel._mapped`),
+  대응한 경로가 지금 있거나 어떤 run의 출력일 때만 받고, `basis: inferred`로만 보인다. 목적지를 나중에 옮기거나 원본·옛 링크 대상을 지워도 대응은
+  지금 루트 기준이라 같다. 기록은 고쳐 쓰지 않는다(ADR-0006 9절 마지막 항목).
+- 0.5.0 이후 run의 상대 경로는 전환 뒤에도 같은 경로라 대응이 필요 없다. 0.5.0 이후 kit은 경계를 지난 경로를 이미 정체성 경로(`data/x.parquet`)로
+  기록했다. 0.5.0 이후 run의 프로젝트 밖 절대 경로는 그대로 밖이다.
 - `mapping.json`이 없거나 해시가 표식·보고서와 다르면 대응하지 않고 status가 그 사실을 보인다(조용히 추론하지 않는다).
+- 시험(T11): 원본에서 `data -> /ext/data`인 옛 run의 입력을 전환 뒤 목적지에서 읽어 원본과 같은 `inferred` 판정이 나오는지, 목적지를 다른 경로로
+  옮기고 `/ext/data`를 지운 뒤에도 같은지, 옛 run이 상대 경로 `.lab/…`을 기록한 경우와 0.5.0 이후 run이 같은 문자열을 기록한 경우(대응하지 않음).
 
 ### 5.5 kit마다 보이는 것
 
@@ -546,102 +645,157 @@ class Writer:
   `uv.lock`에서는 종료 1로 실패하며 그 파일을 바꾸지 않았다(실패해도 `.venv/`는 만들었다). 실패해도 전환은 끝났고, 응답이 따로 알리며 다음
   명령이 지금처럼 환경을 준비한다.
 - 모델 도구와 `/analytics migrate`는 만들지 않는다. 전환은 사람의 명시적 명령이고(ADR-0005 결정 5) 기본 모델 도구는 같은 여섯 역할이다(용어집 §2).
-  수백 MB의 복사가 aelix 프로세스를 붙잡지 않게 하는 이유도 있다. 확장의 거절 글은 터미널 명령을 안내한다(7절).
+  수백 MB의 복사가 aelix 프로세스를 붙잡지 않게 하는 이유도 있다. 확장의 거절 글은 터미널 명령을 안내한다(7절). 에이전트가 bash 도구로
+  `analytics migrate`를 부르면 ledger와 보고서에 `actor=agent`로 남는다(4.2절, OQ1). 거절하지는 않는다.
 
 ### 6.2 사전 검사 — 아무것도 쓰기 전
+
+사전 검사는 잠금 없이 원본을 한 번 걷는다(해시 없음). 4단계가 잠금 안에서 다시 걷고 5단계가 그 결과로 같은 검사를 다시 한다. 다시 부른
+전환과 `--dry-run`도 부를 때마다 처음부터 검사한다(그 사이 링크·마운트가 바뀔 수 있다).
 
 | 검사 | 실패 |
 |---|---|
 | 원본의 판정이 `legacy` | `source_not_legacy`(`details.state`: `none`·`current`·`unknown`·`invalid`·`conflict`·`incomplete`) |
 | 원본 아래(제외 목록 밖)에 `lab.json`·`analytics.json`이 없고 원본에 `.analytics/`가 없음 | `nested_project`(경로 목록, OQ10) |
-| 목적지를 끝까지 푼 경로(없으면 가장 가까운 있는 조상을 풀고 나머지를 붙임)의 모든 조상과 원본을, 원본의 모든 조상과 목적지를 `samefile`로 비교 | `destination_invalid(overlaps_source)`. 대소문자·NFD 별칭, 심볼릭 링크, junction, 같은 위치의 두 철자를 잡는다 |
+| 복사가 읽는 실제 위치의 집합 R(원본 루트의 실제 경로, 따라갈 바깥 링크마다 그 대상의 실제 경로, 6.6절)의 어느 원소 r에 대해서도 목적지가 r과 같지 않고, r 안에 있지 않고, r을 품지 않음 | `destination_invalid(overlaps_source)`. `details.with`에 겹친 r과 그것을 읽게 한 링크의 경로 |
+| 바깥을 가리키는 링크의 대상이 지금 있음 | `source_unreadable(reason=link_target_missing)`과 링크 경로·링크 글자 목록(OQ12) |
+| 원본의 모든 이름을 UTF-8로 쓸 수 있음(POSIX가 UTF-8이 아닌 바이트를 넘기는 짝 없는 surrogate가 없음) | `source_unreadable(reason=name_not_utf8)`과 경로 목록(이름 바이트의 base64와 이스케이프한 글자). OQ12와 같은 방식 |
 | 목적지의 위쪽 디렉터리에 `lab.json`·`analytics.json`이 없음 | `destination_invalid(inside_project)` |
-| 목적지가 없거나 빈 디렉터리, 또는 6.10절의 이어 쓸 목적지 | `destination_invalid(not_empty)`, 파일이면 `not_a_directory` |
-| 계획한 경로가 NFC+casefold로 겹치지 않고, `.lab/` 아래 이름이 새 관리 이름(`migration`·`publications`·잠금)과 겹치지 않음 | `destination_invalid(name_collision)`(겹친 쌍) |
+| 목적지가 없거나 빈 디렉터리(운영체제의 메타 파일 `.DS_Store`·`Thumbs.db`·`desktop.ini`만 있어도 빈 것으로 본다), 또는 6.9–6.10절의 다시 부를 목적지 | `destination_invalid(not_empty)`, 파일이면 `not_a_directory` |
+| `.lab/` 아래 이름이 목적지의 새 관리 이름(`.analytics/migration/`·`publications/`·`run.lock`·`workspace.lock`·`migration.lock`)과 겹치지 않음 | `destination_invalid(name_collision)`(겹친 쌍) |
 | 목적지 쪽 빈 공간 ≥ 계획 바이트 + 여유(1% + 64 MiB) | `insufficient_space` |
 
-같은 위치인지는 끝까지 푼 `(st_dev, st_ino)`로, `st_ino`가 0이면 끝까지 푼 경로로 판정한다(ADR-0006 9절). 대소문자 구별 여부는 플랫폼 이름이
-아니라 실행 중 `samefile`로 판정한다. 목적지에서 259자를 넘을 경로와 ADR-0003 결정 6의 이름 규칙을 어기는 원본 이름은 거절하지 않고 계획·보고서에
-경고로 적는다. 운영체제가 실제로 거절하면 그 파일에서 `destination_write_failed`로 멈추고 목적지는 표식 없이 남는다. 플랫폼 분기를 두지 않는다.
+- 같은 위치인지는 끝까지 푼 `(st_dev, st_ino)`로, `st_ino`가 0이면 끝까지 푼 경로로 판정한다(ADR-0006 9절). 목적지는 끝까지 푼 경로(없으면 가장
+  가까운 있는 조상을 풀고 나머지를 붙임)의 모든 조상을 r과, r의 모든 조상을 목적지와 `samefile`로 비교한다. 대소문자·NFD 별칭, 심볼릭 링크,
+  junction, 같은 위치의 두 철자를 잡는다. R에 바깥 링크의 대상을 넣는 이유: `data -> /ext/data`인 원본에 `--to /ext/data/new`(또는 `/ext/data`,
+  `/ext`)를 주면 원본 루트와는 겹치지 않지만, 1–2단계가 링크 대상 안에 `.analytics/`와 ledger를 만들고 4단계가 그것을 `data/new/…`로 다시 읽어
+  원본의 이름공간에 파일을 더하며 7단계는 늘 `source_changed`로 끝난다. 복사가 읽는 곳에 쓰는 일이라 ADR-0005 결정 4·5와 S1을 어긴다(T2).
+- 대소문자·유니코드 정규화로 겹치는 이름의 판정은 여기서 하지 않는다. 목적지 파일 시스템이 이름을 접는지는 목적지에 시험 이름을 만들어 봐야
+  알 수 있으므로 2단계 뒤에 판정하고 5단계가 계획에 적용한다(6.3절). `--dry-run`은 목적지에 쓰지 않으므로 "목적지가 이름을 접으면 겹칠 쌍"을
+  보이고 판정하지 않았다고 적는다.
+- 목적지에서 259자를 넘을 경로와 ADR-0003 결정 6의 이름 규칙을 어기는 원본 이름은 거절하지 않고 계획·보고서에 경고로 적는다. 운영체제가 실제로
+  거절하면 그 파일에서 `destination_write_failed`로 멈추고 목적지는 표식 없이 남는다. 플랫폼 분기를 두지 않는다.
 
 ### 6.3 단계와 커밋 지점
 
 ```text
- DEST  [1 mkdir+dest lock] [2 ledger start] ........ [5 plan] [6 copy] ....... [8 verify] [9 report] [10 flush] [11 marker] [12 trust]
- SRC                                       [3 lock run.lock -> lock ......................... 7 re-check] release
+ DEST  [1 mkdir+dest lock] [2 ledger start, name probe] .... [5 plan] [6 copy] ..... [8 verify] [9 transform, mapping, report] [10 flush] [11 marker] [12 trust]
+ SRC                                        [3 lock run.lock -> lock ....................... 7 re-check] release
                                             (no wait; same order as the old runner)
 ```
 
-1. 목적지를 만든다(없으면 `mkdir`, 있으면 비었는지 확인). `DEST/.analytics/`를 만들고 `DEST/.analytics/migration.lock`을 기다리지 않고 잡는다.
-   못 잡으면 `destination_busy`. 잡은 뒤 목적지의 내용을 다시 본다(허용: `.analytics/`, `migration.lock`, 이어 쓸 ledger).
-2. `DEST/.analytics/migration/<migration_id>/progress.jsonl`에 `start` 줄을 쓴다: kit 버전, `Origin`, 원본·목적지의 정규 경로와 철자, 잡을 원본
-   잠금 파일과 그 존재 여부. **원본 잠금보다 먼저 쓴다.** 잠금이 원본에 잠금 파일을 만들 수 있으므로 그 사실을 남길 곳이 먼저 있어야 한다.
+1. 목적지를 만든다(없으면 `mkdir`, 있으면 6.2절의 빈 디렉터리인지 확인). `DEST/.analytics/`를 만들고 `DEST/.analytics/migration.lock`을 기다리지
+   않고 잡는다. 못 잡으면 `destination_busy`. 잡은 뒤 목적지의 내용을 다시 본다(허용: 무시하는 항목, `.analytics/`, `migration.lock`, 이어 쓸 전환
+   기록). 다시 부른 전환의 판정(6.9–6.10절)은 이 잠금 안에서 한다.
+2. `DEST/.analytics/migration/<migration_id>/`를 만들고 `progress.jsonl`에 `start` 줄을 쓴다: kit 버전, `Origin`, 원본·목적지의 정규 경로와 철자,
+   R(6.2절), 잡을 원본 잠금 파일과 그 존재 여부, 이름 접힘 시험에 쓸 파일 이름. **원본 잠금보다 먼저 쓴다.** 잠금이 원본에 잠금 파일을 만들 수
+   있으므로 그 사실을 남길 곳이 먼저 있어야 한다. 그다음 이 전환의 디렉터리 안에 시험 파일(ASCII 대소문자와 NFC 글자가 든 이름)을 만들고, 대소문자만
+   다른 이름과 NFD 이름으로 `lstat`해 목적지가 대소문자·정규화를 접는지 실제로 판정한다. 시험 파일을 지우고 `probed`(대소문자·정규화 각각 접음·구별)를
+   쓴다. 목적지 아래 디렉터리는 이 전환이 만들므로 같은 동작이라고 본다(Windows의 디렉터리별 대소문자 구별 설정이 새 하위 디렉터리에 이어지는지는
+   확인하지 않았다, 18절).
 3. 원본의 `.lab/run.lock`, 그다음 `.lab/lock`을 기다리지 않고 잡는다(`FileLocks.try_exclusive`, 6.12절). 옛 runner가 run 잠금을 먼저 잡고 그 안에서
-   journal 잠금을 잡으므로 같은 순서다. 못 잡으면 `source_busy`(run 잠금이면 `status=running`인 run의 id와 pid). ledger에 `locked`와 각 잠금 파일을
-   새로 만들었는지를 쓴다. 원본에 `.lab/`이 없으면 디렉터리를 만들지 않고 잠금 없이 진행한다(지금 포트의 `exclusive`는 부모 디렉터리를 만든다).
-   그동안 생긴 옛 쓰기는 7단계의 비교가 잡는다. ledger와 보고서에 `locks: not_taken`을 적는다.
-4. (잠금 안) 원본을 걷는다: 정규 파일·디렉터리·링크마다 저장된 철자의 상대 POSIX 경로, 크기, `mtime_ns`, 종류. 해시는 아직 계산하지 않는다.
-   제외 목록(OQ4)과 잠금 파일은 따로 적는다.
-5. 계획 `plan.json`(원본 경로 → 목적지 경로, 디렉터리, 제외, 링크 처리, 예정된 변환)을 원자 교체로 쓰고 그 sha256을 ledger의 `plan` 줄에 적는다.
-6. 복사(6.4절). 파일마다 ledger에 `begin`(대상 경로와 임시 파일 이름) → 복사하며 sha256 계산 → 임시 파일을 최종 이름으로 교체 → `copied`(바이트
-   수·sha256).
+   journal 잠금을 잡으므로 같은 순서다. 다투면 `source_busy`(run 잠금이면 `status=running`인 run의 id와 pid). ledger에 `locked`와 각 잠금 파일을
+   새로 만들었는지를 쓴다. 두 경우는 잠금 없이 진행하고 ledger와 보고서에 `locks: not_taken`과 이유를 적는다: 원본에 `.lab/`이 없을 때(디렉터리를
+   만들지 않는다. 지금 포트의 `exclusive`는 부모 디렉터리를 만든다), 그리고 다툼이 아닌 이유로 잠금 파일을 만들거나 열지 못할 때(읽기 전용 원본·매체의
+   `EROFS`·`EACCES` 등, 포트의 `LockUnavailable`). 그동안 생긴 옛 쓰기는 7단계의 비교가 잡는다. ADR-0005 결정 5는 "복사하는 동안 잠금을 잡는다"고
+   적었으므로 이 두 경우는 결정의 **수단**과 다르다. 잠금 파일을 만들려면 원본에 써야 해 결정 4(잠금 말고는 쓰지 않음)와 함께 지킬 방법이 없고, 결정
+   5의 보장(복사 전후로 원본이 다르면 실패)은 비교가 지킨다. 대신 옛 kit의 쓰기를 기다리게 하지 못해 그런 쓰기가 오면 전환이 `source_changed`로 끝난다
+   (15절 D10, 설계 리뷰가 받아들일 것).
+4. (잠금 안) 원본을 걷는다: 항목마다 저장된 철자의 상대 POSIX 경로, 크기, `mtime_ns`, 종류, `(st_dev, st_ino)`. 해시는 아직 계산하지 않는다.
+   제외 목록(OQ4)과 잠금 파일은 따로 적는다. 6.2절의 검사를 이 결과로 다시 한다.
+5. 계획 `plan.json`(원본 경로 → 목적지 경로, 디렉터리, 제외, 링크 처리, 예정된 변환, 파일마다의 임시 이름)을 이 전환의 디렉터리에 쓰고 그 sha256을
+   ledger의 `plan` 줄에 적는다. 2단계의 판정으로 목적지가 접는 방식에서 겹치는 계획 경로 쌍이 있으면 `destination_invalid(name_collision)`(겹친 쌍)로
+   멈춘다. 목적지가 대소문자·정규화를 구별하면 그런 쌍도 그대로 복사한다. 임시 이름은 같은 디렉터리의 어떤 계획 이름과도(목적지가 접는 방식으로도)
+   겹치지 않게 고른다. 원본에 `.mig-….part` 같은 이름이 있어도 충돌하지 않는다.
+6. 복사(6.4절). 파일마다 ledger에 `begin`(대상 경로, 임시 이름, 걷기 때의 크기·`(st_dev, st_ino)`) → 임시 파일을 새로 만들어 복사하며 sha256 계산 →
+   임시 파일 핸들로 flush → 최종 이름이 없을 때만 원자 게시(`AtomicFiles.publish_new`) → 권한·시각 → `copied`(바이트 수·sha256). `lab.json`의 사본
+   `source-marker.json`도 이 단계에서 같은 방식으로 복사한다(잠금 안에서 본 원본과 같은 바이트). 디렉터리의 권한은 그 안을 다 쓴 뒤 옮긴다.
 7. (잠금 안) 원본 재확인: 다시 걷고 모든 파일을 다시 해시해 복사 때 해시와 비교한다. 다르면 `source_changed`(바뀐·생긴·사라진 경로)로 끝내고
-   ledger에 `failed`를 쓴다. 같으면 `source_checked`(원본 inventory digest)를 쓰고 원본 잠금을 놓는다. **원본 잠금은 4–7단계 동안만 잡는다.**
-8. 사본 검증: 계획한 모든 사본을 다시 읽어 sha256을 비교하고, 계획에 없는 항목이 없는지 본다(이 전환의 파일과 무시하는 `.venv/`·`__pycache__/`는
-   제외). 다르면 `destination_mismatch`.
-9. 새 파일을 만든다: 변환한 `.gitignore`, `mapping.json`, 스크립트 제안, `source-marker.json`. 그다음 `report.json`·`report.md`를 원자 교체로 쓴다.
-10. 계획한 모든 사본·새 파일과 그 디렉터리를 내구 쓰기로 flush한다(6.4절). ledger에 `durable`.
-11. (목적지 잠금 안) `analytics.json`이 없음을 다시 확인하고 임시 파일 + flush + 교체로 쓴다. 표식의 `migration.report_sha256`이 보고서를 묶는다.
-    **이 교체가 커밋 지점이다.** ledger에 `committed`.
+   ledger에 `failed`를 쓴다. 같으면 `source_checked`를 쓴다: 원본 inventory digest, 시각(`source_checked_at`), 복사한 journal의 경계(바이트 수, 줄
+   수, 마지막 seq, `relations.Journal`로 센 `damaged`·`recovered`·`unsupported` 수), 원본 표식의 sha256. 그리고 원본 잠금을 놓는다. **원본 잠금은
+   4–7단계 동안만 잡는다.** 이 줄 뒤로 전환은 원본을 다시 읽지 않는다.
+8. 사본 검증: 계획한 모든 사본을 다시 읽어 sha256을 비교하고, 계획에 없는 항목이 없는지 본다(이 전환의 파일과 6.10절의 무시하는 항목은 제외).
+   다르면 `destination_mismatch`. ledger에 `verified`.
+9. `.gitignore` 변환(6.13절): 바꾼 내용을 임시 파일에 쓰고 flush한 뒤 `transform_begin`(경로, 임시 이름, 전·후 sha256)을 쓴다. 사본이 아직 전 해시인지
+   다시 확인하고 이 전환의 사본 위에 교체(`AtomicFiles.replace`)한 뒤 `transformed`를 쓴다. 그다음 `mapping.json`, 스크립트 제안, `report.json`·
+   `report.md`를 이 전환의 디렉터리에 쓰고 `reported`(보고서 sha256)를 쓴다.
+10. 내구 쓰기: 9단계에서 만든 파일은 쓴 핸들로 flush했고 사본은 6단계에서 게시 전에 flush했다. 여기서는 사본·새 파일이 있는 모든 디렉터리를
+    `flush_dir`한다. ledger에 `durable`.
+11. (목적지 잠금 안) 표식을 임시 파일에 쓰고 flush한 뒤 `marker_begin`(임시 이름, 표식 바이트 전체와 sha256)을 쓰고, `analytics.json`이 없을 때만
+    게시한다(`publish_new`). 이미 있으면 덮어쓰지 않고 `destination_mismatch(occupied)`. 표식의 `migration.report_sha256`이 보고서를 묶는다.
+    **이 게시가 커밋 지점이다.** 게시 뒤 목적지 디렉터리를 `flush_dir`하고 ledger에 `committed`(커밋 시각)를 쓴 다음에 응답한다.
 12. 목적지를 새 신뢰 목록에 더한다(6.14절). ledger에 `trusted`. 실패해도 전환은 끝났고 응답이 알린다. 다시 부르면 이 단계만 한다(6.9절).
 
 목적지 디렉터리를 다른 이름으로 만든 뒤 마지막에 이름을 바꾸는 방식은 쓰지 않는다. Windows는 안에 열린 핸들이 있는 디렉터리의 이름을 바꾸지
 못하고, 다른 볼륨으로는 옮길 수 없으며, ADR-0005 결정 5가 "같은 목적지에서 잇는다"고 정했다. 표식이 없는 디렉터리는 어떤 kit에도 프로젝트가 아니므로
-표식 교체 하나로 원자적인 커밋이 된다. 결정 5의 "목적지에는 먼저 전환 보고서를 만들고"는 2단계의 ledger와 5단계의 계획이고, 9단계의
+표식 게시 하나로 원자적인 커밋이 된다. 결정 5의 "목적지에는 먼저 전환 보고서를 만들고"는 2단계의 ledger와 5단계의 계획이고, 9단계의
 `report.json`이 그것을 완결한다.
 
 ### 6.4 복사 규칙
 
 - 이진 모드로 1 MiB 단위 스트리밍, 메모리 고정. 텍스트 모드·줄 끝 변환 없음(ADR-0007 결정 6). CRLF journal도 바이트 그대로다.
-- 임시 파일은 같은 디렉터리의 짧은 이름 `.mig-<sha8(경로)>-<n>.part`다(긴 원본 이름에 접미사를 붙이면 이름 길이 한계를 넘을 수 있다). 이름은 ledger의
-  `begin` 줄에 먼저 적는다. 최종 이름으로의 교체는 `AtomicFiles.replace`다(Windows의 일시적 공유 위반은 포트가 재시도). 그래서 최종 경로에는 늘 완전한
-  사본만 있고, 중단되면 남는 것은 ledger에 적힌 임시 파일뿐이다.
-- 권한 비트와 수정 시각은 가능한 만큼 옮긴다(`os.chmod`·`os.utime`). 보장은 바이트뿐이고 확장 속성·ACL은 옮기지 않는다고 보고서에 적는다.
-- hardlink·clone을 쓰지 않는다(ADR-0005 결정 5). 원본 안의 hardlink 두 이름은 두 사본이 된다.
+- 원본 열기: 걷기 때 정규 파일이었던 것만 연다. 바깥 링크의 대상도 열기 전에 `stat`으로 정규 파일인지 보고(FIFO가 대상이면 `open`에서 멈춘다),
+  POSIX에서는 `O_NONBLOCK`이 있으면 더해 연다(기능 확인, 정규 파일에는 영향이 없다). 연 핸들의 `fstat`이 정규 파일이고 걷기 때 본
+  `(st_dev, st_ino)`와 같을 때만 읽는다. 다르면 `source_changed`(그 경로). 걷기와 열기 사이에 FIFO·장치로 바뀐 항목, Windows에서 Linux가 만든 이름
+  (`con`·`aux`, 끝의 `.`)이 장치나 다른 파일을 여는 경우도 이 비교가 잡는다. 플랫폼 분기가 없다. Windows에서는 실행하지 않았다(18절).
+- 임시 파일은 같은 디렉터리의 짧은 이름 `.mig-<sha8(경로)>-<n>.part`다(긴 원본 이름에 접미사를 붙이면 이름 길이 한계를 넘을 수 있다). 이름은 5단계가
+  계획 이름과 겹치지 않게 고르고 ledger의 `begin` 줄에 먼저 적는다. `O_CREAT|O_EXCL`(`open(…, "xb")`)로 만들어 이미 있는 파일을 열지 않는다.
+- 게시는 "없을 때만 만드는" 원자 연산인 새 포트 메서드 `AtomicFiles.publish_new(temp, final)`다(6.12절). 최종 경로에 그 사이 다른 파일이 생겼으면
+  덮어쓰지 않고 `destination_mismatch(occupied)`로 멈추며 그 파일과 임시 파일을 그대로 둔다. 그래서 목적지의 최종 경로에는 늘 이 전환이 게시한 완전한
+  사본이나 남이 만든 파일 가운데 하나만 있고, 중단되면 남는 것은 ledger에 적힌 임시 파일(링크를 지원하지 않는 파일 시스템에서는 `direct` 줄이
+  적은 파일, 6.12절)뿐이다. `AtomicFiles.replace`(덮어쓰는 교체)는 이 전환이
+  가진 파일에만 쓴다: 이 전환의 디렉터리 안 파일(계획·매핑·보고서를 다시 쓸 때), 9단계의 `.gitignore`(직전에 이 전환의 사본 해시인지 확인).
+- 권한 비트와 수정 시각은 게시 뒤 가능한 만큼 옮긴다(`os.chmod`·`os.utime`). 디렉터리는 그 안을 다 쓴 뒤에 옮긴다. 보장은 바이트뿐이고 확장 속성·
+  ACL은 옮기지 않는다고 보고서에 적는다.
+- Windows의 읽기 전용 파일: 사본의 flush는 게시 전에 임시 파일의 쓰기 핸들로 한다. Windows의 `FlushFileBuffers`는 쓰기 권한이 있는 핸들이 필요해서
+  읽기 전용 사본을 나중에 다시 열어 flush할 수 없기 때문이다. 읽기 전용 속성은 게시 뒤에 옮기므로 임시 파일은 늘 쓸 수 있다. 이어 쓰기가 이 전환의
+  임시 파일을 지울 때 읽기 전용이면 먼저 쓰기 가능으로 바꾼다(`os.chmod(…, stat.S_IWRITE)`, POSIX에서도 해가 없는 같은 호출). Windows에서 실행하지
+  않았다(18절).
+- 원본과 바이트를 나누는 hardlink·clone을 쓰지 않는다(ADR-0005 결정 5). 원본 안의 hardlink 두 이름은 두 사본이 된다. POSIX의 `publish_new`가 쓰는
+  `os.link`는 이 전환의 임시 파일과 그 최종 이름 사이의 것이고 곧바로 임시 이름을 지우므로 원본과 아무것도 나누지 않는다.
 - 복사 순서는 경로의 코드 포인트 순이다. 계획·보고서·측정이 같은 순서를 쓴다.
-- 내구 쓰기(10·11단계): 새 포트 메서드 `AtomicFiles.flush(path)`·`AtomicFiles.flush_dir(path)`(6.12절). 표식 뒤 전원이 끊겨도 표식이 가리키는 사본이
-  디스크에 있게 하기 위해서다. 사본이 표식보다 늦게 디스크에 닿으면 사용자가 원본을 지운 뒤 잃을 수 있다. 일반 쓰기에는 쓰지 않는다(4.4절).
+- 내구 쓰기: 새 포트 메서드 `AtomicFiles.flush_handle(fh)`·`AtomicFiles.flush_dir(path)`(6.12절). 표식 뒤 전원이 끊겨도 표식이 가리키는 사본이
+  디스크에 있게 하려는 것이다. 사본이 표식보다 늦게 디스크에 닿으면 사용자가 원본을 지운 뒤 잃을 수 있다. 일반 쓰기에는 쓰지 않는다(4.4절).
+- 프로세스 중단과 전원 손실을 구별한다. S2·S6과 6.11절의 결과는 프로세스 중단에 대한 보장이며 `os._exit` 시험으로 확인한다. 전원 손실 뒤의
+  내구성은 목표이고 보장이 아니다: 시험하지 않았고(측정 기록의 `not_run`), Windows에서는 디렉터리를 열어 flush할 방법을 확인하지 않았으며(6.12절),
+  `os.replace`·`os.rename`·`os.link`는 write-through가 아니다. 그래서 Windows에서 표식 게시 직후 전원이 끊기면 표식이 없을 수 있고(다시 부르면 이어
+  쓰기), 드물게 표식은 있는데 사본의 이름이 디스크에 없을 수 있다. 다시 부르기의 대조(6.9절)가 그것을 `missing`으로 알린다.
 
 ### 6.5 복사 범위와 목적지의 배치
 
 | 원본 | 목적지 | 방식 |
 |---|---|---|
-| `lab.json` | `.analytics/migration/<id>/source-marker.json` | 바이트 그대로, 이름만 다름. `lab.json`이라는 이름으로 두지 않는다(그 디렉터리에서 옛 kit이 프로젝트로 찾아 쓴다) |
+| `lab.json` | `.analytics/migration/<id>/source-marker.json` | 6단계에 잠금 안에서 바이트 그대로, 이름만 다름. `lab.json`이라는 이름으로 두지 않는다(그 디렉터리에서 옛 kit이 프로젝트로 찾아 쓴다) |
 | `.lab/context/*.md`, `.lab/telemetry.jsonl`, `.lab/queries.jsonl`, `.lab/adhoc/`, `.lab/demo/`와 `.lab/` 아래의 그 밖의 항목 | `.analytics/` 아래 같은 상대 경로 | 바이트 그대로. 매핑의 접두 대응 `.lab/` → `.analytics/` |
 | `.lab/cache/`, `.lab/lock`·`run.lock`·`report.lock` | 없음 | 재생성 가능·잠금. 보고서 `excluded`(OQ4) |
 | `report/`, `.venv/`, `__pycache__/` | 없음 | 재생성 가능·환경. 보고서 `excluded`(OQ4) |
-| 그 밖의 모든 것(`journal.jsonl`, `CONTEXT.md`, `runs/`, `data/raw/`, `data/derived/`, `scripts/`, `pyproject.toml`, `uv.lock`, `.git/` 등) | 같은 상대 경로 | 바이트 그대로 |
+| 루트의 `.git`이 파일(git worktree의 `gitdir:` 포인터) | 없음 | 복사하면 목적지가 원본 worktree의 관리 디렉터리(index·HEAD)를 함께 쓴다. 보고서 `not_copied`(`git_worktree_pointer`)와 경고(OQ4) |
+| 그 밖의 모든 것(`journal.jsonl`, `CONTEXT.md`, `runs/`, `data/raw/`, `data/derived/`, `scripts/`, `pyproject.toml`, `uv.lock`, 디렉터리 `.git/` 등) | 같은 상대 경로 | 바이트 그대로 |
 | `.gitignore` | 같은 경로, 끝에 블록 덧붙임 | 6.13절 |
 | — | `analytics.json` | 새로 씀(11단계) |
 | — | `.analytics/migration/<id>/`의 `progress.jsonl`·`plan.json`·`mapping.json`·`report.json`·`report.md`·`proposals/` | 새로 씀 |
 
 - 목적지에는 `.lab/`을 만들지 않는다. 그래서 새 kit이 쓰는 `.analytics/telemetry.jsonl`·`queries.jsonl`·`context/`가 옛 기록에 이어지고, 목적지의 관리
   디렉터리가 하나다.
-- 제외 목록은 원본 전후 비교에서도 뺀다. 원본에 `.git/`이 있으면 목적지에 저장소 사본이 생긴다는 것을 보고서가 알린다.
+- 제외 목록은 원본 전후 비교에서도 뺀다. 원본에 디렉터리 `.git/`이 있으면 목적지에 저장소 사본이 생긴다는 것과, git이 추적하던 `.lab/` 파일이
+  목적지에서는 `.analytics/`로 옮겨져 git에 "지워짐·새 파일"로 보인다는 것을 보고서가 알린다.
 - `.analytics/migration/`은 git이 무시하지 않는다(프로젝트의 이력이다). 캐시 정리가 지우지 않는다.
 
-### 6.6 링크와 특수 파일 (OQ3)
+### 6.6 링크와 특수 파일 (OQ3, OQ12)
 
 | 원본 항목 | 처리 |
 |---|---|
-| 밖을 가리키는 파일 링크, 디렉터리 링크·junction | 대상의 바이트를 링크의 경로에 보통 파일·디렉터리로 복사한다. 디렉터리는 경로 정체성의 트리 조회처럼 한 번 내려간다. 사전 공간 검사에 넣는다 |
-| 안을 가리키는 상대 링크 | 같은 링크 글자로 목적지에 다시 만든다(대상이 목적지 안이라 원본에 닿지 않고, 정체성 경로가 원본과 같다). 만들 수 없으면(Windows 권한) 파일 링크는 바이트 복사, 디렉터리 링크는 복사하지 않고 경고 |
-| 안을 가리키는 절대 링크 | 파일은 바이트 복사, 디렉터리는 내려가지 않고 복사하지 않음(대상의 실제 위치가 복사되므로 기록은 그 위치로 풀린다) |
-| 루트·조상·관리 디렉터리로 풀리는 링크, 깨진 링크 | 복사하지 않음 |
+| 밖을 가리키는 파일 링크, 디렉터리 링크·junction(대상이 있음) | 대상의 바이트를 링크의 경로에 보통 파일·디렉터리로 복사한다. 디렉터리는 경로 정체성의 트리 조회처럼 한 번 내려간다. 사전 공간 검사와 6.2절의 R에 넣고, 매핑의 `links`에 링크 경로·대상의 실제 경로와 철자·처리를 적는다(5.4절) |
+| 밖을 가리키는 링크인데 대상이 지금 없음(마운트하지 않은 외부 디스크 등) | 사전 검사에서 거절한다: `source_unreadable(reason=link_target_missing)`과 목록. 사람이 대상을 연결하거나 링크를 치운 뒤 다시 부른다(OQ12) |
+| 안을 가리키는 상대 링크 | 같은 링크 글자로 목적지에 다시 만든다(대상이 목적지 안이라 원본에 닿지 않고, 정체성 경로가 원본과 같다). 대상이 없으면 원본에서도 깨진 링크이므로 같은 글자로 다시 만든다. 만들 수 없으면(Windows 권한) 파일 링크는 바이트 복사(매핑 `links`에 적음), 디렉터리 링크는 복사하지 않고 경고 |
+| 안을 가리키는 절대 링크 | 파일은 바이트 복사(매핑 `links`에 적음), 디렉터리는 내려가지 않고 복사하지 않음(대상의 실제 위치가 복사되므로 기록은 그 위치로 풀린다). 대상이 없으면 복사하지 않음 |
+| 루트·조상·관리 디렉터리로 풀리는 링크 | 복사하지 않음 |
 | hardlink | 경로마다 따로 복사 |
-| FIFO·소켓·장치 파일 | 복사하지 않음(바이트가 없다) |
+| FIFO·소켓·장치 파일과 그것을 가리키는 링크 | 복사하지 않음(바이트가 없다). 판정은 `stat`과 연 핸들의 `fstat`(6.4절) |
 
-링크마다 경로·링크 글자·처리를 보고서의 `links`에, 복사하지 않은 것은 `not_copied`에 사유와 함께 적는다. 같은 규칙이 모든 OS에서 돈다.
+- 안과 밖은 링크 대상의 실제 위치로 판정하고, 대상이 없으면 링크 글자를 원본 루트의 철자들과 비교해 판정한다.
+- 링크마다 경로·링크 글자·처리를 보고서의 `links`에, 복사하지 않은 것은 `not_copied`에 사유와 함께 적는다. `--dry-run`은 바깥 링크와 그 대상의
+  상태(있음·없음)를 목록의 맨 앞에 보인다. 같은 규칙이 모든 OS에서 돈다.
 
 ### 6.7 참조 매핑
 
@@ -654,108 +808,161 @@ class Writer:
  "prefixes": [{"from": ".lab/", "to": ".analytics/"}],
  "renamed": [{"from": "lab.json",
               "to": ".analytics/migration/20261008T010203Z-a1b2c3d4/source-marker.json"}],
+ "links": [{"path": "data", "kind": "directory", "text": "/Volumes/ext/data",
+            "target_real": "/Volumes/ext/data",
+            "target_spellings": ["/Volumes/ext/data", "/Volumes/EXT/data"],
+            "treatment": "copied_as_directory"}],
  "kinds": [{"from": "gap", "to": "workflow_feedback", "where": "reader"}]}
 ```
 
 - `root.from`: 원본의 정규 경로, 사용자가 준 철자, 원본 기록(`run.json`·`meta.json`)에 나타난 절대 경로 가운데 `samefile`로 원본 루트로 판정된 접두.
   `root.to`는 기록일 뿐이고 reader는 지금 루트로 대응한다(5.4절).
 - `prefixes`·`renamed`: 위치가 바뀐 것(6.5절). 옛 run의 `charts/`·`data/raw/` 경로는 같은 경로에 사본이 있어 대응이 필요 없다.
+- `links`: 보통 파일·디렉터리로 바꾼 링크마다(6.6절) 경로, 링크 글자, 대상의 실제 경로, 그 대상을 가리키는 철자(링크 글자, 원본 기록에 나타난
+  절대 경로 가운데 `samefile`로 그 대상으로 판정된 접두), 처리. 다시 만든 상대 링크는 목적지에서도 경계라 적지 않는다.
 - `kinds`: reader 규칙의 기록이다. 기록 자체는 고치지 않는다.
 
 ### 6.8 보고서와 ledger
 
-`report.json`(`analytics.migration/1`, `record: "report"`):
+`report.json`(`analytics.migration/1`, `record: "report"`)은 9단계에 쓰고 표식이 그 sha256을 묶으므로, 커밋 전에 정해진 값만 담는다. 커밋 시각과
+flush·표식 단계의 시간은 ledger의 `durable`·`committed` 줄과 응답에 있다.
 
 | 필드 | 내용 |
 |---|---|
 | `migration_id` | `<UTC yyyymmddThhmmssZ>-<무작위 8자>`, `[A-Za-z0-9._-]`(ADR-0003 결정 6) |
-| `kit_version`, `started_at`, `committed_at`, `actor`, `actor_basis`, `means` | 실행 정보 |
-| `source` | 정규 경로·철자, 표식(가족·바이트·sha256·보존 경로), journal(바이트·줄·마지막 seq·`damaged`·`recovered`·`unsupported` 수, `relations.Journal`로 셈), inventory digest(전·후), 파일 수·바이트, 잠금(경로·원래 있었는지·잡은 시간 ms, 또는 `not_taken`) |
-| `destination` | 정규 경로, `project_id`, 대소문자 구별 여부(실행 중 판정) |
+| `kit_version`, `started_at`, `source_checked_at`, `actor`, `actor_basis`, `means` | 실행 정보. `source_checked_at`은 원본 잠금 안에서 원본을 마지막으로 확인한 시각이다 |
+| `source` | 정규 경로·철자, 표식(가족·바이트·sha256·보존 경로), 복사한 journal의 경계(바이트 수·줄 수·마지막 seq, `damaged`·`recovered`·`unsupported` 수, `relations.Journal`로 셈), inventory digest(전·후), 파일 수·바이트, 잠금(경로·원래 있었는지·잡은 시간 ms, 또는 `not_taken`과 이유) |
+| `destination` | 정규 경로, `project_id`, 대소문자·정규화를 접는지(2단계의 판정) |
 | `files[]` | `path`, `to`(다를 때만), `bytes`, `sha256`(원본 전·후와 사본이 같으므로 하나), `link`(있을 때) |
 | `transformed[]` | `.gitignore`의 전·후 sha256, 더한 줄, diff 경로 |
 | `added[]` | 전환이 만든 파일과 sha256 |
 | `excluded[]` | 경로, 사유(`environment`·`workspace`·`cache`·`lock`), 파일 수, 바이트 |
-| `not_copied[]`, `links[]`, `warnings[]` | 특수 파일, 링크 처리, 긴 경로, 이식할 수 없는 이름 |
+| `not_copied[]`, `links[]`, `warnings[]`, `leftover_temp[]` | 특수 파일·worktree 포인터, 링크 처리, 긴 경로, 이식할 수 없는 이름, 지우지 않고 남긴 이 전환의 임시 파일(6.10절) |
 | `mapping` | `mapping.json`의 경로와 sha256 |
 | `proposals` | `.gitattributes`, `scripts.diff`, `.gitignore`(링크이거나 없을 때) |
 | `checks` | `source_before_after: equal`, `copies: equal`, 비교한 파일 수 |
-| `notes` | 원본은 `lab.json` 프로젝트로 남고 `committed_at` 뒤 원본에 쓴 기록은 이 사본에 없다는 것(ADR-0005 결정 5), CRLF 기록을 고치지 않았다는 것(ADR-0007 결정 6), `.git/` 사본 여부 |
-| `timings` | 계획·복사·재확인·검증·보고서·flush 단계의 ms |
+| `notes` | 원본은 `lab.json` 프로젝트로 남고 `source_checked_at`(journal 경계 뒤) 뒤에 원본에 쓴 기록은 이 사본에 없다는 것(ADR-0005 결정 5), CRLF 기록을 고치지 않았다는 것(ADR-0007 결정 6), `.git/` 사본 여부와 git에 보일 바뀜 |
+| `timings` | 계획·복사·재확인·검증 단계의 ms |
 
 - `report.md`는 같은 내용의 영어 요약이다(용어집 §7). 사용자 경로와 파일 이름은 그대로 둔다. 응답 JSON은 요약과 경로다.
-- `progress.jsonl`은 덧붙이기만 하는 ledger다. 줄 종류: `start`, `locked`, `plan`, `begin`, `copied`, `source_checked`, `verified`, `reported`, `durable`,
-  `committed`, `trusted`, `failed`(오류 코드·경로). 덧붙일 때 끊긴 줄 규칙(마지막 바이트가 LF가 아니면 LF 먼저)을 쓴다. ledger 줄은 flush하지 않는다.
-  이어 쓸 때 사본을 모두 다시 해시하므로 ledger가 디스크보다 앞서도 틀린 판정이 나오지 않는다.
+- `progress.jsonl`은 덧붙이기만 하는 ledger다. 줄 종류: `start`, `probed`, `locked`, `plan`, `begin`, `direct`, `copied`, `source_checked`, `verified`,
+  `transform_begin`, `transformed`, `reported`, `durable`, `marker_begin`, `committed`, `trusted`, `failed`(오류 코드·경로). 덧붙일 때 끊긴 줄 규칙
+  (마지막 바이트가 LF가 아니면 LF 먼저)을 쓴다. ledger 줄은 flush하지 않는다. 이어 쓸 때 사본을 모두 다시 해시하므로 ledger가 디스크보다 앞서도
+  틀린 판정이 나오지 않는다. `failed`는 그 시도의 결과일 뿐 상태를 닫지 않는다. 다시 부르면 6.10절로 다시 판정한다.
 - 기록 schema에 `analytics.migration/1`의 세 레코드 정의를 더하고(②) `tests/test_record_contract.py`가 예제와 맞는지 본다.
 
 ### 6.9 `--dry-run`과 다시 부르기
 
 - `--dry-run`은 읽기만 한다. 잠금도 잡지 않으므로 잠금 파일·목적지 디렉터리도 만들지 않는다. 결과는 그 순간의 추정이며 그렇게 적는다.
-  보이는 것: 원본 판정, 목적지 상태(`new`·`resumable`·`committed`·`refused`와 이유), 복사할 파일 수·바이트, 제외와 이유, 링크·특수 파일 처리,
-  `.gitignore`에 더할 줄, 스크립트 제안 수, 필요한 바이트와 빈 공간, 실행 중 run(읽기 모델의 `running`). 연속성 설계 §7의 "변환 계획과 영향을 먼저
-  보여 준다"에 맞춘다. 종료 코드는 진행할 상태면 0, 거절될 상태면 그 오류 코드와 1(계획은 `details`).
-- 이미 커밋된 목적지(표식의 `migration.id`가 ledger와 같음)로 다시 부르면 복사하지 않는다(결정 5 "표식까지 쓴 목적지에는 다시 전환하지 않는다").
-  `ok`와 `already_migrated: true`를 돌려주고, 신뢰 항목이 없으면 더하며(12단계만), 사본을 보고서와 다시 대조한 결과(`same`·`changed`·`missing`,
-  journal처럼 덧붙이는 파일은 기록한 길이까지의 앞부분)와 전환 뒤 원본에 생긴 변경(journal 줄 수와 seq 범위, 바뀐 파일 수)을 알린다. 이 대조는
-  읽기만 한다. ADR-0005 결정 5의 "전환 뒤 원본에 쓴 기록의 안내"가 이것이다.
+  보이는 것: 원본 판정, 목적지 상태(`new`·`resumable`·`committed`·`refused`와 이유, 아래의 다시 부르기 판정과 같은 규칙), 바깥 링크와 그 대상의
+  상태(맨 앞), 복사할 파일 수·바이트, 제외와 이유, 링크·특수 파일 처리, 목적지가 이름을 접으면 겹칠 쌍(판정하지 않음), `.gitignore`에 더할 줄,
+  스크립트 제안 수, 필요한 바이트와 빈 공간, 실행 중 run(읽기 모델의 `running`). 연속성 설계 §7의 "변환 계획과 영향을 먼저 보여 준다"에 맞춘다.
+  종료 코드는 진행할 상태면 0, 거절될 상태면 그 오류 코드와 1(계획은 `details`).
+- 다시 부르기(그리고 `--dry-run`)는 6.10절의 이어 쓰기 표보다 먼저 목적지의 `marker_state`(4.3절)를 판정한다. 표식이 있는 목적지에는 다시 전환하지
+  않는다(결정 5).
+
+  | 목적지의 판정 | 결과 |
+  |---|---|
+  | `conflict`(두 표식) | `marker_conflict`. 신뢰 목록을 건드리지 않는다 |
+  | `invalid` | `marker_invalid` |
+  | `unknown` | `project_too_new` |
+  | `legacy`(목적지에 `lab.json`) | `destination_invalid(not_empty)` |
+  | `current`, 표식의 `migration.id`에 맞는 ledger가 있고 그 `start`의 원본이 지금 원본과 같은 위치(`samefile`)이며, ledger에 `committed`가 있거나 `marker_begin`의 sha256이 지금 표식 바이트와 같음 | `already_migrated`(아래). `committed`가 없었으면 먼저 쓴다(6.11절 F12) |
+  | `current`, 그 ledger의 원본이 다른 위치 | `destination_invalid(not_empty)`, `details`: 다른 원본의 전환으로 만든 프로젝트. "원본이 바뀌었다"고 보고하지 않는다 |
+  | `current`, `migration` 필드가 없거나 그 ledger가 없음 | `destination_invalid(not_empty)` |
+  | `incomplete`(표식 없음, 전환 기록 있음)·`none` | 6.10절 |
+
+- `already_migrated`: 복사하지 않는다. `ok`와 `already_migrated: true`를 돌려주고, 신뢰 항목이 없으면 더하며(12단계만), 사본을 보고서와 다시 대조한
+  결과(`same`·`changed`·`missing`, journal처럼 덧붙이는 파일은 보고서가 적은 길이까지의 앞부분, 보고서 자체의 해시가 표식과 다르면 `changed`)와
+  `source_checked_at` 뒤 원본에 생긴 변경(보고서의 journal 경계 뒤 줄 수와 seq 범위, inventory와 다른 파일 수)을 알린다. 이 대조는 읽기만 한다.
+  ADR-0005 결정 5의 "전환 뒤 원본에 쓴 기록의 안내"가 이것이다. 원본이 없으면 그 부분은 `source: missing`이다.
+- 시험(T21): 두 표식·깨진 표식·모르는 표식·`lab.json`을 둔 목적지, 다른 원본의 커밋된 목적지, 같은 원본의 커밋된 목적지(신뢰 항목 있음·없음)를 실제
+  호출과 `--dry-run`으로 각각 부른다. 기대: 위 표의 결과, 신뢰 목록은 `already_migrated`의 누락 보충 말고 바뀌지 않음, 목적지·원본의 `tree_digest` 같음.
 
 ### 6.10 이어 쓰기와 거절
+
+목적지에 표식이 없고 전환 기록이 있으면 이어 쓰기 판정이다. 무시하는 항목은 계획에 없는 `.venv/`·`__pycache__/`와 운영체제 메타 파일
+(`.DS_Store`·`Thumbs.db`·`desktop.ini`, 어느 깊이에서나)이다. 계획에 있는 경로를 이런 파일이 차지하고 있으면 무시하지 않고 그 경로의 게시가
+`destination_mismatch(occupied)`가 된다.
 
 | 목적지 상태 | 같은 명령을 다시 부르면 |
 |---|---|
 | 없음·빈 디렉터리, `.analytics/`와 `migration.lock`만 | 새 전환 |
-| ledger가 있고 `committed`가 없으며 `start`의 원본이 같음 | 이어 쓰기 검사: ① 목적지의 모든 항목이 계획한 사본(해시가 `copied`와 같음), 이 전환의 파일(ledger·계획·`begin`이 적은 임시 파일), 무시하는 `.venv/`·`__pycache__/` 가운데 하나이고, ② 원본 잠금을 다시 잡은 뒤 이미 복사한 파일마다 지금 원본의 바이트가 그 사본과 같다. 맞으면 `begin`만 있고 `copied`가 없는 임시 파일을 지우고, `begin`이 적은 대상 경로에 완전한 파일이 있으면 지금 원본과 해시가 같을 때만 사본으로 인정한다. 그리고 지금 원본으로 남은 계획을 다시 세워 잇는다 |
-| 위 ①이 맞지 않음 | `destination_mismatch`(그 경로들). 덮어쓰지 않는다 |
-| 위 ②가 맞지 않음(이미 복사한 파일이 원본에서 바뀌거나 사라짐) | `source_changed`(그 경로들)와 "이 목적지를 지우고 새로 시작하거나 다른 목적지를 쓰라". 자동으로 지우지 않는다 |
+| ledger가 둘 이상, 또는 `start` 줄이 없는 ledger | `destination_mismatch` |
 | ledger의 원본이 다름 | `destination_invalid(not_empty)`(다른 원본의 중단된 전환) |
-| 표식이 있고 `migration.id`가 ledger와 같음 | `already_migrated`(6.9절) |
-| 표식이 있고 전환으로 만든 것이 아님, ledger 없이 다른 항목이 있음 | `destination_invalid(not_empty)` |
+| ledger 없이 다른 항목이 있음 | `destination_invalid(not_empty)` |
+| ledger의 마지막 단계가 `start`·`probed`·`locked`(계획 전) | 목적지에 이 전환의 파일(ledger, 2단계 시험 파일)과 무시하는 항목만 있으면 시험 파일을 지우고 2단계의 판정부터. 아니면 `destination_mismatch` |
+| `plan`·`begin`·`direct`·`copied`(7단계 전) | ① 목적지의 모든 항목이 `copied`가 적은 사본(해시가 같음), `begin`이 적은 임시 파일, `direct`가 적은 같은 정체성의 파일, 이 전환의 디렉터리, 무시하는 항목 가운데 하나이고, ② 원본 잠금을 다시 잡은 뒤 `copied`인 파일마다 지금 원본의 바이트가 그 사본과 같으면 잇는다. `begin`만 있는 경로의 최종 이름에 완전한 파일이 있으면 지금 원본과 해시가 같을 때만 사본으로 인정한다. 그리고 지금 원본으로 남은 계획을 다시 세워 4단계부터 잇는다. ①이 아니면 `destination_mismatch`(그 경로들), ②가 아니면 `source_changed`(그 경로들)와 "이 목적지를 지우고 새로 시작하거나 다른 목적지를 쓰라". 자동으로 지우지 않는다 |
+| `source_checked`·`verified` | ①과 같고 모든 계획 사본이 `copied`이면 8단계부터 잇는다. **원본을 다시 보지 않는다.** `source_checked`가 기록한 스냅샷(inventory digest와 `copied` 줄의 해시)이 그 전환이 확인한 원본이다. 원본이 그 뒤 바뀌었거나 없어도 막지 않는다 |
+| `transform_begin`(`transformed` 없음) | ①과 같고 `.gitignore`가 그 줄의 전 해시나 후 해시 가운데 하나여야 한다. 전 해시면 9단계의 변환부터, 후 해시면 `transformed`를 쓰고 매핑부터 잇는다. 둘 다 아니면 `destination_mismatch` |
+| `transformed`·`reported`·`durable` | ①과 같고 `.gitignore`가 후 해시여야 한다. 보고서가 있고 `reported`의 해시와 같으면 그대로, 없거나 다르면 이 전환의 파일이므로 ledger로 다시 쓴다. 그다음 10단계부터 |
+| `marker_begin`, 표식 없음 | 위와 같고 표식 임시 파일을 지운 뒤 11단계부터 |
+| `committed`, 표식 없음(사람이 지움, 또는 Windows 전원 손실, 6.4절) | 보고서가 `reported`의 해시와 같고 모든 사본이 보고서의 해시와 같을 때만 `marker_begin`이 적은 표식 바이트를 그대로 다시 게시하고 `already_migrated`. 원본은 보지 않는다(없어도 된다). 아니면 `destination_mismatch` |
+| 표식이 있음 | 6.9절 |
 
-- 이어 쓴 결과는 그 이어 쓰기의 잠금 구간에서 본 원본과 같다. 아직 복사하지 않은 파일의 바뀜은 새 계획이 담고, 이미 복사한 파일의 바뀜은 덮어쓸 수
-  없으므로 거절한다. 그래서 결정 5의 "복사 전후로 원본이 다르면 실패"와 "보고서가 적은 파일만 있고 해시가 맞을 때만 잇는다"를 함께 지키면서
-  중단 사이의 무관한 원본 변경 때문에 이어 쓰기를 막지 않는다.
-- kit은 목적지의 사용자 파일을 지우거나 덮어쓰지 않는다. 지우는 것은 자기 `begin` 줄이 이름을 적은 임시 파일뿐이다.
+- 정의한 상태는 위 표의 행뿐이다. ledger 줄의 순서가 맞지 않거나(예: `copied` 없이 `source_checked`) 모르는 줄이 있으면 `destination_mismatch`이고
+  아무것도 지우지 않는다.
+- 7단계 전의 이어 쓰기 결과는 그 이어 쓰기의 잠금 구간에서 본 원본과 같다. 아직 복사하지 않은 파일의 바뀜은 새 계획이 담고, 이미 복사한 파일의
+  바뀜은 덮어쓸 수 없으므로 거절한다. 그래서 결정 5의 "복사 전후로 원본이 다르면 실패"와 "보고서가 적은 파일만 있고 해시가 맞을 때만 잇는다"를 함께
+  지키면서 중단 사이의 무관한 원본 변경 때문에 이어 쓰기를 막지 않는다.
+- `source_checked` 뒤에는 원본을 다시 보지 않는다. 원본 잠금을 놓은 뒤 옛 세션이 원본 journal에 덧붙이는 일(6.12절이 예상한다)이 이미 확인한
+  사본의 이어 쓰기를 막지 않는다. 그 기록은 사본에 없고 보고서의 경계와 6.9절의 다시 부르기가 알린다.
+- kit은 목적지의 사용자 파일을 지우거나 덮어쓰지 않는다. 지우는 것은 이 전환이 만든 것뿐이다: `begin` 줄이 이름을 적은 임시 파일, 2단계의 시험
+  파일, `marker_begin`의 표식 임시 파일, `direct` 줄만 있고 `copied`가 없는 최종 이름의 파일(지금 정체성이 그 줄과 같을 때). `begin`만 있고 `copied`가 없는 임시 파일은 그 경로를 이번에 다시 복사해
+  게시한 뒤에 지운다. 새 계획에 그 경로가 없으면(원본에서 사라짐) 다시 만들 수 없는 바이트일 수 있으므로 지우지 않고 보고서의 `leftover_temp`에
+  적으며, 검증은 그것을 이 전환의 파일로 본다.
 - Windows에서는 프로세스가 죽은 뒤 잠금이 풀리는 데 시간이 걸릴 수 있다(미확인). 바로 다시 부르면 `source_busy`·`destination_busy`가 잠깐 날 수 있고
   오류 글이 잠시 뒤 다시 부르라고 안내한다.
 
 ### 6.11 중단 지점별 결과
 
-강제 종료(`os._exit`, SIGKILL, 전원 손실)를 각 지점에 넣었을 때다. 모든 행에서 원본의 inventory digest는 같다(잠금 파일 제외).
+프로세스 강제 종료(`os._exit`, SIGKILL)를 각 지점에 넣었을 때다. 전원 손실은 시험하지 않는다(6.4절). 모든 행에서 원본의 inventory digest는
+같다(잠금 파일 제외).
 
 | 지점 | 목적지에 남는 것 | 목적지 안의 새 kit 명령 | 옛 kit | 다시 부른 `migrate` |
 |---|---|---|---|---|
 | F1 1단계 뒤 | 빈 `.analytics/`, `migration.lock` | `migration_incomplete` | `no_project` | 새 전환 |
-| F2 2단계 뒤 | ledger `start` | 같음 | 같음 | 이어 쓰기(계획부터) |
-| F3 3단계 뒤 | + 원본에 잠금 파일(생겼다면, ledger에 적힘) | 같음 | 같음 | 같음 |
-| F4 5단계 뒤 | + `plan.json` | 같음 | 같음 | 이어 쓰기 |
-| F5 파일 복사 중 | + 임시 파일 하나 | 같음 | 같음 | 임시 파일을 지우고 이어 쓰기 |
-| F6 교체 뒤 `copied` 전 | + 완전한 사본(ledger에 `copied` 없음) | 같음 | 같음 | 지금 원본과 해시가 같으면 인정 |
-| F7 7단계 중 | 사본 전부 | 같음 | 같음 | 이어 쓰기(원본 재확인부터) |
-| F8 8–10단계 | + 보고서(있거나 없음) | 같음 | 같음 | 이어 쓰기(검증부터) |
-| F9 11단계 임시 파일 뒤 교체 전 | + 표식의 임시 파일(ledger에 적힘) | 같음 | 같음 | 임시 파일을 지우고 표식부터 |
-| F10 11단계 뒤 | 커밋된 프로젝트, 신뢰 항목 없음 | `current`, aelix 자동 활성화 없음(status가 알림) | `no_project` | `already_migrated` + 신뢰 추가 |
-| F11 12단계 뒤 | 완료 | `current` | `no_project` | `already_migrated` |
+| F2 2단계 중·뒤 | ledger `start`, 시험 파일(있거나 없음) | 같음 | 같음 | 시험 파일을 지우고 2단계의 판정부터 |
+| F3 3단계 뒤 | + 원본에 잠금 파일(생겼다면, ledger에 적힘) | 같음 | 같음 | 이어 쓰기(3단계부터) |
+| F4 5단계 뒤 | + `plan.json` | 같음 | 같음 | 이어 쓰기(다시 걷기부터) |
+| F5 파일 복사 중 | + 임시 파일 하나 | 같음 | 같음 | 그 경로를 다시 복사해 게시한 뒤 임시 파일을 지움 |
+| F6 게시 뒤 `copied` 전 | + 완전한 사본(POSIX에서 link와 unlink 사이면 임시 이름도) | 같음 | 같음 | 지금 원본과 해시가 같으면 인정, 임시 이름은 지움 |
+| F7 7단계 중(`source_checked` 전) | 사본 전부 | 같음 | 같음 | 원본 잠금을 다시 잡고 이어 쓰기(원본 비교부터) |
+| F8 `source_checked`·`verified` 뒤 | 같음 | 같음 | 같음 | 8단계부터, 원본을 보지 않음 |
+| F9 `transform_begin` 뒤 `transformed` 전(교체 전·후) | + `.gitignore` 임시 파일 또는 바뀐 `.gitignore` | 같음 | 같음 | 해시로 판정해 변환부터 또는 매핑부터 |
+| F10 `reported`·`durable` 뒤 | + 보고서 | 같음 | 같음 | 10단계(flush)부터 |
+| F11 `marker_begin` 뒤 게시 전 | + 표식의 임시 파일(ledger에 적힘) | 같음 | 같음 | 임시 파일을 지우고 표식부터 |
+| F12 게시 뒤 `committed` 전 | 커밋된 프로젝트, ledger에 `committed` 없음 | `current`, aelix 자동 활성화 없음(status가 알림) | `no_project` | 표식 바이트가 `marker_begin`과 같으므로 `committed`를 쓰고 `already_migrated` + 신뢰 추가 |
+| F13 `committed` 뒤 12단계 전 | 커밋된 프로젝트, 신뢰 항목 없음 | 같음 | `no_project` | `already_migrated` + 신뢰 추가 |
+| F14 12단계 뒤 | 완료 | `current` | `no_project` | `already_migrated` |
 
 ### 6.12 동시 쓰기, 잠금, 포트
 
 | 상황 | 동작 |
 |---|---|
 | 옛 kit이 원본에서 run 중 | 3단계 `source_busy`(기다리지 않음) |
-| 옛 kit의 `record`·맥락 동기화가 전환 중에 옴 | 4–7단계 동안 journal 잠금에서 기다린다. 옛 aelix의 프롬프트 직전 hook도 기다리므로 그동안 aelix가 멈춘 것처럼 보인다(13절 R1). 놓은 뒤의 기록은 사본에 없고 6.9절이 센다 |
+| 옛 kit의 `record`·맥락 동기화가 전환 중에 옴 | 4–7단계 동안 journal 잠금에서 기다린다. 옛 aelix의 프롬프트 직전 hook도 기다리므로 그동안 aelix가 멈춘 것처럼 보인다(13절 R1). 놓은 뒤의 기록은 사본에 없고 6.9절이 센다. 이어 쓰기를 막지 않는다(6.10절) |
 | 잠금 없이 쓰는 옛 쓰기(telemetry·queries·캐시·inline 스크립트·사용자 편집) | 7단계 `source_changed`. 캐시·잠금 파일은 제외 목록이라 실패시키지 않는다 |
+| 잠금 없이 진행한 원본(`.lab/` 없음, 잠금 파일을 만들 수 없음)에 옛 kit이 씀 | 기다리게 하지 못하고 7단계 `source_changed`(3단계) |
 | 새 kit의 쓰기가 원본에 옴 | ③ 뒤 판정에서 `migration_required`. 원본에 쓰지 않는다 |
 | 새 kit이 표식 전의 목적지에 옴 | `migration_incomplete` |
 | 두 전환이 같은 목적지로 | 1단계 `destination_busy` |
 | 두 전환이 같은 원본에서 다른 목적지로 | 두 번째가 3단계 `source_busy` |
+| 다른 프로세스가 전환 중 목적지의 계획 경로에 파일을 만듦 | 그 경로의 게시가 `destination_mismatch(occupied)`. 그 파일을 덮어쓰지 않는다(T19) |
 
 포트 변경(ADR-0003 결정 1의 네 포트 안에서 메서드만 더함. 플랫폼마다 동작이 다른 것만):
 
-- `FileLocks.try_exclusive(path)`: 잡으면 context manager, 다투면 `LockBusy`. 부모 디렉터리를 만들지 않는다. POSIX는 `flock(LOCK_EX | LOCK_NB)`
-  (프로브: macOS에서 다른 프로세스가 kit의 잠금을 잡은 동안 `EAGAIN`(35), 놓은 뒤 획득), Windows는 `msvcrt.locking(LK_NBLCK, 1)` 한 번(지금
-  `exclusive`와 같은 0번 바이트). 옛 kit의 `exclusive`와 같은 파일·같은 바이트 범위라 서로를 막는다.
-- `AtomicFiles.flush(path)`·`AtomicFiles.flush_dir(path)`: POSIX는 파일 `fsync`(`F_FULLFSYNC`가 있으면 그것, 기능 확인)와 디렉터리 fd의 `fsync`,
-  Windows는 파일 `fsync`이고 디렉터리는 할 일이 없다(디렉터리를 열 수 없음, 미확인). 오류를 숨기지 않는다.
+- `FileLocks.try_exclusive(path)`: 잡으면 context manager, 다투면 `LockBusy`, 다툼이 아닌 이유로 잠금 파일을 만들거나 열지 못하면 `LockUnavailable`
+  (운영체제 오류). 부모 디렉터리를 만들지 않는다. 잠금 파일이 있는데 쓰기로 열 수 없으면 읽기로 연다. POSIX는 `flock(LOCK_EX | LOCK_NB)`(읽기
+  fd에도 된다. 프로브: macOS에서 다른 프로세스가 kit의 잠금을 잡은 동안 `EAGAIN`(35), 놓은 뒤 획득), Windows는 `msvcrt.locking(LK_NBLCK, 1)` 한 번
+  (지금 `exclusive`와 같은 0번 바이트, 읽기 전용 핸들에서 되는지는 확인하지 않았다). 옛 kit의 `exclusive`와 같은 파일·같은 바이트 범위라 서로를 막는다.
+- `AtomicFiles.publish_new(src, dst)`: `dst`가 없을 때만 원자적으로 `src`를 그 이름으로 만든다. 있으면 `FileExistsError`이고 아무것도 바꾸지
+  않는다. POSIX는 `os.link(src, dst)` 뒤 `os.unlink(src)`, Windows는 `os.rename(src, dst)`(있으면 실패, 공유 위반은 `replace`와 같은 예산으로 재시도).
+  목적지 파일 시스템이 링크를 지원하지 않으면(POSIX에서 FAT·exFAT 등의 `EPERM`·`ENOTSUP`, 확인하지 않음) 최종 이름을 `O_CREAT|O_EXCL`로 직접 만들어
+  바이트를 옮긴다. 만든 직후 그 파일의 `(st_dev, st_ino)`를 ledger의 `direct` 줄에 적고, 끊기면 이어 쓰기가 같은 정체성일 때만 이 전환의 파일로
+  보고 지운다. 최종 이름에 반쯤 쓴 파일이 보일 수 있는 것은 이 경우뿐이고 표식 전이라 어떤 kit도 읽지 않는다.
+- `AtomicFiles.flush_handle(fh)`·`AtomicFiles.flush_dir(path)`: POSIX는 파일 `fsync`(`F_FULLFSYNC`가 있으면 그것, 기능 확인)와 디렉터리 fd의 `fsync`,
+  Windows는 쓰기 핸들의 `fsync`(`FlushFileBuffers`)이고 디렉터리는 할 일이 없다(디렉터리를 열어 flush하는 방법을 확인하지 않음). 오류를 숨기지 않는다.
 - 세 구현(POSIX·Windows·시험 adapter)과 `tests/test_contracts.py`의 사례를 함께 더한다(②).
 
 POSIX `flock`은 네트워크 파일 시스템의 클라이언트 사이에서 보장되지 않는다. 지금처럼 지원 범위 밖이고 보고서와 현재 계약 G에 적는다.
@@ -812,7 +1019,7 @@ hint: Copy it into the current format with `analytics migrate --to <new empty fo
 |---|---|
 | CLI `record`·`run`·`import`·`render`·`demo` | `migration_required`, 바이트 변화 없음 |
 | CLI `init` | 지금처럼 빈 디렉터리만, 새 형식으로. 위쪽 표식은 OQ9 |
-| CLI `status`·`context`·`query`·`open` | 읽기만. 캐시·`queries.jsonl`·맥락 동기화는 건너뜀. 이미 있는 `report/index.html`은 열리지만 갱신되지 않는다고 알림 |
+| CLI `status`·`context`·`query`·`open` | 읽기만. 캐시·`queries.jsonl`·맥락 동기화는 건너뜀. 이미 있는 `report/index.html`은 열리지만 갱신되지 않는다고 알림. 런처가 그 프로젝트의 환경으로 부르므로 uv가 `.venv/`를 만들거나 맞지 않는 `uv.lock`을 다시 쓸 수 있다(기록이 아닌 환경, OQ13) |
 | SDK `save`·`visualize`·`record`(run 밖) | `migration_required`. run 안은 run이 시작 전에 거절되므로 생기지 않음 |
 | 확장 `analytics_record`·`analytics_import`·`analytics_init`, `analytics_run`(inline 스크립트를 쓰기 **전에**, aelix 프로세스 안에서) | `migration_required` |
 | 확장 `analytics_status`·`analytics_query`, hook(프롬프트 직전·도구 종료·`agent_end`) | 동기화·telemetry·렌더 예약을 건너뛰고 읽기만 |
@@ -833,14 +1040,15 @@ hint: Copy it into the current format with `analytics migrate --to <new empty fo
 | 철회·복원·재개·승격(`record_update`)의 기대 상태가 지금과 다름, 표에 없는 전이 | journal 잠금 안 재생, `state_conflict`, 아무것도 쓰지 않음 | 지금 상태, 허용 전이, 그 상태를 만든 이벤트 id와 그 `request_id` | 예제 `normal`·`conflict`의 `writes` |
 | 대상이 없거나 여럿 | `state_conflict`(`target_missing`·`target_ambiguous`) | 후보 목록 | T13 |
 | 두 요청이 같은 기록을 동시에 철회 | 잠금이 순서를 정하고 뒤의 요청은 `state_conflict` | 앞 요청의 이벤트 id와 `request_id` | 두 프로세스 경주 |
-| 같은 기록의 두 정정(`supersedes`) | 쓴다(ADR-0006: 둘 이상이면 `conflict`) | 응답의 `state_after: conflict`, status·Workspace의 `conflict` | 예제 `conflict` |
+| 같은 기록의 두 정정(`supersedes`) | 쓴다(ADR-0006: 둘 이상이면 `conflict`) | 응답의 `targets`에 `state_after: conflict`, status·Workspace의 `conflict` | 예제 `conflict` |
 | 잠금 밖에서 쓴 어긋난 갱신(더 새로운 writer, 손으로 쓴 줄) | 재생에서 적용하지 않음 | `mismatched_updates`(#12) | 예제 `conflict` |
 | `record_update`를 쓴 뒤 응답 전에 중단하고 같은 요청을 다시 보냄 | 두 번째는 `state_conflict` | "그 상태를 만든 이벤트"의 `request_id`가 같아 호출자가 자기 쓰기임을 안다. 중복 방지 보장은 아니다(ADR-0006 8절) | T13 |
 | 줄을 쓰다 중단 | 다음 writer가 LF를 먼저 씀 | 끊긴 줄은 `damaged`, 새 이벤트는 따로 읽힘. 끊긴 쓰기는 id를 돌려준 적이 없다 | 예제 `interrupted`의 `event_append`, 쓰기 중 kill |
 | `/1` writer가 붙여 쓴 줄 뒤의 `/2` 쓰기 | 복구한 기록의 seq 다음 값 | 같은 id 두 줄은 `ambiguous` | 예제 `mixed-version` + 쓰기 |
 | run의 정본 뒤 완료 이벤트 전 중단 | — | `recording_status=incomplete(no_completion_event)` | 완료 이벤트 직전 kill |
 | 오래된 writer가 잠금 안에서 `writer_too_old`를 받음 | 완료 이벤트를 쓰지 않고 오류 | 정본만 있는 `incomplete`와 오류 응답 | T10 |
-| 전환의 중단·충돌 | 6.10–6.12절 | `migration_incomplete`, `destination_busy`, `source_busy`, `source_changed`, `destination_mismatch` | T5–T7 |
+| 전환의 중단·충돌 | 6.10–6.12절 | `migration_incomplete`, `destination_busy`, `source_busy`, `source_changed`, `destination_mismatch` | T5–T7, T19 |
+| 이미 닫힌 질문·할 일을 `--resolves`로 다시 닫음 | 쓴다(새 기록의 relation, 기대 상태 없음) | 응답의 `targets`에 `state_before: resolved`와 그것을 닫은 이벤트의 id·`request_id`(4.6절). 조용히 쓰이지 않는다 | T13 |
 
 ---
 
@@ -882,11 +1090,13 @@ ADR-0005 결정 7은 이름 변경·파일 이동·기록 의미 변경을 한 P
 |---|---|---|---|---|---|
 | D 설계 | 이 문서. ARCHITECTURE·ADR-0005의 링크 | 코드 없음 | 그대로 | 결정만 담은 기록 형식 PR: 이 리뷰가 설계 리뷰(독립 1·Codex 1) | 없음 |
 | ⓪ 내부 이름 | 9절의 ⓪ 행(OQ6). 동작·저장 그대로 | 저장 바이트 그대로(`STORED` 시험 통과) | 올림(공개 JSON 키) | 일반 PR(독립 1·Codex 1) | 없음 |
-| ① 판정·읽기 | `writer.py` 등록(판정·게이트·헬퍼·`Origin`·오류 클래스), 계층 수준 변경, 가장 가까운 표식 탐색, 모든 진입점의 `admit`, `marker_conflict`·`marker_invalid`, `analytics.json` 디렉터리의 모든 쓰기 거절·부수 쓰기 건너뜀, `/2` 이벤트 표시, `analytics.run/2`·`analytics.dataset/1` 정의와 읽기, `Origin` 배관, (OQ8의 답에 따라) `/1` 덧붙이기 수정 | `analytics.json` 디렉터리에 아무것도 써지지 않음(T8) | 올림(새 거절) | 구현 리뷰 독립 1·Codex 1, 수정 diff 확인 1 | 있음(새 가족 정의, 진입점 행렬) |
+| ① 판정·읽기 | `writer.py` 등록(판정·게이트·헬퍼·`Origin`·오류 클래스), 계층 수준 변경, 가장 가까운 표식 탐색, 모든 진입점의 `admit`, `marker_conflict`·`marker_invalid`, `analytics.json` 디렉터리의 모든 쓰기 거절·부수 쓰기 건너뜀, `/2` 이벤트 표시, `analytics.run/2`·`analytics.dataset/1` 정의와 읽기(OQ5·D2·D4가 먼저 정해져야 함), Visualization의 한 보기(`relations.run_visualizations`)와 모든 소비자의 전환, `Origin` 배관, (OQ8의 답에 따라) `/1` 덧붙이기 수정 | `analytics.json` 디렉터리에 아무것도 써지지 않음(T8) | 올림(새 거절) | 구현 리뷰 독립 1·Codex 1, 수정 diff 확인 1 | 있음(새 가족 정의, 진입점 행렬) |
 | ② 전환 엔진 | `migration.py` 등록, 포트 메서드 셋과 계약 시험, 계획·ledger·매핑·보고서와 schema, `migration_incomplete`, 매핑 읽기, 고장 주입 시험. 명령·도구로 열지 않음 | 엔진은 시험에서만 `analytics.json`을 씀. ②의 kit은 그 목적지에 쓰지 않음(①의 게이트) | 그대로 | 같음 | 있음(전환 정확성·규모·중단 행렬) |
-| ③ 새 writer·정책 | `Writer`, `WRITABLE` 뒤집기(`lab.json` → `migration_required`), 저장 이름 개명, 새 형식 init·demo, `analytics migrate`, 신뢰 목록, `.gitignore`·템플릿, `min_writer_version`, 확장의 거절 글·`AELIX_ANALYTICS_MEANS`, 현재 계약 전반, `STORED` 시험 뒤집기 | `lab.json` 디렉터리에 쓰지 않음, `analytics.json` 디렉터리에 옛 형식이 써지지 않음 | 올림, `min_writer_version` = 이 값 | 같음 | 있음(writer 지연, 명령 E2E, 전환 재측정) |
+| ③ 새 writer·정책 | `Writer`, `WRITABLE` 뒤집기(`lab.json` → `migration_required`), 저장 이름 개명과 배치별 관리 디렉터리(2.3절), 새 형식 init·demo, `analytics migrate`, 신뢰 목록, `.gitignore`·템플릿, `min_writer_version`, 확장의 거절 글·`AELIX_ANALYTICS_MEANS`·aelix 프로세스 환경의 작성 주체와 `user_bash` 처리(OQ1), 현재 계약 전반, `STORED` 시험 뒤집기 | `lab.json` 디렉터리에 쓰지 않음, `analytics.json` 디렉터리에 옛 형식이 써지지 않음 | 올림, `min_writer_version` = 이 값 | 같음 | 있음(writer 지연, 명령 E2E, 전환 재측정) |
 
 - 게이트를 ①에 먼저 넣는 이유: 위험한 부분(모든 진입점의 첫 부수 효과 전 판정)을 형식 전환과 떼어 먼저 시험한다. ③은 정책을 뒤집는다.
+- ①은 `analytics.run/2`·`analytics.dataset/1`의 reader를 먼저 싣는다. 그래서 OQ5와 D2·D4는 ①이 병합되기 전에 정한다. ③에서 정의를 바꾸면
+  ① kit이 ③의 프로젝트를 잘못 읽거나 ADR-0006 1.2에 따라 `/3`을 열어야 한다(2.6절).
 - ②가 병합된 뒤 ③까지는 전환을 명령으로 쓸 수 없다(ADR-0005 결과와 비용).
 - 측정 기록이 있는 PR에서 측정한 커밋 뒤 문서가 아닌 변경이 생기면 병합 전에 다시 잰다(운영 정책 검증 증거).
 - ③이 크다(13절 R6). 커밋을 writer → 진입점 → 저장 이름 → 명령 → 문서 순으로 나눠 리뷰한다. ③을 다시 쪼개면 두 writer가 잠시 공존하고 결정 7의
@@ -895,14 +1105,16 @@ ADR-0005 결정 7은 이름 변경·파일 이동·기록 의미 변경을 한 P
 PR별 주요 파일:
 
 - ①: `writer.py`(새), `core.py`(탐색, `Project.markers`, `config()`의 판정, 쓰기 함수의 `admit`, `read_events`의 `/1`·`/2`, `list_runs`·`list_datasets`,
-  status의 형식·`writes_skipped`), `relations.py`(`KNOWN`, `data/imported`·`visualizations[]`, `READER_FORMAT`), `runner.py`·`data.py`·`capture.py`·
-  `__init__.py`·`__main__.py`·`report.py`·확장·`cli.py`·`bin/analytics`(게이트, `Origin` 배관, 탐색), 기록 schema(`analytics.run/2`·`analytics.dataset/1`,
+  status의 형식·`writes_skipped`, `chart_index`가 한 보기를 씀), `relations.py`(`KNOWN`, `data/imported`, `run_visualizations`, `READER_FORMAT`),
+  `runner.py`(`compare_runs`와 run 뒤 경고가 한 보기를 씀)·`data.py`·`capture.py`·`__init__.py`·`__main__.py`·`report.py`·확장(run 결과 글·PNG 첨부가 한
+  보기를 씀)·`cli.py`·`bin/analytics`(게이트, `Origin` 배관, 탐색), `_platform.py`(텍스트 헬퍼, 3.2절), `tools/model_eval.py`·`tools/eval_fixtures.py`·
+  `tools/platform_smoke.py`(한 보기), 기록 schema(`analytics.run/2`·`analytics.dataset/1`,
   `event_2`의 `means`·`actor_basis`), 현재 계약(A 확장의 거절, B 탐색·두 표식, C `/2` 표시, D 오류, F 프로세스 경계), 용어집(새 오류·필드),
   ARCHITECTURE §11, ADR-0001 적용 현황, CHANGELOG.
-- ②: `migration.py`(새), `_platform.py`(포트 메서드), `relations.py`·`core.py`(매핑 읽기, `KNOWN`), 기록 schema(`analytics.migration/1`, 표식 `migration`),
+- ②: `migration.py`(새), `_platform.py`(포트 메서드 `try_exclusive`·`publish_new`·`flush_handle`·`flush_dir`), `relations.py`·`core.py`(매핑 읽기, `KNOWN`), 기록 schema(`analytics.migration/1`, 표식 `migration`),
   `tests/legacy_records.py` 확장, 현재 계약("전환 엔진은 있으나 명령으로 열지 않음", 매핑 읽기), 용어집(전환 오류 이름).
 - ③: `writer.py`(`Writer`), `core.py`(init, 새 경로, `sync_context`, `record`, 신뢰 목록, 안내), `runner.py`·`capture.py`(`analytics.run/2`, `visualizations/`,
-  해시, `via`), `data.py`(`data/imported`, `analytics.dataset/1`), `workspace.py`(`workspace/`, `.analytics/workspace.lock`), `__main__.py`(`migrate`, kind
+  해시, `via`, `reproduction.visualizations`, 배치별 관리 디렉터리), `data.py`(`data/imported`, `analytics.dataset/1`), `workspace.py`(`workspace/`, `.analytics/workspace.lock`), `__main__.py`(`migrate`, kind
   목록, 응답의 `request_id`·`bindings`), `cli.py`·`bin/analytics`(`migrate`, 기본 actor), 확장, `demo.py`, `template/gitignore`, `tools/eval_fixtures.py`
   (OQ7), `tools/usage_report.py`, 현재 계약 전반, README, CHANGELOG, 기록 schema(`analytics.trust/1`), 예제 README.
 
@@ -915,8 +1127,8 @@ PR별 주요 파일:
 - `tree_digest(root, exclude)`: 정규 파일의 상대 경로·바이트 수·sha256, 디렉터리·링크(링크 글자) 목록의 정렬된 digest. 전환 코드가 아닌 시험의
   걷기다. 모든 전환·차단 시험이 원본(과 필요하면 목적지)에 전후로 부른다. 잠금 파일은 따로 비교한다(만들어졌는지).
 - 고장 주입: `migration.migrate(…, on_step=None)`의 비공개 인자. 시험은 자식 프로세스(POSIX·Windows 모두 `subprocess`로 시작한 작은 driver)에서
-  `on_step`이 지정한 단계에서 `os._exit(9)`를 불러 F1–F11을 재현한다. `os._exit`은 `finally`를 실행하지 않아 실제 강제 종료에 가깝다. 같은 콜백이
-  그 지점에서 원본에 쓰게 해 동시 쓰기를 만든다.
+  `on_step`이 지정한 단계에서 `os._exit(9)`를 불러 F1–F14를 재현한다. `os._exit`은 `finally`를 실행하지 않아 실제 강제 종료에 가깝다. 같은 콜백이
+  그 지점에서 원본에 쓰게 해 동시 쓰기를 만들고, 게시 직전에 목적지의 계획 경로에 파일을 만들게 해 T19를 만든다. 전원 손실은 이것으로 재현되지 않는다.
 - 옛 kit 흉내: `tests/legacy_records.py`의 `LegacyProject`로 `/1` 원본을 만들고, 옛 쓰기는 같은 잠금(`FileLocks.exclusive(".lab/lock")`)을 잡고
   덧붙이는 작은 함수로 흉내 낸다. 실제 옛 kit 바이트가 필요한 시험은 OQ7을 따른다.
 
@@ -924,24 +1136,28 @@ PR별 주요 파일:
 
 | 시험 | 내용 | 보장 | PR |
 |---|---|---|---|
-| T1 원본 보존 | 모든 전환 시험(성공·거절·중단·실패·`--dry-run`)에서 원본 `tree_digest` 전후 같음. 원본: CRLF journal, 끊긴 마지막 줄, P7처럼 붙여 쓴 줄, `/2` 줄이 섞인 journal, 모르는 가족 줄, 한국어·NFD 파일 이름, 빈 파일, 64 MiB 넘는 파일, 읽기 전용 파일, 링크(OQ3), `.lab/`이 없는 원본(디렉터리가 생기지 않음) | S1 | ② |
-| T2 목적지 규칙 | 원본 안·원본을 품은 위·같은 위치의 다른 철자(대소문자, NFD, 링크, junction), 비지 않음, 위쪽 `lab.json`·`analytics.json`, 공간 부족(주입한 빈 공간 값), 이름 충돌, 중첩 표식(OQ10) → 각 오류이고 목적지·원본 바이트 변화 없음 | S2 | ② |
+| T1 원본 보존 | 모든 전환 시험(성공·거절·중단·실패·`--dry-run`)에서 원본 `tree_digest` 전후 같음, 따라간 바깥 링크 대상의 `tree_digest`도 같음. 원본: CRLF journal, 끊긴 마지막 줄, P7처럼 붙여 쓴 줄, `/2` 줄이 섞인 journal, 모르는 가족 줄, 한국어·NFD 파일 이름, 빈 파일, 64 MiB 넘는 파일, 읽기 전용 파일, 링크(OQ3), `.lab/`이 없는 원본(디렉터리가 생기지 않음), 읽기 전용으로 마운트한 원본(잠금 없이 진행, `locks: not_taken`), worktree `.git` 파일 | S1 | ② |
+| T2 목적지 규칙 | 원본 안·원본을 품은 위·같은 위치의 다른 철자(대소문자, NFD, 링크, junction), `data -> /ext/data`인 원본에 `--to /ext/data/new`·`--to /ext/data`·`--to /ext`(`overlaps_source`, `details.with`), 비지 않음, 메타 파일만 있는 목적지(받음), 위쪽 `lab.json`·`analytics.json`, 공간 부족(주입한 빈 공간 값), 대상이 없는 바깥 링크(OQ12), UTF-8이 아닌 이름(Linux), `.lab/migration.lock` 같은 관리 이름 충돌, 대소문자만 다른 두 원본 이름을 이름을 접는 목적지(macOS 기본 볼륨)와 접지 않는 목적지(대소문자 구별 디스크 이미지·Linux)로(앞은 `name_collision`, 뒤는 그대로 복사), 원본의 `.mig-….part` 이름(충돌 없음), 중첩 표식(OQ10) → 각 결과이고 거절이면 목적지·원본·링크 대상 바이트 변화 없음 | S1·S2 | ② |
 | T3 커밋 지점 | 표식 전 모든 지점에서 목적지 안 새 kit 명령은 `migration_incomplete`, 옛 탐색(지금 `find_project`의 사본)은 `no_project`. 표식은 검증 뒤에만, 신뢰 항목은 표식 뒤에만 있음 | S2 | ②·③ |
 | T4 검증 가능성 | 보고서 schema, 사본 해시 = 보고서, 표식의 `report_sha256` = 보고서 바이트, 위치 대응이 매핑과 같고 `.gitignore`만 변환되며 전후 해시·diff가 맞음, 다시 부르기의 대조가 고친 사본 하나를 잡음 | S3·S4 | ② |
 | T5 복사 중 원본 변경 | 지점마다 telemetry 덧붙이기·파일 추가·삭제·스크립트 편집 → `source_changed`(경로 포함), 표식 없음. journal 덧붙이기는 잠금에서 기다렸다가 놓은 뒤 쓰이고 사본에 없으며 다시 부르기가 그 줄을 셈 | S5 | ② |
-| T6 중단과 이어 쓰기 | F1–F11 각각 6.11절 표대로 분류. 이어 쓴 결과의 사본 `tree_digest`가 중단 없는 전환과 같음(`.analytics/migration/` 제외). 계획에 없는 파일, 해시가 다른 사본, 중단 사이 이미 복사한 파일의 원본 변경 → 각 거절이고 아무것도 지우지 않음. 중단 사이 아직 복사하지 않은 파일의 원본 변경 → 이어 쓰고 결과가 새 원본과 같음. 목적지에 생긴 `.venv/` → 무시 | S6·S10 | ② |
+| T6 중단과 이어 쓰기 | F1–F14 각각 6.11절 표대로 분류하고, 이어 쓴 결과의 사본 `tree_digest`가 중단 없는 전환과 같음(`.analytics/migration/` 제외). 6.10절의 행마다 한 사례 이상: (a) `source_checked` 전 중단 사이 이미 복사한 파일의 원본 변경 → `source_changed`, 아무것도 지우지 않음, (b) 같은 구간에 아직 복사하지 않은 파일의 원본 변경 → 이어 쓰고 결과가 새 원본과 같음, (c) `source_checked`·`verified` 뒤 중단하고 원본 journal에 줄을 덧붙이거나 원본을 지움 → 원본을 보지 않고 8단계부터 이어 커밋, 다시 부르기가 덧붙인 줄을 셈, (d) `transform_begin` 뒤 교체 전과 교체 뒤 → 각각 변환부터·매핑부터, `.gitignore`를 다른 내용으로 바꿔 두면 `destination_mismatch`, (e) F12처럼 `committed` 전 → `committed`를 쓰고 `already_migrated`, (f) `committed` 뒤 표식을 지움(원본도 지움) → 같은 표식 바이트를 다시 게시, (g) 순서가 맞지 않는 ledger·ledger 둘 → `destination_mismatch`, (h) `begin`만 있는 임시 파일의 경로가 원본에서 사라짐 → 지우지 않고 `leftover_temp`, (i) 계획에 없는 파일, 해시가 다른 사본 → 거절, (j) 목적지에 생긴 `.venv/`·`.DS_Store`(계획에 없음) → 무시. 거절 사례는 모두 목적지·원본의 `tree_digest`가 그대로 | S6·S10 | ② |
 | T7 동시성 | 두 프로세스가 같은 목적지로 → 하나만 성공, 다른 하나 `destination_busy`. 원본 run 잠금을 다른 프로세스가 잡은 동안 → 즉시 `source_busy` | S7 | ② |
 | T8 진입점 행렬 | 11.3절 | S8·S9 | ①·③ |
-| T9 혼합 journal | `mixed-version` 예제 + `/1` CRLF·`/2` LF·끊긴 줄·복구한 줄 → reader 판정이 예제 기대값과 같고, `read_events`·맥락 블록·status·Workspace가 `/2` 줄을 보임(P6 회귀), writer 덧붙이기는 LF를 먼저 쓰고 seq = 최대 + 1 | S8·S10 | ①·③ |
+| T9 혼합 journal과 두 run 형식 | `mixed-version` 예제 + `/1` CRLF·`/2` LF·끊긴 줄·복구한 줄 → reader 판정이 예제 기대값과 같고, `read_events`·맥락 블록·status·Workspace가 `/2` 줄을 보임(P6 회귀), writer 덧붙이기는 LF를 먼저 쓰고 seq = 최대 + 1. `/1` run과 `/2` run이 섞인 프로젝트에서 `run_visualizations`의 모든 소비자(status·context·Workspace·확장 run 결과·PNG 첨부·`compare_runs`)가 같은 수와 id를 보이고, 정적 검사가 이 함수 밖의 `charts` 읽기를 잡음 | S8·S10·S13 | ①·③ |
 | T10 다시 읽기 | 쓰기 작업 사이에 표식을 `lab.json`·두 표식·더 높은 `min_writer_version`으로 바꿈 → 다음 작업이 거절. journal 잠금을 잡은 writer와 표식을 올리는 writer가 겹치면 낮은 쪽이 `writer_too_old`이고 run은 `incomplete` | S8 | ③ |
-| T11 기록 비교 | 전환 전 원본과 전환 뒤 목적지를 `relations.read`로 읽은 결과(참조 판정·기록 상태·run·생산자·`unsupported`·`damaged`)가 같음. 루트에 기대는 값은 매핑으로 정규화하고, 옛 절대 경로만 `inferred`로 더 풀림. #41 사례(`correction`·`withdrawal`·`unpreserved_data`·`same_chart_id`·`reference_cycle`·`long_korean`) 포함(Q7) | S1·S3 | ②·③ |
+| T11 기록 비교 | 전환 전 원본과 전환 뒤 목적지를 `relations.read`로 읽은 결과(참조 판정·기록 상태·run·생산자·`unsupported`·`damaged`)가 같음. 루트에 기대는 값은 매핑으로 정규화하고, 옛 절대 경로만 `inferred`로 더 풀림. 바깥 링크 경계로 풀리던 옛 run의 경로(`data -> /ext/data`)가 목적지에서도 같은 `inferred`로 풀리고, 목적지를 옮기고 `/ext/data`를 지운 뒤에도 같음. 옛 run의 상대 `.lab/…` 경로, 0.5.0 이후 run이 같은 문자열을 기록한 경우(대응 없음)(5.4절). ③에서는 목적지에서 `/1` run을 다시 실행해 새 run의 `reproduction.visualizations`·`verdict`가 원본에서 같은 run을 다시 실행한 결과와 같음(S13). #41 사례(`correction`·`withdrawal`·`unpreserved_data`·`same_chart_id`·`reference_cycle`·`long_korean`) 포함(Q7) | S1·S3·S13 | ②·③ |
 | T12 표식 판정 단위 | 4.3절 표의 모든 행, 가장 가까운 표식에서 멈추는 탐색(위 `lab.json`·아래 `analytics.json`과 그 반대, 표식 없는 전환 목적지) | S8 | ①·② |
-| T13 상태 변경 | 예제 `writes`의 `record_update`(`state_conflict`)와 `event_append`(끊긴 줄 뒤 LF, `writer_too_old`)를 writer가 그대로 냄. 두 정정 → `state_after: conflict`. 같은 `record_update`를 두 프로세스가 동시에 → 하나만 쓰이고 다른 하나 `state_conflict`. 쓰기 도중 `os._exit` → `damaged`, 상태 그대로 | S10 | ③ |
-| T14 작성 출처 | 진입점마다 `actor`·`means`·`actor_basis`·`session`이 4.2절 표대로. 환경 변수 없는 CLI(OQ1), 세션 없는 사람 기록이 모든 읽기에 나옴(Q17) | S11 | ③ |
-| T15 포트 계약 | `try_exclusive`가 다른 프로세스의 `exclusive`와 서로 막고 부모 디렉터리를 만들지 않음(세 구현), `flush`·`flush_dir`가 오류를 숨기지 않음 | S7 | ② |
+| T13 상태 변경 | 예제 `writes`의 `record_update`(`state_conflict`)와 `event_append`(끊긴 줄 뒤 LF, `writer_too_old`)를 writer가 그대로 냄. 두 정정 → `state_after: conflict`. 이미 닫힌 질문을 `--resolves`로 다시 닫음 → 쓰고 응답에 `state_before: resolved`와 앞 이벤트 id. 같은 `record_update`를 두 프로세스가 동시에 → 하나만 쓰이고 다른 하나 `state_conflict`. 쓰기 도중 `os._exit` → `damaged`, 상태 그대로 | S10 | ③ |
+| T14 작성 출처 | 진입점마다 `actor`·`means`·`actor_basis`·`session`이 4.2절 표대로. 환경 변수 없는 CLI(OQ1), 세션 없는 사람 기록이 모든 읽기에 나옴(Q17). 본문 32 KiB 경계와, 이스케이프가 많은 본문·긴 참조 24개로 만든 50 KiB 줄 경계(`text_too_long`, 아무것도 쓰지 않음, 2.9절) | S11 | ③ |
+| T15 포트 계약 | `try_exclusive`가 다른 프로세스의 `exclusive`와 서로 막고 부모 디렉터리를 만들지 않으며 다툼이 아닌 실패는 `LockUnavailable`(세 구현), `publish_new`가 있는 이름을 바꾸지 않고 실패함(세 구현, 링크 실패를 주입한 `direct` 경로 포함), `flush_handle`·`flush_dir`가 오류를 숨기지 않음 | S6·S7 | ② |
 | T16 줄 끝 | writer 헬퍼가 Windows에서도 LF, 전환 사본은 CRLF 그대로, 새 모듈이 쓰기 AST 검사 범위 안 | S12 | ①·② |
 | T17 계층 | `writer`·`migration` 등록, 수준 표가 ARCHITECTURE와 같음, 호스트 쪽 로드 목록에 `writer`, `migration`은 aelix 프로세스에 로드되지 않음 | 조건 5 | ①·② |
 | T18 uv | 런처의 `migrate`가 원본의 `.venv/`·`uv.lock`을 만들거나 바꾸지 않음(목록·해시), 커밋 뒤 sync가 목적지 `uv.lock`을 다시 쓰지 않음(맞는 경우·맞지 않는 경우) | S1 | ③ |
+| T19 덮어쓰지 않는 게시 | 게시 직전(`on_step`)에 다른 프로세스가 계획 경로에 파일을 만듦 → `destination_mismatch(occupied)`, 그 파일의 바이트 그대로, 임시 파일은 ledger에 있음, 다시 부르면 같은 거절. 표식 게시 직전에 `analytics.json`을 만들어 둠 → 같음. 링크를 지원하지 않는 파일 시스템(시험 adapter로 `os.link` 실패를 주입)에서 `direct` 경로가 같은 결과를 냄 | S2·S6 | ② |
+| T20 배치별 관리 디렉터리 | 새 형식 프로젝트에서 스크립트가 `report/out.csv`를 씀 → run 기록의 출력에 저장된 철자로 있음. 같은 프로젝트의 `workspace/x.csv` → 출력 아님. `lab.json` 프로젝트의 `report/` → 지금처럼 출력 아님 | S14 | ③ |
+| T21 다시 부른 전환 | 6.9절의 표: 목적지에 두 표식·깨진 표식·모르는 표식·`lab.json`, 다른 원본의 커밋된 목적지, 같은 원본의 커밋된 목적지(신뢰 항목 있음·없음)를 실제 호출과 `--dry-run`으로. 기대 결과, 신뢰 목록은 누락 보충 말고 바뀌지 않음, 목적지·원본의 `tree_digest` 같음 | S1·S2 | ②·③ |
+| T22 aelix가 부른 CLI의 작성 주체 | aelix 0.1.0b2를 격리 환경에 설치하고(가짜 HOME, 모델·네트워크·로그인 없음) 확장의 환경 설정을 적용한 뒤 aelix의 bash 도구 실행 함수로 `analytics record`를 부름 → `actor=agent`·`declared`·`means=cli`와 세션. 같은 프로세스에서 `cli/repl.handle_user_bash`로 사람의 `!` 명령을 흉내 냄 → `human`·`declared`. 확장 자신의 kit 자식은 영향 없음. Windows 레그의 PowerShell 자식은 실행하기 전까지 `not_run` | S11 | ③ |
 
 ### 11.3 진입점 행렬 (T8)
 
@@ -958,7 +1174,9 @@ PR별 주요 파일:
 
 ### 11.4 Windows와 경로
 
-Windows CI 레그에서 T1–T8·T15·T16을 돌리고 다음을 더한다: 대소문자만 다른 두 원본 이름(만들 수 없으면 Linux 레그에서 만든 tar를 풀어 원본으로),
+Windows CI 레그에서 T1–T8·T15·T16·T19·T21을 돌리고 다음을 더한다: 읽기 전용 원본 파일의 사본 flush와 이어 쓰기의 임시 파일 지우기(6.4절), `publish_new`의
+`os.rename`이 있는 이름에서 실패함, 다른 프로세스가 표식을 교체하는 동안의 `marker_state`(재시도 뒤 판정, 4.3절), 디렉터리별 대소문자 구별을 켠 목적지의
+이름 접힘 판정, 대소문자만 다른 두 원본 이름(만들 수 없으면 Linux 레그에서 만든 tar를 풀어 원본으로),
 예약 장치명·끝의 `.`·`:`가 든 이름(Linux 레그에서 만든 원본 → `destination_write_failed`, 표식 없음), 260자를 넘는 목적지 경로(LongPathsEnabled 0·1,
 `tests/test_windows_long_paths.py`의 방식), 밖을 가리키는 junction `data/`, 다른 프로세스가 공유 없이 연 원본 파일(`source_unreadable`, 원본 그대로),
 읽기 전용 속성, 목적지의 새 파일을 잠깐 여는 프로세스(공유 위반 → 포트의 재시도), 다른 드라이브의 목적지. 실행하지 않은 조합은 측정 기록의
@@ -982,11 +1200,11 @@ pull_request, base_revision, measured_tree, workflow, runs, legs, developer_mach
 | 기록 | PR | 더하는 키 |
 |---|---|---|
 | `<날짜>-issue-13-gate.{md,json}` | ① | `entry_points`(T8의 진입점 × 디렉터리 상태: 기대·실제 결과, 트리 같음), `reader`(예제 여섯과 새 가족 예제의 판정), `gate_cost`(쓰기 한 번에 더해진 시간) |
-| `<날짜>-issue-13-migration.{md,json}` | ② | `fixtures`(S·M의 생성 커밋·명령·seed, 파일 수·바이트, 원본 `tree_digest`), `phases`(계획·복사·재확인·검증·보고서·flush·표식의 ms, 원본 잠금을 쥔 시간, 최대 RSS), `sizes`(복사·제외 바이트, `report.json`·`plan.json`·ledger 크기), `preservation`(독립 걷기로 잰 원본 digest 전후), `fault_matrix`(F1–F11 × 레그), `concurrency`(T5·T7), `reader_comparison`(T11) |
-| `<날짜>-issue-13-writer.{md,json}` | ③ | `writer_latency`(11.5절), `entry_points`(③의 기대값), 명령 E2E(런처·`bin/analytics`, `--dry-run`, 이어 쓰기), `migration`(②의 항목 재측정), `uv`(T18) |
+| `<날짜>-issue-13-migration.{md,json}` | ② | `fixtures`(S·M의 생성 커밋·명령·seed, 파일 수·바이트, 원본 `tree_digest`), `phases`(계획·복사·재확인·검증·보고서·flush·표식의 ms, 원본 잠금을 쥔 시간, 최대 RSS), `sizes`(복사·제외 바이트, `report.json`·`plan.json`·ledger 크기), `preservation`(독립 걷기로 잰 원본 digest 전후), `fault_matrix`(F1–F14와 6.10절의 행 × 레그), `concurrency`(T5·T7), `reader_comparison`(T11) |
+| `<날짜>-issue-13-writer.{md,json}` | ③ | `writer_latency`(11.5절), `entry_points`(③의 기대값), 명령 E2E(런처·`bin/analytics`, `--dry-run`, 이어 쓰기, 다시 부르기), `migration`(②의 항목 재측정), `uv`(T18), `agent_cli`(T22: aelix 버전, 레그별 bash 도구 자식이 본 작성 주체) |
 
 시간은 앞뒤 커밋을 번갈아 두 번 재고 최솟값을 쓴다(PR #76의 방식). 실행하지 않은 레그·조합(Windows 클라이언트 판, 표준 사용자, 네트워크 파일
-시스템, 전원 손실, 실제 aelix 모델 세션)은 `not_run`에 둔다. 격리는 신뢰 목록·uv를 실행 폴더 안으로 돌리고 `AELIX_LAB_*`·`LAB_*`가 없으며 `~/.aelix`를
+시스템, 전원 손실과 그 뒤의 내구성, Windows의 읽기 전용 사본·디렉터리 flush·잠금 해제 지연, 실제 aelix 모델 세션)은 `not_run`에 둔다. 격리는 신뢰 목록·uv를 실행 폴더 안으로 돌리고 `AELIX_LAB_*`·`LAB_*`가 없으며 `~/.aelix`를
 건드리지 않았다는 것을 적는다.
 
 ---
@@ -1001,9 +1219,9 @@ pull_request, base_revision, measured_tree, workflow, runs, legs, developer_mach
 | R4 | Windows: 새 파일을 잡는 백신·색인기, 디렉터리 flush 없음, 긴 경로, 예약 이름, 링크 권한, 늦게 풀리는 잠금 | 포트의 재시도, 경고·`destination_write_failed`, 다시 부르기의 대조, Windows CI. 실행하지 않은 것은 `not_run` |
 | R5 | 복사라서 디스크를 두 배 쓰고, 밖을 가리키는 큰 데이터도 복사한다 | 사전 공간 검사, 제외 목록(OQ4), 링크 처리(OQ3). hardlink 금지는 ADR 그대로 |
 | R6 | ③이 크다(저장 이름 + writer + 명령) | ⓪·①·②가 개명·게이트 배선·`Origin` 배관·엔진을 먼저 가져감. 커밋 단위 리뷰 |
-| R7 | ③ 병합 즉시 `lab.json` 프로젝트의 기록·렌더가 막힌다. 링크·중첩 표식·이름 충돌로 전환할 수 없는 프로젝트는 읽기 전용에 갇힌다 | OQ3·OQ4·OQ10을 ③ 전에 정함. ③ 전에 소유자의 실제 프로젝트를 `--dry-run`으로 미리 봄(쓰기 없음) |
+| R7 | ③ 병합 즉시 `lab.json` 프로젝트의 기록·렌더가 막힌다. 대상이 없는 링크·UTF-8이 아닌 이름·중첩 표식·이름을 접는 목적지의 이름 충돌로 전환할 수 없는 프로젝트는 고칠 때까지 읽기 전용에 갇힌다 | OQ3·OQ4·OQ10·OQ12를 ③ 전에 정함. ③ 전에 소유자의 실제 프로젝트를 `--dry-run`으로 미리 봄(쓰기 없음) |
 | R8 | 신뢰 목록에 잠금이 없어 두 쓰기가 겹치면 하나가 사라진다 | main에도 있는 한계. 전환은 응답과 다시 부르기로 신뢰 누락을 알리고 채움 |
-| R9 | OQ1의 근거(aelix bash 도구가 확장이 정한 환경을 물려받는지)를 확인하지 않았다 | 권장안은 추정 없이 `actor_basis`를 기록. ③ 전 프로브 |
+| R9 | OQ1의 권장 답은 aelix bash 도구가 확장이 aelix 프로세스 환경에 넣은 변수를 자식에 넘긴다는 사실에 기댄다. aelix 0.1.0b2에서 코드와 실행으로 확인했으나(18절) aelix가 bash 도구의 환경 만들기를 바꾸면 깨진다 | T22가 지원하는 aelix 버전에서 그 동작을 고정한다. aelix 버전을 올릴 때 T22를 다시 돌린다 |
 | R10 | 전환 뒤 사용자가 목적지를 옛 프로젝트 아래로 옮기면 ① 전 kit이 그 아래에서 위쪽 프로젝트에 쓴다 | 막을 수 없음. ③의 status가 위쪽 표식을 경고 |
 | R11 | 누군가 전환을 `uv run --project`로 배선하면 원본의 `.venv/`·`uv.lock`이 바뀐다 | T18이 막음. `.venv/`가 원본 비교에서 빠지므로(OQ4) 이 시험이 따로 있어야 한다 |
 | R12 | `.git/`을 복사하면 같은 원격을 가진 저장소가 둘 생긴다 | 보고서의 안내, OQ4 |
@@ -1012,6 +1230,9 @@ pull_request, base_revision, measured_tree, workflow, runs, legs, developer_mach
 | R15 | plotly 템플릿 개명이 새 그림 JSON의 바이트를 바꿀 수 있다(미확인) | ⓪의 시험이 기존 기록 바이트만 고정하고, 바뀌면 그 항목을 ③으로 옮김 |
 | R16 | ③ 뒤 `/1` fixture 생성이 막혀 #15·#41의 측정이 밀린다 | OQ7 |
 | R17 | ③ 전까지 `/1` writer의 #49 결함이 전환할 원본에 손상을 더한다 | OQ8 |
+| R18 | 확장이 aelix 프로세스 환경에 넣은 `AELIX_ANALYTICS_ACTOR=agent`가 사람의 호출에도 닿는다: RPC 모드의 `bash` 명령, 다른 확장이 `user_bash`의 실행기를 대신 돌려줄 때의 `!` 명령, aelix가 띄운 다른 자식 | 사람의 CLI가 `agent`로 남는 반대 방향의 한계로 현재 계약 A에 적음(OQ1). #17의 사람 수를 줄이는 쪽의 오류다 |
+| R19 | 대상이 없는 바깥 링크·UTF-8이 아닌 이름이 있는 원본은 고치기 전까지 전환을 거절해 ③ 뒤 읽기 전용에 더 오래 머문다 | `--dry-run`이 목록을 맨 앞에 보이고 오류가 고칠 방법을 안내(OQ12). R7과 같은 대응 |
+| R20 | 링크를 지원하지 않는 목적지 파일 시스템의 `direct` 게시는 최종 이름에 반쯤 쓴 파일을 남길 수 있다 | 표식 전이라 어떤 kit도 읽지 않고, ledger의 정체성으로 이 전환의 파일만 지운다(6.12절). 실제 FAT·exFAT 매체는 실행하지 않았다 |
 
 ---
 
@@ -1031,7 +1252,8 @@ pull_request, base_revision, measured_tree, workflow, runs, legs, developer_mach
 
 ## 15. 설계 리뷰가 확정할 선택
 
-ADR이 #13 설계에 맡겼거나 입력이 정하지 않았지만 제품 결정은 아니라고 본 것이다. 설계 리뷰가 받아들이거나 바꾼다.
+ADR이 #13 설계에 맡겼거나 입력이 정하지 않았지만 제품 결정은 아니라고 본 것이다. 설계 리뷰가 받아들이거나 바꾼다. D19–D27은 설계 리뷰의
+지적(19절)으로 더하거나 드러낸 선택이며, 고친 뒤 다시 리뷰를 받지 않았다.
 
 | 번호 | 선택 | 절 |
 |---|---|---|
@@ -1043,60 +1265,120 @@ ADR이 #13 설계에 맡겼거나 입력이 정하지 않았지만 제품 결정
 | D6 | 오류 코드 목록과 `project_too_new`의 뜻 넓힘 | 4.11절 |
 | D7 | `.lab/` 이력·로그를 `.analytics/` 같은 이름으로, 목적지에 `.lab/` 없음. 대안: `.lab/`을 같은 경로에 보관(예제 `mixed-version`처럼) | 2.2·6.5절 |
 | D8 | 원래 경로 단계를 두지 않음 | 2.2절 |
-| D9 | 내구 쓰기는 전환의 커밋 전에만, 포트 메서드 `flush`·`flush_dir` | 6.4·6.12절 |
-| D10 | 잠금: `try_exclusive`, 순서 `run.lock` → `lock`, 7단계에서 놓음, `.lab/`이 없으면 잠금 없이 | 6.3·6.12절 |
-| D11 | 이어 쓰기: 이미 복사한 파일이 지금 원본과 같을 때 남은 계획을 다시 세움 | 6.10절 |
+| D9 | 내구 쓰기는 전환의 커밋 전에만, 포트 메서드 `flush_handle`·`flush_dir`. 보장은 프로세스 중단까지이고 전원 손실 뒤의 내구성은 목표(시험하지 않음) | 1·6.4·6.12절 |
+| D10 | 잠금: `try_exclusive`, 순서 `run.lock` → `lock`, 7단계에서 놓음. `.lab/`이 없거나 다툼이 아닌 이유로 잠금 파일을 만들거나 열 수 없으면 잠금 없이 전후 비교로만 지킴. ADR-0005 결정 5의 수단("잠금을 잡는다")과 다르고 보장(바뀌면 실패)은 같다. 잠금 파일을 만들려면 원본에 써야 해 결정 4와 함께 지킬 다른 방법이 없다 | 6.3·6.12절 |
+| D11 | 이어 쓰기: ledger 줄이 정한 상태만 받음. `source_checked` 전이면 이미 복사한 파일이 지금 원본과 같을 때 남은 계획을 다시 세움, 그 뒤면 원본을 다시 보지 않고 기록한 스냅샷으로 이음. `committed`인데 표식이 없으면 ledger의 표식 바이트를 다시 게시. 다시 만들 수 없는 임시 파일은 지우지 않음 | 6.10절 |
 | D12 | 전환 중 journal에 쓰지 않음. 출처는 표식의 `migration`과 보고서, status가 보임 | 2.4·6.3절 |
-| D13 | 탐색: 가장 가까운 표식(또는 표식 없는 전환 기록)에서 멈춤, 두 표식이면 읽기도 거절, 깨진 `lab.json`은 `legacy` | 4.3절 |
+| D13 | 탐색: 가장 가까운 표식(또는 표식 없는 전환 기록)에서 멈춤, 명시한 루트가 위로 올라가는지는 진입점마다 지금 규칙 그대로, 두 표식이면 읽기도 거절, 깨진 `lab.json`은 `legacy` | 4.3절 |
 | D14 | `.gitignore` 덧붙임 규칙, `.gitattributes`·스크립트는 제안만 | 6.13절 |
 | D15 | 신뢰 목록: 새 목록만 씀, 옛 목록은 읽기 전용 | 6.14절 |
 | D16 | 입력 `gap`은 별칭 없이 오류, 기본 relation `cites` | 2.8·4.7절 |
 | D17 | PR별 `KIT_VERSION`: ⓪·①·③ 올림, ② 그대로 | 10절 |
 | D18 | 측정 기록을 ①에도 둠(새 가족 정의를 새 기록 종류로 봄) | 12절 |
+| D19 | 사본·새 파일·표식을 "없을 때만 만드는" 원자 게시(`AtomicFiles.publish_new`: POSIX `os.link`+`unlink`, Windows `os.rename`)로 놓고, 덮어쓰는 교체는 이 전환이 가진 파일에만. 링크를 지원하지 않는 파일 시스템은 `O_EXCL` 직접 쓰기와 ledger의 정체성(`direct`) | 6.4·6.12절 |
+| D20 | Visualization의 한 보기 `relations.run_visualizations`와 이 함수 밖의 `charts` 읽기를 막는 정적 검사, 재실행 비교의 형식 간 id 비교 | 2.6·5.3절 |
+| D21 | 관리·제외 디렉터리를 배치(`Layout`·`LegacyLayout`)마다 따로 둠. 두 형식의 합집합을 쓰지 않음 | 2.3절 |
+| D22 | UTF-8·LF 텍스트 헬퍼는 `_platform`(ADR-0007 결정 2의 위치), `classify_refs`는 writer, 옛 경로 추론은 core가 `legacy_path=`로 넣음 | 3.2·4.5절 |
+| D23 | uv 환경(`.venv/`, uv가 갱신하는 `uv.lock`)은 게이트의 대상이 아님. 읽기 명령의 환경 동기화가 ADR-0005 결정 6의 부수 쓰기인지는 OQ13 | 4.3절 |
+| D24 | `data/imported`와 `data/raw`에 같은 이름이 있으면 `data/imported`가 view 이름을 먼저 받고 status가 경고 | 2.3절, R13 |
+| D25 | 지금 `refs.other`로 가는 분류되지 않은 참조 문자열을 `/2`에서 `{type: visualization_version, token}`(결박 `none`)으로 남김. 대안은 그런 문자열을 거절하는 것 | 4.7절 |
+| D26 | 대소문자·정규화 이름 충돌은 목적지가 실제로 이름을 접을 때만 거절(2단계의 시험 파일로 판정). 임시 이름은 계획 이름과 겹치지 않게 고름. `.lab/` 아래 이름이 새 관리 이름과 겹치면 늘 거절 | 6.2·6.3절 |
+| D27 | 표식을 읽지 못하면(공유 위반 등) 교체와 같은 예산으로 재시도한 뒤 `invalid`(`unreadable`). `--resolves`의 응답에 대상의 `state_before`·`state_after` | 4.3·4.6절 |
 
 ---
 
 ## 16. 소유자 결정이 필요한 것
 
-입력이 정하지 않은 제품 결정이다. 각 항목에 질문, 권장 답, 답에 따라 바뀌는 것을 적는다. 이미 받은 승인(ADR-0005·0006, #3·#4·#9·#12·#36의 결정)을
-다시 묻지 않는다.
+입력이 정하지 않은 제품 결정이다. 각 항목에 질문, 권장 답, 답에 따라 바뀌는 것, 채택된 보장을 좁히는지를 적는다. 이미 받은 승인(ADR-0005·0006,
+#3·#4·#9·#12·#36의 결정)을 다시 묻지 않는다. 아래 표의 권장 답은 그대로 받아들일 수 있게 한 줄로 적었고, 근거와 바뀌는 것은 표 아래에 있다.
+
+| 번호 | 질문 | 권장 답(한 줄) | 채택된 보장을 좁히는가 |
+|---|---|---|---|
+| OQ1 | 작성 주체의 기본값과 에이전트가 부른 CLI | 확장이 aelix 프로세스 환경에 `AELIX_ANALYTICS_ACTOR=agent`를 넣어 aelix 에이전트의 CLI를 `agent`로 남기고, 밝히지 않은 CLI는 `human`·`inferred`, #17은 `human`을 basis와 관계없이 세되 둘을 나눠 보인다 | 권장 경로는 좁히지 않는다. aelix 밖 에이전트가 `human`·`inferred`로 남는 경우는 Q17-b를 호스트와 관계없이 읽으면 좁힘이며 그 범위를 소유자가 정한다 |
+| OQ2 | 본문 상한 | 본문 UTF-8 32 KiB와 직렬화한 줄 50 KiB 미만을 함께 지키고 넘으면 `text_too_long`으로 거절한다 | 아니오 |
+| OQ3 | 원본 안의 링크·junction | 밖을 가리키는 링크는 대상 바이트를 복사하고 매핑에 적으며, 안을 가리키는 상대 링크는 다시 만든다 | 아니오 |
+| OQ4 | 복사 범위 | `.venv/`·`report/`·`.lab/cache/`·잠금·`__pycache__/`와 루트의 worktree `.git` 파일은 복사하지 않고 보고서에 적는다 | 예: ADR-0005 결정 5의 "기존 파일은 바이트 그대로 복사"를 글자보다 좁힌다 |
+| OQ5 | `analytics.run/2`에서 바꿀 이름 | `charts[]`·`id`·`reproduction.charts`·`via`의 `lab.` 접두만 새 이름으로 바꾸고 나머지는 둔다. ① 병합 전에 정한다 | 아니오 |
+| OQ6 | 내부 코드 이름의 개명 PR ⓪ | ① 전에 동작을 바꾸지 않는 개명 PR ⓪을 둔다 | 아니오. ADR-0005 결정 7의 PR 목록에 한 줄을 더한다 |
+| OQ7 | ③ 뒤의 `/1` fixture | 생성기에 `--kit-root`를 더해 ③ 전 kit이 실제로 쓴 바이트를 쓴다 | 아니오 |
+| OQ8 | #49의 시기 | ③을 기다리지 않고 #49를 작은 일반 PR로 먼저 고친다 | 아니오 |
+| OQ9 | 새 형식 init의 위쪽 표식 | init도 위쪽에 표식이 있으면 `destination_invalid(inside_project)`로 거절한다 | 지금 허용되는 동작(중첩 프로젝트 만들기)을 막는다. 채택된 보장은 아니다 |
+| OQ10 | 원본 안의 중첩 프로젝트 | `nested_project`로 거절하고 경로를 모두 보인다 | 아니오 |
+| OQ11 | ③에서 여는 공개 입력 | ③은 writer API와 응답의 `request_id`까지 하고 공개 입력은 #14·#19가 연다 | 아니오 |
+| OQ12 | 대상이 없는 바깥 링크(와 UTF-8이 아닌 이름) | 사전 검사에서 `source_unreadable`과 목록으로 거절하고 사람이 고친 뒤 다시 부르게 한다 | 아니오 |
+| OQ13 | 읽기 명령의 uv 환경 동기화 | 기록이 아닌 환경이라 게이트하지 않고, 현재 계약에 "읽기 전용은 uv 환경 동기화를 포함하지 않는다"를 적는다 | ADR-0005 결정 6의 부수 쓰기 목록은 닫혀 있지 않으므로 이 답은 그 목록에서 환경을 빼는 해석이다. 좁힘으로 읽힐 수 있어 소유자가 정한다 |
 
 **OQ1 작성 주체의 기본값과 에이전트가 부른 CLI.** 런처·`bin/analytics`는 `AELIX_ANALYTICS_ACTOR`가 없으면 `human`을 채워 kit을 부른다. 그래서 에이전트가
-bash 도구로 부른 CLI가 사람 작성으로 남는다. 연속성 설계와 Q17-b는 이를 막으라 하고, ADR-0008 결정 3은 #13이 "에이전트 요청으로 기록한 CLI 호출"을
-구별한다고 전제한다. kit은 누가 불렀는지 알 수 없고, aelix의 bash 도구가 확장이 정한 환경을 물려받는지는 확인하지 않았다.
-- 권장: (1) 기본값 `human`은 두되 진입점·사용자가 밝히지 않았으면 `actor_basis: inferred`를 남긴다. 런처·`bin/analytics`는 기본값을 채워 넘기지 않는다.
-  (2) 확장이 aelix bash 도구의 환경에 `AELIX_ANALYTICS_ACTOR=agent`와 세션을 줄 수 있으면 ③에서 넣는다(먼저 프로브). 줄 수 없으면 그 경로는 한계로 적는다.
-  (3) run 밖 SDK의 `actor="script"`는 `human`(밝히지 않았으면 `inferred`)과 `means="sdk"`로 바꾼다. TTY로 사람을 추정하지 않는다.
-- 바뀌는 것: `/2` 이벤트·`analytics.run/2`의 선택 필드 하나, 런처의 기본값 주입 제거, Q17-b 판정의 근거, #17과 SKILL-PROPOSAL-POLICY의 "사람으로 기록된
-  것만 센다"가 `inferred`를 셀지(#17이 이 필드를 보고 정함). 대안 "기본값 `unknown`"은 Q17-a의 사람 CLI 기록을 모두 미확인으로 만든다.
+bash 도구로 부른 CLI가 사람 작성으로 남는다. Q17-b는 "에이전트의 CLI 호출을 사람 작성으로 기록하지 않는다"고 하고, ADR-0008 결정 3은 요청 주체와
+실행 수단을, 결정 7은 "#13이 에이전트 요청으로 기록한 CLI 호출"(텍스트 `status`에서 발행하지 않음)을 전제한다. kit은 누가 불렀는지 알 수 없다.
+
+R9 프로브(18절)로 확인한 것: aelix 0.1.0b2의 bash 도구는 호출마다 aelix 프로세스의 `os.environ`을 복사해 자식의 환경을 만든다
+(`aelix_coding_agent/util/shell_env.py:32`, `tools/bash.py:752-762`·`1033`·`1044-1051`·`247`·`293`). 확장이 로드 때 넣은 변수와 도구를 만든 뒤 hook에서
+바꾼 변수를 자식이 그대로 봤다. 확장 API에는 bash 도구의 환경을 따로 정하는 선택지가 없다(`spawn_hook`은 `create_bash_tool`의 선택지인데 CLI가
+확장에서 넘기지 않는다, `cli/entry.py:961-985`; 내장 도구가 같은 이름의 확장 도구보다 우선한다, `aelix_agent_core/harness/core.py:795-801`). 같은
+`os.environ`이 사람의 `!` 명령에도 가지만(`cli/repl.py:30-63`), `user_bash` 처리기가 돌려준 실행기로 그 명령의 환경만 바꿀 수 있음을 같은 코드
+경로에서 확인했다. RPC 모드의 `bash`에는 처리기가 없다(`rpc/rpc_mode.py:571-584`). Windows는 셸이 PowerShell·cmd여도 같은 환경을 넘긴다(코드로 읽음,
+실행하지 않음). `tool_call` 처리기가 bash 도구의 인자(명령 글)를 고쳐 변수 설정을 앞에 붙이는 방법도 API로는 가능하지만
+(`aelix_agent_core/harness/hooks.py:416-431`), 앞선 가드레일·승인 처리기가 본 명령과 실제로 도는 명령이 달라지고 셸마다 문법이 달라(POSIX
+`export`, PowerShell `$env:`, cmd `set`) 쓰지 않는다.
+
+- 권장(Q17-b를 지킨다):
+  1. 확장이 로드될 때 aelix 프로세스 환경에 `AELIX_ANALYTICS_ACTOR=agent`를 넣고 세션이 정해질 때 `AELIX_ANALYTICS_SESSION`을 바꾼다(4.2절). aelix
+     세션의 에이전트가 bash 도구로 부른 CLI는 `actor=agent`, `actor_basis=declared`, `means=cli`로 남는다. Q17-b의 시나리오(별도 Aelix 환경의 새
+     세션에서 실제 모델이 후속 분석)와 ADR-0008 결정 7의 전제를 그대로 지키며 좁히지 않는다.
+  2. 사람이 aelix에서 친 `!` 명령은 확장의 `user_bash` 처리기가 그 명령의 환경에만 `AELIX_ANALYTICS_ACTOR=human`을 넣는다.
+  3. 진입점·사용자가 밝히지 않은 CLI·SDK 호출(aelix 밖의 터미널)은 기본값 `human`과 `actor_basis: inferred`를 남긴다. 런처·`bin/analytics`는 기본값을
+     채워 넘기지 않는다.
+  4. run 밖 SDK의 `actor="script"`는 `human`(밝히지 않았으면 `inferred`)과 `means="sdk"`로 바꾼다. TTY로 사람을 추정하지 않는다.
+  5. #17과 [재사용 제안 정책](../SKILL-PROPOSAL-POLICY.md#2-상시-모드의-제안-문턱)의 "사람의 표시는 작성 주체가 사람으로 기록된 것만 센다"는 `actor=human`을
+     `actor_basis`와 관계없이 세고, 그 수를 `declared`와 `inferred`로 나눠 보인다. `inferred`를 빼면 Q17-a처럼 aelix 없이 CLI만 쓰는 사람의 표시가
+     선언 없이는 하나도 세지지 않는다. 텍스트 `status`의 발행 판정(ADR-0008 결정 7)도 같은 값을 쓴다.
+- 남는 경우와 좁힘(소유자 결정): aelix 밖 호스트의 에이전트(다른 코딩 에이전트가 터미널 도구로 `analytics`를 부름)는 kit도 확장도 알 수 없어
+  `human`·`inferred`로 남고, 위 5에 따라 #17의 사람 수에 들어가며 텍스트 `status`에서 발행할 수 있다. Q17-b의 시나리오는 Aelix 세션이므로 이 경우는
+  그 시나리오 밖이라고 본다. 그러나 Q17-b의 문장을 호스트와 관계없이 읽으면 이 경우를 한계로 두는 것은 **채택된 게이트 Q17-b의 좁힘**이며 소유자의
+  결정이 필요하다. 권장: Q17-b의 범위를 Aelix 세션으로 확인하고, 다른 호스트에서는 `AELIX_ANALYTICS_ACTOR=agent`를 설정하라고 README와 현재 계약에
+  적는다. 이 경우까지 막으려면 5를 "`declared`인 `human`만 센다"로 바꿔야 하며, 그러면 aelix 밖에서 사람이 선언하지 않은 CLI 표시는 세지지 않는다.
+- 반대 방향의 한계(좁힘 아님): RPC 모드의 `bash`, 다른 확장이 `user_bash` 실행기를 대신 돌려줄 때의 `!` 명령은 사람이 불렀어도 `agent`로 남는다(R18).
+  Q17-b를 어기지 않고 #17의 사람 수를 줄이는 쪽의 오류다.
+- 바뀌는 것: 확장이 aelix 프로세스 환경을 바꿈(현재 계약 A), `user_bash` 처리기 하나, `/2` 이벤트·`analytics.run/2`의 선택 필드 `actor_basis`, 런처의
+  기본값 주입 제거, Q17-b 판정의 근거(T22), #17의 사람 수와 텍스트 `status` 발행이 `actor_basis`를 읽는 방식. 에이전트가 bash로 부른
+  `analytics migrate`도 `agent`로 기록된다(거절하지 않는다). 대안 "기본값 `unknown`"은 Q17-a의 사람 CLI 기록을 모두 미확인으로 만든다.
 
 **OQ2 본문 상한.** ADR-0006 10절은 거절과 전체 보존 가운데 #11의 측정으로 #13에서 정하라 했으나 #11은 이 선택을 남기지 않았다.
-- 권장: 조용히 자르지 않고 UTF-8 32 KiB까지 전부 보존한다. 넘으면 아무것도 쓰지 않고 `text_too_long`(원문 길이, 상한, 파일이나 Report로 저장하라는
-  안내)으로 거절한다. 화면·맥락은 #11의 생략 표시를 그대로 쓴다. 근거는 aelix read 도구가 50 KiB를 넘는 한 줄을 읽지 않는다는 사실(현재 계약 A)이다.
+- 권장: 조용히 자르지 않는다. 본문은 UTF-8 32 KiB까지 전부 보존하고, 직렬화한 줄 전체(이스케이프·참조·머리 포함)가 50 KiB 미만이어야 한다. 둘 중
+  하나라도 넘으면 아무것도 쓰지 않고 `text_too_long`(본문·줄 바이트, 두 상한, 파일이나 Report로 저장하라는 안내)으로 거절한다(2.9절). 화면·맥락은
+  #11의 생략 표시를 그대로 쓴다. 근거는 aelix read 도구가 50 KiB를 넘는 한 줄을 읽지 않는다는 사실(현재 계약 A)이다.
 - 바뀌는 것: `MAX_EVENT_TEXT`와 `note_cut`, 현재 계약 C1의 4,000자 문장, 새 오류 이름 하나. 더 큰 상한(예: 1 MiB)을 고르면 그 줄을 에이전트가
   다시 읽지 못하고 맥락 블록·status가 매번 큰 줄을 읽는다.
 
 **OQ3 원본 안의 링크·junction.** ADR-0005는 hardlink만 금지하고 큰 데이터도 복사가 기본이라 했다. 심볼릭 링크와 junction(예: `data/` → 외부 디스크)은
 정하지 않았다.
-- 권장: 밖을 가리키는 링크는 대상의 바이트를 복사한다(공유 바이트 없음, 사전 공간 검사). 안을 가리키는 상대 링크는 같은 링크 글자로 다시 만든다(대상이
-  목적지 안). 다시 만들 수 없거나 절대 링크면 파일은 바이트 복사, 디렉터리는 복사하지 않고 보고서에 적는다(6.6절).
-- 바뀌는 것: 큰 외부 데이터의 디스크·시간 비용, 다시 만든 링크 아래 새 run의 정체성 경로, 현재 계약 G의 링크 문장, 측정 항목. 대안 "밖을 가리키는
-  링크를 링크로 유지"는 목적지의 쓰기가 원본이 기록한 바이트에 닿을 수 있다. 대안 "그런 원본은 거절"은 그 프로젝트를 ③ 뒤 읽기 전용에 가둔다.
+- 권장: 밖을 가리키는 링크는 대상의 바이트를 복사하고(공유 바이트 없음, 사전 공간 검사), 그 링크를 매핑의 `links`에 적어 옛 run의 경로 추론이
+  전환 뒤에도 같게 풀리게 한다(5.4절). 목적지는 그 대상과도 겹치지 않아야 한다(6.2절). 안을 가리키는 상대 링크는 같은 링크 글자로 다시 만든다(대상이
+  목적지 안). 다시 만들 수 없거나 절대 링크면 파일은 바이트 복사, 디렉터리는 복사하지 않고 보고서에 적는다(6.6절). 대상이 없는 바깥 링크는 OQ12.
+- 바뀌는 것: 큰 외부 데이터의 디스크·시간 비용, 다시 만든 링크 아래 새 run의 정체성 경로, 매핑과 reader의 링크 대응, 현재 계약 G의 링크 문장, 측정
+  항목. 대안 "밖을 가리키는 링크를 링크로 유지"는 목적지의 쓰기가 원본이 기록한 바이트에 닿을 수 있다. 대안 "그런 원본은 거절"은 그 프로젝트를 ③ 뒤
+  읽기 전용에 가둔다.
 
-**OQ4 복사 범위.** ADR-0005 결정 5는 "기존 파일은 같은 상대 경로에 바이트 그대로 복사"라고 적었다. 재생성 가능한 파일과 환경에도 그대로 적용할지는
-정하지 않았다. 빼면 글자 그대로의 범위를 좁히므로 소유자 확인이 필요하다.
+**OQ4 복사 범위.** ADR-0005 결정 5는 "기존 파일은 같은 상대 경로에 바이트 그대로 복사"라고 적었다. 재생성 가능한 파일과 환경, git의 worktree
+포인터에도 그대로 적용할지는 정하지 않았다. 빼면 글자 그대로의 범위를 좁히므로 소유자 확인이 필요하다.
 - 권장: `.venv/`, `report/`, `.lab/cache/`, `.lab/`의 잠금 파일 셋, `__pycache__/`는 복사하지 않고 보고서 `excluded`에 경로·파일 수·바이트를 적는다.
-  `.git/`을 포함한 나머지는 모두 복사한다. 원본 전후 비교에서도 제외 목록을 뺀다(T18은 `.venv/`·`uv.lock`을 따로 본다).
-- 바뀌는 것: 목적지 크기, 비교 범위, `.git/` 사본으로 저장소가 둘이 됨(보고서가 알림). 모두 복사하면 원본 절대 경로를 키로 쓰는 캐시와 다른 기계의
-  `.venv/`가 목적지에 남는다. `.git/`을 빼면 원본을 지운 사용자가 이력을 잃을 수 있다.
+  루트의 `.git`이 파일(git worktree의 `gitdir:` 포인터)이면 복사하지 않고 `not_copied`와 경고로 알린다. 복사하면 목적지가 원본 worktree의 index·HEAD를
+  함께 써서 목적지의 git 작업이 원본의 git 상태를 바꾼다. 디렉터리 `.git/`을 포함한 나머지는 모두 복사한다. 원본 전후 비교에서도 제외 목록을 뺀다
+  (T18은 `.venv/`·`uv.lock`을 따로 본다).
+- 바뀌는 것: 목적지 크기, 비교 범위, `.git/` 사본으로 저장소가 둘이 됨(보고서가 알림), worktree였던 원본의 목적지는 git 저장소가 아님(사람이 새로
+  연결). 모두 복사하면 원본 절대 경로를 키로 쓰는 캐시와 다른 기계의 `.venv/`가 목적지에 남고, worktree 포인터는 위의 공유가 생긴다. `.git/`을 빼면
+  원본을 지운 사용자가 이력을 잃을 수 있다.
 
 **OQ5 `analytics.run/2`에서 바꿀 필드 이름과 enum 값.** ADR-0005 결정 2는 "바꾼다면 #13에서"라고만 했고, 지금 바꾸지 않은 것은 결정 3 때문에 베타까지
 바꿀 수 없다. Issue #13 댓글은 `via` 값을 바꾼다고 적었으나 철자는 정하지 않았다.
-- 권장: 계약이 이미 새 이름을 쓰는 것만 바꾼다. `charts[]`·`id` → `visualizations[]`·`visualization_id`(용어집 §5, ADR-0006 2절), `via`의 `lab.` 접두 →
-  SDK 함수와 같은 `analytics.visualize`·`analytics.read`·`analytics.scan`·`analytics.sql`·`analytics.save`, kind `gap` → `workflow_feedback`(ADR-0006).
-  run `status`(→ `execution_status`), `reproduction`·`verdict`(→ `rerun_comparison`·`comparison_result`), `kit_*`는 그대로 두고 그 이유를 용어집에 적는다.
-- 바뀌는 것: `analytics.run/2`의 필드(2.6절), reader의 `/1` 대응, Workspace·status의 읽기, #20 공유 투영의 필드 목록. 더 바꾸면 그 필드마다 reader
-  대응과 화면이 늘어난다.
+- 권장: 계약이 이미 새 이름을 쓰는 것만 바꾼다. `charts[]`·`id` → `visualizations[]`·`visualization_id`(용어집 §5, ADR-0006 2절), 재실행 비교의
+  `reproduction.charts` → `reproduction.visualizations`(값은 그대로), `via`의 `lab.` 접두 → SDK 함수와 같은 `analytics.visualize`·`analytics.read`·
+  `analytics.scan`·`analytics.sql`·`analytics.save`, kind `gap` → `workflow_feedback`(ADR-0006). run `status`(→ `execution_status`),
+  `reproduction`·`verdict`(→ `rerun_comparison`·`comparison_result`), `kit_*`는 그대로 두고 그 이유를 용어집에 적는다. ①이 이 가족의 reader를 먼저
+  싣으므로 ① 병합 전에 정한다(2.6절).
+- 바뀌는 것: `analytics.run/2`의 필드(2.6절), reader의 `/1` 대응과 재실행 비교의 형식 간 비교, Workspace·status의 읽기, #20 공유 투영의 필드 목록. 더
+  바꾸면 그 필드마다 reader 대응과 화면이 늘어난다. ① 뒤에 바꾸면 ① kit이 ③의 프로젝트를 잘못 읽거나 `/3`이 필요하다.
 
 **OQ6 내부 코드 이름의 개명 PR ⓪.** #9-1·#9-2가 이 이름들을 "새 writer와 함께" 정하라고 넘겼다. 결정 7의 섞지 않기 규칙 때문에 ③에는 넣을 수 없고,
 결정 7은 #13을 세 PR로 적었다.
@@ -1130,10 +1412,28 @@ kit으로 `/1`을 만드는 시험이 그대로는 돌지 않는다.
 
 **OQ11 ③에서 여는 공개 입력.** 조건 4는 공통 writer의 처리이고, 정정·철회·재개를 사람·에이전트가 부를 입력(CLI·SDK·도구 인자)은 아직 없다. ADR-0006 8절의
 `request_id`도 writer API에는 있으나 공개 입력이 없다. #14(지표·초점)와 #19(Report 저장)가 이 입력을 쓸 쪽이고, #15는 #13 writer가 쓴 정정을 읽는다.
-- 권장: ③은 writer API(`Writer.update`, `supersedes` 참조, `Origin.request_id`)와 시험(8절), 응답의 `request_id`까지 한다. 상태 변경·정정의 공개 입력은 #14가
-  지표·초점의 입력과 함께, `--request-id`·도구 인자는 #19가 연다. 그동안 reader(#12)가 충돌과 어긋난 갱신을 보인다.
+- 권장: ③은 writer API(`Writer.update`, `supersedes` 참조, `Origin.request_id`)와 시험(8절), 응답의 `request_id`와 `--resolves`의 `state_before`·
+  `state_after`까지 한다. 상태 변경·정정의 공개 입력은 #14가 지표·초점의 입력과 함께, `--request-id`·도구 인자는 #19가 연다. 그동안 reader(#12)가
+  충돌과 어긋난 갱신을 보인다.
 - 바뀌는 것: ③의 크기, 용어집의 새 입력 이름, 도구 schema 토큰. ③에서 열면 `analytics record … --supersedes eN`, 갱신 입력(예: `analytics update eN
   --expected S --new S TEXT`), `analytics_record`의 선택 인자를 이 설계에 더해 설계 리뷰를 다시 받아야 한다.
+
+**OQ12 대상이 없는 바깥 링크.** 링크의 대상이 지금 없는 원본(예: `data -> /Volumes/X/data`인데 외부 디스크를 연결하지 않음)을 어떻게 할지 입력이 정하지
+않았다(설계 리뷰의 새 질문 A).
+- 권장: 사전 검사에서 `source_unreadable(reason=link_target_missing)`과 링크 경로·링크 글자 목록으로 거절한다. 사람이 대상을 연결하거나 링크를 치운
+  뒤 다시 부른다. `--dry-run`은 이 목록을 맨 앞에 보인다. UTF-8로 쓸 수 없는 이름(POSIX의 짝 없는 surrogate, 현재 계약 G가 기록에 담는 방법을 정하지
+  않은 것)도 같은 방식으로 `source_unreadable(reason=name_not_utf8)`과 목록으로 거절한다.
+- 바뀌는 것: 그런 프로젝트는 고칠 때까지 전환할 수 없다(③ 뒤 읽기 전용에 더 오래 머문다, R19). 6.2·6.6절의 표, T1·T2, 현재 계약 G의 링크 문장.
+  대안 "복사하지 않고 커밋"(이전 설계안)은 링크가 조용히 사라진 프로젝트를 완전한 것처럼 보인다. 대안 "UTF-8이 아닌 이름을 base64 필드로 기록"은
+  계획·ledger·보고서의 형식과 reader를 넓힌다.
+
+**OQ13 읽기 명령의 uv 환경 동기화.** ③ 뒤 `lab.json` 프로젝트에서 런처·확장이 `status` 같은 읽기 명령을 `uv run --project SRC`로 부르면 uv가 원본에
+`.venv/`를 만들거나 맞지 않는 `uv.lock`을 다시 쓴다(프로브 `probe-safety`). 이것이 ADR-0005 결정 6의 "읽기 작업의 부수 쓰기"인지 입력이 정하지
+않았다(설계 리뷰의 새 질문 B).
+- 권장: 기록이 아니라 환경이므로 게이트하지 않는다(4.3절). 현재 계약에 "읽기 전용은 uv 환경 동기화를 포함하지 않는다"를 적는다. 결정 6의 목록은
+  "이 목록으로 닫히지 않는다"고 했으므로 이 답은 그 목록에서 환경을 빼는 해석이며, 좁힘으로 읽힐 수 있어 소유자가 정한다. 전환의 원본과 표식 없는
+  목적지는 지금 설계대로 `--no-project`로 다룬다(6.1절).
+- 바뀌는 것: 코드는 없고 현재 계약의 문장 하나. 대안 "읽기 명령을 `--no-project`로 부름"은 분석 라이브러리가 필요한 `status`·`query`를 막는다.
 
 ---
 
@@ -1143,7 +1443,7 @@ kit으로 `/1`을 만드는 시험이 그대로는 돌지 않는다.
 비교했다. 원본 보존을 앞세운 안이 #13의 가장 큰 위험(원본 손실과 반쯤 쓴 목적지)을 더 단단히 막고 보장마다 시험을 짝지어 바탕으로 삼았다.
 
 - 원본 보존 안에서 가져온 것: 보장 S·시험 T의 짝, 원본 잠금 전에 쓰는 ledger, 기다리지 않는 잠금과 목적지 잠금, 계획·복사·재확인 동안만 쥐는 원본
-  잠금, 파일마다 임시 파일 + 교체, 표식 전 내구 쓰기, `source-marker.json`, 표식의 `migration` 필드, `migration_incomplete`, 중단 지점 F1–F11 표,
+  잠금, 파일마다 임시 파일 + 교체, 표식 전 내구 쓰기, `source-marker.json`, 표식의 `migration` 필드, `migration_incomplete`, 중단 지점 표,
   `.lab/` 이력을 `.analytics/`로 담는 배치, 사용자 선택을 지키는 `.gitignore` 규칙, 잠금 안의 표식 다시 읽기, 새 계층으로 강제되는 계층 배치,
   고장 주입 driver.
 - 단계별 PR 안에서 옮긴 것: 게이트를 ①에 먼저 깔고 `WRITABLE` 한 줄로 ③에서 뒤집는 순서, PR마다 각 kit이 보는 것의 표, `Origin` 배관을 ①로 당김,
@@ -1159,12 +1459,17 @@ kit으로 `/1`을 만드는 시험이 그대로는 돌지 않는다.
 
 ## 18. 근거와 미실행
 
-- 코드 기준: `09d22c4`(PR #76 병합 뒤). 확인한 것: `core.find_project`(`lab.json`만), `core.read_events`(`lab.event/1`만), `Project.config`(같은 가족 번호만),
+- 코드 기준: `09d22c4`(PR #76 병합 뒤). 확인한 것: `core.find_project`(`lab.json`만, 시작 경로에서 위로 올라감), `__main__._project`·SDK `__init__`의
+  탐색(올라감)과 확장 `_resolve_project`의 명시한 루트(그 디렉터리만), `core.read_events`(`lab.event/1`만), `Project.config`(같은 가족 번호만),
   `core.KIT_VERSION`을 읽는 곳(`tools/model_eval.py`의 정규식, `tests/test_packaging.py`), `PosixFileLocks.exclusive`의 부모 디렉터리 생성,
-  런처의 `init`이 쓰는 `uv run --no-project`와 다른 명령의 `kit_argv`(`uv run --project`), `relations.read(…, legacy_path=)`와 `ReadModel.read_as`의
-  옛 kit 조건, `relations.CONTEXT_DIRS`, 기록 schema의 `project_2`(추가 필드 허용), 템플릿 `gitignore`.
+  `PosixAtomicFiles.replace`·`WindowsAtomicFiles.replace`가 `os.replace`(덮어씀)라는 것, 런처의 `init`이 쓰는 `uv run --no-project`와 다른 명령의
+  `kit_argv`(`uv run --project`), `relations.read(…, legacy_path=)`와 `ReadModel.read_as`·`_mapped`의 옛 kit 조건, `Project.legacy_identity`가 바깥
+  절대 경로를 경계표로 푼다는 것, `relations.ReadModel.imports`(meta와 이벤트 사이만 `incomplete`), run 기록의 `charts`를 직접 읽는 곳(5.3절의 목록,
+  `runner.compare_runs` 포함), `core.MANAGED_DIRS`·`IGNORED_DIRS`와 `runner._in_managed_dir`, `core.classify_refs`(순수 함수)와 `resolve_ref_aliases`
+  (`Project` 필요), 확장의 `child_env`(허용 목록과 작성 주체를 직접 넣음)와 `STATE["session"]`을 정하는 `before_agent_start`, `relations.CONTEXT_DIRS`,
+  기록 schema의 `project_2`(추가 필드 허용), 템플릿 `gitignore`, ADR-0007 결정 2의 헬퍼 위치, 현재 계약 G의 UTF-8로 쓸 수 없는 이름.
 - 프로브(모두 macOS Darwin arm64, uv 0.11.19, 실행 폴더 안, `AELIX_ANALYTICS_TRUST_FILE`·`AELIX_ANALYTICS_UV`·uv 캐시를 실행 폴더 안으로, `AELIX_LAB_*`·
-  `LAB_*` 해제, `~/.aelix`를 건드리지 않음). 파일은 실행 폴더의 `evidence/` 아래에 있다.
+  `LAB_*` 해제, `~/.aelix`를 읽거나 나열하거나 건드리지 않음). 파일은 실행 폴더의 `evidence/` 아래에 있다.
   - `probe-current-writer`(`ebb6fc8`, `probe.txt` sha256 `907eae44…4fb5`): P1–P7. 표식을 `lab.project/2`로 고쳐도 `record`가 `lab.event/1`을 씀(P2),
     `analytics.json`만이면 `no_project`(P3), `lab.json` 프로젝트 아래 `analytics.json` 디렉터리의 `record`가 위쪽에 씀(P4), 두 표식을 `lab.json`으로 봄(P5),
     `/2` 줄이 목록에서 빠짐(P6), 끊긴 줄 뒤에 붙여 쓰고 seq 재사용(P7).
@@ -1172,8 +1477,61 @@ kit으로 `/1`을 만드는 시험이 그대로는 돌지 않는다.
     `.venv/`를 만듦, 프로젝트 안의 `uv run --no-project`는 아무것도 만들지 않음, kit의 잠금이 없던 `run.lock`을 만듦, `flock(LOCK_EX | LOCK_NB)`가 잡힌
     동안 `EAGAIN`(35)·놓은 뒤 획득.
   - `probe-uv-no-project`(`probe.txt` sha256 `5cf601a9…e29e1`): 같은 결과를 따로 확인.
-  - `probe-uv-locked`(이 문서, `probe.txt` sha256 `d7e00f59…b2f7`): `uv sync --locked`는 맞는 `uv.lock`을 바꾸지 않았고, 맞지 않는 `uv.lock`에서는 종료 1로
+  - `probe-uv-locked`(`probe.txt` sha256 `d7e00f59…b2f7`): `uv sync --locked`는 맞는 `uv.lock`을 바꾸지 않았고, 맞지 않는 `uv.lock`에서는 종료 1로
     실패하며 그 파일을 바꾸지 않았다. 실패한 경우에도 `.venv/`는 만들었다.
+  - `r9-probe`(2026-10-08, `probe.txt` sha256 `ada42b31…3d353`, `probe.sh`·`probe.py`·`notes.txt`): aelix 0.1.0b2를 `uv run --isolated --no-project
+    --python 3.12 --with aelix==0.1.0b2`로 격리 설치하고, `env -i`로 가짜 HOME·`AELIX_CODING_AGENT_DIR`를 실행 폴더 안에 둔 채 aelix의 bash 도구 실행
+    함수를 프로세스 안에서 불렀다(모델·로그인 없음, 설치 뒤 네트워크 없음). 본 것: `os.environ`에 도구를 만들기 전에 넣은 값과 만든 뒤 바꾼 값을 자식이
+    그대로 봄, 지운 뒤에는 보지 않음, 사람의 `!` 명령(`cli/repl.handle_user_bash`)도 같은 값을 봄, `user_bash` 처리기가 돌려준 실행기로 그 명령만
+    `human`을 봄(모델의 bash 도구는 여전히 `agent`), `create_bash_tool`의 `spawn_hook`은 동작하지만 확장이 닿을 수 없는 선택지. 코드 위치(설치한 패키지
+    기준): `aelix_coding_agent/util/shell_env.py:17-44`, `tools/bash.py:247`·`263-293`·`752-762`·`967-979`·`1033`·`1044-1051`, `cli/entry.py:961-985`·
+    `1406`, `cli/repl.py:30-63`, `rpc/rpc_mode.py:571-584`, `extensions/api.py:1616-1623`·`2163-2165`, `aelix_agent_core/harness/hooks.py:296-306`·
+    `416-431`·`939-950`·`1788-1805`, `aelix_agent_core/harness/core.py:795-801`·`3989-4000`. Windows 분기는 읽기만 했다: `tools/bash.py:121-122`·
+    `148-170` → `aelix_ai/utils/_shell.py:473`(`$SHELL`이 있는 파일일 때만, 아니면 PowerShell, 그다음 `%COMSPEC%`), 어느 셸이든 같은 환경을
+    `Popen(env=…)`에 넘긴다(`tools/bash.py:293`). 가짜 HOME은 비어 있었다.
 - 이 문서의 검증: 문서 검사(`uv run --locked python tools/check_docs.py`)와 `git diff --check`. 이것은 링크·형식의 검사이며 설계의 시험이 아니다.
-- 미실행(통과로 보지 않음): pytest·ruff·CI 전체, Windows·Linux에서의 위 프로브, aelix bash 도구의 환경(OQ1), Windows의 잠금 해제 지연과 디렉터리
-  flush, plotly 템플릿 이름이 저장 바이트에 들어가는지, M 규모 생성과 전환·writer 시간, 이 문서의 모든 시험(T1–T18, 코드가 없음), 설계 리뷰(독립·Codex).
+- 미실행(통과로 보지 않음): pytest·ruff·CI 전체, Windows·Linux에서의 위 프로브, R9 프로브의 Windows(PowerShell·cmd 자식)와 실제 aelix 세션·모델,
+  Windows의 잠금 해제 지연·디렉터리 flush·읽기 전용 사본의 flush·읽기 전용 핸들의 `msvcrt.locking`·디렉터리별 대소문자 구별의 상속, 링크를 지원하지
+  않는 목적지 파일 시스템(FAT·exFAT)의 `os.link` 실패, 전원 손실, plotly 템플릿 이름이 저장 바이트에 들어가는지, M 규모 생성과 전환·writer 시간,
+  이 문서의 모든 시험(T1–T22, 코드가 없음), 고친 뒤 이 문서의 수정 diff 확인(리뷰 예산의 기록 형식 PR 행).
+
+---
+
+## 19. 설계 리뷰의 지적과 처리
+
+설계 리뷰(독립 1회·Codex 1회)의 지적마다 처리와 고친 곳이다. 꼭 고칠 것(M)은 모두 고쳤다. 검토할 것은 모두 적용했고, 리뷰가 낸 대안과 다르게
+적용한 것은 그 이유를 적었다. 고친 뒤의 문서는 자기 검토만 했고, 리뷰 예산의 수정 diff 확인은 아직이다.
+
+| 지적 | 처리 | 고친 곳 |
+|---|---|---|
+| M1 목적지 겹침 검사가 바깥 링크 대상을 보지 않음 | 고침. 복사가 읽는 실제 위치의 집합 R(원본 루트와 따라갈 바깥 링크 대상)과 목적지가 같거나 안이거나 위이면 `overlaps_source` | 6.2절, S1, 4.11절, T1·T2 |
+| M2 매핑에 링크 경계가 없어 옛 run의 경계 추론이 사라짐, `.lab/` 접두가 절대 경로에만 적용 | 고침. 매핑에 `links`(경로, 대상의 실제 경로와 철자, 처리), reader가 PR #76의 조건 그대로 대응, 상대 `.lab/…`에도 접두 적용 | 5.4·6.6·6.7절, S4, T11 |
+| M3 이어 쓰기 규칙이 중단 표와 모순(변환 미기록, 재확인 뒤 원본 재비교, `committed`만 있는 상태, 표식 뒤 flush 없음) | 고침. `transform_begin`·`transformed`, `source_checked` 뒤 원본을 보지 않음, `committed`인데 표식이 없으면 ledger의 표식 바이트를 다시 게시, 표식 게시 뒤 `flush_dir` 다음에 `committed`와 응답, 정의한 상태만 받음 | 6.3·6.8·6.10·6.11절, T6 |
+| M4 `already_migrated`가 목적지 표식 판정과 원본 정체성을 보지 않음 | 고침. 다시 부르기는 목적지 `marker_state`를 먼저 판정하고, 같은 원본의 커밋된 전환일 때만 `already_migrated`, 다른 원본이면 `not_empty` | 6.9절, 4.11절, T21 |
+| M5 사본 게시가 덮어쓰는 `os.replace` | 고침. 새 포트 메서드 `publish_new`(POSIX `os.link`+`unlink`, Windows `os.rename`), 임시 파일 `O_EXCL`, 교체는 이 전환의 파일에만, 표식도 없을 때만 게시 | 6.3·6.4·6.12절, S2·S6, D19, T19 |
+| M6 Visualization 소비자 목록이 모자라 재실행 비교가 거짓 기록을 남김 | 고침. `relations.run_visualizations` 하나를 모든 소비자가 쓰고 정적 검사로 막음, 형식 간 재실행 비교와 `reproduction.visualizations`(OQ5) | 2.6·5.3·10절, S13, D20, T9·T11 |
+| M7 관리 디렉터리를 두 형식의 합집합으로 둠 | 고침. 배치마다 따로(`LegacyLayout`·`Layout`) | 2.3·4.4·5.3절, S14, D21, T20 |
+| M8 OQ1의 한계 갈래가 Q17-b·ADR-0008 결정 7을 말없이 좁힘, R9 미실행 | 고침. R9 프로브를 실행했고 권장 답이 Q17-b를 지킴. aelix 밖 에이전트의 경우를 좁힘인지 소유자가 정할 질문으로 따로 적고 #17의 `inferred` 처리를 정함 | 4.2절, 16절 OQ1, 18절, S11, R9·R18, T22 |
+| 검토 1 32 KiB 본문이 50 KiB 줄을 보장하지 않음 | 적용. 직렬화한 줄 전체의 상한을 함께 검사, 이스케이프가 많은 본문과 긴 참조로 시험 | 2.9절, OQ2, 4.11절, T14 |
+| 검토 2 보고서가 커밋 뒤의 값을 담음 | 적용. `committed_at`·flush 시간을 보고서에서 빼고 `source_checked_at`과 복사한 journal 경계를 더함. 커밋 시각은 ledger에만 | 6.3·6.8절, S3 |
+| 검토 3 전원 손실 내구성을 `os._exit`로 증명하지 못함 | 적용. 프로세스 중단 보장과 전원 손실 목표를 나누고 후자는 한계와 `not_run` | 1절, 6.4·6.11·6.12절, 12·18절, D9 |
+| 검토 4 Windows 읽기 전용 파일의 flush·지우기 | 적용(설계, 실행하지 않음). 게시 전 임시 핸들로 flush, 게시 뒤 권한, 디렉터리 권한은 나중, 지우기 전 읽기 전용 해제 | 6.4·6.12절, 11.4절 |
+| 검토 5 특수 항목과 이름 정규화(FIFO, Windows 장치 이름) | 적용. 열기 전 `stat`, POSIX `O_NONBLOCK`(기능 확인), 연 핸들의 `fstat` 정체성 비교, 플랫폼 분기 없음 | 6.4·6.6절 |
+| 검토 6 Windows에서 교체 중인 표식 읽기 | 적용. 없음과 읽기 실패를 구별하고 교체 예산으로 재시도한 뒤 `invalid(unreadable)` | 4.3·4.11절, D27, 11.4절 |
+| 검토 7 이어 쓰기가 마지막 바이트를 담은 임시 파일을 지울 수 있음 | 적용(리뷰의 "모두 남김"보다 좁게). 그 경로를 다시 복사해 게시한 뒤에 지우고, 다시 만들 수 없으면 남겨 `leftover_temp`로 보고. 모두 남기면 커밋한 프로젝트마다 임시 파일이 쌓인다 | 6.8·6.10절, T6 |
+| 검토 8 가져오기 중단의 `incomplete` 문장이 넓음 | 적용(문장을 좁힘). 준비 상태 설계는 완료 조건 밖이고 main과 같은 한계라 더하지 않음 | 4.8절 |
+| 검토 9 이름 충돌을 무조건 거절 | 적용. 목적지가 실제로 이름을 접을 때만 거절(시험 파일로 판정), 임시 이름은 계획 이름과 겹치지 않게 고름 | 6.2·6.3절, D26, T2 |
+| 검토 10 UTF-8로 쓸 수 없는 이름 | 적용(거절 쪽). 사전 검사에서 `source_unreadable(name_not_utf8)`과 목록. 같은 종류의 거절이라 OQ12에 묶어 소유자에게 묻는다 | 6.2절, 4.11절, OQ12, T2 |
+| 검토 11 다툼이 아닌 잠금 실패, 잠금 없는 진행이 결정 5의 수단과 다름 | 적용. `LockUnavailable`이면 잠금 없이 비교로만, 결정 5의 수단과 다르다는 것을 명시 | 6.3·6.12절, D10, T1 |
+| 검토 12 목적지의 운영체제 메타 파일 | 적용. 계획에 없는 `.DS_Store`·`Thumbs.db`·`desktop.ini`는 무시, 계획 경로를 차지하면 `occupied` | 6.2·6.10절, T6 |
+| 검토 13 `source-marker.json`을 잠금 밖에서 만듦 | 적용. 6단계에 잠금 안에서 `begin`·`copied`로 복사 | 6.3·6.5절 |
+| 검토 14 `.git`이 worktree 포인터 파일 | 적용. 복사하지 않고 보고, 복사 범위이므로 OQ4에 넣음. `.git/` 사본에서 `.lab/` 파일이 옮겨진 것으로 보인다는 안내 | 6.5·6.6절, OQ4, T1 |
+| 검토 15 명시한 루트가 올라가지 않게 바뀜 | 적용. 진입점마다 지금 규칙을 그대로 둠 | 4.3절, D13 |
+| 검토 16 LF 헬퍼 위치가 ADR-0007 결정 2와 다름 | 적용. `_platform`으로 옮김 | 3.1·3.2·4.4절, D22 |
+| 검토 17 ①이 `/2` reader를 먼저 싣음 | 적용. OQ5·D2·D4를 ① 병합 전에 정함 | 2.6·10절, OQ5 |
+| 검토 18 `--resolves`로 같은 질문을 두 번 닫음 | 적용. 응답에 `state_before`·`state_after`, 거절로 바꾸지 않음(지금 동작, ADR-0006 6절) | 4.5·4.6·8절, D27, T13 |
+| 검토 19 D 목록에 빠진 선택 | 적용. D23(uv 환경)·D24(`data/imported` 우선)·D25(분류되지 않은 참조)·D26(이름 충돌)을 더하고 명시한 루트는 D13 | 15절 |
+| 검토 20 수준 1의 writer가 core를 쓸 수 없음 | 적용. `classify_refs`는 writer로, 이름 풀기와 결박은 `relations`, 옛 경로 추론은 `legacy_path=` 주입 | 3.2·4.5절, D22 |
+| 검토 21 깨진 바깥 링크를 복사하지 않고 커밋 | 적용. 사전 검사에서 거절하는 쪽을 권장하고 OQ12로 물음 | 6.2·6.6절, OQ12 |
+| 새 질문 A 깨진 바깥 링크 | OQ12로 더함(권장 답, 바뀌는 것) | 16절 |
+| 새 질문 B 읽기 명령의 uv 환경 동기화 | OQ13으로 더함(권장 답, 바뀌는 것, 결정 6의 해석이라는 점) | 4.3·7·16절 |
