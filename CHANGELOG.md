@@ -15,6 +15,26 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 없음. 병합된 변경은 그 PR이 병합될 때의 kit 번호 절에 적고, kit 번호를 올리는 PR은 새 절을 엽니다
 ([기여 가이드](CONTRIBUTING.md#첫-공개-전에-남은-운영-결정)).
 
+## [0.5.0] - 2026-10-07
+
+번호를 붙인 PR은 [#68]입니다.
+
+### Changed
+
+- 기록의 경로가 프로젝트 기준 상대 경로 하나로 정해집니다. 프로젝트 안의 디렉터리 링크·junction 아래 파일, 대소문자나 유니코드
+  정규화(NFC·NFD)가 다른 철자로 읽은 파일도 같은 경로로 기록되어 입력·출력·데이터셋·생산자 계보가 이어집니다. 철자는 파일 시스템에
+  저장된 이름이고, kit이 관리하는 `runs/`·`.venv/`·`.lab/`·`report/`만 저장된 대소문자와 관계없이 그 이름으로 적습니다
+  ([#68], [ADR-0006](docs/decisions/0006-common-record-contract.md) 9절).
+- 프로젝트 밖을 가리키는 링크는 경계로 보고 그 아래 파일을 링크의 경로로 기록합니다(`external: false`). run이 새로 만든 밖으로의
+  링크 아래 파일은 run 시작 뒤에 바뀐 것만 출력입니다 ([#68]).
+
+### Fixed
+
+- 링크한 `data/` 아래에 저장한 출력이 run에서 빠지던 것, junction인 `data/`의 입력이 생산자와 이어지지 않던 것, `runs/`를 가리키는
+  junction 아래 run 자신의 파일이 출력으로 기록되던 것, 대소문자만 다른 데이터셋 파일이 kit의 view 이름을 가져가던 것 ([#68]).
+
+0.5.0 전의 기록은 고쳐 쓰지 않고 그대로 읽습니다. 그 기록의 옛 경로를 새 경로로 잇는 일(추론으로 표시)은 #12의 셋째 PR이 합니다.
+
 ## [0.4.0] - 2026-10-06
 
 번호를 붙인 PR은 [#62]입니다. [#64]와 [#66]은 그 뒤 번호를 올리지 않고 병합됐습니다.
@@ -122,3 +142,4 @@ PR도 이 절입니다.
 [#62]: https://github.com/handochan/aelix-analytics/pull/62
 [#64]: https://github.com/handochan/aelix-analytics/pull/64
 [#66]: https://github.com/handochan/aelix-analytics/pull/66
+[#68]: https://github.com/handochan/aelix-analytics/pull/68
