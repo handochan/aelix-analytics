@@ -27,7 +27,7 @@ Aelix Analytics를 어떤 Python·운영체제·aelix·설치 경로에서 **실
 
 | 이름 | 무엇 | 검사한 코드 |
 |---|---|---|
-| CI-main | main push의 저장소 CI, [실행 37582037485](https://github.com/handochan/aelix-analytics/actions/runs/37582037485)(시도 1, 2026-10-07). `lint`와 `ubuntu-24.04`·`windows-2025`의 `platform`·`floor` 작업이 모두 성공했다 | `6c4c2cd`(#71의 병합). 그 뒤의 main `384a168`(#73)은 문서만 바꿨다 |
+| CI-main | main push의 저장소 CI, [실행 37582037485](https://github.com/handochan/aelix-analytics/actions/runs/37582037485)(시도 1, 2026-10-07). `lint`와 `ubuntu-24.04`·`windows-2025`의 `platform`·`floor` 작업이 모두 성공했다 | `6c4c2cd`(#71의 병합). 그 뒤 main의 `384a168`(#73)은 문서만 바꿨고, #24의 B5 준비는 wheel의 메타데이터(`Author`·`Maintainer`, README에서 오는 설명)와 그 시험을 바꿨다. 둘 다 `src/`·`extension/`·`bin/`의 코드는 바꾸지 않았다 |
 | R-42 | [줄 끝 측정 기록](verification/2026-10-06-issue-42-line-endings.md): Linux·Windows CI, `macos-26`의 라벨 실행([37411847760](https://github.com/handochan/aelix-analytics/actions/runs/37411847760)), macOS 개발 기기 | `d23ddb8`(PR #62의 head, kit 0.4.0) |
 | R-8w | [Windows 인벤토리 기록](verification/2026-10-02-issue-8-windows-inventory.md): 같은 세 플랫폼과 macOS 개발 기기의 3.13·3.14 | `4eb0955`(PR #35, kit 0.1.0) |
 
@@ -40,11 +40,14 @@ CI-main에서 확인한 것(이 실행의 artifact는 2027-01-05에 지워지므
 - 저장소 시험(배포본 end-to-end 포함, `AELIX_ANALYTICS_TEST_INSTALL=1`): Linux 1,305 통과·37 건너뜀, Windows 1,180 통과·170 건너뜀, 실패
   없음. 그 가운데 `tests/test_packaging.py`는 Linux에서 25개 모두, Windows에서 24개가 통과했고 1개(stand-in uv 스크립트를 쓰는 시험,
   Windows는 `.exe`만 시작함)를 건너뛰었다.
-- 평가 하네스의 시험(`tests/test_model_eval.py`, 저장소 시험 안): Linux 127개 통과, Windows 119개 통과·8개 건너뜀(POSIX 신호 등). 그
-  가운데 dry-run 시험은 uv로 aelix 0.1.0b2를 받아 `-e`로 체크아웃의 확장을 주고, 가짜 모델 서버로 과제 두 개를 끝까지 돌렸다.
+- 평가 하네스의 시험(저장소 시험 안): `tests/test_model_eval.py`는 Linux 56개 통과, Windows 48개 통과·8개 건너뜀(POSIX 신호 등),
+  `tests/test_model_eval_scoring.py`는 두 OS에서 71개 통과다(둘을 합쳐 Linux 127개 통과, Windows 119개 통과·8개 건너뜀). 그 가운데
+  `tests/test_model_eval.py`의 dry-run 시험은 uv로 aelix 0.1.0b2를 받아 `-e`로 체크아웃의 확장을 주고, 가짜 모델 서버로 과제 두 개를
+  끝까지 돌렸다.
 - aelix 0.1.0b2 통합(`tests/test_extension.py`·`tests/test_usage_report.py`): 두 OS에서 CPython 3.12·3.11 각각 151개 통과. 런처
-  시험(CPython 3.11): Linux 120 통과·1 건너뜀, Windows 62 통과·59 건너뜀(POSIX 전용 사례). 플랫폼 스모크와 stdlib만의 스모크(3.11)는
-  두 OS에서 위반 0이다(Windows의 선언된 한계는 [현재 계약 G](CONTRACTS.md#g-약속하지-않는-것)).
+  시험(`tests/test_launcher.py`, CPython 3.11): Linux 120 통과·1 건너뜀, Windows 62 통과·59 건너뜀(POSIX 전용 사례). 이 시험은 uv 대신
+  호출을 기록하는 stand-in을 써서 kit을 실행하지 않는다. 플랫폼 스모크와 stdlib만의 스모크(3.11)는 두 OS에서 위반 0이다(Windows의
+  선언된 한계는 [현재 계약 G](CONTRACTS.md#g-약속하지-않는-것)).
 
 ## 운영체제
 
@@ -86,7 +89,7 @@ CI-main에서 확인한 것(이 실행의 artifact는 2027-01-05에 지워지므
 | pip로 설치하고 제거(3.11) | `verified` | `verified` | `verified`(`d23ddb8`) | `test_pip_installs_and_uninstalls_the_wheel_without_leftovers` |
 | sdist 설치(3.12) | `verified` | `verified` | `verified`(`d23ddb8`) | `test_the_sdist_installs_the_same_package` |
 | 체크아웃의 symlink를 wheel 옆에 둠(README) | `verified` | `verified`(파일 링크, 관리자·Developer Mode) | `verified`(`d23ddb8`) | `test_a_checkout_symlink_beside_the_wheel_sets_up_one_copy` |
-| 체크아웃의 `bin/analytics` | `verified` | 지원하지 않음(POSIX 셸 스크립트, 설치본 `analytics`를 씀) | `verified`(`d23ddb8`) | `tests/test_launcher.py`의 동등성 시험 |
+| 체크아웃의 `bin/analytics` | `expected`: 인자·환경·작업 디렉터리·종료 코드의 계약만 stand-in uv로 확인했고, 실제 uv와 kit을 `bin/analytics`로 실행하지 않았다 | 지원하지 않음(POSIX 셸 스크립트, 설치본 `analytics`를 씀) | `expected`(같음, `d23ddb8`) | `tests/test_launcher.py`의 동등성 시험(stand-in uv), `tests/test_platform.py`의 `--help` |
 | 체크아웃의 확장 파일을 aelix에 줌(`aelix -e`) | `verified`(가짜 모델 서버의 비대화 실행) | `verified`(같음) | `expected`: 같은 파일을 aelix의 로더로 로드한 통합 시험만 인용할 수 있다(R-42) | `test_the_dry_run_goes_through_aelix_and_is_scored`, 위 'aelix' |
 | `aelix extension install <wheel>` | `not run` | `not run` | `not run` | README에만 있음 |
 | `uv tool install aelix==0.1.0b2 --with <wheel> --with-executables-from aelix-analytics` | `not run` | `not run` | `not run` | README에만 있음 |

@@ -2,7 +2,7 @@
 
 Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)를 따릅니다.
 
-**아직 어떤 버전도 게시하지 않았습니다.** 패키지 색인·태그·GitHub 릴리스가 없고, wheel은 체크아웃에서 빌드합니다
+**아직 어떤 버전도 게시하지 않았습니다.** 패키지 색인·버전 태그·GitHub 릴리스가 없고, wheel은 체크아웃에서 빌드합니다
 ([README](README.md#설치본wheel으로-쓰기)). 아래의 버전은 kit 버전(`KIT_VERSION`; `pyproject.toml`·manifest와 같음)이며, 새 프로젝트의
 `lab.json`과 run의 `env.kit_version`에 남는 값입니다.
 
@@ -73,13 +73,18 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 ## [0.1.0] - 2026-09-16
 
 첫 kit은 PR 없이 main에 들어갔습니다([`6dc010b`](https://github.com/handochan/aelix-analytics/commit/6dc010bada0823a60064f233f3b930a666d52682)).
-아래의 PR은 그 뒤 번호를 올리지 않고 병합됐습니다.
+그 뒤 PR 없이 들어간 commit([`fb06e8a`]·[`7b205cd`], 이름을 Aelix Analytics로 바꾼 [`21b6a3c`]까지)과, 번호를 올리지 않고 병합된 아래의
+PR도 이 절입니다.
 
 ### Added
 
 - 분석 프로젝트: `CONTEXT.md`와 그 버전, 시간순 기록(journal), run 기록(실행한 코드의 바이트, 입력·출력과 sha256, 차트와 그 데이터,
   환경), 프로젝트마다의 uv 환경, 차트에서 코드·데이터로 가는 정적 HTML 리포트. 사람용 `bin/lab`과 aelix 확장(`lab_*` 도구 여섯 개,
   `/lab`).
+- 모르는 버전의 기록을 읽지 않고 그 개수와 schema를 status와 리포트에 보입니다. 더 새 버전의 `lab.json`은 `project_too_new`로
+  거절합니다. pandas 습관이나 옮겨 간 Polars API로 실패한 run에는 대신 쓸 표현을 `error.hint`로 남깁니다 ([`fb06e8a`]).
+- `CONTEXT.md`를 `##` 섹션 단위로 맥락에 넣습니다. `<!-- 항상 -->`을 붙인 섹션과 앞에서부터 예산 안에 드는 섹션은 본문째,
+  나머지는 제목과 줄 범위만 넣습니다 ([`7b205cd`]).
 - Linux·macOS·Windows를 위한 이식 가능한 경계: 잠금, 기록 교체, 자식 프로세스, run의 제한 시간과 취소 ([#31]).
 - 배포본: wheel 하나, 모든 플랫폼의 사람용 `analytics`(Windows에서는 `analytics.exe`), aelix가 entry point로 찾는 설치본 확장 ([#33],
   [ADR-0004](docs/decisions/0004-minimal-distribution-and-entry-points.md)).
@@ -102,6 +107,9 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 [0.3.0]: https://github.com/handochan/aelix-analytics/commit/558efff58868967a38bd38de0920deff989b35fc
 [0.2.0]: https://github.com/handochan/aelix-analytics/commit/938d75449b9b2463a91a3bf1b84169ce3618847f
 [0.1.0]: https://github.com/handochan/aelix-analytics/commit/6dc010bada0823a60064f233f3b930a666d52682
+[`fb06e8a`]: https://github.com/handochan/aelix-analytics/commit/fb06e8ac4555c1769cd17d401a0180247b3dbcb3
+[`7b205cd`]: https://github.com/handochan/aelix-analytics/commit/7b205cd16738bc11de1d23e538c9423e7a55ea27
+[`21b6a3c`]: https://github.com/handochan/aelix-analytics/commit/21b6a3c5d98e688aa3642662c4eb4b9093a12247
 [#31]: https://github.com/handochan/aelix-analytics/pull/31
 [#33]: https://github.com/handochan/aelix-analytics/pull/33
 [#35]: https://github.com/handochan/aelix-analytics/pull/35

@@ -441,7 +441,7 @@ bin/analytics                 사람용 CLI (체크아웃, POSIX)
 ## 관리와 보안
 
 관리자(Maintainer): [@handochan](https://github.com/handochan).
-보안 취약점은 공개 Issue에 쓰지 말고 [보안 정책](SECURITY.md)의 방법으로 알려 주세요.
+보안 취약점은 공개 Issue에 쓰지 마세요. 알리는 방법과 범위는 [보안 정책](SECURITY.md)에 있습니다.
 
 ## 라이선스
 

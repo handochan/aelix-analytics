@@ -73,8 +73,9 @@ S/M fixture의 `display_safety` 사례가 입력을 준다. 측정은 그 fixtur
 Q1의 문서 가운데 다음은 B5 준비([#24](https://github.com/handochan/aelix-analytics/issues/24), 2026-10-07)로 더했다: 관리자 표기(README와
 `pyproject.toml`의 `authors`·`maintainers`에 GitHub 핸들 `handochan`만, 이메일 없음), 비공개 신고를 안내하는 [보안 정책](../SECURITY.md),
 kit 버전별 [변경 이력](../CHANGELOG.md), 칸마다 증거를 단 [지원 범위](SUPPORT.md)의 골격. 라이선스 Apache-2.0은 이미 정했다.
-문서가 있다는 것은 Q1의 통과가 아니다. 남은 것은 출시 후보 artifact의 wheel·sdist·manifest·assets 설치·제거·업그레이드 확인,
-그 artifact로 다시 채운 최종 지원표, 저장소를 공개할 때 GitHub의 비공개 취약점 신고를 켜는 일이다. Q1의 판정은 B6의 결과표가 한다.
+문서가 있다는 것은 Q1의 통과가 아니다. 남은 것은 배포 이름과 릴리스 절차, 보안 정책에서 아직 정하지 않은 것(보안 수정을 받는
+버전, 신고의 처리 절차, 공지), 출시 후보 artifact의 wheel·sdist·manifest·assets 설치·제거·업그레이드 확인, 그 artifact로 다시 채운
+최종 지원표, 저장소를 공개할 때 GitHub의 비공개 취약점 신고를 켜는 일이다. Q1의 판정은 B6의 결과표가 한다.
 
 ### 아키텍처 경계의 검증
 
