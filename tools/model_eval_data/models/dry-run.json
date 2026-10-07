@@ -1,0 +1,33 @@
+{
+  "schema": "aelix-analytics.model-eval-model/1",
+  "id": "dry-run",
+  "role": "dry_run",
+  "what": "A scripted fake OpenAI-compatible server the harness runs in its own process: the real aelix, extension and kit talk to it, so the whole pipeline runs without a model. Its usage numbers are fixed by the script and are not token measurements.",
+  "provider": "aelix-eval-fake",
+  "model": "scripted",
+  "api": "openai-completions",
+  "thinking": "off",
+  "api_key_env": null,
+  "aelix_provider": {
+    "baseUrl": "http://127.0.0.1:{port}/v1",
+    "apiKey": "dry-run-no-key",
+    "api": "openai-completions",
+    "compat": {"supportsDeveloperRole": false, "supportsStore": false, "maxTokensField": "max_tokens", "supportsStrictMode": false},
+    "models": [
+      {"id": "scripted", "name": "Scripted fake model", "reasoning": false, "input": ["text"],
+       "contextWindow": 131072, "maxTokens": 4096,
+       "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0}}
+    ]
+  },
+  "serving": {
+    "backend": "fake",
+    "backend_version": "tools/model_eval.py",
+    "endpoint": "in-process http.server on 127.0.0.1 (a free port)",
+    "model_tag": "scripted",
+    "quantization": "none",
+    "tokenizer": "none: usage numbers are scripted",
+    "context_window": 131072,
+    "output_reservation": 4096,
+    "usage": "scripted: each step's usage, or prompt_tokens 1000 + 500 k, cached 1000 + 500 (k - 1) for k > 0, completion 40"
+  }
+}

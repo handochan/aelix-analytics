@@ -104,8 +104,12 @@ COUNTERS = {
         "add_special_tokens": False,
     },
 }
-# The frontier model of docs/BETA-QUALITY-GATES.md section 2: none is pinned (design section 16).
+# The frontier model of docs/BETA-QUALITY-GATES.md section 2, pinned by Issue #40
+# (tools/model_eval_data/models/gpt-5.6-sol.json: GPT-5.6 Sol through aelix's openai-codex provider).
+# OpenAI publishes no tokenizer for it, so no text here is counted for it: its tokens come from the
+# backend's usage in tools/model_eval.py runs.
 FRONTIER = "frontier"
+FRONTIER_MODEL = "openai-codex:gpt-5.6-sol"
 
 # docs/DESIGN-CONTINUITY-AND-REUSE.md:229-246. Token usage targets are measurement targets: they are
 # compared and reported, never used to fail, refuse or cut (docs/BETA-QUALITY-GATES.md:36).
@@ -113,8 +117,9 @@ TARGETS = [
     {"id": "automatic_start_summary", "surface": "S1", "tokens": {"general": 512, "reduced": 256},
      "utf8_bytes": 1536},
     {"id": "always_on_input", "surface": "S1+S2+S3", "tokens": {"general": 2048},
-     "note": "min(2,048 tokens, 15% of the context window): the context window is not pinned, so "
-             "only 2,048 tokens are compared; the document gives no bytes target"},
+     "note": "min(2,048 tokens, 15% of the context window): 15% of each pinned window (Qwen 131,072, "
+             "gpt-5.6-sol 1,050,000 tokens; Issue #40) is larger, so 2,048 tokens is compared; the "
+             "document gives no bytes target"},
     {"id": "explicit_detail_page", "surface": "follow-up read",
      "tokens": {"general": 2048, "reduced": 1536}},
     {"id": "general_query", "surface": "S4", "utf8_bytes": 3072,
@@ -130,7 +135,10 @@ TARGETS = [
 NOT_RUN = [
     {"what": "real model task cost: cached and uncached input, output tokens, latency, 12 tasks x "
              "model x 3", "reason": "needs real model runs", "where": "#24 (B5/B6), #40"},
-    {"what": "frontier model tokens", "reason": "model_not_pinned", "where": "design section 16"},
+    {"what": "frontier model tokens", "reason": "no offline counter: the backend's usage counts them "
+                                                 "in tools/model_eval.py runs, which need the owner's "
+                                                 "aelix login (openai-codex)",
+     "where": "#40, #24"},
     {"what": "image tokens", "reason": "vision_tokens: no offline counter", "where": "#24"},
     {"what": "chat-template framing tokens (the fixed text the pinned Qwen template adds around "
              "the tools)", "reason": "out of scope: only the payload's own strings are counted",
@@ -308,7 +316,7 @@ class Counters:
 
     def count(self, text: str) -> dict:
         tokens = {c.id: c.count(text) for c in self.all}
-        tokens[FRONTIER] = not_measured("model_not_pinned")
+        tokens[FRONTIER] = not_measured("no_offline_counter")
         return tokens
 
     def images(self) -> dict:
@@ -317,10 +325,11 @@ class Counters:
 
     def describe(self) -> list[dict]:
         return [c.describe() for c in self.all] + [
-            {"id": FRONTIER, "model": None,
-             "state": not_measured("model_not_pinned"),
-             "note": "docs/BETA-QUALITY-GATES.md section 2 names one frontier model; it is not "
-                     "pinned yet"}]
+            {"id": FRONTIER, "model": FRONTIER_MODEL,
+             "state": not_measured("no_offline_counter"),
+             "note": "pinned in tools/model_eval_data/models/gpt-5.6-sol.json (Issue #40); OpenAI "
+                     "publishes no tokenizer for it, so only the backend's usage counts it "
+                     "(tools/model_eval.py)"}]
 
     def failed(self) -> bool:
         return any(c.state.get("status") == "failed" for c in self.all)
@@ -2845,7 +2854,8 @@ def compare_targets(ctx: Ctx, always: list[dict]) -> list[dict]:
         out.append({"target": "always_on_input", "fixture": a["fixture"], "surface": "S1+S2+S3",
                     "tokens": {cid: compare(v, {"general": 2048})
                                for cid, v in a["tokens_concatenated"].items()},
-                    "context_window_share": "not compared: the context window is not pinned"})
+                    "context_window_share": "not compared: 2,048 tokens is below 15% of each pinned "
+                                            "window (131,072 and 1,050,000 tokens, Issue #40)"})
     pages = []
     for fact in ctx.facts:
         for s in fact.get("route", []):

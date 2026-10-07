@@ -1,0 +1,153 @@
+{
+  "schema": "aelix-analytics.model-eval-answer/1",
+  "task": "T01",
+  "status": "draft",
+  "author": "Claude Code (agent) from the seed-0 fixtures of tools/eval_fixtures.py, 2026-10-07; to be confirmed by the owner (Issue #40 decision 2026-10-07)",
+  "confirmed_by": null,
+  "fixture": {
+    "kind": "scale",
+    "scale": "S",
+    "seed": 0,
+    "generator_version": 1
+  },
+  "correct_completion": "목표는 CONTEXT.md의 고정 섹션 '목표'의 '지역·채널·센서별 지표의 변화를 설명하고 다음 분기 계획의 근거를 남긴다'. 핵심 질문은 '온라인 비중의 증가는 모든 지역에서 같은 속도인가?'와 '센서 이상 후보는 장비 문제인가, 측정 방식의 변화인가?'. 다음 할 일은 '같은 기간끼리 비교하는 기준을 정한다'. 아직 열린 질문·할 일은 journal에서 해결 기록이 없는 question·todo (질문 15개: e51 e70 e71 e85 e87 e95 e122 e128 e133 e136 e161 e169 e202 e234 e259, 할 일 13개: e52 e78 e96 e108 e180 e182 e204 e216 e217 e227 e264 e272 e293) 가운데 적어도 셋을 ID와 함께 든다. 닫힌 질문(e20 e21 e33 e50 e56 — e56은 e139가 답함)과 끝난 할 일(e11 e43)을 열린 것으로 말하지 않는다. 맥락 블록과 상태 화면은 최근 12개만 보여 주므로 전체 목록이 필요하면 journal을 읽어야 한다는 점을 밝히면 좋다.",
+  "evidence_ids": [
+    "e51",
+    "e70",
+    "e71",
+    "e85",
+    "e87",
+    "e95",
+    "e122",
+    "e128",
+    "e133",
+    "e136",
+    "e161",
+    "e169",
+    "e202",
+    "e234",
+    "e259",
+    "e52",
+    "e78",
+    "e96",
+    "e108",
+    "e180",
+    "e182",
+    "e204",
+    "e216",
+    "e217",
+    "e227",
+    "e264",
+    "e272",
+    "e293"
+  ],
+  "checks": [
+    {
+      "id": "goal",
+      "kind": "fact",
+      "type": "text_any",
+      "values": [
+        "다음 분기 계획",
+        "next quarter"
+      ],
+      "what": "목표(고정 섹션)"
+    },
+    {
+      "id": "question-online",
+      "kind": "fact",
+      "type": "text_any",
+      "values": [
+        "온라인 비중",
+        "온라인 채널 비중",
+        "online share"
+      ],
+      "what": "핵심 질문 1"
+    },
+    {
+      "id": "question-sensor",
+      "kind": "fact",
+      "type": "text_any",
+      "values": [
+        "센서 이상",
+        "측정 방식",
+        "sensor anomal"
+      ],
+      "what": "핵심 질문 2"
+    },
+    {
+      "id": "next-step",
+      "kind": "fact",
+      "type": "text_any",
+      "values": [
+        "같은 기간끼리 비교하는 기준",
+        "같은 기간끼리 비교",
+        "같은 기간 비교",
+        "same period"
+      ],
+      "what": "다음 할 일(고정 섹션)"
+    },
+    {
+      "id": "open-ids",
+      "kind": "evidence",
+      "type": "ids_any",
+      "values": [
+        "e51",
+        "e70",
+        "e71",
+        "e85",
+        "e87",
+        "e95",
+        "e122",
+        "e128",
+        "e133",
+        "e136",
+        "e161",
+        "e169",
+        "e202",
+        "e234",
+        "e259",
+        "e52",
+        "e78",
+        "e96",
+        "e108",
+        "e180",
+        "e182",
+        "e204",
+        "e216",
+        "e217",
+        "e227",
+        "e264",
+        "e272",
+        "e293"
+      ],
+      "min": 3,
+      "what": "열린 질문·할 일의 ID 3개 이상"
+    },
+    {
+      "id": "closed-as-open",
+      "kind": "critical",
+      "type": "stated_as_current",
+      "patterns": [
+        "e20",
+        "e21",
+        "e33",
+        "e50",
+        "e56",
+        "e11",
+        "e43"
+      ],
+      "pattern_kind": "ids",
+      "unless": "@resolved",
+      "what": "이미 답이 나온 질문·끝난 할 일을 열린 것으로 말함(같은 문장에 부정되지 않은 해결 낱말이나 그것을 닫은 기록 ID가 없으면 발생, 언급하면 언제나 needs_review)",
+      "resolved_by": {
+        "e11": "e55",
+        "e20": "e103",
+        "e21": "e152",
+        "e33": "e201",
+        "e43": "e246",
+        "e50": "e294",
+        "e56": "e139"
+      }
+    }
+  ]
+}

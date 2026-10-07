@@ -41,7 +41,7 @@ def tool_module():
 usage = tool_module()
 
 # What a token value may say when no tokenizer is given.
-WITHOUT_A_TOKENIZER = {"no_tokenizer_given", "model_not_pinned", "vision_tokens"}
+WITHOUT_A_TOKENIZER = {"no_tokenizer_given", "no_offline_counter", "vision_tokens"}
 
 
 def isolate(monkeypatch, directory: Path) -> None:

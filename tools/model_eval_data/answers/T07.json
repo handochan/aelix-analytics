@@ -1,0 +1,95 @@
+{
+  "schema": "aelix-analytics.model-eval-answer/1",
+  "task": "T07",
+  "status": "draft",
+  "author": "Claude Code (agent) from the seed-0 fixtures of tools/eval_fixtures.py, 2026-10-07; to be confirmed by the owner (Issue #40 decision 2026-10-07)",
+  "confirmed_by": null,
+  "fixture": {
+    "kind": "q10",
+    "seed": 0,
+    "generator_version": 1
+  },
+  "correct_completion": "맞는 값은 11.8%다: 주문으로 이어진 세션 688 ÷ 8월 세션 5,838(e18, run 20260921-105400-denominator-sound). e16의 46.8%는 분모를 세션이 아니라 8월에 방문한 고객 수(1,471)로 나눠 부풀었다(run 20260921-104700-denominator-flawed). 지표는 그대로이고 분모 정의를 바로잡는 정정이지 새 지표가 아니다. 판단을 새 기록(발견·결정 등, e16을 가리키면 좋음)으로 남긴다.",
+  "evidence_ids": [
+    "e16",
+    "e18",
+    "20260921-104700-denominator-flawed",
+    "20260921-105400-denominator-sound"
+  ],
+  "checks": [
+    {
+      "id": "rate",
+      "kind": "fact",
+      "type": "percent",
+      "value": 0.117849,
+      "abs_tol_pp": 0.1,
+      "what": "11.8%"
+    },
+    {
+      "id": "denominator",
+      "kind": "fact",
+      "type": "text_any",
+      "values": [
+        "분모",
+        "고객 수",
+        "고객수",
+        "denominator",
+        "customer"
+      ],
+      "what": "46.8%의 원인: 분모"
+    },
+    {
+      "id": "correction-not-new",
+      "kind": "fact",
+      "type": "text_any",
+      "values": [
+        "정정",
+        "바로잡",
+        "수정",
+        "correction",
+        "corrected"
+      ],
+      "required": false,
+      "what": "정의 정정(새 지표 아님)"
+    },
+    {
+      "id": "cites",
+      "kind": "evidence",
+      "type": "ids_all",
+      "values": [
+        "e16",
+        "e18"
+      ],
+      "what": "두 기록"
+    },
+    {
+      "id": "recorded",
+      "kind": "state",
+      "type": "new_records",
+      "min": 1,
+      "text_any": [
+        "11.8",
+        "11.78"
+      ],
+      "what": "판단을 기록함(11.8% 또는 그 비율 0.118…)",
+      "percent": {
+        "value": 0.117849,
+        "abs_tol_pp": 0.1
+      }
+    },
+    {
+      "id": "wrong-rate",
+      "kind": "critical",
+      "type": "stated_as_current",
+      "patterns": [
+        "46\\.8\\s*%"
+      ],
+      "unless": "@superseded_or_reason",
+      "reason_words": [
+        "분모",
+        "고객"
+      ],
+      "what": "46.8%를 맞는 값으로"
+    }
+  ]
+}

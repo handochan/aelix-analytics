@@ -1,0 +1,46 @@
+{
+  "schema": "aelix-analytics.model-eval-conditions/1",
+  "surfaces": {
+    "default": {
+      "what": "what a user gets with aelix -e: the host's whole default list and the extension's six. aelix 0.1.0b2 in --mode json offers 14 tools (dry run, 2026-10-07): aelix_status, the six, read, bash, edit, write, grep, find, ls — similar tools that do not belong (aelix_status, grep, find, ls next to status and query) included",
+      "tools": null,
+      "extension": "extension/aelix_analytics.py"
+    },
+    "coding": {
+      "what": "aelix's coding tools and the extension's six: no aelix_status, grep, find or ls",
+      "tools": ["read", "bash", "edit", "write", "@extension"],
+      "extension": "extension/aelix_analytics.py"
+    },
+    "analytics_read": {
+      "what": "read and the extension's six: no bash, so no way around the analytics tools",
+      "tools": ["read", "@extension"],
+      "extension": "extension/aelix_analytics.py"
+    }
+  },
+  "proposals": {
+    "unrequested": {
+      "what": "on_demand, not requested: the task's requests only; no proposal search, notice or extra model tokens is expected (docs/SKILL-PROPOSAL-POLICY.md)",
+      "append_request": null
+    },
+    "requested": {
+      "what": "on_demand, requested: one more request at the end asks for reuse candidates",
+      "append_request": "이번 작업에서 다음에도 다시 쓸 만한 방법(스크립트·절차)이 있으면 근거(run·기록 ID)와 함께 제안해 줘. 적합한 것이 없으면 없다고 말해 줘.",
+      "check": {"id": "proposal-answered", "kind": "behavior", "type": "text_any", "scope": "last_turn",
+                "values": ["재사용", "다시 쓸", "다시 사용", "제안", "후보", "없습니다", "없다", "reuse", "propos", "candidate"],
+                "what": "제안 요청에 답함(후보 또는 없음)"}
+    },
+    "always_on": {
+      "what": "always_on: needs the project's proposal mode setting, which kit 0.4.0 does not have",
+      "requires": "proposal_mode",
+      "not_run_reason": "kit has no proposal mode setting yet (Issue #17, ADR-0008); always_on cannot be configured"
+    }
+  },
+  "word_sets_note": "Phrases the scorer reads (tools/model_eval.py): an ASCII phrase does not start inside a word; a verdict phrase is a whole word, the longest one wins, a negated one turns supported into false and back; resolved and superseded words do not count where negated (미해결, 해결되지 않은, not resolved).",
+  "word_sets": {
+    "superseded": ["정정", "대체", "이전", "앞선", "초기", "예전", "옛", "틀", "잘못", "오류", "아니", "않", "대신", "철회", "폐기", "취소", "무효", "부정확", "과대", "부풀", "더 이상", "유효하지 않", "replaced", "superseded", "corrected", "withdrawn", "wrong", "incorrect", "not ", "instead", "previous", "earlier", "invalid", "misleading", "error", "no longer", "outdated", "obsolete", "stale", "오판", "misjudg"],
+    "resolved": ["해결됐", "해결되었", "해결된", "해결됨", "해결했", "해결한", "해결되어", "해결돼", "해결 완료", "닫혔", "닫힌", "닫았", "닫은", "닫음", "닫혀", "답이 나왔", "답이 나온", "답했", "답한", "답변했", "답변된", "답변됨", "답을 얻", "답을 찾았", "완료됐", "완료되었", "완료된", "완료됨", "완료했", "완료한", "완료돼", "끝났", "끝난", "끝냈", "끝낸", "마쳤", "마친", "제외", "뺐", "빼고", "뺀", "빠졌", "열린 것이 아니", "열린 질문이 아니", "열려 있지 않", "resolved", "closed", "answered", "done", "completed", "finished", "excluded", "not open", "no longer open"],
+    "verdict_supported": ["뒷받침된다", "뒷받침됩니다", "뒷받침됨", "뒷받침함", "뒷받침 됨", "뒷받침한다", "뒷받침합니다", "뒷받침", "지지된다", "지지됩니다", "지지됨", "맞다", "맞습니다", "맞음", "옳다", "옳습니다", "사실이다", "사실입니다", "사실임", "일치한다", "일치합니다", "일치함", "타당", "틀리지 않", "supported", "correct", "true", "confirmed", "consistent"],
+    "verdict_false": ["틀렸", "틀린", "틀림", "틀리다", "틀립니다", "거짓", "사실이 아니", "사실과 다르", "맞지 않", "옳지 않", "반박", "뒷받침되지 않", "뒷받침하지 않", "뒷받침 안 되", "뒷받침이 안 되", "뒷받침되지 못", "지지되지 않", "일치하지 않", "모순", "부정확", "false", "incorrect", "not supported", "unsupported", "contradicted", "contradicts", "refuted", "wrong", "does not hold", "doesn't hold", "not true", "untrue", "inconsistent", "not correct"],
+    "verdict_unverified": ["판단할 수 없", "판단할 수는 없", "판단 불가", "판단 보류", "판정할 수 없", "판정 불가", "확인할 수 없", "확인 불가", "검증되지 않", "검증할 수 없", "검증 불가", "미검증", "불확실", "근거가 부족", "근거 부족", "알 수 없", "보류", "단정할 수 없", "결론 내릴 수 없", "결론을 내릴 수 없", "unverified", "unverifiable", "cannot be verified", "can't be verified", "cannot be determined", "can't be determined", "cannot be confirmed", "can't be confirmed", "cannot tell", "can't tell", "not verifiable", "undetermined", "inconclusive", "insufficient", "unknown", "undecidable"]
+  }
+}

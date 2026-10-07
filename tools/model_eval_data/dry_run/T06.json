@@ -1,0 +1,10 @@
+{
+  "schema": "aelix-analytics.model-eval-script/1",
+  "task": "T06",
+  "what": "A reference path for T06: one call with a missing argument (an argument error the record counts), the query, the answer. Tools are named by role (@query) so the script serves both generations of names.",
+  "steps": [
+    {"tool_calls": [{"tool": "@query", "arguments": {}}]},
+    {"tool_calls": [{"tool": "@query", "arguments": {"sql": "SELECT count(*) AS sessions FROM sessions WHERE 세션일 BETWEEN DATE '2026-08-01' AND DATE '2026-08-31'"}}]},
+    {"text": "There are 5,838 sessions in August 2026 (2026-08-01 to 2026-08-31)."}
+  ]
+}

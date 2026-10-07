@@ -1,0 +1,32 @@
+{
+  "schema": "aelix-analytics.model-eval-answer/1",
+  "task": "T06",
+  "status": "draft",
+  "author": "Claude Code (agent) from the seed-0 fixtures of tools/eval_fixtures.py, 2026-10-07; to be confirmed by the owner (Issue #40 decision 2026-10-07)",
+  "confirmed_by": null,
+  "fixture": {
+    "kind": "q10",
+    "seed": 0,
+    "generator_version": 1
+  },
+  "correct_completion": "There are 5,838 sessions in August 2026 (sessions with 세션일 from 2026-08-01 to 2026-08-31). One query answers it.",
+  "evidence_ids": [],
+  "checks": [
+    {
+      "id": "count",
+      "kind": "fact",
+      "type": "number",
+      "value": 5838,
+      "abs_tol": 0,
+      "what": "5,838"
+    },
+    {
+      "id": "queried",
+      "kind": "behavior",
+      "type": "tool_called",
+      "role": "query",
+      "min": 1,
+      "what": "데이터를 질의함"
+    }
+  ]
+}

@@ -1,0 +1,186 @@
+{
+  "schema": "aelix-analytics.model-eval-answer/1",
+  "task": "T09",
+  "status": "draft",
+  "author": "Claude Code (agent) from the seed-0 fixtures of tools/eval_fixtures.py, 2026-10-07; to be confirmed by the owner (Issue #40 decision 2026-10-07)",
+  "confirmed_by": null,
+  "fixture": {
+    "kind": "q10",
+    "seed": 0,
+    "generator_version": 1
+  },
+  "correct_completion": "서울 지역 주문 금액 합계(8월 1일–9월 20일)는 32,586,900원(e10, run 20260921-102600-aggregation-key-sound). e8의 68,551,800원은 주문을 주문 품목과 결합한 뒤(1,246행 → 2,715행) 주문 금액을 더해 한 주문의 금액이 품목 수만큼 더해진 값이다(run 20260921-101900-aggregation-key-flawed). 8월 전체 매출(온라인+매장)은 445,969,600원(e14, run 20260921-104000-unit-sound). e12의 86,856,073원은 천원 단위의 매장 매출(매출_천원 359,473)을 원으로 바꾸지 않고 더한 값이다(run 20260921-103300-unit-flawed).",
+  "evidence_ids": [
+    "e8",
+    "e10",
+    "e12",
+    "e14",
+    "20260921-101900-aggregation-key-flawed",
+    "20260921-102600-aggregation-key-sound",
+    "20260921-103300-unit-flawed",
+    "20260921-104000-unit-sound"
+  ],
+  "checks": [
+    {
+      "id": "seoul",
+      "kind": "fact",
+      "type": "number_near",
+      "value": 32586900,
+      "abs_tol": 0,
+      "words": [
+        "서울",
+        "Seoul"
+      ],
+      "against": [
+        "8월 전체",
+        "8월의 전체",
+        "8월 매출",
+        "8월의 매출",
+        "8월 총",
+        "전체 매출",
+        "총매출",
+        "총 매출",
+        "온라인+매장",
+        "온라인 + 매장",
+        "온라인과 매장",
+        "온라인·매장",
+        "온라인 및 매장",
+        "August revenue",
+        "August sales",
+        "August total",
+        "total revenue",
+        "total sales",
+        "online and store",
+        "online + store",
+        "online+store"
+      ],
+      "scope": "paragraph",
+      "what": "서울 32,586,900원(서울을 말하는 자리에서)"
+    },
+    {
+      "id": "august",
+      "kind": "fact",
+      "type": "number_near",
+      "value": 445969600,
+      "abs_tol": 0,
+      "words": [
+        "8월 전체",
+        "8월의 전체",
+        "8월 매출",
+        "8월의 매출",
+        "8월 총",
+        "전체 매출",
+        "총매출",
+        "총 매출",
+        "온라인+매장",
+        "온라인 + 매장",
+        "온라인과 매장",
+        "온라인·매장",
+        "온라인 및 매장",
+        "August revenue",
+        "August sales",
+        "August total",
+        "total revenue",
+        "total sales",
+        "online and store",
+        "online + store",
+        "online+store"
+      ],
+      "against": [
+        "서울",
+        "Seoul"
+      ],
+      "scope": "paragraph",
+      "what": "8월 전체 매출 445,969,600원(8월 전체 매출을 말하는 자리에서)"
+    },
+    {
+      "id": "join-reason",
+      "kind": "fact",
+      "type": "text_any",
+      "values": [
+        "품목",
+        "결합",
+        "조인",
+        "join",
+        "중복",
+        "행이 늘",
+        "fan-out",
+        "fan out"
+      ],
+      "what": "68,551,800의 원인"
+    },
+    {
+      "id": "unit-reason",
+      "kind": "fact",
+      "type": "text_any",
+      "values": [
+        "천원",
+        "천 원",
+        "단위",
+        "unit",
+        "1,000배",
+        "1000배",
+        "×1,000",
+        "x1000"
+      ],
+      "what": "86,856,073의 원인"
+    },
+    {
+      "id": "cites-seoul",
+      "kind": "evidence",
+      "type": "ids_any",
+      "values": [
+        "e10",
+        "20260921-102600-aggregation-key-sound"
+      ],
+      "min": 1,
+      "what": "서울 값의 근거"
+    },
+    {
+      "id": "cites-august",
+      "kind": "evidence",
+      "type": "ids_any",
+      "values": [
+        "e14",
+        "20260921-104000-unit-sound"
+      ],
+      "min": 1,
+      "what": "8월 값의 근거"
+    },
+    {
+      "id": "join-as-current",
+      "kind": "critical",
+      "type": "stated_as_current",
+      "patterns": [
+        "68,551,800",
+        "68551800"
+      ],
+      "unless": "@superseded_or_reason",
+      "reason_words": [
+        "품목",
+        "결합",
+        "조인",
+        "중복",
+        "join"
+      ],
+      "what": "68,551,800원을 맞는 값으로"
+    },
+    {
+      "id": "unit-as-current",
+      "kind": "critical",
+      "type": "stated_as_current",
+      "patterns": [
+        "86,856,073",
+        "86856073"
+      ],
+      "unless": "@superseded_or_reason",
+      "reason_words": [
+        "천원",
+        "천 원",
+        "단위",
+        "unit"
+      ],
+      "what": "86,856,073원을 맞는 값으로"
+    }
+  ]
+}

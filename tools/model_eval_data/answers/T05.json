@@ -1,0 +1,162 @@
+{
+  "schema": "aelix-analytics.model-eval-answer/1",
+  "task": "T05",
+  "status": "draft",
+  "author": "Claude Code (agent) from the seed-0 fixtures of tools/eval_fixtures.py, 2026-10-07; to be confirmed by the owner (Issue #40 decision 2026-10-07)",
+  "confirmed_by": null,
+  "fixture": {
+    "kind": "scale",
+    "scale": "S",
+    "seed": 0,
+    "generator_version": 1
+  },
+  "correct_completion": "같지 않다. data/derived/case_overwritten.parquet의 지금 바이트(sha256 5837ec54…)는 뒤의 run 20260804-032539-case-overwritten이 다시 쓴 것이다(그 run의 출력 관측은 modified, 지금 바이트는 그 run의 출력과 같음). 첫 run 20260803-191107-case-overwritten이 쓴 원래 표는 그 경로에는 남아 있지 않지만, 그 run의 차트 데이터 runs/20260803-191107-case-overwritten/charts/overwritten.data.parquet에 같은 바이트로 남아 있어(sha256 dd52dc15…, 첫 run이 기록한 출력의 sha256과 같음) 지금도 볼 수 있다.",
+  "evidence_ids": [
+    "20260803-191107-case-overwritten",
+    "20260804-032539-case-overwritten",
+    "data/derived/case_overwritten.parquet",
+    "runs/20260803-191107-case-overwritten/charts/overwritten.data.parquet"
+  ],
+  "checks": [
+    {
+      "id": "changed",
+      "kind": "fact",
+      "type": "text_any",
+      "negation": true,
+      "values": [
+        "덮어썼",
+        "덮어쓴",
+        "덮어써",
+        "덮어씀",
+        "덮어쓰",
+        "다시 썼",
+        "다시 쓴",
+        "다른 바이트",
+        "바뀌었",
+        "바뀐",
+        "바뀜",
+        "달라졌",
+        "달라",
+        "다릅니다",
+        "다르다",
+        "다르고",
+        "같지 않",
+        "overwrote",
+        "overwritten by",
+        "rewrote",
+        "rewritten",
+        "changed",
+        "differs",
+        "different",
+        "not the same"
+      ],
+      "what": "지금 내용이 다름(run id·파일 이름의 낱말은 세지 않음)"
+    },
+    {
+      "id": "cites",
+      "kind": "evidence",
+      "type": "ids_all",
+      "values": [
+        "20260803-191107-case-overwritten",
+        "20260804-032539-case-overwritten"
+      ],
+      "what": "두 run"
+    },
+    {
+      "id": "preserved",
+      "kind": "fact",
+      "type": "text_any",
+      "values": [
+        "차트 데이터",
+        "차트의 데이터",
+        "차트용 데이터",
+        "chart data",
+        "chart's data",
+        "overwritten.data.parquet",
+        "data.parquet",
+        "charts/overwritten"
+      ],
+      "what": "첫 run의 원래 표가 그 run의 차트 데이터로 남아 있음"
+    },
+    {
+      "id": "unchanged-claim",
+      "kind": "critical",
+      "type": "stated_as_current",
+      "patterns": [
+        "같습니다",
+        "같다",
+        "같음",
+        "그대로입니다",
+        "그대로이다",
+        "그대로다",
+        "그대로 남아 있",
+        "내용과 같",
+        "변하지 않았",
+        "바뀌지 않았",
+        "달라지지 않았",
+        "unchanged",
+        "the same",
+        "identical",
+        "has not changed",
+        "hasn't changed"
+      ],
+      "unless": [
+        "차트",
+        "chart",
+        "data.parquet",
+        "032539",
+        "두 번째",
+        "second run",
+        "뒤의 run",
+        "later run",
+        "덮어",
+        "overwrote",
+        "overwritten by",
+        "다시 썼",
+        "다시 쓴",
+        "rewr",
+        "sha256",
+        "보존",
+        "preserv"
+      ],
+      "what": "덮어쓴 표를 그대로라고 말함(차트 데이터·뒤의 run을 말하는 문장은 제외)"
+    },
+    {
+      "id": "lost-claim",
+      "kind": "critical",
+      "type": "stated_as_current",
+      "patterns": [
+        "보존되지 않",
+        "보존돼 있지 않",
+        "남아 있지 않",
+        "볼 수 없",
+        "복원할 수 없",
+        "사라졌",
+        "not preserved",
+        "no longer available",
+        "cannot be seen",
+        "can't be seen",
+        "cannot be viewed",
+        "is lost",
+        "was lost",
+        "unrecoverable",
+        "sha256만",
+        "해시만",
+        "only the sha256",
+        "only its hash",
+        "only the hash"
+      ],
+      "unless": [
+        "data/derived",
+        "derived/",
+        "경로",
+        "path",
+        "차트",
+        "chart",
+        "data.parquet",
+        "032539"
+      ],
+      "what": "원래 표를 볼 수 없다고 말함(그 경로에서의 일이나 차트 데이터를 말하는 문장은 제외)"
+    }
+  ]
+}
