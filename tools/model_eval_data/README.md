@@ -76,8 +76,10 @@ uv run --locked python tools/model_eval.py scan <dir>                         # 
 로그인 쓰기가 진행 중이면 그것이 끝날 때까지 종료를 미룬다(갱신 응답과 파일 쓰기 사이에 죽으면 소유자의 파일에 이미 쓴 갱신 토큰이
 남기 때문). `kill -9`처럼 잡을 수 없는 종료에 대비해 run 기록은 aelix를 띄우기 전부터 디스크에 있다(`provisional`, `secret_scan:
 not_scanned`, 작업 루트 경로 포함). 로그인을 쓰는 모델은 런처가 하네스와 파이프(lifeline)로 이어져 하네스가 사라지면 모델이 띄운
-명령과 aelix를 멈춘다(POSIX). 그런 run은 `summary`에 `not_scanned`로 남고(종료 코드 1, `score`는 읽지 않음), `scan OUT`이 남은
-프로세스를 멈추고 작업 루트를 옮겨 검사한다.
+명령과 aelix를 멈추고, 그 명령이 끝나기를 10초까지 기다린 뒤 run을 로그인의 정확한 값으로 스스로 가린다(POSIX, 아래 비밀 검사).
+그런 run은 `summary`에 `not_scanned`로 남고(종료 코드 1, `score`는 읽지 않음), `scan OUT`이 남은 프로세스를 멈추고 작업 루트를 옮겨
+검사한다(런처의 가림은 보고되지 않으므로 `exact_not_run`으로 실패). 시간 초과·멈춤에서 SIGTERM을 받은 런처는 aelix를 거기서 멈추고
+(갱신 중이면 그 뒤에) 하네스가 run을 정리할 때까지 기다렸다가 가린다(`stop.launcher_waiting`).
 
 ### 조건
 
@@ -174,10 +176,38 @@ run 밖에도 이름이 있는 파일(하드 링크: 링크 수가 run 안의 �
 `outside_links`·`hard_links`(지운 링크), `unreadable`(읽지 못한 디렉터리·파일: 찾지 않은 것은 통과가 아님), `writers_left`·
 `processes_unchecked`(aelix가 끝난 뒤 작업 루트에 쓸 수 있는 프로세스가 남았거나 확인하지 못함), `written_after_scan`(검사가 시작된 뒤
 바뀐 파일), `names_login`(`.aelix`·`auth.json`·로그인 파일을 가리킨 도구 호출), `login_changed_after_exit`·`login_has_other_names`
-(검사 뒤 마지막으로 잰 로그인 파일의 수정 시각·inode가 aelix 종료 때와 다르거나 이름이 둘 이상), `after_exit_errors`·`scan_error`.
+(검사 뒤 마지막으로 잰 로그인 파일의 수정 시각·inode가 aelix 종료 때와 다르거나 이름이 둘 이상), `after_exit_errors`·`scan_error`,
+그리고 아래 정확한 값의 `exact_values`·`exact_unreadable`·`exact_error`·`exact_not_run`.
 하나라도 있으면 `failed`, `needs_review`에 `secret_scan`(프로세스 문제면 `after_exit`도), 종료 코드 1이다. 검사 결과 자체(파일 이름,
 링크 대상)도 가린 뒤 기록하고, 마지막에 쓴 `run.json`을 한 번 더 검사한다. 옮기지 못한 작업 루트는 그 자리에서 검사한다
 (`work_root_left`). 모델이 작업 루트 밖에 쓴 파일은 찾지 않는다(그런 경로를 쓴 호출은 `outside_work_root`).
+
+**로그인의 정확한 값으로 가리기(소유자 결정 2026-10-07).** 모양 검사가 놓치는 값(256자보다 긴 값, 점이 든 값, 소문자 16진수,
+UTF-16)에 대비해, 로그인을 쓰는 모델의 run은 런처가 끝에 로그인의 **정확한 값**으로 한 번 더 가린다(POSIX). 값을 비교하는 것은
+그 값을 이미 메모리에 가진 aelix 자신의 프로세스(런처)뿐이다. 값은 파일·출력·로그·인자·환경·파이프로 나가지 않고 하네스에도
+돌아가지 않는다.
+
+- **값**: aelix의 `AuthStorage`가 읽고(`_read_raw`) 쓰고(`_write_raw`, 갱신된 토큰) 돌려준(`get_*api_key`) 것 가운데 provider
+  항목의 문자열(`access`·`refresh`·`id_token`·`key` 등). 자격 증명이 아닌 필드(`type`·`token_type`·`scope`·`expires*`·
+  `accountId`·`enterpriseUrl`·`uuid`·`email`·`name` 등)와 16자보다 짧은 값(`Bearer`·`oauth` 같은 것)은 비교하지 않는다. aelix가
+  해석하는 키(`!명령`, 설정된 변수 이름)는 해석된 값으로 비교한다. 끝날 때 로그인 파일을 런처 안에서 한 번 더 읽는다(소유자의 다른
+  aelix가 run 중에 갱신했을 수 있음).
+- **형태**: 원래 바이트, JSON 이스케이프(`\/` 포함, 두 번 이스케이프한 것 포함), URL 인코딩(`quote`·`quote_plus`, 대·소문자 16진수),
+  base64·base64url(세 가지 정렬 모두: 더 긴 인코딩 안에 든 것도), UTF-16LE·BE. 줄로 나뉜 값(줄바꿈된 base64 출력 등), 16진수·압축 등
+  다른 인코딩, 값의 일부는 찾지 않는다.
+- **언제**: aelix의 `main`이 돌아오면(또는 SIGTERM으로 멈추면) 런처는 작업 루트에서 나와(`chdir /`) 하네스에 기다린다고 알린다.
+  하네스는 작업 루트에서 일하는 프로세스를 기다리고(런처와 uv는 뺌) `.venv`를 지우고 링크를 쓸고 작업 루트를 run으로 옮긴 뒤 첫
+  가림(`all`: run 디렉터리 전체와 옮기지 못한 작업 루트)을 시킨다. 그 뒤 기록·채점·모양 검사를 하고, 마지막에 쓴 `run.json`을 한 번
+  더 가리게 한다(`record`: 첫 가림 전에 하네스가 알게 된 프로세스 명령줄·링크 대상이 기록에 들어가므로. 기록에 남기는 명령줄은
+  공백에서 잘라 값의 일부가 남지 않게 한다). 그다음 런처가 끝난다.
+- **쓰기**: 모양 검사와 같다. 링크는 따라가지 않고(값이 든 링크 대상은 가린 대상으로 링크를 새로 만듦), 고친 파일은 임시 파일 →
+  `os.replace`, 이름에 든 값은 `redacted`로 바꾼다(이름에는 길이를 남기지 않음). 로그인 파일 자체이거나 run 밖에도 이름이 있는 파일(하드 링크)은 읽지 않고 `unreadable`로 적는다.
+  표시는 같은 길이라 파일의 배치는 그대로다(값의 길이는 파일에서 보임).
+- **기록**: `secret_scan.exact`에 `status`(`passed`·`failed`·`not_run`·`not_applicable`), `files`, `findings`(바꾼 수),
+  `unreadable`, `masked_files`·`renamed`·`links_rewritten`(상대 경로), `values_compared`(비교한 값의 수), `passes`. 값·값의 길이·
+  해시는 어디에도 없다. 찾으면 `exact_values`로 검사 실패(`needs_review`, 종료 코드 1). 로그인을 썼는데 가림이 없었으면(Windows:
+  런처와의 파이프가 없음, 하네스가 그 전에 죽음, 비교할 값이 없음) `exact_not_run`으로 실패다. 로그인을 쓰지 않는 모델은
+  `not_applicable`.
 
 ## run 기록
 
@@ -225,7 +255,8 @@ run 밖에도 이름이 있는 파일(하드 링크: 링크 수가 run 안의 �
 - **로그인·비밀**: 로그인을 쓰는 모델이면 `model.auth`(출처, provider, 파일 경로, `login_check`: aelix가 나열한 행과 그 에이전트
   디렉터리의 검사 결과)와 `login`(로그인 파일의 메타데이터: run 전 `before`, aelix 종료 때 `after_exit`, 검사 뒤 마지막 `final`.
   수정 시각·inode·이름 수, run의 에이전트 디렉터리에 저장소가 생겼는지 `agent_dir_store`), `login_mentions`(로그인을 가리킨 도구 호출).
-  모든 run에 `secret_scan`(위 [프론티어 모델](#프론티어-모델)), 멈춘 run에는 `stop`(aelix를 멈춘 방법).
+  모든 run에 `secret_scan`(위 [프론티어 모델](#프론티어-모델), 로그인의 정확한 값으로 가린 결과는 `secret_scan.exact`), 멈춘 run에는
+  `stop`(aelix를 멈춘 방법, 런처가 가림을 기다렸으면 `launcher_waiting`).
 
 ## 채점
 
@@ -285,8 +316,11 @@ aelix 자신이 로그인 파일 하나만 그 자리에서 읽고 갱신하며,
   파일(로그인 파일 포함)을 읽을 수 있다(aelix의 headless 권한 기본값이 허용): 그런 호출은 `outside_work_root`·`names_login`이고, 출력에
   남은 자격 증명 모양은 비밀 검사가 덮어쓰고 실패로 적는다. **모델이 읽은 것은 도구 결과로 이미 provider에 보내졌고, 검사는 그것을
   되돌리지 못한다**(로그인 파일에 든 다른 provider의 자격 증명도 같음).
-- 검사는 모양으로 찾는다. 다른 모양의 비밀은 찾지 못할 수 있다: 256자보다 긴 값, 점이 든 값(`v1.x.y`), 소문자 16진수, UTF-16으로 쓴 값.
-  런처(aelix 자신의 프로세스)가 끝날 때 로그인의 정확한 값으로 run을 가리게 할지는 소유자의 결정으로 남겼다.
+- 모양 검사는 모양으로 찾는다. 다른 모양의 비밀은 찾지 못할 수 있다: 256자보다 긴 값, 점이 든 값(`v1.x.y`), 소문자 16진수,
+  UTF-16으로 쓴 값. 로그인의 값은 런처가 정확한 값으로 가리지만(POSIX), 줄로 나뉘거나 다르게 인코딩된 값, 값의 일부, 로그인에 없는
+  비밀(모델이 읽은 다른 파일의 키)은 남을 수 있다. Windows에서는 정확한 값으로 가리지 못해 로그인을 쓰는 run은 `exact_not_run`으로
+  실패한다. 하네스와 런처 사이의 파이프는 aelix의 도구에 넘기지 않지만, 같은 사용자의 프로세스가 일부러 끼어드는 것(Linux의
+  `/proc/<pid>/fd`)까지 막지는 않는다.
 - 하네스를 `kill -9`로 끝내면 그 run은 `scan OUT`을 실행하기 전까지 검사되지 않은 채 남는다(요약에 `not_scanned`). 런처의 lifeline과
   aelix 그룹의 SIGTERM 유예는 POSIX에서만이다. Windows는 aelix의 트리를 바로 끝내고(`taskkill /T /F`), 프로세스 목록에 작업 디렉터리가
   없어 작업 루트의 프로세스는 명령줄과 aelix의 자손으로만 찾으며, Python의 홈은 `USERPROFILE`이라 HOME만 바꾼다.

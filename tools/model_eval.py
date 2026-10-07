@@ -45,10 +45,12 @@ SETTLE_TIMEOUT seconds, then such processes are stopped), removes the project's 
 links into uv's Python and cache) without following a link, removes the links in the work root that
 reach outside it (symbolic links leaving it, every name of a file that also has a name outside it —
 a hard link — or that is the login's file), moves it into the run and looks for processes again. Each
-step is recorded on its own; a work root that cannot be moved is searched where it is. A record is on
-disk from the start (provisional, secret_scan not_scanned): a harness killed outright leaves it, the
-launcher's lifeline stops aelix, and `scan OUT` secures and searches such a run; the summary lists it
-as not_scanned and the exit status is not 0 while one is left.
+step is recorded on its own; a work root that cannot be moved is searched where it is. With a model
+that uses an aelix login (POSIX) the launcher, which holds the login, then masks the run by the login's
+exact values (below). A record is on disk from the start (provisional, secret_scan not_scanned): a
+harness killed outright leaves it, the launcher's lifeline stops aelix (and the launcher masks the run
+on its own), and `scan OUT` secures and searches such a run; the summary lists it as not_scanned and the
+exit status is not 0 while one is left.
 
 Credentials. A model whose configuration names an aelix login (auth.source aelix_login, e.g. the
 frontier model through aelix's openai-codex provider) uses the caller's own aelix login in place:
@@ -60,15 +62,24 @@ reads, copies or links it: it asks aelix to list the model with it (aelix lists 
 provider has a login entry), classifies a run whose first request the API refused for the login as
 not_run (aelix_login_unusable), and records the file's metadata before the run, after aelix exited
 and as the very last step after the scan (a change after aelix exited, or a second name, fails the
-scan). A model whose configuration names a key variable (api_key_env) gets the key from the
-environment; the harness never writes it: command.json keeps variable names only, the run record is
+scan). The login's exact values are compared only inside the launcher (aelix's own process, which holds
+them): when aelix's main has returned (or SIGTERM stopped it) the launcher waits, and once nothing works
+in the work root any more and it is in the run, it masks every file, link target and name under the run
+by each value's forms (raw, JSON-escaped, URL-encoded, base64/base64url, UTF-16; at least
+EXACT_MIN_LENGTH characters; not a value split across lines), then run.json once more when the harness
+has written it (LauncherLink). It reports counts and relative paths only, never a value, its length or
+hash; the record's secret_scan.exact holds them, and a value found (exact_values), a file it could not
+read (exact_unreadable) or a pass that did not run (exact_not_run: Windows, where the launcher has no
+pipe; a harness killed before it asked) fails the scan. A model whose configuration names a key
+variable (api_key_env) gets the key from the environment; the harness never writes it: command.json keeps variable names only, the run record is
 redacted before it is written, and after every run, also one that failed after aelix exited, every
 file under the run's directory is searched for the key's bytes (and those of the caller's credential
 variables), which are overwritten by a marker of the same length. Then every file under the run's
 directory is searched for credential-shaped text without knowing any value (a JWT, a Bearer token, a
 refresh/access/id token, key, secret or password field with a value, an sk- key, a long mixed
-base64url token; a file name of that shape too): each one is overwritten by a marker of its length
-and listed (file, line, kind, length) in the record's secret_scan, which is then failed. A masked file
+base64url token; a file name of that shape too; after the launcher's masking, so what it found is not
+counted twice): each one is overwritten by a marker of its length and listed (file, line, kind, length)
+in the record's secret_scan, which is then failed. A masked file
 replaces the old one (a temporary file, then os.replace): no file is ever written through. Links are
 not followed; a directory or file that cannot be read fails the scan, as does a file written after
 the scan started. A file the model wrote outside its work root is not searched.
@@ -95,6 +106,7 @@ import json
 import os
 import platform
 import re
+import select
 import shlex
 import shutil
 import signal
@@ -1751,14 +1763,20 @@ def login_ids(*stats: dict | None) -> set:
 
 
 def launch_command(model: dict, auth_file: Path | None, aelix_command: list[str],
-                   lifeline: int | None = None) -> list[str]:
+                   link: LauncherLink | None = None, redact: tuple = ()) -> list[str]:
     """How aelix is started for this model: through the launcher (its Python and the login's file)
-    when the model uses an aelix login, else the aelix command itself. lifeline: the descriptor of
-    the pipe whose other end the harness holds (the launcher stops aelix when it closes)."""
+    when the model uses an aelix login, else the aelix command itself. link: the pipes to the
+    launcher (its lifeline, which stops aelix when it closes, and its reports); redact: the run's
+    directory and the work root, which the launcher masks by the login's exact values."""
     if model.get("auth") is None:
         return list(aelix_command)
-    return [*AELIX_PYTHON, str(LAUNCHER), *(["--lifeline", str(lifeline)] if lifeline is not None else []),
-            str(auth_file)]
+    options = []
+    if link is not None:
+        lifeline, report = link.child_fds()
+        options += ["--lifeline", str(lifeline), "--report", str(report)]
+    for flag, path in zip(("--redact-run", "--redact-work"), redact, strict=False):
+        options += [flag, str(path)]
+    return [*AELIX_PYTHON, str(LAUNCHER), *options, str(auth_file)]
 
 
 def home_vars(home: Path, dirs: dict) -> dict:
@@ -2064,9 +2082,9 @@ def surface_argv(session: Session) -> tuple[list[str], str]:
 
 
 def build_argv(session: Session, requests: list[str], extension: Path, tools_argv: list[str],
-               lifeline: int | None = None) -> list[str]:
+               link: LauncherLink | None = None, redact: tuple = ()) -> list[str]:
     model = session.model
-    launch = launch_command(model, session.auth_file, session.aelix_command, lifeline)
+    launch = launch_command(model, session.auth_file, session.aelix_command, link, redact)
     return [*launch, "--mode", "json", "-p", *requests,
             "--provider", model["provider"], "--model", model["model"], "--thinking", model["thinking"],
             "--no-session", "--offline", "--no-context-files", *tools_argv, "-e", str(extension)]
@@ -2696,15 +2714,26 @@ class Descendants:
         self.poll()  # what the last ones started
 
 
-def settle(work, timeout: float = SETTLE_TIMEOUT, tracked: dict | None = None) -> dict:
+def clip(text: str, limit: int) -> str:
+    """text cut to limit characters at a white space, so that no part of a token is left at the end: the
+    launcher masks a login's value only whole (a command line the record keeps from before its pass)."""
+    if len(text) <= limit:
+        return text
+    cut = text[:limit + 1]
+    at = max(cut.rfind(c) for c in " \t\r\n")
+    return (text[:at] if at > 0 else "") + " …"
+
+
+def settle(work, timeout: float = SETTLE_TIMEOUT, tracked: dict | None = None,
+           exclude: set | frozenset = frozenset()) -> dict:
     """Wait until no process works in the work root, so that nothing writes into it while it is
     moved, its environment removed and its files searched; stop the ones left after the timeout (at
     once when the harness has been asked to stop). A process counts when its command line names the
     work root (the kit's extension starts its report build detached at the end of every prompt: uv
     run --project <project> … render --if-changed), when its working directory is there or it holds a
     file open there (a job the model left in the background), or when it descends from aelix
-    (tracked: Descendants.seen, the same pid with the same command line). The time is not part of the
-    run's elapsed_s."""
+    (tracked: Descendants.seen, the same pid with the same command line). exclude: the launcher, which
+    waits to mask the run, and uv above it. The time is not part of the run's elapsed_s."""
     roots = [work] if isinstance(work, (str, Path)) else list(work)
     paths = sorted({str(p) for p in roots} | {os.path.realpath(p) for p in roots})
     started = time.monotonic()
@@ -2721,7 +2750,7 @@ def settle(work, timeout: float = SETTLE_TIMEOUT, tracked: dict | None = None) -
         me = os.getpid()
         found = {}
         for pid, (_, args) in table.items():
-            if pid == me:
+            if pid == me or pid in exclude:
                 continue
             if any(p in args for p in paths):
                 found.setdefault(pid, set()).add("command line")
@@ -2732,10 +2761,10 @@ def settle(work, timeout: float = SETTLE_TIMEOUT, tracked: dict | None = None) -
             cwd_checked = False
         else:
             for pid, why in held.items():
-                if pid != me and pid in table:
+                if pid != me and pid in table and pid not in exclude:
                     found.setdefault(pid, set()).add(why)
         for pid, why in found.items():
-            entry = seen.setdefault(pid, {"pid": pid, "args": mask_text(table[pid][1][:300]), "why": []})
+            entry = seen.setdefault(pid, {"pid": pid, "args": mask_text(clip(table[pid][1], 300)), "why": []})
             entry["why"] = sorted(set(entry["why"]) | why)
         if not found:
             break
@@ -2757,10 +2786,20 @@ def settle(work, timeout: float = SETTLE_TIMEOUT, tracked: dict | None = None) -
                     "for, then stopped, before the work root is moved and searched"}
 
 
-def stop_group(proc, grace: float = STOP_GRACE) -> dict:
+def group_alive(pgid: int) -> bool:
+    try:
+        os.killpg(pgid, 0)
+    except OSError:
+        return False
+    return True
+
+
+def stop_group(proc, grace: float = STOP_GRACE, link: LauncherLink | None = None) -> dict:
     """End aelix's process group (uv, the launcher's or aelix's Python, what stayed in the group):
     SIGTERM first, so that a token refresh in progress finishes writing the login (the launcher
-    defers its exit until then), SIGKILL after grace. Windows: the tree at once (taskkill /T /F)."""
+    defers its exit until then), SIGKILL after grace. With the launcher's link, SIGTERM stops aelix
+    and the launcher then waits to mask the run (launcher_waiting); it ends when the harness tells it
+    (LauncherLink.finish). Windows: the tree at once (taskkill /T /F)."""
     ports = processes()
     started = time.monotonic()
     if os.name == "nt":
@@ -2773,9 +2812,10 @@ def stop_group(proc, grace: float = STOP_GRACE) -> dict:
     deadline, killed = started + grace, False
     while True:
         proc.poll()  # reaps uv, the group's leader: a zombie would keep the group
-        try:
-            os.killpg(proc.pid, 0)
-        except OSError:
+        if link is not None and link.waiting is not None:
+            return {"how": "SIGTERM", "grace_s": grace, "launcher_waiting": True,
+                    "waited_s": round(time.monotonic() - started, 1)}
+        if not group_alive(proc.pid):
             break
         if time.monotonic() > deadline:
             if killed:
@@ -2783,11 +2823,204 @@ def stop_group(proc, grace: float = STOP_GRACE) -> dict:
             with contextlib.suppress(OSError):
                 os.killpg(proc.pid, signal.SIGKILL)
             killed, deadline = True, time.monotonic() + 10
-        time.sleep(0.1)
+        if link is not None:
+            link.read(0.1)
+        else:
+            time.sleep(0.1)
     with contextlib.suppress(subprocess.TimeoutExpired):
         proc.wait(timeout=60)
     return {"how": "SIGTERM, SIGKILL after the grace" if killed else "SIGTERM", "grace_s": grace,
             "waited_s": round(time.monotonic() - started, 1)}
+
+
+# --- the launcher's link: masking the run by the login's exact values ------------------------------
+
+# How long the harness waits for one masking pass of the launcher, and for the launcher to end.
+MASK_TIMEOUT = 600
+LAUNCHER_EXIT_TIMEOUT = 60
+# The shortest value the launcher compares (tools/model_eval_aelix.py MIN_VALUE_LENGTH).
+EXACT_MIN_LENGTH = 16
+EXACT_WHAT = ("the login's exact values (access, refresh, id_token and every other credential string of "
+              "the provider entries aelix's AuthStorage held, and the API keys it resolved; at least "
+              f"{EXACT_MIN_LENGTH} characters) in their raw, JSON-escaped, URL-encoded, base64/base64url "
+              "and UTF-16 forms, masked by the launcher (aelix's own process, which holds them; they are "
+              "never written, printed, passed on or returned) in every file, link target and name under the "
+              "run once nothing works in the work root any more, before the shape scan, and in run.json "
+              "once more at the end; a masked file is replaced, never written through; a file that is the "
+              "login's or has a name outside the run is not read. Counts and relative paths only: never a "
+              "value, its length or its hash. A value split across lines or encoded otherwise is not found")
+
+
+class LauncherLink:
+    """The harness's side of the two pipes to the launcher (POSIX, a model that uses an aelix login).
+
+    The lifeline: the harness writes the launcher's commands into it (`all`: mask the run's directory
+    and the work root by the login's exact values; `record`: mask run.json once more; `exit`); when the
+    harness ends, even by SIGKILL, it closes, and the launcher stops aelix and masks on its own. The
+    report pipe: the launcher's JSON lines (`waiting`, once aelix's main has returned or a signal
+    stopped it, with its pid and aelix's exit status; `masked` after each pass: counts and relative
+    paths, never a value, its length or its hash). The harness's own ends are not inheritable; the
+    launcher keeps its ends from aelix's tools."""
+
+    def __init__(self) -> None:
+        self.life_r, self.life_w = os.pipe()
+        self.rep_r, self.rep_w = os.pipe()
+        self.proc = None
+        self.buffer = b""
+        self.waiting: dict | None = None
+        self.reports: list[dict] = []
+        self.eof = False
+        self.closed = False
+        self.ended: dict | None = None
+
+    def child_fds(self) -> tuple[int, int]:
+        return self.life_r, self.rep_w
+
+    def spawned(self, proc) -> None:
+        """The launcher has its ends: the harness keeps only the lifeline's write end and the reports'
+        read end."""
+        self.proc = proc
+        for fd in (self.life_r, self.rep_w):
+            with contextlib.suppress(OSError):
+                os.close(fd)
+        self.life_r = self.rep_w = None
+
+    def read(self, timeout: float) -> None:
+        """The launcher's report lines that arrive within timeout."""
+        if self.eof or self.rep_r is None:
+            time.sleep(timeout)
+            return
+        try:
+            ready, _, _ = select.select([self.rep_r], [], [], timeout)
+        except (OSError, ValueError):
+            ready = []
+        if not ready:
+            return
+        try:
+            chunk = os.read(self.rep_r, 1 << 16)
+        except OSError:
+            chunk = b""
+        if not chunk:
+            self.eof = True
+            return
+        self.buffer += chunk
+        while b"\n" in self.buffer:
+            line, self.buffer = self.buffer.split(b"\n", 1)
+            try:
+                message = json.loads(line.decode("utf-8"))
+            except ValueError:
+                continue
+            if not isinstance(message, dict):
+                continue
+            if message.get("event") == "waiting" and self.waiting is None:
+                self.waiting = message
+            elif message.get("event") == "masked":
+                self.reports.append(message)
+
+    def gone(self) -> bool:
+        """aelix's group has ended (uv reaped, nothing left in the group)."""
+        return self.proc is None or (self.proc.poll() is not None and not group_alive(self.proc.pid))
+
+    def wait(self, timeout: float):
+        """aelix's exit status once the launcher says aelix's main has returned (it then waits to mask
+        the run), or once the group has ended without that (the launcher crashed or was killed).
+        subprocess.TimeoutExpired after timeout."""
+        deadline = time.monotonic() + timeout
+        while self.waiting is None:
+            if self.gone():
+                self.read(0)
+                if self.waiting is None:
+                    return self.proc.returncode
+                break
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise subprocess.TimeoutExpired(self.proc.args, timeout)
+            self.read(min(remaining, 0.5))
+        return self.code()
+
+    def code(self):
+        return self.waiting.get("code") if self.waiting is not None else self.proc.returncode
+
+    def exclude(self) -> set[int]:
+        """What the settle leaves alone while the launcher waits: uv, the launcher and any process
+        between them."""
+        if self.proc is None or self.waiting is None:
+            return set()
+        pids = {self.proc.pid}
+        table = process_table() or {}
+        pid = self.waiting.get("pid")
+        while isinstance(pid, int) and pid > 1 and pid not in pids:
+            pids.add(pid)
+            pid = table.get(pid, (None, ""))[0]
+        return pids
+
+    def send(self, command: str) -> bool:
+        if self.closed or self.life_w is None:
+            return False
+        try:
+            os.write(self.life_w, f"{command}\n".encode("ascii"))
+        except OSError:
+            return False
+        return True
+
+    def mask(self, scope: str, timeout: float = MASK_TIMEOUT) -> dict | None:
+        """One masking pass of the launcher and its report; None when the launcher cannot be asked (it
+        never said it waits, or it is gone) or did not answer within timeout."""
+        if self.waiting is None or not self.send(scope):
+            return None
+        deadline = time.monotonic() + timeout
+        while True:
+            for i, report in enumerate(self.reports):
+                if report.get("scope") == scope:
+                    return self.reports.pop(i)
+            if self.eof or self.gone() or time.monotonic() > deadline:
+                self.read(0)
+                if not any(r.get("scope") == scope for r in self.reports):
+                    return None
+                continue
+            self.read(0.5)
+
+    def why_not(self) -> str:
+        if self.proc is None:
+            return "aelix was not started"
+        if self.waiting is None:
+            return ("the launcher ended without saying that aelix had returned (killed, or it crashed): "
+                    "nothing masked the run by the login's values")
+        return f"the launcher did not answer a pass (it ended, or the pass took longer than {MASK_TIMEOUT} s)"
+
+    def finish(self) -> dict:
+        """Tell the launcher to end and wait for aelix's group, SIGKILL after LAUNCHER_EXIT_TIMEOUT;
+        then the pipes are closed."""
+        if self.ended is not None or self.proc is None:
+            self.close()
+            return self.ended or {}
+        started = time.monotonic()
+        told = self.send("exit")
+        deadline, killed = started + LAUNCHER_EXIT_TIMEOUT, False
+        while not self.gone():
+            if time.monotonic() > deadline:
+                if killed:
+                    break
+                with contextlib.suppress(OSError):
+                    os.killpg(self.proc.pid, signal.SIGKILL)
+                killed, deadline = True, time.monotonic() + 10
+            self.read(0.1)
+        with contextlib.suppress(subprocess.TimeoutExpired):
+            self.proc.wait(timeout=10)
+        self.close()
+        self.ended = {"told": told, "killed": killed, "waited_s": round(time.monotonic() - started, 1)}
+        return self.ended
+
+    def close(self) -> None:
+        if self.closed:
+            return
+        self.closed = True
+        for name in ("life_r", "life_w", "rep_r", "rep_w"):
+            fd = getattr(self, name)
+            if fd is not None:
+                with contextlib.suppress(OSError):
+                    os.close(fd)
+                setattr(self, name, None)
 
 
 # --- stopping the harness --------------------------------------------------------------------------
@@ -2881,16 +3114,16 @@ def provisional(record: dict) -> dict:
 
 
 def secure_work(work: Path | None, kept: Path, *, login: set, tracked: dict | None = None,
-                timeout: float = SETTLE_TIMEOUT) -> dict:
+                timeout: float = SETTLE_TIMEOUT, launcher: LauncherLink | None = None) -> dict:
     """The work root after aelix exited, each step on its own (a failure of one is recorded and the
     next still runs): wait for (then stop) the processes still working there, remove the project's
     Python environment, sweep the links that reach outside it (before a move that could copy what
     they reach), move it into the run, and look again for processes (a working directory moves with
-    the directory)."""
+    the directory). Last, with the launcher (a model that uses an aelix login, POSIX), its first
+    masking pass: the run's directory and a work root left where it was, by the login's exact values,
+    when nothing works there any more (the launcher and uv are left alone while it waits)."""
     post: dict = {"settle": None, "after_move": None, "environments": [], "environments_error": None,
-                  "sweep": None, "move_error": None, "errors": []}
-    if work is None or not work.exists() or kept.exists():
-        return post
+                  "sweep": None, "move_error": None, "exact": None, "errors": []}
 
     def step(name: str, call):
         try:
@@ -2900,15 +3133,19 @@ def secure_work(work: Path | None, kept: Path, *, login: set, tracked: dict | No
             post["errors"].append(error)
             return None, error
 
-    post["settle"], _ = step("settle", lambda: settle(work, timeout, tracked))
-    environments, post["environments_error"] = step("environments", lambda: remove_environments(work))
-    post["environments"] = [{**e, "path": f"work/{e['path']}"} for e in environments or []]
-    post["sweep"], _ = step("sweep", lambda: sweep(work, login, "work/"))
-    _, post["move_error"] = step("move", lambda: shutil.move(str(work), str(kept)))
-    if post["move_error"] is None and not kept.is_dir():
-        post["move_error"] = "the work root was not moved into the run"
-    post["after_move"], _ = step("settle after the move", lambda: settle([work, kept], min(timeout, 60),
-                                                                         tracked))
+    if work is not None and work.exists() and not kept.exists():
+        exclude = launcher.exclude() if launcher is not None else set()
+        post["settle"], _ = step("settle", lambda: settle(work, timeout, tracked, exclude))
+        environments, post["environments_error"] = step("environments", lambda: remove_environments(work))
+        post["environments"] = [{**e, "path": f"work/{e['path']}"} for e in environments or []]
+        post["sweep"], _ = step("sweep", lambda: sweep(work, login, "work/"))
+        _, post["move_error"] = step("move", lambda: shutil.move(str(work), str(kept)))
+        if post["move_error"] is None and not kept.is_dir():
+            post["move_error"] = "the work root was not moved into the run"
+        post["after_move"], _ = step("settle after the move", lambda: settle([work, kept], min(timeout, 60),
+                                                                             tracked, exclude))
+    if launcher is not None:
+        post["exact"], _ = step("exact", lambda: launcher.mask("all"))
     return post
 
 
@@ -2955,17 +3192,103 @@ def scan_run(run_dir: Path, left: Path | None, ids: set, post: dict) -> dict:
     return scan
 
 
+def exact_record(expected: bool, reason: str | None = None) -> dict:
+    """secret_scan.exact before the launcher's passes: not_applicable when no login was used (or aelix
+    never started), else not_run until a pass reports."""
+    if not expected:
+        return {"status": "not_applicable", "reason": reason or "the model uses no aelix login",
+                "what": EXACT_WHAT}
+    return {"status": "not_run", "files": 0, "findings": 0, "unreadable": [], "masked_files": [], "renamed": [],
+            "links_rewritten": [], "values_compared": 0, "passes": [], "not_run": [], "errors": [],
+            "problems": ["exact_not_run"], "reason": reason, "what": EXACT_WHAT}
+
+
+def merge_exact(exact: dict, report: dict | None, scope: str, reason: str | None = None) -> None:
+    """One pass's report (None: the pass was not run) into secret_scan.exact, and its status: passed,
+    failed (exact_values: a value was found and masked; exact_unreadable; exact_error) or not_run
+    (exact_not_run: no pass, or one that compared no value)."""
+    if exact.get("status") == "not_applicable":
+        return
+    if report is None:
+        exact["not_run"].append(scope)
+        exact["reason"] = exact.get("reason") or reason
+    else:
+        exact["passes"].append(scope)
+        if report.get("error"):
+            exact["errors"].append(f"{scope}: {report['error']}")
+        if (scope == "all" and "." in (report.get("missing") or [])) or \
+                (scope == "record" and "run.json" in (report.get("missing") or [])):
+            exact["errors"].append(f"{scope}: what it was to mask was not there")
+        exact["files"] += int(report.get("files") or 0)
+        exact["findings"] += int(report.get("findings") or 0)
+        for key in ("masked_files", "renamed", "links_rewritten", "unreadable"):
+            exact[key] = [*exact[key], *(report.get(key) or [])][:MAX_LISTED]
+        exact["values_compared"] = max(exact["values_compared"], int(report.get("values") or 0))
+    problems = []
+    if exact["not_run"] or "all" not in exact["passes"] or not exact["values_compared"]:
+        problems.append("exact_not_run")
+        if exact["passes"] and not exact["values_compared"] and not exact.get("reason"):
+            exact["reason"] = (f"the launcher held no credential value of {EXACT_MIN_LENGTH} characters or "
+                               "more to compare")
+    if exact["errors"]:
+        problems.append("exact_error")
+    if exact["findings"]:
+        problems.append("exact_values")
+    if exact["unreadable"]:
+        problems.append("exact_unreadable")
+    exact["problems"] = problems
+    exact["status"] = "passed" if not problems else "not_run" if problems == ["exact_not_run"] else "failed"
+
+
+def mask_record(record: dict, run_dir: Path, launcher: LauncherLink) -> None:
+    """run.json as written, masked once more by the launcher: what the harness learned before the
+    launcher's first pass (a process's command line, a removed link's target) is in it."""
+    report = launcher.mask("record")
+    if report is not None and report.get("findings"):  # the record held a value: read it back
+        with contextlib.suppress(OSError, UsageError):
+            masked = read_json(run_dir / "run.json")
+            record.clear()
+            record.update(masked)
+    scan = record.setdefault("secret_scan", {"problems": []})
+    exact = scan.get("exact") if isinstance(scan.get("exact"), dict) and "passes" in scan["exact"] \
+        else exact_record(True)
+    scan["exact"] = exact
+    merge_exact(exact, report, "record", launcher.why_not())
+    scan["problems"] = sorted({*(scan.get("problems") or []), *exact["problems"]})
+    scan["status"] = "failed" if scan["problems"] else "passed"
+    mark_secret_scan(record)
+    write_json(run_dir / "run.json", record)
+    check_record(run_dir / "run.json", record)
+
+
 def close_run(record: dict, run_dir: Path, work: Path | None, kept: Path, post: dict | None,
               failure: BaseException | None, *, secrets: list[str], auth_file: Path | None,
-              tracked: dict | None = None) -> dict:
+              tracked: dict | None = None, launcher: LauncherLink | None = None,
+              exact_expected: bool = False, exact_reason: str | None = None) -> dict:
     """Secure, redact, search and record a run, whatever happened before: the end of every run, and
     `scan OUT` for one whose harness was killed. The secret scan runs even when a step before it
-    failed; the login's metadata is measured once more as the very last step."""
+    failed; the login's metadata is measured once more as the very last step. exact_expected: aelix
+    ran with an aelix login, so the launcher's masking by the login's exact values belongs to the
+    scan (its first pass in secure_work, its second on run.json at the end; then the launcher ends);
+    exact_reason: why it cannot run (no launcher link)."""
     login = record.get("login") or {}
     ids = login_ids(login_stat(auth_file), login.get("before"), login.get("after_exit"))
+    try:
+        return close_run_steps(record, run_dir, work, kept, post, failure, secrets=secrets, auth_file=auth_file,
+                               tracked=tracked, launcher=launcher, exact_expected=exact_expected,
+                               exact_reason=exact_reason, ids=ids)
+    finally:
+        if launcher is not None:
+            launcher.finish()
+
+
+def close_run_steps(record: dict, run_dir: Path, work: Path | None, kept: Path, post: dict | None,
+                    failure: BaseException | None, *, secrets: list[str], auth_file: Path | None,
+                    tracked: dict | None, launcher: LauncherLink | None, exact_expected: bool,
+                    exact_reason: str | None, ids: set) -> dict:
     if post is None:
         post = secure_work(work, kept, login=ids, tracked=tracked,
-                           timeout=0 if record.get("stop") else SETTLE_TIMEOUT)
+                           timeout=0 if record.get("stop") else SETTLE_TIMEOUT, launcher=launcher)
     if post["settle"] is not None:
         record["after_exit"] = {**post["settle"], "after_move": post["after_move"]}
     if post["errors"]:
@@ -3012,6 +3335,11 @@ def close_run(record: dict, run_dir: Path, work: Path | None, kept: Path, post: 
             scan["problems"] = sorted({*scan["problems"], "redaction_error"})
         if record.get("login_mentions"):
             scan["problems"] = sorted({*scan["problems"], "names_login"})
+        exact = exact_record(exact_expected, exact_reason)
+        merge_exact(exact, post.get("exact"), "all",
+                    exact_reason or (launcher.why_not() if launcher is not None else None))
+        scan["exact"] = exact
+        scan["problems"] = sorted({*scan["problems"], *(exact.get("problems") or [])})
         if auth_file is not None:  # the very last measurement: nothing after aelix may change the login
             final = login_stat(auth_file)
             entry = record.setdefault("login", {"file": str(auth_file)})
@@ -3027,6 +3355,8 @@ def close_run(record: dict, run_dir: Path, work: Path | None, kept: Path, post: 
         mark_secret_scan(record)
         write_json(run_dir / "run.json", record)
         check_record(run_dir / "run.json", record)
+        if launcher is not None and exact_expected:
+            mask_record(record, run_dir, launcher)
     return record
 
 
@@ -3062,6 +3392,7 @@ def run_one(session: Session, task: dict, repeat: int) -> dict:
         write_json(run_dir / "run.json", record)
         record["secret_scan"] = mask_strings(scan_tree(run_dir))  # nothing of a model is here; searched
         record["secret_scan"].pop("started_at", None)
+        record["secret_scan"]["exact"] = exact_record(False, "aelix did not run")
         write_json(run_dir / "run.json", record)
         return record
     tools = tools_of(session)
@@ -3070,6 +3401,11 @@ def run_one(session: Session, task: dict, repeat: int) -> dict:
     failure: BaseException | None = None
     post: dict | None = None
     tracked: dict | None = None
+    # The launcher's link (POSIX, a model that uses an aelix login): its lifeline (the harness holds
+    # the write end; when the harness dies, even by SIGKILL, the launcher reads EOF, stops aelix and
+    # what the model started and masks the run on its own) and its reports.
+    link = LauncherLink() if session.auth_file is not None and os.name != "nt" else None
+    started_aelix = False
     try:
         fixture = ensure_fixture(session.config.fixtures[task["fixture"]], session.seed, session.fixtures_root)
         record["fixture"]["digest"] = read_json(fixture / "manifest.json").get("digest")
@@ -3095,62 +3431,56 @@ def run_one(session: Session, task: dict, repeat: int) -> dict:
         fake = ScriptedModel(load_script(task["id"], session.script), tools) if scripted else None
         with fake or contextlib.nullcontext():
             write_models_json(session.model, run_dir / "agent", fake.port if fake else None)
-            # The launcher's lifeline (POSIX): the harness holds the write end; when the harness dies,
-            # even by SIGKILL, the launcher reads EOF and stops aelix and what the model started.
-            pipe = list(os.pipe()) if session.auth_file is not None and os.name != "nt" else None
-            try:
-                argv = build_argv(session, requests, extension_path, tools_argv, pipe[0] if pipe else None)
-                write_json(run_dir / "command.json", {
-                    "argv": argv, "cwd": str(project), "set_env": set_vars,
-                    "unset_env": "AELIX_*, PI_*, " + ", ".join(ISOLATED_KEYS) + " and every name that holds a "
-                                 "credential (stripped_env)",
-                    "stripped_env": stripped_env(key_names(session)),
-                    "inherited_env": "the rest of the caller's environment; values are not recorded",
-                    "secret_env": session.model.get("api_key_env"),
-                    "login_file": None if session.auth_file is None else str(session.auth_file)})
-                record.update(requests=requests, before=before, started_at=now_iso())
-                if session.auth_file is not None:
-                    first = login_stat(session.auth_file)
-                    record["login"] = {"file": str(session.auth_file), "mtime_before": first.get("mtime"),
-                                       "before": first,
-                                       "what": "the file's metadata only (its contents are never read "
-                                               "here); aelix replaces it in place when it refreshes a "
-                                               "token, and so may another aelix of the caller"}
-                write_json(run_dir / "run.json", provisional(record))
-                ports = processes()
-                started = time.perf_counter()
-                timed_out = False
-                with open(run_dir / "events.jsonl", "wb") as stdout, \
-                        open(run_dir / "stderr.txt", "wb") as stderr:
+            argv = build_argv(session, requests, extension_path, tools_argv, link,
+                              (run_dir, work) if link is not None else ())
+            write_json(run_dir / "command.json", {
+                "argv": argv, "cwd": str(project), "set_env": set_vars,
+                "unset_env": "AELIX_*, PI_*, " + ", ".join(ISOLATED_KEYS) + " and every name that holds a "
+                             "credential (stripped_env)",
+                "stripped_env": stripped_env(key_names(session)),
+                "inherited_env": "the rest of the caller's environment; values are not recorded",
+                "secret_env": session.model.get("api_key_env"),
+                "login_file": None if session.auth_file is None else str(session.auth_file)})
+            record.update(requests=requests, before=before, started_at=now_iso())
+            if session.auth_file is not None:
+                first = login_stat(session.auth_file)
+                record["login"] = {"file": str(session.auth_file), "mtime_before": first.get("mtime"),
+                                   "before": first,
+                                   "what": "the file's metadata only (its contents are never read "
+                                           "here); aelix replaces it in place when it refreshes a "
+                                           "token, and so may another aelix of the caller"}
+            write_json(run_dir / "run.json", provisional(record))
+            ports = processes()
+            started = time.perf_counter()
+            timed_out = False
+            with open(run_dir / "events.jsonl", "wb") as stdout, \
+                    open(run_dir / "stderr.txt", "wb") as stderr:
+                try:
+                    proc = subprocess.Popen(argv, cwd=project, env=env, stdin=subprocess.DEVNULL,
+                                            stdout=stdout, stderr=stderr, **ports.spawn_kwargs(),
+                                            **({"pass_fds": link.child_fds()} if link else {}))
+                except OSError as exc:
+                    raise HarnessError(f"aelix could not be started: {exc}") from exc
+                started_aelix = True
+                if link is not None:
+                    link.spawned(proc)
+                with Descendants(proc) as tree:
                     try:
-                        proc = subprocess.Popen(argv, cwd=project, env=env, stdin=subprocess.DEVNULL,
-                                                stdout=stdout, stderr=stderr, **ports.spawn_kwargs(),
-                                                **({"pass_fds": (pipe[0],)} if pipe else {}))
-                    except OSError as exc:
-                        raise HarnessError(f"aelix could not be started: {exc}") from exc
-                    if pipe:
-                        os.close(pipe[0])
-                        pipe[0] = None
-                    with Descendants(proc) as tree:
-                        try:
-                            code = proc.wait(timeout=timeout)
-                        except subprocess.TimeoutExpired:
-                            timed_out = True
-                            with deferred():
-                                record["stop"] = stop_group(proc)
-                            code = proc.returncode
-                        except BaseException:
-                            with deferred():
-                                record["stop"] = stop_group(proc)
-                            raise
-                        finally:
-                            tracked = tree.seen
-                elapsed = round(time.perf_counter() - started, 1)
-            finally:
-                for end in pipe or []:
-                    if end is not None:
-                        with contextlib.suppress(OSError):
-                            os.close(end)
+                        # With the launcher: until it says aelix's main has returned (it then
+                        # waits to mask the run, after the work root is secured).
+                        code = link.wait(timeout) if link is not None else proc.wait(timeout=timeout)
+                    except subprocess.TimeoutExpired:
+                        timed_out = True
+                        with deferred():
+                            record["stop"] = stop_group(proc, link=link)
+                        code = link.code() if link is not None else proc.returncode
+                    except BaseException:
+                        with deferred():
+                            record["stop"] = stop_group(proc, link=link)
+                        raise
+                    finally:
+                        tracked = tree.seen
+            elapsed = round(time.perf_counter() - started, 1)
             if session.auth_file is not None:
                 after = login_stat(session.auth_file)
                 record["login"].update(mtime_after=after.get("mtime"), after_exit=after,
@@ -3177,7 +3507,8 @@ def run_one(session: Session, task: dict, repeat: int) -> dict:
         with deferred():  # aelix stopped (timeout): what it left running is stopped, not waited for
             post = secure_work(work, kept, login=login_ids(login_stat(session.auth_file),
                                                            (record.get("login") or {}).get("before")),
-                               tracked=tracked, timeout=0 if record.get("stop") else SETTLE_TIMEOUT)
+                               tracked=tracked, timeout=0 if record.get("stop") else SETTLE_TIMEOUT,
+                               launcher=link)
         raise_if_stopped()
         if not kept.is_dir():
             raise HarnessError(f"the work root could not be moved into the run ({post['move_error']}): it "
@@ -3188,8 +3519,20 @@ def run_one(session: Session, task: dict, repeat: int) -> dict:
         raise
     finally:
         with deferred():
-            close_run(record, run_dir, work, kept, post, failure, secrets=session.secrets,
-                      auth_file=session.auth_file, tracked=tracked)
+            # The login's exact values: masked by the launcher when aelix ran with the login.
+            exact_reason = ("the model uses no aelix login" if session.auth_file is None else
+                            "aelix did not start" if not started_aelix else None if link is not None else
+                            "no channel to the launcher on Windows (no inherited pipe): the run was not "
+                            "masked by the login's exact values")
+            try:
+                close_run(record, run_dir, work, kept, post, failure, secrets=session.secrets,
+                          auth_file=session.auth_file, tracked=tracked,
+                          launcher=link if started_aelix else None,
+                          exact_expected=started_aelix and session.auth_file is not None,
+                          exact_reason=exact_reason)
+            finally:
+                if link is not None:
+                    link.close()
     return record
 
 
@@ -3682,9 +4025,10 @@ def cmd_run(args) -> int:
         failed.append("the login check's agent directory (OUT/iso/login-check-agent)")
     if failed or summary["not_scanned"]:
         print(f"model_eval: the secret scan did not pass for {', '.join(failed + summary['not_scanned'])}: "
-              "credential-shaped text was overwritten, a link reaching outside the run was removed, a "
-              "process could still write, or the run was never searched (see secret_scan in run.json; "
-              "`model_eval.py scan OUT` searches a run left unscanned)", file=sys.stderr)
+              "credential-shaped text was overwritten, a value of the login was masked by the launcher or "
+              "its masking did not run, a link reaching outside the run was removed, a process could still "
+              "write, or the run was never searched (see secret_scan in run.json; `model_eval.py scan OUT` "
+              "searches a run left unscanned)", file=sys.stderr)
         return 1
     return 0
 
@@ -3773,8 +4117,13 @@ def cmd_scan(args) -> int:
             work = Path(record["work"]["root"]) if (record.get("work") or {}).get("root") else None
             auth = ((record.get("model") or {}).get("auth") or {}).get("file")
             record["scanned_by"] = {"command": "scan", "at": now_iso()}
+            # aelix ran with the login, and no harness was left to ask the launcher for its passes.
             close_run(record, run_dir, work, run_dir / "work", None, None, secrets=env_secrets(),
-                      auth_file=Path(auth) if auth else None)
+                      auth_file=Path(auth) if auth else None,
+                      exact_expected=bool(auth) and "started_at" in record,
+                      exact_reason="the harness that started the launcher was gone before it asked for the "
+                                   "masking passes (on POSIX the launcher masks the run on its own when its "
+                                   "lifeline closes, but nothing reports what it found)")
             results[run_dir.name] = record["secret_scan"]["status"]
             print(f"{run_dir.name}: secret scan {results[run_dir.name]}", flush=True)
         summary = summarize(out)

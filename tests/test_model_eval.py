@@ -33,12 +33,21 @@ waited for before the scan; a timeout stops aelix and what the model left runnin
 be moved is searched where it is; a harness stopped by SIGTERM stops aelix and still searches the run, and
 one killed with SIGKILL leaves nothing running (the launcher's lifeline) and `scan` secures the run; a
 login that is a link, has two names or is not an agent directory's auth.json is refused; the launcher
-refuses a missing login and defers a stop until a refreshed login is written.
+refuses a missing login and defers a stop until a refreshed login is written. The launcher's masking by
+the login's exact values (POSIX): it compares the credential strings of the entries only (not a field
+that is not a credential, a value under 16 characters or a key aelix resolves), finds each form of a
+value (raw, JSON-escaped once and twice, URL-encoded, base64 at each alignment, UTF-16) and keeps a
+file's layout, never follows or writes through a link (the login's own name and a file with a name
+outside are not read), renames a name and rewrites a link target that holds a value, and reports counts
+and paths only; end to end, a model that echoes the fake login's values in every form into its answer,
+a bash call's output, project files, a nested file, a name and a background job's command line leaves
+none of them in any file, name or record of the run, nor on the console, and the record says so.
 tests/test_model_eval_scoring.py holds the reviewers' adversarial answers.
 """
 
 from __future__ import annotations
 
+import base64
 import contextlib
 import hashlib
 import importlib.util
@@ -51,6 +60,7 @@ import signal
 import subprocess
 import sys
 import time
+import urllib.parse
 from pathlib import Path
 
 import pytest
@@ -719,6 +729,8 @@ def aelix_command():
 
 
 SECRET = "sk-test-" + "dryrunsecret0123456789abcdef"
+# The launcher masks a run by the login's exact values through its pipes to the harness (POSIX).
+EXACT = os.name != "nt"
 
 
 def test_the_dry_run_goes_through_aelix_and_is_scored(aelix_command, fixtures, tmp_path, monkeypatch):
@@ -929,8 +941,14 @@ def test_the_login_is_used_in_place_and_nothing_of_it_reaches_the_run(aelix_comm
     assert [p for p in run.rglob("*") if p.is_symlink()] == []
     scan = record["secret_scan"]
     assert scan["status"] == "failed" and scan["outside_links_removed"] == []
-    assert {"jwt", "credential_field", "sk_key"} <= {f["kind"] for f in scan["findings"]}
-    assert {f["file"] for f in scan["findings"]} >= {"events.jsonl"}
+    if EXACT:  # the launcher masked the login's values first: by value, before the shape scan
+        assert scan["exact"]["status"] == "failed" and scan["exact"]["findings"] >= 3
+        assert "events.jsonl" in scan["exact"]["masked_files"] and "exact_values" in scan["problems"]
+        assert scan["exact"]["passes"] == ["all", "record"] and scan["exact"]["values_compared"] == 3
+    else:  # Windows: no channel to the launcher; the shape scan found what the model printed
+        assert scan["exact"]["status"] == "not_run" and "exact_not_run" in scan["problems"]
+        assert {"jwt", "credential_field", "sk_key"} <= {f["kind"] for f in scan["findings"]}
+        assert {f["file"] for f in scan["findings"]} >= {"events.jsonl"}
     assert "secret_scan" in record["score"]["needs_review"]
     for value in (jwt, refresh, key):
         assert files_with(out, value) == [] and files_with(tmp_path / "roots", value) == []
@@ -1017,7 +1035,7 @@ def test_a_hard_link_to_the_login_is_removed_and_the_login_is_never_written(aeli
     record = json.loads((out / "runs" / "T06-dry-run-default-unrequested-r1" / "run.json").read_text(
         encoding="utf-8"))
     scan = record["secret_scan"]
-    assert {"hard_links", "credential_shapes", "names_login"} <= set(scan["problems"])
+    assert {"hard_links", "exact_values" if EXACT else "credential_shapes", "names_login"} <= set(scan["problems"])
     assert [h["file"] for h in scan["hard_links_removed"]] == ["work/project/hl.json"]
     assert record["login"]["final"]["links"] == 1 and record["login"]["final"]["inode"] == \
         record["login"]["before"]["inode"] and "login_changed_after_exit" not in scan["problems"]
@@ -1040,7 +1058,9 @@ def test_a_job_left_in_the_background_is_waited_for_before_the_scan(aelix_comman
     assert (run / "work" / "project" / "late-copy.json").is_file()  # written, then searched
     assert any({"working directory", "started by aelix"} & set(p["why"]) for p in record["after_exit"]["processes"])
     assert record["after_exit"]["left"] == [] and record["secret_scan"]["written_after_scan"] == []
-    assert "credential_shapes" in record["secret_scan"]["problems"]
+    # The job's copy, written after aelix exited, masked by the launcher once nothing worked there.
+    assert "exact_values" in record["secret_scan"]["problems"]
+    assert "work/project/late-copy.json" in record["secret_scan"]["exact"]["masked_files"]
     assert files_with(out, refresh) == [] and login.read_bytes() == before
 
 
@@ -1088,7 +1108,203 @@ def test_a_login_the_api_refuses_is_not_run(aelix_command, fixtures, tmp_path, l
     record = json.loads(next((out / "runs").glob("*/run.json")).read_text(encoding="utf-8"))
     assert record["outcome"] == "not_run" and record["reason"].startswith("aelix_login_unusable: ")
     assert "401" in record["reason"] and "/login" in record["login_to_run"] and record["command_to_run"]
-    assert record["secret_scan"]["status"] == "passed"
+    if EXACT:
+        assert record["secret_scan"]["status"] == "passed" and record["secret_scan"]["exact"]["status"] == "passed"
+        assert record["secret_scan"]["exact"]["values_compared"] == 3
+    else:  # aelix read the login, and the launcher could not mask by its values: not passed
+        assert record["secret_scan"]["problems"] == ["exact_not_run"]
+
+
+# --- the launcher's masking by the login's exact values ------------------------------------------
+
+def load_launcher():
+    spec = importlib.util.spec_from_file_location("model_eval_aelix_under_test", me.LAUNCHER)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+launcher = load_launcher()
+
+
+def exact_dummies() -> dict[str, str]:
+    """Dummy login values, built here so that no file holds one, of shapes the shape scan alone misses
+    in some forms: a long dotted lowercase-hex access token, a refresh token with / + =, a JWT-like
+    id_token."""
+    return {"access": "v1.dummy." + "0f1e2d3c4b5a6978" * 18,
+            "refresh": "rt_" + "Dm4Q/8xLk+2Pz7=Rw9Vb" + "/Qa",
+            "id_token": ".".join(["eyJ" + "hbGciOiJSUzI1NiJ9", "eyJ" + "zdWIiOiJleGFjdCJ9", "Zk" + "3Wq9Lm2Xr8Tn-v_4Pc"])}
+
+
+def written_forms(value: str) -> dict[str, bytes]:
+    """The forms the tests write, computed here (not by the launcher). Of a base64 run, the middle: the
+    characters at its ends depend on what is around the value."""
+    raw = value.encode("utf-8")
+    escaped = json.dumps(value)[1:-1].replace("/", "\\/")
+    return {"raw": raw, "json": escaped.encode(), "json_twice": json.dumps(escaped)[1:-1].encode(),
+            "url": urllib.parse.quote(value, safe="").encode(), "url_plus": urllib.parse.quote_plus(value).encode(),
+            "url_lower": re.sub(r"%[0-9A-F]{2}", lambda m: m.group(0).lower(),
+                                urllib.parse.quote(value, safe="")).encode(),
+            "base64": base64.b64encode(raw)[4:-4], "base64_shift1": base64.b64encode(b"x" + raw)[4:-4],
+            "base64url_shift2": base64.urlsafe_b64encode(b"xy" + raw)[4:-4],
+            "utf16le": value.encode("utf-16-le"), "utf16be": value.encode("utf-16-be")}
+
+
+def holders_of(root: Path, needles: list[bytes]) -> list[str]:
+    """Files under root (links not followed) whose bytes or name hold one of needles."""
+    found = []
+    for path in sorted(root.rglob("*")):
+        name = os.fsencode(path.name)
+        if any(n in name for n in needles) or (path.is_file() and not path.is_symlink()
+                                                and any(n in path.read_bytes() for n in needles)):
+            found.append(str(path.relative_to(root)))
+    return found
+
+
+def test_the_launcher_compares_the_credential_strings_of_the_entries_only(monkeypatch):
+    values = launcher.Values()
+    monkeypatch.setenv("EVAL_PROBE_KEY_NAME", "the variable's value")
+    v = exact_dummies()
+    values.add_entries({
+        "openai-codex": {"type": "oauth", "access": v["access"], "refresh": v["refresh"], "expires": 1,
+                         "id_token": v["id_token"], "token_type": "Bearer", "pin": "Pq7Zx2Lm9Kw4",
+                         "scope": "openid profile email offline_access", "accountId": "acct-0000-dummy-0000",
+                         "account": {"uuid": "6e5241b4-86b1-43c1-bace-74f4f07a01f2", "email_address": "a@b.example",
+                                     "session_key": "Sk" + "9Lm2Xr8Tn4Pc7Wq3"}},
+        # aelix resolves these (a command, a variable's name): what they resolve to comes from get_api_key.
+        "x": {"type": "api_key", "key": "!printf dummy-key-from-a-command"},
+        "y": {"type": "api_key", "key": "EVAL_PROBE_KEY_NAME"}})
+    assert len(values) == 4  # access, refresh, id_token and the nested session_key
+    values.add("Pq7Zx2Lm9Kw4")  # 12 characters: under MIN_VALUE_LENGTH
+    assert len(values) == 4 and launcher.MIN_VALUE_LENGTH == me.EXACT_MIN_LENGTH == 16
+
+
+def test_the_launcher_masks_every_form_of_a_value_and_keeps_the_layout():
+    value = exact_dummies()["refresh"]
+    raw = value.encode()
+    w = written_forms(value)
+    data = b"\n".join([
+        b"answer: " + raw + b".", b'{"text": "' + w["json"] + b'"}', b'{"line": "' + w["json_twice"] + b'"}',
+        b"?t=" + w["url"] + b"&u=" + w["url_lower"] + b"&p=" + w["url_plus"],
+        b"img " + base64.b64encode(b"\x89PNG" + raw + b"tail") + b" end",
+        b"u " + base64.urlsafe_b64encode(b"ab" + raw) + b" " + base64.b64encode(raw),
+        b"\xff\xfe" + value.encode("utf-16-le") + b"\x00\x00", value.encode("utf-16-be")])
+    values = launcher.Values()
+    values.add(value)
+    masked, count = launcher.mask(data, values.forms())
+    assert count >= 11 and len(masked) == len(data)  # each form over by a marker of its length
+    assert not any(form in masked for form in w.values())
+    assert b"answer: <redacted" in masked and masked.count(b"\n") == data.count(b"\n")
+    assert "<redacted".encode("utf-16-le") in masked and "<redacted".encode("utf-16-be") in masked
+    other = b"rt_Dm4Q/8xLk+2Pz7=Rw9Vb/Qb and " + base64.b64encode(b"unrelated bytes of a picture")
+    assert launcher.mask(other, values.forms()) == (other, 0)  # nothing but the value
+
+
+@pytest.mark.skipif(not EXACT, reason="the launcher masks through its POSIX pipes; links need privileges")
+def test_the_launchers_pass_never_follows_a_link_or_writes_through_one(tmp_path):
+    v = exact_dummies()
+    login = tmp_path / "home" / ".aelix" / "agent" / "auth.json"
+    before = write_login(login, {"openai-codex": {"type": "oauth", "access": v["access"], "refresh": v["refresh"],
+                                                  "id_token": v["id_token"], "expires": 1}})
+    run = tmp_path / "run"
+    project = run / "work" / "project"
+    project.mkdir(parents=True)
+    os.link(login, project / "hl.json")  # a name of the login itself
+    (project / "sl.json").symlink_to(login)  # a link to it
+    (project / "pointer").symlink_to(tmp_path / v["id_token"])  # a link whose target holds a value
+    outside = tmp_path / "outside.txt"
+    outside.write_text(v["access"], encoding="utf-8")
+    os.link(outside, run / "c.txt")  # a file with a name outside the run
+    (run / "a.txt").write_text(f"token {v['access']}\n", encoding="utf-8")
+    os.link(run / "a.txt", run / "b.txt")  # two names, both inside: each masked
+    deep = run / "work" / f"d-{v['id_token']}"
+    deep.mkdir()
+    (deep / f"n-{v['id_token']}.txt").write_text(v["refresh"], encoding="utf-8")
+    values = launcher.Values()
+    for value in v.values():
+        values.add(value)
+    st = os.stat(login)
+    masking = launcher.Masking(values.forms(), {(st.st_dev, st.st_ino)})
+    masking.trees([(run, ""), (tmp_path / "gone", "work_root_left/")])
+    report = masking.report()
+    assert login.read_bytes() == before and os.stat(login).st_nlink == 2  # never written; the name stays
+    assert (project / "sl.json").is_symlink() and os.readlink(project / "sl.json") == str(login)
+    assert outside.read_text(encoding="utf-8") == v["access"]  # its other name was not read nor written
+    reasons = {u["file"]: u["error"] for u in report["unreadable"]}
+    assert "login's own file" in reasons["work/project/hl.json"] and "hard link" in reasons["c.txt"]
+    assert v["id_token"] not in os.readlink(project / "pointer") and report["links_rewritten"] == [
+        "work/project/pointer"]
+    assert sorted(report["masked_files"]) == ["a.txt", "b.txt", "work/d-redacted/n-redacted.txt"]
+    assert os.stat(run / "a.txt").st_ino != os.stat(run / "b.txt").st_ino  # each replaced
+    assert holders_of(run, [f for value in v.values() for f in written_forms(value).values()]) == [
+        "c.txt", "work/project/hl.json"]  # the two it did not read
+    assert len(report["renamed"]) == 2 and report["missing"] == ["work_root_left/"]
+    # The report: counts and relative paths, never a value, its length or its hash.
+    text = json.dumps(report)
+    assert not any(f.decode("latin-1") in text for value in v.values() for f in written_forms(value).values())
+    assert not re.search(r'"(length|sha256|hash)"', text) and all(set(u) == {"file", "error"}
+                                                                   for u in report["unreadable"])
+
+
+@pytest.mark.skipif(not EXACT, reason="the launcher masks through its POSIX pipes")
+def test_the_launcher_masks_the_logins_exact_values_in_every_form_and_place(aelix_command, fixtures, tmp_path,
+                                                                            login_dry_run, capsys):
+    root, _ = fixtures
+    v = exact_dummies()
+    _, _, key, _ = dummy_login()
+    short, scope = "Pq7Zx2Lm9Kw4", "openid profile email offline_access"
+    login = tmp_path / "home" / ".aelix" / "agent" / "auth.json"
+    before = write_login(login, {"aelix-eval-fake": {"type": "api_key", "key": key},
+                                 "openai-codex": {"type": "oauth", "access": v["access"], "refresh": v["refresh"],
+                                                  "id_token": v["id_token"], "expires": 4102444800000,
+                                                  "accountId": "acct-0000-dummy-0000", "token_type": "Bearer",
+                                                  "scope": scope, "pin": short}})
+    w = {name: written_forms(value) for name, value in v.items()}
+    q = shlex.quote
+    utf16 = "".join(f"\\{b:03o}" for b in v["refresh"].encode("utf-16-le"))
+    script = script_file(tmp_path, "forms", [
+        # A bash call's output: raw, JSON-escaped (twice), URL-encoded, and base64 off the alignment.
+        bash("printf '%s\\n' " + " ".join(q(x.decode()) for x in (
+            w["access"]["raw"], w["refresh"]["json"], w["refresh"]["url"], w["id_token"]["json_twice"]))
+            + f"; printf 'x%s' {q(v['refresh'])} | base64"),
+        # Project files, a nested file of the work root, UTF-16, a file name; the login linked (removed
+        # before the pass); a job still running after aelix whose command line holds a value (the record).
+        bash(f"printf '%s %s %s\\n' {q(v['refresh'])} "
+             f"{q(base64.urlsafe_b64encode(v['access'].encode()).decode())} {q(short)} > notes.txt; "
+             f"printf '%s' {q(scope)} > scope.txt; mkdir -p ../input/deep/er && "
+             f"printf '%s' {q(w['access']['json_twice'].decode())} > ../input/deep/er/n.txt; "
+             f"printf '{utf16}' > utf16.bin; touch {q('f-' + v['id_token'] + '.txt')}; "
+             f"ln {q(login.as_posix())} hl.json; ln -s {q(login.as_posix())} sl.json; "
+             f"(sleep 4; : {q(v['refresh'])}) > /dev/null 2>&1 &"),
+        {"text": f"There are 5,838 sessions. {w['refresh']['url_plus'].decode()} "
+                 f"{base64.b64encode(v['access'].encode()).decode()}"}])
+    out = tmp_path / "out"
+    assert me.main(run_args(root, tmp_path, out, script, "--aelix-auth", str(login))) == 1
+    console = capsys.readouterr()
+    run = out / "runs" / "T06-dry-run-default-unrequested-r1"
+    record = json.loads((run / "run.json").read_text(encoding="utf-8"))
+    every = [form for forms in w.values() for form in forms.values()]
+    # No form of any value in any file or name of the run, nor in the record, the summary or the console.
+    assert holders_of(out, every) == [] and holders_of(tmp_path / "roots", every) == []
+    assert not any(f.decode("latin-1") in console.out + console.err for f in every)
+    assert login.read_bytes() == before and os.stat(login).st_nlink == 1
+    exact = record["secret_scan"]["exact"]
+    assert {"status", "files", "findings", "unreadable"} <= set(exact) and exact["status"] == "failed"
+    assert exact["findings"] >= 10 and exact["passes"] == ["all", "record"] and exact["values_compared"] == 4
+    assert {"events.jsonl", "work/project/notes.txt", "work/input/deep/er/n.txt", "work/project/utf16.bin",
+            "run.json"} <= set(exact["masked_files"])
+    assert exact["renamed"] == ["work/project/f-redacted.txt"]
+    assert "exact_values" in record["secret_scan"]["problems"] and "secret_scan" in record["score"]["needs_review"]
+    assert not re.search(r'"(length|sha256|hash)"', json.dumps(exact))  # no length or hash of a value
+    # What the harness learned before the pass (the job's command line) was masked in the record.
+    assert any("<redacted" in p["args"] for p in record["after_exit"]["processes"])
+    assert record["turns"][-1]["answer"].startswith("There are 5,838 sessions. <redacted")
+    # A value under the minimum and a field that is not a credential are left as they were.
+    project = run / "work" / "project"
+    assert short in (project / "notes.txt").read_text(encoding="utf-8")
+    assert (project / "scope.txt").read_text(encoding="utf-8") == scope
+    assert (project / "utf16.bin").stat().st_size == len(v["refresh"]) * 2
+    assert not (project / "hl.json").exists() and not (project / "sl.json").exists()
 
 
 DRIVER = """
@@ -1164,7 +1380,10 @@ def test_a_harness_asked_to_stop_stops_aelix_and_still_searches_the_run(aelix_co
     run = out / "runs" / "T06-dry-run-default-unrequested-r1"
     record = json.loads((run / "run.json").read_text(encoding="utf-8"))
     assert "provisional" not in record and record["outcome"] == "error" and "Stopped" in record["harness_error"]
-    assert record["stop"]["how"] == "SIGTERM" and "credential_shapes" in record["secret_scan"]["problems"]
+    # SIGTERM stopped aelix; the launcher then waited, and masked the run once the work root was secured.
+    assert record["stop"]["how"] == "SIGTERM" and record["stop"]["launcher_waiting"]
+    assert "exact_values" in record["secret_scan"]["problems"] and record["secret_scan"]["exact"]["passes"] == [
+        "all", "record"]
     assert sleeping("sleep 61.71") == [] and (run / "work" / "project").is_dir()
     assert sorted((tmp_path / "roots").iterdir()) == [] and login.read_bytes() == before
     assert files_with(out, refresh) == []
@@ -1183,10 +1402,14 @@ def test_a_killed_harness_leaves_nothing_running_and_scan_secures_the_run(aelix_
     assert record["provisional"] and record["secret_scan"]["status"] == "not_scanned"
     assert me.summarize(out)["not_scanned"] == ["T06-dry-run-default-unrequested-r1"]
     assert me.main(["score", str(out)]) == 1  # not read before it is searched
-    assert me.main(["scan", str(out)]) == 1  # the login printed into events.jsonl: found and masked
+    assert me.main(["scan", str(out)]) == 1
     record = json.loads((run / "run.json").read_text(encoding="utf-8"))
     assert "provisional" not in record and record["scanned_by"]["command"] == "scan"
-    assert record["secret_scan"]["status"] == "failed" and "credential_shapes" in record["secret_scan"]["problems"]
+    # The launcher masked the login it printed on its own when the lifeline closed; nothing reported it,
+    # so the masking by value is not passed.
+    assert record["secret_scan"]["status"] == "failed" and "exact_not_run" in record["secret_scan"]["problems"]
+    assert record["secret_scan"]["exact"]["status"] == "not_run" and "credential_shapes" not in record[
+        "secret_scan"]["problems"]
     assert (run / "work" / "project").is_dir() and sorted((tmp_path / "roots").iterdir()) == []
     assert me.summarize(out)["not_scanned"] == [] and login.read_bytes() == before
     assert files_with(out, refresh) == [] and files_with(tmp_path / "roots", refresh) == []
