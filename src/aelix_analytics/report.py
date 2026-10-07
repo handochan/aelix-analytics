@@ -554,15 +554,19 @@ def fingerprint(project: core.Project) -> str:
         with contextlib.suppress(OSError):
             st = path.stat()
             parts.append([path.name, st.st_size, st.st_mtime_ns])
-    for base in (project.runs, project.data):
-        if base.is_dir():
-            for dirpath, _dirs, files in os.walk(base):
-                for name in files:
-                    if base == project.runs and name != "run.json":
-                        continue
-                    with contextlib.suppress(OSError):
-                        st = os.stat(os.path.join(dirpath, name))
-                        parts.append([os.path.join(dirpath, name), st.st_size, st.st_mtime_ns])
+    if project.runs.is_dir():
+        for dirpath, _dirs, files in os.walk(project.runs):
+            for name in files:
+                if name != "run.json":
+                    continue
+                with contextlib.suppress(OSError):
+                    st = os.stat(os.path.join(dirpath, name))
+                    parts.append([os.path.join(dirpath, name), st.st_size, st.st_mtime_ns])
+    # data/ as the datasets are listed: the namespace walk from it (core.Project.walk).
+    for rel, real, _name, _entry, _place in project.walk(start="data"):
+        with contextlib.suppress(OSError):
+            st = os.stat(real)
+            parts.append([rel, st.st_size, st.st_mtime_ns])
     from .runner import kit_sha
 
     parts.append(kit_sha())

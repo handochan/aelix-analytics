@@ -2362,14 +2362,18 @@ def _link_loop(kind: str, link: Path) -> Path:
 def test_a_rerun_through_a_link_into_a_managed_directory_is_refused(project, kind):
     """Review 7, output-7: the managed-directory test on a rerun's path was lexical, so a directory
     linked to runs/ put runs/ on sys.path, where a new run of the same path is refused. Issue #8
-    PR-3: a junction as well, which any Windows account can make. What the first run (a script in
-    scripts/, run while the link exists) recorded is kept as an observation: the kit's tree walk
-    descends a junction, not a symbolic link, so through a junction it sees runs/ twice (T5)."""
+    PR-3: a junction as well, which any Windows account can make. Issue #36 item 3: the first run
+    (a script in scripts/, run while the link exists) records nothing under the link. Main's tree
+    walk descended a junction, so through one it saw runs/ twice and recorded the run's own
+    stdout.txt and stderr.txt as outputs (T5); a link that leads inside is not walked now. The
+    record is still kept as an observation, under the name the 2026-10-02 record used."""
     dir_link(kind, Path(project) / "lnk", Path(project) / "runs")
     run_id = _recorded_as(project, "lnk/x.py")
     first = json.loads((Path(project) / "runs" / run_id / "run.json").read_text(encoding="utf-8"))
     record_observation(f"link-into-runs-{kind}", {key: first.get(key)
                                                   for key in ("outputs", "warnings")})
+    assert first["outputs"] == [], first["outputs"]
+    assert not any("outside data/" in warning for warning in first["warnings"]), first["warnings"]
     code, result = kit_cli(project, "run", "--rerun-of", run_id, "--title", "link")
     assert code == 1 and result["error"]["code"] == "rerun_snapshot", result
 
@@ -2419,13 +2423,14 @@ def test_a_rerun_does_not_follow_a_link_out_of_the_project(project, tmp_path, ki
 
 
 @pytest.mark.parametrize("kind", LINK_KINDS)
-def test_a_run_through_a_linked_data_directory_is_recorded_as_measured(project, tmp_path, kind):
-    """Issue #8 PR-3 (sym-9, T5): a project whose data/ is a link to a directory elsewhere, on a
-    larger disk say. What a run saving a dataset there records, what a run reading it back records,
-    and the datasets the project then lists are kept as an observation (`linked-data-<kind>`), from
-    which CONTRACTS G states it per platform. Asserted is only what holds everywhere today: both
-    runs end `ok`, and the dataset is written at the link's target. A junction to an ancestor of
-    the project is not run."""
+def test_a_run_through_a_linked_data_directory_records_project_paths(project, tmp_path, kind):
+    """Issue #8 PR-3 (sym-9, T5) measured, and Issue #36 items 1 and 2 fix: a project whose data/
+    is a link to a directory elsewhere, on a larger disk say. A run saving a dataset there records
+    it as its output (`data/derived/part.parquet`, `via: lab.save`), its input by the project path
+    (`external: false`, no warning), a run reading it back records that path, and the datasets
+    listed have project paths that join their producer and the runs that used them. The records
+    are still kept as an observation (`linked-data-<kind>`) under the 2026-10-02 record's name, so
+    the two can be compared. A junction to an ancestor is in tests/test_path_identity.py."""
     data = Path(project) / "data"
     elsewhere = tmp_path / "bigdisk" / "data"
     elsewhere.parent.mkdir()
@@ -2450,6 +2455,19 @@ def test_a_run_through_a_linked_data_directory_is_recorded_as_measured(project, 
                                                     "producer_state", "producer_candidates",
                                                     "used_by")}
                      for ds in datasets]})
+    save_id, read_id = saved["run"]["id"], read["run"]["id"]
+    assert [(o["path"], o["change"], o["via"]) for o in saved["run"]["outputs"]] == \
+        [("data/derived/part.parquet", "created", "lab.save")], saved["run"]["outputs"]
+    assert [(i["path"], i["external"]) for i in saved["run"]["inputs"]] == \
+        [("data/raw/sales.parquet", False)], saved["run"]["inputs"]
+    assert not any("outside the project" in w for w in saved["run"]["warnings"]), saved["run"]
+    assert [(i["path"], i["external"]) for i in read["run"]["inputs"]] == \
+        [("data/derived/part.parquet", False)], read["run"]["inputs"]
+    by_name = {ds["name"]: ds for ds in datasets}
+    assert by_name["part"]["path"] == "data/derived/part.parquet"
+    assert by_name["part"]["producer"] == save_id and read_id in by_name["part"]["used_by"]
+    assert by_name["sales"]["path"] == "data/raw/sales.parquet"
+    assert save_id in by_name["sales"]["used_by"]
 
 
 def test_a_snapshot_that_cannot_be_written_leaves_no_run_behind(project):
@@ -4844,11 +4862,12 @@ def test_a_case_variant_is_an_own_name_only_when_it_is_the_same_file(project, mo
     """Review 9, rest-7: whether charts/AUX.png is chart `aux`'s own name is decided by the file
     system, which on a case-sensitive one says it is another file; nothing but a case-sensitive
     volume pinned that half. Told it is another file, the kit records it as a chart of its own
-    wherever it runs."""
+    wherever it runs. The file system says it through core.same_file (Issue #36: the one judgment
+    of the same file, which also covers a file system without inode numbers)."""
     from aelix_analytics import report, runner  # noqa: PLC0415
 
     monkeypatch.setattr(report, "build", lambda project_, **kw: {})
-    monkeypatch.setattr(os.path, "samefile", lambda _a, _b: False)
+    monkeypatch.setattr(core, "same_file", lambda _a, _b: False)
     write_script(Path(project), "88_case.py", CHART_BODY + CASE_VARIANTS["chart_then_file"])
     result = runner.execute(core.Project(project), script="scripts/88_case.py", title="case",
                             actor="test")

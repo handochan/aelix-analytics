@@ -69,6 +69,8 @@ from pathlib import Path
 
 import pytest
 
+from aelix_analytics import core
+
 ROOT = Path(__file__).resolve().parents[1]
 TOOL = ROOT / "tools" / "model_eval.py"
 DATA = ROOT / "tools" / "model_eval_data"
@@ -759,7 +761,7 @@ def test_the_dry_run_goes_through_aelix_and_is_scored(aelix_command, fixtures, t
     runs = out / "runs"
     t06 = json.loads((runs / "T06-dry-run-default-unrequested-r1" / "run.json").read_text(encoding="utf-8"))
     assert t06["outcome"] == "success" and t06["exit_code"] == 0 and not t06["timed_out"]
-    assert t06["host"]["aelix"] == me.AELIX_VERSION and t06["kit"]["kit_version"] == "0.4.0"
+    assert t06["host"]["aelix"] == me.AELIX_VERSION and t06["kit"]["kit_version"] == core.KIT_VERSION
     assert t06["answer"]["status"] == "draft" and t06["fixture"]["kind"] == "q10"
     assert [c["error_class"] for c in t06["tool_calls"]] == ["schema", None]
     assert t06["tool_summary"]["argument_errors"] == 1

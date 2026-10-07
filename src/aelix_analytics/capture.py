@@ -116,6 +116,13 @@ class RunState:
         self.cache = core.HashCache(project)
         self.inputs: dict[str, dict] = {}
         self.saved: dict[str, str] = {}
+        # The real path of each input and of each dataset saved, by the path the record holds for it,
+        # for a run that changes the namespace's links (rekey).
+        self._real: dict[str, str] = {}
+        self._saved_real: dict[str, str] = {}
+        # The script's start, by the file system's clock (ns): a file below a link the run made is
+        # one it wrote only when it was modified since (runner.diff_outputs).
+        self.since: int | None = None
         self.charts: list[dict] = []
         self.notes: list[tuple[str, str]] = []
         # id(figure) -> (latest record made from it, fingerprint of what was saved)
@@ -144,10 +151,17 @@ class RunState:
                     if os.path.isfile(match):
                         self._record_file(Path(match), via)
             elif path.is_dir():
-                files = [p for p in sorted(path.rglob("*"))
-                         if p.is_file() and p.suffix.lower() in core.DATA_SUFFIXES]
-                for p in files[:500]:
-                    self._record_file(p, via)
+                # The directory's tree as the namespace walk sees it (core.Project.walk): each file
+                # with the path a record holds for it, the first 500 the walk finds (a directory's
+                # entries in code point order of their names), where the walk stops.
+                files: dict[str, str] = {}
+                for rel, real, name, _entry, _place in self.project.walk(start=path):
+                    if Path(name).suffix.lower() in core.DATA_SUFFIXES:
+                        files.setdefault(rel, real)
+                        if len(files) == 500:
+                            break
+                for rel, real in files.items():
+                    self._record_file(Path(real), via, located=(rel, real))
             elif path.is_file():
                 self._record_file(path, via)
 
@@ -161,12 +175,19 @@ class RunState:
             if value.lower().endswith(core.DATA_SUFFIXES) or any(ch in value for ch in "*?"):
                 self.record_read(value, via)
 
-    def _record_file(self, path: Path, via: str) -> None:
-        rel = self.project.rel(path)
+    def _record_file(self, path: Path, via: str, located: tuple[str, str] | None = None) -> None:
+        # The path a record holds (ADR-0006 9): the same whichever link or spelling the script
+        # read it by, so it meets the path the walk gives the file as an output.
+        rel, real = located or self.project.locate(path)
+        # By that path: a run's own files are left out wherever runs/ leads and however it is
+        # spelled (a managed directory is named by the kit's name, core.MANAGED_DIRS).
         if rel.startswith((f"runs/{self.run_id}/", ".venv/", ".lab/")):
             return
+        # The file the judgment reached, as the namespace is now: the path a record holds can come
+        # from the table of the walk before the script, through a link the script has repointed.
+        opened = Path(real)
         try:
-            size = path.stat().st_size
+            size = opened.stat().st_size
         except OSError:
             return
         entry = self.inputs.get(rel)
@@ -174,14 +195,38 @@ class RunState:
         # file since the pre-run scan); the hash cache keeps this cheap. The hash comes first, so a
         # run interrupted while hashing records no entry without a hash or a source.
         rehash = entry is None or via not in ("scan", "declared") or entry["sha256"] is None
-        sha = self.cache.sha(path) if rehash else None
+        sha = self.cache.sha(opened) if rehash else None
         if entry is None:
             self.inputs[rel] = {"path": rel, "sha256": sha, "bytes": size, "via": {via},
-                                "external": not self.project.inside(path)}
+                                "external": Path(rel).is_absolute()}
+            self._real[rel] = real
             return
         if rehash:
             entry["sha256"], entry["bytes"] = sha, size
         entry["via"].add(via)
+
+    def rekey(self) -> None:
+        """Name every input and saved dataset by the path a record holds for its real path now (a
+        run that made or removed a link). Two inputs that become one keep every `via`, and the hash
+        and size of a runtime read over a scanned or declared one."""
+        inputs, real = {}, {}
+        for rel, entry in self.inputs.items():
+            place = self._real.get(rel)
+            new = (self.project.identity_of_real(place) if place and not entry["external"]
+                   else None) or rel
+            kept = inputs.get(new)
+            if kept is None:
+                inputs[new], real[new] = {**entry, "path": new, "via": set(entry["via"])}, place
+                continue
+            if not (kept["via"] - {"scan", "declared"}) and entry["via"] - {"scan", "declared"}:
+                kept["sha256"], kept["bytes"] = entry["sha256"], entry["bytes"]
+            kept["via"] |= entry["via"]
+        self.inputs, self._real = inputs, real
+        saved = {}
+        for rel, via in self.saved.items():
+            place = self._saved_real.get(rel)
+            saved[(self.project.identity_of_real(place) if place else None) or rel] = via
+        self.saved = saved
 
     # --- derived datasets ---
 
@@ -260,17 +305,13 @@ class RunState:
 
     def _is_own_name(self, rel: str, path: Path) -> bool:
         """Whether a file the script wrote is at a live chart's own name — also under another case
-        of it (charts/CON.png), where the file system does not tell the two apart: there it is the
-        file main wrote or overwrote, as it is under the name itself."""
+        or Unicode normalization of it (charts/CON.png), where the file system does not tell the two
+        apart: there it is the file main wrote or overwrote, as it is under the name itself."""
         if rel in self._own_names:
             return True
-        folded = rel.casefold()
-        for own in self._own_names:
-            if own.casefold() == folded:
-                with contextlib.suppress(OSError):
-                    if os.path.samefile(path, self.project.path(own)):
-                        return True
-        return False
+        folded = core.folded(rel)
+        return any(core.folded(own) == folded and core.same_file(path, self.project.path(own))
+                   for own in self._own_names)
 
     def register_loose_files(self) -> None:
         """Image or HTML files a script wrote into the run directory itself become charts."""
@@ -407,7 +448,9 @@ def save_dataset(project: core.Project, obj, name: str, state: RunState | None =
     else:
         to_polars(obj).write_parquet(dest)
     if state is not None:
-        state.saved[project.rel(dest)] = "lab.save"
+        rel, real = project.locate(dest)
+        state.saved[rel] = "lab.save"
+        state._saved_real[rel] = real
     return dest
 
 

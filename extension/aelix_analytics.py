@@ -1057,11 +1057,13 @@ def summarize_call(tool: str, args: dict, project) -> tuple[str, list]:
         return command[:300], flags
     if tool in ("write", "edit"):
         path = str(args.get("path") or "")
-        if path and project.inside(path):
-            rel = project.rel(path)
-            if rel.split("/")[0] in ("data", "runs", "report", ".lab") or rel in ("journal.jsonl",
-                                                                                "lab.json"):
-                flags.append("wrote_managed_path")
+        # Where the write went below the root, from the path's text (else its real path): a write
+        # through a link that leads out of data/ is still a write under data/. No walk and no
+        # directory listing: this runs on aelix's event loop after every tool call.
+        below = project.below(path) if path else None
+        if below and (below[0] in ("data", "runs", "report", ".lab")
+                      or (not below[1] and below[0] in ("journal.jsonl", "lab.json"))):
+            flags.append("wrote_managed_path")
         return path[:300], flags
     if tool == "read":
         return str(args.get("path") or "")[:300], flags

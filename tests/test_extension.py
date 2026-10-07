@@ -12,6 +12,7 @@ import csv
 import hashlib
 import importlib.util
 import json
+import os
 import re
 import shutil
 import sys
@@ -21,6 +22,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from conftest import LINK_KINDS, dir_link
 
 pytest.importorskip("aelix_coding_agent")
 
@@ -257,6 +259,106 @@ def test_lab_status_shows_relations_as_the_kit_reads_them(tmp_path, monkeypatch)
             "1 version_unbound") in text
     command = asyncio.run(module.analytics_command("status"))
     assert read in command.split("\n") and "1 missing (e99)" in command
+
+
+@pytest.mark.parametrize("kind", LINK_KINDS)
+def test_status_in_the_aelix_process_names_a_linked_data_directory_s_datasets_by_project_paths(
+        lab, tmp_path, kind):
+    """Issue #36 items 1 and 2 inside the aelix process (CPython 3.11 and 3.12): a data/ that is a
+    link is walked as part of the namespace, so analytics_status lists its datasets by project
+    paths. On Windows' 3.11 a junction is told by its reparse tag (no DirEntry.is_junction)."""
+    module, root = lab
+    (root / "data" / "raw" / "sales.parquet").write_bytes(b"PAR1")
+    elsewhere = tmp_path / "bigdisk"
+    shutil.move(root / "data", elsewhere)
+    dir_link(kind, root / "data", elsewhere)
+    result = call(tools_of(module)["analytics_status"], {})
+    assert not result.is_error, text_of(result)
+    assert [(d["name"], d["path"]) for d in result.details["datasets"]] == \
+        [("sales", "data/raw/sales.parquet")]
+
+
+def test_a_write_through_a_linked_data_directory_is_flagged_without_a_walk(lab, tmp_path,
+                                                                          monkeypatch):
+    """Issue #36 (design review M6): the telemetry of a write or edit runs on aelix's event loop,
+    so it names the path by the links it crosses and never walks the project. A write below a
+    data/ that is a link is a write under data/."""
+    module, root = lab
+    elsewhere = tmp_path / "bigdisk"
+    shutil.move(root / "data", elsewhere)
+    dir_link(LINK_KINDS[-1], root / "data", elsewhere)
+
+    def no_walk(self):
+        raise AssertionError("the project was walked on the event loop")
+        yield  # a generator, like the walk it stands in for
+
+    monkeypatch.setattr(module.core.Project, "_walk_namespace", no_walk)
+    project = module.core.Project(root)
+    for path in (root / "data" / "derived" / "x.parquet", elsewhere / "derived" / "y.parquet"):
+        summary, flags = module.summarize_call("write", {"path": str(path)}, project)
+        assert flags == (["wrote_managed_path"] if path.is_relative_to(root) else []), (path, flags)
+
+
+def test_a_write_s_telemetry_lists_no_directory(lab, tmp_path, monkeypatch):
+    """Review of 3a95f38: the telemetry of a write or edit runs on aelix's event loop after every
+    tool call, so where the write went is told from the path's text (else its real path, as main's
+    `inside`), never by listing the directories on its path (head spelled every one: ~100 ms for a
+    directory of 200,000 entries). A managed directory stored in another case is that directory."""
+    module, root = lab
+    ignores_case = (root / "LAB.JSON").exists()
+    if ignores_case:
+        os.rename(root / "runs", root / "runs-tmp")
+        os.rename(root / "runs-tmp", root / "Runs")
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+    dir_link(LINK_KINDS[-1], tmp_path / "alias", root)
+    project = module.core.Project(root)
+
+    def no_listing(*args, **kwargs):
+        raise AssertionError(f"a directory was listed on the event loop: {args}")
+
+    monkeypatch.setattr(module.core.os, "scandir", no_listing)
+    monkeypatch.setattr(module.core.os, "listdir", no_listing)
+    cases = [(root / "data" / "derived" / "x.parquet", True), ("data/raw/y.csv", True),
+             (root / "report" / "index.html", True), (root / "journal.jsonl", True),
+             (root / "scripts" / "a.py", False), (root / "notes" / "journal.jsonl", False),
+             (outside / "z.csv", False), (tmp_path / "alias" / ".lab" / "x.json", True)]
+    if ignores_case:
+        cases += [(Path(str(root).swapcase()) / "data" / "w.csv", True),
+                  (root / "RUNS" / "r" / "x.txt", True)]
+    for path, flagged in cases:
+        _, flags = module.summarize_call("write", {"path": str(path)}, project)
+        assert flags == (["wrote_managed_path"] if flagged else []), (path, flags)
+
+
+def test_a_tool_call_s_project_lookup_lists_no_directory_once_warm(lab, monkeypatch):
+    """Fix-diff check of 13cdc2b: after every tool call the extension resolves the project on
+    aelix's event loop — a Project, and from the working directory also find_project and
+    is_trusted — and spelling the root listed each of its parents every time (~0.5 s per call with
+    200,000 entries beside the project). Once the first call has spelled it, a tool call lists no
+    directory while those directories are unchanged."""
+    module, root = lab
+    # The fixture's directories changed a moment ago, which the spelling does not trust (RACY_NS,
+    # tests/test_path_identity.py); here nothing changes between the calls.
+    monkeypatch.setattr(module.core, "RACY_NS", 0)
+    module.core.trust_project(root)
+    module.resolve_project()
+    monkeypatch.delenv("AELIX_ANALYTICS_PROJECT")
+    monkeypatch.chdir(root / "data")
+    module.resolve_project()
+
+    def no_listing(*args, **kwargs):
+        raise AssertionError(f"a directory was listed on the event loop: {args}")
+
+    monkeypatch.setattr(module.core.os, "scandir", no_listing)
+    monkeypatch.setattr(module.core.os, "listdir", no_listing)
+    project, how = module.resolve_project()
+    assert (project.root, how) == (module.core.Project(root).root, "working directory")
+    monkeypatch.setenv("AELIX_ANALYTICS_PROJECT", str(root))
+    project, how = module.resolve_project()
+    assert how == "AELIX_ANALYTICS_PROJECT"
+    _, flags = module.summarize_call("write", {"path": str(root / "data" / "x.csv")}, project)
+    assert flags == ["wrote_managed_path"]
 
 
 def test_lab_command_where_help_and_gap(lab):

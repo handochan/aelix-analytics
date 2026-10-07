@@ -88,9 +88,9 @@ aelix 안에서: `/analytics`(현황) · `/analytics open`(리포트) · "지역
 배포본은 아직 어디에도 게시하지 않았으므로 체크아웃에서 직접 만듭니다.
 
 ```sh
-cd $PACK && uv build                                   # dist/aelix_analytics-0.4.0-py3-none-any.whl
-uv tool install --python 3.12 dist/aelix_analytics-0.4.0-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
-uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.4.0-py3-none-any.whl   # aelix와 함께
+cd $PACK && uv build                                   # dist/aelix_analytics-0.5.0-py3-none-any.whl
+uv tool install --python 3.12 dist/aelix_analytics-0.5.0-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
+uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.5.0-py3-none-any.whl   # aelix와 함께
 ```
 
 - `analytics`는 체크아웃의 `bin/analytics`와 같은 명령·인자·usage(바이트까지 같음)를 쓰고 kit의 출력을 바이트 그대로 넘깁니다
@@ -285,7 +285,8 @@ kit 0.3.0(#9)에서 공개 이름이 `analytics`로 바뀌었습니다. 옛 이�
 - 옛 flag `--lab-project`를 준 aelix도 확장을 로드하지 않습니다(aelix는 모르는 flag를 말없이 넘기므로, 무시하면 다른 프로젝트에
   기록될 수 있습니다).
 - 저장 이름(`lab.json`, `.lab/`, `lab.*/1`, `lab-projects.json`, 기록의 `via` 값 `lab.read`·`lab.chart` 등)과 기존 기록의 바이트는
-  그대로입니다. 그 뒤의 새 run은 `env.kit_version`이 0.3.0 이상입니다. 옛 이름을 쓴 run 스냅샷은 그때의 kit으로만 그대로 다시 실행됩니다.
+  그대로입니다. 그 뒤의 새 run은 `env.kit_version`이 0.3.0 이상입니다(kit 0.5.0은 기록의 경로 규칙을 바꾼 버전, [현재 계약](docs/CONTRACTS.md)
+  F1). 옛 이름을 쓴 run 스냅샷은 그때의 kit으로만 그대로 다시 실행됩니다.
 - 이전 세션의 telemetry에는 `lab_*` 도구 이름이 남아 있고, 리포트의 도구 사용표에는 옛 이름과 새 이름이 각각 보입니다.
 
 ## 프로젝트 구조
@@ -382,6 +383,11 @@ kit이 쓰는 텍스트(기록·템플릿 사본·inline 스크립트·Workspace
 - **트랜잭션·복구 없음.** 강제 종료된 run은 `incomplete`로 보입니다. 같은 요청을 두 번 보내면 run이 두 개 생깁니다(멱등 키 없음).
   한 프로젝트의 run은 파일 잠금으로 직렬화되므로(출력은 실행 전후 파일 비교로 찾습니다) 동시 요청은 순서를 기다립니다.
   기록 중 일부 단계가 실패하면 run.json의 `finalize_errors`와 run 페이지에 남습니다.
+- **링크와 철자.** 기록의 경로는 프로젝트의 이름 공간 경로입니다: `data/`가 다른 디스크로 가는 링크여도 `data/…`이고, 철자는 파일
+  시스템에 저장된 이름입니다(kit 0.5.0; kit이 관리하는 `runs/`·`.venv/`·`.lab/`·`report/`는 저장된 대소문자와 관계없이 그 이름).
+  링크 대상의 절대 경로로 직접 읽은 파일은 프로젝트 밖 경로이고, `analytics_query`는 `data/` 안에서 밖으로 가는 링크 아래를 읽지
+  않으며, run이 만든 링크 아래의 파일은 스크립트가 시작한 뒤 수정된 것만 출력인 등의 한계는 [현재 계약](docs/CONTRACTS.md) G의
+  "경로 정체성의 한계"에 있습니다.
 - **재실행은 같은 환경 가정.** 환경 지문 비교가 없고, 로컬 helper 모듈은 스냅샷이 아니라 현재 `scripts/`에서 import됩니다.
 - **규모.** 리포트는 매번 전체를 다시 만들고, 데이터셋 프로파일은 전체를 스캔합니다(sha 기준 캐시). 수백 run·수 GB에서는 느려집니다.
   plotly 그림은 JSON째 페이지에 들어갑니다(3 MB 초과는 링크).
