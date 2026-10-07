@@ -201,6 +201,9 @@ def test_the_wheel_metadata(dist):
     assert scripts == ["analytics", "=", "aelix_analytics.cli:main"], "one command, no `lab` beside it"
     assert meta["License-Expression"] == "Apache-2.0"
     assert meta.get_all("License-File") == ["LICENSE"]
+    # The GitHub handle and no email (owner's decision of 2026-10-07, Issue #24).
+    assert meta.get_all("Author") == meta.get_all("Maintainer") == ["handochan"]
+    assert meta.get_all("Author-email") is None and meta.get_all("Maintainer-email") is None
     with zipfile.ZipFile(dist["wheel"]) as wheel:
         version = pyproject()["project"]["version"]
         shipped = wheel.read(f"aelix_analytics-{version}.dist-info/licenses/LICENSE")
