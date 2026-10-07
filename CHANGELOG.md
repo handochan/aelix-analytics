@@ -17,7 +17,7 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 
 ## [0.5.0] - 2026-10-07
 
-번호를 붙인 PR은 [#68]입니다. [#12]의 셋째 PR은 그 뒤 번호를 올리지 않고 병합됐습니다.
+번호를 붙인 PR은 [#68]입니다. [#12]의 셋째 PR([#76])은 그 뒤 번호를 올리지 않고 병합됐습니다.
 
 ### Changed
 
@@ -30,10 +30,10 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 - 0.5.0 전 kit의 run이 기록한 옛 경로 — 루트나 링크 대상 아래의 실제 절대 경로, 저장된 것과 다른 철자로 기록된 상대 경로(입력
   `data/derived/AGG.parquet`, 차트 `Scripts/Analysis.py::id`) — 를 지금의 경로로 대응해 읽어 데이터셋·생산자·차트 버전과 잇습니다.
   그렇게만 이어진 것은 추론(`basis: inferred`)으로 표시하고 확정 연결로 세지 않으며, 기록은 고쳐 쓰지 않습니다. 0.5.0 이후 run도
-  기록한 글자는 옛 run의 것도 기록 그대로 읽습니다 ([#12], [ADR-0006](docs/decisions/0006-common-record-contract.md) 9절).
+  기록한 글자는 옛 run의 것도 기록 그대로 읽습니다 ([#76], [ADR-0006](docs/decisions/0006-common-record-contract.md) 9절).
 - status JSON에 추론을 가리키는 필드가 더해집니다: 생산자 판정의 `inferred_candidates`·`read_as`, 참조 판정의 `inferred_candidates`,
   차트 행의 `inferred_versions`·`inferred_inputs`·`inferred_upstream`, 데이터셋의 `inferred`. `analytics_status`·kit `status`와
-  Workspace는 그 자리에 `inferred from an older kit's path`를 적습니다 ([#12]).
+  Workspace는 그 자리에 `inferred from an older kit's path`를 적습니다 ([#76]).
 
 ### Fixed
 
@@ -151,3 +151,4 @@ PR도 이 절입니다.
 [#64]: https://github.com/handochan/aelix-analytics/pull/64
 [#66]: https://github.com/handochan/aelix-analytics/pull/66
 [#68]: https://github.com/handochan/aelix-analytics/pull/68
+[#76]: https://github.com/handochan/aelix-analytics/pull/76
