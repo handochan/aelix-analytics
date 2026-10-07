@@ -5,7 +5,9 @@ criteria (ADR-0006, "결과와 영향"); the request fingerprints of fingerprint
 canonical form. The /1 cases are lab.json projects written record by record (tests/legacy_records.py):
 the same chart id in other runs, references left unbound, several producers, tables not preserved,
 references to later records and cycles, failed runs, records this reader cannot read and damaged
-lines (docs/BETA-QUALITY-GATES.md, B1-b).
+lines (docs/BETA-QUALITY-GATES.md, B1-b). Then the paths a kit before PATH_IDENTITY_SINCE recorded
+(ADR-0006 9, Issue #12 PR-3): read as today's identity paths, inferred and never confirmed, and the
+records never rewritten.
 """
 
 from __future__ import annotations
@@ -17,12 +19,15 @@ import os
 import shutil
 import subprocess
 import sys
+import unicodedata
 from pathlib import Path
 
 import pytest
+from conftest import LINK_KINDS, dir_link
 from legacy_records import LegacyProject, at
+from packaging.version import Version
 
-from aelix_analytics import relations
+from aelix_analytics import core, relations
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "tests" / "fixtures" / "records"
@@ -31,7 +36,7 @@ DEAD_PID = 4294967295  # the examples' running record; no process has it (README
 LIVE_PID = 4242
 # What a judgment may hold (no field of verification, causation or row correspondence).
 JUDGMENT_KEYS = {"from", "line", "ref", "type", "relation", "target", "state", "reason", "version_binding",
-                 "basis", "confirmed", "candidates"}
+                 "basis", "confirmed", "candidates", "inferred_candidates"}
 # The writes of the examples a reader does not decide, and the Issue that does.
 NOT_THIS_READER = {"report_save": "#19", "event_append": "#13"}
 ANALYSIS = ("duckdb", "polars", "pyarrow", "numpy", "pandas", "matplotlib", "plotly", "pygments",
@@ -48,8 +53,8 @@ def no_process(pid) -> bool:
     return False
 
 
-def read(root, *, alive=no_process, sha=file_sha) -> relations.ReadModel:
-    return relations.read(root, alive=alive, sha=sha)
+def read(root, *, alive=no_process, sha=file_sha, legacy_path=None) -> relations.ReadModel:
+    return relations.read(root, alive=alive, sha=sha, legacy_path=legacy_path)
 
 
 def key_of(judged: dict) -> tuple[str, str]:
@@ -847,6 +852,204 @@ def test_another_sha_gives_the_same_judgments(name):
 
     other = read(FIXTURES / name, sha=chunked)
     assert other.references() == judged and other.report_revisions() == revisions
+
+
+# --- paths an older kit recorded (ADR-0006 9, Issue #12 PR-3) -------------------------------------
+
+OLD, NEW = "0.4.0", relations.PATH_IDENTITY_SINCE
+
+
+def files_of(root: Path) -> dict[str, str | None]:
+    """Every file under `root` with the sha256 of its bytes, but the kit's hash cache."""
+    return {path.relative_to(root).as_posix(): file_sha(path) for path in sorted(root.rglob("*"))
+            if path.is_file() and ".lab/cache" not in path.relative_to(root).as_posix()}
+
+
+def test_kit_versions_are_ordered_as_pep_440_says():
+    """ADR-0006 1.3's form, ordered as packaging orders it; anything else is no version, and a run
+    with none is an older kit's."""
+    texts = ["0.3.0.dev1", "0.3.0a1.dev2", "0.3.0a1", "0.3.0b2", "0.3.0rc1", "0.3", "0.3.0", "0.3.0.0",
+             "0.3.0.post1.dev1", "0.3.0.post1", "0.3.1.dev1", "0.4.0", "0.4.10", "0.5.0rc1", "0.5.0",
+             "0.5.0.post2", "0.10.0", "1", "1.0", "10.0.0a3"]
+    for first in texts:
+        for second in texts:
+            want = (Version(first) > Version(second)) - (Version(first) < Version(second))
+            got = relations.version_key(first), relations.version_key(second)
+            assert (got[0] > got[1]) - (got[0] < got[1]) == want, (first, second)
+    for text in ("0.3.0-beta.1", "v0.3.0", "0.3.0+local", "1!0.3.0", "0.3.0.beta1", "03.0", "", None, 5,
+                 "0.5.0 ", "dev"):
+        assert relations.version_key(text) is None, text
+    assert relations.PATH_IDENTITY_SINCE == core.PATH_IDENTITY_SINCE
+    assert [v for v in ("0.4.9", "0.5.0rc1", "0.5.0.dev3", None, "dev", "0.5.0", "0.5.0.post1", "0.5.1",
+                        "0.10.0", "1.0") if relations.older_kit(v)] == \
+        ["0.4.9", "0.5.0rc1", "0.5.0.dev3", None, "dev"]
+
+
+def older_kit_project(tmp_path) -> tuple[LegacyProject, dict]:
+    """An older kit's runs whose input paths are not the identity path of the table they read,
+    today's run with the same path, and paths that are read as nothing. The mapping stands for
+    Project.legacy_identity (a real file system's answers are in the last test of this part)."""
+    p = LegacyProject(tmp_path / "p")
+    agg = ("data/derived/agg.parquet", p.file("data/derived/agg.parquet", b"agg"))
+    absolute = "/an/older/place/data/derived/agg.parquet"
+    runs = {
+        "maker": p.run("20261001-091000-maker", started_at=at(10), ts=at(11), outputs=[agg],
+                       kit_version=OLD),
+        "absolute": p.run("20261001-092000-absolute", script="scripts/b.py", started_at=at(20),
+                          ts=at(21), inputs=[(absolute, agg[1])], kit_version=OLD),
+        "today": p.run("20261001-093000-today", script="scripts/c.py", started_at=at(30), ts=at(31),
+                       inputs=[(absolute, agg[1])], kit_version=NEW),
+        "spelling": p.run("20261001-094000-spelling", script="scripts/d.py", started_at=at(40),
+                          ts=at(41), inputs=[("data/derived/AGG.parquet", agg[1])]),  # no env
+        "nowhere": p.run("20261001-095000-nowhere", script="scripts/e.py", started_at=at(50),
+                         ts=at(51), inputs=[("/elsewhere/x.parquet", "0" * 64),
+                                            ("data/derived/made-up.parquet", "1" * 64)],
+                         kit_version="0.3.0"),
+    }
+    mapping = {absolute: agg[0], "data/derived/AGG.parquet": agg[0],
+               # A mapping that names no entry and no run's output is not taken: never invented.
+               "data/derived/made-up.parquet": "data/derived/never-written.parquet"}
+    return p, {"runs": runs, "mapping": mapping, "agg": agg, "absolute": absolute}
+
+
+def test_an_older_kit_s_path_is_read_as_its_identity_and_the_producer_is_inferred(tmp_path):
+    p, case = older_kit_project(tmp_path)
+    runs, (path, digest) = case["runs"], case["agg"]
+    before = files_of(p.root)
+    model = read(p.root, legacy_path=case["mapping"].get)
+    judged = model.producer(runs["absolute"], case["absolute"])
+    assert judged == {"run_id": runs["absolute"], "path": case["absolute"], "sha256": digest,
+                      "producer": "resolved", "candidates": [runs["maker"]], "basis": "inferred",
+                      "inferred_candidates": [runs["maker"]], "read_as": path}
+    spelled = model.producer(runs["spelling"], "data/derived/AGG.parquet")
+    assert (spelled["basis"], spelled["candidates"], spelled["read_as"]) == ("inferred", [runs["maker"]], path)
+    # Today's run is read as it recorded, whatever the mapping says.
+    today = model.producer(runs["today"], case["absolute"])
+    assert (today["producer"], today["basis"], "read_as" in today) == ("none", None, False)
+    assert model.read_as(runs["today"], case["absolute"]) is None
+    # A path that maps to nothing, or to a path nothing knows of, is read as recorded.
+    for recorded in ("/elsewhere/x.parquet", "data/derived/made-up.parquet"):
+        assert model.read_as(runs["nowhere"], recorded) is None
+        assert model.producer(runs["nowhere"], recorded)["producer"] == "none"
+    # Lineage and the upstream walk follow the inferred edges; nothing in them is observed or
+    # confirmed through a mapping.
+    assert model.upstream(runs["absolute"])["upstream"] == [runs["maker"]]
+    inferred = [item for item in model.lineage() if item.get("inferred_candidates")]
+    assert len(inferred) == 2 and all(item["basis"] == "inferred" for item in inferred), inferred
+    assert all(not j["confirmed"] or j["basis"] in ("observed", "declared") for j in model.references())
+    # The table's producer read from its own path: the maker recorded that path, so it is observed.
+    assert model.producer_candidates(path, digest) == ([runs["maker"]], [])
+    assert files_of(p.root) == before, "reading rewrites no record"
+    # Without the mapping the paths are read as recorded, as before this reader read them.
+    plain = read(p.root)
+    assert plain.producer(runs["absolute"], case["absolute"]) == {
+        "run_id": runs["absolute"], "path": case["absolute"], "sha256": digest, "producer": "none",
+        "candidates": [], "basis": None}
+
+
+def test_an_inferred_reading_that_finds_several_runs_stays_ambiguous(tmp_path):
+    p = LegacyProject(tmp_path / "p")
+    two = ("data/derived/two.parquet", p.file("data/derived/two.parquet", b"two"))
+    old_maker = p.run("20261001-091000-old-maker", started_at=at(10), ts=at(11), outputs=[two],
+                      kit_version=OLD)
+    new_maker = p.run("20261001-092000-new-maker", started_at=at(20), ts=at(21), outputs=[two],
+                      kit_version=NEW)
+    spelled_maker = p.run("20261001-093000-spelled-maker", started_at=at(30), ts=at(31),
+                          outputs=[("data/derived/TWO.parquet", two[1])], kit_version="0.2.0")
+    consumer = p.run("20261001-094000-consumer", script="scripts/b.py", started_at=at(40), ts=at(41),
+                     inputs=[("/old/root/data/derived/two.parquet", two[1])], kit_version=OLD)
+    mapping = {"/old/root/data/derived/two.parquet": two[0], "data/derived/TWO.parquet": two[0]}
+    model = read(p.root, legacy_path=mapping.get)
+    judged = model.producer(consumer, "/old/root/data/derived/two.parquet")
+    makers = sorted([old_maker, new_maker, spelled_maker])
+    assert (judged["producer"], judged["candidates"], judged["inferred_candidates"], judged["basis"]) == \
+        ("ambiguous", makers, makers, "inferred")
+    # Read from the table's own path, only the maker that recorded another spelling is inferred.
+    assert model.producer_candidates(two[0], two[1]) == (makers, [spelled_maker])
+
+
+def test_an_older_kit_s_script_spelling_is_a_version_of_today_s_key_by_inference(tmp_path):
+    p = LegacyProject(tmp_path / "p")
+    p.file("scripts/plot.py", b"# plot\n")
+    old = p.run("20261001-091000-old", script="Scripts/Plot.py", started_at=at(10), ts=at(11),
+                charts=["trend"])  # e1, no env: an older kit's
+    new = p.run("20261001-092000-new", script="scripts/plot.py", started_at=at(20), ts=at(21),
+                charts=["trend"], kit_version=NEW)  # e2
+    p.event("finding", {"charts": ["scripts/plot.py::trend"]})  # e3
+    p.event("finding", {"charts": ["Scripts/Plot.py::trend"]})  # e4
+    v2(p, 5, "finding", [ref("visualization_version", "cites", "none", token="trend")])
+    mapping = {"Scripts/Plot.py": "scripts/plot.py"}
+    model = read(p.root, legacy_path=mapping.get)
+    versions = [f"{old}/trend", f"{new}/trend"]
+    assert model.chart_key("Scripts/Plot.py::trend") == "scripts/plot.py::trend"
+    assert model.visualization_versions("scripts/plot.py::trend") == versions
+    assert model.inferred_versions("scripts/plot.py::trend") == [f"{old}/trend"]
+    assert model.visualization_versions("Scripts/Plot.py::trend") == versions
+    assert model.inferred_versions("Scripts/Plot.py::trend") == [f"{new}/trend"]
+    today_key = one(model, "e3", field="charts")
+    assert (today_key["state"], today_key["candidates"], today_key["inferred_candidates"],
+            today_key["confirmed"]) == ("version_unbound", versions, [f"{old}/trend"], False)
+    old_key = one(model, "e4", field="charts")
+    assert (old_key["candidates"], old_key["inferred_candidates"]) == (versions, [f"{new}/trend"])
+    [token] = model.references("e5")
+    assert (token["state"], token["candidates"], token["inferred_candidates"], token["confirmed"]) == \
+        ("version_unbound", versions, [f"{old}/trend"], False)
+    # The old run's own chart reference is bound to that run as recorded: no inference in it.
+    bound = one(model, "e1", field="charts")
+    assert (bound["state"], bound["confirmed"], "inferred_candidates" in bound) == ("resolved", True, False)
+    # Read as recorded, the two spellings are two keys, and the name is ambiguous between them.
+    plain = read(p.root)
+    assert plain.visualization_versions("scripts/plot.py::trend") == [f"{new}/trend"]
+    [token] = plain.references("e5")
+    assert (token["state"], "inferred_candidates" in token) == ("ambiguous", False)
+
+
+def test_older_kit_paths_read_through_the_file_system_and_today_s_links(tmp_path):
+    """Project.legacy_identity on a real file system (core.read_model passes it): an absolute path
+    under the root, one under a directory link's target, and a relative path in another case or
+    Unicode normalization where the file system takes it as the stored entry — and read as recorded
+    where it does not, rather than matched by folding the text."""
+    for kind in LINK_KINDS:
+        p = LegacyProject(tmp_path / kind / "p")
+        agg = ("data/derived/agg.parquet", p.file("data/derived/agg.parquet", b"agg"))
+        nfc = unicodedata.normalize("NFC", "data/derived/café.parquet")
+        cafe = (nfc, p.file(nfc, b"cafe"))
+        ext = tmp_path / kind / "ext"
+        ext.mkdir()
+        (ext / "x.parquet").write_bytes(b"x")
+        x_sha = file_sha(ext / "x.parquet")
+        dir_link(kind, p.root / "data" / "linked", ext)
+        project = core.Project(p.root)
+        makers = [p.run("20261001-090000-maker", started_at=at(1), ts=at(2), kit_version=OLD,
+                        outputs=[agg, cafe, ("data/linked/x.parquet", x_sha)])]
+        under_root = os.path.join(str(project.root), "data", "derived", "agg.parquet")
+        through_link = os.path.join(os.path.realpath(ext), "x.parquet")
+        other_case = "data/derived/AGG.parquet"
+        nfd = unicodedata.normalize("NFD", nfc)
+        consumer = p.run("20261001-091000-consumer", script="scripts/b.py", started_at=at(10),
+                         ts=at(11), kit_version=OLD,
+                         inputs=[(under_root, agg[1]), (through_link, x_sha), (other_case, agg[1]),
+                                 (nfd, cafe[1])])
+        today = p.run("20261001-092000-today", script="scripts/c.py", started_at=at(20), ts=at(21),
+                      kit_version=NEW, inputs=[(through_link, x_sha), (other_case, agg[1])])
+        before = files_of(p.root)
+        model = core.read_model(project)
+        folds_case = core.same_file(p.root / agg[0], p.root / other_case)
+        folds_form = core.same_file(p.root / nfc, p.root / nfd)
+        expected = {under_root: agg[0], through_link: "data/linked/x.parquet",
+                    other_case: agg[0] if folds_case else None, nfd: nfc if folds_form else None}
+        for recorded, identity in expected.items():
+            assert model.read_as(consumer, recorded) == identity, (kind, recorded)
+            judged = model.producer(consumer, recorded)
+            if identity is None:
+                assert (judged["producer"], "read_as" in judged) == ("none", False), (kind, recorded)
+            else:
+                assert (judged["candidates"], judged["basis"], judged["read_as"]) == \
+                    (makers, "inferred", identity), (kind, recorded)
+        for recorded in (through_link, other_case):
+            assert model.read_as(today, recorded) is None
+            assert model.producer(today, recorded)["producer"] == "none"
+        assert files_of(p.root) == before, "reading rewrites no record"
 
 
 # --- where it runs ---------------------------------------------------------------------------------

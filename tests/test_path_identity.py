@@ -554,21 +554,30 @@ def test_an_inward_link_to_a_directory_of_the_person_s_is_recorded_at_its_real_p
 
 
 def test_a_path_recorded_by_an_earlier_kit_is_read_as_the_namespace_now(tmp_path):
-    """Project.legacy_identity, for #12: an absolute path an earlier kit recorded (the real path,
-    as typed) is the project-relative path inside the root, the path below the first boundary
-    that reaches it, else None — and None for a relative path (a decision #12 waits for)."""
+    """Project.legacy_identity, for #12: a path an earlier kit recorded (the real path, as typed;
+    relative to the root inside it) is the project-relative path inside the root in its stored
+    spelling, the path below the first boundary that reaches it, else None. A relative path is
+    one under the root (the owner's decision of 2026-10-06 on #12); one such a kit could not have
+    written is None."""
     root = bare(tmp_path)
     write(root / "data/raw/s.parquet")
     ext = tmp_path / "ext"
     write(ext / "sub" / "y.csv")
     dir_link("symlink", root / "data" / "b", ext)
     project = core.Project(root)
-    typed = str(root).swapcase() if ignores_case(root) else str(root)
+    folds = ignores_case(root)
+    typed = str(root).swapcase() if folds else str(root)
     assert project.legacy_identity(os.path.join(typed, "data", "raw", "s.parquet")) == \
         "data/raw/s.parquet"
     assert project.legacy_identity(str(ext / "sub" / "y.csv")) == "data/b/sub/y.csv"
     assert project.legacy_identity(str(tmp_path / "elsewhere" / "z.csv")) is None
-    assert project.legacy_identity("data/raw/s.parquet") is None
+    assert project.legacy_identity("data/raw/s.parquet") == "data/raw/s.parquet"
+    # Another spelling is the stored one only where the file system takes it as that entry.
+    assert project.legacy_identity("Data/RAW/S.parquet") == \
+        ("data/raw/s.parquet" if folds else "Data/RAW/S.parquet")
+    for impossible in ("", "../x.csv", "data/./s.parquet", "data//s.parquet", "s3://bucket/x.csv",
+                       "C:\\elsewhere\\x.csv", None, 7):
+        assert project.legacy_identity(impossible) is None, impossible
     assert core.PATH_IDENTITY_SINCE == "0.5.0"
 
 

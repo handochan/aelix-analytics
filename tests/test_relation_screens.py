@@ -10,6 +10,7 @@ made from (as_of_seq, source_revision). The projects are lab.json projects writt
 from __future__ import annotations
 
 import json
+import os
 import re
 from pathlib import Path
 from types import SimpleNamespace
@@ -551,3 +552,125 @@ def test_one_records_references_are_the_same_judged_alone_or_with_all(name):
         assert alone.references(source) == whole.references(source), source
         if not source.startswith("report:"):  # a Report revision's are judged with all of them
             assert alone._references is None, source  # nothing else was judged
+
+
+# --- paths an older kit recorded (ADR-0006 9, Issue #12 PR-3) -------------------------------------
+
+def older_kit_screens(tmp_path, monkeypatch, *, folder: str = "", script: str = "plot") -> SimpleNamespace:
+    """An older kit's runs that recorded a table and a script in another spelling and an absolute
+    path, today's run with the same paths, and a stale input upstream. Project.legacy_identity is
+    replaced by a mapping so every platform reads the same (the reader's tests read a real file
+    system). `folder` puts the table in a folder of that name, `script` names the script."""
+    p = LegacyProject(tmp_path / "p")
+    p.file(f"scripts/{script}.py", b"# plot\n")
+    derived = f"data/derived/{folder}/" if folder else "data/derived/"
+    base = ("data/raw/base.parquet", p.file("data/raw/base.parquet", b"base"))
+    agg = (f"{derived}agg.parquet", p.file(f"{derived}agg.parquet", b"agg"))
+    # The real path an older kit recorded for a table it read (a root reached through a link, say).
+    absolute = os.path.join(os.path.realpath(p.root), *agg[0].split("/"))
+    maker = p.run("20261001-091000-maker", script=f"Scripts/{script.title()}.py", started_at=at(10),
+                  ts=at(11), inputs=[base], outputs=[(f"{derived}AGG.parquet", agg[1])], charts=["trend"])
+    consumer = p.run("20261001-092000-consumer", script="scripts/use.py", started_at=at(20), ts=at(21),
+                     inputs=[(absolute, agg[1])], charts=["usage"], kit_version="0.4.0")
+    today = p.run("20261001-093000-today", script=f"scripts/{script}.py", started_at=at(30), ts=at(31),
+                  inputs=[(absolute, agg[1])], charts=["trend"], kit_version=core.PATH_IDENTITY_SINCE)
+    p.file(base[0], b"base changed")  # the maker's input changed since: the maker is stale
+    mapping = {f"Scripts/{script.title()}.py": f"scripts/{script}.py", f"{derived}AGG.parquet": agg[0],
+               absolute: agg[0]}
+    monkeypatch.setattr(core.Project, "legacy_identity", lambda self, recorded: mapping.get(recorded))
+    return SimpleNamespace(p=p, maker=maker, consumer=consumer, today=today, absolute=absolute)
+
+
+def records_of(root: Path) -> dict[str, bytes]:
+    """The project's files but what the screens write (report/, the kit's cache)."""
+    return {path.relative_to(root).as_posix(): path.read_bytes() for path in sorted(root.rglob("*"))
+            if path.is_file() and path.relative_to(root).parts[0] not in ("report", ".lab")}
+
+
+def test_the_overview_says_which_relations_are_inferred_from_an_older_kit_s_path(tmp_path, monkeypatch):
+    case = older_kit_screens(tmp_path, monkeypatch)
+    before = records_of(case.p.root)
+    st, text = overview(case.p)
+    [agg] = [d for d in st["datasets"] if d["path"] == "data/derived/agg.parquet"]
+    assert (agg["producer_state"], agg["producer_candidates"], agg["used_by"]) == \
+        ("resolved", [case.maker], [case.consumer])
+    assert agg["inferred"] == {"producer_candidates": [case.maker], "producers": [case.maker],
+                               "used_by": [case.consumer], "written_by": [case.maker]}
+    charts = {c["key"]: c for c in st["charts"]}
+    assert set(charts) == {"scripts/plot.py::trend", "scripts/use.py::usage"}
+    assert (charts["scripts/plot.py::trend"]["versions"], charts["scripts/plot.py::trend"]["inferred_versions"],
+            charts["scripts/plot.py::trend"]["run"]) == (2, 1, case.today)
+    usage = charts["scripts/use.py::usage"]
+    assert (usage["stale"], usage["stale_upstream"], usage["inferred_upstream"], usage["inferred_inputs"]) == \
+        (True, [case.maker], [case.maker], [case.absolute])
+    assert f"same bytes as run {case.maker}'s output (inferred from an older kit's path)" in text
+    assert "used by 1 run(s) (1 inferred from an older kit's path)" in text
+    assert "scripts/plot.py::trend \"trend\" run " + case.today + " v2 (1 inferred from an older kit's path)" in text
+    assert f"STALE(upstream candidate {case.maker} (inferred from an older kit's path))" in text
+    assert "STALE(" not in text.split("scripts/plot.py::trend", 1)[1].split("\n", 1)[0]
+    assert "producer inferred from an older kit's path for 1 input(s)" in text
+    assert records_of(case.p.root) == before, "the overview rewrites no record"
+
+
+def test_the_workspace_marks_what_it_reads_through_an_older_kit_s_path(tmp_path, monkeypatch):
+    case = older_kit_screens(tmp_path, monkeypatch)
+    before = records_of(case.p.root)
+    pages = built(case.p)
+    consumer = pages[f"runs/{case.consumer}.html"]
+    inputs = consumer.split('id="inputs"', 1)[1].split("</section>", 1)[0]
+    assert (f'<span lang="">{case.absolute}</span>' in inputs or f'>{case.absolute}</a>' in inputs)
+    assert 'read as <a href="../data/agg.html"><code lang="">data/derived/agg.parquet</code></a> — ' \
+           "inferred from an older kit&#x27;s path" in inputs
+    assert f'runs/{case.maker}.html' in inputs and "Inferred from an older kit&#x27;s path" in inputs
+    assert f"({case.maker}: inferred from an older kit&#x27;s path)" in consumer  # the stale callout
+    today = pages[f"runs/{case.today}.html"]
+    assert "read as" not in today and "older kit" not in today
+    dataset = pages["data/agg.html"]
+    assert f'{case.consumer}</a> <span lang="">{case.consumer}</span> · <span class="ref-note"' in dataset
+    assert dataset.count("inferred from an older kit&#x27;s path</span>") >= 2  # producers and readers
+    assert "Inferred from an older kit&#x27;s path" in dataset  # the current bytes' candidate
+    card = _card(pages["index.html"], "scripts/plot.py::trend")
+    assert "v2" in card and "1 of the 2 version(s) of this key were recorded under another spelling" in card
+    # The gallery's card lists the earlier version, recorded by the older kit, as inferred.
+    gallery = pages["index.html"].split('id="charts"', 1)[1]
+    earlier = _card(gallery, "scripts/plot.py::trend").split('class="versions"', 1)[1]
+    assert f'runs/{case.maker}.html' in earlier and "(inferred)</small>" in earlier
+    assert "Inferred from an older kit&#x27;s path" in _card(pages["index.html"], "scripts/use.py::usage")
+    maker = pages[f"runs/{case.maker}.html"]
+    assert ('id <code lang="">scripts/plot.py::trend</code> <small class="ref-note"' in maker
+            and 'recorded as <code lang="">Scripts/Plot.py::trend</code> — inferred from an older kit&#x27;s path'
+            in maker)
+    assert f'index.html#chart-{report.slug_key("scripts/plot.py::trend")}' in maker
+    assert records_of(case.p.root) == before, "the Workspace rewrites no record"
+
+
+def test_records_of_today_s_kit_and_paths_already_stored_get_no_inferred_mark(tmp_path):
+    """Nothing is marked inferred where no older kit's path is read as another one: the evidence
+    project's runs have no kit version (an older kit's) but their paths are the stored ones."""
+    case = evidence_project(tmp_path)
+    st, text = overview(case.p)
+    assert "older kit" not in text
+    assert not any("inferred" in d for d in st["datasets"])
+    assert all(not (c["inferred_versions"] or c["inferred_inputs"] or c["inferred_upstream"])
+               for c in st["charts"])
+    pages = built(case.p)
+    assert not any("older kit" in page for page in pages.values())
+
+
+def test_the_inferred_marks_keep_what_people_wrote_in_lang_empty(tmp_path, monkeypatch):
+    """TERMINOLOGY 7: a path or key an older kit recorded, and the one it is read as, are what
+    people and scripts wrote; every Hangul the Workspace shows for them is in an element marked
+    lang="", text or attribute, and the kit's mark stays in its English."""
+    from test_language import HANGUL, LangScopes
+
+    case = older_kit_screens(tmp_path, monkeypatch, folder="요약", script="그림")
+    pages = built(case.p)
+    assert "Inferred from an older kit&#x27;s path" in pages[f"runs/{case.consumer}.html"]
+    assert 'recorded as <code lang="">Scripts/그림.py::trend</code>' in pages[f"runs/{case.maker}.html"]
+    for name, page in pages.items():
+        scopes = LangScopes(page)
+        misplaced = [(lang, tag, text.strip()[:80]) for lang, tag, text in scopes.texts
+                     if tag != "title" and HANGUL.search(text) and lang != ""]
+        misplaced += [(lang, f"{tag}@{attr}", value[:80]) for lang, tag, attr, value in scopes.attrs
+                      if HANGUL.search(value) and lang != ""]
+        assert misplaced == [], name

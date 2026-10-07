@@ -191,13 +191,14 @@ Report는 Visualization·설명·발견을 선택해 구성한 문서이며, Vis
 | 쓰기를 허용하는 kit | 표식의 `min_writer_version`. 그보다 낮은 kit의 쓰기는 `writer_too_old`로 거절하고 읽기만 허용하며 필요한 버전을 안내 |
 | 프로젝트 ID | 표식의 `project_id`. 복사본도 같은 값이므로 계통이며 유일성의 보장이 아님 |
 | 기록의 `path`, `external` | `path`는 정체성 경로: 프로젝트 상대 POSIX 경로, 철자는 파일 시스템에 저장된 이름, 밖을 가리키는 링크(디렉터리·파일)는 경계. `external`은 정체성이 프로젝트 밖일 때만 참. 보안 판정은 끝까지 푼 경로로 따로 함 |
+| 옛 kit의 경로 대응 | kit 0.5.0 전 run이 기록한 경로(루트·링크 대상 아래의 절대 경로, 저장된 철자가 아닌 상대 경로)를 지금의 정체성 경로로 읽은 것. 추론(`basis: inferred`)이며 관측·확정 연결이 아님. 생산자 판정의 `read_as`·`inferred_candidates`, 참조 판정의 `inferred_candidates`, `status` JSON의 `inferred`·`inferred_inputs`·`inferred_upstream`·`inferred_versions`. 화면은 `inferred from an older kit's path`(Workspace 배지 `Inferred from an older kit's path`). 쓰는 시점의 결박인 `version_binding: inferred`와 다른 축 |
 | 줄 끝만 다른 변경 | `changed`의 사유 `line_endings_only`. 바이트 해시와 상태 `changed`는 그대로이며 같음으로 바꾸지 않음 |
 | Report 파일 경로 | `content/` 안의 POSIX 상대 경로. 구성 요소마다 세 OS에서 같은 이름, NFC, 대소문자를 무시해도 서로 다름. 어기면 `report_path_invalid` |
 | 새 기록 종류 | `analytics.event/2`의 kind `metric_definition`, `reuse_notification`(재사용 후보를 보인 사실, `trigger`: requested·automatic), `reuse_mode`(제안 모드의 변경, `scope`: project·session), `report_revision`(Report 저장의 완료), `publication`(게시본 build), `publish_receipt`(전달 결과). Report 버전 manifest의 가족은 `analytics.report_revision/1` |
 
 표의 '근거 버전의 고정 방식' 행부터 '새 기록 종류' 행까지는 [ADR-0006](decisions/0006-common-record-contract.md)과
 [ADR-0007](decisions/0007-line-endings.md)이 채택한 기록 계약의 이름이다. 그 기록(쓰기)은 아직 구현되지 않았고 현재 기록에는 없다.
-읽기의 이름 — 해석 상태, `confirmed`, `recording_status`, `unsupported`·`damaged`, `source_revision`·`as_of_seq`·`updating` — 은 #12의 읽기 모델이
+읽기의 이름 — 해석 상태, `confirmed`, `recording_status`, `unsupported`·`damaged`, `source_revision`·`as_of_seq`·`updating`, 옛 kit의 경로 대응 — 은 #12의 읽기 모델이
 현재 기록(`lab.*/1`)을 읽어 `analytics_status`와 Workspace에 보인다([현재 계약](CONTRACTS.md) E). '줄 끝만 다른 변경'의 사유
 `line_endings_only`는 kit 0.4.0([#42](https://github.com/handochan/aelix-analytics/issues/42))부터 현재 기록의 입력·코드 상태를 읽을 때
 붙는다(기록에 쓰는 필드가 아니라 읽기의 사유, E). 화면의 글은 `(line endings only)`·`Line endings only`다.

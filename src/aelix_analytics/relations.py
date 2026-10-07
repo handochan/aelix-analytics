@@ -10,6 +10,24 @@ This module reads; it never writes a record, a cache or an index. It imports nei
   It is called when a reference whose target keeps a hash of its own is judged, and for every file
   of every saved and prepared Report revision when `report_revisions()` is called; reading a
   `lab.event/1` reference never hashes a file.
+- `legacy_path(recorded) -> str | None` (optional): the identity path (ADR-0006 9) a path that a
+  kit before PATH_IDENTITY_SINCE recorded is now, as the namespace is linked and spelled now, or
+  None when it is none (`core` passes `Project.legacy_identity`). Without it every path is read as
+  recorded.
+
+Paths of runs recorded by a kit before PATH_IDENTITY_SINCE (ADR-0006 9, and the owner's decision
+of 2026-10-06 on Issue #12): such a kit recorded the real path, links followed, relative to the root
+inside it and absolute outside, each name as it was typed where the file system ignores case or
+Unicode normalization. A path such a run recorded — absolute under the root or a link's target, or
+relative in another spelling than the stored one — is read as the identity path `legacy_path` gives
+it, when that differs from the recorded one and names an entry now or a path some run recorded as
+an output: never a path made up. A run's kit is its `env.kit_version` in PEP 440 order; a record
+without one, or with one this reader cannot order, is an older kit's. A match made through such a
+reading — a producer candidate, a Visualization version under a logical key — is `inferred`: the
+judgment says so (`basis: inferred`, `inferred_candidates`) and it is never `observed` and never a
+confirmed link. Two records that hold the same path text (an older kit's output and input in one
+spelling) still match as observed. Several runs found so stay `ambiguous`. The records are not
+rewritten. Runs of PATH_IDENTITY_SINCE or later are read as recorded.
 
 The rules are those of ADR-0006 (docs/decisions/0006-common-record-contract.md), checked against the
 examples under tests/fixtures/records/. Readings this module makes where the decision is silent:
@@ -41,11 +59,15 @@ Costs that grow with the project: every judgment is built once per read and kept
 when only its references are asked for, as a screen showing a few records asks); an unbound
 reference lists every candidate version before it, so the judgments grow as references times
 versions of a key (a screen shows a count and where to read the rest, CONTRACTS A1); `upstream()`
-of every run of a producer chain returns sets that grow with the chain.
+of every run of a producer chain returns sets that grow with the chain; an older kit's path is given
+to `legacy_path` once per distinct path per read, and only when a judgment matches paths.
 
-A producer judgment is `{run_id, path, sha256, producer, candidates, basis}`. Its basis is
-`observed` (same path and hash as a successful run's output). It says which runs could have written
-those bytes; it is never a confirmed link and never counted as one.
+A producer judgment is `{run_id, path, sha256, producer, candidates, basis}`, with `read_as` (the
+identity path an older kit's input path is read as) and `inferred_candidates` (the candidates found
+only through such a reading, of the input's path or of their output's) when there are any. Its
+basis is `observed` (same path and hash as a successful run's output), or `inferred` when a
+candidate was found only through an older kit's path. It says which runs could have written those
+bytes; it is never a confirmed link and never counted as one.
 """
 
 from __future__ import annotations
@@ -106,6 +128,43 @@ REUSE_STEPS = frozenset({("proposed", "trial"), ("trial", "validated"), ("valida
 V1_FIELDS = ("runs", "events", "resolves", "context", "charts", "data", "other")
 RUN_ID_RE = re.compile(r"^\d{8}-\d{6}-[a-z0-9][a-z0-9-]{0,60}$")  # as core.RUN_ID_RE
 JOURNAL_FAMILIES = frozenset(KINDS)
+# The kit version from which a run record holds a path by one identity across links, case and
+# Unicode normalization (Issue #36, ADR-0006 9): core.PATH_IDENTITY_SINCE, which a test keeps equal.
+PATH_IDENTITY_SINCE = "0.5.0"
+# ADR-0006 1.3: a kit version is a PEP 440 public version in its normal form, without an epoch or a
+# local part (the record schema's kit_version pattern).
+VERSION_RE = re.compile(r"^(0|[1-9][0-9]*)((?:\.(?:0|[1-9][0-9]*))*)(?:(a|b|rc)(0|[1-9][0-9]*))?"
+                        r"(?:\.post(0|[1-9][0-9]*))?(?:\.dev(0|[1-9][0-9]*))?$")
+PRE_RELEASES = {"a": 0, "b": 1, "rc": 2}
+
+
+def version_key(text) -> tuple | None:
+    """The PEP 440 order of a kit version written as ADR-0006 1.3 says, or None for any other text.
+    Trailing zeros of the release do not count (`1.0` is `1`); a development release of a final
+    comes before its pre-releases, a final after them, a post-release after the final, and a
+    development release before the release it leads to (`0.3.0.dev1 < 0.3.0a1 < 0.3.0rc1 < 0.3.0 <
+    0.3.0.post1`)."""
+    match = VERSION_RE.match(text) if isinstance(text, str) else None
+    if match is None:
+        return None
+    release = [int(match[1]), *(int(part) for part in match[2].split(".")[1:])]
+    while len(release) > 1 and release[-1] == 0:
+        release.pop()
+    pre, post, dev = match[3], match[5], match[6]
+    if pre is not None:
+        pre_key = (1, PRE_RELEASES[pre], int(match[4]))
+    else:
+        pre_key = (0, 0, 0) if dev is not None and post is None else (2, 0, 0)
+    post_key = (0, 0) if post is None else (1, int(post))
+    dev_key = (1, 0) if dev is None else (0, int(dev))
+    return tuple(release), pre_key, post_key, dev_key
+
+
+def older_kit(version) -> bool:
+    """Whether a run record's `env.kit_version` is a kit's before PATH_IDENTITY_SINCE: a version
+    below it, or none this reader can order (missing, not a string, another form)."""
+    key = version_key(version)
+    return key is None or key < version_key(PATH_IDENTITY_SINCE)
 
 
 def confirmed(binding, basis, state) -> bool:
@@ -641,10 +700,14 @@ class ReadModel:
     in completion order, the successful runs that output each path and hash, the import records of
     each path, the producer candidates of each run) are built once, on first use, and kept."""
 
-    def __init__(self, root: Path, journal: Journal, *, alive, sha):
+    def __init__(self, root: Path, journal: Journal, *, alive, sha, legacy_path=None):
         self.root = root
         self.journal = journal
         self._sha = sha
+        self._legacy_path = legacy_path
+        self._older: dict[str, bool] = {}
+        self._read_as: dict[str, str | None] = {}
+        self._recorded_outputs: set[str] | None = None
         self.as_of_seq = journal.as_of_seq
         self.source_revision: str | None = None
         self.updating = False
@@ -755,6 +818,51 @@ class ReadModel:
         """The run record as it was read, or None."""
         return self._runs.get(run_id)
 
+    # --- paths an older kit recorded (ADR-0006 9) --------------------------------------------------
+
+    def older_kit(self, run_id) -> bool:
+        """Whether a run this reader read was recorded by a kit before PATH_IDENTITY_SINCE."""
+        run = self._runs.get(run_id) if isinstance(run_id, str) else None
+        if run is None:
+            return False
+        if run_id not in self._older:
+            env = run.get("env")
+            self._older[run_id] = older_kit(env.get("kit_version") if isinstance(env, dict) else None)
+        return self._older[run_id]
+
+    def read_as(self, run_id, path) -> str | None:
+        """The identity path a path that run recorded is read as, when the run is an older kit's and
+        `legacy_path` gives another path that names an entry now or a path some run recorded as an
+        output (an inference, never an observation); else None, and the path is read as recorded."""
+        if self._legacy_path is None or not isinstance(path, str) or not self.older_kit(run_id):
+            return None
+        if path not in self._read_as:
+            self._read_as[path] = self._mapped(path)
+        return self._read_as[path]
+
+    def _mapped(self, path: str) -> str | None:
+        try:
+            mapped = self._legacy_path(path)
+        except (OSError, ValueError):
+            mapped = None
+        if not isinstance(mapped, str) or mapped == path or not _inside(mapped):
+            return None
+        if mapped in self._outputs_recorded() or os.path.lexists(self.root / mapped):
+            return mapped
+        return None  # it names nothing anyone knows of: not invented
+
+    def _outputs_recorded(self) -> set[str]:
+        """Every output path a readable run recorded, as recorded."""
+        if self._recorded_outputs is None:
+            self._recorded_outputs = {path for run in self._runs.values()
+                                      for out in _dicts(run.get("outputs"))
+                                      if (path := _str(out.get("path"))) is not None}
+        return self._recorded_outputs
+
+    def _as_read(self, run_id, path):
+        """`path` as this reader matches it: read_as when there is one, else as recorded."""
+        return self.read_as(run_id, path) or path
+
     def imports(self) -> list[dict]:
         """The recording status of every import record (`data/raw/<name>.meta.json`). Its /1
         completion event is a `kind=import` event whose `refs.data` holds the record's path, recorded
@@ -826,44 +934,73 @@ class ReadModel:
 
     # --- Visualization versions ------------------------------------------------------------------
 
-    def _version_index(self) -> tuple[dict, dict]:
-        """Logical key -> [(completion seq, version)], and Visualization id -> [(completion seq,
-        script, version)], both in completion order, from the successful runs with a completion
-        event."""
+    def _version_index(self) -> tuple[dict, dict, dict]:
+        """Logical key -> [(completion seq, version, the key as its run recorded it)], Visualization
+        id -> [(completion seq, script, version, the script as its run recorded it)], both in
+        completion order, from the successful runs with a completion event; and the key an older
+        kit's run recorded -> the logical key it is read as. A run's script path is read as
+        read_as gives it, so an older kit's spelling of a script is the key of today's."""
         if self._versions is None:
             by_key: dict[str, list] = {}
             by_name: dict[str, list] = {}
+            read_as: dict[str, str] = {}
             for run_id, run in self._runs.items():
                 done = self.completion_seq(run_id)
                 if run.get("status") != "ok" or done is None:
                     continue
-                script = _str(_script(run).get("path")) or "?"
+                recorded = _str(_script(run).get("path")) or "?"
+                script = self._as_read(run_id, recorded) if recorded != "?" else recorded
                 for chart in _dicts(run.get("charts")):
                     chart_id = _str(chart.get("id"))
                     if chart_id is None:
                         continue
                     version = f"{run_id}/{chart_id}"
-                    by_key.setdefault(f"{script}::{chart_id}", []).append((done, version))
-                    by_name.setdefault(chart_id, []).append((done, script, version))
+                    key, recorded_key = f"{script}::{chart_id}", f"{recorded}::{chart_id}"
+                    by_key.setdefault(key, []).append((done, version, recorded_key))
+                    by_name.setdefault(chart_id, []).append((done, script, version, recorded))
+                    if key != recorded_key:
+                        read_as[recorded_key] = key
             for table in (by_key, by_name):
                 for versions in table.values():
                     versions.sort()
-            self._versions = (by_key, by_name)
+            self._versions = (by_key, by_name, read_as)
         return self._versions
+
+    def chart_key(self, key):
+        """The logical key a Visualization key is read as: the key an older kit's run recorded in
+        another spelling of its script is today's (inferred); any other key is itself."""
+        return self._version_index()[2].get(key, key) if isinstance(key, str) else key
+
+    def _key_versions(self, key, before: int | None) -> tuple[list[str], list[str]]:
+        """(versions, inferred versions) of a logical key, sorted: those whose completion event
+        comes before seq `before` (all of them when None). A version is inferred when its run
+        recorded the key in another spelling than `key`: it is the key's only through an older
+        kit's path."""
+        versions = self._version_index()[0].get(self.chart_key(key), []) if isinstance(key, str) else []
+        end = len(versions) if before is None else bisect.bisect_left(versions, (before,))
+        found = sorted(version for _, version, _ in versions[:end])
+        inferred = sorted(version for _, version, recorded in versions[:end] if recorded != key)
+        return found, inferred
 
     def visualization_versions(self, key: str, before: int | None = None) -> list[str]:
         """`<run_id>/<visualization_id>` of the versions of a logical key whose completion event comes
-        before seq `before` (all of them when None), sorted."""
-        versions = self._version_index()[0].get(key, []) if isinstance(key, str) else []
-        end = len(versions) if before is None else bisect.bisect_left(versions, (before,))
-        return sorted(version for _, version in versions[:end])
+        before seq `before` (all of them when None), sorted. A key an older kit's run recorded in
+        another spelling of its script is read as today's (chart_key)."""
+        return self._key_versions(key, before)[0]
 
-    def _by_name(self, name, before: int) -> list[tuple[str, str]]:
+    def inferred_versions(self, key: str, before: int | None = None) -> list[str]:
+        """The versions of visualization_versions that are the key's only through an older kit's
+        path (basis inferred)."""
+        return self._key_versions(key, before)[1]
+
+    def _by_name(self, name, before: int) -> list[tuple[str, str, bool]]:
+        """(script, version, inferred) of the versions with this Visualization id before `before`:
+        inferred when the run recorded its script in another spelling than the one it is read as."""
         if not isinstance(name, str):
             return []
         versions = self._version_index()[1].get(name, [])
         end = bisect.bisect_left(versions, (before,))
-        return [(script, version) for _, script, version in versions[:end]]
+        return [(script, version, script != recorded) for _, script, version, recorded in versions[:end]]
 
     # --- reference judgments (ADR-0006 3 and 4) --------------------------------------------------
 
@@ -937,7 +1074,7 @@ class ReadModel:
 
     @staticmethod
     def _judgment(source, line, ref, type_, relation, target, binding, basis, state, reason=None,
-                  candidates=None) -> dict:
+                  candidates=None, inferred=None) -> dict:
         out = {"from": source, "line": line, "ref": ref, "type": type_, "relation": relation,
                "target": target, "state": state, "version_binding": binding, "basis": basis,
                "confirmed": confirmed(binding, basis, state)}
@@ -945,6 +1082,9 @@ class ReadModel:
             out["reason"] = reason
         if candidates is not None:
             out["candidates"] = candidates
+        if inferred:
+            # Candidates that are the target's only through an older kit's path (ADR-0006 9).
+            out["inferred_candidates"] = inferred
         return out
 
     def _judge_v2(self, refs, source, line, before) -> list[dict]:
@@ -960,15 +1100,16 @@ class ReadModel:
             target = {k: v for k, v in ref.items()
                       if k not in ("type", "relation", "basis", "version_binding")}
             binding, basis = ref.get("version_binding"), ref.get("basis")
+            inferred = None
             if not _known_ref(ref):
                 state, reason, candidates = "unsupported", None, None
             elif binding == "none":
-                state, reason, candidates = self._unbound(ref, before)
+                state, reason, candidates, inferred = self._unbound(ref, before)
             else:
                 state, reason, candidates = self._resolve(ref, before)
             out.append(self._judgment(source, line, {"index": index}, ref.get("type"),
                                       ref.get("relation"), target, binding, basis, state, reason,
-                                      candidates))
+                                      candidates, inferred))
         return out
 
     def _judge_v1(self, event: Event, source: str, before: int) -> list[dict]:
@@ -1023,7 +1164,7 @@ class ReadModel:
             return ("visualization_version", "about", target, "author", "observed", *judged)
         if field == "charts":
             return ("visualization_version", "cites", {"key": value}, "none", "declared",
-                    "version_unbound", None, self.visualization_versions(value, before))
+                    "version_unbound", None, *self._key_versions(value, before))
         if field == "data" and event.kind == "import":
             # ADR-0006 6: the path of the import record the event completes; left unbound (ADR-0006 4).
             return ("dataset_import", "about", {"path": value}, "none", "declared", "version_unbound",
@@ -1037,21 +1178,22 @@ class ReadModel:
     def _unbound(self, ref: dict, before: int) -> tuple:
         """ADR-0006 3: a reference left unbound stays unbound when it is read. Only Visualization
         versions are listed as candidates; the Issue that first writes an unbound reference of
-        another type adds its candidates."""
+        another type adds its candidates. (state, reason, candidates, inferred candidates)."""
         if ref["type"] == "visualization_version":
             if isinstance(ref.get("key"), str):
-                return "version_unbound", None, self.visualization_versions(ref["key"], before)
+                return "version_unbound", None, *self._key_versions(ref["key"], before)
             if "token" in ref:
                 found = self._by_name(ref["token"], before)
-                scripts = {script for script, _ in found}
+                scripts = {script for script, _, _ in found}
                 if not scripts:
-                    return "unknown", "unresolved_name", None
+                    return "unknown", "unresolved_name", None, None
                 state = "ambiguous" if len(scripts) > 1 else "version_unbound"
-                return state, None, sorted(version for _, version in found)
-            return "unknown", "unresolved_name", None
+                return (state, None, sorted(version for _, version, _ in found),
+                        sorted(version for _, version, inferred in found if inferred))
+            return "unknown", "unresolved_name", None, None
         if any(field in ref for field in LOGICAL_KEYS):
-            return "version_unbound", None, None
-        return "unknown", "unresolved_name", None
+            return "version_unbound", None, None, None
+        return "unknown", "unresolved_name", None, None
 
     def _started_after(self, run_id, event: Event) -> bool:
         """Whether a run started after the event that names it, start and event times compared as
@@ -1187,7 +1329,9 @@ class ReadModel:
 
     # --- producers (ADR-0006 4) --------------------------------------------------------------------
 
-    def _output_index(self) -> dict[tuple, list[tuple[str, datetime | None]]]:
+    def _output_index(self) -> dict[tuple, list[tuple[str, datetime | None, str]]]:
+        """(path as read, sha256) -> [(run, start, the path as the run recorded it)] of the outputs
+        of the successful runs, an older kit's path read as read_as gives it."""
         if self._outputs is None:
             index: dict[tuple, list] = {}
             for run_id, run in self._runs.items():
@@ -1197,35 +1341,59 @@ class ReadModel:
                 for out in _dicts(run.get("outputs")):
                     path, digest = _str(out.get("path")), _str(out.get("sha256"))
                     if out.get("change") != "deleted" and path and digest:
-                        index.setdefault((path, digest), []).append((run_id, started))
+                        index.setdefault((self._as_read(run_id, path), digest), []).append(
+                            (run_id, started, path))
             self._outputs = index
         return self._outputs
 
-    def producers(self, path: str, sha256: str, consumer: str | None = None) -> list[str]:
-        """The successful runs that output `path` with these bytes, sorted. With a consumer, not that
-        run and none that started after it (start times compared as instants)."""
-        started = _instant((self._runs.get(consumer) or {}).get("started_at")) if consumer else None
+    def producer_candidates(self, path: str, sha256: str,
+                            consumer: str | None = None) -> tuple[list[str], list[str]]:
+        """(candidates, inferred candidates), sorted: the successful runs that output `path` with
+        these bytes and, of them, those found only through an older kit's path — the consumer's
+        `path` or the run's output read as another identity path (read_as). With a consumer, `path`
+        is a path that run recorded, and the candidates are not that run and none that started
+        after it (start times compared as instants); without one, `path` is an identity path."""
         if not (isinstance(path, str) and isinstance(sha256, str)):
-            return []
-        found = {run_id for run_id, at in self._output_index().get((path, sha256), [])
-                 if run_id != consumer and (consumer is None or _not_after(at, started))}
-        return sorted(found)
+            return [], []
+        started = _instant((self._runs.get(consumer) or {}).get("started_at")) if consumer else None
+        key = self._as_read(consumer, path) if consumer else path
+        exact: set[str] = set()
+        through: set[str] = set()
+        for run_id, at, recorded in self._output_index().get((key, sha256), []):
+            if run_id != consumer and (consumer is None or _not_after(at, started)):
+                (exact if recorded == path else through).add(run_id)
+        return sorted(exact | through), sorted(through - exact)
+
+    def producers(self, path: str, sha256: str, consumer: str | None = None) -> list[str]:
+        """The successful runs that output `path` with these bytes, sorted (producer_candidates).
+        With a consumer, not that run and none that started after it (start times compared as
+        instants)."""
+        return self.producer_candidates(path, sha256, consumer)[0]
 
     def producer(self, run_id: str, path: str) -> dict | None:
         """The producer judgment of one input of a run: `resolved` (one candidate), `ambiguous`
-        (several, all listed), `none`, or `unknown` (the input has no hash). Never the last run."""
+        (several, all listed), `none`, or `unknown` (the input has no hash). Never the last run.
+        Its basis is `inferred` when a candidate was found only through an older kit's path."""
         run = self._runs.get(run_id) if isinstance(run_id, str) else None
         entries = [e for e in _dicts((run or {}).get("inputs")) if e.get("path") == path]
         if not entries:
             return None
         sha256 = _str(entries[0].get("sha256"))
+        read_as = self.read_as(run_id, path)
         if not sha256:
-            return {"run_id": run_id, "path": path, "sha256": None, "producer": "unknown",
-                    "candidates": [], "basis": None}
-        candidates = self.producers(path, sha256, consumer=run_id)
-        state = "none" if not candidates else "resolved" if len(candidates) == 1 else "ambiguous"
-        return {"run_id": run_id, "path": path, "sha256": sha256, "producer": state,
-                "candidates": candidates, "basis": "observed" if candidates else None}
+            judged = {"run_id": run_id, "path": path, "sha256": None, "producer": "unknown",
+                      "candidates": [], "basis": None}
+        else:
+            candidates, inferred = self.producer_candidates(path, sha256, consumer=run_id)
+            state = "none" if not candidates else "resolved" if len(candidates) == 1 else "ambiguous"
+            judged = {"run_id": run_id, "path": path, "sha256": sha256, "producer": state,
+                      "candidates": candidates,
+                      "basis": "inferred" if inferred else "observed" if candidates else None}
+            if inferred:
+                judged["inferred_candidates"] = inferred
+        if read_as is not None:
+            judged["read_as"] = read_as
+        return judged
 
     def lineage(self) -> list[dict]:
         """The producer judgment of every input of every run."""
@@ -1284,15 +1452,16 @@ class ReadModel:
         return self.journal.replay().transition_allowed(target, expected, new)
 
 
-def read(root, *, alive, sha) -> ReadModel:
+def read(root, *, alive, sha, legacy_path=None) -> ReadModel:
     """Read the project at `root` as it is. The files read are compared before and after; when they
     differ the read is made again, twice at most, and then the model says `updating` and keeps every
-    source_revision it observed."""
+    source_revision it observed. `legacy_path` reads the paths of an older kit's runs (module
+    docstring); without it they are read as recorded."""
     root = Path(root)
     observed: list[str] = []
     for _ in range(3):
         before = _snapshot(root)
-        model = ReadModel(root, read_journal(root), alive=alive, sha=sha)
+        model = ReadModel(root, read_journal(root), alive=alive, sha=sha, legacy_path=legacy_path)
         after = _snapshot(root)
         observed.append(_token(after, model.as_of_seq))
         if before == after:
