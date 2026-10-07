@@ -1,16 +1,48 @@
 {
  "record_kind": "aelix-analytics-path-identity",
- "observed_at": "2026-10-06T12:19:35Z",
+ "observed_at": "2026-10-07T05:27:53Z",
  "issue": "https://github.com/handochan/aelix-analytics/issues/36",
  "pull_request": null,
- "base_revision": "4254a36f3d2c364e21e052d75401e5651e94d129",
+ "base_revision": "6c4c2cd0f3f07191454185c5c46e6f530d19de64",
  "measured_tree": {
-  "what": "the clean head of branch feat/issue-36-path-identity (kit 0.5.0) on the main of then (after #42, #43, #64, #66). main then moved by documents only (#67); the branch rebased on base_revision (`rebased_head`) and the commit that fills this record have the same code (git ls-files src extension tests tools pyproject.toml uv.lock): the same manifest. On the rebased head the documents were checked again (`rebased_docs`), and the M-scale timing and the review probes ran there",
-  "head": "810353fd22f9339341cef645cdc1d418a51dcfef",
-  "rebased_head": "44d9e1e9beed43b2e2fb35aaa62a4ba6cc36c10e",
+  "what": "the clean head of branch feat/issue-36-path-identity (kit 0.5.0), measured in full with the M-scale timing and the probes on its base then. main then moved by tools, tests and documents only; the branch rebased on base_revision (`rebased_head`) differs from the measured head only in main's files (`differing_from_measured`: none under src, extension, pyproject.toml, uv.lock; `edited_by_this_branch_after_main`: main's files this branch also edits), and the checks those files touch ran again there (`rebased_checks`). The commit that fills this record changes only documents",
+  "head": "96ad43ebc0987ee4ea637dcd5687ca248efdb38b",
+  "measured_base": "13d87183e26da1f642624e509a455cc1c102174b",
+  "rebased_head": "d8b991964b37233e9605112f1e6331e87039a0d6",
+  "differing_from_measured": [
+   "tests/test_model_eval.py",
+   "tests/test_model_eval_scoring.py",
+   "tests/test_usage_report.py",
+   "tools/model_eval.py",
+   "tools/model_eval_aelix.py",
+   "tools/model_eval_data/README.md",
+   "tools/model_eval_data/answers/T01.json",
+   "tools/model_eval_data/answers/T02.json",
+   "tools/model_eval_data/answers/T03.json",
+   "tools/model_eval_data/answers/T04.json",
+   "tools/model_eval_data/answers/T05.json",
+   "tools/model_eval_data/answers/T06.json",
+   "tools/model_eval_data/answers/T07.json",
+   "tools/model_eval_data/answers/T08.json",
+   "tools/model_eval_data/answers/T09.json",
+   "tools/model_eval_data/answers/T10.json",
+   "tools/model_eval_data/answers/T11.json",
+   "tools/model_eval_data/answers/T12.json",
+   "tools/model_eval_data/conditions.json",
+   "tools/model_eval_data/dry_run/T06.json",
+   "tools/model_eval_data/dry_run/T07.json",
+   "tools/model_eval_data/models/dry-run.json",
+   "tools/model_eval_data/models/gpt-5.6-sol.json",
+   "tools/model_eval_data/models/qwen3.8-27b-local.json",
+   "tools/model_eval_data/tasks.json",
+   "tools/usage_report.py"
+  ],
+  "edited_by_this_branch_after_main": [
+   "tests/test_model_eval.py"
+  ],
   "code_manifest": "sha256 of each tracked file under src, extension, tests, tools and pyproject.toml, uv.lock, one line each (`shasum -a 256` format), sorted by path",
-  "code_manifest_sha256": "9489c44ee17b53b30361110460d39eb4b6f480e2afcc9d3249d7cef7aad56db4",
-  "code_files": 159
+  "code_manifest_sha256": "c3cc0567054b797afc3e620816bc4b8538cc1846aada79827c25bc7b4f90790c",
+  "code_files": 182
  },
  "workflow": ".github/workflows/ci.yml, not changed by this change",
  "runs": {
@@ -34,12 +66,12 @@
    "command": "AELIX_ANALYTICS_TEST_INSTALL=1 uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread --junitxml=suite.xml",
    "python": "3.12.13",
    "file": "suite.xml",
-   "file_sha256": "dfd13b3e57062932248d0d381f10547e73b4308245990397ea06581481d24df1",
-   "timestamp": "2026-10-06T21:19:35.641583+09:00",
-   "seconds": 286.514,
+   "file_sha256": "ff00b0bfe1fb9be5a6e39f9f41cbab4e38fa31bb95daf45a9c5a1b9edb59632d",
+   "timestamp": "2026-10-07T14:27:54.039889+09:00",
+   "seconds": 308.623,
    "counts": {
-    "skip": 61,
-    "pass": 1198
+    "skip": 62,
+    "pass": 1220
    },
    "failed": [],
    "skipped_by_reason": {
@@ -48,6 +80,7 @@
     "the recording implementation does not declare that it excludes other processes": 1,
     "the recording implementation does not declare that it sees running processes": 1,
     "the recording implementation does not declare that it interrupts a region": 1,
+    "M writes about 440 MB twice; set AELIX_ANALYTICS_TEST_SCALE_M=1": 1,
     "what Windows does; POSIX sends it again (the test above)": 1,
     "a directory flagged case-sensitive is Windows'": 2,
     "8.3 short names are Windows'": 1,
@@ -71,6 +104,7 @@
     "tests.test_path_identity::test_a_file_system_without_inode_numbers_is_told_by_path": "pass",
     "tests.test_path_identity::test_a_link_a_run_makes_or_removes_is_no_output_of_it[symlink]": "pass",
     "tests.test_path_identity::test_a_link_is_a_symbolic_link_or_a_junction[symlink]": "pass",
+    "tests.test_path_identity::test_a_listing_read_in_the_tick_of_a_change_is_not_trusted": "pass",
     "tests.test_path_identity::test_a_managed_directory_reached_through_a_boundary_is_not_walked[symlink]": "pass",
     "tests.test_path_identity::test_a_module_under_an_outward_link_is_not_snapshotted[symlink]": "pass",
     "tests.test_path_identity::test_a_path_recorded_by_an_earlier_kit_is_read_as_the_namespace_now": "pass",
@@ -94,6 +128,7 @@
     "tests.test_path_identity::test_an_inward_link_to_a_directory_of_the_person_s_is_recorded_at_its_real_place": "pass",
     "tests.test_path_identity::test_an_nfc_name_of_an_nfd_file_is_recorded_as_stored": "pass",
     "tests.test_path_identity::test_an_old_trust_entry_in_another_case_still_trusts": "pass",
+    "tests.test_path_identity::test_making_finding_and_trusting_a_project_again_lists_none_of_its_parents": "pass",
     "tests.test_path_identity::test_query_reads_datasets_under_a_linked_data_directory[symlink]": "pass",
     "tests.test_path_identity::test_status_warns_of_dataset_names_that_differ_only_in_case": "pass",
     "tests.test_path_identity::test_the_identity_of_a_path_follows_the_namespace[symlink]": "pass",
@@ -118,11 +153,11 @@
   "aelix_py3_12": {
    "command": "uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_extension.py tests/test_usage_report.py",
    "file": "aelix-3.12.xml",
-   "file_sha256": "188d7511ea0639416137cc153a1ad9ae8ecb06c3aa1358f2a8872b0a5c84eae8",
-   "timestamp": "2026-10-06T21:24:24.227823+09:00",
-   "seconds": 35.94,
+   "file_sha256": "bb1f8ed47976740bbf81ead1df88a43c1a67842fb9749c84f043599935c61406",
+   "timestamp": "2026-10-07T14:33:03.116117+09:00",
+   "seconds": 36.175,
    "counts": {
-    "pass": 151
+    "pass": 155
    },
    "failed": [],
    "skipped_by_reason": {},
@@ -135,11 +170,11 @@
   "aelix_py3_11": {
    "command": "the same with --python 3.11",
    "file": "aelix-3.11.xml",
-   "file_sha256": "5088f0f200ce11ed69e92d35c8e41c451081ff75762ec9dff8335f94dfd47e34",
-   "timestamp": "2026-10-06T21:25:02.018322+09:00",
-   "seconds": 35.664,
+   "file_sha256": "9a1926785031708d407cf719ce92bb1e15b83c3383bd44eeae7c33ddc056aa72",
+   "timestamp": "2026-10-07T14:33:39.787127+09:00",
+   "seconds": 34.64,
    "counts": {
-    "pass": 151
+    "pass": 155
    },
    "failed": [],
    "skipped_by_reason": {},
@@ -152,9 +187,9 @@
   "launcher_py3_11": {
    "command": "uv run --isolated --no-project --python 3.11 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread tests/test_launcher.py",
    "file": "launcher-3.11.xml",
-   "file_sha256": "c2e4ac2c15ef1a9936d708f49834d79f2272a999afb213f704dd90fe0752d371",
-   "timestamp": "2026-10-06T21:25:38.904336+09:00",
-   "seconds": 14.315,
+   "file_sha256": "03c6707c66df4ed6228d348590e0b8752d8012dd8fb6fcfb924959baeae1ae7d",
+   "timestamp": "2026-10-07T14:34:15.531261+09:00",
+   "seconds": 13.457,
    "counts": {
     "pass": 120,
     "skip": 1
@@ -169,11 +204,11 @@
    "what": "a case-sensitive APFS disk image (hdiutil -fs 'Case-sensitive APFS') as pytest's --basetemp: the whole of tests/test_path_identity.py and tests/test_platform.py",
    "command": "uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread --basetemp=<volume>/bt2 tests/test_path_identity.py tests/test_platform.py",
    "file": "case-sensitive-apfs.xml",
-   "file_sha256": "4f07985d09475180a3e72f66c60e8b3269a0347ca8c222c82527bd7363686a52",
-   "timestamp": "2026-10-06T21:27:24.038300+09:00",
-   "seconds": 131.311,
+   "file_sha256": "006e91bebfe948da16fd175877c28c4c89920793f53720870dda0cc1823ec52b",
+   "timestamp": "2026-10-07T14:35:54.864664+09:00",
+   "seconds": 132.343,
    "counts": {
-    "pass": 488,
+    "pass": 490,
     "skip": 8
    },
    "failed": [],
@@ -194,6 +229,7 @@
     "tests.test_path_identity::test_a_file_system_without_inode_numbers_is_told_by_path": "pass",
     "tests.test_path_identity::test_a_link_a_run_makes_or_removes_is_no_output_of_it[symlink]": "pass",
     "tests.test_path_identity::test_a_link_is_a_symbolic_link_or_a_junction[symlink]": "pass",
+    "tests.test_path_identity::test_a_listing_read_in_the_tick_of_a_change_is_not_trusted": "pass",
     "tests.test_path_identity::test_a_managed_directory_reached_through_a_boundary_is_not_walked[symlink]": "pass",
     "tests.test_path_identity::test_a_module_under_an_outward_link_is_not_snapshotted[symlink]": "pass",
     "tests.test_path_identity::test_a_path_recorded_by_an_earlier_kit_is_read_as_the_namespace_now": "pass",
@@ -217,6 +253,7 @@
     "tests.test_path_identity::test_an_inward_link_to_a_directory_of_the_person_s_is_recorded_at_its_real_place": "pass",
     "tests.test_path_identity::test_an_nfc_name_of_an_nfd_file_is_recorded_as_stored": "pass",
     "tests.test_path_identity::test_an_old_trust_entry_in_another_case_still_trusts": "pass",
+    "tests.test_path_identity::test_making_finding_and_trusting_a_project_again_lists_none_of_its_parents": "pass",
     "tests.test_path_identity::test_query_reads_datasets_under_a_linked_data_directory[symlink]": "pass",
     "tests.test_path_identity::test_status_warns_of_dataset_names_that_differ_only_in_case": "pass",
     "tests.test_path_identity::test_the_identity_of_a_path_follows_the_namespace[symlink]": "pass",
@@ -271,17 +308,19 @@
     "total": 42
    }
   },
-  "rebased_docs": {
+  "rebased_checks": {
    "check_docs": {
     "json_files": 10,
-    "markdown_files": 56,
-    "local_links": 526,
+    "markdown_files": 58,
+    "local_links": 560,
     "python_examples": 2,
     "json_examples": 4,
     "dev_state_examples": 1
    },
-   "doc_readers": "71 passed in 39.29s",
-   "diff_check": "exit 0, git diff --check origin/main...HEAD"
+   "doc_readers": "71 passed in 34.99s",
+   "diff_check": "exit 0, git diff --check origin/main...HEAD",
+   "eval_fixtures": "20 passed, 1 skipped in 16.45s",
+   "model_eval": "127 passed in 117.40s (0:01:57)"
   },
   "observations": {
    "ancestor-link-symlink": {
@@ -300,13 +339,13 @@
     "absolute_other_case": {
      "path": "scripts/analysis.py",
      "sha256": "949f8b4cb82938a832b9a54b44daf4fa620912bd89c9b7f32e485f9399f44dfb",
-     "snapshot": "runs/20261006-212133-analysis-3/code/scripts/analysis.py"
+     "snapshot": "runs/20261007-143018-analysis-3/code/scripts/analysis.py"
     },
     "ignores_case": true,
     "second": {
      "path": "scripts/analysis.py",
      "sha256": "949f8b4cb82938a832b9a54b44daf4fa620912bd89c9b7f32e485f9399f44dfb",
-     "snapshot": "runs/20261006-212133-analysis-2/code/scripts/analysis.py"
+     "snapshot": "runs/20261007-143018-analysis-2/code/scripts/analysis.py"
     }
    },
    "case-only-datasets": {
@@ -315,7 +354,7 @@
    "checkout-eol": {
     "counts": {
      "i/lf w/lf attr/-text": 90,
-     "i/lf w/lf attr/text=auto eol=lf": 116,
+     "i/lf w/lf attr/text=auto eol=lf": 139,
      "i/mixed w/mixed attr/-text": 1,
      "i/none w/none attr/-text": 8
     },
@@ -323,6 +362,60 @@
     "kept_as_is_with_crlf": [
      "tests/fixtures/records/mixed-version/journal.jsonl"
     ]
+   },
+   "eval-fixtures-generation": {
+    "command_seconds": {
+     "q10a": 0.942,
+     "q10b": 0.98,
+     "q13a": 1.467,
+     "q13b": 1.525,
+     "s0a": 1.236,
+     "s0b": 1.258,
+     "s1": 1.205
+    },
+    "generator_seconds": {
+     "q10a": {
+      "kit_runs": 0.252,
+      "self_check": 0.419,
+      "total": 0.803
+     },
+     "q10b": {
+      "kit_runs": 0.278,
+      "self_check": 0.427,
+      "total": 0.837
+     },
+     "q13a": {
+      "kit_runs": 0.775,
+      "self_check": 0.421,
+      "total": 1.298
+     },
+     "q13b": {
+      "kit_runs": 0.729,
+      "self_check": 0.49,
+      "total": 1.322
+     },
+     "s0a": {
+      "kit_phase": 0.469,
+      "self_check": 0.415,
+      "sources": 0.062,
+      "total": 1.082,
+      "written_phase": 0.116
+     },
+     "s0b": {
+      "kit_phase": 0.469,
+      "self_check": 0.446,
+      "sources": 0.061,
+      "total": 1.107,
+      "written_phase": 0.11
+     },
+     "s1": {
+      "kit_phase": 0.449,
+      "self_check": 0.42,
+      "sources": 0.059,
+      "total": 1.057,
+      "written_phase": 0.108
+     }
+    }
    },
    "file-link-out": {
     "inputs": [
@@ -342,15 +435,15 @@
    "fixed-records": {
     "journal.jsonl": "c9dff9a10e3cacebdb7d2dc9e7717b5ef7be7e759df6b34630c38a5aba9c11a5",
     "run.json": "e8129fd88998afcde5678cdf291f835338bdc468d514318c518532a1ad6f0fc9",
-    "trust": "52c7f03331090f111f5ffd05f1f7903cbf233bd88941a9e15f3e1dcba461e17a"
+    "trust": "b776435fb0279b2ff3cd698d8cd6990f367c475356ed6a3bf628fd2109d1c0bf"
    },
    "installed-run-py3.11": {
-    "kit_sha256": "566757e9cf505a4a224ddb563c0d0e2095490822cfc7d5dd18566df091ed08a7",
+    "kit_sha256": "7a20c39a49c918c51372a94b088a308628aee2b58bff00498177f4ba066471fb",
     "kit_version": "0.5.0",
     "script_sha256": "024f3144a10e797651150974ba2b3bc0043afa48bd2714d7cb594150c9757abc"
    },
    "installed-run-py3.12": {
-    "kit_sha256": "566757e9cf505a4a224ddb563c0d0e2095490822cfc7d5dd18566df091ed08a7",
+    "kit_sha256": "7a20c39a49c918c51372a94b088a308628aee2b58bff00498177f4ba066471fb",
     "kit_version": "0.5.0",
     "script_sha256": "024f3144a10e797651150974ba2b3bc0043afa48bd2714d7cb594150c9757abc"
    },
@@ -376,11 +469,11 @@
     "outputs": []
    },
    "kit-sha": {
-    "kit_sha": "566757e9cf505a4a224ddb563c0d0e2095490822cfc7d5dd18566df091ed08a7",
-    "tracked": "566757e9cf505a4a224ddb563c0d0e2095490822cfc7d5dd18566df091ed08a7"
+    "kit_sha": "7a20c39a49c918c51372a94b088a308628aee2b58bff00498177f4ba066471fb",
+    "tracked": "7a20c39a49c918c51372a94b088a308628aee2b58bff00498177f4ba066471fb"
    },
    "line-endings-only": {
-    "status_text": "project: Line endings (<pytest tmp>/test_line_endings_only_reaches0/proj)\nreport: <pytest tmp>/test_line_endings_only_reaches0/proj/report/index.html\nread: as_of_seq 3 · source_revision de2ad0ccb2cae3cb\ngoal: Keep the bytes\ndatasets (0) — query views: none\nruns (1 total, 0 not ok; latest first):\n  20261006-212038-judged ok 0.0s charts=1 \"judged\"\ncharts (latest version per script::chart, 1):\n  scripts/judged.py::judged \"judged\" run 20261006-212038-judged v1 · STALE(data/in.csv (line endings only))\nrecent journal:\n  e1 2026-10-06 21:20 project: project created: Line endings\n  e2 2026-10-06 21:20 context: CONTEXT.md recorded\n  e3 2026-10-06 21:20 run: judged — ok"
+    "status_text": "project: Line endings (<pytest tmp>/test_line_endings_only_reaches0/proj)\nreport: <pytest tmp>/test_line_endings_only_reaches0/proj/report/index.html\nread: as_of_seq 3 · source_revision 85fb38eec4aa9ec6\ngoal: Keep the bytes\ndatasets (0) — query views: none\nruns (1 total, 0 not ok; latest first):\n  20261007-142924-judged ok 0.0s charts=1 \"judged\"\ncharts (latest version per script::chart, 1):\n  scripts/judged.py::judged \"judged\" run 20261007-142924-judged v1 · STALE(data/in.csv (line endings only))\nrecent journal:\n  e1 2026-10-07 14:29 project: project created: Line endings\n  e2 2026-10-07 14:29 context: CONTEXT.md recorded\n  e3 2026-10-07 14:29 run: judged — ok"
    },
    "link-into-runs-symlink": {
     "outputs": [],
@@ -418,20 +511,20 @@
       "producer_candidates": [],
       "producer_state": "none",
       "used_by": [
-       "20261006-212219-95-save"
+       "20261007-143107-95-save"
       ]
      },
      {
       "kind": "derived",
       "name": "part",
       "path": "data/derived/part.parquet",
-      "producer": "20261006-212219-95-save",
+      "producer": "20261007-143107-95-save",
       "producer_candidates": [
-       "20261006-212219-95-save"
+       "20261007-143107-95-save"
       ],
       "producer_state": "resolved",
       "used_by": [
-       "20261006-212219-96-read"
+       "20261007-143107-96-read"
       ]
      }
     ],
@@ -500,7 +593,7 @@
      {
       "caption": null,
       "files": {
-       "html": "runs/20261006-212132-m8/charts/c1.html"
+       "html": "runs/20261007-143017-m8/charts/c1.html"
       },
       "id": "c1",
       "kind": "html",
@@ -514,17 +607,17 @@
      {
       "path": "scripts/m8_helper.py",
       "sha256": "3da6c4b355804b265ecef19dfe5945fe2790a8cc38dc9d0547fb1634c94cbbe7",
-      "snapshot": "runs/20261006-212132-m8/code/scripts/m8_helper.py"
+      "snapshot": "runs/20261007-143017-m8/code/scripts/m8_helper.py"
      }
     ],
     "rerun_modules": [
      {
       "path": "scripts/m8_helper.py",
       "sha256": "3da6c4b355804b265ecef19dfe5945fe2790a8cc38dc9d0547fb1634c94cbbe7",
-      "snapshot": "runs/20261006-212133-m8/code/scripts/m8_helper.py"
+      "snapshot": "runs/20261007-143018-m8/code/scripts/m8_helper.py"
      }
     ],
-    "snapshot": "runs/20261006-212132-m8/code/scripts/m8.py"
+    "snapshot": "runs/20261007-143017-m8/code/scripts/m8.py"
    },
    "new-project": {
     ".gitattributes": "66b748264be11611b9428c43a486454118278853b83c13397133c946929b6c15",
@@ -603,12 +696,12 @@
    },
    "run-bytes": {
     "crlf.py": {
-     "kit_sha256": "566757e9cf505a4a224ddb563c0d0e2095490822cfc7d5dd18566df091ed08a7",
+     "kit_sha256": "7a20c39a49c918c51372a94b088a308628aee2b58bff00498177f4ba066471fb",
      "script.sha256": "e37afdb4de90efb9237b76db6373de43fa8ace22ac94026e13e1ead4aa63d33e",
      "stdout.txt": "3a7f0fa367b20e0c2c5697774b6a65b91aa129737dad16e272c266195ca3c356"
     },
     "lf.py": {
-     "kit_sha256": "566757e9cf505a4a224ddb563c0d0e2095490822cfc7d5dd18566df091ed08a7",
+     "kit_sha256": "7a20c39a49c918c51372a94b088a308628aee2b58bff00498177f4ba066471fb",
      "script.sha256": "80b2e7c2f32f3eb60eb1806c2d241cdd6bf4fd58ee8f5af1c5d974f697c5800a",
      "stdout.txt": "3a7f0fa367b20e0c2c5697774b6a65b91aa129737dad16e272c266195ca3c356"
     }
@@ -664,22 +757,22 @@
    },
    "walk-m-scale": {
     "files": 10001,
-    "identity_10000_ms": 64.0,
-    "identity_of_1000_files_made_after_listing_ms": 7.4,
+    "identity_10000_ms": 70.1,
+    "identity_of_1000_files_made_after_listing_ms": 8.1,
     "linked_data_kind": "symlink",
-    "linked_identity_10000_ms": 348.5,
+    "linked_identity_10000_ms": 391.2,
     "linked_tree_stat_before_files_under_data": 0,
     "linked_tree_stat_before_ms": 0.0,
-    "linked_tree_stat_ms": 27.6,
-    "list_datasets_10000_ms": 73.6,
-    "make_and_identify_1000_files_one_at_a_time_ms": 94.9,
-    "tree_stat_before_ms": 40.7,
-    "tree_stat_ms": 21.8
+    "linked_tree_stat_ms": 31.6,
+    "list_datasets_10000_ms": 77.9,
+    "make_and_identify_1000_files_one_at_a_time_ms": 110.7,
+    "tree_stat_before_ms": 47.8,
+    "tree_stat_ms": 27.9
    },
    "wheel-members": {
-    "checkout_kit_sha": "566757e9cf505a4a224ddb563c0d0e2095490822cfc7d5dd18566df091ed08a7",
+    "checkout_kit_sha": "7a20c39a49c918c51372a94b088a308628aee2b58bff00498177f4ba066471fb",
     "crlf": [],
-    "list_sha256": "c145a84b62d9815dd893fdcc3d55ec56326b523ab1093b66cfe8e16e30c7f135",
+    "list_sha256": "6b9fad921fa9ed26c19e2a62d638e762775d16d78fbceaf3c04467881e39a61b",
     "members": 50
    },
    "workspace": {
@@ -806,20 +899,20 @@
       "producer_candidates": [],
       "producer_state": "none",
       "used_by": [
-       "20261006-212814-95-save"
+       "20261007-143647-95-save"
       ]
      },
      {
       "kind": "derived",
       "name": "part",
       "path": "data/derived/part.parquet",
-      "producer": "20261006-212814-95-save",
+      "producer": "20261007-143647-95-save",
       "producer_candidates": [
-       "20261006-212814-95-save"
+       "20261007-143647-95-save"
       ],
       "producer_state": "resolved",
       "used_by": [
-       "20261006-212815-96-read"
+       "20261007-143647-96-read"
       ]
      }
     ],
@@ -996,17 +1089,17 @@
    },
    "walk-m-scale": {
     "files": 10001,
-    "identity_10000_ms": 62.8,
-    "identity_of_1000_files_made_after_listing_ms": 7.6,
+    "identity_10000_ms": 69.1,
+    "identity_of_1000_files_made_after_listing_ms": 7.8,
     "linked_data_kind": "symlink",
-    "linked_identity_10000_ms": 364.9,
+    "linked_identity_10000_ms": 405.0,
     "linked_tree_stat_before_files_under_data": 0,
     "linked_tree_stat_before_ms": 0.0,
-    "linked_tree_stat_ms": 27.8,
-    "list_datasets_10000_ms": 73.1,
-    "make_and_identify_1000_files_one_at_a_time_ms": 95.8,
-    "tree_stat_before_ms": 41.5,
-    "tree_stat_ms": 21.6
+    "linked_tree_stat_ms": 35.3,
+    "list_datasets_10000_ms": 80.1,
+    "make_and_identify_1000_files_one_at_a_time_ms": 108.8,
+    "tree_stat_before_ms": 49.3,
+    "tree_stat_ms": 26.5
    }
   },
   "m_scale": {
@@ -1014,26 +1107,26 @@
    "script": "evidence/m-scale/m_scale.py and status_time.py of the run (not in the repository), base and head alternating twice (evidence/m-scale.sh); the second round's values",
    "base": {
     "label": "base",
-    "src": "git archive 6b8026a274406cfd58991d2f9e3ca8768d4bbb0b src (main before #36)",
+    "src": "git archive 13d87183e26da1f642624e509a455cc1c102174b src (main before #36, the measured head's base)",
     "python": "3.12.13",
     "plain": {
-     "tree_stat_ms": 48.3,
+     "tree_stat_ms": 45.8,
      "tree_stat_files": 10006,
      "tree_stat_files_under_data": 10000,
-     "list_datasets_ms": 450.9,
+     "list_datasets_ms": 398.9,
      "datasets": 10000,
      "dataset_paths_relative": 10000,
-     "rel_10000_ms": 368.1,
+     "rel_10000_ms": 345.4,
      "rel_relative": 10000
     },
     "linked": {
      "tree_stat_ms": 0.1,
      "tree_stat_files": 6,
      "tree_stat_files_under_data": 0,
-     "list_datasets_ms": 608.2,
+     "list_datasets_ms": 560.6,
      "datasets": 10000,
      "dataset_paths_relative": 0,
-     "rel_10000_ms": 531.6,
+     "rel_10000_ms": 502.5,
      "rel_relative": 0
     }
    },
@@ -1042,35 +1135,35 @@
     "src": "the measured tree's src",
     "python": "3.12.13",
     "plain": {
-     "tree_stat_ms": 28.6,
+     "tree_stat_ms": 22.9,
      "tree_stat_files": 10006,
      "tree_stat_files_under_data": 10000,
-     "list_datasets_ms": 87.2,
+     "list_datasets_ms": 75.0,
      "datasets": 10000,
      "dataset_paths_relative": 10000,
-     "rel_10000_ms": 75.3,
+     "rel_10000_ms": 65.9,
      "rel_relative": 10000
     },
     "linked": {
-     "tree_stat_ms": 29.6,
+     "tree_stat_ms": 23.6,
      "tree_stat_files": 10006,
      "tree_stat_files_under_data": 10000,
-     "list_datasets_ms": 112.4,
+     "list_datasets_ms": 97.9,
      "datasets": 10000,
      "dataset_paths_relative": 10000,
-     "rel_10000_ms": 371.4,
+     "rel_10000_ms": 332.0,
      "rel_relative": 10000
     }
    },
    "status_base": {
     "label": "base",
     "plain": {
-     "status_ms": 556.4,
+     "status_ms": 503.2,
      "datasets": 10000,
      "relative": 10000
     },
     "linked": {
-     "status_ms": 739.7,
+     "status_ms": 671.1,
      "datasets": 10000,
      "relative": 0
     }
@@ -1078,19 +1171,19 @@
    "status_head": {
     "label": "head",
     "plain": {
-     "status_ms": 260.7,
+     "status_ms": 223.4,
      "datasets": 10000,
      "relative": 10000
     },
     "linked": {
-     "status_ms": 309.0,
+     "status_ms": 265.0,
      "datasets": 10000,
      "relative": 10000
     }
    }
   },
   "review_probes": {
-   "what": "the implementation reviewers' probes of 3a95f38 (run folder evidence/review-claude/probe_*.py), each on the measured head and on its base on origin/main (git archive)",
+   "what": "the implementation reviewers' probes of 3a95f38 (run folder evidence/review-claude/probe_*.py) and the fix-diff check's probe_ctor_parent.py, each on the measured head and on its base (git archive of `measured_base`)",
    "results": {
     "alias_meta-head": {
      "c3": [
@@ -1158,6 +1251,34 @@
      "list_datasets": "attempted scandir(PosixPath('<probe work>/ancestor_start-main/proj/data/raw/usr'))",
      "fingerprint": "no scan of /"
     },
+    "ctor_parent-head": {
+     "n": 200000,
+     "project_ctor_ms": 144.44,
+     "find_project_ms": 144.49,
+     "is_trusted_ms": 0.04,
+     "scandir_calls_in_one_ctor": 0
+    },
+    "ctor_parent-main": {
+     "n": 200000,
+     "project_ctor_ms": 0.02,
+     "find_project_ms": 0.03,
+     "is_trusted_ms": 0.05,
+     "scandir_calls_in_one_ctor": 0
+    },
+    "ctor_parent-steady-head": {
+     "n": 200000,
+     "project_ctor_ms": 0.04,
+     "find_project_ms": 0.04,
+     "is_trusted_ms": 0.03,
+     "scandir_calls_in_one_ctor": 0
+    },
+    "ctor_parent-steady-main": {
+     "n": 200000,
+     "project_ctor_ms": 0.02,
+     "find_project_ms": 0.03,
+     "is_trusted_ms": 0.05,
+     "scandir_calls_in_one_ctor": 0
+    },
     "inward_ignored-head": {
      "rel_scripts": "src/a.py",
      "rel_src": "src/a.py",
@@ -1213,7 +1334,7 @@
       ],
       "warnings": []
      },
-     "a_seconds": 0.16,
+     "a_seconds": 0.14,
      "b": {
       "status": "ok",
       "inputs": [
@@ -1230,8 +1351,8 @@
       ],
       "warnings": []
      },
-     "b_seconds": 0.15,
-     "status_seconds": 0.04,
+     "b_seconds": 0.13,
+     "status_seconds": 0.03,
      "datasets": [
       {
        "name": "sales",
@@ -1239,7 +1360,7 @@
        "kind": "raw",
        "producers": null,
        "used_by": [
-        "20261006-232111-a"
+        "20261007-143840-a"
        ],
        "producer_state": "none"
       },
@@ -1248,7 +1369,7 @@
        "path": "data/derived/count.parquet",
        "kind": "derived",
        "producers": [
-        "20261006-232111-b"
+        "20261007-143840-b"
        ],
        "used_by": [],
        "producer_state": "resolved"
@@ -1258,10 +1379,10 @@
        "path": "data/derived/top5.parquet",
        "kind": "derived",
        "producers": [
-        "20261006-232111-a"
+        "20261007-143840-a"
        ],
        "used_by": [
-        "20261006-232111-b"
+        "20261007-143840-b"
        ],
        "producer_state": "resolved"
       }
@@ -1309,7 +1430,7 @@
        "kind": "raw",
        "producers": null,
        "used_by": [
-        "20261006-232135-a"
+        "20261007-143918-a"
        ],
        "producer_state": "none"
       },
@@ -1327,7 +1448,7 @@
        "kind": "derived",
        "producers": null,
        "used_by": [
-        "20261006-232135-b"
+        "20261007-143918-b"
        ],
        "producer_state": "none"
       }
@@ -1340,22 +1461,22 @@
     },
     "loop_cost-head": {
      "n": 200000,
-     "write_into_big_dir_inside_ms": 0.28,
-     "write_into_big_dir_outside_ms": 0.29,
-     "write_small_ms": 0.28,
-     "project_ctor_ms": 0.27,
-     "find_project_ms": 0.32
+     "write_into_big_dir_inside_ms": 0.04,
+     "write_into_big_dir_outside_ms": 0.06,
+     "write_small_ms": 0.04,
+     "project_ctor_ms": 0.04,
+     "find_project_ms": 0.05
     },
     "loop_cost-main": {
      "n": 200000,
-     "write_into_big_dir_inside_ms": 0.1,
+     "write_into_big_dir_inside_ms": 0.09,
      "write_into_big_dir_outside_ms": 0.05,
-     "write_small_ms": 0.11,
-     "project_ctor_ms": 0.03,
+     "write_small_ms": 0.07,
+     "project_ctor_ms": 0.02,
      "find_project_ms": 0.04
     },
     "new_link-head": {
-     "seconds": 0.14,
+     "seconds": 0.13,
      "status": "ok",
      "inputs": [
       [
@@ -1369,7 +1490,7 @@
      "warnings_head": []
     },
     "new_link-main": {
-     "seconds": 0.15,
+     "seconds": 0.14,
      "status": "ok",
      "inputs": [
       [
@@ -1446,15 +1567,15 @@
       "data/raw/sales.parquet"
      ],
      "outputs": [],
-     "stdout": "runs/20261006-232110-own/stdout.txt",
+     "stdout": "runs/20261007-143839-own/stdout.txt",
      "script": {
       "path": "scripts/own.py",
       "sha256": "e3caa9be5365878f7efee5176e49c44ceb6e79d02bb8966fa1aadcabec5b51f1",
-      "snapshot": "runs/20261006-232110-own/code/scripts/own.py"
+      "snapshot": "runs/20261007-143839-own/code/scripts/own.py"
      },
      "charts": [
       {
-       "png": "runs/20261006-232110-own/charts/c1.png"
+       "png": "runs/20261007-143839-own/charts/c1.png"
       }
      ],
      "warnings": [
@@ -1490,28 +1611,28 @@
       "data/raw/sales.parquet"
      ],
      "outputs": [
-      "Runs/20261006-232134-own/charts/c1.png",
-      "Runs/20261006-232134-own/scratch.csv",
-      "Runs/20261006-232134-own/stderr.txt",
-      "Runs/20261006-232134-own/stdout.txt"
+      "Runs/20261007-143916-own/charts/c1.png",
+      "Runs/20261007-143916-own/scratch.csv",
+      "Runs/20261007-143916-own/stderr.txt",
+      "Runs/20261007-143916-own/stdout.txt"
      ],
-     "stdout": "runs/20261006-232134-own/stdout.txt",
+     "stdout": "runs/20261007-143916-own/stdout.txt",
      "script": {
       "path": "scripts/own.py",
       "sha256": "e3caa9be5365878f7efee5176e49c44ceb6e79d02bb8966fa1aadcabec5b51f1",
-      "snapshot": "runs/20261006-232134-own/code/scripts/own.py"
+      "snapshot": "runs/20261007-143916-own/code/scripts/own.py"
      },
      "charts": [
       {
-       "png": "runs/20261006-232134-own/charts/c1.png"
+       "png": "runs/20261007-143916-own/charts/c1.png"
       }
      ],
      "warnings": [
       "chart c1: plotted data not recorded (pass data=... to analytics.visualize)",
-      "file written outside data/: Runs/20261006-232134-own/charts/c1.png",
-      "file written outside data/: Runs/20261006-232134-own/scratch.csv",
-      "file written outside data/: Runs/20261006-232134-own/stderr.txt",
-      "file written outside data/: Runs/20261006-232134-own/stdout.txt"
+      "file written outside data/: Runs/20261007-143916-own/charts/c1.png",
+      "file written outside data/: Runs/20261007-143916-own/scratch.csv",
+      "file written outside data/: Runs/20261007-143916-own/stderr.txt",
+      "file written outside data/: Runs/20261007-143916-own/stdout.txt"
      ],
      "rerun": {
       "code": 0,

@@ -12,7 +12,7 @@ PR의 CI(`pull_request` 실행과 `ci:macos` 라벨 실행)에서 채우며, 그
 
 | 항목 | 근거 |
 |---|---|
-| 측정한 코드 | `feat/issue-36-path-identity`의 깨끗한 헤드 `810353f`(구현 `3a95f38`과 구현 리뷰를 고친 커밋, kit 0.5.0; 그때의 main `6b8026a` 위). 그 뒤 main이 문서만 바꾼 `4254a36`(#67)으로 옮겨 다시 쌓은 헤드 `44d9e1e`와 이 기록의 값을 채운 커밋은 코드(`git ls-files src extension tests tools pyproject.toml uv.lock`, 159개 파일)가 같습니다 — 파일마다의 sha256 목록이 같고, 그 목록의 sha256이 JSON의 `measured_tree`에 있습니다. `44d9e1e`에서는 문서 검사·문서를 읽는 시험·`git diff --check`를 다시 돌렸습니다. M 규모와 리뷰 probe는 `44d9e1e`에서 `4254a36`과 비교했습니다 |
+| 측정한 코드 | `feat/issue-36-path-identity`의 깨끗한 헤드 `96ad43e`(구현, 구현 리뷰의 처분, kit 0.5.0, 수정 diff 확인과 Windows CI의 처분; 그때의 main `13d8718` 위)를 전부 쟀고, M 규모와 리뷰 probe도 `96ad43e`에서 `13d8718`과 비교했습니다. 그 뒤 main이 도구·시험·문서만 바꾼 `6c4c2cd`(#71)로 옮겨 다시 쌓은 헤드 `d8b9919`는 `src`·`extension`·`pyproject.toml`·`uv.lock`이 같고, 다른 파일은 main이 바꾼 것뿐입니다(JSON의 `measured_tree.differing_from_measured`). 그 가운데 이 브랜치가 고친 것은 #71의 dry-run 시험이 kit 버전을 글자 `0.4.0` 대신 `core.KIT_VERSION`과 비교하게 한 한 줄입니다(`edited_by_this_branch_after_main`). `d8b9919`에서는 그 파일들이 닿는 검사 — 모델 평가 시험, 평가 fixture 시험 — 와 문서 검사·문서를 읽는 시험·`git diff --check`를 다시 돌렸습니다(`rebased_checks`). 이 기록의 값을 채운 커밋은 문서만 바꿉니다. 파일마다의 sha256 목록과 그 목록의 sha256이 JSON의 `measured_tree`에 있습니다 |
 | 워크플로 | `.github/workflows/ci.yml`, 이 변경이 고치지 않음 |
 | CI 실행 | CI 실행 예정: PR의 `pull_request` 실행(Ubuntu 24.04·Windows Server 2025)과 같은 헤드의 `ci:macos` 라벨 실행. 실행 번호·시도·이미지·인터프리터는 그 실행 뒤 이 기록에 적습니다 |
 | 개발 기기 | macOS 26.6.2(25G83) arm64, uv 0.11.19. 저장소 시험 CPython 3.12.13(`uv.lock`의 개발 환경, DuckDB 1.5.5·Polars 1.44.2), aelix 레그 3.12.13·3.11.15, 런처·stdlib 스모크 3.11.15 |
@@ -23,9 +23,9 @@ PR의 CI(`pull_request` 실행과 `ci:macos` 라벨 실행)에서 채우며, 그
 
 | 검사 | Linux | Windows | macOS(호스트) | macOS(개발 기기) |
 |---|---|---|---|---|
-| 저장소 시험(`AELIX_ANALYTICS_TEST_INSTALL=1`, 배포본 end-to-end 포함) | CI 실행 예정 | CI 실행 예정 | CI 실행 예정 | 1,198 passed, 61 skipped, 0 failed(288 s) |
-| 대소문자를 구별하는 APFS 볼륨: `tests/test_path_identity.py`·`tests/test_platform.py` 전체 | — | — | — | 488 passed, 8 skipped |
-| aelix 0.1.0b2 통합(`tests/test_extension.py`·`tests/test_usage_report.py`), CPython 3.12 / 3.11 | CI 실행 예정 | CI 실행 예정 | CI 실행 예정 | 151 / 151 passed |
+| 저장소 시험(`AELIX_ANALYTICS_TEST_INSTALL=1`, 배포본 end-to-end 포함) | CI 실행 예정 | CI 실행 예정 | CI 실행 예정 | 1,220 passed, 62 skipped, 0 failed(309 s) |
+| 대소문자를 구별하는 APFS 볼륨: `tests/test_path_identity.py`·`tests/test_platform.py` 전체 | — | — | — | 490 passed, 8 skipped |
+| aelix 0.1.0b2 통합(`tests/test_extension.py`·`tests/test_usage_report.py`), CPython 3.12 / 3.11 | CI 실행 예정 | CI 실행 예정 | CI 실행 예정 | 155 / 155 passed |
 | 런처, CPython 3.11(`tests/test_launcher.py`) | CI 실행 예정 | CI 실행 예정 | CI 실행 예정 | 120 passed, 1 skipped |
 | 플랫폼 스모크, required gate | CI 실행 예정 | CI 실행 예정 | CI 실행 예정 | held: 25 hold |
 | stdlib 스모크, CPython 3.11 | CI 실행 예정 | CI 실행 예정 | CI 실행 예정 | held: 15 hold |
@@ -34,10 +34,10 @@ PR의 CI(`pull_request` 실행과 `ci:macos` 라벨 실행)에서 채우며, 그
 
 - 개발 기기의 건너뜀은 Windows에서 도는 시험(콘솔 21, 긴 경로 6, 포트 공통 계약의 Windows 구현 24, `taskkill`, 대소문자 구별 디렉터리
   2, 8.3 짧은 이름), aelix가 없는 환경의 두 모듈(aelix 레그가 돌림), APFS가 거절하는 UTF-8이 아닌 이름 2, CPython 3.14에만 있는 잠금
-  사례, POSIX에서 다시 보내는 런처 사례입니다. 대소문자를 구별하는 볼륨에서는 `Runs`·`.LAB`로 저장된 관리 디렉터리의 시험(대소문자를
+  사례, POSIX에서 다시 보내는 런처 사례, 약 440 MB를 쓰는 평가 fixture의 M 규모 사례(`AELIX_ANALYTICS_TEST_SCALE_M`)입니다. 대소문자를 구별하는 볼륨에서는 `Runs`·`.LAB`로 저장된 관리 디렉터리의 시험(대소문자를
   무시하는 곳의 시험)이 더 건너뜁니다.
-- JUnit(sha256 앞 12자, 전체는 JSON): 저장소 시험 `dfd13b3e5706`, 대소문자 구별 볼륨 `4f07985d0947`, aelix 3.12 `188d7511ea06`,
-  3.11 `5088f0f200ce`, 런처 `c2e4ac2c15ef`.
+- JUnit(sha256 앞 12자, 전체는 JSON): 저장소 시험 `ff00b0bfe1fb`, 대소문자 구별 볼륨 `006e91bebfe9`, aelix 3.12 `bb1f8ed47976`,
+  3.11 `9a1926785031`, 런처 `03c6707c66df`.
 
 ## 항목별 전후
 
@@ -60,39 +60,39 @@ PR의 CI(`pull_request` 실행과 `ci:macos` 라벨 실행)에서 채우며, 그
 
 ## M 규모(300 run, 1만 데이터 파일)
 
-같은 기기, 같은 fixture에서 #36 전의 main `4254a36`의 `src`와 헤드 `44d9e1e`(측정한 코드와 같음)의 `src`를 번갈아 두 번씩 잰 값
-가운데 둘째 것입니다(각 값은 그 안의 최솟값, run의 evidence에 있는 스크립트). 시간은 공유 러너에서 단언하지 않으며 시험은
-관찰(`walk-m-scale`)만 남깁니다.
+같은 기기, 같은 fixture에서 #36 전의 main `13d8718`의 `src`와 헤드 `96ad43e`의 `src`를 번갈아 두 번씩 잰 값 가운데 둘째
+것입니다(각 값은 그 안의 최솟값, run의 evidence에 있는 스크립트). 시간은 공유 러너에서 단언하지 않으며 시험은 관찰(`walk-m-scale`)만
+남깁니다.
 
-| 측정 | `4254a36` | 헤드 |
+| 측정 | `13d8718` | 헤드 |
 |---|---|---|
-| 트리 조회(`runner.tree_stat`), 보통 `data/` | 48.3 ms, `data/` 아래 10,000개 | 28.6 ms, `data/` 아래 10,000개 |
-| 트리 조회, 심볼릭 링크인 `data/` | 0.1 ms, `data/` 아래 0개(기록 손실) | 29.6 ms, `data/` 아래 10,000개 |
-| 데이터셋 목록, 보통 / 링크 | 450.9 ms / 608.2 ms(보통은 1만 개 모두 상대 경로, 링크는 모두 절대 경로) | 87.2 ms / 112.4 ms(모두 상대 경로) |
-| 경로 1만 개의 정체성(`Project.rel`), 보통 / 링크 | 368.1 ms / 531.6 ms(보통은 1만 개 모두 상대 경로, 링크는 모두 절대 경로) | 75.3 ms / 371.4 ms(모두 상대 경로) |
-| `core.status`(aelix 프로세스가 만드는 개요), 보통 / 링크 | 556.4 ms / 739.7 ms | 260.7 ms / 309.0 ms |
+| 트리 조회(`runner.tree_stat`), 보통 `data/` | 45.8 ms, `data/` 아래 10,000개 | 22.9 ms, `data/` 아래 10,000개 |
+| 트리 조회, 심볼릭 링크인 `data/` | 0.1 ms, `data/` 아래 0개(기록 손실) | 23.6 ms, `data/` 아래 10,000개 |
+| 데이터셋 목록, 보통 / 링크 | 398.9 ms / 560.6 ms(보통은 1만 개 모두 상대 경로, 링크는 모두 절대 경로) | 75.0 ms / 97.9 ms(모두 상대 경로) |
+| 경로 1만 개의 정체성(`Project.rel`), 보통 / 링크 | 345.4 ms / 502.5 ms(보통은 1만 개 모두 상대 경로, 링크는 모두 절대 경로) | 65.9 ms / 332.0 ms(모두 상대 경로) |
+| `core.status`(aelix 프로세스가 만드는 개요), 보통 / 링크 | 503.2 ms / 671.1 ms | 223.4 ms / 265.0 ms |
 
-링크 아래 경로의 정체성은 `3a95f38`의 91 ms에서 371 ms가 되었습니다: 구현 리뷰의 지적 1에 따라 링크를 거친 판정을 기억하지 않아
-링크를 경로마다 다시 풉니다(그래도 이전 구현보다 빠름). 시험의 관찰(`walk-m-scale`, 개발 기기): 이전 방식의 트리 조회 40.7 ms 대 새
-조회 21.8 ms(같은 파일 집합을 단언), 링크한 `data/`의 트리 조회 27.6 ms와 정체성 1만 개 348.5 ms, 목록을 읽은 뒤 만든 1,000개의
-정체성 7.4 ms, 1,000개를 하나씩 만들고 바로 정체성을 정한 것 94.9 ms(디렉터리를 파일마다 다시 읽지 않음: 처음 여덟 번 뒤로는 점점
-드물게 다시 읽습니다. 파일마다 읽으면 3,000개에서 1.9 s, 1만 개에서 수십 초였습니다).
+링크 아래 경로의 정체성은 `3a95f38`의 91 ms보다 느립니다: 구현 리뷰의 지적 1에 따라 링크를 거친 판정을 기억하지 않아 링크를 경로마다
+다시 풉니다(그래도 이전 구현보다 빠름). 시험의 관찰(`walk-m-scale`, 개발 기기)은 JSON의 `observations.walk-m-scale`에 있습니다(이전
+방식의 트리 조회 대 새 조회, 링크한 `data/`의 조회와 정체성 1만 개, 목록을 읽은 뒤 만든 1,000개, 1,000개를 하나씩 만들고 바로 정체성을
+정한 것 — 디렉터리를 파일마다 다시 읽지 않음: 처음 여덟 번 뒤로는 점점 드물게 다시 읽습니다).
 
 ## 구현 리뷰의 probe
 
-구현 리뷰(`3a95f38`)의 probe 여덟 개를 헤드 `44d9e1e`와 #36 전의 main `4254a36`에서 같은 명령으로 돌린 결과입니다(JSON의
-`review_probes`, 개발 기기).
+구현 리뷰(`3a95f38`)의 probe 여덟 개와 수정 diff 확인의 probe 하나를 헤드 `96ad43e`와 #36 전의 main `13d8718`에서 같은 명령으로
+돌린 결과입니다(JSON의 `review_probes`, 개발 기기).
 
-| probe | `4254a36` | 헤드 |
+| probe | `13d8718` | 헤드 |
 |---|---|---|
-| `retarget`: run이 `latest`를 v3→v4로 바꾸고 읽음 | 입력 `v4/x.csv`, v4의 sha256 | 같음(`3a95f38`은 v3의 경로·sha256) |
+| `retarget`: run이 `latest`를 v3→v4로 바꾸고 읽음 | 입력 `v4/x.csv`(v4의 sha256)와, 정적 스캔이 run 전에 찾은 `v3/x.csv`(`via: scan`, v3의 sha256) | 같음(`3a95f38`은 런타임 읽기도 v3의 경로·sha256) |
 | `new_link`: run이 밖의 디렉터리(200개)를 `data/lake`로 링크하고 한 파일을 읽음 | 입력 하나(절대 경로, `external`), 출력 없음 | 입력 `data/lake/f00000.csv` 하나(`external: false`), 출력 없음(`3a95f38`은 200개 `created`, 입력 없음) |
 | `alias_meta`: 옮기고 링크로 둔 raw 파일 / derived 링크 | 기록 유지(행 10) / raw·derived 둘, view `sales`·`sales_derived` | 같음 |
 | `runs_case`: `Runs`로 저장된 `runs/` | 자기 run 파일 넷(`Runs/<id>/…`)을 출력으로 기록 | 출력 없음, 입력은 `sales`만 |
 | `ancestor_start`: `data/raw → /` | 데이터셋 목록이 `/` 아래를 걸으려 함(probe가 막음) | 걷지 않음 |
 | `inward_ignored`: `scripts → src` | `src/a.py`, 트리에 `src/` | 같음 |
 | `linked_data`: 링크한 `data/`와 그 안의 고리·조상 링크 | 입력은 절대 경로, 출력 없음, producer 없음 | 입력 `data/…`, 출력 `top5`(`lab.save`)·`count`, producer 이어짐, 데이터셋 셋(고리 링크로 생기는 중복 없음) |
-| `loop_cost`: 20만 항목 디렉터리에 쓰는 도구 호출 하나(`Project` 생성 포함) | 0.10 ms | 0.28 ms(`3a95f38`은 약 100 ms; 남은 차이는 `Project`가 루트의 철자를 맞추는 0.27 ms) |
+| `loop_cost`: 20만 항목 디렉터리에 쓰는 도구 호출 하나(`Project` 생성 포함) | 0.09 ms | 0.04 ms(`3a95f38`은 약 100 ms) |
+| `ctor_parent`(수정 diff 확인): 루트의 상위 디렉터리에 20만 항목, `Project()`·`find_project`·`is_trusted` | 0.02 / 0.03 / 0.05 ms | 0.04 / 0.04 / 0.03 ms, `Project()` 하나의 목록 읽기 0번(`13cdc2b`는 181 / 177 / 206 ms). 20만 항목을 만든 직후 2초 동안은 상위 디렉터리의 시각을 믿지 않아 매번 읽습니다(144 ms, `RACY_NS`) |
 
 ## 계약에 반영한 것
 
@@ -105,6 +105,10 @@ PR의 CI(`pull_request` 실행과 `ci:macos` 라벨 실행)에서 채우며, 그
 - 구현 리뷰를 고치며: B·E에 관리 디렉터리(`runs`·`.venv`·`.lab`·`report`)의 이름을 저장된 철자의 예외로, E에 판정을 기억하는 범위·
   시작 위치 조회의 규칙·가져오기 기록의 위치·종류마다의 중복 제거를, G·F1에 run이 만들거나 지우거나 바꾼 링크 아래의 출력 규칙과
   남는 한계를, F1에 telemetry의 판정과 Windows의 안쪽 junction을 적었습니다.
+- 수정 diff 확인과 Windows CI를 고치며: E에 프로젝트 밖에서 정한 이름을 디렉터리마다 기억하는 규칙과, 바뀐 지 2초가 안 된 디렉터리의
+  시각을 믿지 않는 규칙을, B에 최상위의 제외 이름은 파일이어도 뺀다는 것을, F1에 그것과 디렉터리 읽기의 순서(Windows의 이전 순서)를,
+  G에 다른 시계를 쓰는 볼륨의 한계를 적었습니다. ADR-0006 9절의 예외 줄은 소유자 결정(다른 대소문자로 저장)과 링크(트리 조회의 규칙)를
+  나눠 적었습니다.
 
 ## 실행하지 않은 것
 
