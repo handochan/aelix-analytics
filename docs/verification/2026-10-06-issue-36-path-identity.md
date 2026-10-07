@@ -2,9 +2,9 @@
 
 [#36](https://github.com/handochan/aelix-analytics/issues/36)의 구현(kit 0.5.0)은 기록이 담는 경로를 ADR-0006 9절의 경로 정체성으로
 바꿉니다: 프로젝트 안이면 이름 공간의 프로젝트 상대 경로, 밖을 가리키는 링크는 경계, 철자는 저장된 이름. 기록 형식(경로 값)과 플랫폼
-동작을 바꾸므로 운영 정책 5절의 측정 기록입니다. 이 기록은 **macOS 개발 기기**에서 잰 것입니다. Linux·Windows와 호스트 macOS는
-PR의 CI(`pull_request` 실행과 `ci:macos` 라벨 실행)에서 채우며, 그 칸은 "CI 실행 예정"입니다 — 실행하지 않은 플랫폼은 통과가
-아닙니다. 무엇이 계약에 어떻게 반영됐는지는 [CONTRACTS.md](../CONTRACTS.md) E(경로 정체성)·F1(kit 0.5.0)·G(경로 정체성의 한계)에
+동작을 바꾸므로 운영 정책 5절의 측정 기록입니다. 개발 기기(macOS)의 값과 함께, Linux·Windows·호스트 macOS의 값은
+[PR #68](https://github.com/handochan/aelix-analytics/pull/68)의 CI가 같은 코드의 헤드 `64f953c`에서 돌린 것입니다(`pull_request`
+실행과 `ci:macos` 라벨 실행, 각 시도 1, 모든 job 통과). 이 칸을 채운 커밋은 이 기록만 바꿉니다. 무엇이 계약에 어떻게 반영됐는지는 [CONTRACTS.md](../CONTRACTS.md) E(경로 정체성)·F1(kit 0.5.0)·G(경로 정체성의 한계)에
 있습니다. 각 시험의 결과, JUnit 파일의 sha256, 시험이 남긴 관찰, M 규모 측정은
 [2026-10-06-issue-36-path-identity.json](2026-10-06-issue-36-path-identity.json)에 있습니다.
 
@@ -14,7 +14,8 @@ PR의 CI(`pull_request` 실행과 `ci:macos` 라벨 실행)에서 채우며, 그
 |---|---|
 | 측정한 코드 | `feat/issue-36-path-identity`의 깨끗한 헤드 `96ad43e`(구현, 구현 리뷰의 처분, kit 0.5.0, 수정 diff 확인과 Windows CI의 처분; 그때의 main `13d8718` 위)를 전부 쟀고, M 규모와 리뷰 probe도 `96ad43e`에서 `13d8718`과 비교했습니다. 그 뒤 main이 도구·시험·문서만 바꾼 `6c4c2cd`(#71)로 옮겨 다시 쌓은 헤드 `d8b9919`는 `src`·`extension`·`pyproject.toml`·`uv.lock`이 같고, 다른 파일은 main이 바꾼 것뿐입니다(JSON의 `measured_tree.differing_from_measured`). 그 가운데 이 브랜치가 고친 것은 #71의 dry-run 시험이 kit 버전을 글자 `0.4.0` 대신 `core.KIT_VERSION`과 비교하게 한 한 줄입니다(`edited_by_this_branch_after_main`). `d8b9919`에서는 그 파일들이 닿는 검사 — 모델 평가 시험, 평가 fixture 시험 — 와 문서 검사·문서를 읽는 시험·`git diff --check`를 다시 돌렸습니다(`rebased_checks`). 이 기록의 값을 채운 커밋은 문서만 바꿉니다. 파일마다의 sha256 목록과 그 목록의 sha256이 JSON의 `measured_tree`에 있습니다 |
 | 워크플로 | `.github/workflows/ci.yml`, 이 변경이 고치지 않음 |
-| CI 실행 | CI 실행 예정: PR의 `pull_request` 실행(Ubuntu 24.04·Windows Server 2025)과 같은 헤드의 `ci:macos` 라벨 실행. 실행 번호·시도·이미지·인터프리터는 그 실행 뒤 이 기록에 적습니다 |
+| 코드 실행(Linux, Windows) | [37583182599](https://github.com/handochan/aelix-analytics/actions/runs/37583182599), 시도 1, `pull_request`(`synchronize`)로 헤드 `64f953c`(워크플로는 GitHub의 병합 커밋 `86e4405`, 기준 `6c4c2cd`). `platform · ubuntu-24.04` job 112667290667, 13m33s(ImageOS `ubuntu24 20260927.320.1`, Linux-6.17.0-1022-azure-x86_64-with-glibc2.39, CPython 3.12.3·3.11.15, floor 3.11.16). `platform · windows-2025` job 112667290619, 38m26s(ImageOS `win25-vs2026 20260925.250.1`, Windows-2025Server-10.0.26100-SP0, CPython 3.12.10·3.11.9, floor 3.11.9). lint job 통과(ruff, 문서 검사: Markdown 58, 로컬 링크 560, 오류 0) |
+| macOS 실행(라벨) | [37583333034](https://github.com/handochan/aelix-analytics/actions/runs/37583333034), 시도 1, 같은 헤드의 `ci:macos` 라벨(`labeled`): `platform · macos-26` job 112667757205, 13m24s(ImageOS `macos26 20260907.0351.1`, macOS-26.6.2-arm64-arm-64bit, CPython 3.12.10·3.11.9, floor 3.11.9) |
 | 개발 기기 | macOS 26.6.2(25G83) arm64, uv 0.11.19. 저장소 시험 CPython 3.12.13(`uv.lock`의 개발 환경, DuckDB 1.5.5·Polars 1.44.2), aelix 레그 3.12.13·3.11.15, 런처·stdlib 스모크 3.11.15 |
 | 격리 | `AELIX_ANALYTICS_TRUST_FILE`·`AELIX_ANALYTICS_UV`를 run의 evidence 폴더 안으로(`uv`는 실제 uv로의 링크), `LAB_*`·`AELIX_LAB_*` 없음, `~/.aelix`는 건드리지 않음 |
 | 대소문자를 구별하는 볼륨 | 같은 기기에서 `hdiutil create -fs "Case-sensitive APFS"`로 만든 디스크 이미지를 pytest의 `--basetemp`로 써서, `tests/test_path_identity.py`와 `tests/test_platform.py` 전체를 한 번 더 돌렸습니다(대소문자를 구별하지만 유니코드 정규화는 무시하는 APFS) |
@@ -23,40 +24,46 @@ PR의 CI(`pull_request` 실행과 `ci:macos` 라벨 실행)에서 채우며, 그
 
 | 검사 | Linux | Windows | macOS(호스트) | macOS(개발 기기) |
 |---|---|---|---|---|
-| 저장소 시험(`AELIX_ANALYTICS_TEST_INSTALL=1`, 배포본 end-to-end 포함) | CI 실행 예정 | CI 실행 예정 | CI 실행 예정 | 1,220 passed, 62 skipped, 0 failed(309 s) |
+| 저장소 시험(`AELIX_ANALYTICS_TEST_INSTALL=1`, 배포본 end-to-end 포함) | 1,348 passed, 40 skipped, 0 failed | 1,239 passed, 170 skipped, 0 failed | 1,347 passed, 41 skipped, 0 failed | 1,220 passed, 62 skipped, 0 failed(309 s) |
 | 대소문자를 구별하는 APFS 볼륨: `tests/test_path_identity.py`·`tests/test_platform.py` 전체 | — | — | — | 490 passed, 8 skipped |
-| aelix 0.1.0b2 통합(`tests/test_extension.py`·`tests/test_usage_report.py`), CPython 3.12 / 3.11 | CI 실행 예정 | CI 실행 예정 | CI 실행 예정 | 155 / 155 passed |
-| 런처, CPython 3.11(`tests/test_launcher.py`) | CI 실행 예정 | CI 실행 예정 | CI 실행 예정 | 120 passed, 1 skipped |
-| 플랫폼 스모크, required gate | CI 실행 예정 | CI 실행 예정 | CI 실행 예정 | held: 25 hold |
-| stdlib 스모크, CPython 3.11 | CI 실행 예정 | CI 실행 예정 | CI 실행 예정 | held: 15 hold |
-| 사용량 보고서(`tools/usage_report.py`) | CI 실행 예정 | CI 실행 예정 | CI 실행 예정 | 필수 사실 58/58, 생략 불변식 42/42 |
-| 네이티브 콘솔, LongPathsEnabled=0의 긴 경로 | — | CI 실행 예정 | — | — |
+| aelix 0.1.0b2 통합(`tests/test_extension.py`·`tests/test_usage_report.py`), CPython 3.12 / 3.11 | 155 / 155 passed | 156 / 156 passed | 155 / 155 passed | 155 / 155 passed |
+| 런처, CPython 3.11(`tests/test_launcher.py`) | 120 passed, 1 skipped | 62 passed, 59 skipped(POSIX의 사례) | 120 passed, 1 skipped | 120 passed, 1 skipped |
+| 플랫폼 스모크, required gate | held: 25 hold, 0 violated | held: 21 hold, 3 declared limitations, 0 violated | held: 25 hold, 0 violated | held: 25 hold |
+| stdlib 스모크, CPython 3.11 | held: 15 hold, 0 violated(3.11.16) | held: 14 hold, 1 declared limitation, 0 violated(3.11.9) | held: 15 hold, 0 violated(3.11.9) | held: 15 hold |
+| 사용량 보고서(`tools/usage_report.py`) | 58/58, 42/42 | 58/58, 42/42 | 58/58, 42/42 | 필수 사실 58/58, 생략 불변식 42/42 |
+| 네이티브 콘솔, LongPathsEnabled=0의 긴 경로 | — | 21 passed / 6 passed | — | — |
 
 - 개발 기기의 건너뜀은 Windows에서 도는 시험(콘솔 21, 긴 경로 6, 포트 공통 계약의 Windows 구현 24, `taskkill`, 대소문자 구별 디렉터리
   2, 8.3 짧은 이름), aelix가 없는 환경의 두 모듈(aelix 레그가 돌림), APFS가 거절하는 UTF-8이 아닌 이름 2, CPython 3.14에만 있는 잠금
   사례, POSIX에서 다시 보내는 런처 사례, 약 440 MB를 쓰는 평가 fixture의 M 규모 사례(`AELIX_ANALYTICS_TEST_SCALE_M`)입니다. 대소문자를 구별하는 볼륨에서는 `Runs`·`.LAB`로 저장된 관리 디렉터리의 시험(대소문자를
   무시하는 곳의 시험)이 더 건너뜁니다.
+- CI의 `tests/test_path_identity.py`: Linux 43 passed·3 skipped(대소문자를 무시하는 곳의 관리 디렉터리
+  시험, Windows의 대소문자 구별 디렉터리·8.3 짧은 이름), Windows 59 passed(8.3 짧은 이름과 대소문자 구별 디렉터리 시험도
+  돌았음; `13cdc2b`에서 실패한 셋 — 같은 틱의 철자, 링크 옆의 가져오기 기록, derived 링크 — 이 통과), 호스트 macOS
+  44 passed·2 skipped. Windows의 스모크가 적은 제한 셋과 stdlib 스모크의 하나는 #42의 기록에도 있던
+  선언(`kill_tree_after_the_leader_exited`, regex·자식 대기의 취소)이고 이 변경과 관계없습니다. CI 레그별 값과 job id·시각, 증거 파일의 sha256은
+  JSON의 `runs`·`legs`에 있습니다.
 - JUnit(sha256 앞 12자, 전체는 JSON): 저장소 시험 `ff00b0bfe1fb`, 대소문자 구별 볼륨 `006e91bebfe9`, aelix 3.12 `bb1f8ed47976`,
   3.11 `9a1926785031`, 런처 `03c6707c66df`.
 
 ## 항목별 전후
 
 "이전"은 [2026-10-02 인벤토리](2026-10-02-issue-8-windows-inventory.md)(`4eb0955`)의 같은 이름의 관찰입니다(JSON의 `before.pointers`).
-"이후"의 macOS 칸은 개발 기기의 관찰이고, 다른 칸은 CI 실행 예정입니다.
+"이후"의 macOS 칸은 개발 기기의 관찰이고, Linux·Windows 칸은 위 CI 실행의 관찰입니다(JSON의 `legs.<os>.observations`).
 
 | # | 사례(관찰) | 이전 | 이후, macOS 개발 기기 | Linux | Windows |
 |---|---|---|---|---|---|
-| 1 | 심볼릭 링크인 `data/`(`linked-data-symlink`) | 세 OS 모두: 저장 run `outputs: []`, 입력은 링크를 푼 절대 경로(`external: true`), 데이터셋은 절대 경로이고 producer 없음 | 저장 run의 출력 `data/derived/part.parquet`(`created`, `via: lab.save`), 입력 `data/raw/sales.parquet`·`external: false`, 경고 없음. 읽기 run의 입력 `data/derived/part.parquet`. 데이터셋은 상대 경로이고 `part`의 producer = 저장 run, `used_by` = 읽기 run | CI 실행 예정 | CI 실행 예정 |
-| 1 | 질의(`query-linked-data-symlink`) | — | 링크한 `data/`의 view를 읽음(120행). 밖의 파일, `data/` 대상 안의 링크로 밖, `data/../lab.json`은 `Permission Error`. `data/` 안에서 밖을 가리키는 링크 아래의 데이터셋은 view에 있고 질의가 거절되며 hint가 실제 위치 판정을 말함 | CI 실행 예정 | CI 실행 예정 |
-| 2 | junction인 `data/`(`linked-data-junction`, `query-linked-data-junction`) | Windows: 출력은 `data/derived/part.parquet`(diff), 입력·데이터셋은 절대 경로라 producer가 이어지지 않음 | — | — | CI 실행 예정 |
-| 3 | `runs/`를 가리키는 링크(`link-into-runs-*`) | Windows junction: run이 `lnk/<id>/stdout.txt`·`stderr.txt`를 출력으로 기록하고 경고 셋. 심볼릭 링크: 기록 안 함 | 심볼릭 링크: `outputs: []`, 경고 없음(시험이 단언) | CI 실행 예정 | CI 실행 예정(junction이 바뀜) |
-| 4 | 링크인 기록 파일(`trust-link`, `record-link-replaced`, `append-link-followed`) | macOS 관찰: `write_json`이 링크를 보통 파일로 바꿈(신뢰 목록 포함) | 신뢰 목록: 링크는 링크로 남고 대상에 새 항목, 끊긴 링크는 파일로 바뀜. 다른 기록의 교체는 링크를 파일로 바꿈(의도한 규칙), append는 링크 대상에 씀 | CI 실행 예정 | CI 실행 예정 |
-| 5 | 대소문자 별칭(`case-aliases`) | macOS 조사 case-4: 다른 대소문자의 스크립트가 두 번째 차트 정체성, 다른 대소문자의 절대 경로가 `script_outside`, 다른 대소문자로 읽은 입력은 producer와 끊김, 신뢰 목록이 맞지 않음 | 대소문자 무시(기본 APFS): `Scripts/Analysis.py`의 run이 `scripts/analysis.py`로 기록되어 차트 버전 둘이 한 정체성, 다른 대소문자의 절대 경로 받음, `AGG.parquet`으로 읽은 입력이 `agg`의 producer와 이어짐, 다른 대소문자의 부모로 만든 프로젝트 신뢰. 대소문자 구별 볼륨: 다른 철자는 `script_missing`·`script_outside`, 읽기는 실패(파일이 없음) | CI 실행 예정 | CI 실행 예정 |
-| 5 | NFD 별칭(`nfd-aliases`) | 추론(열기만 관찰) | NFC 이름이 NFD 파일을 열고 기록은 저장된 NFD(기본 APFS와 대소문자 구별 APFS 모두) | CI 실행 예정 | CI 실행 예정 |
-| 6 | 대소문자만 다른 데이터셋(`case-only-datasets`) | Linux(순수 함수): 사람의 `Sales.parquet`이 `sales`를 먼저 받음 | 기본 APFS: 둘이 함께 있을 수 없음(`FileExistsError`, 같은 파일). 대소문자 구별 볼륨: 둘이 함께 있고 kit의 것이 `sales`, 사람의 것이 `sales_2`, `status`가 경고 | CI 실행 예정 | CI 실행 예정(대소문자 구별 디렉터리판 `case-only-datasets-case-sensitive-dir` 포함) |
-| — | 규칙 공통(`two-links-one-target-symlink`, `file-link-out`, `ancestor-link-symlink`, `inward-data-link`) | — | 같은 외부 디렉터리의 두 링크: 쓴 run과 읽은 run이 `data/a/t.parquet` 하나로 이어짐(producer 확인). 밖으로 가는 파일 링크: 링크의 경로·`external: false`. 조상 링크 너머는 절대 경로, 돌아오면 상대 경로, 경계 뒤의 `..`는 POSIX에서 대상의 부모(연 파일과 같은 정체성). 안을 가리키는 `data` 링크: 데이터셋·입력이 실제 위치(이전과 같음) | CI 실행 예정 | CI 실행 예정(junction 포함) |
-| — | run 중의 링크(`repointed-link`, `link-made-by-a-run-symlink`) | 이전 kit: 링크 아래를 조회하지 않아 출력 없음, 입력은 링크를 푼 절대 경로 | `latest`를 v3→v4로 바꾸며 두 번 읽은 run: 입력 `data/derived/v3/x.csv`·`v4/x.csv`가 각자의 sha256, 같은 대상의 `data/b`를 바꾼 뒤 읽은 것은 `data/b/y.csv`. 있던 디렉터리를 `data/lake`로 링크하고 한 파일을 읽은 run: 입력 `data/lake/f00.csv`·`external: false` 하나, 출력은 새 링크로 쓴 `data/out/new.csv`(`created`) 하나, 지운 링크 아래는 `deleted` 없음 | CI 실행 예정 | CI 실행 예정 |
-| — | 다른 대소문자로 저장된 관리 디렉터리(`managed-directories-in-another-case`) | 이전 kit: 입력한 철자 `runs/…`로 기록, `Runs` 아래 파일을 출력 비교에 넣음 | `Runs`·`.LAB`: run이 쓰고 다시 읽은 자기 파일과 `.lab/` 파일이 입력 아님, 스냅샷 `runs/<id>/code/…`, 바꾼 차트의 파일 정리, `.lab`의 모듈은 스냅샷 안 함, 재실행 `ok` | CI 실행 예정(대소문자 구별: 건너뜀) | CI 실행 예정 |
+| 1 | 심볼릭 링크인 `data/`(`linked-data-symlink`) | 세 OS 모두: 저장 run `outputs: []`, 입력은 링크를 푼 절대 경로(`external: true`), 데이터셋은 절대 경로이고 producer 없음 | 저장 run의 출력 `data/derived/part.parquet`(`created`, `via: lab.save`), 입력 `data/raw/sales.parquet`·`external: false`, 경고 없음. 읽기 run의 입력 `data/derived/part.parquet`. 데이터셋은 상대 경로이고 `part`의 producer = 저장 run, `used_by` = 읽기 run | macOS와 같음: 저장 run의 출력 `data/derived/part.parquet`(`lab.save`), 입력 `external: false`, producer·`used_by` 이어짐 | macOS와 같음 |
+| 1 | 질의(`query-linked-data-symlink`) | — | 링크한 `data/`의 view를 읽음(120행). 밖의 파일, `data/` 대상 안의 링크로 밖, `data/../lab.json`은 `Permission Error`. `data/` 안에서 밖을 가리키는 링크 아래의 데이터셋은 view에 있고 질의가 거절되며 hint가 실제 위치 판정을 말함 | macOS와 같음(120행, 거절 셋, hint) | macOS와 같음; junction판도 같음 |
+| 2 | junction인 `data/`(`linked-data-junction`, `query-linked-data-junction`) | Windows: 출력은 `data/derived/part.parquet`(diff), 입력·데이터셋은 절대 경로라 producer가 이어지지 않음 | — | — | 출력·입력·데이터셋 모두 `data/…`, `part`의 producer = 저장 run(이전에는 입력·데이터셋이 절대 경로라 끊겼음), 질의도 같음 |
+| 3 | `runs/`를 가리키는 링크(`link-into-runs-*`) | Windows junction: run이 `lnk/<id>/stdout.txt`·`stderr.txt`를 출력으로 기록하고 경고 셋. 심볼릭 링크: 기록 안 함 | 심볼릭 링크: `outputs: []`, 경고 없음(시험이 단언) | 심볼릭 링크: `outputs: []`, 경고 없음 | 심볼릭 링크·junction 모두 `outputs: []`, 경고 없음(junction의 자기 로그 출력 셋이 없어짐) |
+| 4 | 링크인 기록 파일(`trust-link`, `record-link-replaced`, `append-link-followed`) | macOS 관찰: `write_json`이 링크를 보통 파일로 바꿈(신뢰 목록 포함) | 신뢰 목록: 링크는 링크로 남고 대상에 새 항목, 끊긴 링크는 파일로 바뀜. 다른 기록의 교체는 링크를 파일로 바꿈(의도한 규칙), append는 링크 대상에 씀 | macOS와 같음 | macOS와 같음 |
+| 5 | 대소문자 별칭(`case-aliases`) | macOS 조사 case-4: 다른 대소문자의 스크립트가 두 번째 차트 정체성, 다른 대소문자의 절대 경로가 `script_outside`, 다른 대소문자로 읽은 입력은 producer와 끊김, 신뢰 목록이 맞지 않음 | 대소문자 무시(기본 APFS): `Scripts/Analysis.py`의 run이 `scripts/analysis.py`로 기록되어 차트 버전 둘이 한 정체성, 다른 대소문자의 절대 경로 받음, `AGG.parquet`으로 읽은 입력이 `agg`의 producer와 이어짐, 다른 대소문자의 부모로 만든 프로젝트 신뢰. 대소문자 구별 볼륨: 다른 철자는 `script_missing`·`script_outside`, 읽기는 실패(파일이 없음) | 대소문자 구별: 다른 철자는 `script_missing`·`script_outside` | 대소문자 무시(NTFS): 두 run이 `scripts/analysis.py`, 다른 대소문자의 절대 경로도 받음 |
+| 5 | NFD 별칭(`nfd-aliases`) | 추론(열기만 관찰) | NFC 이름이 NFD 파일을 열고 기록은 저장된 NFD(기본 APFS와 대소문자 구별 APFS 모두) | NFC 이름이 NFD 파일을 열지 않음(별칭 없음) | NFC 이름이 NFD 파일을 열지 않음(별칭 없음) |
+| 6 | 대소문자만 다른 데이터셋(`case-only-datasets`) | Linux(순수 함수): 사람의 `Sales.parquet`이 `sales`를 먼저 받음 | 기본 APFS: 둘이 함께 있을 수 없음(`FileExistsError`, 같은 파일). 대소문자 구별 볼륨: 둘이 함께 있고 kit의 것이 `sales`, 사람의 것이 `sales_2`, `status`가 경고 | 둘이 함께 있고 kit의 것이 `sales`, 사람의 것이 `sales_2`, `status`가 경고 | 기본 NTFS: 함께 있을 수 없음. 대소문자 구별 디렉터리: Linux와 같음 |
+| — | 규칙 공통(`two-links-one-target-symlink`, `file-link-out`, `ancestor-link-symlink`, `inward-data-link`) | — | 같은 외부 디렉터리의 두 링크: 쓴 run과 읽은 run이 `data/a/t.parquet` 하나로 이어짐(producer 확인). 밖으로 가는 파일 링크: 링크의 경로·`external: false`. 조상 링크 너머는 절대 경로, 돌아오면 상대 경로, 경계 뒤의 `..`는 POSIX에서 대상의 부모(연 파일과 같은 정체성). 안을 가리키는 `data` 링크: 데이터셋·입력이 실제 위치(이전과 같음) | macOS와 같음(경계 뒤의 `..`는 대상의 부모라 밖 경로) | 같음, 단 경계 뒤의 `..`는 Win32대로 글자로 접혀 `data/X/x.csv`(연 파일과 같은 정체성); junction판도 같음 |
+| — | run 중의 링크(`repointed-link`, `link-made-by-a-run-symlink`) | 이전 kit: 링크 아래를 조회하지 않아 출력 없음, 입력은 링크를 푼 절대 경로 | `latest`를 v3→v4로 바꾸며 두 번 읽은 run: 입력 `data/derived/v3/x.csv`·`v4/x.csv`가 각자의 sha256, 같은 대상의 `data/b`를 바꾼 뒤 읽은 것은 `data/b/y.csv`. 있던 디렉터리를 `data/lake`로 링크하고 한 파일을 읽은 run: 입력 `data/lake/f00.csv`·`external: false` 하나, 출력은 새 링크로 쓴 `data/out/new.csv`(`created`) 하나, 지운 링크 아래는 `deleted` 없음 | macOS와 같음 | macOS와 같음; junction판도 같음 |
+| — | 다른 대소문자로 저장된 관리 디렉터리(`managed-directories-in-another-case`) | 이전 kit: 입력한 철자 `runs/…`로 기록, `Runs` 아래 파일을 출력 비교에 넣음 | `Runs`·`.LAB`: run이 쓰고 다시 읽은 자기 파일과 `.lab/` 파일이 입력 아님, 스냅샷 `runs/<id>/code/…`, 바꾼 차트의 파일 정리, `.lab`의 모듈은 스냅샷 안 함, 재실행 `ok` | 건너뜀(대소문자 구별) | macOS와 같음(입력 없음, 스냅샷 `runs/…`, 차트 정리, 재실행) |
 
 ## M 규모(300 run, 1만 데이터 파일)
 
@@ -75,7 +82,9 @@ PR의 CI(`pull_request` 실행과 `ci:macos` 라벨 실행)에서 채우며, 그
 링크 아래 경로의 정체성은 `3a95f38`의 91 ms보다 느립니다: 구현 리뷰의 지적 1에 따라 링크를 거친 판정을 기억하지 않아 링크를 경로마다
 다시 풉니다(그래도 이전 구현보다 빠름). 시험의 관찰(`walk-m-scale`, 개발 기기)은 JSON의 `observations.walk-m-scale`에 있습니다(이전
 방식의 트리 조회 대 새 조회, 링크한 `data/`의 조회와 정체성 1만 개, 목록을 읽은 뒤 만든 1,000개, 1,000개를 하나씩 만들고 바로 정체성을
-정한 것 — 디렉터리를 파일마다 다시 읽지 않음: 처음 여덟 번 뒤로는 점점 드물게 다시 읽습니다).
+정한 것 — 디렉터리를 파일마다 다시 읽지 않음: 처음 여덟 번 뒤로는 점점 드물게 다시 읽습니다). CI 러너의 같은 관찰(단언 없음): Linux 이전
+방식 100.0 ms 대 새 조회 53.7 ms, 링크한 `data/` 66.4 ms(이전 0개), Windows 692.3 ms 대
+234.5 ms, junction인 `data/` 167.0 ms(이전 방식도 junction 아래 12,000개를 1262.9 ms에 걸었음).
 
 ## 구현 리뷰의 probe
 
@@ -101,7 +110,7 @@ PR의 CI(`pull_request` 실행과 `ci:macos` 라벨 실행)에서 채우며, 그
 - F: 스크립트 경로의 포함 판정(철자 맞춘 실제 경로), 배포 버전 0.5.0, 이 기록의 링크. F1: kit 0.5.0에서 바뀐 것.
 - G: "프로젝트 안의 디렉터리 링크"와 "대소문자와 유니코드 정규화" 항목을 지우고 "경로 정체성의 한계"로 바꿨습니다. 실행하지 않은
   것에서 "Linux·Windows에서 심볼릭 링크인 기록 파일을 고쳐 쓰는 것"과 "프로젝트 안에서 조상 디렉터리를 가리키는 junction"을 뺐습니다
-  (이 PR의 시험이 세 OS에서 돌림 — Linux·Windows의 결과는 CI 실행 예정).
+  (이 PR의 시험이 세 OS에서 돌았고 통과 — 위 CI 실행).
 - 구현 리뷰를 고치며: B·E에 관리 디렉터리(`runs`·`.venv`·`.lab`·`report`)의 이름을 저장된 철자의 예외로, E에 판정을 기억하는 범위·
   시작 위치 조회의 규칙·가져오기 기록의 위치·종류마다의 중복 제거를, G·F1에 run이 만들거나 지우거나 바꾼 링크 아래의 출력 규칙과
   남는 한계를, F1에 telemetry의 판정과 Windows의 안쪽 junction을 적었습니다.
@@ -112,8 +121,7 @@ PR의 CI(`pull_request` 실행과 `ci:macos` 라벨 실행)에서 채우며, 그
 
 ## 실행하지 않은 것
 
-- Linux·Windows·호스트 macOS의 모든 레그: CI 실행 예정(위 표). 그 전까지 그 플랫폼의 결과는 `not_run`입니다.
 - Linux의 casefold 디렉터리(ext4 `+F`), HFS+, 네트워크·클라우드 볼륨, `st_ino`가 0인 파일 시스템(경로로 판정하는 대비책은 단위
   시험만), bind mount 별칭(권한이 필요; 파일 키로 판정하는 규칙은 조회를 거치는 시험만).
 - Windows의 클라이언트 판·표준 사용자 토큰·`mklink`·`New-Item`으로 만든 링크(2026-10-02 기록과 같음).
-- 8.3 짧은 이름이 꺼진 Windows 볼륨에서는 짧은 이름 시험이 건너뜁니다(CI 실행에서 어느 쪽인지 적습니다).
+- 8.3 짧은 이름이 꺼진 Windows 볼륨(CI 러너의 볼륨은 켜져 있어 그 시험이 돌았습니다).

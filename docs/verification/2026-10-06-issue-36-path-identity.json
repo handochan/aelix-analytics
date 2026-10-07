@@ -2,7 +2,7 @@
  "record_kind": "aelix-analytics-path-identity",
  "observed_at": "2026-10-07T05:27:53Z",
  "issue": "https://github.com/handochan/aelix-analytics/issues/36",
- "pull_request": null,
+ "pull_request": "https://github.com/handochan/aelix-analytics/pull/68",
  "base_revision": "6c4c2cd0f3f07191454185c5c46e6f530d19de64",
  "measured_tree": {
   "what": "the clean head of branch feat/issue-36-path-identity (kit 0.5.0), measured in full with the M-scale timing and the probes on its base then. main then moved by tools, tests and documents only; the branch rebased on base_revision (`rebased_head`) differs from the measured head only in main's files (`differing_from_measured`: none under src, extension, pyproject.toml, uv.lock; `edited_by_this_branch_after_main`: main's files this branch also edits), and the checks those files touch ran again there (`rebased_checks`). The commit that fills this record changes only documents",
@@ -47,12 +47,1916 @@
  "workflow": ".github/workflows/ci.yml, not changed by this change",
  "runs": {
   "code": {
-   "status": "pending",
-   "note": "CI 실행 예정: the pull request's `pull_request` run (ubuntu-24.04, windows-2025) fills this, with run id and attempt"
+   "state": "pass",
+   "id": "37583182599",
+   "url": "https://github.com/handochan/aelix-analytics/actions/runs/37583182599",
+   "attempt": 1,
+   "conclusion": "success",
+   "head": "64f953cd7ac4fdd66d71246ff9a46064dbb5323a",
+   "jobs": {
+    "lint · ruff and documents": {
+     "id": 112667290227,
+     "conclusion": "success"
+    },
+    "floor · windows-2025 · CPython 3.11, stdlib only": {
+     "id": 112667290540,
+     "conclusion": "success"
+    },
+    "floor · ubuntu-24.04 · CPython 3.11, stdlib only": {
+     "id": 112667290562,
+     "conclusion": "success"
+    },
+    "platform · windows-2025": {
+     "id": 112667290619,
+     "conclusion": "success"
+    },
+    "platform · ubuntu-24.04": {
+     "id": 112667290667,
+     "conclusion": "success"
+    }
+   },
+   "lint_documents": {
+    "ok": true,
+    "counts": {
+     "json_files": 10,
+     "markdown_files": 58,
+     "local_links": 560,
+     "python_examples": 2,
+     "json_examples": 4,
+     "dev_state_examples": 1
+    },
+    "errors": [],
+    "sha256": "b48278fb6f205cab9a93e63a675b1cb9046622f55a0464b252fd6cb3f6d7f0b8"
+   }
   },
   "macos_label": {
-   "status": "pending",
-   "note": "CI 실행 예정: the `ci:macos` labelled run on the same head"
+   "state": "pass",
+   "id": "37583333034",
+   "url": "https://github.com/handochan/aelix-analytics/actions/runs/37583333034",
+   "attempt": 1,
+   "conclusion": "success",
+   "head": "64f953cd7ac4fdd66d71246ff9a46064dbb5323a",
+   "jobs": {
+    "platform · macos-26": {
+     "id": 112667757205,
+     "conclusion": "success"
+    },
+    "floor · macos-26 · CPython 3.11, stdlib only": {
+     "id": 112667757457,
+     "conclusion": "success"
+    },
+    "lint · ruff and documents": {
+     "id": 112667758398,
+     "conclusion": "skipped"
+    }
+   }
+  },
+  "note": "a pull_request run takes the workflow from GitHub's merge commit (github_sha) and checks out the PR head; the artifacts are kept in the work run's evidence/ci/ (GitHub deletes them after 90 days)"
+ },
+ "legs": {
+  "linux": {
+   "run": "37583182599",
+   "attempt": 1,
+   "event": "pull_request (synchronize)",
+   "label": null,
+   "head": "64f953cd7ac4fdd66d71246ff9a46064dbb5323a",
+   "base": "6c4c2cd0f3f07191454185c5c46e6f530d19de64",
+   "github_sha": "86e440577fe77367bc10760fe86e8e4884335f94",
+   "jobs": {
+    "floor · ubuntu-24.04 · CPython 3.11, stdlib only": {
+     "id": 112667290562,
+     "conclusion": "success",
+     "started_at": "2026-10-07T06:44:34Z",
+     "completed_at": "2026-10-07T06:45:04Z"
+    },
+    "platform · ubuntu-24.04": {
+     "id": 112667290667,
+     "conclusion": "success",
+     "started_at": "2026-10-07T06:44:26Z",
+     "completed_at": "2026-10-07T06:57:59Z"
+    }
+   },
+   "runner": {
+    "image": "ubuntu24 20260927.320.1",
+    "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+    "arch": "X64",
+    "python_development": "3.12.3",
+    "interpreters": {
+     "3.11": "3.11.15",
+     "3.12": "3.12.3"
+    },
+    "python_floor": "3.11.16"
+   },
+   "junit": {
+    "suite": {
+     "file_sha256": "8fb476bc28cd860509b7a5da63a417d10f475906320ad39b6d6270fee6c3c940",
+     "seconds": 634.7,
+     "counts": {
+      "skipped": 40,
+      "passed": 1348
+     },
+     "failed": [],
+     "skipped_by_reason": {
+      "collection skipped": 2,
+      "the Windows implementation runs on the Windows leg": 21,
+      "the recording implementation does not declare that it excludes other processes": 1,
+      "the recording implementation does not declare that it sees running processes": 1,
+      "the recording implementation does not declare that it interrupts a region": 1,
+      "M writes about 440 MB twice; set AELIX_ANALYTICS_TEST_SCALE_M=1": 1,
+      "what Windows does; POSIX sends it again (the test above)": 1,
+      "this file system minds case: `Runs` would be a directory of its own": 1,
+      "a directory flagged case-sensitive is Windows'": 2,
+      "8.3 short names are Windows'": 1,
+      "taskkill and CreateProcess's search are Windows'": 1,
+      "before 3.14 a `with` calls __enter__ without a CALL, and no signal is handled between its acquiring and the block": 1,
+      "MAX_PATH and LongPathsEnabled are Windows'": 6
+     },
+     "named": {
+      "test_line_endings::test_kit_text_writes_go_through_the_helper": "passed",
+      "test_packaging::test_the_readme_names_the_wheel_this_version_builds": "passed",
+      "test_path_identity::test_a_case_variant_dataset_file_does_not_take_the_kit_dataset_s_view": "passed",
+      "test_path_identity::test_a_case_variant_dataset_in_a_case_sensitive_windows_directory": "skipped",
+      "test_path_identity::test_a_dataset_is_named_by_its_own_entry_and_listed_once_per_name[symlink]": "passed",
+      "test_path_identity::test_a_directory_read_records_the_first_500_files_the_walk_finds_and_stops": "passed",
+      "test_path_identity::test_a_file_link_out_of_the_project_is_recorded_by_its_own_path": "passed",
+      "test_path_identity::test_a_file_system_without_inode_numbers_is_told_by_path": "passed",
+      "test_path_identity::test_a_link_a_run_makes_or_removes_is_no_output_of_it[symlink]": "passed",
+      "test_path_identity::test_a_link_is_a_symbolic_link_or_a_junction[symlink]": "passed",
+      "test_path_identity::test_a_listing_read_in_the_tick_of_a_change_is_not_trusted": "passed",
+      "test_path_identity::test_a_managed_directory_reached_through_a_boundary_is_not_walked[symlink]": "passed",
+      "test_path_identity::test_a_module_under_an_outward_link_is_not_snapshotted[symlink]": "passed",
+      "test_path_identity::test_a_path_recorded_by_an_earlier_kit_is_read_as_the_namespace_now": "passed",
+      "test_path_identity::test_a_path_through_an_ignored_directory_is_named_by_the_walk_where_it_reached_the_file": "passed",
+      "test_path_identity::test_a_project_whose_managed_directories_are_stored_in_another_case": "skipped",
+      "test_path_identity::test_a_raw_dataset_and_a_derived_link_to_it_are_both_listed": "passed",
+      "test_path_identity::test_a_record_that_is_a_link_is_replaced_by_a_file": "passed",
+      "test_path_identity::test_a_run_that_links_a_directory_names_its_files_as_the_namespace_is_after_it": "passed",
+      "test_path_identity::test_a_run_that_repoints_a_link_records_each_file_it_read_through_it": "passed",
+      "test_path_identity::test_a_script_named_in_another_case_keeps_one_chart_identity": "passed",
+      "test_path_identity::test_a_script_under_an_outward_link_is_still_outside[symlink]": "passed",
+      "test_path_identity::test_a_short_name_of_a_directory_in_the_project_is_recorded_by_its_long_name": "skipped",
+      "test_path_identity::test_a_stored_name_wins_and_another_spelling_is_one_only_for_the_same_entry": "passed",
+      "test_path_identity::test_a_walk_from_a_start_does_not_go_back_up_through_a_link[symlink]": "passed",
+      "test_path_identity::test_a_walk_from_a_start_that_leads_to_the_root_or_an_ancestor_lists_nothing[symlink]": "passed",
+      "test_path_identity::test_an_alias_link_inside_data_is_a_dataset_of_its_own_at_its_target": "passed",
+      "test_path_identity::test_an_appended_log_that_is_a_link_is_written_at_its_target": "passed",
+      "test_path_identity::test_an_import_record_is_read_beside_the_dataset_s_entry": "passed",
+      "test_path_identity::test_an_input_read_in_another_case_meets_its_producer": "passed",
+      "test_path_identity::test_an_inward_data_link_keeps_its_datasets_at_their_real_place": "passed",
+      "test_path_identity::test_an_inward_link_to_a_directory_of_the_person_s_is_recorded_at_its_real_place": "passed",
+      "test_path_identity::test_an_nfc_name_of_an_nfd_file_is_recorded_as_stored": "passed",
+      "test_path_identity::test_an_old_trust_entry_in_another_case_still_trusts": "passed",
+      "test_path_identity::test_making_finding_and_trusting_a_project_again_lists_none_of_its_parents": "passed",
+      "test_path_identity::test_query_reads_datasets_under_a_linked_data_directory[symlink]": "passed",
+      "test_path_identity::test_status_warns_of_dataset_names_that_differ_only_in_case": "passed",
+      "test_path_identity::test_the_identity_of_a_path_follows_the_namespace[symlink]": "passed",
+      "test_path_identity::test_the_trust_list_is_replaced_at_its_link_target": "passed",
+      "test_path_identity::test_the_walk_and_the_identity_agree_on_random_links": "passed",
+      "test_path_identity::test_the_walk_at_m_scale_is_observed": "passed",
+      "test_path_identity::test_the_walk_follows_each_outward_target_once_and_no_other_link[symlink]": "passed",
+      "test_path_identity::test_trust_of_a_project_created_under_another_case_of_its_parent": "passed",
+      "test_path_identity::test_two_file_links_to_one_file_give_one_path": "passed",
+      "test_path_identity::test_two_links_to_one_directory_give_one_path[symlink]": "passed",
+      "test_path_identity::test_two_links_to_one_directory_join_a_run_s_input_to_another_s_output[symlink]": "passed",
+      "test_path_identity::test_view_names_give_the_kit_named_stem_first": "passed",
+      "test_path_identity::test_windows_folds_dot_dot_as_text_and_posix_follows_it": "passed"
+     }
+    },
+    "aelix_py3_12": {
+     "file_sha256": "94ef193ef8084fa149826086f0d3a1276bf340b8a33bb5627e45ec3a35f86a98",
+     "seconds": 42.6,
+     "counts": {
+      "passed": 155
+     },
+     "failed": [],
+     "skipped_by_reason": {},
+     "named": {
+      "test_extension::test_a_tool_call_s_project_lookup_lists_no_directory_once_warm": "passed",
+      "test_extension::test_a_write_s_telemetry_lists_no_directory": "passed",
+      "test_extension::test_a_write_through_a_linked_data_directory_is_flagged_without_a_walk": "passed",
+      "test_extension::test_status_in_the_aelix_process_names_a_linked_data_directory_s_datasets_by_project_paths[symlink]": "passed"
+     }
+    },
+    "aelix_py3_11": {
+     "file_sha256": "2172534b459cbaf26ed40700cbb9cb3c87c9f03458d8284eca04a130722c1407",
+     "seconds": 40.7,
+     "counts": {
+      "passed": 155
+     },
+     "failed": [],
+     "skipped_by_reason": {},
+     "named": {
+      "test_extension::test_a_tool_call_s_project_lookup_lists_no_directory_once_warm": "passed",
+      "test_extension::test_a_write_s_telemetry_lists_no_directory": "passed",
+      "test_extension::test_a_write_through_a_linked_data_directory_is_flagged_without_a_walk": "passed",
+      "test_extension::test_status_in_the_aelix_process_names_a_linked_data_directory_s_datasets_by_project_paths[symlink]": "passed"
+     }
+    },
+    "launcher_py3_11": {
+     "file_sha256": "1505d09f4f62e997b10c43358fdde787ccb79341f6184f5af1c965b5aaaef162",
+     "seconds": 8.0,
+     "counts": {
+      "passed": 120,
+      "skipped": 1
+     },
+     "failed": [],
+     "skipped_by_reason": {
+      "what Windows does; POSIX sends it again (the test above)": 1
+     },
+     "named": {}
+    }
+   },
+   "smoke": {
+    "sha256": "872c1420fa945d97e5cd1523b47b89b97474b1d05c4904133d882a72b4679836",
+    "summary": {
+     "holds": 25,
+     "violated": 0,
+     "declared_limitation": 0,
+     "observed": 6,
+     "not_run": 0
+    },
+    "hold": true,
+    "declared_limitation": [],
+    "violated": [],
+    "not_run": []
+   },
+   "stdlib_smoke": {
+    "sha256": "b2b0349816dd6b88732124ee02960cc735fa1b6ce6667c4fb6807d9fd9d9cef8",
+    "summary": {
+     "holds": 15,
+     "violated": 0,
+     "declared_limitation": 0,
+     "observed": 3,
+     "not_run": 2
+    },
+    "hold": true,
+    "declared_limitation": [],
+    "violated": [],
+    "not_run": []
+   },
+   "usage_report": {
+    "sha256": "41fb19e687070d377f1c74b146951678e1d0557bd160e97ebe7f3294d94009b9",
+    "required_facts": {
+     "passed": 58,
+     "total": 58
+    },
+    "invariants": {
+     "holding": 42,
+     "total": 42
+    },
+    "failures": []
+   },
+   "observations": {
+    "linked-data-symlink": {
+     "datasets": [
+      {
+       "kind": "raw",
+       "name": "sales",
+       "path": "data/raw/sales.parquet",
+       "producer": null,
+       "producer_candidates": [],
+       "producer_state": "none",
+       "used_by": [
+        "20261007-065314-95-save"
+       ]
+      },
+      {
+       "kind": "derived",
+       "name": "part",
+       "path": "data/derived/part.parquet",
+       "producer": "20261007-065314-95-save",
+       "producer_candidates": [
+        "20261007-065314-95-save"
+       ],
+       "producer_state": "resolved",
+       "used_by": [
+        "20261007-065314-96-read"
+       ]
+      }
+     ],
+     "read": {
+      "inputs": [
+       {
+        "bytes": 1583,
+        "external": false,
+        "path": "data/derived/part.parquet",
+        "sha256": "1a98c6ff3f0bb1b6b82be911f4573ee1df2c4749b88f71ca1c36289ea78b9184",
+        "via": [
+         "lab.read",
+         "polars.read_parquet"
+        ]
+       }
+      ],
+      "outputs": [],
+      "warnings": []
+     },
+     "save": {
+      "inputs": [
+       {
+        "bytes": 1287,
+        "external": false,
+        "path": "data/raw/sales.parquet",
+        "sha256": "048e88fb2ea2516ba778e78a94bd3b59b3c98927a2fc139b518c2fca81f86393",
+        "via": [
+         "lab.read",
+         "polars.read_parquet"
+        ]
+       }
+      ],
+      "outputs": [
+       {
+        "bytes": 1583,
+        "change": "created",
+        "path": "data/derived/part.parquet",
+        "rows": 5,
+        "schema": [
+         [
+          "order_date",
+          "Date"
+         ],
+         [
+          "region",
+          "String"
+         ],
+         [
+          "channel",
+          "String"
+         ],
+         [
+          "revenue",
+          "Int64"
+         ]
+        ],
+        "sha256": "1a98c6ff3f0bb1b6b82be911f4573ee1df2c4749b88f71ca1c36289ea78b9184",
+        "via": "lab.save"
+       }
+      ],
+      "warnings": []
+     }
+    },
+    "query-linked-data-symlink": {
+     "count": [
+      [
+       120
+      ]
+     ],
+     "dataset_below_a_link": {
+      "code": "query_failed",
+      "hint": "views: far, sales; analytics_query reads only files whose real path is under the project's data/ — a dataset below a link from data/ to elsewhere is read in a run (analytics.read)",
+      "message": "Permission Error: Cannot access file \"/tmp/pytest-of-runner/pytest-0/test_query_reads_datasets_unde0/proj/data/raw/far/far.parquet\" - file system operations are disabled by configuration"
+     },
+     "refused": {
+      "dot_dot": true,
+      "link_out_of_the_target": true,
+      "outside": true
+     }
+    },
+    "link-into-runs-symlink": {
+     "outputs": [],
+     "warnings": []
+    },
+    "trust-link": {
+     "dangling_replaced_by_a_file": true,
+     "link_kept": true
+    },
+    "record-link-replaced": {
+     "link_replaced_by_a_file": true
+    },
+    "append-link-followed": {
+     "link_kept": true,
+     "written_at_target": true
+    },
+    "case-aliases": {
+     "absolute_other_case": {
+      "code": "script_outside",
+      "message": "/tmp/pytest-of-runner/pytest-0/test_a_script_named_in_another0/PROJ/scripts/analysis.py is outside the project"
+     },
+     "ignores_case": false,
+     "second": {
+      "code": "script_missing",
+      "hint": "write the script under scripts/ first",
+      "message": "Scripts/Analysis.py is not a .py file in the project"
+     }
+    },
+    "nfd-aliases": {
+     "nfc_opens_the_nfd_file": false,
+     "recorded_is_nfd": false
+    },
+    "case-only-datasets": {
+     "coexist": true,
+     "groups": [
+      [
+       {
+        "name": "Sales",
+        "path": "data/raw/Sales.parquet",
+        "view": "sales_2"
+       },
+       {
+        "name": "sales",
+        "path": "data/raw/sales.parquet",
+        "view": "sales"
+       }
+      ]
+     ],
+     "views": {
+      "sales": "data/raw/sales.parquet",
+      "sales_2": "data/raw/Sales.parquet"
+     }
+    },
+    "two-links-one-target-symlink": {
+     "inputs": [
+      {
+       "bytes": 1567,
+       "external": false,
+       "path": "data/a/t.parquet",
+       "sha256": "4ee67f539b4474e573667b4b1aa55c6a5718b2fd1643a8b90f6d244858acee99",
+       "via": [
+        "polars.read_parquet",
+        "scan"
+       ]
+      }
+     ],
+     "outputs": [
+      {
+       "bytes": 1567,
+       "change": "created",
+       "path": "data/a/t.parquet",
+       "rows": 3,
+       "schema": [
+        [
+         "order_date",
+         "Date"
+        ],
+        [
+         "region",
+         "String"
+        ],
+        [
+         "channel",
+         "String"
+        ],
+        [
+         "revenue",
+         "Int64"
+        ]
+       ],
+       "sha256": "4ee67f539b4474e573667b4b1aa55c6a5718b2fd1643a8b90f6d244858acee99",
+       "via": "diff"
+      }
+     ]
+    },
+    "file-link-out": {
+     "inputs": [
+      {
+       "bytes": 1287,
+       "external": false,
+       "path": "data/raw/big.parquet",
+       "sha256": "048e88fb2ea2516ba778e78a94bd3b59b3c98927a2fc139b518c2fca81f86393",
+       "via": [
+        "lab.read",
+        "polars.read_parquet"
+       ]
+      }
+     ],
+     "warnings": []
+    },
+    "ancestor-link-symlink": {
+     "back_inside": "data/raw/s.parquet",
+     "dot_dot_after_a_boundary": {
+      "opened": "beside ext",
+      "recorded": "/tmp/pytest-of-runner/pytest-0/test_the_identity_of_a_path_fo0/X/x.csv"
+     },
+     "past_the_ancestor": "/tmp/pytest-of-runner/pytest-0/test_the_identity_of_a_path_fo0/ext/x.csv"
+    },
+    "inward-data-link": {
+     "datasets": [
+      [
+       "sales",
+       "storage/data/raw/sales.parquet"
+      ]
+     ],
+     "inputs": [
+      {
+       "bytes": 1287,
+       "external": false,
+       "path": "storage/data/raw/sales.parquet",
+       "sha256": "048e88fb2ea2516ba778e78a94bd3b59b3c98927a2fc139b518c2fca81f86393",
+       "via": [
+        "lab.read",
+        "polars.read_parquet"
+       ]
+      }
+     ],
+     "outputs": []
+    },
+    "repointed-link": {
+     "inputs": [
+      {
+       "bytes": 4,
+       "external": false,
+       "path": "data/a/y.csv",
+       "sha256": "309b0e45a73d3fc5325e2b6ed0a01ef8b9cde6b05a5633c1f893f970d52bfddc",
+       "via": [
+        "polars.read_csv"
+       ]
+      },
+      {
+       "bytes": 7,
+       "external": false,
+       "path": "data/b/y.csv",
+       "sha256": "15f912e859102184da33308985f3a7dce199ba8a509d322f5ad2556d3df4a6e8",
+       "via": [
+        "polars.read_csv"
+       ]
+      },
+      {
+       "bytes": 4,
+       "external": false,
+       "path": "data/derived/v3/x.csv",
+       "sha256": "0f6d024837342a8b991551454c75ef87aaa7657c4d7fb278c0a7b2f455a2bce3",
+       "via": [
+        "polars.read_csv"
+       ]
+      },
+      {
+       "bytes": 7,
+       "external": false,
+       "path": "data/derived/v4/x.csv",
+       "sha256": "6e9cd2dcd285bf63d140c6df01e19696be098e8577c4bcffc627a8f6a0a81fea",
+       "via": [
+        "polars.read_csv"
+       ]
+      }
+     ],
+     "outputs": []
+    },
+    "link-made-by-a-run-symlink": {
+     "inputs": [
+      {
+       "bytes": 4,
+       "external": false,
+       "path": "data/lake/f00.csv",
+       "sha256": "321b290741a45ebf8b8c46b8559d38e9618a62168c8feb6e77aaf03a49095c31",
+       "via": [
+        "polars.read_csv"
+       ]
+      }
+     ],
+     "outputs": [
+      {
+       "bytes": 4,
+       "change": "created",
+       "path": "data/out/new.csv",
+       "sha256": "309b0e45a73d3fc5325e2b6ed0a01ef8b9cde6b05a5633c1f893f970d52bfddc",
+       "via": "diff"
+      }
+     ]
+    },
+    "walk-m-scale": {
+     "files": 10001,
+     "identity_10000_ms": 184.9,
+     "identity_of_1000_files_made_after_listing_ms": 22.9,
+     "linked_data_kind": "symlink",
+     "linked_identity_10000_ms": 807.6,
+     "linked_tree_stat_before_files_under_data": 0,
+     "linked_tree_stat_before_ms": 0.0,
+     "linked_tree_stat_ms": 66.4,
+     "list_datasets_10000_ms": 219.5,
+     "make_and_identify_1000_files_one_at_a_time_ms": 160.4,
+     "tree_stat_before_ms": 100.0,
+     "tree_stat_ms": 53.7
+    }
+   }
+  },
+  "windows": {
+   "run": "37583182599",
+   "attempt": 1,
+   "event": "pull_request (synchronize)",
+   "label": null,
+   "head": "64f953cd7ac4fdd66d71246ff9a46064dbb5323a",
+   "base": "6c4c2cd0f3f07191454185c5c46e6f530d19de64",
+   "github_sha": "86e440577fe77367bc10760fe86e8e4884335f94",
+   "jobs": {
+    "floor · windows-2025 · CPython 3.11, stdlib only": {
+     "id": 112667290540,
+     "conclusion": "success",
+     "started_at": "2026-10-07T06:44:26Z",
+     "completed_at": "2026-10-07T06:45:37Z"
+    },
+    "platform · windows-2025": {
+     "id": 112667290619,
+     "conclusion": "success",
+     "started_at": "2026-10-07T06:44:27Z",
+     "completed_at": "2026-10-07T07:22:53Z"
+    }
+   },
+   "runner": {
+    "image": "win25-vs2026 20260925.250.1",
+    "platform": "Windows-2025Server-10.0.26100-SP0",
+    "arch": "X64",
+    "python_development": "3.12.10",
+    "interpreters": {
+     "3.11": "3.11.9",
+     "3.12": "3.12.10"
+    },
+    "python_floor": "3.11.9"
+   },
+   "junit": {
+    "suite": {
+     "file_sha256": "73d22d07d4a5b7bc29b2255567c7bb31667b18f65af36fd6ef2d0d4ca9e6826d",
+     "seconds": 1586.2,
+     "counts": {
+      "skipped": 170,
+      "passed": 1239
+     },
+     "failed": [],
+     "skipped_by_reason": {
+      "collection skipped": 2,
+      "the POSIX implementation runs on the Linux and macOS legs": 21,
+      "the recording implementation does not declare that it excludes other processes": 1,
+      "the recording implementation does not declare that it sees running processes": 1,
+      "the recording implementation does not declare that it interrupts a region": 1,
+      "M writes about 440 MB twice; set AELIX_ANALYTICS_TEST_SCALE_M=1": 1,
+      "bin/analytics is a POSIX shell script": 44,
+      "a POSIX signal": 2,
+      "bytes that are not UTF-8 in the environment are POSIX's": 1,
+      "os.startfile would open a real program on Windows": 4,
+      "a terminal's process group; a Windows console's Ctrl+C is tests/test_windows_console.py's": 1,
+      "SIGTERM from outside a process is POSIX": 3,
+      "signal dispositions as POSIX inherits them": 1,
+      "a POSIX signal sent to one process": 1,
+      "a shell's background job": 2,
+      "a symbolic link to a program": 1,
+      "POSIX permissions that bind the owner": 1,
+      "a POSIX background job of the bash tool": 1,
+      "POSIX signals": 3,
+      "the launcher masks through its POSIX pipes; links need privileges": 1,
+      "the launcher masks through its POSIX pipes": 1,
+      "POSIX signals and the launcher's lifeline": 1,
+      "the stand-in uv is a script; Windows starts only an .exe": 1,
+      "a POSIX shell script stands in for the opener": 1,
+      "POSIX executables and HOME": 1,
+      "the POSIX guard's signals": 59,
+      "SIGALRM is POSIX": 1,
+      "Windows reads one character and a colon as a drive, and NTFS a colon in a name as a stream": 3,
+      "a directory the process cannot list: POSIX permissions, not root": 1,
+      "process groups are a POSIX concept": 1,
+      "declared: on Windows the ask is a Python thread, which a regular expression holding the GIL starves": 1,
+      "before 3.14 a `with` calls __enter__ without a CALL, and no signal is handled between its acquiring and the block": 1,
+      "names POSIX can hold and Windows reads otherwise": 1,
+      "the broken guard stands in for the POSIX one": 1,
+      "the stub guards stand in for the POSIX one": 2,
+      "the stub guard stands in for the POSIX one": 1
+     },
+     "named": {
+      "test_line_endings::test_kit_text_writes_go_through_the_helper": "passed",
+      "test_packaging::test_the_readme_names_the_wheel_this_version_builds": "passed",
+      "test_path_identity::test_a_case_variant_dataset_file_does_not_take_the_kit_dataset_s_view": "passed",
+      "test_path_identity::test_a_case_variant_dataset_in_a_case_sensitive_windows_directory": "passed",
+      "test_path_identity::test_a_dataset_is_named_by_its_own_entry_and_listed_once_per_name[junction]": "passed",
+      "test_path_identity::test_a_dataset_is_named_by_its_own_entry_and_listed_once_per_name[symlink]": "passed",
+      "test_path_identity::test_a_directory_read_records_the_first_500_files_the_walk_finds_and_stops": "passed",
+      "test_path_identity::test_a_file_link_out_of_the_project_is_recorded_by_its_own_path": "passed",
+      "test_path_identity::test_a_file_system_without_inode_numbers_is_told_by_path": "passed",
+      "test_path_identity::test_a_link_a_run_makes_or_removes_is_no_output_of_it[junction]": "passed",
+      "test_path_identity::test_a_link_a_run_makes_or_removes_is_no_output_of_it[symlink]": "passed",
+      "test_path_identity::test_a_link_is_a_symbolic_link_or_a_junction[junction]": "passed",
+      "test_path_identity::test_a_link_is_a_symbolic_link_or_a_junction[symlink]": "passed",
+      "test_path_identity::test_a_listing_read_in_the_tick_of_a_change_is_not_trusted": "passed",
+      "test_path_identity::test_a_managed_directory_reached_through_a_boundary_is_not_walked[junction]": "passed",
+      "test_path_identity::test_a_managed_directory_reached_through_a_boundary_is_not_walked[symlink]": "passed",
+      "test_path_identity::test_a_module_under_an_outward_link_is_not_snapshotted[junction]": "passed",
+      "test_path_identity::test_a_module_under_an_outward_link_is_not_snapshotted[symlink]": "passed",
+      "test_path_identity::test_a_path_recorded_by_an_earlier_kit_is_read_as_the_namespace_now": "passed",
+      "test_path_identity::test_a_path_through_an_ignored_directory_is_named_by_the_walk_where_it_reached_the_file": "passed",
+      "test_path_identity::test_a_project_whose_managed_directories_are_stored_in_another_case": "passed",
+      "test_path_identity::test_a_raw_dataset_and_a_derived_link_to_it_are_both_listed": "passed",
+      "test_path_identity::test_a_record_that_is_a_link_is_replaced_by_a_file": "passed",
+      "test_path_identity::test_a_run_that_links_a_directory_names_its_files_as_the_namespace_is_after_it": "passed",
+      "test_path_identity::test_a_run_that_repoints_a_link_records_each_file_it_read_through_it": "passed",
+      "test_path_identity::test_a_script_named_in_another_case_keeps_one_chart_identity": "passed",
+      "test_path_identity::test_a_script_under_an_outward_link_is_still_outside[junction]": "passed",
+      "test_path_identity::test_a_script_under_an_outward_link_is_still_outside[symlink]": "passed",
+      "test_path_identity::test_a_short_name_of_a_directory_in_the_project_is_recorded_by_its_long_name": "passed",
+      "test_path_identity::test_a_stored_name_wins_and_another_spelling_is_one_only_for_the_same_entry": "passed",
+      "test_path_identity::test_a_walk_from_a_start_does_not_go_back_up_through_a_link[junction]": "passed",
+      "test_path_identity::test_a_walk_from_a_start_does_not_go_back_up_through_a_link[symlink]": "passed",
+      "test_path_identity::test_a_walk_from_a_start_that_leads_to_the_root_or_an_ancestor_lists_nothing[junction]": "passed",
+      "test_path_identity::test_a_walk_from_a_start_that_leads_to_the_root_or_an_ancestor_lists_nothing[symlink]": "passed",
+      "test_path_identity::test_an_alias_link_inside_data_is_a_dataset_of_its_own_at_its_target": "passed",
+      "test_path_identity::test_an_appended_log_that_is_a_link_is_written_at_its_target": "passed",
+      "test_path_identity::test_an_import_record_is_read_beside_the_dataset_s_entry": "passed",
+      "test_path_identity::test_an_input_read_in_another_case_meets_its_producer": "passed",
+      "test_path_identity::test_an_inward_data_link_keeps_its_datasets_at_their_real_place": "passed",
+      "test_path_identity::test_an_inward_link_to_a_directory_of_the_person_s_is_recorded_at_its_real_place": "passed",
+      "test_path_identity::test_an_nfc_name_of_an_nfd_file_is_recorded_as_stored": "passed",
+      "test_path_identity::test_an_old_trust_entry_in_another_case_still_trusts": "passed",
+      "test_path_identity::test_making_finding_and_trusting_a_project_again_lists_none_of_its_parents": "passed",
+      "test_path_identity::test_query_reads_datasets_under_a_linked_data_directory[junction]": "passed",
+      "test_path_identity::test_query_reads_datasets_under_a_linked_data_directory[symlink]": "passed",
+      "test_path_identity::test_status_warns_of_dataset_names_that_differ_only_in_case": "passed",
+      "test_path_identity::test_the_identity_of_a_path_follows_the_namespace[junction]": "passed",
+      "test_path_identity::test_the_identity_of_a_path_follows_the_namespace[symlink]": "passed",
+      "test_path_identity::test_the_trust_list_is_replaced_at_its_link_target": "passed",
+      "test_path_identity::test_the_walk_and_the_identity_agree_on_random_links": "passed",
+      "test_path_identity::test_the_walk_at_m_scale_is_observed": "passed",
+      "test_path_identity::test_the_walk_follows_each_outward_target_once_and_no_other_link[junction]": "passed",
+      "test_path_identity::test_the_walk_follows_each_outward_target_once_and_no_other_link[symlink]": "passed",
+      "test_path_identity::test_trust_of_a_project_created_under_another_case_of_its_parent": "passed",
+      "test_path_identity::test_two_file_links_to_one_file_give_one_path": "passed",
+      "test_path_identity::test_two_links_to_one_directory_give_one_path[junction]": "passed",
+      "test_path_identity::test_two_links_to_one_directory_give_one_path[symlink]": "passed",
+      "test_path_identity::test_two_links_to_one_directory_join_a_run_s_input_to_another_s_output[junction]": "passed",
+      "test_path_identity::test_two_links_to_one_directory_join_a_run_s_input_to_another_s_output[symlink]": "passed",
+      "test_path_identity::test_view_names_give_the_kit_named_stem_first": "passed",
+      "test_path_identity::test_windows_folds_dot_dot_as_text_and_posix_follows_it": "passed"
+     }
+    },
+    "aelix_py3_12": {
+     "file_sha256": "21a5ddbb8d5fce983ed9a389078bc9e177a5fde072e8b941525dec0efb365fb2",
+     "seconds": 98.5,
+     "counts": {
+      "passed": 156
+     },
+     "failed": [],
+     "skipped_by_reason": {},
+     "named": {
+      "test_extension::test_a_tool_call_s_project_lookup_lists_no_directory_once_warm": "passed",
+      "test_extension::test_a_write_s_telemetry_lists_no_directory": "passed",
+      "test_extension::test_a_write_through_a_linked_data_directory_is_flagged_without_a_walk": "passed",
+      "test_extension::test_status_in_the_aelix_process_names_a_linked_data_directory_s_datasets_by_project_paths[junction]": "passed",
+      "test_extension::test_status_in_the_aelix_process_names_a_linked_data_directory_s_datasets_by_project_paths[symlink]": "passed"
+     }
+    },
+    "aelix_py3_11": {
+     "file_sha256": "f234958e2bcd2ba03280088649bfe82b32755880e2f7a06ced21e2e0a4ac59d8",
+     "seconds": 96.4,
+     "counts": {
+      "passed": 156
+     },
+     "failed": [],
+     "skipped_by_reason": {},
+     "named": {
+      "test_extension::test_a_tool_call_s_project_lookup_lists_no_directory_once_warm": "passed",
+      "test_extension::test_a_write_s_telemetry_lists_no_directory": "passed",
+      "test_extension::test_a_write_through_a_linked_data_directory_is_flagged_without_a_walk": "passed",
+      "test_extension::test_status_in_the_aelix_process_names_a_linked_data_directory_s_datasets_by_project_paths[junction]": "passed",
+      "test_extension::test_status_in_the_aelix_process_names_a_linked_data_directory_s_datasets_by_project_paths[symlink]": "passed"
+     }
+    },
+    "launcher_py3_11": {
+     "file_sha256": "7ae19706337f58e7609ccf98ad714712495f7fa7c74484f2f956c9ba710f39f4",
+     "seconds": 8.7,
+     "counts": {
+      "passed": 62,
+      "skipped": 59
+     },
+     "failed": [],
+     "skipped_by_reason": {
+      "bin/analytics is a POSIX shell script": 43,
+      "a POSIX signal": 2,
+      "bytes that are not UTF-8 in the environment are POSIX's": 1,
+      "os.startfile would open a real program on Windows": 4,
+      "a terminal's process group; a Windows console's Ctrl+C is tests/test_windows_console.py's": 1,
+      "SIGTERM from outside a process is POSIX": 3,
+      "signal dispositions as POSIX inherits them": 1,
+      "a POSIX signal sent to one process": 1,
+      "a shell's background job": 2,
+      "a symbolic link to a program": 1
+     },
+     "named": {}
+    },
+    "console": {
+     "file_sha256": "564d46e5ad4102a34816d200af0b0b7664c76cb5c587c417db98120a742861ab",
+     "seconds": 83.9,
+     "counts": {
+      "passed": 21
+     },
+     "failed": [],
+     "skipped_by_reason": {},
+     "named": {}
+    },
+    "long_paths_off": {
+     "file_sha256": "b987bfa77ea2043a38cb2141556b936289bac1fb478d23a8e09365ed8d772cb5",
+     "seconds": 4.6,
+     "counts": {
+      "passed": 6
+     },
+     "failed": [],
+     "skipped_by_reason": {},
+     "named": {}
+    }
+   },
+   "smoke": {
+    "sha256": "ccc9fd3fdbbf82e0b74e9e6afcf02792c8a06f9c6ab06723b482a5e85b47ba0b",
+    "summary": {
+     "holds": 21,
+     "violated": 0,
+     "declared_limitation": 3,
+     "observed": 7,
+     "not_run": 0
+    },
+    "hold": true,
+    "declared_limitation": [
+     "kill_tree_after_the_leader_exited",
+     "cli_cancel_reaches_a_run_inside_a_regular_expression",
+     "cli_cancel_reaches_a_run_waiting_on_a_subprocess"
+    ],
+    "violated": [],
+    "not_run": []
+   },
+   "stdlib_smoke": {
+    "sha256": "e03a6f356bc9c3d199783cd91c6f706816d46ebe0435956c9208026f7d7b7cda",
+    "summary": {
+     "holds": 14,
+     "violated": 0,
+     "declared_limitation": 1,
+     "observed": 3,
+     "not_run": 2
+    },
+    "hold": true,
+    "declared_limitation": [
+     "kill_tree_after_the_leader_exited"
+    ],
+    "violated": [],
+    "not_run": []
+   },
+   "usage_report": {
+    "sha256": "c1015c04ee7ac3a0a43902b4fece914e1c35ea6047e621d634171658a682c2be",
+    "required_facts": {
+     "passed": 58,
+     "total": 58
+    },
+    "invariants": {
+     "holding": 42,
+     "total": 42
+    },
+    "failures": []
+   },
+   "observations": {
+    "linked-data-symlink": {
+     "datasets": [
+      {
+       "kind": "raw",
+       "name": "sales",
+       "path": "data/raw/sales.parquet",
+       "producer": null,
+       "producer_candidates": [],
+       "producer_state": "none",
+       "used_by": [
+        "20261007-070906-95-save"
+       ]
+      },
+      {
+       "kind": "derived",
+       "name": "part",
+       "path": "data/derived/part.parquet",
+       "producer": "20261007-070906-95-save",
+       "producer_candidates": [
+        "20261007-070906-95-save"
+       ],
+       "producer_state": "resolved",
+       "used_by": [
+        "20261007-070907-96-read"
+       ]
+      }
+     ],
+     "read": {
+      "inputs": [
+       {
+        "bytes": 1583,
+        "external": false,
+        "path": "data/derived/part.parquet",
+        "sha256": "1a98c6ff3f0bb1b6b82be911f4573ee1df2c4749b88f71ca1c36289ea78b9184",
+        "via": [
+         "lab.read",
+         "polars.read_parquet"
+        ]
+       }
+      ],
+      "outputs": [],
+      "warnings": []
+     },
+     "save": {
+      "inputs": [
+       {
+        "bytes": 1287,
+        "external": false,
+        "path": "data/raw/sales.parquet",
+        "sha256": "048e88fb2ea2516ba778e78a94bd3b59b3c98927a2fc139b518c2fca81f86393",
+        "via": [
+         "lab.read",
+         "polars.read_parquet"
+        ]
+       }
+      ],
+      "outputs": [
+       {
+        "bytes": 1583,
+        "change": "created",
+        "path": "data/derived/part.parquet",
+        "rows": 5,
+        "schema": [
+         [
+          "order_date",
+          "Date"
+         ],
+         [
+          "region",
+          "String"
+         ],
+         [
+          "channel",
+          "String"
+         ],
+         [
+          "revenue",
+          "Int64"
+         ]
+        ],
+        "sha256": "1a98c6ff3f0bb1b6b82be911f4573ee1df2c4749b88f71ca1c36289ea78b9184",
+        "via": "lab.save"
+       }
+      ],
+      "warnings": []
+     }
+    },
+    "linked-data-junction": {
+     "datasets": [
+      {
+       "kind": "raw",
+       "name": "sales",
+       "path": "data/raw/sales.parquet",
+       "producer": null,
+       "producer_candidates": [],
+       "producer_state": "none",
+       "used_by": [
+        "20261007-070908-95-save"
+       ]
+      },
+      {
+       "kind": "derived",
+       "name": "part",
+       "path": "data/derived/part.parquet",
+       "producer": "20261007-070908-95-save",
+       "producer_candidates": [
+        "20261007-070908-95-save"
+       ],
+       "producer_state": "resolved",
+       "used_by": [
+        "20261007-070909-96-read"
+       ]
+      }
+     ],
+     "read": {
+      "inputs": [
+       {
+        "bytes": 1583,
+        "external": false,
+        "path": "data/derived/part.parquet",
+        "sha256": "1a98c6ff3f0bb1b6b82be911f4573ee1df2c4749b88f71ca1c36289ea78b9184",
+        "via": [
+         "lab.read",
+         "polars.read_parquet"
+        ]
+       }
+      ],
+      "outputs": [],
+      "warnings": []
+     },
+     "save": {
+      "inputs": [
+       {
+        "bytes": 1287,
+        "external": false,
+        "path": "data/raw/sales.parquet",
+        "sha256": "048e88fb2ea2516ba778e78a94bd3b59b3c98927a2fc139b518c2fca81f86393",
+        "via": [
+         "lab.read",
+         "polars.read_parquet"
+        ]
+       }
+      ],
+      "outputs": [
+       {
+        "bytes": 1583,
+        "change": "created",
+        "path": "data/derived/part.parquet",
+        "rows": 5,
+        "schema": [
+         [
+          "order_date",
+          "Date"
+         ],
+         [
+          "region",
+          "String"
+         ],
+         [
+          "channel",
+          "String"
+         ],
+         [
+          "revenue",
+          "Int64"
+         ]
+        ],
+        "sha256": "1a98c6ff3f0bb1b6b82be911f4573ee1df2c4749b88f71ca1c36289ea78b9184",
+        "via": "lab.save"
+       }
+      ],
+      "warnings": []
+     }
+    },
+    "query-linked-data-symlink": {
+     "count": [
+      [
+       120
+      ]
+     ],
+     "dataset_below_a_link": {
+      "code": "query_failed",
+      "hint": "views: far, sales; analytics_query reads only files whose real path is under the project's data/ — a dataset below a link from data/ to elsewhere is read in a run (analytics.read)",
+      "message": "Permission Error: Cannot access file \"C:\\Users\\runneradmin\\AppData\\Local\\Temp\\pytest-of-runneradmin\\pytest-0\\test_query_reads_datasets_unde0\\proj\\data\\raw\\far\\far.parquet\" - file system operations are disabled by configuration"
+     },
+     "refused": {
+      "dot_dot": true,
+      "link_out_of_the_target": true,
+      "outside": true
+     }
+    },
+    "query-linked-data-junction": {
+     "count": [
+      [
+       120
+      ]
+     ],
+     "dataset_below_a_link": {
+      "code": "query_failed",
+      "hint": "views: far, sales; analytics_query reads only files whose real path is under the project's data/ — a dataset below a link from data/ to elsewhere is read in a run (analytics.read)",
+      "message": "Permission Error: Cannot access file \"C:\\Users\\runneradmin\\AppData\\Local\\Temp\\pytest-of-runneradmin\\pytest-0\\test_query_reads_datasets_unde1\\proj\\data\\raw\\far\\far.parquet\" - file system operations are disabled by configuration"
+     },
+     "refused": {
+      "dot_dot": true,
+      "link_out_of_the_target": true,
+      "outside": true
+     }
+    },
+    "link-into-runs-symlink": {
+     "outputs": [],
+     "warnings": []
+    },
+    "link-into-runs-junction": {
+     "outputs": [],
+     "warnings": []
+    },
+    "trust-link": {
+     "dangling_replaced_by_a_file": true,
+     "link_kept": true
+    },
+    "record-link-replaced": {
+     "link_replaced_by_a_file": true
+    },
+    "append-link-followed": {
+     "link_kept": true,
+     "written_at_target": true
+    },
+    "case-aliases": {
+     "absolute_other_case": {
+      "path": "scripts/analysis.py",
+      "sha256": "61083fe446a5b7f4609359f54fb5df96480135f74b51515edec1f3b2d509b763",
+      "snapshot": "runs/20261007-070541-analysis/code/scripts/analysis.py"
+     },
+     "ignores_case": true,
+     "second": {
+      "path": "scripts/analysis.py",
+      "sha256": "61083fe446a5b7f4609359f54fb5df96480135f74b51515edec1f3b2d509b763",
+      "snapshot": "runs/20261007-070540-analysis-2/code/scripts/analysis.py"
+     }
+    },
+    "nfd-aliases": {
+     "nfc_opens_the_nfd_file": false,
+     "recorded_is_nfd": false
+    },
+    "case-only-datasets": {
+     "coexist": false
+    },
+    "case-only-datasets-case-sensitive-dir": {
+     "coexist": true,
+     "groups": [
+      [
+       {
+        "name": "Sales",
+        "path": "data/raw/Sales.parquet",
+        "view": "sales_2"
+       },
+       {
+        "name": "sales",
+        "path": "data/raw/sales.parquet",
+        "view": "sales"
+       }
+      ]
+     ],
+     "views": {
+      "sales": "data/raw/sales.parquet",
+      "sales_2": "data/raw/Sales.parquet"
+     }
+    },
+    "two-links-one-target-symlink": {
+     "inputs": [
+      {
+       "bytes": 1567,
+       "external": false,
+       "path": "data/a/t.parquet",
+       "sha256": "4ee67f539b4474e573667b4b1aa55c6a5718b2fd1643a8b90f6d244858acee99",
+       "via": [
+        "polars.read_parquet",
+        "scan"
+       ]
+      }
+     ],
+     "outputs": [
+      {
+       "bytes": 1567,
+       "change": "created",
+       "path": "data/a/t.parquet",
+       "rows": 3,
+       "schema": [
+        [
+         "order_date",
+         "Date"
+        ],
+        [
+         "region",
+         "String"
+        ],
+        [
+         "channel",
+         "String"
+        ],
+        [
+         "revenue",
+         "Int64"
+        ]
+       ],
+       "sha256": "4ee67f539b4474e573667b4b1aa55c6a5718b2fd1643a8b90f6d244858acee99",
+       "via": "diff"
+      }
+     ]
+    },
+    "two-links-one-target-junction": {
+     "inputs": [
+      {
+       "bytes": 1567,
+       "external": false,
+       "path": "data/a/t.parquet",
+       "sha256": "4ee67f539b4474e573667b4b1aa55c6a5718b2fd1643a8b90f6d244858acee99",
+       "via": [
+        "polars.read_parquet",
+        "scan"
+       ]
+      }
+     ],
+     "outputs": [
+      {
+       "bytes": 1567,
+       "change": "created",
+       "path": "data/a/t.parquet",
+       "rows": 3,
+       "schema": [
+        [
+         "order_date",
+         "Date"
+        ],
+        [
+         "region",
+         "String"
+        ],
+        [
+         "channel",
+         "String"
+        ],
+        [
+         "revenue",
+         "Int64"
+        ]
+       ],
+       "sha256": "4ee67f539b4474e573667b4b1aa55c6a5718b2fd1643a8b90f6d244858acee99",
+       "via": "diff"
+      }
+     ]
+    },
+    "file-link-out": {
+     "inputs": [
+      {
+       "bytes": 1287,
+       "external": false,
+       "path": "data/raw/big.parquet",
+       "sha256": "048e88fb2ea2516ba778e78a94bd3b59b3c98927a2fc139b518c2fca81f86393",
+       "via": [
+        "lab.read",
+        "polars.read_parquet"
+       ]
+      }
+     ],
+     "warnings": []
+    },
+    "ancestor-link-symlink": {
+     "back_inside": "data/raw/s.parquet",
+     "dot_dot_after_a_boundary": {
+      "opened": "inside data",
+      "recorded": "data/X/x.csv"
+     },
+     "past_the_ancestor": "C:\\Users\\runneradmin\\AppData\\Local\\Temp\\pytest-of-runneradmin\\pytest-0\\test_the_identity_of_a_path_fo0\\ext\\x.csv"
+    },
+    "ancestor-link-junction": {
+     "back_inside": "data/raw/s.parquet",
+     "dot_dot_after_a_boundary": {
+      "opened": "inside data",
+      "recorded": "data/X/x.csv"
+     },
+     "past_the_ancestor": "C:\\Users\\runneradmin\\AppData\\Local\\Temp\\pytest-of-runneradmin\\pytest-0\\test_the_identity_of_a_path_fo1\\ext\\x.csv"
+    },
+    "inward-data-link": {
+     "datasets": [
+      [
+       "sales",
+       "storage/data/raw/sales.parquet"
+      ]
+     ],
+     "inputs": [
+      {
+       "bytes": 1287,
+       "external": false,
+       "path": "storage/data/raw/sales.parquet",
+       "sha256": "048e88fb2ea2516ba778e78a94bd3b59b3c98927a2fc139b518c2fca81f86393",
+       "via": [
+        "lab.read",
+        "polars.read_parquet"
+       ]
+      }
+     ],
+     "outputs": []
+    },
+    "repointed-link": {
+     "inputs": [
+      {
+       "bytes": 6,
+       "external": false,
+       "path": "data/a/y.csv",
+       "sha256": "64c0dea2e1c321cbbcbf78285b8704a51abbc6b0be3117c8c3208ac6082a3284",
+       "via": [
+        "polars.read_csv"
+       ]
+      },
+      {
+       "bytes": 10,
+       "external": false,
+       "path": "data/b/y.csv",
+       "sha256": "213fb31a218663e3a98fdb9f9c781c8e78a306593a0386affd5c57af8df266f2",
+       "via": [
+        "polars.read_csv"
+       ]
+      },
+      {
+       "bytes": 6,
+       "external": false,
+       "path": "data/derived/v3/x.csv",
+       "sha256": "90fd32d7157d39e39b60754702d0135a8ec6f42f7df8d00fb5dab854045f2c6a",
+       "via": [
+        "polars.read_csv"
+       ]
+      },
+      {
+       "bytes": 10,
+       "external": false,
+       "path": "data/derived/v4/x.csv",
+       "sha256": "7503da56f68547ed266e24632f1276a4a39305d39754a30b6c04f36e0624a62e",
+       "via": [
+        "polars.read_csv"
+       ]
+      }
+     ],
+     "outputs": []
+    },
+    "link-made-by-a-run-symlink": {
+     "inputs": [
+      {
+       "bytes": 6,
+       "external": false,
+       "path": "data/lake/f00.csv",
+       "sha256": "d45a3d96f2afc9729e28e4d742e5b3ab0a3bf0621763e11edc6e12d775a1d709",
+       "via": [
+        "polars.read_csv"
+       ]
+      }
+     ],
+     "outputs": [
+      {
+       "bytes": 4,
+       "change": "created",
+       "path": "data/out/new.csv",
+       "sha256": "309b0e45a73d3fc5325e2b6ed0a01ef8b9cde6b05a5633c1f893f970d52bfddc",
+       "via": "diff"
+      }
+     ]
+    },
+    "link-made-by-a-run-junction": {
+     "inputs": [
+      {
+       "bytes": 6,
+       "external": false,
+       "path": "data/lake/f00.csv",
+       "sha256": "d45a3d96f2afc9729e28e4d742e5b3ab0a3bf0621763e11edc6e12d775a1d709",
+       "via": [
+        "polars.read_csv"
+       ]
+      }
+     ],
+     "outputs": [
+      {
+       "bytes": 4,
+       "change": "created",
+       "path": "data/out/new.csv",
+       "sha256": "309b0e45a73d3fc5325e2b6ed0a01ef8b9cde6b05a5633c1f893f970d52bfddc",
+       "via": "diff"
+      }
+     ]
+    },
+    "managed-directories-in-another-case": {
+     "charts": [
+      {
+       "caption": null,
+       "files": {
+        "html": "runs/20261007-070531-m8/charts/c1.html"
+       },
+       "id": "c1",
+       "kind": "html",
+       "line": 17,
+       "title": "c1",
+       "via": "lab.chart"
+      }
+     ],
+     "inputs": [],
+     "modules": [
+      {
+       "path": "scripts/m8_helper.py",
+       "sha256": "603f07c14978e83fb4eaaa3fb4a68091e5bebed59d682ed2c11f72bc287806a4",
+       "snapshot": "runs/20261007-070531-m8/code/scripts/m8_helper.py"
+      }
+     ],
+     "rerun_modules": [
+      {
+       "path": "scripts/m8_helper.py",
+       "sha256": "603f07c14978e83fb4eaaa3fb4a68091e5bebed59d682ed2c11f72bc287806a4",
+       "snapshot": "runs/20261007-070535-m8/code/scripts/m8_helper.py"
+      }
+     ],
+     "snapshot": "runs/20261007-070531-m8/code/scripts/m8.py"
+    },
+    "walk-m-scale": {
+     "files": 10001,
+     "identity_10000_ms": 646.9,
+     "identity_of_1000_files_made_after_listing_ms": 64.3,
+     "linked_data_kind": "junction",
+     "linked_identity_10000_ms": 2638.3,
+     "linked_tree_stat_before_files_under_data": 12000,
+     "linked_tree_stat_before_ms": 1262.9,
+     "linked_tree_stat_ms": 167.0,
+     "list_datasets_10000_ms": 715.8,
+     "make_and_identify_1000_files_one_at_a_time_ms": 1144.8,
+     "tree_stat_before_ms": 692.3,
+     "tree_stat_ms": 234.5
+    }
+   }
+  },
+  "macos_hosted": {
+   "run": "37583333034",
+   "attempt": 1,
+   "event": "pull_request (labeled)",
+   "label": "ci:macos",
+   "head": "64f953cd7ac4fdd66d71246ff9a46064dbb5323a",
+   "base": "6c4c2cd0f3f07191454185c5c46e6f530d19de64",
+   "github_sha": "86e440577fe77367bc10760fe86e8e4884335f94",
+   "jobs": {
+    "platform · macos-26": {
+     "id": 112667757205,
+     "conclusion": "success",
+     "started_at": "2026-10-07T06:46:05Z",
+     "completed_at": "2026-10-07T06:59:29Z"
+    },
+    "floor · macos-26 · CPython 3.11, stdlib only": {
+     "id": 112667757457,
+     "conclusion": "success",
+     "started_at": "2026-10-07T06:46:05Z",
+     "completed_at": "2026-10-07T06:46:35Z"
+    }
+   },
+   "runner": {
+    "image": "macos26 20260907.0351.1",
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "arch": "ARM64",
+    "python_development": "3.12.10",
+    "interpreters": {
+     "3.11": "3.11.9",
+     "3.12": "3.12.10"
+    },
+    "python_floor": "3.11.9"
+   },
+   "junit": {
+    "suite": {
+     "file_sha256": "7450bf5a858952b589b6810697eae519cbaffb5d695e86d10f42b04cca935095",
+     "seconds": 615.3,
+     "counts": {
+      "skipped": 41,
+      "passed": 1347
+     },
+     "failed": [],
+     "skipped_by_reason": {
+      "collection skipped": 2,
+      "the Windows implementation runs on the Windows leg": 21,
+      "the recording implementation does not declare that it excludes other processes": 1,
+      "the recording implementation does not declare that it sees running processes": 1,
+      "the recording implementation does not declare that it interrupts a region": 1,
+      "M writes about 440 MB twice; set AELIX_ANALYTICS_TEST_SCALE_M=1": 1,
+      "what Windows does; POSIX sends it again (the test above)": 1,
+      "a directory flagged case-sensitive is Windows'": 2,
+      "8.3 short names are Windows'": 1,
+      "taskkill and CreateProcess's search are Windows'": 1,
+      "before 3.14 a `with` calls __enter__ without a CALL, and no signal is handled between its acquiring and the block": 1,
+      "this file system refuses a name that is not UTF-8: OSError(92, 'Illegal byte sequence')": 2,
+      "MAX_PATH and LongPathsEnabled are Windows'": 6
+     },
+     "named": {
+      "test_line_endings::test_kit_text_writes_go_through_the_helper": "passed",
+      "test_packaging::test_the_readme_names_the_wheel_this_version_builds": "passed",
+      "test_path_identity::test_a_case_variant_dataset_file_does_not_take_the_kit_dataset_s_view": "passed",
+      "test_path_identity::test_a_case_variant_dataset_in_a_case_sensitive_windows_directory": "skipped",
+      "test_path_identity::test_a_dataset_is_named_by_its_own_entry_and_listed_once_per_name[symlink]": "passed",
+      "test_path_identity::test_a_directory_read_records_the_first_500_files_the_walk_finds_and_stops": "passed",
+      "test_path_identity::test_a_file_link_out_of_the_project_is_recorded_by_its_own_path": "passed",
+      "test_path_identity::test_a_file_system_without_inode_numbers_is_told_by_path": "passed",
+      "test_path_identity::test_a_link_a_run_makes_or_removes_is_no_output_of_it[symlink]": "passed",
+      "test_path_identity::test_a_link_is_a_symbolic_link_or_a_junction[symlink]": "passed",
+      "test_path_identity::test_a_listing_read_in_the_tick_of_a_change_is_not_trusted": "passed",
+      "test_path_identity::test_a_managed_directory_reached_through_a_boundary_is_not_walked[symlink]": "passed",
+      "test_path_identity::test_a_module_under_an_outward_link_is_not_snapshotted[symlink]": "passed",
+      "test_path_identity::test_a_path_recorded_by_an_earlier_kit_is_read_as_the_namespace_now": "passed",
+      "test_path_identity::test_a_path_through_an_ignored_directory_is_named_by_the_walk_where_it_reached_the_file": "passed",
+      "test_path_identity::test_a_project_whose_managed_directories_are_stored_in_another_case": "passed",
+      "test_path_identity::test_a_raw_dataset_and_a_derived_link_to_it_are_both_listed": "passed",
+      "test_path_identity::test_a_record_that_is_a_link_is_replaced_by_a_file": "passed",
+      "test_path_identity::test_a_run_that_links_a_directory_names_its_files_as_the_namespace_is_after_it": "passed",
+      "test_path_identity::test_a_run_that_repoints_a_link_records_each_file_it_read_through_it": "passed",
+      "test_path_identity::test_a_script_named_in_another_case_keeps_one_chart_identity": "passed",
+      "test_path_identity::test_a_script_under_an_outward_link_is_still_outside[symlink]": "passed",
+      "test_path_identity::test_a_short_name_of_a_directory_in_the_project_is_recorded_by_its_long_name": "skipped",
+      "test_path_identity::test_a_stored_name_wins_and_another_spelling_is_one_only_for_the_same_entry": "passed",
+      "test_path_identity::test_a_walk_from_a_start_does_not_go_back_up_through_a_link[symlink]": "passed",
+      "test_path_identity::test_a_walk_from_a_start_that_leads_to_the_root_or_an_ancestor_lists_nothing[symlink]": "passed",
+      "test_path_identity::test_an_alias_link_inside_data_is_a_dataset_of_its_own_at_its_target": "passed",
+      "test_path_identity::test_an_appended_log_that_is_a_link_is_written_at_its_target": "passed",
+      "test_path_identity::test_an_import_record_is_read_beside_the_dataset_s_entry": "passed",
+      "test_path_identity::test_an_input_read_in_another_case_meets_its_producer": "passed",
+      "test_path_identity::test_an_inward_data_link_keeps_its_datasets_at_their_real_place": "passed",
+      "test_path_identity::test_an_inward_link_to_a_directory_of_the_person_s_is_recorded_at_its_real_place": "passed",
+      "test_path_identity::test_an_nfc_name_of_an_nfd_file_is_recorded_as_stored": "passed",
+      "test_path_identity::test_an_old_trust_entry_in_another_case_still_trusts": "passed",
+      "test_path_identity::test_making_finding_and_trusting_a_project_again_lists_none_of_its_parents": "passed",
+      "test_path_identity::test_query_reads_datasets_under_a_linked_data_directory[symlink]": "passed",
+      "test_path_identity::test_status_warns_of_dataset_names_that_differ_only_in_case": "passed",
+      "test_path_identity::test_the_identity_of_a_path_follows_the_namespace[symlink]": "passed",
+      "test_path_identity::test_the_trust_list_is_replaced_at_its_link_target": "passed",
+      "test_path_identity::test_the_walk_and_the_identity_agree_on_random_links": "passed",
+      "test_path_identity::test_the_walk_at_m_scale_is_observed": "passed",
+      "test_path_identity::test_the_walk_follows_each_outward_target_once_and_no_other_link[symlink]": "passed",
+      "test_path_identity::test_trust_of_a_project_created_under_another_case_of_its_parent": "passed",
+      "test_path_identity::test_two_file_links_to_one_file_give_one_path": "passed",
+      "test_path_identity::test_two_links_to_one_directory_give_one_path[symlink]": "passed",
+      "test_path_identity::test_two_links_to_one_directory_join_a_run_s_input_to_another_s_output[symlink]": "passed",
+      "test_path_identity::test_view_names_give_the_kit_named_stem_first": "passed",
+      "test_path_identity::test_windows_folds_dot_dot_as_text_and_posix_follows_it": "passed"
+     }
+    },
+    "aelix_py3_12": {
+     "file_sha256": "eca1be88d613ce1154c07a20e2309da5afdab3c599aa1859af4c0d95e787d51c",
+     "seconds": 35.9,
+     "counts": {
+      "passed": 155
+     },
+     "failed": [],
+     "skipped_by_reason": {},
+     "named": {
+      "test_extension::test_a_tool_call_s_project_lookup_lists_no_directory_once_warm": "passed",
+      "test_extension::test_a_write_s_telemetry_lists_no_directory": "passed",
+      "test_extension::test_a_write_through_a_linked_data_directory_is_flagged_without_a_walk": "passed",
+      "test_extension::test_status_in_the_aelix_process_names_a_linked_data_directory_s_datasets_by_project_paths[symlink]": "passed"
+     }
+    },
+    "aelix_py3_11": {
+     "file_sha256": "3e602051e9bbda73d8cd44143df2851b21d82e54242b3a4d82e62772f58fcc25",
+     "seconds": 34.6,
+     "counts": {
+      "passed": 155
+     },
+     "failed": [],
+     "skipped_by_reason": {},
+     "named": {
+      "test_extension::test_a_tool_call_s_project_lookup_lists_no_directory_once_warm": "passed",
+      "test_extension::test_a_write_s_telemetry_lists_no_directory": "passed",
+      "test_extension::test_a_write_through_a_linked_data_directory_is_flagged_without_a_walk": "passed",
+      "test_extension::test_status_in_the_aelix_process_names_a_linked_data_directory_s_datasets_by_project_paths[symlink]": "passed"
+     }
+    },
+    "launcher_py3_11": {
+     "file_sha256": "d6219d28ca0bca3ca54b5f61c40b8733bf42882ce614acc83f1177e9cbb306db",
+     "seconds": 9.9,
+     "counts": {
+      "passed": 120,
+      "skipped": 1
+     },
+     "failed": [],
+     "skipped_by_reason": {
+      "what Windows does; POSIX sends it again (the test above)": 1
+     },
+     "named": {}
+    }
+   },
+   "smoke": {
+    "sha256": "7aa5d9d80a155ec61aeb9f65fd3c97fb9aedebe5b4574a2ee830ac252632bccc",
+    "summary": {
+     "holds": 25,
+     "violated": 0,
+     "declared_limitation": 0,
+     "observed": 6,
+     "not_run": 0
+    },
+    "hold": true,
+    "declared_limitation": [],
+    "violated": [],
+    "not_run": []
+   },
+   "stdlib_smoke": {
+    "sha256": "0ad4293a78720d99a625362bbc429c548051763ef199c12dd4b528162c6b5a02",
+    "summary": {
+     "holds": 15,
+     "violated": 0,
+     "declared_limitation": 0,
+     "observed": 3,
+     "not_run": 2
+    },
+    "hold": true,
+    "declared_limitation": [],
+    "violated": [],
+    "not_run": []
+   },
+   "usage_report": {
+    "sha256": "5cd8e7f4444ae272231145dd1daea16b0c8924aa0f8523a0258c37a7e570a18a",
+    "required_facts": {
+     "passed": 58,
+     "total": 58
+    },
+    "invariants": {
+     "holding": 42,
+     "total": 42
+    },
+    "failures": []
+   },
+   "observations": {
+    "linked-data-symlink": {
+     "datasets": [
+      {
+       "kind": "raw",
+       "name": "sales",
+       "path": "data/raw/sales.parquet",
+       "producer": null,
+       "producer_candidates": [],
+       "producer_state": "none",
+       "used_by": [
+        "20261007-065514-95-save"
+       ]
+      },
+      {
+       "kind": "derived",
+       "name": "part",
+       "path": "data/derived/part.parquet",
+       "producer": "20261007-065514-95-save",
+       "producer_candidates": [
+        "20261007-065514-95-save"
+       ],
+       "producer_state": "resolved",
+       "used_by": [
+        "20261007-065514-96-read"
+       ]
+      }
+     ],
+     "read": {
+      "inputs": [
+       {
+        "bytes": 1583,
+        "external": false,
+        "path": "data/derived/part.parquet",
+        "sha256": "1a98c6ff3f0bb1b6b82be911f4573ee1df2c4749b88f71ca1c36289ea78b9184",
+        "via": [
+         "lab.read",
+         "polars.read_parquet"
+        ]
+       }
+      ],
+      "outputs": [],
+      "warnings": []
+     },
+     "save": {
+      "inputs": [
+       {
+        "bytes": 1287,
+        "external": false,
+        "path": "data/raw/sales.parquet",
+        "sha256": "048e88fb2ea2516ba778e78a94bd3b59b3c98927a2fc139b518c2fca81f86393",
+        "via": [
+         "lab.read",
+         "polars.read_parquet"
+        ]
+       }
+      ],
+      "outputs": [
+       {
+        "bytes": 1583,
+        "change": "created",
+        "path": "data/derived/part.parquet",
+        "rows": 5,
+        "schema": [
+         [
+          "order_date",
+          "Date"
+         ],
+         [
+          "region",
+          "String"
+         ],
+         [
+          "channel",
+          "String"
+         ],
+         [
+          "revenue",
+          "Int64"
+         ]
+        ],
+        "sha256": "1a98c6ff3f0bb1b6b82be911f4573ee1df2c4749b88f71ca1c36289ea78b9184",
+        "via": "lab.save"
+       }
+      ],
+      "warnings": []
+     }
+    },
+    "query-linked-data-symlink": {
+     "count": [
+      [
+       120
+      ]
+     ],
+     "dataset_below_a_link": {
+      "code": "query_failed",
+      "hint": "views: far, sales; analytics_query reads only files whose real path is under the project's data/ — a dataset below a link from data/ to elsewhere is read in a run (analytics.read)",
+      "message": "Permission Error: Cannot access file \"/private/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/pytest-of-runner/pytest-0/test_query_reads_datasets_unde0/proj/data/raw/far/far.parquet\" - file system operations are disabled by configuration"
+     },
+     "refused": {
+      "dot_dot": true,
+      "link_out_of_the_target": true,
+      "outside": true
+     }
+    },
+    "link-into-runs-symlink": {
+     "outputs": [],
+     "warnings": []
+    },
+    "trust-link": {
+     "dangling_replaced_by_a_file": true,
+     "link_kept": true
+    },
+    "record-link-replaced": {
+     "link_replaced_by_a_file": true
+    },
+    "append-link-followed": {
+     "link_kept": true,
+     "written_at_target": true
+    },
+    "case-aliases": {
+     "absolute_other_case": {
+      "path": "scripts/analysis.py",
+      "sha256": "949f8b4cb82938a832b9a54b44daf4fa620912bd89c9b7f32e485f9399f44dfb",
+      "snapshot": "runs/20261007-065352-analysis-3/code/scripts/analysis.py"
+     },
+     "ignores_case": true,
+     "second": {
+      "path": "scripts/analysis.py",
+      "sha256": "949f8b4cb82938a832b9a54b44daf4fa620912bd89c9b7f32e485f9399f44dfb",
+      "snapshot": "runs/20261007-065352-analysis-2/code/scripts/analysis.py"
+     }
+    },
+    "nfd-aliases": {
+     "nfc_opens_the_nfd_file": true,
+     "recorded_is_nfd": true
+    },
+    "case-only-datasets": {
+     "coexist": false
+    },
+    "two-links-one-target-symlink": {
+     "inputs": [
+      {
+       "bytes": 1567,
+       "external": false,
+       "path": "data/a/t.parquet",
+       "sha256": "4ee67f539b4474e573667b4b1aa55c6a5718b2fd1643a8b90f6d244858acee99",
+       "via": [
+        "polars.read_parquet",
+        "scan"
+       ]
+      }
+     ],
+     "outputs": [
+      {
+       "bytes": 1567,
+       "change": "created",
+       "path": "data/a/t.parquet",
+       "rows": 3,
+       "schema": [
+        [
+         "order_date",
+         "Date"
+        ],
+        [
+         "region",
+         "String"
+        ],
+        [
+         "channel",
+         "String"
+        ],
+        [
+         "revenue",
+         "Int64"
+        ]
+       ],
+       "sha256": "4ee67f539b4474e573667b4b1aa55c6a5718b2fd1643a8b90f6d244858acee99",
+       "via": "diff"
+      }
+     ]
+    },
+    "file-link-out": {
+     "inputs": [
+      {
+       "bytes": 1287,
+       "external": false,
+       "path": "data/raw/big.parquet",
+       "sha256": "048e88fb2ea2516ba778e78a94bd3b59b3c98927a2fc139b518c2fca81f86393",
+       "via": [
+        "lab.read",
+        "polars.read_parquet"
+       ]
+      }
+     ],
+     "warnings": []
+    },
+    "ancestor-link-symlink": {
+     "back_inside": "data/raw/s.parquet",
+     "dot_dot_after_a_boundary": {
+      "opened": "beside ext",
+      "recorded": "/private/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/pytest-of-runner/pytest-0/test_the_identity_of_a_path_fo0/X/x.csv"
+     },
+     "past_the_ancestor": "/private/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/pytest-of-runner/pytest-0/test_the_identity_of_a_path_fo0/ext/x.csv"
+    },
+    "inward-data-link": {
+     "datasets": [
+      [
+       "sales",
+       "storage/data/raw/sales.parquet"
+      ]
+     ],
+     "inputs": [
+      {
+       "bytes": 1287,
+       "external": false,
+       "path": "storage/data/raw/sales.parquet",
+       "sha256": "048e88fb2ea2516ba778e78a94bd3b59b3c98927a2fc139b518c2fca81f86393",
+       "via": [
+        "lab.read",
+        "polars.read_parquet"
+       ]
+      }
+     ],
+     "outputs": []
+    },
+    "repointed-link": {
+     "inputs": [
+      {
+       "bytes": 4,
+       "external": false,
+       "path": "data/a/y.csv",
+       "sha256": "309b0e45a73d3fc5325e2b6ed0a01ef8b9cde6b05a5633c1f893f970d52bfddc",
+       "via": [
+        "polars.read_csv"
+       ]
+      },
+      {
+       "bytes": 7,
+       "external": false,
+       "path": "data/b/y.csv",
+       "sha256": "15f912e859102184da33308985f3a7dce199ba8a509d322f5ad2556d3df4a6e8",
+       "via": [
+        "polars.read_csv"
+       ]
+      },
+      {
+       "bytes": 4,
+       "external": false,
+       "path": "data/derived/v3/x.csv",
+       "sha256": "0f6d024837342a8b991551454c75ef87aaa7657c4d7fb278c0a7b2f455a2bce3",
+       "via": [
+        "polars.read_csv"
+       ]
+      },
+      {
+       "bytes": 7,
+       "external": false,
+       "path": "data/derived/v4/x.csv",
+       "sha256": "6e9cd2dcd285bf63d140c6df01e19696be098e8577c4bcffc627a8f6a0a81fea",
+       "via": [
+        "polars.read_csv"
+       ]
+      }
+     ],
+     "outputs": []
+    },
+    "link-made-by-a-run-symlink": {
+     "inputs": [
+      {
+       "bytes": 4,
+       "external": false,
+       "path": "data/lake/f00.csv",
+       "sha256": "321b290741a45ebf8b8c46b8559d38e9618a62168c8feb6e77aaf03a49095c31",
+       "via": [
+        "polars.read_csv"
+       ]
+      }
+     ],
+     "outputs": [
+      {
+       "bytes": 4,
+       "change": "created",
+       "path": "data/out/new.csv",
+       "sha256": "309b0e45a73d3fc5325e2b6ed0a01ef8b9cde6b05a5633c1f893f970d52bfddc",
+       "via": "diff"
+      }
+     ]
+    },
+    "managed-directories-in-another-case": {
+     "charts": [
+      {
+       "caption": null,
+       "files": {
+        "html": "runs/20261007-065350-m8/charts/c1.html"
+       },
+       "id": "c1",
+       "kind": "html",
+       "line": 17,
+       "title": "c1",
+       "via": "lab.chart"
+      }
+     ],
+     "inputs": [],
+     "modules": [
+      {
+       "path": "scripts/m8_helper.py",
+       "sha256": "3da6c4b355804b265ecef19dfe5945fe2790a8cc38dc9d0547fb1634c94cbbe7",
+       "snapshot": "runs/20261007-065350-m8/code/scripts/m8_helper.py"
+      }
+     ],
+     "rerun_modules": [
+      {
+       "path": "scripts/m8_helper.py",
+       "sha256": "3da6c4b355804b265ecef19dfe5945fe2790a8cc38dc9d0547fb1634c94cbbe7",
+       "snapshot": "runs/20261007-065351-m8/code/scripts/m8_helper.py"
+      }
+     ],
+     "snapshot": "runs/20261007-065350-m8/code/scripts/m8.py"
+    },
+    "walk-m-scale": {
+     "files": 10001,
+     "identity_10000_ms": 101.8,
+     "identity_of_1000_files_made_after_listing_ms": 12.9,
+     "linked_data_kind": "symlink",
+     "linked_identity_10000_ms": 560.8,
+     "linked_tree_stat_before_files_under_data": 0,
+     "linked_tree_stat_before_ms": 0.0,
+     "linked_tree_stat_ms": 44.5,
+     "list_datasets_10000_ms": 115.6,
+     "make_and_identify_1000_files_one_at_a_time_ms": 135.6,
+     "tree_stat_before_ms": 60.2,
+     "tree_stat_ms": 31.2
+    }
+   }
   }
  },
  "developer_machine": {
@@ -1672,7 +3576,6 @@
   }
  },
  "not_run": [
-  "Linux and Windows, and hosted macOS: CI 실행 예정 (the pull request's runs)",
   "a Linux casefold directory (ext4 +F)",
   "HFS+, network and cloud volumes",
   "a file system whose st_ino is 0 (the fallback by path is a unit test only)",
