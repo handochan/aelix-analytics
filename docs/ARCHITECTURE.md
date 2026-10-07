@@ -108,6 +108,7 @@ Strategy는 공통 입력·출력과 의미를 유지하면서 정책·알고리
 | `PublicationProjection` | read / evidence의 선택 범위 | 조직별 공유 프로필 | 선택한 범위를 실제 payload·파일에 반영, 제외와 원본 누락을 구별 |
 
 첫 교체 사례는 이미 요구가 있는 두 제안 모드 또는 두 공유 프로필에서 검증한다.
+`PublicationProjection`의 계약·계약 시험과 공유 build의 흐름은 [공유 build 설계](design/PUBLICATION-BUILD.md)(#20, Proposed, 현재 코드 아님)가 제안한다.
 수십 개의 미래 Strategy와 추상 base class를 먼저 만들지 않는다. 현재 구현 하나와 다른 테스트 구현으로 경계를 먼저 입증할 수도 있다.
 의미가 다른 기능을 Strategy 하나의 거대한 `mode`·`action` 분기로 묶지 않는다.
 
@@ -246,6 +247,9 @@ src/aelix_analytics/
   publishing/                      독립 build·게시 구현
   templates/                       영어 기본 프로젝트 파일
 ```
+
+`publishing/`의 첫 구현(#20 공유 build)의 모듈과 계층 배치 제안은 [공유 build 설계](design/PUBLICATION-BUILD.md) 3절에 있다. 제안이며, 계층은 구현 PR이
+§11의 표와 `tests/test_layers.py`에 등록할 때 정해진다.
 
 도메인·공유 응용 계약에는 표준 라이브러리만 사용하고 host/프로젝트가 지원하는 Python 문법의 공통 범위를 검증한다.
 무거운 분석·그림 의존성은 프로젝트 uv 환경에서 로드한다.

@@ -63,6 +63,9 @@ report 밖을 가리키는 이미지 참조가 28회, 고유 이미지 파일은
 
 ## 4. 독립적인 공유 패키지
 
+P0 공유 build([#20](https://github.com/handochan/aelix-analytics/issues/20))의 구현 설계는 [공유 build 설계](design/PUBLICATION-BUILD.md)에 있다.
+제안(Proposed)이며 현재 동작이 아니다. 이 절과 5절의 구조·manifest·프로필을 구체화하고, 정하지 않은 제품 결정은 그 문서의 소유자 질문으로 남겼다.
+
 빌드 결과의 구조 예시:
 
 ```text
