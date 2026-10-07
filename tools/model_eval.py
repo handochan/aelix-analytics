@@ -7,6 +7,7 @@
                                [--work-root DIR] [--seed N] [--aelix-command CMD] [--aelix-auth FILE]
                                [--timeout S] [--script FILE]
     python tools/model_eval.py score DIR
+    python tools/model_eval.py scan DIR
 
 Run it in the development environment, where the evaluation fixtures can be made:
 
@@ -23,46 +24,65 @@ serving configuration, the host and kit versions, the conditions, every tool cal
 the tokens the host reports, what changed in the project and the score.
 
 Isolation: the trust list, uv (a link to the real one), aelix's agent directory (its models.json and
-state) and its session directory are inside OUT. The model works in a work root that is a new
-directory under --work-root (default: the system's temporary directory), never inside OUT, so the
-fixtures and the other runs are not next to it; tool calls whose paths leave the work root are listed
-in the record and set needs_review. The old names (AELIX_LAB_*, LAB_*) are unset. The harness reads
-and writes nothing under ~/.aelix. When aelix has exited, the harness waits until no process names
-the work root (the kit's extension starts its report build detached at the end of every prompt, and
-it outlives aelix; after_exit, at most SETTLE_TIMEOUT seconds, then such processes are stopped), and
-only then moves it; the project's Python environment (.venv, which the kit makes with uv from the
-project's uv.lock: about 450 MB of public packages and links into uv's Python) is removed from the
-kept work root, never following a link.
+state) and its session directory are inside OUT, and so is HOME: aelix and the model's tools get the
+run's home/ (uv's cache and Pythons are passed explicitly). The model works in a work root that is a
+new directory under --work-root (default: the system's temporary directory), never inside OUT, so the
+fixtures and the other runs are not next to it; tool calls whose paths leave the work root, and those
+that name '.aelix', 'auth.json' or the login's file, are listed in the record and set needs_review.
+The child gets the caller's environment without AELIX_*, PI_*, LAB_* and every variable whose name
+says it holds a credential (TOKEN, KEY, SECRET, PASSWORD, AUTH, CREDENTIAL, COOKIE; command.json lists
+the names), except the model's own key variable. OUT and the work root may not be in ~/.aelix or the
+login's directories. The harness opens no file under ~/.aelix: of the login's file it only reads the
+metadata (existence, modification time, inode, number of names).
+
+After aelix: SIGTERM, SIGHUP and SIGINT stop the harness through the run's own end; a run on timeout or
+interrupt is stopped with SIGTERM to aelix's group and SIGKILL only after STOP_GRACE (a token refresh
+in progress finishes writing the login). The harness then waits until no process works in the work
+root (named on its command line, its working directory or an open file there, or started by aelix: the
+kit's detached report build, a job the model left in the background; after_exit, at most
+SETTLE_TIMEOUT seconds, then such processes are stopped), removes the project's Python environment
+(.venv, which the kit makes with uv from the project's uv.lock: about 450 MB of public packages and
+links into uv's Python and cache) without following a link, removes the links in the work root that
+reach outside it (symbolic links leaving it, every name of a file that also has a name outside it —
+a hard link — or that is the login's file), moves it into the run and looks for processes again. Each
+step is recorded on its own; a work root that cannot be moved is searched where it is. A record is on
+disk from the start (provisional, secret_scan not_scanned): a harness killed outright leaves it, the
+launcher's lifeline stops aelix, and `scan OUT` secures and searches such a run; the summary lists it
+as not_scanned and the exit status is not 0 while one is left.
 
 Credentials. A model whose configuration names an aelix login (auth.source aelix_login, e.g. the
 frontier model through aelix's openai-codex provider) uses the caller's own aelix login in place:
 aelix is started through tools/model_eval_aelix.py, which opens aelix's credential store at the
-login's file (--aelix-auth, default: where the caller's aelix keeps it) while every other piece of
-aelix's state stays in the run's agent directory. Only aelix opens that file; it refreshes a token
-there itself. The harness never reads, copies or links it: it checks that the file exists and asks
-aelix to list the model with it (aelix lists a model only when its provider has a login entry), and
-records the file's modification time before and after each run. A model whose configuration names a
-key variable (api_key_env) gets the key from the environment; the harness never writes it:
-command.json keeps variable names only, the run record is redacted before it is written, and after
-every run, also one that failed after aelix exited, every file under the run's directory (run.json,
-events.jsonl, stderr.txt, command.json, fake-requests.json, agent/ and work/) is searched for the
-key's bytes, which are overwritten in place by a marker of the same length. Then every file under the
-run's directory (symbolic links are not followed) is searched for credential-shaped text without
-knowing any value (a JWT, a Bearer token, a refresh/access/id token or key field with a value, an
-sk- key, a long mixed base64url token): each one is overwritten in place by a marker of its length
-and listed (file, line, kind, length) in the record's secret_scan, which is then failed, and a link
-that leaves the run's directory is removed and listed. A file the model wrote outside its work root
-is not searched.
+login's file (--aelix-auth, default: where the caller's aelix keeps it; auth.json of an agent
+directory, a regular file with one name) while every other piece of aelix's state stays in the run's
+agent directory. Only aelix opens that file; it refreshes a token there itself. The harness never
+reads, copies or links it: it asks aelix to list the model with it (aelix lists a model only when its
+provider has a login entry), classifies a run whose first request the API refused for the login as
+not_run (aelix_login_unusable), and records the file's metadata before the run, after aelix exited
+and as the very last step after the scan (a change after aelix exited, or a second name, fails the
+scan). A model whose configuration names a key variable (api_key_env) gets the key from the
+environment; the harness never writes it: command.json keeps variable names only, the run record is
+redacted before it is written, and after every run, also one that failed after aelix exited, every
+file under the run's directory is searched for the key's bytes (and those of the caller's credential
+variables), which are overwritten by a marker of the same length. Then every file under the run's
+directory is searched for credential-shaped text without knowing any value (a JWT, a Bearer token, a
+refresh/access/id token, key, secret or password field with a value, an sk- key, a long mixed
+base64url token; a file name of that shape too): each one is overwritten by a marker of its length
+and listed (file, line, kind, length) in the record's secret_scan, which is then failed. A masked file
+replaces the old one (a temporary file, then os.replace): no file is ever written through. Links are
+not followed; a directory or file that cannot be read fails the scan, as does a file written after
+the scan started. A file the model wrote outside its work root is not searched.
 
 Tokens are what aelix records from the model API's usage (per assistant message). What the API or
 aelix does not report is `not_measured` with the reason; bytes and characters are never turned into
 tokens. The dry-run model is a scripted fake server whose usage numbers are fixed, not measured.
 
 Exit status: 0 when every requested run was executed and recorded (a failed or timed-out task is
-data), 1 when a run could not be executed or recorded or its secret scan failed, 2 on a usage or
-configuration error (nothing run), 3 when a precondition is missing and nothing was run (no aelix
-login for the model, no API key, serving differs from the pinned configuration): the summary records
-those runs as not_run.
+data), 1 when a run could not be executed or recorded, its secret scan did not pass, a run of OUT was
+never searched, or the harness was stopped by a signal, 2 on a usage or configuration error (nothing
+run), 3 when a precondition is missing and nothing was run (no aelix login for the model or one the
+API refuses, no API key, serving differs from the pinned configuration): the summary records those
+runs as not_run.
 """
 
 from __future__ import annotations
@@ -77,6 +97,8 @@ import platform
 import re
 import shlex
 import shutil
+import signal
+import stat
 import statistics
 import subprocess
 import sys
@@ -152,11 +174,18 @@ GENERATIONS = {
         "env": {"trust": "AELIX_LAB_TRUST_FILE", "uv": "AELIX_LAB_UV", "project": "AELIX_LAB_PROJECT"},
     },
 }
-# Unset in every child: the old names make the current kit refuse to run, a caller's own choices of
-# project, trust list, uv or aelix state must not leak into a measured session.
-ISOLATED_PREFIXES = ("AELIX_ANALYTICS_", "AELIX_LAB_")
-ISOLATED_KEYS = ("LAB_PROJECT", "LAB_ACTOR", "LAB_SESSION", "LAB_STYLE", "VIRTUAL_ENV",
-                 "AELIX_CODING_AGENT_DIR", "AELIX_CODING_AGENT_SESSION_DIR", "AELIX_MCP_CONFIG")
+# Unset in every child: the old names make the current kit refuse to run; a caller's own choices of
+# project, trust list, uv, aelix or pi state (AELIX_SETTINGS_PATH, AELIX_AUTH_PATH, AELIX_PROJECT_DIR,
+# PI_*: aelix 0.1.0b2 honours some of them even with an agent directory) must not leak into a
+# measured session. The harness sets the ones it needs afterwards.
+ISOLATED_PREFIXES = ("AELIX_", "PI_")
+ISOLATED_KEYS = ("LAB_PROJECT", "LAB_ACTOR", "LAB_SESSION", "LAB_STYLE", "VIRTUAL_ENV")
+# A variable whose name says it holds a credential is not passed on (the model's bash tool could
+# print it): the caller's tokens, keys and passwords. The values of the narrower set are also
+# overwritten by their bytes wherever a run holds them, should the model find them elsewhere.
+SECRET_ENV = re.compile(r"TOKEN|KEY|SECRET|PASSWORD|PASSWD|AUTH|CREDENTIAL|COOKIE", re.IGNORECASE)
+SECRET_VALUE_ENV = re.compile(r"TOKEN|KEY|SECRET|PASSWORD|PASSWD|CREDENTIAL|COOKIE", re.IGNORECASE)
+MIN_SECRET_LENGTH = 8
 
 # Extension error codes that mean the call's arguments were wrong (the kit's LabError codes).
 ARGUMENT_CODES = frozenset({
@@ -961,6 +990,19 @@ def id_present(text: str, value: str) -> bool:
 
 # --- the project's results ------------------------------------------------------------------------
 
+def inside(path: Path, root: Path | None) -> bool:
+    """Whether path, its links resolved, is a regular file under root. The harness reads only such
+    files of a project: one the model linked to a file elsewhere (the owner's login) is never opened.
+    (A hard link has no target to resolve: the sweep removes those before anything is read.)"""
+    if root is None:
+        return False
+    try:
+        real, base = os.path.realpath(path), os.path.realpath(root)
+    except (OSError, ValueError):
+        return False
+    return real.startswith(base.rstrip("\\/") + os.sep) and os.path.isfile(real)
+
+
 def chart_text(project: Path | None, chart: dict) -> str:
     """What a chart holds as text: its spec files (JSON, HTML, SVG), its data's column names and the
     data's text values (when polars can read it)."""
@@ -969,11 +1011,11 @@ def chart_text(project: Path | None, chart: dict) -> str:
         return parts[0]
     for rel in (chart.get("files") or {}).values():
         path = project / str(rel)
-        if path.suffix.lower() in (".json", ".html", ".svg", ".htm") and path.is_file() \
+        if path.suffix.lower() in (".json", ".html", ".svg", ".htm") and inside(path, project) \
                 and path.stat().st_size <= 50_000_000:
             parts.append(path.read_text(encoding="utf-8", errors="replace"))
     data = project / str(chart["data"]) if chart.get("data") else None
-    if data is not None and data.is_file():
+    if data is not None and inside(data, project):
         with contextlib.suppress(Exception):  # polars missing or the file unreadable: spec only
             import polars as pl
 
@@ -990,7 +1032,7 @@ def table_shape(project: Path | None, output: dict) -> tuple[int | None, list[st
     if output.get("schema") is not None:
         return output.get("rows"), [str(c[0]) for c in output["schema"]]
     path = project / str(output.get("path")) if project is not None and output.get("path") else None
-    if path is None or path.suffix.lower() != ".csv" or not path.is_file() \
+    if path is None or path.suffix.lower() != ".csv" or not inside(path, project) \
             or path.stat().st_size > 500_000_000:
         return None, []
     with open(path, encoding="utf-8", errors="replace", newline="") as f:
@@ -1435,9 +1477,22 @@ def token_totals(messages: list, api: str, *, scripted: bool = False,
 
 # --- the project before and after ------------------------------------------------------------------
 
-def journal(project: Path) -> list[dict]:
-    path = project / "journal.jsonl"
-    if not path.is_file():
+def project_file(project: Path, rel: str, skipped: list | None = None) -> Path | None:
+    """A project file the harness may read: a regular file inside the project, its links resolved.
+    A link that leaves the project is not followed and is added to skipped."""
+    path = project / rel
+    if not os.path.lexists(path):
+        return None
+    if inside(path, project):
+        return path
+    if skipped is not None and path.is_symlink():
+        skipped.append(rel)
+    return None
+
+
+def journal(project: Path, skipped: list | None = None) -> list[dict]:
+    path = project_file(project, "journal.jsonl", skipped)
+    if path is None:
         return []
     out = []
     for line in path.read_text(encoding="utf-8").splitlines():
@@ -1446,28 +1501,36 @@ def journal(project: Path) -> list[dict]:
     return out
 
 
+def run_dirs(project: Path) -> list[str]:
+    runs = project / "runs"
+    if runs.is_symlink() or not runs.is_dir():
+        return []
+    return sorted(p.name for p in runs.iterdir() if p.is_dir() and not p.is_symlink())
+
+
 def snapshot(project: Path) -> dict:
     events = journal(project)
-    runs = sorted(p.name for p in (project / "runs").iterdir() if p.is_dir()) \
-        if (project / "runs").is_dir() else []
-    context = project / "CONTEXT.md"
+    context = project_file(project, "CONTEXT.md")
     return {"max_seq": max((int(e.get("seq") or 0) for e in events), default=0),
-            "records": len(events), "runs": runs,
-            "context_sha256": sha256_file(context) if context.is_file() else None}
+            "records": len(events), "runs": run_dirs(project),
+            "context_sha256": sha256_file(context) if context is not None else None}
 
 
 def changes(project: Path, before: dict) -> dict:
-    events = journal(project)
+    skipped: list[str] = []
+    events = journal(project, skipped)
     new_records = [{"id": e.get("id"), "kind": e.get("kind"), "text": e.get("text"),
                     "refs": e.get("refs")} for e in events if int(e.get("seq") or 0) > before["max_seq"]]
     new_runs = []
-    runs_dir = project / "runs"
-    for name in sorted(p.name for p in runs_dir.iterdir() if p.is_dir()) if runs_dir.is_dir() else []:
+    for name in run_dirs(project):
         if name in before["runs"]:
             continue
         record = {}
-        with contextlib.suppress(OSError, json.JSONDecodeError):
-            record = json.loads((runs_dir / name / "run.json").read_text(encoding="utf-8"))
+        path = project_file(project, f"runs/{name}/run.json", skipped)
+        with contextlib.suppress(OSError, json.JSONDecodeError, AttributeError):
+            record = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(record, dict):
+            record = {}
         charts = record.get("charts") or []
         new_runs.append({"id": name, "status": record.get("status"),
                          "script": (record.get("script") or {}).get("path"),
@@ -1477,24 +1540,67 @@ def changes(project: Path, before: dict) -> dict:
                          "outputs": [{k: o.get(k) for k in ("path", "change", "rows", "schema")}
                                      for o in record.get("outputs") or []],
                          "error": (record.get("error") or {}).get("summary")})
-    context = project / "CONTEXT.md"
-    after_sha = sha256_file(context) if context.is_file() else None
-    existing = {str(e.get("id")) for e in events}
-    if runs_dir.is_dir():
-        existing |= {p.name for p in runs_dir.iterdir() if p.is_dir()}
+    context = project_file(project, "CONTEXT.md", skipped)
+    after_sha = sha256_file(context) if context is not None else None
+    existing = {str(e.get("id")) for e in events} | set(run_dirs(project))
     return {"new_records": new_records, "new_runs": new_runs,
             "context_changed": after_sha != before["context_sha256"],
-            "existing_ids": sorted(existing)}
+            "existing_ids": sorted(existing), "outside_links": sorted(set(skipped))}
 
 
 # --- fixtures and the work directory ---------------------------------------------------------------
 
-def isolated_env(base: dict | None = None) -> dict:
+def stripped_name(key: str, keep=()) -> bool:
+    return key not in keep and (key.upper().startswith(ISOLATED_PREFIXES) or key in ISOLATED_KEYS
+                                or bool(SECRET_ENV.search(key)))
+
+
+def isolated_env(base: dict | None = None, keep=()) -> dict:
+    """The environment without the variables a child must not get (see ISOLATED_PREFIXES and
+    SECRET_ENV); `keep` names the ones it needs anyway (a model's own key variable)."""
     env = dict(os.environ if base is None else base)
     for key in list(env):
-        if key.startswith(ISOLATED_PREFIXES) or key in ISOLATED_KEYS:
+        if stripped_name(key, keep):
             env.pop(key)
     return env
+
+
+def stripped_env(keep=()) -> list[str]:
+    """The names isolated_env leaves out of the caller's environment (names only)."""
+    return sorted(k for k in os.environ if stripped_name(k, keep))
+
+
+def env_secrets(keep=()) -> list[str]:
+    """The values of the caller's credential variables that no child gets: overwritten by their
+    bytes in every file of a run, should the model find one elsewhere (a shell's startup file)."""
+    return sorted({v for k, v in os.environ.items() if k not in keep and SECRET_VALUE_ENV.search(k)
+                   and len(v) >= MIN_SECRET_LENGTH})
+
+
+def uv_dirs(uv: str | None) -> dict:
+    """Where the caller's uv keeps its cache and its Pythons, for a child whose HOME is the run's:
+    uv (aelix's own environment, the project's environment the kit makes) keeps using them. The
+    kit's extension passes XDG_CACHE_HOME and XDG_DATA_HOME to the uv it starts, not UV_*."""
+    out: dict = {}
+    if not uv:
+        return out
+    for var, args in (("UV_CACHE_DIR", ("cache", "dir")), ("UV_PYTHON_INSTALL_DIR", ("python", "dir"))):
+        value = os.environ.get(var)
+        if not value:
+            with contextlib.suppress(OSError, subprocess.SubprocessError):
+                done = subprocess.run([uv, *args], capture_output=True, text=True, encoding="utf-8",
+                                      errors="replace", timeout=120, env=isolated_env())
+                if done.returncode == 0 and done.stdout.strip():
+                    value = done.stdout.strip().splitlines()[-1].strip()
+        if value:
+            out[var] = value
+    if os.name != "nt":  # Windows: uv finds its folders without HOME, and Python's home is USERPROFILE
+        cache, pythons = out.get("UV_CACHE_DIR"), out.get("UV_PYTHON_INSTALL_DIR")
+        if cache and Path(cache).name == "uv":
+            out["XDG_CACHE_HOME"] = str(Path(cache).parent)
+        if pythons and Path(pythons).parts[-2:] == ("uv", "python"):
+            out["XDG_DATA_HOME"] = str(Path(pythons).parent.parent)
+    return out
 
 
 def fixture_name(spec: dict, seed: int) -> str:
@@ -1627,15 +1733,40 @@ def file_mtime(path: Path | None) -> str | None:
         return None
 
 
-def launch_command(model: dict, auth_file: Path | None, aelix_command: list[str]) -> list[str]:
+def login_stat(path: Path | None) -> dict | None:
+    """The login file's metadata (its contents are never read): modification time, inode and its
+    number of names. A second name (a hard link) would let a later write or copy reach it."""
+    if path is None:
+        return None
+    try:
+        st = os.stat(path)
+    except OSError:
+        return {"exists": False}
+    return {"exists": True, "mtime": file_mtime(path), "mtime_ns": st.st_mtime_ns, "inode": st.st_ino,
+            "device": st.st_dev, "links": st.st_nlink}
+
+
+def login_ids(*stats: dict | None) -> set:
+    return {(s["device"], s["inode"]) for s in stats if s and s.get("exists")}
+
+
+def launch_command(model: dict, auth_file: Path | None, aelix_command: list[str],
+                   lifeline: int | None = None) -> list[str]:
     """How aelix is started for this model: through the launcher (its Python and the login's file)
-    when the model uses an aelix login, else the aelix command itself."""
+    when the model uses an aelix login, else the aelix command itself. lifeline: the descriptor of
+    the pipe whose other end the harness holds (the launcher stops aelix when it closes)."""
     if model.get("auth") is None:
         return list(aelix_command)
-    return [*AELIX_PYTHON, str(LAUNCHER), str(auth_file)]
+    return [*AELIX_PYTHON, str(LAUNCHER), *(["--lifeline", str(lifeline)] if lifeline is not None else []),
+            str(auth_file)]
 
 
-def login_check(model: dict, auth_file: Path, out: Path) -> dict:
+def home_vars(home: Path, dirs: dict) -> dict:
+    """HOME (and the configuration directory) inside the run, uv's own directories kept (uv_dirs)."""
+    return {"HOME": str(home), "XDG_CONFIG_HOME": str(home / ".config"), **dirs}
+
+
+def login_check(model: dict, auth_file: Path, out: Path, dirs: dict | None = None) -> dict:
     """Whether the caller's aelix login in auth_file has the model's provider, asked of aelix itself.
 
     The harness does not open the file. It checks that the file exists (aelix would otherwise create
@@ -1651,26 +1782,43 @@ def login_check(model: dict, auth_file: Path, out: Path) -> dict:
         result.update(ok=False, problem=f"{auth_file} does not exist: {LOGIN_HOWTO}")
         return result
     agent = out / "iso" / "login-check-agent"
-    agent.mkdir(parents=True, exist_ok=True)
+    (agent / "home").mkdir(parents=True, exist_ok=True)
     write_models_json(model, agent, None)  # a provider aelix does not know by itself
     env = {**isolated_env(), "AELIX_CODING_AGENT_DIR": str(agent),
-           "AELIX_CODING_AGENT_SESSION_DIR": str(agent / "sessions")}
+           "AELIX_CODING_AGENT_SESSION_DIR": str(agent / "sessions"), **home_vars(agent / "home", dirs or {})}
     argv = [*launch_command(model, auth_file, []), "--offline", "--list-models",
             f"{provider} {model['model']}"]
+    ports = processes()
     try:
-        # cwd: the empty agent directory, so that no .env of the caller's directory is loaded.
-        done = subprocess.run(argv, capture_output=True, text=True, encoding="utf-8", errors="replace",
-                              timeout=600, env=env, cwd=agent)
-    except (OSError, subprocess.SubprocessError) as exc:
+        # cwd: the empty agent directory, so that no .env of the caller's directory is loaded. Its
+        # own group: a timeout ends the launcher's Python too, not only uv.
+        proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace",
+                                env=env, cwd=agent, **ports.spawn_kwargs())
+    except OSError as exc:
         raise HarnessError(f"aelix could not be started to check the login ({shlex.join(argv)}): "
                            f"{exc}") from exc
-    rows = [line.split() for line in done.stdout.splitlines()]
+    try:
+        stdout, stderr = proc.communicate(timeout=600)
+    except BaseException as exc:
+        ports.kill_tree(proc.pid)
+        with contextlib.suppress(Exception):
+            proc.communicate(timeout=60)
+        if isinstance(exc, subprocess.TimeoutExpired):
+            raise HarnessError("aelix --list-models did not finish in 600 s (stopped)") from exc
+        raise
+    finally:
+        # What the check left in its agent directory (aelix writes no login there), searched.
+        scan = scan_tree(agent, login=login_ids(login_stat(auth_file)))
+        result["secret_scan"] = {k: scan[k] for k in ("status", "problems", "files", "findings_count")}
+    rows = [line.split() for line in stdout.splitlines()]
     row = next((r for r in rows if r[:2] == [provider, model["model"]]), None)
-    result.update(exit_code=done.returncode, listed=row is not None,
+    result.update(exit_code=proc.returncode, listed=row is not None,
                   row=" ".join(row) if row else None)
-    if done.returncode != 0:
-        result.update(ok=False, problem=f"aelix --list-models exited {done.returncode}: "
-                                        f"{done.stderr.strip()[-400:]}")
+    if proc.returncode != 0:
+        # aelix's own error text, credential shapes masked: it goes to the record and the console.
+        result.update(ok=False, problem=f"aelix --list-models exited {proc.returncode}: "
+                                        f"{mask_text(stderr.strip()[-400:])}")
     elif row is None:
         result.update(ok=False, problem=f"aelix lists no {provider} {model['model']} with the login in "
                                         f"{auth_file}: it has no {provider} entry; {LOGIN_HOWTO}")
@@ -1802,6 +1950,11 @@ class ScriptedModel:
                     "body_bytes": length, "stream": body.get("stream")})
                 step = owner.steps[k] if k < len(owner.steps) else {
                     "text": "dry-run: the script has no more steps."}
+                if step.get("http_status"):  # the API refusing the request (a revoked login: 401)
+                    self._send(int(step["http_status"]), json.dumps({"error": {
+                        "message": step.get("text", "refused"), "type": "invalid_request_error",
+                        "code": step.get("code")}}).encode("utf-8"), "application/json")
+                    return
                 payload = "".join(f"data: {json.dumps(c, ensure_ascii=False)}\n\n"
                                   for c in owner.chunks(step, k)) + "data: [DONE]\n\n"
                 self._send(200, payload.encode("utf-8"), "text/event-stream")
@@ -1884,6 +2037,7 @@ class Session:
     work_parent: Path = field(default_factory=lambda: Path(tempfile.gettempdir()))
     auth_file: Path | None = None  # the caller's aelix login, for a model with auth (never opened here)
     login: dict | None = None  # login_check's result
+    dirs: dict = field(default_factory=dict)  # uv's own directories (uv_dirs), for a child with the run's HOME
 
 
 def launch_of(session: Session) -> list[str]:
@@ -1909,15 +2063,24 @@ def surface_argv(session: Session) -> tuple[list[str], str]:
     return argv, extension
 
 
-def build_argv(session: Session, requests: list[str], extension: Path, tools_argv: list[str]) -> list[str]:
+def build_argv(session: Session, requests: list[str], extension: Path, tools_argv: list[str],
+               lifeline: int | None = None) -> list[str]:
     model = session.model
-    return [*launch_of(session), "--mode", "json", "-p", *requests,
+    launch = launch_command(model, session.auth_file, session.aelix_command, lifeline)
+    return [*launch, "--mode", "json", "-p", *requests,
             "--provider", model["provider"], "--model", model["model"], "--thinking", model["thinking"],
             "--no-session", "--offline", "--no-context-files", *tools_argv, "-e", str(extension)]
 
 
+def key_names(session: Session) -> tuple:
+    """The model's own key variable, which its child needs (it is never written: see secrets)."""
+    return (session.model["api_key_env"],) if session.model.get("api_key_env") else ()
+
+
 def run_env(session: Session, run_dir: Path, project: Path) -> tuple[dict, dict]:
-    """The child's environment and the variables this harness set in it (paths only)."""
+    """The child's environment and the variables this harness set in it (paths only). HOME is the
+    run's home/: the model's tools resolve ~ there, not to the caller's ~/.aelix (a path written out
+    in full still reaches the caller's files: see login_mentions)."""
     names = GENERATIONS[session.checkout["generation"]]["env"]
     iso = session.out / "iso"
     set_vars = {
@@ -1925,10 +2088,11 @@ def run_env(session: Session, run_dir: Path, project: Path) -> tuple[dict, dict]
         names["project"]: str(project),
         "AELIX_CODING_AGENT_DIR": str(run_dir / "agent"),
         "AELIX_CODING_AGENT_SESSION_DIR": str(run_dir / "agent" / "sessions"),
+        **home_vars(run_dir / "home", session.dirs),
     }
     if session.uv:
         set_vars[names["uv"]] = session.uv
-    return {**isolated_env(), **set_vars}, set_vars
+    return {**isolated_env(keep=key_names(session)), **set_vars}, set_vars
 
 
 def link_uv(out: Path) -> str | None:
@@ -2058,24 +2222,145 @@ def redact_value(value, secrets: list[str]):
     return value
 
 
-def redact_tree(root: Path, secrets: list[str]) -> list[str]:
-    """Overwrite every secret's bytes in every file under root (symbolic links are not followed).
-    The files where one was found, relative to root."""
+# --- the run's files: links, exact secrets, credential shapes --------------------------------------
+
+class LinkedFile(Exception):
+    """A file that has a name outside the run (a hard link made after the sweep): never read."""
+
+
+def rel_of(path, root: Path, prefix: str = "") -> str:
+    try:
+        return prefix + Path(path).relative_to(root).as_posix()
+    except ValueError:
+        return prefix + str(path)
+
+
+def walk(root: Path, errors: list, prefix: str = ""):
+    """(path, lstat) of every entry under root; links are not followed and nothing is opened. A
+    directory that cannot be listed or an entry that cannot be looked at is added to errors: what was
+    not searched is not passed."""
+    def failed(exc: OSError) -> None:
+        errors.append({"file": rel_of(exc.filename or root, root, prefix),
+                       "error": f"{type(exc).__name__}: {exc.strerror or exc}"})
+
+    for dirpath, dirnames, filenames in os.walk(root, onerror=failed, followlinks=False):
+        for name in sorted(dirnames + filenames):
+            path = Path(dirpath) / name
+            try:
+                yield path, os.lstat(path)
+            except OSError as exc:
+                failed(exc)
+
+
+def sweep(root: Path, login: set = frozenset(), prefix: str = "") -> dict:
+    """Remove the links in root that reach a file outside it, found by lstat only (no file is opened):
+    a symbolic link whose target leaves root, and every name of a regular file that also has a name
+    outside root (more links than names here: a hard link) or that is the login's file (login: its
+    (device, inode) pairs). Masking such a file, or a copy or archive of the run, would otherwise
+    write or carry the file it reaches. Links inside root are listed and kept; `shared` holds the
+    files whose every name is inside root (each is masked by replacing it)."""
+    errors: list = []
+    links, outside, hard = [], [], []
+    names: dict[tuple, list] = {}
+    counts: dict[tuple, int] = {}
+    base = os.path.realpath(root)
+    for path, st in walk(root, errors, prefix):
+        rel = rel_of(path, root, prefix)
+        if stat.S_ISLNK(st.st_mode):
+            try:
+                target = os.readlink(path)
+                real = os.path.realpath(path)
+            except OSError as exc:
+                errors.append({"file": rel, "error": f"{type(exc).__name__}: {exc}"})
+                continue
+            if real == base or real.startswith(base.rstrip("\\/") + os.sep):
+                links.append({"file": rel, "target": target})
+                continue
+            try:
+                os.unlink(path)
+                outside.append({"file": rel, "target": target})
+            except OSError as exc:  # left in place: failed
+                errors.append({"file": rel, "error": f"a link leaving the run was not removed: {exc}"})
+        elif stat.S_ISREG(st.st_mode) and (st.st_nlink > 1 or (st.st_dev, st.st_ino) in login):
+            key = (st.st_dev, st.st_ino)
+            names.setdefault(key, []).append((path, rel))
+            counts[key] = st.st_nlink
+    shared = set()
+    for key, items in names.items():
+        if key not in login and len(items) >= counts[key]:
+            shared.add(key)
+            continue
+        for path, rel in items:
+            try:
+                os.unlink(path)
+                hard.append({"file": rel, "links": counts[key], "login": key in login})
+            except OSError as exc:
+                errors.append({"file": rel, "error": f"a hard link was not removed: {exc}"})
+    return {"links": links, "outside_links_removed": outside, "hard_links_removed": hard,
+            "errors": errors, "shared": shared}
+
+
+def read_private(path: Path, shared: set) -> bytes | None:
+    """A regular file's bytes, opened without following a link (and without blocking on a pipe);
+    None when the name is no longer a regular file. LinkedFile when it has another name the sweep
+    did not see inside the run."""
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0) | \
+        getattr(os, "O_BINARY", 0)
+    fd = os.open(path, flags)
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode):
+            return None
+        if st.st_nlink > 1 and (st.st_dev, st.st_ino) not in shared:
+            raise LinkedFile(str(path))
+        chunks = []
+        while chunk := os.read(fd, 1 << 20):
+            chunks.append(chunk)
+        return b"".join(chunks)
+    finally:
+        os.close(fd)
+
+
+def replace_bytes(path: Path, data: bytes) -> None:
+    """Write data as a new file in path's place (a temporary file in its directory, then os.replace),
+    never into the old file: another name of it, should one be left, is not written through."""
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".masked-")
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(data)
+        with contextlib.suppress(OSError):
+            os.chmod(tmp, stat.S_IMODE(os.lstat(path).st_mode))
+        os.replace(tmp, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
+
+
+def redact_tree(root: Path, secrets: list[str], login: set = frozenset()) -> list[str]:
+    """Overwrite every secret's bytes in every file under root: links are not followed, links that
+    reach outside root are removed first (sweep), and a masked file replaces the old one
+    (replace_bytes). The files where one was found, relative to root."""
     wanted = [s.encode("utf-8") for s in secrets if s]
     if not wanted or not root.is_dir():
         return []
+    shared = sweep(root, login)["shared"]
     found = []
-    for dirpath, _, filenames in os.walk(root, followlinks=False):
-        for name in filenames:
-            path = Path(dirpath) / name
-            if path.is_symlink() or not path.is_file():
-                continue
-            data = original = path.read_bytes()
-            for secret in wanted:
-                data = data.replace(secret, redaction_marker(len(secret)))
-            if data != original:
-                path.write_bytes(data)
-                found.append(path.relative_to(root).as_posix())
+    for path, st in walk(root, []):
+        if not stat.S_ISREG(st.st_mode):
+            continue
+        try:
+            data = read_private(path, shared)
+        except (OSError, LinkedFile):  # the scan reports it
+            continue
+        if data is None:
+            continue
+        masked = data
+        for secret in wanted:
+            masked = masked.replace(secret, redaction_marker(len(secret)))
+        if masked != data:
+            replace_bytes(path, masked)
+            found.append(rel_of(path, root))
     return sorted(found)
 
 
@@ -2091,10 +2376,12 @@ CREDENTIAL_PATTERNS = (
     # A field with a value: quoted after a colon (JSON, YAML, a literal), quoted or bare after = (an
     # environment line, a query); a bare value stops at a dot, so code (accessToken:r._token) is not one.
     # Quotes may be escaped, as in a file's JSON printed into a JSON event line (\"refresh\": \"…\").
+    # The name may have words before the keyword (GEMINI_CLI_IDE_AUTH_TOKEN=, my_api_key:).
     ("credential_field", re.compile(
-        rb"(?<![A-Za-z0-9_])(?:" + _QUOTE + rb")?(?i:refresh|access|refresh_?token|access_?token|id_?token|"
-        rb"token|api_?key|client_?secret|password)(?:" + _QUOTE + rb")?\s*(?::\s*" + _QUOTE + rb"(" +
-        _VALUE + rb"{16,})|=\s*" + _QUOTE + rb"(" + _VALUE + rb"{16,})|=\s*([A-Za-z0-9_~+/=-]{16,}))"),
+        rb"(?<![A-Za-z0-9_])(?:" + _QUOTE + rb")?(?:[A-Za-z0-9]+_)*(?i:refresh|access|refresh_?token|"
+        rb"access_?token|id_?token|token|api_?key|client_?secret|secret|password)(?:" + _QUOTE +
+        rb")?\s*(?::\s*" + _QUOTE + rb"(" + _VALUE + rb"{16,})|=\s*" + _QUOTE + rb"(" + _VALUE +
+        rb"{16,})|=\s*([A-Za-z0-9_~+/=-]{16,}))"),
      (1, 2, 3), True),
     ("sk_key", re.compile(rb"(?<![A-Za-z0-9_-])sk-" + _B64URL + rb"{20,}"), 0, False),
     # Delimited by characters outside base64 on both sides: a piece of a longer base64 run (an image
@@ -2153,22 +2440,132 @@ def credential_findings(data: bytes, *, mask: bool = False) -> list[dict]:
     return sorted(found, key=lambda f: f["offset"])
 
 
+def mask_text(text: str) -> str:
+    """text with every credential shape overwritten by its marker (for text a record or the console
+    gets from elsewhere: aelix's stderr, a command line, a link's target, a file's name). Each piece
+    between path separators is searched on its own too: a token that is a path's component is not
+    delimited the way the long-token pattern wants."""
+    def piece(part: str) -> str:
+        data = bytearray(part.encode("utf-8", errors="replace"))
+        return data.decode("utf-8", errors="replace") if credential_findings(data, mask=True) else part
+
+    return re.sub(r"[^/\\]+", lambda m: piece(m.group(0)), piece(text))
+
+
+def mask_name(name: str) -> str:
+    """A file name with its credential shapes masked, in characters every file system takes."""
+    return re.sub(r"[<>*]", "_", mask_text(name))
+
+
+def mask_strings(value):
+    if isinstance(value, str):
+        return mask_text(value)
+    if isinstance(value, dict):
+        return {mask_text(k) if isinstance(k, str) else k: mask_strings(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [mask_strings(v) for v in value]
+    return value
+
+
 MAX_LISTED = 200
 
 
+def scan_tree(root: Path, *, login: set = frozenset(), prefix: str = "") -> dict:
+    """Search every file under root for credential-shaped text without knowing any value.
+
+    First the sweep (links that reach outside root removed). Then each regular file is read without
+    following a link; each finding is overwritten by a marker of its length — the masked file
+    replaces the old one — and listed by file, line, kind and length, never by value. The scan fails
+    when it found one, removed a link, or could not read a directory or a file."""
+    started = time.time()
+    swept = sweep(root, login, prefix)
+    findings, masked_files, names = [], [], []
+    unreadable = list(swept["errors"])
+    hard = list(swept["hard_links_removed"])
+    files = scanned = 0
+    walk_errors: list = []
+    for path, st in walk(root, walk_errors, prefix):
+        rel = rel_of(path, root, prefix)
+        if mask_name(path.name) != path.name:  # a name shaped like a credential: renamed afterwards
+            names.append(path)
+        if not stat.S_ISREG(st.st_mode):
+            continue
+        try:
+            data = read_private(path, swept["shared"])
+        except LinkedFile:
+            with contextlib.suppress(OSError):
+                os.unlink(path)
+            hard.append({"file": rel, "links": None, "login": False})
+            continue
+        except OSError as exc:
+            unreadable.append({"file": rel, "error": f"{type(exc).__name__}: {exc.strerror or exc}"})
+            continue
+        if data is None:
+            continue
+        files += 1
+        scanned += len(data)
+        work = bytearray(data)
+        found = credential_findings(work, mask=True)
+        if not found:
+            continue
+        try:
+            replace_bytes(path, bytes(work))
+            masked_files.append(rel)
+        except OSError as exc:
+            unreadable.append({"file": rel, "error": f"not masked: {type(exc).__name__}: {exc}"})
+        findings += [{"file": rel, **{k: f[k] for k in ("line", "kind", "length")}} for f in found]
+    unreadable += [e for e in walk_errors if e["file"] not in {u["file"] for u in unreadable}]
+    # Names last, deepest first: a renamed directory would otherwise move what is below it.
+    for path in sorted(names, key=lambda p: len(p.parts), reverse=True):
+        rel = rel_of(path, root, prefix)
+        try:
+            os.rename(path, path.with_name(mask_name(path.name)))
+            findings.append({"file": rel, "line": 0, "kind": "file_name", "length": len(path.name)})
+        except OSError as exc:
+            unreadable.append({"file": rel, "error": f"a name shaped like a credential was not changed: {exc}"})
+    problems = [name for name, items in (("credential_shapes", findings),
+                                         ("outside_links", swept["outside_links_removed"]),
+                                         ("hard_links", hard), ("unreadable", unreadable)) if items]
+    return {"status": "failed" if problems else "passed", "problems": problems, "files": files,
+            "bytes": scanned, "kinds": list(CREDENTIAL_KINDS), "findings_count": len(findings),
+            "findings": findings[:MAX_LISTED], "masked": bool(masked_files),
+            "masked_files": masked_files[:MAX_LISTED], "links": swept["links"][:MAX_LISTED],
+            "outside_links_removed": swept["outside_links_removed"][:MAX_LISTED],
+            "hard_links_removed": hard[:MAX_LISTED], "unreadable": unreadable[:MAX_LISTED],
+            "started_at": started,
+            "what": "credential-shaped text searched in every file under the run's directory without "
+                    "knowing any value; each finding is overwritten by a marker of its length (the file "
+                    "is replaced, never written through) and listed by file, line, kind and length, "
+                    "never by value; links that reach outside the run are removed"}
+
+
+def written_since(root: Path, since: float, skip: set, prefix: str = "") -> list[str]:
+    """Regular files under root modified after since (lstat only), but those in skip."""
+    out = []
+    for path, st in walk(root, [], prefix):
+        rel = rel_of(path, root, prefix)
+        if stat.S_ISREG(st.st_mode) and st.st_mtime > since and rel not in skip:
+            out.append(rel)
+    return out
+
+
+# --- processes that outlive aelix ------------------------------------------------------------------
+
 # How long the harness waits, after aelix has exited, for processes still working in the work root.
 SETTLE_TIMEOUT = 600
+# How long aelix gets after SIGTERM before SIGKILL: its token refresh (aelix_ai/oauth/openai_codex.py,
+# httpx timeout 30 s for each of connect, write and read) is let finish writing the login.
+STOP_GRACE = 100
 
 
-def processes_naming(paths: list[str]) -> list[tuple[int, str]] | None:
-    """The processes whose command line names one of paths (None when the list cannot be read). The
-    kit's extension starts its report build detached at the end of every prompt (uv run --project
-    <project> … render --if-changed): it outlives aelix and names the project."""
+def process_table() -> dict[int, tuple[int, str]] | None:
+    """pid -> (parent pid, command line) of every process; None when the list cannot be read."""
     if os.name == "nt":
         argv = ["powershell", "-NoProfile", "-NonInteractive", "-Command",
-                "Get-CimInstance Win32_Process | ForEach-Object { \"$($_.ProcessId)`t$($_.CommandLine)\" }"]
+                "Get-CimInstance Win32_Process | ForEach-Object { "
+                "\"$($_.ProcessId)`t$($_.ParentProcessId)`t$($_.CommandLine)\" }"]
     else:
-        argv = ["ps", "-A", "-ww", "-o", "pid=", "-o", "args="]
+        argv = ["ps", "-A", "-ww", "-o", "pid=", "-o", "ppid=", "-o", "args="]
     try:
         done = subprocess.run(argv, capture_output=True, text=True, encoding="utf-8", errors="replace",
                               timeout=120)
@@ -2176,52 +2573,285 @@ def processes_naming(paths: list[str]) -> list[tuple[int, str]] | None:
         return None
     if done.returncode != 0:
         return None
-    found = []
+    table = {}
     for line in done.stdout.splitlines():
-        pid, _, args = line.strip().partition("\t" if os.name == "nt" else " ")
-        if pid.strip().isdigit() and int(pid) != os.getpid() and any(p in args for p in paths):
-            found.append((int(pid), args.strip()))
+        parts = line.strip().split("\t", 2) if os.name == "nt" else line.split(None, 2)
+        if len(parts) >= 2 and parts[0].strip().isdigit() and parts[1].strip().isdigit():
+            table[int(parts[0])] = (int(parts[1]), parts[2].strip() if len(parts) > 2 else "")
+    return table
+
+
+def holders(paths: list[str]) -> dict[int, str] | None:
+    """Processes whose working directory is under one of paths or that hold a file open there (pid ->
+    which): /proc on Linux, lsof elsewhere on POSIX. None when that cannot be listed (Windows: its
+    process list has no working directory)."""
+    def under(name: str) -> bool:
+        return any(name == p or name.startswith(p.rstrip("\\/") + os.sep) for p in paths)
+
+    if os.name == "nt":
+        return None
+    found: dict[int, str] = {}
+    if os.path.isdir("/proc/self/fd"):
+        for entry in os.listdir("/proc"):
+            if not entry.isdigit():
+                continue
+            with contextlib.suppress(OSError):
+                if under(os.readlink(f"/proc/{entry}/cwd")):
+                    found[int(entry)] = "working directory"
+                    continue
+            with contextlib.suppress(OSError):
+                for fd in os.listdir(f"/proc/{entry}/fd"):
+                    with contextlib.suppress(OSError):
+                        if under(os.readlink(f"/proc/{entry}/fd/{fd}")):
+                            found[int(entry)] = "open file"
+                            break
+        return found
+    lsof = shutil.which("lsof") or next((p for p in ("/usr/sbin/lsof", "/usr/bin/lsof") if os.path.exists(p)),
+                                        None)
+    if lsof is None:
+        return None
+    try:
+        done = subprocess.run([lsof, "-n", "-P", "-w", "-F", "pfn"], capture_output=True, text=True,
+                              encoding="utf-8", errors="replace", timeout=120)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if not done.stdout:
+        return None
+    pid, fd = None, None
+    for line in done.stdout.splitlines():
+        tag, value = line[:1], line[1:]
+        if tag == "p":
+            pid = int(value) if value.isdigit() else None
+        elif tag == "f":
+            fd = value
+        elif tag == "n" and pid is not None and under(value):
+            found.setdefault(pid, "working directory" if fd == "cwd" else "open file")
     return found
 
 
-def settle(work: Path, timeout: float = SETTLE_TIMEOUT) -> dict:
-    """Wait until no process names the work root, so that nothing writes into it while it is moved,
-    its environment removed and its files searched; stop the ones left after the timeout. The time
-    is not part of the run's elapsed_s."""
-    paths = sorted({str(work), os.path.realpath(work)})
+def stop_processes(pids: list[int], grace: float = 5) -> None:
+    """SIGTERM, then SIGKILL to what is left after grace (Windows: the tree, at once)."""
+    ports = processes()
+    if os.name == "nt":
+        for pid in pids:
+            with contextlib.suppress(OSError):
+                ports.kill_tree(pid)
+        return
+    for pid in pids:
+        with contextlib.suppress(OSError):
+            os.kill(pid, signal.SIGTERM)
+    deadline = time.monotonic() + grace
+    while time.monotonic() < deadline and any(ports.alive(p) for p in pids):
+        time.sleep(0.1)
+    for pid in pids:
+        if ports.alive(pid):
+            with contextlib.suppress(OSError):
+                os.kill(pid, signal.SIGKILL)
+
+
+class Descendants:
+    """aelix's descendants, from the process list every few seconds while it runs. The model's bash
+    tool starts each command in a session of its own (aelix_coding_agent/tools/bash.py), so neither
+    aelix's process group nor a command line naming the work root reaches all of them. seen: pid ->
+    command line (the same pid with another command line later is another process)."""
+
+    def __init__(self, proc, interval: float | None = None):
+        self.proc = proc
+        self.interval = interval or (2.0 if os.name == "nt" else 1.0)
+        self.seen: dict[int, str] = {}
+        self.unreadable = 0
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._run, daemon=True)
+
+    def poll(self) -> None:
+        table = process_table()
+        if table is None:
+            self.unreadable += 1
+            return
+        children: dict[int, list[int]] = {}
+        for pid, (ppid, _) in table.items():
+            children.setdefault(ppid, []).append(pid)
+        # The root only while it has not been reaped: its pid may be another process's afterwards.
+        stack = [self.proc.pid] if self.proc.returncode is None else []
+        stack += [p for p, args in self.seen.items() if p in table and table[p][1][:300] == args]
+        while stack:
+            for child in children.get(stack.pop(), []):
+                if child not in self.seen and child != os.getpid():
+                    self.seen[child] = table[child][1][:300]
+                    stack.append(child)
+
+    def _run(self) -> None:
+        while True:
+            self.poll()
+            if self._stop.wait(self.interval):
+                return
+
+    def __enter__(self) -> Descendants:
+        self._thread.start()
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self._stop.set()
+        self._thread.join(timeout=60)
+        self.poll()  # what the last ones started
+
+
+def settle(work, timeout: float = SETTLE_TIMEOUT, tracked: dict | None = None) -> dict:
+    """Wait until no process works in the work root, so that nothing writes into it while it is
+    moved, its environment removed and its files searched; stop the ones left after the timeout (at
+    once when the harness has been asked to stop). A process counts when its command line names the
+    work root (the kit's extension starts its report build detached at the end of every prompt: uv
+    run --project <project> … render --if-changed), when its working directory is there or it holds a
+    file open there (a job the model left in the background), or when it descends from aelix
+    (tracked: Descendants.seen, the same pid with the same command line). The time is not part of the
+    run's elapsed_s."""
+    roots = [work] if isinstance(work, (str, Path)) else list(work)
+    paths = sorted({str(p) for p in roots} | {os.path.realpath(p) for p in roots})
     started = time.monotonic()
-    seen: dict[int, str] = {}
-    killed: list[int] = []
+    seen: dict[int, dict] = {}
+    signalled: list[int] = []
+    found: dict[int, set] = {}
+    cwd_checked = True
     while True:
-        found = processes_naming(paths)
-        if found is None:
+        table = process_table()
+        if table is None:
             return {"checked": False, "reason": "the process list could not be read",
-                    "waited_s": round(time.monotonic() - started, 1)}
-        for pid, args in found:
-            seen.setdefault(pid, args[:300])
+                    "waited_s": round(time.monotonic() - started, 1), "processes": list(seen.values()),
+                    "stopped": [], "left": sorted(found)}
+        me = os.getpid()
+        found = {}
+        for pid, (_, args) in table.items():
+            if pid == me:
+                continue
+            if any(p in args for p in paths):
+                found.setdefault(pid, set()).add("command line")
+            if tracked and tracked.get(pid) == args[:300]:
+                found.setdefault(pid, set()).add("started by aelix")
+        held = holders(paths)
+        if held is None:
+            cwd_checked = False
+        else:
+            for pid, why in held.items():
+                if pid != me and pid in table:
+                    found.setdefault(pid, set()).add(why)
+        for pid, why in found.items():
+            entry = seen.setdefault(pid, {"pid": pid, "args": mask_text(table[pid][1][:300]), "why": []})
+            entry["why"] = sorted(set(entry["why"]) | why)
         if not found:
             break
-        if time.monotonic() - started > timeout:
-            if killed:  # stopped once already and still there
+        elapsed = time.monotonic() - started
+        if elapsed > timeout or STOP["signals"]:
+            fresh = [pid for pid in found if pid not in signalled]
+            if not fresh or elapsed > timeout + 300:  # stopped once already and still there
                 break
-            ports = processes()
-            for pid, _ in found:
-                with contextlib.suppress(OSError):
-                    ports.kill_tree(pid)
-                killed.append(pid)
+            stop_processes(fresh)
+            signalled += fresh
+            continue
         time.sleep(0.5)
-    return {"checked": True, "waited_s": round(time.monotonic() - started, 1),
-            "processes": [{"pid": pid, "args": args} for pid, args in sorted(seen.items())],
-            "stopped": killed, "left": [pid for pid, _ in found] if found else [],
-            "what": "processes whose command line names the work root after aelix exited (the kit's "
-                    "detached report build): waited for before the work root is moved"}
+    left = sorted(found)
+    return {"checked": True, "cwd_checked": cwd_checked, "waited_s": round(time.monotonic() - started, 1),
+            "processes": sorted(seen.values(), key=lambda e: e["pid"]),
+            "stopped": [pid for pid in signalled if pid not in left], "left": left,
+            "what": "processes still working in the work root after aelix exited (named on their command "
+                    "line, their working directory or an open file there, or started by aelix): waited "
+                    "for, then stopped, before the work root is moved and searched"}
 
+
+def stop_group(proc, grace: float = STOP_GRACE) -> dict:
+    """End aelix's process group (uv, the launcher's or aelix's Python, what stayed in the group):
+    SIGTERM first, so that a token refresh in progress finishes writing the login (the launcher
+    defers its exit until then), SIGKILL after grace. Windows: the tree at once (taskkill /T /F)."""
+    ports = processes()
+    started = time.monotonic()
+    if os.name == "nt":
+        ports.kill_tree(proc.pid)
+        with contextlib.suppress(subprocess.TimeoutExpired):
+            proc.wait(timeout=60)
+        return {"how": "the tree ended at once (taskkill /T /F)", "waited_s": round(time.monotonic() - started, 1)}
+    with contextlib.suppress(OSError):
+        os.killpg(proc.pid, signal.SIGTERM)
+    deadline, killed = started + grace, False
+    while True:
+        proc.poll()  # reaps uv, the group's leader: a zombie would keep the group
+        try:
+            os.killpg(proc.pid, 0)
+        except OSError:
+            break
+        if time.monotonic() > deadline:
+            if killed:
+                break
+            with contextlib.suppress(OSError):
+                os.killpg(proc.pid, signal.SIGKILL)
+            killed, deadline = True, time.monotonic() + 10
+        time.sleep(0.1)
+    with contextlib.suppress(subprocess.TimeoutExpired):
+        proc.wait(timeout=60)
+    return {"how": "SIGTERM, SIGKILL after the grace" if killed else "SIGTERM", "grace_s": grace,
+            "waited_s": round(time.monotonic() - started, 1)}
+
+
+# --- stopping the harness --------------------------------------------------------------------------
+
+class Stopped(BaseException):
+    """The harness was asked to stop (SIGTERM, SIGHUP, SIGINT): the run in progress is still closed —
+    aelix stopped, the work root secured, every file searched, the record written."""
+
+
+STOP: dict = {"signals": [], "deferring": False}
+
+
+def on_stop_signal(signum, _frame) -> None:
+    STOP["signals"].append(signum)
+    if not STOP["deferring"] and len(STOP["signals"]) == 1:
+        raise Stopped(f"stopped by signal {signum}")
+
+
+@contextlib.contextmanager
+def stop_signals():
+    """SIGTERM, SIGHUP and SIGINT become Stopped while a command runs (main thread only; the old
+    handlers are put back). An agent's command timeout or task stop sends one. A kill -9 cannot be
+    caught: the provisional record, the launcher's lifeline and `scan OUT` cover it."""
+    STOP["signals"].clear()
+    STOP["deferring"] = False
+    previous = {}
+    if threading.current_thread() is threading.main_thread():
+        for name in ("SIGTERM", "SIGHUP", "SIGINT"):
+            sig = getattr(signal, name, None)
+            if sig is not None:
+                with contextlib.suppress(OSError, ValueError):
+                    previous[sig] = signal.signal(sig, on_stop_signal)
+    try:
+        yield
+    finally:
+        for sig, handler in previous.items():
+            with contextlib.suppress(OSError, ValueError, TypeError):
+                signal.signal(sig, handler)
+
+
+@contextlib.contextmanager
+def deferred():
+    """A signal that arrives while a run is being stopped or closed is noted, not raised: it cannot
+    cut the scan short. raise_if_stopped raises it afterwards."""
+    old = STOP["deferring"]
+    STOP["deferring"] = True
+    try:
+        yield
+    finally:
+        STOP["deferring"] = old
+
+
+def raise_if_stopped() -> None:
+    if STOP["signals"]:
+        raise Stopped(f"stopped by signal {STOP['signals'][0]}")
+
+
+# --- after aelix: securing, searching and recording the run ---------------------------------------
 
 def remove_environments(root: Path) -> list[dict]:
     """Remove the Python environments under root (a .venv directory with pyvenv.cfg), never following
     a link. The kit makes the project's with uv from its uv.lock, so it can be made again; it holds
-    about 450 MB of public packages per run and links into uv's Python, which a later copy or archive
-    of the run would follow."""
+    about 450 MB of public packages per run and links into uv's Python (and, where uv links files
+    from its cache, hard links into the cache), which a later copy or archive of the run would follow."""
     removed = []
     for dirpath, dirnames, _ in os.walk(root, followlinks=False):
         for name in list(dirnames):
@@ -2240,52 +2870,178 @@ def remove_environments(root: Path) -> list[dict]:
     return removed
 
 
-def scan_tree(root: Path, *, mask: bool = True) -> dict:
-    """Search every file under root for credential-shaped text (symbolic links are not followed).
+def provisional(record: dict) -> dict:
+    """The record on disk while a run is in progress: what a harness that is killed outright leaves."""
+    return {**record, "outcome": "error", "provisional": True,
+            "harness_error": "the harness stopped before it finished this run (killed, or it crashed): "
+                             "this is the record written while aelix ran; `model_eval.py scan OUT` "
+                             "secures the work root and searches the run",
+            "secret_scan": {"status": "not_scanned", "problems": ["not_scanned"],
+                            "what": "not searched yet: the harness stopped before its scan"}}
 
-    Each finding is overwritten in place by a marker of its length and listed without its value. A
-    symbolic link whose target leaves root is removed (a later copy or archive of the run would follow
-    it) and listed; one inside root is listed. The scan fails when it found either."""
-    findings, links, removed = [], [], []
-    files = scanned = 0
-    real_root = os.path.realpath(root)
-    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
-        here = Path(dirpath)
-        for name in sorted(dirnames + filenames):
-            path = here / name
-            if not path.is_symlink():
-                continue
-            rel = path.relative_to(root).as_posix()
-            target = os.readlink(path)
-            if os.path.realpath(path).startswith(real_root + os.sep):
-                links.append({"file": rel, "target": target})
-            elif mask:
-                with contextlib.suppress(OSError):
-                    path.unlink()
-                removed.append({"file": rel, "target": target})
-            else:
-                removed.append({"file": rel, "target": target, "removed": False})
-        for name in filenames:
-            path = here / name
-            if path.is_symlink() or not path.is_file():
-                continue
-            files += 1
-            data = bytearray(path.read_bytes())
-            scanned += len(data)
-            found = credential_findings(data, mask=True)
-            if found:
-                if mask:
-                    path.write_bytes(bytes(data))
-                rel = path.relative_to(root).as_posix()
-                findings += [{"file": rel, **{k: f[k] for k in ("line", "kind", "length")}} for f in found]
-    failed = bool(findings or removed)
-    return {"status": "failed" if failed else "passed", "files": files, "bytes": scanned,
-            "kinds": list(CREDENTIAL_KINDS), "findings_count": len(findings),
-            "findings": findings[:MAX_LISTED], "masked": mask and bool(findings),
-            "links": links[:MAX_LISTED], "outside_links_removed": removed[:MAX_LISTED],
-            "what": "credential-shaped text searched in every file under the run's directory without "
-                    "knowing any value; each finding is overwritten in place by a marker of its length "
-                    "and listed by file, line, kind and length, never by value"}
+
+def secure_work(work: Path | None, kept: Path, *, login: set, tracked: dict | None = None,
+                timeout: float = SETTLE_TIMEOUT) -> dict:
+    """The work root after aelix exited, each step on its own (a failure of one is recorded and the
+    next still runs): wait for (then stop) the processes still working there, remove the project's
+    Python environment, sweep the links that reach outside it (before a move that could copy what
+    they reach), move it into the run, and look again for processes (a working directory moves with
+    the directory)."""
+    post: dict = {"settle": None, "after_move": None, "environments": [], "environments_error": None,
+                  "sweep": None, "move_error": None, "errors": []}
+    if work is None or not work.exists() or kept.exists():
+        return post
+
+    def step(name: str, call):
+        try:
+            return call(), None
+        except BaseException as exc:  # noqa: BLE001 - recorded; the next step still runs
+            error = f"{name}: {type(exc).__name__}: {exc}"
+            post["errors"].append(error)
+            return None, error
+
+    post["settle"], _ = step("settle", lambda: settle(work, timeout, tracked))
+    environments, post["environments_error"] = step("environments", lambda: remove_environments(work))
+    post["environments"] = [{**e, "path": f"work/{e['path']}"} for e in environments or []]
+    post["sweep"], _ = step("sweep", lambda: sweep(work, login, "work/"))
+    _, post["move_error"] = step("move", lambda: shutil.move(str(work), str(kept)))
+    if post["move_error"] is None and not kept.is_dir():
+        post["move_error"] = "the work root was not moved into the run"
+    post["after_move"], _ = step("settle after the move", lambda: settle([work, kept], min(timeout, 60),
+                                                                         tracked))
+    return post
+
+
+def scan_run(run_dir: Path, left: Path | None, ids: set, post: dict) -> dict:
+    """The run's secret scan: its directory, the work root when it could not be moved (searched where
+    it was), what the sweep before the move removed, and whether a process could still write."""
+    scan = scan_tree(run_dir, login=ids)
+    scan["work_root_left"] = None
+    parts = [scan]
+    if left is not None:
+        extra = scan_tree(left, login=ids, prefix="work_root_left/")
+        parts.append(extra)
+        scan["work_root_left"] = str(left)
+        for key in ("files", "bytes", "findings_count"):
+            scan[key] += extra[key]
+        scan["masked"] = scan["masked"] or extra["masked"]
+    pre = post.get("sweep") or {}
+    for key in ("findings", "links", "outside_links_removed", "hard_links_removed", "unreadable",
+                "masked_files"):
+        before = pre.get("errors" if key == "unreadable" else key) or []
+        scan[key] = [*before, *(item for part in parts for item in part.get(key) or [])][:MAX_LISTED]
+    problems = set(scan["problems"]) | {p for part in parts for p in part["problems"]}
+    problems |= {name for name, key in (("outside_links", "outside_links_removed"),
+                                        ("hard_links", "hard_links_removed"), ("unreadable", "errors"))
+                 if pre.get(key)}
+    for key in ("settle", "after_move"):
+        settled = post.get(key)
+        if settled is not None and not settled.get("checked"):
+            problems.add("processes_unchecked")
+        elif settled is not None and settled.get("left"):
+            problems.add("writers_left")
+    if post.get("errors"):
+        problems.add("after_exit_errors")
+    # A backstop: nothing but the scan's own masking may change a file once the scan has started.
+    since = scan.pop("started_at")
+    skip = {*scan["masked_files"], "run.json"}
+    late = written_since(run_dir, since, skip) + (written_since(left, since, skip, "work_root_left/")
+                                                    if left is not None else [])
+    scan["written_after_scan"] = late[:MAX_LISTED]
+    if late:
+        problems.add("written_after_scan")
+    scan["problems"] = sorted(problems)
+    scan["status"] = "failed" if problems else "passed"
+    return scan
+
+
+def close_run(record: dict, run_dir: Path, work: Path | None, kept: Path, post: dict | None,
+              failure: BaseException | None, *, secrets: list[str], auth_file: Path | None,
+              tracked: dict | None = None) -> dict:
+    """Secure, redact, search and record a run, whatever happened before: the end of every run, and
+    `scan OUT` for one whose harness was killed. The secret scan runs even when a step before it
+    failed; the login's metadata is measured once more as the very last step."""
+    login = record.get("login") or {}
+    ids = login_ids(login_stat(auth_file), login.get("before"), login.get("after_exit"))
+    if post is None:
+        post = secure_work(work, kept, login=ids, tracked=tracked,
+                           timeout=0 if record.get("stop") else SETTLE_TIMEOUT)
+    if post["settle"] is not None:
+        record["after_exit"] = {**post["settle"], "after_move": post["after_move"]}
+    if post["errors"]:
+        record["after_exit_errors"] = post["errors"]
+    record["environments_removed"] = {
+        "removed": post["environments"], "error": post["environments_error"],
+        "what": "the project's Python environment (.venv) the kit made with uv: removed after aelix "
+                "exited, before the work root is moved, never following a link; uv.lock stays and makes "
+                "it again"}
+    if failure is not None and "outcome" not in record:
+        record.update(outcome="error", harness_error=f"{type(failure).__name__}: {failure}")
+    left = work if work is not None and work.exists() and not kept.exists() else None
+    scan = None
+    try:
+        try:
+            found = redact_tree(run_dir, secrets, ids)
+            if left is not None:
+                found += [f"work_root_left/{f}" for f in redact_tree(left, secrets, ids)]
+        except OSError as exc:
+            found = []
+            record["secret_redaction_error"] = f"{type(exc).__name__}: {exc}"
+        clean = redact_value(record, secrets)
+        if clean != record:
+            found = sorted({*found, "run.json"})
+        record.clear()
+        record.update(clean)
+        if found:
+            record["secret_redacted"] = found
+        record.pop("secret_scan", None)
+        record.pop("provisional", None)
+        write_json(run_dir / "run.json", record)
+    finally:
+        try:
+            scan = scan_run(run_dir, left, ids, post)
+        except BaseException as exc:  # noqa: BLE001 - not searched is not passed
+            scan = {"status": "failed", "problems": ["scan_error"], "error": f"{type(exc).__name__}: {exc}",
+                    "findings": [], "masked_files": []}
+        if "run.json" in (scan.get("masked_files") or []):  # the record held a shape: read it back
+            with contextlib.suppress(OSError, UsageError):
+                masked = read_json(run_dir / "run.json")
+                record.clear()
+                record.update(masked)
+        if record.get("secret_redaction_error"):
+            scan["problems"] = sorted({*scan["problems"], "redaction_error"})
+        if record.get("login_mentions"):
+            scan["problems"] = sorted({*scan["problems"], "names_login"})
+        if auth_file is not None:  # the very last measurement: nothing after aelix may change the login
+            final = login_stat(auth_file)
+            entry = record.setdefault("login", {"file": str(auth_file)})
+            entry["final"] = final
+            ref = entry.get("after_exit") or entry.get("before")
+            if final and final.get("exists") and ref and ref.get("exists") and \
+                    (final["mtime_ns"], final["inode"]) != (ref["mtime_ns"], ref["inode"]):
+                scan["problems"] = sorted({*scan["problems"], "login_changed_after_exit"})
+            if final and final.get("exists") and final["links"] > 1:
+                scan["problems"] = sorted({*scan["problems"], "login_has_other_names"})
+        scan["status"] = "failed" if scan["problems"] else "passed"
+        record["secret_scan"] = mask_strings(scan)
+        mark_secret_scan(record)
+        write_json(run_dir / "run.json", record)
+        check_record(run_dir / "run.json", record)
+    return record
+
+
+def check_record(path: Path, record: dict) -> None:
+    """The record as written, searched once more (the scan's own result is written after the scan)."""
+    data = bytearray(path.read_bytes())
+    if credential_findings(data, mask=True):
+        replace_bytes(path, bytes(data))
+        record.clear()
+        record.update(json.loads(data.decode("utf-8")))
+        scan = record.setdefault("secret_scan", {})
+        scan["problems"] = sorted({*(scan.get("problems") or []), "record"})
+        scan["status"] = "failed"
+        mark_secret_scan(record)
+        write_json(path, record)
 
 
 def run_one(session: Session, task: dict, repeat: int) -> dict:
@@ -2295,6 +3051,7 @@ def run_one(session: Session, task: dict, repeat: int) -> dict:
         raise UsageError(f"{run_dir} exists already: use a new --out or another repeat range")
     run_dir.mkdir(parents=True)
     record = base_record(session, task, repeat, key)
+    write_json(run_dir / "run.json", provisional(record))
     reason = not_run_reason(session, task)
     if reason:
         record.update(outcome="not_run", reason=reason)
@@ -2303,21 +3060,28 @@ def run_one(session: Session, task: dict, repeat: int) -> dict:
         if reason.startswith("aelix_login_missing"):
             record["login_to_run"] = LOGIN_HOWTO
         write_json(run_dir / "run.json", record)
+        record["secret_scan"] = mask_strings(scan_tree(run_dir))  # nothing of a model is here; searched
+        record["secret_scan"].pop("started_at", None)
+        write_json(run_dir / "run.json", record)
         return record
     tools = tools_of(session)
-    fixture = ensure_fixture(session.config.fixtures[task["fixture"]], session.seed, session.fixtures_root)
-    record["fixture"]["digest"] = read_json(fixture / "manifest.json").get("digest")
-    # The model's work root is outside OUT (where the fixtures, with their answers, and the other
-    # runs are) and holds only project/ and input/; it is kept as work/ once aelix has exited.
-    session.work_parent.mkdir(parents=True, exist_ok=True)
-    work = Path(tempfile.mkdtemp(prefix=f"aelix-eval-{task['id']}-", dir=session.work_parent))
+    work: Path | None = None
     kept = run_dir / "work"
-    record["work"] = {"root": str(work), "kept_at": "work",
-                      "what": "the model's work root during the run, outside OUT; moved into the "
-                              "run's directory when aelix exited"}
     failure: BaseException | None = None
-    settled: dict | None = None
+    post: dict | None = None
+    tracked: dict | None = None
     try:
+        fixture = ensure_fixture(session.config.fixtures[task["fixture"]], session.seed, session.fixtures_root)
+        record["fixture"]["digest"] = read_json(fixture / "manifest.json").get("digest")
+        # The model's work root is outside OUT (where the fixtures, with their answers, and the other
+        # runs are) and holds only project/ and input/; it is kept as work/ once aelix has exited.
+        session.work_parent.mkdir(parents=True, exist_ok=True)
+        work = Path(tempfile.mkdtemp(prefix=f"aelix-eval-{task['id']}-", dir=session.work_parent))
+        record["work"] = {"root": str(work), "kept_at": "work",
+                          "what": "the model's work root during the run, outside OUT; moved into the "
+                                  "run's directory when aelix exited"}
+        write_json(run_dir / "run.json", provisional(record))  # names the work root for `scan OUT`
+        (run_dir / "home").mkdir()
         env_probe, _ = run_env(session, run_dir, work / "project")
         project = prepare_work(task, fixture, work, Path(session.checkout["path"]) / "src", env_probe)
         before = snapshot(project)
@@ -2331,44 +3095,67 @@ def run_one(session: Session, task: dict, repeat: int) -> dict:
         fake = ScriptedModel(load_script(task["id"], session.script), tools) if scripted else None
         with fake or contextlib.nullcontext():
             write_models_json(session.model, run_dir / "agent", fake.port if fake else None)
-            argv = build_argv(session, requests, extension_path, tools_argv)
-            write_json(run_dir / "command.json", {
-                "argv": argv, "cwd": str(project), "set_env": set_vars,
-                "unset_env": "AELIX_ANALYTICS_*, AELIX_LAB_*, " + ", ".join(ISOLATED_KEYS),
-                "inherited_env": "the rest of the caller's environment; values are not recorded",
-                "secret_env": session.model.get("api_key_env"),
-                "login_file": None if session.auth_file is None else str(session.auth_file)})
-            record.update(requests=requests, before=before, started_at=now_iso())
+            # The launcher's lifeline (POSIX): the harness holds the write end; when the harness dies,
+            # even by SIGKILL, the launcher reads EOF and stops aelix and what the model started.
+            pipe = list(os.pipe()) if session.auth_file is not None and os.name != "nt" else None
+            try:
+                argv = build_argv(session, requests, extension_path, tools_argv, pipe[0] if pipe else None)
+                write_json(run_dir / "command.json", {
+                    "argv": argv, "cwd": str(project), "set_env": set_vars,
+                    "unset_env": "AELIX_*, PI_*, " + ", ".join(ISOLATED_KEYS) + " and every name that holds a "
+                                 "credential (stripped_env)",
+                    "stripped_env": stripped_env(key_names(session)),
+                    "inherited_env": "the rest of the caller's environment; values are not recorded",
+                    "secret_env": session.model.get("api_key_env"),
+                    "login_file": None if session.auth_file is None else str(session.auth_file)})
+                record.update(requests=requests, before=before, started_at=now_iso())
+                if session.auth_file is not None:
+                    first = login_stat(session.auth_file)
+                    record["login"] = {"file": str(session.auth_file), "mtime_before": first.get("mtime"),
+                                       "before": first,
+                                       "what": "the file's metadata only (its contents are never read "
+                                               "here); aelix replaces it in place when it refreshes a "
+                                               "token, and so may another aelix of the caller"}
+                write_json(run_dir / "run.json", provisional(record))
+                ports = processes()
+                started = time.perf_counter()
+                timed_out = False
+                with open(run_dir / "events.jsonl", "wb") as stdout, \
+                        open(run_dir / "stderr.txt", "wb") as stderr:
+                    try:
+                        proc = subprocess.Popen(argv, cwd=project, env=env, stdin=subprocess.DEVNULL,
+                                                stdout=stdout, stderr=stderr, **ports.spawn_kwargs(),
+                                                **({"pass_fds": (pipe[0],)} if pipe else {}))
+                    except OSError as exc:
+                        raise HarnessError(f"aelix could not be started: {exc}") from exc
+                    if pipe:
+                        os.close(pipe[0])
+                        pipe[0] = None
+                    with Descendants(proc) as tree:
+                        try:
+                            code = proc.wait(timeout=timeout)
+                        except subprocess.TimeoutExpired:
+                            timed_out = True
+                            with deferred():
+                                record["stop"] = stop_group(proc)
+                            code = proc.returncode
+                        except BaseException:
+                            with deferred():
+                                record["stop"] = stop_group(proc)
+                            raise
+                        finally:
+                            tracked = tree.seen
+                elapsed = round(time.perf_counter() - started, 1)
+            finally:
+                for end in pipe or []:
+                    if end is not None:
+                        with contextlib.suppress(OSError):
+                            os.close(end)
             if session.auth_file is not None:
-                record["login"] = {"file": str(session.auth_file),
-                                   "mtime_before": file_mtime(session.auth_file),
-                                   "what": "the file's modification time only (its contents are never "
-                                           "read here); aelix rewrites it in place when it refreshes "
-                                           "a token, and so may another aelix of the caller"}
-            ports = processes()
-            started = time.perf_counter()
-            timed_out = False
-            with open(run_dir / "events.jsonl", "wb") as stdout, \
-                    open(run_dir / "stderr.txt", "wb") as stderr:
-                try:
-                    proc = subprocess.Popen(argv, cwd=project, env=env, stdin=subprocess.DEVNULL,
-                                            stdout=stdout, stderr=stderr, **ports.spawn_kwargs())
-                except OSError as exc:
-                    raise HarnessError(f"aelix could not be started: {exc}") from exc
-                try:
-                    code = proc.wait(timeout=timeout)
-                except subprocess.TimeoutExpired:
-                    timed_out = True
-                    ports.kill_tree(proc.pid)
-                    code = proc.wait(timeout=60)
-                except BaseException:
-                    ports.kill_tree(proc.pid)
-                    raise
-            elapsed = round(time.perf_counter() - started, 1)
-            if session.auth_file is not None:
-                after = file_mtime(session.auth_file)
-                record["login"].update(mtime_after=after,
-                                       changed=after != record["login"]["mtime_before"],
+                after = login_stat(session.auth_file)
+                record["login"].update(mtime_after=after.get("mtime"), after_exit=after,
+                                       changed=after.get("mtime_ns") != record["login"]["before"].get("mtime_ns")
+                                       or after.get("inode") != record["login"]["before"].get("inode"),
                                        agent_dir_store=(run_dir / "agent" / "auth.json").exists())
             if fake:
                 write_json(run_dir / "fake-requests.json", fake.requests)
@@ -2387,65 +3174,36 @@ def run_one(session: Session, task: dict, repeat: int) -> dict:
                     "system_prompt_bytes": not_measured(FULL_INPUT_NOT_MEASURED)}
         record.update(finished_at=now_iso(), elapsed_s=elapsed, exit_code=code, timed_out=timed_out,
                       timeout_s=timeout, offered_tools=offered, request_body=body)
-        settled = settle(work)
-        shutil.move(str(work), str(kept))
+        with deferred():  # aelix stopped (timeout): what it left running is stopped, not waited for
+            post = secure_work(work, kept, login=login_ids(login_stat(session.auth_file),
+                                                           (record.get("login") or {}).get("before")),
+                               tracked=tracked, timeout=0 if record.get("stop") else SETTLE_TIMEOUT)
+        raise_if_stopped()
+        if not kept.is_dir():
+            raise HarnessError(f"the work root could not be moved into the run ({post['move_error']}): it "
+                               f"was searched where it is and left at {work}")
         finish_record(session, task, record, run_dir, kept / "project", extra_checks, scripted)
     except BaseException as exc:
         failure = exc
         raise
     finally:
-        if work.exists() and not kept.exists():
-            if settled is None:
-                settled = settle(work)
-            with contextlib.suppress(OSError):
-                shutil.move(str(work), str(kept))
-        if settled is not None:
-            record["after_exit"] = settled
-        environments, environments_error = [], None
-        if kept.is_dir() and not kept.is_symlink():
-            try:
-                environments = remove_environments(kept)
-            except OSError as exc:  # left in place: the scan below searches it
-                environments_error = f"{type(exc).__name__}: {exc}"
-        found = redact_tree(run_dir, session.secrets)
-        clean = redact_value(record, session.secrets)
-        if clean != record:
-            found = sorted({*found, "run.json"})
-        record.clear()
-        record.update(clean)
-        if found:
-            record["secret_redacted"] = found
-        if failure is not None and "outcome" not in record:
-            record.update(outcome="error", harness_error=redact_value(
-                f"{type(failure).__name__}: {failure}", session.secrets))
-        record["environments_removed"] = {
-            "removed": [{**e, "path": f"work/{e['path']}"} for e in environments],
-            "error": environments_error,
-            "what": "the project's Python environment (.venv) the kit made with uv: removed after aelix "
-                    "exited, never following a link; uv.lock stays and makes it again"}
-        write_json(run_dir / "run.json", record)
-        # Credential-shaped text in any file of the run, the record included: overwritten in place.
-        try:
-            scan = scan_tree(run_dir)
-        except OSError as exc:  # not searched is not passed
-            scan = {"status": "failed", "error": f"{type(exc).__name__}: {exc}", "findings": [],
-                    "outside_links_removed": []}
-        if scan.get("masked"):  # run.json may be among the files it overwrote
-            masked = read_json(run_dir / "run.json")
-            record.clear()
-            record.update(masked)
-        record["secret_scan"] = scan
-        mark_secret_scan(record)
-        write_json(run_dir / "run.json", record)
+        with deferred():
+            close_run(record, run_dir, work, kept, post, failure, secrets=session.secrets,
+                      auth_file=session.auth_file, tracked=tracked)
     return record
 
 
 def mark_secret_scan(record: dict) -> None:
-    """A failed secret scan is for a person to look at."""
+    """A failed secret scan, or processes that could still write after aelix exited, are for a person
+    to look at."""
     review = (record.get("score") or {}).get("needs_review")
-    if (record.get("secret_scan") or {}).get("status") == "failed" and isinstance(review, list) \
-            and "secret_scan" not in review:
+    if not isinstance(review, list):
+        return
+    scan = record.get("secret_scan") or {}
+    if scan.get("status") == "failed" and "secret_scan" not in review:
         review.append("secret_scan")
+    if {"writers_left", "processes_unchecked"} & set(scan.get("problems") or []) and "after_exit" not in review:
+        review.append("after_exit")
 
 
 def finish_record(session: Session, task: dict, record: dict, run_dir: Path, project: Path,
@@ -2471,6 +3229,14 @@ def finish_record(session: Session, task: dict, record: dict, run_dir: Path, pro
             outside.append({"id": call.get("id"), "name": call.get("name"), "paths": paths})
     if outside:
         result["needs_review"].append("outside_work_root")
+    # Tool calls that name the caller's aelix state or a login file (also as $HOME/.aelix or a path
+    # written out in full): the model may have read a credential, which the shape scan may miss.
+    auth_file = session.auth_file or ((record.get("model") or {}).get("auth") or {}).get("file")
+    mentions = login_mentions(tr.calls, str(auth_file) if auth_file else None)
+    if mentions:
+        result["needs_review"].append("names_login")
+    if state.get("outside_links"):
+        result["needs_review"].append("outside_link")
     stop = tr.turns[-1]["stop_reason"] if tr.turns else None
     if record.get("timed_out"):
         outcome = "timeout"
@@ -2479,6 +3245,11 @@ def finish_record(session: Session, task: dict, record: dict, run_dir: Path, pro
         outcome = "error"
     else:
         outcome = result["result"]
+    unusable = login_unusable(session, tr, run_dir) if outcome == "error" else None
+    if unusable:
+        outcome = "not_run"
+        record.update(reason=unusable, command_to_run=command_line(session, task, record.get("repeat", 1)),
+                      login_to_run=LOGIN_HOWTO)
     observed = sorted({m.get("model") for m in tr.messages if m.get("model")})
     proposal_turn = len(record["requests"]) if session.proposal == "requested" else None
     record.update(
@@ -2490,7 +3261,7 @@ def finish_record(session: Session, task: dict, record: dict, run_dir: Path, pro
         tool_calls=[{**{k: c.get(k) for k in ("id", "name", "role", "args", "is_error", "error_class",
                                                 "turn")},
                      "result_head": (c.get("result") or "")[:400]} for c in tr.calls],
-        tool_summary=calls, outside_work_root=outside,
+        tool_summary=calls, outside_work_root=outside, login_mentions=mentions,
         tokens=token_totals(tr.messages, session.model["api"], scripted=scripted,
                             proposal_turn=proposal_turn),
         changes={k: v for k, v in state.items() if k != "existing_ids"},
@@ -2500,6 +3271,61 @@ def finish_record(session: Session, task: dict, record: dict, run_dir: Path, pro
                                              ["재사용", "skill", "스킬", "다시 쓸", "reuse"])),
         errors_recovered=recovered(state))
     mark_secret_scan(record)
+
+
+# aelix's text for a login it could not use: the API refused the credential, or the refresh failed.
+AUTH_ERROR = re.compile(r"\b40[13]\b|unauthori[sz]ed|forbidden|invalid[_ ]?(?:grant|api[_ ]?key|token)|"
+                        r"refresh|re-?authenticat|\blog ?in\b|credential|no api key|api key|access token|"
+                        r"token (?:has )?expired", re.IGNORECASE)
+
+
+def login_unusable(session: Session, tr: Transcript, run_dir: Path) -> str | None:
+    """The not_run reason when a run that uses an aelix login failed because the login could not be
+    used (a revoked or expired refresh token): the first turn ended in an error before any request
+    reported usage, and aelix's error names authentication. A precondition, not the model's data."""
+    if session.model.get("auth") is None or any(usage_reported(m) for m in tr.messages):
+        return None
+    if tr.turns:
+        if tr.turns[0].get("stop_reason") not in ("error", None):
+            return None
+        text = tr.turns[0].get("error") or ""
+    else:
+        text = ""
+    if not AUTH_ERROR.search(text):
+        with contextlib.suppress(OSError):
+            tail = (run_dir / "stderr.txt").read_bytes()[-2000:].decode("utf-8", errors="replace")
+            text = tail if AUTH_ERROR.search(tail) else ""
+    if not text:
+        return None
+    line = next((ln.strip() for ln in reversed(text.splitlines()) if AUTH_ERROR.search(ln)), text.strip())
+    return f"aelix_login_unusable: aelix could not use the login: {mask_text(line[:300])}; {LOGIN_HOWTO}"
+
+
+def all_strings(value):
+    if isinstance(value, dict):
+        for k, v in value.items():
+            yield str(k)
+            yield from all_strings(v)
+    elif isinstance(value, list):
+        for v in value:
+            yield from all_strings(v)
+    elif isinstance(value, str):
+        yield value
+
+
+def login_mentions(calls: list, auth_file: str | None) -> list[dict]:
+    """Tool calls whose arguments name the caller's aelix state or a login file: '.aelix', 'auth.json',
+    the login file's path or its directory (a bash string included, whatever form of HOME it uses)."""
+    needles = [".aelix", "auth.json"]
+    if auth_file:
+        needles += [auth_file, os.path.dirname(auth_file)]
+    found = []
+    for call in calls:
+        texts = [t.lower() for t in all_strings(call.get("args") or {})]
+        hits = sorted({n for n in needles if any(n.lower() in t for t in texts)})
+        if hits:
+            found.append({"id": call.get("id"), "name": call.get("name"), "names": hits})
+    return found
 
 
 def recovered(state: dict) -> dict:
@@ -2537,17 +3363,41 @@ def token_cell(tokens: dict | None, name: str) -> dict:
     return {"status": "measured", "value": value.get("value"), "partial": bool(value.get("partial"))}
 
 
+def stored_runs(out: Path) -> list[tuple[Path, dict | None]]:
+    """Every run directory under OUT/runs with its record (None when it has no readable run.json: the
+    harness was killed before it wrote one)."""
+    runs = out / "runs"
+    found = []
+    for run_dir in sorted(p for p in runs.iterdir() if p.is_dir() and not p.is_symlink()) if runs.is_dir() else []:
+        record = None
+        with contextlib.suppress(UsageError):
+            record = read_json(run_dir / "run.json")
+        found.append((run_dir, record if isinstance(record, dict) else None))
+    return found
+
+
+def scan_status(record: dict | None) -> str:
+    return ((record or {}).get("secret_scan") or {}).get("status") or "not_scanned"
+
+
 def summarize(out: Path) -> dict:
     runs = []
-    for path in sorted((out / "runs").glob("*/run.json")):
-        record = read_json(path)
+    for run_dir, record in stored_runs(out):
+        path = run_dir / "run.json"
+        if record is None:  # listed, so that a run the harness never finished is not lost
+            record = {"run": run_dir.name, "outcome": "error",
+                      "reason": "no run.json: the harness stopped before it wrote the record; run "
+                                "`model_eval.py scan OUT`"}
         sc = record.get("score") or {}
         tokens = record.get("tokens")
+        conditions = record.get("conditions") or {}
         runs.append({
-            "run": record["run"], "task": record["task"], "model": record["model"]["config"],
-            "surface": record["conditions"]["surface"], "proposal": record["conditions"]["proposal"],
-            "repeat": record["repeat"], "outcome": record.get("outcome"), "reason": record.get("reason"),
-            "answer_status": record["answer"]["status"], "fact_recall": sc.get("fact_recall"),
+            "run": record.get("run") or run_dir.name, "task": record.get("task"),
+            "model": (record.get("model") or {}).get("config"),
+            "surface": conditions.get("surface"), "proposal": conditions.get("proposal"),
+            "repeat": record.get("repeat"), "outcome": record.get("outcome"),
+            "reason": record.get("reason") or (record.get("harness_error") if record.get("provisional") else None),
+            "answer_status": (record.get("answer") or {}).get("status"), "fact_recall": sc.get("fact_recall"),
             "evidence": {k: (sc.get("evidence") or {}).get(k) for k in ("passed", "total")},
             "critical": sc.get("critical"), "needs_review": sc.get("needs_review"),
             "fabricated_ids": sc.get("fabricated_ids"),
@@ -2557,13 +3407,13 @@ def summarize(out: Path) -> dict:
             "input_uncached": token_cell(tokens, "input_uncached"),
             "input_cached": token_cell(tokens, "input_cached"),
             "output": token_cell(tokens, "output"),
-            "secret_scan": (record.get("secret_scan") or {}).get("status"),
+            "secret_scan": scan_status(record),
             "elapsed_s": record.get("elapsed_s"), "record": str(path.relative_to(out))})
     groups: dict[tuple, list] = {}
     for run in runs:
         groups.setdefault((run["model"], run["task"], run["surface"], run["proposal"]), []).append(run)
     aggregate = []
-    for (model, task, surface, proposal), items in sorted(groups.items()):
+    for (model, task, surface, proposal), items in sorted(groups.items(), key=lambda g: tuple(map(str, g[0]))):
         executed = [r for r in items if r["outcome"] != "not_run"]
         # Only runs whose every request reported usage, with all three fields measured, give a
         # task's total: a partial count is not a cost.
@@ -2576,19 +3426,25 @@ def summarize(out: Path) -> dict:
                           "success": sum(r["outcome"] == "success" for r in items),
                           "success_without_review": sum(r["outcome"] == "success" and not r["needs_review"]
                                                         for r in items),
+                          "success_with_clean_scan": sum(r["outcome"] == "success" and r["secret_scan"] == "passed"
+                                                         for r in items),
                           "needs_review": sum(bool(r["needs_review"]) for r in executed),
                           "fabricated_ids": sum(bool(r["fabricated_ids"]) for r in executed),
                           "critical": sum(bool(r["critical"]) for r in executed),
                           "argument_errors": sum(r["argument_errors"] or 0 for r in executed),
                           "secret_scan_failed": sum(r["secret_scan"] == "failed" for r in executed),
+                          "secret_scan_not_scanned": sum(r["secret_scan"] == "not_scanned" for r in items),
                           "median_total_tokens": statistics.median(totals) if totals else None,
                           "token_runs": len(whole),
                           "partial_usage_runs": len(executed) - len(whole)})
     summary = {"schema": SUMMARY_SCHEMA, "written_at": now_iso(), "runs": runs, "aggregate": aggregate,
-               "note": "success counts every executed run in the denominator; answers marked draft "
-                       "give provisional scores; a run with needs_review is confirmed by a person; "
+               "not_scanned": [r["run"] for r in runs if r["secret_scan"] == "not_scanned"],
+               "note": "success counts every executed run in the denominator, also one whose secret scan "
+                       "failed (success_with_clean_scan leaves those out); answers marked draft give "
+                       "provisional scores; a run with needs_review is confirmed by a person; "
                        "median_total_tokens uses only runs whose every request reported usage "
-                       "(token_runs), partial_usage_runs are left out of it"}
+                       "(token_runs), partial_usage_runs are left out of it; not_scanned lists runs whose "
+                       "files were never searched (run `model_eval.py scan OUT`)"}
     write_json(out / "summary.json", summary)
     write_text(out / "summary.md", render_summary(summary))
     return summary
@@ -2610,8 +3466,9 @@ def render_summary(summary: dict) -> str:
 
     for r in summary["runs"]:
         name = str(r["outcome"]) + (f" ({r['reason']})" if r.get("reason") else "")
-        if r["outcome"] == "not_run":
-            lines.append("| " + " | ".join([r["run"], name, r["answer_status"]] + ["—"] * 12) + " |")
+        if r["outcome"] == "not_run" or r.get("answer_status") is None:  # no record, or nothing run
+            lines.append("| " + " | ".join([r["run"], name, str(r["answer_status"] or "—")] + ["—"] * 11
+                                           + [cell(r.get("secret_scan"))]) + " |")
             continue
         facts = r["fact_recall"] or {}
         ev = r["evidence"] or {}
@@ -2741,6 +3598,9 @@ def cmd_run(args) -> int:
     if work_parent == out or work_parent.is_relative_to(out):
         raise UsageError(f"--work-root {work_parent} is inside --out: the model's work root must not "
                          "share a tree with the fixtures and the other runs")
+    # The scan masks and removes files under OUT's runs and the work root: neither may be in the
+    # caller's aelix state (~/.aelix), nor hold it.
+    guarded = [Path(os.path.realpath(Path.home() / ".aelix"))]
     auth_file = None
     if model.get("auth") is not None:
         if args.aelix_command:
@@ -2748,17 +3608,19 @@ def cmd_run(args) -> int:
                              "tools/model_eval_aelix.py with the Python of aelix 0.1.0b2, not --aelix-command")
         auth_file = Path(os.path.abspath(os.path.expanduser(args.aelix_auth))) if args.aelix_auth \
             else default_aelix_auth()
-        # The scan overwrites credential-shaped text under OUT's runs: OUT and the login's directory
-        # do not hold each other. The model's work root (a new directory under --work-root) is not
-        # inside the login's directory.
+        check_login_path(auth_file)
+        # The login's directory and the one above it (~/.aelix for ~/.aelix/agent/auth.json).
         login_dir = Path(os.path.realpath(auth_file.parent))
-        real_out = Path(os.path.realpath(out))
-        if real_out.is_relative_to(login_dir) or login_dir.is_relative_to(real_out):
-            raise UsageError(f"--out {out} and the login's directory {login_dir} overlap")
-        if Path(os.path.realpath(work_parent)).is_relative_to(login_dir):
-            raise UsageError(f"--work-root {work_parent} is inside the login's directory {login_dir}")
+        guarded += [login_dir, login_dir.parent]
     elif args.aelix_auth:
         raise UsageError(f"--aelix-auth is for a model that uses an aelix login; {model['id']} does not")
+    real_out, real_work = Path(os.path.realpath(out)), Path(os.path.realpath(work_parent))
+    for place in guarded:
+        if real_out.is_relative_to(place) or place.is_relative_to(real_out):
+            raise UsageError(f"--out {out} and {place} overlap: the harness masks and removes files in its "
+                             "output, which must not hold or be in aelix's state or the login's directory")
+        if real_work.is_relative_to(place):  # each work root is a new directory under it
+            raise UsageError(f"--work-root {work_parent} is inside {place}")
     # Every run's directory is checked before the first run: nothing is run when one exists.
     taken = [name for t in task_ids for r in range(args.first_repeat, args.first_repeat + args.repeats)
              if (out / "runs" / (name := run_name(t, model["id"], args.surface, args.proposal, r))).exists()]
@@ -2768,54 +3630,84 @@ def cmd_run(args) -> int:
     prepare_out(out)
     command = shlex.split(args.aelix_command) if args.aelix_command else list(AELIX_COMMAND)
     key_env = model.get("api_key_env")
+    keep = (key_env,) if key_env else ()
     missing_key = bool(key_env and not os.environ.get(key_env))
     serving = None
     if not missing_key and model["serving"].get("backend") == "ollama":
         serving = serving_check(model)
-    login = login_check(model, auth_file, out) if auth_file is not None else None
+    dirs = uv_dirs(processes().find_program("uv"))
+    login = login_check(model, auth_file, out, dirs) if auth_file is not None else None
     session = Session(config=config, model=model, out=out, checkout=checkout, surface=args.surface,
                       proposal=args.proposal, seed=args.seed, aelix_command=command, aelix_version=None,
                       fixtures_root=Path(args.fixtures).resolve() if args.fixtures else out / "fixtures",
                       timeout=args.timeout, script=Path(args.script).resolve() if args.script else None,
                       serving=serving, uv=None,
-                      secrets=[os.environ[key_env]] if key_env and os.environ.get(key_env) else [],
-                      work_parent=work_parent, auth_file=auth_file, login=login)
+                      secrets=([os.environ[key_env]] if key_env and os.environ.get(key_env) else [])
+                      + env_secrets(keep),
+                      work_parent=work_parent, auth_file=auth_file, login=login, dirs=dirs)
     records = []
-    try:
-        runnable = [t for t in task_ids if not not_run_reason(session, config.tasks[t])]
-        if runnable:
-            session.aelix_version = aelix_version(command)
-            session.uv = link_uv(out)
-        for task_id in task_ids:
-            for repeat in range(args.first_repeat, args.first_repeat + args.repeats):
-                record = run_one(session, config.tasks[task_id], repeat)
-                records.append(record)
-                print(f"{record['run']}: {record['outcome']}"
-                      + (f" ({record['reason']})" if record.get("reason") else "")
-                      + (f" — {record['score']['fact_recall']['passed']}/"
-                         f"{record['score']['fact_recall']['total']} facts, "
-                         f"{record['tool_summary']['calls']} calls, "
-                         f"{record['tool_summary']['argument_errors']} argument errors, "
-                         f"{record['elapsed_s']} s" if record.get("score") else "")
-                      + (f" — secret scan {record['secret_scan']['status']}"
-                         if record.get("secret_scan") else ""), flush=True)
-    finally:
-        summarize(out)
+    with stop_signals():
+        try:
+            runnable = [t for t in task_ids if not not_run_reason(session, config.tasks[t])]
+            if runnable:
+                session.aelix_version = aelix_version(command)
+                session.uv = link_uv(out)
+            for task_id in task_ids:
+                for repeat in range(args.first_repeat, args.first_repeat + args.repeats):
+                    record = run_one(session, config.tasks[task_id], repeat)
+                    records.append(record)
+                    print(f"{record['run']}: {record['outcome']}"
+                          + (f" ({record['reason']})" if record.get("reason") else "")
+                          + (f" — {record['score']['fact_recall']['passed']}/"
+                             f"{record['score']['fact_recall']['total']} facts, "
+                             f"{record['tool_summary']['calls']} calls, "
+                             f"{record['tool_summary']['argument_errors']} argument errors, "
+                             f"{record['elapsed_s']} s" if record.get("score") else "")
+                          + (f" — secret scan {record['secret_scan']['status']}"
+                             if record.get("secret_scan") else ""), flush=True)
+                    raise_if_stopped()
+        finally:
+            with deferred():
+                summary = summarize(out)
     print(f"summary: {out / 'summary.json'}")
-    if records and all(r["outcome"] == "not_run" for r in records):
+    if records and all(r["outcome"] == "not_run" for r in records) and not summary["not_scanned"]:
         for record in records:
             if record.get("login_to_run"):
                 print(f"login: {record['login_to_run']}")
             if record.get("command_to_run"):
-                print(f"to run: {record['command_to_run']}")
+                print(f"to run: {mask_text(record['command_to_run'])}")
         return 3
-    failed = [r["run"] for r in records if (r.get("secret_scan") or {}).get("status") == "failed"]
-    if failed:
-        print(f"model_eval: the secret scan failed for {', '.join(failed)}: credential-shaped text was "
-              "overwritten or a link leaving the run was removed (see secret_scan in run.json)",
-              file=sys.stderr)
+    failed = [r["run"] for r in records if (r.get("secret_scan") or {}).get("status") != "passed"]
+    if (login or {}).get("secret_scan", {}).get("status") == "failed":
+        failed.append("the login check's agent directory (OUT/iso/login-check-agent)")
+    if failed or summary["not_scanned"]:
+        print(f"model_eval: the secret scan did not pass for {', '.join(failed + summary['not_scanned'])}: "
+              "credential-shaped text was overwritten, a link reaching outside the run was removed, a "
+              "process could still write, or the run was never searched (see secret_scan in run.json; "
+              "`model_eval.py scan OUT` searches a run left unscanned)", file=sys.stderr)
         return 1
     return 0
+
+
+def check_login_path(auth_file: Path) -> None:
+    """The login's file as aelix keeps it: auth.json in an agent directory (~/.aelix/agent or
+    $AELIX_CODING_AGENT_DIR), a regular file with one name. aelix replaces it when it refreshes a
+    token (aelix_ai/oauth/auth_storage.py _write_raw: os.replace), which would replace a link with a
+    new file and leave the file it pointed at, or another name of it, with a used refresh token; and
+    it makes the file's directory private (chmod 0700), which a shared directory must not get."""
+    agent = os.environ.get("AELIX_CODING_AGENT_DIR")
+    agent_dir = Path(os.path.abspath(os.path.expanduser(agent))) if agent else None
+    if auth_file.name != "auth.json" or (auth_file.parent.name != "agent" and auth_file.parent != agent_dir):
+        raise UsageError(f"--aelix-auth {auth_file}: give the auth.json of an aelix agent directory "
+                         "(~/.aelix/agent/auth.json or $AELIX_CODING_AGENT_DIR/auth.json)")
+    if auth_file.is_symlink():
+        raise UsageError(f"--aelix-auth {auth_file} is a symbolic link: aelix would replace the link with a "
+                         f"new file when it refreshes a token; give the file it points to "
+                         f"({os.path.realpath(auth_file)}), from its own agent directory")
+    with contextlib.suppress(OSError):
+        if os.lstat(auth_file).st_nlink > 1:
+            raise UsageError(f"--aelix-auth {auth_file} has other names (hard links): a refresh would "
+                             "leave them with a used refresh token")
 
 
 def cmd_score(args) -> int:
@@ -2823,15 +3715,21 @@ def cmd_score(args) -> int:
     out = Path(args.out).resolve()
     if not (out / "runs").is_dir():
         raise UsageError(f"{out} holds no runs/")
-    paths = sorted((out / "runs").glob("*/run.json"))
-    records = {path: read_json(path) for path in paths}
+    stored = stored_runs(out)
+    # A run whose files were never searched is not read: `scan OUT` first.
+    unscanned = [d.name for d, r in stored if scan_status(r) == "not_scanned"]
+    records = {d / "run.json": r for d, r in stored if scan_status(r) != "not_scanned" and r.get("task")}
     other_seed = [r["run"] for r in records.values() if r.get("outcome") != "not_run"
                   and r.get("seed") != config.answers[r["task"]]["fixture"]["seed"]]
     if other_seed:
         raise UsageError(f"runs made with another seed than their answers: {', '.join(other_seed)}; "
                          "nothing was scored")
     for path, record in records.items():
-        if record.get("outcome") == "not_run":
+        if record.get("outcome") == "not_run" and not str(record.get("reason") or "").startswith(
+                "aelix_login_unusable"):
+            continue
+        if "before" not in record or "requests" not in record:  # aelix never ran: nothing to score
+            print(f"{record.get('run', path.parent.name)}: {record.get('outcome')} (not scored: aelix did not run)")
             continue
         model = config.models.get(record["model"]["config"])
         if model is None:
@@ -2851,7 +3749,38 @@ def cmd_score(args) -> int:
         write_json(path, record)
         print(f"{record['run']}: {record['outcome']}")
     summarize(out)
+    if unscanned:
+        print(f"model_eval: not scored, never searched: {', '.join(unscanned)}; run `model_eval.py scan "
+              f"{out}` first", file=sys.stderr)
+        return 1
     return 0
+
+
+def cmd_scan(args) -> int:
+    """Secure and search every run of OUT that was never searched: a run whose harness was killed (its
+    provisional record names the work root, which is moved into the run first, after the processes
+    still working there have been stopped). A run whose scan failed keeps that record."""
+    out = Path(args.out).resolve()
+    if not (out / "runs").is_dir():
+        raise UsageError(f"{out} holds no runs/")
+    results = {}
+    with stop_signals(), deferred():
+        for run_dir, record in stored_runs(out):
+            if scan_status(record) != "not_scanned":  # searched (a failed scan keeps what it found)
+                continue
+            record = record or {"schema": RUN_SCHEMA, "run": run_dir.name, "outcome": "error",
+                                "harness_error": "no run.json: the harness stopped before it wrote the record"}
+            work = Path(record["work"]["root"]) if (record.get("work") or {}).get("root") else None
+            auth = ((record.get("model") or {}).get("auth") or {}).get("file")
+            record["scanned_by"] = {"command": "scan", "at": now_iso()}
+            close_run(record, run_dir, work, run_dir / "work", None, None, secrets=env_secrets(),
+                      auth_file=Path(auth) if auth else None)
+            results[run_dir.name] = record["secret_scan"]["status"]
+            print(f"{run_dir.name}: secret scan {results[run_dir.name]}", flush=True)
+        summary = summarize(out)
+    print(f"summary: {out / 'summary.json'}")
+    failed = [name for name, status in results.items() if status != "passed"] + summary["not_scanned"]
+    return 1 if failed else 0
 
 
 def parser() -> argparse.ArgumentParser:
@@ -2886,6 +3815,9 @@ def parser() -> argparse.ArgumentParser:
     r.add_argument("--script", help="dry-run only: a script instead of dry_run/<task>.json")
     c = sub.add_parser("score", help="score the runs of an earlier output again with the current answers")
     c.add_argument("out")
+    n = sub.add_parser("scan", help="secure and search the runs of an output that have no passed secret "
+                                    "scan (a run whose harness was killed)")
+    n.add_argument("out")
     return p
 
 
@@ -2893,7 +3825,10 @@ def main(argv=None) -> int:
     args = parser().parse_args(argv)
     try:
         return {"validate": cmd_validate, "serving-check": cmd_serving_check, "run": cmd_run,
-                "score": cmd_score}[args.command](args)
+                "score": cmd_score, "scan": cmd_scan}[args.command](args)
+    except Stopped as exc:
+        print(f"model_eval: {exc}: the run in progress was stopped, searched and recorded", file=sys.stderr)
+        return 1
     except UsageError as exc:
         print(f"model_eval: {exc}", file=sys.stderr)
         return 2

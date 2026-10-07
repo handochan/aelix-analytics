@@ -301,7 +301,8 @@ def test_the_summary_keeps_partial_usage_out_of_the_medians(tmp_path):
     md = (tmp_path / "summary.md").read_text(encoding="utf-8")
     assert "10 (partial)" in md and "| e999 |" in md
     not_run = next(line for line in md.splitlines() if line.startswith("| T06-a-r3"))
-    assert not_run.count("—") == 12 and "| 0 |" not in not_run
+    # Its secret scan is shown: a record without one was never searched.
+    assert not_run.count("—") == 11 and not_run.endswith("| not_scanned |") and "| 0 |" not in not_run
 
 
 def test_paths_that_leave_the_work_root_are_listed(tmp_path):

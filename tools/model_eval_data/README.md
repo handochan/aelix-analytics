@@ -51,20 +51,33 @@ uv run --locked python tools/model_eval.py serving-check --model qwen3.8-27b-loc
 uv run --locked python tools/model_eval.py run --model qwen3.8-27b-local --all --repeats 3 --out <dir>
 uv run --locked python tools/model_eval.py run --model gpt-5.6-sol --task T06 --out <dir>    # 소유자의 aelix 로그인(openai-codex)
 uv run --locked python tools/model_eval.py score <dir>                        # 저장된 run을 지금 정답으로 다시 채점
+uv run --locked python tools/model_eval.py scan <dir>                         # 하네스가 끝내지 못한 run을 정리하고 비밀 검사
 ```
 
 `run`의 선택: `--task`(여러 번) 또는 `--all`, `--repeats N`(반복 번호는 `--first-repeat`부터), `--surface`, `--proposal`,
 `--checkout DIR`, `--fixtures DIR`(fixture를 만들고 다시 쓰는 곳, 기본 `OUT/fixtures`), `--work-root DIR`(run마다 작업 루트를 만드는
 곳, 기본은 시스템 임시 디렉터리, `OUT` 안은 거절), `--seed`, `--timeout`(초, 기본은 과제의 값), `--script`(dry-run 스크립트),
 `--aelix-auth FILE`(로그인을 쓰는 모델의 로그인 파일, 기본은 호출자의 aelix가 쓰는 곳: `$AELIX_CODING_AGENT_DIR/auth.json` 또는
-`~/.aelix/agent/auth.json`).
+`~/.aelix/agent/auth.json`. 에이전트 디렉터리의 `auth.json`이어야 하고 링크이거나 이름이 둘 이상(하드 링크)이면 거절).
+`--out`과 `--work-root`는 `~/.aelix`, 로그인 디렉터리와 그 위 디렉터리 안에 둘 수 없다.
 `--out`은 새 디렉터리, 빈 디렉터리, 이전 출력(`summary.json`이 있음) 중 하나다. 이전 출력에는 run을 더한다. 요청한 run 가운데 하나라도
 이름이 이미 있으면 첫 run 전에 모두 거절한다(아무것도 실행하지 않음). 정답은 seed 0 fixture의 수·ID로 쓰여 있어 `--seed`가 정답의
 `fixture.seed`와 다르면 거절한다(seed마다의 정답은 아직 없음). `summary.json`은 run 도중 하네스가 실패해도 마지막에 다시 쓴다.
 
-종료 코드: 0(요청한 run을 모두 실행·기록함. 과제 실패와 시간 초과는 데이터), 1(어떤 run을 실행하거나 기록하지 못함, 또는 어떤 run의
-비밀 검사가 실패함), 2(사용법·설정 오류, 아무것도 실행하지 않음), 3(전제가 없어 실행하지 않음: 모델의 aelix 로그인이 없음, 키 없음,
-서빙이 고정 설정과 다름, kit에 없는 조건. `summary.json`에 `not_run`과 이유, 로그인이 없으면 로그인 방법과 실행할 명령).
+종료 코드: 0(요청한 run을 모두 실행·기록함. 과제 실패와 시간 초과는 데이터), 1(어떤 run을 실행하거나 기록하지 못함, 어떤 run의
+비밀 검사가 통과하지 못함, `OUT`에 검사하지 않은 run이 남음, 또는 신호로 멈춤), 2(사용법·설정 오류, 아무것도 실행하지 않음),
+3(전제가 없어 실행하지 않음: 모델의 aelix 로그인이 없거나 API가 그 로그인을 거절함, 키 없음, 서빙이 고정 설정과 다름, kit에 없는 조건.
+`summary.json`에 `not_run`과 이유, 로그인 문제면 로그인 방법과 실행할 명령).
+
+**멈춤과 강제 종료.** SIGTERM·SIGHUP·SIGINT(에이전트의 명령 시간 제한이나 작업 중지가 보내는 것)를 받으면 하네스는 진행 중인 run을
+끝까지 닫는다: aelix를 멈추고, 작업 루트를 정리해 옮기고, 모든 파일을 검사하고, 기록을 쓴 뒤 종료 코드 1로 끝난다(정리 중에 온 두 번째
+신호는 적어 두기만 하고 검사를 끊지 않는다. 남은 프로세스를 기다리지 않고 바로 멈추게 할 뿐이다). 시간 초과와 멈춤에서 aelix의 프로세스
+그룹에는 SIGTERM을 먼저 보내고 100초(aelix의 토큰 요청 제한 30초 × 연결·쓰기·읽기) 뒤에야 SIGKILL을 보낸다: 런처는 토큰 갱신과
+로그인 쓰기가 진행 중이면 그것이 끝날 때까지 종료를 미룬다(갱신 응답과 파일 쓰기 사이에 죽으면 소유자의 파일에 이미 쓴 갱신 토큰이
+남기 때문). `kill -9`처럼 잡을 수 없는 종료에 대비해 run 기록은 aelix를 띄우기 전부터 디스크에 있다(`provisional`, `secret_scan:
+not_scanned`, 작업 루트 경로 포함). 로그인을 쓰는 모델은 런처가 하네스와 파이프(lifeline)로 이어져 하네스가 사라지면 모델이 띄운
+명령과 aelix를 멈춘다(POSIX). 그런 run은 `summary`에 `not_scanned`로 남고(종료 코드 1, `score`는 읽지 않음), `scan OUT`이 남은
+프로세스를 멈추고 작업 루트를 옮겨 검사한다.
 
 ### 조건
 
@@ -116,7 +129,7 @@ backend의 Codex Responses, `https://chatgpt.com/backend-api/codex/responses`)�
 | 항목 | 값 |
 |---|---|
 | provider / model / API | `openai-codex` / `gpt-5.6-sol` / `openai-codex-responses` |
-| thinking | `medium` → aelix가 `reasoning: {effort: medium, summary: auto}`를 보냄(고를 수 있는 값: off·minimal·low·medium·high·xhigh) |
+| thinking | `medium`(소유자 결정이 아니라 aelix 0.1.0b2의 기본값 `DEFAULT_THINKING_LEVEL`, `core/defaults.py`) → aelix가 `reasoning: {effort: medium, summary: auto}`를 보냄(고를 수 있는 값: off·minimal·low·medium·high·xhigh) |
 | context / 출력 예약 | 1,050,000 / 128,000(aelix catalog, 목록 표시 1.1M / 128K) |
 | 요청 | 시스템 지침은 `instructions`, `store: false`, `text.verbosity: low`, `reasoning.encrypted_content`, `parallel_tool_calls`, `prompt_cache_key` = 세션 ID. 표본 추출 값은 보내지 않음 |
 | 토큰 | backend usage를 공유 Responses 엔진으로 읽음: 비캐시 입력 = input, 캐시 입력 = cache_read, reasoning(출력의 일부, 없으면 aelix가 0으로 적어 0과 미보고를 가르지 못함), 캐시 쓰기는 `not_measured` |
@@ -134,32 +147,50 @@ backend의 Codex Responses, `https://chatgpt.com/backend-api/codex/responses`)�
 - **링크·복사본을 쓰지 않는 이유**: aelix는 갱신한 로그인을 `<에이전트 디렉터리>/auth.json`을 바꿔치워 쓴다. 그 자리가 링크면 링크가
   run 안의 새 파일로 바뀌어(새 토큰이 run에 남음) 소유자의 파일에는 서버가 이미 쓴 갱신 토큰이 남고 로그인이 깨질 수 있다. 복사본은
   처음부터 같다. 런처를 쓰면 run의 에이전트 디렉터리에는 로그인을 담거나 가리키는 파일이 없다.
-- **하네스가 하는 것**: 로그인 파일을 열지 않는다. 파일이 있는지 보고(없으면 aelix가 잠금 때 빈 파일을 만들기 때문), 빈 에이전트
+- **하네스가 하는 것**: 로그인 파일을 열지 않는다. 메타데이터(있는지, 수정 시각, inode, 이름 수)만 본다. 파일이 있는지 보고(없으면 aelix가 잠금 때 빈 파일을 만들기 때문. 런처도 aelix를 부르기 전에 다시 확인한다), 빈 에이전트
   디렉터리(`OUT/iso/login-check-agent`)에서 런처로 `aelix --list-models "openai-codex gpt-5.6-sol"`을 실행해 aelix가 그 모델을
   나열하는지 본다(aelix는 provider의 항목이 있을 때만 나열하고, 토큰을 갱신하거나 출력하지 않는다). 파일이 없거나 항목이 없으면
   run은 `not_run`(`aelix_login_missing`, 종료 코드 3)이고 기록에 로그인 방법(`aelix` → `/login` → OpenAI Codex)과 실행할 명령을 남긴다.
-  run마다 로그인 파일의 수정 시각만 앞뒤로 적는다(`login.mtime_before`·`mtime_after`, aelix의 갱신이나 소유자의 다른 aelix가 바꿀 수
-  있음). `--out`과 로그인 디렉터리가 서로를 담거나 작업 루트가 로그인 디렉터리 안이면 거절한다.
+  run마다 로그인 파일의 메타데이터(수정 시각·inode·이름 수)를 run 전, aelix 종료 때, 비밀 검사 뒤 마지막으로 적는다(`login.before`·
+  `after_exit`·`final`, `mtime_before`·`mtime_after`. run 중에는 aelix의 갱신이나 소유자의 다른 aelix가 바꿀 수 있고, aelix가 끝난 뒤
+  바뀌거나 이름이 둘 이상이면 검사 실패). 로그인 확인의 aelix 오류 문구는 자격 증명 모양을 가린 뒤 기록·출력한다. 로그인 항목은
+  있지만 API가 그 로그인을 거절하면(첫 요청이 usage 없이 인증 오류로 끝남: 폐기·만료된 갱신 토큰) 모델의 실패가 아니라 `not_run`
+  (`aelix_login_unusable`, 종료 코드 3)이고 로그인 방법과 명령을 남긴다.
 
 **비밀 검사.** 모델 설정이 키 변수(`api_key_env`)를 지정하면(지금 설정에는 없음) 하네스는 키 값을 쓰지 않는다: `command.json`에는
 변수 이름만, run 기록은 쓰기 전에 키를 `<redacted>`로 바꾸고, aelix가 끝난 뒤(그 뒤 하네스가 실패해도) run 디렉터리 아래 모든 파일에서
-키의 바이트를 같은 길이 표시로 덮어쓴다(`secret_redacted`). 그다음 모든 run에서, 값을 모른 채 run 디렉터리 아래의 **모든 파일**(링크는
-따라가지 않음, `run.json` 포함)에서 자격 증명 모양의 글을 찾는다: JWT(`eyJ…` 점 둘), `Bearer` 토큰, 값이 있는 `refresh`·`access`·
-`*_token`·`api_key`·`client_secret`·`password` 항목(따옴표가 이스케이프된 JSON 사건 줄 포함), `sk-` 키, 대·소문자와 숫자가 섞인
-32–256자의 무작위 base64url 토큰(이름·코드·`sha256=` digest·codex의 암호화된 reasoning `gAAAAA…`·base64 그림 조각은 빼도록 모양을
-가림). 찾은 것은 그 자리에서 같은 길이 표시로 덮어쓰고 값 없이 파일·줄·종류·길이만 `secret_scan`에 적는다. 하나라도 있거나 run 밖을
-가리키는 링크가 있으면(그 링크는 지움) `secret_scan.status: failed`, `needs_review`에 `secret_scan`, 종료 코드 1이다. 모델이 작업 루트
-밖에 쓴 파일은 찾지 않는다(그런 경로를 쓴 호출은 `outside_work_root`).
+키의 바이트를 같은 길이 표시로 덮어쓴다(`secret_redacted`). 호출자의 자격 증명 변수(이름에 TOKEN·KEY·SECRET·PASSWORD·CREDENTIAL·COOKIE)의
+값도 같은 방식으로 덮어쓴다(그 변수들은 aelix에 넘기지 않지만 모델이 다른 곳에서 읽을 수 있음). 그다음 모든 run에서(`not_run` 포함),
+값을 모른 채 run 디렉터리 아래의 **모든 파일**(링크는 따라가지 않음, `run.json` 포함)에서 자격 증명 모양의 글을 찾는다: JWT(`eyJ…` 점
+둘), `Bearer` 토큰, 값이 있는 `refresh`·`access`·`*_token`·`api_key`·`client_secret`·`secret`·`password` 항목(앞에 다른 낱말이 붙은
+이름 `GEMINI_CLI_IDE_AUTH_TOKEN=`, 따옴표가 이스케이프된 JSON 사건 줄 포함), `sk-` 키, 대·소문자와 숫자가 섞인 32–256자의 무작위
+base64url 토큰(이름·코드·`sha256=` digest·codex의 암호화된 reasoning `gAAAAA…`·base64 그림 조각은 빼도록 모양을 가림), 그런 모양의
+파일 이름. 찾은 것은 같은 길이 표시로 덮어쓰고 값 없이 파일·줄·종류·길이만 `secret_scan`에 적는다. **파일을 그 자리에서 고쳐 쓰지
+않는다**: 고친 내용을 같은 디렉터리의 임시 파일에 쓰고 `os.replace`로 바꾼다(하드 링크로 이어진 다른 이름이 남아 있어도 그 파일에는
+쓰지 않음). 검사 전에 run 밖으로 이어진 링크를 lstat만으로 찾아(파일을 열지 않음) 그 이름을 지운다: run 밖을 가리키는 심볼릭 링크,
+run 밖에도 이름이 있는 파일(하드 링크: 링크 수가 run 안의 이름 수보다 많음), 로그인 파일과 같은 파일(장치·inode). 작업 루트에서는
+옮기기 전에 지운다(다른 파일 시스템으로 옮길 때 복사가 링크된 파일을 읽지 않도록). 이름이 모두 run 안인 하드 링크는 남기고 이름마다
+바꿔 쓴다. `secret_scan.status`는 `passed`·`failed`·`not_scanned`이고 `problems`가 이유다: `credential_shapes`(찾음),
+`outside_links`·`hard_links`(지운 링크), `unreadable`(읽지 못한 디렉터리·파일: 찾지 않은 것은 통과가 아님), `writers_left`·
+`processes_unchecked`(aelix가 끝난 뒤 작업 루트에 쓸 수 있는 프로세스가 남았거나 확인하지 못함), `written_after_scan`(검사가 시작된 뒤
+바뀐 파일), `names_login`(`.aelix`·`auth.json`·로그인 파일을 가리킨 도구 호출), `login_changed_after_exit`·`login_has_other_names`
+(검사 뒤 마지막으로 잰 로그인 파일의 수정 시각·inode가 aelix 종료 때와 다르거나 이름이 둘 이상), `after_exit_errors`·`scan_error`.
+하나라도 있으면 `failed`, `needs_review`에 `secret_scan`(프로세스 문제면 `after_exit`도), 종료 코드 1이다. 검사 결과 자체(파일 이름,
+링크 대상)도 가린 뒤 기록하고, 마지막에 쓴 `run.json`을 한 번 더 검사한다. 옮기지 못한 작업 루트는 그 자리에서 검사한다
+(`work_root_left`). 모델이 작업 루트 밖에 쓴 파일은 찾지 않는다(그런 경로를 쓴 호출은 `outside_work_root`).
 
 ## run 기록
 
 `OUT/runs/<과제>-<모델>-<표면>-<제안 조건>-r<반복>/`에 `run.json`(아래), `events.jsonl`(aelix `--mode json`의 사건 그대로),
 `stderr.txt`, `command.json`(argv·cwd·하네스가 정한 변수·로그인 파일 경로), `agent/`(aelix의 상태와 `models.json`), `work/`(모델이 일한
-작업 루트: 프로젝트와 입력, aelix가 끝난 뒤 옮겨 옴)이 남는다. kit의 확장은 요청이 끝날 때마다 보고서 빌드(`uv run --project <프로젝트> …
-render --if-changed`)를 분리된 프로세스로 띄워 aelix보다 오래 산다. 하네스는 aelix가 끝난 뒤 명령줄에 작업 루트가 나오는 프로세스가 없어질
-때까지 기다리고(최대 600초, 넘으면 멈춤, `after_exit`; 프로세스 목록은 `ps` 또는 PowerShell) 그다음에 작업 루트를 옮긴다. 기다린 시간은
-`elapsed_s`에 들지 않는다. 프로젝트의 Python 환경(`.venv`, kit이 uv로 만든 공개 패키지 약 450 MB와 uv의 Python으로 가는 링크)은 옮긴 뒤
-지운다(링크를 따라가지 않음, `uv.lock`이 남아 다시 만들 수 있음, `environments_removed`). `OUT/summary.json`과 그것에서 만든 `summary.md`가 run과 (모델, 과제, 표면, 조건)별 집계를 담는다.
+작업 루트: 프로젝트와 입력, aelix가 끝난 뒤 옮겨 옴), `home/`(run의 HOME)이 남는다. kit의 확장은 요청이 끝날 때마다 보고서 빌드(`uv run
+--project <프로젝트> … render --if-changed`)를 분리된 프로세스로 띄워 aelix보다 오래 살고, 모델의 bash 명령은 저마다 새 세션에서 돈다
+(aelix의 bash 도구). 하네스는 aelix가 도는 동안 프로세스 목록으로 aelix의 자손을 모으고, aelix가 끝난 뒤 작업 루트에서 일하는
+프로세스(명령줄에 작업 루트가 나옴, 작업 디렉터리나 연 파일이 그 안에 있음(Linux `/proc`, 그 밖의 POSIX `lsof`), aelix의 자손)가 없어질
+때까지 기다리고(최대 600초, 넘으면 SIGTERM, 5초 뒤 SIGKILL, `after_exit`; 실제로 사라진 것만 `stopped`, 남은 것은 `left`) 그다음
+프로젝트의 Python 환경(`.venv`, kit이 uv로 만든 공개 패키지 약 450 MB와 uv의 Python·캐시로 가는 링크)을 지우고(링크를 따라가지 않음,
+`uv.lock`이 남아 다시 만들 수 있음, `environments_removed`) 작업 루트를 옮긴 뒤 한 번 더 확인한다(`after_exit.after_move`). 기다린 시간은
+`elapsed_s`에 들지 않는다. `OUT/summary.json`과 그것에서 만든 `summary.md`가 run과 (모델, 과제, 표면, 조건)별 집계를 담는다.
 
 - **모델·서빙**: 설정 id, provider, model, API, thinking, backend와 버전, 양자화, digest, tokenizer, context, 출력 예약, 표본 추출, 서빙 확인
   결과, 설정 파일 전체(`configuration`, 서버 환경 변수·가중치 blob·원본 revision 포함)와 그 sha256(정규화한 JSON과 파일 바이트), 실제로
@@ -191,8 +222,10 @@ render --if-changed`)를 분리된 프로세스로 띄워 aelix보다 오래 산
   고쳤는지.
 - **채점**: `outcome`(`success`·`failure`·`error`·`timeout`·`not_run`), 검사별 결과, 필수 사실 회수율, 근거 검사, 답에 나온 없는 ID
   (`fabricated_ids`), 중대 오판(`critical`), 사람이 확인할 것(`needs_review`).
-- **로그인·비밀**: 로그인을 쓰는 모델이면 `model.auth`(출처, provider, 파일 경로, `login_check`: aelix가 나열한 행)와 `login`(로그인
-  파일의 앞뒤 수정 시각, run의 에이전트 디렉터리에 저장소가 생겼는지 `agent_dir_store`). 모든 run에 `secret_scan`(위 [프론티어 모델](#프론티어-모델)).
+- **로그인·비밀**: 로그인을 쓰는 모델이면 `model.auth`(출처, provider, 파일 경로, `login_check`: aelix가 나열한 행과 그 에이전트
+  디렉터리의 검사 결과)와 `login`(로그인 파일의 메타데이터: run 전 `before`, aelix 종료 때 `after_exit`, 검사 뒤 마지막 `final`.
+  수정 시각·inode·이름 수, run의 에이전트 디렉터리에 저장소가 생겼는지 `agent_dir_store`), `login_mentions`(로그인을 가리킨 도구 호출).
+  모든 run에 `secret_scan`(위 [프론티어 모델](#프론티어-모델)), 멈춘 run에는 `stop`(aelix를 멈춘 방법).
 
 ## 채점
 
@@ -228,11 +261,16 @@ render --if-changed`)를 분리된 프로세스로 띄워 aelix보다 오래 산
 
 ## 격리
 
-신뢰 목록, uv(실제 uv로의 링크), aelix의 에이전트 디렉터리(`AELIX_CODING_AGENT_DIR`)와 세션 디렉터리가 모두 `OUT` 안에 있다. 모델이
+신뢰 목록, uv(실제 uv로의 링크), aelix의 에이전트 디렉터리(`AELIX_CODING_AGENT_DIR`)와 세션 디렉터리, HOME(run의 `home/`; uv의 캐시와
+Python 위치는 `UV_CACHE_DIR`·`UV_PYTHON_INSTALL_DIR`·`XDG_CACHE_HOME`·`XDG_DATA_HOME`으로 넘김)이 모두 `OUT` 안에 있다. 모델이
 일하는 작업 루트는 `--work-root`(기본: 시스템 임시 디렉터리) 아래의 새 디렉터리로 `OUT` 밖에 있고 `project/`와 `input/`만 담는다:
 `../../`로 올라가도 fixture(정답이 든 `manifest.json`·`expected.json`)와 다른 run이 없다. aelix가 끝나면 작업 루트를 run의 `work/`로 옮긴다.
-모델은 bash로 기기의 다른 경로도 읽을 수 있으므로, 작업 루트 밖을 가리키는 호출은 `outside_work_root`와 `needs_review`로 남긴다. 옛 이름의
-변수(`AELIX_LAB_*`·`LAB_*`)와 호출자의 `AELIX_ANALYTICS_*`는 지운다. 하네스는 `~/.aelix`를 읽거나 쓰지 않는다. 로그인을 쓰는 모델에서는
+모델은 bash로 기기의 다른 경로도 읽을 수 있으므로, 작업 루트 밖을 가리키는 호출은 `outside_work_root`, `.aelix`·`auth.json`·로그인
+파일을 가리키는 호출은 `names_login`으로 `needs_review`에 남긴다(`~`는 run의 HOME으로 풀리지만 절대 경로는 막지 못함). aelix에는 호출자의
+`AELIX_*`·`PI_*`·`LAB_*`(옛 이름 포함)와 이름이 자격 증명을 뜻하는 변수(TOKEN·KEY·SECRET·PASSWORD·PASSWD·AUTH·CREDENTIAL·COOKIE)를 넘기지
+않는다(모델 설정의 키 변수만 예외, 지운 이름은 `command.json`의 `stripped_env`). 하네스는 `~/.aelix` 아래 어떤 파일도 열거나 쓰지 않는다:
+로그인 파일은 메타데이터(있는지, 수정 시각, inode, 이름 수)만 본다. 프로젝트 파일(기록, run 기록, CONTEXT.md, 차트·표)은 링크를 푼 실제
+경로가 프로젝트 안일 때만 읽는다(밖을 가리키는 링크는 `outside_link`). 로그인을 쓰는 모델에서는
 aelix 자신이 로그인 파일 하나만 그 자리에서 읽고 갱신하며, 세션·설정·신뢰는 run의 에이전트 디렉터리에 남는다(`~/.aelix/sessions`에
 쓰지 않음). aelix는 `--no-session --offline --no-context-files`로 띄운다(작업 디렉터리 위의 AGENTS.md를 읽지 않음).
 
@@ -243,6 +281,14 @@ aelix 자신이 로그인 파일 하나만 그 자리에서 읽고 갱신하며,
 - aelix는 요청 본문(시스템 지침·도구 schema)을 사건으로 내지 않는다. 실제 모델 run의 전체 입력 크기는 API의 입력 토큰으로만 알고, 그
   본문의 바이트 수는 같은 조건의 dry-run이 남긴다.
 - 실제 모델 실행은 macOS(이 Mac)에서만 했다. dry-run 시험은 uv와 aelix 0.1.0b2를 쓸 수 있는 모든 플랫폼에서 돈다.
-- 프론티어 run은 aelix의 진입점을 런처로 감싼다(저장소를 여는 경로 하나만 바뀜). 모델은 bash로 기기의 다른 파일(로그인 파일 포함)을 읽을
-  수 있다: 그런 호출은 `outside_work_root`이고, 출력에 남은 자격 증명 모양은 비밀 검사가 덮어쓰고 실패로 적는다. 검사는 모양으로 찾으므로
-  다른 모양의 비밀은 찾지 못할 수 있다.
+- 프론티어 run은 aelix의 진입점을 런처로 감싼다(저장소를 여는 경로 하나와 갱신 중 종료를 미루는 것만 바뀜). 모델은 bash로 기기의 다른
+  파일(로그인 파일 포함)을 읽을 수 있다(aelix의 headless 권한 기본값이 허용): 그런 호출은 `outside_work_root`·`names_login`이고, 출력에
+  남은 자격 증명 모양은 비밀 검사가 덮어쓰고 실패로 적는다. **모델이 읽은 것은 도구 결과로 이미 provider에 보내졌고, 검사는 그것을
+  되돌리지 못한다**(로그인 파일에 든 다른 provider의 자격 증명도 같음).
+- 검사는 모양으로 찾는다. 다른 모양의 비밀은 찾지 못할 수 있다: 256자보다 긴 값, 점이 든 값(`v1.x.y`), 소문자 16진수, UTF-16으로 쓴 값.
+  런처(aelix 자신의 프로세스)가 끝날 때 로그인의 정확한 값으로 run을 가리게 할지는 소유자의 결정으로 남겼다.
+- 하네스를 `kill -9`로 끝내면 그 run은 `scan OUT`을 실행하기 전까지 검사되지 않은 채 남는다(요약에 `not_scanned`). 런처의 lifeline과
+  aelix 그룹의 SIGTERM 유예는 POSIX에서만이다. Windows는 aelix의 트리를 바로 끝내고(`taskkill /T /F`), 프로세스 목록에 작업 디렉터리가
+  없어 작업 루트의 프로세스는 명령줄과 aelix의 자손으로만 찾으며, Python의 홈은 `USERPROFILE`이라 HOME만 바꾼다.
+- 작업 루트를 옮긴 뒤 aelix의 자손이 아닌 프로세스가 작업 디렉터리 밖에서 run에 쓰면 그 쓰기는 검사 뒤에 올 수 있다(검사 중에 바뀐
+  파일만 `written_after_scan`으로 잡음).
