@@ -247,8 +247,12 @@ uv run --locked python tools/check_docs.py --output .devstate/runs/<run-id>/evid
 
 ## 첫 공개 전에 남은 운영 결정
 
-배포 이름, 유지관리 책임자, 보안 신고 경로와 릴리스 절차는 확정해 공개해야 합니다.
+배포 이름과 릴리스 절차는 확정해 공개해야 합니다.
+관리자는 GitHub 핸들 [@handochan](https://github.com/handochan)이며 이메일은 적지 않습니다(2026-10-07 결정, `pyproject.toml`의 `authors`·`maintainers`).
+보안 취약점은 GitHub의 비공개 취약점 신고로 받고 공개 Issue로 받지 않습니다([SECURITY.md](SECURITY.md), 2026-10-07 결정). 그 설정은 저장소를 공개할 때 켭니다.
 라이선스는 Apache License 2.0입니다([LICENSE](LICENSE), 2026-09-30 결정).
 지원 플랫폼은 Linux·macOS·Windows이며 Python 하한과 패키징 경계는 [ADR-0002](docs/decisions/0002-python-support-and-platform-scope.md)로 채택했습니다. 채택은 구현 완료가 아니므로, 현재 코드의 상태는 [현재 계약](docs/CONTRACTS.md)의 실행 환경 절을 따릅니다.
+조합별로 실제 설치·실행한 범위는 [지원 범위](docs/SUPPORT.md)에 증거와 함께 적습니다. 실행하지 않은 조합을 `verified`로 적지 않고, 증거가 검사한 commit 뒤에 코드가 바뀌어도 그 칸을 넓히지 않습니다.
+변경 이력은 [CHANGELOG.md](CHANGELOG.md)에 kit 버전별로 적습니다. 사용자에게 보이는 동작·명령·기록·설치를 바꾸는 PR은 병합될 때의 kit 번호 절에 짧은 항목과 PR 링크를 더하고, kit 번호를 올리는 PR은 새 절을 엽니다. 아직 게시한 버전은 없습니다.
 출시 여부는 [품질 게이트](docs/BETA-QUALITY-GATES.md)의 실제 증거로 판단합니다.
 작성·실행·기록·설치 경로를 바꾸면 [Q17](docs/BETA-QUALITY-GATES.md#사람의-직접-분석과-작성-주체-전환-검증)의 관련 사례를 검증합니다. 노트북에서 SDK를 import한 사실만으로 실행 기록 연동을 지원한다고 안내하지 않습니다.

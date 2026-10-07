@@ -57,6 +57,9 @@ kit이 보이는 글(Workspace·도구 응답·오류·새 프로젝트 템플�
 - [지표 중심 분석 설계](docs/METRIC-DRIVEN-ANALYSIS.md): 분석 목적과 현재 지표·질문의 연결, 모호한 정의·여러 지표·수정·파생·관측의 구별.
 - [Skill 제안 정책](docs/SKILL-PROPOSAL-POLICY.md): 요청 시/상시 모드, 제안 임계값·빈도·별도 비용 측정. 기본 제안은 사용자 요청 시에만 수행.
 - [베타 품질 기준과 순서](docs/BETA-QUALITY-GATES.md): 출시 전 검증, 작은 문맥·규모 시험, 재실행·복구·멱등성의 후속 우선순위.
+- [지원 범위](docs/SUPPORT.md): Python·운영체제·aelix·설치 경로별로 실제 설치·실행한 범위, 그 증거와 알려진 한계.
+- [변경 이력](CHANGELOG.md): kit 버전별 변경. 아직 게시한 버전은 없습니다.
+- [보안 정책](SECURITY.md): 취약점을 비공개로 알리는 방법과 범위.
 - [기여 가이드](CONTRIBUTING.md): 변경의 개선 효과와 검증 근거를 남기는 방법.
 - [프로젝트 운영 정책](docs/PROJECT-OPERATIONS.md): Codex·Claude Code 공통 지침, GitHub Issue/Project 관리, 로컬 재개 상태와 인수인계.
 
@@ -79,7 +82,7 @@ aelix -e $PACK/extension/aelix_analytics.py
 aelix 안에서: `/analytics`(현황) · `/analytics open`(리포트) · "지역별 성장률 차트에 플롯 데이터도 기록되게 고쳐줘" 같은 요청.
 
 직접 분석에 필요한 것: [uv](https://docs.astral.sh/uv/)(PATH 또는 `AELIX_ANALYTICS_UV`). Aelix 연동에는 추가로 aelix 0.1.0b2 이상이 필요합니다.
-지원 플랫폼은 Linux·macOS·Windows를 목표로 합니다. 측정한 조합(Windows는 Windows Server 2025의 한 구성)과 Windows의 한계, 아직 실행하지 않은 것(사람이 누른 콘솔 키, Windows의 실제 aelix 세션, 문서를 실제로 여는 프로그램 등)은 [현재 계약](docs/CONTRACTS.md)의 F·G절에 있습니다. Windows 콘솔의 Ctrl+C·Ctrl+Break는 의사 콘솔과 고전 콘솔에서 측정했습니다. Windows에서 알아 둘 것은 [Windows에서 쓸 때](#windows에서-쓸-때)에 있습니다.
+지원 플랫폼은 Linux·macOS·Windows를 목표로 합니다. 측정한 조합(Windows는 Windows Server 2025의 한 구성)과 Windows의 한계, 아직 실행하지 않은 것(사람이 누른 콘솔 키, Windows의 실제 aelix 세션, 문서를 실제로 여는 프로그램 등)은 [현재 계약](docs/CONTRACTS.md)의 F·G절에 있습니다. Python·운영체제·aelix·설치 경로별로 실제 설치·실행한 범위와 그 증거는 [지원 범위](docs/SUPPORT.md)에 있습니다. Windows 콘솔의 Ctrl+C·Ctrl+Break는 의사 콘솔과 고전 콘솔에서 측정했습니다. Windows에서 알아 둘 것은 [Windows에서 쓸 때](#windows에서-쓸-때)에 있습니다.
 분석 라이브러리는 **프로젝트마다 자기 uv 환경**에 설치되며 aelix 환경은 건드리지 않습니다.
 
 ## 설치본(wheel)으로 쓰기
@@ -434,6 +437,11 @@ bin/analytics                 사람용 CLI (체크아웃, POSIX)
 `lab_note(refs=["차트-id"])`가 링크되지 않던 문제(짧은 차트 id → `script.py::id` 해석),
 차트 이미지 3장 상한 무고지, `lab_import`의 UUID→Binary·중첩 JSON(경고와 텍스트 변환),
 이미 import한 외부 입력을 계속 읽을 때의 안내, 생성 run이 없는 데이터셋 표시, CONTEXT.md 주입 한도 경고.
+
+## 관리와 보안
+
+관리자(Maintainer): [@handochan](https://github.com/handochan).
+보안 취약점은 공개 Issue에 쓰지 말고 [보안 정책](SECURITY.md)의 방법으로 알려 주세요.
 
 ## 라이선스
 

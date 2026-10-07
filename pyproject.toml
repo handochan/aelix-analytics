@@ -5,6 +5,10 @@ description = "Agent-native analytics projects with durable context, metrics, ev
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
+# The GitHub handle only, no email (owner's decision of 2026-10-07, Issue #24); the manifest's
+# `authors` names the same.
+authors = [{ name = "handochan" }]
+maintainers = [{ name = "handochan" }]
 # The floor of what runs where this is installed: the `analytics` command, the aelix extension and the
 # stdlib core it loads (ADR-0002 decision 2). Analysis runs in each project's own environment, which
 # keeps >=3.12 (src/aelix_analytics/template/pyproject.toml, decision 3).
