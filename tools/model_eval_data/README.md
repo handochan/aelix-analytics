@@ -161,8 +161,11 @@ backend의 Codex Responses, `https://chatgpt.com/backend-api/codex/responses`)�
 
 **비밀 검사.** 모델 설정이 키 변수(`api_key_env`)를 지정하면(지금 설정에는 없음) 하네스는 키 값을 쓰지 않는다: `command.json`에는
 변수 이름만, run 기록은 쓰기 전에 키를 `<redacted>`로 바꾸고, aelix가 끝난 뒤(그 뒤 하네스가 실패해도) run 디렉터리 아래 모든 파일에서
-키의 바이트를 같은 길이 표시로 덮어쓴다(`secret_redacted`). 호출자의 자격 증명 변수(이름에 TOKEN·KEY·SECRET·PASSWORD·CREDENTIAL·COOKIE)의
-값도 같은 방식으로 덮어쓴다(그 변수들은 aelix에 넘기지 않지만 모델이 다른 곳에서 읽을 수 있음). 그다음 모든 run에서(`not_run` 포함),
+키를 아래 '로그인의 정확한 값으로 가리기'와 같은 형태(런처의 `forms_of`: 원래 바이트, JSON 이스케이프, URL 인코딩, base64,
+16진수, UTF-16; 8자보다 짧은 값은 원래 바이트만)로 찾아 같은 길이 표시로 덮어쓴다(`secret_redacted`, Windows 포함: Windows에서 aelix의 bash 도구는 `$SHELL`이 있는
+파일을 가리키지 않으면 PowerShell로 돌고, Windows PowerShell 5.1의 `>`는 UTF-16LE로 쓴다). 호출자의 자격 증명 변수(이름에
+TOKEN·KEY·SECRET·PASSWORD·CREDENTIAL·COOKIE)의 값도 같은 방식으로 덮어쓴다(그 변수들은 aelix에 넘기지 않지만 모델이 다른 곳에서 읽을 수
+있음). 그다음 모든 run에서(`not_run` 포함),
 값을 모른 채 run 디렉터리 아래의 **모든 파일**(링크는 따라가지 않음, `run.json` 포함)에서 자격 증명 모양의 글을 찾는다: JWT(`eyJ…` 점
 둘), `Bearer` 토큰, 값이 있는 `refresh`·`access`·`*_token`·`api_key`·`client_secret`·`secret`·`password` 항목(앞에 다른 낱말이 붙은
 이름 `GEMINI_CLI_IDE_AUTH_TOKEN=`, 따옴표가 이스케이프된 JSON 사건 줄 포함), `sk-` 키, 대·소문자와 숫자가 섞인 32–256자의 무작위
@@ -179,7 +182,7 @@ run 밖에도 이름이 있는 파일(하드 링크: 링크 수가 run 안의 �
 (검사 뒤 마지막으로 잰 로그인 파일의 수정 시각·inode가 aelix 종료 때와 다르거나 이름이 둘 이상), `after_exit_errors`·`scan_error`,
 그리고 아래 정확한 값의 `exact_values`·`exact_unreadable`·`exact_error`·`exact_not_run`.
 하나라도 있으면 `failed`, `needs_review`에 `secret_scan`(프로세스 문제면 `after_exit`도), 종료 코드 1이다. 검사 결과 자체(파일 이름,
-링크 대상)도 가린 뒤 기록하고, 마지막에 쓴 `run.json`을 한 번 더 검사한다. 옮기지 못한 작업 루트는 그 자리에서 검사한다
+링크 대상: 만든 그대로, Windows의 `\\?\` 접두사 없이)도 가린 뒤 기록하고, 마지막에 쓴 `run.json`을 한 번 더 검사한다. 옮기지 못한 작업 루트는 그 자리에서 검사한다
 (`work_root_left`). 모델이 작업 루트 밖에 쓴 파일은 찾지 않는다(그런 경로를 쓴 호출은 `outside_work_root`).
 
 **로그인의 정확한 값으로 가리기(소유자 결정 2026-10-07).** 모양 검사가 놓치는 값(256자보다 긴 값, 점이 든 값, 소문자 16진수,
@@ -323,6 +326,6 @@ aelix 자신이 로그인 파일 하나만 그 자리에서 읽고 갱신하며,
   `/proc/<pid>/fd`)까지 막지는 않는다.
 - 하네스를 `kill -9`로 끝내면 그 run은 `scan OUT`을 실행하기 전까지 검사되지 않은 채 남는다(요약에 `not_scanned`). 런처의 lifeline과
   aelix 그룹의 SIGTERM 유예는 POSIX에서만이다. Windows는 aelix의 트리를 바로 끝내고(`taskkill /T /F`), 프로세스 목록에 작업 디렉터리가
-  없어 작업 루트의 프로세스는 명령줄과 aelix의 자손으로만 찾으며, Python의 홈은 `USERPROFILE`이라 HOME만 바꾼다.
+  없어 작업 루트의 프로세스는 명령줄과 aelix의 자손으로만 찾으며, Python의 홈과 PowerShell의 `~`는 `USERPROFILE`이라 HOME만 바꾼다.
 - 작업 루트를 옮긴 뒤 aelix의 자손이 아닌 프로세스가 작업 디렉터리 밖에서 run에 쓰면 그 쓰기는 검사 뒤에 올 수 있다(검사 중에 바뀐
   파일만 `written_after_scan`으로 잡음).

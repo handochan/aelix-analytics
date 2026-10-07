@@ -65,7 +65,7 @@ and as the very last step after the scan (a change after aelix exited, or a seco
 scan). The login's exact values are compared only inside the launcher (aelix's own process, which holds
 them): when aelix's main has returned (or SIGTERM stopped it) the launcher waits, and once nothing works
 in the work root any more and it is in the run, it masks every file, link target and name under the run
-by each value's forms (raw, JSON-escaped, URL-encoded, base64/base64url, UTF-16; at least
+by each value's forms (raw, JSON-escaped, URL-encoded, base64/base64url, hex, UTF-16; at least
 EXACT_MIN_LENGTH characters; not a value split across lines), then run.json once more when the harness
 has written it (LauncherLink). It reports counts and relative paths only, never a value, its length or
 hash; the record's secret_scan.exact holds them, and a value found (exact_values), a file it could not
@@ -73,8 +73,10 @@ read (exact_unreadable) or a pass that did not run (exact_not_run: Windows, wher
 pipe; a harness killed before it asked) fails the scan. A model whose configuration names a key
 variable (api_key_env) gets the key from the environment; the harness never writes it: command.json keeps variable names only, the run record is
 redacted before it is written, and after every run, also one that failed after aelix exited, every
-file under the run's directory is searched for the key's bytes (and those of the caller's credential
-variables), which are overwritten by a marker of the same length. Then every file under the run's
+file under the run's directory is searched for the key (and the caller's credential variables) in each
+of the forms the launcher masks the login's values by (its forms_of; on every platform: a shell may
+write a file as UTF-16, as Windows PowerShell 5.1 does), each overwritten by a marker of the same
+length. Then every file under the run's
 directory is searched for credential-shaped text without knowing any value (a JWT, a Bearer token, a
 refresh/access/id token, key, secret or password field with a value, an sk- key, a long mixed
 base64url token; a file name of that shape too; after the launcher's masking, so what it found is not
@@ -102,6 +104,7 @@ import argparse
 import contextlib
 import hashlib
 import http.server
+import importlib.util
 import json
 import os
 import platform
@@ -2226,18 +2229,52 @@ def redaction_marker(length: int) -> bytes:
     return b"<redacted" + b"*" * (length - 10) + b">"
 
 
+@lru_cache(maxsize=1)
+def launcher_module():
+    """tools/model_eval_aelix.py as a module, for its forms_of and mask: the harness masks a key
+    variable's value by the same forms the launcher masks the login's values by. The launcher imports
+    aelix only when it runs aelix, so loading it here imports nothing else."""
+    spec = importlib.util.spec_from_file_location("model_eval_aelix_forms", LAUNCHER)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def secret_forms(secrets) -> list[tuple[bytes, bytes]]:
+    """Each secret's forms in a file, each with its marker: the launcher's forms_of (raw, JSON-escaped,
+    URL-encoded, base64 at each alignment, hex, UTF-16LE and BE). A secret shorter than
+    MIN_SECRET_LENGTH by its UTF-8 bytes only: a short value's encoded slices would mark ordinary text."""
+    forms = []
+    for secret in dict.fromkeys(s for s in secrets if s):
+        if len(secret) >= MIN_SECRET_LENGTH:
+            forms += launcher_module().forms_of(secret)
+        else:
+            raw = secret.encode("utf-8")
+            forms.append((raw, redaction_marker(len(raw))))
+    return forms
+
+
 def redact_value(value, secrets: list[str]):
-    """The value with every secret's text replaced, recursively."""
-    if isinstance(value, str):
-        for secret in secrets:
-            if secret:
-                value = value.replace(secret, "<redacted>")
-        return value
-    if isinstance(value, dict):
-        return {redact_value(k, secrets): redact_value(v, secrets) for k, v in value.items()}
-    if isinstance(value, list):
-        return [redact_value(v, secrets) for v in value]
-    return value
+    """The value with every secret's text replaced, recursively: each of its forms (secret_forms) that
+    is text, longest first."""
+    texts = set()
+    for form, _ in secret_forms(secrets):
+        with contextlib.suppress(UnicodeDecodeError):
+            texts.add(form.decode("utf-8"))
+    ordered = sorted(texts, key=len, reverse=True)
+
+    def redact(item):
+        if isinstance(item, str):
+            for text in ordered:
+                item = item.replace(text, "<redacted>")
+            return item
+        if isinstance(item, dict):
+            return {redact(k): redact(v) for k, v in item.items()}
+        if isinstance(item, list):
+            return [redact(v) for v in item]
+        return item
+
+    return redact(value)
 
 
 # --- the run's files: links, exact secrets, credential shapes --------------------------------------
@@ -2270,24 +2307,38 @@ def walk(root: Path, errors: list, prefix: str = ""):
                 failed(exc)
 
 
+def plain_path(path: str, windows: bool = os.name == "nt") -> str:
+    """A path without Windows' extended-length prefix: os.readlink gives \\\\?\\C:\\… (\\\\?\\UNC\\server\\…)
+    for a link made to C:\\… (\\\\server\\…), and os.path.realpath does for a path it cannot shorten. A
+    record then names a link's target the same way on every platform, and two forms of one path compare
+    equal. Elsewhere the path as it is."""
+    if windows:
+        if path.startswith("\\\\?\\UNC\\"):
+            return "\\\\" + path[8:]
+        if path.startswith("\\\\?\\"):
+            return path[4:]
+    return path
+
+
 def sweep(root: Path, login: set = frozenset(), prefix: str = "") -> dict:
     """Remove the links in root that reach a file outside it, found by lstat only (no file is opened):
     a symbolic link whose target leaves root, and every name of a regular file that also has a name
     outside root (more links than names here: a hard link) or that is the login's file (login: its
     (device, inode) pairs). Masking such a file, or a copy or archive of the run, would otherwise
     write or carry the file it reaches. Links inside root are listed and kept; `shared` holds the
-    files whose every name is inside root (each is masked by replacing it)."""
+    files whose every name is inside root (each is masked by replacing it). A link's target is
+    recorded as plain_path gives it; the paths compared are plain and case-folded (os.path.normcase)."""
     errors: list = []
     links, outside, hard = [], [], []
     names: dict[tuple, list] = {}
     counts: dict[tuple, int] = {}
-    base = os.path.realpath(root)
+    base = os.path.normcase(plain_path(os.path.realpath(root)))
     for path, st in walk(root, errors, prefix):
         rel = rel_of(path, root, prefix)
         if stat.S_ISLNK(st.st_mode):
             try:
-                target = os.readlink(path)
-                real = os.path.realpath(path)
+                target = plain_path(os.readlink(path))
+                real = os.path.normcase(plain_path(os.path.realpath(path)))
             except OSError as exc:
                 errors.append({"file": rel, "error": f"{type(exc).__name__}: {exc}"})
                 continue
@@ -2356,11 +2407,11 @@ def replace_bytes(path: Path, data: bytes) -> None:
 
 
 def redact_tree(root: Path, secrets: list[str], login: set = frozenset()) -> list[str]:
-    """Overwrite every secret's bytes in every file under root: links are not followed, links that
-    reach outside root are removed first (sweep), and a masked file replaces the old one
-    (replace_bytes). The files where one was found, relative to root."""
-    wanted = [s.encode("utf-8") for s in secrets if s]
-    if not wanted or not root.is_dir():
+    """Overwrite every form of every secret (secret_forms) in every file under root by a marker of its
+    length: links are not followed, links that reach outside root are removed first (sweep), and a
+    masked file replaces the old one (replace_bytes). The files where one was found, relative to root."""
+    forms = secret_forms(secrets)
+    if not forms or not root.is_dir():
         return []
     shared = sweep(root, login)["shared"]
     found = []
@@ -2373,10 +2424,8 @@ def redact_tree(root: Path, secrets: list[str], login: set = frozenset()) -> lis
             continue
         if data is None:
             continue
-        masked = data
-        for secret in wanted:
-            masked = masked.replace(secret, redaction_marker(len(secret)))
-        if masked != data:
+        masked, count = launcher_module().mask(data, forms)
+        if count:
             replace_bytes(path, masked)
             found.append(rel_of(path, root))
     return sorted(found)

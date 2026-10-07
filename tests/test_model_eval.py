@@ -9,7 +9,9 @@ each failure) and tokens by each adapter's usage convention; the tool surfaces a
 names give the right command line; a model whose login or key is missing and the always_on condition are
 not run, with the reason; the secret scan overwrites credential-shaped text (a JWT, a bearer token, a
 refresh/access field, an sk- key, a random long token, a name with words before the keyword) without
-knowing it and removes a link that leaves the run, and passes what runs hold that is not a credential; it
+knowing it and removes a link that leaves the run (its target recorded as it was made, without Windows'
+extended-length prefix), and passes what runs hold that is not a credential; a key variable's value is
+masked in each of the launcher's forms (UTF-16LE after a byte-order mark and hex among them); it
 never writes through a hard link (a name of a file that has another outside the run, or of the login, is
 removed without being read; two names inside the run are each replaced), fails when a directory cannot be
 read, and leaves no credential shape in a file name, a link's target or the record; the harness reads no
@@ -21,8 +23,9 @@ With uv and aelix 0.1.0b2 (resolved by uv, as the CI's aelix tests are): the dry
 harness's scripted fake model, the real aelix process, this checkout's extension and kit in a work root
 outside the output, the event stream, the project's changes, the score — and no secret of the
 environment in anything it writes; a model configuration that names a key variable, with a script
-that puts the key into a bash call, a record and the answer, leaves no copy of it under the output,
-also when the harness fails after aelix exited. A model that uses an aelix login (as the frontier
+that puts the key into a bash call (in the shell's syntax: PowerShell on Windows), project files (as the
+shell writes it, as UTF-16LE with a byte-order mark and as hex), a record and the answer, leaves no form
+of it under the output, also when the harness fails after aelix exited. A model that uses an aelix login (as the frontier
 gpt-5.6-sol does through aelix's openai-codex login): with a fake login file holding dummy tokens,
 aelix (through tools/model_eval_aelix.py) sends the login's key read in place, the run's directory
 gets no store, no link and none of the dummy values even when the model prints the login, the secret
@@ -48,6 +51,7 @@ tests/test_model_eval_scoring.py holds the reviewers' adversarial answers.
 from __future__ import annotations
 
 import base64
+import codecs
 import contextlib
 import hashlib
 import importlib.util
@@ -625,7 +629,7 @@ def test_the_secret_scan_overwrites_credential_shapes_without_knowing_them(tmp_p
     assert (run / "x.bin").stat().st_size == len(key) + 2  # same length
     json.loads((run / "events.jsonl").read_text(encoding="utf-8"))  # still JSON
     assert secret_file.read_text(encoding="utf-8") == login  # the link was not followed
-    if links:
+    if links:  # the target as the link was made, on Windows too (where os.readlink gives \\?\C:\…)
         assert not (run / "work" / "link-out").is_symlink()
         assert scan["outside_links_removed"] == [{"file": "work/link-out", "target": str(secret_file)}]
         assert [link["file"] for link in scan["links"]] == ["work/link-in"]
@@ -633,6 +637,17 @@ def test_the_secret_scan_overwrites_credential_shapes_without_knowing_them(tmp_p
     clean.mkdir()
     (clean / "benign.txt").write_text(benign, encoding="utf-8")
     assert me.scan_tree(clean)["status"] == "passed"
+
+
+def test_a_links_target_is_recorded_without_the_windows_extended_length_prefix():
+    # Windows' os.readlink gives the extended-length form of a link made to an absolute path (the
+    # windows-2025 CI of b688ee5): the record names the path as it was made, and the sweep compares
+    # plain forms.
+    assert me.plain_path(r"\\?\C:\Users\runner\login.json", windows=True) == r"C:\Users\runner\login.json"
+    assert me.plain_path(r"\\?\UNC\server\share\login.json", windows=True) == r"\\server\share\login.json"
+    for path in (r"C:\Users\runner\login.json", r"..\login.json", r"\\server\share\login.json"):
+        assert me.plain_path(path, windows=True) == path
+    assert me.plain_path(r"\\?\C:\x", windows=False) == r"\\?\C:\x"  # a POSIX name is a name
 
 
 def test_the_scan_never_writes_through_a_hard_link_and_removes_one_that_leaves_the_run(tmp_path):
@@ -830,21 +845,77 @@ def keyed_dry_run(monkeypatch):
 
     monkeypatch.setattr(me, "load_config", with_key)
     monkeypatch.setenv("EVAL_PROBE_KEY", LEAK)
+    if os.name == "nt":  # PowerShell, whatever shell the caller has (see powershell)
+        monkeypatch.delenv("SHELL", raising=False)
+
+
+def powershell() -> bool:
+    """Whether aelix's bash tool runs the dry run's commands in PowerShell. aelix 0.1.0b2 takes $SHELL
+    when it names a file; on Windows it otherwise takes PowerShell (pwsh, then Windows PowerShell 5.1;
+    aelix_ai/utils/_shell.py), as on the CI's windows leg. The tests that write a shell's syntax remove
+    SHELL on Windows, so that a caller's Git Bash does not choose it; elsewhere SHELL=pwsh tries the
+    PowerShell commands."""
+    return os.name == "nt" or Path(os.environ.get("SHELL", "")).stem.lower() in ("pwsh", "powershell")
 
 
 def leak_script(tmp_path: Path) -> Path:
+    """The key variable's value into a bash call's output; into project files as the shell writes it
+    (Windows PowerShell 5.1: UTF-16LE), as UTF-16LE with a byte-order mark and as hex; into a record
+    and the answer."""
+    if powershell():  # $EVAL_PROBE_KEY would be an unset PowerShell variable there
+        command = ("echo key=$env:EVAL_PROBE_KEY; echo $env:EVAL_PROBE_KEY > leaked.txt; "
+                   "$env:EVAL_PROBE_KEY | Out-File -Encoding unicode leaked-utf16.txt; "
+                   "-join ([Text.Encoding]::UTF8.GetBytes($env:EVAL_PROBE_KEY) | ForEach-Object { $_.ToString('x2') })"
+                   " | Out-File -Encoding ascii leaked-hex.txt")
+    else:
+        code = ("import codecs, os; k = os.environ['EVAL_PROBE_KEY']; "
+                "open('leaked-utf16.txt', 'wb').write(codecs.BOM_UTF16_LE + k.encode('utf-16-le')); "
+                "open('leaked-hex.txt', 'w').write(k.encode().hex())")
+        command = f"echo key=$EVAL_PROBE_KEY; echo $EVAL_PROBE_KEY > leaked.txt; python3 -c {shlex.quote(code)}"
     script = tmp_path / "leak.json"
     script.write_text(json.dumps({"schema": me.SCRIPT_SCHEMA, "task": "T06", "steps": [
-        {"tool_calls": [{"tool": "bash", "arguments": {
-            "command": "echo key=$EVAL_PROBE_KEY; echo $EVAL_PROBE_KEY > leaked.txt"}}]},
+        {"tool_calls": [{"tool": "bash", "arguments": {"command": command}}]},
         {"tool_calls": [{"tool": "@record", "arguments": {"kind": "note", "text": f"probe {LEAK} note"}}]},
         {"text": f"There are 5,838 sessions. The key is {LEAK}."}]}), encoding="utf-8")
     return script
 
 
+LEAK_FILES = ("work/project/leaked.txt", "work/project/leaked-utf16.txt", "work/project/leaked-hex.txt")
+
+
 def files_with(root: Path, secret: str) -> list[str]:
     return sorted(str(p.relative_to(root)) for p in root.rglob("*")
                   if p.is_file() and not p.is_symlink() and secret.encode() in p.read_bytes())
+
+
+def test_a_key_variables_value_is_masked_in_each_form_a_shell_may_write(tmp_path):
+    """Windows PowerShell 5.1 writes `>` as UTF-16LE with a byte-order mark, a dump writes hex: neither is
+    the value's UTF-8 bytes, and the shape scan sees neither. The harness masks the launcher's forms."""
+    run = tmp_path / "run"
+    project = run / "work" / "project"
+    project.mkdir(parents=True)
+    w = written_forms(LEAK)
+    (project / "utf16.txt").write_bytes(codecs.BOM_UTF16_LE + f"{LEAK}\r\n".encode("utf-16-le"))
+    (project / "utf16be.txt").write_bytes(codecs.BOM_UTF16_BE + LEAK.encode("utf-16-be"))
+    (project / "hex.txt").write_bytes(w["hex"] + b"\n" + w["hex_upper"] + b"\n")
+    raw = LEAK.encode()
+    (project / "encoded.txt").write_bytes(b"\n".join([
+        w["json_twice"], w["url_plus"], base64.b64encode(raw), base64.b64encode(b"x" + raw),
+        base64.urlsafe_b64encode(b"xy" + raw)]))
+    (project / "other.txt").write_text("nothing of the key\n", encoding="utf-8")
+    sizes = {p.name: p.stat().st_size for p in project.iterdir()}
+    assert me.redact_tree(run, [LEAK]) == [f"work/project/{n}" for n in (
+        "encoded.txt", "hex.txt", "utf16.txt", "utf16be.txt")]
+    assert holders_of(run, list(w.values())) == []
+    assert {p.name: p.stat().st_size for p in project.iterdir()} == sizes  # each by a marker of its length
+    assert (project / "utf16.txt").read_bytes().startswith(codecs.BOM_UTF16_LE + "<redacted".encode("utf-16-le"))
+    # The record: each form that is text.
+    written = [w[k] for k in ("raw", "json_twice", "url_plus", "hex", "hex_upper", "utf16le", "utf16be")] + [
+        base64.b64encode(raw), base64.b64encode(b"x" + raw), base64.urlsafe_b64encode(b"xy" + raw)]
+    clean = me.redact_value({"answer": " | ".join(t.decode() for t in written),
+                             "calls": [t.decode() for t in written]}, [LEAK])
+    assert not any(form.decode() in s for s in (clean["answer"], *clean["calls"]) for form in w.values())
+    assert clean["calls"][:7] == ["<redacted>"] * 7 and "<redacted>" in clean["answer"]
 
 
 def test_a_key_the_model_echoes_is_in_no_file_of_the_run(aelix_command, fixtures, tmp_path, keyed_dry_run):
@@ -854,13 +925,15 @@ def test_a_key_the_model_echoes_is_in_no_file_of_the_run(aelix_command, fixtures
                     "--script", str(leak_script(tmp_path)), "--work-root", str(tmp_path / "roots")]) == 0
     run = out / "runs" / "T06-dry-run-default-unrequested-r1"
     record = json.loads((run / "run.json").read_text(encoding="utf-8"))
-    # The key was in the bash output, the file bash wrote, the record (journal) and the answer.
+    # The key was in the bash output, the files the shell wrote (UTF-16 and hex too), the record
+    # (journal) and the answer.
     assert record["tool_calls"][0]["name"] == "bash"
-    assert {"events.jsonl", "work/project/leaked.txt", "work/project/journal.jsonl", "run.json"} <= set(
-        record["secret_redacted"])
+    assert {"events.jsonl", *LEAK_FILES, "work/project/journal.jsonl", "run.json"} <= set(record["secret_redacted"])
     assert "<redacted>" in record["turns"][0]["answer"]
-    assert files_with(out, LEAK) == []
-    assert files_with(tmp_path / "roots", LEAK) == []
+    assert record["secret_scan"]["status"] == "passed"
+    forms = list(written_forms(LEAK).values())
+    assert holders_of(out, forms) == []
+    assert holders_of(tmp_path / "roots", forms) == []
 
 
 def test_a_key_is_overwritten_when_the_harness_fails_after_aelix_exits(aelix_command, fixtures, tmp_path,
@@ -877,8 +950,8 @@ def test_a_key_is_overwritten_when_the_harness_fails_after_aelix_exits(aelix_com
     run = out / "runs" / "T06-dry-run-default-unrequested-r1"
     record = json.loads((run / "run.json").read_text(encoding="utf-8"))
     assert record["outcome"] == "error" and "scoring failed" in record["harness_error"]
-    assert (run / "work" / "project" / "leaked.txt").is_file()
-    assert files_with(out, LEAK) == []
+    assert all((run / name).is_file() for name in LEAK_FILES)
+    assert holders_of(out, list(written_forms(LEAK).values())) == []
     summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
     assert [r["outcome"] for r in summary["runs"]] == ["error"]
 
@@ -997,6 +1070,19 @@ def run_args(root: Path, tmp_path: Path, out: Path, script: Path, *extra: str) -
             "--script", str(script), "--work-root", str(tmp_path / "roots"), *extra]
 
 
+def shell_text(path: Path) -> str:
+    """A file a shell wrote: UTF-16 after a byte-order mark (Windows PowerShell 5.1's `>`), else UTF-8."""
+    data = path.read_bytes()
+    return data.decode("utf-16" if data[:2] in (codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE) else "utf-8-sig")
+
+
+def same_path(printed: str, path: Path) -> bool:
+    """Whether a path a tool printed is path: on Windows Git's programs (env, bash) print C:\\x as /c/x."""
+    if os.name == "nt" and (msys := re.fullmatch(r"/([A-Za-z])(/.*)?", printed)):
+        printed = f"{msys.group(1)}:" + (msys.group(2) or "/").replace("/", "\\")
+    return os.path.normcase(printed) == os.path.normcase(str(path))
+
+
 def test_the_child_gets_no_credential_variable_and_the_runs_own_home(aelix_command, fixtures, tmp_path,
                                                                      monkeypatch):
     root, _ = fixtures
@@ -1005,6 +1091,8 @@ def test_the_child_gets_no_credential_variable_and_the_runs_own_home(aelix_comma
     monkeypatch.setenv("EVAL_PROBE_PASSWORD", refresh)
     monkeypatch.setenv("AELIX_SETTINGS_PATH", str(tmp_path / "callers-settings.json"))
     monkeypatch.setenv("PI_EVAL_PROBE", "1")
+    if os.name == "nt":  # PowerShell, whatever shell the caller has (see powershell)
+        monkeypatch.delenv("SHELL", raising=False)
     # Only these lines of the child's environment (the rest is the caller's, which may hold anything).
     script = script_file(tmp_path, "env", [
         bash("env | grep -E '^(EVAL_PROBE_|AELIX_SETTINGS_PATH|PI_EVAL_PROBE|HOME=)' > env.txt; echo ~ > home.txt"),
@@ -1012,9 +1100,10 @@ def test_the_child_gets_no_credential_variable_and_the_runs_own_home(aelix_comma
     out = tmp_path / "out"
     assert me.main(run_args(root, tmp_path, out, script)) == 0
     run = out / "runs" / "T06-dry-run-default-unrequested-r1"
-    env = (run / "work" / "project" / "env.txt").read_text(encoding="utf-8")
-    assert env.splitlines() == [f"HOME={run / 'home'}"]
-    assert (run / "work" / "project" / "home.txt").read_text(encoding="utf-8").strip() == str(run / "home")
+    env = shell_text(run / "work" / "project" / "env.txt").splitlines()
+    assert [line.partition("=")[0] for line in env] == ["HOME"] and same_path(env[0].partition("=")[2], run / "home")
+    if not powershell():  # PowerShell's ~ is its own home (on Windows the profile: USERPROFILE), not HOME
+        assert same_path(shell_text(run / "work" / "project" / "home.txt").strip(), run / "home")
     command = json.loads((run / "command.json").read_text(encoding="utf-8"))
     assert {"EVAL_PROBE_IDE_AUTH_TOKEN", "EVAL_PROBE_PASSWORD", "AELIX_SETTINGS_PATH",
             "PI_EVAL_PROBE"} <= set(command["stripped_env"])
