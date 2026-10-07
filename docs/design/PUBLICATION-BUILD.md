@@ -12,8 +12,9 @@
   [ADR-0003](../decisions/0003-portable-boundaries-and-in-process-kit-loading.md), [ADR-0004](../decisions/0004-minimal-distribution-and-entry-points.md),
   [ADR-0005](../decisions/0005-names-first-storage-with-the-new-writer.md), [베타 기준](../BETA-QUALITY-GATES.md) Q14·Q16,
   [용어집](../TERMINOLOGY-AND-LANGUAGE.md), [보고서 설계](../REPORT-ARTIFACTS.md), [아키텍처](../ARCHITECTURE.md).
-- 이 문서가 새로 정하지 않는 것: binding 문서가 정하지 않은 제품 결정은 15절의 소유자 질문(OQ1–OQ25)으로 남겼다. 본문에서 "(OQn)"이 붙은
-  규칙은 그 질문의 권장안을 따른 것이고 답에 따라 바뀐다. 새 공개 이름은 구현 PR이 용어집 §8대로 먼저 등록한다.
+- 소유자 결정: binding 문서가 정하지 않은 제품 결정 25개(15절, OQ1–OQ25)는 2026-10-07 소유자가 **권장안을 모두 채택**했다
+  ([#20 코멘트](https://github.com/handochan/aelix-analytics/issues/20)). 본문에서 "(OQn)"이 붙은 규칙은 그 결정이다. OQ15(새 기록 필드
+  `content_seq`)와 OQ20(ADR-0006 §4에 없는 판정)은 구현 전 PR-0의 ADR에 적는다. 새 공개 이름은 구현 PR이 용어집 §8대로 먼저 등록한다.
 - 리뷰: `7010c6e`의 설계 리뷰(독립 1·Codex 1)를 반영했다. 지적과 처분은 PR 본문의 표에 있다.
 
 ## 0. 요약
@@ -1145,10 +1146,10 @@ ZIP에 들어간다. 하위 디렉터리 entry(`content/sub/report.md`가 `img/a
 | ADR-0003 결정 6 기존 이름으로 멈추지 않음 | 7.2, 11.2 | 12.5 이름 | 2 |
 | ADR-0001 확인 2 대체 구현의 같은 의미 | 4.3 C11 | 12.1 | 1, 3 |
 
-## 15. 소유자 결정이 필요한 것
+## 15. 소유자 결정(2026-10-07, 권장안 모두 채택)
 
 binding 입력이 정하지 않았거나 받아들인 보장(PUBLISH·보고서 설계의 문장)을 좁힐 수 있는 것만 적는다. 이름·문법·배치처럼 구현에 맡긴 것은 본문에서
-정했다. 권장안을 따르지 않으면 "바뀌는 것" 열의 절을 고친다. OQ15는 새 기록 필드 하나의 결정이고 OQ20은 채택된 ADR(ADR-0006 §4)에 없는 판정이므로
+정했다. 2026-10-07 소유자가 아래 권장안 25개를 모두 채택했다. 나중에 한 답을 바꾸면 "바뀌는 것" 열의 절을 고친다. OQ15는 새 기록 필드 하나의 결정이고 OQ20은 채택된 ADR(ADR-0006 §4)에 없는 판정이므로
 PR-0의 설계 리뷰에서도 확인한다. OQ23–OQ25는 `7010c6e`의 설계 리뷰에서 나왔다.
 
 | # | 질문 | 권장안 | 바뀌는 것 |
