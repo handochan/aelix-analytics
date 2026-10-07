@@ -179,7 +179,9 @@ class Site:
         self.views = core.view_names(self.datasets)
         self.view_by_path = {path: name for name, path in self.views.items()}
         self.name_by_path = {ds["path"]: ds["name"] for ds in self.datasets}
-        self.charts = core.chart_index(self.runs)
+        self.charts = core.chart_index(self.runs, self.model.read_as)
+        # Each run's script as the gallery reads it (an older kit's spelling as today's).
+        self.script_of = {r["id"]: self.script_path(r) for r in self.runs}
         self.resolved = core.resolved_targets(self.events)
         self.telemetry = core.read_jsonl(project.telemetry)
         self.queries = core.read_jsonl(project.queries)
@@ -220,7 +222,32 @@ class Site:
         return f"{self.root(depth)}data/{href(view)}.html" if view else None
 
     def chart_anchor(self, key: str, depth: int) -> str:
-        return f"{self.root(depth)}index.html#chart-{slug_key(key)}"
+        """The gallery card of a logical key: the key an older kit's run recorded in another
+        spelling of its script is today's (ReadModel.chart_key), where its card is."""
+        return f"{self.root(depth)}index.html#chart-{slug_key(self.model.chart_key(key))}"
+
+    def script_path(self, run: dict) -> str | None:
+        """A run's script path as the gallery reads it: an older kit's spelling as today's
+        (ReadModel.read_as), else as recorded."""
+        recorded = (run.get("script") or {}).get("path")
+        return self.model.read_as(run.get("id"), recorded) or recorded
+
+    def chart_key(self, run: dict, chart: dict) -> str:
+        """A chart's logical key as the gallery reads it (core.chart_index with the model)."""
+        return f"{self.script_path(run) or '?'}::{chart.get('id')}"
+
+    def read_as_html(self, run_id: str, path, depth: int) -> str:
+        """What a path an older kit's run recorded is read as, when it is read as another identity
+        path (ADR-0006 9): an inference, said so, linked to the dataset it names."""
+        read = self.model.read_as(run_id, path)
+        if not read:
+            return ""
+        link = self.data_link(read, depth)
+        shown = f"<code{USER}>{esc(read)}</code>"
+        if link:
+            shown = f'<a href="{link}">{shown}</a>'
+        return (f' <small class="ref-note" title="{esc(INFERRED_TITLE)}">read as {shown} — '
+                f'{esc(core.INFERRED_NOTE)}</small>')
 
     def dataset_name(self, path: str) -> str | None:
         """The name the Workspace shows for the dataset at `path` (dataset_label), if it is one."""
@@ -289,7 +316,8 @@ class Site:
         elif kind in ("data_observation", "dataset_import"):
             item = str(target.get("key") or target.get("path") or label)
             path = item if item in self.view_by_path else self.views.get(item)
-            body = self.path_html(path, depth, LATEST) if path else esc(item)
+            # A name or path that is no dataset is still what people and scripts wrote (lang="").
+            body = self.path_html(path, depth, LATEST) if path else user_text(item)
         elif kind == "event":
             prefix = "Resolves: " if field == "resolves" else ""
             body = (f'<a href="{esc(self.root(depth))}index.html#{esc(label)}">{prefix}{esc(label)}</a>'
@@ -304,8 +332,14 @@ class Site:
             # An event target's candidates are the journal lines with its id; the others' are
             # versions.
             what = "record(s)" if kind in relations.EVENT_TARGETS else "version(s)"
+            inferred = judged.get("inferred_candidates") or []
             body += (f' <small class="ref-note" title="{esc(", ".join(candidates))}">'
                      f"{len(candidates):,} candidate {what}</small>")
+            if inferred:
+                # The versions hold Visualization ids people and scripts wrote: only their count
+                # beside the kit's English title (#10, lang="").
+                body += (f' <small class="ref-note" title="{esc(INFERRED_TITLE)}">'
+                         f'{len(inferred):,} {esc(core.INFERRED_NOTE)}</small>')
         if state not in ("resolved", "version_unbound"):
             tone, words = REF_STATE.get(state, ("muted", state))
             reason = f": {judged['reason']}" if judged.get("reason") else ""
@@ -393,6 +427,10 @@ class Site:
         versions = chart.get("versions") or []
         if len(versions) > 1:
             badges.append(f'<span class="badge tone-muted">v{len(versions)}</span>')
+        if chart.get("inferred_versions"):
+            badges.append(inferred_badge(
+                f"{chart['inferred_versions']:,} of the {len(versions):,} version(s) of this key were "
+                "recorded under another spelling of the script's path"))
         if chart.get("retired"):
             badges.append(badge("muted", "↺", "Absent from latest run"))
         run_page = self.run_link(chart["run"], depth)
@@ -423,6 +461,7 @@ class Site:
         if full and len(versions) > 1:
             version_links = ('<div class="versions">Earlier versions: ' + " · ".join(
                 f'<a href="{self.run_link(v["run"], depth)}">{fmt_time(v.get("started_at"))}</a>'
+                + (f' <small title="{esc(INFERRED_TITLE)}">(inferred)</small>' if v.get("inferred") else "")
                 for v in versions[-2::-1][:8]) + "</div>")
         classes = "chart-card" + (" is-stale" if fresh["stale"] else "") + \
             (" is-retired" if chart.get("retired") else "")
@@ -724,6 +763,44 @@ def line_endings_badge() -> str:
     return badge("muted", "↵", "Line endings only", LINE_ENDINGS_TITLE)
 
 
+# A relation found only by reading a path a kit before 0.5.0 recorded as today's identity path
+# (ADR-0006 9): an inference from today's links and names, never an observed or confirmed link.
+INFERRED_TITLE = (f"A kit before {core.PATH_IDENTITY_SINCE} recorded this path by its real place or "
+                  "in another spelling; it is read as today's path of the same file. An inference, "
+                  "not an observed or confirmed link; the records are as they were written.")
+
+
+def inferred_badge(what: str = "") -> str:
+    """The mark of a relation found only through an older kit's path, `what` saying which."""
+    title = f"{what}: {INFERRED_TITLE}" if what else INFERRED_TITLE
+    return badge("muted", "≈", "Inferred from an older kit's path", title)
+
+
+def inferred_mark(run_id: str, runs) -> str:
+    """` · inferred from an older kit's path` beside a run listed only through such a reading."""
+    if not runs or run_id not in runs:
+        return ""
+    return f' · <span class="ref-note" title="{esc(INFERRED_TITLE)}">{esc(core.INFERRED_NOTE)}</span>'
+
+
+def inferred_count_html(runs) -> str:
+    """` (N inferred)` for the runs of a count found only through an older kit's path."""
+    if not runs:
+        return ""
+    return (f' <small class="ref-note" title="{esc(", ".join(runs))}: {esc(INFERRED_TITLE)}">'
+            f'({len(runs):,} inferred)</small>')
+
+
+def inferred_runs_note(runs) -> str:
+    """` (A, B: inferred from an older kit's path)` for the runs of a list found only so."""
+    if not runs:
+        return ""
+    more = len(runs) - SHOWN_CANDIDATES
+    named = ", ".join(runs[:SHOWN_CANDIDATES]) + (f" and {more:,} more" if more > 0 else "")
+    return (f' <small class="ref-note" title="{esc(INFERRED_TITLE)}">({esc(named)}: '
+            f'{esc(core.INFERRED_NOTE)})</small>')
+
+
 def changed_inputs_text(fresh: dict) -> list[str]:
     """A run's changed or missing inputs, each that differs only in its line ends saying so."""
     reasons = fresh.get("change_reasons") or {}
@@ -742,7 +819,13 @@ def stale_badges(fresh: dict) -> list[str]:
         runs = fresh["stale_upstream"]
         more = len(runs) - SHOWN_CANDIDATES
         named = ", ".join(runs[:SHOWN_CANDIDATES]) + (f" and {more:,} more" if more > 0 else "")
-        out.append(badge("warning", "⚠", "Upstream candidate stale", UPSTREAM_STALE.format(runs=named)))
+        inferred = fresh.get("inferred_upstream") or []
+        more_inferred = len(inferred) - SHOWN_CANDIDATES
+        said = (f" ({', '.join(inferred[:SHOWN_CANDIDATES])}"
+                + (f" and {more_inferred:,} more" if more_inferred > 0 else "")
+                + f": {core.INFERRED_NOTE})" if inferred else "")
+        out.append(badge("warning", "⚠", "Upstream candidate stale",
+                         UPSTREAM_STALE.format(runs=named) + said))
     return out
 
 
@@ -758,6 +841,12 @@ def producer_badges(fresh: dict) -> list[str]:
     if fresh.get("cycle"):
         out.append(badge("warning", "↻", "Producer cycle",
                          "following the runs that output these inputs comes back to a run on the way"))
+    if fresh.get("inferred_inputs"):
+        # The paths are what people and scripts wrote, so they are not in the kit's title: the run
+        # page's inputs say which (read as …).
+        out.append(inferred_badge(
+            f"a producer candidate of {len(fresh['inferred_inputs']):,} input(s) was found only "
+            "through a path an older kit recorded; the run's inputs say which"))
     return out
 
 
@@ -766,14 +855,15 @@ def origin_html(site: Site, ds: dict, depth: int) -> str:
     had this path and these bytes (named as such, not as the run that made them), the imported file,
     or neither."""
     state, candidates = ds.get("producer_state"), ds.get("producer_candidates") or []
+    inferred = (ds.get("inferred") or {}).get("producer_candidates") or []
     if state == "resolved":
         run = candidates[0]
         return (f'<a href="{esc(site.run_link(run, depth))}" title="same bytes as this run\'s output">'
-                f"{esc(run)}</a>")
+                f"{esc(run)}</a>" + (" " + inferred_badge(f"run {run}") if inferred else ""))
     if state == "ambiguous":
         return (badge("warning", "?", "Producer ambiguous",
                       f"same bytes as the output of {len(candidates):,} runs")
-                + " " + site.producer_html(candidates, depth))
+                + " " + site.producer_html(candidates, depth) + inferred_runs_note(inferred))
     if ds.get("unsupported_record"):
         record = ds["unsupported_record"]
         return badge("muted", "?", "Import record not read", f"{record['location']}: {record['reason']}")
@@ -794,12 +884,14 @@ def producer_cell(site: Site, judged: dict | None, depth: int) -> str:
     if not judged:
         return '<span class="muted">-</span>'
     candidates = judged.get("candidates") or []
+    inferred = judged.get("inferred_candidates") or []
     if judged["producer"] == "resolved":
-        return site.producer_html(candidates, depth)
+        return site.producer_html(candidates, depth) + (
+            " " + inferred_badge(f"run {candidates[0]}") if inferred else "")
     if judged["producer"] == "ambiguous":
         return (badge("warning", "?", "Producer ambiguous",
                       f"{len(candidates):,} successful runs output these bytes")
-                + " " + site.producer_html(candidates, depth))
+                + " " + site.producer_html(candidates, depth) + inferred_runs_note(inferred))
     if judged["producer"] == "unknown":
         return badge("muted", "?", "Unknown", "the input has no recorded hash")
     return '<span class="muted">-</span>'
@@ -888,7 +980,8 @@ def index_page(site: Site) -> str:
             f'<tr><td><a href="data/{href(view)}.html"{USER}>{esc(label)}</a>{also}</td><td>{esc(ds["kind"])}</td>'
             f'<td class="num">{fmt_num(ds.get("rows"))}</td><td class="num">{fmt_num(ds.get("columns"))}</td>'
             f'<td class="num">{fmt_bytes(ds.get("bytes"))}</td><td><code{USER}>{esc(ds["path"])}</code></td>'
-            f'<td>{origin}</td><td class="num">{len(ds.get("used_by") or [])}</td>'
+            f'<td>{origin}</td><td class="num">{len(ds.get("used_by") or [])}'
+            f'{inferred_count_html((ds.get("inferred") or {}).get("used_by"))}</td>'
             f'<td class="sha">{short(ds.get("sha256"), 12)}</td></tr>')
     data = f"""
 <section id="data" class="tab">
@@ -1048,7 +1141,7 @@ def run_page(site: Site, run: dict) -> str:
     rid = run["id"]
     script = run.get("script") or {}
     fresh = site.fresh.of(rid)
-    same_script = [r for r in site.runs if (r.get("script") or {}).get("path") == script.get("path")]
+    same_script = [r for r in site.runs if site.script_of[r["id"]] == site.script_of[rid]]
     pos = next((i for i, r in enumerate(same_script) if r["id"] == rid), 0)
     nav = []
     if pos > 0:
@@ -1111,7 +1204,7 @@ def run_page(site: Site, run: dict) -> str:
         # The stale runs upstream output the same bytes as an input: candidates, not its producer.
         callouts += ('<div class="callout tone-warning"><strong>Upstream candidate stale.</strong> '
                      + UPSTREAM_STALE.format(runs=site.producer_html(fresh["stale_upstream"], 1))
-                     + "</div>")
+                     + inferred_runs_note(fresh.get("inferred_upstream")) + "</div>")
     if fresh.get("ambiguous_inputs") or fresh.get("cycle"):
         callouts += ('<div class="callout tone-warning">' + " ".join(producer_badges(fresh))
                      + " The inputs below name every successful run that output their bytes; none is "
@@ -1119,19 +1212,24 @@ def run_page(site: Site, run: dict) -> str:
 
     charts = []
     for chart in run.get("charts") or []:
-        key = core.chart_key(run, chart)
+        key = site.chart_key(run, chart)
         data_block = ""
         if chart.get("data"):
             data_block = (f'<details class="data-block" id="chart-{esc(chart["id"])}-data"><summary>Attached data · '
                           f'{fmt_num(chart.get("data_rows"))} rows · <a href="{site.file_link(chart["data"], 1)}">parquet</a></summary>'
                           f'{site.frame_preview(chart["data"])}</details>')
         line = f' · code <a href="#L-main-{chart["line"]}">L{chart["line"]}</a>' if chart.get("line") else ""
+        # The key the run recorded is the older kit's spelling (what people wrote: lang="").
+        inferred_key = (f' <small class="ref-note" title="{esc(INFERRED_TITLE)}">recorded as '
+                        f'<code{USER}>{esc(core.chart_key(run, chart))}</code> — '
+                        f'{esc(core.INFERRED_NOTE)}</small>'
+                        if key != core.chart_key(run, chart) else "")
         charts.append(f"""
 <article class="chart-card wide" id="chart-{esc(chart['id'])}">
   <header><h3{USER}>{esc(chart.get('title'))}</h3><div class="badges"><span class="badge tone-muted">{esc(chart.get('kind'))} · {esc(chart.get('via'))}</span></div></header>
   <div class="chart-body">{site.chart_html(chart, 1, lazy=False)}</div>
   {f'<p class="caption"{USER}>{esc(chart["caption"])}</p>' if chart.get('caption') else ''}
-  <div class="prov-line">id <code{USER}>{esc(key)}</code>{line} · <a href="{site.chart_anchor(key, 1)}">Show in Visualizations</a></div>
+  <div class="prov-line">id <code{USER}>{esc(key)}</code>{inferred_key}{line} · <a href="{site.chart_anchor(key, 1)}">Show in Visualizations</a></div>
   {data_block}
 </article>""")
     charts_html = "".join(charts) or '<div class="empty">This run made no visualizations.</div>'
@@ -1169,7 +1267,8 @@ def run_page(site: Site, run: dict) -> str:
         tone, icon, label = INPUT_STATE.get(f_entry["state"], INPUT_STATE["unknown"])
         producer = producer_cell(site, site.model.producer(rid, entry.get("path")), 1)
         input_rows.append(
-            f'<tr><td>{site.path_html(entry["path"], 1)}</td><td>{esc(", ".join(entry.get("via") or []))}</td>'
+            f'<tr><td>{site.path_html(entry["path"], 1)}{site.read_as_html(rid, entry.get("path"), 1)}</td>'
+            f'<td>{esc(", ".join(entry.get("via") or []))}</td>'
             f'<td class="num">{fmt_bytes(entry.get("bytes"))}</td><td class="sha">{short(entry.get("sha256"), 12)}</td>'
             f'<td>{badge(tone, icon, label)}'
             f'{" " + line_endings_badge() if f_entry.get("reason") == core.LINE_ENDINGS_ONLY else ""}'
@@ -1188,7 +1287,8 @@ def run_page(site: Site, run: dict) -> str:
             tone, icon, label = OUTPUT_STATE.get(seen["state"], OUTPUT_STATE["unknown"])
             now = badge(tone, icon, label, seen.get("reason"))
         output_rows.append(
-            f'<tr><td>{site.path_html(out["path"], 1)}</td><td>{esc(out.get("change"))}</td>'
+            f'<tr><td>{site.path_html(out["path"], 1)}{site.read_as_html(rid, out.get("path"), 1)}</td>'
+            f'<td>{esc(out.get("change"))}</td>'
             f'<td>{esc(out.get("via", ""))}</td><td class="num">{fmt_num(out.get("rows"))}</td>'
             f'<td{USER}>{esc(", ".join(c[0] for c in (out.get("schema") or [])[:12]))}</td>'
             f'<td class="sha">{short(out.get("sha256"), 12)}</td><td>{now}</td></tr>')
@@ -1265,6 +1365,7 @@ def dataset_page(site: Site, ds: dict, view: str) -> str:
             origin = f'<p class="lead"{USER}>{esc(meta["description"])}</p>' + origin
     producers = ds.get("producers") or []
     candidates = ds.get("producer_candidates") or []
+    inferred = ds.get("inferred") or {}
     said = core.dataset_origin(ds)
     # The file it was imported from is named by the path as written.
     current = (f"from {user_text(ds['source'])}" if ds.get("source") and said == f"from {ds['source']}"
@@ -1275,6 +1376,10 @@ def dataset_page(site: Site, ds: dict, view: str) -> str:
         current += (f" ({site.producer_html(candidates, 1)}). A run named here output this path with "
                     "these bytes, which is what the records show; it is not a confirmed link to the "
                     "run that made them")
+        if inferred.get("producer_candidates"):
+            current += (" " + inferred_badge(", ".join(inferred["producer_candidates"]))
+                        + " A run marked so recorded the path by its real place or in another "
+                        "spelling, and is named here by reading it as this path")
     lineage = [f"<h3>Current bytes</h3><p>{current}.</p>"]
 
     def change(run_id: str):
@@ -1289,17 +1394,23 @@ def dataset_page(site: Site, ds: dict, view: str) -> str:
                        + "".join(
             f'<li><a href="{esc(site.run_link(r, 1))}">{esc(r)}</a> {user_text((site.run_by_id.get(r) or {}).get("title"))}'
             f'{" · deleted this path" if change(r) == "deleted" else ""}'
-            f'{" · same bytes as now" if r in candidates else ""}</li>'
+            f'{" · same bytes as now" if r in candidates else ""}'
+            f'{inferred_mark(r, inferred.get("producers"))}</li>'
             for r in dict.fromkeys(producers)) + "</ul>")
     users = ds.get("used_by") or []
     lineage.append("<h3>Runs that read this data</h3>" + ("<ul class='plain'>" + "".join(
-        f'<li><a href="{site.run_link(r, 1)}">{esc(r)}</a> {user_text((site.run_by_id.get(r) or {}).get("title"))}</li>'
+        f'<li><a href="{site.run_link(r, 1)}">{esc(r)}</a> {user_text((site.run_by_id.get(r) or {}).get("title"))}'
+        f'{inferred_mark(r, inferred.get("used_by"))}</li>'
         for r in users) + "</ul>" if users else '<div class="empty">None yet</div>'))
+    # A chart's run read this data when it recorded its path, or (inferred) an older kit's path read
+    # as it.
     used_charts = [c for c in site.charts if not c.get("retired") and ds["path"] in
-                   {i["path"] for i in (site.run_by_id.get(c["run"]) or {}).get("inputs") or []}]
+                   {site.model.read_as(c["run"], i.get("path")) or i.get("path")
+                    for i in (site.run_by_id.get(c["run"]) or {}).get("inputs") or []}]
     if used_charts:
         lineage.append("<h3>Visualizations made from this data (latest versions)</h3><ul class='plain'>" + "".join(
-            f'<li><a href="{site.chart_anchor(c["key"], 1)}"{USER}>{esc(c.get("title"))}</a> <code{USER}>{esc(c["key"])}</code></li>'
+            f'<li><a href="{site.chart_anchor(c["key"], 1)}"{USER}>{esc(c.get("title"))}</a> <code{USER}>{esc(c["key"])}</code>'
+            f'{inferred_mark(c["run"], inferred.get("used_by"))}</li>'
             for c in used_charts) + "</ul>")
     # A statistic that does not apply to a column type is "–", never "null" (which is a data value).
     schema_rows = [[c["name"], c["dtype"], c.get("nulls"),

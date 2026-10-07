@@ -24,7 +24,7 @@ import time
 import tomllib
 import unicodedata
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from . import _platform, relations
 
@@ -99,8 +99,9 @@ class LabError(Exception):
 NAMES_RENAMED_IN = "0.3.0"
 # The kit version from which a record holds a path by one identity across links, case and Unicode
 # normalization (Issue #36, ADR-0006 9). Fixed, like NAMES_RENAMED_IN: a reader tells a run recorded
-# by an earlier kit by its env.kit_version (PEP 440 order), and reads its absolute paths through
-# Project.legacy_identity.
+# by an earlier kit by its env.kit_version (PEP 440 order), and reads its paths — absolute under the
+# root or a link's target, or relative in another spelling than the stored one — through
+# Project.legacy_identity as inferred (Issue #12). relations.PATH_IDENTITY_SINCE is the same.
 PATH_IDENTITY_SINCE = "0.5.0"
 
 
@@ -607,14 +608,31 @@ class Project:
         return self._from_table(real)
 
     def legacy_identity(self, recorded) -> str | None:
-        """What an absolute path a kit before PATH_IDENTITY_SINCE recorded is now: those kits
-        recorded the real path, as typed where the file system ignores case. Spelled as stored, it
-        is the project-relative path inside the root, the path below the first boundary that reaches
-        it as the namespace is linked now, else None — and None for a relative path (a decision Issue
-        #12 is waiting for). An inference from today's links: #12 shows it as `basis: inferred`."""
-        if not isinstance(recorded, str) or not os.path.isabs(recorded):
+        """What a path a kit before PATH_IDENTITY_SINCE recorded is now: those kits recorded the
+        real path (links followed), relative to the root (POSIX) inside it and absolute outside,
+        each name as typed where the file system ignores case or Unicode normalization. Spelled as
+        stored, it is the project-relative path inside the root, the path below the first boundary
+        that reaches it as the namespace is linked now, else None. A relative path is one under the
+        root (the owner's decision of 2026-10-06 on Issue #12); one such a kit could not have
+        written — with an empty, `.` or `..` part, a backslash (those kits wrote `/` between the
+        parts on every platform; a POSIX name with one is left as recorded too), a drive (`C:x`), a
+        URI, a path absolute on another platform — is None. An inference from today's links and
+        names: the read model (relations) reads it as `basis: inferred`, and only when it names an
+        entry or a run's recorded output."""
+        if not isinstance(recorded, str) or not recorded or "\x00" in recorded:
             return None
-        return self.identity_of_real(self.spelling.path(os.path.normpath(recorded)))
+        if os.path.isabs(recorded):
+            absolute = recorded
+        elif "://" in recorded or "\\" in recorded or PureWindowsPath(recorded).drive \
+                or _platform.absolute_record_path(recorded) \
+                or any(part in ("", ".", "..") for part in recorded.split("/")):
+            return None
+        else:
+            absolute = os.path.join(self._root, *recorded.split("/"))
+        try:
+            return self.identity_of_real(self.spelling.path(os.path.normpath(absolute)))
+        except (OSError, ValueError):
+            return None
 
     def boundaries(self) -> tuple:
         """The boundaries the last walk of the namespace went through, (namespace path, target)."""
@@ -1436,10 +1454,12 @@ def read_events(project: Project, journal: relations.Journal | None = None) -> l
 
 def read_model(project: Project, cache: HashCache | None = None) -> relations.ReadModel:
     """One read of the project's records as ADR-0006 says (relations.read): this platform's process
-    port says whether a running run's process is alive, and the project's hash cache hashes the
-    current files."""
+    port says whether a running run's process is alive, the project's hash cache hashes the
+    current files, and Project.legacy_identity reads the paths a kit before PATH_IDENTITY_SINCE
+    recorded as today's identity paths (inferred, ADR-0006 9)."""
     cache = cache or HashCache(project)
-    return relations.read(project.root, alive=project.platform.processes.alive, sha=cache.sha)
+    return relations.read(project.root, alive=project.platform.processes.alive, sha=cache.sha,
+                          legacy_path=project.legacy_identity)
 
 
 def resolved_targets(events) -> dict[str, dict]:
@@ -1687,11 +1707,16 @@ class Freshness:
         """The freshness of a run: each input's state, the changed or missing ones, the stale runs
         upstream, and the code's state. `change_reasons` maps a changed input to why it differs when
         that is known, and `code_reason` says the same of the code (else None); neither changes a
-        state or `stale`."""
+        state or `stale`. `inferred_inputs` are the inputs a producer candidate of which was found
+        only through a path a kit before PATH_IDENTITY_SINCE recorded (ADR-0006 9), and
+        `inferred_upstream` the stale runs upstream that are such a candidate of an input."""
         if run_id in self._memo:
             return self._memo[run_id]
         run = self.runs.get(run_id) or {}
         inputs, upstream, ambiguous, reasons = [], [], [], {}
+        inferred_inputs: list[str] = []
+        inferred_runs: set[str] = set()
+        observed_runs: set[str] = set()
         own = self._own(run)
         for entry in run.get("inputs") or []:
             state = self.input_state(entry, own)
@@ -1701,10 +1726,15 @@ class Freshness:
             if reason:
                 item["reason"] = reasons[entry.get("path")] = reason
             inputs.append(item)
-            candidates = self.model.producers(entry.get("path"), entry.get("sha256"),
-                                              consumer=run_id)
+            candidates, inferred = self.model.producer_candidates(entry.get("path"),
+                                                                  entry.get("sha256"),
+                                                                  consumer=run_id)
             if len(candidates) > 1 and entry.get("path") not in ambiguous:
                 ambiguous.append(entry.get("path"))
+            if inferred and entry.get("path") not in inferred_inputs:
+                inferred_inputs.append(entry.get("path"))
+            inferred_runs.update(inferred)
+            observed_runs.update(c for c in candidates if c not in inferred)
             upstream += [c for c in candidates if c not in upstream and self.stale_run(c)]
         direct = [i["path"] for i in inputs if i["state"] in ("changed", "missing")]
         code = self.code_state(run)
@@ -1713,32 +1743,47 @@ class Freshness:
                        if code == "changed" else None)
         result = {"inputs": inputs, "changed_inputs": direct, "stale_upstream": upstream,
                   "ambiguous_inputs": ambiguous, "cycle": self.model.upstream(run_id)["cycle"],
+                  "inferred_inputs": inferred_inputs,
+                  "inferred_upstream": [c for c in upstream
+                                        if c in inferred_runs and c not in observed_runs],
                   "code": code, "stale": bool(direct or upstream), "change_reasons": reasons,
                   "code_reason": code_reason}
         self._memo[run_id] = result
         return result
 
 
-def chart_index(runs: list[dict]) -> list[dict]:
-    """Latest version of every script::chart across successful runs, newest first."""
+def chart_index(runs: list[dict], read_as=None) -> list[dict]:
+    """Latest version of every script::chart across successful runs, newest first.
+
+    `read_as(run_id, path)` (the read model's) gives the identity path a kit before
+    PATH_IDENTITY_SINCE recorded a run's script by, read in today's spelling (ADR-0006 9): that
+    run's charts are versions of today's key, each marked `inferred` and counted in
+    `inferred_versions`. Without it a script is its path as recorded."""
     by_key: dict[str, list[dict]] = {}
     last_ok_by_script: dict[str, dict] = {}
     for r in runs:
         if r.get("status") != "ok" or r.get("rerun_of"):
             continue
-        script = (r.get("script") or {}).get("path") or "?"
+        recorded = (r.get("script") or {}).get("path") or "?"
+        read = read_as(r["id"], recorded) if read_as is not None and recorded != "?" else None
+        script = read or recorded
         last_ok_by_script[script] = r
         for c in r.get("charts") or []:
-            by_key.setdefault(chart_key(r, c), []).append(
-                {**c, "key": chart_key(r, c), "run": r["id"], "script": script,
-                 "run_title": r.get("title"), "started_at": r.get("started_at")})
+            key = f"{script}::{c.get('id')}"
+            entry = {**c, "key": key, "run": r["id"], "script": script,
+                     "run_title": r.get("title"), "started_at": r.get("started_at")}
+            if read:
+                entry["inferred"] = True
+            by_key.setdefault(key, []).append(entry)
     out = []
     for versions in by_key.values():
         latest = dict(versions[-1])
         last_run = last_ok_by_script.get(latest["script"]) or {}
         latest["retired"] = last_run.get("id") != latest["run"]
-        latest["versions"] = [{"run": v["run"], "started_at": v.get("started_at")}
+        latest["versions"] = [{"run": v["run"], "started_at": v.get("started_at"),
+                               **({"inferred": True} if v.get("inferred") else {})}
                               for v in versions]
+        latest["inferred_versions"] = sum(1 for v in versions if v.get("inferred"))
         out.append(latest)
     out.sort(key=lambda c: c.get("started_at") or "", reverse=True)
     return out
@@ -1766,21 +1811,46 @@ def list_datasets(project: Project, runs: list[dict] | None = None, *,
 
     An import record of a family or version this kit cannot read (relations.unsupported_reason) is
     not used: the file is listed by its path and bytes, and `unsupported_record` says where that
-    record is and why, as the read model counts it."""
+    record is and why, as the read model counts it.
+
+    With a read model, a path a kit before PATH_IDENTITY_SINCE recorded is read as the identity
+    path the model reads it as (ReadModel.read_as, ADR-0006 9): the runs that are a dataset's only
+    through such a reading are in `inferred` (`producer_candidates`, `producers`, `used_by`,
+    `written_by`, each as listed beside it), an inference and never an observation."""
     runs = list_runs(project) if runs is None else runs
     produced: dict[str, list[dict]] = {}
     used: dict[str, list[str]] = {}
     written: dict[str, list[str]] = {}
+    # (path as read, list) -> the runs in it through a recorded path and through an inferred one.
+    exact: dict[tuple[str, str], set[str]] = {}
+    through: dict[tuple[str, str], set[str]] = {}
+
+    def as_read(run_id: str, path):
+        return (model.read_as(run_id, path) if model is not None else None) or path
+
+    def note(name: str, run_id: str, recorded, path) -> None:
+        (exact if path == recorded else through).setdefault((path, name), set()).add(run_id)
+
     for r in runs:
         for out in r.get("outputs") or []:
             if out.get("change") != "deleted":
-                written.setdefault(out.get("path"), []).append(r["id"])
+                path = as_read(r["id"], out.get("path"))
+                written.setdefault(path, []).append(r["id"])
+                note("written_by", r["id"], out.get("path"), path)
         if r.get("status") != "ok":
             continue
         for out in r.get("outputs") or []:
-            produced.setdefault(out.get("path"), []).append({**out, "run": r["id"]})
+            path = as_read(r["id"], out.get("path"))
+            produced.setdefault(path, []).append({**out, "run": r["id"]})
+            note("producers", r["id"], out.get("path"), path)
         for entry in r.get("inputs") or []:
-            used.setdefault(entry.get("path"), []).append(r["id"])
+            path = as_read(r["id"], entry.get("path"))
+            used.setdefault(path, []).append(r["id"])
+            note("used_by", r["id"], entry.get("path"), path)
+
+    def inferred_in(path: str, name: str) -> set[str]:
+        return through.get((path, name), set()) - exact.get((path, name), set())
+
     items = []
     for base, kind in (("data/raw", "raw"), ("data/derived", "derived")):
         # Once per (name, path) within a kind: a raw file a derived link leads to is in both, as
@@ -1819,15 +1889,25 @@ def list_datasets(project: Project, runs: list[dict] | None = None, *,
                 item.setdefault("columns", len(last.get("schema") or []) or None)
                 item.setdefault("sha256", last.get("sha256"))
             item["used_by"] = sorted(set(used.get(rel, [])))
+            inferred: dict[str, list[str]] = {}
             if model is not None and sha is not None:
                 current = sha(p)
-                candidates = model.producers(rel, current) if current else []
+                candidates, through_candidates = (model.producer_candidates(rel, current)
+                                                  if current else ([], []))
                 item["producer_state"] = ("unknown" if not current else "none" if not candidates
                                           else "resolved" if len(candidates) == 1 else "ambiguous")
                 item["producer_candidates"] = candidates
                 if len(candidates) == 1:
                     item["producer"] = candidates[0]
                 item["written_by"] = list(dict.fromkeys(written.get(rel, [])))
+                if through_candidates:
+                    inferred["producer_candidates"] = through_candidates
+            for name in ("producers", "used_by", "written_by"):
+                runs_in = inferred_in(rel, name)
+                if runs_in and name in item:
+                    inferred[name] = [r for r in dict.fromkeys(item[name]) if r in runs_in]
+            if inferred:
+                item["inferred"] = inferred
             items.append(item)
     return items
 
@@ -1919,7 +1999,7 @@ def status(project: Project, limit: int = STATUS_LIMIT) -> dict:
     runs = model_runs(project, model)
     datasets = list_datasets(project, runs, model=model, sha=cache.sha)
     fresh = Freshness(project, runs, cache, model)
-    charts = chart_index(runs)
+    charts = chart_index(runs, model.read_as)
     resolved = resolved_targets(events)
     context_text = context_file_text(project)
     _, _, context_omitted, context_truncated = context_selection(context_text)
@@ -1933,6 +2013,9 @@ def status(project: Project, limit: int = STATUS_LIMIT) -> dict:
                            "changed_inputs": f["changed_inputs"],
                            "stale_upstream": f["stale_upstream"],
                            "ambiguous_inputs": f["ambiguous_inputs"], "cycle": f["cycle"],
+                           "inferred_versions": c["inferred_versions"],
+                           "inferred_inputs": f["inferred_inputs"],
+                           "inferred_upstream": f["inferred_upstream"],
                            "code": f["code"], "change_reasons": f["change_reasons"],
                            "code_reason": f["code_reason"]})
     recording = {r["run_id"]: r for r in model.runs()}
@@ -2135,15 +2218,19 @@ def _status_list_len(st: dict, name: str) -> int:
 
 # How a screen says a `changed` file differs only in its line ends (ADR-0007 decision 4).
 LINE_ENDINGS_NOTE = "(line endings only)"
+# How a screen says a relation was found only by reading a path a kit before PATH_IDENTITY_SINCE
+# recorded as today's identity path (ADR-0006 9, basis inferred): never an observed or confirmed one.
+INFERRED_NOTE = "inferred from an older kit's path"
 
 
-def _stale_reasons(shown: list[str], direct: int, line_endings=frozenset()) -> str:
+def _stale_reasons(shown: list[str], direct: int, line_endings=frozenset(),
+                   inferred=frozenset()) -> str:
     """Why a chart is stale: its run's changed or missing inputs (the first `direct` of `shown`), then
     the stale runs upstream. Those output the same bytes as an input: producer candidates, not known
     producers (ADR-0006 4). An input in `line_endings` differs from its record only in its line ends
-    and says so."""
+    and says so; a run in `inferred` is a candidate only through an older kit's path and says so."""
     paths = [f"{p} {LINE_ENDINGS_NOTE}" if p in line_endings else p for p in shown[:direct]]
-    runs = shown[direct:]
+    runs = [f"{r} ({INFERRED_NOTE})" if r in inferred else r for r in shown[direct:]]
     if not runs:
         return ", ".join(paths)
     upstream = ("upstream candidate " if len(runs) == 1 else "upstream candidates ") + ", ".join(runs)
@@ -2230,7 +2317,8 @@ def _status_lines(st: dict, caps: dict[str, int]) -> list[tuple[str, str, bool]]
     for ds in datasets:
         add("datasets", f"  {ds['kind']:<7} {ds['name']}: {_fmt_int(ds.get('rows'))} rows × "
                         f"{ds.get('columns') or '?'} cols · {ds['path']} · {dataset_origin(ds)} · "
-                        f"used by {len(ds.get('used_by') or [])} run(s)")
+                        f"used by {len(ds.get('used_by') or [])} run(s)"
+                        + _inferred_count((ds.get("inferred") or {}).get("used_by")))
     if len(datasets) < len(st["datasets"]):
         add("datasets", f"  … {len(st['datasets']) - len(datasets):,} more dataset(s) not listed: "
                         f"{VIEWS_PAGES} to list every view; an imported one's record is "
@@ -2260,10 +2348,13 @@ def _status_lines(st: dict, caps: dict[str, int]) -> list[tuple[str, str, bool]]
                         f"runs/{c['run']}/run.json")
             line_endings = frozenset(p for p, reason in (c.get("change_reasons") or {}).items()
                                      if reason == LINE_ENDINGS_ONLY)
-            flags.append(f"STALE({_stale_reasons(shown, len(c['changed_inputs']), line_endings)}"
+            inferred = frozenset(c.get("inferred_upstream") or ())
+            flags.append(f"STALE({_stale_reasons(shown, len(c['changed_inputs']), line_endings, inferred)}"
                          f"{more})")
         if c.get("ambiguous_inputs"):
             flags.append(f"producer ambiguous for {len(c['ambiguous_inputs'])} input(s)")
+        if c.get("inferred_inputs"):
+            flags.append(f"producer {INFERRED_NOTE} for {len(c['inferred_inputs'])} input(s)")
         if c.get("cycle"):
             flags.append("producer cycle")
         if c["code"] == "changed":
@@ -2274,7 +2365,10 @@ def _status_lines(st: dict, caps: dict[str, int]) -> list[tuple[str, str, bool]]
         if not c["has_data"] and c.get("kind") == "matplotlib":
             flags.append("plotted data not recorded")
         add("charts", f"  {c['key']} \"{_one_line(c.get('title'), 70)}\" run {c['run']} "
-                      f"v{c['versions']}" + (" · " + "; ".join(flags) if flags else ""))
+                      f"v{c['versions']}"
+                      + (f" ({c['inferred_versions']} {INFERRED_NOTE})" if c.get("inferred_versions")
+                         else "")
+                      + (" · " + "; ".join(flags) if flags else ""))
     if more_charts > 0:
         add("charts", f"  … {more_charts:,} more chart(s) not listed: the journal entry of the run "
                       "that made each names it", note=True)
@@ -2387,18 +2481,36 @@ def _records_lines(st: dict, journal: Path) -> list[str]:
     return out
 
 
+def _inferred_count(runs) -> str:
+    """` (N inferred from an older kit's path)` for the runs of a count found only so, else ''."""
+    return f" ({len(runs):,} {INFERRED_NOTE})" if runs else ""
+
+
+def _inferred_names(runs, field: str) -> str:
+    """`; inferred from an older kit's path: A, B` naming the runs of a list found only so (three,
+    and how many more and where), else ''."""
+    if not runs:
+        return ""
+    return f"; {INFERRED_NOTE}: " + _places(
+        runs, STATUS_CANDIDATES, f"the kit's `status` command lists every one in its JSON `inferred.{field}`")
+
+
 def dataset_origin(ds: dict) -> str:
     """Where a dataset's current bytes come from, as far as the records say (ADR-0006 4): the runs
     whose recorded output had this path and these bytes, the file it was imported from, or neither.
-    A run is named as having output the same bytes, not as having made them."""
+    A run is named as having output the same bytes, not as having made them, and one found only
+    through a path a kit before PATH_IDENTITY_SINCE recorded says so (ADR-0006 9)."""
     state = ds.get("producer_state")
     candidates = ds.get("producer_candidates") or []
+    inferred = ds.get("inferred") or {}
     if state == "resolved":
-        return f"same bytes as run {candidates[0]}'s output"
+        return (f"same bytes as run {candidates[0]}'s output"
+                + (f" ({INFERRED_NOTE})" if inferred.get("producer_candidates") else ""))
     if state == "ambiguous":
         listed = _places(candidates, STATUS_CANDIDATES,
                          "the kit's `status` command lists every one in its JSON `producer_candidates`")
-        return f"same bytes as {len(candidates):,} runs: {listed}"
+        return (f"same bytes as {len(candidates):,} runs: {listed}"
+                + _inferred_names(inferred.get("producer_candidates"), "producer_candidates"))
     if ds.get("unsupported_record"):
         record = ds["unsupported_record"]
         return f"import record not read ({record['location']}: {record['reason']})"
@@ -2411,7 +2523,8 @@ def dataset_origin(ds: dict) -> str:
         listed = _places(written[::-1], STATUS_CANDIDATES,
                          "the kit's `status` command lists every one in its JSON `written_by`")
         return (f"no successful run output these bytes (changed since, or written by a run that did "
-                f"not succeed); runs that wrote this path, latest first: {listed}")
+                f"not succeed); runs that wrote this path, latest first: {listed}"
+                + _inferred_names((inferred.get("written_by") or [])[::-1], "written_by"))
     return "NO PRODUCING RUN (written outside analytics_run: no code or inputs recorded)"
 
 

@@ -64,10 +64,12 @@ class LegacyProject:
     def run(self, run_id: str, *, script: str = "scripts/a.py", status: str = "ok",
             started_at: str | None = None, inputs=(), outputs=(), charts=(), pid=None,
             finalize_errors=None, schema: str = "lab.run/1", completion: bool = True,
-            ts: str | None = None) -> str:
+            ts: str | None = None, kit_version: str | None = None) -> str:
         """Write runs/<id>/run.json and, with `completion`, the kind=run event the runner writes after
         it (charts only when the run succeeded). `inputs` and `outputs` are (path, sha256) pairs;
-        each chart gets a file under the run directory."""
+        each chart gets a file under the run directory. With `kit_version` the record has an `env`
+        holding it, as a kit's run does; without, it has none (a reader takes it for an older kit's,
+        ADR-0006 9)."""
         chart_records = []
         for chart_id in charts:
             rel = f"runs/{run_id}/charts/{chart_id}.plotly.json"
@@ -87,6 +89,8 @@ class LegacyProject:
                   "charts": chart_records}
         if pid is not None:
             record["pid"] = pid
+        if kit_version is not None:
+            record["env"] = {"kit_version": kit_version}
         if finalize_errors:
             record["finalize_errors"] = list(finalize_errors)
         self.write_json(f"runs/{run_id}/run.json", record)
