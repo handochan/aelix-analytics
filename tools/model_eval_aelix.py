@@ -249,9 +249,9 @@ def forms_of(value: str) -> list[tuple[bytes, bytes]]:
     or not, with "/" escaped as "\\/" or not, and escaped twice: a JSON string inside a JSON string,
     as a tool result in an event line); URL-encoded (quote, quote_plus, "/" kept or not, upper- or
     lower-case hex); base64 and base64url at each of the three alignments (the characters that only
-    the value's bits decide, so also inside a longer encoded run); UTF-16LE and UTF-16BE. Not: a
-    value split across lines (a wrapped base64 output, a folded header) or encoded otherwise (hex,
-    compressed, a part of it)."""
+    the value's bits decide, so also inside a longer encoded run); the lower- and upper-case hex of
+    its UTF-8 bytes; UTF-16LE and UTF-16BE. Not: a value split across lines (a wrapped base64 or hex
+    dump, a folded header) or encoded otherwise (compressed, a part of it)."""
     raw = value.encode("utf-8")
     texts = {value}
     for escaped in (json.dumps(value)[1:-1], json.dumps(value, ensure_ascii=False)[1:-1]):
@@ -264,6 +264,7 @@ def forms_of(value: str) -> list[tuple[bytes, bytes]]:
         for shift in range(3):
             encoded = encode(b"\0" * shift + raw)
             found.add(encoded[-(-8 * shift // 6):8 * (shift + len(raw)) // 6])
+    found |= {raw.hex().encode("ascii"), raw.hex().upper().encode("ascii")}
     forms = [(form, marker(len(form))) for form in found if form]
     for codec in ("utf-16-le", "utf-16-be"):
         form = value.encode(codec)

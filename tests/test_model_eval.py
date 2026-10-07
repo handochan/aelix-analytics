@@ -1147,6 +1147,7 @@ def written_forms(value: str) -> dict[str, bytes]:
                                 urllib.parse.quote(value, safe="")).encode(),
             "base64": base64.b64encode(raw)[4:-4], "base64_shift1": base64.b64encode(b"x" + raw)[4:-4],
             "base64url_shift2": base64.urlsafe_b64encode(b"xy" + raw)[4:-4],
+            "hex": raw.hex().encode(), "hex_upper": raw.hex().upper().encode(),
             "utf16le": value.encode("utf-16-le"), "utf16be": value.encode("utf-16-be")}
 
 
@@ -1188,11 +1189,12 @@ def test_the_launcher_masks_every_form_of_a_value_and_keeps_the_layout():
         b"?t=" + w["url"] + b"&u=" + w["url_lower"] + b"&p=" + w["url_plus"],
         b"img " + base64.b64encode(b"\x89PNG" + raw + b"tail") + b" end",
         b"u " + base64.urlsafe_b64encode(b"ab" + raw) + b" " + base64.b64encode(raw),
+        b"x " + w["hex"] + b" X " + w["hex_upper"],
         b"\xff\xfe" + value.encode("utf-16-le") + b"\x00\x00", value.encode("utf-16-be")])
     values = launcher.Values()
     values.add(value)
     masked, count = launcher.mask(data, values.forms())
-    assert count >= 11 and len(masked) == len(data)  # each form over by a marker of its length
+    assert count >= 13 and len(masked) == len(data)  # each form over by a marker of its length
     assert not any(form in masked for form in w.values())
     assert b"answer: <redacted" in masked and masked.count(b"\n") == data.count(b"\n")
     assert "<redacted".encode("utf-16-le") in masked and "<redacted".encode("utf-16-be") in masked

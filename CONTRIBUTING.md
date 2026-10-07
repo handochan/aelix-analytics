@@ -195,7 +195,7 @@ uv run --locked python tools/model_eval.py run --model gpt-5.6-sol --task T06 --
 덮어쓰고 위치만 적으며, 찾으면 `secret_scan: failed`(종료 코드 1)입니다. 덮어쓸 때는 새 파일로 바꿔 쓰고(하드 링크로 이어진 파일에
 쓰지 않음), 그 전에 run 밖으로 이어진 심볼릭·하드 링크의 이름을 지웁니다. 그보다 먼저 런처(로그인을 메모리에 가진 aelix 자신의
 프로세스)가 aelix가 끝나고 작업 루트가 run으로 옮겨진 뒤 run의 모든 파일·링크 대상·이름에서 로그인의 정확한 값(원래 바이트, JSON
-이스케이프, URL 인코딩, base64, UTF-16)을 같은 방식으로 가리고 개수와 상대 경로만 알립니다(POSIX, `secret_scan.exact`: 찾거나 하지
+이스케이프, URL 인코딩, base64, 16진수, UTF-16)을 같은 방식으로 가리고 개수와 상대 경로만 알립니다(POSIX, `secret_scan.exact`: 찾거나 하지
 못하면 실패). 값은 런처 밖으로 나가지 않습니다. 키 변수를 지정한 모델 설정이면 그 키의 바이트도 같은 방식으로
 덮어씁니다. 하네스가 신호로 멈추면 진행 중인 run을 검사까지 마치고, `kill -9`로 끝나면 그 run은 `scan OUT`이 검사할 때까지
 `not_scanned`로 남습니다. 모델이 작업 루트 밖에 쓴 파일은 찾지 않습니다([실제 모델 평가 안내](tools/model_eval_data/README.md#프론티어-모델)).
