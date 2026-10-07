@@ -6,24 +6,34 @@ it is written for, and the answers' numbers and verdicts are those tools/eval_fi
 judgments and manifest hold; the scoring passes a right answer and fails a wrong one, a stale value stated
 as current and a missing citation; aelix's event stream is read into turns, tool calls (with the class of
 each failure) and tokens by each adapter's usage convention; the tool surfaces and the two generations of
-names give the right command line; a model whose key is missing and the always_on condition are not run,
-with the reason; no file of the repository holds a key.
+names give the right command line; a model whose login or key is missing and the always_on condition are
+not run, with the reason; the secret scan overwrites credential-shaped text (a JWT, a bearer token, a
+refresh/access field, an sk- key, a random long token) without knowing it and removes a link that leaves
+the run, and passes what runs hold that is not a credential; no file of the repository holds a key or a
+credential shape.
 
 With uv and aelix 0.1.0b2 (resolved by uv, as the CI's aelix tests are): the dry run end to end — the
 harness's scripted fake model, the real aelix process, this checkout's extension and kit in a work root
 outside the output, the event stream, the project's changes, the score — and no secret of the
 environment in anything it writes; a model configuration that names a key variable, with a script
 that puts the key into a bash call, a record and the answer, leaves no copy of it under the output,
-also when the harness fails after aelix exited. tests/test_model_eval_scoring.py holds the reviewers'
-adversarial answers.
+also when the harness fails after aelix exited. A model that uses an aelix login (as the frontier
+gpt-5.6-sol does through aelix's openai-codex login): with a fake login file holding dummy tokens,
+aelix (through tools/model_eval_aelix.py) sends the login's key read in place, the run's directory
+gets no store, no link and none of the dummy values even when the model prints the login, the secret
+scan fails and says where; a login without the model's provider, or no login file, is not run.
+tests/test_model_eval_scoring.py holds the reviewers' adversarial answers.
 """
 
 from __future__ import annotations
 
+import contextlib
+import hashlib
 import importlib.util
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -90,10 +100,15 @@ def test_the_configuration_has_twelve_tasks_with_draft_answers_and_both_models(c
     assert (entry["contextWindow"], entry["maxTokens"]) == (131072, serving["output_reservation"])
     assert qwen["api_key_env"] is None
 
-    frontier = config.models["gpt-6-astra"]
-    assert (frontier["provider"], frontier["model"], frontier["api"]) == ("openai", "gpt-6-astra",
-                                                                          "openai-responses")
-    assert frontier["api_key_env"] == "OPENAI_API_KEY" and frontier["aelix_provider"] is None
+    # The frontier model through aelix's own openai-codex login (owner decision 2026-10-07, updated).
+    frontier = config.models["gpt-5.6-sol"]
+    assert (frontier["provider"], frontier["model"], frontier["api"], frontier["thinking"]) == (
+        "openai-codex", "gpt-5.6-sol", "openai-codex-responses", "medium")
+    assert frontier["auth"]["source"] == "aelix_login" and frontier["auth"]["provider"] == "openai-codex"
+    assert frontier["api_key_env"] is None and frontier["aelix_provider"] is None
+    assert (frontier["serving"]["context_window"], frontier["serving"]["output_reservation"]) == (1050000, 128000)
+    assert "1.1M" in frontier["serving"]["listed"] and "128K" in frontier["serving"]["listed"]
+    assert sorted(config.models) == ["dry-run", "gpt-5.6-sol", "qwen3.8-27b-local"]
 
 
 def copy_data(tmp_path: Path) -> Path:
@@ -121,13 +136,20 @@ def test_an_invalid_configuration_is_refused_with_every_problem(tmp_path):
     edit_json(data / "tasks.json", lambda t: t["tasks"][0]["requests"].append("--help"))
     edit_json(data / "models" / "dry-run.json",
               lambda m: m["aelix_provider"].update(apiKey="sk-" + "a" * 30))
+    edit_json(data / "models" / "gpt-5.6-sol.json", lambda m: m.update(
+        auth={"source": "copied_file", "provider": "openai-codex"}, api_key_env="OPENAI_API_KEY",
+        api="openai-chat"))
+    edit_json(data / "models" / "qwen3.8-27b-local.json", lambda m: m["serving"].update(
+        note="refresh: " + "\"" + "Ab1" * 8 + "\""))
     (data / "answers" / "T12.json").unlink()
     with pytest.raises(me.UsageError) as caught:
         me.load_config(data)
     message = str(caught.value)
     for expected in ("type 'guess' is unknown", "status must be one of", "a critical check is a "
                      "stated_as_current check", "does not compile", "may not start with - or @",
-                     "looks like a real key", "answers/T12.json is missing"):
+                     "looks like a real key", "answers/T12.json is missing", "auth must say its source",
+                     "an aelix login or a key variable, not both", "api must be one of",
+                     "qwen3.8-27b-local.json: the configuration holds credential-shaped text (credential_field)"):
         assert expected in message
 
 
@@ -324,6 +346,16 @@ def test_the_event_stream_gives_turns_calls_and_tokens_by_the_adapters_conventio
     assert me.token_totals([], "openai-responses")["output"] == {
         "status": "not_measured", "reason": "no model request was made"}
 
+    # The codex backend (the frontier model through aelix's openai-codex login): the same Responses
+    # engine, so the same convention; a reasoning 0 may be aelix's default, which the note says.
+    tr = me.parse_events(event_lines("openai-codex-responses", {"input": 300, "output": 20, "cache_read": 900,
+                                                                "reasoning": 7}))
+    tokens = me.token_totals(tr.messages, "openai-codex-responses")
+    assert (tokens["input_uncached"]["value"], tokens["input_cached"]["value"], tokens["output"]["value"]) == (
+        2800, 2100, 60)
+    assert tokens["reasoning"]["value"] == 11 and "not told apart" in tokens["reasoning"]["note"]
+    assert tokens["cache_write"]["status"] == "not_measured" and tokens["complete"]
+
 
 @pytest.mark.parametrize("text, is_error, expected", [
     ("Unknown tool: analytics_qeury", True, "unknown_tool"),
@@ -372,21 +404,72 @@ def test_surfaces_and_generations_give_the_command_line(config, tmp_path):
     assert not any(k.startswith("AELIX_ANALYTICS_") for k in env)
 
 
-def test_a_missing_key_runs_nothing_and_says_how_to_run(tmp_path, monkeypatch, capsys):
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+def test_a_missing_login_runs_nothing_and_says_how_to_run(tmp_path, capsys):
     out = tmp_path / "out"
-    code = me.main(["run", "--model", "gpt-6-astra", "--task", "T06", "--out", str(out)])
+    login = tmp_path / "home" / ".aelix" / "agent" / "auth.json"
+    code = me.main(["run", "--model", "gpt-5.6-sol", "--task", "T06", "--out", str(out), "--aelix-auth", str(login)])
     assert code == 3
-    record = json.loads((out / "runs" / "T06-gpt-6-astra-default-unrequested-r1" / "run.json").read_text(
+    record = json.loads((out / "runs" / "T06-gpt-5.6-sol-default-unrequested-r1" / "run.json").read_text(
         encoding="utf-8"))
-    assert record["outcome"] == "not_run" and record["reason"].startswith("api_key_missing: OPENAI_API_KEY")
-    assert record["command_to_run"].startswith("OPENAI_API_KEY=<key> uv run --locked python tools/model_eval.py run")
-    assert "--model gpt-6-astra --task T06" in record["command_to_run"]
-    assert record["model"]["model"] == "gpt-6-astra"
+    assert record["outcome"] == "not_run" and record["reason"].startswith("aelix_login_missing: ")
+    assert "does not exist" in record["reason"] and "/login" in record["login_to_run"]
+    assert record["command_to_run"].startswith(
+        "uv run --locked python tools/model_eval.py run --model gpt-5.6-sol --task T06 --surface default")
+    assert shlex.join(["--aelix-auth", str(login)]) in record["command_to_run"]
+    assert record["model"]["auth"]["file"] == str(login)
+    assert record["model"]["auth"]["login_check"]["ok"] is False
+    assert record["model"]["configuration"]["provider"] == "openai-codex"
+    assert not login.parent.exists()  # nothing was made where the login would be
     assert not (out / "fixtures").exists()  # nothing was made or started
     summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
     assert summary["aggregate"][0]["not_run"] == 1 and summary["aggregate"][0]["success"] == 0
-    assert "to run: OPENAI_API_KEY=<key>" in capsys.readouterr().out
+    printed = capsys.readouterr().out
+    assert "login: log in with aelix" in printed and "to run: uv run --locked" in printed
+
+
+def test_a_missing_key_runs_nothing(tmp_path, monkeypatch):
+    original = me.load_config
+
+    def with_key(*args, **kwargs):
+        config = original(*args, **kwargs)
+        config.models["dry-run"] = {**config.models["dry-run"], "api_key_env": "EVAL_PROBE_KEY"}
+        return config
+
+    monkeypatch.setattr(me, "load_config", with_key)
+    monkeypatch.delenv("EVAL_PROBE_KEY", raising=False)
+    out = tmp_path / "out"
+    assert me.main(["run", "--model", "dry-run", "--task", "T06", "--out", str(out)]) == 3
+    record = json.loads(next((out / "runs").glob("*/run.json")).read_text(encoding="utf-8"))
+    assert record["reason"] == "api_key_missing: EVAL_PROBE_KEY is not set"
+    assert record["command_to_run"].startswith("EVAL_PROBE_KEY=<key> uv run --locked python tools/model_eval.py")
+    assert not (out / "fixtures").exists()
+
+
+def test_a_login_model_refuses_another_command_and_shared_directories(tmp_path):
+    login = tmp_path / "agent" / "auth.json"
+    base = ["run", "--model", "gpt-5.6-sol", "--task", "T06", "--aelix-auth", str(login)]
+    assert me.main([*base, "--out", str(tmp_path / "a"), "--aelix-command", "aelix"]) == 2
+    assert me.main([*base, "--out", str(tmp_path / "agent" / "out")]) == 2
+    assert me.main([*base, "--out", str(tmp_path / "b"), "--work-root", str(tmp_path / "agent" / "w")]) == 2
+    assert me.main(["run", "--model", "dry-run", "--task", "T06", "--out", str(tmp_path / "c"),
+                    "--aelix-auth", str(login)]) == 2
+    assert sorted(p.name for p in tmp_path.iterdir()) == []  # refused before anything was made
+
+
+def test_the_login_is_where_the_callers_aelix_keeps_it_and_aelix_starts_through_the_launcher(
+        config, tmp_path, monkeypatch):
+    monkeypatch.delenv("AELIX_CODING_AGENT_DIR", raising=False)
+    assert me.default_aelix_auth() == Path(os.path.abspath(Path.home() / ".aelix" / "agent" / "auth.json"))
+    monkeypatch.setenv("AELIX_CODING_AGENT_DIR", str(tmp_path / "agent"))
+    assert me.default_aelix_auth() == Path(os.path.abspath(tmp_path / "agent" / "auth.json"))
+    login = tmp_path / "login.json"
+    assert me.launch_command(config.models["gpt-5.6-sol"], login, ["aelix"]) == [
+        *me.AELIX_COMMAND[:-1], "python", str(me.LAUNCHER), str(login)]
+    assert me.launch_command(config.models["qwen3.8-27b-local"], None, ["aelix"]) == ["aelix"]
+    # The launcher changes the credential store's path only, and only with an isolated agent directory.
+    source = me.LAUNCHER.read_text(encoding="utf-8")
+    assert "AuthStorage.__init__" in source and "entry.main_sync()" in source
+    assert "AELIX_CODING_AGENT_DIR is not set" in source
 
 
 def test_always_on_is_not_run_until_the_kit_has_the_setting(tmp_path):
@@ -418,12 +501,96 @@ def test_no_file_of_the_repository_holds_a_key():
         path = ROOT / name
         if not path.is_file() or path.stat().st_size > 5_000_000:
             continue
-        text = path.read_bytes().decode("utf-8", errors="ignore")
+        data = path.read_bytes()
+        text = data.decode("utf-8", errors="ignore")
         if path == Path(__file__):
             text = text.replace(KEY_LIKE.pattern, "")
         if KEY_LIKE.search(text):
             offenders.append(name)
+        # The harness's credential shapes too (the dummies of these tests are built at run time).
+        offenders += [f"{name}:{f['line']} {f['kind']}" for f in me.credential_findings(data)]
     assert offenders == []
+
+
+def test_what_still_works_in_the_work_root_is_waited_for_then_stopped(tmp_path):
+    work = tmp_path / "aelix-eval-T00-settle"
+    work.mkdir()
+    proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)", str(work)],
+                            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                            **me.processes().spawn_kwargs())
+    try:
+        found = me.processes_naming([str(work)])
+        if found is None:
+            pytest.skip("this machine gives no process list (ps or PowerShell)")
+        assert proc.pid in [pid for pid, _ in found]
+        result = me.settle(work, timeout=1)
+        assert result["checked"] and proc.pid in result["stopped"] and result["left"] == []
+        assert proc.wait(timeout=60) is not None
+    finally:
+        with contextlib.suppress(OSError):
+            proc.kill()
+    assert me.settle(work, timeout=1)["processes"] == []
+
+
+def dummy_login() -> tuple[str, str, str, str]:
+    """A JWT, a refresh token, an API key and an opaque bearer token: dummies of the login's shapes,
+    built here so that no file holds one."""
+    jwt = ".".join(["eyJ" + "hbGciOiJIUzI1NiJ9", "eyJ" + "zdWIiOiJkdW1teSJ9", "Dm" + "Q4x9Lk2Pz7Rw-v_3"])
+    refresh = "rt_" + "Dm4Q8xLk2Pz7Rw9Vb" * 2
+    key = "sk-" + "dummy" + "Q4x9Lk2Pz7Rw5Vb3Nc8"
+    opaque = "Zx9Qm4Lk7Pw2" * 3
+    return jwt, refresh, key, opaque
+
+
+def test_the_secret_scan_overwrites_credential_shapes_without_knowing_them(tmp_path):
+    jwt, refresh, key, opaque = dummy_login()
+    login = json.dumps({"openai-codex": {"type": "oauth", "access": jwt, "refresh": refresh, "expires": 1},
+                        "other": {"type": "api_key", "key": key}})
+    run = tmp_path / "run"
+    (run / "work" / "project").mkdir(parents=True)
+    # The login printed by a tool, inside a JSON event line (its quotes escaped).
+    (run / "events.jsonl").write_text(json.dumps({"type": "tool_execution_end", "result": login}) + "\n",
+                                      encoding="utf-8")
+    (run / "work" / "project" / "notes.txt").write_text(
+        f"Authorization: Bearer {opaque}\nREFRESH_TOKEN={refresh}\n", encoding="utf-8")
+    (run / "x.bin").write_bytes(b"\x00" + key.encode() + b"\x01")
+    # What runs hold that is not a credential.
+    benign = "\n".join([
+        "T06-dry-run-default-unrequested-r1", "e2674e1072b9780db582951701181161239f7127b3723eb343fb36d96efa1564",
+        "6e5241b4-86b1-43c1-bace-74f4f07a01f2", '"apiKey": "ollama-local-no-key"', "resp_" + "68e4c2a1" * 6,
+        '"encrypted_content": "gAAAAAB' + "o5Kx" * 40 + '"', "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+        "iVBORw0KGgo" + "+AbC9xQ2/" * 30 + "==", "_handleOverridablePaintPropertyUpdate", "accessToken:r._mapboxAccessToken"])
+    (run / "benign.txt").write_text(benign, encoding="utf-8")
+    secret_file = tmp_path / "login.json"
+    secret_file.write_text(login, encoding="utf-8")
+    try:
+        (run / "work" / "link-out").symlink_to(secret_file)
+        (run / "work" / "link-in").symlink_to(run / "work" / "project", target_is_directory=True)
+        links = True
+    except OSError:  # Windows without the symlink privilege
+        links = False
+
+    scan = me.scan_tree(run)
+    assert scan["status"] == "failed" and scan["masked"]
+    found = {(f["file"], f["kind"]) for f in scan["findings"]}
+    assert {("events.jsonl", "jwt"), ("events.jsonl", "credential_field"), ("events.jsonl", "sk_key"),
+            ("work/project/notes.txt", "bearer"), ("work/project/notes.txt", "credential_field"),
+            ("x.bin", "sk_key")} <= found
+    assert not any(f["file"] == "benign.txt" for f in scan["findings"])
+    assert all(set(f) == {"file", "line", "kind", "length"} for f in scan["findings"])  # never a value
+    for value in (jwt, refresh, key, opaque):
+        assert files_with(run, value) == []
+    assert (run / "x.bin").stat().st_size == len(key) + 2  # same length
+    json.loads((run / "events.jsonl").read_text(encoding="utf-8"))  # still JSON
+    assert secret_file.read_text(encoding="utf-8") == login  # the link was not followed
+    if links:
+        assert not (run / "work" / "link-out").is_symlink()
+        assert scan["outside_links_removed"] == [{"file": "work/link-out", "target": str(secret_file)}]
+        assert [link["file"] for link in scan["links"]] == ["work/link-in"]
+    clean = tmp_path / "clean"
+    clean.mkdir()
+    (clean / "benign.txt").write_text(benign, encoding="utf-8")
+    assert me.scan_tree(clean)["status"] == "passed"
 
 
 # --- the dry run, end to end through aelix -------------------------------------------------------
@@ -485,6 +652,17 @@ def test_the_dry_run_goes_through_aelix_and_is_scored(aelix_command, fixtures, t
     # Only the work copy: the fixture's answers never reach the model's directory.
     work = runs / "T06-dry-run-default-unrequested-r1" / "work"
     assert sorted(p.name for p in work.iterdir()) == ["input", "project"]
+    # The project's environment the kit made with uv is removed (uv.lock stays), and every file left
+    # passed the secret scan; no link leaves the run.
+    assert [e["path"] for e in t06["environments_removed"]["removed"]] == ["work/project/.venv"]
+    assert not (work / "project" / ".venv").exists() and (work / "project" / "uv.lock").is_file()
+    assert t06["secret_scan"]["status"] == "passed" and t06["secret_scan"]["files"] > 0
+    assert t06["secret_scan"]["outside_links_removed"] == []
+    # The kit's detached report build, which outlives aelix, was waited for before the work root moved:
+    # nothing was stopped or left, and nothing was written back where the work root was.
+    assert t06["after_exit"]["stopped"] == [] and t06["after_exit"].get("left", []) == []
+    assert sorted(roots.iterdir()) == []
+    assert "login" not in t06 and t06["host"]["launch"] == list(me.AELIX_COMMAND)
     # The request body the fake server read, and the whole model configuration with its hash.
     assert t06["request_body"]["tool_schema_bytes"] > 1000 and t06["request_body"]["system_prompt_bytes"] > 0
     assert t06["model"]["configuration"]["id"] == "dry-run"
@@ -580,3 +758,85 @@ def test_a_key_is_overwritten_when_the_harness_fails_after_aelix_exits(aelix_com
     assert files_with(out, LEAK) == []
     summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
     assert [r["outcome"] for r in summary["runs"]] == ["error"]
+
+
+@pytest.fixture
+def login_dry_run(monkeypatch):
+    """The dry-run model with its credential from an aelix login instead of models.json, as the
+    frontier configuration has (auth.source aelix_login)."""
+    original = me.load_config
+
+    def with_login(*args, **kwargs):
+        config = original(*args, **kwargs)
+        model = json.loads(json.dumps(config.models["dry-run"]))
+        del model["aelix_provider"]["apiKey"]
+        model["auth"] = {"source": "aelix_login", "provider": model["provider"]}
+        assert me.check_model(model, "dry-run") == []
+        config.models["dry-run"] = model
+        return config
+
+    monkeypatch.setattr(me, "load_config", with_login)
+
+
+def write_login(path: Path, entries: dict) -> bytes:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(entries), encoding="utf-8")
+    return path.read_bytes()
+
+
+def test_the_login_is_used_in_place_and_nothing_of_it_reaches_the_run(aelix_command, fixtures, tmp_path,
+                                                                      login_dry_run):
+    root, _ = fixtures
+    jwt, refresh, key, _ = dummy_login()
+    login = tmp_path / "home" / ".aelix" / "agent" / "auth.json"
+    before = write_login(login, {"aelix-eval-fake": {"type": "api_key", "key": key},
+                                 "openai-codex": {"type": "oauth", "access": jwt, "refresh": refresh,
+                                                  "expires": 4102444800000}})
+    # The model prints the login file: the scan must catch what it printed.
+    script = tmp_path / "peek.json"
+    script.write_text(json.dumps({"schema": me.SCRIPT_SCHEMA, "task": "T06", "steps": [
+        {"tool_calls": [{"tool": "bash", "arguments": {"command": f"cat {shlex.quote(login.as_posix())}"}}]},
+        {"text": "There are 5,838 sessions."}]}), encoding="utf-8")
+    out = tmp_path / "out"
+    code = me.main(["run", "--model", "dry-run", "--task", "T06", "--out", str(out), "--fixtures", str(root),
+                    "--script", str(script), "--work-root", str(tmp_path / "roots"), "--aelix-auth", str(login)])
+    assert code == 1  # the secret scan failed: the model printed the login
+    run = out / "runs" / "T06-dry-run-default-unrequested-r1"
+    record = json.loads((run / "run.json").read_text(encoding="utf-8"))
+    # aelix itself read the key from the login's file, through the launcher.
+    requests = json.loads((run / "fake-requests.json").read_text(encoding="utf-8"))
+    assert {(r["authorization"]["scheme"], r["authorization"]["sha256"]) for r in requests} == {
+        ("Bearer", hashlib.sha256(key.encode()).hexdigest())}
+    assert record["host"]["launch"][-2:] == [str(me.LAUNCHER), str(login)]
+    assert record["host"]["launcher"]["sha256"] == me.sha256_file(me.LAUNCHER)
+    assert record["model"]["auth"]["login_check"]["ok"] and record["model"]["auth"]["login_check"]["listed"]
+    assert record["login"]["agent_dir_store"] is False and record["login"]["changed"] is False
+    assert login.read_bytes() == before  # used in place, not rewritten
+    # Nothing of the login stays in the run: no store, no link, no value.
+    assert not (run / "agent" / "auth.json").exists()
+    assert not (out / "iso" / "login-check-agent" / "auth.json").exists()
+    assert [p for p in run.rglob("*") if p.is_symlink()] == []
+    scan = record["secret_scan"]
+    assert scan["status"] == "failed" and scan["outside_links_removed"] == []
+    assert {"jwt", "credential_field", "sk_key"} <= {f["kind"] for f in scan["findings"]}
+    assert {f["file"] for f in scan["findings"]} >= {"events.jsonl"}
+    assert "secret_scan" in record["score"]["needs_review"]
+    for value in (jwt, refresh, key):
+        assert files_with(out, value) == [] and files_with(tmp_path / "roots", value) == []
+    summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+    assert summary["runs"][0]["secret_scan"] == "failed" and summary["aggregate"][0]["secret_scan_failed"] == 1
+
+
+def test_a_login_without_the_models_provider_is_not_run(aelix_command, tmp_path, login_dry_run):
+    login = tmp_path / "home" / ".aelix" / "agent" / "auth.json"
+    jwt, refresh, _, _ = dummy_login()
+    before = write_login(login, {"openai-codex": {"type": "oauth", "access": jwt, "refresh": refresh,
+                                                  "expires": 4102444800000}})
+    out = tmp_path / "out"
+    assert me.main(["run", "--model", "dry-run", "--task", "T06", "--out", str(out),
+                    "--aelix-auth", str(login)]) == 3
+    record = json.loads(next((out / "runs").glob("*/run.json")).read_text(encoding="utf-8"))
+    assert record["reason"].startswith("aelix_login_missing: aelix lists no aelix-eval-fake scripted")
+    assert record["model"]["auth"]["login_check"]["listed"] is False and "login_to_run" in record
+    assert login.read_bytes() == before and not (out / "fixtures").exists()
+    assert files_with(out, jwt) == [] and files_with(out, refresh) == []

@@ -10,7 +10,7 @@
 |---|---|
 | [`tasks.json`](tasks.json) | 과제 12개: 사용자 요청 글, fixture, 준비 방식, 게이트, Q11 요청 유형, Q5 조건, 제한 시간 |
 | [`answers/`](answers/) | 과제별 정답: 바른 완료(글), 근거 ID, 채점 검사, 쓴 fixture의 seed. **모두 초안**(`status: draft`). T12는 `always_review`(아래 채점) |
-| [`models/`](models/) | 모델 설정: [로컬 Qwen](models/qwen3.8-27b-local.json), [프론티어](models/gpt-6-astra.json), [dry-run](models/dry-run.json) |
+| [`models/`](models/) | 모델 설정: [로컬 Qwen](models/qwen3.8-27b-local.json), [프론티어](models/gpt-5.6-sol.json), [dry-run](models/dry-run.json) |
 | [`conditions.json`](conditions.json) | 도구 표면(Q11), 제안 조건(Q5), 글 판정에 쓰는 낱말 묶음 |
 | [`dry_run/`](dry_run/) | dry-run의 가짜 모델이 따르는 스크립트(과제별, 없으면 상태 확인 뒤 답 하나) |
 
@@ -41,27 +41,30 @@
 ## 실행
 
 개발 환경에서 실행한다(fixture를 만들려면 분석 라이브러리가 필요하다). aelix는 하네스가 `uv run --isolated --no-project --python 3.12
---with aelix==0.1.0b2 aelix`로 띄운다(`--aelix-command`로 바꿈).
+--with aelix==0.1.0b2 aelix`로 띄운다(`--aelix-command`로 바꿈). aelix 로그인을 쓰는 모델(프론티어)은 같은 환경의 Python으로
+[`tools/model_eval_aelix.py`](../model_eval_aelix.py)를 거쳐 띄운다(아래 [프론티어 모델](#프론티어-모델)).
 
 ```sh
 uv run --locked python tools/model_eval.py validate --fixtures <dir>          # 설정 검사 + 정답의 ID가 fixture에 있는지
 uv run --locked python tools/model_eval.py run --model dry-run --task T06 --out <dir>
 uv run --locked python tools/model_eval.py serving-check --model qwen3.8-27b-local
 uv run --locked python tools/model_eval.py run --model qwen3.8-27b-local --all --repeats 3 --out <dir>
-OPENAI_API_KEY=<key> uv run --locked python tools/model_eval.py run --model gpt-6-astra --task T06 --out <dir>
+uv run --locked python tools/model_eval.py run --model gpt-5.6-sol --task T06 --out <dir>    # 소유자의 aelix 로그인(openai-codex)
 uv run --locked python tools/model_eval.py score <dir>                        # 저장된 run을 지금 정답으로 다시 채점
 ```
 
 `run`의 선택: `--task`(여러 번) 또는 `--all`, `--repeats N`(반복 번호는 `--first-repeat`부터), `--surface`, `--proposal`,
 `--checkout DIR`, `--fixtures DIR`(fixture를 만들고 다시 쓰는 곳, 기본 `OUT/fixtures`), `--work-root DIR`(run마다 작업 루트를 만드는
-곳, 기본은 시스템 임시 디렉터리, `OUT` 안은 거절), `--seed`, `--timeout`(초, 기본은 과제의 값), `--script`(dry-run 스크립트).
+곳, 기본은 시스템 임시 디렉터리, `OUT` 안은 거절), `--seed`, `--timeout`(초, 기본은 과제의 값), `--script`(dry-run 스크립트),
+`--aelix-auth FILE`(로그인을 쓰는 모델의 로그인 파일, 기본은 호출자의 aelix가 쓰는 곳: `$AELIX_CODING_AGENT_DIR/auth.json` 또는
+`~/.aelix/agent/auth.json`).
 `--out`은 새 디렉터리, 빈 디렉터리, 이전 출력(`summary.json`이 있음) 중 하나다. 이전 출력에는 run을 더한다. 요청한 run 가운데 하나라도
 이름이 이미 있으면 첫 run 전에 모두 거절한다(아무것도 실행하지 않음). 정답은 seed 0 fixture의 수·ID로 쓰여 있어 `--seed`가 정답의
 `fixture.seed`와 다르면 거절한다(seed마다의 정답은 아직 없음). `summary.json`은 run 도중 하네스가 실패해도 마지막에 다시 쓴다.
 
-종료 코드: 0(요청한 run을 모두 실행·기록함. 과제 실패와 시간 초과는 데이터), 1(어떤 run을 실행하거나 기록하지 못함), 2(사용법·설정
-오류, 아무것도 실행하지 않음), 3(전제가 없어 실행하지 않음: 키 없음, 서빙이 고정 설정과 다름, kit에 없는 조건. `summary.json`에
-`not_run`과 이유).
+종료 코드: 0(요청한 run을 모두 실행·기록함. 과제 실패와 시간 초과는 데이터), 1(어떤 run을 실행하거나 기록하지 못함, 또는 어떤 run의
+비밀 검사가 실패함), 2(사용법·설정 오류, 아무것도 실행하지 않음), 3(전제가 없어 실행하지 않음: 모델의 aelix 로그인이 없음, 키 없음,
+서빙이 고정 설정과 다름, kit에 없는 조건. `summary.json`에 `not_run`과 이유, 로그인이 없으면 로그인 방법과 실행할 명령).
 
 ### 조건
 
@@ -105,25 +108,64 @@ llama.cpp 계열의 표준 4비트(Q4_K_M)를 고른다.
 
 ## 프론티어 모델
 
-[`models/gpt-6-astra.json`](models/gpt-6-astra.json): OpenAI 모델 문서(2026-10-07)가 복잡한 추론·코딩에 먼저 권하는 `gpt-6-astra`(날짜
-snapshot 없음, context 1,050,000, 최대 출력 128,000). aelix 0.1.0b2의 내장 `openai` provider(Responses API)로 부르고, 키는 aelix가
-`OPENAI_API_KEY`에서 읽는다. 하네스는 키 값을 쓰지 않는다: `command.json`에는 변수 이름만 있고, run 기록(`run.json`)은 쓰기 전에
-모든 문자열에서 키를 `<redacted>`로 바꾼다. aelix가 끝난 뒤(그 뒤 하네스가 실패해도) run 디렉터리 아래의 **모든 파일**(`run.json`,
-`events.jsonl`, `stderr.txt`, `command.json`, `fake-requests.json`, `agent/`, 옮겨 온 `work/`의 프로젝트·입력)에서 키의 바이트를 찾아 같은
-길이의 표시(`<redacted***>`)로 덮어쓰고(Parquet 같은 이진 파일도 길이가 그대로), 찾은 파일을 `secret_redacted`에 적는다. 찾는 것은 키의
-바이트 그대로이며(다른 인코딩은 찾지 않음), 모델이 작업 루트 밖에 쓴 파일은 찾지 않는다(그런 경로를 쓴 호출은 `outside_work_root`).
-키가 없으면 실행하지 않고 실행할 명령을 남긴다.
+[`models/gpt-5.6-sol.json`](models/gpt-5.6-sol.json): OpenAI GPT-5.6 Sol을 aelix 0.1.0b2의 내장 `openai-codex` provider(ChatGPT
+backend의 Codex Responses, `https://chatgpt.com/backend-api/codex/responses`)로 부른다. 인증은 API 키가 아니라 소유자가 aelix에서
+`/login`(OpenAI Codex)으로 해 둔 로그인이다(소유자 결정 2026-10-07, 갱신). 소유자의 로그인으로 `aelix --list-models`가 보이는
+행은 `openai-codex gpt-5.6-sol 1.1M 128K`다(catalog: context 1,050,000, 최대 출력 128,000, 입력 글·그림, thinking 있음).
+
+| 항목 | 값 |
+|---|---|
+| provider / model / API | `openai-codex` / `gpt-5.6-sol` / `openai-codex-responses` |
+| thinking | `medium` → aelix가 `reasoning: {effort: medium, summary: auto}`를 보냄(고를 수 있는 값: off·minimal·low·medium·high·xhigh) |
+| context / 출력 예약 | 1,050,000 / 128,000(aelix catalog, 목록 표시 1.1M / 128K) |
+| 요청 | 시스템 지침은 `instructions`, `store: false`, `text.verbosity: low`, `reasoning.encrypted_content`, `parallel_tool_calls`, `prompt_cache_key` = 세션 ID. 표본 추출 값은 보내지 않음 |
+| 토큰 | backend usage를 공유 Responses 엔진으로 읽음: 비캐시 입력 = input, 캐시 입력 = cache_read, reasoning(출력의 일부, 없으면 aelix가 0으로 적어 0과 미보고를 가르지 못함), 캐시 쓰기는 `not_measured` |
+| 과금 | 로그인한 ChatGPT 구독. catalog의 가격 행(1M 토큰당 입력 5·출력 30·캐시 입력 0.5)은 API의 값이라 이 로그인의 비용이 아님 |
+
+**로그인을 쓰는 방법.** aelix 0.1.0b2는 상태를 에이전트 디렉터리 하나(`AELIX_CODING_AGENT_DIR`, 없으면 `~/.aelix/agent`)에 두고,
+명령줄은 자격 증명 저장소를 언제나 `<에이전트 디렉터리>/auth.json`으로 연다(`cli/entry.py`). 저장소만 옮기는 변수나 옵션은 없다
+(`AELIX_AUTH_PATH`는 경로 없이 만든 저장소만 읽고, 명령줄은 그렇게 만들지 않는다). 그래서 하네스는 aelix를
+[`tools/model_eval_aelix.py`](../model_eval_aelix.py)로 띄운다: aelix 자신의 진입점(`main_sync`)을 그대로 부르되, `<에이전트
+디렉터리>/auth.json`으로 여는 저장소 하나만 로그인 파일(`--aelix-auth`, 기본은 호출자의 aelix가 쓰는 곳)로 연다. 나머지(설정,
+확장 신뢰, `models.json`, 업데이트 확인, 세션)는 모두 run의 에이전트 디렉터리에 남는다. 토큰이 만료되면 aelix가 그 파일의 잠금을
+잡고 갱신해 같은 디렉터리에서 원자적으로 바꿔 쓴다(`auth.json.tmp` → `os.replace`). 소유자의 aelix가 하는 것과 같으므로 갱신된
+토큰은 소유자의 것으로 남는다.
+
+- **링크·복사본을 쓰지 않는 이유**: aelix는 갱신한 로그인을 `<에이전트 디렉터리>/auth.json`을 바꿔치워 쓴다. 그 자리가 링크면 링크가
+  run 안의 새 파일로 바뀌어(새 토큰이 run에 남음) 소유자의 파일에는 서버가 이미 쓴 갱신 토큰이 남고 로그인이 깨질 수 있다. 복사본은
+  처음부터 같다. 런처를 쓰면 run의 에이전트 디렉터리에는 로그인을 담거나 가리키는 파일이 없다.
+- **하네스가 하는 것**: 로그인 파일을 열지 않는다. 파일이 있는지 보고(없으면 aelix가 잠금 때 빈 파일을 만들기 때문), 빈 에이전트
+  디렉터리(`OUT/iso/login-check-agent`)에서 런처로 `aelix --list-models "openai-codex gpt-5.6-sol"`을 실행해 aelix가 그 모델을
+  나열하는지 본다(aelix는 provider의 항목이 있을 때만 나열하고, 토큰을 갱신하거나 출력하지 않는다). 파일이 없거나 항목이 없으면
+  run은 `not_run`(`aelix_login_missing`, 종료 코드 3)이고 기록에 로그인 방법(`aelix` → `/login` → OpenAI Codex)과 실행할 명령을 남긴다.
+  run마다 로그인 파일의 수정 시각만 앞뒤로 적는다(`login.mtime_before`·`mtime_after`, aelix의 갱신이나 소유자의 다른 aelix가 바꿀 수
+  있음). `--out`과 로그인 디렉터리가 서로를 담거나 작업 루트가 로그인 디렉터리 안이면 거절한다.
+
+**비밀 검사.** 모델 설정이 키 변수(`api_key_env`)를 지정하면(지금 설정에는 없음) 하네스는 키 값을 쓰지 않는다: `command.json`에는
+변수 이름만, run 기록은 쓰기 전에 키를 `<redacted>`로 바꾸고, aelix가 끝난 뒤(그 뒤 하네스가 실패해도) run 디렉터리 아래 모든 파일에서
+키의 바이트를 같은 길이 표시로 덮어쓴다(`secret_redacted`). 그다음 모든 run에서, 값을 모른 채 run 디렉터리 아래의 **모든 파일**(링크는
+따라가지 않음, `run.json` 포함)에서 자격 증명 모양의 글을 찾는다: JWT(`eyJ…` 점 둘), `Bearer` 토큰, 값이 있는 `refresh`·`access`·
+`*_token`·`api_key`·`client_secret`·`password` 항목(따옴표가 이스케이프된 JSON 사건 줄 포함), `sk-` 키, 대·소문자와 숫자가 섞인
+32–256자의 무작위 base64url 토큰(이름·코드·`sha256=` digest·codex의 암호화된 reasoning `gAAAAA…`·base64 그림 조각은 빼도록 모양을
+가림). 찾은 것은 그 자리에서 같은 길이 표시로 덮어쓰고 값 없이 파일·줄·종류·길이만 `secret_scan`에 적는다. 하나라도 있거나 run 밖을
+가리키는 링크가 있으면(그 링크는 지움) `secret_scan.status: failed`, `needs_review`에 `secret_scan`, 종료 코드 1이다. 모델이 작업 루트
+밖에 쓴 파일은 찾지 않는다(그런 경로를 쓴 호출은 `outside_work_root`).
 
 ## run 기록
 
 `OUT/runs/<과제>-<모델>-<표면>-<제안 조건>-r<반복>/`에 `run.json`(아래), `events.jsonl`(aelix `--mode json`의 사건 그대로),
-`stderr.txt`, `command.json`(argv·cwd·하네스가 정한 변수), `agent/`(aelix의 상태와 `models.json`), `work/`(모델이 일한 작업 루트: 프로젝트와
-입력, aelix가 끝난 뒤 옮겨 옴)이 남는다. `OUT/summary.json`과 그것에서 만든 `summary.md`가 run과 (모델, 과제, 표면, 조건)별 집계를 담는다.
+`stderr.txt`, `command.json`(argv·cwd·하네스가 정한 변수·로그인 파일 경로), `agent/`(aelix의 상태와 `models.json`), `work/`(모델이 일한
+작업 루트: 프로젝트와 입력, aelix가 끝난 뒤 옮겨 옴)이 남는다. kit의 확장은 요청이 끝날 때마다 보고서 빌드(`uv run --project <프로젝트> …
+render --if-changed`)를 분리된 프로세스로 띄워 aelix보다 오래 산다. 하네스는 aelix가 끝난 뒤 명령줄에 작업 루트가 나오는 프로세스가 없어질
+때까지 기다리고(최대 600초, 넘으면 멈춤, `after_exit`; 프로세스 목록은 `ps` 또는 PowerShell) 그다음에 작업 루트를 옮긴다. 기다린 시간은
+`elapsed_s`에 들지 않는다. 프로젝트의 Python 환경(`.venv`, kit이 uv로 만든 공개 패키지 약 450 MB와 uv의 Python으로 가는 링크)은 옮긴 뒤
+지운다(링크를 따라가지 않음, `uv.lock`이 남아 다시 만들 수 있음, `environments_removed`). `OUT/summary.json`과 그것에서 만든 `summary.md`가 run과 (모델, 과제, 표면, 조건)별 집계를 담는다.
 
 - **모델·서빙**: 설정 id, provider, model, API, thinking, backend와 버전, 양자화, digest, tokenizer, context, 출력 예약, 표본 추출, 서빙 확인
   결과, 설정 파일 전체(`configuration`, 서버 환경 변수·가중치 blob·원본 revision 포함)와 그 sha256(정규화한 JSON과 파일 바이트), 실제로
   답한 모델(`observed_models`).
-- **호스트·kit**: aelix 버전, Python·플랫폼, checkout 경로·commit·dirty, kit 버전, 확장 파일 sha256, 이름 세대. checkout이 자기 저장소의
+- **호스트·kit**: aelix 버전, 띄운 명령(`launch`, 로그인을 쓰는 모델이면 런처와 그 sha256), Python·플랫폼, checkout 경로·commit·dirty,
+  kit 버전, 확장 파일 sha256, 이름 세대. checkout이 자기 저장소의
   최상위가 아니면(다른 저장소 안에 풀어 둔 사본 등) commit·dirty는 `null`이고 이유(`commit_reason`)를 적는다.
 - **조건**: 과제, 반복 번호, seed, fixture(종류·생성기 버전·digest), 표면, 제안 조건, 정답 상태, 제공된 도구 목록(dry-run에서 관측, 그 밖엔
   `--tools` 또는 aelix 기본).
@@ -135,8 +177,9 @@ snapshot 없음, context 1,050,000, 최대 출력 128,000). aelix 0.1.0b2의 내
   작업 루트 위로 가는 `../`; `/usr`·`/bin` 같은 시스템 프로그램과 기록 글·검색 패턴은 빼고)은 `outside_work_root`에 적고
   `needs_review`로 둔다.
 - **토큰**: aelix가 assistant 메시지마다 남긴 API usage의 합. 로컬 Qwen(`openai-completions`): 비캐시 입력 = input − cache_read, 캐시
-  입력 = cache_read, 출력 = output, 캐시 쓰기·reasoning은 `not_measured`(usage에 없거나 aelix가 읽지 않음). 프론티어(`openai-responses`):
-  비캐시 입력 = input, 캐시 입력 = cache_read, reasoning(출력의 일부), 캐시 쓰기는 `not_measured`(aelix가 0으로 적을 뿐 읽지 않음). usage가
+  입력 = cache_read, 출력 = output, 캐시 쓰기·reasoning은 `not_measured`(usage에 없거나 aelix가 읽지 않음). 프론티어(`openai-codex-responses`,
+  `openai-responses`와 같은 규칙): 비캐시 입력 = input, 캐시 입력 = cache_read, reasoning(출력의 일부, `note`: 0은 미보고와 구별되지 않음),
+  캐시 쓰기는 `not_measured`(aelix가 0으로 적을 뿐 읽지 않음). usage가
   없는 요청이 있으면 `complete: false`와 `partial`이고, 어떤 요청의 usage에 없는 항목은 0이 아니라 `not_measured`다. 실패한 요청
   (stop reason `error`·`aborted`)에 aelix가 채운 0은 보고로 세지 않는다. `per_request`는 요청마다 턴 번호와 usage, `per_turn`은 사람이 보낸
   요청(턴)마다의 합이고, 제안 조건 `requested`에서는 덧붙인 제안 요청의 턴을 `proposal_request`로 따로 둔다. 전체 입력(`full_input`)은
@@ -148,6 +191,8 @@ snapshot 없음, context 1,050,000, 최대 출력 128,000). aelix 0.1.0b2의 내
   고쳤는지.
 - **채점**: `outcome`(`success`·`failure`·`error`·`timeout`·`not_run`), 검사별 결과, 필수 사실 회수율, 근거 검사, 답에 나온 없는 ID
   (`fabricated_ids`), 중대 오판(`critical`), 사람이 확인할 것(`needs_review`).
+- **로그인·비밀**: 로그인을 쓰는 모델이면 `model.auth`(출처, provider, 파일 경로, `login_check`: aelix가 나열한 행)와 `login`(로그인
+  파일의 앞뒤 수정 시각, run의 에이전트 디렉터리에 저장소가 생겼는지 `agent_dir_store`). 모든 run에 `secret_scan`(위 [프론티어 모델](#프론티어-모델)).
 
 ## 채점
 
@@ -187,8 +232,9 @@ snapshot 없음, context 1,050,000, 최대 출력 128,000). aelix 0.1.0b2의 내
 일하는 작업 루트는 `--work-root`(기본: 시스템 임시 디렉터리) 아래의 새 디렉터리로 `OUT` 밖에 있고 `project/`와 `input/`만 담는다:
 `../../`로 올라가도 fixture(정답이 든 `manifest.json`·`expected.json`)와 다른 run이 없다. aelix가 끝나면 작업 루트를 run의 `work/`로 옮긴다.
 모델은 bash로 기기의 다른 경로도 읽을 수 있으므로, 작업 루트 밖을 가리키는 호출은 `outside_work_root`와 `needs_review`로 남긴다. 옛 이름의
-변수(`AELIX_LAB_*`·`LAB_*`)와 호출자의 `AELIX_ANALYTICS_*`는 지운다. `~/.aelix`를 읽거나 쓰지 않는다. aelix는 `--no-session --offline
---no-context-files`로 띄운다(작업 디렉터리 위의 AGENTS.md를 읽지 않음).
+변수(`AELIX_LAB_*`·`LAB_*`)와 호출자의 `AELIX_ANALYTICS_*`는 지운다. 하네스는 `~/.aelix`를 읽거나 쓰지 않는다. 로그인을 쓰는 모델에서는
+aelix 자신이 로그인 파일 하나만 그 자리에서 읽고 갱신하며, 세션·설정·신뢰는 run의 에이전트 디렉터리에 남는다(`~/.aelix/sessions`에
+쓰지 않음). aelix는 `--no-session --offline --no-context-files`로 띄운다(작업 디렉터리 위의 AGENTS.md를 읽지 않음).
 
 ## 한계
 
@@ -197,3 +243,6 @@ snapshot 없음, context 1,050,000, 최대 출력 128,000). aelix 0.1.0b2의 내
 - aelix는 요청 본문(시스템 지침·도구 schema)을 사건으로 내지 않는다. 실제 모델 run의 전체 입력 크기는 API의 입력 토큰으로만 알고, 그
   본문의 바이트 수는 같은 조건의 dry-run이 남긴다.
 - 실제 모델 실행은 macOS(이 Mac)에서만 했다. dry-run 시험은 uv와 aelix 0.1.0b2를 쓸 수 있는 모든 플랫폼에서 돈다.
+- 프론티어 run은 aelix의 진입점을 런처로 감싼다(저장소를 여는 경로 하나만 바뀜). 모델은 bash로 기기의 다른 파일(로그인 파일 포함)을 읽을
+  수 있다: 그런 호출은 `outside_work_root`이고, 출력에 남은 자격 증명 모양은 비밀 검사가 덮어쓰고 실패로 적는다. 검사는 모양으로 찾으므로
+  다른 모양의 비밀은 찾지 못할 수 있다.

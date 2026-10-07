@@ -174,19 +174,25 @@ fixture를 cold로 둡니다. `tests/test_eval_fixtures.py`가 S·Q10·Q13을 �
 경로를 확인하는 dry-run(스크립트를 따르는 가짜 모델)은 `tests/test_model_eval.py`가 돌립니다(uv로 aelix 0.1.0b2를 받을 수 있을 때, 아니면
 건너뜀). 채점 규칙은 리뷰어의 틀린 답·다르게 쓴 바른 답으로 `tests/test_model_eval_scoring.py`가 확인합니다. 신뢰 목록·uv·aelix의 에이전트
 디렉터리는 `--out` 안의 것만 쓰고, 모델이 일하는 작업 루트는 `--out` 밖(`--work-root`, 기본은 시스템 임시 디렉터리)에 만들었다가 aelix가
-끝나면 run 안으로 옮깁니다. `~/.aelix`는 건드리지 않습니다. 정답은 seed 0 fixture의 것이라 다른 `--seed`는 거절합니다.
+끝나면 run 안으로 옮깁니다(그때 kit이 uv로 만든 프로젝트의 `.venv`는 지웁니다). 하네스는 `~/.aelix`를 읽거나 쓰지 않습니다. 정답은 seed 0
+fixture의 것이라 다른 `--seed`는 거절합니다.
 
 ```sh
 uv run --locked python tools/model_eval.py validate --fixtures <dir>
 uv run --locked python tools/model_eval.py run --model dry-run --task T06 --out <dir>
 uv run --locked python tools/model_eval.py serving-check --model qwen3.8-27b-local   # 고정 설정으로 ollama를 띄운 뒤
 uv run --locked python tools/model_eval.py run --model qwen3.8-27b-local --task T06 --out <dir>
+uv run --locked python tools/model_eval.py run --model gpt-5.6-sol --task T06 --out <dir>       # 소유자의 aelix 로그인으로
 ```
 
-프론티어 모델(`gpt-6-astra`)의 키는 `OPENAI_API_KEY`로만 받고 저장소에 쓰지 않습니다. 하네스는 run 기록을 쓰기 전에 키를 지우고,
-aelix가 끝난 뒤(하네스가 그 뒤 실패해도) run 디렉터리 아래의 모든 파일(`events.jsonl`·`stderr.txt`·`command.json`·`agent/`·`work/` 포함)에서
-키의 바이트를 같은 길이의 표시로 덮어씁니다. 모델이 작업 루트 밖에 쓴 파일은 찾지 않습니다([실제 모델 평가 안내](tools/model_eval_data/README.md#프론티어-모델)).
-키가 없으면 실행하지 않고(`not_run`, 종료 코드 3) 실행할 명령을 남깁니다.
+프론티어 모델(`gpt-5.6-sol`)은 API 키가 아니라 소유자가 aelix에서 `/login`(OpenAI Codex)으로 해 둔 로그인으로 aelix의
+`openai-codex` provider를 거쳐 부릅니다. 하네스는 aelix를 `tools/model_eval_aelix.py`로 띄워 aelix의 자격 증명 저장소 하나만 그
+로그인 파일(`--aelix-auth`, 기본 `~/.aelix/agent/auth.json`)로 열게 하고, 나머지 상태는 run 안에 둡니다. 로그인 파일은 aelix만 그
+자리에서 읽고 갱신하며, 하네스는 열거나 복사하거나 링크하지 않습니다(있는지와 수정 시각만 봄). 로그인이 없으면 실행하지 않고
+(`not_run`, 종료 코드 3) 로그인 방법과 실행할 명령을 남깁니다. 모든 run 뒤에는 run 디렉터리 아래의 모든 파일에서 값을 모른 채
+자격 증명 모양의 글(JWT, `Bearer` 토큰, 값이 있는 `refresh`·`access`·토큰·키 항목, `sk-` 키, 무작위 긴 토큰)을 찾아 같은 길이 표시로
+덮어쓰고 위치만 적으며, 찾으면 `secret_scan: failed`(종료 코드 1)입니다. 키 변수를 지정한 모델 설정이면 그 키의 바이트도 같은 방식으로
+덮어씁니다. 모델이 작업 루트 밖에 쓴 파일은 찾지 않습니다([실제 모델 평가 안내](tools/model_eval_data/README.md#프론티어-모델)).
 
 문서 검사 명령은 다음과 같습니다. `<run-id>`는 현재 작업의 실제 UUID로 바꿉니다.
 

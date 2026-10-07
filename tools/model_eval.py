@@ -4,8 +4,8 @@
     python tools/model_eval.py serving-check --model ID
     python tools/model_eval.py run --model ID (--task ID ... | --all) --out DIR [--repeats N]
                                [--surface NAME] [--proposal NAME] [--checkout DIR] [--fixtures DIR]
-                               [--work-root DIR] [--seed N] [--aelix-command CMD] [--timeout S]
-                               [--script FILE]
+                               [--work-root DIR] [--seed N] [--aelix-command CMD] [--aelix-auth FILE]
+                               [--timeout S] [--script FILE]
     python tools/model_eval.py score DIR
 
 Run it in the development environment, where the evaluation fixtures can be made:
@@ -26,22 +26,43 @@ Isolation: the trust list, uv (a link to the real one), aelix's agent directory 
 state) and its session directory are inside OUT. The model works in a work root that is a new
 directory under --work-root (default: the system's temporary directory), never inside OUT, so the
 fixtures and the other runs are not next to it; tool calls whose paths leave the work root are listed
-in the record and set needs_review. The old names (AELIX_LAB_*, LAB_*) are unset. Nothing under
-~/.aelix is read or written. An API key is read from the variable the model configuration names and
-is never written by the harness: command.json keeps variable names only, the run record is redacted
-before it is written, and after every run, also one that failed after aelix exited, every file under
-the run's directory (run.json, events.jsonl, stderr.txt, command.json, fake-requests.json, agent/ and
-work/) is searched for the key's bytes, which are overwritten in place by a marker of the same length.
-A file the model wrote outside its work root is not searched.
+in the record and set needs_review. The old names (AELIX_LAB_*, LAB_*) are unset. The harness reads
+and writes nothing under ~/.aelix. When aelix has exited, the harness waits until no process names
+the work root (the kit's extension starts its report build detached at the end of every prompt, and
+it outlives aelix; after_exit, at most SETTLE_TIMEOUT seconds, then such processes are stopped), and
+only then moves it; the project's Python environment (.venv, which the kit makes with uv from the
+project's uv.lock: about 450 MB of public packages and links into uv's Python) is removed from the
+kept work root, never following a link.
+
+Credentials. A model whose configuration names an aelix login (auth.source aelix_login, e.g. the
+frontier model through aelix's openai-codex provider) uses the caller's own aelix login in place:
+aelix is started through tools/model_eval_aelix.py, which opens aelix's credential store at the
+login's file (--aelix-auth, default: where the caller's aelix keeps it) while every other piece of
+aelix's state stays in the run's agent directory. Only aelix opens that file; it refreshes a token
+there itself. The harness never reads, copies or links it: it checks that the file exists and asks
+aelix to list the model with it (aelix lists a model only when its provider has a login entry), and
+records the file's modification time before and after each run. A model whose configuration names a
+key variable (api_key_env) gets the key from the environment; the harness never writes it:
+command.json keeps variable names only, the run record is redacted before it is written, and after
+every run, also one that failed after aelix exited, every file under the run's directory (run.json,
+events.jsonl, stderr.txt, command.json, fake-requests.json, agent/ and work/) is searched for the
+key's bytes, which are overwritten in place by a marker of the same length. Then every file under the
+run's directory (symbolic links are not followed) is searched for credential-shaped text without
+knowing any value (a JWT, a Bearer token, a refresh/access/id token or key field with a value, an
+sk- key, a long mixed base64url token): each one is overwritten in place by a marker of its length
+and listed (file, line, kind, length) in the record's secret_scan, which is then failed, and a link
+that leaves the run's directory is removed and listed. A file the model wrote outside its work root
+is not searched.
 
 Tokens are what aelix records from the model API's usage (per assistant message). What the API or
 aelix does not report is `not_measured` with the reason; bytes and characters are never turned into
 tokens. The dry-run model is a scripted fake server whose usage numbers are fixed, not measured.
 
 Exit status: 0 when every requested run was executed and recorded (a failed or timed-out task is
-data), 1 when a run could not be executed or recorded, 2 on a usage or configuration error (nothing
-run), 3 when a precondition is missing and nothing was run (no API key, serving differs from the
-pinned configuration): the summary records those runs as not_run.
+data), 1 when a run could not be executed or recorded or its secret scan failed, 2 on a usage or
+configuration error (nothing run), 3 when a precondition is missing and nothing was run (no aelix
+login for the model, no API key, serving differs from the pinned configuration): the summary records
+those runs as not_run.
 """
 
 from __future__ import annotations
@@ -86,6 +107,14 @@ SCRIPT_SCHEMA = "aelix-analytics.model-eval-script/1"
 AELIX_VERSION = "0.1.0b2"
 AELIX_COMMAND = ("uv", "run", "--isolated", "--no-project", "--python", "3.12", "--with",
                  f"aelix=={AELIX_VERSION}", "aelix")
+# The Python of that environment, for the launcher of a model that uses the caller's aelix login.
+AELIX_PYTHON = (*AELIX_COMMAND[:-1], "python")
+LAUNCHER = Path(__file__).resolve().parent / "model_eval_aelix.py"
+APIS = ("openai-completions", "openai-responses", "openai-codex-responses")
+AUTH_SOURCES = ("aelix_login",)
+LOGIN_HOWTO = ("log in with aelix 0.1.0b2 itself: run `aelix`, type /login and choose the provider "
+               "(openai-codex: OpenAI Codex, the ChatGPT Plus/Pro login); aelix writes the login to "
+               "~/.aelix/agent/auth.json (or $AELIX_CODING_AGENT_DIR/auth.json)")
 
 GATES = ("Q2", "Q3", "Q5", "Q11", "Q12", "Q13")
 Q11_REQUESTS = ("single", "combination", "ambiguous", "similar_tools")
@@ -165,6 +194,22 @@ TOKEN_NOT_REPORTED = {
     "openai-responses": {
         "cache_write": "aelix 0.1.0b2 writes cache_write = 0 without reading it from the Responses "
                        "API (_openai_responses_shared.py); the API's own usage object would carry it",
+    },
+    "openai-codex-responses": {
+        "cache_write": "aelix 0.1.0b2 writes cache_write = 0 without reading it: the codex adapter "
+                       "reads the backend's usage with the shared Responses engine "
+                       "(_openai_responses_shared.py)",
+    },
+}
+# What a measured value of a Responses usage cannot tell.
+TOKEN_NOTES = {
+    "openai-responses": {
+        "reasoning": "a subset of output; aelix 0.1.0b2 writes 0 when the usage has no "
+                     "output_tokens_details.reasoning_tokens, so a 0 is not told apart from not reported",
+    },
+    "openai-codex-responses": {
+        "reasoning": "a subset of output; aelix 0.1.0b2 writes 0 when the usage has no "
+                     "output_tokens_details.reasoning_tokens, so a 0 is not told apart from not reported",
     },
 }
 
@@ -425,6 +470,17 @@ def check_answer(answer, task_id: str, tasks: dict, words: dict) -> list[str]:
     return out
 
 
+def strings_in(value) -> list[str]:
+    """Every key and string value in a JSON value, as written."""
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        return [s for k, v in value.items() for s in [k, *strings_in(v)]]
+    if isinstance(value, list):
+        return [s for v in value for s in strings_in(v)]
+    return []
+
+
 def check_model(model, model_id: str) -> list[str]:
     out = []
     if not isinstance(model, dict) or model.get("schema") != MODEL_SCHEMA:
@@ -434,19 +490,35 @@ def check_model(model, model_id: str) -> list[str]:
     for key in ("provider", "model", "api", "thinking", "serving"):
         if not model.get(key):
             out.append(f"{key} is missing")
-    if model.get("api") not in ("openai-completions", "openai-responses"):
-        out.append("api must be openai-completions or openai-responses (the adapters this harness reads)")
+    if model.get("api") not in APIS:
+        out.append(f"api must be one of {APIS} (the adapters whose usage this harness reads)")
     env = model.get("api_key_env")
     if env is not None and not re.fullmatch(r"[A-Z][A-Z0-9_]*", str(env)):
         out.append("api_key_env must be the NAME of an environment variable")
+    auth = model.get("auth")
+    if auth is not None:
+        if not isinstance(auth, dict) or auth.get("source") not in AUTH_SOURCES or \
+                not isinstance(auth.get("provider"), str) or not auth["provider"]:
+            out.append(f"auth must say its source ({AUTH_SOURCES}) and the aelix provider whose login it uses")
+        elif auth["provider"] != model.get("provider"):
+            out.append(f"auth.provider {auth['provider']!r} is not the model's provider {model.get('provider')!r}")
+        if env is not None:
+            out.append("a model uses an aelix login or a key variable, not both")
     provider = model.get("aelix_provider")
     if provider is not None:
         key = str(provider.get("apiKey") or "")
         if re.search(r"sk-[A-Za-z0-9_-]{16,}", key):
             out.append("aelix_provider.apiKey looks like a real key: keys are read from the environment only")
+        if auth is not None and "apiKey" in provider:
+            out.append("aelix_provider.apiKey is set for a model that uses an aelix login")
         if not provider.get("models") or not any(m.get("id") == model.get("model")
                                                  for m in provider["models"]):
             out.append("aelix_provider.models has no entry for the model")
+    shaped = [f for text in [json.dumps(model, ensure_ascii=False), *strings_in(model)]
+              for f in credential_findings(text.encode("utf-8"))]
+    if shaped:
+        out.append("the configuration holds credential-shaped text (" + ", ".join(
+            sorted({f["kind"] for f in shaped})) + "): credentials are never part of a configuration")
     serving = model.get("serving") or {}
     for key in ("backend", "context_window", "output_reservation", "tokenizer", "quantization"):
         if key not in serving:
@@ -1303,7 +1375,7 @@ def usage_convention(messages: list, api: str) -> dict:
                                        "input or cache_read"),
                "input_cached": value(cached, "cache_read"),
                "reasoning": not_measured(missing["reasoning"])}
-    elif api == "openai-responses":
+    elif api in ("openai-responses", "openai-codex-responses"):
         out = {"input_uncached": value(total("input"), "input"),
                "input_cached": value(total("cache_read"), "cache_read"),
                "reasoning": value(total("reasoning"), "reasoning")}
@@ -1311,6 +1383,9 @@ def usage_convention(messages: list, api: str) -> dict:
         return {name: not_measured(f"no usage convention known for api {api}") for name in TOKEN_NAMES}
     out["output"] = value(total("output"), "output")
     out["cache_write"] = not_measured(missing["cache_write"])
+    for name, note in TOKEN_NOTES.get(api, {}).items():
+        if out[name]["status"] == "measured":
+            out[name]["note"] = note
     return out
 
 
@@ -1530,6 +1605,80 @@ def aelix_version(command: list[str]) -> str:
     return done.stdout.strip().splitlines()[-1] if done.stdout.strip() else "?"
 
 
+# --- the caller's aelix login ---------------------------------------------------------------------
+
+def default_aelix_auth() -> Path:
+    """Where the caller's aelix keeps its login: aelix 0.1.0b2 opens <agent directory>/auth.json, the
+    agent directory being $AELIX_CODING_AGENT_DIR or ~/.aelix/agent (cli/config.py get_agent_dir,
+    cli/entry.py)."""
+    agent = os.environ.get("AELIX_CODING_AGENT_DIR")
+    base = Path(os.path.expanduser(agent)) if agent else Path.home() / ".aelix" / "agent"
+    return Path(os.path.abspath(base / "auth.json"))
+
+
+def file_mtime(path: Path | None) -> str | None:
+    """A file's modification time (UTC) from its metadata; the file is not opened."""
+    if path is None:
+        return None
+    try:
+        return datetime.fromtimestamp(path.stat().st_mtime, UTC).isoformat(
+            timespec="microseconds").replace("+00:00", "Z")
+    except OSError:
+        return None
+
+
+def launch_command(model: dict, auth_file: Path | None, aelix_command: list[str]) -> list[str]:
+    """How aelix is started for this model: through the launcher (its Python and the login's file)
+    when the model uses an aelix login, else the aelix command itself."""
+    if model.get("auth") is None:
+        return list(aelix_command)
+    return [*AELIX_PYTHON, str(LAUNCHER), str(auth_file)]
+
+
+def login_check(model: dict, auth_file: Path, out: Path) -> dict:
+    """Whether the caller's aelix login in auth_file has the model's provider, asked of aelix itself.
+
+    The harness does not open the file. It checks that the file exists (aelix would otherwise create
+    an empty one when it locks it) and runs aelix --list-models through the launcher with an empty
+    agent directory under OUT: aelix lists a model only when its provider has credentials
+    (ModelRegistry.get_available, AuthStorage.has_auth: an entry's presence; nothing is refreshed,
+    written or printed but the model table)."""
+    provider = model["auth"]["provider"]
+    result: dict = {"provider": provider, "file": str(auth_file), "file_mtime": file_mtime(auth_file),
+                    "checked_by": "aelix --list-models through tools/model_eval_aelix.py "
+                                  "(the harness does not open the file)"}
+    if not auth_file.is_file():
+        result.update(ok=False, problem=f"{auth_file} does not exist: {LOGIN_HOWTO}")
+        return result
+    agent = out / "iso" / "login-check-agent"
+    agent.mkdir(parents=True, exist_ok=True)
+    write_models_json(model, agent, None)  # a provider aelix does not know by itself
+    env = {**isolated_env(), "AELIX_CODING_AGENT_DIR": str(agent),
+           "AELIX_CODING_AGENT_SESSION_DIR": str(agent / "sessions")}
+    argv = [*launch_command(model, auth_file, []), "--offline", "--list-models",
+            f"{provider} {model['model']}"]
+    try:
+        # cwd: the empty agent directory, so that no .env of the caller's directory is loaded.
+        done = subprocess.run(argv, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                              timeout=600, env=env, cwd=agent)
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise HarnessError(f"aelix could not be started to check the login ({shlex.join(argv)}): "
+                           f"{exc}") from exc
+    rows = [line.split() for line in done.stdout.splitlines()]
+    row = next((r for r in rows if r[:2] == [provider, model["model"]]), None)
+    result.update(exit_code=done.returncode, listed=row is not None,
+                  row=" ".join(row) if row else None)
+    if done.returncode != 0:
+        result.update(ok=False, problem=f"aelix --list-models exited {done.returncode}: "
+                                        f"{done.stderr.strip()[-400:]}")
+    elif row is None:
+        result.update(ok=False, problem=f"aelix lists no {provider} {model['model']} with the login in "
+                                        f"{auth_file}: it has no {provider} entry; {LOGIN_HOWTO}")
+    else:
+        result["ok"] = True
+    return result
+
+
 def http_json(url: str, body: dict | None = None, timeout: float = 30):
     data = None if body is None else json.dumps(body).encode()
     request = urllib.request.Request(url, data=data, method="GET" if body is None else "POST",
@@ -1636,7 +1785,13 @@ class ScriptedModel:
                     return
                 k = sum(1 for m in body.get("messages") or [] if m.get("role") == "assistant")
                 messages = body.get("messages") or []
+                # The credential aelix sent, by its shape and digest only (a dry run's are placeholders
+                # or a test's dummy; the digest lets a test see which one aelix read).
+                scheme, _, credential = (self.headers.get("Authorization") or "").partition(" ")
                 owner.requests.append({
+                    "authorization": {"scheme": scheme or None, "length": len(credential),
+                                      "sha256": sha256_bytes(credential.encode("utf-8")) if credential
+                                      else None},
                     "k": k, "messages": len(messages),
                     "tools": [t.get("function", {}).get("name") for t in body.get("tools") or []],
                     "tool_schema_bytes": len(json.dumps(body.get("tools") or [],
@@ -1727,6 +1882,12 @@ class Session:
     uv: str | None
     secrets: list[str]
     work_parent: Path = field(default_factory=lambda: Path(tempfile.gettempdir()))
+    auth_file: Path | None = None  # the caller's aelix login, for a model with auth (never opened here)
+    login: dict | None = None  # login_check's result
+
+
+def launch_of(session: Session) -> list[str]:
+    return launch_command(session.model, session.auth_file, session.aelix_command)
 
 
 def tools_of(session: Session) -> dict:
@@ -1750,7 +1911,7 @@ def surface_argv(session: Session) -> tuple[list[str], str]:
 
 def build_argv(session: Session, requests: list[str], extension: Path, tools_argv: list[str]) -> list[str]:
     model = session.model
-    return [*session.aelix_command, "--mode", "json", "-p", *requests,
+    return [*launch_of(session), "--mode", "json", "-p", *requests,
             "--provider", model["provider"], "--model", model["model"], "--thinking", model["thinking"],
             "--no-session", "--offline", "--no-context-files", *tools_argv, "-e", str(extension)]
 
@@ -1799,6 +1960,8 @@ def not_run_reason(session: Session, task: dict) -> str | None:
     env = session.model.get("api_key_env")
     if env and not os.environ.get(env):
         return f"api_key_missing: {env} is not set"
+    if session.model.get("auth") is not None and not (session.login or {}).get("ok"):
+        return "aelix_login_missing: " + ((session.login or {}).get("problem") or "the login was not checked")
     if session.serving is not None and not session.serving.get("ok"):
         return "serving_differs: " + "; ".join(session.serving.get("problems") or ["check failed"])
     if session.proposal != "unrequested" and session.proposal not in (task.get("proposal_conditions") or []):
@@ -1822,8 +1985,14 @@ def model_record(session: Session) -> dict:
             "context_window": entry.get("contextWindow", serving.get("context_window")),
             "output_reservation": entry.get("maxTokens", serving.get("output_reservation")),
             "sampling": serving.get("sampling"), "api_key_env": model.get("api_key_env"),
+            "auth": None if model.get("auth") is None else {
+                **model["auth"], "file": str(session.auth_file),
+                "login_check": session.login,
+                "read_by": "aelix only, in place, through tools/model_eval_aelix.py: the harness "
+                           "never opens, copies or links the file"},
             "serving_check": session.serving,
-            # The whole configuration (no secret: keys are read from the environment only).
+            # The whole configuration (no secret: keys are read from the environment only, a login
+            # from aelix's own store).
             "configuration": model,
             "configuration_sha256": sha256_bytes(json.dumps(model, ensure_ascii=False,
                                                             sort_keys=True).encode("utf-8")),
@@ -1831,12 +2000,12 @@ def model_record(session: Session) -> dict:
             "configuration_file_sha256": session.config.model_files.get(model["id"])}
 
 
-def write_models_json(session: Session, run_dir: Path, port: int | None) -> None:
-    provider = session.model.get("aelix_provider")
+def write_models_json(model: dict, agent_dir: Path, port: int | None) -> None:
+    provider = model.get("aelix_provider")
     if provider is None:
         return
     provider = json.loads(json.dumps(provider).replace("{port}", str(port or 0)))
-    write_json(run_dir / "agent" / "models.json", {"providers": {session.model["provider"]: provider}})
+    write_json(agent_dir / "models.json", {"providers": {model["provider"]: provider}})
 
 
 def run_name(task_id: str, model_id: str, surface: str, proposal: str, repeat: int) -> str:
@@ -1854,6 +2023,11 @@ def base_record(session: Session, task: dict, repeat: int, key: str) -> dict:
         "gates": task.get("gates"), "q11_request": task.get("q11_request"), "repeat": repeat,
         "seed": session.seed, "model": model_record(session),
         "host": {"aelix": session.aelix_version, "aelix_command": session.aelix_command,
+                 "launch": launch_of(session),
+                 "launcher": None if session.model.get("auth") is None else {
+                     "file": "tools/model_eval_aelix.py", "sha256": sha256_file(LAUNCHER),
+                     "what": "aelix's own entry point (aelix_coding_agent.cli.entry.main_sync) with its "
+                             "credential store opened at the login's file; nothing else changed"},
                  "python": platform.python_version(), "platform": platform.platform(),
                  "machine": platform.machine()},
         "kit": session.checkout,
@@ -1905,6 +2079,215 @@ def redact_tree(root: Path, secrets: list[str]) -> list[str]:
     return sorted(found)
 
 
+# Credential-shaped text, found without knowing any value. Each kind: its pattern, the group that is
+# the value (overwritten), and whether the value must mix two of upper case, lower case and digits
+# (a placeholder like ollama-local-no-key or a hex digest is not a credential).
+_B64URL = rb"[A-Za-z0-9_-]"
+_VALUE = rb"[A-Za-z0-9._~+/=-]"
+_QUOTE = rb"\\*[\"']"
+CREDENTIAL_PATTERNS = (
+    ("jwt", re.compile(rb"eyJ" + _B64URL + rb"{8,}\." + _B64URL + rb"{8,}\." + _B64URL + rb"{8,}"), 0, False),
+    ("bearer", re.compile(rb"(?<![A-Za-z0-9])[Bb]earer[ \t]+(" + _VALUE + rb"{16,})"), 1, True),
+    # A field with a value: quoted after a colon (JSON, YAML, a literal), quoted or bare after = (an
+    # environment line, a query); a bare value stops at a dot, so code (accessToken:r._token) is not one.
+    # Quotes may be escaped, as in a file's JSON printed into a JSON event line (\"refresh\": \"…\").
+    ("credential_field", re.compile(
+        rb"(?<![A-Za-z0-9_])(?:" + _QUOTE + rb")?(?i:refresh|access|refresh_?token|access_?token|id_?token|"
+        rb"token|api_?key|client_?secret|password)(?:" + _QUOTE + rb")?\s*(?::\s*" + _QUOTE + rb"(" +
+        _VALUE + rb"{16,})|=\s*" + _QUOTE + rb"(" + _VALUE + rb"{16,})|=\s*([A-Za-z0-9_~+/=-]{16,}))"),
+     (1, 2, 3), True),
+    ("sk_key", re.compile(rb"(?<![A-Za-z0-9_-])sk-" + _B64URL + rb"{20,}"), 0, False),
+    # Delimited by characters outside base64 on both sides: a piece of a longer base64 run (an image
+    # in a tool result) is not one; 256 at most: the codex backend's encrypted reasoning (Fernet,
+    # gAAAAA…) is longer, and is also left out by its prefix. random_like() leaves out names and code.
+    ("long_token", re.compile(rb"(?<![A-Za-z0-9_+/.-])" + _B64URL + rb"{32,256}(?![A-Za-z0-9_+/=-])"),
+     0, True),
+)
+CREDENTIAL_KINDS = tuple(kind for kind, *_ in CREDENTIAL_PATTERNS)
+CLASSES = (rb"[A-Z]", rb"[a-z]", rb"[0-9]")
+# A digest written as algorithm=base64url (a wheel's RECORD: sha256=…) is not a credential.
+DIGEST_PREFIX = re.compile(rb"(?:sha(?:1|224|256|384|512)|md5|blake2[bs])=$", re.IGNORECASE)
+
+
+def mixed(value: bytes) -> bool:
+    """Two of upper case, lower case and digits."""
+    return sum(bool(re.search(p, value)) for p in CLASSES) >= 2
+
+
+def random_like(value: bytes) -> bool:
+    """Whether a long base64url run looks random rather than like a name or code: at least two each of
+    upper case, lower case and digits, vowels under 35% of its letters (words and identifiers have
+    more; random base64url about 19%), no four ascending characters (an alphabet: 0123, abcd) and
+    not the codex backend's encrypted reasoning (gAAAAA…)."""
+    if any(len(re.findall(p, value)) < 2 for p in CLASSES) or value.startswith(b"gAAAAA"):
+        return False
+    letters = re.findall(rb"[A-Za-z]", value)
+    if sum(c in b"aeiouAEIOU" for c in letters) >= 0.35 * len(letters):
+        return False
+    return not any(value[i + 1] == value[i] + 1 and value[i + 2] == value[i] + 2 and value[i + 3] == value[i] + 3
+                   for i in range(len(value) - 3))
+
+
+def credential_findings(data: bytes, *, mask: bool = False) -> list[dict]:
+    """Credential-shaped values in data: kind, offset, line and length, never the value. With mask,
+    each value is overwritten in data (a bytearray) by a marker of its length, so that the kinds after
+    it do not find it again."""
+    work = data if mask else bytearray(data)
+    found = []
+    for kind, pattern, groups, needs_mix in CREDENTIAL_PATTERNS:
+        line, counted = 1, 0  # matches come in order: lines are counted forward once per kind
+        for match in list(pattern.finditer(bytes(work))):
+            group = next(g for g in groups if match.group(g) is not None) \
+                if isinstance(groups, tuple) else groups
+            value = match.group(group)
+            if needs_mix and not mixed(value):
+                continue
+            start, end = match.span(group)
+            if kind == "long_token" and (not random_like(value) or DIGEST_PREFIX.search(
+                    bytes(work[max(0, start - 12):start]))):
+                continue
+            line += work.count(b"\n", counted, start)
+            counted = start
+            found.append({"kind": kind, "offset": start, "line": line, "length": end - start})
+            work[start:end] = redaction_marker(end - start)
+    return sorted(found, key=lambda f: f["offset"])
+
+
+MAX_LISTED = 200
+
+
+# How long the harness waits, after aelix has exited, for processes still working in the work root.
+SETTLE_TIMEOUT = 600
+
+
+def processes_naming(paths: list[str]) -> list[tuple[int, str]] | None:
+    """The processes whose command line names one of paths (None when the list cannot be read). The
+    kit's extension starts its report build detached at the end of every prompt (uv run --project
+    <project> … render --if-changed): it outlives aelix and names the project."""
+    if os.name == "nt":
+        argv = ["powershell", "-NoProfile", "-NonInteractive", "-Command",
+                "Get-CimInstance Win32_Process | ForEach-Object { \"$($_.ProcessId)`t$($_.CommandLine)\" }"]
+    else:
+        argv = ["ps", "-A", "-ww", "-o", "pid=", "-o", "args="]
+    try:
+        done = subprocess.run(argv, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                              timeout=120)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if done.returncode != 0:
+        return None
+    found = []
+    for line in done.stdout.splitlines():
+        pid, _, args = line.strip().partition("\t" if os.name == "nt" else " ")
+        if pid.strip().isdigit() and int(pid) != os.getpid() and any(p in args for p in paths):
+            found.append((int(pid), args.strip()))
+    return found
+
+
+def settle(work: Path, timeout: float = SETTLE_TIMEOUT) -> dict:
+    """Wait until no process names the work root, so that nothing writes into it while it is moved,
+    its environment removed and its files searched; stop the ones left after the timeout. The time
+    is not part of the run's elapsed_s."""
+    paths = sorted({str(work), os.path.realpath(work)})
+    started = time.monotonic()
+    seen: dict[int, str] = {}
+    killed: list[int] = []
+    while True:
+        found = processes_naming(paths)
+        if found is None:
+            return {"checked": False, "reason": "the process list could not be read",
+                    "waited_s": round(time.monotonic() - started, 1)}
+        for pid, args in found:
+            seen.setdefault(pid, args[:300])
+        if not found:
+            break
+        if time.monotonic() - started > timeout:
+            if killed:  # stopped once already and still there
+                break
+            ports = processes()
+            for pid, _ in found:
+                with contextlib.suppress(OSError):
+                    ports.kill_tree(pid)
+                killed.append(pid)
+        time.sleep(0.5)
+    return {"checked": True, "waited_s": round(time.monotonic() - started, 1),
+            "processes": [{"pid": pid, "args": args} for pid, args in sorted(seen.items())],
+            "stopped": killed, "left": [pid for pid, _ in found] if found else [],
+            "what": "processes whose command line names the work root after aelix exited (the kit's "
+                    "detached report build): waited for before the work root is moved"}
+
+
+def remove_environments(root: Path) -> list[dict]:
+    """Remove the Python environments under root (a .venv directory with pyvenv.cfg), never following
+    a link. The kit makes the project's with uv from its uv.lock, so it can be made again; it holds
+    about 450 MB of public packages per run and links into uv's Python, which a later copy or archive
+    of the run would follow."""
+    removed = []
+    for dirpath, dirnames, _ in os.walk(root, followlinks=False):
+        for name in list(dirnames):
+            path = Path(dirpath) / name
+            if name != ".venv" or path.is_symlink() or not (path / "pyvenv.cfg").is_file():
+                continue
+            files = size = 0
+            for inner, _, names in os.walk(path, followlinks=False):
+                for item in names:
+                    files += 1
+                    with contextlib.suppress(OSError):
+                        size += (Path(inner) / item).lstat().st_size
+            shutil.rmtree(path)
+            removed.append({"path": path.relative_to(root).as_posix(), "files": files, "bytes": size})
+            dirnames.remove(name)
+    return removed
+
+
+def scan_tree(root: Path, *, mask: bool = True) -> dict:
+    """Search every file under root for credential-shaped text (symbolic links are not followed).
+
+    Each finding is overwritten in place by a marker of its length and listed without its value. A
+    symbolic link whose target leaves root is removed (a later copy or archive of the run would follow
+    it) and listed; one inside root is listed. The scan fails when it found either."""
+    findings, links, removed = [], [], []
+    files = scanned = 0
+    real_root = os.path.realpath(root)
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+        here = Path(dirpath)
+        for name in sorted(dirnames + filenames):
+            path = here / name
+            if not path.is_symlink():
+                continue
+            rel = path.relative_to(root).as_posix()
+            target = os.readlink(path)
+            if os.path.realpath(path).startswith(real_root + os.sep):
+                links.append({"file": rel, "target": target})
+            elif mask:
+                with contextlib.suppress(OSError):
+                    path.unlink()
+                removed.append({"file": rel, "target": target})
+            else:
+                removed.append({"file": rel, "target": target, "removed": False})
+        for name in filenames:
+            path = here / name
+            if path.is_symlink() or not path.is_file():
+                continue
+            files += 1
+            data = bytearray(path.read_bytes())
+            scanned += len(data)
+            found = credential_findings(data, mask=True)
+            if found:
+                if mask:
+                    path.write_bytes(bytes(data))
+                rel = path.relative_to(root).as_posix()
+                findings += [{"file": rel, **{k: f[k] for k in ("line", "kind", "length")}} for f in found]
+    failed = bool(findings or removed)
+    return {"status": "failed" if failed else "passed", "files": files, "bytes": scanned,
+            "kinds": list(CREDENTIAL_KINDS), "findings_count": len(findings),
+            "findings": findings[:MAX_LISTED], "masked": mask and bool(findings),
+            "links": links[:MAX_LISTED], "outside_links_removed": removed[:MAX_LISTED],
+            "what": "credential-shaped text searched in every file under the run's directory without "
+                    "knowing any value; each finding is overwritten in place by a marker of its length "
+                    "and listed by file, line, kind and length, never by value"}
+
+
 def run_one(session: Session, task: dict, repeat: int) -> dict:
     key = run_key(session, task["id"], repeat)
     run_dir = session.out / "runs" / key
@@ -1915,8 +2298,10 @@ def run_one(session: Session, task: dict, repeat: int) -> dict:
     reason = not_run_reason(session, task)
     if reason:
         record.update(outcome="not_run", reason=reason)
-        if reason.startswith("api_key_missing"):
+        if reason.startswith(("api_key_missing", "aelix_login_missing")):
             record["command_to_run"] = command_line(session, task, repeat)
+        if reason.startswith("aelix_login_missing"):
+            record["login_to_run"] = LOGIN_HOWTO
         write_json(run_dir / "run.json", record)
         return record
     tools = tools_of(session)
@@ -1931,6 +2316,7 @@ def run_one(session: Session, task: dict, repeat: int) -> dict:
                       "what": "the model's work root during the run, outside OUT; moved into the "
                               "run's directory when aelix exited"}
     failure: BaseException | None = None
+    settled: dict | None = None
     try:
         env_probe, _ = run_env(session, run_dir, work / "project")
         project = prepare_work(task, fixture, work, Path(session.checkout["path"]) / "src", env_probe)
@@ -1944,14 +2330,21 @@ def run_one(session: Session, task: dict, repeat: int) -> dict:
         timeout = session.timeout or task["timeout_s"]
         fake = ScriptedModel(load_script(task["id"], session.script), tools) if scripted else None
         with fake or contextlib.nullcontext():
-            write_models_json(session, run_dir, fake.port if fake else None)
+            write_models_json(session.model, run_dir / "agent", fake.port if fake else None)
             argv = build_argv(session, requests, extension_path, tools_argv)
             write_json(run_dir / "command.json", {
                 "argv": argv, "cwd": str(project), "set_env": set_vars,
                 "unset_env": "AELIX_ANALYTICS_*, AELIX_LAB_*, " + ", ".join(ISOLATED_KEYS),
                 "inherited_env": "the rest of the caller's environment; values are not recorded",
-                "secret_env": session.model.get("api_key_env")})
+                "secret_env": session.model.get("api_key_env"),
+                "login_file": None if session.auth_file is None else str(session.auth_file)})
             record.update(requests=requests, before=before, started_at=now_iso())
+            if session.auth_file is not None:
+                record["login"] = {"file": str(session.auth_file),
+                                   "mtime_before": file_mtime(session.auth_file),
+                                   "what": "the file's modification time only (its contents are never "
+                                           "read here); aelix rewrites it in place when it refreshes "
+                                           "a token, and so may another aelix of the caller"}
             ports = processes()
             started = time.perf_counter()
             timed_out = False
@@ -1972,6 +2365,11 @@ def run_one(session: Session, task: dict, repeat: int) -> dict:
                     ports.kill_tree(proc.pid)
                     raise
             elapsed = round(time.perf_counter() - started, 1)
+            if session.auth_file is not None:
+                after = file_mtime(session.auth_file)
+                record["login"].update(mtime_after=after,
+                                       changed=after != record["login"]["mtime_before"],
+                                       agent_dir_store=(run_dir / "agent" / "auth.json").exists())
             if fake:
                 write_json(run_dir / "fake-requests.json", fake.requests)
         if fake and fake.requests:
@@ -1989,6 +2387,7 @@ def run_one(session: Session, task: dict, repeat: int) -> dict:
                     "system_prompt_bytes": not_measured(FULL_INPUT_NOT_MEASURED)}
         record.update(finished_at=now_iso(), elapsed_s=elapsed, exit_code=code, timed_out=timed_out,
                       timeout_s=timeout, offered_tools=offered, request_body=body)
+        settled = settle(work)
         shutil.move(str(work), str(kept))
         finish_record(session, task, record, run_dir, kept / "project", extra_checks, scripted)
     except BaseException as exc:
@@ -1996,8 +2395,18 @@ def run_one(session: Session, task: dict, repeat: int) -> dict:
         raise
     finally:
         if work.exists() and not kept.exists():
+            if settled is None:
+                settled = settle(work)
             with contextlib.suppress(OSError):
                 shutil.move(str(work), str(kept))
+        if settled is not None:
+            record["after_exit"] = settled
+        environments, environments_error = [], None
+        if kept.is_dir() and not kept.is_symlink():
+            try:
+                environments = remove_environments(kept)
+            except OSError as exc:  # left in place: the scan below searches it
+                environments_error = f"{type(exc).__name__}: {exc}"
         found = redact_tree(run_dir, session.secrets)
         clean = redact_value(record, session.secrets)
         if clean != record:
@@ -2009,8 +2418,34 @@ def run_one(session: Session, task: dict, repeat: int) -> dict:
         if failure is not None and "outcome" not in record:
             record.update(outcome="error", harness_error=redact_value(
                 f"{type(failure).__name__}: {failure}", session.secrets))
+        record["environments_removed"] = {
+            "removed": [{**e, "path": f"work/{e['path']}"} for e in environments],
+            "error": environments_error,
+            "what": "the project's Python environment (.venv) the kit made with uv: removed after aelix "
+                    "exited, never following a link; uv.lock stays and makes it again"}
+        write_json(run_dir / "run.json", record)
+        # Credential-shaped text in any file of the run, the record included: overwritten in place.
+        try:
+            scan = scan_tree(run_dir)
+        except OSError as exc:  # not searched is not passed
+            scan = {"status": "failed", "error": f"{type(exc).__name__}: {exc}", "findings": [],
+                    "outside_links_removed": []}
+        if scan.get("masked"):  # run.json may be among the files it overwrote
+            masked = read_json(run_dir / "run.json")
+            record.clear()
+            record.update(masked)
+        record["secret_scan"] = scan
+        mark_secret_scan(record)
         write_json(run_dir / "run.json", record)
     return record
+
+
+def mark_secret_scan(record: dict) -> None:
+    """A failed secret scan is for a person to look at."""
+    review = (record.get("score") or {}).get("needs_review")
+    if (record.get("secret_scan") or {}).get("status") == "failed" and isinstance(review, list) \
+            and "secret_scan" not in review:
+        review.append("secret_scan")
 
 
 def finish_record(session: Session, task: dict, record: dict, run_dir: Path, project: Path,
@@ -2064,6 +2499,7 @@ def finish_record(session: Session, task: dict, record: dict, run_dir: Path, pro
                                              "\n\n".join(tr.answers[:-1]),
                                              ["재사용", "skill", "스킬", "다시 쓸", "reuse"])),
         errors_recovered=recovered(state))
+    mark_secret_scan(record)
 
 
 def recovered(state: dict) -> dict:
@@ -2079,6 +2515,8 @@ def command_line(session: Session, task: dict, repeat: int) -> str:
     parts = ["uv", "run", "--locked", "python", "tools/model_eval.py", "run", "--model",
              session.model["id"], "--task", task["id"], "--surface", session.surface, "--proposal",
              session.proposal, "--out", "<new directory>"]
+    if session.auth_file is not None and session.auth_file != default_aelix_auth():
+        parts += ["--aelix-auth", str(session.auth_file)]
     prefix = f"{env}=<key> " if env else ""
     return prefix + shlex.join(parts)
 
@@ -2119,6 +2557,7 @@ def summarize(out: Path) -> dict:
             "input_uncached": token_cell(tokens, "input_uncached"),
             "input_cached": token_cell(tokens, "input_cached"),
             "output": token_cell(tokens, "output"),
+            "secret_scan": (record.get("secret_scan") or {}).get("status"),
             "elapsed_s": record.get("elapsed_s"), "record": str(path.relative_to(out))})
     groups: dict[tuple, list] = {}
     for run in runs:
@@ -2141,6 +2580,7 @@ def summarize(out: Path) -> dict:
                           "fabricated_ids": sum(bool(r["fabricated_ids"]) for r in executed),
                           "critical": sum(bool(r["critical"]) for r in executed),
                           "argument_errors": sum(r["argument_errors"] or 0 for r in executed),
+                          "secret_scan_failed": sum(r["secret_scan"] == "failed" for r in executed),
                           "median_total_tokens": statistics.median(totals) if totals else None,
                           "token_runs": len(whole),
                           "partial_usage_runs": len(executed) - len(whole)})
@@ -2157,8 +2597,8 @@ def summarize(out: Path) -> dict:
 def render_summary(summary: dict) -> str:
     lines = ["# Model evaluation runs", "", f"Written {summary['written_at']}. Generated from summary.json.",
              "", "| run | outcome | answer | facts | evidence | critical | review | fabricated ids | calls "
-             "| arg errors | input uncached | input cached | output | s |",
-             "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+             "| arg errors | input uncached | input cached | output | s | secret scan |",
+             "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
 
     def cell(v):
         return "—" if v is None else (f"{v:,}" if isinstance(v, int) else str(v))
@@ -2171,7 +2611,7 @@ def render_summary(summary: dict) -> str:
     for r in summary["runs"]:
         name = str(r["outcome"]) + (f" ({r['reason']})" if r.get("reason") else "")
         if r["outcome"] == "not_run":
-            lines.append("| " + " | ".join([r["run"], name, r["answer_status"]] + ["—"] * 11) + " |")
+            lines.append("| " + " | ".join([r["run"], name, r["answer_status"]] + ["—"] * 12) + " |")
             continue
         facts = r["fact_recall"] or {}
         ev = r["evidence"] or {}
@@ -2180,7 +2620,8 @@ def render_summary(summary: dict) -> str:
             f"{ev.get('passed', '—')}/{ev.get('total', '—')}", ", ".join(r["critical"] or []) or "0",
             ", ".join(r["needs_review"] or []) or "—", ", ".join(r["fabricated_ids"] or []) or "—",
             cell(r["tool_calls"]), cell(r["argument_errors"]), tokens(r["input_uncached"]),
-            tokens(r["input_cached"]), tokens(r["output"]), cell(r["elapsed_s"])]) + " |")
+            tokens(r["input_cached"]), tokens(r["output"]), cell(r["elapsed_s"]),
+            cell(r.get("secret_scan"))]) + " |")
     return "\n".join(lines) + "\n"
 
 
@@ -2300,6 +2741,24 @@ def cmd_run(args) -> int:
     if work_parent == out or work_parent.is_relative_to(out):
         raise UsageError(f"--work-root {work_parent} is inside --out: the model's work root must not "
                          "share a tree with the fixtures and the other runs")
+    auth_file = None
+    if model.get("auth") is not None:
+        if args.aelix_command:
+            raise UsageError(f"{model['id']} uses an aelix login: aelix is started through "
+                             "tools/model_eval_aelix.py with the Python of aelix 0.1.0b2, not --aelix-command")
+        auth_file = Path(os.path.abspath(os.path.expanduser(args.aelix_auth))) if args.aelix_auth \
+            else default_aelix_auth()
+        # The scan overwrites credential-shaped text under OUT's runs: OUT and the login's directory
+        # do not hold each other. The model's work root (a new directory under --work-root) is not
+        # inside the login's directory.
+        login_dir = Path(os.path.realpath(auth_file.parent))
+        real_out = Path(os.path.realpath(out))
+        if real_out.is_relative_to(login_dir) or login_dir.is_relative_to(real_out):
+            raise UsageError(f"--out {out} and the login's directory {login_dir} overlap")
+        if Path(os.path.realpath(work_parent)).is_relative_to(login_dir):
+            raise UsageError(f"--work-root {work_parent} is inside the login's directory {login_dir}")
+    elif args.aelix_auth:
+        raise UsageError(f"--aelix-auth is for a model that uses an aelix login; {model['id']} does not")
     # Every run's directory is checked before the first run: nothing is run when one exists.
     taken = [name for t in task_ids for r in range(args.first_repeat, args.first_repeat + args.repeats)
              if (out / "runs" / (name := run_name(t, model["id"], args.surface, args.proposal, r))).exists()]
@@ -2313,13 +2772,14 @@ def cmd_run(args) -> int:
     serving = None
     if not missing_key and model["serving"].get("backend") == "ollama":
         serving = serving_check(model)
+    login = login_check(model, auth_file, out) if auth_file is not None else None
     session = Session(config=config, model=model, out=out, checkout=checkout, surface=args.surface,
                       proposal=args.proposal, seed=args.seed, aelix_command=command, aelix_version=None,
                       fixtures_root=Path(args.fixtures).resolve() if args.fixtures else out / "fixtures",
                       timeout=args.timeout, script=Path(args.script).resolve() if args.script else None,
                       serving=serving, uv=None,
                       secrets=[os.environ[key_env]] if key_env and os.environ.get(key_env) else [],
-                      work_parent=work_parent)
+                      work_parent=work_parent, auth_file=auth_file, login=login)
     records = []
     try:
         runnable = [t for t in task_ids if not not_run_reason(session, config.tasks[t])]
@@ -2336,15 +2796,25 @@ def cmd_run(args) -> int:
                          f"{record['score']['fact_recall']['total']} facts, "
                          f"{record['tool_summary']['calls']} calls, "
                          f"{record['tool_summary']['argument_errors']} argument errors, "
-                         f"{record['elapsed_s']} s" if record.get("score") else ""), flush=True)
+                         f"{record['elapsed_s']} s" if record.get("score") else "")
+                      + (f" — secret scan {record['secret_scan']['status']}"
+                         if record.get("secret_scan") else ""), flush=True)
     finally:
         summarize(out)
     print(f"summary: {out / 'summary.json'}")
     if records and all(r["outcome"] == "not_run" for r in records):
         for record in records:
+            if record.get("login_to_run"):
+                print(f"login: {record['login_to_run']}")
             if record.get("command_to_run"):
                 print(f"to run: {record['command_to_run']}")
         return 3
+    failed = [r["run"] for r in records if (r.get("secret_scan") or {}).get("status") == "failed"]
+    if failed:
+        print(f"model_eval: the secret scan failed for {', '.join(failed)}: credential-shaped text was "
+              "overwritten or a link leaving the run was removed (see secret_scan in run.json)",
+              file=sys.stderr)
+        return 1
     return 0
 
 
@@ -2409,6 +2879,9 @@ def parser() -> argparse.ArgumentParser:
     r.add_argument("--seed", type=int, default=0,
                    help="the fixtures' seed; only the answers' seed (0) is accepted")
     r.add_argument("--aelix-command", help=f"default: {shlex.join(AELIX_COMMAND)}")
+    r.add_argument("--aelix-auth", help="for a model that uses an aelix login: the login's file (default: "
+                                        "where the caller's aelix keeps it, $AELIX_CODING_AGENT_DIR/auth.json "
+                                        "or ~/.aelix/agent/auth.json); only aelix opens it")
     r.add_argument("--timeout", type=int, help="seconds per run (default: the task's timeout_s)")
     r.add_argument("--script", help="dry-run only: a script instead of dry_run/<task>.json")
     c = sub.add_parser("score", help="score the runs of an earlier output again with the current answers")

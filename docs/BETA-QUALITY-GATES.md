@@ -27,7 +27,8 @@ Windows의 선언된 한계, 실행하지 않은 것은 [현재 계약](CONTRACT
 
 현재 사용자가 지정한 지원 하단 기준은 **Qwen3.8 27B**다. 정확한 serving ID·버전·양자화·backend·tokenizer·실제 context 설정을 고정한 검증이 필요하다.
 그 설정은 #40이 고정했다: ollama 0.35.1의 `qwen3.8:27b-mtp-q4_K_M`(GGUF Q4_K_M, manifest digest 고정), context 131,072, 출력 예약 32,768,
-Qwen 권장 표본 추출 값([실제 모델 평가 안내](../tools/model_eval_data/README.md#로컬-qwen-서빙)). 프론티어 모델은 `gpt-6-astra`다(2026-10-07 확인).
+Qwen 권장 표본 추출 값([실제 모델 평가 안내](../tools/model_eval_data/README.md#로컬-qwen-서빙)). 프론티어 모델은 aelix의 `openai-codex`
+provider와 소유자의 aelix 로그인으로 부르는 `gpt-5.6-sol`이다(context 1,050,000, 출력 128,000, thinking `medium`; 2026-10-07 소유자 결정).
 설정을 고정한 것은 검증 결과가 아니다. 이 설정으로 측정한 결과는 #24가 낸다.
 이 모델과 프론티어 모델의 정상 사용 설정을 주 검증 대상으로 삼는다. 8K 등의 축소 문맥 시험은 별도 진단이며 기본 실행 한도나 하단 모델의 정의가 아니다.
 더 작은 모델의 실행을 차단하지 않고, 모델 발전에 따라 릴리스별 기준을 재검토한다.
