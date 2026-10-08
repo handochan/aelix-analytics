@@ -354,10 +354,11 @@ def _invalid_hint(state: MarkerState) -> str:
     if state.reason in _NO_FORMAT or (state.reason == "missing_field"
                                       and "schema" in (state.details.get("fields") or ())):
         return (f"this {MARKER} names no project format: if it is a file of your own, rename it or "
-                "name the project's root (--project ROOT, AELIX_ANALYTICS_PROJECT=ROOT, /analytics "
-                f"use ROOT), as the nearest directory with {MARKER} or {LEGACY_MARKER} is the "
-                "project; if it is the marker, restore it. This kit writes nothing to the directory "
-                "while it is there")
+                "name the project's root (AELIX_ANALYTICS_PROJECT=ROOT for the analytics command, the "
+                "SDK and aelix; /analytics use ROOT or --analytics-project ROOT in aelix; --project "
+                f"ROOT for python -m aelix_analytics), as the nearest directory with {MARKER} or "
+                f"{LEGACY_MARKER} is the project; if it is the marker, restore it. This kit writes "
+                "nothing to the directory while it is there")
     return (f"{MARKER} names a project of the analytics.project/2 format: a JSON object with "
             f"{', '.join(PROJECT_FIELDS)}. Restore it from where it came from; this kit writes "
             "nothing to the directory until it is valid")

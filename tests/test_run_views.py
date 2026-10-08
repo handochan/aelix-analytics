@@ -212,6 +212,22 @@ def test_a_lab_json_project_keeps_its_dataset_directories(tmp_path):
     assert "data/imported" not in core.status_text(st)
 
 
+def test_a_lab_json_project_reads_import_records_in_both_places(tmp_path):
+    """Fix check of PR 1 (CONTRACTS C4, as it is documented): the import records are read in both
+    places (design 5.3), so a person's *.meta.json under data/imported/ of a lab.json project is
+    reported — unsupported when it is JSON and no import record, damaged when it is not JSON — while
+    the datasets and their views stay data/raw's."""
+    p = LegacyProject(tmp_path / "p")
+    p.dataset("sales", imported_at=at(1))
+    p.file("data/imported/photo.meta.json", b'{"camera": "x"}')
+    p.file("data/imported/notes.meta.json", b"not json")
+    st = core.status(core.Project(p.root))
+    assert {"location": "data/imported/photo.meta.json", "reason": "unknown_family"} in st["unsupported"]
+    assert {"location": "data/imported/notes.meta.json", "reason": "unparsable"} in st["damaged"]["files"]
+    assert [d["path"] for d in st["datasets"]] == ["data/raw/sales.parquet"]
+    assert st["views"] == {"sales": "data/raw/sales.parquet"}
+
+
 def test_a_reference_to_a_v2_visualization_is_judged_by_its_hash(tmp_path):
     """design 2.6: a visualization_version reference's digest is the Visualization's sha256, and
     an analytics.run/2 Visualization is a target that keeps a hash of its own."""

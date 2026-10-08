@@ -234,8 +234,11 @@ def test_an_analytics_json_that_names_no_format_may_be_the_person_s_own(tmp_path
     hint = caught.value.hint
     assert ("a file of your own" in hint) is own
     if own:
-        assert "--project ROOT" in hint and "AELIX_ANALYTICS_PROJECT=ROOT" in hint
-        assert "/analytics use ROOT" in hint and "rename it" in hint
+        # Each entry point by the way it names a project (fix check of PR 1): `analytics --project`
+        # is a usage error, so --project is named only for python -m aelix_analytics.
+        assert "AELIX_ANALYTICS_PROJECT=ROOT for the analytics command" in hint
+        assert "/analytics use ROOT or --analytics-project ROOT in aelix" in hint
+        assert "--project ROOT for python -m aelix_analytics" in hint and "rename it" in hint
     else:
         assert "Restore it from where it came from" in hint
 

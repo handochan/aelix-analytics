@@ -49,6 +49,33 @@ refuse_renamed() {
 # nowhere or loops (the kit judges it; the installed command's has_marker is the same rule).
 has_marker() { { [ -e "$1" ] || [ -L "$1" ]; } && [ ! -d "$1" ]; }
 
+# A marker as the kit counts one (the installed command's kit_marker): an entry that is not a
+# directory, where a link that leads nowhere is none and one that loops is one. A link stat cannot
+# follow is followed here link by link, and counts if it is still a link after 32 of them: the
+# smaller of macOS's and Linux's limits (32, 40), so a chain the kit counts is never passed over.
+kit_marker() {
+  if [ -e "$1" ]; then [ ! -d "$1" ]; return; fi
+  km_path=$1 km_n=0
+  while [ -L "$km_path" ] && [ "$km_n" -lt 32 ]; do
+    km_to=$(readlink "$km_path")
+    case $km_to in /*) km_path=$km_to ;; *) km_path=$(dirname "$km_path")/$km_to ;; esac
+    km_n=$((km_n + 1))
+  done
+  [ -e "$km_path" ] || [ -L "$km_path" ]
+}
+
+# The directory the kit takes for the project from where find_project stopped, upward (the installed
+# command's kit_root): `open` opens its page. The start itself when none above has a marker.
+kit_root() {
+  kr_dir=$1
+  while :; do
+    if kit_marker "$kr_dir/analytics.json" || kit_marker "$kr_dir/lab.json"; then printf '%s\n' "$kr_dir"; return 0; fi
+    [ "$kr_dir" = / ] && break
+    kr_dir=$(dirname "$kr_dir")
+  done
+  printf '%s\n' "$1"
+}
+
 find_project() {
   if [ -n "${AELIX_ANALYTICS_PROJECT:-}" ]; then printf '%s\n' "$AELIX_ANALYTICS_PROJECT"; return 0; fi
   dir=$(pwd -P)
@@ -94,7 +121,8 @@ case $cmd in
   open)
     refuse_renamed
     proj=$(find_project)
-    if has_marker "$proj/analytics.json" && has_marker "$proj/lab.json"; then
+    [ -n "${AELIX_ANALYTICS_PROJECT:-}" ] || proj=$(kit_root "$proj")
+    if kit_marker "$proj/analytics.json" && kit_marker "$proj/lab.json"; then
       echo "analytics: $proj holds two project markers, analytics.json and lab.json, and the kit reads neither; analytics status says more" >&2
       exit 1
     fi

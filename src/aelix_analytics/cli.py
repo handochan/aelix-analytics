@@ -28,6 +28,7 @@ import hashlib
 import importlib.util
 import os
 import signal
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -137,9 +138,15 @@ def _command(args: list[str], kit: Path | None, uv_argv: list[str] | None,
     if project is None:
         return 1
     if command == "open":
-        if all(has_marker(Path(project), marker) for marker in MARKERS):
+        # `open` reads no record itself: it opens the page of the directory the kit takes for the
+        # project, by the kit's presence rule (kit_marker). From where the search stopped, a
+        # directory whose marker entries all lead nowhere is passed over, as the kit passes it over;
+        # AELIX_ANALYTICS_PROJECT is taken as it is given, as before.
+        if not os.environ.get("AELIX_ANALYTICS_PROJECT"):
+            project = kit_root(project)
+        if all(kit_marker(Path(project), marker) for marker in MARKERS):
             # Two markers: the kit reads neither (marker_conflict), and neither page is opened. Only
-            # their presence is looked at, as the search does.
+            # their presence is looked at, not what they hold.
             _say(two_markers_message(project))
             return 1
         index = Path(project) / "report" / "index.html"
@@ -191,12 +198,38 @@ MARKERS = ("analytics.json", "lab.json")
 def has_marker(directory: Path, name: str) -> bool:
     """Whether `directory` holds an entry named `name` that is not a directory: a file, a FIFO, a
     socket, a link that leads nowhere or loops. The kit's own search (writer.present_marker) counts
-    every one of these but a link that leads nowhere, and judges what it found; this one stops at
-    least where the kit's does, so a directory the kit refuses is never passed over for one above
-    it. From where it stops the kit searches upward again (`--project` names a start), so a dangling
-    link here is passed over there. bin/analytics has the same rule."""
+    every one of these but a link that leads nowhere (kit_marker), and judges what it found; this one
+    stops at least where the kit's does, so a directory the kit refuses is never passed over for one
+    above it. From where it stops the kit searches upward again (`--project` names a start), so a
+    dangling link here is passed over there. bin/analytics has the same rule."""
     path = directory / name
     return os.path.lexists(path) and not os.path.isdir(path)
+
+
+def kit_marker(directory: Path, name: str) -> bool:
+    """Whether `directory` holds a marker named `name` as the kit counts one (writer._look): an entry
+    stat finds that is not a directory, or one stat cannot look at for another reason than its
+    absence (a link that loops). A link that leads nowhere is no marker. `open` judges by this, as
+    it opens a page without the kit; bin/analytics has the same rule (kit_marker there)."""
+    try:
+        st = os.stat(directory / name)
+    except (FileNotFoundError, NotADirectoryError, ValueError):
+        return False
+    except OSError:
+        return True
+    return not stat.S_ISDIR(st.st_mode)
+
+
+def kit_root(found: str) -> str:
+    """The directory the kit takes for the project when it searches upward from `found`, where the
+    search (find_project) stopped (writer.find_project): `found`, unless its marker entries are only
+    links that lead nowhere, and `found` again when no directory up from it has a marker (the kit
+    then says there is no project)."""
+    start = Path(found)
+    for directory in (start, *start.parents):
+        if any(kit_marker(directory, marker) for marker in MARKERS):
+            return str(directory)
+    return found
 
 
 def two_markers_message(project: str) -> str:

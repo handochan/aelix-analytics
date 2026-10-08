@@ -387,6 +387,48 @@ def test_open_refuses_a_directory_with_two_markers(fake, tmp_path, which):
     assert not opened.exists() and not calls(fake)
 
 
+@pytest.mark.skipif(not POSIX, reason="the links are POSIX's here, and os.startfile would open a real "
+                    "program on Windows")
+@pytest.mark.parametrize("which", WHICH)
+@pytest.mark.parametrize(("kind", "where"), [("dangling", "beside"), ("dangling", "below"),
+                                             ("loop", "beside")])
+def test_open_counts_a_marker_link_as_the_kit_does(fake, tmp_path, which, kind, where):
+    """Fix check of PR 1: `open` opens a page without the kit, so it judges by the kit's own presence
+    rule (writer._look), where a link that leads nowhere is no marker and one that loops is one. A
+    lab.json project that also holds a dangling analytics.json is a lab.json project to the kit, and
+    its page opens (both commands had refused it as two markers). A directory below the project whose
+    only marker entry is such a link is passed over: the kit builds the project's page and that page
+    opens (both commands had opened the directory's, which does not exist). A looping analytics.json
+    beside the lab.json is a second marker (marker_conflict): refused, neither uv nor the opener."""
+    project = project_dir(tmp_path)
+    here = project / "inner" if where == "below" else project
+    here.mkdir(exist_ok=True)
+    odd_marker(here / "analytics.json", kind)
+    if where == "beside":
+        (project / "report").mkdir()
+        (project / "report" / "index.html").write_text("<html>", encoding="utf-8")
+    opened = tmp_path / "opened.txt"
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for name in ("open", "xdg-open"):
+        opener = bin_dir / name
+        opener.write_text(f"#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{opened}'\n", encoding="utf-8")
+        opener.chmod(0o755)
+    done = launch(fake, "open", cwd=here, which=which,
+                  PATH=f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+    if kind == "loop":
+        assert done.returncode == 1
+        assert done.stderr.decode("utf-8") == (
+            f"analytics: {project} holds two project markers, analytics.json and lab.json, and the kit "
+            "reads neither; analytics status says more\n")
+        assert not opened.exists() and not calls(fake)
+        return
+    assert done.returncode == 0, done.stderr
+    assert opened.read_text(encoding="utf-8") == f"{project / 'report' / 'index.html'}\n"
+    assert [uv_args(c) for c in calls(fake)] == (
+        [kit_call(project, "render")] if where == "below" else [])
+
+
 @pytest.mark.parametrize("which", WHICH)
 def test_output_passes_through_byte_for_byte(fake, tmp_path, which):
     project = project_dir(tmp_path)

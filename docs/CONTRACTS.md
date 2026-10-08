@@ -46,9 +46,9 @@ kit이 쓰지 않는 프로젝트에서 aelix 프로세스 안에서 거절합�
 (`analytics_status`·`analytics_query`)와 `/analytics status`·`context`·`use`는 읽고, 부수 쓰기 — 맥락 동기화, `telemetry.jsonl`, `agent_end`의
 Workspace 렌더 — 는 건너뜁니다. `/analytics use`는 읽을 수 있는 프로젝트(두 표식이 아닌 것)를 신뢰 목록(B)에 적습니다: 이 kit이 쓰지 않는
 프로젝트여도 그렇고, 목록은 프로젝트 트리 밖에 있습니다. 맥락 블록과 `analytics_status`는 머리의 `read only:` 줄로 거절 이유를 알립니다.
-확장이 aelix 프로세스 안에서 쓰는 기록 — `analytics_record`, `/analytics record`, `analytics_init`·`/analytics init`의 프로젝트 생성, 맥락 동기화 — 은 진입점이 정한 작성 출처(`Origin`: 모델 도구
+확장이 aelix 프로세스 안에서 쓰는 기록 — `analytics_record`, `/analytics record`, `analytics_init`·`/analytics init`·`/analytics demo`의 프로젝트 생성, 맥락 동기화 — 은 진입점이 정한 작성 출처(`Origin`: 모델 도구
 `agent`·`tool`, `/analytics` `human`·`command`, hook `system`·`hook`, `analytics_status` 안의 동기화 `system`·`tool`)를 기록 함수에 넘깁니다. kit
-자식 프로세스가 쓰는 기록 — `analytics_run`·`analytics_import`, `/analytics render`·`demo`, `analytics_init`·`/analytics init`의 첫 렌더,
+자식 프로세스가 쓰는 기록 — `analytics_run`·`analytics_import`, `/analytics render`, `/analytics demo`의 데이터와 run, `analytics_init`·`/analytics init`의 첫 렌더,
 `agent_end`의 렌더(렌더의 맥락 동기화) — 은 확장이 넘기는
 `AELIX_ANALYTICS_ACTOR`·`AELIX_ANALYTICS_SESSION`의 작성 주체·세션과 실행 수단 `cli`를 받습니다(kit 명령줄의 `Origin`, D). 확장의 실행 수단을
 자식에게 넘기는 `AELIX_ANALYTICS_MEANS`는 #13의 셋째 PR이 더합니다. `lab.event/1` 줄에는 어느 쪽이든 지금처럼 `actor`와 `session`만
@@ -167,8 +167,11 @@ build stamp, 데모의 `CONTEXT.md`, kit이 감싸는 run 로그(스크립트의
 런처와 `bin/analytics`는 표식의 내용을 읽지 않고 찾은 디렉터리를 kit에 넘깁니다. 둘은 표식 이름의 항목이 디렉터리가 아니면 — 파일, FIFO,
 고리를 이루거나 어디로도 이어지지 않는 링크 — 거기서 멈추고, kit은 넘겨받은 디렉터리(`--project`)에서 자기 규칙으로 다시 위로 찾습니다. kit은
 디렉터리가 아닌 항목을 표식으로 세되 `stat`이 없다고 답하는 것(어디로도 이어지지 않는 링크)은 세지 않으므로, 두 명령은 kit이 거절할 디렉터리를
-지나쳐 위쪽 프로젝트로 가지 않습니다. `open`은 Workspace를 열기 전에 두 표식이 다 있는지만 보고, 다 있으면 열지 않고 stderr에 그 사실을 적고
-종료 코드 1입니다(두 명령이 같은 바이트, kit의 `marker_conflict`와 같은 판정). 확장의 명시한 프로젝트는 그 디렉터리 자체를 판정합니다(A).
+지나쳐 위쪽 프로젝트로 가지 않습니다. `open`은 kit 없이 페이지를 여므로 표식의 있음을 kit의 규칙으로 봅니다: 어디로도 이어지지 않는
+링크는 표식이 아니고, 고리를 이루는 링크는 표식입니다. 그래서 찾기가 멈춘 디렉터리에서 위로, 표식 이름의 항목이 어디로도 이어지지 않는
+링크뿐인 디렉터리는 kit처럼 지나쳐 kit이 프로젝트로 삼는 디렉터리의 Workspace를 엽니다(`AELIX_ANALYTICS_PROJECT`는 준 그대로). 그
+디렉터리에 두 표식이 다 있으면 열지 않고 stderr에 그 사실을 적고 종료 코드 1입니다(두 명령이 같은 바이트). 확장의 명시한 프로젝트는 그
+디렉터리 자체를 판정합니다(A).
 표식 없는 전환 목적지(`.analytics/migration/`만 있는 디렉터리)에서 멈추는 것은 #13의 둘째 PR부터입니다. 지금은 그런 디렉터리를 지나 위로
 올라가고, 위에 표식이 없으면 `no_project`입니다.
 
@@ -265,7 +268,10 @@ schema의 `dataset_1`)도 읽습니다. 가족은 자리마다 하나라, `data/
 `analytics.json` 프로젝트는 `data/imported`(종류 `imported`) → `data/raw` → `data/derived` 순이고, 같은 이름이 `data/imported`와 `data/raw`에
 있으면 view 이름은 `data/imported`가 먼저 받고 `status`가 그 사실을 적습니다(E "view 이름"). `lab.json` 프로젝트는 kit 0.7.0 전처럼 `data/raw`
 → `data/derived`이고, 거기의 `data/imported/`는 사람의 디렉터리라 데이터셋도 view도 되지 않습니다. 가져오기 기록의 읽기(기록 상태,
-`source_revision`)는 두 자리를 다 봅니다.
+`source_revision`, run 뒤 경고의 가져온 원본)는 두 자리를 다 봅니다([설계](design/RECORD-WRITER-AND-MIGRATION.md) 5.3절). 그래서 `lab.json`
+프로젝트의 `data/imported/`에 사람이 둔 `*.meta.json`도 기록으로 읽혀, `status`와 Workspace가 그것을 `unsupported`(가져오기 기록이 아닌 JSON,
+예: `unknown_family`)나 `damaged`(JSON이 아닌 것, `unparsable`)로 적습니다(kit 0.7.0 전에는 읽지 않았습니다). 데이터셋 목록·view와 쓰기는
+그 파일로 바뀌지 않습니다.
 
 ### C5. 보조 로그
 
@@ -753,8 +759,9 @@ kit 0.7.0([#13](https://github.com/handochan/aelix-analytics/issues/13)의 첫 �
   디렉터리에 표식이 아닌 `analytics.json`(예: `data/exports/analytics.json`의 `{"pageviews": 10}`)이 있으면 그 디렉터리에서 부른 명령은 위쪽
   프로젝트가 아니라 그 디렉터리를 판정합니다: 쓰기는 `marker_invalid`로 거절되고(kit 0.7.0 전에는 위쪽 프로젝트에 썼습니다), `status`는 그
   디렉터리를 빈 프로젝트로 읽습니다. JSON이 아니거나 객체가 아니거나 `schema` 문자열이 없는 `analytics.json`의 hint는 그것이 사람의 파일일 수 있다는
-  것과, 위쪽 프로젝트의 루트를 이름으로 고르는 법(`--project ROOT`, `AELIX_ANALYTICS_PROJECT=ROOT`, `/analytics use ROOT`)이나 파일 이름을
-  바꾸는 것을 알립니다.
+  것과, 위쪽 프로젝트의 루트를 이름으로 고르는 법이나 파일 이름을 바꾸는 것을 알립니다. 루트는 진입점마다 그 진입점의 방법으로 고릅니다:
+  `analytics`·`bin/analytics`·SDK·aelix는 `AELIX_ANALYTICS_PROJECT=ROOT`, aelix는 `/analytics use ROOT`나 `--analytics-project ROOT`도,
+  `python -m aelix_analytics`는 `--project ROOT`입니다(`analytics --project ROOT …`는 usage와 2).
 - 원자성·복구·멱등성. 한 프로젝트의 run은 직렬화되지만, 강제 종료된 run은 `incomplete`로 남고 되돌리지 않습니다.
   프로젝트 밖에서 같은 파일을 건드리는 다른 프로세스는 막지 않습니다.
 - 결정성과 다른 환경 재현. 재실행은 같은 환경을 가정하고 환경 지문을 비교하지 않습니다.
