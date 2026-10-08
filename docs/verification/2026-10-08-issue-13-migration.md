@@ -4,9 +4,10 @@
 복사하는 전환 엔진(`aelix_analytics.migration`), 포트 메서드 넷(`FileLocks.try_exclusive`, `AtomicFiles.publish_new`·`flush_handle`·`flush_dir`),
 전환 기록 `analytics.migration/1`과 표식의 `migration`, 커밋 전 목적지의 판정 `incomplete`(`migration_incomplete`), 전환한 프로젝트의 매핑 읽기를
 더합니다. 기존 프로젝트를 변환하는 일이므로 운영 정책의 측정 기록이며, [설계](../design/RECORD-WRITER-AND-MIGRATION.md) 12절이 이 기록에 더한 키
-`fixtures`·`phases`·`sizes`·`preservation`·`fault_matrix`·`concurrency`·`reader_comparison`이 있습니다. 개발 기기(macOS)의 값이고, Linux·Windows의
-CI 칸은 이 코드를 담은 헤드에서 PR [#82](https://github.com/handochan/aelix-analytics/pull/82)의 실행으로 채웁니다(지금 `pending`. 앞
-헤드 `53d1bdf`의 실행은 Windows 레그가 실패했고, 그 원인과 수정은 아래 "Windows CI 실패와 수정"에 있습니다). 모든 값과 JUnit 파일의 sha256은 [2026-10-08-issue-13-migration.json](2026-10-08-issue-13-migration.json)에
+`fixtures`·`phases`·`sizes`·`preservation`·`fault_matrix`·`concurrency`·`reader_comparison`이 있습니다. 개발 기기(macOS)의 값과 함께,
+Linux·Windows·호스트 macOS의 값은 [PR #82](https://github.com/handochan/aelix-analytics/pull/82)의 CI가 이 코드를 담은 헤드 `ec8d7d9`에서
+돌린 것입니다(`pull_request` 실행과 `ci:macos` 라벨 실행, 각 시도 1, 모든 job 통과). 앞 헤드 `53d1bdf`의 실행은 Windows 레그가 실패했고, 그
+원인과 수정은 아래 "Windows CI 실패와 수정"에 있습니다. 이 칸을 채운 커밋은 이 기록만 바꿉니다. 모든 값과 JUnit 파일의 sha256은 [2026-10-08-issue-13-migration.json](2026-10-08-issue-13-migration.json)에
 있습니다. 계약에 반영한 것은 [CONTRACTS.md](../CONTRACTS.md) B("표식 판정과 쓰기", "프로젝트 찾기", "프로젝트 전환")·D·E·F·F1(kit 0.7.0)·G입니다.
 
 전환은 아직 명령으로 열지 않았습니다(`analytics migrate`는 셋째 PR). 그래서 아래의 전환은 모두 시험과 이 측정의 스크립트가 엔진을 직접 부른
@@ -25,7 +26,8 @@ diff 확인 뒤 코드 `84f3970`)과의 비교는 끝의 "리뷰 뒤 다시 잼"
 | 측정한 코드 | `feat/issue-13-migration-engine`(PR #82)의 커밋 `fix: the migration engine's Windows cases (Issue #13 PR 2)`(`ebd10b6`)의 코드. `origin/main` `ed29cf0`(PR #80 병합, 트리는 `fbd12e1`과 같음) 위의 `b7e1521`·`8ca6914`·`50a55bb`·`d08cf24`·`4243021`·`f7faea5`·`80a0fc9`·`84f3970`·`53d1bdf`와 그 커밋입니다. 그 커밋을 run 폴더의 깨끗한 클론에서 쟀고, 이 기록은 그 뒤의 docs 커밋입니다(코드를 바꾸지 않음). JSON의 `measured_tree`는 파일 manifest의 형식(추적하는 `src`·`extension`·`tests`·`tools`·`bin`·`pyproject.toml`·`uv.lock` 파일마다 `shasum -a 256` 한 줄, 경로 순), 그 manifest 전체의 sha256과 파일 수를 담습니다. 파일마다의 목록은 run 폴더의 `evidence/code-manifest.txt`에 있고 저장소에는 없습니다 |
 | 비교한 기준 | `fbd12e1`(= `c918381`의 코드, 이 PR이 올라가는 PR #80의 헤드)의 체크아웃에서 처음 측정의 새 시험을 돌렸고, 리뷰 뒤 더한 시험은 그때의 앞 헤드 `f7faea5`, 수정 diff 확인 뒤 더한 사례는 `80a0fc9`, Windows 수정의 시험은 `53d1bdf`의 코드에서 돌렸습니다(아래) |
 | 워크플로 | `.github/workflows/ci.yml`, 이 변경이 고치지 않음 |
-| CI | `pending`: 이 코드를 담은 헤드의 PR #82 실행으로 `runs`·`legs`를 채웁니다(이 작업은 push하지 않음). 앞 헤드 `53d1bdf`의 실행([37757801858](https://github.com/handochan/aelix-analytics/actions/runs/37757801858)·[37757804883](https://github.com/handochan/aelix-analytics/actions/runs/37757804883))은 Windows 레그만 실패(JSON의 `windows_ci_failure`) |
+| 코드 실행(Linux, Windows) | [37789500898](https://github.com/handochan/aelix-analytics/actions/runs/37789500898), 시도 1, `pull_request`(`synchronize`)로 헤드 `ec8d7d9`(측정한 `ebd10b6` 뒤에 바뀐 것은 이 기록뿐; 워크플로는 GitHub의 병합 커밋 `0edaff1`, 기준 `ed29cf0`). `platform · ubuntu-24.04` job 113352793123, 15m20s(ImageOS `ubuntu24 20260927.320.1`, floor job은 `20261004.327.1`; Linux-6.17.0-1022-azure-x86_64-with-glibc2.39, CPython 3.12.3·3.11.15, floor 3.11.17). `platform · windows-2025` job 113352791801, 36m53s(ImageOS `win25-vs2026 20260925.250.1`, Windows-2025Server-10.0.26100-SP0, CPython 3.12.10·3.11.9, floor 3.11.9). lint job 통과(ruff, 문서 검사: Markdown 65, 로컬 링크 692, 오류 0). 앞 헤드 `53d1bdf`의 실행([37757801858](https://github.com/handochan/aelix-analytics/actions/runs/37757801858)·[37757804883](https://github.com/handochan/aelix-analytics/actions/runs/37757804883))은 Windows 레그만 실패(아래 "Windows CI 실패와 수정", JSON의 `windows_ci_failure`) |
+| macOS 실행(라벨) | [37789525327](https://github.com/handochan/aelix-analytics/actions/runs/37789525327), 시도 1, 같은 헤드의 `ci:macos` 라벨(`labeled`): `platform · macos-26` job 113352876499, 15m16s(ImageOS `macos26 20260907.0351.1`, macOS-26.6.2-arm64-arm-64bit, CPython 3.12.10·3.11.9, floor 3.11.9) |
 | 개발 기기 | macOS 26.6.2 arm64(Apple M5 Pro), uv 0.11.19. 저장소 시험 CPython 3.12.13(`uv.lock`의 개발 환경), aelix 레그 3.12·3.11, 런처·stdlib 스모크 3.11. 같은 기기에서 다른 에이전트의 시험이 함께 돌았으므로 시간은 그 부하를 담습니다 |
 | 격리 | `AELIX_ANALYTICS_TRUST_FILE`·`AELIX_ANALYTICS_UV`를 run 폴더 안으로(`uv`는 실제 uv로의 링크), `LAB_*`·`AELIX_LAB_*` 없음, `~/.aelix`는 읽지도 쓰지도 않음 |
 
@@ -49,6 +51,51 @@ diff 확인 뒤 코드 `84f3970`)과의 비교는 끝의 "리뷰 뒤 다시 잼"
 | 수정 diff 확인의 새 사례를 앞 헤드에서 | 수정 diff 확인 커밋(`84f3970`)의 `tests/test_migration.py`에서 바꾸거나 더한 사례 + `80a0fc9`의 코드(run 폴더의 클론) | 기대대로 실패: 더한 3개 모두(다른 전환의 보고서 바이트·매핑 바이트를 자기 디렉터리에 둔 표식, 원본 재확인 뒤 지운 계획 폴더). 리뷰가 더한 `report_path` 사례는 통과 |
 | Windows 수정의 시험을 앞 헤드에서 | `ebd10b6`의 `tests/test_migration_reader.py` + `53d1bdf`의 코드(run 폴더의 클론) | 기대대로 `test_the_mapping_s_rules_are_by_path_components` 하나만 실패(`..`가 든 절대 경로를 `'sub/../x/y.csv'`로 읽음, 기대는 `'x/y.csv'`), 나머지 4개 통과(JSON의 `windows_ci_failure.local_check`). Windows에서만 보이는 원인 셋은 이 기기에서 돌릴 수 없음 |
 
+CI의 레그(헤드 `ec8d7d9`, 위 두 실행):
+
+| 검사 | Linux | Windows | macOS(호스트) |
+|---|---|---|---|
+| 저장소 시험(`AELIX_ANALYTICS_TEST_INSTALL=1`, 배포본 end-to-end 포함, `tests/test_windows_console.py`는 따로) | 1,658 passed, 60 skipped, 0 failed | 1,525 passed, 216 skipped, 0 failed | 1,657 passed, 61 skipped, 0 failed |
+| 그 가운데 `tests/test_migration.py` | 131 passed, 2 skipped | 127 passed, 7 skipped | 131 passed, 2 skipped |
+| 그 가운데 `tests/test_migration_reader.py` | 5 passed | 6 passed(junction판 포함) | 5 passed |
+| 그 가운데 `tests/test_contracts.py`의 새 포트 메서드 사례(`try_exclusive`·`publish_new`·`flush_handle`·`flush_dir`) | 25 passed, 17 skipped(POSIX 구현 14 passed, 시험 adapter 11 passed·3 skipped, Windows 구현 14 skipped) | 23 passed, 19 skipped(Windows 구현 12 passed·2 skipped, 시험 adapter 11 passed·3 skipped, POSIX 구현 14 skipped) | 25 passed, 17 skipped(Linux와 같음) |
+| F 표(F1–F16, 37행) | 37 passed | 35 passed, 2 skipped(F6·F12의 link와 unlink 사이) | 37 passed |
+| aelix 0.1.0b2 통합, CPython 3.12 / 3.11 | 161 / 161 passed | 162 / 162 passed | 161 / 161 passed |
+| 런처, CPython 3.11 | 138 passed, 1 skipped | 64 passed, 75 skipped(POSIX의 사례) | 138 passed, 1 skipped |
+| 플랫폼 스모크, required gate | hold: 25 holds, 0 violated | hold: 21 holds, 3 declared limitations, 0 violated | hold: 25 holds, 0 violated |
+| stdlib 스모크, CPython 3.11 | hold: 15 holds, 0 violated(3.11.17) | hold: 14 holds, 1 declared limitation, 0 violated(3.11.9) | hold: 15 holds, 0 violated(3.11.9) |
+| 사용량 보고서 | 필수 사실 58/58, 불변식 42/42 | 58/58, 42/42 | 58/58, 42/42 |
+| 네이티브 콘솔, LongPathsEnabled=0의 긴 경로 | — | 21 passed / 7 passed(전환 사례 포함) | — |
+| F 표의 관찰(`issue-13-migration/fault-matrix.json`) | 개발 기기와 같음(35행) | 개발 기기와 같음(33행) | 개발 기기와 같음(35행) |
+
+- 새 시험 파일: `tests/test_migration.py`의 건너뜀은 Linux가 공유 없이 연 원본 파일(Windows)과 원본의 다른 철자(대소문자를 구별하는 파일
+  시스템), 호스트 macOS가 공유 없이 연 원본 파일과 UTF-8이 아닌 이름(Linux)입니다. Windows의 일곱은 F6·F12의 link와 unlink 사이(Windows는
+  rename으로 게시해 그 틈이 없음), 폴더 쓰기 권한의 사례 둘·링크 뒤 `..`·Windows가 만들지 않는 예약 이름(POSIX의 것), UTF-8이 아닌 이름(Linux)이고,
+  Windows에는 겹치는 목적지 거절의 junction판이 하나 더 있습니다. `tests/test_migration_reader.py`는 세 레그 모두 통과했습니다(Windows는
+  junction판 포함). 포트 계약의 Windows 구현에서 건너뛴 둘은 그 구현이 밝히지 않은 능력(폴더 권한, 링크로 게시)입니다.
+- 이 PR이 기존 파일에 더한 사례: `tests/test_platform.py`의 Windows `publish_new`(바꿔 끼운 호출) 4개와 `tests/test_marker_gate.py`의 표식 없는
+  전환 목적지 3개는 세 레그 모두 통과, `tests/test_windows_long_paths.py`의 MAX_PATH 넘는 목적지로의 전환은 Windows의 저장소 시험과
+  LongPathsEnabled=0 실행에서 모두 통과(다른 레그는 건너뜀).
+- Windows CI 실패의 네 사례(`test_the_source_s_own_refusals`, `test_a_source_file_another_program_holds_open_is_reported`,
+  `test_the_reader_reads_a_migrated_project_as_it_read_its_source[symlink]`·`[junction]`)와 Windows 수정이 단언을 더한
+  `test_the_mapping_s_rules_are_by_path_components`(두 구분자가 섞인 경로)는 이 헤드의 Windows 레그에서 모두 통과했습니다(JSON의
+  `windows_ci_failure.at_the_fixed_head`).
+- 개발 기기가 인용한 시험(JSON의 `developer_machine.suite.cited_cases` 198개를 레그마다 찾은 `legs.<os>.junit.suite.cited_cases`): 호스트
+  macOS는 개발 기기와 같고(175 passed, 23 skipped), Linux는 둘이 다릅니다(UTF-8이 아닌 이름의 거절이 돌아 통과, 원본의 다른 철자는 건너뜀).
+  Windows는 168 passed, 30 skipped로, 포트 사례의 POSIX 구현과 POSIX의 전환 사례가 건너뛰고 Windows 구현과 공유 없이 연 원본 파일의 사례가
+  통과했습니다.
+- F 표의 관찰: `tests/test_migration.py`가 레그마다 남긴 `issue-13-migration/fault-matrix.json`(행마다 끊긴 뒤 남은 경로, 다시 부른 결과, ledger의
+  마지막 네 단계)이 세 레그 모두 개발 기기의 같은 관찰(run 폴더의 `evidence/observations/`)과 같습니다(전환 id를 가리고 구분자를 `/`로 맞춰
+  비교; JSON의 `legs.<os>.observations.fault_matrix`). Windows는 건너뛴 두 행이 없고, F15의 두 행은 다른 시험이라 그 파일에 없습니다.
+- Windows의 aelix 레그가 하나 많은 것은 junction판 사례
+  (`test_status_in_the_aelix_process_names_a_linked_data_directory_s_datasets_by_project_paths[junction]`)입니다. Windows의 플랫폼
+  스모크가 적은 제한 셋과 stdlib 스모크의 하나는 [#36의 기록](2026-10-06-issue-36-path-identity.md)에도 있던 같은
+  선언(`kill_tree_after_the_leader_exited`, regex·자식 대기의 취소)이고 이 변경과 관계없습니다.
+- CI의 저장소 시험은 배포본 end-to-end를 포함하고 콘솔 시험을 따로 돌리므로, 위 개발 기기의 수(콘솔 21개와
+  `AELIX_ANALYTICS_TEST_INSTALL=1`이 필요한 11개가 건너뜀)와 같은 묶음이 아닙니다. Linux 레그의 floor job은 platform job과 다른 러너
+  이미지(`ubuntu24 20261004.327.1`)였습니다. CI 레그별 값과 job id·시각, JUnit·스모크·사용량 보고서·관찰 파일의 sha256은 JSON의
+  `runs`·`legs`에 있습니다.
+
 ## 중단과 이어 쓰기(`fault_matrix`, T6)
 
 [설계](../design/RECORD-WRITER-AND-MIGRATION.md) 6.11절의 F1–F16을 `tests/test_migration.py`의 `FAULTS`가 한 행씩 돌립니다. 풍부한 원본(LF·CRLF 줄,
@@ -59,7 +106,8 @@ diff 확인 뒤 코드 `84f3970`)과의 비교는 끝의 "리뷰 뒤 다시 잼"
 `migration_incomplete`로 거절하며 옛 kit의 찾기(`lab.json`만)는 아무것도 찾지 않음, 다시 부르면 중단 없는 전환과 같은 사본(전환 디렉터리·표식·
 `.gitignore` 머리 줄의 전환 id 제외), 원본 트리(독립 걷기, 잠금 파일 둘 제외) 그대로, 표식이 보고서를, 보고서가 매핑과 모든 사본을 묶음, 임시 파일
 없음. 아래 "남은 것"·"다시 부른 결과"는 같은 행들을 run 폴더의 `fault_observe.py`가 헤드에서 다시 돌려 적은 것이고, 시험 결과는 개발 기기에서 모두
-통과입니다.
+통과입니다. CI에서는 Linux·호스트 macOS가 37행 모두, Windows가 35행을 통과했고 F6·F12의 link와 unlink 사이 두 행은 Windows가 rename으로
+게시해 건너뜁니다(JSON의 `fault_matrix.legs`).
 
 | 지점 | 끊은 단계 | 남은 것(마지막 ledger 줄, 임시 파일) | kit의 읽기 | 다시 부른 결과 |
 |---|---|---|---|---|
@@ -167,9 +215,7 @@ aelix의 hook·도구가 journal 잠금에서 기다림). 두 fixture의 원본�
 
 ## 실행하지 않은 것
 
-JSON의 `not_run`에 있습니다: 이 코드를 담은 헤드의 저장소 CI(Linux·Windows, macOS는 라벨 — Windows 레그가 F 표, 다른 프로세스가 공유 없이 연 원본
-파일, LongPathsEnabled 1·0의 260자 넘는 목적지, junction, Windows의 포트 구현과 아래 Windows 수정을 돌림. Windows 수정은 실패 로그와 CPython·Win32의
-문서화된 동작으로 고쳤고 이 기기에서 돌리지 않음), Windows에서 원본을 읽는 중에 만난 다른 프로그램의 바이트 범위 잠금(C 런타임의 읽기가 Windows
+JSON의 `not_run`에 있습니다: Windows에서 원본을 읽는 중에 만난 다른 프로그램의 바이트 범위 잠금(C 런타임의 읽기가 Windows
 오류를 넘기지 않아 `in_use`가 아니라 `permission`; 코드에서 읽음), 표식 뒤의 전원 손실과 Windows의 디렉터리 flush, FAT·exFAT 목적지(링크를 거절하는 포트로만
 흉내 냄), 네트워크 파일 시스템·Linux casefold 디렉터리·Windows의 디렉터리별 대소문자 구별 상속, Linux에서 만든 예약 이름 원본을 Windows로 전환,
 다른 드라이브·볼륨의 목적지, 명령 `analytics migrate`와 런처(셋째 PR)·실제 aelix 세션, 읽기 전용으로 마운트한 볼륨(읽기 전용 폴더 트리로 흉내 냄),
@@ -207,7 +253,9 @@ JUnit(`ci-platform-windows-2025`의 `suite.xml`, sha256은 JSON)에서 원인을
 | `test_the_reader_reads_a_migrated_project_as_it_read_its_source[symlink]`·`[junction]`: 옛 run이 기록한 `C:\…\src/tables/t.parquet`를 목적지가 읽지 못함(원본은 `tables/t.parquet`로 읽음) | 매핑이 절대 경로를 `os.sep`으로만 나눈 글자로 원본 루트의 철자와 비교함. 원본의 읽기는 `normpath`로 읽음 | 매핑이 절대 경로와 철자를 `legacy_identity`처럼 읽음(접두를 뗀 뒤 `normpath`). `..`도 원본의 읽기처럼 글자로 접음 |
 
 이 기기에는 Windows가 없어 원인 셋은 로그와 CPython·Win32의 문서화된 동작으로 판단했습니다. 새 시험 가운데 macOS에서 도는 `..` 사례는 `53d1bdf`의
-코드에서 실패하고 `ebd10b6`에서 통과합니다(위 결과 표). 나머지는 이 코드를 담은 헤드의 Windows 레그가 확인합니다(`pending`). 읽는 중에 만난
+코드에서 실패하고 `ebd10b6`에서 통과합니다(위 결과 표). 나머지는 이 코드를 담은 헤드 `ec8d7d9`의 Windows 레그(run 37789500898, job
+113352791801)에서 확인했습니다: 실패했던 네 사례와 두 구분자가 섞인 경로의 단언이 모두 통과했고, 레그 전체가 1,525 passed, 216 skipped,
+0 failed입니다(JSON의 `windows_ci_failure.at_the_fixed_head`, 위 "CI의 레그"). 읽는 중에 만난
 바이트 범위 잠금(WinError 33)은 C 런타임의 읽기가 여전히 errno로만 알려 `permission`이고, CONTRACTS G에 적었습니다.
 
 ## Windows 수정 뒤 다시 잼
