@@ -623,10 +623,13 @@ class _Walker:
                     size += entry.st_size if stat.S_ISREG(entry.st_mode) else 0
         return files, size
 
-    def _excluded(self, rel: str, name: str, in_root: bool) -> str | None:
-        if in_root and rel in EXCLUDED_AT_ROOT:
+    @staticmethod
+    def _excluded(rel: str, name: str) -> str | None:
+        """Why an entry is not copied (OQ4), by its namespace path: so a .lab/ that is a link leading
+        outside leaves out its cache and locks as the folder does."""
+        if rel in EXCLUDED_AT_ROOT:
             return EXCLUDED_AT_ROOT[rel]
-        if in_root and _parent(rel) == LEGACY_STATE_DIR and name in EXCLUDED_IN_STATE:
+        if _parent(rel) == LEGACY_STATE_DIR and name in EXCLUDED_IN_STATE:
             return EXCLUDED_IN_STATE[name]
         if name in CACHE_NAMES:
             return "cache"
@@ -651,7 +654,7 @@ class _Walker:
                     self.out.not_utf8.append({"path": _escaped(rel), "base64": base64.b64encode(
                         os.fsencode(entry.path)).decode("ascii")})
                     continue
-                reason = self._excluded(rel, entry.name, in_root)
+                reason = self._excluded(rel, entry.name)
                 if reason:
                     self.out.exclude(rel, reason, *self._count(entry.path))
                     continue
@@ -670,7 +673,7 @@ class _Walker:
                     continue
                 if not at_root and entry.name in (writer.MARKER, writer.LEGACY_MARKER):
                     self.out.nested.append(rel)
-                if in_root and ns == LEGACY_STATE_DIR and any(
+                if ns == LEGACY_STATE_DIR and any(
                         core.folded(entry.name) == core.folded(n) for n in NEW_STATE_NAMES):
                     self.out.collisions.append([rel, f"{STATE_DIR}/{entry.name}"])
                 if _platform.is_link(st):
@@ -1474,10 +1477,13 @@ class Migration:
             path = self.dest / rel
             try:
                 path.mkdir(parents=True, exist_ok=True)
+                st = os.lstat(path)
             except FileExistsError:
                 raise _occupied(rel) from None
             except OSError as exc:
                 raise _write_failed(path, exc) from exc
+            if _platform.is_link(st) or not stat.S_ISDIR(st.st_mode):
+                raise _occupied(rel)  # a link made there meanwhile would lead the copies elsewhere
         for entry in self.plan["files"]:
             if entry["to"] in self.ledger.copied:
                 continue

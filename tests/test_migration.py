@@ -1368,3 +1368,45 @@ def test_another_spelling_of_the_source_is_the_source(tmp_path):
     error = refused("destination_invalid", lambda: migrate(source, other / "new"))
     assert error.details["reason"] == "overlaps_source"
     assert not (source / "new").exists()
+
+
+def test_a_state_folder_that_is_a_link_leading_outside_is_copied_without_its_cache_and_locks(tmp_path):
+    """OQ4, design 6.6: `.lab` a link to a folder outside the source: its history is copied under
+    .analytics/ like the folder's, its cache and lock files are not, and the place joins R."""
+    outside = tmp_path / "state"
+    (outside / "context").mkdir(parents=True)
+    (outside / "context" / "20261001-090000-000000_aaaaaaaaaaaa.md").write_bytes(b"ctx")
+    (outside / "cache").mkdir()
+    (outside / "cache" / "h.json").write_bytes(b"{}")
+    (outside / "lock").write_bytes(b"")
+    p = LegacyProject(tmp_path / "src")
+    p.event("note", text="n")
+    os.symlink(str(outside), p.root / ".lab", target_is_directory=True)
+    dest = tmp_path / "dest"
+    migrate(p.root, dest)
+    report = assert_committed(dest)
+    copied = copies(dest)
+    assert copied[".analytics/context/20261001-090000-000000_aaaaaaaaaaaa.md"][0] == "file"
+    assert ".analytics/cache" not in copied and ".analytics/lock" not in copied
+    assert {(e["path"], e["reason"]) for e in report["excluded"]} >= {(".lab/cache", "cache"),
+                                                                     (".lab/lock", "lock")}
+    error = refused("destination_invalid", lambda: migrate(p.root, outside / "new"))
+    assert error.details["reason"] == "overlaps_source"
+
+
+def test_a_link_made_where_a_planned_folder_goes_is_not_followed(tmp_path):
+    """design 6.3 (ledger first, nothing written outside the destination): something that makes a
+    link where the plan puts a folder, while the migration copies, does not lead the copies through
+    it: destination_mismatch (occupied), the link's target as it was."""
+    source = _copy_source(tmp_path)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    dest = tmp_path / "dest"
+
+    def on_step(name, info):
+        if name == "plan":
+            os.symlink(str(elsewhere), dest / "scripts", target_is_directory=True)
+
+    error = refused("destination_mismatch", lambda: migrate(source, dest, on_step=on_step))
+    assert error.details == {"reason": "occupied", "path": "scripts"}
+    assert list(elsewhere.iterdir()) == []
