@@ -1,0 +1,986 @@
+{
+ "record_kind": "aelix-analytics-marker-gate",
+ "observed_at": "2026-10-08T03:43:41Z",
+ "issue": "https://github.com/handochan/aelix-analytics/issues/13",
+ "pull_request": null,
+ "base_revision": "e89f26536f155e2ab8ef69eb61e6637bfcf3996c",
+ "measured_tree": {
+  "what": "the head of branch feat/issue-13-marker-gate (kit 0.7.0), rebased on origin/main e89f265 (PR #79 merged; its tree is 5829c7c's), three commits: the gate, the readers, the docs. This record is a fourth commit and changes no code",
+  "head": "634479bf6907576b46fb3b2c8c2b4498c909c76c",
+  "measured_base": "e89f26536f155e2ab8ef69eb61e6637bfcf3996c",
+  "commits": [
+   "634479bf6907576b46fb3b2c8c2b4498c909c76c docs: describe the marker gate and the new families' readers (Issue #13 PR 1)",
+   "4eb6b36143dd6dd20df1d49ca6963512098ff1d3 feat: read analytics.run/2, analytics.dataset/1 and /2 events (Issue #13 PR 1)",
+   "85e09193ce9694be577366058a124d2d1b20a13e feat: detect project markers and gate every write (Issue #13 PR 1)"
+  ],
+  "code_manifest": "sha256 of each tracked file under src, extension, tests, tools, bin and pyproject.toml, uv.lock, one line each (`shasum -a 256` format), sorted by path",
+  "code_manifest_sha256": "0e9ede3777a087c338ad430ae43d82eaa2c184568ff76495ab8223fe5fbeb51a",
+  "code_files": 211
+ },
+ "workflow": ".github/workflows/ci.yml, not changed by this change",
+ "runs": {
+  "code": {
+   "state": "pending",
+   "id": null,
+   "url": null,
+   "attempt": null,
+   "conclusion": null,
+   "head": null,
+   "note": "the PR is not opened yet (no push in this run); the CI cells are filled after the PR's run"
+  },
+  "macos_label": {
+   "state": "not_requested"
+  }
+ },
+ "legs": {
+  "linux": {
+   "state": "pending"
+  },
+  "windows": {
+   "state": "pending"
+  },
+  "macos_hosted": {
+   "state": "not_requested"
+  }
+ },
+ "developer_machine": {
+  "where": "macOS developer machine, a clone of the head in the run folder (.devstate/runs/5afd1eec-…/head), isolation: AELIX_ANALYTICS_TRUST_FILE and AELIX_ANALYTICS_UV inside the run folder (the UV a link to the real uv), AELIX_LAB_*/LAB_* unset, ~/.aelix neither read nor written",
+  "machine": [
+   "ProductName:\t\tmacOS\nProductVersion:\t\t26.6.2\nBuildVersion:\t\t25G83",
+   "macOS-26.6.2-arm64-arm-64bit",
+   "Apple M5 Pro",
+   "uv 0.11.19 (Homebrew 2026-06-03 aarch64-apple-darwin)"
+  ],
+  "ruff": {
+   "command": "uv run --locked ruff check tests extension src tools",
+   "result": "All checks passed!"
+  },
+  "suite": {
+   "command": "uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread --junitxml=suite.xml",
+   "file": "suite.xml",
+   "file_sha256": "2148c549d049344523185f29d109b340f7a9a90bd99722a81ff5dcb3691e9e43",
+   "timestamp": "2026-10-08T12:31:09.567475+09:00",
+   "seconds": 422.395,
+   "counts": {
+    "skip": 72,
+    "pass": 1450
+   },
+   "failed": [],
+   "skipped_by_reason": {
+    "the Windows implementation runs on the Windows leg": 21,
+    "the Windows console": 21,
+    "PyPI, an analysis environment)": 10,
+    "MAX_PATH and LongPathsEnabled are Windows'": 5,
+    "collection skipped": 2,
+    "a directory flagged case-sensitive is Windows'": 2,
+    "OSError(92, 'Illegal byte sequence')": 2,
+    "the recording implementation does not declare that it excludes other processes": 1,
+    "the recording implementation does not declare that it sees running processes": 1,
+    "the recording implementation does not declare that it interrupts a region": 1,
+    "M writes about 440 MB twice; set AELIX_ANALYTICS_TEST_SCALE_M=1": 1,
+    "what Windows does; POSIX sends it again (the test above)": 1,
+    "8.3 short names are Windows'": 1,
+    "taskkill and CreateProcess's search are Windows'": 1,
+    "before 3.14 a `with` calls __enter__ without a CALL, and no signal is handled between its ": 1,
+    "uv syncs the project)": 1
+   },
+   "cited_cases": {
+    "tests.test_marker_gate::test_the_kit_command_line_writes_only_where_it_may[nested]": "pass",
+    "tests.test_marker_gate::test_the_kit_command_line_writes_only_where_it_may[both]": "pass",
+    "tests.test_marker_gate::test_a_marker_that_changes_during_a_run_refuses_what_comes_after": "pass",
+    "tests.test_marker_gate::test_a_journal_write_is_judged_again_under_the_lock": "pass",
+    "tests.test_run_views::test_a_rerun_compares_the_same_ids_across_the_two_forms": "pass",
+    "tests.test_run_views::test_no_consumer_reads_a_run_s_charts_outside_the_two_views": "pass",
+    "tests.test_journal_append::test_concurrent_writers_after_a_cut_off_line_each_get_a_line_and_a_seq_of_their_own": "pass",
+    "tests.test_layers::test_the_shipped_code_keeps_its_layers": "pass"
+   },
+   "python": "3.12.13",
+   "base_counts": {
+    "pass": 1373,
+    "skip": 72,
+    "note": "the same command on 5829c7c (evidence/base/pytest-5829c7c.txt)"
+   }
+  },
+  "layers": {
+   "command": "uv run --locked pytest -q -ra -p no:cacheprovider tests/test_layers.py",
+   "result": "47 passed in 3.59s"
+  },
+  "aelix_py3_12": {
+   "command": "uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_extension.py tests/test_usage_report.py",
+   "file": "aelix-3.12.xml",
+   "file_sha256": "18b5fc2f732836fdb4968b43ef557cf84f23b21176e8869b8bbc6b7995b12391",
+   "timestamp": "2026-10-08T12:38:16.131622+09:00",
+   "seconds": 36.558,
+   "counts": {
+    "pass": 161
+   },
+   "failed": [],
+   "skipped_by_reason": {},
+   "cited_cases": {
+    "tests.test_extension::test_the_extension_writes_only_where_the_kit_may[both]": "pass",
+    "tests.test_extension::test_the_extension_finds_the_nearest_marker_from_the_working_directory": "pass",
+    "tests.test_extension::test_a_run_reply_shows_both_record_forms_and_their_comparisons": "pass"
+   }
+  },
+  "aelix_py3_11": {
+   "command": "the same with --python 3.11",
+   "file": "aelix-3.11.xml",
+   "file_sha256": "4f4f6ce648eae2545a0c72f420d289e341b01411a155bc67f8838e551847bf5f",
+   "timestamp": "2026-10-08T12:38:51.236589+09:00",
+   "seconds": 36.495,
+   "counts": {
+    "pass": 161
+   },
+   "failed": [],
+   "skipped_by_reason": {},
+   "cited_cases": {
+    "tests.test_extension::test_the_extension_writes_only_where_the_kit_may[both]": "pass"
+   }
+  },
+  "launcher_py3_11": {
+   "command": "uv run --isolated --no-project --python 3.11 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_launcher.py",
+   "file": "launcher-3.11.xml",
+   "file_sha256": "97573ea4f68017659ae9561aab390b4930048cb69e78c6ad41769b34ceec5da1",
+   "timestamp": "2026-10-08T12:39:30.412146+09:00",
+   "seconds": 15.066,
+   "counts": {
+    "pass": 124,
+    "skip": 1
+   },
+   "failed": [],
+   "skipped_by_reason": {
+    "what Windows does; POSIX sends it again (the test above)": 1
+   },
+   "cited_cases": {
+    "tests.test_launcher::test_the_nearest_marker_of_either_name_is_the_project[lab.json-analytics.json-bin/analytics]": "pass"
+   }
+  },
+  "smoke": {
+   "command": "uv run --locked python tools/platform_smoke.py --gate required",
+   "sha256": "586ed14c2289b4cd85b1fc84b451a1b52446c19bfb0e671df07d0dd437d9527f",
+   "summary": {
+    "holds": 25,
+    "violated": 0,
+    "declared_limitation": 0,
+    "observed": 6,
+    "not_run": 0
+   },
+   "required_hold": true
+  },
+  "stdlib_smoke_py3_11": {
+   "command": "uv run --isolated --no-project --python 3.11 python tools/platform_smoke.py --stdlib-only --gate required",
+   "sha256": "427bc1f2caf3cdc1613f09e3dcb4feceb4c55b8968c362d7600b70cba784795a",
+   "summary": {
+    "holds": 15,
+    "violated": 0,
+    "declared_limitation": 0,
+    "observed": 3,
+    "not_run": 2
+   },
+   "required_hold": true
+  },
+  "usage_report": {
+   "command": "uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 python tools/usage_report.py --output <run>/evidence/verify/usage",
+   "sha256": "9194cd0cc5969b8928b7eda782c6b4f32d3380cbec7216aff2dddd3b5fd5ab07",
+   "result_line": {
+    "required_facts": {
+     "passed": 58,
+     "total": 58
+    },
+    "invariants": {
+     "holding": 42,
+     "total": 42
+    },
+    "failures": 0,
+    "exit": 0
+   }
+  },
+  "check_docs": {
+   "command": "uv run --locked python tools/check_docs.py --output .devstate/runs/<run>/evidence/verify/docs.json (in the worktree at the same commit)",
+   "ok": true,
+   "counts": {
+    "json_files": 10,
+    "markdown_files": 63,
+    "local_links": 672,
+    "python_examples": 6,
+    "json_examples": 7,
+    "dev_state_examples": 1
+   }
+  },
+  "diff_check": "exit 0, git diff --check origin/main...HEAD"
+ },
+ "entry_points": {
+  "what": "T8 (design 11.3): each write entry point in each directory state, in a copy of a lab.json project with a dataset and a run; where refused or where a read skips its side writes the tree is the same before and after (path, size, mtime, sha256, every directory's mtime, the lock files). Value per cell: null = admitted (written, or read), else the error code. The kit's demo in a writable column is admitted and then refused by its own rule (demo_not_empty) as the project is not empty",
+  "columns": {
+   "lab_project_1": "lab.json lab.project/1 (legacy)",
+   "lab_unparsable": "lab.json not JSON (legacy)",
+   "lab_project_9": "lab.json lab.project/9 (unknown)",
+   "analytics_2": "analytics.json analytics.project/2 (current)",
+   "analytics_2_too_old": "analytics.project/2 with min_writer_version 99.0 (current)",
+   "analytics_3": "analytics.json analytics.project/3 (unknown)",
+   "analytics_invalid": "analytics.json not JSON (invalid)",
+   "both": "lab.json and analytics.json (conflict)",
+   "none": "no marker",
+   "incomplete": "no marker, .analytics/migration/ (none in this PR)",
+   "nested": "an analytics.json directory below a lab.json project; the whole project's tree compared"
+  },
+  "kit_cli": {
+   "analytics_2": {
+    "context": null,
+    "demo": "project_too_new",
+    "import": "project_too_new",
+    "query": null,
+    "record": "project_too_new",
+    "render": "project_too_new",
+    "run": "project_too_new",
+    "status": null
+   },
+   "analytics_2_too_old": {
+    "context": null,
+    "demo": "project_too_new",
+    "import": "project_too_new",
+    "query": null,
+    "record": "project_too_new",
+    "render": "project_too_new",
+    "run": "project_too_new",
+    "status": null
+   },
+   "analytics_3": {
+    "context": null,
+    "demo": "project_too_new",
+    "import": "project_too_new",
+    "query": null,
+    "record": "project_too_new",
+    "render": "project_too_new",
+    "run": "project_too_new",
+    "status": null
+   },
+   "analytics_invalid": {
+    "context": null,
+    "demo": "marker_invalid",
+    "import": "marker_invalid",
+    "query": null,
+    "record": "marker_invalid",
+    "render": "marker_invalid",
+    "run": "marker_invalid",
+    "status": null
+   },
+   "both": {
+    "context": "marker_conflict",
+    "demo": "marker_conflict",
+    "import": "marker_conflict",
+    "query": "marker_conflict",
+    "record": "marker_conflict",
+    "render": "marker_conflict",
+    "run": "marker_conflict",
+    "status": "marker_conflict"
+   },
+   "incomplete": {
+    "context": "no_project",
+    "demo": "no_project",
+    "import": "no_project",
+    "query": "no_project",
+    "record": "no_project",
+    "render": "no_project",
+    "run": "no_project",
+    "status": "no_project"
+   },
+   "lab_project_1": {
+    "context": null,
+    "demo": "demo_not_empty",
+    "import": null,
+    "query": null,
+    "record": null,
+    "render": null,
+    "run": null,
+    "status": null
+   },
+   "lab_project_9": {
+    "context": null,
+    "demo": "project_too_new",
+    "import": "project_too_new",
+    "query": null,
+    "record": "project_too_new",
+    "render": "project_too_new",
+    "run": "project_too_new",
+    "status": null
+   },
+   "lab_unparsable": {
+    "context": null,
+    "demo": "demo_not_empty",
+    "import": null,
+    "query": null,
+    "record": null,
+    "render": null,
+    "run": null,
+    "status": null
+   },
+   "nested": {
+    "context": null,
+    "demo": "project_too_new",
+    "import": "project_too_new",
+    "query": "query_failed",
+    "record": "project_too_new",
+    "render": "project_too_new",
+    "run": "project_too_new",
+    "status": null
+   },
+   "none": {
+    "context": "no_project",
+    "demo": "no_project",
+    "import": "no_project",
+    "query": "no_project",
+    "record": "no_project",
+    "render": "no_project",
+    "run": "no_project",
+    "status": "no_project"
+   }
+  },
+  "sdk_outside_a_run": {
+   "analytics_2": {
+    "record": "project_too_new",
+    "save": "project_too_new",
+    "visualize": "project_too_new"
+   },
+   "analytics_invalid": {
+    "record": "marker_invalid",
+    "save": "marker_invalid",
+    "visualize": "marker_invalid"
+   },
+   "both": {
+    "record": "marker_conflict",
+    "save": "marker_conflict",
+    "visualize": "marker_conflict"
+   },
+   "lab_project_1": {
+    "record": null,
+    "save": null,
+    "visualize": null
+   },
+   "nested": {
+    "record": "project_too_new",
+    "save": "project_too_new",
+    "visualize": "project_too_new"
+   }
+  },
+  "extension": {
+   "analytics_2": {
+    "/analytics context": null,
+    "/analytics open": "project_too_new",
+    "/analytics record": "project_too_new",
+    "/analytics render": "project_too_new",
+    "/analytics status": null,
+    "/analytics use": null,
+    "analytics_import": "project_too_new",
+    "analytics_query": null,
+    "analytics_record": "project_too_new",
+    "analytics_run": "project_too_new",
+    "analytics_status": null
+   },
+   "analytics_invalid": {
+    "/analytics context": null,
+    "/analytics open": "marker_invalid",
+    "/analytics record": "marker_invalid",
+    "/analytics render": "marker_invalid",
+    "/analytics status": null,
+    "/analytics use": null,
+    "analytics_import": "marker_invalid",
+    "analytics_query": null,
+    "analytics_record": "marker_invalid",
+    "analytics_run": "marker_invalid",
+    "analytics_status": null
+   },
+   "both": {
+    "/analytics context": "marker_conflict",
+    "/analytics open": "marker_conflict",
+    "/analytics record": "marker_conflict",
+    "/analytics render": "marker_conflict",
+    "/analytics status": "marker_conflict",
+    "/analytics use": "marker_conflict",
+    "analytics_import": "marker_conflict",
+    "analytics_query": "marker_conflict",
+    "analytics_record": "marker_conflict",
+    "analytics_run": "marker_conflict",
+    "analytics_status": "marker_conflict"
+   },
+   "lab_project_9": {
+    "/analytics context": null,
+    "/analytics open": "project_too_new",
+    "/analytics record": "project_too_new",
+    "/analytics render": "project_too_new",
+    "/analytics status": null,
+    "/analytics use": null,
+    "analytics_import": "project_too_new",
+    "analytics_query": null,
+    "analytics_record": "project_too_new",
+    "analytics_run": "project_too_new",
+    "analytics_status": null
+   }
+  },
+  "marker_changed_during_a_run": "tests.test_marker_gate::test_a_marker_that_changes_during_a_run_refuses_what_comes_after: the script's record/save/visualize each marker_conflict; journal the same bytes; no dataset, no chart; run.json written, recording incomplete (no_completion_event, finalize_errors)",
+  "journal_lock_recheck": "tests.test_marker_gate::test_a_journal_write_is_judged_again_under_the_lock: a marker made between the two judgments refuses the note, journal unchanged",
+  "launcher_and_bin_analytics": "tests.test_launcher::test_the_nearest_marker_of_either_name_is_the_project (both directions, both commands)",
+  "init": "judged by its own rules (design 11.3): an existing analytics.json directory is init_not_empty; a new lab.json project inside an analytics.json one is still made (OQ9 is PR 3)",
+  "base_behaviour": {
+   "nested": {
+    "ok": true,
+    "upper_journal_lines": [
+     2,
+     3
+    ]
+   },
+   "analytics_json_only": "no_project",
+   "both": {
+    "ok": true,
+    "event": "e3"
+   }
+  },
+  "base_behaviour_note": "the base kit (5829c7c) through its command line: in the nested directory its record wrote into the project above (journal 2 → 3 lines); an analytics.json-only directory was no_project; a two-marker directory was written to (e3)"
+ },
+ "reader": {
+  "what": "the read model's judgments of the six record examples (tests/fixtures/records) and of a new-family example (tests/test_run_views.py's mixed project with an analytics.dataset/1 import), base 5829c7c and head, by evidence/../reader_compare.py",
+  "base": {
+   "kit_version": "0.6.0",
+   "reader_format": 1,
+   "examples": {
+    "normal": {
+     "as_of_seq": 15,
+     "reference_states": {
+      "resolved": 20,
+      "unknown": 1,
+      "version_unbound": 1
+     },
+     "confirmed": 17,
+     "unsupported": [],
+     "damaged_lines": [],
+     "recovered_lines": [],
+     "record_states": {
+      "current": 5,
+      "open": 1,
+      "superseded": 1,
+      "withdrawn": 1
+     },
+     "runs": [
+      [
+       "20261001-091000-region-summary",
+       "ok",
+       "complete"
+      ],
+      [
+       "20261001-092000-monthly-trend",
+       "ok",
+       "complete"
+      ]
+     ],
+     "imports": [],
+     "listed_events": 0,
+     "listed_v2_events": 0
+    },
+    "mixed-version": {
+     "as_of_seq": 9,
+     "reference_states": {
+      "ambiguous": 2,
+      "missing": 1,
+      "resolved": 10,
+      "unknown": 1,
+      "version_unbound": 4
+     },
+     "confirmed": 10,
+     "unsupported": [],
+     "damaged_lines": [
+      7
+     ],
+     "recovered_lines": [
+      7
+     ],
+     "record_states": {
+      "current": 4,
+      "resolved": 1
+     },
+     "runs": [
+      [
+       "20260930-091000-trend",
+       "ok",
+       "complete"
+      ],
+      [
+       "20260930-092000-trend",
+       "ok",
+       "complete"
+      ],
+      [
+       "20261001-093000-use-same",
+       "ok",
+       "complete"
+      ]
+     ],
+     "imports": [],
+     "listed_events": 8,
+     "listed_v2_events": 0
+    },
+    "interrupted": {
+     "as_of_seq": 5,
+     "reference_states": {
+      "resolved": 3
+     },
+     "confirmed": 3,
+     "unsupported": [],
+     "damaged_lines": [
+      6
+     ],
+     "recovered_lines": [],
+     "record_states": {
+      "current": 4
+     },
+     "runs": [
+      [
+       "20261001-100000-long-job",
+       "incomplete",
+       "incomplete"
+      ],
+      [
+       "20261001-100100-summary",
+       "ok",
+       "incomplete"
+      ]
+     ],
+     "imports": [],
+     "listed_events": 0,
+     "listed_v2_events": 0
+    },
+    "conflict": {
+     "as_of_seq": 8,
+     "reference_states": {
+      "resolved": 7
+     },
+     "confirmed": 7,
+     "unsupported": [],
+     "damaged_lines": [],
+     "recovered_lines": [],
+     "record_states": {
+      "conflict": 1,
+      "current": 5
+     },
+     "runs": [],
+     "imports": [],
+     "listed_events": 0,
+     "listed_v2_events": 0
+    },
+    "missing": {
+     "as_of_seq": 4,
+     "reference_states": {
+      "content_changed": 1,
+      "missing": 7,
+      "resolved": 1,
+      "unknown": 1
+     },
+     "confirmed": 1,
+     "unsupported": [],
+     "damaged_lines": [],
+     "recovered_lines": [],
+     "record_states": {
+      "current": 2
+     },
+     "runs": [
+      [
+       "20261001-120000-table",
+       "ok",
+       "complete"
+      ]
+     ],
+     "imports": [],
+     "listed_events": 0,
+     "listed_v2_events": 0
+    },
+    "future-version": {
+     "as_of_seq": 7,
+     "reference_states": {
+      "resolved": 1,
+      "unsupported": 3
+     },
+     "confirmed": 1,
+     "unsupported": [
+      "journal:3 unknown_version",
+      "journal:4 unknown_kind",
+      "journal:7 unknown_family",
+      "runs/20261001-110000-future/run.json unknown_version"
+     ],
+     "damaged_lines": [],
+     "recovered_lines": [],
+     "record_states": {
+      "current": 3
+     },
+     "runs": [],
+     "imports": [],
+     "listed_events": 0,
+     "listed_v2_events": 0
+    },
+    "new-families": {
+     "as_of_seq": 2,
+     "reference_states": {
+      "resolved": 2,
+      "unsupported": 1
+     },
+     "confirmed": 2,
+     "unsupported": [
+      "runs/20261001-100000-a/run.json unknown_version"
+     ],
+     "damaged_lines": [],
+     "recovered_lines": [],
+     "record_states": {},
+     "runs": [
+      [
+       "20261001-090000-a",
+       "ok",
+       "complete"
+      ]
+     ],
+     "imports": [],
+     "listed_events": 1,
+     "listed_v2_events": 0,
+     "visualization_versions": [
+      "20261001-090000-a/trend"
+     ],
+     "datasets": []
+    }
+   }
+  },
+  "head": {
+   "kit_version": "0.7.0",
+   "reader_format": 2,
+   "examples": {
+    "normal": {
+     "as_of_seq": 15,
+     "reference_states": {
+      "resolved": 20,
+      "unknown": 1,
+      "version_unbound": 1
+     },
+     "confirmed": 17,
+     "unsupported": [],
+     "damaged_lines": [],
+     "recovered_lines": [],
+     "record_states": {
+      "current": 5,
+      "open": 1,
+      "superseded": 1,
+      "withdrawn": 1
+     },
+     "runs": [
+      [
+       "20261001-091000-region-summary",
+       "ok",
+       "complete"
+      ],
+      [
+       "20261001-092000-monthly-trend",
+       "ok",
+       "complete"
+      ]
+     ],
+     "imports": [],
+     "listed_events": 15,
+     "listed_v2_events": 15
+    },
+    "mixed-version": {
+     "as_of_seq": 9,
+     "reference_states": {
+      "ambiguous": 2,
+      "missing": 1,
+      "resolved": 10,
+      "unknown": 1,
+      "version_unbound": 4
+     },
+     "confirmed": 10,
+     "unsupported": [],
+     "damaged_lines": [
+      7
+     ],
+     "recovered_lines": [
+      7
+     ],
+     "record_states": {
+      "current": 4,
+      "resolved": 1
+     },
+     "runs": [
+      [
+       "20260930-091000-trend",
+       "ok",
+       "complete"
+      ],
+      [
+       "20260930-092000-trend",
+       "ok",
+       "complete"
+      ],
+      [
+       "20261001-093000-use-same",
+       "ok",
+       "complete"
+      ]
+     ],
+     "imports": [],
+     "listed_events": 10,
+     "listed_v2_events": 2
+    },
+    "interrupted": {
+     "as_of_seq": 5,
+     "reference_states": {
+      "resolved": 3
+     },
+     "confirmed": 3,
+     "unsupported": [],
+     "damaged_lines": [
+      6
+     ],
+     "recovered_lines": [],
+     "record_states": {
+      "current": 4
+     },
+     "runs": [
+      [
+       "20261001-100000-long-job",
+       "incomplete",
+       "incomplete"
+      ],
+      [
+       "20261001-100100-summary",
+       "ok",
+       "incomplete"
+      ]
+     ],
+     "imports": [],
+     "listed_events": 5,
+     "listed_v2_events": 5
+    },
+    "conflict": {
+     "as_of_seq": 8,
+     "reference_states": {
+      "resolved": 7
+     },
+     "confirmed": 7,
+     "unsupported": [],
+     "damaged_lines": [],
+     "recovered_lines": [],
+     "record_states": {
+      "conflict": 1,
+      "current": 5
+     },
+     "runs": [],
+     "imports": [],
+     "listed_events": 8,
+     "listed_v2_events": 8
+    },
+    "missing": {
+     "as_of_seq": 4,
+     "reference_states": {
+      "content_changed": 1,
+      "missing": 7,
+      "resolved": 1,
+      "unknown": 1
+     },
+     "confirmed": 1,
+     "unsupported": [],
+     "damaged_lines": [],
+     "recovered_lines": [],
+     "record_states": {
+      "current": 2
+     },
+     "runs": [
+      [
+       "20261001-120000-table",
+       "ok",
+       "complete"
+      ]
+     ],
+     "imports": [],
+     "listed_events": 4,
+     "listed_v2_events": 4
+    },
+    "future-version": {
+     "as_of_seq": 7,
+     "reference_states": {
+      "resolved": 1,
+      "unsupported": 3
+     },
+     "confirmed": 1,
+     "unsupported": [
+      "journal:3 unknown_version",
+      "journal:4 unknown_kind",
+      "journal:7 unknown_family",
+      "runs/20261001-110000-future/run.json unknown_version"
+     ],
+     "damaged_lines": [],
+     "recovered_lines": [],
+     "record_states": {
+      "current": 3
+     },
+     "runs": [],
+     "imports": [],
+     "listed_events": 4,
+     "listed_v2_events": 4
+    },
+    "new-families": {
+     "as_of_seq": 2,
+     "reference_states": {
+      "resolved": 3
+     },
+     "confirmed": 3,
+     "unsupported": [],
+     "damaged_lines": [],
+     "recovered_lines": [],
+     "record_states": {},
+     "runs": [
+      [
+       "20261001-090000-a",
+       "ok",
+       "complete"
+      ],
+      [
+       "20261001-100000-a",
+       "ok",
+       "complete"
+      ]
+     ],
+     "imports": [
+      [
+       "data/imported/fresh.meta.json",
+       "incomplete"
+      ]
+     ],
+     "listed_events": 2,
+     "listed_v2_events": 1,
+     "visualization_versions": [
+      "20261001-090000-a/trend",
+      "20261001-100000-a/trend"
+     ],
+     "datasets": [
+      [
+       "imported",
+       "data/imported/fresh.parquet"
+      ]
+     ]
+    }
+   }
+  },
+  "same_except": "listed_events: the head lists analytics.event/2 records (design 5.2); every other judgment of the six examples is the same. The new-family example's /2 run is unsupported on base and read on head (its Visualization a second version of the key), its data/imported record read on head"
+ },
+ "gate_cost": {
+  "what": "core.add_note into a lab.json project whose journal has 1,000 lines, 200 notes, mean per note; base 5829c7c and head alternating twice, the minimum of each (PR #76's way); writer.marker_state and core.admit alone, 2,000 calls each, on head",
+  "runs": [
+   {
+    "label": "base-round1",
+    "kit_version": "0.6.0",
+    "journal_lines": 1000,
+    "notes": 200,
+    "add_note_mean_ms": 1.9548
+   },
+   {
+    "label": "head-round1",
+    "kit_version": "0.7.0",
+    "journal_lines": 1000,
+    "notes": 200,
+    "add_note_mean_ms": 1.9408,
+    "marker_state_mean_us": 18.94,
+    "admit_mean_us": 20.7,
+    "admits_per_note": 2
+   },
+   {
+    "label": "base-round2",
+    "kit_version": "0.6.0",
+    "journal_lines": 1000,
+    "notes": 200,
+    "add_note_mean_ms": 1.8828
+   },
+   {
+    "label": "head-round2",
+    "kit_version": "0.7.0",
+    "journal_lines": 1000,
+    "notes": 200,
+    "add_note_mean_ms": 2.0179,
+    "marker_state_mean_us": 19.32,
+    "admit_mean_us": 20.83,
+    "admits_per_note": 2
+   }
+  ],
+  "base_min_ms": 1.8828,
+  "head_min_ms": 1.9408,
+  "added_ms": 0.058,
+  "added_percent": 3.1,
+  "judgments_per_journal_write": 2,
+  "note": "a write judges twice (before the journal lock and under it); a marker_state is two stats and one small read (≈19 µs on this machine). The difference is within the spread of the four runs (1.88–2.02 ms)",
+  "earlier_measure": "cdba47a (before the FIFO guard): base 1.9182 ms, head 1.9635 ms (evidence/gate_cost-cdba47a.jsonl)"
+ },
+ "new_tests_on_base": {
+  "what": "the head's tests with src, extension, bin, tools, pyproject.toml and uv.lock of 5829c7c",
+  "repo": {
+   "command": "pytest … tests/test_marker_gate.py tests/test_run_views.py and the changed cases of test_launcher, test_relation_screens, test_record_contract, test_kit, --continue-on-collection-errors",
+   "file": "repo.xml",
+   "file_sha256": "52ca15fac6702c676eed97ceb96000bfd482246b96c555e04455779e27a54886",
+   "timestamp": "2026-10-08T12:41:51.514449+09:00",
+   "seconds": 3.807,
+   "counts": {
+    "fail": 18,
+    "pass": 18
+   },
+   "failed": [
+    "::tests.test_marker_gate",
+    "tests.test_run_views::test_the_view_reads_both_forms_alike",
+    "tests.test_run_views::test_every_consumer_sees_both_forms",
+    "tests.test_run_views::test_a_rerun_compares_the_same_ids_across_the_two_forms",
+    "tests.test_run_views::test_a_rerun_s_comparison_shows_on_its_page_in_both_forms",
+    "tests.test_run_views::test_the_reader_reads_the_new_families_where_they_belong",
+    "tests.test_run_views::test_imported_data_takes_its_view_name_first",
+    "tests.test_run_views::test_a_reference_to_a_v2_visualization_is_judged_by_its_hash",
+    "tests.test_run_views::test_no_consumer_reads_a_run_s_charts_outside_the_two_views",
+    "tests.test_launcher::test_the_nearest_marker_of_either_name_is_the_project[lab.json-analytics.json-launcher]",
+    "tests.test_launcher::test_the_nearest_marker_of_either_name_is_the_project[lab.json-analytics.json-bin/analytics]",
+    "tests.test_launcher::test_the_nearest_marker_of_either_name_is_the_project[analytics.json-lab.json-launcher]",
+    "tests.test_launcher::test_the_nearest_marker_of_either_name_is_the_project[analytics.json-lab.json-bin/analytics]",
+    "tests.test_launcher::test_no_project_is_a_message_and_exit_1[launcher]",
+    "tests.test_launcher::test_no_project_is_a_message_and_exit_1[bin/analytics]",
+    "tests.test_relation_screens::test_v2_records_are_listed_with_the_v1_ones_by_their_replayed_state",
+    "tests.test_relation_screens::test_records_the_lists_cannot_show_are_counted_where_they_are",
+    "tests.test_kit::test_records_from_a_newer_kit_are_skipped_and_said_so"
+   ],
+   "skipped_by_reason": {},
+   "cited_cases": {}
+  },
+  "aelix_py3_12": {
+   "command": "the aelix 3.12 leg, -k the extension's new cases",
+   "file": "aelix-3.12.xml",
+   "file_sha256": "b7d1577d551ea669d86cf0ce252079be92cad8a96e52b477fbbecac34582aa43",
+   "timestamp": "2026-10-08T12:42:15.524064+09:00",
+   "seconds": 0.253,
+   "counts": {
+    "fail": 6
+   },
+   "failed": [
+    "tests.test_extension::test_the_extension_writes_only_where_the_kit_may[analytics_2]",
+    "tests.test_extension::test_the_extension_writes_only_where_the_kit_may[lab_project_9]",
+    "tests.test_extension::test_the_extension_writes_only_where_the_kit_may[analytics_invalid]",
+    "tests.test_extension::test_the_extension_writes_only_where_the_kit_may[both]",
+    "tests.test_extension::test_the_extension_finds_the_nearest_marker_from_the_working_directory",
+    "tests.test_extension::test_a_run_reply_shows_both_record_forms_and_their_comparisons"
+   ],
+   "skipped_by_reason": {},
+   "cited_cases": {}
+  },
+  "note": "every new behavioural test fails or errors on base (test_marker_gate.py at collection: core.Origin is missing). The 18 that pass need no kit code: the schema cases of test_record_contract (the schema is a doc of the head) and the static check's own parser cases"
+ },
+ "before": {
+  "record": "docs/verification/2026-10-06-issue-36-path-identity.json",
+  "measured_revision": "96ad43ebc0987ee4ea637dcd5687ca248efdb38b",
+  "note": "the last record of a record-format change; this one measures a gate and readers, not path identity"
+ },
+ "not_run": [
+  "the repository CI (Linux, Windows; macOS by label): pending until the PR is opened",
+  "Windows: the marker read again while another process replaces it (design 11.4) — only simulated (a monkeypatched open); the Windows leg runs the matrix",
+  "AELIX_ANALYTICS_TEST_INSTALL=1 (the installed distribution end to end)",
+  "a real aelix session with a model; the hooks were called directly",
+  "the M scale (#41) for the gate: its cost is per write, measured above at 1,000 journal lines",
+  "a persistently unreadable marker on POSIX costs the replace budget (≈2 s) per judgment: not measured",
+  "a Linux casefold directory, network file systems"
+ ]
+}
