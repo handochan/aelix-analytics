@@ -1545,10 +1545,68 @@ def read_model(project: Project, cache: HashCache | None = None) -> relations.Re
     """One read of the project's records as ADR-0006 says (relations.read): this platform's process
     port says whether a running run's process is alive, the project's hash cache hashes the
     current files, and Project.legacy_identity reads the paths a kit before PATH_IDENTITY_SINCE
-    recorded as today's identity paths (inferred, ADR-0006 9)."""
+    recorded as today's identity paths (inferred, ADR-0006 9) — in a project a migration made,
+    through the mapping it recorded first (design 5.4, migration_mapping)."""
     cache = cache or HashCache(project)
+    mapping, _ = project_migration(project)
+    legacy = project.legacy_identity if mapping is None else mapped_identity(project, mapping)
     return relations.read(project.root, alive=project.platform.processes.alive, sha=cache.sha,
-                          legacy_path=project.legacy_identity)
+                          legacy_path=legacy)
+
+
+# --- the mapping of a migrated project (Issue #13 PR 2, design 5.4 and 6.7) ---
+
+class MigrationMapping:
+    """The places a migration moved (design 6.7) as the reader reads an older kit's paths through
+    them (5.4): an absolute path under one of the source root's spellings (`root.from`) is the
+    path below the root now; one under a copied link's target or a spelling of it (`links`) is that
+    path below the link's path; and a relative path under `.lab/` — given so, or got so — is under
+    `.analytics/` (`prefixes`). "Under" is by path components, as `_under` says, the longest
+    spelling first. Nothing is read or written here: `translate` is text."""
+
+    def __init__(self, root_from, links, prefixes) -> None:
+        def longest(pairs):
+            return tuple(sorted(pairs, key=lambda pair: (-len(pair[0]), pair[0])))
+
+        self.root_from = longest((_platform.plain_path(s), "") for s in root_from)
+        self.links = longest((_platform.plain_path(s), link) for s, link in links)
+        self.prefixes = tuple((frm.rstrip("/"), to.rstrip("/")) for frm, to in prefixes)
+
+    def translate(self, recorded) -> str | None:
+        """The project-relative path an older kit's `recorded` path is through the mapping, or None
+        when no rule of it applies (the path is then read as Project.legacy_identity reads it)."""
+        if not isinstance(recorded, str) or not recorded or "\x00" in recorded:
+            return None
+        moved = False
+        if os.path.isabs(recorded):
+            plain = _platform.plain_path(recorded)
+            rel = None
+            for spelling, link in (*self.root_from, *self.links):
+                if spelling and _under(plain, spelling):
+                    rest = _below(plain, spelling)
+                    rel = _ns_join(link, rest)
+                    break
+            if not rel:
+                return None
+            moved = True
+        else:
+            rel = recorded
+        for frm, to in self.prefixes:
+            if rel == frm or rel.startswith(frm + "/"):
+                rel, moved = to + rel[len(frm):], True
+                break
+        return rel if moved else None
+
+
+def mapped_identity(project: Project, mapping: MigrationMapping):
+    """Project.legacy_identity through a migration's mapping (design 5.4): the path the mapping
+    gives an older kit's path, judged by today's root, links and spelling; a path no rule of the
+    mapping applies to is judged as it is."""
+    def legacy(recorded):
+        moved = mapping.translate(recorded)
+        return project.legacy_identity(recorded if moved is None else moved)
+
+    return legacy
 
 
 def _record_path(text) -> bool:
@@ -1557,6 +1615,81 @@ def _record_path(text) -> bool:
     return (isinstance(text, str) and bool(text) and "\\" not in text and "\x00" not in text
             and not os.path.isabs(text) and not PureWindowsPath(text).drive
             and all(part not in ("", ".", "..") for part in text.split("/")))
+
+
+def _bound_json(root: Path, rel, digest) -> tuple[dict | None, str | None]:
+    """(the JSON object at `rel` below `root`, None) when its bytes have the sha256 `digest`, else
+    (None, why): missing, changed or unreadable."""
+    try:
+        data = (root / rel).read_bytes()
+    except FileNotFoundError:
+        return None, "missing"
+    except OSError:
+        return None, "unreadable"
+    if hashlib.sha256(data).hexdigest() != digest:
+        return None, "changed"
+    try:
+        value = json.loads(data)
+    except (ValueError, RecursionError):
+        return None, "invalid"
+    return (value, None) if isinstance(value, dict) else (None, "invalid")
+
+
+def migration_mapping(root, marker) -> tuple[MigrationMapping | None, dict | None]:
+    """(the mapping to read an older kit's paths through, or None; what the status overview says of
+    it, or None) for a project whose marker `marker` (its JSON object) holds a `migration` field
+    (design 2.4 and 5.4): the report the marker binds by its sha256, and the mapping the report
+    binds by its sha256. A report or a mapping that is missing or whose bytes changed is not read,
+    and no path is mapped through it: the overview says why (`applied: false`, `reason`)."""
+    field = marker.get("migration") if isinstance(marker, dict) else None
+    if field is None:
+        return None, None
+    info: dict = {"applied": False}
+    if not isinstance(field, dict) or not all(isinstance(field.get(k), str)
+                                              for k in ("id", "report", "report_sha256")):
+        return None, {**info, "reason": "invalid"}
+    info = {"id": field["id"], "report": field["report"], **info}
+    if not _record_path(field["report"]):
+        return None, {**info, "reason": "invalid"}
+    root = Path(root)
+    report, problem = _bound_json(root, field["report"], field["report_sha256"])
+    if problem:
+        return None, {**info, "reason": "report_" + problem if problem in ("missing", "changed")
+                      else problem}
+    bound = report.get("mapping")
+    if report.get("schema") != "analytics.migration/1" or report.get("record") != "report" \
+            or not isinstance(bound, dict) or not _record_path(bound.get("path")) \
+            or not isinstance(bound.get("sha256"), str):
+        return None, {**info, "reason": "invalid"}
+    info["mapping"] = bound["path"]
+    value, problem = _bound_json(root, bound["path"], bound["sha256"])
+    if problem:
+        return None, {**info, "reason": "mapping_" + problem if problem in ("missing", "changed")
+                      else problem}
+    try:
+        source_root = value["root"]["from"]
+        links = [(spelling, link["path"]) for link in value.get("links") or []
+                 for spelling in (link["target_real"], *(link.get("target_spellings") or []))]
+        prefixes = [(p["from"], p["to"]) for p in value.get("prefixes") or []]
+        if value.get("schema") != "analytics.migration/1" or value.get("record") != "mapping" \
+                or not isinstance(source_root, list) \
+                or not all(isinstance(t, str) and t for pair in links for t in pair) \
+                or not all(isinstance(t, str) and t for t in source_root) \
+                or not all(isinstance(t, str) and _record_path(t.rstrip("/"))
+                           for pair in prefixes for t in pair):
+            raise TypeError("not a mapping")
+    except (KeyError, TypeError, AttributeError):
+        return None, {**info, "reason": "invalid"}
+    return MigrationMapping(source_root, links, prefixes), {**info, "applied": True}
+
+
+def project_migration(project: Project) -> tuple[MigrationMapping | None, dict | None]:
+    """migration_mapping for the project's marker as it is now: only an analytics.project/2 marker
+    (writer.CURRENT) holds a migration this reader knows."""
+    state = project.marker_state()
+    if state.state != writer.CURRENT:
+        return None, None
+    return migration_mapping(project.root, state.value)
 
 
 def resolved_targets(events) -> dict[str, dict]:
@@ -2182,6 +2315,8 @@ def status(project: Project, limit: int = STATUS_LIMIT) -> dict:
         name = source[id(e)]
         key_rows.append({**_brief(e, name), "references": references_summary(model.references(name))})
     refused = writer.refusal(marker, "writes", writer_version=KIT_VERSION)
+    _, migrated = (migration_mapping(project.root, marker.value) if marker.state == writer.CURRENT
+                   else (None, None))
     skipped = ["hash_cache"] if cache.save() else []
     versions = context_versions(project)
     config = dict(marker.value) if isinstance(marker.value, dict) else {}
@@ -2192,6 +2327,7 @@ def status(project: Project, limit: int = STATUS_LIMIT) -> dict:
                     "marker": marker.marker, "format": marker.format,
                     "writable": refused is None,
                     **({"write_refusal": refused.to_json()["error"]} if refused else {}),
+                    **({"migration": migrated} if migrated else {}),
                     "goal": context_goal(newlines_as_lf(context_text)),
                     "context_chars": len(newlines_as_lf(context_text)),
                     "context_omitted": [s["name"] for s in context_omitted],
@@ -2419,6 +2555,12 @@ def _status_lines(st: dict, caps: dict[str, int]) -> list[tuple[str, str, bool]]
     add("head", f"report: {st['workspace']}")
     if p.get("write_refusal"):
         add("head", read_only_line(p["write_refusal"], st.get("writes_skipped")))
+    migrated = p.get("migration")
+    if migrated and not migrated.get("applied"):
+        add("head", f"migration {migrated.get('id')}: its mapping is not applied "
+                    f"({migrated.get('reason')}), so the paths an older kit recorded in the "
+                    "source project are read as recorded — see the migration report "
+                    f"{migrated.get('report')}")
     if st.get("source_revision"):
         add("head", _read_line(st))
     if older_runs > 0 or more_charts > 0 or older_open > 0 or key_at_limit or earlier > 0:

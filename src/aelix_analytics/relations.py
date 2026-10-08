@@ -85,8 +85,10 @@ from datetime import datetime
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
 # The version of this reader's rules, part of every source_revision it gives (ADR-0006 5). 2 since
-# Issue #13 PR 1: analytics.run/2 and analytics.dataset/1 are read, and data/imported/ with them.
-READER_FORMAT = 2
+# Issue #13 PR 1: analytics.run/2 and analytics.dataset/1 are read, and data/imported/ with them. 3
+# since its PR 2: a migrated project's older paths are read through the migration's mapping
+# (core.mapped_identity, design 5.4), and analytics.migration/1 is a family this reader knows.
+READER_FORMAT = 3
 
 EVENT_V1 = "lab.event/1"
 EVENT_V2 = "analytics.event/2"
