@@ -396,3 +396,36 @@ def test_the_launcher_from_a_short_directory_with_lab_project_past_max_path(tmp_
             assert observation["lab_json"] is True, init
     finally:
         keep(observation)
+
+
+def test_a_migration_into_a_destination_past_max_path(tmp_path):
+    """Issue #13 PR 2 (design 6.2, 11.4): a migration whose destination's paths pass MAX_PATH. The plan
+    warns of each path past 259 characters and does not refuse it; the operating system decides. With
+    long paths the copy commits; without, a path it refuses is destination_write_failed at that file,
+    and there is no marker (nothing a kit takes for a project)."""
+    from legacy_records import LegacyProject
+
+    from aelix_analytics import core, migration
+
+    p = LegacyProject(tmp_path / "s")
+    p.file("data/raw/" + "n" * 40 + ".parquet", b"x")
+    p.event("note", text="past MAX_PATH")
+    base = tmp_path / "d"
+    base.mkdir()
+    dest = base / ("x" * (236 - len(str(base))))
+    observed = observe("migration_past_max_path")
+    observed["destination_length"] = len(str(dest))
+    try:
+        result = migration.migrate(p.root, dest, origin=core.Origin("test", "cli"))
+        observed["result"] = "committed"
+        observed["long_path_warnings"] = len([w for w in result["warnings"] if w["reason"] == "long_path"])
+        assert observed["long_path_warnings"] >= 1, result["warnings"]
+        assert os.path.exists("\\\\?\\" + str(dest / "analytics.json"))
+    except core.AnalyticsError as exc:
+        observed["result"] = exc.code
+        observed["error"] = exc.to_json()["error"]
+        assert not ENABLED, exc.to_json()
+        assert exc.code == "destination_write_failed", exc.to_json()
+        assert not os.path.exists("\\\\?\\" + str(dest / "analytics.json"))
+    finally:
+        record_observation(f"windows-long-paths/migration-{'on' if ENABLED else 'off'}", observed)

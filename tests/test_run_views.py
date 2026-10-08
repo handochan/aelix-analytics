@@ -173,7 +173,7 @@ def test_the_reader_reads_the_new_families_where_they_belong(tmp_path):
     fresh = next(d for d in datasets if d["name"] == "fresh")
     assert (fresh["kind"], fresh["path"], fresh["sha256"]) == (
         "imported", "data/imported/fresh.parquet", hashlib.sha256(b"fresh").hexdigest())
-    assert relations.READER_FORMAT == 2
+    assert relations.READER_FORMAT >= 2  # 3 since PR 2 (the migration's mapping)
     assert {"analytics.run/2", "analytics.dataset/1"} <= relations.KNOWN
 
 

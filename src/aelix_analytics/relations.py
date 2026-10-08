@@ -85,8 +85,10 @@ from datetime import datetime
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
 # The version of this reader's rules, part of every source_revision it gives (ADR-0006 5). 2 since
-# Issue #13 PR 1: analytics.run/2 and analytics.dataset/1 are read, and data/imported/ with them.
-READER_FORMAT = 2
+# Issue #13 PR 1: analytics.run/2 and analytics.dataset/1 are read, and data/imported/ with them. 3
+# since its PR 2: a migrated project's older paths are read through the migration's mapping
+# (core.mapped_identity, design 5.4), and analytics.migration/1 is a family this reader knows.
+READER_FORMAT = 3
 
 EVENT_V1 = "lab.event/1"
 EVENT_V2 = "analytics.event/2"
@@ -99,11 +101,13 @@ DATASET_V1 = "lab.dataset/1"
 # The import record of the new writer (design 2.7): lab.dataset/1's fields, under data/imported/.
 DATASET_V2 = "analytics.dataset/1"
 REPORT_V1 = "analytics.report_revision/1"
+# A migration's plan, mapping and report (design 2.7 and 6.8), told apart by their `record`.
+MIGRATION_V1 = "analytics.migration/1"
 # Where import records are, each with the family it holds (design 2.3).
 IMPORT_DIRS = (("data/imported", DATASET_V2), ("data/raw", DATASET_V1))
 # ADR-0006 1.4: the family versions a reader of the contract knows.
 KNOWN = frozenset({"lab.project/1", RUN_V1, EVENT_V1, DATASET_V1, "analytics.project/2", EVENT_V2,
-                   REPORT_V1, RUN_V2, DATASET_V2})
+                   REPORT_V1, RUN_V2, DATASET_V2, MIGRATION_V1})
 FAMILIES = frozenset({name.rpartition("/")[0] for name in KNOWN})
 KINDS = {
     # The kinds the /1 writer accepts (core.EVENT_KINDS).
@@ -669,9 +673,10 @@ def _files(path: Path, suffix: str) -> list[str]:
 CONTEXT_DIRS = (".analytics/context", ".lab/context")  # ADR-0006 4: in this order
 
 
-def _snapshot(root: Path) -> list:
+def _snapshot(root: Path, state=None) -> list:
     """What a source_revision is made of: the reader format, and the project-relative path, size and
-    mtime_ns of every record file this reader reads, with the names of the CONTEXT versions. No
+    mtime_ns of every record file this reader reads, with the names of the CONTEXT versions, and the
+    caller's `state` of what it reads paths through when it gives one (`read`'s `frame`). No
     absolute path is part of it."""
 
     def stat(rel: str) -> list:
@@ -687,6 +692,8 @@ def _snapshot(root: Path) -> list:
     for directory, _ in IMPORT_DIRS:
         out += [stat(f"{directory}/{name}") for name in _files(root / directory, ".meta.json")]
     out += [[directory, _files(root / directory, ".md")] for directory in CONTEXT_DIRS]
+    if state is not None:
+        out.append(["frame", state])
     return out
 
 
@@ -1535,17 +1542,21 @@ class ReadModel:
         return self.journal.replay().transition_allowed(target, expected, new)
 
 
-def read(root, *, alive, sha, legacy_path=None) -> ReadModel:
+def read(root, *, alive, sha, legacy_path=None, frame=None) -> ReadModel:
     """Read the project at `root` as it is. The files read are compared before and after; when they
     differ the read is made again, twice at most, and then the model says `updating` and keeps every
     source_revision it observed. `legacy_path` reads the paths of an older kit's runs (module
-    docstring); without it they are read as recorded."""
+    docstring); without it they are read as recorded. `frame`, when given, is called before and
+    after each attempt and gives `(legacy_path, state)`: the reading of an older kit's paths for that
+    attempt, and a JSON value of what that reading is made of, compared and part of the
+    source_revision like the files (core: a migrated project's mapping, design 5.4)."""
     root = Path(root)
     observed: list[str] = []
     for _ in range(3):
-        before = _snapshot(root)
-        model = ReadModel(root, read_journal(root), alive=alive, sha=sha, legacy_path=legacy_path)
-        after = _snapshot(root)
+        legacy, state = frame() if frame is not None else (legacy_path, None)
+        before = _snapshot(root, state)
+        model = ReadModel(root, read_journal(root), alive=alive, sha=sha, legacy_path=legacy)
+        after = _snapshot(root, frame()[1] if frame is not None else None)
         observed.append(_token(after, model.as_of_seq))
         if before == after:
             break

@@ -92,8 +92,12 @@ LAYERS: dict[str, Layer] = {
                       "execution, capture and data adapters, in the project's environment"),
     "workspace": _layer(3, ("core", "ports", "read_model", "writer"), ("analysis", "rendering"),
                         "the Workspace renderer, in the project's environment"),
+    # Issue #13 PR 2 (design 3.2): the copy migration, beside the adapters. Standard library only, and
+    # never loaded by the aelix process (core does not import it).
+    "migration": _layer(3, ("core", "ports", "read_model", "writer"), (),
+                        "the copy migration of a lab.json project into the current format (#13)"),
     "sdk": _layer(4, PROJECT_LAYERS, ("analysis",), "the script API: an entry point"),
-    "kit_entry": _layer(4, PROJECT_LAYERS, ("analysis",),
+    "kit_entry": _layer(4, (*PROJECT_LAYERS, "migration"), ("analysis",),
                         "the kit's command line in the project's environment: an entry point"),
     "launcher": _layer(4, ("distribution", "ports"), (),
                        "the human `analytics` command, standard library only (3.11)"),
@@ -125,6 +129,7 @@ MODULES: dict[str, str] = {
     "src/aelix_analytics/demo.py": "runtime",
     "src/aelix_analytics/runner.py": "runtime",
     "src/aelix_analytics/workspace.py": "workspace",
+    "src/aelix_analytics/migration.py": "migration",
     "src/aelix_analytics/__init__.py": "sdk",
     "src/aelix_analytics/__main__.py": "kit_entry",
     "src/aelix_analytics/cli.py": "launcher",
@@ -195,6 +200,14 @@ DYNAMIC_LOADS: dict[tuple[str, str, str], DynamicLoad] = {
         "package (ADR-0003 decision 3)"),
     ("src/aelix_analytics/capture.py", "PostImportFinder.find_spec", "find_spec"): DynamicLoad(
         None, "the import hook finds the module the script itself imports; it adds no module"),
+    # Issue #13 PR 2: a script proposal (design 6.13) reads a copied script's syntax tree and names
+    # these two loaders to report a dynamic import of the older SDK as one a person changes by hand.
+    ("src/aelix_analytics/migration.py", "_imports_by_name", "__import__"): DynamicLoad(
+        None, "a migration's script proposal finds __import__('labkit') in a script's text; it loads "
+              "nothing"),
+    ("src/aelix_analytics/migration.py", "_imports_by_name", "import_module"): DynamicLoad(
+        None, "a migration's script proposal finds import_module('labkit') in a script's text; it "
+              "loads nothing"),
 }
 
 # Files whose module level runs where only the standard library may be imported.

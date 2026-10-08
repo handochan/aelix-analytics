@@ -1,0 +1,3540 @@
+{
+ "record_kind": "aelix-analytics-migration-engine",
+ "observed_at": "2026-10-08T14:01:54Z",
+ "issue": "https://github.com/handochan/aelix-analytics/issues/13",
+ "pull_request": "https://github.com/handochan/aelix-analytics/pull/82",
+ "base_revision": "fbd12e1d10886889097cb336f4cbe06fb72e3d21",
+ "measured_tree": {
+  "what": "the code of the commit `fix: the migration engine's Windows cases (Issue #13 PR 2)` (kit 0.7.0, unchanged) on branch feat/issue-13-migration-engine (PR #82) over origin/main ed29cf0 (PR #80 merged; its tree is fbd12e1's). It was measured on a clean clone of that commit; this record is the docs commit after it, which changes no code (the manifest's files are the commit's). The first measurement of this PR (code 2b6eabb) is in `previous_measurement`, the second (the code of the review fixes, 80a0fc9) in `review_fix_measurement`, the third (the code of the fix check, 84f3970) in `fix_check_measurement`",
+  "head": "ebd10b644e8cb8550ccf6446b134666db6bb9386",
+  "provisional_commit": null,
+  "measured_base": "fbd12e1d10886889097cb336f4cbe06fb72e3d21",
+  "origin_main": "ed29cf019d2bf72fbf8a83d25e5e51d5e72350c7",
+  "commits": [
+   "ebd10b644e8cb8550ccf6446b134666db6bb9386 fix: the migration engine's Windows cases (Issue #13 PR 2)",
+   "53d1bdf6354e4b19ebaa52de75d6d291f792e89e docs: link the migration engine's changelog entries to PR #82 (Issue #13)",
+   "84f3970fa4f7b52cc9cbdac31c743f00f09b52c2 fix: answer the fix check of PR 2 (Issue #13)",
+   "80a0fc952953e0f3deb1d38936d6c90ea420722a fix: answer the reviews of PR 2 (Issue #13)",
+   "f7faea5019d56d15ae9395a21ba77c3f28044e83 docs: describe the migration engine and record its measurement (Issue #13 PR 2)",
+   "4243021db491b6cd0da8bfd839b10b6037fc951e fix: leave a linked .lab/'s cache and locks out, and follow no link into a planned folder (Issue #13 PR 2)",
+   "d08cf24988cb4bfc120122e9a1e26d95c4b2b088 test: cover the migration's calls again, spellings and Windows publication (Issue #13 PR 2)",
+   "50a55bb0cebdff790df5bcf3cc07dfc68f33617e feat: read a migrated project's older paths through its mapping (Issue #13 PR 2)",
+   "8ca69144894f0090f740322549cac73c5df04c66 feat: add the original-preserving migration engine (Issue #13 PR 2)",
+   "b7e1521cc57ee7ecd4a88a6d5390753fd86eae80 feat: add the migration's port methods and their contract (Issue #13 PR 2)",
+   "ed29cf019d2bf72fbf8a83d25e5e51d5e72350c7 Merge pull request #80 from handochan/feat/issue-13-marker-gate"
+  ],
+  "code_manifest": "sha256 of each tracked file under src, extension, tests, tools, bin and pyproject.toml, uv.lock, one line each (`shasum -a 256` format), sorted by path",
+  "code_manifest_sha256": "a91f93e5954f94057d0848d6d4072e8be7f0f8d926a11c50e7484f401d5822d8",
+  "code_files": 215
+ },
+ "workflow": ".github/workflows/ci.yml, not changed by this change",
+ "runs": {
+  "code": {
+   "state": "pass",
+   "id": "37789500898",
+   "url": "https://github.com/handochan/aelix-analytics/actions/runs/37789500898",
+   "attempt": 1,
+   "conclusion": "success",
+   "head": "ec8d7d9b8d8ee82a90c7d6f1248cc85bcbda11db",
+   "jobs": {
+    "lint · ruff and documents": {
+     "id": 113352791439,
+     "conclusion": "success"
+    },
+    "platform · windows-2025": {
+     "id": 113352791801,
+     "conclusion": "success"
+    },
+    "floor · ubuntu-24.04 · CPython 3.11, stdlib only": {
+     "id": 113352792075,
+     "conclusion": "success"
+    },
+    "floor · windows-2025 · CPython 3.11, stdlib only": {
+     "id": 113352792292,
+     "conclusion": "success"
+    },
+    "platform · ubuntu-24.04": {
+     "id": 113352793123,
+     "conclusion": "success"
+    }
+   },
+   "lint_documents": {
+    "ok": true,
+    "counts": {
+     "json_files": 12,
+     "markdown_files": 65,
+     "local_links": 692,
+     "python_examples": 6,
+     "json_examples": 7,
+     "dev_state_examples": 1
+    },
+    "errors": [],
+    "sha256": "7c58644a7b2af798ba6e0d842d6278667c1f6d6c215bcff5e26f0ff6c19d9829"
+   }
+  },
+  "macos_label": {
+   "state": "pass",
+   "id": "37789525327",
+   "url": "https://github.com/handochan/aelix-analytics/actions/runs/37789525327",
+   "attempt": 1,
+   "conclusion": "success",
+   "head": "ec8d7d9b8d8ee82a90c7d6f1248cc85bcbda11db",
+   "jobs": {
+    "floor · macos-26 · CPython 3.11, stdlib only": {
+     "id": 113352875891,
+     "conclusion": "success"
+    },
+    "platform · macos-26": {
+     "id": 113352876499,
+     "conclusion": "success"
+    },
+    "lint · ruff and documents": {
+     "id": 113352878682,
+     "conclusion": "skipped"
+    }
+   }
+  },
+  "note": "a pull_request run takes the workflow from GitHub's merge commit (github_sha) and checks out the PR head; the artifacts are kept in the work run's evidence/ci/ (GitHub deletes them after 90 days)",
+  "after_the_record": {
+   "id": "37795999482",
+   "url": "https://github.com/handochan/aelix-analytics/actions/runs/37795999482",
+   "head": "8c13679",
+   "attempts": {
+    "1": "the Windows leg failed: tests/test_model_eval.py::test_the_child_gets_no_credential_variable_and_the_runs_own_home timed out in tools/model_eval.py settle (unrelated to this PR, issue #83)",
+    "2": "the Windows leg failed two of this PR's lock tests: tests/test_contracts.py::test_trying_a_lock_another_process_holds_is_busy_at_once[windows-exclusive] (a thread of the same process had not let the lock go yet) and tests/test_migration.py::test_one_migration_a_destination_and_none_while_a_run_holds_the_source (Windows let a killed run's lock go after the process ended: source_busy, CONTRACTS G)"
+   },
+   "then": "the next commit changed only those two tests and CONTRACTS G; the engine code is the measured one"
+  }
+ },
+ "legs": {
+  "linux": {
+   "run": "37789500898",
+   "attempt": 1,
+   "event": "pull_request (synchronize)",
+   "label": null,
+   "head": "ec8d7d9b8d8ee82a90c7d6f1248cc85bcbda11db",
+   "base": "ed29cf019d2bf72fbf8a83d25e5e51d5e72350c7",
+   "github_sha": "0edaff12e7cbbd13fa2f4a48d27e629643d2b33b",
+   "jobs": {
+    "floor · ubuntu-24.04 · CPython 3.11, stdlib only": {
+     "id": 113352792075,
+     "conclusion": "success",
+     "started_at": "2026-10-08T14:04:42Z",
+     "completed_at": "2026-10-08T14:05:14Z"
+    },
+    "platform · ubuntu-24.04": {
+     "id": 113352793123,
+     "conclusion": "success",
+     "started_at": "2026-10-08T14:04:43Z",
+     "completed_at": "2026-10-08T14:20:03Z"
+    }
+   },
+   "runner": {
+    "image": "ubuntu24 20260927.320.1",
+    "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+    "arch": "X64",
+    "python_development": "3.12.3",
+    "interpreters": {
+     "3.11": "3.11.15",
+     "3.12": "3.12.3"
+    },
+    "python_floor": "3.11.17",
+    "floor_image": "ubuntu24 20261004.327.1"
+   },
+   "junit": {
+    "suite": {
+     "file": "suite.xml",
+     "file_sha256": "a5e59487d54a0bb17bdd5a03213fd804765e0ca69fb089b062348274f83d05fa",
+     "timestamp": "2026-10-08T14:05:55.088068+00:00",
+     "seconds": 725.568,
+     "counts": {
+      "skip": 60,
+      "pass": 1658
+     },
+     "failed": [],
+     "skipped_by_reason": {
+      "the Windows implementation runs on the Windows leg": 35,
+      "MAX_PATH and LongPathsEnabled are Windows'": 7,
+      "the recording implementation does not declare that it excludes other processes": 3,
+      "collection skipped": 2,
+      "a directory flagged case-sensitive is Windows'": 2,
+      "the recording implementation does not declare that it honours a folder's permissions": 1,
+      "the recording implementation does not declare that it sees running processes": 1,
+      "the recording implementation does not declare that it interrupts a region": 1,
+      "M writes about 440 MB twice; set AELIX_ANALYTICS_TEST_SCALE_M=1": 1,
+      "what Windows does; POSIX sends it again (the test above)": 1,
+      "Windows": 1,
+      "this file system tells case apart": 1,
+      "`Runs` would be a directory of its own": 1,
+      "8.3 short names are Windows'": 1,
+      "taskkill and CreateProcess's search are Windows'": 1,
+      "before 3.14 a `with` calls __enter__ without a CALL, and no signal is handled between its acquiring and the bl": 1
+     },
+     "new_test_files": {
+      "tests.test_migration": {
+       "pass": 131,
+       "skip": 2
+      },
+      "tests.test_migration_reader": {
+       "pass": 5
+      }
+     },
+     "new_port_contract_cases": {
+      "what": "tests/test_contracts.py's cases of the four port methods this PR adds (FileLocks.try_exclusive, AtomicFiles.publish_new, flush_handle, flush_dir), by implementation",
+      "counts": {
+       "pass": 25,
+       "skip": 17
+      },
+      "by_implementation": {
+       "posix": {
+        "pass": 14
+       },
+       "recording": {
+        "pass": 11,
+        "skip": 3
+       },
+       "windows": {
+        "skip": 14
+       }
+      }
+     },
+     "other_new_cases": {
+      "tests.test_marker_gate::test_a_markerless_migration_destination_stops_the_search_and_is_refused": {
+       "pass": 3
+      },
+      "tests.test_platform::test_windows_publish_new_waits_out_a_reader_and_never_overwrites": {
+       "pass": 4
+      },
+      "tests.test_windows_long_paths::test_a_migration_into_a_destination_past_max_path": {
+       "skip": 1
+      }
+     },
+     "cited_cases": {
+      "tests.test_contracts::test_a_lock_makes_its_directory_and_file_and_keeps_their_bytes[posix]": "pass",
+      "tests.test_contracts::test_a_lock_makes_its_directory_and_file_and_keeps_their_bytes[recording]": "pass",
+      "tests.test_contracts::test_a_lock_makes_its_directory_and_file_and_keeps_their_bytes[windows]": "skip",
+      "tests.test_contracts::test_a_lock_is_free_after_its_body_even_one_that_raised[posix]": "pass",
+      "tests.test_contracts::test_a_lock_is_free_after_its_body_even_one_that_raised[recording]": "pass",
+      "tests.test_contracts::test_a_lock_is_free_after_its_body_even_one_that_raised[windows]": "skip",
+      "tests.test_contracts::test_a_lock_excludes_another_process[posix]": "pass",
+      "tests.test_contracts::test_a_lock_excludes_another_process[recording]": "skip",
+      "tests.test_contracts::test_a_lock_excludes_another_process[windows]": "skip",
+      "tests.test_contracts::test_trying_a_lock_says_whether_it_made_the_file_and_keeps_its_bytes[posix]": "pass",
+      "tests.test_contracts::test_trying_a_lock_says_whether_it_made_the_file_and_keeps_its_bytes[recording]": "pass",
+      "tests.test_contracts::test_trying_a_lock_says_whether_it_made_the_file_and_keeps_its_bytes[windows]": "skip",
+      "tests.test_contracts::test_trying_a_lock_never_makes_its_directory[posix]": "pass",
+      "tests.test_contracts::test_trying_a_lock_never_makes_its_directory[recording]": "pass",
+      "tests.test_contracts::test_trying_a_lock_never_makes_its_directory[windows]": "skip",
+      "tests.test_contracts::test_trying_a_lock_is_free_after_its_body_even_one_that_raised[posix]": "pass",
+      "tests.test_contracts::test_trying_a_lock_is_free_after_its_body_even_one_that_raised[recording]": "pass",
+      "tests.test_contracts::test_trying_a_lock_is_free_after_its_body_even_one_that_raised[windows]": "skip",
+      "tests.test_contracts::test_a_lock_held_is_busy_to_a_try_in_the_same_process[posix]": "pass",
+      "tests.test_contracts::test_a_lock_held_is_busy_to_a_try_in_the_same_process[recording]": "pass",
+      "tests.test_contracts::test_a_lock_held_is_busy_to_a_try_in_the_same_process[windows]": "skip",
+      "tests.test_contracts::test_a_lock_file_that_cannot_be_written_is_tried_through_reading[posix]": "pass",
+      "tests.test_contracts::test_a_lock_file_that_cannot_be_written_is_tried_through_reading[recording]": "pass",
+      "tests.test_contracts::test_a_lock_file_that_cannot_be_written_is_tried_through_reading[windows]": "skip",
+      "tests.test_contracts::test_a_lock_file_that_cannot_be_created_is_unavailable[posix]": "pass",
+      "tests.test_contracts::test_a_lock_file_that_cannot_be_created_is_unavailable[recording]": "skip",
+      "tests.test_contracts::test_a_lock_file_that_cannot_be_created_is_unavailable[windows]": "skip",
+      "tests.test_contracts::test_trying_a_lock_another_process_holds_is_busy_at_once[posix-exclusive]": "pass",
+      "tests.test_contracts::test_trying_a_lock_another_process_holds_is_busy_at_once[posix-try_exclusive]": "pass",
+      "tests.test_contracts::test_trying_a_lock_another_process_holds_is_busy_at_once[recording-exclusive]": "skip",
+      "tests.test_contracts::test_trying_a_lock_another_process_holds_is_busy_at_once[recording-try_exclusive]": "skip",
+      "tests.test_contracts::test_trying_a_lock_another_process_holds_is_busy_at_once[windows-exclusive]": "skip",
+      "tests.test_contracts::test_trying_a_lock_another_process_holds_is_busy_at_once[windows-try_exclusive]": "skip",
+      "tests.test_contracts::test_publishing_a_new_name_puts_the_bytes_there_and_the_temporary_name_goes[posix]": "pass",
+      "tests.test_contracts::test_publishing_a_new_name_puts_the_bytes_there_and_the_temporary_name_goes[recording]": "pass",
+      "tests.test_contracts::test_publishing_a_new_name_puts_the_bytes_there_and_the_temporary_name_goes[windows]": "skip",
+      "tests.test_contracts::test_publishing_never_overwrites_what_is_there[posix-file]": "pass",
+      "tests.test_contracts::test_publishing_never_overwrites_what_is_there[posix-directory]": "pass",
+      "tests.test_contracts::test_publishing_never_overwrites_what_is_there[posix-empty file]": "pass",
+      "tests.test_contracts::test_publishing_never_overwrites_what_is_there[recording-file]": "pass",
+      "tests.test_contracts::test_publishing_never_overwrites_what_is_there[recording-directory]": "pass",
+      "tests.test_contracts::test_publishing_never_overwrites_what_is_there[recording-empty file]": "pass",
+      "tests.test_contracts::test_publishing_never_overwrites_what_is_there[windows-file]": "skip",
+      "tests.test_contracts::test_publishing_never_overwrites_what_is_there[windows-directory]": "skip",
+      "tests.test_contracts::test_publishing_never_overwrites_what_is_there[windows-empty file]": "skip",
+      "tests.test_contracts::test_a_file_system_without_links_is_told_and_nothing_changes[posix]": "pass",
+      "tests.test_contracts::test_a_file_system_without_links_is_told_and_nothing_changes[recording]": "pass",
+      "tests.test_contracts::test_a_file_system_without_links_is_told_and_nothing_changes[windows]": "skip",
+      "tests.test_contracts::test_flushing_writes_through_and_hides_no_error[posix]": "pass",
+      "tests.test_contracts::test_flushing_writes_through_and_hides_no_error[recording]": "pass",
+      "tests.test_contracts::test_flushing_writes_through_and_hides_no_error[windows]": "skip",
+      "tests.test_marker_gate::test_a_markerless_migration_destination_stops_the_search_and_is_refused[migration directory]": "pass",
+      "tests.test_marker_gate::test_a_markerless_migration_destination_stops_the_search_and_is_refused[migration lock]": "pass",
+      "tests.test_marker_gate::test_a_markerless_migration_destination_stops_the_search_and_is_refused[both]": "pass",
+      "tests.test_marker_gate::test_the_kit_command_line_writes_only_where_it_may[incomplete]": "pass",
+      "tests.test_migration::test_a_migration_copies_bytes_moves_only_what_the_mapping_says_and_commits_last": "pass",
+      "tests.test_migration::test_the_report_and_the_proposals": "pass",
+      "tests.test_migration::test_a_script_proposal_renames_only_the_older_names[from labkit import note, chart as c\\nnote('gap', 'x')\\nc(f, 'y')\\n-from aelix_analytics import record as note, visualize as c\\nnote('workflow_feedback', 'x')\\nc(f, 'y')\\n-0]": "pass",
+      "tests.test_migration::test_a_script_proposal_renames_only_the_older_names[import labkit\\nlabkit.note('finding', 'x')\\n-import aelix_analytics as labkit\\nlabkit.record('finding', 'x')\\n-0]": "pass",
+      "tests.test_migration::test_a_script_proposal_renames_only_the_older_names[import aelix_analytics as a\\na.record(\"gap\", 'x')\\n-import aelix_analytics as a\\na.record(\"workflow_feedback\", 'x')\\n-0]": "pass",
+      "tests.test_migration::test_a_script_proposal_renames_only_the_older_names[import importlib\\nlab = importlib.import_module('labkit')\\n-None-1]": "pass",
+      "tests.test_migration::test_a_script_proposal_renames_only_the_older_names[x = 1\\n-None-0]": "pass",
+      "tests.test_migration::test_a_script_proposal_renames_only_the_older_names[def broken(:\\n-None-0]": "pass",
+      "tests.test_migration::test_the_gitignore_block_follows_the_source_s_choices[.lab/cache/\\nreport/\\n-lines0]": "pass",
+      "tests.test_migration::test_the_gitignore_block_follows_the_source_s_choices[data/\\r\\n.lab/lock\\r\\n-lines1]": "pass",
+      "tests.test_migration::test_the_gitignore_block_follows_the_source_s_choices[report/\\nworkspace/\\n.analytics/run.lock-lines2]": "pass",
+      "tests.test_migration::test_the_gitignore_block_follows_the_source_s_choices[-lines3]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F1-dest-locked]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F1-migration-dir]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F1-start-cut]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F2-start]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F2-probe]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F3-locked]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F4-plan-written]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F4-plan]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F5-begin]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F5-temp-partial]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F5-temp-full]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F6-published]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F6-link-unlink]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F7-rechecking]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F8-source-checked]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F8-verified]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F9-transform-begin]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F9-transform-temp]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F9-transform-written]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F9-transform-replaced]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F10-mapping]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F10-report-written]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F10-reported]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F10-durable]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F11-marker-begin]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F11-marker-temp]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F11-marker-written]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F12-published]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F12-link-unlink]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F13-committed]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F14-trusted]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F16-copied-cut]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F16-source-checked-cut]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F16-reported-cut]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F16-committed-cut]": "pass",
+      "tests.test_migration::test_a_direct_write_where_links_cannot_be_made[direct_intent]": "pass",
+      "tests.test_migration::test_a_direct_write_where_links_cannot_be_made[direct_created]": "pass",
+      "tests.test_migration::test_the_fault_matrix_is_kept": "pass",
+      "tests.test_migration::test_a_copied_file_changed_between_two_calls_is_refused_and_nothing_removed": "pass",
+      "tests.test_migration::test_a_file_not_copied_yet_that_changed_is_copied_as_it_is_now": "pass",
+      "tests.test_migration::test_after_the_source_check_the_source_is_not_read_again[journal_appended]": "pass",
+      "tests.test_migration::test_after_the_source_check_the_source_is_not_read_again[source_removed]": "pass",
+      "tests.test_migration::test_after_the_source_check_the_source_is_not_read_again[space_short]": "pass",
+      "tests.test_migration::test_after_the_source_check_the_source_is_not_read_again[link_target_gone]": "pass",
+      "tests.test_migration::test_a_gitignore_transform_resumes_from_its_hash_and_refuses_another": "pass",
+      "tests.test_migration::test_a_committed_destination_whose_marker_went_is_published_again": "pass",
+      "tests.test_migration::test_a_ledger_that_is_no_state_is_refused_and_nothing_removed[order]": "pass",
+      "tests.test_migration::test_a_ledger_that_is_no_state_is_refused_and_nothing_removed[two_ledgers]": "pass",
+      "tests.test_migration::test_a_ledger_that_is_no_state_is_refused_and_nothing_removed[unknown_line]": "pass",
+      "tests.test_migration::test_a_temporary_file_whose_path_left_the_source_is_kept": "pass",
+      "tests.test_migration::test_what_the_ledger_does_not_account_for_is_refused[file]": "pass",
+      "tests.test_migration::test_what_the_ledger_does_not_account_for_is_refused[changed_copy]": "pass",
+      "tests.test_migration::test_what_the_ledger_does_not_account_for_is_refused[directory]": "pass",
+      "tests.test_migration::test_what_a_person_s_tools_leave_is_passed_over": "pass",
+      "tests.test_migration::test_a_migration_directory_without_its_first_line_is_a_new_migration[None]": "pass",
+      "tests.test_migration::test_a_migration_directory_without_its_first_line_is_a_new_migration[]": "pass",
+      "tests.test_migration::test_a_migration_directory_without_its_first_line_is_a_new_migration[{\"step\": \"start\", \"at\": \"2026-]": "pass",
+      "tests.test_migration::test_a_cut_ledger_line_is_skipped_and_the_next_one_starts_on_its_own_line": "pass",
+      "tests.test_migration::test_a_read_only_source_is_copied_without_its_locks_and_the_destination_stays_writable": "pass",
+      "tests.test_migration::test_a_source_without_its_state_folder_makes_none": "pass",
+      "tests.test_migration::test_a_worktree_s_git_file_is_not_copied": "pass",
+      "tests.test_migration::test_a_file_larger_than_64_mib_is_copied_whole": "pass",
+      "tests.test_migration::test_a_destination_that_overlaps_a_place_the_migration_reads_is_refused[symlink]": "pass",
+      "tests.test_migration::test_the_destination_s_other_rules": "pass",
+      "tests.test_migration::test_the_source_s_own_refusals": "pass",
+      "tests.test_migration::test_a_name_that_is_not_utf8_is_refused": "pass",
+      "tests.test_migration::test_names_the_destination_folds_together_are_refused_only_where_it_folds": "pass",
+      "tests.test_migration::test_a_relative_link_that_leaves_the_root_is_not_made_again": "pass",
+      "tests.test_migration::test_a_source_changed_under_the_copy_fails_without_a_marker[copied-telemetry]": "pass",
+      "tests.test_migration::test_a_source_changed_under_the_copy_fails_without_a_marker[copied-added]": "pass",
+      "tests.test_migration::test_a_source_changed_under_the_copy_fails_without_a_marker[copied-removed]": "pass",
+      "tests.test_migration::test_a_source_changed_under_the_copy_fails_without_a_marker[rechecking-script]": "pass",
+      "tests.test_migration::test_an_older_kit_s_journal_write_waits_for_the_migration_and_is_counted_after": "pass",
+      "tests.test_migration::test_one_migration_a_destination_and_none_while_a_run_holds_the_source": "pass",
+      "tests.test_migration::test_a_name_taken_meanwhile_is_never_overwritten[data/raw/big.parquet]": "pass",
+      "tests.test_migration::test_a_name_taken_meanwhile_is_never_overwritten[analytics.json]": "pass",
+      "tests.test_migration::test_a_committed_destination_called_again": "pass",
+      "tests.test_migration::test_a_marker_a_newer_kit_rewrote_before_the_commit_line_is_taken": "pass",
+      "tests.test_migration::test_a_destination_with_a_marker_is_judged_by_it_first[markers0-marker_conflict]": "pass",
+      "tests.test_migration::test_a_destination_with_a_marker_is_judged_by_it_first[markers1-marker_invalid]": "pass",
+      "tests.test_migration::test_a_destination_with_a_marker_is_judged_by_it_first[markers2-project_too_new]": "pass",
+      "tests.test_migration::test_a_destination_with_a_marker_is_judged_by_it_first[markers3-destination_invalid]": "pass",
+      "tests.test_migration::test_a_destination_with_a_marker_is_judged_by_it_first[markers4-destination_invalid]": "pass",
+      "tests.test_migration::test_the_dry_run_writes_nothing_and_says_what_would_happen": "pass",
+      "tests.test_migration::test_the_migration_goes_through_the_platform_it_is_given": "pass",
+      "tests.test_migration::test_a_source_file_another_program_holds_open_is_reported": "skip",
+      "tests.test_migration::test_a_read_only_copy_is_flushed_and_its_temporary_file_removed": "pass",
+      "tests.test_migration::test_names_other_systems_reserve_are_copied_with_a_warning": "pass",
+      "tests.test_migration::test_the_kit_s_command_line_in_a_destination_not_committed": "pass",
+      "tests.test_migration::test_the_migration_s_own_files_are_lf_and_the_copies_keep_their_bytes": "pass",
+      "tests.test_migration::test_a_copy_changed_after_the_commit_is_reported_when_called_again": "pass",
+      "tests.test_migration::test_a_committed_destination_whose_source_lost_its_link_target_is_already_migrated": "pass",
+      "tests.test_migration::test_the_marker_takes_what_the_source_s_marker_has_and_says_what_it_lacks": "pass",
+      "tests.test_migration::test_a_destination_called_from_inside_itself_or_with_another_source": "pass",
+      "tests.test_migration::test_another_spelling_of_the_source_is_the_source": "skip",
+      "tests.test_migration::test_a_state_folder_that_is_a_link_leading_outside_is_copied_without_its_cache_and_locks": "pass",
+      "tests.test_migration::test_a_link_made_where_a_planned_folder_goes_is_not_followed": "pass",
+      "tests.test_migration::test_a_link_where_the_migration_keeps_its_records_is_never_followed[.analytics]": "pass",
+      "tests.test_migration::test_a_link_where_the_migration_keeps_its_records_is_never_followed[.analytics/migration]": "pass",
+      "tests.test_migration::test_a_link_where_the_migration_keeps_its_records_is_never_followed[migration_dir]": "pass",
+      "tests.test_migration::test_a_link_where_the_migration_keeps_its_records_is_never_followed[ledger]": "pass",
+      "tests.test_migration::test_a_link_planted_at_the_migration_s_own_temporary_names_is_never_written_through": "pass",
+      "tests.test_migration::test_a_source_file_named_like_a_temporary_file_of_the_migration_is_copied[.mig-gitignore-0.part]": "pass",
+      "tests.test_migration::test_a_source_file_named_like_a_temporary_file_of_the_migration_is_copied[.analytics-json-0.part]": "pass",
+      "tests.test_migration::test_a_temporary_name_something_else_made_first_is_not_this_migration_s": "pass",
+      "tests.test_migration::test_a_copy_removed_before_the_verification_is_refused[after_source_checked]": "pass",
+      "tests.test_migration::test_a_copy_removed_before_the_verification_is_refused[before_verify]": "pass",
+      "tests.test_migration::test_a_folder_removed_after_the_source_check_is_refused": "pass",
+      "tests.test_migration::test_a_change_in_the_source_s_list_under_the_copy_is_source_changed[outside_link_removed]": "pass",
+      "tests.test_migration::test_a_change_in_the_source_s_list_under_the_copy_is_source_changed[empty_folder_added]": "pass",
+      "tests.test_migration::test_a_change_in_the_source_s_list_under_the_copy_is_source_changed[link_retargeted]": "pass",
+      "tests.test_migration::test_a_read_only_folder_cut_while_a_file_of_it_is_copied_resumes": "pass",
+      "tests.test_migration::test_a_state_folder_that_is_no_folder_of_its_own_is_refused[inside_link]": "pass",
+      "tests.test_migration::test_a_state_folder_that_is_no_folder_of_its_own_is_refused[file]": "pass",
+      "tests.test_migration::test_a_state_folder_that_is_no_folder_of_its_own_is_refused[inside_dangling]": "pass",
+      "tests.test_migration::test_a_folder_two_outside_links_reach_is_copied_once_and_said_where": "pass",
+      "tests.test_migration::test_a_destination_spelled_with_dotdot_after_a_link_is_the_operating_system_s": "pass",
+      "tests.test_migration::test_a_file_the_report_binds_that_went_is_made_again_before_the_marker": "pass",
+      "tests.test_migration::test_a_marker_naming_another_migration_s_report_is_refused_and_not_read[report_path]": "pass",
+      "tests.test_migration::test_a_marker_naming_another_migration_s_report_is_refused_and_not_read[report_bytes]": "pass",
+      "tests.test_migration::test_a_marker_naming_another_migration_s_report_is_refused_and_not_read[mapping_bytes]": "pass",
+      "tests.test_migration_reader::test_the_reader_reads_a_migrated_project_as_it_read_its_source[symlink]": "pass",
+      "tests.test_migration_reader::test_the_mapping_s_rules_are_by_path_components": "pass",
+      "tests.test_migration_reader::test_the_reader_knows_the_migration_family": "pass",
+      "tests.test_migration_reader::test_what_the_mapping_is_enters_the_read_s_revision": "pass",
+      "tests.test_migration_reader::test_a_marker_report_and_mapping_of_two_migrations_are_not_read_together": "pass",
+      "tests.test_platform::test_windows_publish_new_waits_out_a_reader_and_never_overwrites[5-True]": "pass",
+      "tests.test_platform::test_windows_publish_new_waits_out_a_reader_and_never_overwrites[32-True]": "pass",
+      "tests.test_platform::test_windows_publish_new_waits_out_a_reader_and_never_overwrites[33-True]": "pass",
+      "tests.test_platform::test_windows_publish_new_waits_out_a_reader_and_never_overwrites[2-False]": "pass",
+      "tests.test_platform::test_loading_the_kit_pulls_no_analysis_library_into_the_host_process": "pass"
+     }
+    },
+    "aelix_py3_12": {
+     "file": "aelix-py3.12.xml",
+     "file_sha256": "26e4d40aeabe1aa5fc0d9e33d7accceaf8941174f538ecf5cc62aeb75e85e6d5",
+     "timestamp": "2026-10-08T14:18:02.711288+00:00",
+     "seconds": 46.593,
+     "counts": {
+      "pass": 161
+     },
+     "failed": [],
+     "skipped_by_reason": {}
+    },
+    "aelix_py3_11": {
+     "file": "aelix-py3.11.xml",
+     "file_sha256": "c90bffabe7978c4301b8b64cfa1abd22df0c2fe21e573af25632c6ddf8434029",
+     "timestamp": "2026-10-08T14:18:59.959699+00:00",
+     "seconds": 42.147,
+     "counts": {
+      "pass": 161
+     },
+     "failed": [],
+     "skipped_by_reason": {}
+    },
+    "launcher_py3_11": {
+     "file": "launcher-py3.11.xml",
+     "file_sha256": "b17cff800b48bf05b16103c90705f5e92db00a2e2e4cd8d7f9a6cf1222df671e",
+     "timestamp": "2026-10-08T14:19:42.693318+00:00",
+     "seconds": 9.192,
+     "counts": {
+      "pass": 138,
+      "skip": 1
+     },
+     "failed": [],
+     "skipped_by_reason": {
+      "what Windows does; POSIX sends it again (the test above)": 1
+     }
+    }
+   },
+   "smoke": {
+    "sha256": "fbcae3ec6941c74aaaa7f94cd6c1e5f5f8b289e1c213db853331da92ef963fe0",
+    "summary": {
+     "holds": 25,
+     "violated": 0,
+     "declared_limitation": 0,
+     "observed": 6,
+     "not_run": 0
+    },
+    "hold": true,
+    "declared_limitation": [],
+    "violated": [],
+    "not_run": []
+   },
+   "stdlib_smoke": {
+    "sha256": "943762b454fb0ccdc301e3bc0004cba7a8a9f098e1dab0e96b631d11732904a2",
+    "summary": {
+     "holds": 15,
+     "violated": 0,
+     "declared_limitation": 0,
+     "observed": 3,
+     "not_run": 2
+    },
+    "hold": true,
+    "declared_limitation": [],
+    "violated": [],
+    "not_run": []
+   },
+   "usage_report": {
+    "sha256": "7f5965942ac6ad74ad2dc466bbe2e9995bdcc82bb145d92d2ac7d3356f640229",
+    "required_facts": {
+     "passed": 58,
+     "total": 58
+    },
+    "invariants": {
+     "holding": 42,
+     "total": 42
+    },
+    "failures": []
+   },
+   "observations": {
+    "fault_matrix": {
+     "source": "evidence/issue-13-migration/fault-matrix.json of the platform artifact (tests/test_migration.py's F rows: the paths a cut left, the call again's result, the ledger's last four steps)",
+     "sha256": "8064d1a1ea7f7632d7efe16554336da8016149abd15b8b65898078fd18af485a",
+     "rows": 35,
+     "results": {
+      "resume": 30,
+      "already": 5
+     },
+     "already_migrated_rows": [
+      "F12-link-unlink",
+      "F12-published",
+      "F13-committed",
+      "F14-trusted",
+      "F16-committed-cut"
+     ],
+     "rows_not_observed_here": [],
+     "same_as_developer_machine": {
+      "compared": "each row's result, last steps and left paths (migration ids masked, separators as /) against the developer machine's evidence/observations/issue-13-migration/fault-matrix.json of the run folder (sha256 fda9e72f9a8e3fbe2091549157ab47bc15eea36f122dde45cb58d7510af80b93)",
+      "rows_compared": 35,
+      "differing": [],
+      "same": true
+     }
+    }
+   }
+  },
+  "windows": {
+   "run": "37789500898",
+   "attempt": 1,
+   "event": "pull_request (synchronize)",
+   "label": null,
+   "head": "ec8d7d9b8d8ee82a90c7d6f1248cc85bcbda11db",
+   "base": "ed29cf019d2bf72fbf8a83d25e5e51d5e72350c7",
+   "github_sha": "0edaff12e7cbbd13fa2f4a48d27e629643d2b33b",
+   "jobs": {
+    "platform · windows-2025": {
+     "id": 113352791801,
+     "conclusion": "success",
+     "started_at": "2026-10-08T14:04:41Z",
+     "completed_at": "2026-10-08T14:41:34Z"
+    },
+    "floor · windows-2025 · CPython 3.11, stdlib only": {
+     "id": 113352792292,
+     "conclusion": "success",
+     "started_at": "2026-10-08T14:04:42Z",
+     "completed_at": "2026-10-08T14:06:00Z"
+    }
+   },
+   "runner": {
+    "image": "win25-vs2026 20260925.250.1",
+    "platform": "Windows-2025Server-10.0.26100-SP0",
+    "arch": "X64",
+    "python_development": "3.12.10",
+    "interpreters": {
+     "3.11": "3.11.9",
+     "3.12": "3.12.10"
+    },
+    "python_floor": "3.11.9"
+   },
+   "junit": {
+    "suite": {
+     "file": "suite.xml",
+     "file_sha256": "71d7fe016e3e507dc582fe85ca61e55ea593b52bb3ea84f8891446add156e32b",
+     "timestamp": "2026-10-08T14:07:39.293427+00:00",
+     "seconds": 1584.952,
+     "counts": {
+      "skip": 216,
+      "pass": 1525
+     },
+     "failed": [],
+     "skipped_by_reason": {
+      "the POSIX guard's signals": 59,
+      "bin/analytics is a POSIX shell script": 46,
+      "the POSIX implementation runs on the Linux and macOS legs": 35,
+      "a FIFO and the links are POSIX's here": 9,
+      "os.startfile would open a real program on Windows": 6,
+      "the links are POSIX's here, and os.startfile would open a real program on Windows": 6,
+      "the recording implementation does not declare that it excludes other processes": 3,
+      "SIGTERM from outside a process is POSIX": 3,
+      "POSIX signals": 3,
+      "Windows reads one character and a colon as a drive, and NTFS a colon in a name as a stream": 3,
+      "collection skipped": 2,
+      "a POSIX signal": 2,
+      "a shell's background job": 2,
+      "there is no window between a link and an unlink": 2,
+      "POSIX, not as root": 2,
+      "the stub guards stand in for the POSIX one": 2,
+      "the recording implementation does not declare that it honours a folder's permissions": 1,
+      "the windows implementation does not declare that it honours a folder's permissions": 1,
+      "the windows implementation does not declare that it publishes by a link": 1,
+      "the recording implementation does not declare that it sees running processes": 1,
+      "the recording implementation does not declare that it interrupts a region": 1,
+      "M writes about 440 MB twice; set AELIX_ANALYTICS_TEST_SCALE_M=1": 1,
+      "bytes that are not UTF-8 in the environment are POSIX's": 1,
+      "a terminal's process group; a Windows console's Ctrl+C is tests/test_windows_console.py's": 1,
+      "signal dispositions as POSIX inherits them": 1,
+      "a POSIX signal sent to one process": 1,
+      "a symbolic link to a program": 1,
+      "a FIFO is POSIX's": 1,
+      "Linux keeps the bytes it is given": 1,
+      "Windows makes no such name; the case runs on the POSIX legs": 1,
+      "POSIX resolves it from the link's target": 1,
+      "POSIX permissions that bind the owner": 1,
+      "a POSIX background job of the bash tool": 1,
+      "the launcher masks through its POSIX pipes; links need privileges": 1,
+      "the launcher masks through its POSIX pipes": 1,
+      "POSIX signals and the launcher's lifeline": 1,
+      "the stand-in uv is a script; Windows starts only an .exe": 1,
+      "a POSIX shell script stands in for the opener": 1,
+      "POSIX executables and HOME": 1,
+      "SIGALRM is POSIX": 1,
+      "POSIX permissions, not root": 1,
+      "process groups are a POSIX concept": 1,
+      "on Windows the ask is a Python thread, which a regular expression holding the GIL starves": 1,
+      "before 3.14 a `with` calls __enter__ without a CALL, and no signal is handled between its acquiring and the bl": 1,
+      "names POSIX can hold and Windows reads otherwise": 1,
+      "the broken guard stands in for the POSIX one": 1,
+      "the stub guard stands in for the POSIX one": 1
+     },
+     "new_test_files": {
+      "tests.test_migration": {
+       "pass": 127,
+       "skip": 7
+      },
+      "tests.test_migration_reader": {
+       "pass": 6
+      }
+     },
+     "new_port_contract_cases": {
+      "what": "tests/test_contracts.py's cases of the four port methods this PR adds (FileLocks.try_exclusive, AtomicFiles.publish_new, flush_handle, flush_dir), by implementation",
+      "counts": {
+       "skip": 19,
+       "pass": 23
+      },
+      "by_implementation": {
+       "posix": {
+        "skip": 14
+       },
+       "recording": {
+        "pass": 11,
+        "skip": 3
+       },
+       "windows": {
+        "pass": 12,
+        "skip": 2
+       }
+      }
+     },
+     "other_new_cases": {
+      "tests.test_marker_gate::test_a_markerless_migration_destination_stops_the_search_and_is_refused": {
+       "pass": 3
+      },
+      "tests.test_platform::test_windows_publish_new_waits_out_a_reader_and_never_overwrites": {
+       "pass": 4
+      },
+      "tests.test_windows_long_paths::test_a_migration_into_a_destination_past_max_path": {
+       "pass": 1
+      }
+     },
+     "cited_cases": {
+      "tests.test_contracts::test_a_lock_makes_its_directory_and_file_and_keeps_their_bytes[posix]": "skip",
+      "tests.test_contracts::test_a_lock_makes_its_directory_and_file_and_keeps_their_bytes[recording]": "pass",
+      "tests.test_contracts::test_a_lock_makes_its_directory_and_file_and_keeps_their_bytes[windows]": "pass",
+      "tests.test_contracts::test_a_lock_is_free_after_its_body_even_one_that_raised[posix]": "skip",
+      "tests.test_contracts::test_a_lock_is_free_after_its_body_even_one_that_raised[recording]": "pass",
+      "tests.test_contracts::test_a_lock_is_free_after_its_body_even_one_that_raised[windows]": "pass",
+      "tests.test_contracts::test_a_lock_excludes_another_process[posix]": "skip",
+      "tests.test_contracts::test_a_lock_excludes_another_process[recording]": "skip",
+      "tests.test_contracts::test_a_lock_excludes_another_process[windows]": "pass",
+      "tests.test_contracts::test_trying_a_lock_says_whether_it_made_the_file_and_keeps_its_bytes[posix]": "skip",
+      "tests.test_contracts::test_trying_a_lock_says_whether_it_made_the_file_and_keeps_its_bytes[recording]": "pass",
+      "tests.test_contracts::test_trying_a_lock_says_whether_it_made_the_file_and_keeps_its_bytes[windows]": "pass",
+      "tests.test_contracts::test_trying_a_lock_never_makes_its_directory[posix]": "skip",
+      "tests.test_contracts::test_trying_a_lock_never_makes_its_directory[recording]": "pass",
+      "tests.test_contracts::test_trying_a_lock_never_makes_its_directory[windows]": "pass",
+      "tests.test_contracts::test_trying_a_lock_is_free_after_its_body_even_one_that_raised[posix]": "skip",
+      "tests.test_contracts::test_trying_a_lock_is_free_after_its_body_even_one_that_raised[recording]": "pass",
+      "tests.test_contracts::test_trying_a_lock_is_free_after_its_body_even_one_that_raised[windows]": "pass",
+      "tests.test_contracts::test_a_lock_held_is_busy_to_a_try_in_the_same_process[posix]": "skip",
+      "tests.test_contracts::test_a_lock_held_is_busy_to_a_try_in_the_same_process[recording]": "pass",
+      "tests.test_contracts::test_a_lock_held_is_busy_to_a_try_in_the_same_process[windows]": "pass",
+      "tests.test_contracts::test_a_lock_file_that_cannot_be_written_is_tried_through_reading[posix]": "skip",
+      "tests.test_contracts::test_a_lock_file_that_cannot_be_written_is_tried_through_reading[recording]": "pass",
+      "tests.test_contracts::test_a_lock_file_that_cannot_be_written_is_tried_through_reading[windows]": "pass",
+      "tests.test_contracts::test_a_lock_file_that_cannot_be_created_is_unavailable[posix]": "skip",
+      "tests.test_contracts::test_a_lock_file_that_cannot_be_created_is_unavailable[recording]": "skip",
+      "tests.test_contracts::test_a_lock_file_that_cannot_be_created_is_unavailable[windows]": "skip",
+      "tests.test_contracts::test_trying_a_lock_another_process_holds_is_busy_at_once[posix-exclusive]": "skip",
+      "tests.test_contracts::test_trying_a_lock_another_process_holds_is_busy_at_once[posix-try_exclusive]": "skip",
+      "tests.test_contracts::test_trying_a_lock_another_process_holds_is_busy_at_once[recording-exclusive]": "skip",
+      "tests.test_contracts::test_trying_a_lock_another_process_holds_is_busy_at_once[recording-try_exclusive]": "skip",
+      "tests.test_contracts::test_trying_a_lock_another_process_holds_is_busy_at_once[windows-exclusive]": "pass",
+      "tests.test_contracts::test_trying_a_lock_another_process_holds_is_busy_at_once[windows-try_exclusive]": "pass",
+      "tests.test_contracts::test_publishing_a_new_name_puts_the_bytes_there_and_the_temporary_name_goes[posix]": "skip",
+      "tests.test_contracts::test_publishing_a_new_name_puts_the_bytes_there_and_the_temporary_name_goes[recording]": "pass",
+      "tests.test_contracts::test_publishing_a_new_name_puts_the_bytes_there_and_the_temporary_name_goes[windows]": "pass",
+      "tests.test_contracts::test_publishing_never_overwrites_what_is_there[posix-file]": "skip",
+      "tests.test_contracts::test_publishing_never_overwrites_what_is_there[posix-directory]": "skip",
+      "tests.test_contracts::test_publishing_never_overwrites_what_is_there[posix-empty file]": "skip",
+      "tests.test_contracts::test_publishing_never_overwrites_what_is_there[recording-file]": "pass",
+      "tests.test_contracts::test_publishing_never_overwrites_what_is_there[recording-directory]": "pass",
+      "tests.test_contracts::test_publishing_never_overwrites_what_is_there[recording-empty file]": "pass",
+      "tests.test_contracts::test_publishing_never_overwrites_what_is_there[windows-file]": "pass",
+      "tests.test_contracts::test_publishing_never_overwrites_what_is_there[windows-directory]": "pass",
+      "tests.test_contracts::test_publishing_never_overwrites_what_is_there[windows-empty file]": "pass",
+      "tests.test_contracts::test_a_file_system_without_links_is_told_and_nothing_changes[posix]": "skip",
+      "tests.test_contracts::test_a_file_system_without_links_is_told_and_nothing_changes[recording]": "pass",
+      "tests.test_contracts::test_a_file_system_without_links_is_told_and_nothing_changes[windows]": "skip",
+      "tests.test_contracts::test_flushing_writes_through_and_hides_no_error[posix]": "skip",
+      "tests.test_contracts::test_flushing_writes_through_and_hides_no_error[recording]": "pass",
+      "tests.test_contracts::test_flushing_writes_through_and_hides_no_error[windows]": "pass",
+      "tests.test_marker_gate::test_a_markerless_migration_destination_stops_the_search_and_is_refused[migration directory]": "pass",
+      "tests.test_marker_gate::test_a_markerless_migration_destination_stops_the_search_and_is_refused[migration lock]": "pass",
+      "tests.test_marker_gate::test_a_markerless_migration_destination_stops_the_search_and_is_refused[both]": "pass",
+      "tests.test_marker_gate::test_the_kit_command_line_writes_only_where_it_may[incomplete]": "pass",
+      "tests.test_migration::test_a_migration_copies_bytes_moves_only_what_the_mapping_says_and_commits_last": "pass",
+      "tests.test_migration::test_the_report_and_the_proposals": "pass",
+      "tests.test_migration::test_a_script_proposal_renames_only_the_older_names[from labkit import note, chart as c\\nnote('gap', 'x')\\nc(f, 'y')\\n-from aelix_analytics import record as note, visualize as c\\nnote('workflow_feedback', 'x')\\nc(f, 'y')\\n-0]": "pass",
+      "tests.test_migration::test_a_script_proposal_renames_only_the_older_names[import labkit\\nlabkit.note('finding', 'x')\\n-import aelix_analytics as labkit\\nlabkit.record('finding', 'x')\\n-0]": "pass",
+      "tests.test_migration::test_a_script_proposal_renames_only_the_older_names[import aelix_analytics as a\\na.record(\"gap\", 'x')\\n-import aelix_analytics as a\\na.record(\"workflow_feedback\", 'x')\\n-0]": "pass",
+      "tests.test_migration::test_a_script_proposal_renames_only_the_older_names[import importlib\\nlab = importlib.import_module('labkit')\\n-None-1]": "pass",
+      "tests.test_migration::test_a_script_proposal_renames_only_the_older_names[x = 1\\n-None-0]": "pass",
+      "tests.test_migration::test_a_script_proposal_renames_only_the_older_names[def broken(:\\n-None-0]": "pass",
+      "tests.test_migration::test_the_gitignore_block_follows_the_source_s_choices[.lab/cache/\\nreport/\\n-lines0]": "pass",
+      "tests.test_migration::test_the_gitignore_block_follows_the_source_s_choices[data/\\r\\n.lab/lock\\r\\n-lines1]": "pass",
+      "tests.test_migration::test_the_gitignore_block_follows_the_source_s_choices[report/\\nworkspace/\\n.analytics/run.lock-lines2]": "pass",
+      "tests.test_migration::test_the_gitignore_block_follows_the_source_s_choices[-lines3]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F1-dest-locked]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F1-migration-dir]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F1-start-cut]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F2-start]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F2-probe]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F3-locked]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F4-plan-written]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F4-plan]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F5-begin]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F5-temp-partial]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F5-temp-full]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F6-published]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F6-link-unlink]": "skip",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F7-rechecking]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F8-source-checked]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F8-verified]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F9-transform-begin]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F9-transform-temp]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F9-transform-written]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F9-transform-replaced]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F10-mapping]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F10-report-written]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F10-reported]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F10-durable]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F11-marker-begin]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F11-marker-temp]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F11-marker-written]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F12-published]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F12-link-unlink]": "skip",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F13-committed]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F14-trusted]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F16-copied-cut]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F16-source-checked-cut]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F16-reported-cut]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F16-committed-cut]": "pass",
+      "tests.test_migration::test_a_direct_write_where_links_cannot_be_made[direct_intent]": "pass",
+      "tests.test_migration::test_a_direct_write_where_links_cannot_be_made[direct_created]": "pass",
+      "tests.test_migration::test_the_fault_matrix_is_kept": "pass",
+      "tests.test_migration::test_a_copied_file_changed_between_two_calls_is_refused_and_nothing_removed": "pass",
+      "tests.test_migration::test_a_file_not_copied_yet_that_changed_is_copied_as_it_is_now": "pass",
+      "tests.test_migration::test_after_the_source_check_the_source_is_not_read_again[journal_appended]": "pass",
+      "tests.test_migration::test_after_the_source_check_the_source_is_not_read_again[source_removed]": "pass",
+      "tests.test_migration::test_after_the_source_check_the_source_is_not_read_again[space_short]": "pass",
+      "tests.test_migration::test_after_the_source_check_the_source_is_not_read_again[link_target_gone]": "pass",
+      "tests.test_migration::test_a_gitignore_transform_resumes_from_its_hash_and_refuses_another": "pass",
+      "tests.test_migration::test_a_committed_destination_whose_marker_went_is_published_again": "pass",
+      "tests.test_migration::test_a_ledger_that_is_no_state_is_refused_and_nothing_removed[order]": "pass",
+      "tests.test_migration::test_a_ledger_that_is_no_state_is_refused_and_nothing_removed[two_ledgers]": "pass",
+      "tests.test_migration::test_a_ledger_that_is_no_state_is_refused_and_nothing_removed[unknown_line]": "pass",
+      "tests.test_migration::test_a_temporary_file_whose_path_left_the_source_is_kept": "pass",
+      "tests.test_migration::test_what_the_ledger_does_not_account_for_is_refused[file]": "pass",
+      "tests.test_migration::test_what_the_ledger_does_not_account_for_is_refused[changed_copy]": "pass",
+      "tests.test_migration::test_what_the_ledger_does_not_account_for_is_refused[directory]": "pass",
+      "tests.test_migration::test_what_a_person_s_tools_leave_is_passed_over": "pass",
+      "tests.test_migration::test_a_migration_directory_without_its_first_line_is_a_new_migration[None]": "pass",
+      "tests.test_migration::test_a_migration_directory_without_its_first_line_is_a_new_migration[]": "pass",
+      "tests.test_migration::test_a_migration_directory_without_its_first_line_is_a_new_migration[{\"step\": \"start\", \"at\": \"2026-]": "pass",
+      "tests.test_migration::test_a_cut_ledger_line_is_skipped_and_the_next_one_starts_on_its_own_line": "pass",
+      "tests.test_migration::test_a_read_only_source_is_copied_without_its_locks_and_the_destination_stays_writable": "skip",
+      "tests.test_migration::test_a_source_without_its_state_folder_makes_none": "pass",
+      "tests.test_migration::test_a_worktree_s_git_file_is_not_copied": "pass",
+      "tests.test_migration::test_a_file_larger_than_64_mib_is_copied_whole": "pass",
+      "tests.test_migration::test_a_destination_that_overlaps_a_place_the_migration_reads_is_refused[symlink]": "pass",
+      "tests.test_migration::test_the_destination_s_other_rules": "pass",
+      "tests.test_migration::test_the_source_s_own_refusals": "pass",
+      "tests.test_migration::test_a_name_that_is_not_utf8_is_refused": "skip",
+      "tests.test_migration::test_names_the_destination_folds_together_are_refused_only_where_it_folds": "pass",
+      "tests.test_migration::test_a_relative_link_that_leaves_the_root_is_not_made_again": "pass",
+      "tests.test_migration::test_a_source_changed_under_the_copy_fails_without_a_marker[copied-telemetry]": "pass",
+      "tests.test_migration::test_a_source_changed_under_the_copy_fails_without_a_marker[copied-added]": "pass",
+      "tests.test_migration::test_a_source_changed_under_the_copy_fails_without_a_marker[copied-removed]": "pass",
+      "tests.test_migration::test_a_source_changed_under_the_copy_fails_without_a_marker[rechecking-script]": "pass",
+      "tests.test_migration::test_an_older_kit_s_journal_write_waits_for_the_migration_and_is_counted_after": "pass",
+      "tests.test_migration::test_one_migration_a_destination_and_none_while_a_run_holds_the_source": "pass",
+      "tests.test_migration::test_a_name_taken_meanwhile_is_never_overwritten[data/raw/big.parquet]": "pass",
+      "tests.test_migration::test_a_name_taken_meanwhile_is_never_overwritten[analytics.json]": "pass",
+      "tests.test_migration::test_a_committed_destination_called_again": "pass",
+      "tests.test_migration::test_a_marker_a_newer_kit_rewrote_before_the_commit_line_is_taken": "pass",
+      "tests.test_migration::test_a_destination_with_a_marker_is_judged_by_it_first[markers0-marker_conflict]": "pass",
+      "tests.test_migration::test_a_destination_with_a_marker_is_judged_by_it_first[markers1-marker_invalid]": "pass",
+      "tests.test_migration::test_a_destination_with_a_marker_is_judged_by_it_first[markers2-project_too_new]": "pass",
+      "tests.test_migration::test_a_destination_with_a_marker_is_judged_by_it_first[markers3-destination_invalid]": "pass",
+      "tests.test_migration::test_a_destination_with_a_marker_is_judged_by_it_first[markers4-destination_invalid]": "pass",
+      "tests.test_migration::test_the_dry_run_writes_nothing_and_says_what_would_happen": "pass",
+      "tests.test_migration::test_the_migration_goes_through_the_platform_it_is_given": "pass",
+      "tests.test_migration::test_a_source_file_another_program_holds_open_is_reported": "pass",
+      "tests.test_migration::test_a_read_only_copy_is_flushed_and_its_temporary_file_removed": "pass",
+      "tests.test_migration::test_names_other_systems_reserve_are_copied_with_a_warning": "skip",
+      "tests.test_migration::test_the_kit_s_command_line_in_a_destination_not_committed": "pass",
+      "tests.test_migration::test_the_migration_s_own_files_are_lf_and_the_copies_keep_their_bytes": "pass",
+      "tests.test_migration::test_a_copy_changed_after_the_commit_is_reported_when_called_again": "pass",
+      "tests.test_migration::test_a_committed_destination_whose_source_lost_its_link_target_is_already_migrated": "pass",
+      "tests.test_migration::test_the_marker_takes_what_the_source_s_marker_has_and_says_what_it_lacks": "pass",
+      "tests.test_migration::test_a_destination_called_from_inside_itself_or_with_another_source": "pass",
+      "tests.test_migration::test_another_spelling_of_the_source_is_the_source": "pass",
+      "tests.test_migration::test_a_state_folder_that_is_a_link_leading_outside_is_copied_without_its_cache_and_locks": "pass",
+      "tests.test_migration::test_a_link_made_where_a_planned_folder_goes_is_not_followed": "pass",
+      "tests.test_migration::test_a_link_where_the_migration_keeps_its_records_is_never_followed[.analytics]": "pass",
+      "tests.test_migration::test_a_link_where_the_migration_keeps_its_records_is_never_followed[.analytics/migration]": "pass",
+      "tests.test_migration::test_a_link_where_the_migration_keeps_its_records_is_never_followed[migration_dir]": "pass",
+      "tests.test_migration::test_a_link_where_the_migration_keeps_its_records_is_never_followed[ledger]": "pass",
+      "tests.test_migration::test_a_link_planted_at_the_migration_s_own_temporary_names_is_never_written_through": "pass",
+      "tests.test_migration::test_a_source_file_named_like_a_temporary_file_of_the_migration_is_copied[.mig-gitignore-0.part]": "pass",
+      "tests.test_migration::test_a_source_file_named_like_a_temporary_file_of_the_migration_is_copied[.analytics-json-0.part]": "pass",
+      "tests.test_migration::test_a_temporary_name_something_else_made_first_is_not_this_migration_s": "pass",
+      "tests.test_migration::test_a_copy_removed_before_the_verification_is_refused[after_source_checked]": "pass",
+      "tests.test_migration::test_a_copy_removed_before_the_verification_is_refused[before_verify]": "pass",
+      "tests.test_migration::test_a_folder_removed_after_the_source_check_is_refused": "pass",
+      "tests.test_migration::test_a_change_in_the_source_s_list_under_the_copy_is_source_changed[outside_link_removed]": "pass",
+      "tests.test_migration::test_a_change_in_the_source_s_list_under_the_copy_is_source_changed[empty_folder_added]": "pass",
+      "tests.test_migration::test_a_change_in_the_source_s_list_under_the_copy_is_source_changed[link_retargeted]": "pass",
+      "tests.test_migration::test_a_read_only_folder_cut_while_a_file_of_it_is_copied_resumes": "skip",
+      "tests.test_migration::test_a_state_folder_that_is_no_folder_of_its_own_is_refused[inside_link]": "pass",
+      "tests.test_migration::test_a_state_folder_that_is_no_folder_of_its_own_is_refused[file]": "pass",
+      "tests.test_migration::test_a_state_folder_that_is_no_folder_of_its_own_is_refused[inside_dangling]": "pass",
+      "tests.test_migration::test_a_folder_two_outside_links_reach_is_copied_once_and_said_where": "pass",
+      "tests.test_migration::test_a_destination_spelled_with_dotdot_after_a_link_is_the_operating_system_s": "skip",
+      "tests.test_migration::test_a_file_the_report_binds_that_went_is_made_again_before_the_marker": "pass",
+      "tests.test_migration::test_a_marker_naming_another_migration_s_report_is_refused_and_not_read[report_path]": "pass",
+      "tests.test_migration::test_a_marker_naming_another_migration_s_report_is_refused_and_not_read[report_bytes]": "pass",
+      "tests.test_migration::test_a_marker_naming_another_migration_s_report_is_refused_and_not_read[mapping_bytes]": "pass",
+      "tests.test_migration_reader::test_the_reader_reads_a_migrated_project_as_it_read_its_source[symlink]": "pass",
+      "tests.test_migration_reader::test_the_mapping_s_rules_are_by_path_components": "pass",
+      "tests.test_migration_reader::test_the_reader_knows_the_migration_family": "pass",
+      "tests.test_migration_reader::test_what_the_mapping_is_enters_the_read_s_revision": "pass",
+      "tests.test_migration_reader::test_a_marker_report_and_mapping_of_two_migrations_are_not_read_together": "pass",
+      "tests.test_platform::test_windows_publish_new_waits_out_a_reader_and_never_overwrites[5-True]": "pass",
+      "tests.test_platform::test_windows_publish_new_waits_out_a_reader_and_never_overwrites[32-True]": "pass",
+      "tests.test_platform::test_windows_publish_new_waits_out_a_reader_and_never_overwrites[33-True]": "pass",
+      "tests.test_platform::test_windows_publish_new_waits_out_a_reader_and_never_overwrites[2-False]": "pass",
+      "tests.test_platform::test_loading_the_kit_pulls_no_analysis_library_into_the_host_process": "pass"
+     }
+    },
+    "aelix_py3_12": {
+     "file": "aelix-py3.12.xml",
+     "file_sha256": "7f1d49d938dbcf3dd574224071d754eb965ed0a36c783c51af8d0c9d935cd2f8",
+     "timestamp": "2026-10-08T14:35:56.758257+00:00",
+     "seconds": 80.894,
+     "counts": {
+      "pass": 162
+     },
+     "failed": [],
+     "skipped_by_reason": {}
+    },
+    "aelix_py3_11": {
+     "file": "aelix-py3.11.xml",
+     "file_sha256": "4d31d0b3fe38ccca260b293e766e9858b773b424dc3f30b758d7705837fbf069",
+     "timestamp": "2026-10-08T14:37:43.637529+00:00",
+     "seconds": 84.757,
+     "counts": {
+      "pass": 162
+     },
+     "failed": [],
+     "skipped_by_reason": {}
+    },
+    "launcher_py3_11": {
+     "file": "launcher-py3.11.xml",
+     "file_sha256": "1ea34eafffd22130e8c9a11d85f29ea82a17fb8ce5a76152835aec76eccb63a7",
+     "timestamp": "2026-10-08T14:39:10.109853+00:00",
+     "seconds": 10.254,
+     "counts": {
+      "pass": 64,
+      "skip": 75
+     },
+     "failed": [],
+     "skipped_by_reason": {
+      "bin/analytics is a POSIX shell script": 45,
+      "a FIFO and the links are POSIX's here": 6,
+      "os.startfile would open a real program on Windows": 6,
+      "the links are POSIX's here, and os.startfile would open a real program on Windows": 6,
+      "SIGTERM from outside a process is POSIX": 3,
+      "a POSIX signal": 2,
+      "a shell's background job": 2,
+      "bytes that are not UTF-8 in the environment are POSIX's": 1,
+      "a terminal's process group; a Windows console's Ctrl+C is tests/test_windows_console.py's": 1,
+      "signal dispositions as POSIX inherits them": 1,
+      "a POSIX signal sent to one process": 1,
+      "a symbolic link to a program": 1
+     }
+    },
+    "console": {
+     "file": "console.xml",
+     "file_sha256": "d36f0ee7b51550ed3ec29a2545a22762a5dc70b7346c1f5f8cb4dc619fd5cd0e",
+     "timestamp": "2026-10-08T14:34:13.242423+00:00",
+     "seconds": 97.901,
+     "counts": {
+      "pass": 21
+     },
+     "failed": [],
+     "skipped_by_reason": {}
+    },
+    "long_paths_off": {
+     "file": "long-paths-off.xml",
+     "file_sha256": "dead8e965f64753df77be3f0b53c0208dd3088deb7d3e55b56d8b31055a6ef52",
+     "timestamp": "2026-10-08T14:39:24.042885+00:00",
+     "seconds": 3.701,
+     "counts": {
+      "pass": 7
+     },
+     "failed": [],
+     "skipped_by_reason": {}
+    }
+   },
+   "smoke": {
+    "sha256": "a416e7294b5dcb82221fe8d601371194ca938567b6b36b5873af6c233e504243",
+    "summary": {
+     "holds": 21,
+     "violated": 0,
+     "declared_limitation": 3,
+     "observed": 7,
+     "not_run": 0
+    },
+    "hold": true,
+    "declared_limitation": [
+     "kill_tree_after_the_leader_exited",
+     "cli_cancel_reaches_a_run_inside_a_regular_expression",
+     "cli_cancel_reaches_a_run_waiting_on_a_subprocess"
+    ],
+    "violated": [],
+    "not_run": []
+   },
+   "stdlib_smoke": {
+    "sha256": "7383d09145b4d08ceacc7ae027e2e2951d85ba343e2da0c90a544c87b0f110b3",
+    "summary": {
+     "holds": 14,
+     "violated": 0,
+     "declared_limitation": 1,
+     "observed": 3,
+     "not_run": 2
+    },
+    "hold": true,
+    "declared_limitation": [
+     "kill_tree_after_the_leader_exited"
+    ],
+    "violated": [],
+    "not_run": []
+   },
+   "usage_report": {
+    "sha256": "d804a50394ca71dc57471f6143ef05b45c3ccf8ac517a2b140fa7a9a16837ad5",
+    "required_facts": {
+     "passed": 58,
+     "total": 58
+    },
+    "invariants": {
+     "holding": 42,
+     "total": 42
+    },
+    "failures": []
+   },
+   "observations": {
+    "fault_matrix": {
+     "source": "evidence/issue-13-migration/fault-matrix.json of the platform artifact (tests/test_migration.py's F rows: the paths a cut left, the call again's result, the ledger's last four steps)",
+     "sha256": "116daccf7a758818e5bf714ec7ecd90eebb1bf4ddab25ad2546ae25b66ac44f3",
+     "rows": 33,
+     "results": {
+      "resume": 29,
+      "already": 4
+     },
+     "already_migrated_rows": [
+      "F12-published",
+      "F13-committed",
+      "F14-trusted",
+      "F16-committed-cut"
+     ],
+     "rows_not_observed_here": [
+      "F12-link-unlink",
+      "F6-link-unlink"
+     ],
+     "same_as_developer_machine": {
+      "compared": "each row's result, last steps and left paths (migration ids masked, separators as /) against the developer machine's evidence/observations/issue-13-migration/fault-matrix.json of the run folder (sha256 fda9e72f9a8e3fbe2091549157ab47bc15eea36f122dde45cb58d7510af80b93)",
+      "rows_compared": 33,
+      "differing": [],
+      "same": true
+     }
+    }
+   }
+  },
+  "macos_hosted": {
+   "run": "37789525327",
+   "attempt": 1,
+   "event": "pull_request (labeled)",
+   "label": "ci:macos",
+   "head": "ec8d7d9b8d8ee82a90c7d6f1248cc85bcbda11db",
+   "base": "ed29cf019d2bf72fbf8a83d25e5e51d5e72350c7",
+   "github_sha": "0edaff12e7cbbd13fa2f4a48d27e629643d2b33b",
+   "jobs": {
+    "floor · macos-26 · CPython 3.11, stdlib only": {
+     "id": 113352875891,
+     "conclusion": "success",
+     "started_at": "2026-10-08T14:04:55Z",
+     "completed_at": "2026-10-08T14:05:27Z"
+    },
+    "platform · macos-26": {
+     "id": 113352876499,
+     "conclusion": "success",
+     "started_at": "2026-10-08T14:04:54Z",
+     "completed_at": "2026-10-08T14:20:10Z"
+    }
+   },
+   "runner": {
+    "image": "macos26 20260907.0351.1",
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "arch": "ARM64",
+    "python_development": "3.12.10",
+    "interpreters": {
+     "3.11": "3.11.9",
+     "3.12": "3.12.10"
+    },
+    "python_floor": "3.11.9"
+   },
+   "junit": {
+    "suite": {
+     "file": "suite.xml",
+     "file_sha256": "5ea6ce7f99442a0f348cb77908414c7f6d2d12f3eab817989c7093a088e7fe58",
+     "timestamp": "2026-10-08T14:06:19.681966+00:00",
+     "seconds": 724.911,
+     "counts": {
+      "skip": 61,
+      "pass": 1657
+     },
+     "failed": [],
+     "skipped_by_reason": {
+      "the Windows implementation runs on the Windows leg": 35,
+      "MAX_PATH and LongPathsEnabled are Windows'": 7,
+      "the recording implementation does not declare that it excludes other processes": 3,
+      "collection skipped": 2,
+      "a directory flagged case-sensitive is Windows'": 2,
+      "OSError(92, 'Illegal byte sequence')": 2,
+      "the recording implementation does not declare that it honours a folder's permissions": 1,
+      "the recording implementation does not declare that it sees running processes": 1,
+      "the recording implementation does not declare that it interrupts a region": 1,
+      "M writes about 440 MB twice; set AELIX_ANALYTICS_TEST_SCALE_M=1": 1,
+      "what Windows does; POSIX sends it again (the test above)": 1,
+      "Linux keeps the bytes it is given": 1,
+      "Windows": 1,
+      "8.3 short names are Windows'": 1,
+      "taskkill and CreateProcess's search are Windows'": 1,
+      "before 3.14 a `with` calls __enter__ without a CALL, and no signal is handled between its acquiring and the bl": 1
+     },
+     "new_test_files": {
+      "tests.test_migration": {
+       "pass": 131,
+       "skip": 2
+      },
+      "tests.test_migration_reader": {
+       "pass": 5
+      }
+     },
+     "new_port_contract_cases": {
+      "what": "tests/test_contracts.py's cases of the four port methods this PR adds (FileLocks.try_exclusive, AtomicFiles.publish_new, flush_handle, flush_dir), by implementation",
+      "counts": {
+       "pass": 25,
+       "skip": 17
+      },
+      "by_implementation": {
+       "posix": {
+        "pass": 14
+       },
+       "recording": {
+        "pass": 11,
+        "skip": 3
+       },
+       "windows": {
+        "skip": 14
+       }
+      }
+     },
+     "other_new_cases": {
+      "tests.test_marker_gate::test_a_markerless_migration_destination_stops_the_search_and_is_refused": {
+       "pass": 3
+      },
+      "tests.test_platform::test_windows_publish_new_waits_out_a_reader_and_never_overwrites": {
+       "pass": 4
+      },
+      "tests.test_windows_long_paths::test_a_migration_into_a_destination_past_max_path": {
+       "skip": 1
+      }
+     },
+     "cited_cases": {
+      "tests.test_contracts::test_a_lock_makes_its_directory_and_file_and_keeps_their_bytes[posix]": "pass",
+      "tests.test_contracts::test_a_lock_makes_its_directory_and_file_and_keeps_their_bytes[recording]": "pass",
+      "tests.test_contracts::test_a_lock_makes_its_directory_and_file_and_keeps_their_bytes[windows]": "skip",
+      "tests.test_contracts::test_a_lock_is_free_after_its_body_even_one_that_raised[posix]": "pass",
+      "tests.test_contracts::test_a_lock_is_free_after_its_body_even_one_that_raised[recording]": "pass",
+      "tests.test_contracts::test_a_lock_is_free_after_its_body_even_one_that_raised[windows]": "skip",
+      "tests.test_contracts::test_a_lock_excludes_another_process[posix]": "pass",
+      "tests.test_contracts::test_a_lock_excludes_another_process[recording]": "skip",
+      "tests.test_contracts::test_a_lock_excludes_another_process[windows]": "skip",
+      "tests.test_contracts::test_trying_a_lock_says_whether_it_made_the_file_and_keeps_its_bytes[posix]": "pass",
+      "tests.test_contracts::test_trying_a_lock_says_whether_it_made_the_file_and_keeps_its_bytes[recording]": "pass",
+      "tests.test_contracts::test_trying_a_lock_says_whether_it_made_the_file_and_keeps_its_bytes[windows]": "skip",
+      "tests.test_contracts::test_trying_a_lock_never_makes_its_directory[posix]": "pass",
+      "tests.test_contracts::test_trying_a_lock_never_makes_its_directory[recording]": "pass",
+      "tests.test_contracts::test_trying_a_lock_never_makes_its_directory[windows]": "skip",
+      "tests.test_contracts::test_trying_a_lock_is_free_after_its_body_even_one_that_raised[posix]": "pass",
+      "tests.test_contracts::test_trying_a_lock_is_free_after_its_body_even_one_that_raised[recording]": "pass",
+      "tests.test_contracts::test_trying_a_lock_is_free_after_its_body_even_one_that_raised[windows]": "skip",
+      "tests.test_contracts::test_a_lock_held_is_busy_to_a_try_in_the_same_process[posix]": "pass",
+      "tests.test_contracts::test_a_lock_held_is_busy_to_a_try_in_the_same_process[recording]": "pass",
+      "tests.test_contracts::test_a_lock_held_is_busy_to_a_try_in_the_same_process[windows]": "skip",
+      "tests.test_contracts::test_a_lock_file_that_cannot_be_written_is_tried_through_reading[posix]": "pass",
+      "tests.test_contracts::test_a_lock_file_that_cannot_be_written_is_tried_through_reading[recording]": "pass",
+      "tests.test_contracts::test_a_lock_file_that_cannot_be_written_is_tried_through_reading[windows]": "skip",
+      "tests.test_contracts::test_a_lock_file_that_cannot_be_created_is_unavailable[posix]": "pass",
+      "tests.test_contracts::test_a_lock_file_that_cannot_be_created_is_unavailable[recording]": "skip",
+      "tests.test_contracts::test_a_lock_file_that_cannot_be_created_is_unavailable[windows]": "skip",
+      "tests.test_contracts::test_trying_a_lock_another_process_holds_is_busy_at_once[posix-exclusive]": "pass",
+      "tests.test_contracts::test_trying_a_lock_another_process_holds_is_busy_at_once[posix-try_exclusive]": "pass",
+      "tests.test_contracts::test_trying_a_lock_another_process_holds_is_busy_at_once[recording-exclusive]": "skip",
+      "tests.test_contracts::test_trying_a_lock_another_process_holds_is_busy_at_once[recording-try_exclusive]": "skip",
+      "tests.test_contracts::test_trying_a_lock_another_process_holds_is_busy_at_once[windows-exclusive]": "skip",
+      "tests.test_contracts::test_trying_a_lock_another_process_holds_is_busy_at_once[windows-try_exclusive]": "skip",
+      "tests.test_contracts::test_publishing_a_new_name_puts_the_bytes_there_and_the_temporary_name_goes[posix]": "pass",
+      "tests.test_contracts::test_publishing_a_new_name_puts_the_bytes_there_and_the_temporary_name_goes[recording]": "pass",
+      "tests.test_contracts::test_publishing_a_new_name_puts_the_bytes_there_and_the_temporary_name_goes[windows]": "skip",
+      "tests.test_contracts::test_publishing_never_overwrites_what_is_there[posix-file]": "pass",
+      "tests.test_contracts::test_publishing_never_overwrites_what_is_there[posix-directory]": "pass",
+      "tests.test_contracts::test_publishing_never_overwrites_what_is_there[posix-empty file]": "pass",
+      "tests.test_contracts::test_publishing_never_overwrites_what_is_there[recording-file]": "pass",
+      "tests.test_contracts::test_publishing_never_overwrites_what_is_there[recording-directory]": "pass",
+      "tests.test_contracts::test_publishing_never_overwrites_what_is_there[recording-empty file]": "pass",
+      "tests.test_contracts::test_publishing_never_overwrites_what_is_there[windows-file]": "skip",
+      "tests.test_contracts::test_publishing_never_overwrites_what_is_there[windows-directory]": "skip",
+      "tests.test_contracts::test_publishing_never_overwrites_what_is_there[windows-empty file]": "skip",
+      "tests.test_contracts::test_a_file_system_without_links_is_told_and_nothing_changes[posix]": "pass",
+      "tests.test_contracts::test_a_file_system_without_links_is_told_and_nothing_changes[recording]": "pass",
+      "tests.test_contracts::test_a_file_system_without_links_is_told_and_nothing_changes[windows]": "skip",
+      "tests.test_contracts::test_flushing_writes_through_and_hides_no_error[posix]": "pass",
+      "tests.test_contracts::test_flushing_writes_through_and_hides_no_error[recording]": "pass",
+      "tests.test_contracts::test_flushing_writes_through_and_hides_no_error[windows]": "skip",
+      "tests.test_marker_gate::test_a_markerless_migration_destination_stops_the_search_and_is_refused[migration directory]": "pass",
+      "tests.test_marker_gate::test_a_markerless_migration_destination_stops_the_search_and_is_refused[migration lock]": "pass",
+      "tests.test_marker_gate::test_a_markerless_migration_destination_stops_the_search_and_is_refused[both]": "pass",
+      "tests.test_marker_gate::test_the_kit_command_line_writes_only_where_it_may[incomplete]": "pass",
+      "tests.test_migration::test_a_migration_copies_bytes_moves_only_what_the_mapping_says_and_commits_last": "pass",
+      "tests.test_migration::test_the_report_and_the_proposals": "pass",
+      "tests.test_migration::test_a_script_proposal_renames_only_the_older_names[from labkit import note, chart as c\\nnote('gap', 'x')\\nc(f, 'y')\\n-from aelix_analytics import record as note, visualize as c\\nnote('workflow_feedback', 'x')\\nc(f, 'y')\\n-0]": "pass",
+      "tests.test_migration::test_a_script_proposal_renames_only_the_older_names[import labkit\\nlabkit.note('finding', 'x')\\n-import aelix_analytics as labkit\\nlabkit.record('finding', 'x')\\n-0]": "pass",
+      "tests.test_migration::test_a_script_proposal_renames_only_the_older_names[import aelix_analytics as a\\na.record(\"gap\", 'x')\\n-import aelix_analytics as a\\na.record(\"workflow_feedback\", 'x')\\n-0]": "pass",
+      "tests.test_migration::test_a_script_proposal_renames_only_the_older_names[import importlib\\nlab = importlib.import_module('labkit')\\n-None-1]": "pass",
+      "tests.test_migration::test_a_script_proposal_renames_only_the_older_names[x = 1\\n-None-0]": "pass",
+      "tests.test_migration::test_a_script_proposal_renames_only_the_older_names[def broken(:\\n-None-0]": "pass",
+      "tests.test_migration::test_the_gitignore_block_follows_the_source_s_choices[.lab/cache/\\nreport/\\n-lines0]": "pass",
+      "tests.test_migration::test_the_gitignore_block_follows_the_source_s_choices[data/\\r\\n.lab/lock\\r\\n-lines1]": "pass",
+      "tests.test_migration::test_the_gitignore_block_follows_the_source_s_choices[report/\\nworkspace/\\n.analytics/run.lock-lines2]": "pass",
+      "tests.test_migration::test_the_gitignore_block_follows_the_source_s_choices[-lines3]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F1-dest-locked]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F1-migration-dir]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F1-start-cut]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F2-start]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F2-probe]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F3-locked]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F4-plan-written]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F4-plan]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F5-begin]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F5-temp-partial]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F5-temp-full]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F6-published]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F6-link-unlink]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F7-rechecking]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F8-source-checked]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F8-verified]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F9-transform-begin]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F9-transform-temp]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F9-transform-written]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F9-transform-replaced]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F10-mapping]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F10-report-written]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F10-reported]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F10-durable]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F11-marker-begin]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F11-marker-temp]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F11-marker-written]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F12-published]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F12-link-unlink]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F13-committed]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F14-trusted]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F16-copied-cut]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F16-source-checked-cut]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F16-reported-cut]": "pass",
+      "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F16-committed-cut]": "pass",
+      "tests.test_migration::test_a_direct_write_where_links_cannot_be_made[direct_intent]": "pass",
+      "tests.test_migration::test_a_direct_write_where_links_cannot_be_made[direct_created]": "pass",
+      "tests.test_migration::test_the_fault_matrix_is_kept": "pass",
+      "tests.test_migration::test_a_copied_file_changed_between_two_calls_is_refused_and_nothing_removed": "pass",
+      "tests.test_migration::test_a_file_not_copied_yet_that_changed_is_copied_as_it_is_now": "pass",
+      "tests.test_migration::test_after_the_source_check_the_source_is_not_read_again[journal_appended]": "pass",
+      "tests.test_migration::test_after_the_source_check_the_source_is_not_read_again[source_removed]": "pass",
+      "tests.test_migration::test_after_the_source_check_the_source_is_not_read_again[space_short]": "pass",
+      "tests.test_migration::test_after_the_source_check_the_source_is_not_read_again[link_target_gone]": "pass",
+      "tests.test_migration::test_a_gitignore_transform_resumes_from_its_hash_and_refuses_another": "pass",
+      "tests.test_migration::test_a_committed_destination_whose_marker_went_is_published_again": "pass",
+      "tests.test_migration::test_a_ledger_that_is_no_state_is_refused_and_nothing_removed[order]": "pass",
+      "tests.test_migration::test_a_ledger_that_is_no_state_is_refused_and_nothing_removed[two_ledgers]": "pass",
+      "tests.test_migration::test_a_ledger_that_is_no_state_is_refused_and_nothing_removed[unknown_line]": "pass",
+      "tests.test_migration::test_a_temporary_file_whose_path_left_the_source_is_kept": "pass",
+      "tests.test_migration::test_what_the_ledger_does_not_account_for_is_refused[file]": "pass",
+      "tests.test_migration::test_what_the_ledger_does_not_account_for_is_refused[changed_copy]": "pass",
+      "tests.test_migration::test_what_the_ledger_does_not_account_for_is_refused[directory]": "pass",
+      "tests.test_migration::test_what_a_person_s_tools_leave_is_passed_over": "pass",
+      "tests.test_migration::test_a_migration_directory_without_its_first_line_is_a_new_migration[None]": "pass",
+      "tests.test_migration::test_a_migration_directory_without_its_first_line_is_a_new_migration[]": "pass",
+      "tests.test_migration::test_a_migration_directory_without_its_first_line_is_a_new_migration[{\"step\": \"start\", \"at\": \"2026-]": "pass",
+      "tests.test_migration::test_a_cut_ledger_line_is_skipped_and_the_next_one_starts_on_its_own_line": "pass",
+      "tests.test_migration::test_a_read_only_source_is_copied_without_its_locks_and_the_destination_stays_writable": "pass",
+      "tests.test_migration::test_a_source_without_its_state_folder_makes_none": "pass",
+      "tests.test_migration::test_a_worktree_s_git_file_is_not_copied": "pass",
+      "tests.test_migration::test_a_file_larger_than_64_mib_is_copied_whole": "pass",
+      "tests.test_migration::test_a_destination_that_overlaps_a_place_the_migration_reads_is_refused[symlink]": "pass",
+      "tests.test_migration::test_the_destination_s_other_rules": "pass",
+      "tests.test_migration::test_the_source_s_own_refusals": "pass",
+      "tests.test_migration::test_a_name_that_is_not_utf8_is_refused": "skip",
+      "tests.test_migration::test_names_the_destination_folds_together_are_refused_only_where_it_folds": "pass",
+      "tests.test_migration::test_a_relative_link_that_leaves_the_root_is_not_made_again": "pass",
+      "tests.test_migration::test_a_source_changed_under_the_copy_fails_without_a_marker[copied-telemetry]": "pass",
+      "tests.test_migration::test_a_source_changed_under_the_copy_fails_without_a_marker[copied-added]": "pass",
+      "tests.test_migration::test_a_source_changed_under_the_copy_fails_without_a_marker[copied-removed]": "pass",
+      "tests.test_migration::test_a_source_changed_under_the_copy_fails_without_a_marker[rechecking-script]": "pass",
+      "tests.test_migration::test_an_older_kit_s_journal_write_waits_for_the_migration_and_is_counted_after": "pass",
+      "tests.test_migration::test_one_migration_a_destination_and_none_while_a_run_holds_the_source": "pass",
+      "tests.test_migration::test_a_name_taken_meanwhile_is_never_overwritten[data/raw/big.parquet]": "pass",
+      "tests.test_migration::test_a_name_taken_meanwhile_is_never_overwritten[analytics.json]": "pass",
+      "tests.test_migration::test_a_committed_destination_called_again": "pass",
+      "tests.test_migration::test_a_marker_a_newer_kit_rewrote_before_the_commit_line_is_taken": "pass",
+      "tests.test_migration::test_a_destination_with_a_marker_is_judged_by_it_first[markers0-marker_conflict]": "pass",
+      "tests.test_migration::test_a_destination_with_a_marker_is_judged_by_it_first[markers1-marker_invalid]": "pass",
+      "tests.test_migration::test_a_destination_with_a_marker_is_judged_by_it_first[markers2-project_too_new]": "pass",
+      "tests.test_migration::test_a_destination_with_a_marker_is_judged_by_it_first[markers3-destination_invalid]": "pass",
+      "tests.test_migration::test_a_destination_with_a_marker_is_judged_by_it_first[markers4-destination_invalid]": "pass",
+      "tests.test_migration::test_the_dry_run_writes_nothing_and_says_what_would_happen": "pass",
+      "tests.test_migration::test_the_migration_goes_through_the_platform_it_is_given": "pass",
+      "tests.test_migration::test_a_source_file_another_program_holds_open_is_reported": "skip",
+      "tests.test_migration::test_a_read_only_copy_is_flushed_and_its_temporary_file_removed": "pass",
+      "tests.test_migration::test_names_other_systems_reserve_are_copied_with_a_warning": "pass",
+      "tests.test_migration::test_the_kit_s_command_line_in_a_destination_not_committed": "pass",
+      "tests.test_migration::test_the_migration_s_own_files_are_lf_and_the_copies_keep_their_bytes": "pass",
+      "tests.test_migration::test_a_copy_changed_after_the_commit_is_reported_when_called_again": "pass",
+      "tests.test_migration::test_a_committed_destination_whose_source_lost_its_link_target_is_already_migrated": "pass",
+      "tests.test_migration::test_the_marker_takes_what_the_source_s_marker_has_and_says_what_it_lacks": "pass",
+      "tests.test_migration::test_a_destination_called_from_inside_itself_or_with_another_source": "pass",
+      "tests.test_migration::test_another_spelling_of_the_source_is_the_source": "pass",
+      "tests.test_migration::test_a_state_folder_that_is_a_link_leading_outside_is_copied_without_its_cache_and_locks": "pass",
+      "tests.test_migration::test_a_link_made_where_a_planned_folder_goes_is_not_followed": "pass",
+      "tests.test_migration::test_a_link_where_the_migration_keeps_its_records_is_never_followed[.analytics]": "pass",
+      "tests.test_migration::test_a_link_where_the_migration_keeps_its_records_is_never_followed[.analytics/migration]": "pass",
+      "tests.test_migration::test_a_link_where_the_migration_keeps_its_records_is_never_followed[migration_dir]": "pass",
+      "tests.test_migration::test_a_link_where_the_migration_keeps_its_records_is_never_followed[ledger]": "pass",
+      "tests.test_migration::test_a_link_planted_at_the_migration_s_own_temporary_names_is_never_written_through": "pass",
+      "tests.test_migration::test_a_source_file_named_like_a_temporary_file_of_the_migration_is_copied[.mig-gitignore-0.part]": "pass",
+      "tests.test_migration::test_a_source_file_named_like_a_temporary_file_of_the_migration_is_copied[.analytics-json-0.part]": "pass",
+      "tests.test_migration::test_a_temporary_name_something_else_made_first_is_not_this_migration_s": "pass",
+      "tests.test_migration::test_a_copy_removed_before_the_verification_is_refused[after_source_checked]": "pass",
+      "tests.test_migration::test_a_copy_removed_before_the_verification_is_refused[before_verify]": "pass",
+      "tests.test_migration::test_a_folder_removed_after_the_source_check_is_refused": "pass",
+      "tests.test_migration::test_a_change_in_the_source_s_list_under_the_copy_is_source_changed[outside_link_removed]": "pass",
+      "tests.test_migration::test_a_change_in_the_source_s_list_under_the_copy_is_source_changed[empty_folder_added]": "pass",
+      "tests.test_migration::test_a_change_in_the_source_s_list_under_the_copy_is_source_changed[link_retargeted]": "pass",
+      "tests.test_migration::test_a_read_only_folder_cut_while_a_file_of_it_is_copied_resumes": "pass",
+      "tests.test_migration::test_a_state_folder_that_is_no_folder_of_its_own_is_refused[inside_link]": "pass",
+      "tests.test_migration::test_a_state_folder_that_is_no_folder_of_its_own_is_refused[file]": "pass",
+      "tests.test_migration::test_a_state_folder_that_is_no_folder_of_its_own_is_refused[inside_dangling]": "pass",
+      "tests.test_migration::test_a_folder_two_outside_links_reach_is_copied_once_and_said_where": "pass",
+      "tests.test_migration::test_a_destination_spelled_with_dotdot_after_a_link_is_the_operating_system_s": "pass",
+      "tests.test_migration::test_a_file_the_report_binds_that_went_is_made_again_before_the_marker": "pass",
+      "tests.test_migration::test_a_marker_naming_another_migration_s_report_is_refused_and_not_read[report_path]": "pass",
+      "tests.test_migration::test_a_marker_naming_another_migration_s_report_is_refused_and_not_read[report_bytes]": "pass",
+      "tests.test_migration::test_a_marker_naming_another_migration_s_report_is_refused_and_not_read[mapping_bytes]": "pass",
+      "tests.test_migration_reader::test_the_reader_reads_a_migrated_project_as_it_read_its_source[symlink]": "pass",
+      "tests.test_migration_reader::test_the_mapping_s_rules_are_by_path_components": "pass",
+      "tests.test_migration_reader::test_the_reader_knows_the_migration_family": "pass",
+      "tests.test_migration_reader::test_what_the_mapping_is_enters_the_read_s_revision": "pass",
+      "tests.test_migration_reader::test_a_marker_report_and_mapping_of_two_migrations_are_not_read_together": "pass",
+      "tests.test_platform::test_windows_publish_new_waits_out_a_reader_and_never_overwrites[5-True]": "pass",
+      "tests.test_platform::test_windows_publish_new_waits_out_a_reader_and_never_overwrites[32-True]": "pass",
+      "tests.test_platform::test_windows_publish_new_waits_out_a_reader_and_never_overwrites[33-True]": "pass",
+      "tests.test_platform::test_windows_publish_new_waits_out_a_reader_and_never_overwrites[2-False]": "pass",
+      "tests.test_platform::test_loading_the_kit_pulls_no_analysis_library_into_the_host_process": "pass"
+     }
+    },
+    "aelix_py3_12": {
+     "file": "aelix-py3.12.xml",
+     "file_sha256": "272fe074952b748cae5b5bc3336643f1b87b949bcb16160519dd581fffa2fff7",
+     "timestamp": "2026-10-08T14:18:26.451440+00:00",
+     "seconds": 36.424,
+     "counts": {
+      "pass": 161
+     },
+     "failed": [],
+     "skipped_by_reason": {}
+    },
+    "aelix_py3_11": {
+     "file": "aelix-py3.11.xml",
+     "file_sha256": "21236691637df426fa5c4a36d4523872cb26d23e5d401b74d4165a82f4456d55",
+     "timestamp": "2026-10-08T14:19:11.238618+00:00",
+     "seconds": 36.63,
+     "counts": {
+      "pass": 161
+     },
+     "failed": [],
+     "skipped_by_reason": {}
+    },
+    "launcher_py3_11": {
+     "file": "launcher-py3.11.xml",
+     "file_sha256": "f1a1330ebb656be8ca48aa365fbfbda5eb0d54258ff783098abcdc0ffc956a3e",
+     "timestamp": "2026-10-08T14:19:48.119372+00:00",
+     "seconds": 10.764,
+     "counts": {
+      "pass": 138,
+      "skip": 1
+     },
+     "failed": [],
+     "skipped_by_reason": {
+      "what Windows does; POSIX sends it again (the test above)": 1
+     }
+    }
+   },
+   "smoke": {
+    "sha256": "100c29e244bf8d4fc2fc91067f29758bb4ed4048a27956435d02b919437197f9",
+    "summary": {
+     "holds": 25,
+     "violated": 0,
+     "declared_limitation": 0,
+     "observed": 6,
+     "not_run": 0
+    },
+    "hold": true,
+    "declared_limitation": [],
+    "violated": [],
+    "not_run": []
+   },
+   "stdlib_smoke": {
+    "sha256": "5c87571f1970d0c384867cea78e2b9b0a89b9001cd56bdc2af9668c0d9600519",
+    "summary": {
+     "holds": 15,
+     "violated": 0,
+     "declared_limitation": 0,
+     "observed": 3,
+     "not_run": 2
+    },
+    "hold": true,
+    "declared_limitation": [],
+    "violated": [],
+    "not_run": []
+   },
+   "usage_report": {
+    "sha256": "0c651b1821edbfeea25b65d16173f005d609f04c877589af6b5e9772972cc23d",
+    "required_facts": {
+     "passed": 58,
+     "total": 58
+    },
+    "invariants": {
+     "holding": 42,
+     "total": 42
+    },
+    "failures": []
+   },
+   "observations": {
+    "fault_matrix": {
+     "source": "evidence/issue-13-migration/fault-matrix.json of the platform artifact (tests/test_migration.py's F rows: the paths a cut left, the call again's result, the ledger's last four steps)",
+     "sha256": "65cc956a925bc8aed3849f29255ae929b52aca9fe4b12c1aa7c0535d8ad7c2bf",
+     "rows": 35,
+     "results": {
+      "resume": 30,
+      "already": 5
+     },
+     "already_migrated_rows": [
+      "F12-link-unlink",
+      "F12-published",
+      "F13-committed",
+      "F14-trusted",
+      "F16-committed-cut"
+     ],
+     "rows_not_observed_here": [],
+     "same_as_developer_machine": {
+      "compared": "each row's result, last steps and left paths (migration ids masked, separators as /) against the developer machine's evidence/observations/issue-13-migration/fault-matrix.json of the run folder (sha256 fda9e72f9a8e3fbe2091549157ab47bc15eea36f122dde45cb58d7510af80b93)",
+      "rows_compared": 35,
+      "differing": [],
+      "same": true
+     }
+    }
+   }
+  }
+ },
+ "windows_ci_failure": {
+  "what": "PR #82's CI at its previous head 53d1bdf: the Windows leg failed four cases and every other job passed. The commit measured here fixes their causes (below); at the head that holds it (ec8d7d9) the Windows leg passed, the four cases with it (`at_the_fixed_head`)",
+  "head": "53d1bdf6354e4b19ebaa52de75d6d291f792e89e",
+  "runs": {
+   "37757801858": {
+    "url": "https://github.com/handochan/aelix-analytics/actions/runs/37757801858",
+    "conclusion": "failure",
+    "jobs": {
+     "platform · windows-2025": "failure (job 113246550243)",
+     "floor · windows-2025 · CPython 3.11, stdlib only": "success",
+     "platform · ubuntu-24.04": "success",
+     "floor · ubuntu-24.04 · CPython 3.11, stdlib only": "success",
+     "lint · ruff and documents": "success"
+    }
+   },
+   "37757804883": {
+    "url": "https://github.com/handochan/aelix-analytics/actions/runs/37757804883",
+    "conclusion": "success",
+    "jobs": {
+     "platform · macos-26": "success",
+     "floor · macos-26 · CPython 3.11, stdlib only": "success",
+     "lint · ruff and documents": "skipped"
+    }
+   }
+  },
+  "windows_suite": {
+   "file": "suite.xml of the artifact ci-platform-windows-2025 (run 37757801858)",
+   "file_sha256": "d73f778fc378862db829ae628fff70445ce2961a556b26671f927a3cb2e25526",
+   "timestamp": "2026-10-08T09:39:35.713735+00:00",
+   "seconds": 1751.008,
+   "counts": {
+    "skip": 216,
+    "pass": 1521,
+    "fail": 4
+   },
+   "failed": [
+    "tests.test_migration::test_the_source_s_own_refusals",
+    "tests.test_migration::test_a_source_file_another_program_holds_open_is_reported",
+    "tests.test_migration_reader::test_the_reader_reads_a_migrated_project_as_it_read_its_source[symlink]",
+    "tests.test_migration_reader::test_the_reader_reads_a_migrated_project_as_it_read_its_source[junction]"
+   ]
+  },
+  "causes": [
+   {
+    "case": "tests/test_migration.py::test_the_source_s_own_refusals",
+    "seen": "link_target_missing's text was '\\\\?\\C:\\...\\unmounted\\data', the test expects the text the link was made with, 'C:\\...\\unmounted\\data'",
+    "cause": "the walk took a link's text from os.readlink, which on Windows gives the reparse point's substitute name: an extended-length prefix for an absolute target and always for a junction",
+    "fix": "the walk keeps the text without the prefix (_platform.plain_path); a relative text, the only one made again, has none, so the links made again and the ledger's comparisons of them are as they were"
+   },
+   {
+    "case": "tests/test_migration.py::test_a_source_file_another_program_holds_open_is_reported",
+    "seen": "reason 'permission', the test expects 'in_use'",
+    "cause": "os.open goes through the C runtime's _wopen, which reports a sharing violation (WinError 32) by errno EACCES alone, the OSError carrying no winerror, so _unreadable_error could not tell it from a permission denied",
+    "fix": "a source file is opened by _platform.open_for_reading: on Windows CreateFile with the access and sharing _wopen asks for (GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE), the descriptor the C runtime's for that handle, so the refusal keeps WinError 32; POSIX opens as before (O_RDONLY | O_NONBLOCK). A lock violation (33) met while reading still comes through the C runtime by errno alone (CONTRACTS G, not run)"
+   },
+   {
+    "case": "tests/test_migration_reader.py::test_the_reader_reads_a_migrated_project_as_it_read_its_source[symlink] and [junction]",
+    "seen": "the destination did not read an older kit's 'C:\\...\\src/tables/t.parquet' as tables/t.parquet (read_as missing) and a 0.5.0 run's tables/t.parquet lost its inferred producer; the source read both",
+    "cause": "MigrationMapping compared an absolute path with the root's spellings as text split on os.sep only, so a path with both separators was not under 'C:\\...\\src'; the source's reader (legacy_identity) reads it through os.path.normpath",
+    "fix": "the mapping reads absolute paths and spellings as legacy_identity does (normpath after the extended-length prefix is dropped): on Windows either separator, and `..` folded as text, as the source's reader folds it"
+   }
+  ],
+  "local_check": {
+   "what": "the Windows fix commit's tests/test_migration_reader.py (ebd10b6) run against the code of 53d1bdf (the head whose Windows leg failed; a clone in the run folder, the test file copied in and put back after). The case it adds that runs off Windows (an absolute path with `..` read through the mapping as legacy_identity reads it) fails there and passes on ebd10b6; the Windows-only assertions (both separators) and the three Windows causes are run by the Windows leg",
+   "previous_head": "53d1bdf6354e4b19ebaa52de75d6d291f792e89e",
+   "command": "uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread tests/test_migration_reader.py --junitxml=reader-on-53d1bdf.xml",
+   "junit_sha256": "dce0af6dce811f4609b4c778e78d0ff05436f1a8e68ba87a7e0d6fedd54f6ae5",
+   "counts": {
+    "pass": 4,
+    "fail": 1
+   },
+   "failed": [
+    "tests.test_migration_reader::test_the_mapping_s_rules_are_by_path_components"
+   ],
+   "failure": "AssertionError: assert 'sub/../x/y.csv' == 'x/y.csv'\n  \n  - x/y.csv\n  + sub/../x/y.csv",
+   "passed": [
+    "tests.test_migration_reader::test_the_reader_reads_a_migrated_project_as_it_read_its_source[symlink]",
+    "tests.test_migration_reader::test_the_reader_knows_the_migration_family",
+    "tests.test_migration_reader::test_what_the_mapping_is_enters_the_read_s_revision",
+    "tests.test_migration_reader::test_a_marker_report_and_mapping_of_two_migrations_are_not_read_together"
+   ],
+   "expected": "only test_the_mapping_s_rules_are_by_path_components fails ('sub/../x/y.csv' != 'x/y.csv'); the other cases of the file pass on both codes on macOS"
+  },
+  "at_the_fixed_head": {
+   "what": "the run of PR #82 at ec8d7d9 (the measured ebd10b6 and this record): the Windows leg passed, the four cases that failed at 53d1bdf with it, and the case the fix extended (`..` on every leg, both separators in a recorded path on Windows)",
+   "head": "ec8d7d9b8d8ee82a90c7d6f1248cc85bcbda11db",
+   "run": "37789500898",
+   "url": "https://github.com/handochan/aelix-analytics/actions/runs/37789500898",
+   "job": "platform · windows-2025: success (job 113352791801)",
+   "suite_sha256": "71d7fe016e3e507dc582fe85ca61e55ea593b52bb3ea84f8891446add156e32b",
+   "counts": {
+    "skip": 216,
+    "pass": 1525
+   },
+   "failed_at_53d1bdf": {
+    "tests.test_migration::test_the_source_s_own_refusals": "pass",
+    "tests.test_migration::test_a_source_file_another_program_holds_open_is_reported": "pass",
+    "tests.test_migration_reader::test_the_reader_reads_a_migrated_project_as_it_read_its_source[symlink]": "pass",
+    "tests.test_migration_reader::test_the_reader_reads_a_migrated_project_as_it_read_its_source[junction]": "pass"
+   },
+   "extended_by_the_fix": {
+    "tests.test_migration_reader::test_the_mapping_s_rules_are_by_path_components": "pass"
+   }
+  }
+ },
+ "developer_machine": {
+  "where": "macOS developer machine, a clone of the head in the run folder (.devstate/runs/d1fb3bf6-…/head), isolation: AELIX_ANALYTICS_TRUST_FILE and AELIX_ANALYTICS_UV inside the run folder (the UV a link to the real uv), AELIX_LAB_*/LAB_* unset, ~/.aelix neither read nor written",
+  "machine": [
+   "ProductName:\t\tmacOS\nProductVersion:\t\t26.6.2\nBuildVersion:\t\t25G83",
+   "macOS-26.6.2-arm64-arm-64bit",
+   "Apple M5 Pro",
+   "uv 0.11.19 (Homebrew 2026-06-03 aarch64-apple-darwin)"
+  ],
+  "load": "other agents' test suites ran on the same machine at the same time (their own checkouts); the times below carry that load",
+  "log": [
+   "head ebd10b644e8cb8550ccf6446b134666db6bb9386 2026-10-08T13:34:06Z",
+   "sync exit 0",
+   "ruff exit 0",
+   "suite 2026-10-08T13:34:06Z",
+   "suite exit 0 2026-10-08T13:52:23Z",
+   "layers exit 0",
+   "contracts exit 0",
+   "aelix 3.12 2026-10-08T13:53:25Z",
+   "aelix 3.12 exit 0",
+   "aelix 3.11 2026-10-08T13:56:13Z",
+   "aelix 3.11 exit 0",
+   "launcher 2026-10-08T13:58:40Z",
+   "launcher exit 0",
+   "usage 2026-10-08T13:59:13Z",
+   "usage exit 0",
+   "smoke 2026-10-08T13:59:45Z",
+   "smoke exit 0",
+   "stdlib smoke exit 0",
+   "diff-check exit 0",
+   "done 2026-10-08T14:01:18Z"
+  ],
+  "ruff": {
+   "command": "uv run --locked ruff check tests extension src tools",
+   "result": "All checks passed!"
+  },
+  "suite": {
+   "file": "suite.xml",
+   "file_sha256": "0ed028d39fdab0b1517c1e5dae410c22404abf691b054a1a7f78fa7d4dba5b55",
+   "timestamp": "2026-10-08T22:34:06.551944+09:00",
+   "seconds": 1094.581,
+   "counts": {
+    "skip": 92,
+    "pass": 1647
+   },
+   "failed": [],
+   "skipped_by_reason": {
+    "the Windows implementation runs on the Windows leg": 35,
+    "the Windows console": 21,
+    "PyPI, an analysis environment)": 10,
+    "MAX_PATH and LongPathsEnabled are Windows'": 6,
+    "the recording implementation does not declare that it excludes other processes": 3,
+    "collection skipped": 2,
+    "a directory flagged case-sensitive is Windows'": 2,
+    "OSError(92, 'Illegal byte sequence')": 2,
+    "the recording implementation does not declare that it honours a folder's permissions": 1,
+    "the recording implementation does not declare that it sees running processes": 1,
+    "the recording implementation does not declare that it interrupts a region": 1,
+    "M writes about 440 MB twice; set AELIX_ANALYTICS_TEST_SCALE_M=1": 1,
+    "what Windows does; POSIX sends it again (the test above)": 1,
+    "Linux keeps the bytes it is given": 1,
+    "Windows": 1,
+    "8.3 short names are Windows'": 1,
+    "taskkill and CreateProcess's search are Windows'": 1,
+    "before 3.14 a `with` calls __enter__ without a CALL, and no signal is handled between its acquiring and the bl": 1,
+    "uv syncs the project)": 1
+   },
+   "cited_cases": {
+    "tests.test_contracts::test_a_lock_makes_its_directory_and_file_and_keeps_their_bytes[posix]": "pass",
+    "tests.test_contracts::test_a_lock_makes_its_directory_and_file_and_keeps_their_bytes[recording]": "pass",
+    "tests.test_contracts::test_a_lock_makes_its_directory_and_file_and_keeps_their_bytes[windows]": "skip",
+    "tests.test_contracts::test_a_lock_is_free_after_its_body_even_one_that_raised[posix]": "pass",
+    "tests.test_contracts::test_a_lock_is_free_after_its_body_even_one_that_raised[recording]": "pass",
+    "tests.test_contracts::test_a_lock_is_free_after_its_body_even_one_that_raised[windows]": "skip",
+    "tests.test_contracts::test_a_lock_excludes_another_process[posix]": "pass",
+    "tests.test_contracts::test_a_lock_excludes_another_process[recording]": "skip",
+    "tests.test_contracts::test_a_lock_excludes_another_process[windows]": "skip",
+    "tests.test_contracts::test_trying_a_lock_says_whether_it_made_the_file_and_keeps_its_bytes[posix]": "pass",
+    "tests.test_contracts::test_trying_a_lock_says_whether_it_made_the_file_and_keeps_its_bytes[recording]": "pass",
+    "tests.test_contracts::test_trying_a_lock_says_whether_it_made_the_file_and_keeps_its_bytes[windows]": "skip",
+    "tests.test_contracts::test_trying_a_lock_never_makes_its_directory[posix]": "pass",
+    "tests.test_contracts::test_trying_a_lock_never_makes_its_directory[recording]": "pass",
+    "tests.test_contracts::test_trying_a_lock_never_makes_its_directory[windows]": "skip",
+    "tests.test_contracts::test_trying_a_lock_is_free_after_its_body_even_one_that_raised[posix]": "pass",
+    "tests.test_contracts::test_trying_a_lock_is_free_after_its_body_even_one_that_raised[recording]": "pass",
+    "tests.test_contracts::test_trying_a_lock_is_free_after_its_body_even_one_that_raised[windows]": "skip",
+    "tests.test_contracts::test_a_lock_held_is_busy_to_a_try_in_the_same_process[posix]": "pass",
+    "tests.test_contracts::test_a_lock_held_is_busy_to_a_try_in_the_same_process[recording]": "pass",
+    "tests.test_contracts::test_a_lock_held_is_busy_to_a_try_in_the_same_process[windows]": "skip",
+    "tests.test_contracts::test_a_lock_file_that_cannot_be_written_is_tried_through_reading[posix]": "pass",
+    "tests.test_contracts::test_a_lock_file_that_cannot_be_written_is_tried_through_reading[recording]": "pass",
+    "tests.test_contracts::test_a_lock_file_that_cannot_be_written_is_tried_through_reading[windows]": "skip",
+    "tests.test_contracts::test_a_lock_file_that_cannot_be_created_is_unavailable[posix]": "pass",
+    "tests.test_contracts::test_a_lock_file_that_cannot_be_created_is_unavailable[recording]": "skip",
+    "tests.test_contracts::test_a_lock_file_that_cannot_be_created_is_unavailable[windows]": "skip",
+    "tests.test_contracts::test_trying_a_lock_another_process_holds_is_busy_at_once[posix-exclusive]": "pass",
+    "tests.test_contracts::test_trying_a_lock_another_process_holds_is_busy_at_once[posix-try_exclusive]": "pass",
+    "tests.test_contracts::test_trying_a_lock_another_process_holds_is_busy_at_once[recording-exclusive]": "skip",
+    "tests.test_contracts::test_trying_a_lock_another_process_holds_is_busy_at_once[recording-try_exclusive]": "skip",
+    "tests.test_contracts::test_trying_a_lock_another_process_holds_is_busy_at_once[windows-exclusive]": "skip",
+    "tests.test_contracts::test_trying_a_lock_another_process_holds_is_busy_at_once[windows-try_exclusive]": "skip",
+    "tests.test_contracts::test_publishing_a_new_name_puts_the_bytes_there_and_the_temporary_name_goes[posix]": "pass",
+    "tests.test_contracts::test_publishing_a_new_name_puts_the_bytes_there_and_the_temporary_name_goes[recording]": "pass",
+    "tests.test_contracts::test_publishing_a_new_name_puts_the_bytes_there_and_the_temporary_name_goes[windows]": "skip",
+    "tests.test_contracts::test_publishing_never_overwrites_what_is_there[posix-file]": "pass",
+    "tests.test_contracts::test_publishing_never_overwrites_what_is_there[posix-directory]": "pass",
+    "tests.test_contracts::test_publishing_never_overwrites_what_is_there[posix-empty file]": "pass",
+    "tests.test_contracts::test_publishing_never_overwrites_what_is_there[recording-file]": "pass",
+    "tests.test_contracts::test_publishing_never_overwrites_what_is_there[recording-directory]": "pass",
+    "tests.test_contracts::test_publishing_never_overwrites_what_is_there[recording-empty file]": "pass",
+    "tests.test_contracts::test_publishing_never_overwrites_what_is_there[windows-file]": "skip",
+    "tests.test_contracts::test_publishing_never_overwrites_what_is_there[windows-directory]": "skip",
+    "tests.test_contracts::test_publishing_never_overwrites_what_is_there[windows-empty file]": "skip",
+    "tests.test_contracts::test_a_file_system_without_links_is_told_and_nothing_changes[posix]": "pass",
+    "tests.test_contracts::test_a_file_system_without_links_is_told_and_nothing_changes[recording]": "pass",
+    "tests.test_contracts::test_a_file_system_without_links_is_told_and_nothing_changes[windows]": "skip",
+    "tests.test_contracts::test_flushing_writes_through_and_hides_no_error[posix]": "pass",
+    "tests.test_contracts::test_flushing_writes_through_and_hides_no_error[recording]": "pass",
+    "tests.test_contracts::test_flushing_writes_through_and_hides_no_error[windows]": "skip",
+    "tests.test_marker_gate::test_a_markerless_migration_destination_stops_the_search_and_is_refused[migration directory]": "pass",
+    "tests.test_marker_gate::test_a_markerless_migration_destination_stops_the_search_and_is_refused[migration lock]": "pass",
+    "tests.test_marker_gate::test_a_markerless_migration_destination_stops_the_search_and_is_refused[both]": "pass",
+    "tests.test_marker_gate::test_the_kit_command_line_writes_only_where_it_may[incomplete]": "pass",
+    "tests.test_migration::test_a_migration_copies_bytes_moves_only_what_the_mapping_says_and_commits_last": "pass",
+    "tests.test_migration::test_the_report_and_the_proposals": "pass",
+    "tests.test_migration::test_a_script_proposal_renames_only_the_older_names[from labkit import note, chart as c\\nnote('gap', 'x')\\nc(f, 'y')\\n-from aelix_analytics import record as note, visualize as c\\nnote('workflow_feedback', 'x')\\nc(f, 'y')\\n-0]": "pass",
+    "tests.test_migration::test_a_script_proposal_renames_only_the_older_names[import labkit\\nlabkit.note('finding', 'x')\\n-import aelix_analytics as labkit\\nlabkit.record('finding', 'x')\\n-0]": "pass",
+    "tests.test_migration::test_a_script_proposal_renames_only_the_older_names[import aelix_analytics as a\\na.record(\"gap\", 'x')\\n-import aelix_analytics as a\\na.record(\"workflow_feedback\", 'x')\\n-0]": "pass",
+    "tests.test_migration::test_a_script_proposal_renames_only_the_older_names[import importlib\\nlab = importlib.import_module('labkit')\\n-None-1]": "pass",
+    "tests.test_migration::test_a_script_proposal_renames_only_the_older_names[x = 1\\n-None-0]": "pass",
+    "tests.test_migration::test_a_script_proposal_renames_only_the_older_names[def broken(:\\n-None-0]": "pass",
+    "tests.test_migration::test_the_gitignore_block_follows_the_source_s_choices[.lab/cache/\\nreport/\\n-lines0]": "pass",
+    "tests.test_migration::test_the_gitignore_block_follows_the_source_s_choices[data/\\r\\n.lab/lock\\r\\n-lines1]": "pass",
+    "tests.test_migration::test_the_gitignore_block_follows_the_source_s_choices[report/\\nworkspace/\\n.analytics/run.lock-lines2]": "pass",
+    "tests.test_migration::test_the_gitignore_block_follows_the_source_s_choices[-lines3]": "pass",
+    "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F1-dest-locked]": "pass",
+    "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F1-migration-dir]": "pass",
+    "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F1-start-cut]": "pass",
+    "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F2-start]": "pass",
+    "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F2-probe]": "pass",
+    "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F3-locked]": "pass",
+    "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F4-plan-written]": "pass",
+    "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F4-plan]": "pass",
+    "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F5-begin]": "pass",
+    "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F5-temp-partial]": "pass",
+    "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F5-temp-full]": "pass",
+    "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F6-published]": "pass",
+    "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F6-link-unlink]": "pass",
+    "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F7-rechecking]": "pass",
+    "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F8-source-checked]": "pass",
+    "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F8-verified]": "pass",
+    "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F9-transform-begin]": "pass",
+    "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F9-transform-temp]": "pass",
+    "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F9-transform-written]": "pass",
+    "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F9-transform-replaced]": "pass",
+    "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F10-mapping]": "pass",
+    "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F10-report-written]": "pass",
+    "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F10-reported]": "pass",
+    "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F10-durable]": "pass",
+    "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F11-marker-begin]": "pass",
+    "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F11-marker-temp]": "pass",
+    "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F11-marker-written]": "pass",
+    "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F12-published]": "pass",
+    "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F12-link-unlink]": "pass",
+    "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F13-committed]": "pass",
+    "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F14-trusted]": "pass",
+    "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F16-copied-cut]": "pass",
+    "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F16-source-checked-cut]": "pass",
+    "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F16-reported-cut]": "pass",
+    "tests.test_migration::test_an_interrupted_migration_resumes_to_the_same_copies[F16-committed-cut]": "pass",
+    "tests.test_migration::test_a_direct_write_where_links_cannot_be_made[direct_intent]": "pass",
+    "tests.test_migration::test_a_direct_write_where_links_cannot_be_made[direct_created]": "pass",
+    "tests.test_migration::test_the_fault_matrix_is_kept": "pass",
+    "tests.test_migration::test_a_copied_file_changed_between_two_calls_is_refused_and_nothing_removed": "pass",
+    "tests.test_migration::test_a_file_not_copied_yet_that_changed_is_copied_as_it_is_now": "pass",
+    "tests.test_migration::test_after_the_source_check_the_source_is_not_read_again[journal_appended]": "pass",
+    "tests.test_migration::test_after_the_source_check_the_source_is_not_read_again[source_removed]": "pass",
+    "tests.test_migration::test_after_the_source_check_the_source_is_not_read_again[space_short]": "pass",
+    "tests.test_migration::test_after_the_source_check_the_source_is_not_read_again[link_target_gone]": "pass",
+    "tests.test_migration::test_a_gitignore_transform_resumes_from_its_hash_and_refuses_another": "pass",
+    "tests.test_migration::test_a_committed_destination_whose_marker_went_is_published_again": "pass",
+    "tests.test_migration::test_a_ledger_that_is_no_state_is_refused_and_nothing_removed[order]": "pass",
+    "tests.test_migration::test_a_ledger_that_is_no_state_is_refused_and_nothing_removed[two_ledgers]": "pass",
+    "tests.test_migration::test_a_ledger_that_is_no_state_is_refused_and_nothing_removed[unknown_line]": "pass",
+    "tests.test_migration::test_a_temporary_file_whose_path_left_the_source_is_kept": "pass",
+    "tests.test_migration::test_what_the_ledger_does_not_account_for_is_refused[file]": "pass",
+    "tests.test_migration::test_what_the_ledger_does_not_account_for_is_refused[changed_copy]": "pass",
+    "tests.test_migration::test_what_the_ledger_does_not_account_for_is_refused[directory]": "pass",
+    "tests.test_migration::test_what_a_person_s_tools_leave_is_passed_over": "pass",
+    "tests.test_migration::test_a_migration_directory_without_its_first_line_is_a_new_migration[None]": "pass",
+    "tests.test_migration::test_a_migration_directory_without_its_first_line_is_a_new_migration[]": "pass",
+    "tests.test_migration::test_a_migration_directory_without_its_first_line_is_a_new_migration[{\"step\": \"start\", \"at\": \"2026-]": "pass",
+    "tests.test_migration::test_a_cut_ledger_line_is_skipped_and_the_next_one_starts_on_its_own_line": "pass",
+    "tests.test_migration::test_a_read_only_source_is_copied_without_its_locks_and_the_destination_stays_writable": "pass",
+    "tests.test_migration::test_a_source_without_its_state_folder_makes_none": "pass",
+    "tests.test_migration::test_a_worktree_s_git_file_is_not_copied": "pass",
+    "tests.test_migration::test_a_file_larger_than_64_mib_is_copied_whole": "pass",
+    "tests.test_migration::test_a_destination_that_overlaps_a_place_the_migration_reads_is_refused[symlink]": "pass",
+    "tests.test_migration::test_the_destination_s_other_rules": "pass",
+    "tests.test_migration::test_the_source_s_own_refusals": "pass",
+    "tests.test_migration::test_a_name_that_is_not_utf8_is_refused": "skip",
+    "tests.test_migration::test_names_the_destination_folds_together_are_refused_only_where_it_folds": "pass",
+    "tests.test_migration::test_a_relative_link_that_leaves_the_root_is_not_made_again": "pass",
+    "tests.test_migration::test_a_source_changed_under_the_copy_fails_without_a_marker[copied-telemetry]": "pass",
+    "tests.test_migration::test_a_source_changed_under_the_copy_fails_without_a_marker[copied-added]": "pass",
+    "tests.test_migration::test_a_source_changed_under_the_copy_fails_without_a_marker[copied-removed]": "pass",
+    "tests.test_migration::test_a_source_changed_under_the_copy_fails_without_a_marker[rechecking-script]": "pass",
+    "tests.test_migration::test_an_older_kit_s_journal_write_waits_for_the_migration_and_is_counted_after": "pass",
+    "tests.test_migration::test_one_migration_a_destination_and_none_while_a_run_holds_the_source": "pass",
+    "tests.test_migration::test_a_name_taken_meanwhile_is_never_overwritten[data/raw/big.parquet]": "pass",
+    "tests.test_migration::test_a_name_taken_meanwhile_is_never_overwritten[analytics.json]": "pass",
+    "tests.test_migration::test_a_committed_destination_called_again": "pass",
+    "tests.test_migration::test_a_marker_a_newer_kit_rewrote_before_the_commit_line_is_taken": "pass",
+    "tests.test_migration::test_a_destination_with_a_marker_is_judged_by_it_first[markers0-marker_conflict]": "pass",
+    "tests.test_migration::test_a_destination_with_a_marker_is_judged_by_it_first[markers1-marker_invalid]": "pass",
+    "tests.test_migration::test_a_destination_with_a_marker_is_judged_by_it_first[markers2-project_too_new]": "pass",
+    "tests.test_migration::test_a_destination_with_a_marker_is_judged_by_it_first[markers3-destination_invalid]": "pass",
+    "tests.test_migration::test_a_destination_with_a_marker_is_judged_by_it_first[markers4-destination_invalid]": "pass",
+    "tests.test_migration::test_the_dry_run_writes_nothing_and_says_what_would_happen": "pass",
+    "tests.test_migration::test_the_migration_goes_through_the_platform_it_is_given": "pass",
+    "tests.test_migration::test_a_source_file_another_program_holds_open_is_reported": "skip",
+    "tests.test_migration::test_a_read_only_copy_is_flushed_and_its_temporary_file_removed": "pass",
+    "tests.test_migration::test_names_other_systems_reserve_are_copied_with_a_warning": "pass",
+    "tests.test_migration::test_the_kit_s_command_line_in_a_destination_not_committed": "pass",
+    "tests.test_migration::test_the_migration_s_own_files_are_lf_and_the_copies_keep_their_bytes": "pass",
+    "tests.test_migration::test_a_copy_changed_after_the_commit_is_reported_when_called_again": "pass",
+    "tests.test_migration::test_a_committed_destination_whose_source_lost_its_link_target_is_already_migrated": "pass",
+    "tests.test_migration::test_the_marker_takes_what_the_source_s_marker_has_and_says_what_it_lacks": "pass",
+    "tests.test_migration::test_a_destination_called_from_inside_itself_or_with_another_source": "pass",
+    "tests.test_migration::test_another_spelling_of_the_source_is_the_source": "pass",
+    "tests.test_migration::test_a_state_folder_that_is_a_link_leading_outside_is_copied_without_its_cache_and_locks": "pass",
+    "tests.test_migration::test_a_link_made_where_a_planned_folder_goes_is_not_followed": "pass",
+    "tests.test_migration::test_a_link_where_the_migration_keeps_its_records_is_never_followed[.analytics]": "pass",
+    "tests.test_migration::test_a_link_where_the_migration_keeps_its_records_is_never_followed[.analytics/migration]": "pass",
+    "tests.test_migration::test_a_link_where_the_migration_keeps_its_records_is_never_followed[migration_dir]": "pass",
+    "tests.test_migration::test_a_link_where_the_migration_keeps_its_records_is_never_followed[ledger]": "pass",
+    "tests.test_migration::test_a_link_planted_at_the_migration_s_own_temporary_names_is_never_written_through": "pass",
+    "tests.test_migration::test_a_source_file_named_like_a_temporary_file_of_the_migration_is_copied[.mig-gitignore-0.part]": "pass",
+    "tests.test_migration::test_a_source_file_named_like_a_temporary_file_of_the_migration_is_copied[.analytics-json-0.part]": "pass",
+    "tests.test_migration::test_a_temporary_name_something_else_made_first_is_not_this_migration_s": "pass",
+    "tests.test_migration::test_a_copy_removed_before_the_verification_is_refused[after_source_checked]": "pass",
+    "tests.test_migration::test_a_copy_removed_before_the_verification_is_refused[before_verify]": "pass",
+    "tests.test_migration::test_a_folder_removed_after_the_source_check_is_refused": "pass",
+    "tests.test_migration::test_a_change_in_the_source_s_list_under_the_copy_is_source_changed[outside_link_removed]": "pass",
+    "tests.test_migration::test_a_change_in_the_source_s_list_under_the_copy_is_source_changed[empty_folder_added]": "pass",
+    "tests.test_migration::test_a_change_in_the_source_s_list_under_the_copy_is_source_changed[link_retargeted]": "pass",
+    "tests.test_migration::test_a_read_only_folder_cut_while_a_file_of_it_is_copied_resumes": "pass",
+    "tests.test_migration::test_a_state_folder_that_is_no_folder_of_its_own_is_refused[inside_link]": "pass",
+    "tests.test_migration::test_a_state_folder_that_is_no_folder_of_its_own_is_refused[file]": "pass",
+    "tests.test_migration::test_a_state_folder_that_is_no_folder_of_its_own_is_refused[inside_dangling]": "pass",
+    "tests.test_migration::test_a_folder_two_outside_links_reach_is_copied_once_and_said_where": "pass",
+    "tests.test_migration::test_a_destination_spelled_with_dotdot_after_a_link_is_the_operating_system_s": "pass",
+    "tests.test_migration::test_a_file_the_report_binds_that_went_is_made_again_before_the_marker": "pass",
+    "tests.test_migration::test_a_marker_naming_another_migration_s_report_is_refused_and_not_read[report_path]": "pass",
+    "tests.test_migration::test_a_marker_naming_another_migration_s_report_is_refused_and_not_read[report_bytes]": "pass",
+    "tests.test_migration::test_a_marker_naming_another_migration_s_report_is_refused_and_not_read[mapping_bytes]": "pass",
+    "tests.test_migration_reader::test_the_reader_reads_a_migrated_project_as_it_read_its_source[symlink]": "pass",
+    "tests.test_migration_reader::test_the_mapping_s_rules_are_by_path_components": "pass",
+    "tests.test_migration_reader::test_the_reader_knows_the_migration_family": "pass",
+    "tests.test_migration_reader::test_what_the_mapping_is_enters_the_read_s_revision": "pass",
+    "tests.test_migration_reader::test_a_marker_report_and_mapping_of_two_migrations_are_not_read_together": "pass",
+    "tests.test_platform::test_windows_publish_new_waits_out_a_reader_and_never_overwrites[5-True]": "pass",
+    "tests.test_platform::test_windows_publish_new_waits_out_a_reader_and_never_overwrites[32-True]": "pass",
+    "tests.test_platform::test_windows_publish_new_waits_out_a_reader_and_never_overwrites[33-True]": "pass",
+    "tests.test_platform::test_windows_publish_new_waits_out_a_reader_and_never_overwrites[2-False]": "pass",
+    "tests.test_platform::test_loading_the_kit_pulls_no_analysis_library_into_the_host_process": "pass"
+   },
+   "command": "uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread --junitxml=suite.xml"
+  },
+  "layers": {
+   "command": "uv run --locked pytest -q -ra -p no:cacheprovider tests/test_layers.py",
+   "file": "layers.xml",
+   "file_sha256": "b4cadf8848a6f23881b72ca16183224f8dcdced1d08c38af0db09c699a9b92f2",
+   "timestamp": "2026-10-08T22:52:23.897630+09:00",
+   "seconds": 17.868,
+   "counts": {
+    "pass": 47
+   },
+   "failed": [],
+   "skipped_by_reason": {}
+  },
+  "contracts": {
+   "command": "uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread tests/test_contracts.py",
+   "file": "contracts.xml",
+   "file_sha256": "a422a8689f0382a9aa714827cf8c1806758c26cd5e730643227e2874b32a4753",
+   "timestamp": "2026-10-08T22:53:19.841655+09:00",
+   "seconds": 5.429,
+   "counts": {
+    "pass": 66,
+    "skip": 41
+   },
+   "failed": [],
+   "skipped_by_reason": {
+    "the Windows implementation runs on the Windows leg": 35,
+    "the recording implementation does not declare that it excludes other processes": 3,
+    "the recording implementation does not declare that it honours a folder's permissions": 1,
+    "the recording implementation does not declare that it sees running processes": 1,
+    "the recording implementation does not declare that it interrupts a region": 1
+   }
+  },
+  "aelix": {
+   "3.12": {
+    "command": "uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_extension.py tests/test_usage_report.py",
+    "file": "aelix-3.12.xml",
+    "file_sha256": "d313c2fbaecd10245513c9fe9c69490ac119aa2cb141c53e49e5e2a7f8899ddf",
+    "timestamp": "2026-10-08T22:53:27.896068+09:00",
+    "seconds": 165.302,
+    "counts": {
+     "pass": 161
+    },
+    "failed": [],
+    "skipped_by_reason": {}
+   },
+   "3.11": {
+    "command": "uv run --isolated --no-project --python 3.11 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_extension.py tests/test_usage_report.py",
+    "file": "aelix-3.11.xml",
+    "file_sha256": "02abf3ebe9410d1f66b2ec66950c90a1911a5ce10eeaeb4c700c11f97b91ca57",
+    "timestamp": "2026-10-08T22:56:15.433386+09:00",
+    "seconds": 144.471,
+    "counts": {
+     "pass": 161
+    },
+    "failed": [],
+    "skipped_by_reason": {}
+   }
+  },
+  "launcher_3_11": {
+   "command": "uv run --isolated --no-project --python 3.11 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_launcher.py",
+   "file": "launcher-3.11.xml",
+   "file_sha256": "86ad60324c4a317e0b98f451d434445ffeeb3c84afe01246302d2673bf68b6f6",
+   "timestamp": "2026-10-08T22:58:40.977684+09:00",
+   "seconds": 32.284,
+   "counts": {
+    "pass": 138,
+    "skip": 1
+   },
+   "failed": [],
+   "skipped_by_reason": {
+    "what Windows does; POSIX sends it again (the test above)": 1
+   }
+  },
+  "usage_report": {
+   "command": "uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 python tools/usage_report.py --output <run>/evidence/verify/usage",
+   "exit": "0",
+   "report_sha256": "eb592eb406d6e4e1b9559f940793c7150042a40e2db01a1e3f173c052a4c9c2a",
+   "summary": {
+    "required_facts": {
+     "passed": 58,
+     "total": 58
+    },
+    "invariants": {
+     "holding": 42,
+     "total": 42
+    },
+    "failures": 0,
+    "exit": 0
+   }
+  },
+  "platform_smoke": {
+   "command": "uv run --locked python tools/platform_smoke.py --gate required",
+   "exit": "0",
+   "summary": {
+    "summary": {
+     "holds": 25,
+     "violated": 0,
+     "declared_limitation": 0,
+     "observed": 6,
+     "not_run": 0
+    },
+    "hold": true
+   },
+   "file_sha256": "38a2ff8e585f2ee303466691ce8b5eaaddcaa55dc3a30c45267d07ad7da997e2"
+  },
+  "platform_smoke_stdlib_3_11": {
+   "command": "uv run --isolated --no-project --python 3.11 python tools/platform_smoke.py --stdlib-only --gate required",
+   "exit": "0",
+   "summary": {
+    "summary": {
+     "holds": 15,
+     "violated": 0,
+     "declared_limitation": 0,
+     "observed": 3,
+     "not_run": 2
+    },
+    "hold": true
+   },
+   "file_sha256": "bc9e93565178c519b00830cf013e596d7ddceb2bd680755a8515defa473ae625"
+  },
+  "diff_check": {
+   "command": "git diff --check fbd12e1...HEAD",
+   "output": ""
+  },
+  "docs": {
+   "command": "uv run --locked python tools/check_docs.py --output <run>/evidence/docs-record.json",
+   "ok": true,
+   "counts": {
+    "json_files": 12,
+    "markdown_files": 65,
+    "local_links": 692,
+    "python_examples": 6,
+    "json_examples": 7,
+    "dev_state_examples": 1
+   },
+   "errors": []
+  }
+ },
+ "fixtures": {
+  "S": {
+   "command": "uv run --locked python tools/eval_fixtures.py scale --scale S --seed 0 --out <dir>",
+   "generator_commit": "ebd10b644e8cb8550ccf6446b134666db6bb9386",
+   "kit_version": "0.7.0",
+   "seed": 0,
+   "project": "fixtures/S/project",
+   "files": 229,
+   "bytes": 2898446,
+   "tree_digest": "30ce3f8983c115e2a19556f9397fae2e7f535caddbba3d75a179e83a94c13973",
+   "lock_files_before": {
+    ".lab/run.lock": true,
+    ".lab/lock": true
+   }
+  },
+  "M": {
+   "command": "uv run --locked python tools/eval_fixtures.py scale --scale M --seed 0 --out <dir>",
+   "generator_commit": "ebd10b644e8cb8550ccf6446b134666db6bb9386",
+   "kit_version": "0.7.0",
+   "seed": 0,
+   "project": "fixtures/M/project",
+   "files": 2037,
+   "bytes": 223109251,
+   "tree_digest": "ef113402bd18f85375aa5ba1f83c97b711880c462bbcff30fa23d4835ce6f66b",
+   "lock_files_before": {
+    ".lab/run.lock": true,
+    ".lab/lock": true
+   }
+  }
+ },
+ "phases": {
+  "S": {
+   "what": "the ledger's line times of two migrations, each into a new destination in a process of its own; the minimum of the two per phase (ms), the child's max RSS",
+   "min": {
+    "start_to_locked_ms": 0,
+    "plan_ms": 10,
+    "copy_ms": 923,
+    "recheck_ms": 20,
+    "verify_ms": 10,
+    "transform_ms": 9,
+    "report_ms": 21,
+    "flush_ms": 2,
+    "marker_ms": 4,
+    "trust_ms": 0,
+    "source_lock_held_ms": 956,
+    "total_ms": 1005,
+    "ledger_lines": 469
+   },
+   "max_rss_bytes": 29392896,
+   "runs": [
+    {
+     "attempt": 1,
+     "wall_s": 1.05,
+     "phases": {
+      "start_to_locked_ms": 0,
+      "plan_ms": 10,
+      "copy_ms": 930,
+      "recheck_ms": 20,
+      "verify_ms": 10,
+      "transform_ms": 9,
+      "report_ms": 21,
+      "flush_ms": 2,
+      "marker_ms": 5,
+      "trust_ms": 1,
+      "source_lock_held_ms": 960,
+      "total_ms": 1008,
+      "ledger_lines": 469
+     }
+    },
+    {
+     "attempt": 2,
+     "wall_s": 1.047,
+     "phases": {
+      "start_to_locked_ms": 1,
+      "plan_ms": 12,
+      "copy_ms": 923,
+      "recheck_ms": 21,
+      "verify_ms": 12,
+      "transform_ms": 9,
+      "report_ms": 21,
+      "flush_ms": 2,
+      "marker_ms": 4,
+      "trust_ms": 0,
+      "source_lock_held_ms": 956,
+      "total_ms": 1005,
+      "ledger_lines": 469
+     }
+    }
+   ]
+  },
+  "M": {
+   "what": "the ledger's line times of two migrations, each into a new destination in a process of its own; the minimum of the two per phase (ms), the child's max RSS",
+   "min": {
+    "start_to_locked_ms": 1,
+    "plan_ms": 57,
+    "copy_ms": 8759,
+    "recheck_ms": 283,
+    "verify_ms": 184,
+    "transform_ms": 25,
+    "report_ms": 34,
+    "flush_ms": 20,
+    "marker_ms": 8,
+    "trust_ms": 0,
+    "source_lock_held_ms": 9119,
+    "total_ms": 9395,
+    "ledger_lines": 4085
+   },
+   "max_rss_bytes": 72957952,
+   "runs": [
+    {
+     "attempt": 1,
+     "wall_s": 9.469,
+     "phases": {
+      "start_to_locked_ms": 1,
+      "plan_ms": 77,
+      "copy_ms": 8759,
+      "recheck_ms": 283,
+      "verify_ms": 188,
+      "transform_ms": 25,
+      "report_ms": 34,
+      "flush_ms": 20,
+      "marker_ms": 8,
+      "trust_ms": 0,
+      "source_lock_held_ms": 9119,
+      "total_ms": 9395,
+      "ledger_lines": 4085
+     }
+    },
+    {
+     "attempt": 2,
+     "wall_s": 9.834,
+     "phases": {
+      "start_to_locked_ms": 1,
+      "plan_ms": 57,
+      "copy_ms": 9123,
+      "recheck_ms": 297,
+      "verify_ms": 184,
+      "transform_ms": 34,
+      "report_ms": 34,
+      "flush_ms": 20,
+      "marker_ms": 9,
+      "trust_ms": 0,
+      "source_lock_held_ms": 9477,
+      "total_ms": 9759,
+      "ledger_lines": 4085
+     }
+    }
+   ]
+  }
+ },
+ "sizes": {
+  "S": {
+   "copied_files": 228,
+   "copied_bytes": 2898446,
+   "excluded": [
+    {
+     "path": ".lab/cache",
+     "reason": "cache",
+     "files": 0,
+     "bytes": 0
+    },
+    {
+     "path": ".lab/lock",
+     "reason": "lock",
+     "files": 1,
+     "bytes": 0
+    },
+    {
+     "path": ".lab/report.lock",
+     "reason": "lock",
+     "files": 1,
+     "bytes": 0
+    },
+    {
+     "path": ".lab/run.lock",
+     "reason": "lock",
+     "files": 1,
+     "bytes": 0
+    },
+    {
+     "path": "report",
+     "reason": "workspace",
+     "files": 0,
+     "bytes": 0
+    }
+   ],
+   "excluded_bytes": 0,
+   "report_json_bytes": 47133,
+   "plan_json_bytes": 147575,
+   "mapping_json_bytes": 833,
+   "ledger_bytes": 97122,
+   "not_copied": 0,
+   "links": 0,
+   "warnings": 0
+  },
+  "M": {
+   "copied_files": 2036,
+   "copied_bytes": 223109251,
+   "excluded": [
+    {
+     "path": ".lab/cache",
+     "reason": "cache",
+     "files": 0,
+     "bytes": 0
+    },
+    {
+     "path": ".lab/lock",
+     "reason": "lock",
+     "files": 1,
+     "bytes": 0
+    },
+    {
+     "path": ".lab/report.lock",
+     "reason": "lock",
+     "files": 1,
+     "bytes": 0
+    },
+    {
+     "path": ".lab/run.lock",
+     "reason": "lock",
+     "files": 1,
+     "bytes": 0
+    },
+    {
+     "path": "report",
+     "reason": "workspace",
+     "files": 0,
+     "bytes": 0
+    }
+   ],
+   "excluded_bytes": 0,
+   "report_json_bytes": 394634,
+   "plan_json_bytes": 1360910,
+   "mapping_json_bytes": 833,
+   "ledger_bytes": 861538,
+   "not_copied": 0,
+   "links": 0,
+   "warnings": 0
+  }
+ },
+ "preservation": {
+  "what": "the source walked by the measurement's own walk (not the migration's), before the first and after the second migration and the call again; the older kit's two lock files apart. Every test of tests/test_migration.py compares the source the same way (its own `tree`)",
+  "S": {
+   "walk": "an independent walk (this script's tree(), links not followed), the lock files apart",
+   "before": "30ce3f8983c115e2a19556f9397fae2e7f535caddbba3d75a179e83a94c13973",
+   "after": "30ce3f8983c115e2a19556f9397fae2e7f535caddbba3d75a179e83a94c13973",
+   "equal": true,
+   "lock_files_after": {
+    ".lab/run.lock": true,
+    ".lab/lock": true
+   },
+   "report_source_inventory": {
+    "before": "4aa848c08f2c7fe402fc470df9484b8300be817bc497f689789c7ef86137e908",
+    "after": "4aa848c08f2c7fe402fc470df9484b8300be817bc497f689789c7ef86137e908"
+   },
+   "report_locks": {
+    "taken": [
+     {
+      "path": ".lab/run.lock",
+      "created": false
+     },
+     {
+      "path": ".lab/lock",
+      "created": false
+     }
+    ],
+    "held_ms": 960
+   },
+   "two_migrations_same_copies": true,
+   "called_again": {
+    "already_migrated": true,
+    "compared": {
+     "same": 228
+    },
+    "differs": [],
+    "source_since": {
+     "journal_lines": 0,
+     "seq": null,
+     "files_differing": 0
+    }
+   }
+  },
+  "M": {
+   "walk": "an independent walk (this script's tree(), links not followed), the lock files apart",
+   "before": "ef113402bd18f85375aa5ba1f83c97b711880c462bbcff30fa23d4835ce6f66b",
+   "after": "ef113402bd18f85375aa5ba1f83c97b711880c462bbcff30fa23d4835ce6f66b",
+   "equal": true,
+   "lock_files_after": {
+    ".lab/run.lock": true,
+    ".lab/lock": true
+   },
+   "report_source_inventory": {
+    "before": "11a746bfc057241edbe4c82b53fcee9860c98eec8af7b61cb8c0209679ab57d7",
+    "after": "11a746bfc057241edbe4c82b53fcee9860c98eec8af7b61cb8c0209679ab57d7"
+   },
+   "report_locks": {
+    "taken": [
+     {
+      "path": ".lab/run.lock",
+      "created": false
+     },
+     {
+      "path": ".lab/lock",
+      "created": false
+     }
+    ],
+    "held_ms": 9119
+   },
+   "two_migrations_same_copies": true,
+   "called_again": {
+    "already_migrated": true,
+    "compared": {
+     "same": 2036
+    },
+    "differs": [],
+    "source_since": {
+     "journal_lines": 0,
+     "seq": null,
+     "files_differing": 0
+    }
+   }
+  }
+ },
+ "fault_matrix": {
+  "what": "design 6.11's F1-F16, each interrupted in a child process with os._exit(9) at the named step (tests/migration_driver.py), judged as it stood (incomplete and refused before the marker, the older kit's search finding nothing), then the same migration called again: copies equal to an uninterrupted migration's, the source's tree unchanged, the report bound by the marker, no temporary file left; and the rows of design 6.10 (T6 a-o)",
+  "legs": {
+   "macos_developer_machine": {
+    "F1-dest-locked": "pass",
+    "F1-migration-dir": "pass",
+    "F1-start-cut": "pass",
+    "F2-start": "pass",
+    "F2-probe": "pass",
+    "F3-locked": "pass",
+    "F4-plan-written": "pass",
+    "F4-plan": "pass",
+    "F5-begin": "pass",
+    "F5-temp-partial": "pass",
+    "F5-temp-full": "pass",
+    "F6-published": "pass",
+    "F6-link-unlink": "pass",
+    "F7-rechecking": "pass",
+    "F8-source-checked": "pass",
+    "F8-verified": "pass",
+    "F9-transform-begin": "pass",
+    "F9-transform-temp": "pass",
+    "F9-transform-written": "pass",
+    "F9-transform-replaced": "pass",
+    "F10-mapping": "pass",
+    "F10-report-written": "pass",
+    "F10-reported": "pass",
+    "F10-durable": "pass",
+    "F11-marker-begin": "pass",
+    "F11-marker-temp": "pass",
+    "F11-marker-written": "pass",
+    "F12-published": "pass",
+    "F12-link-unlink": "pass",
+    "F13-committed": "pass",
+    "F14-trusted": "pass",
+    "F16-copied-cut": "pass",
+    "F16-source-checked-cut": "pass",
+    "F16-reported-cut": "pass",
+    "F16-committed-cut": "pass",
+    "F15-direct-intent": "pass",
+    "F15-direct-created": "pass"
+   },
+   "linux": {
+    "F1-dest-locked": "pass",
+    "F1-migration-dir": "pass",
+    "F1-start-cut": "pass",
+    "F2-start": "pass",
+    "F2-probe": "pass",
+    "F3-locked": "pass",
+    "F4-plan-written": "pass",
+    "F4-plan": "pass",
+    "F5-begin": "pass",
+    "F5-temp-partial": "pass",
+    "F5-temp-full": "pass",
+    "F6-published": "pass",
+    "F6-link-unlink": "pass",
+    "F7-rechecking": "pass",
+    "F8-source-checked": "pass",
+    "F8-verified": "pass",
+    "F9-transform-begin": "pass",
+    "F9-transform-temp": "pass",
+    "F9-transform-written": "pass",
+    "F9-transform-replaced": "pass",
+    "F10-mapping": "pass",
+    "F10-report-written": "pass",
+    "F10-reported": "pass",
+    "F10-durable": "pass",
+    "F11-marker-begin": "pass",
+    "F11-marker-temp": "pass",
+    "F11-marker-written": "pass",
+    "F12-published": "pass",
+    "F12-link-unlink": "pass",
+    "F13-committed": "pass",
+    "F14-trusted": "pass",
+    "F16-copied-cut": "pass",
+    "F16-source-checked-cut": "pass",
+    "F16-reported-cut": "pass",
+    "F16-committed-cut": "pass",
+    "F15-direct-intent": "pass",
+    "F15-direct-created": "pass"
+   },
+   "windows": {
+    "F1-dest-locked": "pass",
+    "F1-migration-dir": "pass",
+    "F1-start-cut": "pass",
+    "F2-start": "pass",
+    "F2-probe": "pass",
+    "F3-locked": "pass",
+    "F4-plan-written": "pass",
+    "F4-plan": "pass",
+    "F5-begin": "pass",
+    "F5-temp-partial": "pass",
+    "F5-temp-full": "pass",
+    "F6-published": "pass",
+    "F6-link-unlink": "skip",
+    "F7-rechecking": "pass",
+    "F8-source-checked": "pass",
+    "F8-verified": "pass",
+    "F9-transform-begin": "pass",
+    "F9-transform-temp": "pass",
+    "F9-transform-written": "pass",
+    "F9-transform-replaced": "pass",
+    "F10-mapping": "pass",
+    "F10-report-written": "pass",
+    "F10-reported": "pass",
+    "F10-durable": "pass",
+    "F11-marker-begin": "pass",
+    "F11-marker-temp": "pass",
+    "F11-marker-written": "pass",
+    "F12-published": "pass",
+    "F12-link-unlink": "skip",
+    "F13-committed": "pass",
+    "F14-trusted": "pass",
+    "F16-copied-cut": "pass",
+    "F16-source-checked-cut": "pass",
+    "F16-reported-cut": "pass",
+    "F16-committed-cut": "pass",
+    "F15-direct-intent": "pass",
+    "F15-direct-created": "pass"
+   },
+   "macos_hosted": {
+    "F1-dest-locked": "pass",
+    "F1-migration-dir": "pass",
+    "F1-start-cut": "pass",
+    "F2-start": "pass",
+    "F2-probe": "pass",
+    "F3-locked": "pass",
+    "F4-plan-written": "pass",
+    "F4-plan": "pass",
+    "F5-begin": "pass",
+    "F5-temp-partial": "pass",
+    "F5-temp-full": "pass",
+    "F6-published": "pass",
+    "F6-link-unlink": "pass",
+    "F7-rechecking": "pass",
+    "F8-source-checked": "pass",
+    "F8-verified": "pass",
+    "F9-transform-begin": "pass",
+    "F9-transform-temp": "pass",
+    "F9-transform-written": "pass",
+    "F9-transform-replaced": "pass",
+    "F10-mapping": "pass",
+    "F10-report-written": "pass",
+    "F10-reported": "pass",
+    "F10-durable": "pass",
+    "F11-marker-begin": "pass",
+    "F11-marker-temp": "pass",
+    "F11-marker-written": "pass",
+    "F12-published": "pass",
+    "F12-link-unlink": "pass",
+    "F13-committed": "pass",
+    "F14-trusted": "pass",
+    "F16-copied-cut": "pass",
+    "F16-source-checked-cut": "pass",
+    "F16-reported-cut": "pass",
+    "F16-committed-cut": "pass",
+    "F15-direct-intent": "pass",
+    "F15-direct-created": "pass"
+   }
+  },
+  "observed": {
+   "what": "each row run again by the run folder's fault_observe.py on the head (not the tests' assertions, what the row left and what calling again gave)",
+   "rows": {
+    "F1-dest-locked": {
+     "stop": {
+      "step": "dest_locked"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "FileNotFoundError",
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 59,
+     "source_unchanged_after": true
+    },
+    "F1-migration-dir": {
+     "stop": {
+      "step": "migration_dir"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": null,
+     "lines_then": 0,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 59,
+     "source_unchanged_after": true
+    },
+    "F1-start-cut": {
+     "stop": {
+      "step": "ledger:start",
+      "action": "cut"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": null,
+     "lines_then": 0,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 59,
+     "source_unchanged_after": true
+    },
+    "F2-start": {
+     "stop": {
+      "step": "start"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "start",
+     "lines_then": 1,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 59,
+     "source_unchanged_after": true
+    },
+    "F2-probe": {
+     "stop": {
+      "step": "probe_made"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "start",
+     "lines_then": 1,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 59,
+     "source_unchanged_after": true
+    },
+    "F3-locked": {
+     "stop": {
+      "step": "locked"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "locked",
+     "lines_then": 3,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 61,
+     "source_unchanged_after": true
+    },
+    "F4-plan-written": {
+     "stop": {
+      "step": "plan_written"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "locked",
+     "lines_then": 3,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 61,
+     "source_unchanged_after": true
+    },
+    "F4-plan": {
+     "stop": {
+      "step": "plan"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "plan",
+     "lines_then": 4,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 61,
+     "source_unchanged_after": true
+    },
+    "F5-begin": {
+     "stop": {
+      "step": "begin",
+      "path": "data/raw/big.parquet"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "begin",
+     "lines_then": 31,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 62,
+     "source_unchanged_after": true
+    },
+    "F5-temp-partial": {
+     "stop": {
+      "step": "temp_partial",
+      "path": "data/raw/big.parquet"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "begin",
+     "lines_then": 31,
+     "temporary_files_then": [
+      "data/raw/.mig-1f1a3024-0.part"
+     ],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 62,
+     "source_unchanged_after": true
+    },
+    "F5-temp-full": {
+     "stop": {
+      "step": "temp_full",
+      "path": "data/raw/big.parquet"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "begin",
+     "lines_then": 31,
+     "temporary_files_then": [
+      "data/raw/.mig-1f1a3024-0.part"
+     ],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 62,
+     "source_unchanged_after": true
+    },
+    "F6-published": {
+     "stop": {
+      "step": "published",
+      "path": "data/raw/big.parquet"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "begin",
+     "lines_then": 31,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 61,
+     "source_unchanged_after": true
+    },
+    "F6-link-unlink": {
+     "stop": {
+      "between_link_and_unlink": true,
+      "path": "data/raw/big.parquet"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "begin",
+     "lines_then": 31,
+     "temporary_files_then": [
+      "data/raw/.mig-1f1a3024-0.part"
+     ],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 61,
+     "source_unchanged_after": true
+    },
+    "F7-rechecking": {
+     "stop": {
+      "step": "rechecking"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "copied",
+     "lines_then": 50,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 61,
+     "source_unchanged_after": true
+    },
+    "F8-source-checked": {
+     "stop": {
+      "step": "source_checked"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "source_checked",
+     "lines_then": 51,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 59,
+     "source_unchanged_after": true
+    },
+    "F8-verified": {
+     "stop": {
+      "step": "verified"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "verified",
+     "lines_then": 52,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 60,
+     "source_unchanged_after": true
+    },
+    "F9-transform-begin": {
+     "stop": {
+      "step": "transform_begin"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "transform_begin",
+     "lines_then": 53,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 60,
+     "source_unchanged_after": true
+    },
+    "F9-transform-temp": {
+     "stop": {
+      "step": "transform_temp"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "transform_begin",
+     "lines_then": 53,
+     "temporary_files_then": [
+      ".mig-gitignore-0.part"
+     ],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 60,
+     "source_unchanged_after": true
+    },
+    "F9-transform-written": {
+     "stop": {
+      "step": "transform_written"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "transform_begin",
+     "lines_then": 53,
+     "temporary_files_then": [
+      ".mig-gitignore-0.part"
+     ],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 60,
+     "source_unchanged_after": true
+    },
+    "F9-transform-replaced": {
+     "stop": {
+      "step": "transform_replaced"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "transform_begin",
+     "lines_then": 53,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 59,
+     "source_unchanged_after": true
+    },
+    "F10-mapping": {
+     "stop": {
+      "step": "mapping_written"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "transformed",
+     "lines_then": 54,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 59,
+     "source_unchanged_after": true
+    },
+    "F10-report-written": {
+     "stop": {
+      "step": "report_written"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "transformed",
+     "lines_then": 54,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 59,
+     "source_unchanged_after": true
+    },
+    "F10-reported": {
+     "stop": {
+      "step": "reported"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "reported",
+     "lines_then": 55,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 59,
+     "source_unchanged_after": true
+    },
+    "F10-durable": {
+     "stop": {
+      "step": "durable"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "durable",
+     "lines_then": 56,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 59,
+     "source_unchanged_after": true
+    },
+    "F11-marker-begin": {
+     "stop": {
+      "step": "marker_begin"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "marker_begin",
+     "lines_then": 57,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 60,
+     "source_unchanged_after": true
+    },
+    "F11-marker-temp": {
+     "stop": {
+      "step": "marker_temp"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "marker_begin",
+     "lines_then": 57,
+     "temporary_files_then": [
+      ".analytics-json-0.part"
+     ],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 60,
+     "source_unchanged_after": true
+    },
+    "F11-marker-written": {
+     "stop": {
+      "step": "marker_written"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "marker_begin",
+     "lines_then": 57,
+     "temporary_files_then": [
+      ".analytics-json-0.part"
+     ],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 60,
+     "source_unchanged_after": true
+    },
+    "F12-published": {
+     "stop": {
+      "step": "marker_published"
+     },
+     "no_links": false,
+     "state_then": "current",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "read",
+     "last_step_then": "marker_begin",
+     "lines_then": 57,
+     "temporary_files_then": [],
+     "called_again": "already_migrated",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 58,
+     "source_unchanged_after": true
+    },
+    "F12-link-unlink": {
+     "stop": {
+      "between_link_and_unlink": true,
+      "path": "analytics.json"
+     },
+     "no_links": false,
+     "state_then": "current",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "read",
+     "last_step_then": "marker_begin",
+     "lines_then": 57,
+     "temporary_files_then": [
+      ".analytics-json-0.part"
+     ],
+     "called_again": "already_migrated",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 58,
+     "source_unchanged_after": true
+    },
+    "F13-committed": {
+     "stop": {
+      "step": "committed"
+     },
+     "no_links": false,
+     "state_then": "current",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "read",
+     "last_step_then": "committed",
+     "lines_then": 58,
+     "temporary_files_then": [],
+     "called_again": "already_migrated",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 58,
+     "source_unchanged_after": true
+    },
+    "F14-trusted": {
+     "stop": {
+      "step": "trusted"
+     },
+     "no_links": false,
+     "state_then": "current",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "read",
+     "last_step_then": "trusted",
+     "lines_then": 59,
+     "temporary_files_then": [],
+     "called_again": "already_migrated",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 59,
+     "source_unchanged_after": true
+    },
+    "F16-copied-cut": {
+     "stop": {
+      "step": "ledger:copied",
+      "action": "cut",
+      "nth": 3
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "begin",
+     "lines_then": 9,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 61,
+     "source_unchanged_after": true
+    },
+    "F16-source-checked-cut": {
+     "stop": {
+      "step": "ledger:source_checked",
+      "action": "cut"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "copied",
+     "lines_then": 50,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 61,
+     "source_unchanged_after": true
+    },
+    "F16-reported-cut": {
+     "stop": {
+      "step": "ledger:reported",
+      "action": "cut"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "transformed",
+     "lines_then": 54,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 59,
+     "source_unchanged_after": true
+    },
+    "F16-committed-cut": {
+     "stop": {
+      "step": "ledger:committed",
+      "action": "cut"
+     },
+     "no_links": false,
+     "state_then": "current",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "read",
+     "last_step_then": "marker_begin",
+     "lines_then": 57,
+     "temporary_files_then": [],
+     "called_again": "already_migrated",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 58,
+     "source_unchanged_after": true
+    },
+    "F15-direct_intent": {
+     "stop": {
+      "step": "direct_intent",
+      "path": "data/raw/big.parquet"
+     },
+     "no_links": true,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "direct_intent",
+     "lines_then": 54,
+     "temporary_files_then": [
+      "data/raw/.mig-1f1a3024-0.part"
+     ],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 85,
+     "source_unchanged_after": true
+    },
+    "F15-direct_created": {
+     "stop": {
+      "step": "direct_created",
+      "path": "data/raw/big.parquet"
+     },
+     "no_links": true,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "direct_intent",
+     "lines_then": 54,
+     "temporary_files_then": [
+      "data/raw/.mig-1f1a3024-0.part"
+     ],
+     "called_again": "destination_mismatch",
+     "details": {
+      "reason": "occupied",
+      "path": "data/raw/big.parquet"
+     },
+     "source_unchanged_after": true
+    }
+   }
+  },
+  "rows_6_10": {
+   "a copied file changed between two calls (a)": {
+    "test_a_copied_file_changed_between_two_calls_is_refused_and_nothing_removed": "pass"
+   },
+   "a file not copied yet changed (b)": {
+    "test_a_file_not_copied_yet_that_changed_is_copied_as_it_is_now": "pass"
+   },
+   "after source_checked: journal appended, source removed, space short, link target gone (c)": {
+    "test_after_the_source_check_the_source_is_not_read_again[journal_appended]": "pass",
+    "test_after_the_source_check_the_source_is_not_read_again[source_removed]": "pass",
+    "test_after_the_source_check_the_source_is_not_read_again[space_short]": "pass",
+    "test_after_the_source_check_the_source_is_not_read_again[link_target_gone]": "pass"
+   },
+   "a .gitignore that is neither (d)": {
+    "test_a_gitignore_transform_resumes_from_its_hash_and_refuses_another": "pass"
+   },
+   "committed, the marker gone (e)(f)": {
+    "test_a_committed_destination_whose_marker_went_is_published_again": "pass"
+   },
+   "a ledger that is no state (g)": {
+    "test_a_ledger_that_is_no_state_is_refused_and_nothing_removed[order]": "pass",
+    "test_a_ledger_that_is_no_state_is_refused_and_nothing_removed[two_ledgers]": "pass",
+    "test_a_ledger_that_is_no_state_is_refused_and_nothing_removed[unknown_line]": "pass"
+   },
+   "a temporary file whose path left the source (h)": {
+    "test_a_temporary_file_whose_path_left_the_source_is_kept": "pass"
+   },
+   "what the ledger does not account for (i)": {
+    "test_what_the_ledger_does_not_account_for_is_refused[file]": "pass",
+    "test_what_the_ledger_does_not_account_for_is_refused[changed_copy]": "pass",
+    "test_what_the_ledger_does_not_account_for_is_refused[directory]": "pass"
+   },
+   "what a person's tools leave (j)": {
+    "test_what_a_person_s_tools_leave_is_passed_over": "pass"
+   },
+   "a migration directory without its first line (k)": {
+    "test_a_migration_directory_without_its_first_line_is_a_new_migration[None]": "pass",
+    "test_a_migration_directory_without_its_first_line_is_a_new_migration[]": "pass",
+    "test_a_migration_directory_without_its_first_line_is_a_new_migration[{\"step\": \"start\", \"at\": \"2026-]": "pass"
+   },
+   "a cut ledger line (n)": {
+    "test_a_cut_ledger_line_is_skipped_and_the_next_one_starts_on_its_own_line": "pass"
+   },
+   "a read-only source (o)": {
+    "test_a_read_only_source_is_copied_without_its_locks_and_the_destination_stays_writable": "pass"
+   },
+   "direct writes (m)": {
+    "test_a_direct_write_where_links_cannot_be_made[direct_intent]": "pass",
+    "test_a_direct_write_where_links_cannot_be_made[direct_created]": "pass"
+   },
+   "a copy removed after the source check or before step 8 (review)": {
+    "test_a_copy_removed_before_the_verification_is_refused[after_source_checked]": "pass",
+    "test_a_copy_removed_before_the_verification_is_refused[before_verify]": "pass"
+   },
+   "a read-only folder cut while a file of it is copied (review)": {
+    "test_a_read_only_folder_cut_while_a_file_of_it_is_copied_resumes": "pass"
+   },
+   "a file the report binds that went, before the marker and after the commit (review)": {
+    "test_a_file_the_report_binds_that_went_is_made_again_before_the_marker": "pass"
+   },
+   "a temporary name something else made first (review)": {
+    "test_a_temporary_name_something_else_made_first_is_not_this_migration_s": "pass"
+   },
+   "a link where the migration keeps its records (review)": {
+    "test_a_link_where_the_migration_keeps_its_records_is_never_followed[.analytics]": "pass",
+    "test_a_link_where_the_migration_keeps_its_records_is_never_followed[.analytics/migration]": "pass",
+    "test_a_link_where_the_migration_keeps_its_records_is_never_followed[migration_dir]": "pass",
+    "test_a_link_where_the_migration_keeps_its_records_is_never_followed[ledger]": "pass"
+   },
+   "a link planted at the migration's own temporary names (review)": {
+    "test_a_link_planted_at_the_migration_s_own_temporary_names_is_never_written_through": "pass"
+   },
+   "a folder of the plan removed after the source check (fix check)": {
+    "test_a_folder_removed_after_the_source_check_is_refused": "pass"
+   },
+   "a marker binding another migration's report or mapping, called again (6.9, review and fix check)": {
+    "test_a_marker_naming_another_migration_s_report_is_refused_and_not_read[report_path]": "pass",
+    "test_a_marker_naming_another_migration_s_report_is_refused_and_not_read[report_bytes]": "pass",
+    "test_a_marker_naming_another_migration_s_report_is_refused_and_not_read[mapping_bytes]": "pass"
+   }
+  }
+ },
+ "concurrency": {
+  "T5 a source changed under the copy": {
+   "test_a_source_changed_under_the_copy_fails_without_a_marker[copied-telemetry]": "pass",
+   "test_a_source_changed_under_the_copy_fails_without_a_marker[copied-added]": "pass",
+   "test_a_source_changed_under_the_copy_fails_without_a_marker[copied-removed]": "pass",
+   "test_a_source_changed_under_the_copy_fails_without_a_marker[rechecking-script]": "pass"
+  },
+  "T5 an older kit's journal write waits and is counted after": {
+   "test_an_older_kit_s_journal_write_waits_for_the_migration_and_is_counted_after": "pass"
+  },
+  "T7 one migration a destination, none while a run holds the source": {
+   "test_one_migration_a_destination_and_none_while_a_run_holds_the_source": "pass"
+  },
+  "T15 the ports across processes": {
+   "test_trying_a_lock_another_process_holds_is_busy_at_once[posix-exclusive]": "pass",
+   "test_trying_a_lock_another_process_holds_is_busy_at_once[posix-try_exclusive]": "pass",
+   "test_trying_a_lock_another_process_holds_is_busy_at_once[recording-exclusive]": "skip",
+   "test_trying_a_lock_another_process_holds_is_busy_at_once[recording-try_exclusive]": "skip",
+   "test_trying_a_lock_another_process_holds_is_busy_at_once[windows-exclusive]": "skip",
+   "test_trying_a_lock_another_process_holds_is_busy_at_once[windows-try_exclusive]": "skip"
+  },
+  "T19 a name taken meanwhile": {
+   "test_a_name_taken_meanwhile_is_never_overwritten[data/raw/big.parquet]": "pass",
+   "test_a_name_taken_meanwhile_is_never_overwritten[analytics.json]": "pass"
+  },
+  "a link made where a planned folder goes": {
+   "test_a_link_made_where_a_planned_folder_goes_is_not_followed": "pass"
+  },
+  "S5 a change in the source's list (an outside link removed or led elsewhere, a folder added)": {
+   "test_a_change_in_the_source_s_list_under_the_copy_is_source_changed[outside_link_removed]": "pass",
+   "test_a_change_in_the_source_s_list_under_the_copy_is_source_changed[empty_folder_added]": "pass",
+   "test_a_change_in_the_source_s_list_under_the_copy_is_source_changed[link_retargeted]": "pass"
+  }
+ },
+ "reader_comparison": {
+  "what": "T11: core.read_model on the source and on the destination (with its mapping), every judgment with the roots' spellings normalized: references, runs, record states, unsupported, damaged, lineage, imports and each run input's producer",
+  "unit": {
+   "test_the_reader_reads_a_migrated_project_as_it_read_its_source[symlink]": "pass",
+   "test_the_mapping_s_rules_are_by_path_components": "pass",
+   "test_the_reader_knows_the_migration_family": "pass",
+   "test_what_the_mapping_is_enters_the_read_s_revision": "pass",
+   "test_a_marker_report_and_mapping_of_two_migrations_are_not_read_together": "pass"
+  },
+  "S": {
+   "counts": {
+    "damaged": 4,
+    "damaged_files": 0,
+    "imports": 5,
+    "lineage": 39,
+    "producers": 39,
+    "records": 252,
+    "references": 477,
+    "runs": 30,
+    "unsupported": 0
+   },
+   "equal": {
+    "damaged": true,
+    "damaged_files": true,
+    "imports": true,
+    "lineage": true,
+    "producers": true,
+    "records": true,
+    "references": true,
+    "runs": true,
+    "unsupported": true
+   },
+   "differences": {},
+   "seconds": 0.01,
+   "status_migration": {
+    "id": "20261008T132451Z-fdde9541",
+    "report": ".analytics/migration/20261008T132451Z-fdde9541/report.json",
+    "applied": true,
+    "mapping": ".analytics/migration/20261008T132451Z-fdde9541/mapping.json"
+   }
+  },
+  "M": {
+   "counts": {
+    "damaged": 4,
+    "damaged_files": 0,
+    "imports": 20,
+    "lineage": 483,
+    "producers": 483,
+    "records": 9633,
+    "references": 15000,
+    "runs": 300,
+    "unsupported": 0
+   },
+   "equal": {
+    "damaged": true,
+    "damaged_files": true,
+    "imports": true,
+    "lineage": true,
+    "producers": true,
+    "records": true,
+    "references": true,
+    "runs": true,
+    "unsupported": true
+   },
+   "differences": {},
+   "seconds": 0.34,
+   "status_migration": {
+    "id": "20261008T132804Z-4652294b",
+    "report": ".analytics/migration/20261008T132804Z-4652294b/report.json",
+    "applied": true,
+    "mapping": ".analytics/migration/20261008T132804Z-4652294b/mapping.json"
+   }
+  }
+ },
+ "new_tests_on_base": {
+  "what": "the head's new and changed test files (tests/ at the head) with src, extension, bin, tools, pyproject.toml and uv.lock of fbd12e1 (= c918381's code, PR #80's head; the base this PR's code goes on)",
+  "command": "pytest tests/test_migration.py tests/test_migration_reader.py tests/test_layers.py, the changed cases of test_marker_gate, the new port cases of test_contracts (and the unchanged pid cases the -k let in), test_platform's publish_new case, --continue-on-collection-errors",
+  "file": "repo.xml",
+  "counts": {
+   "fail": 70,
+   "pass": 24,
+   "skip": 23
+  },
+  "collection_errors": [
+   "tests/test_migration.py (no aelix_analytics.migration)",
+   "tests/test_migration_reader.py (no aelix_analytics.migration)"
+  ],
+  "passed": [
+   "tests.test_contracts::test_a_lock_file_that_cannot_be_written_is_tried_through_reading[recording]",
+   "tests.test_contracts::test_a_value_that_cannot_be_a_pid_is_not_alive[posix--1]",
+   "tests.test_contracts::test_a_value_that_cannot_be_a_pid_is_not_alive[posix-0]",
+   "tests.test_contracts::test_a_value_that_cannot_be_a_pid_is_not_alive[posix-1099511627776]",
+   "tests.test_contracts::test_a_value_that_cannot_be_a_pid_is_not_alive[posix-None]",
+   "tests.test_contracts::test_a_value_that_cannot_be_a_pid_is_not_alive[posix-True]",
+   "tests.test_contracts::test_a_value_that_cannot_be_a_pid_is_not_alive[posix-x]",
+   "tests.test_contracts::test_a_value_that_cannot_be_a_pid_is_not_alive[recording--1]",
+   "tests.test_contracts::test_a_value_that_cannot_be_a_pid_is_not_alive[recording-0]",
+   "tests.test_contracts::test_a_value_that_cannot_be_a_pid_is_not_alive[recording-1099511627776]",
+   "tests.test_contracts::test_a_value_that_cannot_be_a_pid_is_not_alive[recording-None]",
+   "tests.test_contracts::test_a_value_that_cannot_be_a_pid_is_not_alive[recording-True]",
+   "tests.test_contracts::test_a_value_that_cannot_be_a_pid_is_not_alive[recording-x]",
+   "tests.test_contracts::test_flushing_writes_through_and_hides_no_error[recording]",
+   "tests.test_contracts::test_publishing_a_new_name_puts_the_bytes_there_and_the_temporary_name_goes[recording]",
+   "tests.test_contracts::test_publishing_never_overwrites_what_is_there[recording-directory]",
+   "tests.test_contracts::test_publishing_never_overwrites_what_is_there[recording-empty file]",
+   "tests.test_contracts::test_publishing_never_overwrites_what_is_there[recording-file]",
+   "tests.test_contracts::test_trying_a_lock_is_free_after_its_body_even_one_that_raised[recording]",
+   "tests.test_contracts::test_trying_a_lock_says_whether_it_made_the_file_and_keeps_its_bytes[recording]",
+   "tests.test_layers::test_a_string_names_a_module_by_its_file_or_its_dotted_name",
+   "tests.test_layers::test_every_allowlist_entry_says_why_and_when_it_goes",
+   "tests.test_layers::test_the_reader_sees_a_loader_under_another_name_and_each_function_s_strings",
+   "tests.test_layers::test_the_reader_sees_every_place_an_import_can_be"
+  ],
+  "why_passed": "the port cases of the test adapter (tests/platform_doubles.py is test code, at the head), and cases the -k filter let in that this PR does not change (a pid that cannot be alive, four of the layer check's own parser cases)"
+ },
+ "new_tests_on_previous_head": {
+  "what": "the tests of tests/test_migration.py and tests/test_migration_reader.py at the fix commit, run against the previous head f7faea5's code (src, extension, bin, tools, pyproject.toml, uv.lock of f7faea5; a clone in the run folder, prev/)",
+  "previous_head": "f7faea5019d56d15ae9395a21ba77c3f28044e83",
+  "command": "uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread tests/test_migration.py tests/test_migration_reader.py --junitxml=junit.xml",
+  "junit_sha256": "75f31fb9d8c42833098fdabe8226669718a630e79af3d0a17e4db1194cee5ab6",
+  "counts": {
+   "pass": 110,
+   "skip": 2,
+   "fail": 23
+  },
+  "failed": [
+   "tests.test_migration::test_a_link_where_the_migration_keeps_its_records_is_never_followed[.analytics]",
+   "tests.test_migration::test_a_link_where_the_migration_keeps_its_records_is_never_followed[.analytics/migration]",
+   "tests.test_migration::test_a_link_where_the_migration_keeps_its_records_is_never_followed[migration_dir]",
+   "tests.test_migration::test_a_link_where_the_migration_keeps_its_records_is_never_followed[ledger]",
+   "tests.test_migration::test_a_link_planted_at_the_migration_s_own_temporary_names_is_never_written_through",
+   "tests.test_migration::test_a_source_file_named_like_a_temporary_file_of_the_migration_is_copied[.mig-gitignore-0.part]",
+   "tests.test_migration::test_a_source_file_named_like_a_temporary_file_of_the_migration_is_copied[.analytics-json-0.part]",
+   "tests.test_migration::test_a_temporary_name_something_else_made_first_is_not_this_migration_s",
+   "tests.test_migration::test_a_copy_removed_before_the_verification_is_refused[after_source_checked]",
+   "tests.test_migration::test_a_copy_removed_before_the_verification_is_refused[before_verify]",
+   "tests.test_migration::test_a_change_in_the_source_s_list_under_the_copy_is_source_changed[outside_link_removed]",
+   "tests.test_migration::test_a_change_in_the_source_s_list_under_the_copy_is_source_changed[empty_folder_added]",
+   "tests.test_migration::test_a_change_in_the_source_s_list_under_the_copy_is_source_changed[link_retargeted]",
+   "tests.test_migration::test_a_read_only_folder_cut_while_a_file_of_it_is_copied_resumes",
+   "tests.test_migration::test_a_state_folder_that_is_no_folder_of_its_own_is_refused[inside_link]",
+   "tests.test_migration::test_a_state_folder_that_is_no_folder_of_its_own_is_refused[file]",
+   "tests.test_migration::test_a_state_folder_that_is_no_folder_of_its_own_is_refused[inside_dangling]",
+   "tests.test_migration::test_a_folder_two_outside_links_reach_is_copied_once_and_said_where",
+   "tests.test_migration::test_a_destination_spelled_with_dotdot_after_a_link_is_the_operating_system_s",
+   "tests.test_migration::test_a_file_the_report_binds_that_went_is_made_again_before_the_marker",
+   "tests.test_migration::test_a_marker_naming_another_migration_s_report_is_refused_and_not_read",
+   "tests.test_migration_reader::test_what_the_mapping_is_enters_the_read_s_revision",
+   "tests.test_migration_reader::test_a_marker_report_and_mapping_of_two_migrations_are_not_read_together"
+  ],
+  "expected": "every test added for the reviews fails there (the previous head's behaviour the reviews found); every test the previous head had passes"
+ },
+ "new_tests_on_fix_check_head": {
+  "what": "the fix-check commit's new and changed cases of tests/test_migration.py, run against the code of 80a0fc9 (the head the fix check read; the run folder's clone head/ at 50bbbdb, whose code files are 80a0fc9's), the new test file copied in and put back after",
+  "previous_head": "80a0fc952953e0f3deb1d38936d6c90ea420722a",
+  "command": "uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread tests/test_migration.py::test_a_marker_naming_another_migration_s_report_is_refused_and_not_read tests/test_migration.py::test_a_folder_removed_after_the_source_check_is_refused --junitxml=new-tests-on-prev.xml",
+  "junit_sha256": "16df0e33ef69c01df5ab695a1a8c00562872d4047abb91376addcb0100c8f368",
+  "counts": {
+   "pass": 1,
+   "fail": 3
+  },
+  "failed": [
+   "tests.test_migration::test_a_marker_naming_another_migration_s_report_is_refused_and_not_read[report_bytes]",
+   "tests.test_migration::test_a_marker_naming_another_migration_s_report_is_refused_and_not_read[mapping_bytes]",
+   "tests.test_migration::test_a_folder_removed_after_the_source_check_is_refused"
+  ],
+  "passed": [
+   "tests.test_migration::test_a_marker_naming_another_migration_s_report_is_refused_and_not_read[report_path]"
+  ],
+  "expected": "the three cases added for the fix check fail there (a report's bytes or a mapping's bytes of another migration bound in the marker's own directory, and a folder of the plan removed after the source check); the case the reviews added (report_path) passes"
+ },
+ "previous_measurement": {
+  "what": "this PR's first measurement, of code 2b6eabb (the record as commit f7faea5 holds it); the reviews' fixes changed migration.py, core.py and relations.py, so every value here was measured again",
+  "record_at": "f7faea5019d56d15ae9395a21ba77c3f28044e83:docs/verification/2026-10-08-issue-13-migration.json",
+  "code_manifest_sha256": "ae4c9bfe499358fb1427c6a3423268424a4c7038ccfee49d655e8a7da9332cf1",
+  "suite": {
+   "skip": 92,
+   "pass": 1621
+  },
+  "phases_min": {
+   "S": {
+    "start_to_locked_ms": 0,
+    "plan_ms": 12,
+    "copy_ms": 946,
+    "recheck_ms": 22,
+    "verify_ms": 13,
+    "transform_ms": 8,
+    "report_ms": 15,
+    "flush_ms": 2,
+    "marker_ms": 4,
+    "trust_ms": 0,
+    "source_lock_held_ms": 980,
+    "total_ms": 1025,
+    "ledger_lines": 469
+   },
+   "M": {
+    "start_to_locked_ms": 0,
+    "plan_ms": 52,
+    "copy_ms": 8700,
+    "recheck_ms": 278,
+    "verify_ms": 193,
+    "transform_ms": 18,
+    "report_ms": 22,
+    "flush_ms": 18,
+    "marker_ms": 9,
+    "trust_ms": 0,
+    "source_lock_held_ms": 9030,
+    "total_ms": 9315,
+    "ledger_lines": 4085
+   }
+  },
+  "max_rss_bytes": {
+   "S": 29179904,
+   "M": 69812224
+  }
+ },
+ "review_fix_measurement": {
+  "what": "this PR's second measurement, of the code of 80a0fc9 `fix: answer the reviews of PR 2 (Issue #13)` (measured as its provisional 50bbbdb; the record as commit 80a0fc9 holds it); the fix check changed migration.py (two more checks), so every value here was measured again",
+  "record_at": "80a0fc952953e0f3deb1d38936d6c90ea420722a:docs/verification/2026-10-08-issue-13-migration.json",
+  "code_manifest_sha256": "85fa7b8352501a9c1318d3c579f28fbfba5743f60c9a4573fd03d9bde231d98c",
+  "suite": {
+   "skip": 92,
+   "pass": 1644
+  },
+  "phases_min": {
+   "S": {
+    "start_to_locked_ms": 1,
+    "plan_ms": 9,
+    "copy_ms": 930,
+    "recheck_ms": 21,
+    "verify_ms": 11,
+    "transform_ms": 9,
+    "report_ms": 20,
+    "flush_ms": 2,
+    "marker_ms": 4,
+    "trust_ms": 1,
+    "source_lock_held_ms": 962,
+    "total_ms": 1011,
+    "ledger_lines": 469
+   },
+   "M": {
+    "start_to_locked_ms": 0,
+    "plan_ms": 48,
+    "copy_ms": 8442,
+    "recheck_ms": 267,
+    "verify_ms": 176,
+    "transform_ms": 21,
+    "report_ms": 27,
+    "flush_ms": 17,
+    "marker_ms": 8,
+    "trust_ms": 0,
+    "source_lock_held_ms": 8763,
+    "total_ms": 9030,
+    "ledger_lines": 4085
+   }
+  },
+  "max_rss_bytes": {
+   "S": 30294016,
+   "M": 74137600
+  },
+  "fault_observed_rows_same": true,
+  "fault_observed_rows": 37
+ },
+ "fix_check_measurement": {
+  "what": "this PR's third measurement, of the code of 84f3970 `fix: answer the fix check of PR 2 (Issue #13)` (measured as its provisional 2de7c81; the record as commits 84f3970 and 53d1bdf holds it); the Windows CI fix changed migration.py, core.py and _platform.py, so every value here was measured again",
+  "record_at": "53d1bdf6354e4b19ebaa52de75d6d291f792e89e:docs/verification/2026-10-08-issue-13-migration.json",
+  "code_manifest_sha256": "fb94829c844535b7692e51012e5db98a3bad4c071a19c9e207c017df09cc2d1a",
+  "suite": {
+   "skip": 92,
+   "pass": 1647
+  },
+  "phases_min": {
+   "S": {
+    "start_to_locked_ms": 0,
+    "plan_ms": 13,
+    "copy_ms": 977,
+    "recheck_ms": 23,
+    "verify_ms": 12,
+    "transform_ms": 13,
+    "report_ms": 19,
+    "flush_ms": 2,
+    "marker_ms": 5,
+    "trust_ms": 0,
+    "source_lock_held_ms": 1013,
+    "total_ms": 1065,
+    "ledger_lines": 469
+   },
+   "M": {
+    "start_to_locked_ms": 1,
+    "plan_ms": 51,
+    "copy_ms": 8400,
+    "recheck_ms": 256,
+    "verify_ms": 165,
+    "transform_ms": 20,
+    "report_ms": 27,
+    "flush_ms": 18,
+    "marker_ms": 7,
+    "trust_ms": 0,
+    "source_lock_held_ms": 8721,
+    "total_ms": 8959,
+    "ledger_lines": 4085
+   }
+  },
+  "max_rss_bytes": {
+   "S": 29638656,
+   "M": 72318976
+  },
+  "fault_observed_rows_same": true,
+  "fault_observed_rows": 37
+ },
+ "before": {
+  "record": "docs/verification/2026-10-08-issue-13-gate.json",
+  "measured_revision": "8e70acdbd15a0603eaae4788e02abd9f960bc180",
+  "note": "the record of #13 PR 1 (the marker gate); this one measures the migration engine, which had no code before"
+ },
+ "not_run": [
+  "a byte range another program locked (LockFileEx), met while a source file is read on Windows: the C runtime's read reports it by errno alone, so it reads `permission`, not `in_use` (from the code)",
+  "a power loss after the marker (durability is a goal, design 6.4); Windows' directory flush",
+  "a destination on FAT or exFAT (no links): only a port that refuses to link was stood for. There the marker is written directly too (design D19): cut after it is made, before or after its `direct` line, an empty or partial analytics.json is left and calling again is marker_invalid (design 6.9 judges the marker first), though design 6.10 would resume a `direct` file whose identity its line names. Left an owner question (S2's atomic publication against D19's direct write, at the marker): the review's recommendation is a create-if-absent rename (Linux renameat2 RENAME_NOREPLACE, macOS renamex_np RENAME_EXCL) or a refusal before the marker on such a file system",
+  "a network file system (flock between clients), a Linux casefold directory, Windows' per-directory case sensitivity inherited by new folders",
+  "a source with names Windows reserves migrated on Windows (made on Linux): only the warning on POSIX",
+  "a destination on another drive (Windows) or another volume",
+  "the command `analytics migrate` and its launchers (PR 3); a real aelix session",
+  "a read-only mounted source volume: a read-only folder tree stood for it (POSIX, not as root)",
+  "the M scale's reader comparison against the source's Workspace pages (the reader's judgments were compared, not the HTML)"
+ ]
+}

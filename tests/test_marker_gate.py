@@ -26,7 +26,8 @@ from aelix_analytics import _platform, core, writer
 
 ORIGIN = core.Origin("test", "sdk")
 TEMPLATE = KIT / "aelix_analytics" / "template"
-GATE_CODES = {"no_project", "project_too_new", "marker_invalid", "marker_conflict"}
+GATE_CODES = {"no_project", "project_too_new", "marker_invalid", "marker_conflict",
+              "migration_incomplete"}
 
 NEW = {"schema": "analytics.project/2", "project_id": "prj_7f3a9c2e41d84b06", "title": "Regional revenue",
        "created_at": "2026-09-01T09:00:00.000+09:00", "min_writer_version": "0.7.0",
@@ -281,17 +282,48 @@ def test_the_nearest_marker_decides_whichever_it_is(tmp_path):
     assert core.find_project(both / "x") == both
 
 
-def test_a_markerless_migration_destination_does_not_stop_the_search_yet(tmp_path):
-    """design 4.3: from PR 2 the search also stops at a directory holding `.analytics/migration/`
-    without a marker (`incomplete`); in this PR it does not, and such a directory with no project
-    above it is no project (no_project)."""
+@pytest.mark.parametrize("record", ["migration directory", "migration lock", "both"])
+def test_a_markerless_migration_destination_stops_the_search_and_is_refused(tmp_path, record):
+    """design 4.3 and 5.5 (PR 2): with no marker, `.analytics/migration/` or its lock
+    `.analytics/migration.lock` makes a directory a migration's destination that has not committed
+    (`incomplete`): the search stops there, as at a marker, and every write and every read is
+    migration_incomplete, its details saying how far each migration's ledger went; a side write is
+    skipped. Nothing is written. A marker wins over the record (the committed destination keeps
+    both)."""
     above = tmp_path / "p"
-    (above / "dest" / ".analytics" / "migration").mkdir(parents=True)
+    dest = above / "dest"
+    (dest / "deeper").mkdir(parents=True)
     write_marker(above, "lab.json", {"schema": "lab.project/1"})
-    assert core.find_project(above / "dest") == above
+    if record != "migration lock":
+        ledger = dest / ".analytics" / "migration" / "20261008T010203Z-a1b2c3d4" / "progress.jsonl"
+        ledger.parent.mkdir(parents=True)
+        ledger.write_bytes(b'{"step": "start", "at": "x", "source": {"path": "/src"}}\n'
+                           b'{"step": "probed", "at": "x"}\n{"step": "plan", "at')
+    if record != "migration directory":
+        (dest / ".analytics").mkdir(exist_ok=True)
+        (dest / ".analytics" / "migration.lock").write_bytes(b"")
+    before = snapshot(dest)
+    assert core.find_project(dest / "deeper") == dest
+    judged = writer.marker_state(dest)
+    assert (judged.state, judged.marker, judged.format) == ("incomplete", None, None)
+    for call in (lambda: core.admit(dest, "record"), lambda: core.readable(dest, "status")):
+        with pytest.raises(core.AnalyticsError) as caught:
+            call()
+        assert caught.value.code == "migration_incomplete"
+        details = caught.value.details
+        assert details["lock"] is (record != "migration directory")
+        if record == "migration lock":
+            assert details["migrations"] == []
+        else:
+            assert details["migrations"] == [{"id": "20261008T010203Z-a1b2c3d4", "step": "probed",
+                                              "source": "/src"}]
+    assert core.admit(dest, "a side write", side=True) is None
+    assert snapshot(dest) == before
+    write_marker(dest, "analytics.json", NEW)
+    assert writer.marker_state(dest).state == "current"
     lone = tmp_path / "lone"
-    (lone / ".analytics" / "migration").mkdir(parents=True)
-    assert writer.marker_state(lone).state == "none"
+    (lone / ".analytics").mkdir(parents=True)
+    assert writer.marker_state(lone).state == "none", "a state directory alone is no record"
 
 
 # --- the entry-point matrix (T8): the kit's command line ---------------------------------------
@@ -386,8 +418,8 @@ WRITABLE_COLUMNS = ("lab_project_1", "lab_unparsable")
 REFUSED = {"lab_project_9": "project_too_new", "analytics_2": "project_too_new",
            "analytics_2_too_old": "project_too_new", "analytics_3": "project_too_new",
            "analytics_invalid": "marker_invalid", "both": "marker_conflict", "none": "no_project",
-           "incomplete": "no_project", "nested": "project_too_new"}
-READ_REFUSED = {"both": "marker_conflict", "none": "no_project", "incomplete": "no_project"}
+           "incomplete": "migration_incomplete", "nested": "project_too_new"}
+READ_REFUSED = {"both": "marker_conflict", "none": "no_project", "incomplete": "migration_incomplete"}
 
 WRITES = {
     "record": ("record", "finding", "a finding"),

@@ -325,6 +325,41 @@ def test_windows_replace_waits_out_a_reader_and_nothing_else(monkeypatch, winerr
         assert len(calls) == 1
 
 
+@pytest.mark.parametrize("winerror, retried", [(5, True), (32, True), (33, True), (2, False)])
+def test_windows_publish_new_waits_out_a_reader_and_never_overwrites(monkeypatch, winerror, retried):
+    """Issue #13 PR 2 (design 6.12): publish_new renames without replacing; a sharing violation (an
+    antivirus or an indexer that opened the new file for a moment) is retried within the replace's
+    budget, anything else raised at once, and a name that is there is FileExistsError at once."""
+    calls = []
+
+    def rename(src, dst):
+        calls.append(1)
+        if len(calls) < 3:
+            error = PermissionError(13, "refused")
+            error.winerror = winerror
+            raise error
+
+    monkeypatch.setattr(_platform.os, "rename", rename)
+    monkeypatch.setattr(_platform.time, "sleep", lambda seconds: None)
+    if retried:
+        _platform.WindowsAtomicFiles().publish_new("a", "b")
+        assert len(calls) == 3
+    else:
+        with pytest.raises(PermissionError):
+            _platform.WindowsAtomicFiles().publish_new("a", "b")
+        assert len(calls) == 1
+
+    def there(src, dst):
+        calls.append(2)
+        raise FileExistsError(17, "exists")
+
+    calls.clear()
+    monkeypatch.setattr(_platform.os, "rename", there)
+    with pytest.raises(FileExistsError):
+        _platform.WindowsAtomicFiles().publish_new("a", "b")
+    assert calls == [2]
+
+
 @pytest.mark.parametrize("exit_code, reported, fallback", [(0, False, False), (1, True, True),
                                                               (255, True, True),
                                                               (128, True, False)])
@@ -2850,6 +2885,8 @@ def test_loading_the_kit_pulls_no_analysis_library_into_the_host_process(monkeyp
     code = (
         "import importlib.util, sys, types\n"
         f"sys.path.insert(0, {str(PACK / 'tests')!r})\n"
+        "imported = []\n"
+        "sys.addaudithook(lambda event, args: imported.append(args[0]) if event == 'import' else None)\n"
         "stub = types.ModuleType\n"
         "class Any:\n"
         "    def __init__(self, *a, **k): self.__dict__.update(k)\n"
@@ -2868,6 +2905,8 @@ def test_loading_the_kit_pulls_no_analysis_library_into_the_host_process(monkeyp
         "print('LOADED:' + ','.join(loaded))\n"
         "print('KIT_OK:' + mod.core.SCHEMA_RUN)\n"
         "print('OURS:' + ','.join(sorted(n for n in sys.modules if n.split('.')[0] == 'aelix_analytics')))\n"
+        "print('RUNTIME:' + ','.join(sorted({n.rsplit('.', 1)[-1] for n in imported\n"
+        "                                    if n.startswith('aelix_analytics_runtime') and '.' in n})))\n"
     )
     proc = subprocess.run([sys.executable, "-c", code], capture_output=True, timeout=120,
                           env=kit_env(), **_platform.text_kwargs())
@@ -2878,6 +2917,11 @@ def test_loading_the_kit_pulls_no_analysis_library_into_the_host_process(monkeyp
     # from its directory under the synthetic name (Issue #9: the kit is now the package
     # aelix_analytics).
     assert "OURS:" in proc.stdout.splitlines(), proc.stdout
+    # What the synthetic package imported (the audit hook's `import` events; the package itself is
+    # gone from sys.modules after the load; core itself is loaded by its file): the three modules
+    # core imports, never the migration, which core does not import (Issue #13 PR 2, design 3.2).
+    runtime = next(line for line in proc.stdout.splitlines() if line.startswith("RUNTIME:"))
+    assert set(runtime[len("RUNTIME:"):].split(",")) == {"_platform", "relations", "writer"}, runtime
 
 
 def test_importing_the_package_imports_nothing_of_the_kit():

@@ -31,11 +31,13 @@ record of a dead process, so its `alive` is the injected implementation's.
 from __future__ import annotations
 
 import ast
+import errno
 import inspect
 import json
 import os
 import re
 import signal
+import stat
 import textwrap
 import threading
 import time
@@ -56,6 +58,11 @@ TEMPLATE = PACK / "src" / "aelix_analytics" / "template"
 BETWEEN_PROCESSES = "excludes other processes"
 SEES_PROCESSES = "sees running processes"
 INTERRUPTS = "interrupts a region"
+# publish_new makes the new name by a hard link, so a failing link is the file system's (POSIX).
+LINKS = "publishes by a link"
+# A folder's permissions stop a file being created in it (POSIX, as a user other than root; Windows'
+# read-only attribute on a folder does not).
+FOLDER_PERMISSIONS = "honours a folder's permissions"
 
 
 @dataclass(frozen=True)
@@ -68,10 +75,12 @@ class Implementation:
 
 
 REAL = frozenset({BETWEEN_PROCESSES, SEES_PROCESSES, INTERRUPTS})
+_NOT_ROOT = os.name != "nt" and os.geteuid() != 0
 IMPLEMENTATIONS: dict[str, Implementation] = {
     impl.name: impl for impl in (
         Implementation("posix", lambda: _platform.detect("posix"), os.name != "nt",
-                       "the POSIX implementation runs on the Linux and macOS legs", REAL),
+                       "the POSIX implementation runs on the Linux and macOS legs",
+                       REAL | {LINKS} | ({FOLDER_PERMISSIONS} if _NOT_ROOT else set())),
         Implementation("windows", lambda: _platform.detect("windows"), os.name == "nt",
                        "the Windows implementation runs on the Windows leg", REAL),
         # In this process only: its lock excludes nothing outside it, alive is False for every pid,
@@ -254,6 +263,143 @@ def test_a_lock_excludes_another_process(implementation, tmp_path):
         holder.join(20)
 
 
+# --- FileLocks.try_exclusive (Issue #13 PR 2, design 6.12, T15) ---------------------------------------
+
+def test_trying_a_lock_says_whether_it_made_the_file_and_keeps_its_bytes(implementation, tmp_path):
+    locks = implementation.make().locks
+    lock = tmp_path / "run.lock"
+    with locks.try_exclusive(lock) as created:
+        assert created is True and lock.is_file()
+    lock.write_bytes(b"held by an older kit")
+    with locks.try_exclusive(lock) as created:
+        assert created is False
+    with locks.try_exclusive(str(lock)) as created:
+        assert created is False
+    assert lock.read_bytes() == b"held by an older kit"
+
+
+def test_trying_a_lock_never_makes_its_directory(implementation, tmp_path):
+    locks = implementation.make().locks
+    with pytest.raises(_platform.LockUnavailable):
+        with locks.try_exclusive(tmp_path / ".lab" / "lock"):
+            raise AssertionError("taken without its directory")
+    assert not (tmp_path / ".lab").exists()
+
+
+def test_trying_a_lock_is_free_after_its_body_even_one_that_raised(implementation, tmp_path):
+    locks = implementation.make().locks
+    lock = tmp_path / "lock"
+
+    class Stop(Exception):
+        pass
+
+    with pytest.raises(Stop):
+        with locks.try_exclusive(lock):
+            raise Stop
+    with locks.try_exclusive(lock):
+        pass
+    assert _within(10, lambda: _take(locks, lock)), "exclusive waited on a lock let go"
+
+
+def _take(locks, lock) -> None:
+    with locks.exclusive(lock):
+        pass
+
+
+def test_a_lock_held_is_busy_to_a_try_in_the_same_process(implementation, tmp_path):
+    """Not re-entrant, like `exclusive`: a second try while the first is held is LockBusy (the stand-in
+    sees its own holds; a real lock is held per open file, so another descriptor is refused)."""
+    locks = implementation.make().locks
+    lock = tmp_path / "lock"
+    with locks.try_exclusive(lock):
+        started = time.perf_counter()
+        with pytest.raises(_platform.LockBusy):
+            with locks.try_exclusive(lock):
+                raise AssertionError("taken twice")
+        assert time.perf_counter() - started < 5, "the try waited"
+
+
+def test_a_lock_file_that_cannot_be_written_is_tried_through_reading(implementation, tmp_path):
+    """A read-only lock file (a read-only source, OQ15) is opened for reading and still locks."""
+    locks = implementation.make().locks
+    lock = tmp_path / "lock"
+    lock.write_bytes(b"")
+    os.chmod(lock, stat.S_IREAD)
+    try:
+        with locks.try_exclusive(lock) as created:
+            assert created is False
+    finally:
+        os.chmod(lock, stat.S_IREAD | stat.S_IWRITE)
+
+
+def test_a_lock_file_that_cannot_be_created_is_unavailable(implementation, tmp_path):
+    """A missing lock file in a folder where nothing can be created (a read-only source, OQ15) is
+    LockUnavailable, and nothing is made there."""
+    needs(implementation, FOLDER_PERMISSIONS)
+    locks = implementation.make().locks
+    folder = tmp_path / "read-only"
+    folder.mkdir()
+    os.chmod(folder, stat.S_IREAD | stat.S_IEXEC)
+    try:
+        with pytest.raises(_platform.LockUnavailable):
+            with locks.try_exclusive(folder / "lock"):
+                raise AssertionError("taken where nothing can be created")
+        assert not (folder / "lock").exists()
+    finally:
+        os.chmod(folder, stat.S_IRWXU)
+
+
+def _hold_by(name: str, how: str, lock: str, started, release) -> None:
+    locks = _platform.detect(name).locks
+    taking = locks.exclusive(Path(lock)) if how == "exclusive" else locks.try_exclusive(Path(lock))
+    with taking:
+        started.set()
+        release.wait(30)
+
+
+@pytest.mark.parametrize("held_by", ["exclusive", "try_exclusive"])
+def test_trying_a_lock_another_process_holds_is_busy_at_once(implementation, tmp_path, held_by):
+    """The same file and byte range as `exclusive` (the older kit's lock), so the two exclude each
+    other across processes: a try while another process holds it is LockBusy without waiting, and
+    `exclusive` waits while another process holds it by a try."""
+    needs(implementation, BETWEEN_PROCESSES)
+    import multiprocessing  # noqa: PLC0415 - only this case starts another process
+
+    lock = tmp_path / "lock"
+    started, release = multiprocessing.Event(), multiprocessing.Event()
+    holder = multiprocessing.Process(target=_hold_by, args=(implementation.name, held_by, str(lock),
+                                                            started, release))
+    holder.start()
+    try:
+        assert started.wait(30), "the other process never took the lock"
+        locks = implementation.make().locks
+        began = time.perf_counter()
+        with pytest.raises(_platform.LockBusy):
+            with locks.try_exclusive(lock):
+                raise AssertionError("taken while another process held it")
+        assert time.perf_counter() - began < 5, "the try waited"
+        acquired = threading.Event()
+
+        def take():
+            with locks.exclusive(lock):
+                acquired.set()
+
+        taker = threading.Thread(target=take, daemon=True)
+        taker.start()
+        assert not acquired.wait(0.5), "exclusive did not wait for the other process"
+        release.set()
+        assert acquired.wait(20), "the lock was not free once the other process let it go"
+        # The thread lets the lock go when its `with` ends, after `acquired` is set; on Windows a byte
+        # range one handle of this process holds also refuses another handle of it, so wait for that.
+        taker.join(20)
+        assert not taker.is_alive(), "the thread never let the lock go"
+    finally:
+        release.set()
+        holder.join(20)
+    with implementation.make().locks.try_exclusive(lock) as created:
+        assert created is False
+
+
 # --- AtomicFiles -------------------------------------------------------------------------------------
 
 def test_a_replacement_puts_the_new_bytes_in_place(implementation, tmp_path):
@@ -273,6 +419,78 @@ def test_a_replacement_that_cannot_happen_is_raised_not_lost(implementation, tmp
     with pytest.raises(OSError):
         files.replace(tmp_path / "absent.tmp", tmp_path / "record.json")
     assert not (tmp_path / "record.json").exists()
+
+
+# --- AtomicFiles.publish_new, flush_handle, flush_dir (Issue #13 PR 2, design 6.12, T15) ------------
+
+def test_publishing_a_new_name_puts_the_bytes_there_and_the_temporary_name_goes(implementation,
+                                                                                tmp_path):
+    files = implementation.make().files
+    src, dst = tmp_path / ".mig-0-0.part", tmp_path / "data.csv"
+    src.write_bytes(b"a,b\r\n1,2\r\n")
+    files.publish_new(src, dst)
+    assert dst.read_bytes() == b"a,b\r\n1,2\r\n" and not src.exists()
+    src.write_bytes(b"x")
+    files.publish_new(str(src), str(tmp_path / "other.csv"))
+    assert (tmp_path / "other.csv").read_bytes() == b"x" and not src.exists()
+
+
+@pytest.mark.parametrize("there", ["file", "directory", "empty file"])
+def test_publishing_never_overwrites_what_is_there(implementation, tmp_path, there):
+    """design 6.4 (M5): the name taken meanwhile by someone else's file keeps its bytes, and the
+    temporary file stays for the ledger to name."""
+    files = implementation.make().files
+    src, dst = tmp_path / ".mig-0-0.part", tmp_path / "report.csv"
+    src.write_bytes(b"the copy")
+    if there == "directory":
+        dst.mkdir()
+    else:
+        dst.write_bytes(b"" if there == "empty file" else b"a person's file")
+    with pytest.raises(OSError) as raised:
+        files.publish_new(src, dst)
+    assert isinstance(raised.value, FileExistsError) or there == "directory", raised.value
+    assert src.read_bytes() == b"the copy"
+    if there == "directory":
+        assert dst.is_dir() and not any(dst.iterdir())
+    else:
+        assert dst.read_bytes() == (b"" if there == "empty file" else b"a person's file")
+
+
+def test_a_file_system_without_links_is_told_and_nothing_changes(implementation, tmp_path, arming):
+    """FAT and exFAT give no second name (not run on a real one): publish_new says so
+    (LinkUnsupported) and leaves both names as they were, for the caller's direct write."""
+    bundle = implementation.make()
+    if implementation.name == "recording":
+        bundle.files.links = False
+    else:
+        needs(implementation, LINKS)
+
+        def no_link(*_args, **_kwargs):
+            raise OSError(errno.EPERM, "Operation not permitted")
+
+        arming.setattr(_platform.os, "link", no_link)
+    src, dst = tmp_path / ".mig-0-0.part", tmp_path / "x.parquet"
+    src.write_bytes(b"bytes")
+    with pytest.raises(_platform.LinkUnsupported):
+        bundle.files.publish_new(src, dst)
+    assert src.read_bytes() == b"bytes" and not dst.exists()
+
+
+def test_flushing_writes_through_and_hides_no_error(implementation, tmp_path):
+    files = implementation.make().files
+    path = tmp_path / ".mig-0-0.part"
+    with open(path, "xb") as fh:
+        fh.write(b"bytes")
+        files.flush_handle(fh)
+        assert path.read_bytes() == b"bytes"
+    with pytest.raises(ValueError):
+        files.flush_handle(fh)  # closed
+    files.flush_dir(tmp_path)
+    files.flush_dir(str(tmp_path))
+    with pytest.raises(OSError):
+        files.flush_dir(tmp_path / "absent")
+    with pytest.raises(OSError):
+        files.flush_dir(path)  # a file is not a directory
 
 
 # --- ProcessControl ----------------------------------------------------------------------------------
