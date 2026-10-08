@@ -47,6 +47,21 @@ class Interrupted(BaseException):
     catches `Exception` freely and must not be able to swallow its own cancellation."""
 
 
+class LockBusy(OSError):
+    """`FileLocks.try_exclusive`: another holder has the lock (contention), and nothing waited."""
+
+
+class LockUnavailable(OSError):
+    """`FileLocks.try_exclusive`: the lock could not be taken for a reason other than contention —
+    its directory is missing (it is not made), or the lock file can be neither created nor opened (a
+    read-only file system or folder). The operating system's error is its cause."""
+
+
+class LinkUnsupported(OSError):
+    """`AtomicFiles.publish_new`: the file system cannot give a file a second name, so the
+    create-if-absent publication by a link cannot be made there; nothing was changed."""
+
+
 # --- ports ----------------------------------------------------------------------------------------
 
 
@@ -56,9 +71,18 @@ class FileLocks(Protocol):
     `exclusive` blocks until the lock is free, with no timeout. It creates the lock file if needed
     and never truncates it. It is **not re-entrant**: a process that already holds the lock must
     not ask for it again. Release happens when the body ends; a process that dies releases it
-    through the operating system. Contention waits; any other operating-system failure is raised."""
+    through the operating system. Contention waits; any other operating-system failure is raised.
+
+    `try_exclusive` takes the same lock — the same file and the same byte range, so it and
+    `exclusive` exclude each other across processes — without waiting (Issue #13, design 6.12): the
+    body runs holding it, and the context manager gives whether this call created the lock file.
+    Contention raises LockBusy at once. It never makes the lock's directory: a missing directory, or
+    a lock file it can neither create nor open, raises LockUnavailable. A lock file that exists and
+    cannot be opened for writing is opened for reading. It is not re-entrant either."""
 
     def exclusive(self, path: Path) -> contextlib.AbstractContextManager[None]: ...
+
+    def try_exclusive(self, path: Path) -> contextlib.AbstractContextManager[bool]: ...
 
 
 class AtomicFiles(Protocol):
@@ -69,9 +93,25 @@ class AtomicFiles(Protocol):
     replaced may instead be refused, and `core.read_json` then reads the record as missing (reasoned,
     not run; docs/CONTRACTS.md G). It is not a transaction — a crash between writing the temporary
     file and replacing leaves the temporary file behind. An implementation may retry a documented,
-    transient refusal, but it raises the last failure rather than losing the write."""
+    transient refusal, but it raises the last failure rather than losing the write.
+
+    `publish_new` gives `src` the name `dst` only when nothing is at `dst`, atomically: an entry
+    already there raises FileExistsError and nothing changes — it is never overwritten (Issue #13,
+    design 6.4 and 6.12). On a file system that cannot link a file it raises LinkUnsupported and
+    changes nothing. `src` and `dst` are in the same directory.
+
+    `flush_handle` writes a file's buffered bytes through to the device (a file object open for
+    writing); `flush_dir` does that for a directory's entries where the platform can. Neither hides
+    an error. They are the migration's durable writes before its commit point: a goal, not a
+    guarantee across a power loss (design 6.4)."""
 
     def replace(self, src: Path | str, dst: Path | str) -> None: ...
+
+    def publish_new(self, src: Path | str, dst: Path | str) -> None: ...
+
+    def flush_handle(self, fh) -> None: ...
+
+    def flush_dir(self, path: Path | str) -> None: ...
 
 
 class ProcessControl(Protocol):
@@ -536,10 +576,103 @@ class PosixFileLocks:
             finally:
                 fcntl.flock(fh, fcntl.LOCK_UN)
 
+    @contextlib.contextmanager
+    def try_exclusive(self, path: Path) -> Iterator[bool]:
+        import fcntl  # noqa: PLC0415 - absent on Windows, so it is imported with its user
+
+        fd, created = _open_lock_file(path)
+        try:
+            try:
+                # flock takes a descriptor open for reading too, and it is the lock `exclusive`
+                # takes on the same file (probe on macOS: EAGAIN while another process held it).
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError as exc:
+                if exc.errno in (errno.EWOULDBLOCK, errno.EAGAIN):
+                    raise LockBusy(exc.errno, f"{path} is locked by another holder") from exc
+                raise LockUnavailable(exc.errno, f"{path} cannot be locked: {exc}") from exc
+            try:
+                yield created
+            finally:
+                with contextlib.suppress(OSError):
+                    fcntl.flock(fd, fcntl.LOCK_UN)
+        finally:
+            os.close(fd)
+
+
+# The errors that say a lock file cannot be created, or opened for writing, because of where it is (a
+# read-only file system or folder), not because its directory is missing: it is then opened for
+# reading.
+_READ_ONLY_ERRNOS = frozenset({errno.EACCES, errno.EPERM, errno.EROFS})
+
+
+def _open_lock_file(path) -> tuple[int, bool]:
+    """A descriptor of the lock file `path` and whether this call created it, its directory never
+    made: created exclusively when absent, else opened for writing, else for reading. Every failure
+    is LockUnavailable, the operating system's error its cause."""
+    flags = getattr(os, "O_BINARY", 0) | getattr(os, "O_NOINHERIT", 0)
+    try:
+        return os.open(path, os.O_RDWR | os.O_CREAT | os.O_EXCL | flags, 0o666), True
+    except FileExistsError:
+        pass
+    except OSError as exc:
+        if exc.errno not in _READ_ONLY_ERRNOS or not os.path.lexists(path):
+            raise LockUnavailable(exc.errno, f"{path} cannot be created: {exc}") from exc
+    try:
+        return os.open(path, os.O_RDWR | flags), False
+    except OSError as exc:
+        if exc.errno not in _READ_ONLY_ERRNOS:
+            raise LockUnavailable(exc.errno, f"{path} cannot be opened: {exc}") from exc
+    try:
+        return os.open(path, os.O_RDONLY | flags), False
+    except OSError as exc:
+        raise LockUnavailable(exc.errno, f"{path} cannot be opened: {exc}") from exc
+
+
+# What os.link gives where the file system has no second names for a file (FAT and exFAT on POSIX,
+# not run; design 6.12): EPERM, ENOTSUP or EOPNOTSUPP, and EMLINK (no more names).
+_NO_LINK_ERRNOS = frozenset({errno.EPERM, errno.EMLINK, getattr(errno, "ENOTSUP", errno.EPERM),
+                             getattr(errno, "EOPNOTSUPP", errno.EPERM)})
+# What F_FULLFSYNC gives on a file system that does not take it (macOS over SMB, say): fsync then.
+_NO_FULLFSYNC_ERRNOS = frozenset({errno.EINVAL, errno.ENOTTY, getattr(errno, "ENOTSUP", errno.EINVAL)})
+
 
 class PosixAtomicFiles:
     def replace(self, src: Path | str, dst: Path | str) -> None:
         os.replace(src, dst)
+
+    def publish_new(self, src: Path | str, dst: Path | str) -> None:
+        # link() makes the second name only when there is none (EEXIST otherwise), with the bytes
+        # complete under it at once; the temporary name goes after.
+        try:
+            os.link(src, dst, follow_symlinks=False)
+        except FileExistsError:
+            raise
+        except OSError as exc:
+            if exc.errno in _NO_LINK_ERRNOS:
+                raise LinkUnsupported(exc.errno, f"{dst} cannot be made by a link: {exc}") from exc
+            raise
+        os.unlink(src)
+
+    def flush_handle(self, fh) -> None:
+        import fcntl  # noqa: PLC0415 - absent on Windows, so it is imported with its user
+
+        fh.flush()
+        full = getattr(fcntl, "F_FULLFSYNC", None)  # macOS: fsync alone leaves the drive's cache
+        if full is not None:
+            try:
+                fcntl.fcntl(fh.fileno(), full)
+                return
+            except OSError as exc:
+                if exc.errno not in _NO_FULLFSYNC_ERRNOS:
+                    raise
+        os.fsync(fh.fileno())
+
+    def flush_dir(self, path: Path | str) -> None:
+        fd = os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
 
 
 def _absolute(path) -> str:
@@ -769,6 +902,30 @@ class WindowsFileLocks:
                     fh.seek(0)
                     msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
 
+    @contextlib.contextmanager
+    def try_exclusive(self, path: Path) -> Iterator[bool]:
+        import msvcrt  # noqa: PLC0415 - absent on POSIX, so it is imported with its user
+
+        fd, created = _open_lock_file(path)
+        try:
+            # The byte `exclusive` locks, tried once (LK_NBLCK); whether a handle opened for reading
+            # can lock it was not run (design 6.12).
+            os.lseek(fd, 0, os.SEEK_SET)
+            try:
+                msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+            except OSError as exc:
+                if exc.errno in LOCK_CONTENTION_ERRNOS:
+                    raise LockBusy(exc.errno, f"{path} is locked by another holder") from exc
+                raise LockUnavailable(exc.errno, f"{path} cannot be locked: {exc}") from exc
+            try:
+                yield created
+            finally:
+                with contextlib.suppress(OSError):
+                    os.lseek(fd, 0, os.SEEK_SET)
+                    msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+        finally:
+            os.close(fd)
+
 
 class WindowsAtomicFiles:
     """What has and has not been run on Windows is in docs/CONTRACTS.md G, not here."""
@@ -787,6 +944,32 @@ class WindowsAtomicFiles:
                     raise
                 time.sleep(REPLACE_POLL_SECONDS)
         os.replace(src, dst)
+
+    def publish_new(self, src: Path | str, dst: Path | str) -> None:
+        # MoveFileEx without MOVEFILE_REPLACE_EXISTING: it fails when `dst` exists (FileExistsError)
+        # and does not overwrite it. A process that has the new file open for a moment (an
+        # antivirus, an indexer) refuses it as a replace is refused, retried within the same budget.
+        for _ in range(REPLACE_ATTEMPTS - 1):
+            try:
+                os.rename(src, dst)
+                return
+            except FileExistsError:
+                raise
+            except PermissionError as exc:
+                if getattr(exc, "winerror", None) not in REPLACE_RETRY_WINERRORS:
+                    raise
+                time.sleep(REPLACE_POLL_SECONDS)
+        os.rename(src, dst)
+
+    def flush_handle(self, fh) -> None:
+        fh.flush()
+        os.fsync(fh.fileno())  # FlushFileBuffers: needs the handle to be open for writing
+
+    def flush_dir(self, path: Path | str) -> None:
+        # No way to flush a directory's entries was looked at on Windows (design 6.12): nothing to
+        # do, but a path that is not a directory is still an error.
+        if not stat.S_ISDIR(os.stat(path).st_mode):
+            raise NotADirectoryError(errno.ENOTDIR, f"{path} is not a directory")
 
 
 class WindowsProcessControl:

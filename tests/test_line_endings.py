@@ -533,7 +533,11 @@ def test_old_crlf_records_are_read_and_kept(project):
 
 # Openers that take something other than a file path (the first argument of webbrowser.open is a URL).
 NON_FILE_OPENERS = frozenset({"webbrowser", "request", "socket", "zipfile", "tarfile", "shelve",
-                              "dbm", "sqlite3"})
+                              "dbm", "sqlite3",
+                              # os.open gives a descriptor, no text layer: what is written through it is
+                              # bytes (os.write) or goes through a file object this guard reads
+                              # (open(fd, mode)). The migration's locks and exclusive files (#13 PR 2).
+                              "os"})
 COMPRESSED_OPENERS = frozenset({"gzip", "bz2", "lzma"})
 TEMPFILES = frozenset({"TemporaryFile", "NamedTemporaryFile", "SpooledTemporaryFile"})
 # logging's handlers that open their file in text mode with the platform's line ends.
@@ -726,6 +730,8 @@ def test_kit_text_writes_go_through_the_helper():
     ("import io as text_io\ntext_io.open(p, 'w')", True),
     ("p.open('w')", True), ("p.open('rb')", False), ("p.open(mode='x')", True), ("p.open(**kw)", True),
     ("os.fdopen(fd, 'w')", True), ("os.fdopen(fd, 'wb')", False),
+    ("os.open(p, os.O_RDWR | os.O_CREAT)", False), ("open(os.open(p, flags), 'w')", True),
+    ("open(os.open(p, flags), 'wb')", False),
     ("from os import fdopen\nfdopen(fd, 'w')", True), ("gzip.open(p, 'wt')", True),
     ("gzip.open(p, 'wb')", False), ("tempfile.NamedTemporaryFile(mode='w')", True),
     ("tempfile.NamedTemporaryFile()", False),
