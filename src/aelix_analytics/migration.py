@@ -1195,6 +1195,7 @@ class Migration:
             # the marker, its migration and the report it binds belong together (design 2.4)
             raise _mismatch(f"{self.dest}'s marker names the report {field.get('report')!r}, not its "
                             f"migration {field['id']}'s", reason="invalid", migration=field["id"])
+        self._one_migration(field)
         data = (self.dest / writer.MARKER).read_bytes()
         if ledger.committed or (ledger.marker and _sha(data) == ledger.marker.get("sha256")):
             return Judgment("committed", ledger=ledger, marker=data)
@@ -1205,6 +1206,40 @@ class Migration:
                 return Judgment("committed", ledger=ledger, marker=data, rewritten=True)
         raise _mismatch(f"{self.dest}'s marker is not the one its migration published",
                         migration=ledger.migration_id)
+
+    def _one_migration(self, field: dict) -> None:
+        """design 2.4, in the reader's order (core._migration_mapping_of): the report whose bytes the
+        marker binds, and the mapping whose bytes that report binds, are the marker's migration's —
+        its id in each, the mapping in its directory — else destination_mismatch (invalid). A report or
+        a mapping whose bytes are not the bound ones is not judged here: the call says it differs, as
+        the reader says `report_changed` or `mapping_changed`."""
+        mid, own = field["id"], f"{MIGRATIONS}/{field['id']}"
+
+        def bound(rel: str, sha256) -> object:
+            try:
+                data = (self.dest / rel).read_bytes()
+            except OSError:
+                return None
+            return _loads(data) if _sha(data) == sha256 else None
+
+        def refuse(what: str) -> AnalyticsError:
+            return _mismatch(f"{self.dest}'s marker names migration {mid}, but {what}", reason="invalid",
+                             migration=mid)
+
+        report = bound(field["report"], field.get("report_sha256"))
+        if not isinstance(report, dict):
+            return
+        if report.get("schema") != FAMILY or report.get("record") != "report" \
+                or report.get("migration_id") != mid:
+            raise refuse(f"the report it binds is migration {report.get('migration_id')!r}'s")
+        mapping = report.get("mapping")
+        path = mapping.get("path") if isinstance(mapping, dict) else None
+        if path != f"{own}/mapping.json":
+            raise refuse(f"the report it binds names the mapping {path!r}")
+        value = bound(path, mapping.get("sha256"))
+        if isinstance(value, dict) and (value.get("schema") != FAMILY or value.get("record") != "mapping"
+                                        or value.get("migration_id") != mid):
+            raise refuse(f"the mapping its report binds is migration {value.get('migration_id')!r}'s")
 
     # -- the checks before anything is written (design 6.2)
 
@@ -1982,8 +2017,9 @@ class Migration:
         once it is `transformed`), the published file of a path only begun, a temporary file of this
         migration's a line named, a file a `direct` line names by its identity — removed here,
         unfinished, unless `remove` is False (the dry run) — this migration's own directory, or a
-        name a person's tools leave (OQ16); and every copy a `copied` line names is there (step 8,
-        S3). Anything else is destination_mismatch, and nothing is removed."""
+        name a person's tools leave (OQ16); and every copy a `copied` line names is there, and after
+        the source check every folder the last plan names (step 8, S3). Anything else is
+        destination_mismatch, and nothing is removed."""
         ledger = self.ledger
         mid = ledger.migration_id
         planned_files = {e["to"]: e for plan in plans for e in plan["files"]}
@@ -2050,8 +2086,15 @@ class Migration:
             elif there and rel in ledger.begun and not before_plan:
                 published.append(rel)
         # A copy its `copied` line names that is gone (or behind a link the walk does not follow).
-        missing = sorted(rel for rel in ledger.copied if rel in planned_files and rel not in seen
-                         and not rel.startswith(own + "/"))
+        missing = [rel for rel in ledger.copied if rel in planned_files and rel not in seen
+                   and not rel.startswith(own + "/")]
+        if plans and ledger.source_checked is not None:
+            # After the source check (step 8), every folder the last plan names is there: the copy made
+            # them all before that line, and none is made again without the source. A folder that is
+            # there as something else is a stray above.
+            missing += [rel for rel in plans[-1]["directories"] if rel not in seen and not _ignored(rel)
+                        and not rel.startswith(MIGRATIONS + "/")]
+        missing = sorted(set(missing))
         if strays or changed or missing:
             raise _mismatch("the destination holds what its ledger does not account for: "
                             f"{', '.join((changed + missing + strays)[:5])}",

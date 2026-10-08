@@ -200,19 +200,23 @@ build stamp, 데모의 `CONTEXT.md`, kit이 감싸는 run 로그(스크립트의
   `os.link`+`unlink`, Windows `os.rename`)로 놓습니다. 임시 파일의 이름은 같은 디렉터리의 계획 이름과 겹치지 않게 고릅니다(`.gitignore` 변환과
   표식의 것 포함). 남이 만든 파일을 덮어쓰지 않고(`destination_mismatch(occupied)`), 지우는 것은 ledger가 이름을 적은 이 전환의 임시 파일·시험
   파일·직접 쓰기의 파일과 내용 없는 전환 디렉터리뿐입니다. 이 전환이 `O_EXCL`로 만들려던 임시 이름에 이미 무언가 있었으면 그것은 이 전환의 것이
-  아니므로(ledger의 `failed` 줄) 지우지 않고, 다시 부르면 그 이름에서 `occupied`입니다. 전환은 목적지 안에서만 쓰고 그곳의 링크를 따라가지
-  않습니다: 기록을 두는 자리(`.analytics/`, `.analytics/migration/`, 전환 디렉터리와 그 ledger, `migration.lock`)가 링크·junction이면 아무것도 쓰기
-  전에 `destination_invalid(managed_link)`이고, 이 전환의 파일을 만들 때는 그 이름의 링크를 따라가지 않으며 지울 때도 링크를 링크로 지웁니다. 링크를
-  지원하지 않는 파일 시스템에서는 ledger에 `direct_intent`·`direct`(파일의 정체성)를 적는 직접 쓰기입니다.
+  아니므로(ledger의 `failed` 줄) 지우지 않고, 다시 부르면 그 이름에서 `occupied`입니다(남은 짧은 창은 G). 전환은 목적지 안에서만 쓰고
+  그곳의 링크를 따라가지 않습니다: 기록을 두는 자리(`.analytics/`, `.analytics/migration/`, 전환 디렉터리와 그 ledger, `migration.lock`)가
+  링크·junction이면 아무것도 쓰기 전에 `destination_invalid(managed_link)`이고, 이 전환의 파일을 만들 때는 그 이름의 링크를 따라가지 않으며
+  지울 때도 링크를 링크로 지웁니다. 링크를 지원하지 않는 파일 시스템에서는 ledger에 `direct_intent`·`direct`(파일의 정체성)를 적는 직접
+  쓰기입니다.
 - 원본의 `.lab`이 원본 안을 가리키는 링크이거나 파일이면(다시 만들거나 복사하면 `.analytics` 자리에 폴더가 아닌 것이 됨) 아무것도 쓰기 전에
   `destination_invalid(name_collision)`입니다(`pairs`: `[[".lab", ".analytics"]]`). 원본 밖의 폴더를 가리키는 `.lab`은 그 폴더를 `.lab/`처럼
   복사합니다. 두 바깥 링크가 같은 폴더에 닿으면 한 번만 복사하고, 다른 쪽 경로는 `not_copied`의 `copied_elsewhere`(`at`: 복사한 경로)입니다.
 - 커밋 지점은 검증·보고서·매핑·내구 쓰기(`flush_handle`·`flush_dir`) 뒤의 `analytics.json` 게시 하나이고, 표식의 `migration`이 보고서를
   sha256으로 묶습니다. 원본 재확인(7단계)은 모든 파일의 바이트와 함께 목록 전체(디렉터리, 바깥 링크의 경로·글자·대상, 복사하지 않은 것)를
-  계획과 비교해 다르면 `source_changed`이고, 사본 검증(8단계)은 `copied` 줄이 적은 사본이 모두 있는지도 보아 사라진 것이 있으면
-  `destination_mismatch(unaccounted)`(`details.missing`)입니다. 보고서를 다시 쓰지 않고 이을 때도 보고서가 묶은 파일(매핑·diff·제안·
+  계획과 비교해 다르면 `source_changed`이고, 사본 검증(8단계)은 `copied` 줄이 적은 사본과 마지막 계획의 폴더가 모두 있는지도 보아 사라진
+  것이 있으면 `destination_mismatch(unaccounted)`(`details.missing`)입니다. 보고서를 다시 쓰지 않고 이을 때도 보고서가 묶은 파일(매핑·diff·제안·
   `report.md`)을 sha256으로 확인하고 다르면 다시 만듭니다. 그 뒤 목적지를 신뢰 목록에 더합니다(이 kit이 쓰는 목록, B). 끊긴 전환은 같은
-  호출로 ledger가 정한 상태부터 잇고(원본 재확인 뒤면 원본 없이), 같은 원본의 커밋된 목적지에는 `already_migrated`입니다. 오류 코드와 사유는 [용어집](TERMINOLOGY-AND-LANGUAGE.md)
+  호출로 ledger가 정한 상태부터 잇고(원본 재확인 뒤면 원본 없이), 같은 원본의 커밋된 목적지에는 `already_migrated`입니다. 다만 표식의
+  `migration`, 그것이 sha256으로 묶은 보고서, 보고서가 묶은 매핑이 한 전환의 것이 아니면(셋의 전환 id가 같고 보고서·매핑이 그 전환의
+  디렉터리에 있어야 함, 읽기의 규칙과 같음: E "전환한 프로젝트의 매핑") 다시 부른 전환과 그 dry run은 아무것도 쓰지 않고
+  `destination_mismatch(invalid)`입니다. 오류 코드와 사유는 [용어집](TERMINOLOGY-AND-LANGUAGE.md)
   §6의 "프로젝트 전환" 행, 기록의 형식은 [기록 schema](schemas/analytics-records.schema.json)의 `migration_1`과 `migration_progress_line`입니다.
 - 프로세스가 강제로 끝나는 것(F1–F16)에 대한 보장이고, 전원 손실 뒤의 내구성은 목표입니다(G). 측정은
   [#13 전환 엔진 기록](verification/2026-10-08-issue-13-migration.md)에 있습니다.
@@ -830,12 +834,20 @@ kit 0.7.0([#13](https://github.com/handochan/aelix-analytics/issues/13)의 첫 �
     `analytics.json`이 남아 다시 부르면 `marker_invalid`입니다. 이것은 ledger의 `direct` 줄이 그 표식의 정체성을 적었어도 같습니다: 다시 부르기는
     표식의 판정을 먼저 하므로(설계 6.9) 6.10절이 정한 "정체성이 같은 `direct` 파일을 지우고 이음"에 이르지 못합니다. 표식은 원자 게시라는 S2와
     링크 없는 파일 시스템의 직접 쓰기(D19)가 표식에서 만나는 설계의 틈이고, 소유자 질문으로 남겼습니다(측정 기록의 F15 행).
+  - 임시 파일이 이 전환의 것인지는 ledger로 정합니다(임시 파일마다 정체성을 적는 줄은 없음). 그래서 S6의 짧은 창이 둘 남습니다: `begin` 줄
+    뒤 임시 파일을 만들기 전에 프로세스가 끝났는데 그 사이 다른 프로세스가 정확히 그 이름을 만든 경우, 그리고 이 전환의 `O_EXCL`이 그 이름에서
+    남의 파일을 만나 거절한 뒤 그 사실을 적는 `failed` 줄을 쓰기 전에 프로세스가 끝났거나 그 줄을 쓰지 못한 경우입니다. 둘 다 다음 호출이
+    그 파일을 이 전환의 임시 파일로 보고 지웁니다. 다른 쓰기가 이 전환이 새로 고른 임시 이름(`.mig-<해시 8자>-<n>.part` 등)에 그 틈에 만들어야
+    생깁니다.
   - POSIX `flock`은 네트워크 파일 시스템의 클라이언트 사이에서 보장되지 않습니다(지원 범위 밖). Windows에서 프로세스가 끝난 뒤 잠금이 늦게 풀리면
     `source_busy`·`destination_busy`가 잠깐 날 수 있습니다(확인하지 않음).
   - 목적지가 이름의 대소문자·정규화를 접는지는 전환 디렉터리에 만든 시험 파일 하나로 정하고, 그 아래 디렉터리도 같다고 봅니다(Windows의
     디렉터리별 대소문자 구별이 새 하위 디렉터리에 이어지는지는 확인하지 않음).
   - 런처·`bin/analytics`와 확장의 명시한 프로젝트 확인은 아직 표식 없는 전환 목적지에서 멈추지 않습니다(B "프로젝트 찾기", 셋째 PR).
   - 사본의 권한 비트와 수정 시각은 운영체제가 허락하는 만큼 옮기고(목적지 루트와 `.analytics/`에는 옮기지 않음), 확장 속성·ACL은 옮기지 않습니다.
+    원본 재확인 뒤 끊긴 전환을 이으며 사본의 폴더에 남은 이 전환의 임시 파일을 지우면 그 폴더의 수정 시각이 바뀌고, 읽기 전용 폴더는 지우는
+    동안 잠시 쓰기 가능으로 했다 되돌리므로 그 사이에 프로세스가 끝나면 쓰기 가능으로 남습니다. 그 뒤의 이어 쓰기는 원본을 읽지 않아 폴더의 권한과
+    시각을 다시 옮기지 않습니다(바이트는 그대로).
 - 원자성·복구·멱등성. 한 프로젝트의 run은 직렬화되지만, 강제 종료된 run은 `incomplete`로 남고 되돌리지 않습니다.
   프로젝트 밖에서 같은 파일을 건드리는 다른 프로세스는 막지 않습니다.
 - 결정성과 다른 환경 재현. 재실행은 같은 환경을 가정하고 환경 지문을 비교하지 않습니다.

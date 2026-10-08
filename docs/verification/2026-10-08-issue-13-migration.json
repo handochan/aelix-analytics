@@ -1,17 +1,18 @@
 {
  "record_kind": "aelix-analytics-migration-engine",
- "observed_at": "2026-10-08T08:43:52Z",
+ "observed_at": "2026-10-08T09:33:45Z",
  "issue": "https://github.com/handochan/aelix-analytics/issues/13",
  "pull_request": null,
  "base_revision": "fbd12e1d10886889097cb336f4cbe06fb72e3d21",
  "measured_tree": {
-  "what": "the code of the commit `fix: answer the reviews of PR 2 (Issue #13)` (kit 0.7.0, unchanged), the head of branch feat/issue-13-migration-engine on origin/main ed29cf0 (PR #80 merged; its tree is fbd12e1's). It was measured on a clean clone of that commit before this record and the PR text were added to it (the commit was amended, so its provisional id below is not in the branch); the manifest's files are the commit's. The first measurement of this PR (code 2b6eabb) is in `previous_measurement`",
+  "what": "the code of the commit `fix: answer the fix check of PR 2 (Issue #13)` (kit 0.7.0, unchanged), the head of branch feat/issue-13-migration-engine on origin/main ed29cf0 (PR #80 merged; its tree is fbd12e1's). It was measured on a clean clone of that commit before this record was added to it (the commit was amended, so its provisional id below is not in the branch); the manifest's files are the commit's. The first measurement of this PR (code 2b6eabb) is in `previous_measurement`, the second (the code of the review fixes, 80a0fc9) in `review_fix_measurement`",
   "head": null,
-  "provisional_commit": "50bbbdbd89bf6e175033e1ea78569d02b6f14f39",
+  "provisional_commit": "2de7c81cd16dd6a1789d5404f46143c314f8bd14",
   "measured_base": "fbd12e1d10886889097cb336f4cbe06fb72e3d21",
   "origin_main": "ed29cf019d2bf72fbf8a83d25e5e51d5e72350c7",
   "commits": [
-   "(this commit, provisional 50bbbdbd89bf) fix: answer the reviews of PR 2 (Issue #13)",
+   "(this commit, provisional 2de7c81cd16d) fix: answer the fix check of PR 2 (Issue #13)",
+   "80a0fc952953e0f3deb1d38936d6c90ea420722a fix: answer the reviews of PR 2 (Issue #13)",
    "f7faea5019d56d15ae9395a21ba77c3f28044e83 docs: describe the migration engine and record its measurement (Issue #13 PR 2)",
    "4243021db491b6cd0da8bfd839b10b6037fc951e fix: leave a linked .lab/'s cache and locks out, and follow no link into a planned folder (Issue #13 PR 2)",
    "d08cf24988cb4bfc120122e9a1e26d95c4b2b088 test: cover the migration's calls again, spellings and Windows publication (Issue #13 PR 2)",
@@ -21,7 +22,7 @@
    "ed29cf019d2bf72fbf8a83d25e5e51d5e72350c7 Merge pull request #80 from handochan/feat/issue-13-marker-gate"
   ],
   "code_manifest": "sha256 of each tracked file under src, extension, tests, tools, bin and pyproject.toml, uv.lock, one line each (`shasum -a 256` format), sorted by path",
-  "code_manifest_sha256": "85fa7b8352501a9c1318d3c579f28fbfba5743f60c9a4573fd03d9bde231d98c",
+  "code_manifest_sha256": "fb94829c844535b7692e51012e5db98a3bad4c071a19c9e207c017df09cc2d1a",
   "code_files": 215
  },
  "workflow": ".github/workflows/ci.yml, not changed by this change",
@@ -60,26 +61,26 @@
   ],
   "load": "other agents' test suites ran on the same machine at the same time (their own checkouts); the times below carry that load",
   "log": [
-   "head 50bbbdbd89bf6e175033e1ea78569d02b6f14f39 2026-10-08T08:31:30Z",
+   "head 2de7c81cd16dd6a1789d5404f46143c314f8bd14 2026-10-08T09:21:49Z",
    "sync exit 0",
    "ruff exit 0",
-   "suite 2026-10-08T08:31:30Z",
-   "suite exit 0 2026-10-08T08:39:10Z",
+   "suite 2026-10-08T09:21:49Z",
+   "suite exit 0 2026-10-08T09:29:24Z",
    "layers exit 0",
    "contracts exit 0",
-   "aelix 3.12 2026-10-08T08:39:19Z",
+   "aelix 3.12 2026-10-08T09:29:38Z",
    "aelix 3.12 exit 0",
-   "aelix 3.11 2026-10-08T08:39:59Z",
+   "aelix 3.11 2026-10-08T09:30:20Z",
    "aelix 3.11 exit 0",
-   "launcher 2026-10-08T08:40:38Z",
+   "launcher 2026-10-08T09:31:01Z",
    "launcher exit 0",
-   "usage 2026-10-08T08:40:56Z",
+   "usage 2026-10-08T09:31:19Z",
    "usage exit 0",
-   "smoke 2026-10-08T08:41:02Z",
+   "smoke 2026-10-08T09:31:24Z",
    "smoke exit 0",
    "stdlib smoke exit 0",
    "diff-check exit 0",
-   "done 2026-10-08T08:42:22Z"
+   "done 2026-10-08T09:32:48Z"
   ],
   "ruff": {
    "command": "uv run --locked ruff check tests extension src tools",
@@ -87,12 +88,12 @@
   },
   "suite": {
    "file": "suite.xml",
-   "file_sha256": "3a82d30b9b9d56731b303b6f0ea95f125716d42ecf82c0868c9594232bb739fa",
-   "timestamp": "2026-10-08T17:31:30.480438+09:00",
-   "seconds": 460.045,
+   "file_sha256": "c37d1d63acf053fea93ff77319ceb82991e57bee002d7794e655cf5819d3e181",
+   "timestamp": "2026-10-08T18:21:49.615485+09:00",
+   "seconds": 454.043,
    "counts": {
     "skip": 92,
-    "pass": 1644
+    "pass": 1647
    },
    "failed": [],
    "skipped_by_reason": {
@@ -291,6 +292,7 @@
     "tests.test_migration::test_a_temporary_name_something_else_made_first_is_not_this_migration_s": "pass",
     "tests.test_migration::test_a_copy_removed_before_the_verification_is_refused[after_source_checked]": "pass",
     "tests.test_migration::test_a_copy_removed_before_the_verification_is_refused[before_verify]": "pass",
+    "tests.test_migration::test_a_folder_removed_after_the_source_check_is_refused": "pass",
     "tests.test_migration::test_a_change_in_the_source_s_list_under_the_copy_is_source_changed[outside_link_removed]": "pass",
     "tests.test_migration::test_a_change_in_the_source_s_list_under_the_copy_is_source_changed[empty_folder_added]": "pass",
     "tests.test_migration::test_a_change_in_the_source_s_list_under_the_copy_is_source_changed[link_retargeted]": "pass",
@@ -301,7 +303,9 @@
     "tests.test_migration::test_a_folder_two_outside_links_reach_is_copied_once_and_said_where": "pass",
     "tests.test_migration::test_a_destination_spelled_with_dotdot_after_a_link_is_the_operating_system_s": "pass",
     "tests.test_migration::test_a_file_the_report_binds_that_went_is_made_again_before_the_marker": "pass",
-    "tests.test_migration::test_a_marker_naming_another_migration_s_report_is_refused_and_not_read": "pass",
+    "tests.test_migration::test_a_marker_naming_another_migration_s_report_is_refused_and_not_read[report_path]": "pass",
+    "tests.test_migration::test_a_marker_naming_another_migration_s_report_is_refused_and_not_read[report_bytes]": "pass",
+    "tests.test_migration::test_a_marker_naming_another_migration_s_report_is_refused_and_not_read[mapping_bytes]": "pass",
     "tests.test_migration_reader::test_the_reader_reads_a_migrated_project_as_it_read_its_source[symlink]": "pass",
     "tests.test_migration_reader::test_the_mapping_s_rules_are_by_path_components": "pass",
     "tests.test_migration_reader::test_the_reader_knows_the_migration_family": "pass",
@@ -318,9 +322,9 @@
   "layers": {
    "command": "uv run --locked pytest -q -ra -p no:cacheprovider tests/test_layers.py",
    "file": "layers.xml",
-   "file_sha256": "0c73e3ace4b6ab1eb1c546bef60bc63c84f1e32a4aa6779171de76dd484686d2",
-   "timestamp": "2026-10-08T17:39:10.983975+09:00",
-   "seconds": 4.916,
+   "file_sha256": "71f6772f5be06b8e42b792e0d94acc36ed5984c906f98e11b4869426df84ce82",
+   "timestamp": "2026-10-08T18:29:24.167742+09:00",
+   "seconds": 6.413,
    "counts": {
     "pass": 47
    },
@@ -330,9 +334,9 @@
   "contracts": {
    "command": "uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread tests/test_contracts.py",
    "file": "contracts.xml",
-   "file_sha256": "68d534a5b65ccad932f21616e493e39612b563467fa8c13a81eec8de21355c74",
-   "timestamp": "2026-10-08T17:39:16.000958+09:00",
-   "seconds": 3.186,
+   "file_sha256": "3213a0e10cc99da4edd25433896367f6cce7c1b7379fdf50961541d88ab49690",
+   "timestamp": "2026-10-08T18:29:35.156607+09:00",
+   "seconds": 3.28,
    "counts": {
     "pass": 66,
     "skip": 41
@@ -350,9 +354,9 @@
    "3.12": {
     "command": "uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_extension.py tests/test_usage_report.py",
     "file": "aelix-3.12.xml",
-    "file_sha256": "b02f49d669819aeee8f966bef4863d974b5428fceeb8e1604eede2233f873ea6",
-    "timestamp": "2026-10-08T17:39:19.520528+09:00",
-    "seconds": 39.407,
+    "file_sha256": "ea31bdf2891554763bd458dc5e3d922cb389583b79ce86580dad424362970368",
+    "timestamp": "2026-10-08T18:29:38.747793+09:00",
+    "seconds": 41.577,
     "counts": {
      "pass": 161
     },
@@ -362,9 +366,9 @@
    "3.11": {
     "command": "uv run --isolated --no-project --python 3.11 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_extension.py tests/test_usage_report.py",
     "file": "aelix-3.11.xml",
-    "file_sha256": "13e7dd1d2fe13b9c1b17d4da5d39c67e75e408a60afcfde143d0edb150e35de2",
-    "timestamp": "2026-10-08T17:39:59.214138+09:00",
-    "seconds": 38.944,
+    "file_sha256": "d1196c9931b2a7c8add1a0c8ceefb303c0f14845f84c99f1a31196970a1291d3",
+    "timestamp": "2026-10-08T18:30:20.595973+09:00",
+    "seconds": 40.725,
     "counts": {
      "pass": 161
     },
@@ -375,9 +379,9 @@
   "launcher_3_11": {
    "command": "uv run --isolated --no-project --python 3.11 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_launcher.py",
    "file": "launcher-3.11.xml",
-   "file_sha256": "4c9b995ede53f4e85ab5c9ad1bf38f432497390e7bf3e746861fdb3c9ea34dd6",
-   "timestamp": "2026-10-08T17:40:38.627288+09:00",
-   "seconds": 18.189,
+   "file_sha256": "f0986072e32d0303fea4d8a1085cae066eea583c02de6c529a1b7ae96f441fa4",
+   "timestamp": "2026-10-08T18:31:01.573951+09:00",
+   "seconds": 18.024,
    "counts": {
     "pass": 138,
     "skip": 1
@@ -390,7 +394,7 @@
   "usage_report": {
    "command": "uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 python tools/usage_report.py --output <run>/evidence/verify/usage",
    "exit": "0",
-   "report_sha256": "56f7d5374faabebf5f710942c10085c6ee8639b6509ef675db08ac5c18d610c7",
+   "report_sha256": "8185cef166400588ceefde99f8cad71df495331be85e1fe9f49719d246a852ee",
    "summary": {
     "required_facts": {
      "passed": 58,
@@ -417,7 +421,7 @@
     },
     "hold": true
    },
-   "file_sha256": "1d8b11f919f6a032c380f192fc04ecc60e943bf95b92685d9134b775752d73c0"
+   "file_sha256": "d3a7fe68d22c381071b5cd9dfaf387757a99e4c3a7d567ff77d2b48d6e8d311b"
   },
   "platform_smoke_stdlib_3_11": {
    "command": "uv run --isolated --no-project --python 3.11 python tools/platform_smoke.py --stdlib-only --gate required",
@@ -432,7 +436,7 @@
     },
     "hold": true
    },
-   "file_sha256": "4b50af44a86d8dfd13aa1540e03d96efe2cff6dfeaadfe81a456b4c28dd9542b"
+   "file_sha256": "57d40efe0fb030bdd55c54467b0c54fac313ba12b1d82423f35c46beeba006f3"
   },
   "diff_check": {
    "command": "git diff --check fbd12e1...HEAD",
@@ -455,13 +459,13 @@
  "fixtures": {
   "S": {
    "command": "uv run --locked python tools/eval_fixtures.py scale --scale S --seed 0 --out <dir>",
-   "generator_commit": "50bbbdbd89bf6e175033e1ea78569d02b6f14f39",
+   "generator_commit": "2de7c81cd16dd6a1789d5404f46143c314f8bd14",
    "kit_version": "0.7.0",
    "seed": 0,
    "project": "fixtures/S/project",
    "files": 229,
    "bytes": 2898447,
-   "tree_digest": "ecc0f3fd2559132dfdc1f74806021283c688b427d83999cd8803d7eead221da2",
+   "tree_digest": "23243fd54e1d16ca2da61951a657738676ff2d5189b958c4432e690b7494bd4e",
    "lock_files_before": {
     ".lab/run.lock": true,
     ".lab/lock": true
@@ -469,13 +473,13 @@
   },
   "M": {
    "command": "uv run --locked python tools/eval_fixtures.py scale --scale M --seed 0 --out <dir>",
-   "generator_commit": "50bbbdbd89bf6e175033e1ea78569d02b6f14f39",
+   "generator_commit": "2de7c81cd16dd6a1789d5404f46143c314f8bd14",
    "kit_version": "0.7.0",
    "seed": 0,
    "project": "fixtures/M/project",
    "files": 2037,
-   "bytes": 223109249,
-   "tree_digest": "75b275fe9863470d9c1c90058c7ccf645405bf09c6de420993fdeb3ccc4f0b83",
+   "bytes": 223109251,
+   "tree_digest": "db8b189a1e62622b0fa6a8da75df3ba85d1295212d53113f637d8e4fc472767e",
    "lock_files_before": {
     ".lab/run.lock": true,
     ".lab/lock": true
@@ -486,57 +490,57 @@
   "S": {
    "what": "the ledger's line times of two migrations, each into a new destination in a process of its own; the minimum of the two per phase (ms), the child's max RSS",
    "min": {
-    "start_to_locked_ms": 1,
-    "plan_ms": 9,
-    "copy_ms": 930,
-    "recheck_ms": 21,
-    "verify_ms": 11,
-    "transform_ms": 9,
-    "report_ms": 20,
+    "start_to_locked_ms": 0,
+    "plan_ms": 13,
+    "copy_ms": 977,
+    "recheck_ms": 23,
+    "verify_ms": 12,
+    "transform_ms": 13,
+    "report_ms": 19,
     "flush_ms": 2,
-    "marker_ms": 4,
-    "trust_ms": 1,
-    "source_lock_held_ms": 962,
-    "total_ms": 1011,
+    "marker_ms": 5,
+    "trust_ms": 0,
+    "source_lock_held_ms": 1013,
+    "total_ms": 1065,
     "ledger_lines": 469
    },
-   "max_rss_bytes": 30294016,
+   "max_rss_bytes": 29638656,
    "runs": [
     {
      "attempt": 1,
-     "wall_s": 1.099,
+     "wall_s": 1.143,
      "phases": {
       "start_to_locked_ms": 1,
-      "plan_ms": 19,
-      "copy_ms": 961,
-      "recheck_ms": 21,
-      "verify_ms": 11,
-      "transform_ms": 10,
-      "report_ms": 20,
+      "plan_ms": 18,
+      "copy_ms": 991,
+      "recheck_ms": 25,
+      "verify_ms": 12,
+      "transform_ms": 14,
+      "report_ms": 23,
       "flush_ms": 2,
-      "marker_ms": 4,
+      "marker_ms": 5,
       "trust_ms": 1,
-      "source_lock_held_ms": 1001,
-      "total_ms": 1050,
+      "source_lock_held_ms": 1034,
+      "total_ms": 1092,
       "ledger_lines": 469
      }
     },
     {
      "attempt": 2,
-     "wall_s": 1.053,
+     "wall_s": 1.117,
      "phases": {
-      "start_to_locked_ms": 1,
-      "plan_ms": 9,
-      "copy_ms": 930,
+      "start_to_locked_ms": 0,
+      "plan_ms": 13,
+      "copy_ms": 977,
       "recheck_ms": 23,
-      "verify_ms": 11,
-      "transform_ms": 9,
-      "report_ms": 20,
-      "flush_ms": 2,
+      "verify_ms": 12,
+      "transform_ms": 13,
+      "report_ms": 19,
+      "flush_ms": 3,
       "marker_ms": 5,
-      "trust_ms": 1,
-      "source_lock_held_ms": 962,
-      "total_ms": 1011,
+      "trust_ms": 0,
+      "source_lock_held_ms": 1013,
+      "total_ms": 1065,
       "ledger_lines": 469
      }
     }
@@ -545,57 +549,57 @@
   "M": {
    "what": "the ledger's line times of two migrations, each into a new destination in a process of its own; the minimum of the two per phase (ms), the child's max RSS",
    "min": {
-    "start_to_locked_ms": 0,
-    "plan_ms": 48,
-    "copy_ms": 8442,
-    "recheck_ms": 267,
-    "verify_ms": 176,
-    "transform_ms": 21,
+    "start_to_locked_ms": 1,
+    "plan_ms": 51,
+    "copy_ms": 8400,
+    "recheck_ms": 256,
+    "verify_ms": 165,
+    "transform_ms": 20,
     "report_ms": 27,
-    "flush_ms": 17,
-    "marker_ms": 8,
+    "flush_ms": 18,
+    "marker_ms": 7,
     "trust_ms": 0,
-    "source_lock_held_ms": 8763,
-    "total_ms": 9030,
+    "source_lock_held_ms": 8721,
+    "total_ms": 8959,
     "ledger_lines": 4085
    },
-   "max_rss_bytes": 74137600,
+   "max_rss_bytes": 72318976,
    "runs": [
     {
      "attempt": 1,
-     "wall_s": 9.107,
+     "wall_s": 9.027,
      "phases": {
-      "start_to_locked_ms": 0,
+      "start_to_locked_ms": 1,
       "plan_ms": 52,
-      "copy_ms": 8462,
-      "recheck_ms": 267,
-      "verify_ms": 176,
-      "transform_ms": 21,
+      "copy_ms": 8400,
+      "recheck_ms": 269,
+      "verify_ms": 165,
+      "transform_ms": 20,
       "report_ms": 27,
-      "flush_ms": 17,
-      "marker_ms": 8,
+      "flush_ms": 18,
+      "marker_ms": 7,
       "trust_ms": 0,
-      "source_lock_held_ms": 8781,
-      "total_ms": 9030,
+      "source_lock_held_ms": 8721,
+      "total_ms": 8959,
       "ledger_lines": 4085
      }
     },
     {
      "attempt": 2,
-     "wall_s": 9.106,
+     "wall_s": 9.071,
      "phases": {
       "start_to_locked_ms": 1,
-      "plan_ms": 48,
-      "copy_ms": 8442,
-      "recheck_ms": 273,
-      "verify_ms": 183,
-      "transform_ms": 29,
-      "report_ms": 31,
+      "plan_ms": 51,
+      "copy_ms": 8440,
+      "recheck_ms": 256,
+      "verify_ms": 171,
+      "transform_ms": 22,
+      "report_ms": 33,
       "flush_ms": 22,
-      "marker_ms": 9,
-      "trust_ms": 1,
-      "source_lock_held_ms": 8763,
-      "total_ms": 9039,
+      "marker_ms": 7,
+      "trust_ms": 0,
+      "source_lock_held_ms": 8747,
+      "total_ms": 9003,
       "ledger_lines": 4085
      }
     }
@@ -649,7 +653,7 @@
   },
   "M": {
    "copied_files": 2036,
-   "copied_bytes": 223109249,
+   "copied_bytes": 223109251,
    "excluded": [
     {
      "path": ".lab/cache",
@@ -696,16 +700,16 @@
   "what": "the source walked by the measurement's own walk (not the migration's), before the first and after the second migration and the call again; the older kit's two lock files apart. Every test of tests/test_migration.py compares the source the same way (its own `tree`)",
   "S": {
    "walk": "an independent walk (this script's tree(), links not followed), the lock files apart",
-   "before": "ecc0f3fd2559132dfdc1f74806021283c688b427d83999cd8803d7eead221da2",
-   "after": "ecc0f3fd2559132dfdc1f74806021283c688b427d83999cd8803d7eead221da2",
+   "before": "23243fd54e1d16ca2da61951a657738676ff2d5189b958c4432e690b7494bd4e",
+   "after": "23243fd54e1d16ca2da61951a657738676ff2d5189b958c4432e690b7494bd4e",
    "equal": true,
    "lock_files_after": {
     ".lab/run.lock": true,
     ".lab/lock": true
    },
    "report_source_inventory": {
-    "before": "5e6be841dc769a16347b27208133d479096a95f66da8c10b7901eb9502328192",
-    "after": "5e6be841dc769a16347b27208133d479096a95f66da8c10b7901eb9502328192"
+    "before": "1302c415c5170274f98d6121fe5864922219522211642b03edb87fceacb875ea",
+    "after": "1302c415c5170274f98d6121fe5864922219522211642b03edb87fceacb875ea"
    },
    "report_locks": {
     "taken": [
@@ -718,7 +722,7 @@
       "created": false
      }
     ],
-    "held_ms": 1001
+    "held_ms": 1034
    },
    "two_migrations_same_copies": true,
    "called_again": {
@@ -736,16 +740,16 @@
   },
   "M": {
    "walk": "an independent walk (this script's tree(), links not followed), the lock files apart",
-   "before": "75b275fe9863470d9c1c90058c7ccf645405bf09c6de420993fdeb3ccc4f0b83",
-   "after": "75b275fe9863470d9c1c90058c7ccf645405bf09c6de420993fdeb3ccc4f0b83",
+   "before": "db8b189a1e62622b0fa6a8da75df3ba85d1295212d53113f637d8e4fc472767e",
+   "after": "db8b189a1e62622b0fa6a8da75df3ba85d1295212d53113f637d8e4fc472767e",
    "equal": true,
    "lock_files_after": {
     ".lab/run.lock": true,
     ".lab/lock": true
    },
    "report_source_inventory": {
-    "before": "6c84e25041d57c035a99c2dfe96baf25cac77baebaf4591844149a7ba159bb7b",
-    "after": "6c84e25041d57c035a99c2dfe96baf25cac77baebaf4591844149a7ba159bb7b"
+    "before": "287dd0ae5912d8fdd97dc5a04c8447fe9466dad813bd25d8896c7d4293fcd76b",
+    "after": "287dd0ae5912d8fdd97dc5a04c8447fe9466dad813bd25d8896c7d4293fcd76b"
    },
    "report_locks": {
     "taken": [
@@ -758,7 +762,7 @@
       "created": false
      }
     ],
-    "held_ms": 8781
+    "held_ms": 8721
    },
    "two_migrations_same_copies": true,
    "called_again": {
@@ -1596,6 +1600,14 @@
    },
    "a link planted at the migration's own temporary names (review)": {
     "test_a_link_planted_at_the_migration_s_own_temporary_names_is_never_written_through": "pass"
+   },
+   "a folder of the plan removed after the source check (fix check)": {
+    "test_a_folder_removed_after_the_source_check_is_refused": "pass"
+   },
+   "a marker binding another migration's report or mapping, called again (6.9, review and fix check)": {
+    "test_a_marker_naming_another_migration_s_report_is_refused_and_not_read[report_path]": "pass",
+    "test_a_marker_naming_another_migration_s_report_is_refused_and_not_read[report_bytes]": "pass",
+    "test_a_marker_naming_another_migration_s_report_is_refused_and_not_read[mapping_bytes]": "pass"
    }
   }
  },
@@ -1668,10 +1680,10 @@
    "differences": {},
    "seconds": 0.01,
    "status_migration": {
-    "id": "20261008T082744Z-04a58903",
-    "report": ".analytics/migration/20261008T082744Z-04a58903/report.json",
+    "id": "20261008T091806Z-721550e1",
+    "report": ".analytics/migration/20261008T091806Z-721550e1/report.json",
     "applied": true,
-    "mapping": ".analytics/migration/20261008T082744Z-04a58903/mapping.json"
+    "mapping": ".analytics/migration/20261008T091806Z-721550e1/mapping.json"
    }
   },
   "M": {
@@ -1698,12 +1710,12 @@
     "unsupported": true
    },
    "differences": {},
-   "seconds": 0.32,
+   "seconds": 0.33,
    "status_migration": {
-    "id": "20261008T083101Z-2247b973",
-    "report": ".analytics/migration/20261008T083101Z-2247b973/report.json",
+    "id": "20261008T092121Z-3ea3fe67",
+    "report": ".analytics/migration/20261008T092121Z-3ea3fe67/report.json",
     "applied": true,
-    "mapping": ".analytics/migration/20261008T083101Z-2247b973/mapping.json"
+    "mapping": ".analytics/migration/20261008T092121Z-3ea3fe67/mapping.json"
    }
   }
  },
@@ -1785,6 +1797,25 @@
   ],
   "expected": "every test added for the reviews fails there (the previous head's behaviour the reviews found); every test the previous head had passes"
  },
+ "new_tests_on_fix_check_head": {
+  "what": "the fix-check commit's new and changed cases of tests/test_migration.py, run against the code of 80a0fc9 (the head the fix check read; the run folder's clone head/ at 50bbbdb, whose code files are 80a0fc9's), the new test file copied in and put back after",
+  "previous_head": "80a0fc952953e0f3deb1d38936d6c90ea420722a",
+  "command": "uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread tests/test_migration.py::test_a_marker_naming_another_migration_s_report_is_refused_and_not_read tests/test_migration.py::test_a_folder_removed_after_the_source_check_is_refused --junitxml=new-tests-on-prev.xml",
+  "junit_sha256": "16df0e33ef69c01df5ab695a1a8c00562872d4047abb91376addcb0100c8f368",
+  "counts": {
+   "pass": 1,
+   "fail": 3
+  },
+  "failed": [
+   "tests.test_migration::test_a_marker_naming_another_migration_s_report_is_refused_and_not_read[report_bytes]",
+   "tests.test_migration::test_a_marker_naming_another_migration_s_report_is_refused_and_not_read[mapping_bytes]",
+   "tests.test_migration::test_a_folder_removed_after_the_source_check_is_refused"
+  ],
+  "passed": [
+   "tests.test_migration::test_a_marker_naming_another_migration_s_report_is_refused_and_not_read[report_path]"
+  ],
+  "expected": "the three cases added for the fix check fail there (a report's bytes or a mapping's bytes of another migration bound in the marker's own directory, and a folder of the plan removed after the source check); the case the reviews added (report_path) passes"
+ },
  "previous_measurement": {
   "what": "this PR's first measurement, of code 2b6eabb (the record as commit f7faea5 holds it); the reviews' fixes changed migration.py, core.py and relations.py, so every value here was measured again",
   "record_at": "f7faea5019d56d15ae9395a21ba77c3f28044e83:docs/verification/2026-10-08-issue-13-migration.json",
@@ -1829,6 +1860,53 @@
    "S": 29179904,
    "M": 69812224
   }
+ },
+ "review_fix_measurement": {
+  "what": "this PR's second measurement, of the code of 80a0fc9 `fix: answer the reviews of PR 2 (Issue #13)` (measured as its provisional 50bbbdb; the record as commit 80a0fc9 holds it); the fix check changed migration.py (two more checks), so every value here was measured again",
+  "record_at": "80a0fc952953e0f3deb1d38936d6c90ea420722a:docs/verification/2026-10-08-issue-13-migration.json",
+  "code_manifest_sha256": "85fa7b8352501a9c1318d3c579f28fbfba5743f60c9a4573fd03d9bde231d98c",
+  "suite": {
+   "skip": 92,
+   "pass": 1644
+  },
+  "phases_min": {
+   "S": {
+    "start_to_locked_ms": 1,
+    "plan_ms": 9,
+    "copy_ms": 930,
+    "recheck_ms": 21,
+    "verify_ms": 11,
+    "transform_ms": 9,
+    "report_ms": 20,
+    "flush_ms": 2,
+    "marker_ms": 4,
+    "trust_ms": 1,
+    "source_lock_held_ms": 962,
+    "total_ms": 1011,
+    "ledger_lines": 469
+   },
+   "M": {
+    "start_to_locked_ms": 0,
+    "plan_ms": 48,
+    "copy_ms": 8442,
+    "recheck_ms": 267,
+    "verify_ms": 176,
+    "transform_ms": 21,
+    "report_ms": 27,
+    "flush_ms": 17,
+    "marker_ms": 8,
+    "trust_ms": 0,
+    "source_lock_held_ms": 8763,
+    "total_ms": 9030,
+    "ledger_lines": 4085
+   }
+  },
+  "max_rss_bytes": {
+   "S": 30294016,
+   "M": 74137600
+  },
+  "fault_observed_rows_same": true,
+  "fault_observed_rows": 37
  },
  "before": {
   "record": "docs/verification/2026-10-08-issue-13-gate.json",

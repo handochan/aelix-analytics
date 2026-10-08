@@ -1546,6 +1546,24 @@ def test_a_copy_removed_before_the_verification_is_refused(tmp_path, when):
     assert_uncommitted(dest)
 
 
+def test_a_folder_removed_after_the_source_check_is_refused(tmp_path):
+    """design 6.3 step 8 (the fix check): an empty folder the plan names, removed from the copy after
+    the source was checked, then resumed without the source: destination_mismatch (unaccounted) with
+    the folder missing — the dry run the same — nothing removed or written, no marker."""
+    source = _copy_source(tmp_path)
+    (source / "emptydir").mkdir()
+    dest = tmp_path / "dest"
+    interrupt(source, dest, {"step": "source_checked"})
+    os.rmdir(dest / "emptydir")
+    before = tree(dest)
+    error = refused("destination_mismatch", lambda: migrate(None, dest))
+    assert error.details["reason"] == "unaccounted" and error.details["missing"] == ["emptydir"]
+    dry = refused("destination_mismatch", lambda: migrate(None, dest, dry_run=True))
+    assert dry.details["state"] == "refused" and dry.details["missing"] == ["emptydir"]
+    assert tree(dest) == before, "nothing removed, nothing written"
+    assert_uncommitted(dest)
+
+
 @pytest.mark.parametrize("change", ["outside_link_removed", "empty_folder_added", "link_retargeted"])
 def test_a_change_in_the_source_s_list_under_the_copy_is_source_changed(tmp_path, change):
     """S5, design 6.3 step 7 (Codex #5): an outside link removed, an empty folder added, an outside
@@ -1678,20 +1696,41 @@ def test_a_file_the_report_binds_that_went_is_made_again_before_the_marker(tmp_p
     assert_committed(dest)
 
 
-def test_a_marker_naming_another_migration_s_report_is_refused_and_not_read(tmp_path):
-    """design 2.4 (Codex #7): a marker whose migration field names another migration's report (its
-    bytes bound): the call is destination_mismatch (invalid), and the reader applies no mapping
-    (`invalid`)."""
+@pytest.mark.parametrize("where", ["report_path", "report_bytes", "mapping_bytes"])
+def test_a_marker_naming_another_migration_s_report_is_refused_and_not_read(tmp_path, where):
+    """design 2.4 (Codex #7, the fix check): a marker whose migration field names another migration's
+    report, or names its own migration's report path where another migration's report bytes are, or
+    whose report binds another migration's mapping bytes in its own directory — each bound by its
+    sha256: the call and its dry run are destination_mismatch (invalid) and write nothing, and the
+    reader applies no mapping (`invalid`)."""
     first, second = _copy_source(tmp_path), plain_source(tmp_path, "other")
     a, b = tmp_path / "a", tmp_path / "b"
     migrate(first, a)
     migrate(second, b)
     marker_b = json.loads((b / "analytics.json").read_text(encoding="utf-8"))
-    shutil.copytree(mdir(b), a / migration.MIGRATIONS / mdir(b).name)
     marker = json.loads((a / "analytics.json").read_text(encoding="utf-8"))
-    marker["migration"] = {**marker["migration"], "report": marker_b["migration"]["report"],
-                           "report_sha256": marker_b["migration"]["report_sha256"]}
+    if where == "report_path":
+        shutil.copytree(mdir(b), a / migration.MIGRATIONS / mdir(b).name)
+        marker["migration"] = {**marker["migration"], "report": marker_b["migration"]["report"],
+                               "report_sha256": marker_b["migration"]["report_sha256"]}
+    elif where == "report_bytes":
+        data = (mdir(b) / "report.json").read_bytes()
+        (mdir(a) / "report.json").write_bytes(data)
+        marker["migration"] = {**marker["migration"], "report_sha256": hashlib.sha256(data).hexdigest()}
+    else:
+        data = (mdir(b) / "mapping.json").read_bytes()
+        (mdir(a) / "mapping.json").write_bytes(data)
+        report = json.loads((mdir(a) / "report.json").read_text(encoding="utf-8"))
+        report["mapping"]["sha256"] = hashlib.sha256(data).hexdigest()
+        report_data = json.dumps(report).encode()
+        (mdir(a) / "report.json").write_bytes(report_data)
+        marker["migration"] = {**marker["migration"],
+                               "report_sha256": hashlib.sha256(report_data).hexdigest()}
     (a / "analytics.json").write_text(json.dumps(marker), encoding="utf-8")
+    before = tree(a)
     error = refused("destination_mismatch", lambda: migrate(first, a))
     assert error.details["reason"] == "invalid"
+    dry = refused("destination_mismatch", lambda: migrate(first, a, dry_run=True))
+    assert dry.details["reason"] == "invalid"
+    assert tree(a) == before, "nothing written"
     assert core.status(core.Project(a))["project"]["migration"]["reason"] == "invalid"

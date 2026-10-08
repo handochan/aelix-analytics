@@ -11,16 +11,17 @@ CI 칸은 PR을 연 뒤의 실행으로 채웁니다(지금 `pending`). 모든 �
 전환은 아직 명령으로 열지 않았습니다(`analytics migrate`는 셋째 PR). 그래서 아래의 전환은 모두 시험과 이 측정의 스크립트가 엔진을 직접 부른
 것입니다.
 
-이 기록은 PR의 리뷰(독립 구현 리뷰 1회, Codex 리뷰 1회)의 지적을 고친 커밋(`fix: answer the reviews of PR 2 (Issue #13)`)을 처음부터 다시 잰
-것입니다. 고친 것이 `migration.py`·`core.py`·`relations.py`라 모든 값을 다시 쟀고, 처음 측정(코드 `2b6eabb`)과의 비교는 끝의 "리뷰 뒤 다시 잼"과
-JSON의 `previous_measurement`에 있습니다.
+이 기록은 PR의 리뷰(독립 구현 리뷰 1회, Codex 리뷰 1회)의 지적을 고친 커밋과, 그 수정 diff 확인의 지적을 고친 커밋(`fix: answer the fix check
+of PR 2 (Issue #13)`)의 코드를 처음부터 다시 잰 것입니다. 수정 diff 확인이 `migration.py`를 고쳤으므로(검사 둘) 모든 값을 다시 쟀고, 앞선 두
+측정(처음 코드 `2b6eabb`, 리뷰 뒤 코드 `80a0fc9`)과의 비교는 끝의 "리뷰 뒤 다시 잼"·"수정 diff 확인 뒤 다시 잼"과 JSON의
+`previous_measurement`·`review_fix_measurement`에 있습니다.
 
 ## 출처와 환경
 
 | 항목 | 근거 |
 |---|---|
-| 측정한 코드 | `feat/issue-13-migration-engine`의 커밋 `fix: answer the reviews of PR 2 (Issue #13)`의 코드. `origin/main` `ed29cf0`(PR #80 병합, 트리는 `fbd12e1`과 같음) 위의 `b7e1521`·`8ca6914`·`50a55bb`·`d08cf24`·`4243021`·`f7faea5`와 그 커밋입니다. 그 커밋을 run 폴더의 깨끗한 클론에서 쟀고, 이 기록과 PR 글은 잰 뒤 같은 커밋에 더했습니다(커밋을 고쳐 써 잴 때의 id `50bbbdb`는 branch에 남지 않음). JSON의 `measured_tree`는 파일 manifest의 형식(추적하는 `src`·`extension`·`tests`·`tools`·`bin`·`pyproject.toml`·`uv.lock` 파일마다 `shasum -a 256` 한 줄, 경로 순), 그 manifest 전체의 sha256과 파일 수를 담습니다. 파일마다의 목록은 run 폴더의 `evidence/code-manifest.txt`에 있고 저장소에는 없습니다 |
-| 비교한 기준 | `fbd12e1`(= `c918381`의 코드, 이 PR이 올라가는 PR #80의 헤드)의 체크아웃에서 처음 측정의 새 시험을 돌렸고, 리뷰 뒤 더한 시험은 앞 헤드 `f7faea5`의 체크아웃에서 돌렸습니다(아래) |
+| 측정한 코드 | `feat/issue-13-migration-engine`의 커밋 `fix: answer the fix check of PR 2 (Issue #13)`의 코드. `origin/main` `ed29cf0`(PR #80 병합, 트리는 `fbd12e1`과 같음) 위의 `b7e1521`·`8ca6914`·`50a55bb`·`d08cf24`·`4243021`·`f7faea5`·`80a0fc9`와 그 커밋입니다. 그 커밋을 run 폴더의 깨끗한 클론에서 쟀고, 이 기록은 잰 뒤 같은 커밋에 더했습니다(커밋을 고쳐 써 잴 때의 id `2de7c81`은 branch에 남지 않음). JSON의 `measured_tree`는 파일 manifest의 형식(추적하는 `src`·`extension`·`tests`·`tools`·`bin`·`pyproject.toml`·`uv.lock` 파일마다 `shasum -a 256` 한 줄, 경로 순), 그 manifest 전체의 sha256과 파일 수를 담습니다. 파일마다의 목록은 run 폴더의 `evidence/code-manifest.txt`에 있고 저장소에는 없습니다 |
+| 비교한 기준 | `fbd12e1`(= `c918381`의 코드, 이 PR이 올라가는 PR #80의 헤드)의 체크아웃에서 처음 측정의 새 시험을 돌렸고, 리뷰 뒤 더한 시험은 그때의 앞 헤드 `f7faea5`, 수정 diff 확인 뒤 더한 사례는 `80a0fc9`의 코드에서 돌렸습니다(아래) |
 | 워크플로 | `.github/workflows/ci.yml`, 이 변경이 고치지 않음 |
 | CI | `pending`: PR을 열지 않았습니다(이 작업은 push하지 않음). PR의 실행으로 `runs`·`legs`를 채웁니다 |
 | 개발 기기 | macOS 26.6.2 arm64(Apple M5 Pro), uv 0.11.19. 저장소 시험 CPython 3.12.13(`uv.lock`의 개발 환경), aelix 레그 3.12·3.11, 런처·stdlib 스모크 3.11. 같은 기기에서 다른 에이전트의 시험이 함께 돌았으므로 시간은 그 부하를 담습니다 |
@@ -31,7 +32,7 @@ JSON의 `previous_measurement`에 있습니다.
 | 검사 | 명령 | 결과 |
 |---|---|---|
 | ruff | `uv run --locked ruff check tests extension src tools` | 통과 |
-| 저장소 시험 | `uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread` | 통과: 1644 passed, 92 skipped, 0 failed(460초). 처음 측정(1621 passed)보다 리뷰에 더한 시험 23개가 많고, PR ①의 마지막 측정(1477 passed, 72 skipped)보다 167개 많음: 전환 시험 `tests/test_migration.py`·`tests/test_migration_reader.py`, 포트 계약 사례, 표식 판정의 `incomplete` 행, Windows의 `publish_new`, aelix 프로세스가 `migration`을 로드하지 않음. 늘어난 건너뜀 20개는 Windows 구현의 포트 사례 14, 시험 adapter가 밝히지 않은 능력 3, 다른 OS에서 도는 전환 사례 3(공유 없이 연 원본 파일과 MAX_PATH는 Windows, UTF-8이 아닌 이름은 Linux)입니다. 리뷰에 더한 시험 가운데 읽기 전용 폴더와 링크 뒤 `..`의 둘은 POSIX에서만 돌고 이 기기에서 돌았습니다 |
+| 저장소 시험 | `uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread` | 통과: 1647 passed, 92 skipped, 0 failed(454초). 리뷰 뒤 측정(1644 passed)보다 수정 diff 확인에 더한 사례 3개가, 처음 측정(1621 passed)보다 리뷰에 더한 시험 23개가 많고, PR ①의 마지막 측정(1477 passed, 72 skipped)보다 170개 많음: 전환 시험 `tests/test_migration.py`·`tests/test_migration_reader.py`, 포트 계약 사례, 표식 판정의 `incomplete` 행, Windows의 `publish_new`, aelix 프로세스가 `migration`을 로드하지 않음. 늘어난 건너뜀 20개는 Windows 구현의 포트 사례 14, 시험 adapter가 밝히지 않은 능력 3, 다른 OS에서 도는 전환 사례 3(공유 없이 연 원본 파일과 MAX_PATH는 Windows, UTF-8이 아닌 이름은 Linux)입니다. 리뷰에 더한 시험 가운데 읽기 전용 폴더와 링크 뒤 `..`의 둘은 POSIX에서만 돌고 이 기기에서 돌았습니다 |
 | 계층 검사 | `tests/test_layers.py` | 통과: 47 passed(`migration` 계층 등록, ARCHITECTURE §11의 표와 같음) |
 | 계약 시험 | `tests/test_contracts.py` | 통과: 66 passed, 41 skipped(Windows 구현은 Windows 레그, 시험 adapter가 밝히지 않은 능력) |
 | aelix 0.1.0b2, 3.12 / 3.11 | `tests/test_extension.py tests/test_usage_report.py`(CONTRIBUTING의 격리 명령) | 통과: 161 / 161 passed |
@@ -42,7 +43,8 @@ JSON의 `previous_measurement`에 있습니다.
 | 문서 검사 | `tools/check_docs.py --output <run 폴더>/evidence/docs-record.json`(이 기록을 더한 worktree에서) | `ok: true`, 오류 0(Markdown 65, 로컬 링크 692) |
 | 공백 | `git diff --check fbd12e1...HEAD`(잰 클론), `git diff --check origin/main...HEAD`(이 기록을 더한 커밋) | 둘 다 출력 없음 |
 | 새 시험을 기준 소스에서(처음 측정) | 그때 헤드의 새·바뀐 시험 + `fbd12e1`의 `src`·`extension`·`bin`·`tools`·`pyproject.toml`·`uv.lock` | 기대대로 실패: 70개(수집 오류 둘 — `tests/test_migration.py`·`tests/test_migration_reader.py`는 `aelix_analytics.migration`이 없음 — 포함). 통과한 24개는 시험 adapter(시험 코드인 `tests/platform_doubles.py`)의 포트 사례와, 거른 조건에 함께 든 바꾸지 않은 사례(쓸 수 없는 pid, 계층 검사의 파서 사례 넷)입니다 |
-| 리뷰의 새 시험을 앞 헤드에서 | 이 커밋의 `tests/test_migration.py`·`tests/test_migration_reader.py` + 앞 헤드 `f7faea5`의 코드(run 폴더의 클론) | 기대대로 실패: 리뷰에 더한 23개 모두(지적마다의 재현). 그 헤드에 있던 110개는 통과, 2개 건너뜀 |
+| 리뷰의 새 시험을 앞 헤드에서 | 리뷰 수정 커밋(`80a0fc9`)의 `tests/test_migration.py`·`tests/test_migration_reader.py` + 그때의 앞 헤드 `f7faea5`의 코드(run 폴더의 클론) | 기대대로 실패: 리뷰에 더한 23개 모두(지적마다의 재현). 그 헤드에 있던 110개는 통과, 2개 건너뜀 |
+| 수정 diff 확인의 새 사례를 앞 헤드에서 | 이 커밋의 `tests/test_migration.py`에서 바꾸거나 더한 사례 + `80a0fc9`의 코드(run 폴더의 클론) | 기대대로 실패: 더한 3개 모두(다른 전환의 보고서 바이트·매핑 바이트를 자기 디렉터리에 둔 표식, 원본 재확인 뒤 지운 계획 폴더). 리뷰가 더한 `report_path` 사례는 통과 |
 
 ## 중단과 이어 쓰기(`fault_matrix`, T6)
 
@@ -97,6 +99,11 @@ journal에 덧붙임·원본을 지우고 원본 없이 부름·바깥 링크의
 이름에 원본의 읽기 전용 파일로의 링크를 심어도 링크만 지우고 커밋하며 원본의 바이트·권한 그대로, 원본 루트에 `.mig-gitignore-0.part`·
 `.analytics-json-0.part`라는 파일이 있어도 한 번에 커밋하고 다시 부르면 모두 `same`.
 
+수정 diff 확인 뒤 더한 행도 통과입니다: `source_checked` 뒤 사본의 빈 폴더를 지우고 원본 없이 이어 부르면 `destination_mismatch(unaccounted)`
+(`details.missing: ["emptydir"]`)이고 목적지 트리 그대로(dry run도 `state: refused`), 커밋한 목적지의 표식이 묶은 보고서가 다른 전환의 바이트이거나
+보고서가 묶은 매핑이 다른 전환의 바이트이면(각각 sha256을 맞춰 둠) 다시 부르기와 dry run이 아무것도 쓰지 않고 `destination_mismatch(invalid)`이고
+읽기도 매핑을 쓰지 않음(`invalid`).
+
 ## 동시성(`concurrency`, T5·T7·T15·T19)
 
 | 경우 | 결과 |
@@ -113,19 +120,20 @@ journal에 덧붙임·원본을 지우고 원본 없이 부름·바깥 링크의
 
 ## 규모와 단계(`fixtures`·`phases`·`sizes`·`preservation`)
 
-`tools/eval_fixtures.py scale --scale S|M --seed 0`을 잰 코드(kit 0.7.0이 `lab.json`·`lab.*/1`을 씀)로 새로 만들고, 각 원본을 새 목적지에 두 번 전환했습니다
+`tools/eval_fixtures.py scale --scale S|M --seed 0`을 잰 코드(kit 0.7.0이 `lab.json`·`lab.*/1`을 씀)로 새로 만들고(기록의 시각 값 때문에
+만들 때마다 몇 바이트 다름: M은 앞 측정의 223,109,249 B에서 이번 223,109,251 B), 각 원본을 새 목적지에 두 번 전환했습니다
 (자식 프로세스마다 하나, 시간은 ledger 줄의 시각에서, 두 번의 최솟값). 원본은 측정 스크립트의 걷기(전환 코드가 아닌 것)로 첫 전환 전과 둘째 전환·다시
 부르기 뒤에 비교했습니다.
 
 | 항목 | S | M |
 |---|---|---|
-| 원본 파일·바이트(잠금 파일 둘 제외) | 229개, 2,898,447 B | 2,037개, 223,109,249 B |
-| 복사한 파일·바이트(`lab.json`의 바이트는 `source-marker.json`으로, `.lab/report.lock`은 뺌) | 228개, 2,898,447 B | 2,036개, 223,109,249 B |
+| 원본 파일·바이트(잠금 파일 둘 제외) | 229개, 2,898,447 B | 2,037개, 223,109,251 B |
+| 복사한 파일·바이트(`lab.json`의 바이트는 `source-marker.json`으로, `.lab/report.lock`은 뺌) | 228개, 2,898,447 B | 2,036개, 223,109,251 B |
 | 복사하지 않은 것 | `.lab`의 잠금 셋, 빈 `.lab/cache`·`report`(0 B) | 같음 |
-| 계획 / 복사 / 원본 재확인 / 사본 검증(ms) | 9 / 930 / 21 / 11 | 48 / 8,442 / 267 / 176 |
-| `.gitignore` 변환 / 보고서 / flush / 표식 / 전체(ms) | 9 / 20 / 2 / 4 / 1,011 | 21 / 27 / 17 / 8 / 9,030 |
-| 원본 잠금을 쥔 시간(ms) | 962 | 8,763 |
-| 자식의 최대 RSS(시작 때) | 30.3 MB(17.2 MB) | 74.1 MB(17.3 MB) |
+| 계획 / 복사 / 원본 재확인 / 사본 검증(ms) | 13 / 977 / 23 / 12 | 51 / 8,400 / 256 / 165 |
+| `.gitignore` 변환 / 보고서 / flush / 표식 / 전체(ms) | 13 / 19 / 2 / 5 / 1,065 | 20 / 27 / 18 / 7 / 8,959 |
+| 원본 잠금을 쥔 시간(ms) | 1,013 | 8,721 |
+| 자식의 최대 RSS(시작 때) | 29.6 MB(17.3 MB) | 72.3 MB(17.4 MB) |
 | `report.json` / `plan.json` / `mapping.json` / ledger | 47 KB / 148 KB / 833 B / 97 KB(469줄) | 395 KB / 1.36 MB / 833 B / 862 KB(4,085줄) |
 | 원본 digest 전후 | 같음 | 같음 |
 | 두 전환의 사본 | 같음 | 같음 |
@@ -143,13 +151,14 @@ aelix의 hook·도구가 journal 잠금에서 기다림). 두 fixture의 원본�
 | fixture | 판정 수 | 같음 |
 |---|---|---|
 | S | 참조 477, run 30, 기록 상태 252, 계보 39, 생산자 39, 가져오기 5, 끊긴 줄 4 | 모두 같음, 목적지의 매핑 적용(`applied: true`) |
-| M | 참조 15,000, run 300, 기록 상태 9,633, 계보 483, 생산자 483, 가져오기 20, 끊긴 줄 4 | 모두 같음, 매핑 적용, 읽기 0.32초 |
+| M | 참조 15,000, run 300, 기록 상태 9,633, 계보 483, 생산자 483, 가져오기 20, 끊긴 줄 4 | 모두 같음, 매핑 적용, 읽기 0.33초 |
 
 `tests/test_migration_reader.py`가 옛 kit의 경로를 봅니다(심볼릭 링크, Windows 레그는 junction도): 옛 run이 루트를 다른 철자로 기록한 절대 경로,
 `data -> /ext/data` 경계를 지나 실제 경로로 기록한 입력, 상대 `.lab/…` 경로, 같은 글자를 기록한 0.5.0 run. 목적지의 판정이 원본과 같고(다른 것은 `.lab/…`
 경로에 매핑만이 주는 `read_as: .analytics/…` 하나), 목적지를 옮기고 `/ext/data`를 지운 뒤에도 같으며, 보고서의 바이트가 바뀌면 매핑을 쓰지 않고
 `status`가 `report_changed`를 보입니다. 리뷰 뒤에는 매핑을 지우면 `source_revision`이 바뀌고 같은 바이트로 되돌리면 처음 값으로 돌아오는 것,
-표식·보고서·매핑의 전환 id가 다르거나 보고서가 다른 전환의 디렉터리에 있으면 매핑을 쓰지 않는 것(`invalid`)도 봅니다.
+표식·보고서·매핑의 전환 id가 다르거나 보고서가 다른 전환의 디렉터리에 있으면 매핑을 쓰지 않는 것(`invalid`)도 봅니다. 수정 diff 확인 뒤에는
+같은 목적지를 다시 부른 전환도 `destination_mismatch(invalid)`로 거절하는 것을 함께 봅니다(위 "중단과 이어 쓰기").
 
 ## 실행하지 않은 것
 
@@ -163,7 +172,17 @@ M의 Workspace 페이지 비교(판정만 비교함). 링크 없는 목적지의
 
 ## 리뷰 뒤 다시 잼
 
-처음 측정(코드 `2b6eabb`, 이 PR의 커밋 `f7faea5`가 담은 기록)과 비교하면, F 표의 37행은 남은 것·kit의 읽기·다시 부른 결과·사본·원본 비교가
-모두 같고, 규모의 값은 같은 기기의 부하 안에서 비슷합니다(S 전체 1,025 → 1,011 ms, M 9,315 → 9,030 ms, M의 최대 RSS 69.8 → 74.1 MB). 저장소
-시험은 리뷰에 더한 시험만큼 늘었습니다(위 결과 표). 리뷰에 더한 시험 23개는 앞 헤드 `f7faea5`의 코드에서 모두 실패하고(그 헤드의 시험 110개는
-통과), 이 커밋에서 모두 통과합니다(JSON의 `new_tests_on_previous_head`).
+리뷰 뒤 측정(코드 `80a0fc9`)을 처음 측정(코드 `2b6eabb`, 이 PR의 커밋 `f7faea5`가 담은 기록)과 비교하면, F
+표의 37행은 남은 것·kit의 읽기·다시 부른 결과·사본·원본 비교가 모두 같고, 규모의 값은 같은 기기의 부하 안에서 비슷합니다(S 전체
+1,025 → 1,011 ms, M 9,315 → 9,030 ms, M의 최대 RSS 69.8 → 74.1 MB). 저장소 시험은 리뷰에
+더한 시험만큼 늘었습니다(위 결과 표). 리뷰에 더한 시험 23개는 앞 헤드 `f7faea5`의 코드에서 모두 실패하고(그 헤드의 시험
+110개는 통과), 리뷰 수정 커밋에서 모두 통과합니다(JSON의 `new_tests_on_previous_head`).
+
+## 수정 diff 확인 뒤 다시 잼
+
+리뷰 뒤 측정(코드 `80a0fc9`, 그 커밋이 담은 기록)과 비교하면, F 표의 37행은 남은 것·kit의 읽기·다시 부른
+결과·사본·원본 비교가 모두 같고(JSON의 `review_fix_measurement.fault_observed_rows_same`),
+규모의 값은 같은 기기의 부하 안에서 비슷합니다(S 전체 1,011 → 1,065 ms, M 9,030 → 8,959 ms, M의 최대
+RSS 74.1 → 72.3 MB). 보고서·계획·매핑·ledger의 크기와 줄 수는 같습니다. 저장소 시험은 수정 diff 확인에 더한
+사례 3개만큼 늘었고, 그 3개는 `80a0fc9`의 코드에서 실패하고 이 커밋에서 통과합니다(JSON의
+`new_tests_on_fix_check_head`).
