@@ -42,7 +42,24 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
   `status`·Workspace에 `unsupported`나 `damaged`로 보입니다. `status`와 Workspace의 CONTEXT 이력은 `.analytics/context/`의 버전도
   보입니다. 읽기 규칙 번호가 2가 되어 `source_revision` 값이 바뀝니다 ([#80]).
 
-기록의 형식과 값은 그대로입니다. 자세한 것은 [현재 계약](docs/CONTRACTS.md) B·D·G와 F1의 0.7.0 절에 있습니다.
+같은 번호에 [#13]의 전환 엔진 PR(②)이 다음을 더했습니다.
+
+### Added
+
+- `lab.json` 프로젝트를 새 폴더에 새 형식(`analytics.json`)으로 복사하는 전환 엔진(`aelix_analytics.migration`). 원본에는 옛 kit의 잠금 파일
+  둘 말고는 쓰지 않고, 목적지에 만드는 파일은 모두 ledger에 먼저 적은 뒤 없는 이름에만 만들며, 표식 게시가 마지막 커밋 지점이고, 끊기면 같은
+  호출로 잇습니다. 아직 명령으로 열지 않았습니다: `analytics migrate`는 다음 PR이 열고, 이 kit의 명령·도구는 그런 목적지에 쓰지 않습니다.
+  기록 schema에 `analytics.migration/1`(계획·매핑·보고서)과 표식의 `migration`이 있습니다 ([#13] ②).
+
+### Changed
+
+- 표식 없이 `.analytics/migration/`이나 `.analytics/migration.lock`이 있는 디렉터리(커밋하지 않은 전환의 목적지)에서 kit CLI·SDK의 찾기가
+  멈추고 모든 쓰기와 읽기를 새 오류 `migration_incomplete`로 거절합니다. 확장의 작업 디렉터리 찾기도 거기서 멈춥니다. 전에는 그런 디렉터리를
+  지나 위로 올라갔습니다 ([#13] ②).
+- 전환으로 만든 프로젝트는 옛 kit의 run이 기록한 경로를 그 전환의 매핑(원본 루트의 철자, 복사한 바깥 링크의 대상, `.lab/` → `.analytics/`)을
+  거쳐 읽고, `status` JSON에 `project.migration`이 있습니다. 읽기 규칙 번호가 3이 되어 `source_revision` 값이 바뀝니다 ([#13] ②).
+
+기록의 형식과 값은 그대로입니다. 자세한 것은 [현재 계약](docs/CONTRACTS.md) B·D·E·G와 F1의 0.7.0 절에 있습니다.
 
 ## [0.6.0] - 2026-10-08
 

@@ -2,9 +2,11 @@
 
 - 상태: **Proposed — 일부만 구현됐다.** 첫 구현 PR ①(kit 0.7.0)이 10절 ①의 행 — `writer.py`(표식 판정·게이트·`Origin`·오류 클래스·헬퍼),
   계층 수준, 가장 가까운 표식 탐색, 모든 쓰기 진입점의 `admit`, `marker_conflict`·`marker_invalid`, `/2` 이벤트 표시, `analytics.run/2`·
-  `analytics.dataset/1`의 정의(기록 schema)와 읽기, `relations.run_visualizations`·`run_reproduction` — 을 구현했다. 그 밖의 것 — `migration.py`,
-  `Writer`, 명령 `analytics migrate`, 기록에 쓰는 `means`·`actor_basis`, 표식의 `migration`, `analytics.trust/1`·`analytics.migration/1`, ①의
-  것이 아닌 오류 코드 — 은 코드에 없다. 지금 동작은 [현재 계약](../CONTRACTS.md)이 설명한다.
+  `analytics.dataset/1`의 정의(기록 schema)와 읽기, `relations.run_visualizations`·`run_reproduction` — 을, 둘째 구현 PR ②(같은 kit 0.7.0)가
+  10절 ②의 행 — `migration.py`(계층 `migration`, 수준 3)의 전환 엔진, 포트 메서드 넷과 계약 시험, 계획·ledger·매핑·보고서와
+  `analytics.migration/1`·표식의 `migration`, `incomplete`와 `migration_incomplete`, 매핑 읽기(5.4절), 고장 주입 시험 — 을 구현했다(명령으로는
+  열지 않음). 그 밖의 것 — `Writer`, 명령 `analytics migrate`, 기록에 쓰는 `means`·`actor_basis`, `analytics.trust/1`, ③의 오류 코드 — 은
+  코드에 없다. 지금 동작은 [현재 계약](../CONTRACTS.md)이 설명하고, ②가 설계와 다르게 고른 것은 그 PR이 적는다.
 - 작업: [#13](https://github.com/handochan/aelix-analytics/issues/13) `[B1-c/N0-b]` 새 기록 writer와 원본 보존 프로젝트 전환.
   완료 조건 다섯과 이 문서의 대응은 1절에 있다.
 - 기준: main `09d22c4`(PR #76, #12 PR-3 병합 뒤), `KIT_VERSION = "0.5.0"`. 코드 위치는 함수 이름으로 적는다. 구현 PR은 그때의
