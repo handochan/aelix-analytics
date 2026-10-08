@@ -16,7 +16,12 @@ read under an old name (OLD_ENV) is an error that names the new one. Neither is 
 Every command runs the kit in the project's own environment, as `bin/analytics` does:
 `uv run --project <project> python -m aelix_analytics ...` with PYTHONPATH set to exactly the
 runtime root this distribution installed (aelix_analytics/kit/, which holds a copy of this package;
-the package this file is in refuses `python -m`, see __main__). This process uses the standard
+the package this file is in refuses `python -m`, see __main__). Three run it outside any environment
+(`uv run --no-project`), since an environment made there would be a write: `init`, before the
+project is there; `migrate`, which reads its source and makes its destination by its own rules, and
+prepares the destination's environment only once it is committed (`uv sync --locked`, design 6.1);
+and every command in a migration's destination that has not committed, which the kit refuses
+(migration_incomplete, design 4.3). This process uses the standard
 library only, on Python 3.11 or later, and imports only this package's stdlib-only __init__ and
 _install.
 """
@@ -48,14 +53,18 @@ analytics — human CLI for Aelix Analytics projects (the same kit the aelix ext
   analytics query "SQL" [--limit N]
   analytics record KIND "TEXT" [--ref R] [--resolves eN]
   analytics render | open                     rebuild | open the Workspace page
+  analytics migrate --to DIR [--dry-run]      copy a lab.json project into a new folder DIR
 
 Commands other than init/demo use the project in AELIX_ANALYTICS_PROJECT, else the nearest directory
-at or above the current one with an analytics.json or a lab.json; the kit judges it.
+at or above the current one with an analytics.json or a lab.json, or with the record of a migration
+not finished there; the kit judges it. migrate copies that project into DIR in the current format and
+leaves it as it is (try --dry-run first).
 Output ends with one JSON line (status and context print text); a run that got past its setup
 puts an empty line before it. Nothing here is a sandbox.
 """
 
-COMMANDS = ("init", "demo", "status", "context", "open", "run", "import", "query", "record", "render")
+COMMANDS = ("init", "demo", "status", "context", "open", "run", "import", "query", "record", "render",
+            "migrate")
 
 # The environment variables this command read under the kit's old names (before kit 0.3.0), each with
 # its new name; bin/analytics refuses the same three in the same order with the same words. The kit
@@ -134,9 +143,15 @@ def _command(args: list[str], kit: Path | None, uv_argv: list[str] | None,
         _say(f"analytics: Workspace at {index} (analytics open, from inside the project)")
         return 0
 
+    if command == "migrate":
+        return _migrate(args, uv_argv, processes, env, children)
+
     project = find_project()
     if project is None:
         return 1
+    # A migration's destination that has not committed: the kit refuses every command there
+    # (migration_incomplete) and is asked outside any environment, so uv makes none in it (design 4.3).
+    outside = unfinished_migration(project)
     if command == "open":
         # `open` reads no record itself: it opens the page of the directory the kit takes for the
         # project, by the kit's presence rule (kit_marker). From where the search stopped, a
@@ -144,6 +159,14 @@ def _command(args: list[str], kit: Path | None, uv_argv: list[str] | None,
         # AELIX_ANALYTICS_PROJECT is taken as it is given, as before.
         if not os.environ.get("AELIX_ANALYTICS_PROJECT"):
             project = kit_root(project)
+        if outside:
+            # No page there: the step that would build one is the kit's answer, shown as it is.
+            uv = uv_argv or _uv(processes)
+            if uv is None:
+                return 127
+            code = children.run(kit_outside(uv, project, "render"), env)
+            if code or children.interrupted:
+                return code or children.stopped
         if all(kit_marker(Path(project), marker) for marker in MARKERS):
             # Two markers: the kit reads neither (marker_conflict), and neither page is opened. Only
             # their presence is looked at, not what they hold.
@@ -175,9 +198,69 @@ def _command(args: list[str], kit: Path | None, uv_argv: list[str] | None,
     uv = uv_argv or _uv(processes)
     if uv is None:
         return 127
+    kit_call = kit_outside if outside else kit_argv
     if command in ("status", "context"):
-        return children.run(kit_argv(uv, project, "--text", command), env)
-    return children.run(kit_argv(uv, project, command, *args), env, cancellable=command == "run")
+        return children.run(kit_call(uv, project, "--text", command), env)
+    return children.run(kit_call(uv, project, command, *args), env, cancellable=command == "run")
+
+
+def _migrate(args: list[str], uv_argv, processes, env, children: _Children) -> int:
+    """`migrate`: the kit's own, outside any environment — it finds the source as every command
+    finds its project (AELIX_ANALYTICS_PROJECT, else the working directory) and makes the destination
+    by its rules — then, once it committed (exit 0, not a dry run), the destination's environment
+    from its lock as it is (`uv sync --locked`, offline as a second try, as init does): a lock that
+    does not fit is left as it is and the sync fails. That failure leaves the migration done, and
+    the project's next command prepares its environment as every command does (design 6.1)."""
+    uv = uv_argv or _uv(processes)
+    if uv is None:
+        return 127
+    code = children.run([*uv, "run", "--no-project", "--python", "3.12", "--quiet", "python", "-m",
+                         "aelix_analytics", "migrate", *args], env)
+    if code or children.interrupted:
+        return code or children.stopped
+    destination, dry_run = migrate_options(args)
+    if dry_run or not destination:
+        return 0
+    project = str(Path(destination).resolve())
+    _say("analytics: syncing the project environment (first time can take a minute) ...")
+    code = children.run([*uv, "sync", "--project", project, "--locked", "--quiet"], env)
+    if code and not children.interrupted:
+        code = children.run([*uv, "sync", "--project", project, "--locked", "--quiet", "--offline"],
+                            env)
+    if children.interrupted:
+        return children.stopped
+    if code:
+        _say(migrated_unsynced_message(project, code))
+        return 0
+    _say(migrated_message(project))
+    return 0
+
+
+def migrate_options(args: list[str]) -> tuple[str | None, bool]:
+    """(the destination `--to` names, whether `--dry-run` is given) as the kit's migrate reads them —
+    the last `--to` counts, `--to DIR` or `--to=DIR`; it takes no abbreviation — or None where it names
+    none (the kit has refused the call then). An empty one is prepared by neither launcher (bin/analytics
+    tests for a value that is not empty), as there is no folder it names."""
+    destination, dry_run, rest = None, False, list(args)
+    while rest:
+        word = rest.pop(0)
+        if word == "--to" and rest:
+            destination = rest.pop(0)
+        elif word.startswith("--to="):
+            destination = word[len("--to="):]
+        elif word == "--dry-run":
+            dry_run = True
+    return destination, dry_run
+
+
+def migrated_message(project: str) -> str:
+    return (f"analytics: the project is {project} now, and the source is as it was "
+            f"(in aelix: /analytics use {project})")
+
+
+def migrated_unsynced_message(project: str, code: int) -> str:
+    return (f"analytics: the migration is done, but preparing the environment of {project} failed "
+            f"(uv sync --locked, exit {code}); the project's next command prepares it")
 
 
 def child_env(kit: Path) -> dict[str, str]:
@@ -195,6 +278,14 @@ def child_env(kit: Path) -> dict[str, str]:
 def kit_argv(uv: list[str], project: str, *args: str) -> list[str]:
     return [*uv, "run", "--project", project, "--quiet", "python", "-m", "aelix_analytics",
             "--project", project, *args]
+
+
+def kit_outside(uv: list[str], project: str, *args: str) -> list[str]:
+    """The kit outside any environment (`uv run --no-project`), as init runs it: for a migration's
+    destination that has not committed, where an environment uv made would be a stray entry the
+    migration's resumption has to pass over (design 4.3, 6.10)."""
+    return [*uv, "run", "--no-project", "--python", "3.12", "--quiet", "python", "-m",
+            "aelix_analytics", "--project", project, *args]
 
 
 # The project markers, the new format's and the one the kit writes before it (Issue #13): the nearest
@@ -230,13 +321,47 @@ def kit_marker(directory: Path, name: str) -> bool:
 def kit_root(found: str) -> str:
     """The directory the kit takes for the project when it searches upward from `found`, where the
     search (find_project) stopped (writer.find_project): `found`, unless its marker entries are only
-    links that lead nowhere, and `found` again when no directory up from it has a marker (the kit
-    then says there is no project)."""
+    links that lead nowhere, and `found` again when no directory up from it has a marker or a
+    migration's record (the kit then says there is no project)."""
     start = Path(found)
     for directory in (start, *start.parents):
-        if any(kit_marker(directory, marker) for marker in MARKERS):
+        if any(kit_marker(directory, marker) for marker in MARKERS) or migration_record(directory):
             return str(directory)
     return found
+
+
+# What a migration keeps in its destination (writer.MIGRATION_DIR, writer.MIGRATION_LOCK): without a
+# marker beside it, the folder is a migration's destination that has not committed.
+MIGRATION_RECORD = (".analytics/migration", ".analytics/migration.lock")
+
+
+def migration_record(directory: Path) -> bool:
+    """Whether `directory` holds a migration's record as the kit counts one (writer.migration_record):
+    an entry of either name, a link being itself, or one that cannot be looked at (a .analytics/ this
+    account cannot search). bin/analytics has the same rule."""
+    for name in MIGRATION_RECORD:
+        try:
+            os.lstat(directory / name)
+        except (FileNotFoundError, NotADirectoryError, ValueError):
+            continue
+        except OSError:
+            return True
+        return True
+    return False
+
+
+def unfinished_migration(project: str) -> bool:
+    """Whether the kit takes `project` — the directory given it, from which it searches upward again —
+    for a migration's destination that has not committed: the first directory at or above it with a
+    marker as the kit counts one (kit_marker) or a migration's record has the record and no marker
+    (writer.find_project, marker_state's `incomplete`)."""
+    start = Path(os.path.abspath(project))
+    for directory in (start, *start.parents):
+        if any(kit_marker(directory, marker) for marker in MARKERS):
+            return False
+        if migration_record(directory):
+            return True
+    return False
 
 
 def older_page_message(project: str) -> str:
@@ -252,7 +377,7 @@ def two_markers_message(project: str) -> str:
 def find_project() -> str | None:
     """AELIX_ANALYTICS_PROJECT as it is given (the kit reports one that is not a project), or the nearest
     directory at or above the working directory that holds a project marker (MARKERS), whatever it
-    holds: the kit says whether it reads or writes there."""
+    holds, or a migration's record (MIGRATION_RECORD): the kit says whether it reads or writes there."""
     configured = os.environ.get("AELIX_ANALYTICS_PROJECT")
     if configured:
         return configured
@@ -263,7 +388,7 @@ def find_project() -> str | None:
              "AELIX_ANALYTICS_PROJECT")
         return None
     for directory in (here, *here.parents):
-        if any(has_marker(directory, marker) for marker in MARKERS):
+        if any(has_marker(directory, marker) for marker in MARKERS) or migration_record(directory):
             return str(directory)
     _say(f"analytics: no analytics.json or lab.json in {here} or its parents (cd into a project or set "
          "AELIX_ANALYTICS_PROJECT)")

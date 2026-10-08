@@ -522,6 +522,49 @@ def test_the_kit_command_line_writes_only_where_it_may(base, tmp_path, column):
     record_matrix("kit_cli", column, seen)
 
 
+# The migration's row (design 11.3: `migrate` is judged by its own rules, Issue #13 PR 3): every
+# column as the source — read by the migration's rules, never admitted, so only a lab.json project is
+# copied and every other column is source_not_legacy with its judgment (no_project where none is) —
+# and as the folder above a destination, which a marker of any kind makes inside_project (OQ9).
+MIGRATE_SOURCE = {"lab_project_1": None, "lab_unparsable": None, "lab_project_9": "unknown",
+                  "analytics_2": "current", "analytics_2_too_old": "current", "analytics_3": "unknown",
+                  "analytics_invalid": "invalid", "both": "conflict", "none": "no_project",
+                  "incomplete": "incomplete", "nested": "current"}
+
+
+@pytest.mark.parametrize("column", MATRIX_MARKERS)
+def test_the_migration_copies_only_a_lab_json_project_and_never_inside_one(base, tmp_path, column):
+    """T8's migrate row: from each column, `migrate --to` a new folder outside — a lab.json project
+    (lab.project/1 or a broken lab.json, the older kit's) is copied and its bytes stay as they were;
+    every other column is refused before anything is written: no destination, the column as it was.
+    And `--to` a folder inside each column with a marker is destination_invalid (inside_project)."""
+    target, tree = _column(base, tmp_path / "source", column)
+    before = snapshot(tree)
+    dest = tmp_path / "new"
+    code, result = kit_cli(target, "migrate", "--to", dest)
+    expected = MIGRATE_SOURCE[column]
+    seen = {"source": None if result["ok"] else result["error"]["code"]}
+    if expected is None:
+        assert code == 0 and result["ok"] and writer.marker_state(dest).state == "current", result
+    elif expected == "no_project":
+        assert (code, result["error"]["code"]) == (1, "no_project"), result
+    else:
+        assert (code, result["error"]["code"]) == (1, "source_not_legacy"), result
+        assert result["error"]["details"] == {"state": expected}
+    if expected is not None:
+        assert not dest.exists()
+    assert snapshot(tree) == before
+    legacy, _ = _column(base, tmp_path / "legacy", "lab_project_1")
+    inside = tree / "inner"
+    code, result = kit_cli(legacy, "migrate", "--to", inside)
+    if writer.present_marker(tree):
+        assert (code, result["error"]["code"]) == (1, "destination_invalid"), result
+        assert result["error"]["details"]["reason"] == "inside_project"
+        assert not inside.exists() and snapshot(tree) == before
+        seen["destination_inside"] = "inside_project"
+    record_matrix("migrate", column, seen)
+
+
 def record_matrix(rows: str, column: str, seen: dict) -> None:
     from conftest import record_observation
 

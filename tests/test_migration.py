@@ -223,10 +223,11 @@ def refused(code: str, call, **kwargs) -> core.AnalyticsError:
     return caught.value
 
 
-def interrupt(source, dest: Path, stop: dict, *, no_links: bool = False, code: int = 9) -> dict | None:
+def interrupt(source, dest: Path, stop: dict, *, no_links: bool = False, no_renames: bool = False,
+              code: int = 9) -> dict | None:
     """The migration in a process of its own, ended at `stop` (tests/migration_driver.py)."""
     args = {"source": None if source is None else str(source), "dest": str(dest), "stop": stop,
-            "no_links": no_links}
+            "no_links": no_links, "no_renames": no_renames}
     done = subprocess.run([sys.executable, str(DRIVER), json.dumps(args)], capture_output=True,
                           env=kit_env(), timeout=300, **_platform.text_kwargs())
     assert done.returncode == code, (done.returncode, done.stdout, done.stderr)
@@ -496,6 +497,10 @@ def test_a_direct_write_where_links_cannot_be_made(shared, tmp_path, stop):
         assert copies(dest) == shared["reference"]
         assert_committed(dest, source)
         assert any(v["step"] == "direct" for v in ledger(dest).lines)
+        # The copies are written directly; the marker never is (owner's decision of 2026-10-08): it
+        # is published by the rename that refuses a taken name, as the probe found it would be.
+        assert writer.MARKER not in ledger(dest).direct_intent
+        assert ledger(dest).probed["publish"] == "rename_new"
     else:
         before = tree(dest)
         error = refused("destination_mismatch", lambda: migrate(source, dest))
@@ -510,6 +515,110 @@ def test_the_fault_matrix_is_kept(shared):
     from conftest import record_observation
 
     record_observation("issue-13-migration/fault-matrix", SEEN)
+
+
+# --- the marker where the file system has no links (owner's decision of 2026-10-08) -----------------
+
+@pytest.mark.parametrize(("stop", "expected"), [({"step": "marker_temp"}, "resume"),
+                                                ({"step": "marker_written"}, "resume"),
+                                                ({"step": "marker_published"}, "already")])
+def test_a_marker_where_links_cannot_be_made_is_published_by_a_rename(shared, tmp_path, stop,
+                                                                       expected):
+    """F11 and F12 where the file system gives no second name: the marker's bytes go to its
+    temporary file first (its line names it), and the rename that refuses a taken name gives it its
+    name, so the marker is whole or absent — never half written in place, which a call made again
+    would find marker_invalid. Interrupted before the rename the destination is not committed and
+    the same call publishes it; after, it is committed."""
+    source = shared["source"]
+    dest = tmp_path / "dest"
+    interrupt(source, dest, stop, no_links=True)
+    if expected == "resume":
+        assert_uncommitted(dest)
+    else:
+        assert writer.marker_state(dest).state == "current"
+    assert writer.MARKER not in ledger(dest).direct_intent
+    interrupt(source, dest, {}, no_links=True, code=0)
+    assert_committed(dest, source)
+    assert copies(dest) == shared["reference"]
+    read = ledger(dest)
+    assert read.probed["publish"] == "rename_new" and writer.MARKER not in read.direct
+    assert not any(p.startswith(migration.MARKER_TEMP) for p in tree(dest))
+    assert source_tree(source) == shared["before"]
+
+
+def test_a_destination_with_neither_links_nor_an_exclusive_rename_is_refused_before_any_copy(
+        shared, tmp_path):
+    """Where the file system can neither link nor rename without replacing, the migration does not
+    write the marker in place: it stops at step 2's probe, before any copy — destination_invalid,
+    reason no_exclusive_rename — and the same call stops there again. The destination holds the
+    migration's record only (no marker, no copy); the source is as it was; the dry run, which
+    writes nothing, says it has not judged how the marker would be published."""
+    source = shared["source"]
+    dest = tmp_path / "dest"
+    dry = migrate(source, dest, dry_run=True)
+    assert dry["state"] == "new" and dry["plan"]["publication_judged"] is False
+    for _ in range(2):
+        error = interrupt(source, dest, {}, no_links=True, no_renames=True, code=0)
+        assert error["error"]["code"] == "destination_invalid", error
+        assert error["error"]["details"]["reason"] == "no_exclusive_rename"
+        assert "nothing was copied" in error["error"]["hint"]
+        assert_uncommitted(dest)
+        assert set(tree(dest)) <= {".analytics", ".analytics/migration.lock", migration.MIGRATIONS,
+                                   f"{migration.MIGRATIONS}/{mdir(dest).name}",
+                                   f"{migration.MIGRATIONS}/{mdir(dest).name}/progress.jsonl"}
+        steps = [v["step"] for v in ledger(dest).lines]
+        assert steps[0] == "start" and steps[-1] == "failed" and "probed" not in steps, steps
+        assert ledger(dest).lines[-1]["reason"] == "no_exclusive_rename"
+    assert source_tree(source) == shared["before"]
+    # On a file system that has the rename after all (another disk mounted there), the same call
+    # goes on from the probe.
+    interrupt(source, dest, {}, no_links=True, code=0)
+    assert_committed(dest, source)
+
+
+def test_the_marker_is_refused_where_the_rename_went_after_the_probe(tmp_path):
+    """Step 11 asks again: a destination whose rename the probe found and that has none when the
+    marker is published (its disk changed meanwhile) is refused there — no_exclusive_rename, before
+    the marker — the marker's temporary file kept as its line names it; the next call on a file
+    system that has the rename removes that file and commits."""
+    from platform_doubles import recording_platform
+
+    bundle, calls = recording_platform()
+    bundle.files.links = False
+    source = plain_source(tmp_path)
+    dest = tmp_path / "dest"
+
+    def lose_the_rename(name, _info):
+        if name == "marker_written":
+            bundle.files.renames = False
+
+    error = refused("destination_invalid", lambda: migrate(source, dest, platform=bundle,
+                                                           on_step=lose_the_rename))
+    assert error.details["reason"] == "no_exclusive_rename"
+    assert "its copies are there, without the marker" in error.hint
+    assert_uncommitted(dest)
+    [temp] = ledger(dest).marker_temps
+    assert (dest / temp).is_file() and ledger(dest).lines[-1]["step"] == "failed"
+    assert ("files.rename_new", "analytics.json") in calls
+    bundle.files.renames = True
+    result = migrate(source, dest, platform=bundle)
+    assert result["ok"] and not result["already_migrated"]
+    assert not (dest / temp).exists()
+    assert_committed(dest, source)
+
+
+def test_a_ledger_that_writes_the_marker_directly_is_no_state(tmp_path):
+    """The ledger no longer takes a direct write of the marker (a migration of kit 0.7.0's engine
+    wrote one where links were not; none was a command): such lines are destination_mismatch, and
+    nothing is removed."""
+    source = _copy_source(tmp_path)
+    dest = tmp_path / "dest"
+    interrupt(source, dest, {"step": "marker_written"})
+    migration.append_line(mdir(dest) / "progress.jsonl",
+                          {"step": "direct_intent", "at": at(1), "path": writer.MARKER})
+    before = tree(dest)
+    refused("destination_mismatch", lambda: migrate(source, dest))
+    assert tree(dest) == before
 
 
 # --- the rows of design 6.10 (T6 a–o) -------------------------------------------------------------
@@ -1224,6 +1333,9 @@ def test_the_migration_goes_through_the_platform_it_is_given(tmp_path):
     bundle.files.links = False
     migrate(plain_source(tmp_path, "src2"), tmp_path / "direct", platform=bundle)
     assert any(v["step"] == "direct" for v in ledger(tmp_path / "direct").lines)
+    # Its marker by the bundle's rename that refuses a taken name, never written in place.
+    assert ("files.rename_new", "analytics.json") in calls
+    assert writer.MARKER not in ledger(tmp_path / "direct").direct_intent
     assert_committed(tmp_path / "direct")
 
 

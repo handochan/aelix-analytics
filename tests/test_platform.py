@@ -325,11 +325,16 @@ def test_windows_replace_waits_out_a_reader_and_nothing_else(monkeypatch, winerr
         assert len(calls) == 1
 
 
+@pytest.mark.parametrize("method", ["publish_new", "rename_new"])
 @pytest.mark.parametrize("winerror, retried", [(5, True), (32, True), (33, True), (2, False)])
-def test_windows_publish_new_waits_out_a_reader_and_never_overwrites(monkeypatch, winerror, retried):
+def test_windows_publish_new_waits_out_a_reader_and_never_overwrites(monkeypatch, winerror, retried,
+                                                                     method):
     """Issue #13 PR 2 (design 6.12): publish_new renames without replacing; a sharing violation (an
     antivirus or an indexer that opened the new file for a moment) is retried within the replace's
-    budget, anything else raised at once, and a name that is there is FileExistsError at once."""
+    budget, anything else raised at once, and a name that is there is FileExistsError at once.
+    rename_new (PR 3) is the same call there: Windows' rename never replaces."""
+    files = _platform.WindowsAtomicFiles()
+    publish = getattr(files, method)
     calls = []
 
     def rename(src, dst):
@@ -342,11 +347,11 @@ def test_windows_publish_new_waits_out_a_reader_and_never_overwrites(monkeypatch
     monkeypatch.setattr(_platform.os, "rename", rename)
     monkeypatch.setattr(_platform.time, "sleep", lambda seconds: None)
     if retried:
-        _platform.WindowsAtomicFiles().publish_new("a", "b")
+        publish("a", "b")
         assert len(calls) == 3
     else:
         with pytest.raises(PermissionError):
-            _platform.WindowsAtomicFiles().publish_new("a", "b")
+            publish("a", "b")
         assert len(calls) == 1
 
     def there(src, dst):
@@ -356,7 +361,7 @@ def test_windows_publish_new_waits_out_a_reader_and_never_overwrites(monkeypatch
     calls.clear()
     monkeypatch.setattr(_platform.os, "rename", there)
     with pytest.raises(FileExistsError):
-        _platform.WindowsAtomicFiles().publish_new("a", "b")
+        publish("a", "b")
     assert calls == [2]
 
 

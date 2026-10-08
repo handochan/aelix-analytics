@@ -99,6 +99,9 @@ Git이 무시하는 파일(`.demo/`, `__pycache__` 밖의 `*.pyc` 등)도 실행
 않기 때문입니다. 그래서 배포본은 깨끗한 체크아웃에서 빌드하고, 빌드 전에 `git clean -ndx src/aelix_analytics`가 `__pycache__/` 말고
 아무것도 보이지 않는지 확인합니다. aelix 0.1.0b2와 실제 uv로 프로젝트를
 끝까지 다루는 단계는 `AELIX_ANALYTICS_TEST_INSTALL=1`일 때만 돌며 네트워크가 필요합니다.
+다른 파일 시스템(FAT·exFAT 등)에 대한 전환은 그 볼륨에 만든 폴더를 `AELIX_ANALYTICS_TEST_FOREIGN_FS`(여럿이면 PATH처럼 구분)에 줄 때만
+`tests/test_migrate_command.py`가 돌립니다. 그 볼륨에 시험용 폴더를 만들고 지우며, 표식을 제자리에 쓰지 않았는지와 원본이 그대로인지를
+확인하고 볼륨이 준 결과(커밋·거절)는 관찰로 남깁니다.
 체크아웃의 `uv sync`는 `[project.scripts]`를 설치하지 않는다는 경고를 냅니다. 정상입니다: 개발 환경은
 `package = false`이고, 이 배치는 editable 설치를 지원하지 않으므로 `package = true`로 바꾸지 마세요. 배포본은 빌드한
 wheel로 확인합니다.

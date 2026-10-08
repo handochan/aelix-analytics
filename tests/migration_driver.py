@@ -2,7 +2,7 @@
 docs/design/RECORD-WRITER-AND-MIGRATION.md 11.1). tests/test_migration.py starts it with one JSON
 argument:
 
-    {"source": path | null, "dest": path, "stop": {...} | null, "no_links": bool}
+    {"source": path | null, "dest": path, "stop": {...} | null, "no_links": bool, "no_renames": bool}
 
 `stop` names a step `migration.migrate` calls `on_step` with (`step`), the how-many-th call of it
 (`nth`, 1 by default) and optionally the path the call is about (`path`). At that call, by `action`:
@@ -18,8 +18,9 @@ argument:
 
 `between_link_and_unlink` (POSIX): the port's publish_new of `path` makes its link and the process
 ends before the temporary name is removed (F6, F12). `no_links`: the port refuses to link, as on a
-file system without second names (F15). It prints the migration's response or its error as one line
-of JSON.
+file system without second names (F15); `no_renames`: its rename that refuses a taken name is not
+there either (the marker is then refused, Issue #13 PR 3). It prints the migration's response or its
+error as one line of JSON.
 """
 
 from __future__ import annotations
@@ -52,6 +53,11 @@ def main() -> None:
                 os.link(src, dst)
                 os._exit(9)
             files.publish_new(src, dst)
+
+        def rename_new(self, src, dst):
+            if args.get("no_renames"):
+                raise _platform.RenameUnsupported(95, "this file system has no exclusive rename (driver)")
+            files.rename_new(src, dst)  # the real one: where links are not, it is what publishes
 
         def flush_handle(self, fh):
             files.flush_handle(fh)

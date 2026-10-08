@@ -24,8 +24,14 @@ What it keeps (design section 1):
   are written and flushed. Before it no kit takes the folder for a project it may write or read
   (`migration_incomplete`); an interrupted migration resumes from the state its ledger's lines define
   (6.10), and the same call on a committed destination of the same source is `already_migrated` (6.9).
+  The marker is never written in place: where the file system has no links it is published by the
+  port's rename that refuses a taken name (`rename_new`), and where it has neither the destination is
+  refused at step 2's probe, before any copy, and again at step 11, before the marker (owner's decision
+  of 2026-10-08: `destination_invalid`, reason `no_exclusive_rename`). A copy there is still written
+  directly (design 6.12, D19).
 
-It is not a command in this PR (PR 3 opens `analytics migrate`), and the aelix process never loads it:
+The kit's command `migrate` runs it (`python -m aelix_analytics migrate --to DEST [--dry-run]`, which
+the launchers start outside any project environment, design 6.1); the aelix process never loads it:
 `core` does not import it. `on_step(name, info)` (private) is the tests' fault injection (design 11.1):
 it is called by name before and after each ledger line (`ledger:<step>`, `<step>`) and at the points in
 between where an interruption leaves something of its own (a temporary file half written, a file
@@ -99,6 +105,13 @@ OLD_MODULE, NEW_MODULE = "labkit", "aelix_analytics"
 RENAMED_CALLS = {"note": "record", "chart": "visualize"}
 TEMPLATE = Path(core.__file__).resolve().parent / "template"
 MARKER_TEMP = ".analytics-json-"
+# Step 2's test names, inside the migration's own directory (its `start` line names them): the file
+# that tells whether the destination folds names, the link that tells whether it holds one, and the
+# name the file is published under to tell how the marker is published there.
+PROBE, PROBE_LINK, PROBE_PUBLISH = ".probe-Ab\u00e9.tmp", ".probe-link.tmp", ".probe-publish.tmp"
+# How a destination publishes its marker (the `probed` line's `publish`): the port's publish_new (a
+# link, or Windows' rename), or where the file system has no links its rename_new.
+PUBLICATIONS = ("publish_new", "rename_new")
 
 
 def _no_step(_name: str, _info: dict) -> None:
@@ -343,6 +356,20 @@ def _occupied(rel: str) -> AnalyticsError:
                           details={"reason": "occupied", "path": rel})
 
 
+def _no_exclusive_rename(dest, exc: OSError, *, copied: bool) -> AnalyticsError:
+    """The destination's file system can neither link a file nor rename one without replacing what
+    is there (owner's decision of 2026-10-08, Issue #13): the marker is not written in place there,
+    so the migration stops before it — at step 2, before any copy, or at step 11."""
+    where = ("its copies are there, without the marker; " if copied
+             else "nothing was copied: ")
+    return _invalid("no_exclusive_rename", f"the file system of {dest} can neither link a file nor "
+                    "rename one without replacing what is there, so the migration cannot publish its "
+                    "marker there in one step",
+                    f"migrate to a folder on another file system (APFS, ext4 or NTFS, say; FAT and "
+                    f"exFAT may have neither); {where}what the migration made is in this folder, "
+                    "which you can remove", path=str(dest), error=str(exc))
+
+
 def _write_failed(path, exc: OSError) -> AnalyticsError:
     return AnalyticsError("destination_write_failed", f"the destination refused {path}: {exc}",
                           hint="a path too long, a name the destination's system reserves, or its "
@@ -454,8 +481,9 @@ class Ledger:
             "locked": (last == "probed" or copying) and self.source_checked is None,
             "plan": last == "locked",
             "begin": copying,
-            # A direct write (no links on this file system): a copy's, or the marker's after its line.
-            "direct_intent": copying or (last == "marker_begin" and path == writer.MARKER),
+            # A direct write (no links on this file system): a copy's only. The marker is published
+            # by a rename there, never written in place (owner's decision of 2026-10-08).
+            "direct_intent": copying,
             "direct": last == "direct_intent" and path in self.direct_intent,
             "copied": copying and (path in self.begun or path in self.direct),
             "source_checked": copying,
@@ -465,9 +493,7 @@ class Ledger:
             "reported": last in ("verified", "transformed", "reported", "durable", "marker_begin"),
             "durable": last in ("reported", "durable", "marker_begin"),
             "marker_begin": last in ("durable", "marker_begin", "committed", "trusted"),
-            "committed": last == "marker_begin" or (last == "direct" and path is None
-                                                    and self.marker is not None
-                                                    and writer.MARKER in self.direct),
+            "committed": last == "marker_begin",
             "trusted": last in ("committed", "trusted"),
         }[step]
         if not allowed:
@@ -1414,7 +1440,7 @@ class Migration:
                        locks=[{"path": f"{LEGACY_STATE_DIR}/{name}",
                                "existed": os.path.lexists(source / LEGACY_STATE_DIR / name)}
                               for name in SOURCE_LOCKS],
-                       probe=".probe-Ab\u00e9.tmp", probe_link=".probe-link.tmp")
+                       probe=PROBE, probe_link=PROBE_LINK, probe_publish=PROBE_PUBLISH)
             return self._from_probe()
         except AnalyticsError as exc:
             self._failed(exc)
@@ -1427,11 +1453,14 @@ class Migration:
 
     def _from_probe(self) -> dict:
         """Step 2's probe (design 6.2, 6.3): whether the destination folds case and Unicode
-        normalization, and whether it holds a symbolic link, judged by a test file and a test link the
-        `start` line named, removed after."""
-        probe = self.mdir / self.ledger.start["probe"]
-        link = self.mdir / self.ledger.start["probe_link"]
-        for leftover in (probe, link):
+        normalization, whether it holds a symbolic link, and how it publishes the marker
+        (_publication), judged by a test file, a test link and a test name the `start` line named,
+        removed after."""
+        start = self.ledger.start
+        probe = self.mdir / start["probe"]
+        link = self.mdir / start["probe_link"]
+        published = self.mdir / start.get("probe_publish", PROBE_PUBLISH)
+        for leftover in (probe, link, published):
             if os.path.lexists(leftover):
                 _remove_own(leftover)
         with open(probe, "xb"):
@@ -1439,12 +1468,35 @@ class Migration:
         self.step("probe_made", {})
         try:
             folds = probe_destination(probe, link)
+            folds["publish"] = self._publication(probe, published)
         finally:
-            _remove_own(probe)
+            for made in (probe, published):
+                if os.path.lexists(made):
+                    _remove_own(made)
             if os.path.lexists(link):
                 os.unlink(link)
         self._line("probed", **folds)
         return self._from_locks()
+
+    def _publication(self, probe: Path, published: Path) -> str:
+        """How the marker is published here (owner's decision of 2026-10-08), tried on the probe file,
+        which then has the name `published`: the port's publish_new where the file system links, else
+        its rename_new — a rename that refuses a taken name — else destination_invalid
+        (no_exclusive_rename), before any copy: the marker is never written in place."""
+        try:
+            self.files.publish_new(probe, published)
+            return "publish_new"
+        except _platform.LinkUnsupported:
+            pass
+        except OSError as exc:
+            raise _write_failed(published, exc) from exc
+        try:
+            self.files.rename_new(probe, published)
+            return "rename_new"
+        except _platform.RenameUnsupported as exc:
+            raise _no_exclusive_rename(self.dest, exc, copied=False) from exc
+        except OSError as exc:
+            raise _write_failed(published, exc) from exc
 
     # -- steps 3-7: under the source's locks, then 8-12
 
@@ -2534,7 +2586,7 @@ class Migration:
         except OSError as exc:
             raise _write_failed(temp, exc) from exc
         self.step("marker_written", {})
-        self._publish(temp, self.dest / writer.MARKER, writer.MARKER)
+        self._publish_marker_file(temp)
         self.step("marker_published", {})
         try:
             self.files.flush_dir(self.dest)
@@ -2542,6 +2594,31 @@ class Migration:
             raise _write_failed(self.dest, exc) from exc
         self._line("committed")
         return self._trust(report, already=False, write_line=True)
+
+    def _publish_marker_file(self, temp: Path) -> None:
+        """The commit point (step 11): the marker's temporary file given its name only where none is —
+        by the port's publish_new, or where the file system has no links by its rename_new, a rename
+        that refuses a taken name — never written in place, so the marker is there whole or not at
+        all (owner's decision of 2026-10-08). Where neither is there the migration stops before the
+        marker; its temporary file stays, named by its line, for the next call to remove."""
+        final = self.dest / writer.MARKER
+        try:
+            self.files.publish_new(temp, final)
+            return
+        except FileExistsError:
+            raise _occupied(writer.MARKER) from None
+        except _platform.LinkUnsupported:
+            pass
+        except OSError as exc:
+            raise _write_failed(final, exc) from exc
+        try:
+            self.files.rename_new(temp, final)
+        except FileExistsError:
+            raise _occupied(writer.MARKER) from None
+        except _platform.RenameUnsupported as exc:
+            raise _no_exclusive_rename(self.dest, exc, copied=True) from exc
+        except OSError as exc:
+            raise _write_failed(final, exc) from exc
 
     def _trust(self, report: dict, *, already: bool, write_line: bool) -> dict:
         """Step 12: the destination added to the trust list this kit writes (design 6.14). A failure
@@ -2793,7 +2870,9 @@ class Migration:
                 "files": len(inventory.files), "bytes": needed, "links_made": len(inventory.links),
                 "excluded": inventory.excluded_list(), "not_copied": inventory.not_copied,
                 "folding_pairs": [v for v in groups.values() if len(v) > 1],
-                "folding_judged": False, "gitignore_lines": lines, "script_proposals": scripts,
+                # Neither is judged without writing to the destination: step 2's probe does both.
+                "folding_judged": False, "publication_judged": False,
+                "gitignore_lines": lines, "script_proposals": scripts,
                 "needed": needed + int(needed * SPACE_SHARE) + SPACE_MARGIN,
                 "free": self._free(_existing(str(self.dest))), "running_runs": running,
                 "warnings": inventory.warnings}

@@ -10,9 +10,12 @@
 #   analytics query "SQL" [--limit N]
 #   analytics record KIND "TEXT" [--ref R] [--resolves eN]
 #   analytics render | open                     rebuild | open the Workspace page
+#   analytics migrate --to DIR [--dry-run]      copy a lab.json project into a new folder DIR
 #
 # Commands other than init/demo use the project in AELIX_ANALYTICS_PROJECT, else the nearest directory
-# at or above the current one with an analytics.json or a lab.json; the kit judges it.
+# at or above the current one with an analytics.json or a lab.json, or with the record of a migration
+# not finished there; the kit judges it. migrate copies that project into DIR in the current format and
+# leaves it as it is (try --dry-run first).
 # Output ends with one JSON line (status and context print text); a run that got past its setup
 # puts an empty line before it. Nothing here is a sandbox.
 set -eu
@@ -66,12 +69,36 @@ kit_marker() {
   [ -e "$km_path" ] || [ -L "$km_path" ]
 }
 
+# What a migration keeps in its destination (the installed command's migration_record): an entry of
+# either name, a link being itself, or one that cannot be looked at (a .analytics/ this account cannot
+# search). Without a marker beside it, the folder is a migration's destination that has not committed.
+migration_record() {
+  for mr in "$1/.analytics/migration" "$1/.analytics/migration.lock"; do
+    if [ -e "$mr" ] || [ -L "$mr" ]; then return 0; fi
+  done
+  [ -d "$1/.analytics" ] && [ ! -x "$1/.analytics" ]
+}
+
+# Whether the kit takes the directory it is given for a migration's destination that has not committed
+# (the installed command's unfinished_migration): the first directory at or above it with a marker as
+# the kit counts one or a migration's record has the record and no marker.
+unfinished() {
+  case $1 in /*) um_dir=$1 ;; *) um_dir=$(pwd -P)/$1 ;; esac
+  while :; do
+    if kit_marker "$um_dir/analytics.json" || kit_marker "$um_dir/lab.json"; then return 1; fi
+    if migration_record "$um_dir"; then return 0; fi
+    [ "$um_dir" = / ] && return 1
+    um_dir=$(dirname "$um_dir")
+  done
+}
+
 # The directory the kit takes for the project from where find_project stopped, upward (the installed
-# command's kit_root): `open` opens its page. The start itself when none above has a marker.
+# command's kit_root): `open` opens its page. The start itself when none above has a marker or a
+# migration's record.
 kit_root() {
   kr_dir=$1
   while :; do
-    if kit_marker "$kr_dir/analytics.json" || kit_marker "$kr_dir/lab.json"; then printf '%s\n' "$kr_dir"; return 0; fi
+    if kit_marker "$kr_dir/analytics.json" || kit_marker "$kr_dir/lab.json" || migration_record "$kr_dir"; then printf '%s\n' "$kr_dir"; return 0; fi
     [ "$kr_dir" = / ] && break
     kr_dir=$(dirname "$kr_dir")
   done
@@ -82,7 +109,7 @@ find_project() {
   if [ -n "${AELIX_ANALYTICS_PROJECT:-}" ]; then printf '%s\n' "$AELIX_ANALYTICS_PROJECT"; return 0; fi
   dir=$(pwd -P)
   while :; do
-    if has_marker "$dir/analytics.json" || has_marker "$dir/lab.json"; then printf '%s\n' "$dir"; return 0; fi
+    if has_marker "$dir/analytics.json" || has_marker "$dir/lab.json" || migration_record "$dir"; then printf '%s\n' "$dir"; return 0; fi
     [ "$dir" = / ] && break
     dir=$(dirname "$dir")
   done
@@ -93,6 +120,17 @@ find_project() {
 kit() {  # kit PROJECT ARGS...
   proj=$1; shift
   "$UV" run --project "$proj" --quiet python -m aelix_analytics --project "$proj" "$@"
+}
+
+# The kit outside any environment, as init runs it (the installed command's kit_outside): in a
+# migration's destination that has not committed, where an environment uv made would be a write.
+kit_outside() {  # kit_outside PROJECT ARGS...
+  proj=$1; shift
+  "$UV" run --no-project --python 3.12 --quiet python -m aelix_analytics --project "$proj" "$@"
+}
+
+run_kit() {  # run_kit PROJECT ARGS...: kit, or kit_outside where the kit refuses every command
+  if unfinished "$1"; then kit_outside "$@"; else kit "$@"; fi
 }
 
 cmd=${1:-status}
@@ -118,12 +156,15 @@ case $cmd in
   status|context)
     refuse_renamed
     proj=$(find_project)
-    kit "$proj" --text "$cmd"
+    run_kit "$proj" --text "$cmd"
     ;;
   open)
     refuse_renamed
     proj=$(find_project)
     [ -n "${AELIX_ANALYTICS_PROJECT:-}" ] || proj=$(kit_root "$proj")
+    # A migration's destination that has not committed has no page: the step that would build one
+    # is the kit's answer, shown as it is (the installed command's open).
+    if unfinished "$proj"; then kit_outside "$proj" render; fi
     if kit_marker "$proj/analytics.json" && kit_marker "$proj/lab.json"; then
       echo "analytics: $proj holds two project markers, analytics.json and lab.json, and the kit reads neither; analytics status says more" >&2
       exit 1
@@ -141,7 +182,32 @@ case $cmd in
   run|import|query|record|render)
     refuse_renamed
     proj=$(find_project)
-    kit "$proj" "$cmd" "$@"
+    run_kit "$proj" "$cmd" "$@"
+    ;;
+  migrate)
+    refuse_renamed
+    "$UV" run --no-project --python 3.12 --quiet python -m aelix_analytics migrate "$@"
+    # Committed (the kit's exit 0) and not a dry run: the destination's environment from its lock as
+    # it is (the installed command's _migrate). --to as the kit reads it: the last one counts.
+    to= dry=
+    while [ $# -gt 0 ]; do
+      case $1 in
+        --to) if [ $# -ge 2 ]; then to=$2; shift; fi ;;
+        --to=*) to=${1#--to=} ;;
+        --dry-run) dry=1 ;;
+      esac
+      shift
+    done
+    if [ -z "$dry" ] && [ -n "$to" ]; then
+      proj=$(CDPATH='' cd -- "$to" && pwd -P)
+      echo "analytics: syncing the project environment (first time can take a minute) ..." >&2
+      if "$UV" sync --project "$proj" --locked --quiet || "$UV" sync --project "$proj" --locked --quiet --offline; then
+        echo "analytics: the project is $proj now, and the source is as it was (in aelix: /analytics use $proj)" >&2
+      else
+        code=$?
+        echo "analytics: the migration is done, but preparing the environment of $proj failed (uv sync --locked, exit $code); the project's next command prepares it" >&2
+      fi
+    fi
     ;;
   *) usage >&2; exit 2 ;;
 esac

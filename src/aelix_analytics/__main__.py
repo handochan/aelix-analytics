@@ -15,6 +15,13 @@ and AELIX_ANALYTICS_MEANS how the extension came to start it (its model tool, it
 a hook: the records' `means`, design 4.2; without it `cli`): internal protocols between the two, not
 settings.
 
+`migrate --to DEST [--dry-run]` copies the lab.json project found as every command finds its project
+into DEST in the current format, the source left as it is (Issue #13, migration.migrate): it runs on
+the standard library only, as `init` does, and the launchers start it outside any project
+environment (`uv run --no-project`), then prepare DEST's once it is committed (design 6.1). Found
+nowhere, or found to be DEST itself, it is a call without a source, which goes on with a migration
+that checked its source already or confirms a committed one.
+
 An environment variable of the kit's old names (core.RENAMED_ENV: LAB_PROJECT, LAB_ACTOR, LAB_SESSION,
 LAB_STYLE, AELIX_LAB_TRUST_FILE) that is set stops every command with env_renamed before it does
 anything: there are no aliases (ADR-0005 decision 7).
@@ -64,7 +71,9 @@ def _emit(obj: dict) -> None:
 
 # The commands that write to a project, and the one each is refused as: they are judged before
 # their first side effect (core.admit, Issue #13). The others read (status, context, query) and
-# skip their side writes where this kit does not write; `init` makes a new directory (core.init_project).
+# skip their side writes where this kit does not write; `init` makes a new directory
+# (core.init_project) and `migrate` a new project from a lab.json one, each by its own rules for a
+# destination (design 6.2, OQ9): the source is read by the migration's rules, never admitted.
 WRITES = ("run", "import", "record", "render", "demo")
 
 
@@ -91,6 +100,22 @@ def _project(args) -> core.Project:
         raise core.AnalyticsError("no_project", f"no analytics project at or above {start}",
                                   hint="create one with: analytics init DIR")
     return core.Project(root)
+
+
+def _migration_source(args) -> str | Path | None:
+    """The project a migration copies, found as every command finds its project (design 6.1), or
+    None where none is found. Where the start is that project itself, it is given as it was spelled:
+    the migration keeps that spelling among the source's (its mapping's `root.from`)."""
+    start = args.project or os.environ.get("AELIX_ANALYTICS_PROJECT") or os.getcwd()
+    found = core.find_project(start)
+    if found is None:
+        return None
+    try:
+        if os.path.samefile(start, found):
+            return start
+    except OSError:
+        pass
+    return found
 
 
 def _not_the_runtime_root() -> dict | None:
@@ -210,6 +235,17 @@ def _command(argv) -> int:
 
     p = sub.add_parser("demo", help="fill a new project with synthetic data and example runs")
 
+    # No abbreviated options: the launchers read --to and --dry-run from what is passed on, and an
+    # abbreviation they do not know (--dry) must not make them prepare a destination a dry run named.
+    p = sub.add_parser("migrate", allow_abbrev=False,
+                       help="copy this lab.json project into a new folder in the current format "
+                            "(the project is left as it is)")
+    p.add_argument("--to", required=True, metavar="DEST",
+                   help="a new or empty folder outside every project, or the destination of a "
+                        "migration to go on with")
+    p.add_argument("--dry-run", action="store_true",
+                   help="say what the migration would do now, and write nothing")
+
     args = parser.parse_args(argv)
     try:
         origin = _origin()
@@ -217,6 +253,12 @@ def _command(argv) -> int:
             project = core.init_project(args.path, title=args.title, goal=args.goal,
                                         template_dir=TEMPLATE_DIR, origin=origin)
             _emit({"ok": True, "project": str(project.root), "title": project.title()})
+            return 0
+        if args.command == "migrate":
+            from . import migration
+
+            _emit(migration.migrate(_migration_source(args), args.to, origin=origin,
+                                    dry_run=args.dry_run))
             return 0
         project = _project(args)
         # Before anything is written — a lock file, a context version, a cache — and before the

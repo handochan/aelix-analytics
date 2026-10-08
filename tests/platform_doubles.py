@@ -6,7 +6,10 @@ the ports' contract where a stand-in can (tests/test_contracts.py runs it throug
 real implementations) and declares what it does not do: its lock excludes nothing outside this
 process, `alive` says no recorded process is running, its run guard never interrupts, and its
 flushes ask nothing of the device. Its `files.links = False` stands for a file system without
-links: `publish_new` then raises LinkUnsupported (Issue #13 PR 2).
+links: `publish_new` then raises LinkUnsupported (Issue #13 PR 2); its `files.renames = False` for
+one without a rename that refuses a taken name: `rename_new` then raises RenameUnsupported (PR 3).
+Its `rename_new` makes the name in this process by a link and an unlink, which is as atomic for a
+taken name as the real call.
 
 Shared by tests/test_platform.py (Issue #8's injection tests) and tests/test_contracts.py (Issue #43).
 """
@@ -65,8 +68,10 @@ class _RecordingLocks:
 
 class _RecordingFiles:
     # Whether publish_new can make a second name; a test sets it False to stand for a file system
-    # without links (design 6.12, T19's `direct` path).
+    # without links (design 6.12, T19's `direct` path). Whether rename_new has its rename; a test
+    # sets it False for a file system without one either (the marker's refusal, Issue #13 PR 3).
     links = True
+    renames = True
 
     def __init__(self, calls):
         self.calls = calls
@@ -80,6 +85,13 @@ class _RecordingFiles:
         if not self.links:
             raise _platform.LinkUnsupported(1, f"no links here: {Path(dst).name}")
         os.link(src, dst)  # FileExistsError when dst is there: nothing is overwritten
+        os.unlink(src)
+
+    def rename_new(self, src, dst):
+        self.calls.append(("files.rename_new", Path(dst).name))
+        if not self.renames:
+            raise _platform.RenameUnsupported(95, f"no exclusive rename here: {Path(dst).name}")
+        os.link(src, dst)  # as rename_new: FileExistsError when dst is there, and src is gone after
         os.unlink(src)
 
     def flush_handle(self, fh):
