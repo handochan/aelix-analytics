@@ -984,7 +984,7 @@ kit 0.8.0([#13](https://github.com/handochan/aelix-analytics/issues/13)의 셋�
   - `lab.event/1` 기록의 핵심 정보·열린 항목 선택은 C1의 규칙(`refs.resolves`가 가리키는 id) 그대로이며 ADR-0006 6절의 상태 재생과 다를 수 있습니다(`analytics.event/2` 기록은 kit 0.7.0부터 상태 재생도 봅니다, C1). 여러 줄의 id를 닫는 `resolves`는 재생에서는 아무것도 닫지 않지만(`ambiguous`), 목록에서는 그 id의 줄을 모두 닫힌 것으로 셉니다. `resolves`의 확인(kit 0.8.0 전의 `add_note`와 공통 writer)은 journal만 읽고 그 id의 읽히는 기록이 있으면 통과합니다. 공통 writer는 그 id가 여러 줄이면 응답 `targets`에 `reason: target_ambiguous`를 적습니다. 상태 재생을 화면에 쓰는 일은 #16입니다. 여러 줄의 id는 #49 수정 전의 kit이 끊긴 줄 뒤에 쓴 journal이나 손으로 고친 journal에 있습니다. 지금 writer는 이미 읽히는 줄의 seq나 id를 다시 주지 않습니다(C1).
   - 다른 OS가 기록한 절대 경로는 이 기계에서 파일이 없어 `missing`/`file_absent`로, 그 입력의 생산자는 이 기계의 기록과 경로가 맞지 않아 `none`으로 보입니다(Freshness의 전과 같습니다). 옛 kit 경로의 추론(E)은 이 기계의 지금 루트·링크 대상 아래 경로와 파일 시스템이 같은 항목으로 여는 철자만 대응시킵니다. 그래서 다른 OS·옮긴 프로젝트의 절대 경로, 대소문자·정규화를 구별하는 파일 시스템에서 다른 철자로 기록된 상대 경로는 대응하지 않습니다(글자를 접어 맞추지 않습니다).
   - 옛 kit 경로의 추론은 오늘의 링크·이름으로 판정합니다. 그 run 뒤에 링크를 바꿨거나 파일을 옮겼으면 다른 파일로 대응할 수 있어 확정 연결로 세지 않습니다. 표시는 그 판정 자리마다입니다: stale을 따라가는 길의 중간(후보의 후보)에서 쓴 추론은 그 차트에 표시하지 않고, 직접 입력의 후보만 표시합니다. 맥락 블록(journal만 읽음)은 경로를 읽지 않습니다. kit 버전이 없는 이벤트의 `refs.charts` 글자는 어떤 옛 run이 그 키를 기록했을 때만 그 대응을 따르고, `refs.data`는 대응하지 않습니다. 대응이 지금 있는 항목인지는 읽는 프로세스가 열 수 있는 경로로 봅니다(Windows에서 LongPathsEnabled가 0이면 260자를 넘는 경로는 없는 것으로 보아 대응하지 않을 수 있습니다).
-  - 비용(측정은 이 PR의 기록). 맥락 블록은 프롬프트마다 journal만 읽어 줄마다 기록을 판정하므로 줄 수에 비례하고, `analytics_status`는 run.json을 한 번, 기준 파일들을 두 번 stat합니다. Workspace는 타임라인의 모든 참조를 판정합니다. 이벤트를 쓸 때도 잠금 안에서 journal 전체를 읽어 seq를 정하므로 쓰기 한 번이 줄 수에 비례합니다(#49의 PR이 macOS arm64에서 잰 값: 10,000줄·2.6 MB journal에 쓰기 한 번 약 30 ms. 그 전에는 끝 64 KiB만 읽어 0.2 ms 미만). kit 0.8.0의 공통 writer는 잠금 밖과 안에서 journal을 한 번씩 파싱하고(상태 재생 포함), 이름으로 준 참조가 있으면 읽기 모델도 읽습니다(재지 않았습니다. 측정은 #13의 셋째 PR의 남은 작업). 영속 인덱스는 없습니다(#15).
+  - 비용(측정은 이 PR의 기록). 맥락 블록은 프롬프트마다 journal만 읽어 줄마다 기록을 판정하므로 줄 수에 비례하고, `analytics_status`는 run.json을 한 번, 기준 파일들을 두 번 stat합니다. Workspace는 타임라인의 모든 참조를 판정합니다. 이벤트를 쓸 때도 잠금 안에서 journal 전체를 읽어 seq를 정하므로 쓰기 한 번이 줄 수에 비례합니다(#49의 PR이 macOS arm64에서 잰 값: 10,000줄·2.6 MB journal에 쓰기 한 번 약 30 ms. 그 전에는 끝 64 KiB만 읽어 0.2 ms 미만). kit 0.8.0의 공통 writer는 기록 하나에 journal 전체를 세 번 파싱합니다: 잠금 밖(결박과 줄 크기), 잠금 안(재판정과 상태 재생), 덧붙인 뒤(응답의 `targets`). 이름으로 준 참조가 있으면 읽기 모델도 읽습니다. #13의 셋째 PR이 macOS arm64에서 잰 값(10,000줄 journal, 20회의 p50, [측정 기록](verification/2026-10-09-issue-13-writer.md)의 `writer_latency`): 보통 기록 110 ms(그 전 kit의 `/1` writer 33 ms), 참조 넷을 결박하는 기록 152 ms(32 ms), 질문을 닫는 기록 128 ms(69 ms), `record_update` 87 ms. 영속 인덱스는 없습니다(#15).
 - 무결성. 해시 체인·서명이 없고 불변성은 규약입니다.
 - 표식 판정의 틈. 판정은 잠금 없이 두 표식을 읽습니다. 판정과 첫 부수 효과 사이에 다른 프로세스가 표식을 바꾸는 틈은 남습니다. journal 쓰기는
   잠금 안에서 다시 판정해 그 틈을 줄이지만, run이 시작한 뒤의 코드 스냅샷·스크립트가 직접 쓰는 파일은 run이 시작할 때의 판정을 따릅니다(run
@@ -999,7 +999,7 @@ kit 0.8.0([#13](https://github.com/handochan/aelix-analytics/issues/13)의 셋�
   것과, 위쪽 프로젝트의 루트를 이름으로 고르는 법이나 파일 이름을 바꾸는 것을 알립니다. 루트는 진입점마다 그 진입점의 방법으로 고릅니다:
   `analytics`·`bin/analytics`·SDK·aelix는 `AELIX_ANALYTICS_PROJECT=ROOT`, aelix는 `/analytics use ROOT`나 `--analytics-project ROOT`도,
   `python -m aelix_analytics`는 `--project ROOT`입니다(`analytics --project ROOT …`는 usage와 2).
-- 전환 엔진과 명령의 한계(엔진은 #13의 둘째 PR, 명령은 kit 0.8.0의 셋째 PR. 실행하지 않은 조합은 [측정 기록](verification/2026-10-08-issue-13-migration.md)의 `not_run`).
+- 전환 엔진과 명령의 한계(엔진은 #13의 둘째 PR, 명령은 kit 0.8.0의 셋째 PR. 실행하지 않은 조합은 [엔진의 측정 기록](verification/2026-10-08-issue-13-migration.md)과 [명령의 측정 기록](verification/2026-10-09-issue-13-writer.md)의 `not_run`).
   - 중단 뒤의 보장은 프로세스가 강제로 끝나는 경우(`os._exit`, SIGKILL)에 대한 것입니다. 표식 전의 내구 쓰기(`flush_handle`·`flush_dir`)는 전원
     손실 뒤에도 사본이 디스크에 있게 하려는 목표이고 시험하지 않았습니다. Windows는 디렉터리를 flush하지 않고(방법을 확인하지 않음), 이름 바꾸기와
     링크는 write-through가 아니어서 표식 직후 전원이 끊기면 표식이 없을 수 있습니다(같은 호출이 이어 씀).
@@ -1012,7 +1012,7 @@ kit 0.8.0([#13](https://github.com/handochan/aelix-analytics/issues/13)의 셋�
     `com.apple.provenance`)을 가진 파일·디렉터리마다 AppleDouble 파일 `._<이름>`을 옆에 만들고, 전환은 그것을 계획에 없는 항목으로 봅니다. 그때
     목적지에는 `.analytics/migration.lock`과 그 AppleDouble 파일이 남고(거절의 hint는 "nothing was written"이라고 적음), 다시 불러도 같습니다.
     AppleDouble 파일을 운영체제 메타 파일로 보는 시험 실행에서는 FAT32 목적지가 `rename_new`로 커밋했고 exFAT 목적지는 복사 전에
-    `no_exclusive_rename`이었습니다(#13의 셋째 PR이 측정 기록에 남깁니다). Linux·Windows의 FAT·exFAT과 실제 이동식 매체는 실행하지 않았습니다.
+    `no_exclusive_rename`이었습니다([측정 기록](verification/2026-10-09-issue-13-writer.md)의 `foreign_fs`). Linux·Windows의 FAT·exFAT과 실제 이동식 매체는 실행하지 않았습니다.
   - 임시 파일이 이 전환의 것인지는 ledger로 정합니다(임시 파일마다 정체성을 적는 줄은 없음). 그래서 S6의 짧은 창이 둘 남습니다: `begin` 줄
     뒤 임시 파일을 만들기 전에 프로세스가 끝났는데 그 사이 다른 프로세스가 정확히 그 이름을 만든 경우, 그리고 이 전환의 `O_EXCL`이 그 이름에서
     남의 파일을 만나 거절한 뒤 그 사실을 적는 `failed` 줄을 쓰기 전에 프로세스가 끝났거나 그 줄을 쓰지 못한 경우입니다. 둘 다 다음 호출이

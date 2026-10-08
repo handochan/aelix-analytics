@@ -1,0 +1,2890 @@
+{
+ "record_kind": "aelix-analytics-new-writer",
+ "observed_at": "2026-10-08T18:13:02Z",
+ "issue": "https://github.com/handochan/aelix-analytics/issues/13",
+ "pull_request": null,
+ "base_revision": "0f3f09fa8b1ba46b63d50e672d7c8409f785b7b7",
+ "measured_tree": {
+  "what": "the branch feat/issue-13-new-writer (Issue #13 PR 3, kit 0.8.0) over origin/main 0f3f09f (PR #82 merged), its five commits writer -> entry points and stored names -> command -> extension authorship -> docs, measured on the worktree at that head with nothing uncommitted. This record is the docs commit after it, which changes no code. The manifest is every tracked file of src, extension, tests, tools, bin, pyproject.toml and uv.lock, one `shasum -a 256` line each in path order; the list is in the run folder (evidence/g4/code-manifest.txt), not in the repository",
+  "head": "54e90987ad652559adc9bfae49cd561e3795c3e5",
+  "commits": [
+   "54e90987ad652559adc9bfae49cd561e3795c3e5 docs: describe the new writer, its layout and analytics migrate (Issue #13 PR 3)",
+   "705593774e10c0be2080670b452104622fae20dc feat: record agent and person authorship from aelix (Issue #13 PR 3)",
+   "d3f0fcf63c23a33612ba25435ea1d34b5f595eeb feat: open the project migration as analytics migrate (Issue #13 PR 3)",
+   "e8715fdea776ddfe628643d231aab99edf4596f4 feat: write the new format and its stored names from every entry point (Issue #13 PR 3)",
+   "fb20125ed23c2bd980166d33813c671b7ed8d67a feat: add the common writer for the new format (Issue #13 PR 3)"
+  ],
+  "manifest_sha256": "84258fdf577fc1e8e1fcb10d79078d78bc570a21a9a3995d67db0f2fa4a2cf3b",
+  "manifest_files": 219,
+  "code_unchanged_since": {
+   "src": "d3f0fcf (G3; the FAT/exFAT probe ran on its tree b7856c6 before the rebase, src the same)",
+   "extension_and_tests": "54e90987ad652559adc9bfae49cd561e3795c3e5"
+  }
+ },
+ "workflow": ".github/workflows/ci.yml: the aelix legs run tests/test_agent_cli.py too and keep their observations (evidence-aelix-py3.12/3.11)",
+ "runs": {
+  "code": {
+   "state": "not_run",
+   "why": "not pushed: the CI of this branch has not run"
+  }
+ },
+ "legs": {
+  "linux": {
+   "state": "not_run"
+  },
+  "windows": {
+   "state": "not_run"
+  },
+  "macos_ci": {
+   "state": "not_run"
+  },
+  "macos_developer_machine": {
+   "state": "pass",
+   "see": "verification"
+  }
+ },
+ "developer_machine": {
+  "where": "macOS developer machine, the worktree of the branch at the head; isolation: AELIX_ANALYTICS_TRUST_FILE and AELIX_ANALYTICS_UV inside the run folder (the UV a link to the real uv), AELIX_LAB_*/LAB_* unset; ~/.aelix not read or written by the commands measured (T22 runs aelix with a HOME and an agent directory of its own)",
+  "machine": [
+   "macOS 26.6.2 (25G83)",
+   "macOS-26.6.2-arm64-arm-64bit",
+   "Apple M5 Pro",
+   "uv 0.11.19 (Homebrew 2026-06-03 aarch64-apple-darwin)",
+   "CPython 3.12.13 (uv.lock), aelix legs 3.12.13 and 3.11.15, launcher and stdlib smoke 3.11"
+  ],
+  "load": "no other suite of this run at the same time; other agents' work on the machine is not known",
+  "log": [
+   "head 54e90987ad652559adc9bfae49cd561e3795c3e5 2026-10-08T18:07:19Z dirty=       0",
+   "ruff exit 0",
+   "layers-contracts exit 0",
+   "aelix 3.12 exit 0",
+   "aelix 3.11 exit 0",
+   "launcher exit 0",
+   "usage exit 0",
+   "smoke exit 0",
+   "stdlib smoke exit 0",
+   "docs exit 0",
+   "diff-check exit 0",
+   "done 2026-10-08T18:10:52Z"
+  ]
+ },
+ "verification": {
+  "repository_suite": {
+   "command": "uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread",
+   "result": "1895 passed, 106 skipped in 485.02s (0:08:05)",
+   "evidence_dir": "AELIX_ANALYTICS_TEST_EVIDENCE_DIR=<run>/evidence/g4/observations"
+  },
+  "layers_contracts": "126 passed, 52 skipped in 9.95s",
+  "aelix_py3.12": "220 passed in 44.13s",
+  "aelix_py3.11": "220 passed in 45.80s",
+  "launcher_py3.11": "176 passed, 1 skipped in 24.71s",
+  "usage_report": {
+   "required_facts": "58/58",
+   "invariants": "42/42",
+   "compared_with_the_previous_group": [
+    "texts compared after normalizing the temporary directory and source_revision: 76",
+    "differences: none",
+    "numeric leaves that differ (times left out): 0"
+   ]
+  },
+  "platform_smoke": {
+   "holds": 25,
+   "violated": 0,
+   "declared_limitation": 0,
+   "observed": 6,
+   "not_run": 0
+  },
+  "stdlib_smoke": {
+   "holds": 15,
+   "violated": 0,
+   "declared_limitation": 0,
+   "observed": 3,
+   "not_run": 2
+  },
+  "check_docs": {
+   "ok": true,
+   "counts": {
+    "json_files": 12,
+    "markdown_files": 65,
+    "local_links": 718,
+    "python_examples": 6,
+    "json_examples": 7,
+    "dev_state_examples": 1
+   },
+   "errors": []
+  },
+  "ruff": "pass",
+  "git_diff_check": "origin/main..HEAD, no output"
+ },
+ "new_tests_on_previous_head": {
+  "what": "this group's new tests (tests/test_agent_cli.py and the authorship tests of tests/test_extension.py, 56 selected) on the code of the commit before it (d3f0fcf, the command) and on ebd10b6, each with today's tests copied in, aelix 0.1.0b2 on CPython 3.12",
+  "d3f0fcf": "56 failed, 49 deselected in 3.47s",
+  "ebd10b6": "56 failed, 49 deselected in 1.38s"
+ },
+ "writer_latency": {
+  "what": "design 11.5: on a 10,000-line journal (the M source, lab.json, for the kit before PR 3 — ebd10b6's src, the /1 writer, core.add_note; the M source migrated, analytics.json, the same 10,000 lines, for this head's core.record and Writer.update), 20 calls each of a plain record, a record naming four references (a run id, a dataset name, an event id, a `script.py::id` key), a resolve of an open question, and (this head only) a record_update withdrawing a current finding; each kit in a process of its own on a fresh copy, the two kits alternating twice, the minimum of the two rounds (latency.py)",
+  "rounds": [
+   {
+    "round": 1,
+    "kind": "before",
+    "kit_version": "0.7.0",
+    "journal_lines_before": 10000,
+    "journal_lines_after": 10060,
+    "refs": [
+     "20260803-091704-k01-region-summary",
+     "sales_kr",
+     "e5",
+     "s04_anomaly_scan.py::anomaly-scan"
+    ],
+    "record_ms": {
+     "n": 20,
+     "p50_ms": 32.627,
+     "p95_ms": 39.285,
+     "mean_ms": 32.828,
+     "max_ms": 42.179
+    },
+    "record_with_refs_ms": {
+     "n": 20,
+     "p50_ms": 31.703,
+     "p95_ms": 37.911,
+     "mean_ms": 31.97,
+     "max_ms": 38.219
+    },
+    "resolve_ms": {
+     "n": 20,
+     "p50_ms": 68.697,
+     "p95_ms": 79.124,
+     "mean_ms": 70.585,
+     "max_ms": 87.655
+    },
+    "raw": {
+     "record_ms": [
+      39.285,
+      42.179,
+      28.316,
+      37.932,
+      28.195,
+      32.721,
+      28.773,
+      32.532,
+      33.789,
+      27.919,
+      36.589,
+      27.166,
+      31.171,
+      36.874,
+      26.918,
+      32.8,
+      35.733,
+      39.014,
+      26.723,
+      31.938
+     ],
+     "record_with_refs_ms": [
+      36.056,
+      28.055,
+      38.219,
+      27.542,
+      31.847,
+      26.568,
+      31.559,
+      35.11,
+      28.375,
+      34.687,
+      26.93,
+      31.185,
+      35.339,
+      27.471,
+      33.087,
+      27.713,
+      36.138,
+      29.213,
+      37.911,
+      36.402
+     ],
+     "resolve_ms": [
+      67.479,
+      67.822,
+      67.736,
+      75.515,
+      67.919,
+      66.585,
+      69.184,
+      75.871,
+      70.252,
+      71.936,
+      68.21,
+      87.655,
+      76.49,
+      65.299,
+      79.124,
+      69.484,
+      64.643,
+      62.413,
+      74.125,
+      63.965
+     ]
+    }
+   },
+   {
+    "round": 1,
+    "kind": "after",
+    "kit_version": "0.8.0",
+    "journal_lines_before": 10000,
+    "journal_lines_after": 10080,
+    "refs": [
+     "20260803-091704-k01-region-summary",
+     "sales_kr",
+     "e5",
+     "s04_anomaly_scan.py::anomaly-scan"
+    ],
+    "record_ms": {
+     "n": 20,
+     "p50_ms": 110.168,
+     "p95_ms": 123.901,
+     "mean_ms": 110.842,
+     "max_ms": 125.312
+    },
+    "record_with_refs_ms": {
+     "n": 20,
+     "p50_ms": 155.995,
+     "p95_ms": 165.505,
+     "mean_ms": 154.897,
+     "max_ms": 177.089
+    },
+    "resolve_ms": {
+     "n": 20,
+     "p50_ms": 127.512,
+     "p95_ms": 136.126,
+     "mean_ms": 127.189,
+     "max_ms": 137.044
+    },
+    "record_update_ms": {
+     "n": 20,
+     "p50_ms": 87.042,
+     "p95_ms": 99.677,
+     "mean_ms": 88.256,
+     "max_ms": 101.499
+    },
+    "raw": {
+     "record_ms": [
+      111.438,
+      113.083,
+      119.079,
+      103.379,
+      108.829,
+      123.901,
+      125.312,
+      99.674,
+      111.419,
+      123.855,
+      119.981,
+      103.074,
+      108.916,
+      115.19,
+      119.984,
+      98.608,
+      104.665,
+      104.342,
+      108.53,
+      93.574
+     ],
+     "record_with_refs_ms": [
+      158.416,
+      151.833,
+      156.656,
+      165.505,
+      142.449,
+      155.334,
+      145.181,
+      159.277,
+      161.412,
+      143.8,
+      156.742,
+      148.665,
+      164.531,
+      154.534,
+      144.298,
+      158.726,
+      147.172,
+      177.089,
+      148.192,
+      158.132
+     ],
+     "resolve_ms": [
+      126.533,
+      137.044,
+      122.762,
+      132.418,
+      121.607,
+      132.315,
+      121.074,
+      131.708,
+      119.694,
+      136.126,
+      120.27,
+      129.143,
+      129.331,
+      128.491,
+      116.565,
+      124.677,
+      135.878,
+      124.385,
+      134.444,
+      119.319
+     ],
+     "record_update_ms": [
+      80.605,
+      81.788,
+      80.362,
+      81.781,
+      82.205,
+      82.703,
+      83.575,
+      87.562,
+      86.522,
+      85.339,
+      95.354,
+      86.5,
+      99.677,
+      89.228,
+      101.499,
+      91.978,
+      92.953,
+      94.056,
+      89.935,
+      91.49
+     ]
+    }
+   },
+   {
+    "round": 2,
+    "kind": "before",
+    "kit_version": "0.7.0",
+    "journal_lines_before": 10000,
+    "journal_lines_after": 10060,
+    "refs": [
+     "20260803-091704-k01-region-summary",
+     "sales_kr",
+     "e5",
+     "s04_anomaly_scan.py::anomaly-scan"
+    ],
+    "record_ms": {
+     "n": 20,
+     "p50_ms": 33.686,
+     "p95_ms": 42.712,
+     "mean_ms": 35.117,
+     "max_ms": 54.249
+    },
+    "record_with_refs_ms": {
+     "n": 20,
+     "p50_ms": 34.608,
+     "p95_ms": 43.891,
+     "mean_ms": 34.202,
+     "max_ms": 44.002
+    },
+    "resolve_ms": {
+     "n": 20,
+     "p50_ms": 69.715,
+     "p95_ms": 79.525,
+     "mean_ms": 71.034,
+     "max_ms": 96.096
+    },
+    "raw": {
+     "record_ms": [
+      33.841,
+      39.897,
+      30.28,
+      54.249,
+      32.608,
+      40.029,
+      29.288,
+      34.497,
+      42.712,
+      28.463,
+      36.544,
+      28.845,
+      33.064,
+      36.632,
+      28.753,
+      36.064,
+      29.554,
+      41.311,
+      32.183,
+      33.532
+     ],
+     "record_with_refs_ms": [
+      44.002,
+      27.671,
+      34.586,
+      28.612,
+      35.403,
+      35.661,
+      38.149,
+      38.379,
+      30.73,
+      43.891,
+      29.207,
+      34.373,
+      38.457,
+      27.332,
+      37.767,
+      27.478,
+      34.631,
+      30.249,
+      32.742,
+      34.712
+     ],
+     "resolve_ms": [
+      70.151,
+      68.817,
+      71.977,
+      79.525,
+      70.499,
+      73.654,
+      69.279,
+      73.063,
+      67.443,
+      71.332,
+      62.106,
+      72.633,
+      69.062,
+      63.313,
+      76.067,
+      66.453,
+      65.291,
+      65.144,
+      96.096,
+      68.778
+     ]
+    }
+   },
+   {
+    "round": 2,
+    "kind": "after",
+    "kit_version": "0.8.0",
+    "journal_lines_before": 10000,
+    "journal_lines_after": 10080,
+    "refs": [
+     "20260803-091704-k01-region-summary",
+     "sales_kr",
+     "e5",
+     "s04_anomaly_scan.py::anomaly-scan"
+    ],
+    "record_ms": {
+     "n": 20,
+     "p50_ms": 110.798,
+     "p95_ms": 125.605,
+     "mean_ms": 110.494,
+     "max_ms": 130.019
+    },
+    "record_with_refs_ms": {
+     "n": 20,
+     "p50_ms": 152.033,
+     "p95_ms": 159.897,
+     "mean_ms": 152.314,
+     "max_ms": 173.976
+    },
+    "resolve_ms": {
+     "n": 20,
+     "p50_ms": 127.887,
+     "p95_ms": 147.509,
+     "mean_ms": 128.144,
+     "max_ms": 147.954
+    },
+    "record_update_ms": {
+     "n": 20,
+     "p50_ms": 86.751,
+     "p95_ms": 97.726,
+     "mean_ms": 87.821,
+     "max_ms": 101.411
+    },
+    "raw": {
+     "record_ms": [
+      111.387,
+      115.77,
+      117.27,
+      100.304,
+      108.104,
+      113.411,
+      130.019,
+      103.171,
+      108.505,
+      112.762,
+      125.605,
+      101.899,
+      110.909,
+      115.68,
+      109.447,
+      93.604,
+      110.688,
+      106.189,
+      112.388,
+      102.775
+     ],
+     "record_with_refs_ms": [
+      159.897,
+      144.878,
+      156.522,
+      152.36,
+      143.173,
+      158.846,
+      151.706,
+      159.288,
+      151.063,
+      141.671,
+      156.631,
+      144.279,
+      157.43,
+      146.509,
+      141.927,
+      155.435,
+      144.652,
+      173.976,
+      147.887,
+      158.14
+     ],
+     "resolve_ms": [
+      132.445,
+      147.954,
+      122.689,
+      134.483,
+      121.409,
+      131.549,
+      120.986,
+      132.426,
+      119.259,
+      128.874,
+      117.609,
+      131.349,
+      123.172,
+      129.22,
+      116.875,
+      126.901,
+      147.509,
+      123.916,
+      131.279,
+      122.97
+     ],
+     "record_update_ms": [
+      83.005,
+      82.765,
+      81.357,
+      82.049,
+      82.615,
+      83.925,
+      83.931,
+      86.011,
+      86.401,
+      87.101,
+      85.598,
+      101.411,
+      92.297,
+      87.243,
+      87.266,
+      88.067,
+      87.614,
+      97.726,
+      94.362,
+      95.676
+     ]
+    }
+   }
+  ],
+  "minimum_of_rounds": {
+   "before": {
+    "record_ms": {
+     "p50_ms": 32.627,
+     "p95_ms": 39.285,
+     "mean_ms": 32.828
+    },
+    "record_with_refs_ms": {
+     "p50_ms": 31.703,
+     "p95_ms": 37.911,
+     "mean_ms": 31.97
+    },
+    "resolve_ms": {
+     "p50_ms": 68.697,
+     "p95_ms": 79.124,
+     "mean_ms": 70.585
+    }
+   },
+   "after": {
+    "record_ms": {
+     "p50_ms": 110.168,
+     "p95_ms": 123.901,
+     "mean_ms": 110.494
+    },
+    "record_with_refs_ms": {
+     "p50_ms": 152.033,
+     "p95_ms": 159.897,
+     "mean_ms": 152.314
+    },
+    "resolve_ms": {
+     "p50_ms": 127.512,
+     "p95_ms": 136.126,
+     "mean_ms": 127.189
+    },
+    "record_update_ms": {
+     "p50_ms": 86.751,
+     "p95_ms": 97.726,
+     "mean_ms": 87.821
+    }
+   }
+  },
+  "breakdown": "a profile of 5 plain records on the migrated M journal: the writer parses the whole journal three times per record (relations.Journal: once outside the lock to bind and size the line, once under the lock, once after the append to report the targets' states), about 0.08 s of 0.25 s per call under the profiler; json.loads of 150,070 lines in all",
+  "follow_up": "design 11.5 and I8: a seq/state index belongs with #15's index; a cheaper step is to skip the third parse when the record closes nothing. Not changed in this PR"
+ },
+ "entry_points": {
+  "what": "T8 with PR 3's expectations, as the tests recorded them (tests/test_marker_gate.py and, in the aelix legs, tests/test_extension.py): value null = admitted (written or read), else the error code; migrate: the source column's judgment and a destination inside the column's project",
+  "kit_cli": {
+   "analytics_2": {
+    "context": null,
+    "demo": "demo_not_empty",
+    "import": null,
+    "query": null,
+    "record": null,
+    "render": null,
+    "run": null,
+    "status": null
+   },
+   "analytics_2_too_old": {
+    "context": null,
+    "demo": "writer_too_old",
+    "import": "writer_too_old",
+    "query": null,
+    "record": "writer_too_old",
+    "render": "writer_too_old",
+    "run": "writer_too_old",
+    "status": null
+   },
+   "analytics_3": {
+    "context": null,
+    "demo": "project_too_new",
+    "import": "project_too_new",
+    "query": null,
+    "record": "project_too_new",
+    "render": "project_too_new",
+    "run": "project_too_new",
+    "status": null
+   },
+   "analytics_invalid": {
+    "context": null,
+    "demo": "marker_invalid",
+    "import": "marker_invalid",
+    "query": null,
+    "record": "marker_invalid",
+    "render": "marker_invalid",
+    "run": "marker_invalid",
+    "status": null
+   },
+   "both": {
+    "context": "marker_conflict",
+    "demo": "marker_conflict",
+    "import": "marker_conflict",
+    "query": "marker_conflict",
+    "record": "marker_conflict",
+    "render": "marker_conflict",
+    "run": "marker_conflict",
+    "status": "marker_conflict"
+   },
+   "incomplete": {
+    "context": "migration_incomplete",
+    "demo": "migration_incomplete",
+    "import": "migration_incomplete",
+    "query": "migration_incomplete",
+    "record": "migration_incomplete",
+    "render": "migration_incomplete",
+    "run": "migration_incomplete",
+    "status": "migration_incomplete"
+   },
+   "lab_project_1": {
+    "context": null,
+    "demo": "migration_required",
+    "import": "migration_required",
+    "query": null,
+    "record": "migration_required",
+    "render": "migration_required",
+    "run": "migration_required",
+    "status": null
+   },
+   "lab_project_9": {
+    "context": null,
+    "demo": "project_too_new",
+    "import": "project_too_new",
+    "query": null,
+    "record": "project_too_new",
+    "render": "project_too_new",
+    "run": "project_too_new",
+    "status": null
+   },
+   "lab_unparsable": {
+    "context": null,
+    "demo": "migration_required",
+    "import": "migration_required",
+    "query": null,
+    "record": "migration_required",
+    "render": "migration_required",
+    "run": "migration_required",
+    "status": null
+   },
+   "nested": {
+    "context": null,
+    "demo": "demo_not_empty",
+    "import": null,
+    "query": null,
+    "record": null,
+    "render": null,
+    "run": null,
+    "status": null
+   },
+   "none": {
+    "context": "no_project",
+    "demo": "no_project",
+    "import": "no_project",
+    "query": "no_project",
+    "record": "no_project",
+    "render": "no_project",
+    "run": "no_project",
+    "status": "no_project"
+   }
+  },
+  "sdk_outside_a_run": {
+   "analytics_2": {
+    "record": null,
+    "save": null,
+    "visualize": null
+   },
+   "analytics_2_too_old": {
+    "record": "writer_too_old",
+    "save": "writer_too_old",
+    "visualize": "writer_too_old"
+   },
+   "analytics_invalid": {
+    "record": "marker_invalid",
+    "save": "marker_invalid",
+    "visualize": "marker_invalid"
+   },
+   "both": {
+    "record": "marker_conflict",
+    "save": "marker_conflict",
+    "visualize": "marker_conflict"
+   },
+   "lab_project_1": {
+    "record": "migration_required",
+    "save": "migration_required",
+    "visualize": "migration_required"
+   },
+   "nested": {
+    "record": null,
+    "save": null,
+    "visualize": null
+   }
+  },
+  "migrate": {
+   "analytics_2": {
+    "destination_inside": "inside_project",
+    "source": "source_not_legacy"
+   },
+   "analytics_2_too_old": {
+    "destination_inside": "inside_project",
+    "source": "source_not_legacy"
+   },
+   "analytics_3": {
+    "destination_inside": "inside_project",
+    "source": "source_not_legacy"
+   },
+   "analytics_invalid": {
+    "destination_inside": "inside_project",
+    "source": "source_not_legacy"
+   },
+   "both": {
+    "destination_inside": "inside_project",
+    "source": "source_not_legacy"
+   },
+   "incomplete": {
+    "source": "source_not_legacy"
+   },
+   "lab_project_1": {
+    "destination_inside": "inside_project",
+    "source": null
+   },
+   "lab_project_9": {
+    "destination_inside": "inside_project",
+    "source": "source_not_legacy"
+   },
+   "lab_unparsable": {
+    "destination_inside": "inside_project",
+    "source": null
+   },
+   "nested": {
+    "destination_inside": "inside_project",
+    "source": "source_not_legacy"
+   },
+   "none": {
+    "source": "no_project"
+   }
+  },
+  "extension_py3.12": {
+   "analytics_2_too_old": {
+    "/analytics context": null,
+    "/analytics open": "writer_too_old",
+    "/analytics record": "writer_too_old",
+    "/analytics render": "writer_too_old",
+    "/analytics status": null,
+    "/analytics use": null,
+    "analytics_import": "writer_too_old",
+    "analytics_query": null,
+    "analytics_record": "writer_too_old",
+    "analytics_run": "writer_too_old",
+    "analytics_status": null
+   },
+   "analytics_invalid": {
+    "/analytics context": null,
+    "/analytics open": "marker_invalid",
+    "/analytics record": "marker_invalid",
+    "/analytics render": "marker_invalid",
+    "/analytics status": null,
+    "/analytics use": null,
+    "analytics_import": "marker_invalid",
+    "analytics_query": null,
+    "analytics_record": "marker_invalid",
+    "analytics_run": "marker_invalid",
+    "analytics_status": null
+   },
+   "both": {
+    "/analytics context": "marker_conflict",
+    "/analytics open": "marker_conflict",
+    "/analytics record": "marker_conflict",
+    "/analytics render": "marker_conflict",
+    "/analytics status": "marker_conflict",
+    "/analytics use": "marker_conflict",
+    "analytics_import": "marker_conflict",
+    "analytics_query": "marker_conflict",
+    "analytics_record": "marker_conflict",
+    "analytics_run": "marker_conflict",
+    "analytics_status": "marker_conflict"
+   },
+   "lab_project_1": {
+    "/analytics context": null,
+    "/analytics open": "migration_required",
+    "/analytics record": "migration_required",
+    "/analytics render": "migration_required",
+    "/analytics status": null,
+    "/analytics use": null,
+    "analytics_import": "migration_required",
+    "analytics_query": null,
+    "analytics_record": "migration_required",
+    "analytics_run": "migration_required",
+    "analytics_status": null
+   },
+   "lab_project_9": {
+    "/analytics context": null,
+    "/analytics open": "project_too_new",
+    "/analytics record": "project_too_new",
+    "/analytics render": "project_too_new",
+    "/analytics status": null,
+    "/analytics use": null,
+    "analytics_import": "project_too_new",
+    "analytics_query": null,
+    "analytics_record": "project_too_new",
+    "analytics_run": "project_too_new",
+    "analytics_status": null
+   }
+  },
+  "extension_py3.11": {
+   "analytics_2_too_old": {
+    "/analytics context": null,
+    "/analytics open": "writer_too_old",
+    "/analytics record": "writer_too_old",
+    "/analytics render": "writer_too_old",
+    "/analytics status": null,
+    "/analytics use": null,
+    "analytics_import": "writer_too_old",
+    "analytics_query": null,
+    "analytics_record": "writer_too_old",
+    "analytics_run": "writer_too_old",
+    "analytics_status": null
+   },
+   "analytics_invalid": {
+    "/analytics context": null,
+    "/analytics open": "marker_invalid",
+    "/analytics record": "marker_invalid",
+    "/analytics render": "marker_invalid",
+    "/analytics status": null,
+    "/analytics use": null,
+    "analytics_import": "marker_invalid",
+    "analytics_query": null,
+    "analytics_record": "marker_invalid",
+    "analytics_run": "marker_invalid",
+    "analytics_status": null
+   },
+   "both": {
+    "/analytics context": "marker_conflict",
+    "/analytics open": "marker_conflict",
+    "/analytics record": "marker_conflict",
+    "/analytics render": "marker_conflict",
+    "/analytics status": "marker_conflict",
+    "/analytics use": "marker_conflict",
+    "analytics_import": "marker_conflict",
+    "analytics_query": "marker_conflict",
+    "analytics_record": "marker_conflict",
+    "analytics_run": "marker_conflict",
+    "analytics_status": "marker_conflict"
+   },
+   "lab_project_1": {
+    "/analytics context": null,
+    "/analytics open": "migration_required",
+    "/analytics record": "migration_required",
+    "/analytics render": "migration_required",
+    "/analytics status": null,
+    "/analytics use": null,
+    "analytics_import": "migration_required",
+    "analytics_query": null,
+    "analytics_record": "migration_required",
+    "analytics_run": "migration_required",
+    "analytics_status": null
+   },
+   "lab_project_9": {
+    "/analytics context": null,
+    "/analytics open": "project_too_new",
+    "/analytics record": "project_too_new",
+    "/analytics render": "project_too_new",
+    "/analytics status": null,
+    "/analytics use": null,
+    "analytics_import": "project_too_new",
+    "analytics_query": null,
+    "analytics_record": "project_too_new",
+    "analytics_run": "project_too_new",
+    "analytics_status": null
+   }
+  }
+ },
+ "command_e2e": {
+  "what": "both launchers with the real uv on a copy of the S fixture given its own uv.lock and .venv (uv lock, uv sync --locked): --dry-run, the migration, the call again, status and record in the destination, record in the source, a migration ended by os._exit after the source check (tests/migration_driver.py) and taken up by the command (e2e.py)",
+  "source": {
+   "files": 5738,
+   "venv": true,
+   "uv_lock": true,
+   "tree_digest_before": "3b2df21b6024ab991027bb79b99d44e7bd054e0c277ca36e3804de40015c3f5d",
+   "tree_digest_after": "3b2df21b6024ab991027bb79b99d44e7bd054e0c277ca36e3804de40015c3f5d",
+   "unchanged": true
+  },
+  "launchers": {
+   "bin/analytics": {
+    "dry_run": {
+     "argv": [
+      "bin/analytics",
+      "migrate",
+      "--to",
+      "<run>/evidence/g4/measure/e2e/dest-bin-analytics",
+      "--dry-run"
+     ],
+     "exit": 0,
+     "seconds": 0.14,
+     "stderr_last_line": "",
+     "result": {
+      "ok": true,
+      "dry_run": true
+     },
+     "destination_made": false
+    },
+    "migrate": {
+     "argv": [
+      "bin/analytics",
+      "migrate",
+      "--to",
+      "<run>/evidence/g4/measure/e2e/dest-bin-analytics"
+     ],
+     "exit": 0,
+     "seconds": 1.31,
+     "stderr_last_line": "analytics: the project is <run>/evidence/g4/measure/e2e/dest-bin-analytics now, and the source is as it was (in aelix: /analytics use <run>/evidence/g4/measure/e2e/dest-bin-analytics)",
+     "result": {
+      "ok": true,
+      "already_migrated": false
+     },
+     "destination_venv": true,
+     "destination_lock_is_the_source_s": true
+    },
+    "again": {
+     "argv": [
+      "bin/analytics",
+      "migrate",
+      "--to",
+      "<run>/evidence/g4/measure/e2e/dest-bin-analytics"
+     ],
+     "exit": 0,
+     "seconds": 0.18,
+     "stderr_last_line": "analytics: the project is <run>/evidence/g4/measure/e2e/dest-bin-analytics now, and the source is as it was (in aelix: /analytics use <run>/evidence/g4/measure/e2e/dest-bin-analytics)",
+     "result": {
+      "ok": true,
+      "already_migrated": true,
+      "compared": {
+       "same": 229
+      },
+      "differs": []
+     }
+    },
+    "status_in_destination": {
+     "argv": [
+      "bin/analytics",
+      "status"
+     ],
+     "exit": 0,
+     "seconds": 0.08,
+     "stderr_last_line": "",
+     "result": {}
+    },
+    "record_in_destination": {
+     "argv": [
+      "bin/analytics",
+      "record",
+      "finding",
+      "e2e"
+     ],
+     "exit": 0,
+     "seconds": 2.81,
+     "stderr_last_line": "",
+     "result": {
+      "ok": true
+     },
+     "written": {
+      "schema": "analytics.event/2",
+      "kind": "finding",
+      "actor": "human",
+      "actor_basis": "inferred",
+      "means": "cli"
+     }
+    },
+    "record_in_source": {
+     "argv": [
+      "bin/analytics",
+      "record",
+      "finding",
+      "e2e"
+     ],
+     "exit": 1,
+     "seconds": 0.06,
+     "stderr_last_line": "",
+     "result": {
+      "ok": false,
+      "error": {
+       "code": "migration_required"
+      }
+     }
+    },
+    "interrupted": {
+     "driver_exit": 9,
+     "status_there": {
+      "argv": [
+       "bin/analytics",
+       "status"
+      ],
+      "exit": 1,
+      "seconds": 0.06,
+      "stderr_last_line": "",
+      "result": {
+       "ok": false,
+       "error": {
+        "code": "migration_incomplete"
+       }
+      }
+     },
+     "venv_there": false
+    },
+    "resumed": {
+     "argv": [
+      "bin/analytics",
+      "migrate",
+      "--to",
+      "<run>/evidence/g4/measure/e2e/cut-bin-analytics"
+     ],
+     "exit": 0,
+     "seconds": 0.21,
+     "stderr_last_line": "analytics: the project is <run>/evidence/g4/measure/e2e/cut-bin-analytics now, and the source is as it was (in aelix: /analytics use <run>/evidence/g4/measure/e2e/cut-bin-analytics)",
+     "result": {
+      "ok": true,
+      "already_migrated": false
+     },
+     "destination_venv": true
+    }
+   },
+   "launcher": {
+    "dry_run": {
+     "argv": [
+      "analytics",
+      "migrate",
+      "--to",
+      "<run>/evidence/g4/measure/e2e/dest-launcher",
+      "--dry-run"
+     ],
+     "exit": 0,
+     "seconds": 0.13,
+     "stderr_last_line": "",
+     "result": {
+      "ok": true,
+      "dry_run": true
+     },
+     "destination_made": false
+    },
+    "migrate": {
+     "argv": [
+      "analytics",
+      "migrate",
+      "--to",
+      "<run>/evidence/g4/measure/e2e/dest-launcher"
+     ],
+     "exit": 0,
+     "seconds": 1.34,
+     "stderr_last_line": "analytics: the project is <run>/evidence/g4/measure/e2e/dest-launcher now, and the source is as it was (in aelix: /analytics use <run>/evidence/g4/measure/e2e/dest-launcher)",
+     "result": {
+      "ok": true,
+      "already_migrated": false
+     },
+     "destination_venv": true,
+     "destination_lock_is_the_source_s": true
+    },
+    "again": {
+     "argv": [
+      "analytics",
+      "migrate",
+      "--to",
+      "<run>/evidence/g4/measure/e2e/dest-launcher"
+     ],
+     "exit": 0,
+     "seconds": 0.21,
+     "stderr_last_line": "analytics: the project is <run>/evidence/g4/measure/e2e/dest-launcher now, and the source is as it was (in aelix: /analytics use <run>/evidence/g4/measure/e2e/dest-launcher)",
+     "result": {
+      "ok": true,
+      "already_migrated": true,
+      "compared": {
+       "same": 229
+      },
+      "differs": []
+     }
+    },
+    "status_in_destination": {
+     "argv": [
+      "analytics",
+      "status"
+     ],
+     "exit": 0,
+     "seconds": 0.1,
+     "stderr_last_line": "",
+     "result": {}
+    },
+    "record_in_destination": {
+     "argv": [
+      "analytics",
+      "record",
+      "finding",
+      "e2e"
+     ],
+     "exit": 0,
+     "seconds": 2.52,
+     "stderr_last_line": "",
+     "result": {
+      "ok": true
+     },
+     "written": {
+      "schema": "analytics.event/2",
+      "kind": "finding",
+      "actor": "human",
+      "actor_basis": "inferred",
+      "means": "cli"
+     }
+    },
+    "record_in_source": {
+     "argv": [
+      "analytics",
+      "record",
+      "finding",
+      "e2e"
+     ],
+     "exit": 1,
+     "seconds": 0.08,
+     "stderr_last_line": "",
+     "result": {
+      "ok": false,
+      "error": {
+       "code": "migration_required"
+      }
+     }
+    },
+    "interrupted": {
+     "driver_exit": 9,
+     "status_there": {
+      "argv": [
+       "analytics",
+       "status"
+      ],
+      "exit": 1,
+      "seconds": 0.08,
+      "stderr_last_line": "",
+      "result": {
+       "ok": false,
+       "error": {
+        "code": "migration_incomplete"
+       }
+      }
+     },
+     "venv_there": false
+    },
+    "resumed": {
+     "argv": [
+      "analytics",
+      "migrate",
+      "--to",
+      "<run>/evidence/g4/measure/e2e/cut-launcher"
+     ],
+     "exit": 0,
+     "seconds": 0.25,
+     "stderr_last_line": "analytics: the project is <run>/evidence/g4/measure/e2e/cut-launcher now, and the source is as it was (in aelix: /analytics use <run>/evidence/g4/measure/e2e/cut-launcher)",
+     "result": {
+      "ok": true,
+      "already_migrated": false
+     },
+     "destination_venv": true
+    }
+   }
+  }
+ },
+ "migration": {
+  "fixtures": {
+   "S": {
+    "command": "uv run --locked python tools/eval_fixtures.py scale --scale S --seed 0 --kit-root <V1_KIT_COMMIT's src> --out <dir>",
+    "generator_commit": "ebd10b644e8cb8550ccf6446b134666db6bb9386",
+    "seed": 0,
+    "manifest_kit": {
+     "kit_version": "0.7.0",
+     "kit_commit": null
+    },
+    "project": "fixtures/S/project",
+    "files": 229,
+    "bytes": 2896532,
+    "journal_lines": 300,
+    "tree_digest": "fc91b6ab79c3e883c75d968ca80bf0b1921ec87621d9067c4d56be26f49924f7",
+    "lock_files_before": {
+     ".lab/run.lock": true,
+     ".lab/lock": true
+    }
+   },
+   "M": {
+    "command": "uv run --locked python tools/eval_fixtures.py scale --scale M --seed 0 --kit-root <V1_KIT_COMMIT's src> --out <dir>",
+    "generator_commit": "ebd10b644e8cb8550ccf6446b134666db6bb9386",
+    "seed": 0,
+    "manifest_kit": {
+     "kit_version": "0.7.0",
+     "kit_commit": null
+    },
+    "project": "fixtures/M/project",
+    "files": 2037,
+    "bytes": 223092045,
+    "journal_lines": 10000,
+    "tree_digest": "0e095d32240f08c76def721d3d8cc738eab7d5a649c048836625efbc9a597eb4",
+    "lock_files_before": {
+     ".lab/run.lock": true,
+     ".lab/lock": true
+    }
+   }
+  },
+  "phases": {
+   "S": {
+    "min": {
+     "start_to_locked_ms": 1,
+     "plan_ms": 9,
+     "copy_ms": 932,
+     "recheck_ms": 21,
+     "verify_ms": 10,
+     "transform_ms": 8,
+     "report_ms": 20,
+     "flush_ms": 2,
+     "marker_ms": 4,
+     "trust_ms": 6,
+     "source_lock_held_ms": 966,
+     "total_ms": 1022,
+     "ledger_lines": 469
+    },
+    "probed_publish": [
+     "publish_new"
+    ],
+    "max_rss_bytes": 31031296,
+    "runs": [
+     {
+      "attempt": 1,
+      "wall_s": 1.069,
+      "max_rss_bytes": 30982144,
+      "phases": {
+       "start_to_locked_ms": 1,
+       "plan_ms": 9,
+       "copy_ms": 932,
+       "recheck_ms": 25,
+       "verify_ms": 10,
+       "transform_ms": 9,
+       "report_ms": 21,
+       "flush_ms": 4,
+       "marker_ms": 5,
+       "trust_ms": 6,
+       "source_lock_held_ms": 966,
+       "total_ms": 1022,
+       "ledger_lines": 469,
+       "probed_publish": "publish_new"
+      }
+     },
+     {
+      "attempt": 2,
+      "wall_s": 1.096,
+      "max_rss_bytes": 31031296,
+      "phases": {
+       "start_to_locked_ms": 1,
+       "plan_ms": 10,
+       "copy_ms": 964,
+       "recheck_ms": 21,
+       "verify_ms": 12,
+       "transform_ms": 8,
+       "report_ms": 20,
+       "flush_ms": 2,
+       "marker_ms": 4,
+       "trust_ms": 6,
+       "source_lock_held_ms": 995,
+       "total_ms": 1048,
+       "ledger_lines": 469,
+       "probed_publish": "publish_new"
+      }
+     }
+    ]
+   },
+   "M": {
+    "min": {
+     "start_to_locked_ms": 1,
+     "plan_ms": 53,
+     "copy_ms": 8576,
+     "recheck_ms": 287,
+     "verify_ms": 175,
+     "transform_ms": 19,
+     "report_ms": 26,
+     "flush_ms": 18,
+     "marker_ms": 6,
+     "trust_ms": 5,
+     "source_lock_held_ms": 8919,
+     "total_ms": 9173,
+     "ledger_lines": 4085
+    },
+    "probed_publish": [
+     "publish_new"
+    ],
+    "max_rss_bytes": 76152832,
+    "runs": [
+     {
+      "attempt": 1,
+      "wall_s": 9.255,
+      "max_rss_bytes": 76152832,
+      "phases": {
+       "start_to_locked_ms": 1,
+       "plan_ms": 56,
+       "copy_ms": 8576,
+       "recheck_ms": 287,
+       "verify_ms": 178,
+       "transform_ms": 19,
+       "report_ms": 26,
+       "flush_ms": 18,
+       "marker_ms": 6,
+       "trust_ms": 6,
+       "source_lock_held_ms": 8919,
+       "total_ms": 9173,
+       "ledger_lines": 4085,
+       "probed_publish": "publish_new"
+      }
+     },
+     {
+      "attempt": 2,
+      "wall_s": 10.284,
+      "max_rss_bytes": 75366400,
+      "phases": {
+       "start_to_locked_ms": 1,
+       "plan_ms": 53,
+       "copy_ms": 9606,
+       "recheck_ms": 292,
+       "verify_ms": 175,
+       "transform_ms": 19,
+       "report_ms": 26,
+       "flush_ms": 18,
+       "marker_ms": 8,
+       "trust_ms": 5,
+       "source_lock_held_ms": 9951,
+       "total_ms": 10203,
+       "ledger_lines": 4085,
+       "probed_publish": "publish_new"
+      }
+     }
+    ]
+   }
+  },
+  "sizes": {
+   "S": {
+    "copied_files": 228,
+    "copied_bytes": 2896532,
+    "excluded": [
+     {
+      "path": ".lab/cache",
+      "reason": "cache",
+      "files": 0,
+      "bytes": 0
+     },
+     {
+      "path": ".lab/lock",
+      "reason": "lock",
+      "files": 1,
+      "bytes": 0
+     },
+     {
+      "path": ".lab/report.lock",
+      "reason": "lock",
+      "files": 1,
+      "bytes": 0
+     },
+     {
+      "path": ".lab/run.lock",
+      "reason": "lock",
+      "files": 1,
+      "bytes": 0
+     },
+     {
+      "path": "report",
+      "reason": "workspace",
+      "files": 0,
+      "bytes": 0
+     }
+    ],
+    "excluded_bytes": 0,
+    "report_json_bytes": 47144,
+    "plan_json_bytes": 148265,
+    "mapping_json_bytes": 839,
+    "ledger_bytes": 97208,
+    "not_copied": 0,
+    "links": 0,
+    "warnings": 0
+   },
+   "M": {
+    "copied_files": 2036,
+    "copied_bytes": 223092045,
+    "excluded": [
+     {
+      "path": ".lab/cache",
+      "reason": "cache",
+      "files": 0,
+      "bytes": 0
+     },
+     {
+      "path": ".lab/lock",
+      "reason": "lock",
+      "files": 1,
+      "bytes": 0
+     },
+     {
+      "path": ".lab/report.lock",
+      "reason": "lock",
+      "files": 1,
+      "bytes": 0
+     },
+     {
+      "path": ".lab/run.lock",
+      "reason": "lock",
+      "files": 1,
+      "bytes": 0
+     },
+     {
+      "path": "report",
+      "reason": "workspace",
+      "files": 0,
+      "bytes": 0
+     }
+    ],
+    "excluded_bytes": 0,
+    "report_json_bytes": 394646,
+    "plan_json_bytes": 1367024,
+    "mapping_json_bytes": 839,
+    "ledger_bytes": 861624,
+    "not_copied": 0,
+    "links": 0,
+    "warnings": 0
+   }
+  },
+  "preservation": {
+   "S": {
+    "walk": "an independent walk (this script's tree(), links not followed), the lock files apart",
+    "before": "fc91b6ab79c3e883c75d968ca80bf0b1921ec87621d9067c4d56be26f49924f7",
+    "after": "fc91b6ab79c3e883c75d968ca80bf0b1921ec87621d9067c4d56be26f49924f7",
+    "equal": true,
+    "lock_files_after": {
+     ".lab/run.lock": true,
+     ".lab/lock": true
+    },
+    "report_source_inventory": {
+     "before": "b075e7d31ee74bc01d7ce2afceaa7c9857007fd1356068f18f798301c48244d7",
+     "after": "b075e7d31ee74bc01d7ce2afceaa7c9857007fd1356068f18f798301c48244d7"
+    },
+    "report_locks": {
+     "taken": [
+      {
+       "path": ".lab/run.lock",
+       "created": false
+      },
+      {
+       "path": ".lab/lock",
+       "created": false
+      }
+     ],
+     "held_ms": 966
+    }
+   },
+   "M": {
+    "walk": "an independent walk (this script's tree(), links not followed), the lock files apart",
+    "before": "0e095d32240f08c76def721d3d8cc738eab7d5a649c048836625efbc9a597eb4",
+    "after": "0e095d32240f08c76def721d3d8cc738eab7d5a649c048836625efbc9a597eb4",
+    "equal": true,
+    "lock_files_after": {
+     ".lab/run.lock": true,
+     ".lab/lock": true
+    },
+    "report_source_inventory": {
+     "before": "8b952270b1db9558c52ca17a456b9a9f33d5ca69c75c23e016713cecbd355ed1",
+     "after": "8b952270b1db9558c52ca17a456b9a9f33d5ca69c75c23e016713cecbd355ed1"
+    },
+    "report_locks": {
+     "taken": [
+      {
+       "path": ".lab/run.lock",
+       "created": false
+      },
+      {
+       "path": ".lab/lock",
+       "created": false
+      }
+     ],
+     "held_ms": 8919
+    }
+   }
+  },
+  "two_migrations_same_copies": {
+   "S": true,
+   "M": true
+  },
+  "called_again": {
+   "S": {
+    "exit": 0,
+    "already_migrated": true,
+    "compared": {
+     "same": 228
+    },
+    "differs": [],
+    "source_since": {
+     "journal_lines": 0,
+     "seq": null,
+     "files_differing": 0
+    }
+   },
+   "M": {
+    "exit": 0,
+    "already_migrated": true,
+    "compared": {
+     "same": 2036
+    },
+    "differs": [],
+    "source_since": {
+     "journal_lines": 0,
+     "seq": null,
+     "files_differing": 0
+    }
+   }
+  },
+  "report_origin": {
+   "S": {
+    "actor": "human",
+    "actor_basis": "inferred",
+    "means": "cli"
+   },
+   "M": {
+    "actor": "human",
+    "actor_basis": "inferred",
+    "means": "cli"
+   }
+  },
+  "destination_status": {
+   "S": {
+    "marker": "analytics.json",
+    "format": "analytics.project/2",
+    "writable": true,
+    "migration": {
+     "id": "20261008T181147Z-c6054e1e",
+     "report": ".analytics/migration/20261008T181147Z-c6054e1e/report.json",
+     "applied": true,
+     "mapping": ".analytics/migration/20261008T181147Z-c6054e1e/mapping.json"
+    }
+   },
+   "M": {
+    "marker": "analytics.json",
+    "format": "analytics.project/2",
+    "writable": true,
+    "migration": {
+     "id": "20261008T181149Z-00c56cb8",
+     "report": ".analytics/migration/20261008T181149Z-00c56cb8/report.json",
+     "applied": true,
+     "mapping": ".analytics/migration/20261008T181149Z-00c56cb8/mapping.json"
+    }
+   }
+  },
+  "source_status": {
+   "S": {
+    "marker": "lab.json",
+    "format": "lab.project/1",
+    "writable": false,
+    "write_refusal": "migration_required",
+    "migration_hint": "Copy it into the current format with `analytics migrate --to <new empty folder>` run inside <run>/evidence/g4/measure/fixtures/S/project (preview with --dry-run). The original stays as it is. In aelix, a person runs that in a terminal, then `/analytics use <new folder>`."
+   },
+   "M": {
+    "marker": "lab.json",
+    "format": "lab.project/1",
+    "writable": false,
+    "write_refusal": "migration_required",
+    "migration_hint": "Copy it into the current format with `analytics migrate --to <new empty folder>` run inside <run>/evidence/g4/measure/fixtures/M/project (preview with --dry-run). The original stays as it is. In aelix, a person runs that in a terminal, then `/analytics use <new folder>`."
+   }
+  },
+  "fault_matrix": {
+   "what": "design 6.11's F1-F16 ended by os._exit at the step in a process of its own, observed then called again (fault_observe.py, PR 2's script with PR 3's rows without links: the marker published by rename_new)",
+   "macos_developer_machine": {
+    "F1-dest-locked": {
+     "stop": {
+      "step": "dest_locked"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "FileNotFoundError",
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 59,
+     "source_unchanged_after": true
+    },
+    "F1-migration-dir": {
+     "stop": {
+      "step": "migration_dir"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": null,
+     "lines_then": 0,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 59,
+     "source_unchanged_after": true
+    },
+    "F1-start-cut": {
+     "stop": {
+      "step": "ledger:start",
+      "action": "cut"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": null,
+     "lines_then": 0,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 59,
+     "source_unchanged_after": true
+    },
+    "F2-start": {
+     "stop": {
+      "step": "start"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "start",
+     "lines_then": 1,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 59,
+     "source_unchanged_after": true
+    },
+    "F2-probe": {
+     "stop": {
+      "step": "probe_made"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "start",
+     "lines_then": 1,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 59,
+     "source_unchanged_after": true
+    },
+    "F3-locked": {
+     "stop": {
+      "step": "locked"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "locked",
+     "lines_then": 3,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 61,
+     "source_unchanged_after": true
+    },
+    "F4-plan-written": {
+     "stop": {
+      "step": "plan_written"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "locked",
+     "lines_then": 3,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 61,
+     "source_unchanged_after": true
+    },
+    "F4-plan": {
+     "stop": {
+      "step": "plan"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "plan",
+     "lines_then": 4,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 61,
+     "source_unchanged_after": true
+    },
+    "F5-begin": {
+     "stop": {
+      "step": "begin",
+      "path": "data/raw/big.parquet"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "begin",
+     "lines_then": 31,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 62,
+     "source_unchanged_after": true
+    },
+    "F5-temp-partial": {
+     "stop": {
+      "step": "temp_partial",
+      "path": "data/raw/big.parquet"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "begin",
+     "lines_then": 31,
+     "temporary_files_then": [
+      "data/raw/.mig-1f1a3024-0.part"
+     ],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 62,
+     "source_unchanged_after": true
+    },
+    "F5-temp-full": {
+     "stop": {
+      "step": "temp_full",
+      "path": "data/raw/big.parquet"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "begin",
+     "lines_then": 31,
+     "temporary_files_then": [
+      "data/raw/.mig-1f1a3024-0.part"
+     ],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 62,
+     "source_unchanged_after": true
+    },
+    "F6-published": {
+     "stop": {
+      "step": "published",
+      "path": "data/raw/big.parquet"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "begin",
+     "lines_then": 31,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 61,
+     "source_unchanged_after": true
+    },
+    "F6-link-unlink": {
+     "stop": {
+      "between_link_and_unlink": true,
+      "path": "data/raw/big.parquet"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "begin",
+     "lines_then": 31,
+     "temporary_files_then": [
+      "data/raw/.mig-1f1a3024-0.part"
+     ],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 61,
+     "source_unchanged_after": true
+    },
+    "F7-rechecking": {
+     "stop": {
+      "step": "rechecking"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "copied",
+     "lines_then": 50,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 61,
+     "source_unchanged_after": true
+    },
+    "F8-source-checked": {
+     "stop": {
+      "step": "source_checked"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "source_checked",
+     "lines_then": 51,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 59,
+     "source_unchanged_after": true
+    },
+    "F8-verified": {
+     "stop": {
+      "step": "verified"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "verified",
+     "lines_then": 52,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 60,
+     "source_unchanged_after": true
+    },
+    "F9-transform-begin": {
+     "stop": {
+      "step": "transform_begin"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "transform_begin",
+     "lines_then": 53,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 60,
+     "source_unchanged_after": true
+    },
+    "F9-transform-temp": {
+     "stop": {
+      "step": "transform_temp"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "transform_begin",
+     "lines_then": 53,
+     "temporary_files_then": [
+      ".mig-gitignore-0.part"
+     ],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 60,
+     "source_unchanged_after": true
+    },
+    "F9-transform-written": {
+     "stop": {
+      "step": "transform_written"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "transform_begin",
+     "lines_then": 53,
+     "temporary_files_then": [
+      ".mig-gitignore-0.part"
+     ],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 60,
+     "source_unchanged_after": true
+    },
+    "F9-transform-replaced": {
+     "stop": {
+      "step": "transform_replaced"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "transform_begin",
+     "lines_then": 53,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 59,
+     "source_unchanged_after": true
+    },
+    "F10-mapping": {
+     "stop": {
+      "step": "mapping_written"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "transformed",
+     "lines_then": 54,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 59,
+     "source_unchanged_after": true
+    },
+    "F10-report-written": {
+     "stop": {
+      "step": "report_written"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "transformed",
+     "lines_then": 54,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 59,
+     "source_unchanged_after": true
+    },
+    "F10-reported": {
+     "stop": {
+      "step": "reported"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "reported",
+     "lines_then": 55,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 59,
+     "source_unchanged_after": true
+    },
+    "F10-durable": {
+     "stop": {
+      "step": "durable"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "durable",
+     "lines_then": 56,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 59,
+     "source_unchanged_after": true
+    },
+    "F11-marker-begin": {
+     "stop": {
+      "step": "marker_begin"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "marker_begin",
+     "lines_then": 57,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 60,
+     "source_unchanged_after": true
+    },
+    "F11-marker-temp": {
+     "stop": {
+      "step": "marker_temp"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "marker_begin",
+     "lines_then": 57,
+     "temporary_files_then": [
+      ".analytics-json-0.part"
+     ],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 60,
+     "source_unchanged_after": true
+    },
+    "F11-marker-written": {
+     "stop": {
+      "step": "marker_written"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "marker_begin",
+     "lines_then": 57,
+     "temporary_files_then": [
+      ".analytics-json-0.part"
+     ],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 60,
+     "source_unchanged_after": true
+    },
+    "F12-published": {
+     "stop": {
+      "step": "marker_published"
+     },
+     "no_links": false,
+     "state_then": "current",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "read",
+     "last_step_then": "marker_begin",
+     "lines_then": 57,
+     "temporary_files_then": [],
+     "called_again": "already_migrated",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 58,
+     "source_unchanged_after": true
+    },
+    "F12-link-unlink": {
+     "stop": {
+      "between_link_and_unlink": true,
+      "path": "analytics.json"
+     },
+     "no_links": false,
+     "state_then": "current",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "read",
+     "last_step_then": "marker_begin",
+     "lines_then": 57,
+     "temporary_files_then": [
+      ".analytics-json-0.part"
+     ],
+     "called_again": "already_migrated",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 58,
+     "source_unchanged_after": true
+    },
+    "F13-committed": {
+     "stop": {
+      "step": "committed"
+     },
+     "no_links": false,
+     "state_then": "current",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "read",
+     "last_step_then": "committed",
+     "lines_then": 58,
+     "temporary_files_then": [],
+     "called_again": "already_migrated",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 58,
+     "source_unchanged_after": true
+    },
+    "F14-trusted": {
+     "stop": {
+      "step": "trusted"
+     },
+     "no_links": false,
+     "state_then": "current",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "read",
+     "last_step_then": "trusted",
+     "lines_then": 59,
+     "temporary_files_then": [],
+     "called_again": "already_migrated",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 59,
+     "source_unchanged_after": true
+    },
+    "F16-copied-cut": {
+     "stop": {
+      "step": "ledger:copied",
+      "action": "cut",
+      "nth": 3
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "begin",
+     "lines_then": 9,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 61,
+     "source_unchanged_after": true
+    },
+    "F16-source-checked-cut": {
+     "stop": {
+      "step": "ledger:source_checked",
+      "action": "cut"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "copied",
+     "lines_then": 50,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 61,
+     "source_unchanged_after": true
+    },
+    "F16-reported-cut": {
+     "stop": {
+      "step": "ledger:reported",
+      "action": "cut"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "transformed",
+     "lines_then": 54,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 59,
+     "source_unchanged_after": true
+    },
+    "F16-committed-cut": {
+     "stop": {
+      "step": "ledger:committed",
+      "action": "cut"
+     },
+     "no_links": false,
+     "state_then": "current",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "read",
+     "last_step_then": "marker_begin",
+     "lines_then": 57,
+     "temporary_files_then": [],
+     "called_again": "already_migrated",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 58,
+     "source_unchanged_after": true
+    },
+    "F15-direct_intent": {
+     "stop": {
+      "step": "direct_intent",
+      "path": "data/raw/big.parquet"
+     },
+     "no_links": true,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "direct_intent",
+     "lines_then": 54,
+     "temporary_files_then": [
+      "data/raw/.mig-1f1a3024-0.part"
+     ],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 85,
+     "source_unchanged_after": true
+    },
+    "F15-direct_created": {
+     "stop": {
+      "step": "direct_created",
+      "path": "data/raw/big.parquet"
+     },
+     "no_links": true,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "direct_intent",
+     "lines_then": 54,
+     "temporary_files_then": [
+      "data/raw/.mig-1f1a3024-0.part"
+     ],
+     "called_again": "destination_mismatch",
+     "details": {
+      "reason": "occupied",
+      "path": "data/raw/big.parquet"
+     },
+     "source_unchanged_after": true
+    },
+    "F11-marker-begin-no-links": {
+     "stop": {
+      "step": "marker_begin"
+     },
+     "no_links": true,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "marker_begin",
+     "lines_then": 99,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 102,
+     "source_unchanged_after": true
+    },
+    "F11-marker-temp-no-links": {
+     "stop": {
+      "step": "marker_temp"
+     },
+     "no_links": true,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "marker_begin",
+     "lines_then": 99,
+     "temporary_files_then": [
+      ".analytics-json-0.part"
+     ],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 102,
+     "source_unchanged_after": true
+    },
+    "F11-marker-written-no-links": {
+     "stop": {
+      "step": "marker_written"
+     },
+     "no_links": true,
+     "state_then": "incomplete",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "marker_begin",
+     "lines_then": 99,
+     "temporary_files_then": [
+      ".analytics-json-0.part"
+     ],
+     "called_again": "resumed_and_committed",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 102,
+     "source_unchanged_after": true
+    },
+    "F12-published-no-links": {
+     "stop": {
+      "step": "marker_published"
+     },
+     "no_links": true,
+     "state_then": "current",
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "read",
+     "last_step_then": "marker_begin",
+     "lines_then": 99,
+     "temporary_files_then": [],
+     "called_again": "already_migrated",
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 100,
+     "source_unchanged_after": true
+    }
+   },
+   "test": "pass"
+  },
+  "concurrency": {
+   "tests/test_migration.py::test_a_source_changed_under_the_copy_fails_without_a_marker[copied-telemetry]": "pass",
+   "tests/test_migration.py::test_a_source_changed_under_the_copy_fails_without_a_marker[copied-added]": "pass",
+   "tests/test_migration.py::test_a_source_changed_under_the_copy_fails_without_a_marker[copied-removed]": "pass",
+   "tests/test_migration.py::test_a_source_changed_under_the_copy_fails_without_a_marker[rechecking-script]": "pass",
+   "tests/test_migration.py::test_an_older_kit_s_journal_write_waits_for_the_migration_and_is_counted_after": "pass",
+   "tests/test_migration.py::test_one_migration_a_destination_and_none_while_a_run_holds_the_source": "pass",
+   "tests/test_migration.py::test_a_change_in_the_source_s_list_under_the_copy_is_source_changed[outside_link_removed]": "pass",
+   "tests/test_migration.py::test_a_change_in_the_source_s_list_under_the_copy_is_source_changed[empty_folder_added]": "pass",
+   "tests/test_migration.py::test_a_change_in_the_source_s_list_under_the_copy_is_source_changed[link_retargeted]": "pass",
+   "tests/test_contracts.py::test_trying_a_lock_another_process_holds_is_busy_at_once[posix-exclusive]": "pass",
+   "tests/test_contracts.py::test_trying_a_lock_another_process_holds_is_busy_at_once[posix-try_exclusive]": "pass",
+   "tests/test_writer.py::test_two_processes_withdrawing_one_record_write_one_update": "pass"
+  },
+  "reader_comparison": {
+   "unit": {
+    "tests/test_migration_reader.py::test_the_reader_reads_a_migrated_project_as_it_read_its_source[symlink]": "pass",
+    "tests/test_migration_reader.py::test_the_mapping_s_rules_are_by_path_components": "pass",
+    "tests/test_migration_reader.py::test_the_reader_knows_the_migration_family": "pass",
+    "tests/test_migration_reader.py::test_what_the_mapping_is_enters_the_read_s_revision": "pass",
+    "tests/test_migration_reader.py::test_a_marker_report_and_mapping_of_two_migrations_are_not_read_together": "pass"
+   },
+   "S": {
+    "counts": {
+     "damaged": 4,
+     "damaged_files": 0,
+     "imports": 5,
+     "lineage": 39,
+     "producers": 39,
+     "records": 252,
+     "references": 477,
+     "runs": 30,
+     "unsupported": 0
+    },
+    "equal": {
+     "damaged": true,
+     "damaged_files": true,
+     "imports": true,
+     "lineage": true,
+     "producers": true,
+     "records": true,
+     "references": true,
+     "runs": true,
+     "unsupported": true
+    },
+    "differences": {},
+    "seconds": 0.01
+   },
+   "M": {
+    "counts": {
+     "damaged": 4,
+     "damaged_files": 0,
+     "imports": 20,
+     "lineage": 483,
+     "producers": 483,
+     "records": 9633,
+     "references": 15000,
+     "runs": 300,
+     "unsupported": 0
+    },
+    "equal": {
+     "damaged": true,
+     "damaged_files": true,
+     "imports": true,
+     "lineage": true,
+     "producers": true,
+     "records": true,
+     "references": true,
+     "runs": true,
+     "unsupported": true
+    },
+    "differences": {},
+    "seconds": 0.32
+   }
+  }
+ },
+ "writer_tests": {
+  "tests/test_writer.py::test_gap_and_other_kinds_are_refused_and_nothing_is_written[record_update]": "pass",
+  "tests/test_writer.py::test_a_marker_changed_between_two_writes_is_judged_again[lab_json]": "pass",
+  "tests/test_writer.py::test_a_marker_changed_between_two_writes_is_judged_again[two]": "pass",
+  "tests/test_writer.py::test_a_marker_changed_between_two_writes_is_judged_again[higher]": "pass",
+  "tests/test_writer.py::test_the_record_examples_record_updates_are_what_the_writer_does[normal-8]": "pass",
+  "tests/test_writer.py::test_the_record_examples_record_updates_are_what_the_writer_does[normal-9]": "pass",
+  "tests/test_writer.py::test_the_record_examples_record_updates_are_what_the_writer_does[normal-10]": "pass",
+  "tests/test_writer.py::test_the_record_examples_record_updates_are_what_the_writer_does[conflict-3]": "pass",
+  "tests/test_writer.py::test_a_state_conflict_says_what_the_record_is_and_what_made_it_so[normal-e9-withdrawn-current-details0]": "pass",
+  "tests/test_writer.py::test_a_state_conflict_says_what_the_record_is_and_what_made_it_so[normal-e3-open-withdrawn-details1]": "pass",
+  "tests/test_writer.py::test_a_state_conflict_says_what_the_record_is_and_what_made_it_so[normal-e9-current-withdrawn-details2]": "pass",
+  "tests/test_writer.py::test_a_state_conflict_says_what_the_record_is_and_what_made_it_so[normal-e99-current-withdrawn-details3]": "pass",
+  "tests/test_writer.py::test_a_state_conflict_says_what_the_record_is_and_what_made_it_so[normal-journal:5-current-withdrawn-details4]": "pass",
+  "tests/test_writer.py::test_a_state_conflict_says_what_the_record_is_and_what_made_it_so[normal-e4-current-withdrawn-details5]": "pass",
+  "tests/test_writer.py::test_a_state_conflict_says_what_the_record_is_and_what_made_it_so[mixed-version-e7-current-withdrawn-details6]": "pass",
+  "tests/test_writer.py::test_two_processes_withdrawing_one_record_write_one_update": "pass",
+  "tests/test_writer.py::test_closing_a_question_twice_writes_both_and_says_it_was_closed": "pass",
+  "tests/test_new_format.py::test_every_record_an_entry_point_writes_is_the_new_format_s": "pass",
+  "tests/test_new_format.py::test_each_entry_point_says_who_wrote_and_how": "pass",
+  "tests/test_new_format.py::test_closing_a_question_twice_writes_both_and_says_so": "pass",
+  "tests/test_new_format.py::test_a_migrated_run_reruns_as_it_reruns_where_it_came_from": "pass"
+ },
+ "uv": {
+  "what": "T18 (tests/test_migrate_command.py with the real uv): each launcher's migrate of a source with a uv.lock that fits and one that does not",
+  "uv-bin-analytics-does-not-fit": {
+   "destination_venv": true,
+   "exit": 0,
+   "lock_unchanged": true,
+   "source_unchanged": true,
+   "stderr_last_line": "analytics: the migration is done, but preparing the environment of <dest> failed (uv sync --locked, exit 1); the project's next command prepares it"
+  },
+  "uv-bin-analytics-fits": {
+   "destination_venv": true,
+   "exit": 0,
+   "lock_unchanged": true,
+   "source_unchanged": true,
+   "stderr_last_line": "analytics: the project is <dest> now, and the source is as it was (in aelix: /analytics use <dest>)"
+  },
+  "uv-launcher-does-not-fit": {
+   "destination_venv": true,
+   "exit": 0,
+   "lock_unchanged": true,
+   "source_unchanged": true,
+   "stderr_last_line": "analytics: the migration is done, but preparing the environment of <dest> failed (uv sync --locked, exit 1); the project's next command prepares it"
+  },
+  "uv-launcher-fits": {
+   "destination_venv": true,
+   "exit": 0,
+   "lock_unchanged": true,
+   "source_unchanged": true,
+   "stderr_last_line": "analytics: the project is <dest> now, and the source is as it was (in aelix: /analytics use <dest>)"
+  }
+ },
+ "agent_cli": {
+  "what": "T22 (tests/test_agent_cli.py): aelix 0.1.0b2 loads the extension with its own loader and builds a harness (on('user_bash') wired by the harness's hook bus, a JSONL session in the test's directory); the kit's command line through the bash tool and through cli/repl.handle_user_bash, and with another extension's shell registered before and after",
+  "aelix": "0.1.0b2",
+  "py3.12": {
+   "agent-cli-alone": {
+    "agent_bash_tool": {
+     "actor": "agent",
+     "actor_basis": "declared",
+     "means": "cli",
+     "session": "<tmp>/sessions/<session>.jsonl",
+     "text": "T22-agent"
+    },
+    "extension_kit_child": {
+     "actor": "human",
+     "means": "command"
+    },
+    "person_bang": {
+     "actor": "human",
+     "actor_basis": "declared",
+     "means": "cli",
+     "session": "<tmp>/sessions/<session>.jsonl",
+     "text": "T22-person"
+    },
+    "person_bang_not_the_kit": {
+     "handler_result": null,
+     "ran": "aelix's own local shell"
+    },
+    "platform": "darwin",
+    "python": "3.12.13",
+    "shell": "/bin/zsh"
+   },
+   "agent-cli-analytics-first": {
+    "kit_command": {
+     "other_shell_ran": [
+      "<uv-cache>/bin/python -m aelix_analytics record note T22-analytics-first"
+     ],
+     "recorded": {
+      "actor": "agent",
+      "actor_basis": "declared",
+      "means": "cli",
+      "session": "<tmp>/sessions/<session>.jsonl",
+      "text": "T22-analytics-first"
+     },
+     "returned_shell": "OtherShell"
+    },
+    "not_the_kit": {
+     "other_shell_ran": [
+      "echo T22"
+     ],
+     "output": "T22",
+     "returned_shell": "OtherShell"
+    },
+    "order": "analytics first",
+    "platform": "darwin",
+    "python": "3.12.13"
+   },
+   "agent-cli-other-first": {
+    "kit_command": {
+     "other_shell_ran": [],
+     "recorded": {
+      "actor": "human",
+      "actor_basis": "declared",
+      "means": "cli",
+      "session": "<tmp>/sessions/<session>.jsonl",
+      "text": "T22-other-first"
+     },
+     "returned_shell": "PersonShell"
+    },
+    "not_the_kit": {
+     "other_shell_ran": [
+      "echo T22"
+     ],
+     "output": "T22",
+     "returned_shell": "OtherShell"
+    },
+    "order": "other first",
+    "platform": "darwin",
+    "python": "3.12.13"
+   }
+  },
+  "py3.11": {
+   "agent-cli-alone": {
+    "agent_bash_tool": {
+     "actor": "agent",
+     "actor_basis": "declared",
+     "means": "cli",
+     "session": "<tmp>/sessions/<session>.jsonl",
+     "text": "T22-agent"
+    },
+    "extension_kit_child": {
+     "actor": "human",
+     "means": "command"
+    },
+    "person_bang": {
+     "actor": "human",
+     "actor_basis": "declared",
+     "means": "cli",
+     "session": "<tmp>/sessions/<session>.jsonl",
+     "text": "T22-person"
+    },
+    "person_bang_not_the_kit": {
+     "handler_result": null,
+     "ran": "aelix's own local shell"
+    },
+    "platform": "darwin",
+    "python": "3.11.15",
+    "shell": "/bin/zsh"
+   },
+   "agent-cli-analytics-first": {
+    "kit_command": {
+     "other_shell_ran": [
+      "<uv-cache>/bin/python -m aelix_analytics record note T22-analytics-first"
+     ],
+     "recorded": {
+      "actor": "agent",
+      "actor_basis": "declared",
+      "means": "cli",
+      "session": "<tmp>/sessions/<session>.jsonl",
+      "text": "T22-analytics-first"
+     },
+     "returned_shell": "OtherShell"
+    },
+    "not_the_kit": {
+     "other_shell_ran": [
+      "echo T22"
+     ],
+     "output": "T22",
+     "returned_shell": "OtherShell"
+    },
+    "order": "analytics first",
+    "platform": "darwin",
+    "python": "3.11.15"
+   },
+   "agent-cli-other-first": {
+    "kit_command": {
+     "other_shell_ran": [],
+     "recorded": {
+      "actor": "human",
+      "actor_basis": "declared",
+      "means": "cli",
+      "session": "<tmp>/sessions/<session>.jsonl",
+      "text": "T22-other-first"
+     },
+     "returned_shell": "PersonShell"
+    },
+    "not_the_kit": {
+     "other_shell_ran": [
+      "echo T22"
+     ],
+     "output": "T22",
+     "returned_shell": "OtherShell"
+    },
+    "order": "other first",
+    "platform": "darwin",
+    "python": "3.11.15"
+   }
+  },
+  "windows_powershell": "not_run"
+ },
+ "foreign_fs": {
+  "what": "FAT32 and exFAT disk images (hdiutil, fskit, nobrowse) on macOS 26.6.2, measured by group G3 on b7856c6 (src unchanged since): the port, the shipped migration, and a probe passing over macOS's AppleDouble files",
+  "mnt-fat": {
+   "port": {
+    "publish_new": "LinkUnsupported errno 45",
+    "rename_new_taken": "FileExistsError",
+    "taken_bytes_kept": true,
+    "rename_new_free": "renamed"
+   },
+   "shipped": {
+    "result": "refused",
+    "code": "destination_invalid",
+    "reason": "not_empty",
+    "entries": [
+     "._.analytics",
+     ".analytics",
+     ".analytics/._migration.lock",
+     ".analytics/migration.lock"
+    ],
+    "marker": "incomplete"
+   },
+   "appledouble_passed_over": {
+    "result": "committed",
+    "already": false,
+    "steps": [
+     "start",
+     "probed",
+     "locked",
+     "plan",
+     "begin",
+     "direct_intent",
+     "direct",
+     "copied",
+     "begin",
+     "direct_intent",
+     "direct",
+     "copied",
+     "begin",
+     "direct_intent",
+     "direct",
+     "copied",
+     "begin",
+     "direct_intent",
+     "direct",
+     "copied",
+     "begin",
+     "direct_intent",
+     "direct",
+     "copied",
+     "source_checked",
+     "verified",
+     "transform_begin",
+     "transformed",
+     "reported",
+     "durable",
+     "marker_begin",
+     "committed",
+     "trusted"
+    ],
+    "publish": "rename_new",
+    "direct_copies": 5,
+    "marker_written_directly": false,
+    "marker": "current",
+    "entries": [
+     "._.analytics",
+     "._.gitignore",
+     "._analytics.json",
+     "._data",
+     "._journal.jsonl",
+     ".analytics",
+     ".analytics/._context",
+     ".analytics/._migration",
+     ".analytics/._migration.lock",
+     ".analytics/context",
+     ".analytics/context/._20261001-090000-000000_aaaaaaaaaaaa.md",
+     ".analytics/context/20261001-090000-000000_aaaaaaaaaaaa.md",
+     ".analytics/migration",
+     ".analytics/migration.lock",
+     ".analytics/migration/._20261008T171345Z-0cb293ff",
+     ".analytics/migration/20261008T171345Z-0cb293ff",
+     ".analytics/migration/20261008T171345Z-0cb293ff/._gitignore.diff",
+     ".analytics/migration/20261008T171345Z-0cb293ff/._mapping.json",
+     ".analytics/migration/20261008T171345Z-0cb293ff/._plan.json",
+     ".analytics/migration/20261008T171345Z-0cb293ff/._progress.jsonl",
+     ".analytics/migration/20261008T171345Z-0cb293ff/._proposals",
+     ".analytics/migration/20261008T171345Z-0cb293ff/._report.json",
+     ".analytics/migration/20261008T171345Z-0cb293ff/._report.md",
+     ".analytics/migration/20261008T171345Z-0cb293ff/._source-marker.json",
+     ".analytics/migration/20261008T171345Z-0cb293ff/gitignore.diff",
+     ".analytics/migration/20261008T171345Z-0cb293ff/mapping.json",
+     ".analytics/migration/20261008T171345Z-0cb293ff/plan.json",
+     ".analytics/migration/20261008T171345Z-0cb293ff/progress.jsonl",
+     ".analytics/migration/20261008T171345Z-0cb293ff/proposals",
+     ".analytics/migration/20261008T171345Z-0cb293ff/proposals/._gitattributes",
+     ".analytics/migration/20261008T171345Z-0cb293ff/proposals/gitattributes",
+     ".analytics/migration/20261008T171345Z-0cb293ff/report.json",
+     ".analytics/migration/20261008T171345Z-0cb293ff/report.md",
+     ".analytics/migration/20261008T171345Z-0cb293ff/source-marker.json",
+     ".gitignore",
+     "analytics.json",
+     "data",
+     "data/._raw",
+     "data/raw",
+     "data/raw/._a.parquet"
+    ]
+   }
+  },
+  "mnt-exfat": {
+   "port": {
+    "publish_new": "LinkUnsupported errno 45",
+    "rename_new_taken": "FileExistsError",
+    "taken_bytes_kept": true,
+    "rename_new_free": "RenameUnsupported errno 45"
+   },
+   "shipped": {
+    "result": "refused",
+    "code": "destination_invalid",
+    "reason": "not_empty",
+    "entries": [
+     "._.analytics",
+     ".analytics",
+     ".analytics/._migration.lock",
+     ".analytics/migration.lock"
+    ],
+    "marker": "incomplete"
+   },
+   "appledouble_passed_over": {
+    "result": "refused",
+    "code": "destination_invalid",
+    "reason": "no_exclusive_rename",
+    "entries": [
+     "._.analytics",
+     ".analytics",
+     ".analytics/._migration",
+     ".analytics/._migration.lock",
+     ".analytics/migration",
+     ".analytics/migration.lock",
+     ".analytics/migration/._20261008T171345Z-2fbca54e",
+     ".analytics/migration/20261008T171345Z-2fbca54e",
+     ".analytics/migration/20261008T171345Z-2fbca54e/._progress.jsonl",
+     ".analytics/migration/20261008T171345Z-2fbca54e/progress.jsonl"
+    ],
+    "steps": [
+     "start",
+     "failed"
+    ],
+    "publish": null,
+    "direct_copies": 0,
+    "marker_written_directly": false,
+    "marker": "incomplete"
+   }
+  }
+ },
+ "before": {
+  "record": "docs/verification/2026-10-08-issue-13-migration.json",
+  "measured_revision": "ebd10b644e8cb8550ccf6446b134666db6bb9386",
+  "note": "PR 2's record of the engine; the fixtures here come from today's tools/eval_fixtures.py with that commit's kit (--kit-root), so their bytes and digests differ from PR 2's"
+ },
+ "not_run": [
+  "the repository CI on Linux and Windows and the macOS label run (not pushed): Linux renameat2 through ctypes, Windows rename_new = publish_new, the launchers' --no-project on Windows, the Windows-only tests (tests/test_windows_long_paths.py changed without running), T22 with a PowerShell or cmd child",
+  "AELIX_ANALYTICS_TEST_INSTALL=1 (the distribution end to end) in this group",
+  "a real removable FAT or exFAT medium, and FAT/exFAT on Linux or Windows; on macOS the shipped migration stops at step 1 (not_empty, AppleDouble files): owner question",
+  "a power loss and durability after it; Windows' directory flush, read-only copies and late lock release; a network file system",
+  "a real aelix model session (the bash tool and handle_user_bash were called directly); another agent host than aelix; aelix's RPC bash command",
+  "the writer's cost with an index (#15)"
+ ]
+}

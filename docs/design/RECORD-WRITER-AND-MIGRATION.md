@@ -10,7 +10,8 @@
   `min_writer_version`, 확장의 거절 글·`AELIX_ANALYTICS_MEANS`·aelix 프로세스 환경의 작성 주체와 `user_bash` 처리 — 를 구현했다.
   ③은 소유자 결정(2026-10-08, [6060618609](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6060618609))대로 링크가 없는
   목적지의 표식을 "있으면 실패하는 rename"(포트의 `AtomicFiles.rename_new`)으로 게시하고, 그것도 없으면 복사 전에 거절한다(D19는 사본에만
-  남음). 지금 동작은 [현재 계약](../CONTRACTS.md)이 설명하고, 각 PR이 설계와 다르게 고른 것은 그 PR과 측정 기록이 적는다.
+  남음). 지금 동작은 [현재 계약](../CONTRACTS.md)이 설명하고, 각 PR이 설계와 다르게 고른 것은 그 PR과 측정 기록이 적는다(③:
+  [측정 기록](../verification/2026-10-09-issue-13-writer.md)).
 - 작업: [#13](https://github.com/handochan/aelix-analytics/issues/13) `[B1-c/N0-b]` 새 기록 writer와 원본 보존 프로젝트 전환.
   완료 조건 다섯과 이 문서의 대응은 1절에 있다.
 - 기준: main `09d22c4`(PR #76, #12 PR-3 병합 뒤), `KIT_VERSION = "0.5.0"`. 코드 위치는 함수 이름으로 적는다. 구현 PR은 그때의

@@ -74,7 +74,7 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
   `/1` 쓰기 경로. 기록은 `core.record`·`writer.Writer`로 씁니다. 저장소 도구 `tools/eval_fixtures.py`의 `--format v1`은 `--kit-root`로 준
   0.8.0 전 kit으로만 만듭니다 ([#13]).
 
-자세한 것은 [현재 계약](docs/CONTRACTS.md) A–G와 F1의 0.8.0 절에 있습니다.
+자세한 것은 [현재 계약](docs/CONTRACTS.md) A–G와 F1의 0.8.0 절, [측정 기록](docs/verification/2026-10-09-issue-13-writer.md)에 있습니다.
 
 ## [0.7.0] - 2026-10-08
 
