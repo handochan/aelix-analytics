@@ -136,15 +136,17 @@ def profile(project: core.Project, path: Path, preview_rows: int = 20,
               "columns": columns,
               "preview": {"columns": head.columns,
                           "rows": [[cell(v, 120) for v in row] for row in head.rows()]}}
-    if sha:
+    if sha and core.admit(project, "keep a dataset profile", side=True) is not None:
         with contextlib.suppress(OSError):
             core.write_json(cache_file, result, platform=project.platform)
     return result
 
 
 def import_file(project: core.Project, source: str, *, name: str | None = None,
-                description: str | None = None, actor: str = "agent",
-                session: str | None = None) -> dict:
+                description: str | None = None, origin: core.Origin) -> dict:
+    """Import a data file as data/raw/<name>.parquet and its import record, as asked by `origin`.
+    Refused before anything is written where this kit does not write (core.admit, Issue #13)."""
+    core.admit(project, "import")
     import duckdb
 
     src = core.expand_home(Path(source))  # the rule Project.path follows
@@ -220,8 +222,7 @@ def import_file(project: core.Project, source: str, *, name: str | None = None,
             f"{src.name}")
     if meta["description"]:
         text += f" — {meta['description']}"
-    event = core.append_event(project, "import", text, refs={"data": [meta["path"]]},
-                              actor=actor, session=session)
+    event = core.append_event(project, "import", text, refs={"data": [meta["path"]]}, origin=origin)
     return {"dataset": meta, "profile": info, "event": event["id"],
             "warnings": import_warnings(name, info, retyped),
             "elapsed_s": round(time.perf_counter() - started, 3)}
@@ -261,6 +262,13 @@ def import_warnings(name: str, info: dict, retyped: list[str]) -> list[str]:
         warnings.append(f"nested column(s) {', '.join(nested[:6])}: flatten them in an analytics_run "
                         "script before grouping or joining on their fields")
     return warnings
+
+
+def _log_query(project: core.Project, entry: dict) -> None:
+    """Add a query to .lab/queries.jsonl: a side write of a read, skipped where this kit does not
+    write (core.admit, design 4.10)."""
+    if core.admit(project, "log the query", side=True) is not None:
+        core.append_jsonl(project.queries, entry)
 
 
 def query(project: core.Project, sql: str, limit: int = 50) -> dict:
@@ -313,7 +321,7 @@ def query(project: core.Project, sql: str, limit: int = 50) -> dict:
         raise
     except duckdb.Error as exc:
         entry["error"] = str(exc)[:500]
-        core.append_jsonl(project.queries, entry)
+        _log_query(project, entry)
         hint = "views: " + ", ".join(views)
         if "Permission Error" in str(exc):
             # The sandbox judges the real path a read reaches (ADR-0006 9): a dataset below a link
@@ -326,7 +334,7 @@ def query(project: core.Project, sql: str, limit: int = 50) -> dict:
     rows = rows[:limit]
     tables = sorted(referenced_views(sql, views))
     entry.update(rows=len(rows), truncated=truncated, tables=tables)
-    core.append_jsonl(project.queries, entry)
+    _log_query(project, entry)
     return {"columns": columns, "rows": [[cell(v) for v in row] for row in rows],
             "truncated": truncated, "limit": limit, "tables": tables, "views": views,
             "elapsed_ms": round((time.perf_counter() - started) * 1000, 1)}

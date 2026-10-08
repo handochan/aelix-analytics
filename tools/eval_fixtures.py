@@ -568,17 +568,17 @@ class V1Writer:
 
     # project, context, data
     def init(self, title: str, goal: str) -> None:
-        self.project = self.kit.core.init_project(self.root, title=title, goal=goal, actor="human")
+        self.project = self.kit.core.init_project(self.root, title=title, goal=goal, origin=self.kit.core.Origin("human", "sdk"))
 
     def write_context(self, text: str, actor: str = "human") -> dict | None:
         self.kit.core.write_text(self.project.context, text)
-        return self.kit.core.sync_context(self.project, actor=actor)
+        return self.kit.core.sync_context(self.project, origin=self.kit.core.Origin(actor, "sdk"))
 
     def import_dataset(self, source: Path, name: str, description: str, when: datetime) -> dict:
         stamp = when.timestamp()
         os.utime(source, (stamp, stamp))
         result = self.kit.data.import_file(self.project, str(source), name=name, description=description,
-                                           actor="human")
+                                           origin=self.kit.core.Origin("human", "sdk"))
         meta = result["dataset"]
         self.datasets[name] = {"name": name, "path": meta["path"], "sha256": meta["sha256"],
                                "bytes": meta["bytes"], "rows": meta["rows"],
@@ -590,7 +590,7 @@ class V1Writer:
         target = self.project.root / script_rel
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(source.read_bytes())
-        result = self.kit.runner.execute(self.project, script=script_rel, title=title, actor=actor)
+        result = self.kit.runner.execute(self.project, script=script_rel, title=title, origin=self.kit.core.Origin(actor, "sdk"))
         record = result["run"]
         if result.get("workspace_error"):
             raise FixtureError(f"the kit could not build the Workspace after {script_rel}: "
@@ -619,7 +619,7 @@ class V1Writer:
 
     # journal records
     def note(self, kind: str, text: str, refs=(), resolves: str | None = None, actor: str = "agent") -> str:
-        event = self.kit.core.add_note(self.project, kind, text, refs=list(refs), resolves=resolves, actor=actor)
+        event = self.kit.core.add_note(self.project, kind, text, refs=list(refs), resolves=resolves, origin=self.kit.core.Origin(actor, "sdk"))
         return event["id"]
 
     # runs not executed
@@ -709,9 +709,9 @@ class V1Writer:
         text = f"{title} — {status}"
         if error:
             text += f" ({error['summary']})"
-        event = core.append_event(project, "run", text, refs=refs, actor=actor)
+        event = core.append_event(project, "run", text, refs=refs, origin=core.Origin(actor, "sdk"))
         for kind, note_text in notes:
-            core.add_note(project, kind, note_text, refs=[run_id], actor=actor)
+            core.add_note(project, kind, note_text, refs=[run_id], origin=core.Origin(actor, "sdk"))
         self._remember(record)
         return run_id, event["id"]
 

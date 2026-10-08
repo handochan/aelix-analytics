@@ -48,8 +48,8 @@ analytics — human CLI for Aelix Analytics projects (the same kit the aelix ext
   analytics record KIND "TEXT" [--ref R] [--resolves eN]
   analytics render | open                     rebuild | open report/index.html
 
-Commands other than init/demo use the project in AELIX_ANALYTICS_PROJECT, else the nearest lab.json
-at or above the current directory.
+Commands other than init/demo use the project in AELIX_ANALYTICS_PROJECT, else the nearest directory
+at or above the current one with an analytics.json or a lab.json; the kit judges it.
 Output ends with one JSON line (status and context print text); a run that got past its setup
 puts an empty line before it. Nothing here is a sandbox.
 """
@@ -178,9 +178,15 @@ def kit_argv(uv: list[str], project: str, *args: str) -> list[str]:
             "--project", project, *args]
 
 
+# The project markers, the new format's and the one the kit writes before it (Issue #13): the nearest
+# directory with either is the project, and the kit judges what it holds (core.writer.marker_state).
+MARKERS = ("analytics.json", "lab.json")
+
+
 def find_project() -> str | None:
     """AELIX_ANALYTICS_PROJECT as it is given (the kit reports one that is not a project), or the nearest
-    directory at or above the working directory that holds a lab.json."""
+    directory at or above the working directory that holds a project marker (MARKERS), whatever it
+    holds: the kit says whether it reads or writes there."""
     configured = os.environ.get("AELIX_ANALYTICS_PROJECT")
     if configured:
         return configured
@@ -191,9 +197,10 @@ def find_project() -> str | None:
              "AELIX_ANALYTICS_PROJECT")
         return None
     for directory in (here, *here.parents):
-        if (directory / "lab.json").is_file():
+        if any((directory / marker).is_file() for marker in MARKERS):
             return str(directory)
-    _say(f"analytics: no lab.json in {here} or its parents (cd into a project or set AELIX_ANALYTICS_PROJECT)")
+    _say(f"analytics: no analytics.json or lab.json in {here} or its parents (cd into a project or set "
+         "AELIX_ANALYTICS_PROJECT)")
     return None
 
 

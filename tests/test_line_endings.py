@@ -43,7 +43,7 @@ def sha(data: bytes) -> str:
 
 def new_project(tmp_path: Path, name: str = "proj") -> core.Project:
     return core.init_project(tmp_path / name, title="Line endings", goal="Keep the bytes",
-                             template_dir=TEMPLATE, actor="test")
+                             template_dir=TEMPLATE, origin=core.Origin("test", "sdk"))
 
 
 # --- the checkout ---------------------------------------------------------------------------------
@@ -170,7 +170,7 @@ def test_values_filled_into_the_template_are_lf(tmp_path):
     """A title or goal with a CR (from a tool's argument) does not bring one into the copies (design
     review C4); lab.json and the journal keep the text, escaped by JSON."""
     project = core.init_project(tmp_path / "proj", title="Two\r\nlines", goal="Goal\r\nwith\rends",
-                                template_dir=TEMPLATE, actor="test")
+                                template_dir=TEMPLATE, origin=core.Origin("test", "sdk"))
     context = project.context.read_bytes()
     assert b"\r" not in context and b"Goal\nwith\nends" in context and b"# Two\nlines" in context
     assert core.read_json(project.marker)["title"] == "Two\r\nlines"
@@ -485,13 +485,13 @@ def test_a_context_whose_line_endings_changed_says_so(tmp_path):
     project = new_project(tmp_path)
     lf = project.context.read_bytes()
     project.context.write_bytes(lf.replace(b"\n", b"\r\n"))
-    event = core.sync_context(project, actor="test")
+    event = core.sync_context(project, origin=core.Origin("test", "sdk"))
     assert event["text"] == "CONTEXT.md line endings changed"
     assert core.context_versions(project)[-1].read_bytes() == lf.replace(b"\n", b"\r\n")
     project.context.write_bytes(lf)
-    assert core.sync_context(project, actor="test")["text"] == "CONTEXT.md line endings changed"
+    assert core.sync_context(project, origin=core.Origin("test", "sdk"))["text"] == "CONTEXT.md line endings changed"
     project.context.write_bytes(lf.replace(b"\n", b"\r\n") + b"more\r\n")
-    assert core.sync_context(project, actor="test")["text"] == "CONTEXT.md updated (+1 -0 lines)"
+    assert core.sync_context(project, origin=core.Origin("test", "sdk"))["text"] == "CONTEXT.md updated (+1 -0 lines)"
 
 
 # --- older records --------------------------------------------------------------------------------
@@ -539,7 +539,11 @@ TEMPFILES = frozenset({"TemporaryFile", "NamedTemporaryFile", "SpooledTemporaryF
 # logging's handlers that open their file in text mode with the platform's line ends.
 FILE_HANDLERS = frozenset({"FileHandler", "WatchedFileHandler", "RotatingFileHandler",
                            "TimedRotatingFileHandler"})
-HELPER = "open_text"  # core.open_text: the one text-mode open for writing (design 3.2)
+HELPER = "open_text"  # _platform.open_text: the one text-mode open for writing (design 3.2)
+# Where the helper is (since Issue #13 PR 1; core before), and the modules a call to it may name: core
+# gives the helpers under the same names.
+HELPER_MODULE = "_platform.py"
+HELPER_RECEIVERS = ("core", "_platform")
 UNKNOWN = object()  # an argument that `*args` or `**kwargs` may give
 
 
@@ -632,11 +636,12 @@ def _writes_lf(call: ast.Call, position: int, imports: Imports) -> bool:
     return False
 
 
-def _text_write(node: ast.Call, imports: Imports, in_core: bool, in_helper: bool) -> str | None:
+def _text_write(node: ast.Call, imports: Imports, in_helper_module: bool,
+                in_helper: bool) -> str | None:
     """What a call writes as text outside the helper (design 4.4), or None."""
     receiver, name, bare = imports.callee(node.func)
     if name == "write_text":
-        if (bare and in_core) or receiver == "core":
+        if (bare and in_helper_module) or receiver in HELPER_RECEIVERS:
             return None  # the helper
         return "write_text"
     if name == "TextIOWrapper":
@@ -663,32 +668,33 @@ def _text_write(node: ast.Call, imports: Imports, in_core: bool, in_helper: bool
     return ".open" if _writes_text(node, 0, "r") else None
 
 
-def text_writes_in(tree: ast.AST, where: str, *, in_core: bool) -> list[str]:
-    """Every call in a module's `tree` that writes text without core.open_text or core.write_text;
-    `in_core` for core.py, where the helper's own body opens the file."""
+def text_writes_in(tree: ast.AST, where: str, *, in_helper_module: bool) -> list[str]:
+    """Every call in a module's `tree` that writes text without the helper (_platform.open_text or
+    _platform.write_text, also named through core); `in_helper_module` for _platform.py, where the
+    helper's own body opens the file."""
     imports = Imports.of(tree)
     helper_body = set()
-    if in_core:
+    if in_helper_module:
         for node in ast.walk(tree):
             if isinstance(node, ast.FunctionDef) and node.name == HELPER:
                 helper_body |= {id(sub) for sub in ast.walk(node)}
     found = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Call):
-            what = _text_write(node, imports, in_core, id(node) in helper_body)
+            what = _text_write(node, imports, in_helper_module, id(node) in helper_body)
             if what:
                 found.append(f"{where}:{node.lineno} {what}")
     return found
 
 
 def kit_text_writes(paths) -> list[str]:
-    """Every call in `paths` that writes text without core.open_text or core.write_text."""
+    """Every call in `paths` that writes text without the helper (open_text or write_text)."""
     found = []
     for path in paths:
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         where = path.relative_to(PACK).as_posix() if PACK in path.parents else path.name
-        found += text_writes_in(tree, where,
-                                in_core=path.name == "core.py" and path.parent == KIT_MODULES)
+        found += text_writes_in(tree, where, in_helper_module=path.name == HELPER_MODULE
+                                and path.parent == KIT_MODULES)
     return found
 
 
@@ -706,7 +712,7 @@ def test_kit_text_writes_go_through_the_helper():
     that opens a path it is given (altair's `save(path)`, W12). Also out of its reach: an opener
     bound by assignment (`opener = open`) or passed as a value."""
     offenders = kit_text_writes(kit_sources())
-    assert not offenders, "text written outside core.open_text/core.write_text:\n" + "\n".join(offenders)
+    assert not offenders, "text written outside open_text/write_text:\n" + "\n".join(offenders)
 
 
 @pytest.mark.parametrize(("source", "found"), [
@@ -740,6 +746,7 @@ def test_kit_text_writes_go_through_the_helper():
     ("logging.handlers.RotatingFileHandler(p)", True), ("logging.basicConfig(filename=p)", True),
     ("logging.basicConfig(level=10)", False),
     ("p.write_text('x')", True), ("core.write_text(p, 'x')", False),
+    ("_platform.write_text(p, 'x')", False), ("from ._platform import write_text\nwrite_text(p, 'x')", False),
     ("from aelix_analytics import core as kit\nkit.write_text(p, 'x')", False),
     ("webbrowser.open(url)", False), ("p.write_bytes(b'')", False),
 ])
@@ -758,4 +765,4 @@ def test_the_guard_reads_the_helper_s_newline(newline, found):
     argument = f", newline={newline}" if newline else ""
     source = (f"def {HELPER}(path, mode):\n"
               f"    return open(path, mode, encoding='utf-8'{argument})\n")
-    assert bool(text_writes_in(ast.parse(source), "core.py", in_core=True)) is found
+    assert bool(text_writes_in(ast.parse(source), HELPER_MODULE, in_helper_module=True)) is found

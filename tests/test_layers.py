@@ -74,26 +74,32 @@ def _layer(level: int, may_import: tuple[str, ...], external: tuple[str, ...], r
     return Layer(level, frozenset(may_import), frozenset(("stdlib", *external)), role)
 
 
-PROJECT_LAYERS = ("core", "ports", "read_model", "runtime", "workspace")
+PROJECT_LAYERS = ("core", "ports", "read_model", "runtime", "workspace", "writer")
 
+# Issue #13 PR 1 (design RECORD-WRITER-AND-MIGRATION 3.2): the record writer is a layer of its own
+# below core, which may not import core — so the check itself keeps the writer from depending on the
+# project model — and every layer from core up is one level higher than before.
 LAYERS: dict[str, Layer] = {
     "ports": _layer(0, (), (), "the platform ports and their per-OS implementations (ADR-0003)"),
     "read_model": _layer(0, (), (), "the records read as ADR-0006 says (ADR-0001 decision 5)"),
     "distribution": _layer(0, (), (), "where the installed distribution keeps its runtime root"),
-    "core": _layer(1, ("ports", "read_model"), (),
+    "writer": _layer(1, ("ports", "read_model"), (),
+                     "who may write a project's records and how: the marker judgment and the gate, "
+                     "Origin, the error class and the record helpers (#13)"),
+    "core": _layer(2, ("ports", "read_model", "writer"), (),
                    "the project model: domain and shared application, not split yet"),
-    "runtime": _layer(2, ("core", "ports", "read_model", "runtime"), ("analysis",),
+    "runtime": _layer(3, ("core", "ports", "read_model", "runtime", "writer"), ("analysis",),
                       "execution, capture and data adapters, in the project's environment"),
-    "workspace": _layer(2, ("core", "ports", "read_model"), ("analysis", "rendering"),
+    "workspace": _layer(3, ("core", "ports", "read_model", "writer"), ("analysis", "rendering"),
                         "the Workspace renderer, in the project's environment"),
-    "sdk": _layer(3, PROJECT_LAYERS, ("analysis",), "the script API: an entry point"),
-    "kit_entry": _layer(3, PROJECT_LAYERS, ("analysis",),
+    "sdk": _layer(4, PROJECT_LAYERS, ("analysis",), "the script API: an entry point"),
+    "kit_entry": _layer(4, PROJECT_LAYERS, ("analysis",),
                         "the kit's command line in the project's environment: an entry point"),
-    "launcher": _layer(3, ("distribution", "ports"), (),
+    "launcher": _layer(4, ("distribution", "ports"), (),
                        "the human `analytics` command, standard library only (3.11)"),
-    "host_adapter": _layer(3, ("distribution", "core", "ports", "read_model"), ("host",),
+    "host_adapter": _layer(4, ("distribution", "core", "ports", "read_model"), ("host",),
                            "the aelix extension, inside the aelix process"),
-    "user_scripts": _layer(4, ("sdk",), ("analysis",),
+    "user_scripts": _layer(5, ("sdk",), ("analysis",),
                            "example analysis scripts copied into a project as the user's files"),
 }
 
@@ -112,6 +118,7 @@ MODULES: dict[str, str] = {
     "src/aelix_analytics/_platform.py": "ports",
     "src/aelix_analytics/relations.py": "read_model",
     "src/aelix_analytics/_install.py": "distribution",
+    "src/aelix_analytics/writer.py": "writer",
     "src/aelix_analytics/core.py": "core",
     "src/aelix_analytics/capture.py": "runtime",
     "src/aelix_analytics/data.py": "runtime",
@@ -924,18 +931,18 @@ def test_a_deliberate_violation_fails_and_names_the_edge_and_the_rule(case):
 
 def test_a_module_nobody_registered_fails():
     sources = shipped_sources()
-    sources["src/aelix_analytics/writer.py"] = "from . import core\n"
+    sources["src/aelix_analytics/unregistered.py"] = "from . import core\n"
     violations = check(sources)
     assert violations == [
-        "src/aelix_analytics/writer.py is in no layer: breaks rule registration — register it in "
+        "src/aelix_analytics/unregistered.py is in no layer: breaks rule registration — register it in "
         "MODULES (tests/test_layers.py) and in the table of docs/ARCHITECTURE.md section 11, in the "
         "PR that adds it"]
 
 
 def test_a_registered_module_that_is_gone_fails():
-    modules = {**MODULES, "src/aelix_analytics/writer.py": "core"}
+    modules = {**MODULES, "src/aelix_analytics/unregistered.py": "core"}
     violations = check(shipped_sources(), modules=modules)
-    assert violations == ["MODULES registers src/aelix_analytics/writer.py, which is not shipped: "
+    assert violations == ["MODULES registers src/aelix_analytics/unregistered.py, which is not shipped: "
                           "breaks rule registration — remove the entry"], violations
 
 

@@ -315,14 +315,20 @@ N0의 명칭·기본 언어 전환을 A0의 경계 정리와 조율한다. 현�
 | `ports` | 0 | 플랫폼 포트와 OS별 구현([ADR-0003](decisions/0003-portable-boundaries-and-in-process-kit-loading.md)) | `src/aelix_analytics/_platform.py` | 없음 | stdlib |
 | `read_model` | 0 | 기록의 읽기 모델(§9 `projections/`) | `src/aelix_analytics/relations.py` | 없음 | stdlib |
 | `distribution` | 0 | 설치본의 실행 루트 위치 | `src/aelix_analytics/_install.py` | 없음 | stdlib |
-| `core` | 1 | 도메인·공유 응용(아직 나뉘지 않음, §2) | `src/aelix_analytics/core.py` | `ports`, `read_model` | stdlib |
-| `runtime` | 2 | 실행·캡처·데이터 어댑터와 데모 채우기(§9 `runtime/`) | `src/aelix_analytics/runner.py`, `src/aelix_analytics/capture.py`, `src/aelix_analytics/data.py`, `src/aelix_analytics/demo.py` | `core`, `ports`, `read_model`, `runtime` | stdlib, 분석 |
-| `workspace` | 2 | Workspace 렌더러(§5 `WorkspaceRenderer`) | `src/aelix_analytics/workspace.py` | `core`, `ports`, `read_model` | stdlib, 분석, 표시 |
-| `sdk` | 3 | 스크립트 API 진입점 | `src/aelix_analytics/__init__.py` | `core`, `ports`, `read_model`, `runtime`, `workspace` | stdlib, 분석 |
-| `kit_entry` | 3 | 프로젝트 환경의 kit 명령줄 진입점 | `src/aelix_analytics/__main__.py` | `core`, `ports`, `read_model`, `runtime`, `workspace` | stdlib, 분석 |
-| `launcher` | 3 | 사람용 `analytics`(호스트 쪽, 3.11) | `src/aelix_analytics/cli.py` | `distribution`, `ports` | stdlib |
-| `host_adapter` | 3 | Aelix 어댑터(aelix 프로세스 안) | `extension/aelix_analytics.py` | `distribution`, `core`, `ports`, `read_model` | stdlib, 호스트 |
-| `user_scripts` | 4 | 프로젝트에 복사되는 예제 사용자 스크립트 | `src/aelix_analytics/demo_scripts/*.py` | `sdk` | stdlib, 분석 |
+| `writer` | 1 | 기록 writer의 첫 부분: 표식 판정과 쓰기 게이트, `Origin`, 오류 클래스, 기록 헬퍼(#13) | `src/aelix_analytics/writer.py` | `ports`, `read_model` | stdlib |
+| `core` | 2 | 도메인·공유 응용(아직 나뉘지 않음, §2) | `src/aelix_analytics/core.py` | `ports`, `read_model`, `writer` | stdlib |
+| `runtime` | 3 | 실행·캡처·데이터 어댑터와 데모 채우기(§9 `runtime/`) | `src/aelix_analytics/runner.py`, `src/aelix_analytics/capture.py`, `src/aelix_analytics/data.py`, `src/aelix_analytics/demo.py` | `core`, `ports`, `read_model`, `runtime`, `writer` | stdlib, 분석 |
+| `workspace` | 3 | Workspace 렌더러(§5 `WorkspaceRenderer`) | `src/aelix_analytics/workspace.py` | `core`, `ports`, `read_model`, `writer` | stdlib, 분석, 표시 |
+| `sdk` | 4 | 스크립트 API 진입점 | `src/aelix_analytics/__init__.py` | `core`, `ports`, `read_model`, `runtime`, `workspace`, `writer` | stdlib, 분석 |
+| `kit_entry` | 4 | 프로젝트 환경의 kit 명령줄 진입점 | `src/aelix_analytics/__main__.py` | `core`, `ports`, `read_model`, `runtime`, `workspace`, `writer` | stdlib, 분석 |
+| `launcher` | 4 | 사람용 `analytics`(호스트 쪽, 3.11) | `src/aelix_analytics/cli.py` | `distribution`, `ports` | stdlib |
+| `host_adapter` | 4 | Aelix 어댑터(aelix 프로세스 안) | `extension/aelix_analytics.py` | `distribution`, `core`, `ports`, `read_model` | stdlib, 호스트 |
+| `user_scripts` | 5 | 프로젝트에 복사되는 예제 사용자 스크립트 | `src/aelix_analytics/demo_scripts/*.py` | `sdk` | stdlib, 분석 |
+
+`writer`는 #13의 첫 구현 PR(①)이 더했다. writer가 `core`를 import하지 못하게 `core` 아래의 새 계층으로 두었고(같은 계층이면 이 검사가
+writer → core의 순환을 잡지 못한다), 그래서 `core` 이상의 수준이 하나씩 올랐다([설계](design/RECORD-WRITER-AND-MIGRATION.md) 3.2절).
+aelix 프로세스의 확장은 writer를 직접 import하지 않고 `core`가 다시 내보낸 이름(`core.AnalyticsError`·`core.Origin` 등)을 쓴다. `writer.py`는
+`core.py`의 형제로 합성 package에서 함께 로드된다.
 
 외부 모듈은 아래 분류로 나눈다(`EXTERNAL`). 분류에 없는 서드파티는 위반이다.
 
@@ -372,8 +378,8 @@ N0의 명칭·기본 언어 전환을 A0의 경계 정리와 조율한다. 현�
 기존 계층에 맞지 않는 책임이면 계층을 더하는 것이 그 PR의 설계 결정이고 `LAYERS`와 표에 수준·허용 계층·외부 분류를 함께 적는다.
 표가 허용하지 않는 import는 먼저 의존을 뒤집거나(진입점이 값을 넘김) 코드를 옮기고, 그래도 남기면 `ALLOWLIST`와 위 표에 그 import가 있는
 함수, 이유와 제거 조건을 적는다. 새 외부 라이브러리는 `EXTERNAL`에 분류를 적는다. #12의 `relations`는 #43이 등록했고, #13(공통 writer)부터는 자기 모듈을 등록한다.
-#13의 새 모듈(`writer`·`migration`)과 계층 배치 제안은 [기록 writer와 프로젝트 전환 설계](design/RECORD-WRITER-AND-MIGRATION.md) 3절에 있다. 제안이며, 계층은
-구현 PR이 위 표와 `tests/test_layers.py`에 등록할 때 정해진다.
+#13의 `writer`는 첫 구현 PR(①)이 위 표에 등록했고, 전환 엔진 `migration`(수준 3, [기록 writer와 프로젝트 전환 설계](design/RECORD-WRITER-AND-MIGRATION.md)
+3절)은 둘째 PR(②)이 등록한다.
 
 교체 가능한 구현의 공통 계약 시험은 `tests/test_contracts.py`다. 지금 대상은 플랫폼 포트 넷의 세 구현(POSIX·Windows·시험 adapter)이고,
 포트의 계약과 조립(주입한 구현만 쓰이고 기록이 같음)을 같은 사례로 확인한다. 새 구현은 그 파일의 구현 표에 지원 능력과 함께 등록한다.

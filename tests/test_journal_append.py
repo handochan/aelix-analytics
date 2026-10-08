@@ -34,7 +34,7 @@ CUT_OFF = {
 
 def _project(tmp_path) -> core.Project:
     """A new project: its journal holds e1 (project) and e2 (context) and ends in LF."""
-    return core.init_project(tmp_path / "p", title="journal", goal="g", actor="test")
+    return core.init_project(tmp_path / "p", title="journal", goal="g", origin=core.Origin("test", "sdk"))
 
 
 def _line(event: dict) -> bytes:
@@ -52,8 +52,8 @@ def _append(project: core.Project, data: bytes) -> bytes:
 def test_a_record_after_a_cut_off_line_is_a_line_of_its_own_and_takes_a_new_seq(tmp_path, cut):
     p = _project(tmp_path)
     before = _append(p, cut)
-    first = core.add_note(p, "finding", "first after the cut", actor="test")
-    second = core.add_note(p, "question", "second after the cut", actor="test")
+    first = core.add_note(p, "finding", "first after the cut", origin=core.Origin("test", "sdk"))
+    second = core.add_note(p, "question", "second after the cut", origin=core.Origin("test", "sdk"))
     # The cut-off bytes are kept as they are and closed by one LF; each record is a line of its own.
     assert p.journal.read_bytes() == before + b"\n" + _line(first) + _line(second)
     # A seq left in the cut-off line is not counted: that write never returned an id, and the reader
@@ -74,7 +74,7 @@ def test_a_whole_record_left_without_its_line_end_stays_readable(tmp_path):
     kept = {"schema": "lab.event/1", "seq": 3, "id": "e3", "ts": "2026-10-08T09:00:00.000+09:00",
             "kind": "note", "actor": "human", "text": "left without its line end", "refs": {}}
     before = _append(p, _line(kept)[:-1])
-    event = core.add_note(p, "note", "after it", actor="test")
+    event = core.add_note(p, "note", "after it", origin=core.Origin("test", "sdk"))
     assert event["id"] == "e4"
     assert p.journal.read_bytes() == before + b"\n" + _line(event)
     journal = relations.read_journal(p.root)
@@ -93,7 +93,7 @@ def test_crlf_lines_keep_their_bytes_and_a_new_record_is_lf(tmp_path, end):
     elif end == "cut_off":
         crlf += b'{"schema": "lab.event/1", "seq": 3, "id": "e3", "te'
     p.journal.write_bytes(crlf)
-    event = core.add_note(p, "note", "after the CRLF lines", actor="test")
+    event = core.add_note(p, "note", "after the CRLF lines", origin=core.Origin("test", "sdk"))
     closing = b"" if end == "crlf" else b"\n"
     assert p.journal.read_bytes() == crlf + closing + _line(event)
     assert event["id"] == "e3"
@@ -110,7 +110,7 @@ def test_the_first_record_of_an_empty_or_missing_journal_is_e1_without_a_leading
         p.journal.write_bytes(b"")
     else:
         p.journal.unlink()
-    event = core.add_note(p, "note", "first", actor="test")
+    event = core.add_note(p, "note", "first", origin=core.Origin("test", "sdk"))
     assert (event["seq"], event["id"]) == (1, "e1")
     assert p.journal.read_bytes() == _line(event)
 
@@ -120,12 +120,11 @@ def test_a_journal_that_ends_in_lf_gets_the_record_and_its_lf_and_nothing_else(t
     p = _project(tmp_path)
     before = p.journal.read_bytes()
     assert before.endswith(b"\n") and [e["id"] for e in core.read_events(p)] == ["e1", "e2"]
-    note = core.add_note(p, "decision", "결정: 지역별로 비교한다", refs=["e1"], actor="human",
-                         session="/s/session.jsonl")
+    note = core.add_note(p, "decision", "결정: 지역별로 비교한다", refs=["e1"], origin=core.Origin("human", "sdk", session="/s/session.jsonl"))
     imported = core.append_event(p, "import", "imported sales", refs={"data": ["data/raw/sales.parquet"]},
-                                 actor="test")
+                                 origin=core.Origin("test", "sdk"))
     core.write_text(p.context, p.context.read_text(encoding="utf-8") + "\n- more\n")
-    context = core.sync_context(p, actor="test")
+    context = core.sync_context(p, origin=core.Origin("test", "sdk"))
     assert [e["id"] for e in (note, imported, context)] == ["e3", "e4", "e5"]
     assert p.journal.read_bytes() == before + _line(note) + _line(imported) + _line(context)
 
@@ -159,7 +158,7 @@ def test_the_next_seq_is_one_above_the_highest_seq_any_readable_line_holds(tmp_p
     ]))
     journal = relations.read_journal(p.root)
     assert journal.damaged == [3] and journal.recovered == [3]
-    event_ = core.add_note(p, "note", "next", actor="test")
+    event_ = core.add_note(p, "note", "next", origin=core.Origin("test", "sdk"))
     assert event_["id"] == "e21"
     assert relations.read_journal(p.root).lines_of["e21"] == [9]
 
@@ -182,8 +181,8 @@ def test_a_number_whose_id_a_readable_line_holds_is_skipped(tmp_path, seq, id_, 
     p = _project(tmp_path)  # e1, e2
     _append(p, _line({"schema": "lab.event/1", "seq": seq, "id": id_, "ts": "2026-10-08T09:00:00.000+09:00",
                       "kind": "note", "actor": "human", "text": "hand-edited", "refs": {}}))
-    first = core.add_note(p, "note", "after the hand-edited line", actor="test")
-    second = core.add_note(p, "note", "and the next", actor="test")
+    first = core.add_note(p, "note", "after the hand-edited line", origin=core.Origin("test", "sdk"))
+    second = core.add_note(p, "note", "and the next", origin=core.Origin("test", "sdk"))
     assert first["id"] == next_id and second["seq"] == first["seq"] + 1
     journal = relations.read_journal(p.root)
     assert journal.damaged == [] and all(len(lines) == 1 for lines in journal.lines_of.values())
@@ -197,7 +196,7 @@ def test_a_line_nested_deeper_than_the_parser_goes_is_damaged_and_the_next_recor
     p = _project(tmp_path)  # e1, e2
     deep = b"[" * 200_000 + b"]" * 200_000 + b"\n"
     before = _append(p, deep)
-    record = core.add_note(p, "note", "after the deep line", actor="test")
+    record = core.add_note(p, "note", "after the deep line", origin=core.Origin("test", "sdk"))
     assert record["id"] == "e3" and p.journal.read_bytes() == before + _line(record)
     journal = relations.read_journal(p.root)
     assert journal.damaged == [3] and journal.lines_of["e3"] == [4]
@@ -212,7 +211,7 @@ def test_the_record_examples_journals_take_the_next_record_as_adr_0006_says(tmp_
     p = _project(tmp_path)
     data = (FIXTURES / case / "journal.jsonl").read_bytes()
     p.journal.write_bytes(data)
-    event = core.add_note(p, "note", "appended by the /1 writer", actor="test")
+    event = core.add_note(p, "note", "appended by the /1 writer", origin=core.Origin("test", "sdk"))
     assert event["id"] == f"e{seq}"
     after = p.journal.read_bytes()
     assert after == data + (b"" if data.endswith(b"\n") else b"\n") + _line(event)
@@ -226,7 +225,7 @@ import sys
 from aelix_analytics import core
 project = core.Project(sys.argv[1])
 for i in range(int(sys.argv[3])):
-    core.add_note(project, "note", f"{sys.argv[2]} {i}", actor="test")
+    core.add_note(project, "note", f"{sys.argv[2]} {i}", origin=core.Origin("test", "sdk"))
 """
 
 

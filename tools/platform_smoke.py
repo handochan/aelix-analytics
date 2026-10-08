@@ -9,7 +9,7 @@ and the document still says so in the words DECLARED quotes, the record names th
 a known limit is neither read as a pass nor hidden as a failure. An observation records a platform
 fact without a promise attached.
 
-`--stdlib-only` runs only what the aelix process itself loads (core, _platform and relations). It needs neither
+`--stdlib-only` runs only what the aelix process itself loads (core, _platform, relations and writer). It needs neither
 uv nor the analysis libraries, so it can run on the entry-point floor being measured.
 
 Exit status: 0 when no check was violated, 1 otherwise, 2 on usage error. A check that holds, fails

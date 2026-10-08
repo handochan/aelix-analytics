@@ -11,8 +11,8 @@
 #   analytics record KIND "TEXT" [--ref R] [--resolves eN]
 #   analytics render | open                     rebuild | open report/index.html
 #
-# Commands other than init/demo use the project in AELIX_ANALYTICS_PROJECT, else the nearest lab.json
-# at or above the current directory.
+# Commands other than init/demo use the project in AELIX_ANALYTICS_PROJECT, else the nearest directory
+# at or above the current one with an analytics.json or a lab.json; the kit judges it.
 # Output ends with one JSON line (status and context print text); a run that got past its setup
 # puts an empty line before it. Nothing here is a sandbox.
 set -eu
@@ -49,11 +49,11 @@ find_project() {
   if [ -n "${AELIX_ANALYTICS_PROJECT:-}" ]; then printf '%s\n' "$AELIX_ANALYTICS_PROJECT"; return 0; fi
   dir=$(pwd -P)
   while :; do
-    if [ -f "$dir/lab.json" ]; then printf '%s\n' "$dir"; return 0; fi
+    if [ -f "$dir/analytics.json" ] || [ -f "$dir/lab.json" ]; then printf '%s\n' "$dir"; return 0; fi
     [ "$dir" = / ] && break
     dir=$(dirname "$dir")
   done
-  echo "analytics: no lab.json in $(pwd -P) or its parents (cd into a project or set AELIX_ANALYTICS_PROJECT)" >&2
+  echo "analytics: no analytics.json or lab.json in $(pwd -P) or its parents (cd into a project or set AELIX_ANALYTICS_PROJECT)" >&2
   return 1
 }
 

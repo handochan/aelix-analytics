@@ -193,7 +193,8 @@ KIT_IN_SHELL = re.compile(
 STATE = {"api": None, "project": None, "session": None, "starts": {}, "render_tasks": {}}
 
 NO_PROJECT = ("No analytics project is active (checked /analytics use, --analytics-project, "
-              "AELIX_ANALYTICS_PROJECT, and lab.json in the working directory and its parents).")
+              "AELIX_ANALYTICS_PROJECT, and analytics.json or lab.json in the working directory and "
+              "its parents).")
 
 
 def _error(code, message, hint=None, details=None):
@@ -215,12 +216,17 @@ def resolve_project():
 
 
 def _resolve_project():
+    # An explicit project is that directory itself, judged by its markers like any other (core's
+    # writer.marker_state): a directory with neither is not one, and one with both is refused here,
+    # since nothing can be read from it (Issue #13). Writes are judged again where they are made.
     explicit = STATE["project"]
     if explicit:
         project = core.Project(explicit)
-        if not project.marker.is_file():
-            raise core.AnalyticsError("project_missing", f"active project {explicit} has no lab.json",
+        if not core.writer.present_marker(project.root):
+            raise core.AnalyticsError("project_missing", f"active project {explicit} has no "
+                                      "analytics.json or lab.json",
                                       hint="/analytics use DIR to pick another project")
+        core.readable(project, "use the project")
         return project, "/analytics use"
     flag = None
     with contextlib.suppress(Exception):
@@ -229,23 +235,34 @@ def _resolve_project():
                                                        "AELIX_ANALYTICS_PROJECT")):
         if isinstance(value, str) and value.strip():
             project = core.Project(value.strip())
-            if not project.marker.is_file():
+            if not core.writer.present_marker(project.root):
                 raise core.AnalyticsError("project_invalid", f"{via} {project.root} is not an analytics project "
-                                          "(no lab.json)", hint="create it with /analytics init DIR")
+                                          "(no analytics.json or lab.json)",
+                                          hint="create it with /analytics init DIR")
+            core.readable(project, "use the project")
             return project, via
     root = core.find_project(os.getcwd())
     if root is not None:
         if not core.is_trusted(root):
             raise core.AnalyticsError(
                 "project_untrusted",
-                f"{root} has a lab.json but is not a project this user created or chose, so it "
+                f"{root} has a project marker but is not a project this user created or chose, so it "
                 "was not activated (its CONTEXT.md would enter the prompt and analytics_run would "
                 "execute its code)",
                 hint=f"a human can run /analytics use {root} to trust it")
+        core.readable(root, "use the project")
         return core.Project(root), "working directory"
     raise core.AnalyticsError("no_project", NO_PROJECT,
                               hint="ask the user where the project should live, then call analytics_init; a "
                                    "human can run /analytics init DIR or /analytics use DIR")
+
+
+def origin(actor: str, means: str):
+    """Who a write this extension makes is by, and how (design 4.2): the model's tools `agent`·`tool`,
+    `/analytics` `human`·`command`, a hook `system`·`hook` (the context sync inside analytics_status
+    `system`·`tool`), declared, with this aelix session."""
+    session = STATE["session"]
+    return core.Origin(actor, means, "declared", str(session) if session else None)
 
 
 def resolve_uv(processes=None) -> str:
@@ -460,6 +477,9 @@ def schedule_workspace_render(project) -> None:
     if running is not None and running.poll() is None:
         return
     try:
+        # A side write: not even started where this kit does not write (Issue #13, design 4.10).
+        if core.admit(project, "render the Workspace", side=True) is None:
+            return
         processes = project.platform.processes
         argv = [resolve_uv(processes), "run", "--project", key, "--quiet", "python", "-m", "aelix_analytics",
                 "--project", key, "render", "--if-changed"]
@@ -728,7 +748,7 @@ def bypass_note(project) -> str:
 
 async def tool_status(args, ctx):
     project, via = resolve_project()
-    await asyncio.to_thread(core.sync_context, project, "system", STATE["session"])
+    await asyncio.to_thread(lambda: core.sync_context(project, origin=origin("system", "tool")))
     st = await asyncio.to_thread(core.status, project)
     text = f"analytics_status: ok (project found via {via})\n" + core.status_text(st)
     return text + await asyncio.to_thread(bypass_note, project), st
@@ -758,6 +778,8 @@ async def tool_import(args, ctx):
         cmd += ["--name", str(args["name"])]
     if args.get("description"):
         cmd += ["--description", str(args["description"])]
+    # Refused here, in the aelix process, before uv makes or syncs the project's environment.
+    await asyncio.to_thread(core.admit, project, "import")
     ok, value = await run_kit(project, cmd, timeout=900)
     if not ok:
         return render_error("analytics_import", value), value, True
@@ -794,6 +816,9 @@ async def tool_run(args, ctx):
     if given != 1:
         raise core.AnalyticsError("run_args", "pass exactly one of script, code (with name) or rerun_of")
     note = ""
+    # Refused here, in the aelix process, before an inline script is written and before uv makes or
+    # syncs the project's environment (design 7).
+    await asyncio.to_thread(core.admit, project, "run")
     if rerun_of:
         if not core.RUN_ID_RE.match(rerun_of):
             raise core.AnalyticsError("rerun_id", f"{rerun_of!r} is not a run id",
@@ -833,11 +858,12 @@ async def tool_record(args, ctx):
     project, _ = resolve_project()
     kind = str(args.get("kind") or "")
     refs = [str(r) for r in args.get("refs") or []]
-    await asyncio.to_thread(core.sync_context, project, "system", STATE["session"])
+    await asyncio.to_thread(core.admit, project, "record")
+    await asyncio.to_thread(lambda: core.sync_context(project, origin=origin("system", "tool")))
     event = await asyncio.to_thread(
         lambda: core.add_note(project, kind, str(args.get("text") or ""), refs=refs,
-                              resolves=args.get("resolves") or None, actor="agent",
-                              session=STATE["session"]))
+                              resolves=args.get("resolves") or None,
+                              origin=origin("agent", "tool")))
     schedule_workspace_render(project)
     extra = f"; resolves {event['refs']['resolves']}" if event["refs"].get("resolves") else ""
     refs_text = json.dumps({k: v for k, v in event["refs"].items() if k != "resolves"},
@@ -865,8 +891,7 @@ async def tool_init(args, ctx):
     target = target if target.is_absolute() else Path(os.getcwd()) / target
     project = await asyncio.to_thread(
         lambda: core.init_project(target, title=args.get("title"), goal=args.get("goal"),
-                                  actor="agent",
-                                  session=STATE["session"]))
+                                  origin=origin("agent", "tool")))
     STATE["project"] = str(project.root)
     synced, detail = await sync_environment(project)
     lines = [f"analytics_init: ok — project {project.title()} at {project.root} (now the active project)"]
@@ -1035,7 +1060,7 @@ async def on_before_agent_start(event, ctx):
     except Exception:  # noqa: BLE001 - no active project must never block a prompt
         return None
     with contextlib.suppress(Exception):
-        await asyncio.to_thread(core.sync_context, project, "system", STATE["session"])
+        await asyncio.to_thread(lambda: core.sync_context(project, origin=origin("system", "hook")))
     try:
         block = await asyncio.to_thread(core.context_block, project)
     except Exception:  # noqa: BLE001 - a broken journal must not stop the prompt
@@ -1088,6 +1113,9 @@ def on_tool_end(event, ctx):
         summary, flags = summarize_call(event.tool_name, args, project)
     except Exception:  # noqa: BLE001
         summary, flags = "", []
+    # A side write: skipped where this kit does not write (Issue #13, design 4.10).
+    if core.admit(project, "log the tool call", side=True) is None:
+        return None
     with contextlib.suppress(OSError):
         core.append_jsonl(project.telemetry, {
             "ts": core.iso(), "tool": event.tool_name, "error": bool(event.is_error),
@@ -1152,8 +1180,7 @@ async def analytics_command(args, ctx=None):
             target = target if target.is_absolute() else Path(os.getcwd()) / target
             project = await asyncio.to_thread(
                 lambda: core.init_project(target, title=title.strip() or None,
-                                          actor="human",
-                                          session=STATE["session"]))
+                                          origin=origin("human", "command")))
             STATE["project"] = str(project.root)
             _notify(ctx, f"analytics: syncing the environment of {project.root} …")
             synced, detail = await sync_environment(project)
@@ -1173,7 +1200,8 @@ async def analytics_command(args, ctx=None):
                 return "usage: /analytics use DIR"
             root = core.find_project(Path(rest).expanduser())
             if root is None:
-                return f"{rest} is not inside an analytics project (no lab.json)"
+                return f"{rest} is not inside an analytics project (no analytics.json or lab.json)"
+            await asyncio.to_thread(core.readable, root, "use the project")
             STATE["project"] = str(root)
             # Off the event loop: on Windows a record being read elsewhere makes the replace wait
             # up to about two seconds before it fails (_platform.WindowsAtomicFiles).
@@ -1183,6 +1211,8 @@ async def analytics_command(args, ctx=None):
             project, _ = resolve_project()
             index = project.workspace_dir / "index.html"
             if sub == "render" or not index.is_file():
+                # Refused here, before uv makes or syncs the project's environment.
+                await asyncio.to_thread(core.admit, project, "render")
                 ok, value = await run_kit(project, ["render"], timeout=240, actor="human")
                 if not ok:
                     return render_error("/analytics render", value)
@@ -1199,7 +1229,7 @@ async def analytics_command(args, ctx=None):
             project, _ = resolve_project()
             kind, _, body = rest.partition(" ")
             event = await asyncio.to_thread(
-                lambda: core.add_note(project, kind, body, actor="human", session=STATE["session"]))
+                lambda: core.add_note(project, kind, body, origin=origin("human", "command")))
             schedule_workspace_render(project)
             cut = note_cut(body)
             return f"{event['id']} {kind} recorded" + (f" — {cut}" if cut else "")

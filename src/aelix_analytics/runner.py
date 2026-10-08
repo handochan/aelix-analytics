@@ -862,12 +862,14 @@ def _write_failure_hint(exc: Exception, path: Path) -> str | None:
 
 def execute(project: core.Project, *, script: str | None, title: str | None,
             declared_inputs=(), timeout: float = 600.0, rerun_of: str | None = None,
-            actor: str = "agent", session: str | None = None,
-            result_follows: bool = False) -> dict:
-    """Run a script (or rerun a recorded one) and record it. `result_follows`: the caller prints a
-    result line through write_result after this returns and then calls give_back_stdout (the CLI);
-    see _redirected."""
-    core.sync_context(project, actor="system", session=session)
+            origin: core.Origin, result_follows: bool = False) -> dict:
+    """Run a script (or rerun a recorded one) and record it, as asked by `origin` (the run's actor
+    and session; its notes and the SDK calls in it are by the same actor). Refused before anything
+    is written where this kit does not write (core.admit, Issue #13). `result_follows`: the caller
+    prints a result line through write_result after this returns and then calls give_back_stdout
+    (the CLI); see _redirected."""
+    core.admit(project, "run")
+    core.sync_context(project, origin=core.system_origin(origin))
     source_run = None
     if rerun_of:
         source_run, script_rel, exec_file = _rerun_source(project, rerun_of)
@@ -882,12 +884,12 @@ def execute(project: core.Project, *, script: str | None, title: str | None,
         return _execute_locked(project, script_rel=script_rel, exec_file=exec_file,
                                code_bytes=code_bytes, title=title,
                                declared_inputs=declared_inputs, timeout=timeout,
-                               source_run=source_run, actor=actor, session=session,
+                               source_run=source_run, origin=origin,
                                result_follows=result_follows)
 
 
 def _execute_locked(project, *, script_rel, exec_file, code_bytes, title, declared_inputs,
-                    timeout, source_run, actor, session, result_follows=False) -> dict:
+                    timeout, source_run, origin, result_follows=False) -> dict:
     # The run's signal handling is installed once, here, and taken out after the record is
     # written. Between the two regions below it only records: nothing it does can stop the path to
     # the record, and inside a region it raises once at most (see _platform.RunControl).
@@ -898,7 +900,8 @@ def _execute_locked(project, *, script_rel, exec_file, code_bytes, title, declar
         code_dir = run_dir / "code"
         snapshot = code_dir / script_rel
         record = {"schema": core.SCHEMA_RUN, "id": run_id, "title": title, "status": "running",
-                  "pid": os.getpid(), "started_at": core.iso(), "actor": actor, "session": session,
+                  "pid": os.getpid(), "started_at": core.iso(), "actor": origin.actor,
+                  "session": origin.session,
                   "rerun_of": rerun_of,
                   "script": {"path": script_rel, "sha256": core.sha256_bytes(code_bytes),
                              "snapshot": project.rel(snapshot)}}
@@ -919,7 +922,7 @@ def _execute_locked(project, *, script_rel, exec_file, code_bytes, title, declar
 
         # Code of a rerun keeps the snapshot path so tracebacks show the lines that actually ran.
         filename = exec_file if rerun_of else project.path(script_rel)
-        state = capture.RunState(project, run_id, run_dir, filename)
+        state = capture.RunState(project, run_id, run_dir, filename, origin=origin)
         stdout_path, stderr_path = run_dir / "stdout.txt", run_dir / "stderr.txt"
         before, setup_interrupted = None, False
         try:
@@ -951,8 +954,7 @@ def _execute_locked(project, *, script_rel, exec_file, code_bytes, title, declar
                                                   guard, result_follows)
         return _finalize(project, state, record, source_run=source_run, before=before,
                          status=status, error=error, duration=duration, code_dir=code_dir,
-                         stdout_path=stdout_path, stderr_path=stderr_path, actor=actor,
-                         session=session)
+                         stdout_path=stdout_path, stderr_path=stderr_path, origin=origin)
 
 
 def _run_script(project, state, code_bytes, filename, script_rel, timeout, stdout_path,
@@ -1036,8 +1038,12 @@ def _classify(failure, guard, timeout, filename) -> tuple[str, dict | None]:
 
 
 def _finalize(project, state, record, *, source_run, before, status, error, duration, code_dir,
-              stdout_path, stderr_path, actor, session) -> dict:
-    """Write the run record even when parts of the bookkeeping fail; failures are listed."""
+              stdout_path, stderr_path, origin) -> dict:
+    """Write the run record even when parts of the bookkeeping fail; failures are listed. Its
+    completion event and the notes the script made are journal writes, judged again under the
+    journal lock (core.journal_lock): if the directory became one this kit does not write to while
+    the script ran, they are refused and listed, and the run stays `incomplete`
+    (no_completion_event, design 4.3)."""
     problems: list[str] = []
 
     def guarded(label, fn, default):
@@ -1087,10 +1093,10 @@ def _finalize(project, state, record, *, source_run, before, status, error, dura
     if record.get("reproduction"):
         text += f"; rerun of {source_run['id']}: {record['reproduction']['verdict']}"
     event = guarded("journal", lambda: core.append_event(project, "run", text, refs=refs,
-                                                         actor=actor, session=session), None)
+                                                         origin=origin), None)
     for kind, note_text in state.notes:
         guarded(f"note {kind}", lambda k=kind, t=note_text: core.add_note(
-            project, k, t, refs=[run_id], actor=actor, session=session), None)
+            project, k, t, refs=[run_id], origin=state.sdk_origin), None)
 
     if problems and problems != (record.get("finalize_errors") or []):
         record["finalize_errors"] = list(problems)

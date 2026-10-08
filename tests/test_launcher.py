@@ -305,8 +305,29 @@ def test_no_project_is_a_message_and_exit_1(fake, tmp_path, which):
     outside.mkdir()
     done = launch(fake, "status", cwd=outside, which=which)
     assert done.returncode == 1
-    assert "no lab.json in" in done.stderr.decode("utf-8")
+    assert "no analytics.json or lab.json in" in done.stderr.decode("utf-8")
     assert not calls(fake)
+
+
+@pytest.mark.parametrize("which", WHICH)
+@pytest.mark.parametrize(("above", "below"), [("lab.json", "analytics.json"),
+                                              ("analytics.json", "lab.json")])
+def test_the_nearest_marker_of_either_name_is_the_project(fake, tmp_path, which, above, below):
+    """Issue #13 PR 1 (design 4.3): the launcher and bin/analytics stop at the nearest directory with
+    an analytics.json or a lab.json and hand it to the kit, which judges it; neither reads what the
+    marker holds. A directory with an analytics.json below a lab.json project is that directory,
+    never the project above (a kit before #13 wrote to the project above)."""
+    outer = tmp_path / "outer"
+    inner = outer / "inner"
+    (inner / "scripts").mkdir(parents=True)
+    (outer / above).write_text("{}", encoding="utf-8")
+    (inner / below).write_text("not even JSON", encoding="utf-8")
+    done = launch(fake, "record", "note", "x", cwd=inner / "scripts", which=which)
+    assert done.returncode == 0, done.stderr
+    assert launch(fake, "status", cwd=outer, which=which).returncode == 0
+    first, second = calls(fake)
+    assert uv_args(first) == kit_call(inner.resolve(), "record", "note", "x")
+    assert uv_args(second) == kit_call(outer.resolve(), "--text", "status")
 
 
 @pytest.mark.parametrize("which", WHICH)

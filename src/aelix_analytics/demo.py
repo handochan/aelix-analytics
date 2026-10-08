@@ -105,7 +105,11 @@ def _run(project: core.Project, script: str, title: str, actor: str, extra=()) -
     return result["run"]
 
 
-def populate(project: core.Project, actor: str = "human", session=None) -> dict:
+def populate(project: core.Project, *, origin: core.Origin) -> dict:
+    """Fill a new, empty project, as asked by `origin`. Refused before anything is written where
+    this kit does not write (core.admit, Issue #13)."""
+    core.admit(project, "demo")
+    actor = origin.actor
     if core.list_runs(project) or core.list_datasets(project):
         raise core.AnalyticsError("demo_not_empty", "demo needs a new, empty project",
                                   hint="analytics demo NEW_DIR creates a new project and fills it")
@@ -113,9 +117,9 @@ def populate(project: core.Project, actor: str = "human", session=None) -> dict:
     data.import_file(project, str(csv), name="sales",
                      description="Synthetic orders 2024–2025 (day × region × channel, invented "
                                  "figures)",
-                     actor=actor, session=session)
+                     origin=origin)
     core.write_text(project.context, CONTEXT.format(title=project.title()))
-    core.sync_context(project, actor=actor, session=session)
+    core.sync_context(project, origin=origin)
     for script in sorted((s for s in SCRIPTS.iterdir() if s.name.endswith(".py")),
                          key=lambda s: s.name):
         with resources.as_file(script) as source:
@@ -123,7 +127,7 @@ def populate(project: core.Project, actor: str = "human", session=None) -> dict:
 
     first = _run(project, "scripts/01_monthly_revenue.py", "Monthly revenue trend", actor)
     question = core.add_note(project, "question", "When did online revenue overtake store revenue?",
-                             actor=actor, session=session)
+                             origin=origin)
     second = _run(project, "scripts/02_channel_mix.py", "Channel mix by region in 2025", actor)
     third = _run(project, "scripts/03_region_growth.py", "Growth by region", actor)
 
@@ -136,17 +140,17 @@ def populate(project: core.Project, actor: str = "human", session=None) -> dict:
     finding_text = (f"Total online revenue first overtook store revenue in {month}." if month
                     else "Online revenue never overtook store revenue in a month of the period.")
     core.add_note(project, "finding", finding_text, refs=[first["id"]], resolves=question["id"],
-                  actor=actor, session=session)
+                  origin=origin)
     core.add_note(project, "assumption", "The data has no returns or cancellations, so revenue is "
-                  "summed as is.", refs=["sales"], actor=actor, session=session)
+                  "summed as is.", refs=["sales"], origin=origin)
     core.add_note(project, "decision", "Regions are compared by their 2025 annual totals.",
-                  refs=[second["id"], third["id"]], actor=actor, session=session)
+                  refs=[second["id"], third["id"]], origin=origin)
     core.add_note(project, "todo", "Change script 03 to analytics.visualize(data=...) so the growth "
-                  "chart records its data", refs=[third["id"]], actor=actor, session=session)
+                  "chart records its data", refs=[third["id"]], origin=origin)
     text = project.context.read_text(encoding="utf-8").replace(
         "- (none yet)", f"- {finding_text} (run {first['id']})")
     core.write_text(project.context, text)
-    core.sync_context(project, actor=actor, session=session)
+    core.sync_context(project, origin=origin)
     rerun = _run(project, "", "Rerun comparison of the monthly revenue", actor,
                  ["--rerun-of", first["id"]])
 

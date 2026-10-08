@@ -63,6 +63,10 @@ _CONNECTION = None
 
 
 def project() -> core.Project:
+    """The run's project, or outside a run the nearest one at or above AELIX_ANALYTICS_PROJECT or the
+    working directory (a directory with an analytics.json or a lab.json). One with both markers is
+    refused (marker_conflict, an AnalyticsError): which format to read it as cannot be told. Each
+    write function judges the project again before it writes (core.admit, Issue #13)."""
     from . import capture, core
 
     if capture.ACTIVE is not None:
@@ -72,7 +76,9 @@ def project() -> core.Project:
         raise RuntimeError(core.renamed_env_message("LAB_PROJECT"))
     root = core.find_project(os.environ.get("AELIX_ANALYTICS_PROJECT") or os.getcwd())
     if root is None:
-        raise RuntimeError("not inside an analytics project (no lab.json in this directory or above)")
+        raise RuntimeError("not inside an analytics project (no analytics.json or lab.json in this "
+                           "directory or above)")
+    core.readable(root, "read the project")
     return core.Project(root)
 
 
@@ -170,6 +176,7 @@ def visualize(obj, id: str | None = None, *, title: str | None = None, caption: 
     state = capture.ACTIVE
     if state is None:
         p = project()
+        core.admit(p, "visualize")  # before .lab/adhoc/ is made
         stamp = core.now().strftime("%Y%m%d-%H%M%S")
         run_dir = p.state_dir / "adhoc" / stamp
         state = capture.RunState(p, f"adhoc-{stamp}", run_dir, Path(sys.argv[0]).resolve())
@@ -182,13 +189,24 @@ def visualize(obj, id: str | None = None, *, title: str | None = None, caption: 
 
 def record(kind: str, text: str) -> None:
     """Journal entry linked to the current run (written when the run finishes). Named `note` before
-    kit 0.3.0."""
+    kit 0.3.0. Refused when it is made where this kit does not write (core.admit, Issue #13): in a
+    run, an error in the script."""
     from . import capture, core
 
     if kind not in core.NOTE_KINDS or kind == "resolve":
         raise ValueError(f"kind must be one of {', '.join(k for k in core.NOTE_KINDS if k != 'resolve')}")
     text = str(text)
     if capture.ACTIVE is not None:
+        core.admit(capture.ACTIVE.project, "record")
         capture.ACTIVE.notes.append((kind, text))
     else:
-        core.add_note(project(), kind, text, actor="script")
+        core.add_note(project(), kind, text, origin=_script_origin())
+
+
+def _script_origin():
+    """Who a record the script API makes outside a run is by. lab.event/1 records hold the actor
+    `script` there, as before; the new writer records `human` (or the actor declared) and the means
+    `sdk` (design 4.2, OQ1, PR 3)."""
+    from . import core
+
+    return core.Origin("script", "sdk", "inferred")

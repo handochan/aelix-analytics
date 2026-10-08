@@ -458,9 +458,9 @@ def _flow(root: Path, source: Path, platform) -> dict:
     from aelix_analytics import data  # noqa: PLC0415 - needs the analysis libraries, unlike core
 
     project = core.init_project(root, title="교체 계약", goal="어느 구현이든 같은 기록",
-                                template_dir=TEMPLATE, actor="test", platform=platform)
-    data.import_file(project, source, name="sales", description="test data", actor="test")
-    core.add_note(project, "finding", "구현을 바꿔도 같은 기록", refs=["sales"], actor="test")
+                                template_dir=TEMPLATE, origin=core.Origin("test", "sdk"), platform=platform)
+    data.import_file(project, source, name="sales", description="test data", origin=core.Origin("test", "sdk"))
+    core.add_note(project, "finding", "구현을 바꿔도 같은 기록", refs=["sales"], origin=core.Origin("test", "sdk"))
     stuck = project.runs / "20260922-101010-left-running"
     stuck.mkdir(parents=True)
     (stuck / "run.json").write_text(json.dumps({"schema": core.SCHEMA_RUN, "status": "running",
@@ -498,10 +498,10 @@ def test_a_run_goes_through_the_injected_implementation(implementation, tmp_path
     _arm_all_but(arming, chosen)
     calls = _spy(arming, chosen)
     project = core.init_project(tmp_path / "p", title="실행 계약", template_dir=TEMPLATE,
-                                actor="test", platform=chosen)
+                                origin=core.Origin("test", "sdk"), platform=chosen)
     project.scripts.mkdir(parents=True, exist_ok=True)
     (project.scripts / "01_min.py").write_text("print('ok')\n", encoding="utf-8")
-    result = runner.execute(project, script="scripts/01_min.py", title="최소 실행", actor="test")
+    result = runner.execute(project, script="scripts/01_min.py", title="최소 실행", origin=core.Origin("test", "sdk"))
 
     assert result["run"]["status"] == "ok", result["run"].get("error")
     # A run swallows a failure after its script (the Workspace, the bookkeeping): a refused port

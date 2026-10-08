@@ -54,7 +54,7 @@ def test_init_layout_and_journal(tmp_path):
     root = tmp_path / "p"
     from conftest import KIT
 
-    project = core.init_project(root, title="분석", template_dir=KIT / "aelix_analytics" / "template", actor="test")
+    project = core.init_project(root, title="분석", template_dir=KIT / "aelix_analytics" / "template", origin=core.Origin("test", "sdk"))
     for rel in ("lab.json", "CONTEXT.md", "journal.jsonl", "pyproject.toml", ".python-version",
                 ".gitignore", "data/raw", "data/derived", "scripts", "runs", "report"):
         assert (root / rel).exists(), rel
@@ -62,7 +62,7 @@ def test_init_layout_and_journal(tmp_path):
     assert kinds == ["project", "context"]
     assert "{{" not in (root / "pyproject.toml").read_text(encoding="utf-8")
     try:
-        core.init_project(root, template_dir=KIT / "aelix_analytics" / "template")
+        core.init_project(root, template_dir=KIT / "aelix_analytics" / "template", origin=core.Origin("human", "sdk"))
     except core.AnalyticsError as exc:
         assert exc.code == "init_not_empty"
     else:
@@ -203,19 +203,19 @@ def test_import_is_immutable_and_records_source(project, tmp_path):
 
 def test_notes_resolution_and_context_history(project):
     p = core.Project(project)
-    q = core.add_note(p, "question", "언제 넘었나?", actor="test")
-    f = core.add_note(p, "finding", "3월에 넘었다", refs=["sales"], resolves=q["id"], actor="test")
+    q = core.add_note(p, "question", "언제 넘었나?", origin=core.Origin("test", "sdk"))
+    f = core.add_note(p, "finding", "3월에 넘었다", refs=["sales"], resolves=q["id"], origin=core.Origin("test", "sdk"))
     assert f["refs"] == {"data": ["sales"], "resolves": q["id"]}
     block = core.context_block(p)
     assert "3월에 넘었다" in block and "언제 넘었나?" not in block
     before = len(core.context_versions(p))
     p.context.write_text(p.context.read_text(encoding="utf-8") + "\n- 새 정의\n", encoding="utf-8")
-    event = core.sync_context(p, actor="test")
+    event = core.sync_context(p, origin=core.Origin("test", "sdk"))
     assert event and event["text"] == "CONTEXT.md updated (+2 -0 lines)"
-    assert core.sync_context(p) is None
+    assert core.sync_context(p, origin=core.Origin("system", "sdk")) is None
     assert len(core.context_versions(p)) == before + 1
     try:
-        core.add_note(p, "resolve", "x")
+        core.add_note(p, "resolve", "x", origin=core.Origin("agent", "sdk"))
     except core.AnalyticsError as exc:
         assert exc.code == "resolve_needs_target"
 
@@ -614,7 +614,7 @@ analytics.save(pl.read_csv(r"{source}").head(3), "peek")
 def test_a_bare_chart_id_in_a_note_links_to_the_chart(project):
     _run(project, write_script(project, "01_region.py", ANALYTICS_API), "지역별")
     event = core.add_note(core.Project(project), "finding", "서울 편중",
-                          refs=["region-revenue", "sales", "made-up"])
+                          refs=["region-revenue", "sales", "made-up"], origin=core.Origin("agent", "sdk"))
     assert event["refs"]["charts"] == ["scripts/01_region.py::region-revenue"]
     assert event["refs"]["data"] == ["sales"]
     assert event["refs"]["other"] == ["made-up"]
@@ -735,14 +735,23 @@ def test_records_from_a_newer_kit_are_skipped_and_said_so(project):
     assert "Unsupported: 2 record(s) this kit cannot read" in index
     assert f"journal:{line} (unknown_version)" in index
 
+    # A marker of a newer version: the records this kit knows are read and the marker is reported,
+    # and nothing is written (Issue #13 PR 1, design 4.3 `unknown`). Before it the read failed too.
     marker = json.loads(p.marker.read_text(encoding="utf-8"))
     p.marker.write_text(json.dumps({**marker, "schema": "lab.project/2"}), encoding="utf-8")
+    newer = core.Project(project)
+    assert newer.title() == marker["title"]
+    st = core.status(newer)
+    assert (st["project"]["format"], st["project"]["writable"]) == ("lab.project/2", False)
+    assert st["project"]["write_refusal"]["code"] == "project_too_new"
+    before = _tree(project)
     try:
-        core.Project(project).title()
+        core.add_note(newer, "note", "into a newer project", origin=core.Origin("test", "sdk"))
     except core.AnalyticsError as exc:
         assert exc.code == "project_too_new"
     else:
-        raise AssertionError("a project from a newer kit was read anyway")
+        raise AssertionError("a project from a newer kit was written to")
+    assert _tree(project) == before
 
 
 def test_a_failing_run_says_what_to_write_instead(project):
@@ -811,12 +820,12 @@ def test_init_reads_its_template_before_it_creates_anything(tmp_path):
 
     target = tmp_path / "proj"
     with pytest.raises(core.AnalyticsError) as caught:
-        core.init_project(target, template_dir=tmp_path / "no-template", actor="test")
+        core.init_project(target, template_dir=tmp_path / "no-template", origin=core.Origin("test", "sdk"))
     assert caught.value.code == "template_missing"
     assert not target.exists()
     # The CLI hands it the template as package data, through the resource API.
     project = core.init_project(target, template_dir=resources.files("aelix_analytics") / "template",
-                                actor="test")
+                                origin=core.Origin("test", "sdk"))
     assert (project.root / "CONTEXT.md").is_file() and (project.root / ".gitignore").is_file()
 
 
@@ -901,7 +910,7 @@ def test_section_pointers_are_the_lines_the_read_tool_numbers(tmp_path, variant)
     """Issue #11 G1 (D7): aelix's read tool splits a file at b"\\n" alone and numbers its lines
     from 1. Every pointer's range is one whole section of the file's bytes split that way: its
     heading first, no other heading inside, and a heading or the end of the file after it."""
-    p = core.init_project(tmp_path / "p", actor="test")
+    p = core.init_project(tmp_path / "p", origin=core.Origin("test", "sdk"))
     data = _sections_file(variant)
     p.context.write_bytes(data)
     lines = data.split(b"\n")
@@ -931,7 +940,7 @@ def test_a_context_whose_lines_end_in_a_lone_cr_is_one_line(tmp_path):
     """A lone CR is no line end to aelix's read tool: a CONTEXT.md written with lone-CR line ends
     is one line. The kit reads it as that one line, all of it preamble: the block shows its first
     4,000 characters, each CR as a line end, and points at line 1 for the rest (Issue #11 PR-2)."""
-    p = core.init_project(tmp_path / "p", actor="test")
+    p = core.init_project(tmp_path / "p", origin=core.Origin("test", "sdk"))
     p.context.write_bytes(("# Title\r\r## Goal <!-- always -->\r- measure\r\r## Rules\r"
                            + "- a rule\r" * 600).encode())
     block = core.context_block(p)
@@ -951,12 +960,12 @@ def test_a_context_whose_lines_end_in_a_lone_cr_is_one_line(tmp_path):
 def test_the_block_counts_the_entries_it_leaves_out_and_says_where_they_are(tmp_path):
     """Issue #11 G3 (D5): past its latest 12 entries, and past 300 characters of one, the block
     says how many entries it leaves out and where the journal is, once a list."""
-    p = core.init_project(tmp_path / "p", actor="test")
+    p = core.init_project(tmp_path / "p", origin=core.Origin("test", "sdk"))
     for i in range(14):
-        core.add_note(p, "finding", f"finding {i:02d}", actor="test")
-    core.add_note(p, "finding", "long " * 100, actor="test")
+        core.add_note(p, "finding", f"finding {i:02d}", origin=core.Origin("test", "sdk"))
+    core.add_note(p, "finding", "long " * 100, origin=core.Origin("test", "sdk"))
     for i in range(3):
-        core.add_note(p, "question", f"question {i}", actor="test")
+        core.add_note(p, "question", f"question {i}", origin=core.Origin("test", "sdk"))
     block = core.context_block(p)
     key = block.split("## Key information", 1)[1].split("\n## ", 1)[0]
     assert key.rstrip("\n").split("\n")[-1] == (
@@ -1064,7 +1073,7 @@ def _scale_project(root: Path, events: int, datasets: int, runs: int):
     """The scale fixtures of docs/BETA-QUALITY-GATES.md (tools/usage_report.py's SC-S and SC-M):
     journal lines and run records written in the kit's formats."""
     p = core.init_project(root, title=f"scale {events}", goal="compare regional growth",
-                          actor="test")
+                          origin=core.Origin("test", "sdk"))
     tables = _datasets(p, datasets, "t")
     kinds = ("finding", "note", "question", "decision", "todo")
     start = core._last_seq(p.journal)
@@ -1095,7 +1104,7 @@ def test_an_overview_within_its_length_is_mains_with_counts_and_places_added(tmp
     the lists main shortened, and is main's text but for the lines that say how many entries a
     list leaves out and where they are (the project as analytics init leaves it; scale S and M)."""
     if shape == "B":
-        p = core.init_project(tmp_path / "b", title="새 분석", goal="측정", actor="test")
+        p = core.init_project(tmp_path / "b", title="새 분석", goal="측정", origin=core.Origin("test", "sdk"))
     else:
         p = _scale_project(tmp_path / shape, *{"S": (300, 5, 30), "M": (10_000, 20, 300)}[shape])
     st = core.status(p)
@@ -1179,14 +1188,14 @@ def test_an_overview_too_long_shortens_its_unbounded_lists_and_says_how_many_and
     """Issue #11 G4 (D2), the shape of B1-a: 200 sections with descriptive headings left out of
     the prompt and 503 datasets. Every part keeps its heading, each list it shortens says how many
     it leaves out and where they are, and no line is cut."""
-    p = core.init_project(tmp_path / "p", actor="test")
+    p = core.init_project(tmp_path / "p", origin=core.Origin("test", "sdk"))
     heading = "Section {i:03d}: definition of the monthly active user metric and its denominator"
     p.context.write_text("# T\n\n## Goal <!-- always -->\n- g\n\n## Background\n" + "b" * 3900
                          + "\n\n" + "\n\n".join(f"## {heading.format(i=i)}\n" + "- x\n" * 20
                                                 for i in range(200)) + "\n", encoding="utf-8")
     _datasets(p, 503)
-    core.add_note(p, "question", "an open question", actor="test")
-    core.add_note(p, "finding", "a key finding", actor="test")
+    core.add_note(p, "question", "an open question", origin=core.Origin("test", "sdk"))
+    core.add_note(p, "finding", "a key finding", origin=core.Origin("test", "sdk"))
     st = core.status(p)
     full = core.status_text(st, max_chars=10 ** 9)
     assert len(full) > core.STATUS_CHARS
@@ -1226,7 +1235,7 @@ def test_an_overview_that_still_does_not_fit_ends_at_a_line_and_names_what_it_le
     gone (each chart STALE with all of them), 42 key entries and 23 open items with long texts.
     Shortened, it is still too long: it ends at a line end, and its last line names every part it
     leaves out, with how many entries, and where to read them."""
-    p = core.init_project(tmp_path / "p", actor="test")
+    p = core.init_project(tmp_path / "p", origin=core.Origin("test", "sdk"))
     _datasets(p, 503)
     run_id = "20260901-090000-many-inputs"
     (p.runs / run_id).mkdir(parents=True)
@@ -1240,9 +1249,9 @@ def test_an_overview_that_still_does_not_fit_ends_at_a_line_and_names_what_it_le
         "charts": [{"id": f"chart-{i:02d}", "title": f"chart {i}", "kind": "matplotlib",
                     "via": "lab.chart", "data": None, "files": {}} for i in range(16)]})
     for i in range(42):
-        core.add_note(p, "finding", f"finding {i:02d} " + "evidence " * 50, actor="test")
+        core.add_note(p, "finding", f"finding {i:02d} " + "evidence " * 50, origin=core.Origin("test", "sdk"))
     for i in range(23):
-        core.add_note(p, "question", f"question {i:02d} " + "detail " * 50, actor="test")
+        core.add_note(p, "question", f"question {i:02d} " + "detail " * 50, origin=core.Origin("test", "sdk"))
     st = core.status(p)
     assert all(len(c["changed_inputs"]) == 503 for c in st["charts"])
     text = core.status_text(st)
@@ -1524,7 +1533,7 @@ def test_the_renamed_variables_are_the_adrs_list():
     assert set(kit_main.OLD_ENV) <= set(ADR_RENAMED) and core.NAMES_RENAMED_IN == "0.3.0"
     # Issue #36 changed how records hold paths and bumped the version, so a reader (#12) can tell
     # the records written before it (ADR-0006 9); the boundary stays fixed as the version moves on.
-    assert core.KIT_VERSION == "0.6.0" and core.PATH_IDENTITY_SINCE == "0.5.0"
+    assert core.KIT_VERSION == "0.7.0" and core.PATH_IDENTITY_SINCE == "0.5.0"
 
 
 @pytest.mark.parametrize("old", ["LAB_PROJECT", "LAB_ACTOR", "LAB_SESSION", "LAB_STYLE",
@@ -1579,7 +1588,7 @@ def test_one_project_variable_is_read_ahead_of_the_working_directory(project, tm
     (design section 9, R6): set for aelix, it also picks the project of a command run inside another
     project. The record lands in the variable's project, and the other is untouched."""
     other = tmp_path / "other"
-    core.init_project(other, title="다른 프로젝트", actor="test",
+    core.init_project(other, title="다른 프로젝트", origin=core.Origin("test", "sdk"),
                       template_dir=Path(core.__file__).parent / "template")
     before = _tree(other)
     code, result, done = _kit_in(other, {"AELIX_ANALYTICS_PROJECT": str(project)},

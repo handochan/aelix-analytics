@@ -1811,12 +1811,12 @@ class Ctx:
         root.parent.mkdir(parents=True, exist_ok=True)
         words = WORDS.get(spec.lang, WORDS["en"])
         return self.host.core.init_project(root, title=title or f"{words['title']} ({spec.id})",
-                                           goal=words["goal"], actor="test")
+                                           goal=words["goal"], origin=self.host.core.Origin("test", "sdk"))
 
     def write_context(self, project, text: str | bytes) -> None:
         data = text.encode("utf-8") if isinstance(text, str) else text
         project.context.write_bytes(data)
-        self.host.core.sync_context(project, actor="test")
+        self.host.core.sync_context(project, origin=self.host.core.Origin("test", "sdk"))
 
 
 def fact_of(spec: Spec, fact_id: str, needles, stored, section: str | None = None
@@ -1891,7 +1891,7 @@ def write_dataset(ctx: Ctx, project, name: str, *, rows: int, columns: list[dict
         core.append_event(project, "import",
                           f"imported {name}: {rows:,} rows × {len(columns)} columns from "
                           f"{Path(source).name} — {description}",
-                          refs={"data": [meta["path"]]}, actor="test")
+                          refs={"data": [meta["path"]]}, origin=core.Origin("test", "sdk"))
     return meta
 
 
@@ -1932,7 +1932,7 @@ def write_run(ctx: Ctx, project, run_id: str, *, title: str, script: str, code: 
     text = f"{title} — ok"
     if len(written) + len(read) > len(refs["data"]):
         text += f"; {len(read):,} input file(s), {len(written)} output(s) — see the run page"
-    event = core.append_event(project, "run", text, refs=refs, actor="test")
+    event = core.append_event(project, "run", text, refs=refs, origin=core.Origin("test", "sdk"))
     return {"record": record, "event": event["id"], "dir": run_dir}
 
 
@@ -1951,11 +1951,11 @@ def f2t_records(ctx: Ctx, spec: Spec, project) -> tuple[dict, dict]:
                              "bytes": meta["bytes"], "via": ["lab.read"], "external": False}],
                     outputs=[], charts=[], stdout="rows 1200\n", stderr="")
     core.add_note(project, "question", f"{marker(spec.id, 'OPEN')}: {sentence(lang, 1)}",
-                  actor="test")
+                  origin=core.Origin("test", "sdk"))
     core.add_note(project, "finding", f"{marker(spec.id, 'KEY')}: {sentence(lang, 2)}",
-                  actor="test")
+                  origin=core.Origin("test", "sdk"))
     core.add_note(project, "note", f"{marker(spec.id, 'RECENT')}: {sentence(lang, 3)}",
-                  actor="test")
+                  origin=core.Origin("test", "sdk"))
     journal = (project.journal,)
     facts = {
         "latest-run": fact_of(spec, "latest-run", (run_id,), (run["dir"] / "run.json",)),
@@ -2241,9 +2241,9 @@ def measure_f3d(ctx: Ctx, spec: Spec) -> None:
                     code="import aelix_analytics as analytics\n", inputs=[], outputs=[], charts=[],
                     stdout="503\n", stderr="")
     core.add_note(project, "question", f"{marker(spec.id, 'OPEN')}: {SENTENCES['en'][1]}",
-                  actor="test")
+                  origin=core.Origin("test", "sdk"))
     core.add_note(project, "note", f"{marker(spec.id, 'RECENT')}: {SENTENCES['en'][3]}",
-                  actor="test")
+                  origin=core.Origin("test", "sdk"))
     journal = (project.journal,)
     facts = {"latest-run": fact_of(spec, "latest-run", (run_id,), (run["dir"] / "run.json",)),
              "dataset-300": fact_of(spec, "dataset-300", ("part_300",),
@@ -2271,15 +2271,15 @@ def measure_journal(ctx: Ctx, spec: Spec) -> None:
         text = f"{'발견' if lang == 'ko' else 'Finding'} {i:02d}: {sentences[i % 8]}"
         if i == 3:
             text = f"{marker(spec.id, 'KEY003')}: {text}"
-        core.add_note(project, "finding", text, actor="test")
+        core.add_note(project, "finding", text, origin=core.Origin("test", "sdk"))
     for i in range(1, 24):
         kind = "question" if i % 3 else "todo"
-        core.add_note(project, kind, f"{kind} {i:02d}: {sentences[(i + 3) % 8]}", actor="test")
+        core.add_note(project, kind, f"{kind} {i:02d}: {sentences[(i + 3) % 8]}", origin=core.Origin("test", "sdk"))
     pad = "근거와 한계를 함께 적는다. " if lang == "ko" else \
         "The evidence and its limits are written down together. "
     long_text = (pad * (2500 // len(pad) + 1))[:2500] + marker(spec.id, "LONG2500") + " "
     long_text += (pad * (1400 // len(pad) + 1))[:3900 - len(long_text)]
-    core.add_note(project, "finding", long_text, actor="test")
+    core.add_note(project, "finding", long_text, origin=core.Origin("test", "sdk"))
     journal = (project.journal,)
     facts = {"finding-003": fact_of(spec, "finding-003", (marker(spec.id, "KEY003"),), journal),
              "long-finding-2500": fact_of(spec, "long-finding-2500",

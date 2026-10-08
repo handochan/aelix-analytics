@@ -496,9 +496,9 @@ def test_the_invariants_judge_a_cut_by_what_was_cut(host, tmp_path):
     """A cut is found against the text it was cut from, not by the words it adds, and an omission
     line has to state the count that is true."""
     core = host.core
-    project = core.init_project(tmp_path / "project", title="cut", goal="measure", actor="test")
+    project = core.init_project(tmp_path / "project", title="cut", goal="measure", origin=core.Origin("test", "sdk"))
     for i in range(14):
-        core.add_note(project, "finding", f"finding {i:02d}: returns within 2 days", actor="test")
+        core.add_note(project, "finding", f"finding {i:02d}: returns within 2 days", origin=core.Origin("test", "sdk"))
     # analytics_status: the reply's body against the kit's overview with no length limit.
     full = core.status_text(core.status(project), max_chars=10 ** 9)
     head = "analytics_status: ok (project found via AELIX_ANALYTICS_PROJECT)\n"

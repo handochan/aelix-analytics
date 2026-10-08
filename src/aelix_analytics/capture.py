@@ -107,9 +107,18 @@ def _sha(data: bytes) -> str:
 
 
 class RunState:
-    def __init__(self, project: core.Project, run_id: str, run_dir: Path, script_file: Path):
+    """What one run records, and — outside a run, for analytics.visualize — where an ad hoc chart
+    goes. Every chart and saved dataset is judged before it is written (core.admit, Issue #13): a
+    run's directory may become one this kit does not write to while its script runs, and the call
+    then raises in the script."""
+
+    def __init__(self, project: core.Project, run_id: str, run_dir: Path, script_file: Path,
+                 origin: core.Origin | None = None):
         self.project = project
         self.run_id = run_id
+        # The SDK's writes in a run are by the run's actor, made through the SDK (design 4.2).
+        self.sdk_origin = (core.Origin(origin.actor, "sdk", origin.actor_basis, origin.session)
+                           if origin is not None else None)
         self.run_dir = run_dir
         self.charts_dir = run_dir / "charts"
         self.script_file = str(script_file)
@@ -240,6 +249,7 @@ class RunState:
         """Record a chart. Every analytics.visualize call is its own chart (a later call with the same id
         replaces the earlier one). Automatic captures (plt.show, fig.show, figures left open)
         skip a figure that an earlier capture already saved and that has not changed since."""
+        core.admit(self.project, "visualize")
         target, kind = _figure_kind(obj)
         explicit = via == "lab.chart"
         prior = self._by_figure.get(id(target)) if target is not None else None
@@ -436,6 +446,8 @@ def _fingerprint(obj, kind: str) -> str | None:
 
 
 def save_dataset(project: core.Project, obj, name: str, state: RunState | None = None) -> Path:
+    """Write a table to data/derived/<name>.parquet: analytics.save, in a run or outside one."""
+    core.admit(project, "save")
     if not core.DATASET_NAME_RE.match(name or ""):
         raise ValueError(f"dataset name {name!r} must match {core.DATASET_NAME_RE.pattern}")
     dest = project.derived / f"{name}.parquet"

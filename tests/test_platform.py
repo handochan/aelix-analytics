@@ -1265,7 +1265,7 @@ def test_a_script_s_raising_handler_at_the_region_s_end_cannot_lose_the_record(p
             result = runner.execute(core.Project(project),
                                     script=write_script(project, "40_left.py",
                                                         LEAVES_RAISING_SIGTERM),
-                                    title="남긴 핸들러", actor="test", timeout=1.0)
+                                    title="남긴 핸들러", origin=core.Origin("test", "sdk"), timeout=1.0)
         finally:
             injector.on = False
     assert delivered == [1]
@@ -1302,7 +1302,7 @@ def test_what_a_script_s_handler_raised_during_the_reassertion_is_classified(pro
     monkeypatch.setattr(signal, "getsignal", getsignal)
     result = runner.execute(core.Project(project),
                             script=write_script(project, "41_kbint.py", DEFAULT_INT_HANDLER_SCRIPT),
-                            title="재지정 중 취소", actor="test")
+                            title="재지정 중 취소", origin=core.Origin("test", "sdk"))
     assert fired, "the script's handler was never found installed during the reassertion"
     assert result["run"]["status"] == "cancelled", result["run"]
 
@@ -1337,7 +1337,7 @@ def test_a_host_handler_that_raises_during_the_restore_still_gets_every_handler_
     try:
         monkeypatch.setattr(signal, "signal",
                             lambda s, h: (counted.append(s), real_signal(s, h))[1])
-        runner.execute(core.Project(project), script=script, title="셈", actor="test")
+        runner.execute(core.Project(project), script=script, title="셈", origin=core.Origin("test", "sdk"))
         monkeypatch.setattr(signal, "signal", real_signal)
         total = len(counted)
         for nth in range(1, total + 1):
@@ -1354,7 +1354,7 @@ def test_a_host_handler_that_raises_during_the_restore_still_gets_every_handler_
             monkeypatch.setattr(signal, "signal", injecting)
             try:
                 runner.execute(core.Project(project), script=script, title=f"{raising}-{nth}",
-                               actor="test")
+                               origin=core.Origin("test", "sdk"))
             except HostShutdown:
                 pass  # the host's own handler, after the run: the host's choice
             finally:
@@ -1644,7 +1644,7 @@ def test_a_run_cancelled_after_the_deadline_it_kept_from_the_guard_is_timed_out(
             "time.sleep(5)\n"
             "print('ran to its end')\n")
     result = runner.execute(core.Project(project), script=write_script(project, "44_late.py", body),
-                            title="늦은 취소", actor="test", timeout=1.0)
+                            title="늦은 취소", origin=core.Origin("test", "sdk"), timeout=1.0)
     assert result["run"]["status"] == "timeout", result["run"]
     log = (Path(project) / "runs" / result["run"]["id"] / "stdout.txt").read_text(encoding="utf-8")
     assert "the alarm" in log and "ran to its end" not in log
@@ -1672,7 +1672,7 @@ def test_a_deadline_the_platform_cannot_hold_is_an_error_not_a_stuck_guard(proje
         before = _handlers()
         result = runner.execute(core.Project(project),
                                 script=write_script(project, "43_inf.py", RAN), title="무한",
-                                actor="test", timeout=float("inf"))
+                                origin=core.Origin("test", "sdk"), timeout=float("inf"))
         assert _handlers() == before
         if host_timer:
             assert signal.getitimer(signal.ITIMER_REAL)[0] > 50, "the host's timer was cancelled"
@@ -1920,11 +1920,11 @@ def _stable(value):
 def _representative_flow(root: Path, source: Path, platform) -> dict:
     """Create a project, import data, write a journal entry and read the project back."""
     project = core.init_project(root, title="이식 경계", goal="목표", template_dir=KIT / "aelix_analytics" / "template",
-                                actor="test", platform=platform)
+                                origin=core.Origin("test", "sdk"), platform=platform)
     from aelix_analytics import data  # noqa: PLC0415 - needs the analysis libraries, unlike core
 
-    data.import_file(project, source, name="sales", description="test data", actor="test")
-    core.add_note(project, "finding", "경계 뒤에서도 같은 기록", refs=["sales"], actor="test")
+    data.import_file(project, source, name="sales", description="test data", origin=core.Origin("test", "sdk"))
+    core.add_note(project, "finding", "경계 뒤에서도 같은 기록", refs=["sales"], origin=core.Origin("test", "sdk"))
     status = core.status(project)
     events = [{k: _stable(e[k]) for k in ("id", "kind", "actor", "text", "refs")}
               for e in core.read_events(project)]
@@ -1960,10 +1960,10 @@ def test_a_run_goes_through_the_injected_platform_too(tmp_path, real_ports_refus
 
     fake, calls = recording_platform()
     project = core.init_project(tmp_path / "p", title="실행 경계", template_dir=KIT / "aelix_analytics" / "template",
-                                actor="test", platform=fake)
+                                origin=core.Origin("test", "sdk"), platform=fake)
     project.scripts.mkdir(parents=True, exist_ok=True)
     (project.scripts / "01_min.py").write_text("print('ok')\n", encoding="utf-8")
-    result = runner.execute(project, script="scripts/01_min.py", title="최소 실행", actor="test")
+    result = runner.execute(project, script="scripts/01_min.py", title="최소 실행", origin=core.Origin("test", "sdk"))
 
     assert result["run"]["status"] == "ok", result["run"].get("error")
     # A run swallows a failure in the parts that come after the script — the report build and the
@@ -1982,7 +1982,7 @@ def test_a_run_goes_through_the_injected_platform_too(tmp_path, real_ports_refus
 def test_the_hash_cache_writes_through_the_project_platform(tmp_path, real_ports_refuse):
     fake, calls = recording_platform()
     project = core.init_project(tmp_path / "p", title="캐시", template_dir=KIT / "aelix_analytics" / "template",
-                                actor="test", platform=fake)
+                                origin=core.Origin("test", "sdk"), platform=fake)
     cache = core.HashCache(project)
     assert cache.sha(project.marker)  # marks the cache dirty
     cache.save()
@@ -1992,7 +1992,7 @@ def test_the_hash_cache_writes_through_the_project_platform(tmp_path, real_ports
 def test_a_run_is_listed_through_the_project_platform(tmp_path, real_ports_refuse):
     fake, calls = recording_platform()
     project = core.init_project(tmp_path / "p", title="실행 목록", template_dir=KIT / "aelix_analytics" / "template",
-                                actor="test", platform=fake)
+                                origin=core.Origin("test", "sdk"), platform=fake)
     run_dir = project.runs / "20260922-101010-x"
     run_dir.mkdir(parents=True)
     (run_dir / "run.json").write_text(json.dumps({"schema": core.SCHEMA_RUN, "status": "running",
@@ -2009,7 +2009,7 @@ def test_a_new_dataset_name_that_windows_cannot_store_is_refused(project, tmp_pa
     from aelix_analytics import data  # noqa: PLC0415
 
     with pytest.raises(core.AnalyticsError) as exc:
-        data.import_file(core.Project(project), source, name="con", actor="test")
+        data.import_file(core.Project(project), source, name="con", origin=core.Origin("test", "sdk"))
     assert exc.value.code == "name_not_portable"
     assert "con" in exc.value.message
 
@@ -2317,7 +2317,7 @@ def test_a_project_in_a_case_sensitive_windows_directory_reads_runs_in_another_c
                           capture_output=True, timeout=60, **_platform.text_kwargs())
     assert done.returncode == 0, (done.stdout, done.stderr)
     root = flagged / "proj"
-    core.init_project(root, title="대소문자", goal="대소문자 구분", actor="test",
+    core.init_project(root, title="대소문자", goal="대소문자 구분", origin=core.Origin("test", "sdk"),
                       template_dir=KIT / "aelix_analytics" / "template")
     for directory in (root, root / "runs"):
         (directory / "Case-Probe").write_bytes(b"upper")
@@ -2525,7 +2525,7 @@ def test_a_run_record_that_cannot_be_written_leaves_no_run_behind(project, monke
     monkeypatch.setattr(core, "write_json", full_disk)
     with pytest.raises(core.AnalyticsError) as exc:
         runner.execute(core.Project(project), script=write_script(project, "53_full.py", RAN),
-                       title="가득 참", actor="test")
+                       title="가득 참", origin=core.Origin("test", "sdk"))
     assert exc.value.code == "record_failed", exc.value
     assert "space" in exc.value.hint, exc.value.hint
     assert not list((Path(project) / "runs").iterdir())
@@ -2550,7 +2550,7 @@ def test_a_run_directory_the_kit_cannot_list_is_still_removed(project, monkeypat
     try:
         with pytest.raises(core.AnalyticsError) as exc:
             runner.execute(core.Project(project), script=write_script(project, "54_umask.py", RAN),
-                           title="권한", actor="test")
+                           title="권한", origin=core.Origin("test", "sdk"))
         assert exc.value.code == "snapshot_failed", exc.value
         assert "runs/" in exc.value.hint, exc.value.hint
         assert not list((Path(project) / "runs").iterdir())
@@ -2653,7 +2653,7 @@ def test_a_tool_running_across_a_project_switch_is_recorded_where_it_ends(tmp_pa
     module = load_extension(monkeypatch, "ext_switch_mid_tool")
     roots = {name: tmp_path / name for name in ("A", "B")}
     for name, root in roots.items():
-        core.init_project(root, title=name, actor="test", template_dir=KIT / "aelix_analytics" / "template")
+        core.init_project(root, title=name, origin=core.Origin("test", "sdk"), template_dir=KIT / "aelix_analytics" / "template")
     asyncio.run(module.analytics_command(f"use {roots['A']}"))
     module.on_tool_start(types.SimpleNamespace(tool_call_id="t1", tool_name="analytics_record",
                                                args={"kind": "finding", "text": "A에서 시작"}), None)
@@ -2874,7 +2874,7 @@ def test_loading_the_kit_pulls_no_analysis_library_into_the_host_process(monkeyp
     assert "KIT_OK:lab.run/1" in proc.stdout, proc.stdout + proc.stderr
     loaded = next(line for line in proc.stdout.splitlines() if line.startswith("LOADED:"))
     assert loaded == "LOADED:", f"the aelix process would have imported {loaded[len('LOADED:'):]}"
-    # From a checkout the package itself is not imported at all: core, _platform and relations come
+    # From a checkout the package itself is not imported at all: core, _platform, relations and writer come
     # from its directory under the synthetic name (Issue #9: the kit is now the package
     # aelix_analytics).
     assert "OURS:" in proc.stdout.splitlines(), proc.stdout
@@ -2907,7 +2907,8 @@ def test_importing_the_package_imports_nothing_of_the_kit():
     assert seen["version"] == core.KIT_VERSION
     assert seen["after_version"] == ["aelix_analytics", "aelix_analytics._install",
                                      "aelix_analytics._platform", "aelix_analytics.cli",
-                                     "aelix_analytics.core", "aelix_analytics.relations"]
+                                     "aelix_analytics.core", "aelix_analytics.relations",
+                                     "aelix_analytics.writer"]
 
 
 @pytest.mark.parametrize("command, flagged", [
@@ -2933,7 +2934,7 @@ def test_importing_the_package_imports_nothing_of_the_kit():
 ])
 def test_python_via_bash_leaves_out_only_the_kit_itself(monkeypatch, tmp_path, command, flagged):
     module = load_extension(monkeypatch, "ext_python_via_bash")
-    project = core.Project(core.init_project(tmp_path / "p", title="t", actor="test",
+    project = core.Project(core.init_project(tmp_path / "p", title="t", origin=core.Origin("test", "sdk"),
                                              template_dir=KIT / "aelix_analytics" / "template").root)
     _, flags = module.summarize_call("bash", {"command": command}, project)
     assert ("python_via_bash" in flags) is flagged, (command, flags)
@@ -3060,7 +3061,7 @@ def test_the_analytics_command_records_and_has_no_old_subcommands(monkeypatch, t
     help, which names the new ones."""
     monkeypatch.setenv("AELIX_ANALYTICS_UV", str(tmp_path / "no-uv"))
     root = tmp_path / "proj"
-    core.init_project(root, title="t", actor="test", template_dir=KIT / "aelix_analytics" / "template")
+    core.init_project(root, title="t", origin=core.Origin("test", "sdk"), template_dir=KIT / "aelix_analytics" / "template")
     monkeypatch.setenv("AELIX_ANALYTICS_PROJECT", str(root))
     module = load_extension(monkeypatch, "ext_record_command")
     said = asyncio.run(module.analytics_command("record gap 차트 id를 한글로 못 붙인다"))
@@ -3670,7 +3671,7 @@ def test_a_cancel_while_the_capture_hooks_install_stops_the_script(project, monk
     body = ("from pathlib import Path\n"
             "Path('data/derived/ran.txt').write_text('x', encoding='utf-8')\n")
     script = write_script(project, "23_cancel_setup.py", body)
-    result = runner.execute(core.Project(project), script=script, title="설치 중 취소", actor="test")
+    result = runner.execute(core.Project(project), script=script, title="설치 중 취소", origin=core.Origin("test", "sdk"))
 
     assert result["run"]["status"] == "cancelled", result["run"]
     assert not (Path(project) / "data/derived/ran.txt").exists(), "the script ran after the cancel"
@@ -3696,7 +3697,7 @@ def test_a_cancel_before_the_script_starts_stops_the_run_before_it(project, monk
     monkeypatch.setattr(runner, "_redirected", redirected_then_cancel)
     before = _handlers()
     result = runner.execute(core.Project(project), script=write_script(project, "26_early.py", RAN),
-                            title="시작 전 취소", actor="test")
+                            title="시작 전 취소", origin=core.Origin("test", "sdk"))
     assert result["run"]["status"] == "cancelled", result["run"]
     assert not (Path(project) / "data/derived/ran.txt").exists(), "the script ran after the cancel"
     assert _handlers() == before
@@ -3720,7 +3721,7 @@ def test_a_cancel_while_the_run_is_being_set_up_is_recorded(project, monkeypatch
     try:
         result = runner.execute(core.Project(project),
                                 script=write_script(project, "27_setup.py", RAN),
-                                title="준비 중 취소", actor="test")
+                                title="준비 중 취소", origin=core.Origin("test", "sdk"))
     except KeyboardInterrupt:
         pytest.fail("the cancel escaped execute and left the run's record behind as running")
     run = result["run"]
@@ -3748,7 +3749,7 @@ def test_a_cancel_while_an_input_is_hashed_records_no_half_made_input(project, m
     monkeypatch.setattr(core.HashCache, "sha", sha_then_cancel)
     body = "import polars as pl\npl.read_parquet('data/raw/sales.parquet')\n"
     result = runner.execute(core.Project(project), script=write_script(project, "45_hash.py", body),
-                            title="해시 중 취소", actor="test")
+                            title="해시 중 취소", origin=core.Origin("test", "sdk"))
     run = result["run"]
     assert run["status"] == "cancelled", run
     assert all(entry.get("sha256") and entry.get("via") for entry in run["inputs"]), run["inputs"]
@@ -3767,7 +3768,7 @@ def test_a_cancel_just_after_the_import_hook_went_in_leaves_no_hook_behind(proje
     monkeypatch.setattr(capture, "install", install_then_cancel)
     before = list(sys.meta_path)
     result = runner.execute(core.Project(project), script=write_script(project, "28_hook.py", RAN),
-                            title="훅 뒤 취소", actor="test")
+                            title="훅 뒤 취소", origin=core.Origin("test", "sdk"))
     assert result["run"]["status"] == "cancelled", result["run"]
     assert sys.meta_path == before
 
@@ -3787,7 +3788,7 @@ def test_a_signal_at_any_handler_swap_leaves_the_handlers_and_the_record_intact(
     script = write_script(project, "29_swaps.py", "x = 1\n")
     counted = []
     monkeypatch.setattr(signal, "signal", lambda sig, h: (counted.append(sig), real_signal(sig, h))[1])
-    runner.execute(core.Project(project), script=script, title="셈", actor="test")
+    runner.execute(core.Project(project), script=script, title="셈", origin=core.Origin("test", "sdk"))
     total = len(counted)
     assert total >= 4, counted
     kinds = [s for s in (getattr(signal, n, None) for n in ("SIGINT", "SIGTERM", "SIGALRM",
@@ -3808,7 +3809,7 @@ def test_a_signal_at_any_handler_swap_leaves_the_handlers_and_the_record_intact(
             before = _handlers()
             try:
                 result = runner.execute(core.Project(project), script=script, title=f"{sig}-{nth}",
-                                        actor="test")
+                                        origin=core.Origin("test", "sdk"))
             except KeyboardInterrupt:
                 result = None  # before the run's first scope: nothing was recorded yet
             finally:
@@ -3898,7 +3899,7 @@ def test_a_signal_at_sampled_check_points_of_a_run_never_loses_its_record(tmp_pa
     def one_run(n, injector, target):
         # A project per run: in a shared one each run goes through more points than the last,
         # and a sample fixed in advance would drift off the end of the shorter runs.
-        project_ = core.init_project(tmp_path / f"p{n}", title="t", actor="test",
+        project_ = core.init_project(tmp_path / f"p{n}", title="t", origin=core.Origin("test", "sdk"),
                                      template_dir=KIT / "aelix_analytics" / "template")
         (project_.scripts / "a.py").write_text("x = 1\n", encoding="utf-8")
         injector.arm(target)
@@ -3908,7 +3909,7 @@ def test_a_signal_at_sampled_check_points_of_a_run_never_loses_its_record(tmp_pa
         existing = {p.name for p in project_.runs.iterdir()} if project_.runs.is_dir() else set()
         injector.on = True
         try:
-            runner.execute(project_, script="scripts/a.py", title="s", actor="test")
+            runner.execute(project_, script="scripts/a.py", title="s", origin=core.Origin("test", "sdk"))
             escaped = None
         except BaseException as exc:  # noqa: BLE001 - what escaped is the finding
             escaped = type(exc).__name__
@@ -4062,7 +4063,7 @@ logs = []
 for n, script in enumerate(sys.argv[2:]):
     if n:  # the host, between two runs, through the stream the helper kept from the first
         sys.modules["helper"].say("HOST-BETWEEN-RUNS")
-    result = runner.execute(project, script=script, title="host", actor="test")
+    result = runner.execute(project, script=script, title="host", origin=core.Origin("test", "sdk"))
     logs.append((project.root / result["run"]["stdout"]).read_text(encoding="utf-8"))
 
 
@@ -4154,7 +4155,7 @@ if mode == "refusing":
     sys.__stdout__ = Refusing(io.BufferedWriter(io.FileIO(1, "w", closefd=False)), encoding="utf-8")
 sys.__stdout__.write("HOST-BEFORE-RUN")
 with contextlib.redirect_stdout(io.StringIO()):
-    result = runner.execute(project, script=sys.argv[3], title="host", actor="test")
+    result = runner.execute(project, script=sys.argv[3], title="host", origin=core.Origin("test", "sdk"))
 log = (project.root / result["run"]["stdout"]).read_text(encoding="utf-8")
 sys.stderr.write("LOG=" + repr(log) + "\\n")
 """
@@ -4546,7 +4547,7 @@ def test_the_timer_a_region_set_is_cancelled_whoever_s_sigalrm_ended_it(project,
     saved = signal.signal(signal.SIGALRM, lambda *_a: late.append(time.monotonic()))
     try:
         result = runner.execute(core.Project(project), script="scripts/80_alarm.py",
-                                title="alarm", timeout=30, actor="test")
+                                title="alarm", timeout=30, origin=core.Origin("test", "sdk"))
         left = signal.getitimer(signal.ITIMER_REAL)
         time.sleep(0.6)
     finally:
@@ -4744,7 +4745,7 @@ def test_a_cancel_cut_short_by_the_script_s_handler_is_recorded_at_every_point(p
             injector.on = True
             try:
                 result = runner.execute(core.Project(project), script="scripts/82_shutdown.py",
-                                        title="t", actor="test", timeout=30)
+                                        title="t", origin=core.Origin("test", "sdk"), timeout=30)
             finally:
                 injector.on = False
             outcomes.append((target, result["run"]["status"]))
@@ -4801,7 +4802,7 @@ def test_what_a_thread_wrote_after_its_run_survives_the_collection_of_its_module
                  "    out.write('LEFTOVER-LINE\\n')\n"
                  "    open(os.environ['WRITTEN_FLAG'], 'w').close()\n"
                  "threading.Thread(target=later, daemon=True).start()\n")
-    runner.execute(core.Project(project), script="scripts/84_ends.py", title="ends", actor="test")
+    runner.execute(core.Project(project), script="scripts/84_ends.py", title="ends", origin=core.Origin("test", "sdk"))
     deadline = time.monotonic() + 30
     while not done.exists() and time.monotonic() < deadline:
         time.sleep(0.01)
@@ -4870,7 +4871,7 @@ def test_a_case_variant_is_an_own_name_only_when_it_is_the_same_file(project, mo
     monkeypatch.setattr(core, "same_file", lambda _a, _b: False)
     write_script(Path(project), "88_case.py", CHART_BODY + CASE_VARIANTS["chart_then_file"])
     result = runner.execute(core.Project(project), script="scripts/88_case.py", title="case",
-                            actor="test")
+                            origin=core.Origin("test", "sdk"))
     charts = [(c["id"], c["kind"]) for c in result["run"]["charts"]]
     assert charts == CASE_VARIANT_CHARTS["chart_then_file", False], charts
 
@@ -4885,7 +4886,7 @@ def test_a_record_that_cannot_be_written_as_utf8_leaves_no_run_directory(project
     write_script(Path(project), "86_x.py", "x = 1\n")
     with pytest.raises(core.AnalyticsError) as exc:
         runner.execute(core.Project(project), script="scripts/86_x.py", title="caf\udce9",
-                       actor="test")
+                       origin=core.Origin("test", "sdk"))
     assert exc.value.code == "record_failed" and "UTF-8" in (exc.value.hint or ""), \
         exc.value.to_json()
     assert not list((Path(project) / "runs").glob("*")), list((Path(project) / "runs").glob("*"))
@@ -5024,7 +5025,7 @@ def test_a_timer_the_script_sets_after_catching_its_interruption_ends_with_the_r
     saved = signal.signal(signal.SIGALRM, signal.SIG_IGN)
     try:
         result = runner.execute(core.Project(project), script="scripts/89_timer.py",
-                                title="timer", timeout=1, actor="test")
+                                title="timer", timeout=1, origin=core.Origin("test", "sdk"))
         left = signal.getitimer(signal.ITIMER_REAL)
     finally:
         signal.setitimer(signal.ITIMER_REAL, 0)
@@ -5050,9 +5051,9 @@ def test_a_cancel_kept_from_an_earlier_run_is_not_counted_for_a_later_one(projec
                  "import _kept_across_runs as keep\n"
                  "raise RuntimeError('the previous attempt failed') from keep.last\n")
     first = runner.execute(core.Project(project), script="scripts/90_first.py", title="first",
-                           actor="test")
+                           origin=core.Origin("test", "sdk"))
     second = runner.execute(core.Project(project), script="scripts/91_second.py",
-                            title="second", actor="test")
+                            title="second", origin=core.Origin("test", "sdk"))
     assert first["run"]["status"] == "cancelled", first["run"]
     assert second["run"]["status"] == "error", second["run"]
 
@@ -5438,7 +5439,7 @@ def test_the_cut_short_walk_looks_at_chain_limit_exceptions_newest_first(project
         injector.on = True
         try:
             result = runner.execute(core.Project(project), script="scripts/96_steps.py",
-                                    title="t", actor="test", timeout=30)
+                                    title="t", origin=core.Origin("test", "sdk"), timeout=30)
         finally:
             injector.on = False
     assert injector.fired, injector.count
@@ -5514,7 +5515,7 @@ def test_the_length_hint_reads_the_snapshot_s_path(project, monkeypatch):
     monkeypatch.setattr(Path, "write_bytes", as_windows_open_answers)
     with pytest.raises(core.AnalyticsError) as refused:
         runner.execute(core.Project(project), script=None, rerun_of=run_id, title="long",
-                       actor="test")
+                       origin=core.Origin("test", "sdk"))
     assert (refused.value.code, refused.value.hint) == \
         ("snapshot_failed", "shorten the script's path"), refused.value.to_json()
 
@@ -6043,7 +6044,7 @@ def test_a_run_without_a_result_to_follow_leaves_stdout_alone(project, monkeypat
     monkeypatch.setattr(sys, "__stdout__", own)
     try:
         result = runner.execute(core.Project(project), script=write_script(
-            project, "96_inproc.py", "print('hi')\n"), title="inproc")
+            project, "96_inproc.py", "print('hi')\n"), title="inproc", origin=core.Origin("agent", "sdk"))
         assert result["run"]["status"] == "ok"
         assert sys.stdout is own and sys.__stdout__ is own and runner._ROUTE is None
     finally:

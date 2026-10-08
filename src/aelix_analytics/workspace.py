@@ -591,7 +591,7 @@ class Site:
 
 def fingerprint(project: core.Project) -> str:
     parts = []
-    for path in (project.marker, project.context, project.journal, project.telemetry,
+    for path in (*project.markers, project.context, project.journal, project.telemetry,
                  project.queries):
         with contextlib.suppress(OSError):
             st = path.stat()
@@ -617,7 +617,9 @@ def fingerprint(project: core.Project) -> str:
 
 def build(project: core.Project, *, if_changed: bool = False) -> dict:
     """Build the Workspace. Builds are serialized per project; a waiting --if-changed build rechecks
-    the fingerprint after the lock, so queued triggers collapse into one build."""
+    the fingerprint after the lock, so queued triggers collapse into one build. A write: refused
+    before its lock file is made where this kit does not write (core.admit, Issue #13)."""
+    core.admit(project, "render")
     with project.platform.locks.exclusive(project.state_dir / "report.lock"):
         return _build_locked(project, if_changed)
 

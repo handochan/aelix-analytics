@@ -1649,7 +1649,7 @@ def ensure_fixture(spec: dict, seed: int, root: Path) -> Path:
 def init_project(kit_src: Path, project: Path, title: str, goal: str, env: dict) -> None:
     """A new project made by the checkout's own kit (core.init_project), as a person would."""
     code = ("import sys\nfrom pathlib import Path\nfrom aelix_analytics import core\n"
-            "core.init_project(Path(sys.argv[1]), title=sys.argv[2], goal=sys.argv[3], actor='human')\n")
+            "core.init_project(Path(sys.argv[1]), title=sys.argv[2], goal=sys.argv[3], origin=core.Origin('human', 'cli'))\n")
     done = subprocess.run([sys.executable, "-c", code, str(project), title, goal], cwd=project.parent,
                           env={**env, "PYTHONPATH": str(kit_src)}, capture_output=True, text=True,
                           encoding="utf-8", errors="replace", timeout=300)

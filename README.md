@@ -91,9 +91,9 @@ aelix 안에서: `/analytics`(현황) · `/analytics open`(리포트) · "지역
 배포본은 아직 어디에도 게시하지 않았으므로 체크아웃에서 직접 만듭니다.
 
 ```sh
-cd $PACK && uv build                                   # dist/aelix_analytics-0.6.0-py3-none-any.whl
-uv tool install --python 3.12 dist/aelix_analytics-0.6.0-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
-uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.6.0-py3-none-any.whl   # aelix와 함께
+cd $PACK && uv build                                   # dist/aelix_analytics-0.7.0-py3-none-any.whl
+uv tool install --python 3.12 dist/aelix_analytics-0.7.0-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
+uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.7.0-py3-none-any.whl   # aelix와 함께
 ```
 
 - `analytics`는 체크아웃의 `bin/analytics`와 같은 명령·인자·usage(바이트까지 같음)를 쓰고 kit의 출력을 바이트 그대로 넘깁니다
@@ -204,7 +204,10 @@ PowerShell 안에서 실행한 `chcp 65001`은 PowerShell이 이미 읽어 둔 �
   (`analytics_*`·`/analytics` vs `analytics_engine_*`·`/analytics-engine`).
   다만 비교 평가는 한 번에 하나만 로드해야 공정합니다.
 
-프로젝트는 `/analytics use` → `--analytics-project` → `AELIX_ANALYTICS_PROJECT` → 작업 디렉터리와 그 조상의 `lab.json` 순서로 찾습니다.
+프로젝트는 `/analytics use` → `--analytics-project` → `AELIX_ANALYTICS_PROJECT` → 작업 디렉터리와 그 조상 가운데 표식(`analytics.json`
+또는 `lab.json`)이 있는 가장 가까운 디렉터리 순서로 찾습니다. kit 0.7.0부터 이 kit은 `lab.json`(`lab.project/1`) 프로젝트에만 쓰고, 새
+형식(`analytics.json`)·모르는 형식·깨진 `analytics.json`·두 표식의 디렉터리에는 아무것도 쓰지 않습니다(읽기는 두 표식만 거절,
+[현재 계약](docs/CONTRACTS.md) B).
 가장 쉬운 방법은 프로젝트 디렉터리에서 aelix를 실행하는 것입니다. `AELIX_ANALYTICS_PROJECT`는 셸의 `analytics`(`bin/analytics`)도
 작업 디렉터리보다 먼저 읽습니다: aelix를 위해 설정해 두면 다른 프로젝트 안에서 실행한 `analytics record`도 그 프로젝트에 기록됩니다.
 
