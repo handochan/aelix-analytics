@@ -745,7 +745,10 @@ kit 0.7.0([#13](https://github.com/handochan/aelix-analytics/issues/13)의 첫 �
 - 무결성. 해시 체인·서명이 없고 불변성은 규약입니다.
 - 표식 판정의 틈. 판정은 잠금 없이 두 표식을 읽습니다. 판정과 첫 부수 효과 사이에 다른 프로세스가 표식을 바꾸는 틈은 남습니다. journal 쓰기는
   잠금 안에서 다시 판정해 그 틈을 줄이지만, run이 시작한 뒤의 run 기록(`run.json`)·코드 스냅샷·스크립트가 직접 쓰는 파일은 run이 시작할 때의
-  판정을 따릅니다(run 잠금을 잡은 뒤의 판정, SDK 쓰기는 호출마다 판정, D).
+  판정을 따릅니다(run 잠금을 잡은 뒤의 판정, SDK 쓰기는 호출마다 판정, D). 계속 읽지 못하는 표식(권한이 막은 파일, 고리를 이루는 링크)은
+  판정마다 교체의 재시도 예산(약 2초)을 다 쓰고 `invalid`가 됩니다(판정 한 번의 측정은 [#13 표식 게이트 기록](verification/2026-10-08-issue-13-gate.md)).
+  aelix 확장의 `tool_execution_end` hook은 프로젝트 찾기와 telemetry의 부수 쓰기에서 그 판정을 동기로 두 번 하므로, 그런 프로젝트에서는 도구
+  호출마다 약 4초를 기다립니다(판정 수에서 낸 값이고, aelix 세션에서 재지 않았습니다).
 - 사람의 파일인 `analytics.json`. 가장 가까운 표식이 프로젝트라([설계](design/RECORD-WRITER-AND-MIGRATION.md) D13·4.3절), 프로젝트 안의 하위
   디렉터리에 표식이 아닌 `analytics.json`(예: `data/exports/analytics.json`의 `{"pageviews": 10}`)이 있으면 그 디렉터리에서 부른 명령은 위쪽
   프로젝트가 아니라 그 디렉터리를 판정합니다: 쓰기는 `marker_invalid`로 거절되고(kit 0.7.0 전에는 위쪽 프로젝트에 썼습니다), `status`는 그
