@@ -1,19 +1,20 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Aelix Analytics record contract: analytics.project/2, analytics.event/2, analytics.report_revision/1, analytics.run/2, analytics.dataset/1",
-  "description": "ADR-0006 (docs/decisions/0006-common-record-contract.md), adopted 2026-10-03; analytics.run/2 and analytics.dataset/1 from the record writer design (docs/design/RECORD-WRITER-AND-MIGRATION.md 2.6 and 2.7, OQ5). No kit writes these families yet; kit 0.7.0 (Issue #13 PR 1) reads analytics.run/2 runs and analytics.dataset/1 import records under data/imported/, and lists analytics.event/2 records. Fields the contract does not name are allowed so that a reader keeps the optional fields a later writer adds. Kinds, reference types, relations, bases and bindings are closed: a reader reports a value outside them as unsupported and keeps the record. Rules a schema cannot state are in the ADR: Report file paths in NFC and distinct under casefold (section 7), request_id compared without case (section 8), the record_update transitions (section 6) and the digest of a reference equal to the hash its target record holds (section 3).",
+  "title": "Aelix Analytics record contract: analytics.project/2, analytics.event/2, analytics.report_revision/1, analytics.run/2, analytics.dataset/1, analytics.migration/1",
+  "description": "ADR-0006 (docs/decisions/0006-common-record-contract.md), adopted 2026-10-03; analytics.run/2 and analytics.dataset/1 from the record writer design (docs/design/RECORD-WRITER-AND-MIGRATION.md 2.6 and 2.7, OQ5). No kit writes these families yet; kit 0.7.0 (Issue #13 PR 1) reads analytics.run/2 runs and analytics.dataset/1 import records under data/imported/, and lists analytics.event/2 records. analytics.migration/1 is the copy migration's plan, mapping and report (design 2.7 and 6.3-6.8, Issue #13 PR 2), told apart by `record`: the migration engine writes them, analytics.project/2's optional `migration` binds the report by its sha256, and a migration's ledger lines (progress.jsonl, named by its plan) carry no family tag: migration_progress_line is their shape. Fields the contract does not name are allowed so that a reader keeps the optional fields a later writer adds. Kinds, reference types, relations, bases and bindings are closed: a reader reports a value outside them as unsupported and keeps the record. Rules a schema cannot state are in the ADR: Report file paths in NFC and distinct under casefold (section 7), request_id compared without case (section 8), the record_update transitions (section 6) and the digest of a reference equal to the hash its target record holds (section 3).",
   "type": "object",
   "required": ["schema"],
   "properties": {
     "schema": {"enum": ["analytics.project/2", "analytics.event/2", "analytics.report_revision/1", "analytics.run/2",
-                        "analytics.dataset/1"]}
+                        "analytics.dataset/1", "analytics.migration/1"]}
   },
   "allOf": [
     {"if": {"properties": {"schema": {"const": "analytics.project/2"}}}, "then": {"$ref": "#/$defs/project_2"}},
     {"if": {"properties": {"schema": {"const": "analytics.event/2"}}}, "then": {"$ref": "#/$defs/event_2"}},
     {"if": {"properties": {"schema": {"const": "analytics.report_revision/1"}}}, "then": {"$ref": "#/$defs/report_revision_1"}},
     {"if": {"properties": {"schema": {"const": "analytics.run/2"}}}, "then": {"$ref": "#/$defs/run_2"}},
-    {"if": {"properties": {"schema": {"const": "analytics.dataset/1"}}}, "then": {"$ref": "#/$defs/dataset_1"}}
+    {"if": {"properties": {"schema": {"const": "analytics.dataset/1"}}}, "then": {"$ref": "#/$defs/dataset_1"}},
+    {"if": {"properties": {"schema": {"const": "analytics.migration/1"}}}, "then": {"$ref": "#/$defs/migration_1"}}
   ],
   "$defs": {
     "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
@@ -27,6 +28,7 @@
     "content_path": {"type": "string", "pattern": "^(?!([Cc][Oo][Nn]|[Pp][Rr][Nn]|[Aa][Uu][Xx]|[Nn][Uu][Ll]|[Cc][Oo][Mm][1-9\u00b9\u00b2\u00b3]|[Ll][Pp][Tt][1-9\u00b9\u00b2\u00b3]|[Cc][Oo][Nn][Ii][Nn]\\$|[Cc][Oo][Nn][Oo][Uu][Tt]\\$) *([./]|$))[^/\\\\:*?\"<>|\\x00-\\x1f]*[^/\\\\:*?\"<>|\\x00-\\x1f. ](/(?!([Cc][Oo][Nn]|[Pp][Rr][Nn]|[Aa][Uu][Xx]|[Nn][Uu][Ll]|[Cc][Oo][Mm][1-9\u00b9\u00b2\u00b3]|[Ll][Pp][Tt][1-9\u00b9\u00b2\u00b3]|[Cc][Oo][Nn][Ii][Nn]\\$|[Cc][Oo][Nn][Oo][Uu][Tt]\\$) *([./]|$))[^/\\\\:*?\"<>|\\x00-\\x1f]*[^/\\\\:*?\"<>|\\x00-\\x1f. ])*$"},
     "actor_basis": {"enum": ["declared", "inferred"]},
     "means": {"enum": ["cli", "sdk", "tool", "command", "hook"]},
+    "migration_id": {"type": "string", "pattern": "^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$"},
     "digest": {
       "type": "object",
       "required": ["sha256"],
@@ -41,7 +43,15 @@
         "title": {"type": "string"},
         "created_at": {"$ref": "#/$defs/timestamp"},
         "min_writer_version": {"$ref": "#/$defs/kit_version"},
-        "kit_version": {"$ref": "#/$defs/kit_version"}
+        "kit_version": {"$ref": "#/$defs/kit_version"},
+        "migration": {
+          "description": "On a project a migration made (design 2.4): the report it wrote, bound by its sha256. A writer that writes the marker again keeps it as it is (design 4.8).",
+          "type": "object",
+          "required": ["id", "report", "report_sha256"],
+          "properties": {"id": {"$ref": "#/$defs/migration_id"},
+                         "report": {"type": "string", "pattern": "^\\.analytics/migration/[^/]+/report\\.json$"},
+                         "report_sha256": {"$ref": "#/$defs/sha256"}}
+        }
       }
     },
     "reference": {
@@ -304,6 +314,157 @@
           "properties": {"path": {"type": "string"}, "sha256": {"$ref": "#/$defs/sha256"}, "bytes": {"type": "integer", "minimum": 0},
                          "format": {"type": "string"}, "modified_at": {"$ref": "#/$defs/timestamp"}}
         }
+      }
+    },
+    "migration_1": {
+      "type": "object",
+      "required": ["schema", "record", "migration_id"],
+      "properties": {
+        "schema": {"const": "analytics.migration/1"},
+        "record": {"enum": ["plan", "mapping", "report"]},
+        "migration_id": {"$ref": "#/$defs/migration_id"}
+      },
+      "allOf": [
+        {"if": {"properties": {"record": {"const": "plan"}}}, "then": {"$ref": "#/$defs/migration_plan"}},
+        {"if": {"properties": {"record": {"const": "mapping"}}}, "then": {"$ref": "#/$defs/migration_mapping"}},
+        {"if": {"properties": {"record": {"const": "report"}}}, "then": {"$ref": "#/$defs/migration_report"}}
+      ]
+    },
+    "migration_path": {"type": "string", "minLength": 1},
+    "migration_folds": {
+      "type": "object",
+      "required": ["case", "normalization"],
+      "properties": {"case": {"type": "boolean"}, "normalization": {"type": "boolean"}}
+    },
+    "migration_excluded": {
+      "type": "array",
+      "items": {"type": "object", "required": ["path", "reason", "files", "bytes"],
+                "properties": {"reason": {"enum": ["environment", "workspace", "cache", "lock", "os_metadata"]},
+                               "files": {"type": "integer", "minimum": 0}, "bytes": {"type": "integer", "minimum": 0}}}
+    },
+    "migration_not_copied": {
+      "type": "array",
+      "items": {"type": "object", "required": ["path", "reason"],
+                "properties": {"reason": {"enum": ["git_worktree_pointer", "special_file", "link_to_root",
+                                                   "link_to_managed_directory", "inside_link_directory",
+                                                   "target_missing", "copied_elsewhere", "link_not_made"]}}}
+    },
+    "migration_links": {
+      "type": "array",
+      "items": {"type": "object", "required": ["path", "kind", "text", "target_real", "treatment"],
+                "properties": {"kind": {"enum": ["file", "directory"]}, "text": {"type": "string"},
+                               "target_real": {"$ref": "#/$defs/migration_path"},
+                               "target_spellings": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/migration_path"}},
+                               "treatment": {"enum": ["copied_as_file", "copied_as_directory"]}}}
+    },
+    "migration_warnings": {
+      "type": "array",
+      "items": {"type": "object", "required": ["path", "reason"],
+                "properties": {"reason": {"enum": ["git_worktree_pointer", "long_path", "unportable_name"]}}}
+    },
+    "migration_plan": {
+      "type": "object",
+      "required": ["project_id", "ledger", "source", "destination", "folds", "links_made", "directories", "files", "bytes",
+                   "excluded", "not_copied", "links", "reach", "warnings", "transforms"],
+      "properties": {
+        "project_id": {"$ref": "#/$defs/opaque_id"},
+        "ledger": {"const": "progress.jsonl"},
+        "folds": {"$ref": "#/$defs/migration_folds"},
+        "links_made": {"type": "boolean"},
+        "directories": {"type": "array", "items": {"$ref": "#/$defs/migration_path"}},
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["from", "to", "kind"],
+            "properties": {"kind": {"enum": ["file", "link"]}, "bytes": {"type": "integer", "minimum": 0},
+                           "temp": {"type": "string", "pattern": "^\\.mig-[0-9a-f]{8}-[0-9]+\\.part$"}},
+            "allOf": [
+              {"if": {"properties": {"kind": {"const": "file"}}}, "then": {"required": ["real", "bytes", "key", "temp"]}},
+              {"if": {"properties": {"kind": {"const": "link"}}}, "then": {"required": ["text", "dir"]}}
+            ]
+          }
+        },
+        "bytes": {"type": "integer", "minimum": 0},
+        "excluded": {"$ref": "#/$defs/migration_excluded"},
+        "not_copied": {"$ref": "#/$defs/migration_not_copied"},
+        "links": {"$ref": "#/$defs/migration_links"},
+        "reach": {"type": "array", "items": {"type": "object", "required": ["path", "via"]}},
+        "warnings": {"$ref": "#/$defs/migration_warnings"},
+        "transforms": {"type": "array", "items": {"type": "object", "required": ["path", "kind"],
+                                                  "properties": {"path": {"const": ".gitignore"}, "kind": {"const": "gitignore_append"}}}}
+      }
+    },
+    "migration_mapping": {
+      "type": "object",
+      "required": ["root", "prefixes", "renamed", "links", "kinds"],
+      "properties": {
+        "root": {"type": "object", "required": ["from", "to"],
+                 "properties": {"from": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/migration_path"}},
+                                "to": {"$ref": "#/$defs/migration_path"}}},
+        "prefixes": {"type": "array", "items": {"type": "object", "required": ["from", "to"]}},
+        "renamed": {"type": "array", "items": {"type": "object", "required": ["from", "to"]}},
+        "links": {"allOf": [{"$ref": "#/$defs/migration_links"},
+                            {"items": {"required": ["target_spellings"]}}]},
+        "kinds": {"type": "array", "items": {"type": "object", "required": ["from", "to", "where"]}}
+      }
+    },
+    "migration_report": {
+      "type": "object",
+      "required": ["kit_version", "started_at", "source_checked_at", "actor", "actor_basis", "means", "source", "destination",
+                   "files", "transformed", "added", "excluded", "not_copied", "links", "warnings", "leftover_temp", "mapping",
+                   "proposals", "checks", "notes", "timings"],
+      "properties": {
+        "kit_version": {"$ref": "#/$defs/kit_version"},
+        "started_at": {"$ref": "#/$defs/timestamp"},
+        "source_checked_at": {"$ref": "#/$defs/timestamp"},
+        "actor": {"type": "string", "minLength": 1},
+        "actor_basis": {"$ref": "#/$defs/actor_basis"},
+        "means": {"$ref": "#/$defs/means"},
+        "session": {"type": "string"},
+        "source": {
+          "type": "object",
+          "required": ["path", "spellings", "given", "marker", "journal", "inventory", "files", "bytes", "locks"],
+          "properties": {
+            "marker": {"type": "object", "required": ["file", "bytes", "sha256", "kept_at"],
+                       "properties": {"sha256": {"$ref": "#/$defs/sha256"}}},
+            "journal": {"type": "object", "required": ["bytes", "lines", "last_seq", "damaged", "recovered", "unsupported"]},
+            "inventory": {"type": "object", "required": ["before", "after"],
+                          "properties": {"before": {"$ref": "#/$defs/sha256"}, "after": {"$ref": "#/$defs/sha256"}}},
+            "locks": {"type": "object", "required": ["taken"]}
+          }
+        },
+        "destination": {"type": "object", "required": ["path", "project_id", "folds"],
+                        "properties": {"project_id": {"$ref": "#/$defs/opaque_id"}, "folds": {"$ref": "#/$defs/migration_folds"}}},
+        "files": {"type": "array", "items": {"type": "object", "required": ["path"],
+                                             "oneOf": [{"required": ["bytes", "sha256"], "properties": {"sha256": {"$ref": "#/$defs/sha256"}}},
+                                                       {"required": ["link"]}]}},
+        "transformed": {"type": "array", "items": {"type": "object", "required": ["path", "before", "after", "added", "diff"],
+                                                   "properties": {"before": {"$ref": "#/$defs/sha256"}, "after": {"$ref": "#/$defs/sha256"}}}},
+        "added": {"type": "array", "items": {"type": "object", "required": ["path", "sha256"],
+                                             "properties": {"sha256": {"$ref": "#/$defs/sha256"}}}},
+        "excluded": {"$ref": "#/$defs/migration_excluded"},
+        "not_copied": {"$ref": "#/$defs/migration_not_copied"},
+        "links": {"$ref": "#/$defs/migration_links"},
+        "warnings": {"$ref": "#/$defs/migration_warnings"},
+        "leftover_temp": {"type": "array", "items": {"$ref": "#/$defs/migration_path"}},
+        "mapping": {"type": "object", "required": ["path", "sha256"], "properties": {"sha256": {"$ref": "#/$defs/sha256"}}},
+        "proposals": {"type": "object"},
+        "checks": {"type": "object", "required": ["source_before_after", "copies", "compared"],
+                   "properties": {"source_before_after": {"const": "equal"}, "copies": {"const": "equal"}}},
+        "notes": {"type": "array", "items": {"type": "string"}},
+        "timings": {"type": "object"}
+      }
+    },
+    "migration_progress_line": {
+      "description": "A line of a migration's ledger, progress.jsonl (design 6.8): appended only, each written before what it names is made. A line that does not parse is a cut-off append and is skipped.",
+      "type": "object",
+      "required": ["step", "at"],
+      "properties": {
+        "step": {"enum": ["start", "probed", "locked", "plan", "begin", "direct_intent", "direct", "copied", "source_checked",
+                          "verified", "transform_begin", "transformed", "reported", "durable", "marker_begin", "committed",
+                          "trusted", "failed"]},
+        "at": {"$ref": "#/$defs/timestamp"}
       }
     }
   }

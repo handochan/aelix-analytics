@@ -99,11 +99,13 @@ DATASET_V1 = "lab.dataset/1"
 # The import record of the new writer (design 2.7): lab.dataset/1's fields, under data/imported/.
 DATASET_V2 = "analytics.dataset/1"
 REPORT_V1 = "analytics.report_revision/1"
+# A migration's plan, mapping and report (design 2.7 and 6.8), told apart by their `record`.
+MIGRATION_V1 = "analytics.migration/1"
 # Where import records are, each with the family it holds (design 2.3).
 IMPORT_DIRS = (("data/imported", DATASET_V2), ("data/raw", DATASET_V1))
 # ADR-0006 1.4: the family versions a reader of the contract knows.
 KNOWN = frozenset({"lab.project/1", RUN_V1, EVENT_V1, DATASET_V1, "analytics.project/2", EVENT_V2,
-                   REPORT_V1, RUN_V2, DATASET_V2})
+                   REPORT_V1, RUN_V2, DATASET_V2, MIGRATION_V1})
 FAMILIES = frozenset({name.rpartition("/")[0] for name in KNOWN})
 KINDS = {
     # The kinds the /1 writer accepts (core.EVENT_KINDS).

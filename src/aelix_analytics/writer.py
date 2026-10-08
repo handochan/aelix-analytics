@@ -2,7 +2,9 @@
 docs/design/RECORD-WRITER-AND-MIGRATION.md sections 3 and 4). Standard library only.
 
 - Which project format a directory holds (`marker_state`): its two markers, `analytics.json` and
-  `lab.json`, read afresh every time, nothing cached (design 4.3).
+  `lab.json`, read afresh every time, nothing cached (design 4.3); with neither, a migration's
+  record (`.analytics/migration/` or `.analytics/migration.lock`) makes it a migration's destination
+  that has not committed (`incomplete`, Issue #13 PR 2), which no kit writes to or reads.
 - Whether this kit writes there (`admit`): every write operation asks before its first side effect —
   a lock file, a directory, a cache, a log line included — and a journal write asks once more under
   the journal lock (core). A write it refuses raises; a side write of a read (`side=True`) is
@@ -91,8 +93,13 @@ WRITABLE = frozenset({LEGACY_PROJECT})
 PROJECT_FIELDS = ("schema", "project_id", "title", "created_at", "min_writer_version")
 
 # What a directory is, by its markers (design 4.3):
-NONE, LEGACY, CURRENT, UNKNOWN, INVALID, CONFLICT = (
-    "none", "legacy", "current", "unknown", "invalid", "conflict")
+NONE, LEGACY, CURRENT, UNKNOWN, INVALID, CONFLICT, INCOMPLETE = (
+    "none", "legacy", "current", "unknown", "invalid", "conflict", "incomplete")
+# What a migration leaves in its destination before the marker, its commit point (design 6.3): the
+# destination's lock and the migrations' own directories, each with its ledger (progress.jsonl).
+MIGRATION_DIR = ".analytics/migration"
+MIGRATION_LOCK = ".analytics/migration.lock"
+LEDGER = "progress.jsonl"
 
 
 @dataclass(frozen=True)
@@ -102,9 +109,10 @@ class MarkerState:
     `state` is one of NONE (no marker), LEGACY (lab.json: lab.project/1, no schema, or not readable
     as JSON), CURRENT (analytics.json: analytics.project/2 with its fields), UNKNOWN (a marker of
     another family or version), INVALID (an analytics.json that is not one, or a marker that could
-    not be read: `reason`) and CONFLICT (both markers). `marker` is the file judged (None for NONE and
-    CONFLICT), `schema` its `schema` when that is a string, `value` its JSON object when it is one,
-    and `details` what a refusal and the status overview say about it."""
+    not be read: `reason`), CONFLICT (both markers) and INCOMPLETE (no marker, and a migration's
+    record: a destination whose migration has not committed). `marker` is the file judged (None for
+    NONE, CONFLICT and INCOMPLETE), `schema` its `schema` when that is a string, `value` its JSON
+    object when it is one, and `details` what a refusal and the status overview say about it."""
 
     root: Path
     state: str
@@ -209,7 +217,65 @@ def marker_state(root) -> MarkerState:
         return _judge_marker(root, new[1], new[2])
     if old[0]:
         return _judge_legacy(root, old[1], old[2])
+    if migration_record(root):
+        return MarkerState(root, INCOMPLETE, details=migration_progress(root))
     return MarkerState(root, NONE)
+
+
+def _there(path: Path) -> bool:
+    """Whether an entry is at `path`, a link being itself; one that cannot be looked at counts."""
+    try:
+        os.lstat(path)
+    except (FileNotFoundError, NotADirectoryError, ValueError):
+        return False
+    except OSError:
+        return True
+    return True
+
+
+def migration_record(directory) -> bool:
+    """Whether `directory` holds a migration's record — `.analytics/migration/` or its lock
+    `.analytics/migration.lock` — which, without a marker, makes it a migration's destination that
+    has not committed (design 4.3, 6.10): such a directory is found as a project and refused."""
+    directory = Path(directory)
+    return _there(directory / MIGRATION_DIR) or _there(directory / MIGRATION_LOCK)
+
+
+# How much of one ledger a refusal reads to say how far its migration went.
+PROGRESS_BYTES = 4 << 20
+
+
+def migration_progress(root) -> dict:
+    """What a refusal and the status overview say of a destination that has not committed: each
+    migration directory under `.analytics/migration/` with the last step its ledger reached (lines
+    that do not parse are a cut-off append and skipped, design 6.8), the source its `start` line
+    names, and whether the destination's lock is there. Reads only; a ledger that cannot be read
+    says why."""
+    root = Path(root)
+    out: dict = {"lock": _there(root / MIGRATION_LOCK), "migrations": []}
+    try:
+        names = sorted(entry.name for entry in os.scandir(root / MIGRATION_DIR))
+    except OSError:
+        names = []
+    for name in names:
+        item: dict = {"id": name, "step": None}
+        try:
+            with open(root / MIGRATION_DIR / name / LEDGER, "rb") as fh:
+                data = fh.read(PROGRESS_BYTES)
+        except OSError as exc:
+            item["unreadable"] = f"{type(exc).__name__}: {exc}"
+            out["migrations"].append(item)
+            continue
+        for raw in data.split(b"\n"):
+            value, parsed = _parse(raw) if raw.strip() else (None, False)
+            if not parsed or not isinstance(value, dict):
+                continue
+            if value.get("step") == "start" and isinstance(value.get("source"), dict):
+                item["source"] = value["source"].get("path")
+            if isinstance(value.get("step"), str):
+                item["step"] = value["step"]
+        out["migrations"].append(item)
+    return out
 
 
 def _invalid(root: Path, marker: str, reason: str, value=None, schema=None, **details) -> MarkerState:
@@ -270,10 +336,12 @@ def present_marker(directory) -> bool:
 
 def find_project(start: Path) -> Path | None:
     """The nearest directory at or above `start` (a real path) that holds a marker, analytics.json or
-    lab.json, whatever it holds: the first one up from `start` decides, so a directory with an
-    analytics.json below a lab.json project is that directory, never the project above it."""
+    lab.json, whatever it holds, or a migration's record without one (migration_record): the first
+    one up from `start` decides, so a directory with an analytics.json below a lab.json project is
+    that directory, never the project above it, and so is a migration's destination that has not
+    committed (Issue #13 PR 2)."""
     for candidate in (start, *start.parents):
-        if present_marker(candidate):
+        if present_marker(candidate) or migration_record(candidate):
             return candidate
     return None
 
@@ -323,6 +391,15 @@ def refusal(state: MarkerState, op: str, *, writer_version: str,
         return AnalyticsError("marker_invalid", f"{where} is not a valid project marker: "
                               f"{_reason_text(state)} ({op} refused)",
                               hint=_invalid_hint(state), details=dict(state.details))
+    if state.state == INCOMPLETE:
+        return AnalyticsError("migration_incomplete",
+                              f"{root} is the destination of a migration that has not finished: it "
+                              f"has no {MARKER} yet ({op} refused)",
+                              hint="a migration is copying a lab.json project here, and until it "
+                                   f"commits (writing {MARKER} last) no kit writes or reads here. "
+                                   "Running the same migration again resumes it; the details say "
+                                   "which migration it is and how far it went",
+                              details=dict(state.details))
     return AnalyticsError("marker_conflict",
                           f"{root} holds two project markers, {MARKER} and {LEGACY_MARKER} "
                           f"({op} refused)",
@@ -380,12 +457,13 @@ def admit(root, op: str, *, side: bool = False, writer_version: str,
 
 
 def readable(root, op: str) -> MarkerState:
-    """Judge the directory `root` for the read `op`: every marker state but NONE (no_project) and
+    """Judge the directory `root` for the read `op`: every marker state but NONE (no_project),
     CONFLICT (marker_conflict: which format to read it as cannot be told, and the kit does not
-    choose). A read of a marker this kit does not write, does not know, or cannot read goes on with
-    the records it knows (the status overview says which marker it is)."""
+    choose) and INCOMPLETE (migration_incomplete: a copy not finished, whose details say how far its
+    migration went). A read of a marker this kit does not write, does not know, or cannot read goes
+    on with the records it knows (the status overview says which marker it is)."""
     state = marker_state(root)
-    if state.state in (NONE, CONFLICT):
+    if state.state in (NONE, CONFLICT, INCOMPLETE):
         raise refusal(state, op, writer_version="", writable=frozenset())
     return state
 

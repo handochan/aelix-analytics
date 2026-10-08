@@ -38,6 +38,7 @@ from .writer import AnalyticsError as AnalyticsError
 from .writer import Origin as Origin
 from .writer import append_jsonl as append_jsonl
 from .writer import classify_refs as classify_refs
+from .writer import migration_record as migration_record
 from .writer import present_marker as present_marker
 
 KIT_VERSION = "0.7.0"
@@ -1550,6 +1551,14 @@ def read_model(project: Project, cache: HashCache | None = None) -> relations.Re
                           legacy_path=project.legacy_identity)
 
 
+def _record_path(text) -> bool:
+    """Whether `text` names a file below a project's root as a migration records it: relative,
+    POSIX, without an empty, `.` or `..` part."""
+    return (isinstance(text, str) and bool(text) and "\\" not in text and "\x00" not in text
+            and not os.path.isabs(text) and not PureWindowsPath(text).drive
+            and all(part not in ("", ".", "..") for part in text.split("/")))
+
+
 def resolved_targets(events) -> dict[str, dict]:
     """Event id -> the later event that resolved it (refs.resolves)."""
     out = {}
@@ -2917,6 +2926,9 @@ def _refs_suffix(event: dict) -> str:
 # --- project creation ---
 
 TEMPLATE_FILES = ("CONTEXT.md", "pyproject.toml", "gitignore", "gitattributes")
+# The names a directory init takes as empty may hold at its top, and so may a migration's
+# destination (design 6.2: the same constant): Finder makes one where a folder was only looked at.
+EMPTY_DIRECTORY_NAMES = (".DS_Store",)
 
 
 def init_project(target, *, title=None, goal=None, template_dir=None, origin: Origin,
@@ -2932,7 +2944,7 @@ def init_project(target, *, title=None, goal=None, template_dir=None, origin: Or
     if root.exists():
         if not root.is_dir():
             raise AnalyticsError("init_not_directory", f"{root} exists and is not a directory")
-        leftovers = [p.name for p in root.iterdir() if p.name not in (".DS_Store",)]
+        leftovers = [p.name for p in root.iterdir() if p.name not in EMPTY_DIRECTORY_NAMES]
         if leftovers:
             raise AnalyticsError("init_not_empty", f"{root} is not empty",
                                  hint="choose a new directory; init never adopts existing files",

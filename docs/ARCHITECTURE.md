@@ -319,8 +319,9 @@ N0의 명칭·기본 언어 전환을 A0의 경계 정리와 조율한다. 현�
 | `core` | 2 | 도메인·공유 응용(아직 나뉘지 않음, §2) | `src/aelix_analytics/core.py` | `ports`, `read_model`, `writer` | stdlib |
 | `runtime` | 3 | 실행·캡처·데이터 어댑터와 데모 채우기(§9 `runtime/`) | `src/aelix_analytics/runner.py`, `src/aelix_analytics/capture.py`, `src/aelix_analytics/data.py`, `src/aelix_analytics/demo.py` | `core`, `ports`, `read_model`, `runtime`, `writer` | stdlib, 분석 |
 | `workspace` | 3 | Workspace 렌더러(§5 `WorkspaceRenderer`) | `src/aelix_analytics/workspace.py` | `core`, `ports`, `read_model`, `writer` | stdlib, 분석, 표시 |
+| `migration` | 3 | `lab.json` 프로젝트를 새 형식으로 옮기는 복사 전환(#13) | `src/aelix_analytics/migration.py` | `core`, `ports`, `read_model`, `writer` | stdlib |
 | `sdk` | 4 | 스크립트 API 진입점 | `src/aelix_analytics/__init__.py` | `core`, `ports`, `read_model`, `runtime`, `workspace`, `writer` | stdlib, 분석 |
-| `kit_entry` | 4 | 프로젝트 환경의 kit 명령줄 진입점 | `src/aelix_analytics/__main__.py` | `core`, `ports`, `read_model`, `runtime`, `workspace`, `writer` | stdlib, 분석 |
+| `kit_entry` | 4 | 프로젝트 환경의 kit 명령줄 진입점 | `src/aelix_analytics/__main__.py` | `core`, `migration`, `ports`, `read_model`, `runtime`, `workspace`, `writer` | stdlib, 분석 |
 | `launcher` | 4 | 사람용 `analytics`(호스트 쪽, 3.11) | `src/aelix_analytics/cli.py` | `distribution`, `ports` | stdlib |
 | `host_adapter` | 4 | Aelix 어댑터(aelix 프로세스 안) | `extension/aelix_analytics.py` | `distribution`, `core`, `ports`, `read_model` | stdlib, 호스트 |
 | `user_scripts` | 5 | 프로젝트에 복사되는 예제 사용자 스크립트 | `src/aelix_analytics/demo_scripts/*.py` | `sdk` | stdlib, 분석 |
@@ -329,6 +330,10 @@ N0의 명칭·기본 언어 전환을 A0의 경계 정리와 조율한다. 현�
 writer → core의 순환을 잡지 못한다), 그래서 `core` 이상의 수준이 하나씩 올랐다([설계](design/RECORD-WRITER-AND-MIGRATION.md) 3.2절).
 aelix 프로세스의 확장은 writer를 직접 import하지 않고 `core`가 다시 내보낸 이름(`core.AnalyticsError`·`core.Origin`·`core.present_marker` 등)을 쓴다. `writer.py`는
 `core.py`의 형제로 합성 package에서 함께 로드된다.
+
+`migration`은 #13의 둘째 구현 PR(②)이 더했다. `core` 위 수준 3의 계층이라 `core`·`writer`·`ports`·`read_model`만 쓰고 stdlib뿐이며,
+`core`가 import하지 않으므로 aelix 프로세스는 로드하지 않는다. 그것을 부를 진입점은 kit 명령줄(`kit_entry`)이고, 명령 `analytics migrate`는
+셋째 PR(③)이 연다. 그때까지 엔진은 시험에서만 돈다([설계](design/RECORD-WRITER-AND-MIGRATION.md) 3.2·10절).
 
 외부 모듈은 아래 분류로 나눈다(`EXTERNAL`). 분류에 없는 서드파티는 위반이다.
 
@@ -352,7 +357,8 @@ aelix 프로세스의 확장은 writer를 직접 import하지 않고 `core`가 �
 - `import-time`: aelix가 설치본 확장을 로드할 때 실행되는 `src/aelix_analytics/__init__.py`의 모듈 수준은 stdlib만 가져온다. 선언한 동적 로드도
   같다(함수 안은 `sdk` 계층의 규칙).
 - `dynamic-load`: 로더의 사용은 `DYNAMIC_LOADS`에 (파일, 함수, 로더)로 무엇을 로드하는지 선언한다(확장 → `core`, 런처 → `_platform`,
-  `capture`의 import hook은 로드하는 것이 없음). 선언은 그 함수 안의 로드 하나를 덮는다: 그 함수가 로더를 한 번만 쓰고, 함수의 문자열이
+  `capture`의 import hook과, 전환의 스크립트 제안이 옛 SDK의 동적 import를 찾으려고 로더 이름을 적는 `migration._imports_by_name`은
+  로드하는 것이 없음). 선언은 그 함수 안의 로드 하나를 덮는다: 그 함수가 로더를 한 번만 쓰고, 함수의 문자열이
   선언한 파일을 파일 이름(`"core.py"`)이나 점 이름(`"aelix_analytics.core"`)으로 가리키며 패키지의 다른 모듈은 가리키지 않아야 한다. 그러면
   그 파일을 import처럼 판정한다. 선언은 표의 예외가 아니라 의도한 간선(확장의 `core` 로드는 ADR-0003 결정 3)의 기재라 제거 조건이 없다.
   표가 허용하지 않는 간선이면 허용 목록에 따로 올린다.
@@ -378,11 +384,12 @@ aelix 프로세스의 확장은 writer를 직접 import하지 않고 `core`가 �
 기존 계층에 맞지 않는 책임이면 계층을 더하는 것이 그 PR의 설계 결정이고 `LAYERS`와 표에 수준·허용 계층·외부 분류를 함께 적는다.
 표가 허용하지 않는 import는 먼저 의존을 뒤집거나(진입점이 값을 넘김) 코드를 옮기고, 그래도 남기면 `ALLOWLIST`와 위 표에 그 import가 있는
 함수, 이유와 제거 조건을 적는다. 새 외부 라이브러리는 `EXTERNAL`에 분류를 적는다. #12의 `relations`는 #43이 등록했고, #13(공통 writer)부터는 자기 모듈을 등록한다.
-#13의 `writer`는 첫 구현 PR(①)이 위 표에 등록했고, 전환 엔진 `migration`(수준 3, [기록 writer와 프로젝트 전환 설계](design/RECORD-WRITER-AND-MIGRATION.md)
-3절)은 둘째 PR(②)이 등록한다.
+#13의 `writer`는 첫 구현 PR(①)이, 전환 엔진 `migration`(수준 3, [기록 writer와 프로젝트 전환 설계](design/RECORD-WRITER-AND-MIGRATION.md)
+3절)은 둘째 PR(②)이 위 표에 등록했다.
 
 교체 가능한 구현의 공통 계약 시험은 `tests/test_contracts.py`다. 지금 대상은 플랫폼 포트 넷의 세 구현(POSIX·Windows·시험 adapter)이고,
-포트의 계약과 조립(주입한 구현만 쓰이고 기록이 같음)을 같은 사례로 확인한다. 새 구현은 그 파일의 구현 표에 지원 능력과 함께 등록한다.
+포트의 계약과 조립(주입한 구현만 쓰이고 기록이 같음)을 같은 사례로 확인한다. #13의 둘째 PR이 포트 안에 전환의 메서드 넷 —
+`FileLocks.try_exclusive`, `AtomicFiles.publish_new`·`flush_handle`·`flush_dir` — 을 더하며 그 사례와 전환의 조립 사례를 같은 파일에 더했다. 새 구현은 그 파일의 구현 표에 지원 능력과 함께 등록한다.
 정책 Strategy(#17의 `ProposalPolicy`, #20의 `PublicationProjection`)는 자기 구현 표와 사례를 같은 형태로 더한다.
 
 ## 참고와 적용 범위
