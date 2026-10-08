@@ -1414,6 +1414,9 @@ def _append_event_locked(project: Project, kind: str, text: str, refs=None, acto
       highest seq of every parsed and recovered line, unsupported ones included, wherever that line
       is. A seq left in a cut-off line is not counted: that write never finished, so it never
       returned an id, and the reader reads no id from that line.
+    - A number whose id a readable line already holds is skipped, so no id is read on two lines.
+      Only a hand-edited line holds one: its seq is not an integer the reader counts ("3", 3.0,
+      true) or is not its id's number.
     - A journal whose last byte is not LF ends in a line an interrupted write cut off, or in a
       record left without its line end: an LF is written first, so the new record is a line of its
       own. The bytes already there stay as they are: a cut-off line is reported as damaged, and a
@@ -1421,8 +1424,11 @@ def _append_event_locked(project: Project, kind: str, text: str, refs=None, acto
 
     A journal that ends in LF, or is empty, gets the record and its LF and nothing more, as before."""
     data = _journal_bytes(project.journal)
-    seq = relations.Journal(data).next_seq
-    event = {"schema": SCHEMA_EVENT, "seq": seq, "id": f"e{seq}", "ts": iso(), "kind": kind,
+    journal = relations.Journal(data)
+    seq = journal.next_seq
+    while f"e{seq}" in journal.lines_of:
+        seq += 1
+    event ={"schema": SCHEMA_EVENT, "seq": seq, "id": f"e{seq}", "ts": iso(), "kind": kind,
              "actor": actor or "agent", "text": (text or "").strip()[:MAX_EVENT_TEXT],
              "refs": {k: v for k, v in (refs or {}).items() if v not in (None, [], "", {})}}
     if session:

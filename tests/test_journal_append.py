@@ -2,8 +2,8 @@
 
 Every journal write of the kit (core._append_event_locked: notes, imports, runs, context versions,
 init) takes its seq from relations.Journal.next_seq — one above the highest seq of every parsed and
-recovered line, unsupported ones included — and writes an LF first when the journal's last byte is
-not one. The bytes already in the journal are never rewritten: a cut-off line stays as it is and the
+recovered line, unsupported ones included, skipping a number whose id a hand-edited readable line
+already holds — and writes an LF first when the journal's last byte is not one. The bytes already in the journal are never rewritten: a cut-off line stays as it is and the
 reader reports it as damaged. A seq left in a cut-off line is not counted (that write never returned
 an id), so the reader reads every id once. CRLF lines stay CRLF and new records are LF (ADR-0007).
 """
@@ -162,6 +162,33 @@ def test_the_next_seq_is_one_above_the_highest_seq_any_readable_line_holds(tmp_p
     event_ = core.add_note(p, "note", "next", actor="test")
     assert event_["id"] == "e21"
     assert relations.read_journal(p.root).lines_of["e21"] == [9]
+
+
+# Hand-edited last lines the reader reads with their id but whose seq it does not count as that id's
+# number: a seq that is not an integer, or an id ahead of its seq. (seq, id, the next record's id)
+HAND_EDITED = {
+    "seq_string": ("3", "e3", "e4"),
+    "seq_float": (3.0, "e3", "e4"),
+    "seq_bool": (True, "e3", "e4"),
+    "id_ahead_of_seq": (3, "e4", "e5"),
+}
+
+
+@pytest.mark.parametrize("seq, id_, next_id", HAND_EDITED.values(), ids=HAND_EDITED)
+def test_a_number_whose_id_a_readable_line_holds_is_skipped(tmp_path, seq, id_, next_id):
+    """The kit before #49 numbered from the last line's seq through int() and gave "3" or 3.0 the
+    next id e4. relations.Journal counts integer seqs only, so its next seq alone would give e3
+    again and the reader would read e3 on two lines: the writer skips every id a readable line holds."""
+    p = _project(tmp_path)  # e1, e2
+    _append(p, _line({"schema": "lab.event/1", "seq": seq, "id": id_, "ts": "2026-10-08T09:00:00.000+09:00",
+                      "kind": "note", "actor": "human", "text": "hand-edited", "refs": {}}))
+    first = core.add_note(p, "note", "after the hand-edited line", actor="test")
+    second = core.add_note(p, "note", "and the next", actor="test")
+    assert first["id"] == next_id and second["seq"] == first["seq"] + 1
+    journal = relations.read_journal(p.root)
+    assert journal.damaged == [] and all(len(lines) == 1 for lines in journal.lines_of.values())
+    assert journal.lines_of[first["id"]] == [4] and journal.lines_of[second["id"]] == [5]
+    assert core.status(p)["shared_ids"] == {}
 
 
 @pytest.mark.parametrize("case, seq, line", [("interrupted", 6, 7), ("mixed-version", 10, 11)])
