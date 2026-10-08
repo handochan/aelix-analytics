@@ -1548,10 +1548,19 @@ def read_model(project: Project, cache: HashCache | None = None) -> relations.Re
     recorded as today's identity paths (inferred, ADR-0006 9) — in a project a migration made,
     through the mapping it recorded first (design 5.4, migration_mapping)."""
     cache = cache or HashCache(project)
-    mapping, _ = project_migration(project)
-    legacy = project.legacy_identity if mapping is None else mapped_identity(project, mapping)
+    if project.marker_state().state != writer.CURRENT:  # no migration's mapping: judged once
+        return relations.read(project.root, alive=project.platform.processes.alive, sha=cache.sha,
+                              legacy_path=project.legacy_identity)
+
+    def frame():
+        # Read again for each attempt of the read, and part of its source_revision: a mapping
+        # removed, changed or bound anew changes what the read is.
+        mapping, _info, state = _project_migration(project)
+        legacy = project.legacy_identity if mapping is None else mapped_identity(project, mapping)
+        return legacy, state
+
     return relations.read(project.root, alive=project.platform.processes.alive, sha=cache.sha,
-                          legacy_path=legacy)
+                          frame=frame)
 
 
 # --- the mapping of a migrated project (Issue #13 PR 2, design 5.4 and 6.7) ---
@@ -1639,39 +1648,54 @@ def migration_mapping(root, marker) -> tuple[MigrationMapping | None, dict | Non
     """(the mapping to read an older kit's paths through, or None; what the status overview says of
     it, or None) for a project whose marker `marker` (its JSON object) holds a `migration` field
     (design 2.4 and 5.4): the report the marker binds by its sha256, and the mapping the report
-    binds by its sha256. A report or a mapping that is missing or whose bytes changed is not read,
-    and no path is mapped through it: the overview says why (`applied: false`, `reason`)."""
+    binds by its sha256 — the three of one migration (its id in each, the report and the mapping in
+    that migration's directory). A report or a mapping that is missing or whose bytes changed is not
+    read, and no path is mapped through it: the overview says why (`applied: false`, `reason`)."""
+    mapping, info, _ = _migration_mapping(root, marker)
+    return mapping, info
+
+
+def _migration_mapping(root, marker) -> tuple[MigrationMapping | None, dict | None, list | None]:
+    """migration_mapping, and what a read made through it is made of (part of its source_revision):
+    the marker's `migration` field and the mapping's sha256 the report binds, with the overview."""
     field = marker.get("migration") if isinstance(marker, dict) else None
     if field is None:
-        return None, None
+        return None, None, None
+    mapping, info, bound = _migration_mapping_of(Path(root), field)
+    return mapping, info, [field, bound, info]
+
+
+def _migration_mapping_of(root: Path, field) -> tuple[MigrationMapping | None, dict, str | None]:
     info: dict = {"applied": False}
     if not isinstance(field, dict) or not all(isinstance(field.get(k), str)
                                               for k in ("id", "report", "report_sha256")):
-        return None, {**info, "reason": "invalid"}
+        return None, {**info, "reason": "invalid"}, None
     info = {"id": field["id"], "report": field["report"], **info}
-    if not _record_path(field["report"]):
-        return None, {**info, "reason": "invalid"}
-    root = Path(root)
+    own = f"{writer.MIGRATION_DIR}/{field['id']}"
+    if not _record_path(field["id"]) or "/" in field["id"] or field["report"] != f"{own}/report.json":
+        return None, {**info, "reason": "invalid"}, None
     report, problem = _bound_json(root, field["report"], field["report_sha256"])
     if problem:
         return None, {**info, "reason": "report_" + problem if problem in ("missing", "changed")
-                      else problem}
+                      else problem}, None
     bound = report.get("mapping")
     if report.get("schema") != "analytics.migration/1" or report.get("record") != "report" \
-            or not isinstance(bound, dict) or not _record_path(bound.get("path")) \
+            or report.get("migration_id") != field["id"] \
+            or not isinstance(bound, dict) or bound.get("path") != f"{own}/mapping.json" \
             or not isinstance(bound.get("sha256"), str):
-        return None, {**info, "reason": "invalid"}
+        return None, {**info, "reason": "invalid"}, None
     info["mapping"] = bound["path"]
     value, problem = _bound_json(root, bound["path"], bound["sha256"])
     if problem:
         return None, {**info, "reason": "mapping_" + problem if problem in ("missing", "changed")
-                      else problem}
+                      else problem}, bound["sha256"]
     try:
         source_root = value["root"]["from"]
         links = [(spelling, link["path"]) for link in value.get("links") or []
                  for spelling in (link["target_real"], *(link.get("target_spellings") or []))]
         prefixes = [(p["from"], p["to"]) for p in value.get("prefixes") or []]
         if value.get("schema") != "analytics.migration/1" or value.get("record") != "mapping" \
+                or value.get("migration_id") != field["id"] \
                 or not isinstance(source_root, list) \
                 or not all(isinstance(t, str) and t for pair in links for t in pair) \
                 or not all(isinstance(t, str) and t for t in source_root) \
@@ -1679,17 +1703,22 @@ def migration_mapping(root, marker) -> tuple[MigrationMapping | None, dict | Non
                            for pair in prefixes for t in pair):
             raise TypeError("not a mapping")
     except (KeyError, TypeError, AttributeError):
-        return None, {**info, "reason": "invalid"}
-    return MigrationMapping(source_root, links, prefixes), {**info, "applied": True}
+        return None, {**info, "reason": "invalid"}, bound["sha256"]
+    return MigrationMapping(source_root, links, prefixes), {**info, "applied": True}, bound["sha256"]
 
 
 def project_migration(project: Project) -> tuple[MigrationMapping | None, dict | None]:
     """migration_mapping for the project's marker as it is now: only an analytics.project/2 marker
     (writer.CURRENT) holds a migration this reader knows."""
+    mapping, info, _ = _project_migration(project)
+    return mapping, info
+
+
+def _project_migration(project: Project) -> tuple[MigrationMapping | None, dict | None, list | None]:
     state = project.marker_state()
     if state.state != writer.CURRENT:
-        return None, None
-    return migration_mapping(project.root, state.value)
+        return None, None, None
+    return _migration_mapping(project.root, state.value)
 
 
 def resolved_targets(events) -> dict[str, dict]:

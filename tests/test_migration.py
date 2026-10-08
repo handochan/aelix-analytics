@@ -272,7 +272,8 @@ def assert_committed(dest: Path, source: Path | None = None, *, trusted: bool = 
             assert not list(LINE.iter_errors(value)), value
     read = migration.Ledger.read(own)
     assert read.committed and (read.trusted or not read.lines[-1]["step"] == "trusted")
-    leftovers = [p for p in tree(dest) if os.path.basename(p).endswith(".part")]
+    copied = {f.get("to") or f["path"] for f in report["files"]}
+    leftovers = [p for p in tree(dest) if os.path.basename(p).endswith(".part") and p not in copied]
     assert leftovers == [f for f in report["leftover_temp"]], leftovers
     assert core.is_trusted(dest) or not trusted
     if source is not None:
@@ -1410,3 +1411,287 @@ def test_a_link_made_where_a_planned_folder_goes_is_not_followed(tmp_path):
     error = refused("destination_mismatch", lambda: migrate(source, dest, on_step=on_step))
     assert error.details == {"reason": "occupied", "path": "scripts"}
     assert list(elsewhere.iterdir()) == []
+
+
+# --- links where the migration keeps its records, and the names it chooses (S1, S6) -------------------
+
+@pytest.mark.parametrize("where", [".analytics", ".analytics/migration", "migration_dir", "ledger"])
+def test_a_link_where_the_migration_keeps_its_records_is_never_followed(tmp_path, where):
+    """S1, design 6.3: a link (to an empty folder or a file of the source) at .analytics/,
+    .analytics/migration/, a migration's directory or its ledger: destination_invalid
+    (managed_link) before anything is written, for the call and its dry run — the source and the
+    link's target as they were."""
+    source = plain_source(tmp_path)
+    (source / "empty").mkdir()
+    dest = tmp_path / "dest"
+    if where in (".analytics", ".analytics/migration"):
+        (dest / where).parent.mkdir(parents=True, exist_ok=True)
+        os.symlink(str(source / "empty"), dest / where, target_is_directory=True)
+    else:
+        interrupt(source, dest, {"step": "plan"})
+        directory = mdir(dest)
+        if where == "migration_dir":
+            moved = tmp_path / "moved"
+            shutil.move(str(directory), str(moved))
+            os.symlink(str(moved), directory, target_is_directory=True)
+        else:
+            (source / "progress.jsonl").write_bytes((directory / "progress.jsonl").read_bytes())
+            os.unlink(directory / "progress.jsonl")
+            os.symlink(str(source / "progress.jsonl"), directory / "progress.jsonl")
+    before, dest_before = source_tree(source), tree(dest)
+    for kwargs in ({}, {"dry_run": True}):
+        error = refused("destination_invalid", lambda k=kwargs: migrate(source, dest, **k))
+        assert error.details["reason"] == "managed_link", error.details
+    assert source_tree(source) == before, "S1"
+    assert tree(dest) == dest_before
+
+
+def test_a_link_planted_at_the_migration_s_own_temporary_names_is_never_written_through(tmp_path):
+    """S1 (Codex #1): a link at the name a file of the migration's own directory is written through
+    (mapping.json.tmp) and at a copy's temporary name, each leading to a read-only file of the
+    source: the resumed migration removes the links as links and commits; the source's bytes and
+    modes are as they were."""
+    source = _copy_source(tmp_path)
+    (source / "payload.csv").write_bytes(b"source bytes\n")
+    os.chmod(source / "payload.csv", stat.S_IREAD)
+    try:
+        dest = tmp_path / "dest"
+        interrupt(source, dest, {"step": "temp_partial", "path": "scripts/s1.py"})
+        read = ledger(dest)
+        temp = dest / "scripts" / read.begun["scripts/s1.py"]["temp"]
+        os.unlink(temp)
+        os.symlink(str(source / "payload.csv"), temp)
+        os.symlink(str(source / "payload.csv"), mdir(dest) / "mapping.json.tmp")
+        before = source_tree(source)
+        mode = stat.S_IMODE(os.stat(source / "payload.csv").st_mode)
+        migrate(source, dest)
+        assert source_tree(source) == before, "S1"
+        assert stat.S_IMODE(os.stat(source / "payload.csv").st_mode) == mode
+        assert not os.path.lexists(temp)
+        report = assert_committed(dest, source)
+        assert not os.path.islink(mdir(dest) / "mapping.json")
+        assert report["mapping"]["sha256"] == hashlib.sha256(
+            (mdir(dest) / "mapping.json").read_bytes()).hexdigest()
+    finally:
+        os.chmod(source / "payload.csv", stat.S_IREAD | stat.S_IWRITE)
+
+
+@pytest.mark.parametrize("name", [".mig-gitignore-0.part", ".analytics-json-0.part"])
+def test_a_source_file_named_like_a_temporary_file_of_the_migration_is_copied(tmp_path, name):
+    """design 6.3 step 5, 6.4, T2 (Codex #3): the .gitignore transform's and the marker's temporary
+    names are chosen apart from the plan's names, so a source file named like one is a copy like any
+    other — committed in one call, in the report, the same when called again."""
+    source = plain_source(tmp_path)
+    (source / name).write_bytes(b"a user's file with this name\n")
+    dest = tmp_path / "dest"
+    result = migrate(source, dest)
+    assert result["ok"] and not result["already_migrated"]
+    report = assert_committed(dest, source)
+    assert (dest / name).read_bytes() == b"a user's file with this name\n"
+    assert any(f["path"] == name for f in report["files"])
+    again = migrate(source, dest)
+    assert again["already_migrated"] and again["differs"] == []
+
+
+def test_a_temporary_name_something_else_made_first_is_not_this_migration_s(tmp_path):
+    """S6 (Codex #3): something makes a file at the temporary name a `begin` line gave before the
+    migration makes it: destination_mismatch (occupied) at that name, the file kept; called again,
+    the same refusal and the file kept; once a person removes it, the migration goes on."""
+    source = _copy_source(tmp_path)
+    dest = tmp_path / "dest"
+    taken = []
+
+    def on_step(name, info):
+        if name == "begin" and info.get("path") == "scripts/s2.py":
+            path = dest / "scripts" / info["temp"]
+            path.write_bytes(b"theirs")
+            taken.append(path)
+
+    error = refused("destination_mismatch", lambda: migrate(source, dest, on_step=on_step))
+    [path] = taken
+    assert error.details == {"reason": "occupied", "path": f"scripts/{path.name}"}
+    assert ledger(dest).foreign == {f"scripts/{path.name}"}
+    error = refused("destination_mismatch", lambda: migrate(source, dest))
+    assert error.details == {"reason": "occupied", "path": f"scripts/{path.name}"}
+    assert path.read_bytes() == b"theirs"
+    path.unlink()
+    migrate(source, dest)
+    assert_committed(dest, source)
+
+
+# --- step 8 and step 7 compare everything (S3-S5) -----------------------------------------------------
+
+@pytest.mark.parametrize("when", ["after_source_checked", "before_verify"])
+def test_a_copy_removed_before_the_verification_is_refused(tmp_path, when):
+    """design 6.3 step 8, 6.10 (Codex #4): a copy removed after the source was checked (then resumed
+    without the source) or within the call before step 8: destination_mismatch (unaccounted) with
+    the path missing, no marker, nothing removed."""
+    source = _copy_source(tmp_path)
+    dest = tmp_path / "dest"
+    if when == "after_source_checked":
+        interrupt(source, dest, {"step": "source_checked"})
+        os.unlink(dest / "scripts" / "s1.py")
+        before = tree(dest)
+        error = refused("destination_mismatch", lambda: migrate(None, dest))
+        assert tree(dest) == before, "nothing removed, nothing written"
+        dry = refused("destination_mismatch", lambda: migrate(None, dest, dry_run=True))
+        assert dry.details["state"] == "refused" and dry.details["missing"] == ["scripts/s1.py"]
+    else:
+        def on_step(name, info):
+            if name == "rechecking":
+                os.unlink(dest / "scripts" / "s1.py")
+
+        error = refused("destination_mismatch", lambda: migrate(source, dest, on_step=on_step))
+    assert error.details["reason"] == "unaccounted" and error.details["missing"] == ["scripts/s1.py"]
+    assert_uncommitted(dest)
+
+
+@pytest.mark.parametrize("change", ["outside_link_removed", "empty_folder_added", "link_retargeted"])
+def test_a_change_in_the_source_s_list_under_the_copy_is_source_changed(tmp_path, change):
+    """S5, design 6.3 step 7 (Codex #5): an outside link removed, an empty folder added, an outside
+    link led elsewhere — just before the source is checked again: source_changed, no marker."""
+    source = _copy_source(tmp_path)
+    for name in ("ext", "ext2"):
+        (tmp_path / name).mkdir()
+        (tmp_path / name / "x.csv").write_bytes(b"x")
+    os.symlink(str(tmp_path / "ext"), source / "linked", target_is_directory=True)
+    dest = tmp_path / "dest"
+
+    def on_step(name, info):
+        if name != "rechecking":
+            return
+        if change == "outside_link_removed":
+            os.unlink(source / "linked")
+        elif change == "empty_folder_added":
+            (source / "new-folder").mkdir()
+        else:
+            os.unlink(source / "linked")
+            os.symlink(str(tmp_path / "ext2"), source / "linked", target_is_directory=True)
+
+    error = refused("source_changed", lambda: migrate(source, dest, on_step=on_step))
+    expected = "new-folder" if change == "empty_folder_added" else "linked"
+    assert expected in error.details["paths"], error.details
+    assert_uncommitted(dest)
+
+
+@pytest.mark.skipif(not POSIX or ROOT_USER, reason="a folder's write permission: POSIX, not as root")
+def test_a_read_only_folder_cut_while_a_file_of_it_is_copied_resumes(tmp_path):
+    """F5 in a read-only folder: the resumed call copies the file again, removes the earlier
+    temporary file while the folder is writable, then gives the folder its mode — and commits."""
+    p = LegacyProject(tmp_path / "src")
+    p.file("ro/a.bin", b"a")
+    p.file("ro/big.bin", os.urandom(3 * migration.CHUNK))
+    p.file("zz/after.bin", b"z")
+    p.event("note", text="n")
+    os.chmod(p.root / "ro", 0o555)
+    dest = tmp_path / "dest"
+    try:
+        interrupt(p.root, dest, {"step": "temp_partial", "path": "ro/big.bin"})
+        assert [x.name for x in (dest / "ro").iterdir() if x.name.endswith(".part")]
+        migrate(p.root, dest)
+        assert_committed(dest, p.root)
+        assert stat.S_IMODE(os.stat(dest / "ro").st_mode) == 0o555
+        assert migrate(p.root, dest)["already_migrated"]
+    finally:
+        os.chmod(p.root / "ro", 0o755)
+        if (dest / "ro").exists():
+            os.chmod(dest / "ro", 0o755)
+
+
+# --- the source's .lab/, folders reached twice, a destination spelled with .. (6.2, 6.6) ------------
+
+@pytest.mark.parametrize("kind", ["inside_link", "file", "inside_dangling"])
+def test_a_state_folder_that_is_no_folder_of_its_own_is_refused(tmp_path, kind):
+    """design 6.6: .lab a link to a folder inside the source (`.lab -> state/lab`), a file, or a
+    dangling link whose text stays inside: made again or copied, it would be no folder at
+    .analytics/ — destination_invalid (name_collision) before anything is written."""
+    p = LegacyProject(tmp_path / "src")
+    p.file("state/lab/context/20261001-090000-000000_aaaaaaaaaaaa.md", b"ctx")
+    p.event("note", text="n")
+    if (p.root / ".lab").exists():
+        shutil.rmtree(p.root / ".lab")
+    if kind == "inside_link":
+        os.symlink(os.path.join("state", "lab"), p.root / ".lab", target_is_directory=True)
+    elif kind == "file":
+        (p.root / ".lab").write_bytes(b"not a folder")
+    else:
+        os.symlink(os.path.join("state", "gone"), p.root / ".lab")
+    before = tree(p.root)
+    error = refused("destination_invalid", lambda: migrate(p.root, tmp_path / "dest"))
+    assert error.details["reason"] == "name_collision"
+    assert error.details["pairs"] == [[".lab", ".analytics"]]
+    assert tree(p.root) == before and not (tmp_path / "dest").exists()
+
+
+def test_a_folder_two_outside_links_reach_is_copied_once_and_said_where(tmp_path):
+    """OQ3, design 6.6: `a -> /ext/sub` and `b -> /ext`: the folder is copied once, at `a`, and
+    `b/sub` is in not_copied (copied_elsewhere, at `a`)."""
+    (tmp_path / "ext" / "sub").mkdir(parents=True)
+    (tmp_path / "ext" / "sub" / "x.csv").write_bytes(b"x")
+    (tmp_path / "ext" / "top.csv").write_bytes(b"t")
+    p = LegacyProject(tmp_path / "src")
+    p.event("note", text="n")
+    os.symlink(str(tmp_path / "ext" / "sub"), p.root / "a", target_is_directory=True)
+    os.symlink(str(tmp_path / "ext"), p.root / "b", target_is_directory=True)
+    dest = tmp_path / "dest"
+    migrate(p.root, dest)
+    report = assert_committed(dest, p.root)
+    assert {"path": "b/sub", "reason": "copied_elsewhere", "at": "a"} in report["not_copied"]
+    assert (dest / "a" / "x.csv").read_bytes() == b"x" and not (dest / "b" / "sub").exists()
+
+
+@pytest.mark.skipif(not POSIX, reason="`..` after a link: POSIX resolves it from the link's target")
+def test_a_destination_spelled_with_dotdot_after_a_link_is_the_operating_system_s(tmp_path):
+    """design 6.2 (Codex #9): `alias/../new` with `alias` a link into the source names the source's
+    `new` to the operating system, and so to the migration: overlaps_source, nothing written."""
+    source = plain_source(tmp_path)
+    (source / "inner").mkdir()
+    os.symlink(str(source / "inner"), tmp_path / "alias", target_is_directory=True)
+    error = refused("destination_invalid", lambda: migrate(source, f"{tmp_path / 'alias'}/../new"))
+    assert error.details["reason"] == "overlaps_source"
+    assert not (source / "new").exists() and not (tmp_path / "new").exists()
+
+
+# --- the files a report binds, and the marker's migration field (S3, design 2.4, 6.10) ---------------
+
+def test_a_file_the_report_binds_that_went_is_made_again_before_the_marker(tmp_path):
+    """design 6.10 (Codex #6): the mapping removed and report.md edited after `durable`: the resumed
+    call writes the report and its files again (a new `reported` line) before the marker; and,
+    committed, the marker removed with the mapping, the marker is published again with the mapping
+    made again with the bytes the report binds."""
+    source = _copy_source(tmp_path)
+    dest = tmp_path / "dest"
+    interrupt(source, dest, {"step": "durable"})
+    reported = len([v for v in ledger(dest).lines if v["step"] == "reported"])
+    os.unlink(mdir(dest) / "mapping.json")
+    (mdir(dest) / "report.md").write_bytes(b"edited\n")
+    migrate(None, dest)
+    assert_committed(dest)
+    assert len([v for v in ledger(dest).lines if v["step"] == "reported"]) == reported + 1
+    assert core.status(core.Project(dest))["project"]["migration"]["applied"] is True
+    mapping = (mdir(dest) / "mapping.json").read_bytes()
+    os.unlink(dest / "analytics.json")
+    os.unlink(mdir(dest) / "mapping.json")
+    result = migrate(None, dest)
+    assert result["already_migrated"] and result["republished"]
+    assert (mdir(dest) / "mapping.json").read_bytes() == mapping
+    assert_committed(dest)
+
+
+def test_a_marker_naming_another_migration_s_report_is_refused_and_not_read(tmp_path):
+    """design 2.4 (Codex #7): a marker whose migration field names another migration's report (its
+    bytes bound): the call is destination_mismatch (invalid), and the reader applies no mapping
+    (`invalid`)."""
+    first, second = _copy_source(tmp_path), plain_source(tmp_path, "other")
+    a, b = tmp_path / "a", tmp_path / "b"
+    migrate(first, a)
+    migrate(second, b)
+    marker_b = json.loads((b / "analytics.json").read_text(encoding="utf-8"))
+    shutil.copytree(mdir(b), a / migration.MIGRATIONS / mdir(b).name)
+    marker = json.loads((a / "analytics.json").read_text(encoding="utf-8"))
+    marker["migration"] = {**marker["migration"], "report": marker_b["migration"]["report"],
+                           "report_sha256": marker_b["migration"]["report_sha256"]}
+    (a / "analytics.json").write_text(json.dumps(marker), encoding="utf-8")
+    error = refused("destination_mismatch", lambda: migrate(first, a))
+    assert error.details["reason"] == "invalid"
+    assert core.status(core.Project(a))["project"]["migration"]["reason"] == "invalid"

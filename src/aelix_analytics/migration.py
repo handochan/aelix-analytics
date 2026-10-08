@@ -164,8 +164,12 @@ def _escaped(name: str) -> str:
 
 def _resolved(path) -> str:
     """`path` as a real path: its nearest existing ancestor's real path in its stored spelling, the
-    rest joined to it as given (design 6.2: a destination that does not exist yet)."""
-    path = os.path.abspath(os.fspath(core.expand_home(Path(path))))
+    rest joined to it as given (design 6.2: a destination that does not exist yet). A `..` is the
+    operating system's: after a link it is the parent of the link's target (the existing part is
+    resolved by realpath, which reads it so), and in the part that does not exist yet, where there is
+    no link, it is the parent by its text."""
+    path = os.fspath(core.expand_home(Path(path)))
+    path = path if os.path.isabs(path) else os.path.join(os.getcwd(), path)
     rest: list[str] = []
     here = path
     while not os.path.lexists(here):
@@ -175,7 +179,7 @@ def _resolved(path) -> str:
         rest.append(os.path.basename(here))
         here = parent
     real = core.canonical(here)
-    return os.path.join(real, *reversed(rest)) if rest else real
+    return os.path.normpath(os.path.join(real, *reversed(rest))) if rest else real
 
 
 def _existing(path: str) -> str:
@@ -211,10 +215,34 @@ def _same_entry(a, b) -> bool:
 
 def _remove_own(path) -> None:
     """Remove a file this migration made and its ledger named, read-only or not (Windows refuses to
-    remove a read-only file, design 6.4)."""
-    with contextlib.suppress(OSError):
-        os.chmod(path, stat.S_IWRITE | stat.S_IREAD)
+    remove a read-only file, design 6.4). A link there is removed as itself: nothing it leads to is
+    looked at, its mode included (FileNotFoundError when nothing is there)."""
+    st = os.lstat(path)
+    if _platform.is_link(st):
+        try:
+            os.unlink(path)
+        except (IsADirectoryError, PermissionError):
+            os.rmdir(path)  # a directory link or junction on Windows is removed as a directory
+        return
+    if not st.st_mode & stat.S_IWRITE:
+        with contextlib.suppress(OSError, NotImplementedError):
+            if os.chmod in os.supports_follow_symlinks:
+                os.chmod(path, stat.S_IMODE(st.st_mode) | stat.S_IWRITE, follow_symlinks=False)
+            else:
+                os.chmod(path, stat.S_IMODE(st.st_mode) | stat.S_IWRITE)
     os.unlink(path)
+
+
+# Never follow a link where the migration makes a file of its own (O_NOFOLLOW where the platform has
+# it; on Windows the judgment refuses a link in the paths the migration keeps, design 6.3).
+NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
+
+
+def _create(path, flags: int = 0) -> int:
+    """A new file at `path`, made only where nothing is (O_EXCL: an entry there, a link included, is
+    FileExistsError), for writing."""
+    return os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | NOFOLLOW | getattr(os, "O_BINARY", 0)
+                   | flags, 0o666)
 
 
 def _hash_path(path) -> str | None:
@@ -338,7 +366,8 @@ def append_line(path: Path, value: dict) -> None:
     design 6.8), then the line and its LF in one write. Not flushed: a resumed migration hashes every
     copy again, so a ledger behind the disk judges nothing wrongly."""
     line = json.dumps(value, ensure_ascii=False).encode("utf-8") + b"\n"
-    with open(path, "a+b") as fh:
+    fd = os.open(path, os.O_RDWR | os.O_APPEND | os.O_CREAT | NOFOLLOW | getattr(os, "O_BINARY", 0), 0o666)
+    with open(fd, "a+b", closefd=True) as fh:
         fh.seek(0, os.SEEK_END)
         if fh.tell():
             fh.seek(-1, os.SEEK_END)
@@ -378,9 +407,13 @@ class Ledger:
         self.transformed: dict | None = None
         self.reported: dict | None = None
         self.marker: dict | None = None
+        self.marker_temps: list[str] = []  # every temporary name a marker_begin line named
         self.committed = False
         self.trusted = False
         self.occupied: set[str] = set()  # paths whose publication found something else there
+        # Temporary names a line named whose exclusive creation found something there: not this
+        # migration's, never removed (S6), and refused where they are found (design 6.10 ①).
+        self.foreign: set[str] = set()
         self.last: str | None = None
         for raw in data.split(b"\n"):
             if not raw.strip():
@@ -416,7 +449,7 @@ class Ledger:
             if last is None:
                 raise LedgerError("a failure before the start")
             if value.get("reason") == "occupied" and isinstance(path, str):
-                self.occupied.add(path)
+                (self.foreign if path in self.temps else self.occupied).add(path)
             return
         copying = last in ("plan", *COPY_STEPS)
         allowed = {
@@ -475,11 +508,17 @@ class Ledger:
         elif step == "marker_begin":
             self.marker = value
             self.temps.add(value["temp"])
+            self.marker_temps.append(value["temp"])
         elif step == "committed":
             self.committed = True
         elif step == "trusted":
             self.trusted = True
         self.last = step
+
+    def owns(self, temp: str) -> bool:
+        """Whether the temporary file `temp` (a destination path) is this migration's: a line named
+        it, and its exclusive creation did not find something there (S6, design 6.10)."""
+        return temp in self.temps and temp not in self.foreign
 
 
 def _contentless(directory: Path) -> bool:
@@ -526,6 +565,7 @@ class Inventory:
         self.not_utf8: list[dict] = []
         self.nested: list[str] = []
         self.collisions: list[list[str]] = []
+        self.state_not_folder: list[dict] = []  # a root .lab that is no folder there: {path, text?}
         self.warnings: list[dict] = []
 
     def exclude(self, rel: str, reason: str, files: int, size: int) -> None:
@@ -563,6 +603,15 @@ class Inventory:
                                 f"current layout manages under {STATE_DIR}/",
                                 "rename it or move it out of .lab/, then run the migration again",
                                 pairs=self.collisions))
+        if self.state_not_folder:
+            out.append(_invalid("name_collision", f"the source's {LEGACY_STATE_DIR} is not a folder of "
+                                "its own (a link to a place inside the source, a file, or a link to "
+                                f"one): the copy keeps {LEGACY_STATE_DIR}/ as {STATE_DIR}/, the folder "
+                                "the current layout manages, and cannot put that there",
+                                f"make {LEGACY_STATE_DIR} a folder (move what it leads to into it) or a "
+                                "link to a folder outside the source, then run the migration again; "
+                                "nothing was written",
+                                pairs=[[LEGACY_STATE_DIR, STATE_DIR]], state_dir=self.state_not_folder))
         return out
 
 
@@ -671,6 +720,9 @@ class _Walker:
                     self.out.not_copied.append({"path": rel, "reason": "git_worktree_pointer"})
                     self.out.warnings.append({"path": rel, "reason": "git_worktree_pointer"})
                     continue
+                if at_root and entry.name == LEGACY_STATE_DIR and stat.S_ISREG(st.st_mode):
+                    self.out.state_not_folder.append({"path": rel})
+                    continue
                 if not at_root and entry.name in (writer.MARKER, writer.LEGACY_MARKER):
                     self.out.nested.append(rel)
                 if ns == LEGACY_STATE_DIR and any(
@@ -680,10 +732,14 @@ class _Walker:
                     self._link(entry.path, rel, st, pending,
                                managed_entry=at_root and entry.name in MANAGED_AT_ROOT)
                 elif stat.S_ISDIR(st.st_mode):
-                    if self._claim(entry.path, rel) is None:
+                    first = self._claim(entry.path, rel)
+                    if first is None:
                         self.out.dirs.append({"rel": rel, "real": entry.path, "mode": st.st_mode,
                                               "mtime_ns": st.st_mtime_ns})
                         subdirectories.append((entry.path, rel))
+                    else:  # a folder an outside link led to already, copied there once (OQ3)
+                        self.out.not_copied.append({"path": rel, "reason": "copied_elsewhere",
+                                                    "at": first})
                 elif stat.S_ISREG(st.st_mode):
                     self._file(rel, entry.path, st)
                 else:
@@ -736,11 +792,22 @@ class _Walker:
             text = os.readlink(path)
         except OSError as exc:
             raise _Unreadable(path, exc) from exc
+        state_dir = managed_entry and rel == LEGACY_STATE_DIR
         try:
             real = self.spelling.path(os.path.realpath(path, strict=True))
             target = os.stat(real)
         except (OSError, ValueError):
+            if state_dir and self._made_again(rel, text):
+                self.out.state_not_folder.append({"path": rel, "text": text})
+                return
             self._dangling(path, rel, text, st)
+            return
+        if state_dir and not core._under(self.root, real) and (
+                core._under(real, self.root) or not stat.S_ISDIR(target.st_mode)):
+            # .lab a link to a place inside the source, or to a file: made again it would be a link
+            # at .analytics, and copied it would be no folder there (a folder outside is walked as
+            # .lab below, design 6.6)
+            self.out.state_not_folder.append({"path": rel, "text": text})
             return
         if core._under(self.root, real):  # the root or one of its ancestors
             self.out.not_copied.append({"path": rel, "reason": "link_to_root", "text": text})
@@ -817,6 +884,16 @@ def _dest_rel(rel: str, migration_id: str) -> str:
         return STATE_DIR
     if rel.startswith(LEGACY_STATE_DIR + "/"):
         return STATE_DIR + rel[len(LEGACY_STATE_DIR):]
+    return rel
+
+
+def _source_rel(rel: str) -> str:
+    """The source's path of a destination path a plan names (the inverse of _dest_rel for a folder
+    or a file outside this migration's own directory)."""
+    if rel == STATE_DIR:
+        return LEGACY_STATE_DIR
+    if rel.startswith(STATE_DIR + "/"):
+        return LEGACY_STATE_DIR + rel[len(STATE_DIR):]
     return rel
 
 
@@ -947,6 +1024,7 @@ class Migration:
         self.leftover: list[str] = []
         self.published: list[str] = []  # paths found published without their `copied` line (F6)
         self.wrote = False  # whether this call wrote a ledger line (then a refusal adds `failed`)
+        self._planned: tuple[int, set[str]] | None = None
 
     # -- entry
 
@@ -988,6 +1066,7 @@ class Migration:
         state = writer.marker_state(self.dest)
         if state.state not in (writer.NONE, writer.INCOMPLETE):
             return self._judge_marked(state)
+        self._refuse_managed_links()
         try:
             top = sorted(e.name for e in os.scandir(self.dest))
         except OSError as exc:
@@ -1021,6 +1100,53 @@ class Migration:
             raise _mismatch(f"the ledger of {directory.name} has no start", migration=directory.name)
         self._same_source(ledger)
         return Judgment("resume", ledger=ledger)
+
+    def _managed_links(self) -> list[str]:
+        """The places the migration keeps its records at — .analytics/, .analytics/migration/, the
+        destination's lock, each migration directory and its ledger — that are a link or a junction
+        (a ledger that is not a file too): never followed, since a link there would lead the
+        migration's writes elsewhere, into the source among other places (S1). Read only."""
+        found = []
+        for rel in (STATE_DIR, MIGRATIONS, DEST_LOCK):
+            try:
+                st = os.lstat(self.dest / rel)
+            except OSError:
+                continue
+            if _platform.is_link(st):
+                found.append(rel)
+        if found:
+            return found
+        try:
+            with os.scandir(self.dest / MIGRATIONS) as listing:
+                entries = sorted(listing, key=lambda e: e.name)
+        except OSError:
+            return found
+        for entry in entries:
+            rel = f"{MIGRATIONS}/{entry.name}"
+            try:
+                st = entry.stat(follow_symlinks=False)
+            except OSError:
+                continue
+            if _platform.is_link(st):
+                found.append(rel)
+            elif stat.S_ISDIR(st.st_mode):
+                try:
+                    ledger = os.lstat(Path(entry.path) / LEDGER)
+                except OSError:
+                    continue
+                if not stat.S_ISREG(ledger.st_mode):
+                    found.append(f"{rel}/{LEDGER}")
+        return found
+
+    def _refuse_managed_links(self) -> None:
+        found = self._managed_links()
+        if found:
+            raise _invalid("managed_link", f"{self.dest} has a link where a migration keeps its "
+                           f"records: {', '.join(found[:5])}",
+                           "a migration writes only inside its destination and never follows a "
+                           "link there; remove the link, or give a new or empty folder as the "
+                           "destination. Nothing was written",
+                           paths=found[:20])
 
     def _migration_dirs(self) -> list[Path]:
         try:
@@ -1065,6 +1191,10 @@ class Migration:
                            "recorded there made", "give a new or empty folder as the destination",
                            marker=writer.MARKER)
         self._same_source(ledger)
+        if field.get("report") != f"{MIGRATIONS}/{field['id']}/report.json":
+            # the marker, its migration and the report it binds belong together (design 2.4)
+            raise _mismatch(f"{self.dest}'s marker names the report {field.get('report')!r}, not its "
+                            f"migration {field['id']}'s", reason="invalid", migration=field["id"])
         data = (self.dest / writer.MARKER).read_bytes()
         if ledger.committed or (ledger.marker and _sha(data) == ledger.marker.get("sha256")):
             return Judgment("committed", ledger=ledger, marker=data)
@@ -1350,12 +1480,12 @@ class Migration:
 
     # -- step 5: the plan
 
-    def _make_plan(self, inventory: Inventory) -> dict:
-        ledger = self.ledger
-        probed = ledger.probed or {}
-        folds = (bool(probed.get("case_folds")), bool(probed.get("normalization_folds")))
-        links_ok = bool(probed.get("links"))
-        mid = ledger.migration_id
+    def _layout(self, inventory: Inventory, links_ok: bool) -> dict:
+        """What a plan copies of one walk (design 6.5, 6.6): the entries (files and links, by their
+        destination path), the folders, what is not copied and the links copied as their target's
+        bytes. The plan is made of it, and step 7 makes it again of the walk under the same locks to
+        compare the two (S5)."""
+        mid = self.ledger.migration_id
         entries, not_copied, links = [], list(inventory.not_copied), list(inventory.boundaries)
         for item in inventory.files:
             entries.append({"from": item["rel"], "to": _dest_rel(item["rel"], mid), "kind": "file",
@@ -1386,6 +1516,17 @@ class Migration:
                 not_copied.append({"path": link["rel"], "reason": "link_not_made", "text": link["text"]})
         entries.sort(key=lambda e: e["to"])
         dirs = sorted({_dest_rel(d["rel"], mid) for d in inventory.dirs} - {STATE_DIR})
+        return {"entries": entries, "dirs": dirs, "not_copied": not_copied, "links": links}
+
+    def _make_plan(self, inventory: Inventory) -> dict:
+        ledger = self.ledger
+        probed = ledger.probed or {}
+        folds = (bool(probed.get("case_folds")), bool(probed.get("normalization_folds")))
+        links_ok = bool(probed.get("links"))
+        mid = ledger.migration_id
+        layout = self._layout(inventory, links_ok)
+        entries, dirs = layout["entries"], layout["dirs"]
+        not_copied, links = layout["not_copied"], layout["links"]
         if folds[0] or folds[1]:  # names the destination folds together (D26)
             seen: dict[str, str] = {}
             pairs = []
@@ -1444,15 +1585,106 @@ class Migration:
 
     def _write_own(self, path: Path, data: bytes) -> None:
         """A file of this migration's own directory, written whole by a replace (design 6.3: its
-        directory is this migration's, and its files may be written again)."""
+        directory is this migration's, and its files may be written again). Its temporary file is
+        made new where nothing is — a leftover one removed first, a link as itself — so no write
+        goes through a link (S1); the replace puts the file at the name, a link there included."""
+        self._own_dir(path.parent)
         temp = path.with_name(path.name + ".tmp")
         try:
-            with open(temp, "wb") as fh:
+            with contextlib.suppress(FileNotFoundError):
+                _remove_own(temp)
+            with open(_create(temp), "wb", closefd=True) as fh:
                 fh.write(data)
                 self.files.flush_handle(fh)
             self.files.replace(temp, path)
         except OSError as exc:
             raise _write_failed(path, exc) from exc
+
+    def _own_dir(self, directory: Path) -> None:
+        """A folder in this migration's own directory (proposals/ and below), made where it is
+        missing; a link or a file there is refused, never followed (S1)."""
+        rel = directory.relative_to(self.mdir).parts
+        here = self.mdir
+        for part in ("", *rel):
+            here = here / part if part else here
+            try:
+                if part:
+                    with contextlib.suppress(FileExistsError):
+                        os.mkdir(here)
+                st = os.lstat(here)
+            except OSError as exc:
+                raise _write_failed(here, exc) from exc
+            if _platform.is_link(st) or not stat.S_ISDIR(st.st_mode):
+                raise _invalid("managed_link", f"{here} is not a folder of this migration's own",
+                               "a migration never follows a link where it keeps its records; remove "
+                               "it and run the migration again",
+                               paths=[here.relative_to(self.dest).as_posix()])
+
+    def _planned_paths(self) -> set[str]:
+        """Every destination path a plan the ledger binds names, its files and folders (a plan that
+        cannot be read names none here: the steps that judge copies read them strictly)."""
+        count = len(self.ledger.plans)
+        if self._planned is None or self._planned[0] != count:
+            out: set[str] = set()
+            for line in self.ledger.plans:
+                try:
+                    data = (self.mdir / line.get("file", "plan.json")).read_bytes()
+                except OSError:
+                    continue
+                plan = _loads(data) if _sha(data) == line.get("sha256") else None
+                if isinstance(plan, dict):
+                    out.update(e["to"] for e in plan.get("files") or [])
+                    out.update(plan.get("directories") or [])
+            self._planned = (count, out)
+        return self._planned[1]
+
+    def _removable(self, temp: str) -> bool:
+        """Whether a temporary file a line named may be removed: this migration's (not one found
+        there when it was to be made) and not a path a plan copies (S6)."""
+        return self.ledger.owns(temp) and temp not in self._planned_paths()
+
+    def _remove_temp(self, path: Path) -> None:
+        """Remove a temporary file of this migration's, in a folder the copy made read-only too (its
+        mode made writable for the moment and put back, design 6.4); a failure is
+        destination_write_failed."""
+        parent = path.parent
+        mode = None
+        try:
+            if parent != self.dest and not os.access(parent, os.W_OK):
+                st = os.lstat(parent)
+                if not _platform.is_link(st) and stat.S_ISDIR(st.st_mode):
+                    mode = stat.S_IMODE(st.st_mode)
+                    os.chmod(parent, mode | stat.S_IWUSR)
+            try:
+                _remove_own(path)
+            finally:
+                if mode is not None:
+                    os.chmod(parent, mode)
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            raise _write_failed(path, exc) from exc
+
+    def _remove_old_temps(self, rel: str) -> None:
+        """design 6.10: a path copied again, or found published and accepted, has its earlier
+        temporary files removed once it is published — before the copy puts its folder's mode back."""
+        for temp in self.ledger.begun_temps.get(rel, []):
+            temp_rel = _posix(_parent(rel), temp)
+            if self._removable(temp_rel) and os.path.lexists(self.dest / temp_rel):
+                self._remove_temp(self.dest / temp_rel)
+
+    def _root_temp(self, prefix: str, n: int) -> str:
+        """A temporary name at the destination's root for the .gitignore transform or the marker,
+        apart from every name a plan puts there and every temporary name a line named, as the
+        destination folds names (design 6.3 step 5, 6.4)."""
+        folds = (bool(self.plan["folds"]["case"]), bool(self.plan["folds"]["normalization"])) \
+            if self.plan else (True, True)
+        taken = {_folded(rel, *folds) for rel in (*self._planned_paths(), *self.ledger.temps,
+                                                  writer.MARKER, writer.LEGACY_MARKER)
+                 if "/" not in rel}
+        while _folded(f"{prefix}{n}.part", *folds) in taken:
+            n += 1
+        return f"{prefix}{n}.part"
 
     def _plans(self) -> list[dict]:
         """Every plan the ledger's lines bind, each as its line bound it (a plan file is not written
@@ -1517,7 +1749,11 @@ class Migration:
         fd = _open_source(entry["real"], entry["key"])
         with open(fd, "rb", closefd=True) as src:
             try:
-                out = open(temp, "xb")  # O_EXCL: never a file that is there
+                out = open(_create(temp), "wb", closefd=True)  # O_EXCL: never a file that is there
+            except FileExistsError:
+                # Something else made the name the `begin` line gave: not this migration's, never
+                # removed (the `failed` line says so, S6), and refused where it is found again.
+                raise _occupied(_posix(_parent(entry["to"]), entry["temp"])) from None
             except OSError as exc:
                 raise _write_failed(temp, exc) from exc
             digest, size = hashlib.sha256(), 0
@@ -1547,13 +1783,16 @@ class Migration:
             os.utime(final, ns=(entry["atime_ns"], entry["mtime_ns"]))
             os.chmod(final, entry["mode"])
         self._line("copied", path=entry["to"], bytes=size, sha256=digest.hexdigest())
+        self._remove_old_temps(entry["to"])
 
     def _writable(self, directory: Path) -> None:
         """A planned directory this migration made writable again for a file it still copies there
-        (the source's permissions go back on when the copy ends)."""
+        (the source's permissions go back on when the copy ends). A link there is not followed."""
         if directory != self.dest and not os.access(directory, os.W_OK):
             with contextlib.suppress(OSError):
-                os.chmod(directory, stat.S_IMODE(os.stat(directory).st_mode) | stat.S_IWUSR)
+                st = os.lstat(directory)
+                if not _platform.is_link(st) and stat.S_ISDIR(st.st_mode):
+                    os.chmod(directory, stat.S_IMODE(st.st_mode) | stat.S_IWUSR)
 
     def _publish(self, temp: Path, final: Path, rel: str) -> None:
         """The create-if-absent publication (design 6.4): the port's publish_new, or where the file
@@ -1569,18 +1808,21 @@ class Migration:
             raise _write_failed(final, exc) from exc
         self._line("direct_intent", path=rel)
         try:
-            fd = os.open(final, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o666)
+            fd = _create(final)
         except FileExistsError:
             raise _occupied(rel) from None
         except OSError as exc:
             raise _write_failed(final, exc) from exc
-        with open(fd, "wb", closefd=True) as out:
-            self.step("direct_created", {"path": rel})
-            self._line("direct", path=rel, key=_key(os.fstat(out.fileno())))
-            with open(temp, "rb") as src:
-                shutil.copyfileobj(src, out, CHUNK)
-            self.files.flush_handle(out)
-        _remove_own(temp)
+        try:
+            with open(fd, "wb", closefd=True) as out:
+                self.step("direct_created", {"path": rel})
+                self._line("direct", path=rel, key=_key(os.fstat(out.fileno())))
+                with open(temp, "rb") as src:
+                    shutil.copyfileobj(src, out, CHUNK)
+                self.files.flush_handle(out)
+            _remove_own(temp)
+        except OSError as exc:
+            raise _write_failed(final, exc) from exc
 
     def _directory_times(self) -> None:
         """A directory's permissions and times after its files (design 6.4), but the root's and
@@ -1591,39 +1833,57 @@ class Migration:
             if d is None or rel == STATE_DIR or rel.startswith(MIGRATIONS):
                 continue
             with contextlib.suppress(OSError):
+                if _platform.is_link(os.lstat(self.dest / rel)):
+                    continue  # never followed: verification refuses what is there (design 6.3)
                 os.utime(self.dest / rel, ns=(d["mtime_ns"], d["mtime_ns"]))
                 os.chmod(self.dest / rel, stat.S_IMODE(d["mode"]))
 
     # -- step 7: the source checked again
 
     def _recheck(self) -> None:
+        """Step 7 (S5): the source walked again under the same locks, every file hashed, and what a
+        plan would copy of it compared with the plan the copies follow — each entry (its kind, its
+        bytes or its link's text), every entry and folder the plan lacks or has more, the links
+        copied as their target's bytes (path, text, target), what is not copied and why — and what
+        would refuse a migration now (a link's target gone, a nested project, a name). Any
+        difference is source_changed with those paths."""
         self.step("rechecking", {})
         again = self._walk(hashed=True)
+        layout = self._layout(again, bool(self.plan["links_made"]))
         planned = {e["from"]: e for e in self.plan["files"]}
-        files = {f["rel"]: f for f in again.files}
-        links = {link["rel"]: link for link in again.links}
+        found = {e["from"]: e for e in layout["entries"]}
+        hashed = {f["rel"]: f for f in again.files}
         changed, now = [], {}
         for entry in self.plan["files"]:
             rel = entry["from"]
-            if entry["kind"] == "link":
-                now[rel] = (links.get(rel) or {}).get("text")
-            elif rel in files:
-                found = files[rel]
-                now[rel] = f"{found['size']}:{found['sha256']}" if found.get("sha256") else None
-            else:  # a link this destination could not hold, copied as its file's bytes
+            there = found.get(rel)
+            if there is None or there["kind"] != entry["kind"]:
+                now[rel] = None  # gone from the source, or no longer what the plan copied it as
+            elif entry["kind"] == "link":
+                now[rel] = there["text"]
+            elif rel in hashed:
+                item = hashed[rel]
+                now[rel] = f"{item['size']}:{item['sha256']}" if item.get("sha256") else None
+            else:  # a link this destination cannot hold, copied as its file's bytes
                 try:
-                    now[rel] = "{1}:{0}".format(*_hash_source(entry["real"], None))
+                    now[rel] = "{1}:{0}".format(*_hash_source(there["real"], there["key"]))
                 except (_SourceChanged, _Unreadable):
                     now[rel] = None
             if now[rel] is None or now[rel] != self._copied_what(entry):
                 changed.append(rel)
-        made_as_files = {n["path"] for n in self.plan["not_copied"] if n["reason"] == "link_not_made"}
-        changed += [rel for rel in files if rel not in planned]
-        changed += [rel for rel in links if rel not in planned and rel not in made_as_files]
-        before = {(n["path"], n["reason"]) for n in self.plan["not_copied"]
-                  if n["reason"] != "link_not_made"}
-        changed += [p for p, _ in {(n["path"], n["reason"]) for n in again.not_copied} ^ before]
+        changed += [rel for rel in found if rel not in planned]
+
+        def boundary(b):
+            return b["path"], b["kind"], b["text"], b["target_real"], b["treatment"]
+
+        changed += [b[0] for b in {boundary(b) for b in self.plan["links"]} ^
+                    {boundary(b) for b in layout["links"]}]
+        changed += [_source_rel(d) for d in set(self.plan["directories"]) ^ set(layout["dirs"])]
+        changed += [p for p, _ in {(n["path"], n["reason"]) for n in self.plan["not_copied"]} ^
+                    {(n["path"], n["reason"]) for n in layout["not_copied"]}]
         changed += [m["path"] for m in again.missing_targets] + list(again.nested)
+        changed += [n["path"] for n in again.not_utf8] + [pair[0] for pair in again.collisions]
+        changed += [s["path"] for s in again.state_not_folder]
         if changed:
             raise _changed(changed)
         journal_data = self._dest_bytes("journal.jsonl")
@@ -1716,12 +1976,14 @@ class Migration:
                             paths=missing[:20])
         return self._after_check()
 
-    def _account(self, plans: list[dict], *, before_plan: bool = False) -> None:
+    def _account(self, plans: list[dict], *, before_plan: bool = False, remove: bool = True) -> None:
         """① of design 6.10: every entry of the destination is a directory a plan names, a copy its
-        `copied` line names with the same bytes (.gitignore: the transform's before or after), the
-        published file of a path only begun, a temporary file a line named, a file a `direct` line
-        names by its identity — removed here, unfinished — this migration's own directory, or a name a
-        person's tools leave (OQ16). Anything else is destination_mismatch, and nothing is removed."""
+        `copied` line names with the same bytes (.gitignore: the transform's before or after, after
+        once it is `transformed`), the published file of a path only begun, a temporary file of this
+        migration's a line named, a file a `direct` line names by its identity — removed here,
+        unfinished, unless `remove` is False (the dry run) — this migration's own directory, or a
+        name a person's tools leave (OQ16); and every copy a `copied` line names is there (step 8,
+        S3). Anything else is destination_mismatch, and nothing is removed."""
         ledger = self.ledger
         mid = ledger.migration_id
         planned_files = {e["to"]: e for plan in plans for e in plan["files"]}
@@ -1731,8 +1993,12 @@ class Migration:
                 planned_dirs.add(rel)
                 rel = _parent(rel)
         own = f"{MIGRATIONS}/{mid}"
-        strays, changed, unfinished, published = [], [], [], []
+        transform = ledger.transform
+        gitignore = ((transform.get("after"),) if ledger.transformed is not None else
+                     (transform.get("before"), transform.get("after"))) if transform else ()
+        strays, changed, unfinished, published, seen = [], [], [], [], set()
         for rel, kind in _walk_destination(self.dest):
+            seen.add(rel)
             if rel in (STATE_DIR, DEST_LOCK, MIGRATIONS, own) or rel.startswith(own + "/"):
                 continue
             if _ignored(rel) and rel not in planned_files and rel not in planned_dirs:
@@ -1741,10 +2007,11 @@ class Migration:
                 if rel not in planned_dirs:
                     strays.append(rel)
                 continue
-            if rel in ledger.temps:
-                continue
             if before_plan or rel not in planned_files:
-                strays.append(rel)
+                if rel in ledger.foreign:
+                    raise _occupied(rel)  # made by something else where a temporary file was to be
+                if rel not in ledger.temps:
+                    strays.append(rel)
                 continue
             line = ledger.copied.get(rel)
             if line is not None:
@@ -1753,9 +2020,8 @@ class Migration:
                         same = kind == "link" and os.readlink(self.dest / rel) == line["link"]
                     except OSError:
                         same = False
-                elif rel == ".gitignore" and ledger.transform is not None:
-                    same = _hash_path(self.dest / rel) in (ledger.transform.get("before"),
-                                                           ledger.transform.get("after"))
+                elif rel == ".gitignore" and gitignore:
+                    same = kind == "file" and _hash_path(self.dest / rel) in gitignore
                 else:
                     same = kind == "file" and _hash_path(self.dest / rel) == line.get("sha256")
                 if not same:
@@ -1783,12 +2049,17 @@ class Migration:
                     changed.append(rel)
             elif there and rel in ledger.begun and not before_plan:
                 published.append(rel)
-        if strays or changed:
+        # A copy its `copied` line names that is gone (or behind a link the walk does not follow).
+        missing = sorted(rel for rel in ledger.copied if rel in planned_files and rel not in seen
+                         and not rel.startswith(own + "/"))
+        if strays or changed or missing:
             raise _mismatch("the destination holds what its ledger does not account for: "
-                            f"{', '.join((changed + strays)[:5])}",
-                            reason="unaccounted", changed=changed, paths=strays[:50])
-        for rel in unfinished:
-            _remove_own(self.dest / rel)  # this migration's direct write, cut short
+                            f"{', '.join((changed + missing + strays)[:5])}",
+                            reason="unaccounted", changed=changed, missing=missing[:50],
+                            paths=strays[:50])
+        if remove:
+            for rel in unfinished:
+                self._remove_temp(self.dest / rel)  # this migration's direct write, cut short
         self.published = published
 
     def _accept_copies(self, inventory: Inventory) -> list:
@@ -1827,15 +2098,16 @@ class Migration:
 
     def _record_accepted(self, accepted: list) -> None:
         """A file found published, equal to the source, recorded as the copy it is; its temporary name,
-        if one is left (POSIX between link and unlink), goes with _clean_temps."""
+        if one is left (POSIX between link and unlink), removed then (design 6.10)."""
         for rel, fields in accepted:
             self._line("copied", path=rel, **fields)
+            self._remove_old_temps(rel)
 
     # -- steps 8-12
 
     def _after_check(self) -> dict:
+        self._verify()  # before any temporary file goes: a copy missing is refused with them there
         self._clean_temps()
-        self._verify()
         if self.plan["transforms"] and self.ledger.transformed is None:
             self._transform()
         report = self._report_current()
@@ -1849,12 +2121,13 @@ class Migration:
         self.leftover = []
         for rel, temps in sorted(self.ledger.begun_temps.items()):
             for temp in temps:
-                if not os.path.lexists(self.dest / _parent(rel) / temp):
+                temp_rel = _posix(_parent(rel), temp)
+                if not os.path.lexists(self.dest / temp_rel) or not self._removable(temp_rel):
                     continue
                 if rel in self.ledger.copied:
-                    _remove_own(self.dest / _parent(rel) / temp)
+                    self._remove_temp(self.dest / temp_rel)
                 elif rel not in planned:
-                    self.leftover.append(_posix(_parent(rel), temp))
+                    self.leftover.append(temp_rel)
 
     def _verify(self) -> None:
         """Step 8: every copy read again against its `copied` line, and nothing in the destination
@@ -1880,8 +2153,8 @@ class Migration:
         line = ledger.transform
         if line is not None:
             temp = self.dest / line["temp"]
-            if os.path.lexists(temp):
-                _remove_own(temp)  # named by its line, made again from its bytes (design 6.10)
+            if os.path.lexists(temp) and self._removable(line["temp"]):
+                self._remove_temp(temp)  # named by its line, made again from its bytes (design 6.10)
             now = _hash_path(path)
             if now == line["after"]:
                 self._line("transformed", path=".gitignore", sha256=now)
@@ -1896,55 +2169,114 @@ class Migration:
             return
         self._write_own(self.mdir / "gitignore.diff", _unified(".gitignore", before, after))
         n = sum(1 for v in ledger.lines if v["step"] == "transform_begin")
-        temp = self.dest / f".mig-gitignore-{n}.part"
-        self._line("transform_begin", path=".gitignore", temp=temp.name, before=_sha(before),
+        name = self._root_temp(".mig-gitignore-", n)
+        temp = self.dest / name
+        self._line("transform_begin", path=".gitignore", temp=name, before=_sha(before),
                    after=_sha(after), added=added)
-        with open(temp, "xb") as fh:
-            self.step("transform_temp", {})
-            fh.write(after)
-            self.files.flush_handle(fh)
+        try:
+            with open(_create(temp), "wb", closefd=True) as fh:
+                self.step("transform_temp", {})
+                fh.write(after)
+                self.files.flush_handle(fh)
+        except FileExistsError:
+            raise _occupied(name) from None  # not this migration's: never removed (S6)
+        except OSError as exc:
+            raise _write_failed(temp, exc) from exc
         self.step("transform_written", {})
         if _hash_path(path) != copied:
             raise _mismatch(".gitignore changed under the migration", paths=[".gitignore"])
-        mode = stat.S_IMODE(os.stat(path).st_mode)
-        readonly = not mode & stat.S_IWUSR
-        if readonly:
-            os.chmod(path, mode | stat.S_IWUSR)
-        self.files.replace(temp, path)
-        if readonly:
-            os.chmod(path, mode)
+        try:
+            st = os.lstat(path)
+            if not stat.S_ISREG(st.st_mode):
+                raise _mismatch(".gitignore is not the copy the ledger names", paths=[".gitignore"])
+            mode = stat.S_IMODE(st.st_mode)
+            readonly = not mode & stat.S_IWUSR
+            if readonly:
+                os.chmod(path, mode | stat.S_IWUSR)
+            self.files.replace(temp, path)
+            if readonly:
+                os.chmod(path, mode)
+        except OSError as exc:
+            raise _write_failed(path, exc) from exc
         self.step("transform_replaced", {})
         self._line("transformed", path=".gitignore", sha256=_sha(after))
 
     def _report_current(self) -> dict:
         """The report as the ledger, the plan and the copies make it (design 6.8): kept when the last
-        `reported` line binds the one there, else written again — mapping, proposals and summary with
-        it — and bound by a new `reported` line."""
+        `reported` line binds the one there and every file it binds (the mapping, the diff, the
+        proposals, report.md) has its sha256, else written again with them and bound by a new
+        `reported` line."""
         path = self.mdir / "report.json"
         reported = self.ledger.reported
         if reported is not None and self.ledger.last in ("reported", "durable", "marker_begin"):
             data = self._dest_bytes(path.relative_to(self.dest).as_posix())
-            if _sha(data) == reported.get("sha256"):
-                return json.loads(data)
+            report = _loads(data) if _sha(data) == reported.get("sha256") else None
+            if isinstance(report, dict) and not self._bound_differ(report):
+                return report
         self.step("reporting", {})
-        mapping = _json_bytes(self._mapping())
-        self._write_own(self.mdir / "mapping.json", mapping)
-        self.step("mapping_written", {})
-        own = f"{MIGRATIONS}/{self.ledger.migration_id}"
-        added = [{"path": f"{own}/mapping.json", "sha256": _sha(mapping)}]
-        if self.ledger.transformed is not None:
-            diff = self._dest_bytes(f"{own}/gitignore.diff")
-            added.append({"path": f"{own}/gitignore.diff", "sha256": _sha(diff)})
-        proposals = self._proposals(added)
-        report = self._report(added, proposals, mapping)
-        summary = _summary(report)
-        self._write_own(self.mdir / "report.md", summary)
-        report["added"].append({"path": f"{own}/report.md", "sha256": _sha(summary)})
-        data = _json_bytes(report)
-        self._write_own(path, data)
+        report, files = self._build_report()
+        for name, data in files.items():
+            self._write_own(self.mdir / name, data)
+            if name == "mapping.json":
+                self.step("mapping_written", {})
         self.step("report_written", {})
-        self._line("reported", sha256=_sha(data))
+        self._line("reported", sha256=_sha(files["report.json"]))
         return report
+
+    def _bound_files(self) -> tuple[dict, list, dict[str, bytes]]:
+        """(the proposals, the `added` entries, the files by their path in this migration's
+        directory) that a report binds, made in memory from the ledger, the plan and the copies: the
+        mapping, the .gitignore diff, the proposals (design 6.7, 6.13). The same ledger, plan and
+        copies give the same bytes."""
+        own = f"{MIGRATIONS}/{self.ledger.migration_id}"
+        files = {"mapping.json": _json_bytes(self._mapping())}
+        added = [{"path": f"{own}/mapping.json", "sha256": _sha(files["mapping.json"])}]
+        if self.ledger.transformed is not None:
+            files["gitignore.diff"] = self._gitignore_diff()
+            added.append({"path": f"{own}/gitignore.diff", "sha256": _sha(files["gitignore.diff"])})
+        proposals = self._proposals(added, files)
+        return proposals, added, files
+
+    def _build_report(self) -> tuple[dict, dict[str, bytes]]:
+        """The report and every file it binds (_bound_files, report.md, report.json last), in the
+        order they are written."""
+        own = f"{MIGRATIONS}/{self.ledger.migration_id}"
+        proposals, added, files = self._bound_files()
+        report = self._report(added, proposals, files["mapping.json"])
+        files["report.md"] = _summary(report)
+        report["added"].append({"path": f"{own}/report.md", "sha256": _sha(files["report.md"])})
+        files["report.json"] = _json_bytes(report)
+        return report, files
+
+    def _bound_differ(self, report: dict) -> list[str]:
+        """The files `report` binds (`added`, `mapping`) that are not there as a file with their
+        sha256, or that are not in this migration's directory."""
+        own = f"{MIGRATIONS}/{self.ledger.migration_id}"
+        out = []
+        for item in [*(report.get("added") or []), report.get("mapping") or {}]:
+            rel = item.get("path") if isinstance(item, dict) else None
+            if not core._record_path(rel) or not rel.startswith(own + "/"):
+                out.append(str(rel))
+                continue
+            try:
+                regular = stat.S_ISREG(os.lstat(self.dest / rel).st_mode)
+            except OSError:
+                regular = False
+            if not regular or _hash_path(self.dest / rel) != item.get("sha256"):
+                out.append(rel)
+        return out
+
+    def _gitignore_diff(self) -> bytes:
+        """The .gitignore transform's diff (design 6.13), made again from the copy as transformed:
+        its bytes before are its bytes after without the block the transform line names, checked
+        by the line's sha256."""
+        line = self.ledger.transform
+        after = self._dest_bytes(".gitignore")
+        if _sha(after) == line["after"]:
+            for before in _gitignore_befores(after, self.ledger.migration_id, line.get("added") or []):
+                if _sha(before) == line["before"]:
+                    return _unified(".gitignore", before, after)
+        raise _mismatch(".gitignore is not the transform its line names", paths=[".gitignore"])
 
     def _mapping(self) -> dict:
         checked = self.ledger.source_checked
@@ -1960,15 +2292,21 @@ class Migration:
                            "treatment": b["treatment"]} for b in self.plan["links"]],
                 "kinds": [{"from": "gap", "to": "workflow_feedback", "where": "reader"}]}
 
-    def _proposals(self, added: list) -> dict:
+    def _proposals(self, added: list, files: dict[str, bytes]) -> dict:
         """What the report proposes and does not apply (design 6.13): .gitattributes, the scripts with
-        the older SDK names renamed, and .gitignore where it is a link or there is none."""
+        the older SDK names renamed, and .gitignore where it is a link or there is none — their
+        bytes put in `files` by their path in this migration's directory."""
         own = f"{MIGRATIONS}/{self.ledger.migration_id}"
-        base = self.mdir / "proposals"
+        base = "proposals"
         out: dict = {}
+
+        def propose(name: str, data: bytes) -> None:
+            files[name] = data
+            added.append({"path": f"{own}/{name}", "sha256": _sha(data)})
+
         attributes = (TEMPLATE / "gitattributes").read_bytes()
         if self._dest_bytes(".gitattributes") != attributes:
-            self._propose(base / "gitattributes", attributes, added)
+            propose(f"{base}/gitattributes", attributes)
             out["gitattributes"] = f"{own}/proposals/gitattributes"
         gitignore = self.dest / ".gitignore"
         if not self.plan["transforms"]:
@@ -1976,7 +2314,7 @@ class Migration:
                                                             else None)
             if why is not None:
                 block, lines = gitignore_block(b"", self.ledger.migration_id)
-                self._propose(base / "gitignore", block, added)
+                propose(f"{base}/gitignore", block)
                 out["gitignore"] = {"path": f"{own}/proposals/gitignore", "why": why, "lines": lines}
         scripts, diffs = [], []
         for entry in self.plan["files"]:
@@ -1990,20 +2328,15 @@ class Migration:
             item = {"path": rel, "changes": changes, "reasons": reasons}
             if new is not None:
                 below = rel[len("scripts/"):]
-                self._propose(base / "scripts" / below, new, added)
+                propose(f"{base}/scripts/{below}", new)
                 item["proposal"] = f"{own}/proposals/scripts/{below}"
                 diffs.append(_unified(rel, data, new))
             scripts.append(item)
         if diffs:
-            self._propose(base / "scripts.diff", b"".join(diffs), added)
+            propose(f"{base}/scripts.diff", b"".join(diffs))
             out["scripts_diff"] = f"{own}/proposals/scripts.diff"
         out["scripts"] = scripts
         return out
-
-    def _propose(self, path: Path, data: bytes, added: list) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        self._write_own(path, data)
-        added.append({"path": path.relative_to(self.dest).as_posix(), "sha256": _sha(data)})
 
     def _report(self, added: list, proposals: dict, mapping: bytes) -> dict:
         ledger, plan = self.ledger, self.plan
@@ -2142,17 +2475,20 @@ class Migration:
         and its create-if-absent publication — the commit point — then the directory flushed and
         `committed`. A marker's temporary file an earlier line named goes first."""
         ledger = self.ledger
-        for old in sorted(t for t in ledger.temps if t.startswith(MARKER_TEMP)):
-            if os.path.lexists(self.dest / old):
-                _remove_own(self.dest / old)
+        for old in sorted(set(ledger.marker_temps)):
+            if os.path.lexists(self.dest / old) and self._removable(old):
+                self._remove_temp(self.dest / old)
         n = sum(1 for v in ledger.lines if v["step"] == "marker_begin")
-        temp = self.dest / f"{MARKER_TEMP}{n}.part"
-        self._line("marker_begin", temp=temp.name, text=data.decode("utf-8"), sha256=_sha(data))
+        name = self._root_temp(MARKER_TEMP, n)
+        temp = self.dest / name
+        self._line("marker_begin", temp=name, text=data.decode("utf-8"), sha256=_sha(data))
         try:
-            with open(temp, "xb") as fh:
+            with open(_create(temp), "wb", closefd=True) as fh:
                 self.step("marker_temp", {})
                 fh.write(data)
                 self.files.flush_handle(fh)
+        except FileExistsError:
+            raise _occupied(name) from None  # not this migration's: never removed (S6)
         except OSError as exc:
             raise _write_failed(temp, exc) from exc
         self.step("marker_written", {})
@@ -2200,7 +2536,29 @@ class Migration:
     def _republish(self, ledger: Ledger) -> dict:
         """`committed` and no marker: the bytes its `marker_begin` line holds published again where the
         report is the one the last `reported` line binds and every copy has its report's bytes, else
-        destination_mismatch. The source is not read (design 6.10)."""
+        destination_mismatch. A file the report binds that differs is made again where that gives its
+        bytes (the mapping, the diff, the proposals, report.md), else destination_mismatch too. The
+        source is not read (design 6.10)."""
+        report = self._republish_checks(ledger)
+        unmade, remade = self._remade_bound(report)
+        if unmade:
+            raise _mismatch("files the report binds differ and cannot be made again with its bytes",
+                            reason="unaccounted", paths=unmade[:50])
+        for rel, data in remade.items():
+            self._write_own(self.dest / rel, data)
+        if remade:
+            for root, _dirs, _files in os.walk(self.mdir):
+                try:
+                    self.files.flush_dir(root)
+                except OSError as exc:
+                    raise _write_failed(root, exc) from exc
+        result = self._publish_marker(ledger.marker["text"].encode("utf-8"), report)
+        result.update(already_migrated=True, republished=True)
+        return result
+
+    def _republish_checks(self, ledger: Ledger) -> dict:
+        """The report of a committed migration whose marker went, when it is the one the last
+        `reported` line binds and every copy has its bytes (read only)."""
         report_data = self._dest_bytes(f"{MIGRATIONS}/{ledger.migration_id}/report.json")
         if ledger.reported is None or ledger.marker is None or \
                 _sha(report_data) != ledger.reported.get("sha256"):
@@ -2210,9 +2568,34 @@ class Migration:
         if any(v != "same" for v in compared.values()):
             raise _mismatch("copies differ from the report",
                             paths=sorted(p for p, v in compared.items() if v != "same")[:50])
-        result = self._publish_marker(ledger.marker["text"].encode("utf-8"), report)
-        result.update(already_migrated=True, republished=True)
-        return result
+        return report
+
+    def _remade_bound(self, report: dict) -> tuple[list[str], dict[str, bytes]]:
+        """(the files `report` binds that differ and cannot be made again with the bytes it binds,
+        the bytes of those that can, by destination path): made in memory from the ledger, the plan
+        and the copies (design 6.10's last row keeps the report and the marker as they are)."""
+        differ = self._bound_differ(report)
+        if not differ:
+            return [], {}
+        own = f"{MIGRATIONS}/{self.ledger.migration_id}"
+        try:
+            if self.plan is None:
+                self.plan = self._plans()[-1]
+            _, _, files = self._bound_files()
+        except AnalyticsError:
+            return differ, {}
+        files["report.md"] = _summary(report)
+        want = {item.get("path"): item.get("sha256")
+                for item in [*(report.get("added") or []), report.get("mapping") or {}]
+                if isinstance(item, dict)}
+        unmade, remade = [], {}
+        for rel in differ:
+            name = rel[len(own) + 1:] if rel.startswith(own + "/") else None
+            if name in files and _sha(files[name]) == want.get(rel):
+                remade[rel] = files[name]
+            else:
+                unmade.append(rel)
+        return unmade, remade
 
     def _already(self, judged: Judgment) -> dict:
         """design 6.9's `already_migrated`: nothing copied. Written only: the trust entry when it is
@@ -2226,14 +2609,15 @@ class Migration:
         report = _loads(report_data)
         warnings = ["marker_rewritten"] if judged.rewritten else []
         if not ledger.committed:
+            self._refuse_managed_links()  # the line is appended where the ledger is, never via a link
             self._line("committed")
         marker = self.dest / writer.MARKER
-        for temp in sorted(t for t in ledger.temps if t.startswith(MARKER_TEMP)):
+        for temp in sorted(set(ledger.marker_temps)):
             path = self.dest / temp
-            if not os.path.lexists(path):
+            if not os.path.lexists(path) or not self._removable(temp):
                 continue
             if _same_entry(path, marker) or _hash_path(path) == _hash_path(marker):
-                _remove_own(path)
+                self._remove_temp(path)
             else:
                 warnings.append(f"kept {temp}: not the marker's bytes")
         if not isinstance(report, dict):
@@ -2283,7 +2667,8 @@ class Migration:
                 todo = []
                 if not ledger.committed:
                     todo.append("write the committed line")
-                if any(os.path.lexists(self.dest / t) for t in ledger.temps if t.startswith(MARKER_TEMP)):
+                if any(os.path.lexists(self.dest / t) for t in ledger.marker_temps
+                       if ledger.owns(t)):
                     todo.append("remove the marker's temporary file")
                 if not core.is_trusted(self.dest):
                     todo.append("add the destination to the trust list")
@@ -2293,6 +2678,7 @@ class Migration:
             if judged.reads_source:
                 self._source_checks()
             self._destination_checks(judged)
+            todo = self._dry_resume(judged) if judged.kind == "resume" else []
         except AnalyticsError as exc:
             details = exc.details if isinstance(exc.details, dict) else {}
             exc.details = {**details, "dry_run": True, "state": "refused",
@@ -2303,10 +2689,37 @@ class Migration:
         else:
             ledger = judged.ledger
             out.update(state="resumable", migration_id=ledger.migration_id, step=ledger.last,
-                       source_checked=ledger.source_checked is not None, copied=len(ledger.copied))
+                       source_checked=ledger.source_checked is not None, copied=len(ledger.copied),
+                       **({"todo": todo} if todo else {}))
             if self.inventory is not None:
                 out["plan"] = self._dry_plan(self.inventory)
         return out
+
+    def _dry_resume(self, judged: Judgment) -> list[str]:
+        """The checks a resumed call makes of the destination before it acts (design 6.9: the same
+        rules), read only: ① of 6.10 for a migration not committed, the report and the copies for one
+        committed whose marker went. Gives what such a call would write besides going on."""
+        ledger = judged.ledger
+        self.ledger, self.mdir = ledger, ledger.directory
+        if ledger.committed:
+            report = self._republish_checks(ledger)
+            unmade, remade = self._remade_bound(report)
+            if unmade:
+                raise _mismatch("files the report binds differ and cannot be made again with its "
+                                "bytes", reason="unaccounted", paths=unmade[:50])
+            return [f"make {rel} again" for rel in remade] + ["publish the marker again"]
+        if not ledger.plans:
+            self._account([], before_plan=True, remove=False)
+            return []
+        plans = self._plans()
+        self.plan = plans[-1]
+        self._account(plans, remove=False)
+        if ledger.source_checked is not None:
+            missing = [e["to"] for e in self.plan["files"] if e["to"] not in ledger.copied]
+            if missing:
+                raise _mismatch("the ledger checked the source before every copy was made",
+                                paths=missing[:20])
+        return []
 
     def _dry_plan(self, inventory: Inventory) -> dict:
         source = str(self.source)
@@ -2408,9 +2821,32 @@ def gitignore_block(before: bytes, migration_id: str) -> tuple[bytes, list[str]]
         return before, []
     eol = b"\r\n" if b"\r\n" in before else b"\n"
     body = before if not before or before.endswith((b"\n", b"\r")) else before + eol
+    return body + (eol if body else b"") + _gitignore_lines(migration_id, lines, eol), lines
+
+
+def _gitignore_lines(migration_id: str, lines: list[str], eol: bytes) -> bytes:
     head = f"# Added by analytics migrate {migration_id}: the new names of the paths ignored above"
-    block = eol.join([head.encode("utf-8"), *(line.encode("utf-8") for line in lines)]) + eol
-    return body + (eol if body else b"") + block, lines
+    return eol.join([head.encode("utf-8"), *(line.encode("utf-8") for line in lines)]) + eol
+
+
+def _gitignore_befores(after: bytes, migration_id: str, lines: list[str]):
+    """The bytes a .gitignore may have had before gitignore_block appended `lines` to it, as `after`
+    is now: the caller checks each by its sha256 (the line end, and whether the last line had one,
+    are not known from `after` alone)."""
+    for eol in (b"\n", b"\r\n"):
+        block = _gitignore_lines(migration_id, lines, eol)
+        if not after.endswith(block):
+            continue
+        rest = after[:-len(block)]
+        if not rest:
+            yield b""
+            continue
+        if not rest.endswith(eol):
+            continue
+        body = rest[:-len(eol)]
+        yield body
+        if body.endswith(eol):
+            yield body[:-len(eol)]
 
 
 def _unified(rel: str, before: bytes, after: bytes) -> bytes:

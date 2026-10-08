@@ -134,3 +134,47 @@ def test_the_reader_knows_the_migration_family():
     assert relations.MIGRATION_V1 in relations.KNOWN
     assert relations.unsupported_reason({"schema": "analytics.migration/1", "record": "plan"},
                                         frozenset({relations.MIGRATION_V1})) is None
+
+
+def test_what_the_mapping_is_enters_the_read_s_revision(tmp_path):
+    """design 5.4 (Codex #8): the mapping is read within the read's attempts and its state is part
+    of the source_revision — removed, the revision changes with what the read applies, and back with
+    the same bytes, it is the revision it was."""
+    p = LegacyProject(tmp_path / "src")
+    a = p.file(".lab/adhoc/a.csv", b"a")
+    p.run("20261001-091000-maker", started_at=at(10), ts=at(11), kit_version="0.4.0",
+          outputs=[(".lab/adhoc/a.csv", a)])
+    dest = tmp_path / "dest"
+    migrate(p.root, dest)
+    project = core.Project(dest)
+    first = core.read_model(project).source_revision
+    assert core.read_model(project).source_revision == first
+    marker = json.loads((dest / "analytics.json").read_text(encoding="utf-8"))
+    mapping = dest / marker["migration"]["report"].replace("report.json", "mapping.json")
+    data = mapping.read_bytes()
+    mapping.unlink()
+    model = core.read_model(core.Project(dest))
+    assert model.source_revision != first
+    assert model.read_as("20261001-091000-maker", ".lab/adhoc/a.csv") is None
+    mapping.write_bytes(data)
+    assert core.read_model(core.Project(dest)).source_revision == first
+
+
+def test_a_marker_report_and_mapping_of_two_migrations_are_not_read_together(tmp_path):
+    """design 2.4 (Codex #7): the marker's migration field, the report and the mapping must be one
+    migration's — its id in each, the report and the mapping in its directory — else no mapping is
+    applied (`invalid`)."""
+    p = LegacyProject(tmp_path / "src")
+    p.event("note", text="n")
+    dest = tmp_path / "dest"
+    migrate(p.root, dest)
+    marker = json.loads((dest / "analytics.json").read_text(encoding="utf-8"))
+    field = marker["migration"]
+    assert core.migration_mapping(dest, marker)[1]["applied"] is True
+    other = {**field, "id": "20261008T000000Z-00000000"}
+    assert core.migration_mapping(dest, {**marker, "migration": other})[1]["reason"] == "invalid"
+    renamed = dest / ".analytics" / "migration" / "20261008T000000Z-00000000"
+    shutil.copytree(dest / ".analytics" / "migration" / field["id"], renamed)
+    moved = {**field, "id": renamed.name, "report": f".analytics/migration/{renamed.name}/report.json"}
+    _, info = core.migration_mapping(dest, {**marker, "migration": moved})
+    assert info["reason"] == "invalid", info  # the report there is the other migration's
