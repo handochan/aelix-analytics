@@ -94,7 +94,17 @@
     }
    }
   },
-  "note": "a pull_request run takes the workflow from GitHub's merge commit (github_sha) and checks out the PR head; the artifacts are kept in the work run's evidence/ci/ (GitHub deletes them after 90 days)"
+  "note": "a pull_request run takes the workflow from GitHub's merge commit (github_sha) and checks out the PR head; the artifacts are kept in the work run's evidence/ci/ (GitHub deletes them after 90 days)",
+  "after_the_record": {
+   "id": "37795999482",
+   "url": "https://github.com/handochan/aelix-analytics/actions/runs/37795999482",
+   "head": "8c13679",
+   "attempts": {
+    "1": "the Windows leg failed: tests/test_model_eval.py::test_the_child_gets_no_credential_variable_and_the_runs_own_home timed out in tools/model_eval.py settle (unrelated to this PR, issue #83)",
+    "2": "the Windows leg failed two of this PR's lock tests: tests/test_contracts.py::test_trying_a_lock_another_process_holds_is_busy_at_once[windows-exclusive] (a thread of the same process had not let the lock go yet) and tests/test_migration.py::test_one_migration_a_destination_and_none_while_a_run_holds_the_source (Windows let a killed run's lock go after the process ended: source_busy, CONTRACTS G)"
+   },
+   "then": "the next commit changed only those two tests and CONTRACTS G; the engine code is the measured one"
+  }
  },
  "legs": {
   "linux": {

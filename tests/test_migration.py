@@ -1061,7 +1061,18 @@ def test_one_migration_a_destination_and_none_while_a_run_holds_the_source(tmp_p
     finally:
         runner.kill()
         runner.wait(30)
-    migrate(source, tmp_path / "second")
+    # Windows lets a killed process's byte-range locks go when it gets to it, not when the process
+    # has ended (LockFileEx): until then the source is busy as above, and the call is the person's to
+    # repeat. A run that ends normally lets its lock go itself.
+    deadline = time.monotonic() + 60
+    while True:
+        try:
+            migrate(source, tmp_path / "second")
+            break
+        except core.AnalyticsError as exc:
+            if exc.code != "source_busy" or time.monotonic() > deadline:
+                raise
+            time.sleep(0.2)
     assert_committed(tmp_path / "second", source)
 
 

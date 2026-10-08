@@ -384,10 +384,15 @@ def test_trying_a_lock_another_process_holds_is_busy_at_once(implementation, tmp
             with locks.exclusive(lock):
                 acquired.set()
 
-        threading.Thread(target=take, daemon=True).start()
+        taker = threading.Thread(target=take, daemon=True)
+        taker.start()
         assert not acquired.wait(0.5), "exclusive did not wait for the other process"
         release.set()
         assert acquired.wait(20), "the lock was not free once the other process let it go"
+        # The thread lets the lock go when its `with` ends, after `acquired` is set; on Windows a byte
+        # range one handle of this process holds also refuses another handle of it, so wait for that.
+        taker.join(20)
+        assert not taker.is_alive(), "the thread never let the lock go"
     finally:
         release.set()
         holder.join(20)
