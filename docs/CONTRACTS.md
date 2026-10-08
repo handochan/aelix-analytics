@@ -24,7 +24,7 @@ manifest는 설치본이 aelix에 자기를 밝히는 데만 씁니다: `id = "a
 (`aelix -e`·symlink)는 manifest 없이 로드됩니다.
 확장은 aelix 프로세스 안에서 stdlib와 aelix API, 그리고 실행 루트(kit 디렉터리: package `aelix_analytics`를 담은 디렉터리, D)의
 `aelix_analytics/core.py`와 그 형제 `aelix_analytics/_platform.py`·`aelix_analytics/relations.py`(기록을 ADR-0006대로 읽는 읽기 모델, E)·
-`aelix_analytics/writer.py`(표식 판정과 쓰기 게이트, kit 0.7.0부터)(넷 다 stdlib 전용)만 import합니다.
+`aelix_analytics/writer.py`(표식 판정과 쓰기 게이트, kit 0.7.0부터. #13의 셋째 PR부터 새 형식의 공통 writer도)(넷 다 stdlib 전용)만 import합니다.
 설치본에서는 그 앞에 package `aelix_analytics`와 `aelix_analytics._install`(실행 루트의 위치)이 import됩니다. kit 0.2.0부터 이
 package가 kit 전체이지만, 그 `__init__`은 모듈 수준에서 stdlib만 import합니다: SDK 함수의 정의뿐이고 kit 모듈은 함수를 부를 때,
 `core`는 `__version__`을 물을 때 import됩니다. 그래서 aelix 프로세스의 `aelix_analytics.*`는 package와 `_install`·`extension`뿐입니다.

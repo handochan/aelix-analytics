@@ -33,9 +33,11 @@ from ._platform import open_text as open_text
 from ._platform import write_text as write_text
 from .writer import DATASET_NAME_RE as DATASET_NAME_RE
 from .writer import EVENT_ID_RE as EVENT_ID_RE
+from .writer import RECORD_KINDS as RECORD_KINDS
 from .writer import RUN_ID_RE as RUN_ID_RE
 from .writer import AnalyticsError as AnalyticsError
 from .writer import Origin as Origin
+from .writer import Written as Written
 from .writer import append_jsonl as append_jsonl
 from .writer import classify_refs as classify_refs
 from .writer import migration_record as migration_record
@@ -1764,6 +1766,42 @@ def add_note(project: Project, kind: str, text: str, *, refs=None, resolves=None
                                      hint="analytics_status lists open questions and todos with their ids")
             ref_map["resolves"] = resolves
         return _append_event_locked(project, kind, text, ref_map, origin)
+
+
+# --- the new format's records (Issue #13 PR 3, design 4.5 and 9) ---
+
+def writer_for(project: Project, origin: Origin) -> writer.Writer:
+    """The common writer of a project for one request by `origin`: this kit's version, the
+    project's platform, and how a binding reads the paths an older kit recorded — the project's own
+    links and spellings, or a migrated project's mapping (design 5.4) — looked up only when a binding
+    reads them (design 3.2: the writer has no Project of its own)."""
+    reading: list = []
+
+    def legacy(recorded):
+        if not reading:
+            mapping, _info, _state = _project_migration(project)
+            reading.append(project.legacy_identity if mapping is None
+                           else mapped_identity(project, mapping))
+        return reading[0](recorded)
+
+    return writer.Writer(project.root, platform=project.platform, origin=origin,
+                         writer_version=KIT_VERSION, legacy_path=legacy)
+
+
+def record(project: Project, kind: str, text: str, *, refs=None, resolves=None,
+           origin: Origin) -> writer.Written:
+    """Record a journal entry by `origin` through the common writer (writer.Writer.record): judged
+    before anything else (the writer's gate), a kind a person or an agent records (RECORD_KINDS;
+    `gap` is refused with its new name), the names in `refs` bound as they are written, and
+    `resolves` the question or to-do it closes (an event that must be there). The answer holds the
+    record, the request_id, the bindings and the closed record's state before and after."""
+    w = writer_for(project, origin)
+    w.admit("record")
+    writer.check_kind(kind)
+    items = [refs] if isinstance(refs, str) else list(refs or [])
+    if resolves:
+        items.append({"type": "event", "event_id": str(resolves).strip(), "relation": "resolves"})
+    return w.record(kind, text, refs=items)
 
 
 # --- CONTEXT.md history ---

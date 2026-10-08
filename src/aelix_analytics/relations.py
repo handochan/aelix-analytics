@@ -451,6 +451,20 @@ class Journal:
                 return "missing", "record_absent", None
         return "resolved", None, None
 
+    def event_of(self, source: str) -> Event | None:
+        """The readable event `source` names as `source_of` names it (`e<seq>` of an id one line
+        holds, `journal:<line>`), or None: a line that holds no readable event, an id on several
+        lines given as `e<seq>`."""
+        if not isinstance(source, str):
+            return None
+        if source.startswith("journal:"):
+            number = source[len("journal:"):]
+            event = self._event_at.get(int(number)) if number.isdigit() else None
+        else:
+            lines = self.lines_of.get(source, [])
+            event = self._event_at.get(lines[0]) if len(lines) == 1 else None
+        return event if event is not None and self.source_of(event) == source else None
+
     def in_order(self) -> list[Event]:
         """Seq order, line order among equal seqs (a record without a seq goes last)."""
         if self._ordered is None:
@@ -516,6 +530,17 @@ def _apply(state: dict, new) -> None:
         state["withdrawn"] = new == "withdrawn"
 
 
+# Every state a record's display can take (ADR-0006 6), the states a transition may lead to.
+RECORD_STATES = ("current", "superseded", "conflict", "withdrawn", "open", "resolved", "proposed", "trial",
+          "validated", "registered", "deferred", "rejected", "deprecated")
+
+
+def _transitions(state: dict) -> list[str]:
+    """The states a record_update may take a record to from the state it is in now."""
+    shown = _display(state)
+    return [new for new in RECORD_STATES if _allowed(state, shown, new)]
+
+
 def report_key(report_id, revision_id) -> str:
     return f"report:{report_id}/{revision_id}"
 
@@ -535,7 +560,8 @@ class Replay:
     before the event (seq below the event's, or below the next seq for a line without one) with a
     bound version; anything else (absent, later, several lines with its id, the wrong type, unbound,
     or a record without a state) changes nothing. Records that share an id each get their own state
-    under `journal:<line>`."""
+    under `journal:<line>`. Each state keeps the event that last changed what it shows (`state_of`'s
+    `made_by`), which a writer reports with a conflict (design 4.6)."""
 
     def __init__(self, journal: Journal):
         self.states: dict[str, dict] = {}
@@ -550,10 +576,13 @@ class Replay:
                 state, _ = self._target(journal, ref, before)
                 if state is None:
                     continue
+                shown = _display(state)
                 if relation == "supersedes" and state["group"] == "content":
                     state["by"].add(name)
                 elif relation == "resolves" and state["group"] == "question":
                     state["resolved"] = True
+                if _display(state) != shown:
+                    state["made_by"] = name
             if event.kind == "record_update" and event.schema == EVENT_V2:
                 self._update(journal, event, name, before)
             if event.kind in CONTENT_KINDS:
@@ -611,7 +640,10 @@ class Replay:
         details = event.value.get("details")
         details = details if isinstance(details, dict) else {}
         if _allowed(state, details.get("expected_state"), details.get("new_state")):
+            shown = _display(state)
             _apply(state, details["new_state"])
+            if _display(state) != shown:
+                state["made_by"] = name
         else:
             state["mismatched"].append(name)
 
@@ -625,6 +657,19 @@ class Replay:
         """Whether a record_update of `target` from `expected` to `new` applies now (ADR-0006 6)."""
         state = self.states.get(target)
         return state is not None and _allowed(state, expected, new)
+
+    def state_of(self, target: str) -> dict | None:
+        """One record's replayed state, or None when no record has a state under that name: `state`
+        (as record_states shows it), `made_by` (the event that last changed it, by its record name;
+        None while it is as the record made it), `corrected_by` (a content record's corrections, by
+        their record names, sorted), `transitions` (the states a record_update may take it to now)
+        and `mismatched_updates`."""
+        state = self.states.get(target)
+        if state is None:
+            return None
+        return {"state": _display(state), "made_by": state.get("made_by"),
+                "corrected_by": sorted(state.get("by") or ()), "transitions": _transitions(state),
+                "mismatched_updates": list(state["mismatched"])}
 
 
 # --- the source revision (ADR-0006 5) ------------------------------------------------------------
@@ -671,6 +716,19 @@ def _files(path: Path, suffix: str) -> list[str]:
 
 
 CONTEXT_DIRS = (".analytics/context", ".lab/context")  # ADR-0006 4: in this order
+
+
+def context_file(root, name) -> Path | None:
+    """A CONTEXT version of the project at `root` by its file name, in .analytics/context/ and then
+    .lab/context/. A name that is not a bare file name on every platform (a separator, a drive as in
+    `C:x.md`, `.`, `..`) names no version."""
+    if not _file_name(name):
+        return None
+    for directory in CONTEXT_DIRS:
+        path = Path(root) / directory / name
+        if path.is_file():
+            return path
+    return None
 
 
 def _snapshot(root: Path, state=None) -> list:
@@ -1087,6 +1145,69 @@ class ReadModel:
         end = bisect.bisect_left(versions, (before,))
         return [(script, version, script != recorded) for _, script, version, recorded in versions[:end]]
 
+    # --- what a writer binds a name to (design 4.7) ----------------------------------------------
+
+    def latest_version(self, key) -> tuple[str, bool] | None:
+        """The newest successful version of a logical key — `<run_id>/<visualization_id>` of the run
+        whose completion event has the highest seq (ADR-0006 3) — and whether it is the key's only
+        through an older kit's path; None when the key has none."""
+        versions = self._version_index()[0].get(self.chart_key(key), []) if isinstance(key, str) else []
+        if not versions:
+            return None
+        _, version, recorded = versions[-1]
+        return version, recorded != key
+
+    def keys_named(self, name) -> dict[str, list[str]]:
+        """Logical key -> its successful versions, for every script that has a Visualization of this
+        id (a name given without its script), each list in completion order."""
+        out: dict[str, list[str]] = {}
+        for script, version, _ in self._by_name(name, self.journal.next_seq):
+            out.setdefault(f"{script}::{name}", []).append(version)
+        return out
+
+    def runs_of_request(self, request_id) -> list[str]:
+        """The runs whose record holds this request_id, compared without ASCII case (ADR-0006 8)."""
+        if not isinstance(request_id, str):
+            return []
+        wanted = request_id.lower()
+        return sorted(run_id for run_id, run in self._runs.items()
+                      if isinstance(run.get("request_id"), str) and run["request_id"].lower() == wanted)
+
+    def import_record(self, path=None, *, name=None) -> dict | None:
+        """The import record of a path, or of a dataset name (data/imported/ before data/raw/, as the
+        views take their names, design 2.3) — the last in file-name order when several have it — or
+        None."""
+        if path is not None:
+            found = self._imports(path)
+            return found[-1] if found else None
+        for directory, _ in IMPORT_DIRS:
+            found = [meta for location, meta in self._metas
+                     if location.startswith(f"{directory}/") and meta.get("name") == name]
+            if found:
+                return found[-1]
+        return None
+
+    def latest_output(self, path=None, *, name=None) -> tuple[str, str, str | None] | None:
+        """(run, path, sha256) of the newest successful run with a completion event that output this
+        path (as recorded, not deleted) — or, for a dataset `name`, a parquet file under
+        data/derived/ of that stem, as the dataset list names one — or None."""
+        best = None
+        for run_id, run in self._runs.items():
+            done = self.completion_seq(run_id)
+            if run.get("status") != "ok" or done is None:
+                continue
+            for out in _dicts(run.get("outputs")):
+                held = _str(out.get("path"))
+                if held is None or out.get("change") == "deleted":
+                    continue
+                pure = PurePosixPath(held)
+                if (held == path if name is None else (
+                        pure.stem == name and pure.suffix.lower() == ".parquet"
+                        and pure.parts[:2] == ("data", "derived"))):
+                    if best is None or done > best[0]:
+                        best = (done, run_id, held, _str(out.get("sha256")))
+        return best[1:] if best else None
+
     # --- reference judgments (ADR-0006 3 and 4) --------------------------------------------------
 
     def references(self, source: str | None = None) -> list[dict]:
@@ -1138,15 +1259,8 @@ class ReadModel:
         return list(self._by_source.get(source, []))
 
     def _event_of(self, source: str) -> Event | None:
-        """The readable event `source` names as `source_of` names it, or None (a Report revision, a
-        line that holds no readable event, an id on several lines given as `e<seq>`)."""
-        if source.startswith("journal:"):
-            number = source[len("journal:"):]
-            event = self.journal._event_at.get(int(number)) if number.isdigit() else None
-        else:
-            lines = self.journal.lines_of.get(source, [])
-            event = self.journal._event_at.get(lines[0]) if len(lines) == 1 else None
-        return event if event is not None and self.journal.source_of(event) == source else None
+        """The readable event `source` names (Journal.event_of); None for a Report revision."""
+        return self.journal.event_of(source)
 
     def _completion_seqs(self) -> dict[tuple, int]:
         out: dict[tuple, int] = {}
@@ -1298,16 +1412,7 @@ class ReadModel:
         return self._instants[text]
 
     def _context_file(self, name) -> Path | None:
-        """A CONTEXT version by file name, in .analytics/context/ and then .lab/context/. A name that
-        is not a bare file name on every platform (a separator, a drive as in `C:x.md`, `.`, `..`)
-        names no version."""
-        if not _file_name(name):
-            return None
-        for directory in CONTEXT_DIRS:
-            path = self.root / directory / name
-            if path.is_file():
-                return path
-        return None
+        return context_file(self.root, name)
 
     def _imports(self, path) -> list[dict]:
         """The import records of a path, in file-name order (one index per read)."""

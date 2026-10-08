@@ -191,6 +191,39 @@ def project(tmp_path):
     return root
 
 
+def analytics_project(root, *, title: str = "journal", version: str | None = None,
+                      origin=None) -> Path:
+    """An analytics.json project (analytics.project/2) made by the common writer, as the new
+    format's init makes one: the marker (min_writer_version and kit_version `version`, this kit's by
+    default), CONTEXT.md and its first version under .analytics/context/, and a journal of e1
+    (project) and e2 (context), each ending in LF (Issue #13 PR 3)."""
+    from aelix_analytics import core, writer
+
+    root = Path(root)
+    root.mkdir(parents=True)
+    version = version or core.KIT_VERSION
+    project_id = writer.new_project_id()
+    writer.write_json(root / "analytics.json", {
+        "schema": "analytics.project/2", "project_id": project_id, "title": title,
+        "created_at": core.iso(), "min_writer_version": version, "kit_version": version},
+        platform=core.PLATFORM)
+    context = b"## Goal\nA test of the new format\n"
+    (root / "CONTEXT.md").write_bytes(context)
+    digest = hashlib.sha256(context).hexdigest()
+    name = f"{core.now().strftime('%Y%m%d-%H%M%S-%f')}_{digest[:12]}.md"
+    (root / ".analytics" / "context").mkdir(parents=True)
+    (root / ".analytics" / "context" / name).write_bytes(context)
+    origin = origin or core.Origin("test", "sdk")
+    w = writer.Writer(root, platform=core.PLATFORM, origin=origin, writer_version=version)
+    w.record("project", f"project created: {title}", details={"project_id": project_id})
+    writer.Writer(root, platform=core.PLATFORM, origin=core.system_origin(origin),
+                  writer_version=version).record(
+        "context", "CONTEXT.md recorded",
+        refs=[{"type": "context_version", "version": name, "digest": {"sha256": digest},
+               "relation": "about", "basis": "observed"}])
+    return root
+
+
 def write_script(project: Path, name: str, body: str) -> str:
     # A user's file on purpose, in the platform's text mode; no constant-hash test uses it (ADR-0007).
     path = project / "scripts" / name

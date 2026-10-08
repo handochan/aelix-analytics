@@ -366,19 +366,11 @@ def _changed(paths) -> AnalyticsError:
 # --- the ledger ------------------------------------------------------------------------------------
 
 def append_line(path: Path, value: dict) -> None:
-    """Append one ledger line: an LF first when the last byte is not one (a cut-off append before it,
-    design 6.8), then the line and its LF in one write. Not flushed: a resumed migration hashes every
-    copy again, so a ledger behind the disk judges nothing wrongly."""
-    line = json.dumps(value, ensure_ascii=False).encode("utf-8") + b"\n"
-    fd = os.open(path, os.O_RDWR | os.O_APPEND | os.O_CREAT | NOFOLLOW | getattr(os, "O_BINARY", 0), 0o666)
-    with open(fd, "a+b", closefd=True) as fh:
-        fh.seek(0, os.SEEK_END)
-        if fh.tell():
-            fh.seek(-1, os.SEEK_END)
-            if fh.read(1) != b"\n":
-                line = b"\n" + line
-            fh.seek(0, os.SEEK_END)
-        fh.write(line)
+    """Append one ledger line by the writer's rule (writer.append_line): an LF first when the last
+    byte is not one (a cut-off append before it, design 6.8), then the line and its LF in one write,
+    a link at the ledger's name not followed. Not flushed: a resumed migration hashes every copy
+    again, so a ledger behind the disk judges nothing wrongly."""
+    writer.append_line(path, json.dumps(value, ensure_ascii=False).encode("utf-8"), follow=False)
 
 
 class LedgerError(Exception):
@@ -1606,7 +1598,7 @@ class Migration:
             bad = [p for p in entry["from"].split("/") if not _platform.portable_name(p)]
             if bad:
                 warnings.append({"path": entry["from"], "reason": "unportable_name", "name": bad[0]})
-        project_id = ledger.project_id or "prj_" + secrets.token_hex(8)
+        project_id = ledger.project_id or writer.new_project_id()
         transforms = [{"path": ".gitignore", "kind": "gitignore_append"}] if any(
             e["to"] == ".gitignore" and e["kind"] == "file" for e in entries) else []
         plan = {"schema": FAMILY, "record": "plan", "migration_id": mid, "project_id": project_id,
