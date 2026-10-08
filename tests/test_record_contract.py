@@ -514,14 +514,14 @@ def test_journal_lines_seq_and_damage(case):
     assert journal["recovered"] == case.recovered
     seqs = [(n, v["seq"]) for n, v in case.parsed.items() if isinstance(v.get("seq"), int)]
     for (first, seq), (second, after) in zip(seqs, seqs[1:], strict=False):
-        # seq rises line by line. The /1 writer's defect gives one seq twice: to the record it appended
+        # seq rises line by line. The /1 writer before #49 gave one seq twice: to the record it appended
         # onto a cut-off line and to the next line.
         assert seq < after or (seq == after and first in case.recovered and second == first + 1), (first, second)
     # ADR-0006 6: the next seq follows every parsed and recovered line, unsupported ones included.
     assert journal["next_seq"] == max(seq for _, seq in seqs) + 1
     for number in case.damaged:
         # The cut-off end of an interrupted append (no newline after it), or a line the /1 writer
-        # appended onto one.
+        # before #49 appended onto one.
         cut_off_end = number == len(case.lines) and not case.raw.endswith(b"\n")
         assert number in case.recovered or cut_off_end, number
 

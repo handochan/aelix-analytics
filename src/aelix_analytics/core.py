@@ -1350,18 +1350,19 @@ def find_project(start=None) -> Path | None:
 
 # --- journal ---
 
-def _last_seq(journal: Path) -> int:
+def _journal_bytes(journal: Path) -> bytes:
+    """The journal's bytes; none when there is no journal yet."""
     try:
-        size = journal.stat().st_size
-    except OSError:
-        return 0
-    with open(journal, "rb") as fh:
-        fh.seek(max(0, size - 65536))
-        tail = fh.read()
-    for line in reversed(tail.splitlines()):
-        with contextlib.suppress(ValueError, TypeError, AttributeError):
-            return int(json.loads(line).get("seq", 0))
-    return max((int(e.get("seq", 0)) for e in read_jsonl(journal)), default=0)
+        return journal.read_bytes()
+    except FileNotFoundError:
+        return b""
+
+
+def _last_seq(journal: Path) -> int:
+    """The highest seq of the journal as the reader counts it (relations.Journal.as_of_seq, ADR-0006
+    6): of every parsed line and every record recovered from a line a /1 writer appended onto,
+    unsupported ones included; 0 when there is none. A seq left in a cut-off line is not counted."""
+    return relations.Journal(_journal_bytes(journal)).as_of_seq
 
 
 def classify_refs(items) -> dict:
@@ -1406,13 +1407,36 @@ def resolve_ref_aliases(project: Project, ref_map: dict, runs: list[dict] | None
 
 def _append_event_locked(project: Project, kind: str, text: str, refs=None, actor="agent",
                          session=None) -> dict:
-    seq = _last_seq(project.journal) + 1
-    event = {"schema": SCHEMA_EVENT, "seq": seq, "id": f"e{seq}", "ts": iso(), "kind": kind,
+    """Append one lab.event/1 record; the caller holds project_lock. Every journal write of the kit
+    comes here (ADR-0006 6, Issue #49):
+
+    - The seq is relations.Journal.next_seq of the journal's bytes as they are now: one above the
+      highest seq of every parsed and recovered line, unsupported ones included, wherever that line
+      is. A seq left in a cut-off line is not counted: that write never finished, so it never
+      returned an id, and the reader reads no id from that line.
+    - A number whose id a readable line already holds is skipped, so no id is read on two lines.
+      Only a hand-edited line holds one: its seq is not an integer the reader counts ("3", 3.0,
+      true) or is not its id's number.
+    - A journal whose last byte is not LF ends in a line an interrupted write cut off, or in a
+      record left without its line end: an LF is written first, so the new record is a line of its
+      own. The bytes already there stay as they are: a cut-off line is reported as damaged, and a
+      whole record left without its LF (or with only the CR of a CRLF) reads as it did.
+
+    A journal that ends in LF, or is empty, gets the record and its LF and nothing more, as before."""
+    data = _journal_bytes(project.journal)
+    journal = relations.Journal(data)
+    seq = journal.next_seq
+    while f"e{seq}" in journal.lines_of:
+        seq += 1
+    event ={"schema": SCHEMA_EVENT, "seq": seq, "id": f"e{seq}", "ts": iso(), "kind": kind,
              "actor": actor or "agent", "text": (text or "").strip()[:MAX_EVENT_TEXT],
              "refs": {k: v for k, v in (refs or {}).items() if v not in (None, [], "", {})}}
     if session:
         event["session"] = session
-    append_jsonl(project.journal, event)
+    line = json.dumps(event, ensure_ascii=False, default=str) + "\n"
+    if data and not data.endswith(b"\n"):
+        line = "\n" + line
+    write_text(project.journal, line, append=True)
     return event
 
 

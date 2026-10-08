@@ -276,7 +276,7 @@ def _recover(line: bytes) -> dict | None:
     while start != -1:
         try:
             value = json.loads(line[start:])
-        except ValueError:
+        except (ValueError, RecursionError):
             start = line.find(b'{"schema"', start + 1)
             continue
         return value if isinstance(value, dict) else None
@@ -335,7 +335,9 @@ class Journal:
                 continue
             try:
                 value = json.loads(raw)
-            except ValueError:
+            except (ValueError, RecursionError):
+                # RecursionError: a line nested deeper than the parser goes, which no kit writes; it is
+                # damaged like a cut-off one, so it stops neither reading nor the next append (#49).
                 self.damaged.append(number)
                 value = _recover(raw)
                 if value is None:

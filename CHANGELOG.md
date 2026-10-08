@@ -17,7 +17,7 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 
 ## [0.5.0] - 2026-10-07
 
-번호를 붙인 PR은 [#68]입니다. [#12]의 셋째 PR([#76])은 그 뒤 번호를 올리지 않고 병합됐습니다.
+번호를 붙인 PR은 [#68]입니다. [#12]의 셋째 PR([#76])과 [#49]의 수정([#78])은 그 뒤 번호를 올리지 않고 병합됐습니다.
 
 ### Changed
 
@@ -39,6 +39,11 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 
 - 링크한 `data/` 아래에 저장한 출력이 run에서 빠지던 것, junction인 `data/`의 입력이 생산자와 이어지지 않던 것, `runs/`를 가리키는
   junction 아래 run 자신의 파일이 출력으로 기록되던 것, 대소문자만 다른 데이터셋 파일이 kit의 view 이름을 가져가던 것 ([#68]).
+- journal의 마지막 줄이 줄 끝(LF) 없이 끊겨 있으면 다음 이벤트를 그 줄에 이어 써서, 그 이벤트가 깨진 줄 안에 들어가고(ADR-0006의
+  복구로만 읽힘) 그다음 이벤트가 같은 seq·id를 다시 받던 것. 줄 끝만 없던 온전한 기록이나 CRLF의 CR만 남은 줄 뒤에 쓰면 그 기록을
+  읽지 못하게 되던 것. 이제 LF를 먼저 써서 새 이벤트가 따로 한 줄이 되고, seq는 파싱하거나 복구한 모든 줄의 가장 큰 seq 다음
+  값입니다(읽히는 줄이 이미 가진 id의 번호는 건너뜀). 이미 있는 바이트는 고쳐 쓰지 않으며 끊긴 줄은 `damaged`로 보입니다
+  ([#78], [ADR-0006](docs/decisions/0006-common-record-contract.md) 6절).
 
 0.5.0 전의 기록은 고쳐 쓰지 않습니다. 그 기록의 옛 경로는 위처럼 지금의 경로로 대응해 읽고 추론으로 표시합니다.
 
@@ -138,6 +143,7 @@ PR도 이 절입니다.
 [`7b205cd`]: https://github.com/handochan/aelix-analytics/commit/7b205cd16738bc11de1d23e538c9423e7a55ea27
 [`21b6a3c`]: https://github.com/handochan/aelix-analytics/commit/21b6a3c5d98e688aa3642662c4eb4b9093a12247
 [#12]: https://github.com/handochan/aelix-analytics/issues/12
+[#49]: https://github.com/handochan/aelix-analytics/issues/49
 [#31]: https://github.com/handochan/aelix-analytics/pull/31
 [#33]: https://github.com/handochan/aelix-analytics/pull/33
 [#35]: https://github.com/handochan/aelix-analytics/pull/35
@@ -152,3 +158,4 @@ PR도 이 절입니다.
 [#66]: https://github.com/handochan/aelix-analytics/pull/66
 [#68]: https://github.com/handochan/aelix-analytics/pull/68
 [#76]: https://github.com/handochan/aelix-analytics/pull/76
+[#78]: https://github.com/handochan/aelix-analytics/pull/78
