@@ -23,7 +23,7 @@
 - 리뷰: #13은 기록 형식·전환 PR이므로 구현 전에 이 문서가 설계 리뷰(독립 1회·Codex 1회)를 받는다. 그 리뷰(꼭 고칠 것 M1–M8, 검토할 것
   1–21, 새 소유자 질문 2개)를 받았고, 지적마다 처리한 곳은 19.1절에 있다. 고친 diff는 리뷰 예산대로 수정 diff 확인을 한 번 받았고(꼭 고칠 것 2,
   검토할 것 6, 사소한 것 5), 그 처리는 19.2절에 있다. 그 처리 뒤의 이 문서는 다시 확인받지 않았다(자기 검토만, 리뷰 예산).
-- 소유자 결정(2026-10-08, [#13](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6044853778)): 16절의 권장 답 16개(OQ1–OQ16)를
+- 소유자 결정(2026-10-08, [#13](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6049644872)): 16절의 권장 답 16개(OQ1–OQ16)를
   모두 채택했고, Q17-b의 범위는 Aelix 세션으로 정했다(aelix 밖 에이전트가 밝히지 않은 CLI는 `human`·`inferred`로 남고, 다른 호스트에는
   `AELIX_ANALYTICS_ACTOR=agent`를 안내한다). 본문의 "(OQn)" 표시는 그 결정을 따른 규칙이다. OQ4·OQ15·OQ16은 ADR-0005 결정 5의 글자를
   좁히고 OQ6은 결정 7의 PR 목록에 ⓪을 더하므로, ⓪의 PR이 [ADR-0005](../decisions/0005-names-first-storage-with-the-new-writer.md)를
@@ -1172,7 +1172,7 @@ ADR-0005 결정 7은 이름 변경·파일 이동·기록 의미 변경을 한 P
 | CLI JSON 키 `report` | 공개 JSON | `workspace` | ⓪ | 용어집 §5 "겹친 필드는 `workspace`로". #9-1 인계 댓글이 "먼저 그 응답을 바꾸는 쪽"에 맡김. `KIT_VERSION`·CHANGELOG. 값은 ③까지 `report/…` |
 | `report.js`·`report.css` | 자원 | `workspace.js`·`workspace.css` | ⓪ | 렌더가 옛 자원 이름을 지움 |
 | `localStorage` `lab-live`, `sessionStorage` `lab-scroll:` | 브라우저 저장 | `analytics-live`·`analytics-scroll:` | ⓪ | 새 키가 없으면 옛 키 값을 한 번 읽어 새 키에 씀. 옛 키는 지우지 않음(옛 kit의 Workspace가 읽음). 한 번 쓰고 지우던 스크롤 위치는 쓴 뒤 새 키를 비워 두어 옛 키를 다시 읽지 않음(⓪에서 확인) |
-| `window.__LAB_BUILD__` | 코드 | `window.__ANALYTICS_BUILD__` | ⓪ | `build.js`와 `tests/test_line_endings.py` |
+| `window.__LAB_BUILD__` | 코드 | `window.__ANALYTICS_BUILD__` | ⓪ | `build.js`와 `tests/test_line_endings.py`. `build.js`는 옛 전역도 같은 값으로 정함(옛 kit이 만든 페이지를 연 채로 둔 탭이 다시 읽도록) |
 | plotly 템플릿 `lab` | 코드 | `analytics`(`plotly_white+analytics`) | ⓪(조건부) | 템플릿 이름이 저장하는 그림 JSON에 들어가는지 확인하지 않았다. ⓪의 시험이 기존 바이트를 고정하고, 들어가면 저장 값이므로 ③으로 옮긴다. ⓪에서 확인: 그림 JSON은 템플릿의 내용만 담고 이름은 담지 않아 바이트가 같다(`tests/test_kit.py`의 시험) |
 | `__lab_wrapped__` | 코드 | `__analytics_wrapped__` | ⓪ | |
 | `LAB_API` | 시험 상수 | `ANALYTICS_API` | ⓪ | 공개 설정으로 올리지 않음(용어집 §3) |
@@ -1397,7 +1397,8 @@ ADR이 #13 설계에 맡겼거나 입력이 정하지 않았지만 제품 결정
 
 ## 16. 소유자 결정이 필요한 것
 
-**소유자 결정(2026-10-08): 아래 권장 답 16개를 모두 채택했다.** OQ1의 Q17-b 범위는 Aelix 세션이다. 답은 [#13](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6044853778)에 기록했다.
+**소유자 결정(2026-10-08): 아래 권장 답 16개를 모두 채택했다.** OQ1의 Q17-b 범위는 Aelix 세션이다. 답은 [#13](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6049644872)에 기록했다(질문은
+[그 앞 댓글](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6044853778)).
 ADR-0005를 좁히거나 바꾸는 답(OQ4·OQ15·OQ16은 결정 5의 예외, OQ6은 결정 7의 ⓪)은 ⓪의 PR이 [ADR-0005](../decisions/0005-names-first-storage-with-the-new-writer.md)에
 개정해 적었다. 아래 표와 설명의 "받으면 … 개정이 필요하다"는 질문할 때의 글이다.
 

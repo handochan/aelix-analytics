@@ -39,7 +39,7 @@ Workspace는 프로젝트를 탐색하는 인터페이스이며 프로젝트 루
 | 오류·내부 상태 | `AnalyticsError`, `Project.state_dir`(값 `.lab`), `Project.workspace_dir`(값 `report/`)(kit 0.6.0부터. 그 전은 `LabError`, `Project.lab`, `Project.report`) | 이름 유지. 값은 #13의 저장 이름 전환에서 `.analytics`·`workspace/` |
 | 표시 구현 | 모듈 `workspace.py`, 자원 `workspace.js`·`workspace.css`, 확장의 `schedule_workspace_render`(kit 0.6.0부터. 그 전은 `report.py`, `report.js/css`, `schedule_report`) | 유지. 렌더러는 함수로 두고 `WorkspaceRenderer` 클래스를 만들지 않는다([#13 설계](design/RECORD-WRITER-AND-MIGRATION.md#9-미뤄-받은-이름과-pr) 9절) |
 | Workspace 빌드 결과(kit CLI의 결과 JSON) | 키 `workspace`, run의 빌드 실패 `workspace_error`(kit 0.6.0부터. 그 전은 `report`·`report_error`). 값의 경로는 `report/…` | 키 유지. 값은 저장 이름 전환에서 `workspace/…` |
-| Workspace 내부 식별자 | `window.__ANALYTICS_BUILD__`, 브라우저 저장 키 `analytics-live`·`analytics-scroll:<경로>`, plotly 템플릿 `analytics`(`plotly_white+analytics`), capture의 표식 `__analytics_wrapped__`(kit 0.6.0부터. 그 전은 `__LAB_BUILD__`, `lab-live`·`lab-scroll:`, `lab`, `__lab_wrapped__`). 새 저장 키가 없으면 옛 키를 한 번 읽고 옛 키는 남긴다. 저장하는 그림 JSON에는 템플릿 이름이 없다 | 유지 |
+| Workspace 내부 식별자 | `window.__ANALYTICS_BUILD__`, 브라우저 저장 키 `analytics-live`·`analytics-scroll:<경로>`, plotly 템플릿 `analytics`(`plotly_white+analytics`), capture의 표식 `__analytics_wrapped__`(kit 0.6.0부터. 그 전은 `__LAB_BUILD__`, `lab-live`·`lab-scroll:`, `lab`, `__lab_wrapped__`). 새 저장 키가 없으면 옛 키를 한 번 읽고 옛 키는 남긴다. `build.js`는 연 채로 둔 옛 페이지가 다시 읽도록 옛 전역도 같은 값으로 정한다. 저장하는 그림 JSON에는 템플릿 이름이 없다 | 유지 |
 
 위 CLI 작업은 Aelix의 `/analytics` 아래에서도 같은 의미를 사용한다. 지원하는 하위 명령은 실제 구현 기준으로 공개한다.
 `ReportRenderer`는 이전 아키텍처 제안의 명칭이었으며 현재 코드의 클래스가 아니다. 새 설계에서는 Workspace 표시와 Report 형식 처리를 구별한다.

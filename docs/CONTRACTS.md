@@ -599,19 +599,20 @@ kit 0.6.0([#13](https://github.com/handochan/aelix-analytics/issues/13)의 첫 P
   `run`의 `report_error` → `workspace_error`(D). 값은 그대로이며 경로는 `report/…`입니다. 확장은 새 키를 읽습니다. 배포본을 게시하지
   않았으므로 옛 키를 읽는 외부 소비자는 없습니다(ADR-0005 결정 8).
 - Workspace의 자원 `assets/report.js`·`assets/report.css` → `assets/workspace.js`·`assets/workspace.css`(내용은 아래 저장 키와 전역 이름만
-  다름). 렌더가 페이지를 쓴 뒤 옛 두 파일을 지웁니다. `assets/build.js`는 `window.__ANALYTICS_BUILD__`를 정합니다(그 전은
-  `window.__LAB_BUILD__`). 그래서 0.6.0 전 kit이 만든 페이지를 연 채로 둔 탭은 0.6.0의 첫 렌더 뒤 자동으로 다시 읽지 않습니다. 한 번 직접
-  새로 고치면 됩니다.
+  다름). 렌더가 페이지를 쓴 뒤 옛 두 파일을 지웁니다(지울 수 없으면 남겨 둡니다. 어느 페이지도 읽지 않습니다). `assets/build.js`는
+  `window.__ANALYTICS_BUILD__`와 함께 옛 전역 `window.__LAB_BUILD__`도 같은 값으로 정합니다. 그래서 0.6.0 전 kit이 만든 페이지를 연 채로
+  둔 탭도 0.6.0의 렌더 뒤 자동 새로고침이 켜져 있으면 새 페이지로 다시 읽습니다.
 - Workspace의 브라우저 저장 키 `lab-live`(localStorage, 자동 새로고침 설정) → `analytics-live`, `lab-scroll:<경로>`(sessionStorage, 다시
   읽기 전의 스크롤 위치) → `analytics-scroll:<경로>`. 새 키가 없으면 옛 키의 값을 한 번 읽어 새 키에 쓰고, 옛 키는 지우지 않습니다(0.6.0 전
   kit의 Workspace가 읽습니다). 스크롤 위치는 쓴 뒤 새 키를 비워 두어(지우지 않아) 옛 키를 다시 읽지 않습니다.
 - 공개 계약이 아닌 내부 이름: `core.LabError` → `core.AnalyticsError`(JSON 오류의 형태 `{"ok": false, "error": {code, message, hint?,
-  details?}}`와 코드는 그대로), `Project.lab`·`Project.report` → `Project.state_dir`·`Project.workspace_dir`(값 `.lab`·`report` 그대로), 모듈
-  `report.py` → `workspace.py`, 확장의 `schedule_report` → `schedule_workspace_render`, plotly 기본 템플릿 `plotly_white+lab` →
-  `plotly_white+analytics`(저장하는 그림 JSON에는 템플릿의 내용만 있고 이름이 없어 바이트가 같습니다), capture의 표식 `__lab_wrapped__` →
-  `__analytics_wrapped__`. 오류 클래스의 이름을 글로 담는 곳에서는 새 이름이 보입니다: run 기록의 `finalize_errors`(예: run 안에서
-  빈 글로 `analytics.record`를 부르면 `note finding: AnalyticsError: note text is empty`, 그 전은 `LabError`)와 Workspace 빌드 실패의
-  글(`{error}`·`workspace_error`).
+  details?}}`와 코드는 그대로), `Project.lab`·`Project.report` → `Project.state_dir`·`Project.workspace_dir`(값 `.lab`·`report` 그대로.
+  SDK의 `analytics.project()`가 돌려주는 객체의 속성이지만 문서화한 적은 없습니다. 옛 이름을 쓰던 스크립트와 그 run의 재실행은
+  `AttributeError`로 멈춥니다), 모듈 `report.py` → `workspace.py`, 확장의 `schedule_report` → `schedule_workspace_render`, plotly 기본
+  템플릿 `plotly_white+lab` → `plotly_white+analytics`(저장하는 그림 JSON에는 템플릿의 내용만 있고 이름이 없어 바이트가 같습니다),
+  capture의 표식 `__lab_wrapped__` → `__analytics_wrapped__`. 오류 클래스의 이름을 글로 담는 곳에서는 새 이름이 보입니다: run 기록의
+  `finalize_errors`(예: run 안에서 빈 글로 `analytics.record`를 부르면 `note finding: AnalyticsError: note text is empty`, 그 전은
+  `LabError`)와 Workspace 빌드 실패의 글(`{error}`·`workspace_error`).
 - 새 프로젝트의 `lab.json`의 `kit_version`과 run의 `env.kit_version`이 0.6.0입니다.
 
 ## G. 약속하지 않는 것

@@ -652,7 +652,10 @@ def _build_locked(project: core.Project, if_changed: bool) -> dict:
     for name in OLD_ASSETS:  # after the pages: none of them loads these any more
         with contextlib.suppress(OSError):
             (out / "assets" / name).unlink()
-    core.write_text(out / "assets" / "build.js", f'window.__ANALYTICS_BUILD__ = "{site.build}";\n')
+    # The old global too: a page an earlier kit made, left open, polls this file for the name it
+    # knows (__LAB_BUILD__ before kit 0.6.0) and so still reloads itself into the new page.
+    core.write_text(out / "assets" / "build.js",
+                    f'window.__LAB_BUILD__ = window.__ANALYTICS_BUILD__ = "{site.build}";\n')
     site.cache.save()
     project.cache.mkdir(parents=True, exist_ok=True)
     core.write_text(stamp_file, current)

@@ -297,7 +297,8 @@ def test_the_workspace_build_is_named_workspace_and_the_old_assets_go(project, t
     pages = [p.read_text(encoding="utf-8") for p in index.parent.rglob("*.html")]
     assert pages and all("assets/workspace.js?v=" in page for page in pages)
     assert not any("assets/report." in page for page in pages)
-    assert re.fullmatch(r'window\.__ANALYTICS_BUILD__ = "[0-9-]+";\n',
+    # the old global as well, so a page an earlier kit made, left open, still reloads itself
+    assert re.fullmatch(r'window\.__LAB_BUILD__ = window\.__ANALYTICS_BUILD__ = "[0-9-]+";\n',
                         (assets / "build.js").read_text(encoding="utf-8"))
 
 

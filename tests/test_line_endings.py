@@ -276,7 +276,7 @@ def test_charts_and_the_workspace_are_lf(tmp_path):
     with_cr = [p.relative_to(project.root).as_posix() for p in written
                if p.name != "plotly.min.js" and b"\r" in p.read_bytes()]
     assert not with_cr, with_cr
-    assert re.fullmatch(rb'window\.__ANALYTICS_BUILD__ = "[0-9-]+";\n',
+    assert re.fullmatch(rb'window\.__LAB_BUILD__ = window\.__ANALYTICS_BUILD__ = "[0-9-]+";\n',
                         (project.workspace_dir / "assets" / "build.js").read_bytes())
     import plotly
 

@@ -116,16 +116,17 @@
     box.addEventListener("change", () => { live = box.checked; store.set("analytics-live", live ? "1" : "0"); });
   }
   const scrollKey = "analytics-scroll:" + location.pathname;
+  // The position the page saved before it reloaded into this one, used once: the key is left empty,
+  // not removed, so a position an earlier kit's page saved under the old key is read once.
+  let saved = null;
   try {
-    // The position the page saved before it reloaded into this one, used once: the key is left
-    // empty, not removed, so a position an earlier kit's page saved under the old key is read once.
-    let saved = sessionStorage.getItem(scrollKey);
+    saved = sessionStorage.getItem(scrollKey);
     if (saved === null) saved = sessionStorage.getItem("lab-scroll:" + location.pathname);
-    if (saved !== null) sessionStorage.setItem(scrollKey, "");
-    if (saved) {
-      window.addEventListener("load", () => window.scrollTo(0, Number(saved)));
-    }
   } catch (_) { /* storage unavailable */ }
+  if (saved) window.addEventListener("load", () => window.scrollTo(0, Number(saved)));
+  if (saved !== null) {
+    try { sessionStorage.setItem(scrollKey, ""); } catch (_) { /* storage full: restored anyway */ }
+  }
   function poll() {
     if (!live || document.hidden) return;
     const s = document.createElement("script");

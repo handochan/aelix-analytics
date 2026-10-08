@@ -4,7 +4,7 @@ Date: 2026-10-03
 
 Status: Accepted — 2026-10-03 소유자 결정 (Issue #3)
 [Issue #3](https://github.com/handochan/aelix-analytics/issues/3)의 권장안을 채택했다. 채택은 결정의 확정이며 구현 완료가 아니다.
-개정: 2026-10-08 소유자 결정([Issue #13](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6044853778)) — 결정 5에 예외 셋(OQ4·OQ15·OQ16),
+개정: 2026-10-08 소유자 결정([Issue #13](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6049644872)) — 결정 5에 예외 셋(OQ4·OQ15·OQ16),
 결정 7의 PR 목록에 ⓪(OQ6). OQ 번호는 [#13의 설계](../design/RECORD-WRITER-AND-MIGRATION.md) 16절의 소유자 질문이다.
 적용은 [#9](https://github.com/handochan/aelix-analytics/issues/9)·[#10](https://github.com/handochan/aelix-analytics/issues/10)·[#13](https://github.com/handochan/aelix-analytics/issues/13)의 구현 PR이 한다.
 현재 코드가 실제로 하는 것은 [현재 계약](../CONTRACTS.md)에 있고, 이 결정만으로 현재 계약을 바꾸지 않는다.
@@ -88,7 +88,7 @@ schema 가족 `lab.project/1`·`lab.event/1`·`lab.run/1`·`lab.dataset/1`, 신�
      방식을 #13이 고르면, 그것은 전환과 분리된 명시적 단계다. 원본의 바이트는 그대로 보존하고(옮길 뿐 고치지 않는다), 옛 kit의
      작업(run·세션·명령)이 끝났거나 멈춘 것을 확인한 뒤에만 한다. 원본의 잠금이 잡혀 있으면 거절한다. 표식 개명은 이미 프로젝트를
      정한 옛 프로세스의 쓰기를 막지 못하기 때문이다(배경).
-   - 예외 셋(2026-10-08 소유자 결정, [#13](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6044853778), 설계 16절 OQ4·OQ15·OQ16).
+   - 예외 셋(2026-10-08 소유자 결정, [#13](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6049644872), 설계 16절 OQ4·OQ15·OQ16).
      위 규칙의 글자를 다음 경우에만 좁힌다. 덮어쓰지 않는 것과 복사 중 원본이 바뀌면 실패하는 것은 그대로다.
      - 복사하지 않는 것(OQ4): `.venv/`, `report/`, `.lab/cache/`, `.lab/`의 잠금 파일(`lock`·`run.lock`·`report.lock`), `__pycache__/`,
        운영체제 메타 파일(`.DS_Store`·`Thumbs.db`·`desktop.ini`, 어느 깊이에서나), 원본 루트의 `.git`이 git worktree의 `gitdir:` 포인터
@@ -124,9 +124,10 @@ schema 가족 `lab.project/1`·`lab.event/1`·`lab.run/1`·`lab.dataset/1`, 신�
      줄 끝([ADR-0007](0007-line-endings.md))을 구현한 [#42](https://github.com/handochan/aelix-analytics/issues/42)의 PR.
      고치기 전의 경로 정체성과 줄 끝으로 전환과 새 기록을 만들지 않고, 전환이 쓰는 신뢰 목록의 링크 처리(4번)를
      먼저 고치기 위해서다.
-   - #13은 네 PR로 나눈다(2026-10-08 개정으로 ⓪을 더함, [#13](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6044853778) OQ6).
+   - #13은 네 PR로 나눈다(2026-10-08 개정으로 ⓪을 더함, [#13](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6049644872) OQ6).
      ⓪(①보다 먼저) 내부 코드 이름(오류 클래스, `Project`의 경로 속성, Workspace 모듈·자원과 그 브라우저 식별자, 확장의 렌더 예약 함수 등)과
-     kit CLI 결과 JSON의 키 `report`를 Analytics 이름으로 바꾼다. 동작과 저장 바이트는 그대로다(저장 이름은 결정 2대로 ③)
+     kit CLI 결과 JSON의 키 `report`를 Analytics 이름으로 바꾼다. 기록의 형식·저장 이름·의미는 그대로다(저장 이름은 결정 2대로 ③.
+     오류 클래스 이름을 담는 진단 글과 kit 버전 값은 새 값이다, [현재 계약](../CONTRACTS.md) F1)
      ① 새 가족과 섞인 journal의 읽기, 모르는 가족의 보고, 두 표식의 충돌 오류 ② 복사 전환(결정 5의 목적지 규칙과
      중단 뒤 잇기)·참조 매핑·전환 보고서·전후 해시 검증. 이 PR에서는 전환을 시험에서만 부르고 명령·도구로 열지 않는다 ③ 새 writer,
      모든 쓰기의 표식 확인(결정 6), 전환 명령, 신뢰 목록, `.gitignore`. 지표 같은 새 기능은 #14부터다.
