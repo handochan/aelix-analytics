@@ -2703,7 +2703,7 @@ def _aelix_stubs() -> dict:
         "aelix_agent_core": core_pkg,
         "aelix_agent_core.harness": core_pkg.harness,
         "aelix_agent_core.harness.hooks": module("aelix_agent_core.harness.hooks",
-                                                 BeforeAgentStartResult=Any),
+                                                 BeforeAgentStartResult=Any, UserBashResult=Any),
         "aelix_agent_core.types": module("aelix_agent_core.types", AgentTool=Any),
         "aelix_ai": ai_pkg,
         "aelix_ai.messages": module("aelix_ai.messages", ImageContent=Any, TextContent=Any),
@@ -2934,7 +2934,8 @@ def test_loading_the_kit_pulls_no_analysis_library_into_the_host_process(monkeyp
         "class Any:\n"
         "    def __init__(self, *a, **k): self.__dict__.update(k)\n"
         "for name, attrs in (('aelix_agent_core', {}), ('aelix_agent_core.harness', {}),\n"
-        "                    ('aelix_agent_core.harness.hooks', {'BeforeAgentStartResult': Any}),\n"
+        "                    ('aelix_agent_core.harness.hooks', {'BeforeAgentStartResult': Any,\n"
+        "                                                        'UserBashResult': Any}),\n"
         "                    ('aelix_agent_core.types', {'AgentTool': Any}),\n"
         "                    ('aelix_ai', {}), ('aelix_ai.messages', {'ImageContent': Any, 'TextContent': Any}),\n"
         "                    ('aelix_ai.tools', {'ToolExecutionContext': Any, 'ToolResult': Any})):\n"
@@ -3139,7 +3140,7 @@ def test_the_extension_registers_only_the_new_names(monkeypatch):
         [("flag", "analytics-project"), ("command", "analytics"),
          *[("tool", f"analytics_{n}") for n in ("status", "query", "import", "run", "record", "init")],
          *[("on", e) for e in ("before_agent_start", "tool_execution_start", "tool_execution_end",
-                               "agent_end")]])
+                               "agent_end", "user_bash")]])
 
 
 def test_the_analytics_command_records_and_has_no_old_subcommands(monkeypatch, tmp_path):

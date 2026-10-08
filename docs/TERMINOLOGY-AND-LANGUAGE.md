@@ -79,7 +79,9 @@ SDK `scan`은 지연 데이터 읽기이고 정적 코드 스캔은 `static_scan
 호스트가 정한 `AELIX_CODING_AGENT_DIR` 등과 외부 라이브러리의 `MPLBACKEND`, `PYTHONPATH`는 확장 소유 이름이 아니므로 바꾸지 않는다.
 `ANALYTICS_API`(kit 0.6.0 전 `LAB_API`)처럼 시험 스크립트에서만 쓰는 표식은 공개 설정으로 승격하지 않는다. 확장이 kit에 취소를 요청하는 파일의 경로
 `AELIX_ANALYTICS_CANCEL_FILE`(옛 `LAB_CANCEL_FILE`)과 확장이 kit 자식에 실행 수단(`means`)을 알리는 `AELIX_ANALYTICS_MEANS`(kit 0.8.0)도 내부 프로토콜이라
-위 역할 목록에 넣지 않는다([현재 계약](CONTRACTS.md) D).
+위 역할 목록에 넣지 않는다([현재 계약](CONTRACTS.md) D). kit 0.8.0부터 aelix 확장이 aelix 프로세스의 환경에 `AELIX_ANALYTICS_ACTOR=agent`와
+`AELIX_ANALYTICS_SESSION`을 넣고 사람의 `!` 명령 가운데 kit을 부르는 것에는 `human`을 넣지만, 이름은 위 행의 `ACTOR`·`SESSION` 그대로다(새 이름이
+아니다, [현재 계약](CONTRACTS.md) A).
 스키마 숫자는 의미 변경에 따라 정한다. 단순 namespace 전환과 B1의 새 의미 도입을 같은 변경이라고 가정하지 않는다.
 공유 파일의 `publication.json`과 원래 보고서의 manifest도 각각의 버전을 가진다.
 

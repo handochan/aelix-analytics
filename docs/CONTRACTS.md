@@ -14,6 +14,8 @@ Aelix Analytics가 현재 **약속하는 것과 약속하지 않는 것**의 전
 | `on("before_agent_start")` | `BeforeAgentStartResult(system_prompt=기존 + 맥락 블록)` — 그 요청에만 적용, 누적되지 않음 |
 | `on("tool_execution_start" / "tool_execution_end")` | 모든 도구 호출을 `.analytics/telemetry.jsonl`에 기록(이 kit이 쓰는 프로젝트에서만, B "표식 판정과 쓰기". kit 0.8.0 전에는 `.lab/telemetry.jsonl`) |
 | `on("agent_end")` | 분리된 프로세스로 `render --if-changed` 시작(이 kit이 쓰는 프로젝트에서만) |
+| `on("user_bash")` | 사람의 `!`·`!!` 명령 가운데 kit을 부르는 것(아래 "aelix 안의 작성 주체")에만 `UserBashResult(operations=…)`: aelix의 로컬 셸(`aelix_coding_agent.tools.bash.create_local_bash_operations`, 환경을 주지 않으면 `aelix_coding_agent.util.shell_env.get_shell_env`)에 그 명령의 환경에만 `AELIX_ANALYTICS_ACTOR=human`을 더한 것. 나머지 명령에는 결과를 돌려주지 않음(kit 0.8.0) |
+| aelix 프로세스의 `os.environ` | `setup()`이 `AELIX_ANALYTICS_ACTOR=agent`를 넣고(있던 값을 덮음) `AELIX_ANALYTICS_SESSION`을 지우며, `before_agent_start`가 그 세션의 파일 경로로 바꿈(없으면 지움)(kit 0.8.0) |
 | `events.emit` / `events.on` | 채널 `aelix-analytics:instance`로 한 runtime에 사본이 하나만 설정되게 확인 |
 
 쓰지 않는 것: manifest의 선언형 기여(`[contributes]`: 명령·도구·hook·MCP·테마 선언), provider·login·API adapter,
@@ -55,6 +57,26 @@ Workspace 렌더 — 는 건너뜁니다. `/analytics use`는 읽을 수 있는 
 모델 도구와 그것이 예약한 렌더 `tool`, `/analytics`의 명령과 그것이 예약한 렌더 `command`, `agent_end`의 렌더 `hook`)를 받습니다(kit 명령줄의
 `Origin`, D). 기록(`analytics.event/2` 줄과 `analytics.run/2`)에는 `actor`·`actor_basis`·`means`와, 있으면 `session`이 남습니다. kit 0.8.0 전의
 `lab.event/1` 줄에는 `actor`와 `session`만 남았고 자식의 실행 수단은 늘 `cli`였습니다.
+**aelix 안의 작성 주체**(kit 0.8.0, [설계](design/RECORD-WRITER-AND-MIGRATION.md) 4.2절·OQ1, 소유자 결정 Q17-b). 확장은 aelix 프로세스의 환경을
+바꿉니다: `setup()`이 `os.environ`에 `AELIX_ANALYTICS_ACTOR=agent`를 넣고 `AELIX_ANALYTICS_SESSION`을 지우며, 프롬프트마다(`before_agent_start`)
+그 세션의 파일 경로로 바꿉니다(세션 파일이 없으면 지웁니다). aelix를 띄운 셸에 이 변수들이 있어도 덮습니다: aelix 에이전트가 부른 CLI는
+에이전트의 기록입니다. aelix 0.1.0b2의 bash 도구는 호출마다 이 환경을 복사해 자식에 주므로, 에이전트가 bash 도구로 부른 `analytics`·
+`bin/analytics`·`python -m aelix_analytics`는 `agent`·`declared`·`cli`와 그 세션으로 기록합니다(D). `AELIX_ANALYTICS_MEANS`는 넣지 않습니다.
+aelix가 띄우는 다른 자식(다른 확장의 `exec`, MCP 서버, 사람의 `!` 명령)도 두 변수를 물려받습니다. 확장 자신의 kit 자식은 허용 목록으로
+만든 환경에 작성 주체를 직접 넣으므로 영향이 없습니다.
+같은 환경이 사람의 `!`·`!!` 명령에도 가므로, `user_bash` 처리기는 kit을 부르는 명령에만 aelix의 로컬 셸을 `AELIX_ANALYTICS_ACTOR=human`을
+더해 돌려주고 그 명령은 `human`·`declared`·`cli`로 기록합니다. kit을 부르는지는 명령 글을 셸처럼 나눈 단어 가운데 명령 위치의 것만 봅니다.
+명령 위치는 시작과 `;`·`&`·`&&`·`|`·`||`·`(`·`$(`·백틱·줄바꿈 뒤이고, `NAME=value`·`env`(와 그 옵션)·`exec`·`command`·`builtin`·`time`·`nohup`·
+셸 키워드(`if`·`then`·`do` 등)·`uv run`과 그 옵션은 건너뜁니다. 그 자리의 프로그램이 `analytics`(어느 디렉터리든, `analytics.exe`·`.cmd`·`.bat`
+포함)이거나, Python(`python`·`python3.12`·`py` 등)이 자기 옵션 다음에 `-m aelix_analytics`(`aelix_analytics.cli` 같은 하위 모듈 포함)나 kit을
+import하는 `-c`를 받으면 kit 호출입니다. 다른 자리의 단어(`grep analytics notes.txt`), 따옴표 안(`sh -c '…'`, `"$(…)"`), kit을 import하는
+스크립트(`python a.py`, SDK), 닫히지 않은 따옴표는 kit 호출로 보지 않고, 그 명령은 aelix가 하던 대로 돌며 kit을 부르면 `agent`로 기록합니다.
+한계: 출처 기록이지 인증이 아닙니다(명령이 변수를 지우거나 바꾸면 그대로 기록합니다). aelix는 `user_bash` 처리기가 돌려준 셸 가운데
+마지막 것만 씁니다. 그래서 다른 확장(샌드박스·원격 실행 등)도 셸을 돌려주면 등록 순서에 따라 다릅니다: 그 확장이 뒤면 사람의 kit 명령이
+그 셸로 돌아 `agent`로 기록되고, 이 확장이 뒤면 사람의 kit 명령이 그 확장의 셸 대신 aelix의 로컬 셸로 돕니다(사용자가 고른 실행 격리를 그
+명령에서는 비킵니다). 두 순서 모두 시험이 aelix 0.1.0b2의 실제 등록으로 확인합니다(`tests/test_agent_cli.py`). RPC 모드의 `bash` 명령은 처리기
+없이 이 환경을 쓰므로 사람이 불러도 `agent`입니다. aelix 밖의 에이전트 호스트에는 이 처리가 없어서, 그 에이전트가 부르는 CLI는 밝히지 않으면
+`human`·`inferred`로 남습니다. 그런 호스트는 에이전트의 셸에 `AELIX_ANALYTICS_ACTOR=agent`를 설정합니다(D).
 kit 0.3.0 전의 이름(확장 파일 `extension/aelix_lab.py`, 명령 `/lab`, 도구 `lab_*`, flag `--lab-project`, 환경 변수 `AELIX_LAB_*`)은
 등록하지도 읽지도 않습니다. 확장이 읽던 옛 환경 변수(`AELIX_LAB_PROJECT`·`AELIX_LAB_UV`·`AELIX_LAB_TRUST_FILE`, 파일 로드에서는
 `AELIX_LAB_KIT`도)가 설정돼 있거나 aelix의 명령줄에 `--lab-project`(`--lab-project=…` 포함)가 있으면, 확장은 로드할 때 새 이름을
@@ -274,8 +296,9 @@ kit CLI, SDK, 확장, init·데모, run·가져오기·맥락 동기화가 남�
 - **작성 출처**([설계](design/RECORD-WRITER-AND-MIGRATION.md) 4.2절). kit CLI는 `AELIX_ANALYTICS_ACTOR`가 있으면 그 값(`declared`), 없으면
   `human`(`inferred`)이고, 실행 수단은 `AELIX_ANALYTICS_MEANS`(없으면 `cli`, D)입니다. 런처·`bin/analytics`는 kit 0.8.0부터 `AELIX_ANALYTICS_ACTOR`를
   채워 넘기지 않습니다. SDK는 run 밖에서 `AELIX_ANALYTICS_ACTOR`의 값이나 `human`(`inferred`), `sdk`, `AELIX_ANALYTICS_SESSION`이고(kit 0.8.0 전에는
-  `script`), run 안에서는 그 run의 작성 주체·근거·세션과 `sdk`입니다. 데모의 자식 run은 부른 쪽의 값 그대로이고, 확장은 A입니다. 출처는 기록한
-  쪽의 말이지 인증이 아닙니다.
+  `script`), run 안에서는 그 run의 작성 주체·근거·세션과 `sdk`입니다. 데모의 자식 run은 부른 쪽의 값 그대로이고, 확장은 A입니다. aelix
+  에이전트가 bash 도구로 부른 CLI는 확장이 aelix 프로세스의 환경에 넣은 `agent`와 세션을, 사람이 aelix의 `!`로 부른 kit 명령은 `human`을
+  기록합니다(A "aelix 안의 작성 주체"). 출처는 기록한 쪽의 말이지 인증이 아닙니다.
 - **핵심 정보** = `finding`·`decision`·`assumption` 중 다른 이벤트의 `resolves` 참조가 가리키지 않는 것.
 - **열린 항목** = `question`·`todo` 중 같은 조건. `resolve` 종류는 `resolves`가 필수입니다.
 - **덧붙이기**: 모든 이벤트(노트·가져오기·run·맥락 버전·init)는 JSON 한 줄과 LF로 한 번에 덧붙입니다(`writer.append_line`). journal의 마지막 바이트가 LF가
@@ -523,6 +546,10 @@ Windows에서는 `analytics.exe`)로 부릅니다(kit 0.3.0 전의 `bin/lab`). �
 - run 동안 kit은 스크립트에 `AELIX_ANALYTICS_RUN_ID`·`AELIX_ANALYTICS_RUN_DIR`·`AELIX_ANALYTICS_PROJECT`를 줍니다(kit 0.3.0 전
   `LAB_RUN_ID`·`LAB_RUN_DIR`·`LAB_PROJECT`). `AELIX_ANALYTICS_ACTOR`·`AELIX_ANALYTICS_SESSION`·`AELIX_ANALYTICS_MEANS`가 기록의 작성
   출처(`actor`·`actor_basis`·`session`·`means`, C1)가 되고, `AELIX_ANALYTICS_STYLE=0`이면 matplotlib·plotly 기본 스타일을 끕니다.
+- `AELIX_ANALYTICS_ACTOR`·`AELIX_ANALYTICS_SESSION`은 기록을 쓰거나 요청한 쪽이 밝히는 값입니다. 없으면 kit CLI와 run 밖 SDK는
+  `human`(`inferred`)으로 기록합니다. aelix 안에서는 확장이 에이전트의 셸에 `agent`와 세션을 넣습니다(A "aelix 안의 작성 주체"). aelix 밖의
+  에이전트 호스트(다른 코딩 에이전트, 자동화)가 kit CLI·SDK를 부르면 그 호스트가 에이전트의 셸에 `AELIX_ANALYTICS_ACTOR=agent`(있으면
+  `AELIX_ANALYTICS_SESSION`도)를 설정해야 에이전트의 기록으로 남습니다(소유자 결정 Q17-b: 이 kit이 스스로 밝히는 범위는 Aelix 세션입니다).
 
 ### D1. run의 중단
 
@@ -898,6 +925,9 @@ kit 0.8.0([#13](https://github.com/handochan/aelix-analytics/issues/13)의 셋�
 - 작성 출처: 기록에 `actor_basis`·`means`가 있습니다. kit CLI가 `AELIX_ANALYTICS_MEANS`를 읽고(잘못된 값은 `bad_means`), 런처·`bin/analytics`는
   `AELIX_ANALYTICS_ACTOR=human`을 채워 넘기지 않으며(사람이 부른 기록은 `human`·`inferred`), run 밖 SDK의 작성 주체가 `script`에서
   `human`(`inferred`)이나 선언한 값이 되었습니다(C1). 확장은 kit 자식에 실행 수단을 넘깁니다(A).
+- 확장이 aelix 프로세스의 환경에 `AELIX_ANALYTICS_ACTOR=agent`와 세션을 넣고, 사람의 `!` 명령 가운데 kit을 부르는 것에는 `user_bash` 처리기로
+  `human`을 넣은 aelix의 로컬 셸을 돌려줍니다(A "aelix 안의 작성 주체"). 그 전에는 aelix 에이전트가 bash 도구로 부른 CLI도 `human`이었고,
+  aelix의 다른 자식은 이 변수들을 받지 않았습니다.
 - 확장의 명시한 프로젝트가 표식 없는 전환 목적지이면 `migration_incomplete`입니다(A, B).
 - 맥락 동기화는 버전을 `.analytics/context/`에 쓰고 직전 버전을 `.analytics/context/`와 `.lab/context/`에서 찾으며, `context` 이벤트가 버전을
   sha256으로 가리킵니다(C5).

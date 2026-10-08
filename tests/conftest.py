@@ -20,6 +20,21 @@ OLD_ENV = ("LAB_PROJECT", "LAB_ACTOR", "LAB_SESSION", "LAB_STYLE", "AELIX_LAB_PR
            "AELIX_LAB_TRUST_FILE", "AELIX_LAB_KIT", "AELIX_LAB_UV")
 
 
+@pytest.fixture(autouse=True)
+def _the_aelix_process_environment():
+    """The extension's setup() puts the author and the session into the process's environment, as it
+    does in aelix (design 4.2); a test that sets the extension up must not leave them to the tests
+    after it, whose kit commands would record `agent`."""
+    names = ("AELIX_ANALYTICS_ACTOR", "AELIX_ANALYTICS_SESSION")
+    before = {name: os.environ.get(name) for name in names}
+    yield
+    for name, value in before.items():
+        if value is None:
+            os.environ.pop(name, None)
+        else:
+            os.environ[name] = value
+
+
 def kit_env(**extra) -> dict:
     # PYTHONUNBUFFERED changes how a kit lays out its run streams, which tests check; a test that
     # wants it passes it (review 8, critic-4).

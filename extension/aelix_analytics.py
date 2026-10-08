@@ -16,6 +16,9 @@ Analysis code never runs in the aelix process: analytics_run, analytics_import, 
 Workspace renders are `uv run --project <project> python -m aelix_analytics ...` subprocesses in the
 project's own environment.
 Neither side is a sandbox, and aelix does not ask for approval before extension tools run.
+The one thing it changes in the aelix process itself is the environment: AELIX_ANALYTICS_ACTOR=agent
+and the session, which the kit's command line run through aelix's shell records as its author, and a
+person's `!` command that calls the kit runs with `human` instead (design 4.2; see on_user_bash).
 
 Before kit 0.3.0 this file was extension/aelix_lab.py, with the command /lab, the tools lab_*, the
 flag --lab-project and the variables AELIX_LAB_*. None of them is registered or read any more. The old
@@ -34,6 +37,7 @@ import importlib.util
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -41,7 +45,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from aelix_agent_core.harness.hooks import BeforeAgentStartResult
+from aelix_agent_core.harness.hooks import BeforeAgentStartResult, UserBashResult
 from aelix_agent_core.types import AgentTool
 from aelix_ai.messages import ImageContent, TextContent
 from aelix_ai.tools import ToolExecutionContext, ToolResult
@@ -185,6 +189,12 @@ KIT_IN_SHELL = re.compile(
     r"(?:^|[\s;&|(`])(?:[^\s;&|()`'\"]*[/\\])?(?:python3?(?:\.\d+)?(?:\.exe)?|uv\s+run)"
     r"(?:\s+(?:--[\w-]+(?:=\S*)?|-[XW]\s*[^\s-]\S*|-[A-VYZa-z][A-Za-z]*))*\s+-m\s*aelix_analytics\b"
     r"|(?:^|;|-c\s*['\"])[ \t]*(?:import\s+(?:[\w.]+(?:\s+as\s+\w+)?\s*,\s*)*aelix_analytics\b"
+    r"|from\s+aelix_analytics(?:\.\w+)*\s+import\b)",
+    re.MULTILINE)
+# An `import aelix_analytics` / `from aelix_analytics import` statement where one starts: KIT_IN_SHELL's
+# second half, for the code of a `python -c` a person's command gives (calls_the_kit).
+KIT_IMPORT = re.compile(
+    r"(?:^|;)[ \t]*(?:import\s+(?:[\w.]+(?:\s+as\s+\w+)?\s*,\s*)*aelix_analytics\b"
     r"|from\s+aelix_analytics(?:\.\w+)*\s+import\b)",
     re.MULTILINE)
 
@@ -1081,12 +1091,168 @@ TOOLS = [
 ]
 
 
+# --- who calls the kit through aelix's shell (design 4.2, OQ1) ---
+#
+# The kit's command line records AELIX_ANALYTICS_ACTOR as its author (declared), and `human`
+# (inferred) when it is not set. An aelix agent runs it through aelix's bash tool, whose child gets a
+# copy of the aelix process's environment on every call (aelix 0.1.0b2, the design's R9 probe), so
+# this extension puts the author there: `agent`, and this session. A person's `!`/`!!` command gets the
+# same environment, so for a command that calls the kit the user_bash handler hands aelix its own
+# local shell with AELIX_ANALYTICS_ACTOR=human for that command alone. A record of origin, not
+# authentication: a command may change the variable, and is recorded as it says (CONTRACTS A).
+
+def put_the_author_in_the_environment() -> None:
+    """At setup: the agent writes through this aelix process's shells (overwriting a value the shell
+    that started aelix had: an aelix agent's command is the agent's, owner's decision Q17-b), and no
+    session until this session's is known (aelix sets extensions up again for every session)."""
+    os.environ["AELIX_ANALYTICS_ACTOR"] = "agent"
+    put_the_session_in_the_environment(None)
+
+
+def put_the_session_in_the_environment(session) -> None:
+    if session:
+        os.environ["AELIX_ANALYTICS_SESSION"] = str(session)
+    else:
+        os.environ.pop("AELIX_ANALYTICS_SESSION", None)
+
+
+# How a person's command reaches the kit, judged on the words in command position only (design I3):
+# the program `analytics` (any directory: `analytics`, `./bin/analytics`, `analytics.exe`), or Python
+# given `-m aelix_analytics[.…]` or a `-c` that imports it — at the start, after `;` `&` `&&` `|` `||`
+# `(` `$(` a backtick or a new line, after `VAR=value`, `env`, `exec`, `command`, `time`, `nohup` and the
+# shell's keywords, and after `uv run` and its options. A word elsewhere (`grep analytics notes.txt`),
+# inside quotes (`sh -c '…'`, `"$(…)"`), or a script that imports the kit (`python a.py`) is not a call:
+# the command then runs as aelix runs it, and a missed call stays `agent` — the narrower side, as
+# returning a shell displaces another extension's (CONTRACTS A).
+KIT_PROGRAMS = frozenset({"analytics"})
+KIT_PROGRAMS_WINDOWS = frozenset({"analytics.exe", "analytics.cmd", "analytics.bat"})
+SHELL_PREFIXES = frozenset({"env", "exec", "command", "builtin", "time", "nohup", "if", "then", "else",
+                            "elif", "do", "while", "until", "!", "{"})
+PYTHON_PROGRAM = re.compile(r"(?:python[\d.]*w?|py)(?:\.exe)?", re.IGNORECASE)
+ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
+UV_RUN_VALUE_OPTIONS = frozenset({
+    "--project", "--directory", "--python", "-p", "--with", "--with-editable", "--with-requirements",
+    "--package", "--env-file", "--extra", "--group", "--only-group", "--no-group", "--index",
+    "--default-index", "--index-url", "--extra-index-url", "--find-links", "-f", "--cache-dir",
+    "--config-file", "--python-preference", "--color", "--prerelease", "--resolution",
+    "--exclude-newer", "--link-mode", "--refresh-package", "--reinstall-package", "--upgrade-package",
+    "-P"})
+SHELL_OPERATOR_CHARS = frozenset("();<>|&")
+
+
+def _shell_words(command: str) -> list[str]:
+    """The command's words and operators as a POSIX shell splits them, roughly: quotes kept together,
+    no escapes (so a Windows path stays one word), a new line and a backtick a separator."""
+    lexer = shlex.shlex(command.replace("\n", " ; ").replace("`", " ` "), posix=True,
+                        punctuation_chars=True)
+    lexer.whitespace_split = True
+    lexer.escape = ""
+    return list(lexer)
+
+
+def _program(word: str) -> str:
+    return re.split(r"[/\\]", word)[-1]
+
+
+def _python_runs_the_kit(words: list[str]) -> bool:
+    """Python's own options up to the first word that is not one: `-m aelix_analytics[.…]`, or a `-c`
+    whose code imports it."""
+    i = 0
+    while i < len(words):
+        word = words[i]
+        if word == "-m" or (word.startswith("-m") and len(word) > 2):
+            module = word[2:] if len(word) > 2 else (words[i + 1] if i + 1 < len(words) else "")
+            return module == "aelix_analytics" or module.startswith("aelix_analytics.")
+        if word == "-c" or (word.startswith("-c") and len(word) > 2):
+            code = word[2:] if len(word) > 2 else (words[i + 1] if i + 1 < len(words) else "")
+            return bool(KIT_IMPORT.search(code))
+        if word in ("-X", "-W"):
+            i += 2
+        elif word.startswith("-") and len(word) > 1:
+            i += 1
+        else:
+            return False  # a script, or the end of Python's options
+    return False
+
+
+def calls_the_kit(command: str) -> bool:
+    """Whether a person's shell command calls a kit entry point (see above)."""
+    try:
+        words = _shell_words(command)
+    except ValueError:  # an unclosed quote: no judgment, the command runs as aelix runs it
+        return False
+    at_command, i = True, 0
+    while i < len(words):
+        word = words[i]
+        if word == "`" or (word and set(word) <= SHELL_OPERATOR_CHARS):
+            if "<" in word or ">" in word:
+                i += 2  # a redirection and its target
+                continue
+            at_command, i = True, i + 1
+            continue
+        if not at_command:
+            i += 1
+            continue
+        if ASSIGNMENT.match(word) or word in SHELL_PREFIXES:
+            i += 1
+            if word == "env":
+                while i < len(words) and words[i].startswith("-"):
+                    i += 1
+            continue
+        program = _program(word)
+        if program in KIT_PROGRAMS or program.lower() in KIT_PROGRAMS_WINDOWS:
+            return True
+        if program == "uv" and i + 1 < len(words) and words[i + 1] == "run":
+            i += 2
+            while i < len(words) and words[i].startswith("-") and not set(words[i]) <= SHELL_OPERATOR_CHARS:
+                i += 1 if "=" in words[i] or words[i] not in UV_RUN_VALUE_OPTIONS else 2
+            continue  # the program uv runs is in command position
+        if PYTHON_PROGRAM.fullmatch(program) and _python_runs_the_kit(words[i + 1:]):
+            return True
+        at_command, i = False, i + 1
+    return False
+
+
+class PersonShell:
+    """aelix's own local shell for one person's command, with AELIX_ANALYTICS_ACTOR=human in that
+    command's environment alone; everything else as aelix runs a `!` command (cli/repl.handle_user_bash:
+    create_local_bash_operations(), the environment get_shell_env() makes when none is given)."""
+
+    def __init__(self, local, shell_env) -> None:
+        self._local = local
+        self._shell_env = shell_env
+
+    async def exec(self, command, cwd, *, on_data, signal=None, timeout=None, env=None):
+        env = dict(env) if env is not None else self._shell_env()
+        env["AELIX_ANALYTICS_ACTOR"] = "human"
+        return await self._local.exec(command, cwd, on_data=on_data, signal=signal, timeout=timeout,
+                                      env=env)
+
+
+def on_user_bash(event, ctx):
+    """A person's `!`/`!!` command: aelix's local shell with the person as the author when the command
+    calls the kit, else nothing (aelix keeps the last shell a handler returns, so returning one for
+    every command would set aside another extension's for all of them). Never raises: a person's
+    command must run whatever this judgment meets."""
+    try:
+        if not calls_the_kit(str(getattr(event, "command", "") or "")):
+            return None
+        from aelix_coding_agent.tools.bash import create_local_bash_operations
+        from aelix_coding_agent.util.shell_env import get_shell_env
+
+        return UserBashResult(operations=PersonShell(create_local_bash_operations(), get_shell_env))
+    except Exception:  # noqa: BLE001
+        return None
+
+
 # --- hooks ---
 
 async def on_before_agent_start(event, ctx):
     with contextlib.suppress(Exception):
         session = ctx.session_manager.get_session()
         STATE["session"] = getattr(session, "session_file", None) or STATE["session"]
+    # The shells the agent's commands run in carry this session from here (design 4.2).
+    put_the_session_in_the_environment(STATE["session"])
     try:
         project, _ = resolve_project()
     except Exception:  # noqa: BLE001 - no active project must never block a prompt
@@ -1328,6 +1494,7 @@ def setup(aelix):
     # before a new session's first prompt would record the previous session's file.
     STATE.update({"api": aelix, "project": None, "session": None, "starts": {},
                   "render_tasks": {}})
+    put_the_author_in_the_environment()
     aelix.register_flag("analytics-project", type="str",
                         description="Analytics project directory (holds analytics.json, or an "
                                     "older lab.json)")
@@ -1340,5 +1507,6 @@ def setup(aelix):
     aelix.on("tool_execution_start", on_tool_start)
     aelix.on("tool_execution_end", on_tool_end)
     aelix.on("agent_end", on_agent_end)
+    aelix.on("user_bash", on_user_bash)
     if events is not None:
         events.on(INSTANCE_CHANNEL, _answer_as_the_active_copy)

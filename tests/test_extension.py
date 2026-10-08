@@ -81,8 +81,8 @@ def test_real_loader_registers_the_basic_contract_surface():
     assert set(ext.tools) == TOOL_NAMES
     assert set(ext.commands) == {"analytics"}
     assert set(ext.flags) == {"analytics-project"}
-    assert {"before_agent_start", "tool_execution_start", "tool_execution_end",
-            "agent_end"} <= set(ext.handlers)
+    assert set(ext.handlers) == {"before_agent_start", "tool_execution_start", "tool_execution_end",
+                                 "agent_end", "user_bash"}
 
 
 @pytest.mark.parametrize("argv", [["--lab-project", "/a/project"], ["--lab-project=/a/project"]])
@@ -1288,3 +1288,156 @@ def test_a_named_destination_of_an_unfinished_migration_is_refused_as_such(lab, 
     assert result.is_error and result.details["error"]["code"] == "migration_incomplete", text_of(result)
     assert "error [migration_incomplete]" in asyncio.run(module.analytics_command(f"use {dest}"))
     assert sorted(p.name for p in dest.iterdir()) == [".analytics"]
+
+
+# --- who calls the kit through aelix's shell (design 4.2, OQ1; T22 in tests/test_agent_cli.py) ---
+
+
+def test_the_extension_puts_the_agent_and_this_session_in_the_aelix_process(tmp_path, monkeypatch):
+    """design 4.2 (OQ1, owner's decision Q17-b): an aelix agent runs the kit's command line through
+    aelix's bash tool, whose child gets a copy of the aelix process's environment — so the extension
+    puts AELIX_ANALYTICS_ACTOR=agent there when it is set up, overwriting what the shell that started
+    aelix had, and the session once a prompt says which it is. Every session aelix builds sets the
+    extension up again (/new, /resume), and the previous session's value does not stay. The means is
+    never put there: the command line's is `cli`."""
+    from aelix_coding_agent.extensions.loader import load_extensions
+
+    monkeypatch.delenv("AELIX_ANALYTICS_PROJECT", raising=False)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("AELIX_ANALYTICS_ACTOR", "human")
+    monkeypatch.setenv("AELIX_ANALYTICS_SESSION", "the shell's session")
+    monkeypatch.delenv("AELIX_ANALYTICS_MEANS", raising=False)
+    loaded = asyncio.run(load_extensions([str(EXT)]))
+    assert loaded.errors == []
+    (ext,) = loaded.extensions
+    assert os.environ["AELIX_ANALYTICS_ACTOR"] == "agent"
+    assert "AELIX_ANALYTICS_SESSION" not in os.environ
+    [before] = ext.handlers["before_agent_start"]
+
+    def prompt(session_file):
+        session = SimpleNamespace(session_file=session_file)
+        ctx = SimpleNamespace(session_manager=SimpleNamespace(get_session=lambda: session))
+        asyncio.run(before(BeforeAgentStartHookEvent(prompt="hi", system_prompt="BASE"), ctx))
+
+    prompt(str(tmp_path / "sessions" / "A.jsonl"))
+    assert os.environ["AELIX_ANALYTICS_SESSION"] == str(tmp_path / "sessions" / "A.jsonl")
+    assert os.environ["AELIX_ANALYTICS_ACTOR"] == "agent" and "AELIX_ANALYTICS_MEANS" not in os.environ
+    # /new: aelix sets the extension up again; the first prompt of a session without a file has none.
+    assert asyncio.run(load_extensions([str(EXT)])).errors == []
+    assert "AELIX_ANALYTICS_SESSION" not in os.environ
+    before.__globals__["STATE"]["session"] = None
+    prompt(None)
+    assert "AELIX_ANALYTICS_SESSION" not in os.environ
+    # The extension's own kit children are not the shell's: their author is the one it passes.
+    child = before.__globals__["child_env"](before.__globals__["core"].PLATFORM.processes, "human",
+                                            "command")
+    assert (child["AELIX_ANALYTICS_ACTOR"], child["AELIX_ANALYTICS_MEANS"]) == ("human", "command")
+
+
+CALLS_THE_KIT = [
+    "analytics status",
+    "./bin/analytics record finding 'x y'",
+    "/opt/pack/bin/analytics status --json",
+    "cd proj && analytics status",
+    "cd proj; analytics status",
+    "false || analytics status",
+    "echo x | analytics record note -",
+    "(cd proj && analytics status)",
+    "x=$(./bin/analytics status)",
+    "echo `analytics status`",
+    "echo hi\nanalytics status",
+    "AELIX_ANALYTICS_PROJECT=/p analytics record note x",
+    "env AELIX_ANALYTICS_PROJECT=/p analytics status",
+    "env -i PATH=/bin analytics status",
+    "time analytics status",
+    "if analytics status; then echo ok; fi",
+    "analytics status > out.txt 2>&1",
+    "python -m aelix_analytics status",
+    "python3.12 -I -m aelix_analytics record note x",
+    ".venv/bin/python -maelix_analytics status",
+    "python -m aelix_analytics.cli status",
+    "uv run --project proj python -m aelix_analytics status",
+    "uv run --with=polars -- python -m aelix_analytics status",
+    "uv run analytics status",
+    "python -c 'import aelix_analytics; aelix_analytics.record(\"note\", \"x\")'",
+    "python -c 'from aelix_analytics import record'",
+    r"C:\pack\bin\analytics.exe status",
+    r"& C:\venv\Scripts\python.exe -m aelix_analytics status",
+    "py -3.12 -m aelix_analytics status",
+]
+
+NOT_THE_KIT = [
+    "",
+    "ls",
+    "echo hi",
+    "grep analytics notes.txt",
+    "cat bin/analytics",
+    "ls analytics/",
+    "echo analytics status",
+    "echo 'analytics status'",
+    'echo "$(analytics status)"',
+    "sh -c 'analytics status'",
+    "python scripts/a.py",
+    "python -m pytest tests/test_kit.py",
+    "python -c 'print(\"import aelix_analytics\")'",
+    "uv run python scripts/a.py",
+    "uv run --project analytics python a.py",
+    "analytics-report build",
+    "my_analytics status",
+    "git log -- analytics",
+    "echo 'unclosed",
+    "cat < analytics",
+]
+
+
+@pytest.mark.parametrize("command", CALLS_THE_KIT)
+def test_a_person_s_command_that_calls_the_kit_is_found(command):
+    """design I3: the words in command position only — the program `analytics` wherever it lives, or
+    Python told to run the kit — after the shell's separators, assignments, prefixes and `uv run`."""
+    assert fresh_module().calls_the_kit(command)
+
+
+@pytest.mark.parametrize("command", NOT_THE_KIT)
+def test_a_person_s_command_that_only_names_the_kit_is_not(command):
+    """A word elsewhere, words inside quotes, a script that may import the kit: not a call. Missing one
+    leaves it `agent`; taking one wrongly would set another extension's shell aside (CONTRACTS A)."""
+    assert not fresh_module().calls_the_kit(command)
+
+
+def test_a_person_s_kit_command_runs_in_aelix_s_shell_as_the_person(monkeypatch):
+    """design 4.2 (OQ1): for a `!` command that calls the kit the handler returns aelix's own local
+    shell (create_local_bash_operations, the environment get_shell_env makes when none is given) with
+    AELIX_ANALYTICS_ACTOR=human for that command alone; for any other command it returns nothing, so
+    aelix runs it as it would and another extension's shell is not set aside. It never raises."""
+    from aelix_agent_core.harness.hooks import UserBashHookEvent, UserBashResult
+    from aelix_coding_agent.tools import bash
+
+    module = fresh_module()
+    assert module.on_user_bash(UserBashHookEvent(command="ls -la", cwd="."), None) is None
+    result = module.on_user_bash(UserBashHookEvent(command="analytics status", cwd="."), None)
+    assert isinstance(result, UserBashResult) and result.result is None
+    shell = result.operations
+    assert isinstance(shell, module.PersonShell)
+    assert type(shell._local) is type(bash.create_local_bash_operations())
+    seen = []
+
+    class Local:
+        async def exec(self, command, cwd, *, on_data, signal=None, timeout=None, env=None):
+            seen.append((command, cwd, env, signal, timeout))
+            return "done"
+
+    monkeypatch.setenv("AELIX_ANALYTICS_ACTOR", "agent")
+    person = module.PersonShell(Local(), lambda: {**os.environ, "PATH": "aelix-bin"})
+    assert asyncio.run(person.exec("analytics status", "/w", on_data=print)) == "done"
+    given = {"AELIX_ANALYTICS_ACTOR": "agent", "X": "1"}
+    asyncio.run(person.exec("analytics status", "/w", on_data=print, timeout=5, env=given))
+    assert seen[0][2]["AELIX_ANALYTICS_ACTOR"] == "human" and seen[0][2]["PATH"] == "aelix-bin"
+    assert seen[1][2] == {"AELIX_ANALYTICS_ACTOR": "human", "X": "1"} and seen[1][4] == 5
+    assert given["AELIX_ANALYTICS_ACTOR"] == "agent" and os.environ["AELIX_ANALYTICS_ACTOR"] == "agent"
+
+    class Broken:
+        @property
+        def command(self):
+            raise RuntimeError("no command")
+
+    assert module.on_user_bash(Broken(), None) is None
