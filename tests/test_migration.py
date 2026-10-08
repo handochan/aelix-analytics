@@ -36,7 +36,7 @@ import time
 from pathlib import Path
 
 import pytest
-from conftest import KIT, kit_cli, kit_env
+from conftest import KIT, LINK_KINDS, dir_link, kit_cli, kit_env
 from jsonschema import Draft202012Validator, FormatChecker
 from legacy_records import LegacyProject, at
 
@@ -803,7 +803,8 @@ def test_a_file_larger_than_64_mib_is_copied_whole(tmp_path):
 
 # --- the destination's rules (T2) ------------------------------------------------------------------
 
-def test_a_destination_that_overlaps_a_place_the_migration_reads_is_refused(tmp_path):
+@pytest.mark.parametrize("kind", LINK_KINDS)
+def test_a_destination_that_overlaps_a_place_the_migration_reads_is_refused(tmp_path, kind):
     """T2, M1: the source, a folder inside it or above it, another spelling of it, and a link's target
     outside (`data -> /ext/data` with --to /ext/data/new, /ext/data, /ext) — overlaps_source with the
     place, and nothing written anywhere."""
@@ -812,8 +813,7 @@ def test_a_destination_that_overlaps_a_place_the_migration_reads_is_refused(tmp_
     (ext / "x.parquet").write_bytes(b"x")
     source = plain_source(tmp_path)
     os.symlink(str(ext), source / "linked", target_is_directory=True)
-    alias = tmp_path / "alias"
-    os.symlink(str(source), alias, target_is_directory=True)
+    alias = dir_link(kind, tmp_path / "alias", source)
     before, ext_before = tree(tmp_path / "src"), tree(tmp_path / "ext")
     for dest, place in ((source / "inside", str(source)), (tmp_path, str(source)),
                         (alias / "sub", str(source)), (ext / "new", str(ext.resolve())),
@@ -1288,3 +1288,83 @@ def test_the_migration_s_own_files_are_lf_and_the_copies_keep_their_bytes(shared
     assert b"\r\n" in (dest / "journal.jsonl").read_bytes()
     assert (dest / "scripts" / "old.py").read_bytes().count(b"\r\n") == 3
     assert (dest / "analytics.json").read_bytes().endswith(b"}\n")
+
+
+# --- more of design 6.1, 6.2, 6.9 (T2, T4, T21) ------------------------------------------------------
+
+def test_a_copy_changed_after_the_commit_is_reported_when_called_again(tmp_path):
+    """T4: calling again compares every copy with the report — a copy edited since is `changed`, one
+    removed `missing`, an appended journal the same up to the report's length — and writes nothing."""
+    source = _copy_source(tmp_path)
+    dest = tmp_path / "dest"
+    migrate(source, dest)
+    (dest / "scripts" / "s0.py").write_bytes(b"edited after\n")
+    (dest / "scripts" / "s1.py").unlink()
+    with open(dest / "journal.jsonl", "ab") as fh:
+        fh.write(b'{"schema": "analytics.event/2", "seq": 2}\n')
+    before = tree(dest)
+    result = migrate(source, dest)
+    assert result["already_migrated"]
+    assert result["differs"] == ["scripts/s0.py", "scripts/s1.py"]
+    assert result["compared"]["changed"] == 1 and result["compared"]["missing"] == 1
+    assert tree(dest) == before
+
+
+def test_a_committed_destination_whose_source_lost_its_link_target_is_already_migrated(tmp_path):
+    """T21: the folder an outside link led to is gone; the committed destination of that source is
+    already_migrated all the same — no source-side check for a destination that does not read it."""
+    ext = tmp_path / "ext"
+    ext.mkdir()
+    (ext / "e.csv").write_bytes(b"e")
+    source = plain_source(tmp_path)
+    os.symlink(str(ext), source / "linked", target_is_directory=True)
+    dest = tmp_path / "dest"
+    migrate(source, dest)
+    shutil.rmtree(ext)
+    result = migrate(source, dest)
+    assert result["already_migrated"] and result["compared"] == {"same": len(
+        json.loads((mdir(dest) / "report.json").read_text(encoding="utf-8"))["files"])}
+
+
+def test_the_marker_takes_what_the_source_s_marker_has_and_says_what_it_lacks(tmp_path):
+    """design 2.4: the title and creation time from lab.json; without them the folder's name and
+    the migration's start, and the report says the source had none."""
+    p = LegacyProject(tmp_path / "plain-folder")
+    (p.root / "lab.json").write_bytes(b'{"schema": "lab.project/1"}\n')
+    p.event("note", text="n")
+    migrate(p.root, tmp_path / "dest")
+    marker = json.loads((tmp_path / "dest" / "analytics.json").read_text(encoding="utf-8"))
+    report = assert_committed(tmp_path / "dest")
+    assert marker["title"] == "plain-folder" and marker["created_at"] == report["started_at"]
+    assert sum("has no title" in n or "has no created_at" in n for n in report["notes"]) == 2
+
+
+def test_a_destination_called_from_inside_itself_or_with_another_source(tmp_path):
+    """design 6.1: called with the destination as its source, a migration that has to read its source
+    refuses (source_not_legacy, incomplete), one that checked it already goes on; called with another
+    source at any step, the destination is another source's (not_empty)."""
+    source = _copy_source(tmp_path)
+    dest = tmp_path / "dest"
+    interrupt(source, dest, {"step": "plan"})
+    error = refused("source_not_legacy", lambda: migrate(dest, dest))
+    assert error.details["state"] == "incomplete"
+    other = plain_source(tmp_path, "other")
+    error = refused("destination_invalid", lambda: migrate(other, dest))
+    assert error.details["reason"] == "not_empty" and error.details["source"] == str(core.Project(source).root)
+    second = tmp_path / "second"
+    interrupt(source, second, {"step": "verified"})
+    result = migrate(second, second)
+    assert result["ok"] and result["source"]["given"] == "not_given"
+    assert_committed(second)
+
+
+def test_another_spelling_of_the_source_is_the_source(tmp_path):
+    """T2: where the file system folds case, the source spelled in other letters is the source: a
+    destination inside it overlaps it."""
+    source = plain_source(tmp_path, "Proj")
+    other = tmp_path / "PROJ"
+    if not other.exists():
+        pytest.skip("this file system tells case apart")
+    error = refused("destination_invalid", lambda: migrate(source, other / "new"))
+    assert error.details["reason"] == "overlaps_source"
+    assert not (source / "new").exists()

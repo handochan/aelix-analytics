@@ -1323,7 +1323,7 @@ class Migration:
                               "process" + (" (a run)" if name == "run.lock" else ""),
                               hint="wait for the run or the write to end, then run the migration again "
                                    "(an older aelix session holds the journal lock only while it "
-                                   "writes)",
+                                   "writes; on Windows a lock may stay a moment after its process ends)",
                               details={"lock": f"{LEGACY_STATE_DIR}/{name}",
                                        **({"running": running} if running else {})})
 
