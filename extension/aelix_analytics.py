@@ -587,12 +587,14 @@ def render_run(project, value: dict, attached: tuple[int, int] | None = None) ->
         rows = f" {o['rows']:,} rows [{cols}]" if isinstance(o.get("rows"), int) else ""
         lines.append(f"  {o['path']} {o.get('change')}{rows}")
     lines += _more(outputs, MAX_LIST, "output file(s)", record)
-    charts = run.get("charts") or []
+    # The run's Visualizations and its rerun comparison, whichever record holds them (a lab.run/1
+    # run's charts, an analytics.run/2 run's visualizations: core.relations, design 5.3).
+    charts = core.relations.run_visualizations(run)
     lines.append(f"charts ({len(charts)}):" if charts else "charts: none")
     for c in charts[:MAX_CHART_LIST]:
         data = f"data {c['data_rows']:,} rows" if c.get("data") else "no plotted data recorded"
         files = ", ".join((c.get("files") or {}).values())
-        lines.append(f"  {(script.get('path') or '?')}::{c['id']} \"{_one(c.get('title'), 80)}\" "
+        lines.append(f"  {c['key']} \"{_one(c.get('title'), 80)}\" "
                      f"{c.get('kind')} via {c.get('via')} · {data} · {files}")
     lines += _more(charts, MAX_CHART_LIST, "chart(s)", record)
     if attached and attached[1]:
@@ -604,9 +606,9 @@ def render_run(project, value: dict, attached: tuple[int, int] | None = None) ->
             if unlisted:
                 line += f" and, for the {unlisted} chart(s) not listed, at the paths in read {record}"
         lines.append(line)
-    repro = run.get("reproduction")
+    repro = core.relations.run_reproduction(run)
     if repro:
-        parts = [f"{k}: {v}" for k, v in {**repro.get("charts", {}), **repro.get("outputs", {})}.items()]
+        parts = [f"{k}: {v}" for k, v in {**repro["visualizations"], **repro["outputs"]}.items()]
         lines.append(f"reproduction of {repro.get('of')}: {repro.get('verdict')} (inputs "
                      f"{'same' if repro.get('inputs_same') else 'differ'}; {'; '.join(parts)})")
     if status != "ok":
@@ -640,7 +642,7 @@ def render_run(project, value: dict, attached: tuple[int, int] | None = None) ->
 
 def chart_images(project, run: dict, ctx) -> tuple[list, int]:
     """Chart PNGs to attach, and how many charts had one to attach at all."""
-    charts = [c for c in run.get("charts") or [] if (c.get("files") or {}).get("png")]
+    charts = [c for c in core.relations.run_visualizations(run) if (c.get("files") or {}).get("png")]
     model = getattr(ctx, "model", None)
     if model is None or "image" not in (getattr(model, "input", None) or []):
         return [], len(charts)

@@ -1134,3 +1134,36 @@ def test_the_extension_finds_the_nearest_marker_from_the_working_directory(tmp_p
     assert (root / "journal.jsonl").read_bytes() == journal
     assert module.resolve_project()[0].root == module.core.Project(sub).root
 
+
+def test_a_run_reply_shows_both_record_forms_and_their_comparisons(lab, tmp_path):
+    """T9 (design 5.3, S13): the analytics_run reply lists a run's Visualizations and attaches their
+    PNGs whichever record holds them — a lab.run/1 run's charts or an analytics.run/2 run's
+    visualizations — and shows a rerun's comparison of each Visualization from reproduction.charts or
+    reproduction.visualizations alike."""
+    module, root = lab
+    png = b"\x89PNG\r\n\x1a\n" + b"0" * 32
+    (root / "runs" / "r").mkdir(parents=True)
+    (root / "runs" / "r" / "trend.png").write_bytes(png)
+    common = {"id": "20261008-090000-a", "status": "ok", "title": "t", "duration_s": 1,
+              "script": {"path": "scripts/a.py", "sha256": "0" * 64, "snapshot": "s"},
+              "inputs": [], "outputs": []}
+    item = {"kind": "matplotlib", "title": "Trend", "via": "plt.show", "files": {"png": "runs/r/trend.png"}}
+    v1 = {**common, "schema": "lab.run/1", "charts": [{**item, "id": "trend"}],
+          "reproduction": {"of": "20261007-090000-a", "verdict": "mismatch", "inputs_same": True,
+                           "charts": {"trend": "image bytes differ"}, "outputs": {}}}
+    v2 = {**common, "schema": "analytics.run/2", "visualizations": [{**item, "visualization_id": "trend",
+                                                                     "sha256": "0" * 64}],
+          "reproduction": {"of": "20261007-090000-a", "verdict": "mismatch", "inputs_same": True,
+                           "visualizations": {"trend": "image bytes differ"}, "outputs": {}}}
+    project = module.core.Project(root)
+    ctx = SimpleNamespace(model=SimpleNamespace(input=["text", "image"]))
+    replies = []
+    for record in (v1, v2):
+        images, with_png = module.chart_images(project, record, ctx)
+        assert (len(images), with_png) == (1, 1)
+        text = module.render_run(project, {"run": record, "event": "e9", "page": "report/runs/x.html"},
+                                 (len(images), with_png))
+        assert "charts (1):" in text and "scripts/a.py::trend \"Trend\"" in text
+        assert "reproduction of 20261007-090000-a: mismatch (inputs same; trend: image bytes differ)" in text
+        replies.append(text)
+    assert replies[0] == replies[1]

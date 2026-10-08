@@ -40,7 +40,14 @@ FILE_ROW_LIMIT = 60
 KIND_LABEL = {"project": "Project", "import": "Import", "run": "Run", "context": "Context",
               "finding": "Finding", "decision": "Decision", "assumption": "Assumption",
               "question": "Question", "todo": "Next step", "note": "Note",
-              "gap": "Workflow feedback", "resolve": "Resolution"}
+              "gap": "Workflow feedback", "resolve": "Resolution",
+              # analytics.event/2's kinds (ADR-0006 1.2): `workflow_feedback` is what `gap` is.
+              "workflow_feedback": "Workflow feedback", "analysis_focus": "Analysis focus",
+              "metric_definition": "Metric definition", "metric_observation": "Metric observation",
+              "record_update": "Record update", "checkpoint": "Analysis checkpoint",
+              "reuse_proposal": "Reuse proposal", "reuse_notification": "Reuse notification",
+              "reuse_mode": "Reuse mode", "report_revision": "Report revision",
+              "publication": "Publication", "publish_receipt": "Publish receipt"}
 STATUS = {"ok": ("good", "✓", "Succeeded"), "error": ("critical", "✕", "Error"),
           "timeout": ("serious", "⏱", "Timed out"), "cancelled": ("warning", "■", "Cancelled"),
           "incomplete": ("muted", "…", "Incomplete"), "running": ("muted", "…", "Running")}
@@ -161,9 +168,10 @@ class Site:
         self.cache = core.HashCache(project)
         self.model = core.read_model(project, self.cache)
         journal = self.model.journal
-        listed = [e for e in journal.events if e.schema == core.SCHEMA_EVENT]
-        self.events = [e.value for e in listed]
-        self.source_of = {id(e.value): journal.source_of(e) for e in listed}
+        # lab.event/1 and analytics.event/2 records alike, in seq order (design 5.2).
+        self.lists = core.JournalLists(journal)
+        self.events = self.lists.events
+        self.source_of = self.lists.source
         self.runs = core.model_runs(project, self.model)
         self.run_by_id = {r["id"]: r for r in self.runs}
         self.recording = {r["run_id"]: r for r in self.model.runs()}
@@ -186,7 +194,10 @@ class Site:
         # Each run's script as the gallery reads it (an older kit's spelling as today's).
         self.script_of = {r["id"]: self.script_path(r) for r in self.runs}
         self.resolved = core.resolved_targets(self.events)
-        self.telemetry = core.read_jsonl(project.telemetry)
+        # The tool log of this kit's state directory, and the new format's after it (design 5.3).
+        self.telemetry = [row for place in (project.telemetry,
+                                            project.root / ".analytics" / "telemetry.jsonl")
+                          for row in core.read_jsonl(place)]
         self.queries = core.read_jsonl(project.queries)
         self.versions = core.context_versions(project)
         self.build = core.now().strftime("%Y%m%d-%H%M%S-%f")
@@ -695,7 +706,8 @@ def _write_assets(site: Site, out: Path) -> None:
             light = HtmlFormatter(style="default").get_style_defs(".code")
             dark = HtmlFormatter(style="github-dark").get_style_defs(".code")
             core.write_text(code_css, f"{light}\n@media (prefers-color-scheme: dark) {{\n{dark}\n}}\n")
-    if any((c.get("files") or {}).get("plotly") for r in site.runs for c in r.get("charts") or []):
+    if any((c.get("files") or {}).get("plotly") for r in site.runs
+           for c in relations.run_visualizations(r)):
         with contextlib.suppress(Exception):
             src = resources.files("plotly") / "package_data" / "plotly.min.js"
             dest = assets / "plotly.min.js"
@@ -716,8 +728,8 @@ def _places(items: list[str]) -> str:
 
 def records_notice(site: Site) -> str:
     """What the pages cannot show, said where the overview starts: records this kit cannot read,
-    lines that do not parse (and the records recovered from them), record files not read, records
-    of the next format, ids several lines share, and a read that kept changing."""
+    lines that do not parse (and the records recovered from them), record files not read, ids
+    several lines share, and a read that kept changing."""
     m = site.model
     items = []
     if m.unsupported:
@@ -739,10 +751,6 @@ def records_notice(site: Site) -> str:
         places = [f"{f['location']} ({f['reason']})" for f in m.damaged_files]
         items.append(f"<li><strong>Damaged: {len(places):,} record file(s) not read</strong> — "
                      f"{esc(_places(places))}.</li>")
-    later = [f"journal:{e.line}" for e in journal.events if e.schema != core.SCHEMA_EVENT]
-    if later:
-        items.append(f"<li><strong>Not listed: {len(later):,} analytics.event/2 record(s)</strong> "
-                     f"({esc(_places(later))}) — this kit lists lab.event/1 records only.</li>")
     shared = {i: [f"journal:{n}" for n in lines] for i, lines in journal.lines_of.items()
               if len(lines) > 1}
     if shared:
@@ -921,18 +929,17 @@ def index_page(site: Site) -> str:
     current = [c for c in site.charts if not c.get("retired")]
     stale = [c for c in current if site.fresh.of(c["run"])["stale"]]
     failed = [r for r in site.runs if r.get("status") != "ok"]
-    open_items = [e for e in site.events if e.get("kind") in core.OPEN_KINDS
-                  and e["id"] not in site.resolved]
-    key_items = [e for e in site.events if e.get("kind") in core.KEY_KINDS
-                 and e["id"] not in site.resolved]
-    gaps = [e for e in site.events if e.get("kind") == "gap"]
+    open_items, key_items, gaps = site.lists.open, site.lists.key, site.lists.feedback
 
     def tile(label, value, note="", target=""):
         return (f'<a class="tile" href="#{target}"><span class="label">{esc(label)}</span>'
                 f'<span class="value">{fmt_num(value)}</span><span class="note">{note}</span></a>')
 
     tiles = "".join([
-        tile("Datasets", len(site.datasets), f"raw {sum(d['kind'] == 'raw' for d in site.datasets)}"
+        tile("Datasets", len(site.datasets),
+             (f"imported {sum(d['kind'] == 'imported' for d in site.datasets)} · "
+              if any(d["kind"] == "imported" for d in site.datasets) else "")
+             + f"raw {sum(d['kind'] == 'raw' for d in site.datasets)}"
              f" · derived {sum(d['kind'] == 'derived' for d in site.datasets)}", "data"),
         tile("Runs", len(site.runs), f"{len(failed)} not succeeded" if failed else "All succeeded",
              "runs"),
@@ -1003,7 +1010,7 @@ def index_page(site: Site) -> str:
 
     run_rows = []
     for run in site.runs[::-1]:
-        repro = run.get("reproduction") or {}
+        repro = relations.run_reproduction(run) or {}
         verdict = ""
         if repro:
             tone = {"match": "good", "mismatch": "critical", "failed": "critical"}.get(
@@ -1012,7 +1019,7 @@ def index_page(site: Site) -> str:
         run_rows.append(
             f'<tr><td>{fmt_time(run.get("started_at"))}</td><td><a href="runs/{href(run["id"])}.html">{esc(run["id"])}</a></td>'
             f'<td>{status_badge(run.get("status"))} {verdict}</td><td{USER}>{esc(run.get("title"))}</td>'
-            f'<td class="num">{len(run.get("charts") or [])}</td><td class="num">{len(run.get("inputs") or [])}</td>'
+            f'<td class="num">{len(relations.run_visualizations(run))}</td><td class="num">{len(run.get("inputs") or [])}</td>'
             f'<td class="num">{sum(1 for o in run.get("outputs") or [] if o.get("change") != "deleted")}</td>'
             f'<td class="num">{run.get("duration_s", "-")}</td></tr>')
     runs = f"""
@@ -1062,15 +1069,16 @@ def evaluation_section(site: Site) -> str:
     runs = site.runs
     statuses = Counter(r.get("status") for r in runs)
     no_input = [r for r in runs if r.get("status") == "ok" and not r.get("inputs")
-                and (r.get("charts") or r.get("outputs"))]
-    undocumented = [(r, c) for r in runs if r.get("status") == "ok" for c in r.get("charts") or []
+                and (relations.run_visualizations(r) or r.get("outputs"))]
+    undocumented = [(r, c) for r in runs if r.get("status") == "ok"
+                    for c in relations.run_visualizations(r)
                     if c.get("kind") == "matplotlib" and not c.get("data")]
     external = [(r, i) for r in runs for i in r.get("inputs") or [] if i.get("external")]
     outside = [(r, o) for r in runs for o in r.get("outputs") or [] if o.get("outside_data")]
-    reruns = [r for r in runs if r.get("reproduction")]
-    verdicts = Counter((r.get("reproduction") or {}).get("verdict") for r in reruns)
+    reruns = [r for r in runs if relations.run_reproduction(r)]
+    verdicts = Counter(relations.run_reproduction(r)["verdict"] for r in reruns)
     stale = [c for c in site.charts if not c.get("retired") and site.fresh.of(c["run"])["stale"]]
-    gaps = [e for e in site.events if e.get("kind") == "gap"]
+    gaps = site.lists.feedback
 
     def row(label, value, detail=""):
         return f"<tr><th>{esc(label)}</th><td class='num'>{value}</td><td>{detail}</td></tr>"
@@ -1177,12 +1185,14 @@ def run_page(site: Site, run: dict) -> str:
         # The summary is the script's exception as it said it; the hint is the kit's.
         callouts += (f'<div class="callout tone-critical"><strong{USER}>{esc(err.get("summary"))}</strong>'
                      f'{where}{fix}</div>')
-    repro = run.get("reproduction")
+    # Each Visualization's comparison, whichever record holds it (reproduction.charts of a
+    # lab.run/1 run, reproduction.visualizations of an analytics.run/2 one: design 5.3).
+    repro = relations.run_reproduction(run)
     if repro:
         tone = {"match": "good", "mismatch": "critical", "failed": "critical"}.get(
             repro.get("verdict"), "muted")
         details = "".join(f"<li><code{USER}>{esc(k)}</code>: {esc(v)}</li>"
-                          for k, v in {**repro.get("charts", {}), **repro.get("outputs", {})}.items())
+                          for k, v in {**repro["visualizations"], **repro["outputs"]}.items())
         callouts += (f'<div class="callout tone-{tone}"><strong>Rerun comparison: '
                      f'{esc(verdict_label(repro.get("verdict")))}</strong> — reran the code snapshot of '
                      f'<a href="{href(repro.get("of", ""))}.html">{esc(repro.get("of"))}</a>. Inputs '
@@ -1222,7 +1232,7 @@ def run_page(site: Site, run: dict) -> str:
                      "chosen as the producer.</div>")
 
     charts = []
-    for chart in run.get("charts") or []:
+    for chart in relations.run_visualizations(run):
         key = site.chart_key(run, chart)
         data_block = ""
         if chart.get("data"):
@@ -1245,7 +1255,7 @@ def run_page(site: Site, run: dict) -> str:
 </article>""")
     charts_html = "".join(charts) or '<div class="empty">This run made no visualizations.</div>'
 
-    hl = [c.get("line") for c in run.get("charts") or []]
+    hl = [c.get("line") for c in relations.run_visualizations(run)]
     if run.get("error") and run["error"].get("line"):
         hl.append(run["error"]["line"])
     code_blocks = []
@@ -1330,7 +1340,7 @@ def run_page(site: Site, run: dict) -> str:
 
     body = f"""{head}{callouts}
 <nav class="jump"><a href="#charts">Visualizations</a><a href="#code">Code</a><a href="#inputs">Inputs</a><a href="#outputs">Outputs</a><a href="#logs">Logs</a><a href="#env">Environment</a><a href="#journal">Journal</a><a href="#reproduce">Rerun</a></nav>
-<section id="charts"><h2>Visualizations ({len(run.get('charts') or [])})</h2>{charts_html}</section>
+<section id="charts"><h2>Visualizations ({len(charts)})</h2>{charts_html}</section>
 <section id="code"><h2>Code</h2><p class="muted">A snapshot of the bytes the run executed. Highlighted lines recorded a visualization or raised the error.</p>{''.join(code_blocks) or '<div class="empty">No code snapshot.</div>'}</section>
 <section id="inputs"><h2>Input data ({n_inputs})</h2><p class="muted">via: runtime (seen while polars, duckdb or lab.* read it), scan (a path literal in the code), declared (given with the run). The state compares the file's sha256 now with the record. Producer: every successful run that output this path with these bytes and did not start after this run — same bytes, not a confirmed link.</p>
 {('<div class="table-wrap"><table class="list"><thead><tr><th>Path</th><th>via</th><th>Size</th><th>Recorded sha256</th><th>Now</th><th>Producer</th></tr></thead><tbody>' + ''.join(input_rows) + '</tbody></table></div>') if input_rows else '<div class="empty">No inputs detected.</div>'}</section>

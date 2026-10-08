@@ -1,16 +1,19 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Aelix Analytics record contract: analytics.project/2, analytics.event/2, analytics.report_revision/1",
-  "description": "ADR-0006 (docs/decisions/0006-common-record-contract.md), adopted 2026-10-03. No kit writes or reads these families yet. Fields the contract does not name are allowed so that a reader keeps the optional fields a later writer adds. Kinds, reference types, relations, bases and bindings are closed: a reader reports a value outside them as unsupported and keeps the record. Rules a schema cannot state are in the ADR: Report file paths in NFC and distinct under casefold (section 7), request_id compared without case (section 8), the record_update transitions (section 6) and the digest of a reference equal to the hash its target record holds (section 3).",
+  "title": "Aelix Analytics record contract: analytics.project/2, analytics.event/2, analytics.report_revision/1, analytics.run/2, analytics.dataset/1",
+  "description": "ADR-0006 (docs/decisions/0006-common-record-contract.md), adopted 2026-10-03; analytics.run/2 and analytics.dataset/1 from the record writer design (docs/design/RECORD-WRITER-AND-MIGRATION.md 2.6 and 2.7, OQ5). No kit writes these families yet; kit 0.7.0 (Issue #13 PR 1) reads analytics.run/2 runs and analytics.dataset/1 import records under data/imported/, and lists analytics.event/2 records. Fields the contract does not name are allowed so that a reader keeps the optional fields a later writer adds. Kinds, reference types, relations, bases and bindings are closed: a reader reports a value outside them as unsupported and keeps the record. Rules a schema cannot state are in the ADR: Report file paths in NFC and distinct under casefold (section 7), request_id compared without case (section 8), the record_update transitions (section 6) and the digest of a reference equal to the hash its target record holds (section 3).",
   "type": "object",
   "required": ["schema"],
   "properties": {
-    "schema": {"enum": ["analytics.project/2", "analytics.event/2", "analytics.report_revision/1"]}
+    "schema": {"enum": ["analytics.project/2", "analytics.event/2", "analytics.report_revision/1", "analytics.run/2",
+                        "analytics.dataset/1"]}
   },
   "allOf": [
     {"if": {"properties": {"schema": {"const": "analytics.project/2"}}}, "then": {"$ref": "#/$defs/project_2"}},
     {"if": {"properties": {"schema": {"const": "analytics.event/2"}}}, "then": {"$ref": "#/$defs/event_2"}},
-    {"if": {"properties": {"schema": {"const": "analytics.report_revision/1"}}}, "then": {"$ref": "#/$defs/report_revision_1"}}
+    {"if": {"properties": {"schema": {"const": "analytics.report_revision/1"}}}, "then": {"$ref": "#/$defs/report_revision_1"}},
+    {"if": {"properties": {"schema": {"const": "analytics.run/2"}}}, "then": {"$ref": "#/$defs/run_2"}},
+    {"if": {"properties": {"schema": {"const": "analytics.dataset/1"}}}, "then": {"$ref": "#/$defs/dataset_1"}}
   ],
   "$defs": {
     "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
@@ -22,6 +25,8 @@
     "request_id": {"type": "string", "pattern": "^(?!([Cc][Oo][Nn]|[Pp][Rr][Nn]|[Aa][Uu][Xx]|[Nn][Uu][Ll]|[Cc][Oo][Mm][1-9]|[Ll][Pp][Tt][1-9])(\\.|$))[A-Za-z0-9]([A-Za-z0-9._-]{0,126}[A-Za-z0-9_-])?$"},
     "kit_version": {"type": "string", "pattern": "^(0|[1-9][0-9]*)(\\.(0|[1-9][0-9]*))*((a|b|rc)(0|[1-9][0-9]*))?(\\.post(0|[1-9][0-9]*))?(\\.dev(0|[1-9][0-9]*))?$"},
     "content_path": {"type": "string", "pattern": "^(?!([Cc][Oo][Nn]|[Pp][Rr][Nn]|[Aa][Uu][Xx]|[Nn][Uu][Ll]|[Cc][Oo][Mm][1-9\u00b9\u00b2\u00b3]|[Ll][Pp][Tt][1-9\u00b9\u00b2\u00b3]|[Cc][Oo][Nn][Ii][Nn]\\$|[Cc][Oo][Nn][Oo][Uu][Tt]\\$) *([./]|$))[^/\\\\:*?\"<>|\\x00-\\x1f]*[^/\\\\:*?\"<>|\\x00-\\x1f. ](/(?!([Cc][Oo][Nn]|[Pp][Rr][Nn]|[Aa][Uu][Xx]|[Nn][Uu][Ll]|[Cc][Oo][Mm][1-9\u00b9\u00b2\u00b3]|[Ll][Pp][Tt][1-9\u00b9\u00b2\u00b3]|[Cc][Oo][Nn][Ii][Nn]\\$|[Cc][Oo][Nn][Oo][Uu][Tt]\\$) *([./]|$))[^/\\\\:*?\"<>|\\x00-\\x1f]*[^/\\\\:*?\"<>|\\x00-\\x1f. ])*$"},
+    "actor_basis": {"enum": ["declared", "inferred"]},
+    "means": {"enum": ["cli", "sdk", "tool", "command", "hook"]},
     "digest": {
       "type": "object",
       "required": ["sha256"],
@@ -107,6 +112,8 @@
                           "metric_observation", "record_update", "checkpoint", "reuse_proposal", "reuse_notification",
                           "reuse_mode", "report_revision", "publication", "publish_receipt"]},
         "actor": {"type": "string", "minLength": 1},
+        "actor_basis": {"$ref": "#/$defs/actor_basis"},
+        "means": {"$ref": "#/$defs/means"},
         "session": {"type": ["string", "null"]},
         "request_id": {"$ref": "#/$defs/request_id"},
         "text": {"type": "string"},
@@ -205,6 +212,97 @@
             "context_version": {"type": ["string", "null"], "minLength": 1},
             "refs": {"$ref": "#/$defs/references"}
           }
+        }
+      }
+    },
+    "run_2": {
+      "type": "object",
+      "required": ["schema", "id", "title", "status", "started_at", "actor", "script"],
+      "properties": {
+        "schema": {"const": "analytics.run/2"},
+        "id": {"$ref": "#/$defs/run_id"},
+        "title": {"type": "string"},
+        "status": {"enum": ["running", "ok", "error", "timeout", "cancelled"]},
+        "pid": {"type": ["integer", "string"]},
+        "started_at": {"$ref": "#/$defs/timestamp"},
+        "ended_at": {"$ref": "#/$defs/timestamp"},
+        "duration_s": {"type": "number", "minimum": 0},
+        "actor": {"type": "string", "minLength": 1},
+        "actor_basis": {"$ref": "#/$defs/actor_basis"},
+        "means": {"$ref": "#/$defs/means"},
+        "session": {"type": ["string", "null"]},
+        "request_id": {"$ref": "#/$defs/request_id"},
+        "rerun_of": {"anyOf": [{"$ref": "#/$defs/run_id"}, {"type": "null"}]},
+        "script": {
+          "type": "object",
+          "required": ["path", "sha256", "snapshot"],
+          "properties": {"path": {"type": "string"}, "sha256": {"$ref": "#/$defs/sha256"}, "snapshot": {"type": "string"}}
+        },
+        "modules": {"type": "array", "items": {"type": "object", "required": ["path", "sha256", "snapshot"]}},
+        "inputs": {"type": "array", "items": {"type": "object", "required": ["path"],
+                                              "properties": {"path": {"type": "string"}, "via": {"type": "array", "items": {"type": "string"}},
+                                                             "external": {"type": "boolean"}}}},
+        "outputs": {"type": "array", "items": {"type": "object", "required": ["path", "change"],
+                                               "properties": {"path": {"type": "string"},
+                                                              "change": {"enum": ["created", "modified", "deleted"]},
+                                                              "via": {"enum": ["analytics.save", "diff"]}}}},
+        "visualizations": {"type": "array", "items": {"$ref": "#/$defs/visualization_2"}},
+        "error": {"type": ["object", "null"]},
+        "finalize_errors": {"type": "array", "items": {"type": "string"}},
+        "stdout": {"type": "string"},
+        "stderr": {"type": "string"},
+        "env": {"type": "object", "properties": {"kit_version": {"$ref": "#/$defs/kit_version"}}},
+        "reproduction": {
+          "type": "object",
+          "required": ["of", "verdict", "inputs_same", "visualizations", "outputs"],
+          "properties": {
+            "of": {"$ref": "#/$defs/run_id"},
+            "verdict": {"enum": ["match", "mismatch", "failed", "inconclusive"]},
+            "inputs_same": {"type": "boolean"},
+            "visualizations": {"type": "object", "additionalProperties": {"type": "string"}},
+            "outputs": {"type": "object", "additionalProperties": {"type": "string"}}
+          }
+        },
+        "warnings": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "visualization_2": {
+      "type": "object",
+      "required": ["visualization_id", "kind", "title", "via", "files", "sha256"],
+      "properties": {
+        "visualization_id": {"type": "string", "minLength": 1},
+        "kind": {"type": "string"},
+        "title": {"type": "string"},
+        "caption": {"type": ["string", "null"]},
+        "via": {"enum": ["analytics.visualize", "plt.show", "fig.show", "auto", "file"]},
+        "files": {"type": "object", "minProperties": 1, "maxProperties": 1, "additionalProperties": {"type": "string"}},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "data": {"type": "string"},
+        "data_rows": {"type": "integer", "minimum": 0},
+        "data_columns": {"type": "array"},
+        "data_sha256": {"$ref": "#/$defs/sha256"},
+        "line": {"type": ["integer", "null"]}
+      },
+      "dependentRequired": {"data": ["data_sha256"]}
+    },
+    "dataset_1": {
+      "type": "object",
+      "required": ["schema", "name", "path", "sha256", "bytes", "rows", "columns", "imported_at", "source"],
+      "properties": {
+        "schema": {"const": "analytics.dataset/1"},
+        "name": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,62}$"},
+        "path": {"type": "string", "pattern": "^data/imported/[^/]+\\.parquet$"},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "bytes": {"type": "integer", "minimum": 0},
+        "rows": {"type": "integer", "minimum": 0},
+        "columns": {"type": "array", "items": {"type": "object", "required": ["name", "dtype"]}},
+        "description": {"type": ["string", "null"]},
+        "imported_at": {"$ref": "#/$defs/timestamp"},
+        "source": {
+          "type": "object",
+          "required": ["path", "sha256", "bytes", "format"],
+          "properties": {"path": {"type": "string"}, "sha256": {"$ref": "#/$defs/sha256"}, "bytes": {"type": "integer", "minimum": 0},
+                         "format": {"type": "string"}, "modified_at": {"$ref": "#/$defs/timestamp"}}
         }
       }
     }

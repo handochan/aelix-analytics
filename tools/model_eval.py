@@ -102,6 +102,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import functools
 import hashlib
 import http.server
 import importlib.util
@@ -128,6 +129,18 @@ from functools import lru_cache
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+@functools.cache
+def read_model():
+    """The checkout's read model (src/aelix_analytics/relations.py), loaded by its file: it imports
+    nothing of the package. A run's Visualizations are read through its one view of a lab.run/1
+    run's charts and an analytics.run/2 run's visualizations (Issue #13, design 5.3)."""
+    path = ROOT / "src" / "aelix_analytics" / "relations.py"
+    spec = importlib.util.spec_from_file_location("model_eval_relations", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 DATA = Path(__file__).resolve().parent / "model_eval_data"
 FIXTURE_TOOL = Path(__file__).resolve().parent / "eval_fixtures.py"
 # tools/eval_fixtures.py's GENERATOR_VERSION the answers were written against (checked on manifests).
@@ -1546,7 +1559,7 @@ def changes(project: Path, before: dict) -> dict:
             record = json.loads(path.read_text(encoding="utf-8"))
         if not isinstance(record, dict):
             record = {}
-        charts = record.get("charts") or []
+        charts = read_model().run_visualizations(record)
         new_runs.append({"id": name, "status": record.get("status"),
                          "script": (record.get("script") or {}).get("path"),
                          "charts": [c.get("id") for c in charts],
@@ -3903,7 +3916,7 @@ def validate_against_fixtures(config: Config, fixtures_root: Path, seed: int = 0
         for run in runs:
             with contextlib.suppress(OSError, json.JSONDecodeError):
                 data = json.loads((project / "runs" / run / "run.json").read_text(encoding="utf-8"))
-                charts |= {c.get("id") for c in data.get("charts") or []}
+                charts |= {c["id"] for c in read_model().run_visualizations(data)}
         cited = set(answer.get("evidence_ids", []))
         for check in answer["checks"]:
             if check["type"] in ("ids_all", "ids_any"):

@@ -611,7 +611,8 @@ class V1Writer:
         return self.kit.runner.parquet_info(self.project.root / path)["rows"]
 
     def _remember(self, record: dict) -> None:
-        keys = [f"{record['script']['path']}::{c['id']}" for c in record.get("charts") or []]
+        # The run's Visualizations through the read model's one view (Issue #13, design 5.3).
+        keys = [c["key"] for c in self.kit.relations.run_visualizations(record)]
         self.runs.append({"id": record["id"], "status": record["status"], "script": record["script"]["path"],
                           "charts": keys})
         if record["status"] == "ok":
@@ -2007,14 +2008,15 @@ def q13_records(kit: SimpleNamespace, root: Path, runs: dict, decision: str, que
     for path in partial:
         current = sha256_file(root / path)
         producers[path] = model.producers(path, current)
-    eda_chart = next(c for c in runs["eda"]["charts"] if c["id"] == "sensor-histograms")
-    band_chart = next(c for c in runs["bands"]["charts"] if c["id"] == "all-sensor-bands")
+    visualizations = kit.relations.run_visualizations
+    eda_chart = next(c for c in visualizations(runs["eda"]) if c["id"] == "sensor-histograms")
+    band_chart = next(c for c in visualizations(runs["bands"]) if c["id"] == "all-sensor-bands")
     return {
         "runs": {key: {"run": record["id"], "status": record["status"]} for key, record in runs.items()},
         "run_counts": {"ok": sum(r["status"] == "ok" for r in runs.values()),
                        "error": sum(r["status"] == "error" for r in runs.values())},
         "failed_run_partial_outputs": {"run": failed["id"], "outputs": partial,
-                                       "charts": [c["id"] for c in failed["charts"]],
+                                       "charts": [c["id"] for c in visualizations(failed)],
                                        "rewritten_by": fixed["id"], "producers_of_current_bytes": producers},
         "attached_data": [
             {"chart": f"scripts/01_eda_training_traces.py::{eda_chart['id']}", "run": runs["eda"]["id"],

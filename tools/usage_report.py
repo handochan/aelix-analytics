@@ -1014,7 +1014,20 @@ class Truth:
 
 
 def run_items(record: dict | None, scope: str) -> list:
+    """A run's items of `scope`, its Visualizations ("charts") through the read model's one view of
+    a lab.run/1 run's charts and an analytics.run/2 run's visualizations (Issue #13, design 5.3)."""
+    if scope == "charts":
+        return read_model().run_visualizations(record or {})
     return list((record or {}).get(scope) or [])
+
+
+def read_model():
+    """The checkout's read model (relations: standard library only), as load_kit finds the kit."""
+    if str(KIT) not in sys.path:
+        sys.path.insert(0, str(KIT))
+    from aelix_analytics import relations
+
+    return relations
 
 
 # What identifies an item of a run in the analytics_run reply (listed_in: on a page or record).
@@ -1262,7 +1275,8 @@ def paths_above_claim(pointer: Pointer, first_text: str, truth: Truth) -> dict:
     names a record and how many charts are not listed — exactly that many have theirs only in the
     record, read from the file the line names."""
     above = "\n".join(first_text.split("\n")[:pointer.claim["index"]])
-    charts = [c for c in run_items(truth.run, "charts") if (c.get("files") or {}).get("png")]
+    charts = [c for c in read_model().run_visualizations(truth.run or {})
+              if (c.get("files") or {}).get("png")]
     rest = charts[pointer.claim["shown"]:]
     not_above = [c for c in rest if c["files"]["png"] not in above]
     if pointer.path is None:

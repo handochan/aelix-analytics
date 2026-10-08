@@ -911,8 +911,8 @@ VIOLATIONS = {
          "dynamic-load", "in _load_platform"]),
     # An exception holds in the functions it names, not anywhere between its two files.
     "the runner imports the workspace outside the function its exception names": (
-        RUNNER, _replace("from . import _platform, capture, core\n",
-                         "from . import _platform, capture, core, workspace\n"),
+        RUNNER, _replace("from . import _platform, capture, core, relations\n",
+                         "from . import _platform, capture, core, relations, workspace\n"),
         ["runtime → workspace", "layer-direction", "at module level",
          "ALLOWLIST allows this edge only in _finalize"]),
 }

@@ -28,7 +28,7 @@ import types
 import weakref
 from pathlib import Path
 
-from . import _platform, capture, core
+from . import _platform, capture, core, relations
 
 WRITE_CALLS = {"write_parquet", "sink_parquet", "write_csv", "sink_csv", "write_ipc", "sink_ipc",
                "write_ndjson", "sink_ndjson", "write_json", "write_excel", "write_delta",
@@ -679,7 +679,10 @@ DIFFERENT = {"different data", "missing", "new", "bytes differ", "image bytes di
 
 def compare_runs(project: core.Project, old: dict, new: dict) -> dict:
     """Compare a rerun with the run it re-executed. A rerun that did not finish ok is `failed`;
-    a chart or output that differs, appears or disappears makes it `mismatch`."""
+    a chart or output that differs, appears or disappears makes it `mismatch`. Both runs'
+    Visualizations are read through relations.run_visualizations, so a lab.run/1 run and an
+    analytics.run/2 run are compared by the same Visualization ids (design 2.6, S13). The result is
+    written in the form of the rerun's own record (this kit's: reproduction.charts)."""
     import json
 
     import polars as pl
@@ -687,27 +690,26 @@ def compare_runs(project: core.Project, old: dict, new: dict) -> dict:
     old_inputs = {i["path"]: i.get("sha256") for i in old.get("inputs") or []}
     new_inputs = {i["path"]: i.get("sha256") for i in new.get("inputs") or []}
     charts: dict[str, str] = {}
-    old_charts = {c["id"]: c for c in old.get("charts") or []}
-    for chart in new.get("charts") or []:
+    old_charts = {c["id"]: c for c in relations.run_visualizations(old)}
+    for chart in relations.run_visualizations(new):
         before = old_charts.pop(chart["id"], None)
         if before is None:
             charts[chart["id"]] = "new"
             continue
         state = "not comparable"
+        files, before_files = chart.get("files") or {}, before.get("files") or {}
         with contextlib.suppress(Exception):
             if chart.get("data") and before.get("data"):
                 same = pl.read_parquet(project.path(chart["data"])).equals(
                     pl.read_parquet(project.path(before["data"])))
                 state = "same data" if same else "different data"
-            elif chart["files"].get("plotly") and before["files"].get("plotly"):
-                a = json.loads(project.path(chart["files"]["plotly"])
-                               .read_text(encoding="utf-8"))["data"]
-                b = json.loads(project.path(before["files"]["plotly"])
-                               .read_text(encoding="utf-8"))["data"]
+            elif files.get("plotly") and before_files.get("plotly"):
+                a = json.loads(project.path(files["plotly"]).read_text(encoding="utf-8"))["data"]
+                b = json.loads(project.path(before_files["plotly"]).read_text(encoding="utf-8"))["data"]
                 state = "same data" if a == b else "different data"
-            elif chart["files"].get("png") and before["files"].get("png"):
-                same = core.sha256_file(project.path(chart["files"]["png"])) == \
-                    core.sha256_file(project.path(before["files"]["png"]))
+            elif files.get("png") and before_files.get("png"):
+                same = core.sha256_file(project.path(files["png"])) == \
+                    core.sha256_file(project.path(before_files["png"]))
                 state = "same image" if same else "image bytes differ"
         charts[chart["id"]] = state
     for cid in old_charts:
@@ -1130,9 +1132,14 @@ MAX_LISTED_PATHS = 3
 
 
 def imported_sources(project: core.Project) -> dict[str, str]:
-    """Absolute source path -> dataset name, for everything data/raw was imported from."""
+    """Absolute source path -> dataset name, for everything data/raw (and data/imported, the new
+    writer's place, design 2.3) was imported from."""
     out = {}
-    for meta_file in sorted(project.raw.glob("*.meta.json")) if project.raw.is_dir() else []:
+    metas = []
+    for directory, _ in relations.IMPORT_DIRS:
+        place = project.root / directory
+        metas += sorted(place.glob("*.meta.json")) if place.is_dir() else []
+    for meta_file in metas:
         meta = core.read_json(meta_file)
         source = (meta or {}).get("source") or {}
         path = source.get("path")
@@ -1175,14 +1182,15 @@ def reserved_name_warnings(paths) -> list[str]:
 def run_warnings(record: dict, project: core.Project | None = None) -> list[str]:
     warnings = []
     imported = imported_sources(project) if project is not None else {}
-    if record["status"] == "ok" and not record["inputs"] and (record["charts"] or any(
+    charts = relations.run_visualizations(record)
+    if record["status"] == "ok" and not record["inputs"] and (charts or any(
             o.get("change") != "deleted" for o in record["outputs"])):
         warnings.append("no input files were detected: read data with analytics.read/analytics.scan/analytics.sql "
                         "or literal paths, or declare inputs")
-    if record["status"] != "ok" and record["charts"]:
-        warnings.append(f"{len(record['charts'])} chart(s) were recorded but the run is "
+    if record["status"] != "ok" and charts:
+        warnings.append(f"{len(charts)} chart(s) were recorded but the run is "
                         f"{record['status']}, so they stay out of the report gallery")
-    for chart in record["charts"]:
+    for chart in charts:
         if chart["kind"] == "matplotlib" and not chart.get("data"):
             warnings.append(f"chart {chart['id']}: plotted data not recorded "
                             "(pass data=... to analytics.visualize)")
@@ -1215,6 +1223,6 @@ def run_warnings(record: dict, project: core.Project | None = None) -> list[str]
     # Last of all, so every warning main gave comes first: the agent's reply shows ten and the run
     # page twelve, and a partitioned write under a reserved directory would otherwise push them out.
     written = [out["path"] for out in record["outputs"] if out.get("change") != "deleted"]
-    written += [rel for chart in record["charts"] for rel in (chart.get("files") or {}).values()]
+    written += [rel for chart in charts for rel in (chart.get("files") or {}).values()]
     warnings += reserved_name_warnings(written)
     return warnings

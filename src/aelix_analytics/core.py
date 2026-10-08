@@ -1445,14 +1445,98 @@ def newer_schema(value, known: str) -> bool:
     return bool(got and want and got[0] == want[0] and got[1] > want[1])
 
 
+# The kinds of the lists: Workflow feedback is `gap` in lab.event/1 and `workflow_feedback` in
+# analytics.event/2 (TERMINOLOGY 4).
+FEEDBACK_KINDS = ("gap", "workflow_feedback")
+
+
+def _refs_view(refs) -> dict:
+    """An analytics.event/2 record's references in the shape of a lab.event/1 `refs` object, for the
+    lists and pages only (design 5.2): runs, events, charts (a logical key, or `<run>/<id>` of a bound
+    version), data, context, resolves and the rest under `other`. What each reference is, is the
+    read model's judgment (relations.ReadModel.references), not this."""
+    out: dict[str, list] = {}
+    for index, ref in enumerate(refs if isinstance(refs, list) else []):
+        if not isinstance(ref, dict):
+            continue
+        kind, relation = ref.get("type"), ref.get("relation")
+        if kind == "run" and isinstance(ref.get("run_id"), str):
+            out.setdefault("runs", []).append(ref["run_id"])
+        elif kind in relations.EVENT_TARGETS and isinstance(ref.get("event_id"), str):
+            if relation == "resolves":
+                out["resolves"] = ref["event_id"]
+            else:
+                out.setdefault("events", []).append(ref["event_id"])
+        elif kind == "context_version" and isinstance(ref.get("version"), str):
+            out["context"] = ref["version"]
+        elif kind == "visualization_version":
+            out.setdefault("charts", []).append(reference_label({"target": ref}))
+        elif kind in ("dataset_import", "data_observation"):
+            out.setdefault("data", []).append(reference_label({"target": ref}))
+        else:
+            target = {k: v for k, v in ref.items()
+                      if k not in ("type", "relation", "basis", "version_binding")}
+            out.setdefault("other", []).append(reference_label({"target": target,
+                                                                "ref": {"index": index}}))
+    return out
+
+
+def event_view(event: relations.Event) -> dict:
+    """A journal record as the lists, the context block and the Workspace show it (design 5.2): a
+    lab.event/1 record as it is; an analytics.event/2 record as `schema, seq, id, ts` (its
+    `recorded_at`, kept under that name too), `kind, actor`, `means`, `actor_basis`, `session` and
+    `request_id` when it has them, `text` and its references in the /1 shape (_refs_view)."""
+    if event.schema == SCHEMA_EVENT:
+        return event.value
+    value = event.value
+    view = {"schema": event.schema, "seq": value.get("seq"), "id": value.get("id"),
+            "ts": value.get("recorded_at"), "recorded_at": value.get("recorded_at"),
+            "kind": value.get("kind"), "actor": value.get("actor")}
+    for name in ("means", "actor_basis", "session", "request_id"):
+        if name in value:
+            view[name] = value[name]
+    view.update(text=value.get("text"), refs=_refs_view(value.get("refs")))
+    return view
+
+
 def read_events(project: Project, journal: relations.Journal | None = None) -> list[dict]:
-    """The lab.event/1 records of the journal, in line order, as relations.Journal reads it: a line
+    """The journal's records, lab.event/1 and analytics.event/2 alike, in seq order (line order
+    among equal seqs, a record without a seq last), as event_view shows them (design 5.2). A line
     that does not parse is left out and the record a /1 writer appended onto it is recovered, and
     every line of an id several lines share is kept. Records of another family or version, or of a
     kind this kit does not know, are not here: status() counts them. Only journal.jsonl is read
     (this runs before every prompt, through context_block), unless `journal` is one already read."""
     journal = relations.read_journal(project.root) if journal is None else journal
-    return [event.value for event in journal.events if event.schema == SCHEMA_EVENT]
+    return [event_view(event) for event in journal.in_order()]
+
+
+class JournalLists:
+    """The journal as the lists read it, from one read (design 5.2): every record in seq order
+    (`events`, event views), the name each is read by (`source`: its id, or `journal:<line>` when
+    several lines have it), the open questions and todos (`open`), the key information (`key`) and
+    the Workflow feedback (`feedback`). A lab.event/1 record is open, or key information, when no
+    record resolves it (refs.resolves, as before #13); an analytics.event/2 one when, besides, the
+    state the read model replays for it (ADR-0006 6) is `open`, or `current` (not withdrawn,
+    superseded or in conflict)."""
+
+    def __init__(self, journal: relations.Journal):
+        ordered = journal.in_order()
+        self.events = [event_view(e) for e in ordered]
+        self.source = {id(view): journal.source_of(e) for e, view in zip(ordered, self.events, strict=True)}
+        resolved = resolved_targets(self.events)
+        states = (journal.replay().record_states()
+                  if any(e.schema != SCHEMA_EVENT for e in ordered) else {})
+
+        def live(view: dict, wanted: str) -> bool:
+            if view.get("schema") == SCHEMA_EVENT:
+                return True
+            return (states.get(self.source[id(view)]) or {}).get("state") == wanted
+
+        self.open = [e for e in self.events if e.get("kind") in OPEN_KINDS
+                     and e.get("id") not in resolved and live(e, "open")]
+        self.key = [e for e in self.events if e.get("kind") in KEY_KINDS
+                    and e.get("id") not in resolved and live(e, "current")]
+        self.feedback = [e for e in self.events if e.get("kind") in FEEDBACK_KINDS]
 
 
 def read_model(project: Project, cache: HashCache | None = None) -> relations.ReadModel:
@@ -1582,7 +1666,8 @@ def list_runs(project: Project) -> list[dict]:
         if not d.is_dir() or not RUN_ID_RE.match(d.name):
             continue
         rec = read_json(d / "run.json")
-        if isinstance(rec, dict) and newer_schema(rec.get("schema"), SCHEMA_RUN):
+        if isinstance(rec, dict) and (newer_schema(rec.get("schema"), SCHEMA_RUN)
+                                      or newer_schema(rec.get("schema"), relations.RUN_V2)):
             continue  # written by a newer kit; status() counts it as unsupported
         if not isinstance(rec, dict):
             rec = {"id": d.name, "status": "incomplete", "title": "(run.json missing)"}
@@ -1635,6 +1720,7 @@ def new_run_dir(project: Project, label: str) -> str:
 
 
 def chart_key(run: dict, chart: dict) -> str:
+    """`<script path>::<id>` of a Visualization this kit is recording (capture's chart records)."""
     return f"{(run.get('script') or {}).get('path') or '?'}::{chart.get('id')}"
 
 
@@ -1765,6 +1851,9 @@ class Freshness:
 def chart_index(runs: list[dict], read_as=None) -> list[dict]:
     """Latest version of every script::chart across successful runs, newest first.
 
+    A run's Visualizations are read through relations.run_visualizations, so a lab.run/1 run's
+    charts and an analytics.run/2 run's visualizations are versions of the same keys.
+
     `read_as(run_id, path)` (the read model's) gives the identity path a kit before
     PATH_IDENTITY_SINCE recorded a run's script by, read in today's spelling (ADR-0006 9): that
     run's charts are versions of today's key, each marked `inferred` and counted in
@@ -1778,8 +1867,8 @@ def chart_index(runs: list[dict], read_as=None) -> list[dict]:
         read = read_as(r["id"], recorded) if read_as is not None and recorded != "?" else None
         script = read or recorded
         last_ok_by_script[script] = r
-        for c in r.get("charts") or []:
-            key = f"{script}::{c.get('id')}"
+        for c in relations.run_visualizations(r):
+            key = f"{script}::{c['id']}"
             entry = {**c, "key": key, "run": r["id"], "script": script,
                      "run_title": r.get("title"), "started_at": r.get("started_at")}
             if read:
@@ -1803,11 +1892,12 @@ def chart_index(runs: list[dict], read_as=None) -> list[dict]:
 
 def list_datasets(project: Project, runs: list[dict] | None = None, *,
                   model: relations.ReadModel | None = None, sha=None) -> list[dict]:
-    """Every dataset under data/raw and data/derived: each `.parquet` file (the suffix in any case)
-    the walk from those directories finds (Project.walk), named by the stem of the name the
-    namespace lists it under and with the path a record holds for it (ADR-0006 9), its import record
-    the one beside that entry, raw first and each kind in the code point order of its path's
-    components. `producers` are the successful runs
+    """Every dataset under data/imported, data/raw and data/derived: each `.parquet` file (the suffix
+    in any case) the walk from those directories finds (Project.walk), named by the stem of the name
+    the namespace lists it under and with the path a record holds for it (ADR-0006 9), its import
+    record the one beside that entry (an analytics.dataset/1 record in data/imported, a
+    lab.dataset/1 one in data/raw), imported first, then raw, then derived, and each kind in the
+    code point order of its path's components. `producers` are the successful runs
     that output its path, in run order, whatever bytes they wrote; `used_by` the successful runs
     that read it.
 
@@ -1862,7 +1952,7 @@ def list_datasets(project: Project, runs: list[dict] | None = None, *,
         return through.get((path, name), set()) - exact.get((path, name), set())
 
     items = []
-    for base, kind in (("data/raw", "raw"), ("data/derived", "derived")):
+    for base, kind in (("data/imported", "imported"), ("data/raw", "raw"), ("data/derived", "derived")):
         # Once per (name, path) within a kind: a raw file a derived link leads to is in both, as
         # on main.
         found: dict[tuple[str, str], tuple] = {}
@@ -1879,9 +1969,10 @@ def list_datasets(project: Project, runs: list[dict] | None = None, *,
             # The name is the one the namespace lists (a link's own), the path the file's identity,
             # and the import record the one beside the entry, where import wrote it.
             item = {"name": Path(name).stem, "path": rel, "kind": kind, "bytes": size}
-            beside = project.path(place).with_suffix(".meta.json") if kind == "raw" else None
+            family = IMPORT_FAMILIES.get(kind)
+            beside = project.path(place).with_suffix(".meta.json") if family else None
             meta = read_json(beside) if beside else None
-            unsupported = (relations.unsupported_reason(meta, frozenset({SCHEMA_DATASET}))
+            unsupported = (relations.unsupported_reason(meta, frozenset({family}))
                            if isinstance(meta, dict) else None)
             if unsupported:
                 item["unsupported_record"] = {"location": project.rel(beside),
@@ -1922,6 +2013,12 @@ def list_datasets(project: Project, runs: list[dict] | None = None, *,
     return items
 
 
+# The import record each kind of dataset has beside it (design 2.3 and 2.7).
+IMPORT_FAMILIES = {"imported": relations.DATASET_V2, "raw": SCHEMA_DATASET}
+# The order the dataset kinds take view names in (design D24): imported data first.
+KIND_ORDER = {"imported": 0, "raw": 1, "derived": 2}
+
+
 def dataset_name_taken(project: Project, name: str) -> str | None:
     """Path of an existing dataset that `name` would shadow or collide with."""
     for ds in list_datasets(project):
@@ -1932,14 +2029,14 @@ def dataset_name_taken(project: Project, name: str) -> str | None:
 
 def _views(datasets: list[dict]) -> list[tuple[str, dict]]:
     """(view name, dataset) in the order names are given: a stem that follows the kit's dataset
-    name rule (DATASET_NAME_RE, the names import and save give) first, then raw before derived, then
-    by path. So a file a person put at data/raw/Sales.parquet never takes `sales` from the dataset
+    name rule (DATASET_NAME_RE, the names import and save give) first, then imported (data/imported,
+    design D24) before raw before derived, then by path. So a file a person put at data/raw/Sales.parquet never takes `sales` from the dataset
     the kit imported or saved as `sales` (ADR-0006 9). A later name that collides gets `_derived`
     (derived) and then `_2`, `_3`…"""
     out: list[tuple[str, dict]] = []
     taken: set[str] = set()
     for ds in sorted(datasets, key=lambda d: (not DATASET_NAME_RE.match(d["name"]),
-                                              d["kind"] != "raw", d["path"])):
+                                              KIND_ORDER.get(d["kind"], len(KIND_ORDER)), d["path"])):
         name = re.sub(r"[^a-z0-9_]", "_", ds["name"].lower()) or "dataset"
         if name[0].isdigit():
             name = f"t_{name}"
@@ -2004,14 +2101,12 @@ def status(project: Project, limit: int = STATUS_LIMIT) -> dict:
     cache = HashCache(project)
     model = read_model(project, cache)
     journal = model.journal
-    listed = [e for e in journal.events if e.schema == SCHEMA_EVENT]
-    events = [e.value for e in listed]
-    source = {id(e.value): journal.source_of(e) for e in listed}
+    lists = JournalLists(journal)
+    events, source = lists.events, lists.source
     runs = model_runs(project, model)
     datasets = list_datasets(project, runs, model=model, sha=cache.sha)
     fresh = Freshness(project, runs, cache, model)
     charts = chart_index(runs, model.read_as)
-    resolved = resolved_targets(events)
     context_text = context_file_text(project)
     _, _, context_omitted, context_truncated = context_selection(context_text)
     current_charts = [c for c in charts if not c.get("retired")]
@@ -2034,15 +2129,14 @@ def status(project: Project, limit: int = STATUS_LIMIT) -> dict:
     for r in runs[-limit:][::-1]:
         rec = recording.get(r["id"]) or {}
         run_rows.append({"id": r["id"], "status": r.get("status"), "title": r.get("title"),
-                         "duration_s": r.get("duration_s"), "charts": len(r.get("charts") or []),
+                         "duration_s": r.get("duration_s"),
+                         "charts": len(relations.run_visualizations(r)),
                          "error": (r.get("error") or {}).get("summary"),
                          "rerun_of": r.get("rerun_of"),
-                         "verdict": (r.get("reproduction") or {}).get("verdict"),
+                         "verdict": (relations.run_reproduction(r) or {}).get("verdict"),
                          "recording_status": rec.get("recording_status"),
                          "reasons": rec.get("reasons", [])})
-    open_items = [e for e in events if e.get("kind") in OPEN_KINDS and e["id"] not in resolved]
-    key_items = [e for e in events if e.get("kind") in KEY_KINDS and e["id"] not in resolved]
-    gaps = [e for e in events if e.get("kind") == "gap"]
+    open_items, key_items, gaps = lists.open, lists.key, lists.feedback
     key_rows = []
     for e in key_items[-limit * 2:]:
         name = source[id(e)]
@@ -2076,7 +2170,6 @@ def status(project: Project, limit: int = STATUS_LIMIT) -> dict:
         "damaged": {"journal": [f"journal:{n}" for n in journal.damaged],
                     "recovered": [f"journal:{n}" for n in journal.recovered],
                     "files": list(model.damaged_files)},
-        "not_listed": [f"journal:{e.line}" for e in journal.events if e.schema != SCHEMA_EVENT],
         "writes_skipped": skipped,
         "shared_ids": {i: [f"journal:{n}" for n in lines]
                        for i, lines in journal.lines_of.items() if len(lines) > 1},
@@ -2333,6 +2426,15 @@ def _status_lines(st: dict, caps: dict[str, int]) -> list[tuple[str, str, bool]]
         named = ", ".join(f"{d['name']} ({d['path']}, view {d['view']})" for d in group)
         add("datasets", f"dataset names that differ only in case: {named} — a file system that "
                         "ignores case keeps one of them; rename one")
+    raw = {d["name"]: d["path"] for d in st["datasets"] if d.get("kind") == "raw"}
+    both = [(d, raw[d["name"]]) for d in st["datasets"]
+            if d.get("kind") == "imported" and d["name"] in raw]
+    if both:
+        # design D24 (R13): the imported data takes the view name, the older import the next one.
+        by_path = {path: view for view, path in dict(st["views"]).items()}
+        named = ", ".join(f"{d['name']} (view {by_path.get(d['path'])}: {d['path']}; "
+                          f"{other} is view {by_path.get(other)})" for d, other in both)
+        add("datasets", f"dataset names in both data/imported and data/raw: {named}")
     datasets = _capped(st["datasets"], caps.get("datasets"))
     for ds in datasets:
         add("datasets", f"  {ds['kind']:<7} {ds['name']}: {_fmt_int(ds.get('rows'))} rows × "
@@ -2469,7 +2571,7 @@ def read_only_line(refusal: dict, skipped=()) -> str:
 
 def _records_lines(st: dict, journal: Path) -> list[str]:
     """What the lists below cannot show: records this kit cannot read, lines that do not parse,
-    record files not read, records of the next format, and ids that several lines share."""
+    record files not read, and ids that several lines share."""
     out = []
     unsupported = st.get("unsupported") or []
     if unsupported:
@@ -2495,11 +2597,6 @@ def _records_lines(st: dict, journal: Path) -> list[str]:
                      f"({_places(files, STATUS_PLACES, EVERY_RECORD)})")
     if parts:
         out.append("damaged: " + "; ".join(parts))
-    not_listed = st.get("not_listed") or []
-    if not_listed:
-        out.append(f"not listed: {len(not_listed):,} analytics.event/2 record(s) "
-                   f"({_places(not_listed, STATUS_PLACES, EVERY_RECORD)}) — this kit lists "
-                   f"lab.event/1 records only; they are in {journal}")
     shared = st.get("shared_ids") or {}
     if shared:
         listed, cut = shared_ids_text(shared, STATUS_PLACES)
@@ -2723,12 +2820,10 @@ def context_block(project: Project, max_context_chars: int = CONTEXT_PROMPT_CHAR
     """Project context appended to the system prompt. Only slow-changing parts, so it stays
     stable across prompts: CONTEXT.md, unresolved key information and open questions."""
     marker = readable(project, "context")
-    events = read_events(project)
-    resolved = resolved_targets(events)
+    lists = JournalLists(relations.read_journal(project.root))
     preamble, included, omitted, _ = context_selection(
         context_file_text(project), max_context_chars, path=project.context)
-    key = [e for e in events if e.get("kind") in KEY_KINDS and e["id"] not in resolved]
-    open_items = [e for e in events if e.get("kind") in OPEN_KINDS and e["id"] not in resolved]
+    key, open_items = lists.key, lists.open
     config = dict(marker.value) if isinstance(marker.value, dict) else {}
     parts = [
         "# Active analytics project",
