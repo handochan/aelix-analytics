@@ -54,7 +54,7 @@ def test_the_result_line_escapes_the_line_ends_json_leaves_raw_and_nothing_else(
 def plain_project(tmp_path):
     """A new project and no data: the scripts here import nothing."""
     root = tmp_path / "proj"
-    core.init_project(root, title="결과 줄", goal="목표", actor="test",
+    core.init_project(root, title="결과 줄", goal="목표", origin=core.Origin("test", "sdk"),
                       template_dir=KIT / "aelix_analytics" / "template")
     return root
 

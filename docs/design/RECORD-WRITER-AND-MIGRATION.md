@@ -1,8 +1,10 @@
 # 기록 writer와 프로젝트 전환 설계 — 새 형식의 공통 writer와 원본 보존 복사 전환
 
-- 상태: **Proposed — 현재 동작이 아니다.** 새 모듈 `writer.py`·`migration.py`, 이 문서의 API, 명령 `analytics migrate`, 필드
-  (`means`·`actor_basis`·표식의 `migration`), 가족(`analytics.run/2`·`analytics.dataset/1`·`analytics.trust/1`·`analytics.migration/1`),
-  오류 코드는 코드에 없다. 지금 동작은 [현재 계약](../CONTRACTS.md)이 설명한다.
+- 상태: **Proposed — 일부만 구현됐다.** 첫 구현 PR ①(kit 0.7.0)이 10절 ①의 행 — `writer.py`(표식 판정·게이트·`Origin`·오류 클래스·헬퍼),
+  계층 수준, 가장 가까운 표식 탐색, 모든 쓰기 진입점의 `admit`, `marker_conflict`·`marker_invalid`, `/2` 이벤트 표시, `analytics.run/2`·
+  `analytics.dataset/1`의 정의(기록 schema)와 읽기, `relations.run_visualizations`·`run_reproduction` — 을 구현했다. 그 밖의 것 — `migration.py`,
+  `Writer`, 명령 `analytics migrate`, 기록에 쓰는 `means`·`actor_basis`, 표식의 `migration`, `analytics.trust/1`·`analytics.migration/1`, ①의
+  것이 아닌 오류 코드 — 은 코드에 없다. 지금 동작은 [현재 계약](../CONTRACTS.md)이 설명한다.
 - 작업: [#13](https://github.com/handochan/aelix-analytics/issues/13) `[B1-c/N0-b]` 새 기록 writer와 원본 보존 프로젝트 전환.
   완료 조건 다섯과 이 문서의 대응은 1절에 있다.
 - 기준: main `09d22c4`(PR #76, #12 PR-3 병합 뒤), `KIT_VERSION = "0.5.0"`. 코드 위치는 함수 이름으로 적는다. 구현 PR은 그때의

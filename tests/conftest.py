@@ -184,7 +184,7 @@ def project(tmp_path):
 
     root = tmp_path / "proj"
     core.init_project(root, title="테스트 분석", goal="테스트 목표", template_dir=KIT / "aelix_analytics" / "template",
-                      actor="test")
+                      origin=core.Origin("test", "sdk"))
     source = write_sales_csv(tmp_path / "sales.csv")
     code, result = kit_cli(root, "import", source, "--name", "sales", "--description", "test data")
     assert code == 0 and result["ok"], result

@@ -12,8 +12,8 @@ Aelix Analytics가 현재 **약속하는 것과 약속하지 않는 것**의 전
 | `register_tool` × 6 | `analytics_status`, `analytics_query`, `analytics_import`, `analytics_run`, `analytics_record`, `analytics_init` — 모두 `execution_mode="sequential"`, 스키마는 `pattern` 없는 평범한 JSON Schema, `prompt_snippet`·지침은 줄마다 200자 이하 |
 | `register_command("analytics")` | 사람 명령(`/analytics`) |
 | `on("before_agent_start")` | `BeforeAgentStartResult(system_prompt=기존 + 맥락 블록)` — 그 요청에만 적용, 누적되지 않음 |
-| `on("tool_execution_start" / "tool_execution_end")` | 모든 도구 호출을 `.lab/telemetry.jsonl`에 기록 |
-| `on("agent_end")` | 분리된 프로세스로 `render --if-changed` 시작 |
+| `on("tool_execution_start" / "tool_execution_end")` | 모든 도구 호출을 `.lab/telemetry.jsonl`에 기록(이 kit이 쓰는 프로젝트에서만, B "표식 판정과 쓰기") |
+| `on("agent_end")` | 분리된 프로세스로 `render --if-changed` 시작(이 kit이 쓰는 프로젝트에서만) |
 | `events.emit` / `events.on` | 채널 `aelix-analytics:instance`로 한 runtime에 사본이 하나만 설정되게 확인 |
 
 쓰지 않는 것: manifest의 선언형 기여(`[contributes]`: 명령·도구·hook·MCP·테마 선언), provider·login·API adapter,
@@ -23,8 +23,8 @@ manifest는 설치본이 aelix에 자기를 밝히는 데만 씁니다: `id = "a
 `license = "Apache-2.0"`(배포본의 라이선스, `LICENSE`). 체크아웃의 파일 로드
 (`aelix -e`·symlink)는 manifest 없이 로드됩니다.
 확장은 aelix 프로세스 안에서 stdlib와 aelix API, 그리고 실행 루트(kit 디렉터리: package `aelix_analytics`를 담은 디렉터리, D)의
-`aelix_analytics/core.py`와 그 형제 `aelix_analytics/_platform.py`·`aelix_analytics/relations.py`(기록을 ADR-0006대로 읽는 읽기 모델, E)
-(셋 다 stdlib 전용)만 import합니다.
+`aelix_analytics/core.py`와 그 형제 `aelix_analytics/_platform.py`·`aelix_analytics/relations.py`(기록을 ADR-0006대로 읽는 읽기 모델, E)·
+`aelix_analytics/writer.py`(표식 판정과 쓰기 게이트, kit 0.7.0부터)(넷 다 stdlib 전용)만 import합니다.
 설치본에서는 그 앞에 package `aelix_analytics`와 `aelix_analytics._install`(실행 루트의 위치)이 import됩니다. kit 0.2.0부터 이
 package가 kit 전체이지만, 그 `__init__`은 모듈 수준에서 stdlib만 import합니다: SDK 함수의 정의뿐이고 kit 모듈은 함수를 부를 때,
 `core`는 `__version__`을 물을 때 import됩니다. 그래서 aelix 프로세스의 `aelix_analytics.*`는 package와 `_install`·`extension`뿐입니다.
@@ -35,10 +35,24 @@ package가 kit 전체이지만, 그 `__init__`은 모듈 수준에서 stdlib만 
 kit은 모듈 이름으로 정합니다: `aelix_analytics.extension`으로 import된 설치본은 `importlib.resources`로 찾은 자기 kit을
 쓰고 `AELIX_ANALYTICS_RUNTIME_PATH`를 따르지 않습니다. 파일로 로드된 경우 `AELIX_ANALYTICS_RUNTIME_PATH`가 있으면 그것, 파일 옆에
 kit이 있으면(경로로 로드한 설치본) 그것, 아니면 체크아웃의 `src/`입니다(`/analytics where`가 어느 것인지 보여 줍니다).
-프로젝트는 `/analytics use` → `--analytics-project` → `AELIX_ANALYTICS_PROJECT` → 작업 디렉터리와 그 조상의 신뢰된 `lab.json` 순서로
-찾습니다. `AELIX_ANALYTICS_PROJECT`는 kit CLI와 사람용 `analytics`도 작업 디렉터리보다 먼저 읽는 한 변수입니다(kit 0.3.0 전에는
+프로젝트는 `/analytics use` → `--analytics-project` → `AELIX_ANALYTICS_PROJECT` → 작업 디렉터리와 그 조상 가운데 표식(`analytics.json`
+또는 `lab.json`)이 있는 가장 가까운 디렉터리(신뢰된 것만) 순서로 찾습니다(kit 0.7.0 전에는 `lab.json`만). `AELIX_ANALYTICS_PROJECT`는 kit CLI와 사람용 `analytics`도 작업 디렉터리보다 먼저 읽는 한 변수입니다(kit 0.3.0 전에는
 CLI의 `LAB_PROJECT`와 확장의 `AELIX_LAB_PROJECT` 둘이었습니다): aelix를 위해 설정해 두면 다른 프로젝트 안에서 부른 명령도 그
 프로젝트에 기록합니다.
+kit 0.7.0부터 확장은 찾은 프로젝트를 표식으로 판정합니다(B "표식 판정과 쓰기"). 명시한 프로젝트(`/analytics use`, `--analytics-project`,
+`AELIX_ANALYTICS_PROJECT`)는 그 디렉터리 자체에 두 표식 가운데 하나가 있어야 하고, 두 표식이 다 있으면 모든 도구·명령이 `marker_conflict`입니다.
+쓰는 도구와 명령(`analytics_record`·`analytics_import`·`analytics_run`, `/analytics record`·`render`, Workspace가 아직 없을 때의 `open`)은 이
+kit이 쓰지 않는 프로젝트에서 aelix 프로세스 안에서 거절합니다: inline 스크립트를 쓰기 전이고 uv를 부르기 전입니다. 읽는 도구
+(`analytics_status`·`analytics_query`)와 `/analytics status`·`context`·`use`는 읽고, 부수 쓰기 — 맥락 동기화, `telemetry.jsonl`, `agent_end`의
+Workspace 렌더 — 는 건너뜁니다. `/analytics use`는 읽을 수 있는 프로젝트(두 표식이 아닌 것)를 신뢰 목록(B)에 적습니다: 이 kit이 쓰지 않는
+프로젝트여도 그렇고, 목록은 프로젝트 트리 밖에 있습니다. 맥락 블록과 `analytics_status`는 머리의 `read only:` 줄로 거절 이유를 알립니다.
+확장이 aelix 프로세스 안에서 쓰는 기록 — `analytics_record`, `/analytics record`, `analytics_init`·`/analytics init`·`/analytics demo`의 프로젝트 생성, 맥락 동기화 — 은 진입점이 정한 작성 출처(`Origin`: 모델 도구
+`agent`·`tool`, `/analytics` `human`·`command`, hook `system`·`hook`, `analytics_status` 안의 동기화 `system`·`tool`)를 기록 함수에 넘깁니다. kit
+자식 프로세스가 쓰는 기록 — `analytics_run`·`analytics_import`, `/analytics render`, `/analytics demo`의 데이터와 run, `analytics_init`·`/analytics init`의 첫 렌더,
+`agent_end`의 렌더(렌더의 맥락 동기화) — 은 확장이 넘기는
+`AELIX_ANALYTICS_ACTOR`·`AELIX_ANALYTICS_SESSION`의 작성 주체·세션과 실행 수단 `cli`를 받습니다(kit 명령줄의 `Origin`, D). 확장의 실행 수단을
+자식에게 넘기는 `AELIX_ANALYTICS_MEANS`는 #13의 셋째 PR이 더합니다. `lab.event/1` 줄에는 어느 쪽이든 지금처럼 `actor`와 `session`만
+남습니다(실행 수단 `means`와 근거 `actor_basis`는 #13의 새 writer가 기록합니다).
 kit 0.3.0 전의 이름(확장 파일 `extension/aelix_lab.py`, 명령 `/lab`, 도구 `lab_*`, flag `--lab-project`, 환경 변수 `AELIX_LAB_*`)은
 등록하지도 읽지도 않습니다. 확장이 읽던 옛 환경 변수(`AELIX_LAB_PROJECT`·`AELIX_LAB_UV`·`AELIX_LAB_TRUST_FILE`, 파일 로드에서는
 `AELIX_LAB_KIT`도)가 설정돼 있거나 aelix의 명령줄에 `--lab-project`(`--lab-project=…` 포함)가 있으면, 확장은 로드할 때 새 이름을
@@ -70,7 +84,7 @@ aelix는 세션을 만들 때마다(시작, `/new`, `/resume`, `/fork`, `/reload
 | 맥락 블록의 머리말(첫 `## ` 위) | 4,000자 뒤 | 뺀 글자 수와 `read <CONTEXT.md> offset 1 limit <첫 제목 앞의 줄 수>` |
 | 맥락 블록의 핵심 정보·열린 항목 | 최근 12개 밖의 항목, 300자 뒤의 글 | 목록마다 한 줄: 뺀 항목 수(최근 12 / 전체), 300자에서 잘린 항목이 있다는 사실, `read <journal.jsonl>`(id로 찾음) |
 | `analytics_status` | 최근 run 8개, 차트·열린 항목·핵심 정보 16개, 최근 기록 10개 밖 | 목록마다 뺀 개수와 journal(run은 `runs/<id>/run.json`도). journal 경로는 `journal:` 줄에 한 번. 핵심 정보는 전체 수를 세지 않고 "최근 16개만, 더 있으면 journal"로 적습니다. 한 줄로 줄인 글 — 항목 글(열린 항목·핵심 정보 160자, 최근 기록 120자), 목표(160자), run·차트 제목(80·70자), 오류 요약(100자) — 은 `…`로 끝날 뿐 따로 적지 않습니다. 전문은 journal(id로 찾음), `CONTEXT.md`, `runs/<id>/run.json`에 있습니다 |
-| `analytics_status`의 기록·관계 줄(E) | 머리의 `unsupported:`·`damaged:`·`not listed:`·`ids on several lines:` 줄에서 위치 5개(`ids on several lines:`는 id마다 줄 2개까지, 모두 5개), 데이터셋의 생산자 후보와 그 경로를 쓴 run, 그 가운데 옛 kit의 경로로만 이은 run(E, `inferred from an older kit's path: …`)에서 3개, 핵심 정보의 `refs:` 요약에서 이름을 적는 상태마다 대상 3개 밖. `refs:` 요약은 살펴볼 상태(`missing`·`ambiguous`·`content_changed`·`unsupported`)의 참조가 있는 항목에만 붙습니다 | 뺀 개수와 위치: kit의 `status` 명령이 내는 JSON(위치는 `unsupported`·`damaged`·`not_listed`·`shared_ids`, 후보와 그 경로를 쓴 run은 데이터셋의 `producer_candidates`·`written_by`, 옛 kit의 경로로만 이은 run은 `inferred`, 요약을 붙이지 않은 항목의 참조 수는 `references`에 모두 있음), 참조 대상은 journal의 그 항목 `refs`. 요약을 붙인 항목의 상태별 참조 수와 확정 연결 수는 줄이지 않습니다. 대상과 공유 id는 한 줄 80자로 줄여 `…`로 끝납니다. 이 줄들은 9,000자 예산에 듭니다 |
+| `analytics_status`의 기록·관계 줄(E) | 머리의 `unsupported:`·`damaged:`·`ids on several lines:` 줄에서 위치 5개(`ids on several lines:`는 id마다 줄 2개까지, 모두 5개), 데이터셋의 생산자 후보와 그 경로를 쓴 run, 그 가운데 옛 kit의 경로로만 이은 run(E, `inferred from an older kit's path: …`)에서 3개, 핵심 정보의 `refs:` 요약에서 이름을 적는 상태마다 대상 3개 밖. `refs:` 요약은 살펴볼 상태(`missing`·`ambiguous`·`content_changed`·`unsupported`)의 참조가 있는 항목에만 붙습니다 | 뺀 개수와 위치: kit의 `status` 명령이 내는 JSON(위치는 `unsupported`·`damaged`·`shared_ids`, 후보와 그 경로를 쓴 run은 데이터셋의 `producer_candidates`·`written_by`, 옛 kit의 경로로만 이은 run은 `inferred`, 요약을 붙이지 않은 항목의 참조 수는 `references`에 모두 있음), 참조 대상은 journal의 그 항목 `refs`. 요약을 붙인 항목의 상태별 참조 수와 확정 연결 수는 줄이지 않습니다. 대상과 공유 id는 한 줄 80자로 줄여 `…`로 끝납니다. 이 줄들은 9,000자 예산에 듭니다 |
 | `analytics_status`가 9,000자를 넘을 때 | 상한이 없는 목록 — 맥락에서 뺀 섹션 이름, view 이름, 데이터셋, 차트별 STALE 입력 — 을 줄이는 효과가 큰 것부터, 들어가는 가장 많은 개수(적어도 20·40·20·5개)로 | 뺀 개수와 위치(`CONTEXT.md`, `runs/<id>/run.json`, view 이름을 모두 보는 순서 있는 `analytics_query` 호출: `ORDER BY table_name LIMIT 50 OFFSET 0`, 이어서 `OFFSET 50, 100, …`을 50행보다 적게 올 때까지). 그래도 넘으면 줄 끝에서 자르고, 마지막 줄에 보이지 않는 절과 항목 수, journal 경로. 9,000자는 위 행의 개수·위치 줄(`journal:` 줄 포함)과 머리말이 4,000자를 넘는다는 줄을 빼고 셉니다. 그래서 그 줄들을 더해 9,000자를 넘는 것만으로는 목록을 줄이지 않고, 응답은 그 줄들만큼 9,000자보다 길 수 있습니다 |
 | `analytics_run` | 입력·출력·경고 10개, 차트 12개, 출력 열 12개 밖, stdout·stderr의 꼬리 | `read <runs/<id>/run.json>`(모두 있음), `+N more columns`, 목록 밖 차트 수와 run.json, 로그는 `truncated: the last N characters`와 로그 파일. 로그가 잘렸는지는 로그 파일이 kit의 꼬리(4,000 bytes)보다 큰지로 정하고, 그때만 꼬리 앞에 kit이 붙인 `…`를 뗍니다(로그가 스스로 `…`로 시작하면 그대로). ok인 run의 1,500자 이상 stderr를 보이지 않을 때도 그 사실과 파일 |
 | `analytics_query` | 14,000자에 들지 않는 행(행 단위: 줄바꿈이 든 값의 행도 한 행) | 첫 줄 `N row(s) shown of M fetched`, 마지막 줄에 뺀 행 수와 결과가 저장되지 않으니 `LIMIT/OFFSET`으로 나눠 읽으라는 안내. 셀(48자)에 맞게 잘린 값은 셀에 들어가는 48자씩 읽는 방법: `substr(<column>, <start>, 48)`, `<start>` = 1, 49, 97, … |
@@ -92,11 +106,13 @@ CRLF의 `\r`은 제목을 찾고 이름을 붙일 때만 떼고, 블록에 넣�
 
 | 경로 | 규약 |
 |---|---|
-| `lab.json` | 있으면 프로젝트. 위치 탐색의 표식 |
+| `lab.json` | 이 kit이 쓰는 프로젝트의 표식(`lab.project/1`). 위치 탐색의 표식은 이것과 `analytics.json`(아래 "표식 판정과 쓰기") |
+| `analytics.json` | 새 형식(`analytics.project/2`, [기록 schema](schemas/analytics-records.schema.json)의 `project_2`)의 표식. #13의 새 writer가 만듭니다. kit 0.7.0은 그 프로젝트를 읽고 쓰지 않습니다 |
 | `CONTEXT.md` | 자유 형식 Markdown. `## Goal`(옛 템플릿은 `## 목표`, Objective도) 아래에서 `(`로 시작하지 않는 첫 줄이 목표로 쓰임. 제목에 `<!-- pin -->`(옛 템플릿의 `<!-- 항상 -->`, `<!-- always -->`도)을 붙인 `## ` 섹션은 맥락 블록에 늘 들어감(A1). 새 프로젝트의 템플릿은 영어이고(#10), 기존 파일은 고쳐 쓰지 않음 |
 | `journal.jsonl` | append-only. 한 줄에 이벤트 하나. 직접 고치지 않음 |
 | `data/raw/<name>.parquet` | `analytics_import`(kit의 `import`)만 만든다. 같은 이름 재가져오기는 거절. 수정하지 않는 것이 규약(강제 아님) |
 | `data/raw/<name>.meta.json` | 가져오기 기록 |
+| `data/imported/<name>.parquet`·`.meta.json` | `analytics.json` 프로젝트에서 새 writer가 가져온 데이터와 그 기록(`analytics.dataset/1`, C4). kit 0.7.0은 읽기만 하고, 같은 이름이면 view 이름을 `data/raw`보다 먼저 줍니다. `lab.json` 프로젝트의 `data/imported/`는 사람의 디렉터리이고 데이터셋 목록에 들지 않습니다(kit 0.7.0 전과 같음) |
 | `data/derived/**.parquet` | run이 쓴다 |
 | `scripts/**.py` | 사람·모델이 편집하는 코드. run 입력·출력 비교에서 제외 |
 | `runs/<id>/` | run이 만든 뒤 바꾸지 않는 것이 규약. `<id>` = `YYYYMMDD-HHMMSS-<script slug>[-n]` |
@@ -118,6 +134,47 @@ build stamp, 데모의 `CONTEXT.md`, kit이 감싸는 run 로그(스크립트의
 해시는 저장된 바이트의 sha256입니다(결정 3). 남은 한계는 G의 '줄 끝'에 있습니다.
 
 
+**표식 판정과 쓰기(kit 0.7.0, [#13](https://github.com/handochan/aelix-analytics/issues/13)의 첫 구현 PR ①).** 디렉터리는 두 표식으로 판정합니다
+([설계](design/RECORD-WRITER-AND-MIGRATION.md) 4.3절, `writer.marker_state`). 이 kit이 쓰는 형식은 `lab.project/1` 하나입니다(`writer.WRITABLE`).
+
+| 디렉터리 | 판정 | 쓰기 | 읽기 |
+|---|---|---|---|
+| 표식 없음 | `none` | `no_project` | `no_project` |
+| `lab.json`: `lab.project/1`, `schema` 없음, 또는 JSON 객체로 읽을 수 없음 | `legacy` | 씀 | 읽음 |
+| `lab.json`: 다른 `schema`(예: `lab.project/2`) | `unknown` | `project_too_new` | 이 kit이 아는 기록을 읽고 표식을 보고 |
+| `analytics.json`: `analytics.project/2`(필수 필드 `schema, project_id, title, created_at, min_writer_version`, PEP 440 정규형의 `min_writer_version`) | `current` | `project_too_new`(이 kit은 이 형식을 쓰지 않음, `min_writer_version`과 관계없이) | 읽음 |
+| `analytics.json`: 다른 `schema`(예: `analytics.project/3`) | `unknown` | `project_too_new` | 아는 기록만 |
+| `analytics.json`이 JSON 객체가 아니거나 필드가 모자람, `min_writer_version`이 정규형이 아님, 또는 어느 표식이든 읽지 못함 | `invalid` | `marker_invalid` | 아는 기록만, 이유를 보고 |
+| 두 표식 | `conflict` | `marker_conflict` | `marker_conflict` |
+
+- 판정은 쓰기 작업의 첫 부수 효과 — 잠금 파일·디렉터리·캐시·로그 줄 포함 — 전에 두 표식을 새로 읽어 합니다(캐시 없음). journal에 쓰는 함수는
+  journal 잠금을 잡은 뒤 한 번 더 판정하고, run은 run 잠금(`.lab/run.lock`)을 잡은 뒤 run 디렉터리를 만들기 전에 한 번 더 판정합니다. 거절된 쓰기는 프로젝트 트리를 바꾸지 않습니다(시험은 경로·크기·수정 시각·sha256과 잠금 파일까지
+  비교합니다). 쓰는 진입점: kit의 `run`·`import`·`record`·`render`·`demo`, SDK의 `record`·`save`·`visualize`(run 밖과 run 안, run 안은 호출마다),
+  확장의 쓰는 도구·명령(A). `init`은 이 표와 따로 지금처럼 없거나 비어 있는 디렉터리만 받습니다(위쪽 표식의 거절은 #13의 셋째 PR).
+- 읽기 작업의 부수 쓰기 — 맥락 동기화, 해시·프로필 캐시(`.lab/cache/`), `queries.jsonl`, `telemetry.jsonl`, Workspace 렌더 예약 — 는 이
+  kit이 쓰지 않는 프로젝트에서 건너뜁니다. kit의 `status`는 표식의 판정과 건너뛴 것을 JSON과 글에 보입니다(D).
+- 열리지 않는 표식(Windows에서 다른 프로세스가 교체하는 중 등)은 교체의 재시도 예산(`REPLACE_ATTEMPTS`·`REPLACE_POLL_SECONDS`, 약 2초) 안에서
+  다시 읽고, 그래도 읽지 못하면 `invalid`(`details.reason: unreadable`)입니다. `none`이나 깨진 표식으로 보지 않습니다. 깨진 `lab.json`을 `legacy`로
+  보는 것은 kit 0.7.0 전의 동작(빈 표식으로 읽고 씀)을 바꾸지 않기 위해서입니다. 표식 이름의 디렉터리는 표식이 아닙니다.
+- 읽기 전용은 uv 환경 동기화를 포함하지 않습니다. 런처·`bin/analytics`, 확장의 `analytics_query`가 그 프로젝트의 환경으로 kit을 부르면
+  (`uv run --project`) uv가 `.venv/`를 만들거나 `uv.lock`을 다시 쓸 수 있습니다. 기록이 아니라 환경이기 때문입니다([#13](https://github.com/handochan/aelix-analytics/issues/13)
+  소유자 결정 OQ13). 확장의 쓰는 도구·명령은 uv를 부르기 전에 거절합니다.
+
+**프로젝트 찾기.** 시작 디렉터리 — kit의 `--project`·`AELIX_ANALYTICS_PROJECT`나 작업 디렉터리, SDK의 `AELIX_ANALYTICS_PROJECT`나 작업
+디렉터리, 런처·`bin/analytics`의 작업 디렉터리 — 에서 위로 올라가며 두 표식 가운데 하나라도 있는 첫 디렉터리가 프로젝트이고, 그 디렉터리를 위
+표로 판정합니다(kit 0.7.0부터, 그 전에는 `lab.json`만 찾았습니다). 그래서 `lab.json` 프로젝트 아래의 `analytics.json` 디렉터리에서 부른 명령은
+그 디렉터리의 것이고 위쪽 프로젝트에 쓰지 않습니다. 반대로 `analytics.json` 프로젝트 아래의 `lab.json` 디렉터리는 그 `lab.json` 프로젝트입니다.
+런처와 `bin/analytics`는 표식의 내용을 읽지 않고 찾은 디렉터리를 kit에 넘깁니다. 둘은 표식 이름의 항목이 디렉터리가 아니면 — 파일, FIFO,
+고리를 이루거나 어디로도 이어지지 않는 링크 — 거기서 멈추고, kit은 넘겨받은 디렉터리(`--project`)에서 자기 규칙으로 다시 위로 찾습니다. kit은
+디렉터리가 아닌 항목을 표식으로 세되 `stat`이 없다고 답하는 것(어디로도 이어지지 않는 링크)은 세지 않으므로, 두 명령은 kit이 거절할 디렉터리를
+지나쳐 위쪽 프로젝트로 가지 않습니다. `open`은 kit 없이 페이지를 여므로 표식의 있음을 kit의 규칙으로 봅니다: 어디로도 이어지지 않는
+링크는 표식이 아니고, 고리를 이루는 링크는 표식입니다. 그래서 찾기가 멈춘 디렉터리에서 위로, 표식 이름의 항목이 어디로도 이어지지 않는
+링크뿐인 디렉터리는 kit처럼 지나쳐 kit이 프로젝트로 삼는 디렉터리의 Workspace를 엽니다(`AELIX_ANALYTICS_PROJECT`는 준 그대로). 그
+디렉터리에 두 표식이 다 있으면 열지 않고 stderr에 그 사실을 적고 종료 코드 1입니다(두 명령이 같은 바이트). 확장의 명시한 프로젝트는 그
+디렉터리 자체를 판정합니다(A).
+표식 없는 전환 목적지(`.analytics/migration/`만 있는 디렉터리)에서 멈추는 것은 #13의 둘째 PR부터입니다. 지금은 그런 디렉터리를 지나 위로
+올라가고, 위에 표식이 없으면 `no_project`입니다.
+
 **기록의 경로.** 기록이 담는 파일 경로(입력·출력·데이터셋·차트·스냅샷·로그)는 경로 정체성입니다(E): 프로젝트 안이면 이름 공간의
 프로젝트 상대 POSIX 경로, 밖이면 그 기계의 절대 경로이고, URI는 받은 그대로입니다. 모든 구성 요소의 철자는 파일 시스템에 저장된
 이름입니다(kit 0.5.0부터, F1). 예외는 kit이 관리하는 최상위 디렉터리 `runs`·`.venv`·`.lab`·`report`입니다: 그 아래는 다른
@@ -133,7 +190,7 @@ build stamp, 데모의 `CONTEXT.md`, kit이 감싸는 run 로그(스크립트의
 | `seq`, `id` | 1부터 증가하는 번호와 `e<seq>`. 프로젝트 파일 잠금(`.lab/lock`) 안에서 그때의 journal을 읽어 배정합니다: 파싱하거나 복구한 모든 줄(모르는 가족·버전·kind의 줄과 `analytics.event/2` 줄 포함)의 가장 큰 seq 다음 값입니다(ADR-0006 6절). 끊긴 줄에 글자로 남은 seq는 세지 않습니다. 그 쓰기는 끝나지 않아 id를 돌려준 적이 없고, reader는 그 줄에서 id를 읽지 않습니다. 그래서 다음 기록이 그 번호를 받을 수 있지만 같은 id의 두 기록으로 읽히지는 않습니다. 읽히는 줄이 그 번호의 id를 이미 가지고 있으면(손으로 고친 줄: seq가 정수가 아니거나(`"3"`, `3.0`, `true`) id의 번호와 다름) 그 번호를 건너뛰고 다음 번호를 받습니다. kit 0.5.0의 #49 수정 전에는 읽히는 마지막 줄의 seq 다음 값이었습니다 |
 | `ts` | 로컬 시간대 ISO 8601 (밀리초) |
 | `kind` | `project` `import` `run` `context` · `finding` `decision` `assumption` `question` `todo` `note` `gap` `resolve` |
-| `actor` | `agent` `human` `system` `script` `test` 등 |
+| `actor` | `agent` `human` `system` `script` `test` 등. 쓰는 진입점이 넘긴 작성 출처(`Origin`, kit 0.7.0부터)의 `actor`: kit CLI는 `AELIX_ANALYTICS_ACTOR`(없으면 `human`), 확장의 도구 `agent`, `/analytics` `human`, hook과 kit이 스스로 하는 맥락 동기화 `system`, run 밖 SDK `script` |
 | `text` | 최대 4,000자. 넘는 부분은 기록되지 않습니다. 이를 알리는 것은 모델 도구(`analytics_record`)와 `/analytics record`의 응답뿐이고, SDK `analytics.record()`와 kit CLI의 `record`(`python -m aelix_analytics record`)는 알리지 않습니다 |
 | `refs` | `runs[]` `charts[]`(`script::chart-id`) `data[]` `events[]` `other[]` `context`(버전 파일명) `resolves`(이벤트 id) |
 | `session` | aelix 세션 파일 경로(있을 때) |
@@ -148,6 +205,11 @@ build stamp, 데모의 `CONTEXT.md`, kit이 감싸는 run 로그(스크립트의
   이미 있는 바이트는 고쳐 쓰지 않습니다. 끊긴 줄은 `damaged`로 보이고, 줄 끝만 없던 기록과 CR만 남은 줄은 그대로 읽힙니다. CRLF 줄은
   CRLF로 남고 새 줄은 LF입니다(ADR-0007 결정 6). 이 수정 전의 kit이 끊긴 줄 뒤에 붙여 쓴 기록과 같은 seq를 다시 받은 줄은 아래
   읽기 규칙대로 읽습니다.
+- **`analytics.event/2` 줄의 표시**(kit 0.7.0): 목록·맥락 블록·Workspace는 `lab.event/1`과 `analytics.event/2` 줄을 함께 seq 순서로(같은 seq는
+  줄 순서, seq 없는 줄은 끝) 보입니다(그 전에는 `/1` 줄만 줄 순서로 보이고 `/2` 줄은 `not_listed`로 셌습니다). `/2` 줄의 참조는 화면에서만
+  `/1`의 `refs` 모양(`runs`·`events`·`charts`·`data`·`context`·`resolves`·`other`)으로 보이고, 판정은 E의 참조 판정입니다. `/2` 기록이 핵심
+  정보·열린 항목인지는 위 규칙에 더해 상태 재생(ADR-0006 6절)으로 정합니다: 철회·정정·충돌한 내용 기록(`withdrawn`·`superseded`·`conflict`)과
+  닫힌 질문·할 일은 빠집니다. `workflow_feedback`은 `gap`과 같은 Workflow feedback이고, 지표·재사용·게시 kind는 타임라인에만 보입니다.
 - **참조의 읽기**: 화면(`analytics_status`·`/analytics status`·kit의 `status`, Workspace)은 `refs`를 고쳐 쓰지 않고 E의 참조 판정으로 보입니다. journal은 바이트로 읽어 LF로 나누고, 파싱하지 못한 줄은 `damaged`, 그 줄 뒤에 붙은 기록은 복구해 읽습니다. 같은 id의 줄이 여럿이면 줄마다 하나의 기록(`journal:<줄>`)입니다. 모르는 가족·버전·kind의 줄은 `unsupported`로 위치와 함께 셉니다(G).
 
 ### C2. run `lab.run/1` (`runs/<id>/run.json`)
@@ -168,6 +230,14 @@ build stamp, 데모의 `CONTEXT.md`, kit이 감싸는 run 로그(스크립트의
 | `rerun_of`, `reproduction` | 재실행일 때. `reproduction = {of, verdict, inputs_same, charts{}, outputs{}}` |
 | `warnings[]` | 기록 품질 경고 |
 
+**`analytics.run/2`의 읽기**(kit 0.7.0, [설계](design/RECORD-WRITER-AND-MIGRATION.md) 2.6절, [기록 schema](schemas/analytics-records.schema.json)의
+`run_2`): 이 kit은 `lab.run/1`만 쓰고, #13의 새 writer가 쓸 `analytics.run/2`도 읽습니다. 바뀐 것은 Visualization이 `visualizations[]`(항목의
+`visualization_id`, 저장한 파일의 `sha256`, 첨부 데이터의 `data_sha256`, 파일은 `runs/<id>/visualizations/`), 재실행 비교가
+`reproduction.visualizations`, `via`의 `lab.` 접두가 `analytics.`(`analytics.visualize`·`analytics.read`·`analytics.scan`·`analytics.sql`·
+`analytics.save`)인 것과 선택 필드 `actor_basis`·`means`입니다. 모든 소비자 — 읽기 모델, `status`, Visualization 목록, 재실행 비교, Workspace,
+확장의 run 응답과 PNG 첨부, 저장소 도구 — 는 두 형식을 `relations.run_visualizations`·`run_reproduction`의 같은 보기로 읽으므로, 한 프로젝트에
+두 형식의 run이 섞여도 같은 Visualization 키의 버전이고, 재실행 비교는 두 형식 사이에서도 같은 id끼리 비교합니다.
+
 입력에서 제외: 정체성이 이 run 디렉터리(`runs/<id>/`)·`.venv/`·`.lab/` 아래인 파일(그 디렉터리가 링크이거나 다른 대소문자로 저장됐어도, E), 그리고 `via`가 `scan`뿐인데 이 run이 만들거나 바꾼 파일.
 
 기록 상태(`recording_status`)는 실행 상태와 따로 읽습니다(ADR-0006 6): run.json이 아직 `running`이거나(`not_final`), journal에 완료 이벤트(그 run을 `refs.runs`에 담은 `kind=run` 이벤트)가 없거나(`no_completion_event`), `finalize_errors`가 있으면 `incomplete`와 사유입니다. `status`의 run 행과 텍스트(`recording incomplete (…)`), run 페이지의 안내가 보입니다. run.json이 없거나 파싱되지 않는 run은 지금처럼 `(run.json missing)` 행이고, 모르는 가족·버전의 run.json은 목록에 없이 `unsupported`로 셉니다.
@@ -184,13 +254,24 @@ build stamp, 데모의 `CONTEXT.md`, kit이 감싸는 run 로그(스크립트의
 | `data`, `data_rows`, `data_columns` | `analytics.visualize(data=…)`(kit 0.3.0 전 `chart`)로 저장한 플롯 데이터 parquet |
 | `line` | 스크립트에서 차트를 기록한 줄 |
 
-차트의 정체성은 `run.script.path::chart.id`입니다.
+차트의 정체성은 `run.script.path::chart.id`입니다. `analytics.run/2`에서는 `visualization_id`가 같은 값이고 정체성도 같습니다(C2).
 
 ### C4. 데이터셋 `lab.dataset/1` (`data/raw/<name>.meta.json`)
 
 `name, path, sha256, bytes, rows, columns[{name, dtype}], description, imported_at,
 source{path, sha256, bytes, format, modified_at}`. `path`는 경로 정체성(E)이고, `source.path`는 원본의 실제 절대 경로입니다(kit 0.5.0부터
 저장된 철자).
+
+kit 0.7.0은 새 writer의 가져오기 기록 `analytics.dataset/1`(`data/imported/<name>.meta.json`, 같은 필드에 `path`가 `data/imported/…`, 기록
+schema의 `dataset_1`)도 읽습니다. 가족은 자리마다 하나라, `data/raw/`의 `analytics.dataset/1`과 `data/imported/`의 `lab.dataset/1`은
+`unsupported`(`unknown_kind`)입니다. 데이터셋 목록의 디렉터리는 표식이 고릅니다([설계](design/RECORD-WRITER-AND-MIGRATION.md) 2.3절):
+`analytics.json` 프로젝트는 `data/imported`(종류 `imported`) → `data/raw` → `data/derived` 순이고, 같은 이름이 `data/imported`와 `data/raw`에
+있으면 view 이름은 `data/imported`가 먼저 받고 `status`가 그 사실을 적습니다(E "view 이름"). `lab.json` 프로젝트는 kit 0.7.0 전처럼 `data/raw`
+→ `data/derived`이고, 거기의 `data/imported/`는 사람의 디렉터리라 데이터셋도 view도 되지 않습니다. 가져오기 기록의 읽기(기록 상태,
+`source_revision`, run 뒤 경고의 가져온 원본)는 두 자리를 다 봅니다([설계](design/RECORD-WRITER-AND-MIGRATION.md) 5.3절). 그래서 `lab.json`
+프로젝트의 `data/imported/`에 사람이 둔 `*.meta.json`도 기록으로 읽혀, `status`와 Workspace가 그것을 `unsupported`(가져오기 기록이 아닌 JSON,
+예: `unknown_family`)나 `damaged`(JSON이 아닌 것, `unparsable`)로 적습니다(kit 0.7.0 전에는 읽지 않았습니다). 데이터셋 목록·view와 쓰기는
+그 파일로 바뀌지 않습니다.
 
 ### C5. 보조 로그
 
@@ -223,6 +304,17 @@ Windows에서는 `analytics.exe`)로 부릅니다(kit 0.3.0 전의 `bin/lab`). �
   표는 `core.RENAMED_ENV`이고, 새 이름은 `AELIX_ANALYTICS_PROJECT`(둘이 하나로)·`_ACTOR`·`_SESSION`·`_STYLE`·`_TRUST_FILE`·
   `_RUNTIME_PATH`(옛 `AELIX_LAB_KIT`)·`_UV`입니다.
 
+- 표식 판정(kit 0.7.0, B "표식 판정과 쓰기"). `--project`·`AELIX_ANALYTICS_PROJECT`·작업 디렉터리에서 위로 올라가 가장 가까운 표식
+  (`analytics.json` 또는 `lab.json`)의 디렉터리가 프로젝트이고, 쓰는 명령(`run`·`import`·`record`·`render`·`demo`)은 무엇도 쓰기 전에, 분석
+  라이브러리를 import하기 전에 그 디렉터리를 판정해 거절하면 종료 코드 1입니다: `no_project`, `project_too_new`(이 kit이 쓰지 않는 표식 —
+  모르는 가족·버전과, kit 0.7.0부터 읽고 쓰지 않는 `analytics.project/2`. `details: {marker, format}`), `marker_invalid`(`details: {marker,
+  reason, …}`, `reason`은 `unreadable`(`error`)·`unparsable`·`not_object`·`missing_field`(`fields`)·`bad_version`(`min_writer_version`)),
+  `marker_conflict`(`details.markers`: 두 표식마다 `file`·`bytes`·`sha256`·`schema`, 있으면 `migration`. 읽지 못했으면 `unreadable`). 읽는 명령
+  (`status`·`context`·`query`)은 `no_project`와 `marker_conflict`만 거절합니다. `writer_too_old`(ADR-0006 1.3)는 새 writer의 것이라 이 kit은 내지
+  않습니다. SDK의 `record`·`save`·`visualize`는 run 밖에서도 run 안에서도 호출마다 판정해 같은 코드의 `AnalyticsError`(`aelix_analytics.core`)를
+  올리고, run 밖의 `analytics.project()`는 두 표식이면 `marker_conflict`입니다. run이 시작된 뒤 표식이 바뀌면 그 뒤의 SDK 쓰기는 스크립트의
+  오류가 되고, 완료 이벤트와 노트는 journal 잠금 안의 판정에서 거절되어 `finalize_errors`에 남으며 run은 `incomplete`(`no_completion_event`)입니다.
+  run 기록(`run.json`)은 run 잠금을 잡은 뒤의 판정대로 씁니다(다른 run을 기다린 run은 잠금을 얻은 때 다시 판정합니다).
 - 실행 루트에서만 돕니다. 설치된 배포본 자신의 package(옆에 `kit/aelix_analytics/`를 둔 것)를 `python -m aelix_analytics`로
   부르면 어느 환경에서든 아무것도 쓰지 않고 거절합니다: `{"ok": false, "error": {"code": "not_runtime_root", …}}`, 종료 코드 1.
   설치 환경에서 분석 스크립트가 프로젝트 환경 밖에서 돌지 않게 하기 위해서입니다(ADR-0005 확인 1, 소유자 결정 2026-10-06).
@@ -284,7 +376,14 @@ Windows에서는 `analytics.exe`)로 부릅니다(kit 0.3.0 전의 `bin/lab`). �
   `{path, pages, build}`(`--if-changed`가 건너뛰면 `{path, skipped: true}`), `import`·`record`는 같은 값이거나 빌드가 실패하면 `{error}`,
   `demo`는 같은 값입니다. `run`은 같은 값이거나, 빌드가 실패하면 그 글을 키 `workspace_error`(그 전은 `report_error`)에 담습니다.
   `status`의 `workspace`(그 전은 `report`)는 Workspace의 `index.html` 경로입니다. 값의 경로는 B의 저장 이름 `report/` 그대로입니다.
-- `status`의 JSON(`status`)은 한 번의 읽기(E의 읽기 모델)에서 만듭니다: 읽기 기준 `as_of_seq`·`source_revision`·`updating`, `unsupported`(`{location, reason}`), `damaged`(`journal`·`recovered`: `journal:<줄>`, `files`: `{location, reason}`), `not_listed`(`analytics.event/2` 줄), `shared_ids`(여러 줄의 id → 줄), run 행의 `recording_status`·`reasons`, 차트 행의 `ambiguous_inputs`·`cycle`, 데이터셋의 `producer_state`·`producer_candidates`·`producer`(후보가 하나일 때만)·`written_by`·`unsupported_record`(가져오기 기록이 이 kit이 읽지 못하는 가족·버전일 때 `{location, reason}`. 그 기록의 `rows`·`sha256`·`description`·`source`·`imported_at`은 쓰지 않습니다), 목록 항목의 `source`(id, 여러 줄이면 `journal:<줄>`), 핵심 정보의 `references`(`states`·`confirmed`·`not_resolved`), 이름이 대소문자만 다른 데이터셋 묶음 `case_only_datasets`(`[[{name, path, view}]]`, kit 0.5.0), 옛 kit 경로의 추론 대응(E "옛 kit의 경로"): 차트 행의 `inferred_versions`(수)·`inferred_inputs`(입력 경로)·`inferred_upstream`(stale 후보 run), 데이터셋의 `inferred`(`producer_candidates`·`producers`·`used_by`·`written_by` 가운데 그렇게만 이어진 run, 있을 때만). 이전 kit(0.2.0·0.3.0)의 `unreadable`(가족·버전별 개수)은 없어졌고, `datasets[].producer`의 뜻이 "그 경로를 출력한 마지막 성공 run"에서 "현재 바이트를 출력한 유일한 성공 run"으로 좁아졌습니다. `producers`는 그대로 그 경로를 출력한 성공 run(바이트 무관)입니다. 배포본을 게시하지 않았으므로 외부 소비자가 없습니다(ADR-0005 결정 8).
+- `status`의 JSON(`status`)은 한 번의 읽기(E의 읽기 모델)에서 만듭니다: 읽기 기준 `as_of_seq`·`source_revision`·`updating`, `unsupported`(`{location, reason}`), `damaged`(`journal`·`recovered`: `journal:<줄>`, `files`: `{location, reason}`), `shared_ids`(여러 줄의 id → 줄), run 행의 `recording_status`·`reasons`, 차트 행의 `ambiguous_inputs`·`cycle`, 데이터셋의 `producer_state`·`producer_candidates`·`producer`(후보가 하나일 때만)·`written_by`·`unsupported_record`(가져오기 기록이 이 kit이 읽지 못하는 가족·버전일 때 `{location, reason}`. 그 기록의 `rows`·`sha256`·`description`·`source`·`imported_at`은 쓰지 않습니다), 목록 항목의 `source`(id, 여러 줄이면 `journal:<줄>`), 핵심 정보의 `references`(`states`·`confirmed`·`not_resolved`), 이름이 대소문자만 다른 데이터셋 묶음 `case_only_datasets`(`[[{name, path, view}]]`, kit 0.5.0), 옛 kit 경로의 추론 대응(E "옛 kit의 경로"): 차트 행의 `inferred_versions`(수)·`inferred_inputs`(입력 경로)·`inferred_upstream`(stale 후보 run), 데이터셋의 `inferred`(`producer_candidates`·`producers`·`used_by`·`written_by` 가운데 그렇게만 이어진 run, 있을 때만). 이전 kit(0.2.0·0.3.0)의 `unreadable`(가족·버전별 개수)은 없어졌고, `datasets[].producer`의 뜻이 "그 경로를 출력한 마지막 성공 run"에서 "현재 바이트를 출력한 유일한 성공 run"으로 좁아졌습니다. `producers`는 그대로 그 경로를 출력한 성공 run(바이트 무관)입니다. 배포본을 게시하지 않았으므로 외부 소비자가 없습니다(ADR-0005 결정 8).
+  kit 0.7.0부터 표식의 판정(B)이 `project.marker`(판정한 표식 파일 이름, 표식이 둘이거나 없으면 null)·`project.format`(그 `schema`, `schema` 없는
+  `lab.json`은 `lab.project/1`, 판정할 수 없으면 null)·`project.writable`·`project.write_refusal`(쓰지 않을 때의 오류 `{code, message, hint?,
+  details?}`)에, 이 읽기가 건너뛴 부수 쓰기가 `writes_skipped`(`["hash_cache"]` 또는 빈 목록)에 있고, `title`·`created_at`은 판정한 표식에서
+  읽습니다. 쓰지 않는 프로젝트이면 글의 머리에 `read only: <code> — <message>; <hint>` 줄이 있고, 맥락 블록에는 `report:` 줄 대신 같은 줄이
+  있습니다(이 kit은 그 프로젝트의 Workspace를 만들거나 다시 만들지 않습니다). `project.context_updated`는 `.analytics/context/`와
+  `.lab/context/`의 CONTEXT 버전 가운데 마지막 것의 시각입니다(E "CONTEXT 이력").
+  `not_listed`는 kit 0.7.0에서 없어졌습니다(`analytics.event/2` 줄도 목록에 보이기 때문입니다, C1).
 - `run`이 코드 스냅샷이나 첫 기록(`running`)을 쓰지 못하면 만든 run 디렉터리를 지우고 `snapshot_failed`·`record_failed`로
   답합니다. hint는 원인에 따라 경로를 줄이라는 것(운영체제가 이름이나 경로가 너무 길다고 답했거나, 경로의 한 구성
   요소가 UTF-16 단위로 255개를 넘음: NTFS·APFS가 이름을 세는 단위이며 기본 다국어 평면 밖의 문자는 둘로 셉니다),
@@ -327,20 +426,21 @@ Windows의 한계는 G절에 있습니다.
 |---|---|
 | 입력 기록 | 런타임 읽기는 **읽는 시점의 내용**으로 해시합니다(그때 판정이 닿은 파일을 엽니다. 링크를 거친 판정은 기억하지 않고 스크립트가 시작할 때 그때까지의 판정과 디렉터리 목록을 버리므로, run이 다른 대상으로 바꾼 링크(`latest → v4`)는 읽는 때의 대상입니다). run이 스스로 만든 파일, 또는 다시 쓴 뒤 읽은 파일은 입력에서 제외합니다. 디렉터리를 읽으면 그 디렉터리에서 시작한 이름 공간 조회(아래)가 찾는 순서로 처음 500개의 데이터 파일을 기록하고 조회는 거기서 멈춥니다(이름으로 빼는 디렉터리는 없습니다) |
 | 경로 정체성 | ADR-0006 9절. 경로를 절대 경로로 만든 뒤(Windows는 Win32처럼 `.`·`..`를 글자로 접은 뒤) 앞에서부터 구성 요소 단위로 판정합니다: 루트에 닿기 전의 링크는 풀고, 루트 안에서 안을 가리키는 링크는 실제 위치로 풀며, 밖을 가리키는 링크(루트·조상·최상위 관리 디렉터리의 실제 위치로 풀리는 것 제외)는 그 자리를 경계로 삼습니다. POSIX에서 링크 뒤의 `..`는 링크 대상의 부모입니다. 끝이 루트 안이면 프로젝트 상대 경로입니다. 단 kit이 관리하는 최상위 디렉터리(`runs`: run 기록·스냅샷·차트, `.venv`: uv가 두는 프로젝트 환경, `.lab`: kit의 상태, `report`: kit이 만드는 리포트)는 링크면 그 실제 위치 아래가, 다른 대소문자·정규화로 저장됐으면(같은 디렉터리 항목인 `Runs`) 그 아래가 kit의 이름 아래 경로(`runs/<id>/…`)입니다. 저장된 철자의 유일한 예외이며, 그래서 입력 제외(`runs/<id>/`·`.venv/`·`.lab/`), 차트 정리, 모듈 스냅샷의 제외가 링크와 철자에 관계없이 듭니다. 그 밖의 제외 이름(`scripts`·`.git` 등 사람의 디렉터리)은 이 대응이 없어, `scripts → src`의 `scripts/a.py`는 `src/a.py`입니다. 경계 아래면 이름 공간 조회가 그 파일을 낸 경로, 그 밖이면 실제 절대 경로입니다. **조회**는 루트의 트리(최상위의 제외 이름 — 디렉터리든 링크든 파일이든, 다른 대소문자로 저장된 관리 디렉터리 포함 — 와 어디서나 `__pycache__`·`.ipynb_checkpoints` 제외)를 걸은 뒤 경계를 이름 공간 경로의 코드 포인트 순으로 대상마다 한 번 걷습니다: 같은 디렉터리는 파일 키 `(st_dev, st_ino)`(`st_ino`가 0이면 실제 경로)로, 같은 파일은 부모의 키와 이름으로 알아보고, 이미 걸은 것은 다시 내지 않습니다. 그래서 한 파일에 경계 여럿으로 닿으면 코드 포인트 순으로 가장 앞인 경계 아래의 경로입니다(`data/b/x.csv`로 읽은 입력과 `data/a/` 아래의 출력이 같은 `data/a/x.csv`). 조회가 걷지 않은 경계(최상위 제외 디렉터리 안, 조회 뒤에 생긴 링크)만 그 경로가 건넌 경계 가운데 가장 앞인 것을 씁니다. 끊긴 링크와 링크 고리는 따라가지 않습니다. **철자**: 구성 요소마다 부모 디렉터리 목록의 같은 이름, 없으면 NFC+casefold가 같은 이름 가운데 코드 포인트 순으로 처음 같은 디렉터리 항목인 것, 목록을 읽을 수 없거나 그런 이름이 없으면 입력한 대로입니다. 프로젝트 루트와 신뢰 목록의 철자도 같습니다. 프로젝트 하나 밖에서(프로젝트를 찾을 때, 신뢰를 물을 때, 루트를 정할 때) 정한 이름은 프로세스가 구성 요소마다 기억하고, 그 이름을 담은 디렉터리의 수정 시각이 그대로이면 그 디렉터리를 다시 읽지 않습니다(바뀐 디렉터리만 다시 읽음). 디렉터리의 수정 시각으로 목록을 다시 읽을지 정하는 곳(이것과 run 중의 목록)은 바뀐 지 2초가 안 된 디렉터리의 시각을 믿지 않습니다: 파일 시스템은 변경을 시계 틱(Windows 15.6 ms)이나 거친 시각(FAT 2초)으로 적어, 곧이은 변경이 시각을 바꾸지 않을 수 있습니다. 경로를 루트 아래로 판정할 때는 루트에서 시작해 루트의 상위 디렉터리를 읽지 않습니다. **시작 위치를 준 조회**(데이터셋 목록, 디렉터리 읽기, 리포트의 `data/` 지문)는 그 디렉터리부터 같은 규칙으로 깊이 우선, 디렉터리마다 이름의 코드 포인트 순으로 걷고(보통 디렉터리의 트리에서는 경로의 구성 요소별 코드 포인트 순), 안을 가리키는 파일 링크도 그 대상의 정체성으로 내며, 같은 (이름, 정체성)은 한 번 냅니다. 시작 위치가 루트나 그 조상으로 풀리면(`data/raw → /`) 링크가 그리로 풀릴 때처럼 아무것도 걷지 않고, 시작 위치의 실제 디렉터리나 그 위로 돌아가는 링크(`derived/up → ..`)도 따라가지 않습니다. **보안 판정**(스크립트 위치, 재실행의 스냅샷·스크립트 경로, 모듈 스냅샷 대상, 질의 샌드박스)은 정체성이 아니라 철자를 맞춘 실제 경로로 합니다 |
-| 데이터셋 목록 | `data/raw`·`data/derived`에서 시작한 조회가 찾은 `.parquet` 파일(접미사 대소문자 무관). 이름은 조회가 만난 항목(파일 링크면 링크 자신)의 stem, 경로는 정체성이고, 가져오기 기록(`<stem>.meta.json`)과 그 `unsupported_record.location`은 그 항목 옆의 것입니다(파일을 옮기고 링크로 둔 `data/raw/sales.parquet`도 기록을 잃지 않음). 같은 (이름, 정체성)은 종류마다 한 번이라, derived의 링크가 raw 파일을 가리키면 두 종류에 다 있습니다(view `sales`·`sales_derived`). raw 다음 derived, 종류마다 정체성의 구성 요소별 코드 포인트 순(같으면 이름 순)입니다 |
+| 데이터셋 목록 | `data/imported`(kit 0.7.0, `analytics.json` 프로젝트에서만, C4)·`data/raw`·`data/derived`에서 시작한 조회가 찾은 `.parquet` 파일(접미사 대소문자 무관). 이름은 조회가 만난 항목(파일 링크면 링크 자신)의 stem, 경로는 정체성이고, 가져오기 기록(`<stem>.meta.json`)과 그 `unsupported_record.location`은 그 항목 옆의 것입니다(파일을 옮기고 링크로 둔 `data/raw/sales.parquet`도 기록을 잃지 않음). 같은 (이름, 정체성)은 종류마다 한 번이라, derived의 링크가 raw 파일을 가리키면 두 종류에 다 있습니다(view `sales`·`sales_derived`). imported 다음 raw 다음 derived, 종류마다 정체성의 구성 요소별 코드 포인트 순(같으면 이름 순)입니다 |
 | 입력 상태 | 기록 sha256 대비 지금 파일: `same` / `changed` / `missing` / `unknown`(sha 없음·디렉터리·URI). 지금 내용이 그 run 자신의 출력과 같으면 `same`(읽고 다시 쓰는 갱신 패턴). 크기·mtime이 같으면 캐시한 sha를 씀. `changed`인 파일이 64 MiB 이하이고 앞 8 KiB에 NUL이 없을 때, 지금 바이트의 CRLF를 LF로 바꾼 것이나 그 결과의 모든 줄 끝을 CRLF로 바꾼 것의 sha256이 기록과 같으면 사유 `line_endings_only`를 붙입니다(kit 0.4.0부터, [ADR-0007](decisions/0007-line-endings.md) 결정 4). 상태·stale·해시는 바이트 그대로입니다. JSON은 입력의 `reason`과 status 차트 행의 `change_reasons`(`{경로: "line_endings_only"}`), `analytics_status`·kit `status`의 글은 STALE 사유의 경로 뒤 `(line endings only)`, Workspace는 `Line endings only` 배지와 경로 뒤 `(line endings only)`입니다. 두 변형의 해시는 해시 캐시의 그 파일 항목에 함께 두며, 읽기 전후의 크기·mtime이 같을 때만 둡니다(읽는 동안 바뀐 파일은 사유 없음). 판정하지 않는 파일(64 MiB 초과·앞 8 KiB의 NUL)은 그 크기·mtime에 '판정 안 함'을 두고, 읽지 못한 파일은 사유 없이 아무것도 두지 않아 다음에 다시 읽습니다 |
 | stale | 입력 중 `changed`·`missing`이 있거나, 입력의 생산자 후보 가운데 stale인 run이 있음(전이). 후보를 모두 따라가고 마지막 run을 고르지 않습니다. 후보가 둘 이상인 입력은 `ambiguous_inputs`, 따라가다 아직 걷는 중인 run으로 돌아오면 `cycle`이며(같은 시각에 시작했거나 시작 시각을 읽지 못한 run 사이에서만 생깁니다. 두 길로 닿는 다이아몬드는 순환이 아님) 깊이 제한 없이 run마다 한 번 방문해 끝납니다. 화면은 stale인 후보를 생산자로 단정하지 않습니다: `analytics_status`는 `STALE(upstream candidate(s) …)`, Workspace는 입력이 직접 바뀐 run에만 "This run's inputs differ from the files now."를 적고, 후보만 stale이면 "Upstream candidate stale"(같은 바이트를 출력한 run의 입력이 바뀜)을 적습니다 |
 | 생산자 후보 | 입력의 `(path, sha256)`과 같은 출력(`deleted` 아님)을 남긴 `ok` run 가운데, 소비 run이 아니고 그보다 늦게 시작하지 않은 것(시작 시각은 시간대를 반영한 시점, 읽지 못하면 빼지 않음). 0개 `none`, 1개 `resolved`, 여럿 `ambiguous`(모두 보임), 입력에 해시가 없으면 `unknown`. 데이터셋은 현재 바이트로 같은 판정을 합니다(소비 run 없음). 후보는 같은 바이트를 출력했다는 관측(basis `observed`)이며 확정 연결이 아니고, 화면은 `same bytes as run X's output`(여럿이면 `same bytes as N runs: X, Y`)으로 적습니다(ADR-0006 4). 데이터셋 페이지는 후보가 있을 때만 "그 run이 이 경로에 이 바이트를 출력했다"고 적고, 그 경로를 출력으로 기록한 성공 run은 바이트와 무관한 목록("Successful runs that recorded an output at this path", 지운 것은 `deleted this path`)으로 따로 적습니다. 옛 kit의 경로로만 맞은 후보는 추론입니다(아래 행) |
 | 참조 판정 | ADR-0006 3·4절대로 읽습니다: `/1` `refs`의 정규화(4절 끝의 목록), 해석 상태, `confirmed`(author ∧ observed/declared ∧ resolved). 이벤트 계열 참조(`/1`의 `refs.events`·`refs.resolves`, `/2`·Report manifest의 결박된 `event`·`analysis_focus`·`metric_definition`·`reuse_proposal`)는 대상의 seq가 참조한 기록의 seq보다 작을 때만 찾고, 같거나 크거나 seq가 없으면 `missing`(`record_absent`)·`confirmed=false`입니다. ADR-0006 4절 2단계("대상 기록을 찾는다")의 읽기입니다(G). `/1` `refs.runs`는 run의 `started_at`이 이벤트 `ts`보다 늦으면 `missing`, `kind=run` 이벤트의 `refs.charts`는 `refs.runs`가 하나일 때 그 run의 버전에 결박되고(여럿이면 `ambiguous`), 그 밖의 `refs.charts`·`refs.data`는 `version_unbound`입니다. 미결박 차트의 후보는 그 이벤트 앞의 완료 이벤트를 가진 성공 run의 버전이고, 그 가운데 옛 kit의 경로로만 그 키의 버전인 것은 `inferred_candidates`에도 있습니다(아래 행) |
 | 참조 표시 | run 이벤트의 차트는 그 run 페이지의 차트(`runs/<run>.html#chart-<id>`), 미결박 차트·데이터는 "Version unbound"와 함께 최신 갤러리 카드·데이터셋 페이지로 잇고 "latest, not the cited version"과 후보 수를 적습니다. 그 밖의 상태(`missing`·`ambiguous`·`unknown`·`unsupported`·`content_changed`)는 색이 아니라 글로 적습니다. 타임라인의 해결 배지는 C1의 선택을 따르되, 닫는 기록의 `refs.resolves` 판정이 `resolved`일 때만 "✓ Resolved by e3"이고 아니면 그 상태를 적습니다(`closed by e3 · Missing: record_absent`). `analytics_status`의 핵심 정보는 살펴볼 상태(`missing`·`ambiguous`·`content_changed`·`unsupported`)의 참조가 있을 때 상태별 수와 확정 연결 수, 그 상태의 대상 식별자를 적습니다. 참조가 모두 `resolved`·`version_unbound`·`unknown`인 항목은 아무것도 붙이지 않고 수는 JSON의 `references`에 있습니다(`/1` 메모의 차트·데이터는 원래 미결박입니다). 식별자는 두 화면이 같습니다: 이벤트 `e<seq>`(여러 줄이면 `journal:<줄>`), run id, `<run_id>/<chart_id>`, 논리 키 `script::chart`, 경로, 읽지 못하는 참조는 기록 안의 자리(`/1` `refs.<field>`, `/2` `refs[<index>]`). 여러 줄의 id를 가리키는 이벤트 참조의 후보는 기록(`candidate record(s)`), 미결박 차트의 후보는 버전입니다 |
-| 읽기 기준 | `analytics_status`의 `read:` 줄과 Workspace의 모든 페이지 바닥이 같은 `as_of_seq`(journal의 마지막 seq)와 `source_revision`(journal·run.json·manifest·meta·CONTEXT의 크기와 mtime으로 만든 16자, 절대 경로 없음)을 적습니다. 읽는 동안 파일이 바뀌면 두 번까지 다시 읽고, 그래도 바뀌면 `updating`이라고 적습니다(ADR-0006 5) |
+| 읽기 기준 | `analytics_status`의 `read:` 줄과 Workspace의 모든 페이지 바닥이 같은 `as_of_seq`(journal의 마지막 seq)와 `source_revision`(읽기 규칙의 번호 `relations.READER_FORMAT`과 journal·run.json·manifest·meta(`data/raw`·`data/imported`)·CONTEXT의 크기와 mtime으로 만든 16자, 절대 경로 없음)을 적습니다. 번호는 kit 0.7.0에서 2가 되어, 같은 파일의 `source_revision`도 그 전 kit과 다릅니다. 읽는 동안 파일이 바뀌면 두 번까지 다시 읽고, 그래도 바뀌면 `updating`이라고 적습니다(ADR-0006 5) |
 | 출력의 현재 상태 | run 페이지는 출력마다 지금 파일을 기록한 sha256과 비교합니다: 같음, 다름("Overwritten since this run — this run's bytes are not preserved"), 없음(`file_absent`), 해시 없음(`unknown`) |
 | 코드 상태 | 원래 스크립트 파일 sha256 대비 `same` / `changed` / `missing` (재실행은 `n/a`). `changed`인 코드도 입력 상태와 같은 규칙으로 사유를 붙입니다: JSON `code_reason`(`line_endings_only`, 없으면 `null`), 글 `script edited since (line endings only)`, Workspace의 `Line endings only` 배지와 코드 상태 `Current file edited (line endings only)` |
 | 차트 정체성 | run 안에서는 차트 id가 정체성입니다. 같은 id로 다시 기록하면 나중 것이 이깁니다. 자동 캡처(`plt.show`·`fig.show`·남은 그림)는 이미 저장한 그림이 그대로면 건너뜁니다 |
 | 차트 버전 | `script::id`별 성공 run 순서(재실행 run 제외). 같은 스크립트의 최신 성공 run에 없는 차트는 `retired`. 갤러리와 `status`의 차트 목록의 규칙입니다. 참조 판정의 버전 후보는 ADR-0006대로 재실행 run도 셉니다(완료 이벤트가 있는 성공 run의 버전). kit 0.5.0 전 run의 스크립트 경로는 아래 "옛 kit의 경로"로 읽어 지금 키의 버전이 되고(추론), 그 run이 기록한 키(`Scripts/Plot.py::trend`)를 가리키는 참조와 링크도 지금 키(`scripts/plot.py::trend`)로 읽습니다 |
 | 옛 kit의 경로 | kit 0.5.0(`core.PATH_IDENTITY_SINCE`) 전의 run — `env.kit_version`이 PEP 440 순서로 그보다 낮거나, 없거나, ADR-0006 1.3의 형식이 아니거나 Python이 정수로 읽지 못할 만큼 긴 숫자를 가진 run — 이 기록한 입력·출력·스크립트 경로는 ADR-0006 9절의 추론 대응으로 읽습니다([2026-10-06 소유자 결정](https://github.com/handochan/aelix-analytics/issues/12#issuecomment-6009076270)). 그런 kit은 링크를 끝까지 푼 실제 경로를, 루트 안이면 루트 기준 상대 경로로, 이름은 입력한 철자로 기록했습니다. `Project.legacy_identity`가 루트나 링크 대상 아래의 절대 경로와 저장된 철자가 아닌 상대 경로를 지금의 정체성 경로(위 "경로 정체성"의 철자·링크 규칙)로 대응시키고(그런 kit이 쓸 수 없던 상대 경로 — 빈·`.`·`..` 구성 요소, 역슬래시, 드라이브(`C:x`), URI — 는 대응하지 않음), 읽기 모델은 그 대응이 기록과 다르고 지금 있는 항목이거나 어떤 run이 출력으로 기록한 경로일 때만 씁니다(지어내지 않음). 그렇게만 맞은 생산자 후보·차트 버전·데이터셋의 run은 추론(`basis: inferred`)이며 관측(`observed`)이나 확정 연결로 세지 않습니다: 생산자 판정의 `basis: inferred`·`inferred_candidates`·`read_as`, 참조 판정의 `inferred_candidates`, status JSON의 `inferred*`(D). 0.5.0 이후 run도 기록한 글자(입력·출력·스크립트 경로)는 옛 run의 것도 대응하지 않고 기록 그대로 읽습니다: 그 글자는 그때의 정체성 경로였으므로, 그 뒤 이름을 바꾸거나 링크를 새로 만들어 지금 가리키는 것이 달라져도 그 글자를 기록한 run들은 이전처럼 글자로 이어집니다. 그래서 기록의 글자가 같은 어느 두 경로든 관측 그대로입니다. 후보가 여럿이면 `ambiguous` 그대로입니다. 다만 Visualization id만 적은 참조(`token`)의 키가 한 스크립트의 옛 철자와 지금 철자뿐이면 대응으로 한 키가 되어 `version_unbound`이고 옛 철자의 버전은 `inferred_candidates`에 있습니다(대응하지 않으면 `ambiguous`). 0.5.0 이후 run의 경로는 기록 그대로 읽고, 기록은 고쳐 쓰지 않습니다. `env.kit_version`이 없는 run 기록은 아직 끝나지 않은 run이나 환경을 기록하지 못한(`finalize_errors`의 `environment`) 0.5.0 이후 run이라도 옛 kit의 것으로 읽습니다. 그런 run의 경로는 이미 정체성 경로라 대응해도 같은 경로이고, 그 뒤 이름·링크가 바뀐 경우에만 다른 경로로 대응하며 그때도 추론으로 표시합니다. 화면: `analytics_status`·kit `status`의 글은 `inferred from an older kit's path`(데이터셋의 후보와 그 경로를 쓰거나 읽은 run, 차트의 버전 수·입력 수·stale 후보), Workspace는 `Inferred from an older kit's path` 배지, run 페이지 입력·출력 경로 옆의 `read as <경로> — inferred from an older kit's path`, 데이터셋 페이지 목록의 run 옆 `inferred from an older kit's path`, 참조의 후보 수 옆의 수, 이전 버전의 `(inferred)`입니다. 경로·키는 사용자 내용이라 `lang=""` 안에 둡니다 |
-| view 이름 | 파일 stem을 `[a-z0-9_]`로. 숫자로 시작하면 `t_`. kit의 데이터셋 이름 규칙(`^[a-z][a-z0-9_]{0,62}$`, `import`·`analytics.save`가 주는 이름)에 맞는 stem이 종류와 무관하게 먼저 이름을 받고, 그 안에서 raw 우선, 그다음 경로 순입니다. 겹치는 derived는 `_derived`, 그래도 겹치면 `_2`·`_3`…입니다. 그래서 사람이 둔 `data/raw/Sales.parquet`은 kit의 `sales`를 가져가지 않습니다. 이름이 대소문자(또는 유니코드 정규화)만 다른 데이터셋 묶음은 `status`가 경로·view와 함께 경고합니다(대소문자를 무시하는 파일 시스템은 그 가운데 하나만 담습니다). 대소문자가 아닌 겹침(`sales-2`와 `sales_2`)은 말없이 `_2`입니다 |
-| 재실행 판정 | 재실행이 `ok`가 아니면 `failed`. 차트: 둘 다 플롯 데이터면 프레임 동등성, plotly면 `data` JSON 동등성, PNG면 바이트. 출력: 바이트. 다르거나 사라지거나(`not written`) 새로 생기면 `mismatch`, 같은 것이 있으면 `match`, 비교할 것이 없으면 `inconclusive`. 입력 동일 여부는 따로 `inputs_same` |
+| view 이름 | 파일 stem을 `[a-z0-9_]`로. 숫자로 시작하면 `t_`. kit의 데이터셋 이름 규칙(`^[a-z][a-z0-9_]{0,62}$`, `import`·`analytics.save`가 주는 이름)에 맞는 stem이 종류와 무관하게 먼저 이름을 받고, 그 안에서 imported, raw, derived 순, 그다음 경로 순입니다(`data/imported`와 `data/raw`에 같은 이름이 있으면 `status`가 두 경로와 view를 적습니다). 겹치는 derived는 `_derived`, 그래도 겹치면 `_2`·`_3`…입니다. 그래서 사람이 둔 `data/raw/Sales.parquet`은 kit의 `sales`를 가져가지 않습니다. 이름이 대소문자(또는 유니코드 정규화)만 다른 데이터셋 묶음은 `status`가 경로·view와 함께 경고합니다(대소문자를 무시하는 파일 시스템은 그 가운데 하나만 담습니다). 대소문자가 아닌 겹침(`sales-2`와 `sales_2`)은 말없이 `_2`입니다 |
+| 재실행 판정 | 재실행이 `ok`가 아니면 `failed`. 차트(두 run의 Visualization을 같은 보기로 읽어 id끼리, C2): 둘 다 플롯 데이터면 프레임 동등성, plotly면 `data` JSON 동등성, PNG면 바이트. 출력: 바이트. 다르거나 사라지거나(`not written`) 새로 생기면 `mismatch`, 같은 것이 있으면 `match`, 비교할 것이 없으면 `inconclusive`. 입력 동일 여부는 따로 `inputs_same` |
+| CONTEXT 이력 | 읽는 화면(`status`의 `context_updated`, Workspace의 Context history와 그 수, 타임라인의 버전 링크)은 `.analytics/context/`(새 형식, kit 0.7.0부터)와 `.lab/context/`의 `*.md`를 이름(= 시각) 순으로 함께 보입니다. 같은 이름이 둘에 있으면 `.analytics/context/`의 것이고, 맥락 참조가 그 이름을 푸는 순서(`relations.CONTEXT_DIRS`)와 같습니다. 이 kit이 쓰는 버전은 `.lab/context/`에만 남깁니다 |
 | 읽기 전용 쿼리 | 한 문장이어야 하고 종류가 SELECT(DESCRIBE·SUMMARIZE·SHOW·PRAGMA 포함)여야 합니다. `EXPLAIN`은 안쪽이 SELECT일 때만, `EXPLAIN ANALYZE`는 거절. 연결은 `allowed_directories=[<project>/data/]` + `enable_external_access=false` + `lock_configuration=true`로 묶습니다 |
 | SQL 계보 | DuckDB 파서(`json_serialize_sql`)로 참조 테이블을 찾고 CTE 이름은 그 범위 안에서만 제외합니다. 파서가 받지 않는 문장은 FROM·JOIN 뒤 이름만 맞춰 보는 대비책을 씁니다 |
 | 프로젝트 활성화 | `/analytics use`·flag·env는 명시적 선택입니다. 작업 디렉터리로만 찾은 프로젝트는 신뢰 목록에 있어야 활성화되고, 아니면 `project_untrusted`로 거절하며 맥락 주입·telemetry도 하지 않습니다 |
@@ -354,10 +454,10 @@ Windows의 한계는 G절에 있습니다.
 
 | 항목 | 현재 코드 |
 |---|---|
-| 선언된 Python 하한 | 배포본(`pyproject.toml`의 `requires-python`, wheel의 `Requires-Python`)은 `>=3.11`입니다. 이 하한은 설치 환경에서 도는 것 — `analytics` 런처, aelix 확장, 확장이 로드하는 `core`·`_platform`·`relations` — 의 것입니다. 개발 환경(dev dependency group, `[tool.uv.dependency-groups]`)과 분석 프로젝트 환경(`src/aelix_analytics/template/pyproject.toml`)은 `>=3.12`이고, kit의 명령은 프로젝트 환경에서 돕니다. `uv.lock`의 고정 버전은 바뀌지 않았고 dev group은 3.11에서 sync되지 않습니다. 하한 판정([측정 기록](verification/2026-10-02-issue-8-windows-inventory.md)): `>=3.11`은 설치 환경에서 도는 것에 대해 성립합니다 — 세 플랫폼에서 CPython 3.11·3.12에 설치, CPython 3.11에서 aelix 0.1.0b2 통합, 표준 라이브러리만으로 aelix 프로세스가 로드하는 부분(3.11), 런처 시험(3.11), Windows의 3.11 설치본으로 콘솔 Ctrl+C·Ctrl+Break. 분석 프로젝트는 `>=3.12`로 남습니다. D1의 중단 보장은 kit이 도는 3.12 이상에서 측정했고, 3.11에서는 분석 라이브러리를 쓰지 않는 스크립트의 `run`이 실행되고 기록되는 것만 확인했습니다 |
+| 선언된 Python 하한 | 배포본(`pyproject.toml`의 `requires-python`, wheel의 `Requires-Python`)은 `>=3.11`입니다. 이 하한은 설치 환경에서 도는 것 — `analytics` 런처, aelix 확장, 확장이 로드하는 `core`·`_platform`·`relations`·`writer` — 의 것입니다. 개발 환경(dev dependency group, `[tool.uv.dependency-groups]`)과 분석 프로젝트 환경(`src/aelix_analytics/template/pyproject.toml`)은 `>=3.12`이고, kit의 명령은 프로젝트 환경에서 돕니다. `uv.lock`의 고정 버전은 바뀌지 않았고 dev group은 3.11에서 sync되지 않습니다. 하한 판정([측정 기록](verification/2026-10-02-issue-8-windows-inventory.md)): `>=3.11`은 설치 환경에서 도는 것에 대해 성립합니다 — 세 플랫폼에서 CPython 3.11·3.12에 설치, CPython 3.11에서 aelix 0.1.0b2 통합, 표준 라이브러리만으로 aelix 프로세스가 로드하는 부분(3.11), 런처 시험(3.11), Windows의 3.11 설치본으로 콘솔 Ctrl+C·Ctrl+Break. 분석 프로젝트는 `>=3.12`로 남습니다. D1의 중단 보장은 kit이 도는 3.12 이상에서 측정했고, 3.11에서는 분석 라이브러리를 쓰지 않는 스크립트의 `run`이 실행되고 기록되는 것만 확인했습니다 |
 | 실행으로 확인한 범위 | 이식 가능한 경계(PR-1)는 Ubuntu 24.04와 Windows Server 2025(GitHub Actions), macOS 26.6.2 arm64(개발 기기)에서 실행했습니다([측정 기록](verification/2026-09-24-issue-8-platforms.md)). 배포본(PR-2)도 같은 세 플랫폼에서 wheel을 빌드해 체크아웃 밖의 새 CPython 3.11·3.12 환경에 설치하고 `tests/test_packaging.py`(end-to-end 단계 포함)로 확인했습니다([측정 기록](verification/2026-09-30-issue-8-distribution.md)). Windows 인벤토리(링크·긴 경로·대소문자·POSIX를 가정하던 시험·콘솔·두 프로젝트 격리)는 저장소 CI(`.github/workflows/ci.yml`)가 Ubuntu 24.04·Windows Server 2025에서 PR마다, macOS 26에서 라벨로 실행했고 개발 기기 macOS에서도 실행했습니다(콘솔과 긴 경로의 시험은 Windows에서만 돕니다)([측정 기록](verification/2026-10-02-issue-8-windows-inventory.md)). 측정한 Windows 구성은 하나입니다: Windows Server 2025 Datacenter(GitHub 호스트 이미지 `windows-2025`, ImageOS `win25-vs2026` 20260925.250.1), build 26100 x64, 관리자 계정(High integrity는 조사 실행에서 읽음), Developer Mode 켬, LongPathsEnabled=1(긴 경로 시험은 0으로도). 클라이언트 판(같은 build의 Windows 11 24H2 포함), 표준 사용자 토큰, 기본 설정의 Windows는 실행하지 않았습니다. 줄 끝(kit 0.4.0, #42)은 저장소 시험(`tests/test_line_endings.py`, wheel 시험, 배포본 end-to-end)과 aelix 통합 시험이 레그마다 같은 상수(바이트·sha256, git blob에서 계산한 `kit_sha256`)를 단언해 확인합니다([측정 기록](verification/2026-10-06-issue-42-line-endings.md)이 레그별 결과와 실행하지 않은 것을 적습니다). Windows에서 확인한 것, 선언한 한계, 실행하지 않은 것은 G절에 있습니다. 실행하지 않은 조합으로 지원을 넓혀 적지 않습니다. 경로 정체성(kit 0.5.0, #36)은 [측정 기록](verification/2026-10-06-issue-36-path-identity.md)에 있습니다 |
 | 검증된 조합 | 마지막 측정([측정 기록](verification/2026-10-02-issue-8-windows-inventory.md), `4eb0955` 커밋): 저장소 CI의 Ubuntu 24.04 x64(CPython 3.12.3·3.11.15), Windows Server 2025 x64(3.12.10·3.11.9), macOS 26.6.2 arm64 호스트 러너(`macos-26`, 3.12.10·3.11.9)에서 저장소 시험(배포본 end-to-end 포함)·플랫폼 스모크·aelix 0.1.0b2 통합(3.12·3.11, 분석 라이브러리가 없는 격리 환경)·런처 시험(3.11), `actions/setup-python`의 CPython 3.11(Ubuntu 3.11.16, Windows·macOS 3.11.9)에서 aelix 프로세스가 로드하는 stdlib 부분. Windows는 여기에 설치본의 콘솔 시험(3.12·3.11 설치본)과 LongPathsEnabled=0의 긴 경로 시험을 더했습니다. 개발 기기 macOS 26.6.2 arm64: CPython 3.12.13(저장소 시험과 end-to-end·스모크·aelix 0.1.0b2 통합), 3.11.15(aelix 0.1.0b2 통합·런처 시험·stdlib 스모크), 3.13.13·3.14.5(저장소 시험, end-to-end 없이). 배포본은 설치 환경 CPython 3.11·3.12에서 `analytics` 런처, aelix 0.1.0b2의 확장 결합·로드·도구, aelix 없이 SDK로 기록한 run과 그 run의 실제 uv 재실행(`run --rerun-of`), 호출자가 둔 `PYTHONPATH` 대신 정확히 설치된 kit이 run에 가는 것을 세 플랫폼에서 실행했습니다(wheel·sdist의 구성원은 빌드한 파일로 확인). 3.11에서만 `python -m labkit`의 stdlib 명령과 분석 라이브러리를 쓰지 않는 스크립트의 run, pip 설치·제거를, 3.12에서만 sdist 설치, README의 symlink 경로(Windows에서는 `os.symlink`로 만든 파일 링크), README의 `uv tool install --python 3.12` 두 줄을 세 플랫폼에서 확인했습니다. `analytics open`은 POSIX에서 stand-in opener로, Windows 포트로는 `os.startfile`을 바꿔 넣어 실행했습니다(실제 opener는 G). 프로젝트 환경은 CPython 3.12 이상(시험이 확인) |
-| 프로세스 경계 | 사람용 `analytics` 런처는 설치 환경에서 stdlib만으로 돌고, kit에서는 `_platform`만 로드합니다. stdlib·aelix API·실행 루트의 `aelix_analytics/core.py`와 `_platform`·`relations`로 제한되는 것은 **aelix 확장 프로세스**입니다(설치본은 package의 stdlib 전용 `__init__`과 `_install`도, A). 확장은 `uv run --project` 자식 프로세스로 CLI를 띄웁니다(`extension/aelix_analytics.py`의 `run_kit`). 그 CLI 프로세스는 `runner`·`data`·`report`를 자기 프로세스에서 import하고, `data.py`와 SDK가 그 안에서 duckdb·polars를 import합니다. 실행되는 스크립트도 같은 프로세스입니다 |
+| 프로세스 경계 | 사람용 `analytics` 런처는 설치 환경에서 stdlib만으로 돌고, kit에서는 `_platform`만 로드합니다. stdlib·aelix API·실행 루트의 `aelix_analytics/core.py`와 `_platform`·`relations`·`writer`(kit 0.7.0부터)로 제한되는 것은 **aelix 확장 프로세스**입니다(설치본은 package의 stdlib 전용 `__init__`과 `_install`도, A). 확장은 `uv run --project` 자식 프로세스로 CLI를 띄웁니다(`extension/aelix_analytics.py`의 `run_kit`). 그 CLI 프로세스는 `runner`·`data`·`report`를 자기 프로세스에서 import하고, `data.py`와 SDK가 그 안에서 duckdb·polars를 import합니다. 실행되는 스크립트도 같은 프로세스입니다 |
 | 잠금·타임아웃·종료 | `src/aelix_analytics/_platform.py`의 네 포트 뒤에 있습니다: `FileLocks`(journal·run·report 잠금), `AtomicFiles`(기록 교체), `ProcessControl`(자식 생성·생존 확인·중단 요청·강제 종료), `RunControl`(run 제한 시간과 취소, D1). 구현은 `core.PLATFORM`(모듈을 불러올 때 `_platform.detect()`가 한 번 고른 것)이 기본값이고 `Project(root)`가 그것을 씁니다. 시험과 호출자는 `Project(root, platform=…)`로 다른 구현을 넣습니다. 환경 변수나 기록 속 문자열로 구현을 고르지 않습니다. 호출부에는 `sys.platform` 분기가 없습니다. `ProcessControl`은 문서 열기(`open_document`: macOS `open`, 그 밖의 POSIX `xdg-open`, Windows `os.startfile`)와 프로그램 찾기(`find_program`: POSIX는 `shutil.which`, Windows는 작업 디렉터리와 상대 PATH 항목을 빼고 PATH에서만, 경로로 준 것도 `.exe`만)도 맡습니다. 찾은 프로그램은 절대 경로로, 심볼릭 링크를 따라가지 않고 씁니다(mise의 shim처럼 자기 이름으로 동작을 정하는 링크). POSIX 구현은 `fcntl.flock`, `os.replace`, SIGINT로 묻기, `setitimer`·SIGALRM, `start_new_session`과 `os.killpg(SIGKILL)`입니다. Windows 구현은 `msvcrt.locking`(경합이면 다시 시도), 다른 프로세스가 연 파일의 교체 거절(WinError 5·32·33)을 약 2초 동안 다시 시도하는 `os.replace`, 요청 파일과 `signal.raise_signal(SIGINT)`로 묻기, `threading.Timer`와 `raise_signal`로 제한 시간, `CREATE_NEW_PROCESS_GROUP`과 `taskkill /F /T`입니다. `taskkill`은 시스템 디렉터리(`GetSystemDirectoryW`, 그 호출이 실패하면 `%SystemRoot%\System32`)의 `taskkill.exe`를 절대 경로로 실행합니다 — 이름만 주면 CreateProcess가 호출자의 작업 디렉터리(aelix의 작업 디렉터리, 흔히 프로젝트)를 먼저 찾습니다. 콘솔 이벤트(`CTRL_BREAK_EVENT`)와 `_thread.interrupt_main`은 쓰지 않습니다 — 측정에서 앞의 것은 `uv`를 곧바로 끝내 그 자식을 기록 없이 남겼고, 뒤의 것은 잠든 주 스레드를 깨우지 못했습니다 |
 | 생존 확인 | `running` 기록의 pid가 pid일 수 없는 값(0, 음수, bool, 플랫폼 범위 밖)이면 살아 있지 않습니다. 다른 사용자의 프로세스가 그 id를 가지면 재사용으로 보고 살아 있지 않다고 답합니다. 운영체제가 답하지 않으면 살아 있다고 보아 기록을 낮추지 않습니다. 같은 사용자의 프로세스가 재사용한 pid는 구별하지 못합니다 |
 | 파일명 — 거절 | Windows 예약 장치명(`CON` `PRN` `AUX` `NUL` `CONIN$` `CONOUT$`, 숫자 1–9와 위 첨자 ¹²³이 붙은 `COM`·`LPT` — 첫 점 앞부분을 끝 공백을 빼고 대소문자 없이 비교)은 **사람이나 에이전트가 새 이름을 정하는 두 지점에서만** 거절합니다: `import --name`(`analytics_import`의 `name`)과 `analytics_run`이 만드는 `scripts/<name>.py`. 이미 있는 이름은 거절하지 않습니다 |
@@ -366,7 +466,7 @@ Windows의 한계는 G절에 있습니다.
 | 파일명 — 차트 | kit이 저장하는 차트 파일(`analytics.visualize`의 이미지·plotly JSON·플롯 데이터)만 이식 가능한 이름으로 바꿉니다(`con` → `con_.png`). 정체성 `script::id`는 생성된 id까지 그대로입니다. 이 대응은 단사입니다 — 차트 id는 slug이라 `_`를 포함할 수 없으므로 `con-file` 같은 보통 id와 충돌하지 않습니다. 스크립트가 차트 id 본래 이름에 쓴 파일(차트 `con`의 `charts/con.png`, 대소문자를 구별하지 않는 파일 시스템에서는 `charts/CON.png`도)은 이전 구현이 그 차트를 쓰거나 덮어쓴 파일이므로 따로 차트로 기록하지도 경고하지도 않고, 그 차트가 버려지면 함께 지웁니다. 그 밖에 스크립트가 run 디렉터리에 직접 쓴 파일(`register_loose_files`)은 스크립트가 정한 이름 그대로 차트가 되며 위 경고로만 알립니다 |
 | 경로·인코딩 | 리포트의 절대 경로 링크는 기록한 플랫폼 기준으로 해석한 `file://` URL입니다(`C:\…` → `file:///C:/…`, `\\server\share\…` → `file://server/share/…`). 그래서 POSIX에서 이름이 `X:\`나 `\\`로 시작하는 프로젝트 파일은 그 Windows 경로로 링크되거나, 공유 이름이 없으면 링크되지 않습니다. CLI는 인자를 읽기 전에 표준 스트림을 UTF-8(`errors='replace'`)로 고정하고, 텍스트를 읽는 파일·자식 프로세스 호출은 인코딩을 명시합니다. run 로그도 UTF-8이며 인코딩할 수 없는 문자(짝 없는 surrogate)는 `?`로 씁니다. kit이 쓰는 텍스트 파일(B)은 `core.open_text`·`core.write_text`로만 쓰며(UTF-8, `_platform.TEXT_NEWLINE` = LF, 번역 없음; `tests/test_line_endings.py`의 가드가 확인), run 로그를 감싸는 스트림도 줄 끝을 번역하지 않습니다(kit 0.4.0부터). run 동안 stdout·stderr는 파일 기술자와 Python 스트림을 함께 바꾸고, 출력은 이전처럼 블록 단위로 버퍼링됩니다. 이렇게 해서 콘솔 전용 스트림이 파일에 쓰지 못하는 문제를 피합니다. Windows에서는 설치본 `analytics`를 의사 콘솔(ConPTY)에서 실행해 확인했습니다(측정): run의 stdout 로그에 스크립트의 한국어 출력이 남았고, 콘솔 코드 페이지 437과 949에서 한국어 제목이 콘솔에 그대로 보였습니다. 이것은 Python의 콘솔 경로로 쓴 kit의 출력(결과 줄의 한국어 제목)에 대한 결과입니다. 런처의 글도 같은 경로로 쓰인다고 봅니다(코드에서 읽음, 실행하지 않았습니다). 콘솔 파일 기술자에 바이트를 직접 쓰는 출력과, 출력 파이프가 없는 고전 콘솔의 글 순서·인코딩은 실행하지 않았습니다(`not_run`) |
 | 사람용 진입점 | 체크아웃의 `bin/analytics`(POSIX 셸, kit 0.3.0 전 `bin/lab`)과 설치본의 `analytics`(stdlib Python 런처, 모든 플랫폼; Windows에서는 `analytics.exe`)입니다. `bin/analytics`는 wheel로 설치하지 않습니다. 하위 명령은 둘 다 `record`·`render` 등이고 옛 `note`·`report`는 usage와 2입니다. 둘은 같은 명령·인자·usage(바이트까지)·종료 코드와 옛 환경 변수의 오류(D)를 지키고 kit의 출력을 바이트 그대로 넘기며, POSIX에서 같은 stand-in uv로 동등성을 시험합니다. 런처는 자식을 같은 process group·콘솔에서 표준 스트림을 물려준 채 기다리고 SIGINT·SIGBREAK를 기록만 하므로, 터미널의 Ctrl+C를 런처는 다시 보내지 않고 kit의 기록을 기다려 kit의 종료 코드로 끝납니다. uv는 자기 표준 입력이 터미널이 아니면 200 ms 뒤 kit에 한 번 더 보냅니다(`bin/analytics`에서도 같습니다). 런처가 무시된 SIGINT를 물려받으면(셸의 백그라운드 작업) 그대로 두어 kit도 무시한 채 시작합니다. 자식을 시작하는 순간에 온 Ctrl+C는 자식이 뜬 뒤 한 번 더 보냅니다(POSIX). 그 순간 터미널의 Ctrl+C를 이미 받은 자식에게는 두 번 갑니다. Windows에서는 다시 보내지 않습니다 — 한 프로세스에 SIGINT를 보낼 방법이 없고, 시험이 이를 고정합니다. 같은 콘솔의 자식은 콘솔의 Ctrl+C를 직접 받습니다. Windows 콘솔의 Ctrl+C도 런처가 다시 보내지 않고 kit의 기록을 기다려 kit의 종료 코드로 끝납니다(측정: 의사 콘솔과 고전 콘솔에서 런처가 `cancelled` 기록 뒤 3으로 끝났고 남은 프로세스가 없었습니다. Ctrl+Break는 G). 두 번 오더라도 kit은 run을 구간마다 한 번만 중단합니다(D1). 런처와 `bin/analytics`의 차이: 런처만 받은 SIGTERM은 kit의 `run`에만 전하고(run이 `cancelled`로 기록), 그 밖의 단계(init·sync·status·context·import·query·record·render·demo와 `analytics open`의 문서 열기)는 끝까지 두고 다음 단계를 시작하지 않은 채 143으로 끝납니다(`bin/analytics`의 셸은 그 자식을 남기고 곧바로 끝납니다). 이 SIGTERM은 POSIX의 것입니다 — Windows에서는 다른 프로세스가 처리기에 SIGTERM을 보낼 수 없고 `os.kill`·`taskkill /F`가 런처를 곧바로 끝냅니다(강제 종료, D1). 런처가 Ctrl+C나 SIGTERM을 기록한 뒤에는 다음 단계를 — `analytics open`의 문서 열기도 — 시작하지 않습니다. 단계를 시작하는 그 짧은 순간 온 신호는 그 단계를 막지 못할 수 있습니다. 그러면 Ctrl+C는 그 단계에 다시 보내고 SIGTERM은 kit의 `run`에만 보내며, 문서를 여는 프로그램에는 어느 것도 보내지 않으므로 리포트가 열릴 수 있습니다. uv가 없으면 런처는 자기 문구로 127입니다(`bin/analytics`은 셸의 오류로 끝나며, macOS의 sh는 없는 경로에 1). 런처는 macOS에서만 `open`을 씁니다(`bin/analytics`은 `open`이 있으면 어디서나). dash로 도는 `bin/analytics`은 Ctrl+C 뒤 SIGINT로 끝납니다. 측정한 경계 사례의 차이: 빈 첫 인자(`analytics ""`)는 `bin/analytics`에서 status, 런처에서 usage와 2입니다. 실행할 수 없는 uv(디렉터리이거나 실행 권한이 없는 파일인 `AELIX_ANALYTICS_UV`, PATH에서 실행 권한이 없는 `uv` 파일)는 `bin/analytics`에서 셸의 오류와 셸·플랫폼에 따른 종료 코드(126·127·1), 런처에서 uv를 찾지 못했다는 문구와 127입니다. 찾았지만 시작할 수 없는 uv(없는 인터프리터를 가리키는 스크립트)는 `bin/analytics`에서 셸의 오류와 126(macOS의 sh)·127(dash), 런처에서 시작할 수 없다는 문구와 127입니다. 문서를 여는 프로그램이 없으면 둘 다 127이고, 런처는 자기 문구를, `bin/analytics`은 셸의 오류를 냅니다. 작업 디렉터리가 지워졌으면 런처는 읽을 수 없다는 문구와 1로 끝나고, `bin/analytics`은 macOS의 sh에서 셸의 오류와 1로 끝나지만 dash에서는 프로젝트를 찾는 반복이 끝나지 않습니다(kit 0.3.0 전의 `bin/lab`과 같습니다). `AELIX_ANALYTICS_UV`의 `~`와 끝의 `/`는 런처만 풀어 uv를 실행합니다(`bin/analytics`은 dash 127, macOS의 sh 1). 런처 자신의 글을 닫힌 파이프에 쓰면 `bin/analytics`은 141, 런처는 `BrokenPipeError`와 120이고, 표준 출력을 닫은 채(`>&-`) `--help`를 부르면 `bin/analytics`은 2, 런처는 traceback과 1입니다. symlink로 들어온 작업 디렉터리에서 `init ../DIR`은 `bin/analytics`에서 kit이 프로젝트를 만든 뒤 실패하고(셸에 따라 1이나 2), 런처에서는 끝까지 진행합니다. 런처 자신의 글(usage, 안내)은 로캘과 상관없이 UTF-8 바이트입니다. 그 안의 경로·값은 Python의 파일 시스템 인코딩이 글자로 읽은 부분을 그 글자의 UTF-8로, 읽지 못한 바이트를 받은 그대로 씁니다. 그 인코딩이 UTF-8이면(macOS; Linux의 UTF-8 로캘과, Python이 기본으로 UTF-8 모드로 도는 C 로캘) 모든 경로·값이 받은 바이트 그대로이고, 그 인코딩이 Latin-1·EUC-KR 같은 것이면(그런 로캘의 Linux) UTF-8인 이름도 바뀝니다(`bin/analytics`은 늘 받은 바이트). 런처는 `AELIX_ANALYTICS_RUNTIME_PATH`를 따르지 않고 자기 kit을 씁니다 |
-| 배포 형태 | wheel 하나를 hatchling이 체크아웃에서 만듭니다(`uv build`): package `aelix_analytics` — kit 전체(체크아웃의 `src/aelix_analytics`: 템플릿·assets·데모 스크립트 포함, 런처 `cli.py`, 실행 루트 위치 `_install.py`, manifest)와 확장 `extension.py`(체크아웃의 `extension/aelix_analytics.py`) — 와, 같은 소스의 사본 `aelix_analytics/kit/aelix_analytics`(실행 루트 `aelix_analytics/kit`). 자식은 실행 루트만 `PYTHONPATH`로 받고 사본에는 `extension.py`가 없습니다. 버전은 0.6.0입니다(`KIT_VERSION`, manifest와 같음). 의존성은 없고, 분석 라이브러리는 프로젝트 환경에만 설치됩니다. aelix 연동은 이 wheel을 aelix의 환경에 설치하는 것이며 extra는 없습니다. 개발 환경은 `package = false`로 프로젝트를 설치하지 않습니다. 라이선스는 Apache-2.0입니다(`LICENSE`; wheel의 `License-Expression`과 manifest의 `license`). 관리자는 GitHub 핸들 `handochan`이고 이메일은 적지 않습니다(wheel의 `Author`·`Maintainer`, manifest의 `authors`). 배포 이름은 첫 공개 전에 정할 사항이고, 이 wheel은 어디에도 게시하지 않았습니다 |
+| 배포 형태 | wheel 하나를 hatchling이 체크아웃에서 만듭니다(`uv build`): package `aelix_analytics` — kit 전체(체크아웃의 `src/aelix_analytics`: 템플릿·assets·데모 스크립트 포함, 런처 `cli.py`, 실행 루트 위치 `_install.py`, manifest)와 확장 `extension.py`(체크아웃의 `extension/aelix_analytics.py`) — 와, 같은 소스의 사본 `aelix_analytics/kit/aelix_analytics`(실행 루트 `aelix_analytics/kit`). 자식은 실행 루트만 `PYTHONPATH`로 받고 사본에는 `extension.py`가 없습니다. 버전은 0.7.0입니다(`KIT_VERSION`, manifest와 같음). 의존성은 없고, 분석 라이브러리는 프로젝트 환경에만 설치됩니다. aelix 연동은 이 wheel을 aelix의 환경에 설치하는 것이며 extra는 없습니다. 개발 환경은 `package = false`로 프로젝트를 설치하지 않습니다. 라이선스는 Apache-2.0입니다(`LICENSE`; wheel의 `License-Expression`과 manifest의 `license`). 관리자는 GitHub 핸들 `handochan`이고 이메일은 적지 않습니다(wheel의 `Author`·`Maintainer`, manifest의 `authors`). 배포 이름은 첫 공개 전에 정할 사항이고, 이 wheel은 어디에도 게시하지 않았습니다 |
 
 ### F1. 이전 구현(`48b79cc`)과 달라진 POSIX 동작
 
@@ -615,6 +715,28 @@ kit 0.6.0([#13](https://github.com/handochan/aelix-analytics/issues/13)의 첫 P
   `LabError`)와 Workspace 빌드 실패의 글(`{error}`·`workspace_error`).
 - 새 프로젝트의 `lab.json`의 `kit_version`과 run의 `env.kit_version`이 0.6.0입니다.
 
+kit 0.7.0([#13](https://github.com/handochan/aelix-analytics/issues/13)의 첫 구현 PR ①, 표식 판정과 쓰기 게이트 —
+[설계](design/RECORD-WRITER-AND-MIGRATION.md) 3·4.1–4.3·5.1–5.3절)에서 다음이 바뀌었습니다(모든 플랫폼). 이 kit이 쓰는 기록의 형식·번호·저장
+이름(B·C)과 기록하는 값은 그대로입니다.
+
+- 프로젝트 찾기의 표식이 `lab.json`에서 `analytics.json`·`lab.json` 둘이 되었고, 가장 가까운 것이 프로젝트입니다(kit CLI, SDK, 런처,
+  `bin/analytics`, 확장. B). 그래서 `lab.json` 프로젝트 아래의 `analytics.json` 디렉터리에서 부른 명령은 위쪽 프로젝트에 쓰지 않고 거절됩니다.
+- 쓰기의 판정과 거절(B, D). 새 오류 `marker_conflict`·`marker_invalid`. `project_too_new`는 모르는 표식 버전에 더해 이 kit이 읽고 쓰지 않는
+  `analytics.project/2`에도 납니다. 그 전에 쓰기를 받던 디렉터리 가운데 지금 거절하는 것은 `lab.json`의 `schema`가 `lab.project/1`이 아닌
+  문자열인 것(그 전에는 같은 가족의 높은 버전만 거절)과 `lab.json`을 읽지 못하는 것(`marker_invalid`, 그 전에는 빈 표식으로 읽음)입니다.
+- 모르는 표식(`lab.project/2` 등)의 프로젝트를 읽습니다. 그 전에는 `status`·`context`도 `project_too_new`였습니다. 쓰지 않는 프로젝트의 읽기는
+  부수 쓰기를 건너뜁니다(B). `status` JSON의 `project.marker`·`format`·`writable`·`write_refusal`과 `writes_skipped`, 글과 맥락 블록의
+  `read only:` 줄이 새로 있고, `not_listed`와 그 줄(`not listed: …`), Workspace의 "Not listed" 항목은 없어졌습니다(D).
+- `analytics.event/2` 줄이 목록·맥락 블록·Workspace에 보입니다(C1). `read_events`(SDK·도구가 쓰는 내부 함수)는 `/1`·`/2`를 seq 순서로
+  돌려줍니다. 그 전에는 `/1`만 줄 순서였습니다(보통의 journal에서는 같은 순서, 손으로 고친 줄·복구한 줄이 있으면 다를 수 있음).
+- `analytics.run/2`·`analytics.dataset/1`과 `data/imported/`를 읽습니다(C2·C4). 읽기 규칙의 번호(`relations.READER_FORMAT`)가 2가 되어
+  같은 파일의 `source_revision`도 바뀝니다(E).
+- 내부: 새 모듈 `writer.py`(계층 `writer`, 수준 1. 아키텍처 §11)가 표식 판정·게이트·`Origin`·`AnalyticsError`·`write_json`·`append_jsonl`·
+  `classify_refs`를 담고, `open_text`·`write_text`·`newlines_as_lf`는 `_platform`으로 옮겼습니다. `core`는 모두 같은 이름으로 다시 내보냅니다.
+  aelix 프로세스는 `writer.py`도 로드합니다(F). 기록 함수(`core.add_note`·`append_event`·`sync_context`·`init_project`, `data.import_file`,
+  `runner.execute`, `demo.populate`)는 `actor=`·`session=` 대신 작성 출처 `origin=`(`core.Origin`)을 받습니다. 기록되는 `actor`·`session`의 값은 그대로입니다.
+- 새 프로젝트의 `lab.json`의 `kit_version`과 run의 `env.kit_version`이 0.7.0입니다.
+
 ## G. 약속하지 않는 것
 
 - 격리·샌드박스·승인. `analytics_run` 스크립트는 사용자가 읽을 수 있는 모든 파일에 닿습니다(`analytics_query`만 `data/`로 묶여 있습니다).
@@ -622,12 +744,24 @@ kit 0.6.0([#13](https://github.com/handochan/aelix-analytics/issues/13)의 첫 P
   경우 경고도 없습니다 — 경고는 입력이 하나도 없을 때만 나옵니다. 행 단위 계보와 선택(마킹) 기반 후속 분석은 없습니다.
 - 관계의 읽기(#12).
   - 앞 참조. `/1` writer는 `refs.events`의 대상이 있는지 확인하지 않아, 아직 없는 `e<seq>`나 오타 id를 적을 수 있습니다. reader는 대상 seq ≥ 참조한 기록의 seq인 이벤트 계열 참조를 `missing`(`record_absent`)·`confirmed=false`로 읽습니다(E). ADR-0006 4절 2단계의 읽기이고 ADR 본문은 고치지 않았습니다. 그래서 그런 참조가 나중에 생긴 다른 기록과 확정 연결이 되지는 않지만, 쓰기는 여전히 받습니다(#13 writer).
-  - 핵심 정보·열린 항목의 선택은 C1의 규칙(`refs.resolves`가 가리키는 id) 그대로이며 ADR-0006 6절의 상태 재생과 다를 수 있습니다. 여러 줄의 id를 닫는 `resolves`는 재생에서는 아무것도 닫지 않지만(`ambiguous`), 목록에서는 그 id의 줄을 모두 닫힌 것으로 셉니다. `add_note`의 `resolves` 확인은 journal만 읽고 그 id의 첫 줄로 통과합니다. 상태 재생을 화면에 쓰는 일은 #16입니다. 여러 줄의 id는 #49 수정 전의 kit이 끊긴 줄 뒤에 쓴 journal이나 손으로 고친 journal에 있습니다. 지금 writer는 이미 읽히는 줄의 seq나 id를 다시 주지 않습니다(C1).
-  - `lab.json` 프로젝트의 `analytics.event/2` 줄은 읽어 그 참조를 판정하지만 목록(핵심 정보·열린 항목·최근 기록·타임라인)에 보이지 않고, 개수와 위치만 적습니다(`not listed:`). 표시는 #13의 첫 PR입니다.
+  - `lab.event/1` 기록의 핵심 정보·열린 항목 선택은 C1의 규칙(`refs.resolves`가 가리키는 id) 그대로이며 ADR-0006 6절의 상태 재생과 다를 수 있습니다(`analytics.event/2` 기록은 kit 0.7.0부터 상태 재생도 봅니다, C1). 여러 줄의 id를 닫는 `resolves`는 재생에서는 아무것도 닫지 않지만(`ambiguous`), 목록에서는 그 id의 줄을 모두 닫힌 것으로 셉니다. `add_note`의 `resolves` 확인은 journal만 읽고 그 id의 첫 줄로 통과합니다. 상태 재생을 화면에 쓰는 일은 #16입니다. 여러 줄의 id는 #49 수정 전의 kit이 끊긴 줄 뒤에 쓴 journal이나 손으로 고친 journal에 있습니다. 지금 writer는 이미 읽히는 줄의 seq나 id를 다시 주지 않습니다(C1).
   - 다른 OS가 기록한 절대 경로는 이 기계에서 파일이 없어 `missing`/`file_absent`로, 그 입력의 생산자는 이 기계의 기록과 경로가 맞지 않아 `none`으로 보입니다(Freshness의 전과 같습니다). 옛 kit 경로의 추론(E)은 이 기계의 지금 루트·링크 대상 아래 경로와 파일 시스템이 같은 항목으로 여는 철자만 대응시킵니다. 그래서 다른 OS·옮긴 프로젝트의 절대 경로, 대소문자·정규화를 구별하는 파일 시스템에서 다른 철자로 기록된 상대 경로는 대응하지 않습니다(글자를 접어 맞추지 않습니다).
   - 옛 kit 경로의 추론은 오늘의 링크·이름으로 판정합니다. 그 run 뒤에 링크를 바꿨거나 파일을 옮겼으면 다른 파일로 대응할 수 있어 확정 연결로 세지 않습니다. 표시는 그 판정 자리마다입니다: stale을 따라가는 길의 중간(후보의 후보)에서 쓴 추론은 그 차트에 표시하지 않고, 직접 입력의 후보만 표시합니다. 맥락 블록(journal만 읽음)은 경로를 읽지 않습니다. kit 버전이 없는 이벤트의 `refs.charts` 글자는 어떤 옛 run이 그 키를 기록했을 때만 그 대응을 따르고, `refs.data`는 대응하지 않습니다. 대응이 지금 있는 항목인지는 읽는 프로세스가 열 수 있는 경로로 봅니다(Windows에서 LongPathsEnabled가 0이면 260자를 넘는 경로는 없는 것으로 보아 대응하지 않을 수 있습니다).
   - 비용(측정은 이 PR의 기록). 맥락 블록은 프롬프트마다 journal만 읽어 줄마다 기록을 판정하므로 줄 수에 비례하고, `analytics_status`는 run.json을 한 번, 기준 파일들을 두 번 stat합니다. Workspace는 타임라인의 모든 참조를 판정합니다. 이벤트를 쓸 때도 잠금 안에서 journal 전체를 읽어 seq를 정하므로 쓰기 한 번이 줄 수에 비례합니다(#49의 PR이 macOS arm64에서 잰 값: 10,000줄·2.6 MB journal에 쓰기 한 번 약 30 ms. 그 전에는 끝 64 KiB만 읽어 0.2 ms 미만). 영속 인덱스는 없습니다(#15).
 - 무결성. 해시 체인·서명이 없고 불변성은 규약입니다.
+- 표식 판정의 틈. 판정은 잠금 없이 두 표식을 읽습니다. 판정과 첫 부수 효과 사이에 다른 프로세스가 표식을 바꾸는 틈은 남습니다. journal 쓰기는
+  잠금 안에서 다시 판정해 그 틈을 줄이지만, run이 시작한 뒤의 run 기록(`run.json`)·코드 스냅샷·스크립트가 직접 쓰는 파일은 run이 시작할 때의
+  판정을 따릅니다(run 잠금을 잡은 뒤의 판정, SDK 쓰기는 호출마다 판정, D). 계속 읽지 못하는 표식(권한이 막은 파일, 고리를 이루는 링크)은
+  판정마다 교체의 재시도 예산(약 2초)을 다 쓰고 `invalid`가 됩니다(판정 한 번의 측정은 [#13 표식 게이트 기록](verification/2026-10-08-issue-13-gate.md)).
+  aelix 확장의 `tool_execution_end` hook은 프로젝트 찾기와 telemetry의 부수 쓰기에서 그 판정을 동기로 두 번 하므로, 그런 프로젝트에서는 도구
+  호출마다 약 4초를 기다립니다(판정 수에서 낸 값이고, aelix 세션에서 재지 않았습니다).
+- 사람의 파일인 `analytics.json`. 가장 가까운 표식이 프로젝트라([설계](design/RECORD-WRITER-AND-MIGRATION.md) D13·4.3절), 프로젝트 안의 하위
+  디렉터리에 표식이 아닌 `analytics.json`(예: `data/exports/analytics.json`의 `{"pageviews": 10}`)이 있으면 그 디렉터리에서 부른 명령은 위쪽
+  프로젝트가 아니라 그 디렉터리를 판정합니다: 쓰기는 `marker_invalid`로 거절되고(kit 0.7.0 전에는 위쪽 프로젝트에 썼습니다), `status`는 그
+  디렉터리를 빈 프로젝트로 읽습니다. JSON이 아니거나 객체가 아니거나 `schema` 문자열이 없는 `analytics.json`의 hint는 그것이 사람의 파일일 수 있다는
+  것과, 위쪽 프로젝트의 루트를 이름으로 고르는 법이나 파일 이름을 바꾸는 것을 알립니다. 루트는 진입점마다 그 진입점의 방법으로 고릅니다:
+  `analytics`·`bin/analytics`·SDK·aelix는 `AELIX_ANALYTICS_PROJECT=ROOT`, aelix는 `/analytics use ROOT`나 `--analytics-project ROOT`도,
+  `python -m aelix_analytics`는 `--project ROOT`입니다(`analytics --project ROOT …`는 usage와 2).
 - 원자성·복구·멱등성. 한 프로젝트의 run은 직렬화되지만, 강제 종료된 run은 `incomplete`로 남고 되돌리지 않습니다.
   프로젝트 밖에서 같은 파일을 건드리는 다른 프로세스는 막지 않습니다.
 - 결정성과 다른 환경 재현. 재실행은 같은 환경을 가정하고 환경 지문을 비교하지 않습니다.

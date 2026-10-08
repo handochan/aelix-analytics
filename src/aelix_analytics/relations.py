@@ -84,19 +84,27 @@ import re
 from datetime import datetime
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
-# The version of this reader's rules, part of every source_revision it gives (ADR-0006 5).
-READER_FORMAT = 1
+# The version of this reader's rules, part of every source_revision it gives (ADR-0006 5). 2 since
+# Issue #13 PR 1: analytics.run/2 and analytics.dataset/1 are read, and data/imported/ with them.
+READER_FORMAT = 2
 
 EVENT_V1 = "lab.event/1"
 EVENT_V2 = "analytics.event/2"
 RUN_V1 = "lab.run/1"
+# The run record of the new writer (design 2.6, OQ5): a Visualization is visualizations[] with its
+# visualization_id (the same values a lab.run/1 run's charts[] ids are), its stored bytes' sha256 and
+# its attached data's data_sha256; a rerun's comparison is reproduction.visualizations.
+RUN_V2 = "analytics.run/2"
 DATASET_V1 = "lab.dataset/1"
+# The import record of the new writer (design 2.7): lab.dataset/1's fields, under data/imported/.
+DATASET_V2 = "analytics.dataset/1"
 REPORT_V1 = "analytics.report_revision/1"
-# ADR-0006 1.4: the family versions a reader of the contract knows, and the family names #13 gives
-# its next run and dataset records (any version of those is a version this reader does not know).
+# Where import records are, each with the family it holds (design 2.3).
+IMPORT_DIRS = (("data/imported", DATASET_V2), ("data/raw", DATASET_V1))
+# ADR-0006 1.4: the family versions a reader of the contract knows.
 KNOWN = frozenset({"lab.project/1", RUN_V1, EVENT_V1, DATASET_V1, "analytics.project/2", EVENT_V2,
-                   REPORT_V1})
-FAMILIES = frozenset({name.rpartition("/")[0] for name in KNOWN} | {"analytics.run", "analytics.dataset"})
+                   REPORT_V1, RUN_V2, DATASET_V2})
+FAMILIES = frozenset({name.rpartition("/")[0] for name in KNOWN})
 KINDS = {
     # The kinds the /1 writer accepts (core.EVENT_KINDS).
     EVENT_V1: frozenset({"project", "import", "run", "context", "finding", "decision", "assumption",
@@ -249,6 +257,45 @@ def _script(run: dict) -> dict:
     """A run record's `script`, or {} when a hand-edited record holds something else there."""
     script = run.get("script")
     return script if isinstance(script, dict) else {}
+
+
+# --- one view of a run's Visualizations (design 5.3, S13) -------------------------------------------
+
+def run_visualizations(run) -> list[dict]:
+    """A run's Visualizations, as one view whichever record holds them: a lab.run/1 run's charts[]
+    (each named by `id`) or an analytics.run/2 run's visualizations[] (by `visualization_id`). Each
+    is its record's fields as stored, and `id` (the Visualization id: the same values in both, the
+    `chart(id=…)`/`visualize(id=…)` of one script), `key` (`<script path>::<id>`, the logical key) and
+    `field` (where the record holds it: `charts` or `visualizations`). `sha256` and `data_sha256` are
+    there only in an analytics.run/2 record. Every consumer of a run's Visualizations reads them
+    here, so none reads one form only (tests/test_run_views.py's static check)."""
+    if not isinstance(run, dict):
+        return []
+    v2 = run.get("schema") == RUN_V2
+    field, id_field = ("visualizations", "visualization_id") if v2 else ("charts", "id")
+    script = _str(_script(run).get("path")) or "?"
+    out = []
+    for item in _dicts(run.get(field)):
+        vis_id = _str(item.get(id_field))
+        out.append({**item, "id": vis_id, "key": f"{script}::{vis_id}", "field": field})
+    return out
+
+
+def run_reproduction(run) -> dict | None:
+    """A rerun's comparison with the run it re-executed, as one view whichever record holds it, or
+    None: `of`, `verdict`, `inputs_same`, `visualizations` (Visualization id -> its result: a
+    lab.run/1 run's reproduction.charts, an analytics.run/2 run's reproduction.visualizations),
+    `outputs` (path -> its result) and `field` (the name the record holds the Visualizations' results
+    under). The values are as stored (`same data`, `missing`, `new`, …)."""
+    rep = run.get("reproduction") if isinstance(run, dict) else None
+    if not isinstance(rep, dict):
+        return None
+    field = "visualizations" if run.get("schema") == RUN_V2 else "charts"
+    results = rep.get(field)
+    outputs = rep.get("outputs")
+    return {"of": rep.get("of"), "verdict": rep.get("verdict"), "inputs_same": rep.get("inputs_same"),
+            "visualizations": dict(results) if isinstance(results, dict) else {},
+            "outputs": dict(outputs) if isinstance(outputs, dict) else {}, "field": field}
 
 
 def _inside(rel) -> bool:
@@ -637,7 +684,8 @@ def _snapshot(root: Path) -> list:
     out: list = [READER_FORMAT, stat("journal.jsonl"), stat("CONTEXT.md")]
     out += [stat(f"runs/{name}/run.json") for name in _run_dirs(root)]
     out += [stat(f"{directory}/manifest.json") for directory, _ in _report_dirs(root)]
-    out += [stat(f"data/raw/{name}") for name in _files(root / "data" / "raw", ".meta.json")]
+    for directory, _ in IMPORT_DIRS:
+        out += [stat(f"{directory}/{name}") for name in _files(root / directory, ".meta.json")]
     out += [[directory, _files(root / directory, ".md")] for directory in CONTEXT_DIRS]
     return out
 
@@ -737,7 +785,7 @@ class ReadModel:
             if problem:
                 self.damaged_files.append({"location": location, "reason": problem})
                 continue
-            reason = unsupported_reason(value, frozenset({RUN_V1}))
+            reason = unsupported_reason(value, frozenset({RUN_V1, RUN_V2}))
             if reason:
                 files_unsupported.append({"location": location, "reason": reason})
                 self._unsupported_runs.add(name)
@@ -769,17 +817,18 @@ class ReadModel:
                 key = (_str(value.get("report_id")), _str(value.get("revision_id")))
                 self._saved[key] = (directory, value)
         self._metas: list[tuple[str, dict]] = []
-        for name in _files(root / "data" / "raw", ".meta.json"):
-            location = f"data/raw/{name}"
-            value, problem = _load(root / location)
-            if problem:
-                self.damaged_files.append({"location": location, "reason": problem})
-                continue
-            reason = unsupported_reason(value, frozenset({DATASET_V1}))
-            if reason:
-                files_unsupported.append({"location": location, "reason": reason})
-                continue
-            self._metas.append((location, value))
+        for directory, family in IMPORT_DIRS:
+            for name in _files(root / directory, ".meta.json"):
+                location = f"{directory}/{name}"
+                value, problem = _load(root / location)
+                if problem:
+                    self.damaged_files.append({"location": location, "reason": problem})
+                    continue
+                reason = unsupported_reason(value, frozenset({family}))
+                if reason:
+                    files_unsupported.append({"location": location, "reason": reason})
+                    continue
+                self._metas.append((location, value))
         self.unsupported = list(journal.unsupported) + files_unsupported
         self._completion: dict[str, int] | None = None
         self._versions: tuple[dict, dict] | None = None
@@ -979,8 +1028,8 @@ class ReadModel:
                     continue
                 recorded = _str(_script(run).get("path")) or "?"
                 script = self._as_read(run_id, recorded) if recorded != "?" else recorded
-                for chart in _dicts(run.get("charts")):
-                    chart_id = _str(chart.get("id"))
+                for vis in run_visualizations(run):
+                    chart_id = vis["id"]
                     if chart_id is None:
                         continue
                     version = f"{run_id}/{chart_id}"
@@ -1294,14 +1343,19 @@ class ReadModel:
         if kind == "run":
             return "resolved", None, None
         if kind == "visualization_version":
-            charts = [c for c in _dicts(run.get("charts")) if c.get("id") == ref.get("visualization_id")]
-            if not charts:
+            found = [v for v in run_visualizations(run) if v["id"] == ref.get("visualization_id")]
+            if not found:
                 return "missing", "record_absent", None
+            files = found[0].get("files")
+            files = list(files.values()) if isinstance(files, dict) else []
+            recorded = _str(found[0].get("sha256"))
+            if found[0]["field"] == "visualizations" and recorded and len(files) == 1:
+                # An analytics.run/2 Visualization keeps the hash of its stored file (design 2.6):
+                # judged against it as any target that keeps one.
+                return self._against_record(recorded, ref, files[0])
             if "digest" in ref:
                 # A lab.run/1 chart record holds no hash: this digest is one the record never held.
                 return "missing", "digest_mismatch", None
-            files = charts[0].get("files")
-            files = list(files.values()) if isinstance(files, dict) else []
             if all(isinstance(f, str) and (self.root / f).is_file() for f in files):
                 return "resolved", None, None
             return "missing", "file_absent", None

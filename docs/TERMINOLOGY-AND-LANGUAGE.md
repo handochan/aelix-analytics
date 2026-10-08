@@ -2,7 +2,8 @@
 
 작성: 2026-09-18 · 상태: 일부 구현. §2의 명령·하위 명령·도구·flag·SDK·확장 파일·모듈과 §3의 환경 변수는 #9(kit 0.2.0·0.3.0,
 2026-10-06)가 적용한 현재 명칭이다(옛 이름은 별칭 없이 새 이름을 알리는 오류). §2의 오류·내부 상태·표시 구현·Workspace 빌드 결과·
-Workspace 내부 식별자는 [#13](https://github.com/handochan/aelix-analytics/issues/13)의 첫 PR(⓪, kit 0.6.0)이 적용한 현재 명칭이고, §3의 저장 이름
+Workspace 내부 식별자는 [#13](https://github.com/handochan/aelix-analytics/issues/13)의 첫 PR(⓪, kit 0.6.0)이, §2의 기록 writer와 §6의
+표식 판정·작성 출처의 이름은 첫 구현 PR(①, kit 0.7.0)이 적용한 현재 명칭이고, §3의 저장 이름
 (표식·관리 디렉터리·화면·schema namespace·신뢰 목록 등)은 아직 전환 목표다(#13).
 §7의 영어 기본값은 [#10](https://github.com/handochan/aelix-analytics/issues/10)(2026-10-06)이 Workspace·템플릿·데모에 적용했다. 현재 상태는 §7 끝의
 '현재 구현'에 있다.
@@ -39,6 +40,7 @@ Workspace는 프로젝트를 탐색하는 인터페이스이며 프로젝트 루
 | 오류·내부 상태 | `AnalyticsError`, `Project.state_dir`(값 `.lab`), `Project.workspace_dir`(값 `report/`)(kit 0.6.0부터. 그 전은 `LabError`, `Project.lab`, `Project.report`) | 이름 유지. 값은 #13의 저장 이름 전환에서 `.analytics`·`workspace/` |
 | 표시 구현 | 모듈 `workspace.py`, 자원 `workspace.js`·`workspace.css`, 확장의 `schedule_workspace_render`(kit 0.6.0부터. 그 전은 `report.py`, `report.js/css`, `schedule_report`) | 유지. 렌더러는 함수로 두고 `WorkspaceRenderer` 클래스를 만들지 않는다([#13 설계](design/RECORD-WRITER-AND-MIGRATION.md#9-미뤄-받은-이름과-pr) 9절) |
 | Workspace 빌드 결과(kit CLI의 결과 JSON) | 키 `workspace`, run의 빌드 실패 `workspace_error`(kit 0.6.0부터. 그 전은 `report`·`report_error`). 값의 경로는 `report/…` | 키 유지. 값은 저장 이름 전환에서 `workspace/…` |
+| 기록 writer(#13의 ①, kit 0.7.0) | 모듈 `writer.py`(계층 `writer`). 표식 판정 `marker_state`와 그 결과 `MarkerState`(상태 `none`·`legacy`·`current`·`unknown`·`invalid`·`conflict`), 쓰기 게이트 `admit`(읽기의 부수 쓰기는 `side=True`), 읽기의 판정 `readable`, 이 kit이 쓰는 표식 형식 `WRITABLE`, 작성 출처 `Origin`, 이 kit이 쓰는 저장 이름표 `LegacyLayout`. 읽기 모델의 Visualization 보기 `run_visualizations`·재실행 비교 보기 `run_reproduction`(`relations`), journal 목록 `JournalLists`(`core`) | 유지. 새 형식의 이름표 `Layout`과 쓰기 클래스 `Writer`는 셋째 PR([설계](design/RECORD-WRITER-AND-MIGRATION.md) 4.4·4.5절) |
 | Workspace 내부 식별자 | `window.__ANALYTICS_BUILD__`, 브라우저 저장 키 `analytics-live`·`analytics-scroll:<경로>`, plotly 템플릿 `analytics`(`plotly_white+analytics`), capture의 표식 `__analytics_wrapped__`(kit 0.6.0부터. 그 전은 `__LAB_BUILD__`, `lab-live`·`lab-scroll:`, `lab`, `__lab_wrapped__`). 새 저장 키가 없으면 옛 키를 한 번 읽고 옛 키는 남긴다. `build.js`는 연 채로 둔 옛 페이지가 다시 읽도록 옛 전역도 같은 값으로 정한다. 저장하는 그림 JSON에는 템플릿 이름이 없다 | 유지 |
 
 위 CLI 작업은 Aelix의 `/analytics` 아래에서도 같은 의미를 사용한다. 지원하는 하위 명령은 실제 구현 기준으로 공개한다.
@@ -63,7 +65,7 @@ SDK `scan`은 지연 데이터 읽기이고 정적 코드 스캔은 `static_scan
 | 파생 데이터·실행 코드 | `data/derived/`, `scripts/`, `runs/` | 이름 유지. 파생 데이터라는 이유만으로 언제든 재생성 가능하다고 가정하지 않음 |
 | 맥락·사건 기록 | `CONTEXT.md`, `journal.jsonl` | 이름 유지. 현재 맥락과 시간순 사건의 구별 |
 | 신뢰 목록 | `analytics-projects.json` | 호스트의 기존 agent 설정 위치 아래. 활성화 신뢰 범위만 의미 |
-| schema namespace `lab.*` | `analytics.project`, `analytics.event`, `analytics.run`, `analytics.dataset`, `analytics.trust` | 가족 이름과 형식 버전을 함께 식별. 기존 `/1` 원문을 새 namespace로 덮어쓰지 않음 |
+| schema namespace `lab.*` | `analytics.project`, `analytics.event`, `analytics.run`, `analytics.dataset`, `analytics.trust` | 가족 이름과 형식 버전을 함께 식별. 기존 `/1` 원문을 새 namespace로 덮어쓰지 않음. 정한 버전: `analytics.project/2`·`analytics.event/2`(ADR-0006), `analytics.run/2`(Visualization `visualizations[]`·`visualization_id`·`sha256`, 재실행 비교 `reproduction.visualizations`, `via`의 `analytics.` 접두)·`analytics.dataset/1`(`data/imported/`) — [#13 설계](design/RECORD-WRITER-AND-MIGRATION.md) 2.6·2.7절. kit 0.7.0이 읽고, 쓰는 것은 새 writer부터 |
 | 제어 환경 변수 | `AELIX_ANALYTICS_*` | `KIT`은 `RUNTIME_PATH`, `PROJECT`, `UV`, `TRUST_FILE` 등은 의미 유지. kit 0.3.0부터 현재 이름이고, 옛 `AELIX_LAB_*`는 오류 |
 | 실행 환경 변수 `LAB_*` | `AELIX_ANALYTICS_*` | `ACTOR`, `SESSION`, `RUN_ID`, `RUN_DIR`, `PROJECT`, `STYLE`의 역할 유지. `LAB_PROJECT`와 `AELIX_LAB_PROJECT`는 `AELIX_ANALYTICS_PROJECT` 하나가 됨. kit 0.3.0부터 현재 이름이고, 사용자가 설정하던 옛 이름은 오류 |
 | 내부 배포 자원 | `core`, `runtime`, `workspace`, `reports`, `publishing`, `templates` | 책임에 따른 이름. `labcore`·`labkit`·`pack`을 새 공개 브랜드로 남기지 않음 |
@@ -198,6 +200,8 @@ Report는 Visualization·설명·발견을 선택해 구성한 문서이며, Vis
 | 줄 끝만 다른 변경 | `changed`의 사유 `line_endings_only`. 바이트 해시와 상태 `changed`는 그대로이며 같음으로 바꾸지 않음 |
 | Report 파일 경로 | `content/` 안의 POSIX 상대 경로. 구성 요소마다 세 OS에서 같은 이름, NFC, 대소문자를 무시해도 서로 다름. 어기면 `report_path_invalid` |
 | 새 기록 종류 | `analytics.event/2`의 kind `metric_definition`, `reuse_notification`(재사용 후보를 보인 사실, `trigger`: requested·automatic), `reuse_mode`(제안 모드의 변경, `scope`: project·session), `report_revision`(Report 저장의 완료), `publication`(게시본 build), `publish_receipt`(전달 결과). Report 버전 manifest의 가족은 `analytics.report_revision/1` |
+| 프로젝트 표식의 판정(kit 0.7.0) | 디렉터리의 두 표식 `analytics.json`·`lab.json`으로 정함: `none`(표식 없음), `legacy`(이 kit이 쓰는 `lab.project/1`, `schema` 없거나 JSON 객체가 아닌 `lab.json` 포함), `current`(`analytics.project/2`), `unknown`(다른 가족·버전), `invalid`(표식이 아닌 `analytics.json`, 또는 읽지 못한 표식), `conflict`(두 표식). 가장 가까운 표식의 디렉터리가 프로젝트. 쓰기의 거절: `project_too_new`(이 kit이 쓰지 않는 표식: 모르는 가족·버전과 이 kit이 읽고 쓰지 않는 `analytics.project/2`), `marker_invalid`(`details.reason`: `unreadable`·`unparsable`·`not_object`·`missing_field`·`bad_version`), `marker_conflict`(읽기도 거절, 자동으로 고르지 않음), `no_project`. `status` JSON의 `project.marker`·`format`·`writable`·`write_refusal`과 읽기가 건너뛴 부수 쓰기 `writes_skipped`(값 `hash_cache`), 글의 `read only:` 줄 |
+| 기록의 작성 출처 | 진입점이 정해 넘기는 `Origin`: `actor`(누가 쓰거나 요청했나), 실행 수단 `means`(`cli`·`sdk`·`tool`·`command`·`hook`), 작성 주체의 근거 `actor_basis`(`declared`: 진입점·사람이 밝힘, `inferred`: 밝히지 않아 kit 기본값), `session`, `request_id`. `means`·`actor_basis`는 `analytics.event/2`·`analytics.run/2`의 선택 필드 이름이며(기록 schema), 기록은 새 writer부터. `via`(run 입출력이 어떻게 생겼나)·`channel`(게시 주소)·`surface`(알림 표면)·`entry`(Report 진입 파일)와 다른 축 |
 
 표의 '근거 버전의 고정 방식' 행부터 '새 기록 종류' 행까지는 [ADR-0006](decisions/0006-common-record-contract.md)과
 [ADR-0007](decisions/0007-line-endings.md)이 채택한 기록 계약의 이름이다. 그 기록(쓰기)은 아직 구현되지 않았고 현재 기록에는 없다.
@@ -205,6 +209,8 @@ Report는 Visualization·설명·발견을 선택해 구성한 문서이며, Vis
 현재 기록(`lab.*/1`)을 읽어 `analytics_status`와 Workspace에 보인다([현재 계약](CONTRACTS.md) E). '줄 끝만 다른 변경'의 사유
 `line_endings_only`는 kit 0.4.0([#42](https://github.com/handochan/aelix-analytics/issues/42))부터 현재 기록의 입력·코드 상태를 읽을 때
 붙는다(기록에 쓰는 필드가 아니라 읽기의 사유, E). 화면의 글은 `(line endings only)`·`Line endings only`다.
+'프로젝트 표식의 판정'과 '기록의 작성 출처' 행은 #13의 첫 구현 PR(kit 0.7.0)이 정한 이름이다. 판정·거절·`status`의 필드는 지금
+동작이고([현재 계약](CONTRACTS.md) B·D), `means`·`actor_basis`는 진입점이 넘기는 `Origin`에 있으나 아직 기록에 쓰지 않는다(새 writer부터).
 
 자동 맥락에 포함되지 않은 부분은 Omitted from current context로 표현하고 더 읽을 위치를 제공한다. 실제 잘린 과거 응답은 Truncated라는 사실을 숨기지 않는다.
 상태를 보여 줄 때 대상과 범위도 함께 보인다. 예를 들어 `Run succeeded · Recording incomplete · Rerun comparison not run`처럼 각각의 사실을 읽을 수 있어야 한다.

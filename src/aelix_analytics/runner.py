@@ -28,7 +28,7 @@ import types
 import weakref
 from pathlib import Path
 
-from . import _platform, capture, core
+from . import _platform, capture, core, relations
 
 WRITE_CALLS = {"write_parquet", "sink_parquet", "write_csv", "sink_csv", "write_ipc", "sink_ipc",
                "write_ndjson", "sink_ndjson", "write_json", "write_excel", "write_delta",
@@ -679,7 +679,10 @@ DIFFERENT = {"different data", "missing", "new", "bytes differ", "image bytes di
 
 def compare_runs(project: core.Project, old: dict, new: dict) -> dict:
     """Compare a rerun with the run it re-executed. A rerun that did not finish ok is `failed`;
-    a chart or output that differs, appears or disappears makes it `mismatch`."""
+    a chart or output that differs, appears or disappears makes it `mismatch`. Both runs'
+    Visualizations are read through relations.run_visualizations, so a lab.run/1 run and an
+    analytics.run/2 run are compared by the same Visualization ids (design 2.6, S13). The result is
+    written in the form of the rerun's own record (this kit's: reproduction.charts)."""
     import json
 
     import polars as pl
@@ -687,27 +690,26 @@ def compare_runs(project: core.Project, old: dict, new: dict) -> dict:
     old_inputs = {i["path"]: i.get("sha256") for i in old.get("inputs") or []}
     new_inputs = {i["path"]: i.get("sha256") for i in new.get("inputs") or []}
     charts: dict[str, str] = {}
-    old_charts = {c["id"]: c for c in old.get("charts") or []}
-    for chart in new.get("charts") or []:
+    old_charts = {c["id"]: c for c in relations.run_visualizations(old)}
+    for chart in relations.run_visualizations(new):
         before = old_charts.pop(chart["id"], None)
         if before is None:
             charts[chart["id"]] = "new"
             continue
         state = "not comparable"
+        files, before_files = chart.get("files") or {}, before.get("files") or {}
         with contextlib.suppress(Exception):
             if chart.get("data") and before.get("data"):
                 same = pl.read_parquet(project.path(chart["data"])).equals(
                     pl.read_parquet(project.path(before["data"])))
                 state = "same data" if same else "different data"
-            elif chart["files"].get("plotly") and before["files"].get("plotly"):
-                a = json.loads(project.path(chart["files"]["plotly"])
-                               .read_text(encoding="utf-8"))["data"]
-                b = json.loads(project.path(before["files"]["plotly"])
-                               .read_text(encoding="utf-8"))["data"]
+            elif files.get("plotly") and before_files.get("plotly"):
+                a = json.loads(project.path(files["plotly"]).read_text(encoding="utf-8"))["data"]
+                b = json.loads(project.path(before_files["plotly"]).read_text(encoding="utf-8"))["data"]
                 state = "same data" if a == b else "different data"
-            elif chart["files"].get("png") and before["files"].get("png"):
-                same = core.sha256_file(project.path(chart["files"]["png"])) == \
-                    core.sha256_file(project.path(before["files"]["png"]))
+            elif files.get("png") and before_files.get("png"):
+                same = core.sha256_file(project.path(files["png"])) == \
+                    core.sha256_file(project.path(before_files["png"]))
                 state = "same image" if same else "image bytes differ"
         charts[chart["id"]] = state
     for cid in old_charts:
@@ -862,12 +864,14 @@ def _write_failure_hint(exc: Exception, path: Path) -> str | None:
 
 def execute(project: core.Project, *, script: str | None, title: str | None,
             declared_inputs=(), timeout: float = 600.0, rerun_of: str | None = None,
-            actor: str = "agent", session: str | None = None,
-            result_follows: bool = False) -> dict:
-    """Run a script (or rerun a recorded one) and record it. `result_follows`: the caller prints a
-    result line through write_result after this returns and then calls give_back_stdout (the CLI);
-    see _redirected."""
-    core.sync_context(project, actor="system", session=session)
+            origin: core.Origin, result_follows: bool = False) -> dict:
+    """Run a script (or rerun a recorded one) and record it, as asked by `origin` (the run's actor
+    and session; its notes and the SDK calls in it are by the same actor). Refused before anything
+    is written where this kit does not write (core.admit, Issue #13), and judged again once the run
+    lock is held. `result_follows`: the caller prints a result line through write_result after this
+    returns and then calls give_back_stdout (the CLI); see _redirected."""
+    core.admit(project, "run")
+    core.sync_context(project, origin=core.system_origin(origin))
     source_run = None
     if rerun_of:
         source_run, script_rel, exec_file = _rerun_source(project, rerun_of)
@@ -879,15 +883,18 @@ def execute(project: core.Project, *, script: str | None, title: str | None,
     # Runs in one project are serialized: outputs are found by comparing the project tree before
     # and after a run, which would otherwise attribute a concurrent run's files to this one.
     with core.run_lock(project):
+        # Judged again once the lock is held: a run that waited for another may find the directory
+        # changed meanwhile, and nothing of the run is written yet (design 4.3).
+        core.admit(project, "run")
         return _execute_locked(project, script_rel=script_rel, exec_file=exec_file,
                                code_bytes=code_bytes, title=title,
                                declared_inputs=declared_inputs, timeout=timeout,
-                               source_run=source_run, actor=actor, session=session,
+                               source_run=source_run, origin=origin,
                                result_follows=result_follows)
 
 
 def _execute_locked(project, *, script_rel, exec_file, code_bytes, title, declared_inputs,
-                    timeout, source_run, actor, session, result_follows=False) -> dict:
+                    timeout, source_run, origin, result_follows=False) -> dict:
     # The run's signal handling is installed once, here, and taken out after the record is
     # written. Between the two regions below it only records: nothing it does can stop the path to
     # the record, and inside a region it raises once at most (see _platform.RunControl).
@@ -898,7 +905,8 @@ def _execute_locked(project, *, script_rel, exec_file, code_bytes, title, declar
         code_dir = run_dir / "code"
         snapshot = code_dir / script_rel
         record = {"schema": core.SCHEMA_RUN, "id": run_id, "title": title, "status": "running",
-                  "pid": os.getpid(), "started_at": core.iso(), "actor": actor, "session": session,
+                  "pid": os.getpid(), "started_at": core.iso(), "actor": origin.actor,
+                  "session": origin.session,
                   "rerun_of": rerun_of,
                   "script": {"path": script_rel, "sha256": core.sha256_bytes(code_bytes),
                              "snapshot": project.rel(snapshot)}}
@@ -919,7 +927,7 @@ def _execute_locked(project, *, script_rel, exec_file, code_bytes, title, declar
 
         # Code of a rerun keeps the snapshot path so tracebacks show the lines that actually ran.
         filename = exec_file if rerun_of else project.path(script_rel)
-        state = capture.RunState(project, run_id, run_dir, filename)
+        state = capture.RunState(project, run_id, run_dir, filename, origin=origin)
         stdout_path, stderr_path = run_dir / "stdout.txt", run_dir / "stderr.txt"
         before, setup_interrupted = None, False
         try:
@@ -951,8 +959,7 @@ def _execute_locked(project, *, script_rel, exec_file, code_bytes, title, declar
                                                   guard, result_follows)
         return _finalize(project, state, record, source_run=source_run, before=before,
                          status=status, error=error, duration=duration, code_dir=code_dir,
-                         stdout_path=stdout_path, stderr_path=stderr_path, actor=actor,
-                         session=session)
+                         stdout_path=stdout_path, stderr_path=stderr_path, origin=origin)
 
 
 def _run_script(project, state, code_bytes, filename, script_rel, timeout, stdout_path,
@@ -1036,8 +1043,12 @@ def _classify(failure, guard, timeout, filename) -> tuple[str, dict | None]:
 
 
 def _finalize(project, state, record, *, source_run, before, status, error, duration, code_dir,
-              stdout_path, stderr_path, actor, session) -> dict:
-    """Write the run record even when parts of the bookkeeping fail; failures are listed."""
+              stdout_path, stderr_path, origin) -> dict:
+    """Write the run record even when parts of the bookkeeping fail; failures are listed. Its
+    completion event and the notes the script made are journal writes, judged again under the
+    journal lock (core.journal_lock): if the directory became one this kit does not write to while
+    the script ran, they are refused and listed, and the run stays `incomplete`
+    (no_completion_event, design 4.3)."""
     problems: list[str] = []
 
     def guarded(label, fn, default):
@@ -1087,10 +1098,10 @@ def _finalize(project, state, record, *, source_run, before, status, error, dura
     if record.get("reproduction"):
         text += f"; rerun of {source_run['id']}: {record['reproduction']['verdict']}"
     event = guarded("journal", lambda: core.append_event(project, "run", text, refs=refs,
-                                                         actor=actor, session=session), None)
+                                                         origin=origin), None)
     for kind, note_text in state.notes:
         guarded(f"note {kind}", lambda k=kind, t=note_text: core.add_note(
-            project, k, t, refs=[run_id], actor=actor, session=session), None)
+            project, k, t, refs=[run_id], origin=state.sdk_origin), None)
 
     if problems and problems != (record.get("finalize_errors") or []):
         record["finalize_errors"] = list(problems)
@@ -1124,9 +1135,14 @@ MAX_LISTED_PATHS = 3
 
 
 def imported_sources(project: core.Project) -> dict[str, str]:
-    """Absolute source path -> dataset name, for everything data/raw was imported from."""
+    """Absolute source path -> dataset name, for everything data/raw (and data/imported, the new
+    writer's place, design 2.3) was imported from."""
     out = {}
-    for meta_file in sorted(project.raw.glob("*.meta.json")) if project.raw.is_dir() else []:
+    metas = []
+    for directory, _ in relations.IMPORT_DIRS:
+        place = project.root / directory
+        metas += sorted(place.glob("*.meta.json")) if place.is_dir() else []
+    for meta_file in metas:
         meta = core.read_json(meta_file)
         source = (meta or {}).get("source") or {}
         path = source.get("path")
@@ -1169,14 +1185,15 @@ def reserved_name_warnings(paths) -> list[str]:
 def run_warnings(record: dict, project: core.Project | None = None) -> list[str]:
     warnings = []
     imported = imported_sources(project) if project is not None else {}
-    if record["status"] == "ok" and not record["inputs"] and (record["charts"] or any(
+    charts = relations.run_visualizations(record)
+    if record["status"] == "ok" and not record["inputs"] and (charts or any(
             o.get("change") != "deleted" for o in record["outputs"])):
         warnings.append("no input files were detected: read data with analytics.read/analytics.scan/analytics.sql "
                         "or literal paths, or declare inputs")
-    if record["status"] != "ok" and record["charts"]:
-        warnings.append(f"{len(record['charts'])} chart(s) were recorded but the run is "
+    if record["status"] != "ok" and charts:
+        warnings.append(f"{len(charts)} chart(s) were recorded but the run is "
                         f"{record['status']}, so they stay out of the report gallery")
-    for chart in record["charts"]:
+    for chart in charts:
         if chart["kind"] == "matplotlib" and not chart.get("data"):
             warnings.append(f"chart {chart['id']}: plotted data not recorded "
                             "(pass data=... to analytics.visualize)")
@@ -1209,6 +1226,6 @@ def run_warnings(record: dict, project: core.Project | None = None) -> list[str]
     # Last of all, so every warning main gave comes first: the agent's reply shows ten and the run
     # page twelve, and a partitioned write under a reserved directory would otherwise push them out.
     written = [out["path"] for out in record["outputs"] if out.get("change") != "deleted"]
-    written += [rel for chart in record["charts"] for rel in (chart.get("files") or {}).values()]
+    written += [rel for chart in charts for rel in (chart.get("files") or {}).values()]
     warnings += reserved_name_warnings(written)
     return warnings

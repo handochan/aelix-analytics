@@ -1215,8 +1215,35 @@ _UNC_RE = re.compile(r"^\\\\[^\\/]+\\[^\\/]+")
 TEXT_ENCODING = "utf-8"
 # How a text file the kit writes ends its lines, on every platform (ADR-0007 decision 2): text mode's
 # default would write "\r\n" on Windows. The same rule everywhere, so not a port (ADR-0003
-# decision 1); core.open_text applies it.
+# decision 1); open_text applies it.
 TEXT_NEWLINE = "\n"
+
+
+# The kit's text writes (ADR-0007 decision 2: "in core or _platform"). Module functions, not a port:
+# they do the same on every platform. Here since Issue #13 PR 1, so that the writer and core both
+# use them; core gives them under its own name as well (core.open_text, core.write_text,
+# core.newlines_as_lf).
+
+def open_text(path, mode: str = "w"):
+    """Open a text file the kit writes (ADR-0007 decision 2): UTF-8 without a BOM, and "\\n" written
+    as "\\n" on every platform — text mode's default (newline=None) writes "\\r\\n" on Windows. The
+    text itself is not changed: a "\\r" the caller passes is written as it is (newlines_as_lf is
+    the caller's to apply where a file's content has to be LF too). Every text file the kit writes
+    is opened here or through write_text (tests/test_line_endings.py checks)."""
+    if mode not in ("w", "a", "x"):
+        raise ValueError(f"open_text writes text: {mode!r}")
+    return open(path, mode, encoding=TEXT_ENCODING, newline=TEXT_NEWLINE)
+
+
+def write_text(path, text: str, *, append: bool = False) -> None:
+    """Write (or with `append`, append) `text` as a text file the kit writes: see open_text."""
+    with open_text(path, "a" if append else "w") as fh:
+        fh.write(text)
+
+
+def newlines_as_lf(text: str) -> str:
+    """`text` with its CRLF and lone CR line ends as "\\n", as text mode reads a file."""
+    return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
 def reserved_name(name: str) -> bool:

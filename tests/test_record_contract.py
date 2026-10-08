@@ -28,10 +28,12 @@ ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "tests" / "fixtures" / "records"
 CASES = sorted(p.name for p in FIXTURES.iterdir() if p.is_dir())
 CONTRACT = {"analytics.project/2", "analytics.event/2", "analytics.report_revision/1"}
-# ADR-0006 1.4: the family versions a reader of this contract knows. analytics.run and analytics.dataset
-# are names #13 gives its next run and dataset families, so a version of them is an unknown version.
-KNOWN = CONTRACT | {"lab.project/1", "lab.run/1", "lab.event/1", "lab.dataset/1"}
-FAMILIES = {name.rpartition("/")[0] for name in KNOWN} | {"analytics.run", "analytics.dataset"}
+# ADR-0006 1.4: the family versions a reader of this contract knows. #13 defines its next run and
+# dataset families, analytics.run/2 and analytics.dataset/1 (design 2.6–2.7, read since its PR 1); any
+# other version of them is an unknown version.
+KNOWN = CONTRACT | {"lab.project/1", "lab.run/1", "lab.event/1", "lab.dataset/1", "analytics.run/2",
+                    "analytics.dataset/1"}
+FAMILIES = {name.rpartition("/")[0] for name in KNOWN}
 EXACT_V1 = {"runs", "events", "context", "resolves"}  # ADR-0006 4: read as exact references
 CONTENT_KINDS = {"finding", "decision", "assumption", "note", "workflow_feedback", "metric_definition",
                  "analysis_focus"}  # ADR-0006 6: current, superseded, withdrawn, conflict
@@ -718,3 +720,47 @@ def test_journal_bytes_keep_their_line_endings():
     for name in CASES:
         if name != "mixed-version":
             assert b"\r" not in (FIXTURES / name / "journal.jsonl").read_bytes(), name
+
+
+SHA = "0" * 64
+VIS = {"visualization_id": "trend", "kind": "plotly", "title": "trend", "caption": None,
+       "via": "analytics.visualize", "files": {"plotly": "runs/20261008-090000-a/visualizations/trend.plotly.json"},
+       "sha256": SHA, "line": 3}
+RUN_2 = {"schema": "analytics.run/2", "id": "20261008-090000-a", "title": "a", "status": "ok",
+         "started_at": "2026-10-08T09:00:00.000+09:00", "actor": "human", "actor_basis": "inferred",
+         "means": "cli", "session": None, "rerun_of": "20261007-090000-a",
+         "script": {"path": "scripts/a.py", "sha256": SHA, "snapshot": "runs/20261008-090000-a/code/scripts/a.py"},
+         "inputs": [{"path": "data/imported/sales.parquet", "sha256": SHA, "via": ["analytics.read"],
+                     "external": False}],
+         "outputs": [{"path": "data/derived/x.parquet", "change": "created", "via": "analytics.save"}],
+         "visualizations": [VIS],
+         "reproduction": {"of": "20261007-090000-a", "verdict": "match", "inputs_same": True,
+                          "visualizations": {"trend": "same data"}, "outputs": {}}}
+DATASET_1 = {"schema": "analytics.dataset/1", "name": "sales", "path": "data/imported/sales.parquet",
+             "sha256": SHA, "bytes": 10, "rows": 2, "columns": [{"name": "a", "dtype": "Int64"}],
+             "description": None, "imported_at": "2026-10-08T09:00:00.000+09:00",
+             "source": {"path": "/x/sales.csv", "sha256": SHA, "bytes": 8, "format": "csv"}}
+
+
+@pytest.mark.parametrize(("record", "valid"), [
+    (RUN_2, True),
+    ({**RUN_2, "visualizations": [{**VIS, "sha256": None}]}, False),  # every Visualization keeps its hash
+    ({**RUN_2, "visualizations": [{**VIS, "data": "runs/x/visualizations/trend.data.parquet"}]}, False),
+    ({**RUN_2, "visualizations": [{**VIS, "data": "d", "data_sha256": SHA}]}, True),
+    ({**RUN_2, "visualizations": [{**VIS, "via": "lab.chart"}]}, False),  # the /1 spelling of `via`
+    ({**RUN_2, "charts": [{"id": "trend"}], "visualizations": [VIS]}, True),  # an unknown field is kept
+    ({**RUN_2, "means": "bash"}, False),
+    (DATASET_1, True),
+    ({**DATASET_1, "path": "data/raw/sales.parquet"}, False),
+    ({"schema": "analytics.event/2", "seq": 1, "id": "e1", "recorded_at": "2026-10-08T09:00:00.000+09:00",
+      "kind": "note", "actor": "human", "actor_basis": "declared", "means": "command", "text": "x",
+      "refs": []}, True),
+    ({"schema": "analytics.event/2", "seq": 1, "id": "e1", "recorded_at": "2026-10-08T09:00:00.000+09:00",
+      "kind": "note", "actor": "human", "actor_basis": "assumed", "text": "x", "refs": []}, False),
+])
+def test_the_new_writer_s_run_and_dataset_records_and_origin_fields(record, valid):
+    """design 2.5–2.7 (OQ5, D2–D4): the run and dataset families this PR's reader reads, and the
+    origin fields of an event, as the schema defines them before any kit writes them."""
+    errors = [e.message for e in RECORD.iter_errors(record)]
+    assert (not errors) is valid, errors
+    assert unsupported_reason(record) is None

@@ -9,7 +9,7 @@ and the document still says so in the words DECLARED quotes, the record names th
 a known limit is neither read as a pass nor hidden as a failure. An observation records a platform
 fact without a promise attached.
 
-`--stdlib-only` runs only what the aelix process itself loads (core, _platform and relations). It needs neither
+`--stdlib-only` runs only what the aelix process itself loads (core, _platform, relations and writer). It needs neither
 uv nor the analysis libraries, so it can run on the entry-point floor being measured.
 
 Exit status: 0 when no check was violated, 1 otherwise, 2 on usage error. A check that holds, fails
@@ -49,7 +49,7 @@ KIT = ROOT / "src"
 if str(KIT) not in sys.path:
     sys.path.insert(0, str(KIT))
 
-from aelix_analytics import _platform  # noqa: E402 - the kit is found through KIT above
+from aelix_analytics import _platform, relations  # noqa: E402 - the kit is found through KIT above
 
 SCHEMA = "aelix-analytics.platform-smoke/1"
 ANALYSIS_MODULES = ("polars", "duckdb", "pyarrow", "matplotlib", "plotly", "numpy")
@@ -759,7 +759,8 @@ def cli_end_to_end(ctx):
 
     good, result = step("run", "run", script(root, "01_region.py", REGION), "--title", "지역별 매출")
     record = (result or {}).get("run") or {}
-    steps["run"].update({"status": record.get("status"), "charts": len(record.get("charts") or []),
+    steps["run"].update({"status": record.get("status"),
+                         "charts": len(relations.run_visualizations(record)),
                          "stdout_has_korean": "한글 출력" in ((result or {}).get("stdout_tail") or "")})
     all_ok = all_ok and good and record.get("status") == "ok" and steps["run"]["stdout_has_korean"]
     run_id = record.get("id")
@@ -1054,7 +1055,7 @@ def cli_writes_a_reserved_chart_id_to_a_portable_file(ctx):
     code, result, _ = kit_cli(ctx, root, "run", script(root, "06_chart_con.py", CHART_CON),
                              "--title", "예약 차트")
     record = (result or {}).get("run") or {}
-    charts = record.get("charts") or []
+    charts = relations.run_visualizations(record)
     png = ((charts[0].get("files") or {}).get("png") if charts else None) or ""
     readable = False
     with contextlib.suppress(OSError):

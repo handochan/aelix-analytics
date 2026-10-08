@@ -329,12 +329,15 @@ def test_records_the_lists_cannot_show_are_counted_where_they_are(tmp_path):
             "(unknown_kind), journal:6 (unknown_kind) and 2 more (the kit's `status` command lists "
             "every one in its JSON)") in text
     assert "a newer kit" not in text  # a kind the /1 writer never wrote is no newer version
-    assert st["not_listed"] == ["journal:9"]
-    assert (f"not listed: 1 analytics.event/2 record(s) (journal:9) — this kit lists lab.event/1 "
-            f"records only; they are in {p.root.resolve() / 'journal.jsonl'}") in text
+    # An analytics.event/2 record is listed with the /1 records, in seq order (Issue #13 PR 1, design
+    # 5.2: the state map's P6); before it, it was counted as `not_listed` only.
+    assert "not_listed" not in st and "not listed: 1 analytics.event/2" not in text
+    assert [(e["id"], e["kind"], e["text"]) for e in st["recent"]] == [("e1", "finding", "first"),
+                                                                     ("e20", "note", "next format")]
+    assert "  e20 2026-10-01 09:30 note: next format" in text
     index = built(p)["index.html"]
     assert "Unsupported: 7 record(s) this kit cannot read" in index
-    assert "Not listed: 1 analytics.event/2 record(s)" in index
+    assert "Not listed" not in index and "next format" in index
 
 
 def test_only_records_of_a_newer_version_are_said_to_be_for_a_newer_kit(tmp_path):
@@ -685,3 +688,88 @@ def test_the_inferred_marks_keep_what_people_wrote_in_lang_empty(tmp_path, monke
         misplaced += [(lang, f"{tag}@{attr}", value[:80]) for lang, tag, attr, value in scopes.attrs
                       if HANGUL.search(value) and lang != ""]
         assert misplaced == [], name
+
+
+def v2_event(p: LegacyProject, kind: str, text: str, refs=(), details=None) -> str:
+    """Append an analytics.event/2 record with the next seq, as the new writer will (ADR-0006 1.2)."""
+    p.seq += 1
+    p.minute += 1
+    value = {"schema": "analytics.event/2", "seq": p.seq, "id": f"e{p.seq}", "recorded_at": at(p.minute % 60),
+             "kind": kind, "actor": "human", "actor_basis": "declared", "means": "cli", "text": text,
+             "refs": list(refs)}
+    if details is not None:
+        value["details"] = details
+    p.line(value)
+    return f"e{p.seq}"
+
+
+def event_ref(event_id: str, relation: str = "cites") -> dict:
+    return {"type": "event", "event_id": event_id, "relation": relation, "basis": "declared",
+            "version_binding": "author"}
+
+
+def test_v2_records_are_listed_with_the_v1_ones_by_their_replayed_state(tmp_path):
+    """design 5.2 (the state map's P6): analytics.event/2 records are in the lists, the context block
+    and the Workspace with the /1 records, in seq order. Their key information and open items follow
+    the state the read model replays (ADR-0006 6): a /2 finding withdrawn by a record_update is not
+    key information, a /2 question a /2 resolve closed is not open, and a /1 question a /2 record
+    resolves is closed too. workflow_feedback is Workflow feedback, as `gap` is."""
+    p = LegacyProject(tmp_path / "p")
+    old_question = p.event("question", text="old question")
+    kept = v2_event(p, "finding", "kept finding")
+    withdrawn = v2_event(p, "finding", "withdrawn finding")
+    v2_event(p, "record_update", "withdraw it", [{**event_ref(withdrawn, "updates")}],
+             {"expected_state": "current", "new_state": "withdrawn"})
+    open_question = v2_event(p, "question", "open v2 question")
+    closed = v2_event(p, "question", "closed v2 question")
+    v2_event(p, "resolve", "closing both", [event_ref(closed, "resolves")])
+    v2_event(p, "resolve", "closing the old one", [event_ref(old_question, "resolves")])
+    v2_event(p, "workflow_feedback", "the tools got in the way")
+    v2_event(p, "metric_definition", "revenue per order", details={"metric_id": "rpo"})
+    st, text = overview(p)
+    assert [e["id"] for e in st["key"]] == [kept]
+    assert [e["id"] for e in st["open"]] == [open_question]
+    assert st["counts"]["gaps"] == 1 and st["counts"]["events"] == 10
+    assert [e["kind"] for e in st["recent"]][-2:] == ["workflow_feedback", "metric_definition"]
+    assert f"  {kept} finding: kept finding" in text and "withdrawn finding" not in text.split("recent journal:")[0]
+    block = core.context_block(project_of(p))
+    assert f"- {kept} finding: kept finding" in block and "withdrawn finding" not in block
+    assert f"- {open_question} question: open v2 question" in block
+    assert "closed v2 question" not in block and "old question" not in block
+    index = built(p)["index.html"]
+    assert "the tools got in the way" in index and "Workflow feedback" in index
+    assert "Metric definition" in index and "revenue per order" in index
+
+
+def test_the_context_history_of_both_state_directories_is_shown(tmp_path):
+    """design 5.3 (review of PR 1): the CONTEXT.md versions a reader shows are those of
+    .analytics/context/ (the new format's) and of .lab/context/, as a context reference resolves
+    them: status says when the context last changed, and the Workspace's history lists every version
+    with the anchor the Timeline links to. A name in both directories is the .analytics one."""
+    p = LegacyProject(tmp_path / "p")
+    old = "20261001-090000-000000_aaaaaaaaaaaa.md"
+    new = "20261008-090000-000000_0123456789ab.md"
+    p.file(f".lab/context/{old}", b"# Goal\nthe old context\n")
+    p.file(f".analytics/context/{new}", b"# Goal\nRecorded context\n")
+    p.file(f".lab/context/{new}", b"# Goal\nnot the one a reference resolves to\n")
+    v2_event(p, "context", "Context saved", [{"type": "context_version", "version": new,
+                                              "relation": "about", "basis": "declared",
+                                              "version_binding": "author"}])
+    project = project_of(p)
+    assert [v.relative_to(p.root).as_posix() for v in core.context_versions(project)] == [
+        f".lab/context/{old}", f".analytics/context/{new}"]
+    st, _ = overview(p)
+    assert st["project"]["context_updated"] == "2026-10-08T09:00:00"
+    model = core.read_model(project)
+    assert {r["state"] for r in model.references()} == {"resolved"}
+    pages = built(p)
+    context = pages["context.html"]
+    assert "2 version(s)" in context and f'id="v-{new[:-3]}"' in context
+    assert "Recorded context" in context and "not the one a reference resolves to" not in context
+    assert f"context.html#v-{new[:-3]}" in pages["index.html"]
+    assert "2 recorded version(s)" in pages["index.html"]
+    # The kit still writes its own versions to .lab/context/ only.
+    p.file("CONTEXT.md", b"# Goal\nnow\n")
+    core.sync_context(project, origin=core.Origin("test", "cli"))
+    assert len(list((p.root / ".lab" / "context").glob("*.md"))) == 3
+    assert sorted(x.name for x in (p.root / ".analytics" / "context").iterdir()) == [new]

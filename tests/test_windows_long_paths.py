@@ -166,7 +166,7 @@ def make_project(root: Path, observation: dict, title: str = "긴 경로") -> Pa
     from aelix_analytics import core
 
     made = attempt(observation, "init_project", lambda: str(core.init_project(
-        root, title=title, template_dir=KIT / "aelix_analytics" / "template", actor="test").root))
+        root, title=title, template_dir=KIT / "aelix_analytics" / "template", origin=core.Origin("test", "sdk")).root))
     if made:
         observation["project_root_length"] = len(made)
     return Path(made) if made else None

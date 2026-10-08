@@ -31,10 +31,11 @@ Aelix Analytics는 베타 이후에도 지표·맥락·재사용·근거 탐색�
 코드 `d7b6f18` 기준이다(2026-10-03 확인). 행 1·5와 아래 확인 1은 #12의 둘째 PR(2026-10-06)에서 그 PR의 코드로 고쳤다.
 행 5는 #12의 셋째 PR(2026-10-08)에서 그 PR의 코드로 다시 고쳤다.
 행 1·4와 확인 2·5는 [#43](https://github.com/handochan/aelix-analytics/issues/43)(2026-10-06)에서 그 PR의 코드로 고쳤다.
+행 1은 [#13](https://github.com/handochan/aelix-analytics/issues/13)의 첫 구현 PR(①, kit 0.7.0)에서 그 PR의 코드로 다시 고쳤다.
 
 | 결정 | 적용한 것 | 남은 것과 맡는 곳 |
 |---|---|---|
-| 1 단일 배포 패키지, 책임 구분 | wheel 하나와 진입점 둘(`analytics` 런처, aelix 확장). aelix 프로세스는 `core`·`_platform`·`relations`만 로드하고 분석 라이브러리는 프로젝트 환경에서만 쓴다(ADR-0003 결정 3, ADR-0004 결정 1·2). 첫 새 책임: 읽기 모델 `relations`(#12, stdlib, 패키지의 형제를 import하지 않음, 의존 방향 `core → relations`). 모듈마다 계층을 정한 계층표와 그 의존 방향 검사(#43, [아키텍처 §11](../ARCHITECTURE.md#계층과-의존-방향-검사)) | 도메인·응용·포트의 모듈 구분(지금 `core`는 둘을 겸한다). 아래 "배치"대로 새 책임이 생기는 #13부터. 허용 목록의 예외 넷(제거 조건은 아키텍처 §11) |
+| 1 단일 배포 패키지, 책임 구분 | wheel 하나와 진입점 둘(`analytics` 런처, aelix 확장). aelix 프로세스는 `core`·`_platform`·`relations`·`writer`만 로드하고 분석 라이브러리는 프로젝트 환경에서만 쓴다(ADR-0003 결정 3, ADR-0004 결정 1·2). 첫 새 책임: 읽기 모델 `relations`(#12, stdlib, 패키지의 형제를 import하지 않음, 의존 방향 `core → relations`). 둘째: 기록 writer의 첫 부분 `writer`(#13 ①, stdlib, `core` 아래의 새 계층이라 `core`를 import하지 못함, `_platform`·`relations`만 import). 모듈마다 계층을 정한 계층표와 그 의존 방향 검사(#43, [아키텍처 §11](../ARCHITECTURE.md#계층과-의존-방향-검사)) | 도메인·응용·포트의 모듈 구분(지금 `core`는 둘을 겸한다). 아래 "배치"대로 새 책임이 생기는 #13부터. 허용 목록의 예외 넷(제거 조건은 아키텍처 §11) |
 | 2 core의 의미 소유 | 적용 전. 기록의 의미가 `core.py`·`runner.py`·`report.py`에 나뉘어 있다(아키텍처 §2) | 공통 기록 계약 #4, 공통 writer #13, 지표·초점 #14 |
 | 3 Strategy·어댑터 경계 | 적용 전 | 첫 교체 사례인 두 제안 모드 #17, 두 공유 프로필 #20 |
 | 4 작은 Protocol과 명시적 주입 | 플랫폼 포트 넷(`FileLocks`·`AtomicFiles`·`ProcessControl`·`RunControl`), `Project(root, platform=…)` 주입, 실제 구현을 실패하도록 무장한 계약 시험(ADR-0003). 그 방식을 세 구현(POSIX·Windows·시험 adapter)에 같은 사례로 돌리는 공통 계약 시험(#43, `tests/test_contracts.py`) | 정책 Strategy와 저장·게시 어댑터의 주입. 그 구현을 만드는 Issue(#17·#20 등) |

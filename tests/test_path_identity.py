@@ -967,7 +967,7 @@ def test_trust_of_a_project_created_under_another_case_of_its_parent(tmp_path, m
     parent = tmp_path / "Parent"
     parent.mkdir()
     typed = tmp_path / "PARENT" / "proj"
-    core.init_project(typed, title="t", template_dir=TEMPLATE, actor="test")
+    core.init_project(typed, title="t", template_dir=TEMPLATE, origin=core.Origin("test", "sdk"))
     monkeypatch.chdir(typed)
     found = core.find_project(os.getcwd())
     assert found is not None and core.is_trusted(found)
@@ -1007,7 +1007,7 @@ def test_status_warns_of_dataset_names_that_differ_only_in_case(tmp_path):
     groups = core.case_only_datasets([person, kit, other])
     assert groups == [[{"name": "Sales", "path": "data/raw/Sales.parquet", "view": "sales_3"},
                        {"name": "sales", "path": "data/raw/sales.parquet", "view": "sales"}]]
-    project = core.init_project(tmp_path / "p", title="t", template_dir=TEMPLATE, actor="test")
+    project = core.init_project(tmp_path / "p", title="t", template_dir=TEMPLATE, origin=core.Origin("test", "sdk"))
     st = core.status(project)
     assert st["case_only_datasets"] == []
     text = core.status_text(st)
@@ -1059,7 +1059,7 @@ def test_a_case_variant_dataset_in_a_case_sensitive_windows_directory(tmp_path):
     assert done.returncode == 0, (done.stdout, done.stderr)
     root = flagged / "proj"
     core.init_project(root, title="대소문자", goal="대소문자 구분", template_dir=TEMPLATE,
-                      actor="test")
+                      origin=core.Origin("test", "sdk"))
     from conftest import write_sales_csv  # noqa: PLC0415
 
     code, result = kit_cli(root, "import", write_sales_csv(tmp_path / "sales.csv"), "--name",

@@ -177,7 +177,7 @@ def korean_project(tmp_path: Path):
     """A project whose every text is Korean, with NFD names: returns (root, run id, the source
     file, the pieces of everything that was written into it)."""
     root = tmp_path / "proj"
-    core.init_project(root, title=TITLE, goal=GOAL, template_dir=TEMPLATE, actor="test")
+    core.init_project(root, title=TITLE, goal=GOAL, template_dir=TEMPLATE, origin=core.Origin("test", "sdk"))
     (root / "CONTEXT.md").write_bytes(CONTEXT.encode("utf-8"))
     source = tmp_path.joinpath(*SOURCE_PARTS)
     source.parent.mkdir()
@@ -343,7 +343,7 @@ def test_a_dataset_is_shown_by_its_name_as_written_and_its_view_beside_it(tmp_pa
     import polars as pl  # not in the aelix legs, which import this module for its Korean project
 
     root = tmp_path / "names"
-    project = core.init_project(root, title="names", template_dir=TEMPLATE, actor="test")
+    project = core.init_project(root, title="names", template_dir=TEMPLATE, origin=core.Origin("test", "sdk"))
     for name in DATASET_NAMES:
         pl.DataFrame({"a": [1, 2]}).write_parquet(root / "data" / "derived" / f"{name}.parquet")
     reads = "".join(f'pl.read_parquet("data/derived/{name}.parquet")\n' for name in DATASET_NAMES)
@@ -373,7 +373,7 @@ def test_a_dataset_is_shown_by_its_name_as_written_and_its_view_beside_it(tmp_pa
 
 def test_a_new_project_and_its_empty_workspace_are_english(tmp_path):
     root = tmp_path / "q3-review"
-    project = core.init_project(root, template_dir=TEMPLATE, actor="test")
+    project = core.init_project(root, template_dir=TEMPLATE, origin=core.Origin("test", "sdk"))
     files = {name: (root / name).read_text(encoding="utf-8")
              for name in ("CONTEXT.md", "pyproject.toml", ".gitignore", ".gitattributes",
                           "journal.jsonl", "lab.json")}
@@ -397,14 +397,14 @@ def test_a_new_project_and_its_empty_workspace_are_english(tmp_path):
         assert empty in index, empty
     # A Korean title is the project's own text: the uv project name keeps its ASCII part only.
     titled = core.init_project(tmp_path / "titled", title="새 분석 Q3", template_dir=TEMPLATE,
-                               actor="test")
+                               origin=core.Origin("test", "sdk"))
     toml = (titled.root / "pyproject.toml").read_text(encoding="utf-8")
     assert 'name = "analytics-q3"' in toml and 'description = "새 분석 Q3"' in toml
 
 
 def test_the_demo_is_english(tmp_path):
     root = tmp_path / "demo"
-    core.init_project(root, title="Online shift demo", template_dir=TEMPLATE, actor="test")
+    core.init_project(root, title="Online shift demo", template_dir=TEMPLATE, origin=core.Origin("test", "sdk"))
     code, result = kit_cli(root, "demo", timeout=900)
     assert code == 0 and result["ok"], result
     seen = {}

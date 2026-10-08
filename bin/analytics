@@ -11,8 +11,8 @@
 #   analytics record KIND "TEXT" [--ref R] [--resolves eN]
 #   analytics render | open                     rebuild | open report/index.html
 #
-# Commands other than init/demo use the project in AELIX_ANALYTICS_PROJECT, else the nearest lab.json
-# at or above the current directory.
+# Commands other than init/demo use the project in AELIX_ANALYTICS_PROJECT, else the nearest directory
+# at or above the current one with an analytics.json or a lab.json; the kit judges it.
 # Output ends with one JSON line (status and context print text); a run that got past its setup
 # puts an empty line before it. Nothing here is a sandbox.
 set -eu
@@ -45,15 +45,46 @@ refuse_renamed() {
   done
 }
 
+# An entry of a marker's name that is not a directory: a file, a FIFO, a socket, a link that leads
+# nowhere or loops (the kit judges it; the installed command's has_marker is the same rule).
+has_marker() { { [ -e "$1" ] || [ -L "$1" ]; } && [ ! -d "$1" ]; }
+
+# A marker as the kit counts one (the installed command's kit_marker): an entry that is not a
+# directory, where a link that leads nowhere is none and one that loops is one. A link stat cannot
+# follow is followed here link by link, and counts if it is still a link after 32 of them: the
+# smaller of macOS's and Linux's limits (32, 40), so a chain the kit counts is never passed over.
+kit_marker() {
+  if [ -e "$1" ]; then [ ! -d "$1" ]; return; fi
+  km_path=$1 km_n=0
+  while [ -L "$km_path" ] && [ "$km_n" -lt 32 ]; do
+    km_to=$(readlink "$km_path")
+    case $km_to in /*) km_path=$km_to ;; *) km_path=$(dirname "$km_path")/$km_to ;; esac
+    km_n=$((km_n + 1))
+  done
+  [ -e "$km_path" ] || [ -L "$km_path" ]
+}
+
+# The directory the kit takes for the project from where find_project stopped, upward (the installed
+# command's kit_root): `open` opens its page. The start itself when none above has a marker.
+kit_root() {
+  kr_dir=$1
+  while :; do
+    if kit_marker "$kr_dir/analytics.json" || kit_marker "$kr_dir/lab.json"; then printf '%s\n' "$kr_dir"; return 0; fi
+    [ "$kr_dir" = / ] && break
+    kr_dir=$(dirname "$kr_dir")
+  done
+  printf '%s\n' "$1"
+}
+
 find_project() {
   if [ -n "${AELIX_ANALYTICS_PROJECT:-}" ]; then printf '%s\n' "$AELIX_ANALYTICS_PROJECT"; return 0; fi
   dir=$(pwd -P)
   while :; do
-    if [ -f "$dir/lab.json" ]; then printf '%s\n' "$dir"; return 0; fi
+    if has_marker "$dir/analytics.json" || has_marker "$dir/lab.json"; then printf '%s\n' "$dir"; return 0; fi
     [ "$dir" = / ] && break
     dir=$(dirname "$dir")
   done
-  echo "analytics: no lab.json in $(pwd -P) or its parents (cd into a project or set AELIX_ANALYTICS_PROJECT)" >&2
+  echo "analytics: no analytics.json or lab.json in $(pwd -P) or its parents (cd into a project or set AELIX_ANALYTICS_PROJECT)" >&2
   return 1
 }
 
@@ -90,6 +121,11 @@ case $cmd in
   open)
     refuse_renamed
     proj=$(find_project)
+    [ -n "${AELIX_ANALYTICS_PROJECT:-}" ] || proj=$(kit_root "$proj")
+    if kit_marker "$proj/analytics.json" && kit_marker "$proj/lab.json"; then
+      echo "analytics: $proj holds two project markers, analytics.json and lab.json, and the kit reads neither; analytics status says more" >&2
+      exit 1
+    fi
     [ -f "$proj/report/index.html" ] || kit "$proj" render >/dev/null
     if command -v open >/dev/null 2>&1; then open "$proj/report/index.html"
     else xdg-open "$proj/report/index.html"; fi

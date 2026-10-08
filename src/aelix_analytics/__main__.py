@@ -60,6 +60,20 @@ def _emit(obj: dict) -> None:
     sys.stdout.flush()
 
 
+# The commands that write to a project, and the one each is refused as: they are judged before
+# their first side effect (core.admit, Issue #13). The others read (status, context, query) and
+# skip their side writes where this kit does not write; `init` makes a new directory (core.init_project).
+WRITES = ("run", "import", "record", "render", "demo")
+
+
+def _origin() -> core.Origin:
+    """Who a command line's writes are by (design 4.2): AELIX_ANALYTICS_ACTOR as given (declared),
+    else `human`, which the kit fills in (inferred); the session AELIX_ANALYTICS_SESSION."""
+    actor = os.environ.get("AELIX_ANALYTICS_ACTOR") or None
+    return core.Origin(actor or "human", "cli", "declared" if actor else "inferred",
+                       os.environ.get("AELIX_ANALYTICS_SESSION") or None)
+
+
 def _project(args) -> core.Project:
     start = args.project or os.environ.get("AELIX_ANALYTICS_PROJECT") or os.getcwd()
     root = core.find_project(start)
@@ -144,7 +158,7 @@ def _command(argv) -> int:
     parser = argparse.ArgumentParser(prog="python -m aelix_analytics",
                                      description=(__doc__ or "").splitlines()[0])
     parser.add_argument("--project", help="project directory (default: AELIX_ANALYTICS_PROJECT, else the "
-                                          "nearest lab.json at or above cwd)")
+                                          "nearest analytics.json or lab.json at or above cwd)")
     parser.add_argument("--text", action="store_true", help="human-readable output where supported")
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -184,15 +198,21 @@ def _command(argv) -> int:
     p = sub.add_parser("demo", help="fill a new project with synthetic data and example runs")
 
     args = parser.parse_args(argv)
-    actor = os.environ.get("AELIX_ANALYTICS_ACTOR") or "human"
-    session = os.environ.get("AELIX_ANALYTICS_SESSION") or None
+    origin = _origin()
     try:
         if args.command == "init":
             project = core.init_project(args.path, title=args.title, goal=args.goal,
-                                        template_dir=TEMPLATE_DIR, actor=actor, session=session)
+                                        template_dir=TEMPLATE_DIR, origin=origin)
             _emit({"ok": True, "project": str(project.root), "title": project.title()})
             return 0
         project = _project(args)
+        # Before anything is written — a lock file, a context version, a cache — and before the
+        # analysis libraries are imported: a write where this kit does not write is refused, a read
+        # where it cannot tell which format to read (two markers) too.
+        if args.command in WRITES:
+            core.admit(project, args.command)
+        else:
+            core.readable(project, args.command)
         if args.command == "status":
             st = core.status(project)
             if args.text:
@@ -212,16 +232,15 @@ def _command(argv) -> int:
                 raise core.AnalyticsError("run_args", "give either a script or --rerun-of RUN_ID")
             result = runner.execute(project, script=args.script, title=args.title,
                                     declared_inputs=args.inputs, timeout=args.timeout,
-                                    rerun_of=args.rerun_of, actor=actor, session=session,
-                                    result_follows=True)
+                                    rerun_of=args.rerun_of, origin=origin, result_follows=True)
             _emit({"ok": True, **result})
             return 0 if result["run"]["status"] == "ok" else 3
         elif args.command == "import":
             from . import data, workspace
 
-            core.sync_context(project, session=session)
+            core.sync_context(project, origin=core.system_origin(origin))
             result = data.import_file(project, args.source, name=args.name,
-                                      description=args.description, actor=actor, session=session)
+                                      description=args.description, origin=origin)
             result["workspace"] = _safe_render(workspace, project)
             _emit({"ok": True, **result})
         elif args.command == "query":
@@ -231,19 +250,19 @@ def _command(argv) -> int:
         elif args.command == "record":
             from . import workspace
 
-            core.sync_context(project, session=session)
+            core.sync_context(project, origin=core.system_origin(origin))
             event = core.add_note(project, args.kind, args.text, refs=args.refs,
-                                  resolves=args.resolves, actor=actor, session=session)
+                                  resolves=args.resolves, origin=origin)
             _emit({"ok": True, "event": event, "workspace": _safe_render(workspace, project)})
         elif args.command == "render":
             from . import workspace
 
-            core.sync_context(project, session=session)
+            core.sync_context(project, origin=core.system_origin(origin))
             _emit({"ok": True, "workspace": workspace.build(project, if_changed=args.if_changed)})
         elif args.command == "demo":
             from . import demo
 
-            _emit({"ok": True, **demo.populate(project, actor=actor, session=session)})
+            _emit({"ok": True, **demo.populate(project, origin=origin)})
         return 0
     except core.AnalyticsError as exc:
         _emit(exc.to_json())

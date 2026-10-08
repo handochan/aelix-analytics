@@ -1,9 +1,10 @@
 """Project model for Aelix Analytics projects. Standard library only.
 
 The aelix extension loads this file inside the aelix process, so it must not import polars, duckdb,
-plotting libraries or any other aelix_analytics module except `_platform` and `relations` (the
-records read as ADR-0006 says), which are standard library only for the same reason. Code that
-needs the analysis libraries runs inside a project's own uv environment (runner, data, report).
+plotting libraries or any other aelix_analytics module except `_platform`, `relations` (the records
+read as ADR-0006 says) and `writer` (who may write a project's records, and how: Issue #13), which
+are standard library only for the same reason. Code that needs the analysis libraries runs inside a
+project's own uv environment (runner, data, workspace).
 
 Every operation that behaves differently on Linux, macOS and Windows goes through the bundle of
 ports a `Project` carries, so nothing in this file tests `sys.platform`. See `_platform`.
@@ -26,11 +27,24 @@ import unicodedata
 from datetime import datetime
 from pathlib import Path, PureWindowsPath
 
-from . import _platform, relations
+from . import _platform, relations, writer
+from ._platform import newlines_as_lf as newlines_as_lf
+from ._platform import open_text as open_text
+from ._platform import write_text as write_text
+from .writer import DATASET_NAME_RE as DATASET_NAME_RE
+from .writer import EVENT_ID_RE as EVENT_ID_RE
+from .writer import RUN_ID_RE as RUN_ID_RE
+from .writer import AnalyticsError as AnalyticsError
+from .writer import Origin as Origin
+from .writer import append_jsonl as append_jsonl
+from .writer import classify_refs as classify_refs
+from .writer import present_marker as present_marker
 
-KIT_VERSION = "0.6.0"
-MARKER = "lab.json"
-SCHEMA_PROJECT = "lab.project/1"
+KIT_VERSION = "0.7.0"
+# The marker of the projects this kit writes (lab.json). A project is found by either marker,
+# analytics.json or lab.json, and judged by writer.marker_state (Issue #13).
+MARKER = writer.LEGACY_MARKER
+SCHEMA_PROJECT = writer.LEGACY_PROJECT
 SCHEMA_RUN = "lab.run/1"
 SCHEMA_EVENT = "lab.event/1"
 SCHEMA_DATASET = "lab.dataset/1"
@@ -43,9 +57,6 @@ DATA_SUFFIXES = (".parquet", ".csv", ".tsv", ".json", ".ndjson", ".jsonl", ".arr
                  ".ipc", ".xlsx")
 CHART_SUFFIXES = (".png", ".jpg", ".jpeg", ".svg", ".gif", ".webp", ".html")
 
-RUN_ID_RE = re.compile(r"^\d{8}-\d{6}-[a-z0-9][a-z0-9-]{0,60}$")
-EVENT_ID_RE = re.compile(r"^e\d+$")
-DATASET_NAME_RE = re.compile(r"^[a-z][a-z0-9_]{0,62}$")
 SCRIPT_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_]{0,62}$")
 MAX_EVENT_TEXT = 4000
 # A run that reads hundreds of files must not turn its journal entry into a path dump: run.json
@@ -58,10 +69,8 @@ CONTEXT_PROMPT_CHARS = 4000
 # this is shown in part.
 OUTPUT_TAIL = 4000
 
-# Directories that are never data inputs or outputs of a run.
-IGNORED_DIRS = {".venv", ".lab", "runs", "report", "scripts", ".git", "__pycache__",
-                ".pytest_cache", ".ruff_cache", ".omc", ".aelix", "node_modules",
-                ".ipynb_checkpoints"}
+# Directories that are never data inputs or outputs of a run (the layout this kit writes).
+IGNORED_DIRS = set(writer.LEGACY_LAYOUT.ignored_dirs)
 # Directories a walk of the project's tree leaves out at any depth.
 SKIPPED_DIRS = ("__pycache__", ".ipynb_checkpoints")
 # The top-level directories the kit itself manages, of IGNORED_DIRS: runs/ (the run records, code
@@ -70,28 +79,11 @@ SKIPPED_DIRS = ("__pycache__", ".ipynb_checkpoints")
 # below one is named by this name, whatever case it is stored in and wherever it leads, so the kit's
 # own exclusions hold (a run's own files, the environment); a script is never taken from one. The
 # other ignored directories are the person's (scripts/, .git/, caches) and are named as stored.
-MANAGED_DIRS = (".venv", ".lab", "runs", "report")
+MANAGED_DIRS = writer.LEGACY_LAYOUT.managed_dirs
 
 # The OS-dependent operations of this process. A Project takes this unless a caller — in practice a
 # test — hands it another bundle; nothing here looks one up by name or by environment variable.
 PLATFORM = _platform.detect()
-
-
-class AnalyticsError(Exception):
-    def __init__(self, code: str, message: str, hint: str | None = None, details=None):
-        super().__init__(message)
-        self.code = code
-        self.message = message
-        self.hint = hint
-        self.details = details
-
-    def to_json(self) -> dict:
-        error = {"code": self.code, "message": self.message}
-        if self.hint:
-            error["hint"] = self.hint
-        if self.details is not None:
-            error["details"] = self.details
-        return {"ok": False, "error": error}
 
 
 # The kit version that renamed the public names — commands, tools, SDK functions and environment
@@ -505,6 +497,8 @@ class Project:
         self._root = str(self.root)
         self.platform = platform or PLATFORM
         self.marker = self.root / MARKER
+        # Both markers a project is found by: the new format's and the one this kit writes.
+        self.markers = (self.root / writer.MARKER, self.root / writer.LEGACY_MARKER)
         self.context = self.root / "CONTEXT.md"
         self.journal = self.root / "journal.jsonl"
         self.data = self.root / "data"
@@ -998,16 +992,19 @@ class Project:
                 given.add((item[2], item[0]))
                 yield item
 
+    def marker_state(self) -> writer.MarkerState:
+        """What this directory is by its markers, read now (writer.marker_state)."""
+        return writer.marker_state(self.root)
+
     def config(self) -> dict:
-        data = read_json(self.marker)
-        data = data if isinstance(data, dict) else {}
-        if newer_schema(data.get("schema"), SCHEMA_PROJECT):
-            raise AnalyticsError("project_too_new",
-                                 f"{self.root}/{MARKER} is {data['schema']}, and this kit reads "
-                                 f"{SCHEMA_PROJECT}",
-                                 hint="a newer version of the analytics kit made this project; update the kit "
-                                      "instead of reading it with this one")
-        return data
+        """The marker's JSON object, as it is read: a lab.json that is not one is read as an empty
+        one (as before #13), and a marker this kit does not write or know gives what it holds — the
+        title, the creation time — to the readers that show it; no marker gives an empty one. Two
+        markers are refused (marker_conflict): which one is the project's cannot be told."""
+        state = self.marker_state()
+        if state.state == writer.CONFLICT:
+            raise writer.refusal(state, "read", writer_version=KIT_VERSION, writable=frozenset())
+        return dict(state.value) if isinstance(state.value, dict) else {}
 
     def title(self) -> str:
         return str(self.config().get("title") or self.root.name)
@@ -1023,28 +1020,6 @@ def iso(dt: datetime | None = None) -> str:
     return (dt or now()).isoformat(timespec="milliseconds")
 
 
-def open_text(path, mode: str = "w"):
-    """Open a text file the kit writes (ADR-0007 decision 2): UTF-8 without a BOM, and "\\n" written
-    as "\\n" on every platform — text mode's default (newline=None) writes "\\r\\n" on Windows. The
-    text itself is not changed: a "\\r" the caller passes is written as it is (newlines_as_lf is
-    the caller's to apply where a file's content has to be LF too). Every text file the kit writes
-    is opened here or through write_text (tests/test_line_endings.py checks)."""
-    if mode not in ("w", "a", "x"):
-        raise ValueError(f"open_text writes text: {mode!r}")
-    return open(path, mode, encoding=_platform.TEXT_ENCODING, newline=_platform.TEXT_NEWLINE)
-
-
-def write_text(path, text: str, *, append: bool = False) -> None:
-    """Write (or with `append`, append) `text` as a text file the kit writes: see open_text."""
-    with open_text(path, "a" if append else "w") as fh:
-        fh.write(text)
-
-
-def newlines_as_lf(text: str) -> str:
-    """`text` with its CRLF and lone CR line ends as "\\n", as text mode reads a file."""
-    return text.replace("\r\n", "\n").replace("\r", "\n")
-
-
 def read_json(path, default=None):
     try:
         with open(path, encoding="utf-8") as fh:
@@ -1055,18 +1030,8 @@ def read_json(path, default=None):
 
 def write_json(path, obj, *, platform: _platform.Platform | None = None,
                through_link: bool = False) -> None:
-    """Write `obj` as JSON by an atomic replace. A record that is a link is replaced by a file, as
-    the link itself (docs/CONTRACTS.md G); with `through_link` (the trust list, ADR-0006 9) a link
-    whose target exists is followed and the target replaced in its own directory."""
-    path = Path(path)
-    if through_link and os.path.islink(path) and os.path.exists(path):
-        path = Path(os.path.realpath(path))
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
-    with open_text(tmp) as fh:
-        json.dump(obj, fh, ensure_ascii=False, indent=2, default=str)
-        fh.write("\n")
-    (platform or PLATFORM).files.replace(tmp, path)
+    """writer.write_json with this process's platform by default (PLATFORM)."""
+    writer.write_json(path, obj, platform=platform or PLATFORM, through_link=through_link)
 
 
 def read_jsonl(path) -> list[dict]:
@@ -1086,13 +1051,6 @@ def read_jsonl(path) -> list[dict]:
     except OSError:
         pass
     return out
-
-
-def append_jsonl(path, obj) -> None:
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open_text(path, "a") as fh:
-        fh.write(json.dumps(obj, ensure_ascii=False, default=str) + "\n")
 
 
 def reject_unportable_name(name, *, kind: str, exists: bool = False) -> None:
@@ -1196,6 +1154,7 @@ class HashCache:
 
     def __init__(self, project: Project):
         self.file = project.cache / "hashes.json"
+        self.root = project.root
         self.platform = project.platform
         data = read_json(self.file, {})
         self.data = data if isinstance(data, dict) else {}
@@ -1260,11 +1219,17 @@ class HashCache:
             self.dirty = True
         return bool(digests) and recorded in digests
 
-    def save(self) -> None:
-        if self.dirty:
+    def save(self) -> bool:
+        """Keep what was hashed, when anything was: a side write, skipped where this kit does not
+        write (admit, design 4.10). Whether it was skipped."""
+        if not self.dirty:
+            return False
+        skipped = admit(self.root, "keep the hash cache", side=True) is None
+        if not skipped:
             with contextlib.suppress(OSError):
                 write_json(self.file, self.data, platform=self.platform)
-            self.dirty = False
+        self.dirty = False
+        return skipped
 
 
 def project_lock(project: Project):
@@ -1338,14 +1303,48 @@ def trust_project(root, *, platform: _platform.Platform | None = None) -> None:
 
 
 def find_project(start=None) -> Path | None:
+    """The nearest directory at or above `start` (the working directory by default) that holds a
+    project marker, analytics.json or lab.json (writer.find_project): it is judged afterwards, so a
+    directory with an analytics.json below a lab.json project is found, never the project above."""
     try:
         here = Path(canonical(Path(start or os.getcwd()).expanduser()))
     except OSError:
         return None
-    for candidate in (here, *here.parents):
-        if (candidate / MARKER).is_file():
-            return candidate
-    return None
+    return writer.find_project(here)
+
+
+def system_origin(origin: Origin) -> Origin:
+    """Who the kit's own writes are by when an entry point's request makes them (the context sync
+    before a write, design 4.1): `system`, with the entry point's means and session."""
+    return Origin("system", origin.means, "declared", origin.session)
+
+
+# --- the gate (Issue #13, design 4.3) ---
+
+def admit(project, op: str, *, side: bool = False) -> writer.MarkerState | None:
+    """writer.admit for this kit (KIT_VERSION) and a Project or a root: before the first side effect
+    of the write `op`. A refused write raises; a refused side write (`side`) gives None."""
+    root = project.root if isinstance(project, Project) else project
+    return writer.admit(root, op, side=side, writer_version=KIT_VERSION)
+
+
+def readable(project, op: str) -> writer.MarkerState:
+    """writer.readable for a Project or a root: no_project and marker_conflict are refused."""
+    root = project.root if isinstance(project, Project) else project
+    return writer.readable(root, op)
+
+
+@contextlib.contextmanager
+def journal_lock(project: Project, op: str, *, side: bool = False):
+    """project_lock for a journal write, judged twice (design 4.3, S8): before the lock, whose file
+    is the write's first side effect, and again once it is held, as the marker may have changed in
+    between. Yields the marker state, or None for a side write refused (`side`), with no lock taken
+    or held: the caller then writes nothing."""
+    if admit(project, op, side=side) is None:
+        yield None
+        return
+    with project_lock(project):
+        yield admit(project, op, side=side)
 
 
 # --- journal ---
@@ -1363,26 +1362,6 @@ def _last_seq(journal: Path) -> int:
     6): of every parsed line and every record recovered from a line a /1 writer appended onto,
     unsupported ones included; 0 when there is none. A seq left in a cut-off line is not counted."""
     return relations.Journal(_journal_bytes(journal)).as_of_seq
-
-
-def classify_refs(items) -> dict:
-    """Sort free-form references into runs, events, charts (script::chart) and datasets."""
-    out: dict[str, list[str]] = {"runs": [], "events": [], "charts": [], "data": [], "other": []}
-    for raw in items or []:
-        s = str(raw).strip()
-        if not s:
-            continue
-        if RUN_ID_RE.match(s):
-            out["runs"].append(s)
-        elif EVENT_ID_RE.match(s):
-            out["events"].append(s)
-        elif "::" in s:
-            out["charts"].append(s)
-        elif s.endswith(".parquet") or DATASET_NAME_RE.match(s):
-            out["data"].append(s)
-        else:
-            out["other"].append(s)
-    return {k: v for k, v in out.items() if v}
 
 
 def resolve_ref_aliases(project: Project, ref_map: dict, runs: list[dict] | None = None) -> dict:
@@ -1405,10 +1384,10 @@ def resolve_ref_aliases(project: Project, ref_map: dict, runs: list[dict] | None
     return {k: v for k, v in out.items() if v}
 
 
-def _append_event_locked(project: Project, kind: str, text: str, refs=None, actor="agent",
-                         session=None) -> dict:
-    """Append one lab.event/1 record; the caller holds project_lock. Every journal write of the kit
-    comes here (ADR-0006 6, Issue #49):
+def _append_event_locked(project: Project, kind: str, text: str, refs, origin: Origin) -> dict:
+    """Append one lab.event/1 record, its `actor` and `session` the origin's; the caller holds the
+    journal lock and the directory was admitted under it (journal_lock). Every journal write of the
+    kit comes here (ADR-0006 6, Issue #49):
 
     - The seq is relations.Journal.next_seq of the journal's bytes as they are now: one above the
       highest seq of every parsed and recovered line, unsupported ones included, wherever that line
@@ -1428,11 +1407,11 @@ def _append_event_locked(project: Project, kind: str, text: str, refs=None, acto
     seq = journal.next_seq
     while f"e{seq}" in journal.lines_of:
         seq += 1
-    event ={"schema": SCHEMA_EVENT, "seq": seq, "id": f"e{seq}", "ts": iso(), "kind": kind,
-             "actor": actor or "agent", "text": (text or "").strip()[:MAX_EVENT_TEXT],
+    event = {"schema": SCHEMA_EVENT, "seq": seq, "id": f"e{seq}", "ts": iso(), "kind": kind,
+             "actor": origin.actor, "text": (text or "").strip()[:MAX_EVENT_TEXT],
              "refs": {k: v for k, v in (refs or {}).items() if v not in (None, [], "", {})}}
-    if session:
-        event["session"] = session
+    if origin.session:
+        event["session"] = origin.session
     line = json.dumps(event, ensure_ascii=False, default=str) + "\n"
     if data and not data.endswith(b"\n"):
         line = "\n" + line
@@ -1440,13 +1419,14 @@ def _append_event_locked(project: Project, kind: str, text: str, refs=None, acto
     return event
 
 
-def append_event(project: Project, kind: str, text: str, *, refs=None, actor="agent",
-                 session=None) -> dict:
+def append_event(project: Project, kind: str, text: str, *, refs=None, origin: Origin) -> dict:
+    """Append one event of any kind this kit writes, by `origin`, where this kit writes (admit)."""
+    admit(project, f"record a {kind} event")
     if kind not in EVENT_KINDS:
         raise AnalyticsError("bad_kind", f"unknown journal kind {kind!r}",
                              hint="use one of: " + ", ".join(NOTE_KINDS))
-    with project_lock(project):
-        return _append_event_locked(project, kind, text, refs, actor, session)
+    with journal_lock(project, f"record a {kind} event"):
+        return _append_event_locked(project, kind, text, refs, origin)
 
 
 def schema_version(value) -> tuple[str, int] | None:
@@ -1466,14 +1446,98 @@ def newer_schema(value, known: str) -> bool:
     return bool(got and want and got[0] == want[0] and got[1] > want[1])
 
 
+# The kinds of the lists: Workflow feedback is `gap` in lab.event/1 and `workflow_feedback` in
+# analytics.event/2 (TERMINOLOGY 4).
+FEEDBACK_KINDS = ("gap", "workflow_feedback")
+
+
+def _refs_view(refs) -> dict:
+    """An analytics.event/2 record's references in the shape of a lab.event/1 `refs` object, for the
+    lists and pages only (design 5.2): runs, events, charts (a logical key, or `<run>/<id>` of a bound
+    version), data, context, resolves and the rest under `other`. What each reference is, is the
+    read model's judgment (relations.ReadModel.references), not this."""
+    out: dict[str, list] = {}
+    for index, ref in enumerate(refs if isinstance(refs, list) else []):
+        if not isinstance(ref, dict):
+            continue
+        kind, relation = ref.get("type"), ref.get("relation")
+        if kind == "run" and isinstance(ref.get("run_id"), str):
+            out.setdefault("runs", []).append(ref["run_id"])
+        elif kind in relations.EVENT_TARGETS and isinstance(ref.get("event_id"), str):
+            if relation == "resolves":
+                out["resolves"] = ref["event_id"]
+            else:
+                out.setdefault("events", []).append(ref["event_id"])
+        elif kind == "context_version" and isinstance(ref.get("version"), str):
+            out["context"] = ref["version"]
+        elif kind == "visualization_version":
+            out.setdefault("charts", []).append(reference_label({"target": ref}))
+        elif kind in ("dataset_import", "data_observation"):
+            out.setdefault("data", []).append(reference_label({"target": ref}))
+        else:
+            target = {k: v for k, v in ref.items()
+                      if k not in ("type", "relation", "basis", "version_binding")}
+            out.setdefault("other", []).append(reference_label({"target": target,
+                                                                "ref": {"index": index}}))
+    return out
+
+
+def event_view(event: relations.Event) -> dict:
+    """A journal record as the lists, the context block and the Workspace show it (design 5.2): a
+    lab.event/1 record as it is; an analytics.event/2 record as `schema, seq, id, ts` (its
+    `recorded_at`, kept under that name too), `kind, actor`, `means`, `actor_basis`, `session` and
+    `request_id` when it has them, `text` and its references in the /1 shape (_refs_view)."""
+    if event.schema == SCHEMA_EVENT:
+        return event.value
+    value = event.value
+    view = {"schema": event.schema, "seq": value.get("seq"), "id": value.get("id"),
+            "ts": value.get("recorded_at"), "recorded_at": value.get("recorded_at"),
+            "kind": value.get("kind"), "actor": value.get("actor")}
+    for name in ("means", "actor_basis", "session", "request_id"):
+        if name in value:
+            view[name] = value[name]
+    view.update(text=value.get("text"), refs=_refs_view(value.get("refs")))
+    return view
+
+
 def read_events(project: Project, journal: relations.Journal | None = None) -> list[dict]:
-    """The lab.event/1 records of the journal, in line order, as relations.Journal reads it: a line
+    """The journal's records, lab.event/1 and analytics.event/2 alike, in seq order (line order
+    among equal seqs, a record without a seq last), as event_view shows them (design 5.2). A line
     that does not parse is left out and the record a /1 writer appended onto it is recovered, and
     every line of an id several lines share is kept. Records of another family or version, or of a
     kind this kit does not know, are not here: status() counts them. Only journal.jsonl is read
     (this runs before every prompt, through context_block), unless `journal` is one already read."""
     journal = relations.read_journal(project.root) if journal is None else journal
-    return [event.value for event in journal.events if event.schema == SCHEMA_EVENT]
+    return [event_view(event) for event in journal.in_order()]
+
+
+class JournalLists:
+    """The journal as the lists read it, from one read (design 5.2): every record in seq order
+    (`events`, event views), the name each is read by (`source`: its id, or `journal:<line>` when
+    several lines have it), the open questions and todos (`open`), the key information (`key`) and
+    the Workflow feedback (`feedback`). A lab.event/1 record is open, or key information, when no
+    record resolves it (refs.resolves, as before #13); an analytics.event/2 one when, besides, the
+    state the read model replays for it (ADR-0006 6) is `open`, or `current` (not withdrawn,
+    superseded or in conflict)."""
+
+    def __init__(self, journal: relations.Journal):
+        ordered = journal.in_order()
+        self.events = [event_view(e) for e in ordered]
+        self.source = {id(view): journal.source_of(e) for e, view in zip(ordered, self.events, strict=True)}
+        resolved = resolved_targets(self.events)
+        states = (journal.replay().record_states()
+                  if any(e.schema != SCHEMA_EVENT for e in ordered) else {})
+
+        def live(view: dict, wanted: str) -> bool:
+            if view.get("schema") == SCHEMA_EVENT:
+                return True
+            return (states.get(self.source[id(view)]) or {}).get("state") == wanted
+
+        self.open = [e for e in self.events if e.get("kind") in OPEN_KINDS
+                     and e.get("id") not in resolved and live(e, "open")]
+        self.key = [e for e in self.events if e.get("kind") in KEY_KINDS
+                    and e.get("id") not in resolved and live(e, "current")]
+        self.feedback = [e for e in self.events if e.get("kind") in FEEDBACK_KINDS]
 
 
 def read_model(project: Project, cache: HashCache | None = None) -> relations.ReadModel:
@@ -1496,8 +1560,11 @@ def resolved_targets(events) -> dict[str, dict]:
     return out
 
 
-def add_note(project: Project, kind: str, text: str, *, refs=None, resolves=None, actor="agent",
-             session=None) -> dict:
+def add_note(project: Project, kind: str, text: str, *, refs=None, resolves=None,
+             origin: Origin) -> dict:
+    """Record a journal entry (`analytics record`, analytics_record, `/analytics record`, the SDK's
+    record) by `origin`. Refused before anything else where this kit does not write (admit)."""
+    admit(project, "record")
     if kind not in NOTE_KINDS:
         raise AnalyticsError("bad_kind", f"unknown note kind {kind!r}",
                              hint="use one of: " + ", ".join(NOTE_KINDS))
@@ -1508,7 +1575,7 @@ def add_note(project: Project, kind: str, text: str, *, refs=None, resolves=None
     if kind == "resolve" and not resolves:
         raise AnalyticsError("resolve_needs_target", "kind 'resolve' needs resolves=<event id>",
                              hint="pass the id of the question or todo being closed, e.g. e7")
-    with project_lock(project):
+    with journal_lock(project, "record"):
         if resolves:
             resolves = str(resolves).strip()
             events = read_events(project)
@@ -1517,29 +1584,50 @@ def add_note(project: Project, kind: str, text: str, *, refs=None, resolves=None
                 raise AnalyticsError("unknown_event", f"no journal event {resolves!r}",
                                      hint="analytics_status lists open questions and todos with their ids")
             ref_map["resolves"] = resolves
-        return _append_event_locked(project, kind, text, ref_map, actor, session)
+        return _append_event_locked(project, kind, text, ref_map, origin)
 
 
 # --- CONTEXT.md history ---
 
 def context_versions(project: Project) -> list[Path]:
+    """The CONTEXT.md versions a reader shows (status, the Workspace), in name (= time) order: those
+    of .analytics/context/ (the new format's, design 5.3) and of .lab/context/ (this kit's), read in
+    the order relations.CONTEXT_DIRS gives, so a name in both is the one a context reference resolves
+    to (relations.ReadModel._context_file). Nothing is written or made."""
+    found: dict[str, Path] = {}
+    for directory in relations.CONTEXT_DIRS:
+        place = project.root / directory
+        if place.is_dir():
+            for version in place.glob("*.md"):
+                if version.is_file():
+                    found.setdefault(version.name, version)
+    return [found[name] for name in sorted(found)]
+
+
+def _written_context_versions(project: Project) -> list[Path]:
+    """The versions in the directory this kit writes them to (.lab/context/), for sync_context."""
     if not project.context_history.is_dir():
         return []
     return sorted(project.context_history.glob("*.md"))
 
 
-def sync_context(project: Project, actor="system", session=None) -> dict | None:
+def sync_context(project: Project, *, origin: Origin) -> dict | None:
     """Snapshot CONTEXT.md into .lab/context/ and log a `context` event when it changed. The version
     is CONTEXT.md's bytes as they are; when only their line ends differ from the last version's
     (the last version's whole sha256 is one of the new bytes' line_ending_digests_of), the event
-    says so instead of counting lines (ADR-0007 decision 4)."""
+    says so instead of counting lines (ADR-0007 decision 4). `origin` is the caller's: init's and the
+    demo's own, and `system` with the entry point's means where the kit syncs on its own before a
+    write or in a read (system_origin, design 4.1). A side write: skipped where this kit does not
+    write (admit, design 4.10), and then None as when nothing changed."""
     try:
         data = project.context.read_bytes()
     except OSError:
         return None
     digest = sha256_bytes(data)[:12]
-    with project_lock(project):
-        versions = context_versions(project)
+    with journal_lock(project, "sync the context", side=True) as admitted:
+        if admitted is None:
+            return None
+        versions = _written_context_versions(project)
         if versions and versions[-1].stem.rsplit("_", 1)[-1] == digest:
             return None
         project.context_history.mkdir(parents=True, exist_ok=True)
@@ -1562,8 +1650,7 @@ def sync_context(project: Project, actor="system", session=None) -> dict | None:
                 text = f"CONTEXT.md updated (+{added} -{removed} lines)"
         else:
             text = "CONTEXT.md recorded"
-        return _append_event_locked(project, "context", text, {"context": dest.name}, actor,
-                                    session)
+        return _append_event_locked(project, "context", text, {"context": dest.name}, origin)
 
 
 def context_goal(text: str) -> str:
@@ -1596,7 +1683,8 @@ def list_runs(project: Project) -> list[dict]:
         if not d.is_dir() or not RUN_ID_RE.match(d.name):
             continue
         rec = read_json(d / "run.json")
-        if isinstance(rec, dict) and newer_schema(rec.get("schema"), SCHEMA_RUN):
+        if isinstance(rec, dict) and (newer_schema(rec.get("schema"), SCHEMA_RUN)
+                                      or newer_schema(rec.get("schema"), relations.RUN_V2)):
             continue  # written by a newer kit; status() counts it as unsupported
         if not isinstance(rec, dict):
             rec = {"id": d.name, "status": "incomplete", "title": "(run.json missing)"}
@@ -1649,6 +1737,7 @@ def new_run_dir(project: Project, label: str) -> str:
 
 
 def chart_key(run: dict, chart: dict) -> str:
+    """`<script path>::<id>` of a Visualization this kit is recording (capture's chart records)."""
     return f"{(run.get('script') or {}).get('path') or '?'}::{chart.get('id')}"
 
 
@@ -1779,6 +1868,9 @@ class Freshness:
 def chart_index(runs: list[dict], read_as=None) -> list[dict]:
     """Latest version of every script::chart across successful runs, newest first.
 
+    A run's Visualizations are read through relations.run_visualizations, so a lab.run/1 run's
+    charts and an analytics.run/2 run's visualizations are versions of the same keys.
+
     `read_as(run_id, path)` (the read model's) gives the identity path a kit before
     PATH_IDENTITY_SINCE recorded a run's script by, read in today's spelling (ADR-0006 9): that
     run's charts are versions of today's key, each marked `inferred` and counted in
@@ -1792,8 +1884,8 @@ def chart_index(runs: list[dict], read_as=None) -> list[dict]:
         read = read_as(r["id"], recorded) if read_as is not None and recorded != "?" else None
         script = read or recorded
         last_ok_by_script[script] = r
-        for c in r.get("charts") or []:
-            key = f"{script}::{c.get('id')}"
+        for c in relations.run_visualizations(r):
+            key = f"{script}::{c['id']}"
             entry = {**c, "key": key, "run": r["id"], "script": script,
                      "run_title": r.get("title"), "started_at": r.get("started_at")}
             if read:
@@ -1817,13 +1909,14 @@ def chart_index(runs: list[dict], read_as=None) -> list[dict]:
 
 def list_datasets(project: Project, runs: list[dict] | None = None, *,
                   model: relations.ReadModel | None = None, sha=None) -> list[dict]:
-    """Every dataset under data/raw and data/derived: each `.parquet` file (the suffix in any case)
-    the walk from those directories finds (Project.walk), named by the stem of the name the
+    """Every dataset under the project's dataset directories (dataset_dirs: data/raw and data/derived,
+    with data/imported first in an analytics.json project): each `.parquet` file (the suffix in any
+    case) the walk from those directories finds (Project.walk), named by the stem of the name the
     namespace lists it under and with the path a record holds for it (ADR-0006 9), its import record
-    the one beside that entry, raw first and each kind in the code point order of its path's
-    components. `producers` are the successful runs
-    that output its path, in run order, whatever bytes they wrote; `used_by` the successful runs
-    that read it.
+    the one beside that entry (an analytics.dataset/1 record in data/imported, a lab.dataset/1 one in
+    data/raw), in the order of the directories, and each kind in the code point order of its path's
+    components. `producers` are the successful runs that output its path, in run order, whatever
+    bytes they wrote; `used_by` the successful runs that read it.
 
     With a read model and `sha` (the hash of a file's current bytes), each dataset also says which
     runs may have made its current bytes (ADR-0006 4): `producer_state` is `resolved` (one successful
@@ -1876,7 +1969,7 @@ def list_datasets(project: Project, runs: list[dict] | None = None, *,
         return through.get((path, name), set()) - exact.get((path, name), set())
 
     items = []
-    for base, kind in (("data/raw", "raw"), ("data/derived", "derived")):
+    for base, kind in dataset_dirs(project):
         # Once per (name, path) within a kind: a raw file a derived link leads to is in both, as
         # on main.
         found: dict[tuple[str, str], tuple] = {}
@@ -1893,9 +1986,10 @@ def list_datasets(project: Project, runs: list[dict] | None = None, *,
             # The name is the one the namespace lists (a link's own), the path the file's identity,
             # and the import record the one beside the entry, where import wrote it.
             item = {"name": Path(name).stem, "path": rel, "kind": kind, "bytes": size}
-            beside = project.path(place).with_suffix(".meta.json") if kind == "raw" else None
+            family = IMPORT_FAMILIES.get(kind)
+            beside = project.path(place).with_suffix(".meta.json") if family else None
             meta = read_json(beside) if beside else None
-            unsupported = (relations.unsupported_reason(meta, frozenset({SCHEMA_DATASET}))
+            unsupported = (relations.unsupported_reason(meta, frozenset({family}))
                            if isinstance(meta, dict) else None)
             if unsupported:
                 item["unsupported_record"] = {"location": project.rel(beside),
@@ -1936,6 +2030,25 @@ def list_datasets(project: Project, runs: list[dict] | None = None, *,
     return items
 
 
+# The import record each kind of dataset has beside it (design 2.3 and 2.7).
+IMPORT_FAMILIES = {"imported": relations.DATASET_V2, "raw": SCHEMA_DATASET}
+# The order the dataset kinds take view names in: imported data first where there is any (design D24).
+KIND_ORDER = {"imported": 0, "raw": 1, "derived": 2}
+# The dataset directories of each layout, each with its kind, in the order they are listed and take
+# view names in. A lab.json project's are data/raw (its imports) and data/derived, as before #13: a
+# data/imported/ there is a directory of the person's, not the kit's, and lists nothing. The new
+# format's layout (design 2.3) adds data/imported/, the new writer's imports, ahead of data/raw (D24).
+LEGACY_DATASET_DIRS = ((writer.LEGACY_LAYOUT.imported_dir, "raw"), ("data/derived", "derived"))
+DATASET_DIRS = (("data/imported", "imported"), *LEGACY_DATASET_DIRS)
+
+
+def dataset_dirs(project: Project) -> tuple[tuple[str, str], ...]:
+    """The dataset directories of `project` and their kinds, by the layout its marker picks (design
+    2.3): the new format's for an analytics.json, whatever it holds; a lab.json project's otherwise
+    (a lab.json of any schema, and a directory with no marker or two, which no read reaches)."""
+    return DATASET_DIRS if project.marker_state().marker == writer.MARKER else LEGACY_DATASET_DIRS
+
+
 def dataset_name_taken(project: Project, name: str) -> str | None:
     """Path of an existing dataset that `name` would shadow or collide with."""
     for ds in list_datasets(project):
@@ -1946,14 +2059,15 @@ def dataset_name_taken(project: Project, name: str) -> str | None:
 
 def _views(datasets: list[dict]) -> list[tuple[str, dict]]:
     """(view name, dataset) in the order names are given: a stem that follows the kit's dataset
-    name rule (DATASET_NAME_RE, the names import and save give) first, then raw before derived, then
-    by path. So a file a person put at data/raw/Sales.parquet never takes `sales` from the dataset
-    the kit imported or saved as `sales` (ADR-0006 9). A later name that collides gets `_derived`
-    (derived) and then `_2`, `_3`…"""
+    name rule (DATASET_NAME_RE, the names import and save give) first, then imported (data/imported,
+    listed in an analytics.json project only, design D24) before raw before derived, then by path.
+    So a file a person put at data/raw/Sales.parquet never takes `sales` from the dataset the kit
+    imported or saved as `sales` (ADR-0006 9). A later name that collides gets `_derived` (derived)
+    and then `_2`, `_3`…"""
     out: list[tuple[str, dict]] = []
     taken: set[str] = set()
     for ds in sorted(datasets, key=lambda d: (not DATASET_NAME_RE.match(d["name"]),
-                                              d["kind"] != "raw", d["path"])):
+                                              KIND_ORDER.get(d["kind"], len(KIND_ORDER)), d["path"])):
         name = re.sub(r"[^a-z0-9_]", "_", ds["name"].lower()) or "dataset"
         if name[0].isdigit():
             name = f"t_{name}"
@@ -2014,17 +2128,16 @@ def status(project: Project, limit: int = STATUS_LIMIT) -> dict:
     """The project overview analytics_status, /analytics status and the kit's `status` give, from
     one read of the records (read_model): the identifiers and the read's `as_of_seq` and
     `source_revision` are those the Workspace shows."""
+    marker = readable(project, "status")
     cache = HashCache(project)
     model = read_model(project, cache)
     journal = model.journal
-    listed = [e for e in journal.events if e.schema == SCHEMA_EVENT]
-    events = [e.value for e in listed]
-    source = {id(e.value): journal.source_of(e) for e in listed}
+    lists = JournalLists(journal)
+    events, source = lists.events, lists.source
     runs = model_runs(project, model)
     datasets = list_datasets(project, runs, model=model, sha=cache.sha)
     fresh = Freshness(project, runs, cache, model)
     charts = chart_index(runs, model.read_as)
-    resolved = resolved_targets(events)
     context_text = context_file_text(project)
     _, _, context_omitted, context_truncated = context_selection(context_text)
     current_charts = [c for c in charts if not c.get("retired")]
@@ -2047,24 +2160,29 @@ def status(project: Project, limit: int = STATUS_LIMIT) -> dict:
     for r in runs[-limit:][::-1]:
         rec = recording.get(r["id"]) or {}
         run_rows.append({"id": r["id"], "status": r.get("status"), "title": r.get("title"),
-                         "duration_s": r.get("duration_s"), "charts": len(r.get("charts") or []),
+                         "duration_s": r.get("duration_s"),
+                         "charts": len(relations.run_visualizations(r)),
                          "error": (r.get("error") or {}).get("summary"),
                          "rerun_of": r.get("rerun_of"),
-                         "verdict": (r.get("reproduction") or {}).get("verdict"),
+                         "verdict": (relations.run_reproduction(r) or {}).get("verdict"),
                          "recording_status": rec.get("recording_status"),
                          "reasons": rec.get("reasons", [])})
-    open_items = [e for e in events if e.get("kind") in OPEN_KINDS and e["id"] not in resolved]
-    key_items = [e for e in events if e.get("kind") in KEY_KINDS and e["id"] not in resolved]
-    gaps = [e for e in events if e.get("kind") == "gap"]
+    open_items, key_items, gaps = lists.open, lists.key, lists.feedback
     key_rows = []
     for e in key_items[-limit * 2:]:
         name = source[id(e)]
         key_rows.append({**_brief(e, name), "references": references_summary(model.references(name))})
-    cache.save()
+    refused = writer.refusal(marker, "writes", writer_version=KIT_VERSION)
+    skipped = ["hash_cache"] if cache.save() else []
     versions = context_versions(project)
+    config = dict(marker.value) if isinstance(marker.value, dict) else {}
     return {
-        "project": {"root": str(project.root), "title": project.title(),
-                    "created_at": project.config().get("created_at"),
+        "project": {"root": str(project.root),
+                    "title": str(config.get("title") or project.root.name),
+                    "created_at": config.get("created_at"),
+                    "marker": marker.marker, "format": marker.format,
+                    "writable": refused is None,
+                    **({"write_refusal": refused.to_json()["error"]} if refused else {}),
                     "goal": context_goal(newlines_as_lf(context_text)),
                     "context_chars": len(newlines_as_lf(context_text)),
                     "context_omitted": [s["name"] for s in context_omitted],
@@ -2083,7 +2201,7 @@ def status(project: Project, limit: int = STATUS_LIMIT) -> dict:
         "damaged": {"journal": [f"journal:{n}" for n in journal.damaged],
                     "recovered": [f"journal:{n}" for n in journal.recovered],
                     "files": list(model.damaged_files)},
-        "not_listed": [f"journal:{e.line}" for e in journal.events if e.schema != SCHEMA_EVENT],
+        "writes_skipped": skipped,
         "shared_ids": {i: [f"journal:{n}" for n in lines]
                        for i, lines in journal.lines_of.items() if len(lines) > 1},
         "datasets": datasets,
@@ -2290,6 +2408,8 @@ def _status_lines(st: dict, caps: dict[str, int]) -> list[tuple[str, str, bool]]
     earlier = counts["events"] - len(st["recent"])
     add("head", f"project: {p['title']} ({p['root']})")
     add("head", f"report: {st['workspace']}")
+    if p.get("write_refusal"):
+        add("head", read_only_line(p["write_refusal"], st.get("writes_skipped")))
     if st.get("source_revision"):
         add("head", _read_line(st))
     if older_runs > 0 or more_charts > 0 or older_open > 0 or key_at_limit or earlier > 0:
@@ -2337,6 +2457,15 @@ def _status_lines(st: dict, caps: dict[str, int]) -> list[tuple[str, str, bool]]
         named = ", ".join(f"{d['name']} ({d['path']}, view {d['view']})" for d in group)
         add("datasets", f"dataset names that differ only in case: {named} — a file system that "
                         "ignores case keeps one of them; rename one")
+    raw = {d["name"]: d["path"] for d in st["datasets"] if d.get("kind") == "raw"}
+    both = [(d, raw[d["name"]]) for d in st["datasets"]
+            if d.get("kind") == "imported" and d["name"] in raw]
+    if both:
+        # design D24 (R13): the imported data takes the view name, the older import the next one.
+        by_path = {path: view for view, path in dict(st["views"]).items()}
+        named = ", ".join(f"{d['name']} (view {by_path.get(d['path'])}: {d['path']}; "
+                          f"{other} is view {by_path.get(other)})" for d, other in both)
+        add("datasets", f"dataset names in both data/imported and data/raw: {named}")
     datasets = _capped(st["datasets"], caps.get("datasets"))
     for ds in datasets:
         add("datasets", f"  {ds['kind']:<7} {ds['name']}: {_fmt_int(ds.get('rows'))} rows × "
@@ -2462,9 +2591,18 @@ def _read_line(st: dict) -> str:
     return line
 
 
+def read_only_line(refusal: dict, skipped=()) -> str:
+    """The line the overview and the context block start with where this kit does not write to the
+    project (design 4.10 and 5.2): why, and that the side writes of a read are skipped."""
+    line = f"read only: {refusal['code']} — {refusal['message']}"
+    if refusal.get("hint"):
+        line += f"; {refusal['hint']}"
+    return line + ("; skipped: " + ", ".join(skipped) if skipped else "")
+
+
 def _records_lines(st: dict, journal: Path) -> list[str]:
     """What the lists below cannot show: records this kit cannot read, lines that do not parse,
-    record files not read, records of the next format, and ids that several lines share."""
+    record files not read, and ids that several lines share."""
     out = []
     unsupported = st.get("unsupported") or []
     if unsupported:
@@ -2490,11 +2628,6 @@ def _records_lines(st: dict, journal: Path) -> list[str]:
                      f"({_places(files, STATUS_PLACES, EVERY_RECORD)})")
     if parts:
         out.append("damaged: " + "; ".join(parts))
-    not_listed = st.get("not_listed") or []
-    if not_listed:
-        out.append(f"not listed: {len(not_listed):,} analytics.event/2 record(s) "
-                   f"({_places(not_listed, STATUS_PLACES, EVERY_RECORD)}) — this kit lists "
-                   f"lab.event/1 records only; they are in {journal}")
     shared = st.get("shared_ids") or {}
     if shared:
         listed, cut = shared_ids_text(shared, STATUS_PLACES)
@@ -2717,16 +2850,25 @@ def context_block(project: Project, max_context_chars: int = CONTEXT_PROMPT_CHAR
                   max_items: int = 12) -> str:
     """Project context appended to the system prompt. Only slow-changing parts, so it stays
     stable across prompts: CONTEXT.md, unresolved key information and open questions."""
-    events = read_events(project)
-    resolved = resolved_targets(events)
+    marker = readable(project, "context")
+    lists = JournalLists(relations.read_journal(project.root))
     preamble, included, omitted, _ = context_selection(
         context_file_text(project), max_context_chars, path=project.context)
-    key = [e for e in events if e.get("kind") in KEY_KINDS and e["id"] not in resolved]
-    open_items = [e for e in events if e.get("kind") in OPEN_KINDS and e["id"] not in resolved]
+    key, open_items = lists.key, lists.open
+    config = dict(marker.value) if isinstance(marker.value, dict) else {}
     parts = [
         "# Active analytics project",
-        f"root: {project.root} (title: {project.title()})",
-        f"report: {project.workspace_dir / 'index.html'} (rebuilt after runs, imports and notes)",
+        f"root: {project.root} (title: {str(config.get('title') or project.root.name)})",
+    ]
+    refused = writer.refusal(marker, "writes", writer_version=KIT_VERSION)
+    if refused is None:
+        parts.append(f"report: {project.workspace_dir / 'index.html'} (rebuilt after runs, imports "
+                     "and notes)")
+    else:
+        # This kit builds no Workspace where it does not write, and the new format's is elsewhere
+        # (design 2.3): no report line, the reason instead.
+        parts.append(read_only_line(refused.to_json()["error"]))
+    parts += [
         "Call analytics_status for datasets, runs, charts and the recent journal.",
         "",
         "## CONTEXT.md",
@@ -2777,12 +2919,15 @@ def _refs_suffix(event: dict) -> str:
 TEMPLATE_FILES = ("CONTEXT.md", "pyproject.toml", "gitignore", "gitattributes")
 
 
-def init_project(target, *, title=None, goal=None, template_dir=None, actor="human", session=None,
+def init_project(target, *, title=None, goal=None, template_dir=None, origin: Origin,
                  platform: _platform.Platform | None = None) -> Project:
-    """`template_dir` is a path or an importlib.resources Traversable. Left out, it is the template
-    next to this file: the aelix process loads this module by path, where the resource API cannot
-    work (ADR-0004), and the kit's own package data is where this file is. The CLI hands over the
-    same template through the resource API."""
+    """A new project of the format this kit writes (lab.json), its first records by `origin`.
+    `target` is a directory that does not exist or is empty (init and the migration destination
+    have rules of their own, design 11.3; a marker above it is OQ9, PR 3). `template_dir` is a path
+    or an importlib.resources Traversable. Left out, it is the template next to this file: the aelix
+    process loads this module by path, where the resource API cannot work (ADR-0004), and the kit's
+    own package data is where this file is. The CLI hands over the same template through the
+    resource API."""
     root = Path(target).expanduser()
     if root.exists():
         if not root.is_dir():
@@ -2826,8 +2971,8 @@ def init_project(target, *, title=None, goal=None, template_dir=None, actor="hum
         write_text(project.path(dest), text)
     write_text(project.path(".python-version"), "3.12\n")
     project.journal.touch()
-    append_event(project, "project", f"project created: {title}", actor=actor, session=session)
-    sync_context(project, actor=actor, session=session)
+    append_event(project, "project", f"project created: {title}", origin=origin)
+    sync_context(project, origin=origin)
     with contextlib.suppress(OSError):
         trust_project(project.root, platform=project.platform)
     return project
