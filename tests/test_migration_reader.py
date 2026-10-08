@@ -127,6 +127,12 @@ def test_the_mapping_s_rules_are_by_path_components():
     assert mapping.translate(".lab") == ".analytics"
     assert mapping.translate(".labx/v.md") is None and mapping.translate("data/x.parquet") is None
     assert mapping.translate(f"{sep}a{sep}proj") is None  # the root itself names no file
+    # Read as legacy_identity reads an absolute path (normpath): `..` folded as text, and on Windows
+    # either separator, so `C:\a\proj/x/y.csv` is under the root as the source's reader takes it.
+    assert mapping.translate(f"{sep}a{sep}proj{sep}sub{sep}..{sep}x{sep}y.csv") == "x/y.csv"
+    if os.altsep:
+        assert mapping.translate(f"{sep}a{sep}proj{os.altsep}x{os.altsep}y.csv") == "x/y.csv"
+        assert mapping.translate(f"{sep}ext{os.altsep}data{sep}x.parquet") == "data/x.parquet"
 
 
 def test_the_reader_knows_the_migration_family():

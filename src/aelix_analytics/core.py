@@ -1571,14 +1571,17 @@ class MigrationMapping:
     path below the root now; one under a copied link's target or a spelling of it (`links`) is that
     path below the link's path; and a relative path under `.lab/` — given so, or got so — is under
     `.analytics/` (`prefixes`). "Under" is by path components, as `_under` says, the longest
-    spelling first. Nothing is read or written here: `translate` is text."""
+    spelling first. An absolute path and a spelling are compared as legacy_identity reads an
+    absolute path — `os.path.normpath`, so on Windows `C:\\a\\proj/x.csv` (both separators) is
+    under `C:\\a\\proj` — and without an extended-length prefix. Nothing is read or written here:
+    `translate` is text."""
 
     def __init__(self, root_from, links, prefixes) -> None:
         def longest(pairs):
             return tuple(sorted(pairs, key=lambda pair: (-len(pair[0]), pair[0])))
 
-        self.root_from = longest((_platform.plain_path(s), "") for s in root_from)
-        self.links = longest((_platform.plain_path(s), link) for s, link in links)
+        self.root_from = longest((_mapping_text(s), "") for s in root_from)
+        self.links = longest((_mapping_text(s), link) for s, link in links)
         self.prefixes = tuple((frm.rstrip("/"), to.rstrip("/")) for frm, to in prefixes)
 
     def translate(self, recorded) -> str | None:
@@ -1588,7 +1591,7 @@ class MigrationMapping:
             return None
         moved = False
         if os.path.isabs(recorded):
-            plain = _platform.plain_path(recorded)
+            plain = _mapping_text(recorded)
             rel = None
             for spelling, link in (*self.root_from, *self.links):
                 if spelling and _under(plain, spelling):
@@ -1605,6 +1608,11 @@ class MigrationMapping:
                 rel, moved = to + rel[len(frm):], True
                 break
         return rel if moved else None
+
+
+def _mapping_text(text: str) -> str:
+    """An absolute path or a spelling as MigrationMapping compares it (an empty one stays empty)."""
+    return os.path.normpath(_platform.plain_path(text)) if text else text
 
 
 def mapped_identity(project: Project, mapping: MigrationMapping):

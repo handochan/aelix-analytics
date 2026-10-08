@@ -275,12 +275,12 @@ class _Unreadable(Exception):
 def _open_source(path, key) -> int:
     """A descriptor of the source file `path` that is the regular file the walk saw (`key`,
     `[st_dev, st_ino]`): checked on the open handle, so an entry swapped for a FIFO, a device, a link
-    or another file since is _SourceChanged, and a FIFO is never waited on (design 6.4). POSIX opens
-    with O_NONBLOCK where it has one; a regular file's reads do not change."""
+    or another file since is _SourceChanged, and a FIFO is never waited on (design 6.4). Opened by
+    _platform.open_for_reading, so a refusal keeps Windows' own error (_unreadable_error)."""
     try:
         if not stat.S_ISREG(os.stat(path).st_mode):
             raise _SourceChanged(path)
-        fd = os.open(path, os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NONBLOCK", 0))
+        fd = _platform.open_for_reading(path)
     except _SourceChanged:
         raise
     except FileNotFoundError:
@@ -308,6 +308,10 @@ def _hash_source(path, key) -> tuple[str, int]:
 
 
 def _unreadable_error(problem: _Unreadable) -> AnalyticsError:
+    """source_unreadable: `in_use` when Windows says another program has the file (a sharing
+    violation, 32, which the open reports; a lock violation, 33, has a Windows code only where a
+    call keeps one, and a read through the C runtime does not), `permission` for any other
+    PermissionError, else `os_error`."""
     exc = problem.exc
     reason = ("in_use" if getattr(exc, "winerror", None) in (32, 33)
               else "permission" if isinstance(exc, PermissionError) else "os_error")
@@ -789,7 +793,10 @@ class _Walker:
     def _link(self, path: str, rel: str, st: os.stat_result, pending: list, *,
               managed_entry: bool) -> None:
         try:
-            text = os.readlink(path)
+            # The link's text as it was made: Windows' readlink gives the reparse point's
+            # substitute name, which has an extended-length prefix (`\\?\C:\…`) for an absolute
+            # target and always for a junction. A relative text, the only one made again, has none.
+            text = _platform.plain_path(os.readlink(path))
         except OSError as exc:
             raise _Unreadable(path, exc) from exc
         state_dir = managed_entry and rel == LEGACY_STATE_DIR

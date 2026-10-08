@@ -1597,6 +1597,36 @@ def plain_path(text: str) -> str:
     return text
 
 
+# The sharing the C runtime's `_wopen` asks for when it opens a file for reading (_SH_DENYNO):
+# FILE_SHARE_READ | FILE_SHARE_WRITE, so others may read and write the file meanwhile.
+_CRT_READ_SHARING = 0x1 | 0x2
+
+
+def open_for_reading(path: str) -> int:
+    """A descriptor of the file `path` opened for reading, whose refusal is the operating system's own.
+
+    On Windows `os.open` goes through the C runtime's `_wopen`, which reports every refusal by errno
+    alone: a file another program holds open without sharing it (WinError 32) is EACCES there, as
+    a permission denied (5) is, and the OSError carries no `winerror`. So on Windows the file is
+    opened with CreateFile, asking for the access and the sharing `_wopen` asks for, and a refusal
+    is the OSError Windows gives, its `winerror` kept (32 a PermissionError, 2 and 3 a
+    FileNotFoundError). The descriptor is the C runtime's for that handle, binary. POSIX opens with
+    O_NONBLOCK where it has one, so a FIFO is never waited on; a regular file's reads do not change.
+    A read through the descriptor still reports by errno alone on Windows."""
+    if os.name != "nt":
+        return os.open(path, os.O_RDONLY | getattr(os, "O_NONBLOCK", 0))
+    import _winapi  # noqa: PLC0415 - absent on POSIX, so it is imported with its user
+    import msvcrt  # noqa: PLC0415
+
+    handle = _winapi.CreateFile(os.fspath(path), _winapi.GENERIC_READ, _CRT_READ_SHARING,
+                                _winapi.NULL, _winapi.OPEN_EXISTING, 0, _winapi.NULL)
+    try:
+        return msvcrt.open_osfhandle(handle, os.O_RDONLY)
+    except BaseException:
+        _winapi.CloseHandle(handle)
+        raise
+
+
 def text_kwargs() -> dict:
     """Keyword arguments that make a subprocess decode as UTF-8 instead of by locale.
 
