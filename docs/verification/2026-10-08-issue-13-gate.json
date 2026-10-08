@@ -1,14 +1,16 @@
 {
  "record_kind": "aelix-analytics-marker-gate",
- "observed_at": "2026-10-08T04:46:01Z",
+ "observed_at": "2026-10-08T05:30:04Z",
  "issue": "https://github.com/handochan/aelix-analytics/issues/13",
  "pull_request": null,
  "base_revision": "e89f26536f155e2ab8ef69eb61e6637bfcf3996c",
  "measured_tree": {
-  "what": "the head of branch feat/issue-13-marker-gate (kit 0.7.0) after the review fixes, on origin/main e89f265 (PR #79 merged; its tree is 5829c7c's): the three code commits, the first record (ff2c2c0) and the fix commit. This record is a further commit and changes no code",
-  "head": "364bb1b9f6b40a7e8f303635e16fbc04ccdb14c3",
+  "what": "the head of branch feat/issue-13-marker-gate (kit 0.7.0) after the fix check, on origin/main e89f265 (PR #79 merged; its tree is 5829c7c's): the three code commits, the first record (ff2c2c0), the review fixes (364bb1b), the second record (be87e8d) and the fix-check commit. This record is a further commit and changes no code",
+  "head": "8e70acdbd15a0603eaae4788e02abd9f960bc180",
   "measured_base": "e89f26536f155e2ab8ef69eb61e6637bfcf3996c",
   "commits": [
+   "8e70acdbd15a0603eaae4788e02abd9f960bc180 fix: answer the fix check of PR 1 (Issue #13)",
+   "be87e8dee4cedd4ed5c77c18d1f9d5672133c8ce docs: re-measure the marker gate after the review fixes (Issue #13 PR 1)",
    "364bb1b9f6b40a7e8f303635e16fbc04ccdb14c3 fix: answer the reviews of PR 1 (Issue #13)",
    "ff2c2c0ceece4cd38377fee05eb5efba7b29ab17 docs: record the marker gate's measurement (Issue #13 PR 1)",
    "634479bf6907576b46fb3b2c8c2b4498c909c76c docs: describe the marker gate and the new families' readers (Issue #13 PR 1)",
@@ -16,8 +18,27 @@
    "85e09193ce9694be577366058a124d2d1b20a13e feat: detect project markers and gate every write (Issue #13 PR 1)"
   ],
   "code_manifest": "sha256 of each tracked file under src, extension, tests, tools, bin and pyproject.toml, uv.lock, one line each (`shasum -a 256` format), sorted by path",
-  "code_manifest_sha256": "ab7134348e9e2b8644aef36ea48f555a3496b786af77abab6ef16f86c140c16e",
+  "code_manifest_sha256": "d1c2e27ff37f982e956c184674b843fac24d3f1d706df648c73f0353abea9278",
   "code_files": 211
+ },
+ "second_measure": {
+  "head": "364bb1b9f6b40a7e8f303635e16fbc04ccdb14c3",
+  "code_manifest_sha256": "ab7134348e9e2b8644aef36ea48f555a3496b786af77abab6ef16f86c140c16e",
+  "suite_counts": {
+   "skip": 72,
+   "pass": 1470
+  },
+  "launcher_counts": {
+   "pass": 132,
+   "skip": 1
+  },
+  "gate_cost": {
+   "base_min_ms": 1.9309,
+   "head_min_ms": 2.031,
+   "added_ms": 0.1001,
+   "added_percent": 5.2
+  },
+  "why_measured_again": "the fix check of ff2c2c0..be87e8d changed code: `open` of the analytics command and bin/analytics, the marker_invalid hint (docs/PROJECT-OPERATIONS.md: re-measure before merge)"
  },
  "first_measure": {
   "head": "634479bf6907576b46fb3b2c8c2b4498c909c76c",
@@ -62,7 +83,7 @@
   }
  },
  "developer_machine": {
-  "where": "macOS developer machine, a clone of the fix commit in the run folder (.devstate/runs/5afd1eec-…/head-fix), isolation: AELIX_ANALYTICS_TRUST_FILE and AELIX_ANALYTICS_UV inside the run folder (the UV a link to the real uv), AELIX_LAB_*/LAB_* unset, ~/.aelix neither read nor written",
+  "where": "macOS developer machine, a clone of the fix-check commit in the run folder (.devstate/runs/5afd1eec-…/head-fix2), isolation: AELIX_ANALYTICS_TRUST_FILE and AELIX_ANALYTICS_UV inside the run folder (the UV a link to the real uv), AELIX_LAB_*/LAB_* unset, ~/.aelix neither read nor written",
   "machine": [
    "ProductName:\t\tmacOS\nProductVersion:\t\t26.6.2\nBuildVersion:\t\t25G83",
    "macOS-26.6.2-arm64-arm-64bit",
@@ -71,17 +92,17 @@
   ],
   "ruff": {
    "command": "uv run --locked ruff check tests extension src tools",
-   "result": "Using CPython 3.12.13\nCreating virtual environment at: .venv\nInstalled 43 packages in 121ms\nAll checks passed!"
+   "result": "Using CPython 3.12.13\nCreating virtual environment at: .venv\nInstalled 43 packages in 174ms\nAll checks passed!"
   },
   "suite": {
    "command": "uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread --junitxml=suite.xml",
    "file": "suite.xml",
-   "file_sha256": "d66560a299b0b1c79ea2a1fed1a9ce28997b657c0f789e7cef27c0e2bdd80c40",
-   "timestamp": "2026-10-08T13:32:01.988474+09:00",
-   "seconds": 445.615,
+   "file_sha256": "25c92a3a8afef0c4edce640e8a5f402541130d67c762f5648e14d2e54abf0bb2",
+   "timestamp": "2026-10-08T14:15:08.217515+09:00",
+   "seconds": 546.831,
    "counts": {
     "skip": 72,
-    "pass": 1470
+    "pass": 1477
    },
    "failed": [],
    "skipped_by_reason": {
@@ -112,6 +133,13 @@
     "tests.test_marker_gate::test_the_kit_refuses_an_odd_marker_below_a_project_from_where_the_launchers_stop[loop]": "pass",
     "tests.test_marker_gate::test_the_kit_refuses_an_odd_marker_below_a_project_from_where_the_launchers_stop[dangling]": "pass",
     "tests.test_run_views::test_a_lab_json_project_keeps_its_dataset_directories": "pass",
+    "tests.test_run_views::test_a_lab_json_project_reads_import_records_in_both_places": "pass",
+    "tests.test_marker_gate::test_an_analytics_json_that_names_no_format_may_be_the_person_s_own[pageviews,10\\n-True]": "pass",
+    "tests.test_marker_gate::test_an_analytics_json_that_names_no_format_may_be_the_person_s_own[[1, 2]-True]": "pass",
+    "tests.test_marker_gate::test_an_analytics_json_that_names_no_format_may_be_the_person_s_own[value2-True]": "pass",
+    "tests.test_marker_gate::test_an_analytics_json_that_names_no_format_may_be_the_person_s_own[value3-True]": "pass",
+    "tests.test_marker_gate::test_an_analytics_json_that_names_no_format_may_be_the_person_s_own[value4-False]": "pass",
+    "tests.test_marker_gate::test_an_analytics_json_that_names_no_format_may_be_the_person_s_own[value5-False]": "pass",
     "tests.test_run_views::test_imported_data_takes_its_view_name_first": "pass",
     "tests.test_relation_screens::test_the_context_history_of_both_state_directories_is_shown": "pass",
     "tests.test_run_views::test_a_rerun_compares_the_same_ids_across_the_two_forms": "pass",
@@ -128,14 +156,14 @@
   },
   "layers": {
    "command": "uv run --locked pytest -q -ra -p no:cacheprovider tests/test_layers.py",
-   "result": "47 passed in 3.50s"
+   "result": "47 passed in 10.56s"
   },
   "aelix_py3_12": {
    "command": "uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_extension.py tests/test_usage_report.py",
    "file": "aelix-3.12.xml",
-   "file_sha256": "44a27bc18dcebe49c4e5a5feb3270ff262962188ef0cece51cbd908979d85564",
-   "timestamp": "2026-10-08T13:39:31.699058+09:00",
-   "seconds": 36.717,
+   "file_sha256": "0294b5c32b10efcfad7160ef882ebbd6d4622f5ba4d4739d9bac1d5ab51f31bd",
+   "timestamp": "2026-10-08T14:24:26.658624+09:00",
+   "seconds": 46.265,
    "counts": {
     "pass": 161
    },
@@ -151,9 +179,9 @@
   "aelix_py3_11": {
    "command": "the same with --python 3.11",
    "file": "aelix-3.11.xml",
-   "file_sha256": "2ff78a08b71483682d1448a7310a903ab505cdbd002f126735596228ee4dc673",
-   "timestamp": "2026-10-08T13:40:08.836315+09:00",
-   "seconds": 37.057,
+   "file_sha256": "a479488a03e09ce3290f03e1f62cc71eea7def8756b0d004f560a4df1b4c4c6a",
+   "timestamp": "2026-10-08T14:25:13.177576+09:00",
+   "seconds": 42.065,
    "counts": {
     "pass": 161
    },
@@ -166,11 +194,11 @@
   "launcher_py3_11": {
    "command": "uv run --isolated --no-project --python 3.11 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_launcher.py",
    "file": "launcher-3.11.xml",
-   "file_sha256": "a55a7a8827639bd37d6c1760d21278c08c25b0838f128d58b8e952563acdfec4",
-   "timestamp": "2026-10-08T13:40:48.671640+09:00",
-   "seconds": 16.515,
+   "file_sha256": "91daf068834666337c0ecf4f6735f9f1722445d99345a3bae6adb099126fe24a",
+   "timestamp": "2026-10-08T14:25:55.428098+09:00",
+   "seconds": 18.334,
    "counts": {
-    "pass": 132,
+    "pass": 138,
     "skip": 1
    },
    "failed": [],
@@ -186,12 +214,18 @@
     "tests.test_launcher::test_a_marker_that_is_no_regular_file_still_stops_the_search[dangling-launcher]": "pass",
     "tests.test_launcher::test_a_marker_that_is_no_regular_file_still_stops_the_search[dangling-bin/analytics]": "pass",
     "tests.test_launcher::test_open_refuses_a_directory_with_two_markers[launcher]": "pass",
-    "tests.test_launcher::test_open_refuses_a_directory_with_two_markers[bin/analytics]": "pass"
+    "tests.test_launcher::test_open_refuses_a_directory_with_two_markers[bin/analytics]": "pass",
+    "tests.test_launcher::test_open_counts_a_marker_link_as_the_kit_does[dangling-beside-launcher]": "pass",
+    "tests.test_launcher::test_open_counts_a_marker_link_as_the_kit_does[dangling-beside-bin/analytics]": "pass",
+    "tests.test_launcher::test_open_counts_a_marker_link_as_the_kit_does[dangling-below-launcher]": "pass",
+    "tests.test_launcher::test_open_counts_a_marker_link_as_the_kit_does[dangling-below-bin/analytics]": "pass",
+    "tests.test_launcher::test_open_counts_a_marker_link_as_the_kit_does[loop-beside-launcher]": "pass",
+    "tests.test_launcher::test_open_counts_a_marker_link_as_the_kit_does[loop-beside-bin/analytics]": "pass"
    }
   },
   "smoke": {
    "command": "uv run --locked python tools/platform_smoke.py --gate required",
-   "sha256": "4a234851ece77c430b59c7478c0a6faf3e83f05bd7c0b2a07abf0421223fc7ba",
+   "sha256": "c264d3208c7fb1010b4da19fb661fe1a27de43d500f83d69e3b89e212805e22a",
    "summary": {
     "holds": 25,
     "violated": 0,
@@ -203,7 +237,7 @@
   },
   "stdlib_smoke_py3_11": {
    "command": "uv run --isolated --no-project --python 3.11 python tools/platform_smoke.py --stdlib-only --gate required",
-   "sha256": "afc4ae9ae6e51d1df27d847b2984abc4db4e1b41a4b0760c46facbb72edb8c97",
+   "sha256": "e5ec77f0c24d637150170080c724a0d66aeac7873664e2d023f9601c76c02655",
    "summary": {
     "holds": 15,
     "violated": 0,
@@ -214,8 +248,8 @@
    "required_hold": true
   },
   "usage_report": {
-   "command": "uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 python tools/usage_report.py --output <run>/evidence/verify-fix/usage",
-   "sha256": "c67ca92af78140cd9668d84da077563bf4171c909b95d716bcff2195a5b1d72b",
+   "command": "uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 python tools/usage_report.py --output <run>/evidence/verify-fix2/usage",
+   "sha256": "37dacedc6a1c22d6688cb3ab4e37f9ac8b920faaa1a4f1293fe7aac92c3e289f",
    "result_line": {
     "required_facts": {
      "passed": 58,
@@ -230,12 +264,12 @@
    }
   },
   "check_docs": {
-   "command": "uv run --locked python tools/check_docs.py --output .devstate/runs/<run>/evidence/docs-fix-final.json (in the worktree, with this record)",
+   "command": "uv run --locked python tools/check_docs.py --output .devstate/runs/<run>/evidence/docs-fix2-final.json (in the worktree, with this record)",
    "ok": true,
    "counts": {
     "json_files": 11,
     "markdown_files": 64,
-    "local_links": 678,
+    "local_links": 679,
     "python_examples": 6,
     "json_examples": 7,
     "dev_state_examples": 1
@@ -455,7 +489,104 @@
   "marker_changed_during_a_run": "tests.test_marker_gate::test_a_marker_that_changes_during_a_run_refuses_what_comes_after: the script's record/save/visualize each marker_conflict; journal the same bytes; no dataset, no chart; run.json written, recording incomplete (no_completion_event, finalize_errors)",
   "journal_lock_recheck": "tests.test_marker_gate::test_a_journal_write_is_judged_again_under_the_lock: a marker made between the two judgments refuses the note, journal unchanged",
   "run_lock_recheck": "tests.test_marker_gate::test_a_run_is_judged_again_once_the_run_lock_is_held: a marker made while the run waited for the run lock refuses the run (marker_conflict) before its run directory; journal unchanged",
-  "launcher_and_bin_analytics": "fake uv (the argv the kit is called with): tests.test_launcher::test_the_nearest_marker_of_either_name_is_the_project (both directions, both commands); test_a_marker_that_is_no_regular_file_still_stops_the_search (a FIFO, a looping link and a dangling link named analytics.json below a lab.json project: both commands stop there and hand that directory to the kit); test_open_refuses_a_directory_with_two_markers (exit 1, the message, neither uv nor the opener). The kit from that directory: tests.test_marker_gate::test_the_kit_refuses_an_odd_marker_below_a_project_from_where_the_launchers_stop (FIFO and loop: marker_invalid, the project above the same before and after; dangling: no marker, the kit writes to the project above)",
+  "launcher_and_bin_analytics": "fake uv (the argv the kit is called with): tests.test_launcher::test_the_nearest_marker_of_either_name_is_the_project (both directions, both commands); test_a_marker_that_is_no_regular_file_still_stops_the_search (a FIFO, a looping link and a dangling link named analytics.json below a lab.json project: both commands stop there and hand that directory to the kit); test_open_refuses_a_directory_with_two_markers (exit 1, the message, neither uv nor the opener); test_open_counts_a_marker_link_as_the_kit_does (since the fix check: `open` counts by the kit's presence rule, so a lab.json project with a dangling analytics.json opens its page, a directory below it whose only marker entry is a dangling link opens the project's page after the kit renders the project, and a looping analytics.json beside the lab.json is refused as two markers; both commands). The kit from that directory: tests.test_marker_gate::test_the_kit_refuses_an_odd_marker_below_a_project_from_where_the_launchers_stop (FIFO and loop: marker_invalid, the project above the same before and after; dangling: no marker, the kit writes to the project above)",
+  "open_presence_rule": {
+   "what": "the presence rule `open` judges by since the fix check, against the kit's (writer._look): the installed command's kit_marker, bin/analytics's kit_marker under /bin/sh (bash 3.2 as sh) and /bin/dash, on one entry named analytics.json each (kit_marker_parity.py; macOS, whose link limit is 32)",
+   "rows": {
+    "file": {
+     "kit": true,
+     "launcher": true,
+     "/bin/sh": true,
+     "/bin/dash": true
+    },
+    "directory": {
+     "kit": false,
+     "launcher": false,
+     "/bin/sh": false,
+     "/bin/dash": false
+    },
+    "fifo": {
+     "kit": true,
+     "launcher": true,
+     "/bin/sh": true,
+     "/bin/dash": true
+    },
+    "dangling": {
+     "kit": false,
+     "launcher": false,
+     "/bin/sh": false,
+     "/bin/dash": false
+    },
+    "loop": {
+     "kit": true,
+     "launcher": true,
+     "/bin/sh": true,
+     "/bin/dash": true
+    },
+    "link_to_dir": {
+     "kit": false,
+     "launcher": false,
+     "/bin/sh": false,
+     "/bin/dash": false
+    },
+    "chain_20_to_file": {
+     "kit": true,
+     "launcher": true,
+     "/bin/sh": true,
+     "/bin/dash": true
+    },
+    "chain_20_to_nothing": {
+     "kit": false,
+     "launcher": false,
+     "/bin/sh": false,
+     "/bin/dash": false
+    },
+    "chain_31_to_file": {
+     "kit": true,
+     "launcher": true,
+     "/bin/sh": true,
+     "/bin/dash": true
+    },
+    "chain_31_to_nothing": {
+     "kit": false,
+     "launcher": false,
+     "/bin/sh": false,
+     "/bin/dash": false
+    },
+    "chain_33_to_file": {
+     "kit": true,
+     "launcher": true,
+     "/bin/sh": true,
+     "/bin/dash": true
+    },
+    "chain_33_to_nothing": {
+     "kit": true,
+     "launcher": true,
+     "/bin/sh": true,
+     "/bin/dash": true
+    },
+    "chain_40_to_file": {
+     "kit": true,
+     "launcher": true,
+     "/bin/sh": true,
+     "/bin/dash": true
+    },
+    "chain_40_to_nothing": {
+     "kit": true,
+     "launcher": true,
+     "/bin/sh": true,
+     "/bin/dash": true
+    },
+    "not_dir_parent": {
+     "kit": false,
+     "launcher": false,
+     "/bin/sh": false,
+     "/bin/dash": false
+    }
+   },
+   "all_same": true,
+   "note": "chain_N is N links after the entry's own (N + 1 in all). bin/analytics follows a link stat cannot follow link by link and counts it after 32 links, the smaller of macOS's and Linux's limits (32, 40): on Linux it also counts a chain of 33 to 40 links that leads nowhere, which the kit does not count (not measured on Linux), so it never passes over a chain the kit counts. An entry in a directory that cannot be searched (EACCES) is not covered"
+  },
   "launchers_with_the_real_uv": {
    "what": "design T8 records the uv environment separately: each launcher in a project of its own (core.init_project's template pyproject.toml, its lab.json replaced by an analytics.project/2 analytics.json), `record finding x` then `status`, with the real uv (AELIX_ANALYTICS_UV a link to it, its cache warm). Entries of the tree outside .venv/ before and after each command (evidence/real-uv-probe.json, by real_uv_probe.py)",
    "uv": "uv 0.11.19 (Homebrew 2026-06-03 aarch64-apple-darwin)",
@@ -464,7 +595,7 @@
      "record finding x": {
       "exit": 1,
       "error": "project_too_new",
-      "seconds": 0.1,
+      "seconds": 0.2,
       ".venv_before": false,
       ".venv_after": true,
       "added": [
@@ -531,7 +662,7 @@
   "base_behaviour_note": "the base kit (5829c7c) through its command line: in the nested directory its record wrote into the project above (journal 2 → 3 lines); an analytics.json-only directory was no_project; a two-marker directory was written to (e3)"
  },
  "reader": {
-  "what": "the read model's judgments of the six record examples (tests/fixtures/records), of the new-family example (tests/test_run_views.py's mixed lab.json project with an analytics.dataset/1 import) and of the same project with an analytics.json marker, base 5829c7c and the fix commit, by reader_compare_fix.py",
+  "what": "the read model's judgments of the six record examples (tests/fixtures/records), of the new-family example (tests/test_run_views.py's mixed lab.json project with an analytics.dataset/1 import), of the same project with an analytics.json marker, and of a lab.json project with a person's own data/imported/photo.meta.json (JSON, no import record) and notes.meta.json (not JSON), base 5829c7c and the fix-check commit, by reader_compare_fix2.py",
   "base": {
    "kit_version": "0.6.0",
    "reader_format": 1,
@@ -763,6 +894,31 @@
       "20261001-090000-a/trend"
      ],
      "datasets": []
+    },
+    "lab-json-person-meta": {
+     "as_of_seq": 0,
+     "reference_states": {},
+     "confirmed": 0,
+     "unsupported": [],
+     "damaged_lines": [],
+     "recovered_lines": [],
+     "record_states": {},
+     "runs": [],
+     "imports": [
+      [
+       "data/raw/sales.meta.json",
+       "incomplete"
+      ]
+     ],
+     "listed_events": 0,
+     "listed_v2_events": 0,
+     "damaged_files": [],
+     "datasets": [
+      [
+       "raw",
+       "data/raw/sales.parquet"
+      ]
+     ]
     }
    }
   },
@@ -1018,32 +1174,61 @@
        "data/imported/fresh.parquet"
       ]
      ]
+    },
+    "lab-json-person-meta": {
+     "as_of_seq": 0,
+     "reference_states": {},
+     "confirmed": 0,
+     "unsupported": [
+      "data/imported/photo.meta.json unknown_family"
+     ],
+     "damaged_lines": [],
+     "recovered_lines": [],
+     "record_states": {},
+     "runs": [],
+     "imports": [
+      [
+       "data/raw/sales.meta.json",
+       "incomplete"
+      ]
+     ],
+     "listed_events": 0,
+     "listed_v2_events": 0,
+     "damaged_files": [
+      "data/imported/notes.meta.json unparsable"
+     ],
+     "datasets": [
+      [
+       "raw",
+       "data/raw/sales.parquet"
+      ]
+     ]
     }
    }
   },
-  "same_except": "listed_events: the head lists analytics.event/2 records (design 5.2); every other judgment of the six examples is the same. The new-family example's /2 run is unsupported on base and read on head (its Visualization a second version of the key), its data/imported record read on head. Its datasets: in the lab.json project none on either kit (data/imported is the person's directory there, as on base); with an analytics.json marker the head lists data/imported/fresh.parquet (kind imported)"
+  "same_except": "listed_events: the head lists analytics.event/2 records (design 5.2); every other judgment of the six examples is the same. The new-family example's /2 run is unsupported on base and read on head (its Visualization a second version of the key), its data/imported record read on head. Its datasets: in the lab.json project none on either kit (data/imported is the person's directory there, as on base); with an analytics.json marker the head lists data/imported/fresh.parquet (kind imported). The person's *.meta.json in the lab.json project: base reads neither; the head reports photo.meta.json unsupported (unknown_family) and notes.meta.json damaged (unparsable), and lists the same datasets (data/raw only), as CONTRACTS C4 says since the fix check"
  },
  "gate_cost": {
-  "what": "core.add_note into a lab.json project whose journal has 1,000 lines, 200 notes, mean per note; base 5829c7c and the fix commit alternating four times (PR #76's way is twice; two more rounds as the head's first two spread 2.06–2.18 ms), the minimum of each; writer.marker_state and core.admit alone, 2,000 calls each; the judgments of one add_note and one append_event, counted by wrapping writer.marker_state; one judgment of an analytics.json with mode 000 (gate_cost_fix.py)",
+  "what": "core.add_note into a lab.json project whose journal has 1,000 lines, 200 notes, mean per note; base 5829c7c and the fix-check commit alternating four times (as the second measure: PR #76's way is twice, and the second measure's head spread 2.03–2.18 ms), the minimum of each; writer.marker_state and core.admit alone, 2,000 calls each; the judgments of one add_note and one append_event, counted by wrapping writer.marker_state; one judgment of an analytics.json with mode 000 (gate_cost_fix.py)",
   "runs": [
    {
     "label": "base-round1",
     "kit_version": "0.6.0",
     "journal_lines": 1000,
     "notes": 200,
-    "add_note_mean_ms": 1.9309
+    "add_note_mean_ms": 2.2832
    },
    {
     "label": "head-round1",
     "kit_version": "0.7.0",
     "journal_lines": 1000,
     "notes": 200,
-    "add_note_mean_ms": 2.1841,
-    "marker_state_mean_us": 21.9,
-    "admit_mean_us": 23.54,
+    "add_note_mean_ms": 2.3078,
+    "marker_state_mean_us": 23.98,
+    "admit_mean_us": 25.78,
     "judgments_per_add_note": 3,
     "judgments_per_append_event": 3,
-    "unreadable_marker_judgment_s": 2.101,
+    "unreadable_marker_judgment_s": 2.205,
     "unreadable_marker_state": [
      "invalid",
      "unreadable"
@@ -1055,19 +1240,19 @@
     "kit_version": "0.6.0",
     "journal_lines": 1000,
     "notes": 200,
-    "add_note_mean_ms": 1.9674
+    "add_note_mean_ms": 2.2843
    },
    {
     "label": "head-round2",
     "kit_version": "0.7.0",
     "journal_lines": 1000,
     "notes": 200,
-    "add_note_mean_ms": 2.0628,
-    "marker_state_mean_us": 21.18,
-    "admit_mean_us": 24.04,
+    "add_note_mean_ms": 2.3549,
+    "marker_state_mean_us": 27.0,
+    "admit_mean_us": 29.69,
     "judgments_per_add_note": 3,
     "judgments_per_append_event": 3,
-    "unreadable_marker_judgment_s": 2.098,
+    "unreadable_marker_judgment_s": 2.18,
     "unreadable_marker_state": [
      "invalid",
      "unreadable"
@@ -1079,19 +1264,19 @@
     "kit_version": "0.6.0",
     "journal_lines": 1000,
     "notes": 200,
-    "add_note_mean_ms": 1.936
+    "add_note_mean_ms": 2.3414
    },
    {
     "label": "head-round3",
     "kit_version": "0.7.0",
     "journal_lines": 1000,
     "notes": 200,
-    "add_note_mean_ms": 2.1364,
-    "marker_state_mean_us": 21.21,
-    "admit_mean_us": 22.49,
+    "add_note_mean_ms": 2.564,
+    "marker_state_mean_us": 25.29,
+    "admit_mean_us": 27.71,
     "judgments_per_add_note": 3,
     "judgments_per_append_event": 3,
-    "unreadable_marker_judgment_s": 2.088,
+    "unreadable_marker_judgment_s": 2.19,
     "unreadable_marker_state": [
      "invalid",
      "unreadable"
@@ -1103,19 +1288,19 @@
     "kit_version": "0.6.0",
     "journal_lines": 1000,
     "notes": 200,
-    "add_note_mean_ms": 2.0101
+    "add_note_mean_ms": 2.3652
    },
    {
     "label": "head-round4",
     "kit_version": "0.7.0",
     "journal_lines": 1000,
     "notes": 200,
-    "add_note_mean_ms": 2.031,
-    "marker_state_mean_us": 21.13,
-    "admit_mean_us": 22.4,
+    "add_note_mean_ms": 2.5385,
+    "marker_state_mean_us": 30.07,
+    "admit_mean_us": 36.81,
     "judgments_per_add_note": 3,
     "judgments_per_append_event": 3,
-    "unreadable_marker_judgment_s": 2.105,
+    "unreadable_marker_judgment_s": 2.208,
     "unreadable_marker_state": [
      "invalid",
      "unreadable"
@@ -1124,19 +1309,19 @@
    }
   ],
   "rounds": 4,
-  "base_min_ms": 1.9309,
-  "head_min_ms": 2.031,
-  "added_ms": 0.1001,
-  "added_percent": 5.2,
+  "base_min_ms": 2.2832,
+  "head_min_ms": 2.3078,
+  "added_ms": 0.0246,
+  "added_percent": 1.1,
   "judgments_per_add_note": 3,
   "judgments_per_append_event": 3,
   "judgments_note": "add_note and append_event judge three times: their own admit (a refused write answers before a validation error), journal_lock's before the lock (its file is the first side effect) and the one under the lock. A kit command line's `record` judges once more before it imports anything (__main__), and its context sync twice (journal_lock)",
   "unreadable_marker": {
    "judgment_s": [
-    2.101,
-    2.098,
-    2.088,
-    2.105
+    2.205,
+    2.18,
+    2.19,
+    2.208
    ],
    "state": [
     "invalid",
@@ -1146,8 +1331,35 @@
    "note": "a marker that stays unreadable (EACCES here) is read again within the replace budget (design 4.3), so each judgment of it costs about 2 s. aelix's tool_execution_end hook judges twice, synchronously (finding the project, the telemetry side write), so a tool call in such a project would wait about 4 s: counted from the judgments, not measured in an aelix session (CONTRACTS G)"
   }
  },
+ "new_tests_on_fix_check_head": {
+  "what": "the fix-check commit's new and changed cases with be87e8d's src, extension, bin and tools (the head the fix check read)",
+  "repo": {
+   "command": "pytest the fix-check commit's new and changed cases",
+   "file": "repo.xml",
+   "file_sha256": "3cc8303aa648bb121120cc109302061b7deacdf0fc0720b6c11a6378b8c7c621",
+   "timestamp": "2026-10-08T14:12:08.699517+09:00",
+   "seconds": 1.507,
+   "counts": {
+    "fail": 8,
+    "pass": 5
+   },
+   "failed": [
+    "tests.test_launcher::test_open_counts_a_marker_link_as_the_kit_does[dangling-beside-launcher]",
+    "tests.test_launcher::test_open_counts_a_marker_link_as_the_kit_does[dangling-beside-bin/analytics]",
+    "tests.test_launcher::test_open_counts_a_marker_link_as_the_kit_does[dangling-below-launcher]",
+    "tests.test_launcher::test_open_counts_a_marker_link_as_the_kit_does[dangling-below-bin/analytics]",
+    "tests.test_marker_gate::test_an_analytics_json_that_names_no_format_may_be_the_person_s_own[pageviews,10\\n-True]",
+    "tests.test_marker_gate::test_an_analytics_json_that_names_no_format_may_be_the_person_s_own[[1, 2]-True]",
+    "tests.test_marker_gate::test_an_analytics_json_that_names_no_format_may_be_the_person_s_own[value2-True]",
+    "tests.test_marker_gate::test_an_analytics_json_that_names_no_format_may_be_the_person_s_own[value3-True]"
+   ],
+   "skipped_by_reason": {},
+   "cited_cases": {}
+  },
+  "note": "8 of the 13 fail on be87e8d's code, each for the finding it answers: `open` with a dangling analytics.json beside the lab.json and below it (2 x 2 commands), and the hint of an analytics.json that names no format (4). The 5 that pass: the looping analytics.json beside the lab.json (refused before and after, 2), the two hints of a broken analytics.project/2 marker (unchanged), and the C4 reading of a person's *.meta.json, which documents behaviour be87e8d already had"
+ },
  "new_tests_on_previous_head": {
-  "what": "the fix commit's tests with src, extension, bin and tools of ff2c2c0 (the head the reviews read)",
+  "what": "the review fixes' tests (364bb1b) with src, extension, bin and tools of ff2c2c0 (the head the reviews read)",
   "repo": {
    "command": "pytest the fix commit's new and changed cases (repository side)",
    "file": "repo.xml",
@@ -1263,6 +1475,7 @@
   "a real aelix session with a model; the hooks were called directly",
   "the M scale (#41) for the gate: its cost is per write, measured above at 1,000 journal lines",
   "the real uv with a cold cache or offline: the probe ran with a warm cache",
+  "bin/analytics's `open` on Linux and its link chains of 33 to 40 links there; a marker in a directory that cannot be searched",
   "a Linux casefold directory, network file systems"
  ]
 }
