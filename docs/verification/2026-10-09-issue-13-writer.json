@@ -2,7 +2,7 @@
  "record_kind": "aelix-analytics-new-writer",
  "observed_at": "2026-10-08T20:09:26Z",
  "issue": "https://github.com/handochan/aelix-analytics/issues/13",
- "pull_request": null,
+ "pull_request": "https://github.com/handochan/aelix-analytics/pull/84",
  "base_revision": "0f3f09fa8b1ba46b63d50e672d7c8409f785b7b7",
  "measured_tree": {
   "what": "the branch feat/issue-13-new-writer (Issue #13 PR 3, kit 0.8.0) over origin/main 0f3f09f (PR #82 merged) after the implementation reviews: the commits writer -> entry points and stored names -> extension authorship -> command -> docs -> the first measurement record (the authorship commit moved before the command's, review of PR 3), and the review fixes, measured on the worktree before the fixes were committed. The fix commit holds the code measured and this record: the manifest is every tracked file of src, extension, tests, tools, bin, pyproject.toml and uv.lock, one `shasum -a 256` line each in path order, taken at the verification (the list is in the run folder, fix/evidence/final/code-manifest.txt)",
@@ -21,28 +21,99 @@
    "measured_head": "54e90987ad652559adc9bfae49cd561e3795c3e5",
    "manifest_sha256": "84258fdf577fc1e8e1fcb10d79078d78bc570a21a9a3995d67db0f2fa4a2cf3b",
    "note": "the record before the review fixes (code 54e9098); its values for the writer's latency, the migration, the command E2E, T18 and T22 are measured again here"
+  },
+  "after_owner_decisions": {
+   "what": "the CI fixes of PR #84's runs 37840617751/37840622273 and the owner's decisions of 2026-10-09 (https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6070315072) over 8d3695f: AppleDouble `._<name>` as OS metadata (OQ4, OQ16, the empty-directory rule), OQ9 widened to a migration's destination that has not committed, the user_bash limit stated, the tokenizer's line continuation, the SEQ_BOUND wording; measured on the worktree before the code commit, which holds the same files (the manifest)",
+   "previous_head": "8d3695f5923c290747b57a409343e17d8bebdc2f",
+   "code_commit": "9887509614d133f445af6e7237016d1b295ec664",
+   "manifest_sha256": "fa8a7c5a4502c7e4fc65003887450fdc71afd296f19bb495af4df0c5a40e402a",
+   "manifest_files": 219,
+   "remeasured_at": "2026-10-08T23:26:30Z",
+   "measured_again": [
+    "migration (S, M, fault_matrix)",
+    "command_e2e",
+    "entry_points",
+    "uv",
+    "agent_cli",
+    "foreign_fs (shipped_after_owner_decisions)",
+    "verification",
+    "distribution_e2e"
+   ],
+   "kept": {
+    "writer_latency": "not measured again: the record path did not change (the code changes are writer.project_above and writer.inside, init, the migration's judgment and exclusions, and the extension's user_bash tokenizer)",
+    "fixture_reproducibility": "the same fixtures, cloned (cp -c) from the earlier measurement"
+   }
   }
  },
  "workflow": ".github/workflows/ci.yml: the aelix legs run tests/test_agent_cli.py too and keep their observations (evidence-aelix-py3.12/3.11)",
  "runs": {
   "code": {
-   "state": "not_run",
-   "why": "not pushed: the CI of this branch has not run"
+   "state": "pending",
+   "why": "the head with these changes is not pushed yet"
+  },
+  "at_8d3695f": {
+   "what": "PR #84's CI of the earlier head",
+   "head": "8d3695f5923c290747b57a409343e17d8bebdc2f",
+   "runs": {
+    "37840617751": {
+     "url": "https://github.com/handochan/aelix-analytics/actions/runs/37840617751",
+     "conclusion": "failure",
+     "jobs": {
+      "lint": "success",
+      "platform ubuntu-24.04": "failure (repository tests: 2 failed, 1945 passed, 73 skipped, 746 s; aelix 3.12/3.11 243/243, launcher 192+1 skipped)",
+      "platform windows-2025": "failure (repository tests: 3 failed, 1765 passed, 275 skipped, 1789 s of the step's 35 minutes; console 21, aelix 244/244, launcher 89+104 skipped, long paths off 7)",
+      "floor ubuntu-24.04": "success",
+      "floor windows-2025": "success"
+     }
+    },
+    "37840622273": {
+     "url": "https://github.com/handochan/aelix-analytics/actions/runs/37840622273",
+     "conclusion": "failure",
+     "jobs": {
+      "platform macos-26": "failure (repository tests: 2 failed, 1943 passed, 75 skipped, 727 s; aelix 243/243, launcher 192+1 skipped)",
+      "floor macos-26": "success",
+      "lint": "skipped (the labeled run)"
+     }
+    }
+   },
+   "failures": [
+    {
+     "test": "tests/test_packaging.py::test_aelix_binds_and_loads_the_installed_extension[3.11] and [3.12]",
+     "where": "all three OSes (gated on AELIX_ANALYTICS_TEST_INSTALL=1, skipped in the local suite)",
+     "seen": "assert 5 == 4: sum(copy['handlers'].values()), handlers {'before_agent_start': 1, 'tool_execution_start': 1, 'tool_execution_end': 1, 'agent_end': 1, 'user_bash': 1}",
+     "cause": "the test was stale: it counted the extension's hook handlers as aelix's loader registers them (LOAD_PROBE: one entry per event, len of each list), four before PR 3; the extension registers on('user_bash') since commit 12fc369 (OQ1, CONTRACTS A), so five is right",
+     "fix": "test: the handler map asserted exactly ({before_agent_start, tool_execution_start, tool_execution_end, agent_end, user_bash}: 1 each), the set tests/test_extension.py reads from the file's own load",
+     "reproduced_locally": "ci-fix/evidence/baseline/packaging-aelix-binds-8d3695f.txt (2 failed, assert 5 == 4)"
+    },
+    {
+     "test": "tests/test_new_format.py::test_a_long_field_is_kept_whole_and_quoted_by_the_event_the_kit_composes",
+     "where": "Windows only",
+     "seen": "FileNotFoundError [WinError 206] The filename or extension is too long, raised by _winapi.CreateProcess for `python -m aelix_analytics --project ... import ... --description <40,000 characters>`",
+     "cause": "the test: it gave a 40,000-character field (and a 48,000-character title) on the kit's command line; Windows caps a command line at 32,767 characters (CreateProcess), so the child never started. The kit puts neither field into a file name (the import's files are named by --name, a run's directory by the script's name and the time, init's folder is the path given); the fields go to JSON records and the marker",
+     "fix": "test: the field is long in bytes rather than characters ('\\x01분석' * 5,000: 15,000 characters, 35,000 bytes of UTF-8, over the text limit, and escaped over the line limit), the title 15,000 characters (35,000 bytes); a new test pins that both are over the limits and fit a Windows command line",
+     "note": "the extension's analytics_import and analytics_run pass description and title on the kit's command line too (as on main): on Windows a field over about 32,000 characters there would be spawn_failed (could not start ...: WinError 206), an error answer and nothing written; pre-existing, not changed here"
+    }
+   ]
   }
  },
  "legs": {
   "linux": {
-   "state": "not_run"
+   "state": "pending"
   },
   "windows": {
-   "state": "not_run"
+   "state": "pending"
   },
   "macos_ci": {
-   "state": "not_run"
+   "state": "pending"
   },
   "macos_developer_machine": {
    "state": "pass",
    "see": "verification"
+  },
+  "at_8d3695f": {
+   "linux": "failure (the packaging test)",
+   "windows": "failure (the packaging test and the long-field test)",
+   "macos_ci": "failure (the packaging test)"
   }
  },
  "developer_machine": {
@@ -78,27 +149,54 @@
    "latency exit 0 2026-10-08T20:10:13Z",
    "fault exit 0 2026-10-08T20:10:22Z",
    "e2e exit 0 2026-10-08T20:10:38Z"
-  ]
+  ],
+  "after_owner_decisions": {
+   "isolation": "ci-fix/env.sh: AELIX_ANALYTICS_TRUST_FILE and AELIX_ANALYTICS_UV inside the run folder, a fake HOME in the run folder (UV_CACHE_DIR and UV_PYTHON_INSTALL_DIR the real ones), AELIX_LAB_*/LAB_* and the authorship variables unset; ~/.aelix not read, listed or written in this round",
+   "log": [
+    "head 8d3695f5923c290747b57a409343e17d8bebdc2f 2026-10-08T23:03:20Z dirty=18",
+    "ruff exit 0",
+    "pytest exit 0",
+    "install e2e exit 0",
+    "layers-contracts exit 0",
+    "aelix 3.12 exit 0",
+    "aelix 3.11 exit 0",
+    "launcher exit 0",
+    "usage exit 0",
+    "smoke exit 0",
+    "stdlib smoke exit 0",
+    "docs exit 0",
+    "diff-check (worktree vs origin/main) exit 0",
+    "done 2026-10-08T23:25:58Z"
+   ],
+   "measure_log": [
+    "measure start 2026-10-08T23:26:30Z head 8d3695f5923c290747b57a409343e17d8bebdc2f dirty=18",
+    "measure exit 0 2026-10-08T23:27:00Z",
+    "fault exit 0 2026-10-08T23:27:12Z",
+    "e2e exit 0 2026-10-08T23:27:37Z"
+   ]
+  }
  },
  "measurement_notes": [
-  "a first run of this measurement (2026-10-08T20:06:50Z) had the kit's bytecode stale after the edits (PYTHONDONTWRITEBYTECODE=1 in the run's environment), so each child compiled the kit as it started: max RSS 44 / 86 MB (S / M), migration wall 1.10 / 9.11 s, the other values within noise of the second run. The kit's bytecode was compiled (python -m compileall src/aelix_analytics; __pycache__ is not tracked) and the whole measurement run again; its values are recorded here, and the first run's files are in the run folder (fix/measure-stale-pyc). The previous record's measurement had current bytecode"
+  "a first run of this measurement (2026-10-08T20:06:50Z) had the kit's bytecode stale after the edits (PYTHONDONTWRITEBYTECODE=1 in the run's environment), so each child compiled the kit as it started: max RSS 44 / 86 MB (S / M), migration wall 1.10 / 9.11 s, the other values within noise of the second run. The kit's bytecode was compiled (python -m compileall src/aelix_analytics; __pycache__ is not tracked) and the whole measurement run again; its values are recorded here, and the first run's files are in the run folder (fix/measure-stale-pyc). The previous record's measurement had current bytecode",
+  "this round (after the owner's decisions of 2026-10-09) ran with a fake HOME in the run folder (UV_CACHE_DIR and UV_PYTHON_INSTALL_DIR the real ones): the usage report's one text that differs from the earlier report is aelix's base prompt naming the global extension directory under HOME; the kit's bytecode was compiled before the measurement (python -m compileall src/aelix_analytics); the machine was busy (migration.timing_under_load)"
  ],
  "verification": {
   "repository_suite": {
    "command": "uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread",
-   "result": "1935 passed, 106 skipped in 520.38s (0:08:40)",
-   "evidence_dir": "AELIX_ANALYTICS_TEST_EVIDENCE_DIR=<run>/fix/evidence/final/observations"
+   "result": "1952 passed, 106 skipped in 899.88s (0:14:59)",
+   "evidence_dir": "AELIX_ANALYTICS_TEST_EVIDENCE_DIR=<run>/ci-fix/evidence/final/observations"
   },
-  "layers_contracts": "126 passed, 52 skipped in 13.87s",
-  "aelix_py3.12": "243 passed in 45.07s",
-  "aelix_py3.11": "243 passed in 42.19s",
-  "launcher_py3.11": "192 passed, 1 skipped in 26.49s",
+  "layers_contracts": "126 passed, 52 skipped in 20.46s",
+  "aelix_py3.12": "253 passed in 95.86s (0:01:35)",
+  "aelix_py3.11": "253 passed in 89.91s (0:01:29)",
+  "launcher_py3.11": "196 passed, 1 skipped in 41.54s",
   "usage_report": [
    "texts compared after normalizing the temporary directory and source_revision: 76",
-   "differences: none",
-   "numeric leaves that differ (times left out): 0",
+   "differences: texts/T/host-base-prompt.txt",
+   "numeric leaves that differ (times left out): 5: surfaces[3].root_normalized.root_occurrences, surfaces[3].root_normalized.size.chars, surfaces[3].root_normalized.size.utf8_bytes, surfaces[3].size.chars, surfaces[3].size.utf8_bytes",
    "checks of the new report: {\"P1_sizes_recomputed_from_saved_texts\": true, \"P2_required_facts_read_back\": {\"passed\": 58, \"total\": 58}, \"P2_invariants_hold\": {\"holding\": 42, \"total\": 42}, \"P3_hook_returned_a_block\": true, \"P3_tools_replied_without_error\": true, \"P3_pinned_section_whole\": true, \"fixtures_measured\": 34, \"fixtures_selected\": 34}",
-   "failures of the new report: []"
+   "failures of the new report: []",
+   "the one text that differs is aelix's base prompt naming the global extension directory under HOME (this round runs with a fake HOME in the run folder): line 42 only; the numeric leaves that differ are that text's sizes. The extension's texts to the model are the same"
   ],
   "platform_smoke": {
    "holds": 25,
@@ -119,7 +217,7 @@
    "counts": {
     "json_files": 13,
     "markdown_files": 66,
-    "local_links": 727,
+    "local_links": 729,
     "python_examples": 6,
     "json_examples": 7,
     "dev_state_examples": 1
@@ -127,11 +225,7 @@
    "errors": []
   },
   "ruff": "pass",
-  "git_diff_check": "the worktree against origin/main, no output",
-  "reordered_commit": {
-   "what": "the authorship commit in its new place (on the entry points' commit, before the command's): ruff and the repository suite on that tree",
-   "result": "1785 passed, 93 skipped in 643.25s (0:10:43)"
-  }
+  "git_diff_check": "the worktree against origin/main, no output"
  },
  "review_fix_tests_on_previous_code": {
   "what": "the review fixes' tests (the test files they changed, today's tests/ copied in) on the code before the fixes (f42a9a3, git worktree in the run folder): the repository's (the changed files of tests/ with uv.lock's environment) and the aelix leg's (aelix 0.1.0b2, CPython 3.12)",
@@ -787,7 +881,7 @@
   },
   {
    "design": "4.3: a refusal in a script is an exception",
-   "implemented": "a note the SDK makes in a run is judged when it is made, its line with the widest seq (writer.SEQ_BOUND, 12 digits): a line within 24 bytes of the limit is refused there that would fit outside a run",
+   "implemented": "a note the SDK makes in a run is judged when it is made, its line with the widest seq (writer.SEQ_BOUND, 12 digits, in the line twice: seq and id): the line judged is longer than the one written by 2 x (12 - the real seq's digits) bytes, at most 22 bytes, so a line that close to the limit is refused there that would fit outside a run (the fix-diff check of PR 3 corrected an earlier '24 bytes')",
    "narrows_an_accepted_guarantee": false,
    "why": "the run writes the note when it finishes, with a seq not known before; judged then, a note over the line limit was lost after the script went on",
    "where": [
@@ -963,6 +1057,7 @@
     "source": "source_not_legacy"
    },
    "incomplete": {
+    "destination_inside": "inside_project",
     "source": "source_not_legacy"
    },
    "lab_project_1": {
@@ -982,6 +1077,7 @@
     "source": "source_not_legacy"
    },
    "none": {
+    "destination_inside": "migrated",
     "source": "no_project"
    }
   },
@@ -1128,6 +1224,61 @@
    "tests/test_launcher.py::test_init_and_demo_inside_a_project_are_refused_before_anything[lab.json-init-bin/analytics]": "pass",
    "tests/test_launcher.py::test_init_and_demo_inside_a_project_are_refused_before_anything[lab.json-demo-launcher]": "pass",
    "tests/test_launcher.py::test_init_and_demo_inside_a_project_are_refused_before_anything[lab.json-demo-bin/analytics]": "pass"
+  },
+  "migrate_before_owner_decisions": {
+   "analytics_2": {
+    "destination_inside": "inside_project",
+    "source": "source_not_legacy"
+   },
+   "analytics_2_too_old": {
+    "destination_inside": "inside_project",
+    "source": "source_not_legacy"
+   },
+   "analytics_3": {
+    "destination_inside": "inside_project",
+    "source": "source_not_legacy"
+   },
+   "analytics_invalid": {
+    "destination_inside": "inside_project",
+    "source": "source_not_legacy"
+   },
+   "both": {
+    "destination_inside": "inside_project",
+    "source": "source_not_legacy"
+   },
+   "incomplete": {
+    "source": "source_not_legacy"
+   },
+   "lab_project_1": {
+    "destination_inside": "inside_project",
+    "source": null
+   },
+   "lab_project_9": {
+    "destination_inside": "inside_project",
+    "source": "source_not_legacy"
+   },
+   "lab_unparsable": {
+    "destination_inside": "inside_project",
+    "source": null
+   },
+   "nested": {
+    "destination_inside": "inside_project",
+    "source": "source_not_legacy"
+   },
+   "none": {
+    "source": "no_project"
+   }
+  },
+  "inside_a_migration_s_destination_not_committed": {
+   "what": "OQ9 widened (2026-10-09): init through the kit CLI, both launchers, analytics_init, /analytics init and demo, and migrate --to (another source's, this source's, a dry run) below a destination a migration left before its marker are destination_invalid(inside_project) naming it, the tree as it was; the first migration then goes on by the same command and commits",
+   "tests": [
+    "tests/test_marker_gate.py::test_no_project_is_made_inside_a_migration_s_destination_not_committed[lock|migration directory|both]",
+    "tests/test_marker_gate.py::test_the_migration_copies_only_a_lab_json_project_and_never_inside_one[incomplete]",
+    "tests/test_migrate_command.py::test_nothing_is_made_inside_a_destination_not_committed_and_its_migration_goes_on[F1|F6]",
+    "tests/test_launcher.py::test_init_and_demo_inside_a_project_are_refused_before_anything[migration-*]",
+    "tests/test_extension.py::test_a_new_project_inside_a_project_is_refused_by_the_extension[*-migration] (aelix legs)"
+   ],
+   "result": "pass (in the suites above); each fails on 8d3695f's code (new_tests_on_8d3695f)"
   }
  },
  "command_e2e": {
@@ -1136,8 +1287,8 @@
    "files": 5738,
    "venv": true,
    "uv_lock": true,
-   "tree_digest_before": "391708e87260b678267b7c104582c2c1a7d86657d438730bfd59ef55cdfcec99",
-   "tree_digest_after": "391708e87260b678267b7c104582c2c1a7d86657d438730bfd59ef55cdfcec99",
+   "tree_digest_before": "454eb2ca05af5f6518f9725830571038c51a185115587482d9eb9ecb4530baf2",
+   "tree_digest_after": "454eb2ca05af5f6518f9725830571038c51a185115587482d9eb9ecb4530baf2",
    "unchanged": true
   },
   "launchers": {
@@ -1147,16 +1298,16 @@
       "bin/analytics",
       "migrate",
       "--to",
-      "<run>/fix/measure/e2e/dest-bin-analytics",
+      "<run>/ci-fix/measure/e2e/dest-bin-analytics",
       "--dry-run"
      ],
      "exit": 0,
-     "seconds": 0.13,
+     "seconds": 0.25,
      "stderr_last_line": "",
      "result": {
       "ok": true,
       "dry_run": true,
-      "destination_named": "<run>/fix/measure/e2e/dest-bin-analytics"
+      "destination_named": "<run>/ci-fix/measure/e2e/dest-bin-analytics"
      },
      "destination_made": false
     },
@@ -1165,15 +1316,15 @@
       "bin/analytics",
       "migrate",
       "--to",
-      "<run>/fix/measure/e2e/dest-bin-analytics"
+      "<run>/ci-fix/measure/e2e/dest-bin-analytics"
      ],
      "exit": 0,
-     "seconds": 1.31,
-     "stderr_last_line": "analytics: the project is <run>/fix/measure/e2e/dest-bin-analytics now, and the source is as it was (in aelix: /analytics use <run>/fix/measure/e2e/dest-bin-analytics)",
+     "seconds": 1.63,
+     "stderr_last_line": "analytics: the project is <run>/ci-fix/measure/e2e/dest-bin-analytics now, and the source is as it was (in aelix: /analytics use <run>/ci-fix/measure/e2e/dest-bin-analytics)",
      "result": {
       "ok": true,
       "already_migrated": false,
-      "destination_named": "<run>/fix/measure/e2e/dest-bin-analytics"
+      "destination_named": "<run>/ci-fix/measure/e2e/dest-bin-analytics"
      },
      "destination_venv": true,
      "destination_lock_is_the_source_s": true
@@ -1183,11 +1334,11 @@
       "bin/analytics",
       "migrate",
       "--to",
-      "<run>/fix/measure/e2e/dest-bin-analytics"
+      "<run>/ci-fix/measure/e2e/dest-bin-analytics"
      ],
      "exit": 0,
-     "seconds": 0.16,
-     "stderr_last_line": "analytics: the project is <run>/fix/measure/e2e/dest-bin-analytics now, and the source is as it was (in aelix: /analytics use <run>/fix/measure/e2e/dest-bin-analytics)",
+     "seconds": 0.28,
+     "stderr_last_line": "analytics: the project is <run>/ci-fix/measure/e2e/dest-bin-analytics now, and the source is as it was (in aelix: /analytics use <run>/ci-fix/measure/e2e/dest-bin-analytics)",
      "result": {
       "ok": true,
       "already_migrated": true,
@@ -1195,7 +1346,7 @@
        "same": 229
       },
       "differs": [],
-      "destination_named": "<run>/fix/measure/e2e/dest-bin-analytics"
+      "destination_named": "<run>/ci-fix/measure/e2e/dest-bin-analytics"
      }
     },
     "status_in_destination": {
@@ -1204,7 +1355,7 @@
       "status"
      ],
      "exit": 0,
-     "seconds": 0.08,
+     "seconds": 0.13,
      "stderr_last_line": "",
      "result": {}
     },
@@ -1216,7 +1367,7 @@
       "e2e"
      ],
      "exit": 0,
-     "seconds": 2.49,
+     "seconds": 4.85,
      "stderr_last_line": "",
      "result": {
       "ok": true
@@ -1237,7 +1388,7 @@
       "e2e"
      ],
      "exit": 1,
-     "seconds": 0.06,
+     "seconds": 0.1,
      "stderr_last_line": "",
      "result": {
       "ok": false,
@@ -1254,7 +1405,7 @@
        "status"
       ],
       "exit": 1,
-      "seconds": 0.06,
+      "seconds": 0.1,
       "stderr_last_line": "",
       "result": {
        "ok": false,
@@ -1270,15 +1421,15 @@
       "bin/analytics",
       "migrate",
       "--to",
-      "<run>/fix/measure/e2e/cut-bin-analytics"
+      "<run>/ci-fix/measure/e2e/cut-bin-analytics"
      ],
      "exit": 0,
-     "seconds": 0.23,
-     "stderr_last_line": "analytics: the project is <run>/fix/measure/e2e/cut-bin-analytics now, and the source is as it was (in aelix: /analytics use <run>/fix/measure/e2e/cut-bin-analytics)",
+     "seconds": 0.43,
+     "stderr_last_line": "analytics: the project is <run>/ci-fix/measure/e2e/cut-bin-analytics now, and the source is as it was (in aelix: /analytics use <run>/ci-fix/measure/e2e/cut-bin-analytics)",
      "result": {
       "ok": true,
       "already_migrated": false,
-      "destination_named": "<run>/fix/measure/e2e/cut-bin-analytics"
+      "destination_named": "<run>/ci-fix/measure/e2e/cut-bin-analytics"
      },
      "destination_venv": true
     },
@@ -1289,14 +1440,14 @@
       "--to=~/tilde-bin-analytics"
      ],
      "exit": 0,
-     "seconds": 1.33,
-     "stderr_last_line": "analytics: the project is <run>/fix/measure/e2e/home/tilde-bin-analytics now, and the source is as it was (in aelix: /analytics use <run>/fix/measure/e2e/home/tilde-bin-analytics)",
+     "seconds": 1.72,
+     "stderr_last_line": "analytics: the project is <run>/ci-fix/measure/e2e/home/tilde-bin-analytics now, and the source is as it was (in aelix: /analytics use <run>/ci-fix/measure/e2e/home/tilde-bin-analytics)",
      "result": {
       "ok": true,
       "already_migrated": false,
-      "destination_named": "<run>/fix/measure/e2e/home/tilde-bin-analytics"
+      "destination_named": "<run>/ci-fix/measure/e2e/home/tilde-bin-analytics"
      },
-     "destination": "<run>/fix/measure/e2e/home/tilde-bin-analytics",
+     "destination": "<run>/ci-fix/measure/e2e/home/tilde-bin-analytics",
      "destination_venv": true,
      "literal_tilde_in_source": false
     }
@@ -1307,16 +1458,16 @@
       "analytics",
       "migrate",
       "--to",
-      "<run>/fix/measure/e2e/dest-launcher",
+      "<run>/ci-fix/measure/e2e/dest-launcher",
       "--dry-run"
      ],
      "exit": 0,
-     "seconds": 0.13,
+     "seconds": 0.21,
      "stderr_last_line": "",
      "result": {
       "ok": true,
       "dry_run": true,
-      "destination_named": "<run>/fix/measure/e2e/dest-launcher"
+      "destination_named": "<run>/ci-fix/measure/e2e/dest-launcher"
      },
      "destination_made": false
     },
@@ -1325,15 +1476,15 @@
       "analytics",
       "migrate",
       "--to",
-      "<run>/fix/measure/e2e/dest-launcher"
+      "<run>/ci-fix/measure/e2e/dest-launcher"
      ],
      "exit": 0,
-     "seconds": 1.31,
-     "stderr_last_line": "analytics: the project is <run>/fix/measure/e2e/dest-launcher now, and the source is as it was (in aelix: /analytics use <run>/fix/measure/e2e/dest-launcher)",
+     "seconds": 1.66,
+     "stderr_last_line": "analytics: the project is <run>/ci-fix/measure/e2e/dest-launcher now, and the source is as it was (in aelix: /analytics use <run>/ci-fix/measure/e2e/dest-launcher)",
      "result": {
       "ok": true,
       "already_migrated": false,
-      "destination_named": "<run>/fix/measure/e2e/dest-launcher"
+      "destination_named": "<run>/ci-fix/measure/e2e/dest-launcher"
      },
      "destination_venv": true,
      "destination_lock_is_the_source_s": true
@@ -1343,11 +1494,11 @@
       "analytics",
       "migrate",
       "--to",
-      "<run>/fix/measure/e2e/dest-launcher"
+      "<run>/ci-fix/measure/e2e/dest-launcher"
      ],
      "exit": 0,
-     "seconds": 0.17,
-     "stderr_last_line": "analytics: the project is <run>/fix/measure/e2e/dest-launcher now, and the source is as it was (in aelix: /analytics use <run>/fix/measure/e2e/dest-launcher)",
+     "seconds": 0.28,
+     "stderr_last_line": "analytics: the project is <run>/ci-fix/measure/e2e/dest-launcher now, and the source is as it was (in aelix: /analytics use <run>/ci-fix/measure/e2e/dest-launcher)",
      "result": {
       "ok": true,
       "already_migrated": true,
@@ -1355,7 +1506,7 @@
        "same": 229
       },
       "differs": [],
-      "destination_named": "<run>/fix/measure/e2e/dest-launcher"
+      "destination_named": "<run>/ci-fix/measure/e2e/dest-launcher"
      }
     },
     "status_in_destination": {
@@ -1364,7 +1515,7 @@
       "status"
      ],
      "exit": 0,
-     "seconds": 0.1,
+     "seconds": 0.16,
      "stderr_last_line": "",
      "result": {}
     },
@@ -1376,7 +1527,7 @@
       "e2e"
      ],
      "exit": 0,
-     "seconds": 2.38,
+     "seconds": 4.69,
      "stderr_last_line": "",
      "result": {
       "ok": true
@@ -1397,7 +1548,7 @@
       "e2e"
      ],
      "exit": 1,
-     "seconds": 0.08,
+     "seconds": 0.14,
      "stderr_last_line": "",
      "result": {
       "ok": false,
@@ -1414,7 +1565,7 @@
        "status"
       ],
       "exit": 1,
-      "seconds": 0.07,
+      "seconds": 0.13,
       "stderr_last_line": "",
       "result": {
        "ok": false,
@@ -1430,15 +1581,15 @@
       "analytics",
       "migrate",
       "--to",
-      "<run>/fix/measure/e2e/cut-launcher"
+      "<run>/ci-fix/measure/e2e/cut-launcher"
      ],
      "exit": 0,
-     "seconds": 0.21,
-     "stderr_last_line": "analytics: the project is <run>/fix/measure/e2e/cut-launcher now, and the source is as it was (in aelix: /analytics use <run>/fix/measure/e2e/cut-launcher)",
+     "seconds": 0.46,
+     "stderr_last_line": "analytics: the project is <run>/ci-fix/measure/e2e/cut-launcher now, and the source is as it was (in aelix: /analytics use <run>/ci-fix/measure/e2e/cut-launcher)",
      "result": {
       "ok": true,
       "already_migrated": false,
-      "destination_named": "<run>/fix/measure/e2e/cut-launcher"
+      "destination_named": "<run>/ci-fix/measure/e2e/cut-launcher"
      },
      "destination_venv": true
     },
@@ -1449,16 +1600,348 @@
       "--to=~/tilde-launcher"
      ],
      "exit": 0,
-     "seconds": 1.34,
-     "stderr_last_line": "analytics: the project is <run>/fix/measure/e2e/home/tilde-launcher now, and the source is as it was (in aelix: /analytics use <run>/fix/measure/e2e/home/tilde-launcher)",
+     "seconds": 1.82,
+     "stderr_last_line": "analytics: the project is <run>/ci-fix/measure/e2e/home/tilde-launcher now, and the source is as it was (in aelix: /analytics use <run>/ci-fix/measure/e2e/home/tilde-launcher)",
      "result": {
       "ok": true,
       "already_migrated": false,
-      "destination_named": "<run>/fix/measure/e2e/home/tilde-launcher"
+      "destination_named": "<run>/ci-fix/measure/e2e/home/tilde-launcher"
      },
-     "destination": "<run>/fix/measure/e2e/home/tilde-launcher",
+     "destination": "<run>/ci-fix/measure/e2e/home/tilde-launcher",
      "destination_venv": true,
      "literal_tilde_in_source": false
+    }
+   }
+  },
+  "before_owner_decisions": {
+   "source": {
+    "files": 5738,
+    "venv": true,
+    "uv_lock": true,
+    "tree_digest_before": "391708e87260b678267b7c104582c2c1a7d86657d438730bfd59ef55cdfcec99",
+    "tree_digest_after": "391708e87260b678267b7c104582c2c1a7d86657d438730bfd59ef55cdfcec99",
+    "unchanged": true
+   },
+   "launchers": {
+    "bin/analytics": {
+     "dry_run": {
+      "argv": [
+       "bin/analytics",
+       "migrate",
+       "--to",
+       "<run>/fix/measure/e2e/dest-bin-analytics",
+       "--dry-run"
+      ],
+      "exit": 0,
+      "seconds": 0.13,
+      "stderr_last_line": "",
+      "result": {
+       "ok": true,
+       "dry_run": true,
+       "destination_named": "<run>/fix/measure/e2e/dest-bin-analytics"
+      },
+      "destination_made": false
+     },
+     "migrate": {
+      "argv": [
+       "bin/analytics",
+       "migrate",
+       "--to",
+       "<run>/fix/measure/e2e/dest-bin-analytics"
+      ],
+      "exit": 0,
+      "seconds": 1.31,
+      "stderr_last_line": "analytics: the project is <run>/fix/measure/e2e/dest-bin-analytics now, and the source is as it was (in aelix: /analytics use <run>/fix/measure/e2e/dest-bin-analytics)",
+      "result": {
+       "ok": true,
+       "already_migrated": false,
+       "destination_named": "<run>/fix/measure/e2e/dest-bin-analytics"
+      },
+      "destination_venv": true,
+      "destination_lock_is_the_source_s": true
+     },
+     "again": {
+      "argv": [
+       "bin/analytics",
+       "migrate",
+       "--to",
+       "<run>/fix/measure/e2e/dest-bin-analytics"
+      ],
+      "exit": 0,
+      "seconds": 0.16,
+      "stderr_last_line": "analytics: the project is <run>/fix/measure/e2e/dest-bin-analytics now, and the source is as it was (in aelix: /analytics use <run>/fix/measure/e2e/dest-bin-analytics)",
+      "result": {
+       "ok": true,
+       "already_migrated": true,
+       "compared": {
+        "same": 229
+       },
+       "differs": [],
+       "destination_named": "<run>/fix/measure/e2e/dest-bin-analytics"
+      }
+     },
+     "status_in_destination": {
+      "argv": [
+       "bin/analytics",
+       "status"
+      ],
+      "exit": 0,
+      "seconds": 0.08,
+      "stderr_last_line": "",
+      "result": {}
+     },
+     "record_in_destination": {
+      "argv": [
+       "bin/analytics",
+       "record",
+       "finding",
+       "e2e"
+      ],
+      "exit": 0,
+      "seconds": 2.49,
+      "stderr_last_line": "",
+      "result": {
+       "ok": true
+      },
+      "written": {
+       "schema": "analytics.event/2",
+       "kind": "finding",
+       "actor": "human",
+       "actor_basis": "inferred",
+       "means": "cli"
+      }
+     },
+     "record_in_source": {
+      "argv": [
+       "bin/analytics",
+       "record",
+       "finding",
+       "e2e"
+      ],
+      "exit": 1,
+      "seconds": 0.06,
+      "stderr_last_line": "",
+      "result": {
+       "ok": false,
+       "error": {
+        "code": "migration_required"
+       }
+      }
+     },
+     "interrupted": {
+      "driver_exit": 9,
+      "status_there": {
+       "argv": [
+        "bin/analytics",
+        "status"
+       ],
+       "exit": 1,
+       "seconds": 0.06,
+       "stderr_last_line": "",
+       "result": {
+        "ok": false,
+        "error": {
+         "code": "migration_incomplete"
+        }
+       }
+      },
+      "venv_there": false
+     },
+     "resumed": {
+      "argv": [
+       "bin/analytics",
+       "migrate",
+       "--to",
+       "<run>/fix/measure/e2e/cut-bin-analytics"
+      ],
+      "exit": 0,
+      "seconds": 0.23,
+      "stderr_last_line": "analytics: the project is <run>/fix/measure/e2e/cut-bin-analytics now, and the source is as it was (in aelix: /analytics use <run>/fix/measure/e2e/cut-bin-analytics)",
+      "result": {
+       "ok": true,
+       "already_migrated": false,
+       "destination_named": "<run>/fix/measure/e2e/cut-bin-analytics"
+      },
+      "destination_venv": true
+     },
+     "tilde": {
+      "argv": [
+       "bin/analytics",
+       "migrate",
+       "--to=~/tilde-bin-analytics"
+      ],
+      "exit": 0,
+      "seconds": 1.33,
+      "stderr_last_line": "analytics: the project is <run>/fix/measure/e2e/home/tilde-bin-analytics now, and the source is as it was (in aelix: /analytics use <run>/fix/measure/e2e/home/tilde-bin-analytics)",
+      "result": {
+       "ok": true,
+       "already_migrated": false,
+       "destination_named": "<run>/fix/measure/e2e/home/tilde-bin-analytics"
+      },
+      "destination": "<run>/fix/measure/e2e/home/tilde-bin-analytics",
+      "destination_venv": true,
+      "literal_tilde_in_source": false
+     }
+    },
+    "launcher": {
+     "dry_run": {
+      "argv": [
+       "analytics",
+       "migrate",
+       "--to",
+       "<run>/fix/measure/e2e/dest-launcher",
+       "--dry-run"
+      ],
+      "exit": 0,
+      "seconds": 0.13,
+      "stderr_last_line": "",
+      "result": {
+       "ok": true,
+       "dry_run": true,
+       "destination_named": "<run>/fix/measure/e2e/dest-launcher"
+      },
+      "destination_made": false
+     },
+     "migrate": {
+      "argv": [
+       "analytics",
+       "migrate",
+       "--to",
+       "<run>/fix/measure/e2e/dest-launcher"
+      ],
+      "exit": 0,
+      "seconds": 1.31,
+      "stderr_last_line": "analytics: the project is <run>/fix/measure/e2e/dest-launcher now, and the source is as it was (in aelix: /analytics use <run>/fix/measure/e2e/dest-launcher)",
+      "result": {
+       "ok": true,
+       "already_migrated": false,
+       "destination_named": "<run>/fix/measure/e2e/dest-launcher"
+      },
+      "destination_venv": true,
+      "destination_lock_is_the_source_s": true
+     },
+     "again": {
+      "argv": [
+       "analytics",
+       "migrate",
+       "--to",
+       "<run>/fix/measure/e2e/dest-launcher"
+      ],
+      "exit": 0,
+      "seconds": 0.17,
+      "stderr_last_line": "analytics: the project is <run>/fix/measure/e2e/dest-launcher now, and the source is as it was (in aelix: /analytics use <run>/fix/measure/e2e/dest-launcher)",
+      "result": {
+       "ok": true,
+       "already_migrated": true,
+       "compared": {
+        "same": 229
+       },
+       "differs": [],
+       "destination_named": "<run>/fix/measure/e2e/dest-launcher"
+      }
+     },
+     "status_in_destination": {
+      "argv": [
+       "analytics",
+       "status"
+      ],
+      "exit": 0,
+      "seconds": 0.1,
+      "stderr_last_line": "",
+      "result": {}
+     },
+     "record_in_destination": {
+      "argv": [
+       "analytics",
+       "record",
+       "finding",
+       "e2e"
+      ],
+      "exit": 0,
+      "seconds": 2.38,
+      "stderr_last_line": "",
+      "result": {
+       "ok": true
+      },
+      "written": {
+       "schema": "analytics.event/2",
+       "kind": "finding",
+       "actor": "human",
+       "actor_basis": "inferred",
+       "means": "cli"
+      }
+     },
+     "record_in_source": {
+      "argv": [
+       "analytics",
+       "record",
+       "finding",
+       "e2e"
+      ],
+      "exit": 1,
+      "seconds": 0.08,
+      "stderr_last_line": "",
+      "result": {
+       "ok": false,
+       "error": {
+        "code": "migration_required"
+       }
+      }
+     },
+     "interrupted": {
+      "driver_exit": 9,
+      "status_there": {
+       "argv": [
+        "analytics",
+        "status"
+       ],
+       "exit": 1,
+       "seconds": 0.07,
+       "stderr_last_line": "",
+       "result": {
+        "ok": false,
+        "error": {
+         "code": "migration_incomplete"
+        }
+       }
+      },
+      "venv_there": false
+     },
+     "resumed": {
+      "argv": [
+       "analytics",
+       "migrate",
+       "--to",
+       "<run>/fix/measure/e2e/cut-launcher"
+      ],
+      "exit": 0,
+      "seconds": 0.21,
+      "stderr_last_line": "analytics: the project is <run>/fix/measure/e2e/cut-launcher now, and the source is as it was (in aelix: /analytics use <run>/fix/measure/e2e/cut-launcher)",
+      "result": {
+       "ok": true,
+       "already_migrated": false,
+       "destination_named": "<run>/fix/measure/e2e/cut-launcher"
+      },
+      "destination_venv": true
+     },
+     "tilde": {
+      "argv": [
+       "analytics",
+       "migrate",
+       "--to=~/tilde-launcher"
+      ],
+      "exit": 0,
+      "seconds": 1.34,
+      "stderr_last_line": "analytics: the project is <run>/fix/measure/e2e/home/tilde-launcher now, and the source is as it was (in aelix: /analytics use <run>/fix/measure/e2e/home/tilde-launcher)",
+      "result": {
+       "ok": true,
+       "already_migrated": false,
+       "destination_named": "<run>/fix/measure/e2e/home/tilde-launcher"
+      },
+      "destination": "<run>/fix/measure/e2e/home/tilde-launcher",
+      "destination_venv": true,
+      "literal_tilde_in_source": false
+     }
     }
    }
   }
@@ -1625,63 +2108,63 @@
   "phases": {
    "S": {
     "min": {
-     "start_to_locked_ms": 1,
-     "plan_ms": 9,
-     "copy_ms": 926,
-     "recheck_ms": 23,
-     "verify_ms": 11,
-     "transform_ms": 9,
-     "report_ms": 19,
-     "flush_ms": 2,
-     "marker_ms": 4,
+     "start_to_locked_ms": 2,
+     "plan_ms": 15,
+     "copy_ms": 1001,
+     "recheck_ms": 30,
+     "verify_ms": 19,
+     "transform_ms": 11,
+     "report_ms": 24,
+     "flush_ms": 4,
+     "marker_ms": 5,
      "trust_ms": 1,
-     "source_lock_held_ms": 960,
-     "total_ms": 1008,
+     "source_lock_held_ms": 1048,
+     "total_ms": 1116,
      "ledger_lines": 469
     },
     "probed_publish": [
      "publish_new"
     ],
-    "max_rss_bytes": 31211520,
+    "max_rss_bytes": 31834112,
     "runs": [
      {
       "attempt": 1,
-      "wall_s": 1.052,
-      "max_rss_bytes": 31211520,
+      "wall_s": 1.195,
+      "max_rss_bytes": 31424512,
       "phases": {
-       "start_to_locked_ms": 1,
-       "plan_ms": 10,
-       "copy_ms": 927,
-       "recheck_ms": 23,
-       "verify_ms": 11,
-       "transform_ms": 9,
-       "report_ms": 20,
-       "flush_ms": 2,
-       "marker_ms": 4,
+       "start_to_locked_ms": 2,
+       "plan_ms": 16,
+       "copy_ms": 1001,
+       "recheck_ms": 31,
+       "verify_ms": 21,
+       "transform_ms": 11,
+       "report_ms": 24,
+       "flush_ms": 4,
+       "marker_ms": 5,
        "trust_ms": 1,
-       "source_lock_held_ms": 960,
-       "total_ms": 1008,
+       "source_lock_held_ms": 1048,
+       "total_ms": 1116,
        "ledger_lines": 469,
        "probed_publish": "publish_new"
       }
      },
      {
       "attempt": 2,
-      "wall_s": 1.056,
-      "max_rss_bytes": 31031296,
+      "wall_s": 1.201,
+      "max_rss_bytes": 31834112,
       "phases": {
-       "start_to_locked_ms": 1,
-       "plan_ms": 9,
-       "copy_ms": 926,
-       "recheck_ms": 26,
-       "verify_ms": 12,
-       "transform_ms": 9,
-       "report_ms": 19,
-       "flush_ms": 2,
-       "marker_ms": 4,
-       "trust_ms": 1,
-       "source_lock_held_ms": 961,
-       "total_ms": 1009,
+       "start_to_locked_ms": 2,
+       "plan_ms": 15,
+       "copy_ms": 1008,
+       "recheck_ms": 30,
+       "verify_ms": 19,
+       "transform_ms": 12,
+       "report_ms": 27,
+       "flush_ms": 4,
+       "marker_ms": 5,
+       "trust_ms": 2,
+       "source_lock_held_ms": 1053,
+       "total_ms": 1124,
        "ledger_lines": 469,
        "probed_publish": "publish_new"
       }
@@ -1690,63 +2173,63 @@
    },
    "M": {
     "min": {
-     "start_to_locked_ms": 0,
-     "plan_ms": 51,
-     "copy_ms": 8484,
-     "recheck_ms": 276,
-     "verify_ms": 166,
-     "transform_ms": 18,
-     "report_ms": 26,
-     "flush_ms": 17,
+     "start_to_locked_ms": 1,
+     "plan_ms": 87,
+     "copy_ms": 9217,
+     "recheck_ms": 662,
+     "verify_ms": 551,
+     "transform_ms": 36,
+     "report_ms": 41,
+     "flush_ms": 50,
      "marker_ms": 7,
-     "trust_ms": 0,
-     "source_lock_held_ms": 8811,
-     "total_ms": 9046,
+     "trust_ms": 2,
+     "source_lock_held_ms": 10081,
+     "total_ms": 10769,
      "ledger_lines": 4085
     },
     "probed_publish": [
      "publish_new"
     ],
-    "max_rss_bytes": 77430784,
+    "max_rss_bytes": 78479360,
     "runs": [
      {
       "attempt": 1,
-      "wall_s": 9.178,
-      "max_rss_bytes": 71860224,
+      "wall_s": 10.911,
+      "max_rss_bytes": 78479360,
       "phases": {
-       "start_to_locked_ms": 0,
-       "plan_ms": 52,
-       "copy_ms": 8515,
-       "recheck_ms": 283,
-       "verify_ms": 173,
-       "transform_ms": 19,
-       "report_ms": 26,
-       "flush_ms": 29,
+       "start_to_locked_ms": 1,
+       "plan_ms": 114,
+       "copy_ms": 9305,
+       "recheck_ms": 662,
+       "verify_ms": 551,
+       "transform_ms": 36,
+       "report_ms": 41,
+       "flush_ms": 50,
        "marker_ms": 7,
-       "trust_ms": 0,
-       "source_lock_held_ms": 8850,
-       "total_ms": 9104,
+       "trust_ms": 2,
+       "source_lock_held_ms": 10081,
+       "total_ms": 10769,
        "ledger_lines": 4085,
        "probed_publish": "publish_new"
       }
      },
      {
       "attempt": 2,
-      "wall_s": 9.13,
-      "max_rss_bytes": 77430784,
+      "wall_s": 11.024,
+      "max_rss_bytes": 75350016,
       "phases": {
-       "start_to_locked_ms": 1,
-       "plan_ms": 51,
-       "copy_ms": 8484,
-       "recheck_ms": 276,
-       "verify_ms": 166,
-       "transform_ms": 18,
-       "report_ms": 26,
-       "flush_ms": 17,
+       "start_to_locked_ms": 4,
+       "plan_ms": 87,
+       "copy_ms": 9217,
+       "recheck_ms": 777,
+       "verify_ms": 604,
+       "transform_ms": 49,
+       "report_ms": 53,
+       "flush_ms": 71,
        "marker_ms": 7,
-       "trust_ms": 0,
-       "source_lock_held_ms": 8811,
-       "total_ms": 9046,
+       "trust_ms": 3,
+       "source_lock_held_ms": 10081,
+       "total_ms": 10872,
        "ledger_lines": 4085,
        "probed_publish": "publish_new"
       }
@@ -1791,10 +2274,10 @@
      }
     ],
     "excluded_bytes": 0,
-    "report_json_bytes": 47113,
-    "plan_json_bytes": 146425,
-    "mapping_json_bytes": 823,
-    "ledger_bytes": 97152,
+    "report_json_bytes": 47127,
+    "plan_json_bytes": 147115,
+    "mapping_json_bytes": 829,
+    "ledger_bytes": 97173,
     "not_copied": 0,
     "links": 0,
     "warnings": 0
@@ -1835,10 +2318,10 @@
      }
     ],
     "excluded_bytes": 0,
-    "report_json_bytes": 394614,
-    "plan_json_bytes": 1350720,
-    "mapping_json_bytes": 823,
-    "ledger_bytes": 861568,
+    "report_json_bytes": 394628,
+    "plan_json_bytes": 1356834,
+    "mapping_json_bytes": 829,
+    "ledger_bytes": 861589,
     "not_copied": 0,
     "links": 0,
     "warnings": 0
@@ -1869,7 +2352,7 @@
        "created": false
       }
      ],
-     "held_ms": 960
+     "held_ms": 1048
     }
    },
    "M": {
@@ -1896,7 +2379,7 @@
        "created": false
       }
      ],
-     "held_ms": 8850
+     "held_ms": 10081
     }
    }
   },
@@ -1966,10 +2449,10 @@
     "format": "analytics.project/2",
     "writable": true,
     "migration": {
-     "id": "20261008T200926Z-2649c92f",
-     "report": ".analytics/migration/20261008T200926Z-2649c92f/report.json",
+     "id": "20261008T232630Z-76bc3bc6",
+     "report": ".analytics/migration/20261008T232630Z-76bc3bc6/report.json",
      "applied": true,
-     "mapping": ".analytics/migration/20261008T200926Z-2649c92f/mapping.json"
+     "mapping": ".analytics/migration/20261008T232630Z-76bc3bc6/mapping.json"
     }
    },
    "M": {
@@ -1977,10 +2460,10 @@
     "format": "analytics.project/2",
     "writable": true,
     "migration": {
-     "id": "20261008T200928Z-37dfe51d",
-     "report": ".analytics/migration/20261008T200928Z-37dfe51d/report.json",
+     "id": "20261008T232634Z-4a694d29",
+     "report": ".analytics/migration/20261008T232634Z-4a694d29/report.json",
      "applied": true,
-     "mapping": ".analytics/migration/20261008T200928Z-37dfe51d/mapping.json"
+     "mapping": ".analytics/migration/20261008T232634Z-4a694d29/mapping.json"
     }
    }
   },
@@ -1990,14 +2473,14 @@
     "format": "lab.project/1",
     "writable": false,
     "write_refusal": "migration_required",
-    "migration_hint": "Copy it into the current format with `analytics migrate --to <new empty folder>` run inside <run>/fix/measure/fixtures/S/project (preview with --dry-run). The original stays as it is. In aelix, a person runs that in a terminal, then `/analytics use <new folder>`."
+    "migration_hint": "Copy it into the current format with `analytics migrate --to <new empty folder>` run inside <run>/ci-fix/measure/fixtures/S/project (preview with --dry-run). The original stays as it is. In aelix, a person runs that in a terminal, then `/analytics use <new folder>`."
    },
    "M": {
     "marker": "lab.json",
     "format": "lab.project/1",
     "writable": false,
     "write_refusal": "migration_required",
-    "migration_hint": "Copy it into the current format with `analytics migrate --to <new empty folder>` run inside <run>/fix/measure/fixtures/M/project (preview with --dry-run). The original stays as it is. In aelix, a person runs that in a terminal, then `/analytics use <new folder>`."
+    "migration_hint": "Copy it into the current format with `analytics migrate --to <new empty folder>` run inside <run>/ci-fix/measure/fixtures/M/project (preview with --dry-run). The original stays as it is. In aelix, a person runs that in a terminal, then `/analytics use <new folder>`."
    }
   },
   "fault_matrix": {
@@ -2780,7 +3263,7 @@
      "source_unchanged_after": true
     }
    },
-   "test": "pass"
+   "same_as_before": true
   },
   "refused_under_the_lock": {
    "tests/test_migration.py::test_a_refusal_judged_again_under_the_lock_says_what_this_attempt_left[entry]": "pass",
@@ -2832,7 +3315,7 @@
      "unsupported": true
     },
     "differences": {},
-    "seconds": 0.01
+    "seconds": 0.03
    },
    "M": {
     "counts": {
@@ -2858,8 +3341,1162 @@
      "unsupported": true
     },
     "differences": {},
-    "seconds": 0.33
+    "seconds": 0.94
    }
+  },
+  "appledouble": {
+   "what": "the owner's decision 2 (2026-10-09): `._<name>` is OS metadata (OQ4, OQ16) and leaves a directory empty (design 6.2, init's rule too)",
+   "tests": [
+    "tests/test_migration.py::test_an_appledouble_name_is_operating_system_metadata",
+    "tests/test_migration.py::test_the_source_s_appledouble_files_are_reported_and_not_copied",
+    "tests/test_migration.py::test_a_destination_holding_appledouble_files_only_is_empty",
+    "tests/test_migration.py::test_appledouble_files_made_beside_the_migration_s_own_are_passed_over_under_the_lock",
+    "tests/test_migration.py::test_appledouble_files_in_a_destination_resumed_are_passed_over",
+    "tests/test_marker_gate.py::test_init_takes_a_directory_of_operating_system_views_as_empty"
+   ],
+   "result": "pass; each fails on 8d3695f's code (new_tests_on_8d3695f)"
+  },
+  "before_owner_decisions": {
+   "phases": {
+    "S": {
+     "min": {
+      "start_to_locked_ms": 1,
+      "plan_ms": 9,
+      "copy_ms": 926,
+      "recheck_ms": 23,
+      "verify_ms": 11,
+      "transform_ms": 9,
+      "report_ms": 19,
+      "flush_ms": 2,
+      "marker_ms": 4,
+      "trust_ms": 1,
+      "source_lock_held_ms": 960,
+      "total_ms": 1008,
+      "ledger_lines": 469
+     },
+     "probed_publish": [
+      "publish_new"
+     ],
+     "max_rss_bytes": 31211520,
+     "runs": [
+      {
+       "attempt": 1,
+       "wall_s": 1.052,
+       "max_rss_bytes": 31211520,
+       "phases": {
+        "start_to_locked_ms": 1,
+        "plan_ms": 10,
+        "copy_ms": 927,
+        "recheck_ms": 23,
+        "verify_ms": 11,
+        "transform_ms": 9,
+        "report_ms": 20,
+        "flush_ms": 2,
+        "marker_ms": 4,
+        "trust_ms": 1,
+        "source_lock_held_ms": 960,
+        "total_ms": 1008,
+        "ledger_lines": 469,
+        "probed_publish": "publish_new"
+       }
+      },
+      {
+       "attempt": 2,
+       "wall_s": 1.056,
+       "max_rss_bytes": 31031296,
+       "phases": {
+        "start_to_locked_ms": 1,
+        "plan_ms": 9,
+        "copy_ms": 926,
+        "recheck_ms": 26,
+        "verify_ms": 12,
+        "transform_ms": 9,
+        "report_ms": 19,
+        "flush_ms": 2,
+        "marker_ms": 4,
+        "trust_ms": 1,
+        "source_lock_held_ms": 961,
+        "total_ms": 1009,
+        "ledger_lines": 469,
+        "probed_publish": "publish_new"
+       }
+      }
+     ]
+    },
+    "M": {
+     "min": {
+      "start_to_locked_ms": 0,
+      "plan_ms": 51,
+      "copy_ms": 8484,
+      "recheck_ms": 276,
+      "verify_ms": 166,
+      "transform_ms": 18,
+      "report_ms": 26,
+      "flush_ms": 17,
+      "marker_ms": 7,
+      "trust_ms": 0,
+      "source_lock_held_ms": 8811,
+      "total_ms": 9046,
+      "ledger_lines": 4085
+     },
+     "probed_publish": [
+      "publish_new"
+     ],
+     "max_rss_bytes": 77430784,
+     "runs": [
+      {
+       "attempt": 1,
+       "wall_s": 9.178,
+       "max_rss_bytes": 71860224,
+       "phases": {
+        "start_to_locked_ms": 0,
+        "plan_ms": 52,
+        "copy_ms": 8515,
+        "recheck_ms": 283,
+        "verify_ms": 173,
+        "transform_ms": 19,
+        "report_ms": 26,
+        "flush_ms": 29,
+        "marker_ms": 7,
+        "trust_ms": 0,
+        "source_lock_held_ms": 8850,
+        "total_ms": 9104,
+        "ledger_lines": 4085,
+        "probed_publish": "publish_new"
+       }
+      },
+      {
+       "attempt": 2,
+       "wall_s": 9.13,
+       "max_rss_bytes": 77430784,
+       "phases": {
+        "start_to_locked_ms": 1,
+        "plan_ms": 51,
+        "copy_ms": 8484,
+        "recheck_ms": 276,
+        "verify_ms": 166,
+        "transform_ms": 18,
+        "report_ms": 26,
+        "flush_ms": 17,
+        "marker_ms": 7,
+        "trust_ms": 0,
+        "source_lock_held_ms": 8811,
+        "total_ms": 9046,
+        "ledger_lines": 4085,
+        "probed_publish": "publish_new"
+       }
+      }
+     ]
+    }
+   },
+   "sizes": {
+    "S": {
+     "copied_files": 228,
+     "copied_bytes": 2896532,
+     "excluded": [
+      {
+       "path": ".lab/cache",
+       "reason": "cache",
+       "files": 0,
+       "bytes": 0
+      },
+      {
+       "path": ".lab/lock",
+       "reason": "lock",
+       "files": 1,
+       "bytes": 0
+      },
+      {
+       "path": ".lab/report.lock",
+       "reason": "lock",
+       "files": 1,
+       "bytes": 0
+      },
+      {
+       "path": ".lab/run.lock",
+       "reason": "lock",
+       "files": 1,
+       "bytes": 0
+      },
+      {
+       "path": "report",
+       "reason": "workspace",
+       "files": 0,
+       "bytes": 0
+      }
+     ],
+     "excluded_bytes": 0,
+     "report_json_bytes": 47113,
+     "plan_json_bytes": 146425,
+     "mapping_json_bytes": 823,
+     "ledger_bytes": 97152,
+     "not_copied": 0,
+     "links": 0,
+     "warnings": 0
+    },
+    "M": {
+     "copied_files": 2036,
+     "copied_bytes": 223092045,
+     "excluded": [
+      {
+       "path": ".lab/cache",
+       "reason": "cache",
+       "files": 0,
+       "bytes": 0
+      },
+      {
+       "path": ".lab/lock",
+       "reason": "lock",
+       "files": 1,
+       "bytes": 0
+      },
+      {
+       "path": ".lab/report.lock",
+       "reason": "lock",
+       "files": 1,
+       "bytes": 0
+      },
+      {
+       "path": ".lab/run.lock",
+       "reason": "lock",
+       "files": 1,
+       "bytes": 0
+      },
+      {
+       "path": "report",
+       "reason": "workspace",
+       "files": 0,
+       "bytes": 0
+      }
+     ],
+     "excluded_bytes": 0,
+     "report_json_bytes": 394614,
+     "plan_json_bytes": 1350720,
+     "mapping_json_bytes": 823,
+     "ledger_bytes": 861568,
+     "not_copied": 0,
+     "links": 0,
+     "warnings": 0
+    }
+   },
+   "called_again": {
+    "S": {
+     "exit": 0,
+     "already_migrated": true,
+     "compared": {
+      "same": 228
+     },
+     "differs": [],
+     "source_since": {
+      "journal_lines": 0,
+      "seq": null,
+      "files_differing": 0
+     }
+    },
+    "M": {
+     "exit": 0,
+     "already_migrated": true,
+     "compared": {
+      "same": 2036
+     },
+     "differs": [],
+     "source_since": {
+      "journal_lines": 0,
+      "seq": null,
+      "files_differing": 0
+     }
+    }
+   },
+   "two_migrations_same_copies": {
+    "S": true,
+    "M": true
+   },
+   "preservation": {
+    "S": {
+     "walk": "an independent walk (this script's tree(), links not followed), the lock files apart",
+     "before": "fc91b6ab79c3e883c75d968ca80bf0b1921ec87621d9067c4d56be26f49924f7",
+     "after": "fc91b6ab79c3e883c75d968ca80bf0b1921ec87621d9067c4d56be26f49924f7",
+     "equal": true,
+     "lock_files_after": {
+      ".lab/run.lock": true,
+      ".lab/lock": true
+     },
+     "report_source_inventory": {
+      "before": "b075e7d31ee74bc01d7ce2afceaa7c9857007fd1356068f18f798301c48244d7",
+      "after": "b075e7d31ee74bc01d7ce2afceaa7c9857007fd1356068f18f798301c48244d7"
+     },
+     "report_locks": {
+      "taken": [
+       {
+        "path": ".lab/run.lock",
+        "created": false
+       },
+       {
+        "path": ".lab/lock",
+        "created": false
+       }
+      ],
+      "held_ms": 960
+     }
+    },
+    "M": {
+     "walk": "an independent walk (this script's tree(), links not followed), the lock files apart",
+     "before": "0e095d32240f08c76def721d3d8cc738eab7d5a649c048836625efbc9a597eb4",
+     "after": "0e095d32240f08c76def721d3d8cc738eab7d5a649c048836625efbc9a597eb4",
+     "equal": true,
+     "lock_files_after": {
+      ".lab/run.lock": true,
+      ".lab/lock": true
+     },
+     "report_source_inventory": {
+      "before": "8b952270b1db9558c52ca17a456b9a9f33d5ca69c75c23e016713cecbd355ed1",
+      "after": "8b952270b1db9558c52ca17a456b9a9f33d5ca69c75c23e016713cecbd355ed1"
+     },
+     "report_locks": {
+      "taken": [
+       {
+        "path": ".lab/run.lock",
+        "created": false
+       },
+       {
+        "path": ".lab/lock",
+        "created": false
+       }
+      ],
+      "held_ms": 8850
+     }
+    }
+   },
+   "fault_matrix": {
+    "what": "design 6.11's F1-F16 ended by os._exit at the step in a process of its own, observed then called again (fault_observe.py, PR 2's script with PR 3's rows without links: the marker published by rename_new)",
+    "macos_developer_machine": {
+     "F1-dest-locked": {
+      "stop": {
+       "step": "dest_locked"
+      },
+      "no_links": false,
+      "state_then": "incomplete",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "migration_incomplete",
+      "last_step_then": "FileNotFoundError",
+      "temporary_files_then": [],
+      "called_again": "resumed_and_committed",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 59,
+      "source_unchanged_after": true
+     },
+     "F1-migration-dir": {
+      "stop": {
+       "step": "migration_dir"
+      },
+      "no_links": false,
+      "state_then": "incomplete",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "migration_incomplete",
+      "last_step_then": null,
+      "lines_then": 0,
+      "temporary_files_then": [],
+      "called_again": "resumed_and_committed",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 59,
+      "source_unchanged_after": true
+     },
+     "F1-start-cut": {
+      "stop": {
+       "step": "ledger:start",
+       "action": "cut"
+      },
+      "no_links": false,
+      "state_then": "incomplete",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "migration_incomplete",
+      "last_step_then": null,
+      "lines_then": 0,
+      "temporary_files_then": [],
+      "called_again": "resumed_and_committed",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 59,
+      "source_unchanged_after": true
+     },
+     "F2-start": {
+      "stop": {
+       "step": "start"
+      },
+      "no_links": false,
+      "state_then": "incomplete",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "migration_incomplete",
+      "last_step_then": "start",
+      "lines_then": 1,
+      "temporary_files_then": [],
+      "called_again": "resumed_and_committed",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 59,
+      "source_unchanged_after": true
+     },
+     "F2-probe": {
+      "stop": {
+       "step": "probe_made"
+      },
+      "no_links": false,
+      "state_then": "incomplete",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "migration_incomplete",
+      "last_step_then": "start",
+      "lines_then": 1,
+      "temporary_files_then": [],
+      "called_again": "resumed_and_committed",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 59,
+      "source_unchanged_after": true
+     },
+     "F3-locked": {
+      "stop": {
+       "step": "locked"
+      },
+      "no_links": false,
+      "state_then": "incomplete",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "migration_incomplete",
+      "last_step_then": "locked",
+      "lines_then": 3,
+      "temporary_files_then": [],
+      "called_again": "resumed_and_committed",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 61,
+      "source_unchanged_after": true
+     },
+     "F4-plan-written": {
+      "stop": {
+       "step": "plan_written"
+      },
+      "no_links": false,
+      "state_then": "incomplete",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "migration_incomplete",
+      "last_step_then": "locked",
+      "lines_then": 3,
+      "temporary_files_then": [],
+      "called_again": "resumed_and_committed",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 61,
+      "source_unchanged_after": true
+     },
+     "F4-plan": {
+      "stop": {
+       "step": "plan"
+      },
+      "no_links": false,
+      "state_then": "incomplete",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "migration_incomplete",
+      "last_step_then": "plan",
+      "lines_then": 4,
+      "temporary_files_then": [],
+      "called_again": "resumed_and_committed",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 61,
+      "source_unchanged_after": true
+     },
+     "F5-begin": {
+      "stop": {
+       "step": "begin",
+       "path": "data/raw/big.parquet"
+      },
+      "no_links": false,
+      "state_then": "incomplete",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "migration_incomplete",
+      "last_step_then": "begin",
+      "lines_then": 31,
+      "temporary_files_then": [],
+      "called_again": "resumed_and_committed",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 62,
+      "source_unchanged_after": true
+     },
+     "F5-temp-partial": {
+      "stop": {
+       "step": "temp_partial",
+       "path": "data/raw/big.parquet"
+      },
+      "no_links": false,
+      "state_then": "incomplete",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "migration_incomplete",
+      "last_step_then": "begin",
+      "lines_then": 31,
+      "temporary_files_then": [
+       "data/raw/.mig-1f1a3024-0.part"
+      ],
+      "called_again": "resumed_and_committed",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 62,
+      "source_unchanged_after": true
+     },
+     "F5-temp-full": {
+      "stop": {
+       "step": "temp_full",
+       "path": "data/raw/big.parquet"
+      },
+      "no_links": false,
+      "state_then": "incomplete",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "migration_incomplete",
+      "last_step_then": "begin",
+      "lines_then": 31,
+      "temporary_files_then": [
+       "data/raw/.mig-1f1a3024-0.part"
+      ],
+      "called_again": "resumed_and_committed",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 62,
+      "source_unchanged_after": true
+     },
+     "F6-published": {
+      "stop": {
+       "step": "published",
+       "path": "data/raw/big.parquet"
+      },
+      "no_links": false,
+      "state_then": "incomplete",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "migration_incomplete",
+      "last_step_then": "begin",
+      "lines_then": 31,
+      "temporary_files_then": [],
+      "called_again": "resumed_and_committed",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 61,
+      "source_unchanged_after": true
+     },
+     "F6-link-unlink": {
+      "stop": {
+       "between_link_and_unlink": true,
+       "path": "data/raw/big.parquet"
+      },
+      "no_links": false,
+      "state_then": "incomplete",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "migration_incomplete",
+      "last_step_then": "begin",
+      "lines_then": 31,
+      "temporary_files_then": [
+       "data/raw/.mig-1f1a3024-0.part"
+      ],
+      "called_again": "resumed_and_committed",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 61,
+      "source_unchanged_after": true
+     },
+     "F7-rechecking": {
+      "stop": {
+       "step": "rechecking"
+      },
+      "no_links": false,
+      "state_then": "incomplete",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "migration_incomplete",
+      "last_step_then": "copied",
+      "lines_then": 50,
+      "temporary_files_then": [],
+      "called_again": "resumed_and_committed",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 61,
+      "source_unchanged_after": true
+     },
+     "F8-source-checked": {
+      "stop": {
+       "step": "source_checked"
+      },
+      "no_links": false,
+      "state_then": "incomplete",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "migration_incomplete",
+      "last_step_then": "source_checked",
+      "lines_then": 51,
+      "temporary_files_then": [],
+      "called_again": "resumed_and_committed",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 59,
+      "source_unchanged_after": true
+     },
+     "F8-verified": {
+      "stop": {
+       "step": "verified"
+      },
+      "no_links": false,
+      "state_then": "incomplete",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "migration_incomplete",
+      "last_step_then": "verified",
+      "lines_then": 52,
+      "temporary_files_then": [],
+      "called_again": "resumed_and_committed",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 60,
+      "source_unchanged_after": true
+     },
+     "F9-transform-begin": {
+      "stop": {
+       "step": "transform_begin"
+      },
+      "no_links": false,
+      "state_then": "incomplete",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "migration_incomplete",
+      "last_step_then": "transform_begin",
+      "lines_then": 53,
+      "temporary_files_then": [],
+      "called_again": "resumed_and_committed",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 60,
+      "source_unchanged_after": true
+     },
+     "F9-transform-temp": {
+      "stop": {
+       "step": "transform_temp"
+      },
+      "no_links": false,
+      "state_then": "incomplete",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "migration_incomplete",
+      "last_step_then": "transform_begin",
+      "lines_then": 53,
+      "temporary_files_then": [
+       ".mig-gitignore-0.part"
+      ],
+      "called_again": "resumed_and_committed",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 60,
+      "source_unchanged_after": true
+     },
+     "F9-transform-written": {
+      "stop": {
+       "step": "transform_written"
+      },
+      "no_links": false,
+      "state_then": "incomplete",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "migration_incomplete",
+      "last_step_then": "transform_begin",
+      "lines_then": 53,
+      "temporary_files_then": [
+       ".mig-gitignore-0.part"
+      ],
+      "called_again": "resumed_and_committed",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 60,
+      "source_unchanged_after": true
+     },
+     "F9-transform-replaced": {
+      "stop": {
+       "step": "transform_replaced"
+      },
+      "no_links": false,
+      "state_then": "incomplete",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "migration_incomplete",
+      "last_step_then": "transform_begin",
+      "lines_then": 53,
+      "temporary_files_then": [],
+      "called_again": "resumed_and_committed",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 59,
+      "source_unchanged_after": true
+     },
+     "F10-mapping": {
+      "stop": {
+       "step": "mapping_written"
+      },
+      "no_links": false,
+      "state_then": "incomplete",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "migration_incomplete",
+      "last_step_then": "transformed",
+      "lines_then": 54,
+      "temporary_files_then": [],
+      "called_again": "resumed_and_committed",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 59,
+      "source_unchanged_after": true
+     },
+     "F10-report-written": {
+      "stop": {
+       "step": "report_written"
+      },
+      "no_links": false,
+      "state_then": "incomplete",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "migration_incomplete",
+      "last_step_then": "transformed",
+      "lines_then": 54,
+      "temporary_files_then": [],
+      "called_again": "resumed_and_committed",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 59,
+      "source_unchanged_after": true
+     },
+     "F10-reported": {
+      "stop": {
+       "step": "reported"
+      },
+      "no_links": false,
+      "state_then": "incomplete",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "migration_incomplete",
+      "last_step_then": "reported",
+      "lines_then": 55,
+      "temporary_files_then": [],
+      "called_again": "resumed_and_committed",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 59,
+      "source_unchanged_after": true
+     },
+     "F10-durable": {
+      "stop": {
+       "step": "durable"
+      },
+      "no_links": false,
+      "state_then": "incomplete",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "migration_incomplete",
+      "last_step_then": "durable",
+      "lines_then": 56,
+      "temporary_files_then": [],
+      "called_again": "resumed_and_committed",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 59,
+      "source_unchanged_after": true
+     },
+     "F11-marker-begin": {
+      "stop": {
+       "step": "marker_begin"
+      },
+      "no_links": false,
+      "state_then": "incomplete",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "migration_incomplete",
+      "last_step_then": "marker_begin",
+      "lines_then": 57,
+      "temporary_files_then": [],
+      "called_again": "resumed_and_committed",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 60,
+      "source_unchanged_after": true
+     },
+     "F11-marker-temp": {
+      "stop": {
+       "step": "marker_temp"
+      },
+      "no_links": false,
+      "state_then": "incomplete",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "migration_incomplete",
+      "last_step_then": "marker_begin",
+      "lines_then": 57,
+      "temporary_files_then": [
+       ".analytics-json-0.part"
+      ],
+      "called_again": "resumed_and_committed",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 60,
+      "source_unchanged_after": true
+     },
+     "F11-marker-written": {
+      "stop": {
+       "step": "marker_written"
+      },
+      "no_links": false,
+      "state_then": "incomplete",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "migration_incomplete",
+      "last_step_then": "marker_begin",
+      "lines_then": 57,
+      "temporary_files_then": [
+       ".analytics-json-0.part"
+      ],
+      "called_again": "resumed_and_committed",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 60,
+      "source_unchanged_after": true
+     },
+     "F12-published": {
+      "stop": {
+       "step": "marker_published"
+      },
+      "no_links": false,
+      "state_then": "current",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "read",
+      "last_step_then": "marker_begin",
+      "lines_then": 57,
+      "temporary_files_then": [],
+      "called_again": "already_migrated",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 58,
+      "source_unchanged_after": true
+     },
+     "F12-link-unlink": {
+      "stop": {
+       "between_link_and_unlink": true,
+       "path": "analytics.json"
+      },
+      "no_links": false,
+      "state_then": "current",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "read",
+      "last_step_then": "marker_begin",
+      "lines_then": 57,
+      "temporary_files_then": [
+       ".analytics-json-0.part"
+      ],
+      "called_again": "already_migrated",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 58,
+      "source_unchanged_after": true
+     },
+     "F13-committed": {
+      "stop": {
+       "step": "committed"
+      },
+      "no_links": false,
+      "state_then": "current",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "read",
+      "last_step_then": "committed",
+      "lines_then": 58,
+      "temporary_files_then": [],
+      "called_again": "already_migrated",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 58,
+      "source_unchanged_after": true
+     },
+     "F14-trusted": {
+      "stop": {
+       "step": "trusted"
+      },
+      "no_links": false,
+      "state_then": "current",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "read",
+      "last_step_then": "trusted",
+      "lines_then": 59,
+      "temporary_files_then": [],
+      "called_again": "already_migrated",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 59,
+      "source_unchanged_after": true
+     },
+     "F16-copied-cut": {
+      "stop": {
+       "step": "ledger:copied",
+       "action": "cut",
+       "nth": 3
+      },
+      "no_links": false,
+      "state_then": "incomplete",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "migration_incomplete",
+      "last_step_then": "begin",
+      "lines_then": 9,
+      "temporary_files_then": [],
+      "called_again": "resumed_and_committed",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 61,
+      "source_unchanged_after": true
+     },
+     "F16-source-checked-cut": {
+      "stop": {
+       "step": "ledger:source_checked",
+       "action": "cut"
+      },
+      "no_links": false,
+      "state_then": "incomplete",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "migration_incomplete",
+      "last_step_then": "copied",
+      "lines_then": 50,
+      "temporary_files_then": [],
+      "called_again": "resumed_and_committed",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 61,
+      "source_unchanged_after": true
+     },
+     "F16-reported-cut": {
+      "stop": {
+       "step": "ledger:reported",
+       "action": "cut"
+      },
+      "no_links": false,
+      "state_then": "incomplete",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "migration_incomplete",
+      "last_step_then": "transformed",
+      "lines_then": 54,
+      "temporary_files_then": [],
+      "called_again": "resumed_and_committed",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 59,
+      "source_unchanged_after": true
+     },
+     "F16-committed-cut": {
+      "stop": {
+       "step": "ledger:committed",
+       "action": "cut"
+      },
+      "no_links": false,
+      "state_then": "current",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "read",
+      "last_step_then": "marker_begin",
+      "lines_then": 57,
+      "temporary_files_then": [],
+      "called_again": "already_migrated",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 58,
+      "source_unchanged_after": true
+     },
+     "F15-direct_intent": {
+      "stop": {
+       "step": "direct_intent",
+       "path": "data/raw/big.parquet"
+      },
+      "no_links": true,
+      "state_then": "incomplete",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "migration_incomplete",
+      "last_step_then": "direct_intent",
+      "lines_then": 54,
+      "temporary_files_then": [
+       "data/raw/.mig-1f1a3024-0.part"
+      ],
+      "called_again": "resumed_and_committed",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 85,
+      "source_unchanged_after": true
+     },
+     "F15-direct_created": {
+      "stop": {
+       "step": "direct_created",
+       "path": "data/raw/big.parquet"
+      },
+      "no_links": true,
+      "state_then": "incomplete",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "migration_incomplete",
+      "last_step_then": "direct_intent",
+      "lines_then": 54,
+      "temporary_files_then": [
+       "data/raw/.mig-1f1a3024-0.part"
+      ],
+      "called_again": "destination_mismatch",
+      "details": {
+       "reason": "occupied",
+       "path": "data/raw/big.parquet"
+      },
+      "source_unchanged_after": true
+     },
+     "F11-marker-begin-no-links": {
+      "stop": {
+       "step": "marker_begin"
+      },
+      "no_links": true,
+      "state_then": "incomplete",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "migration_incomplete",
+      "last_step_then": "marker_begin",
+      "lines_then": 99,
+      "temporary_files_then": [],
+      "called_again": "resumed_and_committed",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 102,
+      "source_unchanged_after": true
+     },
+     "F11-marker-temp-no-links": {
+      "stop": {
+       "step": "marker_temp"
+      },
+      "no_links": true,
+      "state_then": "incomplete",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "migration_incomplete",
+      "last_step_then": "marker_begin",
+      "lines_then": 99,
+      "temporary_files_then": [
+       ".analytics-json-0.part"
+      ],
+      "called_again": "resumed_and_committed",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 102,
+      "source_unchanged_after": true
+     },
+     "F11-marker-written-no-links": {
+      "stop": {
+       "step": "marker_written"
+      },
+      "no_links": true,
+      "state_then": "incomplete",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "migration_incomplete",
+      "last_step_then": "marker_begin",
+      "lines_then": 99,
+      "temporary_files_then": [
+       ".analytics-json-0.part"
+      ],
+      "called_again": "resumed_and_committed",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 102,
+      "source_unchanged_after": true
+     },
+     "F12-published-no-links": {
+      "stop": {
+       "step": "marker_published"
+      },
+      "no_links": true,
+      "state_then": "current",
+      "older_kit_finds": null,
+      "source_unchanged_then": true,
+      "kit_read_then": "read",
+      "last_step_then": "marker_begin",
+      "lines_then": 99,
+      "temporary_files_then": [],
+      "called_again": "already_migrated",
+      "copies_equal_uninterrupted": true,
+      "temporary_files_after": [],
+      "lines_after": 100,
+      "source_unchanged_after": true
+     }
+    },
+    "test": "pass"
+   }
+  },
+  "timing_under_load": {
+   "what": "the machine was busy with other work during this round (load average about 50 on 18 cores, sysctl vm.loadavg at the measurement); the phases above are slower than the earlier record's for that, not for the code: an A/B of the M migration by 8d3695f's kit and by this tree's, alternately, twice each, under the same load (ab.py, wall seconds of the command in a process of its own)",
+   "load_at_measurement": [
+    "2026-10-08T23:27:28Z",
+    "{",
+    "52.93",
+    "49.69",
+    "47.23",
+    "}",
+    "18",
+    "2026-10-08T23:27:40Z",
+    "{",
+    "52.35",
+    "49.67",
+    "47.25",
+    "}"
+   ],
+   "ab": [
+    {
+     "round": 1,
+     "code": "8d3695f",
+     "exit": 0,
+     "wall_s": 11.15,
+     "load_1min": 54.7
+    },
+    {
+     "round": 1,
+     "code": "this tree",
+     "exit": 0,
+     "wall_s": 10.99,
+     "load_1min": 53.6
+    },
+    {
+     "round": 2,
+     "code": "8d3695f",
+     "exit": 0,
+     "wall_s": 10.77,
+     "load_1min": 55.1
+    },
+    {
+     "round": 2,
+     "code": "this tree",
+     "exit": 0,
+     "wall_s": 11.49,
+     "load_1min": 57.5
+    }
+   ]
   }
  },
  "writer_tests": {
@@ -3135,7 +4772,8 @@
    "literal_tilde_folder": false,
    "source_unchanged": true,
    "stderr_last_line": "analytics: the project is <dest> now, and the source is as it was (in aelix: /analytics use <dest>)"
-  }
+  },
+  "same_as_before": true
  },
  "agent_cli": {
   "what": "T22 (tests/test_agent_cli.py): aelix 0.1.0b2 loads the extension with its own loader and builds a harness (on('user_bash') wired by the harness's hook bus, a JSONL session in the test's directory); the kit's command line through the bash tool and through cli/repl.handle_user_bash, with another extension's shell, and with an extension that blocks every `!` command, each registered before and after",
@@ -3195,7 +4833,7 @@
    },
    "agent-cli-blocker-first": {
     "kit_command": {
-     "output": ": 2, \"build\": \"20261009-050325-214785\"}}",
+     "output": ": 2, \"build\": \"20261009-082151-934906\"}}",
      "recorded": {
       "actor": "human",
       "actor_basis": "declared",
@@ -3306,7 +4944,7 @@
    },
    "agent-cli-blocker-first": {
     "kit_command": {
-     "output": ": 2, \"build\": \"20261009-050407-645713\"}}",
+     "output": ": 2, \"build\": \"20261009-082317-146281\"}}",
      "recorded": {
       "actor": "human",
       "actor_basis": "declared",
@@ -3363,10 +5001,13 @@
    }
   },
   "extension_kit_child": "not a record: the extension's own kit child's environment (AELIX_ANALYTICS_ACTOR=human, AELIX_ANALYTICS_MEANS=command for /analytics, over the process's agent), asserted by tests/test_agent_cli.py",
-  "windows_powershell": "not_run"
+  "windows_powershell": "not_run",
+  "same_as_before": true,
+  "compared": "with the earlier record's values, the Workspace build stamps in the kit's output masked",
+  "owner_decision": "2026-10-09: the user_bash handler stays as it is; its limit — for kit commands only, it can set aside another extension's block or shell registered before it (aelix 0.1.0b2 keeps the last UserBashResult, hooks._reducer_user_bash, read again in this round) — is stated in CONTRACTS A and the README"
  },
  "foreign_fs": {
-  "what": "FAT32 and exFAT disk images (hdiutil, fskit, nobrowse) on macOS 26.6.2, measured by group G3 on b7856c6 (src unchanged since): the port, the shipped migration, and a probe passing over macOS's AppleDouble files",
+  "what": "FAT32 and exFAT disk images (hdiutil, fskit, nobrowse) on macOS 26.6.2, measured by group G3 on b7856c6 (src unchanged since): the port, the shipped migration, and a probe passing over macOS's AppleDouble files (the keys mnt-fat and mnt-exfat; the shipped code after the owner's decisions is under shipped_after_owner_decisions)",
   "mnt-fat": {
    "port": {
     "publish_new": "LinkUnsupported errno 45",
@@ -3516,6 +5157,130 @@
     "marker_written_directly": false,
     "marker": "incomplete"
    }
+  },
+  "shipped_after_owner_decisions": {
+   "what": "FAT32 and exFAT disk images (hdiutil create -fs 'MS-DOS FAT32' / ExFAT, attach -nobrowse; fskit) on macOS 26.6.2 (25G83), measured again in this round by the opt-in test (AELIX_ANALYTICS_TEST_FOREIGN_FS, tests/test_migrate_command.py) with the shipped code, and a probe that uses the migrated FAT32 destination as a project afterwards",
+   "test": "2 passed, 51 deselected in 3.51s",
+   "observations": {
+    "foreign-fs-mnt-exfat": {
+     "appledouble": [
+      "._.analytics",
+      ".analytics/._migration",
+      ".analytics/._migration.lock",
+      ".analytics/migration/._20261008T225200Z-ac904c6f",
+      ".analytics/migration/20261008T225200Z-ac904c6f/._progress.jsonl"
+     ],
+     "exit": 1,
+     "publish": null,
+     "reason": "no_exclusive_rename",
+     "rename_new": "RenameUnsupported 45",
+     "result": "destination_invalid"
+    },
+    "foreign-fs-mnt-fat": {
+     "again": "already_migrated",
+     "appledouble": [
+      "._.analytics",
+      "._.gitignore",
+      "._analytics.json",
+      "._data",
+      "._journal.jsonl",
+      ".analytics/._context",
+      ".analytics/._migration",
+      ".analytics/._migration.lock",
+      ".analytics/context/._20261001-090000-000000_aaaaaaaaaaaa.md",
+      ".analytics/migration/._20261008T225159Z-ee9d2882",
+      ".analytics/migration/20261008T225159Z-ee9d2882/._gitignore.diff",
+      ".analytics/migration/20261008T225159Z-ee9d2882/._mapping.json",
+      ".analytics/migration/20261008T225159Z-ee9d2882/._plan.json",
+      ".analytics/migration/20261008T225159Z-ee9d2882/._progress.jsonl",
+      ".analytics/migration/20261008T225159Z-ee9d2882/._proposals",
+      ".analytics/migration/20261008T225159Z-ee9d2882/._report.json",
+      ".analytics/migration/20261008T225159Z-ee9d2882/._report.md",
+      ".analytics/migration/20261008T225159Z-ee9d2882/._source-marker.json",
+      ".analytics/migration/20261008T225159Z-ee9d2882/proposals/._gitattributes",
+      "data/._raw"
+     ],
+     "exit": 0,
+     "publish": "rename_new",
+     "reason": null,
+     "rename_new": "renamed",
+     "result": "committed"
+    }
+   },
+   "after_the_migration_on_fat32": {
+    "migrate": 0,
+    "status": [
+     0,
+     true,
+     "analytics.project/2",
+     null
+    ],
+    "record": [
+     0,
+     true
+    ],
+    "run": [
+     0,
+     true,
+     "ok"
+    ],
+    "status_after": [
+     0,
+     [
+      "20261009-075226-a"
+     ]
+    ],
+    "appledouble": [
+     "._.analytics",
+     "._.gitignore",
+     "._analytics.json",
+     "._data",
+     "._journal.jsonl",
+     "._runs",
+     "._scripts",
+     "._workspace",
+     ".analytics/._cache",
+     ".analytics/._context",
+     ".analytics/._lock",
+     ".analytics/._migration",
+     ".analytics/._migration.lock",
+     ".analytics/._run.lock",
+     ".analytics/._workspace.lock",
+     ".analytics/cache/._hashes.json",
+     ".analytics/cache/._report-fingerprint",
+     ".analytics/context/._20261001-090000-000000_aaaaaaaaaaaa.md",
+     ".analytics/migration/._20261008T225225Z-8d4b0ace",
+     ".analytics/migration/20261008T225225Z-8d4b0ace/._gitignore.diff",
+     ".analytics/migration/20261008T225225Z-8d4b0ace/._mapping.json",
+     ".analytics/migration/20261008T225225Z-8d4b0ace/._plan.json",
+     ".analytics/migration/20261008T225225Z-8d4b0ace/._progress.jsonl",
+     ".analytics/migration/20261008T225225Z-8d4b0ace/._proposals",
+     ".analytics/migration/20261008T225225Z-8d4b0ace/._report.json",
+     ".analytics/migration/20261008T225225Z-8d4b0ace/._report.md",
+     ".analytics/migration/20261008T225225Z-8d4b0ace/._source-marker.json",
+     ".analytics/migration/20261008T225225Z-8d4b0ace/proposals/._gitattributes",
+     "data/._raw",
+     "data/raw/._a.parquet",
+     "runs/._20261009-075226-a",
+     "runs/20261009-075226-a/._code",
+     "runs/20261009-075226-a/._run.json",
+     "runs/20261009-075226-a/._stderr.txt",
+     "runs/20261009-075226-a/._stdout.txt",
+     "runs/20261009-075226-a/code/._scripts",
+     "runs/20261009-075226-a/code/scripts/._a.py",
+     "scripts/._a.py",
+     "workspace/._assets",
+     "workspace/._context.html",
+     "workspace/._data",
+     "workspace/._index.html",
+     "workspace/._runs",
+     "workspace/assets/._build.js",
+     "workspace/assets/._code.css",
+     "workspace/assets/._workspace.css",
+     "workspace/assets/._workspace.js"
+    ]
+   },
+   "on_8d3695f": "both volumes destination_invalid(not_empty) at step 1 (._.analytics, .analytics/._migration.lock): the strengthened opt-in test fails there (new_tests_on_8d3695f)"
   }
  },
  "before": {
@@ -3524,11 +5289,155 @@
   "note": "PR 2's record of the engine; its fixtures were made by PR 2's generator, these by this checkout's with that commit's kit (--kit-root): see migration.fixture_reproducibility"
  },
  "not_run": [
-  "the repository CI on Linux and Windows and the macOS label run (not pushed): Linux renameat2 through ctypes, Windows rename_new = publish_new, the launchers' --no-project and the answer read on Windows, the Windows-only tests (tests/test_windows_long_paths.py changed without running), T22 with a PowerShell or cmd child",
-  "AELIX_ANALYTICS_TEST_INSTALL=1 (the distribution end to end)",
-  "a real removable FAT or exFAT medium, and FAT/exFAT on Linux or Windows; on macOS the shipped migration stops at step 1 (not_empty, AppleDouble files): owner question; the refusal under the lock on such a volume was not measured again (its hint is tested with an injected entry)",
+  "the repository CI of this head on Linux, Windows and the macOS label run (pending: not pushed yet); its Windows repository step took 1,789 s of its 35 minutes at 8d3695f",
+  "a real removable FAT or exFAT medium, and FAT/exFAT on Linux or Windows (macOS disk images only)",
   "a power loss and durability after it; Windows' directory flush, read-only copies and late lock release; a network file system",
   "a real aelix model session (the bash tool and handle_user_bash were called directly); another agent host than aelix; aelix's RPC bash command",
-  "the writer's cost with an index (#15)"
- ]
+  "the writer's cost with an index (#15)",
+  "the extension's analytics_import/analytics_run with a description or title over Windows' 32,767-character command line (pre-existing: spawn_failed there)"
+ ],
+ "previous_verification": {
+  "repository_suite": {
+   "command": "uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread",
+   "result": "1935 passed, 106 skipped in 520.38s (0:08:40)",
+   "evidence_dir": "AELIX_ANALYTICS_TEST_EVIDENCE_DIR=<run>/fix/evidence/final/observations"
+  },
+  "layers_contracts": "126 passed, 52 skipped in 13.87s",
+  "aelix_py3.12": "243 passed in 45.07s",
+  "aelix_py3.11": "243 passed in 42.19s",
+  "launcher_py3.11": "192 passed, 1 skipped in 26.49s",
+  "usage_report": [
+   "texts compared after normalizing the temporary directory and source_revision: 76",
+   "differences: none",
+   "numeric leaves that differ (times left out): 0",
+   "checks of the new report: {\"P1_sizes_recomputed_from_saved_texts\": true, \"P2_required_facts_read_back\": {\"passed\": 58, \"total\": 58}, \"P2_invariants_hold\": {\"holding\": 42, \"total\": 42}, \"P3_hook_returned_a_block\": true, \"P3_tools_replied_without_error\": true, \"P3_pinned_section_whole\": true, \"fixtures_measured\": 34, \"fixtures_selected\": 34}",
+   "failures of the new report: []"
+  ],
+  "platform_smoke": {
+   "holds": 25,
+   "violated": 0,
+   "declared_limitation": 0,
+   "observed": 6,
+   "not_run": 0
+  },
+  "stdlib_smoke": {
+   "holds": 15,
+   "violated": 0,
+   "declared_limitation": 0,
+   "observed": 3,
+   "not_run": 2
+  },
+  "check_docs": {
+   "ok": true,
+   "counts": {
+    "json_files": 13,
+    "markdown_files": 66,
+    "local_links": 727,
+    "python_examples": 6,
+    "json_examples": 7,
+    "dev_state_examples": 1
+   },
+   "errors": []
+  },
+  "ruff": "pass",
+  "git_diff_check": "the worktree against origin/main, no output",
+  "reordered_commit": {
+   "what": "the authorship commit in its new place (on the entry points' commit, before the command's): ruff and the repository suite on that tree",
+   "result": "1785 passed, 93 skipped in 643.25s (0:10:43)"
+  }
+ },
+ "distribution_e2e": {
+  "command": "CI=1 AELIX_ANALYTICS_TEST_INSTALL=1 uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread tests/test_packaging.py tests/test_windows_console.py tests/test_windows_long_paths.py (the CI step's variable; network: PyPI, uv's cache)",
+  "result": "26 passed, 28 skipped in 93.23s (0:01:33)",
+  "skipped": [
+   "SKIPPED [6] tests/test_windows_console.py:138: the Windows console",
+   "SKIPPED [1] tests/test_windows_console.py:153: the Windows console",
+   "SKIPPED [1] tests/test_windows_console.py:163: the Windows console",
+   "SKIPPED [1] tests/test_windows_console.py:172: the Windows console",
+   "SKIPPED [4] tests/test_windows_console.py:208: the Windows console",
+   "SKIPPED [1] tests/test_windows_console.py:245: the Windows console",
+   "SKIPPED [1] tests/test_windows_console.py:250: the Windows console",
+   "SKIPPED [2] tests/test_windows_console.py:256: the Windows console",
+   "SKIPPED [2] tests/test_windows_console.py:280: the Windows console",
+   "SKIPPED [1] tests/test_windows_console.py:313: the Windows console",
+   "SKIPPED [1] tests/test_windows_console.py:324: the Windows console",
+   "SKIPPED [1] tests/test_windows_long_paths.py:176: MAX_PATH and LongPathsEnabled are Windows'",
+   "SKIPPED [1] tests/test_windows_long_paths.py:231: MAX_PATH and LongPathsEnabled are Windows'",
+   "SKIPPED [1] tests/test_windows_long_paths.py:259: MAX_PATH and LongPathsEnabled are Windows'",
+   "SKIPPED [1] tests/test_windows_long_paths.py:298: MAX_PATH and LongPathsEnabled are Windows'",
+   "SKIPPED [1] tests/test_windows_long_paths.py:320: MAX_PATH and LongPathsEnabled are Windows'",
+   "SKIPPED [1] tests/test_windows_long_paths.py:367: MAX_PATH and LongPathsEnabled are Windows'",
+   "SKIPPED [1] tests/test_windows_long_paths.py:402: MAX_PATH and LongPathsEnabled are Windows'"
+  ],
+  "before_the_fix": "8d3695f's code and tests: tests/test_packaging.py::test_aelix_binds_and_loads_the_installed_extension[3.11] and [3.12] failed with assert 5 == 4, as on CI (run folder ci-fix/evidence/baseline/packaging-aelix-binds-8d3695f.txt)"
+ },
+ "new_tests_on_8d3695f": {
+  "code": "8d3695f5923c290747b57a409343e17d8bebdc2f",
+  "what": "this round's new and changed tests (today's tests/ files copied over 8d3695f's worktree) on 8d3695f's code",
+  "files": {
+   "aelix-py3.12": {
+    "summary": "8 failed, 67 passed, 57 deselected in 9.26s",
+    "failed": [
+     "tests/test_extension.py::test_a_new_project_inside_a_project_is_refused_by_the_extension[/analytics demo-migration]",
+     "tests/test_extension.py::test_a_new_project_inside_a_project_is_refused_by_the_extension[/analytics init-migration]",
+     "tests/test_extension.py::test_a_new_project_inside_a_project_is_refused_by_the_extension[analytics_init-migration]",
+     "tests/test_extension.py::test_a_person_s_command_that_calls_the_kit_is_found[\"ana\\\\\\nlytics\" status]",
+     "tests/test_extension.py::test_a_person_s_command_that_calls_the_kit_is_found[AELIX_ANALYTICS_ACTOR=x \\\\\\n  analytics status]",
+     "tests/test_extension.py::test_a_person_s_command_that_calls_the_kit_is_found[ana\\\\\\nlytics status]",
+     "tests/test_extension.py::test_a_person_s_command_that_calls_the_kit_is_found[env \\\\\\n  -u HOME analytics status]",
+     "tests/test_extension.py::test_a_person_s_command_that_calls_the_kit_is_found[uv run \\\\\\nanalytics status]"
+    ],
+    "passed": 67
+   },
+   "packaging-aelix-binds": {
+    "summary": "2 passed, 24 deselected in 15.75s",
+    "failed": [],
+    "passed": 2
+   },
+   "repo-launcher-new-format": {
+    "summary": "4 failed, 11 passed, 209 deselected in 8.27s",
+    "failed": [
+     "tests/test_launcher.py::test_init_and_demo_inside_a_project_are_refused_before_anything[migration-demo-bin/analytics]",
+     "tests/test_launcher.py::test_init_and_demo_inside_a_project_are_refused_before_anything[migration-demo-launcher]",
+     "tests/test_launcher.py::test_init_and_demo_inside_a_project_are_refused_before_anything[migration-init-bin/analytics]",
+     "tests/test_launcher.py::test_init_and_demo_inside_a_project_are_refused_before_anything[migration-init-launcher]"
+    ],
+    "passed": 11
+   },
+   "repo-marker-gate": {
+    "summary": "5 failed, 10 passed, 59 deselected in 5.94s",
+    "failed": [
+     "tests/test_marker_gate.py::test_init_takes_a_directory_of_operating_system_views_as_empty",
+     "tests/test_marker_gate.py::test_no_project_is_made_inside_a_migration_s_destination_not_committed[both]",
+     "tests/test_marker_gate.py::test_no_project_is_made_inside_a_migration_s_destination_not_committed[lock]",
+     "tests/test_marker_gate.py::test_no_project_is_made_inside_a_migration_s_destination_not_committed[migration directory]",
+     "tests/test_marker_gate.py::test_the_migration_copies_only_a_lab_json_project_and_never_inside_one[incomplete]"
+    ],
+    "passed": 10
+   },
+   "repo-migrate-command": {
+    "summary": "4 failed, 49 deselected in 2.48s",
+    "failed": [
+     "tests/test_migrate_command.py::test_a_migration_onto_a_file_system_of_another_kind[<volumes>/mnt-exfat]",
+     "tests/test_migrate_command.py::test_a_migration_onto_a_file_system_of_another_kind[<volumes>/mnt-fat]",
+     "tests/test_migrate_command.py::test_nothing_is_made_inside_a_destination_not_committed_and_its_migration_goes_on[stop0]",
+     "tests/test_migrate_command.py::test_nothing_is_made_inside_a_destination_not_committed_and_its_migration_goes_on[stop1]"
+    ],
+    "passed": 0
+   },
+   "repo-migration": {
+    "summary": "5 failed, 2 passed, 139 deselected in 12.18s",
+    "failed": [
+     "tests/test_migration.py::test_a_destination_holding_appledouble_files_only_is_empty",
+     "tests/test_migration.py::test_an_appledouble_name_is_operating_system_metadata",
+     "tests/test_migration.py::test_appledouble_files_in_a_destination_resumed_are_passed_over",
+     "tests/test_migration.py::test_appledouble_files_made_beside_the_migration_s_own_are_passed_over_under_the_lock",
+     "tests/test_migration.py::test_the_source_s_appledouble_files_are_reported_and_not_copied"
+    ],
+    "passed": 2
+   }
+  },
+  "failed_total": 26,
+  "expected": "every test of the owner's decisions 2 and 4 and of the tokenizer's line continuation fails there; what passes pins a test fix (the packaging handler count, the Windows command line, the SEQ_BOUND bound), a column already refused (a marker above), or a case whose entry the old code refused too (the lock re-judgment's person's file)"
+ }
 }

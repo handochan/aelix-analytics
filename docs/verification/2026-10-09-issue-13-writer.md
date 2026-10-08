@@ -12,42 +12,55 @@ kit 0.8.0 절입니다.
 T22를 다시 쟀고, 설계와 다르게 구현한 것(`departures`)과 fixture 재현성을 더했습니다. 리뷰 전 판의 값은 JSON의 `measured_tree.previous_record`와
 `writer_latency.before_the_fix`가 가리킵니다.
 
-이 기록의 값은 모두 개발 기기(macOS)의 것입니다. 이 브랜치는 아직 push하지 않아 저장소 CI(Linux·Windows·macOS 레그)가 돌지 않았습니다(`runs`·
-`legs`가 `not_run`). PR이 열리면 그 실행으로 이 칸을 채웁니다.
+그 뒤 [PR #84](https://github.com/handochan/aelix-analytics/pull/84)의 CI(헤드 `8d3695f`, 실행 37840617751·37840622273)가 시험 둘의 실패를
+보였고, 소유자가 PR의 질문 넷에 답했습니다(2026-10-09, [#13](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6070315072)). 그 처리(코드 커밋 `9887509`) 뒤 바뀐 부분 — 전환
+S·M과 중단 행렬, 명령 E2E, 진입점 행렬, T18, T22, FAT·exFAT, 검증 전체와 배포본 E2E — 를 다시 쟀습니다(아래 "소유자 결정 뒤 다시 잼").
+값을 바꾼 키는 그 전 값을 옆에 두고(`before_owner_decisions`, `previous_verification`, `migrate_before_owner_decisions`), 다시 재지 않은 키(writer
+지연, fixture 재현성)는 그 전 측정 그대로입니다.
+
+이 기록의 값은 모두 개발 기기(macOS)의 것입니다. `8d3695f`의 CI는 위 실패로 끝났고(`runs.at_8d3695f`), 이 판의 헤드는 아직 push하지 않아
+CI 칸(`runs.code`·`legs`)은 `pending`입니다.
 
 ## 출처와 환경
 
 | 항목 | 근거 |
 |---|---|
+| 다시 잰 코드(소유자 결정 뒤) | 커밋 `9887509`(fix: answer the CI and the owner's decisions of PR 3, `8d3695f` 위). 커밋 전 worktree에서 쟀고 그 커밋과 파일 manifest(220개, sha256 `fa8a7c5a…`)가 같습니다 |
 | 측정한 코드 | `feat/issue-13-new-writer`의 커밋 여섯(writer → 진입점·저장 이름 → 확장의 작성 주체 → 명령 → 문서 → 첫 측정 기록, 헤드 `ceaf736`; 리뷰가 작성 주체 커밋을 명령 커밋 앞으로 옮김) 위에 리뷰 수정을 커밋하기 전의 worktree. 리뷰 수정 커밋이 잰 코드와 이 기록을 담습니다. `origin/main` `0f3f09f`(PR #82 병합) 위입니다. JSON의 `measured_tree`는 검증 때 만든 파일 manifest(추적하는 `src`·`extension`·`tests`·`tools`·`bin`·`pyproject.toml`·`uv.lock` 파일마다 `shasum -a 256` 한 줄, 경로 순, 219개)의 sha256을 담고, 목록은 run 폴더에 있습니다 |
 | 비교한 기준 | writer 지연과 fixture는 PR ③ 전의 kit(`ebd10b6`, `tools/eval_fixtures.py`의 `V1_KIT_COMMIT`; PR #82의 헤드로 main에 있음)의 `src/`를 `git archive`로 꺼내 썼습니다. 리뷰 수정의 시험은 수정 전 코드 `f42a9a3`에서 돌렸습니다(아래) |
 | 워크플로 | `.github/workflows/ci.yml`: aelix 레그가 `tests/test_agent_cli.py`도 돌리고 관찰을 `evidence-aelix-py3.12/`·`3.11/`에 남깁니다(이 PR의 변경) |
 | 코드 실행(CI) | 실행하지 않음(push 전) |
 | 개발 기기 | macOS 26.6.2 arm64(Apple M5 Pro), uv 0.11.19. 저장소 시험 CPython 3.12.13(`uv.lock`의 개발 환경), aelix 레그 3.12.13·3.11.15, 런처·stdlib 스모크 3.11 |
 | 격리 | `AELIX_ANALYTICS_TRUST_FILE`·`AELIX_ANALYTICS_UV`를 run 폴더 안으로(`uv`는 실제 uv로의 링크, 측정은 따로 둔 신뢰 목록), `LAB_*`·`AELIX_LAB_*` 없음. 잰 명령은 `~/.aelix`를 읽거나 쓰지 않습니다. T22는 aelix를 시험의 임시 디렉터리를 HOME·`AELIX_CODING_AGENT_DIR`로 한 채 로드합니다(모델·네트워크·로그인 없음). T18의 `~` 사례와 명령 E2E의 `~` 단계는 HOME을 시험·run의 디렉터리로 두고 uv의 캐시·Python은 그대로 씁니다 |
+| 격리(소유자 결정 뒤) | 위와 같고, HOME을 run 폴더의 가짜 디렉터리로 두었습니다(uv의 캐시·Python 디렉터리만 실제 값). 이 판에서 `~/.aelix`를 읽거나 나열하거나 쓰지 않았습니다 |
 | 격리 사고 | 구현 중(G4, 리뷰 전) 데모 프로젝트를 살피던 명령 하나에 `ls ~/.aelix/agent 2>/dev/null \| head -0`이 실수로 들어가 실행됐습니다. 출력은 보지 않고 버려졌고 아무것도 쓰지 않았습니다(run 폴더의 handoff와 PR 본문에 적음). 잰 명령은 `~/.aelix`를 읽거나 나열하지 않았습니다 |
 
 ## 결과
 
+소유자 결정 뒤의 판(코드 `9887509`)입니다. 리뷰 수정 판의 결과는 JSON `previous_verification`에 있습니다(저장소 시험 1,935 passed·106 skipped,
+aelix 레그 243/243, 런처 192 passed 등).
+
 | 검사 | 명령 | 결과 |
 |---|---|---|
 | ruff | `uv run --locked ruff check tests extension src tools` | 통과 |
-| 저장소 시험 | `uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread` | 통과: 1,935 passed, 106 skipped(520초). 건너뜀은 Windows 전용·`AELIX_ANALYTICS_TEST_INSTALL`·Linux 전용·opt-in FAT·exFAT 사례와, aelix가 없는 개발 환경에서 건너뛰는 aelix 시험 파일 셋 |
+| 저장소 시험 | `uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread` | 통과: 1,952 passed, 106 skipped(900초). 건너뜀은 Windows 전용·`AELIX_ANALYTICS_TEST_INSTALL`·Linux 전용·opt-in FAT·exFAT 사례와, aelix가 없는 개발 환경에서 건너뛰는 aelix 시험 파일 셋 |
+| 배포본 E2E(CI의 변수) | `CI=1 AELIX_ANALYTICS_TEST_INSTALL=1 … pytest tests/test_packaging.py tests/test_windows_console.py tests/test_windows_long_paths.py` | 통과: 26 passed(`test_packaging.py` 전부), 28 skipped(Windows 전용 둘). `8d3695f`의 코드·시험에서는 CI처럼 `test_aelix_binds_and_loads_the_installed_extension[3.11]`·`[3.12]`가 `assert 5 == 4`로 실패 |
 | 계층·포트 계약 | `tests/test_layers.py tests/test_contracts.py` | 통과: 126 passed, 52 skipped |
-| aelix 0.1.0b2, CPython 3.12 / 3.11 | `tests/test_extension.py tests/test_usage_report.py tests/test_agent_cli.py`(CONTRIBUTING의 격리 환경) | 통과: 243 / 243 passed |
-| 런처, CPython 3.11 | `tests/test_launcher.py` | 통과: 192 passed, 1 skipped(Windows) |
-| 사용량 보고서 | `tools/usage_report.py`(aelix 0.1.0b2, 3.12) | 필수 사실 58/58, 불변식 42/42. 리뷰 전 판의 보고서와 텍스트 76개가 임시 경로와 `source_revision`을 맞추면 같고 숫자 잎의 차이 0: 리뷰 수정은 모델에 가는 글을 바꾸지 않았습니다 |
+| aelix 0.1.0b2, CPython 3.12 / 3.11 | `tests/test_extension.py tests/test_usage_report.py tests/test_agent_cli.py`(CONTRIBUTING의 격리 환경) | 통과: 253 / 253 passed |
+| 런처, CPython 3.11 | `tests/test_launcher.py` | 통과: 196 passed, 1 skipped(Windows) |
+| 사용량 보고서 | `tools/usage_report.py`(aelix 0.1.0b2, 3.12) | 필수 사실 58/58, 불변식 42/42. 리뷰 수정 판의 보고서와 텍스트 76개 가운데 다른 것은 aelix의 기본 프롬프트가 HOME 아래 전역 확장 디렉터리를 적은 한 줄(이 판은 가짜 HOME)과 그 크기뿐: 확장이 모델에 주는 글은 같습니다 |
 | 플랫폼 스모크 | `tools/platform_smoke.py --gate required` / `--stdlib-only`(3.11) | holds 25, violated 0 / holds 15, violated 0, not_run 2(이 플랫폼에서 필수 아님) |
-| 문서 검사 | `tools/check_docs.py` | `ok: true`, 오류 0(Markdown 66, 로컬 링크 727) |
+| 문서 검사 | `tools/check_docs.py` | `ok: true`, 오류 0(Markdown 66, 로컬 링크 729) |
 | `git diff --check origin/main` | 작업 트리 | 출력 없음 |
-| 옮긴 커밋 | 작성 주체 커밋의 새 자리(`12fc369`)에서 ruff·저장소 시험·aelix 레그 3.12·문서 검사 | 통과: 1,785 passed, 93 skipped / 220 passed / `ok: true` |
-| 리뷰 수정의 시험을 수정 전 코드에서 | 리뷰 수정이 바꾼 시험 파일(지금의 `tests/`)을 `f42a9a3`의 코드에서 | 기대대로 실패: 저장소 49개(351 통과), aelix 레그(3.12) 12개(116 통과). 통과하는 것은 이미 맞던 동작을 처음 시험한 것(T13의 실제 중단, 런처·확장의 OQ9, `/analytics open`의 옛 페이지, `--analytics-project`, 막는 확장의 T22)과 뜻이 그대로인 사례 |
+| opt-in FAT32·exFAT | `AELIX_ANALYTICS_TEST_FOREIGN_FS=<디스크 이미지 둘>`, `tests/test_migrate_command.py -k another_kind` | 통과: 2 passed(아래 `foreign_fs`) |
+| 새 시험을 `8d3695f`의 코드에서 | 이 판이 바꾼 시험 파일을 `8d3695f`의 worktree에 넣고 | 기대대로 실패 26개: AppleDouble 6, OQ9 넓힘 13(T8 `incomplete`, core init 셋, kit CLI 둘, 런처 넷, 확장 셋 — 확장은 aelix 3.12), 토크나이저 줄 이음 5, opt-in FAT·exFAT 2(두 볼륨 모두 1단계 `not_empty`). 통과하는 것은 시험만 고친 것(packaging 처리기 표, Windows 명령줄, `SEQ_BOUND`의 22 bytes)과 이미 거절하던 열(위쪽 표식)·사례(잠금 뒤 사람의 파일) |
 
 G1–G4(리뷰 전)의 새 시험을 그 앞 코드에서 돌린 결과는 각 그룹의 run 폴더 증거에 있고 PR 본문이 적습니다.
 
 ## writer 지연(`writer_latency`, 11.5절)
 
-10,000줄 journal에서 기록 하나의 비용입니다. 그 전 kit(`ebd10b6`, `/1` writer `core.add_note`)은 M 원본(`lab.json`)의 사본에, 이 트리(`core.record`·
+10,000줄 journal에서 기록 하나의 비용입니다. 소유자 결정 뒤에는 다시 재지 않았습니다: 그 변경(`writer.project_above`·`inside`, init, 전환의
+판정·제외, 확장의 토크나이저)은 기록 경로에 없습니다. 그 전 kit(`ebd10b6`, `/1` writer `core.add_note`)은 M 원본(`lab.json`)의 사본에, 이 트리(`core.record`·
 `Writer.update`)는 그 원본을 전환한 목적지(`analytics.json`, 같은 10,000줄에 `/2` 줄을 덧붙임)의 사본에 썼습니다. 종류마다 20회, kit마다 자기
 프로세스에서 그 kit만 import하고, 두 kit을 번갈아 두 번 돌려 판마다 새 사본을 썼습니다. 값은 두 판의 최솟값입니다(ms).
 
@@ -72,11 +85,13 @@ seq·상태 색인은 설계 11.5절과 구현 주의 I8대로 #15의 인덱스�
 |---|---|---|
 | 4.7절: 이벤트당 참조 24개 상한(`MAX_EVENT_REFS`)을 둠 | `Writer`에 개수 상한이 없고 줄 상한(OQ2, 50 KiB)이 묶음 | 0.8.0 전에도 상한은 run 완료 이벤트의 데이터 참조에만 있었고(`add_note`에는 없음) 지금 그 이벤트는 run 참조 하나다. 거절로 되돌리면 설계에 필요 없는 거절을 더함 |
 | 2.9절(OQ2): 본문은 상한까지 통째로, 자르지 않음 | kit이 만드는 본문(가져오기 이벤트·run 완료·프로젝트 생성)은 다른 곳에 통째로 남는 필드(가져오기 기록의 `description`, `run.json`의 `title`, 표식의 `title`)를 앞 4,000자까지 인용하고 `…`(`writer.excerpt`). run의 오류 요약은 `SystemExit`도 예외처럼 300자 | OQ2를 호출자가 기록하는 본문의 규칙으로 읽음. 통째로 담으면 데이터·`run.json`·표식을 쓴 뒤 kit 자신의 기록이 거절됐다(리뷰). 0.7.0은 4,000자로 잘라 기록함 |
-| 4.3절: 스크립트의 거절은 예외 | run 안 SDK 기록은 부를 때 가장 넓은 seq(12자리, `writer.SEQ_BOUND`)로 줄을 판정: 상한에서 24 bytes 안쪽의 줄은 run 밖이라면 쓰일 것도 거절 | run이 끝날 때 쓰는 기록의 seq는 부를 때 모름. 끝날 때 판정하면 넘는 기록이 스크립트가 계속된 뒤 사라졌다(리뷰) |
+| 4.3절: 스크립트의 거절은 예외 | run 안 SDK 기록은 부를 때 가장 넓은 seq(12자리, `writer.SEQ_BOUND`)로 줄을 판정. seq가 줄에 두 번(`seq`·`id`) 들어가므로 판정한 줄은 쓸 줄보다 2 × (12 − 실제 seq의 자릿수) bytes, 많아야 22 bytes 길고, 그만큼 상한에 가까운 줄은 run 밖이라면 쓰일 것도 거절(수정 diff 확인이 처음의 "24 bytes"를 고침) | run이 끝날 때 쓰는 기록의 seq는 부를 때 모름. 끝날 때 판정하면 넘는 기록이 스크립트가 계속된 뒤 사라졌다(리뷰) |
 
 ## 진입점 행렬(`entry_points`, T8)
 
-시험이 남긴 그대로이며 리뷰 전 판과 같습니다(`tests/test_marker_gate.py`, aelix 레그의 `tests/test_extension.py`). 칸이 비면 받아들여짐(쓰거나
+시험이 남긴 그대로입니다(`tests/test_marker_gate.py`, aelix 레그의 `tests/test_extension.py`). 소유자 결정 뒤 다시 남긴 값에서 `migrate` 열의 두
+칸이 바뀌었습니다(OQ9 넓힘): 표식 없는 전환 목적지 안의 목적지가 `inside_project`가 되었고, 표식 없음 열은 그 안의 목적지로 전환이
+커밋함을 이제 시험이 확인합니다(그 전에는 확인하지 않음). 나머지 칸은 리뷰 전 판과 같습니다(그 전 값은 JSON `migrate_before_owner_decisions`). 칸이 비면 받아들여짐(쓰거나
 읽음), 아니면 오류 코드이고, 거절·건너뜀인 칸은 프로젝트 트리(잠금 파일 포함)가 전후로 같습니다.
 
 | 열 | kit CLI 쓰기(run·import·record·render·demo) | kit CLI 읽기(status·context·query) | SDK(run 밖) | 확장의 쓰기 도구·명령 | `migrate`(원본 / 그 안의 목적지) |
@@ -89,8 +104,8 @@ seq·상태 색인은 설계 11.5절과 구현 주의 I8대로 #15의 인덱스�
 | `analytics.project/3` | `project_too_new` | 읽음 | — | — | `source_not_legacy` / `inside_project` |
 | 표식이 아닌 `analytics.json` | `marker_invalid` | 읽음 | `marker_invalid` | `marker_invalid` | `source_not_legacy` / `inside_project` |
 | 두 표식 | `marker_conflict` | `marker_conflict` | `marker_conflict` | `marker_conflict`(읽기 포함) | `source_not_legacy` / `inside_project` |
-| 표식 없음 | `no_project` | `no_project` | — | — | `no_project` |
-| 표식 없는 전환 목적지 | `migration_incomplete` | `migration_incomplete` | — | — | `source_not_legacy` |
+| 표식 없음 | `no_project` | `no_project` | — | — | `no_project` / 복사 |
+| 표식 없는 전환 목적지 | `migration_incomplete` | `migration_incomplete` | — | — | `source_not_legacy` / `inside_project`(소유자 결정 뒤) |
 | `lab.json` 프로젝트 아래의 `analytics.json` 디렉터리 | 씀 | 읽음 | 씀 | — | `source_not_legacy` / `inside_project` |
 
 "—"는 그 열을 그 진입점으로 시험하지 않은 칸입니다(JSON의 열 목록이 시험한 것). 리뷰 뒤 더한 시험: 프로젝트 안의 `init`·`demo DIR`을 두 런처가
@@ -98,35 +113,42 @@ kit의 init으로 거절하고 아무것도 만들지 않음(`analytics.json`·`
 같음(aelix 레그), 데모가 쓴 모든 기록이 새 형식이고 기록 schema에 맞음. 런처·`bin/analytics`의 행, run 안 SDK의 표식 바뀜, journal·run 잠금 안의
 재판정은 시험 이름으로 JSON에 있습니다.
 
+소유자 결정 뒤 더한 시험(`entry_points.inside_a_migration_s_destination_not_committed`): 끊긴 전환의 목적지(잠금만, 전환 디렉터리만, 둘 다 / F1·F6)
+아래로 init — core, kit CLI(밖에서와 그 안에서의 상대 경로), 두 런처의 `init`·`demo`, `analytics_init`·`/analytics init|demo` — 과 `migrate --to`(다른
+원본, 같은 원본, `--dry-run`)가 모두 `destination_invalid(inside_project)`이고 `details.project`가 그 목적지이며 목적지·원본·신뢰 목록이 그대로이고,
+그 뒤 첫 전환이 같은 명령으로 이어 커밋합니다. 모두 `8d3695f`의 코드에서는 실패합니다.
+
 ## 명령 E2E(`command_e2e`)
 
 S fixture의 사본에 자기 `uv.lock`과 `.venv/`를 만들어(사람의 프로젝트처럼) 두 런처(`bin/analytics`, 설치본 `analytics`의 코드)를 실제 uv로
-불렀습니다. 두 런처의 결과가 같습니다.
+불렀습니다. 두 런처의 결과가 같습니다. 소유자 결정 뒤 다시 잰 값이며 단계마다 그 전 판과 같은 결과입니다(시간은 기기 부하로 조금 김, 아래
+"전환 다시 잼"; 그 전 값은 JSON `command_e2e.before_owner_decisions`).
 
 | 단계 | 결과 |
 |---|---|
 | `migrate --to D --dry-run` | 0, `dry_run: true`, D를 만들지 않음 |
-| `migrate --to D` | 0(1.3초), 목적지의 `.venv/`를 `uv sync --locked`로 만듦, 목적지의 `uv.lock`이 원본과 같은 바이트, stderr `analytics: the project is D now, and the source is as it was (in aelix: /analytics use D)` |
+| `migrate --to D` | 0(1.6초), 목적지의 `.venv/`를 `uv sync --locked`로 만듦, 목적지의 `uv.lock`이 원본과 같은 바이트, stderr `analytics: the project is D now, and the source is as it was (in aelix: /analytics use D)` |
 | 다시 `migrate --to D` | 0, `already_migrated: true`, 사본 229개 `same`, `differs` 없음 |
 | D에서 `status` / `record finding e2e` | 0 / 0, 쓴 줄은 `analytics.event/2`·`human`·`inferred`·`cli` |
 | 원본에서 `record finding e2e` | 1, `migration_required` |
 | 원본 재확인 뒤 `os._exit`로 끊은 목적지 | `status`가 1·`migration_incomplete`, `.venv/` 없음 |
 | 그 목적지로 `migrate` | 0, 이어서 커밋, `.venv/`를 만듦 |
-| `migrate --to=~/tilde-<런처>`(셸이 `~`를 풀지 않은 그대로, HOME은 run의 디렉터리) | 0(1.3초), kit이 HOME 아래에 만든 목적지가 응답의 `destination`이고 그 `.venv/`를 만듦, 원본 안에 `~` 폴더 없음 |
+| `migrate --to=~/tilde-<런처>`(셸이 `~`를 풀지 않은 그대로, HOME은 run의 디렉터리) | 0(1.7–1.8초), kit이 HOME 아래에 만든 목적지가 응답의 `destination`이고 그 `.venv/`를 만듦, 원본 안에 `~` 폴더 없음 |
 | 원본(`.venv/`·`uv.lock` 포함 5,738개)의 트리 | 처음과 끝이 같음 |
 
 ## 전환 다시 잼(`migration`, PR ②의 항목)
 
 S·M fixture는 리뷰 전 판의 측정이 이 브랜치의 `tools/eval_fixtures.py scale --scale S|M --seed 0 --kit-root <V1_KIT_COMMIT의 src>`로 만든 것을
 그대로(복제해) 썼습니다(OQ7; S 229개·2.9 MB·journal 300줄, M 2,037개·223 MB·journal 10,000줄). 전환은 모두 명령 `python -m aelix_analytics
---project SRC migrate --to DEST`를 자기 프로세스로 부른 것입니다(런처가 uv 없이 부르는 것과 같음).
+--project SRC migrate --to DEST`를 자기 프로세스로 부른 것입니다(런처가 uv 없이 부르는 것과 같음). 소유자 결정 뒤 다시 잰 값이며, 같은 fixture를
+복제해 썼습니다(`tree_digest`가 그 전 판과 같음). 괄호는 리뷰 수정 판의 값입니다(JSON `migration.before_owner_decisions`).
 
 | 값 | S | M |
 |---|---|---|
-| 전체(두 번의 최솟값) | 1.01초 | 9.05초 |
-| 복사 / 원본 재확인 / 검증 | 0.93 / 0.02 / 0.01초 | 8.48 / 0.28 / 0.17초 |
-| 원본 잠금을 쥔 시간 | 0.96초 | 8.81초 |
-| 최대 RSS(`/usr/bin/time -l`) | 31 MB | 77 MB |
+| 전체(두 번의 최솟값) | 1.12초(1.01) | 10.77초(9.05) |
+| 복사 / 원본 재확인 / 검증 | 1.00 / 0.03 / 0.02초(0.93 / 0.02 / 0.01) | 9.22 / 0.66 / 0.55초(8.48 / 0.28 / 0.17) |
+| 원본 잠금을 쥔 시간 | 1.05초(0.96) | 10.08초(8.81) |
+| 최대 RSS(`/usr/bin/time -l`) | 32 MB(31) | 78 MB(77) |
 | 게시(2단계 시험의 `probed.publish`) | `publish_new` | `publish_new` |
 | 원본 digest(독립 걷기, 잠금 파일 둘 제외) | 전후 같음 | 전후 같음 |
 | 두 전환의 사본 | 같음 | 같음 |
@@ -137,12 +159,21 @@ S·M fixture는 리뷰 전 판의 측정이 이 브랜치의 `tools/eval_fixture
 | 목적지 `status` | `analytics.project/2`, 쓸 수 있음, 매핑 적용 | 같음 |
 | 원본 `status` | `lab.project/1`, `migration_required`, `migration_hint`, 원본 그대로 | 같음 |
 
-PR ②의 측정(S 1.01초·29 MB, M 9.40초·73 MB)과 리뷰 전 판(S 1.02초·31 MB, M 9.17초·76 MB)과 같은 크기입니다. 중단 행렬(`fault_matrix`)은
+이 판의 시간이 긴 것은 기기가 다른 일로 바빴기 때문이고(1분 부하 평균 약 50, 18코어) 코드 때문이 아닙니다: 같은 부하에서 M 전환을 `8d3695f`의
+kit과 이 트리의 kit으로 번갈아 두 번씩 부른 시간이 11.15·10.77초와 10.99·11.49초였습니다(`migration.timing_under_load`). 소유자 결정의 변경이 전환에
+더한 것은 항목마다의 이름 판정 하나입니다. PR ②의 측정(S 1.01초·29 MB, M 9.40초·73 MB)과 리뷰 전 판(S 1.02초·31 MB, M 9.17초·76 MB)도 같은
+크기입니다. 중단 행렬(`fault_matrix`)은
 F1–F16과 F15(링크 없이 사본의 직접 쓰기) 37행이 PR ②의 관측과 같고(F15의 정체성 전 끊김은 `destination_mismatch(occupied)`), 이 PR이 더한 행 넷 —
 링크가 없는 목적지에서 표식을 `rename_new`로 게시하는 중에 끊김(`marker_begin`·`marker_temp`·`marker_written`, 게시 뒤) — 은 앞 셋이 이어서
-커밋하고 마지막이 `already_migrated`입니다(41행 모두 리뷰 전 판과 같음). 잠금 뒤 1단계 재판정의 거절은 이제 "nothing was written" 대신 이 호출이
+커밋하고 마지막이 `already_migrated`입니다(41행 모두 리뷰 전 판과 같고, 소유자 결정 뒤 다시 잰 41행도 전환 id·임시 경로를 빼면 같음). 잠금 뒤 1단계 재판정의 거절은 이제 "nothing was written" 대신 이 호출이
 남긴 것(목적지·`.analytics/`·잠금 파일)과 할 일을 적습니다(주입 시험 두 사례, `refused_under_the_lock`). 동시성(T5·T7·T15)과 T13·T10의 writer
 시험, T11의 단위 시험은 이 트리에서 통과했습니다(시험 이름은 JSON).
+
+**AppleDouble `._<이름>`**(소유자 결정 2, `migration.appledouble`). 원본의 AppleDouble 파일(루트, 폴더 옆, `data/`, `.lab/` 안)은 복사하지 않고
+보고서 `excluded`(`os_metadata`)에 적으며, 복사 중 원본에 새로 생겨도 `source_changed`가 아닙니다. `.DS_Store`와 AppleDouble만 있는 목적지는
+빈 것이고(init도 같음, `Thumbs.db`는 여전히 항목), 잠금 뒤 재판정에서 이 전환의 `.analytics`·잠금 옆에 생긴 것과 사본 옆에 생긴 것을 항목으로
+세지 않으며, 끊긴 전환을 이을 때 계획에 없는 AppleDouble(루트, 폴더 옆, 사본 옆, `.analytics/` 안)은 무시하고 남겨 둡니다. 시험 여섯 모두
+`8d3695f`의 코드에서는 실패합니다.
 
 **fixture의 재현성**(`migration.fixture_reproducibility`). 리뷰 전 판은 S·M의 바이트와 digest가 PR ②의 fixture와 다른 까닭을 "도구가 PR ②
 뒤에 바뀌어서"라고 적었는데, 근거 없는 문장이었습니다. 재어 보니: fixture의 바이트는 재현되지 않습니다. 이 브랜치의 생성기로 같은 `--out`에 두 번
@@ -155,7 +186,7 @@ fixture 필드는 `kit_commit`(fixture를 쓴 kit, `V1_KIT_COMMIT`)과 `generato
 
 ## uv(`uv`, T18)
 
-`tests/test_migrate_command.py`가 실제 uv로 남긴 관찰입니다. 두 런처 모두 맞는 lock과 맞지 않는 lock에서 0으로 끝나고 원본의 `.venv/`·`uv.lock`과
+`tests/test_migrate_command.py`가 실제 uv로 남긴 관찰입니다(소유자 결정 뒤 다시 남긴 열두 관찰이 그 전 판과 같음). 두 런처 모두 맞는 lock과 맞지 않는 lock에서 0으로 끝나고 원본의 `.venv/`·`uv.lock`과
 목적지의 lock을 바꾸지 않습니다. 맞지 않는 lock은 sync가 실패하고 stderr가 `the migration is done, but preparing the environment of <dest>
 failed (uv sync --locked, exit 1); the project's next command prepares it`입니다.
 
@@ -168,7 +199,9 @@ failed (uv sync --locked, exit 1); the project's next command prepares it`입니
 ## aelix가 부른 CLI의 작성 주체(`agent_cli`, T22)
 
 aelix 0.1.0b2가 자기 로더로 확장을 로드하고 harness를 만든 뒤(`on("user_bash")`는 harness의 hook 버스로 연결, 세션은 시험 디렉터리의 JSONL), kit
-CLI를 aelix의 bash 도구와 `cli/repl.handle_user_bash`로 불렀습니다. CPython 3.12와 3.11의 결과가 같습니다.
+CLI를 aelix의 bash 도구와 `cli/repl.handle_user_bash`로 불렀습니다. CPython 3.12와 3.11의 결과가 같습니다. 소유자 결정 뒤 다시 남긴 관찰도 그 전
+판과 같습니다(kit 출력의 Workspace 빌드 시각만 다름). aelix 0.1.0b2의 `hooks._reducer_user_bash`가 결과의 종류와 상관없이 마지막
+`UserBashResult`를 쓰는 것을 이 판에서 다시 읽었습니다.
 
 | 경우 | 결과 |
 |---|---|
@@ -177,7 +210,7 @@ CLI를 aelix의 bash 도구와 `cli/repl.handle_user_bash`로 불렀습니다. C
 | 사람의 `!echo T22`(kit 호출 아님) | 이 확장은 셸을 돌려주지 않음, aelix의 셸이 돎 |
 | 셸을 돌려주는 다른 확장이 먼저 등록 | kit 명령은 이 확장의 셸(`PersonShell`)로 돌아 `human`, 다른 확장의 셸은 그 명령에서 돌지 않음. `echo`는 다른 확장의 셸 |
 | 셸을 돌려주는 다른 확장이 나중에 등록 | kit 명령도 다른 확장의 셸로 돌아 `agent`(현재 계약 A의 한계), `echo`는 다른 확장의 셸 |
-| 모든 `!` 명령을 막는 확장이 먼저 등록(리뷰 뒤) | kit 명령은 이 확장의 셸로 돌아 기록이 쓰이고 `human`(막음을 대신함: 현재 계약 A의 한계, 소유자 질문), `echo`는 막힘 |
+| 모든 `!` 명령을 막는 확장이 먼저 등록(리뷰 뒤) | kit 명령은 이 확장의 셸로 돌아 기록이 쓰이고 `human`(막음을 대신함: 현재 계약 A의 한계, 소유자가 2026-10-09에 이대로 두기로 함), `echo`는 막힘 |
 | 막는 확장이 나중에 등록(리뷰 뒤) | kit 명령도 `echo`도 막힘, 기록 없음 |
 | 확장 자신의 kit 자식(`/analytics`) | 기록이 아니라 그 자식의 환경: `AELIX_ANALYTICS_ACTOR=human`, `/analytics`면 `AELIX_ANALYTICS_MEANS=command`(프로세스 환경의 `agent`와 무관) |
 
@@ -185,12 +218,20 @@ Windows의 PowerShell·cmd 자식은 실행하지 않았습니다(CI의 Windows 
 
 ## 링크가 없는 파일 시스템(`foreign_fs`)
 
-명령 그룹(G3)이 macOS 26.6.2의 FAT32·exFAT 디스크 이미지(fskit, nobrowse)에서 잰 것이며, 리뷰 전 판의 값을 그대로 옮겼습니다(리뷰 수정은
-`rename_new`와 표식 게시를 바꾸지 않음). 두 볼륨 모두 `link`가 ENOTSUP이고, `renamex_np(RENAME_EXCL)`은 있는 이름에서 EEXIST(바이트 그대로)이며 없는
-이름은 FAT32가 rename, exFAT이 ENOTSUP입니다. 출하된 전환은 두 볼륨 모두 1단계 `destination_invalid(not_empty)`로 멈췄습니다: macOS가 확장 속성이
-없는 볼륨에서 파일마다 AppleDouble `._<이름>`을 만들기 때문입니다(소유자 질문). 그 거절이 잠금 뒤의 재판정이면 리뷰 뒤로는 hint가 남은 것과 할 일을
-적습니다(디스크 이미지에서 다시 재지는 않음). AppleDouble을 지나치게 한 실험 실행은 FAT32에서 `rename_new`로 표식을 게시해 커밋했고(사본 다섯은 직접
-쓰기, 표식의 직접 쓰기 없음), exFAT에서는 2단계 `no_exclusive_rename`으로 멈췄습니다.
+**소유자 결정 뒤(`foreign_fs.shipped_after_owner_decisions`).** macOS 26.6.2에서 이 판이 새로 만든 FAT32·exFAT 디스크 이미지(`hdiutil create -fs
+"MS-DOS FAT32"`·`-fs ExFAT`, `attach -nobrowse`, fskit)에 opt-in 시험(`AELIX_ANALYTICS_TEST_FOREIGN_FS`)을 출하 코드로 돌렸습니다. FAT32: `link`는
+없고 `rename_new`가 있어 전환이 `rename_new`로 표식을 게시해 커밋했고, 다시 부르면 `already_migrated`(다른 사본 없음)였습니다. 목적지에는 macOS가
+만든 AppleDouble이 사본·관리 파일마다 있었습니다(`._.analytics`, `._journal.jsonl`, `.analytics/._migration.lock` 등). 커밋한 목적지에서 kit CLI의
+`status`·`record`·`run`이 모두 0이었고 run 목록은 실제 run 하나였습니다(AppleDouble을 run으로 보지 않음). exFAT: `rename_new`도
+`RenameUnsupported`(errno 45)라 2단계 시험에서 복사 전에 `destination_invalid(no_exclusive_rename)`이었습니다(소유자 결정 1). `8d3695f`의 코드는
+두 볼륨 모두 1단계 `destination_invalid(not_empty)`(`._.analytics`, `.analytics/._migration.lock`)로 멈춥니다(강화한 opt-in 시험이 거기서 실패).
+
+**그 전 판(G3, 키 `mnt-fat`·`mnt-exfat`).** 명령 그룹(G3)이 macOS 26.6.2의 FAT32·exFAT 디스크 이미지(fskit, nobrowse)에서 잰 것이며, 리뷰 전 판의
+값을 그대로 옮겼습니다. 두 볼륨 모두 `link`가 ENOTSUP이고, `renamex_np(RENAME_EXCL)`은 있는 이름에서 EEXIST(바이트 그대로)이며 없는 이름은
+FAT32가 rename, exFAT이 ENOTSUP입니다. 그때 출하된 전환은 두 볼륨 모두 1단계 `destination_invalid(not_empty)`로 멈췄습니다: macOS가 확장 속성이
+없는 볼륨에서 파일마다 AppleDouble `._<이름>`을 만들기 때문입니다. AppleDouble을 지나치게 한 실험 실행은 FAT32에서 `rename_new`로 표식을 게시해
+커밋했고(사본 다섯은 직접 쓰기, 표식의 직접 쓰기 없음), exFAT에서는 2단계 `no_exclusive_rename`으로 멈췄습니다. 이 결과로 소유자가 AppleDouble을
+운영체제 메타 파일로 정했습니다([#13](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6070315072)).
 
 ## 측정 메모
 
@@ -199,12 +240,16 @@ Windows의 PowerShell·cmd 자식은 실행하지 않았습니다(CI의 Windows 
 src/aelix_analytics`; `__pycache__`는 추적하지 않음) 측정 전체를 다시 돌렸고, 이 기록의 값은 둘째 측정의 것입니다. 첫 측정의 파일은 run 폴더
 (`fix/measure-stale-pyc`)에 있습니다. 리뷰 전 판의 측정은 최신 바이트코드였습니다.
 
+소유자 결정 뒤의 측정(2026-10-08T23:26:30Z, run 폴더 `ci-fix/measure`)은 측정 전에 kit의 바이트코드를 만들었고, HOME을 run 폴더의 가짜 디렉터리로
+두었습니다. 기기가 다른 일로 바빠(1분 부하 평균 약 50) 시간 값이 그 전 판보다 길고, 같은 부하에서 두 코드를 번갈아 잰 값은 같은 크기입니다(위).
+
 ## 실행하지 않은 것
 
-- 저장소 CI의 Linux·Windows·macOS 레그(push 전): Linux의 `renameat2`(ctypes), Windows의 `rename_new` = `publish_new`, 런처의 `--no-project`와 응답
-  읽기를 Windows에서, Windows 전용 시험(`tests/test_windows_long_paths.py`는 실행하지 않고 고침), T22의 PowerShell·cmd 자식.
-- `AELIX_ANALYTICS_TEST_INSTALL=1`(배포본 end-to-end).
-- 실제 이동식 FAT·exFAT 매체와 Linux·Windows의 FAT·exFAT. 그런 볼륨에서 잠금 뒤 거절의 hint는 다시 재지 않았습니다(항목 주입으로만 시험).
+- 이 판 헤드의 저장소 CI(Linux·Windows·macOS 레그, `pending`: 아직 push하지 않음). Linux의 `renameat2`(ctypes), Windows의 `rename_new` =
+  `publish_new`, 런처의 `--no-project`와 응답 읽기를 Windows에서, Windows 전용 시험, T22의 PowerShell·cmd 자식, 고친 긴 필드 시험의 Windows 실행이
+  그 CI에 걸려 있습니다. `8d3695f`의 Windows 저장소 시험 단계는 35분 한도 가운데 1,789초를 썼습니다.
+- 실제 이동식 FAT·exFAT 매체와 Linux·Windows의 FAT·exFAT(macOS 디스크 이미지만).
 - 전원 손실과 그 뒤의 내구성, Windows의 디렉터리 flush·읽기 전용 사본·잠금 해제 지연, 네트워크 파일 시스템.
 - 실제 aelix 모델 세션(bash 도구와 `handle_user_bash`를 직접 부름), aelix 밖의 에이전트 호스트, aelix RPC의 `bash`.
 - 색인이 있는 writer의 비용(#15).
+- 확장의 `analytics_import`·`analytics_run`에 Windows 명령줄(32,767자)을 넘는 설명·제목(그 전부터 그곳에서는 `spawn_failed`, 이 PR의 변경 아님).
