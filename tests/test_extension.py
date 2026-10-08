@@ -226,7 +226,7 @@ def test_two_projects_in_one_host_keep_their_own_records(tmp_path, monkeypatch):
         notes = [e["text"] for e in core.read_events(core.Project(roots[name]))
                  if e.get("kind") == "finding"]
         assert notes == [f"{name}에서만 본 것"], notes
-    assert lab.__globals__["STATE"]["report_tasks"] == {}, "a report build was started"
+    assert lab.__globals__["STATE"]["render_tasks"] == {}, "a Workspace render was started"
 
 
 def test_lab_status_shows_relations_as_the_kit_reads_them(tmp_path, monkeypatch):

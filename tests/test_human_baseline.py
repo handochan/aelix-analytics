@@ -50,9 +50,9 @@ def human_cli(tmp_path):
         value = json.loads(records[-1])
         # A recorded failed run has ok=true but exit 3 and run.status=error.
         assert value["ok"] is (expected_exit != 1), value
-        # import and note embed a report build that degrades to {"error": ...} while still
+        # import and record embed a Workspace render that degrades to {"error": ...} while still
         # reporting ok=true and exit 0; only this payload shows that regression.
-        assert "error" not in value.get("report", {}), value
+        assert "error" not in value.get("workspace", {}), value
         return value
 
     call("init", root, "--title", "Synthetic human baseline", "--goal", "Compare regional revenue")
@@ -138,7 +138,7 @@ def test_human_cli_analysis_failure_repair_and_snapshot_history(human_cli):
     preserved_runs = file_hashes(root / "runs")
     journal_before_report = (root / "journal.jsonl").read_bytes()
     rendered = call("render")
-    assert rendered["report"]["pages"] and not rendered["report"].get("skipped")
+    assert rendered["workspace"]["pages"] and not rendered["workspace"].get("skipped")
     assert (root / "report/index.html").is_file()
     for record in (first, failed, repaired, second, rerun):
         assert (root / "report/runs" / f"{record['id']}.html").is_file()

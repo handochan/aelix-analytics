@@ -11,7 +11,7 @@ from conftest import LINK_KINDS, dir_link, kit_cli, write_script
 
 from aelix_analytics import _platform, core, runner
 
-LAB_API = '''import matplotlib.pyplot as plt
+ANALYTICS_API = '''import matplotlib.pyplot as plt
 import polars as pl
 
 import aelix_analytics as analytics
@@ -63,14 +63,14 @@ def test_init_layout_and_journal(tmp_path):
     assert "{{" not in (root / "pyproject.toml").read_text(encoding="utf-8")
     try:
         core.init_project(root, template_dir=KIT / "aelix_analytics" / "template")
-    except core.LabError as exc:
+    except core.AnalyticsError as exc:
         assert exc.code == "init_not_empty"
     else:
         raise AssertionError("init adopted a non-empty directory")
 
 
 def test_lab_api_run_records_inputs_outputs_chart_and_code(project):
-    code, result = _run(project, write_script(project, "01_region.py", LAB_API), "지역별")
+    code, result = _run(project, write_script(project, "01_region.py", ANALYTICS_API), "지역별")
     assert code == 0, result
     run = result["run"]
     assert run["status"] == "ok"
@@ -86,7 +86,7 @@ def test_lab_api_run_records_inputs_outputs_chart_and_code(project):
     assert chart["line"] == 12 and chart["data_rows"] == 3
     assert (project / chart["files"]["png"]).is_file() and (project / chart["data"]).is_file()
     snapshot = project / run["script"]["snapshot"]
-    assert snapshot.read_text(encoding="utf-8") == LAB_API
+    assert snapshot.read_text(encoding="utf-8") == ANALYTICS_API
     assert run["script"]["sha256"] == core.sha256_file(snapshot)
     assert "rows 3" in result["stdout_tail"]
     assert run["env"]["packages"]["polars"] and run["warnings"] == []
@@ -142,7 +142,7 @@ def test_timeout_is_recorded(project):
 
 
 def test_rerun_match_and_mismatch(project):
-    _, first = _run(project, write_script(project, "01_region.py", LAB_API))
+    _, first = _run(project, write_script(project, "01_region.py", ANALYTICS_API))
     _, again = kit_cli(project, "run", "--rerun-of", first["run"]["id"], "--title", "rerun")
     repro = again["run"]["reproduction"]
     assert repro["verdict"] == "match" and repro["inputs_same"]
@@ -216,7 +216,7 @@ def test_notes_resolution_and_context_history(project):
     assert len(core.context_versions(p)) == before + 1
     try:
         core.add_note(p, "resolve", "x")
-    except core.LabError as exc:
+    except core.AnalyticsError as exc:
         assert exc.code == "resolve_needs_target"
 
 
@@ -235,7 +235,7 @@ class _Links(HTMLParser):
 
 
 def test_report_links_point_at_existing_files_and_anchors(project):
-    _run(project, write_script(project, "01_region.py", LAB_API))
+    _run(project, write_script(project, "01_region.py", ANALYTICS_API))
     _run(project, write_script(project, "02_mix.py", DUCKDB_PLOTLY))
     code, result = kit_cli(project, "render")
     assert code == 0
@@ -263,7 +263,43 @@ def test_report_links_point_at_existing_files_and_anchors(project):
     assert checked > 50
     index = (report / "index.html").read_text(encoding="utf-8")
     assert re.search(r'id="chart-scripts-01-region-py-region-revenue-[0-9a-f]{8}"', index)
-    assert re.search(r'report\.js\?v=\d{8}-\d{6}', index)
+    assert re.search(r'workspace\.js\?v=\d{8}-\d{6}', index)
+
+
+def test_the_workspace_build_is_named_workspace_and_the_old_assets_go(project, tmp_path):
+    """Kit 0.6.0 (Issue #13 PR 0, design RECORD-WRITER-AND-MIGRATION section 9): each result line
+    that carries the Workspace build calls it `workspace` — import, record, run, render — and status
+    gives the Workspace's index under the same key; the values are the stored path report/… until
+    the stored names change (#13's third implementation PR). A render removes the assets an earlier
+    kit wrote under their old names, no page loads them, and build.js sets the renamed global."""
+    from conftest import write_sales_csv
+
+    code, imported = kit_cli(project, "import", write_sales_csv(tmp_path / "more.csv"), "--name", "more")
+    assert code == 0 and imported["workspace"]["pages"] and "report" not in imported, imported
+    code, ran = _run(project, write_script(project, "01_region.py", ANALYTICS_API))
+    assert code == 0 and ran["workspace"]["pages"], sorted(ran)
+    assert not {"report", "report_error", "workspace_error"} & set(ran), sorted(ran)
+    code, noted = kit_cli(project, "record", "finding", "이름 확인")
+    assert code == 0 and noted["workspace"]["pages"] and "report" not in noted, noted
+    code, status = kit_cli(project, "status")
+    index = core.Project(project).workspace_dir / "index.html"
+    assert code == 0 and status["status"]["workspace"] == str(index) and "report" not in status["status"]
+    assert index.parent.name == "report"
+
+    assets = index.parent / "assets"
+    for name in ("report.css", "report.js"):
+        (assets / name).write_text("/* an earlier kit's asset */\n", encoding="utf-8")
+    code, rendered = kit_cli(project, "render")
+    assert code == 0 and set(rendered) == {"ok", "workspace"} and rendered["workspace"]["pages"], rendered
+    names = {p.name for p in assets.iterdir()}
+    assert {"workspace.css", "workspace.js", "build.js"} <= names, names
+    assert not names & {"report.css", "report.js"}, names
+    pages = [p.read_text(encoding="utf-8") for p in index.parent.rglob("*.html")]
+    assert pages and all("assets/workspace.js?v=" in page for page in pages)
+    assert not any("assets/report." in page for page in pages)
+    # the old global as well, so a page an earlier kit made, left open, still reloads itself
+    assert re.fullmatch(r'window\.__LAB_BUILD__ = window\.__ANALYTICS_BUILD__ = "[0-9-]+";\n',
+                        (assets / "build.js").read_text(encoding="utf-8"))
 
 
 def test_scan_literals_separates_reads_from_writes():
@@ -507,10 +543,10 @@ def test_non_utf8_context_does_not_break_status_or_report(project):
 
 
 def test_chart_anchors_are_unique_for_similar_keys():
-    from aelix_analytics import report
+    from aelix_analytics import workspace
     keys = [f"scripts/{'x' * 70}.py::growth-rate-by-region-{year}" for year in (2024, 2025)]
     keys += ["scripts/a.py::rev_total", "scripts/a.py::rev-total"]
-    assert len({report.slug_key(k) for k in keys}) == len(keys)
+    assert len({workspace.slug_key(k) for k in keys}) == len(keys)
 
 
 def test_dynamic_duckdb_params_quoted_paths_and_polars_io_are_detected(project):
@@ -576,7 +612,7 @@ analytics.save(pl.read_csv(r"{source}").head(3), "peek")
 
 
 def test_a_bare_chart_id_in_a_note_links_to_the_chart(project):
-    _run(project, write_script(project, "01_region.py", LAB_API), "지역별")
+    _run(project, write_script(project, "01_region.py", ANALYTICS_API), "지역별")
     event = core.add_note(core.Project(project), "finding", "서울 편중",
                           refs=["region-revenue", "sales", "made-up"])
     assert event["refs"]["charts"] == ["scripts/01_region.py::region-revenue"]
@@ -695,7 +731,7 @@ def test_records_from_a_newer_kit_are_skipped_and_said_so(project):
             f"report — journal:{line} (unknown_version), runs/{future.name}/run.json "
             "(unknown_version); a newer kit may read them") in text
     assert kit_cli(project, "render")[0] == 0
-    index = (p.report / "index.html").read_text(encoding="utf-8")
+    index = (p.workspace_dir / "index.html").read_text(encoding="utf-8")
     assert "Unsupported: 2 record(s) this kit cannot read" in index
     assert f"journal:{line} (unknown_version)" in index
 
@@ -703,7 +739,7 @@ def test_records_from_a_newer_kit_are_skipped_and_said_so(project):
     p.marker.write_text(json.dumps({**marker, "schema": "lab.project/2"}), encoding="utf-8")
     try:
         core.Project(project).title()
-    except core.LabError as exc:
+    except core.AnalyticsError as exc:
         assert exc.code == "project_too_new"
     else:
         raise AssertionError("a project from a newer kit was read anyway")
@@ -750,7 +786,7 @@ def test_context_is_disclosed_by_section_not_truncated_mid_sentence(project):
     assert "데이터 출처" in text and "mark its heading <!-- pin --> to pin it" in text
 
     assert kit_cli(project, "render")[0] == 0
-    index = (p.report / "index.html").read_text(encoding="utf-8")
+    index = (p.workspace_dir / "index.html").read_text(encoding="utf-8")
     assert 'Sections in every prompt: <span lang="">목표</span>, <span lang="">다음 할 일</span>.' in index
     assert "| a | b |" in index, "the report still shows the whole file"
 
@@ -774,7 +810,7 @@ def test_init_reads_its_template_before_it_creates_anything(tmp_path):
     from aelix_analytics import core
 
     target = tmp_path / "proj"
-    with pytest.raises(core.LabError) as caught:
+    with pytest.raises(core.AnalyticsError) as caught:
         core.init_project(target, template_dir=tmp_path / "no-template", actor="test")
     assert caught.value.code == "template_missing"
     assert not target.exists()
@@ -942,7 +978,7 @@ def _main_status_text(st: dict, max_chars: int = 9000) -> str:
     _one_line, versions_line, _fmt_int = core._one_line, core.versions_line, core._fmt_int
     CONTEXT_PROMPT_CHARS = core.CONTEXT_PROMPT_CHARS  # noqa: N806 - as main spelled it
     p, counts = st["project"], st["counts"]
-    lines = [f"project: {p['title']} ({p['root']})", f"report: {st['report']}"]
+    lines = [f"project: {p['title']} ({p['root']})", f"report: {st['workspace']}"]
     if st.get("source_revision"):
         lines.append(core._read_line(st))
     if p.get("goal"):
@@ -1419,6 +1455,42 @@ def test_storage_names_stay_until_the_new_writer(project, tmp_path):
                                      "lab.dataset/1")
 
 
+def test_the_plotly_template_name_never_reaches_a_stored_figure(monkeypatch):
+    """The kit's plotly template may change its name without a stored change only if no figure
+    stores the name (design RECORD-WRITER-AND-MIGRATION section 9, Issue #13 PR 0). A figure made
+    under the kit's template stores, as capture writes it (`to_json()`), the same bytes as under that
+    template registered with another name — the name before kit 0.6.0 (`lab`) among them — and holds
+    neither the name nor plotly_white's: the template is stored by its content."""
+    import plotly.graph_objects as go
+    import plotly.io as pio
+
+    from aelix_analytics import capture
+
+    monkeypatch.delenv("AELIX_ANALYTICS_STYLE", raising=False)
+    monkeypatch.setattr(pio, "show", pio.show)  # patch_plotly_io replaces it; restored after
+    default = pio.templates.default
+
+    def stored() -> str:
+        figure = go.Figure(go.Bar(x=["North", "South"], y=[3, 1]), layout_title_text="Channel mix")
+        return figure.to_json()
+
+    try:
+        capture.patch_plotly_io(pio)
+        base, _, name = pio.templates.default.partition("+")
+        assert base == "plotly_white" and name, pio.templates.default
+        kit = stored()
+        for other in ("lab", "analytics", "renamed-probe"):
+            pio.templates[other] = pio.templates[name]
+            pio.templates.default = f"plotly_white+{other}"
+            assert stored() == kit, other
+        template = json.loads(kit)["layout"]["template"]
+        assert set(template) == {"data", "layout"}, set(template)
+        assert all(f'"{n}"' not in kit for n in (name, "lab", "analytics", "plotly_white"))
+        assert "plotly_white" not in kit
+    finally:
+        pio.templates.default = default
+
+
 # --- Issue #9 PR-2: the public names are analytics, and the old ones stop with the new name -------
 
 # ADR-0005 decision 7's list: every variable the kit, its SDK, the command lines and the extension
@@ -1452,7 +1524,7 @@ def test_the_renamed_variables_are_the_adrs_list():
     assert set(kit_main.OLD_ENV) <= set(ADR_RENAMED) and core.NAMES_RENAMED_IN == "0.3.0"
     # Issue #36 changed how records hold paths and bumped the version, so a reader (#12) can tell
     # the records written before it (ADR-0006 9); the boundary stays fixed as the version moves on.
-    assert core.KIT_VERSION == "0.5.0" and core.PATH_IDENTITY_SINCE == "0.5.0"
+    assert core.KIT_VERSION == "0.6.0" and core.PATH_IDENTITY_SINCE == "0.5.0"
 
 
 @pytest.mark.parametrize("old", ["LAB_PROJECT", "LAB_ACTOR", "LAB_SESSION", "LAB_STYLE",
@@ -1486,7 +1558,7 @@ def test_an_empty_old_variable_is_not_set(project, tmp_path):
 
 def test_the_trust_list_refuses_its_old_variable(monkeypatch, tmp_path):
     monkeypatch.setenv("AELIX_LAB_TRUST_FILE", str(tmp_path / "old.json"))
-    with pytest.raises(core.LabError) as raised:
+    with pytest.raises(core.AnalyticsError) as raised:
         core.trust_file()
     assert raised.value.code == "env_renamed" and "AELIX_ANALYTICS_TRUST_FILE" in raised.value.message
     assert not (tmp_path / "old.json").exists()

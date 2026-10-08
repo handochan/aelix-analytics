@@ -23,10 +23,11 @@
 - 리뷰: #13은 기록 형식·전환 PR이므로 구현 전에 이 문서가 설계 리뷰(독립 1회·Codex 1회)를 받는다. 그 리뷰(꼭 고칠 것 M1–M8, 검토할 것
   1–21, 새 소유자 질문 2개)를 받았고, 지적마다 처리한 곳은 19.1절에 있다. 고친 diff는 리뷰 예산대로 수정 diff 확인을 한 번 받았고(꼭 고칠 것 2,
   검토할 것 6, 사소한 것 5), 그 처리는 19.2절에 있다. 그 처리 뒤의 이 문서는 다시 확인받지 않았다(자기 검토만, 리뷰 예산).
-- 소유자 결정(2026-10-08, [#13](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6044853778)): 16절의 권장 답 16개(OQ1–OQ16)를
+- 소유자 결정(2026-10-08, [#13](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6049644872)): 16절의 권장 답 16개(OQ1–OQ16)를
   모두 채택했고, Q17-b의 범위는 Aelix 세션으로 정했다(aelix 밖 에이전트가 밝히지 않은 CLI는 `human`·`inferred`로 남고, 다른 호스트에는
   `AELIX_ANALYTICS_ACTOR=agent`를 안내한다). 본문의 "(OQn)" 표시는 그 결정을 따른 규칙이다. OQ4·OQ15·OQ16은 ADR-0005 결정 5의 글자를
-  좁히고 OQ6은 결정 7의 PR 목록에 ⓪을 더하므로, ⓪의 PR이 ADR-0005를 개정한다. ADR이 #13 설계에 맡겼거나 입력이 정하지 않은 설계 선택은
+  좁히고 OQ6은 결정 7의 PR 목록에 ⓪을 더하므로, ⓪의 PR이 [ADR-0005](../decisions/0005-names-first-storage-with-the-new-writer.md)를
+  개정했다(결정 5의 예외 셋, 결정 7의 ⓪). ADR이 #13 설계에 맡겼거나 입력이 정하지 않은 설계 선택은
   15절(D1–D29)이며 설계 리뷰가 정한다.
 
 ---
@@ -34,7 +35,7 @@
 ## 0. 요약
 
 1. PR은 다섯이다. D(이 문서) → ⓪ 내부 코드 이름(동작 그대로, OQ6) → ① 표식 판정·새 가족 읽기·두 표식 충돌 → ② 닫힌 전환 엔진
-   → ③ 새 writer·정책 전환·저장 이름·전환 명령. ①②③은 ADR-0005 결정 7의 세 PR 그대로다.
+   → ③ 새 writer·정책 전환·저장 이름·전환 명령. ⓪①②③이 ADR-0005 결정 7의 PR 목록이다(⓪은 2026-10-08 개정으로 더함).
 2. 게이트를 먼저 깐다. ①이 모든 쓰기 진입점의 첫 부수 효과 전에 `writer.admit()`을 부르게 하고, 쓸 수 있는 표식은 상수 `WRITABLE`
    한 줄로 정한다(①·②는 `lab.project/1`, ③은 `analytics.project/2`). 그래서 결정 7의 불변식이 ①부터 성립하고, ③은 이 줄과 writer를 바꾼다.
 3. 새 모듈은 둘이다. `writer.py`(새 계층 `writer`, 수준 1)와 `migration.py`(새 계층 `migration`, 수준 3). 둘 다 stdlib만 쓰고, `core`
@@ -49,7 +50,8 @@
    kit을 부른다. 프로브에서 `uv run --project`는 원본에 `.venv/`·`uv.lock`을 만들거나 다시 썼다.
 7. 전환은 원본에 잠금 파일 말고는 쓰지 않는다. 목적지는 원본 루트뿐 아니라 복사가 읽는 모든 실제 디렉터리(따라가는 바깥 링크의 대상)와도
    겹치지 않아야 한다. 목적지 ledger를 원본 잠금보다 먼저 쓰고, 원본의 `run.lock` → `lock`을 기다리지 않고 잡아 계획·복사·원본 재확인 동안만
-   쥔다. `.lab/`이 없거나 잠금 파일을 만들 수 없는(읽기 전용) 원본을 잠금 없이 전후 비교로만 지킬지는 결정 5의 글자와 달라 소유자 질문 OQ15다.
+   쥔다. `.lab/`이 없거나 잠금 파일을 만들 수 없는(읽기 전용) 원본은 잠금 없이 전후 비교로만 지킨다. 결정 5의 글자와 달라 소유자 질문 OQ15였고,
+   소유자가 채택해 ADR-0005 결정 5의 예외로 적었다(2026-10-08).
 8. 사본은 같은 상대 경로·같은 바이트다. 기록하는 대응은 셋이다: `.lab/` 안의 이력·로그 → `.analytics/` 같은 이름(ADR-0005 결정 5가 #13에
    맡긴 배치), `lab.json` → `.analytics/migration/<id>/source-marker.json`(바이트 그대로), 보통 파일·디렉터리로 바꾼 링크(링크 경로와 옛 대상의
    실제 경로). 매핑이 셋을 모두 담아 옛 run의 경로 추론이 전환 뒤에도 같게 풀린다. `.gitignore`는 줄을 덧붙이고 전후 해시와 diff를 남긴다.
@@ -422,7 +424,7 @@ WRITABLE = frozenset({"lab.project/1"})  # PR 3 makes it {"analytics.project/2"}
   판정한다. 그래서 현재 계약 B·D의 탐색 규칙은 "어느 표식을 찾는가"만 바뀐다.
 - 확장의 `_resolve_project`, 런처의 `find_project`, `bin/analytics`의 탐색도 같은 표식 집합으로 바꾼다. 셸·런처는 표식의 내용을 해석하지 않고 kit이 판정한다.
 - ③부터 런처·`bin/analytics`는 찾은 디렉터리가 표식 없는 전환 목적지(`incomplete`)이면 `uv run --project` 대신 `uv run --no-project`로 kit을 불러
-  판정만 받는다. 그 자리에서 uv가 `.venv/`를 만들면 이어 쓰기 검사가 낯선 항목으로 보기 때문이다(6.10절은 계획에 없는 `.venv/`를 무시하자고 권하지만 그것은 OQ16이다).
+  판정만 받는다. 그 자리에서 uv가 `.venv/`를 만들면 이어 쓰기 검사가 낯선 항목으로 보기 때문이다(6.10절은 계획에 없는 `.venv/`를 무시하지만(OQ16) 미리 만들지 않는다).
 - uv 환경(`.venv/`, uv가 갱신하는 `uv.lock`)은 기록이 아니라 환경이라 게이트의 대상이 아니다(OQ13). 지금처럼 프로젝트 명령은 그 프로젝트의
   환경으로 돈다. 그래서 ③ 뒤 `lab.json` 프로젝트에서 사람이 `analytics status` 같은 읽기 명령을 부르면 uv가 그 프로젝트에 `.venv/`를 만들거나 맞지
   않는 `uv.lock`을 다시 쓸 수 있다(프로브 `probe-safety`). ADR-0005 결정 6의 "읽기 작업의 부수 쓰기" 목록에 uv 환경 동기화는 없다. 권장 답은
@@ -754,7 +756,8 @@ ledger 먼저: 이 전환이 목적지에 만드는 파일은 모두 그 이름�
    디렉터리를 만든다), 그리고 다툼이 아닌 이유로 잠금 파일을 만들거나 열지 못할 때(읽기 전용 원본·매체의 `EROFS`·`EACCES` 등, 포트의
    `LockUnavailable`). 이때 잠금 없이 진행하고 ledger와 보고서에 `locks: not_taken`과 이유를 적으며 그동안 생긴 옛 쓰기는 7단계의 비교가 잡는다는 것이
    권장 답(15절 D10)이다. ADR-0005 결정 5는 "복사하는 동안 원본의 journal·run 잠금을 잡는다"고 적었으므로 이 진행은 결정의 글자를 좁히고, 옛 kit의
-   쓰기를 기다리게 하지 못해 그런 쓰기가 오면 전환이 `source_changed`로 끝난다. 그래서 소유자 질문 OQ15다. 받지 않으면 두 경우는 거절한다.
+   쓰기를 기다리게 하지 못해 그런 쓰기가 오면 전환이 `source_changed`로 끝난다. 그래서 소유자 질문 OQ15였고, 소유자가 채택해 ADR-0005 결정 5의
+   예외로 적었다(2026-10-08).
 4. (잠금 안) 원본을 걷는다: 항목마다 저장된 철자의 상대 POSIX 경로, 크기, `mtime_ns`, 종류, `(st_dev, st_ino)`. 해시는 아직 계산하지 않는다.
    제외 목록(OQ4)과 잠금 파일은 따로 적는다. 6.2절의 원본 쪽 검사를 이 결과로 다시 한다.
 5. 계획 `plan.json`(원본 경로 → 목적지 경로, 만들 디렉터리, 제외, 링크 처리, 예정된 변환, 파일마다의 임시 이름, 새 `project_id`)을 이 전환의
@@ -974,9 +977,9 @@ flush·표식 단계의 시간은 ledger의 `durable`·`committed` 줄과 응답
 
 목적지에 표식이 없고 전환 기록이 있으면 이어 쓰기 판정이다. 판정은 먼저 읽기만 하고(6.2절 순서의 1) 1단계의 목적지 잠금 안에서 다시 한다.
 무시하는 항목은 계획에 없는 `.venv/`·`__pycache__/`와 운영체제 메타 파일(`.DS_Store`·`Thumbs.db`·`desktop.ini`, 어느 깊이에서나)이다. 이 무시는
-결정 5의 "목적지에 전환 보고서가 적은 파일만 있고 해시가 맞을 때만 잇는다"보다 넓게 받는 것이라 소유자 질문 OQ16이고, 이 목록이 권장 답(15절
-D11)이다. 받지 않으면 이런 파일도 계획에 없는 항목이라 `destination_mismatch`다. 계획에 있는 경로를 이런 파일이 차지하고 있으면 무시하지 않고 그
-경로의 게시가 `destination_mismatch(occupied)`가 된다(OQ4의 권장 답을 받으면 메타 파일은 계획에 없다).
+결정 5의 "목적지에 전환 보고서가 적은 파일만 있고 해시가 맞을 때만 잇는다"보다 넓게 받는 것이라 소유자 질문 OQ16이었고, 이 목록(15절 D11)을
+소유자가 채택해 ADR-0005 결정 5의 예외로 적었다(2026-10-08). 계획에 있는 경로를 이런 파일이 차지하고 있으면 무시하지 않고 그
+경로의 게시가 `destination_mismatch(occupied)`가 된다(OQ4대로 메타 파일은 계획에 없다).
 
 | 목적지 상태 | 같은 명령을 다시 부르면 |
 |---|---|
@@ -1168,9 +1171,9 @@ ADR-0005 결정 7은 이름 변경·파일 이동·기록 의미 변경을 한 P
 | `schedule_report` | 코드 | `schedule_workspace_render` | ⓪ | |
 | CLI JSON 키 `report` | 공개 JSON | `workspace` | ⓪ | 용어집 §5 "겹친 필드는 `workspace`로". #9-1 인계 댓글이 "먼저 그 응답을 바꾸는 쪽"에 맡김. `KIT_VERSION`·CHANGELOG. 값은 ③까지 `report/…` |
 | `report.js`·`report.css` | 자원 | `workspace.js`·`workspace.css` | ⓪ | 렌더가 옛 자원 이름을 지움 |
-| `localStorage` `lab-live`·`lab-scroll:` | 브라우저 저장 | `analytics-live`·`analytics-scroll:` | ⓪ | 새 키가 없으면 옛 키 값을 한 번 읽어 새 키에 씀. 옛 키는 지우지 않음(옛 kit의 Workspace가 읽음) |
-| `window.__LAB_BUILD__` | 코드 | `window.__ANALYTICS_BUILD__` | ⓪ | `build.js`와 `tests/test_line_endings.py` |
-| plotly 템플릿 `lab` | 코드 | `analytics`(`plotly_white+analytics`) | ⓪(조건부) | 템플릿 이름이 저장하는 그림 JSON에 들어가는지 확인하지 않았다. ⓪의 시험이 기존 바이트를 고정하고, 들어가면 저장 값이므로 ③으로 옮긴다 |
+| `localStorage` `lab-live`, `sessionStorage` `lab-scroll:` | 브라우저 저장 | `analytics-live`·`analytics-scroll:` | ⓪ | 새 키가 없으면 옛 키 값을 한 번 읽어 새 키에 씀. 옛 키는 지우지 않음(옛 kit의 Workspace가 읽음). 한 번 쓰고 지우던 스크롤 위치는 쓴 뒤 새 키를 비워 두어 옛 키를 다시 읽지 않음(⓪에서 확인) |
+| `window.__LAB_BUILD__` | 코드 | `window.__ANALYTICS_BUILD__` | ⓪ | `build.js`와 `tests/test_line_endings.py`. `build.js`는 옛 전역도 같은 값으로 정함(옛 kit이 만든 페이지를 연 채로 둔 탭이 다시 읽도록) |
+| plotly 템플릿 `lab` | 코드 | `analytics`(`plotly_white+analytics`) | ⓪(조건부) | 템플릿 이름이 저장하는 그림 JSON에 들어가는지 확인하지 않았다. ⓪의 시험이 기존 바이트를 고정하고, 들어가면 저장 값이므로 ③으로 옮긴다. ⓪에서 확인: 그림 JSON은 템플릿의 내용만 담고 이름은 담지 않아 바이트가 같다(`tests/test_kit.py`의 시험) |
 | `__lab_wrapped__` | 코드 | `__analytics_wrapped__` | ⓪ | |
 | `LAB_API` | 시험 상수 | `ANALYTICS_API` | ⓪ | 공개 설정으로 올리지 않음(용어집 §3) |
 | `core.NOTE_KINDS` | 코드 | `writer.RECORD_KINDS` | ③ | 개명이 아니라 새 writer의 목록(2.8절) |
@@ -1356,7 +1359,7 @@ pull_request, base_revision, measured_tree, workflow, runs, legs, developer_mach
 
 ADR이 #13 설계에 맡겼거나 입력이 정하지 않았지만 제품 결정은 아니라고 본 것이다. 설계 리뷰가 받아들이거나 바꾼다. D19–D27은 설계 리뷰의
 지적(19.1절)으로, D28·D29는 수정 diff 확인의 지적(19.2절)으로 더하거나 드러낸 선택이며, 그 뒤 다시 리뷰를 받지 않았다. D10·D11·D23은 채택된
-글자와 다르거나 그 해석이라 소유자 질문(OQ15·OQ16·OQ13)의 권장 답이며, 소유자의 답이 이 행을 정한다.
+글자와 다르거나 그 해석이라 소유자 질문(OQ15·OQ16·OQ13)의 권장 답이었고, 소유자가 모두 채택했다(2026-10-08, 16절).
 
 | 번호 | 선택 | 절 |
 |---|---|---|
@@ -1394,7 +1397,10 @@ ADR이 #13 설계에 맡겼거나 입력이 정하지 않았지만 제품 결정
 
 ## 16. 소유자 결정이 필요한 것
 
-**소유자 결정(2026-10-08): 아래 권장 답 16개를 모두 채택했다.** OQ1의 Q17-b 범위는 Aelix 세션이다. 답은 [#13](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6044853778)에 기록했다.
+**소유자 결정(2026-10-08): 아래 권장 답 16개를 모두 채택했다.** OQ1의 Q17-b 범위는 Aelix 세션이다. 답은 [#13](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6049644872)에 기록했다(질문은
+[그 앞 댓글](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6044853778)).
+ADR-0005를 좁히거나 바꾸는 답(OQ4·OQ15·OQ16은 결정 5의 예외, OQ6은 결정 7의 ⓪)은 ⓪의 PR이 [ADR-0005](../decisions/0005-names-first-storage-with-the-new-writer.md)에
+개정해 적었다. 아래 표와 설명의 "받으면 … 개정이 필요하다"는 질문할 때의 글이다.
 
 입력이 정하지 않은 제품 결정이다. 각 항목에 질문, 권장 답, 답에 따라 바뀌는 것, 채택된 보장을 좁히는지를 적는다. 이미 받은 승인(ADR-0005·0006,
 #3·#4·#9·#12·#36의 결정)을 다시 묻지 않는다. 아래 표의 권장 답은 그대로 받아들일 수 있게 한 줄로 적었고, 근거와 바뀌는 것은 표 아래에 있다.

@@ -15,7 +15,7 @@ Status: Proposal — 아래 경로·필드·동작은 도입 제안이다. 현�
 사람과 에이전트는 같은 ID·관계·관측 범위를 사용한다.
 
 baseline `7b205cd`의 [기록 모델](../src/aelix_analytics/core.py), [수집 코드](../src/aelix_analytics/capture.py),
-[실행 기록](../src/aelix_analytics/runner.py), [HTML 리포트](../src/aelix_analytics/report.py), [현재 계약](CONTRACTS.md)을 대조했다.
+[실행 기록](../src/aelix_analytics/runner.py), [HTML 리포트](../src/aelix_analytics/workspace.py), [현재 계약](CONTRACTS.md)을 대조했다.
 초안에서 보완한 중요한 부분은 다음과 같다.
 
 | 초안의 간극 | 확인한 현재 동작 | 보완 방향 |

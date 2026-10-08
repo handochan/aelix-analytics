@@ -117,7 +117,7 @@ MODULES: dict[str, str] = {
     "src/aelix_analytics/data.py": "runtime",
     "src/aelix_analytics/demo.py": "runtime",
     "src/aelix_analytics/runner.py": "runtime",
-    "src/aelix_analytics/report.py": "workspace",
+    "src/aelix_analytics/workspace.py": "workspace",
     "src/aelix_analytics/__init__.py": "sdk",
     "src/aelix_analytics/__main__.py": "kit_entry",
     "src/aelix_analytics/cli.py": "launcher",
@@ -136,29 +136,29 @@ class Allowed:
 # Imports the table does not allow and the code still has, each in the functions it is in, with why
 # and when it goes. Keyed by (importing file, imported file); the same edge anywhere else fails.
 ALLOWLIST: dict[tuple[str, str], Allowed] = {
-    ("src/aelix_analytics/runner.py", "src/aelix_analytics/report.py"): Allowed(
+    ("src/aelix_analytics/runner.py", "src/aelix_analytics/workspace.py"): Allowed(
         scopes=frozenset({"_finalize"}),
         why="runner._finalize rebuilds the Workspace when a run ends and puts it in the run's result "
-            "(a failure is report_error).",
+            "(a failure is workspace_error).",
         remove_when="the Workspace refresh after a run is called by the entry point (__main__, the "
                     "extension) or by the follow-up step of the common write path "
                     "(docs/ARCHITECTURE.md section 7) instead of by runner."),
-    ("src/aelix_analytics/report.py", "src/aelix_analytics/runner.py"): Allowed(
+    ("src/aelix_analytics/workspace.py", "src/aelix_analytics/runner.py"): Allowed(
         scopes=frozenset({"fingerprint"}),
-        why="report.fingerprint puts the kit's hash, runner.kit_sha(), into the Workspace's "
+        why="workspace.fingerprint puts the kit's hash, runner.kit_sha(), into the Workspace's "
             "fingerprint.",
         remove_when="kit_sha moves to a layer both may import (core, or a module below it)."),
-    ("src/aelix_analytics/report.py", "src/aelix_analytics/data.py"): Allowed(
+    ("src/aelix_analytics/workspace.py", "src/aelix_analytics/data.py"): Allowed(
         scopes=frozenset({"dataset_page", "Site.frame_preview"}),
         why="the dataset page profiles a dataset with data.profile, and Site.frame_preview formats "
             "cells with data.cell.",
         remove_when="the Workspace gets dataset profiles and cell formatting from a read model or "
                     "from the entry point, not from the data adapter."),
-    ("src/aelix_analytics/demo.py", "src/aelix_analytics/report.py"): Allowed(
+    ("src/aelix_analytics/demo.py", "src/aelix_analytics/workspace.py"): Allowed(
         scopes=frozenset({"populate"}),
         why="demo.populate builds the Workspace at its end and returns it.",
         remove_when="the entry point's demo command builds the Workspace after populate, as it does "
-                    "after import and record (__main__._safe_report)."),
+                    "after import and record (__main__._safe_render)."),
 }
 
 
@@ -425,8 +425,8 @@ DOTTED_NAME = re.compile(rf"\b{PACKAGE}(?:\.[A-Za-z_]\w*)+")
 
 def _named(strings: list[str], by_file: dict[str, set[str]], by_name: dict[str, str]) -> set[str]:
     """The shipped files that `strings` name: by file name (`"core.py"`, also inside a path) or by
-    dotted name (`"aelix_analytics.core"`, also as `"aelix_analytics.report:build"` or
-    `"aelix_analytics.report.build"`, the longest prefix that is a module). The package's bare name is
+    dotted name (`"aelix_analytics.core"`, also as `"aelix_analytics.workspace:build"` or
+    `"aelix_analytics.workspace.build"`, the longest prefix that is a module). The package's bare name is
     a directory in a path, and names none."""
     named: set[str] = set()
     for text in strings:
@@ -626,10 +626,10 @@ def test_every_allowlist_entry_says_why_and_when_it_goes():
     for edge, allowed in ALLOWLIST.items():
         assert allowed.why.strip() and allowed.remove_when.strip() and allowed.scopes, edge
     assert set(ALLOWLIST) == {
-        ("src/aelix_analytics/runner.py", "src/aelix_analytics/report.py"),
-        ("src/aelix_analytics/report.py", "src/aelix_analytics/runner.py"),
-        ("src/aelix_analytics/report.py", "src/aelix_analytics/data.py"),
-        ("src/aelix_analytics/demo.py", "src/aelix_analytics/report.py"),
+        ("src/aelix_analytics/runner.py", "src/aelix_analytics/workspace.py"),
+        ("src/aelix_analytics/workspace.py", "src/aelix_analytics/runner.py"),
+        ("src/aelix_analytics/workspace.py", "src/aelix_analytics/data.py"),
+        ("src/aelix_analytics/demo.py", "src/aelix_analytics/workspace.py"),
     }, "the exceptions changed: update docs/ARCHITECTURE.md section 11 with them"
 
 
@@ -674,10 +674,10 @@ async def coroutine():
 handler = lambda: __import__("pickle")
 def load():
     import importlib
-    return importlib.import_module("aelix_analytics.report")
+    return importlib.import_module("aelix_analytics.workspace")
 """
     internal = frozenset({"aelix_analytics", "aelix_analytics.core", "aelix_analytics.data",
-                          "aelix_analytics.runner", "aelix_analytics.report"})
+                          "aelix_analytics.runner", "aelix_analytics.workspace"})
     found, unresolved, _ = read_imports("src/aelix_analytics/sample.py", source, internal)
     seen = {(f.target if f.call is None else f.call, f.scope, f.context, f.at_import)
             for f in found}
@@ -700,19 +700,19 @@ def load():
 
 def test_the_reader_sees_a_loader_under_another_name_and_each_function_s_strings():
     source = '''
-"""The module's docstring names report.py: prose, not a string the code uses."""
+"""The module's docstring names workspace.py: prose, not a string the code uses."""
 import importlib
 from importlib import import_module as load
 from importlib.util import find_spec
 _im = importlib.import_module
 def by_getattr():
     """This docstring names runner.py."""
-    return getattr(importlib, "import_module")("aelix_analytics.report")
+    return getattr(importlib, "import_module")("aelix_analytics.workspace")
 def by_mapping():
     return vars(importlib)["import_module"]
 def by_resolving():
     import pkgutil
-    return pkgutil.resolve_name("aelix_analytics.report:build")
+    return pkgutil.resolve_name("aelix_analytics.workspace:build")
 def passed(names):
     return list(map(find_spec, names))
 def called():
@@ -727,9 +727,9 @@ def called():
         ("find_spec", "called"), ("find_spec", "passed"), ("import_module", ""),
         ("import_module", ""), ("import_module", "by_getattr"), ("import_module", "by_mapping"),
         ("resolve_name", "by_resolving")]
-    assert strings == {"by_getattr": ["import_module", "aelix_analytics.report"],
+    assert strings == {"by_getattr": ["import_module", "aelix_analytics.workspace"],
                        "by_mapping": ["import_module"],
-                       "by_resolving": ["aelix_analytics.report:build"], "called": ["json"]}
+                       "by_resolving": ["aelix_analytics.workspace:build"], "called": ["json"]}
 
 
 def test_a_string_names_a_module_by_its_file_or_its_dotted_name():
@@ -743,10 +743,10 @@ def test_a_string_names_a_module_by_its_file_or_its_dotted_name():
         return {PurePosixPath(path).name for path in _named(list(texts), by_file, by_name)}
 
     assert named("core.py") == {"core.py"}
-    assert named("src/aelix_analytics/runner.py", "aelix_analytics.report") == {"runner.py",
-                                                                                "report.py"}
-    assert named("aelix_analytics.report:build", "aelix_analytics.data.cell") == {"report.py",
-                                                                                  "data.py"}
+    assert named("src/aelix_analytics/runner.py", "aelix_analytics.workspace") == {
+        "runner.py", "workspace.py"}
+    assert named("aelix_analytics.workspace:build", "aelix_analytics.data.cell") == {
+        "workspace.py", "data.py"}
     assert named("Symlink extension/aelix_analytics.py instead") == {"aelix_analytics.py"}
     assert named("aelix_analytics", "aelix_analytics_runtime_", ".core", "core.pyc",
                  "AELIX_ANALYTICS_RUNTIME_PATH", "aelix_analytics.nope") == set()
@@ -768,7 +768,7 @@ def _replace(old: str, new: str) -> Callable[[str], str]:
 CORE = "src/aelix_analytics/core.py"
 RELATIONS = "src/aelix_analytics/relations.py"
 PLATFORM = "src/aelix_analytics/_platform.py"
-REPORT = "src/aelix_analytics/report.py"
+WORKSPACE = "src/aelix_analytics/workspace.py"
 RUNNER = "src/aelix_analytics/runner.py"
 CAPTURE = "src/aelix_analytics/capture.py"
 INIT = "src/aelix_analytics/__init__.py"
@@ -778,21 +778,21 @@ DEMO_SCRIPT = "src/aelix_analytics/demo_scripts/01_monthly_revenue.py"
 VIOLATIONS = {
     # A lower layer importing a higher one, wherever the import is.
     "core imports the workspace at module level": (
-        CORE, _append("from . import report"),
-        ["core → workspace", "core.py → src/aelix_analytics/report.py", "layer-direction",
+        CORE, _append("from . import workspace"),
+        ["core → workspace", "core.py → src/aelix_analytics/workspace.py", "layer-direction",
          "a lower layer imports a higher one", "at module level"]),
     "core imports the runtime inside a function": (
         CORE, _append("def _later():\n    from . import runner\n    return runner"),
         ["core → runtime", "layer-direction", "in _later"]),
     "core imports the workspace inside try": (
-        CORE, _append("try:\n    from .report import build\nexcept ImportError:\n    build = None"),
+        CORE, _append("try:\n    from .workspace import build\nexcept ImportError:\n    build = None"),
         ["core → workspace", "layer-direction", "inside try"]),
     "core imports the runtime inside if": (
         CORE, _append("if os.name == 'nt':\n    from . import capture"),
         ["core → runtime", "layer-direction", "inside if"]),
     "core imports the workspace for typing only": (
         CORE, _append("from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n"
-                      "    from aelix_analytics import report"),
+                      "    from aelix_analytics import workspace"),
         ["core → workspace", "layer-direction", "type-only"]),
     "core imports the runtime by an absolute dotted name": (
         CORE, _append("def _later():\n    import aelix_analytics.runner as r\n    return r"),
@@ -821,10 +821,10 @@ VIOLATIONS = {
         ["imports numpy", "ports → analysis library", "external-library"]),
     # Sibling adapters, and the host side reaching into the project environment.
     "the workspace imports the capture adapter": (
-        REPORT, _append("def _hooks():\n    from . import capture\n    return capture"),
-        ["workspace → runtime", "report.py → src/aelix_analytics/capture.py", "sibling layers"]),
+        WORKSPACE, _append("def _hooks():\n    from . import capture\n    return capture"),
+        ["workspace → runtime", "workspace.py → src/aelix_analytics/capture.py", "sibling layers"]),
     "the capture adapter imports the workspace": (
-        CAPTURE, _append("def _page():\n    from .report import build\n    return build"),
+        CAPTURE, _append("def _page():\n    from .workspace import build\n    return build"),
         ["runtime → workspace", "sibling layers", "layer-direction"]),
     "the extension imports the runner": (
         EXTENSION_FILE, _append("def _in_process():\n    from aelix_analytics import runner\n"
@@ -853,7 +853,7 @@ VIOLATIONS = {
     # A dynamic load nobody declared, and a library nobody classified.
     "core loads a module dynamically": (
         CORE, _append("def _later():\n    import importlib\n"
-                      "    return importlib.import_module('aelix_analytics.report')"),
+                      "    return importlib.import_module('aelix_analytics.workspace')"),
         ["loads a module dynamically", "import_module", "dynamic-load", "in _later"]),
     "the runner imports an unclassified library": (
         RUNNER, _append("def _fetch(url):\n    import requests\n    return requests.get(url)"),
@@ -861,20 +861,20 @@ VIOLATIONS = {
     # A loader under another name is a use of the loader.
     "core imports a loader under another name": (
         CORE, _append("from importlib import import_module as load\n\n\ndef _later():\n"
-                      "    return load('aelix_analytics.report')"),
+                      "    return load('aelix_analytics.workspace')"),
         ["loads a module dynamically", "import_module as load", "dynamic-load", "at module level"]),
     "core keeps a loader in a variable": (
         CORE, _append("import importlib\n\n_im = importlib.import_module\n\n\ndef _later():\n"
-                      "    return _im('aelix_analytics.report')"),
+                      "    return _im('aelix_analytics.workspace')"),
         ["importlib.import_module, a loader taken without calling it", "dynamic-load",
          "at module level"]),
     "core gets a loader by its name": (
         CORE, _append("import importlib\n\n\ndef _later():\n"
-                      "    return getattr(importlib, 'import_module')('aelix_analytics.report')"),
+                      "    return getattr(importlib, 'import_module')('aelix_analytics.workspace')"),
         ["'import_module', a loader named by a string", "dynamic-load", "in _later"]),
     "core resolves a name of the package": (
         CORE, _append("import pkgutil\n\n\ndef _later():\n"
-                      "    return pkgutil.resolve_name('aelix_analytics.report:build')"),
+                      "    return pkgutil.resolve_name('aelix_analytics.workspace:build')"),
         ["pkgutil.resolve_name", "dynamic-load", "in _later"]),
     # A declaration is bound to what its function loads.
     "the launcher's declared load loads another file": (
@@ -884,9 +884,9 @@ VIOLATIONS = {
          "names src/aelix_analytics/runner.py", "dynamic-load", "in _load_platform"]),
     "the extension's declared load loads another file": (
         EXTENSION_FILE, _replace('path = KIT / "aelix_analytics" / "core.py"',
-                                 'path = KIT / "aelix_analytics" / "report.py"'),
+                                 'path = KIT / "aelix_analytics" / "workspace.py"'),
         ["is declared to load src/aelix_analytics/core.py", "names no core.py",
-         "names src/aelix_analytics/report.py", "dynamic-load", "in _load_core"]),
+         "names src/aelix_analytics/workspace.py", "dynamic-load", "in _load_core"]),
     "the extension's declared function makes a second load": (
         EXTENSION_FILE, _replace(
             "        core_spec.loader.exec_module(module)\n",
@@ -905,7 +905,7 @@ VIOLATIONS = {
     # An exception holds in the functions it names, not anywhere between its two files.
     "the runner imports the workspace outside the function its exception names": (
         RUNNER, _replace("from . import _platform, capture, core\n",
-                         "from . import _platform, capture, core, report\n"),
+                         "from . import _platform, capture, core, workspace\n"),
         ["runtime → workspace", "layer-direction", "at module level",
          "ALLOWLIST allows this edge only in _finalize"]),
 }
@@ -941,29 +941,29 @@ def test_a_registered_module_that_is_gone_fails():
 
 def test_an_exception_whose_edge_is_gone_fails():
     sources = shipped_sources()
-    sources[REPORT] = sources[REPORT].replace("    from .runner import kit_sha\n\n", "    kit_sha = str\n")
+    sources[WORKSPACE] = sources[WORKSPACE].replace("    from .runner import kit_sha\n\n", "    kit_sha = str\n")
     violations = check(sources)
     assert len(violations) == 1 and violations[0].startswith(
-        "ALLOWLIST entry src/aelix_analytics/report.py → src/aelix_analytics/runner.py is no longer "
+        "ALLOWLIST entry src/aelix_analytics/workspace.py → src/aelix_analytics/runner.py is no longer "
         "imported: breaks rule allowlist"), violations
 
 
 def test_an_exception_in_a_function_that_no_longer_imports_fails():
-    edge = ("src/aelix_analytics/demo.py", "src/aelix_analytics/report.py")
+    edge = ("src/aelix_analytics/demo.py", "src/aelix_analytics/workspace.py")
     allowlist = {**ALLOWLIST, edge: replace(ALLOWLIST[edge], scopes=frozenset({"populate", "seed"}))}
     violations = check(shipped_sources(), allowlist=allowlist)
     assert violations == [
-        "ALLOWLIST entry src/aelix_analytics/demo.py → src/aelix_analytics/report.py is no longer "
+        "ALLOWLIST entry src/aelix_analytics/demo.py → src/aelix_analytics/workspace.py is no longer "
         "imported in seed: breaks rule allowlist — remove it from the entry's scopes"], violations
 
 
 @pytest.mark.parametrize("field", ["remove_when", "scopes"])
 def test_an_exception_without_a_removal_condition_or_a_place_fails(field):
-    edge = ("src/aelix_analytics/demo.py", "src/aelix_analytics/report.py")
+    edge = ("src/aelix_analytics/demo.py", "src/aelix_analytics/workspace.py")
     blank = " " if field == "remove_when" else frozenset()
     allowlist = {**ALLOWLIST, edge: replace(ALLOWLIST[edge], **{field: blank})}
     violations = check(shipped_sources(), allowlist=allowlist)
-    lacks = ("ALLOWLIST entry src/aelix_analytics/demo.py → src/aelix_analytics/report.py lacks why, "
+    lacks = ("ALLOWLIST entry src/aelix_analytics/demo.py → src/aelix_analytics/workspace.py lacks why, "
              "its removal condition or the functions it is in: breaks rule allowlist — every "
              "exception says where it is, why it exists and when it is removed")
     assert violations[-1] == lacks, violations

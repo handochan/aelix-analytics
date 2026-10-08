@@ -243,7 +243,7 @@ def test_the_extension_cannot_start_a_kit_command_in_a_root_past_max_path(tmp_pa
         observation["run_kit"] = value
         try:
             observation["sync_environment"] = asyncio.run(module.sync_environment(project))
-        except module.core.LabError as exc:
+        except module.core.AnalyticsError as exc:
             observation["sync_environment"] = exc.to_json()
         if not ENABLED:
             return
@@ -258,7 +258,7 @@ def test_the_extension_cannot_start_a_kit_command_in_a_root_past_max_path(tmp_pa
 def test_the_extension_s_in_process_commands_work_in_a_root_past_max_path(tmp_path, monkeypatch):
     """Route 2b: `/analytics record` and the context block run in this process and work; the report build a
     note schedules is started with the root as its working directory, fails to start, and says
-    nothing (schedule_report's `except Exception: return`)."""
+    nothing (schedule_workspace_render's `except Exception: return`)."""
     observation = observe("extension-in-process")
     try:
         root = path_of_length(tmp_path, DEEP_ROOT)
@@ -280,7 +280,7 @@ def test_the_extension_s_in_process_commands_work_in_a_root_past_max_path(tmp_pa
         observation["use"] = asyncio.run(module.analytics_command(f"use {root}"))
         observation["note"] = asyncio.run(module.analytics_command("record finding 깊은 경로의 발견"))
         observation["report_start_refused"] = [repr(e) for e in refused]
-        observation["report_task"] = str(module.STATE["report_tasks"].get(str(root)))
+        observation["report_task"] = str(module.STATE["render_tasks"].get(str(root)))
         observation["context"] = asyncio.run(module.analytics_command("context"))
         if not ENABLED:
             return
@@ -289,7 +289,7 @@ def test_the_extension_s_in_process_commands_work_in_a_root_past_max_path(tmp_pa
         assert any(e["kind"] == "finding" and e["text"] == "깊은 경로의 발견" for e in events)
         assert "긴 경로" in observation["context"] and "깊은 경로의 발견" in observation["context"]
         assert [getattr(e, "winerror", None) for e in refused] == [267], refused
-        assert str(root) not in module.STATE["report_tasks"]
+        assert str(root) not in module.STATE["render_tasks"]
     finally:
         keep(observation)
 

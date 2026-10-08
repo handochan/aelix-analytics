@@ -4,6 +4,8 @@ Date: 2026-10-03
 
 Status: Accepted — 2026-10-03 소유자 결정 (Issue #3)
 [Issue #3](https://github.com/handochan/aelix-analytics/issues/3)의 권장안을 채택했다. 채택은 결정의 확정이며 구현 완료가 아니다.
+개정: 2026-10-08 소유자 결정([Issue #13](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6049644872)) — 결정 5에 예외 셋(OQ4·OQ15·OQ16),
+결정 7의 PR 목록에 ⓪(OQ6). OQ 번호는 [#13의 설계](../design/RECORD-WRITER-AND-MIGRATION.md) 16절의 소유자 질문이다.
 적용은 [#9](https://github.com/handochan/aelix-analytics/issues/9)·[#10](https://github.com/handochan/aelix-analytics/issues/10)·[#13](https://github.com/handochan/aelix-analytics/issues/13)의 구현 PR이 한다.
 현재 코드가 실제로 하는 것은 [현재 계약](../CONTRACTS.md)에 있고, 이 결정만으로 현재 계약을 바꾸지 않는다.
 결정 3·6·7은 #4의 공통 기록 계약([ADR-0006](0006-common-record-contract.md))과 #37의 줄 끝([ADR-0007](0007-line-endings.md))에 기댄다.
@@ -86,6 +88,18 @@ schema 가족 `lab.project/1`·`lab.event/1`·`lab.run/1`·`lab.dataset/1`, 신�
      방식을 #13이 고르면, 그것은 전환과 분리된 명시적 단계다. 원본의 바이트는 그대로 보존하고(옮길 뿐 고치지 않는다), 옛 kit의
      작업(run·세션·명령)이 끝났거나 멈춘 것을 확인한 뒤에만 한다. 원본의 잠금이 잡혀 있으면 거절한다. 표식 개명은 이미 프로젝트를
      정한 옛 프로세스의 쓰기를 막지 못하기 때문이다(배경).
+   - 예외 셋(2026-10-08 소유자 결정, [#13](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6049644872), 설계 16절 OQ4·OQ15·OQ16).
+     위 규칙의 글자를 다음 경우에만 좁힌다. 덮어쓰지 않는 것과 복사 중 원본이 바뀌면 실패하는 것은 그대로다.
+     - 복사하지 않는 것(OQ4): `.venv/`, `report/`, `.lab/cache/`, `.lab/`의 잠금 파일(`lock`·`run.lock`·`report.lock`), `__pycache__/`,
+       운영체제 메타 파일(`.DS_Store`·`Thumbs.db`·`desktop.ini`, 어느 깊이에서나), 원본 루트의 `.git`이 git worktree의 `gitdir:` 포인터
+       파일일 때 그 파일. 전환 보고서에 그 경로를 적는다. 이 이름들은 복사 전후 원본 비교에서도 뺀다. 나머지는(디렉터리 `.git/` 포함)
+       위대로 바이트 그대로 복사한다.
+     - 잠금을 잡을 수 없는 원본(OQ15): 원본에 `.lab/`이 없거나, 다툼이 아닌 이유로 잠금 파일을 만들거나 열 수 없으면(읽기 전용 원본·매체)
+       잠금 없이 전환하고 복사 전후의 비교로만 원본을 지킨다. 전환 ledger와 보고서에 `locks: not_taken`과 그 이유를 적는다. 그런 원본에서는
+       옛 kit의 쓰기가 기다리지 않으므로 그 쓰기가 오면 전환이 실패로 끝난다.
+     - 이어 쓰기의 환경·메타 파일(OQ16): 중단된 전환을 이을 때 보고서가 적지 않은 `.venv/`·`__pycache__/`와 위 운영체제 메타 파일(어느
+       깊이에서나)은 거절하지 않고 무시한다. 지우거나 덮어쓰지 않고 사본 검증·전후 비교에서도 뺀다. 전환이 쓸 경로를 그런 파일이 차지하고
+       있으면 무시하지 않고 거절한다.
 6. **새 kit은 옛 프로젝트를 이렇게 다룬다.** `lab.json`만 있으면 legacy reader로 읽기를 허용하고, 일반 쓰기는 전환이 필요하다는 오류와
    전환 명령 안내로 거절한다. 두 표식이 함께 있으면 정해진 충돌 오류로 거절한다. 모르는 schema 가족과 미래 버전은 건너뛰지 않고 개수와
    함께 보고한다. 새 writer는 모든 쓰기에서 첫 부수 효과 전에 표식의 가족·버전과 #4가 정하는 최소 writer 요구([ADR-0006](0006-common-record-contract.md))를 확인한다. 이미 연 프로젝트나 프로세스 시작 때의 확인을 믿지 않고 쓰기 작업을 시작할
@@ -110,7 +124,11 @@ schema 가족 `lab.project/1`·`lab.event/1`·`lab.run/1`·`lab.dataset/1`, 신�
      줄 끝([ADR-0007](0007-line-endings.md))을 구현한 [#42](https://github.com/handochan/aelix-analytics/issues/42)의 PR.
      고치기 전의 경로 정체성과 줄 끝으로 전환과 새 기록을 만들지 않고, 전환이 쓰는 신뢰 목록의 링크 처리(4번)를
      먼저 고치기 위해서다.
-   - #13은 세 PR로 나눈다. ① 새 가족과 섞인 journal의 읽기, 모르는 가족의 보고, 두 표식의 충돌 오류 ② 복사 전환(결정 5의 목적지 규칙과
+   - #13은 네 PR로 나눈다(2026-10-08 개정으로 ⓪을 더함, [#13](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6049644872) OQ6).
+     ⓪(①보다 먼저) 내부 코드 이름(오류 클래스, `Project`의 경로 속성, Workspace 모듈·자원과 그 브라우저 식별자, 확장의 렌더 예약 함수 등)과
+     kit CLI 결과 JSON의 키 `report`를 Analytics 이름으로 바꾼다. 기록의 형식·저장 이름·의미는 그대로다(저장 이름은 결정 2대로 ③.
+     오류 클래스 이름을 담는 진단 글과 kit 버전 값은 새 값이다, [현재 계약](../CONTRACTS.md) F1)
+     ① 새 가족과 섞인 journal의 읽기, 모르는 가족의 보고, 두 표식의 충돌 오류 ② 복사 전환(결정 5의 목적지 규칙과
      중단 뒤 잇기)·참조 매핑·전환 보고서·전후 해시 검증. 이 PR에서는 전환을 시험에서만 부르고 명령·도구로 열지 않는다 ③ 새 writer,
      모든 쓰기의 표식 확인(결정 6), 전환 명령, 신뢰 목록, `.gitignore`. 지표 같은 새 기능은 #14부터다.
    - 이 분할이 지키는 불변식: 어느 PR이 병합된 main에서도 `analytics.json`이 있는 디렉터리에는 옛 형식(`lab.*/1`, `.lab/`, `data/raw/`,
@@ -145,7 +163,7 @@ schema 가족 `lab.project/1`·`lab.event/1`·`lab.run/1`·`lab.dataset/1`, 신�
 - #9-2 뒤에는 옛 이름의 환경 변수를 설정한 셸·설정이 오류로 멈추므로 새 이름으로 고쳐야 한다(결정 7).
 - `labkit`을 import하는 옛 run 스냅샷은 새 kit으로 다시 실행되지 않는다(결정 9). Q15 증거의 "기존 형식·스크립트 호환"과 긴장이 있다.
   기존 형식은 legacy reader와 전환으로, 옛 스냅샷은 필요한 kit의 안내로 다룬다. 이 한계는 #9가 코드와 함께 현재 계약에 적는다.
-- #13은 전환기와 새 writer를 함께 담아 커진다. 결정 7의 세 PR로 나누고, ②가 병합된 뒤 ③까지는 전환을 명령으로 쓸 수 없다.
+- #13은 전환기와 새 writer를 함께 담아 커진다. 결정 7의 ①②③으로 나누고, ②가 병합된 뒤 ③까지는 전환을 명령으로 쓸 수 없다.
 - #4·#12가 늦어지면 중간 상태와 스크립트를 손으로 고치는 기간이 길어진다. 그 사이 게시하면 외부 사용자가 두 번 전환하게 되므로 결정 8을 둔다.
 - B5 패키징이나 모델 평가가 새 파일 이름을 전제해야 하는 사정이 생기면 N0-b의 일부를 앞당긴다. 그때 첫 대안의 비용을 다시 따지고,
   모든 쓰기 경로의 표식 확인부터 넣는다.
@@ -173,7 +191,8 @@ schema 가족 `lab.project/1`·`lab.event/1`·`lab.run/1`·`lab.dataset/1`, 신�
 - Issue: #3, #9, #10, [#12](https://github.com/handochan/aelix-analytics/issues/12), #13, #24, #36, #42. 함께 맞출 결정: #4(공통 기록 계약과
   `analytics.event/2`의 범위, [ADR-0006](0006-common-record-contract.md)), #36(경로 정체성, ADR-0006의 한 절), #37(줄 끝, [ADR-0007](0007-line-endings.md)).
 - #13의 구현 설계(Proposed, 현재 코드 아님): [기록 writer와 프로젝트 전환 설계](../design/RECORD-WRITER-AND-MIGRATION.md). 결정 5·6·7의 새 writer와
-  전환을 구현하는 방법을 제안한다. 결정 7의 PR 목록에 PR을 더하는 일 같은 바뀜은 그 문서의 소유자 질문이며 이 결정은 그대로다.
+  전환을 구현하는 방법을 제안한다. 그 문서 16절의 소유자 질문 가운데 이 결정을 바꾸는 것(결정 5의 예외 셋, 결정 7의 ⓪)은 2026-10-08 소유자
+  결정으로 위에 개정해 적었다.
 - 설계: [전체 용어 점검](../REVIEW-TERMINOLOGY-2026-09-18.md) §5·§6, [용어집](../TERMINOLOGY-AND-LANGUAGE.md) §3·§8,
   [기록 형식과 호환성](../DESIGN-CONTINUITY-AND-REUSE.md#7-기록-형식과-호환성), [베타 기준](../BETA-QUALITY-GATES.md) §2의 Q1·Q7·Q15와 §5.
 - [ADR-0001](0001-evolvable-platform-boundaries.md)(계층과 교체 경계, #9의 패키지 이동), [ADR-0004](0004-minimal-distribution-and-entry-points.md)

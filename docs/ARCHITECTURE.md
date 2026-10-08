@@ -24,7 +24,7 @@ Strategy 패턴은 동작 방식의 교체에 사용한다. 저장소·실행 �
 |---|---|---|
 | [core.py](../src/aelix_analytics/core.py) | stdlib만으로 프로젝트 기록을 읽을 수 있음 | 파일·잠금·journal 쓰기, 의미 규칙, 상태/관계 계산, 맥락 선택·텍스트 표시 |
 | [runner.py](../src/aelix_analytics/runner.py) | 자유 코드 실행과 실패·스냅샷·산출물 기록 | 실행 backend, 캡처, 작업 조정, 완료 기록·재실행 비교 |
-| [report.py](../src/aelix_analytics/report.py) | 동일 기록에서 탐색 가능한 HTML 생성 | 공통 읽기 모델, 표시 형식, 공유 범위 투영, 파일 빌드 |
+| [workspace.py](../src/aelix_analytics/workspace.py)(kit 0.6.0 전 `report.py`) | 동일 기록에서 탐색 가능한 HTML 생성 | 공통 읽기 모델, 표시 형식, 공유 범위 투영, 파일 빌드 |
 | [capture.py](../src/aelix_analytics/capture.py), [data.py](../src/aelix_analytics/data.py) | 관용 코드와 데이터 도구를 활용 | 라이브러리별 캡처·입출력 어댑터와 기록 의미 |
 | [Aelix 어댑터](../extension/aelix_analytics.py) | 프로젝트별 분석 환경으로 실행 위임 | 호스트 이벤트·도구 표현, 프로젝트 선택 상태, core 연결·자원 경로 |
 
@@ -317,7 +317,7 @@ N0의 명칭·기본 언어 전환을 A0의 경계 정리와 조율한다. 현�
 | `distribution` | 0 | 설치본의 실행 루트 위치 | `src/aelix_analytics/_install.py` | 없음 | stdlib |
 | `core` | 1 | 도메인·공유 응용(아직 나뉘지 않음, §2) | `src/aelix_analytics/core.py` | `ports`, `read_model` | stdlib |
 | `runtime` | 2 | 실행·캡처·데이터 어댑터와 데모 채우기(§9 `runtime/`) | `src/aelix_analytics/runner.py`, `src/aelix_analytics/capture.py`, `src/aelix_analytics/data.py`, `src/aelix_analytics/demo.py` | `core`, `ports`, `read_model`, `runtime` | stdlib, 분석 |
-| `workspace` | 2 | Workspace 렌더러(§5 `WorkspaceRenderer`) | `src/aelix_analytics/report.py` | `core`, `ports`, `read_model` | stdlib, 분석, 표시 |
+| `workspace` | 2 | Workspace 렌더러(§5 `WorkspaceRenderer`) | `src/aelix_analytics/workspace.py` | `core`, `ports`, `read_model` | stdlib, 분석, 표시 |
 | `sdk` | 3 | 스크립트 API 진입점 | `src/aelix_analytics/__init__.py` | `core`, `ports`, `read_model`, `runtime`, `workspace` | stdlib, 분석 |
 | `kit_entry` | 3 | 프로젝트 환경의 kit 명령줄 진입점 | `src/aelix_analytics/__main__.py` | `core`, `ports`, `read_model`, `runtime`, `workspace` | stdlib, 분석 |
 | `launcher` | 3 | 사람용 `analytics`(호스트 쪽, 3.11) | `src/aelix_analytics/cli.py` | `distribution`, `ports` | stdlib |
@@ -363,10 +363,10 @@ N0의 명칭·기본 언어 전환을 A0의 경계 정리와 조율한다. 현�
 
 | 허용 간선 | 위치 | 이유 | 제거 조건 |
 |---|---|---|---|
-| `runner.py` → `report.py` | `runner._finalize` | run이 끝나면 Workspace를 다시 빌드해 결과에 싣는다 | Workspace 갱신을 진입점이나 공통 쓰기 경로의 후속 처리(§7)가 부르게 되면 |
-| `report.py` → `runner.py` | `report.fingerprint` | Workspace 지문에 kit의 해시 `runner.kit_sha()`가 들어간다 | `kit_sha`가 둘 다 import해도 되는 계층(`core` 등)으로 옮겨지면 |
-| `report.py` → `data.py` | `report.dataset_page`, `report.Site.frame_preview` | dataset 페이지가 데이터 어댑터로 프로필을 만들고 셀을 서식화한다 | Workspace가 프로필·셀 서식을 읽기 모델이나 진입점이 넘긴 값으로 받게 되면 |
-| `demo.py` → `report.py` | `demo.populate` | 데모가 끝에서 Workspace를 빌드해 결과에 싣는다 | 진입점의 `demo` 명령이 populate 뒤에 빌드하면(`import`·`record`처럼) |
+| `runner.py` → `workspace.py` | `runner._finalize` | run이 끝나면 Workspace를 다시 빌드해 결과에 싣는다 | Workspace 갱신을 진입점이나 공통 쓰기 경로의 후속 처리(§7)가 부르게 되면 |
+| `workspace.py` → `runner.py` | `workspace.fingerprint` | Workspace 지문에 kit의 해시 `runner.kit_sha()`가 들어간다 | `kit_sha`가 둘 다 import해도 되는 계층(`core` 등)으로 옮겨지면 |
+| `workspace.py` → `data.py` | `workspace.dataset_page`, `workspace.Site.frame_preview` | dataset 페이지가 데이터 어댑터로 프로필을 만들고 셀을 서식화한다 | Workspace가 프로필·셀 서식을 읽기 모델이나 진입점이 넘긴 값으로 받게 되면 |
+| `demo.py` → `workspace.py` | `demo.populate` | 데모가 끝에서 Workspace를 빌드해 결과에 싣는다 | 진입점의 `demo` 명령이 populate 뒤에 빌드하면(`import`·`record`처럼) |
 
 새 모듈을 더하는 PR은 그 파일을 `tests/test_layers.py`의 `MODULES`와 위 계층표에 등록한다. 등록하지 않으면 `registration`으로 실패한다.
 기존 계층에 맞지 않는 책임이면 계층을 더하는 것이 그 PR의 설계 결정이고 `LAYERS`와 표에 수준·허용 계층·외부 분류를 함께 적는다.

@@ -538,7 +538,7 @@ def _source_arg(args, kwargs, offset):
 
 
 def _wrap_read(fn, via, offset=0):
-    if getattr(fn, "__lab_wrapped__", False):
+    if getattr(fn, "__analytics_wrapped__", False):
         return fn
 
     @functools.wraps(fn)
@@ -548,12 +548,12 @@ def _wrap_read(fn, via, offset=0):
                 ACTIVE.record_read(_source_arg(args, kwargs, offset), via)
         return fn(*args, **kwargs)
 
-    wrapper.__lab_wrapped__ = True  # type: ignore[attr-defined]
+    wrapper.__analytics_wrapped__ = True  # type: ignore[attr-defined]
     return wrapper
 
 
 def _wrap_sql(fn, via, offset=0):
-    if getattr(fn, "__lab_wrapped__", False):
+    if getattr(fn, "__analytics_wrapped__", False):
         return fn
 
     @functools.wraps(fn)
@@ -565,7 +565,7 @@ def _wrap_sql(fn, via, offset=0):
                 ACTIVE.record_sql(_source_arg(args, kwargs, offset), via, params)
         return fn(*args, **kwargs)
 
-    wrapper.__lab_wrapped__ = True  # type: ignore[attr-defined]
+    wrapper.__analytics_wrapped__ = True  # type: ignore[attr-defined]
     return wrapper
 
 
@@ -573,7 +573,7 @@ def patch_polars(pl) -> None:
     namespaces = [pl, getattr(pl, "io", None)]
     for name in POLARS_READERS:
         original = getattr(pl, name, None)
-        if not callable(original) or getattr(original, "__lab_wrapped__", False):
+        if not callable(original) or getattr(original, "__analytics_wrapped__", False):
             continue
         wrapped = _wrap_read(original, f"polars.{name}")
         for ns in namespaces:  # `from polars.io import read_parquet` gets the same wrapper
@@ -648,13 +648,13 @@ def patch_plotly_io(pio) -> None:
     with contextlib.suppress(Exception):
         axis = {"gridcolor": GRID, "linecolor": AXIS, "zerolinecolor": AXIS, "tickcolor": AXIS,
                 "title": {"font": {"color": INK_2}}}
-        pio.templates["lab"] = {"layout": {
+        pio.templates["analytics"] = {"layout": {
             "colorway": PALETTE, "font": {"family": FONT_STACK, "color": INK_2, "size": 13},
             "title": {"x": 0.01, "xanchor": "left", "font": {"color": INK, "size": 16}},
             "paper_bgcolor": SURFACE, "plot_bgcolor": SURFACE, "xaxis": axis, "yaxis": axis,
             "legend": {"bgcolor": "rgba(0,0,0,0)"},
             "margin": {"t": 60, "l": 60, "r": 24, "b": 50}}}
-        pio.templates.default = "plotly_white+lab"
+        pio.templates.default = "plotly_white+analytics"
 
 
 HOOKS = {"polars": patch_polars, "duckdb": patch_duckdb, "matplotlib": style_matplotlib,

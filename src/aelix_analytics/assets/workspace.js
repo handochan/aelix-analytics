@@ -102,27 +102,38 @@
   });
 
   // --- live reload: poll assets/build.js (a script tag, so it also works from file://) ---
+  // The storage keys were lab-live and lab-scroll: before kit 0.6.0. A missing new key takes the
+  // old key's value once; the old key is left as it is, for a Workspace an earlier kit rendered.
   const box = document.getElementById("live");
-  let live = store.get("lab-live") !== "0";
+  let liveSetting = store.get("analytics-live");
+  if (liveSetting === null) {
+    liveSetting = store.get("lab-live");
+    if (liveSetting !== null) store.set("analytics-live", liveSetting);
+  }
+  let live = liveSetting !== "0";
   if (box) {
     box.checked = live;
-    box.addEventListener("change", () => { live = box.checked; store.set("lab-live", live ? "1" : "0"); });
+    box.addEventListener("change", () => { live = box.checked; store.set("analytics-live", live ? "1" : "0"); });
   }
-  const scrollKey = "lab-scroll:" + location.pathname;
+  const scrollKey = "analytics-scroll:" + location.pathname;
+  // The position the page saved before it reloaded into this one, used once: the key is left empty,
+  // not removed, so a position an earlier kit's page saved under the old key is read once.
+  let saved = null;
   try {
-    const saved = sessionStorage.getItem(scrollKey);
-    if (saved) {
-      sessionStorage.removeItem(scrollKey);
-      window.addEventListener("load", () => window.scrollTo(0, Number(saved)));
-    }
+    saved = sessionStorage.getItem(scrollKey);
+    if (saved === null) saved = sessionStorage.getItem("lab-scroll:" + location.pathname);
   } catch (_) { /* storage unavailable */ }
+  if (saved) window.addEventListener("load", () => window.scrollTo(0, Number(saved)));
+  if (saved !== null) {
+    try { sessionStorage.setItem(scrollKey, ""); } catch (_) { /* storage full: restored anyway */ }
+  }
   function poll() {
     if (!live || document.hidden) return;
     const s = document.createElement("script");
     s.src = root + "assets/build.js?t=" + Date.now();
     s.onload = () => {
       s.remove();
-      if (window.__LAB_BUILD__ && build && window.__LAB_BUILD__ !== build) {
+      if (window.__ANALYTICS_BUILD__ && build && window.__ANALYTICS_BUILD__ !== build) {
         try { sessionStorage.setItem(scrollKey, String(window.scrollY)); } catch (_) { /* ignore */ }
         location.reload();
       }

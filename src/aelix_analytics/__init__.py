@@ -171,7 +171,7 @@ def visualize(obj, id: str | None = None, *, title: str | None = None, caption: 
     if state is None:
         p = project()
         stamp = core.now().strftime("%Y%m%d-%H%M%S")
-        run_dir = p.lab / "adhoc" / stamp
+        run_dir = p.state_dir / "adhoc" / stamp
         state = capture.RunState(p, f"adhoc-{stamp}", run_dir, Path(sys.argv[0]).resolve())
         record = state.capture(obj, id, title=title, caption=caption, data=data)
         print(f"aelix_analytics: not inside an analytics run; chart saved under {run_dir} but not "

@@ -202,7 +202,7 @@ SECRET_ENV = re.compile(r"TOKEN|KEY|SECRET|PASSWORD|PASSWD|AUTH|CREDENTIAL|COOKI
 SECRET_VALUE_ENV = re.compile(r"TOKEN|KEY|SECRET|PASSWORD|PASSWD|CREDENTIAL|COOKIE", re.IGNORECASE)
 MIN_SECRET_LENGTH = 8
 
-# Extension error codes that mean the call's arguments were wrong (the kit's LabError codes).
+# Extension error codes that mean the call's arguments were wrong (the kit's AnalyticsError codes).
 ARGUMENT_CODES = frozenset({
     "run_args", "run_needs_title", "run_needs_script", "run_name", "script_location", "script_outside",
     "script_missing", "rerun_id", "rerun_unknown", "bad_kind", "empty_note", "resolve_needs_target",
