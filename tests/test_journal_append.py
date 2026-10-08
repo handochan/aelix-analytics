@@ -191,6 +191,19 @@ def test_a_number_whose_id_a_readable_line_holds_is_skipped(tmp_path, seq, id_, 
     assert core.status(p)["shared_ids"] == {}
 
 
+def test_a_line_nested_deeper_than_the_parser_goes_is_damaged_and_the_next_record_is_written(tmp_path):
+    """Every append reads the journal (#49), so a line json cannot parse for its depth must not stop
+    it: the reader reports it as damaged like a cut-off line and the record after it is written."""
+    p = _project(tmp_path)  # e1, e2
+    deep = b"[" * 200_000 + b"]" * 200_000 + b"\n"
+    before = _append(p, deep)
+    record = core.add_note(p, "note", "after the deep line", actor="test")
+    assert record["id"] == "e3" and p.journal.read_bytes() == before + _line(record)
+    journal = relations.read_journal(p.root)
+    assert journal.damaged == [3] and journal.lines_of["e3"] == [4]
+    assert core.status(p)["damaged"]["journal"] == ["journal:3"]
+
+
 @pytest.mark.parametrize("case, seq, line", [("interrupted", 6, 7), ("mixed-version", 10, 11)])
 def test_the_record_examples_journals_take_the_next_record_as_adr_0006_says(tmp_path, case, seq, line):
     """`interrupted`'s event_append: "the writer ends the cut-off line 6 with a newline first; the
