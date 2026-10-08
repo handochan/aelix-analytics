@@ -439,7 +439,7 @@ kind와 참조 type은 B1–B4 전체를 미리 정했고, #13 뒤에는 선택 
 
 새 writer를 열기 전에 혼합 journal·오래된 프로젝트·미래 스키마를 [기록 예제](../tests/fixtures/records/README.md)로 시험한다.
 선택 필드만 `/1`에 더하는 대안은 구버전이 새 상태를 무시하고 그대로 쓰므로 택하지 않았다(ADR-0006).
-현재 저장 형식은 #13의 구현 전까지 바뀌지 않는다.
+저장 형식은 #13의 셋째 구현 PR(kit 0.8.0)에서 바뀌었다: 새 프로젝트는 `analytics.project/2`와 `analytics.*` 기록이고, `lab.json` 프로젝트는 읽기만 하며 `analytics migrate`로 옮긴다([현재 계약](CONTRACTS.md) B).
 
 ## 8. 배포와 저장소 구조
 

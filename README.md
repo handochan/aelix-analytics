@@ -17,7 +17,9 @@ Jupyter Notebook과 BI가 만들어 온 분석 작업방식을 바탕으로, 목
 공식 명칭은 `analytics` 명령·SDK, 분석 인터페이스 `Workspace`, 시각화 객체 `Visualization`, 문서 산출물 `Report`로 정리합니다.
 kit이 보이는 글(Workspace·도구 응답·오류·새 프로젝트 템플릿·데모)은 영어이고, 사람이 쓴 목표·발견·제목·열 이름·데이터·경로는 쓴
 그대로 보입니다(#10, [용어 §7](docs/TERMINOLOGY-AND-LANGUAGE.md#7-영어-기본값과-다국어-내용)). 명령·도구·SDK·환경 변수의 이름은 kit 0.3.0에서
-`analytics`로 바뀌었고, 저장 이름(`lab.json`, `.lab/`, `lab.*/1` 등)은 새 writer의 전환(#13)까지 그대로입니다([옛 이름에서 옮기기](#옛-이름에서-옮기기)).
+`analytics`로 바뀌었고, 저장 이름은 kit 0.8.0의 새 기록 형식(#13)에서 바뀌었습니다: 새 프로젝트는 `analytics.json`·`.analytics/`·
+`workspace/`·`analytics.*` 기록입니다. 그 전의 `lab.json` 프로젝트는 읽기만 하고, `analytics migrate`로 새 폴더에 복사해 이어 씁니다
+([옛 이름에서 옮기기](#옛-이름에서-옮기기), [옛 형식 프로젝트 옮기기](#옛-형식-프로젝트-옮기기-analytics-migrate)).
 
 사람이 Python·SQL로 직접 분석하는 경로도 정식 사용 시나리오로 설계합니다. 현재도 사람용 `bin/analytics` CLI로 Aelix 없이 분석을 실행·기록할 수 있습니다.
 베타에서는 모델 없이 프로젝트 생성부터 발견·보고서 기록과 결과 확인까지 완료하고, 사람 → 에이전트 → 사람이 같은 근거를 이어받는지 검증합니다.
@@ -72,7 +74,7 @@ PACK=/path/to/aelix-analytics                   # 이 저장소를 받은 위치
 
 # 1) 모델 없이 결과물 모양 보기: 합성 데이터 + 예제 run 3개 + 메모 + 재실행 검증
 $PACK/bin/analytics demo ~/analyses/demo        # 처음엔 uv 환경 준비로 1분 안팎
-open ~/analyses/demo/report/index.html
+open ~/analyses/demo/workspace/index.html
 
 # 2) 그 프로젝트에서 aelix로 이어서 분석
 cd ~/analyses/demo
@@ -121,7 +123,8 @@ uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.8.0-p
 
 - 프로젝트 루트가 MAX_PATH(260자)를 넘으면 aelix 확장이 kit을 시작하지 못합니다. kit을 시작하는 `analytics_run`·`analytics_import`·
   `analytics_query`·`/analytics render`와, 리포트가 아직 없을 때의 `/analytics open`은 `spawn_failed`로 답합니다. `analytics_init`과
-  `/analytics init`·`/analytics demo`는 `lab.json`을 만들고 그 프로젝트를 활성화한 뒤 `spawn_failed`로 답합니다.
+  `/analytics init`·`/analytics demo`는 `analytics.json`을 만들고 그 프로젝트를 활성화한 뒤 `spawn_failed`로 답합니다(측정은 kit 0.8.0
+  전의 `lab.json`으로 했습니다).
   `analytics_record`·`/analytics record`의 기록은 되지만 리포트는 알리지 않고 다시 만들어지지 않습니다. 측정은 300자 루트에서
   kit 명령의 시작, 환경 동기화, `/analytics init`, `/analytics record`로 했고 나머지는 코드에서 읽었습니다. 실행되지 않을 뿐 기록을
   잃지는 않습니다.
@@ -196,19 +199,21 @@ PowerShell 안에서 실행한 `chcp 65001`은 PowerShell이 이미 읽어 둔 �
   `AELIX_ANALYTICS_RUNTIME_PATH=$PACK/src`이고, 체크아웃을 업데이트할 때마다 다시 복사해야 합니다(kit 0.2.0 전의 `$PACK/kit`은 이제
   "kit not found"로 실패합니다).
 - `aelix status`로 로드 여부를 확인할 수 있습니다.
-- **디렉터리로 자동 활성화되는 프로젝트는 "내가 만들었거나 고른 것"뿐입니다.** `analytics init`·`analytics demo`·`/analytics use`가
-  프로젝트 경로를 `~/.aelix/agent/lab-projects.json`에 적고, 그 목록에 있는 프로젝트 안에서 aelix를 실행할 때만
-  활성화됩니다. 남에게 받은 사본은 `/analytics use DIR` 한 번이 필요합니다(그 CONTEXT.md가 프롬프트에 들어가고
+- **디렉터리로 자동 활성화되는 프로젝트는 "내가 만들었거나 고른 것"뿐입니다.** `analytics init`·`analytics demo`·`analytics migrate`·
+  `/analytics use`가 프로젝트 경로를 신뢰 목록 `~/.aelix/agent/analytics-projects.json`(`analytics.trust/1`, kit 0.8.0)에 적고, 그 목록에
+  있는 프로젝트 안에서 aelix를 실행할 때만 활성화됩니다. kit 0.8.0 전의 목록 `lab-projects.json`은 고치지 않고 `lab.json` 프로젝트의
+  활성화에만 읽습니다. 남에게 받은 사본은 `/analytics use DIR` 한 번이 필요합니다(그 CONTEXT.md가 프롬프트에 들어가고
   `analytics_run`이 그 코드를 실행하기 때문입니다).
 - Aelix Analytics Engine 어댑터와 이름이 겹치지 않습니다
   (`analytics_*`·`/analytics` vs `analytics_engine_*`·`/analytics-engine`).
   다만 비교 평가는 한 번에 하나만 로드해야 공정합니다.
 
 프로젝트는 `/analytics use` → `--analytics-project` → `AELIX_ANALYTICS_PROJECT` → 작업 디렉터리와 그 조상 가운데 표식(`analytics.json`
-또는 `lab.json`)이 있는 가장 가까운 디렉터리 순서로 찾습니다. kit 0.7.0부터 이 kit은 `lab.json`(`lab.project/1`) 프로젝트에만 쓰고, 새
-형식(`analytics.json`)·모르는 형식·깨진 `analytics.json`·두 표식의 디렉터리에는 기록·잠금 파일·캐시·로그를 쓰지 않습니다(읽기는 두 표식만
+또는 `lab.json`)이 있는 가장 가까운 디렉터리 순서로 찾습니다. kit 0.8.0부터 이 kit은 `analytics.json`(`analytics.project/2`) 프로젝트에만
+쓰고, `lab.json` 프로젝트는 읽기만 합니다: 쓰기는 `migration_required`와 전환하는 법을 알리는 안내로 거절하고, 맥락 동기화·로그 같은 부수
+쓰기는 건너뜁니다. 모르는 형식·깨진 `analytics.json`·두 표식의 디렉터리에도 기록·잠금 파일·캐시·로그를 쓰지 않습니다(읽기는 두 표식만
 거절). 다만 `analytics`·`bin/analytics`·`analytics_query`가 그 프로젝트의 환경으로 kit을 부르면 uv가 `.venv/`·`uv.lock`을 만들거나 고칠 수
-있습니다(기록이 아닌 환경, [현재 계약](docs/CONTRACTS.md) B).
+있습니다(기록이 아닌 환경, [현재 계약](docs/CONTRACTS.md) B). 다른 프로젝트 안에는 새 프로젝트를 만들지 않습니다(`destination_invalid`).
 가장 쉬운 방법은 프로젝트 디렉터리에서 aelix를 실행하는 것입니다. `AELIX_ANALYTICS_PROJECT`는 셸의 `analytics`(`bin/analytics`)도
 작업 디렉터리보다 먼저 읽습니다: aelix를 위해 설정해 두면 다른 프로젝트 안에서 실행한 `analytics record`도 그 프로젝트에 기록됩니다.
 
@@ -218,17 +223,17 @@ PowerShell 안에서 실행한 `chcp 65001`은 PowerShell이 이미 읽어 둔 �
 2. `CONTEXT.md`에 목표·핵심 질문·데이터 출처·정의를 채웁니다(사람이 직접 또는 모델에게 요청).
 3. "이 CSV를 가져와서 월별 추세를 봐줘" → 모델이 `analytics_import` → `analytics_query`로 탐색 → `scripts/01_*.py` 작성 → `analytics_run`.
 4. `/analytics open`으로 리포트를 열어 둡니다. run·import·메모가 생기면 **자동 새로고침**됩니다.
-5. 확정된 내용은 `analytics_record`(finding·decision·assumption·question·todo), 막히거나 우회가 필요했던 점은 `/analytics record gap …`.
+5. 확정된 내용은 `analytics_record`(finding·decision·assumption·question·todo), 막히거나 우회가 필요했던 점은 `/analytics record workflow_feedback …`.
 
 ### 모델 도구
 
 | 도구 | 하는 일 | 쓰기 |
 |---|---|---|
 | `analytics_status` | 데이터셋·view 이름, 최근 run, 차트 최신 버전과 stale 여부, 열린 질문, 핵심 정보, 최근 journal | 없음 |
-| `analytics_query` | 데이터셋 view 위의 읽기 전용 DuckDB SQL 한 문장(SELECT/WITH/DESCRIBE/SUMMARIZE/EXPLAIN). 쓰기 문장과 `EXPLAIN ANALYZE`는 거절하고, 파일 접근을 `data/`로 제한합니다 | `.lab/queries.jsonl` 로그만 |
-| `analytics_import` | CSV/TSV/JSON/NDJSON/Parquet → `data/raw/<name>.parquet`(불변), 원본 경로·sha256·스키마 기록 | 예 |
+| `analytics_query` | 데이터셋 view 위의 읽기 전용 DuckDB SQL 한 문장(SELECT/WITH/DESCRIBE/SUMMARIZE/EXPLAIN). 쓰기 문장과 `EXPLAIN ANALYZE`는 거절하고, 파일 접근을 `data/`로 제한합니다 | `.analytics/queries.jsonl` 로그만 |
+| `analytics_import` | CSV/TSV/JSON/NDJSON/Parquet → `data/imported/<name>.parquet`(불변), 원본 경로·sha256·스키마 기록 | 예 |
 | `analytics_run` | 스크립트 실행 + 코드 스냅샷·입력 해시·출력·차트·플롯 데이터·로그·환경 기록, 리포트 재생성. `rerun_of`로 재실행 비교 | 예 |
-| `analytics_record` | journal 기록(이전 `lab_note`). `resolves`로 이전 질문·할 일을 닫음 | 예 |
+| `analytics_record` | journal 기록(이전 `lab_note`): finding·decision·assumption·question·todo·note·resolve·workflow_feedback. `resolves`로 이전 질문·할 일을 닫고, 본문은 32 KiB까지 자르지 않음 | 예 |
 | `analytics_init` | 새 프로젝트 + uv 환경 (사용자가 요청했을 때만) | 예 |
 
 PNG 차트는 모델이 이미지 입력을 받을 때 `analytics_run` 결과에 이미지로도 붙습니다(모델이 자기 차트를 봅니다).
@@ -238,20 +243,30 @@ PNG 차트는 모델이 이미지 입력을 받을 때 `analytics_run` 결과에
 ```text
 /analytics                  현황              /analytics render | open      리포트 재생성 | 브라우저로 열기
 /analytics where            프로젝트·kit·uv   /analytics record KIND TEXT   사람 이름으로 journal 기록
-/analytics init DIR [제목]  새 프로젝트       /analytics record gap TEXT    사용 중 부족하거나 어색했던 점 기록
+/analytics init DIR [제목]  새 프로젝트       /analytics record workflow_feedback TEXT   사용 중 부족하거나 어색했던 점 기록
 /analytics demo DIR         데모 프로젝트     /analytics context            프롬프트에 주입되는 맥락 블록 보기
 /analytics use DIR          활성 프로젝트 지정
 ```
 
 셸에서는 같은 기능을 체크아웃의 `bin/analytics`나 설치본의 `analytics`로 씁니다(`analytics status`, `analytics run scripts/x.py --title …`,
-`analytics query "SQL"`, `analytics record finding "…"`, `analytics render` 등).
+`analytics query "SQL"`, `analytics record finding "…"`, `analytics render` 등). 옛 형식 프로젝트의 전환(`analytics migrate`)은 셸에서만
+부릅니다(아래).
+
+### 작성 주체
+
+기록에는 누가 썼는지(`actor`)와 그 근거(`actor_basis`), 실행 수단(`means`)이 남습니다. aelix 도구는 `agent`, `/analytics`는 `human`이고,
+셸의 `analytics`는 `AELIX_ANALYTICS_ACTOR`의 값(밝힌 것, `declared`)이나 없으면 `human`(`inferred`)입니다. aelix 안에서는 확장이 aelix
+프로세스의 환경에 `AELIX_ANALYTICS_ACTOR=agent`와 세션을 넣으므로, 에이전트가 bash 도구로 부른 `analytics`는 `agent`로, 사람이 `!analytics …`로
+부른 것은 `human`으로 기록됩니다. aelix 밖의 에이전트(다른 코딩 에이전트, 자동화)가 `analytics`나 SDK를 부르게 한다면 그 에이전트의 셸에
+`AELIX_ANALYTICS_ACTOR=agent`를 설정하세요. 설정하지 않으면 사람의 기록(`human`·`inferred`)으로 남습니다. 출처 기록이지 인증이 아니며,
+다른 확장이 `!` 명령의 셸을 바꾸는 경우의 한계는 [현재 계약](docs/CONTRACTS.md) A "aelix 안의 작성 주체"에 있습니다.
 
 ### 스크립트 API
 
 ```python
 import aelix_analytics as analytics
 
-sales = analytics.read("sales")                                    # Polars DataFrame (data/raw/sales.parquet)
+sales = analytics.read("sales")                                    # Polars DataFrame (data/imported/sales.parquet)
 monthly = analytics.sql("SELECT ... FROM sales GROUP BY ALL").pl() # 모든 데이터셋이 view인 DuckDB
 analytics.save(monthly, "monthly_revenue")                         # data/derived/monthly_revenue.parquet
 analytics.visualize(fig, "monthly-revenue", title="…", caption="…", data=monthly)   # matplotlib/plotly
@@ -275,7 +290,7 @@ kit 0.3.0(#9)에서 공개 이름이 `analytics`로 바뀌었습니다. 옛 이�
 | 옛 이름 | 새 이름 |
 |---|---|
 | `bin/lab`, 하위 명령 `note`·`report` | `bin/analytics`(설치본 `analytics`), `record`·`render` |
-| `/lab`(`note`·`gap`·`report`) | `/analytics`(`record KIND TEXT`·`record gap TEXT`·`render`) |
+| `/lab`(`note`·`gap`·`report`) | `/analytics`(`record KIND TEXT`·`record workflow_feedback TEXT`(kit 0.8.0 전 `record gap TEXT`)·`render`) |
 | 도구 `lab_status`·`lab_query`·`lab_import`·`lab_run`·`lab_note`·`lab_init` | `analytics_status`·`analytics_query`·`analytics_import`·`analytics_run`·`analytics_record`·`analytics_init` |
 | flag `--lab-project` | `--analytics-project` |
 | `extension/aelix_lab.py` | `extension/aelix_analytics.py`(전역 symlink를 다시 만드세요) |
@@ -291,31 +306,69 @@ kit 0.3.0(#9)에서 공개 이름이 `analytics`로 바뀌었습니다. 옛 이�
   자세한 것은 [현재 계약](docs/CONTRACTS.md) A·D에 있습니다.
 - 옛 flag `--lab-project`를 준 aelix도 확장을 로드하지 않습니다(aelix는 모르는 flag를 말없이 넘기므로, 무시하면 다른 프로젝트에
   기록될 수 있습니다).
-- 저장 이름(`lab.json`, `.lab/`, `lab.*/1`, `lab-projects.json`, 기록의 `via` 값 `lab.read`·`lab.chart` 등)과 기존 기록의 바이트는
-  그대로입니다. 그 뒤의 새 run은 `env.kit_version`이 0.3.0 이상입니다(kit 0.5.0은 기록의 경로 규칙을 바꾼 버전, [현재 계약](docs/CONTRACTS.md)
-  F1). 옛 이름을 쓴 run 스냅샷은 그때의 kit으로만 그대로 다시 실행됩니다.
+- 옛 이름을 쓴 run 스냅샷은 그때의 kit으로만 그대로 다시 실행됩니다.
 - 이전 세션의 telemetry에는 `lab_*` 도구 이름이 남아 있고, 리포트의 도구 사용표에는 옛 이름과 새 이름이 각각 보입니다.
+
+kit 0.8.0(#13)에서 저장 이름과 기록 형식이 바뀌었습니다. 새 프로젝트는 처음부터 새 이름이고, 그 전의 `lab.json` 프로젝트는 이 kit이
+읽기만 합니다(아래 "옛 형식 프로젝트 옮기기"). 기존 기록의 바이트는 고치지 않습니다.
+
+| kit 0.8.0 전 | kit 0.8.0 |
+|---|---|
+| 표식 `lab.json`(`lab.project/1`) | `analytics.json`(`analytics.project/2`, `project_id`·`min_writer_version`) |
+| 관리 디렉터리 `.lab/` | `.analytics/` |
+| Workspace `report/` | `workspace/` |
+| 가져온 데이터 `data/raw/<name>.parquet`·`.meta.json` | `data/imported/<name>.parquet`·`.meta.json`(`analytics.dataset/1`) |
+| run의 차트 `runs/<id>/charts/`, `charts[]` | `runs/<id>/visualizations/`, `visualizations[]`(`analytics.run/2`) |
+| journal 줄 `lab.event/1` | `analytics.event/2`(`actor_basis`·`means`·`request_id`, 쓰는 때 결박한 참조) |
+| kind `gap` | `workflow_feedback`(입력 `gap`은 `bad_kind`) |
+| 기록의 `via` `lab.read`·`lab.chart` 등 | `analytics.read`·`analytics.visualize` 등 |
+| 신뢰 목록 `lab-projects.json` | `analytics-projects.json`(`analytics.trust/1`) |
+
+### 옛 형식 프로젝트 옮기기 (`analytics migrate`)
+
+kit 0.8.0은 `lab.json` 프로젝트에 쓰지 않습니다. 이어서 쓰려면 셸에서 새 빈 폴더로 복사합니다:
+
+```sh
+cd ~/analyses/q3-sales                      # lab.json 프로젝트 (또는 AELIX_ANALYTICS_PROJECT)
+analytics migrate --to ~/analyses/q3-sales-v2 --dry-run   # 먼저 미리 보기: 아무것도 쓰지 않고 계획과 거절 이유를 보임
+analytics migrate --to ~/analyses/q3-sales-v2             # 복사 (원본은 그대로)
+```
+
+- **원본은 바뀌지 않습니다.** 옛 kit의 잠금 파일 둘 말고는 원본에 쓰지 않고, 목적지에만 씁니다. 목적지는 없거나 빈 폴더여야 하고 원본
+  안·원본을 품은 위·다른 프로젝트 안이면 거절합니다(`destination_invalid`). 미리 보기가 대상이 없는 바깥 링크, Linux의 UTF-8이 아닌 이름 같은
+  거절을 먼저 알립니다.
+- 끊기면 같은 명령을 다시 부르면 이어서 끝냅니다. 끝난 전환을 다시 부르면 `already_migrated`와 함께 원본과 사본을 다시 대조합니다.
+  끝나기 전의 목적지에서는 모든 명령이 `migration_incomplete`로 멈춥니다.
+- 커밋한 뒤 `analytics`는 목적지의 환경을 `uv sync --locked`로 준비합니다. 실패해도 전환은 끝났고 다음 명령이 환경을 준비합니다.
+- 목적지는 신뢰 목록에 더해집니다. aelix에서는 `/analytics use <목적지>`로 이어 갑니다. 에이전트도 이 명령을 부를 수 있고, 그때는 보고서에
+  `agent`로 남습니다. aelix의 도구·`/analytics`에는 전환 명령이 없습니다.
+- 목적지의 `.analytics/migration/<id>/`에 계획·ledger·보고서·경로 대응(매핑)이 남고, 옛 run이 기록한 경로는 그 매핑으로 읽습니다.
+  링크가 없는 파일 시스템(FAT·exFAT 등)에서는 표식을 "있으면 실패하는 rename"으로 게시하고, 그것도 없으면 복사 전에
+  `destination_invalid`(`no_exclusive_rename`)로 거절합니다. 자세한 규칙과 한계는 [현재 계약](docs/CONTRACTS.md) B "프로젝트 전환"·G에 있습니다.
 
 ## 프로젝트 구조
 
 ```text
 my-analysis/
-  lab.json                 프로젝트 정체성 (lab.project/1)
+  analytics.json           프로젝트 정체성 (analytics.project/2: project_id·title·created_at·min_writer_version)
   CONTEXT.md               지금 유효한 맥락: 목표·질문·데이터 출처·정의·가정·결론·다음 할 일
-  journal.jsonl            append-only 타임라인 (lab.event/1): project·import·run·context·finding·decision·assumption·question·todo·note·gap·resolve
+  journal.jsonl            append-only 타임라인 (analytics.event/2): project·import·run·context·finding·decision·assumption·question·todo·note·workflow_feedback·resolve
   pyproject.toml, uv.lock  이 프로젝트만의 환경 (DuckDB·Polars·PyArrow·matplotlib·plotly)
-  data/raw/<name>.parquet  가져온 데이터(불변 규약) + <name>.meta.json (원본 경로·sha256·스키마)
+  data/imported/<name>.parquet  가져온 데이터(불변 규약) + <name>.meta.json (analytics.dataset/1: 원본 경로·sha256·스키마)
   data/derived/            run이 만든 Parquet
   scripts/                 편집하는 분석 코드
   runs/<YYYYMMDD-HHMMSS-script>/
-    run.json               기록 (lab.run/1): 코드 sha·입력 sha·출력·차트·오류·환경·재실행 비교
+    run.json               기록 (analytics.run/2): 코드 sha·입력 sha·출력·Visualization·오류·환경·재실행 비교
     code/                  실행된 코드 스냅샷 (+ import된 로컬 모듈)
-    charts/                차트 파일 + <id>.data.parquet (플롯 데이터)
+    visualizations/        Visualization 파일 + <id>.data.parquet (플롯 데이터)
     stdout.txt, stderr.txt
-  report/                  생성된 HTML (index·runs/·data/·context.html) — 직접 편집하지 않음
-  .lab/                    context 버전, telemetry, query 로그, 캐시
+  workspace/               생성된 HTML (index·runs/·data/·context.html) — 직접 편집하지 않음
+  .analytics/              context 버전, telemetry, query 로그, 캐시, 잠금, 전환 기록(migration/)
   .gitignore, .gitattributes   git 설정 (.gitattributes는 kit 0.4.0부터 새 프로젝트에)
 ```
+
+kit 0.8.0 전의 `lab.json` 프로젝트는 `lab.json`·`.lab/`·`report/`·`data/raw/`·`runs/<id>/charts/`(`lab.*/1`)이고, 이 kit은 그 배치를 그대로
+읽습니다. 관리 디렉터리는 표식의 배치마다입니다: 새 프로젝트의 `.lab/`·`report/`는 사람의 폴더라 run이 거기 쓴 파일은 출력으로 기록됩니다.
 
 필드 정의는 [docs/CONTRACTS.md](docs/CONTRACTS.md)에 있습니다.
 
@@ -346,7 +399,7 @@ kit이 쓰는 텍스트(기록·템플릿 사본·inline 스크립트·Workspace
 
 ## 맥락 · 중요 정보 · 시간 흐름
 
-- `CONTEXT.md`: 사람과 모델이 함께 고치는 현재 맥락. 바뀔 때마다 `.lab/context/`에 버전이 남고 journal에 `context` 이벤트가
+- `CONTEXT.md`: 사람과 모델이 함께 고치는 현재 맥락. 바뀔 때마다 `.analytics/context/`에 버전이 남고 journal에 `context` 이벤트가
   생기며, Workspace의 Context history 페이지에서 diff로 봅니다(run·import·note·프롬프트 시작·에이전트 턴 종료 때 감지).
   새 프로젝트의 템플릿은 영어 섹션(Goal·Analysis focus·Next steps·Current findings·Definitions and rules·Data sources·
   Assumptions and limitations)이고, 내용은 어느 언어로 써도 됩니다. 옛 템플릿의 `## 목표`·`<!-- 항상 -->`도 그대로 읽습니다.
@@ -372,26 +425,28 @@ kit이 쓰는 텍스트(기록·템플릿 사본·inline 스크립트·Workspace
 
 ## 기록 상태와 사용 중 문제 — 현재 인터페이스
 
-- 쓰다가 부족한 점은 바로 `/analytics record gap <내용>`. 모델도 막히면 `analytics_record(kind="gap")`을 남기도록 지침이 들어 있습니다.
-- 확장이 **모든 도구 호출**을 `.lab/telemetry.jsonl`에 남기고, 규약 우회 의심(`python_via_bash`, `wrote_managed_path`)을 표시합니다.
-- Workspace의 **Evaluation** 탭(옛 '평가' 탭): Workflow feedback(gap 목록), Record coverage(입력 미감지 run, 첨부 표 없는 차트,
+- 쓰다가 부족한 점은 바로 `/analytics record workflow_feedback <내용>`. 모델도 막히면 `analytics_record(kind="workflow_feedback")`을 남기도록
+  지침이 들어 있습니다(kit 0.8.0 전의 이름 `gap`은 입력에서 `bad_kind`이고, 옛 기록의 `gap`은 그대로 읽습니다).
+- 확장이 **모든 도구 호출**을 `.analytics/telemetry.jsonl`에 남기고, 규약 우회 의심(`python_via_bash`, `wrote_managed_path`)을 표시합니다.
+- Workspace의 **Evaluation** 탭(옛 '평가' 탭): Workflow feedback(`workflow_feedback`·옛 `gap` 목록), Record coverage(입력 미감지 run, 첨부 표 없는 차트,
   프로젝트 밖 입력, 입력이 바뀐 차트, 재실행 비교 결과), Tool usage(도구별 호출·오류·시간), Possible workarounds(우회 의심 호출).
 - 기존 비교 실험의 축과 시나리오: [과거 평가 가이드](docs/EVALUATION.md).
 
 공식 베타에서는 이 탭을 **인사이트**로 전환해 분석 발견과 재사용 제안을 연결하고, 기록 품질·도구 사용은
-진단 정보로 유지할 계획입니다. 기존 gap은 사용 중 문제로 보존합니다. [설계](docs/DESIGN-CONTINUITY-AND-REUSE.md)를 참고하세요.
+진단 정보로 유지할 계획입니다. 기존 workflow feedback은 사용 중 문제로 보존합니다. [설계](docs/DESIGN-CONTINUITY-AND-REUSE.md)를 참고하세요.
 
 ## 한계
 
 - **샌드박스·승인 없음.** 스크립트는 사용자 권한으로 돌고, aelix는 확장 도구 실행 전에 묻지 않습니다(헤드리스 모드도 자동 승인).
 - **계보는 최선 노력.** 실행 중 계산된 경로를 C 확장이 직접 여는 경우, 훅이 없는 API(예: pyarrow 직접 읽기)는 놓칠 수 있습니다.
   경고(`no input files were detected`)를 보고 `inputs`로 선언하세요. 행 단위 계보는 없습니다.
-- **불변성은 규약입니다.** `data/raw`·`runs`를 사람이 고치는 것을 막지 않습니다. 해시 비교로 드러날 뿐입니다. 해시 체인·서명 없음.
+- **불변성은 규약입니다.** `data/imported`·`runs`를 사람이 고치는 것을 막지 않습니다. 해시 비교로 드러날 뿐입니다. 해시 체인·서명 없음.
 - **트랜잭션·복구 없음.** 강제 종료된 run은 `incomplete`로 보입니다. 같은 요청을 두 번 보내면 run이 두 개 생깁니다(멱등 키 없음).
   한 프로젝트의 run은 파일 잠금으로 직렬화되므로(출력은 실행 전후 파일 비교로 찾습니다) 동시 요청은 순서를 기다립니다.
   기록 중 일부 단계가 실패하면 run.json의 `finalize_errors`와 run 페이지에 남습니다.
 - **링크와 철자.** 기록의 경로는 프로젝트의 이름 공간 경로입니다: `data/`가 다른 디스크로 가는 링크여도 `data/…`이고, 철자는 파일
-  시스템에 저장된 이름입니다(kit 0.5.0; kit이 관리하는 `runs/`·`.venv/`·`.lab/`·`report/`는 저장된 대소문자와 관계없이 그 이름).
+  시스템에 저장된 이름입니다(kit 0.5.0; kit이 관리하는 `runs/`·`.venv/`·`.analytics/`·`workspace/`(`lab.json` 프로젝트는 `.lab/`·`report/`)는
+  저장된 대소문자와 관계없이 그 이름).
   링크 대상의 절대 경로로 직접 읽은 파일은 프로젝트 밖 경로이고, `analytics_query`는 `data/` 안에서 밖으로 가는 링크 아래를 읽지
   않으며, run이 만든 링크 아래의 파일은 스크립트가 시작한 뒤 수정된 것만 출력인 등의 한계는 [현재 계약](docs/CONTRACTS.md) G의
   "경로 정체성의 한계"에 있습니다.
@@ -399,8 +454,8 @@ kit이 쓰는 텍스트(기록·템플릿 사본·inline 스크립트·Workspace
 - **규모.** 리포트는 매번 전체를 다시 만들고, 데이터셋 프로파일은 전체를 스캔합니다(sha 기준 캐시). 수백 run·수 GB에서는 느려집니다.
   plotly 그림은 JSON째 페이지에 들어갑니다(3 MB 초과는 링크).
 - **개인정보.** 텔레메트리에 bash 명령 앞 300자가 로컬로 남습니다. 리포트는 실데이터 미리보기를 담습니다 — 공유 전에 확인하세요.
-  프로젝트 `.gitignore`는 `data/`·`report/`를 기본 제외합니다.
-- **현재 공유 범위.** `report/`는 프로젝트의 차트·데이터 파일을 상대 경로로 참조하므로 그 폴더만으로 독립 공유를 보장하지 않습니다.
+  프로젝트 `.gitignore`는 `data/`·`workspace/`와 Visualization의 플롯 데이터를 기본 제외합니다.
+- **현재 공유 범위.** `workspace/`는 프로젝트의 차트·데이터 파일을 상대 경로로 참조하므로 그 폴더만으로 독립 공유를 보장하지 않습니다.
   독립 `build`·`publish`는 위 공유 설계의 후속 구현이며 현재 명령이 아닙니다.
 
 ## 개발
@@ -410,7 +465,8 @@ cd $PACK
 uv sync
 uv run pytest -q                                  # kit, 런처, 배포본(wheel을 빌드해 새 환경에 설치)
 uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 \
-  python -m pytest -q -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_extension.py tests/test_usage_report.py   # aelix 통합 (CI와 같은 환경)
+  python -m pytest -q -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_extension.py tests/test_usage_report.py \
+  tests/test_agent_cli.py                         # aelix 통합 (CI와 같은 환경)
 AELIX_ANALYTICS_TEST_INSTALL=1 uv run pytest -q tests/test_packaging.py   # aelix 0.1.0b2와 실제 uv로 끝까지 (네트워크)
 uv run ruff check tests extension src tools
 ```
@@ -420,13 +476,15 @@ src/aelix_analytics/          kit이자 배포본의 package. src/가 자식에�
   __init__.py                 스크립트 API (모듈 수준에서는 stdlib만; kit 모듈은 함수를 부를 때 import)
   __main__.py                 kit CLI (끝 줄이 JSON; 설치된 package 자신으로는 실행 거절)
   core.py                     프로젝트 모델 — stdlib만 (확장과 kit이 공유)
+  writer.py                   표식 판정·쓰기 게이트·작성 출처·새 형식의 공통 writer — stdlib만 (core와 함께 로드)
+  migration.py                lab.json 프로젝트의 복사 전환 (`analytics migrate`) — stdlib만, aelix 프로세스에는 로드하지 않음
   _platform.py                플랫폼별 잠금·교체·프로세스·run 중단 — stdlib만 (core와 함께 로드)
   relations.py                기록의 관계·해석 상태·상태 재생 읽기 모델(ADR-0006) — stdlib만 (core가 status·리포트에 씀)
   runner.py  capture.py       run 실행과 기록, 입력·차트 캡처 훅
   data.py    workspace.py     import·프로파일·쿼리, Workspace HTML (+ assets/)
   demo.py                     데모 데이터·run (+ demo_scripts/)    template/  새 프로젝트 파일
   cli.py  _install.py         `analytics` 런처, 설치된 실행 루트 찾기    aelix-plugin.toml  manifest
-extension/aelix_analytics.py  aelix 확장 (stdlib + aelix API, 실행 루트의 core·_platform·relations를 경로로 로드; 설치본의 aelix_analytics/extension.py)
+extension/aelix_analytics.py  aelix 확장 (stdlib + aelix API, 실행 루트의 core·_platform·relations·writer를 경로로 로드; 설치본의 aelix_analytics/extension.py)
 bin/analytics                 사람용 CLI (체크아웃, POSIX)
 ```
 

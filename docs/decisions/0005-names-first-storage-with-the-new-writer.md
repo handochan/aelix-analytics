@@ -66,7 +66,7 @@ schema 가족 `lab.project/1`·`lab.event/1`·`lab.run/1`·`lab.dataset/1`, 신�
    | 외부 게시 보류 | [#24](https://github.com/handochan/aelix-analytics/issues/24) | 결정 8 |
 
 5. **전환의 기본 동작은 다음과 같다.** 명령 이름·오류 코드 같은 세부는 #13의 설계에서 정하고, 새 공개 이름은 용어집에 먼저 등록한다.
-   (#13의 설계: [기록 writer와 프로젝트 전환 설계](../design/RECORD-WRITER-AND-MIGRATION.md), Proposed. 이 결정의 내용을 바꾸지 않는다.)
+   (#13의 설계: [기록 writer와 프로젝트 전환 설계](../design/RECORD-WRITER-AND-MIGRATION.md), #13의 구현 PR 넷이 구현함(kit 0.6.0–0.8.0). 이 결정의 내용을 바꾸지 않는다.)
    - 명시적인 명령으로만 전환한다. 조회·열기만으로 전환하지 않는다.
    - 목적지는 끝까지 푼 경로로 원본과 겹치지 않는다(원본 안도, 원본을 품은 상위도 아니다). 없거나 빈 디렉터리만 받고(init과 같다.
      중단된 전환을 잇는 경우는 아래), 목적지의 위쪽 디렉터리에 프로젝트 표식(`lab.json`·`analytics.json`)이 있으면 거절한다. 옛 kit의 탐색이 목적지에서 위쪽 프로젝트로
@@ -190,8 +190,8 @@ schema 가족 `lab.project/1`·`lab.event/1`·`lab.run/1`·`lab.dataset/1`, 신�
 
 - Issue: #3, #9, #10, [#12](https://github.com/handochan/aelix-analytics/issues/12), #13, #24, #36, #42. 함께 맞출 결정: #4(공통 기록 계약과
   `analytics.event/2`의 범위, [ADR-0006](0006-common-record-contract.md)), #36(경로 정체성, ADR-0006의 한 절), #37(줄 끝, [ADR-0007](0007-line-endings.md)).
-- #13의 구현 설계(Proposed, 현재 코드 아님): [기록 writer와 프로젝트 전환 설계](../design/RECORD-WRITER-AND-MIGRATION.md). 결정 5·6·7의 새 writer와
-  전환을 구현하는 방법을 제안한다. 그 문서 16절의 소유자 질문 가운데 이 결정을 바꾸는 것(결정 5의 예외 셋, 결정 7의 ⓪)은 2026-10-08 소유자
+- #13의 구현 설계(구현됨, kit 0.6.0–0.8.0; 지금 동작은 [현재 계약](../CONTRACTS.md)): [기록 writer와 프로젝트 전환 설계](../design/RECORD-WRITER-AND-MIGRATION.md).
+  결정 5·6·7의 새 writer와 전환을 구현하는 방법을 정했다. 그 문서 16절의 소유자 질문 가운데 이 결정을 바꾸는 것(결정 5의 예외 셋, 결정 7의 ⓪)은 2026-10-08 소유자
   결정으로 위에 개정해 적었다.
 - 설계: [전체 용어 점검](../REVIEW-TERMINOLOGY-2026-09-18.md) §5·§6, [용어집](../TERMINOLOGY-AND-LANGUAGE.md) §3·§8,
   [기록 형식과 호환성](../DESIGN-CONTINUITY-AND-REUSE.md#7-기록-형식과-호환성), [베타 기준](../BETA-QUALITY-GATES.md) §2의 Q1·Q7·Q15와 §5.

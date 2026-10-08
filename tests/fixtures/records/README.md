@@ -2,8 +2,10 @@
 
 [ADR-0006](../../../docs/decisions/0006-common-record-contract.md)의 reader가 프로젝트를 있는 그대로 읽을 때 내야 할
 판정을 담은 합성 프로젝트 여섯 개다. 기록은 [기록 schema](../../../docs/schemas/analytics-records.schema.json)를, 각
-`expected.json`은 [expected.schema.json](expected.schema.json)을 따른다. 아직 어떤 kit도 이 가족을 쓰지 않는다. #12의
-reader와 #13의 writer가 이 사례로 시험한다.
+`expected.json`은 [expected.schema.json](expected.schema.json)을 따른다. kit 0.8.0의 공통 writer(#13)가 이 사례의
+`analytics.project/2`·`analytics.event/2`를 쓰고(Report 가족은 아직 어떤 kit도 쓰지 않는다), #12의 reader와 #13의 writer가 이
+사례로 시험한다: `tests/test_record_contract.py`가 reader의 판정을, `tests/test_writer.py`가 `writes`의 `record_update`·`event_append`를
+실제 writer로 재현한다.
 
 | 사례 | 담은 것 |
 |---|---|
@@ -16,10 +18,10 @@ reader와 #13의 writer가 이 사례로 시험한다.
 
 ## 규칙
 
-- 각 사례는 #13 전환 뒤의 프로젝트 루트다: `analytics.json`(`analytics.project/2`)과 `journal.jsonl`. run은 `lab.run/1`로
-  남는다. 다음 run 가족은 #13이 정한다. `mixed-version`의 `lab.event/1` 줄과 `.lab/context/`는 전환 전의 기록이다. 옛
-  context 버전을 어디에 둘지는 ADR-0005 결정 5에 따라 #13이 정할 배치이고(`docs/issue-3-transition-order` 병합 뒤 링크),
-  reader는 `.analytics/context/`와 `.lab/context/`를 모두 찾는다(ADR-0006 4절).
+- 각 사례는 #13 전환 뒤의 프로젝트 루트다: `analytics.json`(`analytics.project/2`)과 `journal.jsonl`. 사례의 run은 `lab.run/1`로
+  남아 있다(이 사례들을 만든 뒤 #13이 `analytics.run/2`를 정했고, kit 0.8.0의 writer는 그것을 쓴다). `mixed-version`의 `lab.event/1` 줄과
+  `.lab/context/`는 전환 전의 기록이다. 전환은 옛 context 버전을 `.analytics/context/`로 옮기고, reader는 `.analytics/context/`와
+  `.lab/context/`를 모두 찾는다(ADR-0006 4절, [설계](../../../docs/design/RECORD-WRITER-AND-MIGRATION.md) 2.2절).
 - `expected.json`은 사례를 있는 그대로 읽은 결과다. `writes`의 항목은 차례가 아니라 지금의 사례에 대한 각각의 시도다.
   `result`는 `saved`(새 기록), `existing`(같은 요청이 이미 끝나 그 결과를 돌려줌), `resumed`(이름을 바꾼 뒤 멈춘 버전에
   완료 이벤트만 더함), 또는 kit이 돌려주는 오류(`request_conflict`, `revision_conflict`, `state_conflict`, `writer_too_old`,

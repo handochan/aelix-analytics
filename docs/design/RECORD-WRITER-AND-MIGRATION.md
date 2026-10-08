@@ -1,12 +1,16 @@
 # 기록 writer와 프로젝트 전환 설계 — 새 형식의 공통 writer와 원본 보존 복사 전환
 
-- 상태: **Proposed — 일부만 구현됐다.** 첫 구현 PR ①(kit 0.7.0)이 10절 ①의 행 — `writer.py`(표식 판정·게이트·`Origin`·오류 클래스·헬퍼),
-  계층 수준, 가장 가까운 표식 탐색, 모든 쓰기 진입점의 `admit`, `marker_conflict`·`marker_invalid`, `/2` 이벤트 표시, `analytics.run/2`·
-  `analytics.dataset/1`의 정의(기록 schema)와 읽기, `relations.run_visualizations`·`run_reproduction` — 을, 둘째 구현 PR ②(같은 kit 0.7.0)가
-  10절 ②의 행 — `migration.py`(계층 `migration`, 수준 3)의 전환 엔진, 포트 메서드 넷과 계약 시험, 계획·ledger·매핑·보고서와
-  `analytics.migration/1`·표식의 `migration`, `incomplete`와 `migration_incomplete`, 매핑 읽기(5.4절), 고장 주입 시험 — 을 구현했다(명령으로는
-  열지 않음). 그 밖의 것 — `Writer`, 명령 `analytics migrate`, 기록에 쓰는 `means`·`actor_basis`, `analytics.trust/1`, ③의 오류 코드 — 은
-  코드에 없다. 지금 동작은 [현재 계약](../CONTRACTS.md)이 설명하고, ②가 설계와 다르게 고른 것은 그 PR이 적는다.
+- 상태: **구현됨 — #13의 구현 PR 넷(kit 0.6.0–0.8.0).** ⓪(kit 0.6.0)이 내부 이름을, 첫 구현 PR ①(kit 0.7.0)이 10절 ①의 행 —
+  `writer.py`(표식 판정·게이트·`Origin`·오류 클래스·헬퍼), 계층 수준, 가장 가까운 표식 탐색, 모든 쓰기 진입점의 `admit`,
+  `marker_conflict`·`marker_invalid`, `/2` 이벤트 표시, `analytics.run/2`·`analytics.dataset/1`의 정의(기록 schema)와 읽기,
+  `relations.run_visualizations`·`run_reproduction` — 을, 둘째 구현 PR ②(같은 kit 0.7.0)가 10절 ②의 행 — `migration.py`(계층 `migration`,
+  수준 3)의 전환 엔진, 포트 메서드 넷과 계약 시험, 계획·ledger·매핑·보고서와 `analytics.migration/1`·표식의 `migration`, `incomplete`와
+  `migration_incomplete`, 매핑 읽기(5.4절), 고장 주입 시험 — 을, 셋째 구현 PR ③(kit 0.8.0)이 10절 ③의 행 — `Writer`, `WRITABLE` 뒤집기와
+  `migration_required`, 저장 이름과 배치별 관리 디렉터리, 새 형식 init·demo, `analytics migrate`, 신뢰 목록 `analytics.trust/1`, 템플릿,
+  `min_writer_version`, 확장의 거절 글·`AELIX_ANALYTICS_MEANS`·aelix 프로세스 환경의 작성 주체와 `user_bash` 처리 — 를 구현했다.
+  ③은 소유자 결정(2026-10-08, [6060618609](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6060618609))대로 링크가 없는
+  목적지의 표식을 "있으면 실패하는 rename"(포트의 `AtomicFiles.rename_new`)으로 게시하고, 그것도 없으면 복사 전에 거절한다(D19는 사본에만
+  남음). 지금 동작은 [현재 계약](../CONTRACTS.md)이 설명하고, 각 PR이 설계와 다르게 고른 것은 그 PR과 측정 기록이 적는다.
 - 작업: [#13](https://github.com/handochan/aelix-analytics/issues/13) `[B1-c/N0-b]` 새 기록 writer와 원본 보존 프로젝트 전환.
   완료 조건 다섯과 이 문서의 대응은 1절에 있다.
 - 기준: main `09d22c4`(PR #76, #12 PR-3 병합 뒤), `KIT_VERSION = "0.5.0"`. 코드 위치는 함수 이름으로 적는다. 구현 PR은 그때의
@@ -1198,10 +1202,10 @@ ADR-0005 결정 7은 이름 변경·파일 이동·기록 의미 변경을 한 P
 | PR | 내용 | 불변식(ADR-0005 결정 7) | `KIT_VERSION` | 리뷰(운영 정책) | 측정 기록 |
 |---|---|---|---|---|---|
 | D 설계 | 이 문서. ARCHITECTURE·ADR-0005의 링크 | 코드 없음 | 그대로 | 결정만 담은 기록 형식 PR: 이 리뷰가 설계 리뷰(독립 1·Codex 1) | 없음 |
-| ⓪ 내부 이름 | 9절의 ⓪ 행(OQ6). 동작·저장 그대로 | 저장 바이트 그대로(`STORED` 시험 통과) | 올림(공개 JSON 키) | 일반 PR(독립 1·Codex 1) | 없음 |
-| ① 판정·읽기 | `writer.py` 등록(판정·게이트·헬퍼·`Origin`·오류 클래스), 계층 수준 변경, 가장 가까운 표식 탐색, 모든 진입점의 `admit`, `marker_conflict`·`marker_invalid`, `analytics.json` 디렉터리의 모든 쓰기 거절·부수 쓰기 건너뜀, `/2` 이벤트 표시, `analytics.run/2`·`analytics.dataset/1` 정의와 읽기(OQ5·D2·D4가 먼저 정해져야 함), Visualization의 한 보기(`relations.run_visualizations`)와 재실행 비교 결과의 한 보기(`relations.run_reproduction`), 모든 소비자의 전환, `Origin` 배관, (OQ8의 답에 따라) `/1` 덧붙이기 수정 | `analytics.json` 디렉터리에 아무것도 써지지 않음(T8) | 올림(새 거절) | 구현 리뷰 독립 1·Codex 1, 수정 diff 확인 1 | 있음(새 가족 정의, 진입점 행렬) |
-| ② 전환 엔진 | `migration.py` 등록, 포트 메서드 셋과 계약 시험, 계획·ledger·매핑·보고서와 schema, `migration_incomplete`, 매핑 읽기, 고장 주입 시험. 명령·도구로 열지 않음 | 엔진은 시험에서만 `analytics.json`을 씀. ②의 kit은 그 목적지에 쓰지 않음(①의 게이트) | 그대로 | 같음 | 있음(전환 정확성·규모·중단 행렬) |
-| ③ 새 writer·정책 | `Writer`, `WRITABLE` 뒤집기(`lab.json` → `migration_required`), 저장 이름 개명과 배치별 관리 디렉터리(2.3절), 새 형식 init·demo, `analytics migrate`, 신뢰 목록, `.gitignore`·템플릿, `min_writer_version`, 확장의 거절 글·`AELIX_ANALYTICS_MEANS`·aelix 프로세스 환경의 작성 주체와 `user_bash` 처리(OQ1), 현재 계약 전반, `STORED` 시험 뒤집기 | `lab.json` 디렉터리에 쓰지 않음, `analytics.json` 디렉터리에 옛 형식이 써지지 않음 | 올림, `min_writer_version` = 이 값 | 같음 | 있음(writer 지연, 명령 E2E, 전환 재측정) |
+| ⓪ 내부 이름(구현됨, kit 0.6.0, PR #79) | 9절의 ⓪ 행(OQ6). 동작·저장 그대로 | 저장 바이트 그대로(`STORED` 시험 통과) | 올림(공개 JSON 키) | 일반 PR(독립 1·Codex 1) | 없음 |
+| ① 판정·읽기(구현됨, kit 0.7.0, PR #80) | `writer.py` 등록(판정·게이트·헬퍼·`Origin`·오류 클래스), 계층 수준 변경, 가장 가까운 표식 탐색, 모든 진입점의 `admit`, `marker_conflict`·`marker_invalid`, `analytics.json` 디렉터리의 모든 쓰기 거절·부수 쓰기 건너뜀, `/2` 이벤트 표시, `analytics.run/2`·`analytics.dataset/1` 정의와 읽기(OQ5·D2·D4가 먼저 정해져야 함), Visualization의 한 보기(`relations.run_visualizations`)와 재실행 비교 결과의 한 보기(`relations.run_reproduction`), 모든 소비자의 전환, `Origin` 배관, (OQ8의 답에 따라) `/1` 덧붙이기 수정 | `analytics.json` 디렉터리에 아무것도 써지지 않음(T8) | 올림(새 거절) | 구현 리뷰 독립 1·Codex 1, 수정 diff 확인 1 | 있음(새 가족 정의, 진입점 행렬) |
+| ② 전환 엔진(구현됨, kit 0.7.0, PR #82) | `migration.py` 등록, 포트 메서드 셋과 계약 시험, 계획·ledger·매핑·보고서와 schema, `migration_incomplete`, 매핑 읽기, 고장 주입 시험. 명령·도구로 열지 않음 | 엔진은 시험에서만 `analytics.json`을 씀. ②의 kit은 그 목적지에 쓰지 않음(①의 게이트) | 그대로 | 같음 | 있음(전환 정확성·규모·중단 행렬) |
+| ③ 새 writer·정책(구현됨, kit 0.8.0) | `Writer`, `WRITABLE` 뒤집기(`lab.json` → `migration_required`), 저장 이름 개명과 배치별 관리 디렉터리(2.3절), 새 형식 init·demo, `analytics migrate`, 신뢰 목록, `.gitignore`·템플릿, `min_writer_version`, 확장의 거절 글·`AELIX_ANALYTICS_MEANS`·aelix 프로세스 환경의 작성 주체와 `user_bash` 처리(OQ1), 현재 계약 전반, `STORED` 시험 뒤집기 | `lab.json` 디렉터리에 쓰지 않음, `analytics.json` 디렉터리에 옛 형식이 써지지 않음 | 올림, `min_writer_version` = 이 값 | 같음 | 있음(writer 지연, 명령 E2E, 전환 재측정) |
 
 - 게이트를 ①에 먼저 넣는 이유: 위험한 부분(모든 진입점의 첫 부수 효과 전 판정)을 형식 전환과 떼어 먼저 시험한다. ③은 정책을 뒤집는다.
 - ①은 `analytics.run/2`·`analytics.dataset/1`의 reader를 먼저 싣는다. 그래서 OQ5와 D2·D4는 ①이 병합되기 전에 정한다. ③에서 정의를 바꾸면
