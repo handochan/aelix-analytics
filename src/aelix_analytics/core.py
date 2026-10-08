@@ -3195,8 +3195,23 @@ def _refs_suffix(event: dict) -> str:
 
 TEMPLATE_FILES = ("CONTEXT.md", "pyproject.toml", "gitignore", "gitattributes")
 # The names a directory init takes as empty may hold at its top, and so may a migration's
-# destination (design 6.2: the same constant): Finder makes one where a folder was only looked at.
+# destination (design 6.2: the same rule, empty_directory_name): Finder makes one where a folder was
+# only looked at, and AppleDouble files (is_appledouble) where macOS keeps a file's attributes.
 EMPTY_DIRECTORY_NAMES = (".DS_Store",)
+
+
+def is_appledouble(name: str) -> bool:
+    """An AppleDouble file's name, `._<name>`: what macOS writes beside a file or folder on a volume
+    that keeps no extended attributes (FAT, exFAT, some network shares). Operating system metadata as
+    .DS_Store is (owner's decision 2026-10-09, #13): a migration does not copy it (OQ4), passes over
+    it in its destination (OQ16), and an empty directory may hold it."""
+    return len(name) > 2 and name.startswith("._")
+
+
+def empty_directory_name(name: str) -> bool:
+    """Whether a name at the top of a directory leaves it empty for init and for a migration's
+    destination (design 6.2): .DS_Store, or an AppleDouble file."""
+    return name in EMPTY_DIRECTORY_NAMES or is_appledouble(name)
 
 
 def init_project(target, *, title=None, goal=None, template_dir=None, origin: Origin,
@@ -3204,9 +3219,10 @@ def init_project(target, *, title=None, goal=None, template_dir=None, origin: Or
     """A new project of the format this kit writes (analytics.json, analytics.project/2: a new
     project_id, min_writer_version and kit_version this kit's), its first records — `project`, then
     `context` — by `origin`, through the common writer. `target` is a directory that does not exist
-    or is empty, and inside no project: a directory above it with either marker refuses it before
-    anything is made (destination_invalid, reason inside_project — the migration's destination rule,
-    OQ9), as an older kit run in it would write to the project above. `template_dir` is a path or
+    or is empty, and inside no project: a directory above it with either marker, or a migration's
+    destination that has not committed, refuses it before anything is made (destination_invalid,
+    reason inside_project — the migration's destination rule, OQ9 as the owner widened it on
+    2026-10-09), as an older kit run in it would write to the project above. `template_dir` is a path or
     an importlib.resources Traversable. Left out, it is the template next to this file: the aelix
     process loads this module by path, where the resource API cannot work (ADR-0004), and the kit's
     own package data is where this file is. The CLI hands over the same template through the
@@ -3215,17 +3231,18 @@ def init_project(target, *, title=None, goal=None, template_dir=None, origin: Or
     if root.exists():
         if not root.is_dir():
             raise AnalyticsError("init_not_directory", f"{root} exists and is not a directory")
-        leftovers = [p.name for p in root.iterdir() if p.name not in EMPTY_DIRECTORY_NAMES]
+        leftovers = [p.name for p in root.iterdir() if not empty_directory_name(p.name)]
         if leftovers:
             raise AnalyticsError("init_not_empty", f"{root} is not empty",
                                  hint="choose a new directory; init never adopts existing files",
                                  details={"entries": sorted(leftovers)[:10]})
     above = writer.project_above(os.path.abspath(root))
     if above is not None:
-        raise AnalyticsError("destination_invalid", f"{root} is inside the project {above}",
-                             hint="create the project outside every analytics project: an older kit "
-                                  "run inside it would write to the project above it; nothing was "
-                                  "made",
+        raise AnalyticsError("destination_invalid", f"{root} is inside {writer.inside(above)}",
+                             hint="create the project outside every analytics project and every "
+                                  "migration's destination: an older kit run inside it would write to "
+                                  "the project above it, and a migration goes on only where nothing "
+                                  "but its own copy is; nothing was made",
                              details={"reason": "inside_project", "project": above})
     # Read before anything is created: a kit installed without its template must not leave a
     # half-made project that a second init then refuses as not empty.

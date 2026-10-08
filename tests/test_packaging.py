@@ -472,7 +472,10 @@ def test_aelix_binds_and_loads_the_installed_extension(dist, tmp_path, python):
     assert copy["tools"] == ["analytics_import", "analytics_init", "analytics_query", "analytics_record",
                              "analytics_run", "analytics_status"]
     assert copy["commands"] == ["analytics"] and copy["flags"] == ["analytics-project"]
-    assert sum(copy["handlers"].values()) == 4
+    # One handler per event, user_bash among them since kit 0.8.0 (a person's `!` kit command,
+    # CONTRACTS A): the set tests/test_extension.py reads from the file's own load, each once.
+    assert copy["handlers"] == {"before_agent_start": 1, "tool_execution_start": 1, "tool_execution_end": 1,
+                                "agent_end": 1, "user_bash": 1}
     assert seen["errors"] == [] and seen["analysis"] == []
     # The extension's own package, its __init__ that imports nothing of the kit, and _install: core
     # and _platform come from the runtime root under a synthetic name (ADR-0003), not this package.

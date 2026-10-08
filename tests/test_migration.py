@@ -805,6 +805,120 @@ def test_what_a_person_s_tools_leave_is_passed_over(tmp_path):
     assert writer.marker_state(dest).state == "current"
 
 
+# --- macOS's AppleDouble files: operating system metadata (owner's decision 2026-10-09) -------------
+
+APPLEDOUBLE = b"\x00\x05\x16\x07\x00\x02\x00\x00Mac OS X        "  # an AppleDouble header
+
+
+def test_an_appledouble_name_is_operating_system_metadata():
+    """`._<name>`, at any depth, is metadata as .DS_Store is: not copied (OQ4), passed over in a
+    destination (OQ16), and left in a directory init or a migration takes as empty (design 6.2).
+    Thumbs.db and desktop.ini stay what they were: not copied, passed over, but not empty."""
+    for name in ("._a.parquet", "._.DS_Store", "._.analytics", "._migration.lock", "._x", "._데이터"):
+        assert core.is_appledouble(name) and migration._os_metadata(name), name
+        assert core.empty_directory_name(name), name
+    for name in ("._", ".", "..", "_x", ".x", "a._b", "x._", "Thumbs.db", ".DS_Store"):
+        assert not core.is_appledouble(name), name
+    assert core.empty_directory_name(".DS_Store")
+    assert not core.empty_directory_name("Thumbs.db") and not core.empty_directory_name("desktop.ini")
+    for rel in ("._.DS_Store", "scripts/._s1.py", ".analytics/._migration", "._data/raw/a.parquet"):
+        assert migration._ignored(rel), rel
+    assert not migration._ignored("scripts/s1.py") and not migration._ignored("data/._/x")
+    assert migration._Walker._excluded("data/raw/._a.parquet", "._a.parquet") == "os_metadata"
+    assert migration._Walker._excluded("._data", "._data") == "os_metadata"
+    assert migration._Walker._excluded("data/raw/a.parquet", "a.parquet") is None
+
+
+def test_the_source_s_appledouble_files_are_reported_and_not_copied(tmp_path):
+    """OQ4: a source's AppleDouble files — at its root, beside a folder, in data/ and .lab/ — are not
+    copied and are in the report's `excluded` (os_metadata); one macOS makes in the source during the
+    copy is no source change (they are left out of the comparison before and after); the source's
+    bytes stay as they were but that one."""
+    source = plain_source(tmp_path)
+    names = ("._.DS_Store", "._data", "data/raw/._a.parquet", ".lab/._context")
+    for rel in names:
+        (source / rel).write_bytes(APPLEDOUBLE)
+    before = source_tree(source)
+    made = []
+
+    def on_step(name, info):
+        if name == "copied" and not made:
+            made.append(info.get("path"))
+            (source / "data" / "._raw").write_bytes(APPLEDOUBLE)  # Finder, during the copy
+
+    dest = tmp_path / "dest"
+    result = migrate(source, dest, on_step=on_step)
+    assert result["ok"] and made, result
+    report = assert_committed(dest, source)
+    excluded = {(e["path"], e["reason"]) for e in report["excluded"]}
+    assert {(rel, "os_metadata") for rel in names} <= excluded, excluded
+    assert not [rel for rel in tree(dest) if os.path.basename(rel).startswith("._")]
+    after = source_tree(source)
+    assert after.pop("data/._raw")[0] == "file" and after == before
+
+
+def test_a_destination_holding_appledouble_files_only_is_empty(tmp_path):
+    """design 6.2 (the same rule as init's): a folder holding .DS_Store and AppleDouble files only —
+    what macOS leaves in a folder it looked at on a FAT or exFAT volume — is a new destination, and
+    they are left as they are; a Thumbs.db is still an entry."""
+    source = plain_source(tmp_path)
+    dest = tmp_path / "dest"
+    dest.mkdir()
+    left = (".DS_Store", "._.DS_Store", "._.Trashes")
+    for name in left:
+        (dest / name).write_bytes(APPLEDOUBLE)
+    result = migrate(source, dest)
+    assert result["ok"] and not result["already_migrated"], result
+    assert_committed(dest, source)
+    assert all((dest / name).read_bytes() == APPLEDOUBLE for name in left)
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "._x").write_bytes(APPLEDOUBLE)
+    (other / "Thumbs.db").write_bytes(b"x")
+    error = refused("destination_invalid", lambda: migrate(source, other))
+    assert error.details["reason"] == "not_empty" and error.details["entries"] == ["Thumbs.db"]
+
+
+def test_appledouble_files_made_beside_the_migration_s_own_are_passed_over_under_the_lock(tmp_path):
+    """What G3 measured on FAT32 (macOS 26): macOS writes `._.analytics` beside the .analytics/ the
+    migration made and `.analytics/._migration.lock` beside its lock; the judgment under the lock
+    takes them as the OS's, not as entries (before the owner's decision: not_empty there, and every
+    migration to such a volume stopped at step 1), and so do the copy's checks with one beside a
+    copy. Here the test makes them at those moments; a later call finds it migrated, all the same."""
+    source = plain_source(tmp_path)
+    dest = tmp_path / "dest"
+
+    def on_step(name, info):
+        if name == "dest_locked":
+            (dest / "._.analytics").write_bytes(APPLEDOUBLE)
+            (dest / ".analytics" / "._migration.lock").write_bytes(APPLEDOUBLE)
+        elif name == "copied" and info.get("path") == "data/raw/a.parquet":
+            (dest / "data" / "raw" / "._a.parquet").write_bytes(APPLEDOUBLE)
+
+    result = migrate(source, dest, on_step=on_step)
+    assert result["ok"] and not result["already_migrated"], result
+    assert_committed(dest, source)
+    again = migrate(source, dest)
+    assert again["already_migrated"] and again["differs"] == [] and set(again["compared"]) == {"same"}, again
+    assert (dest / "data" / "raw" / "._a.parquet").read_bytes() == APPLEDOUBLE
+
+
+def test_appledouble_files_in_a_destination_resumed_are_passed_over(tmp_path):
+    """OQ16: AppleDouble files the ledger does not name — at the root, beside a copy, beside a folder
+    and in .analytics/ — are passed over when an interrupted migration goes on, and left as they are
+    (the plan names none: the source's are not copied)."""
+    source = _copy_source(tmp_path)
+    dest = tmp_path / "dest"
+    interrupt(source, dest, {"step": "copied", "path": "scripts/s1.py"})
+    made = ("._.analytics", "._scripts", "scripts/._s0.py", ".analytics/._migration", "._data")
+    for rel in made:
+        (dest / rel).write_bytes(APPLEDOUBLE)
+    result = migrate(source, dest)
+    assert result["ok"] and not result["already_migrated"], result
+    assert_committed(dest, source)
+    assert all((dest / rel).read_bytes() == APPLEDOUBLE for rel in made)
+
+
 @pytest.mark.parametrize("ledger_bytes", [None, b"", b'{"step": "start", "at": "2026-'])
 def test_a_migration_directory_without_its_first_line_is_a_new_migration(tmp_path, ledger_bytes):
     """(k), F1: a migration directory with no ledger, an empty one, or its first line cut, and nothing
@@ -972,8 +1086,9 @@ def test_the_destination_s_other_rules(tmp_path):
 @pytest.mark.parametrize("change", ["entry", "space"])
 def test_a_refusal_judged_again_under_the_lock_says_what_this_attempt_left(tmp_path, change):
     """design 6.2 step 1 under the lock (review of PR 3): what changed between the judgment and the
-    lock — a file in the destination (macOS's AppleDouble ._.analytics on FAT, say), a disk filled
-    meanwhile — is refused there, after the folder, its .analytics/ and the lock file were made.
+    lock — a person's file in the destination (an AppleDouble file is the OS's and passed over, since
+    the owner's decision of 2026-10-09), a disk filled meanwhile — is refused there, after the folder,
+    its .analytics/ and the lock file were made.
     The hint no longer says `nothing was written`: it says nothing was copied, names what this
     attempt left, and how to go on; the destination is a migration's that has not committed."""
     source = plain_source(tmp_path)
@@ -983,7 +1098,7 @@ def test_a_refusal_judged_again_under_the_lock_says_what_this_attempt_left(tmp_p
     def on_step(name, info):
         if name == "dest_locked":
             if change == "entry":
-                (dest / "._.analytics").write_bytes(b"\x00")
+                (dest / "notes.txt").write_bytes(b"\x00")
             else:  # another call's empty migration directory: judged again, and the disk filled
                 (dest / ".analytics" / "migration" / "20261009T000000Z-00000000").mkdir(parents=True)
                 free["bytes"] = 1000

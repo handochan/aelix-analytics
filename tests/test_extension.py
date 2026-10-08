@@ -975,22 +975,30 @@ def test_a_record_the_tool_refuses_leaves_the_context_unsynced(lab, args, code):
     assert ext_snapshot(root) == before
 
 
+@pytest.mark.parametrize("above", ["project", "migration"])
 @pytest.mark.parametrize("how", ["analytics_init", "/analytics init", "/analytics demo"])
-def test_a_new_project_inside_a_project_is_refused_by_the_extension(lab, monkeypatch, how):
-    """OQ9 through the extension's tool and commands: a directory inside a project is refused
-    (destination_invalid, inside_project) before anything is made — no directory, no environment,
-    no change to the project above."""
+def test_a_new_project_inside_a_project_is_refused_by_the_extension(lab, monkeypatch, how, above):
+    """OQ9 through the extension's tool and commands: a directory inside a project, or inside a
+    migration's destination that has not committed (`migration`: a migration directory and its lock,
+    no marker; the owner's decision of 2026-10-09), is refused (destination_invalid, inside_project)
+    before anything is made — no directory, no environment, no change to the folder above."""
     module, root = lab
+    if above == "migration":
+        root = root.parent / "unfinished"
+        (root / ".analytics" / "migration" / "20261009T000000Z-0a1b2c3d").mkdir(parents=True)
+        (root / ".analytics" / "migration.lock").write_bytes(b"")
     monkeypatch.setattr(module, "sync_environment", lambda project: pytest.fail("synced"))
     before = ext_snapshot(root)
     target = root / "inner" / "new"
+    said_inside = "inside the project" if above == "project" else "a migration that has not committed"
     if how == "analytics_init":
         result = call(tools_of(module)["analytics_init"], {"path": str(target)})
         assert result.is_error and result.details["error"]["code"] == "destination_invalid"
         assert result.details["error"]["details"]["reason"] == "inside_project"
+        assert said_inside in text_of(result), text_of(result)
     else:
         said = asyncio.run(module.analytics_command(f"{how.split()[1]} {target}"))
-        assert "error [destination_invalid]" in said and "inside the project" in said, said
+        assert "error [destination_invalid]" in said and said_inside in said, said
     assert not (root / "inner").exists() and ext_snapshot(root) == before
 
 
@@ -1458,6 +1466,13 @@ CALLS_THE_KIT = [
     "env -C /tmp -u HOME AELIX_ANALYTICS_ACTOR=x analytics status",
     "echo ';' ; analytics status",
     r"\analytics status",
+    # A backslash before a new line continues the line: gone, outside quotes and inside double ones
+    # (the fix-diff check of PR 3).
+    "uv run \\\nanalytics status",
+    "AELIX_ANALYTICS_ACTOR=x \\\n  analytics status",
+    "env \\\n  -u HOME analytics status",
+    "ana\\\nlytics status",
+    '"ana\\\nlytics" status',
 ]
 
 NOT_THE_KIT = [
@@ -1489,6 +1504,8 @@ NOT_THE_KIT = [
     r"echo \; analytics",
     'echo "a\\" ; analytics" x',
     "echo hi # ; analytics",
+    "echo \\\nanalytics status",
+    "'ana\\\nlytics' status",
 ]
 
 

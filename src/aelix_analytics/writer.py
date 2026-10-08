@@ -419,17 +419,28 @@ def _ancestors(path: str) -> list[str]:
 
 
 def project_above(path) -> str | None:
-    """The nearest directory above `path` that holds a marker of either name, or None (design 6.2
-    and OQ9): a new project — an init's, a migration's destination — is never made inside another
-    one, where an older kit run in it would write to the project above it. `path` is absolute and
-    need not exist: its deepest existing directory, when that is not `path` itself, counts as above
-    it, and so does every directory above that."""
+    """The nearest directory above `path` that holds a marker of either name, or a migration's record
+    without one (migration_record: a destination that has not committed, which find_project finds as
+    a project), or None (design 6.2 and OQ9, widened by the owner's decision of 2026-10-09): a new
+    project — an init's, a migration's destination — is never made inside another one, where an
+    older kit run in it would write to the project above it, nor inside a migration's destination,
+    which it would leave holding what its ledger does not account for and, once committed, holding a
+    project. `path` is absolute and need not exist: its deepest existing directory, when that is not
+    `path` itself, counts as above it, and so does every directory above that."""
     path = os.path.abspath(os.fspath(path))
     existing = _deepest_existing(path)
     for place in ([existing] if existing != path else []) + _ancestors(existing):
-        if present_marker(place):
+        if present_marker(place) or migration_record(place):
             return place
     return None
+
+
+def inside(above: str) -> str:
+    """How a refusal names what project_above found: a project, or a migration's destination that has
+    not committed (no marker, a migration's record)."""
+    if present_marker(above):
+        return f"the project {above}"
+    return f"{above}, the destination of a migration that has not committed"
 
 
 def layout_of(state: MarkerState) -> Layout | LegacyLayout | None:

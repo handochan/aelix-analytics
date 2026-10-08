@@ -213,7 +213,8 @@ PowerShell 안에서 실행한 `chcp 65001`은 PowerShell이 이미 읽어 둔 �
 쓰고, `lab.json` 프로젝트는 읽기만 합니다: 쓰기는 `migration_required`와 전환하는 법을 알리는 안내로 거절하고, 맥락 동기화·로그 같은 부수
 쓰기는 건너뜁니다. 모르는 형식·깨진 `analytics.json`·두 표식의 디렉터리에도 기록·잠금 파일·캐시·로그를 쓰지 않습니다(읽기는 두 표식만
 거절). 다만 `analytics`·`bin/analytics`·`analytics_query`가 그 프로젝트의 환경으로 kit을 부르면 uv가 `.venv/`·`uv.lock`을 만들거나 고칠 수
-있습니다(기록이 아닌 환경, [현재 계약](docs/CONTRACTS.md) B). 다른 프로젝트 안에는 새 프로젝트를 만들지 않습니다(`destination_invalid`).
+있습니다(기록이 아닌 환경, [현재 계약](docs/CONTRACTS.md) B). 다른 프로젝트 안과 끝나지 않은 전환의 목적지 안에는 새 프로젝트를 만들지
+않습니다(`destination_invalid`).
 가장 쉬운 방법은 프로젝트 디렉터리에서 aelix를 실행하는 것입니다. `AELIX_ANALYTICS_PROJECT`는 셸의 `analytics`(`bin/analytics`)도
 작업 디렉터리보다 먼저 읽습니다: aelix를 위해 설정해 두면 다른 프로젝트 안에서 실행한 `analytics record`도 그 프로젝트에 기록됩니다.
 
@@ -259,9 +260,10 @@ PNG 차트는 모델이 이미지 입력을 받을 때 `analytics_run` 결과에
 프로세스의 환경에 `AELIX_ANALYTICS_ACTOR=agent`와 세션을 넣으므로, 에이전트가 bash 도구로 부른 `analytics`는 `agent`로, 사람이 `!analytics …`로
 부른 것은 `human`으로 기록됩니다. aelix 밖의 에이전트(다른 코딩 에이전트, 자동화)가 `analytics`나 SDK를 부르게 한다면 그 에이전트의 셸에
 `AELIX_ANALYTICS_ACTOR=agent`를 설정하세요. 설정하지 않으면 사람의 기록(`human`·`inferred`)으로 남습니다. 출처 기록이지 인증이 아닙니다.
-aelix는 `!` 명령에 대한 확장들의 답 가운데 마지막 것 하나만 쓰므로, `!` 명령의 셸을 바꾸거나 **명령을 막는 다른 확장이 이 확장보다 먼저
-등록되면, 그 확장이 막은 kit 명령도 이 확장이 aelix의 로컬 셸로 돌립니다**(kit을 부르지 않는 명령은 그 확장의 답대로). 그 한계와 순서별
-동작은 [현재 계약](docs/CONTRACTS.md) A "aelix 안의 작성 주체"에 있습니다.
+한계: aelix 0.1.0b2는 `!` 명령에 대한 확장들의 답 가운데 마지막 것 하나만 씁니다. 그래서 `!` 명령을 막거나 다른 실행기(샌드박스·원격
+실행 등)로 돌리는 확장이 이 확장보다 먼저 등록되면, **kit을 부르는 `!` 명령에 한해 이 확장이 그 확장의 막음이나 실행기를 덮어 aelix의
+로컬 셸로 돌립니다**(막힌 kit 명령도 돌아 기록을 씁니다). kit을 부르지 않는 명령은 그 확장의 답대로입니다. 소유자가 이 한계를 받아들이고
+처리기를 그대로 두기로 했습니다(2026-10-09). 순서별 동작은 [현재 계약](docs/CONTRACTS.md) A "aelix 안의 작성 주체"에 있습니다.
 
 ### 스크립트 API
 
@@ -337,8 +339,10 @@ analytics migrate --to ~/analyses/q3-sales-v2             # 복사 (원본은 �
 ```
 
 - **원본은 바뀌지 않습니다.** 옛 kit의 잠금 파일 둘 말고는 원본에 쓰지 않고, 목적지에만 씁니다. 목적지는 없거나 빈 폴더여야 하고 원본
-  안·원본을 품은 위·다른 프로젝트 안이면 거절합니다(`destination_invalid`). 미리 보기가 대상이 없는 바깥 링크, Linux의 UTF-8이 아닌 이름 같은
-  거절을 먼저 알립니다.
+  안·원본을 품은 위·다른 프로젝트 안·끝나지 않은 다른 전환의 목적지 안이면 거절합니다(`destination_invalid`). 미리 보기가 대상이 없는 바깥
+  링크, Linux의 UTF-8이 아닌 이름 같은 거절을 먼저 알립니다.
+- `.venv/`·`report/`·캐시·잠금 파일과 운영체제가 만드는 파일(`.DS_Store`·`Thumbs.db`·`desktop.ini`, macOS가 FAT·exFAT 같은 볼륨에 만드는
+  `._<이름>`)은 복사하지 않고 보고서에 적습니다. 목적지에 `.DS_Store`나 `._<이름>`만 있으면 빈 폴더로 봅니다.
 - 끊기면 같은 명령을 다시 부르면 이어서 끝냅니다. 끝난 전환을 다시 부르면 `already_migrated`와 함께 원본과 사본을 다시 대조합니다.
   끝나기 전의 목적지에서는 모든 명령이 `migration_incomplete`로 멈춥니다.
 - 커밋한 뒤 `analytics`는 kit이 답한 목적지(`--to=~/x`처럼 셸이 풀지 않은 `~`도 kit이 풀어 만든 폴더)의 환경을 `uv sync --locked`로

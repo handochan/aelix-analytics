@@ -1145,13 +1145,31 @@ UV_RUN_VALUE_OPTIONS = frozenset({
 SHELL_OPERATOR_CHARS = frozenset("();<>|&")
 
 
+def _without_continuations(text: str) -> str:
+    """A double-quoted text without its line continuations (a backslash before a new line); every other
+    backslash stays with the character after it, so `\\\\` before a new line is no continuation."""
+    out, i = [], 0
+    while i < len(text):
+        pair = text[i:i + 2]
+        if pair == "\\\n":
+            i += 2
+        elif text[i] == "\\":
+            out.append(pair)
+            i += 2
+        else:
+            out.append(text[i])
+            i += 1
+    return "".join(out)
+
+
 def _shell_words(command: str) -> list[tuple[str, bool]]:
     """The command's words and operators as a POSIX shell splits them, roughly: (text, whether it
     is an operator). An operator — a run of `;&|()<>`, a backtick, a new line (as `;`) — is one only
     where it is neither quoted nor escaped; quotes keep a word together and are dropped; a backslash
     outside single quotes keeps itself and the character after it in the word (a Windows path stays
-    one word, `\\;` is no separator); an unquoted `#` that starts a word starts a comment. An unclosed
-    quote raises ValueError."""
+    one word, `\\;` is no separator), except before a new line, where the two are a line continuation
+    and gone, outside quotes and inside double ones (`uv run \\<LF>analytics` is `uv run analytics`);
+    an unquoted `#` that starts a word starts a comment. An unclosed quote raises ValueError."""
     tokens: list[tuple[str, bool]] = []
     word: list[str] = []
     in_word = False
@@ -1183,6 +1201,8 @@ def _shell_words(command: str) -> list[tuple[str, bool]]:
         elif c == "#" and not in_word:
             while i < n and command[i] != "\n":
                 i += 1
+        elif c == "\\" and command[i + 1:i + 2] == "\n":
+            i += 2  # a line continuation: neither a word nor a separator
         elif c == "\\":
             in_word = True
             word.append(command[i:i + 2])
@@ -1194,7 +1214,7 @@ def _shell_words(command: str) -> list[tuple[str, bool]]:
                 j += 2 if c == '"' and command[j] == "\\" else 1
             if j >= n:
                 raise ValueError("no closing quotation")
-            word.append(command[i + 1:j])
+            word.append(_without_continuations(command[i + 1:j]) if c == '"' else command[i + 1:j])
             i = j + 1
         else:
             in_word = True

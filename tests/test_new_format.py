@@ -300,9 +300,28 @@ def test_a_text_over_the_limit_is_refused_whole(project):
 
 # --- what the kit composes, and what a record refuses before it writes (review of PR 3) -------------
 
-# A long field made of what JSON escapes most (a control character takes six bytes), with text a
-# reader can find: 40,000 characters, over the text limit and, escaped, over the line limit.
-LONG = "\x01abc" * 10_000
+# A long field made of what JSON escapes most (a control character takes six bytes) and of three-byte
+# characters: 15,000 characters, 35,000 bytes of UTF-8 — over the text limit — and, escaped, over the
+# line limit. It is given on the kit's command line, which Windows caps at 32,767 characters in all
+# (CreateProcess; WinError 206 beyond it, the CI of PR 3): so the field is long in bytes, not in
+# characters, and fits there with the rest of the command.
+LONG = "\x01분석" * 5_000
+WINDOWS_COMMAND_LINE = 32_767
+
+
+def test_the_long_field_is_over_both_limits_and_fits_a_windows_command_line():
+    """What the next test stands on: written whole, LONG would be refused (text_too_long) by either
+    limit; quoted, it is not; and the init title too is over the text limit. Each fits on a Windows
+    command line with room for the interpreter, the project and the other arguments."""
+    escaped = json.dumps(LONG, ensure_ascii=False).encode("utf-8")
+    assert len(LONG.encode("utf-8")) > writer.TEXT_LIMIT and len(escaped) > writer.LINE_LIMIT
+    assert len(json.dumps(writer.excerpt(LONG), ensure_ascii=False).encode("utf-8")) < writer.TEXT_LIMIT
+    assert len(TITLE.strip().encode("utf-8")) > writer.TEXT_LIMIT
+    assert max(len(LONG), len(TITLE)) + 2_000 < WINDOWS_COMMAND_LINE
+
+
+# A project's title of plain text (it goes into pyproject.toml and CONTEXT.md too).
+TITLE = "분석 제목 " * 2_500
 
 
 def test_a_long_field_is_kept_whole_and_quoted_by_the_event_the_kit_composes(project, tmp_path):
@@ -335,7 +354,7 @@ def test_a_long_field_is_kept_whole_and_quoted_by_the_event_the_kit_composes(pro
         "complete"}
 
     # A title goes into pyproject.toml and CONTEXT.md too: a long one of text those take.
-    title = "분석 제목 " * 8_000
+    title = TITLE
     code, made = cli(tmp_path, "init", tmp_path / "titled", "--title", title)
     assert code == 0 and made["title"] == title.strip(), made
     first = journal(tmp_path / "titled")
@@ -361,6 +380,20 @@ def test_a_composed_text_fits_its_line_whatever_its_fields_hold():
                                  "basis": "observed", "version_binding": "author"}]},
                       ensure_ascii=False).encode("utf-8")
     assert len(text.encode("utf-8")) <= writer.TEXT_LIMIT and len(line) + 1 < writer.LINE_LIMIT
+
+
+def test_the_widest_seq_judges_a_line_at_most_22_bytes_longer_than_it_is_written(project):
+    """CONTRACTS C1 (the fix-diff check of PR 3): a note made in a run is judged with SEQ_BOUND,
+    whose twelve digits are in the line twice (`seq` and `id`); the line written has its real seq, of
+    one digit at least, so the line judged is longer by 2 × (12 - its digits): at most 22 bytes."""
+    made = core.writer_for(core.Project(project), core.Origin("test", "sdk"))
+
+    def line(seq: int) -> int:
+        return len(writer._encode(made._event(seq, "note", "x", [], None)))
+
+    assert len(str(writer.SEQ_BOUND)) == 12
+    assert {digits: line(writer.SEQ_BOUND) - line(10 ** (digits - 1)) for digits in (1, 2, 6, 12)} == \
+        {1: 22, 2: 20, 6: 12, 12: 0}
 
 
 def test_a_script_that_exits_with_a_long_message_keeps_its_completion_event(project):

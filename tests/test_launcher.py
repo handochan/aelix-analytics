@@ -557,21 +557,27 @@ def test_init_stops_at_the_first_failing_step(fake, tmp_path, which):
 
 @pytest.mark.parametrize("which", WHICH)
 @pytest.mark.parametrize("command", ["init", "demo"])
-@pytest.mark.parametrize("marker", ["analytics.json", "lab.json"])
+@pytest.mark.parametrize("marker", ["analytics.json", "lab.json", "migration"])
 def test_init_and_demo_inside_a_project_are_refused_before_anything(fake, tmp_path, which, command,
                                                                      marker):
     """OQ9 through the launchers: the kit's own init (run here as uv would, the stand-in running
-    it) refuses a directory inside a project — destination_invalid, inside_project — before it
-    makes anything; the launcher stops there with the kit's answer and status: no sync, no render or
-    demo, no directory."""
-    project = project_dir(tmp_path, marker=marker)
+    it) refuses a directory inside a project, or inside a migration's destination that has not
+    committed (`migration`: its lock, no marker; the owner's decision of 2026-10-09) —
+    destination_invalid, inside_project — before it makes anything; the launcher stops there with
+    the kit's answer and status: no sync, no render or demo, no directory."""
+    if marker == "migration":
+        project = unfinished(tmp_path, "lock")
+        listing = [".analytics"]
+    else:
+        project = project_dir(tmp_path, marker=marker)
+        listing = [marker]
     done = launch(fake, command, "inner/new", cwd=project, which=which, do={"init": {"exec": True}})
     assert done.returncode == 1, done.stderr
     answer = json.loads(done.stdout.decode("utf-8").strip().split("\n")[-1])
     assert answer["error"]["code"] == "destination_invalid", answer
     assert answer["error"]["details"] == {"reason": "inside_project", "project": str(project)}
     assert [uv_args(c)[:2] for c in calls(fake)] == [["run", "--no-project"]]
-    assert sorted(p.name for p in project.iterdir()) == [marker]
+    assert sorted(p.name for p in project.iterdir()) == listing
 
 
 # --- open -----------------------------------------------------------------------------------------

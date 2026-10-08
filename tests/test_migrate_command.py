@@ -211,6 +211,36 @@ def test_refusals_change_nothing(tmp_path):
     assert not (current / "inside").exists() and not (source / "inside").exists()
 
 
+@pytest.mark.parametrize("stop", [{"step": "migration_dir"}, {"step": "copied", "nth": 2}])
+def test_nothing_is_made_inside_a_destination_not_committed_and_its_migration_goes_on(tmp_path, stop):
+    """OQ9 as the owner widened it (2026-10-09): below a destination a migration left before its
+    marker — its lock and a migration directory without a line (F1), or copies (F6) — the kit's
+    init (from anywhere, a relative path from inside it too) and `migrate --to` (another source's,
+    this source's, a dry run) are destination_invalid (inside_project, naming that destination) and
+    leave it, the sources and the trust list as they were; the first migration then goes on by the
+    same command and commits."""
+    source = plain_source(tmp_path)
+    dest = tmp_path / "dest"
+    interrupt(source, dest, stop)
+    assert_uncommitted(dest)
+    other = plain_source(tmp_path, "other")
+    before, sources, trusted = tree(dest), (source_tree(source), source_tree(other)), trust_bytes()
+    calls = [(("init", dest / "inner"), tmp_path), (("init", dest / "deeper" / "new", "--title", "t"), tmp_path),
+             (("init", "inner"), dest), (("migrate", "--to", dest / "inner"), other),
+             (("migrate", "--to", dest / "inner"), source), (("migrate", "--to", dest / "x", "--dry-run"), other)]
+    for args, cwd in calls:
+        code, result = command(*args, cwd=cwd)
+        assert (code, result["error"]["code"]) == (1, "destination_invalid"), (args, result)
+        details = result["error"]["details"]
+        assert (details["reason"], details["project"]) == ("inside_project", str(dest.resolve())), args
+        assert "a migration that has not committed" in result["error"]["message"], result
+    assert tree(dest) == before and (source_tree(source), source_tree(other)) == sources
+    assert trust_bytes() == trusted
+    code, result = command("migrate", "--to", dest, cwd=source)
+    assert code == 0 and result["already_migrated"] is False, result
+    assert_committed(dest, source)
+
+
 # --- who the call is by (OQ14, T14's migrate row) --------------------------------------------------
 
 @pytest.mark.parametrize(("actor", "expected"), [(None, ("human", "inferred")),
@@ -443,10 +473,11 @@ def test_a_migration_onto_a_file_system_of_another_kind(tmp_path, where):
     """On a mounted volume of another file system (FAT, exFAT: AELIX_ANALYTICS_TEST_FOREIGN_FS, folders
     separated as PATH is). The port there: a taken name is never replaced by rename_new, and a free
     one is renamed or RenameUnsupported. The migration there commits with its marker published by a
-    link or by that rename — never written in place — or stops without a marker: at the probe
-    (no_exclusive_rename) or before (macOS writes AppleDouble `._` files beside every file it makes
-    on such a volume, which the destination's checks see as entries no plan names). Which one the
-    volume gave is recorded, not asserted."""
+    link or by that rename — never written in place — and a second call finds it migrated, or it
+    stops at the probe without a marker (no_exclusive_rename): never at the AppleDouble `._` files
+    macOS writes beside every file it makes on such a volume, which are the OS's (the owner's
+    decision of 2026-10-09; before it, every such migration stopped at step 1, not_empty). Which of
+    the two the volume gave is recorded."""
     from conftest import record_observation
 
     files = _platform.detect().files
@@ -483,8 +514,13 @@ def test_a_migration_onto_a_file_system_of_another_kind(tmp_path, where):
             seen["publish"] = (read.probed or {}).get("publish")
         if code == 0:
             assert writer.marker_state(dest).state == "current"
+            code, again = command("migrate", "--to", dest, cwd=source)
+            assert code == 0 and again["already_migrated"] and again["differs"] == [], again
+            seen["again"] = "already_migrated"
         else:
+            assert (result["error"]["code"], seen["reason"]) == ("destination_invalid", "no_exclusive_rename"), result
             assert not (dest / writer.MARKER).exists(), result
+        seen["appledouble"] = sorted(p.relative_to(dest).as_posix() for p in dest.rglob("._*"))[:20]
         assert source_tree(source) == before
         record_observation(f"issue-13-writer/foreign-fs-{Path(where).name}", seen)
     finally:

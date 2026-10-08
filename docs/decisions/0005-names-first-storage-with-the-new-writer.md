@@ -6,6 +6,8 @@ Status: Accepted — 2026-10-03 소유자 결정 (Issue #3)
 [Issue #3](https://github.com/handochan/aelix-analytics/issues/3)의 권장안을 채택했다. 채택은 결정의 확정이며 구현 완료가 아니다.
 개정: 2026-10-08 소유자 결정([Issue #13](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6049644872)) — 결정 5에 예외 셋(OQ4·OQ15·OQ16),
 결정 7의 PR 목록에 ⓪(OQ6). OQ 번호는 [#13의 설계](../design/RECORD-WRITER-AND-MIGRATION.md) 16절의 소유자 질문이다.
+개정: 2026-10-09 소유자 결정([Issue #13](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6070315072), PR #84의 질문 2) — 결정 5 예외의 운영체제 메타 파일에 macOS의
+AppleDouble 파일 `._<이름>`.
 적용은 [#9](https://github.com/handochan/aelix-analytics/issues/9)·[#10](https://github.com/handochan/aelix-analytics/issues/10)·[#13](https://github.com/handochan/aelix-analytics/issues/13)의 구현 PR이 한다.
 현재 코드가 실제로 하는 것은 [현재 계약](../CONTRACTS.md)에 있고, 이 결정만으로 현재 계약을 바꾸지 않는다.
 결정 3·6·7은 #4의 공통 기록 계약([ADR-0006](0006-common-record-contract.md))과 #37의 줄 끝([ADR-0007](0007-line-endings.md))에 기댄다.
@@ -100,6 +102,11 @@ schema 가족 `lab.project/1`·`lab.event/1`·`lab.run/1`·`lab.dataset/1`, 신�
      - 이어 쓰기의 환경·메타 파일(OQ16): 중단된 전환을 이을 때 보고서가 적지 않은 `.venv/`·`__pycache__/`와 위 운영체제 메타 파일(어느
        깊이에서나)은 거절하지 않고 무시한다. 지우거나 덮어쓰지 않고 사본 검증·전후 비교에서도 뺀다. 전환이 쓸 경로를 그런 파일이 차지하고
        있으면 무시하지 않고 거절한다.
+     - 운영체제 메타 파일에 AppleDouble을 더함(2026-10-09 소유자 결정, [#13](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6070315072)): macOS가 확장 속성을 두지
+       못하는 볼륨(FAT·exFAT 등)에서 파일·폴더마다 옆에 만드는 AppleDouble 파일 `._<이름>`(어느 깊이에서나)도 위 운영체제 메타 파일이다.
+       그래서 OQ4의 복사 제외·전후 비교 제외와 OQ16의 무시가 그 파일에도 적용되고, `.DS_Store`처럼 빈 목적지의 판정(init과 같다)에서도
+       남은 항목으로 세지 않는다. 그런 볼륨에서 macOS가 이 전환이 만든 파일 옆에 만드는 것도 같다. 이 개정 전에는 macOS에서 그런 볼륨으로
+       가는 전환이 늘 1단계에서 거절되었다.
 6. **새 kit은 옛 프로젝트를 이렇게 다룬다.** `lab.json`만 있으면 legacy reader로 읽기를 허용하고, 일반 쓰기는 전환이 필요하다는 오류와
    전환 명령 안내로 거절한다. 두 표식이 함께 있으면 정해진 충돌 오류로 거절한다. 모르는 schema 가족과 미래 버전은 건너뛰지 않고 개수와
    함께 보고한다. 새 writer는 모든 쓰기에서 첫 부수 효과 전에 표식의 가족·버전과 #4가 정하는 최소 writer 요구([ADR-0006](0006-common-record-contract.md))를 확인한다. 이미 연 프로젝트나 프로세스 시작 때의 확인을 믿지 않고 쓰기 작업을 시작할
@@ -192,7 +199,7 @@ schema 가족 `lab.project/1`·`lab.event/1`·`lab.run/1`·`lab.dataset/1`, 신�
   `analytics.event/2`의 범위, [ADR-0006](0006-common-record-contract.md)), #36(경로 정체성, ADR-0006의 한 절), #37(줄 끝, [ADR-0007](0007-line-endings.md)).
 - #13의 구현 설계(구현됨, kit 0.6.0–0.8.0; 지금 동작은 [현재 계약](../CONTRACTS.md)): [기록 writer와 프로젝트 전환 설계](../design/RECORD-WRITER-AND-MIGRATION.md).
   결정 5·6·7의 새 writer와 전환을 구현하는 방법을 정했다. 그 문서 16절의 소유자 질문 가운데 이 결정을 바꾸는 것(결정 5의 예외 셋, 결정 7의 ⓪)은 2026-10-08 소유자
-  결정으로 위에 개정해 적었다.
+  결정으로, 구현 PR(#84)의 질문 가운데 결정 5의 예외를 넓히는 것(AppleDouble)은 2026-10-09 소유자 결정으로 위에 개정해 적었다.
 - 설계: [전체 용어 점검](../REVIEW-TERMINOLOGY-2026-09-18.md) §5·§6, [용어집](../TERMINOLOGY-AND-LANGUAGE.md) §3·§8,
   [기록 형식과 호환성](../DESIGN-CONTINUITY-AND-REUSE.md#7-기록-형식과-호환성), [베타 기준](../BETA-QUALITY-GATES.md) §2의 Q1·Q7·Q15와 §5.
 - [ADR-0001](0001-evolvable-platform-boundaries.md)(계층과 교체 경계, #9의 패키지 이동), [ADR-0004](0004-minimal-distribution-and-entry-points.md)

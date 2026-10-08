@@ -70,7 +70,9 @@ CHUNK = 1 << 20
 # The older runner's order: its run lock, then inside it the journal lock (design 6.3 step 3).
 SOURCE_LOCKS = ("run.lock", "lock")
 # What is not copied (OQ4): the environment and the Workspace at the root, the cache and the older
-# kit's locks in .lab/, Python's caches and the views an operating system makes of a folder anywhere.
+# kit's locks in .lab/, Python's caches and the views an operating system makes of a folder anywhere:
+# these names, and macOS's AppleDouble files `._<name>` (core.is_appledouble, owner's decision
+# 2026-10-09) — _os_metadata.
 OS_METADATA = frozenset({".DS_Store", "Thumbs.db", "desktop.ini"})
 CACHE_NAMES = frozenset({"__pycache__"})
 EXCLUDED_AT_ROOT = {".venv": "environment", "report": "workspace"}
@@ -704,7 +706,7 @@ class _Walker:
             return EXCLUDED_IN_STATE[name]
         if name in CACHE_NAMES:
             return "cache"
-        if name in OS_METADATA:
+        if _os_metadata(name):
             return "os_metadata"
         return None
 
@@ -922,11 +924,17 @@ def _source_rel(rel: str) -> str:
     return rel
 
 
+def _os_metadata(name: str) -> bool:
+    """A view an operating system makes of a folder (OQ4, OQ16): OS_METADATA's names, or an
+    AppleDouble file `._<name>` (owner's decision 2026-10-09)."""
+    return name in OS_METADATA or core.is_appledouble(name)
+
+
 def _ignored(rel: str) -> bool:
     """A name a person's tools leave in a destination (OQ16): .venv at the root, __pycache__ and the
     OS's views anywhere, and what is below them."""
     parts = rel.split("/")
-    return parts[0] in IGNORED_AT_ROOT or any(p in CACHE_NAMES or p in OS_METADATA for p in parts)
+    return parts[0] in IGNORED_AT_ROOT or any(p in CACHE_NAMES or _os_metadata(p) for p in parts)
 
 
 def _walk_destination(dest: Path):
@@ -1103,7 +1111,7 @@ class Migration:
         except OSError as exc:
             raise _invalid("not_a_directory", f"the destination cannot be listed: {exc}",
                            "give a folder this account can read", path=str(self.dest)) from exc
-        others = [n for n in top if n not in core.EMPTY_DIRECTORY_NAMES and n != STATE_DIR]
+        others = [n for n in top if not core.empty_directory_name(n) and n != STATE_DIR]
         if STATE_DIR in top and not (self.dest / STATE_DIR).is_dir():
             others.append(STATE_DIR)
         dirs = self._migration_dirs()
@@ -1112,8 +1120,10 @@ class Migration:
             raise _mismatch(f"{self.dest} holds {len(full)} migrations' records",
                             migrations=[d.name for d in full])
         if not full:
+            # macOS's AppleDouble files beside the migration's own entries (`._migration.lock` where
+            # a volume keeps no extended attributes) are the OS's, not anyone's state.
             stray = [f"{STATE_DIR}/{n}" for n in self._state_entries()
-                     if n not in ("migration", "migration.lock")]
+                     if n not in ("migration", "migration.lock") and not core.is_appledouble(n)]
             return Judgment("new", clear=[d.name for d in dirs], entries=sorted(others + stray))
         directory = full[0]
         if len(dirs) > 1:
@@ -1351,12 +1361,15 @@ class Migration:
                            entries=judged.entries[:20])
         dest = str(self.dest)
         existing = _existing(dest)
-        # The rule init follows too (writer.project_above, OQ9).
+        # The rule init follows too (writer.project_above, OQ9): below a project, or below another
+        # migration's destination that has not committed (the owner's decision of 2026-10-09).
         above = writer.project_above(dest)
         if above is not None:
-            raise _invalid("inside_project", f"the destination {dest} is inside the project {above}",
-                           "give a destination outside every analytics project: an older kit run there "
-                           "would write to the project above it", project=above)
+            raise _invalid("inside_project", f"the destination {dest} is inside {writer.inside(above)}",
+                           "give a destination outside every analytics project and every migration's "
+                           "destination: an older kit run there would write to the project above it, "
+                           "and a migration goes on only where nothing but its own copy is",
+                           project=above)
         needed = self._needed(judged)
         if needed is not None:
             free = self._free(existing)

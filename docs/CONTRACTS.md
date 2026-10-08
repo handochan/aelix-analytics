@@ -70,7 +70,9 @@ aelix가 띄우는 다른 자식(다른 확장의 `exec`, MCP 서버, 사람의 
 셸 키워드(`if`·`then`·`do` 등)·`uv run`과 그 옵션은 건너뜁니다. 그 자리의 프로그램이 `analytics`(어느 디렉터리든, `analytics.exe`·`.cmd`·`.bat`
 포함)이거나, Python(`python`·`python3.12`·`py` 등)이 자기 옵션 다음에 `-m aelix_analytics`(`aelix_analytics.cli` 같은 하위 모듈 포함)나 kit을
 import하는 `-c`를 받으면 kit 호출입니다(한 글자 옵션을 묶은 `-Im`·`-Ic`도 `-m`·`-c`). `env`의 값을 받는 옵션(`-u NAME`·`-C DIR`·`-S`·`-P`)은
-그 값과 함께 건너뜁니다. 다른 자리의 단어(`grep analytics notes.txt`), 따옴표 안(`sh -c '…'`, `"$(…)"`), 따옴표 안이나 역슬래시 뒤의 연산자
+그 값과 함께 건너뜁니다. 줄 끝의 역슬래시(줄 이음)는 셸처럼 역슬래시와 줄바꿈을 함께 지웁니다(따옴표 밖과 큰따옴표 안): `uv run \`로
+끝난 줄 다음 줄의 `analytics`도 명령 위치입니다.
+다른 자리의 단어(`grep analytics notes.txt`), 따옴표 안(`sh -c '…'`, `"$(…)"`), 따옴표 안이나 역슬래시 뒤의 연산자
 문자(`echo ';' analytics`, `echo \; analytics`: 구분자가 아니라 단어), 주석, kit을 import하는 스크립트(`python a.py`, SDK), 닫히지 않은 따옴표는
 kit 호출로 보지 않고, 그 명령은 aelix가 하던 대로 돌며 kit을 부르면 `agent`로 기록합니다.
 한계: 출처 기록이지 인증이 아닙니다(명령이 변수를 지우거나 바꾸면 그대로 기록합니다). aelix 0.1.0b2는 `user_bash` 처리기들이 돌려준
@@ -78,9 +80,10 @@ kit 호출로 보지 않고, 그 명령은 aelix가 하던 대로 돌며 kit을 
 (`result`)든 그렇습니다(aelix의 `hooks._reducer_user_bash`). 그래서 다른 확장도 결과를 돌려주면 등록 순서에 따라 다릅니다. 그 확장이 뒤면 사람의
 kit 명령은 그 확장의 결과대로 처리됩니다(그 셸로 돌아 `agent`로 기록되거나, 막히면 돌지 않음). 이 확장이 뒤면 사람의 kit 명령은 그 확장의
 결과 대신 aelix의 로컬 셸로 돕니다: 그 확장이 셸(샌드박스·원격 실행 등)을 돌려줬으면 사용자가 고른 실행 격리를 그 명령에서 비키고,
-**`!` 명령을 막거나 대신 실행하는 확장(정책·승인 등)이었으면 그 확장이 막은 kit 명령이 로컬 셸에서 돌아 기록을 씁니다.** kit을 부르지 않는
-명령은 어느 순서에서도 그 확장의 결과대로입니다. 이 마지막 효과는 OQ1을 채택할 때의 설명에 없던 것이라 소유자 질문으로 올렸습니다(#13 PR ③).
-세 경우(셸을 돌려주는 확장의 두 순서, 막는 확장의 두 순서) 모두 시험이 aelix 0.1.0b2의 실제 등록으로 확인합니다(`tests/test_agent_cli.py`). RPC 모드의 `bash` 명령은 처리기
+**`!` 명령을 막거나 대신 실행하는 확장(정책·승인 등)이었으면 그 확장이 막은 kit 명령이 로컬 셸에서 돌아 기록을 씁니다.** 곧 이 처리기는
+kit을 부르는 `!` 명령에 한해, 먼저 등록된 다른 확장의 막음이나 실행기를 덮을 수 있습니다. kit을 부르지 않는 명령은 어느 순서에서도 그 확장의
+결과대로입니다. 소유자는 이 처리기를 그대로 두고 이 한계를 적기로 했습니다(2026-10-09, [#13](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6070315072)).
+네 경우(셸을 돌려주는 확장의 두 순서, 막는 확장의 두 순서) 모두 시험이 aelix 0.1.0b2의 실제 등록으로 확인합니다(`tests/test_agent_cli.py`). RPC 모드의 `bash` 명령은 처리기
 없이 이 환경을 쓰므로 사람이 불러도 `agent`입니다. aelix 밖의 에이전트 호스트에는 이 처리가 없어서, 그 에이전트가 부르는 CLI는 밝히지 않으면
 `human`·`inferred`로 남습니다. 그런 호스트는 에이전트의 셸에 `AELIX_ANALYTICS_ACTOR=agent`를 설정합니다(D).
 kit 0.3.0 전의 이름(확장 파일 `extension/aelix_lab.py`, 명령 `/lab`, 도구 `lab_*`, flag `--lab-project`, 환경 변수 `AELIX_LAB_*`)은
@@ -186,10 +189,14 @@ kit 0.8.0부터. kit 0.7.0은 `lab.project/1` 하나).
 - 판정은 쓰기 작업의 첫 부수 효과 — 잠금 파일·디렉터리·캐시·로그 줄 포함 — 전에 두 표식을 새로 읽어 합니다(캐시 없음). journal에 쓰는 함수는
   journal 잠금을 잡은 뒤 한 번 더 판정하고, run은 run 잠금(`.analytics/run.lock`)을 잡은 뒤 run 디렉터리를 만들기 전에 한 번 더 판정합니다. 거절된 쓰기는 프로젝트 트리를 바꾸지 않습니다(시험은 경로·크기·수정 시각·sha256과 잠금 파일까지
   비교합니다). 쓰는 진입점: kit의 `run`·`import`·`record`·`render`·`demo`, SDK의 `record`·`save`·`visualize`(run 밖과 run 안, run 안은 호출마다),
-  확장의 쓰는 도구·명령(A). `init`은 이 표와 따로 없거나 비어 있는 디렉터리만 받고, kit 0.8.0부터 그 위쪽 디렉터리에 어느 표식이든 있으면(다른
-  프로젝트 안) 아무것도 만들기 전에 `destination_invalid`(`details.reason: inside_project`, `details.project`: 위쪽 프로젝트)로 거절합니다. 전환의
-  목적지와 같은 규칙입니다(`writer.project_above`, [설계](design/RECORD-WRITER-AND-MIGRATION.md) 6.2절): 그 안에서 0.7.0 이전 kit을 부르면 위쪽
-  프로젝트에 쓰기 때문입니다.
+  확장의 쓰는 도구·명령(A). `init`은 이 표와 따로 없거나 비어 있는 디렉터리만 받고(`.DS_Store`와 macOS의 AppleDouble 파일 `._<이름>`만 있으면
+  빈 것, 전환의 목적지와 같은 판정 `core.empty_directory_name`), kit 0.8.0부터 그 위쪽 디렉터리에 어느 표식이든 있거나(다른 프로젝트 안) 표식 없는
+  전환 기록이 있으면(위 표의 커밋하지 않은 전환의 목적지 안, 2026-10-09 소유자 결정 [#13](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6070315072)) 아무것도 만들기 전에
+  `destination_invalid`(`details.reason: inside_project`, `details.project`: 그 위쪽 디렉터리)로 거절합니다. kit CLI·두 런처·`analytics_init`·
+  `/analytics init`·`demo`가 모두 이 판정을 씁니다. 전환의 목적지와 같은 규칙입니다(`writer.project_above`,
+  [설계](design/RECORD-WRITER-AND-MIGRATION.md) 6.2절): 프로젝트 안에서는 0.7.0 이전 kit을 부르면 위쪽 프로젝트에 쓰고, 커밋하지 않은 전환의
+  목적지 안에 만들면 그 전환이 이어지지 못하거나(`destination_mismatch`) 커밋한 뒤 프로젝트 안의 프로젝트가 되기 때문입니다. 그 전환은 같은
+  `analytics migrate` 명령으로 이어 커밋합니다.
 - `lab.json` 프로젝트의 쓰기 거절 `migration_required`(kit 0.8.0)의 글은 그 프로젝트가 옛 형식이라 이 kit이 읽기만 한다는 것이고, hint는 그
   프로젝트 안에서 `analytics migrate --to <new empty folder>`로 새 폴더에 사본을 만들라는 것(`--dry-run`으로 미리 보기, 원본은 그대로, aelix에서는
   사람이 터미널에서 부른 뒤 `/analytics use <new folder>`)입니다. `details`는 `marker`·`format`·`operation`(거절한 쓰기)·`command`(`analytics migrate
@@ -244,8 +251,15 @@ migrate --to DIR [--dry-run]`, D)이 `lab.json` 프로젝트를 새 폴더에 �
 - 사본은 같은 상대 경로·같은 바이트이고(CRLF 그대로), 위치가 바뀌는 것은 `.lab/X` → `.analytics/X`, `lab.json` → 전환 디렉터리의
   `source-marker.json`, 밖을 가리키는 링크(대상의 바이트를 링크 자리에 복사)뿐이며 `mapping.json`이 셋을 적습니다. 내용이 바뀌는 것은
   `.gitignore` 끝에 덧붙이는 새 이름의 줄뿐입니다(전후 해시와 diff). `.venv/`·`report/`·`.lab/cache/`·`.lab`의 잠금 셋·`__pycache__/`·
-  운영체제 메타 파일(`.DS_Store`·`Thumbs.db`·`desktop.ini`)은 복사하지 않고 보고서 `excluded`에, worktree의 `.git` 파일·특수 파일·다시 만들지
-  않는 링크는 `not_copied`에 적습니다(OQ4). `.gitattributes`와 옛 SDK 이름을 쓴 스크립트의 바꾼 사본은 `proposals/`에 제안만 합니다.
+  운영체제 메타 파일(`.DS_Store`·`Thumbs.db`·`desktop.ini`와, kit 0.8.0부터 macOS의 AppleDouble 파일 `._<이름>`, 어느 깊이에서나)은 복사하지
+  않고 보고서 `excluded`(`os_metadata`)에, worktree의 `.git` 파일·특수 파일·다시 만들지 않는 링크는 `not_copied`에 적습니다(OQ4). 운영체제 메타
+  파일은 복사 전후의 원본 비교에서도 빠지고, 이어 쓰는 목적지에서 계획에 없는 것은 무시해 남겨 둡니다(OQ16). `.gitattributes`와 옛 SDK
+  이름을 쓴 스크립트의 바꾼 사본은 `proposals/`에 제안만 합니다.
+- 목적지는 없거나 빈 폴더(`.DS_Store`와 AppleDouble 파일만 있어도 빈 것, init과 같은 판정)이거나 이어 쓸 전환의 목적지이고, 위쪽에 표식이나
+  커밋하지 않은 전환 기록이 있으면 `destination_invalid(inside_project)`입니다(init과 같은 규칙, 위 "표식 판정과 쓰기"). AppleDouble은 macOS가 확장
+  속성을 두지 못하는 볼륨(FAT·exFAT 등)에서 파일·폴더마다 옆에 만드는 것이라, 이 전환이 목적지에 만든 것(`.analytics`·잠금·사본) 옆에 생긴
+  것도 항목으로 세지 않습니다(2026-10-09 소유자 결정 [#13](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6070315072), [ADR-0005](decisions/0005-names-first-storage-with-the-new-writer.md)
+  결정 5의 개정).
 - 목적지에 만드는 파일은 모두 이름을 ledger(`progress.jsonl`)나 ledger가 sha256으로 묶은 계획에 먼저 적은 뒤 `O_EXCL`로 만들고(이 전환의
   디렉터리 안 파일, 곧 계획·매핑·보고서·제안은 교체로 다시 씀), 사본과 표식은 없을 때만 이름을 주는 원자 게시(`AtomicFiles.publish_new`: POSIX
   `os.link`+`unlink`, Windows `os.rename`)로 놓습니다. 임시 파일의 이름은 같은 디렉터리의 계획 이름과 겹치지 않게 고릅니다(`.gitignore` 변환과
@@ -302,7 +316,7 @@ kit CLI, SDK, 확장, init·데모, run·가져오기·맥락 동기화가 남�
 | `actor`, `actor_basis`, `means` | 작성 출처(`Origin`): 작성 주체(`agent` `human` `system` 등), 진입점이 그것을 알거나 선언받았는지(`declared`) 선언이 없어 `human`으로 본 것인지(`inferred`), 실행 수단(`cli` `sdk` `tool` `command` `hook`). 진입점마다의 값은 아래 "작성 출처"와 A |
 | `session` | aelix 세션 파일 경로(있을 때) |
 | `request_id` | 부른 쪽이 요청 id를 넘긴 쓰기에만 있습니다. 공개 진입점은 그 입력을 열지 않았으므로(#14·#19) 지금은 쓰기의 응답에만 있습니다(D) |
-| `text` | 앞뒤 공백을 지운 본문(비어 있으면 `empty_note`). UTF-8로 32 KiB(32,768 bytes, `writer.TEXT_LIMIT`)를 넘거나 쓸 줄(LF 포함)이 50 KiB(51,200 bytes, `writer.LINE_LIMIT`) 미만이 아니면 아무것도 쓰지 않고 `text_too_long`입니다. 자르지 않습니다. 잠금 밖에서 알 수 있는 거절(이 둘, 없는 `--resolves` 대상의 `unknown_event`, `resolve_needs_target`, `bad_kind`)은 kit CLI `record`와 `analytics_record`가 그 전에 하는 맥락 동기화보다 먼저 판정해, 거절된 기록은 `context` 이벤트·버전도 남기지 않습니다(`core.check_record`; 줄은 동기화가 쓸 `context` 이벤트 다음의 seq로 잽니다). SDK가 run 안에서 만든 기록은 run이 끝날 때 쓰므로 그 줄은 부를 때 가장 넓은 seq(12자리, `writer.SEQ_BOUND`)로 판정하고, 넘으면 그 호출의 예외입니다(그래서 그 줄이 상한에서 24 bytes 안쪽이면 run 밖에서는 쓰일 기록도 거절합니다). kit이 만드는 본문 — 가져오기의 `import`, run의 완료 `run`, init의 `project` 기록 — 은 다른 곳에 통째로 남는 필드(가져오기 기록의 `description`, `run.json`의 `title`, 표식의 `title`)를 앞 4,000자까지 인용하고 더 길면 `…`로 줄입니다(`writer.excerpt`, kit 0.8.0 전에 모든 본문을 자르던 길이). run의 오류 요약은 예외든 `SystemExit`이든 300자이고 메시지 전체는 `run.json`의 `error.message`에 있습니다. 그래서 그런 필드가 길어도 그 기록이 거절되지 않습니다 |
+| `text` | 앞뒤 공백을 지운 본문(비어 있으면 `empty_note`). UTF-8로 32 KiB(32,768 bytes, `writer.TEXT_LIMIT`)를 넘거나 쓸 줄(LF 포함)이 50 KiB(51,200 bytes, `writer.LINE_LIMIT`) 미만이 아니면 아무것도 쓰지 않고 `text_too_long`입니다. 자르지 않습니다. 잠금 밖에서 알 수 있는 거절(이 둘, 없는 `--resolves` 대상의 `unknown_event`, `resolve_needs_target`, `bad_kind`)은 kit CLI `record`와 `analytics_record`가 그 전에 하는 맥락 동기화보다 먼저 판정해, 거절된 기록은 `context` 이벤트·버전도 남기지 않습니다(`core.check_record`; 줄은 동기화가 쓸 `context` 이벤트 다음의 seq로 잽니다). SDK가 run 안에서 만든 기록은 run이 끝날 때 쓰므로 그 줄은 부를 때 가장 넓은 seq(12자리, `writer.SEQ_BOUND`)로 판정하고, 넘으면 그 호출의 예외입니다. seq는 줄에 두 번(`seq`·`id`) 들어가므로 판정한 줄은 실제로 쓸 줄보다 2 × (12 − 실제 seq의 자릿수) bytes, 많아야 22 bytes 깁니다. 그래서 그만큼 상한에 가까운 줄은 run 밖에서는 쓰일 기록도 거절합니다. kit이 만드는 본문 — 가져오기의 `import`, run의 완료 `run`, init의 `project` 기록 — 은 다른 곳에 통째로 남는 필드(가져오기 기록의 `description`, `run.json`의 `title`, 표식의 `title`)를 앞 4,000자까지 인용하고 더 길면 `…`로 줄입니다(`writer.excerpt`, kit 0.8.0 전에 모든 본문을 자르던 길이). run의 오류 요약은 예외든 `SystemExit`이든 300자이고 메시지 전체는 `run.json`의 `error.message`에 있습니다. 그래서 그런 필드가 길어도 그 기록이 거절되지 않습니다 |
 | `refs` | 참조의 목록(기록 schema의 `reference`): `type`·`relation`·`basis`·`version_binding`(`author`·`inferred`·`none`)과 대상의 키(`event_id`·`run_id`·`visualization_id`·`key`·`path`·`version`), 결박한 바이트의 `digest`, 입력한 글자 `token`. 개수의 상한은 없고 줄의 상한이 제한합니다(설계 4.7절의 이벤트당 24개 상한 `MAX_EVENT_REFS`는 두지 않았습니다: kit 0.8.0 전에도 run 완료 이벤트의 데이터 참조에만 있었고 지금 그 이벤트는 run 참조 하나입니다. 설계와의 차이로 측정 기록과 설계 19절에 적음) |
 | `details` | kind의 부가 정보(예: `project`의 `project_id`) |
 
@@ -962,8 +976,13 @@ kit 0.8.0([#13](https://github.com/handochan/aelix-analytics/issues/13)의 셋�
   적습니다(없으면 렌더가 `migration_required`). 옛 신뢰 목록 `lab-projects.json`은 고치지 않고 `lab.json` 프로젝트의 활성화에만 읽습니다. 그래서
   그 목록에만 있는 프로젝트를 이 kit으로 계속 쓰려면 전환하고, 목적지는 전환이 새 목록에 더합니다.
 - `analytics.json` 프로젝트에 씁니다(0.7.0은 `project_too_new`). 표식의 `min_writer_version`이 이 kit보다 높으면 `writer_too_old`입니다.
-- `init`(kit CLI, 런처, 확장)은 다른 프로젝트 안의 디렉터리를 `destination_invalid(inside_project)`로 거절합니다(B). 그 전에는 위쪽 프로젝트
-  안에도 만들었습니다.
+- `init`(kit CLI, 런처, 확장)은 다른 프로젝트 안과 커밋하지 않은 전환 목적지 안의 디렉터리를 `destination_invalid(inside_project)`로
+  거절하고, 전환(`migrate --to`)의 목적지도 커밋하지 않은 전환 목적지 안이면 같은 거절입니다(B, 2026-10-09 소유자 결정). 그 전에는 위쪽
+  프로젝트 안에도 만들었습니다. init과 전환의 빈 디렉터리 판정은 `.DS_Store`와 함께 macOS의 AppleDouble 파일 `._<이름>`도 남은 항목으로 세지
+  않습니다(B).
+- 전환은 AppleDouble 파일 `._<이름>`을 운영체제 메타 파일로 다룹니다(B, 2026-10-09 소유자 결정, ADR-0005 결정 5의 개정): 원본의 것은 복사하지
+  않고 `excluded`(`os_metadata`)에 적으며 전후 비교에서 빼고, 목적지의 것은 무시합니다. 0.7.0의 엔진은 그것을 복사했고, macOS에서 FAT·exFAT
+  목적지로의 전환은 1단계 `not_empty`로 멈췄습니다.
 - 기록: 입력의 `gap`은 `bad_kind`(`workflow_feedback`으로)이고, kit CLI `record`의 모르는 kind는 사용법 오류 2가 아니라 `bad_kind`와 1입니다(D).
   본문은 자르지 않고 32 KiB를 넘거나 줄(LF 포함)이 50 KiB 미만이 아니면 `text_too_long`입니다(그 전에는 모든 진입점이 4,000자 뒤를 버렸고 kit
   CLI·SDK는 알리지 않았습니다, C1). kit이 만드는 본문(가져오기·run 완료·프로젝트 생성)은 다른 곳에 통째로 남는 설명·제목을 4,000자까지
@@ -1028,14 +1047,12 @@ kit 0.8.0([#13](https://github.com/handochan/aelix-analytics/issues/13)의 셋�
     끊기면 이 전환의 것인지 알 수 없어 `destination_mismatch(occupied)`로 거절합니다(사람이 확인해 지움). 표식은 kit 0.8.0부터 직접 쓰지 않고
     `rename_new`로 게시하므로 반쯤 쓴 `analytics.json`이 남지 않습니다(B). macOS 26.6.2의 디스크 이미지(fskit)에서 잰 것: MS-DOS(FAT32)와 exFAT
     모두 링크가 `ENOTSUP`이었고, `renamex_np(RENAME_EXCL)`는 이미 있는 이름에 `EEXIST`(두 파일 그대로)였으며, 없는 이름은 FAT32에서 rename했고
-    exFAT에서 `ENOTSUP`였습니다(그래서 exFAT 목적지는 `no_exclusive_rename`). 다만 그 macOS에서 전환은 두 볼륨 모두 1단계에서
-    `destination_invalid(not_empty)`로 멈췄습니다: 확장 속성이 없는 볼륨에서 macOS는 확장 속성(이 세션이 만든 모든 파일에 붙은
-    `com.apple.provenance`)을 가진 파일·디렉터리마다 AppleDouble 파일 `._<이름>`을 옆에 만들고, 전환은 그것을 계획에 없는 항목으로 봅니다. 그때
-    목적지에는 `.analytics/migration.lock`과 그 AppleDouble 파일이 남고, 다시 불러도 같습니다. 잠금 뒤의 재판정이 거절하면 hint는 "nothing was
-    written" 대신 복사한 것이 없다는 것과 이 시도가 남긴 것(목적지·`.analytics/`·잠금 파일 가운데 이 호출이 만든 것)과 그것을 지우거나 원인을
-    없앤 뒤 다시 부르라고 적습니다(리뷰 뒤; 그 전에는 "nothing was written"이라고 적었음).
-    AppleDouble 파일을 운영체제 메타 파일로 보는 시험 실행에서는 FAT32 목적지가 `rename_new`로 커밋했고 exFAT 목적지는 복사 전에
-    `no_exclusive_rename`이었습니다([측정 기록](verification/2026-10-09-issue-13-writer.md)의 `foreign_fs`). Linux·Windows의 FAT·exFAT과 실제 이동식 매체는 실행하지 않았습니다.
+    exFAT에서 `ENOTSUP`였습니다(그래서 exFAT 목적지는 `no_exclusive_rename`). 그런 볼륨에서 macOS는 확장 속성(이 세션이 만든 모든 파일에 붙은
+    `com.apple.provenance`)을 가진 파일·디렉터리마다 AppleDouble 파일 `._<이름>`을 옆에 만듭니다. 전환은 그것을 운영체제 메타 파일로 보므로
+    (B, 2026-10-09 소유자 결정) FAT32 목적지는 `rename_new`로 커밋하고 다시 부르면 `already_migrated`(다른 사본 없음)이며, 커밋한 목적지에서
+    `status`·`record`·`run`이 됩니다. exFAT 목적지는 복사 전에 `no_exclusive_rename`입니다. 잠금 뒤의 재판정이 다른 이유로 거절하면 hint는 "nothing was written" 대신 복사한 것이
+    없다는 것과 이 시도가 남긴 것(목적지·`.analytics/`·잠금 파일 가운데 이 호출이 만든 것)과 그것을 지우거나 원인을 없앤 뒤 다시 부르라고
+    적습니다([측정 기록](verification/2026-10-09-issue-13-writer.md)의 `foreign_fs`). Linux·Windows의 FAT·exFAT과 실제 이동식 매체는 실행하지 않았습니다.
   - 임시 파일이 이 전환의 것인지는 ledger로 정합니다(임시 파일마다 정체성을 적는 줄은 없음). 그래서 S6의 짧은 창이 둘 남습니다: `begin` 줄
     뒤 임시 파일을 만들기 전에 프로세스가 끝났는데 그 사이 다른 프로세스가 정확히 그 이름을 만든 경우, 그리고 이 전환의 `O_EXCL`이 그 이름에서
     남의 파일을 만나 거절한 뒤 그 사실을 적는 `failed` 줄을 쓰기 전에 프로세스가 끝났거나 그 줄을 쓰지 못한 경우입니다. 둘 다 다음 호출이

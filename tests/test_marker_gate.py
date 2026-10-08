@@ -525,7 +525,8 @@ def test_the_kit_command_line_writes_only_where_it_may(base, tmp_path, column):
 # The migration's row (design 11.3: `migrate` is judged by its own rules, Issue #13 PR 3): every
 # column as the source — read by the migration's rules, never admitted, so only a lab.json project is
 # copied and every other column is source_not_legacy with its judgment (no_project where none is) —
-# and as the folder above a destination, which a marker of any kind makes inside_project (OQ9).
+# and as the folder above a destination, which a marker of any kind, or a migration's record without
+# one (`incomplete`, the owner's decision of 2026-10-09), makes inside_project (OQ9).
 MIGRATE_SOURCE = {"lab_project_1": None, "lab_unparsable": None, "lab_project_9": "unknown",
                   "analytics_2": "current", "analytics_2_too_old": "current", "analytics_3": "unknown",
                   "analytics_invalid": "invalid", "both": "conflict", "none": "no_project",
@@ -537,7 +538,8 @@ def test_the_migration_copies_only_a_lab_json_project_and_never_inside_one(base,
     """T8's migrate row: from each column, `migrate --to` a new folder outside — a lab.json project
     (lab.project/1 or a broken lab.json, the older kit's) is copied and its bytes stay as they were;
     every other column is refused before anything is written: no destination, the column as it was.
-    And `--to` a folder inside each column with a marker is destination_invalid (inside_project)."""
+    And `--to` a folder inside each column with a marker or a migration's record is
+    destination_invalid (inside_project)."""
     target, tree = _column(base, tmp_path / "source", column)
     before = snapshot(tree)
     dest = tmp_path / "new"
@@ -557,11 +559,15 @@ def test_the_migration_copies_only_a_lab_json_project_and_never_inside_one(base,
     legacy, _ = _column(base, tmp_path / "legacy", "lab_project_1")
     inside = tree / "inner"
     code, result = kit_cli(legacy, "migrate", "--to", inside)
-    if writer.present_marker(tree):
+    if column != "none":
+        assert writer.present_marker(tree) or writer.migration_record(tree), column
         assert (code, result["error"]["code"]) == (1, "destination_invalid"), result
-        assert result["error"]["details"]["reason"] == "inside_project"
+        assert result["error"]["details"] == {"reason": "inside_project", "project": str(tree)}
         assert not inside.exists() and snapshot(tree) == before
         seen["destination_inside"] = "inside_project"
+    else:
+        assert code == 0 and writer.marker_state(inside).state == "current", result
+        seen["destination_inside"] = "migrated"
     record_matrix("migrate", column, seen)
 
 
@@ -788,3 +794,54 @@ def test_the_init_of_a_new_project_is_judged_by_its_own_rules(tmp_path, marker):
     assert (first["schema"], first["id"], first["kind"]) == ("analytics.event/2", "e1", "project")
     assert first["details"] == {"project_id": value["project_id"]}
     assert not (made.root / "lab.json").exists() and not (made.root / ".lab").exists()
+
+
+@pytest.mark.parametrize("record", ["lock", "migration directory", "both"])
+def test_no_project_is_made_inside_a_migration_s_destination_not_committed(tmp_path, record):
+    """OQ9 as the owner widened it (2026-10-09): a directory above with a migration's record and no
+    marker — what find_project finds as a project and refuses (migration_incomplete) — refuses an init
+    below it as a marker does (destination_invalid, inside_project, naming it), nothing made; the
+    directory itself is not empty. A migration's record further up counts as one next to it does."""
+    above = tmp_path / "unfinished"
+    (above / ".analytics").mkdir(parents=True)
+    if record in ("lock", "both"):
+        (above / ".analytics" / "migration.lock").write_bytes(b"")
+    if record in ("migration directory", "both"):
+        (above / ".analytics" / "migration").mkdir()
+    assert writer.find_project(above / "x") == above and writer.project_above(above / "x") == str(above)
+    before = snapshot(above)
+    for target in (above / "inner", above / "deeper" / "still"):
+        with pytest.raises(core.AnalyticsError) as caught:
+            core.init_project(target, template_dir=TEMPLATE, origin=ORIGIN)
+        assert caught.value.code == "destination_invalid", caught.value.to_json()
+        assert caught.value.details == {"reason": "inside_project", "project": str(above)}
+        assert "a migration that has not committed" in caught.value.message
+    with pytest.raises(core.AnalyticsError) as caught:
+        core.init_project(above, template_dir=TEMPLATE, origin=ORIGIN)
+    assert caught.value.code == "init_not_empty"
+    assert snapshot(above) == before
+    # A project's .analytics/ holds no migration record unless a migration made it: no refusal.
+    plain = tmp_path / "plain"
+    (plain / ".analytics").mkdir(parents=True)
+    assert writer.project_above(plain / "x") is None
+
+
+def test_init_takes_a_directory_of_operating_system_views_as_empty(tmp_path):
+    """design 6.2, the rule a migration's destination follows too: .DS_Store and macOS's AppleDouble
+    files `._<name>` (the owner's decision of 2026-10-09) leave a directory empty, and stay; any other
+    name, Thumbs.db among them, does not."""
+    target = tmp_path / "finder"
+    target.mkdir()
+    for name in (".DS_Store", "._.DS_Store", "._.Trashes"):
+        (target / name).write_bytes(b"\x00\x05\x16\x07")
+    made = core.init_project(target, template_dir=TEMPLATE, origin=ORIGIN)
+    assert writer.marker_state(made.root).state == "current"
+    assert all((target / name).read_bytes() == b"\x00\x05\x16\x07" for name in (".DS_Store", "._.DS_Store",
+                                                                               "._.Trashes"))
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "._x").write_bytes(b"\x00")
+    (other / "Thumbs.db").write_bytes(b"\x00")
+    with pytest.raises(core.AnalyticsError) as caught:
+        core.init_project(other, template_dir=TEMPLATE, origin=ORIGIN)
+    assert caught.value.code == "init_not_empty" and caught.value.details == {"entries": ["Thumbs.db"]}
