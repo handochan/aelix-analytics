@@ -206,8 +206,9 @@ PowerShell 안에서 실행한 `chcp 65001`은 PowerShell이 이미 읽어 둔 �
 
 프로젝트는 `/analytics use` → `--analytics-project` → `AELIX_ANALYTICS_PROJECT` → 작업 디렉터리와 그 조상 가운데 표식(`analytics.json`
 또는 `lab.json`)이 있는 가장 가까운 디렉터리 순서로 찾습니다. kit 0.7.0부터 이 kit은 `lab.json`(`lab.project/1`) 프로젝트에만 쓰고, 새
-형식(`analytics.json`)·모르는 형식·깨진 `analytics.json`·두 표식의 디렉터리에는 아무것도 쓰지 않습니다(읽기는 두 표식만 거절,
-[현재 계약](docs/CONTRACTS.md) B).
+형식(`analytics.json`)·모르는 형식·깨진 `analytics.json`·두 표식의 디렉터리에는 기록·잠금 파일·캐시·로그를 쓰지 않습니다(읽기는 두 표식만
+거절). 다만 `analytics`·`bin/analytics`·`analytics_query`가 그 프로젝트의 환경으로 kit을 부르면 uv가 `.venv/`·`uv.lock`을 만들거나 고칠 수
+있습니다(기록이 아닌 환경, [현재 계약](docs/CONTRACTS.md) B).
 가장 쉬운 방법은 프로젝트 디렉터리에서 aelix를 실행하는 것입니다. `AELIX_ANALYTICS_PROJECT`는 셸의 `analytics`(`bin/analytics`)도
 작업 디렉터리보다 먼저 읽습니다: aelix를 위해 설정해 두면 다른 프로젝트 안에서 실행한 `analytics record`도 그 프로젝트에 기록됩니다.
 

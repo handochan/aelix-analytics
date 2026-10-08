@@ -330,6 +330,63 @@ def test_the_nearest_marker_of_either_name_is_the_project(fake, tmp_path, which,
     assert uv_args(second) == kit_call(outer.resolve(), "--text", "status")
 
 
+def odd_marker(path: Path, kind: str) -> None:
+    """An entry of a marker's name that is no regular file: a FIFO, a link to itself, a link to
+    nothing."""
+    if kind == "fifo":
+        os.mkfifo(path)
+    elif kind == "loop":
+        path.symlink_to(path.name)
+    else:
+        path.symlink_to("nowhere.json")
+
+
+@pytest.mark.skipif(not POSIX, reason="a FIFO and the links are POSIX's here")
+@pytest.mark.parametrize("which", WHICH)
+@pytest.mark.parametrize("kind", ["fifo", "loop", "dangling"])
+def test_a_marker_that_is_no_regular_file_still_stops_the_search(fake, tmp_path, which, kind):
+    """Review of PR 1: the launcher and bin/analytics stop at least where the kit's own search does.
+    The kit counts an entry of a marker's name that is not a directory — a FIFO, a link that loops —
+    and refuses it (marker_invalid), so neither command may pass it over for the project above. A
+    link that leads nowhere stops them too; the kit, searching upward from there (`--project` names
+    a start), passes it over as no marker (design 4.3)."""
+    outer = tmp_path / "outer"
+    inner = outer / "inner"
+    inner.mkdir(parents=True)
+    (outer / "lab.json").write_text("{}", encoding="utf-8")
+    odd_marker(inner / "analytics.json", kind)
+    done = launch(fake, "record", "note", "x", cwd=inner, which=which)
+    assert done.returncode == 0, done.stderr
+    (call,) = calls(fake)
+    assert uv_args(call) == kit_call(inner.resolve(), "record", "note", "x")
+
+
+@pytest.mark.skipif(not POSIX, reason="os.startfile would open a real program on Windows")
+@pytest.mark.parametrize("which", WHICH)
+def test_open_refuses_a_directory_with_two_markers(fake, tmp_path, which):
+    """Review of PR 1: with both markers the kit reads neither (marker_conflict, design 4.3), so
+    `open` does not open a page already built there either. It looks at the markers' presence only,
+    as the search does, and starts neither uv nor the opener."""
+    project = project_dir(tmp_path)
+    (project / "analytics.json").write_text("{}", encoding="utf-8")
+    (project / "report").mkdir()
+    (project / "report" / "index.html").write_text("<html>", encoding="utf-8")
+    opened = tmp_path / "opened.txt"
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for name in ("open", "xdg-open"):
+        opener = bin_dir / name
+        opener.write_text(f"#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{opened}'\n", encoding="utf-8")
+        opener.chmod(0o755)
+    done = launch(fake, "open", cwd=project, which=which,
+                  PATH=f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+    assert done.returncode == 1
+    assert done.stderr.decode("utf-8") == (
+        f"analytics: {project} holds two project markers, analytics.json and lab.json, and the kit "
+        "reads neither; analytics status says more\n")
+    assert not opened.exists() and not calls(fake)
+
+
 @pytest.mark.parametrize("which", WHICH)
 def test_output_passes_through_byte_for_byte(fake, tmp_path, which):
     project = project_dir(tmp_path)

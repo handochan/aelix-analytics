@@ -222,7 +222,7 @@ def _resolve_project():
     explicit = STATE["project"]
     if explicit:
         project = core.Project(explicit)
-        if not core.writer.present_marker(project.root):
+        if not core.present_marker(project.root):
             raise core.AnalyticsError("project_missing", f"active project {explicit} has no "
                                       "analytics.json or lab.json",
                                       hint="/analytics use DIR to pick another project")
@@ -235,7 +235,7 @@ def _resolve_project():
                                                        "AELIX_ANALYTICS_PROJECT")):
         if isinstance(value, str) and value.strip():
             project = core.Project(value.strip())
-            if not core.writer.present_marker(project.root):
+            if not core.present_marker(project.root):
                 raise core.AnalyticsError("project_invalid", f"{via} {project.root} is not an analytics project "
                                           "(no analytics.json or lab.json)",
                                           hint="create it with /analytics init DIR")

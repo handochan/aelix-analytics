@@ -1084,6 +1084,10 @@ def test_the_extension_writes_only_where_the_kit_may(tmp_path, monkeypatch, colu
     tool_row("analytics_query", {"sql": "SELECT 1"}, read=True)
     assert kit_calls == ([] if reads_refused else ["query"])
 
+    # `use` starts from a project not yet trusted: it records the trust, in the list outside the
+    # project (the trust file, or the host's agent directory), for a project it can read.
+    trust = tmp_path / "use-trust.json"
+    monkeypatch.setenv("AELIX_ANALYTICS_TRUST_FILE", str(trust))
     for command, read in (("record note hi", False), ("render", False), ("open", False),
                           ("status", True), ("context", True), (f"use {root}", True)):
         answer = asyncio.run(module.analytics_command(command))
@@ -1094,6 +1098,7 @@ def test_the_extension_writes_only_where_the_kit_may(tmp_path, monkeypatch, colu
         else:
             assert f"error [{expected}]" in answer, (command, answer)
     assert kit_calls == ([] if reads_refused else ["query"])
+    assert module.core.is_trusted(root) is (not reads_refused) and trust.exists() is (not reads_refused)
 
     ctx = SimpleNamespace()
     out = asyncio.run(module.on_before_agent_start(

@@ -268,7 +268,7 @@ def run_visualizations(run) -> list[dict]:
     `chart(id=…)`/`visualize(id=…)` of one script), `key` (`<script path>::<id>`, the logical key) and
     `field` (where the record holds it: `charts` or `visualizations`). `sha256` and `data_sha256` are
     there only in an analytics.run/2 record. Every consumer of a run's Visualizations reads them
-    here, so none reads one form only (tests/test_relations.py's static check)."""
+    here, so none reads one form only (tests/test_run_views.py's static check)."""
     if not isinstance(run, dict):
         return []
     v2 = run.get("schema") == RUN_V2

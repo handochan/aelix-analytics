@@ -44,10 +44,15 @@ kit 0.7.0부터 확장은 찾은 프로젝트를 표식으로 판정합니다(B 
 쓰는 도구와 명령(`analytics_record`·`analytics_import`·`analytics_run`, `/analytics record`·`render`, Workspace가 아직 없을 때의 `open`)은 이
 kit이 쓰지 않는 프로젝트에서 aelix 프로세스 안에서 거절합니다: inline 스크립트를 쓰기 전이고 uv를 부르기 전입니다. 읽는 도구
 (`analytics_status`·`analytics_query`)와 `/analytics status`·`context`·`use`는 읽고, 부수 쓰기 — 맥락 동기화, `telemetry.jsonl`, `agent_end`의
-Workspace 렌더 — 는 건너뜁니다. 맥락 블록과 `analytics_status`는 머리의 `read only:` 줄로 거절 이유를 알립니다. 확장의 쓰기는 진입점이
-정한 작성 출처(`Origin`: 모델 도구 `agent`·`tool`, `/analytics` `human`·`command`, hook `system`·`hook`, `analytics_status` 안의 동기화
-`system`·`tool`)를 기록 함수에 넘깁니다. `lab.event/1` 줄에는 지금처럼 `actor`와 `session`만 남습니다(실행 수단 `means`와 근거 `actor_basis`는
-#13의 새 writer가 기록합니다).
+Workspace 렌더 — 는 건너뜁니다. `/analytics use`는 읽을 수 있는 프로젝트(두 표식이 아닌 것)를 신뢰 목록(B)에 적습니다: 이 kit이 쓰지 않는
+프로젝트여도 그렇고, 목록은 프로젝트 트리 밖에 있습니다. 맥락 블록과 `analytics_status`는 머리의 `read only:` 줄로 거절 이유를 알립니다.
+확장이 aelix 프로세스 안에서 쓰는 기록 — `analytics_record`, `/analytics record`, `analytics_init`·`/analytics init`의 프로젝트 생성, 맥락 동기화 — 은 진입점이 정한 작성 출처(`Origin`: 모델 도구
+`agent`·`tool`, `/analytics` `human`·`command`, hook `system`·`hook`, `analytics_status` 안의 동기화 `system`·`tool`)를 기록 함수에 넘깁니다. kit
+자식 프로세스가 쓰는 기록 — `analytics_run`·`analytics_import`, `/analytics render`·`demo`, `analytics_init`·`/analytics init`의 첫 렌더,
+`agent_end`의 렌더(렌더의 맥락 동기화) — 은 확장이 넘기는
+`AELIX_ANALYTICS_ACTOR`·`AELIX_ANALYTICS_SESSION`의 작성 주체·세션과 실행 수단 `cli`를 받습니다(kit 명령줄의 `Origin`, D). 확장의 실행 수단을
+자식에게 넘기는 `AELIX_ANALYTICS_MEANS`는 #13의 셋째 PR이 더합니다. `lab.event/1` 줄에는 어느 쪽이든 지금처럼 `actor`와 `session`만
+남습니다(실행 수단 `means`와 근거 `actor_basis`는 #13의 새 writer가 기록합니다).
 kit 0.3.0 전의 이름(확장 파일 `extension/aelix_lab.py`, 명령 `/lab`, 도구 `lab_*`, flag `--lab-project`, 환경 변수 `AELIX_LAB_*`)은
 등록하지도 읽지도 않습니다. 확장이 읽던 옛 환경 변수(`AELIX_LAB_PROJECT`·`AELIX_LAB_UV`·`AELIX_LAB_TRUST_FILE`, 파일 로드에서는
 `AELIX_LAB_KIT`도)가 설정돼 있거나 aelix의 명령줄에 `--lab-project`(`--lab-project=…` 포함)가 있으면, 확장은 로드할 때 새 이름을
@@ -107,7 +112,7 @@ CRLF의 `\r`은 제목을 찾고 이름을 붙일 때만 떼고, 블록에 넣�
 | `journal.jsonl` | append-only. 한 줄에 이벤트 하나. 직접 고치지 않음 |
 | `data/raw/<name>.parquet` | `analytics_import`(kit의 `import`)만 만든다. 같은 이름 재가져오기는 거절. 수정하지 않는 것이 규약(강제 아님) |
 | `data/raw/<name>.meta.json` | 가져오기 기록 |
-| `data/imported/<name>.parquet`·`.meta.json` | 새 writer가 가져온 데이터와 그 기록(`analytics.dataset/1`, C4). kit 0.7.0은 읽기만 하고, 같은 이름이면 view 이름을 `data/raw`보다 먼저 줍니다 |
+| `data/imported/<name>.parquet`·`.meta.json` | `analytics.json` 프로젝트에서 새 writer가 가져온 데이터와 그 기록(`analytics.dataset/1`, C4). kit 0.7.0은 읽기만 하고, 같은 이름이면 view 이름을 `data/raw`보다 먼저 줍니다. `lab.json` 프로젝트의 `data/imported/`는 사람의 디렉터리이고 데이터셋 목록에 들지 않습니다(kit 0.7.0 전과 같음) |
 | `data/derived/**.parquet` | run이 쓴다 |
 | `scripts/**.py` | 사람·모델이 편집하는 코드. run 입력·출력 비교에서 제외 |
 | `runs/<id>/` | run이 만든 뒤 바꾸지 않는 것이 규약. `<id>` = `YYYYMMDD-HHMMSS-<script slug>[-n]` |
@@ -143,7 +148,7 @@ build stamp, 데모의 `CONTEXT.md`, kit이 감싸는 run 로그(스크립트의
 | 두 표식 | `conflict` | `marker_conflict` | `marker_conflict` |
 
 - 판정은 쓰기 작업의 첫 부수 효과 — 잠금 파일·디렉터리·캐시·로그 줄 포함 — 전에 두 표식을 새로 읽어 합니다(캐시 없음). journal에 쓰는 함수는
-  journal 잠금을 잡은 뒤 한 번 더 판정합니다. 거절된 쓰기는 프로젝트 트리를 바꾸지 않습니다(시험은 경로·크기·수정 시각·sha256과 잠금 파일까지
+  journal 잠금을 잡은 뒤 한 번 더 판정하고, run은 run 잠금(`.lab/run.lock`)을 잡은 뒤 run 디렉터리를 만들기 전에 한 번 더 판정합니다. 거절된 쓰기는 프로젝트 트리를 바꾸지 않습니다(시험은 경로·크기·수정 시각·sha256과 잠금 파일까지
   비교합니다). 쓰는 진입점: kit의 `run`·`import`·`record`·`render`·`demo`, SDK의 `record`·`save`·`visualize`(run 밖과 run 안, run 안은 호출마다),
   확장의 쓰는 도구·명령(A). `init`은 이 표와 따로 지금처럼 없거나 비어 있는 디렉터리만 받습니다(위쪽 표식의 거절은 #13의 셋째 PR).
 - 읽기 작업의 부수 쓰기 — 맥락 동기화, 해시·프로필 캐시(`.lab/cache/`), `queries.jsonl`, `telemetry.jsonl`, Workspace 렌더 예약 — 는 이
@@ -159,7 +164,11 @@ build stamp, 데모의 `CONTEXT.md`, kit이 감싸는 run 로그(스크립트의
 디렉터리, 런처·`bin/analytics`의 작업 디렉터리 — 에서 위로 올라가며 두 표식 가운데 하나라도 있는 첫 디렉터리가 프로젝트이고, 그 디렉터리를 위
 표로 판정합니다(kit 0.7.0부터, 그 전에는 `lab.json`만 찾았습니다). 그래서 `lab.json` 프로젝트 아래의 `analytics.json` 디렉터리에서 부른 명령은
 그 디렉터리의 것이고 위쪽 프로젝트에 쓰지 않습니다. 반대로 `analytics.json` 프로젝트 아래의 `lab.json` 디렉터리는 그 `lab.json` 프로젝트입니다.
-런처와 `bin/analytics`는 표식의 내용을 읽지 않고 찾은 디렉터리를 kit에 넘깁니다. 확장의 명시한 프로젝트는 그 디렉터리 자체를 판정합니다(A).
+런처와 `bin/analytics`는 표식의 내용을 읽지 않고 찾은 디렉터리를 kit에 넘깁니다. 둘은 표식 이름의 항목이 디렉터리가 아니면 — 파일, FIFO,
+고리를 이루거나 어디로도 이어지지 않는 링크 — 거기서 멈추고, kit은 넘겨받은 디렉터리(`--project`)에서 자기 규칙으로 다시 위로 찾습니다. kit은
+디렉터리가 아닌 항목을 표식으로 세되 `stat`이 없다고 답하는 것(어디로도 이어지지 않는 링크)은 세지 않으므로, 두 명령은 kit이 거절할 디렉터리를
+지나쳐 위쪽 프로젝트로 가지 않습니다. `open`은 Workspace를 열기 전에 두 표식이 다 있는지만 보고, 다 있으면 열지 않고 stderr에 그 사실을 적고
+종료 코드 1입니다(두 명령이 같은 바이트, kit의 `marker_conflict`와 같은 판정). 확장의 명시한 프로젝트는 그 디렉터리 자체를 판정합니다(A).
 표식 없는 전환 목적지(`.analytics/migration/`만 있는 디렉터리)에서 멈추는 것은 #13의 둘째 PR부터입니다. 지금은 그런 디렉터리를 지나 위로
 올라가고, 위에 표식이 없으면 `no_project`입니다.
 
@@ -252,8 +261,11 @@ source{path, sha256, bytes, format, modified_at}`. `path`는 경로 정체성(E)
 
 kit 0.7.0은 새 writer의 가져오기 기록 `analytics.dataset/1`(`data/imported/<name>.meta.json`, 같은 필드에 `path`가 `data/imported/…`, 기록
 schema의 `dataset_1`)도 읽습니다. 가족은 자리마다 하나라, `data/raw/`의 `analytics.dataset/1`과 `data/imported/`의 `lab.dataset/1`은
-`unsupported`(`unknown_kind`)입니다. 데이터셋 목록은 `data/imported`(종류 `imported`) → `data/raw` → `data/derived` 순이고, 같은 이름이
-`data/imported`와 `data/raw`에 있으면 view 이름은 `data/imported`가 먼저 받고 `status`가 그 사실을 적습니다(E "view 이름").
+`unsupported`(`unknown_kind`)입니다. 데이터셋 목록의 디렉터리는 표식이 고릅니다([설계](design/RECORD-WRITER-AND-MIGRATION.md) 2.3절):
+`analytics.json` 프로젝트는 `data/imported`(종류 `imported`) → `data/raw` → `data/derived` 순이고, 같은 이름이 `data/imported`와 `data/raw`에
+있으면 view 이름은 `data/imported`가 먼저 받고 `status`가 그 사실을 적습니다(E "view 이름"). `lab.json` 프로젝트는 kit 0.7.0 전처럼 `data/raw`
+→ `data/derived`이고, 거기의 `data/imported/`는 사람의 디렉터리라 데이터셋도 view도 되지 않습니다. 가져오기 기록의 읽기(기록 상태,
+`source_revision`)는 두 자리를 다 봅니다.
 
 ### C5. 보조 로그
 
@@ -296,7 +308,7 @@ Windows에서는 `analytics.exe`)로 부릅니다(kit 0.3.0 전의 `bin/lab`). �
   않습니다. SDK의 `record`·`save`·`visualize`는 run 밖에서도 run 안에서도 호출마다 판정해 같은 코드의 `AnalyticsError`(`aelix_analytics.core`)를
   올리고, run 밖의 `analytics.project()`는 두 표식이면 `marker_conflict`입니다. run이 시작된 뒤 표식이 바뀌면 그 뒤의 SDK 쓰기는 스크립트의
   오류가 되고, 완료 이벤트와 노트는 journal 잠금 안의 판정에서 거절되어 `finalize_errors`에 남으며 run은 `incomplete`(`no_completion_event`)입니다.
-  run 기록(`run.json`)은 run이 시작할 때의 판정대로 씁니다.
+  run 기록(`run.json`)은 run 잠금을 잡은 뒤의 판정대로 씁니다(다른 run을 기다린 run은 잠금을 얻은 때 다시 판정합니다).
 - 실행 루트에서만 돕니다. 설치된 배포본 자신의 package(옆에 `kit/aelix_analytics/`를 둔 것)를 `python -m aelix_analytics`로
   부르면 어느 환경에서든 아무것도 쓰지 않고 거절합니다: `{"ok": false, "error": {"code": "not_runtime_root", …}}`, 종료 코드 1.
   설치 환경에서 분석 스크립트가 프로젝트 환경 밖에서 돌지 않게 하기 위해서입니다(ADR-0005 확인 1, 소유자 결정 2026-10-06).
@@ -362,7 +374,9 @@ Windows에서는 `analytics.exe`)로 부릅니다(kit 0.3.0 전의 `bin/lab`). �
   kit 0.7.0부터 표식의 판정(B)이 `project.marker`(판정한 표식 파일 이름, 표식이 둘이거나 없으면 null)·`project.format`(그 `schema`, `schema` 없는
   `lab.json`은 `lab.project/1`, 판정할 수 없으면 null)·`project.writable`·`project.write_refusal`(쓰지 않을 때의 오류 `{code, message, hint?,
   details?}`)에, 이 읽기가 건너뛴 부수 쓰기가 `writes_skipped`(`["hash_cache"]` 또는 빈 목록)에 있고, `title`·`created_at`은 판정한 표식에서
-  읽습니다. 쓰지 않는 프로젝트이면 글의 머리에 `read only: <code> — <message>; <hint>` 줄이 있고, 맥락 블록에도 같은 줄이 있습니다.
+  읽습니다. 쓰지 않는 프로젝트이면 글의 머리에 `read only: <code> — <message>; <hint>` 줄이 있고, 맥락 블록에는 `report:` 줄 대신 같은 줄이
+  있습니다(이 kit은 그 프로젝트의 Workspace를 만들거나 다시 만들지 않습니다). `project.context_updated`는 `.analytics/context/`와
+  `.lab/context/`의 CONTEXT 버전 가운데 마지막 것의 시각입니다(E "CONTEXT 이력").
   `not_listed`는 kit 0.7.0에서 없어졌습니다(`analytics.event/2` 줄도 목록에 보이기 때문입니다, C1).
 - `run`이 코드 스냅샷이나 첫 기록(`running`)을 쓰지 못하면 만든 run 디렉터리를 지우고 `snapshot_failed`·`record_failed`로
   답합니다. hint는 원인에 따라 경로를 줄이라는 것(운영체제가 이름이나 경로가 너무 길다고 답했거나, 경로의 한 구성
@@ -406,7 +420,7 @@ Windows의 한계는 G절에 있습니다.
 |---|---|
 | 입력 기록 | 런타임 읽기는 **읽는 시점의 내용**으로 해시합니다(그때 판정이 닿은 파일을 엽니다. 링크를 거친 판정은 기억하지 않고 스크립트가 시작할 때 그때까지의 판정과 디렉터리 목록을 버리므로, run이 다른 대상으로 바꾼 링크(`latest → v4`)는 읽는 때의 대상입니다). run이 스스로 만든 파일, 또는 다시 쓴 뒤 읽은 파일은 입력에서 제외합니다. 디렉터리를 읽으면 그 디렉터리에서 시작한 이름 공간 조회(아래)가 찾는 순서로 처음 500개의 데이터 파일을 기록하고 조회는 거기서 멈춥니다(이름으로 빼는 디렉터리는 없습니다) |
 | 경로 정체성 | ADR-0006 9절. 경로를 절대 경로로 만든 뒤(Windows는 Win32처럼 `.`·`..`를 글자로 접은 뒤) 앞에서부터 구성 요소 단위로 판정합니다: 루트에 닿기 전의 링크는 풀고, 루트 안에서 안을 가리키는 링크는 실제 위치로 풀며, 밖을 가리키는 링크(루트·조상·최상위 관리 디렉터리의 실제 위치로 풀리는 것 제외)는 그 자리를 경계로 삼습니다. POSIX에서 링크 뒤의 `..`는 링크 대상의 부모입니다. 끝이 루트 안이면 프로젝트 상대 경로입니다. 단 kit이 관리하는 최상위 디렉터리(`runs`: run 기록·스냅샷·차트, `.venv`: uv가 두는 프로젝트 환경, `.lab`: kit의 상태, `report`: kit이 만드는 리포트)는 링크면 그 실제 위치 아래가, 다른 대소문자·정규화로 저장됐으면(같은 디렉터리 항목인 `Runs`) 그 아래가 kit의 이름 아래 경로(`runs/<id>/…`)입니다. 저장된 철자의 유일한 예외이며, 그래서 입력 제외(`runs/<id>/`·`.venv/`·`.lab/`), 차트 정리, 모듈 스냅샷의 제외가 링크와 철자에 관계없이 듭니다. 그 밖의 제외 이름(`scripts`·`.git` 등 사람의 디렉터리)은 이 대응이 없어, `scripts → src`의 `scripts/a.py`는 `src/a.py`입니다. 경계 아래면 이름 공간 조회가 그 파일을 낸 경로, 그 밖이면 실제 절대 경로입니다. **조회**는 루트의 트리(최상위의 제외 이름 — 디렉터리든 링크든 파일이든, 다른 대소문자로 저장된 관리 디렉터리 포함 — 와 어디서나 `__pycache__`·`.ipynb_checkpoints` 제외)를 걸은 뒤 경계를 이름 공간 경로의 코드 포인트 순으로 대상마다 한 번 걷습니다: 같은 디렉터리는 파일 키 `(st_dev, st_ino)`(`st_ino`가 0이면 실제 경로)로, 같은 파일은 부모의 키와 이름으로 알아보고, 이미 걸은 것은 다시 내지 않습니다. 그래서 한 파일에 경계 여럿으로 닿으면 코드 포인트 순으로 가장 앞인 경계 아래의 경로입니다(`data/b/x.csv`로 읽은 입력과 `data/a/` 아래의 출력이 같은 `data/a/x.csv`). 조회가 걷지 않은 경계(최상위 제외 디렉터리 안, 조회 뒤에 생긴 링크)만 그 경로가 건넌 경계 가운데 가장 앞인 것을 씁니다. 끊긴 링크와 링크 고리는 따라가지 않습니다. **철자**: 구성 요소마다 부모 디렉터리 목록의 같은 이름, 없으면 NFC+casefold가 같은 이름 가운데 코드 포인트 순으로 처음 같은 디렉터리 항목인 것, 목록을 읽을 수 없거나 그런 이름이 없으면 입력한 대로입니다. 프로젝트 루트와 신뢰 목록의 철자도 같습니다. 프로젝트 하나 밖에서(프로젝트를 찾을 때, 신뢰를 물을 때, 루트를 정할 때) 정한 이름은 프로세스가 구성 요소마다 기억하고, 그 이름을 담은 디렉터리의 수정 시각이 그대로이면 그 디렉터리를 다시 읽지 않습니다(바뀐 디렉터리만 다시 읽음). 디렉터리의 수정 시각으로 목록을 다시 읽을지 정하는 곳(이것과 run 중의 목록)은 바뀐 지 2초가 안 된 디렉터리의 시각을 믿지 않습니다: 파일 시스템은 변경을 시계 틱(Windows 15.6 ms)이나 거친 시각(FAT 2초)으로 적어, 곧이은 변경이 시각을 바꾸지 않을 수 있습니다. 경로를 루트 아래로 판정할 때는 루트에서 시작해 루트의 상위 디렉터리를 읽지 않습니다. **시작 위치를 준 조회**(데이터셋 목록, 디렉터리 읽기, 리포트의 `data/` 지문)는 그 디렉터리부터 같은 규칙으로 깊이 우선, 디렉터리마다 이름의 코드 포인트 순으로 걷고(보통 디렉터리의 트리에서는 경로의 구성 요소별 코드 포인트 순), 안을 가리키는 파일 링크도 그 대상의 정체성으로 내며, 같은 (이름, 정체성)은 한 번 냅니다. 시작 위치가 루트나 그 조상으로 풀리면(`data/raw → /`) 링크가 그리로 풀릴 때처럼 아무것도 걷지 않고, 시작 위치의 실제 디렉터리나 그 위로 돌아가는 링크(`derived/up → ..`)도 따라가지 않습니다. **보안 판정**(스크립트 위치, 재실행의 스냅샷·스크립트 경로, 모듈 스냅샷 대상, 질의 샌드박스)은 정체성이 아니라 철자를 맞춘 실제 경로로 합니다 |
-| 데이터셋 목록 | `data/imported`(kit 0.7.0, C4)·`data/raw`·`data/derived`에서 시작한 조회가 찾은 `.parquet` 파일(접미사 대소문자 무관). 이름은 조회가 만난 항목(파일 링크면 링크 자신)의 stem, 경로는 정체성이고, 가져오기 기록(`<stem>.meta.json`)과 그 `unsupported_record.location`은 그 항목 옆의 것입니다(파일을 옮기고 링크로 둔 `data/raw/sales.parquet`도 기록을 잃지 않음). 같은 (이름, 정체성)은 종류마다 한 번이라, derived의 링크가 raw 파일을 가리키면 두 종류에 다 있습니다(view `sales`·`sales_derived`). imported 다음 raw 다음 derived, 종류마다 정체성의 구성 요소별 코드 포인트 순(같으면 이름 순)입니다 |
+| 데이터셋 목록 | `data/imported`(kit 0.7.0, `analytics.json` 프로젝트에서만, C4)·`data/raw`·`data/derived`에서 시작한 조회가 찾은 `.parquet` 파일(접미사 대소문자 무관). 이름은 조회가 만난 항목(파일 링크면 링크 자신)의 stem, 경로는 정체성이고, 가져오기 기록(`<stem>.meta.json`)과 그 `unsupported_record.location`은 그 항목 옆의 것입니다(파일을 옮기고 링크로 둔 `data/raw/sales.parquet`도 기록을 잃지 않음). 같은 (이름, 정체성)은 종류마다 한 번이라, derived의 링크가 raw 파일을 가리키면 두 종류에 다 있습니다(view `sales`·`sales_derived`). imported 다음 raw 다음 derived, 종류마다 정체성의 구성 요소별 코드 포인트 순(같으면 이름 순)입니다 |
 | 입력 상태 | 기록 sha256 대비 지금 파일: `same` / `changed` / `missing` / `unknown`(sha 없음·디렉터리·URI). 지금 내용이 그 run 자신의 출력과 같으면 `same`(읽고 다시 쓰는 갱신 패턴). 크기·mtime이 같으면 캐시한 sha를 씀. `changed`인 파일이 64 MiB 이하이고 앞 8 KiB에 NUL이 없을 때, 지금 바이트의 CRLF를 LF로 바꾼 것이나 그 결과의 모든 줄 끝을 CRLF로 바꾼 것의 sha256이 기록과 같으면 사유 `line_endings_only`를 붙입니다(kit 0.4.0부터, [ADR-0007](decisions/0007-line-endings.md) 결정 4). 상태·stale·해시는 바이트 그대로입니다. JSON은 입력의 `reason`과 status 차트 행의 `change_reasons`(`{경로: "line_endings_only"}`), `analytics_status`·kit `status`의 글은 STALE 사유의 경로 뒤 `(line endings only)`, Workspace는 `Line endings only` 배지와 경로 뒤 `(line endings only)`입니다. 두 변형의 해시는 해시 캐시의 그 파일 항목에 함께 두며, 읽기 전후의 크기·mtime이 같을 때만 둡니다(읽는 동안 바뀐 파일은 사유 없음). 판정하지 않는 파일(64 MiB 초과·앞 8 KiB의 NUL)은 그 크기·mtime에 '판정 안 함'을 두고, 읽지 못한 파일은 사유 없이 아무것도 두지 않아 다음에 다시 읽습니다 |
 | stale | 입력 중 `changed`·`missing`이 있거나, 입력의 생산자 후보 가운데 stale인 run이 있음(전이). 후보를 모두 따라가고 마지막 run을 고르지 않습니다. 후보가 둘 이상인 입력은 `ambiguous_inputs`, 따라가다 아직 걷는 중인 run으로 돌아오면 `cycle`이며(같은 시각에 시작했거나 시작 시각을 읽지 못한 run 사이에서만 생깁니다. 두 길로 닿는 다이아몬드는 순환이 아님) 깊이 제한 없이 run마다 한 번 방문해 끝납니다. 화면은 stale인 후보를 생산자로 단정하지 않습니다: `analytics_status`는 `STALE(upstream candidate(s) …)`, Workspace는 입력이 직접 바뀐 run에만 "This run's inputs differ from the files now."를 적고, 후보만 stale이면 "Upstream candidate stale"(같은 바이트를 출력한 run의 입력이 바뀜)을 적습니다 |
 | 생산자 후보 | 입력의 `(path, sha256)`과 같은 출력(`deleted` 아님)을 남긴 `ok` run 가운데, 소비 run이 아니고 그보다 늦게 시작하지 않은 것(시작 시각은 시간대를 반영한 시점, 읽지 못하면 빼지 않음). 0개 `none`, 1개 `resolved`, 여럿 `ambiguous`(모두 보임), 입력에 해시가 없으면 `unknown`. 데이터셋은 현재 바이트로 같은 판정을 합니다(소비 run 없음). 후보는 같은 바이트를 출력했다는 관측(basis `observed`)이며 확정 연결이 아니고, 화면은 `same bytes as run X's output`(여럿이면 `same bytes as N runs: X, Y`)으로 적습니다(ADR-0006 4). 데이터셋 페이지는 후보가 있을 때만 "그 run이 이 경로에 이 바이트를 출력했다"고 적고, 그 경로를 출력으로 기록한 성공 run은 바이트와 무관한 목록("Successful runs that recorded an output at this path", 지운 것은 `deleted this path`)으로 따로 적습니다. 옛 kit의 경로로만 맞은 후보는 추론입니다(아래 행) |
@@ -420,6 +434,7 @@ Windows의 한계는 G절에 있습니다.
 | 옛 kit의 경로 | kit 0.5.0(`core.PATH_IDENTITY_SINCE`) 전의 run — `env.kit_version`이 PEP 440 순서로 그보다 낮거나, 없거나, ADR-0006 1.3의 형식이 아니거나 Python이 정수로 읽지 못할 만큼 긴 숫자를 가진 run — 이 기록한 입력·출력·스크립트 경로는 ADR-0006 9절의 추론 대응으로 읽습니다([2026-10-06 소유자 결정](https://github.com/handochan/aelix-analytics/issues/12#issuecomment-6009076270)). 그런 kit은 링크를 끝까지 푼 실제 경로를, 루트 안이면 루트 기준 상대 경로로, 이름은 입력한 철자로 기록했습니다. `Project.legacy_identity`가 루트나 링크 대상 아래의 절대 경로와 저장된 철자가 아닌 상대 경로를 지금의 정체성 경로(위 "경로 정체성"의 철자·링크 규칙)로 대응시키고(그런 kit이 쓸 수 없던 상대 경로 — 빈·`.`·`..` 구성 요소, 역슬래시, 드라이브(`C:x`), URI — 는 대응하지 않음), 읽기 모델은 그 대응이 기록과 다르고 지금 있는 항목이거나 어떤 run이 출력으로 기록한 경로일 때만 씁니다(지어내지 않음). 그렇게만 맞은 생산자 후보·차트 버전·데이터셋의 run은 추론(`basis: inferred`)이며 관측(`observed`)이나 확정 연결로 세지 않습니다: 생산자 판정의 `basis: inferred`·`inferred_candidates`·`read_as`, 참조 판정의 `inferred_candidates`, status JSON의 `inferred*`(D). 0.5.0 이후 run도 기록한 글자(입력·출력·스크립트 경로)는 옛 run의 것도 대응하지 않고 기록 그대로 읽습니다: 그 글자는 그때의 정체성 경로였으므로, 그 뒤 이름을 바꾸거나 링크를 새로 만들어 지금 가리키는 것이 달라져도 그 글자를 기록한 run들은 이전처럼 글자로 이어집니다. 그래서 기록의 글자가 같은 어느 두 경로든 관측 그대로입니다. 후보가 여럿이면 `ambiguous` 그대로입니다. 다만 Visualization id만 적은 참조(`token`)의 키가 한 스크립트의 옛 철자와 지금 철자뿐이면 대응으로 한 키가 되어 `version_unbound`이고 옛 철자의 버전은 `inferred_candidates`에 있습니다(대응하지 않으면 `ambiguous`). 0.5.0 이후 run의 경로는 기록 그대로 읽고, 기록은 고쳐 쓰지 않습니다. `env.kit_version`이 없는 run 기록은 아직 끝나지 않은 run이나 환경을 기록하지 못한(`finalize_errors`의 `environment`) 0.5.0 이후 run이라도 옛 kit의 것으로 읽습니다. 그런 run의 경로는 이미 정체성 경로라 대응해도 같은 경로이고, 그 뒤 이름·링크가 바뀐 경우에만 다른 경로로 대응하며 그때도 추론으로 표시합니다. 화면: `analytics_status`·kit `status`의 글은 `inferred from an older kit's path`(데이터셋의 후보와 그 경로를 쓰거나 읽은 run, 차트의 버전 수·입력 수·stale 후보), Workspace는 `Inferred from an older kit's path` 배지, run 페이지 입력·출력 경로 옆의 `read as <경로> — inferred from an older kit's path`, 데이터셋 페이지 목록의 run 옆 `inferred from an older kit's path`, 참조의 후보 수 옆의 수, 이전 버전의 `(inferred)`입니다. 경로·키는 사용자 내용이라 `lang=""` 안에 둡니다 |
 | view 이름 | 파일 stem을 `[a-z0-9_]`로. 숫자로 시작하면 `t_`. kit의 데이터셋 이름 규칙(`^[a-z][a-z0-9_]{0,62}$`, `import`·`analytics.save`가 주는 이름)에 맞는 stem이 종류와 무관하게 먼저 이름을 받고, 그 안에서 imported, raw, derived 순, 그다음 경로 순입니다(`data/imported`와 `data/raw`에 같은 이름이 있으면 `status`가 두 경로와 view를 적습니다). 겹치는 derived는 `_derived`, 그래도 겹치면 `_2`·`_3`…입니다. 그래서 사람이 둔 `data/raw/Sales.parquet`은 kit의 `sales`를 가져가지 않습니다. 이름이 대소문자(또는 유니코드 정규화)만 다른 데이터셋 묶음은 `status`가 경로·view와 함께 경고합니다(대소문자를 무시하는 파일 시스템은 그 가운데 하나만 담습니다). 대소문자가 아닌 겹침(`sales-2`와 `sales_2`)은 말없이 `_2`입니다 |
 | 재실행 판정 | 재실행이 `ok`가 아니면 `failed`. 차트(두 run의 Visualization을 같은 보기로 읽어 id끼리, C2): 둘 다 플롯 데이터면 프레임 동등성, plotly면 `data` JSON 동등성, PNG면 바이트. 출력: 바이트. 다르거나 사라지거나(`not written`) 새로 생기면 `mismatch`, 같은 것이 있으면 `match`, 비교할 것이 없으면 `inconclusive`. 입력 동일 여부는 따로 `inputs_same` |
+| CONTEXT 이력 | 읽는 화면(`status`의 `context_updated`, Workspace의 Context history와 그 수, 타임라인의 버전 링크)은 `.analytics/context/`(새 형식, kit 0.7.0부터)와 `.lab/context/`의 `*.md`를 이름(= 시각) 순으로 함께 보입니다. 같은 이름이 둘에 있으면 `.analytics/context/`의 것이고, 맥락 참조가 그 이름을 푸는 순서(`relations.CONTEXT_DIRS`)와 같습니다. 이 kit이 쓰는 버전은 `.lab/context/`에만 남깁니다 |
 | 읽기 전용 쿼리 | 한 문장이어야 하고 종류가 SELECT(DESCRIBE·SUMMARIZE·SHOW·PRAGMA 포함)여야 합니다. `EXPLAIN`은 안쪽이 SELECT일 때만, `EXPLAIN ANALYZE`는 거절. 연결은 `allowed_directories=[<project>/data/]` + `enable_external_access=false` + `lock_configuration=true`로 묶습니다 |
 | SQL 계보 | DuckDB 파서(`json_serialize_sql`)로 참조 테이블을 찾고 CTE 이름은 그 범위 안에서만 제외합니다. 파서가 받지 않는 문장은 FROM·JOIN 뒤 이름만 맞춰 보는 대비책을 씁니다 |
 | 프로젝트 활성화 | `/analytics use`·flag·env는 명시적 선택입니다. 작업 디렉터리로만 찾은 프로젝트는 신뢰 목록에 있어야 활성화되고, 아니면 `project_untrusted`로 거절하며 맥락 주입·telemetry도 하지 않습니다 |
@@ -730,8 +745,13 @@ kit 0.7.0([#13](https://github.com/handochan/aelix-analytics/issues/13)의 첫 �
 - 무결성. 해시 체인·서명이 없고 불변성은 규약입니다.
 - 표식 판정의 틈. 판정은 잠금 없이 두 표식을 읽습니다. 판정과 첫 부수 효과 사이에 다른 프로세스가 표식을 바꾸는 틈은 남습니다. journal 쓰기는
   잠금 안에서 다시 판정해 그 틈을 줄이지만, run이 시작한 뒤의 run 기록(`run.json`)·코드 스냅샷·스크립트가 직접 쓰는 파일은 run이 시작할 때의
-  판정을 따릅니다(SDK 쓰기는 호출마다 판정, D). 표식 찾기는 런처·`bin/analytics`가 정규 파일(`is_file`, `-f`)을, kit이 디렉터리가 아닌 항목을
-  봅니다.
+  판정을 따릅니다(run 잠금을 잡은 뒤의 판정, SDK 쓰기는 호출마다 판정, D).
+- 사람의 파일인 `analytics.json`. 가장 가까운 표식이 프로젝트라([설계](design/RECORD-WRITER-AND-MIGRATION.md) D13·4.3절), 프로젝트 안의 하위
+  디렉터리에 표식이 아닌 `analytics.json`(예: `data/exports/analytics.json`의 `{"pageviews": 10}`)이 있으면 그 디렉터리에서 부른 명령은 위쪽
+  프로젝트가 아니라 그 디렉터리를 판정합니다: 쓰기는 `marker_invalid`로 거절되고(kit 0.7.0 전에는 위쪽 프로젝트에 썼습니다), `status`는 그
+  디렉터리를 빈 프로젝트로 읽습니다. JSON이 아니거나 객체가 아니거나 `schema` 문자열이 없는 `analytics.json`의 hint는 그것이 사람의 파일일 수 있다는
+  것과, 위쪽 프로젝트의 루트를 이름으로 고르는 법(`--project ROOT`, `AELIX_ANALYTICS_PROJECT=ROOT`, `/analytics use ROOT`)이나 파일 이름을
+  바꾸는 것을 알립니다.
 - 원자성·복구·멱등성. 한 프로젝트의 run은 직렬화되지만, 강제 종료된 run은 `incomplete`로 남고 되돌리지 않습니다.
   프로젝트 밖에서 같은 파일을 건드리는 다른 프로세스는 막지 않습니다.
 - 결정성과 다른 환경 재현. 재실행은 같은 환경을 가정하고 환경 지문을 비교하지 않습니다.

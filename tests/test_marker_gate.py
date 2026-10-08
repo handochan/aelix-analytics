@@ -189,6 +189,57 @@ def test_a_marker_that_is_no_regular_file_is_not_opened(tmp_path):
     assert judged.details["error"] == "it is not a regular file"
 
 
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="a FIFO and the links are POSIX's here")
+@pytest.mark.parametrize("kind", ["fifo", "loop", "dangling"])
+def test_the_kit_refuses_an_odd_marker_below_a_project_from_where_the_launchers_stop(tmp_path, kind):
+    """Review of PR 1: the launchers hand the kit the directory they stopped at (`--project`), and
+    the kit searches upward from there by its own rule. A FIFO or a link that loops under a marker's
+    name stops that search and is refused (marker_invalid), the project above untouched; a link that
+    leads nowhere is no marker (stat says it is not there, design 4.3), so the search goes on."""
+    outer = tmp_path / "outer"
+    inner = outer / "inner"
+    core.init_project(outer, template_dir=TEMPLATE, origin=ORIGIN)
+    inner.mkdir()
+    marker = inner / "analytics.json"
+    if kind == "fifo":
+        os.mkfifo(marker)
+    elif kind == "loop":
+        marker.symlink_to(marker.name)
+    else:
+        marker.symlink_to("nowhere.json")
+    before = snapshot(outer)
+    code, result = kit_cli(inner, "record", "note", "from below")
+    if kind == "dangling":
+        assert code == 0 and result["event"]["text"] == "from below", result
+        return
+    assert (code, result["error"]["code"]) == (1, "marker_invalid"), result
+    assert result["error"]["details"]["reason"] == "unreadable"
+    assert snapshot(outer) == before
+
+
+@pytest.mark.parametrize(("value", "own"), [
+    (b"pageviews,10\n", True), (b"[1, 2]", True), ({"pageviews": 10}, True), ({"schema": 2}, True),
+    ({"schema": "analytics.project/2"}, False), ({**NEW, "min_writer_version": "soon"}, False)])
+def test_an_analytics_json_that_names_no_format_may_be_the_person_s_own(tmp_path, value, own):
+    """Review of PR 1 (an owner question): an analytics.json that names no project format — not
+    JSON, not an object, no `schema` string — is still the nearest marker and refused (D13, design
+    4.3), and its hint says it may be a file of the person's own and how to name the project above
+    instead. A marker of the format that lacks a field is a broken marker: restore it."""
+    root = tmp_path / "d"
+    root.mkdir()
+    write_marker(root, "analytics.json", value)
+    with pytest.raises(core.AnalyticsError) as caught:
+        core.admit(root, "record")
+    assert caught.value.code == "marker_invalid"
+    hint = caught.value.hint
+    assert ("a file of your own" in hint) is own
+    if own:
+        assert "--project ROOT" in hint and "AELIX_ANALYTICS_PROJECT=ROOT" in hint
+        assert "/analytics use ROOT" in hint and "rename it" in hint
+    else:
+        assert "Restore it from where it came from" in hint
+
+
 def test_the_judgment_is_read_again_every_time(tmp_path):
     """No cache (design 4.3): a marker changed between two writes is judged as it is now."""
     root = tmp_path / "d"
@@ -256,6 +307,8 @@ def snapshot(root: Path) -> dict:
                 out[rel] = ("link", os.readlink(path))
             elif stat.S_ISDIR(st.st_mode):
                 out[rel] = ("dir", st.st_mtime_ns)
+            elif not stat.S_ISREG(st.st_mode):  # a FIFO: reading it would wait for a writer
+                out[rel] = ("other", stat.S_IFMT(st.st_mode), st.st_mtime_ns)
             else:
                 out[rel] = ("file", st.st_size, st.st_mtime_ns,
                             hashlib.sha256(path.read_bytes()).hexdigest())
@@ -511,6 +564,28 @@ def test_a_journal_write_is_judged_again_under_the_lock(tmp_path, monkeypatch):
         core.add_note(project, "note", "between", origin=ORIGIN)
     assert caught.value.code == "marker_conflict"
     assert project.journal.read_bytes() == journal
+
+
+def test_a_run_is_judged_again_once_the_run_lock_is_held(tmp_path, monkeypatch):
+    """A run that waits for another's run lock may find the directory changed when it gets it: it is
+    judged again then, before anything of the run is written (no run directory, no event)."""
+    from aelix_analytics import runner
+
+    project = core.init_project(tmp_path / "p", template_dir=TEMPLATE, origin=ORIGIN)
+    (project.root / "scripts" / "a.py").write_text("print('hi')\n", encoding="utf-8")
+    journal = project.journal.read_bytes()
+    real = core.run_lock
+
+    def lock_then_change(p):
+        write_marker(p.root, "analytics.json", NEW)
+        return real(p)
+
+    monkeypatch.setattr(core, "run_lock", lock_then_change)
+    with pytest.raises(core.AnalyticsError) as caught:
+        runner.execute(project, script="scripts/a.py", title="a", origin=ORIGIN)
+    assert caught.value.code == "marker_conflict"
+    assert project.journal.read_bytes() == journal
+    assert not project.runs.exists() or not any(project.runs.iterdir())
 
 
 def test_the_init_of_a_new_project_is_judged_by_its_own_rules(tmp_path):

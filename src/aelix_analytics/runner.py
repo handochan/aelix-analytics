@@ -867,9 +867,9 @@ def execute(project: core.Project, *, script: str | None, title: str | None,
             origin: core.Origin, result_follows: bool = False) -> dict:
     """Run a script (or rerun a recorded one) and record it, as asked by `origin` (the run's actor
     and session; its notes and the SDK calls in it are by the same actor). Refused before anything
-    is written where this kit does not write (core.admit, Issue #13). `result_follows`: the caller
-    prints a result line through write_result after this returns and then calls give_back_stdout
-    (the CLI); see _redirected."""
+    is written where this kit does not write (core.admit, Issue #13), and judged again once the run
+    lock is held. `result_follows`: the caller prints a result line through write_result after this
+    returns and then calls give_back_stdout (the CLI); see _redirected."""
     core.admit(project, "run")
     core.sync_context(project, origin=core.system_origin(origin))
     source_run = None
@@ -883,6 +883,9 @@ def execute(project: core.Project, *, script: str | None, title: str | None,
     # Runs in one project are serialized: outputs are found by comparing the project tree before
     # and after a run, which would otherwise attribute a concurrent run's files to this one.
     with core.run_lock(project):
+        # Judged again once the lock is held: a run that waited for another may find the directory
+        # changed meanwhile, and nothing of the run is written yet (design 4.3).
+        core.admit(project, "run")
         return _execute_locked(project, script_rel=script_rel, exec_file=exec_file,
                                code_bytes=code_bytes, title=title,
                                declared_inputs=declared_inputs, timeout=timeout,

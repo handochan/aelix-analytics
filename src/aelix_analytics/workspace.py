@@ -199,6 +199,7 @@ class Site:
                                             project.root / ".analytics" / "telemetry.jsonl")
                           for row in core.read_jsonl(place)]
         self.queries = core.read_jsonl(project.queries)
+        # The CONTEXT.md versions of both state directories (design 5.3), as a reference resolves them.
         self.versions = core.context_versions(project)
         self.build = core.now().strftime("%Y%m%d-%H%M%S-%f")
         self.built_at = core.iso()
@@ -1481,7 +1482,7 @@ def context_page(site: Site) -> str:
         blocks.append(f'<article class="version" id="v-{esc(v.stem)}"><h3>{fmt_time(core._version_time(v))}{who}</h3>'
                       f'<pre class="diff"{USER if diff else ""}>{lines}</pre></article>')
     body = f"""
-<div class="page-head"><h1>Context history</h1><div class="sub">Each change to CONTEXT.md leaves a version in .lab/context/. A new version is noticed at a run, an import, a record and a Workspace render.</div></div>
+<div class="page-head"><h1>Context history</h1><div class="sub">Each change to CONTEXT.md leaves a version in .lab/context/ (.analytics/context/ in the new format, listed here too). A new version is noticed at a run, an import, a record and a Workspace render.</div></div>
 <div class="columns wide-left">
   <article class="panel markdown"{USER if current else ""}>{render_markdown(current) if current else '<div class="empty">Empty</div>'}</article>
   <aside class="panel"><h3>{len(versions)} version(s)</h3><ul class="plain">{''.join(f'<li><a href="#v-{esc(v.stem)}">{fmt_time(core._version_time(v))}</a></li>' for v in versions[::-1])}</ul></aside>

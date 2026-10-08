@@ -45,11 +45,15 @@ refuse_renamed() {
   done
 }
 
+# An entry of a marker's name that is not a directory: a file, a FIFO, a socket, a link that leads
+# nowhere or loops (the kit judges it; the installed command's has_marker is the same rule).
+has_marker() { { [ -e "$1" ] || [ -L "$1" ]; } && [ ! -d "$1" ]; }
+
 find_project() {
   if [ -n "${AELIX_ANALYTICS_PROJECT:-}" ]; then printf '%s\n' "$AELIX_ANALYTICS_PROJECT"; return 0; fi
   dir=$(pwd -P)
   while :; do
-    if [ -f "$dir/analytics.json" ] || [ -f "$dir/lab.json" ]; then printf '%s\n' "$dir"; return 0; fi
+    if has_marker "$dir/analytics.json" || has_marker "$dir/lab.json"; then printf '%s\n' "$dir"; return 0; fi
     [ "$dir" = / ] && break
     dir=$(dirname "$dir")
   done
@@ -90,6 +94,10 @@ case $cmd in
   open)
     refuse_renamed
     proj=$(find_project)
+    if has_marker "$proj/analytics.json" && has_marker "$proj/lab.json"; then
+      echo "analytics: $proj holds two project markers, analytics.json and lab.json, and the kit reads neither; analytics status says more" >&2
+      exit 1
+    fi
     [ -f "$proj/report/index.html" ] || kit "$proj" render >/dev/null
     if command -v open >/dev/null 2>&1; then open "$proj/report/index.html"
     else xdg-open "$proj/report/index.html"; fi

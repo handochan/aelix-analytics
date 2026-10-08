@@ -137,6 +137,11 @@ def _command(args: list[str], kit: Path | None, uv_argv: list[str] | None,
     if project is None:
         return 1
     if command == "open":
+        if all(has_marker(Path(project), marker) for marker in MARKERS):
+            # Two markers: the kit reads neither (marker_conflict), and neither page is opened. Only
+            # their presence is looked at, as the search does.
+            _say(two_markers_message(project))
+            return 1
         index = Path(project) / "report" / "index.html"
         if not index.is_file():
             # uv only to build the report: opening one needs none, as with bin/analytics.
@@ -183,6 +188,22 @@ def kit_argv(uv: list[str], project: str, *args: str) -> list[str]:
 MARKERS = ("analytics.json", "lab.json")
 
 
+def has_marker(directory: Path, name: str) -> bool:
+    """Whether `directory` holds an entry named `name` that is not a directory: a file, a FIFO, a
+    socket, a link that leads nowhere or loops. The kit's own search (writer.present_marker) counts
+    every one of these but a link that leads nowhere, and judges what it found; this one stops at
+    least where the kit's does, so a directory the kit refuses is never passed over for one above
+    it. From where it stops the kit searches upward again (`--project` names a start), so a dangling
+    link here is passed over there. bin/analytics has the same rule."""
+    path = directory / name
+    return os.path.lexists(path) and not os.path.isdir(path)
+
+
+def two_markers_message(project: str) -> str:
+    return (f"analytics: {project} holds two project markers, analytics.json and lab.json, and the kit "
+            "reads neither; analytics status says more")
+
+
 def find_project() -> str | None:
     """AELIX_ANALYTICS_PROJECT as it is given (the kit reports one that is not a project), or the nearest
     directory at or above the working directory that holds a project marker (MARKERS), whatever it
@@ -197,7 +218,7 @@ def find_project() -> str | None:
              "AELIX_ANALYTICS_PROJECT")
         return None
     for directory in (here, *here.parents):
-        if any((directory / marker).is_file() for marker in MARKERS):
+        if any(has_marker(directory, marker) for marker in MARKERS):
             return str(directory)
     _say(f"analytics: no analytics.json or lab.json in {here} or its parents (cd into a project or set "
          "AELIX_ANALYTICS_PROJECT)")

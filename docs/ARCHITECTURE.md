@@ -327,7 +327,7 @@ N0의 명칭·기본 언어 전환을 A0의 경계 정리와 조율한다. 현�
 
 `writer`는 #13의 첫 구현 PR(①)이 더했다. writer가 `core`를 import하지 못하게 `core` 아래의 새 계층으로 두었고(같은 계층이면 이 검사가
 writer → core의 순환을 잡지 못한다), 그래서 `core` 이상의 수준이 하나씩 올랐다([설계](design/RECORD-WRITER-AND-MIGRATION.md) 3.2절).
-aelix 프로세스의 확장은 writer를 직접 import하지 않고 `core`가 다시 내보낸 이름(`core.AnalyticsError`·`core.Origin` 등)을 쓴다. `writer.py`는
+aelix 프로세스의 확장은 writer를 직접 import하지 않고 `core`가 다시 내보낸 이름(`core.AnalyticsError`·`core.Origin`·`core.present_marker` 등)을 쓴다. `writer.py`는
 `core.py`의 형제로 합성 package에서 함께 로드된다.
 
 외부 모듈은 아래 분류로 나눈다(`EXTERNAL`). 분류에 없는 서드파티는 위반이다.

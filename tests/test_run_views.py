@@ -57,6 +57,18 @@ def write_v2_run(p: LegacyProject, run_id: str, *, script: str = "scripts/a.py",
     return record
 
 
+# An analytics.project/2 marker (ADR-0006 1).
+NEW_MARKER = {"schema": "analytics.project/2", "project_id": "prj_7f3a9c2e41d84b06", "title": "Mixed",
+              "created_at": "2026-10-08T09:00:00+09:00", "min_writer_version": "0.8.0"}
+
+
+def as_new_format(p: LegacyProject) -> None:
+    """The same project with an analytics.json marker in place of its lab.json: the new format's
+    layout, which this kit reads (design 5.5)."""
+    (p.root / "lab.json").unlink()
+    p.write_json("analytics.json", NEW_MARKER)
+
+
 def mixed(tmp_path) -> tuple[LegacyProject, str, str]:
     """A lab.json project holding a /1 run and a /2 run of one script, each with Visualization
     `trend` (the /1 one's plotly file has the same data)."""
@@ -153,6 +165,10 @@ def test_the_reader_reads_the_new_families_where_they_belong(tmp_path):
     assert {u["location"]: u["reason"] for u in model.unsupported} == {
         "data/imported/wrong.meta.json": "unknown_kind", "data/raw/wrong.meta.json": "unknown_kind"}
     assert [i["location"] for i in model.imports()] == ["data/imported/fresh.meta.json"]
+    # data/imported is a dataset directory of the new format's layout only: in a lab.json project it
+    # is the person's own directory, as before #13 (review of PR 1).
+    assert not [d for d in core.list_datasets(core.Project(p.root)) if d["kind"] == "imported"]
+    as_new_format(p)
     datasets = core.list_datasets(core.Project(p.root))
     fresh = next(d for d in datasets if d["name"] == "fresh")
     assert (fresh["kind"], fresh["path"], fresh["sha256"]) == (
@@ -162,16 +178,38 @@ def test_the_reader_reads_the_new_families_where_they_belong(tmp_path):
 
 
 def test_imported_data_takes_its_view_name_first(tmp_path):
-    """design D24 (R13): a name in both data/imported and data/raw is data/imported's view; the
-    other gets the next free name."""
+    """design D24 (R13): in an analytics.json project (the layout of design 2.3), a name in both
+    data/imported and data/raw is data/imported's view; the other gets the next free name."""
     p = LegacyProject(tmp_path / "p")
     p.dataset("sales", imported_at=at(1))
     p.file("data/imported/sales.parquet", b"new")
+    as_new_format(p)
     assert core.view_names(core.list_datasets(core.Project(p.root))) == {
         "sales": "data/imported/sales.parquet", "sales_2": "data/raw/sales.parquet"}
     text = core.status_text(core.status(core.Project(p.root)))
     assert ("dataset names in both data/imported and data/raw: sales (view sales: "
             "data/imported/sales.parquet; data/raw/sales.parquet is view sales_2)") in text
+
+
+def test_a_lab_json_project_keeps_its_dataset_directories(tmp_path):
+    """Review of PR 1: in a lab.json project the datasets are data/raw then data/derived, as before
+    #13 — a data/imported/ there is the person's directory, not the kit's — so a file of theirs at
+    data/imported/sales.parquet never takes the view `sales` from the dataset the kit imported, nor
+    makes `import --name sales` a name already taken."""
+    p = LegacyProject(tmp_path / "p")
+    p.dataset("sales", imported_at=at(1))
+    p.file("data/imported/sales.parquet", b"other")
+    p.file("data/derived/sales.parquet", b"derived")
+    project = core.Project(p.root)
+    datasets = core.list_datasets(project)
+    assert [(d["kind"], d["path"]) for d in datasets] == [("raw", "data/raw/sales.parquet"),
+                                                          ("derived", "data/derived/sales.parquet")]
+    assert core.view_names(datasets) == {"sales": "data/raw/sales.parquet",
+                                         "sales_derived": "data/derived/sales.parquet"}
+    assert core.dataset_name_taken(project, "sales") == "data/raw/sales.parquet"
+    st = core.status(project)
+    assert st["views"]["sales"] == "data/raw/sales.parquet"
+    assert "data/imported" not in core.status_text(st)
 
 
 def test_a_reference_to_a_v2_visualization_is_judged_by_its_hash(tmp_path):

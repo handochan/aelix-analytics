@@ -38,6 +38,7 @@ from .writer import AnalyticsError as AnalyticsError
 from .writer import Origin as Origin
 from .writer import append_jsonl as append_jsonl
 from .writer import classify_refs as classify_refs
+from .writer import present_marker as present_marker
 
 KIT_VERSION = "0.7.0"
 # The marker of the projects this kit writes (lab.json). A project is found by either marker,
@@ -1589,6 +1590,22 @@ def add_note(project: Project, kind: str, text: str, *, refs=None, resolves=None
 # --- CONTEXT.md history ---
 
 def context_versions(project: Project) -> list[Path]:
+    """The CONTEXT.md versions a reader shows (status, the Workspace), in name (= time) order: those
+    of .analytics/context/ (the new format's, design 5.3) and of .lab/context/ (this kit's), read in
+    the order relations.CONTEXT_DIRS gives, so a name in both is the one a context reference resolves
+    to (relations.ReadModel._context_file). Nothing is written or made."""
+    found: dict[str, Path] = {}
+    for directory in relations.CONTEXT_DIRS:
+        place = project.root / directory
+        if place.is_dir():
+            for version in place.glob("*.md"):
+                if version.is_file():
+                    found.setdefault(version.name, version)
+    return [found[name] for name in sorted(found)]
+
+
+def _written_context_versions(project: Project) -> list[Path]:
+    """The versions in the directory this kit writes them to (.lab/context/), for sync_context."""
     if not project.context_history.is_dir():
         return []
     return sorted(project.context_history.glob("*.md"))
@@ -1610,7 +1627,7 @@ def sync_context(project: Project, *, origin: Origin) -> dict | None:
     with journal_lock(project, "sync the context", side=True) as admitted:
         if admitted is None:
             return None
-        versions = context_versions(project)
+        versions = _written_context_versions(project)
         if versions and versions[-1].stem.rsplit("_", 1)[-1] == digest:
             return None
         project.context_history.mkdir(parents=True, exist_ok=True)
@@ -1892,14 +1909,14 @@ def chart_index(runs: list[dict], read_as=None) -> list[dict]:
 
 def list_datasets(project: Project, runs: list[dict] | None = None, *,
                   model: relations.ReadModel | None = None, sha=None) -> list[dict]:
-    """Every dataset under data/imported, data/raw and data/derived: each `.parquet` file (the suffix
-    in any case) the walk from those directories finds (Project.walk), named by the stem of the name
-    the namespace lists it under and with the path a record holds for it (ADR-0006 9), its import
-    record the one beside that entry (an analytics.dataset/1 record in data/imported, a
-    lab.dataset/1 one in data/raw), imported first, then raw, then derived, and each kind in the
-    code point order of its path's components. `producers` are the successful runs
-    that output its path, in run order, whatever bytes they wrote; `used_by` the successful runs
-    that read it.
+    """Every dataset under the project's dataset directories (dataset_dirs: data/raw and data/derived,
+    with data/imported first in an analytics.json project): each `.parquet` file (the suffix in any
+    case) the walk from those directories finds (Project.walk), named by the stem of the name the
+    namespace lists it under and with the path a record holds for it (ADR-0006 9), its import record
+    the one beside that entry (an analytics.dataset/1 record in data/imported, a lab.dataset/1 one in
+    data/raw), in the order of the directories, and each kind in the code point order of its path's
+    components. `producers` are the successful runs that output its path, in run order, whatever
+    bytes they wrote; `used_by` the successful runs that read it.
 
     With a read model and `sha` (the hash of a file's current bytes), each dataset also says which
     runs may have made its current bytes (ADR-0006 4): `producer_state` is `resolved` (one successful
@@ -1952,7 +1969,7 @@ def list_datasets(project: Project, runs: list[dict] | None = None, *,
         return through.get((path, name), set()) - exact.get((path, name), set())
 
     items = []
-    for base, kind in (("data/imported", "imported"), ("data/raw", "raw"), ("data/derived", "derived")):
+    for base, kind in dataset_dirs(project):
         # Once per (name, path) within a kind: a raw file a derived link leads to is in both, as
         # on main.
         found: dict[tuple[str, str], tuple] = {}
@@ -2015,8 +2032,21 @@ def list_datasets(project: Project, runs: list[dict] | None = None, *,
 
 # The import record each kind of dataset has beside it (design 2.3 and 2.7).
 IMPORT_FAMILIES = {"imported": relations.DATASET_V2, "raw": SCHEMA_DATASET}
-# The order the dataset kinds take view names in (design D24): imported data first.
+# The order the dataset kinds take view names in: imported data first where there is any (design D24).
 KIND_ORDER = {"imported": 0, "raw": 1, "derived": 2}
+# The dataset directories of each layout, each with its kind, in the order they are listed and take
+# view names in. A lab.json project's are data/raw (its imports) and data/derived, as before #13: a
+# data/imported/ there is a directory of the person's, not the kit's, and lists nothing. The new
+# format's layout (design 2.3) adds data/imported/, the new writer's imports, ahead of data/raw (D24).
+LEGACY_DATASET_DIRS = ((writer.LEGACY_LAYOUT.imported_dir, "raw"), ("data/derived", "derived"))
+DATASET_DIRS = (("data/imported", "imported"), *LEGACY_DATASET_DIRS)
+
+
+def dataset_dirs(project: Project) -> tuple[tuple[str, str], ...]:
+    """The dataset directories of `project` and their kinds, by the layout its marker picks (design
+    2.3): the new format's for an analytics.json, whatever it holds; a lab.json project's otherwise
+    (a lab.json of any schema, and a directory with no marker or two, which no read reaches)."""
+    return DATASET_DIRS if project.marker_state().marker == writer.MARKER else LEGACY_DATASET_DIRS
 
 
 def dataset_name_taken(project: Project, name: str) -> str | None:
@@ -2030,9 +2060,10 @@ def dataset_name_taken(project: Project, name: str) -> str | None:
 def _views(datasets: list[dict]) -> list[tuple[str, dict]]:
     """(view name, dataset) in the order names are given: a stem that follows the kit's dataset
     name rule (DATASET_NAME_RE, the names import and save give) first, then imported (data/imported,
-    design D24) before raw before derived, then by path. So a file a person put at data/raw/Sales.parquet never takes `sales` from the dataset
-    the kit imported or saved as `sales` (ADR-0006 9). A later name that collides gets `_derived`
-    (derived) and then `_2`, `_3`…"""
+    listed in an analytics.json project only, design D24) before raw before derived, then by path.
+    So a file a person put at data/raw/Sales.parquet never takes `sales` from the dataset the kit
+    imported or saved as `sales` (ADR-0006 9). A later name that collides gets `_derived` (derived)
+    and then `_2`, `_3`…"""
     out: list[tuple[str, dict]] = []
     taken: set[str] = set()
     for ds in sorted(datasets, key=lambda d: (not DATASET_NAME_RE.match(d["name"]),
@@ -2828,10 +2859,14 @@ def context_block(project: Project, max_context_chars: int = CONTEXT_PROMPT_CHAR
     parts = [
         "# Active analytics project",
         f"root: {project.root} (title: {str(config.get('title') or project.root.name)})",
-        f"report: {project.workspace_dir / 'index.html'} (rebuilt after runs, imports and notes)",
     ]
     refused = writer.refusal(marker, "writes", writer_version=KIT_VERSION)
-    if refused is not None:
+    if refused is None:
+        parts.append(f"report: {project.workspace_dir / 'index.html'} (rebuilt after runs, imports "
+                     "and notes)")
+    else:
+        # This kit builds no Workspace where it does not write, and the new format's is elsewhere
+        # (design 2.3): no report line, the reason instead.
         parts.append(read_only_line(refused.to_json()["error"]))
     parts += [
         "Call analytics_status for datasets, runs, charts and the recent journal.",

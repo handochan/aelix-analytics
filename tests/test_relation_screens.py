@@ -739,3 +739,37 @@ def test_v2_records_are_listed_with_the_v1_ones_by_their_replayed_state(tmp_path
     index = built(p)["index.html"]
     assert "the tools got in the way" in index and "Workflow feedback" in index
     assert "Metric definition" in index and "revenue per order" in index
+
+
+def test_the_context_history_of_both_state_directories_is_shown(tmp_path):
+    """design 5.3 (review of PR 1): the CONTEXT.md versions a reader shows are those of
+    .analytics/context/ (the new format's) and of .lab/context/, as a context reference resolves
+    them: status says when the context last changed, and the Workspace's history lists every version
+    with the anchor the Timeline links to. A name in both directories is the .analytics one."""
+    p = LegacyProject(tmp_path / "p")
+    old = "20261001-090000-000000_aaaaaaaaaaaa.md"
+    new = "20261008-090000-000000_0123456789ab.md"
+    p.file(f".lab/context/{old}", b"# Goal\nthe old context\n")
+    p.file(f".analytics/context/{new}", b"# Goal\nRecorded context\n")
+    p.file(f".lab/context/{new}", b"# Goal\nnot the one a reference resolves to\n")
+    v2_event(p, "context", "Context saved", [{"type": "context_version", "version": new,
+                                              "relation": "about", "basis": "declared",
+                                              "version_binding": "author"}])
+    project = project_of(p)
+    assert [v.relative_to(p.root).as_posix() for v in core.context_versions(project)] == [
+        f".lab/context/{old}", f".analytics/context/{new}"]
+    st, _ = overview(p)
+    assert st["project"]["context_updated"] == "2026-10-08T09:00:00"
+    model = core.read_model(project)
+    assert {r["state"] for r in model.references()} == {"resolved"}
+    pages = built(p)
+    context = pages["context.html"]
+    assert "2 version(s)" in context and f'id="v-{new[:-3]}"' in context
+    assert "Recorded context" in context and "not the one a reference resolves to" not in context
+    assert f"context.html#v-{new[:-3]}" in pages["index.html"]
+    assert "2 recorded version(s)" in pages["index.html"]
+    # The kit still writes its own versions to .lab/context/ only.
+    p.file("CONTEXT.md", b"# Goal\nnow\n")
+    core.sync_context(project, origin=core.Origin("test", "cli"))
+    assert len(list((p.root / ".lab" / "context").glob("*.md"))) == 3
+    assert sorted(x.name for x in (p.root / ".analytics" / "context").iterdir()) == [new]

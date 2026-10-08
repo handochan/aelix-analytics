@@ -57,8 +57,10 @@ class AnalyticsError(Exception):
 @dataclass(frozen=True)
 class LegacyLayout:
     """The stored names of a `lab.json` project, the format this kit writes (design 2.3). The new
-    format's Layout comes with the writer that writes it (PR 3 of #13); a renamed stored name is a
-    change here and in the reader, not in the code that builds paths."""
+    format's Layout comes with the writer that writes it (PR 3 of #13). What core reads from here:
+    `managed_dirs` and `ignored_dirs` (core.MANAGED_DIRS, core.IGNORED_DIRS), `marker` and `schema`
+    (the markers below) and `imported_dir` (core.LEGACY_DATASET_DIRS). The other names are still
+    spelled where paths are built (core.Project, capture) until that Layout replaces them."""
 
     marker: str = "lab.json"
     schema: str = "lab.project/1"
@@ -340,10 +342,22 @@ def _reason_text(state: MarkerState) -> str:
                            "version in its normal form"}.get(state.reason, str(state.reason))
 
 
+# What an analytics.json that names no format at all may be: a file of the person's own that has a
+# marker's name, rather than a broken marker.
+_NO_FORMAT = ("unparsable", "not_object")
+
+
 def _invalid_hint(state: MarkerState) -> str:
     if state.reason == "unreadable":
         return ("make the marker readable (another program may hold it open, or its permissions "
                 "forbid reading it), then try again")
+    if state.reason in _NO_FORMAT or (state.reason == "missing_field"
+                                      and "schema" in (state.details.get("fields") or ())):
+        return (f"this {MARKER} names no project format: if it is a file of your own, rename it or "
+                "name the project's root (--project ROOT, AELIX_ANALYTICS_PROJECT=ROOT, /analytics "
+                f"use ROOT), as the nearest directory with {MARKER} or {LEGACY_MARKER} is the "
+                "project; if it is the marker, restore it. This kit writes nothing to the directory "
+                "while it is there")
     return (f"{MARKER} names a project of the analytics.project/2 format: a JSON object with "
             f"{', '.join(PROJECT_FIELDS)}. Restore it from where it came from; this kit writes "
             "nothing to the directory until it is valid")
