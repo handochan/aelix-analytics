@@ -378,7 +378,7 @@ def test_records_this_reader_cannot_read_and_damaged_lines(tmp_path):
     p.seq = 4
     p.raw(b'{"schema": "lab.event/1", "seq": 5, "id": "e5", "kind": "note", "te')  # cut off
     p.event("note")  # line 5: e5, appended onto the cut-off line
-    p.event("note", seq=5)  # line 6: e5 again, the /1 writer's next seq after an unreadable last line
+    p.event("note", seq=5)  # line 6: e5 again, the next seq the /1 writer gave before #49
     p.event("finding", {"events": ["e5", "e3", "e2", "e4"]})  # line 7, e6
     p.run("20261001-090000-newer", schema="lab.run/2", completion=False)
     p.dataset("future", imported_at=at(1), schema="lab.dataset/2")
@@ -645,7 +645,7 @@ def test_records_that_share_an_id_each_keep_a_state_and_references_to_the_id_cha
     p.event("note")  # line 1: e1
     p.raw(b'{"schema": "lab.event/1", "seq": 2, "id": "e2", "kind": "question", "te')  # cut off
     p.event("question", text="first question")  # e2, appended onto the cut-off line 2
-    p.event("question", seq=2, text="second question")  # line 3: e2 again, as the /1 writer does (#49)
+    p.event("question", seq=2, text="second question")  # line 3: e2 again, as the /1 writer did before #49
     p.event("finding", {"events": ["e2"], "resolves": "e2"})  # line 4: e3
     model = read(p.root)
     states = model.record_states()

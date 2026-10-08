@@ -403,6 +403,7 @@ artifacts/reports/<report_id>/
   6절의 줄바꿈 규칙은 #13 writer의 규칙이며 `/1` writer의 수정은 B1 결함 Issue
   [#49](https://github.com/handochan/aelix-analytics/issues/49)가 맡는다. 그 전에 생긴 줄은 6절의 복구 규칙으로 읽고,
   같은 seq를 받은 두 이벤트를 가리키는 참조는 `ambiguous`로 남는다.
+  (#49에서 고침, kit 0.5.0: `/1` writer도 6절의 줄바꿈 규칙과 seq 규칙을 따른다. [현재 계약](../CONTRACTS.md) C1.)
 - #36의 수정은 링크한 `data/`의 출력과 계보를 고치지만, 옛 기록과 새 기록의 경로 문자열이 달라 옛 run의 재실행이
   '입력 다름'을 보일 수 있다. 링크 대상의 절대 경로로 직접 읽은 입력은 여전히 프로젝트 밖 경로로 남는다(한계).
 - `min_writer_version` 때문에 오래된 kit은 새 기능을 쓴 프로젝트를 읽기만 한다.
