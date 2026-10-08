@@ -2,7 +2,7 @@
  "record_kind": "aelix-analytics-marker-gate",
  "observed_at": "2026-10-08T05:30:04Z",
  "issue": "https://github.com/handochan/aelix-analytics/issues/13",
- "pull_request": null,
+ "pull_request": "https://github.com/handochan/aelix-analytics/pull/80",
  "base_revision": "e89f26536f155e2ab8ef69eb61e6637bfcf3996c",
  "measured_tree": {
   "what": "the head of branch feat/issue-13-marker-gate (kit 0.7.0) after the fix check, on origin/main e89f265 (PR #79 merged; its tree is 5829c7c's): the three code commits, the first record (ff2c2c0), the review fixes (364bb1b), the second record (be87e8d) and the fix-check commit. This record is a further commit and changes no code",
@@ -59,27 +59,1172 @@
  "workflow": ".github/workflows/ci.yml, not changed by this change",
  "runs": {
   "code": {
-   "state": "pending",
-   "id": null,
-   "url": null,
-   "attempt": null,
-   "conclusion": null,
-   "head": null,
-   "note": "the PR is not opened yet (no push in this run); the CI cells are filled after the PR's run"
+   "state": "pass",
+   "id": "37733101170",
+   "url": "https://github.com/handochan/aelix-analytics/actions/runs/37733101170",
+   "attempt": 1,
+   "conclusion": "success",
+   "head": "c9183814243ee469aa8d06e245f1283eb69b7eb3",
+   "jobs": {
+    "platform · windows-2025": {
+     "id": 113166491240,
+     "conclusion": "success"
+    },
+    "floor · ubuntu-24.04 · CPython 3.11, stdlib only": {
+     "id": 113166491449,
+     "conclusion": "success"
+    },
+    "platform · ubuntu-24.04": {
+     "id": 113166491488,
+     "conclusion": "success"
+    },
+    "floor · windows-2025 · CPython 3.11, stdlib only": {
+     "id": 113166491494,
+     "conclusion": "success"
+    },
+    "lint · ruff and documents": {
+     "id": 113166491534,
+     "conclusion": "success"
+    }
+   },
+   "lint_documents": {
+    "ok": true,
+    "counts": {
+     "json_files": 11,
+     "markdown_files": 64,
+     "local_links": 679,
+     "python_examples": 6,
+     "json_examples": 7,
+     "dev_state_examples": 1
+    },
+    "errors": [],
+    "sha256": "7960a59cedac980042eb0ebbf16c5e64509dbd8b6607dbf92b0c3ccdd1186111"
+   }
   },
   "macos_label": {
-   "state": "not_requested"
-  }
+   "state": "pass",
+   "id": "37733103204",
+   "url": "https://github.com/handochan/aelix-analytics/actions/runs/37733103204",
+   "attempt": 1,
+   "conclusion": "success",
+   "head": "c9183814243ee469aa8d06e245f1283eb69b7eb3",
+   "jobs": {
+    "platform · macos-26": {
+     "id": 113166497474,
+     "conclusion": "success"
+    },
+    "floor · macos-26 · CPython 3.11, stdlib only": {
+     "id": 113166497582,
+     "conclusion": "success"
+    },
+    "lint · ruff and documents": {
+     "id": 113166499003,
+     "conclusion": "skipped"
+    }
+   }
+  },
+  "note": "a pull_request run takes the workflow from GitHub's merge commit (github_sha) and checks out the PR head; the artifacts are kept in the work run's evidence/ci/ (GitHub deletes them after 90 days)"
  },
  "legs": {
   "linux": {
-   "state": "pending"
+   "run": "37733101170",
+   "attempt": 1,
+   "event": "pull_request (opened)",
+   "label": null,
+   "head": "c9183814243ee469aa8d06e245f1283eb69b7eb3",
+   "base": "e89f26536f155e2ab8ef69eb61e6637bfcf3996c",
+   "github_sha": "7add01281aeb4013501fada959e2e9b91e50c00a",
+   "jobs": {
+    "floor · ubuntu-24.04 · CPython 3.11, stdlib only": {
+     "id": 113166491449,
+     "conclusion": "success",
+     "started_at": "2026-10-08T05:35:04Z",
+     "completed_at": "2026-10-08T05:35:34Z"
+    },
+    "platform · ubuntu-24.04": {
+     "id": 113166491488,
+     "conclusion": "success",
+     "started_at": "2026-10-08T05:35:03Z",
+     "completed_at": "2026-10-08T05:47:45Z"
+    }
+   },
+   "runner": {
+    "image": "ubuntu24 20261004.327.1",
+    "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+    "arch": "X64",
+    "python_development": "3.12.3",
+    "interpreters": {
+     "3.11": "3.11.15",
+     "3.12": "3.12.3"
+    },
+    "python_floor": "3.11.17"
+   },
+   "junit": {
+    "suite": {
+     "file": "suite.xml",
+     "file_sha256": "ee2a75c71a76a04c130c7907e88becaf24bce4c86180a83fd6e65d78df8fa123",
+     "timestamp": "2026-10-08T05:36:12.729012+00:00",
+     "seconds": 590.651,
+     "counts": {
+      "skip": 40,
+      "pass": 1488
+     },
+     "failed": [],
+     "skipped_by_reason": {
+      "the Windows implementation runs on the Windows leg": 21,
+      "MAX_PATH and LongPathsEnabled are Windows'": 6,
+      "collection skipped": 2,
+      "a directory flagged case-sensitive is Windows'": 2,
+      "the recording implementation does not declare that it excludes other processes": 1,
+      "the recording implementation does not declare that it sees running processes": 1,
+      "the recording implementation does not declare that it interrupts a region": 1,
+      "M writes about 440 MB twice; set AELIX_ANALYTICS_TEST_SCALE_M=1": 1,
+      "what Windows does; POSIX sends it again (the test above)": 1,
+      "`Runs` would be a directory of its own": 1,
+      "8.3 short names are Windows'": 1,
+      "taskkill and CreateProcess's search are Windows'": 1,
+      "before 3.14 a `with` calls __enter__ without a CALL, and no signal is handled between its ": 1
+     },
+     "new_test_files": {
+      "tests.test_marker_gate": {
+       "pass": 54
+      },
+      "tests.test_run_views": {
+       "pass": 17
+      }
+     },
+     "cited_cases": {
+      "tests.test_marker_gate::test_the_kit_command_line_writes_only_where_it_may[nested]": "pass",
+      "tests.test_marker_gate::test_the_kit_command_line_writes_only_where_it_may[both]": "pass",
+      "tests.test_marker_gate::test_a_marker_that_changes_during_a_run_refuses_what_comes_after": "pass",
+      "tests.test_marker_gate::test_a_journal_write_is_judged_again_under_the_lock": "pass",
+      "tests.test_marker_gate::test_a_run_is_judged_again_once_the_run_lock_is_held": "pass",
+      "tests.test_marker_gate::test_the_kit_refuses_an_odd_marker_below_a_project_from_where_the_launchers_stop[fifo]": "pass",
+      "tests.test_marker_gate::test_the_kit_refuses_an_odd_marker_below_a_project_from_where_the_launchers_stop[loop]": "pass",
+      "tests.test_marker_gate::test_the_kit_refuses_an_odd_marker_below_a_project_from_where_the_launchers_stop[dangling]": "pass",
+      "tests.test_run_views::test_a_lab_json_project_keeps_its_dataset_directories": "pass",
+      "tests.test_run_views::test_a_lab_json_project_reads_import_records_in_both_places": "pass",
+      "tests.test_marker_gate::test_an_analytics_json_that_names_no_format_may_be_the_person_s_own[pageviews,10\\n-True]": "pass",
+      "tests.test_marker_gate::test_an_analytics_json_that_names_no_format_may_be_the_person_s_own[[1, 2]-True]": "pass",
+      "tests.test_marker_gate::test_an_analytics_json_that_names_no_format_may_be_the_person_s_own[value2-True]": "pass",
+      "tests.test_marker_gate::test_an_analytics_json_that_names_no_format_may_be_the_person_s_own[value3-True]": "pass",
+      "tests.test_marker_gate::test_an_analytics_json_that_names_no_format_may_be_the_person_s_own[value4-False]": "pass",
+      "tests.test_marker_gate::test_an_analytics_json_that_names_no_format_may_be_the_person_s_own[value5-False]": "pass",
+      "tests.test_run_views::test_imported_data_takes_its_view_name_first": "pass",
+      "tests.test_relation_screens::test_the_context_history_of_both_state_directories_is_shown": "pass",
+      "tests.test_run_views::test_a_rerun_compares_the_same_ids_across_the_two_forms": "pass",
+      "tests.test_run_views::test_no_consumer_reads_a_run_s_charts_outside_the_two_views": "pass",
+      "tests.test_journal_append::test_concurrent_writers_after_a_cut_off_line_each_get_a_line_and_a_seq_of_their_own": "pass",
+      "tests.test_layers::test_the_shipped_code_keeps_its_layers": "pass"
+     }
+    },
+    "aelix_py3_12": {
+     "file": "aelix-py3.12.xml",
+     "file_sha256": "cd5b149cabce4e1e62ae1860895aece30af916ad25a94dfae611c8d452d1e205",
+     "timestamp": "2026-10-08T05:46:05.128088+00:00",
+     "seconds": 36.712,
+     "counts": {
+      "pass": 161
+     },
+     "failed": [],
+     "skipped_by_reason": {},
+     "cited_cases": {
+      "tests.test_extension::test_the_extension_writes_only_where_the_kit_may[both]": "pass",
+      "tests.test_extension::test_the_extension_writes_only_where_the_kit_may[analytics_2]": "pass",
+      "tests.test_extension::test_the_extension_finds_the_nearest_marker_from_the_working_directory": "pass",
+      "tests.test_extension::test_a_run_reply_shows_both_record_forms_and_their_comparisons": "pass"
+     }
+    },
+    "aelix_py3_11": {
+     "file": "aelix-py3.11.xml",
+     "file_sha256": "a8ae0acf338b66d276dacc3cfb164b2a83ada5921bcfbdb067f4deb93b31f4e7",
+     "timestamp": "2026-10-08T05:46:49.628152+00:00",
+     "seconds": 34.191,
+     "counts": {
+      "pass": 161
+     },
+     "failed": [],
+     "skipped_by_reason": {},
+     "cited_cases": {
+      "tests.test_extension::test_the_extension_writes_only_where_the_kit_may[both]": "pass"
+     }
+    },
+    "launcher_py3_11": {
+     "file": "launcher-py3.11.xml",
+     "file_sha256": "8e5daab3a75aff1ac437a7b70d7d8e9918fb4bcd74016a93595201cbdf385acc",
+     "timestamp": "2026-10-08T05:47:24.284214+00:00",
+     "seconds": 7.911,
+     "counts": {
+      "pass": 138,
+      "skip": 1
+     },
+     "failed": [],
+     "skipped_by_reason": {
+      "what Windows does; POSIX sends it again (the test above)": 1
+     },
+     "cited_cases": {
+      "tests.test_launcher::test_the_nearest_marker_of_either_name_is_the_project[lab.json-analytics.json-bin/analytics]": "pass",
+      "tests.test_launcher::test_a_marker_that_is_no_regular_file_still_stops_the_search[fifo-launcher]": "pass",
+      "tests.test_launcher::test_a_marker_that_is_no_regular_file_still_stops_the_search[fifo-bin/analytics]": "pass",
+      "tests.test_launcher::test_a_marker_that_is_no_regular_file_still_stops_the_search[loop-launcher]": "pass",
+      "tests.test_launcher::test_a_marker_that_is_no_regular_file_still_stops_the_search[loop-bin/analytics]": "pass",
+      "tests.test_launcher::test_a_marker_that_is_no_regular_file_still_stops_the_search[dangling-launcher]": "pass",
+      "tests.test_launcher::test_a_marker_that_is_no_regular_file_still_stops_the_search[dangling-bin/analytics]": "pass",
+      "tests.test_launcher::test_open_refuses_a_directory_with_two_markers[launcher]": "pass",
+      "tests.test_launcher::test_open_refuses_a_directory_with_two_markers[bin/analytics]": "pass",
+      "tests.test_launcher::test_open_counts_a_marker_link_as_the_kit_does[dangling-beside-launcher]": "pass",
+      "tests.test_launcher::test_open_counts_a_marker_link_as_the_kit_does[dangling-beside-bin/analytics]": "pass",
+      "tests.test_launcher::test_open_counts_a_marker_link_as_the_kit_does[dangling-below-launcher]": "pass",
+      "tests.test_launcher::test_open_counts_a_marker_link_as_the_kit_does[dangling-below-bin/analytics]": "pass",
+      "tests.test_launcher::test_open_counts_a_marker_link_as_the_kit_does[loop-beside-launcher]": "pass",
+      "tests.test_launcher::test_open_counts_a_marker_link_as_the_kit_does[loop-beside-bin/analytics]": "pass"
+     }
+    }
+   },
+   "smoke": {
+    "sha256": "f71d95896a0d48b9f6b2af8d9e37e704dbde11022d6a9004780b3e468ff36e92",
+    "summary": {
+     "holds": 25,
+     "violated": 0,
+     "declared_limitation": 0,
+     "observed": 6,
+     "not_run": 0
+    },
+    "hold": true,
+    "declared_limitation": [],
+    "violated": [],
+    "not_run": []
+   },
+   "stdlib_smoke": {
+    "sha256": "d797e40b30755acf457cce1a522a18b166bd21eb90784f20ad0645e23a28236d",
+    "summary": {
+     "holds": 15,
+     "violated": 0,
+     "declared_limitation": 0,
+     "observed": 3,
+     "not_run": 2
+    },
+    "hold": true,
+    "declared_limitation": [],
+    "violated": [],
+    "not_run": []
+   },
+   "usage_report": {
+    "sha256": "f33b5cc65880acbf33d42a970c51f0dae874c1057a9247d3bc032e8f719121ec",
+    "required_facts": {
+     "passed": 58,
+     "total": 58
+    },
+    "invariants": {
+     "holding": 42,
+     "total": 42
+    },
+    "failures": []
+   },
+   "observations": {
+    "entry_points": {
+     "source": "evidence/issue-13-gate/ of the platform artifact (tests/test_marker_gate.py)",
+     "kit_cli": {
+      "analytics_2": {
+       "context": null,
+       "demo": "project_too_new",
+       "import": "project_too_new",
+       "query": null,
+       "record": "project_too_new",
+       "render": "project_too_new",
+       "run": "project_too_new",
+       "status": null
+      },
+      "analytics_2_too_old": {
+       "context": null,
+       "demo": "project_too_new",
+       "import": "project_too_new",
+       "query": null,
+       "record": "project_too_new",
+       "render": "project_too_new",
+       "run": "project_too_new",
+       "status": null
+      },
+      "analytics_3": {
+       "context": null,
+       "demo": "project_too_new",
+       "import": "project_too_new",
+       "query": null,
+       "record": "project_too_new",
+       "render": "project_too_new",
+       "run": "project_too_new",
+       "status": null
+      },
+      "analytics_invalid": {
+       "context": null,
+       "demo": "marker_invalid",
+       "import": "marker_invalid",
+       "query": null,
+       "record": "marker_invalid",
+       "render": "marker_invalid",
+       "run": "marker_invalid",
+       "status": null
+      },
+      "both": {
+       "context": "marker_conflict",
+       "demo": "marker_conflict",
+       "import": "marker_conflict",
+       "query": "marker_conflict",
+       "record": "marker_conflict",
+       "render": "marker_conflict",
+       "run": "marker_conflict",
+       "status": "marker_conflict"
+      },
+      "incomplete": {
+       "context": "no_project",
+       "demo": "no_project",
+       "import": "no_project",
+       "query": "no_project",
+       "record": "no_project",
+       "render": "no_project",
+       "run": "no_project",
+       "status": "no_project"
+      },
+      "lab_project_1": {
+       "context": null,
+       "demo": "demo_not_empty",
+       "import": null,
+       "query": null,
+       "record": null,
+       "render": null,
+       "run": null,
+       "status": null
+      },
+      "lab_project_9": {
+       "context": null,
+       "demo": "project_too_new",
+       "import": "project_too_new",
+       "query": null,
+       "record": "project_too_new",
+       "render": "project_too_new",
+       "run": "project_too_new",
+       "status": null
+      },
+      "lab_unparsable": {
+       "context": null,
+       "demo": "demo_not_empty",
+       "import": null,
+       "query": null,
+       "record": null,
+       "render": null,
+       "run": null,
+       "status": null
+      },
+      "nested": {
+       "context": null,
+       "demo": "project_too_new",
+       "import": "project_too_new",
+       "query": "query_failed",
+       "record": "project_too_new",
+       "render": "project_too_new",
+       "run": "project_too_new",
+       "status": null
+      },
+      "none": {
+       "context": "no_project",
+       "demo": "no_project",
+       "import": "no_project",
+       "query": "no_project",
+       "record": "no_project",
+       "render": "no_project",
+       "run": "no_project",
+       "status": "no_project"
+      }
+     },
+     "sdk_outside_a_run": {
+      "analytics_2": {
+       "record": "project_too_new",
+       "save": "project_too_new",
+       "visualize": "project_too_new"
+      },
+      "analytics_invalid": {
+       "record": "marker_invalid",
+       "save": "marker_invalid",
+       "visualize": "marker_invalid"
+      },
+      "both": {
+       "record": "marker_conflict",
+       "save": "marker_conflict",
+       "visualize": "marker_conflict"
+      },
+      "lab_project_1": {
+       "record": null,
+       "save": null,
+       "visualize": null
+      },
+      "nested": {
+       "record": "project_too_new",
+       "save": "project_too_new",
+       "visualize": "project_too_new"
+      }
+     },
+     "same_as_developer_machine": {
+      "kit_cli": true,
+      "sdk_outside_a_run": true
+     }
+    }
+   }
   },
   "windows": {
-   "state": "pending"
+   "run": "37733101170",
+   "attempt": 1,
+   "event": "pull_request (opened)",
+   "label": null,
+   "head": "c9183814243ee469aa8d06e245f1283eb69b7eb3",
+   "base": "e89f26536f155e2ab8ef69eb61e6637bfcf3996c",
+   "github_sha": "7add01281aeb4013501fada959e2e9b91e50c00a",
+   "jobs": {
+    "platform · windows-2025": {
+     "id": 113166491240,
+     "conclusion": "success",
+     "started_at": "2026-10-08T05:35:03Z",
+     "completed_at": "2026-10-08T06:06:14Z"
+    },
+    "floor · windows-2025 · CPython 3.11, stdlib only": {
+     "id": 113166491494,
+     "conclusion": "success",
+     "started_at": "2026-10-08T05:35:04Z",
+     "completed_at": "2026-10-08T05:36:09Z"
+    }
+   },
+   "runner": {
+    "image": "win25-vs2026 20260925.250.1",
+    "platform": "Windows-2025Server-10.0.26100-SP0",
+    "arch": "X64",
+    "python_development": "3.12.10",
+    "interpreters": {
+     "3.11": "3.11.9",
+     "3.12": "3.12.10"
+    },
+    "python_floor": "3.11.9"
+   },
+   "junit": {
+    "suite": {
+     "file": "suite.xml",
+     "file_sha256": "2fa188d7ad22280f0c8baaf8cd4cd04a19da3d2ede354a73d7a850df54deb197",
+     "timestamp": "2026-10-08T05:37:50.777951+00:00",
+     "seconds": 1360.223,
+     "counts": {
+      "skip": 190,
+      "pass": 1359
+     },
+     "failed": [],
+     "skipped_by_reason": {
+      "the POSIX guard's signals": 59,
+      "bin/analytics is a POSIX shell script": 46,
+      "the POSIX implementation runs on the Linux and macOS legs": 21,
+      "a FIFO and the links are POSIX's here": 9,
+      "os.startfile would open a real program on Windows": 6,
+      "the links are POSIX's here, and os.startfile would open a real program on Windows": 6,
+      "SIGTERM from outside a process is POSIX": 3,
+      "POSIX signals": 3,
+      "Windows reads one character and a colon as a drive, and NTFS a colon in a name as a stream": 3,
+      "collection skipped": 2,
+      "a POSIX signal": 2,
+      "a shell's background job": 2,
+      "the stub guards stand in for the POSIX one": 2,
+      "the recording implementation does not declare that it excludes other processes": 1,
+      "the recording implementation does not declare that it sees running processes": 1,
+      "the recording implementation does not declare that it interrupts a region": 1,
+      "M writes about 440 MB twice; set AELIX_ANALYTICS_TEST_SCALE_M=1": 1,
+      "bytes that are not UTF-8 in the environment are POSIX's": 1,
+      "a terminal's process group; a Windows console's Ctrl+C is tests/test_windows_console.py's": 1,
+      "signal dispositions as POSIX inherits them": 1,
+      "a POSIX signal sent to one process": 1,
+      "a symbolic link to a program": 1,
+      "a FIFO is POSIX's": 1,
+      "POSIX permissions that bind the owner": 1,
+      "a POSIX background job of the bash tool": 1,
+      "the launcher masks through its POSIX pipes; links need privileges": 1,
+      "the launcher masks through its POSIX pipes": 1,
+      "POSIX signals and the launcher's lifeline": 1,
+      "the stand-in uv is a script; Windows starts only an .exe": 1,
+      "a POSIX shell script stands in for the opener": 1,
+      "POSIX executables and HOME": 1,
+      "SIGALRM is POSIX": 1,
+      "POSIX permissions, not root": 1,
+      "process groups are a POSIX concept": 1,
+      "on Windows the ask is a Python thread, which a regular expression holding the GIL starves": 1,
+      "before 3.14 a `with` calls __enter__ without a CALL, and no signal is handled between its ": 1,
+      "names POSIX can hold and Windows reads otherwise": 1,
+      "the broken guard stands in for the POSIX one": 1,
+      "the stub guard stands in for the POSIX one": 1
+     },
+     "new_test_files": {
+      "tests.test_marker_gate": {
+       "pass": 50,
+       "skip": 4
+      },
+      "tests.test_run_views": {
+       "pass": 17
+      }
+     },
+     "cited_cases": {
+      "tests.test_marker_gate::test_the_kit_command_line_writes_only_where_it_may[nested]": "pass",
+      "tests.test_marker_gate::test_the_kit_command_line_writes_only_where_it_may[both]": "pass",
+      "tests.test_marker_gate::test_a_marker_that_changes_during_a_run_refuses_what_comes_after": "pass",
+      "tests.test_marker_gate::test_a_journal_write_is_judged_again_under_the_lock": "pass",
+      "tests.test_marker_gate::test_a_run_is_judged_again_once_the_run_lock_is_held": "pass",
+      "tests.test_marker_gate::test_the_kit_refuses_an_odd_marker_below_a_project_from_where_the_launchers_stop[fifo]": "skip",
+      "tests.test_marker_gate::test_the_kit_refuses_an_odd_marker_below_a_project_from_where_the_launchers_stop[loop]": "skip",
+      "tests.test_marker_gate::test_the_kit_refuses_an_odd_marker_below_a_project_from_where_the_launchers_stop[dangling]": "skip",
+      "tests.test_run_views::test_a_lab_json_project_keeps_its_dataset_directories": "pass",
+      "tests.test_run_views::test_a_lab_json_project_reads_import_records_in_both_places": "pass",
+      "tests.test_marker_gate::test_an_analytics_json_that_names_no_format_may_be_the_person_s_own[pageviews,10\\n-True]": "pass",
+      "tests.test_marker_gate::test_an_analytics_json_that_names_no_format_may_be_the_person_s_own[[1, 2]-True]": "pass",
+      "tests.test_marker_gate::test_an_analytics_json_that_names_no_format_may_be_the_person_s_own[value2-True]": "pass",
+      "tests.test_marker_gate::test_an_analytics_json_that_names_no_format_may_be_the_person_s_own[value3-True]": "pass",
+      "tests.test_marker_gate::test_an_analytics_json_that_names_no_format_may_be_the_person_s_own[value4-False]": "pass",
+      "tests.test_marker_gate::test_an_analytics_json_that_names_no_format_may_be_the_person_s_own[value5-False]": "pass",
+      "tests.test_run_views::test_imported_data_takes_its_view_name_first": "pass",
+      "tests.test_relation_screens::test_the_context_history_of_both_state_directories_is_shown": "pass",
+      "tests.test_run_views::test_a_rerun_compares_the_same_ids_across_the_two_forms": "pass",
+      "tests.test_run_views::test_no_consumer_reads_a_run_s_charts_outside_the_two_views": "pass",
+      "tests.test_journal_append::test_concurrent_writers_after_a_cut_off_line_each_get_a_line_and_a_seq_of_their_own": "pass",
+      "tests.test_layers::test_the_shipped_code_keeps_its_layers": "pass"
+     }
+    },
+    "aelix_py3_12": {
+     "file": "aelix-py3.12.xml",
+     "file_sha256": "e28e6e5495d5e90f5ab7fa5a91ea3a169b34b9c4beccb38a2297fc8976758ecb",
+     "timestamp": "2026-10-08T06:02:12.998636+00:00",
+     "seconds": 52.619,
+     "counts": {
+      "pass": 162
+     },
+     "failed": [],
+     "skipped_by_reason": {},
+     "cited_cases": {
+      "tests.test_extension::test_the_extension_writes_only_where_the_kit_may[both]": "pass",
+      "tests.test_extension::test_the_extension_writes_only_where_the_kit_may[analytics_2]": "pass",
+      "tests.test_extension::test_the_extension_finds_the_nearest_marker_from_the_working_directory": "pass",
+      "tests.test_extension::test_a_run_reply_shows_both_record_forms_and_their_comparisons": "pass"
+     }
+    },
+    "aelix_py3_11": {
+     "file": "aelix-py3.11.xml",
+     "file_sha256": "63d3a8d8a971619ac62b10fc1b46439d0a03c856992fd1c82e145026e6a74fac",
+     "timestamp": "2026-10-08T06:03:25.691957+00:00",
+     "seconds": 57.047,
+     "counts": {
+      "pass": 162
+     },
+     "failed": [],
+     "skipped_by_reason": {},
+     "cited_cases": {
+      "tests.test_extension::test_the_extension_writes_only_where_the_kit_may[both]": "pass"
+     }
+    },
+    "launcher_py3_11": {
+     "file": "launcher-py3.11.xml",
+     "file_sha256": "f5c8e5fdb25a23a319f82aed0d5b34ab5f5ecf37d1a9ddaa8e4f24ab60051c05",
+     "timestamp": "2026-10-08T06:04:24.248745+00:00",
+     "seconds": 7.273,
+     "counts": {
+      "pass": 64,
+      "skip": 75
+     },
+     "failed": [],
+     "skipped_by_reason": {
+      "bin/analytics is a POSIX shell script": 45,
+      "a FIFO and the links are POSIX's here": 6,
+      "os.startfile would open a real program on Windows": 6,
+      "the links are POSIX's here, and os.startfile would open a real program on Windows": 6,
+      "SIGTERM from outside a process is POSIX": 3,
+      "a POSIX signal": 2,
+      "a shell's background job": 2,
+      "bytes that are not UTF-8 in the environment are POSIX's": 1,
+      "a terminal's process group; a Windows console's Ctrl+C is tests/test_windows_console.py's": 1,
+      "signal dispositions as POSIX inherits them": 1,
+      "a POSIX signal sent to one process": 1,
+      "a symbolic link to a program": 1
+     },
+     "cited_cases": {
+      "tests.test_launcher::test_the_nearest_marker_of_either_name_is_the_project[lab.json-analytics.json-bin/analytics]": "skip",
+      "tests.test_launcher::test_a_marker_that_is_no_regular_file_still_stops_the_search[fifo-launcher]": "skip",
+      "tests.test_launcher::test_a_marker_that_is_no_regular_file_still_stops_the_search[fifo-bin/analytics]": "skip",
+      "tests.test_launcher::test_a_marker_that_is_no_regular_file_still_stops_the_search[loop-launcher]": "skip",
+      "tests.test_launcher::test_a_marker_that_is_no_regular_file_still_stops_the_search[loop-bin/analytics]": "skip",
+      "tests.test_launcher::test_a_marker_that_is_no_regular_file_still_stops_the_search[dangling-launcher]": "skip",
+      "tests.test_launcher::test_a_marker_that_is_no_regular_file_still_stops_the_search[dangling-bin/analytics]": "skip",
+      "tests.test_launcher::test_open_refuses_a_directory_with_two_markers[launcher]": "skip",
+      "tests.test_launcher::test_open_refuses_a_directory_with_two_markers[bin/analytics]": "skip",
+      "tests.test_launcher::test_open_counts_a_marker_link_as_the_kit_does[dangling-beside-launcher]": "skip",
+      "tests.test_launcher::test_open_counts_a_marker_link_as_the_kit_does[dangling-beside-bin/analytics]": "skip",
+      "tests.test_launcher::test_open_counts_a_marker_link_as_the_kit_does[dangling-below-launcher]": "skip",
+      "tests.test_launcher::test_open_counts_a_marker_link_as_the_kit_does[dangling-below-bin/analytics]": "skip",
+      "tests.test_launcher::test_open_counts_a_marker_link_as_the_kit_does[loop-beside-launcher]": "skip",
+      "tests.test_launcher::test_open_counts_a_marker_link_as_the_kit_does[loop-beside-bin/analytics]": "skip"
+     }
+    },
+    "console": {
+     "file": "console.xml",
+     "file_sha256": "0b0cd4366a689fe5d7f419728314ecaaabc84dbd57a14a3d845824af1e81bc4c",
+     "timestamp": "2026-10-08T06:00:48.877036+00:00",
+     "seconds": 79.588,
+     "counts": {
+      "pass": 21
+     },
+     "failed": [],
+     "skipped_by_reason": {},
+     "cited_cases": {}
+    },
+    "long_paths_off": {
+     "file": "long-paths-off.xml",
+     "file_sha256": "131af0b9876a90611be3df86656161cfa9bd26c249d642f15a075de368cc600a",
+     "timestamp": "2026-10-08T06:04:33.505449+00:00",
+     "seconds": 2.83,
+     "counts": {
+      "pass": 6
+     },
+     "failed": [],
+     "skipped_by_reason": {},
+     "cited_cases": {}
+    }
+   },
+   "smoke": {
+    "sha256": "78efa45253fd3040908b0e9a2febd98f074a45d4a6016efa0958f691f4f10f7b",
+    "summary": {
+     "holds": 21,
+     "violated": 0,
+     "declared_limitation": 3,
+     "observed": 7,
+     "not_run": 0
+    },
+    "hold": true,
+    "declared_limitation": [
+     "kill_tree_after_the_leader_exited",
+     "cli_cancel_reaches_a_run_inside_a_regular_expression",
+     "cli_cancel_reaches_a_run_waiting_on_a_subprocess"
+    ],
+    "violated": [],
+    "not_run": []
+   },
+   "stdlib_smoke": {
+    "sha256": "b0147e805d3c5c253299a4b92b2e7407a9b6b1e25dd448045231d6c22cb65709",
+    "summary": {
+     "holds": 14,
+     "violated": 0,
+     "declared_limitation": 1,
+     "observed": 3,
+     "not_run": 2
+    },
+    "hold": true,
+    "declared_limitation": [
+     "kill_tree_after_the_leader_exited"
+    ],
+    "violated": [],
+    "not_run": []
+   },
+   "usage_report": {
+    "sha256": "88d1d2ce5ff7d29fc64eec765b607165399e9db33d6b250277dba0336fa1c590",
+    "required_facts": {
+     "passed": 58,
+     "total": 58
+    },
+    "invariants": {
+     "holding": 42,
+     "total": 42
+    },
+    "failures": []
+   },
+   "observations": {
+    "entry_points": {
+     "source": "evidence/issue-13-gate/ of the platform artifact (tests/test_marker_gate.py)",
+     "kit_cli": {
+      "analytics_2": {
+       "context": null,
+       "demo": "project_too_new",
+       "import": "project_too_new",
+       "query": null,
+       "record": "project_too_new",
+       "render": "project_too_new",
+       "run": "project_too_new",
+       "status": null
+      },
+      "analytics_2_too_old": {
+       "context": null,
+       "demo": "project_too_new",
+       "import": "project_too_new",
+       "query": null,
+       "record": "project_too_new",
+       "render": "project_too_new",
+       "run": "project_too_new",
+       "status": null
+      },
+      "analytics_3": {
+       "context": null,
+       "demo": "project_too_new",
+       "import": "project_too_new",
+       "query": null,
+       "record": "project_too_new",
+       "render": "project_too_new",
+       "run": "project_too_new",
+       "status": null
+      },
+      "analytics_invalid": {
+       "context": null,
+       "demo": "marker_invalid",
+       "import": "marker_invalid",
+       "query": null,
+       "record": "marker_invalid",
+       "render": "marker_invalid",
+       "run": "marker_invalid",
+       "status": null
+      },
+      "both": {
+       "context": "marker_conflict",
+       "demo": "marker_conflict",
+       "import": "marker_conflict",
+       "query": "marker_conflict",
+       "record": "marker_conflict",
+       "render": "marker_conflict",
+       "run": "marker_conflict",
+       "status": "marker_conflict"
+      },
+      "incomplete": {
+       "context": "no_project",
+       "demo": "no_project",
+       "import": "no_project",
+       "query": "no_project",
+       "record": "no_project",
+       "render": "no_project",
+       "run": "no_project",
+       "status": "no_project"
+      },
+      "lab_project_1": {
+       "context": null,
+       "demo": "demo_not_empty",
+       "import": null,
+       "query": null,
+       "record": null,
+       "render": null,
+       "run": null,
+       "status": null
+      },
+      "lab_project_9": {
+       "context": null,
+       "demo": "project_too_new",
+       "import": "project_too_new",
+       "query": null,
+       "record": "project_too_new",
+       "render": "project_too_new",
+       "run": "project_too_new",
+       "status": null
+      },
+      "lab_unparsable": {
+       "context": null,
+       "demo": "demo_not_empty",
+       "import": null,
+       "query": null,
+       "record": null,
+       "render": null,
+       "run": null,
+       "status": null
+      },
+      "nested": {
+       "context": null,
+       "demo": "project_too_new",
+       "import": "project_too_new",
+       "query": "query_failed",
+       "record": "project_too_new",
+       "render": "project_too_new",
+       "run": "project_too_new",
+       "status": null
+      },
+      "none": {
+       "context": "no_project",
+       "demo": "no_project",
+       "import": "no_project",
+       "query": "no_project",
+       "record": "no_project",
+       "render": "no_project",
+       "run": "no_project",
+       "status": "no_project"
+      }
+     },
+     "sdk_outside_a_run": {
+      "analytics_2": {
+       "record": "project_too_new",
+       "save": "project_too_new",
+       "visualize": "project_too_new"
+      },
+      "analytics_invalid": {
+       "record": "marker_invalid",
+       "save": "marker_invalid",
+       "visualize": "marker_invalid"
+      },
+      "both": {
+       "record": "marker_conflict",
+       "save": "marker_conflict",
+       "visualize": "marker_conflict"
+      },
+      "lab_project_1": {
+       "record": null,
+       "save": null,
+       "visualize": null
+      },
+      "nested": {
+       "record": "project_too_new",
+       "save": "project_too_new",
+       "visualize": "project_too_new"
+      }
+     },
+     "same_as_developer_machine": {
+      "kit_cli": true,
+      "sdk_outside_a_run": true
+     }
+    }
+   }
   },
   "macos_hosted": {
-   "state": "not_requested"
+   "run": "37733103204",
+   "attempt": 1,
+   "event": "pull_request (labeled)",
+   "label": "ci:macos",
+   "head": "c9183814243ee469aa8d06e245f1283eb69b7eb3",
+   "base": "e89f26536f155e2ab8ef69eb61e6637bfcf3996c",
+   "github_sha": "7add01281aeb4013501fada959e2e9b91e50c00a",
+   "jobs": {
+    "platform · macos-26": {
+     "id": 113166497474,
+     "conclusion": "success",
+     "started_at": "2026-10-08T05:35:08Z",
+     "completed_at": "2026-10-08T05:48:51Z"
+    },
+    "floor · macos-26 · CPython 3.11, stdlib only": {
+     "id": 113166497582,
+     "conclusion": "success",
+     "started_at": "2026-10-08T05:35:07Z",
+     "completed_at": "2026-10-08T05:35:37Z"
+    }
+   },
+   "runner": {
+    "image": "macos26 20260907.0351.1",
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "arch": "ARM64",
+    "python_development": "3.12.10",
+    "interpreters": {
+     "3.11": "3.11.9",
+     "3.12": "3.12.10"
+    },
+    "python_floor": "3.11.9"
+   },
+   "junit": {
+    "suite": {
+     "file": "suite.xml",
+     "file_sha256": "3967df35281c9d031eb7b5b71aaf40d24c6a793a2b67c005985a8d2402dedb9c",
+     "timestamp": "2026-10-08T05:36:29.806886+00:00",
+     "seconds": 638.324,
+     "counts": {
+      "skip": 41,
+      "pass": 1487
+     },
+     "failed": [],
+     "skipped_by_reason": {
+      "the Windows implementation runs on the Windows leg": 21,
+      "MAX_PATH and LongPathsEnabled are Windows'": 6,
+      "collection skipped": 2,
+      "a directory flagged case-sensitive is Windows'": 2,
+      "OSError(92, 'Illegal byte sequence')": 2,
+      "the recording implementation does not declare that it excludes other processes": 1,
+      "the recording implementation does not declare that it sees running processes": 1,
+      "the recording implementation does not declare that it interrupts a region": 1,
+      "M writes about 440 MB twice; set AELIX_ANALYTICS_TEST_SCALE_M=1": 1,
+      "what Windows does; POSIX sends it again (the test above)": 1,
+      "8.3 short names are Windows'": 1,
+      "taskkill and CreateProcess's search are Windows'": 1,
+      "before 3.14 a `with` calls __enter__ without a CALL, and no signal is handled between its ": 1
+     },
+     "new_test_files": {
+      "tests.test_marker_gate": {
+       "pass": 54
+      },
+      "tests.test_run_views": {
+       "pass": 17
+      }
+     },
+     "cited_cases": {
+      "tests.test_marker_gate::test_the_kit_command_line_writes_only_where_it_may[nested]": "pass",
+      "tests.test_marker_gate::test_the_kit_command_line_writes_only_where_it_may[both]": "pass",
+      "tests.test_marker_gate::test_a_marker_that_changes_during_a_run_refuses_what_comes_after": "pass",
+      "tests.test_marker_gate::test_a_journal_write_is_judged_again_under_the_lock": "pass",
+      "tests.test_marker_gate::test_a_run_is_judged_again_once_the_run_lock_is_held": "pass",
+      "tests.test_marker_gate::test_the_kit_refuses_an_odd_marker_below_a_project_from_where_the_launchers_stop[fifo]": "pass",
+      "tests.test_marker_gate::test_the_kit_refuses_an_odd_marker_below_a_project_from_where_the_launchers_stop[loop]": "pass",
+      "tests.test_marker_gate::test_the_kit_refuses_an_odd_marker_below_a_project_from_where_the_launchers_stop[dangling]": "pass",
+      "tests.test_run_views::test_a_lab_json_project_keeps_its_dataset_directories": "pass",
+      "tests.test_run_views::test_a_lab_json_project_reads_import_records_in_both_places": "pass",
+      "tests.test_marker_gate::test_an_analytics_json_that_names_no_format_may_be_the_person_s_own[pageviews,10\\n-True]": "pass",
+      "tests.test_marker_gate::test_an_analytics_json_that_names_no_format_may_be_the_person_s_own[[1, 2]-True]": "pass",
+      "tests.test_marker_gate::test_an_analytics_json_that_names_no_format_may_be_the_person_s_own[value2-True]": "pass",
+      "tests.test_marker_gate::test_an_analytics_json_that_names_no_format_may_be_the_person_s_own[value3-True]": "pass",
+      "tests.test_marker_gate::test_an_analytics_json_that_names_no_format_may_be_the_person_s_own[value4-False]": "pass",
+      "tests.test_marker_gate::test_an_analytics_json_that_names_no_format_may_be_the_person_s_own[value5-False]": "pass",
+      "tests.test_run_views::test_imported_data_takes_its_view_name_first": "pass",
+      "tests.test_relation_screens::test_the_context_history_of_both_state_directories_is_shown": "pass",
+      "tests.test_run_views::test_a_rerun_compares_the_same_ids_across_the_two_forms": "pass",
+      "tests.test_run_views::test_no_consumer_reads_a_run_s_charts_outside_the_two_views": "pass",
+      "tests.test_journal_append::test_concurrent_writers_after_a_cut_off_line_each_get_a_line_and_a_seq_of_their_own": "pass",
+      "tests.test_layers::test_the_shipped_code_keeps_its_layers": "pass"
+     }
+    },
+    "aelix_py3_12": {
+     "file": "aelix-py3.12.xml",
+     "file_sha256": "39dd320cb2795a6375c8a845af58d598a05cda4401b79a074d2f871b8a466053",
+     "timestamp": "2026-10-08T05:47:09.706536+00:00",
+     "seconds": 37.338,
+     "counts": {
+      "pass": 161
+     },
+     "failed": [],
+     "skipped_by_reason": {},
+     "cited_cases": {
+      "tests.test_extension::test_the_extension_writes_only_where_the_kit_may[both]": "pass",
+      "tests.test_extension::test_the_extension_writes_only_where_the_kit_may[analytics_2]": "pass",
+      "tests.test_extension::test_the_extension_finds_the_nearest_marker_from_the_working_directory": "pass",
+      "tests.test_extension::test_a_run_reply_shows_both_record_forms_and_their_comparisons": "pass"
+     }
+    },
+    "aelix_py3_11": {
+     "file": "aelix-py3.11.xml",
+     "file_sha256": "acf24a1dedfa5e58309a5d4b91be29afa71e07b499ce572fdf80a40c795d5f54",
+     "timestamp": "2026-10-08T05:47:54.473224+00:00",
+     "seconds": 31.942,
+     "counts": {
+      "pass": 161
+     },
+     "failed": [],
+     "skipped_by_reason": {},
+     "cited_cases": {
+      "tests.test_extension::test_the_extension_writes_only_where_the_kit_may[both]": "pass"
+     }
+    },
+    "launcher_py3_11": {
+     "file": "launcher-py3.11.xml",
+     "file_sha256": "ce249c7a8e303eda2e85af2b7a236f9bc645321a98c2ed8ac86964768a53e955",
+     "timestamp": "2026-10-08T05:48:26.847173+00:00",
+     "seconds": 10.311,
+     "counts": {
+      "pass": 138,
+      "skip": 1
+     },
+     "failed": [],
+     "skipped_by_reason": {
+      "what Windows does; POSIX sends it again (the test above)": 1
+     },
+     "cited_cases": {
+      "tests.test_launcher::test_the_nearest_marker_of_either_name_is_the_project[lab.json-analytics.json-bin/analytics]": "pass",
+      "tests.test_launcher::test_a_marker_that_is_no_regular_file_still_stops_the_search[fifo-launcher]": "pass",
+      "tests.test_launcher::test_a_marker_that_is_no_regular_file_still_stops_the_search[fifo-bin/analytics]": "pass",
+      "tests.test_launcher::test_a_marker_that_is_no_regular_file_still_stops_the_search[loop-launcher]": "pass",
+      "tests.test_launcher::test_a_marker_that_is_no_regular_file_still_stops_the_search[loop-bin/analytics]": "pass",
+      "tests.test_launcher::test_a_marker_that_is_no_regular_file_still_stops_the_search[dangling-launcher]": "pass",
+      "tests.test_launcher::test_a_marker_that_is_no_regular_file_still_stops_the_search[dangling-bin/analytics]": "pass",
+      "tests.test_launcher::test_open_refuses_a_directory_with_two_markers[launcher]": "pass",
+      "tests.test_launcher::test_open_refuses_a_directory_with_two_markers[bin/analytics]": "pass",
+      "tests.test_launcher::test_open_counts_a_marker_link_as_the_kit_does[dangling-beside-launcher]": "pass",
+      "tests.test_launcher::test_open_counts_a_marker_link_as_the_kit_does[dangling-beside-bin/analytics]": "pass",
+      "tests.test_launcher::test_open_counts_a_marker_link_as_the_kit_does[dangling-below-launcher]": "pass",
+      "tests.test_launcher::test_open_counts_a_marker_link_as_the_kit_does[dangling-below-bin/analytics]": "pass",
+      "tests.test_launcher::test_open_counts_a_marker_link_as_the_kit_does[loop-beside-launcher]": "pass",
+      "tests.test_launcher::test_open_counts_a_marker_link_as_the_kit_does[loop-beside-bin/analytics]": "pass"
+     }
+    }
+   },
+   "smoke": {
+    "sha256": "2c9b11fd96741c77ff1ce0a576cf180beae6bf4556c792ce8ee1329ecccd468e",
+    "summary": {
+     "holds": 25,
+     "violated": 0,
+     "declared_limitation": 0,
+     "observed": 6,
+     "not_run": 0
+    },
+    "hold": true,
+    "declared_limitation": [],
+    "violated": [],
+    "not_run": []
+   },
+   "stdlib_smoke": {
+    "sha256": "fc93f87116bbe47a57ebb1069ad2acfa3e4cf33bdc8cebf61b94df23b53ed847",
+    "summary": {
+     "holds": 15,
+     "violated": 0,
+     "declared_limitation": 0,
+     "observed": 3,
+     "not_run": 2
+    },
+    "hold": true,
+    "declared_limitation": [],
+    "violated": [],
+    "not_run": []
+   },
+   "usage_report": {
+    "sha256": "d71f5c60c2249cdf3041fbe4732515d7ee76b9fea691d3b9d6629f721741c0e2",
+    "required_facts": {
+     "passed": 58,
+     "total": 58
+    },
+    "invariants": {
+     "holding": 42,
+     "total": 42
+    },
+    "failures": []
+   },
+   "observations": {
+    "entry_points": {
+     "source": "evidence/issue-13-gate/ of the platform artifact (tests/test_marker_gate.py)",
+     "kit_cli": {
+      "analytics_2": {
+       "context": null,
+       "demo": "project_too_new",
+       "import": "project_too_new",
+       "query": null,
+       "record": "project_too_new",
+       "render": "project_too_new",
+       "run": "project_too_new",
+       "status": null
+      },
+      "analytics_2_too_old": {
+       "context": null,
+       "demo": "project_too_new",
+       "import": "project_too_new",
+       "query": null,
+       "record": "project_too_new",
+       "render": "project_too_new",
+       "run": "project_too_new",
+       "status": null
+      },
+      "analytics_3": {
+       "context": null,
+       "demo": "project_too_new",
+       "import": "project_too_new",
+       "query": null,
+       "record": "project_too_new",
+       "render": "project_too_new",
+       "run": "project_too_new",
+       "status": null
+      },
+      "analytics_invalid": {
+       "context": null,
+       "demo": "marker_invalid",
+       "import": "marker_invalid",
+       "query": null,
+       "record": "marker_invalid",
+       "render": "marker_invalid",
+       "run": "marker_invalid",
+       "status": null
+      },
+      "both": {
+       "context": "marker_conflict",
+       "demo": "marker_conflict",
+       "import": "marker_conflict",
+       "query": "marker_conflict",
+       "record": "marker_conflict",
+       "render": "marker_conflict",
+       "run": "marker_conflict",
+       "status": "marker_conflict"
+      },
+      "incomplete": {
+       "context": "no_project",
+       "demo": "no_project",
+       "import": "no_project",
+       "query": "no_project",
+       "record": "no_project",
+       "render": "no_project",
+       "run": "no_project",
+       "status": "no_project"
+      },
+      "lab_project_1": {
+       "context": null,
+       "demo": "demo_not_empty",
+       "import": null,
+       "query": null,
+       "record": null,
+       "render": null,
+       "run": null,
+       "status": null
+      },
+      "lab_project_9": {
+       "context": null,
+       "demo": "project_too_new",
+       "import": "project_too_new",
+       "query": null,
+       "record": "project_too_new",
+       "render": "project_too_new",
+       "run": "project_too_new",
+       "status": null
+      },
+      "lab_unparsable": {
+       "context": null,
+       "demo": "demo_not_empty",
+       "import": null,
+       "query": null,
+       "record": null,
+       "render": null,
+       "run": null,
+       "status": null
+      },
+      "nested": {
+       "context": null,
+       "demo": "project_too_new",
+       "import": "project_too_new",
+       "query": "query_failed",
+       "record": "project_too_new",
+       "render": "project_too_new",
+       "run": "project_too_new",
+       "status": null
+      },
+      "none": {
+       "context": "no_project",
+       "demo": "no_project",
+       "import": "no_project",
+       "query": "no_project",
+       "record": "no_project",
+       "render": "no_project",
+       "run": "no_project",
+       "status": "no_project"
+      }
+     },
+     "sdk_outside_a_run": {
+      "analytics_2": {
+       "record": "project_too_new",
+       "save": "project_too_new",
+       "visualize": "project_too_new"
+      },
+      "analytics_invalid": {
+       "record": "marker_invalid",
+       "save": "marker_invalid",
+       "visualize": "marker_invalid"
+      },
+      "both": {
+       "record": "marker_conflict",
+       "save": "marker_conflict",
+       "visualize": "marker_conflict"
+      },
+      "lab_project_1": {
+       "record": null,
+       "save": null,
+       "visualize": null
+      },
+      "nested": {
+       "record": "project_too_new",
+       "save": "project_too_new",
+       "visualize": "project_too_new"
+      }
+     },
+     "same_as_developer_machine": {
+      "kit_cli": true,
+      "sdk_outside_a_run": true
+     }
+    }
+   }
   }
  },
  "developer_machine": {
@@ -1469,13 +2614,12 @@
   "note": "the last record of a record-format change; this one measures a gate and readers, not path identity"
  },
  "not_run": [
-  "the repository CI (Linux, Windows; macOS by label): pending until the PR is opened",
   "Windows: the marker read again while another process replaces it (design 11.4) — only simulated (a monkeypatched open); the Windows leg runs the matrix",
-  "AELIX_ANALYTICS_TEST_INSTALL=1 (the installed distribution end to end)",
+  "AELIX_ANALYTICS_TEST_INSTALL=1 (the installed distribution end to end) on the developer machine; the three CI legs ran it",
   "a real aelix session with a model; the hooks were called directly",
   "the M scale (#41) for the gate: its cost is per write, measured above at 1,000 journal lines",
   "the real uv with a cold cache or offline: the probe ran with a warm cache",
-  "bin/analytics's `open` on Linux and its link chains of 33 to 40 links there; a marker in a directory that cannot be searched",
+  "the marker-rule parity check (kit, both launchers, sh and dash) on Linux, including link chains of 33 to 40 links; a marker in a directory that cannot be searched. bin/analytics's `open` test cases (test_open_refuses_a_directory_with_two_markers, test_open_counts_a_marker_link_as_the_kit_does) passed on the CI Linux leg",
   "a Linux casefold directory, network file systems"
  ]
 }
