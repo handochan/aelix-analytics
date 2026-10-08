@@ -15,6 +15,27 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 없음. 병합된 변경은 그 PR이 병합될 때의 kit 번호 절에 적고, kit 번호를 올리는 PR은 새 절을 엽니다
 ([기여 가이드](CONTRIBUTING.md#첫-공개-전에-남은-운영-결정)).
 
+## [0.7.0] - 2026-10-08
+
+번호를 붙인 PR은 [#13]의 첫 구현 PR(①, 표식 판정과 쓰기 게이트)입니다.
+
+### Changed
+
+- 프로젝트를 `analytics.json`과 `lab.json` 가운데 가장 가까운 표식으로 찾습니다(kit CLI, SDK, `analytics`, `bin/analytics`, aelix 확장).
+  `lab.json` 프로젝트 아래의 `analytics.json` 디렉터리에서 부른 명령은 더 이상 위쪽 프로젝트에 쓰지 않습니다 ([#13]).
+- 이 kit은 `lab.json`(`lab.project/1`) 프로젝트에만 씁니다. 새 형식(`analytics.json`, `analytics.project/2`)·모르는 형식의 표식은
+  `project_too_new`, 표식이 아닌 `analytics.json`이나 읽지 못하는 표식은 새 오류 `marker_invalid`, 두 표식은 새 오류 `marker_conflict`로
+  쓰기를 첫 부수 효과 전에 거절하고 프로젝트를 바꾸지 않습니다. 읽기는 두 표식만 거절하고, 쓰지 않는 프로젝트에서는 맥락 동기화·캐시·
+  `queries.jsonl`·`telemetry.jsonl`·Workspace 렌더 예약을 건너뜁니다. 모르는 표식의 프로젝트도 이제 읽습니다(전에는 읽기도 거절) ([#13]).
+- `status` JSON에 표식의 판정(`project.marker`·`format`·`writable`·`write_refusal`)과 `writes_skipped`가 생기고, 쓰지 않는 프로젝트의 글과
+  맥락 블록이 `read only:` 줄로 시작합니다. `not_listed`는 없어졌습니다 ([#13]).
+- `analytics.event/2` 기록이 목록·맥락 블록·Workspace에 `lab.event/1` 기록과 함께 seq 순서로 보입니다 ([#13]).
+- 새 writer가 쓸 `analytics.run/2`(Visualization `visualizations[]`·`visualization_id`·`sha256`, `reproduction.visualizations`)와
+  `analytics.dataset/1`(`data/imported/`)을 읽고, 두 run 형식의 Visualization과 재실행 비교를 모든 화면과 재실행 비교에서 같게 읽습니다.
+  읽기 규칙 번호가 2가 되어 `source_revision` 값이 바뀝니다 ([#13]).
+
+기록의 형식과 값은 그대로입니다. 자세한 것은 [현재 계약](docs/CONTRACTS.md) B·D와 F1의 0.7.0 절에 있습니다.
+
 ## [0.6.0] - 2026-10-08
 
 번호를 붙인 PR은 [#13]의 첫 구현 PR(⓪, 내부 이름)인 [#79]입니다.

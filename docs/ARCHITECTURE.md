@@ -172,7 +172,7 @@ Protocol 타입 검사만으로 이 계약이 보장되지는 않는다. schema 
 CLI·HTML·에이전트 응답은 이 읽기 모델을 사용하므로, 화면만 최신 정의를 쓰거나 모델만 다른 근거를 받는 일이 없어야 한다.
 공통 기록 계약(정체성·참조와 해석 상태·읽기 기준·저장 완료)은 [ADR-0006](decisions/0006-common-record-contract.md)이 정했다.
 정본을 먼저 확정하고 journal의 완료 이벤트를 마지막에 쓰며, 실행·기록·표시 상태를 따로 둔다.
-이 응용 경로인 #13의 공통 writer와 원본 보존 프로젝트 전환은 [기록 writer와 프로젝트 전환 설계](design/RECORD-WRITER-AND-MIGRATION.md)(#13, Proposed, 현재 코드 아님)가 제안한다.
+이 응용 경로인 #13의 공통 writer와 원본 보존 프로젝트 전환은 [기록 writer와 프로젝트 전환 설계](design/RECORD-WRITER-AND-MIGRATION.md)(#13, Proposed)가 제안한다. 첫 구현 PR(①, kit 0.7.0)은 그 가운데 표식 판정과 모든 쓰기 진입점의 게이트, 작성 출처 `Origin`의 전달, 새 기록 가족의 읽기를 구현했다(모듈 `writer`, §11). 새 writer와 전환은 아직 코드가 아니다.
 
 검색·관계 인덱스는 원본과 별도 수명을 가진다. 삭제·교체·재구축해도 분석 기록이 사라지지 않는다.
 읽기 모델 재생성은 Python 분석·외부 API 호출·publish의 재실행을 뜻하지 않는다.
