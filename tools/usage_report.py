@@ -19,7 +19,7 @@ guidelines aelix renders from it (S2), its tool definitions as aelix's openai-co
 converts them (S3), and the replies of its tools, its /analytics record command and its errors (S4-S10).
 The kit command behind analytics_run, analytics_query and analytics_import is not started: `run_kit` returns a result
 made with the kit's own functions (runner._tail for the log tails, data.cell for query cells,
-report.build for the run page — a reduced build, without the analysis libraries).
+workspace.build for the run page — a reduced build, without the analysis libraries).
 AELIX_ANALYTICS_TRUST_FILE and AELIX_ANALYTICS_UV point into the temporary directory, so no trust list or uv
 outside it is touched.
 
@@ -412,9 +412,9 @@ def load_kit() -> SimpleNamespace:
     """The checkout's kit, for the functions the kit command would have run (stdlib at import)."""
     if str(KIT) not in sys.path:
         sys.path.insert(0, str(KIT))
-    from aelix_analytics import core, data, report, runner
+    from aelix_analytics import core, data, runner, workspace
 
-    return SimpleNamespace(core=core, data=data, report=report, runner=runner)
+    return SimpleNamespace(core=core, data=data, runner=runner, workspace=workspace)
 
 
 @dataclass
@@ -2045,11 +2045,11 @@ def build_f3(ctx: Ctx, spec: Spec, root: Path | None = None) -> SimpleNamespace:
                     code=F3_SCRIPT, inputs=inputs, outputs=outputs, charts=charts, stdout=stdout,
                     stderr=stderr)
     record = run["record"]
-    built = kit.report.build(kit.core.Project(project.root))
+    built = kit.workspace.build(kit.core.Project(project.root))
     kit_result = {"ok": True, "run": record, "event": run["event"],
                   "stdout_tail": kit.runner._tail(run["dir"] / "stdout.txt"),
                   "stderr_tail": kit.runner._tail(run["dir"] / "stderr.txt"),
-                  "page": f"report/runs/{run_id}.html", "report": built}
+                  "page": f"report/runs/{run_id}.html", "workspace": built}
     sorted_inputs = record["inputs"]
     run_json = run["dir"] / "run.json"
     facts = {f"input-{i:03d}": fact_of(spec, f"input-{i:03d}", (
@@ -2627,7 +2627,7 @@ def measure_baseline(ctx: Ctx, spec: Spec) -> None:
     host = ctx.host
     target = project.root.parent / "made-by-lab-init"
     host.use(None)
-    host.kit_results.append((True, {"ok": True, "report": {"path": "report/index.html"}}))
+    host.kit_results.append((True, {"ok": True, "workspace": {"path": "report/index.html"}}))
     reply = host.tool("init", {"path": str(target), "title": "새 분석", "goal": "측정"})
     host.use(None)
     ctx.text(spec.id, "S9", reply.text, root=Path(os.path.realpath(target)),

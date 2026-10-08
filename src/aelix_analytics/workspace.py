@@ -1,4 +1,4 @@
-"""Static HTML report generated from the project files (never edited by hand).
+"""The Workspace: static HTML generated from the project files (never edited by hand).
 
 report/index.html        overview · charts · timeline · data · runs · context · evaluation
 report/runs/<id>.html    one run: charts with plotted data, code, inputs (with freshness), outputs,
@@ -27,6 +27,9 @@ from urllib.parse import quote
 from . import _platform, core, relations
 
 ASSETS = resources.files(__package__) / "assets"
+# The names the Workspace's own assets had before kit 0.6.0 (workspace.css and workspace.js since):
+# a build removes them from a Workspace an earlier kit rendered.
+OLD_ASSETS = ("report.css", "report.js")
 PLOTLY_EMBED_LIMIT = 3_000_000
 LOG_LIMIT = 200_000
 # A run over hundreds of files would otherwise bury the timeline and its own page in paths.
@@ -569,7 +572,7 @@ class Site:
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{esc(title)} · {esc(self.p.title())}</title>
-<link rel="stylesheet" href="{root}assets/report.css{v}">
+<link rel="stylesheet" href="{root}assets/workspace.css{v}">
 <link rel="stylesheet" href="{root}assets/code.css{v}">
 </head>
 <body class="page-{kind}">
@@ -580,7 +583,7 @@ class Site:
 <main>{body}</main>
 <footer>Aelix Analytics {core.KIT_VERSION} · Generated from the run records, the journal and CONTEXT.md — do not edit by hand. · <span class="read-basis">Read at {esc(self.read_footer())}</span></footer>
 {plotly}
-<script src="{root}assets/report.js{v}"></script>
+<script src="{root}assets/workspace.js{v}"></script>
 </body>
 </html>
 """
@@ -613,22 +616,22 @@ def fingerprint(project: core.Project) -> str:
 
 
 def build(project: core.Project, *, if_changed: bool = False) -> dict:
-    """Build the report. Builds are serialized per project; a waiting --if-changed build rechecks
+    """Build the Workspace. Builds are serialized per project; a waiting --if-changed build rechecks
     the fingerprint after the lock, so queued triggers collapse into one build."""
-    with project.platform.locks.exclusive(project.lab / "report.lock"):
+    with project.platform.locks.exclusive(project.state_dir / "report.lock"):
         return _build_locked(project, if_changed)
 
 
 def _build_locked(project: core.Project, if_changed: bool) -> dict:
     stamp_file = project.cache / "report-fingerprint"
     current = fingerprint(project)
-    index = project.report / "index.html"
+    index = project.workspace_dir / "index.html"
     if if_changed and index.is_file():
         with contextlib.suppress(OSError):
             if stamp_file.read_text(encoding="utf-8").strip() == current:
                 return {"path": str(index), "skipped": True}
     site = Site(project)
-    out = project.report
+    out = project.workspace_dir
     (out / "runs").mkdir(parents=True, exist_ok=True)
     (out / "data").mkdir(parents=True, exist_ok=True)
     _write_assets(site, out)
@@ -646,7 +649,10 @@ def _build_locked(project: core.Project, if_changed: bool) -> dict:
     pages += 2
     _prune(out / "runs", {f"{r['id']}.html" for r in site.runs})
     _prune(out / "data", {f"{v}.html" for v in site.views})
-    core.write_text(out / "assets" / "build.js", f'window.__LAB_BUILD__ = "{site.build}";\n')
+    for name in OLD_ASSETS:  # after the pages: none of them loads these any more
+        with contextlib.suppress(OSError):
+            (out / "assets" / name).unlink()
+    core.write_text(out / "assets" / "build.js", f'window.__ANALYTICS_BUILD__ = "{site.build}";\n')
     site.cache.save()
     project.cache.mkdir(parents=True, exist_ok=True)
     core.write_text(stamp_file, current)
@@ -671,11 +677,11 @@ def _prune(directory: Path, keep: set[str]) -> None:
 def _write_assets(site: Site, out: Path) -> None:
     assets = out / "assets"
     assets.mkdir(parents=True, exist_ok=True)
-    for name in ("report.css", "report.js"):
+    for name in ("workspace.css", "workspace.js"):
         with resources.as_file(ASSETS / name) as source:
             shutil.copyfile(source, assets / name)
     code_css = assets / "code.css"
-    with resources.as_file(ASSETS / "report.css") as css:
+    with resources.as_file(ASSETS / "workspace.css") as css:
         stale = not code_css.is_file() or code_css.stat().st_mtime < css.stat().st_mtime
     if stale:
         with contextlib.suppress(Exception):

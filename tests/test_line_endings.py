@@ -270,20 +270,20 @@ def test_charts_and_the_workspace_are_lf(tmp_path):
     assert b"\r" not in (charts / "plotly-chart.plotly.json").read_bytes()
     code, rendered = kit_cli(project.root, "render")
     assert code == 0 and rendered["ok"], rendered
-    written = sorted(p for p in project.report.rglob("*") if p.is_file())
-    assert {"index.html", "context.html", f"{run_id}.html", "build.js", "code.css", "report.css",
-            "report.js", "plotly.min.js"} <= {p.name for p in written}
+    written = sorted(p for p in project.workspace_dir.rglob("*") if p.is_file())
+    assert {"index.html", "context.html", f"{run_id}.html", "build.js", "code.css", "workspace.css",
+            "workspace.js", "plotly.min.js"} <= {p.name for p in written}
     with_cr = [p.relative_to(project.root).as_posix() for p in written
                if p.name != "plotly.min.js" and b"\r" in p.read_bytes()]
     assert not with_cr, with_cr
-    assert re.fullmatch(rb'window\.__LAB_BUILD__ = "[0-9-]+";\n',
-                        (project.report / "assets" / "build.js").read_bytes())
+    assert re.fullmatch(rb'window\.__ANALYTICS_BUILD__ = "[0-9-]+";\n',
+                        (project.workspace_dir / "assets" / "build.js").read_bytes())
     import plotly
 
     shipped = Path(plotly.__file__).parent / "package_data" / "plotly.min.js"
-    assert (project.report / "assets" / "plotly.min.js").read_bytes() == shipped.read_bytes()
+    assert (project.workspace_dir / "assets" / "plotly.min.js").read_bytes() == shipped.read_bytes()
     assert b"\r" not in (project.cache / "report-fingerprint").read_bytes()
-    run_page = (project.report / "runs" / f"{run_id}.html").read_text(encoding="utf-8")
+    run_page = (project.workspace_dir / "runs" / f"{run_id}.html").read_text(encoding="utf-8")
     assert "a log line with a CR\n" in run_page
     record_observation("workspace", {"files": len(written), "html_chart": sha(HTML_CHART),
                                      "altair_chart": sha(ALTAIR_CHART)})
@@ -466,10 +466,10 @@ def test_line_endings_only_reaches_status_and_the_workspace(tmp_path):
     assert "script edited since (line endings only)" in core.status_text(st)
     code, rendered = kit_cli(project.root, "render")
     assert code == 0, rendered
-    page = (project.report / "runs" / f"{run_id}.html").read_text(encoding="utf-8")
+    page = (project.workspace_dir / "runs" / f"{run_id}.html").read_text(encoding="utf-8")
     assert "Line endings only" in page and '<span lang="">data/in.csv</span> (line endings only)' in page
     assert "Current file edited (line endings only)" in page
-    index = (project.report / "index.html").read_text(encoding="utf-8")
+    index = (project.workspace_dir / "index.html").read_text(encoding="utf-8")
     assert "data/in.csv (line endings only)" in index
 
     data.write_bytes(CRLF_TABLE + b"daegu,5\r\n")

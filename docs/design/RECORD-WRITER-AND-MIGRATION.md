@@ -1168,9 +1168,9 @@ ADR-0005 결정 7은 이름 변경·파일 이동·기록 의미 변경을 한 P
 | `schedule_report` | 코드 | `schedule_workspace_render` | ⓪ | |
 | CLI JSON 키 `report` | 공개 JSON | `workspace` | ⓪ | 용어집 §5 "겹친 필드는 `workspace`로". #9-1 인계 댓글이 "먼저 그 응답을 바꾸는 쪽"에 맡김. `KIT_VERSION`·CHANGELOG. 값은 ③까지 `report/…` |
 | `report.js`·`report.css` | 자원 | `workspace.js`·`workspace.css` | ⓪ | 렌더가 옛 자원 이름을 지움 |
-| `localStorage` `lab-live`·`lab-scroll:` | 브라우저 저장 | `analytics-live`·`analytics-scroll:` | ⓪ | 새 키가 없으면 옛 키 값을 한 번 읽어 새 키에 씀. 옛 키는 지우지 않음(옛 kit의 Workspace가 읽음) |
+| `localStorage` `lab-live`, `sessionStorage` `lab-scroll:` | 브라우저 저장 | `analytics-live`·`analytics-scroll:` | ⓪ | 새 키가 없으면 옛 키 값을 한 번 읽어 새 키에 씀. 옛 키는 지우지 않음(옛 kit의 Workspace가 읽음). 한 번 쓰고 지우던 스크롤 위치는 쓴 뒤 새 키를 비워 두어 옛 키를 다시 읽지 않음(⓪에서 확인) |
 | `window.__LAB_BUILD__` | 코드 | `window.__ANALYTICS_BUILD__` | ⓪ | `build.js`와 `tests/test_line_endings.py` |
-| plotly 템플릿 `lab` | 코드 | `analytics`(`plotly_white+analytics`) | ⓪(조건부) | 템플릿 이름이 저장하는 그림 JSON에 들어가는지 확인하지 않았다. ⓪의 시험이 기존 바이트를 고정하고, 들어가면 저장 값이므로 ③으로 옮긴다 |
+| plotly 템플릿 `lab` | 코드 | `analytics`(`plotly_white+analytics`) | ⓪(조건부) | 템플릿 이름이 저장하는 그림 JSON에 들어가는지 확인하지 않았다. ⓪의 시험이 기존 바이트를 고정하고, 들어가면 저장 값이므로 ③으로 옮긴다. ⓪에서 확인: 그림 JSON은 템플릿의 내용만 담고 이름은 담지 않아 바이트가 같다(`tests/test_kit.py`의 시험) |
 | `__lab_wrapped__` | 코드 | `__analytics_wrapped__` | ⓪ | |
 | `LAB_API` | 시험 상수 | `ANALYTICS_API` | ⓪ | 공개 설정으로 올리지 않음(용어집 §3) |
 | `core.NOTE_KINDS` | 코드 | `writer.RECORD_KINDS` | ③ | 개명이 아니라 새 writer의 목록(2.8절) |

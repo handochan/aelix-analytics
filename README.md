@@ -91,9 +91,9 @@ aelix 안에서: `/analytics`(현황) · `/analytics open`(리포트) · "지역
 배포본은 아직 어디에도 게시하지 않았으므로 체크아웃에서 직접 만듭니다.
 
 ```sh
-cd $PACK && uv build                                   # dist/aelix_analytics-0.5.0-py3-none-any.whl
-uv tool install --python 3.12 dist/aelix_analytics-0.5.0-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
-uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.5.0-py3-none-any.whl   # aelix와 함께
+cd $PACK && uv build                                   # dist/aelix_analytics-0.6.0-py3-none-any.whl
+uv tool install --python 3.12 dist/aelix_analytics-0.6.0-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
+uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.6.0-py3-none-any.whl   # aelix와 함께
 ```
 
 - `analytics`는 체크아웃의 `bin/analytics`와 같은 명령·인자·usage(바이트까지 같음)를 쓰고 kit의 출력을 바이트 그대로 넘깁니다
@@ -419,7 +419,7 @@ src/aelix_analytics/          kit이자 배포본의 package. src/가 자식에�
   _platform.py                플랫폼별 잠금·교체·프로세스·run 중단 — stdlib만 (core와 함께 로드)
   relations.py                기록의 관계·해석 상태·상태 재생 읽기 모델(ADR-0006) — stdlib만 (core가 status·리포트에 씀)
   runner.py  capture.py       run 실행과 기록, 입력·차트 캡처 훅
-  data.py    report.py        import·프로파일·쿼리, HTML 리포트 (+ assets/)
+  data.py    workspace.py     import·프로파일·쿼리, Workspace HTML (+ assets/)
   demo.py                     데모 데이터·run (+ demo_scripts/)    template/  새 프로젝트 파일
   cli.py  _install.py         `analytics` 런처, 설치된 실행 루트 찾기    aelix-plugin.toml  manifest
 extension/aelix_analytics.py  aelix 확장 (stdlib + aelix API, 실행 루트의 core·_platform·relations를 경로로 로드; 설치본의 aelix_analytics/extension.py)

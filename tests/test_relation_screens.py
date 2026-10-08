@@ -1,7 +1,7 @@
 """The screens show relations as the read model judges them (Issue #12 PR-2).
 
 analytics_status's overview (core.status and core.status_text, which `/analytics status` and the
-kit's `status` give too) and the Workspace (report.build) read the records once through
+kit's `status` give too) and the Workspace (workspace.build) read the records once through
 relations.read, so they name the same targets by the same identifiers and say which read they were
 made from (as_of_seq, source_revision). The projects are lab.json projects written record by record
 (tests/legacy_records.py), so each case states exactly which records exist.
@@ -18,7 +18,7 @@ from types import SimpleNamespace
 import pytest
 from legacy_records import LegacyProject, at
 
-from aelix_analytics import core, relations, report
+from aelix_analytics import core, relations, workspace
 
 READ_TEXT = re.compile(r"^read: as_of_seq (\d+) · source_revision ([0-9a-f]{16})$", re.M)
 READ_HTML = re.compile(r"Read at as_of_seq (\d+) · source_revision ([0-9a-f]{16})")
@@ -36,9 +36,9 @@ def overview(p: LegacyProject) -> tuple[dict, str]:
 def built(p: LegacyProject) -> dict[str, str]:
     """The Workspace's pages, by path under report/."""
     project = project_of(p)
-    report.build(project)
-    return {path.relative_to(project.report).as_posix(): path.read_text(encoding="utf-8")
-            for path in project.report.rglob("*.html")}
+    workspace.build(project)
+    return {path.relative_to(project.workspace_dir).as_posix(): path.read_text(encoding="utf-8")
+            for path in project.workspace_dir.rglob("*.html")}
 
 
 def evidence_project(tmp_path) -> SimpleNamespace:
@@ -236,7 +236,7 @@ def test_stale_follows_every_candidate_and_not_one_that_started_later(tmp_path):
 
 def _card(page: str, key: str) -> str:
     """A chart's card in the gallery."""
-    start = page.index(f'id="chart-{report.slug_key(key)}"')
+    start = page.index(f'id="chart-{workspace.slug_key(key)}"')
     return page[start:page.index("</article>", start)]
 
 
@@ -407,8 +407,8 @@ def test_a_read_that_keeps_changing_is_said_on_both_screens(tmp_path):
     assert st["updating"] is True
     assert "· updating: the records changed while they were read (read three times)" in \
         core.status_text(st)
-    report.build(project)
-    index = (project.report / "index.html").read_text(encoding="utf-8")
+    workspace.build(project)
+    index = (project.workspace_dir / "index.html").read_text(encoding="utf-8")
     assert "· updating: the records changed while they were read</span></footer>" in index
     assert "<strong>Updating:</strong> the records changed while they were read" in index
 
@@ -625,7 +625,7 @@ def test_the_workspace_marks_what_it_reads_through_an_older_kit_s_path(tmp_path,
     pages = built(case.p)
     # The cited key's versions found through the older kit's script spelling: their count beside the
     # kit's English title, not the versions (Visualization ids people wrote) in it (#10).
-    assert (f'<small class="ref-note" title="{report.esc(report.INFERRED_TITLE)}">1 inferred from an '
+    assert (f'<small class="ref-note" title="{workspace.esc(workspace.INFERRED_TITLE)}">1 inferred from an '
             "older kit&#x27;s path</small>") in pages["index.html"]
     consumer = pages[f"runs/{case.consumer}.html"]
     inputs = consumer.split('id="inputs"', 1)[1].split("</section>", 1)[0]
@@ -651,7 +651,7 @@ def test_the_workspace_marks_what_it_reads_through_an_older_kit_s_path(tmp_path,
     assert ('id <code lang="">scripts/plot.py::trend</code> <small class="ref-note"' in maker
             and 'recorded as <code lang="">Scripts/Plot.py::trend</code> — inferred from an older kit&#x27;s path'
             in maker)
-    assert f'index.html#chart-{report.slug_key("scripts/plot.py::trend")}' in maker
+    assert f'index.html#chart-{workspace.slug_key("scripts/plot.py::trend")}' in maker
     assert records_of(case.p.root) == before, "the Workspace rewrites no record"
 
 

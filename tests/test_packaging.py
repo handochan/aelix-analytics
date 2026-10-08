@@ -129,8 +129,8 @@ def test_the_wheel_holds_the_package_and_nothing_else(dist):
         "build from a clean checkout")
     for name in ("kit/aelix_analytics/template/CONTEXT.md", "kit/aelix_analytics/template/gitignore",
                  "kit/aelix_analytics/template/gitattributes",
-                 "kit/aelix_analytics/template/pyproject.toml", "kit/aelix_analytics/assets/report.css",
-                 "kit/aelix_analytics/assets/report.js",
+                 "kit/aelix_analytics/template/pyproject.toml", "kit/aelix_analytics/assets/workspace.css",
+                 "kit/aelix_analytics/assets/workspace.js",
                  "kit/aelix_analytics/demo_scripts/01_monthly_revenue.py",
                  "kit/aelix_analytics/__main__.py", "kit/aelix_analytics/core.py", "__main__.py",
                  "aelix-plugin.toml", "extension.py", "cli.py", "_install.py"):

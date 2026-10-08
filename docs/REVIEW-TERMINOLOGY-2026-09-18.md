@@ -17,7 +17,7 @@ CLI·환경 변수·JS/CSS·기본 템플릿·데모·시험과 모든 설계 �
 | 프로젝트·원본 기록 | [core.py](../src/aelix_analytics/core.py) | marker·state·schema·trust·event kinds·refs·context·status·캐시·읽기 정책 전환 필요 |
 | 실행·재실행 | [runner.py](../src/aelix_analytics/runner.py) | run·입출력·환경·기록 완료·비교 결과의 구별. `reproduction`을 Rerun comparison으로 명시 |
 | 데이터 | [data.py](../src/aelix_analytics/data.py) | imported/source/derived·dataset profile·SQL view·table schema·preview를 구별 |
-| 인터페이스와 링크 | [report.py](../src/aelix_analytics/report.py), [report.js](../src/aelix_analytics/assets/report.js), [report.css](../src/aelix_analytics/assets/report.css) | Workspace와 Report 분리. 시각화 객체·탭·property·오류·aria label·페이지·자원·anchor·갱신 stamp까지 전환 |
+| 인터페이스와 링크 | [report.py](../src/aelix_analytics/workspace.py), [report.js](../src/aelix_analytics/assets/workspace.js), [report.css](../src/aelix_analytics/assets/workspace.css) | Workspace와 Report 분리. 시각화 객체·탭·property·오류·aria label·페이지·자원·anchor·갱신 stamp까지 전환 |
 | 기본 파일 | [CONTEXT](../src/aelix_analytics/template/CONTEXT.md), [project template](../src/aelix_analytics/template/pyproject.toml), [gitignore](../src/aelix_analytics/template/gitignore) | 영어 기본 안내·섹션·placeholder, analytics 프로젝트 이름, 올바른 파생/보존 경로 규칙 |
 | 데모·예시 | [demo.py](../src/aelix_analytics/demo.py), [예제 스크립트](../src/aelix_analytics/demo_scripts/) | 첫 경험의 제목·축·범례·설명·기록·명령을 영어 기본 예제로 정리. 한국어 사례는 다국어 검증으로 유지 |
 | 시험 | [fixtures](../tests/conftest.py), [kit tests](../tests/test_kit.py), [extension tests](../tests/test_extension.py) | helpers·환경·경로·expected labels·schema·SDK 예제를 전환. 과거 형식·한국어 회귀 사례는 별도로 유지 |

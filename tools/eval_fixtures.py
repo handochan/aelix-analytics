@@ -592,9 +592,9 @@ class V1Writer:
         target.write_bytes(source.read_bytes())
         result = self.kit.runner.execute(self.project, script=script_rel, title=title, actor=actor)
         record = result["run"]
-        if result.get("report_error"):
+        if result.get("workspace_error"):
             raise FixtureError(f"the kit could not build the Workspace after {script_rel}: "
-                               f"{result['report_error']}")
+                               f"{result['workspace_error']}")
         if record.get("finalize_errors"):
             raise FixtureError(f"the kit could not finish the record of {script_rel}: {record['finalize_errors']}")
         self.kit_runs.append(record["id"])

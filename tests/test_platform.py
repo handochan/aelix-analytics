@@ -137,9 +137,9 @@ def test_file_url_refuses_what_no_link_can_name(recorded):
 
 
 def test_a_record_no_link_can_name_does_not_stop_the_report():
-    from aelix_analytics import report  # noqa: PLC0415 - the report module, not only the rule
+    from aelix_analytics import workspace  # noqa: PLC0415 - the workspace module, not only the rule
 
-    site = object.__new__(report.Site)
+    site = object.__new__(workspace.Site)
     for recorded in (r"\\.\C:\x", "\\\\server\\"):
         assert site.file_link(recorded, 1) == "#"
 
@@ -160,9 +160,9 @@ def test_absolute_record_path_does_not_ask_the_running_platform(recorded, absolu
 
 
 def test_a_project_directory_named_like_a_drive_is_linked_inside_the_project():
-    from aelix_analytics import report  # noqa: PLC0415
+    from aelix_analytics import workspace  # noqa: PLC0415
 
-    site = object.__new__(report.Site)
+    site = object.__new__(workspace.Site)
     assert site.file_link("c:/x.csv", 1) == "../../c:/x.csv"  # what main linked
 
 
@@ -1217,9 +1217,9 @@ def test_a_script_s_raising_handler_at_the_region_s_end_cannot_lose_the_record(p
     the exit short with the region still raising and its deadline armed, and the settle after it
     was skipped, so a cancel — or the deadline alone — during _finalize left the record `running`.
     Now the settle runs whatever the region raised."""
-    from aelix_analytics import report, runner  # noqa: PLC0415
+    from aelix_analytics import runner, workspace  # noqa: PLC0415
 
-    monkeypatch.setattr(report, "build", lambda project_, **kw: {})
+    monkeypatch.setattr(workspace, "build", lambda project_, **kw: {})
     delivered = []
 
     def at_the_script_region_s_exit():
@@ -1319,9 +1319,9 @@ def test_a_host_handler_that_raises_during_the_restore_still_gets_every_handler_
     host whose SIGTERM handler raises — the graceful-shutdown idiom — kept the guard's handler for
     SIGINT after the run and its Ctrl+C was swallowed. The signal is delivered before each swap a
     run makes, in turn, into whichever handler is installed at that moment, the host's included."""
-    from aelix_analytics import report, runner  # noqa: PLC0415
+    from aelix_analytics import runner, workspace  # noqa: PLC0415
 
-    monkeypatch.setattr(report, "build", lambda project_, **kw: {})
+    monkeypatch.setattr(workspace, "build", lambda project_, **kw: {})
     # With two raising handlers, one put back before the other can interrupt the second's swap,
     # which is what a restore that stops after its first interruption got wrong.
     sig = signal.SIGTERM if raising == "both" else getattr(signal, raising)
@@ -1634,9 +1634,9 @@ def test_a_deadline_that_passed_before_a_cancel_is_still_the_run_s_deadline(scri
 @POSIX_GUARD
 def test_a_run_cancelled_after_the_deadline_it_kept_from_the_guard_is_timed_out(project,
                                                                                 monkeypatch):
-    from aelix_analytics import report, runner  # noqa: PLC0415
+    from aelix_analytics import runner, workspace  # noqa: PLC0415
 
-    monkeypatch.setattr(report, "build", lambda project_, **kw: {})
+    monkeypatch.setattr(workspace, "build", lambda project_, **kw: {})
     body = ("import signal, time\n"
             "signal.signal(signal.SIGALRM, lambda *a: print('the alarm, taken by the script'))\n"
             "time.sleep(1.5)\n"
@@ -1654,9 +1654,9 @@ def test_a_deadline_the_platform_cannot_hold_is_an_error_not_a_stuck_guard(proje
     """Review 6, SG-1: `--timeout inf` made the region's entry raise with the region already
     raising, and a Ctrl+C during _finalize then lost the record. It is recorded `error`, as main
     recorded it, and the guard is back to recording only."""
-    from aelix_analytics import report, runner  # noqa: PLC0415
+    from aelix_analytics import runner, workspace  # noqa: PLC0415
 
-    monkeypatch.setattr(report, "build", lambda project_, **kw: {})
+    monkeypatch.setattr(workspace, "build", lambda project_, **kw: {})
     real_environment = runner.environment
 
     def cancel_then_environment(project_):
@@ -1969,7 +1969,7 @@ def test_a_run_goes_through_the_injected_platform_too(tmp_path, real_ports_refus
     # A run swallows a failure in the parts that come after the script — the report build and the
     # bookkeeping — so a poisoned real port would otherwise surface only as a recorded error and
     # leave this test green.
-    assert "report_error" not in result, result.get("report_error")
+    assert "workspace_error" not in result, result.get("workspace_error")
     assert not result.get("finalize_errors"), result.get("finalize_errors")
     assert not result["run"].get("finalize_errors"), result["run"].get("finalize_errors")
     names = {name for name, _ in calls}
@@ -2008,7 +2008,7 @@ def test_a_new_dataset_name_that_windows_cannot_store_is_refused(project, tmp_pa
     source = write_sales_csv(tmp_path / "con.csv")
     from aelix_analytics import data  # noqa: PLC0415
 
-    with pytest.raises(core.LabError) as exc:
+    with pytest.raises(core.AnalyticsError) as exc:
         data.import_file(core.Project(project), source, name="con", actor="test")
     assert exc.value.code == "name_not_portable"
     assert "con" in exc.value.message
@@ -2523,7 +2523,7 @@ def test_a_run_record_that_cannot_be_written_leaves_no_run_behind(project, monke
         return real_write_json(path, obj, **kwargs)
 
     monkeypatch.setattr(core, "write_json", full_disk)
-    with pytest.raises(core.LabError) as exc:
+    with pytest.raises(core.AnalyticsError) as exc:
         runner.execute(core.Project(project), script=write_script(project, "53_full.py", RAN),
                        title="가득 참", actor="test")
     assert exc.value.code == "record_failed", exc.value
@@ -2548,7 +2548,7 @@ def test_a_run_directory_the_kit_cannot_list_is_still_removed(project, monkeypat
 
     monkeypatch.setattr(core, "new_run_dir", unreadable)
     try:
-        with pytest.raises(core.LabError) as exc:
+        with pytest.raises(core.AnalyticsError) as exc:
             runner.execute(core.Project(project), script=write_script(project, "54_umask.py", RAN),
                            title="권한", actor="test")
         assert exc.value.code == "snapshot_failed", exc.value
@@ -2562,7 +2562,7 @@ def test_a_run_directory_the_kit_cannot_list_is_still_removed(project, monkeypat
 def test_reject_unportable_name_never_refuses_a_name_the_project_already_has():
     core.reject_unportable_name("con", kind="dataset", exists=True)
     core.reject_unportable_name("sales", kind="dataset")
-    with pytest.raises(core.LabError) as exc:
+    with pytest.raises(core.AnalyticsError) as exc:
         core.reject_unportable_name("con", kind="script")
     assert exc.value.code == "name_not_portable" and "script" in exc.value.message
 
@@ -3869,10 +3869,10 @@ def test_a_signal_at_sampled_check_points_of_a_run_never_loses_its_record(tmp_pa
     exception table included, and stopped short of the record write and the guard's exit. Each run
     counts its own points here, and the sample reaches past the longest run counted. The full
     sweep over every point is a probe (Issue #8 evidence); this keeps a sample in the suite."""
-    from aelix_analytics import report, runner  # noqa: PLC0415
+    from aelix_analytics import runner, workspace  # noqa: PLC0415
 
     sig = getattr(signal, signame)
-    monkeypatch.setattr(report, "build", lambda project_, **kw: {})  # not under test, and slow
+    monkeypatch.setattr(workspace, "build", lambda project_, **kw: {})  # not under test, and slow
     real_environment = runner.environment
 
     def second_signal(project_):
@@ -4535,9 +4535,9 @@ def test_the_timer_a_region_set_is_cancelled_whoever_s_sigalrm_ended_it(project,
     or the script's periodic timer, ran on after the run and reached the host: an in-process host
     that kept SIGALRM's default action was killed, the CLI too after its JSON line. Main cancelled
     ITIMER_REAL after every script. Any SIGALRM in the region is the deadline, as on main."""
-    from aelix_analytics import report, runner  # noqa: PLC0415
+    from aelix_analytics import runner, workspace  # noqa: PLC0415
 
-    monkeypatch.setattr(report, "build", lambda project_, **kw: {})
+    monkeypatch.setattr(workspace, "build", lambda project_, **kw: {})
     body = {"raised_by_the_script": "signal.raise_signal(signal.SIGALRM)\n",
             "a_periodic_timer_of_the_script": "signal.setitimer(signal.ITIMER_REAL, 0.2, 0.2)\n"}
     write_script(Path(project), "80_alarm.py",
@@ -4728,9 +4728,9 @@ def test_a_cancel_cut_short_by_the_script_s_handler_is_recorded_at_every_point(p
     single statement and settle finds the cancel in the traceback of the SystemExit, or of what the
     script chained it to. The run is `cancelled` every time: not `ok` or `error`, as it was at the
     entry, and as it was at every point once the runner stopped reading the flag."""
-    from aelix_analytics import report, runner  # noqa: PLC0415
+    from aelix_analytics import runner, workspace  # noqa: PLC0415
 
-    monkeypatch.setattr(report, "build", lambda project_, **kw: {})
+    monkeypatch.setattr(workspace, "build", lambda project_, **kw: {})
     write_script(Path(project), "82_shutdown.py",
                  "import signal, sys, time\nsignal.signal(signal.SIGTERM, lambda *a: sys.exit(0))\n"
                  + CUT_SHORT_SCRIPTS[script] + "print('ran on')\n")
@@ -4784,9 +4784,9 @@ def test_what_a_thread_wrote_after_its_run_survives_the_collection_of_its_module
     flushed it. Main delivered it. The latest run's streams are held now. Which layer the collector
     finalizes first varies with the process, so the line alone does not show it; the stream's
     survival does."""
-    from aelix_analytics import report, runner  # noqa: PLC0415
+    from aelix_analytics import runner, workspace  # noqa: PLC0415
 
-    monkeypatch.setattr(report, "build", lambda project_, **kw: {})
+    monkeypatch.setattr(workspace, "build", lambda project_, **kw: {})
     done = tmp_path / "written"
     monkeypatch.setenv("WRITTEN_FLAG", str(done))
     probe = types.SimpleNamespace(ref=None)
@@ -4864,9 +4864,9 @@ def test_a_case_variant_is_an_own_name_only_when_it_is_the_same_file(project, mo
     volume pinned that half. Told it is another file, the kit records it as a chart of its own
     wherever it runs. The file system says it through core.same_file (Issue #36: the one judgment
     of the same file, which also covers a file system without inode numbers)."""
-    from aelix_analytics import report, runner  # noqa: PLC0415
+    from aelix_analytics import runner, workspace  # noqa: PLC0415
 
-    monkeypatch.setattr(report, "build", lambda project_, **kw: {})
+    monkeypatch.setattr(workspace, "build", lambda project_, **kw: {})
     monkeypatch.setattr(core, "same_file", lambda _a, _b: False)
     write_script(Path(project), "88_case.py", CHART_BODY + CASE_VARIANTS["chart_then_file"])
     result = runner.execute(core.Project(project), script="scripts/88_case.py", title="case",
@@ -4883,7 +4883,7 @@ def test_a_record_that_cannot_be_written_as_utf8_leaves_no_run_directory(project
     from aelix_analytics import runner  # noqa: PLC0415
 
     write_script(Path(project), "86_x.py", "x = 1\n")
-    with pytest.raises(core.LabError) as exc:
+    with pytest.raises(core.AnalyticsError) as exc:
         runner.execute(core.Project(project), script="scripts/86_x.py", title="caf\udce9",
                        actor="test")
     assert exc.value.code == "record_failed" and "UTF-8" in (exc.value.hint or ""), \
@@ -5013,9 +5013,9 @@ def test_a_timer_the_script_sets_after_catching_its_interruption_ends_with_the_r
     and then set a timer of its own (a `signal.alarm` watchdog) had it fire after the run into the
     host: an in-process host that kept SIGALRM's default action was killed, and the CLI too,
     sometimes before its JSON line. Main cancelled ITIMER_REAL after every script."""
-    from aelix_analytics import report, runner  # noqa: PLC0415
+    from aelix_analytics import runner, workspace  # noqa: PLC0415
 
-    monkeypatch.setattr(report, "build", lambda project_, **kw: {})
+    monkeypatch.setattr(workspace, "build", lambda project_, **kw: {})
     stop = {"cancel": "signal.raise_signal(signal.SIGINT)\n    time.sleep(2)\n",
             "deadline": "time.sleep(3)\n"}[interruption]
     write_script(Path(project), "89_timer.py",
@@ -5038,9 +5038,9 @@ def test_a_cancel_kept_from_an_earlier_run_is_not_counted_for_a_later_one(projec
     guard. A module a script imported stays in sys.modules across the runs of an in-process host,
     and a later run's error chained to a cancel kept from an earlier run made the later run
     `cancelled`, though no cancel reached it, once the check was gone."""
-    from aelix_analytics import report, runner  # noqa: PLC0415
+    from aelix_analytics import runner, workspace  # noqa: PLC0415
 
-    monkeypatch.setattr(report, "build", lambda project_, **kw: {})
+    monkeypatch.setattr(workspace, "build", lambda project_, **kw: {})
     monkeypatch.setitem(sys.modules, "_kept_across_runs", types.SimpleNamespace(last=None))
     write_script(Path(project), "90_first.py",
                  "import signal, time\nimport _kept_across_runs as keep\ntry:\n"
@@ -5420,9 +5420,9 @@ def test_the_cut_short_walk_looks_at_chain_limit_exceptions_newest_first(project
     CHAIN_LIMIT exceptions, newest first — the bound that keeps a pathological structure cheap. So a
     group of a hundred finds it among its last members and loses it among its first, as
     docs/CONTRACTS.md G states."""
-    from aelix_analytics import report, runner  # noqa: PLC0415
+    from aelix_analytics import runner, workspace  # noqa: PLC0415
 
-    monkeypatch.setattr(report, "build", lambda project_, **kw: {})
+    monkeypatch.setattr(workspace, "build", lambda project_, **kw: {})
     keep = {"first": "errors.insert(0, exc)", "last": "errors.append(exc)"}[position]
     write_script(Path(project), "96_steps.py",
                  "import signal, time\nclass Stop(Exception):\n    pass\n"
@@ -5471,8 +5471,8 @@ def test_only_a_command_that_ran_a_script_starts_its_result_with_an_empty_line(p
     unfinished line out of the result comes after every run that got past its setup, whose output
     was redirected (review 11, rest-8 and honesty-7: whether or not its script then ran) — and only
     then: a command that ran no script prints its one JSON line alone, as main did, whether or not
-    it loaded the runner (`report` does, for the kit's digest; `demo` runs its scripts in child
-    processes)."""
+    it loaded the runner (`render` does: the workspace module takes the kit's digest from it;
+    `demo` runs its scripts in child processes)."""
     def stdout_of(*args):
         return subprocess.run([sys.executable, "-m", "aelix_analytics", "--project", str(project), *args],
                               capture_output=True, env=kit_env(), timeout=120,
@@ -5512,7 +5512,7 @@ def test_the_length_hint_reads_the_snapshot_s_path(project, monkeypatch):
         return real(self, data)
 
     monkeypatch.setattr(Path, "write_bytes", as_windows_open_answers)
-    with pytest.raises(core.LabError) as refused:
+    with pytest.raises(core.AnalyticsError) as refused:
         runner.execute(core.Project(project), script=None, rerun_of=run_id, title="long",
                        actor="test")
     assert (refused.value.code, refused.value.hint) == \

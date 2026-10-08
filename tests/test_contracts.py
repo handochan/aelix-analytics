@@ -506,7 +506,7 @@ def test_a_run_goes_through_the_injected_implementation(implementation, tmp_path
     assert result["run"]["status"] == "ok", result["run"].get("error")
     # A run swallows a failure after its script (the Workspace, the bookkeeping): a refused port
     # would otherwise show only as a recorded error.
-    assert "report_error" not in result, result.get("report_error")
+    assert "workspace_error" not in result, result.get("workspace_error")
     assert not result.get("finalize_errors"), result.get("finalize_errors")
     assert not result["run"].get("finalize_errors"), result["run"].get("finalize_errors")
     assert {"runs.guard", "locks.exclusive", "files.replace"} <= {what for what, _ in calls}, calls

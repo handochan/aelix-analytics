@@ -64,8 +64,8 @@ def _project(args) -> core.Project:
     start = args.project or os.environ.get("AELIX_ANALYTICS_PROJECT") or os.getcwd()
     root = core.find_project(start)
     if root is None:
-        raise core.LabError("no_project", f"no analytics project at or above {start}",
-                            hint="create one with: analytics init DIR")
+        raise core.AnalyticsError("no_project", f"no analytics project at or above {start}",
+                                  hint="create one with: analytics init DIR")
     return core.Project(root)
 
 
@@ -89,7 +89,7 @@ def _not_the_runtime_root() -> dict | None:
         why = f"{here} is the installed distribution's own package"
     else:
         return None
-    return core.LabError(
+    return core.AnalyticsError(
         "not_runtime_root", f"the kit runs only from a runtime root: {why}",
         hint="use the analytics command (analytics --help), which runs the kit in the project's "
              "environment. To run the module itself, run it in the project's environment with the "
@@ -109,7 +109,7 @@ def main(argv=None) -> int:
         return 1
     try:
         core.refuse_renamed_env(OLD_ENV)
-    except core.LabError as exc:
+    except core.AnalyticsError as exc:
         _emit(exc.to_json())
         return 1
     # Taken out of the environment so a script's own subprocesses do not watch the same file.
@@ -209,7 +209,7 @@ def _command(argv) -> int:
             from . import runner
 
             if bool(args.script) == bool(args.rerun_of):
-                raise core.LabError("run_args", "give either a script or --rerun-of RUN_ID")
+                raise core.AnalyticsError("run_args", "give either a script or --rerun-of RUN_ID")
             result = runner.execute(project, script=args.script, title=args.title,
                                     declared_inputs=args.inputs, timeout=args.timeout,
                                     rerun_of=args.rerun_of, actor=actor, session=session,
@@ -217,43 +217,43 @@ def _command(argv) -> int:
             _emit({"ok": True, **result})
             return 0 if result["run"]["status"] == "ok" else 3
         elif args.command == "import":
-            from . import data, report
+            from . import data, workspace
 
             core.sync_context(project, session=session)
             result = data.import_file(project, args.source, name=args.name,
                                       description=args.description, actor=actor, session=session)
-            result["report"] = _safe_report(report, project)
+            result["workspace"] = _safe_render(workspace, project)
             _emit({"ok": True, **result})
         elif args.command == "query":
             from . import data
 
             _emit({"ok": True, **data.query(project, args.sql, args.limit)})
         elif args.command == "record":
-            from . import report
+            from . import workspace
 
             core.sync_context(project, session=session)
             event = core.add_note(project, args.kind, args.text, refs=args.refs,
                                   resolves=args.resolves, actor=actor, session=session)
-            _emit({"ok": True, "event": event, "report": _safe_report(report, project)})
+            _emit({"ok": True, "event": event, "workspace": _safe_render(workspace, project)})
         elif args.command == "render":
-            from . import report
+            from . import workspace
 
             core.sync_context(project, session=session)
-            _emit({"ok": True, "report": report.build(project, if_changed=args.if_changed)})
+            _emit({"ok": True, "workspace": workspace.build(project, if_changed=args.if_changed)})
         elif args.command == "demo":
             from . import demo
 
             _emit({"ok": True, **demo.populate(project, actor=actor, session=session)})
         return 0
-    except core.LabError as exc:
+    except core.AnalyticsError as exc:
         _emit(exc.to_json())
         return 1
 
 
-def _safe_report(report, project) -> dict:
+def _safe_render(workspace, project) -> dict:
     try:
-        return report.build(project)
-    except Exception as exc:  # noqa: BLE001 - the mutation already happened; report is derived
+        return workspace.build(project)
+    except Exception as exc:  # noqa: BLE001 - the mutation already happened; the Workspace is derived
         return {"error": f"{type(exc).__name__}: {exc}"}
 
 

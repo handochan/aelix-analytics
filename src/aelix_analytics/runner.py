@@ -776,44 +776,44 @@ def _in_managed_dir_here(project: core.Project, rel: str) -> bool:
 
 def _script_source(project: core.Project, script) -> tuple[str, Path]:
     if not script:
-        raise core.LabError("run_needs_script", "no script given")
+        raise core.AnalyticsError("run_needs_script", "no script given")
     path = project.path(str(script))
     if not project.inside(path):
-        raise core.LabError("script_outside", f"{script} is outside the project")
+        raise core.AnalyticsError("script_outside", f"{script} is outside the project")
     if not path.is_file() or path.suffix != ".py":
-        raise core.LabError("script_missing", f"{script} is not a .py file in the project",
-                            hint="write the script under scripts/ first")
+        raise core.AnalyticsError("script_missing", f"{script} is not a .py file in the project",
+                                  hint="write the script under scripts/ first")
     script_rel = project.rel(path)
     if _in_managed_dir_here(project, script_rel):
-        raise core.LabError("script_location", f"{script_rel} is inside a managed directory",
-                            hint="keep analysis code under scripts/")
+        raise core.AnalyticsError("script_location", f"{script_rel} is inside a managed directory",
+                                  hint="keep analysis code under scripts/")
     # Refused before it is recorded, so the kit never writes a path it would not rerun. That
     # includes a name another platform would read as inside a managed directory (`runs\\x.py` on
     # Windows, `RUNS/x.py` where the file system minds case).
     if not _platform.record_relative_path(script_rel) or _in_managed_dir(script_rel):
-        raise core.LabError("script_location",
-                            f"{script_rel} is not a path a record can hold on every platform",
-                            hint="keep analysis code under scripts/ with a plain name")
+        raise core.AnalyticsError("script_location",
+                                  f"{script_rel} is not a path a record can hold on every platform",
+                                  hint="keep analysis code under scripts/ with a plain name")
     return script_rel, path
 
 
 def _rerun_source(project: core.Project, rerun_of: str) -> tuple[dict, str, Path]:
     if not core.RUN_ID_RE.match(rerun_of or ""):
-        raise core.LabError("rerun_id", f"{rerun_of!r} is not a run id",
-                            hint="run ids look like 20260916-143012-monthly-sales; analytics_status lists them")
+        raise core.AnalyticsError("rerun_id", f"{rerun_of!r} is not a run id",
+                                  hint="run ids look like 20260916-143012-monthly-sales; analytics_status lists them")
     record = core.read_json(project.runs / rerun_of / "run.json")
     script = record.get("script") if isinstance(record, dict) else None
     if not isinstance(script, dict) or not script.get("snapshot") or not script.get("path"):
-        raise core.LabError("rerun_unknown", f"no recorded run {rerun_of!r} with a code snapshot",
-                            hint="analytics_status lists run ids")
+        raise core.AnalyticsError("rerun_unknown", f"no recorded run {rerun_of!r} with a code snapshot",
+                                  hint="analytics_status lists run ids")
     # Both sides by one judgment, the real path in its stored spelling (core.canonical): a snapshot
     # recorded under the stored name of runs/ (`Runs/…` where the file system ignores case) is the
     # same place as the kit's own spelling of it.
     code_root = project.canonical(project.runs / rerun_of / "code")
     snapshot = Path(project.canonical(project.path(str(script["snapshot"]))))
     if snapshot == Path(code_root) or not core.within(snapshot, code_root) or not snapshot.is_file():
-        raise core.LabError("rerun_snapshot", f"run {rerun_of} has no code snapshot under "
-                            f"runs/{rerun_of}/code")
+        raise core.AnalyticsError("rerun_snapshot", f"run {rerun_of} has no code snapshot under "
+                                  f"runs/{rerun_of}/code")
     # The recorded path decides the directory that goes onto sys.path, so it is checked as the kit
     # writes one rather than by the running platform (`/tmp/x.py` is not absolute on Windows), and
     # then where it leads once joined: a directory inside the project may be a link to outside it.
@@ -821,8 +821,8 @@ def _rerun_source(project: core.Project, rerun_of: str) -> tuple[dict, str, Path
     target = project.root / recorded
     if not _platform.record_relative_path(recorded) or _in_managed_dir(recorded) \
             or not project.inside(target) or _in_managed_dir(project.rel(target)):
-        raise core.LabError("rerun_snapshot",
-                            f"run {rerun_of} records an invalid script path {recorded!r}")
+        raise core.AnalyticsError("rerun_snapshot",
+                                  f"run {rerun_of} records an invalid script path {recorded!r}")
     return record, recorded, snapshot
 
 
@@ -914,8 +914,8 @@ def _execute_locked(project, *, script_rel, exec_file, code_bytes, title, declar
             core.write_json(run_dir / "run.json", record, platform=project.platform)
         except (OSError, ValueError) as exc:
             _remove_run_dir(run_dir)
-            raise core.LabError(code, f"could not write the {what} of {script_rel}: {exc}",
-                                hint=_write_failure_hint(exc, snapshot)) from exc
+            raise core.AnalyticsError(code, f"could not write the {what} of {script_rel}: {exc}",
+                                      hint=_write_failure_hint(exc, snapshot)) from exc
 
         # Code of a rerun keeps the snapshot path so tracebacks show the lines that actually ran.
         filename = exec_file if rerun_of else project.path(script_rel)
@@ -1098,13 +1098,13 @@ def _finalize(project, state, record, *, source_run, before, status, error, dura
             core.write_json(run_dir / "run.json", record, platform=project.platform)
     result = {"run": record, "event": event["id"] if event else None,
               "stdout_tail": _tail(stdout_path), "stderr_tail": _tail(stderr_path),
-              "page": project.rel(project.report / "runs" / f"{run_id}.html")}
+              "page": project.rel(project.workspace_dir / "runs" / f"{run_id}.html")}
     try:
-        from . import report
+        from . import workspace
 
-        result["report"] = report.build(project)
-    except Exception as exc:  # noqa: BLE001 - a report failure must not lose the run record
-        result["report_error"] = f"{type(exc).__name__}: {exc}"
+        result["workspace"] = workspace.build(project)
+    except Exception as exc:  # noqa: BLE001 - a Workspace failure must not lose the run record
+        result["workspace_error"] = f"{type(exc).__name__}: {exc}"
     if problems:
         result["finalize_errors"] = problems
     return result

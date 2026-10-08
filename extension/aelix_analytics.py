@@ -13,7 +13,7 @@ aelix_analytics) — installed, also its own package, whose __init__ imports onl
 and the stdlib-only aelix_analytics._install, which says where the runtime root is. From a checkout
 the runtime root is the checkout's src/ (so symlink this file in a checkout rather than copying it).
 Analysis code never runs in the aelix process: analytics_run, analytics_import, analytics_query and
-report builds are `uv run --project <project> python -m aelix_analytics ...` subprocesses in the
+Workspace renders are `uv run --project <project> python -m aelix_analytics ...` subprocesses in the
 project's own environment.
 Neither side is a sandbox, and aelix does not ask for approval before extension tools run.
 
@@ -190,14 +190,14 @@ KIT_IN_SHELL = re.compile(
 
 # Module-level state of one aelix runtime. setup() starts it over: the file loader makes a new module
 # for every session aelix builds, but the installed module is imported once per process.
-STATE = {"api": None, "project": None, "session": None, "starts": {}, "report_tasks": {}}
+STATE = {"api": None, "project": None, "session": None, "starts": {}, "render_tasks": {}}
 
 NO_PROJECT = ("No analytics project is active (checked /analytics use, --analytics-project, "
               "AELIX_ANALYTICS_PROJECT, and lab.json in the working directory and its parents).")
 
 
 def _error(code, message, hint=None, details=None):
-    return core.LabError(code, message, hint=hint, details=details).to_json()
+    return core.AnalyticsError(code, message, hint=hint, details=details).to_json()
 
 
 # --- resolution ---
@@ -207,11 +207,11 @@ def resolve_project():
     found only because aelix runs inside it must be trusted (created or chosen by the user)."""
     try:
         return _resolve_project()
-    except core.LabError:
+    except core.AnalyticsError:
         raise
     except Exception as exc:  # e.g. "~typo/dir" makes expanduser raise RuntimeError
-        raise core.LabError("project_invalid", f"cannot resolve the project path: {exc}",
-                            hint="check --analytics-project / AELIX_ANALYTICS_PROJECT") from exc
+        raise core.AnalyticsError("project_invalid", f"cannot resolve the project path: {exc}",
+                                  hint="check --analytics-project / AELIX_ANALYTICS_PROJECT") from exc
 
 
 def _resolve_project():
@@ -219,8 +219,8 @@ def _resolve_project():
     if explicit:
         project = core.Project(explicit)
         if not project.marker.is_file():
-            raise core.LabError("project_missing", f"active project {explicit} has no lab.json",
-                                hint="/analytics use DIR to pick another project")
+            raise core.AnalyticsError("project_missing", f"active project {explicit} has no lab.json",
+                                      hint="/analytics use DIR to pick another project")
         return project, "/analytics use"
     flag = None
     with contextlib.suppress(Exception):
@@ -230,22 +230,22 @@ def _resolve_project():
         if isinstance(value, str) and value.strip():
             project = core.Project(value.strip())
             if not project.marker.is_file():
-                raise core.LabError("project_invalid", f"{via} {project.root} is not an analytics project "
-                                    "(no lab.json)", hint="create it with /analytics init DIR")
+                raise core.AnalyticsError("project_invalid", f"{via} {project.root} is not an analytics project "
+                                          "(no lab.json)", hint="create it with /analytics init DIR")
             return project, via
     root = core.find_project(os.getcwd())
     if root is not None:
         if not core.is_trusted(root):
-            raise core.LabError(
+            raise core.AnalyticsError(
                 "project_untrusted",
                 f"{root} has a lab.json but is not a project this user created or chose, so it "
                 "was not activated (its CONTEXT.md would enter the prompt and analytics_run would "
                 "execute its code)",
                 hint=f"a human can run /analytics use {root} to trust it")
         return core.Project(root), "working directory"
-    raise core.LabError("no_project", NO_PROJECT,
-                        hint="ask the user where the project should live, then call analytics_init; a "
-                             "human can run /analytics init DIR or /analytics use DIR")
+    raise core.AnalyticsError("no_project", NO_PROJECT,
+                              hint="ask the user where the project should live, then call analytics_init; a "
+                                   "human can run /analytics init DIR or /analytics use DIR")
 
 
 def resolve_uv(processes=None) -> str:
@@ -254,8 +254,8 @@ def resolve_uv(processes=None) -> str:
     processes = processes or core.PLATFORM.processes
     found = processes.find_program(os.environ.get("AELIX_ANALYTICS_UV") or "uv")
     if not found:
-        raise core.LabError("uv_missing", "uv was not found",
-                            hint="install uv (https://docs.astral.sh/uv/) or set AELIX_ANALYTICS_UV=/path/to/uv")
+        raise core.AnalyticsError("uv_missing", "uv was not found",
+                                  hint="install uv (https://docs.astral.sh/uv/) or set AELIX_ANALYTICS_UV=/path/to/uv")
     return found
 
 
@@ -291,8 +291,8 @@ class _CancelRequest:
         try:
             self.directory = Path(tempfile.mkdtemp(prefix="aelix-analytics-"))
         except OSError as exc:
-            raise core.LabError("spawn_failed",
-                                f"could not create a temporary directory: {exc}") from exc
+            raise core.AnalyticsError("spawn_failed",
+                                      f"could not create a temporary directory: {exc}") from exc
         self.path = self.directory / "cancel"
         self.handed_over = False
 
@@ -354,7 +354,7 @@ async def _spawn(argv, cwd, env, timeout, processes, request: _CancelRequest | N
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
             **processes.spawn_kwargs())
     except OSError as exc:
-        raise core.LabError("spawn_failed", f"could not start {argv[0]}: {exc}") from exc
+        raise core.AnalyticsError("spawn_failed", f"could not start {argv[0]}: {exc}") from exc
     try:
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout)
     except TimeoutError:
@@ -401,7 +401,7 @@ async def run_kit(project, args, *, timeout: float, actor: str = "agent"):
         finally:
             if request is not None and not request.handed_over:
                 request.remove()
-    except core.LabError as exc:
+    except core.AnalyticsError as exc:
         return False, exc.to_json()
     if timed_out:
         return False, _error("timeout", f"aelix_analytics {args[0]} did not finish within {timeout:.0f} s "
@@ -447,7 +447,7 @@ async def sync_environment(project):
     return False, said
 
 
-def schedule_report(project) -> None:
+def schedule_workspace_render(project) -> None:
     """Start a detached `render --if-changed` build unless one for this project is still running.
 
     Deliberately not an asyncio task: a cancelled `uv run` whose Python child still holds the pipes
@@ -456,14 +456,14 @@ def schedule_report(project) -> None:
     (agent_end fires after every prompt).
     """
     key = str(project.root)
-    running = STATE["report_tasks"].get(key)
+    running = STATE["render_tasks"].get(key)
     if running is not None and running.poll() is None:
         return
     try:
         processes = project.platform.processes
         argv = [resolve_uv(processes), "run", "--project", key, "--quiet", "python", "-m", "aelix_analytics",
                 "--project", key, "render", "--if-changed"]
-        STATE["report_tasks"][key] = subprocess.Popen(
+        STATE["render_tasks"][key] = subprocess.Popen(
             argv, cwd=key, env=child_env(processes, "system"), stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **processes.spawn_kwargs())
     except Exception:  # noqa: BLE001 - a derived build; it must not fail what was just recorded
@@ -613,8 +613,8 @@ def render_run(project, value: dict, attached: tuple[int, int] | None = None) ->
         lines.append(f"stderr (not shown, the run is ok; the whole log: read {logs['stderr']})")
     page = project.root / value.get("page", "")
     lines.append(f"journal: {value.get('event')} · report: {page}")
-    if value.get("report_error"):
-        lines.append(f"report build failed: {value['report_error']}")
+    if value.get("workspace_error"):
+        lines.append(f"report build failed: {value['workspace_error']}")
     return _clip("\n".join(lines), f"the run page is {page}; the whole record: read {record}")
 
 
@@ -738,7 +738,7 @@ async def tool_query(args, ctx):
     project, _ = resolve_project()
     sql = str(args.get("sql") or "").strip()
     if not sql:
-        raise core.LabError("query_empty", "sql is empty")
+        raise core.AnalyticsError("query_empty", "sql is empty")
     limit = _int(args, "limit", 50, 1, 500)
     ok, value = await run_kit(project, ["query", sql, "--limit", str(limit)], timeout=180)
     if not ok:
@@ -750,7 +750,7 @@ async def tool_import(args, ctx):
     project, _ = resolve_project()
     source = str(args.get("source") or "").strip()
     if not source:
-        raise core.LabError("import_source_missing", "source is empty")
+        raise core.AnalyticsError("import_source_missing", "source is empty")
     src = core.expand_home(Path(source))  # the rule `analytics import` and the kit's paths follow
     src = src if src.is_absolute() else Path(os.getcwd()) / src
     cmd = ["import", str(src)]
@@ -778,7 +778,7 @@ async def tool_import(args, ctx):
         lines += [f"  - {w}" for w in value["warnings"]]
     lines.append(f"Query it as view `{ds['name']}` (analytics_query) or analytics.read(\"{ds['name']}\") in scripts.")
     meta = project.path(ds["path"]).with_suffix(".meta.json")
-    page = project.report / "data" / f"{ds['name']}.html"
+    page = project.workspace_dir / "data" / f"{ds['name']}.html"
     return _clip("\n".join(lines), f"the dataset page is {page}; every column and its type: read "
                                    f"{meta}"), value
 
@@ -787,23 +787,23 @@ async def tool_run(args, ctx):
     project, _ = resolve_project()
     title = str(args.get("title") or "").strip()
     if not title:
-        raise core.LabError("run_needs_title", "title is required: say what this run is for")
+        raise core.AnalyticsError("run_needs_title", "title is required: say what this run is for")
     script, code, name = args.get("script"), args.get("code"), args.get("name")
     rerun_of = str(args.get("rerun_of") or "").strip()
     given = sum(bool(x) for x in (script, code, rerun_of))
     if given != 1:
-        raise core.LabError("run_args", "pass exactly one of script, code (with name) or rerun_of")
+        raise core.AnalyticsError("run_args", "pass exactly one of script, code (with name) or rerun_of")
     note = ""
     if rerun_of:
         if not core.RUN_ID_RE.match(rerun_of):
-            raise core.LabError("rerun_id", f"{rerun_of!r} is not a run id",
-                                hint="analytics_status lists run ids such as 20260916-143012-monthly-sales")
+            raise core.AnalyticsError("rerun_id", f"{rerun_of!r} is not a run id",
+                                      hint="analytics_status lists run ids such as 20260916-143012-monthly-sales")
         cmd = ["run", "--rerun-of", rerun_of]
     elif code:
         name = str(name or "").strip()
         if not core.SCRIPT_NAME_RE.match(name):
-            raise core.LabError("run_name", "code needs a name like 02_monthly_sales",
-                                hint="lowercase letters, digits and _; the code is saved to scripts/<name>.py")
+            raise core.AnalyticsError("run_name", "code needs a name like 02_monthly_sales",
+                                      hint="lowercase letters, digits and _; the code is saved to scripts/<name>.py")
         target = project.scripts / f"{name}.py"
         core.reject_unportable_name(name, kind="script", exists=target.exists())
         note = f" (overwrote scripts/{name}.py)" if target.exists() else ""
@@ -838,7 +838,7 @@ async def tool_record(args, ctx):
         lambda: core.add_note(project, kind, str(args.get("text") or ""), refs=refs,
                               resolves=args.get("resolves") or None, actor="agent",
                               session=STATE["session"]))
-    schedule_report(project)
+    schedule_workspace_render(project)
     extra = f"; resolves {event['refs']['resolves']}" if event["refs"].get("resolves") else ""
     refs_text = json.dumps({k: v for k, v in event["refs"].items() if k != "resolves"},
                            ensure_ascii=False)
@@ -860,7 +860,7 @@ def note_cut(given: str) -> str:
 async def tool_init(args, ctx):
     raw = str(args.get("path") or "").strip()
     if not raw:
-        raise core.LabError("init_path", "path is required")
+        raise core.AnalyticsError("init_path", "path is required")
     target = Path(raw).expanduser()
     target = target if target.is_absolute() else Path(os.getcwd()) / target
     project = await asyncio.to_thread(
@@ -875,7 +875,7 @@ async def tool_init(args, ctx):
         lines.append(f"environment: synced from {detail} (DuckDB, Polars, PyArrow, matplotlib, plotly)")
     else:
         lines.append("environment: uv sync FAILED — runs will fail until it succeeds. uv said:\n" + detail)
-    lines += [f"report: {project.report / 'index.html'}",
+    lines += [f"report: {project.workspace_dir / 'index.html'}",
               "next: fill CONTEXT.md (goal, questions, data sources), analytics_import the data, then write "
               "scripts/01_<topic>.py and analytics_run it."]
     return "\n".join(lines), {"project": str(project.root), "synced": synced}
@@ -885,7 +885,7 @@ def _tool(name, description, properties, required, handler, snippet, guidelines=
     async def execute(args: dict, ctx: ToolExecutionContext) -> ToolResult:
         try:
             out = await handler(args or {}, ctx)
-        except core.LabError as exc:
+        except core.AnalyticsError as exc:
             value = exc.to_json()
             return ToolResult(content=[TextContent(text=render_error(name, value))], details=value,
                               is_error=True)
@@ -1098,7 +1098,7 @@ def on_tool_end(event, ctx):
 
 def on_agent_end(event, ctx):
     with contextlib.suppress(Exception):
-        schedule_report(resolve_project()[0])
+        schedule_workspace_render(resolve_project()[0])
     return None
 
 
@@ -1132,14 +1132,14 @@ async def analytics_command(args, ctx=None):
             try:
                 project, via = resolve_project()
                 lines.append(f"project: {project.root} (via {via})")
-            except core.LabError as exc:
+            except core.AnalyticsError as exc:
                 lines.append(f"project: none — {exc.message}")
             lines.append(f"extension: {Path(__file__).resolve()} "
                          f"({'installed package' if __package__ else 'checkout file'})")
             lines.append(f"kit: {KIT} (aelix_analytics {core.KIT_VERSION}; {KIT_ROUTE})")
             try:
                 lines.append(f"uv: {resolve_uv()}")
-            except core.LabError as exc:
+            except core.AnalyticsError as exc:
                 lines.append(f"uv: {exc.message}")
             except Exception as exc:  # noqa: BLE001 - this command is how a broken setup is diagnosed
                 lines.append(f"uv: cannot be looked up with this kit ({type(exc).__name__}: {exc})")
@@ -1166,7 +1166,7 @@ async def analytics_command(args, ctx=None):
                     return render_error("/analytics demo", value)
             else:
                 await run_kit(project, ["render"], timeout=240, actor="human")
-            return (f"created {project.root} (active). Report: {project.report / 'index.html'}"
+            return (f"created {project.root} (active). Report: {project.workspace_dir / 'index.html'}"
                     " — /analytics open to view it.")
         if sub == "use":
             if not rest:
@@ -1181,7 +1181,7 @@ async def analytics_command(args, ctx=None):
             return f"active project: {root} (trusted: starting aelix inside it activates it)"
         if sub in ("render", "open"):
             project, _ = resolve_project()
-            index = project.report / "index.html"
+            index = project.workspace_dir / "index.html"
             if sub == "render" or not index.is_file():
                 ok, value = await run_kit(project, ["render"], timeout=240, actor="human")
                 if not ok:
@@ -1200,14 +1200,14 @@ async def analytics_command(args, ctx=None):
             kind, _, body = rest.partition(" ")
             event = await asyncio.to_thread(
                 lambda: core.add_note(project, kind, body, actor="human", session=STATE["session"]))
-            schedule_report(project)
+            schedule_workspace_render(project)
             cut = note_cut(body)
             return f"{event['id']} {kind} recorded" + (f" — {cut}" if cut else "")
         if sub == "context":
             project, _ = resolve_project()
             return await asyncio.to_thread(core.context_block, project)
         return HELP
-    except core.LabError as exc:
+    except core.AnalyticsError as exc:
         return render_error(f"/analytics {sub}".strip(), exc.to_json())
     except Exception as exc:  # noqa: BLE001 - a command must not crash the TUI
         return f"/analytics {sub}: internal error {type(exc).__name__}: {exc}"
@@ -1255,7 +1255,7 @@ def setup(aelix):
     # and keeps its globals, so what belongs to one session starts over here — otherwise a /analytics record
     # before a new session's first prompt would record the previous session's file.
     STATE.update({"api": aelix, "project": None, "session": None, "starts": {},
-                  "report_tasks": {}})
+                  "render_tasks": {}})
     aelix.register_flag("analytics-project", type="str",
                         description="Analytics project directory (holds lab.json)")
     for tool in TOOLS:

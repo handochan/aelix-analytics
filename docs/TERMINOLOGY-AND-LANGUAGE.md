@@ -1,8 +1,9 @@
 # 제품 용어·코드 명칭·기본 언어
 
 작성: 2026-09-18 · 상태: 일부 구현. §2의 명령·하위 명령·도구·flag·SDK·확장 파일·모듈과 §3의 환경 변수는 #9(kit 0.2.0·0.3.0,
-2026-10-06)가 적용한 현재 명칭이다(옛 이름은 별칭 없이 새 이름을 알리는 오류). §2의 오류·내부 상태·표시 구현과 §3의 저장 이름
-(표식·관리 디렉터리·화면·schema namespace·신뢰 목록 등)은 아직 전환 목표다([#13](https://github.com/handochan/aelix-analytics/issues/13)).
+2026-10-06)가 적용한 현재 명칭이다(옛 이름은 별칭 없이 새 이름을 알리는 오류). §2의 오류·내부 상태·표시 구현·Workspace 빌드 결과·
+Workspace 내부 식별자는 [#13](https://github.com/handochan/aelix-analytics/issues/13)의 첫 PR(⓪, kit 0.6.0)이 적용한 현재 명칭이고, §3의 저장 이름
+(표식·관리 디렉터리·화면·schema namespace·신뢰 목록 등)은 아직 전환 목표다(#13).
 §7의 영어 기본값은 [#10](https://github.com/handochan/aelix-analytics/issues/10)(2026-10-06)이 Workspace·템플릿·데모에 적용했다. 현재 상태는 §7 끝의
 '현재 구현'에 있다.
 [현재 계약](CONTRACTS.md)은 구현을, [전체 용어 점검](REVIEW-TERMINOLOGY-2026-09-18.md)은 확인한 위치·변경 범위·전환 순서를 설명한다.
@@ -35,8 +36,10 @@ Workspace는 프로젝트를 탐색하는 인터페이스이며 프로젝트 루
 | SDK의 시각화 기록 | `analytics.visualize(...)`(kit 0.3.0부터. 그 전은 `chart(...)`; 기록의 `via`는 `lab.chart` 그대로) | `analytics.visualize(...)`; 객체와 참조는 `visualization` |
 | 프로젝트 화면 생성·열기 | `analytics render`, `analytics open`(kit 0.3.0부터. 그 전은 `lab report`, `lab open`) | `analytics render`, `analytics open` |
 | 독립 공유 패키지·게시 — 제안 | 없음(구현 전) | `analytics build`, `analytics publish` |
-| 오류·내부 상태 | `LabError`, `Project.lab`, `Project.report` | `AnalyticsError`, `state_dir`, `workspace_dir` |
-| 표시 구현 | `report.py`, `report.js/css`, `schedule_report` | `workspace` 모듈·자원, `WorkspaceRenderer`, `schedule_workspace_render` |
+| 오류·내부 상태 | `AnalyticsError`, `Project.state_dir`(값 `.lab`), `Project.workspace_dir`(값 `report/`)(kit 0.6.0부터. 그 전은 `LabError`, `Project.lab`, `Project.report`) | 이름 유지. 값은 #13의 저장 이름 전환에서 `.analytics`·`workspace/` |
+| 표시 구현 | 모듈 `workspace.py`, 자원 `workspace.js`·`workspace.css`, 확장의 `schedule_workspace_render`(kit 0.6.0부터. 그 전은 `report.py`, `report.js/css`, `schedule_report`) | 유지. 렌더러는 함수로 두고 `WorkspaceRenderer` 클래스를 만들지 않는다([#13 설계](design/RECORD-WRITER-AND-MIGRATION.md#9-미뤄-받은-이름과-pr) 9절) |
+| Workspace 빌드 결과(kit CLI의 결과 JSON) | 키 `workspace`, run의 빌드 실패 `workspace_error`(kit 0.6.0부터. 그 전은 `report`·`report_error`). 값의 경로는 `report/…` | 키 유지. 값은 저장 이름 전환에서 `workspace/…` |
+| Workspace 내부 식별자 | `window.__ANALYTICS_BUILD__`, 브라우저 저장 키 `analytics-live`·`analytics-scroll:<경로>`, plotly 템플릿 `analytics`(`plotly_white+analytics`), capture의 표식 `__analytics_wrapped__`(kit 0.6.0부터. 그 전은 `__LAB_BUILD__`, `lab-live`·`lab-scroll:`, `lab`, `__lab_wrapped__`). 새 저장 키가 없으면 옛 키를 한 번 읽고 옛 키는 남긴다. 저장하는 그림 JSON에는 템플릿 이름이 없다 | 유지 |
 
 위 CLI 작업은 Aelix의 `/analytics` 아래에서도 같은 의미를 사용한다. 지원하는 하위 명령은 실제 구현 기준으로 공개한다.
 `ReportRenderer`는 이전 아키텍처 제안의 명칭이었으며 현재 코드의 클래스가 아니다. 새 설계에서는 Workspace 표시와 Report 형식 처리를 구별한다.
@@ -67,7 +70,7 @@ SDK `scan`은 지연 데이터 읽기이고 정적 코드 스캔은 `static_scan
 | 실행 루트 | package `aelix_analytics` 하나만 담은 디렉터리: 체크아웃의 `src/`, 설치본의 `aelix_analytics/kit/`(같은 소스의 사본) | 진입점이 run의 프로젝트 환경에 `PYTHONPATH`로 주는 유일한 경로(2026-10-06부터). 설치된 package 자신은 실행 루트가 아니어서 `python -m`을 거절한다(오류 코드 `not_runtime_root`). `RUNTIME_PATH`(위 행)가 가리킬 디렉터리 |
 
 호스트가 정한 `AELIX_CODING_AGENT_DIR` 등과 외부 라이브러리의 `MPLBACKEND`, `PYTHONPATH`는 확장 소유 이름이 아니므로 바꾸지 않는다.
-`LAB_API`처럼 시험 스크립트에서만 쓰는 표식은 공개 설정으로 승격하지 않는다. 확장이 kit에 취소를 요청하는 파일의 경로
+`ANALYTICS_API`(kit 0.6.0 전 `LAB_API`)처럼 시험 스크립트에서만 쓰는 표식은 공개 설정으로 승격하지 않는다. 확장이 kit에 취소를 요청하는 파일의 경로
 `AELIX_ANALYTICS_CANCEL_FILE`(옛 `LAB_CANCEL_FILE`)도 내부 프로토콜이라 위 역할 목록에 넣지 않는다([현재 계약](CONTRACTS.md) D).
 스키마 숫자는 의미 변경에 따라 정한다. 단순 namespace 전환과 B1의 새 의미 도입을 같은 변경이라고 가정하지 않는다.
 공유 파일의 `publication.json`과 원래 보고서의 manifest도 각각의 버전을 가진다.

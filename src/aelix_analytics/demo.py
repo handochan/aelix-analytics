@@ -97,19 +97,19 @@ def _run(project: core.Project, script: str, title: str, actor: str, extra=()) -
     # U+0085 do not split the line (CONTRACTS D). The last line that starts with "{" is the result.
     lines = [line for line in proc.stdout.split("\n") if line.startswith("{")]
     if not lines:
-        raise core.LabError("demo_run_failed", f"{script or extra}: no result",
-                            details={"stderr": proc.stderr[-2000:]})
+        raise core.AnalyticsError("demo_run_failed", f"{script or extra}: no result",
+                                  details={"stderr": proc.stderr[-2000:]})
     result = json.loads(lines[-1])
     if not result.get("ok"):
-        raise core.LabError("demo_run_failed", f"{script or extra}: {result.get('error')}")
+        raise core.AnalyticsError("demo_run_failed", f"{script or extra}: {result.get('error')}")
     return result["run"]
 
 
 def populate(project: core.Project, actor: str = "human", session=None) -> dict:
     if core.list_runs(project) or core.list_datasets(project):
-        raise core.LabError("demo_not_empty", "demo needs a new, empty project",
-                            hint="analytics demo NEW_DIR creates a new project and fills it")
-    csv = generate(project.lab / "demo" / "sales_2024_2025.csv")
+        raise core.AnalyticsError("demo_not_empty", "demo needs a new, empty project",
+                                  hint="analytics demo NEW_DIR creates a new project and fills it")
+    csv = generate(project.state_dir / "demo" / "sales_2024_2025.csv")
     data.import_file(project, str(csv), name="sales",
                      description="Synthetic orders 2024–2025 (day × region × channel, invented "
                                  "figures)",
@@ -150,7 +150,7 @@ def populate(project: core.Project, actor: str = "human", session=None) -> dict:
     rerun = _run(project, "", "Rerun comparison of the monthly revenue", actor,
                  ["--rerun-of", first["id"]])
 
-    from . import report
+    from . import workspace
 
     return {"runs": [first["id"], second["id"], third["id"], rerun["id"]],
-            "reproduction": rerun.get("reproduction"), "report": report.build(project)}
+            "reproduction": rerun.get("reproduction"), "workspace": workspace.build(project)}

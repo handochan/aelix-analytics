@@ -474,7 +474,7 @@ def test_a_walk_from_a_start_that_leads_to_the_root_or_an_ancestor_lists_nothing
     """Review of 3a95f38: `data/raw → /` made the dataset listing, the report's fingerprint and a
     directory read walk the whole file system (main's rglob did too). A start is judged as a link
     in the walk is: one that leads to the root or an ancestor of it gives nothing."""
-    from aelix_analytics import report
+    from aelix_analytics import workspace
 
     root = bare(tmp_path)
     write(root / "data" / "derived" / "d.parquet")
@@ -487,7 +487,7 @@ def test_a_walk_from_a_start_that_leads_to_the_root_or_an_ancestor_lists_nothing
     assert [(d["name"], d["path"]) for d in core.list_datasets(project, [])] == \
         [("d", "data/derived/d.parquet")]
     assert list(project.walk(start="data/derived/self")) == []
-    report.fingerprint(project)
+    workspace.fingerprint(project)
     state = capture.RunState(project, "r", tmp_path / "r", tmp_path / "x.py")
     state.record_read(str(root / "data" / "raw"), "polars.read_csv")
     assert state.inputs == {}

@@ -151,30 +151,30 @@ def import_file(project: core.Project, source: str, *, name: str | None = None,
     # Where it came from: its real path, every name as the file system stores it (ADR-0006 9).
     src = Path(project.canonical(src if src.is_absolute() else Path.cwd() / src))
     if not src.is_file():
-        raise core.LabError("import_source_missing", f"{src} is not a readable file")
+        raise core.AnalyticsError("import_source_missing", f"{src} is not a readable file")
     fmt = IMPORT_FORMATS.get(src.suffix.lower())
     if fmt is None:
-        raise core.LabError("import_format", f"cannot import {src.suffix or 'this file type'}",
-                            hint="supported: .parquet .csv .tsv .txt .json .ndjson .jsonl; convert "
-                                 "other formats inside an analytics_run script and analytics.save the result")
+        raise core.AnalyticsError("import_format", f"cannot import {src.suffix or 'this file type'}",
+                                  hint="supported: .parquet .csv .tsv .txt .json .ndjson .jsonl; convert "
+                                       "other formats inside an analytics_run script and analytics.save the result")
     name = name or re.sub(r"[^a-z0-9_]+", "_", src.stem.lower()).strip("_") or "dataset"
     if name[0].isdigit():
         name = f"d_{name}"
     if not core.DATASET_NAME_RE.match(name):
-        raise core.LabError("dataset_name", f"invalid dataset name {name!r}",
-                            hint="lowercase letters, digits and _, starting with a letter")
+        raise core.AnalyticsError("dataset_name", f"invalid dataset name {name!r}",
+                                  hint="lowercase letters, digits and _, starting with a letter")
     # An import always creates a name the project does not have yet, so a reserved device name is
     # always a new one and is refused outright.
     core.reject_unportable_name(name, kind="dataset")
     dest = project.raw / f"{name}.parquet"
     taken = core.dataset_name_taken(project, name)
     if taken and not dest.exists():
-        raise core.LabError("dataset_name_taken", f"dataset name {name!r} is already used by {taken}",
-                            hint="choose another name; analytics.read and analytics_query resolve datasets by name")
+        raise core.AnalyticsError("dataset_name_taken", f"dataset name {name!r} is already used by {taken}",
+                                  hint="choose another name; analytics.read and analytics_query resolve datasets by name")
     if dest.exists():
-        raise core.LabError("dataset_exists", f"data/raw/{name}.parquet already exists",
-                            hint=f"imported data is immutable: import under a new name such as "
-                                 f"{name}_v2 and record why with analytics_record")
+        raise core.AnalyticsError("dataset_exists", f"data/raw/{name}.parquet already exists",
+                                  hint=f"imported data is immutable: import under a new name such as "
+                                       f"{name}_v2 and record why with analytics_record")
     project.raw.mkdir(parents=True, exist_ok=True)
     tmp = project.raw / f".{name}.{os.getpid()}.tmp.parquet"
     started = time.perf_counter()
@@ -196,12 +196,12 @@ def import_file(project: core.Project, source: str, *, name: str | None = None,
             rel, retyped = _as_polars_types(rel)
             rel.write_parquet(str(tmp), compression="zstd")
         project.platform.files.replace(tmp, dest)
-    except core.LabError:
+    except core.AnalyticsError:
         raise
     except Exception as exc:
         with contextlib.suppress(OSError):
             tmp.unlink()
-        raise core.LabError("import_failed", f"could not read {src.name} as {fmt}: {exc}") from exc
+        raise core.AnalyticsError("import_failed", f"could not read {src.name} as {fmt}: {exc}") from exc
     finally:
         with contextlib.suppress(OSError):
             tmp.unlink()
@@ -269,28 +269,28 @@ def query(project: core.Project, sql: str, limit: int = 50) -> dict:
     limit = max(1, min(int(limit), 500))
     sql = (sql or "").strip()
     if not sql:
-        raise core.LabError("query_empty", "empty SQL")
+        raise core.AnalyticsError("query_empty", "empty SQL")
     try:
         statements = duckdb.extract_statements(sql)
     except duckdb.Error as exc:
-        raise core.LabError("query_parse", str(exc).splitlines()[0][:500]) from exc
+        raise core.AnalyticsError("query_parse", str(exc).splitlines()[0][:500]) from exc
     if len(statements) != 1:
-        raise core.LabError("query_single_statement", f"expected one statement, got "
-                            f"{len(statements)}")
+        raise core.AnalyticsError("query_single_statement", f"expected one statement, got "
+                                  f"{len(statements)}")
     kind = statements[0].type
     if kind == duckdb.StatementType.EXPLAIN:
         inner = re.sub(r"^\s*EXPLAIN\s+", "", sql, flags=re.IGNORECASE)
         if re.match(r"ANALY[SZ]E\b", inner, re.IGNORECASE):
-            raise core.LabError("query_read_only", "EXPLAIN ANALYZE executes the statement",
-                                hint="use plain EXPLAIN, or run the SELECT itself")
+            raise core.AnalyticsError("query_read_only", "EXPLAIN ANALYZE executes the statement",
+                                      hint="use plain EXPLAIN, or run the SELECT itself")
         try:
             kind = duckdb.extract_statements(inner)[0].type
         except (duckdb.Error, IndexError):
             kind = None
     if kind != duckdb.StatementType.SELECT:
         name = getattr(statements[0].type, "name", "this")
-        raise core.LabError("query_read_only", f"{name} statements are not allowed here",
-                            hint="analytics_query is read-only exploration; write data with analytics_run")
+        raise core.AnalyticsError("query_read_only", f"{name} statements are not allowed here",
+                                  hint="analytics_query is read-only exploration; write data with analytics_run")
     con = duckdb.connect()
     views = register_views(con, project)
     # Only the project's data directory is reachable, and the query cannot change that.
@@ -302,14 +302,14 @@ def query(project: core.Project, sql: str, limit: int = 50) -> dict:
     try:
         rel = con.sql(sql)
         if rel is None:
-            raise core.LabError("query_no_result", "the statement returned no result set")
+            raise core.AnalyticsError("query_no_result", "the statement returned no result set")
         columns = [{"name": n, "type": str(t)} for n, t in zip(rel.columns, rel.types,
                                                                strict=False)]
         try:
             rows = rel.limit(limit + 1).fetchall()
         except duckdb.Error:
             rows = rel.fetchmany(limit + 1)
-    except core.LabError:
+    except core.AnalyticsError:
         raise
     except duckdb.Error as exc:
         entry["error"] = str(exc)[:500]
@@ -321,7 +321,7 @@ def query(project: core.Project, sql: str, limit: int = 50) -> dict:
             hint += ("; analytics_query reads only files whose real path is under the project's "
                      "data/ — a dataset below a link from data/ to elsewhere is read in a run "
                      "(analytics.read)")
-        raise core.LabError("query_failed", str(exc).strip()[:1500], hint=hint) from exc
+        raise core.AnalyticsError("query_failed", str(exc).strip()[:1500], hint=hint) from exc
     truncated = len(rows) > limit
     rows = rows[:limit]
     tables = sorted(referenced_views(sql, views))

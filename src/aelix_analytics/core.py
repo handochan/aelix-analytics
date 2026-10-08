@@ -28,7 +28,7 @@ from pathlib import Path, PureWindowsPath
 
 from . import _platform, relations
 
-KIT_VERSION = "0.5.0"
+KIT_VERSION = "0.6.0"
 MARKER = "lab.json"
 SCHEMA_PROJECT = "lab.project/1"
 SCHEMA_RUN = "lab.run/1"
@@ -77,7 +77,7 @@ MANAGED_DIRS = (".venv", ".lab", "runs", "report")
 PLATFORM = _platform.detect()
 
 
-class LabError(Exception):
+class AnalyticsError(Exception):
     def __init__(self, code: str, message: str, hint: str | None = None, details=None):
         super().__init__(message)
         self.code = code
@@ -139,9 +139,9 @@ def refuse_renamed_env(names) -> None:
     """Raise env_renamed for the first of `names` (old names, RENAMED_ENV's keys) that is set."""
     for old in names:
         if os.environ.get(old):
-            raise LabError("env_renamed", renamed_env_message(old, remedy=False),
-                           hint=f"set {RENAMED_ENV[old]} instead and unset {old}",
-                           details={"renamed": {old: RENAMED_ENV[old]}})
+            raise AnalyticsError("env_renamed", renamed_env_message(old, remedy=False),
+                                 hint=f"set {RENAMED_ENV[old]} instead and unset {old}",
+                                 details={"renamed": {old: RENAMED_ENV[old]}})
 
 
 def expand_home(path: Path) -> Path:
@@ -512,12 +512,12 @@ class Project:
         self.derived = self.data / "derived"
         self.scripts = self.root / "scripts"
         self.runs = self.root / "runs"
-        self.report = self.root / "report"
-        self.lab = self.root / ".lab"
-        self.cache = self.lab / "cache"
-        self.context_history = self.lab / "context"
-        self.telemetry = self.lab / "telemetry.jsonl"
-        self.queries = self.lab / "queries.jsonl"
+        self.workspace_dir = self.root / "report"
+        self.state_dir = self.root / ".lab"
+        self.cache = self.state_dir / "cache"
+        self.context_history = self.state_dir / "context"
+        self.telemetry = self.state_dir / "telemetry.jsonl"
+        self.queries = self.state_dir / "queries.jsonl"
         self._judged: dict[str, _State] = {}
         self._keys: dict[str, tuple | None] = {}
         self._managed_places: tuple[list, list] | None = None
@@ -1002,11 +1002,11 @@ class Project:
         data = read_json(self.marker)
         data = data if isinstance(data, dict) else {}
         if newer_schema(data.get("schema"), SCHEMA_PROJECT):
-            raise LabError("project_too_new",
-                           f"{self.root}/{MARKER} is {data['schema']}, and this kit reads "
-                           f"{SCHEMA_PROJECT}",
-                           hint="a newer version of the analytics kit made this project; update the kit "
-                                "instead of reading it with this one")
+            raise AnalyticsError("project_too_new",
+                                 f"{self.root}/{MARKER} is {data['schema']}, and this kit reads "
+                                 f"{SCHEMA_PROJECT}",
+                                 hint="a newer version of the analytics kit made this project; update the kit "
+                                      "instead of reading it with this one")
         return data
 
     def title(self) -> str:
@@ -1104,11 +1104,11 @@ def reject_unportable_name(name, *, kind: str, exists: bool = False) -> None:
     platform, because a record outlives the machine that wrote it."""
     if exists or not _platform.reserved_name(name):
         return
-    raise LabError("name_not_portable",
-                   f"{kind} name {name!r} is a reserved device name on Windows",
-                   hint=f"choose another name, for example {name}_1; records that already use this "
-                        "name keep working, but a new one has to be usable on Linux, macOS and "
-                        "Windows")
+    raise AnalyticsError("name_not_portable",
+                         f"{kind} name {name!r} is a reserved device name on Windows",
+                         hint=f"choose another name, for example {name}_1; records that already use this "
+                              "name keep working, but a new one has to be usable on Linux, macOS and "
+                              "Windows")
 
 
 def slugify(text, max_len: int = 48) -> str:
@@ -1269,12 +1269,12 @@ class HashCache:
 
 def project_lock(project: Project):
     """Exclusive inter-process lock for journal and context-history writes. Not re-entrant."""
-    return project.platform.locks.exclusive(project.lab / "lock")
+    return project.platform.locks.exclusive(project.state_dir / "lock")
 
 
 def run_lock(project: Project):
     """Serializes runs of one project (see runner.execute)."""
-    return project.platform.locks.exclusive(project.lab / "run.lock")
+    return project.platform.locks.exclusive(project.state_dir / "run.lock")
 
 
 # --- trust: which projects an aelix session may activate just by being inside them ---
@@ -1443,8 +1443,8 @@ def _append_event_locked(project: Project, kind: str, text: str, refs=None, acto
 def append_event(project: Project, kind: str, text: str, *, refs=None, actor="agent",
                  session=None) -> dict:
     if kind not in EVENT_KINDS:
-        raise LabError("bad_kind", f"unknown journal kind {kind!r}",
-                       hint="use one of: " + ", ".join(NOTE_KINDS))
+        raise AnalyticsError("bad_kind", f"unknown journal kind {kind!r}",
+                             hint="use one of: " + ", ".join(NOTE_KINDS))
     with project_lock(project):
         return _append_event_locked(project, kind, text, refs, actor, session)
 
@@ -1499,23 +1499,23 @@ def resolved_targets(events) -> dict[str, dict]:
 def add_note(project: Project, kind: str, text: str, *, refs=None, resolves=None, actor="agent",
              session=None) -> dict:
     if kind not in NOTE_KINDS:
-        raise LabError("bad_kind", f"unknown note kind {kind!r}",
-                       hint="use one of: " + ", ".join(NOTE_KINDS))
+        raise AnalyticsError("bad_kind", f"unknown note kind {kind!r}",
+                             hint="use one of: " + ", ".join(NOTE_KINDS))
     text = (text or "").strip()
     if not text:
-        raise LabError("empty_note", "note text is empty")
+        raise AnalyticsError("empty_note", "note text is empty")
     ref_map = resolve_ref_aliases(project, classify_refs(refs))
     if kind == "resolve" and not resolves:
-        raise LabError("resolve_needs_target", "kind 'resolve' needs resolves=<event id>",
-                       hint="pass the id of the question or todo being closed, e.g. e7")
+        raise AnalyticsError("resolve_needs_target", "kind 'resolve' needs resolves=<event id>",
+                             hint="pass the id of the question or todo being closed, e.g. e7")
     with project_lock(project):
         if resolves:
             resolves = str(resolves).strip()
             events = read_events(project)
             target = next((e for e in events if e.get("id") == resolves), None)
             if target is None:
-                raise LabError("unknown_event", f"no journal event {resolves!r}",
-                               hint="analytics_status lists open questions and todos with their ids")
+                raise AnalyticsError("unknown_event", f"no journal event {resolves!r}",
+                                     hint="analytics_status lists open questions and todos with their ids")
             ref_map["resolves"] = resolves
         return _append_event_locked(project, kind, text, ref_map, actor, session)
 
@@ -2070,7 +2070,7 @@ def status(project: Project, limit: int = STATUS_LIMIT) -> dict:
                     "context_omitted": [s["name"] for s in context_omitted],
                     "context_truncated": context_truncated,
                     "context_updated": _version_time(versions[-1]) if versions else None},
-        "report": str(project.report / "index.html"),
+        "workspace": str(project.workspace_dir / "index.html"),
         "versions": locked_versions(project),
         "counts": {"datasets": len(datasets), "runs": len(runs),
                    "runs_failed": sum(1 for r in runs if r.get("status") != "ok"),
@@ -2289,7 +2289,7 @@ def _status_lines(st: dict, caps: dict[str, int]) -> list[tuple[str, str, bool]]
     key_at_limit = len(st["key"]) >= 2 * STATUS_LIMIT
     earlier = counts["events"] - len(st["recent"])
     add("head", f"project: {p['title']} ({p['root']})")
-    add("head", f"report: {st['report']}")
+    add("head", f"report: {st['workspace']}")
     if st.get("source_revision"):
         add("head", _read_line(st))
     if older_runs > 0 or more_charts > 0 or older_open > 0 or key_at_limit or earlier > 0:
@@ -2726,7 +2726,7 @@ def context_block(project: Project, max_context_chars: int = CONTEXT_PROMPT_CHAR
     parts = [
         "# Active analytics project",
         f"root: {project.root} (title: {project.title()})",
-        f"report: {project.report / 'index.html'} (rebuilt after runs, imports and notes)",
+        f"report: {project.workspace_dir / 'index.html'} (rebuilt after runs, imports and notes)",
         "Call analytics_status for datasets, runs, charts and the recent journal.",
         "",
         "## CONTEXT.md",
@@ -2786,12 +2786,12 @@ def init_project(target, *, title=None, goal=None, template_dir=None, actor="hum
     root = Path(target).expanduser()
     if root.exists():
         if not root.is_dir():
-            raise LabError("init_not_directory", f"{root} exists and is not a directory")
+            raise AnalyticsError("init_not_directory", f"{root} exists and is not a directory")
         leftovers = [p.name for p in root.iterdir() if p.name not in (".DS_Store",)]
         if leftovers:
-            raise LabError("init_not_empty", f"{root} is not empty",
-                           hint="choose a new directory; init never adopts existing files",
-                           details={"entries": sorted(leftovers)[:10]})
+            raise AnalyticsError("init_not_empty", f"{root} is not empty",
+                                 hint="choose a new directory; init never adopts existing files",
+                                 details={"entries": sorted(leftovers)[:10]})
     # Read before anything is created: a kit installed without its template must not leave a
     # half-made project that a second init then refuses as not empty.
     if template_dir is None:
@@ -2800,13 +2800,13 @@ def init_project(target, *, title=None, goal=None, template_dir=None, actor="hum
     try:
         texts = {src: (template / src).read_text(encoding="utf-8") for src in TEMPLATE_FILES}
     except OSError as exc:
-        raise LabError("template_missing", f"the project template cannot be read: {exc}",
-                       hint="reinstall aelix-analytics; in a checkout, restore src/aelix_analytics/template"
-                       ) from exc
+        raise AnalyticsError("template_missing", f"the project template cannot be read: {exc}",
+                             hint="reinstall aelix-analytics; in a checkout, restore src/aelix_analytics/template"
+                             ) from exc
     root.mkdir(parents=True, exist_ok=True)
     project = Project(root, platform=platform)
     title = (title or "").strip() or project.root.name
-    for d in (project.raw, project.derived, project.scripts, project.runs, project.report,
+    for d in (project.raw, project.derived, project.scripts, project.runs, project.workspace_dir,
               project.context_history, project.cache):
         d.mkdir(parents=True, exist_ok=True)
     created = iso()
