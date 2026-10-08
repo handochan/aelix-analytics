@@ -172,10 +172,22 @@ case $cmd in
     # The page of the project's layout, by its marker's name (the installed command's open): a
     # lab.json project's report/ is opened when it is there, and never built or updated.
     if kit_marker "$proj/analytics.json"; then index=$proj/workspace/index.html; else index=$proj/report/index.html; fi
-    if [ "$index" = "$proj/report/index.html" ] && [ -f "$index" ]; then
+    if [ "$index" = "$proj/report/index.html" ]; then
+      # Opened when it is there; never built, so no environment is made for it either.
+      if [ ! -f "$index" ]; then
+        echo "analytics: $proj uses the older record format (lab.json) and has no page to open: the kit reads it and builds no page for it. Copy it into the current format with \`analytics migrate --to <new empty folder>\` run inside it (preview with --dry-run)" >&2
+        exit 1
+      fi
       echo "analytics: $proj uses the older record format (lab.json): the kit reads it and no longer updates this page; analytics status says how to migrate it" >&2
     fi
-    [ -f "$index" ] || kit "$proj" render >/dev/null
+    # The kit's answer is shown when it builds no page (a project it does not write to, say).
+    if [ ! -f "$index" ]; then
+      if answer=$(kit "$proj" render); then :; else
+        code=$?
+        printf '%s\n' "$answer"
+        exit "$code"
+      fi
+    fi
     if command -v open >/dev/null 2>&1; then open "$index"
     else xdg-open "$index"; fi
     ;;
@@ -186,26 +198,40 @@ case $cmd in
     ;;
   migrate)
     refuse_renamed
-    "$UV" run --no-project --python 3.12 --quiet python -m aelix_analytics migrate "$@"
-    # Committed (the kit's exit 0) and not a dry run: the destination's environment from its lock as
-    # it is (the installed command's _migrate). --to as the kit reads it: the last one counts.
-    to= dry=
-    while [ $# -gt 0 ]; do
-      case $1 in
-        --to) if [ $# -ge 2 ]; then to=$2; shift; fi ;;
-        --to=*) to=${1#--to=} ;;
-        --dry-run) dry=1 ;;
-      esac
-      shift
-    done
-    if [ -z "$dry" ] && [ -n "$to" ]; then
-      proj=$(CDPATH='' cd -- "$to" && pwd -P)
-      echo "analytics: syncing the project environment (first time can take a minute) ..." >&2
-      if "$UV" sync --project "$proj" --locked --quiet || "$UV" sync --project "$proj" --locked --quiet --offline; then
-        echo "analytics: the project is $proj now, and the source is as it was (in aelix: /analytics use $proj)" >&2
+    # The kit's answer is passed on as it came; once it committed (the kit's exit 0, `ok` and not a
+    # dry run), the destination's environment from its lock as it is (the installed command's
+    # _migrate). The destination is the one the answer names: the kit reads --to by its rules (`~`
+    # included), and an environment is prepared only in a folder that holds the analytics.json the
+    # migration published, so uv never looks for a project above it.
+    if answer=$("$UV" run --no-project --python 3.12 --quiet python -m aelix_analytics migrate "$@"); then :; else
+      code=$?
+      [ -z "$answer" ] || printf '%s\n' "$answer"
+      exit "$code"
+    fi
+    [ -z "$answer" ] || printf '%s\n' "$answer"
+    proj=$(printf '%s\n' "$answer" | "$UV" run --no-project --python 3.12 --quiet python -c '
+import json, sys
+lines = [line for line in sys.stdin.read().split("\n") if line.startswith("{")]
+try:
+    value = json.loads(lines[-1]) if lines else None
+except ValueError:
+    value = None
+if isinstance(value, dict) and value.get("ok") is True and not value.get("dry_run"):
+    destination = value.get("destination")
+    if isinstance(destination, str) and destination:
+        sys.stdout.write(destination)
+') || proj=
+    if [ -n "$proj" ]; then
+      if [ -d "$proj" ] && kit_marker "$proj/analytics.json"; then
+        echo "analytics: syncing the project environment (first time can take a minute) ..." >&2
+        if "$UV" sync --project "$proj" --locked --quiet || "$UV" sync --project "$proj" --locked --quiet --offline; then
+          echo "analytics: the project is $proj now, and the source is as it was (in aelix: /analytics use $proj)" >&2
+        else
+          code=$?
+          echo "analytics: the migration is done, but preparing the environment of $proj failed (uv sync --locked, exit $code); the project's next command prepares it" >&2
+        fi
       else
-        code=$?
-        echo "analytics: the migration is done, but preparing the environment of $proj failed (uv sync --locked, exit $code); the project's next command prepares it" >&2
+        echo "analytics: the kit's answer names $proj, which holds no analytics.json: its environment is not prepared; analytics status there says what it is" >&2
       fi
     fi
     ;;

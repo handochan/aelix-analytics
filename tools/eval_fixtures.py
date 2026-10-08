@@ -97,7 +97,8 @@ FORMATS = ("v1",)
 LATER_FORMATS = {"v2": "the plan is written in v1 only; writing it with the analytics.event/2 writer of "
                        "Issue #13 is a later change"}
 # The commit whose kit writes the v1 fixtures (design OQ7): the last before the new writer — PR #82's head (Issue
-# #13 PR 2), until its merge commit is on main. The tests and the CI make --kit-root from it with git archive.
+# #13 PR 2). PR #82 is merged as 0f3f09f, whose src/ is this commit's, and this commit is reachable from main, so
+# it stays named. The tests and the CI make --kit-root from it with git archive.
 V1_KIT_COMMIT = "ebd10b644e8cb8550ccf6446b134666db6bb9386"
 KST = timezone(timedelta(hours=9))
 PROJECT_DIR = "project"

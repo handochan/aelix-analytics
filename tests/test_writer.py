@@ -944,6 +944,59 @@ def test_a_run_killed_before_its_completion_event_stays_incomplete(tmp_path):
     assert (root / "journal.jsonl").read_bytes() == journal
 
 
+# A writer killed while it writes a journal line (design 8, the row "줄을 쓰다 중단", T13): the writer's
+# os.write writes the first half of the line, and the process ends there, as a kill would.
+CUT = """
+import os as real_os, sys
+from aelix_analytics import core, writer
+
+
+class Cut:
+    def __getattr__(self, name):
+        return getattr(real_os, name)
+
+    @staticmethod
+    def write(fd, data):
+        data = bytes(data)
+        real_os.write(fd, data[:len(data) // 2])
+        real_os._exit(9)
+
+
+writer.os = Cut()
+w = writer.Writer(sys.argv[1], platform=core.PLATFORM, origin=core.Origin("test", "sdk"),
+                  writer_version=core.KIT_VERSION)
+if sys.argv[2] == "record":
+    w.record("finding", "cut while it was written", refs=[{"type": "event", "event_id": sys.argv[3],
+                                                           "relation": "supersedes"}])
+else:
+    w.update(sys.argv[3], expected="current", new="withdrawn", text="withdrawn, cut")
+"""
+
+
+@pytest.mark.parametrize("call", ["record", "update"])
+def test_a_writer_killed_while_it_writes_a_line_leaves_it_damaged_and_the_state_as_it_was(tmp_path, call):
+    """T13 with a real end of the process mid-write: the cut line is damaged (no record is read from
+    it), the target's state is what it was, and the next writer writes an LF first and its own line
+    whole, with the next seq (a seq in a cut line is not counted, #49)."""
+    root = analytics_project(tmp_path / "p")
+    target = core.record(core.Project(root), "decision", "to withdraw", origin=ORIGIN).event
+    before = (root / "journal.jsonl").read_bytes()
+    done = subprocess.run([sys.executable, "-c", CUT, str(root), call, target["id"]], env=kit_env(),
+                          timeout=120)
+    assert done.returncode == 9
+    cut = (root / "journal.jsonl").read_bytes()
+    assert cut.startswith(before) and len(cut) > len(before) and not cut.endswith(b"\n")
+    journal = relations.read_journal(root)
+    assert journal.damaged == [journal.lines] and journal.recovered == []
+    assert journal.replay().state_of(target["id"])["state"] == "current"
+    assert journal.next_seq == target["seq"] + 1
+    after = make(root, clock=fixed_clock).record("note", "after the cut")
+    assert after.event["seq"] == target["seq"] + 1
+    assert (root / "journal.jsonl").read_bytes() == cut + b"\n" + writer._encode(after.event) + b"\n"
+    again = relations.read_journal(root)
+    assert again.damaged == [journal.lines] and again.replay().state_of(target["id"])["state"] == "current"
+
+
 def test_an_import_record_and_its_event(tmp_path):
     root = analytics_project(tmp_path / "p")
     data = b"PAR1sales"

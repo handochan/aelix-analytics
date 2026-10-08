@@ -10,9 +10,9 @@ test's own. The kit's command line is run the two ways aelix runs a shell comman
   bus) → `human`, declared, for a command that calls the kit; a command that does not gets no shell
   from this extension.
 
-A second extension that returns its own shell for every `!` command is registered before and after
-this one, and which shell ran is written down (design 4.2: aelix keeps the last shell a handler
-returns). What was seen is kept as observations (AELIX_ANALYTICS_TEST_EVIDENCE_DIR,
+A second extension that returns its own shell for every `!` command, and one that blocks every `!`
+command, are each registered before and after this one, and what ran is written down (design 4.2:
+aelix keeps the last result a user_bash handler returns, of any kind). What was seen is kept as observations (AELIX_ANALYTICS_TEST_EVIDENCE_DIR,
 issue-13-writer/agent-cli-*) for the measurement record. Run with aelix, as tests/test_extension.py:
 
     uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1
@@ -74,6 +74,25 @@ class OtherShell:
 
 def on_user_bash(event, ctx):
     return UserBashResult(operations=OtherShell())
+
+
+def setup(aelix):
+    aelix.on("user_bash", on_user_bash)
+'''
+
+
+# Another extension that refuses every `!` command (a policy's): it answers with a result of its own,
+# which aelix shows instead of running the command (cli/repl.handle_user_bash).
+BLOCKER = '''
+from aelix_agent_core.harness.hooks import UserBashResult
+
+
+class Blocked:
+    output = "blocked by policy"
+
+
+def on_user_bash(event, ctx):
+    return UserBashResult(result=Blocked())
 
 
 def setup(aelix):
@@ -233,6 +252,41 @@ def test_another_extension_s_shell_and_this_one_s_the_last_one_runs(aelix_sessio
     record_observation(f"issue-13-writer/agent-cli-{order.replace(' ', '-')}", {
         "order": order, "python": sys.version.split()[0], "platform": sys.platform,
         "kit_command": kit, "not_the_kit": not_kit})
+
+
+@pytest.mark.parametrize("order", ["blocker first", "blocker last"])
+def test_an_extension_that_blocks_a_command_is_set_aside_when_it_comes_first(aelix_session, order):
+    """The limit CONTRACTS A states (review of PR 3): aelix keeps the last UserBashResult of any kind
+    (hooks._reducer_user_bash), not the last shell. With an extension that blocks every `!` command
+    registered before this one, this extension's shell replaces the block for a command that calls
+    the kit — it runs, and records `human` — while a command that does not call the kit stays
+    blocked. Registered after this one, the block holds for both."""
+    tmp_path, root, _other = aelix_session
+    blocker = tmp_path / "blocker_extension.py"
+    blocker.write_text(BLOCKER, encoding="utf-8")
+    extensions = [blocker, EXT] if order == "blocker first" else [EXT, blocker]
+
+    async def scenario():
+        _loaded, harness, _session = await build(tmp_path, extensions)
+        await harness.hooks.emit(BeforeAgentStartHookEvent(prompt="hi", system_prompt="BASE"))
+        journal = (root / "journal.jsonl").read_bytes()
+        kit_command = python_command("record", "note", f"T22-{order.replace(' ', '-')}")
+        kit_out = await handle_user_bash(harness, kit_command, exclude_from_context=True, cwd=str(tmp_path))
+        kit = {"output": kit_out.strip()[-40:], "written": (root / "journal.jsonl").read_bytes() != journal,
+               "recorded": author(last_event(root))}
+        echoed = await handle_user_bash(harness, "echo T22", exclude_from_context=True, cwd=str(tmp_path))
+        return kit, echoed.strip()
+
+    kit, echoed = asyncio.run(scenario())
+    assert echoed == "blocked by policy"
+    if order == "blocker first":
+        assert kit["written"] and (kit["recorded"]["actor"], kit["recorded"]["actor_basis"]) == (
+            "human", "declared"), kit
+    else:
+        assert kit["output"] == "blocked by policy" and not kit["written"], kit
+    record_observation(f"issue-13-writer/agent-cli-{order.replace(' ', '-')}", {
+        "order": order, "python": sys.version.split()[0], "platform": sys.platform,
+        "kit_command": kit, "not_the_kit": echoed})
 
 
 def test_the_user_bash_result_type_is_aelix_s(aelix_session):

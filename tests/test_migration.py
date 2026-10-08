@@ -969,6 +969,42 @@ def test_the_destination_s_other_rules(tmp_path):
     assert_committed(finder)
 
 
+@pytest.mark.parametrize("change", ["entry", "space"])
+def test_a_refusal_judged_again_under_the_lock_says_what_this_attempt_left(tmp_path, change):
+    """design 6.2 step 1 under the lock (review of PR 3): what changed between the judgment and the
+    lock — a file in the destination (macOS's AppleDouble ._.analytics on FAT, say), a disk filled
+    meanwhile — is refused there, after the folder, its .analytics/ and the lock file were made.
+    The hint no longer says `nothing was written`: it says nothing was copied, names what this
+    attempt left, and how to go on; the destination is a migration's that has not committed."""
+    source = plain_source(tmp_path)
+    dest = tmp_path / "dest"
+    free = {"bytes": 1 << 40}
+
+    def on_step(name, info):
+        if name == "dest_locked":
+            if change == "entry":
+                (dest / "._.analytics").write_bytes(b"\x00")
+            else:  # another call's empty migration directory: judged again, and the disk filled
+                (dest / ".analytics" / "migration" / "20261009T000000Z-00000000").mkdir(parents=True)
+                free["bytes"] = 1000
+
+    code = "destination_invalid" if change == "entry" else "insufficient_space"
+    error = refused(code, lambda: migrate(source, dest, on_step=on_step,
+                                          free_space=lambda _path: free["bytes"]))
+    assert "nothing was written" not in error.hint, error.hint
+    real = Path(core.canonical(dest))
+    left = [str(real), str(real / ".analytics"), str(real / ".analytics" / "migration.lock")]
+    assert f"nothing was copied, and this attempt left {', '.join(left)}" in error.hint, error.hint
+    assert "remove what it made before trying again" in error.hint
+    assert all(os.path.lexists(p) for p in left)
+    assert writer.marker_state(dest).state == writer.INCOMPLETE
+    # Before the lock nothing is written, and the hint says so.
+    fresh = refused(code, lambda: migrate(source, tmp_path / "fresh", free_space=1000)) if change == "space" \
+        else None
+    if fresh is not None:
+        assert "nothing was written" in fresh.hint and not (tmp_path / "fresh").exists()
+
+
 def test_the_source_s_own_refusals(tmp_path):
     """T2, OQ10, OQ12: a link outside whose target is gone, a nested project, a name of .lab/ the
     current layout manages, a source that is not a lab.json project, no source — refused before

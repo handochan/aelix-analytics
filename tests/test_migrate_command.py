@@ -215,19 +215,30 @@ def test_refusals_change_nothing(tmp_path):
 
 @pytest.mark.parametrize(("actor", "expected"), [(None, ("human", "inferred")),
                                                  ("agent", ("agent", "declared"))])
-def test_the_call_s_origin_is_in_the_ledger_and_the_report(tmp_path, actor, expected):
+def test_the_call_s_origin_is_in_the_ledger_the_report_and_the_answer(tmp_path, actor, expected):
     """OQ14: a migration an agent calls (AELIX_ANALYTICS_ACTOR=agent, an aelix agent's bash) is taken
     and recorded as the agent's, declared; a person's call without the variable is `human`,
-    inferred. Both through the command line (means `cli`)."""
+    inferred. Both through the command line (means `cli`), in the ledger's start, the report and
+    every answer — the dry run's, the commit's and a confirmation's — with the session when there
+    is one."""
     source = plain_source(tmp_path)
     dest = tmp_path / "new"
+    said = dict(zip(("actor", "actor_basis", "means"), (*expected, "cli"), strict=True))
+    code, dry = command("migrate", "--to", dest, "--dry-run", cwd=source, actor=actor)
+    assert code == 0 and dry["dry_run"] and {k: dry.get(k) for k in said} == said, dry
+    assert "session" not in dry
     code, result = command("migrate", "--to", dest, cwd=source, actor=actor)
     assert code == 0, result
+    assert {k: result.get(k) for k in said} == said and "session" not in result, result
     start = ledger(dest).start
     assert (start["origin"]["actor"], start["origin"]["actor_basis"], start["origin"]["means"]) == (
         *expected, "cli")
     report = json.loads((mdir(dest) / "report.json").read_text(encoding="utf-8"))
     assert (report["actor"], report["actor_basis"], report["means"]) == (*expected, "cli")
+    code, again = command("migrate", "--to", dest, cwd=source, actor=actor,
+                          AELIX_ANALYTICS_SESSION="session-1")
+    assert code == 0 and again["already_migrated"] is True, again
+    assert {k: again.get(k) for k in (*said, "session")} == {**said, "session": "session-1"}
 
 
 def test_a_means_outside_the_list_is_refused_before_anything(tmp_path):
@@ -489,12 +500,12 @@ PYPROJECT = (b"[project]\nname = \"t18\"\nversion = \"0.0.0\"\nrequires-python =
              b"dependencies = []\n\n[tool.uv]\npackage = false\n")
 
 
-def launcher(which: str, *args, cwd: Path) -> subprocess.CompletedProcess:
+def launcher(which: str, *args, cwd: Path, **extra) -> subprocess.CompletedProcess:
     """`analytics ARGS` (the installed command's code, this checkout's kit) or bin/analytics, with the
-    real uv, as a person's terminal runs it."""
+    real uv, as a person's terminal runs it; `extra` is added to its environment."""
     from test_launcher import BIN, RUN_LAUNCHER
 
-    env = kit_env(AELIX_ANALYTICS_UV=REAL_UV)
+    env = kit_env(AELIX_ANALYTICS_UV=REAL_UV, **extra)
     for name in ("AELIX_ANALYTICS_ACTOR", "AELIX_ANALYTICS_PROJECT", "PYTHONPATH"):
         env.pop(name, None)
     argv = ["sh", str(BIN), *args] if which == "bin/analytics" else [sys.executable, "-c", RUN_LAUNCHER, *args]
@@ -544,6 +555,76 @@ def test_the_launchers_migrate_without_touching_the_source_s_environment(tmp_pat
     else:
         assert "the migration is done, but preparing the environment of" in stderr
     record_t18(which, fits, done.returncode, dest, stderr)
+
+
+def moved_home(tmp_path: Path) -> tuple[Path, dict]:
+    """A home of the test's own for `~`, with uv's cache and its Pythons still the caller's (a moved
+    HOME would otherwise start both empty)."""
+    home = tmp_path / "home"
+    home.mkdir()
+    env = {"HOME": str(home), "USERPROFILE": str(home)}
+    for name, ask in (("UV_CACHE_DIR", ["cache", "dir"]), ("UV_PYTHON_INSTALL_DIR", ["python", "dir"])):
+        env[name] = os.environ.get(name) or subprocess.run(
+            [REAL_UV, *ask], check=True, capture_output=True, timeout=60,
+            **_platform.text_kwargs()).stdout.strip()
+    return home, env
+
+
+def extra_package(venv: Path) -> None:
+    """A package installed in `venv` that its project's lock does not have, as a person adds one:
+    an exact `uv sync` of that project would remove it."""
+    site = next(venv.glob("lib/python3*/site-packages"), None) or venv / "Lib" / "site-packages"
+    (site / "t18extra.py").write_text("VALUE = 1\n", encoding="utf-8")
+    info = site / "t18extra-1.0.dist-info"
+    info.mkdir()
+    (info / "METADATA").write_text("Metadata-Version: 2.1\nName: t18extra\nVersion: 1.0\n",
+                                   encoding="utf-8")
+    (info / "INSTALLER").write_text("pip\n", encoding="utf-8")
+    (info / "RECORD").write_text("t18extra.py,,\nt18extra-1.0.dist-info/METADATA,,\n"
+                                 "t18extra-1.0.dist-info/INSTALLER,,\nt18extra-1.0.dist-info/RECORD,,\n",
+                                 encoding="utf-8")
+
+
+@pytest.mark.skipif(REAL_UV is None, reason="uv is not installed")
+@pytest.mark.parametrize("which", LAUNCHERS)
+@pytest.mark.parametrize("given", [["--to=~/x"], ["--to", "~/x"]])
+@pytest.mark.parametrize("venv", ["none", "extra package"])
+def test_a_destination_given_with_a_tilde_is_prepared_where_the_kit_made_it(tmp_path, which, given,
+                                                                             venv):
+    """T18 with `~` (review of PR 3): `--to=~/x` reaches the launchers as it is in every POSIX shell,
+    and so does a quoted '~/x' or one cmd.exe passes. The kit makes the destination in the home; the
+    launchers prepare the environment of the folder the kit's answer names, never `<cwd>/~/x`, below
+    which uv would find the source's pyproject and sync the source — making a .venv/ where it had
+    none, or removing a package a person added to it. The source's .venv/ and uv.lock stay byte for
+    byte as they were."""
+    source = uv_source(tmp_path)
+    if venv == "none":
+        shutil.rmtree(source / ".venv")
+    else:
+        extra_package(source / ".venv")
+    before = source_tree(source)
+    home, env = moved_home(tmp_path)
+    done = launcher(which, "migrate", *given, cwd=source, **env)
+    assert done.returncode == 0, (done.stdout, done.stderr)
+    dest = home / "x"
+    answer = json.loads(done.stdout.decode("utf-8").strip().split("\n")[-1])
+    assert answer["ok"] is True and answer["destination"] == str(dest.resolve()), answer
+    assert source_tree(source) == before, "S1: the source's environment or lock changed"
+    assert not (source / "~").exists()
+    assert (source / ".venv").exists() == (venv != "none")
+    assert_committed(dest, source)
+    assert (dest / ".venv" / "pyvenv.cfg").is_file()
+    stderr = done.stderr.decode("utf-8")
+    assert stderr.endswith(f"the project is {dest.resolve()} now, and the source is as it was "
+                           f"(in aelix: /analytics use {dest.resolve()})\n"), stderr
+    from conftest import record_observation
+
+    record_observation(f"issue-13-writer/uv-tilde-{which.replace('/', '-')}-{'equals' if len(given) == 1 else 'apart'}-"
+                       f"{venv.replace(' ', '-')}",
+                       {"argv": ["migrate", *given], "exit": done.returncode,
+                        "destination": "<home>/x", "destination_venv": True, "source_unchanged": True,
+                        "literal_tilde_folder": False,
+                        "stderr_last_line": stderr.strip().split("\n")[-1].replace(str(dest.resolve()), "<dest>")})
 
 
 def record_t18(which: str, fits: bool, code: int, dest: Path, stderr: str) -> None:

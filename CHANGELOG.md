@@ -26,7 +26,8 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 - `analytics migrate --to DIR [--dry-run]`(설치본 `analytics`, `bin/analytics`; kit의 `migrate`): `lab.json` 프로젝트를 새 빈 폴더에 새 형식으로
   복사합니다. 원본에는 옛 kit의 잠금 파일 둘 말고는 쓰지 않고, `--dry-run`은 아무것도 쓰지 않고 계획과 거절 이유를 먼저 보이며, 끊긴 전환은 같은
   명령으로 잇고 끝난 전환을 다시 부르면 원본과 사본을 대조합니다. 두 런처는 이 명령을 프로젝트의 환경 없이(`uv run --no-project`) 부르고, 커밋한
-  뒤 목적지의 환경을 `uv sync --locked`로 준비합니다(실패해도 전환은 끝났다고 알리고 0). 에이전트가 부른 전환은 보고서에 `agent`로 남습니다.
+  뒤 kit이 답한 목적지(`~` 포함, kit이 푼 경로)의 환경을 `uv sync --locked`로 준비합니다(실패해도 전환은 끝났다고 알리고 0). 에이전트가 부른
+  전환은 보고서와 응답에 `agent`로 남습니다.
   aelix의 도구·`/analytics`에는 이 명령이 없습니다 ([#13]).
 - 링크를 만들 수 없는 목적지(FAT·exFAT 등)에서는 전환이 표식을 제자리에 쓰지 않고 이미 있는 이름을 바꾸지 않는 rename(Linux
   `renameat2(RENAME_NOREPLACE)`, macOS `renamex_np(RENAME_EXCL)`, Windows `os.rename`; 포트의 `AtomicFiles.rename_new`)으로 게시합니다. 그것도
@@ -41,7 +42,7 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 - 쓰는 형식이 `analytics.project/2`입니다. `lab.json` 프로젝트의 모든 쓰기(run·import·record·render·demo, SDK, aelix 도구와 `/analytics`)는 새
   오류 `migration_required`와 전환하는 법을 알리는 안내로 첫 부수 효과 전에 거절되고, 맥락 동기화·캐시·로그 같은 부수 쓰기는 건너뜁니다. `status`
   JSON의 `project.migration_hint`와 글·맥락 블록의 `Older record format: …` 줄이 그것을 알립니다. `analytics open`은 있는 `report/index.html`을
-  열고 더 갱신되지 않는다고 적습니다. 위쪽 디렉터리에 `lab.json`이 있는 새 형식 프로젝트는 `project.older_project_above`와 `warning:` 줄로
+  열고 더 갱신되지 않는다고 적으며, 페이지가 없으면 만들지 않고 그 사실과 전환하는 법을 적고 1로 끝납니다. 위쪽 디렉터리에 `lab.json`이 있는 새 형식 프로젝트는 `project.older_project_above`와 `warning:` 줄로
   알립니다 ([#13]).
 - 새 프로젝트(`analytics init`·`demo`, `/analytics init`·`demo`, `analytics_init`)는 새 저장 이름입니다: `analytics.json`(`project_id`,
   `min_writer_version`·`kit_version` 0.8.0), `.analytics/`, `workspace/`, `data/imported/`, `runs/<id>/visualizations/`, 새 `.gitignore`.
@@ -50,12 +51,15 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
   run은 `analytics.run/2`(`visualizations[]`·`sha256`·`data_sha256`, `reproduction.visualizations`), 가져오기는 `data/imported/`의
   `analytics.dataset/1`, 입출력의 `via`는 `analytics.*`, 맥락 버전은 `.analytics/context/`이고 `context` 이벤트가 sha256으로 가리킵니다.
   옛 형식의 기록은 그대로 읽습니다 ([#13]).
-- 기록의 본문을 자르지 않습니다. 32 KiB(UTF-8)를 넘거나 줄이 50 KiB를 넘으면 새 오류 `text_too_long`이고 아무것도 쓰지 않습니다(전에는 모든
-  진입점이 4,000자 뒤를 버렸습니다). 이벤트당 참조 24개의 상한과 풀지 못한 이름의 `other[]`는 없어졌습니다 ([#13]).
+- 기록의 본문을 자르지 않습니다. 32 KiB(UTF-8)를 넘거나 줄(LF 포함)이 50 KiB 미만이 아니면 새 오류 `text_too_long`이고 아무것도 쓰지
+  않습니다 — `record`·`analytics_record`가 먼저 하던 맥락 동기화도 하지 않고, run 안의 `analytics.record`는 부를 때 예외입니다(전에는 모든
+  진입점이 4,000자 뒤를 버렸습니다). kit이 만드는 기록(가져오기·run 완료·프로젝트 생성)은 다른 곳에 통째로 남는 설명·제목을 4,000자까지
+  인용합니다. 이벤트당 참조 24개의 상한과 풀지 못한 이름의 `other[]`는 없어졌습니다 ([#13]).
 - kind `gap`은 `workflow_feedback`이 되었습니다. 입력의 `gap`은 `bad_kind`(안내가 새 이름을 알림)이고, kit CLI `record`의 모르는 kind는 사용법
   오류 2가 아니라 `bad_kind`와 1입니다. 옛 기록의 `gap`은 그대로 읽습니다 ([#13]).
-- 쓰기의 응답에 `request_id`가 있고, `record`는 결박(`bindings`)과 상태 변화(`targets`: `state_before`·`state_after`, 이미 닫힌 대상이면 앞의
-  기록 `made_by`)를 돌려줍니다. 같은 상태 변경이 겹치면 `state_conflict`입니다 ([#13]).
+- 쓰기(`record`·`run`·`import`·`init`·`render`·`demo`·`migrate`, `analytics_init`)의 응답에 `request_id`가 있고, `record`는 결박(`bindings`)과
+  상태 변화(`targets`: `state_before`·`state_after`, 이미 닫힌 대상이면 앞의 기록 `made_by`)를 돌려줍니다. 공통 writer의 상태 변경(`record_update`)은
+  같은 상태 변경이 겹치면 `state_conflict`로 거절하며, 그것을 부르는 공개 입력은 #14·#19가 엽니다 ([#13]).
 - 작성 출처: 기록에 `actor_basis`(`declared`·`inferred`)와 `means`(`cli`·`sdk`·`tool`·`command`·`hook`)가 있습니다. `analytics`·
   `bin/analytics`는 `AELIX_ANALYTICS_ACTOR=human`을 채워 넘기지 않아 사람이 부른 기록은 `human`·`inferred`이고, run 밖 SDK의 작성 주체는
   `script`가 아니라 `human`(또는 밝힌 값)과 `sdk`입니다. kit CLI는 확장이 넘기는 내부 변수 `AELIX_ANALYTICS_MEANS`를 읽고 닫힌 목록 밖의 값은 새

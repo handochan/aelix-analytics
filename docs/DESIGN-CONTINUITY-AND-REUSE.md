@@ -88,7 +88,7 @@ flowchart LR
 
 | 계층 | 정본 또는 역할 | 보존할 내용 |
 |---|---|---|
-| 현재 맥락 | `CONTEXT.md`와 그 버전 — 지금은 `.lab/context/`, #13 뒤의 새 버전은 `.analytics/context/`. 옛 버전을 둘 위치는 #13이 정하고 reader는 두 곳을 모두 찾는다([ADR-0006](decisions/0006-common-record-contract.md) 4절) | 목표, 정의, 제약, 현재 작업 방향. 자유 편집 유지 |
+| 현재 맥락 | `CONTEXT.md`와 그 버전 — kit 0.8.0(#13)부터 `.analytics/context/`(옛 배치와 `lab.json` 프로젝트는 `.lab/context/`). 전환한 프로젝트는 옛 버전을 `.analytics/context/`의 사본으로 두고 reader는 두 곳을 모두 찾는다([ADR-0006](decisions/0006-common-record-contract.md) 4절) | 목표, 정의, 제약, 현재 작업 방향. 자유 편집 유지 |
 | 분석 방향·정의·지식 | `journal.jsonl` | 현재 초점·지표 정의의 버전·발견·결정·가정·질문·정정·재사용 제안·작업 구간 요약 |
 | 실행 근거 | `runs/`, 가져오기 메타데이터, 보존된 Visualization·표·코드 | 실행 시점의 관측, 파일의 존재 여부, 재실행 비교 |
 | 보고서 산출물 — 신설 제안 | 보고서 버전 manifest·보존 본문·첨부, journal의 저장·상태 이벤트 | 자유 형식 내용, 작성 시점·분석 기준·정확한 근거, 반복 묶음의 구성원 버전 |

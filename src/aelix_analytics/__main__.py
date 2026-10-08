@@ -252,7 +252,8 @@ def _command(argv) -> int:
         if args.command == "init":
             project = core.init_project(args.path, title=args.title, goal=args.goal,
                                         template_dir=TEMPLATE_DIR, origin=origin)
-            _emit({"ok": True, "project": str(project.root), "title": project.title()})
+            _emit({"ok": True, "project": str(project.root), "title": project.title(),
+                   "request_id": project.request_id})
             return 0
         if args.command == "migrate":
             from . import migration
@@ -305,10 +306,10 @@ def _command(argv) -> int:
         elif args.command == "record":
             from . import workspace
 
-            # What the record's own checks refuse is refused before the context sync too: a
-            # refused record changes nothing.
-            core.writer.check_kind(args.kind)
-            core.writer.check_text(args.text)
+            # What the record refuses before its lock is refused before the context sync too: a
+            # refused record changes nothing (core.check_record).
+            core.check_record(project, args.kind, args.text, refs=args.refs, resolves=args.resolves,
+                              origin=origin)
             core.sync_context(project, origin=core.system_origin(origin))
             written = core.record(project, args.kind, args.text, refs=args.refs,
                                   resolves=args.resolves, origin=origin)
@@ -317,11 +318,13 @@ def _command(argv) -> int:
             from . import workspace
 
             core.sync_context(project, origin=core.system_origin(origin))
-            _emit({"ok": True, "workspace": workspace.build(project, if_changed=args.if_changed)})
+            _emit({"ok": True, "workspace": workspace.build(project, if_changed=args.if_changed),
+                   "request_id": core.request_id_of(origin)})
         elif args.command == "demo":
             from . import demo
 
-            _emit({"ok": True, **demo.populate(project, origin=origin)})
+            _emit({"ok": True, **demo.populate(project, origin=origin),
+                   "request_id": core.request_id_of(origin)})
         return 0
     except core.AnalyticsError as exc:
         _emit(exc.to_json())

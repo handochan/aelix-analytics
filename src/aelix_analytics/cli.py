@@ -31,11 +31,13 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import importlib.util
+import json
 import os
 import signal
 import stat
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 from . import _install
@@ -177,15 +179,21 @@ def _command(args: list[str], kit: Path | None, uv_argv: list[str] | None,
         # when it is there and does not build or update (migration_required).
         older = not kit_marker(Path(project), MARKERS[0])
         index = Path(project) / ("report" if older else "workspace") / "index.html"
-        if older and index.is_file():
+        if older:
+            # Opened when it is there; never built, so no environment is made for it either.
+            if not index.is_file():
+                _say(older_unbuilt_message(project))
+                return 1
             _say(older_page_message(project))
         if not index.is_file():
-            # uv only to build the report: opening one needs none, as with bin/analytics.
+            # uv only to build the report: opening one needs none, as with bin/analytics. The kit's
+            # answer is shown when it builds none (a project it does not write to, say).
             uv = uv_argv or _uv(processes)
             if uv is None:
                 return 127
-            code = children.run(kit_argv(uv, project, "render"), env, stdout=subprocess.DEVNULL)
+            code, answer = _captured(children, kit_argv(uv, project, "render"), env)
             if code or children.interrupted:
+                _write_bytes(sys.stdout, answer)
                 return code or children.stopped
         if children.interrupted:  # the opener is a step too
             return children.stopped
@@ -210,18 +218,24 @@ def _migrate(args: list[str], uv_argv, processes, env, children: _Children) -> i
     by its rules — then, once it committed (exit 0, not a dry run), the destination's environment
     from its lock as it is (`uv sync --locked`, offline as a second try, as init does): a lock that
     does not fit is left as it is and the sync fails. That failure leaves the migration done, and
-    the project's next command prepares its environment as every command does (design 6.1)."""
+    the project's next command prepares its environment as every command does (design 6.1). The
+    destination is the one the kit's answer names (committed_destination): the kit reads `--to` by
+    its rules (`~` included), and an environment is prepared only in a folder that holds the
+    analytics.json the migration published, so uv never looks for a project above it."""
     uv = uv_argv or _uv(processes)
     if uv is None:
         return 127
-    code = children.run([*uv, "run", "--no-project", "--python", "3.12", "--quiet", "python", "-m",
-                         "aelix_analytics", "migrate", *args], env)
+    code, answer = _captured(children, [*uv, "run", "--no-project", "--python", "3.12", "--quiet",
+                                        "python", "-m", "aelix_analytics", "migrate", *args], env)
+    _write_bytes(sys.stdout, answer)
     if code or children.interrupted:
         return code or children.stopped
-    destination, dry_run = migrate_options(args)
-    if dry_run or not destination:
+    project = committed_destination(answer)
+    if project is None:
         return 0
-    project = str(Path(destination).resolve())
+    if not (os.path.isdir(project) and kit_marker(Path(project), MARKERS[0])):
+        _say(migrated_unprepared_message(project))
+        return 0
     _say("analytics: syncing the project environment (first time can take a minute) ...")
     code = children.run([*uv, "sync", "--project", project, "--locked", "--quiet"], env)
     if code and not children.interrupted:
@@ -236,21 +250,27 @@ def _migrate(args: list[str], uv_argv, processes, env, children: _Children) -> i
     return 0
 
 
-def migrate_options(args: list[str]) -> tuple[str | None, bool]:
-    """(the destination `--to` names, whether `--dry-run` is given) as the kit's migrate reads them —
-    the last `--to` counts, `--to DIR` or `--to=DIR`; it takes no abbreviation — or None where it names
-    none (the kit has refused the call then). An empty one is prepared by neither launcher (bin/analytics
-    tests for a value that is not empty), as there is no folder it names."""
-    destination, dry_run, rest = None, False, list(args)
-    while rest:
-        word = rest.pop(0)
-        if word == "--to" and rest:
-            destination = rest.pop(0)
-        elif word.startswith("--to="):
-            destination = word[len("--to="):]
-        elif word == "--dry-run":
-            dry_run = True
-    return destination, dry_run
+def _captured(children: _Children, argv: list[str], env) -> tuple[int, bytes]:
+    """A child's exit status and what it wrote to stdout (stderr goes through)."""
+    with tempfile.TemporaryFile() as out:
+        code = children.run(argv, env, stdout=out)
+        out.seek(0)
+        return code, out.read()
+
+
+def committed_destination(answer: bytes) -> str | None:
+    """The destination a migration's answer — the kit's last JSON line — names when it went on
+    (`ok`, not a dry run): committed now or before (already_migrated). None for any other answer."""
+    lines = [line for line in answer.decode("utf-8", "surrogateescape").split("\n")
+             if line.startswith("{")]
+    try:
+        value = json.loads(lines[-1]) if lines else None
+    except ValueError:
+        return None
+    if not isinstance(value, dict) or value.get("ok") is not True or value.get("dry_run"):
+        return None
+    destination = value.get("destination")
+    return destination if isinstance(destination, str) and destination else None
 
 
 def migrated_message(project: str) -> str:
@@ -261,6 +281,11 @@ def migrated_message(project: str) -> str:
 def migrated_unsynced_message(project: str, code: int) -> str:
     return (f"analytics: the migration is done, but preparing the environment of {project} failed "
             f"(uv sync --locked, exit {code}); the project's next command prepares it")
+
+
+def migrated_unprepared_message(project: str) -> str:
+    return (f"analytics: the kit's answer names {project}, which holds no analytics.json: its "
+            "environment is not prepared; analytics status there says what it is")
 
 
 def child_env(kit: Path) -> dict[str, str]:
@@ -367,6 +392,12 @@ def unfinished_migration(project: str) -> bool:
 def older_page_message(project: str) -> str:
     return (f"analytics: {project} uses the older record format (lab.json): the kit reads it and no "
             "longer updates this page; analytics status says how to migrate it")
+
+
+def older_unbuilt_message(project: str) -> str:
+    return (f"analytics: {project} uses the older record format (lab.json) and has no page to open: "
+            "the kit reads it and builds no page for it. Copy it into the current format with "
+            "`analytics migrate --to <new empty folder>` run inside it (preview with --dry-run)")
 
 
 def two_markers_message(project: str) -> str:
@@ -547,6 +578,20 @@ def _write(stream, text: str) -> None:
     else:
         stream.flush()
         buffer.write(text.encode("utf-8", "surrogateescape"))
+    stream.flush()
+
+
+def _write_bytes(stream, data: bytes) -> None:
+    """A child's output as it came, byte for byte."""
+    if not data:
+        return
+    buffer = getattr(stream, "buffer", None)
+    stream.flush()
+    if buffer is None:
+        stream.write(data.decode("utf-8", "replace"))
+    else:
+        buffer.write(data)
+        buffer.flush()
     stream.flush()
 
 

@@ -63,6 +63,7 @@
 baseline 쪽:
 
 - 불편·누락은 그 자리에서 `/analytics record gap <무엇을 하려다 무엇이 안 됐나>`(kit 0.3.0 전 `/lab gap`). 리포트 **평가** 탭에 모입니다.
+  (지금은 `/analytics record workflow_feedback …`입니다. kit 0.8.0부터 입력의 `gap`은 `bad_kind`입니다.)
 - 도구 사용은 `.lab/telemetry.jsonl` → 평가 탭의 도구별 호출·오류·평균 시간, 우회 의심 호출.
 - run 품질 신호(입력 미감지, 플롯 데이터 없음, 프로젝트 밖 입력, stale, 재실행 판정)도 평가 탭에 있습니다.
 

@@ -226,7 +226,9 @@ def import_file(project: core.Project, source: str, *, name: str | None = None,
     text = (f"imported {name}: {info['rows']:,} rows × {len(info['columns'])} columns from "
             f"{src.name}")
     if meta["description"]:
-        text += f" — {meta['description']}"
+        # The description whole is the import record's; the event quotes it (writer.excerpt), so a
+        # long one cannot leave the dataset written without its event.
+        text += f" — {core.writer.excerpt(meta['description'])}"
     written = records.record("import", text, refs=[core.kit_reference(
         "dataset_import", path=meta["path"], digest={"sha256": meta["sha256"]})])
     return {"dataset": meta, "profile": info, "event": written.event["id"],

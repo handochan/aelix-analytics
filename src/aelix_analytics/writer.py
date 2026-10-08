@@ -812,13 +812,33 @@ def _too_long(text_bytes: int, line: bytes | None) -> AnalyticsError | None:
 
 def check_text(text) -> str:
     """The checks of a record's text that need no journal line — empty (empty_note) and over
-    TEXT_LIMIT (text_too_long) — for a record made now and written later (the SDK's in a run, which
-    the run writes when it finishes): the line's own limit is judged when it is written."""
+    TEXT_LIMIT (text_too_long). The line's own limit needs the record: Writer.check judges it before
+    anything is written (a record made now and written later, the SDK's in a run, with the widest
+    seq, SEQ_BOUND)."""
     text, text_bytes = _text(text)
     problem = _too_long(text_bytes, None)
     if problem:
         raise problem
     return text
+
+
+# A seq no journal reaches in practice (twelve digits): the line of a record made now and written
+# later — a note the SDK makes in a run, written when the run finishes — is judged with it, so the
+# seq it gets then cannot make it longer than judged (Writer.check).
+SEQ_BOUND = 10 ** 12 - 1
+# What a text the kit composes quotes of a field it keeps whole elsewhere — a run's title (its
+# run.json), an import's description (its import record), a project's title (its marker) — at most:
+# the characters a kit before 0.8.0 kept of every text (MAX_EVENT_TEXT). A text the kit composes so
+# can never be refused for its length after what it completes was written (OQ2 concerns the text a
+# caller records, which is never cut).
+EXCERPT_CHARS = 4000
+
+
+def excerpt(value, chars: int = EXCERPT_CHARS) -> str:
+    """`value` whole when it has at most `chars` characters, else its first `chars` and `…`: what a
+    text the kit composes quotes of a field kept whole elsewhere (EXCERPT_CHARS)."""
+    value = str(value)
+    return value if len(value) <= chars else value[:chars] + "…"
 
 
 def check_request_id(request_id) -> None:
@@ -943,6 +963,20 @@ class Written:
         if self.targets is not None:
             out["targets"] = self.targets
         return out
+
+
+@dataclass(frozen=True)
+class _Prepared:
+    """A record judged outside the lock (Writer._prepare): its text, the request_id, the references
+    given, those given whole, the journal read then (None when the line was judged with a given seq)
+    and the names bound."""
+
+    text: str
+    request_id: str
+    items: list
+    typed: list
+    journal: relations.Journal | None
+    bound: dict
 
 
 class Locked:
@@ -1124,6 +1158,38 @@ class Writer:
         min_writer_version to that version under the lock before the record is written (design 4.8).
         Steps 1–7 of design 4.5; a refusal at any step writes nothing."""
         op = "record"
+        prepared = self._prepare(op, kind, text, refs, details, requires)
+        text, items, typed, outside, bound = (prepared.text, prepared.items, prepared.typed,
+                                              prepared.journal, prepared.bound)
+        with self.locked(op) as held:
+            if held.journal.as_of_seq != outside.as_of_seq:
+                bound = self._bind(items)  # a run completed meanwhile, say
+            _check_resolved(held.journal, typed)
+            refs_written = _refs(items, bound)
+            before = held.journal
+            event = held.append(kind, text, refs=refs_written, details=details, requires=requires)
+            # The journal after the append is read again only for a record that changes another's
+            # state (design 4.6): most records change none.
+            targets = (_targets(before, held.journal, refs_written)
+                       if any(_changes_state(ref) for ref in refs_written) else None)
+        bindings = [entry for _, entry in bound.values()]
+        return Written(event, prepared.request_id, bindings, targets)
+
+    def check(self, kind: str, text: str, *, refs=(), details=None, ahead: int = 0,
+              seq: int | None = None) -> None:
+        """What `record` refuses before its lock, judged and nothing written: the directory, the
+        kind, the text and its line (OQ2), the references, the request_id, a closed record that must
+        be there (unknown_event), a `resolve` without one (resolve_needs_target). For an entry point
+        that writes something of its own before the record — the context sync — so a record that
+        is refused changes nothing. The line is judged with the seq the record gets after `ahead`
+        more records (the context event the sync is about to write), or with `seq` (SEQ_BOUND: a
+        note made now and written when its run finishes)."""
+        self._prepare("record", kind, text, refs, details, None, ahead=ahead, seq=seq)
+
+    def _prepare(self, op: str, kind: str, text: str, refs, details, requires, *, ahead: int = 0,
+                 seq: int | None = None) -> _Prepared:
+        """Steps 1–4 of design 4.5, outside the lock: refusals known before it write nothing, and
+        make not even the lock file."""
         self.admit(op)
         check_kind(kind, RECORD_KINDS + KIT_KINDS)
         text, text_bytes = _text(text)
@@ -1135,23 +1201,17 @@ class Writer:
                 requires) > relations.version_key(self.writer_version)):
             raise ValueError(f"requires is a PEP 440 version in its normal form, at most this writer's "
                              f"{self.writer_version}: {requires!r}")
-        outside = relations.Journal(_journal_bytes(self.journal))
-        _check_resolved(outside, typed)
+        outside = None
+        if seq is None or any(ref["relation"] == "resolves" for ref in typed):
+            outside = relations.Journal(_journal_bytes(self.journal))
+            _check_resolved(outside, typed)
         bound = self._bind(items)
-        line = _encode(self._event(outside.next_seq, kind, text, _refs(items, bound), details))
+        number = seq if seq is not None else outside.next_seq + ahead
+        line = _encode(self._event(number, kind, text, _refs(items, bound), details))
         problem = _too_long(text_bytes, line)
         if problem:
             raise problem
-        with self.locked(op) as held:
-            if held.journal.as_of_seq != outside.as_of_seq:
-                bound = self._bind(items)  # a run completed meanwhile, say
-            _check_resolved(held.journal, typed)
-            refs_written = _refs(items, bound)
-            before = held.journal
-            event = held.append(kind, text, refs=refs_written, details=details, requires=requires)
-            targets = _targets(before, held.journal, refs_written)
-        bindings = [entry for _, entry in bound.values()]
-        return Written(event, request_id, bindings, targets)
+        return _Prepared(text, request_id, items, typed, outside, bound)
 
     def update(self, target: str, *, expected: str, new: str, text: str) -> Written:
         """Change one record's state (withdraw, restore, reopen, a reuse step: ADR-0006 6) by a
@@ -1402,13 +1462,18 @@ def _event_named(journal: relations.Journal, name) -> dict | None:
     return out
 
 
+def _changes_state(ref: dict) -> bool:
+    """Whether a reference resolves or corrects another record (STATE_RELATIONS)."""
+    return ref["type"] in relations.EVENT_TARGETS and ref["relation"] in STATE_RELATIONS
+
+
 def _targets(before: relations.Journal, after: relations.Journal, refs) -> list | None:
     """For each reference that resolves or corrects another record: its state before and after the
     record (both replayed under the lock, as the reader replays them, design 4.6). A record already
     resolved stays resolved and says which event resolved it; corrections say every correction."""
     out = []
     for ref in refs:
-        if ref["type"] not in relations.EVENT_TARGETS or ref["relation"] not in STATE_RELATIONS:
+        if not _changes_state(ref):
             continue
         name = ref["event_id"]
         was, now = before.replay().state_of(name), after.replay().state_of(name)

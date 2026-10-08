@@ -1132,7 +1132,7 @@ def evaluation_section(site: Site) -> str:
         f"{''.join(badge('warning', '⚑', f) for f in t['flags'])} <span class='muted'{USER}>{esc(t.get('summary'))}</span></li>"
         for t in flagged[::-1][:30])
     gap_html = site.events_html(gaps[::-1], 0) if gaps else \
-        '<div class="empty">No workflow feedback yet. Record where the tools got in the way or needed a workaround with /analytics record gap or analytics_record(kind="gap").</div>'
+        '<div class="empty">No workflow feedback yet. Record where the tools got in the way or needed a workaround with /analytics record workflow_feedback TEXT or analytics_record(kind="workflow_feedback").</div>'
     telemetry_html = (f'<div class="table-wrap"><table class="list"><thead><tr><th>Tool</th><th>Calls</th>'
                       f'<th>Errors</th><th>Mean ms</th></tr></thead><tbody>{tool_rows}</tbody></table></div>'
                       if tool_rows else '<div class="empty">No tool calls recorded by the aelix extension.</div>')

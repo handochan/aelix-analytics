@@ -258,8 +258,10 @@ PNG 차트는 모델이 이미지 입력을 받을 때 `analytics_run` 결과에
 셸의 `analytics`는 `AELIX_ANALYTICS_ACTOR`의 값(밝힌 것, `declared`)이나 없으면 `human`(`inferred`)입니다. aelix 안에서는 확장이 aelix
 프로세스의 환경에 `AELIX_ANALYTICS_ACTOR=agent`와 세션을 넣으므로, 에이전트가 bash 도구로 부른 `analytics`는 `agent`로, 사람이 `!analytics …`로
 부른 것은 `human`으로 기록됩니다. aelix 밖의 에이전트(다른 코딩 에이전트, 자동화)가 `analytics`나 SDK를 부르게 한다면 그 에이전트의 셸에
-`AELIX_ANALYTICS_ACTOR=agent`를 설정하세요. 설정하지 않으면 사람의 기록(`human`·`inferred`)으로 남습니다. 출처 기록이지 인증이 아니며,
-다른 확장이 `!` 명령의 셸을 바꾸는 경우의 한계는 [현재 계약](docs/CONTRACTS.md) A "aelix 안의 작성 주체"에 있습니다.
+`AELIX_ANALYTICS_ACTOR=agent`를 설정하세요. 설정하지 않으면 사람의 기록(`human`·`inferred`)으로 남습니다. 출처 기록이지 인증이 아닙니다.
+aelix는 `!` 명령에 대한 확장들의 답 가운데 마지막 것 하나만 쓰므로, `!` 명령의 셸을 바꾸거나 **명령을 막는 다른 확장이 이 확장보다 먼저
+등록되면, 그 확장이 막은 kit 명령도 이 확장이 aelix의 로컬 셸로 돌립니다**(kit을 부르지 않는 명령은 그 확장의 답대로). 그 한계와 순서별
+동작은 [현재 계약](docs/CONTRACTS.md) A "aelix 안의 작성 주체"에 있습니다.
 
 ### 스크립트 API
 
@@ -339,9 +341,10 @@ analytics migrate --to ~/analyses/q3-sales-v2             # 복사 (원본은 �
   거절을 먼저 알립니다.
 - 끊기면 같은 명령을 다시 부르면 이어서 끝냅니다. 끝난 전환을 다시 부르면 `already_migrated`와 함께 원본과 사본을 다시 대조합니다.
   끝나기 전의 목적지에서는 모든 명령이 `migration_incomplete`로 멈춥니다.
-- 커밋한 뒤 `analytics`는 목적지의 환경을 `uv sync --locked`로 준비합니다. 실패해도 전환은 끝났고 다음 명령이 환경을 준비합니다.
-- 목적지는 신뢰 목록에 더해집니다. aelix에서는 `/analytics use <목적지>`로 이어 갑니다. 에이전트도 이 명령을 부를 수 있고, 그때는 보고서에
-  `agent`로 남습니다. aelix의 도구·`/analytics`에는 전환 명령이 없습니다.
+- 커밋한 뒤 `analytics`는 kit이 답한 목적지(`--to=~/x`처럼 셸이 풀지 않은 `~`도 kit이 풀어 만든 폴더)의 환경을 `uv sync --locked`로
+  준비합니다. 실패해도 전환은 끝났고 다음 명령이 환경을 준비합니다.
+- 목적지는 신뢰 목록에 더해집니다. aelix에서는 `/analytics use <목적지>`로 이어 갑니다. 에이전트도 이 명령을 부를 수 있고, 그때는 보고서와
+  응답에 `agent`로 남습니다. aelix의 도구·`/analytics`에는 전환 명령이 없습니다.
 - 목적지의 `.analytics/migration/<id>/`에 계획·ledger·보고서·경로 대응(매핑)이 남고, 옛 run이 기록한 경로는 그 매핑으로 읽습니다.
   링크가 없는 파일 시스템(FAT·exFAT 등)에서는 표식을 "있으면 실패하는 rename"으로 게시하고, 그것도 없으면 복사 전에
   `destination_invalid`(`no_exclusive_rename`)로 거절합니다. 자세한 규칙과 한계는 [현재 계약](docs/CONTRACTS.md) B "프로젝트 전환"·G에 있습니다.

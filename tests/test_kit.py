@@ -295,7 +295,8 @@ def test_the_workspace_build_is_named_workspace_and_the_old_assets_go(project, t
     for name in ("report.css", "report.js"):
         (assets / name).write_text("/* an earlier kit's asset */\n", encoding="utf-8")
     code, rendered = kit_cli(project, "render")
-    assert code == 0 and set(rendered) == {"ok", "workspace"} and rendered["workspace"]["pages"], rendered
+    assert code == 0 and set(rendered) == {"ok", "workspace", "request_id"} and rendered["workspace"]["pages"], \
+        rendered
     names = {p.name for p in assets.iterdir()}
     assert {"workspace.css", "workspace.js", "build.js"} <= names, names
     assert not names & {"report.css", "report.js"}, names

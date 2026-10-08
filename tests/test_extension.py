@@ -956,6 +956,86 @@ def test_a_gap_record_from_the_model_is_stopped_before_and_by_the_tool(lab):
     assert (root / "journal.jsonl").read_bytes() == journal
 
 
+@pytest.mark.parametrize("args, code", [
+    ({"kind": "note", "text": "\x01" * 9000 + "x"}, "text_too_long"),
+    ({"kind": "finding", "text": "x", "resolves": "e999"}, "unknown_event"),
+    ({"kind": "resolve", "text": "closes nothing"}, "resolve_needs_target"),
+], ids=["line", "unknown target", "no target"])
+def test_a_record_the_tool_refuses_leaves_the_context_unsynced(lab, args, code):
+    """analytics_record judges what the writer refuses before its lock — a line over 50 KiB from a
+    text under 32 KiB, a closed record that is not there, a `resolve` without one — before the
+    context sync (core.check_record): CONTEXT.md changed, and no `context` event or version is
+    written for a record that is refused."""
+    module, root = lab
+    with (root / "CONTEXT.md").open("a", encoding="utf-8") as fh:
+        fh.write("more\n")
+    before = ext_snapshot(root)
+    refused = call(tools_of(module)["analytics_record"], args)
+    assert refused.is_error and refused.details["error"]["code"] == code, text_of(refused)
+    assert ext_snapshot(root) == before
+
+
+@pytest.mark.parametrize("how", ["analytics_init", "/analytics init", "/analytics demo"])
+def test_a_new_project_inside_a_project_is_refused_by_the_extension(lab, monkeypatch, how):
+    """OQ9 through the extension's tool and commands: a directory inside a project is refused
+    (destination_invalid, inside_project) before anything is made — no directory, no environment,
+    no change to the project above."""
+    module, root = lab
+    monkeypatch.setattr(module, "sync_environment", lambda project: pytest.fail("synced"))
+    before = ext_snapshot(root)
+    target = root / "inner" / "new"
+    if how == "analytics_init":
+        result = call(tools_of(module)["analytics_init"], {"path": str(target)})
+        assert result.is_error and result.details["error"]["code"] == "destination_invalid"
+        assert result.details["error"]["details"]["reason"] == "inside_project"
+    else:
+        said = asyncio.run(module.analytics_command(f"{how.split()[1]} {target}"))
+        assert "error [destination_invalid]" in said and "inside the project" in said, said
+    assert not (root / "inner").exists() and ext_snapshot(root) == before
+
+
+def test_analytics_init_answers_with_its_request_id(tmp_path, monkeypatch):
+    """design 4.9: the tool's details carry the request_id of the init's records (the kit made it:
+    in the answer only)."""
+    module = fresh_module()
+    monkeypatch.setenv("AELIX_ANALYTICS_TRUST_FILE", str(tmp_path / "trust.json"))
+
+    async def synced(project):
+        return False, "not run in this test"
+
+    monkeypatch.setattr(module, "sync_environment", synced)
+    result = call(tools_of(module)["analytics_init"], {"path": str(tmp_path / "made")})
+    assert not result.is_error, text_of(result)
+    assert module.core.writer.REQUEST_ID_RE.fullmatch(result.details["request_id"])
+    events = module.core.read_events(module.core.Project(tmp_path / "made"))
+    assert not [e for e in events if "request_id" in e]
+
+
+def test_open_shows_a_lab_json_project_s_page_and_says_it_is_not_updated(tmp_path, monkeypatch):
+    """design 7: /analytics open in a lab.json project opens the page an older kit built, says this kit
+    does not update it, and builds nothing (no kit child)."""
+    from legacy_records import LegacyProject
+
+    module = fresh_module()
+    monkeypatch.setenv("AELIX_ANALYTICS_TRUST_FILE", str(tmp_path / "trust.json"))
+    root = LegacyProject(tmp_path / "older").root
+    (root / "report").mkdir()
+    (root / "report" / "index.html").write_text("<html>", encoding="utf-8")
+    monkeypatch.setenv("AELIX_ANALYTICS_PROJECT", str(root))
+    opened = []
+    monkeypatch.setattr(module.core.PLATFORM.processes, "open_document",
+                        lambda path, wait: opened.append(path))
+
+    async def no_kit(*args, **kwargs):
+        pytest.fail("the kit was started")
+
+    monkeypatch.setattr(module, "run_kit", no_kit)
+    before = ext_snapshot(root)
+    said = asyncio.run(module.analytics_command("open"))
+    assert said.startswith(f"opened {root / 'report' / 'index.html'} (not updated: this kit reads")
+    assert opened == [root / "report" / "index.html"] and ext_snapshot(root) == before
+
+
 def test_an_error_says_what_its_details_leave_out(lab, monkeypatch):
     """Issue #11 G10 (D12): details past 2,000 characters end with how much was cut, and
     kit_failed says its stderr is the last 1,500 characters."""
@@ -1287,6 +1367,12 @@ def test_a_named_destination_of_an_unfinished_migration_is_refused_as_such(lab, 
     result = call(tools_of(module)["analytics_status"], {})
     assert result.is_error and result.details["error"]["code"] == "migration_incomplete", text_of(result)
     assert "error [migration_incomplete]" in asyncio.run(module.analytics_command(f"use {dest}"))
+    # --analytics-project, as aelix's get_flag answers it.
+    module.STATE["project"] = None
+    module.STATE["api"] = SimpleNamespace(get_flag=lambda name: str(dest) if name == "analytics-project"
+                                          else None)
+    result = call(tools_of(module)["analytics_status"], {})
+    assert result.is_error and result.details["error"]["code"] == "migration_incomplete", text_of(result)
     assert sorted(p.name for p in dest.iterdir()) == [".analytics"]
 
 
@@ -1364,6 +1450,14 @@ CALLS_THE_KIT = [
     r"C:\pack\bin\analytics.exe status",
     r"& C:\venv\Scripts\python.exe -m aelix_analytics status",
     "py -3.12 -m aelix_analytics status",
+    # Bundled one-letter options before -m and -c, and env's options that take a value (review of
+    # PR 3).
+    "python3 -Im aelix_analytics status",
+    "python3 -IS -c 'import aelix_analytics'",
+    "env -u HOME analytics status",
+    "env -C /tmp -u HOME AELIX_ANALYTICS_ACTOR=x analytics status",
+    "echo ';' ; analytics status",
+    r"\analytics status",
 ]
 
 NOT_THE_KIT = [
@@ -1387,6 +1481,14 @@ NOT_THE_KIT = [
     "git log -- analytics",
     "echo 'unclosed",
     "cat < analytics",
+    # An operator inside quotes or escaped is a word (review of PR 3).
+    "echo ';' analytics",
+    "echo '(' analytics",
+    'echo "|" analytics x',
+    "printf '%s\\n' '&&' analytics",
+    r"echo \; analytics",
+    'echo "a\\" ; analytics" x',
+    "echo hi # ; analytics",
 ]
 
 

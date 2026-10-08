@@ -22,7 +22,7 @@ import tarfile
 from pathlib import Path
 
 import pytest
-from conftest import KIT, PACK, git_checkout, kit_cli, kit_env, write_script
+from conftest import KIT, PACK, git_checkout, kit_cli, kit_env, write_sales_csv, write_script
 from jsonschema import Draft202012Validator, FormatChecker
 from legacy_records import LegacyProject
 
@@ -242,13 +242,22 @@ def test_an_older_name_of_a_kind_is_refused_with_its_new_name(project, monkeypat
 
 
 def test_a_write_answers_with_its_request_id(project, tmp_path):
-    """design 4.9: every write's answer holds a request_id — the kit makes one when the caller gave
+    """design 4.9: every write's answer holds a request_id — record, import, run, init, render and
+    migrate here, the demo's in tests/test_language.py — the kit makes one when the caller gave
     none, and then the record does not hold it (only a caller's is kept)."""
+    from legacy_records import LegacyProject
+
     root = Path(project)
+    source = LegacyProject(tmp_path / "older")
+    source.event("note", text="n")
     answers = {
         "record": kit_cli(root, "record", "note", "x")[1],
         "import": kit_cli(root, "import", tmp_path / "sales.csv", "--name", "again")[1],
         "run": kit_cli(root, "run", write_script(root, "03_id.py", "print(1)\n"), "--title", "id")[1],
+        "init": cli(tmp_path, "init", tmp_path / "made")[1],
+        "render": kit_cli(root, "render")[1],
+        "migrate": cli(source.root, "migrate", "--to", tmp_path / "migrated")[1],
+        "migrate --dry-run": cli(source.root, "migrate", "--to", tmp_path / "other", "--dry-run")[1],
     }
     for name, answer in answers.items():
         assert answer["ok"] and writer.REQUEST_ID_RE.fullmatch(answer["request_id"]), (name, answer)
@@ -286,6 +295,138 @@ def test_a_text_over_the_limit_is_refused_whole(project):
     code, result = kit_cli(root, "record", "note", long + "가")
     assert (code, result["error"]["code"]) == (1, "text_too_long"), result
     assert result["error"]["details"]["text_bytes"] == writer.TEXT_LIMIT + 1
+    assert tree(root) == before
+
+
+# --- what the kit composes, and what a record refuses before it writes (review of PR 3) -------------
+
+# A long field made of what JSON escapes most (a control character takes six bytes), with text a
+# reader can find: 40,000 characters, over the text limit and, escaped, over the line limit.
+LONG = "\x01abc" * 10_000
+
+
+def test_a_long_field_is_kept_whole_and_quoted_by_the_event_the_kit_composes(project, tmp_path):
+    """OQ2 concerns the text a caller records: a text the kit composes — an import's event, a run's
+    completion, a project's creation — quotes a field it keeps whole elsewhere (writer.excerpt:
+    the first EXCERPT_CHARS characters and `…`), so a long description or title never leaves an
+    import, a run or a project without its event (kit 0.7.0 recorded them, cut at 4,000)."""
+    root = Path(project)
+    head = writer.excerpt(LONG)
+    assert len(head) == writer.EXCERPT_CHARS + 1 and head.endswith("…")
+
+    code, imported = cli(root, "import", tmp_path / "sales.csv", "--name", "described", "--description", LONG)
+    assert code == 0 and imported["event"], imported
+    meta = json.loads((root / "data" / "imported" / "described.meta.json").read_text(encoding="utf-8"))
+    assert meta["description"] == LONG
+    event = journal(root)[-1]
+    assert event["kind"] == "import" and event["text"].endswith(" — " + head) and schema_errors(event) == []
+
+    code, ran = cli(root, "run", write_script(root, "04_long.py", "print(1)\n"), "--title", LONG)
+    assert code == 0 and ran["event"] and "finalize_errors" not in ran["run"], ran
+    run = json.loads((root / "runs" / ran["run"]["id"] / "run.json").read_text(encoding="utf-8"))
+    assert run["title"] == LONG
+    assert journal(root)[-1]["text"] == f"{head} — ok"
+    # A rerun takes its source's title unless --title is given: the same quote.
+    code, rerun = cli(root, "run", "--rerun-of", ran["run"]["id"])
+    assert code == 0 and rerun["event"] and "finalize_errors" not in rerun["run"], rerun
+    assert journal(root)[-1]["text"].startswith(f"{head} — ok; rerun of {ran['run']['id']}")
+    model = core.read_model(core.Project(root))
+    assert {r["recording_status"] for r in model.runs() if r["run_id"] in (ran["run"]["id"], rerun["run"]["id"])} == {
+        "complete"}
+
+    # A title goes into pyproject.toml and CONTEXT.md too: a long one of text those take.
+    title = "분석 제목 " * 8_000
+    code, made = cli(tmp_path, "init", tmp_path / "titled", "--title", title)
+    assert code == 0 and made["title"] == title.strip(), made
+    first = journal(tmp_path / "titled")
+    assert [e["kind"] for e in first] == ["project", "context"]
+    assert first[0]["text"] == f"project created: {writer.excerpt(title.strip())}"
+    marker = json.loads((tmp_path / "titled" / "analytics.json").read_text(encoding="utf-8"))
+    assert marker["title"] == title.strip()
+    assert core.is_trusted(tmp_path / "titled")
+    for event in first:
+        assert schema_errors(event) == [], event
+
+
+def test_a_composed_text_fits_its_line_whatever_its_fields_hold():
+    """The bound behind the quote: a run's completion text with a title of the characters JSON
+    escapes most, the longest error summary and a rerun's verdict is under both limits."""
+    title, summary = writer.excerpt("\x01" * 50_000), "\x01" * 300
+    text = f"{title} — error ({summary}); rerun of 20261009-120000-a: differs"
+    line = json.dumps({"schema": "analytics.event/2", "seq": writer.SEQ_BOUND, "id": f"e{writer.SEQ_BOUND}",
+                       "recorded_at": "2026-10-09T12:00:00.000+09:00", "kind": "run", "actor": "agent",
+                       "actor_basis": "declared", "means": "tool", "session": "s" * 1024,
+                       "request_id": "r" * 128, "text": text,
+                       "refs": [{"type": "run", "run_id": "20261009-120000-" + "a" * 61, "relation": "about",
+                                 "basis": "observed", "version_binding": "author"}]},
+                      ensure_ascii=False).encode("utf-8")
+    assert len(text.encode("utf-8")) <= writer.TEXT_LIMIT and len(line) + 1 < writer.LINE_LIMIT
+
+
+def test_a_script_that_exits_with_a_long_message_keeps_its_completion_event(project):
+    """`sys.exit(<message>)`: the run is an error whose summary is bounded as an exception's (300
+    characters) and whose message is whole in run.json; its completion event is written."""
+    root = Path(project)
+    message = "validation failed: " + "row 1 bad; " * 4000
+    script = write_script(root, "05_exit.py", f"import sys\nsys.exit({message!r})\n")
+    code, ran = cli(root, "run", script, "--title", "exit")
+    assert code == 3 and ran["run"]["status"] == "error" and ran["event"], ran
+    assert "finalize_errors" not in ran["run"]
+    error = ran["run"]["error"]
+    assert error["message"] == message and len(error["summary"]) == 300
+    assert error["summary"] == f"SystemExit({message})"[:300]
+    assert journal(root)[-1]["text"] == f"exit — error ({error['summary']})"
+
+
+IN_RUN_NOTES = """\
+import aelix_analytics as analytics
+
+try:
+    analytics.record("note", "\\x01" * 9000 + "end")
+except Exception as exc:
+    print("refused", type(exc).__name__, exc.code, exc.details["line_bytes"] > exc.details["line_limit"])
+analytics.record("note", "kept")
+"""
+
+
+def test_a_note_in_a_run_whose_line_is_over_the_limit_is_the_script_s_error(project):
+    """design 4.3: a refusal in a script is an exception. A note made in a run is written when the
+    run finishes, so its line is judged when the script makes it, with the widest seq
+    (writer.SEQ_BOUND): an escape-heavy note over the line limit raises text_too_long there, and
+    every note that returned is written."""
+    root = Path(project)
+    code, ran = cli(root, "run", write_script(root, "06_notes.py", IN_RUN_NOTES), "--title", "notes")
+    assert code == 0 and ran["run"]["status"] == "ok", ran
+    assert "refused AnalyticsError text_too_long True" in ran["stdout_tail"], ran["stdout_tail"]
+    assert "finalize_errors" not in ran["run"]
+    *_, completion, kept = journal(root)
+    assert completion["kind"] == "run" and (kept["kind"], kept["text"]) == ("note", "kept")
+
+
+@pytest.mark.parametrize("args, code", [
+    (["note", "\x01" * 9000 + "x"], "text_too_long"),
+    (["finding", "x", "--resolves", "e999"], "unknown_event"),
+    (["resolve", "closes nothing"], "resolve_needs_target"),
+    (["gap", "x"], "bad_kind"),
+    (["note", "   "], "empty_note"),
+    (["finding", "x", "--resolves", "e1"], None),
+], ids=["line", "unknown target", "no target", "old kind", "empty", "accepted"])
+def test_a_record_refused_before_its_lock_leaves_the_context_unsynced(project, args, code):
+    """A record the writer refuses before its lock — over the line limit with a text under 32 KiB,
+    a closed record that is not there, a `resolve` without one, an old kind, an empty text — is
+    refused before the context sync the command line makes first (core.check_record): CONTEXT.md
+    changed, and still no `context` event and no version. One that is accepted syncs it and is
+    written after it (e1 is the project's event: a record without a state, written all the same)."""
+    root = Path(project)
+    with (root / "CONTEXT.md").open("a", encoding="utf-8") as fh:
+        fh.write("more\n")
+    before = tree(root)
+    status, result = kit_cli(root, "record", *args)
+    if code is None:
+        assert status == 0, result
+        assert [e["kind"] for e in journal(root)[-2:]] == ["context", "finding"]
+        return
+    assert (status, result["error"]["code"]) == (1, code), result
     assert tree(root) == before
 
 
@@ -358,6 +499,31 @@ def test_a_project_s_paths_follow_its_marker(tmp_path):
         assert project.legacy_state_dir == root / ".lab"
     assert (newer.marker.name, newer.state_dir.name, newer.workspace_dir.name) == (
         "analytics.json", ".analytics", "workspace")
+
+
+def test_a_write_follows_the_marker_it_was_admitted_by(tmp_path):
+    """S9 and design 4.3 (review of PR 3): a Project made under lab.json whose marker became a valid
+    analytics.json before a write is admitted takes that marker's paths at the gate (core.admit):
+    the import goes to data/imported/ with its record and event, and nothing goes to the older
+    layout's data/raw/."""
+    from aelix_analytics import data
+
+    source = write_sales_csv(tmp_path / "sales.csv")
+    root = LegacyProject(tmp_path / "swap").root
+    project = core.Project(root)
+    assert project.layout is writer.LEGACY_LAYOUT
+    (root / "lab.json").unlink()
+    (root / "analytics.json").write_text(json.dumps({
+        "schema": "analytics.project/2", "project_id": "prj_00000000000000aa", "title": "swap",
+        "created_at": "2026-10-09T00:00:00+09:00", "min_writer_version": core.KIT_VERSION,
+        "kit_version": core.KIT_VERSION}), encoding="utf-8")
+    result = data.import_file(project, str(source), name="swapped", description=None,
+                              origin=core.Origin("human", "cli", "inferred"))
+    assert project.layout is writer.LAYOUT and project.imported == root / "data" / "imported"
+    assert result["dataset"]["path"] == "data/imported/swapped.parquet"
+    assert (root / "data" / "imported" / "swapped.meta.json").is_file()
+    assert not (root / "data" / "raw").exists()
+    assert journal(root)[-1]["kind"] == "import"
 
 
 def test_the_context_is_versioned_where_this_kit_writes_and_not_again_after_a_migration(tmp_path):

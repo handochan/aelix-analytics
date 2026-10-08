@@ -37,7 +37,6 @@ import importlib.util
 import json
 import os
 import re
-import shlex
 import shutil
 import subprocess
 import sys
@@ -889,14 +888,14 @@ async def tool_record(args, ctx):
     kind = str(args.get("kind") or "")
     text = str(args.get("text") or "")
     refs = [str(r) for r in args.get("refs") or []]
-    await asyncio.to_thread(core.admit, project, "record")
-    # What the record itself refuses is refused before the context sync: a refused record changes
-    # nothing.
-    core.writer.check_kind(kind)
-    core.writer.check_text(text)
+    resolves = args.get("resolves") or None
+    # What the record refuses before its lock is refused before the context sync: a refused record
+    # changes nothing (core.check_record).
+    await asyncio.to_thread(lambda: core.check_record(project, kind, text, refs=refs, resolves=resolves,
+                                                      origin=origin("agent", "tool")))
     await asyncio.to_thread(lambda: core.sync_context(project, origin=origin("system", "tool")))
     written = await asyncio.to_thread(
-        lambda: core.record(project, kind, text, refs=refs, resolves=args.get("resolves") or None,
+        lambda: core.record(project, kind, text, refs=refs, resolves=resolves,
                             origin=origin("agent", "tool")))
     schedule_workspace_render(project, "tool")
     return f"analytics_record: ok — {recorded_line(written, kind)}", written.to_json()
@@ -942,7 +941,8 @@ async def tool_init(args, ctx):
     lines += [f"report: {project.workspace_dir / 'index.html'}",
               "next: fill CONTEXT.md (goal, questions, data sources), analytics_import the data, then write "
               "scripts/01_<topic>.py and analytics_run it."]
-    return "\n".join(lines), {"project": str(project.root), "synced": synced}
+    return "\n".join(lines), {"project": str(project.root), "synced": synced,
+                              "request_id": project.request_id}
 
 
 def _tool(name, description, properties, required, handler, snippet, guidelines=()):
@@ -1118,17 +1118,22 @@ def put_the_session_in_the_environment(session) -> None:
 
 # How a person's command reaches the kit, judged on the words in command position only (design I3):
 # the program `analytics` (any directory: `analytics`, `./bin/analytics`, `analytics.exe`), or Python
-# given `-m aelix_analytics[.…]` or a `-c` that imports it — at the start, after `;` `&` `&&` `|` `||`
-# `(` `$(` a backtick or a new line, after `VAR=value`, `env`, `exec`, `command`, `time`, `nohup` and the
-# shell's keywords, and after `uv run` and its options. A word elsewhere (`grep analytics notes.txt`),
-# inside quotes (`sh -c '…'`, `"$(…)"`), or a script that imports the kit (`python a.py`) is not a call:
-# the command then runs as aelix runs it, and a missed call stays `agent` — the narrower side, as
-# returning a shell displaces another extension's (CONTRACTS A).
+# given `-m aelix_analytics[.…]` (also bundled, `-Im`) or a `-c` that imports it — at the start, after
+# `;` `&` `&&` `|` `||` `(` `$(` a backtick or a new line, after `VAR=value`, `env` and its options,
+# `exec`, `command`, `time`, `nohup` and the shell's keywords, and after `uv run` and its options. A
+# word elsewhere (`grep analytics notes.txt`), inside quotes (`sh -c '…'`, `"$(…)"`), after a quoted
+# or escaped operator (`echo ';' analytics`, `echo \; analytics`), or a script that imports the kit
+# (`python a.py`) is not a call: the command then runs as aelix runs it, and a missed call stays
+# `agent` — the narrower side, as returning a shell displaces another extension's (CONTRACTS A).
 KIT_PROGRAMS = frozenset({"analytics"})
 KIT_PROGRAMS_WINDOWS = frozenset({"analytics.exe", "analytics.cmd", "analytics.bat"})
 SHELL_PREFIXES = frozenset({"env", "exec", "command", "builtin", "time", "nohup", "if", "then", "else",
                             "elif", "do", "while", "until", "!", "{"})
+# env's options that take the next word as their value (GNU and BSD env): `env -u NAME analytics`.
+ENV_VALUE_OPTIONS = frozenset({"-u", "--unset", "-C", "--chdir", "-S", "--split-string", "-P"})
 PYTHON_PROGRAM = re.compile(r"(?:python[\d.]*w?|py)(?:\.exe)?", re.IGNORECASE)
+# Python's one-letter options that take no value, which may be bundled before -m or -c (`-Im`).
+PYTHON_FLAGS = frozenset("bBdEhiIOPqRsSuvVx")
 ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
 UV_RUN_VALUE_OPTIONS = frozenset({
     "--project", "--directory", "--python", "-p", "--with", "--with-editable", "--with-requirements",
@@ -1140,14 +1145,63 @@ UV_RUN_VALUE_OPTIONS = frozenset({
 SHELL_OPERATOR_CHARS = frozenset("();<>|&")
 
 
-def _shell_words(command: str) -> list[str]:
-    """The command's words and operators as a POSIX shell splits them, roughly: quotes kept together,
-    no escapes (so a Windows path stays one word), a new line and a backtick a separator."""
-    lexer = shlex.shlex(command.replace("\n", " ; ").replace("`", " ` "), posix=True,
-                        punctuation_chars=True)
-    lexer.whitespace_split = True
-    lexer.escape = ""
-    return list(lexer)
+def _shell_words(command: str) -> list[tuple[str, bool]]:
+    """The command's words and operators as a POSIX shell splits them, roughly: (text, whether it
+    is an operator). An operator — a run of `;&|()<>`, a backtick, a new line (as `;`) — is one only
+    where it is neither quoted nor escaped; quotes keep a word together and are dropped; a backslash
+    outside single quotes keeps itself and the character after it in the word (a Windows path stays
+    one word, `\\;` is no separator); an unquoted `#` that starts a word starts a comment. An unclosed
+    quote raises ValueError."""
+    tokens: list[tuple[str, bool]] = []
+    word: list[str] = []
+    in_word = False
+    i, n = 0, len(command)
+
+    def end_word() -> None:
+        nonlocal in_word
+        if in_word:
+            tokens.append(("".join(word), False))
+            word.clear()
+            in_word = False
+
+    while i < n:
+        c = command[i]
+        if c in " \t\r":
+            end_word()
+            i += 1
+        elif c in "\n`":
+            end_word()
+            tokens.append((";" if c == "\n" else "`", True))
+            i += 1
+        elif c in SHELL_OPERATOR_CHARS:
+            end_word()
+            j = i
+            while j < n and command[j] in SHELL_OPERATOR_CHARS:
+                j += 1
+            tokens.append((command[i:j], True))
+            i = j
+        elif c == "#" and not in_word:
+            while i < n and command[i] != "\n":
+                i += 1
+        elif c == "\\":
+            in_word = True
+            word.append(command[i:i + 2])
+            i += 2
+        elif c in "'\"":
+            in_word = True
+            j = i + 1
+            while j < n and command[j] != c:
+                j += 2 if c == '"' and command[j] == "\\" else 1
+            if j >= n:
+                raise ValueError("no closing quotation")
+            word.append(command[i + 1:j])
+            i = j + 1
+        else:
+            in_word = True
+            word.append(c)
+            i += 1
+    end_word()
+    return tokens
 
 
 def _program(word: str) -> str:
@@ -1156,35 +1210,40 @@ def _program(word: str) -> str:
 
 def _python_runs_the_kit(words: list[str]) -> bool:
     """Python's own options up to the first word that is not one: `-m aelix_analytics[.…]`, or a `-c`
-    whose code imports it."""
+    whose code imports it, also after bundled one-letter options (`-Im`, `-I -c`)."""
     i = 0
     while i < len(words):
         word = words[i]
-        if word == "-m" or (word.startswith("-m") and len(word) > 2):
-            module = word[2:] if len(word) > 2 else (words[i + 1] if i + 1 < len(words) else "")
-            return module == "aelix_analytics" or module.startswith("aelix_analytics.")
-        if word == "-c" or (word.startswith("-c") and len(word) > 2):
-            code = word[2:] if len(word) > 2 else (words[i + 1] if i + 1 < len(words) else "")
-            return bool(KIT_IMPORT.search(code))
-        if word in ("-X", "-W"):
-            i += 2
-        elif word.startswith("-") and len(word) > 1:
+        if not word.startswith("-") or word == "-":
+            return False  # a script, the standard input, or the end of Python's options
+        if word.startswith("--"):
             i += 1
+            continue
+        letters = word[1:]
+        while letters and letters[0] in PYTHON_FLAGS:
+            letters = letters[1:]
+        if letters[:1] in ("m", "c"):
+            value = letters[1:] or (words[i + 1] if i + 1 < len(words) else "")
+            if letters[0] == "m":
+                return value == "aelix_analytics" or value.startswith("aelix_analytics.")
+            return bool(KIT_IMPORT.search(value))
+        if letters[:1] in ("X", "W"):
+            i += 1 if letters[1:] else 2
         else:
-            return False  # a script, or the end of Python's options
+            i += 1
     return False
 
 
 def calls_the_kit(command: str) -> bool:
     """Whether a person's shell command calls a kit entry point (see above)."""
     try:
-        words = _shell_words(command)
+        tokens = _shell_words(command)
     except ValueError:  # an unclosed quote: no judgment, the command runs as aelix runs it
         return False
     at_command, i = True, 0
-    while i < len(words):
-        word = words[i]
-        if word == "`" or (word and set(word) <= SHELL_OPERATOR_CHARS):
+    while i < len(tokens):
+        word, operator = tokens[i]
+        if operator:
             if "<" in word or ">" in word:
                 i += 2  # a redirection and its target
                 continue
@@ -1196,21 +1255,31 @@ def calls_the_kit(command: str) -> bool:
         if ASSIGNMENT.match(word) or word in SHELL_PREFIXES:
             i += 1
             if word == "env":
-                while i < len(words) and words[i].startswith("-"):
-                    i += 1
+                while i < len(tokens) and not tokens[i][1] and tokens[i][0].startswith("-"):
+                    i += 2 if tokens[i][0] in ENV_VALUE_OPTIONS else 1
             continue
         program = _program(word)
         if program in KIT_PROGRAMS or program.lower() in KIT_PROGRAMS_WINDOWS:
             return True
-        if program == "uv" and i + 1 < len(words) and words[i + 1] == "run":
+        if program == "uv" and i + 1 < len(tokens) and tokens[i + 1] == ("run", False):
             i += 2
-            while i < len(words) and words[i].startswith("-") and not set(words[i]) <= SHELL_OPERATOR_CHARS:
-                i += 1 if "=" in words[i] or words[i] not in UV_RUN_VALUE_OPTIONS else 2
+            while i < len(tokens) and not tokens[i][1] and tokens[i][0].startswith("-"):
+                i += 1 if "=" in tokens[i][0] or tokens[i][0] not in UV_RUN_VALUE_OPTIONS else 2
             continue  # the program uv runs is in command position
-        if PYTHON_PROGRAM.fullmatch(program) and _python_runs_the_kit(words[i + 1:]):
+        if PYTHON_PROGRAM.fullmatch(program) and _python_runs_the_kit(
+                _words_until_operator(tokens, i + 1)):
             return True
         at_command, i = False, i + 1
     return False
+
+
+def _words_until_operator(tokens: list[tuple[str, bool]], start: int) -> list[str]:
+    out = []
+    for text, operator in tokens[start:]:
+        if operator:
+            break
+        out.append(text)
+    return out
 
 
 class PersonShell:

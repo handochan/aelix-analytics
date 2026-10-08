@@ -31,7 +31,8 @@ POSIX = os.name != "nt"
 # The stand-in for uv. It appends {argv, cwd, env} to $FAKE_UV_LOG and then does what $FAKE_UV_DO says
 # for the call it recognises: "init" (`run --no-project ... aelix_analytics init DIR`, which it makes the
 # directory for, as the kit would), "sync", "sync-offline", or the kit command, after `--project P`
-# when there is one (`--text status` counts as "status", `migrate` is "migrate"). A behaviour may set:
+# when there is one (`--text status` counts as "status", `migrate` is "migrate"); `run ... python -c CODE`
+# is run by this interpreter (bin/analytics reads a migration's answer so). A behaviour may set:
 # exit, stdout/stderr (hex bytes), kill_self (a signal number), wait (seconds to wait for a signal,
 # writing $FAKE_UV_LOG.ready first and counting signals into $FAKE_UV_LOG.signals), hold (the same, but
 # it stays the whole time), or exec (run the kit itself, `python -m aelix_analytics ...` with this
@@ -50,6 +51,10 @@ with open(log, "a", encoding="utf-8") as fh:
                          "env": {k: os.environ.get(k) for k in keys}}) + "\n")
 if argv[:1] == ["sync"]:
     key = "sync-offline" if "--offline" in argv else "sync"
+elif "aelix_analytics" not in argv and argv[argv.index("python") + 1:][:1] == ["-c"]:
+    # `uv run ... python -c CODE` (bin/analytics reads the kit's answer so): Python itself runs it.
+    import subprocess
+    sys.exit(subprocess.call([sys.executable, *argv[argv.index("python") + 1:]]))
 else:
     rest = argv[argv.index("aelix_analytics") + 1:]
     if rest[:1] == ["--project"]:
@@ -410,9 +415,11 @@ def test_open_counts_a_marker_link_as_the_kit_does(fake, tmp_path, which, kind, 
     rule (writer._look), where a link that leads nowhere is no marker and one that loops is one. A
     lab.json project that also holds a dangling analytics.json is a lab.json project to the kit, and
     its page opens (both commands had refused it as two markers). A directory below the project whose
-    only marker entry is such a link is passed over: the kit builds the project's page and that page
-    opens (both commands had opened the directory's, which does not exist). A looping analytics.json
-    beside the lab.json is a second marker (marker_conflict): refused, neither uv nor the opener."""
+    only marker entry is such a link is passed over: `open` is about the project above (both
+    commands had opened the directory's page, which does not exist) — a lab.json project without
+    its page, which this kit does not build (PR 3: it says so and how to migrate, exit 1, no uv). A
+    looping analytics.json beside the lab.json is a second marker (marker_conflict): refused,
+    neither uv nor the opener."""
     project = project_dir(tmp_path, marker="lab.json")
     here = project / "inner" if where == "below" else project
     here.mkdir(exist_ok=True)
@@ -436,10 +443,15 @@ def test_open_counts_a_marker_link_as_the_kit_does(fake, tmp_path, which, kind, 
             "reads neither; analytics status says more\n")
         assert not opened.exists() and not calls(fake)
         return
+    if where == "below":
+        assert done.returncode == 1
+        assert done.stderr.decode("utf-8").startswith(
+            f"analytics: {project} uses the older record format (lab.json) and has no page to open")
+        assert not opened.exists() and not calls(fake)
+        return
     assert done.returncode == 0, done.stderr
     assert opened.read_text(encoding="utf-8") == f"{project / 'report' / 'index.html'}\n"
-    assert [uv_args(c) for c in calls(fake)] == (
-        [kit_call(project, "render")] if where == "below" else [])
+    assert not calls(fake)
 
 
 @pytest.mark.parametrize("which", WHICH)
@@ -543,6 +555,25 @@ def test_init_stops_at_the_first_failing_step(fake, tmp_path, which):
     assert f"{NAME[which]}: Workspace at" not in done.stderr.decode("utf-8")
 
 
+@pytest.mark.parametrize("which", WHICH)
+@pytest.mark.parametrize("command", ["init", "demo"])
+@pytest.mark.parametrize("marker", ["analytics.json", "lab.json"])
+def test_init_and_demo_inside_a_project_are_refused_before_anything(fake, tmp_path, which, command,
+                                                                     marker):
+    """OQ9 through the launchers: the kit's own init (run here as uv would, the stand-in running
+    it) refuses a directory inside a project — destination_invalid, inside_project — before it
+    makes anything; the launcher stops there with the kit's answer and status: no sync, no render or
+    demo, no directory."""
+    project = project_dir(tmp_path, marker=marker)
+    done = launch(fake, command, "inner/new", cwd=project, which=which, do={"init": {"exec": True}})
+    assert done.returncode == 1, done.stderr
+    answer = json.loads(done.stdout.decode("utf-8").strip().split("\n")[-1])
+    assert answer["error"]["code"] == "destination_invalid", answer
+    assert answer["error"]["details"] == {"reason": "inside_project", "project": str(project)}
+    assert [uv_args(c)[:2] for c in calls(fake)] == [["run", "--no-project"]]
+    assert sorted(p.name for p in project.iterdir()) == [marker]
+
+
 # --- open -----------------------------------------------------------------------------------------
 
 
@@ -594,6 +625,34 @@ def test_open_shows_a_lab_json_project_s_page_and_says_it_is_not_updated(fake, t
         f"analytics: {project} uses the older record format (lab.json): the kit reads it and no longer "
         "updates this page; analytics status says how to migrate it\n")
     assert not calls(fake)
+
+
+@pytest.mark.parametrize("which", WHICH)
+def test_open_of_a_lab_json_project_without_its_page_says_how_to_migrate(fake, tmp_path, which):
+    """design 7: this kit builds no page for a lab.json project (its report/ is in that template's
+    .gitignore, so a clone has none). `open` says so and how to migrate it, exits 1, and starts
+    neither uv nor an opener: no environment is made for a page that will not be built."""
+    project = project_dir(tmp_path, marker="lab.json")
+    done = launch(fake, "open", cwd=project, which=which, AELIX_ANALYTICS_UV=str(tmp_path / "no-uv"))
+    assert done.returncode == 1 and done.stdout == b""
+    assert done.stderr.decode("utf-8") == (
+        f"analytics: {project} uses the older record format (lab.json) and has no page to open: the "
+        "kit reads it and builds no page for it. Copy it into the current format with `analytics "
+        "migrate --to <new empty folder>` run inside it (preview with --dry-run)\n")
+    assert not calls(fake) and not (project / ".venv").exists()
+
+
+@pytest.mark.parametrize("which", WHICH)
+def test_open_shows_the_kit_s_answer_when_it_builds_no_page(fake, tmp_path, which):
+    """A project the kit does not write to (writer_too_old, say) and that has no page: the render
+    that would build one is refused, and its answer — the JSON line with the code and the hint — is
+    shown as it came, with its exit status; no opener starts."""
+    project = project_dir(tmp_path)
+    refusal = b'{"ok": false, "error": {"code": "writer_too_old", "hint": "update the kit"}}\n'
+    done = launch(fake, "open", cwd=project, which=which,
+                  do={"render": {"exit": 1, "stdout": refusal.hex()}})
+    assert (done.returncode, done.stdout) == (1, refusal), done.stderr
+    assert [uv_args(c) for c in calls(fake)] == [kit_call(project, "render")]
 
 
 @pytest.mark.skipif(not POSIX, reason="os.startfile would open a real program on Windows")
@@ -906,6 +965,26 @@ def sync_call(project: Path, *offline) -> list[str]:
     return ["sync", "--project", str(project), "--locked", "--quiet", *offline]
 
 
+def answer_read(call) -> bool:
+    """bin/analytics reading the kit's answer with Python (uv run --no-project ... python -c)."""
+    return call["argv"][:7] == ["run", "--no-project", "--python", "3.12", "--quiet", "python", "-c"]
+
+
+def migrated(tmp_path: Path, name: str = "new", **answer) -> tuple[Path, dict]:
+    """A destination as the kit's migrate leaves it once committed (its analytics.json), and the
+    stand-in's behaviour that answers so: `ok` and the destination, as the kit names it."""
+    dest = tmp_path / name
+    dest.mkdir(exist_ok=True)
+    (dest / "analytics.json").write_text("{}", encoding="utf-8")
+    value = {"ok": True, "already_migrated": False, "destination": str(dest.resolve()), **answer}
+    return dest.resolve(), {"migrate": {"stdout": (json.dumps(value) + "\n").encode("utf-8").hex()}}
+
+
+def kit_calls(fake) -> list[list[str]]:
+    """The uv calls but bin/analytics' reading of the kit's answer."""
+    return [uv_args(c) for c in calls(fake) if not answer_read(c)]
+
+
 @pytest.mark.parametrize("which", WHICH)
 @pytest.mark.parametrize("where", ["in the source", "nowhere"])
 def test_migrate_runs_the_kit_outside_any_environment_then_prepares_the_destination(fake, tmp_path,
@@ -913,20 +992,20 @@ def test_migrate_runs_the_kit_outside_any_environment_then_prepares_the_destinat
     """design 6.1: the kit's migrate under `uv run --no-project` — no environment of the source's is
     made or synced, and the kit finds the source itself (no --project: AELIX_ANALYTICS_PROJECT, else
     the working directory, a call without one where none is) — and once it committed (exit 0), the
-    destination's environment from its lock as it is (`uv sync --locked`)."""
+    environment of the destination its answer names from its lock as it is (`uv sync --locked`)."""
     cwd = project_dir(tmp_path, marker="lab.json") if where == "in the source" else tmp_path / "work"
     cwd.mkdir(exist_ok=True)
-    (tmp_path / "new").mkdir()  # as the kit's migrate leaves it
-    done = launch(fake, "migrate", "--to", "../new", cwd=cwd, which=which,
-                  do={"migrate": {"stdout": b'{"ok": true}\n'.hex()}})
+    project, do = migrated(tmp_path)
+    done = launch(fake, "migrate", "--to", "../new", cwd=cwd, which=which, do=do)
     assert done.returncode == 0, done.stderr
-    project = (tmp_path / "new").resolve()
     made = calls(fake)
-    assert [uv_args(c) for c in made] == [migrate_call("--to", "../new"), sync_call(project)]
+    assert kit_calls(fake) == [migrate_call("--to", "../new"), sync_call(project)]
+    assert [answer_read(c) for c in made] == ([False, True, False] if which == "bin/analytics"
+                                              else [False, False])
     assert made[0]["cwd"] == str(cwd.resolve())
     assert made[0]["env"] == {"PYTHONPATH": str(KIT), "MPLBACKEND": "Agg", "PYTHONDONTWRITEBYTECODE": "1",
                               "AELIX_ANALYTICS_ACTOR": None, "VIRTUAL_ENV": None}
-    assert done.stdout == b'{"ok": true}\n'
+    assert done.stdout == bytes.fromhex(do["migrate"]["stdout"])
     assert done.stderr.decode("utf-8") == (
         f"{NAME[which]}: syncing the project environment (first time can take a minute) ...\n"
         f"{NAME[which]}: the project is {project} now, and the source is as it was "
@@ -934,22 +1013,40 @@ def test_migrate_runs_the_kit_outside_any_environment_then_prepares_the_destinat
 
 
 @pytest.mark.parametrize("which", WHICH)
-@pytest.mark.parametrize(("args", "dest"), [(["--to=new"], "new"), (["--to", "old", "--to", "new"], "new"),
-                                            (["--dry-run", "--to", "new"], None),
-                                            (["--to", "new", "--dry-run"], None), (["--to", ""], None),
-                                            (["--to=new", "--to="], None)])
-def test_migrate_reads_the_destination_as_the_kit_does(fake, tmp_path, which, args, dest):
-    """The last --to counts, in either spelling; a dry run prepares nothing, as it writes nothing, and
-    neither does an empty --to, which names no folder."""
-    (tmp_path / "new").mkdir()
-    done = launch(fake, "migrate", *args, cwd=tmp_path, which=which)
+@pytest.mark.parametrize("answer", ["committed", "already", "dry run", "dry run committed", "not ok",
+                                    "no answer", "not json", "no marker"])
+def test_migrate_prepares_the_destination_the_kit_s_answer_names(fake, tmp_path, which, answer):
+    """The destination is the kit's, never the launcher's reading of --to (a `~` the shell left as
+    it is would be another folder, below which uv would find the source's pyproject): the folder
+    the answer names, when the answer says the migration went on (`ok`, not a dry run: committed now
+    or before), and only when that folder holds analytics.json. A dry run prepares nothing, as it
+    writes nothing; an answer that names no folder, or one without its marker, prepares nothing."""
+    project, do = migrated(tmp_path)
+    value = json.loads(bytes.fromhex(do["migrate"]["stdout"]))
+    if answer == "already":
+        value["already_migrated"] = True
+    elif answer.startswith("dry run"):
+        value = {"ok": True, "dry_run": True, "destination": value["destination"],
+                 **({"state": "committed", "already_migrated": True} if answer.endswith("committed")
+                    else {"state": "new"})}
+    elif answer == "not ok":
+        value = {"ok": False, "error": {"code": "x"}}
+    elif answer == "no marker":
+        (project / "analytics.json").unlink()
+    stdout = {"no answer": b"", "not json": b"{oops\n"}.get(answer, (json.dumps(value) + "\n").encode())
+    done = launch(fake, "migrate", "--to", "~/elsewhere", cwd=tmp_path, which=which,
+                  do={"migrate": {"stdout": stdout.hex()}})
     assert done.returncode == 0, done.stderr
-    expected = [migrate_call(*args)]
-    if dest:
-        expected.append(sync_call((tmp_path / dest).resolve()))
-    assert [uv_args(c) for c in calls(fake)] == expected
-    if not dest:
-        assert done.stderr == b""
+    assert done.stdout == stdout
+    prepared = answer in ("committed", "already")
+    assert kit_calls(fake) == [migrate_call("--to", "~/elsewhere"), *([sync_call(project)] if prepared else [])]
+    stderr = done.stderr.decode("utf-8")
+    if answer == "no marker":
+        assert stderr == (f"{NAME[which]}: the kit's answer names {project}, which holds no analytics.json: "
+                          "its environment is not prepared; analytics status there says what it is\n")
+    elif not prepared:
+        assert stderr == ""
+    assert not (tmp_path / "~").exists()
 
 
 @pytest.mark.parametrize("which", WHICH)
@@ -967,13 +1064,12 @@ def test_a_destination_whose_environment_cannot_be_prepared_is_still_migrated(fa
     """A lock that does not fit (or no network for it): `--locked` leaves the lock as it is and fails;
     an offline try fails too. The migration is done, the command says what failed, and exits 0: the
     project's next command prepares its environment as every command does."""
-    (tmp_path / "new").mkdir()
+    project, do = migrated(tmp_path)
     done = launch(fake, "migrate", "--to", "new", cwd=tmp_path, which=which,
-                  do={"sync": {"exit": 1}, "sync-offline": {"exit": 4}})
-    project = (tmp_path / "new").resolve()
+                  do={**do, "sync": {"exit": 1}, "sync-offline": {"exit": 4}})
     assert done.returncode == 0, done.stderr
-    assert [uv_args(c) for c in calls(fake)] == [migrate_call("--to", "new"), sync_call(project),
-                                                 sync_call(project, "--offline")]
+    assert kit_calls(fake) == [migrate_call("--to", "new"), sync_call(project),
+                               sync_call(project, "--offline")]
     assert done.stderr.decode("utf-8").endswith(
         f"{NAME[which]}: the migration is done, but preparing the environment of {project} failed "
         "(uv sync --locked, exit 4); the project's next command prepares it\n")

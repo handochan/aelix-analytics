@@ -200,17 +200,23 @@ def record(kind: str, text: str) -> None:
     SDK (design 4.2). Named `note` before kit 0.3.0. `kind` is one a person or an agent records
     (writer.RECORD_KINDS) but `resolve`, which needs a target the SDK does not take; `gap` is refused
     with its new name, workflow_feedback (bad_kind). The text is kept whole: over its limit it is
-    refused (text_too_long, OQ2), never cut. Refused when it is made where this kit does not write
-    (core.admit, Issue #13): in a run, an error in the script."""
+    refused (text_too_long, OQ2), never cut: in a run its line is judged when it is called, with the
+    widest seq a journal reaches (writer.SEQ_BOUND), so a note that returns is one the run writes.
+    Refused when it is made where this kit does not write (core.admit, Issue #13): in a run, an
+    error in the script."""
     from . import capture, core
 
     # The kinds a person or an agent records, but `resolve`: it needs a target the SDK does not take.
     core.writer.check_kind(kind, tuple(k for k in core.RECORD_KINDS if k != "resolve"))
     text = str(text)
-    if capture.ACTIVE is not None:
-        core.admit(capture.ACTIVE.project, "record")
-        core.writer.check_text(text)
-        capture.ACTIVE.notes.append((kind, text))
+    state = capture.ACTIVE
+    if state is not None:
+        # Judged now as the run will write it — linked to the run, by the run's actor through the
+        # SDK — with the widest seq (SEQ_BOUND): a note refused for its text or its line is this
+        # call's exception, never a note the run loses when it finishes.
+        core.writer_for(state.project, state.sdk_origin).check(
+            kind, text, refs=[state.run_id], seq=core.writer.SEQ_BOUND)
+        state.notes.append((kind, text))
     else:
         core.record(project(), kind, text, origin=_script_origin())
 

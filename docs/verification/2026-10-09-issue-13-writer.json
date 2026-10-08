@@ -1,24 +1,26 @@
 {
  "record_kind": "aelix-analytics-new-writer",
- "observed_at": "2026-10-08T18:13:02Z",
+ "observed_at": "2026-10-08T20:09:26Z",
  "issue": "https://github.com/handochan/aelix-analytics/issues/13",
  "pull_request": null,
  "base_revision": "0f3f09fa8b1ba46b63d50e672d7c8409f785b7b7",
  "measured_tree": {
-  "what": "the branch feat/issue-13-new-writer (Issue #13 PR 3, kit 0.8.0) over origin/main 0f3f09f (PR #82 merged), its five commits writer -> entry points and stored names -> command -> extension authorship -> docs, measured on the worktree at that head with nothing uncommitted. This record is the docs commit after it, which changes no code. The manifest is every tracked file of src, extension, tests, tools, bin, pyproject.toml and uv.lock, one `shasum -a 256` line each in path order; the list is in the run folder (evidence/g4/code-manifest.txt), not in the repository",
-  "head": "54e90987ad652559adc9bfae49cd561e3795c3e5",
+  "what": "the branch feat/issue-13-new-writer (Issue #13 PR 3, kit 0.8.0) over origin/main 0f3f09f (PR #82 merged) after the implementation reviews: the commits writer -> entry points and stored names -> extension authorship -> command -> docs -> the first measurement record (the authorship commit moved before the command's, review of PR 3), and the review fixes, measured on the worktree before the fixes were committed. The fix commit holds the code measured and this record: the manifest is every tracked file of src, extension, tests, tools, bin, pyproject.toml and uv.lock, one `shasum -a 256` line each in path order, taken at the verification (the list is in the run folder, fix/evidence/final/code-manifest.txt)",
+  "head_under_the_fixes": "ceaf7368fc5d7892aa2517401b819c1818bf6fe9",
   "commits": [
-   "54e90987ad652559adc9bfae49cd561e3795c3e5 docs: describe the new writer, its layout and analytics migrate (Issue #13 PR 3)",
-   "705593774e10c0be2080670b452104622fae20dc feat: record agent and person authorship from aelix (Issue #13 PR 3)",
-   "d3f0fcf63c23a33612ba25435ea1d34b5f595eeb feat: open the project migration as analytics migrate (Issue #13 PR 3)",
+   "ceaf7368fc5d7892aa2517401b819c1818bf6fe9 docs: record the new writer's measurement (Issue #13 PR 3)",
+   "34338389d01273e9f5225cc21b99125c204dbe8f docs: describe the new writer, its layout and analytics migrate (Issue #13 PR 3)",
+   "6f11a29145d6adcfcd221e665648032b2276da0a feat: open the project migration as analytics migrate (Issue #13 PR 3)",
+   "12fc36933fa2c6d508f4a92ce38670a02d4cd032 feat: record agent and person authorship from aelix (Issue #13 PR 3)",
    "e8715fdea776ddfe628643d231aab99edf4596f4 feat: write the new format and its stored names from every entry point (Issue #13 PR 3)",
    "fb20125ed23c2bd980166d33813c671b7ed8d67a feat: add the common writer for the new format (Issue #13 PR 3)"
   ],
-  "manifest_sha256": "84258fdf577fc1e8e1fcb10d79078d78bc570a21a9a3995d67db0f2fa4a2cf3b",
+  "manifest_sha256": "4e5fa457287d282eee8105a32ca65343ef90eecf5069e826702676141721861f",
   "manifest_files": 219,
-  "code_unchanged_since": {
-   "src": "d3f0fcf (G3; the FAT/exFAT probe ran on its tree b7856c6 before the rebase, src the same)",
-   "extension_and_tests": "54e90987ad652559adc9bfae49cd561e3795c3e5"
+  "previous_record": {
+   "measured_head": "54e90987ad652559adc9bfae49cd561e3795c3e5",
+   "manifest_sha256": "84258fdf577fc1e8e1fcb10d79078d78bc570a21a9a3995d67db0f2fa4a2cf3b",
+   "note": "the record before the review fixes (code 54e9098); its values for the writer's latency, the migration, the command E2E, T18 and T22 are measured again here"
   }
  },
  "workflow": ".github/workflows/ci.yml: the aelix legs run tests/test_agent_cli.py too and keep their observations (evidence-aelix-py3.12/3.11)",
@@ -44,7 +46,8 @@
   }
  },
  "developer_machine": {
-  "where": "macOS developer machine, the worktree of the branch at the head; isolation: AELIX_ANALYTICS_TRUST_FILE and AELIX_ANALYTICS_UV inside the run folder (the UV a link to the real uv), AELIX_LAB_*/LAB_* unset; ~/.aelix not read or written by the commands measured (T22 runs aelix with a HOME and an agent directory of its own)",
+  "where": "macOS developer machine, the worktree of the branch with the review fixes; isolation: AELIX_ANALYTICS_TRUST_FILE and AELIX_ANALYTICS_UV inside the run folder (the UV a link to the real uv; the measurement with a trust list of its own), AELIX_LAB_*/LAB_* unset; ~/.aelix not read or written by the commands measured (T22 runs aelix with a HOME and an agent directory of its own; the T18 cases with `~` and the E2E's `~` step use a HOME in the test's or the run's directory, with uv's cache and Pythons kept)",
+  "isolation_incident": "during the implementation (group G4, before the reviews) one command run while looking at the demo project had `ls ~/.aelix/agent 2>/dev/null | head -0` in it by mistake; its output was discarded unseen and nothing was written (the run folder's handoff and the PR body say so). No measured command read or listed ~/.aelix",
   "machine": [
    "macOS 26.6.2 (25G83)",
    "macOS-26.6.2-arm64-arm-64bit",
@@ -52,10 +55,11 @@
    "uv 0.11.19 (Homebrew 2026-06-03 aarch64-apple-darwin)",
    "CPython 3.12.13 (uv.lock), aelix legs 3.12.13 and 3.11.15, launcher and stdlib smoke 3.11"
   ],
-  "load": "no other suite of this run at the same time; other agents' work on the machine is not known",
+  "load": "no other suite of this run at the same time as the measurement; other agents' work on the machine is not known",
   "log": [
-   "head 54e90987ad652559adc9bfae49cd561e3795c3e5 2026-10-08T18:07:19Z dirty=       0",
+   "head ceaf7368fc5d7892aa2517401b819c1818bf6fe9 2026-10-08T19:53:45Z dirty=      30",
    "ruff exit 0",
+   "pytest exit 0",
    "layers-contracts exit 0",
    "aelix 3.12 exit 0",
    "aelix 3.11 exit 0",
@@ -64,29 +68,38 @@
    "smoke exit 0",
    "stdlib smoke exit 0",
    "docs exit 0",
-   "diff-check exit 0",
-   "done 2026-10-08T18:10:52Z"
+   "diff-check (worktree vs origin/main) exit 0",
+   "selected exit 0",
+   "done 2026-10-08T20:06:36Z"
+  ],
+  "measure_log": [
+   "measure start 2026-10-08T20:09:26Z head ceaf7368fc5d7892aa2517401b819c1818bf6fe9 dirty=      30",
+   "measure exit 0 2026-10-08T20:09:48Z",
+   "latency exit 0 2026-10-08T20:10:13Z",
+   "fault exit 0 2026-10-08T20:10:22Z",
+   "e2e exit 0 2026-10-08T20:10:38Z"
   ]
  },
+ "measurement_notes": [
+  "a first run of this measurement (2026-10-08T20:06:50Z) had the kit's bytecode stale after the edits (PYTHONDONTWRITEBYTECODE=1 in the run's environment), so each child compiled the kit as it started: max RSS 44 / 86 MB (S / M), migration wall 1.10 / 9.11 s, the other values within noise of the second run. The kit's bytecode was compiled (python -m compileall src/aelix_analytics; __pycache__ is not tracked) and the whole measurement run again; its values are recorded here, and the first run's files are in the run folder (fix/measure-stale-pyc). The previous record's measurement had current bytecode"
+ ],
  "verification": {
   "repository_suite": {
    "command": "uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread",
-   "result": "1895 passed, 106 skipped in 485.02s (0:08:05)",
-   "evidence_dir": "AELIX_ANALYTICS_TEST_EVIDENCE_DIR=<run>/evidence/g4/observations"
+   "result": "1935 passed, 106 skipped in 520.38s (0:08:40)",
+   "evidence_dir": "AELIX_ANALYTICS_TEST_EVIDENCE_DIR=<run>/fix/evidence/final/observations"
   },
-  "layers_contracts": "126 passed, 52 skipped in 9.95s",
-  "aelix_py3.12": "220 passed in 44.13s",
-  "aelix_py3.11": "220 passed in 45.80s",
-  "launcher_py3.11": "176 passed, 1 skipped in 24.71s",
-  "usage_report": {
-   "required_facts": "58/58",
-   "invariants": "42/42",
-   "compared_with_the_previous_group": [
-    "texts compared after normalizing the temporary directory and source_revision: 76",
-    "differences: none",
-    "numeric leaves that differ (times left out): 0"
-   ]
-  },
+  "layers_contracts": "126 passed, 52 skipped in 13.87s",
+  "aelix_py3.12": "243 passed in 45.07s",
+  "aelix_py3.11": "243 passed in 42.19s",
+  "launcher_py3.11": "192 passed, 1 skipped in 26.49s",
+  "usage_report": [
+   "texts compared after normalizing the temporary directory and source_revision: 76",
+   "differences: none",
+   "numeric leaves that differ (times left out): 0",
+   "checks of the new report: {\"P1_sizes_recomputed_from_saved_texts\": true, \"P2_required_facts_read_back\": {\"passed\": 58, \"total\": 58}, \"P2_invariants_hold\": {\"holding\": 42, \"total\": 42}, \"P3_hook_returned_a_block\": true, \"P3_tools_replied_without_error\": true, \"P3_pinned_section_whole\": true, \"fixtures_measured\": 34, \"fixtures_selected\": 34}",
+   "failures of the new report: []"
+  ],
   "platform_smoke": {
    "holds": 25,
    "violated": 0,
@@ -104,9 +117,9 @@
   "check_docs": {
    "ok": true,
    "counts": {
-    "json_files": 12,
-    "markdown_files": 65,
-    "local_links": 718,
+    "json_files": 13,
+    "markdown_files": 66,
+    "local_links": 727,
     "python_examples": 6,
     "json_examples": 7,
     "dev_state_examples": 1
@@ -114,15 +127,90 @@
    "errors": []
   },
   "ruff": "pass",
-  "git_diff_check": "origin/main..HEAD, no output"
+  "git_diff_check": "the worktree against origin/main, no output",
+  "reordered_commit": {
+   "what": "the authorship commit in its new place (on the entry points' commit, before the command's): ruff and the repository suite on that tree",
+   "result": "1785 passed, 93 skipped in 643.25s (0:10:43)"
+  }
  },
- "new_tests_on_previous_head": {
-  "what": "this group's new tests (tests/test_agent_cli.py and the authorship tests of tests/test_extension.py, 56 selected) on the code of the commit before it (d3f0fcf, the command) and on ebd10b6, each with today's tests copied in, aelix 0.1.0b2 on CPython 3.12",
-  "d3f0fcf": "56 failed, 49 deselected in 3.47s",
-  "ebd10b6": "56 failed, 49 deselected in 1.38s"
+ "review_fix_tests_on_previous_code": {
+  "what": "the review fixes' tests (the test files they changed, today's tests/ copied in) on the code before the fixes (f42a9a3, git worktree in the run folder): the repository's (the changed files of tests/ with uv.lock's environment) and the aelix leg's (aelix 0.1.0b2, CPython 3.12)",
+  "code": "f42a9a3deb5e15fbe06d65d628c452658ccbe405",
+  "repository": {
+   "result": "49 failed, 351 passed, 3 skipped in 88.89s (0:01:28)",
+   "failed": [
+    "tests/test_kit.py::test_the_workspace_build_is_named_workspace_and_the_old_assets_go",
+    "tests/test_language.py::test_a_new_project_and_its_empty_workspace_are_english",
+    "tests/test_language.py::test_the_demo_is_english",
+    "tests/test_launcher.py::test_migrate_prepares_the_destination_the_kit_s_answer_names[already-bin/analytics]",
+    "tests/test_launcher.py::test_migrate_prepares_the_destination_the_kit_s_answer_names[already-launcher]",
+    "tests/test_launcher.py::test_migrate_prepares_the_destination_the_kit_s_answer_names[committed-bin/analytics]",
+    "tests/test_launcher.py::test_migrate_prepares_the_destination_the_kit_s_answer_names[committed-launcher]",
+    "tests/test_launcher.py::test_migrate_prepares_the_destination_the_kit_s_answer_names[dry run committed-bin/analytics]",
+    "tests/test_launcher.py::test_migrate_prepares_the_destination_the_kit_s_answer_names[dry run committed-launcher]",
+    "tests/test_launcher.py::test_migrate_prepares_the_destination_the_kit_s_answer_names[dry run-bin/analytics]",
+    "tests/test_launcher.py::test_migrate_prepares_the_destination_the_kit_s_answer_names[dry run-launcher]",
+    "tests/test_launcher.py::test_migrate_prepares_the_destination_the_kit_s_answer_names[no answer-bin/analytics]",
+    "tests/test_launcher.py::test_migrate_prepares_the_destination_the_kit_s_answer_names[no answer-launcher]",
+    "tests/test_launcher.py::test_migrate_prepares_the_destination_the_kit_s_answer_names[no marker-bin/analytics]",
+    "tests/test_launcher.py::test_migrate_prepares_the_destination_the_kit_s_answer_names[no marker-launcher]",
+    "tests/test_launcher.py::test_migrate_prepares_the_destination_the_kit_s_answer_names[not json-bin/analytics]",
+    "tests/test_launcher.py::test_migrate_prepares_the_destination_the_kit_s_answer_names[not json-launcher]",
+    "tests/test_launcher.py::test_migrate_prepares_the_destination_the_kit_s_answer_names[not ok-bin/analytics]",
+    "tests/test_launcher.py::test_migrate_prepares_the_destination_the_kit_s_answer_names[not ok-launcher]",
+    "tests/test_launcher.py::test_migrate_runs_the_kit_outside_any_environment_then_prepares_the_destination[in the source-bin/analytics]",
+    "tests/test_launcher.py::test_migrate_runs_the_kit_outside_any_environment_then_prepares_the_destination[nowhere-bin/analytics]",
+    "tests/test_launcher.py::test_open_counts_a_marker_link_as_the_kit_does[dangling-below-bin/analytics]",
+    "tests/test_launcher.py::test_open_counts_a_marker_link_as_the_kit_does[dangling-below-launcher]",
+    "tests/test_launcher.py::test_open_of_a_lab_json_project_without_its_page_says_how_to_migrate[bin/analytics]",
+    "tests/test_launcher.py::test_open_of_a_lab_json_project_without_its_page_says_how_to_migrate[launcher]",
+    "tests/test_launcher.py::test_open_shows_the_kit_s_answer_when_it_builds_no_page[bin/analytics]",
+    "tests/test_launcher.py::test_open_shows_the_kit_s_answer_when_it_builds_no_page[launcher]",
+    "tests/test_migrate_command.py::test_a_destination_given_with_a_tilde_is_prepared_where_the_kit_made_it[extra package-given0-bin/analytics]",
+    "tests/test_migrate_command.py::test_a_destination_given_with_a_tilde_is_prepared_where_the_kit_made_it[extra package-given0-launcher]",
+    "tests/test_migrate_command.py::test_a_destination_given_with_a_tilde_is_prepared_where_the_kit_made_it[extra package-given1-bin/analytics]",
+    "tests/test_migrate_command.py::test_a_destination_given_with_a_tilde_is_prepared_where_the_kit_made_it[extra package-given1-launcher]",
+    "tests/test_migrate_command.py::test_a_destination_given_with_a_tilde_is_prepared_where_the_kit_made_it[none-given0-bin/analytics]",
+    "tests/test_migrate_command.py::test_a_destination_given_with_a_tilde_is_prepared_where_the_kit_made_it[none-given0-launcher]",
+    "tests/test_migrate_command.py::test_a_destination_given_with_a_tilde_is_prepared_where_the_kit_made_it[none-given1-bin/analytics]",
+    "tests/test_migrate_command.py::test_a_destination_given_with_a_tilde_is_prepared_where_the_kit_made_it[none-given1-launcher]",
+    "tests/test_migrate_command.py::test_the_call_s_origin_is_in_the_ledger_the_report_and_the_answer[None-expected0]",
+    "tests/test_migrate_command.py::test_the_call_s_origin_is_in_the_ledger_the_report_and_the_answer[agent-expected1]",
+    "tests/test_migration.py::test_a_refusal_judged_again_under_the_lock_says_what_this_attempt_left[entry]",
+    "tests/test_migration.py::test_a_refusal_judged_again_under_the_lock_says_what_this_attempt_left[space]",
+    "tests/test_new_format.py::test_a_composed_text_fits_its_line_whatever_its_fields_hold",
+    "tests/test_new_format.py::test_a_long_field_is_kept_whole_and_quoted_by_the_event_the_kit_composes",
+    "tests/test_new_format.py::test_a_note_in_a_run_whose_line_is_over_the_limit_is_the_script_s_error",
+    "tests/test_new_format.py::test_a_record_refused_before_its_lock_leaves_the_context_unsynced[line]",
+    "tests/test_new_format.py::test_a_record_refused_before_its_lock_leaves_the_context_unsynced[no target]",
+    "tests/test_new_format.py::test_a_record_refused_before_its_lock_leaves_the_context_unsynced[unknown target]",
+    "tests/test_new_format.py::test_a_script_that_exits_with_a_long_message_keeps_its_completion_event",
+    "tests/test_new_format.py::test_a_write_answers_with_its_request_id",
+    "tests/test_new_format.py::test_a_write_follows_the_marker_it_was_admitted_by",
+    "tests/test_packaging.py::test_the_current_contract_names_the_kit_s_version"
+   ]
+  },
+  "aelix_py3.12": {
+   "result": "12 failed, 116 passed in 34.06s",
+   "failed": [
+    "tests/test_extension.py::test_a_person_s_command_that_calls_the_kit_is_found[env -C /tmp -u HOME AELIX_ANALYTICS_ACTOR=x analytics status]",
+    "tests/test_extension.py::test_a_person_s_command_that_calls_the_kit_is_found[env -u HOME analytics status]",
+    "tests/test_extension.py::test_a_person_s_command_that_calls_the_kit_is_found[python3 -Im aelix_analytics status]",
+    "tests/test_extension.py::test_a_person_s_command_that_only_names_the_kit_is_not[echo \"|\" analytics x]",
+    "tests/test_extension.py::test_a_person_s_command_that_only_names_the_kit_is_not[echo '(' analytics]",
+    "tests/test_extension.py::test_a_person_s_command_that_only_names_the_kit_is_not[echo ';' analytics]",
+    "tests/test_extension.py::test_a_person_s_command_that_only_names_the_kit_is_not[echo \\\\; analytics]",
+    "tests/test_extension.py::test_a_person_s_command_that_only_names_the_kit_is_not[printf '%s\\\\n' '&&' analytics]",
+    "tests/test_extension.py::test_a_record_the_tool_refuses_leaves_the_context_unsynced[line]",
+    "tests/test_extension.py::test_a_record_the_tool_refuses_leaves_the_context_unsynced[no target]",
+    "tests/test_extension.py::test_a_record_the_tool_refuses_leaves_the_context_unsynced[unknown target]",
+    "tests/test_extension.py::test_analytics_init_answers_with_its_request_id"
+   ]
+  },
+  "passing_there_too": "tests that pin behaviour the code already had and the reviews found untested: T13's kill mid-append (test_writer), OQ9 through the launchers and the extension's tool and commands, /analytics open of an older page, --analytics-project, T22 with a blocking extension (the limit it records is the code's), and the cases of the changed tests that kept their meaning"
  },
  "writer_latency": {
-  "what": "design 11.5: on a 10,000-line journal (the M source, lab.json, for the kit before PR 3 — ebd10b6's src, the /1 writer, core.add_note; the M source migrated, analytics.json, the same 10,000 lines, for this head's core.record and Writer.update), 20 calls each of a plain record, a record naming four references (a run id, a dataset name, an event id, a `script.py::id` key), a resolve of an open question, and (this head only) a record_update withdrawing a current finding; each kit in a process of its own on a fresh copy, the two kits alternating twice, the minimum of the two rounds (latency.py)",
+  "what": "design 11.5: on a 10,000-line journal (the M source, lab.json, for the kit before PR 3 — ebd10b6's src, the /1 writer, core.add_note; the M source migrated, analytics.json, the same 10,000 lines, for this tree's core.record and Writer.update), 20 calls each of a plain record, a record naming four references (a run id, a dataset name, an event id, a `script.py::id` key), a resolve of an open question, and (this tree only) a record_update withdrawing a current finding; each kit in a process of its own on a fresh copy, the two kits alternating twice, the minimum of the two rounds (latency.py)",
   "rounds": [
    {
     "round": 1,
@@ -138,91 +226,91 @@
     ],
     "record_ms": {
      "n": 20,
-     "p50_ms": 32.627,
-     "p95_ms": 39.285,
-     "mean_ms": 32.828,
-     "max_ms": 42.179
+     "p50_ms": 32.791,
+     "p95_ms": 37.851,
+     "mean_ms": 32.896,
+     "max_ms": 48.629
     },
     "record_with_refs_ms": {
      "n": 20,
-     "p50_ms": 31.703,
-     "p95_ms": 37.911,
-     "mean_ms": 31.97,
-     "max_ms": 38.219
+     "p50_ms": 32.57,
+     "p95_ms": 37.415,
+     "mean_ms": 32.152,
+     "max_ms": 37.971
     },
     "resolve_ms": {
      "n": 20,
-     "p50_ms": 68.697,
-     "p95_ms": 79.124,
-     "mean_ms": 70.585,
-     "max_ms": 87.655
+     "p50_ms": 69.205,
+     "p95_ms": 77.585,
+     "mean_ms": 70.248,
+     "max_ms": 78.588
     },
     "raw": {
      "record_ms": [
-      39.285,
-      42.179,
-      28.316,
-      37.932,
-      28.195,
-      32.721,
-      28.773,
-      32.532,
-      33.789,
-      27.919,
-      36.589,
-      27.166,
-      31.171,
-      36.874,
-      26.918,
-      32.8,
-      35.733,
-      39.014,
-      26.723,
-      31.938
+      33.466,
+      37.299,
+      28.121,
+      34.145,
+      29.821,
+      33.338,
+      28.033,
+      35.673,
+      35.126,
+      27.095,
+      35.538,
+      28.437,
+      31.927,
+      35.732,
+      28.144,
+      37.851,
+      29.625,
+      48.629,
+      27.673,
+      32.245
      ],
      "record_with_refs_ms": [
-      36.056,
-      28.055,
-      38.219,
-      27.542,
-      31.847,
-      26.568,
-      31.559,
-      35.11,
-      28.375,
-      34.687,
-      26.93,
-      31.185,
-      35.339,
-      27.471,
-      33.087,
-      27.713,
-      36.138,
-      29.213,
-      37.911,
-      36.402
+      36.176,
+      27.359,
+      37.971,
+      28.497,
+      33.733,
+      27.568,
+      32.047,
+      35.202,
+      28.345,
+      35.093,
+      27.84,
+      33.092,
+      36.545,
+      31.423,
+      37.415,
+      29.208,
+      33.552,
+      26.991,
+      31.451,
+      33.539
      ],
      "resolve_ms": [
-      67.479,
-      67.822,
-      67.736,
-      75.515,
-      67.919,
-      66.585,
-      69.184,
-      75.871,
-      70.252,
-      71.936,
-      68.21,
-      87.655,
-      76.49,
-      65.299,
-      79.124,
-      69.484,
-      64.643,
-      62.413,
-      74.125,
-      63.965
+      77.585,
+      67.168,
+      75.13,
+      76.821,
+      68.086,
+      65.934,
+      65.335,
+      72.445,
+      74.176,
+      78.588,
+      68.577,
+      74.837,
+      67.218,
+      64.447,
+      77.472,
+      69.832,
+      63.147,
+      62.37,
+      71.756,
+      64.036
      ]
     }
    },
@@ -240,120 +328,120 @@
     ],
     "record_ms": {
      "n": 20,
-     "p50_ms": 110.168,
-     "p95_ms": 123.901,
-     "mean_ms": 110.842,
-     "max_ms": 125.312
+     "p50_ms": 71.632,
+     "p95_ms": 83.373,
+     "mean_ms": 72.587,
+     "max_ms": 83.476
     },
     "record_with_refs_ms": {
      "n": 20,
-     "p50_ms": 155.995,
-     "p95_ms": 165.505,
-     "mean_ms": 154.897,
-     "max_ms": 177.089
+     "p50_ms": 124.072,
+     "p95_ms": 135.666,
+     "mean_ms": 123.348,
+     "max_ms": 136.252
     },
     "resolve_ms": {
      "n": 20,
-     "p50_ms": 127.512,
-     "p95_ms": 136.126,
-     "mean_ms": 127.189,
-     "max_ms": 137.044
+     "p50_ms": 128.913,
+     "p95_ms": 146.178,
+     "mean_ms": 128.777,
+     "max_ms": 149.001
     },
     "record_update_ms": {
      "n": 20,
-     "p50_ms": 87.042,
-     "p95_ms": 99.677,
-     "mean_ms": 88.256,
-     "max_ms": 101.499
+     "p50_ms": 91.151,
+     "p95_ms": 95.164,
+     "mean_ms": 90.185,
+     "max_ms": 96.694
     },
     "raw": {
      "record_ms": [
-      111.438,
-      113.083,
-      119.079,
-      103.379,
-      108.829,
-      123.901,
-      125.312,
-      99.674,
-      111.419,
-      123.855,
-      119.981,
-      103.074,
-      108.916,
-      115.19,
-      119.984,
-      98.608,
-      104.665,
-      104.342,
-      108.53,
-      93.574
+      79.128,
+      71.764,
+      70.788,
+      75.82,
+      70.038,
+      67.018,
+      81.902,
+      74.231,
+      73.733,
+      71.499,
+      83.373,
+      67.798,
+      64.765,
+      83.476,
+      72.066,
+      68.466,
+      67.777,
+      66.277,
+      64.458,
+      77.354
      ],
      "record_with_refs_ms": [
-      158.416,
-      151.833,
-      156.656,
-      165.505,
-      142.449,
-      155.334,
-      145.181,
-      159.277,
-      161.412,
-      143.8,
-      156.742,
-      148.665,
-      164.531,
-      154.534,
-      144.298,
-      158.726,
-      147.172,
-      177.089,
-      148.192,
-      158.132
+      114.893,
+      128.705,
+      135.666,
+      126.726,
+      126.165,
+      129.025,
+      113.104,
+      121.819,
+      119.66,
+      126.724,
+      126.954,
+      112.955,
+      119.841,
+      122.969,
+      119.359,
+      125.038,
+      125.155,
+      112.837,
+      123.107,
+      136.252
      ],
      "resolve_ms": [
-      126.533,
-      137.044,
-      122.762,
-      132.418,
-      121.607,
-      132.315,
-      121.074,
-      131.708,
-      119.694,
-      136.126,
-      120.27,
-      129.143,
-      129.331,
-      128.491,
-      116.565,
-      124.677,
-      135.878,
-      124.385,
-      134.444,
-      119.319
+      149.001,
+      132.597,
+      136.333,
+      122.804,
+      133.242,
+      124.355,
+      133.711,
+      121.033,
+      129.615,
+      118.958,
+      128.21,
+      116.113,
+      126.148,
+      134.167,
+      123.52,
+      146.178,
+      119.727,
+      130.142,
+      119.088,
+      130.608
      ],
      "record_update_ms": [
-      80.605,
-      81.788,
-      80.362,
-      81.781,
-      82.205,
-      82.703,
-      83.575,
-      87.562,
-      86.522,
-      85.339,
-      95.354,
-      86.5,
-      99.677,
-      89.228,
-      101.499,
-      91.978,
-      92.953,
-      94.056,
-      89.935,
-      91.49
+      87.635,
+      87.718,
+      94.218,
+      91.361,
+      89.99,
+      92.726,
+      90.94,
+      90.913,
+      90.666,
+      91.977,
+      91.428,
+      93.532,
+      92.112,
+      96.694,
+      93.7,
+      81.388,
+      95.164,
+      83.683,
+      83.295,
+      84.557
      ]
     }
    },
@@ -371,91 +459,91 @@
     ],
     "record_ms": {
      "n": 20,
-     "p50_ms": 33.686,
-     "p95_ms": 42.712,
-     "mean_ms": 35.117,
-     "max_ms": 54.249
+     "p50_ms": 32.69,
+     "p95_ms": 36.488,
+     "mean_ms": 32.487,
+     "max_ms": 51.158
     },
     "record_with_refs_ms": {
      "n": 20,
-     "p50_ms": 34.608,
-     "p95_ms": 43.891,
-     "mean_ms": 34.202,
-     "max_ms": 44.002
+     "p50_ms": 32.266,
+     "p95_ms": 38.929,
+     "mean_ms": 32.212,
+     "max_ms": 41.626
     },
     "resolve_ms": {
      "n": 20,
-     "p50_ms": 69.715,
-     "p95_ms": 79.525,
-     "mean_ms": 71.034,
-     "max_ms": 96.096
+     "p50_ms": 65.168,
+     "p95_ms": 74.655,
+     "mean_ms": 67.154,
+     "max_ms": 76.781
     },
     "raw": {
      "record_ms": [
-      33.841,
-      39.897,
-      30.28,
-      54.249,
-      32.608,
-      40.029,
-      29.288,
-      34.497,
-      42.712,
-      28.463,
-      36.544,
-      28.845,
-      33.064,
-      36.632,
-      28.753,
-      36.064,
-      29.554,
-      41.311,
-      32.183,
-      33.532
+      33.814,
+      35.736,
+      28.065,
+      35.364,
+      27.913,
+      33.81,
+      28.339,
+      33.049,
+      36.488,
+      27.956,
+      35.935,
+      27.631,
+      32.533,
+      51.158,
+      28.528,
+      34.58,
+      26.677,
+      31.709,
+      27.601,
+      32.847
      ],
      "record_with_refs_ms": [
-      44.002,
-      27.671,
-      34.586,
-      28.612,
-      35.403,
-      35.661,
-      38.149,
-      38.379,
-      30.73,
-      43.891,
-      29.207,
-      34.373,
-      38.457,
-      27.332,
-      37.767,
-      27.478,
-      34.631,
-      30.249,
-      32.742,
-      34.712
+      33.637,
+      27.72,
+      35.013,
+      26.357,
+      31.767,
+      27.024,
+      31.261,
+      41.626,
+      29.748,
+      37.815,
+      30.874,
+      38.929,
+      36.77,
+      26.91,
+      33.872,
+      27.127,
+      32.764,
+      27.173,
+      32.827,
+      35.031
      ],
      "resolve_ms": [
-      70.151,
-      68.817,
-      71.977,
-      79.525,
-      70.499,
-      73.654,
-      69.279,
-      73.063,
-      67.443,
-      71.332,
-      62.106,
-      72.633,
-      69.062,
-      63.313,
-      76.067,
-      66.453,
-      65.291,
-      65.144,
-      96.096,
-      68.778
+      69.22,
+      64.626,
+      66.044,
+      74.655,
+      67.346,
+      65.384,
+      64.952,
+      73.93,
+      76.781,
+      64.886,
+      63.008,
+      70.296,
+      63.835,
+      62.697,
+      71.8,
+      64.867,
+      61.558,
+      62.126,
+      70.318,
+      64.743
      ]
     }
    },
@@ -473,125 +561,166 @@
     ],
     "record_ms": {
      "n": 20,
-     "p50_ms": 110.798,
-     "p95_ms": 125.605,
-     "mean_ms": 110.494,
-     "max_ms": 130.019
+     "p50_ms": 69.439,
+     "p95_ms": 78.743,
+     "mean_ms": 70.762,
+     "max_ms": 80.305
     },
     "record_with_refs_ms": {
      "n": 20,
-     "p50_ms": 152.033,
-     "p95_ms": 159.897,
-     "mean_ms": 152.314,
-     "max_ms": 173.976
+     "p50_ms": 131.213,
+     "p95_ms": 137.052,
+     "mean_ms": 129.231,
+     "max_ms": 139.789
     },
     "resolve_ms": {
      "n": 20,
-     "p50_ms": 127.887,
-     "p95_ms": 147.509,
-     "mean_ms": 128.144,
-     "max_ms": 147.954
+     "p50_ms": 134.072,
+     "p95_ms": 158.514,
+     "mean_ms": 134.764,
+     "max_ms": 164.249
     },
     "record_update_ms": {
      "n": 20,
-     "p50_ms": 86.751,
-     "p95_ms": 97.726,
-     "mean_ms": 87.821,
-     "max_ms": 101.411
+     "p50_ms": 91.259,
+     "p95_ms": 100.896,
+     "mean_ms": 91.422,
+     "max_ms": 110.359
     },
     "raw": {
      "record_ms": [
-      111.387,
-      115.77,
-      117.27,
-      100.304,
-      108.104,
-      113.411,
-      130.019,
-      103.171,
-      108.505,
-      112.762,
-      125.605,
-      101.899,
-      110.909,
-      115.68,
-      109.447,
-      93.604,
-      110.688,
-      106.189,
-      112.388,
-      102.775
+      78.743,
+      73.22,
+      74.187,
+      68.916,
+      69.218,
+      65.252,
+      78.16,
+      72.998,
+      72.124,
+      69.118,
+      69.66,
+      65.782,
+      63.25,
+      77.161,
+      70.893,
+      68.151,
+      67.775,
+      66.402,
+      63.923,
+      80.305
      ],
      "record_with_refs_ms": [
-      159.897,
-      144.878,
-      156.522,
-      152.36,
-      143.173,
-      158.846,
-      151.706,
-      159.288,
-      151.063,
-      141.671,
-      156.631,
-      144.279,
-      157.43,
-      146.509,
-      141.927,
-      155.435,
-      144.652,
-      173.976,
-      147.887,
-      158.14
+      114.393,
+      120.465,
+      133.78,
+      128.625,
+      128.295,
+      132.603,
+      117.762,
+      134.598,
+      130.23,
+      134.658,
+      135.51,
+      121.679,
+      131.0,
+      135.09,
+      126.665,
+      131.427,
+      134.296,
+      116.71,
+      139.789,
+      137.052
      ],
      "resolve_ms": [
-      132.445,
-      147.954,
-      122.689,
-      134.483,
-      121.409,
-      131.549,
-      120.986,
-      132.426,
-      119.259,
-      128.874,
-      117.609,
-      131.349,
-      123.172,
-      129.22,
-      116.875,
-      126.901,
-      147.509,
-      123.916,
-      131.279,
-      122.97
+      158.514,
+      137.828,
+      164.249,
+      133.799,
+      155.044,
+      123.018,
+      134.872,
+      124.567,
+      129.1,
+      118.763,
+      134.344,
+      134.815,
+      127.898,
+      145.534,
+      125.725,
+      134.737,
+      120.798,
+      130.858,
+      120.892,
+      139.918
      ],
      "record_update_ms": [
-      83.005,
-      82.765,
-      81.357,
-      82.049,
-      82.615,
-      83.925,
-      83.931,
-      86.011,
-      86.401,
-      87.101,
-      85.598,
-      101.411,
-      92.297,
-      87.243,
-      87.266,
-      88.067,
-      87.614,
-      97.726,
-      94.362,
-      95.676
+      93.401,
+      92.227,
+      90.438,
+      88.491,
+      90.133,
+      110.359,
+      90.671,
+      99.414,
+      90.997,
+      91.641,
+      91.52,
+      92.333,
+      100.896,
+      96.953,
+      91.755,
+      77.148,
+      82.239,
+      85.238,
+      88.379,
+      84.204
      ]
     }
    }
   ],
   "minimum_of_rounds": {
+   "before": {
+    "record_ms": {
+     "p50_ms": 32.69,
+     "p95_ms": 36.488,
+     "mean_ms": 32.487
+    },
+    "record_with_refs_ms": {
+     "p50_ms": 32.266,
+     "p95_ms": 37.415,
+     "mean_ms": 32.152
+    },
+    "resolve_ms": {
+     "p50_ms": 65.168,
+     "p95_ms": 74.655,
+     "mean_ms": 67.154
+    }
+   },
+   "after": {
+    "record_ms": {
+     "p50_ms": 69.439,
+     "p95_ms": 78.743,
+     "mean_ms": 70.762
+    },
+    "record_with_refs_ms": {
+     "p50_ms": 124.072,
+     "p95_ms": 135.666,
+     "mean_ms": 123.348
+    },
+    "resolve_ms": {
+     "p50_ms": 128.913,
+     "p95_ms": 146.178,
+     "mean_ms": 128.777
+    },
+    "record_update_ms": {
+     "p50_ms": 91.151,
+     "p95_ms": 95.164,
+     "mean_ms": 90.185
+    }
+   }
+  },
+  "before_the_fix": {
    "before": {
     "record_ms": {
      "p50_ms": 32.627,
@@ -632,9 +761,40 @@
     }
    }
   },
-  "breakdown": "a profile of 5 plain records on the migrated M journal: the writer parses the whole journal three times per record (relations.Journal: once outside the lock to bind and size the line, once under the lock, once after the append to report the targets' states), about 0.08 s of 0.25 s per call under the profiler; json.loads of 150,070 lines in all",
-  "follow_up": "design 11.5 and I8: a seq/state index belongs with #15's index; a cheaper step is to skip the third parse when the record closes nothing. Not changed in this PR"
+  "breakdown": "the writer parses the whole journal twice per record (relations.Journal: outside the lock to bind and size the line, under the lock), and a third time only for a record that resolves or corrects another (to report the targets' states): the review fix skips the third parse otherwise",
+  "follow_up": "design 11.5 and I8: a seq/state index belongs with #15's index"
  },
+ "departures": [
+  {
+   "design": "4.7: the 24-references-per-event limit (MAX_EVENT_REFS) stays",
+   "implemented": "the Writer has no count limit; the line limit (OQ2, 50 KiB) bounds a record",
+   "narrows_an_accepted_guarantee": false,
+   "why": "before 0.8.0 the limit applied only to a run's completion event's data references (add_note had none), and that event holds one run reference now; restoring it as a refusal would add a refusal the design does not need",
+   "where": [
+    "docs/CONTRACTS.md C1 refs",
+    "docs/design/RECORD-WRITER-AND-MIGRATION.md 19.3"
+   ]
+  },
+  {
+   "design": "2.9 (OQ2): a text is kept whole up to its limits, never cut",
+   "implemented": "the texts the kit composes (an import's event, a run's completion, a project's creation) quote a field kept whole elsewhere (the import record's description, run.json's title, the marker's title) by at most 4,000 characters and `…` (writer.excerpt); a run's error summary is 300 characters for SystemExit as for an exception",
+   "narrows_an_accepted_guarantee": false,
+   "why": "OQ2 is read as the rule of the text a caller records; with the whole text the kit's own records were refused after the data, run.json or the marker was written (review of PR 3), which 0.7.0 recorded cut at 4,000 characters",
+   "where": [
+    "docs/CONTRACTS.md C1 text",
+    "docs/design/RECORD-WRITER-AND-MIGRATION.md 19.3"
+   ]
+  },
+  {
+   "design": "4.3: a refusal in a script is an exception",
+   "implemented": "a note the SDK makes in a run is judged when it is made, its line with the widest seq (writer.SEQ_BOUND, 12 digits): a line within 24 bytes of the limit is refused there that would fit outside a run",
+   "narrows_an_accepted_guarantee": false,
+   "why": "the run writes the note when it finishes, with a seq not known before; judged then, a note over the line limit was lost after the script went on",
+   "where": [
+    "docs/CONTRACTS.md C1 text"
+   ]
+  }
+ ],
  "entry_points": {
   "what": "T8 with PR 3's expectations, as the tests recorded them (tests/test_marker_gate.py and, in the aelix legs, tests/test_extension.py): value null = admitted (written or read), else the error code; migrate: the source column's judgment and a destination inside the column's project",
   "kit_cli": {
@@ -958,16 +1118,26 @@
     "analytics_run": "project_too_new",
     "analytics_status": null
    }
+  },
+  "init_inside_a_project": {
+   "tests/test_launcher.py::test_init_and_demo_inside_a_project_are_refused_before_anything[analytics.json-init-launcher]": "pass",
+   "tests/test_launcher.py::test_init_and_demo_inside_a_project_are_refused_before_anything[analytics.json-init-bin/analytics]": "pass",
+   "tests/test_launcher.py::test_init_and_demo_inside_a_project_are_refused_before_anything[analytics.json-demo-launcher]": "pass",
+   "tests/test_launcher.py::test_init_and_demo_inside_a_project_are_refused_before_anything[analytics.json-demo-bin/analytics]": "pass",
+   "tests/test_launcher.py::test_init_and_demo_inside_a_project_are_refused_before_anything[lab.json-init-launcher]": "pass",
+   "tests/test_launcher.py::test_init_and_demo_inside_a_project_are_refused_before_anything[lab.json-init-bin/analytics]": "pass",
+   "tests/test_launcher.py::test_init_and_demo_inside_a_project_are_refused_before_anything[lab.json-demo-launcher]": "pass",
+   "tests/test_launcher.py::test_init_and_demo_inside_a_project_are_refused_before_anything[lab.json-demo-bin/analytics]": "pass"
   }
  },
  "command_e2e": {
-  "what": "both launchers with the real uv on a copy of the S fixture given its own uv.lock and .venv (uv lock, uv sync --locked): --dry-run, the migration, the call again, status and record in the destination, record in the source, a migration ended by os._exit after the source check (tests/migration_driver.py) and taken up by the command (e2e.py)",
+  "what": "both launchers with the real uv on a copy of the S fixture given its own uv.lock and .venv (uv lock, uv sync --locked): --dry-run, the migration, the call again, status and record in the destination, record in the source, a migration ended by os._exit after the source check (tests/migration_driver.py) and taken up by the command, and `--to=~/tilde-<launcher>` as a shell leaves it, with HOME in the run's directory (e2e.py)",
   "source": {
    "files": 5738,
    "venv": true,
    "uv_lock": true,
-   "tree_digest_before": "3b2df21b6024ab991027bb79b99d44e7bd054e0c277ca36e3804de40015c3f5d",
-   "tree_digest_after": "3b2df21b6024ab991027bb79b99d44e7bd054e0c277ca36e3804de40015c3f5d",
+   "tree_digest_before": "391708e87260b678267b7c104582c2c1a7d86657d438730bfd59ef55cdfcec99",
+   "tree_digest_after": "391708e87260b678267b7c104582c2c1a7d86657d438730bfd59ef55cdfcec99",
    "unchanged": true
   },
   "launchers": {
@@ -977,15 +1147,16 @@
       "bin/analytics",
       "migrate",
       "--to",
-      "<run>/evidence/g4/measure/e2e/dest-bin-analytics",
+      "<run>/fix/measure/e2e/dest-bin-analytics",
       "--dry-run"
      ],
      "exit": 0,
-     "seconds": 0.14,
+     "seconds": 0.13,
      "stderr_last_line": "",
      "result": {
       "ok": true,
-      "dry_run": true
+      "dry_run": true,
+      "destination_named": "<run>/fix/measure/e2e/dest-bin-analytics"
      },
      "destination_made": false
     },
@@ -994,14 +1165,15 @@
       "bin/analytics",
       "migrate",
       "--to",
-      "<run>/evidence/g4/measure/e2e/dest-bin-analytics"
+      "<run>/fix/measure/e2e/dest-bin-analytics"
      ],
      "exit": 0,
      "seconds": 1.31,
-     "stderr_last_line": "analytics: the project is <run>/evidence/g4/measure/e2e/dest-bin-analytics now, and the source is as it was (in aelix: /analytics use <run>/evidence/g4/measure/e2e/dest-bin-analytics)",
+     "stderr_last_line": "analytics: the project is <run>/fix/measure/e2e/dest-bin-analytics now, and the source is as it was (in aelix: /analytics use <run>/fix/measure/e2e/dest-bin-analytics)",
      "result": {
       "ok": true,
-      "already_migrated": false
+      "already_migrated": false,
+      "destination_named": "<run>/fix/measure/e2e/dest-bin-analytics"
      },
      "destination_venv": true,
      "destination_lock_is_the_source_s": true
@@ -1011,18 +1183,19 @@
       "bin/analytics",
       "migrate",
       "--to",
-      "<run>/evidence/g4/measure/e2e/dest-bin-analytics"
+      "<run>/fix/measure/e2e/dest-bin-analytics"
      ],
      "exit": 0,
-     "seconds": 0.18,
-     "stderr_last_line": "analytics: the project is <run>/evidence/g4/measure/e2e/dest-bin-analytics now, and the source is as it was (in aelix: /analytics use <run>/evidence/g4/measure/e2e/dest-bin-analytics)",
+     "seconds": 0.16,
+     "stderr_last_line": "analytics: the project is <run>/fix/measure/e2e/dest-bin-analytics now, and the source is as it was (in aelix: /analytics use <run>/fix/measure/e2e/dest-bin-analytics)",
      "result": {
       "ok": true,
       "already_migrated": true,
       "compared": {
        "same": 229
       },
-      "differs": []
+      "differs": [],
+      "destination_named": "<run>/fix/measure/e2e/dest-bin-analytics"
      }
     },
     "status_in_destination": {
@@ -1043,7 +1216,7 @@
       "e2e"
      ],
      "exit": 0,
-     "seconds": 2.81,
+     "seconds": 2.49,
      "stderr_last_line": "",
      "result": {
       "ok": true
@@ -1097,16 +1270,35 @@
       "bin/analytics",
       "migrate",
       "--to",
-      "<run>/evidence/g4/measure/e2e/cut-bin-analytics"
+      "<run>/fix/measure/e2e/cut-bin-analytics"
      ],
      "exit": 0,
-     "seconds": 0.21,
-     "stderr_last_line": "analytics: the project is <run>/evidence/g4/measure/e2e/cut-bin-analytics now, and the source is as it was (in aelix: /analytics use <run>/evidence/g4/measure/e2e/cut-bin-analytics)",
+     "seconds": 0.23,
+     "stderr_last_line": "analytics: the project is <run>/fix/measure/e2e/cut-bin-analytics now, and the source is as it was (in aelix: /analytics use <run>/fix/measure/e2e/cut-bin-analytics)",
      "result": {
       "ok": true,
-      "already_migrated": false
+      "already_migrated": false,
+      "destination_named": "<run>/fix/measure/e2e/cut-bin-analytics"
      },
      "destination_venv": true
+    },
+    "tilde": {
+     "argv": [
+      "bin/analytics",
+      "migrate",
+      "--to=~/tilde-bin-analytics"
+     ],
+     "exit": 0,
+     "seconds": 1.33,
+     "stderr_last_line": "analytics: the project is <run>/fix/measure/e2e/home/tilde-bin-analytics now, and the source is as it was (in aelix: /analytics use <run>/fix/measure/e2e/home/tilde-bin-analytics)",
+     "result": {
+      "ok": true,
+      "already_migrated": false,
+      "destination_named": "<run>/fix/measure/e2e/home/tilde-bin-analytics"
+     },
+     "destination": "<run>/fix/measure/e2e/home/tilde-bin-analytics",
+     "destination_venv": true,
+     "literal_tilde_in_source": false
     }
    },
    "launcher": {
@@ -1115,7 +1307,7 @@
       "analytics",
       "migrate",
       "--to",
-      "<run>/evidence/g4/measure/e2e/dest-launcher",
+      "<run>/fix/measure/e2e/dest-launcher",
       "--dry-run"
      ],
      "exit": 0,
@@ -1123,7 +1315,8 @@
      "stderr_last_line": "",
      "result": {
       "ok": true,
-      "dry_run": true
+      "dry_run": true,
+      "destination_named": "<run>/fix/measure/e2e/dest-launcher"
      },
      "destination_made": false
     },
@@ -1132,14 +1325,15 @@
       "analytics",
       "migrate",
       "--to",
-      "<run>/evidence/g4/measure/e2e/dest-launcher"
+      "<run>/fix/measure/e2e/dest-launcher"
      ],
      "exit": 0,
-     "seconds": 1.34,
-     "stderr_last_line": "analytics: the project is <run>/evidence/g4/measure/e2e/dest-launcher now, and the source is as it was (in aelix: /analytics use <run>/evidence/g4/measure/e2e/dest-launcher)",
+     "seconds": 1.31,
+     "stderr_last_line": "analytics: the project is <run>/fix/measure/e2e/dest-launcher now, and the source is as it was (in aelix: /analytics use <run>/fix/measure/e2e/dest-launcher)",
      "result": {
       "ok": true,
-      "already_migrated": false
+      "already_migrated": false,
+      "destination_named": "<run>/fix/measure/e2e/dest-launcher"
      },
      "destination_venv": true,
      "destination_lock_is_the_source_s": true
@@ -1149,18 +1343,19 @@
       "analytics",
       "migrate",
       "--to",
-      "<run>/evidence/g4/measure/e2e/dest-launcher"
+      "<run>/fix/measure/e2e/dest-launcher"
      ],
      "exit": 0,
-     "seconds": 0.21,
-     "stderr_last_line": "analytics: the project is <run>/evidence/g4/measure/e2e/dest-launcher now, and the source is as it was (in aelix: /analytics use <run>/evidence/g4/measure/e2e/dest-launcher)",
+     "seconds": 0.17,
+     "stderr_last_line": "analytics: the project is <run>/fix/measure/e2e/dest-launcher now, and the source is as it was (in aelix: /analytics use <run>/fix/measure/e2e/dest-launcher)",
      "result": {
       "ok": true,
       "already_migrated": true,
       "compared": {
        "same": 229
       },
-      "differs": []
+      "differs": [],
+      "destination_named": "<run>/fix/measure/e2e/dest-launcher"
      }
     },
     "status_in_destination": {
@@ -1181,7 +1376,7 @@
       "e2e"
      ],
      "exit": 0,
-     "seconds": 2.52,
+     "seconds": 2.38,
      "stderr_last_line": "",
      "result": {
       "ok": true
@@ -1219,7 +1414,7 @@
        "status"
       ],
       "exit": 1,
-      "seconds": 0.08,
+      "seconds": 0.07,
       "stderr_last_line": "",
       "result": {
        "ok": false,
@@ -1235,16 +1430,35 @@
       "analytics",
       "migrate",
       "--to",
-      "<run>/evidence/g4/measure/e2e/cut-launcher"
+      "<run>/fix/measure/e2e/cut-launcher"
      ],
      "exit": 0,
-     "seconds": 0.25,
-     "stderr_last_line": "analytics: the project is <run>/evidence/g4/measure/e2e/cut-launcher now, and the source is as it was (in aelix: /analytics use <run>/evidence/g4/measure/e2e/cut-launcher)",
+     "seconds": 0.21,
+     "stderr_last_line": "analytics: the project is <run>/fix/measure/e2e/cut-launcher now, and the source is as it was (in aelix: /analytics use <run>/fix/measure/e2e/cut-launcher)",
      "result": {
       "ok": true,
-      "already_migrated": false
+      "already_migrated": false,
+      "destination_named": "<run>/fix/measure/e2e/cut-launcher"
      },
      "destination_venv": true
+    },
+    "tilde": {
+     "argv": [
+      "analytics",
+      "migrate",
+      "--to=~/tilde-launcher"
+     ],
+     "exit": 0,
+     "seconds": 1.34,
+     "stderr_last_line": "analytics: the project is <run>/fix/measure/e2e/home/tilde-launcher now, and the source is as it was (in aelix: /analytics use <run>/fix/measure/e2e/home/tilde-launcher)",
+     "result": {
+      "ok": true,
+      "already_migrated": false,
+      "destination_named": "<run>/fix/measure/e2e/home/tilde-launcher"
+     },
+     "destination": "<run>/fix/measure/e2e/home/tilde-launcher",
+     "destination_venv": true,
+     "literal_tilde_in_source": false
     }
    }
   }
@@ -1253,12 +1467,14 @@
   "fixtures": {
    "S": {
     "command": "uv run --locked python tools/eval_fixtures.py scale --scale S --seed 0 --kit-root <V1_KIT_COMMIT's src> --out <dir>",
-    "generator_commit": "ebd10b644e8cb8550ccf6446b134666db6bb9386",
+    "generator": "tools/eval_fixtures.py of the G4 measurement (54e9098): the fixtures are that measurement's, reused (cloned)",
+    "kit_commit": "ebd10b644e8cb8550ccf6446b134666db6bb9386",
     "seed": 0,
     "manifest_kit": {
      "kit_version": "0.7.0",
      "kit_commit": null
     },
+    "generator_digest": "sha256:962977eff78af035350bb0c50d567f69139485e0640f15a7d522df38b1133be3",
     "project": "fixtures/S/project",
     "files": 229,
     "bytes": 2896532,
@@ -1271,12 +1487,14 @@
    },
    "M": {
     "command": "uv run --locked python tools/eval_fixtures.py scale --scale M --seed 0 --kit-root <V1_KIT_COMMIT's src> --out <dir>",
-    "generator_commit": "ebd10b644e8cb8550ccf6446b134666db6bb9386",
+    "generator": "tools/eval_fixtures.py of the G4 measurement (54e9098): the fixtures are that measurement's, reused (cloned)",
+    "kit_commit": "ebd10b644e8cb8550ccf6446b134666db6bb9386",
     "seed": 0,
     "manifest_kit": {
      "kit_version": "0.7.0",
      "kit_commit": null
     },
+    "generator_digest": "sha256:3d796c2deecfb166b6d3f9f7553f02954151222a2198bb7aa785f8e46e0b3625",
     "project": "fixtures/M/project",
     "files": 2037,
     "bytes": 223092045,
@@ -1288,66 +1506,182 @@
     }
    }
   },
+  "fixture_reproducibility": {
+   "what": "the S fixture generated twice into one --out by this checkout's generator with the pre-PR-3 kit (--kit-root), and once by PR 2's generator (ebd10b6's tools/eval_fixtures.py with its own src, the same kit): the generator's own digest (volatile fields masked) and the bytes compared (fixture_repro.py, fixture_vs_pr2.py)",
+   "this_generator_twice": {
+    "what": "tools/eval_fixtures.py scale --scale S --seed 0 --kit-root <V1_KIT_COMMIT's src> run twice into the same --out from this checkout",
+    "digests": [
+     "sha256:962977eff78af035350bb0c50d567f69139485e0640f15a7d522df38b1133be3",
+     "sha256:962977eff78af035350bb0c50d567f69139485e0640f15a7d522df38b1133be3"
+    ],
+    "digests_equal": true,
+    "files": 238,
+    "differing_files": [
+     "environment.json",
+     "project/runs/20260803-092257-k01-region-summary/run.json",
+     "project/runs/20260803-093106-k02-sensor-profile/run.json",
+     "project/runs/20260803-093431-k03-join-profiles/run.json"
+    ],
+    "differing_detail": {
+     "environment.json": [
+      "disk.free_bytes",
+      "generation.seconds.kit_phase",
+      "generation.seconds.self_check",
+      "generation.seconds.sources",
+      "generation.seconds.total",
+      "generation.seconds.written_phase",
+      "recorded_at"
+     ],
+     "project/runs/20260803-092257-k01-region-summary/run.json": [
+      "duration_s"
+     ],
+     "project/runs/20260803-093106-k02-sensor-profile/run.json": [
+      "duration_s"
+     ],
+     "project/runs/20260803-093431-k03-join-profiles/run.json": [
+      "duration_s"
+     ]
+    },
+    "deterministic_content_equal": false,
+    "deterministic_content_differing": [
+     "environment.json"
+    ]
+   },
+   "against_pr2_generator": {
+    "ours": {
+     "digest": "sha256:962977eff78af035350bb0c50d567f69139485e0640f15a7d522df38b1133be3",
+     "files": 238
+    },
+    "pr2_generator": {
+     "digest_it_printed": "sha256:f27ec3d1c706b66c123553165ff2c5af69f5a706796aaf9920d3d92a71058eee",
+     "digest_by_this_generator": "sha256:f27ec3d1c706b66c123553165ff2c5af69f5a706796aaf9920d3d92a71058eee",
+     "files": 238
+    },
+    "deterministic_content_differing": [
+     {
+      "path": "environment.json",
+      "why": "json content"
+     },
+     {
+      "path": "manifest.json",
+      "why": "json content"
+     },
+     {
+      "path": "project/data/raw/sales_kr.meta.json",
+      "why": "json content"
+     },
+     {
+      "path": "project/data/raw/sensor_01.meta.json",
+      "why": "json content"
+     },
+     {
+      "path": "project/data/raw/sensor_02.meta.json",
+      "why": "json content"
+     },
+     {
+      "path": "project/data/raw/sensor_03.meta.json",
+      "why": "json content"
+     },
+     {
+      "path": "project/data/raw/sensor_04.meta.json",
+      "why": "json content"
+     },
+     {
+      "path": "project/runs/20260803-093431-k03-join-profiles/stderr.txt",
+      "why": "text",
+      "lines": [
+       [
+        "  File \"<root>/runs/cdbd2338-cb85-4875-915c-44c379367b52/v1kit/src/aelix_analytics/runner.py\", line 988, in _run_script",
+        "  File \"<root>/aelix_analytics/runner.py\", line 988, in _run_script"
+       ],
+       [
+        "  File \"<root>/runs/cdbd2338-cb85-4875-915c-44c379367b52/v1kit/src/aelix_analytics/runner.py\", line 567, in _exec_script",
+        "  File \"<root>/aelix_analytics/runner.py\", line 567, in _exec_script"
+       ]
+      ]
+     },
+     {
+      "path": "project/runs/20260804-051801-s02-channel-mix/stderr.txt",
+      "why": "text",
+      "lines": [
+       [
+        "  File \"<root>/runs/cdbd2338-cb85-4875-915c-44c379367b52/fix/measure/repro/fx/project/scripts/s02_channel_mix.py\", line 11, in <module>",
+        "  File \"<root>/project/scripts/s02_channel_mix.py\", line 11, in <module>"
+       ]
+      ]
+     }
+    ]
+   },
+   "kit_path_alone": {
+    "what": "PR 2's generator's S fixture with the kit's path in its one traceback (project/runs/20260803-093431-k03-join-profiles/stderr.txt) replaced by the --kit-root path this checkout's generation used, digested by this checkout's tools/eval_fixtures.tree_digest",
+    "files_changed": [
+     "project/runs/20260803-093431-k03-join-profiles/stderr.txt"
+    ],
+    "digest": "sha256:962977eff78af035350bb0c50d567f69139485e0640f15a7d522df38b1133be3",
+    "equals_this_generator": true
+   },
+   "conclusion": "the fixture's bytes are not reproducible: run.json's duration_s and environment.json's timings differ between two generations, and import records (source.path) and tracebacks hold absolute paths (the --out, the kit). The tree digest this record's migration rows use is of the bytes, so it differs between any two generations; the generator's own digest masks the timings and is the same for two generations from this checkout (and for the G4 measurement's fixture at another --out), and differs from PR 2's generator's only because one traceback holds the kit's path (here the --kit-root copy, there the checkout's src): with that path replaced, PR 2's fixture digests to this checkout's sha256:962977…. Checklist G3-08(a) is therefore read on the generator's digest, not on the bytes"
+  },
   "phases": {
    "S": {
     "min": {
      "start_to_locked_ms": 1,
      "plan_ms": 9,
-     "copy_ms": 932,
-     "recheck_ms": 21,
-     "verify_ms": 10,
-     "transform_ms": 8,
-     "report_ms": 20,
+     "copy_ms": 926,
+     "recheck_ms": 23,
+     "verify_ms": 11,
+     "transform_ms": 9,
+     "report_ms": 19,
      "flush_ms": 2,
      "marker_ms": 4,
-     "trust_ms": 6,
-     "source_lock_held_ms": 966,
-     "total_ms": 1022,
+     "trust_ms": 1,
+     "source_lock_held_ms": 960,
+     "total_ms": 1008,
      "ledger_lines": 469
     },
     "probed_publish": [
      "publish_new"
     ],
-    "max_rss_bytes": 31031296,
+    "max_rss_bytes": 31211520,
     "runs": [
      {
       "attempt": 1,
-      "wall_s": 1.069,
-      "max_rss_bytes": 30982144,
+      "wall_s": 1.052,
+      "max_rss_bytes": 31211520,
       "phases": {
        "start_to_locked_ms": 1,
-       "plan_ms": 9,
-       "copy_ms": 932,
-       "recheck_ms": 25,
-       "verify_ms": 10,
+       "plan_ms": 10,
+       "copy_ms": 927,
+       "recheck_ms": 23,
+       "verify_ms": 11,
        "transform_ms": 9,
-       "report_ms": 21,
-       "flush_ms": 4,
-       "marker_ms": 5,
-       "trust_ms": 6,
-       "source_lock_held_ms": 966,
-       "total_ms": 1022,
+       "report_ms": 20,
+       "flush_ms": 2,
+       "marker_ms": 4,
+       "trust_ms": 1,
+       "source_lock_held_ms": 960,
+       "total_ms": 1008,
        "ledger_lines": 469,
        "probed_publish": "publish_new"
       }
      },
      {
       "attempt": 2,
-      "wall_s": 1.096,
+      "wall_s": 1.056,
       "max_rss_bytes": 31031296,
       "phases": {
        "start_to_locked_ms": 1,
-       "plan_ms": 10,
-       "copy_ms": 964,
-       "recheck_ms": 21,
+       "plan_ms": 9,
+       "copy_ms": 926,
+       "recheck_ms": 26,
        "verify_ms": 12,
-       "transform_ms": 8,
-       "report_ms": 20,
+       "transform_ms": 9,
+       "report_ms": 19,
        "flush_ms": 2,
        "marker_ms": 4,
-       "trust_ms": 6,
-       "source_lock_held_ms": 995,
-       "total_ms": 1048,
+       "trust_ms": 1,
+       "source_lock_held_ms": 961,
+       "total_ms": 1009,
        "ledger_lines": 469,
        "probed_publish": "publish_new"
       }
@@ -1356,63 +1690,63 @@
    },
    "M": {
     "min": {
-     "start_to_locked_ms": 1,
-     "plan_ms": 53,
-     "copy_ms": 8576,
-     "recheck_ms": 287,
-     "verify_ms": 175,
-     "transform_ms": 19,
+     "start_to_locked_ms": 0,
+     "plan_ms": 51,
+     "copy_ms": 8484,
+     "recheck_ms": 276,
+     "verify_ms": 166,
+     "transform_ms": 18,
      "report_ms": 26,
-     "flush_ms": 18,
-     "marker_ms": 6,
-     "trust_ms": 5,
-     "source_lock_held_ms": 8919,
-     "total_ms": 9173,
+     "flush_ms": 17,
+     "marker_ms": 7,
+     "trust_ms": 0,
+     "source_lock_held_ms": 8811,
+     "total_ms": 9046,
      "ledger_lines": 4085
     },
     "probed_publish": [
      "publish_new"
     ],
-    "max_rss_bytes": 76152832,
+    "max_rss_bytes": 77430784,
     "runs": [
      {
       "attempt": 1,
-      "wall_s": 9.255,
-      "max_rss_bytes": 76152832,
+      "wall_s": 9.178,
+      "max_rss_bytes": 71860224,
       "phases": {
-       "start_to_locked_ms": 1,
-       "plan_ms": 56,
-       "copy_ms": 8576,
-       "recheck_ms": 287,
-       "verify_ms": 178,
+       "start_to_locked_ms": 0,
+       "plan_ms": 52,
+       "copy_ms": 8515,
+       "recheck_ms": 283,
+       "verify_ms": 173,
        "transform_ms": 19,
        "report_ms": 26,
-       "flush_ms": 18,
-       "marker_ms": 6,
-       "trust_ms": 6,
-       "source_lock_held_ms": 8919,
-       "total_ms": 9173,
+       "flush_ms": 29,
+       "marker_ms": 7,
+       "trust_ms": 0,
+       "source_lock_held_ms": 8850,
+       "total_ms": 9104,
        "ledger_lines": 4085,
        "probed_publish": "publish_new"
       }
      },
      {
       "attempt": 2,
-      "wall_s": 10.284,
-      "max_rss_bytes": 75366400,
+      "wall_s": 9.13,
+      "max_rss_bytes": 77430784,
       "phases": {
        "start_to_locked_ms": 1,
-       "plan_ms": 53,
-       "copy_ms": 9606,
-       "recheck_ms": 292,
-       "verify_ms": 175,
-       "transform_ms": 19,
+       "plan_ms": 51,
+       "copy_ms": 8484,
+       "recheck_ms": 276,
+       "verify_ms": 166,
+       "transform_ms": 18,
        "report_ms": 26,
-       "flush_ms": 18,
-       "marker_ms": 8,
-       "trust_ms": 5,
-       "source_lock_held_ms": 9951,
-       "total_ms": 10203,
+       "flush_ms": 17,
+       "marker_ms": 7,
+       "trust_ms": 0,
+       "source_lock_held_ms": 8811,
+       "total_ms": 9046,
        "ledger_lines": 4085,
        "probed_publish": "publish_new"
       }
@@ -1457,10 +1791,10 @@
      }
     ],
     "excluded_bytes": 0,
-    "report_json_bytes": 47144,
-    "plan_json_bytes": 148265,
-    "mapping_json_bytes": 839,
-    "ledger_bytes": 97208,
+    "report_json_bytes": 47113,
+    "plan_json_bytes": 146425,
+    "mapping_json_bytes": 823,
+    "ledger_bytes": 97152,
     "not_copied": 0,
     "links": 0,
     "warnings": 0
@@ -1501,10 +1835,10 @@
      }
     ],
     "excluded_bytes": 0,
-    "report_json_bytes": 394646,
-    "plan_json_bytes": 1367024,
-    "mapping_json_bytes": 839,
-    "ledger_bytes": 861624,
+    "report_json_bytes": 394614,
+    "plan_json_bytes": 1350720,
+    "mapping_json_bytes": 823,
+    "ledger_bytes": 861568,
     "not_copied": 0,
     "links": 0,
     "warnings": 0
@@ -1535,7 +1869,7 @@
        "created": false
       }
      ],
-     "held_ms": 966
+     "held_ms": 960
     }
    },
    "M": {
@@ -1562,7 +1896,7 @@
        "created": false
       }
      ],
-     "held_ms": 8919
+     "held_ms": 8850
     }
    }
   },
@@ -1610,16 +1944,32 @@
     "means": "cli"
    }
   },
+  "answer_origin": {
+   "S": {
+    "actor": "human",
+    "actor_basis": "inferred",
+    "means": "cli",
+    "session": null,
+    "request_id": true
+   },
+   "M": {
+    "actor": "human",
+    "actor_basis": "inferred",
+    "means": "cli",
+    "session": null,
+    "request_id": true
+   }
+  },
   "destination_status": {
    "S": {
     "marker": "analytics.json",
     "format": "analytics.project/2",
     "writable": true,
     "migration": {
-     "id": "20261008T181147Z-c6054e1e",
-     "report": ".analytics/migration/20261008T181147Z-c6054e1e/report.json",
+     "id": "20261008T200926Z-2649c92f",
+     "report": ".analytics/migration/20261008T200926Z-2649c92f/report.json",
      "applied": true,
-     "mapping": ".analytics/migration/20261008T181147Z-c6054e1e/mapping.json"
+     "mapping": ".analytics/migration/20261008T200926Z-2649c92f/mapping.json"
     }
    },
    "M": {
@@ -1627,10 +1977,10 @@
     "format": "analytics.project/2",
     "writable": true,
     "migration": {
-     "id": "20261008T181149Z-00c56cb8",
-     "report": ".analytics/migration/20261008T181149Z-00c56cb8/report.json",
+     "id": "20261008T200928Z-37dfe51d",
+     "report": ".analytics/migration/20261008T200928Z-37dfe51d/report.json",
      "applied": true,
-     "mapping": ".analytics/migration/20261008T181149Z-00c56cb8/mapping.json"
+     "mapping": ".analytics/migration/20261008T200928Z-37dfe51d/mapping.json"
     }
    }
   },
@@ -1640,14 +1990,14 @@
     "format": "lab.project/1",
     "writable": false,
     "write_refusal": "migration_required",
-    "migration_hint": "Copy it into the current format with `analytics migrate --to <new empty folder>` run inside <run>/evidence/g4/measure/fixtures/S/project (preview with --dry-run). The original stays as it is. In aelix, a person runs that in a terminal, then `/analytics use <new folder>`."
+    "migration_hint": "Copy it into the current format with `analytics migrate --to <new empty folder>` run inside <run>/fix/measure/fixtures/S/project (preview with --dry-run). The original stays as it is. In aelix, a person runs that in a terminal, then `/analytics use <new folder>`."
    },
    "M": {
     "marker": "lab.json",
     "format": "lab.project/1",
     "writable": false,
     "write_refusal": "migration_required",
-    "migration_hint": "Copy it into the current format with `analytics migrate --to <new empty folder>` run inside <run>/evidence/g4/measure/fixtures/M/project (preview with --dry-run). The original stays as it is. In aelix, a person runs that in a terminal, then `/analytics use <new folder>`."
+    "migration_hint": "Copy it into the current format with `analytics migrate --to <new empty folder>` run inside <run>/fix/measure/fixtures/M/project (preview with --dry-run). The original stays as it is. In aelix, a person runs that in a terminal, then `/analytics use <new folder>`."
    }
   },
   "fault_matrix": {
@@ -2432,18 +2782,22 @@
    },
    "test": "pass"
   },
+  "refused_under_the_lock": {
+   "tests/test_migration.py::test_a_refusal_judged_again_under_the_lock_says_what_this_attempt_left[entry]": "pass",
+   "tests/test_migration.py::test_a_refusal_judged_again_under_the_lock_says_what_this_attempt_left[space]": "pass"
+  },
   "concurrency": {
+   "tests/test_contracts.py::test_trying_a_lock_another_process_holds_is_busy_at_once[posix-exclusive]": "pass",
+   "tests/test_contracts.py::test_trying_a_lock_another_process_holds_is_busy_at_once[posix-try_exclusive]": "pass",
+   "tests/test_migration.py::test_a_change_in_the_source_s_list_under_the_copy_is_source_changed[outside_link_removed]": "pass",
+   "tests/test_migration.py::test_a_change_in_the_source_s_list_under_the_copy_is_source_changed[empty_folder_added]": "pass",
+   "tests/test_migration.py::test_a_change_in_the_source_s_list_under_the_copy_is_source_changed[link_retargeted]": "pass",
    "tests/test_migration.py::test_a_source_changed_under_the_copy_fails_without_a_marker[copied-telemetry]": "pass",
    "tests/test_migration.py::test_a_source_changed_under_the_copy_fails_without_a_marker[copied-added]": "pass",
    "tests/test_migration.py::test_a_source_changed_under_the_copy_fails_without_a_marker[copied-removed]": "pass",
    "tests/test_migration.py::test_a_source_changed_under_the_copy_fails_without_a_marker[rechecking-script]": "pass",
    "tests/test_migration.py::test_an_older_kit_s_journal_write_waits_for_the_migration_and_is_counted_after": "pass",
    "tests/test_migration.py::test_one_migration_a_destination_and_none_while_a_run_holds_the_source": "pass",
-   "tests/test_migration.py::test_a_change_in_the_source_s_list_under_the_copy_is_source_changed[outside_link_removed]": "pass",
-   "tests/test_migration.py::test_a_change_in_the_source_s_list_under_the_copy_is_source_changed[empty_folder_added]": "pass",
-   "tests/test_migration.py::test_a_change_in_the_source_s_list_under_the_copy_is_source_changed[link_retargeted]": "pass",
-   "tests/test_contracts.py::test_trying_a_lock_another_process_holds_is_busy_at_once[posix-exclusive]": "pass",
-   "tests/test_contracts.py::test_trying_a_lock_another_process_holds_is_busy_at_once[posix-try_exclusive]": "pass",
    "tests/test_writer.py::test_two_processes_withdrawing_one_record_write_one_update": "pass"
   },
   "reader_comparison": {
@@ -2504,15 +2858,108 @@
      "unsupported": true
     },
     "differences": {},
-    "seconds": 0.32
+    "seconds": 0.33
    }
   }
  },
  "writer_tests": {
+  "tests/test_new_format.py::test_every_record_an_entry_point_writes_is_the_new_format_s": "pass",
+  "tests/test_new_format.py::test_each_entry_point_says_who_wrote_and_how": "pass",
+  "tests/test_new_format.py::test_the_script_api_outside_a_run_writes_as_a_person_through_the_sdk": "pass",
+  "tests/test_new_format.py::test_the_demo_runs_its_children_as_the_caller_asked": "pass",
+  "tests/test_new_format.py::test_an_older_name_of_a_kind_is_refused_with_its_new_name": "pass",
+  "tests/test_new_format.py::test_a_write_answers_with_its_request_id": "pass",
+  "tests/test_new_format.py::test_closing_a_question_twice_writes_both_and_says_so": "pass",
+  "tests/test_new_format.py::test_a_text_over_the_limit_is_refused_whole": "pass",
+  "tests/test_new_format.py::test_a_long_field_is_kept_whole_and_quoted_by_the_event_the_kit_composes": "pass",
+  "tests/test_new_format.py::test_a_composed_text_fits_its_line_whatever_its_fields_hold": "pass",
+  "tests/test_new_format.py::test_a_script_that_exits_with_a_long_message_keeps_its_completion_event": "pass",
+  "tests/test_new_format.py::test_a_note_in_a_run_whose_line_is_over_the_limit_is_the_script_s_error": "pass",
+  "tests/test_new_format.py::test_a_record_refused_before_its_lock_leaves_the_context_unsynced[line]": "pass",
+  "tests/test_new_format.py::test_a_record_refused_before_its_lock_leaves_the_context_unsynced[unknown target]": "pass",
+  "tests/test_new_format.py::test_a_record_refused_before_its_lock_leaves_the_context_unsynced[no target]": "pass",
+  "tests/test_new_format.py::test_a_record_refused_before_its_lock_leaves_the_context_unsynced[old kind]": "pass",
+  "tests/test_new_format.py::test_a_record_refused_before_its_lock_leaves_the_context_unsynced[empty]": "pass",
+  "tests/test_new_format.py::test_a_record_refused_before_its_lock_leaves_the_context_unsynced[accepted]": "pass",
+  "tests/test_new_format.py::test_the_trust_list_is_the_new_one_and_the_older_one_is_read_only": "pass",
+  "tests/test_new_format.py::test_the_template_ignores_the_new_names_a_migration_adds": "pass",
+  "tests/test_new_format.py::test_a_project_s_paths_follow_its_marker": "pass",
+  "tests/test_new_format.py::test_a_write_follows_the_marker_it_was_admitted_by": "pass",
+  "tests/test_new_format.py::test_the_context_is_versioned_where_this_kit_writes_and_not_again_after_a_migration": "pass",
+  "tests/test_new_format.py::test_the_older_writer_and_its_names_are_gone": "pass",
+  "tests/test_new_format.py::test_a_migrated_run_reruns_as_it_reruns_where_it_came_from": "pass",
+  "tests/test_writer.py::test_the_two_layouts_are_design_2_3": "pass",
+  "tests/test_writer.py::test_a_marker_picks_its_layout[none]": "pass",
+  "tests/test_writer.py::test_a_marker_picks_its_layout[legacy]": "pass",
+  "tests/test_writer.py::test_a_marker_picks_its_layout[legacy_unknown]": "pass",
+  "tests/test_writer.py::test_a_marker_picks_its_layout[current]": "pass",
+  "tests/test_writer.py::test_a_marker_picks_its_layout[unknown]": "pass",
+  "tests/test_writer.py::test_a_marker_picks_its_layout[invalid]": "pass",
+  "tests/test_writer.py::test_a_marker_picks_its_layout[conflict]": "pass",
+  "tests/test_writer.py::test_a_migration_s_destination_has_the_new_layout": "pass",
+  "tests/test_writer.py::test_the_families_the_writer_writes_are_named_by_what_they_are": "pass",
+  "tests/test_writer.py::test_the_kinds_a_person_or_an_agent_records": "pass",
+  "tests/test_writer.py::test_gap_and_other_kinds_are_refused_and_nothing_is_written[gap]": "pass",
+  "tests/test_writer.py::test_gap_and_other_kinds_are_refused_and_nothing_is_written[lab_note]": "pass",
   "tests/test_writer.py::test_gap_and_other_kinds_are_refused_and_nothing_is_written[record_update]": "pass",
+  "tests/test_writer.py::test_gap_and_other_kinds_are_refused_and_nothing_is_written[]": "pass",
+  "tests/test_writer.py::test_gap_and_other_kinds_are_refused_and_nothing_is_written[None]": "pass",
+  "tests/test_writer.py::test_the_writer_has_no_author_of_its_own_and_reads_no_environment": "pass",
+  "tests/test_writer.py::test_a_record_s_line_holds_every_origin_field_in_the_order_of_design_2_5": "pass",
+  "tests/test_writer.py::test_every_line_of_the_writer_follows_the_record_schema": "pass",
+  "tests/test_writer.py::test_a_refused_write_leaves_the_project_as_it_was[no_project]": "pass",
+  "tests/test_writer.py::test_a_refused_write_leaves_the_project_as_it_was[older_format]": "pass",
+  "tests/test_writer.py::test_a_refused_write_leaves_the_project_as_it_was[two_markers]": "pass",
+  "tests/test_writer.py::test_a_refused_write_leaves_the_project_as_it_was[too_old]": "pass",
+  "tests/test_writer.py::test_a_refused_write_leaves_the_project_as_it_was[incomplete]": "pass",
+  "tests/test_writer.py::test_a_refused_write_leaves_the_project_as_it_was[gap]": "pass",
+  "tests/test_writer.py::test_a_refused_write_leaves_the_project_as_it_was[empty]": "pass",
+  "tests/test_writer.py::test_a_refused_write_leaves_the_project_as_it_was[text_too_long]": "pass",
+  "tests/test_writer.py::test_a_refused_write_leaves_the_project_as_it_was[request_id]": "pass",
+  "tests/test_writer.py::test_a_refused_write_leaves_the_project_as_it_was[resolve_without_target]": "pass",
+  "tests/test_writer.py::test_a_refused_write_leaves_the_project_as_it_was[resolves_no_event_id]": "pass",
+  "tests/test_writer.py::test_a_refused_write_leaves_the_project_as_it_was[resolves_absent_event]": "pass",
+  "tests/test_writer.py::test_a_refused_write_leaves_the_project_as_it_was[update_conflict]": "pass",
+  "tests/test_writer.py::test_a_refused_write_leaves_the_project_as_it_was[update_too_long]": "pass",
+  "tests/test_writer.py::test_a_text_of_32_kib_is_kept_whole_and_one_byte_more_is_refused[a]": "pass",
+  "tests/test_writer.py::test_a_text_of_32_kib_is_kept_whole_and_one_byte_more_is_refused[\\uac00]": "pass",
+  "tests/test_writer.py::test_a_text_of_32_kib_is_kept_whole_and_one_byte_more_is_refused[\\U0001f600]": "pass",
+  "tests/test_writer.py::test_a_line_of_50_kib_is_refused_whatever_makes_it_long[control]": "pass",
+  "tests/test_writer.py::test_a_line_of_50_kib_is_refused_whatever_makes_it_long[quote]": "pass",
+  "tests/test_writer.py::test_a_line_of_50_kib_is_refused_whatever_makes_it_long[backslash]": "pass",
+  "tests/test_writer.py::test_the_request_id_rule_is_the_schema_s": "pass",
+  "tests/test_writer.py::test_a_request_id_that_is_no_portable_name_is_refused[nul.1]": "pass",
+  "tests/test_writer.py::test_a_request_id_that_is_no_portable_name_is_refused[Con]": "pass",
+  "tests/test_writer.py::test_a_request_id_that_is_no_portable_name_is_refused[req.]": "pass",
+  "tests/test_writer.py::test_a_request_id_that_is_no_portable_name_is_refused[-x]": "pass",
+  "tests/test_writer.py::test_a_request_id_that_is_no_portable_name_is_refused[aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa]": "pass",
+  "tests/test_writer.py::test_a_request_id_that_is_no_portable_name_is_refused[con.txt]": "pass",
+  "tests/test_writer.py::test_a_request_id_that_is_no_portable_name_is_refused[a b]": "pass",
+  "tests/test_writer.py::test_a_request_id_that_is_no_portable_name_is_refused[req\\n]": "pass",
+  "tests/test_writer.py::test_a_request_id_given_is_in_the_record_and_one_made_is_in_the_answer_only": "pass",
+  "tests/test_writer.py::test_a_name_is_bound_when_it_is_written[a run]": "pass",
+  "tests/test_writer.py::test_a_name_is_bound_when_it_is_written[an event]": "pass",
+  "tests/test_writer.py::test_a_name_is_bound_when_it_is_written[a context version]": "pass",
+  "tests/test_writer.py::test_a_name_is_bound_when_it_is_written[a key of the same request]": "pass",
+  "tests/test_writer.py::test_a_name_is_bound_when_it_is_written[a key's newest version]": "pass",
+  "tests/test_writer.py::test_a_name_is_bound_when_it_is_written[a key of a lab.run/1 run]": "pass",
+  "tests/test_writer.py::test_a_name_is_bound_when_it_is_written[a key without a version]": "pass",
+  "tests/test_writer.py::test_a_name_is_bound_when_it_is_written[an id of one key]": "pass",
+  "tests/test_writer.py::test_a_name_is_bound_when_it_is_written[an id of two keys]": "pass",
+  "tests/test_writer.py::test_a_name_is_bound_when_it_is_written[a dataset name]": "pass",
+  "tests/test_writer.py::test_a_name_is_bound_when_it_is_written[a dataset path]": "pass",
+  "tests/test_writer.py::test_a_name_is_bound_when_it_is_written[a run's output]": "pass",
+  "tests/test_writer.py::test_a_name_is_bound_when_it_is_written[a dataset name nothing has]": "pass",
+  "tests/test_writer.py::test_a_name_is_bound_when_it_is_written[a parquet path nothing has]": "pass",
+  "tests/test_writer.py::test_a_name_is_bound_when_it_is_written[anything else (D25)]": "pass",
+  "tests/test_writer.py::test_names_keep_their_order_and_a_repeated_one_is_written_once": "pass",
+  "tests/test_writer.py::test_a_run_that_completes_between_binding_and_the_lock_is_bound_under_the_lock": "pass",
   "tests/test_writer.py::test_a_marker_changed_between_two_writes_is_judged_again[lab_json]": "pass",
   "tests/test_writer.py::test_a_marker_changed_between_two_writes_is_judged_again[two]": "pass",
   "tests/test_writer.py::test_a_marker_changed_between_two_writes_is_judged_again[higher]": "pass",
+  "tests/test_writer.py::test_an_older_writer_that_waited_for_the_lock_is_refused_under_it": "pass",
+  "tests/test_writer.py::test_a_run_whose_completion_an_older_writer_cannot_write_stays_incomplete": "pass",
+  "tests/test_writer.py::test_locked_yields_the_journal_as_it_is_under_the_lock": "pass",
   "tests/test_writer.py::test_the_record_examples_record_updates_are_what_the_writer_does[normal-8]": "pass",
   "tests/test_writer.py::test_the_record_examples_record_updates_are_what_the_writer_does[normal-9]": "pass",
   "tests/test_writer.py::test_the_record_examples_record_updates_are_what_the_writer_does[normal-10]": "pass",
@@ -2525,14 +2972,42 @@
   "tests/test_writer.py::test_a_state_conflict_says_what_the_record_is_and_what_made_it_so[normal-e4-current-withdrawn-details5]": "pass",
   "tests/test_writer.py::test_a_state_conflict_says_what_the_record_is_and_what_made_it_so[mixed-version-e7-current-withdrawn-details6]": "pass",
   "tests/test_writer.py::test_two_processes_withdrawing_one_record_write_one_update": "pass",
+  "tests/test_writer.py::test_a_retried_update_is_refused_with_its_own_request_id": "pass",
+  "tests/test_writer.py::test_two_corrections_of_one_record_are_written_and_say_conflict": "pass",
   "tests/test_writer.py::test_closing_a_question_twice_writes_both_and_says_it_was_closed": "pass",
-  "tests/test_new_format.py::test_every_record_an_entry_point_writes_is_the_new_format_s": "pass",
-  "tests/test_new_format.py::test_each_entry_point_says_who_wrote_and_how": "pass",
-  "tests/test_new_format.py::test_closing_a_question_twice_writes_both_and_says_so": "pass",
-  "tests/test_new_format.py::test_a_migrated_run_reruns_as_it_reruns_where_it_came_from": "pass"
+  "tests/test_writer.py::test_requires_raises_min_writer_version_and_changes_nothing_else_of_the_marker": "pass",
+  "tests/test_writer.py::test_a_record_refused_under_the_lock_raises_no_marker": "pass",
+  "tests/test_writer.py::test_raising_a_migrated_project_s_marker_keeps_its_migration": "pass",
+  "tests/test_writer.py::test_the_record_examples_event_appends_are_what_the_writer_does[normal-11]": "pass",
+  "tests/test_writer.py::test_the_record_examples_event_appends_are_what_the_writer_does[normal-12]": "pass",
+  "tests/test_writer.py::test_the_record_examples_event_appends_are_what_the_writer_does[normal-13]": "pass",
+  "tests/test_writer.py::test_the_record_examples_event_appends_are_what_the_writer_does[normal-14]": "pass",
+  "tests/test_writer.py::test_the_record_examples_event_appends_are_what_the_writer_does[future-version-0]": "pass",
+  "tests/test_writer.py::test_the_record_examples_event_appends_are_what_the_writer_does[interrupted-5]": "pass",
+  "tests/test_writer.py::test_a_run_record_and_its_completion_event": "pass",
+  "tests/test_writer.py::test_a_run_record_the_writer_does_not_write[elsewhere-record0]": "pass",
+  "tests/test_writer.py::test_a_run_record_the_writer_does_not_write[runs/not-a-run-id-record1]": "pass",
+  "tests/test_writer.py::test_a_run_record_the_writer_does_not_write[runs-record2]": "pass",
+  "tests/test_writer.py::test_a_run_record_the_writer_does_not_write[runs-record3]": "pass",
+  "tests/test_writer.py::test_the_writer_writes_no_run_or_import_record_into_an_older_project": "pass",
+  "tests/test_writer.py::test_a_run_killed_before_its_completion_event_stays_incomplete": "pass",
+  "tests/test_writer.py::test_a_writer_killed_while_it_writes_a_line_leaves_it_damaged_and_the_state_as_it_was[record]": "pass",
+  "tests/test_writer.py::test_a_writer_killed_while_it_writes_a_line_leaves_it_damaged_and_the_state_as_it_was[update]": "pass",
+  "tests/test_writer.py::test_an_import_record_and_its_event": "pass",
+  "tests/test_writer.py::test_core_record_is_the_writer_s_and_refuses_where_the_writer_does_not_write": "pass",
+  "tests/test_writer.py::test_core_gives_the_writer_a_migrated_project_s_reading_of_older_paths": "pass",
+  "tests/test_writer.py::test_a_project_id_is_made_in_one_place": "pass",
+  "tests/test_writer.py::test_append_line_ends_a_cut_line_first_and_writes_the_line_and_its_lf_once[None-x\\n]": "pass",
+  "tests/test_writer.py::test_append_line_ends_a_cut_line_first_and_writes_the_line_and_its_lf_once[-x\\n]": "pass",
+  "tests/test_writer.py::test_append_line_ends_a_cut_line_first_and_writes_the_line_and_its_lf_once[a\\n-a\\nx\\n]": "pass",
+  "tests/test_writer.py::test_append_line_ends_a_cut_line_first_and_writes_the_line_and_its_lf_once[a-a\\nx\\n]": "pass",
+  "tests/test_writer.py::test_append_line_ends_a_cut_line_first_and_writes_the_line_and_its_lf_once[a\\r-a\\r\\nx\\n]": "pass",
+  "tests/test_writer.py::test_append_line_ends_a_cut_line_first_and_writes_the_line_and_its_lf_once[a\\r\\n-a\\r\\nx\\n]": "pass",
+  "tests/test_writer.py::test_append_line_does_not_follow_a_link_when_told_not_to": "pass",
+  "tests/test_writer.py::test_the_replay_says_what_made_a_state_and_where_it_may_go": "pass"
  },
  "uv": {
-  "what": "T18 (tests/test_migrate_command.py with the real uv): each launcher's migrate of a source with a uv.lock that fits and one that does not",
+  "what": "T18 (tests/test_migrate_command.py with the real uv): each launcher's migrate of a source with a uv.lock that fits and one that does not; and `--to=~/x` and `--to ~/x` as a shell leaves them, on a source with no .venv and on one whose .venv has a package its lock does not (HOME in the test's directory): the source's .venv/ and uv.lock byte for byte as they were",
   "uv-bin-analytics-does-not-fit": {
    "destination_venv": true,
    "exit": 0,
@@ -2560,10 +3035,110 @@
    "lock_unchanged": true,
    "source_unchanged": true,
    "stderr_last_line": "analytics: the project is <dest> now, and the source is as it was (in aelix: /analytics use <dest>)"
+  },
+  "uv-tilde-bin-analytics-apart-extra-package": {
+   "argv": [
+    "migrate",
+    "--to",
+    "~/x"
+   ],
+   "destination": "<home>/x",
+   "destination_venv": true,
+   "exit": 0,
+   "literal_tilde_folder": false,
+   "source_unchanged": true,
+   "stderr_last_line": "analytics: the project is <dest> now, and the source is as it was (in aelix: /analytics use <dest>)"
+  },
+  "uv-tilde-bin-analytics-apart-none": {
+   "argv": [
+    "migrate",
+    "--to",
+    "~/x"
+   ],
+   "destination": "<home>/x",
+   "destination_venv": true,
+   "exit": 0,
+   "literal_tilde_folder": false,
+   "source_unchanged": true,
+   "stderr_last_line": "analytics: the project is <dest> now, and the source is as it was (in aelix: /analytics use <dest>)"
+  },
+  "uv-tilde-bin-analytics-equals-extra-package": {
+   "argv": [
+    "migrate",
+    "--to=~/x"
+   ],
+   "destination": "<home>/x",
+   "destination_venv": true,
+   "exit": 0,
+   "literal_tilde_folder": false,
+   "source_unchanged": true,
+   "stderr_last_line": "analytics: the project is <dest> now, and the source is as it was (in aelix: /analytics use <dest>)"
+  },
+  "uv-tilde-bin-analytics-equals-none": {
+   "argv": [
+    "migrate",
+    "--to=~/x"
+   ],
+   "destination": "<home>/x",
+   "destination_venv": true,
+   "exit": 0,
+   "literal_tilde_folder": false,
+   "source_unchanged": true,
+   "stderr_last_line": "analytics: the project is <dest> now, and the source is as it was (in aelix: /analytics use <dest>)"
+  },
+  "uv-tilde-launcher-apart-extra-package": {
+   "argv": [
+    "migrate",
+    "--to",
+    "~/x"
+   ],
+   "destination": "<home>/x",
+   "destination_venv": true,
+   "exit": 0,
+   "literal_tilde_folder": false,
+   "source_unchanged": true,
+   "stderr_last_line": "analytics: the project is <dest> now, and the source is as it was (in aelix: /analytics use <dest>)"
+  },
+  "uv-tilde-launcher-apart-none": {
+   "argv": [
+    "migrate",
+    "--to",
+    "~/x"
+   ],
+   "destination": "<home>/x",
+   "destination_venv": true,
+   "exit": 0,
+   "literal_tilde_folder": false,
+   "source_unchanged": true,
+   "stderr_last_line": "analytics: the project is <dest> now, and the source is as it was (in aelix: /analytics use <dest>)"
+  },
+  "uv-tilde-launcher-equals-extra-package": {
+   "argv": [
+    "migrate",
+    "--to=~/x"
+   ],
+   "destination": "<home>/x",
+   "destination_venv": true,
+   "exit": 0,
+   "literal_tilde_folder": false,
+   "source_unchanged": true,
+   "stderr_last_line": "analytics: the project is <dest> now, and the source is as it was (in aelix: /analytics use <dest>)"
+  },
+  "uv-tilde-launcher-equals-none": {
+   "argv": [
+    "migrate",
+    "--to=~/x"
+   ],
+   "destination": "<home>/x",
+   "destination_venv": true,
+   "exit": 0,
+   "literal_tilde_folder": false,
+   "source_unchanged": true,
+   "stderr_last_line": "analytics: the project is <dest> now, and the source is as it was (in aelix: /analytics use <dest>)"
   }
  },
  "agent_cli": {
-  "what": "T22 (tests/test_agent_cli.py): aelix 0.1.0b2 loads the extension with its own loader and builds a harness (on('user_bash') wired by the harness's hook bus, a JSONL session in the test's directory); the kit's command line through the bash tool and through cli/repl.handle_user_bash, and with another extension's shell registered before and after",
+  "what": "T22 (tests/test_agent_cli.py): aelix 0.1.0b2 loads the extension with its own loader and builds a harness (on('user_bash') wired by the harness's hook bus, a JSONL session in the test's directory); the kit's command line through the bash tool and through cli/repl.handle_user_bash, with another extension's shell, and with an extension that blocks every `!` command, each registered before and after",
   "aelix": "0.1.0b2",
   "py3.12": {
    "agent-cli-alone": {
@@ -2615,6 +3190,40 @@
      "returned_shell": "OtherShell"
     },
     "order": "analytics first",
+    "platform": "darwin",
+    "python": "3.12.13"
+   },
+   "agent-cli-blocker-first": {
+    "kit_command": {
+     "output": ": 2, \"build\": \"20261009-050325-214785\"}}",
+     "recorded": {
+      "actor": "human",
+      "actor_basis": "declared",
+      "means": "cli",
+      "session": "<tmp>/sessions/<session>.jsonl",
+      "text": "T22-blocker-first"
+     },
+     "written": true
+    },
+    "not_the_kit": "blocked by policy",
+    "order": "blocker first",
+    "platform": "darwin",
+    "python": "3.12.13"
+   },
+   "agent-cli-blocker-last": {
+    "kit_command": {
+     "output": "blocked by policy",
+     "recorded": {
+      "actor": "test",
+      "actor_basis": "declared",
+      "means": "sdk",
+      "session": null,
+      "text": "CONTEXT.md recorded"
+     },
+     "written": false
+    },
+    "not_the_kit": "blocked by policy",
+    "order": "blocker last",
     "platform": "darwin",
     "python": "3.12.13"
    },
@@ -2695,6 +3304,40 @@
     "platform": "darwin",
     "python": "3.11.15"
    },
+   "agent-cli-blocker-first": {
+    "kit_command": {
+     "output": ": 2, \"build\": \"20261009-050407-645713\"}}",
+     "recorded": {
+      "actor": "human",
+      "actor_basis": "declared",
+      "means": "cli",
+      "session": "<tmp>/sessions/<session>.jsonl",
+      "text": "T22-blocker-first"
+     },
+     "written": true
+    },
+    "not_the_kit": "blocked by policy",
+    "order": "blocker first",
+    "platform": "darwin",
+    "python": "3.11.15"
+   },
+   "agent-cli-blocker-last": {
+    "kit_command": {
+     "output": "blocked by policy",
+     "recorded": {
+      "actor": "test",
+      "actor_basis": "declared",
+      "means": "sdk",
+      "session": null,
+      "text": "CONTEXT.md recorded"
+     },
+     "written": false
+    },
+    "not_the_kit": "blocked by policy",
+    "order": "blocker last",
+    "platform": "darwin",
+    "python": "3.11.15"
+   },
    "agent-cli-other-first": {
     "kit_command": {
      "other_shell_ran": [],
@@ -2719,6 +3362,7 @@
     "python": "3.11.15"
    }
   },
+  "extension_kit_child": "not a record: the extension's own kit child's environment (AELIX_ANALYTICS_ACTOR=human, AELIX_ANALYTICS_MEANS=command for /analytics, over the process's agent), asserted by tests/test_agent_cli.py",
   "windows_powershell": "not_run"
  },
  "foreign_fs": {
@@ -2877,12 +3521,12 @@
  "before": {
   "record": "docs/verification/2026-10-08-issue-13-migration.json",
   "measured_revision": "ebd10b644e8cb8550ccf6446b134666db6bb9386",
-  "note": "PR 2's record of the engine; the fixtures here come from today's tools/eval_fixtures.py with that commit's kit (--kit-root), so their bytes and digests differ from PR 2's"
+  "note": "PR 2's record of the engine; its fixtures were made by PR 2's generator, these by this checkout's with that commit's kit (--kit-root): see migration.fixture_reproducibility"
  },
  "not_run": [
-  "the repository CI on Linux and Windows and the macOS label run (not pushed): Linux renameat2 through ctypes, Windows rename_new = publish_new, the launchers' --no-project on Windows, the Windows-only tests (tests/test_windows_long_paths.py changed without running), T22 with a PowerShell or cmd child",
-  "AELIX_ANALYTICS_TEST_INSTALL=1 (the distribution end to end) in this group",
-  "a real removable FAT or exFAT medium, and FAT/exFAT on Linux or Windows; on macOS the shipped migration stops at step 1 (not_empty, AppleDouble files): owner question",
+  "the repository CI on Linux and Windows and the macOS label run (not pushed): Linux renameat2 through ctypes, Windows rename_new = publish_new, the launchers' --no-project and the answer read on Windows, the Windows-only tests (tests/test_windows_long_paths.py changed without running), T22 with a PowerShell or cmd child",
+  "AELIX_ANALYTICS_TEST_INSTALL=1 (the distribution end to end)",
+  "a real removable FAT or exFAT medium, and FAT/exFAT on Linux or Windows; on macOS the shipped migration stops at step 1 (not_empty, AppleDouble files): owner question; the refusal under the lock on such a volume was not measured again (its hint is tested with an injected entry)",
   "a power loss and durability after it; Windows' directory flush, read-only copies and late lock release; a network file system",
   "a real aelix model session (the bash tool and handle_user_bash were called directly); another agent host than aelix; aelix's RPC bash command",
   "the writer's cost with an index (#15)"

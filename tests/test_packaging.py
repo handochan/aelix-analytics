@@ -211,6 +211,15 @@ def test_the_wheel_metadata(dist):
     assert "[aelix.extensions]\naelix-analytics = aelix_analytics.extension:setup" in points
 
 
+def test_the_current_contract_names_the_kit_s_version():
+    """The current contract's distribution row states the version (CONTRACTS E): kept equal to
+    KIT_VERSION and pyproject.toml, which a version bump changes together (review of PR 3: one bump
+    missed the sentence)."""
+    text = (PACK / "docs" / "CONTRACTS.md").read_text(encoding="utf-8")
+    assert f"버전은 {core.KIT_VERSION}입니다(`KIT_VERSION`, manifest와 같음)" in text
+    assert pyproject()["project"]["version"] == core.KIT_VERSION
+
+
 def test_the_manifest_agrees_with_the_distribution(dist):
     with zipfile.ZipFile(dist["wheel"]) as wheel:
         manifest = tomllib.loads(wheel.read("aelix_analytics/aelix-plugin.toml").decode("utf-8"))

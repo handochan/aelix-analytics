@@ -506,30 +506,42 @@ class Project:
         # The stored names the project's records follow, by its marker now (design 2.3): the older
         # layout for a lab.json project, which this kit reads only, the new format's for every
         # other directory (an analytics.json project, a directory an init is about to make one of).
-        self.layout = writer.layout_of(writer.marker_state(self.root)) or writer.LAYOUT
-        self.marker = self.root / self.layout.marker
+        self.lay_out(writer.layout_of(writer.marker_state(self.root)) or writer.LAYOUT)
         self.context = self.root / "CONTEXT.md"
         self.journal = self.root / writer.JOURNAL
         self.data = self.root / "data"
-        self.imported = self.root / self.layout.imported_dir
         self.derived = self.data / "derived"
         self.scripts = self.root / "scripts"
         self.runs = self.root / "runs"
-        self.workspace_dir = self.root / self.layout.workspace_dir
-        self.state_dir = self.root / self.layout.state_dir
         # The older layout's state directory, which readers read beside the new one (its CONTEXT
         # versions and logs, design 5.3): never written by this kit.
         self.legacy_state_dir = self.root / writer.LEGACY_LAYOUT.state_dir
-        self.cache = self.state_dir / "cache"
-        self.context_history = self.state_dir / "context"
-        self.telemetry = self.state_dir / "telemetry.jsonl"
-        self.queries = self.state_dir / "queries.jsonl"
+        # The request_id of the init that made this project (init_project), for that init's answer.
+        self.request_id: str | None = None
         self._judged: dict[str, _State] = {}
         self._keys: dict[str, tuple | None] = {}
         self._managed_places: tuple[list, list] | None = None
         self._kit_names: dict[str, str | None] = {}
         self._table: _Table | None = None
         self._seed()
+
+    def lay_out(self, layout) -> None:
+        """The paths of the stored names that differ between the two layouts (design 2.3), by
+        `layout`: at construction, and again when a write is admitted under a marker of the other
+        layout (admit, design 4.3 and S9: what a write writes follows the marker it was admitted
+        by, not the one the Project saw when it was made)."""
+        self.layout = layout
+        self.marker = self.root / layout.marker
+        self.imported = self.root / layout.imported_dir
+        self.workspace_dir = self.root / layout.workspace_dir
+        self.state_dir = self.root / layout.state_dir
+        self.cache = self.state_dir / "cache"
+        self.context_history = self.state_dir / "context"
+        self.telemetry = self.state_dir / "telemetry.jsonl"
+        self.queries = self.state_dir / "queries.jsonl"
+        # The managed directories a judgment names are the layout's (_managed, _kit_name).
+        self._managed_places = None
+        self._kit_names = {}
 
     def path(self, rel) -> Path:
         p = expand_home(Path(rel))
@@ -1371,9 +1383,16 @@ def system_origin(origin: Origin) -> Origin:
 
 def admit(project, op: str, *, side: bool = False) -> writer.MarkerState | None:
     """writer.admit for this kit (KIT_VERSION) and a Project or a root: before the first side effect
-    of the write `op`. A refused write raises; a refused side write (`side`) gives None."""
+    of the write `op`. A refused write raises; a refused side write (`side`) gives None. A Project
+    admitted under a marker of another layout than the one it was made with (a lab.json replaced
+    by an analytics.json meanwhile) takes that marker's paths before the write (Project.lay_out)."""
     root = project.root if isinstance(project, Project) else project
-    return writer.admit(root, op, side=side, writer_version=KIT_VERSION)
+    state = writer.admit(root, op, side=side, writer_version=KIT_VERSION)
+    if isinstance(project, Project) and state is not None:
+        layout = writer.layout_of(state)
+        if layout is not None and layout is not project.layout:
+            project.lay_out(layout)
+    return state
 
 
 def readable(project, op: str) -> writer.MarkerState:
@@ -1730,6 +1749,26 @@ def writer_for(project: Project, origin: Origin) -> writer.Writer:
                          writer_version=KIT_VERSION, legacy_path=legacy, clock=lambda: now())
 
 
+def _record_items(refs, resolves) -> list:
+    items = [refs] if isinstance(refs, str) else list(refs or [])
+    if resolves:
+        items.append({"type": "event", "event_id": str(resolves).strip(), "relation": "resolves"})
+    return items
+
+
+def check_record(project: Project, kind: str, text: str, *, refs=None, resolves=None,
+                 origin: Origin) -> None:
+    """What `record` refuses before its lock, judged now and nothing written (writer.Writer.check):
+    an entry point that syncs the context before a record calls this first, so a record refused —
+    a kind it does not take, a text or a line over the limits (OQ2), a closed record that is not
+    there, a `resolve` without one — changes nothing, not even the context. The line is judged with
+    the seq it gets after the context event the sync is about to write."""
+    admit(project, "record")
+    writer.check_kind(kind)
+    writer_for(project, origin).check(kind, text, refs=_record_items(refs, resolves),
+                                      ahead=1 if context_pending(project) else 0)
+
+
 def record(project: Project, kind: str, text: str, *, refs=None, resolves=None,
            origin: Origin) -> writer.Written:
     """Record a journal entry by `origin` through the common writer (writer.Writer.record): judged
@@ -1740,10 +1779,13 @@ def record(project: Project, kind: str, text: str, *, refs=None, resolves=None,
     w = writer_for(project, origin)
     w.admit("record")
     writer.check_kind(kind)
-    items = [refs] if isinstance(refs, str) else list(refs or [])
-    if resolves:
-        items.append({"type": "event", "event_id": str(resolves).strip(), "relation": "resolves"})
-    return w.record(kind, text, refs=items)
+    return w.record(kind, text, refs=_record_items(refs, resolves))
+
+
+def request_id_of(origin: Origin) -> str:
+    """The request_id of a write's answer whose records the writer answers one by one (init, the
+    demo, render, migrate; design 4.9): the caller's, else one the kit makes for this answer only."""
+    return origin.request_id or writer.new_request_id()
 
 
 # --- CONTEXT.md history ---
@@ -1790,8 +1832,7 @@ def sync_context(project: Project, *, origin: Origin) -> dict | None:
     digest = sha[:12]
 
     def recorded() -> bool:
-        versions = context_versions(project)
-        return bool(versions) and versions[-1].stem.rsplit("_", 1)[-1] == digest
+        return _context_recorded(project, digest)
 
     # Unchanged — the common case, before every prompt in aelix: nothing is locked or read.
     if recorded():
@@ -1830,6 +1871,21 @@ def sync_context(project: Project, *, origin: Origin) -> dict | None:
         # The directory changed between the judgment and the lock (judged again under it): a side
         # write, skipped.
         return None
+
+
+def _context_recorded(project: Project, digest: str) -> bool:
+    versions = context_versions(project)
+    return bool(versions) and versions[-1].stem.rsplit("_", 1)[-1] == digest
+
+
+def context_pending(project: Project) -> bool:
+    """Whether sync_context would version CONTEXT.md now (it changed since the last version), as
+    far as can be told without the lock; nothing is written."""
+    try:
+        data = project.context.read_bytes()
+    except OSError:
+        return False
+    return not _context_recorded(project, sha256_bytes(data)[:12])
 
 
 def context_goal(text: str) -> str:
@@ -3207,8 +3263,11 @@ def init_project(target, *, title=None, goal=None, template_dir=None, origin: Or
         write_text(project.path(dest), text)
     write_text(project.path(".python-version"), "3.12\n")
     project.journal.touch()
-    writer_for(project, origin).record("project", f"project created: {title}",
-                                       details={"project_id": project_id})
+    # The title whole is the marker's and CONTEXT.md's; the record quotes it (writer.excerpt), so
+    # a long one cannot leave a project made without its first record.
+    written = writer_for(project, origin).record("project", f"project created: {writer.excerpt(title)}",
+                                                 details={"project_id": project_id})
+    project.request_id = written.request_id
     sync_context(project, origin=origin)
     with contextlib.suppress(OSError):
         trust_project(project.root, platform=project.platform)

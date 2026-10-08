@@ -1061,6 +1061,9 @@ class Migration:
         if dry_run:
             return self._dry_run(judged)
         self._checks(judged)
+        # What this call makes before its lock, which a refusal under the lock leaves (_left).
+        made = [str(p) for p in (self.dest, self.dest / STATE_DIR, self.dest / DEST_LOCK)
+                if not os.path.lexists(p)]
         try:
             self.dest.mkdir(parents=True, exist_ok=True)
             (self.dest / STATE_DIR).mkdir(exist_ok=True)
@@ -1080,7 +1083,10 @@ class Migration:
             self.step("dest_locked", {})
             again = self._judge()
             if again.signature != judged.signature:
-                self._checks(again)  # what changed before the lock is judged again under it
+                try:
+                    self._checks(again)  # what changed before the lock is judged again under it
+                except AnalyticsError as exc:
+                    raise _left(exc, made) from None
             return self._act(again)
 
     # -- the destination's judgment (design 6.2 step 1, 6.9, 6.10): read only
@@ -1447,9 +1453,7 @@ class Migration:
             raise
 
     def _origin(self) -> dict:
-        o = self.origin
-        return {"actor": o.actor, "actor_basis": o.actor_basis, "means": o.means,
-                **({"session": o.session} if o.session else {})}
+        return said_by(self.origin)
 
     def _from_probe(self) -> dict:
         """Step 2's probe (design 6.2, 6.3): whether the destination folds case and Unicode
@@ -3095,6 +3099,29 @@ def _summary(report: dict) -> bytes:
 
 # --- the entry --------------------------------------------------------------------------------------
 
+def _left(exc: AnalyticsError, made: list[str]) -> AnalyticsError:
+    """A refusal of the judgment made again under the destination's lock (design 6.2 step 1): the
+    folder, its .analytics/ and the lock file this call made are there, so the destination is a
+    migration's that has not committed (migration_incomplete) — its hint says so instead of
+    `nothing was written`, and what to do about it."""
+    said = "nothing was copied"
+    if made:
+        said += (f", and this attempt left {', '.join(made)} (so kit commands there say "
+                 "migration_incomplete): remove what it made before trying again, or run the same "
+                 "command again once the cause is gone")
+    hint = exc.hint or ""
+    exc.hint = (hint.replace("nothing was written", said) if "nothing was written" in hint
+                else f"{hint}; {said}" if hint else said)
+    return exc
+
+
+def said_by(origin: Origin) -> dict:
+    """Who a migration is by, as its ledger's `start`, its report and its answer say (OQ14): the
+    actor, how that is known, the means, and the session when there is one."""
+    return {"actor": origin.actor, "actor_basis": origin.actor_basis, "means": origin.means,
+            **({"session": origin.session} if origin.session else {})}
+
+
 def migrate(source, destination, *, origin: Origin, dry_run: bool = False, platform=None,
             on_step=None, free_space=None, trust=None) -> dict:
     """Copy the lab.json project at `source` into `destination` in the current format (design 6): the
@@ -3105,5 +3132,7 @@ def migrate(source, destination, *, origin: Origin, dry_run: bool = False, platf
     bundle of ports (core.PLATFORM by default); `free_space` (bytes, or a function of a path) and
     `trust` (a function of the destination) stand for the disk and the trust list in tests;
     `on_step` is the tests' fault injection (design 11.1)."""
-    return Migration(source, destination, origin=origin, platform=platform, on_step=on_step,
-                     free_space=free_space, trust=trust).run(dry_run)
+    out = Migration(source, destination, origin=origin, platform=platform, on_step=on_step,
+                    free_space=free_space, trust=trust).run(dry_run)
+    # Every answer says who the call is by (OQ14) and carries its request_id (design 4.9).
+    return {**out, **said_by(origin), "request_id": core.request_id_of(origin)}

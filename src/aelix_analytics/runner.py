@@ -632,13 +632,18 @@ def api_hint(summary: str) -> str | None:
     return None
 
 
+# The characters of a run's error summary (its run.json `error.summary`, and its completion event's
+# text): the message itself is kept in `error.message`.
+SUMMARY_CHARS = 300
+
+
 def _error_info(exc: BaseException, filename: str) -> dict:
     line = None
     for frame in traceback.extract_tb(exc.__traceback__):
         if frame.filename == filename:
             line = frame.lineno
     message = str(exc)
-    summary = f"{type(exc).__name__}: {message}".strip()[:300]
+    summary = f"{type(exc).__name__}: {message}".strip()[:SUMMARY_CHARS]
     info = {"type": type(exc).__name__, "message": message[:2000], "line": line,
             "summary": summary}
     hint = api_hint(summary)
@@ -1050,8 +1055,9 @@ def _classify(failure, guard, timeout, filename) -> tuple[str, dict | None]:
     if isinstance(failure, SystemExit):
         if failure.code in (None, 0):
             return "ok", None
+        # The summary bounded as an exception's is (_error_info); the message is the whole code.
         return "error", {"type": "SystemExit", "message": str(failure.code), "line": None,
-                         "summary": f"SystemExit({failure.code})"}
+                         "summary": f"SystemExit({failure.code})"[:SUMMARY_CHARS]}
     return "error", _error_info(failure, filename)
 
 
@@ -1104,7 +1110,10 @@ def _finalize(project, state, record, *, source_run, before, status, error, dura
         problems.append(f"run record: {exc.code}: {exc.message}")
     guarded("hash cache", state.cache.save, None)
 
-    text = f"{record['title']} — {status}"
+    # The title whole is the run record's; the completion event quotes it (writer.excerpt), so a
+    # long one — a rerun's, which is its source's unless --title is given — cannot leave the run
+    # without its completion event.
+    text = f"{core.writer.excerpt(record['title'])} — {status}"
     if error:
         text += f" ({error['summary']})"
     if record.get("reproduction"):
