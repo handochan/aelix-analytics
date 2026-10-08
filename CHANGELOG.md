@@ -17,13 +17,13 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 
 ## [0.6.0] - 2026-10-08
 
-번호를 붙인 PR은 [#13]의 첫 구현 PR(⓪, 내부 이름)입니다.
+번호를 붙인 PR은 [#13]의 첫 구현 PR(⓪, 내부 이름)인 [#79]입니다.
 
 ### Changed
 
 - kit CLI의 결과 JSON에서 Workspace 빌드 결과의 키가 `report`에서 `workspace`로, run의 빌드 실패 키가 `report_error`에서
-  `workspace_error`로 바뀝니다. `status` JSON의 Workspace `index.html` 경로도 `workspace`입니다. 값과 그 경로(`report/…`)는 그대로입니다 ([#13]).
-- 내부 이름을 Analytics 이름으로 바꿨습니다(기록 형식 그대로, 예외는 아래): `LabError` → `AnalyticsError`, `Project.lab`·`Project.report` → `state_dir`·`workspace_dir`, `report.py` → `workspace.py`, Workspace 자원 `report.js`·`report.css` → `workspace.js`·`workspace.css`(렌더가 옛 파일을 지움), `window.__LAB_BUILD__` → `window.__ANALYTICS_BUILD__`(`build.js`는 0.6.0 전 kit이 만든 페이지를 위해 옛 전역도 정함), 브라우저 저장 키 `lab-live`·`lab-scroll:` → `analytics-live`·`analytics-scroll:`(옛 값을 한 번 읽고 남김), plotly 템플릿 `lab` → `analytics`, `schedule_report` → `schedule_workspace_render` ([#13]).
+  `workspace_error`로 바뀝니다. `status` JSON의 Workspace `index.html` 경로도 `workspace`입니다. 값과 그 경로(`report/…`)는 그대로입니다 ([#79]).
+- 내부 이름을 Analytics 이름으로 바꿨습니다(기록 형식 그대로, 예외는 아래): `LabError` → `AnalyticsError`, `Project.lab`·`Project.report` → `state_dir`·`workspace_dir`, `report.py` → `workspace.py`, Workspace 자원 `report.js`·`report.css` → `workspace.js`·`workspace.css`(렌더가 옛 파일을 지움), `window.__LAB_BUILD__` → `window.__ANALYTICS_BUILD__`(`build.js`는 0.6.0 전 kit이 만든 페이지를 위해 옛 전역도 정함), 브라우저 저장 키 `lab-live`·`lab-scroll:` → `analytics-live`·`analytics-scroll:`(옛 값을 한 번 읽고 남김), plotly 템플릿 `lab` → `analytics`, `schedule_report` → `schedule_workspace_render` ([#79]).
 
 예외: run 기록의 `finalize_errors` 글처럼 오류 클래스의 이름을 담는 글에는 새 이름(`AnalyticsError`)이 보입니다([현재 계약](docs/CONTRACTS.md) F1).
 
@@ -172,3 +172,4 @@ PR도 이 절입니다.
 [#68]: https://github.com/handochan/aelix-analytics/pull/68
 [#76]: https://github.com/handochan/aelix-analytics/pull/76
 [#78]: https://github.com/handochan/aelix-analytics/pull/78
+[#79]: https://github.com/handochan/aelix-analytics/pull/79
