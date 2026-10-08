@@ -38,7 +38,7 @@ from pathlib import Path
 import pytest
 from conftest import KIT, LINK_KINDS, dir_link, kit_cli, kit_env
 from jsonschema import Draft202012Validator, FormatChecker
-from legacy_records import LegacyProject, at
+from legacy_records import LEGACY_GITIGNORE, LegacyProject, at
 
 from aelix_analytics import _platform, core, migration, writer
 
@@ -140,7 +140,7 @@ def rich_source(base: Path) -> tuple[Path, Path]:
     (base / "ext_file.csv").write_bytes(b"outside file\n")
     p = LegacyProject(base / "src", title="원본 분석")
     p.file("CONTEXT.md", "## Goal\n원본 목표\n".encode())
-    p.file(".gitignore", (migration.TEMPLATE / "gitignore").read_bytes())
+    p.file(".gitignore", LEGACY_GITIGNORE)
     p.file("pyproject.toml", b"[project]\nname = 'x'\n")
     p.file(".lab/context/20261001-090000-000000_aaaaaaaaaaaa.md", b"## Goal\nold\n")
     p.file(".lab/telemetry.jsonl", b'{"tool": "analytics_status"}\n')
@@ -987,13 +987,22 @@ def test_a_source_changed_under_the_copy_fails_without_a_marker(tmp_path, step, 
     assert ledger(dest).lines[-1]["step"] == "failed"
 
 
+# An older kit's journal write (design 11.1): this kit writes no lab.json project, so the older kit's
+# /1 writer is played by what it did — its journal lock (.lab/lock, the same file and byte range), then
+# one lab.event/1 line with the next seq.
 OLD_WRITER = """
-import sys
+import json, sys
 sys.path.insert(0, {kit!r})
-from aelix_analytics import core
-project = core.Project({root!r})
+from pathlib import Path
+from aelix_analytics import core, relations
+root = Path({root!r})
 open({ready!r}, "w").close()
-core.add_note(project, "note", "written while the migration held the lock", origin=core.Origin("test", "cli"))
+with core.PLATFORM.locks.exclusive(root / ".lab" / "lock"):
+    seq = relations.Journal((root / "journal.jsonl").read_bytes()).next_seq
+    line = {{"schema": "lab.event/1", "seq": seq, "id": f"e{{seq}}", "ts": "2026-10-01T10:00:00.000+09:00",
+            "kind": "note", "actor": "test", "text": "written while the migration held the lock", "refs": {{}}}}
+    with open(root / "journal.jsonl", "ab") as fh:
+        fh.write(json.dumps(line).encode() + b"\\n")
 """
 
 

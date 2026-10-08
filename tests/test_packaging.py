@@ -650,8 +650,9 @@ def test_the_installed_command_drives_a_project_without_aelix(dist, tmp_path, py
     assert f"ROOT {kit}" in tail
     assert f"PYTHONPATH {kit}" in tail.splitlines(), tail
     assert "RUN None" not in tail
-    [chart] = record["charts"]
-    assert chart["id"] == "by-region" and chart.get("data")
+    [chart] = record["visualizations"]
+    assert record["schema"] == "analytics.run/2"
+    assert chart["visualization_id"] == "by-region" and chart.get("data")
     journal = [json.loads(line) for line in
                (project / "journal.jsonl").read_text(encoding="utf-8").splitlines()]
     [finding] = [e for e in journal if e["kind"] == "finding"]

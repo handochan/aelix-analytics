@@ -157,12 +157,14 @@ uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with tokeni
 
 평가에 쓰는 fixture — Q9의 S/M 규모, Q10의 분석 검사 예제, Q13의 참고 세션 재현 — 는 `tools/eval_fixtures.py`가 만듭니다(#41,
 [평가 fixture 안내](tools/eval_fixtures_data/README.md)). 저장소에 커밋하지 않고 측정할 때 같은 seed로 다시 만듭니다. `--out`은 새
-디렉터리나 빈 디렉터리여야 합니다.
+디렉터리나 빈 디렉터리여야 합니다. fixture는 `lab.*/1` 기록이라 kit 0.8.0 전의 kit이 씁니다: `--kit-root`에 그 kit의 실행 루트를
+줍니다(`tools/eval_fixtures.py`의 `V1_KIT_COMMIT`, 시험과 CI도 그 커밋을 씀).
 
 ```sh
-uv run --locked python tools/eval_fixtures.py scale --scale S --seed 0 --out <dir>   # M은 --scale M
-uv run --locked python tools/eval_fixtures.py q10 --seed 0 --out <dir>
-uv run --locked python tools/eval_fixtures.py q13 --seed 0 --out <dir>
+git worktree add --detach <kit> ebd10b644e8cb8550ccf6446b134666db6bb9386   # V1_KIT_COMMIT
+uv run --locked python tools/eval_fixtures.py scale --scale S --seed 0 --kit-root <kit>/src --out <dir>   # M은 --scale M
+uv run --locked python tools/eval_fixtures.py q10 --seed 0 --kit-root <kit>/src --out <dir>
+uv run --locked python tools/eval_fixtures.py q13 --seed 0 --kit-root <kit>/src --out <dir>
 uv run --locked python tools/eval_fixtures.py check <dir>
 uv run --locked python tools/eval_fixtures.py environment --out <file> --disk <dir> --cache-state cold
 ```

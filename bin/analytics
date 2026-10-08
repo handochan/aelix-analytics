@@ -9,7 +9,7 @@
 #   analytics import FILE [--name N] [--description D]
 #   analytics query "SQL" [--limit N]
 #   analytics record KIND "TEXT" [--ref R] [--resolves eN]
-#   analytics render | open                     rebuild | open report/index.html
+#   analytics render | open                     rebuild | open the Workspace page
 #
 # Commands other than init/demo use the project in AELIX_ANALYTICS_PROJECT, else the nearest directory
 # at or above the current one with an analytics.json or a lab.json; the kit judges it.
@@ -25,7 +25,9 @@ done
 PACK=$(CDPATH='' cd -- "$(dirname -- "$self")/.." && pwd -P)
 UV=${AELIX_ANALYTICS_UV:-uv}
 unset VIRTUAL_ENV
-export PYTHONPATH="$PACK/src" MPLBACKEND=Agg PYTHONDONTWRITEBYTECODE=1 AELIX_ANALYTICS_ACTOR="${AELIX_ANALYTICS_ACTOR:-human}"
+# AELIX_ANALYTICS_ACTOR goes on as the caller set it, and only then: without it the kit records
+# `human` as inferred, not declared (the installed command's child_env is the same).
+export PYTHONPATH="$PACK/src" MPLBACKEND=Agg PYTHONDONTWRITEBYTECODE=1
 
 usage() { awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "$self"; }
 
@@ -111,7 +113,7 @@ case $cmd in
     else
       kit "$proj" render >/dev/null
     fi
-    echo "analytics: report at $proj/report/index.html (analytics open, from inside the project)" >&2
+    echo "analytics: Workspace at $proj/workspace/index.html (analytics open, from inside the project)" >&2
     ;;
   status|context)
     refuse_renamed
@@ -126,9 +128,15 @@ case $cmd in
       echo "analytics: $proj holds two project markers, analytics.json and lab.json, and the kit reads neither; analytics status says more" >&2
       exit 1
     fi
-    [ -f "$proj/report/index.html" ] || kit "$proj" render >/dev/null
-    if command -v open >/dev/null 2>&1; then open "$proj/report/index.html"
-    else xdg-open "$proj/report/index.html"; fi
+    # The page of the project's layout, by its marker's name (the installed command's open): a
+    # lab.json project's report/ is opened when it is there, and never built or updated.
+    if kit_marker "$proj/analytics.json"; then index=$proj/workspace/index.html; else index=$proj/report/index.html; fi
+    if [ "$index" = "$proj/report/index.html" ] && [ -f "$index" ]; then
+      echo "analytics: $proj uses the older record format (lab.json): the kit reads it and no longer updates this page; analytics status says how to migrate it" >&2
+    fi
+    [ -f "$index" ] || kit "$proj" render >/dev/null
+    if command -v open >/dev/null 2>&1; then open "$index"
+    else xdg-open "$index"; fi
     ;;
   run|import|query|record|render)
     refuse_renamed

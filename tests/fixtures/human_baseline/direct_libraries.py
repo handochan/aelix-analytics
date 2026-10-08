@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 summary = duckdb.sql("""
     SELECT channel, sum(revenue) AS revenue
-    FROM 'data/raw/sales.parquet'
+    FROM 'data/imported/sales.parquet'
     GROUP BY channel ORDER BY channel
 """).pl()
 summary.write_parquet("data/derived/channel_summary.parquet")

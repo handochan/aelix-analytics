@@ -1,7 +1,8 @@
-"""A journal record after a line an interrupted write cut off (Issue #49, ADR-0006 6), by both
-writers: the /1 writer (core._append_event_locked: lab.json projects) and the common writer of the
-new format (writer.Writer, Issue #13 PR 3: analytics.json projects), which inherits the same rules
-(the owner's decision of 2026-10-08 on Issue #13).
+"""A journal record after a line an interrupted write cut off (Issue #49, ADR-0006 6), by the common
+writer of the new format (writer.Writer, Issue #13 PR 3), which inherits the rules the /1 writer had
+(the owner's decision of 2026-10-08 on Issue #13). Since kit 0.8.0 the kit writes no lab.json
+project, so the /1 writer these cases ran for before is gone; the journals here hold /1 lines a kit
+before it wrote, which the new writer appends after.
 
 Every journal write takes its seq from relations.Journal.next_seq — one above the highest seq of
 every parsed and recovered line, unsupported ones included, skipping a number whose id a hand-edited
@@ -17,7 +18,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from conftest import analytics_project, kit_env
+from conftest import kit_env
 
 from aelix_analytics import core, relations, writer
 
@@ -37,22 +38,20 @@ CUT_OFF = {
 }
 
 
-@pytest.fixture(params=[V1, V2], ids=["v1", "v2"])
+@pytest.fixture(params=[V2], ids=["v2"])
 def fmt(request) -> str:
+    """The format the kit's writer writes: analytics.event/2 (the /1 writer is gone, kit 0.8.0)."""
     return request.param
 
 
 def _project(tmp_path, fmt: str) -> core.Project:
-    """A new project: its journal holds e1 (project) and e2 (context) and ends in LF."""
-    if fmt == V1:
-        return core.init_project(tmp_path / "p", title="journal", goal="g", origin=ORIGIN)
-    return core.Project(analytics_project(tmp_path / "p"))
+    """A new project, as init makes it: its journal holds e1 (project) and e2 (context) and ends
+    in LF."""
+    return core.init_project(tmp_path / "p", title="journal", goal="g", origin=ORIGIN)
 
 
 def _note(project: core.Project, fmt: str, kind: str, text: str, **kwargs) -> dict:
     """One record of `kind` by the project's writer, as it was written."""
-    if fmt == V1:
-        return core.add_note(project, kind, text, origin=kwargs.pop("origin", ORIGIN), **kwargs)
     event = core.record(project, kind, text, origin=kwargs.pop("origin", ORIGIN), **kwargs).event
     assert event["schema"] == V2
     return event
@@ -134,21 +133,6 @@ def test_the_first_record_of_an_empty_or_missing_journal_is_e1_without_a_leading
     event = _note(p, fmt, "note", "first")
     assert (event["seq"], event["id"]) == (1, "e1")
     assert p.journal.read_bytes() == _line(event)
-
-
-def test_a_journal_that_ends_in_lf_gets_the_record_and_its_lf_and_nothing_else(tmp_path):
-    """The bytes every write path of the /1 writer appends to a journal that ends in LF: the same
-    as before #49."""
-    p = _project(tmp_path, V1)
-    before = p.journal.read_bytes()
-    assert before.endswith(b"\n") and [e["id"] for e in core.read_events(p)] == ["e1", "e2"]
-    note = core.add_note(p, "decision", "결정: 지역별로 비교한다", refs=["e1"], origin=core.Origin("human", "sdk", session="/s/session.jsonl"))
-    imported = core.append_event(p, "import", "imported sales", refs={"data": ["data/raw/sales.parquet"]},
-                                 origin=core.Origin("test", "sdk"))
-    core.write_text(p.context, p.context.read_text(encoding="utf-8") + "\n- more\n")
-    context = core.sync_context(p, origin=core.Origin("test", "sdk"))
-    assert [e["id"] for e in (note, imported, context)] == ["e3", "e4", "e5"]
-    assert p.journal.read_bytes() == before + _line(note) + _line(imported) + _line(context)
 
 
 def test_the_new_writer_s_records_of_every_kind_are_the_record_and_its_lf_and_nothing_else(tmp_path):
@@ -263,13 +247,6 @@ def test_the_record_examples_journals_take_the_next_record_as_adr_0006_says(tmp_
 
 
 APPEND = {
-    V1: """
-import sys
-from aelix_analytics import core
-project = core.Project(sys.argv[1])
-for i in range(int(sys.argv[3])):
-    core.add_note(project, "note", f"{sys.argv[2]} {i}", origin=core.Origin("test", "sdk"))
-""",
     V2: """
 import sys
 from aelix_analytics import core

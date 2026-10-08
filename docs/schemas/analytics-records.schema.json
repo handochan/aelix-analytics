@@ -1,12 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Aelix Analytics record contract: analytics.project/2, analytics.event/2, analytics.report_revision/1, analytics.run/2, analytics.dataset/1, analytics.migration/1",
-  "description": "ADR-0006 (docs/decisions/0006-common-record-contract.md), adopted 2026-10-03; analytics.run/2 and analytics.dataset/1 from the record writer design (docs/design/RECORD-WRITER-AND-MIGRATION.md 2.6 and 2.7, OQ5). No kit writes these families yet; kit 0.7.0 (Issue #13 PR 1) reads analytics.run/2 runs and analytics.dataset/1 import records under data/imported/, and lists analytics.event/2 records. analytics.migration/1 is the copy migration's plan, mapping and report (design 2.7 and 6.3-6.8, Issue #13 PR 2), told apart by `record`: the migration engine writes them, analytics.project/2's optional `migration` binds the report by its sha256, and a migration's ledger lines (progress.jsonl, named by its plan) carry no family tag: migration_progress_line is their shape. Fields the contract does not name are allowed so that a reader keeps the optional fields a later writer adds. Kinds, reference types, relations, bases and bindings are closed: a reader reports a value outside them as unsupported and keeps the record. Rules a schema cannot state are in the ADR: Report file paths in NFC and distinct under casefold (section 7), request_id compared without case (section 8), the record_update transitions (section 6) and the digest of a reference equal to the hash its target record holds (section 3).",
+  "title": "Aelix Analytics record contract: analytics.project/2, analytics.event/2, analytics.report_revision/1, analytics.run/2, analytics.dataset/1, analytics.trust/1, analytics.migration/1",
+  "description": "ADR-0006 (docs/decisions/0006-common-record-contract.md), adopted 2026-10-03; analytics.run/2, analytics.dataset/1 and analytics.trust/1 from the record writer design (docs/design/RECORD-WRITER-AND-MIGRATION.md 2.6 and 2.7, OQ5). Kit 0.7.0 (Issue #13 PR 1) reads analytics.run/2 runs and analytics.dataset/1 import records under data/imported/, and lists analytics.event/2 records; kit 0.8.0 (Issue #13 PR 3) writes analytics.project/2, analytics.event/2, analytics.run/2, analytics.dataset/1 and the trust list analytics.trust/1 (outside the project). analytics.migration/1 is the copy migration's plan, mapping and report (design 2.7 and 6.3-6.8, Issue #13 PR 2), told apart by `record`: the migration engine writes them, analytics.project/2's optional `migration` binds the report by its sha256, and a migration's ledger lines (progress.jsonl, named by its plan) carry no family tag: migration_progress_line is their shape. Fields the contract does not name are allowed so that a reader keeps the optional fields a later writer adds. Kinds, reference types, relations, bases and bindings are closed: a reader reports a value outside them as unsupported and keeps the record. Rules a schema cannot state are in the ADR: Report file paths in NFC and distinct under casefold (section 7), request_id compared without case (section 8), the record_update transitions (section 6) and the digest of a reference equal to the hash its target record holds (section 3).",
   "type": "object",
   "required": ["schema"],
   "properties": {
     "schema": {"enum": ["analytics.project/2", "analytics.event/2", "analytics.report_revision/1", "analytics.run/2",
-                        "analytics.dataset/1", "analytics.migration/1"]}
+                        "analytics.dataset/1", "analytics.trust/1", "analytics.migration/1"]}
   },
   "allOf": [
     {"if": {"properties": {"schema": {"const": "analytics.project/2"}}}, "then": {"$ref": "#/$defs/project_2"}},
@@ -14,6 +14,7 @@
     {"if": {"properties": {"schema": {"const": "analytics.report_revision/1"}}}, "then": {"$ref": "#/$defs/report_revision_1"}},
     {"if": {"properties": {"schema": {"const": "analytics.run/2"}}}, "then": {"$ref": "#/$defs/run_2"}},
     {"if": {"properties": {"schema": {"const": "analytics.dataset/1"}}}, "then": {"$ref": "#/$defs/dataset_1"}},
+    {"if": {"properties": {"schema": {"const": "analytics.trust/1"}}}, "then": {"$ref": "#/$defs/trust_1"}},
     {"if": {"properties": {"schema": {"const": "analytics.migration/1"}}}, "then": {"$ref": "#/$defs/migration_1"}}
   ],
   "$defs": {
@@ -314,6 +315,15 @@
           "properties": {"path": {"type": "string"}, "sha256": {"$ref": "#/$defs/sha256"}, "bytes": {"type": "integer", "minimum": 0},
                          "format": {"type": "string"}, "modified_at": {"$ref": "#/$defs/timestamp"}}
         }
+      }
+    },
+    "trust_1": {
+      "description": "The trust list (design 2.7 and 6.14): the project roots a person or an agent created or chose, which starting aelix inside them activates. Outside every project (analytics-projects.json in the host's agent directory, or AELIX_ANALYTICS_TRUST_FILE).",
+      "type": "object",
+      "required": ["schema", "projects"],
+      "properties": {
+        "schema": {"const": "analytics.trust/1"},
+        "projects": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}
       }
     },
     "migration_1": {

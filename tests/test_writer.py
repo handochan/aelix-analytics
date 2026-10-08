@@ -288,7 +288,7 @@ def _none(root: Path) -> None:
 # name -> (change to the project, origin, call, code, refused before the lock)
 REFUSALS = {
     "no_project": (_none, ORIGIN, lambda w, p: w.record("note", "x"), "no_project", True),
-    "older_format": (_lab, ORIGIN, lambda w, p: w.record("note", "x"), "project_too_new", True),
+    "older_format": (_lab, ORIGIN, lambda w, p: w.record("note", "x"), "migration_required", True),
     "two_markers": (_both, ORIGIN, lambda w, p: w.record("note", "x"), "marker_conflict", True),
     "too_old": (_higher, ORIGIN, lambda w, p: w.record("note", "x"), "writer_too_old", True),
     "incomplete": (_incomplete, ORIGIN, lambda w, p: w.record("note", "x"), "migration_incomplete", True),
@@ -578,7 +578,7 @@ def hooked(hook) -> types.SimpleNamespace:
                                  processes=real.processes, runs=real.runs)
 
 
-@pytest.mark.parametrize("change, code", [(_lab, "project_too_new"), (_both, "marker_conflict"),
+@pytest.mark.parametrize("change, code", [(_lab, "migration_required"), (_both, "marker_conflict"),
                                           (_higher, "writer_too_old")], ids=["lab_json", "two", "higher"])
 def test_a_marker_changed_between_two_writes_is_judged_again(tmp_path, change, code):
     root = analytics_project(tmp_path / "p")
@@ -634,7 +634,7 @@ def test_locked_yields_the_journal_as_it_is_under_the_lock(tmp_path):
     (lab / "lab.json").write_text('{"schema": "lab.project/1"}', encoding="utf-8")
     with pytest.raises(core.AnalyticsError) as caught, make(lab).locked():
         pass
-    assert caught.value.code == "project_too_new" and sorted(os.listdir(lab)) == ["lab.json"]
+    assert caught.value.code == "migration_required" and sorted(os.listdir(lab)) == ["lab.json"]
 
 
 # --- state changes (design 4.6 and 8, T13) ---------------------------------------------------------
@@ -918,8 +918,8 @@ def test_the_writer_writes_no_run_or_import_record_into_an_older_project(tmp_pat
     root = tmp_path / "lab"
     LegacyProject(root)
     before = tree(root)
-    refused("project_too_new", lambda: make(root).write_run(root / "runs" / RUN["id"], RUN))
-    refused("project_too_new", lambda: make(root).write_dataset(root / "data" / "imported" / "a.meta.json", {}))
+    refused("migration_required", lambda: make(root).write_run(root / "runs" / RUN["id"], RUN))
+    refused("migration_required", lambda: make(root).write_dataset(root / "data" / "imported" / "a.meta.json", {}))
     assert tree(root) == before
 
 
@@ -980,9 +980,10 @@ def test_core_record_is_the_writer_s_and_refuses_where_the_writer_does_not_write
     root = analytics_project(tmp_path / "p")
     written = core.record(core.Project(root), "finding", "via core", refs=["e1"], origin=ORIGIN)
     assert isinstance(written, core.Written) and written.event == last(root)
-    lab = core.init_project(tmp_path / "lab", title="lab", goal="g", origin=core.Origin("test", "sdk"))
+    LegacyProject(tmp_path / "lab").event("project")
+    lab = core.Project(tmp_path / "lab")
     before = tree(lab.root)
-    refused("project_too_new", lambda: core.record(lab, "note", "x", origin=ORIGIN))
+    refused("migration_required", lambda: core.record(lab, "note", "x", origin=ORIGIN))
     assert tree(lab.root) == before
 
 

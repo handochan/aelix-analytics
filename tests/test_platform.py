@@ -1959,7 +1959,7 @@ def _representative_flow(root: Path, source: Path, platform) -> dict:
     from aelix_analytics import data  # noqa: PLC0415 - needs the analysis libraries, unlike core
 
     data.import_file(project, source, name="sales", description="test data", origin=core.Origin("test", "sdk"))
-    core.add_note(project, "finding", "경계 뒤에서도 같은 기록", refs=["sales"], origin=core.Origin("test", "sdk"))
+    core.record(project, "finding", "경계 뒤에서도 같은 기록", refs=["sales"], origin=core.Origin("test", "sdk"))
     status = core.status(project)
     events = [{k: _stable(e[k]) for k in ("id", "kind", "actor", "text", "refs")}
               for e in core.read_events(project)]
@@ -1979,7 +1979,7 @@ def test_the_injected_platform_is_the_one_actually_used(tmp_path, real_ports_ref
     assert {name for name, _ in calls} >= {"locks.exclusive", "files.replace"}, calls
     assert any(arg == "sales.parquet" for name, arg in calls if name == "files.replace"), calls
     assert any(arg == "lock" for name, arg in calls if name == "locks.exclusive"), calls
-    assert any(arg == "lab.json" for name, arg in calls if name == "files.replace"), calls
+    assert any(arg == "analytics.json" for name, arg in calls if name == "files.replace"), calls
 
 
 def test_the_real_and_the_injected_platform_record_the_same_thing(tmp_path):
@@ -2067,13 +2067,13 @@ def test_a_script_that_writes_a_reserved_name_still_runs_and_is_warned_about(pro
 
 def test_reserved_names_are_grouped_and_never_bury_the_data_warnings(project):
     # A partitioned write under a reserved directory used to produce one warning per file, ahead of
-    # the others; the agent's reply shows ten and the run page twelve, so the warning that data/raw
-    # had been rewritten disappeared from both.
+    # the others; the agent's reply shows ten and the run page twelve, so the warning that the
+    # imported data had been rewritten disappeared from both.
     body = ("import polars as pl\nfrom pathlib import Path\n"
             "d = Path('data/derived/con')\nd.mkdir(parents=True, exist_ok=True)\n"
             "for i in range(12):\n"
             "    pl.DataFrame({'a': [i]}).write_parquet(d / f'part-{i:02d}.parquet')\n"
-            "pl.read_parquet('data/raw/sales.parquet').write_parquet('data/raw/sales.parquet')\n"
+            "pl.read_parquet('data/imported/sales.parquet').write_parquet('data/imported/sales.parquet')\n"
             "import os\nfrom pathlib import Path as P\n"
             "P(os.environ['AELIX_ANALYTICS_RUN_DIR'], 'con.html').write_text('<p>x</p>', encoding='utf-8')\n")
     code, result = kit_cli(project, "run", write_script(project, "23_partitions.py", body),
@@ -2086,7 +2086,7 @@ def test_reserved_names_are_grouped_and_never_bury_the_data_warnings(project):
                for w in reserved), reserved
     assert any("/con.html uses a reserved device name" in w for w in reserved), reserved
     first = warnings[:10]
-    assert any(w.startswith("run changed imported data data/raw/sales.parquet") for w in first), first
+    assert any(w.startswith("run changed imported data data/imported/sales.parquet") for w in first), first
     assert warnings.index(reserved[0]) > max(i for i, w in enumerate(warnings)
                                              if "reserved device name" not in w
                                              and "pandas" not in w), warnings
@@ -2131,18 +2131,18 @@ CHART_CASES = {
 
 @pytest.mark.parametrize("case", sorted(CHART_CASES))
 def test_a_file_the_script_wrote_at_a_reserved_chart_id_is_not_a_second_chart(project, case):
-    """The kit writes chart `aux` as charts/aux_.png. A file the script wrote at charts/aux.png is
-    the file main wrote or overwrote for that same chart, not a second one — recording it again gave
-    a duplicate chart and a rerun of an older run a false mismatch."""
+    """The kit writes chart `aux` as visualizations/aux_.png. A file the script wrote at
+    visualizations/aux.png is the file main wrote or overwrote for that same chart, not a second one
+    — recording it again gave a duplicate chart and a rerun of an older run a false mismatch."""
     body = ("import os\nfrom pathlib import Path\nimport matplotlib.pyplot as plt\n"
             "import aelix_analytics as analytics\n"
-            "charts = Path(os.environ['AELIX_ANALYTICS_RUN_DIR'], 'charts')\ncharts.mkdir(exist_ok=True)\n"
+            "charts = Path(os.environ['AELIX_ANALYTICS_RUN_DIR'], 'visualizations')\ncharts.mkdir(exist_ok=True)\n"
             "fig, ax = plt.subplots()\nax.plot([1, 2], [1, 2])\n" + CHART_CASES[case])
     code, result = kit_cli(project, "run", write_script(project, f"24_{case}.py", body),
                           "--title", case)
     assert code == 0, result
-    charts = result["run"]["charts"]
-    assert [c["id"] for c in charts] == ["aux"], charts
+    charts = result["run"]["visualizations"]
+    assert [c["visualization_id"] for c in charts] == ["aux"], charts
     assert Path(next(iter(charts[0]["files"].values()))).name == "aux_.png", charts
     code, rerun = kit_cli(project, "run", "--rerun-of", result["run"]["id"], "--title", "again")
     assert code == 0 and rerun["run"]["reproduction"]["verdict"] == "match", rerun["run"]
@@ -2150,7 +2150,7 @@ def test_a_file_the_script_wrote_at_a_reserved_chart_id_is_not_a_second_chart(pr
 
 CHART_BODY = ("import os\nfrom pathlib import Path\nimport matplotlib.pyplot as plt\n"
               "import aelix_analytics as analytics\n"
-              "charts = Path(os.environ['AELIX_ANALYTICS_RUN_DIR'], 'charts')\ncharts.mkdir(exist_ok=True)\n"
+              "charts = Path(os.environ['AELIX_ANALYTICS_RUN_DIR'], 'visualizations')\ncharts.mkdir(exist_ok=True)\n"
               "fig, ax = plt.subplots()\nax.plot([1, 2], [1, 2])\n")
 
 
@@ -2163,11 +2163,12 @@ def test_a_chart_captured_under_a_reserved_title_and_named_later_leaves_one_char
     code, result = kit_cli(project, "run", write_script(project, "50_discard.py", body),
                           "--title", "discard")
     assert code == 0, result
-    assert [c["id"] for c in result["run"]["charts"]] == ["named"], result["run"]["charts"]
+    assert [c["visualization_id"] for c in result["run"]["visualizations"]] == ["named"], \
+        result["run"]["visualizations"]
     assert not any("reserved device name" in w for w in result["run"]["warnings"]), \
         result["run"]["warnings"]
     # Main unlinked its file there with the chart, and so does this kit (review 8, rest-2).
-    assert not (Path(project) / "runs" / result["run"]["id"] / "charts" / "aux.png").exists()
+    assert not (Path(project) / "runs" / result["run"]["id"] / "visualizations" / "aux.png").exists()
 
 
 WRITTEN_AFTER_THE_DISCARD = {
@@ -2198,19 +2199,37 @@ def test_a_file_written_at_a_reserved_id_s_own_name_after_its_chart_went_is_a_ch
                                                        CHART_BODY + WRITTEN_AFTER_THE_DISCARD[case]),
                           "--title", case)
     assert code == 0, result
-    charts = {c["id"]: c for c in result["run"]["charts"]}
+    charts = {c["visualization_id"]: c for c in result["run"]["visualizations"]}
     file_chart = charts.get("aux-2" if case == "replaced_by_another_kind" else "aux")
-    assert file_chart is not None and file_chart["kind"] == "file", result["run"]["charts"]
-    assert file_chart["files"] == {"png": f"runs/{result['run']['id']}/charts/aux.png"}
+    assert file_chart is not None and file_chart["kind"] == "file", result["run"]["visualizations"]
+    assert file_chart["files"] == {"png": f"runs/{result['run']['id']}/visualizations/aux.png"}
     code, rerun = kit_cli(project, "run", "--rerun-of", result["run"]["id"], "--title", "again")
     assert code == 0 and rerun["run"]["reproduction"]["verdict"] == "match", rerun["run"]
 
 
+def _as_lab_run(run_dir: Path, record: dict) -> dict:
+    """The run's analytics.run/2 record and its visualizations/ as a kit before the new writer laid
+    them out (lab.run/1: charts[] by `id` under charts/, design 2.6), which a migrated project holds."""
+    os.replace(run_dir / "visualizations", run_dir / "charts")
+    charts = []
+    for vis in record.pop("visualizations"):
+        chart = {"id": vis["visualization_id"],
+                 **{k: v for k, v in vis.items() if k not in ("visualization_id", "sha256", "data_sha256")}}
+        chart["files"] = {k: v.replace("/visualizations/", "/charts/") for k, v in chart["files"].items()}
+        if chart.get("data"):
+            chart["data"] = chart["data"].replace("/visualizations/", "/charts/")
+        charts.append(chart)
+    for vias in record.get("inputs") or []:
+        vias["via"] = [v.replace("analytics.", "lab.") for v in vias["via"]]
+    return {**record, "schema": "lab.run/1", "charts": charts}
+
+
 def _as_main_recorded(project: Path, run_id: str, *, image: str, extra_chart: bool = False) -> None:
-    """Rewrite a run into what main (48b79cc) recorded for it: chart `aux` at charts/aux.png, holding
-    the kit's render (`image="kit"`) or the script's later file (`image="script"`)."""
+    """Rewrite a run into what main (48b79cc) recorded for it: a lab.run/1 record (_as_lab_run) with
+    chart `aux` at charts/aux.png, holding the kit's render (`image="kit"`) or the script's later
+    file (`image="script"`)."""
     run_dir = Path(project) / "runs" / run_id
-    record = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+    record = _as_lab_run(run_dir, json.loads((run_dir / "run.json").read_text(encoding="utf-8")))
     charts_dir = run_dir / "charts"
     for chart in record["charts"]:
         if chart["id"] != "aux":
@@ -2269,6 +2288,10 @@ def test_a_run_recorded_under_main_s_chart_names_reruns_as_d9_says(project, case
     if layout["image"] != "as_recorded":
         _as_main_recorded(project, run_id, image=layout["image"],
                           extra_chart=layout.get("extra_chart", False))
+    else:
+        run_dir = Path(project) / "runs" / run_id
+        record = _as_lab_run(run_dir, json.loads((run_dir / "run.json").read_text(encoding="utf-8")))
+        (run_dir / "run.json").write_text(json.dumps(record, ensure_ascii=False), encoding="utf-8")
     code, rerun = kit_cli(project, "run", "--rerun-of", run_id, "--title", "again")
     assert code == 0, rerun
     assert rerun["run"]["reproduction"]["verdict"] == verdict, rerun["run"]["reproduction"]
@@ -2277,8 +2300,8 @@ def test_a_run_recorded_under_main_s_chart_names_reruns_as_d9_says(project, case
 @pytest.mark.parametrize("recorded", ["/tmp/evil.py", r"\\tmp\\evil.py", "C:/evil.py", "c:evil.py",
                                       r"scripts\\..\\..\\evil.py", "scripts/../../evil.py",
                                       "~/evil.py", "runs/x.py", r"runs\x.py",
-                                      "report/x.py", "\u00e9:/evil.py", "1:/evil.py", "RUNS/x.py",
-                                      ".Venv/x.py"])
+                                      "workspace/x.py", ".analytics/x.py", "\u00e9:/evil.py",
+                                      "1:/evil.py", "RUNS/x.py", ".Venv/x.py"])
 def test_a_rerun_refuses_a_recorded_script_path_on_every_platform(project, recorded):
     code, one = kit_cli(project, "run", write_script(project, "25_ok.py", "x = 1\n"), "--title", "x")
     assert code == 0, one
@@ -2335,7 +2358,7 @@ def test_a_dataset_name_is_lower_case_everywhere(project, tmp_path):
     assert code == 1 and result["error"]["code"] == "dataset_name", result
     code, result = kit_cli(project, "import", source)
     assert code == 1 and result["error"]["code"] == "dataset_exists", result
-    assert "data/raw/sales.parquet" in result["error"]["message"], result
+    assert "data/imported/sales.parquet" in result["error"]["message"], result
 
 
 @pytest.mark.skipif(os.name != "nt", reason="a directory flagged case-sensitive is Windows'")
@@ -2426,11 +2449,30 @@ def test_a_rerun_through_a_link_loop_runs_as_on_main(project, kind):
 
 
 def test_a_script_inside_a_managed_directory_is_refused_as_such(project):
-    path = Path(project) / "report" / "x.py"
+    path = Path(project) / "workspace" / "x.py"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("x = 1\n", encoding="utf-8")
-    code, result = kit_cli(project, "run", "report/x.py", "--title", "managed")
+    code, result = kit_cli(project, "run", "workspace/x.py", "--title", "managed")
     assert code == 1 and "inside a managed directory" in result["error"]["message"], result
+
+
+def test_the_older_layout_s_directories_are_a_person_s_in_the_new_format(project):
+    """design 2.3 and S14 (T20): the managed directories are the layout's — in an analytics.json
+    project report/ and .lab/ are a person's folders, so a script there runs, a file a run writes
+    under report/ is one of its outputs, recorded in its stored spelling, and a file under
+    workspace/ (the kit's Workspace) is not."""
+    body = ("from pathlib import Path\nPath('report').mkdir(exist_ok=True)\n"
+            "Path('report/out.csv').write_text('a\\n1\\n', encoding='utf-8')\n"
+            "Path('workspace/x.csv').write_text('a\\n1\\n', encoding='utf-8')\n")
+    code, result = kit_cli(project, "run", write_script(project, "60_report.py", body), "--title", "t20")
+    assert code == 0 and result["run"]["status"] == "ok", result
+    outputs = [o["path"] for o in result["run"]["outputs"]]
+    assert "report/out.csv" in outputs and not any(o.startswith("workspace/") for o in outputs), outputs
+    script = Path(project) / ".lab" / "x.py"
+    script.parent.mkdir()
+    script.write_text("x = 1\n", encoding="utf-8")
+    code, result = kit_cli(project, "run", ".lab/x.py", "--title", "a person's folder")
+    assert code == 0 and result["run"]["script"]["path"] == ".lab/x.py", result
 
 
 def _recorded_as(project, script_path: str) -> str:
@@ -2492,16 +2534,16 @@ def test_a_run_through_a_linked_data_directory_records_project_paths(project, tm
                      for ds in datasets]})
     save_id, read_id = saved["run"]["id"], read["run"]["id"]
     assert [(o["path"], o["change"], o["via"]) for o in saved["run"]["outputs"]] == \
-        [("data/derived/part.parquet", "created", "lab.save")], saved["run"]["outputs"]
+        [("data/derived/part.parquet", "created", "analytics.save")], saved["run"]["outputs"]
     assert [(i["path"], i["external"]) for i in saved["run"]["inputs"]] == \
-        [("data/raw/sales.parquet", False)], saved["run"]["inputs"]
+        [("data/imported/sales.parquet", False)], saved["run"]["inputs"]
     assert not any("outside the project" in w for w in saved["run"]["warnings"]), saved["run"]
     assert [(i["path"], i["external"]) for i in read["run"]["inputs"]] == \
         [("data/derived/part.parquet", False)], read["run"]["inputs"]
     by_name = {ds["name"]: ds for ds in datasets}
     assert by_name["part"]["path"] == "data/derived/part.parquet"
     assert by_name["part"]["producer"] == save_id and read_id in by_name["part"]["used_by"]
-    assert by_name["sales"]["path"] == "data/raw/sales.parquet"
+    assert by_name["sales"]["path"] == "data/imported/sales.parquet"
     assert save_id in by_name["sales"]["used_by"]
 
 
@@ -2548,16 +2590,17 @@ def test_a_run_record_that_cannot_be_written_leaves_no_run_behind(project, monke
     """Review 7, output-2: a disk that filled one block after the snapshot failed the running
     record's write outside the snapshot's `try`, with a traceback, no JSON line, and a run directory
     holding only code/."""
-    from aelix_analytics import runner  # noqa: PLC0415
+    from aelix_analytics import runner, writer  # noqa: PLC0415
 
-    real_write_json = core.write_json
+    real_write_json = writer.write_json
 
     def full_disk(path, obj, **kwargs):
         if Path(path).name == "run.json":
             raise OSError(errno.ENOSPC, "No space left on device", str(path))
         return real_write_json(path, obj, **kwargs)
 
-    monkeypatch.setattr(core, "write_json", full_disk)
+    # The run record is written by the common writer (writer.Writer.write_run, Issue #13 PR 3).
+    monkeypatch.setattr(writer, "write_json", full_disk)
     with pytest.raises(core.AnalyticsError) as exc:
         runner.execute(core.Project(project), script=write_script(project, "53_full.py", RAN),
                        title="가득 참", origin=core.Origin("test", "sdk"))
@@ -2613,7 +2656,7 @@ def test_two_chart_ids_that_differ_keep_two_files(project):
     code, result = kit_cli(project, "run", write_script(project, "20_reserved.py", body),
                           "--title", "예약 이름 차트")
     assert code == 0, result
-    charts = {c["id"]: c for c in result["run"]["charts"]}
+    charts = {c["visualization_id"]: c for c in result["run"]["visualizations"]}
     assert set(charts) == {"con", "con-file"}, "the chart identity is what records point at"
     assert Path(charts["con"]["files"]["png"]).name == "con_.png"
     assert Path(charts["con-file"]["files"]["png"]).name == "con-file.png"
@@ -2632,8 +2675,8 @@ def test_a_title_that_slugifies_to_a_device_name_keeps_the_id_it_always_had(proj
     code, result = kit_cli(project, "run", write_script(project, "22_generated.py", body),
                           "--title", "생성된 id")
     assert code == 0, result
-    (chart,) = result["run"]["charts"]
-    assert chart["id"] == "con"
+    (chart,) = result["run"]["visualizations"]
+    assert chart["visualization_id"] == "con"
     assert Path(chart["files"]["png"]).name == "con_.png"
 
 
@@ -2695,8 +2738,8 @@ def test_a_tool_running_across_a_project_switch_is_recorded_where_it_ends(tmp_pa
     asyncio.run(module.analytics_command(f"use {roots['B']}"))
     module.on_tool_end(types.SimpleNamespace(tool_call_id="t1", tool_name="analytics_record",
                                              is_error=False), None)
-    assert not (roots["A"] / ".lab" / "telemetry.jsonl").exists()
-    rows = [json.loads(line) for line in (roots["B"] / ".lab" / "telemetry.jsonl")
+    assert not (roots["A"] / ".analytics" / "telemetry.jsonl").exists()
+    rows = [json.loads(line) for line in (roots["B"] / ".analytics" / "telemetry.jsonl")
             .read_text(encoding="utf-8").splitlines()]
     assert [row["tool"] for row in rows] == ["analytics_record"] and "A에서 시작" in rows[0]["summary"], rows
 
@@ -2839,8 +2882,8 @@ def test_a_host_without_an_event_bus_sets_the_extension_up_as_before(monkeypatch
 def _open_through_lab_command(module, project_root):
     import asyncio
 
-    (project_root / "report").mkdir(exist_ok=True)
-    (project_root / "report" / "index.html").write_text("<html>", encoding="utf-8")
+    (project_root / "workspace").mkdir(exist_ok=True)
+    (project_root / "workspace" / "index.html").write_text("<html>", encoding="utf-8")
     return asyncio.run(module.analytics_command("open"))
 
 
@@ -2851,7 +2894,7 @@ def test_lab_open_hands_the_report_to_the_platform_detached(monkeypatch, project
     monkeypatch.setattr(module.core.PLATFORM.processes, "open_document",
                         lambda path, *, wait: handed.append((Path(path), wait)))
     answer = _open_through_lab_command(module, project)
-    assert handed == [(project / "report" / "index.html", False)]
+    assert handed == [(project / "workspace" / "index.html", False)]
     assert answer.startswith("opened ")
 
 
@@ -2910,7 +2953,7 @@ def test_loading_the_kit_pulls_no_analysis_library_into_the_host_process(monkeyp
     )
     proc = subprocess.run([sys.executable, "-c", code], capture_output=True, timeout=120,
                           env=kit_env(), **_platform.text_kwargs())
-    assert "KIT_OK:lab.run/1" in proc.stdout, proc.stdout + proc.stderr
+    assert "KIT_OK:analytics.run/2" in proc.stdout, proc.stdout + proc.stderr
     loaded = next(line for line in proc.stdout.splitlines() if line.startswith("LOADED:"))
     assert loaded == "LOADED:", f"the aelix process would have imported {loaded[len('LOADED:'):]}"
     # From a checkout the package itself is not imported at all: core, _platform, relations and writer come
@@ -3100,26 +3143,30 @@ def test_the_extension_registers_only_the_new_names(monkeypatch):
 
 
 def test_the_analytics_command_records_and_has_no_old_subcommands(monkeypatch, tmp_path):
-    """/lab note KIND TEXT and /lab gap TEXT are /analytics record KIND TEXT (kind gap stays the stored
-    kind until #13); /lab report is /analytics render. An old subcommand is not run: it gets the
-    help, which names the new ones."""
+    """/lab note KIND TEXT and /lab gap TEXT are /analytics record KIND TEXT, the gap kind recorded as
+    workflow_feedback since kit 0.8.0 (an input `gap` is bad_kind with its new name, design 2.8);
+    /lab report is /analytics render. An old subcommand is not run: it gets the help, which names
+    the new ones."""
     monkeypatch.setenv("AELIX_ANALYTICS_UV", str(tmp_path / "no-uv"))
     root = tmp_path / "proj"
     core.init_project(root, title="t", origin=core.Origin("test", "sdk"), template_dir=KIT / "aelix_analytics" / "template")
     monkeypatch.setenv("AELIX_ANALYTICS_PROJECT", str(root))
     module = load_extension(monkeypatch, "ext_record_command")
-    said = asyncio.run(module.analytics_command("record gap 차트 id를 한글로 못 붙인다"))
-    assert said.endswith(" gap recorded"), said
+    said = asyncio.run(module.analytics_command("record workflow_feedback 차트 id를 한글로 못 붙인다"))
+    assert said.endswith(" workflow_feedback recorded"), said
     said = asyncio.run(module.analytics_command("record finding 발견"))
     assert said.endswith(" finding recorded"), said
     before = (root / "journal.jsonl").read_bytes()
+    said = asyncio.run(module.analytics_command("record gap 옛 이름"))
+    assert "error [bad_kind]" in said and "workflow_feedback" in said, said
     for old in ("note finding x", "gap x", "report"):
         assert asyncio.run(module.analytics_command(old)) == module.HELP
     assert (root / "journal.jsonl").read_bytes() == before
     kinds = [json.loads(line)["kind"] for line in before.decode("utf-8").splitlines()]
-    assert kinds[-2:] == ["gap", "finding"]
+    assert kinds[-2:] == ["workflow_feedback", "finding"]
     assert "/analytics record KIND TEXT" in module.HELP and "/lab" not in module.HELP
-    assert "KIND gap" in module.HELP and "render | open" in module.HELP
+    assert "KIND workflow_feedback" in module.HELP and "KIND gap" not in module.HELP
+    assert "render | open" in module.HELP
 
 
 def test_the_cli_writes_utf8_whatever_the_locale_says(project):
@@ -3130,9 +3177,14 @@ def test_the_cli_writes_utf8_whatever_the_locale_says(project):
                           capture_output=True, env=env, timeout=120, **_platform.text_kwargs())
     assert done.returncode == 0, done.stderr
     assert "테스트 분석" in done.stdout
+    bad = subprocess.run([sys.executable, "-m", "aelix_analytics", "--project", str(project), "run",
+                          "--timeout", "발견"], capture_output=True, env=env, timeout=120,
+                         **_platform.text_kwargs())
+    assert bad.returncode == 2 and "발견" in bad.stderr, bad.stderr
+    # A kind the kit does not have is the kit's own error (bad_kind), in its JSON line (Issue #13).
     bad = subprocess.run([sys.executable, "-m", "aelix_analytics", "--project", str(project), "record", "발견", "x"],
                          capture_output=True, env=env, timeout=120, **_platform.text_kwargs())
-    assert bad.returncode == 2 and "발견" in bad.stderr, bad.stderr
+    assert bad.returncode == 1 and json.loads(bad.stdout.splitlines()[-1])["error"]["details"]["kind"] == "발견"
 
 
 # --- how the extension stops a child -------------------------------------------------------------
@@ -3791,7 +3843,7 @@ def test_a_cancel_while_an_input_is_hashed_records_no_half_made_input(project, m
         return real_sha(self, path)
 
     monkeypatch.setattr(core.HashCache, "sha", sha_then_cancel)
-    body = "import polars as pl\npl.read_parquet('data/raw/sales.parquet')\n"
+    body = "import polars as pl\npl.read_parquet('data/imported/sales.parquet')\n"
     result = runner.execute(core.Project(project), script=write_script(project, "45_hash.py", body),
                             title="해시 중 취소", origin=core.Origin("test", "sdk"))
     run = result["run"]
@@ -4890,7 +4942,7 @@ CASE_VARIANT_CHARTS = {
 def test_a_reserved_id_s_own_name_in_another_case_is_that_file_where_case_is_ignored(project,
                                                                                    case):
     """Review 8, rest-3: own names were compared as strings, so where the file system ignores case
-    (macOS by default) the script's charts/AUX.png — the file main wrote, overwrote or unlinked for
+    (macOS by default) the script's visualizations/AUX.png — the file main wrote, overwrote or unlinked for
     chart `aux` — became a second chart with a reserved-name warning. Where case counts, it is a
     file of its own, as it was on main. Where case is ignored and the file came first, main recorded
     the one file twice, as `aux` and `aux-2`; it is one chart now (review 9, rest-3)."""
@@ -4898,13 +4950,13 @@ def test_a_reserved_id_s_own_name_in_another_case_is_that_file_where_case_is_ign
                                                        CHART_BODY + CASE_VARIANTS[case]),
                           "--title", case)
     assert code == 0, result
-    charts = [(c["id"], c["kind"]) for c in result["run"]["charts"]]
+    charts = [(c["visualization_id"], c["kind"]) for c in result["run"]["visualizations"]]
     ignores = _ignores_case(Path(project))
     assert charts == CASE_VARIANT_CHARTS[case, ignores], (ignores, charts)
 
 
 def test_a_case_variant_is_an_own_name_only_when_it_is_the_same_file(project, monkeypatch):
-    """Review 9, rest-7: whether charts/AUX.png is chart `aux`'s own name is decided by the file
+    """Review 9, rest-7: whether visualizations/AUX.png is chart `aux`'s own name is decided by the file
     system, which on a case-sensitive one says it is another file; nothing but a case-sensitive
     volume pinned that half. Told it is another file, the kit records it as a chart of its own
     wherever it runs. The file system says it through core.same_file (Issue #36: the one judgment
@@ -4916,7 +4968,7 @@ def test_a_case_variant_is_an_own_name_only_when_it_is_the_same_file(project, mo
     write_script(Path(project), "88_case.py", CHART_BODY + CASE_VARIANTS["chart_then_file"])
     result = runner.execute(core.Project(project), script="scripts/88_case.py", title="case",
                             origin=core.Origin("test", "sdk"))
-    charts = [(c["id"], c["kind"]) for c in result["run"]["charts"]]
+    charts = [(c["visualization_id"], c["kind"]) for c in result["run"]["visualizations"]]
     assert charts == CASE_VARIANT_CHARTS["chart_then_file", False], charts
 
 
@@ -4960,20 +5012,20 @@ def test_a_literal_naming_a_home_nobody_has_does_not_drop_the_other_scanned_inpu
     honesty-1: a `~` name that exists in the project, read as written, is an input like any
     other. The second Windows run: Windows guessed a home for it (C:\\Users\\$budget.xlsx), so
     Project.path now expands a leading `~name` only when that home exists, there too."""
-    raw = Path(project) / "data" / "raw"
+    raw = Path(project) / "data" / "imported"
     (raw / "a.csv").write_text("x\n1\n", encoding="utf-8")
     (raw / "b.csv").write_text("x\n2\n", encoding="utf-8")
     (Path(project) / "~$budget.xlsx").write_bytes(b"lock")
     # A name longer than the file system takes fails its own lookup too (on CPython 3.12).
     body = ("LOCK = '~$budget.xlsx'\n"
             f"LONG = 'data/{'x' * 300}.csv'\n"
-            "QUERY = \"SELECT * FROM 'data/raw/b.csv'\"\n"
-            "with open('data/raw/a.csv', encoding='utf-8') as fh:\n    fh.read()\n")
+            "QUERY = \"SELECT * FROM 'data/imported/b.csv'\"\n"
+            "with open('data/imported/a.csv', encoding='utf-8') as fh:\n    fh.read()\n")
     code, result = kit_cli(project, "run", write_script(project, "87_scan.py", body),
                           "--title", "scan")
     assert code == 0, result
     vias = {i["path"]: i["via"] for i in result["run"]["inputs"]}
-    assert vias == {"data/raw/a.csv": ["scan"], "data/raw/b.csv": ["scan"],
+    assert vias == {"data/imported/a.csv": ["scan"], "data/imported/b.csv": ["scan"],
                     "~$budget.xlsx": ["scan"]}, result["run"]["inputs"]
 
 
@@ -5614,7 +5666,7 @@ def test_a_scanned_name_a_record_cannot_hold_is_left_out(project):
     `running`. Revision 3.4's scan reached such a name from any quoted glob — a docstring's — where
     main, whose scan lost every SQL-quoted name, recorded the run. The scan leaves it out, and keeps
     the other files of the same glob."""
-    raw = Path(project) / "data" / "raw"
+    raw = Path(project) / "data" / "imported"
     (raw / "ok.csv").write_text("x\n1\n", encoding="utf-8")
     try:
         with open(_not_utf8(raw, "caf\udce9.csv"), "wb") as fh:
@@ -5623,11 +5675,11 @@ def test_a_scanned_name_a_record_cannot_hold_is_left_out(project):
         pytest.skip(f"this file system refuses a name that is not UTF-8: {exc!r}")
     # The file system lists it back as made, so what follows is about a name the record cannot hold.
     assert "caf\udce9.csv" in os.listdir(raw)
-    body = "\"\"\"Reads 'data/raw/*.csv' with DuckDB later.\"\"\"\nprint('hi')\n"
+    body = "\"\"\"Reads 'data/imported/*.csv' with DuckDB later.\"\"\"\nprint('hi')\n"
     code, result = kit_cli(project, "run", write_script(project, "94_glob.py", body),
                           "--title", "glob")
     assert code == 0 and result["run"]["status"] == "ok", result
-    assert [i["path"] for i in result["run"]["inputs"]] == ["data/raw/ok.csv"], result["run"]
+    assert [i["path"] for i in result["run"]["inputs"]] == ["data/imported/ok.csv"], result["run"]
 
 
 def test_the_scan_leaves_a_name_a_record_cannot_hold_out_of_the_same_glob(project, monkeypatch):
@@ -5636,7 +5688,7 @@ def test_the_scan_leaves_a_name_a_record_cannot_hold_out_of_the_same_glob(projec
     lone surrogate."""
     from aelix_analytics import runner  # noqa: PLC0415
 
-    raw = Path(project) / "data" / "raw"
+    raw = Path(project) / "data" / "imported"
     (raw / "ok.csv").write_text("x\n1\n", encoding="utf-8")
     undecodable = raw / "caf\udce9.csv"  # how POSIX hands over the byte 0xE9
     in_such_a_directory = raw / "caf\udce9" / "x.csv"  # review 11, honesty-5 (X9): any part
@@ -5645,7 +5697,7 @@ def test_the_scan_leaves_a_name_a_record_cannot_hold_out_of_the_same_glob(projec
         str(raw / "ok.csv"), str(undecodable), str(in_such_a_directory)])
     monkeypatch.setattr(Path, "is_file", lambda self: self in (undecodable, in_such_a_directory)
                         or real_is_file(self))
-    found = runner.static_input_files(core.Project(project), {"'data/raw/*.csv'"}, set())
+    found = runner.static_input_files(core.Project(project), {"'data/imported/*.csv'"}, set())
     assert found == [raw / "ok.csv"], found
 
 
@@ -5899,7 +5951,7 @@ def test_lab_import_takes_a_tilde_name_that_names_no_home_as_written(project):
 
 def test_a_scanned_name_in_a_directory_a_record_cannot_hold_is_left_out(project):
     """Review 11, honesty-5 (X9): the filter reads the whole path, a directory's name too."""
-    raw = Path(project) / "data" / "raw"
+    raw = Path(project) / "data" / "imported"
     (raw / "ok").mkdir()
     (raw / "ok" / "x.csv").write_text("x\n1\n", encoding="utf-8")
     try:
@@ -5909,11 +5961,11 @@ def test_a_scanned_name_in_a_directory_a_record_cannot_hold_is_left_out(project)
     except OSError as exc:
         pytest.skip(f"this file system refuses a name that is not UTF-8: {exc!r}")
     assert "caf\udce9" in os.listdir(raw)  # listed back as made
-    body = "\"\"\"Reads 'data/raw/*/x.csv' with DuckDB later.\"\"\"\nprint('hi')\n"
+    body = "\"\"\"Reads 'data/imported/*/x.csv' with DuckDB later.\"\"\"\nprint('hi')\n"
     code, result = kit_cli(project, "run", write_script(project, "94_dir_glob.py", body),
                           "--title", "glob")
     assert code == 0 and result["run"]["status"] == "ok", result
-    assert [i["path"] for i in result["run"]["inputs"]] == ["data/raw/ok/x.csv"], result["run"]
+    assert [i["path"] for i in result["run"]["inputs"]] == ["data/imported/ok/x.csv"], result["run"]
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bin/analytics is a POSIX shell script")
@@ -6346,5 +6398,5 @@ def test_the_extension_creates_projects_from_the_kit_s_own_template(monkeypatch,
     answer = asyncio.run(module.analytics_command(f"init {tmp_path / 'by-human'} 제목"))
     assert answer.startswith("created "), answer
     for root in (tmp_path / "by-agent", tmp_path / "by-human"):
-        for name in ("CONTEXT.md", "pyproject.toml", ".gitignore", "lab.json", "journal.jsonl"):
+        for name in ("CONTEXT.md", "pyproject.toml", ".gitignore", "analytics.json", "journal.jsonl"):
             assert (root / name).is_file(), (root, name)

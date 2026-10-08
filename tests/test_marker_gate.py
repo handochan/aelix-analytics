@@ -1,4 +1,5 @@
-"""Which format a directory holds and whether this kit writes there (Issue #13 PR 1).
+"""Which format a directory holds and whether this kit writes there (Issue #13 PR 1, and PR 3: the
+kit writes analytics.json projects, and a lab.json project is read only — migration_required).
 
 docs/design/RECORD-WRITER-AND-MIGRATION.md 4.3 and 11.2–11.3: every row of the marker table
 (T12), the nearest-marker search, and the entry-point matrix (T8) for the kit's command line and the
@@ -13,6 +14,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -21,13 +23,14 @@ from pathlib import Path
 
 import pytest
 from conftest import KIT, kit_cli, kit_env, write_sales_csv
+from legacy_records import LegacyProject, at
 
 from aelix_analytics import _platform, core, writer
 
 ORIGIN = core.Origin("test", "sdk")
 TEMPLATE = KIT / "aelix_analytics" / "template"
 GATE_CODES = {"no_project", "project_too_new", "marker_invalid", "marker_conflict",
-              "migration_incomplete"}
+              "migration_incomplete", "migration_required", "writer_too_old"}
 
 NEW = {"schema": "analytics.project/2", "project_id": "prj_7f3a9c2e41d84b06", "title": "Regional revenue",
        "created_at": "2026-09-01T09:00:00.000+09:00", "min_writer_version": "0.7.0",
@@ -41,20 +44,21 @@ def write_marker(directory: Path, name: str, value) -> None:
 
 # --- the marker judgment (T12) -----------------------------------------------------------------
 
-# name -> (lab.json, analytics.json, state, reason, format, write refusal in this PR or None)
+# name -> (lab.json, analytics.json, state, reason, format, write refusal (PR 3) or None)
 STATES = {
     "none": (None, None, "none", None, None, "no_project"),
-    "lab_project_1": ({"schema": "lab.project/1", "title": "t"}, None, "legacy", None, "lab.project/1", None),
-    "lab_no_schema": ({"title": "t"}, None, "legacy", "no_schema", "lab.project/1", None),
-    "lab_unparsable": (b"{not json", None, "legacy", "unparsable", "lab.project/1", None),
-    "lab_not_object": (b"[1, 2]", None, "legacy", "not_object", "lab.project/1", None),
+    "lab_project_1": ({"schema": "lab.project/1", "title": "t"}, None, "legacy", None, "lab.project/1",
+                      "migration_required"),
+    "lab_no_schema": ({"title": "t"}, None, "legacy", "no_schema", "lab.project/1", "migration_required"),
+    "lab_unparsable": (b"{not json", None, "legacy", "unparsable", "lab.project/1", "migration_required"),
+    "lab_not_object": (b"[1, 2]", None, "legacy", "not_object", "lab.project/1", "migration_required"),
     "lab_project_9": ({"schema": "lab.project/9"}, None, "unknown", None, "lab.project/9",
                       "project_too_new"),
     "lab_other_family": ({"schema": "other.project/1"}, None, "unknown", None, "other.project/1",
                          "project_too_new"),
-    "analytics_2": (None, NEW, "current", None, "analytics.project/2", "project_too_new"),
+    "analytics_2": (None, NEW, "current", None, "analytics.project/2", None),
     "analytics_2_too_old": (None, {**NEW, "min_writer_version": "99.0"}, "current", None,
-                            "analytics.project/2", "project_too_new"),
+                            "analytics.project/2", "writer_too_old"),
     "analytics_3": (None, {**NEW, "schema": "analytics.project/3"}, "unknown", None,
                     "analytics.project/3", "project_too_new"),
     "analytics_unparsable": (None, b'{"schema": "analytics.pro', "invalid", "unparsable", None,
@@ -84,7 +88,7 @@ def test_every_row_of_the_marker_table(tmp_path, name):
     assert (judged.state, judged.reason, judged.format) == (state, reason, fmt)
     problem = writer.refusal(judged, "record", writer_version=core.KIT_VERSION)
     assert (problem.code if problem else None) == refused
-    assert writer.WRITABLE == frozenset({"lab.project/1"})
+    assert writer.WRITABLE == frozenset({"analytics.project/2"})
     if refused:
         with pytest.raises(core.AnalyticsError) as caught:
             core.admit(root, "record")
@@ -102,25 +106,39 @@ def test_every_row_of_the_marker_table(tmp_path, name):
         n for n, v in (("lab.json", lab), ("analytics.json", new)) if v is not None)
 
 
-def test_the_new_writer_s_constant_turns_the_table(tmp_path):
-    """PR 3 makes WRITABLE {analytics.project/2}: then the new format is written when the marker's
-    min_writer_version allows this kit, and refused with writer_too_old when it does not
-    (ADR-0006 1.3). Until then a lab.json this kit does not write is project_too_new — the
-    `migration_required` of PR 3 is not this PR's."""
+def test_the_kit_writes_the_new_format_and_reads_a_lab_json_project_only(tmp_path):
+    """PR 3 makes WRITABLE {analytics.project/2} (design 4.3, 7): the new format is written when the
+    marker's min_writer_version allows this kit, and refused with writer_too_old when it does not
+    (ADR-0006 1.3). A lab.json project is migration_required, its message and hint the design's
+    (7): the command that copies it, its preview, that the original stays, and what a person does
+    in aelix — the same words for a person and a model. The gate itself still takes a set of
+    formats (a kit before PR 3 wrote lab.project/1)."""
     root = tmp_path / "d"
     root.mkdir()
-    new = frozenset({writer.PROJECT})
     write_marker(root, "analytics.json", NEW)
-    assert writer.admit(root, "record", writer_version="0.7.0", writable=new).state == "current"
+    assert core.admit(root, "record").state == "current"
     with pytest.raises(core.AnalyticsError) as caught:
-        writer.admit(root, "record", writer_version="0.6.0", writable=new)
+        writer.admit(root, "record", writer_version="0.6.0")
     assert caught.value.code == "writer_too_old"
     assert caught.value.details == {"min_writer_version": "0.7.0", "kit_version": "0.6.0"}
     (root / "analytics.json").unlink()
     write_marker(root, "lab.json", {"schema": "lab.project/1"})
     with pytest.raises(core.AnalyticsError) as caught:
-        writer.admit(root, "record", writer_version="0.7.0", writable=new)
-    assert caught.value.code == "project_too_new"
+        core.admit(root, "record")
+    error = caught.value
+    assert error.code == "migration_required"
+    assert error.message == (f"{root} uses the older record format (lab.json, lab.project/1). This kit "
+                             "reads it and does not write to it.")
+    assert error.hint == (f"Copy it into the current format with `analytics migrate --to <new empty "
+                          f"folder>` run inside {root} (preview with --dry-run). The original stays as "
+                          "it is. In aelix, a person runs that in a terminal, then `/analytics use <new "
+                          "folder>`.")
+    assert error.details == {"marker": "lab.json", "format": "lab.project/1", "operation": "record",
+                             "command": "analytics migrate --to DEST"}
+    assert core.admit(root, "a side write", side=True) is None
+    assert core.readable(root, "status").state == "legacy"
+    legacy = frozenset({writer.LEGACY_PROJECT})
+    assert writer.admit(root, "record", writer_version="0.7.0", writable=legacy).state == "legacy"
 
 
 def test_two_markers_say_both_and_choose_neither(tmp_path):
@@ -248,9 +266,9 @@ def test_the_judgment_is_read_again_every_time(tmp_path):
     """No cache (design 4.3): a marker changed between two writes is judged as it is now."""
     root = tmp_path / "d"
     root.mkdir()
-    write_marker(root, "lab.json", {"schema": "lab.project/1"})
-    assert core.admit(root, "record").state == "legacy"
     write_marker(root, "analytics.json", NEW)
+    assert core.admit(root, "record").state == "current"
+    write_marker(root, "lab.json", {"schema": "lab.project/1"})
     with pytest.raises(core.AnalyticsError) as caught:
         core.admit(root, "record")
     assert caught.value.code == "marker_conflict"
@@ -359,11 +377,13 @@ SCRIPT = ("import aelix_analytics as analytics\n"
 
 @pytest.fixture(scope="module")
 def base(tmp_path_factory):
-    """A lab.json project with a dataset, a script and one run, made once: every column copies it."""
+    """An analytics.json project (the new format, as init makes it) with a dataset, a script and one
+    run, made once, and a lab.json project an older kit left with the same dataset (in data/raw), the
+    scripts and a run: every column copies the one its markers belong to."""
     root = tmp_path_factory.mktemp("matrix") / "base"
     # Module scope runs before the function-scoped isolation of conftest: its own trust list.
     patch = pytest.MonkeyPatch()
-    patch.setenv("AELIX_ANALYTICS_TRUST_FILE", str(root.parent / "trust" / "lab-projects.json"))
+    patch.setenv("AELIX_ANALYTICS_TRUST_FILE", str(root.parent / "trust" / "analytics-projects.json"))
     try:
         core.init_project(root, title="matrix", goal="g", template_dir=TEMPLATE, origin=ORIGIN)
         source = write_sales_csv(root.parent / "sales.csv", rows=12)
@@ -373,21 +393,42 @@ def base(tmp_path_factory):
         (root / "scripts" / "again.py").write_text(SCRIPT, encoding="utf-8")
     finally:
         patch.undo()
-    return root
+    legacy = LegacyProject(root.parent / "legacy", title="matrix")
+    data = (root / "data" / "imported" / "sales.parquet").read_bytes()
+    sales = "data/raw/sales.parquet"
+    digest = legacy.file(sales, data)
+    legacy.write_json("data/raw/sales.meta.json", {
+        "schema": "lab.dataset/1", "name": "sales", "path": sales, "sha256": digest, "bytes": len(data),
+        "rows": 12, "columns": [], "description": None, "imported_at": at(1),
+        "source": {"path": str(source)}})
+    legacy.event("project")
+    legacy.event("import", {"data": [sales]})
+    for name in ("head.py", "again.py"):
+        legacy.file(f"scripts/{name}", SCRIPT.encode())
+    legacy.run("20261008-090000-head", script="scripts/head.py", inputs=[(sales, digest)],
+               kit_version="0.7.0")
+    return {"new": root, "legacy": legacy.root}
 
 
-def _column(base: Path, where: Path, column: str) -> tuple[Path, Path]:
-    """(the directory a command is pointed at, the tree whose bytes are compared) for a column."""
+def _column(base: dict, where: Path, column: str) -> tuple[Path, Path]:
+    """(the directory a command is pointed at, the tree whose bytes are compared) for a column: a
+    copy of the base its markers belong to, with the column's markers in place of its own."""
+    lab_value, new_value = MATRIX_MARKERS[column]
+    older = column == "nested" or (lab_value is not None and new_value is None)
     root = where / column
-    shutil.copytree(base, root, copy_function=shutil.copy2)
-    lab = root / "lab.json"
+    shutil.copytree(base["legacy" if older else "new"], root, copy_function=shutil.copy2)
+    for name in ("lab.json", "analytics.json"):
+        (root / name).unlink(missing_ok=True)
     if column == "nested":
+        # A lab.json project with an analytics.json project below it (design 4.3): the one below
+        # holds a copy of the data and the scripts, so a run there has what it reads.
+        write_marker(root, "lab.json", {"schema": "lab.project/1", "title": "matrix"})
         sub = root / "sub"
         sub.mkdir()
         write_marker(sub, "analytics.json", NEW)
+        shutil.copytree(root / "data", sub / "data")
+        shutil.copytree(root / "scripts", sub / "scripts")
         return sub, root
-    lab_value, new_value = MATRIX_MARKERS[column]
-    lab.unlink()
     if lab_value is not None:
         write_marker(root, "lab.json", lab_value)
     if new_value is not None:
@@ -395,6 +436,11 @@ def _column(base: Path, where: Path, column: str) -> tuple[Path, Path]:
     if column == "incomplete":
         (root / ".analytics" / "migration").mkdir(parents=True)
     return root, root
+
+
+def _outside(tree: dict, sub: str = "sub/") -> dict:
+    """A snapshot without the project below (`nested`): the lab.json project around it."""
+    return {rel: value for rel, value in tree.items() if rel != "sub" and not rel.startswith(sub)}
 
 
 # The columns of design 11.3, each with its markers (lab.json, analytics.json), `nested` being a
@@ -412,13 +458,15 @@ MATRIX_MARKERS = {
     "incomplete": (None, None),
     "nested": (None, None),
 }
-WRITABLE_COLUMNS = ("lab_project_1", "lab_unparsable")
+# Where this kit writes (PR 3): an analytics.json project whose min_writer_version it meets, and the
+# analytics.json project below a lab.json one — never the lab.json project around it.
+WRITABLE_COLUMNS = ("analytics_2", "nested")
 # What a write is refused with in each other column; a read is refused only where no format can be
 # read (no marker, or two).
-REFUSED = {"lab_project_9": "project_too_new", "analytics_2": "project_too_new",
-           "analytics_2_too_old": "project_too_new", "analytics_3": "project_too_new",
-           "analytics_invalid": "marker_invalid", "both": "marker_conflict", "none": "no_project",
-           "incomplete": "migration_incomplete", "nested": "project_too_new"}
+REFUSED = {"lab_project_1": "migration_required", "lab_unparsable": "migration_required",
+           "lab_project_9": "project_too_new", "analytics_2_too_old": "writer_too_old",
+           "analytics_3": "project_too_new", "analytics_invalid": "marker_invalid",
+           "both": "marker_conflict", "none": "no_project", "incomplete": "migration_incomplete"}
 READ_REFUSED = {"both": "marker_conflict", "none": "no_project", "incomplete": "migration_incomplete"}
 
 WRITES = {
@@ -444,10 +492,11 @@ def _expected(column: str, command: str) -> str | None:
 @pytest.mark.parametrize("column", MATRIX_MARKERS)
 def test_the_kit_command_line_writes_only_where_it_may(base, tmp_path, column):
     """T8, the kit's command line: every write command in every column, each in a copy of its own.
-    A refused write changes nothing — not the journal, not a lock file, not a cache, not .lab/ — and
-    a read where the kit does not write skips its side writes (the hash cache, the query log), so
-    it changes nothing either. A write where the kit writes is admitted (it may still fail for a
-    reason of its own: the demo asks for an empty project)."""
+    A refused write changes nothing — not the journal, not a lock file, not a cache, not the state
+    directory — and a read where the kit does not write skips its side writes (the hash cache, the
+    query log), so it changes nothing either. A write where the kit writes is admitted (it may still
+    fail for a reason of its own: the demo asks for an empty project); below a lab.json project it
+    writes to the analytics.json project there, and the lab.json project's bytes stay as they were."""
     csv = write_sales_csv(tmp_path / "more.csv", rows=6)
     seen = {}
     for command, args in {**WRITES, **READS}.items():
@@ -468,6 +517,8 @@ def test_the_kit_command_line_writes_only_where_it_may(base, tmp_path, column):
                 assert code == 0 and snapshot(tree) != before, (command, result)
             elif column not in WRITABLE_COLUMNS:
                 assert snapshot(tree) == before, command  # side writes skipped
+            if column == "nested":
+                assert _outside(snapshot(tree)) == _outside(before), command
     record_matrix("kit_cli", column, seen)
 
 
@@ -478,20 +529,48 @@ def record_matrix(rows: str, column: str, seen: dict) -> None:
 
 
 def test_a_read_of_a_project_this_kit_does_not_write_says_so(base, tmp_path):
-    target, _ = _column(base, tmp_path, "analytics_2")
+    """design 7: the overview of a lab.json project says it is read only here until a person
+    migrates it — the status JSON's format, writable, write_refusal and migration_hint, and a line
+    at the head of its text and of the context block — so a model tells a person rather than trying
+    the writes again. An analytics.json project the kit writes says none of it."""
+    target, _ = _column(base, tmp_path / "older", "lab_project_1")
     code, result = kit_cli(target, "status")
     st = result["status"]
-    assert code == 0 and st["project"]["format"] == "analytics.project/2"
-    assert st["project"]["writable"] is False and st["project"]["marker"] == "analytics.json"
-    assert st["project"]["write_refusal"]["code"] == "project_too_new"
-    assert st["project"]["title"] == NEW["title"] and st["project"]["created_at"] == NEW["created_at"]
-    assert result["text"].splitlines()[2].startswith("read only: project_too_new — ")
+    assert code == 0 and (st["project"]["format"], st["project"]["marker"]) == ("lab.project/1", "lab.json")
+    assert st["project"]["writable"] is False
+    assert st["project"]["write_refusal"]["code"] == "migration_required"
+    assert st["project"]["migration_hint"] == writer.migration_hint(target)
+    assert "analytics migrate --to <new empty folder>" in st["project"]["migration_hint"]
+    lines = result["text"].splitlines()
+    assert lines[1] == core.OLDER_FORMAT_LINE == ("Older record format: read only here until a person "
+                                                  "migrates it (analytics migrate --to DEST).")
+    assert lines[3].startswith("read only: migration_required — ")
     code, result = kit_cli(target, "context")
-    assert "\nread only: project_too_new — " in result["context"]
-    target, _ = _column(base, tmp_path, "lab_project_1")
+    assert f"\n{core.OLDER_FORMAT_LINE}\nread only: migration_required — " in result["context"]
+    target, _ = _column(base, tmp_path / "newer", "analytics_3")
+    code, result = kit_cli(target, "status")
+    st = result["status"]
+    assert st["project"]["write_refusal"]["code"] == "project_too_new"
+    assert "migration_hint" not in st["project"] and core.OLDER_FORMAT_LINE not in result["text"]
+    target, _ = _column(base, tmp_path / "current", "analytics_2")
     st = kit_cli(target, "status")[1]["status"]
-    assert (st["project"]["format"], st["project"]["writable"]) == ("lab.project/1", True)
-    assert "write_refusal" not in st["project"] and st["writes_skipped"] == []
+    assert (st["project"]["format"], st["project"]["writable"]) == ("analytics.project/2", True)
+    assert "write_refusal" not in st["project"] and "migration_hint" not in st["project"]
+    assert st["writes_skipped"] == []
+
+
+def test_a_project_below_a_lab_json_one_is_warned_of_and_written(base, tmp_path):
+    """design 4.3: an analytics.json project below a lab.json one is the project this kit writes (the
+    nearest marker), and its overview warns that a kit before 0.7.0 — which looks for lab.json only —
+    would write to the project above. It is a warning: the write goes on."""
+    target, root = _column(base, tmp_path, "nested")
+    code, result = kit_cli(target, "status")
+    st = result["status"]
+    assert code == 0 and st["project"]["older_project_above"] == str(root)
+    assert f"warning: {root} above this project holds a lab.json: a kit older than 0.7.0 run here would " \
+           "write to that project, not this one" in result["text"]
+    target, _ = _column(base, tmp_path / "alone", "analytics_2")
+    assert "older_project_above" not in kit_cli(target, "status")[1]["status"]["project"]
 
 
 # --- the script API (T8) -------------------------------------------------------------------------
@@ -516,8 +595,8 @@ def _sdk(project: Path, call: str) -> dict:
     return json.loads(lines[-1])
 
 
-@pytest.mark.parametrize("column", ["lab_project_1", "analytics_2", "analytics_invalid", "both",
-                                    "nested"])
+@pytest.mark.parametrize("column", ["lab_project_1", "analytics_2", "analytics_2_too_old",
+                                    "analytics_invalid", "both", "nested"])
 def test_the_script_api_outside_a_run_writes_only_where_it_may(base, tmp_path, column):
     seen = {}
     for name, call in SDK_CALLS.items():
@@ -528,6 +607,8 @@ def test_the_script_api_outside_a_run_writes_only_where_it_may(base, tmp_path, c
         seen[name] = None if result["ok"] else result["error"]["code"]
         if refused is None:
             assert result == {"ok": True} and snapshot(tree) != before, (name, result)
+            if column == "nested":
+                assert _outside(snapshot(tree)) == _outside(before), name
         else:
             assert seen[name] == refused, (name, result)
             assert snapshot(tree) == before, name
@@ -542,7 +623,7 @@ from aelix_analytics import core
 
 # The directory becomes one with two markers while the run goes on: every SDK write after that is
 # refused in the script, before it writes (design 4.3, T8 'the marker changes during the call').
-Path("analytics.json").write_text(json.dumps(MARKER), encoding="utf-8")
+Path("lab.json").write_text(json.dumps(MARKER), encoding="utf-8")
 codes = {}
 for name, call in (("record", lambda: analytics.record("note", "too late")),
                    ("save", lambda: analytics.save(analytics.read("sales").head(2), "late")),
@@ -558,11 +639,13 @@ print("CODES=" + json.dumps(codes))
 
 def test_a_marker_that_changes_during_a_run_refuses_what_comes_after(base, tmp_path):
     """The run was admitted; the directory then gets a second marker. The script's SDK writes are
-    refused where they are called, and the run's completion event is refused under the journal
-    lock: the journal is the same bytes, no dataset or chart is written, and the run is `incomplete`
-    (no_completion_event) with the refusal in finalize_errors (design 4.3 'run이면 정본만 있고')."""
-    root, _ = _column(base, tmp_path, "lab_project_1")
-    script = IN_RUN.replace("MARKER", repr(NEW))
+    refused where they are called, the run's last record write is refused by the writer, and so is
+    its completion event under the journal lock: the journal is the same bytes, no dataset or chart
+    is written, the run's record is the one written before its script ran, and the run is
+    `incomplete`, without its completion event (design 4.3 'run이면 정본만 있고'); the answer lists
+    the refusals in finalize_errors."""
+    root, _ = _column(base, tmp_path, "analytics_2")
+    script = IN_RUN.replace("MARKER", repr({"schema": "lab.project/1"}))
     (root / "scripts" / "late.py").write_text(script, encoding="utf-8")
     journal = (root / "journal.jsonl").read_bytes()
     code, result = kit_cli(root, "run", "scripts/late.py", "--title", "late")
@@ -572,15 +655,17 @@ def test_a_marker_that_changes_during_a_run_refuses_what_comes_after(base, tmp_p
     assert (root / "journal.jsonl").read_bytes() == journal
     assert not (root / "data" / "derived" / "late.parquet").exists()
     run_dir = root / "runs" / result["run"]["id"]
-    assert not (run_dir / "charts").exists()
-    assert any("journal: AnalyticsError" in p for p in result["run"]["finalize_errors"])
+    assert not (run_dir / "visualizations").exists()
+    problems = result["finalize_errors"]
+    assert any(p.startswith("run record: marker_conflict") for p in problems), problems
+    assert any("journal: AnalyticsError" in p for p in problems), problems
     record = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
-    assert record["schema"] == "lab.run/1" and record["finalize_errors"]
-    (root / "analytics.json").unlink()
+    assert record["schema"] == "analytics.run/2" and record["status"] == "running"
+    (root / "lab.json").unlink()
     st = core.status(core.Project(root))
     row = next(r for r in st["runs"] if r["id"] == result["run"]["id"])
     assert row["recording_status"] == "incomplete"
-    assert set(row["reasons"]) == {"no_completion_event", "finalize_errors"}
+    assert "no_completion_event" in row["reasons"], row
 
 
 def test_a_journal_write_is_judged_again_under_the_lock(tmp_path, monkeypatch):
@@ -588,15 +673,16 @@ def test_a_journal_write_is_judged_again_under_the_lock(tmp_path, monkeypatch):
     once the lock is held, so a marker made in between refuses the write and nothing is appended."""
     project = core.init_project(tmp_path / "p", template_dir=TEMPLATE, origin=ORIGIN)
     journal = project.journal.read_bytes()
-    real = core.project_lock
+    locks = project.platform.locks
+    real = locks.exclusive
 
-    def lock_then_change(p):
-        write_marker(p.root, "analytics.json", NEW)
-        return real(p)
+    def lock_then_change(path):
+        write_marker(project.root, "lab.json", {"schema": "lab.project/1"})
+        return real(path)
 
-    monkeypatch.setattr(core, "project_lock", lock_then_change)
+    monkeypatch.setattr(locks, "exclusive", lock_then_change)
     with pytest.raises(core.AnalyticsError) as caught:
-        core.add_note(project, "note", "between", origin=ORIGIN)
+        core.record(project, "note", "between", origin=ORIGIN)
     assert caught.value.code == "marker_conflict"
     assert project.journal.read_bytes() == journal
 
@@ -612,7 +698,7 @@ def test_a_run_is_judged_again_once_the_run_lock_is_held(tmp_path, monkeypatch):
     real = core.run_lock
 
     def lock_then_change(p):
-        write_marker(p.root, "analytics.json", NEW)
+        write_marker(p.root, "lab.json", {"schema": "lab.project/1"})
         return real(p)
 
     monkeypatch.setattr(core, "run_lock", lock_then_change)
@@ -623,16 +709,39 @@ def test_a_run_is_judged_again_once_the_run_lock_is_held(tmp_path, monkeypatch):
     assert not project.runs.exists() or not any(project.runs.iterdir())
 
 
-def test_the_init_of_a_new_project_is_judged_by_its_own_rules(tmp_path):
-    """design 11.3: `init` is judged by the destination's rules, not by this matrix. In this PR it
-    keeps them (a directory that does not exist or is empty); a marker above the destination is
-    OQ9, PR 3, so a new lab.json project inside an analytics.json one is still made."""
-    above = tmp_path / "new"
+@pytest.mark.parametrize("marker", ["analytics.json", "lab.json"])
+def test_the_init_of_a_new_project_is_judged_by_its_own_rules(tmp_path, marker):
+    """design 11.3 and OQ9: `init` is judged by the destination's rules, not by this matrix — a
+    directory that does not exist or is empty, and inside no project: below a directory with either
+    marker it is destination_invalid (reason inside_project, the migration's rule) and nothing is
+    made, as an older kit run there would write to the project above. Outside every project it
+    makes the new format: an analytics.json of analytics.project/2 with a new project_id and this
+    kit's min_writer_version, and e1, the project record holding that id."""
+    above = tmp_path / "above"
     above.mkdir()
-    write_marker(above, "analytics.json", NEW)
+    write_marker(above, marker, NEW if marker == "analytics.json" else {"schema": "lab.project/1"})
     with pytest.raises(core.AnalyticsError) as caught:
         core.init_project(above, template_dir=TEMPLATE, origin=ORIGIN)
     assert caught.value.code == "init_not_empty"
-    inner = core.init_project(above / "inner", template_dir=TEMPLATE, origin=ORIGIN)
-    assert writer.marker_state(inner.root).state == "legacy"
-    assert sorted(p.name for p in above.iterdir()) == ["analytics.json", "inner"]
+    before = snapshot(above)
+    for target in (above / "inner", above / "deeper" / "still"):
+        with pytest.raises(core.AnalyticsError) as caught:
+            core.init_project(target, template_dir=TEMPLATE, origin=ORIGIN)
+        assert caught.value.code == "destination_invalid", caught.value.to_json()
+        assert caught.value.details == {"reason": "inside_project", "project": str(above)}
+    (above / "empty").mkdir()
+    before = snapshot(above)
+    with pytest.raises(core.AnalyticsError) as caught:
+        core.init_project(above / "empty", template_dir=TEMPLATE, origin=ORIGIN)
+    assert caught.value.details["reason"] == "inside_project"
+    assert snapshot(above) == before
+    made = core.init_project(tmp_path / "outside", title="새 형식", template_dir=TEMPLATE, origin=ORIGIN)
+    value = json.loads(made.marker.read_text(encoding="utf-8"))
+    assert made.marker.name == "analytics.json" and writer.marker_state(made.root).state == "current"
+    assert value["schema"] == "analytics.project/2" and value["title"] == "새 형식"
+    assert value["min_writer_version"] == value["kit_version"] == core.KIT_VERSION
+    assert re.fullmatch(r"prj_[0-9a-f]{16}", value["project_id"])
+    first = json.loads(made.journal.read_text(encoding="utf-8").splitlines()[0])
+    assert (first["schema"], first["id"], first["kind"]) == ("analytics.event/2", "e1", "project")
+    assert first["details"] == {"project_id": value["project_id"]}
+    assert not (made.root / "lab.json").exists() and not (made.root / ".lab").exists()

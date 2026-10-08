@@ -1,7 +1,7 @@
 # {{title}}
 
 > The **current context** of this analysis, kept up to date by people and agents together.
-> Each change leaves a version in `.lab/context/` and an entry on the journal's timeline.
+> Each change leaves a version in `.analytics/context/` and an entry on the journal's timeline.
 > Keep the history in the journal (`analytics_record`, `analytics record`); keep here only what holds now.
 >
 > The agent's prompt takes the sections marked `<!-- pin -->` and then the others **from the top,

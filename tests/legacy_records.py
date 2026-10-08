@@ -12,6 +12,21 @@ import hashlib
 import json
 from pathlib import Path
 
+# The .gitignore a kit before the new writer (kit 0.8.0) gave a new project: its template's bytes,
+# the older names a migration renames (design 6.13).
+LEGACY_GITIGNORE = (
+    b'.venv/\n'
+    b'__pycache__/\n'
+    b'.lab/cache/\n'
+    b'.lab/lock\n'
+    b'.lab/adhoc/\n'
+    b'# Generated from runs/, journal.jsonl and CONTEXT.md; rebuild with `analytics render`.\n'
+    b'report/\n'
+    b'# Data may be private. Remove these lines only for data you are allowed to commit.\n'
+    b'data/\n'
+    b'runs/*/charts/*.data.parquet\n'
+)
+
 
 def at(minute: int, hour: int = 9, offset: str = "+09:00") -> str:
     """A /1 timestamp on 2026-10-01."""
@@ -22,11 +37,23 @@ def sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+# The marker of a project a migration made (design 2.4, 5.5): the new format's, over records an
+# older kit wrote — what this kit reads, renders and appends to.
+MIGRATED_MARKER = {"schema": "analytics.project/2", "project_id": "prj_0000000000000001",
+                   "created_at": at(0), "min_writer_version": "0.8.0"}
+
+
 class LegacyProject:
-    def __init__(self, root: Path, title: str = "Legacy"):
+    """`migrated`: the same records under an analytics.json marker (MIGRATED_MARKER) instead of
+    lab.json — a migrated project, which this kit writes to (a lab.json project it only reads)."""
+
+    def __init__(self, root: Path, title: str = "Legacy", *, migrated: bool = False):
         self.root = Path(root)
         self.root.mkdir(parents=True)
-        self.write_json("lab.json", {"schema": "lab.project/1", "title": title, "created_at": at(0)})
+        if migrated:
+            self.write_json("analytics.json", {**MIGRATED_MARKER, "title": title})
+        else:
+            self.write_json("lab.json", {"schema": "lab.project/1", "title": title, "created_at": at(0)})
         self.seq = 0
         self.minute = 0
 

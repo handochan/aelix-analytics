@@ -223,6 +223,7 @@ def _resolve_project():
     if explicit:
         project = core.Project(explicit)
         if not core.present_marker(project.root):
+            _refuse_incomplete(project)
             raise core.AnalyticsError("project_missing", f"active project {explicit} has no "
                                       "analytics.json or lab.json",
                                       hint="/analytics use DIR to pick another project")
@@ -236,6 +237,7 @@ def _resolve_project():
         if isinstance(value, str) and value.strip():
             project = core.Project(value.strip())
             if not core.present_marker(project.root):
+                _refuse_incomplete(project)
                 raise core.AnalyticsError("project_invalid", f"{via} {project.root} is not an analytics project "
                                           "(no analytics.json or lab.json)",
                                           hint="create it with /analytics init DIR")
@@ -257,6 +259,14 @@ def _resolve_project():
                                    "human can run /analytics init DIR or /analytics use DIR")
 
 
+def _refuse_incomplete(project) -> None:
+    """A named directory without a marker that holds a migration's record is a migration's
+    destination that has not committed: refused as the kit refuses it (migration_incomplete, with
+    how far its migration went), not as a directory that is no project (design 4.3)."""
+    if core.migration_record(project.root):
+        core.readable(project, "use the project")
+
+
 def origin(actor: str, means: str):
     """Who a write this extension makes is by, and how (design 4.2): the model's tools `agent`·`tool`,
     `/analytics` `human`·`command`, a hook `system`·`hook` (the context sync inside analytics_status
@@ -276,7 +286,11 @@ def resolve_uv(processes=None) -> str:
     return found
 
 
-def child_env(processes, actor: str) -> dict:
+def child_env(processes, actor: str, means: str | None = None) -> dict:
+    """A child's environment: the allowed list, the kit (PYTHONPATH), who it writes for
+    (AELIX_ANALYTICS_ACTOR, declared) and this session, and for a kit command how this extension
+    came to start it (AELIX_ANALYTICS_MEANS: `tool`, `command` or `hook`, design 4.2) — an internal
+    protocol, as AELIX_ANALYTICS_CANCEL_FILE (CONTRACTS D)."""
     # What the platform needs to start a process at all goes in first: the allowed list is about
     # what a run may see, not about what the operating system requires to launch one.
     env = processes.base_env()
@@ -285,6 +299,8 @@ def child_env(processes, actor: str) -> dict:
                 if k.startswith("UV_") and not SECRET_NAME.search(k)})
     env.update({"PYTHONPATH": str(KIT), "PYTHONIOENCODING": "utf-8", "PYTHONDONTWRITEBYTECODE": "1",
                 "MPLBACKEND": "Agg", "AELIX_ANALYTICS_ACTOR": actor})
+    if means is not None:
+        env["AELIX_ANALYTICS_MEANS"] = means
     if STATE["session"]:
         env["AELIX_ANALYTICS_SESSION"] = str(STATE["session"])
     return env
@@ -400,8 +416,9 @@ def _stopping(proc, processes, request):
     return task
 
 
-async def run_kit(project, args, *, timeout: float, actor: str = "agent"):
-    """Run `python -m aelix_analytics` in the project's environment. Returns (ok, result object)."""
+async def run_kit(project, args, *, timeout: float, actor: str = "agent", means: str = "tool"):
+    """Run `python -m aelix_analytics` in the project's environment, for `actor` by `means` (the
+    model's tools: agent·tool; /analytics: human·command). Returns (ok, result object)."""
     processes = project.platform.processes
     try:
         uv = resolve_uv(processes)
@@ -410,7 +427,7 @@ async def run_kit(project, args, *, timeout: float, actor: str = "agent"):
         # Only where the platform asks through it: POSIX asks with a signal and needs no file.
         request = _CancelRequest() if processes.asks_by_request else None
         try:
-            env = child_env(processes, actor)
+            env = child_env(processes, actor, means)
             if request is not None:
                 env["AELIX_ANALYTICS_CANCEL_FILE"] = str(request.path)
             timed_out, code, stdout, stderr = await _spawn(argv, project.root, env, timeout,
@@ -464,13 +481,14 @@ async def sync_environment(project):
     return False, said
 
 
-def schedule_workspace_render(project) -> None:
+def schedule_workspace_render(project, means: str = "hook") -> None:
     """Start a detached `render --if-changed` build unless one for this project is still running.
 
     Deliberately not an asyncio task: a cancelled `uv run` whose Python child still holds the pipes
     keeps Process.wait() pending, which would stall aelix's loop shutdown. The kit serializes builds
     with a file lock and skips when nothing changed, so a missed trigger is caught by the next one
-    (agent_end fires after every prompt).
+    (agent_end fires after every prompt). `means` is what scheduled it: the `hook` agent_end, or the
+    `tool` or `command` that recorded something; the build is the kit's own (`system`).
     """
     key = str(project.root)
     running = STATE["render_tasks"].get(key)
@@ -484,7 +502,7 @@ def schedule_workspace_render(project) -> None:
         argv = [resolve_uv(processes), "run", "--project", key, "--quiet", "python", "-m", "aelix_analytics",
                 "--project", key, "render", "--if-changed"]
         STATE["render_tasks"][key] = subprocess.Popen(
-            argv, cwd=key, env=child_env(processes, "system"), stdin=subprocess.DEVNULL,
+            argv, cwd=key, env=child_env(processes, "system", means), stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **processes.spawn_kwargs())
     except Exception:  # noqa: BLE001 - a derived build; it must not fail what was just recorded
         return
@@ -859,30 +877,39 @@ async def tool_run(args, ctx):
 async def tool_record(args, ctx):
     project, _ = resolve_project()
     kind = str(args.get("kind") or "")
+    text = str(args.get("text") or "")
     refs = [str(r) for r in args.get("refs") or []]
     await asyncio.to_thread(core.admit, project, "record")
+    # What the record itself refuses is refused before the context sync: a refused record changes
+    # nothing.
+    core.writer.check_kind(kind)
+    core.writer.check_text(text)
     await asyncio.to_thread(lambda: core.sync_context(project, origin=origin("system", "tool")))
-    event = await asyncio.to_thread(
-        lambda: core.add_note(project, kind, str(args.get("text") or ""), refs=refs,
-                              resolves=args.get("resolves") or None,
-                              origin=origin("agent", "tool")))
-    schedule_workspace_render(project)
-    extra = f"; resolves {event['refs']['resolves']}" if event["refs"].get("resolves") else ""
-    refs_text = json.dumps({k: v for k, v in event["refs"].items() if k != "resolves"},
-                           ensure_ascii=False)
-    cut = note_cut(str(args.get("text") or ""))
-    return (f"analytics_record: ok — {event['id']} {kind} recorded{extra}; refs {refs_text}"
-            + (f"\n{cut}" if cut else "")), event
+    written = await asyncio.to_thread(
+        lambda: core.record(project, kind, text, refs=refs, resolves=args.get("resolves") or None,
+                            origin=origin("agent", "tool")))
+    schedule_workspace_render(project, "tool")
+    return f"analytics_record: ok — {recorded_line(written, kind)}", written.to_json()
 
 
-def note_cut(given: str) -> str:
-    """What a note's reply adds when the journal kept only the start of it (MAX_EVENT_TEXT)."""
-    chars = len(given.strip())
-    if chars <= core.MAX_EVENT_TEXT:
-        return ""
-    return (f"Truncated: the note has {chars:,} characters and only the first "
-            f"{core.MAX_EVENT_TEXT:,} were recorded; the rest is not in the journal — record it as "
-            "another note")
+def recorded_line(written, kind: str) -> str:
+    """A record's reply: its id and kind, the record it resolved or corrected with that record's
+    state before and after (Written.targets: an already resolved one says which event resolved it),
+    and each name given as a reference with how it was bound (author, inferred, none — an inferred
+    binding is a guess the kit made, not a confirmed link: Q4). The request_id is in the details
+    (design 4.9), not in the text: no input takes one yet (OQ11)."""
+    event = written.event
+    parts = [f"{event['id']} {kind} recorded"]
+    for target in written.targets or []:
+        said = (f"{target['relation']} {target['event_id']} "
+                f"({target.get('state_before')} -> {target.get('state_after')}")
+        made = target.get("made_by") or {}
+        if target.get("state_before") == "resolved" and made.get("id"):
+            said += f"; already resolved by {made['id']}"
+        parts.append(said + ")")
+    if written.bindings:
+        parts.append("refs: " + ", ".join(f"{b['input']} ({b['binding']})" for b in written.bindings))
+    return "; ".join(parts)
 
 
 async def tool_init(args, ctx):
@@ -898,7 +925,7 @@ async def tool_init(args, ctx):
     synced, detail = await sync_environment(project)
     lines = [f"analytics_init: ok — project {project.title()} at {project.root} (now the active project)"]
     if synced:
-        await run_kit(project, ["render"], timeout=240)
+        await run_kit(project, ["render"], timeout=240, actor="agent", means="tool")
         lines.append(f"environment: synced from {detail} (DuckDB, Polars, PyArrow, matplotlib, plotly)")
     else:
         lines.append("environment: uv sync FAILED — runs will fail until it succeeds. uv said:\n" + detail)
@@ -952,7 +979,7 @@ TOOLS = [
     _tool(
         "analytics_query",
         "Run ONE read-only DuckDB statement over the project's datasets, for exploration only. Every "
-        "Parquet dataset is a view named after its file (data/raw/sales.parquet -> sales; a derived "
+        "Parquet dataset is a view named after its file (data/imported/sales.parquet -> sales; a derived "
         "dataset whose name collides gets _derived). SELECT/WITH, DESCRIBE <view>, SUMMARIZE <view> "
         "and EXPLAIN are allowed; anything that writes is refused. Returns at most `limit` rows. "
         "Queries are logged but are not runs: anything that feeds a chart, a derived dataset or a "
@@ -966,7 +993,7 @@ TOOLS = [
     _tool(
         "analytics_import",
         "Import a local data file into the project as an immutable Parquet dataset "
-        "data/raw/<name>.parquet. CSV/TSV/JSON/NDJSON are converted with DuckDB; Parquet is copied. "
+        "data/imported/<name>.parquet. CSV/TSV/JSON/NDJSON are converted with DuckDB; Parquet is copied. "
         "Records the source path and sha256 and the schema, and logs an import event. An existing "
         "name is refused (imported data never changes; use a new name such as sales_v2).",
         {"source": {**STR, "description": "Path of the file to import (absolute, or relative to the "
@@ -974,7 +1001,7 @@ TOOLS = [
          "name": {**STR, "description": "Dataset name: lowercase letters, digits, _ (default: file stem)."},
          "description": {**STR, "description": "What the data is: origin, period, grain, caveats."}},
         ["source"], tool_import,
-        "import a CSV/JSON/Parquet file as an immutable Parquet dataset under data/raw/",
+        "import a CSV/JSON/Parquet file as an immutable Parquet dataset under data/imported/",
     ),
     _tool(
         "analytics_run",
@@ -1009,7 +1036,7 @@ TOOLS = [
         ["title"], tool_run,
         "run a Python analysis script with recorded code, data and charts; rebuilds the HTML report",
         guidelines=(
-            "Analysis data is Parquet: data/raw is imported and never modified; derived tables go to "
+            "Analysis data is Parquet: data/imported is imported and never modified; derived tables go to "
             "data/derived via analytics.save. Process data with DuckDB and Polars, not pandas.",
             "Make every chart and derived dataset with analytics_run, never by running python through bash, "
             "so its code and input data are recorded and linked from the report.",
@@ -1017,31 +1044,34 @@ TOOLS = [
             "data=plotted_df) for charts; one script per question, re-run it to version its charts.",
             "Record findings, decisions, assumptions, questions and todos with analytics_record as soon as they "
             "are established, citing run ids; keep CONTEXT.md current by editing it.",
-            "If the analytics tools block you or force a workaround, record it with analytics_record kind=gap "
-            "(this tooling is being evaluated).",
+            "If the analytics tools block you or force a workaround, record it with analytics_record "
+            "kind=workflow_feedback (this tooling is being evaluated).",
         ),
     ),
     _tool(
         "analytics_record",
         "Append an entry to the project journal, the time-ordered history shown in the report. kind: "
-        "finding (an established result), decision, assumption, question, todo, note, gap (a missing "
-        "capability or friction in this analysis tooling), or resolve (closes the question/todo named "
-        "in `resolves` without other content). Any kind may also resolve an earlier entry, e.g. a "
-        "finding that answers question e7. Cite evidence in refs: run ids, chart keys "
-        "(scripts/x.py::chart-id), dataset names or event ids.",
-        {"kind": {"type": "string", "enum": list(core.NOTE_KINDS)},
-         "text": {**STR, "description": "The entry, self-contained (max 4000 characters)."},
+        "finding (an established result), decision, assumption, question, todo, note, "
+        "workflow_feedback (a missing capability or friction in this analysis tooling), or resolve "
+        "(closes the question/todo named in `resolves` without other content). Any kind may also "
+        "resolve an earlier entry, e.g. a finding that answers question e7. Cite evidence in refs: "
+        "run ids, chart keys (scripts/x.py::chart-id), dataset names or event ids; the reply says "
+        "how each was bound.",
+        {"kind": {"type": "string", "enum": list(core.RECORD_KINDS)},
+         "text": {**STR, "description": "The entry, self-contained. Kept whole up to 32 KiB of UTF-8; "
+                                        "a longer one is refused, never cut."},
          "refs": {"type": "array", "items": STR, "description": "Run ids, chart keys, dataset names, event ids."},
          "resolves": {**STR, "description": "Event id this entry answers or closes, e.g. e7."}},
         ["kind", "text"], tool_record,
-        "record a finding/decision/assumption/question/todo/gap in the project journal",
+        "record a finding/decision/assumption/question/todo/workflow_feedback in the project journal",
     ),
     _tool(
         "analytics_init",
-        "Create a new analytics project directory (lab.json, CONTEXT.md, journal.jsonl, data/, "
-        "scripts/, runs/, report/) with its own uv environment (DuckDB, Polars, PyArrow, matplotlib, "
-        "plotly) and make it the active project. Only when the user asked to start a new analysis; if "
-        "they did not say where, ask them first. The directory must not exist or must be empty.",
+        "Create a new analytics project directory (analytics.json, CONTEXT.md, journal.jsonl, data/, "
+        "scripts/, runs/, workspace/) with its own uv environment (DuckDB, Polars, PyArrow, "
+        "matplotlib, plotly) and make it the active project. Only when the user asked to start a new "
+        "analysis; if they did not say where, ask them first. The directory must not exist or must "
+        "be empty, and must not be inside another analytics project.",
         {"path": {**STR, "description": "Directory to create."},
          "title": {**STR, "description": "Project title."},
          "goal": {**STR, "description": "What the analysis should answer and for whom."}},
@@ -1088,8 +1118,9 @@ def summarize_call(tool: str, args: dict, project) -> tuple[str, list]:
         # through a link that leads out of data/ is still a write under data/. No walk and no
         # directory listing: this runs on aelix's event loop after every tool call.
         below = project.below(path) if path else None
-        if below and (below[0] in ("data", "runs", "report", ".lab")
-                      or (not below[1] and below[0] in ("journal.jsonl", "lab.json"))):
+        layout = project.layout
+        if below and (below[0] in ("data", "runs", layout.workspace_dir, layout.state_dir)
+                      or (not below[1] and below[0] in ("journal.jsonl", layout.marker))):
             flags.append("wrote_managed_path")
         return path[:300], flags
     if tool == "read":
@@ -1128,7 +1159,7 @@ def on_tool_end(event, ctx):
 
 def on_agent_end(event, ctx):
     with contextlib.suppress(Exception):
-        schedule_workspace_render(resolve_project()[0])
+        schedule_workspace_render(resolve_project()[0], "hook")
     return None
 
 
@@ -1142,8 +1173,12 @@ HELP = """/analytics — Aelix Analytics project
   /analytics use DIR            make DIR the active project for this aelix process
   /analytics render | open      rebuild the report | open it in the browser
   /analytics record KIND TEXT   journal entry as a human (finding, decision, question, ...);
-                                KIND gap: something this analysis workflow lacked or made awkward
-  /analytics context            the context block injected into prompts"""
+                                KIND workflow_feedback: something this analysis workflow lacked
+                                or made awkward
+  /analytics context            the context block injected into prompts
+A project of the older record format (lab.json) is read only here: a person copies it into the
+current format in a terminal (analytics migrate --to DIR, preview with --dry-run), then
+/analytics use DIR."""
 
 
 async def analytics_command(args, ctx=None):
@@ -1190,11 +1225,12 @@ async def analytics_command(args, ctx=None):
                 return f"created {project.root}, but uv sync failed:\n{detail}"
             if sub == "demo":
                 _notify(ctx, "analytics: generating synthetic data and example runs …")
-                ok, value = await run_kit(project, ["demo"], timeout=900, actor="human")
+                ok, value = await run_kit(project, ["demo"], timeout=900, actor="human",
+                                          means="command")
                 if not ok:
                     return render_error("/analytics demo", value)
             else:
-                await run_kit(project, ["render"], timeout=240, actor="human")
+                await run_kit(project, ["render"], timeout=240, actor="human", means="command")
             return (f"created {project.root} (active). Report: {project.workspace_dir / 'index.html'}"
                     " — /analytics open to view it.")
         if sub == "use":
@@ -1215,7 +1251,8 @@ async def analytics_command(args, ctx=None):
             if sub == "render" or not index.is_file():
                 # Refused here, before uv makes or syncs the project's environment.
                 await asyncio.to_thread(core.admit, project, "render")
-                ok, value = await run_kit(project, ["render"], timeout=240, actor="human")
+                ok, value = await run_kit(project, ["render"], timeout=240, actor="human",
+                                          means="command")
                 if not ok:
                     return render_error("/analytics render", value)
             if sub == "open":
@@ -1223,18 +1260,21 @@ async def analytics_command(args, ctx=None):
                     project.platform.processes.open_document(index, wait=False)
                 except OSError as exc:
                     return f"could not open {index} ({exc}); open it in a browser yourself"
+                if core.admit(project, "render", side=True) is None:
+                    # A page this kit reads and does not build any more (a lab.json project's).
+                    return (f"opened {index} (not updated: this kit reads {project.root} and does "
+                            "not write to it; /analytics status says why)")
                 return f"opened {index}"
             return f"report rebuilt: {index}"
         if sub == "record":
-            # `/analytics record gap TEXT` is what `/lab gap TEXT` was: kind gap stays the stored
-            # kind until the new record kinds (#13).
+            # Kinds as the common writer has them (writer.RECORD_KINDS): `/analytics record gap TEXT`,
+            # what `/lab gap TEXT` was, is bad_kind with its new name, workflow_feedback (design 2.8).
             project, _ = resolve_project()
             kind, _, body = rest.partition(" ")
-            event = await asyncio.to_thread(
-                lambda: core.add_note(project, kind, body, origin=origin("human", "command")))
-            schedule_workspace_render(project)
-            cut = note_cut(body)
-            return f"{event['id']} {kind} recorded" + (f" — {cut}" if cut else "")
+            written = await asyncio.to_thread(
+                lambda: core.record(project, kind, body, origin=origin("human", "command")))
+            schedule_workspace_render(project, "command")
+            return recorded_line(written, kind)
         if sub == "context":
             project, _ = resolve_project()
             return await asyncio.to_thread(core.context_block, project)
@@ -1289,7 +1329,8 @@ def setup(aelix):
     STATE.update({"api": aelix, "project": None, "session": None, "starts": {},
                   "render_tasks": {}})
     aelix.register_flag("analytics-project", type="str",
-                        description="Analytics project directory (holds lab.json)")
+                        description="Analytics project directory (holds analytics.json, or an "
+                                    "older lab.json)")
     for tool in TOOLS:
         aelix.register_tool(tool)
     aelix.register_command("analytics", handler=analytics_command,

@@ -37,9 +37,10 @@ VENV_PYTHON = len(r"\.venv\Scripts\python.exe")
 SHORT_ROOT = 259 - VENV_PYTHON - 4
 # Without long paths a root must leave room for the files a new project needs, the longest a
 # context snapshot; 230 did not (the first LongPathsEnabled=0 run). This one does, and the run's
-# outputs still do not. (A dataset's cached profile, `.lab/cache/profiles/<sha256>-20.json`, is
-# longer, but the kit skips it when it cannot be written.)
-CONTEXT_SNAPSHOT = len(r"\.lab\context\20261002-181930-910564_44593b156b5b.md")
+# outputs still do not. (A dataset's cached profile, `.analytics/cache/profiles/<sha256>-20.json`, is
+# longer, but the kit skips it when it cannot be written.) The snapshot is under .analytics\ since kit
+# 0.8.0 (the new format), six characters longer than under .lab\.
+CONTEXT_SNAPSHOT = len(r"\.analytics\context\20261002-181930-910564_44593b156b5b.md")
 TEMPLATE_ROOT = 259 - CONTEXT_SNAPSHOT - 4
 # Past MAX_PATH for a working directory and for the root's own files (the probe's 312 failed).
 DEEP_ROOT = 300
@@ -210,7 +211,7 @@ def test_a_root_under_max_path_records_and_reports_outputs_past_it(tmp_path):
         assert run["outputs"] and all(o["sha256"] for o in run["outputs"]), run["outputs"]
         assert any(len(str(root / o["path"])) > 260 for o in run["outputs"]), run["outputs"]
         assert reported["returncode"] == 0, reported
-        index = root / "report" / "index.html"
+        index = root / "workspace" / "index.html"
         assert "a-chart-id-that-is-forty-characters-long" in index.read_text(encoding="utf-8")
         assert deepest > 260
     finally:
@@ -304,12 +305,12 @@ def test_lab_init_into_a_root_past_max_path_makes_the_project_then_fails_its_syn
         observation["root_length"] = DEEP_ROOT
         module = _extension(monkeypatch)
         observation["answer"] = asyncio.run(module.analytics_command(f"init {target} 긴경로"))
-        observation["lab_json"] = attempt(observation, "lab_json_check",
-                                          lambda: (target / "lab.json").is_file())
+        observation["analytics_json"] = attempt(observation, "analytics_json_check",
+                                                lambda: (target / "analytics.json").is_file())
         observation["active"] = module.STATE["project"]
         if not ENABLED:
             return
-        assert observation["lab_json"] is True
+        assert observation["analytics_json"] is True
         assert os.path.samefile(observation["active"], target), observation["active"]
         assert "error [spawn_failed]" in observation["answer"], observation["answer"]
     finally:
@@ -383,8 +384,8 @@ def test_the_launcher_from_a_short_directory_with_lab_project_past_max_path(tmp_
         init = _launch(analytics, ["init", root, "--title", "긴 경로"], cwd=tmp_path, env=env,
                        timeout=360)
         observation["init"] = init
-        observation["lab_json"] = attempt(observation, "lab_json_check",
-                                          lambda: (root / "lab.json").is_file())
+        observation["analytics_json"] = attempt(observation, "analytics_json_check",
+                                                lambda: (root / "analytics.json").is_file())
         observation["venv_python"] = attempt(
             observation, "venv_python_check",
             lambda: (root / ".venv" / "Scripts" / "python.exe").is_file())
@@ -393,7 +394,7 @@ def test_the_launcher_from_a_short_directory_with_lab_project_past_max_path(tmp_
         observation["status"] = status
         assert not init["timed_out"] and not status["timed_out"], observation
         if ENABLED:
-            assert observation["lab_json"] is True, init
+            assert observation["analytics_json"] is True, init
     finally:
         keep(observation)
 

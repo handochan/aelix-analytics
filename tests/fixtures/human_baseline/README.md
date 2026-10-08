@@ -3,7 +3,8 @@
 These six invented orders contain no customer data, personal sessions or copied production
 records. They exercise the kit's CLI and SDK contract (`python -m aelix_analytics` and
 `import aelix_analytics`, named `labkit` when Issue #7 started).
-The fixture uses current `lab.* /1` records and the `render` command (`report` before kit 0.3.0);
+The fixture uses the current records — `analytics.json` projects and `analytics.*` records since kit
+0.8.0 (`lab.* /1` before it, Issue #13) — and the `render` command (`report` before kit 0.3.0);
 future storage formats are outside its scope.
 
 The expected values in [expected.json](expected.json) were calculated from

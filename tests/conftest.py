@@ -173,12 +173,13 @@ def isolated_trust_file(tmp_path, monkeypatch):
     test inherits a variable of the kit's old names (OLD_ENV) from the shell."""
     for name in OLD_ENV:
         monkeypatch.delenv(name, raising=False)
-    monkeypatch.setenv("AELIX_ANALYTICS_TRUST_FILE", str(tmp_path / "trust" / "lab-projects.json"))
+    monkeypatch.setenv("AELIX_ANALYTICS_TRUST_FILE", str(tmp_path / "trust" / "analytics-projects.json"))
 
 
 @pytest.fixture
 def project(tmp_path):
-    """A new project with data/raw/sales.parquet imported."""
+    """A new project (analytics.json, the format this kit writes) with data/imported/sales.parquet
+    imported."""
     sys.path.insert(0, str(KIT))
     from aelix_analytics import core
 

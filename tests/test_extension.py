@@ -141,11 +141,28 @@ def test_status_note_context_injection_and_telemetry(lab):
     assert not result.is_error and "project: 확장 테스트" in text_of(result)
 
     question = call(tools["analytics_record"], {"kind": "question", "text": "무엇이 달라졌나?"})
-    assert not question.is_error and question.details["id"] == "e3"
+    assert not question.is_error and question.details["event"]["id"] == "e3"
+    # The model's tool writes as the agent, through a tool, in this session (design 4.2), and the
+    # answer holds the request's id (design 4.9).
+    event = question.details["event"]
+    assert (event["actor"], event["actor_basis"], event["means"]) == ("agent", "declared", "tool")
+    assert question.details["request_id"].startswith("req-")
     finding = call(tools["analytics_record"], {"kind": "finding", "text": "3월에 달라졌다", "resolves": "e3",
                                                "refs": ["20260916-010101-x", "sales"]})
-    assert finding.details["refs"] == {"runs": ["20260916-010101-x"], "data": ["sales"],
-                                       "resolves": "e3"}
+    assert [(r["type"], r["relation"], r["version_binding"]) for r in finding.details["event"]["refs"]] == [
+        # `sales` names no dataset here (none was imported): an unbound name (design 4.7, D25).
+        ("run", "cites", "author"), ("visualization_version", "cites", "none"), ("event", "resolves", "author")]
+    assert finding.details["targets"] == [{"event_id": "e3", "relation": "resolves",
+                                           "state_before": "open", "state_after": "resolved"}]
+    assert "resolves e3 (open -> resolved)" in text_of(finding)
+    assert "refs: 20260916-010101-x (author), sales (none)" in text_of(finding)
+    # T13 (design 4.6, OQ11): closing it again is written, and the reply names the record that
+    # closed it before.
+    again = call(tools["analytics_record"], {"kind": "resolve", "text": "다시 닫음", "resolves": "e3"})
+    assert not again.is_error and again.details["targets"] == [{
+        "event_id": "e3", "relation": "resolves", "state_before": "resolved", "state_after": "resolved",
+        "made_by": {"id": finding.details["event"]["id"]}}]
+    assert f"already resolved by {finding.details['event']['id']}" in text_of(again)
     bad = call(tools["analytics_record"], {"kind": "resolve", "text": "x"})
     assert bad.is_error and "resolve_needs_target" in text_of(bad)
 
@@ -162,11 +179,11 @@ def test_status_note_context_injection_and_telemetry(lab):
     module.on_tool_start(ToolExecutionStartHookEvent(tool_call_id="w1", tool_name="write",
                                                      args={"path": str(root / "data/raw/x.parquet")}), ctx)
     module.on_tool_end(ToolExecutionEndHookEvent(tool_call_id="w1", tool_name="write", is_error=True), ctx)
-    lines = [json.loads(line) for line in (root / ".lab/telemetry.jsonl").read_text(encoding="utf-8").splitlines()]
+    lines = [json.loads(line) for line in (root / ".analytics/telemetry.jsonl").read_text(encoding="utf-8").splitlines()]
     assert [(t["tool"], t["flags"], t["error"]) for t in lines] == [
         ("bash", ["python_via_bash"], False), ("write", ["wrote_managed_path"], True)]
     # Written by append_jsonl inside the aelix process (on the 3.11 floor too): LF everywhere (ADR-0007).
-    assert b"\r" not in (root / ".lab/telemetry.jsonl").read_bytes()
+    assert b"\r" not in (root / ".analytics/telemetry.jsonl").read_bytes()
     assert b"\r" not in (root / "journal.jsonl").read_bytes()
 
 
@@ -219,7 +236,7 @@ def test_two_projects_in_one_host_keep_their_own_records(tmp_path, monkeypatch):
     for name, other in (("A", "B"), ("B", "A")):
         assert f"title: 프로젝트 {name}" in blocks[name] and f"{name}에서만 본 것" in blocks[name]
         assert f"프로젝트 {other}" not in blocks[name] and f"{other}에서만" not in blocks[name]
-        telemetry = [json.loads(line) for line in (roots[name] / ".lab" / "telemetry.jsonl")
+        telemetry = [json.loads(line) for line in (roots[name] / ".analytics" / "telemetry.jsonl")
                      .read_text(encoding="utf-8").splitlines()]
         assert [row["tool"] for row in telemetry] == ["analytics_record"], telemetry
         assert f"{name}에서만 본 것" in telemetry[0]["summary"], telemetry
@@ -268,14 +285,14 @@ def test_status_in_the_aelix_process_names_a_linked_data_directory_s_datasets_by
     link is walked as part of the namespace, so analytics_status lists its datasets by project
     paths. On Windows' 3.11 a junction is told by its reparse tag (no DirEntry.is_junction)."""
     module, root = lab
-    (root / "data" / "raw" / "sales.parquet").write_bytes(b"PAR1")
+    (root / "data" / "imported" / "sales.parquet").write_bytes(b"PAR1")
     elsewhere = tmp_path / "bigdisk"
     shutil.move(root / "data", elsewhere)
     dir_link(kind, root / "data", elsewhere)
     result = call(tools_of(module)["analytics_status"], {})
     assert not result.is_error, text_of(result)
     assert [(d["name"], d["path"]) for d in result.details["datasets"]] == \
-        [("sales", "data/raw/sales.parquet")]
+        [("sales", "data/imported/sales.parquet")]
 
 
 def test_a_write_through_a_linked_data_directory_is_flagged_without_a_walk(lab, tmp_path,
@@ -305,7 +322,7 @@ def test_a_write_s_telemetry_lists_no_directory(lab, tmp_path, monkeypatch):
     `inside`), never by listing the directories on its path (head spelled every one: ~100 ms for a
     directory of 200,000 entries). A managed directory stored in another case is that directory."""
     module, root = lab
-    ignores_case = (root / "LAB.JSON").exists()
+    ignores_case = (root / "ANALYTICS.JSON").exists()
     if ignores_case:
         os.rename(root / "runs", root / "runs-tmp")
         os.rename(root / "runs-tmp", root / "Runs")
@@ -319,10 +336,14 @@ def test_a_write_s_telemetry_lists_no_directory(lab, tmp_path, monkeypatch):
 
     monkeypatch.setattr(module.core.os, "scandir", no_listing)
     monkeypatch.setattr(module.core.os, "listdir", no_listing)
+    # The layout's managed names (design 2.3): workspace/ and .analytics/ in an analytics.json
+    # project, where report/ and .lab/ are a person's folders.
     cases = [(root / "data" / "derived" / "x.parquet", True), ("data/raw/y.csv", True),
-             (root / "report" / "index.html", True), (root / "journal.jsonl", True),
+             (root / "workspace" / "index.html", True), (root / "journal.jsonl", True),
+             (root / "analytics.json", True), (root / "report" / "index.html", False),
+             (root / "lab.json", False), (root / ".lab" / "x.json", False),
              (root / "scripts" / "a.py", False), (root / "notes" / "journal.jsonl", False),
-             (outside / "z.csv", False), (tmp_path / "alias" / ".lab" / "x.json", True)]
+             (outside / "z.csv", False), (tmp_path / "alias" / ".analytics" / "x.json", True)]
     if ignores_case:
         cases += [(Path(str(root).swapcase()) / "data" / "w.csv", True),
                   (root / "RUNS" / "r" / "x.txt", True)]
@@ -362,12 +383,23 @@ def test_a_tool_call_s_project_lookup_lists_no_directory_once_warm(lab, monkeypa
 
 
 def test_lab_command_where_help_and_gap(lab):
+    """`/analytics record gap TEXT` (what `/lab gap` was) is refused with the kind's new name
+    (design 2.8: bad_kind, workflow_feedback), nothing written; `/analytics record workflow_feedback`
+    records as a person, through the command, in this session (design 4.2)."""
     module, root = lab
     assert "kit:" in asyncio.run(module.analytics_command("where"))
     assert "/analytics init DIR" in asyncio.run(module.analytics_command("help"))
-    assert "gap recorded" in asyncio.run(module.analytics_command("record gap 차트 id를 한글로 못 붙인다"))
-    events = module.core.read_events(module.core.Project(root))
-    assert events[-1]["kind"] == "gap" and events[-1]["actor"] == "human"
+    journal = (root / "journal.jsonl").read_bytes()
+    said = asyncio.run(module.analytics_command("record gap 차트 id를 한글로 못 붙인다"))
+    assert "error [bad_kind]" in said and "workflow_feedback" in said, said
+    assert (root / "journal.jsonl").read_bytes() == journal
+    said = asyncio.run(module.analytics_command("record workflow_feedback 차트 id를 한글로 못 붙인다"))
+    assert said.endswith(" workflow_feedback recorded"), said
+    event = json.loads((root / "journal.jsonl").read_bytes().splitlines()[-1])
+    assert (event["kind"], event["actor"], event["actor_basis"], event["means"]) == (
+        "workflow_feedback", "human", "declared", "command")
+    help_text = asyncio.run(module.analytics_command("help"))
+    assert "KIND workflow_feedback" in help_text and "analytics migrate --to DIR" in help_text
 
 
 # sha256 of the inline code below as the extension writes it: the same on every platform.
@@ -407,11 +439,15 @@ def test_import_query_and_run_through_the_project_environment(lab, tmp_path):
     body = text_of(ran)
     assert not ran.is_error, body
     assert body.startswith("analytics_run: ok — run ")
-    assert "data/raw/sales.parquet" in body and "via lab.sql" in body
+    assert "data/imported/sales.parquet" in body and "via analytics.sql" in body
     assert "scripts/01_by_region.py::by-region" in body
     assert any(isinstance(c, ImageContent) for c in ran.content)
     run_id = ran.details["run"]["id"]
-    assert (root / "report" / "runs" / f"{run_id}.html").is_file()
+    assert (root / "workspace" / "runs" / f"{run_id}.html").is_file()
+    # The kit child the tool started recorded the run as the agent's, through a tool (design 4.2:
+    # AELIX_ANALYTICS_MEANS from the extension).
+    assert (ran.details["run"]["actor"], ran.details["run"]["actor_basis"], ran.details["run"]["means"]) == (
+        "agent", "declared", "tool")
     # Inline code is text the kit writes (ADR-0007 decision 2): LF, so its sha256 is this constant on
     # every leg (7 ②); code sent with CR line ends is written with LF and runs the same.
     assert (root / "scripts" / "01_by_region.py").read_bytes() == code.encode("utf-8")
@@ -535,7 +571,7 @@ def test_a_project_the_user_never_chose_is_not_activated(tmp_path, monkeypatch):
     module.on_tool_start(ToolExecutionStartHookEvent(tool_call_id="x", tool_name="bash",
                                                      args={"command": "python x.py"}), SimpleNamespace())
     module.on_tool_end(ToolExecutionEndHookEvent(tool_call_id="x", tool_name="bash"), SimpleNamespace())
-    assert not (root / ".lab" / "telemetry.jsonl").exists()
+    assert not (root / ".analytics" / "telemetry.jsonl").exists()
 
     assert "active project" in asyncio.run(module.analytics_command(f"use {root}"))
     after = fresh_module()  # a later session finds it trusted
@@ -587,7 +623,7 @@ def test_a_run_over_many_inputs_still_shows_stdout_and_says_what_it_hid():
                             "via": "lab.chart", "data": True, "data_rows": 5,
                             "files": {"png": f"runs/20260916-100727-01-build/charts/c{i}.png"}}
                            for i in range(5)]},
-        "stdout_tail": "STDOUT-MARKER parts 503\n", "event": "e7", "page": "report/runs/x.html"}
+        "stdout_tail": "STDOUT-MARKER parts 503\n", "event": "e7", "page": "workspace/runs/x.html"}
 
     text = module.render_run(project, value, (3, 5))
     assert len(text) < module.MAX_TEXT and "(truncated" not in text
@@ -639,7 +675,7 @@ def _many(module, root: Path, status="ok", stderr_tail="", stdout_tail="STDOUT\n
                 "warnings": [f"warning {i}" for i in range(14)],
                 "stdout": f"runs/{run_id}/stdout.txt", "stderr": f"runs/{run_id}/stderr.txt"},
         "stdout_tail": stdout_tail, "stderr_tail": stderr_tail, "event": "e7",
-        "page": f"report/runs/{run_id}.html"}
+        "page": f"workspace/runs/{run_id}.html"}
 
 
 def test_a_run_reply_says_where_each_list_and_log_it_shortens_is(lab):
@@ -878,22 +914,46 @@ def test_a_query_reply_counts_rows_not_lines(lab, monkeypatch):
     assert len(reply) + len(rows[shown]) + 1 > module.MAX_TEXT  # one more would not fit
 
 
-def test_a_note_cut_to_the_journal_limit_says_so(lab):
-    """Issue #11 G9 (D11): a note longer than 4,000 characters is recorded cut (C1); the replies
-    of analytics_record, /analytics record and /analytics record gap say so. aelix_analytics record and
-    analytics.record() do not change."""
+def test_a_record_is_kept_whole_or_refused_never_cut(lab):
+    """design 2.9 (OQ2): a record's text is kept whole up to 32 KiB of UTF-8, and refused over it —
+    text_too_long, nothing written — by analytics_record and /analytics record alike. The journal
+    holds no cut text, and no reply says one was cut (kit 0.8.0; before it a note was cut at 4,000
+    characters)."""
     module, root = lab
-    text = "근거와 한계를 함께 적는다. " * 300 + "END"
-    said = (f"Truncated: the note has {len(text):,} characters and only the first 4,000 were "
-            "recorded; the rest is not in the journal — record it as another note")
-    reply = text_of(call(tools_of(module)["analytics_record"], {"kind": "finding", "text": text}))
-    assert reply.split("\n")[1] == said
-    assert asyncio.run(module.analytics_command(f"record finding {text}")).endswith(f" — {said}")
-    assert asyncio.run(module.analytics_command(f"record gap {text}")).endswith(f" — {said}")
-    events = module.core.read_events(module.core.Project(root))
-    assert [len(e["text"]) for e in events[-3:]] == [4000] * 3
-    assert "Truncated" not in text_of(call(tools_of(module)["analytics_record"],
-                                           {"kind": "finding", "text": "short"}))
+    long = "근거와 한계를 함께 적는다. " * 300 + "END"
+    reply = call(tools_of(module)["analytics_record"], {"kind": "finding", "text": long})
+    assert not reply.is_error and "Truncated" not in text_of(reply)
+    assert module.core.read_events(module.core.Project(root))[-1]["text"] == long
+    journal = (root / "journal.jsonl").read_bytes()
+    too_long = "가" * (module.core.writer.TEXT_LIMIT // 3 + 1)
+    refused = call(tools_of(module)["analytics_record"], {"kind": "finding", "text": too_long})
+    assert refused.is_error and refused.details["error"]["code"] == "text_too_long"
+    assert refused.details["error"]["details"]["text_bytes"] == len(too_long.encode("utf-8"))
+    said = asyncio.run(module.analytics_command(f"record finding {too_long}"))
+    assert "error [text_too_long]" in said, said[:300]
+    assert (root / "journal.jsonl").read_bytes() == journal
+    assert not hasattr(module, "note_cut") and not hasattr(module.core, "MAX_EVENT_TEXT")
+
+
+def test_a_gap_record_from_the_model_is_stopped_before_and_by_the_tool(lab):
+    """design 2.8: the tool's kind enum is writer.RECORD_KINDS, which has no `gap`. aelix 0.1.0b2
+    checks a call's arguments against the tool's schema before the tool runs (the agent loop's
+    validate_tool_arguments), so the model is shown the enum, workflow_feedback in it. A call that
+    reaches the tool all the same (a host that does not check) is refused as bad_kind naming
+    workflow_feedback, and nothing is written."""
+    from aelix_ai.tools import ToolArgumentValidationError, validate_tool_arguments
+
+    module, root = lab
+    tool = tools_of(module)["analytics_record"]
+    assert tool.parameters["properties"]["kind"]["enum"] == list(module.core.writer.RECORD_KINDS)
+    with pytest.raises(ToolArgumentValidationError) as caught:
+        asyncio.run(validate_tool_arguments(tool, {"kind": "gap", "text": "the tools got in the way"}))
+    assert "'gap' is not one of" in str(caught.value) and "workflow_feedback" in str(caught.value)
+    journal = (root / "journal.jsonl").read_bytes()
+    refused = call(tool, {"kind": "gap", "text": "the tools got in the way"})
+    assert refused.is_error and refused.details["error"]["code"] == "bad_kind"
+    assert refused.details["error"]["details"]["use"] == "workflow_feedback"
+    assert (root / "journal.jsonl").read_bytes() == journal
 
 
 def test_an_error_says_what_its_details_leave_out(lab, monkeypatch):
@@ -1011,7 +1071,8 @@ NEW_MARKER = {"schema": "analytics.project/2", "project_id": "prj_7f3a9c2e41d84b
 # A column: the markers of a project the extension made (lab.json, analytics.json; None removes it,
 # bytes are written as they are) and what a write is refused with there. `both` refuses reads too.
 EXT_COLUMNS = {
-    "analytics_2": (None, NEW_MARKER, "project_too_new"),
+    "lab_project_1": ({"schema": "lab.project/1", "title": "t"}, None, "migration_required"),
+    "analytics_2_too_old": (None, {**NEW_MARKER, "min_writer_version": "99.0"}, "writer_too_old"),
     "lab_project_9": ({"schema": "lab.project/9", "title": "t"}, None, "project_too_new"),
     "analytics_invalid": (None, b'{"schema": "analytics.pro', "marker_invalid"),
     "both": ({"schema": "lab.project/1", "title": "t"}, NEW_MARKER, "marker_conflict"),
@@ -1044,7 +1105,7 @@ def test_the_extension_writes_only_where_the_kit_may(tmp_path, monkeypatch, colu
                              origin=module.core.Origin("test", "sdk"))
     (root / "CONTEXT.md").write_text("# changed since the last version\n", encoding="utf-8")
     lab_value, new_value, refused = EXT_COLUMNS[column]
-    (root / "lab.json").unlink()
+    (root / "analytics.json").unlink()
     for name, value in (("lab.json", lab_value), ("analytics.json", new_value)):
         if value is not None:
             (root / name).write_bytes(value if isinstance(value, bytes) else json.dumps(value).encode())
@@ -1054,7 +1115,7 @@ def test_the_extension_writes_only_where_the_kit_may(tmp_path, monkeypatch, colu
     source.write_text("a,b\n1,2\n", encoding="utf-8")
     kit_calls, started = [], []
 
-    async def no_kit(project, args, *, timeout, actor="agent"):
+    async def no_kit(project, args, *, timeout, actor="agent", means="tool"):
         kit_calls.append(args[0])
         return True, {"ok": True, "columns": [], "rows": [], "truncated": False, "limit": 50,
                       "tables": [], "views": {}, "elapsed_ms": 0}
@@ -1081,6 +1142,8 @@ def test_the_extension_writes_only_where_the_kit_may(tmp_path, monkeypatch, colu
     status = tool_row("analytics_status", {}, read=True)
     if not reads_refused:
         assert "\nread only: " in text_of(status)
+        # A lab.json project says how a person copies it into the current format (design 7).
+        assert (column == "lab_project_1") is (module.core.OLDER_FORMAT_LINE in text_of(status))
     tool_row("analytics_query", {"sql": "SELECT 1"}, read=True)
     assert kit_calls == ([] if reads_refused else ["query"])
 
@@ -1120,13 +1183,15 @@ def test_the_extension_writes_only_where_the_kit_may(tmp_path, monkeypatch, colu
 
 def test_the_extension_finds_the_nearest_marker_from_the_working_directory(tmp_path, monkeypatch):
     """design 4.3: an analytics.json directory below a lab.json project, as aelix's working
-    directory, is that directory — the extension does not write to the project above it."""
+    directory, is that directory — the extension writes there, never to the project above it."""
+    from legacy_records import LegacyProject
+
     module = fresh_module()
     monkeypatch.setenv("AELIX_ANALYTICS_TRUST_FILE", str(tmp_path / "trust.json"))
     monkeypatch.delenv("AELIX_ANALYTICS_PROJECT", raising=False)
-    root = tmp_path / "old"
-    module.core.init_project(root, title="old", template_dir=module.KIT / "aelix_analytics" / "template",
-                             origin=module.core.Origin("test", "sdk"))
+    root = LegacyProject(tmp_path / "old", title="old")
+    root.event("project")
+    root = root.root
     sub = root / "new"
     sub.mkdir()
     (sub / "analytics.json").write_text(json.dumps(NEW_MARKER), encoding="utf-8")
@@ -1134,8 +1199,8 @@ def test_the_extension_finds_the_nearest_marker_from_the_working_directory(tmp_p
     monkeypatch.chdir(sub)
     journal = (root / "journal.jsonl").read_bytes()
     result = call(tools_of(module)["analytics_record"], {"kind": "finding", "text": "x"})
-    assert result.is_error and result.details["error"]["code"] == "project_too_new"
-    assert str(sub) in result.details["error"]["message"]
+    assert not result.is_error, text_of(result)
+    assert (sub / "journal.jsonl").read_bytes().count(b"\n") == 1
     assert (root / "journal.jsonl").read_bytes() == journal
     assert module.resolve_project()[0].root == module.core.Project(sub).root
 
@@ -1166,9 +1231,60 @@ def test_a_run_reply_shows_both_record_forms_and_their_comparisons(lab, tmp_path
     for record in (v1, v2):
         images, with_png = module.chart_images(project, record, ctx)
         assert (len(images), with_png) == (1, 1)
-        text = module.render_run(project, {"run": record, "event": "e9", "page": "report/runs/x.html"},
+        text = module.render_run(project, {"run": record, "event": "e9", "page": "workspace/runs/x.html"},
                                  (len(images), with_png))
         assert "charts (1):" in text and "scripts/a.py::trend \"Trend\"" in text
         assert "reproduction of 20261007-090000-a: mismatch (inputs same; trend: image bytes differ)" in text
         replies.append(text)
     assert replies[0] == replies[1]
+
+
+def test_the_extension_tells_its_kit_children_how_it_started_them(lab, monkeypatch):
+    """design 4.2 (D3): a kit child the extension starts records the means it was started by —
+    AELIX_ANALYTICS_MEANS, an internal protocol beside the actor and the session: `tool` for the
+    model's tools and the render after a record, `command` for /analytics, `hook` for the render
+    after a turn. A child that is no kit command (uv sync) gets none, and neither does the aelix
+    process's own environment."""
+    module, root = lab
+    processes = module.core.PLATFORM.processes
+    env = module.child_env(processes, "agent", "tool")
+    assert (env["AELIX_ANALYTICS_ACTOR"], env["AELIX_ANALYTICS_MEANS"]) == ("agent", "tool")
+    assert "AELIX_ANALYTICS_MEANS" not in module.child_env(processes, "system")
+    assert "AELIX_ANALYTICS_MEANS" not in os.environ
+    asked = []
+
+    async def kit(project, args, *, timeout, actor="agent", means="tool"):
+        asked.append((args[0], actor, means))
+        return True, {"ok": True, "workspace": {"path": "x"}}
+
+    monkeypatch.setattr(module, "run_kit", kit)
+    asyncio.run(module.analytics_command("render"))
+    assert asked == [("render", "human", "command")]
+    started = []
+    monkeypatch.setattr(module, "resolve_uv", lambda processes=None: "uv")
+    monkeypatch.setattr(module.subprocess, "Popen",
+                        lambda argv, **kwargs: started.append(kwargs["env"]) or SimpleNamespace(poll=lambda: 0))
+    assert not call(tools_of(module)["analytics_record"], {"kind": "note", "text": "x"}).is_error
+    module.on_agent_end(SimpleNamespace(), SimpleNamespace())
+    assert [(e["AELIX_ANALYTICS_ACTOR"], e["AELIX_ANALYTICS_MEANS"]) for e in started] == [
+        ("system", "tool"), ("system", "hook")]
+
+
+def test_a_named_destination_of_an_unfinished_migration_is_refused_as_such(lab, tmp_path, monkeypatch):
+    """design 4.3: a directory named as the project — AELIX_ANALYTICS_PROJECT, --analytics-project,
+    /analytics use — that holds a migration's record and no marker is a migration's destination that
+    has not committed: migration_incomplete, saying how far the migration went, not a directory
+    that is no project."""
+    module, _root = lab
+    dest = tmp_path / "dest"
+    (dest / ".analytics" / "migration" / "20261008T010203Z-a1b2c3d4").mkdir(parents=True)
+    monkeypatch.setenv("AELIX_ANALYTICS_PROJECT", str(dest))
+    result = call(tools_of(module)["analytics_status"], {})
+    assert result.is_error and result.details["error"]["code"] == "migration_incomplete", text_of(result)
+    assert result.details["error"]["details"]["migrations"][0]["id"] == "20261008T010203Z-a1b2c3d4"
+    monkeypatch.delenv("AELIX_ANALYTICS_PROJECT")
+    module.STATE["project"] = str(dest)
+    result = call(tools_of(module)["analytics_status"], {})
+    assert result.is_error and result.details["error"]["code"] == "migration_incomplete", text_of(result)
+    assert "error [migration_incomplete]" in asyncio.run(module.analytics_command(f"use {dest}"))
+    assert sorted(p.name for p in dest.iterdir()) == [".analytics"]

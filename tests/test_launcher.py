@@ -139,10 +139,12 @@ def uv_args(call) -> list[str]:
     return call["argv"]
 
 
-def project_dir(tmp_path, name="proj") -> Path:
+def project_dir(tmp_path, name="proj", marker="analytics.json") -> Path:
+    """A directory with a project marker (`marker`): the launcher looks at its presence only and the
+    kit judges what it holds. The new format's by default, whose page is workspace/index.html."""
     root = tmp_path / name
     root.mkdir()
-    (root / "lab.json").write_text("{}", encoding="utf-8")
+    (root / marker).write_text("{}", encoding="utf-8")
     return root.resolve()
 
 
@@ -283,8 +285,10 @@ def test_each_command_reaches_the_kit_in_the_project_environment(fake, tmp_path,
     assert done.returncode == 0, done.stderr
     [call] = calls(fake)
     assert uv_args(call) == kit_call(project, *expected)
+    # No actor of their own (design 4.2, OQ1): without AELIX_ANALYTICS_ACTOR the kit records `human`
+    # as inferred, not declared.
     assert call["env"] == {"PYTHONPATH": str(KIT), "MPLBACKEND": "Agg",
-                           "PYTHONDONTWRITEBYTECODE": "1", "AELIX_ANALYTICS_ACTOR": "human",
+                           "PYTHONDONTWRITEBYTECODE": "1", "AELIX_ANALYTICS_ACTOR": None,
                            "VIRTUAL_ENV": None}
 
 
@@ -368,9 +372,9 @@ def test_open_refuses_a_directory_with_two_markers(fake, tmp_path, which):
     `open` does not open a page already built there either. It looks at the markers' presence only,
     as the search does, and starts neither uv nor the opener."""
     project = project_dir(tmp_path)
-    (project / "analytics.json").write_text("{}", encoding="utf-8")
-    (project / "report").mkdir()
-    (project / "report" / "index.html").write_text("<html>", encoding="utf-8")
+    (project / "lab.json").write_text("{}", encoding="utf-8")
+    (project / "workspace").mkdir()
+    (project / "workspace" / "index.html").write_text("<html>", encoding="utf-8")
     opened = tmp_path / "opened.txt"
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
@@ -400,7 +404,7 @@ def test_open_counts_a_marker_link_as_the_kit_does(fake, tmp_path, which, kind, 
     only marker entry is such a link is passed over: the kit builds the project's page and that page
     opens (both commands had opened the directory's, which does not exist). A looping analytics.json
     beside the lab.json is a second marker (marker_conflict): refused, neither uv nor the opener."""
-    project = project_dir(tmp_path)
+    project = project_dir(tmp_path, marker="lab.json")
     here = project / "inner" if where == "below" else project
     here.mkdir(exist_ok=True)
     odd_marker(here / "analytics.json", kind)
@@ -509,7 +513,7 @@ def test_init_and_demo_create_sync_then_build_or_fill(fake, tmp_path, which, com
     assert done.stdout == (b"DEMO-JSON\n" if command == "demo" else b"")
     stderr = done.stderr.decode("utf-8")
     assert f"{NAME[which]}: syncing the project environment" in stderr
-    assert f"{NAME[which]}: report at {project / 'report' / 'index.html'}" in stderr
+    assert f"{NAME[which]}: Workspace at {project / 'workspace' / 'index.html'}" in stderr
     assert f"({NAME[which]} open, from inside the project)" in stderr
 
 
@@ -527,7 +531,7 @@ def test_init_stops_at_the_first_failing_step(fake, tmp_path, which):
                   do={"sync": {"exit": 1}, "sync-offline": {"exit": 4}})
     assert done.returncode == 4
     assert len(calls(fake)) == 3
-    assert f"{NAME[which]}: report at" not in done.stderr.decode("utf-8")
+    assert f"{NAME[which]}: Workspace at" not in done.stderr.decode("utf-8")
 
 
 # --- open -----------------------------------------------------------------------------------------
@@ -538,8 +542,8 @@ def test_init_stops_at_the_first_failing_step(fake, tmp_path, which):
 def test_open_builds_a_missing_report_then_hands_it_to_the_opener(fake, tmp_path, built):
     project = project_dir(tmp_path)
     if built:
-        (project / "report").mkdir()
-        (project / "report" / "index.html").write_text("<html>", encoding="utf-8")
+        (project / "workspace").mkdir()
+        (project / "workspace" / "index.html").write_text("<html>", encoding="utf-8")
     opened = tmp_path / "opened.txt"
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
@@ -551,17 +555,19 @@ def test_open_builds_a_missing_report_then_hands_it_to_the_opener(fake, tmp_path
     done = launch(fake, "open", cwd=project, do={"render": {"stdout": b"REPORT\n".hex()}},
                   PATH=f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
     assert done.returncode == 5
-    assert opened.read_text(encoding="utf-8") == f"{project / 'report' / 'index.html'}\n"
+    assert opened.read_text(encoding="utf-8") == f"{project / 'workspace' / 'index.html'}\n"
     assert [uv_args(c) for c in calls(fake)] == ([] if built else [kit_call(project, "render")])
     assert done.stdout == b""
 
 
 @pytest.mark.skipif(not POSIX, reason="os.startfile would open a real program on Windows")
 @pytest.mark.parametrize("which", WHICH)
-def test_open_needs_no_uv_for_a_built_report(fake, tmp_path, which):
-    """Review of 7cfe851, launcher-1: bin/analytics runs uv only to build a missing report, and the
-    launcher looked it up first and exited 127."""
-    project = project_dir(tmp_path)
+def test_open_shows_a_lab_json_project_s_page_and_says_it_is_not_updated(fake, tmp_path, which):
+    """design 7 (Issue #13 PR 3): a lab.json project is read only to this kit, so its page is
+    report/index.html as an older kit built it — opened when it is there, with a line that says the
+    kit no longer updates it and where to read how to migrate; uv is not started. An analytics.json
+    project's page is workspace/index.html, and nothing is said about it."""
+    project = project_dir(tmp_path, marker="lab.json")
     (project / "report").mkdir()
     (project / "report" / "index.html").write_text("<html>", encoding="utf-8")
     opened = tmp_path / "opened.txt"
@@ -575,6 +581,31 @@ def test_open_needs_no_uv_for_a_built_report(fake, tmp_path, which):
                   PATH=f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
     assert done.returncode == 0, done.stderr
     assert opened.read_text(encoding="utf-8") == f"{project / 'report' / 'index.html'}\n"
+    assert done.stderr.decode("utf-8") == (
+        f"analytics: {project} uses the older record format (lab.json): the kit reads it and no longer "
+        "updates this page; analytics status says how to migrate it\n")
+    assert not calls(fake)
+
+
+@pytest.mark.skipif(not POSIX, reason="os.startfile would open a real program on Windows")
+@pytest.mark.parametrize("which", WHICH)
+def test_open_needs_no_uv_for_a_built_report(fake, tmp_path, which):
+    """Review of 7cfe851, launcher-1: bin/analytics runs uv only to build a missing report, and the
+    launcher looked it up first and exited 127."""
+    project = project_dir(tmp_path)
+    (project / "workspace").mkdir()
+    (project / "workspace" / "index.html").write_text("<html>", encoding="utf-8")
+    opened = tmp_path / "opened.txt"
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for name in ("open", "xdg-open"):
+        opener = bin_dir / name
+        opener.write_text(f"#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{opened}'\n", encoding="utf-8")
+        opener.chmod(0o755)
+    done = launch(fake, "open", cwd=project, which=which, AELIX_ANALYTICS_UV=str(tmp_path / "no-uv"),
+                  PATH=f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+    assert done.returncode == 0, done.stderr
+    assert opened.read_text(encoding="utf-8") == f"{project / 'workspace' / 'index.html'}\n"
 
 
 @pytest.mark.parametrize(("name", "status"), [("SIGINT", 130), ("SIGTERM", 143)])
@@ -582,8 +613,8 @@ def test_open_starts_no_opener_once_a_signal_has_arrived(tmp_path, monkeypatch, 
     """Review of 7cfe851, R1: the opener started after a signal that arrived once the report was
     there, which no other step does."""
     project = project_dir(tmp_path)
-    (project / "report").mkdir()
-    (project / "report" / "index.html").write_text("<html>", encoding="utf-8")
+    (project / "workspace").mkdir()
+    (project / "workspace" / "index.html").write_text("<html>", encoding="utf-8")
     opened = []
 
     class Processes:
@@ -613,7 +644,7 @@ def test_open_through_the_windows_port_builds_a_missing_report_then_starts_it(
     file then goes to os.startfile: exit 0. A file no program is associated with (WinError 1155) is
     exit 1 and the message. Off Windows the Windows port is built by name; a real opener is not run."""
     project = project_dir(tmp_path)
-    index = project / "report" / "index.html"
+    index = project / "workspace" / "index.html"
     started = []
 
     def startfile(path, *args, **kwargs):

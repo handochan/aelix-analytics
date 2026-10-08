@@ -142,7 +142,7 @@ def test_records_are_the_same_bytes_everywhere(tmp_path):
 # filled in (an edit of the template changes these).
 NEW_PROJECT_SHA256 = {
     ".gitattributes": "66b748264be11611b9428c43a486454118278853b83c13397133c946929b6c15",
-    ".gitignore": "aef713a60722de4da421ee30ce5d73f1bb0f2428518b681591967c82f6a0625a",
+    ".gitignore": "9a7128ef037b02a37df92002ecc27e3f2901b95f2a19d85f440e98cd830da87f",
     "pyproject.toml": "09f536b1d9faf106e903d4614a308e28fc23e15cf0c346e939de82e828bb4b28",
     ".python-version": "7b55f8e67b5623c4bef3fa691288da9437d79d3aba156de48d481db32ac7d16d",
 }
@@ -158,17 +158,17 @@ def test_a_new_project_s_text_is_lf(tmp_path):
     assert (root / ".gitattributes").read_bytes() == (TEMPLATE / "gitattributes").read_bytes()
     assert (root / ".gitattributes").read_bytes().endswith(b"\n* -text\n")
     assert (root / ".gitignore").read_bytes() == (TEMPLATE / "gitignore").read_bytes()
-    for name in ("lab.json", "CONTEXT.md", "journal.jsonl", ".lab/cache/hashes.json"):
+    for name in ("analytics.json", "CONTEXT.md", "journal.jsonl", ".analytics/cache/hashes.json"):
         if (root / name).exists():
             assert b"\r" not in (root / name).read_bytes(), name
-    assert (root / "lab.json").read_bytes() == canonical((root / "lab.json").read_bytes())
+    assert (root / "analytics.json").read_bytes() == canonical((root / "analytics.json").read_bytes())
     versions = core.context_versions(project)
     assert [v.read_bytes() for v in versions] == [(root / "CONTEXT.md").read_bytes()]
 
 
 def test_values_filled_into_the_template_are_lf(tmp_path):
     """A title or goal with a CR (from a tool's argument) does not bring one into the copies (design
-    review C4); lab.json and the journal keep the text, escaped by JSON."""
+    review C4); analytics.json and the journal keep the text, escaped by JSON."""
     project = core.init_project(tmp_path / "proj", title="Two\r\nlines", goal="Goal\r\nwith\rends",
                                 template_dir=TEMPLATE, origin=core.Origin("test", "sdk"))
     context = project.context.read_bytes()
@@ -264,7 +264,7 @@ def test_charts_and_the_workspace_are_lf(tmp_path):
     code, result = kit_cli(project.root, "run", "scripts/charts.py", "--title", "charts")
     assert code == 0 and result["run"]["status"] == "ok", result
     run_id = result["run"]["id"]
-    charts = project.runs / run_id / "charts"
+    charts = project.runs / run_id / "visualizations"
     assert (charts / "html-chart.html").read_bytes() == HTML_CHART
     assert (charts / "altair-chart.html").read_bytes() == ALTAIR_CHART
     assert b"\r" not in (charts / "plotly-chart.plotly.json").read_bytes()
@@ -507,7 +507,7 @@ def test_old_crlf_records_are_read_and_kept(project):
     assert code == 0 and result["run"]["status"] == "ok", result
     run_json = root / "runs" / result["run"]["id"] / "run.json"
     trust = core.trust_file()
-    crlf_files = [root / "lab.json", run_json, root / "data" / "raw" / "sales.meta.json", trust,
+    crlf_files = [root / "analytics.json", run_json, root / "data" / "imported" / "sales.meta.json", trust,
                   root / "journal.jsonl"]
     for path in crlf_files:
         path.write_bytes(path.read_bytes().replace(b"\n", b"\r\n"))

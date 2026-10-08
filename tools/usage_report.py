@@ -535,9 +535,11 @@ class Host:
             raise RuntimeError(f"the call left {len(left)} task(s) running on the host's loop, "
                                f"cancelled them: {names}") from error
 
-    async def _run_kit(self, project, args, *, timeout, actor="agent"):
+    async def _run_kit(self, project, args, *, timeout, actor="agent", means="tool"):
         """What the kit command would print, prepared by the fixture: through JSON, as the
-        extension reads it from the command's last stdout line."""
+        extension reads it from the command's last stdout line. `actor` and `means` are what the
+        extension would hand the kit (its run_kit's keywords); the prepared result does not depend
+        on them."""
         self.kit_commands.append([str(a) for a in args])
         if not self.kit_results:
             return False, {"ok": False, "error": {"code": "harness_no_result",
@@ -1882,7 +1884,7 @@ def build_context_fixture(ctx: Ctx, spec: Spec, root: Path | None = None) -> Sim
 
 def dataset_meta(project, name: str, *, rows: int, columns: list[dict], description: str,
                  source: str, sha: str, size: int, imported_at: str) -> dict:
-    return {"schema": "lab.dataset/1", "name": name, "path": f"data/raw/{name}.parquet",
+    return {"schema": "analytics.dataset/1", "name": name, "path": f"data/imported/{name}.parquet",
             "sha256": sha, "bytes": size, "rows": rows, "columns": columns,
             "description": description, "imported_at": imported_at,
             "source": {"path": source, "sha256": sha, "bytes": size, "format": "csv",
@@ -1891,28 +1893,32 @@ def dataset_meta(project, name: str, *, rows: int, columns: list[dict], descript
 
 def write_dataset(ctx: Ctx, project, name: str, *, rows: int, columns: list[dict],
                   description: str, source: str, event: bool = True) -> dict:
-    """A dataset as `analytics import` leaves it: data/raw/<name>.parquet (a marker file here: nothing in
-    the aelix process reads its content) and the meta.json next to it."""
+    """A dataset as `analytics import` leaves it: data/imported/<name>.parquet (a marker file here:
+    nothing in the aelix process reads its content), the meta.json next to it and its import event,
+    written by the kit's common writer as the import writes them (Issue #13 PR 3)."""
     core = ctx.host.core
-    project.raw.mkdir(parents=True, exist_ok=True)
+    project.imported.mkdir(parents=True, exist_ok=True)
     content = f"PAR1 synthetic dataset {name}\n".encode()
-    (project.raw / f"{name}.parquet").write_bytes(content)
+    (project.imported / f"{name}.parquet").write_bytes(content)
     meta = dataset_meta(project, name, rows=rows, columns=columns, description=description,
                         source=source, sha=sha256_bytes(content), size=len(content),
                         imported_at=core.iso())
-    core.write_json(project.raw / f"{name}.meta.json", meta)
+    records = core.writer_for(project, core.Origin("test", "sdk"))
+    records.write_dataset(project.imported / f"{name}.meta.json", meta)
     if event:
-        core.append_event(project, "import",
-                          f"imported {name}: {rows:,} rows × {len(columns)} columns from "
-                          f"{Path(source).name} — {description}",
-                          refs={"data": [meta["path"]]}, origin=core.Origin("test", "sdk"))
+        records.record("import", f"imported {name}: {rows:,} rows × {len(columns)} columns from "
+                                 f"{Path(source).name} — {description}",
+                       refs=[core.kit_reference("dataset_import", path=meta["path"],
+                                                digest={"sha256": meta["sha256"]})])
     return meta
 
 
 def write_run(ctx: Ctx, project, run_id: str, *, title: str, script: str, code: str,
               inputs: list, outputs: list, charts: list, stdout: str, stderr: str) -> dict:
     """An ok run's directory as the runner leaves it (record, code snapshot, logs) and its journal
-    entry; its warnings are the runner's own (run_warnings)."""
+    entry, written by the kit's common writer (analytics.run/2 and its completion event, Issue #13
+    PR 3); its warnings are the runner's own (run_warnings). `charts` are the run's Visualizations
+    (visualization_id, …, the sha256 of their file)."""
     core, kit = ctx.host.core, ctx.kit
     run_dir = project.runs / run_id
     snapshot = run_dir / "code" / script
@@ -1925,12 +1931,14 @@ def write_run(ctx: Ctx, project, run_id: str, *, title: str, script: str, code: 
     (run_dir / "stdout.txt").write_bytes(stdout.encode("utf-8"))
     (run_dir / "stderr.txt").write_bytes(stderr.encode("utf-8"))
     record = {
-        "schema": "lab.run/1", "id": run_id, "title": title, "status": "ok",
-        "started_at": core.iso(), "actor": "test", "session": None, "rerun_of": None,
+        "schema": "analytics.run/2", "id": run_id, "title": title, "status": "ok",
+        "started_at": core.iso(), "actor": "test", "actor_basis": "declared", "means": "sdk",
+        "session": None, "rerun_of": None,
         "script": {"path": script, "sha256": sha256_bytes((project.root / script).read_bytes()),
                    "snapshot": f"runs/{run_id}/code/{script}"},
         "ended_at": core.iso(), "duration_s": 3.1, "modules": [],
-        "inputs": sorted(inputs, key=lambda i: i["path"]), "outputs": outputs, "charts": charts,
+        "inputs": sorted(inputs, key=lambda i: i["path"]), "outputs": outputs,
+        "visualizations": charts,
         "error": None, "stdout": f"runs/{run_id}/stdout.txt",
         "stderr": f"runs/{run_id}/stderr.txt",
         "env": {"python": "3.12.13", "platform": "synthetic", "packages": {
@@ -1938,16 +1946,10 @@ def write_run(ctx: Ctx, project, run_id: str, *, title: str, script: str, code: 
             "plotly": "6.3.1", "numpy": "2.3.3"}, "uv_lock_sha256": None,
             "kit_version": core.KIT_VERSION, "kit_sha256": kit.runner.kit_sha()}}
     record["warnings"] = kit.runner.run_warnings(record, kit.core.Project(project.root))
-    core.write_json(run_dir / "run.json", record)
-    written = sorted({o["path"] for o in outputs if o.get("change") != "deleted"})
-    read = sorted({i["path"] for i in inputs} - set(written))
-    refs = {"runs": [run_id], "charts": [core.chart_key(record, c) for c in charts],
-            "data": (written + read)[:core.MAX_EVENT_REFS]}
-    text = f"{title} — ok"
-    if len(written) + len(read) > len(refs["data"]):
-        text += f"; {len(read):,} input file(s), {len(written)} output(s) — see the run page"
-    event = core.append_event(project, "run", text, refs=refs, origin=core.Origin("test", "sdk"))
-    return {"record": record, "event": event["id"], "dir": run_dir}
+    records = core.writer_for(project, core.Origin("test", "sdk"))
+    records.write_run(run_dir, record)
+    event = records.record("run", f"{title} — ok", refs=[core.kit_reference("run", run_id=run_id)])
+    return {"record": record, "event": event.event["id"], "dir": run_dir}
 
 
 def f2t_records(ctx: Ctx, spec: Spec, project) -> tuple[dict, dict]:
@@ -1962,18 +1964,18 @@ def f2t_records(ctx: Ctx, spec: Spec, project) -> tuple[dict, dict]:
     run = write_run(ctx, project, run_id, title="Orders by region" if lang == "en" else "지역별 주문",
                     script="scripts/01_orders.py", code="import aelix_analytics as analytics\n",
                     inputs=[{"path": meta["path"], "sha256": meta["sha256"],
-                             "bytes": meta["bytes"], "via": ["lab.read"], "external": False}],
+                             "bytes": meta["bytes"], "via": ["analytics.read"], "external": False}],
                     outputs=[], charts=[], stdout="rows 1200\n", stderr="")
-    core.add_note(project, "question", f"{marker(spec.id, 'OPEN')}: {sentence(lang, 1)}",
-                  origin=core.Origin("test", "sdk"))
-    core.add_note(project, "finding", f"{marker(spec.id, 'KEY')}: {sentence(lang, 2)}",
-                  origin=core.Origin("test", "sdk"))
-    core.add_note(project, "note", f"{marker(spec.id, 'RECENT')}: {sentence(lang, 3)}",
-                  origin=core.Origin("test", "sdk"))
+    core.record(project, "question", f"{marker(spec.id, 'OPEN')}: {sentence(lang, 1)}",
+                origin=core.Origin("test", "sdk"))
+    core.record(project, "finding", f"{marker(spec.id, 'KEY')}: {sentence(lang, 2)}",
+                origin=core.Origin("test", "sdk"))
+    core.record(project, "note", f"{marker(spec.id, 'RECENT')}: {sentence(lang, 3)}",
+                origin=core.Origin("test", "sdk"))
     journal = (project.journal,)
     facts = {
         "latest-run": fact_of(spec, "latest-run", (run_id,), (run["dir"] / "run.json",)),
-        "dataset": fact_of(spec, "dataset", (name,), (project.raw / f"{name}.meta.json",)),
+        "dataset": fact_of(spec, "dataset", (name,), (project.imported / f"{name}.meta.json",)),
         "recent-note": fact_of(spec, "recent-note", (marker(spec.id, "RECENT"),), journal),
         "open-question": fact_of(spec, "open-question", (marker(spec.id, "OPEN"),), journal),
         "key-finding": fact_of(spec, "key-finding", (marker(spec.id, "KEY"),), journal),
@@ -2035,12 +2037,14 @@ def build_f3(ctx: Ctx, spec: Spec, root: Path | None = None) -> SimpleNamespace:
                         "via": "diff"})
     charts = []
     for i in range(15):
-        rel = f"runs/{run_id}/charts/trend-{i:02d}.png"
+        rel = f"runs/{run_id}/visualizations/trend-{i:02d}.png"
         (project.root / rel).parent.mkdir(parents=True, exist_ok=True)
-        (project.root / rel).write_bytes(png(rgb=(42, 120 + i, 214)))
-        charts.append({"id": f"trend-{i:02d}", "title": f"{'추세' if ko else 'Trend'} {i:02d}",
-                       "kind": "matplotlib", "via": "plt.show", "data": None,
-                       "files": {"png": rel}, "line": 11})
+        image = png(rgb=(42, 120 + i, 214))
+        (project.root / rel).write_bytes(image)
+        charts.append({"visualization_id": f"trend-{i:02d}",
+                       "title": f"{'추세' if ko else 'Trend'} {i:02d}", "kind": "matplotlib",
+                       "via": "plt.show", "files": {"png": rel}, "line": 11,
+                       "sha256": sha256_bytes(image)})
     head = marker(spec.id, "STDOUTFIRST")
     last = marker(spec.id, "STDOUTLAST")
     progress = "진행 로그 — 지역별 합계를 계산하는 중입니다" if ko else \
@@ -2063,7 +2067,7 @@ def build_f3(ctx: Ctx, spec: Spec, root: Path | None = None) -> SimpleNamespace:
     kit_result = {"ok": True, "run": record, "event": run["event"],
                   "stdout_tail": kit.runner._tail(run["dir"] / "stdout.txt"),
                   "stderr_tail": kit.runner._tail(run["dir"] / "stderr.txt"),
-                  "page": f"report/runs/{run_id}.html", "workspace": built}
+                  "page": f"workspace/runs/{run_id}.html", "workspace": built}
     sorted_inputs = record["inputs"]
     run_json = run["dir"] / "run.json"
     facts = {f"input-{i:03d}": fact_of(spec, f"input-{i:03d}", (
@@ -2254,14 +2258,14 @@ def measure_f3d(ctx: Ctx, spec: Spec) -> None:
     run = write_run(ctx, project, run_id, title="Read all parts", script="scripts/01_parts.py",
                     code="import aelix_analytics as analytics\n", inputs=[], outputs=[], charts=[],
                     stdout="503\n", stderr="")
-    core.add_note(project, "question", f"{marker(spec.id, 'OPEN')}: {SENTENCES['en'][1]}",
-                  origin=core.Origin("test", "sdk"))
-    core.add_note(project, "note", f"{marker(spec.id, 'RECENT')}: {SENTENCES['en'][3]}",
-                  origin=core.Origin("test", "sdk"))
+    core.record(project, "question", f"{marker(spec.id, 'OPEN')}: {SENTENCES['en'][1]}",
+                origin=core.Origin("test", "sdk"))
+    core.record(project, "note", f"{marker(spec.id, 'RECENT')}: {SENTENCES['en'][3]}",
+                origin=core.Origin("test", "sdk"))
     journal = (project.journal,)
     facts = {"latest-run": fact_of(spec, "latest-run", (run_id,), (run["dir"] / "run.json",)),
              "dataset-300": fact_of(spec, "dataset-300", ("part_300",),
-                                    (project.raw / "part_300.meta.json",)),
+                                    (project.imported / "part_300.meta.json",)),
              "recent-note": fact_of(spec, "recent-note", (marker(spec.id, "RECENT"),), journal),
              "open-question": fact_of(spec, "open-question", (marker(spec.id, "OPEN"),), journal)}
     built = SimpleNamespace(project=project, facts=facts,
@@ -2285,15 +2289,15 @@ def measure_journal(ctx: Ctx, spec: Spec) -> None:
         text = f"{'발견' if lang == 'ko' else 'Finding'} {i:02d}: {sentences[i % 8]}"
         if i == 3:
             text = f"{marker(spec.id, 'KEY003')}: {text}"
-        core.add_note(project, "finding", text, origin=core.Origin("test", "sdk"))
+        core.record(project, "finding", text, origin=core.Origin("test", "sdk"))
     for i in range(1, 24):
         kind = "question" if i % 3 else "todo"
-        core.add_note(project, kind, f"{kind} {i:02d}: {sentences[(i + 3) % 8]}", origin=core.Origin("test", "sdk"))
+        core.record(project, kind, f"{kind} {i:02d}: {sentences[(i + 3) % 8]}", origin=core.Origin("test", "sdk"))
     pad = "근거와 한계를 함께 적는다. " if lang == "ko" else \
         "The evidence and its limits are written down together. "
     long_text = (pad * (2500 // len(pad) + 1))[:2500] + marker(spec.id, "LONG2500") + " "
     long_text += (pad * (1400 // len(pad) + 1))[:3900 - len(long_text)]
-    core.add_note(project, "finding", long_text, origin=core.Origin("test", "sdk"))
+    core.record(project, "finding", long_text, origin=core.Origin("test", "sdk"))
     journal = (project.journal,)
     facts = {"finding-003": fact_of(spec, "finding-003", (marker(spec.id, "KEY003"),), journal),
              "long-finding-2500": fact_of(spec, "long-finding-2500",
@@ -2368,7 +2372,7 @@ def query_result(ctx: Ctx, lang: str) -> dict:
                                        date(2025, 1 + i % 12, 1 + i % 28), round(i / 499, 4))])
     return {"ok": True, "columns": [{"name": n, "type": t} for n, t in QUERY_COLUMNS],
             "rows": rows, "truncated": True, "limit": 500, "tables": ["orders"],
-            "views": {"orders": "data/raw/orders.parquet"}, "elapsed_ms": 12.5}
+            "views": {"orders": "data/imported/orders.parquet"}, "elapsed_ms": 12.5}
 
 
 def measure_query(ctx: Ctx, spec: Spec) -> None:
@@ -2419,7 +2423,7 @@ def measure_import(ctx: Ctx, spec: Spec) -> None:
               "elapsed_s": 0.4}
     facts = {"column-250": fact_of(spec, "column-250", (columns[250]["name"],
                                                         columns[250]["dtype"]),
-                                   (project.raw / "wide_table.meta.json",))}
+                                   (project.imported / "wide_table.meta.json",))}
     built = SimpleNamespace(project=project, facts=facts, truth=Truth(project.context, None),
                             base=project.root.parent)
     fixture_info(ctx, spec, built)
@@ -2596,12 +2600,12 @@ def measure_scale(ctx: Ctx, spec: Spec) -> None:
     lines = []
     for i in range(events_n):
         seq = start + i + 1
-        lines.append(json.dumps({"schema": "lab.event/1", "seq": seq, "id": f"e{seq}",
-                                 "ts": (CLOCK_START + timedelta(seconds=i)).isoformat(
+        lines.append(json.dumps({"schema": "analytics.event/2", "seq": seq, "id": f"e{seq}",
+                                 "recorded_at": (CLOCK_START + timedelta(seconds=i)).isoformat(
                                      timespec="milliseconds"), "kind": kinds[i % 5],
-                                 "actor": "test",
+                                 "actor": "test", "actor_basis": "declared", "means": "sdk",
                                  "text": f"entry {i}: region {i % 17} grew {i % 9}% apart",
-                                 "refs": {}}, ensure_ascii=False))
+                                 "refs": []}, ensure_ascii=False))
     with open(project.journal, "ab") as fh:  # bytes: "\n" line ends on every OS
         fh.write(("\n".join(lines) + "\n").encode("utf-8"))
     for i in range(runs_n):
@@ -2610,13 +2614,17 @@ def measure_scale(ctx: Ctx, spec: Spec) -> None:
         run_dir = project.runs / run_id
         run_dir.mkdir(parents=True, exist_ok=True)
         core.write_json(run_dir / "run.json", {
-            "schema": "lab.run/1", "id": run_id, "title": f"run {i}", "status": "ok",
+            "schema": "analytics.run/2", "id": run_id, "title": f"run {i}", "status": "ok",
             "started_at": (CLOCK_START + timedelta(seconds=i)).isoformat(),
-            "duration_s": 1.0, "script": {"path": f"scripts/s{i % 10}.py", "sha256": "0" * 64},
-            "inputs": [{"path": ds["path"], "sha256": ds["sha256"], "via": ["lab.read"]}],
-            "outputs": [], "charts": [{"id": f"c{i % 10}", "title": f"chart {i % 10}",
-                                       "kind": "matplotlib", "via": "lab.chart", "data": None,
-                                       "files": {}}], "warnings": []})
+            "duration_s": 1.0, "actor": "test",
+            "script": {"path": f"scripts/s{i % 10}.py", "sha256": "0" * 64,
+                       "snapshot": f"runs/{run_id}/code/scripts/s{i % 10}.py"},
+            "inputs": [{"path": ds["path"], "sha256": ds["sha256"], "via": ["analytics.read"]}],
+            "outputs": [], "visualizations": [{
+                "visualization_id": f"c{i % 10}", "title": f"chart {i % 10}", "kind": "matplotlib",
+                "via": "analytics.visualize",
+                "files": {"png": f"runs/{run_id}/visualizations/c{i % 10}.png"},
+                "sha256": "0" * 64}], "warnings": []})
     built = SimpleNamespace(project=project, facts={}, truth=Truth(project.context, None),
                             base=project.root.parent)
     fixture_info(ctx, spec, built)
@@ -2641,12 +2649,14 @@ def measure_baseline(ctx: Ctx, spec: Spec) -> None:
     host = ctx.host
     target = project.root.parent / "made-by-lab-init"
     host.use(None)
-    host.kit_results.append((True, {"ok": True, "workspace": {"path": "report/index.html"}}))
+    host.kit_results.append((True, {"ok": True, "workspace": {"path": "workspace/index.html"}}))
     reply = host.tool("init", {"path": str(target), "title": "새 분석", "goal": "측정"})
     host.use(None)
     ctx.text(spec.id, "S9", reply.text, root=Path(os.path.realpath(target)),
              base=project.root.parent, is_error=reply.is_error,
              environment_sync="synthetic: reported as synced from network")
+    if reply.is_error:  # the measured surface is an init that succeeds; an error is a failure
+        raise RuntimeError(f"analytics_init answered an error: {reply.text[:1000]}")
 
 
 def fixture_info(ctx: Ctx, spec: Spec, built) -> None:
@@ -2654,7 +2664,7 @@ def fixture_info(ctx: Ctx, spec: Spec, built) -> None:
     digest = hashlib.sha256()
     for path in sorted(root.rglob("*")):
         rel = path.relative_to(root).as_posix()
-        if not path.is_file() or rel.startswith((".lab/cache/", "report/")):
+        if not path.is_file() or rel.startswith((".analytics/cache/", "workspace/")):
             continue
         data = path.read_bytes()
         if path.suffix in (".json", ".jsonl", ".md", ".txt", ".py", ".csv", ".toml"):

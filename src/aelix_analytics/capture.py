@@ -25,6 +25,11 @@ from . import _platform, core
 
 ACTIVE: RunState | None = None
 
+# The `via` of what the script API records (design 2.6, OQ5): the SDK function's own spelling. A
+# lab.run/1 record holds the older names (lab.chart, lab.save, lab.read, lab.scan, lab.sql).
+VISUALIZE, SAVE, READ, SCAN, SQL = ("analytics.visualize", "analytics.save", "analytics.read",
+                                    "analytics.scan", "analytics.sql")
+
 # Validated categorical order and chart chrome (dataviz reference palette, light surface).
 PALETTE = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#4a3aa7", "#e34948"]
 INK, INK_2, MUTED, GRID, AXIS, SURFACE = ("#0b0b0b", "#52514e", "#898781", "#e1e0d9", "#c3c2b7",
@@ -119,8 +124,13 @@ class RunState:
         # The SDK's writes in a run are by the run's actor, made through the SDK (design 4.2).
         self.sdk_origin = (core.Origin(origin.actor, "sdk", origin.actor_basis, origin.session)
                            if origin is not None else None)
+        # The request the run answers (design 4.9): the caller's request_id, else one the kit made,
+        # given in the answer only.
+        self.request_id = (origin.request_id if origin is not None and origin.request_id
+                           else core.new_request_id())
         self.run_dir = run_dir
-        self.charts_dir = run_dir / "charts"
+        # Where the run's Visualizations are written: runs/<id>/visualizations/ (design 2.6).
+        self.charts_dir = run_dir / project.layout.visualizations_dir
         self.script_file = str(script_file)
         self.cache = core.HashCache(project)
         self.inputs: dict[str, dict] = {}
@@ -189,8 +199,8 @@ class RunState:
         # read it by, so it meets the path the walk gives the file as an output.
         rel, real = located or self.project.locate(path)
         # By that path: a run's own files are left out wherever runs/ leads and however it is
-        # spelled (a managed directory is named by the kit's name, core.MANAGED_DIRS).
-        if rel.startswith((f"runs/{self.run_id}/", ".venv/", ".lab/")):
+        # spelled (a managed directory is named by the kit's name, the layout's managed_dirs).
+        if rel.startswith((f"runs/{self.run_id}/", ".venv/", f"{self.project.layout.state_dir}/")):
             return
         # The file the judgment reached, as the namespace is now: the path a record holds can come
         # from the table of the walk before the script, through a link the script has repointed.
@@ -245,18 +255,18 @@ class RunState:
     # --- charts ---
 
     def capture(self, obj, chart_id=None, *, title=None, caption=None, data=None,
-                via="lab.chart") -> dict | None:
+                via=VISUALIZE) -> dict | None:
         """Record a chart. Every analytics.visualize call is its own chart (a later call with the same id
         replaces the earlier one). Automatic captures (plt.show, fig.show, figures left open)
         skip a figure that an earlier capture already saved and that has not changed since."""
         core.admit(self.project, "visualize")
         target, kind = _figure_kind(obj)
-        explicit = via == "lab.chart"
+        explicit = via == VISUALIZE
         prior = self._by_figure.get(id(target)) if target is not None else None
         if prior is not None and not self._changed(target, kind, prior[1]):
             if not explicit:
                 return prior[0]  # None when this figure's chart was deliberately replaced
-            if prior[0] is not None and prior[0]["via"] != "lab.chart":
+            if prior[0] is not None and prior[0]["via"] != VISUALIZE:
                 self._discard(prior[0])  # shown first, then named: keep only the named chart
         if explicit and chart_id:
             wanted = core.slugify(chart_id, 40)
@@ -336,7 +346,18 @@ class RunState:
                     cid = self._unique_id(p.stem)
                     self.charts.append({"id": cid, "kind": "file", "title": p.stem,
                                         "caption": None, "via": "file", "line": None,
-                                        "files": {p.suffix.lower().lstrip("."): rel}})
+                                        "files": {p.suffix.lower().lstrip("."): rel},
+                                        "sha256": core.sha256_file(p)})
+
+    def visualizations(self) -> list[dict]:
+        """The run's Visualizations as an analytics.run/2 record holds them (design 2.6, OQ5): each
+        chart record with its id as `visualization_id` first, the sha256 of the bytes the kit wrote
+        for it, and `data_sha256` of its attached data."""
+        out = []
+        for chart in self.charts:
+            out.append({"visualization_id": chart["id"],
+                        **{k: v for k, v in chart.items() if k != "id"}})
+        return out
 
     def _unique_id(self, label) -> str:
         base = core.slugify(label or "", 40)
@@ -388,7 +409,8 @@ class RunState:
             dest = self.charts_dir / f"{cid}.png"
             dest.write_bytes(png)
             record["files"] = {"png": self.project.rel(dest)}
-            return _sha(png)
+            record["sha256"] = _sha(png)
+            return record["sha256"]
         # The chart files below are text the kit writes: UTF-8 and LF on every platform (ADR-0007
         # decision 2). HTML is made LF inside too — a browser reads a CRLF or lone CR in HTML as
         # LF, <pre> and attributes included, so the page shows the same.
@@ -397,19 +419,24 @@ class RunState:
             dest = self.charts_dir / f"{cid}.plotly.json"
             core.write_text(dest, text)
             record["files"] = {"plotly": self.project.rel(dest)}
-            return _sha(text.encode())
+            record["sha256"] = _sha(text.encode())
+            return record["sha256"]
         if kind == "altair":
             dest = self.charts_dir / f"{cid}.html"
             # altair opens a path it is given in text mode (CRLF on Windows): take the text instead.
             buf = io.StringIO()
             obj.save(buf, format="html")
-            core.write_text(dest, core.newlines_as_lf(buf.getvalue()))
+            text = core.newlines_as_lf(buf.getvalue())
+            core.write_text(dest, text)
             record["files"] = {"html": self.project.rel(dest)}
+            record["sha256"] = _sha(text.encode("utf-8"))
             return None
         if kind == "html":
             dest = self.charts_dir / f"{cid}.html"
-            core.write_text(dest, core.newlines_as_lf(obj._repr_html_()))
+            text = core.newlines_as_lf(obj._repr_html_())
+            core.write_text(dest, text)
             record["files"] = {"html": self.project.rel(dest)}
+            record["sha256"] = _sha(text.encode("utf-8"))
             return None
         src = self.project.path(os.fspath(obj))
         if not src.is_file():
@@ -418,6 +445,7 @@ class RunState:
         if src.resolve() != dest.resolve():
             shutil.copyfile(src, dest)
         record["files"] = {src.suffix.lower().lstrip("."): self.project.rel(dest)}
+        record["sha256"] = core.sha256_file(dest)
         record["source_file"] = self.project.rel(src)
         return None
 
@@ -429,6 +457,7 @@ class RunState:
         record["data"] = self.project.rel(dest)
         record["data_rows"] = frame.height
         record["data_columns"] = frame.columns[:60]
+        record["data_sha256"] = core.sha256_file(dest)
 
 
 def _render_png(fig) -> bytes:
@@ -461,7 +490,7 @@ def save_dataset(project: core.Project, obj, name: str, state: RunState | None =
         to_polars(obj).write_parquet(dest)
     if state is not None:
         rel, real = project.locate(dest)
-        state.saved[rel] = "lab.save"
+        state.saved[rel] = SAVE
         state._saved_real[rel] = real
     return dest
 

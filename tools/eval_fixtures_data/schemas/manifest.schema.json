@@ -19,6 +19,8 @@
     "seed": {"type": "integer"},
     "format": {"enum": ["v1"]},
     "kit_version": {"type": "string", "minLength": 1},
+    "kit_commit": {"type": ["string", "null"],
+                   "description": "The git commit of the runtime root whose kit wrote the records, null where git cannot tell it (an archive)."},
     "project": {"const": "project"},
     "clock": {
       "type": "object",

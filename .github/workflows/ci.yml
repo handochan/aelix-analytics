@@ -90,10 +90,14 @@ jobs:
       matrix:
         os: ${{ fromJSON(github.event.action == 'labeled' && '["macos-26"]' || (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.macos)) && '["ubuntu-24.04","windows-2025","macos-26"]' || '["ubuntu-24.04","windows-2025"]') }}
     steps:
+      # The whole history: tests/test_eval_fixtures.py makes the v1 fixtures' kit from an older commit of
+      # this repository (tools/eval_fixtures.py V1_KIT_COMMIT, git archive; design OQ7), which a shallow
+      # checkout does not hold.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           version: "0.11.19"

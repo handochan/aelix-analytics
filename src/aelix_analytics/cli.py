@@ -47,7 +47,7 @@ analytics — human CLI for Aelix Analytics projects (the same kit the aelix ext
   analytics import FILE [--name N] [--description D]
   analytics query "SQL" [--limit N]
   analytics record KIND "TEXT" [--ref R] [--resolves eN]
-  analytics render | open                     rebuild | open report/index.html
+  analytics render | open                     rebuild | open the Workspace page
 
 Commands other than init/demo use the project in AELIX_ANALYTICS_PROJECT, else the nearest directory
 at or above the current one with an analytics.json or a lab.json; the kit judges it.
@@ -130,8 +130,8 @@ def _command(args: list[str], kit: Path | None, uv_argv: list[str] | None,
             code = children.run(kit_argv(uv, project, "render"), env, stdout=subprocess.DEVNULL)
         if code or children.interrupted:
             return code or children.stopped
-        index = Path(project) / "report" / "index.html"
-        _say(f"analytics: report at {index} (analytics open, from inside the project)")
+        index = Path(project) / "workspace" / "index.html"
+        _say(f"analytics: Workspace at {index} (analytics open, from inside the project)")
         return 0
 
     project = find_project()
@@ -149,7 +149,13 @@ def _command(args: list[str], kit: Path | None, uv_argv: list[str] | None,
             # their presence is looked at, not what they hold.
             _say(two_markers_message(project))
             return 1
-        index = Path(project) / "report" / "index.html"
+        # The page of the project's layout, by its marker's name (the kit reads what it holds): an
+        # analytics.json project's workspace/, a lab.json project's report/, which this kit opens
+        # when it is there and does not build or update (migration_required).
+        older = not kit_marker(Path(project), MARKERS[0])
+        index = Path(project) / ("report" if older else "workspace") / "index.html"
+        if older and index.is_file():
+            _say(older_page_message(project))
         if not index.is_file():
             # uv only to build the report: opening one needs none, as with bin/analytics.
             uv = uv_argv or _uv(processes)
@@ -180,8 +186,9 @@ def child_env(kit: Path) -> dict[str, str]:
     `aelix_analytics` and nothing else of the environment this command is installed in. Children write no bytecode into the installed kit,
     which an uninstall would otherwise leave behind."""
     env = {name: value for name, value in os.environ.items() if name != "VIRTUAL_ENV"}
-    env.update({"PYTHONPATH": str(kit), "MPLBACKEND": "Agg", "PYTHONDONTWRITEBYTECODE": "1",
-                "AELIX_ANALYTICS_ACTOR": os.environ.get("AELIX_ANALYTICS_ACTOR") or "human"})
+    # AELIX_ANALYTICS_ACTOR goes on as the caller set it, and only then: without it the kit records
+    # `human` as inferred, not declared (design 4.2, OQ1).
+    env.update({"PYTHONPATH": str(kit), "MPLBACKEND": "Agg", "PYTHONDONTWRITEBYTECODE": "1"})
     return env
 
 
@@ -230,6 +237,11 @@ def kit_root(found: str) -> str:
         if any(kit_marker(directory, marker) for marker in MARKERS):
             return str(directory)
     return found
+
+
+def older_page_message(project: str) -> str:
+    return (f"analytics: {project} uses the older record format (lab.json): the kit reads it and no "
+            "longer updates this page; analytics status says how to migrate it")
 
 
 def two_markers_message(project: str) -> str:

@@ -774,7 +774,8 @@ def cli_end_to_end(ctx):
     steps["rerun"]["verdict"] = verdict
     all_ok = all_ok and good and verdict == "match"
     good, _ = step("report", "render")
-    index = root / "report" / "index.html"
+    # The new format's Workspace (kit 0.8.0; report/ before it, where a lab.json project's still is).
+    index = root / "workspace" / "index.html"
     steps["report"]["index_exists"] = index.is_file()
     all_ok = all_ok and good and index.is_file()
     good, result = step("status", "status")

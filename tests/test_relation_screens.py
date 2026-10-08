@@ -3,8 +3,9 @@
 analytics_status's overview (core.status and core.status_text, which `/analytics status` and the
 kit's `status` give too) and the Workspace (workspace.build) read the records once through
 relations.read, so they name the same targets by the same identifiers and say which read they were
-made from (as_of_seq, source_revision). The projects are lab.json projects written record by record
-(tests/legacy_records.py), so each case states exactly which records exist.
+made from (as_of_seq, source_revision). The projects hold records an older kit wrote, written record by
+record (tests/legacy_records.py) under the new format's marker — what a migration leaves, which this kit
+renders (it builds no Workspace for a lab.json project) — so each case states exactly which records exist.
 """
 
 from __future__ import annotations
@@ -34,7 +35,7 @@ def overview(p: LegacyProject) -> tuple[dict, str]:
 
 
 def built(p: LegacyProject) -> dict[str, str]:
-    """The Workspace's pages, by path under report/."""
+    """The Workspace's pages, by path under workspace/."""
     project = project_of(p)
     workspace.build(project)
     return {path.relative_to(project.workspace_dir).as_posix(): path.read_text(encoding="utf-8")
@@ -45,7 +46,7 @@ def evidence_project(tmp_path) -> SimpleNamespace:
     """Runs that write one table with the same bytes, a run that consumes it, a failed run, a table
     overwritten since its run, a table no run wrote, and a finding citing a run, a chart key left
     unbound, an earlier event, a later one and a table."""
-    p = LegacyProject(tmp_path / "p")
+    p = LegacyProject(tmp_path / "p", migrated=True)
     base = p.dataset("base", imported_at=at(1))
     p.event("import", {"data": [base]}, ts=at(2))
     base_sha = core.sha256_file(p.root / base)
@@ -111,7 +112,7 @@ def test_a_key_entry_counts_its_references_by_state(tmp_path):
 
 
 def test_a_list_of_targets_names_three_and_says_where_the_rest_are(tmp_path):
-    p = LegacyProject(tmp_path / "p")
+    p = LegacyProject(tmp_path / "p", migrated=True)
     p.event("finding", {"events": [f"e{90 + i}" for i in range(5)],
                         "charts": [f"scripts/s.py::c{i}" for i in range(5)]}, text="five later")
     _, text = overview(p)
@@ -123,7 +124,7 @@ def test_a_key_entry_whose_references_need_no_look_has_no_refs_summary(tmp_path)
     """The overview names an entry's references only when one of them needs a look (missing,
     ambiguous, changed, unsupported); the counts of one whose references resolve or are left unbound
     are in the JSON. At M scale those summaries cut the newest entries (review of 8d2ecc7)."""
-    p = LegacyProject(tmp_path / "p")
+    p = LegacyProject(tmp_path / "p", migrated=True)
     run = p.run("20261001-090000-a", started_at=at(0), ts=at(1))
     finding = p.event("finding", {"runs": [run], "charts": ["scripts/a.py::c"]}, ts=at(5), text="fine")
     st, text = overview(p)
@@ -134,7 +135,7 @@ def test_a_key_entry_whose_references_need_no_look_has_no_refs_summary(tmp_path)
 
 
 def test_a_target_is_one_short_line_and_an_unreadable_field_is_named(tmp_path):
-    p = LegacyProject(tmp_path / "p")
+    p = LegacyProject(tmp_path / "p", migrated=True)
     long_id = "e" + "9" * 200
     finding = p.event("finding", {"events": [long_id + "\nx"], "weird": ["x"]}, text="odd")
     st, text = overview(p)
@@ -171,7 +172,7 @@ def test_a_dataset_names_every_run_that_output_its_bytes_and_never_the_last_one(
 
 
 def test_more_than_three_candidates_are_counted_with_where_to_read_them(tmp_path):
-    p = LegacyProject(tmp_path / "p")
+    p = LegacyProject(tmp_path / "p", migrated=True)
     table = ("data/derived/t.parquet", p.file("data/derived/t.parquet", b"same"))
     runs = [p.run(f"20261001-09{i:02d}00-r{i}", started_at=at(i), ts=at(i), outputs=[table])
             for i in range(5)]
@@ -196,7 +197,7 @@ def test_a_dataset_that_cannot_be_hashed_has_an_unknown_producer(tmp_path):
 def test_an_import_record_this_kit_cannot_read_gives_only_its_place(tmp_path):
     """A lab.dataset/2 record was counted unsupported while its rows, hash, description and source
     filled the dataset's line and page (review of 8d2ecc7)."""
-    p = LegacyProject(tmp_path / "p")
+    p = LegacyProject(tmp_path / "p", migrated=True)
     p.dataset("future", imported_at=at(1), schema="lab.dataset/2")
     place = {"location": "data/raw/future.meta.json", "reason": "unknown_version"}
     st, text = overview(p)
@@ -263,7 +264,7 @@ def test_a_stale_candidate_upstream_is_not_said_to_be_a_changed_input(tmp_path):
 def test_a_diamond_is_no_cycle_and_a_true_cycle_ends(tmp_path):
     """Critique must-change 2: a run reached twice through two producers is not a cycle; two runs
     that started at the same instant and read each other's output are, and the walk ends."""
-    p = LegacyProject(tmp_path / "p")
+    p = LegacyProject(tmp_path / "p", migrated=True)
     a = ("data/derived/a.parquet", p.file("data/derived/a.parquet", b"a"))
     b = ("data/derived/b.parquet", p.file("data/derived/b.parquet", b"b"))
     c = ("data/derived/c.parquet", p.file("data/derived/c.parquet", b"c"))
@@ -279,7 +280,7 @@ def test_a_diamond_is_no_cycle_and_a_true_cycle_ends(tmp_path):
     assert fresh.of(bottom)["stale_upstream"] == [left, right] and fresh.of(bottom)["cycle"] is False
     assert top not in fresh.of(bottom)["stale_upstream"]
 
-    q = LegacyProject(tmp_path / "q")
+    q = LegacyProject(tmp_path / "q", migrated=True)
     x = ("data/derived/x.parquet", q.file("data/derived/x.parquet", b"x"))
     y = ("data/derived/y.parquet", q.file("data/derived/y.parquet", b"y"))
     one = q.run("20261001-090000-one", started_at=at(0), ts=at(1), inputs=[y], outputs=[x], charts=["p"])
@@ -297,7 +298,7 @@ def test_a_diamond_is_no_cycle_and_a_true_cycle_ends(tmp_path):
 # --- runs, records and lines --------------------------------------------------------------------
 
 def test_a_run_whose_recording_did_not_finish_says_why(tmp_path):
-    p = LegacyProject(tmp_path / "p")
+    p = LegacyProject(tmp_path / "p", migrated=True)
     lost = p.run("20261001-090000-lost", completion=False)
     partial = p.run("20261001-091000-partial", finalize_errors=["journal: disk full"])
     stopped = p.run("20261001-092000-stopped", status="running", pid=4294967295, completion=False)
@@ -315,7 +316,7 @@ def test_a_run_whose_recording_did_not_finish_says_why(tmp_path):
 
 
 def test_records_the_lists_cannot_show_are_counted_where_they_are(tmp_path):
-    p = LegacyProject(tmp_path / "p")
+    p = LegacyProject(tmp_path / "p", migrated=True)
     p.event("finding", text="first")
     for _ in range(7):
         p.event("verdict")  # a kind the /1 writer never wrote
@@ -341,7 +342,7 @@ def test_records_the_lists_cannot_show_are_counted_where_they_are(tmp_path):
 
 
 def test_only_records_of_a_newer_version_are_said_to_be_for_a_newer_kit(tmp_path):
-    p = LegacyProject(tmp_path / "p")
+    p = LegacyProject(tmp_path / "p", migrated=True)
     p.event("note", schema="lab.event/9")
     p.event("note", schema="other.event/1")
     st, text = overview(p)
@@ -353,7 +354,7 @@ def test_only_records_of_a_newer_version_are_said_to_be_for_a_newer_kit(tmp_path
 def test_an_id_on_many_lines_names_two_lines_an_id_and_five_in_all(tmp_path):
     """One id on 1,200 lines named every line: a 15,800-character line that cut the overview to
     nothing (review of 8d2ecc7). The rest of the lines are in the status JSON's shared_ids."""
-    p = LegacyProject(tmp_path / "p")
+    p = LegacyProject(tmp_path / "p", migrated=True)
     for n in range(1200):
         p.event("note", seq=1, text=f"note {n}")
     for seq in (2, 3, 4):
@@ -375,7 +376,7 @@ def test_an_id_on_many_lines_names_two_lines_an_id_and_five_in_all(tmp_path):
 def test_a_cut_line_and_the_record_appended_onto_it(tmp_path):
     """F3: the record a /1 writer appended onto a cut-off line was lost with it. Now it is read, the
     line is counted as damaged, and an id two lines have is two records, each named by its line."""
-    p = LegacyProject(tmp_path / "p")
+    p = LegacyProject(tmp_path / "p", migrated=True)
     p.event("question", text="why?")
     p.raw(b'{"schema": "lab.event/1", "seq": 2, "id": "e2", "kind": "fin')  # cut off
     p.event("finding", text="appended", seq=2)
@@ -395,7 +396,7 @@ def test_a_cut_line_and_the_record_appended_onto_it(tmp_path):
 
 
 def test_a_read_that_keeps_changing_is_said_on_both_screens(tmp_path):
-    p = LegacyProject(tmp_path / "p")
+    p = LegacyProject(tmp_path / "p", migrated=True)
     p.run("20261001-090000-live", status="running", pid=4242, completion=False)
 
     class Appending:
@@ -464,7 +465,7 @@ def test_a_dataset_page_says_a_run_holds_its_bytes_only_when_one_does(tmp_path):
     assert "<h3>Successful runs that recorded an output at this path</h3>" in x
     assert case.overwritten in x and "same bytes as now" not in x
 
-    q = LegacyProject(tmp_path / "q")
+    q = LegacyProject(tmp_path / "q", migrated=True)
     path = "data/derived/t.parquet"
     made = q.run("20261001-090000-made", started_at=at(0), ts=at(1), outputs=[(path, q.file(path, b"one"))])
     gone = q.run("20261001-091000-gone", script="scripts/g.py", started_at=at(10), ts=at(11),
@@ -481,7 +482,7 @@ def test_the_timeline_says_the_state_of_a_closing_reference(tmp_path):
     """A record closed by an earlier record's refs.resolves (a forward reference the read judges
     missing, D1) showed "✓ 해결됨" (now "✓ Resolved by") while analytics_status said missing (review of 8d2ecc7). The
     lists still select as C1 says; the badge says the judgment."""
-    p = LegacyProject(tmp_path / "p")
+    p = LegacyProject(tmp_path / "p", migrated=True)
     asked = p.event("question", text="asked")
     closes = p.event("finding", {"resolves": asked}, text="answered")
     early = p.event("finding", {"resolves": "e4"}, text="early")
@@ -498,7 +499,7 @@ def test_the_timeline_says_the_state_of_a_closing_reference(tmp_path):
 
 
 def test_a_chart_link_from_a_record_is_escaped(tmp_path):
-    p = LegacyProject(tmp_path / "p")
+    p = LegacyProject(tmp_path / "p", migrated=True)
     run = p.run("20261001-090000-a", started_at=at(0), ts=at(1), charts=["a&copy"])
     index = built(p)["index.html"]
     assert f'href="runs/{run}.html#chart-a&amp;copy"' in index
@@ -506,7 +507,7 @@ def test_a_chart_link_from_a_record_is_escaped(tmp_path):
 
 
 def test_an_event_reference_to_an_id_on_several_lines_has_candidate_records(tmp_path):
-    p = LegacyProject(tmp_path / "p")
+    p = LegacyProject(tmp_path / "p", migrated=True)
     p.event("finding", text="one", seq=1)
     p.event("finding", text="two", seq=1)
     p.event("decision", {"events": ["e1"]}, seq=2, text="cites e1")
@@ -516,7 +517,7 @@ def test_an_event_reference_to_an_id_on_several_lines_has_candidate_records(tmp_
 
 
 def test_labels_and_paths_from_records_are_escaped(tmp_path):
-    p = LegacyProject(tmp_path / "p")
+    p = LegacyProject(tmp_path / "p", migrated=True)
     p.event("finding", {"charts": ['scripts/a.py::<img src=x onerror="alert(1)">'],
                         "other": ["<script>alert(2)</script>"], "events": ['e9"><b>']}, text="x")
     _, text = overview(p)
@@ -566,7 +567,7 @@ def older_kit_screens(tmp_path, monkeypatch, *, folder: str = "", script: str = 
     Project.legacy_identity is replaced by a mapping so every platform reads the same (the reader's
     tests read a real file system). `folder` puts the table in a folder of that name, `script`
     names the script."""
-    p = LegacyProject(tmp_path / "p")
+    p = LegacyProject(tmp_path / "p", migrated=True)
     p.file(f"scripts/{script}.py", b"# plot\n")
     derived = f"data/derived/{folder}/" if folder else "data/derived/"
     base = ("data/raw/base.parquet", p.file("data/raw/base.parquet", b"base"))
@@ -591,9 +592,13 @@ def older_kit_screens(tmp_path, monkeypatch, *, folder: str = "", script: str = 
 
 
 def records_of(root: Path) -> dict[str, bytes]:
-    """The project's files but what the screens write (report/, the kit's cache)."""
+    """The project's files but what the screens write (the Workspace, the kit's cache and locks)."""
+    def written(parts: tuple) -> bool:
+        return parts[0] in ("report", "workspace") or parts[0] in (".lab", ".analytics") and (
+            parts[1] == "cache" or parts[-1] == "lock" or parts[-1].endswith(".lock"))
+
     return {path.relative_to(root).as_posix(): path.read_bytes() for path in sorted(root.rglob("*"))
-            if path.is_file() and path.relative_to(root).parts[0] not in ("report", ".lab")}
+            if path.is_file() and not written(path.relative_to(root).parts)}
 
 
 def test_the_overview_says_which_relations_are_inferred_from_an_older_kit_s_path(tmp_path, monkeypatch):
@@ -714,7 +719,7 @@ def test_v2_records_are_listed_with_the_v1_ones_by_their_replayed_state(tmp_path
     the state the read model replays (ADR-0006 6): a /2 finding withdrawn by a record_update is not
     key information, a /2 question a /2 resolve closed is not open, and a /1 question a /2 record
     resolves is closed too. workflow_feedback is Workflow feedback, as `gap` is."""
-    p = LegacyProject(tmp_path / "p")
+    p = LegacyProject(tmp_path / "p", migrated=True)
     old_question = p.event("question", text="old question")
     kept = v2_event(p, "finding", "kept finding")
     withdrawn = v2_event(p, "finding", "withdrawn finding")
@@ -746,7 +751,7 @@ def test_the_context_history_of_both_state_directories_is_shown(tmp_path):
     .analytics/context/ (the new format's) and of .lab/context/, as a context reference resolves
     them: status says when the context last changed, and the Workspace's history lists every version
     with the anchor the Timeline links to. A name in both directories is the .analytics one."""
-    p = LegacyProject(tmp_path / "p")
+    p = LegacyProject(tmp_path / "p", migrated=True)
     old = "20261001-090000-000000_aaaaaaaaaaaa.md"
     new = "20261008-090000-000000_0123456789ab.md"
     p.file(f".lab/context/{old}", b"# Goal\nthe old context\n")
@@ -768,8 +773,10 @@ def test_the_context_history_of_both_state_directories_is_shown(tmp_path):
     assert "Recorded context" in context and "not the one a reference resolves to" not in context
     assert f"context.html#v-{new[:-3]}" in pages["index.html"]
     assert "2 recorded version(s)" in pages["index.html"]
-    # The kit still writes its own versions to .lab/context/ only.
+    # The kit writes its own versions to .analytics/context/ only (design 4.8).
     p.file("CONTEXT.md", b"# Goal\nnow\n")
     core.sync_context(project, origin=core.Origin("test", "cli"))
-    assert len(list((p.root / ".lab" / "context").glob("*.md"))) == 3
-    assert sorted(x.name for x in (p.root / ".analytics" / "context").iterdir()) == [new]
+    assert len(list((p.root / ".lab" / "context").glob("*.md"))) == 2
+    written = sorted(x.name for x in (p.root / ".analytics" / "context").iterdir())
+    assert len(written) == 2 and written[0] == new and written[1].endswith(
+        f"_{core.sha256_bytes(b'# Goal' + bytes([10]) + b'now' + bytes([10]))[:12]}.md")

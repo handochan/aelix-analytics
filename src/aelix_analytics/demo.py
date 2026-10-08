@@ -23,7 +23,7 @@ REGIONS = {"Seoul": (1.00, 0.55), "Gyeonggi": (0.80, 0.45), "Busan": (0.45, 0.25
 CONTEXT = """# {title}
 
 > The **current context** of this analysis, kept up to date by people and agents together.
-> Each change leaves a version in `.lab/context/` and an entry on the journal's timeline.
+> Each change leaves a version in `.analytics/context/` and an entry on the journal's timeline.
 
 ## Goal <!-- pin -->
 Find out how fast each region moves its sales online, as a basis for the 2026 store plan.
@@ -83,11 +83,20 @@ def generate(path: Path) -> Path:
     return path
 
 
-def _run(project: core.Project, script: str, title: str, actor: str, extra=()) -> dict:
+def _run(project: core.Project, script: str, title: str, origin: core.Origin, extra=()) -> dict:
+    """One run of the demo by the kit's command line, as asked by `origin`: the child records the
+    caller's actor, actor_basis, means and session (design 4.2) — an actor the caller did not
+    declare is left for the child to fill in as well, so it stays `inferred`."""
     env = dict(os.environ)
     kit = str(Path(__file__).resolve().parent.parent)
     env["PYTHONPATH"] = kit + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
-    env["AELIX_ANALYTICS_ACTOR"] = actor
+    env.pop("AELIX_ANALYTICS_ACTOR", None)
+    if origin.actor_basis == "declared":
+        env["AELIX_ANALYTICS_ACTOR"] = origin.actor
+    env["AELIX_ANALYTICS_MEANS"] = origin.means
+    env.pop("AELIX_ANALYTICS_SESSION", None)
+    if origin.session:
+        env["AELIX_ANALYTICS_SESSION"] = origin.session
     env["MPLBACKEND"] = "Agg"
     cmd = [sys.executable, "-m", "aelix_analytics", "--project", str(project.root), "run",
            *([script] if script else []), "--title", title, *extra]
@@ -109,7 +118,6 @@ def populate(project: core.Project, *, origin: core.Origin) -> dict:
     """Fill a new, empty project, as asked by `origin`. Refused before anything is written where
     this kit does not write (core.admit, Issue #13)."""
     core.admit(project, "demo")
-    actor = origin.actor
     if core.list_runs(project) or core.list_datasets(project):
         raise core.AnalyticsError("demo_not_empty", "demo needs a new, empty project",
                                   hint="analytics demo NEW_DIR creates a new project and fills it")
@@ -125,11 +133,11 @@ def populate(project: core.Project, *, origin: core.Origin) -> dict:
         with resources.as_file(script) as source:
             shutil.copyfile(source, project.scripts / script.name)
 
-    first = _run(project, "scripts/01_monthly_revenue.py", "Monthly revenue trend", actor)
-    question = core.add_note(project, "question", "When did online revenue overtake store revenue?",
-                             origin=origin)
-    second = _run(project, "scripts/02_channel_mix.py", "Channel mix by region in 2025", actor)
-    third = _run(project, "scripts/03_region_growth.py", "Growth by region", actor)
+    first = _run(project, "scripts/01_monthly_revenue.py", "Monthly revenue trend", origin)
+    question = core.record(project, "question", "When did online revenue overtake store revenue?",
+                           origin=origin).event
+    second = _run(project, "scripts/02_channel_mix.py", "Channel mix by region in 2025", origin)
+    third = _run(project, "scripts/03_region_growth.py", "Growth by region", origin)
 
     import polars as pl
 
@@ -139,19 +147,19 @@ def populate(project: core.Project, *, origin: core.Origin) -> dict:
     month = crossed["month"][0].strftime("%Y-%m") if crossed.height else None
     finding_text = (f"Total online revenue first overtook store revenue in {month}." if month
                     else "Online revenue never overtook store revenue in a month of the period.")
-    core.add_note(project, "finding", finding_text, refs=[first["id"]], resolves=question["id"],
-                  origin=origin)
-    core.add_note(project, "assumption", "The data has no returns or cancellations, so revenue is "
-                  "summed as is.", refs=["sales"], origin=origin)
-    core.add_note(project, "decision", "Regions are compared by their 2025 annual totals.",
-                  refs=[second["id"], third["id"]], origin=origin)
-    core.add_note(project, "todo", "Change script 03 to analytics.visualize(data=...) so the growth "
-                  "chart records its data", refs=[third["id"]], origin=origin)
+    core.record(project, "finding", finding_text, refs=[first["id"]], resolves=question["id"],
+                origin=origin)
+    core.record(project, "assumption", "The data has no returns or cancellations, so revenue is "
+                "summed as is.", refs=["sales"], origin=origin)
+    core.record(project, "decision", "Regions are compared by their 2025 annual totals.",
+                refs=[second["id"], third["id"]], origin=origin)
+    core.record(project, "todo", "Change script 03 to analytics.visualize(data=...) so the growth "
+                "chart records its data", refs=[third["id"]], origin=origin)
     text = project.context.read_text(encoding="utf-8").replace(
         "- (none yet)", f"- {finding_text} (run {first['id']})")
     core.write_text(project.context, text)
     core.sync_context(project, origin=origin)
-    rerun = _run(project, "", "Rerun comparison of the monthly revenue", actor,
+    rerun = _run(project, "", "Rerun comparison of the monthly revenue", origin,
                  ["--rerun-of", first["id"]])
 
     from . import workspace

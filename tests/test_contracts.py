@@ -678,7 +678,7 @@ def _flow(root: Path, source: Path, platform) -> dict:
     project = core.init_project(root, title="교체 계약", goal="어느 구현이든 같은 기록",
                                 template_dir=TEMPLATE, origin=core.Origin("test", "sdk"), platform=platform)
     data.import_file(project, source, name="sales", description="test data", origin=core.Origin("test", "sdk"))
-    core.add_note(project, "finding", "구현을 바꿔도 같은 기록", refs=["sales"], origin=core.Origin("test", "sdk"))
+    core.record(project, "finding", "구현을 바꿔도 같은 기록", refs=["sales"], origin=core.Origin("test", "sdk"))
     stuck = project.runs / "20260922-101010-left-running"
     stuck.mkdir(parents=True)
     (stuck / "run.json").write_text(json.dumps({"schema": core.SCHEMA_RUN, "status": "running",
@@ -704,7 +704,7 @@ def test_the_injected_implementation_is_the_one_used(implementation, tmp_path, a
 
     assert seen["listed"] == [("20260922-101010-left-running", "incomplete")], seen["listed"]
     replaced = [args[-1] for what, args in calls if what == "files.replace"]
-    assert "sales.parquet" in replaced and "lab.json" in replaced, calls
+    assert "sales.parquet" in replaced and "analytics.json" in replaced, calls
     assert ("locks.exclusive", ("lock",)) in calls, calls
     assert ("processes.alive", (DEAD_PID,)) in calls, calls
 

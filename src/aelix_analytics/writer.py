@@ -8,8 +8,9 @@ docs/design/RECORD-WRITER-AND-MIGRATION.md sections 2–4 and 8). Standard libra
 - Whether this kit writes there (`admit`): every write operation asks before its first side effect —
   a lock file, a directory, a cache, a log line included — and a journal write asks once more under
   the journal lock (core). A write it refuses raises; a side write of a read (`side=True`) is
-  skipped instead. Which marker format this kit writes is the one constant WRITABLE: `lab.project/1`
-  until the new writer (PR 3 of #13) makes it `analytics.project/2`.
+  skipped instead. Which marker format this kit writes is the one constant WRITABLE:
+  `analytics.project/2` since the new writer (PR 3 of #13; `lab.project/1` before it). A lab.json
+  project is read and not written: its writes are refused as migration_required (design 7).
 - Who writes and how (`Origin`): an entry point says it, the writer never guesses it nor reads the
   environment (design 4.1). A `lab.event/1` record holds its actor and session only; the Writer's
   records hold all of it.
@@ -22,7 +23,7 @@ docs/design/RECORD-WRITER-AND-MIGRATION.md sections 2–4 and 8). Standard libra
   (text_too_long, OQ2), references bound when they are written, the journal lock with the marker
   judged again under it (`Writer.locked`), state changes judged by the reader's own replay
   (state_conflict), and the run and import records. It writes only to analytics.project/2
-  projects (Writer.WRITES), whatever WRITABLE says.
+  projects (Writer.WRITES, which is WRITABLE).
 
 This module imports `_platform` (ports) and `relations` (the read model) and nothing else of the
 package: `core` imports it and gives its names under the same names (core.AnalyticsError,
@@ -76,11 +77,9 @@ PERSONS_IGNORED = frozenset({"scripts", ".git", "__pycache__", ".pytest_cache", 
 @dataclass(frozen=True)
 class LegacyLayout:
     """The stored names of a `lab.json` project (design 2.3), which kits before the new writer write
-    and every kit reads. What core reads from here: `managed_dirs` and `ignored_dirs`
-    (core.MANAGED_DIRS, core.IGNORED_DIRS), `marker` and `schema` (the markers below) and
-    `imported_dir` (core.LEGACY_DATASET_DIRS). The other names are still spelled where paths are
-    built (core.Project, capture) until the entry points follow the layout a marker picks
-    (layout_of)."""
+    and every kit reads. A core.Project whose marker is `lab.json` takes its paths from here
+    (layout_of): this kit only reads such a project, and its migration copies `.lab/` to
+    `.analytics/`."""
 
     marker: str = "lab.json"
     schema: str = "lab.project/1"
@@ -89,9 +88,9 @@ class LegacyLayout:
     imported_dir: str = "data/raw"
     visualizations_dir: str = "charts"
     # The top-level directories the kit itself manages: a path below one is named by this name
-    # whatever case it is stored in and wherever it leads (core.MANAGED_DIRS).
+    # whatever case it is stored in and wherever it leads (core.Project._managed).
     managed_dirs: tuple[str, ...] = (".venv", ".lab", "runs", "report")
-    # The directories that are never data inputs or outputs of a run (core.IGNORED_DIRS).
+    # The directories that are never data inputs or outputs of a run (core.Project._walk_tree).
     ignored_dirs: frozenset[str] = frozenset({".venv", ".lab", "runs", "report"}) | PERSONS_IGNORED
     # The lock files in state_dir: the journal's (and the context history's), the runs', the
     # Workspace's.
@@ -135,9 +134,9 @@ MARKER = LAYOUT.marker
 LEGACY_MARKER = LEGACY_LAYOUT.marker
 PROJECT = LAYOUT.schema
 LEGACY_PROJECT = LEGACY_LAYOUT.schema
-# The marker formats this kit's entry points write to. PR 3 of #13 makes it {PROJECT} with the
-# writer of that format (Writer), which itself writes to no other format (Writer.WRITES).
-WRITABLE = frozenset({LEGACY_PROJECT})
+# The marker formats this kit's entry points write to: the new format's, by its writer (Writer),
+# since PR 3 of #13 ({LEGACY_PROJECT} before it). A lab.json project is read only (design 7).
+WRITABLE = frozenset({PROJECT})
 # ADR-0006 1: the fields an analytics.project/2 marker holds (the record schema's project_2).
 PROJECT_FIELDS = ("schema", "project_id", "title", "created_at", "min_writer_version")
 # The record families the Writer writes, by what they are (design 4.4): a write names the key, never
@@ -400,6 +399,39 @@ def find_project(start: Path) -> Path | None:
     return None
 
 
+def _deepest_existing(path: str) -> str:
+    while not os.path.lexists(path):
+        parent = os.path.dirname(path)
+        if parent == path:
+            return path
+        path = parent
+    return path
+
+
+def _ancestors(path: str) -> list[str]:
+    out, here = [], path
+    while True:
+        parent = os.path.dirname(here)
+        if parent == here:
+            return out
+        out.append(parent)
+        here = parent
+
+
+def project_above(path) -> str | None:
+    """The nearest directory above `path` that holds a marker of either name, or None (design 6.2
+    and OQ9): a new project — an init's, a migration's destination — is never made inside another
+    one, where an older kit run in it would write to the project above it. `path` is absolute and
+    need not exist: its deepest existing directory, when that is not `path` itself, counts as above
+    it, and so does every directory above that."""
+    path = os.path.abspath(os.fspath(path))
+    existing = _deepest_existing(path)
+    for place in ([existing] if existing != path else []) + _ancestors(existing):
+        if present_marker(place):
+            return place
+    return None
+
+
 def layout_of(state: MarkerState) -> Layout | LegacyLayout | None:
     """The stored names a directory's records follow, by its marker judgment (design 2.3): the
     older layout where the marker judged is lab.json (legacy, or unknown or invalid as that file),
@@ -425,6 +457,8 @@ def refusal(state: MarkerState, op: str, *, writer_version: str,
                               "lab.json)", hint="create one with: analytics init DIR")
     if state.state == LEGACY and LEGACY_PROJECT in writable:
         return None
+    if state.state == LEGACY and PROJECT in writable:
+        return migration_required(state, op)
     if state.state == CURRENT and PROJECT in writable:
         needed = state.value["min_writer_version"]
         have = relations.version_key(writer_version)
@@ -472,6 +506,32 @@ def refusal(state: MarkerState, op: str, *, writer_version: str,
                                "sizes, sha256 and schema are in details), then move the other one "
                                "away. The kit does not choose between them, and reads neither",
                           details=dict(state.details))
+
+
+# How a person copies a lab.json project into the current format (design 6.1 and 7): the command,
+# its preview, and in aelix where to run it.
+MIGRATE_COMMAND = "analytics migrate --to DEST"
+
+
+def migration_hint(root) -> str:
+    """What to do with a lab.json project this kit reads and does not write (design 7): the hint of
+    migration_required, and the status overview's `migration_hint`."""
+    return (f"Copy it into the current format with `analytics migrate --to <new empty folder>` run "
+            f"inside {root} (preview with --dry-run). The original stays as it is. In aelix, a person "
+            "runs that in a terminal, then `/analytics use <new folder>`.")
+
+
+def migration_required(state: MarkerState, op: str) -> AnalyticsError:
+    """A write to a lab.json project (design 7, Issue #13 PR 3): this kit reads it and writes
+    nothing there, and a person copies it into the current format to write again. The message and
+    the hint are the design's text, the same for a person and a model."""
+    root = state.root
+    return AnalyticsError("migration_required",
+                          f"{root} uses the older record format ({LEGACY_MARKER}, {LEGACY_PROJECT}). "
+                          "This kit reads it and does not write to it.",
+                          hint=migration_hint(root),
+                          details={"marker": state.marker, "format": state.format, "operation": op,
+                                   "command": MIGRATE_COMMAND})
 
 
 def _reason_text(state: MarkerState) -> str:
@@ -730,21 +790,35 @@ def _text(text) -> tuple[str, int]:
     return text, len(text.encode("utf-8"))
 
 
-def _too_long(text_bytes: int, line: bytes) -> AnalyticsError | None:
+def _too_long(text_bytes: int, line: bytes | None) -> AnalyticsError | None:
     """OQ2: text_too_long when the text is over TEXT_LIMIT bytes or its line (LF included) is not
-    under LINE_LIMIT; the line is the bytes the writer would write, escapes and references included."""
-    line_bytes = len(line) + 1
-    if text_bytes <= TEXT_LIMIT and line_bytes < LINE_LIMIT:
+    under LINE_LIMIT; the line is the bytes the writer would write, escapes and references included.
+    Without a line (check_text) only the text is judged."""
+    line_bytes = None if line is None else len(line) + 1
+    if text_bytes <= TEXT_LIMIT and (line_bytes is None or line_bytes < LINE_LIMIT):
         return None
+    said = f"the text is {text_bytes:,} bytes of UTF-8"
+    if line_bytes is not None:
+        said += f" and its journal line {line_bytes:,} bytes"
     return AnalyticsError(
         "text_too_long",
-        f"the text is {text_bytes:,} bytes of UTF-8 and its journal line {line_bytes:,} bytes: a record "
-        f"keeps a text of up to {TEXT_LIMIT:,} bytes in a line under {LINE_LIMIT:,} bytes (nothing was "
-        "written, nothing was cut)",
+        f"{said}: a record keeps a text of up to {TEXT_LIMIT:,} bytes in a line under "
+        f"{LINE_LIMIT:,} bytes (nothing was written, nothing was cut)",
         hint="save a long text as a file (a script's output, say) or a Report and record a shorter "
              "text that refers to it",
-        details={"text_bytes": text_bytes, "line_bytes": line_bytes, "text_limit": TEXT_LIMIT,
-                 "line_limit": LINE_LIMIT})
+        details={"text_bytes": text_bytes, **({"line_bytes": line_bytes} if line_bytes is not None else {}),
+                 "text_limit": TEXT_LIMIT, "line_limit": LINE_LIMIT})
+
+
+def check_text(text) -> str:
+    """The checks of a record's text that need no journal line — empty (empty_note) and over
+    TEXT_LIMIT (text_too_long) — for a record made now and written later (the SDK's in a run, which
+    the run writes when it finishes): the line's own limit is judged when it is written."""
+    text, text_bytes = _text(text)
+    problem = _too_long(text_bytes, None)
+    if problem:
+        raise problem
+    return text
 
 
 def check_request_id(request_id) -> None:
@@ -971,7 +1045,7 @@ class Writer:
     `legacy_path` reads the paths a kit before 0.5.0 recorded (core gives Project.legacy_identity, or
     a migrated project's mapping, design 5.4); `clock` gives the time a record is written."""
 
-    # The marker formats the Writer writes to: the format of its Layout.
+    # The marker formats the Writer writes to: the format of its Layout (the kit's WRITABLE).
     WRITES = frozenset({PROJECT})
 
     def __init__(self, root, *, platform: _platform.Platform, origin: Origin, writer_version: str,

@@ -371,11 +371,11 @@ def test_an_inward_data_link_keeps_its_datasets_at_their_real_place(project):
     shutil.move(Path(project) / "data", storage / "data")
     dir_link("symlink", Path(project) / "data", storage / "data")
     datasets = core.list_datasets(core.Project(project))
-    assert [(d["name"], d["path"]) for d in datasets] == [("sales", "storage/data/raw/sales.parquet")]
+    assert [(d["name"], d["path"]) for d in datasets] == [("sales", "storage/data/imported/sales.parquet")]
     body = "import aelix_analytics as analytics\nprint(analytics.read('sales').height)\n"
     code, result = kit_cli(project, "run", write_script(project, "inward.py", body), "--title", "in")
     assert code == 0 and result["run"]["status"] == "ok", result
-    assert [i["path"] for i in result["run"]["inputs"]] == ["storage/data/raw/sales.parquet"]
+    assert [i["path"] for i in result["run"]["inputs"]] == ["storage/data/imported/sales.parquet"]
     record_observation("inward-data-link", {
         "datasets": [(d["name"], d["path"]) for d in datasets],
         "inputs": result["run"]["inputs"], "outputs": result["run"]["outputs"]})
@@ -386,7 +386,7 @@ def test_an_alias_link_inside_data_is_a_dataset_of_its_own_at_its_target(project
     the path of the file it leads to; `analytics.read('latest')` reads it, and reading the
     directory records that file once."""
     derived = Path(project) / "data" / "derived"
-    shutil.copyfile(Path(project) / "data/raw/sales.parquet", derived / "v3.parquet")
+    shutil.copyfile(Path(project) / "data/imported/sales.parquet", derived / "v3.parquet")
     file_link(derived / "latest.parquet", "v3.parquet")
     p = core.Project(project)
     listed = {d["name"]: d["path"] for d in core.list_datasets(p) if d["kind"] == "derived"}
@@ -406,52 +406,52 @@ def test_a_dataset_is_named_by_its_own_entry_and_listed_once_per_name(project, t
     (`big`) with that boundary's path; two directory links to one directory list its file once."""
     shared = tmp_path / "shared"
     shared.mkdir()
-    shutil.copyfile(Path(project) / "data/raw/sales.parquet", shared / "f.parquet")
-    raw = Path(project) / "data" / "raw"
+    shutil.copyfile(Path(project) / "data/imported/sales.parquet", shared / "f.parquet")
+    raw = Path(project) / "data" / "imported"
     dir_link(kind, raw / "a", shared)
     dir_link(kind, raw / "b", shared)
     file_link(raw / "big.parquet", shared / "f.parquet")
     datasets = core.list_datasets(core.Project(project))
     assert [(d["name"], d["path"]) for d in datasets] == [
-        ("big", "data/raw/a/f.parquet"), ("f", "data/raw/a/f.parquet"),
-        ("sales", "data/raw/sales.parquet")]
-    assert core.view_names(datasets)["big"] == "data/raw/a/f.parquet"
+        ("big", "data/imported/a/f.parquet"), ("f", "data/imported/a/f.parquet"),
+        ("sales", "data/imported/sales.parquet")]
+    assert core.view_names(datasets)["big"] == "data/imported/a/f.parquet"
 
 
 def test_an_import_record_is_read_beside_the_dataset_s_entry(project):
-    """Review of 3a95f38: `data/raw/sales.parquet → ../../storage/physical.parquet` (the file moved
+    """Review of 3a95f38: `data/imported/sales.parquet → ../../storage/physical.parquet` (the file moved
     and linked back) keeps its import record — rows, description, source — because the record is
     the one beside the entry, where import wrote it; the path is the file's identity. An import
     record this kit cannot read is named where it is, beside the entry."""
     root = Path(project)
     (root / "storage").mkdir()
-    shutil.move(root / "data/raw/sales.parquet", root / "storage/physical.parquet")
+    shutil.move(root / "data/imported/sales.parquet", root / "storage/physical.parquet")
     # A relative target in the platform's separator: Windows stores a symbolic link's text as given
     # and does not read `/` in it as one, so `../../storage/x` would lead nowhere there.
     moved = os.path.join("..", "..", "storage", "physical.parquet")
-    file_link(root / "data/raw/sales.parquet", moved)
-    file_link(root / "data/raw/other.parquet", moved)
-    assert os.path.isfile(root / "data/raw/sales.parquet")
-    write(root / "data/raw/other.meta.json", json.dumps({"schema": "lab.dataset/9", "name": "other"}))
+    file_link(root / "data/imported/sales.parquet", moved)
+    file_link(root / "data/imported/other.parquet", moved)
+    assert os.path.isfile(root / "data/imported/sales.parquet")
+    write(root / "data/imported/other.meta.json", json.dumps({"schema": "analytics.dataset/9", "name": "other"}))
     datasets = {d["name"]: d for d in core.list_datasets(core.Project(project))}
     sales = datasets["sales"]
     assert (sales["path"], sales["rows"], sales["description"]) == \
         ("storage/physical.parquet", 120, "test data"), sales
     assert sales["source"].endswith("sales.csv") and sales["imported_at"], sales
-    assert datasets["other"]["unsupported_record"]["location"] == "data/raw/other.meta.json"
+    assert datasets["other"]["unsupported_record"]["location"] == "data/imported/other.meta.json"
 
 
 def test_a_raw_dataset_and_a_derived_link_to_it_are_both_listed(project):
-    """Review of 3a95f38: `data/derived/sales.parquet → ../raw/sales.parquet` is a raw and a
+    """Review of 3a95f38: `data/derived/sales.parquet → ../imported/sales.parquet` is an imported and a
     derived dataset with one path, and both views (`sales`, `sales_derived`), as on main: a file is
     listed once per (name, path) within a kind."""
-    link = file_link(Path(project) / "data/derived/sales.parquet", os.path.join("..", "raw", "sales.parquet"))
+    link = file_link(Path(project) / "data/derived/sales.parquet", os.path.join("..", "imported", "sales.parquet"))
     assert os.path.isfile(link)  # `/` in a link's text would lead nowhere on Windows
     datasets = core.list_datasets(core.Project(project))
     assert [(d["name"], d["kind"], d["path"]) for d in datasets] == [
-        ("sales", "raw", "data/raw/sales.parquet"), ("sales", "derived", "data/raw/sales.parquet")]
-    assert core.view_names(datasets) == {"sales": "data/raw/sales.parquet",
-                                         "sales_derived": "data/raw/sales.parquet"}
+        ("sales", "imported", "data/imported/sales.parquet"), ("sales", "derived", "data/imported/sales.parquet")]
+    assert core.view_names(datasets) == {"sales": "data/imported/sales.parquet",
+                                         "sales_derived": "data/imported/sales.parquet"}
 
 
 def _listing_of(monkeypatch) -> list[str]:
@@ -531,7 +531,7 @@ def test_a_directory_read_records_the_first_500_files_the_walk_finds_and_stops(t
 def test_an_inward_link_to_a_directory_of_the_person_s_is_recorded_at_its_real_place(project,
                                                                                     tmp_path):
     """Review of 3a95f38: the name mapping and the walk's claims are the managed directories'
-    alone (core.MANAGED_DIRS). `scripts → src` leads inside to a directory the kit does not
+    alone (Project.layout.managed_dirs). `scripts → src` leads inside to a directory the kit does not
     manage, so a script run as scripts/gen.py is recorded at src/gen.py and what it writes under
     src/ is its output, as on main (head named both scripts/… and left src/ out of the
     comparison). An ignored name that is a link out of the project is still not walked."""
@@ -606,16 +606,16 @@ def test_query_reads_datasets_under_a_linked_data_directory(project, tmp_path, k
     dir_link(kind, data, elsewhere)
     code, counted = kit_cli(project, "query", "SELECT count(*) AS n FROM sales")
     assert code == 0 and counted["rows"] == [[120]], counted
-    write(elsewhere / "raw" / "note.txt", "inside")
-    code, inside = _query_file(project, data / "raw" / "note.txt")
+    write(elsewhere / "imported" / "note.txt", "inside")
+    code, inside = _query_file(project, data / "imported" / "note.txt")
     assert code == 0 and inside["rows"] == [["inside"]], inside
     secret = write(tmp_path / "secret.txt", "secret")
     nested = tmp_path / "nested"
-    shutil.copyfile(elsewhere / "raw" / "sales.parquet", write(nested / "x.txt").parent / "far.parquet")
-    dir_link(kind, elsewhere / "raw" / "far", nested)
+    shutil.copyfile(elsewhere / "imported" / "sales.parquet", write(nested / "x.txt").parent / "far.parquet")
+    dir_link(kind, elsewhere / "imported" / "far", nested)
     refused = {}
-    for name, path in (("outside", secret), ("link_out_of_the_target", data / "raw" / "far" / "x.txt"),
-                       ("dot_dot", data / ".." / "lab.json")):
+    for name, path in (("outside", secret), ("link_out_of_the_target", data / "imported" / "far" / "x.txt"),
+                       ("dot_dot", data / ".." / "analytics.json")):
         code, result = _query_file(project, path)
         refused[name] = code == 1 and _refused(result)
         assert refused[name], (name, result)
@@ -657,13 +657,13 @@ def test_two_links_to_one_directory_join_a_run_s_input_to_another_s_output(proje
 def test_a_file_link_out_of_the_project_is_recorded_by_its_own_path(project, tmp_path):
     big = tmp_path / "bigdisk" / "big.parquet"
     big.parent.mkdir()
-    shutil.copyfile(Path(project) / "data/raw/sales.parquet", big)
-    file_link(Path(project) / "data" / "raw" / "big.parquet", big)
+    shutil.copyfile(Path(project) / "data/imported/sales.parquet", big)
+    file_link(Path(project) / "data" / "imported" / "big.parquet", big)
     body = "import aelix_analytics as analytics\nprint(analytics.read('big').height)\n"
     code, result = kit_cli(project, "run", write_script(project, "big.py", body), "--title", "b")
     assert code == 0 and result["run"]["status"] == "ok", result
     assert [(i["path"], i["external"]) for i in result["run"]["inputs"]] == \
-        [("data/raw/big.parquet", False)]
+        [("data/imported/big.parquet", False)]
     assert not any("outside the project" in w for w in result["run"]["warnings"])
     record_observation("file-link-out", {"inputs": result["run"]["inputs"],
                                          "warnings": result["run"]["warnings"]})
@@ -781,26 +781,26 @@ def test_a_module_under_an_outward_link_is_not_snapshotted(project, tmp_path, ki
 
 def test_a_project_whose_managed_directories_are_stored_in_another_case(project):
     """M8 and the review of 3a95f38: where the file system ignores case, runs/ may be stored as
-    `Runs` and .lab/ as `.LAB`. A managed directory is named by the kit's name whatever case it is
+    `Runs` and .analytics/ as `.ANALYTICS`. A managed directory is named by the kit's name whatever case it is
     stored in (docs/CONTRACTS.md E), as on main, so the kit's own exclusions hold: a file the run
-    writes under its own directory and reads back is no input, nor is one under .lab/; a chart it
+    writes under its own directory and reads back is no input, nor is one under .analytics/; a chart it
     replaces is removed rather than kept as a chart of its own; the snapshot is recorded under
-    runs/ and the rerun runs; a module under .lab/ is not snapshotted."""
+    runs/ and the rerun runs; a module under .analytics/ is not snapshotted."""
     root = Path(project)
     if not ignores_case(root):
         pytest.skip("this file system minds case: `Runs` would be a directory of its own")
-    for name, stored in (("runs", "Runs"), (".lab", ".LAB")):
+    for name, stored in (("runs", "Runs"), (".analytics", ".ANALYTICS")):
         os.rename(root / name, root / f"{name}-tmp")
         os.rename(root / f"{name}-tmp", root / stored)
-    write(root / ".LAB" / "kept.csv", "a\n1\n")
+    write(root / ".ANALYTICS" / "kept.csv", "a\n1\n")
     write(root / "scripts" / "m8_helper.py", "VALUE = 2\n")
-    write(root / ".LAB" / "m8_kit_side.py", "VALUE = 3\n")
-    body = ("import sys\nsys.path.insert(0, '.lab')\nimport m8_kit_side\n"
+    write(root / ".ANALYTICS" / "m8_kit_side.py", "VALUE = 3\n")
+    body = ("import sys\nsys.path.insert(0, '.analytics')\nimport m8_kit_side\n"
             "import matplotlib.pyplot as plt\nimport polars as pl\nimport m8_helper\n"
             "import aelix_analytics as analytics\n"
             "own = analytics.path(f'runs/{analytics.run_id()}/own.csv')\n"
             "pl.DataFrame({'a': [m8_helper.VALUE]}).write_csv(own)\n"
-            "print(pl.read_csv(own).height, pl.read_csv('.lab/kept.csv').height)\n"
+            "print(pl.read_csv(own).height, pl.read_csv('.analytics/kept.csv').height)\n"
             "fig, ax = plt.subplots()\nax.plot([1, 2])\nanalytics.visualize(fig, 'c1')\n"
             "class Page:\n"
             "    def _repr_html_(self):\n"
@@ -811,14 +811,14 @@ def test_a_project_whose_managed_directories_are_stored_in_another_case(project)
     run = first["run"]
     assert run["inputs"] == [], run["inputs"]
     assert run["script"]["snapshot"].startswith("runs/"), run["script"]
-    assert [c["id"] for c in run["charts"]] == ["c1"], run["charts"]
-    assert not (root / "Runs" / run["id"] / "charts" / "c1.png").exists()
+    assert [c["visualization_id"] for c in run["visualizations"]] == ["c1"], run["visualizations"]
+    assert not (root / "Runs" / run["id"] / "visualizations" / "c1.png").exists()
     assert [m["path"] for m in run["modules"]] == ["scripts/m8_helper.py"], run["modules"]
     code, again = kit_cli(project, "run", "--rerun-of", run["id"], "--title", "again")
     assert code == 0 and again["run"]["status"] == "ok", again
     assert [m["path"] for m in again["run"]["modules"]] == ["scripts/m8_helper.py"]
     record_observation("managed-directories-in-another-case", {
-        "inputs": run["inputs"], "snapshot": run["script"]["snapshot"], "charts": run["charts"],
+        "inputs": run["inputs"], "snapshot": run["script"]["snapshot"], "charts": run["visualizations"],
         "modules": run["modules"], "rerun_modules": again["run"]["modules"]})
 
 
@@ -1018,10 +1018,10 @@ def test_status_warns_of_dataset_names_that_differ_only_in_case(tmp_path):
 
 
 def _case_only_datasets(root: Path) -> dict:
-    """A person's data/raw/Sales.parquet beside the kit's imported `sales`, where the file system
+    """A person's data/imported/Sales.parquet beside the kit's imported `sales`, where the file system
     holds both: the kit's keeps the view `sales`, and status says so."""
-    sales = root / "data" / "raw" / "sales.parquet"
-    person = root / "data" / "raw" / "Sales.parquet"
+    sales = root / "data" / "imported" / "sales.parquet"
+    person = root / "data" / "imported" / "Sales.parquet"
     try:
         with open(person, "xb") as fh:
             fh.write(b"")
@@ -1038,8 +1038,8 @@ def _case_only_datasets(root: Path) -> dict:
     assert code == 0 and result["run"]["status"] == "ok", result
     assert result["stdout_tail"].split() == ["120", "1"], result["stdout_tail"]
     st = core.status(core.Project(root))
-    assert st["views"]["sales"] == "data/raw/sales.parquet"
-    assert "differ only in case: Sales (data/raw/Sales.parquet, view sales_2)" in \
+    assert st["views"]["sales"] == "data/imported/sales.parquet"
+    assert "differ only in case: Sales (data/imported/Sales.parquet, view sales_2)" in \
         core.status_text(st)
     return {"coexist": True, "views": st["views"], "groups": st["case_only_datasets"]}
 
@@ -1135,7 +1135,7 @@ def _tree_stat_before(root: Path) -> dict:
     out = {}
     for dirpath, dirnames, filenames in os.walk(root):
         if Path(dirpath) == root:
-            dirnames[:] = [d for d in dirnames if d not in core.IGNORED_DIRS]
+            dirnames[:] = [d for d in dirnames if d not in core.Project(root).layout.ignored_dirs]
         else:
             dirnames[:] = [d for d in dirnames if d not in ("__pycache__", ".ipynb_checkpoints")]
         for name in filenames:

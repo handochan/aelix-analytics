@@ -1,8 +1,8 @@
 """Generate the evaluation fixtures once, deterministically (Issue #41).
 
-    python tools/eval_fixtures.py scale --scale S|M [--seed N] [--format v1] --out DIR
-    python tools/eval_fixtures.py q10 [--seed N] [--format v1] --out DIR
-    python tools/eval_fixtures.py q13 [--seed N] [--format v1] --out DIR
+    python tools/eval_fixtures.py scale --scale S|M [--seed N] [--format v1] --kit-root KIT --out DIR
+    python tools/eval_fixtures.py q10 [--seed N] [--format v1] --kit-root KIT --out DIR
+    python tools/eval_fixtures.py q13 [--seed N] [--format v1] --kit-root KIT --out DIR
     python tools/eval_fixtures.py check DIR
     python tools/eval_fixtures.py environment --out FILE [--disk PATH] [--cache-state cold|warm|unknown]
         [--browser NAME=VERSION]
@@ -22,7 +22,12 @@ What it makes (docs/BETA-QUALITY-GATES.md §2-§4, tools/eval_fixtures_data/READ
   EDA -> step profile -> per-time scores -> every sensor's band chart, two failed runs among six, with the
   expected judgments in expected.json and the source data in input/.
 
-How the records are written: the kit's own /1 writer does it. A project is made with core.init_project, data
+How the records are written: a kit's own /1 writer does it — the kit of a runtime root before the new
+record format (kit 0.8.0, Issue #13 PR 3, whose kit writes analytics.event/2 only), given as --kit-root (design
+OQ7): V1_KIT_COMMIT names the commit the tests and the CI take it from (`git archive V1_KIT_COMMIT src`), and the
+manifest records the kit's version and, where git can tell it, its commit. Without --kit-root a v1 fixture is a
+usage error that says so; `check` and `environment` read with this checkout's kit. A project is made with
+core.init_project, data
 is imported with data.import_file, every run of q10 and q13 and three runs of each scale fixture are executed
 by runner.execute, and every journal record is written by core.add_note or core.append_event. The other runs
 of a scale fixture (S 27, M 297) are not executed (each executed run rebuilds the Workspace): their files and
@@ -44,8 +49,8 @@ kit's other variables (and their names before kit 0.3.0) are unset, so no trust 
 touched; they come back afterwards.
 
 Exit status: 0 done, 1 the kit failed or `check` found a problem, 2 a usage error (an output directory that
-is not new or empty, a format not available yet). A generation that fails removes what it wrote, so the
-same --out can be given again.
+is not new or empty, a format not available yet, a kit that does not write it). A generation that fails removes
+what it wrote, so the same --out can be given again.
 """
 
 from __future__ import annotations
@@ -64,6 +69,7 @@ import random
 import re
 import shutil
 import sqlite3
+import subprocess
 import sys
 import tempfile
 import time
@@ -86,9 +92,13 @@ MANIFEST_SCHEMA = "aelix-analytics.eval-manifest/1"
 EXPECTED_SCHEMA = "aelix-analytics.eval-expected/1"
 ENVIRONMENT_SCHEMA = "aelix-analytics.eval-environment/1"
 FORMATS = ("v1",)
-# A format the plan will be written in once its writer exists (design §8).
-LATER_FORMATS = {"v2": "the analytics.event/2 writer of Issue #13 is not merged yet; only v1 can be "
-                       "generated"}
+# A format the plan may be written in later (design §8): the analytics.event/2 writer of Issue #13 exists
+# (kit 0.8.0), and the plan is not written in its format yet.
+LATER_FORMATS = {"v2": "the plan is written in v1 only; writing it with the analytics.event/2 writer of "
+                       "Issue #13 is a later change"}
+# The commit whose kit writes the v1 fixtures (design OQ7): the last before the new writer — PR #82's head (Issue
+# #13 PR 2), until its merge commit is on main. The tests and the CI make --kit-root from it with git archive.
+V1_KIT_COMMIT = "ebd10b644e8cb8550ccf6446b134666db6bb9386"
 KST = timezone(timedelta(hours=9))
 PROJECT_DIR = "project"
 
@@ -155,13 +165,53 @@ class FixtureError(Exception):
 
 # --- the kit, its clock and the environment it runs in ------------------------------------------------
 
+# The runtime root (a directory holding aelix_analytics/) this process runs: --kit-root, else the checkout's.
+_KIT_ROOT: Path | None = None
+
+
+def use_kit(root) -> None:
+    """Run the kit of the runtime root `root` (--kit-root) in this process, before anything imports a kit: a
+    kit already imported from elsewhere is refused (one process holds one aelix_analytics)."""
+    global _KIT_ROOT
+    root = Path(root).resolve()
+    if not (root / "aelix_analytics" / "core.py").is_file():
+        raise UsageError(f"--kit-root {root} is not a runtime root: it holds no aelix_analytics/core.py")
+    _KIT_ROOT = root
+
+
 def load_kit() -> SimpleNamespace:
-    """The checkout's kit (src/aelix_analytics)."""
-    if str(KIT) not in sys.path:
-        sys.path.insert(0, str(KIT))
+    """The kit of the runtime root use_kit gave, else the checkout's (src/aelix_analytics)."""
+    root = _KIT_ROOT or KIT
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
     from aelix_analytics import core, data, relations, runner
 
+    if _KIT_ROOT is not None and Path(core.__file__).resolve().parents[1] != _KIT_ROOT:
+        raise UsageError(f"this process runs the kit of {Path(core.__file__).resolve().parents[1]}, not "
+                         f"--kit-root {_KIT_ROOT}: run tools/eval_fixtures.py as a command")
     return SimpleNamespace(core=core, data=data, relations=relations, runner=runner)
+
+
+def kit_commit() -> str | None:
+    """The git commit of the kit's runtime root when git can tell it: the root is src/ at the top of a git
+    work tree and nothing under it differs from that commit. Else None (an archive, a directory inside
+    another checkout, a changed kit): no commit is named that did not write the records."""
+    root = (_KIT_ROOT or KIT).resolve()
+
+    def git(*args) -> str | None:
+        try:
+            done = subprocess.run(["git", "-C", str(root.parent), *args], capture_output=True,
+                                  encoding="utf-8", errors="replace", timeout=30)
+        except (OSError, subprocess.SubprocessError):
+            return None
+        return done.stdout.strip() if done.returncode == 0 else None
+
+    top = git("rev-parse", "--show-toplevel")
+    if root.name != "src" or not top or Path(top).resolve() != root.parent:
+        return None
+    if git("status", "--porcelain", "--", "src") != "":
+        return None
+    return git("rev-parse", "HEAD") or None
 
 
 class PlanClock:
@@ -293,10 +343,18 @@ def require_deterministic_process() -> None:
 
 
 def check_format(fmt: str) -> None:
+    """A format this generator writes, with a kit that writes it: v1 needs a kit before the new writer
+    (its core writes lab.event/1), which --kit-root gives (design OQ7)."""
     if fmt in LATER_FORMATS:
         raise UsageError(f"format {fmt}: {LATER_FORMATS[fmt]}")
     if fmt not in FORMATS:
         raise UsageError(f"unknown format {fmt!r}; known: {', '.join(FORMATS)}")
+    kit = load_kit()
+    if getattr(kit.core, "SCHEMA_EVENT", None) != "lab.event/1":
+        raise UsageError(f"format {fmt}: the kit of {Path(kit.core.__file__).resolve().parents[1]} (kit "
+                         f"{kit.core.KIT_VERSION}) writes the new record format, not lab.*/1: give --kit-root, the "
+                         f"runtime root of a kit before kit 0.8.0 (git archive {V1_KIT_COMMIT} src | tar -x "
+                         "-C DIR, then --kit-root DIR/src)")
 
 
 # --- the digest ---------------------------------------------------------------------------------------
@@ -1385,6 +1443,7 @@ def base_manifest(kind: str, scale: str | None, seed: int, start: datetime) -> d
     kit = load_kit()
     return {"schema": MANIFEST_SCHEMA, "generator": {"path": GENERATOR, "version": GENERATOR_VERSION},
             "kind": kind, "scale": scale, "seed": seed, "format": "v1", "kit_version": kit.core.KIT_VERSION,
+            "kit_commit": kit_commit(),
             "project": PROJECT_DIR, "clock": {"start": start.isoformat(), "timezone": "+09:00"},
             "volatile": VOLATILE, "not_digested": NOT_DIGESTED}
 
@@ -2234,6 +2293,8 @@ def main(argv=None) -> int:
         command = sub.choices[name]
         command.add_argument("--seed", type=int, default=0)
         command.add_argument("--format", default="v1", dest="fmt")
+        command.add_argument("--kit-root", help="the runtime root of the kit that writes the format (v1: a kit "
+                                                f"before 0.8.0, such as src/ of {V1_KIT_COMMIT[:12]})")
         command.add_argument("--out", required=True)
     checked = sub.add_parser("check", help="check a generated fixture")
     checked.add_argument("fixture")
@@ -2248,6 +2309,8 @@ def main(argv=None) -> int:
     except SystemExit as exc:
         return 2 if exc.code else 0
     try:
+        if getattr(args, "kit_root", None):
+            use_kit(args.kit_root)
         if args.command == "scale":
             manifest = generate_scale(args.out, args.scale, args.seed, args.fmt)
         elif args.command == "q10":

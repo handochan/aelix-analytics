@@ -1319,12 +1319,12 @@ class Migration:
                            entries=judged.entries[:20])
         dest = str(self.dest)
         existing = _existing(dest)
-        above = [a for a in ([existing] if existing != dest else []) + _ancestors(existing)
-                 if writer.present_marker(a)]
-        if above:
-            raise _invalid("inside_project", f"the destination {dest} is inside the project {above[0]}",
+        # The rule init follows too (writer.project_above, OQ9).
+        above = writer.project_above(dest)
+        if above is not None:
+            raise _invalid("inside_project", f"the destination {dest} is inside the project {above}",
                            "give a destination outside every analytics project: an older kit run there "
-                           "would write to the project above it", project=above[0])
+                           "would write to the project above it", project=above)
         needed = self._needed(judged)
         if needed is not None:
             free = self._free(existing)

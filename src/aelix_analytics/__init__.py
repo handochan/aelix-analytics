@@ -2,7 +2,7 @@
 
     import aelix_analytics as analytics
 
-    sales = analytics.read("sales")                        # Polars DataFrame of data/raw/sales.parquet
+    sales = analytics.read("sales")                        # Polars DataFrame of data/imported/sales.parquet
     monthly = analytics.sql("SELECT ... FROM sales").pl()  # DuckDB over every dataset view
     analytics.save(monthly, "monthly_sales")               # data/derived/monthly_sales.parquet
     analytics.visualize(fig, "monthly-trend", title="…", caption="…", data=monthly)
@@ -12,7 +12,9 @@ Inside a run every call is recorded. Plain `pl.read_parquet(...)`, DuckDB SQL ov
 keeps a stable chart id, a caption and the exact plotted data. Outside a run the calls still work but
 record nothing. Before kit 0.2.0 this API was the module `labkit` (`import labkit as lab`); before kit
 0.3.0 `record` was `note` and `visualize` was `chart`. No alias is kept: the old names fail with the new
-one in the error (ADR-0005 decision 9), and what they recorded is unchanged (`via` stays "lab.chart").
+one in the error (ADR-0005 decision 9). A run records what each call did by the function's own name
+(its `via`: analytics.read, analytics.scan, analytics.sql, analytics.save, analytics.visualize) since
+the new record format (kit 0.8.0, Issue #13); a lab.run/1 record holds the older lab.* names.
 
 A run gets this package from the entry point that started it: `analytics`, `bin/analytics` and the aelix
 extension give the project's environment exactly one directory on PYTHONPATH — the runtime root, the
@@ -122,8 +124,10 @@ def read(dataset, **kwargs):
     """Polars DataFrame of a dataset name (see datasets()) or a Parquet path."""
     import polars as pl
 
+    from . import capture
+
     p = _dataset_path(dataset)
-    _record(p, "lab.read")
+    _record(p, capture.READ)
     return pl.read_parquet(p, **kwargs)
 
 
@@ -131,8 +135,10 @@ def scan(dataset, **kwargs):
     """Polars LazyFrame of a dataset name or a Parquet path."""
     import polars as pl
 
+    from . import capture
+
     p = _dataset_path(dataset)
-    _record(p, "lab.scan")
+    _record(p, capture.SCAN)
     return pl.scan_parquet(p, **kwargs)
 
 
@@ -152,7 +158,7 @@ def sql(query: str, **frames):
         _CONNECTION.register(name, frame)
     if capture.ACTIVE is not None:
         for name in data.referenced_views(query, views):
-            _record(p.path(views[name]), "lab.sql")
+            _record(p.path(views[name]), capture.SQL)
     return _CONNECTION.sql(query)
 
 
@@ -170,13 +176,14 @@ def visualize(obj, id: str | None = None, *, title: str | None = None, caption: 
     """Record a visualization — a chart: a matplotlib Figure/Axes, a plotly Figure, an object with
     _repr_html_, or a path to an image/HTML file. `id` should be short ASCII (it names the chart
     across versions); `data` is the table that was plotted and is saved next to the chart. Named
-    `chart` before kit 0.3.0; the record is the same (its `via` is "lab.chart")."""
+    `chart` before kit 0.3.0; its record's `via` is "analytics.visualize" (a lab.run/1 record's
+    "lab.chart")."""
     from . import capture, core
 
     state = capture.ACTIVE
     if state is None:
         p = project()
-        core.admit(p, "visualize")  # before .lab/adhoc/ is made
+        core.admit(p, "visualize")  # before .analytics/adhoc/ is made
         stamp = core.now().strftime("%Y%m%d-%H%M%S")
         run_dir = p.state_dir / "adhoc" / stamp
         state = capture.RunState(p, f"adhoc-{stamp}", run_dir, Path(sys.argv[0]).resolve())
@@ -188,25 +195,34 @@ def visualize(obj, id: str | None = None, *, title: str | None = None, caption: 
 
 
 def record(kind: str, text: str) -> None:
-    """Journal entry linked to the current run (written when the run finishes). Named `note` before
-    kit 0.3.0. Refused when it is made where this kit does not write (core.admit, Issue #13): in a
-    run, an error in the script."""
+    """Journal entry: in a run linked to the run (written when the run finishes), by the run's
+    actor; outside a run written now, by AELIX_ANALYTICS_ACTOR, else `human` (inferred), through the
+    SDK (design 4.2). Named `note` before kit 0.3.0. `kind` is one a person or an agent records
+    (writer.RECORD_KINDS) but `resolve`, which needs a target the SDK does not take; `gap` is refused
+    with its new name, workflow_feedback (bad_kind). The text is kept whole: over its limit it is
+    refused (text_too_long, OQ2), never cut. Refused when it is made where this kit does not write
+    (core.admit, Issue #13): in a run, an error in the script."""
     from . import capture, core
 
-    if kind not in core.NOTE_KINDS or kind == "resolve":
-        raise ValueError(f"kind must be one of {', '.join(k for k in core.NOTE_KINDS if k != 'resolve')}")
+    # The kinds a person or an agent records, but `resolve`: it needs a target the SDK does not take.
+    core.writer.check_kind(kind, tuple(k for k in core.RECORD_KINDS if k != "resolve"))
     text = str(text)
     if capture.ACTIVE is not None:
         core.admit(capture.ACTIVE.project, "record")
+        core.writer.check_text(text)
         capture.ACTIVE.notes.append((kind, text))
     else:
-        core.add_note(project(), kind, text, origin=_script_origin())
+        core.record(project(), kind, text, origin=_script_origin())
+
 
 
 def _script_origin():
-    """Who a record the script API makes outside a run is by. lab.event/1 records hold the actor
-    `script` there, as before; the new writer records `human` (or the actor declared) and the means
-    `sdk` (design 4.2, OQ1, PR 3)."""
+    """Who a record the script API makes outside a run is by (design 4.2, OQ1): AELIX_ANALYTICS_ACTOR
+    as given (declared), else `human`, which the kit fills in (inferred); the means `sdk` and the
+    session AELIX_ANALYTICS_SESSION. A lab.event/1 record holds the actor `script` there, which a
+    reader reads as it is."""
     from . import core
 
-    return core.Origin("script", "sdk", "inferred")
+    actor = os.environ.get("AELIX_ANALYTICS_ACTOR") or None
+    return core.Origin(actor or "human", "sdk", "declared" if actor else "inferred",
+                       os.environ.get("AELIX_ANALYTICS_SESSION") or None)

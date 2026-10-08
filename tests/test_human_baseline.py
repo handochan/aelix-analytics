@@ -63,9 +63,9 @@ def human_cli(tmp_path):
 def test_human_cli_analysis_failure_repair_and_snapshot_history(human_cli):
     root, call = human_cli
     project = core.Project(root)
-    raw = root / "data/raw/sales.parquet"
+    raw = root / "data/imported/sales.parquet"
     raw_hash = core.sha256_file(raw)
-    meta = json.loads((root / "data/raw/sales.meta.json").read_text(encoding="utf-8"))
+    meta = json.loads((root / "data/imported/sales.meta.json").read_text(encoding="utf-8"))
     assert meta["rows"] == EXPECTED["rows"]
     assert meta["source"]["sha256"] == core.sha256_file(FIXTURE / "sales.csv")
     refused = call("import", FIXTURE / "sales.csv", "--name", "sales", expected_exit=1)
@@ -80,14 +80,15 @@ def test_human_cli_analysis_failure_repair_and_snapshot_history(human_cli):
     original = (FIXTURE / script.name).read_bytes()
     script.write_bytes(original)
     first = call("run", "scripts/region_summary.py", "--title", "All channels")["run"]
-    assert first["schema"] == "lab.run/1" and first["status"] == "ok"
+    assert first["schema"] == "analytics.run/2" and first["status"] == "ok"
     assert first["actor"] == "human" and not first.get("session")
-    assert first["inputs"][0]["path"] == "data/raw/sales.parquet"
+    assert (first["actor_basis"], first["means"]) == ("inferred", "cli")
+    assert first["inputs"][0]["path"] == "data/imported/sales.parquet"
     assert first["inputs"][0]["sha256"] == raw_hash
-    assert "lab.read" in first["inputs"][0]["via"]
+    assert "analytics.read" in first["inputs"][0]["via"]
     assert (root / first["script"]["snapshot"]).read_bytes() == original
-    chart = first["charts"][0]
-    assert chart["id"] == "region-revenue" and chart["data_rows"] == 3
+    chart = first["visualizations"][0]
+    assert chart["visualization_id"] == "region-revenue" and chart["data_rows"] == 3
     assert pl.read_parquet(root / chart["data"]).to_dicts() == EXPECTED["by_region"]
     assert pl.read_parquet(root / "data/derived/region_summary.parquet").to_dicts() == EXPECTED["by_region"]
     first_hashes = file_hashes(root / "runs" / first["id"])
@@ -97,8 +98,14 @@ def test_human_cli_analysis_failure_repair_and_snapshot_history(human_cli):
                    "--ref", first["id"], "--ref", "region-revenue", "--ref", "sales",
                    "--resolves", question["id"])["event"]
     assert finding["actor"] == "human" and not finding.get("session")
-    assert finding["refs"] == {"runs": [first["id"]], "charts": ["scripts/region_summary.py::region-revenue"],
-                               "data": ["sales"], "resolves": question["id"]}
+    # Each name bound as it was written (design 4.7): the run by its author, the Visualization and the
+    # dataset as the kit inferred them, the question closed.
+    assert [(r["type"], r.get("token") or r.get("run_id") or r.get("event_id"), r["relation"],
+             r["version_binding"]) for r in finding["refs"]] == [
+        ("run", first["id"], "cites", "author"),
+        ("visualization_version", "region-revenue", "cites", "inferred"),
+        ("dataset_import", "sales", "cites", "inferred"),
+        ("event", question["id"], "resolves", "author")]
     before_context = (root / "CONTEXT.md").read_bytes()
     with (root / "CONTEXT.md").open("a", encoding="utf-8") as stream:
         stream.write("\n## Next question\nCompare online orders only.\n")
@@ -122,14 +129,14 @@ def test_human_cli_analysis_failure_repair_and_snapshot_history(human_cli):
     assert edited != original.decode(), "the fixture read line changed; the edit did nothing"
     script.write_text(edited, encoding="utf-8")
     second = call("run", "scripts/region_summary.py", "--title", "Online only")["run"]
-    assert pl.read_parquet(root / second["charts"][0]["data"]).to_dicts() == EXPECTED["online_by_region"]
+    assert pl.read_parquet(root / second["visualizations"][0]["data"]).to_dicts() == EXPECTED["online_by_region"]
     script.unlink()
     rerun = call("run", "--rerun-of", first["id"], "--title", "Replay original snapshot")["run"]
     assert rerun["status"] == "ok" and rerun["id"] != first["id"]
     assert rerun["rerun_of"] == first["id"]
     assert rerun["reproduction"]["verdict"] == "match"
     assert rerun["reproduction"]["inputs_same"] is True
-    assert rerun["reproduction"]["charts"] == {"region-revenue": "same data"}
+    assert rerun["reproduction"]["visualizations"] == {"region-revenue": "same data"}
     assert (root / rerun["script"]["snapshot"]).read_bytes() == original
 
     status = call("status")["status"]
@@ -139,20 +146,20 @@ def test_human_cli_analysis_failure_repair_and_snapshot_history(human_cli):
     journal_before_report = (root / "journal.jsonl").read_bytes()
     rendered = call("render")
     assert rendered["workspace"]["pages"] and not rendered["workspace"].get("skipped")
-    assert (root / "report/index.html").is_file()
+    assert (root / "workspace/index.html").is_file()
     for record in (first, failed, repaired, second, rerun):
-        assert (root / "report/runs" / f"{record['id']}.html").is_file()
+        assert (root / "workspace/runs" / f"{record['id']}.html").is_file()
     assert file_hashes(root / "runs") == preserved_runs
     assert (root / "journal.jsonl").read_bytes().startswith(journal_before_report)
     assert file_hashes(root / "runs" / first["id"]) == first_hashes
     assert file_hashes(root / "runs" / failed["id"]) == failed_hashes
     assert core.sha256_file(raw) == raw_hash
-    assert any(p.read_bytes() == before_context for p in (root / ".lab/context").glob("*.md"))
+    assert any(p.read_bytes() == before_context for p in (root / ".analytics/context").glob("*.md"))
     records = {r["id"]: r for r in core.list_runs(project)}
     assert records[first["id"]]["script"]["sha256"] == hashlib.sha256(original).hexdigest()
     assert records[failed["id"]]["status"] == "error"
     assert all(r["actor"] == "human" and not r.get("session") for r in records.values())
-    assert any(e["id"] == finding["id"] and e["schema"] == "lab.event/1"
+    assert any(e["id"] == finding["id"] and e["schema"] == "analytics.event/2"
                for e in core.read_events(project))
 
 
@@ -162,10 +169,10 @@ def test_human_cli_captures_ordinary_libraries_without_sdk(human_cli):
     script.write_bytes((FIXTURE / script.name).read_bytes())
     run = call("run", "scripts/direct_libraries.py", "--title", "Ordinary library analysis")["run"]
     assert run["status"] == "ok" and run["actor"] == "human"
-    assert run["inputs"][0]["path"] == "data/raw/sales.parquet"
+    assert run["inputs"][0]["path"] == "data/imported/sales.parquet"
     assert "duckdb.sql" in run["inputs"][0]["via"]
     assert pl.read_parquet(root / "data/derived/channel_summary.parquet").to_dicts() == EXPECTED["by_channel"]
-    chart = run["charts"][0]
+    chart = run["visualizations"][0]
     assert chart["kind"] == "matplotlib" and chart["via"] == "plt.show"
     assert (root / chart["files"]["png"]).is_file()
     # Automatic image capture is useful but does not imply a plotted-data record.
