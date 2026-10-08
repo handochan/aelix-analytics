@@ -5,25 +5,27 @@
 전환 기록 `analytics.migration/1`과 표식의 `migration`, 커밋 전 목적지의 판정 `incomplete`(`migration_incomplete`), 전환한 프로젝트의 매핑 읽기를
 더합니다. 기존 프로젝트를 변환하는 일이므로 운영 정책의 측정 기록이며, [설계](../design/RECORD-WRITER-AND-MIGRATION.md) 12절이 이 기록에 더한 키
 `fixtures`·`phases`·`sizes`·`preservation`·`fault_matrix`·`concurrency`·`reader_comparison`이 있습니다. 개발 기기(macOS)의 값이고, Linux·Windows의
-CI 칸은 PR을 연 뒤의 실행으로 채웁니다(지금 `pending`). 모든 값과 JUnit 파일의 sha256은 [2026-10-08-issue-13-migration.json](2026-10-08-issue-13-migration.json)에
+CI 칸은 이 코드를 담은 헤드에서 PR [#82](https://github.com/handochan/aelix-analytics/pull/82)의 실행으로 채웁니다(지금 `pending`. 앞
+헤드 `53d1bdf`의 실행은 Windows 레그가 실패했고, 그 원인과 수정은 아래 "Windows CI 실패와 수정"에 있습니다). 모든 값과 JUnit 파일의 sha256은 [2026-10-08-issue-13-migration.json](2026-10-08-issue-13-migration.json)에
 있습니다. 계약에 반영한 것은 [CONTRACTS.md](../CONTRACTS.md) B("표식 판정과 쓰기", "프로젝트 찾기", "프로젝트 전환")·D·E·F·F1(kit 0.7.0)·G입니다.
 
 전환은 아직 명령으로 열지 않았습니다(`analytics migrate`는 셋째 PR). 그래서 아래의 전환은 모두 시험과 이 측정의 스크립트가 엔진을 직접 부른
 것입니다.
 
-이 기록은 PR의 리뷰(독립 구현 리뷰 1회, Codex 리뷰 1회)의 지적을 고친 커밋과, 그 수정 diff 확인의 지적을 고친 커밋(`fix: answer the fix check
-of PR 2 (Issue #13)`)의 코드를 처음부터 다시 잰 것입니다. 수정 diff 확인이 `migration.py`를 고쳤으므로(검사 둘) 모든 값을 다시 쟀고, 앞선 두
-측정(처음 코드 `2b6eabb`, 리뷰 뒤 코드 `80a0fc9`)과의 비교는 끝의 "리뷰 뒤 다시 잼"·"수정 diff 확인 뒤 다시 잼"과 JSON의
-`previous_measurement`·`review_fix_measurement`에 있습니다.
+이 기록은 PR의 리뷰(독립 구현 리뷰 1회, Codex 리뷰 1회)의 지적을 고친 커밋, 그 수정 diff 확인의 지적을 고친 커밋, 그리고 PR #82의 Windows CI가
+실패한 사례 넷의 원인을 고친 커밋(`fix: the migration engine's Windows cases (Issue #13 PR 2)`, `ebd10b6`)의 코드를 처음부터 다시 잰 것입니다. 그
+커밋이 `migration.py`·`core.py`·`_platform.py`를 고쳤으므로 모든 값을 다시 쟀고, 앞선 세 측정(처음 코드 `2b6eabb`, 리뷰 뒤 코드 `80a0fc9`, 수정
+diff 확인 뒤 코드 `84f3970`)과의 비교는 끝의 "리뷰 뒤 다시 잼"·"수정 diff 확인 뒤 다시 잼"·"Windows 수정 뒤 다시 잼"과 JSON의
+`previous_measurement`·`review_fix_measurement`·`fix_check_measurement`에 있습니다.
 
 ## 출처와 환경
 
 | 항목 | 근거 |
 |---|---|
-| 측정한 코드 | `feat/issue-13-migration-engine`의 커밋 `fix: answer the fix check of PR 2 (Issue #13)`의 코드. `origin/main` `ed29cf0`(PR #80 병합, 트리는 `fbd12e1`과 같음) 위의 `b7e1521`·`8ca6914`·`50a55bb`·`d08cf24`·`4243021`·`f7faea5`·`80a0fc9`와 그 커밋입니다. 그 커밋을 run 폴더의 깨끗한 클론에서 쟀고, 이 기록은 잰 뒤 같은 커밋에 더했습니다(커밋을 고쳐 써 잴 때의 id `2de7c81`은 branch에 남지 않음). JSON의 `measured_tree`는 파일 manifest의 형식(추적하는 `src`·`extension`·`tests`·`tools`·`bin`·`pyproject.toml`·`uv.lock` 파일마다 `shasum -a 256` 한 줄, 경로 순), 그 manifest 전체의 sha256과 파일 수를 담습니다. 파일마다의 목록은 run 폴더의 `evidence/code-manifest.txt`에 있고 저장소에는 없습니다 |
-| 비교한 기준 | `fbd12e1`(= `c918381`의 코드, 이 PR이 올라가는 PR #80의 헤드)의 체크아웃에서 처음 측정의 새 시험을 돌렸고, 리뷰 뒤 더한 시험은 그때의 앞 헤드 `f7faea5`, 수정 diff 확인 뒤 더한 사례는 `80a0fc9`의 코드에서 돌렸습니다(아래) |
+| 측정한 코드 | `feat/issue-13-migration-engine`(PR #82)의 커밋 `fix: the migration engine's Windows cases (Issue #13 PR 2)`(`ebd10b6`)의 코드. `origin/main` `ed29cf0`(PR #80 병합, 트리는 `fbd12e1`과 같음) 위의 `b7e1521`·`8ca6914`·`50a55bb`·`d08cf24`·`4243021`·`f7faea5`·`80a0fc9`·`84f3970`·`53d1bdf`와 그 커밋입니다. 그 커밋을 run 폴더의 깨끗한 클론에서 쟀고, 이 기록은 그 뒤의 docs 커밋입니다(코드를 바꾸지 않음). JSON의 `measured_tree`는 파일 manifest의 형식(추적하는 `src`·`extension`·`tests`·`tools`·`bin`·`pyproject.toml`·`uv.lock` 파일마다 `shasum -a 256` 한 줄, 경로 순), 그 manifest 전체의 sha256과 파일 수를 담습니다. 파일마다의 목록은 run 폴더의 `evidence/code-manifest.txt`에 있고 저장소에는 없습니다 |
+| 비교한 기준 | `fbd12e1`(= `c918381`의 코드, 이 PR이 올라가는 PR #80의 헤드)의 체크아웃에서 처음 측정의 새 시험을 돌렸고, 리뷰 뒤 더한 시험은 그때의 앞 헤드 `f7faea5`, 수정 diff 확인 뒤 더한 사례는 `80a0fc9`, Windows 수정의 시험은 `53d1bdf`의 코드에서 돌렸습니다(아래) |
 | 워크플로 | `.github/workflows/ci.yml`, 이 변경이 고치지 않음 |
-| CI | `pending`: PR을 열지 않았습니다(이 작업은 push하지 않음). PR의 실행으로 `runs`·`legs`를 채웁니다 |
+| CI | `pending`: 이 코드를 담은 헤드의 PR #82 실행으로 `runs`·`legs`를 채웁니다(이 작업은 push하지 않음). 앞 헤드 `53d1bdf`의 실행([37757801858](https://github.com/handochan/aelix-analytics/actions/runs/37757801858)·[37757804883](https://github.com/handochan/aelix-analytics/actions/runs/37757804883))은 Windows 레그만 실패(JSON의 `windows_ci_failure`) |
 | 개발 기기 | macOS 26.6.2 arm64(Apple M5 Pro), uv 0.11.19. 저장소 시험 CPython 3.12.13(`uv.lock`의 개발 환경), aelix 레그 3.12·3.11, 런처·stdlib 스모크 3.11. 같은 기기에서 다른 에이전트의 시험이 함께 돌았으므로 시간은 그 부하를 담습니다 |
 | 격리 | `AELIX_ANALYTICS_TRUST_FILE`·`AELIX_ANALYTICS_UV`를 run 폴더 안으로(`uv`는 실제 uv로의 링크), `LAB_*`·`AELIX_LAB_*` 없음, `~/.aelix`는 읽지도 쓰지도 않음 |
 
@@ -32,7 +34,7 @@ of PR 2 (Issue #13)`)의 코드를 처음부터 다시 잰 것입니다. 수정 
 | 검사 | 명령 | 결과 |
 |---|---|---|
 | ruff | `uv run --locked ruff check tests extension src tools` | 통과 |
-| 저장소 시험 | `uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread` | 통과: 1647 passed, 92 skipped, 0 failed(454초). 리뷰 뒤 측정(1644 passed)보다 수정 diff 확인에 더한 사례 3개가, 처음 측정(1621 passed)보다 리뷰에 더한 시험 23개가 많고, PR ①의 마지막 측정(1477 passed, 72 skipped)보다 170개 많음: 전환 시험 `tests/test_migration.py`·`tests/test_migration_reader.py`, 포트 계약 사례, 표식 판정의 `incomplete` 행, Windows의 `publish_new`, aelix 프로세스가 `migration`을 로드하지 않음. 늘어난 건너뜀 20개는 Windows 구현의 포트 사례 14, 시험 adapter가 밝히지 않은 능력 3, 다른 OS에서 도는 전환 사례 3(공유 없이 연 원본 파일과 MAX_PATH는 Windows, UTF-8이 아닌 이름은 Linux)입니다. 리뷰에 더한 시험 가운데 읽기 전용 폴더와 링크 뒤 `..`의 둘은 POSIX에서만 돌고 이 기기에서 돌았습니다 |
+| 저장소 시험 | `uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread` | 통과: 1647 passed, 92 skipped, 0 failed(1095초). 수정 diff 확인 뒤 측정과 같은 수(Windows 수정은 기존 사례에 단언을 더함). 리뷰 뒤 측정(1644 passed)보다 수정 diff 확인에 더한 사례 3개가, 처음 측정(1621 passed)보다 리뷰에 더한 시험 23개가 많고, PR ①의 마지막 측정(1477 passed, 72 skipped)보다 170개 많음: 전환 시험 `tests/test_migration.py`·`tests/test_migration_reader.py`, 포트 계약 사례, 표식 판정의 `incomplete` 행, Windows의 `publish_new`, aelix 프로세스가 `migration`을 로드하지 않음. 늘어난 건너뜀 20개는 Windows 구현의 포트 사례 14, 시험 adapter가 밝히지 않은 능력 3, 다른 OS에서 도는 전환 사례 3(공유 없이 연 원본 파일과 MAX_PATH는 Windows, UTF-8이 아닌 이름은 Linux)입니다. 리뷰에 더한 시험 가운데 읽기 전용 폴더와 링크 뒤 `..`의 둘은 POSIX에서만 돌고 이 기기에서 돌았습니다 |
 | 계층 검사 | `tests/test_layers.py` | 통과: 47 passed(`migration` 계층 등록, ARCHITECTURE §11의 표와 같음) |
 | 계약 시험 | `tests/test_contracts.py` | 통과: 66 passed, 41 skipped(Windows 구현은 Windows 레그, 시험 adapter가 밝히지 않은 능력) |
 | aelix 0.1.0b2, 3.12 / 3.11 | `tests/test_extension.py tests/test_usage_report.py`(CONTRIBUTING의 격리 명령) | 통과: 161 / 161 passed |
@@ -44,7 +46,8 @@ of PR 2 (Issue #13)`)의 코드를 처음부터 다시 잰 것입니다. 수정 
 | 공백 | `git diff --check fbd12e1...HEAD`(잰 클론), `git diff --check origin/main...HEAD`(이 기록을 더한 커밋) | 둘 다 출력 없음 |
 | 새 시험을 기준 소스에서(처음 측정) | 그때 헤드의 새·바뀐 시험 + `fbd12e1`의 `src`·`extension`·`bin`·`tools`·`pyproject.toml`·`uv.lock` | 기대대로 실패: 70개(수집 오류 둘 — `tests/test_migration.py`·`tests/test_migration_reader.py`는 `aelix_analytics.migration`이 없음 — 포함). 통과한 24개는 시험 adapter(시험 코드인 `tests/platform_doubles.py`)의 포트 사례와, 거른 조건에 함께 든 바꾸지 않은 사례(쓸 수 없는 pid, 계층 검사의 파서 사례 넷)입니다 |
 | 리뷰의 새 시험을 앞 헤드에서 | 리뷰 수정 커밋(`80a0fc9`)의 `tests/test_migration.py`·`tests/test_migration_reader.py` + 그때의 앞 헤드 `f7faea5`의 코드(run 폴더의 클론) | 기대대로 실패: 리뷰에 더한 23개 모두(지적마다의 재현). 그 헤드에 있던 110개는 통과, 2개 건너뜀 |
-| 수정 diff 확인의 새 사례를 앞 헤드에서 | 이 커밋의 `tests/test_migration.py`에서 바꾸거나 더한 사례 + `80a0fc9`의 코드(run 폴더의 클론) | 기대대로 실패: 더한 3개 모두(다른 전환의 보고서 바이트·매핑 바이트를 자기 디렉터리에 둔 표식, 원본 재확인 뒤 지운 계획 폴더). 리뷰가 더한 `report_path` 사례는 통과 |
+| 수정 diff 확인의 새 사례를 앞 헤드에서 | 수정 diff 확인 커밋(`84f3970`)의 `tests/test_migration.py`에서 바꾸거나 더한 사례 + `80a0fc9`의 코드(run 폴더의 클론) | 기대대로 실패: 더한 3개 모두(다른 전환의 보고서 바이트·매핑 바이트를 자기 디렉터리에 둔 표식, 원본 재확인 뒤 지운 계획 폴더). 리뷰가 더한 `report_path` 사례는 통과 |
+| Windows 수정의 시험을 앞 헤드에서 | `ebd10b6`의 `tests/test_migration_reader.py` + `53d1bdf`의 코드(run 폴더의 클론) | 기대대로 `test_the_mapping_s_rules_are_by_path_components` 하나만 실패(`..`가 든 절대 경로를 `'sub/../x/y.csv'`로 읽음, 기대는 `'x/y.csv'`), 나머지 4개 통과(JSON의 `windows_ci_failure.local_check`). Windows에서만 보이는 원인 셋은 이 기기에서 돌릴 수 없음 |
 
 ## 중단과 이어 쓰기(`fault_matrix`, T6)
 
@@ -121,19 +124,19 @@ journal에 덧붙임·원본을 지우고 원본 없이 부름·바깥 링크의
 ## 규모와 단계(`fixtures`·`phases`·`sizes`·`preservation`)
 
 `tools/eval_fixtures.py scale --scale S|M --seed 0`을 잰 코드(kit 0.7.0이 `lab.json`·`lab.*/1`을 씀)로 새로 만들고(기록의 시각 값 때문에
-만들 때마다 몇 바이트 다름: M은 앞 측정의 223,109,249 B에서 이번 223,109,251 B), 각 원본을 새 목적지에 두 번 전환했습니다
+만들 때마다 몇 바이트 다름: 이번 S는 앞 측정의 2,898,447 B에서 2,898,446 B, M은 223,109,251 B로 앞 측정과 같음), 각 원본을 새 목적지에 두 번 전환했습니다
 (자식 프로세스마다 하나, 시간은 ledger 줄의 시각에서, 두 번의 최솟값). 원본은 측정 스크립트의 걷기(전환 코드가 아닌 것)로 첫 전환 전과 둘째 전환·다시
 부르기 뒤에 비교했습니다.
 
 | 항목 | S | M |
 |---|---|---|
-| 원본 파일·바이트(잠금 파일 둘 제외) | 229개, 2,898,447 B | 2,037개, 223,109,251 B |
-| 복사한 파일·바이트(`lab.json`의 바이트는 `source-marker.json`으로, `.lab/report.lock`은 뺌) | 228개, 2,898,447 B | 2,036개, 223,109,251 B |
+| 원본 파일·바이트(잠금 파일 둘 제외) | 229개, 2,898,446 B | 2,037개, 223,109,251 B |
+| 복사한 파일·바이트(`lab.json`의 바이트는 `source-marker.json`으로, `.lab/report.lock`은 뺌) | 228개, 2,898,446 B | 2,036개, 223,109,251 B |
 | 복사하지 않은 것 | `.lab`의 잠금 셋, 빈 `.lab/cache`·`report`(0 B) | 같음 |
-| 계획 / 복사 / 원본 재확인 / 사본 검증(ms) | 13 / 977 / 23 / 12 | 51 / 8,400 / 256 / 165 |
-| `.gitignore` 변환 / 보고서 / flush / 표식 / 전체(ms) | 13 / 19 / 2 / 5 / 1,065 | 20 / 27 / 18 / 7 / 8,959 |
-| 원본 잠금을 쥔 시간(ms) | 1,013 | 8,721 |
-| 자식의 최대 RSS(시작 때) | 29.6 MB(17.3 MB) | 72.3 MB(17.4 MB) |
+| 계획 / 복사 / 원본 재확인 / 사본 검증(ms) | 10 / 923 / 20 / 10 | 57 / 8,759 / 283 / 184 |
+| `.gitignore` 변환 / 보고서 / flush / 표식 / 전체(ms) | 9 / 21 / 2 / 4 / 1,005 | 25 / 34 / 20 / 8 / 9,395 |
+| 원본 잠금을 쥔 시간(ms) | 956 | 9,119 |
+| 자식의 최대 RSS(시작 때) | 29.4 MB(17.3 MB) | 73.0 MB(17.3 MB) |
 | `report.json` / `plan.json` / `mapping.json` / ledger | 47 KB / 148 KB / 833 B / 97 KB(469줄) | 395 KB / 1.36 MB / 833 B / 862 KB(4,085줄) |
 | 원본 digest 전후 | 같음 | 같음 |
 | 두 전환의 사본 | 같음 | 같음 |
@@ -151,19 +154,23 @@ aelix의 hook·도구가 journal 잠금에서 기다림). 두 fixture의 원본�
 | fixture | 판정 수 | 같음 |
 |---|---|---|
 | S | 참조 477, run 30, 기록 상태 252, 계보 39, 생산자 39, 가져오기 5, 끊긴 줄 4 | 모두 같음, 목적지의 매핑 적용(`applied: true`) |
-| M | 참조 15,000, run 300, 기록 상태 9,633, 계보 483, 생산자 483, 가져오기 20, 끊긴 줄 4 | 모두 같음, 매핑 적용, 읽기 0.33초 |
+| M | 참조 15,000, run 300, 기록 상태 9,633, 계보 483, 생산자 483, 가져오기 20, 끊긴 줄 4 | 모두 같음, 매핑 적용, 읽기 0.34초 |
 
 `tests/test_migration_reader.py`가 옛 kit의 경로를 봅니다(심볼릭 링크, Windows 레그는 junction도): 옛 run이 루트를 다른 철자로 기록한 절대 경로,
 `data -> /ext/data` 경계를 지나 실제 경로로 기록한 입력, 상대 `.lab/…` 경로, 같은 글자를 기록한 0.5.0 run. 목적지의 판정이 원본과 같고(다른 것은 `.lab/…`
 경로에 매핑만이 주는 `read_as: .analytics/…` 하나), 목적지를 옮기고 `/ext/data`를 지운 뒤에도 같으며, 보고서의 바이트가 바뀌면 매핑을 쓰지 않고
 `status`가 `report_changed`를 보입니다. 리뷰 뒤에는 매핑을 지우면 `source_revision`이 바뀌고 같은 바이트로 되돌리면 처음 값으로 돌아오는 것,
 표식·보고서·매핑의 전환 id가 다르거나 보고서가 다른 전환의 디렉터리에 있으면 매핑을 쓰지 않는 것(`invalid`)도 봅니다. 수정 diff 확인 뒤에는
-같은 목적지를 다시 부른 전환도 `destination_mismatch(invalid)`로 거절하는 것을 함께 봅니다(위 "중단과 이어 쓰기").
+같은 목적지를 다시 부른 전환도 `destination_mismatch(invalid)`로 거절하는 것을 함께 봅니다(위 "중단과 이어 쓰기"). Windows 수정 뒤에는 매핑이
+절대 경로를 원본의 읽기(`legacy_identity`)처럼 `normpath`로 읽는 것을 봅니다: `..`가 든 경로(모든 레그)와 두 구분자가 섞인 경로(Windows 레그;
+옛 run이 기록한 `C:\…\src/tables/t.parquet`를 목적지도 `tables/t.parquet`로 읽음).
 
 ## 실행하지 않은 것
 
-JSON의 `not_run`에 있습니다: 저장소 CI(Linux·Windows, macOS는 라벨 — Windows 레그가 F 표, 다른 프로세스가 공유 없이 연 원본 파일, LongPathsEnabled 1·0의
-260자 넘는 목적지, junction, Windows의 포트 구현을 돌림), 표식 뒤의 전원 손실과 Windows의 디렉터리 flush, FAT·exFAT 목적지(링크를 거절하는 포트로만
+JSON의 `not_run`에 있습니다: 이 코드를 담은 헤드의 저장소 CI(Linux·Windows, macOS는 라벨 — Windows 레그가 F 표, 다른 프로세스가 공유 없이 연 원본
+파일, LongPathsEnabled 1·0의 260자 넘는 목적지, junction, Windows의 포트 구현과 아래 Windows 수정을 돌림. Windows 수정은 실패 로그와 CPython·Win32의
+문서화된 동작으로 고쳤고 이 기기에서 돌리지 않음), Windows에서 원본을 읽는 중에 만난 다른 프로그램의 바이트 범위 잠금(C 런타임의 읽기가 Windows
+오류를 넘기지 않아 `in_use`가 아니라 `permission`; 코드에서 읽음), 표식 뒤의 전원 손실과 Windows의 디렉터리 flush, FAT·exFAT 목적지(링크를 거절하는 포트로만
 흉내 냄), 네트워크 파일 시스템·Linux casefold 디렉터리·Windows의 디렉터리별 대소문자 구별 상속, Linux에서 만든 예약 이름 원본을 Windows로 전환,
 다른 드라이브·볼륨의 목적지, 명령 `analytics migrate`와 런처(셋째 PR)·실제 aelix 세션, 읽기 전용으로 마운트한 볼륨(읽기 전용 폴더 트리로 흉내 냄),
 M의 Workspace 페이지 비교(판정만 비교함). 링크 없는 목적지의 표식 직접 쓰기가 끊긴 경우(F15 행의 표식)는 실제 매체가 아니라 링크를 거절하는
@@ -186,3 +193,27 @@ M의 Workspace 페이지 비교(판정만 비교함). 링크 없는 목적지의
 RSS 74.1 → 72.3 MB). 보고서·계획·매핑·ledger의 크기와 줄 수는 같습니다. 저장소 시험은 수정 diff 확인에 더한
 사례 3개만큼 늘었고, 그 3개는 `80a0fc9`의 코드에서 실패하고 이 커밋에서 통과합니다(JSON의
 `new_tests_on_fix_check_head`).
+
+## Windows CI 실패와 수정
+
+PR #82의 앞 헤드 `53d1bdf`에서 CI의 Windows 레그(`platform · windows-2025`, run 37757801858, job 113246550243)만 사례 넷이 실패했습니다
+(4 failed, 1,521 passed, 216 skipped; Linux·macOS 레그, 두 OS의 stdlib floor, lint는 통과). 실패 로그와
+JUnit(`ci-platform-windows-2025`의 `suite.xml`, sha256은 JSON)에서 원인을 찾아 엔진을 고쳤고(`ebd10b6`), 시험이 말하는 보장은 그대로입니다.
+
+| 실패한 사례 | 원인 | 수정 |
+|---|---|---|
+| `test_the_source_s_own_refusals`: `link_target_missing`의 링크 글자가 `\\?\C:\…`(시험은 링크를 만든 글자 `C:\…`) | 걷기가 링크의 글자를 `os.readlink`로 읽는데, Windows에서는 reparse point의 substitute name이라 절대 대상과 junction에 확장 길이 접두가 붙음 | 걷기가 글자를 접두 없이 둠(`_platform.plain_path`). 다시 만드는 링크는 상대 글자뿐이라 다시 만들기와 ledger의 비교는 그대로 |
+| `test_a_source_file_another_program_holds_open_is_reported`: `reason`이 `permission`(시험은 `in_use`) | `os.open`은 C 런타임의 `_wopen`을 거치고, 그것은 공유 위반(WinError 32)을 errno `EACCES`로만 알려 OSError에 `winerror`가 없음 | 원본 파일을 `_platform.open_for_reading`으로 엶: Windows는 `_wopen`과 같은 접근·공유로 CreateFile을 불러 거절의 WinError를 지키고, 그 핸들의 C 런타임 descriptor를 씀. POSIX는 전과 같은 `os.open` |
+| `test_the_reader_reads_a_migrated_project_as_it_read_its_source[symlink]`·`[junction]`: 옛 run이 기록한 `C:\…\src/tables/t.parquet`를 목적지가 읽지 못함(원본은 `tables/t.parquet`로 읽음) | 매핑이 절대 경로를 `os.sep`으로만 나눈 글자로 원본 루트의 철자와 비교함. 원본의 읽기는 `normpath`로 읽음 | 매핑이 절대 경로와 철자를 `legacy_identity`처럼 읽음(접두를 뗀 뒤 `normpath`). `..`도 원본의 읽기처럼 글자로 접음 |
+
+이 기기에는 Windows가 없어 원인 셋은 로그와 CPython·Win32의 문서화된 동작으로 판단했습니다. 새 시험 가운데 macOS에서 도는 `..` 사례는 `53d1bdf`의
+코드에서 실패하고 `ebd10b6`에서 통과합니다(위 결과 표). 나머지는 이 코드를 담은 헤드의 Windows 레그가 확인합니다(`pending`). 읽는 중에 만난
+바이트 범위 잠금(WinError 33)은 C 런타임의 읽기가 여전히 errno로만 알려 `permission`이고, CONTRACTS G에 적었습니다.
+
+## Windows 수정 뒤 다시 잼
+
+수정 diff 확인 뒤 측정(코드 `84f3970`, 커밋 `53d1bdf`까지의 기록)과 비교하면, F 표의 37행은 남은 것·kit의 읽기·다시 부른
+결과·사본·원본 비교가 모두 같고(JSON의 `fix_check_measurement.fault_observed_rows_same`), 규모의 값은 같은 기기의 부하 안에서 비슷합니다(S 전체
+1,065 → 1,005 ms, M 8,959 → 9,395 ms,
+M의 최대 RSS 72.3 → 73.0 MB). 계획·매핑·ledger의 크기와 줄 수는 같고, S의 보고서는 그 안의 원본 잠금을 쥔 시간
+(`held_ms`)의 자릿수만큼 1바이트 작습니다. 저장소 시험의 수는 같습니다(새 단언은 기존 사례 안).

@@ -1,17 +1,19 @@
 {
  "record_kind": "aelix-analytics-migration-engine",
- "observed_at": "2026-10-08T09:33:45Z",
+ "observed_at": "2026-10-08T14:01:54Z",
  "issue": "https://github.com/handochan/aelix-analytics/issues/13",
- "pull_request": null,
+ "pull_request": "https://github.com/handochan/aelix-analytics/pull/82",
  "base_revision": "fbd12e1d10886889097cb336f4cbe06fb72e3d21",
  "measured_tree": {
-  "what": "the code of the commit `fix: answer the fix check of PR 2 (Issue #13)` (kit 0.7.0, unchanged), the head of branch feat/issue-13-migration-engine on origin/main ed29cf0 (PR #80 merged; its tree is fbd12e1's). It was measured on a clean clone of that commit before this record was added to it (the commit was amended, so its provisional id below is not in the branch); the manifest's files are the commit's. The first measurement of this PR (code 2b6eabb) is in `previous_measurement`, the second (the code of the review fixes, 80a0fc9) in `review_fix_measurement`",
-  "head": null,
-  "provisional_commit": "2de7c81cd16dd6a1789d5404f46143c314f8bd14",
+  "what": "the code of the commit `fix: the migration engine's Windows cases (Issue #13 PR 2)` (kit 0.7.0, unchanged) on branch feat/issue-13-migration-engine (PR #82) over origin/main ed29cf0 (PR #80 merged; its tree is fbd12e1's). It was measured on a clean clone of that commit; this record is the docs commit after it, which changes no code (the manifest's files are the commit's). The first measurement of this PR (code 2b6eabb) is in `previous_measurement`, the second (the code of the review fixes, 80a0fc9) in `review_fix_measurement`, the third (the code of the fix check, 84f3970) in `fix_check_measurement`",
+  "head": "ebd10b644e8cb8550ccf6446b134666db6bb9386",
+  "provisional_commit": null,
   "measured_base": "fbd12e1d10886889097cb336f4cbe06fb72e3d21",
   "origin_main": "ed29cf019d2bf72fbf8a83d25e5e51d5e72350c7",
   "commits": [
-   "(this commit, provisional 2de7c81cd16d) fix: answer the fix check of PR 2 (Issue #13)",
+   "ebd10b644e8cb8550ccf6446b134666db6bb9386 fix: the migration engine's Windows cases (Issue #13 PR 2)",
+   "53d1bdf6354e4b19ebaa52de75d6d291f792e89e docs: link the migration engine's changelog entries to PR #82 (Issue #13)",
+   "84f3970fa4f7b52cc9cbdac31c743f00f09b52c2 fix: answer the fix check of PR 2 (Issue #13)",
    "80a0fc952953e0f3deb1d38936d6c90ea420722a fix: answer the reviews of PR 2 (Issue #13)",
    "f7faea5019d56d15ae9395a21ba77c3f28044e83 docs: describe the migration engine and record its measurement (Issue #13 PR 2)",
    "4243021db491b6cd0da8bfd839b10b6037fc951e fix: leave a linked .lab/'s cache and locks out, and follow no link into a planned folder (Issue #13 PR 2)",
@@ -22,7 +24,7 @@
    "ed29cf019d2bf72fbf8a83d25e5e51d5e72350c7 Merge pull request #80 from handochan/feat/issue-13-marker-gate"
   ],
   "code_manifest": "sha256 of each tracked file under src, extension, tests, tools, bin and pyproject.toml, uv.lock, one line each (`shasum -a 256` format), sorted by path",
-  "code_manifest_sha256": "fb94829c844535b7692e51012e5db98a3bad4c071a19c9e207c017df09cc2d1a",
+  "code_manifest_sha256": "a91f93e5954f94057d0848d6d4072e8be7f0f8d926a11c50e7484f401d5822d8",
   "code_files": 215
  },
  "workflow": ".github/workflows/ci.yml, not changed by this change",
@@ -34,10 +36,10 @@
    "attempt": null,
    "conclusion": null,
    "head": null,
-   "note": "the PR is not opened yet (no push in this run); the CI cells are filled after the PR's run"
+   "note": "the run of PR #82 at the head that holds this code is pending (no push in this run); the run at the previous head 53d1bdf failed its Windows leg (`windows_ci_failure`), which the measured commit fixes"
   },
   "macos_label": {
-   "state": "not_requested"
+   "state": "pending"
   }
  },
  "legs": {
@@ -48,7 +50,91 @@
    "state": "pending"
   },
   "macos_hosted": {
-   "state": "not_requested"
+   "state": "pending"
+  }
+ },
+ "windows_ci_failure": {
+  "what": "PR #82's CI at its previous head 53d1bdf: the Windows leg failed four cases and every other job passed. The commit measured here fixes their causes (below); the CI cells above stay pending until the run at the new head",
+  "head": "53d1bdf6354e4b19ebaa52de75d6d291f792e89e",
+  "runs": {
+   "37757801858": {
+    "url": "https://github.com/handochan/aelix-analytics/actions/runs/37757801858",
+    "conclusion": "failure",
+    "jobs": {
+     "platform · windows-2025": "failure (job 113246550243)",
+     "floor · windows-2025 · CPython 3.11, stdlib only": "success",
+     "platform · ubuntu-24.04": "success",
+     "floor · ubuntu-24.04 · CPython 3.11, stdlib only": "success",
+     "lint · ruff and documents": "success"
+    }
+   },
+   "37757804883": {
+    "url": "https://github.com/handochan/aelix-analytics/actions/runs/37757804883",
+    "conclusion": "success",
+    "jobs": {
+     "platform · macos-26": "success",
+     "floor · macos-26 · CPython 3.11, stdlib only": "success",
+     "lint · ruff and documents": "skipped"
+    }
+   }
+  },
+  "windows_suite": {
+   "file": "suite.xml of the artifact ci-platform-windows-2025 (run 37757801858)",
+   "file_sha256": "d73f778fc378862db829ae628fff70445ce2961a556b26671f927a3cb2e25526",
+   "timestamp": "2026-10-08T09:39:35.713735+00:00",
+   "seconds": 1751.008,
+   "counts": {
+    "skip": 216,
+    "pass": 1521,
+    "fail": 4
+   },
+   "failed": [
+    "tests.test_migration::test_the_source_s_own_refusals",
+    "tests.test_migration::test_a_source_file_another_program_holds_open_is_reported",
+    "tests.test_migration_reader::test_the_reader_reads_a_migrated_project_as_it_read_its_source[symlink]",
+    "tests.test_migration_reader::test_the_reader_reads_a_migrated_project_as_it_read_its_source[junction]"
+   ]
+  },
+  "causes": [
+   {
+    "case": "tests/test_migration.py::test_the_source_s_own_refusals",
+    "seen": "link_target_missing's text was '\\\\?\\C:\\...\\unmounted\\data', the test expects the text the link was made with, 'C:\\...\\unmounted\\data'",
+    "cause": "the walk took a link's text from os.readlink, which on Windows gives the reparse point's substitute name: an extended-length prefix for an absolute target and always for a junction",
+    "fix": "the walk keeps the text without the prefix (_platform.plain_path); a relative text, the only one made again, has none, so the links made again and the ledger's comparisons of them are as they were"
+   },
+   {
+    "case": "tests/test_migration.py::test_a_source_file_another_program_holds_open_is_reported",
+    "seen": "reason 'permission', the test expects 'in_use'",
+    "cause": "os.open goes through the C runtime's _wopen, which reports a sharing violation (WinError 32) by errno EACCES alone, the OSError carrying no winerror, so _unreadable_error could not tell it from a permission denied",
+    "fix": "a source file is opened by _platform.open_for_reading: on Windows CreateFile with the access and sharing _wopen asks for (GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE), the descriptor the C runtime's for that handle, so the refusal keeps WinError 32; POSIX opens as before (O_RDONLY | O_NONBLOCK). A lock violation (33) met while reading still comes through the C runtime by errno alone (CONTRACTS G, not run)"
+   },
+   {
+    "case": "tests/test_migration_reader.py::test_the_reader_reads_a_migrated_project_as_it_read_its_source[symlink] and [junction]",
+    "seen": "the destination did not read an older kit's 'C:\\...\\src/tables/t.parquet' as tables/t.parquet (read_as missing) and a 0.5.0 run's tables/t.parquet lost its inferred producer; the source read both",
+    "cause": "MigrationMapping compared an absolute path with the root's spellings as text split on os.sep only, so a path with both separators was not under 'C:\\...\\src'; the source's reader (legacy_identity) reads it through os.path.normpath",
+    "fix": "the mapping reads absolute paths and spellings as legacy_identity does (normpath after the extended-length prefix is dropped): on Windows either separator, and `..` folded as text, as the source's reader folds it"
+   }
+  ],
+  "local_check": {
+   "what": "the Windows fix commit's tests/test_migration_reader.py (ebd10b6) run against the code of 53d1bdf (the head whose Windows leg failed; a clone in the run folder, the test file copied in and put back after). The case it adds that runs off Windows (an absolute path with `..` read through the mapping as legacy_identity reads it) fails there and passes on ebd10b6; the Windows-only assertions (both separators) and the three Windows causes are run by the Windows leg",
+   "previous_head": "53d1bdf6354e4b19ebaa52de75d6d291f792e89e",
+   "command": "uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread tests/test_migration_reader.py --junitxml=reader-on-53d1bdf.xml",
+   "junit_sha256": "dce0af6dce811f4609b4c778e78d0ff05436f1a8e68ba87a7e0d6fedd54f6ae5",
+   "counts": {
+    "pass": 4,
+    "fail": 1
+   },
+   "failed": [
+    "tests.test_migration_reader::test_the_mapping_s_rules_are_by_path_components"
+   ],
+   "failure": "AssertionError: assert 'sub/../x/y.csv' == 'x/y.csv'\n  \n  - x/y.csv\n  + sub/../x/y.csv",
+   "passed": [
+    "tests.test_migration_reader::test_the_reader_reads_a_migrated_project_as_it_read_its_source[symlink]",
+    "tests.test_migration_reader::test_the_reader_knows_the_migration_family",
+    "tests.test_migration_reader::test_what_the_mapping_is_enters_the_read_s_revision",
+    "tests.test_migration_reader::test_a_marker_report_and_mapping_of_two_migrations_are_not_read_together"
+   ],
+   "expected": "only test_the_mapping_s_rules_are_by_path_components fails ('sub/../x/y.csv' != 'x/y.csv'); the other cases of the file pass on both codes on macOS"
   }
  },
  "developer_machine": {
@@ -61,26 +147,26 @@
   ],
   "load": "other agents' test suites ran on the same machine at the same time (their own checkouts); the times below carry that load",
   "log": [
-   "head 2de7c81cd16dd6a1789d5404f46143c314f8bd14 2026-10-08T09:21:49Z",
+   "head ebd10b644e8cb8550ccf6446b134666db6bb9386 2026-10-08T13:34:06Z",
    "sync exit 0",
    "ruff exit 0",
-   "suite 2026-10-08T09:21:49Z",
-   "suite exit 0 2026-10-08T09:29:24Z",
+   "suite 2026-10-08T13:34:06Z",
+   "suite exit 0 2026-10-08T13:52:23Z",
    "layers exit 0",
    "contracts exit 0",
-   "aelix 3.12 2026-10-08T09:29:38Z",
+   "aelix 3.12 2026-10-08T13:53:25Z",
    "aelix 3.12 exit 0",
-   "aelix 3.11 2026-10-08T09:30:20Z",
+   "aelix 3.11 2026-10-08T13:56:13Z",
    "aelix 3.11 exit 0",
-   "launcher 2026-10-08T09:31:01Z",
+   "launcher 2026-10-08T13:58:40Z",
    "launcher exit 0",
-   "usage 2026-10-08T09:31:19Z",
+   "usage 2026-10-08T13:59:13Z",
    "usage exit 0",
-   "smoke 2026-10-08T09:31:24Z",
+   "smoke 2026-10-08T13:59:45Z",
    "smoke exit 0",
    "stdlib smoke exit 0",
    "diff-check exit 0",
-   "done 2026-10-08T09:32:48Z"
+   "done 2026-10-08T14:01:18Z"
   ],
   "ruff": {
    "command": "uv run --locked ruff check tests extension src tools",
@@ -88,9 +174,9 @@
   },
   "suite": {
    "file": "suite.xml",
-   "file_sha256": "c37d1d63acf053fea93ff77319ceb82991e57bee002d7794e655cf5819d3e181",
-   "timestamp": "2026-10-08T18:21:49.615485+09:00",
-   "seconds": 454.043,
+   "file_sha256": "0ed028d39fdab0b1517c1e5dae410c22404abf691b054a1a7f78fa7d4dba5b55",
+   "timestamp": "2026-10-08T22:34:06.551944+09:00",
+   "seconds": 1094.581,
    "counts": {
     "skip": 92,
     "pass": 1647
@@ -322,9 +408,9 @@
   "layers": {
    "command": "uv run --locked pytest -q -ra -p no:cacheprovider tests/test_layers.py",
    "file": "layers.xml",
-   "file_sha256": "71f6772f5be06b8e42b792e0d94acc36ed5984c906f98e11b4869426df84ce82",
-   "timestamp": "2026-10-08T18:29:24.167742+09:00",
-   "seconds": 6.413,
+   "file_sha256": "b4cadf8848a6f23881b72ca16183224f8dcdced1d08c38af0db09c699a9b92f2",
+   "timestamp": "2026-10-08T22:52:23.897630+09:00",
+   "seconds": 17.868,
    "counts": {
     "pass": 47
    },
@@ -334,9 +420,9 @@
   "contracts": {
    "command": "uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread tests/test_contracts.py",
    "file": "contracts.xml",
-   "file_sha256": "3213a0e10cc99da4edd25433896367f6cce7c1b7379fdf50961541d88ab49690",
-   "timestamp": "2026-10-08T18:29:35.156607+09:00",
-   "seconds": 3.28,
+   "file_sha256": "a422a8689f0382a9aa714827cf8c1806758c26cd5e730643227e2874b32a4753",
+   "timestamp": "2026-10-08T22:53:19.841655+09:00",
+   "seconds": 5.429,
    "counts": {
     "pass": 66,
     "skip": 41
@@ -354,9 +440,9 @@
    "3.12": {
     "command": "uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_extension.py tests/test_usage_report.py",
     "file": "aelix-3.12.xml",
-    "file_sha256": "ea31bdf2891554763bd458dc5e3d922cb389583b79ce86580dad424362970368",
-    "timestamp": "2026-10-08T18:29:38.747793+09:00",
-    "seconds": 41.577,
+    "file_sha256": "d313c2fbaecd10245513c9fe9c69490ac119aa2cb141c53e49e5e2a7f8899ddf",
+    "timestamp": "2026-10-08T22:53:27.896068+09:00",
+    "seconds": 165.302,
     "counts": {
      "pass": 161
     },
@@ -366,9 +452,9 @@
    "3.11": {
     "command": "uv run --isolated --no-project --python 3.11 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_extension.py tests/test_usage_report.py",
     "file": "aelix-3.11.xml",
-    "file_sha256": "d1196c9931b2a7c8add1a0c8ceefb303c0f14845f84c99f1a31196970a1291d3",
-    "timestamp": "2026-10-08T18:30:20.595973+09:00",
-    "seconds": 40.725,
+    "file_sha256": "02abf3ebe9410d1f66b2ec66950c90a1911a5ce10eeaeb4c700c11f97b91ca57",
+    "timestamp": "2026-10-08T22:56:15.433386+09:00",
+    "seconds": 144.471,
     "counts": {
      "pass": 161
     },
@@ -379,9 +465,9 @@
   "launcher_3_11": {
    "command": "uv run --isolated --no-project --python 3.11 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_launcher.py",
    "file": "launcher-3.11.xml",
-   "file_sha256": "f0986072e32d0303fea4d8a1085cae066eea583c02de6c529a1b7ae96f441fa4",
-   "timestamp": "2026-10-08T18:31:01.573951+09:00",
-   "seconds": 18.024,
+   "file_sha256": "86ad60324c4a317e0b98f451d434445ffeeb3c84afe01246302d2673bf68b6f6",
+   "timestamp": "2026-10-08T22:58:40.977684+09:00",
+   "seconds": 32.284,
    "counts": {
     "pass": 138,
     "skip": 1
@@ -394,7 +480,7 @@
   "usage_report": {
    "command": "uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 python tools/usage_report.py --output <run>/evidence/verify/usage",
    "exit": "0",
-   "report_sha256": "8185cef166400588ceefde99f8cad71df495331be85e1fe9f49719d246a852ee",
+   "report_sha256": "eb592eb406d6e4e1b9559f940793c7150042a40e2db01a1e3f173c052a4c9c2a",
    "summary": {
     "required_facts": {
      "passed": 58,
@@ -421,7 +507,7 @@
     },
     "hold": true
    },
-   "file_sha256": "d3a7fe68d22c381071b5cd9dfaf387757a99e4c3a7d567ff77d2b48d6e8d311b"
+   "file_sha256": "38a2ff8e585f2ee303466691ce8b5eaaddcaa55dc3a30c45267d07ad7da997e2"
   },
   "platform_smoke_stdlib_3_11": {
    "command": "uv run --isolated --no-project --python 3.11 python tools/platform_smoke.py --stdlib-only --gate required",
@@ -436,7 +522,7 @@
     },
     "hold": true
    },
-   "file_sha256": "57d40efe0fb030bdd55c54467b0c54fac313ba12b1d82423f35c46beeba006f3"
+   "file_sha256": "bc9e93565178c519b00830cf013e596d7ddceb2bd680755a8515defa473ae625"
   },
   "diff_check": {
    "command": "git diff --check fbd12e1...HEAD",
@@ -459,13 +545,13 @@
  "fixtures": {
   "S": {
    "command": "uv run --locked python tools/eval_fixtures.py scale --scale S --seed 0 --out <dir>",
-   "generator_commit": "2de7c81cd16dd6a1789d5404f46143c314f8bd14",
+   "generator_commit": "ebd10b644e8cb8550ccf6446b134666db6bb9386",
    "kit_version": "0.7.0",
    "seed": 0,
    "project": "fixtures/S/project",
    "files": 229,
-   "bytes": 2898447,
-   "tree_digest": "23243fd54e1d16ca2da61951a657738676ff2d5189b958c4432e690b7494bd4e",
+   "bytes": 2898446,
+   "tree_digest": "30ce3f8983c115e2a19556f9397fae2e7f535caddbba3d75a179e83a94c13973",
    "lock_files_before": {
     ".lab/run.lock": true,
     ".lab/lock": true
@@ -473,13 +559,13 @@
   },
   "M": {
    "command": "uv run --locked python tools/eval_fixtures.py scale --scale M --seed 0 --out <dir>",
-   "generator_commit": "2de7c81cd16dd6a1789d5404f46143c314f8bd14",
+   "generator_commit": "ebd10b644e8cb8550ccf6446b134666db6bb9386",
    "kit_version": "0.7.0",
    "seed": 0,
    "project": "fixtures/M/project",
    "files": 2037,
    "bytes": 223109251,
-   "tree_digest": "db8b189a1e62622b0fa6a8da75df3ba85d1295212d53113f637d8e4fc472767e",
+   "tree_digest": "ef113402bd18f85375aa5ba1f83c97b711880c462bbcff30fa23d4835ce6f66b",
    "lock_files_before": {
     ".lab/run.lock": true,
     ".lab/lock": true
@@ -491,56 +577,56 @@
    "what": "the ledger's line times of two migrations, each into a new destination in a process of its own; the minimum of the two per phase (ms), the child's max RSS",
    "min": {
     "start_to_locked_ms": 0,
-    "plan_ms": 13,
-    "copy_ms": 977,
-    "recheck_ms": 23,
-    "verify_ms": 12,
-    "transform_ms": 13,
-    "report_ms": 19,
+    "plan_ms": 10,
+    "copy_ms": 923,
+    "recheck_ms": 20,
+    "verify_ms": 10,
+    "transform_ms": 9,
+    "report_ms": 21,
     "flush_ms": 2,
-    "marker_ms": 5,
+    "marker_ms": 4,
     "trust_ms": 0,
-    "source_lock_held_ms": 1013,
-    "total_ms": 1065,
+    "source_lock_held_ms": 956,
+    "total_ms": 1005,
     "ledger_lines": 469
    },
-   "max_rss_bytes": 29638656,
+   "max_rss_bytes": 29392896,
    "runs": [
     {
      "attempt": 1,
-     "wall_s": 1.143,
+     "wall_s": 1.05,
      "phases": {
-      "start_to_locked_ms": 1,
-      "plan_ms": 18,
-      "copy_ms": 991,
-      "recheck_ms": 25,
-      "verify_ms": 12,
-      "transform_ms": 14,
-      "report_ms": 23,
+      "start_to_locked_ms": 0,
+      "plan_ms": 10,
+      "copy_ms": 930,
+      "recheck_ms": 20,
+      "verify_ms": 10,
+      "transform_ms": 9,
+      "report_ms": 21,
       "flush_ms": 2,
       "marker_ms": 5,
       "trust_ms": 1,
-      "source_lock_held_ms": 1034,
-      "total_ms": 1092,
+      "source_lock_held_ms": 960,
+      "total_ms": 1008,
       "ledger_lines": 469
      }
     },
     {
      "attempt": 2,
-     "wall_s": 1.117,
+     "wall_s": 1.047,
      "phases": {
-      "start_to_locked_ms": 0,
-      "plan_ms": 13,
-      "copy_ms": 977,
-      "recheck_ms": 23,
+      "start_to_locked_ms": 1,
+      "plan_ms": 12,
+      "copy_ms": 923,
+      "recheck_ms": 21,
       "verify_ms": 12,
-      "transform_ms": 13,
-      "report_ms": 19,
-      "flush_ms": 3,
-      "marker_ms": 5,
+      "transform_ms": 9,
+      "report_ms": 21,
+      "flush_ms": 2,
+      "marker_ms": 4,
       "trust_ms": 0,
-      "source_lock_held_ms": 1013,
-      "total_ms": 1065,
+      "source_lock_held_ms": 956,
+      "total_ms": 1005,
       "ledger_lines": 469
      }
     }
@@ -550,56 +636,56 @@
    "what": "the ledger's line times of two migrations, each into a new destination in a process of its own; the minimum of the two per phase (ms), the child's max RSS",
    "min": {
     "start_to_locked_ms": 1,
-    "plan_ms": 51,
-    "copy_ms": 8400,
-    "recheck_ms": 256,
-    "verify_ms": 165,
-    "transform_ms": 20,
-    "report_ms": 27,
-    "flush_ms": 18,
-    "marker_ms": 7,
+    "plan_ms": 57,
+    "copy_ms": 8759,
+    "recheck_ms": 283,
+    "verify_ms": 184,
+    "transform_ms": 25,
+    "report_ms": 34,
+    "flush_ms": 20,
+    "marker_ms": 8,
     "trust_ms": 0,
-    "source_lock_held_ms": 8721,
-    "total_ms": 8959,
+    "source_lock_held_ms": 9119,
+    "total_ms": 9395,
     "ledger_lines": 4085
    },
-   "max_rss_bytes": 72318976,
+   "max_rss_bytes": 72957952,
    "runs": [
     {
      "attempt": 1,
-     "wall_s": 9.027,
+     "wall_s": 9.469,
      "phases": {
       "start_to_locked_ms": 1,
-      "plan_ms": 52,
-      "copy_ms": 8400,
-      "recheck_ms": 269,
-      "verify_ms": 165,
-      "transform_ms": 20,
-      "report_ms": 27,
-      "flush_ms": 18,
-      "marker_ms": 7,
+      "plan_ms": 77,
+      "copy_ms": 8759,
+      "recheck_ms": 283,
+      "verify_ms": 188,
+      "transform_ms": 25,
+      "report_ms": 34,
+      "flush_ms": 20,
+      "marker_ms": 8,
       "trust_ms": 0,
-      "source_lock_held_ms": 8721,
-      "total_ms": 8959,
+      "source_lock_held_ms": 9119,
+      "total_ms": 9395,
       "ledger_lines": 4085
      }
     },
     {
      "attempt": 2,
-     "wall_s": 9.071,
+     "wall_s": 9.834,
      "phases": {
       "start_to_locked_ms": 1,
-      "plan_ms": 51,
-      "copy_ms": 8440,
-      "recheck_ms": 256,
-      "verify_ms": 171,
-      "transform_ms": 22,
-      "report_ms": 33,
-      "flush_ms": 22,
-      "marker_ms": 7,
+      "plan_ms": 57,
+      "copy_ms": 9123,
+      "recheck_ms": 297,
+      "verify_ms": 184,
+      "transform_ms": 34,
+      "report_ms": 34,
+      "flush_ms": 20,
+      "marker_ms": 9,
       "trust_ms": 0,
-      "source_lock_held_ms": 8747,
-      "total_ms": 9003,
+      "source_lock_held_ms": 9477,
+      "total_ms": 9759,
       "ledger_lines": 4085
      }
     }
@@ -609,7 +695,7 @@
  "sizes": {
   "S": {
    "copied_files": 228,
-   "copied_bytes": 2898447,
+   "copied_bytes": 2898446,
    "excluded": [
     {
      "path": ".lab/cache",
@@ -643,7 +729,7 @@
     }
    ],
    "excluded_bytes": 0,
-   "report_json_bytes": 47134,
+   "report_json_bytes": 47133,
    "plan_json_bytes": 147575,
    "mapping_json_bytes": 833,
    "ledger_bytes": 97122,
@@ -700,16 +786,16 @@
   "what": "the source walked by the measurement's own walk (not the migration's), before the first and after the second migration and the call again; the older kit's two lock files apart. Every test of tests/test_migration.py compares the source the same way (its own `tree`)",
   "S": {
    "walk": "an independent walk (this script's tree(), links not followed), the lock files apart",
-   "before": "23243fd54e1d16ca2da61951a657738676ff2d5189b958c4432e690b7494bd4e",
-   "after": "23243fd54e1d16ca2da61951a657738676ff2d5189b958c4432e690b7494bd4e",
+   "before": "30ce3f8983c115e2a19556f9397fae2e7f535caddbba3d75a179e83a94c13973",
+   "after": "30ce3f8983c115e2a19556f9397fae2e7f535caddbba3d75a179e83a94c13973",
    "equal": true,
    "lock_files_after": {
     ".lab/run.lock": true,
     ".lab/lock": true
    },
    "report_source_inventory": {
-    "before": "1302c415c5170274f98d6121fe5864922219522211642b03edb87fceacb875ea",
-    "after": "1302c415c5170274f98d6121fe5864922219522211642b03edb87fceacb875ea"
+    "before": "4aa848c08f2c7fe402fc470df9484b8300be817bc497f689789c7ef86137e908",
+    "after": "4aa848c08f2c7fe402fc470df9484b8300be817bc497f689789c7ef86137e908"
    },
    "report_locks": {
     "taken": [
@@ -722,7 +808,7 @@
       "created": false
      }
     ],
-    "held_ms": 1034
+    "held_ms": 960
    },
    "two_migrations_same_copies": true,
    "called_again": {
@@ -740,16 +826,16 @@
   },
   "M": {
    "walk": "an independent walk (this script's tree(), links not followed), the lock files apart",
-   "before": "db8b189a1e62622b0fa6a8da75df3ba85d1295212d53113f637d8e4fc472767e",
-   "after": "db8b189a1e62622b0fa6a8da75df3ba85d1295212d53113f637d8e4fc472767e",
+   "before": "ef113402bd18f85375aa5ba1f83c97b711880c462bbcff30fa23d4835ce6f66b",
+   "after": "ef113402bd18f85375aa5ba1f83c97b711880c462bbcff30fa23d4835ce6f66b",
    "equal": true,
    "lock_files_after": {
     ".lab/run.lock": true,
     ".lab/lock": true
    },
    "report_source_inventory": {
-    "before": "287dd0ae5912d8fdd97dc5a04c8447fe9466dad813bd25d8896c7d4293fcd76b",
-    "after": "287dd0ae5912d8fdd97dc5a04c8447fe9466dad813bd25d8896c7d4293fcd76b"
+    "before": "11a746bfc057241edbe4c82b53fcee9860c98eec8af7b61cb8c0209679ab57d7",
+    "after": "11a746bfc057241edbe4c82b53fcee9860c98eec8af7b61cb8c0209679ab57d7"
    },
    "report_locks": {
     "taken": [
@@ -762,7 +848,7 @@
       "created": false
      }
     ],
-    "held_ms": 8721
+    "held_ms": 9119
    },
    "two_migrations_same_copies": true,
    "called_again": {
@@ -1680,10 +1766,10 @@
    "differences": {},
    "seconds": 0.01,
    "status_migration": {
-    "id": "20261008T091806Z-721550e1",
-    "report": ".analytics/migration/20261008T091806Z-721550e1/report.json",
+    "id": "20261008T132451Z-fdde9541",
+    "report": ".analytics/migration/20261008T132451Z-fdde9541/report.json",
     "applied": true,
-    "mapping": ".analytics/migration/20261008T091806Z-721550e1/mapping.json"
+    "mapping": ".analytics/migration/20261008T132451Z-fdde9541/mapping.json"
    }
   },
   "M": {
@@ -1710,12 +1796,12 @@
     "unsupported": true
    },
    "differences": {},
-   "seconds": 0.33,
+   "seconds": 0.34,
    "status_migration": {
-    "id": "20261008T092121Z-3ea3fe67",
-    "report": ".analytics/migration/20261008T092121Z-3ea3fe67/report.json",
+    "id": "20261008T132804Z-4652294b",
+    "report": ".analytics/migration/20261008T132804Z-4652294b/report.json",
     "applied": true,
-    "mapping": ".analytics/migration/20261008T092121Z-3ea3fe67/mapping.json"
+    "mapping": ".analytics/migration/20261008T132804Z-4652294b/mapping.json"
    }
   }
  },
@@ -1908,13 +1994,61 @@
   "fault_observed_rows_same": true,
   "fault_observed_rows": 37
  },
+ "fix_check_measurement": {
+  "what": "this PR's third measurement, of the code of 84f3970 `fix: answer the fix check of PR 2 (Issue #13)` (measured as its provisional 2de7c81; the record as commits 84f3970 and 53d1bdf holds it); the Windows CI fix changed migration.py, core.py and _platform.py, so every value here was measured again",
+  "record_at": "53d1bdf6354e4b19ebaa52de75d6d291f792e89e:docs/verification/2026-10-08-issue-13-migration.json",
+  "code_manifest_sha256": "fb94829c844535b7692e51012e5db98a3bad4c071a19c9e207c017df09cc2d1a",
+  "suite": {
+   "skip": 92,
+   "pass": 1647
+  },
+  "phases_min": {
+   "S": {
+    "start_to_locked_ms": 0,
+    "plan_ms": 13,
+    "copy_ms": 977,
+    "recheck_ms": 23,
+    "verify_ms": 12,
+    "transform_ms": 13,
+    "report_ms": 19,
+    "flush_ms": 2,
+    "marker_ms": 5,
+    "trust_ms": 0,
+    "source_lock_held_ms": 1013,
+    "total_ms": 1065,
+    "ledger_lines": 469
+   },
+   "M": {
+    "start_to_locked_ms": 1,
+    "plan_ms": 51,
+    "copy_ms": 8400,
+    "recheck_ms": 256,
+    "verify_ms": 165,
+    "transform_ms": 20,
+    "report_ms": 27,
+    "flush_ms": 18,
+    "marker_ms": 7,
+    "trust_ms": 0,
+    "source_lock_held_ms": 8721,
+    "total_ms": 8959,
+    "ledger_lines": 4085
+   }
+  },
+  "max_rss_bytes": {
+   "S": 29638656,
+   "M": 72318976
+  },
+  "fault_observed_rows_same": true,
+  "fault_observed_rows": 37
+ },
  "before": {
   "record": "docs/verification/2026-10-08-issue-13-gate.json",
   "measured_revision": "8e70acdbd15a0603eaae4788e02abd9f960bc180",
   "note": "the record of #13 PR 1 (the marker gate); this one measures the migration engine, which had no code before"
  },
  "not_run": [
-  "the repository CI (Linux, Windows; macOS by label): pending until the PR is opened. The Windows leg runs the F table, the Windows-only cases (a source file another process holds open, a destination past MAX_PATH with LongPathsEnabled 1 and 0, junctions) and the Windows port implementations",
+  "the repository CI (Linux, Windows; macOS by label) at the head that holds this code: pending. The run at the previous head 53d1bdf failed its Windows leg (`windows_ci_failure`); the three causes Windows alone shows (a link's substitute name, the sharing violation's code, both separators in a recorded path) are fixed from the log and CPython's documented behaviour, not run here. The Windows leg runs the F table, the Windows-only cases (a source file another process holds open, a destination past MAX_PATH with LongPathsEnabled 1 and 0, junctions) and the Windows port implementations",
+  "a byte range another program locked (LockFileEx), met while a source file is read on Windows: the C runtime's read reports it by errno alone, so it reads `permission`, not `in_use` (from the code)",
   "a power loss after the marker (durability is a goal, design 6.4); Windows' directory flush",
   "a destination on FAT or exFAT (no links): only a port that refuses to link was stood for. There the marker is written directly too (design D19): cut after it is made, before or after its `direct` line, an empty or partial analytics.json is left and calling again is marker_invalid (design 6.9 judges the marker first), though design 6.10 would resume a `direct` file whose identity its line names. Left an owner question (S2's atomic publication against D19's direct write, at the marker): the review's recommendation is a create-if-absent rename (Linux renameat2 RENAME_NOREPLACE, macOS renamex_np RENAME_EXCL) or a refusal before the marker on such a file system",
   "a network file system (flock between clients), a Linux casefold directory, Windows' per-directory case sensitivity inherited by new folders",
