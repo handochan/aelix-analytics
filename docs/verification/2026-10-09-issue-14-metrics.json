@@ -1,12 +1,12 @@
 {
   "schema": "aelix-analytics.verification/1",
   "issue": 14,
-  "recorded_at": "2026-10-09T13:56:06.259969+00:00",
-  "status": "pending_review_and_ci",
+  "recorded_at": "2026-10-09T14:31:17.985520+00:00",
+  "status": "reviewed_ci_pending",
   "measured_tree": {
-    "commit": "b7e6ef96e817286f4328b847ccd160bd71f04011",
+    "commit": "7c59ae9e439135a78c071ed4a46738fb2ba7724a",
     "manifest_files": 222,
-    "manifest_sha256": "54508529e2d0ecaef475b518d35a80d766b5d449bf84f8cb7ac850c6c5423e81",
+    "manifest_sha256": "7fd727fc358dc41ecb660794631ba7977b1036f4b4812f22f9a64872c9ffef2d",
     "includes": [
       "src/",
       "extension/",
@@ -17,6 +17,13 @@
       "pyproject.toml",
       "uv.lock",
       "docs/schemas/analytics-records.schema.json"
+    ],
+    "base_commit": "44ae2340267274a0ae17326cbb4feffe4528e283",
+    "rebase_from": "ae6e1dbb7005d65834e7d0c6184e75d80d11c898",
+    "rebase_tree_changes": [
+      "tests/test_model_eval.py",
+      "tools/model_eval.py",
+      "tools/model_eval_data/README.md"
     ]
   },
   "implementation": {
@@ -46,9 +53,15 @@
     }
   },
   "implementation_reviews": {
-    "independent": "not_run",
-    "codex": "not_run",
-    "target": null
+    "independent": "complete; I14-1 fixed",
+    "codex": "complete; C14-1/C14-2 fixed",
+    "target": "dae6b5a2b7a6c783bfa4656dda445302424fc562",
+    "correction_target": "f46278729fcf052f5e37e6e693793974c5de6750",
+    "correction_check": "complete once; guidance sentence subsequently correctedae6e1db; no additional full review",
+    "dispositions": {
+      "I14-1/C14-1": "Actual append validates result membership and optional recorded digest; future outputs allowed only for explicit pending SDK precheck, revalidated at finalization.",
+      "C14-2": "Only a quoted text argument immediately followed by JSON options enables structured command parsing; literal flag mentions, quotes and apostrophes remain prose."
+    }
   },
   "local": {
     "focused": {
@@ -136,6 +149,29 @@
       "tests_passed": 964,
       "duration_seconds": 56.92,
       "source_note": "Started1108110 and historical metadata hardening landed before suite ended; exact final focused suite separately passed and final CI must be exact head."
+    },
+    "correction_focused": {
+      "result": "pass",
+      "commit": "f46278729fcf052f5e37e6e693793974c5de6750",
+      "tests_passed": 502,
+      "duration_seconds": 24.74,
+      "scope": "metrics,relations,writer,layers,marker_gate,run_views,record_contract"
+    },
+    "aelix_py312_final": {
+      "result": "pass",
+      "commit": "f46278729fcf052f5e37e6e693793974c5de6750",
+      "tests_passed": 971,
+      "duration_seconds": 54.14,
+      "scope": "model-free actual aelix0.1.0b2 integration: tests_extension,usage_report,agent_cli; parent HOME/USERPROFILE/config/agent/trust all task-scoped",
+      "source_note": "Later source guidance-onlyae6e1db and upstream3file#83merge; final exact-headCI required."
+    },
+    "failed_correction_trial": {
+      "result": "fail",
+      "tests_failed": 1,
+      "tests_passed": 501,
+      "duration_seconds": 24.6,
+      "source": "dirty correction with no complete captured manifest",
+      "reason": "New assertion expected the error code in finalize_errors; existing guard surfaces the descriptive error message. Corrected assertion and re-ran affected suite; original log retained."
     }
   },
   "ci": {
@@ -166,7 +202,12 @@
     "large result reference to recorded output",
     "invalid/unsupported tagged records cannot retire valid replayed current state",
     "standalone stdlib reader remains loadable by filepath",
-    "malformed historical details preserved without interpreting them"
+    "malformed historical details preserved without interpreting them",
+    "completed output/Visualization mismatching digest refused before append",
+    "normal running-run append cannot claim a future result",
+    "pending SDK output is validated against captured final version",
+    "literal metadata flag mentions/quotes/apostrophes preserved in command",
+    "quoted structured metric and typed-ref command input"
   ],
   "not_run": [
     "real model E2E and tokenizer/token cost",

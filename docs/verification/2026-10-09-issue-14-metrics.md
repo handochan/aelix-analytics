@@ -1,11 +1,11 @@
 # Issue #14 — 지표 정의·분석 초점·명시적 관측의 측정 기록
 
-작성: 2026-10-09 · 상태: 구현 리뷰와 CI 대기 · [Issue #14](https://github.com/handochan/aelix-analytics/issues/14)
+작성: 2026-10-09 · 상태: 리뷰·수정 diff 확인 완료, CI 대기 · [Issue #14](https://github.com/handochan/aelix-analytics/issues/14)
 기계 기록은 [같은 이름의 JSON](2026-10-09-issue-14-metrics.json)이다.
 
 ## 기준과 변화
 
-측정 코드 `b7e6ef96e817286f4328b847ccd160bd71f04011`의 소스·시험·실행 도구·레코드 schema 222개 파일 manifest SHA-256은 `54508529e2d0ecaef475b518d35a80d766b5d449bf84f8cb7ac850c6c5423e81`이다.
+측정 코드 `7c59ae9e439135a78c071ed4a46738fb2ba7724a`의 소스·시험·실행 도구·레코드 schema 222개 파일 manifest SHA-256은 `7fd727fc358dc41ecb660794631ba7977b1036f4b4812f22f9a64872c9ffef2d`이다.
 로컬 manifest·JUnit·명령 출력은 Issue별 run의 `.devstate`에 보존한다. 사용자 데이터나 실제 프로젝트 절대 경로를 fixture로 옮기지 않았다.
 
 kit 0.9.0은 기존 `analytics.event/2`에 세 상세 계약을 추가한다: `metric_definition/1`, `analysis_focus/1`, `metric_observation/1`.
@@ -16,7 +16,12 @@ kit 0.9.0은 기존 `analytics.event/2`에 세 상세 계약을 추가한다: `m
 
 설계 기준 `a9b54b2`에 독립 리뷰와 별도 Codex 리뷰를 각각 1회 받았다. 독립 D14-I1은 구조화 수정에 caller가 추가한 unrelated supersedes/updates/resolves로
 다른 현재 기록을 숨길 수 있다는 P2 지적이었다. details를 상태 변경의 정본으로 두고 caller 상태 변경 참조를 거절하도록 ADR을 수정했다.
-`5607c79` 수정 diff는 한 번 확인했다. 구현 리뷰는 아직 실행하지 않았으며 이 문서가 리뷰 완료를 뜻하지 않는다.
+`5607c79` 수정 diff는 한 번 확인했다. 구현 기준 `dae6b5a`에 독립·Codex 리뷰를 각각 1회 받았다. I14-1/C14-1은 결과 참조의 잘못된 digest 또는 아직 쓰이지 않은 결과를 즉시 append할 수 있는 P2였다.
+`f462787`에서 실제 append의 결과 membership·선택적 digest를 기록된 버전과 비교하고, 향후 결과 허용은 SDK의 명시적 pending precheck에만 두었다.
+C14-2는 자유 본문에 JSON 옵션 이름이 들어가면 해석을 바꿔 기록하지 않는 main 회귀였다. 명시적으로 인용한 text 뒤의 옵션만 해석하고 기존 문장·따옴표·apostrophe를 보존했다.
+수정 diff는 한 번 확인했다. 그때 드러난 도구 설명의 "모든 kind가 resolves 가능" 문장도 일반 kind로 제한해 바로잡았다. 추가 전체 리뷰는 하지 않았다.
+
+#83 병합 `44ae234` 위로 rebase했다. 이전 수정 tree와 다른 것은 upstream의 model_eval.py·그 시험·안내 세 파일이며 #14 runtime은 같음을 확인했다.
 
 ## 검증
 
@@ -24,10 +29,12 @@ kit 0.9.0은 기존 `analytics.event/2`에 세 상세 계약을 추가한다: `m
 |---|---|---|
 | 기존 writer/record/read-view/layer 기준선 | 설계 `a9b54b2` | 283 passed, 10.76s |
 | 새 M0·최소 M1 및 관련 record/gate/layer 시험 | 초기 구현, 1108110 전 | 385 passed, 29.61s. 이후 역사 metadata 처리 보강은 다시 검사 중 |
-| 최종 focused 시험 | `b7e6ef96e817286f4328b847ccd160bd71f04011` | 711 passed·10 skipped, 73.28s. standalone reader·기존 형식·line endings·packaging까지 포함. skip 사유는 JSON에 기록 |
+| 최종 focused 시험 | `7c59ae9e439135a78c071ed4a46738fb2ba7724a` | 711 passed·10 skipped, 73.28s. standalone reader·기존 형식·line endings·packaging까지 포함. skip 사유는 JSON에 기록 |
 | lint·문서 | 구현 | ruff pass; 68 Markdown·14 JSON·736 local links, errors 0 |
 | macOS 로컬 저장소 전체 | 1108110에서 시작 | 중단: 1508 passed·6 failed·76 skipped, 521.22s. 버전/kind 문서·시험 4곳과 SDK resolve 호환성은 수정했고, 실행 중 코드 변경의 kit hash 불일치는 혼합 소스 한계로 보존. parent HOME 등은 task 폴더로 격리. 최종 exact-head CI 필요 |
 | aelix 3.12 모델 없는 통합 | 1108110에서 시작 | 964 passed, 56.92s. metadata 보강이 실행 중 반영되어 최종 exact-head CI를 별도로 확인 |
+| 리뷰 수정의 관련 시험 | f462787 | 502 passed, 24.74s. 결과 버전·pending 최종 재검사 포함 |
+| 리뷰 수정의 aelix 3.12 통합 | f462787 | 971 passed, 54.14s. 일반 문장의 옵션 언급·인용·apostrophe·구조화 명령 포함 |
 | Linux·Windows CI | 최종 PR head | not_run |
 | macOS CI | 최종 PR head | not_run |
 
