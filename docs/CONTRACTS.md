@@ -520,6 +520,7 @@ kit 0.8.0부터 이 kit이 쓰는 가져오기 기록은 `analytics.dataset/1`([
   읽기는 `execution_status`·`recording_status`·`calculation_check=unverified`를 따로 제공합니다. 실패·취소 run에서 선언한 값을 실행 성공이나 수학적 검증으로 올리지 않습니다.
 - 구조화 details가 상태 변경 관계의 정본입니다. caller가 추가한 supersedes/updates/resolves를 거절하며, 잘못된 payload는 `bad_metric_record`,
   누락·중복·wrong-kind/ID·장래 대상은 `metric_reference`, 이미 바뀐 수정 대상은 `state_conflict`입니다. 부수 효과 전과 잠금 안에서 확인합니다.
+  읽기의 상태 재생도 malformed/미지원 tag·details와 일치하지 않는 상태 변경 관계를 적용하지 않고 invalid로 남깁니다. 기존 tag 없는 기록의 재생은 그대로입니다.
 - `core.metric_records(project)`는 모든 원래 정의/초점/관측 버전과 상태·참조 판정을 재구성합니다. status JSON은 각 목록의 최근 16개(기본 limit 8),
   전체 counts/omitted/read_more를 제공하며 현재 초점은 별도로 유지합니다. status/context의 초점 텍스트는 필드당 240자·지표 8개·미정 4개까지이며 전체는 journal에서 읽습니다.
   CONTEXT.md를 자동으로 수정하지 않습니다. 상세 검색/checkpoint/관계 UI는 #15·#16·#18의 범위입니다.

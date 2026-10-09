@@ -82,7 +82,7 @@ PROJECT_LAYERS = ("core", "ports", "read_model", "runtime", "workspace", "writer
 LAYERS: dict[str, Layer] = {
     "metric_contract": _layer(0, (), (), "pure structured metric and focus payload contracts (ADR-0011)"),
     "ports": _layer(0, (), (), "the platform ports and their per-OS implementations (ADR-0003)"),
-    "read_model": _layer(0, (), (), "the records read as ADR-0006 says (ADR-0001 decision 5)"),
+    "read_model": _layer(0, ("metric_contract",), (), "the records read as ADR-0006 says (ADR-0001 decision 5)"),
     "distribution": _layer(0, (), (), "where the installed distribution keeps its runtime root"),
     "writer": _layer(1, ("ports", "read_model", "metric_contract"), (),
                      "who may write a project's records and how: the marker judgment and the gate, "

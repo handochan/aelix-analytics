@@ -137,6 +137,9 @@ def projection(events, states) -> dict:
             continue
         try:
             payload = validate(kind, details)
+            problem = event_problem(kind, payload, event.get("refs"))
+            if problem:
+                raise ContractError(problem)
         except ContractError as exc:
             result["invalid"].append({"event_id": event.get("id"), "reason": str(exc)})
             continue
@@ -151,3 +154,33 @@ def projection(events, states) -> dict:
     elif focuses:
         result["focus_state"] = "conflict"
     return result
+
+
+def event_problem(kind, details, refs) -> str | None:
+    """Tagged payloads may change state only through their one authoritative prior version.
+
+    None for historical unstructured records, whose original replay contract remains intact.
+    Invalid or unsupported tagged records remain readable but may change no target state.
+    """
+    if kind not in KINDS or not isinstance(details, dict) or "contract" not in details:
+        return None
+    try:
+        validate(kind, details)
+    except ContractError as exc:
+        return str(exc)
+    state_refs = [ref for ref in refs or () if isinstance(ref, dict)
+                  and ref.get("relation") in STATE_RELATIONS]
+    previous = details.get("previous_definition" if kind == "metric_definition" else "previous_focus")
+    if kind == "metric_observation":
+        previous = None
+    if not previous:
+        return "a structured record has no caller state-changing references" if state_refs else None
+    if len(state_refs) != 1:
+        return "a structured revision has exactly its previous-version supersedes reference"
+    ref = state_refs[0]
+    wanted = {"type": kind, "event_id": previous, "relation": "supersedes", "version_binding": "author"}
+    if kind == "metric_definition":
+        wanted["metric_id"] = details["metric_id"]
+    if any(ref.get(k) != v for k, v in wanted.items()) or ref.get("basis") not in ("declared", "observed"):
+        return "the state-changing reference does not match the structured previous version"
+    return None

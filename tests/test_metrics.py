@@ -1,5 +1,6 @@
 """ADR-0011: free exploration, exact metric versions and declared run-linked observations."""
 
+import copy
 import json
 from pathlib import Path
 
@@ -312,3 +313,32 @@ def test_malformed_historical_details_are_not_interpreted_or_crash_a_new_definit
         stream.write(json.dumps(value).encode("utf-8") + b"\n")
     created = record(p, "metric_definition", definition())
     assert created["id"] == "e4" and core.metric_records(p)["unstructured"] == ["e3"]
+
+
+@pytest.mark.parametrize("invalid", ["malformed", "unsupported", "extra_transition"])
+@pytest.mark.parametrize("kind", ["metric_definition", "analysis_focus"])
+def test_invalid_tagged_records_never_retire_valid_current_state(tmp_path, invalid, kind):
+    p = project_at(tmp_path)
+    details = definition() if kind == "metric_definition" else focus()
+    original = record(p, kind, details)
+    payload = copy.deepcopy(details)
+    if invalid == "malformed":
+        payload.pop("change_reason")
+    elif invalid == "unsupported":
+        payload["contract"] = f"{kind}/999"
+    else:
+        # A structurally valid *first* record still cannot carry a hidden transition.
+        payload["change_reason"] = "unexpected extra transition"
+    ref = {"type": kind, "event_id": original["id"], "relation": "supersedes",
+           "basis": "declared", "version_binding": "author"}
+    if kind == "metric_definition":
+        ref["metric_id"] = "품질"
+    value = {**original, "id": "e4", "seq": 4, "details": payload, "refs": [ref]}
+    with p.journal.open("ab") as stream:
+        stream.write(json.dumps(value, ensure_ascii=False).encode("utf-8") + b"\n")
+    journal = relations.read_journal(p.root)
+    assert journal.replay().state_of(original["id"])["state"] == "current"
+    view = core.metric_records(p)
+    assert any(item["event_id"] == "e4" for item in view["invalid"])
+    if kind == "analysis_focus":
+        assert view["current_focus"]["event_id"] == original["id"]

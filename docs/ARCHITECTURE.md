@@ -314,7 +314,7 @@ N0의 명칭·기본 언어 전환을 A0의 경계 정리와 조율한다. 현�
 |---|---|---|---|---|---|
 | `metric_contract` | 0 | 순수 지표·초점 payload 계약([ADR-0011](decisions/0011-metric-focus-and-observation-contract.md)) | `src/aelix_analytics/metrics.py` | 없음 | stdlib |
 | `ports` | 0 | 플랫폼 포트와 OS별 구현([ADR-0003](decisions/0003-portable-boundaries-and-in-process-kit-loading.md)) | `src/aelix_analytics/_platform.py` | 없음 | stdlib |
-| `read_model` | 0 | 기록의 읽기 모델(§9 `projections/`) | `src/aelix_analytics/relations.py` | 없음 | stdlib |
+| `read_model` | 0 | 기록의 읽기 모델(§9 `projections/`) | `src/aelix_analytics/relations.py` | `metric_contract` | stdlib |
 | `distribution` | 0 | 설치본의 실행 루트 위치 | `src/aelix_analytics/_install.py` | 없음 | stdlib |
 | `writer` | 1 | 기록 writer: 표식 판정과 쓰기 게이트, `Origin`, 오류 클래스, 기록 헬퍼, 새 형식의 공통 `Writer`(#13) | `src/aelix_analytics/writer.py` | `ports`, `read_model`, `metric_contract` | stdlib |
 | `core` | 2 | 도메인·공유 응용(아직 나뉘지 않음, §2) | `src/aelix_analytics/core.py` | `ports`, `read_model`, `writer`, `metric_contract` | stdlib |

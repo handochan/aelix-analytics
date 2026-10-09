@@ -2,7 +2,7 @@
 Standard library only.
 
 This module reads; it never writes a record, a cache or an index. It imports neither `core` nor
-`_platform` (nor any other module of the package), so it can be loaded by its file path alone, and
+`_platform`; it imports only the pure stdlib metric payload contracts (`metrics`, ADR-0011).
 `core` can import it without a cycle. What differs by platform or by caller is passed in:
 
 - `alive(pid) -> bool`: whether a process of that id still runs (the platform's process port).
@@ -84,11 +84,14 @@ import re
 from datetime import datetime
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
+from . import metrics
+
 # The version of this reader's rules, part of every source_revision it gives (ADR-0006 5). 2 since
 # Issue #13 PR 1: analytics.run/2 and analytics.dataset/1 are read, and data/imported/ with them. 3
 # since its PR 2: a migrated project's older paths are read through the migration's mapping
 # (core.mapped_identity, design 5.4), and analytics.migration/1 is a family this reader knows.
-READER_FORMAT = 3
+# 4 since ADR-0011: invalid/unsupported tagged metric content cannot change another record state.
+READER_FORMAT = 4
 
 EVENT_V1 = "lab.event/1"
 EVENT_V2 = "analytics.event/2"
@@ -606,6 +609,8 @@ class Replay:
             return [("resolves", {"type": "event", "event_id": value, "relation": "resolves",
                                   "basis": "declared", "version_binding": "author"})
                     for value in _strings(refs.get("resolves")) if isinstance(value, str)]
+        if metrics.event_problem(event.kind, event.value.get("details"), _dicts(event.refs)):
+            return []  # invalid/unsupported tagged content cannot retire a valid past record
         return [(ref["relation"], ref) for ref in _dicts(event.refs)
                 if _known_ref(ref) and ref["type"] in EVENT_TARGETS
                 and ref["relation"] in ("supersedes", "resolves")]
