@@ -207,6 +207,9 @@ def record(kind: str, text: str, *, refs=(), details=None) -> dict:
     explicit typed resolves ref. Named `note` before kit 0.3.0."""
     from . import capture, core
 
+    if kind == "resolve" and not refs:
+        # Preserve the original two-argument SDK refusal. Typed refs make the new explicit path.
+        core.writer.check_kind(kind, tuple(k for k in core.RECORD_KINDS if k != "resolve"))
     core.writer.check_kind(kind)
     text = str(text)
     state = capture.ACTIVE
