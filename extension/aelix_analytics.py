@@ -1066,9 +1066,10 @@ TOOLS = [
         "finding (an established result), decision, assumption, question, todo, note, "
         "workflow_feedback (a missing capability or friction in this analysis tooling), metric_definition "
         "(a versioned draft or specified definition), analysis_focus (purpose and exact definitions), "
-        "metric_observation (a declared result, exact definition, run and scope), or resolve "
+        "metric_observation (a declared result, exact definition, run and scope), asset_candidate, "
+        "asset_check, asset_effect (analysis_asset/1 details), or resolve "
         "(closes the question/todo named in `resolves` without other content). Ordinary journal kinds may also "
-        "resolve an earlier entry, e.g. a finding that answers question e7. Structured metric kinds "
+        "resolve an earlier entry, e.g. a finding that answers question e7. Structured metric and asset kinds "
         "derive state relationships from details and reject caller state-changing refs. Cite evidence in refs: "
         "run ids, chart keys (scripts/x.py::chart-id), dataset names or event ids; the reply says "
         "how each was bound.",
@@ -1078,8 +1079,8 @@ TOOLS = [
          "refs": {"type": "array", "items": {"anyOf": [STR, {"type": "object"}]},
                   "description": "Run ids, chart keys, dataset names, event ids, or exact typed references."},
          "details": {"type": "object", "description": "Structured metric_definition/1, analysis_focus/1, "
-                     "or metric_observation/1 payload; exact definitions and explicit scope. "
-                     "Metric/focus state changes are generated from these fields."},
+                     "metric_observation/1, or analysis_asset/1 payload. Exact versions and explicit scope; "
+                     "state relationships are generated from these fields. See the metric/asset contract docs."},
          "resolves": {**STR, "description": "Event id this entry answers or closes, e.g. e7."}},
         ["kind", "text"], tool_record,
         "record a finding/decision/assumption/question/todo/workflow_feedback in the project journal",

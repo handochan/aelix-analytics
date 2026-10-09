@@ -61,7 +61,7 @@
       "properties": {
         "type": {"enum": ["event", "run", "visualization_version", "data_observation", "dataset_import", "code_snapshot",
                           "context_version", "metric_definition", "analysis_focus", "reuse_proposal", "report_revision",
-                          "publication"]},
+                          "publication", "asset_candidate"]},
         "relation": {"enum": ["supports", "contradicts", "cites", "uses", "derived_from", "generated_by", "about",
                               "includes", "resolves", "supersedes", "updates"]},
         "basis": {"enum": ["observed", "declared", "inferred", "unverified"]},
@@ -77,6 +77,7 @@
         "version": {"type": "string", "minLength": 1},
         "metric_id": {"type": "string", "minLength": 1},
         "proposal_id": {"type": "string", "minLength": 1},
+        "asset_id": {"type": "string", "minLength": 1},
         "report_id": {"$ref": "#/$defs/report_id"},
         "revision_id": {"$ref": "#/$defs/opaque_id"},
         "publication_id": {"$ref": "#/$defs/opaque_id"}
@@ -100,13 +101,15 @@
          "then": {"required": ["version", "digest"]}},
         {"if": {"properties": {"type": {"const": "metric_definition"}, "version_binding": {"enum": ["author", "inferred"]}}},
          "then": {"required": ["metric_id", "event_id"]}},
+        {"if": {"properties": {"type": {"const": "asset_candidate"}, "version_binding": {"enum": ["author", "inferred"]}}},
+         "then": {"required": ["asset_id", "event_id"]}},
         {"if": {"properties": {"type": {"const": "reuse_proposal"}, "version_binding": {"enum": ["author", "inferred"]}}},
          "then": {"required": ["proposal_id", "event_id"]}},
         {"if": {"properties": {"type": {"const": "report_revision"}, "version_binding": {"enum": ["author", "inferred"]}}},
          "then": {"required": ["report_id", "revision_id", "digest"]}},
         {"if": {"properties": {"version_binding": {"const": "none"}}},
          "then": {"anyOf": [{"required": ["key"]}, {"required": ["path"]}, {"required": ["metric_id"]},
-                            {"required": ["proposal_id"]}, {"required": ["report_id"]}, {"required": ["token"]}]}}
+                            {"required": ["proposal_id"]}, {"required": ["asset_id"]}, {"required": ["report_id"]}, {"required": ["token"]}]}}
       ]
     },
     "references": {"type": "array", "items": {"$ref": "#/$defs/reference"}},
@@ -149,6 +152,347 @@
       },
       "allOf": [{"if": {"properties": {"result": {"type": "null"}}}, "then": {"required": ["result_ref"]}}]
     },
+    "asset_name": {
+      "type": "string",
+      "pattern": "^(?!(con|prn|aux|nul|com[1-9]|lpt[1-9])$)[a-z0-9][a-z0-9_-]{0,62}$"
+    },
+    "asset_candidate_details": {
+      "type": "object",
+      "required": [
+        "contract",
+        "asset_id",
+        "title",
+        "problem",
+        "artifact_kind",
+        "conditions",
+        "exclusions",
+        "next_check"
+      ],
+      "properties": {
+        "contract": {
+          "const": "analysis_asset/1"
+        },
+        "asset_id": {
+          "$ref": "#/$defs/asset_name"
+        },
+        "title": {
+          "type": "string"
+        },
+        "problem": {
+          "type": "string"
+        },
+        "conditions": {
+          "type": "string"
+        },
+        "exclusions": {
+          "type": "string"
+        },
+        "next_check": {
+          "type": "string"
+        },
+        "input_contract": {
+          "type": "string"
+        },
+        "output_contract": {
+          "type": "string"
+        },
+        "artifact_kind": {
+          "enum": [
+            "function",
+            "module",
+            "package",
+            "skill"
+          ]
+        },
+        "code": {
+          "$ref": "#/$defs/reference"
+        },
+        "previous_event_id": {
+          "$ref": "#/$defs/event_id"
+        },
+        "derived_from": {
+          "$ref": "#/$defs/reference"
+        },
+        "used_in": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/reference"
+          }
+        },
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "path",
+              "ref"
+            ],
+            "properties": {
+              "path": {
+                "$ref": "#/$defs/content_path"
+              },
+              "ref": {
+                "$ref": "#/$defs/reference"
+              }
+            }
+          }
+        }
+      }
+    },
+    "asset_check_details": {
+      "type": "object",
+      "required": [
+        "contract",
+        "asset_id",
+        "candidate_event_id",
+        "check_run",
+        "result",
+        "boundary",
+        "check_scope",
+        "check_code",
+        "artifact_digest"
+      ],
+      "properties": {
+        "contract": {
+          "const": "analysis_asset/1"
+        },
+        "asset_id": {
+          "$ref": "#/$defs/asset_name"
+        },
+        "candidate_event_id": {
+          "$ref": "#/$defs/event_id"
+        },
+        "check_run": {
+          "$ref": "#/$defs/reference"
+        },
+        "check_code": {
+          "$ref": "#/$defs/reference"
+        },
+        "code": {
+          "$ref": "#/$defs/reference"
+        },
+        "result": {
+          "enum": [
+            "passed",
+            "failed"
+          ]
+        },
+        "boundary": {
+          "type": "boolean"
+        },
+        "check_scope": {
+          "type": "string",
+          "minLength": 1
+        },
+        "artifact_digest": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "asset_effect_details": {
+      "type": "object",
+      "required": [
+        "contract",
+        "asset_id",
+        "candidate_event_id",
+        "effect_basis",
+        "description"
+      ],
+      "properties": {
+        "contract": {
+          "const": "analysis_asset/1"
+        },
+        "asset_id": {
+          "$ref": "#/$defs/asset_name"
+        },
+        "candidate_event_id": {
+          "$ref": "#/$defs/event_id"
+        },
+        "effect_basis": {
+          "enum": [
+            "estimated",
+            "observed"
+          ]
+        },
+        "description": {
+          "type": "string"
+        },
+        "authoring_cost": {
+          "type": "string"
+        },
+        "maintenance_cost": {
+          "type": "string"
+        },
+        "measurement": {
+          "type": "string"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "effect_basis": {
+                "const": "observed"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "authoring_cost",
+              "maintenance_cost",
+              "measurement"
+            ]
+          }
+        }
+      ]
+    },
+    "asset_mode_details": {
+      "type": "object",
+      "required": [
+        "contract",
+        "mode",
+        "scope"
+      ],
+      "properties": {
+        "contract": {
+          "const": "analysis_asset/1"
+        },
+        "mode": {
+          "enum": [
+            "on_demand",
+            "always_on"
+          ]
+        },
+        "scope": {
+          "enum": [
+            "project",
+            "session"
+          ]
+        },
+        "session": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "scope": {
+                "const": "session"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "session"
+            ]
+          }
+        }
+      ]
+    },
+    "asset_notification_details": {
+      "type": "object",
+      "required": [
+        "contract",
+        "asset_id",
+        "candidate_event_id",
+        "trigger",
+        "surface",
+        "as_of_seq",
+        "context_version",
+        "evidence",
+        "scores",
+        "requirements",
+        "policy_version"
+      ],
+      "properties": {
+        "contract": {
+          "const": "analysis_asset/1"
+        },
+        "asset_id": {
+          "$ref": "#/$defs/asset_name"
+        },
+        "candidate_event_id": {
+          "$ref": "#/$defs/event_id"
+        },
+        "trigger": {
+          "enum": [
+            "requested",
+            "automatic"
+          ]
+        },
+        "as_of_seq": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "context_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "evidence": {
+          "$ref": "#/$defs/references"
+        },
+        "scores": {
+          "type": "object"
+        },
+        "requirements": {
+          "type": "object"
+        },
+        "surface": {
+          "type": "string"
+        },
+        "policy_version": {
+          "type": "string"
+        }
+      }
+    },
+    "asset_update_details": {
+      "type": "object",
+      "required": [
+        "contract",
+        "asset_id",
+        "candidate_event_id",
+        "expected_state",
+        "new_state"
+      ],
+      "properties": {
+        "contract": {
+          "const": "analysis_asset/1"
+        },
+        "asset_id": {
+          "$ref": "#/$defs/asset_name"
+        },
+        "candidate_event_id": {
+          "$ref": "#/$defs/event_id"
+        },
+        "expected_state": {
+          "enum": [
+            "proposed",
+            "trial",
+            "validated",
+            "registered",
+            "deferred",
+            "rejected",
+            "deprecated"
+          ]
+        },
+        "new_state": {
+          "enum": [
+            "proposed",
+            "trial",
+            "validated",
+            "registered",
+            "deferred",
+            "rejected",
+            "deprecated"
+          ]
+        }
+      }
+    },
     "event_2": {
       "type": "object",
       "required": ["schema", "seq", "id", "recorded_at", "kind", "actor", "text", "refs"],
@@ -160,7 +504,8 @@
         "kind": {"enum": ["project", "import", "run", "context", "finding", "decision", "assumption", "question", "todo",
                           "note", "resolve", "workflow_feedback", "analysis_focus", "metric_definition",
                           "metric_observation", "record_update", "checkpoint", "reuse_proposal", "reuse_notification",
-                          "reuse_mode", "report_revision", "publication", "publish_receipt"]},
+                          "reuse_mode", "report_revision", "publication", "publish_receipt", "asset_candidate", "asset_check",
+                          "asset_effect", "asset_mode", "asset_notification"]},
         "actor": {"type": "string", "minLength": 1},
         "actor_basis": {"$ref": "#/$defs/actor_basis"},
         "means": {"$ref": "#/$defs/means"},
@@ -171,6 +516,12 @@
         "details": {"type": "object"}
       },
       "allOf": [
+        {"if": {"properties": {"kind": {"const": "asset_candidate"}}}, "then": {"required": ["details"], "properties": {"details": {"$ref": "#/$defs/asset_candidate_details"}}}},
+        {"if": {"properties": {"kind": {"const": "asset_check"}}}, "then": {"required": ["details"], "properties": {"details": {"$ref": "#/$defs/asset_check_details"}}}},
+        {"if": {"properties": {"kind": {"const": "asset_effect"}}}, "then": {"required": ["details"], "properties": {"details": {"$ref": "#/$defs/asset_effect_details"}}}},
+        {"if": {"properties": {"kind": {"const": "asset_mode"}}}, "then": {"required": ["details"], "properties": {"details": {"$ref": "#/$defs/asset_mode_details"}}}},
+        {"if": {"properties": {"kind": {"const": "asset_notification"}}}, "then": {"required": ["details"], "properties": {"details": {"$ref": "#/$defs/asset_notification_details"}}}},
+        {"if": {"required": ["details"], "properties": {"kind": {"const": "record_update"}, "details": {"required": ["contract"], "properties": {"contract": {"const": "analysis_asset/1"}}}}}, "then": {"properties": {"details": {"$ref": "#/$defs/asset_update_details"}}}},
         {"if": {"required": ["details"], "properties": {"details": {"required": ["contract"], "properties": {"contract": {"const": "metric_definition/1"}}}}},
          "then": {"properties": {"kind": {"const": "metric_definition"}, "details": {"$ref": "#/$defs/metric_definition_details"}}}},
         {"if": {"required": ["details"], "properties": {"details": {"required": ["contract"], "properties": {"contract": {"const": "analysis_focus/1"}}}}},

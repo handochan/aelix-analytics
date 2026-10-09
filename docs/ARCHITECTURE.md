@@ -313,10 +313,11 @@ N0의 명칭·기본 언어 전환을 A0의 경계 정리와 조율한다. 현�
 | 계층 | 수준 | 역할 | 모듈 | import해도 되는 계층 | 외부 모듈 |
 |---|---|---|---|---|---|
 | `ports` | 0 | 플랫폼 포트와 OS별 구현([ADR-0003](decisions/0003-portable-boundaries-and-in-process-kit-loading.md)) | `src/aelix_analytics/_platform.py` | 없음 | stdlib |
-| `read_model` | 0 | 기록의 읽기 모델(§9 `projections/`) | `src/aelix_analytics/relations.py` | 없음 | stdlib |
+| `read_model` | 0 | 기록의 읽기 모델(§9 `projections/`)·자산의 순수 값/점수 계약 | `src/aelix_analytics/relations.py`, `src/aelix_analytics/asset_policy.py` | 없음 | stdlib |
 | `distribution` | 0 | 설치본의 실행 루트 위치 | `src/aelix_analytics/_install.py` | 없음 | stdlib |
-| `writer` | 1 | 기록 writer: 표식 판정과 쓰기 게이트, `Origin`, 오류 클래스, 기록 헬퍼, 새 형식의 공통 `Writer`(#13) | `src/aelix_analytics/writer.py` | `ports`, `read_model` | stdlib |
-| `core` | 2 | 도메인·공유 응용(아직 나뉘지 않음, §2) | `src/aelix_analytics/core.py` | `ports`, `read_model`, `writer` | stdlib |
+| `writer` | 1 | 기록 writer: 표식 판정과 쓰기 게이트, `Origin`, 오류 클래스, 기록 헬퍼, 새 형식의 공통 `Writer`(#13) | `src/aelix_analytics/writer.py`, `src/aelix_analytics/asset_contract.py` | `ports`, `read_model` | stdlib |
+| `core` | 2 | 도메인·공유 응용(아직 나뉘지 않음, §2) | `src/aelix_analytics/core.py` | `ports`, `read_model`, `writer`, `asset_application` | stdlib |
+| `asset_application` | 2 | 주입한 Writer로 자산 검토·승격·명시적 등록을 처리하며 core/host를 import하지 않음 | `src/aelix_analytics/asset_app.py` | `ports`, `read_model`, `writer` | stdlib |
 | `runtime` | 3 | 실행·캡처·데이터 어댑터와 데모 채우기(§9 `runtime/`) | `src/aelix_analytics/runner.py`, `src/aelix_analytics/capture.py`, `src/aelix_analytics/data.py`, `src/aelix_analytics/demo.py` | `core`, `ports`, `read_model`, `runtime`, `writer` | stdlib, 분석 |
 | `workspace` | 3 | Workspace 렌더러(§5 `WorkspaceRenderer`) | `src/aelix_analytics/workspace.py` | `core`, `ports`, `read_model`, `writer` | stdlib, 분석, 표시 |
 | `migration` | 3 | `lab.json` 프로젝트를 새 형식으로 옮기는 복사 전환(#13) | `src/aelix_analytics/migration.py` | `core`, `ports`, `read_model`, `writer` | stdlib |

@@ -38,7 +38,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from . import core
 
-__all__ = ["datasets", "path", "project", "read", "record", "run_id", "save", "scan", "sql", "visualize"]
+__all__ = ["assets", "datasets", "path", "project", "read", "record", "register_asset", "review_assets",
+           "run_id", "save", "scan", "sql", "update_asset", "visualize"]
 
 # The script API's functions renamed in kit 0.3.0 (Issue #9), by their old names. The version is fixed:
 # it names the boundary, core.NAMES_RENAMED_IN, which this module may not import at load.
@@ -248,3 +249,38 @@ def _script_origin():
     actor = os.environ.get("AELIX_ANALYTICS_ACTOR") or None
     return core.Origin(actor or "human", "sdk", "declared" if actor else "inferred",
                        os.environ.get("AELIX_ANALYTICS_SESSION") or None)
+
+
+def assets(asset_id=None) -> dict:
+    """Read analysis asset candidates and exact prior versions; no review, execution or registration."""
+    from . import core
+
+    return core.assets(project(), asset_id)
+
+
+def _asset_origin():
+    from . import capture
+
+    return capture.ACTIVE.sdk_origin if capture.ACTIVE is not None else _script_origin()
+
+
+def review_assets(asset_id=None) -> dict:
+    """Explicit model-free review; returned candidates are recorded as requested suggestions."""
+    from . import core
+
+    return core.review_assets(project(), asset_id, origin=_asset_origin())
+
+
+def update_asset(event_id: str, *, expected: str, new: str, text: str, details=None) -> dict:
+    """Advance, defer/reject or annotate one candidate version, preserving checks and history."""
+    from . import core
+
+    return core.update_asset(project(), event_id, expected=expected, new=new, text=text,
+                             details=details, origin=_asset_origin())
+
+
+def register_asset(event_id: str, *, name: str) -> dict:
+    """Explicitly copy a validated version into this project; never a global installation."""
+    from . import core
+
+    return core.register_asset(project(), event_id, name=name, origin=_asset_origin())

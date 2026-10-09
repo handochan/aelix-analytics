@@ -1,0 +1,117 @@
+{
+  "schema": "aelix-analytics.verification/1",
+  "issue": 17,
+  "slice": "B3-a",
+  "status": "pre_review_on_temporary_stack",
+  "recorded_at": "2026-10-09T15:55:16.251727+00:00",
+  "source": {
+    "measured_commit": "1a786bacc4cd2406eaf142233824bfc69791dae7",
+    "shared_issue14_base": "a881e0d795c21b8292ffb1897e34a5fcfe800686",
+    "temporary_stack": true,
+    "code_manifest_sha256": "d4cb5d299047460e210c88a00676972b2365686f15e0473c6cf3062d4ffdf444",
+    "final_merged_main_rebase": "pending",
+    "feature_floors": {
+      "metric": "0.9.0",
+      "asset": "0.10.0"
+    },
+    "kit_version": "0.10.0"
+  },
+  "scope": [
+    "candidate/check/effect records",
+    "exact artifact bundle and checking run versions",
+    "independent input and boundary promotion",
+    "explicit project-only copy and owned published receipt recovery",
+    "requested model-free review",
+    "standalone reader and malformed state-edge protection",
+    "SDK/CLI/record tool shared input and marker gates"
+  ],
+  "local": [
+    {
+      "check": "assets/contracts/reader/writer/marker/layers",
+      "commit": "1a786bacc4cd2406eaf142233824bfc69791dae7",
+      "status": "pass",
+      "passed": 495,
+      "python": "3.12.13",
+      "os": "macOS",
+      "parent_home_scoped": true,
+      "command": "python -m pytest -q --timeout 600 --timeout-method=thread tests/test_assets.py tests/test_asset_contract.py tests/test_layers.py tests/test_relations.py tests/test_record_contract.py tests/test_writer.py tests/test_marker_gate.py",
+      "cwd": "isolated Issue17 worktree (local absolute path omitted)",
+      "executed_at": "2026-10-09T15:40:46.247354+00:00",
+      "exit_code": 0
+    },
+    {
+      "check": "pinned Aelix extension/usage/agent-CLI",
+      "commit": "1a786bacc4cd2406eaf142233824bfc69791dae7",
+      "status": "pass",
+      "passed": 972,
+      "aelix": "0.1.0b2",
+      "python": "3.12",
+      "os": "macOS",
+      "parent_home_scoped": true,
+      "project_only_skill_loader_discovery": "pass",
+      "command": "uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_extension.py tests/test_usage_report.py tests/test_agent_cli.py",
+      "cwd": "isolated Issue17 worktree (local absolute path omitted)",
+      "executed_at": "2026-10-09T15:48:46.242090+00:00",
+      "exit_code": 0
+    },
+    {
+      "check": "ruff tests/src/extension/tools",
+      "commit": "1a786bacc4cd2406eaf142233824bfc69791dae7",
+      "status": "pass",
+      "command": "ruff check tests src extension tools",
+      "cwd": "isolated Issue17 worktree",
+      "exit_code": 0
+    },
+    {
+      "check": "docs links/examples",
+      "commit": "1a786bacc4cd2406eaf142233824bfc69791dae7",
+      "status": "pass",
+      "markdown": 70,
+      "json": 14,
+      "local_links": 745,
+      "command": "python tools/check_docs.py --output <local-run>/evidence/pre-review-docs.json",
+      "cwd": "isolated Issue17 worktree",
+      "exit_code": 0
+    }
+  ],
+  "prior_attempts": [
+    {
+      "status": "fail",
+      "passed": 916,
+      "skipped": 1,
+      "failed": 2,
+      "cause": "stale kit-version and public-kind inventory assertions",
+      "disposition": "updated and affected240 tests passed on f465b42"
+    }
+  ],
+  "ci": {
+    "status": "not_run",
+    "reason": "runtime PR1 final CI follows actual merged-main rebase"
+  },
+  "reviews": {
+    "design_independent": "completed16101c1",
+    "design_codex": "completed16101c1",
+    "design_correction": "completed7b93554",
+    "implementation_independent": "pending",
+    "implementation_codex": "pending",
+    "implementation_correction": "pending"
+  },
+  "not_run": [
+    "B3-b project/automatic modes, rolling window and automatic publication",
+    "B3-c Aelix session/context publication and Workspace asset detail",
+    "Q11 new feature cost measurement",
+    "Linux and Windows runtime CI",
+    "Python3.11 pinned host current-target check",
+    "installed wheel/sdist current-target check",
+    "real model and human rehearsal",
+    "real user project registration",
+    "global registration, release and external publication"
+  ],
+  "limitations": [
+    "loader_discovery is not_run without a supplied host port; registration and discovery/execution are distinct",
+    "prepared-only or absent receipt never adopts an existing destination, including identical bytes",
+    "artifact files are explicit project-only regular files; links/junctions and special files are refused",
+    "only confirmed exact versions strengthen deterministic scores; declarations are provenance, not authentication or universal correctness",
+    "source and CI evidence must be refreshed after actual merged-main rebase"
+  ]
+}

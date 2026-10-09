@@ -47,8 +47,11 @@ KIND_LABEL = {"project": "Project", "import": "Import", "run": "Run", "context":
               "workflow_feedback": "Workflow feedback", "analysis_focus": "Analysis focus",
               "metric_definition": "Metric definition", "metric_observation": "Metric observation",
               "record_update": "Record update", "checkpoint": "Analysis checkpoint",
-              "reuse_proposal": "Reuse proposal", "reuse_notification": "Reuse notification",
-              "reuse_mode": "Reuse mode", "report_revision": "Report revision",
+              "reuse_proposal": "Asset candidate", "reuse_notification": "Asset suggestion",
+              "reuse_mode": "Asset suggestion mode", "asset_candidate": "Asset candidate",
+              "asset_check": "Asset check", "asset_effect": "Asset effect",
+              "asset_notification": "Asset suggestion", "asset_mode": "Asset suggestion mode",
+              "report_revision": "Report revision",
               "publication": "Publication", "publish_receipt": "Publish receipt"}
 STATUS = {"ok": ("good", "✓", "Succeeded"), "error": ("critical", "✕", "Error"),
           "timeout": ("serious", "⏱", "Timed out"), "cancelled": ("warning", "■", "Cancelled"),

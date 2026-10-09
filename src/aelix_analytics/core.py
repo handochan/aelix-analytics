@@ -44,7 +44,7 @@ from .writer import migration_record as migration_record
 from .writer import new_request_id as new_request_id
 from .writer import present_marker as present_marker
 
-KIT_VERSION = "0.9.0"
+KIT_VERSION = "0.10.0"
 # The marker and the record families of the projects this kit writes: the new format's, through
 # the common writer (writer.Writer, Issue #13 PR 3; writer.FAMILIES). A project is found by either
 # marker, analytics.json or lab.json, and judged by writer.marker_state: a lab.json project
@@ -1747,6 +1747,33 @@ def writer_for(project: Project, origin: Origin) -> writer.Writer:
     # fixture generator's planned clock — dates the records by it).
     return writer.Writer(project.root, platform=project.platform, origin=origin,
                          writer_version=KIT_VERSION, legacy_path=legacy, clock=lambda: now())
+
+
+def asset_application(project: Project, origin: Origin, *, policy=None, skill_discovery=None):
+    """Construct the stdlib asset application for this project and explicit writing origin."""
+    from .asset_app import Assets
+
+    return Assets(writer_for(project, origin), policy=policy, skill_discovery=skill_discovery)
+
+
+def assets(project: Project, asset_id=None) -> dict:
+    readable(project, "read analysis assets")
+    return asset_application(project, Origin("system", "sdk")).list(asset_id)
+
+
+def review_assets(project: Project, asset_id=None, *, origin: Origin, surface="sdk") -> dict:
+    return asset_application(project, origin).review(asset_id, surface=surface)
+
+
+def update_asset(project: Project, event_id: str, *, expected: str, new: str, text: str,
+                 details=None, origin: Origin) -> dict:
+    return asset_application(project, origin).update(event_id, expected=expected, new=new,
+                                                   text=text, details=details)
+
+
+def register_asset(project: Project, event_id: str, *, name: str, origin: Origin,
+                   skill_discovery=None) -> dict:
+    return asset_application(project, origin, skill_discovery=skill_discovery).register(event_id, name=name)
 
 
 def _record_items(refs, resolves) -> list:

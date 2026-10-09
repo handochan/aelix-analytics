@@ -9,6 +9,8 @@
 #   analytics import FILE [--name N] [--description D]
 #   analytics query "SQL" [--limit N]
 #   analytics record KIND "TEXT" [--ref R] [--resolves eN] [--details-json JSON] [--refs-json JSON]
+#   analytics assets list | show ID | review [ID] | update EVENT --expected STATE --to STATE --reason TEXT
+#   analytics assets register EVENT --name NAME    copy a validated asset into this project
 #   analytics render | open                     rebuild | open the Workspace page
 #   analytics migrate --to DIR [--dry-run]      copy a lab.json project into a new folder DIR
 #
@@ -195,6 +197,11 @@ case $cmd in
     refuse_renamed
     proj=$(find_project)
     run_kit "$proj" "$cmd" "$@"
+    ;;
+  assets)
+    refuse_renamed
+    proj=$(find_project)
+    kit_outside "$proj" assets "$@"
     ;;
   migrate)
     refuse_renamed

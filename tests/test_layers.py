@@ -87,8 +87,10 @@ LAYERS: dict[str, Layer] = {
                      "who may write a project's records and how: the marker judgment and the gate, "
                      "Origin, the error class, the record helpers and the new format's common "
                      "Writer (#13)"),
-    "core": _layer(2, ("ports", "read_model", "writer"), (),
+    "core": _layer(2, ("ports", "read_model", "writer", "asset_application"), (),
                    "the project model: domain and shared application, not split yet"),
+    "asset_application": _layer(2, ("ports", "read_model", "writer"), (),
+                                "the model-free asset lifecycle, with an injected Writer and no core or host import"),
     "runtime": _layer(3, ("core", "ports", "read_model", "runtime", "writer"), ("analysis",),
                       "execution, capture and data adapters, in the project's environment"),
     "workspace": _layer(3, ("core", "ports", "read_model", "writer"), ("analysis", "rendering"),
@@ -122,6 +124,9 @@ EXTERNAL: dict[str, str] = {
 MODULES: dict[str, str] = {
     "src/aelix_analytics/_platform.py": "ports",
     "src/aelix_analytics/relations.py": "read_model",
+    "src/aelix_analytics/asset_contract.py": "writer",
+    "src/aelix_analytics/asset_policy.py": "read_model",
+    "src/aelix_analytics/asset_app.py": "asset_application",
     "src/aelix_analytics/_install.py": "distribution",
     "src/aelix_analytics/writer.py": "writer",
     "src/aelix_analytics/core.py": "core",

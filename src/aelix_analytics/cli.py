@@ -54,6 +54,8 @@ analytics — human CLI for Aelix Analytics projects (the same kit the aelix ext
   analytics import FILE [--name N] [--description D]
   analytics query "SQL" [--limit N]
   analytics record KIND "TEXT" [--ref R] [--resolves eN] [--details-json JSON] [--refs-json JSON]
+  analytics assets list | show ID | review [ID] | update EVENT --expected STATE --to STATE --reason TEXT
+  analytics assets register EVENT --name NAME    copy a validated asset into this project
   analytics render | open                     rebuild | open the Workspace page
   analytics migrate --to DIR [--dry-run]      copy a lab.json project into a new folder DIR
 
@@ -66,7 +68,7 @@ puts an empty line before it. Nothing here is a sandbox.
 """
 
 COMMANDS = ("init", "demo", "status", "context", "open", "run", "import", "query", "record", "render",
-            "migrate")
+            "migrate", "assets")
 
 # The environment variables this command read under the kit's old names (before kit 0.3.0), each with
 # its new name; bin/analytics refuses the same three in the same order with the same words. The kit
@@ -206,6 +208,8 @@ def _command(args: list[str], kit: Path | None, uv_argv: list[str] | None,
     uv = uv_argv or _uv(processes)
     if uv is None:
         return 127
+    if command == "assets":
+        return children.run(kit_outside(uv, project, command, *args), env)
     kit_call = kit_outside if outside else kit_argv
     if command in ("status", "context"):
         return children.run(kit_call(uv, project, "--text", command), env)

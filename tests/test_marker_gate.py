@@ -471,6 +471,9 @@ READ_REFUSED = {"both": "marker_conflict", "none": "no_project", "incomplete": "
 
 WRITES = {
     "record": ("record", "finding", "a finding"),
+    "asset_candidate_record": ("record", "asset_candidate", "An early candidate", "--details-json", json.dumps({
+        "asset_id": "candidate", "title": "Candidate", "problem": "A recurring question", "artifact_kind": "skill",
+        "conditions": "", "exclusions": "", "next_check": ""})),
     "import": ("import", "{csv}", "--name", "more"),
     "render": ("render",),
     "run": ("run", "scripts/again.py", "--title", "again"),
@@ -626,6 +629,9 @@ def test_a_project_below_a_lab_json_one_is_warned_of_and_written(base, tmp_path)
 
 SDK_CALLS = {
     "record": "analytics.record('note', 'from the script API')",
+    "asset_candidate_record": "analytics.record('asset_candidate', 'Early candidate', details={'asset_id':'candidate',"
+                              "'title':'Candidate','problem':'A recurring question','artifact_kind':'skill',"
+                              "'conditions':'','exclusions':'','next_check':''})",
     "save": "analytics.save(__import__('polars').DataFrame({'a': [1, 2]}), 'saved')",
     "visualize": ("plt = __import__('matplotlib.pyplot').pyplot; fig = plt.figure(); "
                   "plt.plot([1, 2]); analytics.visualize(fig, 'drawn')"),
@@ -662,6 +668,33 @@ def test_the_script_api_outside_a_run_writes_only_where_it_may(base, tmp_path, c
             assert seen[name] == refused, (name, result)
             assert snapshot(tree) == before, name
     record_matrix("sdk", column, seen)
+
+
+@pytest.mark.parametrize("column", ["lab_project_1", "lab_unparsable", "lab_project_9", "analytics_2_too_old",
+                                    "analytics_3", "analytics_invalid", "both", "none", "incomplete"])
+def test_new_asset_write_actions_are_admitted_before_any_side_effect(base, tmp_path, column):
+    actions = {
+        "review": (("assets", "review"), "analytics.review_assets()"),
+        "update": (("assets", "update", "e3", "--expected", "proposed", "--to", "trial", "--reason", "Try"),
+                   "analytics.update_asset('e3', expected='proposed', new='trial', text='Try')"),
+        "register": (("assets", "register", "e3", "--name", "selected"),
+                     "analytics.register_asset('e3', name='selected')"),
+    }
+    for name, (cli, sdk) in actions.items():
+        for entry in ("cli", "sdk"):
+            if entry == "sdk" and column == "none":
+                # project() has always raised RuntimeError outside a project; that SDK lookup
+                # boundary is separate from these handled marker refusals. CLI covers this row.
+                continue
+            target, tree = _column(base, tmp_path / f"asset-{name}-{entry}", column)
+            before = snapshot(tree)
+            if entry == "cli":
+                code, result = kit_cli(target, *cli)
+                assert code == 1
+            else:
+                result = _sdk(target, sdk)
+            assert result["error"]["code"] == REFUSED[column], (name, entry, result)
+            assert snapshot(tree) == before, (name, entry)
 
 
 IN_RUN = """\
