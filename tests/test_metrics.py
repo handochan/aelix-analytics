@@ -301,3 +301,14 @@ def test_duplicate_definition_ids_and_parent_self_reference_do_not_create_false_
         record(p, "metric_definition", definition(derived_from=[{"metric_id": "품질", "event_id": d["id"]}]))
     assert error.value.code == "bad_metric_record"
     assert all(item["state"] == "ambiguous" for item in core.metric_records(p)["definitions"])
+
+
+def test_malformed_historical_details_are_not_interpreted_or_crash_a_new_definition(tmp_path):
+    p = project_at(tmp_path)
+    value = {"schema": "analytics.event/2", "seq": 3, "id": "e3", "kind": "metric_definition",
+             "recorded_at": "2026-10-09T00:00:00Z", "actor": "human", "text": "damaged old payload",
+             "refs": [], "details": ["not an object"]}
+    with p.journal.open("ab") as stream:
+        stream.write(json.dumps(value).encode("utf-8") + b"\n")
+    created = record(p, "metric_definition", definition())
+    assert created["id"] == "e4" and core.metric_records(p)["unstructured"] == ["e3"]
