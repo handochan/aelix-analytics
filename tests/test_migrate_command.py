@@ -527,6 +527,67 @@ def test_a_migration_onto_a_file_system_of_another_kind(tmp_path, where):
         shutil.rmtree(dest, ignore_errors=True)
 
 
+@pytest.mark.skipif(not FOREIGN, reason="AELIX_ANALYTICS_TEST_FOREIGN_FS names no folder on another "
+                                        "file system (a FAT or exFAT volume, say)")
+@pytest.mark.parametrize("where", FOREIGN or ["-"])
+def test_the_appledouble_rule_on_a_file_system_of_another_kind(tmp_path, where):
+    """The owner's decision of 2026-10-09 as corrected (#13 issuecomment-6072183477) on a mounted FAT
+    or exFAT volume: init and the migration's step 1 take a folder holding a regular `._` file (and
+    whatever macOS writes there) as empty, and a folder holding a folder `._d` as not (init_not_empty,
+    not_empty); a migration whose first ledger line was cut beside a `._progress.jsonl` — what macOS
+    leaves on such a volume (F1) — is cleared and goes on, to its commit or to the probe's
+    no_exclusive_rename: never destination_mismatch, never an OSError. What was seen is recorded."""
+    from conftest import record_observation
+
+    appledouble = b"\x00\x05\x16\x07\x00\x02\x00\x00Mac OS X        "
+    origin = core.Origin("test", "sdk")
+    base = Path(where) / f"aelix-appledouble-{os.getpid()}-{tmp_path.name}"
+    base.mkdir()
+    seen = {}
+    try:
+        empty = base / "empty"
+        empty.mkdir()
+        (empty / "._x").write_bytes(appledouble)
+        try:
+            made = core.init_project(empty, origin=origin)
+            assert writer.marker_state(made.root).state == "current"
+            seen["init_beside_a_regular_appledouble_file"] = "made"
+        except core.AnalyticsError as exc:  # the volume refusing something else is recorded
+            assert exc.code != "init_not_empty", exc.to_json()
+            seen["init_beside_a_regular_appledouble_file"] = exc.code
+        folder = base / "folder"
+        (folder / "._d").mkdir(parents=True)
+        with pytest.raises(core.AnalyticsError) as caught:
+            core.init_project(folder, origin=origin)
+        assert caught.value.code == "init_not_empty" and "._d" in caught.value.details["entries"]
+        seen["init_beside_a_folder_named_appledouble"] = caught.value.code
+        source = plain_source(tmp_path)
+        code, result = command("migrate", "--to", folder, cwd=source)
+        details = result["error"]["details"] if code else {}
+        assert (code, details.get("reason")) == (1, "not_empty") and "._d" in details["entries"], result
+        seen["migration_to_a_folder_holding_a_folder_named_appledouble"] = details["reason"]
+        dest = base / "cut"
+        old = dest / migration.MIGRATIONS / "20261008T000000Z-00000000"
+        old.mkdir(parents=True)
+        (dest / migration.DEST_LOCK).write_bytes(b"")
+        (old / "progress.jsonl").write_bytes(b'{"step": "start", "at": "2026-')
+        by_macos = (old / "._progress.jsonl").exists()
+        if not by_macos:
+            (old / "._progress.jsonl").write_bytes(appledouble)
+        seen["cut_first_line_folder"] = {"entries": sorted(p.name for p in old.iterdir()),
+                                         "appledouble_written_by_macos": by_macos}
+        code, result = command("migrate", "--to", dest, cwd=source)
+        reason = None if code == 0 else (result["error"].get("details") or {}).get("reason")
+        assert code == 0 or (result["error"]["code"], reason) == ("destination_invalid",
+                                                                  "no_exclusive_rename"), result
+        assert not old.exists(), sorted(p.name for p in old.iterdir())
+        seen["cut_first_line"] = {"exit": code, "result": "committed" if code == 0 else
+                                  result["error"]["code"], "reason": reason, "cleared": True}
+        record_observation(f"issue-13-writer/foreign-fs-appledouble-{Path(where).name}", seen)
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+
+
 # --- the launchers with a real uv (T18, and T3 without an environment) -----------------------------
 
 REAL_UV = os.environ.get("AELIX_ANALYTICS_UV") or shutil.which("uv")

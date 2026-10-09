@@ -7,8 +7,10 @@ test's own. The kit's command line is run the two ways aelix runs a shell comman
 - the agent's bash tool (create_bash_tool, what aelix registers) → `agent`, declared, `cli`, and this
   session (the extension put them in the process's environment, OQ1);
 - a person's `!` command (cli/repl.handle_user_bash, which emits user_bash on the harness's real hook
-  bus) → `human`, declared, for a command that calls the kit; a command that does not gets no shell
-  from this extension.
+  bus) → `human`, declared, for a line that is one kit command; any other line — one that does not call
+  the kit, or calls it beside another command (`echo x; analytics …`) — gets no result from this
+  extension, and a kit call in it records `agent`, declared (the owner's decision of 2026-10-09 as
+  corrected, #13 issuecomment-6072183477).
 
 A second extension that returns its own shell for every `!` command, and one that blocks every `!`
 command, are each registered before and after this one, and what ran is written down (design 4.2:
@@ -113,6 +115,12 @@ def python_command(*args: str) -> str:
     return " ".join([program, "-m", "aelix_analytics", *args])
 
 
+def compound(kit_command: str) -> str:
+    """A `!` line that runs another command, then the kit: `;` separates commands in every shell aelix
+    may pick (sh, zsh, bash, PowerShell)."""
+    return f"echo T22-before; {kit_command}"
+
+
 def last_event(root: Path) -> dict:
     lines = [json.loads(line) for line in (root / "journal.jsonl").read_text(encoding="utf-8")
              .splitlines() if line.strip()]
@@ -170,8 +178,10 @@ def handler_of(loaded, name: str, path: Path):
 
 def test_the_agent_s_command_line_records_the_agent_and_a_person_s_the_person(aelix_session):
     """No other extension: the agent's bash tool runs the kit as `agent` with this session; a
-    person's `!` command that calls the kit gets this extension's shell and records `human`; a `!`
-    command that does not call the kit gets no shell from it, and aelix runs it as it would."""
+    person's `!` line that is one kit command gets this extension's shell and records `human`; a `!`
+    line that does not call the kit, or calls it after another command, gets no result from it, and
+    aelix runs it as it would — the kit call in that line records `agent`, declared, from the process
+    environment."""
     tmp_path, root, _other = aelix_session
 
     async def scenario():
@@ -191,23 +201,33 @@ def test_the_agent_s_command_line_records_the_agent_and_a_person_s_the_person(ae
         other = await harness.hooks.emit(UserBashHookEvent(command="echo T22", cwd=str(tmp_path)))
         echoed = await handle_user_bash(harness, "echo T22", exclude_from_context=True,
                                         cwd=str(tmp_path))
+        line = compound(python_command("record", "note", "T22-compound"))
+        compound_result = await harness.hooks.emit(UserBashHookEvent(command=line, cwd=str(tmp_path)))
+        compound_out = await handle_user_bash(harness, line, exclude_from_context=True, cwd=str(tmp_path))
+        mixed = {"handler_result": compound_result, "output": compound_out.strip()[:40],
+                 "recorded": author(last_event(root))}
         # The extension's own kit children are not the shell's: their author is the one it passes.
         before = handler_of(loaded, "before_agent_start", EXT)
         child = before.__globals__["child_env"](core.PLATFORM.processes, "human", "command")
-        return result, agent, output, person, other, echoed, session.session_file, child
+        return result, agent, output, person, other, echoed, mixed, session.session_file, child
 
-    result, agent, output, person, other, echoed, session_file, child = asyncio.run(scenario())
+    result, agent, output, person, other, echoed, mixed, session_file, child = asyncio.run(scenario())
     assert agent == {"actor": "agent", "actor_basis": "declared", "means": "cli",
                      "session": session_file, "text": "T22-agent"}, (agent, result)
     assert person == {"actor": "human", "actor_basis": "declared", "means": "cli",
                       "session": session_file, "text": "T22-person"}, (person, output)
     assert other is None and echoed.strip() == "T22"
+    assert mixed["handler_result"] is None and mixed["output"].startswith("T22-before"), mixed
+    assert mixed["recorded"] == {"actor": "agent", "actor_basis": "declared", "means": "cli",
+                                 "session": session_file, "text": "T22-compound"}, mixed
     assert (child["AELIX_ANALYTICS_ACTOR"], child.get("AELIX_ANALYTICS_SESSION")) == ("human",
                                                                                      session_file)
     record_observation("issue-13-writer/agent-cli-alone", {
         "python": sys.version.split()[0], "platform": sys.platform,
         "shell": os.environ.get("SHELL"), "agent_bash_tool": agent, "person_bang": person,
         "person_bang_not_the_kit": {"handler_result": None, "ran": "aelix's own local shell"},
+        "person_bang_compound": {"line": "echo T22-before; <kit record>", "handler_result": None,
+                                 "recorded": mixed["recorded"]},
         "extension_kit_child": {"actor": child["AELIX_ANALYTICS_ACTOR"],
                                 "means": child.get("AELIX_ANALYTICS_MEANS")}})
 
@@ -217,8 +237,8 @@ def test_another_extension_s_shell_and_this_one_s_the_last_one_runs(aelix_sessio
     """design 4.2: aelix runs the last shell a user_bash handler returns. With another extension's
     shell registered first, this extension's runs a person's kit command (it records `human`, and the
     other shell is set aside for that command); registered last, the other shell runs it and the record
-    says `agent` (a limit CONTRACTS A states). A command that does not call the kit is the other
-    shell's in both orders."""
+    says `agent` (a limit CONTRACTS A states). A command that does not call the kit, and a line that
+    calls it after another command, are the other shell's in both orders (recorded `agent`)."""
     tmp_path, root, other_path = aelix_session
     extensions = [other_path, EXT] if order == "other first" else [EXT, other_path]
 
@@ -237,9 +257,15 @@ def test_another_extension_s_shell_and_this_one_s_the_last_one_runs(aelix_sessio
                                         cwd=str(tmp_path))
         not_kit = {"returned_shell": type(returned.operations).__name__, "other_shell_ran": list(ran),
                    "output": echoed.strip()}
-        return kit, not_kit, session.session_file
+        ran.clear()
+        line = compound(python_command("record", "note", f"T22-{order.replace(' ', '-')}-compound"))
+        returned = await harness.hooks.emit(UserBashHookEvent(command=line, cwd=str(tmp_path)))
+        await handle_user_bash(harness, line, exclude_from_context=True, cwd=str(tmp_path))
+        mixed = {"returned_shell": type(returned.operations).__name__,
+                 "other_shell_ran": len(ran), "recorded": author(last_event(root))}
+        return kit, not_kit, mixed, session.session_file
 
-    kit, not_kit, session_file = asyncio.run(scenario())
+    kit, not_kit, mixed, session_file = asyncio.run(scenario())
     if order == "other first":
         assert kit["returned_shell"] == "PersonShell" and kit["other_shell_ran"] == []
         assert (kit["recorded"]["actor"], kit["recorded"]["actor_basis"]) == ("human", "declared")
@@ -249,18 +275,22 @@ def test_another_extension_s_shell_and_this_one_s_the_last_one_runs(aelix_sessio
     assert kit["recorded"]["means"] == "cli" and kit["recorded"]["session"] == session_file
     assert not_kit == {"returned_shell": "OtherShell", "other_shell_ran": ["echo T22"],
                        "output": "T22"}
+    assert (mixed["returned_shell"], mixed["other_shell_ran"]) == ("OtherShell", 1), mixed
+    assert (mixed["recorded"]["actor"], mixed["recorded"]["actor_basis"]) == ("agent", "declared"), mixed
+    assert mixed["recorded"]["text"].endswith("-compound"), mixed
     record_observation(f"issue-13-writer/agent-cli-{order.replace(' ', '-')}", {
         "order": order, "python": sys.version.split()[0], "platform": sys.platform,
-        "kit_command": kit, "not_the_kit": not_kit})
+        "kit_command": kit, "not_the_kit": not_kit, "compound_line": mixed})
 
 
 @pytest.mark.parametrize("order", ["blocker first", "blocker last"])
 def test_an_extension_that_blocks_a_command_is_set_aside_when_it_comes_first(aelix_session, order):
-    """The limit CONTRACTS A states (review of PR 3): aelix keeps the last UserBashResult of any kind
-    (hooks._reducer_user_bash), not the last shell. With an extension that blocks every `!` command
-    registered before this one, this extension's shell replaces the block for a command that calls
-    the kit — it runs, and records `human` — while a command that does not call the kit stays
-    blocked. Registered after this one, the block holds for both."""
+    """The limit CONTRACTS A states (review of PR 3, the owner's decision of 2026-10-09 as corrected):
+    aelix keeps the last UserBashResult of any kind (hooks._reducer_user_bash), not the last shell.
+    With an extension that blocks every `!` command registered before this one, this extension's shell
+    replaces the block for a line that is one kit command — it runs, and records `human` — while a
+    line that calls the kit after another command, and one that does not call it, stay blocked
+    (nothing written). Registered after this one, the block holds for all three."""
     tmp_path, root, _other = aelix_session
     blocker = tmp_path / "blocker_extension.py"
     blocker.write_text(BLOCKER, encoding="utf-8")
@@ -275,10 +305,15 @@ def test_an_extension_that_blocks_a_command_is_set_aside_when_it_comes_first(ael
         kit = {"output": kit_out.strip()[-40:], "written": (root / "journal.jsonl").read_bytes() != journal,
                "recorded": author(last_event(root))}
         echoed = await handle_user_bash(harness, "echo T22", exclude_from_context=True, cwd=str(tmp_path))
-        return kit, echoed.strip()
+        journal = (root / "journal.jsonl").read_bytes()
+        line = compound(python_command("record", "note", f"T22-{order.replace(' ', '-')}-compound"))
+        mixed_out = await handle_user_bash(harness, line, exclude_from_context=True, cwd=str(tmp_path))
+        mixed = {"output": mixed_out.strip(), "written": (root / "journal.jsonl").read_bytes() != journal}
+        return kit, echoed.strip(), mixed
 
-    kit, echoed = asyncio.run(scenario())
+    kit, echoed, mixed = asyncio.run(scenario())
     assert echoed == "blocked by policy"
+    assert mixed == {"output": "blocked by policy", "written": False}, mixed
     if order == "blocker first":
         assert kit["written"] and (kit["recorded"]["actor"], kit["recorded"]["actor_basis"]) == (
             "human", "declared"), kit
@@ -286,7 +321,7 @@ def test_an_extension_that_blocks_a_command_is_set_aside_when_it_comes_first(ael
         assert kit["output"] == "blocked by policy" and not kit["written"], kit
     record_observation(f"issue-13-writer/agent-cli-{order.replace(' ', '-')}", {
         "order": order, "python": sys.version.split()[0], "platform": sys.platform,
-        "kit_command": kit, "not_the_kit": echoed})
+        "kit_command": kit, "not_the_kit": echoed, "compound_line": mixed})
 
 
 def test_the_user_bash_result_type_is_aelix_s(aelix_session):

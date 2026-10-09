@@ -1428,54 +1428,122 @@ def test_the_extension_puts_the_agent_and_this_session_in_the_aelix_process(tmp_
     assert (child["AELIX_ANALYTICS_ACTOR"], child["AELIX_ANALYTICS_MEANS"]) == ("human", "command")
 
 
-CALLS_THE_KIT = [
+# A person's `!` line that is, as a whole, one simple command calling a kit entry point: the handler
+# returns aelix's local shell with the person as the author (the owner's decision of 2026-10-09 as
+# corrected, #13 issuecomment-6072183477).
+SINGLE_KIT_COMMANDS = [
     "analytics status",
     "./bin/analytics record finding 'x y'",
     "/opt/pack/bin/analytics status --json",
-    "cd proj && analytics status",
-    "cd proj; analytics status",
-    "false || analytics status",
-    "echo x | analytics record note -",
-    "(cd proj && analytics status)",
-    "x=$(./bin/analytics status)",
-    "echo `analytics status`",
-    "echo hi\nanalytics status",
+    '"analytics" status',
+    "'./bin/analytics' status",
+    r"\analytics status",
+    # Assignments, env and its options, the prefixes that run the next word.
     "AELIX_ANALYTICS_PROJECT=/p analytics record note x",
+    "A=1 B='two words' C=\"x y\" analytics status",
     "env AELIX_ANALYTICS_PROJECT=/p analytics status",
     "env -i PATH=/bin analytics status",
+    "env -u HOME analytics status",
+    "env -C /tmp -u HOME AELIX_ANALYTICS_ACTOR=x analytics status",
+    "exec analytics status",
+    "command analytics status",
     "time analytics status",
-    "if analytics status; then echo ok; fi",
+    "nohup analytics status",
+    # Redirections to or from a file or a descriptor.
     "analytics status > out.txt 2>&1",
+    "analytics status >>log.txt",
+    "analytics status >&2",
+    "analytics record note x < in.txt",
+    "2>/dev/null analytics status",
+    # Python told to run the kit, also through uv run.
     "python -m aelix_analytics status",
     "python3.12 -I -m aelix_analytics record note x",
     ".venv/bin/python -maelix_analytics status",
     "python -m aelix_analytics.cli status",
+    "python3 -Im aelix_analytics status",
+    "python3 -IS -c 'import aelix_analytics'",
+    "python -c 'import aelix_analytics; aelix_analytics.record(\"note\", \"x\")'",
+    "python -c 'from aelix_analytics import record'",
+    "py -3.12 -m aelix_analytics status",
     "uv run --project proj python -m aelix_analytics status",
     "uv run --with=polars -- python -m aelix_analytics status",
     "uv run analytics status",
-    "python -c 'import aelix_analytics; aelix_analytics.record(\"note\", \"x\")'",
-    "python -c 'from aelix_analytics import record'",
+    "AELIX_ANALYTICS_ACTOR=human uv run --project 'my proj' analytics status",
+    # Windows: the program's suffixes, and PowerShell's call operator at the start.
     r"C:\pack\bin\analytics.exe status",
     r"& C:\venv\Scripts\python.exe -m aelix_analytics status",
-    "py -3.12 -m aelix_analytics status",
-    # Bundled one-letter options before -m and -c, and env's options that take a value (review of
-    # PR 3).
-    "python3 -Im aelix_analytics status",
-    "python3 -IS -c 'import aelix_analytics'",
-    "env -u HOME analytics status",
-    "env -C /tmp -u HOME AELIX_ANALYTICS_ACTOR=x analytics status",
-    "echo ';' ; analytics status",
-    r"\analytics status",
-    # A backslash before a new line continues the line: gone, outside quotes and inside double ones
-    # (the fix-diff check of PR 3).
+    r'& "C:\Program Files\pack\analytics.exe" status',
+    # Operator characters and substitutions quoted or escaped are words.
+    "analytics record note 'a; b && c | d & (e)'",
+    'analytics record note "a; b && c | d"',
+    "analytics record note '$(id) `id`'",
+    'analytics record note "\\$(id) \\`id\\`"',
+    'analytics record note "$HOME ${USER:-x}"',
+    r"analytics record note \; x",
+    "analytics status # a note",
+    # A backslash before a new line continues the line: gone, outside quotes and inside double ones.
     "uv run \\\nanalytics status",
     "AELIX_ANALYTICS_ACTOR=x \\\n  analytics status",
     "env \\\n  -u HOME analytics status",
     "ana\\\nlytics status",
     '"ana\\\nlytics" status',
+    'analytics record note "one\ntwo"',
+    "  analytics status\n",
 ]
 
-NOT_THE_KIT = [
+# Any other line: no result, so aelix runs it as it would and another extension's answer stands. A kit
+# call in such a line records `agent`/declared from the process environment.
+NOT_A_SINGLE_KIT_COMMAND = [
+    # Lists and a second command.
+    "cd proj && analytics status",
+    "cd proj; analytics status",
+    "false || analytics status",
+    "analytics status && echo done",
+    "analytics status; analytics render",
+    "analytics status;",
+    "analytics run x &",
+    "nohup analytics run x &",
+    "analytics status & echo next",
+    # Pipelines into the kit and out of it.
+    "echo x | analytics record note -",
+    "cat notes | python -m aelix_analytics record note -",
+    "analytics status | head",
+    "analytics status |& tee log",
+    "analytics status 2>&1 | tee log",
+    # Commands on lines of their own.
+    "echo hi\nanalytics status",
+    "analytics status\necho hi",
+    "analytics status\nanalytics render",
+    "analytics status \\\n && echo done",
+    # Subshells, groups, command substitution in each form.
+    "(analytics status)",
+    "(cd proj && analytics status)",
+    "{ analytics status; }",
+    "x=$(./bin/analytics status)",
+    "X=$(id) analytics status",
+    "analytics record note $(cat notes)",
+    'analytics record note "$(cat notes)"',
+    'analytics record note "${X:-$(id)}"',
+    "echo `analytics status`",
+    "analytics record note `id`",
+    'analytics record note "`id`"',
+    "analytics record note $((1 + 2))",
+    # Redirections that start another command or take the next lines, and `&>`.
+    "analytics status > >(tee log)",
+    "analytics record note x <(cat notes)",
+    "analytics status &> log",
+    "analytics record note - <<EOF",
+    "analytics record note - <<< 'a text'",
+    "analytics status >",
+    # The shell's compound commands.
+    "if analytics status; then echo ok; fi",
+    "while analytics status; do sleep 1; done",
+    "! analytics status",
+    # An operator after a `#` still counts.
+    "analytics status # ; rm x",
+    # PowerShell's call operator, then a second command.
+    "& analytics status; ls",
+    # Not the kit at all.
     "",
     "ls",
     "echo hi",
@@ -1486,6 +1554,9 @@ NOT_THE_KIT = [
     "echo 'analytics status'",
     'echo "$(analytics status)"',
     "sh -c 'analytics status'",
+    "bash -c 'python -m aelix_analytics status'",
+    "xargs analytics status",
+    "builtin analytics status",
     "python scripts/a.py",
     "python -m pytest tests/test_kit.py",
     "python -c 'print(\"import aelix_analytics\")'",
@@ -1496,43 +1567,48 @@ NOT_THE_KIT = [
     "git log -- analytics",
     "echo 'unclosed",
     "cat < analytics",
-    # An operator inside quotes or escaped is a word (review of PR 3).
     "echo ';' analytics",
-    "echo '(' analytics",
-    'echo "|" analytics x',
-    "printf '%s\\n' '&&' analytics",
     r"echo \; analytics",
-    'echo "a\\" ; analytics" x',
-    "echo hi # ; analytics",
     "echo \\\nanalytics status",
     "'ana\\\nlytics' status",
 ]
 
 
-@pytest.mark.parametrize("command", CALLS_THE_KIT)
-def test_a_person_s_command_that_calls_the_kit_is_found(command):
-    """design I3: the words in command position only — the program `analytics` wherever it lives, or
-    Python told to run the kit — after the shell's separators, assignments, prefixes and `uv run`."""
-    assert fresh_module().calls_the_kit(command)
+@pytest.mark.parametrize("command", SINGLE_KIT_COMMANDS)
+def test_a_line_that_is_one_kit_command_gets_the_person_s_shell(command):
+    """design 4.2 as the owner corrected it: the whole line one simple command whose program is the
+    kit — after assignments, env, the prefixes and `uv run`, with redirections to a file or a
+    descriptor — and the handler returns aelix's local shell with the person as the author."""
+    from aelix_agent_core.harness.hooks import UserBashHookEvent, UserBashResult
+
+    module = fresh_module()
+    result = module.on_user_bash(UserBashHookEvent(command=command, cwd="."), None)
+    assert isinstance(result, UserBashResult) and isinstance(result.operations, module.PersonShell)
 
 
-@pytest.mark.parametrize("command", NOT_THE_KIT)
-def test_a_person_s_command_that_only_names_the_kit_is_not(command):
-    """A word elsewhere, words inside quotes, a script that may import the kit: not a call. Missing one
-    leaves it `agent`; taking one wrongly would set another extension's shell aside (CONTRACTS A)."""
-    assert not fresh_module().calls_the_kit(command)
+@pytest.mark.parametrize("command", NOT_A_SINGLE_KIT_COMMAND)
+def test_any_other_line_is_left_alone(command):
+    """A line with any operator but a redirection to a file or a descriptor, a second command, or a
+    program that is not the kit: the handler returns nothing, so another extension's block or shell is
+    set aside for one kit command only (CONTRACTS A), and a kit call in the line stays `agent`."""
+    from aelix_agent_core.harness.hooks import UserBashHookEvent
+
+    module = fresh_module()
+    assert module.on_user_bash(UserBashHookEvent(command=command, cwd="."), None) is None
 
 
 def test_a_person_s_kit_command_runs_in_aelix_s_shell_as_the_person(monkeypatch):
-    """design 4.2 (OQ1): for a `!` command that calls the kit the handler returns aelix's own local
+    """design 4.2 (OQ1): for a `!` line that is one kit command the handler returns aelix's own local
     shell (create_local_bash_operations, the environment get_shell_env makes when none is given) with
-    AELIX_ANALYTICS_ACTOR=human for that command alone; for any other command it returns nothing, so
-    aelix runs it as it would and another extension's shell is not set aside. It never raises."""
+    AELIX_ANALYTICS_ACTOR=human for that command alone; for any other line — one that does not call the
+    kit, or calls it beside another command — it returns nothing, so aelix runs it as it would and
+    another extension's shell is not set aside. It never raises."""
     from aelix_agent_core.harness.hooks import UserBashHookEvent, UserBashResult
     from aelix_coding_agent.tools import bash
 
     module = fresh_module()
     assert module.on_user_bash(UserBashHookEvent(command="ls -la", cwd="."), None) is None
+    assert module.on_user_bash(UserBashHookEvent(command="ls && analytics status", cwd="."), None) is None
     result = module.on_user_bash(UserBashHookEvent(command="analytics status", cwd="."), None)
     assert isinstance(result, UserBashResult) and result.result is None
     shell = result.operations

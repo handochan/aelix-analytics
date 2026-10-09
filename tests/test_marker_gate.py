@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from conftest import KIT, kit_cli, kit_env, write_sales_csv
+from conftest import KIT, LINK_KINDS, dir_link, kit_cli, kit_env, write_sales_csv
 from legacy_records import LegacyProject, at
 
 from aelix_analytics import _platform, core, writer
@@ -845,3 +845,23 @@ def test_init_takes_a_directory_of_operating_system_views_as_empty(tmp_path):
     with pytest.raises(core.AnalyticsError) as caught:
         core.init_project(other, template_dir=TEMPLATE, origin=ORIGIN)
     assert caught.value.code == "init_not_empty" and caught.value.details == {"entries": ["Thumbs.db"]}
+
+
+@pytest.mark.parametrize("what", ["folder", "link"])
+def test_init_takes_a_folder_or_a_link_named_appledouble_as_an_entry(tmp_path, what):
+    """The owner's correction of 2026-10-09 (#13 issuecomment-6072183477): only a regular file
+    `._<name>` is the OS's; a folder or a link with that name is an entry, so init refuses the
+    directory (init_not_empty) and leaves it as it was."""
+    target = tmp_path / "finder"
+    target.mkdir()
+    (target / "._ok").write_bytes(b"\x00\x05\x16\x07")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    if what == "folder":
+        (target / "._d").mkdir()
+    else:
+        dir_link(LINK_KINDS[0], target / "._d", outside)
+    with pytest.raises(core.AnalyticsError) as caught:
+        core.init_project(target, template_dir=TEMPLATE, origin=ORIGIN)
+    assert caught.value.code == "init_not_empty" and caught.value.details == {"entries": ["._d"]}
+    assert sorted(p.name for p in target.iterdir()) == ["._d", "._ok"]

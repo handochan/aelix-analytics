@@ -71,8 +71,8 @@ CHUNK = 1 << 20
 SOURCE_LOCKS = ("run.lock", "lock")
 # What is not copied (OQ4): the environment and the Workspace at the root, the cache and the older
 # kit's locks in .lab/, Python's caches and the views an operating system makes of a folder anywhere:
-# these names, and macOS's AppleDouble files `._<name>` (core.is_appledouble, owner's decision
-# 2026-10-09) — _os_metadata.
+# these names, and macOS's AppleDouble files `._<name>` — regular files only (core.is_appledouble, the
+# owner's decision of 2026-10-09 as corrected) — _os_metadata.
 OS_METADATA = frozenset({".DS_Store", "Thumbs.db", "desktop.ini"})
 CACHE_NAMES = frozenset({"__pycache__"})
 EXCLUDED_AT_ROOT = {".venv": "environment", "report": "workspace"}
@@ -379,6 +379,19 @@ def _write_failed(path, exc: OSError) -> AnalyticsError:
                           details={"path": str(path), "error": str(exc)})
 
 
+def _not_cleared(directory: Path, exc: OSError) -> AnalyticsError:
+    """A migration directory step 2 left with no full line, which cannot be removed: an AppleDouble
+    file macOS wrote beside its ledger (`._progress.jsonl` on a FAT or exFAT volume) stays in it, or
+    the folder's permissions refuse (design 6.10)."""
+    return AnalyticsError("destination_write_failed", f"{directory} cannot be removed: {exc}",
+                          hint="it held a migration that stopped before its first ledger line ended, "
+                               "and what is left in it — an AppleDouble file `._<name>` macOS made "
+                               "beside the ledger, say — is not the migration's to remove. Remove that "
+                               "folder, then run the migration again; this call removed only the cut "
+                               "ledger, and nothing was written",
+                          details={"path": str(directory), "error": str(exc)})
+
+
 def _changed(paths) -> AnalyticsError:
     paths = sorted(set(paths))
     return AnalyticsError("source_changed", f"the source changed while it was copied: "
@@ -547,9 +560,12 @@ class Ledger:
 
 def _contentless(directory: Path) -> bool:
     """A migration directory holding nothing but a ledger that is missing, empty or one cut-off first
-    line: interrupted in step 2 before its `start` line ended (design 6.10)."""
+    line: interrupted in step 2 before its `start` line ended (design 6.10). An AppleDouble file there
+    (`._progress.jsonl`, which macOS writes beside the ledger on a FAT or exFAT volume) is the OS's,
+    not content."""
     try:
-        names = [e.name for e in os.scandir(directory)]
+        with os.scandir(directory) as listing:
+            names = [e.name for e in listing if not core.is_appledouble(e.path)]
     except OSError:
         return False
     if any(n != LEDGER for n in names):
@@ -697,16 +713,18 @@ class _Walker:
         return files, size
 
     @staticmethod
-    def _excluded(rel: str, name: str) -> str | None:
-        """Why an entry is not copied (OQ4), by its namespace path: so a .lab/ that is a link leading
-        outside leaves out its cache and locks as the folder does."""
+    def _excluded(rel: str, path) -> str | None:
+        """Why an entry is not copied (OQ4), by its namespace path — so a .lab/ that is a link leading
+        outside leaves out its cache and locks as the folder does — and, for an AppleDouble name, by
+        what is at `path` (a regular file only)."""
+        name = rel.rsplit("/", 1)[-1]
         if rel in EXCLUDED_AT_ROOT:
             return EXCLUDED_AT_ROOT[rel]
         if _parent(rel) == LEGACY_STATE_DIR and name in EXCLUDED_IN_STATE:
             return EXCLUDED_IN_STATE[name]
         if name in CACHE_NAMES:
             return "cache"
-        if _os_metadata(name):
+        if _os_metadata(path):
             return "os_metadata"
         return None
 
@@ -727,7 +745,7 @@ class _Walker:
                     self.out.not_utf8.append({"path": _escaped(rel), "base64": base64.b64encode(
                         os.fsencode(entry.path)).decode("ascii")})
                     continue
-                reason = self._excluded(rel, entry.name)
+                reason = self._excluded(rel, entry.path)
                 if reason:
                     self.out.exclude(rel, reason, *self._count(entry.path))
                     continue
@@ -924,17 +942,21 @@ def _source_rel(rel: str) -> str:
     return rel
 
 
-def _os_metadata(name: str) -> bool:
-    """A view an operating system makes of a folder (OQ4, OQ16): OS_METADATA's names, or an
-    AppleDouble file `._<name>` (owner's decision 2026-10-09)."""
-    return name in OS_METADATA or core.is_appledouble(name)
+def _os_metadata(path) -> bool:
+    """A view an operating system makes of a folder (OQ4, OQ16): an entry with one of OS_METADATA's
+    names, or an AppleDouble file `._<name>` — a regular file (the owner's decision of 2026-10-09 as
+    corrected): a directory or a link with that name is an ordinary entry."""
+    return os.path.basename(path) in OS_METADATA or core.is_appledouble(path)
 
 
-def _ignored(rel: str) -> bool:
-    """A name a person's tools leave in a destination (OQ16): .venv at the root, __pycache__ and the
-    OS's views anywhere, and what is below them."""
+def _ignored(rel: str, dest: Path | None = None) -> bool:
+    """A name a person's tools leave in a destination (OQ16): .venv at the root, __pycache__ and
+    OS_METADATA's names anywhere, and what is below them; and, given the destination, an AppleDouble
+    file at `rel` (a regular file: nothing is below it, and a folder of that name is gone into)."""
     parts = rel.split("/")
-    return parts[0] in IGNORED_AT_ROOT or any(p in CACHE_NAMES or _os_metadata(p) for p in parts)
+    if parts[0] in IGNORED_AT_ROOT or any(p in CACHE_NAMES or p in OS_METADATA for p in parts):
+        return True
+    return dest is not None and core.is_appledouble(dest / rel)
 
 
 def _walk_destination(dest: Path):
@@ -1111,7 +1133,7 @@ class Migration:
         except OSError as exc:
             raise _invalid("not_a_directory", f"the destination cannot be listed: {exc}",
                            "give a folder this account can read", path=str(self.dest)) from exc
-        others = [n for n in top if not core.empty_directory_name(n) and n != STATE_DIR]
+        others = [n for n in top if not core.empty_directory_entry(self.dest / n) and n != STATE_DIR]
         if STATE_DIR in top and not (self.dest / STATE_DIR).is_dir():
             others.append(STATE_DIR)
         dirs = self._migration_dirs()
@@ -1121,9 +1143,10 @@ class Migration:
                             migrations=[d.name for d in full])
         if not full:
             # macOS's AppleDouble files beside the migration's own entries (`._migration.lock` where
-            # a volume keeps no extended attributes) are the OS's, not anyone's state.
+            # a volume keeps no extended attributes) are the OS's, not anyone's state: regular files.
             stray = [f"{STATE_DIR}/{n}" for n in self._state_entries()
-                     if n not in ("migration", "migration.lock") and not core.is_appledouble(n)]
+                     if n not in ("migration", "migration.lock")
+                     and not core.is_appledouble(self.dest / STATE_DIR / n)]
             return Judgment("new", clear=[d.name for d in dirs], entries=sorted(others + stray))
         directory = full[0]
         if len(dirs) > 1:
@@ -1403,9 +1426,12 @@ class Migration:
         if judged.kind == "new":
             for name in judged.clear:  # step 2's own, with nothing of anyone's in it (design 6.10)
                 directory = self.dest / MIGRATIONS / name
-                with contextlib.suppress(FileNotFoundError):
-                    _remove_own(directory / LEDGER)
-                os.rmdir(directory)
+                try:
+                    with contextlib.suppress(FileNotFoundError):
+                        _remove_own(directory / LEDGER)
+                    os.rmdir(directory)
+                except OSError as exc:
+                    raise _not_cleared(directory, exc) from exc
             return self._start()
         self.ledger, self.mdir = judged.ledger, judged.ledger.directory
         try:
@@ -2105,7 +2131,7 @@ class Migration:
             seen.add(rel)
             if rel in (STATE_DIR, DEST_LOCK, MIGRATIONS, own) or rel.startswith(own + "/"):
                 continue
-            if _ignored(rel) and rel not in planned_files and rel not in planned_dirs:
+            if _ignored(rel, self.dest) and rel not in planned_files and rel not in planned_dirs:
                 continue
             if kind == "dir":
                 if rel not in planned_dirs:

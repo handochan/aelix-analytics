@@ -29,16 +29,19 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
   뒤 kit이 답한 목적지(`~` 포함, kit이 푼 경로)의 환경을 `uv sync --locked`로 준비합니다(실패해도 전환은 끝났다고 알리고 0). 에이전트가 부른
   전환은 보고서와 응답에 `agent`로 남습니다.
   aelix의 도구·`/analytics`에는 이 명령이 없습니다. `.venv/`·`report/`·캐시·잠금과 운영체제 메타 파일(`.DS_Store`·`Thumbs.db`·`desktop.ini`,
-  macOS가 FAT·exFAT 같은 볼륨에 만드는 AppleDouble `._<이름>`; AppleDouble은 2026-10-09 소유자 결정)은 복사하지 않고 보고서에 적으며,
-  목적지의 것은 무시합니다. 그래서 macOS에서도 FAT32 같은 볼륨으로 전환할 수 있습니다 ([#84]).
+  macOS가 FAT·exFAT 같은 볼륨에 만드는 AppleDouble `._<이름>`; AppleDouble은 2026-10-09 소유자 결정이며 일반 파일만, 그런 이름의 폴더·링크는
+  보통 항목으로 복사)은 복사하지 않고 보고서에 적으며, 목적지의 것은 무시합니다. 첫 ledger 줄이 끊긴 전환 디렉터리 옆에 macOS가 남긴
+  `._progress.jsonl`도 내용으로 보지 않아 다시 부르면 새로 시작하고, 그 디렉터리를 지우지 못하면 `destination_write_failed`로 지울 폴더를
+  알립니다. 그래서 macOS에서도 FAT32 같은 볼륨으로 전환할 수 있습니다 ([#84]).
 - 링크를 만들 수 없는 목적지(FAT·exFAT 등)에서는 전환이 표식을 제자리에 쓰지 않고 이미 있는 이름을 바꾸지 않는 rename(Linux
   `renameat2(RENAME_NOREPLACE)`, macOS `renamex_np(RENAME_EXCL)`, Windows `os.rename`; 포트의 `AtomicFiles.rename_new`)으로 게시합니다. 그것도
   없는 목적지는 아무것도 복사하기 전에 `destination_invalid`(`details.reason: no_exclusive_rename`)로 거절합니다 ([#84]).
 - aelix 확장이 aelix 프로세스의 환경에 `AELIX_ANALYTICS_ACTOR=agent`와 그 세션을 넣으므로, 에이전트가 aelix의 bash 도구로 부른 `analytics`·
-  `python -m aelix_analytics`가 `agent`로 기록됩니다. 사람이 aelix에서 `!analytics …`처럼 kit을 부르는 명령은 확장의 `user_bash` 처리가
-  `human`으로 기록하게 하고, kit을 부르지 않는 `!` 명령은 건드리지 않습니다. 한계: aelix 0.1.0b2는 마지막 확장의 답만 쓰므로, `!` 명령을
-  막거나 다른 실행기로 돌리는 확장이 먼저 등록되면 kit을 부르는 명령에 한해 이 처리가 그 막음·실행기를 덮습니다(소유자가 2026-10-09에 이대로
-  두기로 함, [현재 계약](docs/CONTRACTS.md) A). aelix 밖의 에이전트 호스트는 `AELIX_ANALYTICS_ACTOR=agent`를 설정합니다 ([#84]).
+  `python -m aelix_analytics`가 `agent`로 기록됩니다. 사람이 aelix에서 `!analytics …`처럼 친 줄이 전체로 kit 명령 하나이면 확장의 `user_bash`
+  처리가 `human`으로 기록하게 하고, 다른 `!` 줄 — kit을 부르지 않거나, `;`·`&&`·`|`·줄바꿈·`$(…)` 등으로 다른 명령과 합친 줄 — 은 건드리지
+  않습니다(그 안의 kit 기록은 `agent`). 한계: aelix 0.1.0b2는 마지막 확장의 답만 쓰므로, `!` 명령을 막거나 다른 실행기로 돌리는 확장이 먼저
+  등록되면 kit 명령 하나인 줄에 한해 이 처리가 그 막음·실행기를 덮습니다(소유자가 2026-10-09에 그 범위로 정함, [현재 계약](docs/CONTRACTS.md)
+  A). aelix 밖의 에이전트 호스트는 `AELIX_ANALYTICS_ACTOR=agent`를 설정합니다 ([#84]).
 
 ### Changed
 
@@ -51,7 +54,7 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
   `min_writer_version`·`kit_version` 0.8.0), `.analytics/`, `workspace/`, `data/imported/`, `runs/<id>/visualizations/`, 새 `.gitignore`.
   다른 프로젝트 안의 디렉터리와 끝나지 않은 전환의 목적지(표식 없이 전환 기록만 있는 폴더) 안에는 만들지 않습니다(`destination_invalid`,
   `details.reason: inside_project`; 전환 목적지는 2026-10-09 소유자 결정이며 `analytics migrate --to`도 같음). 그 전환은 같은 명령으로 이어
-  끝냅니다. `.DS_Store`와 AppleDouble `._<이름>`만 있는 폴더는 빈 폴더로 봅니다 ([#84]).
+  끝냅니다. `.DS_Store`와 AppleDouble `._<이름>` 파일만 있는 폴더는 빈 폴더로 봅니다(그런 이름의 폴더·링크는 항목) ([#84]).
 - 기록: journal 줄은 `analytics.event/2`(`actor_basis`·`means`·`request_id`, 쓰는 때 결박한 참조의 `version_binding`·`relation`·`basis`·`digest`),
   run은 `analytics.run/2`(`visualizations[]`·`sha256`·`data_sha256`, `reproduction.visualizations`), 가져오기는 `data/imported/`의
   `analytics.dataset/1`, 입출력의 `via`는 `analytics.*`, 맥락 버전은 `.analytics/context/`이고 `context` 이벤트가 sha256으로 가리킵니다.

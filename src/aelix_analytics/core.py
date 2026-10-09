@@ -3195,23 +3195,38 @@ def _refs_suffix(event: dict) -> str:
 
 TEMPLATE_FILES = ("CONTEXT.md", "pyproject.toml", "gitignore", "gitattributes")
 # The names a directory init takes as empty may hold at its top, and so may a migration's
-# destination (design 6.2: the same rule, empty_directory_name): Finder makes one where a folder was
-# only looked at, and AppleDouble files (is_appledouble) where macOS keeps a file's attributes.
+# destination (design 6.2: the same rule, empty_directory_entry): Finder makes one where a folder was
+# only looked at; macOS also writes an AppleDouble file (is_appledouble) beside a file or folder whose
+# attributes a volume cannot keep.
 EMPTY_DIRECTORY_NAMES = (".DS_Store",)
 
 
-def is_appledouble(name: str) -> bool:
-    """An AppleDouble file's name, `._<name>`: what macOS writes beside a file or folder on a volume
-    that keeps no extended attributes (FAT, exFAT, some network shares). Operating system metadata as
-    .DS_Store is (owner's decision 2026-10-09, #13): a migration does not copy it (OQ4), passes over
-    it in its destination (OQ16), and an empty directory may hold it."""
+def appledouble_name(name: str) -> bool:
+    """Whether a name is an AppleDouble file's, `._<name>`: the name only (is_appledouble also asks
+    what the entry is)."""
     return len(name) > 2 and name.startswith("._")
 
 
-def empty_directory_name(name: str) -> bool:
-    """Whether a name at the top of a directory leaves it empty for init and for a migration's
-    destination (design 6.2): .DS_Store, or an AppleDouble file."""
-    return name in EMPTY_DIRECTORY_NAMES or is_appledouble(name)
+def is_appledouble(path) -> bool:
+    """Whether `path` is an AppleDouble file: a regular file (by lstat, a link not followed) named
+    `._<name>`, what macOS writes beside a file or folder on a volume that keeps no extended
+    attributes (FAT, exFAT, some network shares). Operating system metadata as .DS_Store is (the
+    owner's decision of 2026-10-09 as corrected, #13 issuecomment-6072183477): a migration does not
+    copy it (OQ4), passes over it in its destination (OQ16), and an empty directory may hold it (init,
+    a migration's destination). A directory or a link with such a name is an ordinary entry, and so is
+    one that cannot be looked at."""
+    if not appledouble_name(os.path.basename(path)):
+        return False
+    try:
+        return stat.S_ISREG(os.lstat(path).st_mode)
+    except OSError:
+        return False
+
+
+def empty_directory_entry(path) -> bool:
+    """Whether an entry at the top of a directory leaves it empty for init and for a migration's
+    destination (design 6.2): .DS_Store, or an AppleDouble file (a regular file, is_appledouble)."""
+    return os.path.basename(path) in EMPTY_DIRECTORY_NAMES or is_appledouble(path)
 
 
 def init_project(target, *, title=None, goal=None, template_dir=None, origin: Origin,
@@ -3231,7 +3246,7 @@ def init_project(target, *, title=None, goal=None, template_dir=None, origin: Or
     if root.exists():
         if not root.is_dir():
             raise AnalyticsError("init_not_directory", f"{root} exists and is not a directory")
-        leftovers = [p.name for p in root.iterdir() if not empty_directory_name(p.name)]
+        leftovers = [p.name for p in root.iterdir() if not empty_directory_entry(p)]
         if leftovers:
             raise AnalyticsError("init_not_empty", f"{root} is not empty",
                                  hint="choose a new directory; init never adopts existing files",
