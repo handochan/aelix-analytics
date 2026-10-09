@@ -5,7 +5,7 @@
 
 ## 기준과 변화
 
-측정 코드 `63f954e2b1c013e89283a751fda681fa75f26181`의 소스·시험·실행 도구·레코드 schema 223개 파일 manifest SHA-256은 `36707e9b2af5049acacdbd6a247c4c3a33c0bdab6ea570a3e9fd28985f715ed0`이다.
+측정 코드 `b7e6ef96e817286f4328b847ccd160bd71f04011`의 소스·시험·실행 도구·레코드 schema 222개 파일 manifest SHA-256은 `54508529e2d0ecaef475b518d35a80d766b5d449bf84f8cb7ac850c6c5423e81`이다.
 로컬 manifest·JUnit·명령 출력은 Issue별 run의 `.devstate`에 보존한다. 사용자 데이터나 실제 프로젝트 절대 경로를 fixture로 옮기지 않았다.
 
 kit 0.9.0은 기존 `analytics.event/2`에 세 상세 계약을 추가한다: `metric_definition/1`, `analysis_focus/1`, `metric_observation/1`.
@@ -24,13 +24,14 @@ kit 0.9.0은 기존 `analytics.event/2`에 세 상세 계약을 추가한다: `m
 |---|---|---|
 | 기존 writer/record/read-view/layer 기준선 | 설계 `a9b54b2` | 283 passed, 10.76s |
 | 새 M0·최소 M1 및 관련 record/gate/layer 시험 | 초기 구현, 1108110 전 | 385 passed, 29.61s. 이후 역사 metadata 처리 보강은 다시 검사 중 |
-| 최종 focused 시험 | `63f954e2b1c013e89283a751fda681fa75f26181` | 386 passed, 30.01s. JSON·JUnit에 기록 |
-| lint·문서 | 구현 | ruff pass; 67 Markdown·13 JSON·736 local links, errors 0. 이 측정 문서를 포함한 검사는 추가 실행 예정 |
-| macOS 로컬 저장소 전체 | 1108110에서 시작 | 실행 중. parent HOME·USERPROFILE·설정·신뢰·aelix 경로는 task 폴더로 격리. 실행 중 metadata 보강이 있어 최종 exact-head CI가 필요 |
+| 최종 focused 시험 | `b7e6ef96e817286f4328b847ccd160bd71f04011` | 711 passed·10 skipped, 73.28s. standalone reader·기존 형식·line endings·packaging까지 포함. skip 사유는 JSON에 기록 |
+| lint·문서 | 구현 | ruff pass; 68 Markdown·14 JSON·737 local links, errors 0 |
+| macOS 로컬 저장소 전체 | 1108110에서 시작 | 중단: 1508 passed·6 failed·76 skipped, 521.22s. 버전/kind 문서·시험 4곳과 SDK resolve 호환성은 수정했고, 실행 중 코드 변경의 kit hash 불일치는 혼합 소스 한계로 보존. parent HOME 등은 task 폴더로 격리. 최종 exact-head CI 필요 |
 | aelix 3.12 모델 없는 통합 | 1108110에서 시작 | 964 passed, 56.92s. metadata 보강이 실행 중 반영되어 최종 exact-head CI를 별도로 확인 |
 | Linux·Windows CI | 최종 PR head | not_run |
 | macOS CI | 최종 PR head | not_run |
 
+잘못된/미지원 tag 기록은 상태 재생에서 target을 바꾸지 않고 invalid로 보존한다. standalone stdlib reader를 유지하도록 공유 순수 규칙은 relations.py에 둔다.
 검증 사례는 미정 후보·다중 역할, 정의 수정·부모 버전 고정, 조건별 관측·코드만 수정한 재계산, 목적/계산 구별, run 시작 초점 보존,
 동시 수정 거절, 거절의 무부수효과, 실패/취소 run의 명시적 관측, 부분 최종 쓰기 실패, SDK payload 사본, CLI/SDK 공통 계약,
 원래 비구조화 기록 읽기, 보존된 결과 표 참조다. 실제 모델 호출이나 자동 식 검증으로 넓혀 주장하지 않는다.

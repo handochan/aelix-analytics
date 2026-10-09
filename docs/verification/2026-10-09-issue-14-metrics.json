@@ -1,12 +1,12 @@
 {
   "schema": "aelix-analytics.verification/1",
   "issue": 14,
-  "recorded_at": "2026-10-09T13:45:34.400282+00:00",
+  "recorded_at": "2026-10-09T13:56:06.259969+00:00",
   "status": "pending_review_and_ci",
   "measured_tree": {
-    "commit": "63f954e2b1c013e89283a751fda681fa75f26181",
-    "manifest_files": 223,
-    "manifest_sha256": "36707e9b2af5049acacdbd6a247c4c3a33c0bdab6ea570a3e9fd28985f715ed0",
+    "commit": "b7e6ef96e817286f4328b847ccd160bd71f04011",
+    "manifest_files": 222,
+    "manifest_sha256": "54508529e2d0ecaef475b518d35a80d766b5d449bf84f8cb7ac850c6c5423e81",
     "includes": [
       "src/",
       "extension/",
@@ -53,10 +53,53 @@
   "local": {
     "focused": {
       "result": "pass",
-      "commit": "63f954e2b1c013e89283a751fda681fa75f26181",
-      "command": "uv run --locked pytest -q tests/test_metrics.py tests/test_writer.py tests/test_layers.py tests/test_marker_gate.py tests/test_run_views.py tests/test_record_contract.py --timeout 600 --timeout-method=thread",
-      "tests_passed": 386,
-      "duration_seconds": 30.01
+      "commit": "b7e6ef96e817286f4328b847ccd160bd71f04011",
+      "command": "uv run --locked pytest -q tests/test_metrics.py tests/test_relations.py tests/test_writer.py tests/test_layers.py tests/test_marker_gate.py tests/test_run_views.py tests/test_record_contract.py tests/test_kit.py tests/test_new_format.py tests/test_line_endings.py tests/test_packaging.py --timeout 600 --timeout-method=thread",
+      "tests_passed": 711,
+      "duration_seconds": 73.28,
+      "tests_skipped": 10,
+      "skips": [
+        {
+          "test": "test_aelix_binds_and_loads_the_installed_extension[3.11]",
+          "reason": "set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)"
+        },
+        {
+          "test": "test_aelix_binds_and_loads_the_installed_extension[3.12]",
+          "reason": "set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)"
+        },
+        {
+          "test": "test_a_checkout_symlink_beside_the_wheel_sets_up_one_copy",
+          "reason": "set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)"
+        },
+        {
+          "test": "test_the_installed_extension_s_tools_run_a_project[3.11]",
+          "reason": "set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)"
+        },
+        {
+          "test": "test_the_installed_extension_s_tools_run_a_project[3.12]",
+          "reason": "set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)"
+        },
+        {
+          "test": "test_the_installed_command_drives_a_project_without_aelix[3.11]",
+          "reason": "set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)"
+        },
+        {
+          "test": "test_the_installed_command_drives_a_project_without_aelix[3.12]",
+          "reason": "set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)"
+        },
+        {
+          "test": "test_the_readme_s_uv_tool_install_routes",
+          "reason": "set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)"
+        },
+        {
+          "test": "test_the_kit_s_stdlib_commands_run_on_the_floor",
+          "reason": "set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)"
+        },
+        {
+          "test": "test_pip_installs_and_uninstalls_the_wheel_without_leftovers",
+          "reason": "set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, an analysis environment)"
+        }
+      ]
     },
     "earlier_focused": {
       "result": "pass",
@@ -71,15 +114,20 @@
     "docs": {
       "result": "pass",
       "files": {
-        "markdown": 67,
-        "json": 13,
-        "local_links": 736
+        "markdown": 68,
+        "json": 14,
+        "local_links": 737
       }
     },
     "full_suite": {
-      "result": "pending",
+      "result": "interrupted_with_failures",
       "started_commit": "1108110e432072971a1e9d79ca85a9e90b7ea988",
-      "source_note": "Historical metadata hardening/test added while suite pending; final exact-head CI required. Parent HOME and all aelix/trust/config paths are task-scoped."
+      "source_note": "Mixed source trial was stopped after six failures: four stale version/kind assertions/docs, original SDK resolve refusal changed unintentionally, and kit hash mismatch after source edits during trial. All five actionable references/compatibility defects fixed; final relevant suite 711passed10skipped. Final exact-head CI remains required. No failures erased or labelled pass.",
+      "exit_code": 2,
+      "tests_passed": 1508,
+      "tests_failed": 6,
+      "tests_skipped": 76,
+      "duration_seconds": 521.22
     },
     "aelix_py312": {
       "result": "pass",
@@ -115,7 +163,10 @@
     "partial observation write failure surfaced in finalize_errors",
     "CLI/outside and inside SDK common payloads",
     "legacy unstructured records preserved",
-    "large result reference to recorded output"
+    "large result reference to recorded output",
+    "invalid/unsupported tagged records cannot retire valid replayed current state",
+    "standalone stdlib reader remains loadable by filepath",
+    "malformed historical details preserved without interpreting them"
   ],
   "not_run": [
     "real model E2E and tokenizer/token cost",
