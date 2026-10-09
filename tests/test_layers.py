@@ -74,21 +74,20 @@ def _layer(level: int, may_import: tuple[str, ...], external: tuple[str, ...], r
     return Layer(level, frozenset(may_import), frozenset(("stdlib", *external)), role)
 
 
-PROJECT_LAYERS = ("core", "ports", "read_model", "runtime", "workspace", "writer", "metric_contract")
+PROJECT_LAYERS = ("core", "ports", "read_model", "runtime", "workspace", "writer")
 
 # Issue #13 PR 1 (design RECORD-WRITER-AND-MIGRATION 3.2): the record writer is a layer of its own
 # below core, which may not import core — so the check itself keeps the writer from depending on the
 # project model — and every layer from core up is one level higher than before.
 LAYERS: dict[str, Layer] = {
-    "metric_contract": _layer(0, (), (), "pure structured metric and focus payload contracts (ADR-0011)"),
     "ports": _layer(0, (), (), "the platform ports and their per-OS implementations (ADR-0003)"),
-    "read_model": _layer(0, ("metric_contract",), (), "the records read as ADR-0006 says (ADR-0001 decision 5)"),
+    "read_model": _layer(0, (), (), "the records read as ADR-0006 says (ADR-0001 decision 5)"),
     "distribution": _layer(0, (), (), "where the installed distribution keeps its runtime root"),
-    "writer": _layer(1, ("ports", "read_model", "metric_contract"), (),
+    "writer": _layer(1, ("ports", "read_model"), (),
                      "who may write a project's records and how: the marker judgment and the gate, "
                      "Origin, the error class, the record helpers and the new format's common "
                      "Writer (#13)"),
-    "core": _layer(2, ("ports", "read_model", "writer", "metric_contract"), (),
+    "core": _layer(2, ("ports", "read_model", "writer"), (),
                    "the project model: domain and shared application, not split yet"),
     "runtime": _layer(3, ("core", "ports", "read_model", "runtime", "writer"), ("analysis",),
                       "execution, capture and data adapters, in the project's environment"),
@@ -121,7 +120,6 @@ EXTERNAL: dict[str, str] = {
 # Every shipped Python file, by its path in the checkout, and its layer. A key ending in `/*.py` covers
 # every file of that directory.
 MODULES: dict[str, str] = {
-    "src/aelix_analytics/metrics.py": "metric_contract",
     "src/aelix_analytics/_platform.py": "ports",
     "src/aelix_analytics/relations.py": "read_model",
     "src/aelix_analytics/_install.py": "distribution",

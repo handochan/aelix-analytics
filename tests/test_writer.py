@@ -205,7 +205,7 @@ def test_the_writer_has_no_author_of_its_own_and_reads_no_environment():
     assert not reads, f"writer.py reads the environment at lines {reads}"
     imported = {alias.name for node in ast.walk(tree_) if isinstance(node, ast.ImportFrom)
                 and node.level == 1 for alias in node.names}
-    assert imported == {"_platform", "relations", "metrics"}
+    assert imported == {"_platform", "relations"}
     with pytest.raises(TypeError):
         writer.Writer(KIT, platform=core.PLATFORM, writer_version=core.KIT_VERSION)  # no origin
     with pytest.raises(TypeError):

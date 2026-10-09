@@ -27,7 +27,7 @@ import unicodedata
 from datetime import datetime
 from pathlib import Path, PureWindowsPath
 
-from . import _platform, metrics, relations, writer
+from . import _platform, relations, writer
 from ._platform import newlines_as_lf as newlines_as_lf
 from ._platform import open_text as open_text
 from ._platform import write_text as write_text
@@ -1792,7 +1792,7 @@ def metric_records(project: Project, *, model=None) -> dict:
     """ADR-0011 structured versions, distinct from historical unstructured metric events."""
     model = model or read_model(project)
     journal = model.journal
-    view = metrics.projection([e.value for e in journal.events], journal.replay().record_states())
+    view = relations.metric_projection([e.value for e in journal.events], journal.replay().record_states())
     shared = set(i for i, lines in journal.lines_of.items() if len(lines) != 1)
     for name in ("definitions", "focus_versions", "observations"):
         for item in view[name]:

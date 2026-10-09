@@ -312,17 +312,16 @@ N0의 명칭·기본 언어 전환을 A0의 경계 정리와 조율한다. 현�
 
 | 계층 | 수준 | 역할 | 모듈 | import해도 되는 계층 | 외부 모듈 |
 |---|---|---|---|---|---|
-| `metric_contract` | 0 | 순수 지표·초점 payload 계약([ADR-0011](decisions/0011-metric-focus-and-observation-contract.md)) | `src/aelix_analytics/metrics.py` | 없음 | stdlib |
 | `ports` | 0 | 플랫폼 포트와 OS별 구현([ADR-0003](decisions/0003-portable-boundaries-and-in-process-kit-loading.md)) | `src/aelix_analytics/_platform.py` | 없음 | stdlib |
-| `read_model` | 0 | 기록의 읽기 모델(§9 `projections/`) | `src/aelix_analytics/relations.py` | `metric_contract` | stdlib |
+| `read_model` | 0 | 기록의 읽기 모델(§9 `projections/`) | `src/aelix_analytics/relations.py` | 없음 | stdlib |
 | `distribution` | 0 | 설치본의 실행 루트 위치 | `src/aelix_analytics/_install.py` | 없음 | stdlib |
-| `writer` | 1 | 기록 writer: 표식 판정과 쓰기 게이트, `Origin`, 오류 클래스, 기록 헬퍼, 새 형식의 공통 `Writer`(#13) | `src/aelix_analytics/writer.py` | `ports`, `read_model`, `metric_contract` | stdlib |
-| `core` | 2 | 도메인·공유 응용(아직 나뉘지 않음, §2) | `src/aelix_analytics/core.py` | `ports`, `read_model`, `writer`, `metric_contract` | stdlib |
+| `writer` | 1 | 기록 writer: 표식 판정과 쓰기 게이트, `Origin`, 오류 클래스, 기록 헬퍼, 새 형식의 공통 `Writer`(#13) | `src/aelix_analytics/writer.py` | `ports`, `read_model` | stdlib |
+| `core` | 2 | 도메인·공유 응용(아직 나뉘지 않음, §2) | `src/aelix_analytics/core.py` | `ports`, `read_model`, `writer` | stdlib |
 | `runtime` | 3 | 실행·캡처·데이터 어댑터와 데모 채우기(§9 `runtime/`) | `src/aelix_analytics/runner.py`, `src/aelix_analytics/capture.py`, `src/aelix_analytics/data.py`, `src/aelix_analytics/demo.py` | `core`, `ports`, `read_model`, `runtime`, `writer` | stdlib, 분석 |
 | `workspace` | 3 | Workspace 렌더러(§5 `WorkspaceRenderer`) | `src/aelix_analytics/workspace.py` | `core`, `ports`, `read_model`, `writer` | stdlib, 분석, 표시 |
 | `migration` | 3 | `lab.json` 프로젝트를 새 형식으로 옮기는 복사 전환(#13) | `src/aelix_analytics/migration.py` | `core`, `ports`, `read_model`, `writer` | stdlib |
-| `sdk` | 4 | 스크립트 API 진입점 | `src/aelix_analytics/__init__.py` | `core`, `ports`, `read_model`, `runtime`, `workspace`, `writer`, `metric_contract` | stdlib, 분석 |
-| `kit_entry` | 4 | 프로젝트 환경의 kit 명령줄 진입점 | `src/aelix_analytics/__main__.py` | `core`, `migration`, `ports`, `read_model`, `runtime`, `workspace`, `writer`, `metric_contract` | stdlib, 분석 |
+| `sdk` | 4 | 스크립트 API 진입점 | `src/aelix_analytics/__init__.py` | `core`, `ports`, `read_model`, `runtime`, `workspace`, `writer` | stdlib, 분석 |
+| `kit_entry` | 4 | 프로젝트 환경의 kit 명령줄 진입점 | `src/aelix_analytics/__main__.py` | `core`, `migration`, `ports`, `read_model`, `runtime`, `workspace`, `writer` | stdlib, 분석 |
 | `launcher` | 4 | 사람용 `analytics`(호스트 쪽, 3.11) | `src/aelix_analytics/cli.py` | `distribution`, `ports` | stdlib |
 | `host_adapter` | 4 | Aelix 어댑터(aelix 프로세스 안) | `extension/aelix_analytics.py` | `distribution`, `core`, `ports`, `read_model` | stdlib, 호스트 |
 | `user_scripts` | 5 | 프로젝트에 복사되는 예제 사용자 스크립트 | `src/aelix_analytics/demo_scripts/*.py` | `sdk` | stdlib, 분석 |

@@ -44,7 +44,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-from . import _platform, metrics, relations
+from . import _platform, relations
 
 
 class AnalyticsError(Exception):
@@ -697,7 +697,7 @@ def classify_refs(items) -> dict:
 # The kinds a person or an agent records (design 2.8): `gap` is `workflow_feedback` in this format,
 # and the other kinds of analytics.event/2 open with the Issues of their features (#14 on).
 RECORD_KINDS = ("finding", "decision", "assumption", "question", "todo", "note", "workflow_feedback",
-                *metrics.KINDS, "resolve")
+                *relations.METRIC_KINDS, "resolve")
 # The kinds the kit records on its own (design 4.8): a project's creation and the completion events of
 # an import, a run and a context version.
 KIT_KINDS = ("project", "import", "run", "context")
@@ -1176,7 +1176,7 @@ class Writer:
         text, items, typed, outside, bound = (prepared.text, prepared.items, prepared.typed,
                                               prepared.journal, prepared.bound)
         with self.locked(op) as held:
-            if kind in metrics.KINDS:
+            if kind in relations.METRIC_KINDS:
                 # The caller's original fields, not the generated state-changing references, are
                 # checked again. Concurrent definition/focus changes cannot be overwritten.
                 details, generated = self._metric(kind, details, refs, held.journal)
@@ -1188,7 +1188,7 @@ class Writer:
             refs_written = _refs(items, bound)
             before = held.journal
             event = held.append(kind, text, refs=refs_written,
-                                details=details if kind in metrics.KINDS else prepared.details,
+                                details=details if kind in relations.METRIC_KINDS else prepared.details,
                                 requires=prepared.requires)
             # The journal after the append is read again only for a record that changes another's
             # state (design 4.6): most records change none.
@@ -1216,11 +1216,11 @@ class Writer:
         self.admit(op)
         check_kind(kind, RECORD_KINDS + KIT_KINDS)
         outside = None
-        if kind in metrics.KINDS:
+        if kind in relations.METRIC_KINDS:
             outside = relations.Journal(_journal_bytes(self.journal))
             details, generated = self._metric(kind, details, refs, outside)
             refs = [*list(refs or ()), *generated]
-            requires = metrics.SINCE
+            requires = relations.METRIC_SINCE
         text, text_bytes = _text(text)
         request_id = self._request_id()
         items = _items(refs)
@@ -1244,11 +1244,11 @@ class Writer:
     def _metric(self, kind, details, refs, journal):
         """ADR-0011: payload-owned relationships and exact prior targets, checked under lock too."""
         try:
-            details = metrics.validate(kind, details)
-        except metrics.ContractError as exc:
+            details = relations.validate_metric(kind, details)
+        except relations.MetricContractError as exc:
             raise AnalyticsError("bad_metric_record", str(exc)) from exc
         caller = _items(refs)
-        if any(ref is not None and ref["relation"] in metrics.STATE_RELATIONS for _, ref in caller):
+        if any(ref is not None and ref["relation"] in relations.METRIC_STATE_RELATIONS for _, ref in caller):
             raise AnalyticsError("bad_metric_record", "structured details own state-changing relationships")
         generated = []
 
@@ -1291,7 +1291,7 @@ class Writer:
             for parent in details["derived_from"]:
                 definition(parent, "derived_from")
         elif kind == "analysis_focus":
-            view = metrics.projection([e.value for e in journal.events], journal.replay().record_states())
+            view = relations.metric_projection([e.value for e in journal.events], journal.replay().record_states())
             previous = details.get("previous_focus")
             if previous:
                 old = target(previous, kind)
@@ -1331,7 +1331,7 @@ class Writer:
             if result_ref:
                 result_ref = typed_reference(result_ref)
                 details["result_ref"] = result_ref
-                if result_ref["version_binding"] != "author" or result_ref["relation"] in metrics.STATE_RELATIONS:
+                if result_ref["version_binding"] != "author" or result_ref["relation"] in relations.METRIC_STATE_RELATIONS:
                     raise AnalyticsError("metric_reference", "result_ref is an exact, non-state-changing version")
                 if result_ref.get("run_id") != run["id"] or (result_ref["type"] == "data_observation"
                                                             and result_ref.get("role") != "output"):
@@ -1560,7 +1560,7 @@ def _check_resolved(journal: relations.Journal, typed: list[dict]) -> None:
 
 def _check_kind_refs(kind: str, typed: list[dict], details) -> None:
     """What the record schema asks of a kind (event_2), before anything is written."""
-    if isinstance(details, dict) and details.get("contract") in {f"{k}/1" for k in metrics.KINDS}:
+    if isinstance(details, dict) and details.get("contract") in {f"{k}/1" for k in relations.METRIC_KINDS}:
         if details["contract"] != f"{kind}/1":
             raise AnalyticsError("bad_metric_record", "the structured contract matches its record kind")
     if kind == "resolve" and not any(ref["relation"] == "resolves" for ref in typed):

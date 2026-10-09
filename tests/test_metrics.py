@@ -8,7 +8,7 @@ import pytest
 from conftest import analytics_project, kit_cli
 from jsonschema import Draft202012Validator, FormatChecker
 
-from aelix_analytics import core, metrics, relations, runner, writer
+from aelix_analytics import core, relations, runner, writer
 
 ORIGIN = core.Origin("human", "sdk", "inferred")
 ROOT = Path(__file__).resolve().parents[1]
@@ -261,10 +261,11 @@ def test_result_ref_keeps_preserved_table_and_declared_input_basis(tmp_path):
     assert all(r["state"] == "resolved" for r in view["observations"][0]["references"])
 
 
-def test_payload_contracts_keep_domain_module_free_of_io_and_host_dependencies():
-    assert metrics.validate("metric_definition", definition())["definition"] == {}
-    source = (ROOT / "src/aelix_analytics/metrics.py").read_text(encoding="utf-8")
-    assert "from ." not in source and "open(" not in source and "os.environ" not in source
+def test_payload_validation_is_pure_and_does_not_read_project_or_host_files(monkeypatch):
+    import builtins
+
+    monkeypatch.setattr(builtins, "open", lambda *args, **kwargs: pytest.fail("payload validation performs no I/O"))
+    assert relations.validate_metric("metric_definition", definition())["definition"] == {}
 
 
 def test_partial_observation_write_failure_is_visible_as_incomplete_recording(tmp_path, monkeypatch):

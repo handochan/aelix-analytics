@@ -125,7 +125,8 @@ CLI·도구·run 밖 SDK는 이미 기록된 run을 지정한다. run 안 SDK에
 
 ## 7. 공통 읽기와 구현 경계
 
-의미 검증·구조화 projection은 stdlib 전용 경계에 둔다. writer는 그 규칙을 호출하고 잠금/파일을 담당하며,
+의미 검증·구조화 projection은 단독 파일로도 읽는 stdlib `relations.py`에 둔다. writer/core와 reader가 같은 순수 함수를 쓰며
+reader는 다른 package 모듈·host·분석 라이브러리를 import하지 않는다. writer는 그 규칙을 호출하고 잠금/파일을 담당하며,
 core는 프로젝트 읽기와 응용 호출, runner는 실제 실행과 관측 완료, CLI·SDK·호스트는 입력/Origin만 담당한다.
 도메인 검증은 host·UI·저장 backend·Polars·DuckDB를 import하지 않는다.
 
