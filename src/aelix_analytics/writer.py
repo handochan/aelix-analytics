@@ -1198,7 +1198,7 @@ class Writer:
         return Written(event, prepared.request_id, bindings, targets)
 
     def check(self, kind: str, text: str, *, refs=(), details=None, ahead: int = 0,
-              seq: int | None = None) -> None:
+              seq: int | None = None, pending_run: str | None = None) -> None:
         """What `record` refuses before its lock, judged and nothing written: the directory, the
         kind, the text and its line (OQ2), the references, the request_id, a closed record that must
         be there (unknown_event), a `resolve` without one (resolve_needs_target). For an entry point
@@ -1207,10 +1207,11 @@ class Writer:
         more records (the context event the sync is about to write), or with `seq` (SEQ_BOUND: a
         note made now and written when its run finishes)."""
         refs = [refs] if isinstance(refs, (str, dict)) else list(refs or ())
-        self._prepare("record", kind, text, refs, details, None, ahead=ahead, seq=seq)
+        self._prepare("record", kind, text, refs, details, None, ahead=ahead, seq=seq,
+                      pending_run=pending_run)
 
     def _prepare(self, op: str, kind: str, text: str, refs, details, requires, *, ahead: int = 0,
-                 seq: int | None = None) -> _Prepared:
+                 seq: int | None = None, pending_run: str | None = None) -> _Prepared:
         """Steps 1–4 of design 4.5, outside the lock: refusals known before it write nothing, and
         make not even the lock file."""
         self.admit(op)
@@ -1218,7 +1219,7 @@ class Writer:
         outside = None
         if kind in relations.METRIC_KINDS:
             outside = relations.Journal(_journal_bytes(self.journal))
-            details, generated = self._metric(kind, details, refs, outside)
+            details, generated = self._metric(kind, details, refs, outside, pending_run=pending_run)
             refs = [*list(refs or ()), *generated]
             requires = relations.METRIC_SINCE
         text, text_bytes = _text(text)
@@ -1241,7 +1242,7 @@ class Writer:
             raise problem
         return _Prepared(text, request_id, items, typed, outside, bound, details, requires)
 
-    def _metric(self, kind, details, refs, journal):
+    def _metric(self, kind, details, refs, journal, *, pending_run=None):
         """ADR-0011: payload-owned relationships and exact prior targets, checked under lock too."""
         try:
             details = relations.validate_metric(kind, details)
@@ -1336,15 +1337,18 @@ class Writer:
                 if result_ref.get("run_id") != run["id"] or (result_ref["type"] == "data_observation"
                                                             and result_ref.get("role") != "output"):
                     raise AnalyticsError("metric_reference", "result_ref names an output of the observation run")
-                if run.get("status") != "running":
+                if not (run.get("status") == "running" and pending_run == run["id"]):
                     if result_ref["type"] == "data_observation":
-                        found = any(o.get("path") == result_ref["path"] and o.get("change") != "deleted"
-                                    for o in run.get("outputs") or [])
+                        found = next((o for o in run.get("outputs") or []
+                                      if o.get("path") == result_ref["path"] and o.get("change") != "deleted"), None)
                     else:
-                        found = any(v["id"] == result_ref["visualization_id"]
-                                    for v in relations.run_visualizations(run))
-                    if not found:
+                        found = next((v for v in relations.run_visualizations(run)
+                                      if v["id"] == result_ref["visualization_id"]), None)
+                    if found is None:
                         raise AnalyticsError("metric_reference", "result_ref is not a recorded run output")
+                    claimed = result_ref.get("digest")
+                    if claimed and claimed["sha256"] != found.get("sha256"):
+                        raise AnalyticsError("metric_reference", "result_ref digest does not match the recorded output version")
                 generated.append(result_ref)
             recomputed = details.get("recomputed_from")
             if recomputed:

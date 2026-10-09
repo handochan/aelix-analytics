@@ -343,3 +343,75 @@ def test_invalid_tagged_records_never_retire_valid_current_state(tmp_path, inval
     assert any(item["event_id"] == "e4" for item in view["invalid"])
     if kind == "analysis_focus":
         assert view["current_focus"]["event_id"] == original["id"]
+
+
+@pytest.mark.parametrize("kind", ["data_observation", "visualization_version"])
+def test_result_ref_digest_must_match_the_recorded_version_before_append(tmp_path, kind):
+    p = project_at(tmp_path)
+    d = record(p, "metric_definition", definition())
+    result = execute(p, "from pathlib import Path\nimport aelix_analytics as analytics\n"
+        "Path('data/derived').mkdir(parents=True, exist_ok=True)\n"
+        "Path('data/derived/value.csv').write_text('value\\n0.2\\n')\n"
+        "Path('data/derived/view.html').write_text('<p>0.2</p>')\n"
+        "analytics.visualize(Path('data/derived/view.html'), 'value-view')")
+    run = result["run"]
+    if kind == "data_observation":
+        version = next(o for o in run["outputs"] if o["path"] == "data/derived/value.csv")
+        ref = {"type": kind, "run_id": run["id"], "role": "output", "path": version["path"]}
+    else:
+        version = relations.run_visualizations(run)[0]
+        ref = {"type": kind, "run_id": run["id"], "visualization_id": version["id"]}
+    before = bytes_tree(p)
+    with pytest.raises(core.AnalyticsError) as error:
+        record(p, "metric_observation", observation(d["id"], run["id"], result=None,
+            result_ref={**ref, "digest": {"sha256": "0" * 64}}))
+    assert error.value.code == "metric_reference" and bytes_tree(p) == before
+    accepted = record(p, "metric_observation", observation(d["id"], run["id"], result=None,
+        result_ref={**ref, "digest": {"sha256": version["sha256"]}}))
+    assert accepted["details"]["result_ref"]["digest"]["sha256"] == version["sha256"]
+
+
+def test_running_run_future_result_is_allowed_only_in_explicit_pending_precheck(tmp_path):
+    p = project_at(tmp_path)
+    d = record(p, "metric_definition", definition())
+    rid = "20261009-100000-running"
+    w = core.writer_for(p, ORIGIN)
+    w.write_run(p.runs / rid, {"schema": relations.RUN_V2, "id": rid, "status": "running",
+        "started_at": core.iso(), "actor": "human", "actor_basis": "inferred", "means": "sdk",
+        "script": {"path": "scripts/x.py", "snapshot": f"runs/{rid}/code/scripts/x.py",
+                   "sha256": "1" * 64}, "outputs": []})
+    details = observation(d["id"], rid, result=None, result_ref={"type": "data_observation",
+        "run_id": rid, "role": "output", "path": "data/derived/never-written.csv"})
+    before = bytes_tree(p)
+    w.check("metric_observation", "pending", details=details, seq=writer.SEQ_BOUND, pending_run=rid)
+    assert bytes_tree(p) == before
+    with pytest.raises(core.AnalyticsError) as error:
+        w.record("metric_observation", "actual append", details=details)
+    assert error.value.code == "metric_reference" and bytes_tree(p) == before
+
+
+@pytest.mark.parametrize("correct_digest", [True, False])
+def test_sdk_pending_result_version_is_revalidated_after_output_capture(tmp_path, correct_digest):
+    p = project_at(tmp_path)
+    d = record(p, "metric_definition", definition())
+    details = observation(d["id"], "20261001-090000-placeholder", result=None)
+    details.pop("run_id")
+    code = ("import aelix_analytics as analytics\nimport hashlib\nfrom pathlib import Path\n"
+        f"details = {details!r}\n"
+        "data = b'value\\n0.2\\n'\n"
+        f"digest = hashlib.sha256(data).hexdigest() if {correct_digest!r} else '0' * 64\n"
+        "details['result_ref'] = {'type': 'data_observation', 'run_id': analytics.run_id(), 'role': 'output', "
+        "'path': 'data/derived/value.csv', 'digest': {'sha256': digest}}\n"
+        "ack = analytics.record('metric_observation', 'declare result', details=details)\n"
+        "assert ack['pending']\n"
+        "Path('data/derived').mkdir(parents=True, exist_ok=True)\n"
+        "Path('data/derived/value.csv').write_bytes(data)\n")
+    result = execute(p, code)
+    assert result["run"]["status"] == "ok"
+    view = core.metric_records(p)
+    if correct_digest:
+        assert len(view["observations"]) == 1 and not result.get("finalize_errors")
+    else:
+        assert not view["observations"]
+        assert any("result_ref digest" in problem for problem in result["finalize_errors"])
+        assert core.read_model(p).runs()[0]["recording_status"] == "incomplete"

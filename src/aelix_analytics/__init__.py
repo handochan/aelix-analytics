@@ -224,7 +224,7 @@ def record(kind: str, text: str, *, refs=(), details=None) -> dict:
         # SDK — with the widest seq (SEQ_BOUND): a note refused for its text or its line is this
         # call's exception, never a note the run loses when it finishes.
         core.writer_for(state.project, state.sdk_origin).check(
-            kind, text, refs=refs, details=details, seq=core.writer.SEQ_BOUND)
+            kind, text, refs=refs, details=details, seq=core.writer.SEQ_BOUND, pending_run=state.run_id)
         # Preserve a JSON snapshot, so mutating a caller's dictionary after acknowledgement does
         # not change the queued record. Full final relationships are rechecked when the run ends.
         import json

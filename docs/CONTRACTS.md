@@ -516,6 +516,7 @@ kit 0.8.0부터 이 kit이 쓰는 가져오기 기록은 `analytics.dataset/1`([
 - 초점은 목적·질문·작업 의도·다음 확인·미정 사항·변경 이유와 정확한 정의/역할 묶음입니다. 변경은 current `previous_focus`를 명시합니다.
   run은 시작할 때의 초점·조회 기준 seq를 `analysis_focus`에 보존합니다. 실행 중 초점이 바뀌어도 다시 결박하지 않습니다. 없거나 모호하면 실행은 계속되고 상태를 남깁니다.
 - 관측은 정확한 정의·run·scope·JSON result(큰 결과는 null과 output/Visualization `result_ref`)·재계산 이유를 명시합니다. `recomputed_from`은 같은 정의의 이전 관측입니다.
+  result_ref의 경로/Visualization과 선택적으로 준 digest는 실제 append에서 기록된 run 버전과 일치해야 합니다. 현재 파일 변경 판정과 구별합니다.
   코드 스냅샷과 기록된 입력 참조를 연결하고 capture의 observed/declared/inferred 근거를 구별합니다. 이는 run 전체와 결과 선언의 연결이며 함수 수준 데이터 계보를 보장하지 않습니다.
   읽기는 `execution_status`·`recording_status`·`calculation_check=unverified`를 따로 제공합니다. 실패·취소 run에서 선언한 값을 실행 성공이나 수학적 검증으로 올리지 않습니다.
 - 구조화 details가 상태 변경 관계의 정본입니다. caller가 추가한 supersedes/updates/resolves를 거절하며, 잘못된 payload는 `bad_metric_record`,
@@ -527,7 +528,10 @@ kit 0.8.0부터 이 kit이 쓰는 가져오기 기록은 `analytics.dataset/1`([
 
 SDK `analytics.record(kind, text, *, refs=(), details=None)`는 run 밖에서 작성된 event/request ID를, run 안에서 `pending=true`와 run ID를 반환합니다.
 run 안의 관측은 run_id를 생략하면 현재 run으로 채우고, payload·refs의 JSON 사본을 완료 이벤트 뒤에 씁니다. 최종 쓰기 오류는 run의 finalize_errors이며
-관측이 성공했다는 응답이 아닙니다. 나중에 capture한 입력들이 관측 줄을 늘려 상한을 넘으면 최종 쓰기도 거절됩니다.
+관측이 성공했다는 응답이 아닙니다. 향후 결과 파일은 SDK의 명시적 pending precheck에서만 허용하고 최종 쓰기 때 membership/digest를 다시 검사합니다.
+나중에 capture한 입력들이 관측 줄을 늘려 상한을 넘으면 최종 쓰기도 거절됩니다.
+`/analytics record`의 JSON 옵션은 명시적으로 인용한 text 바로 뒤에 둡니다: `record <kind> 'quoted text' --details-json '<JSON>'`.
+기존 자유 본문의 옵션 언급·따옴표·apostrophe는 그대로 저장합니다.
 실제 계산식 검증·추가 모델 호출·외부 semantic engine은 구현하지 않았습니다.
 
 ## D. kit CLI

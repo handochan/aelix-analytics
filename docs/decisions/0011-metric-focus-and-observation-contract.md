@@ -36,7 +36,9 @@ family는 `analytics.event/2` 그대로이며, 새 상세 계약의 tag는 `deta
 run 밖 SDK는 작성된 이벤트 ID를 포함한 응답을 반환한다. run 안의 기록은 최종 이벤트 ID가 아직 없으므로
 `pending=true`와 현재 run ID를 반환하고 최종 쓰기 오류는 run의 `finalize_errors`에 남긴다.
 CLI의 `--ref`는 기존 이름 입력을 유지한다. typed refs가 필요한 경우 `--refs-json <JSON array>`를 받는다.
-모델에 지표별 도구를 새로 상시 등록하지 않는다. `/analytics record` 명령도 같은 옵션을 사용한다.
+모델에 지표별 도구를 새로 상시 등록하지 않는다. `/analytics record` 명령도 같은 JSON 옵션을 사용한다.
+이 명령의 구조화 입력은 `record <kind> 'quoted text' --details-json '<JSON>'`처럼 명시적으로 인용한 text 바로 뒤에 옵션을 둔다.
+옵션을 언급하는 기존 자유 문장·따옴표·apostrophe는 본문 그대로 기록한다.
 
 텍스트·payload·refs는 유한 JSON 값으로만 기록한다. 기존 text/line 제한을 전체 줄에 적용하며 자르지 않는다.
 잘못된 구조는 `bad_metric_record`, 없거나 중복·다른 kind/ID의 정확한 대상은 `metric_reference`,
@@ -113,9 +115,11 @@ run은 시작하기 직전의 유일한 유효한 구조화 현재 초점 event 
 새 관측으로 자동 바꾸지 않는다. run의 코드와 기록된 데이터 목록으로 generated_by/uses 참조를 생성하며
 데이터 capture의 observed/declared/inferred 근거를 유지한다. 입력이 없는 계산도 허용한다.
 
-CLI·도구·run 밖 SDK는 이미 기록된 run을 지정한다. run 안 SDK에서는 현재 run을 자동으로 지정하고 관측을
+CLI·도구·run 밖 SDK는 이미 기록된 run을 지정한다. 실제 append의 result_ref는 run에 기록된 output/Visualization이어야 하며,
+지정한 digest는 그 기록의 버전 hash와 같아야 한다. 현재 파일 내용은 별도로 reader가 content_changed로 판정한다. run 안 SDK에서는 현재 run을 자동으로 지정하고 관측을
 메모리에 보관했다가 run 기록/완료 이벤트 뒤에 쓴다. 호출 때 payload·정의·줄 크기를 검사하며, 최종 쓰기 때도
-다시 검사한다. run 오류·취소나 기록 실패가 있으면 관측을 조용히 성공으로 바꾸지 않고 계산/기록 상태를 별도로 읽는다.
+다시 검사한다. 향후 output을 허용하는 것은 현재 run을 명시한 SDK pending precheck뿐이며 최종 쓰기에는 적용하지 않는다.
+run 오류·취소나 기록 실패가 있으면 관측을 조용히 성공으로 바꾸지 않고 계산/기록 상태를 별도로 읽는다.
 실행 성공도 관측의 수학적 정확성을 검증하지 않으므로 관측의 `calculation_check`는 기본 `unverified`다.
 결과 JSON 선언이나 result_ref는 run 전체와 관련된 선언이며 함수 수준 실행 계보를 주장하지 않는다.
 

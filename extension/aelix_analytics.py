@@ -1064,7 +1064,9 @@ TOOLS = [
         "analytics_record",
         "Append an entry to the project journal, the time-ordered history shown in the report. kind: "
         "finding (an established result), decision, assumption, question, todo, note, "
-        "workflow_feedback (a missing capability or friction in this analysis tooling), or resolve "
+        "workflow_feedback (a missing capability or friction in this analysis tooling), metric_definition "
+        "(a versioned draft or specified definition), analysis_focus (purpose and exact definitions), "
+        "metric_observation (a declared result, exact definition, run and scope), or resolve "
         "(closes the question/todo named in `resolves` without other content). Any kind may also "
         "resolve an earlier entry, e.g. a finding that answers question e7. Cite evidence in refs: "
         "run ids, chart keys (scripts/x.py::chart-id), dataset names or event ids; the reply says "
@@ -1822,8 +1824,13 @@ async def analytics_command(args, ctx=None):
             project, _ = resolve_project()
             kind, _, body = rest.partition(" ")
             details, refs = None, []
-            if "--details-json" in body or "--refs-json" in body:
-                argv = shlex.split(rest)
+            argv = []
+            # Metadata options follow one explicitly quoted text argument. Preserve existing
+            # prose verbatim, including literal flag mentions, quotes and unmatched apostrophes.
+            if body.lstrip().startswith(("'", '"')):
+                with contextlib.suppress(ValueError):
+                    argv = shlex.split(rest)
+            if len(argv) > 2 and argv[2] in ("--details-json", "--refs-json"):
                 if len(argv) < 2 or (len(argv) - 2) % 2:
                     raise core.AnalyticsError("bad_record_input", "quote the text and JSON option values")
                 kind, body = argv[:2]
