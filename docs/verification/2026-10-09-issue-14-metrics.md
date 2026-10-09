@@ -25,7 +25,7 @@ kit 0.9.0은 기존 `analytics.event/2`에 세 상세 계약을 추가한다: `m
 | 기존 writer/record/read-view/layer 기준선 | 설계 `a9b54b2` | 283 passed, 10.76s |
 | 새 M0·최소 M1 및 관련 record/gate/layer 시험 | 초기 구현, 1108110 전 | 385 passed, 29.61s. 이후 역사 metadata 처리 보강은 다시 검사 중 |
 | 최종 focused 시험 | `b7e6ef96e817286f4328b847ccd160bd71f04011` | 711 passed·10 skipped, 73.28s. standalone reader·기존 형식·line endings·packaging까지 포함. skip 사유는 JSON에 기록 |
-| lint·문서 | 구현 | ruff pass; 68 Markdown·14 JSON·737 local links, errors 0 |
+| lint·문서 | 구현 | ruff pass; 68 Markdown·14 JSON·736 local links, errors 0 |
 | macOS 로컬 저장소 전체 | 1108110에서 시작 | 중단: 1508 passed·6 failed·76 skipped, 521.22s. 버전/kind 문서·시험 4곳과 SDK resolve 호환성은 수정했고, 실행 중 코드 변경의 kit hash 불일치는 혼합 소스 한계로 보존. parent HOME 등은 task 폴더로 격리. 최종 exact-head CI 필요 |
 | aelix 3.12 모델 없는 통합 | 1108110에서 시작 | 964 passed, 56.92s. metadata 보강이 실행 중 반영되어 최종 exact-head CI를 별도로 확인 |
 | Linux·Windows CI | 최종 PR head | not_run |
