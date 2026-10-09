@@ -2898,6 +2898,10 @@ def settle(work, timeout: float = SETTLE_TIMEOUT, tracked: dict | None = None,
     checked, reason = True, None
     cleanup_started = False
     while True:
+        if STOP["signals"] and not cleanup_started:
+            deadline = min(deadline, time.monotonic() + SETTLE_STOP_TIMEOUT)
+            max_wait = deadline - started
+            cleanup_started = True
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             checked, reason = False, "the settle deadline was reached before the next process check"
@@ -2926,6 +2930,9 @@ def settle(work, timeout: float = SETTLE_TIMEOUT, tracked: dict | None = None,
         for pid, why in found.items():
             entry = seen.setdefault(pid, {"pid": pid, "args": mask_text(clip(table[pid][1], 300)), "why": []})
             entry["why"] = sorted(set(entry["why"]) | why)
+        if time.monotonic() >= deadline:
+            checked, reason = False, "the settle deadline was reached during the process check"
+            break
         if not found:
             break
         elapsed = time.monotonic() - started

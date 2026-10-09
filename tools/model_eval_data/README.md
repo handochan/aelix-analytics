@@ -224,7 +224,9 @@ UTF-16)에 대비해, 로그인을 쓰는 모델의 run은 런처가 끝에 로�
 그 예산 안에서 최대 5초를 기다리고 SIGKILL, Windows는 `taskkill /T /F`로 종료한다. 새 프로세스가 계속 생겨도 예산을 연장하지 않는다.
 프로세스 조회와 Windows 종료 명령의 timeout도 남은 예산으로 제한하며, 한 `settle` 호출의 기본 최대 대기는 90초다. 결과의 `timeout_s`·
 `stop_timeout_s`·`max_wait_s`·`deadline_reached`와 실제 `waited_s`를 함께 남긴다. 실제로 사라진 것만 `stopped`, 남은 pid는 `left`이고,
-`processes`에 가린 명령줄과 판정 근거를 보존한다. 조회를 완료하지 못하면 `checked: false`다. 남은 프로세스나 미완료 조회는 검사 실패이며
+`processes`에 가린 명령줄과 판정 근거를 보존한다. 프로세스 목록 조회를 완료하지 못하거나 공유 예산이 끝나면 `checked: false`다.
+중단 요청이 이미 있으면 첫 조회부터 자연 종료 대기 없이 30초 예산만 쓴다. Windows의 cwd/open-file 조회 미지원은 기존대로
+`cwd_checked: false`이며 명령줄·추적한 자손으로 판정한다. 남은 프로세스나 예산 안의 미완료 목록 조회는 검사 실패이며
 종료 코드 1이다. Windows의 HOME 격리 시험은 독립 임시 폴더에서 세 번 실행하고 실패 시 이 결과를 출력한다. 그다음
 프로젝트의 Python 환경(`.venv`, kit이 uv로 만든 공개 패키지 약 450 MB와 uv의 Python·캐시로 가는 링크)을 지우고(링크를 따라가지 않음,
 `uv.lock`이 남아 다시 만들 수 있음, `environments_removed`) 작업 루트를 옮긴 뒤 같은 한도로 한 번 더 확인한다(`after_exit.after_move`;

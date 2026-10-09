@@ -658,6 +658,37 @@ def test_interrupted_settle_has_only_the_stop_budget(tmp_path, monkeypatch, sett
     assert not result["checked"] and result["left"] == [10_001]
 
 
+def test_settle_does_not_pass_when_the_holders_query_exhausts_the_budget(tmp_path, monkeypatch,
+                                                                      settle_clock):
+    monkeypatch.setattr(me, "process_table", lambda **kwargs: {})
+
+    def held(paths, *, timeout):
+        settle_clock[0] += timeout
+        return None
+
+    monkeypatch.setattr(me, "holders", held)
+    result = me.settle(tmp_path, timeout=1)
+    assert not result["checked"] and result["deadline_reached"]
+    assert result["waited_s"] == result["max_wait_s"] == 31
+    scan = me.scan_run(tmp_path, None, set(), {"settle": result})
+    assert scan["status"] == "failed" and "processes_unchecked" in scan["problems"]
+
+
+def test_interrupted_settle_caps_its_first_slow_probe(tmp_path, monkeypatch, settle_clock):
+    monkeypatch.setitem(me.STOP, "signals", 1)
+    budgets = []
+
+    def table(*, timeout):
+        budgets.append(timeout)
+        settle_clock[0] += timeout
+        return None
+
+    monkeypatch.setattr(me, "process_table", table)
+    result = me.settle(tmp_path)
+    assert budgets == [30]
+    assert not result["checked"] and result["waited_s"] == result["max_wait_s"] == 30
+
+
 def test_settle_leaves_the_harness_and_launcher_alone(tmp_path, monkeypatch, settle_clock):
     monkeypatch.setattr(me, "process_table", lambda **kwargs: {
         os.getpid(): (0, f"harness {tmp_path}"), 10_001: (0, f"launcher {tmp_path}")})
