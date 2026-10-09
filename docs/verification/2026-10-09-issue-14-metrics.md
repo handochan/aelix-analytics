@@ -1,6 +1,6 @@
 # Issue #14 — 지표 정의·분석 초점·명시적 관측의 측정 기록
 
-작성: 2026-10-09 · 상태: 리뷰·수정 diff 확인 완료, CI 대기 · [Issue #14](https://github.com/handochan/aelix-analytics/issues/14)
+작성: 2026-10-09 · 상태: 측정 코드 CI·artifact 확인 완료, 최종 문서 HEAD CI 대기 · [Issue #14](https://github.com/handochan/aelix-analytics/issues/14)
 기계 기록은 [같은 이름의 JSON](2026-10-09-issue-14-metrics.json)이다.
 
 ## 기준과 변화
@@ -37,13 +37,25 @@ C14-2는 자유 본문에 JSON 옵션 이름이 들어가면 해석을 바꿔 �
 | 리뷰 수정의 aelix 3.12 통합 | f462787 | 971 passed, 54.14s. 일반 문장의 옵션 언급·인용·apostrophe·구조화 명령 포함 |
 | 고정 b1e9cf2 전체 시험 | b1e9cf2 | 2011 passed·1 failed·107 skipped, 557.39s. 실패는 기존 migration_reader의 READER_FORMAT==3 assertion이며 새 규칙의 4로 맞춤; 제품 코드 변경 없음 |
 | reader 형식 assertion 수정 뒤 관련 시험 | 4088be95ddb1669f1f48d70fbc60a11843202cea | migration_reader·metrics·relations 148 passed, 6.71s |
-| Linux·Windows CI | 최종 PR head | not_run |
-| macOS CI | 최종 PR head | not_run |
+| Linux·Windows CI | a881e0d / [37947976635](https://github.com/handochan/aelix-analytics/actions/runs/37947976635), attempt1 | pass. Linux suite2024 passed/74 skipped; Windows suite1846 passed/278 skipped; 모든 JUnit failure/error0 |
+| macOS CI | a881e0d / [37947977296](https://github.com/handochan/aelix-analytics/actions/runs/37947977296), attempt1 | pass. suite2022 passed/76 skipped; 모든 JUnit failure/error0. 라벨 lint는 skipped |
 
 잘못된/미지원 tag 기록은 상태 재생에서 target을 바꾸지 않고 invalid로 보존한다. standalone stdlib reader를 유지하도록 공유 순수 규칙은 relations.py에 둔다.
 검증 사례는 미정 후보·다중 역할, 정의 수정·부모 버전 고정, 조건별 관측·코드만 수정한 재계산, 목적/계산 구별, run 시작 초점 보존,
 동시 수정 거절, 거절의 무부수효과, 실패/취소 run의 명시적 관측, 부분 최종 쓰기 실패, SDK payload 사본, CLI/SDK 공통 계약,
 원래 비구조화 기록 읽기, 보존된 결과 표 참조다. 실제 모델 호출이나 자동 식 검증으로 넓혀 주장하지 않는다.
+
+## CI 증거의 확인
+
+모든 다운로드 context의 head/run/attempt와 smoke source가 측정 `a881e0d`에 일치합니다. Linux/Windows artifact401개 파일·macOS182개 파일의 manifest hash를 JSON에 보존했습니다.
+세 OS aelix3.12·3.11은 각각971 passed입니다(Windows 각1 skipped: 실제 shell trap 실행). 런처는 Linux/macOS196 passed·1 skipped, Windows91 passed·106 skipped입니다.
+Windows native console21 passed와 LongPathsEnabled=0의7 passed를 별도로 확인했습니다. 배포본 E2E 포함 저장소 시험의 모든 JUnit failure/error는0입니다.
+full smoke는 Linux/macOS25 holds, Windows21 holds·declared limitation3이고 violated0입니다. stdlib floor는 Linux/macOS15 holds,
+Windows14 holds·declared limitation1이며 required 모두 hold입니다. floor의 선택되지 않은2 checks는 not_run으로 그대로 둡니다.
+usage report는 정보이며 실제 모델 호출·tokenizer 비용을 검증하지 않습니다. skipped 목록·artifact IDs/digest·OS context·job 결론은 JSON에 있습니다.
+
+PR85 병합 `bab29b8` 위로 최종 rebase했으며, 추가된 것은 upstream의 설계/용어 Markdown4개뿐입니다. 측정 source/test/tool/schema222개 파일은 통과CI head와 byte-identical입니다.
+이 CI 칸·CHANGELOG 날짜를 채운 최종 docs-only commit도 새 CI로 확인한 뒤 병합합니다. 그 최종 실행 ID는 PR/local handoff에 남겨 자기참조 문서 커밋을 반복하지 않습니다.
 
 ## 남은 범위와 한계
 

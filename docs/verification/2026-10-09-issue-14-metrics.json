@@ -1,8 +1,8 @@
 {
   "schema": "aelix-analytics.verification/1",
   "issue": 14,
-  "recorded_at": "2026-10-09T14:56:35.981221+00:00",
-  "status": "reviewed_ci_pending",
+  "recorded_at": "2026-10-09T16:35:25.962444+00:00",
+  "status": "measurement_ci_pass_final_doc_head_pending",
   "measured_tree": {
     "commit": "4088be95ddb1669f1f48d70fbc60a11843202cea",
     "manifest_files": 222,
@@ -24,7 +24,10 @@
       "tests/test_model_eval.py",
       "tools/model_eval.py",
       "tools/model_eval_data/README.md"
-    ]
+    ],
+    "ci_tested_commit": "a881e0d795c21b8292ffb1897e34a5fcfe800686",
+    "final_base_commit": "bab29b8d3cacea044efa9ab3ee204f6ea654e46b",
+    "final_rebase_note": "Only four upstream PR85 design/terminology Markdown files were added; all222 measured source/test/tool/schema files byte-identical to passedCI head."
   },
   "implementation": {
     "kit_version": "0.9.0",
@@ -193,14 +196,3324 @@
   },
   "ci": {
     "linux_windows": {
-      "result": "not_run",
-      "run_id": null,
-      "head_sha": null
+      "result": "pass",
+      "run_id": 37947976635,
+      "attempt": 1,
+      "head_sha": "a881e0d795c21b8292ffb1897e34a5fcfe800686",
+      "url": "https://github.com/handochan/aelix-analytics/actions/runs/37947976635",
+      "jobs": [
+        {
+          "id": 113879105091,
+          "name": "floor · ubuntu-24.04 · CPython 3.11, stdlib only",
+          "conclusion": "success"
+        },
+        {
+          "id": 113879105280,
+          "name": "lint · ruff and documents",
+          "conclusion": "success"
+        },
+        {
+          "id": 113879105362,
+          "name": "platform · ubuntu-24.04",
+          "conclusion": "success"
+        },
+        {
+          "id": 113879105411,
+          "name": "platform · windows-2025",
+          "conclusion": "success"
+        },
+        {
+          "id": 113879105427,
+          "name": "floor · windows-2025 · CPython 3.11, stdlib only",
+          "conclusion": "success"
+        }
+      ],
+      "contexts": [
+        {
+          "path": "ci-floor-ubuntu-24.04/context.json",
+          "head_sha": "a881e0d795c21b8292ffb1897e34a5fcfe800686",
+          "run_id": "37947976635",
+          "attempt": "1",
+          "os": "Linux",
+          "job": "floor",
+          "action": "synchronize",
+          "label": ""
+        },
+        {
+          "path": "ci-floor-windows-2025/context.json",
+          "head_sha": "a881e0d795c21b8292ffb1897e34a5fcfe800686",
+          "run_id": "37947976635",
+          "attempt": "1",
+          "os": "Windows",
+          "job": "floor",
+          "action": "synchronize",
+          "label": ""
+        },
+        {
+          "path": "ci-lint/context.json",
+          "head_sha": "a881e0d795c21b8292ffb1897e34a5fcfe800686",
+          "run_id": "37947976635",
+          "attempt": "1",
+          "os": "Linux",
+          "job": "lint",
+          "action": "synchronize",
+          "label": null
+        },
+        {
+          "path": "ci-platform-ubuntu-24.04/context.json",
+          "head_sha": "a881e0d795c21b8292ffb1897e34a5fcfe800686",
+          "run_id": "37947976635",
+          "attempt": "1",
+          "os": "Linux",
+          "job": "platform",
+          "action": "synchronize",
+          "label": ""
+        },
+        {
+          "path": "ci-platform-windows-2025/context.json",
+          "head_sha": "a881e0d795c21b8292ffb1897e34a5fcfe800686",
+          "run_id": "37947976635",
+          "attempt": "1",
+          "os": "Windows",
+          "job": "platform",
+          "action": "synchronize",
+          "label": ""
+        }
+      ],
+      "junit": [
+        {
+          "path": "ci-platform-ubuntu-24.04/aelix-py3.11.xml",
+          "tests": 971,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 971,
+          "seconds": 66.558,
+          "skips": []
+        },
+        {
+          "path": "ci-platform-ubuntu-24.04/aelix-py3.12.xml",
+          "tests": 971,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 971,
+          "seconds": 74.575,
+          "skips": []
+        },
+        {
+          "path": "ci-platform-ubuntu-24.04/launcher-py3.11.xml",
+          "tests": 197,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 1,
+          "passed": 196,
+          "seconds": 15.686,
+          "skips": [
+            {
+              "name": "test_a_ctrl_c_while_a_child_starts_is_not_sent_again_on_windows",
+              "class": "tests.test_launcher",
+              "reason": "what Windows does; POSIX sends it again (the test above)"
+            }
+          ]
+        },
+        {
+          "path": "ci-platform-ubuntu-24.04/suite.xml",
+          "tests": 2098,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 74,
+          "passed": 2024,
+          "seconds": 842.33,
+          "skips": [
+            {
+              "name": "tests.test_agent_cli",
+              "class": "",
+              "reason": "collection skipped"
+            },
+            {
+              "name": "tests.test_extension",
+              "class": "",
+              "reason": "collection skipped"
+            },
+            {
+              "name": "tests.test_usage_report",
+              "class": "",
+              "reason": "collection skipped"
+            },
+            {
+              "name": "test_every_implementation_offers_each_port_whole[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_lock_makes_its_directory_and_file_and_keeps_their_bytes[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_lock_is_free_after_its_body_even_one_that_raised[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_lock_excludes_another_process[recording]",
+              "class": "tests.test_contracts",
+              "reason": "the recording implementation does not declare that it excludes other processes"
+            },
+            {
+              "name": "test_a_lock_excludes_another_process[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_trying_a_lock_says_whether_it_made_the_file_and_keeps_its_bytes[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_trying_a_lock_never_makes_its_directory[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_trying_a_lock_is_free_after_its_body_even_one_that_raised[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_lock_held_is_busy_to_a_try_in_the_same_process[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_lock_file_that_cannot_be_written_is_tried_through_reading[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_lock_file_that_cannot_be_created_is_unavailable[recording]",
+              "class": "tests.test_contracts",
+              "reason": "the recording implementation does not declare that it honours a folder's permissions"
+            },
+            {
+              "name": "test_a_lock_file_that_cannot_be_created_is_unavailable[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_trying_a_lock_another_process_holds_is_busy_at_once[recording-exclusive]",
+              "class": "tests.test_contracts",
+              "reason": "the recording implementation does not declare that it excludes other processes"
+            },
+            {
+              "name": "test_trying_a_lock_another_process_holds_is_busy_at_once[recording-try_exclusive]",
+              "class": "tests.test_contracts",
+              "reason": "the recording implementation does not declare that it excludes other processes"
+            },
+            {
+              "name": "test_trying_a_lock_another_process_holds_is_busy_at_once[windows-exclusive]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_trying_a_lock_another_process_holds_is_busy_at_once[windows-try_exclusive]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_replacement_puts_the_new_bytes_in_place[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_replacement_that_cannot_happen_is_raised_not_lost[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_publishing_a_new_name_puts_the_bytes_there_and_the_temporary_name_goes[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_publishing_never_overwrites_what_is_there[windows-file]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_publishing_never_overwrites_what_is_there[windows-directory]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_publishing_never_overwrites_what_is_there[windows-empty file]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_file_system_without_links_is_told_and_nothing_changes[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_renaming_to_a_new_name_puts_the_bytes_there_and_the_old_name_goes[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_renaming_never_overwrites_what_is_there[windows-file]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_renaming_never_overwrites_what_is_there[windows-directory]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_renaming_never_overwrites_what_is_there[windows-empty file]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_system_without_the_exclusive_rename_is_told_and_nothing_changes[recording-ENOTSUP]",
+              "class": "tests.test_contracts",
+              "reason": "the stand-in has no C call to fail"
+            },
+            {
+              "name": "test_a_system_without_the_exclusive_rename_is_told_and_nothing_changes[recording-EINVAL]",
+              "class": "tests.test_contracts",
+              "reason": "the stand-in has no C call to fail"
+            },
+            {
+              "name": "test_a_system_without_the_exclusive_rename_is_told_and_nothing_changes[recording-ENOSYS]",
+              "class": "tests.test_contracts",
+              "reason": "the stand-in has no C call to fail"
+            },
+            {
+              "name": "test_a_system_without_the_exclusive_rename_is_told_and_nothing_changes[windows-no call]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_system_without_the_exclusive_rename_is_told_and_nothing_changes[windows-ENOTSUP]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_system_without_the_exclusive_rename_is_told_and_nothing_changes[windows-EINVAL]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_system_without_the_exclusive_rename_is_told_and_nothing_changes[windows-ENOSYS]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_flushing_writes_through_and_hides_no_error[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_value_that_cannot_be_a_pid_is_not_alive[windows-0]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_value_that_cannot_be_a_pid_is_not_alive[windows--1]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_value_that_cannot_be_a_pid_is_not_alive[windows-1099511627776]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_value_that_cannot_be_a_pid_is_not_alive[windows-x]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_value_that_cannot_be_a_pid_is_not_alive[windows-None]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_value_that_cannot_be_a_pid_is_not_alive[windows-True]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_this_process_is_alive[recording]",
+              "class": "tests.test_contracts",
+              "reason": "the recording implementation does not declare that it sees running processes"
+            },
+            {
+              "name": "test_this_process_is_alive[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_child_s_settings_are_plain_values[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_guard_starts_unmarked_and_puts_back_what_it_replaced[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_region_nothing_disturbs_leaves_no_mark[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_deadline_interrupts_its_region_and_is_marked[recording]",
+              "class": "tests.test_contracts",
+              "reason": "the recording implementation does not declare that it interrupts a region"
+            },
+            {
+              "name": "test_a_deadline_interrupts_its_region_and_is_marked[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_watching_for_a_cancel_stops_when_asked[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_the_injected_implementation_is_the_one_used[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_run_goes_through_the_injected_implementation[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_every_implementation_writes_what_the_process_default_writes[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_m_has_its_sizes_and_cases_and_is_the_seed_s",
+              "class": "tests.test_eval_fixtures",
+              "reason": "M writes about 440 MB twice; set AELIX_ANALYTICS_TEST_SCALE_M=1"
+            },
+            {
+              "name": "test_a_ctrl_c_while_a_child_starts_is_not_sent_again_on_windows",
+              "class": "tests.test_launcher",
+              "reason": "what Windows does; POSIX sends it again (the test above)"
+            },
+            {
+              "name": "test_a_migration_onto_a_file_system_of_another_kind[-]",
+              "class": "tests.test_migrate_command",
+              "reason": "AELIX_ANALYTICS_TEST_FOREIGN_FS names no folder on another file system (a FAT or exFAT volume, say)"
+            },
+            {
+              "name": "test_the_appledouble_rule_on_a_file_system_of_another_kind[-]",
+              "class": "tests.test_migrate_command",
+              "reason": "AELIX_ANALYTICS_TEST_FOREIGN_FS names no folder on another file system (a FAT or exFAT volume, say)"
+            },
+            {
+              "name": "test_a_source_file_another_program_holds_open_is_reported",
+              "class": "tests.test_migration",
+              "reason": "a file another process holds open without sharing: Windows"
+            },
+            {
+              "name": "test_another_spelling_of_the_source_is_the_source",
+              "class": "tests.test_migration",
+              "reason": "this file system tells case apart"
+            },
+            {
+              "name": "test_a_project_whose_managed_directories_are_stored_in_another_case",
+              "class": "tests.test_path_identity",
+              "reason": "this file system minds case: `Runs` would be a directory of its own"
+            },
+            {
+              "name": "test_a_case_variant_dataset_in_a_case_sensitive_windows_directory",
+              "class": "tests.test_path_identity",
+              "reason": "a directory flagged case-sensitive is Windows'"
+            },
+            {
+              "name": "test_a_short_name_of_a_directory_in_the_project_is_recorded_by_its_long_name",
+              "class": "tests.test_path_identity",
+              "reason": "8.3 short names are Windows'"
+            },
+            {
+              "name": "test_a_taskkill_in_the_working_directory_is_not_the_one_that_runs",
+              "class": "tests.test_platform",
+              "reason": "taskkill and CreateProcess's search are Windows'"
+            },
+            {
+              "name": "test_a_project_in_a_case_sensitive_windows_directory_reads_runs_in_another_case_as_linux",
+              "class": "tests.test_platform",
+              "reason": "a directory flagged case-sensitive is Windows'"
+            },
+            {
+              "name": "test_a_windows_disarm_interrupted_holding_the_guard_s_lock_does_not_hang[enter]",
+              "class": "tests.test_platform",
+              "reason": "before 3.14 a `with` calls __enter__ without a CALL, and no signal is handled between its acquiring and the block"
+            },
+            {
+              "name": "test_a_root_under_max_path_records_and_reports_outputs_past_it",
+              "class": "tests.test_windows_long_paths",
+              "reason": "MAX_PATH and LongPathsEnabled are Windows'"
+            },
+            {
+              "name": "test_the_extension_cannot_start_a_kit_command_in_a_root_past_max_path",
+              "class": "tests.test_windows_long_paths",
+              "reason": "MAX_PATH and LongPathsEnabled are Windows'"
+            },
+            {
+              "name": "test_the_extension_s_in_process_commands_work_in_a_root_past_max_path",
+              "class": "tests.test_windows_long_paths",
+              "reason": "MAX_PATH and LongPathsEnabled are Windows'"
+            },
+            {
+              "name": "test_lab_init_into_a_root_past_max_path_makes_the_project_then_fails_its_sync",
+              "class": "tests.test_windows_long_paths",
+              "reason": "MAX_PATH and LongPathsEnabled are Windows'"
+            },
+            {
+              "name": "test_no_program_starts_with_a_working_directory_past_max_path",
+              "class": "tests.test_windows_long_paths",
+              "reason": "MAX_PATH and LongPathsEnabled are Windows'"
+            },
+            {
+              "name": "test_the_launcher_from_a_short_directory_with_lab_project_past_max_path",
+              "class": "tests.test_windows_long_paths",
+              "reason": "MAX_PATH and LongPathsEnabled are Windows'"
+            },
+            {
+              "name": "test_a_migration_into_a_destination_past_max_path",
+              "class": "tests.test_windows_long_paths",
+              "reason": "MAX_PATH and LongPathsEnabled are Windows'"
+            }
+          ]
+        },
+        {
+          "path": "ci-platform-windows-2025/aelix-py3.11.xml",
+          "tests": 972,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 1,
+          "passed": 971,
+          "seconds": 156.19,
+          "skips": [
+            {
+              "name": "test_a_line_judged_one_kit_command_runs_no_other_command_in_each_shell_here",
+              "class": "tests.test_extension",
+              "reason": "the POSIX shells and PowerShell found here, by path"
+            }
+          ]
+        },
+        {
+          "path": "ci-platform-windows-2025/aelix-py3.12.xml",
+          "tests": 972,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 1,
+          "passed": 971,
+          "seconds": 148.6,
+          "skips": [
+            {
+              "name": "test_a_line_judged_one_kit_command_runs_no_other_command_in_each_shell_here",
+              "class": "tests.test_extension",
+              "reason": "the POSIX shells and PowerShell found here, by path"
+            }
+          ]
+        },
+        {
+          "path": "ci-platform-windows-2025/console.xml",
+          "tests": 21,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 21,
+          "seconds": 100.077,
+          "skips": []
+        },
+        {
+          "path": "ci-platform-windows-2025/launcher-py3.11.xml",
+          "tests": 197,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 106,
+          "passed": 91,
+          "seconds": 17.029,
+          "skips": [
+            {
+              "name": "test_help_is_the_usage_on_stdout[args0-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_help_is_the_usage_on_stdout[args1-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_help_is_the_usage_on_stdout[args2-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_the_usage_is_bin_analytics_byte_for_byte",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_an_unknown_command_prints_the_usage_on_stderr_and_exits_2[bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_the_old_subcommands_are_usage_errors[note-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_the_old_subcommands_are_usage_errors[report-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_an_old_variable_stops_the_command_before_uv[command0-LAB_PROJECT-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_an_old_variable_stops_the_command_before_uv[command0-LAB_ACTOR-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_an_old_variable_stops_the_command_before_uv[command0-AELIX_LAB_UV-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_an_old_variable_stops_the_command_before_uv[command1-LAB_PROJECT-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_an_old_variable_stops_the_command_before_uv[command1-LAB_ACTOR-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_an_old_variable_stops_the_command_before_uv[command1-AELIX_LAB_UV-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_an_old_variable_stops_the_command_before_uv[command2-LAB_PROJECT-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_an_old_variable_stops_the_command_before_uv[command2-LAB_ACTOR-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_an_old_variable_stops_the_command_before_uv[command2-AELIX_LAB_UV-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_an_old_variable_stops_the_command_before_uv[command3-LAB_PROJECT-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_an_old_variable_stops_the_command_before_uv[command3-LAB_ACTOR-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_an_old_variable_stops_the_command_before_uv[command3-AELIX_LAB_UV-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_an_empty_old_variable_is_not_set[bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_init_and_demo_need_a_directory[init-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_init_and_demo_need_a_directory[demo-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_each_command_reaches_the_kit_in_the_project_environment[args0-expected0-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_each_command_reaches_the_kit_in_the_project_environment[args1-expected1-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_each_command_reaches_the_kit_in_the_project_environment[args2-expected2-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_each_command_reaches_the_kit_in_the_project_environment[args3-expected3-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_each_command_reaches_the_kit_in_the_project_environment[args4-expected4-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_each_command_reaches_the_kit_in_the_project_environment[args5-expected5-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_each_command_reaches_the_kit_in_the_project_environment[args6-expected6-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_each_command_reaches_the_kit_in_the_project_environment[args7-expected7-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_each_command_reaches_the_kit_in_the_project_environment[args8-expected8-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_the_actor_and_project_variables_are_passed_as_they_are[bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_no_project_is_a_message_and_exit_1[bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_the_nearest_marker_of_either_name_is_the_project[lab.json-analytics.json-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_the_nearest_marker_of_either_name_is_the_project[analytics.json-lab.json-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_a_marker_that_is_no_regular_file_still_stops_the_search[fifo-launcher]",
+              "class": "tests.test_launcher",
+              "reason": "a FIFO and the links are POSIX's here"
+            },
+            {
+              "name": "test_a_marker_that_is_no_regular_file_still_stops_the_search[fifo-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "a FIFO and the links are POSIX's here"
+            },
+            {
+              "name": "test_a_marker_that_is_no_regular_file_still_stops_the_search[loop-launcher]",
+              "class": "tests.test_launcher",
+              "reason": "a FIFO and the links are POSIX's here"
+            },
+            {
+              "name": "test_a_marker_that_is_no_regular_file_still_stops_the_search[loop-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "a FIFO and the links are POSIX's here"
+            },
+            {
+              "name": "test_a_marker_that_is_no_regular_file_still_stops_the_search[dangling-launcher]",
+              "class": "tests.test_launcher",
+              "reason": "a FIFO and the links are POSIX's here"
+            },
+            {
+              "name": "test_a_marker_that_is_no_regular_file_still_stops_the_search[dangling-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "a FIFO and the links are POSIX's here"
+            },
+            {
+              "name": "test_open_refuses_a_directory_with_two_markers[launcher]",
+              "class": "tests.test_launcher",
+              "reason": "os.startfile would open a real program on Windows"
+            },
+            {
+              "name": "test_open_refuses_a_directory_with_two_markers[bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "os.startfile would open a real program on Windows"
+            },
+            {
+              "name": "test_open_counts_a_marker_link_as_the_kit_does[dangling-beside-launcher]",
+              "class": "tests.test_launcher",
+              "reason": "the links are POSIX's here, and os.startfile would open a real program on Windows"
+            },
+            {
+              "name": "test_open_counts_a_marker_link_as_the_kit_does[dangling-beside-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "the links are POSIX's here, and os.startfile would open a real program on Windows"
+            },
+            {
+              "name": "test_open_counts_a_marker_link_as_the_kit_does[dangling-below-launcher]",
+              "class": "tests.test_launcher",
+              "reason": "the links are POSIX's here, and os.startfile would open a real program on Windows"
+            },
+            {
+              "name": "test_open_counts_a_marker_link_as_the_kit_does[dangling-below-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "the links are POSIX's here, and os.startfile would open a real program on Windows"
+            },
+            {
+              "name": "test_open_counts_a_marker_link_as_the_kit_does[loop-beside-launcher]",
+              "class": "tests.test_launcher",
+              "reason": "the links are POSIX's here, and os.startfile would open a real program on Windows"
+            },
+            {
+              "name": "test_open_counts_a_marker_link_as_the_kit_does[loop-beside-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "the links are POSIX's here, and os.startfile would open a real program on Windows"
+            },
+            {
+              "name": "test_output_passes_through_byte_for_byte[bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_the_exit_status_is_the_kits[0-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_the_exit_status_is_the_kits[1-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_the_exit_status_is_the_kits[2-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_the_exit_status_is_the_kits[3-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_the_exit_status_is_the_kits[130-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_a_kit_ended_by_a_signal_is_128_plus_its_number[launcher]",
+              "class": "tests.test_launcher",
+              "reason": "a POSIX signal"
+            },
+            {
+              "name": "test_a_kit_ended_by_a_signal_is_128_plus_its_number[bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "a POSIX signal"
+            },
+            {
+              "name": "test_a_value_that_is_not_utf8_is_printed_as_its_bytes",
+              "class": "tests.test_launcher",
+              "reason": "bytes that are not UTF-8 in the environment are POSIX's"
+            },
+            {
+              "name": "test_init_and_demo_create_sync_then_build_or_fill[init-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_init_and_demo_create_sync_then_build_or_fill[demo-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_init_falls_back_to_an_offline_sync[bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_init_stops_at_the_first_failing_step[bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_init_and_demo_inside_a_project_are_refused_before_anything[analytics.json-init-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_init_and_demo_inside_a_project_are_refused_before_anything[analytics.json-demo-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_init_and_demo_inside_a_project_are_refused_before_anything[lab.json-init-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_init_and_demo_inside_a_project_are_refused_before_anything[lab.json-demo-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_init_and_demo_inside_a_project_are_refused_before_anything[migration-init-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_init_and_demo_inside_a_project_are_refused_before_anything[migration-demo-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_open_builds_a_missing_report_then_hands_it_to_the_opener[True]",
+              "class": "tests.test_launcher",
+              "reason": "os.startfile would open a real program on Windows"
+            },
+            {
+              "name": "test_open_builds_a_missing_report_then_hands_it_to_the_opener[False]",
+              "class": "tests.test_launcher",
+              "reason": "os.startfile would open a real program on Windows"
+            },
+            {
+              "name": "test_open_shows_a_lab_json_project_s_page_and_says_it_is_not_updated[launcher]",
+              "class": "tests.test_launcher",
+              "reason": "os.startfile would open a real program on Windows"
+            },
+            {
+              "name": "test_open_shows_a_lab_json_project_s_page_and_says_it_is_not_updated[bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "os.startfile would open a real program on Windows"
+            },
+            {
+              "name": "test_open_of_a_lab_json_project_without_its_page_says_how_to_migrate[bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_open_shows_the_kit_s_answer_when_it_builds_no_page[bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_open_needs_no_uv_for_a_built_report[launcher]",
+              "class": "tests.test_launcher",
+              "reason": "os.startfile would open a real program on Windows"
+            },
+            {
+              "name": "test_open_needs_no_uv_for_a_built_report[bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "os.startfile would open a real program on Windows"
+            },
+            {
+              "name": "test_ctrl_c_reaches_the_kit_once_and_the_launcher_waits_for_its_record",
+              "class": "tests.test_launcher",
+              "reason": "a terminal's process group; a Windows console's Ctrl+C is tests/test_windows_console.py's"
+            },
+            {
+              "name": "test_sigterm_to_the_launcher_alone_is_passed_on_to_the_kit",
+              "class": "tests.test_launcher",
+              "reason": "SIGTERM from outside a process is POSIX"
+            },
+            {
+              "name": "test_an_ignored_sigint_stays_ignored_and_a_handled_one_is_given_back",
+              "class": "tests.test_launcher",
+              "reason": "signal dispositions as POSIX inherits them"
+            },
+            {
+              "name": "test_sigterm_lets_a_step_finish_and_starts_no_other",
+              "class": "tests.test_launcher",
+              "reason": "SIGTERM from outside a process is POSIX"
+            },
+            {
+              "name": "test_sigterm_during_an_import_leaves_the_import_to_finish",
+              "class": "tests.test_launcher",
+              "reason": "SIGTERM from outside a process is POSIX"
+            },
+            {
+              "name": "test_a_ctrl_c_while_a_child_starts_still_reaches_it",
+              "class": "tests.test_launcher",
+              "reason": "a POSIX signal sent to one process"
+            },
+            {
+              "name": "test_a_background_job_keeps_sigint_ignored_for_the_kit[launcher]",
+              "class": "tests.test_launcher",
+              "reason": "a shell's background job"
+            },
+            {
+              "name": "test_a_background_job_keeps_sigint_ignored_for_the_kit[bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "a shell's background job"
+            },
+            {
+              "name": "test_uv_is_started_by_the_name_it_was_found_by",
+              "class": "tests.test_launcher",
+              "reason": "a symbolic link to a program"
+            },
+            {
+              "name": "test_migrate_runs_the_kit_outside_any_environment_then_prepares_the_destination[in the source-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_migrate_runs_the_kit_outside_any_environment_then_prepares_the_destination[nowhere-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_migrate_prepares_the_destination_the_kit_s_answer_names[committed-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_migrate_prepares_the_destination_the_kit_s_answer_names[already-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_migrate_prepares_the_destination_the_kit_s_answer_names[dry run-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_migrate_prepares_the_destination_the_kit_s_answer_names[dry run committed-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_migrate_prepares_the_destination_the_kit_s_answer_names[not ok-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_migrate_prepares_the_destination_the_kit_s_answer_names[no answer-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_migrate_prepares_the_destination_the_kit_s_answer_names[not json-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_migrate_prepares_the_destination_the_kit_s_answer_names[no marker-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_a_migration_the_kit_refused_prepares_nothing[1-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_a_migration_the_kit_refused_prepares_nothing[2-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_a_migration_the_kit_refused_prepares_nothing[130-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_a_destination_whose_environment_cannot_be_prepared_is_still_migrated[bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_the_search_stops_at_a_destination_not_committed_and_asks_the_kit_outside_any_environment[lock-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_the_search_stops_at_a_destination_not_committed_and_asks_the_kit_outside_any_environment[ledger-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_open_in_a_destination_not_committed_shows_the_kit_s_refusal_and_opens_nothing[launcher]",
+              "class": "tests.test_launcher",
+              "reason": "os.startfile would open a real program on Windows"
+            },
+            {
+              "name": "test_open_in_a_destination_not_committed_shows_the_kit_s_refusal_and_opens_nothing[bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "os.startfile would open a real program on Windows"
+            },
+            {
+              "name": "test_the_kit_refuses_every_command_in_a_destination_not_committed_and_nothing_changes[args0-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_the_kit_refuses_every_command_in_a_destination_not_committed_and_nothing_changes[args1-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_the_kit_refuses_every_command_in_a_destination_not_committed_and_nothing_changes[args2-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            }
+          ]
+        },
+        {
+          "path": "ci-platform-windows-2025/long-paths-off.xml",
+          "tests": 7,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 7,
+          "seconds": 7.665,
+          "skips": []
+        },
+        {
+          "path": "ci-platform-windows-2025/suite.xml",
+          "tests": 2124,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 278,
+          "passed": 1846,
+          "seconds": 2068.989,
+          "skips": [
+            {
+              "name": "tests.test_agent_cli",
+              "class": "",
+              "reason": "collection skipped"
+            },
+            {
+              "name": "tests.test_extension",
+              "class": "",
+              "reason": "collection skipped"
+            },
+            {
+              "name": "tests.test_usage_report",
+              "class": "",
+              "reason": "collection skipped"
+            },
+            {
+              "name": "test_every_implementation_offers_each_port_whole[posix]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_a_lock_makes_its_directory_and_file_and_keeps_their_bytes[posix]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_a_lock_is_free_after_its_body_even_one_that_raised[posix]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_a_lock_excludes_another_process[posix]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_a_lock_excludes_another_process[recording]",
+              "class": "tests.test_contracts",
+              "reason": "the recording implementation does not declare that it excludes other processes"
+            },
+            {
+              "name": "test_trying_a_lock_says_whether_it_made_the_file_and_keeps_its_bytes[posix]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_trying_a_lock_never_makes_its_directory[posix]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_trying_a_lock_is_free_after_its_body_even_one_that_raised[posix]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_a_lock_held_is_busy_to_a_try_in_the_same_process[posix]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_a_lock_file_that_cannot_be_written_is_tried_through_reading[posix]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_a_lock_file_that_cannot_be_created_is_unavailable[posix]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_a_lock_file_that_cannot_be_created_is_unavailable[recording]",
+              "class": "tests.test_contracts",
+              "reason": "the recording implementation does not declare that it honours a folder's permissions"
+            },
+            {
+              "name": "test_a_lock_file_that_cannot_be_created_is_unavailable[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the windows implementation does not declare that it honours a folder's permissions"
+            },
+            {
+              "name": "test_trying_a_lock_another_process_holds_is_busy_at_once[posix-exclusive]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_trying_a_lock_another_process_holds_is_busy_at_once[posix-try_exclusive]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_trying_a_lock_another_process_holds_is_busy_at_once[recording-exclusive]",
+              "class": "tests.test_contracts",
+              "reason": "the recording implementation does not declare that it excludes other processes"
+            },
+            {
+              "name": "test_trying_a_lock_another_process_holds_is_busy_at_once[recording-try_exclusive]",
+              "class": "tests.test_contracts",
+              "reason": "the recording implementation does not declare that it excludes other processes"
+            },
+            {
+              "name": "test_a_replacement_puts_the_new_bytes_in_place[posix]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_a_replacement_that_cannot_happen_is_raised_not_lost[posix]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_publishing_a_new_name_puts_the_bytes_there_and_the_temporary_name_goes[posix]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_publishing_never_overwrites_what_is_there[posix-file]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_publishing_never_overwrites_what_is_there[posix-directory]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_publishing_never_overwrites_what_is_there[posix-empty file]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_a_file_system_without_links_is_told_and_nothing_changes[posix]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_a_file_system_without_links_is_told_and_nothing_changes[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the windows implementation does not declare that it publishes by a link"
+            },
+            {
+              "name": "test_renaming_to_a_new_name_puts_the_bytes_there_and_the_old_name_goes[posix]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_renaming_never_overwrites_what_is_there[posix-file]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_renaming_never_overwrites_what_is_there[posix-directory]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_renaming_never_overwrites_what_is_there[posix-empty file]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_a_system_without_the_exclusive_rename_is_told_and_nothing_changes[posix-no call]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_a_system_without_the_exclusive_rename_is_told_and_nothing_changes[posix-ENOTSUP]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_a_system_without_the_exclusive_rename_is_told_and_nothing_changes[posix-EINVAL]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_a_system_without_the_exclusive_rename_is_told_and_nothing_changes[posix-ENOSYS]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_a_system_without_the_exclusive_rename_is_told_and_nothing_changes[recording-ENOTSUP]",
+              "class": "tests.test_contracts",
+              "reason": "the stand-in has no C call to fail"
+            },
+            {
+              "name": "test_a_system_without_the_exclusive_rename_is_told_and_nothing_changes[recording-EINVAL]",
+              "class": "tests.test_contracts",
+              "reason": "the stand-in has no C call to fail"
+            },
+            {
+              "name": "test_a_system_without_the_exclusive_rename_is_told_and_nothing_changes[recording-ENOSYS]",
+              "class": "tests.test_contracts",
+              "reason": "the stand-in has no C call to fail"
+            },
+            {
+              "name": "test_a_system_without_the_exclusive_rename_is_told_and_nothing_changes[windows-no call]",
+              "class": "tests.test_contracts",
+              "reason": "Windows' rename never replaces: it has no such case"
+            },
+            {
+              "name": "test_a_system_without_the_exclusive_rename_is_told_and_nothing_changes[windows-ENOTSUP]",
+              "class": "tests.test_contracts",
+              "reason": "Windows' rename never replaces: it has no such case"
+            },
+            {
+              "name": "test_a_system_without_the_exclusive_rename_is_told_and_nothing_changes[windows-EINVAL]",
+              "class": "tests.test_contracts",
+              "reason": "Windows' rename never replaces: it has no such case"
+            },
+            {
+              "name": "test_a_system_without_the_exclusive_rename_is_told_and_nothing_changes[windows-ENOSYS]",
+              "class": "tests.test_contracts",
+              "reason": "Windows' rename never replaces: it has no such case"
+            },
+            {
+              "name": "test_flushing_writes_through_and_hides_no_error[posix]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_a_value_that_cannot_be_a_pid_is_not_alive[posix-0]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_a_value_that_cannot_be_a_pid_is_not_alive[posix--1]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_a_value_that_cannot_be_a_pid_is_not_alive[posix-1099511627776]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_a_value_that_cannot_be_a_pid_is_not_alive[posix-x]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_a_value_that_cannot_be_a_pid_is_not_alive[posix-None]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_a_value_that_cannot_be_a_pid_is_not_alive[posix-True]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_this_process_is_alive[posix]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_this_process_is_alive[recording]",
+              "class": "tests.test_contracts",
+              "reason": "the recording implementation does not declare that it sees running processes"
+            },
+            {
+              "name": "test_a_child_s_settings_are_plain_values[posix]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_a_guard_starts_unmarked_and_puts_back_what_it_replaced[posix]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_a_region_nothing_disturbs_leaves_no_mark[posix]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_a_deadline_interrupts_its_region_and_is_marked[posix]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_a_deadline_interrupts_its_region_and_is_marked[recording]",
+              "class": "tests.test_contracts",
+              "reason": "the recording implementation does not declare that it interrupts a region"
+            },
+            {
+              "name": "test_watching_for_a_cancel_stops_when_asked[posix]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_the_injected_implementation_is_the_one_used[posix]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_a_run_goes_through_the_injected_implementation[posix]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_every_implementation_writes_what_the_process_default_writes[posix]",
+              "class": "tests.test_contracts",
+              "reason": "the POSIX implementation runs on the Linux and macOS legs"
+            },
+            {
+              "name": "test_m_has_its_sizes_and_cases_and_is_the_seed_s",
+              "class": "tests.test_eval_fixtures",
+              "reason": "M writes about 440 MB twice; set AELIX_ANALYTICS_TEST_SCALE_M=1"
+            },
+            {
+              "name": "test_help_is_the_usage_on_stdout[args0-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_help_is_the_usage_on_stdout[args1-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_help_is_the_usage_on_stdout[args2-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_the_usage_is_bin_analytics_byte_for_byte",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_an_unknown_command_prints_the_usage_on_stderr_and_exits_2[bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_the_old_subcommands_are_usage_errors[note-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_the_old_subcommands_are_usage_errors[report-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_an_old_variable_stops_the_command_before_uv[command0-LAB_PROJECT-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_an_old_variable_stops_the_command_before_uv[command0-LAB_ACTOR-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_an_old_variable_stops_the_command_before_uv[command0-AELIX_LAB_UV-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_an_old_variable_stops_the_command_before_uv[command1-LAB_PROJECT-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_an_old_variable_stops_the_command_before_uv[command1-LAB_ACTOR-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_an_old_variable_stops_the_command_before_uv[command1-AELIX_LAB_UV-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_an_old_variable_stops_the_command_before_uv[command2-LAB_PROJECT-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_an_old_variable_stops_the_command_before_uv[command2-LAB_ACTOR-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_an_old_variable_stops_the_command_before_uv[command2-AELIX_LAB_UV-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_an_old_variable_stops_the_command_before_uv[command3-LAB_PROJECT-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_an_old_variable_stops_the_command_before_uv[command3-LAB_ACTOR-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_an_old_variable_stops_the_command_before_uv[command3-AELIX_LAB_UV-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_an_empty_old_variable_is_not_set[bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_init_and_demo_need_a_directory[init-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_init_and_demo_need_a_directory[demo-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_each_command_reaches_the_kit_in_the_project_environment[args0-expected0-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_each_command_reaches_the_kit_in_the_project_environment[args1-expected1-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_each_command_reaches_the_kit_in_the_project_environment[args2-expected2-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_each_command_reaches_the_kit_in_the_project_environment[args3-expected3-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_each_command_reaches_the_kit_in_the_project_environment[args4-expected4-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_each_command_reaches_the_kit_in_the_project_environment[args5-expected5-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_each_command_reaches_the_kit_in_the_project_environment[args6-expected6-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_each_command_reaches_the_kit_in_the_project_environment[args7-expected7-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_each_command_reaches_the_kit_in_the_project_environment[args8-expected8-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_the_actor_and_project_variables_are_passed_as_they_are[bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_no_project_is_a_message_and_exit_1[bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_the_nearest_marker_of_either_name_is_the_project[lab.json-analytics.json-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_the_nearest_marker_of_either_name_is_the_project[analytics.json-lab.json-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_a_marker_that_is_no_regular_file_still_stops_the_search[fifo-launcher]",
+              "class": "tests.test_launcher",
+              "reason": "a FIFO and the links are POSIX's here"
+            },
+            {
+              "name": "test_a_marker_that_is_no_regular_file_still_stops_the_search[fifo-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "a FIFO and the links are POSIX's here"
+            },
+            {
+              "name": "test_a_marker_that_is_no_regular_file_still_stops_the_search[loop-launcher]",
+              "class": "tests.test_launcher",
+              "reason": "a FIFO and the links are POSIX's here"
+            },
+            {
+              "name": "test_a_marker_that_is_no_regular_file_still_stops_the_search[loop-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "a FIFO and the links are POSIX's here"
+            },
+            {
+              "name": "test_a_marker_that_is_no_regular_file_still_stops_the_search[dangling-launcher]",
+              "class": "tests.test_launcher",
+              "reason": "a FIFO and the links are POSIX's here"
+            },
+            {
+              "name": "test_a_marker_that_is_no_regular_file_still_stops_the_search[dangling-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "a FIFO and the links are POSIX's here"
+            },
+            {
+              "name": "test_open_refuses_a_directory_with_two_markers[launcher]",
+              "class": "tests.test_launcher",
+              "reason": "os.startfile would open a real program on Windows"
+            },
+            {
+              "name": "test_open_refuses_a_directory_with_two_markers[bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "os.startfile would open a real program on Windows"
+            },
+            {
+              "name": "test_open_counts_a_marker_link_as_the_kit_does[dangling-beside-launcher]",
+              "class": "tests.test_launcher",
+              "reason": "the links are POSIX's here, and os.startfile would open a real program on Windows"
+            },
+            {
+              "name": "test_open_counts_a_marker_link_as_the_kit_does[dangling-beside-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "the links are POSIX's here, and os.startfile would open a real program on Windows"
+            },
+            {
+              "name": "test_open_counts_a_marker_link_as_the_kit_does[dangling-below-launcher]",
+              "class": "tests.test_launcher",
+              "reason": "the links are POSIX's here, and os.startfile would open a real program on Windows"
+            },
+            {
+              "name": "test_open_counts_a_marker_link_as_the_kit_does[dangling-below-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "the links are POSIX's here, and os.startfile would open a real program on Windows"
+            },
+            {
+              "name": "test_open_counts_a_marker_link_as_the_kit_does[loop-beside-launcher]",
+              "class": "tests.test_launcher",
+              "reason": "the links are POSIX's here, and os.startfile would open a real program on Windows"
+            },
+            {
+              "name": "test_open_counts_a_marker_link_as_the_kit_does[loop-beside-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "the links are POSIX's here, and os.startfile would open a real program on Windows"
+            },
+            {
+              "name": "test_output_passes_through_byte_for_byte[bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_the_exit_status_is_the_kits[0-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_the_exit_status_is_the_kits[1-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_the_exit_status_is_the_kits[2-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_the_exit_status_is_the_kits[3-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_the_exit_status_is_the_kits[130-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_a_kit_ended_by_a_signal_is_128_plus_its_number[launcher]",
+              "class": "tests.test_launcher",
+              "reason": "a POSIX signal"
+            },
+            {
+              "name": "test_a_kit_ended_by_a_signal_is_128_plus_its_number[bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "a POSIX signal"
+            },
+            {
+              "name": "test_a_value_that_is_not_utf8_is_printed_as_its_bytes",
+              "class": "tests.test_launcher",
+              "reason": "bytes that are not UTF-8 in the environment are POSIX's"
+            },
+            {
+              "name": "test_init_and_demo_create_sync_then_build_or_fill[init-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_init_and_demo_create_sync_then_build_or_fill[demo-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_init_falls_back_to_an_offline_sync[bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_init_stops_at_the_first_failing_step[bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_init_and_demo_inside_a_project_are_refused_before_anything[analytics.json-init-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_init_and_demo_inside_a_project_are_refused_before_anything[analytics.json-demo-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_init_and_demo_inside_a_project_are_refused_before_anything[lab.json-init-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_init_and_demo_inside_a_project_are_refused_before_anything[lab.json-demo-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_init_and_demo_inside_a_project_are_refused_before_anything[migration-init-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_init_and_demo_inside_a_project_are_refused_before_anything[migration-demo-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_open_builds_a_missing_report_then_hands_it_to_the_opener[True]",
+              "class": "tests.test_launcher",
+              "reason": "os.startfile would open a real program on Windows"
+            },
+            {
+              "name": "test_open_builds_a_missing_report_then_hands_it_to_the_opener[False]",
+              "class": "tests.test_launcher",
+              "reason": "os.startfile would open a real program on Windows"
+            },
+            {
+              "name": "test_open_shows_a_lab_json_project_s_page_and_says_it_is_not_updated[launcher]",
+              "class": "tests.test_launcher",
+              "reason": "os.startfile would open a real program on Windows"
+            },
+            {
+              "name": "test_open_shows_a_lab_json_project_s_page_and_says_it_is_not_updated[bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "os.startfile would open a real program on Windows"
+            },
+            {
+              "name": "test_open_of_a_lab_json_project_without_its_page_says_how_to_migrate[bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_open_shows_the_kit_s_answer_when_it_builds_no_page[bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_open_needs_no_uv_for_a_built_report[launcher]",
+              "class": "tests.test_launcher",
+              "reason": "os.startfile would open a real program on Windows"
+            },
+            {
+              "name": "test_open_needs_no_uv_for_a_built_report[bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "os.startfile would open a real program on Windows"
+            },
+            {
+              "name": "test_ctrl_c_reaches_the_kit_once_and_the_launcher_waits_for_its_record",
+              "class": "tests.test_launcher",
+              "reason": "a terminal's process group; a Windows console's Ctrl+C is tests/test_windows_console.py's"
+            },
+            {
+              "name": "test_sigterm_to_the_launcher_alone_is_passed_on_to_the_kit",
+              "class": "tests.test_launcher",
+              "reason": "SIGTERM from outside a process is POSIX"
+            },
+            {
+              "name": "test_an_ignored_sigint_stays_ignored_and_a_handled_one_is_given_back",
+              "class": "tests.test_launcher",
+              "reason": "signal dispositions as POSIX inherits them"
+            },
+            {
+              "name": "test_sigterm_lets_a_step_finish_and_starts_no_other",
+              "class": "tests.test_launcher",
+              "reason": "SIGTERM from outside a process is POSIX"
+            },
+            {
+              "name": "test_sigterm_during_an_import_leaves_the_import_to_finish",
+              "class": "tests.test_launcher",
+              "reason": "SIGTERM from outside a process is POSIX"
+            },
+            {
+              "name": "test_a_ctrl_c_while_a_child_starts_still_reaches_it",
+              "class": "tests.test_launcher",
+              "reason": "a POSIX signal sent to one process"
+            },
+            {
+              "name": "test_a_background_job_keeps_sigint_ignored_for_the_kit[launcher]",
+              "class": "tests.test_launcher",
+              "reason": "a shell's background job"
+            },
+            {
+              "name": "test_a_background_job_keeps_sigint_ignored_for_the_kit[bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "a shell's background job"
+            },
+            {
+              "name": "test_uv_is_started_by_the_name_it_was_found_by",
+              "class": "tests.test_launcher",
+              "reason": "a symbolic link to a program"
+            },
+            {
+              "name": "test_migrate_runs_the_kit_outside_any_environment_then_prepares_the_destination[in the source-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_migrate_runs_the_kit_outside_any_environment_then_prepares_the_destination[nowhere-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_migrate_prepares_the_destination_the_kit_s_answer_names[committed-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_migrate_prepares_the_destination_the_kit_s_answer_names[already-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_migrate_prepares_the_destination_the_kit_s_answer_names[dry run-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_migrate_prepares_the_destination_the_kit_s_answer_names[dry run committed-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_migrate_prepares_the_destination_the_kit_s_answer_names[not ok-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_migrate_prepares_the_destination_the_kit_s_answer_names[no answer-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_migrate_prepares_the_destination_the_kit_s_answer_names[not json-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_migrate_prepares_the_destination_the_kit_s_answer_names[no marker-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_a_migration_the_kit_refused_prepares_nothing[1-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_a_migration_the_kit_refused_prepares_nothing[2-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_a_migration_the_kit_refused_prepares_nothing[130-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_a_destination_whose_environment_cannot_be_prepared_is_still_migrated[bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_the_search_stops_at_a_destination_not_committed_and_asks_the_kit_outside_any_environment[lock-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_the_search_stops_at_a_destination_not_committed_and_asks_the_kit_outside_any_environment[ledger-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_open_in_a_destination_not_committed_shows_the_kit_s_refusal_and_opens_nothing[launcher]",
+              "class": "tests.test_launcher",
+              "reason": "os.startfile would open a real program on Windows"
+            },
+            {
+              "name": "test_open_in_a_destination_not_committed_shows_the_kit_s_refusal_and_opens_nothing[bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "os.startfile would open a real program on Windows"
+            },
+            {
+              "name": "test_the_kit_refuses_every_command_in_a_destination_not_committed_and_nothing_changes[args0-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_the_kit_refuses_every_command_in_a_destination_not_committed_and_nothing_changes[args1-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_the_kit_refuses_every_command_in_a_destination_not_committed_and_nothing_changes[args2-bin/analytics]",
+              "class": "tests.test_launcher",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_a_marker_that_is_no_regular_file_is_not_opened",
+              "class": "tests.test_marker_gate",
+              "reason": "a FIFO is POSIX's"
+            },
+            {
+              "name": "test_the_kit_refuses_an_odd_marker_below_a_project_from_where_the_launchers_stop[fifo]",
+              "class": "tests.test_marker_gate",
+              "reason": "a FIFO and the links are POSIX's here"
+            },
+            {
+              "name": "test_the_kit_refuses_an_odd_marker_below_a_project_from_where_the_launchers_stop[loop]",
+              "class": "tests.test_marker_gate",
+              "reason": "a FIFO and the links are POSIX's here"
+            },
+            {
+              "name": "test_the_kit_refuses_an_odd_marker_below_a_project_from_where_the_launchers_stop[dangling]",
+              "class": "tests.test_marker_gate",
+              "reason": "a FIFO and the links are POSIX's here"
+            },
+            {
+              "name": "test_what_a_dry_run_refuses_first_is_a_name_that_is_not_utf8",
+              "class": "tests.test_migrate_command",
+              "reason": "a name that is not UTF-8: Linux's file systems keep one, APFS and NTFS refuse it"
+            },
+            {
+              "name": "test_the_marker_s_temporary_name_left_beside_it_is_removed_by_the_command",
+              "class": "tests.test_migrate_command",
+              "reason": "Windows publishes by a rename: no second name between a link and an unlink"
+            },
+            {
+              "name": "test_a_migration_onto_a_file_system_of_another_kind[-]",
+              "class": "tests.test_migrate_command",
+              "reason": "AELIX_ANALYTICS_TEST_FOREIGN_FS names no folder on another file system (a FAT or exFAT volume, say)"
+            },
+            {
+              "name": "test_the_appledouble_rule_on_a_file_system_of_another_kind[-]",
+              "class": "tests.test_migrate_command",
+              "reason": "AELIX_ANALYTICS_TEST_FOREIGN_FS names no folder on another file system (a FAT or exFAT volume, say)"
+            },
+            {
+              "name": "test_the_launchers_migrate_without_touching_the_source_s_environment[True-bin/analytics]",
+              "class": "tests.test_migrate_command",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_the_launchers_migrate_without_touching_the_source_s_environment[False-bin/analytics]",
+              "class": "tests.test_migrate_command",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_a_destination_given_with_a_tilde_is_prepared_where_the_kit_made_it[none-given0-bin/analytics]",
+              "class": "tests.test_migrate_command",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_a_destination_given_with_a_tilde_is_prepared_where_the_kit_made_it[none-given1-bin/analytics]",
+              "class": "tests.test_migrate_command",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_a_destination_given_with_a_tilde_is_prepared_where_the_kit_made_it[extra package-given0-bin/analytics]",
+              "class": "tests.test_migrate_command",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_a_destination_given_with_a_tilde_is_prepared_where_the_kit_made_it[extra package-given1-bin/analytics]",
+              "class": "tests.test_migrate_command",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_the_launchers_make_no_environment_in_a_destination_not_committed[stop0-bin/analytics]",
+              "class": "tests.test_migrate_command",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_the_launchers_make_no_environment_in_a_destination_not_committed[stop1-bin/analytics]",
+              "class": "tests.test_migrate_command",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_the_launchers_make_no_environment_in_a_destination_not_committed[stop2-bin/analytics]",
+              "class": "tests.test_migrate_command",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_the_launchers_make_no_environment_in_a_destination_not_committed[stop3-bin/analytics]",
+              "class": "tests.test_migrate_command",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_an_interrupted_migration_resumes_to_the_same_copies[F6-link-unlink]",
+              "class": "tests.test_migration",
+              "reason": "Windows publishes by a rename: there is no window between a link and an unlink"
+            },
+            {
+              "name": "test_an_interrupted_migration_resumes_to_the_same_copies[F12-link-unlink]",
+              "class": "tests.test_migration",
+              "reason": "Windows publishes by a rename: there is no window between a link and an unlink"
+            },
+            {
+              "name": "test_a_read_only_source_is_copied_without_its_locks_and_the_destination_stays_writable",
+              "class": "tests.test_migration",
+              "reason": "a folder's write permission: POSIX, not as root"
+            },
+            {
+              "name": "test_a_name_that_is_not_utf8_is_refused",
+              "class": "tests.test_migration",
+              "reason": "a name not UTF-8: Linux keeps the bytes it is given"
+            },
+            {
+              "name": "test_names_other_systems_reserve_are_copied_with_a_warning",
+              "class": "tests.test_migration",
+              "reason": "Windows makes no such name; the case runs on the POSIX legs"
+            },
+            {
+              "name": "test_a_read_only_folder_cut_while_a_file_of_it_is_copied_resumes",
+              "class": "tests.test_migration",
+              "reason": "a folder's write permission: POSIX, not as root"
+            },
+            {
+              "name": "test_a_destination_spelled_with_dotdot_after_a_link_is_the_operating_system_s",
+              "class": "tests.test_migration",
+              "reason": "`..` after a link: POSIX resolves it from the link's target"
+            },
+            {
+              "name": "test_a_directory_the_scan_cannot_read_fails_it",
+              "class": "tests.test_model_eval",
+              "reason": "POSIX permissions that bind the owner"
+            },
+            {
+              "name": "test_a_job_left_in_the_background_is_waited_for_before_the_scan",
+              "class": "tests.test_model_eval",
+              "reason": "a POSIX background job of the bash tool"
+            },
+            {
+              "name": "test_a_timeout_stops_aelix_and_what_the_model_left_running",
+              "class": "tests.test_model_eval",
+              "reason": "POSIX signals"
+            },
+            {
+              "name": "test_the_launchers_pass_never_follows_a_link_or_writes_through_one",
+              "class": "tests.test_model_eval",
+              "reason": "the launcher masks through its POSIX pipes; links need privileges"
+            },
+            {
+              "name": "test_the_launcher_masks_the_logins_exact_values_in_every_form_and_place",
+              "class": "tests.test_model_eval",
+              "reason": "the launcher masks through its POSIX pipes"
+            },
+            {
+              "name": "test_a_harness_asked_to_stop_stops_aelix_and_still_searches_the_run",
+              "class": "tests.test_model_eval",
+              "reason": "POSIX signals"
+            },
+            {
+              "name": "test_a_killed_harness_leaves_nothing_running_and_scan_secures_the_run",
+              "class": "tests.test_model_eval",
+              "reason": "POSIX signals and the launcher's lifeline"
+            },
+            {
+              "name": "test_the_launcher_defers_a_stop_until_the_login_is_written",
+              "class": "tests.test_model_eval",
+              "reason": "POSIX signals"
+            },
+            {
+              "name": "test_the_console_script_gives_children_exactly_the_installed_kit",
+              "class": "tests.test_packaging",
+              "reason": "the stand-in uv is a script; Windows starts only an .exe"
+            },
+            {
+              "name": "test_posix_open_document_runs_the_opener_attached_or_detached",
+              "class": "tests.test_platform",
+              "reason": "a POSIX shell script stands in for the opener"
+            },
+            {
+              "name": "test_posix_find_program_keeps_the_extension_s_old_uv_rule",
+              "class": "tests.test_platform",
+              "reason": "POSIX executables and HOME"
+            },
+            {
+              "name": "test_a_signal_handled_inside_the_first_handler_never_spends_the_interrupt[SIGINT-SIGINT]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_signal_handled_inside_the_first_handler_never_spends_the_interrupt[SIGINT-SIGTERM]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_signal_handled_inside_the_first_handler_never_spends_the_interrupt[SIGINT-SIGALRM]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_signal_handled_inside_the_first_handler_never_spends_the_interrupt[SIGTERM-SIGINT]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_signal_handled_inside_the_first_handler_never_spends_the_interrupt[SIGTERM-SIGTERM]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_signal_handled_inside_the_first_handler_never_spends_the_interrupt[SIGTERM-SIGALRM]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_signal_handled_inside_the_first_handler_never_spends_the_interrupt[SIGALRM-SIGINT]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_signal_handled_inside_the_first_handler_never_spends_the_interrupt[SIGALRM-SIGTERM]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_signal_handled_inside_the_first_handler_never_spends_the_interrupt[SIGALRM-SIGALRM]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_script_s_raising_handler_run_inside_the_guard_s_handler_cannot_take_its_flag[SIGINT-ends]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_script_s_raising_handler_run_inside_the_guard_s_handler_cannot_take_its_flag[SIGINT-catches]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_script_s_raising_handler_run_inside_the_guard_s_handler_cannot_take_its_flag[SIGTERM-ends]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_script_s_raising_handler_run_inside_the_guard_s_handler_cannot_take_its_flag[SIGTERM-catches]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_script_s_raising_handler_run_inside_the_guard_s_handler_cannot_take_its_flag[SIGINT_past_its_deadline-ends]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_script_s_raising_handler_run_inside_the_guard_s_handler_cannot_take_its_flag[SIGINT_past_its_deadline-catches]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_script_s_raising_handler_run_inside_the_guard_s_handler_cannot_take_its_flag[SIGALRM-ends]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_script_s_raising_handler_run_inside_the_guard_s_handler_cannot_take_its_flag[SIGALRM-catches]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_script_s_raising_handler_run_inside_the_guard_s_handler_cannot_take_its_flag[SIGALRM_before_its_time-ends]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_script_s_raising_handler_run_inside_the_guard_s_handler_cannot_take_its_flag[SIGALRM_before_its_time-catches]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_deadline_handled_at_the_start_of_the_region_s_exit_still_counts[posix]",
+              "class": "tests.test_platform",
+              "reason": "SIGALRM is POSIX"
+            },
+            {
+              "name": "test_a_script_s_raising_handler_at_the_region_s_end_cannot_lose_the_record[cancel]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_script_s_raising_handler_at_the_region_s_end_cannot_lose_the_record[deadline]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_script_s_raising_handler_at_the_region_s_end_cannot_lose_the_record[again_in_settle]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_host_handler_that_raises_during_the_restore_still_gets_every_handler_back[SIGTERM]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_host_handler_that_raises_during_the_restore_still_gets_every_handler_back[SIGALRM]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_host_handler_that_raises_during_the_restore_still_gets_every_handler_back[both]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_raising_host_handler_at_any_check_point_of_the_restore_leaves_nothing_behind",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_the_restore_puts_back_the_handlers_that_cannot_raise_first",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_host_handler_raising_oserror_at_a_swap_does_not_stop_the_restore",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_handler_object_that_claims_equality_is_still_replaced",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_raising_script_handler_inside_settling_is_kept_not_raised[ahead]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_raising_script_handler_inside_settling_is_kept_not_raised[passed]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_the_runner_s_settle_survives_a_second_signal_after_the_region_s_exit_was_cut_short",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_script_that_takes_sigalrm_over_is_still_timed_out",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_deadline_that_passed_before_a_cancel_is_still_the_run_s_deadline[takes_sigalrm]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_deadline_that_passed_before_a_cancel_is_still_the_run_s_deadline[lends_sigalrm]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_deadline_that_passed_before_a_cancel_is_still_the_run_s_deadline[cancels_the_timer]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_run_cancelled_after_the_deadline_it_kept_from_the_guard_is_timed_out",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_new_run_of_a_path_no_record_could_rerun_is_refused",
+              "class": "tests.test_platform",
+              "reason": "Windows reads one character and a colon as a drive, and NTFS a colon in a name as a stream"
+            },
+            {
+              "name": "test_a_new_run_of_a_name_another_platform_reads_differently_is_refused_truthfully[\\xe9:/a.py]",
+              "class": "tests.test_platform",
+              "reason": "Windows reads one character and a colon as a drive, and NTFS a colon in a name as a stream"
+            },
+            {
+              "name": "test_a_new_run_of_a_name_another_platform_reads_differently_is_refused_truthfully[1:/a.py]",
+              "class": "tests.test_platform",
+              "reason": "Windows reads one character and a colon as a drive, and NTFS a colon in a name as a stream"
+            },
+            {
+              "name": "test_a_run_directory_the_kit_cannot_list_is_still_removed",
+              "class": "tests.test_platform",
+              "reason": "a directory the process cannot list: POSIX permissions, not root"
+            },
+            {
+              "name": "test_the_group_is_ended_even_after_its_leader_has_been_reaped",
+              "class": "tests.test_platform",
+              "reason": "process groups are a POSIX concept"
+            },
+            {
+              "name": "test_a_run_stuck_in_a_regular_expression_is_still_stopped",
+              "class": "tests.test_platform",
+              "reason": "declared: on Windows the ask is a Python thread, which a regular expression holding the GIL starves"
+            },
+            {
+              "name": "test_the_timer_a_region_set_is_cancelled_whoever_s_sigalrm_ended_it[raised_by_the_script]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_the_timer_a_region_set_is_cancelled_whoever_s_sigalrm_ended_it[a_periodic_timer_of_the_script]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_disarm_cut_short_at_its_call_still_cancels_the_timer",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_the_clock_s_deadline_is_taken_before_the_kernel_s_timer_starts",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_cancel_cut_short_by_the_script_s_handler_is_recorded_at_every_point[chains_it_after_its_except]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_cancel_cut_short_by_the_script_s_handler_is_recorded_at_every_point[exits]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_cancel_cut_short_by_the_script_s_handler_is_recorded_at_every_point[in_a_base_group_after_its_except]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_cancel_cut_short_by_the_script_s_handler_is_recorded_at_every_point[in_a_task_group]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_cancel_cut_short_by_the_script_s_handler_is_recorded_at_every_point[replaces_it_inside_its_except]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_cancel_cut_short_by_the_script_s_handler_is_recorded_at_every_point[turns_it_into_an_error]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_cancel_cut_short_by_the_script_s_handler_is_recorded_at_every_point[wraps_it_twice]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_timer_the_script_sets_after_catching_its_interruption_ends_with_the_run[cancel]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_timer_the_script_sets_after_catching_its_interruption_ends_with_the_run[deadline]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_cancel_cut_short_as_its_region_is_left_is_found_in_what_the_exit_caught[posix]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_windows_disarm_interrupted_holding_the_guard_s_lock_does_not_hang[enter]",
+              "class": "tests.test_platform",
+              "reason": "before 3.14 a `with` calls __enter__ without a CALL, and no signal is handled between its acquiring and the block"
+            },
+            {
+              "name": "test_a_cancel_cut_short_by_a_second_handler_while_the_region_is_left_is_counted",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_the_cut_short_walk_looks_at_chain_limit_exceptions_newest_first[last]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_the_cut_short_walk_looks_at_chain_limit_exceptions_newest_first[first]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_a_cancel_s_interruption_stops_the_deadline_s_timer_at_once",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_settle_looks_at_the_region_s_failure_before_what_the_exit_caught",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_the_readers_record_what_they_read_of_a_tilde_name",
+              "class": "tests.test_platform",
+              "reason": "names POSIX can hold and Windows reads otherwise"
+            },
+            {
+              "name": "test_bin_help_prints_the_whole_header",
+              "class": "tests.test_platform",
+              "reason": "bin/analytics is a POSIX shell script"
+            },
+            {
+              "name": "test_settle_walks_the_failure_and_each_caught_exception_with_a_budget_of_its_own[with_a_large_failure]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_settle_walks_the_failure_and_each_caught_exception_with_a_budget_of_its_own[first_of_many_caught]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_settle_walks_the_failure_and_each_caught_exception_with_a_budget_of_its_own[last_of_many_caught]",
+              "class": "tests.test_platform",
+              "reason": "the POSIX guard's signals"
+            },
+            {
+              "name": "test_the_guard_check_sees_a_second_signal_that_raises_in_the_region",
+              "class": "tests.test_platform_smoke",
+              "reason": "the broken guard stands in for the POSIX one"
+            },
+            {
+              "name": "test_the_deadline_checks_read_both_flags_from_the_guard[_counts_a_cancel_too]",
+              "class": "tests.test_platform_smoke",
+              "reason": "the stub guards stand in for the POSIX one"
+            },
+            {
+              "name": "test_the_deadline_checks_read_both_flags_from_the_guard[_interrupts_without_counting]",
+              "class": "tests.test_platform_smoke",
+              "reason": "the stub guards stand in for the POSIX one"
+            },
+            {
+              "name": "test_the_deadline_checks_settle_with_what_the_region_raised",
+              "class": "tests.test_platform_smoke",
+              "reason": "the stub guard stands in for the POSIX one"
+            },
+            {
+              "name": "test_append_line_does_not_follow_a_link_when_told_not_to",
+              "class": "tests.test_writer",
+              "reason": "a symbolic link needs a privilege on Windows"
+            }
+          ]
+        }
+      ],
+      "smoke": [
+        {
+          "path": "ci-floor-ubuntu-24.04/stdlib-smoke.json",
+          "mode": "stdlib-only",
+          "source": {
+            "head": "a881e0d795c21b8292ffb1897e34a5fcfe800686",
+            "dirty": false
+          },
+          "summary": {
+            "holds": 15,
+            "violated": 0,
+            "declared_limitation": 0,
+            "observed": 3,
+            "not_run": 2
+          },
+          "required": {
+            "platform": "posix",
+            "checks": [
+              "imports_without_analysis_libraries",
+              "lock_excludes_another_process",
+              "lock_released_when_its_holder_is_killed",
+              "replace_while_a_reader_holds_the_file",
+              "liveness_of_a_live_an_exited_and_a_bogus_pid",
+              "interrupt_asks_a_python_child_or_declines",
+              "kill_tree_ends_the_child_and_its_grandchild",
+              "kill_tree_after_the_leader_exited",
+              "deadline_interrupts_python_code",
+              "deadline_interrupts_a_sleep",
+              "the_cancel_request_wakes_a_sleeping_run",
+              "the_guard_records_outside_regions_and_interrupts_inside_once",
+              "base_env_is_enough_to_start_a_child",
+              "file_url_leads_back_to_the_file",
+              "utf8_survives_a_pipe"
+            ],
+            "violated": [],
+            "declared_limitation": [],
+            "not_run": [],
+            "hold": true
+          }
+        },
+        {
+          "path": "ci-floor-windows-2025/stdlib-smoke.json",
+          "mode": "stdlib-only",
+          "source": {
+            "head": "a881e0d795c21b8292ffb1897e34a5fcfe800686",
+            "dirty": false
+          },
+          "summary": {
+            "holds": 14,
+            "violated": 0,
+            "declared_limitation": 1,
+            "observed": 3,
+            "not_run": 2
+          },
+          "required": {
+            "platform": "windows",
+            "checks": [
+              "imports_without_analysis_libraries",
+              "lock_excludes_another_process",
+              "lock_released_when_its_holder_is_killed",
+              "replace_while_a_reader_holds_the_file",
+              "liveness_of_a_live_an_exited_and_a_bogus_pid",
+              "interrupt_asks_a_python_child_or_declines",
+              "kill_tree_ends_the_child_and_its_grandchild",
+              "kill_tree_after_the_leader_exited",
+              "deadline_interrupts_python_code",
+              "deadline_interrupts_a_sleep",
+              "the_cancel_request_wakes_a_sleeping_run",
+              "the_guard_records_outside_regions_and_interrupts_inside_once",
+              "base_env_is_enough_to_start_a_child",
+              "file_url_leads_back_to_the_file",
+              "utf8_survives_a_pipe"
+            ],
+            "violated": [],
+            "declared_limitation": [
+              "kill_tree_after_the_leader_exited"
+            ],
+            "not_run": [],
+            "hold": true
+          }
+        },
+        {
+          "path": "ci-platform-ubuntu-24.04/smoke.json",
+          "mode": "full",
+          "source": {
+            "head": "a881e0d795c21b8292ffb1897e34a5fcfe800686",
+            "dirty": false
+          },
+          "summary": {
+            "holds": 25,
+            "violated": 0,
+            "declared_limitation": 0,
+            "observed": 6,
+            "not_run": 0
+          },
+          "required": {
+            "platform": "posix",
+            "checks": [
+              "imports_without_analysis_libraries",
+              "lock_excludes_another_process",
+              "lock_released_when_its_holder_is_killed",
+              "replace_while_a_reader_holds_the_file",
+              "liveness_of_a_live_an_exited_and_a_bogus_pid",
+              "interrupt_asks_a_python_child_or_declines",
+              "kill_tree_ends_the_child_and_its_grandchild",
+              "kill_tree_after_the_leader_exited",
+              "deadline_interrupts_python_code",
+              "deadline_interrupts_a_sleep",
+              "the_cancel_request_wakes_a_sleeping_run",
+              "the_guard_records_outside_regions_and_interrupts_inside_once",
+              "base_env_is_enough_to_start_a_child",
+              "file_url_leads_back_to_the_file",
+              "utf8_survives_a_pipe",
+              "cli_end_to_end",
+              "cli_run_timeout_in_python_code",
+              "cli_run_timeout_in_a_blocking_duckdb_query",
+              "cli_cancel_the_way_the_extension_does",
+              "cli_cancel_reaches_a_run_inside_a_regular_expression",
+              "cli_cancel_reaches_a_run_waiting_on_a_subprocess",
+              "cli_concurrent_runs_are_serialized",
+              "cli_refuses_a_new_reserved_dataset_name",
+              "cli_writes_a_reserved_chart_id_to_a_portable_file",
+              "cli_a_script_saving_a_reserved_name_is_warned_about"
+            ],
+            "violated": [],
+            "declared_limitation": [],
+            "not_run": [],
+            "hold": true
+          }
+        },
+        {
+          "path": "ci-platform-windows-2025/smoke.json",
+          "mode": "full",
+          "source": {
+            "head": "a881e0d795c21b8292ffb1897e34a5fcfe800686",
+            "dirty": false
+          },
+          "summary": {
+            "holds": 21,
+            "violated": 0,
+            "declared_limitation": 3,
+            "observed": 7,
+            "not_run": 0
+          },
+          "required": {
+            "platform": "windows",
+            "checks": [
+              "imports_without_analysis_libraries",
+              "lock_excludes_another_process",
+              "lock_released_when_its_holder_is_killed",
+              "replace_while_a_reader_holds_the_file",
+              "liveness_of_a_live_an_exited_and_a_bogus_pid",
+              "interrupt_asks_a_python_child_or_declines",
+              "kill_tree_ends_the_child_and_its_grandchild",
+              "kill_tree_after_the_leader_exited",
+              "deadline_interrupts_python_code",
+              "deadline_interrupts_a_sleep",
+              "the_cancel_request_wakes_a_sleeping_run",
+              "the_guard_records_outside_regions_and_interrupts_inside_once",
+              "base_env_is_enough_to_start_a_child",
+              "file_url_leads_back_to_the_file",
+              "utf8_survives_a_pipe",
+              "cli_end_to_end",
+              "cli_run_timeout_in_python_code",
+              "cli_run_timeout_in_a_blocking_duckdb_query",
+              "cli_cancel_the_way_the_extension_does",
+              "cli_cancel_reaches_a_run_inside_a_regular_expression",
+              "cli_cancel_reaches_a_run_waiting_on_a_subprocess",
+              "cli_concurrent_runs_are_serialized",
+              "cli_refuses_a_new_reserved_dataset_name",
+              "cli_writes_a_reserved_chart_id_to_a_portable_file"
+            ],
+            "violated": [],
+            "declared_limitation": [
+              "kill_tree_after_the_leader_exited",
+              "cli_cancel_reaches_a_run_inside_a_regular_expression",
+              "cli_cancel_reaches_a_run_waiting_on_a_subprocess"
+            ],
+            "not_run": [],
+            "hold": true
+          }
+        }
+      ],
+      "docs": [
+        {
+          "path": "ci-lint/docs.json",
+          "ok": true,
+          "counts": {
+            "json_files": 14,
+            "markdown_files": 68,
+            "local_links": 736,
+            "python_examples": 6,
+            "json_examples": 7,
+            "dev_state_examples": 1
+          },
+          "errors": []
+        }
+      ],
+      "artifact_files": 401,
+      "artifact_manifest_sha256": "f95d40745cf7457d358a1ceb3af98a4db0ca0d88528cf194335aeab43b9c2e57",
+      "artifacts": [
+        {
+          "id": 11629876916,
+          "name": "ci-platform-windows-2025",
+          "size_in_bytes": 297591,
+          "digest": "sha256:a11b6b7849f2c169ad5f06b9d976323c69993cecf7cac01a4a3dff2c902d4e6d",
+          "expired": false
+        },
+        {
+          "id": 11627443538,
+          "name": "ci-platform-ubuntu-24.04",
+          "size_in_bytes": 248709,
+          "digest": "sha256:5921acb67563888fabb36179210324eb78474492e2b94b5509e28fa6b5e3d898",
+          "expired": false
+        },
+        {
+          "id": 11627115995,
+          "name": "ci-lint",
+          "size_in_bytes": 13830,
+          "digest": "sha256:d36a0786232f54232426788e9c44056cc5532e23f2e138084b8f70a9afd611f5",
+          "expired": false
+        },
+        {
+          "id": 11627110255,
+          "name": "ci-floor-windows-2025",
+          "size_in_bytes": 3734,
+          "digest": "sha256:65ce1806baf9cbc5082aa7d22b3a0edd8f8dbd5463372f8270ee626b14d465e5",
+          "expired": false
+        },
+        {
+          "id": 11625938953,
+          "name": "ci-floor-ubuntu-24.04",
+          "size_in_bytes": 2789,
+          "digest": "sha256:bfca4394505f31ce05842e4501a66bf197e651f85ee5241ac9c45f3d79d01932",
+          "expired": false
+        }
+      ]
     },
     "macos": {
-      "result": "not_run",
-      "run_id": null,
-      "head_sha": null
+      "result": "pass",
+      "run_id": 37947977296,
+      "attempt": 1,
+      "head_sha": "a881e0d795c21b8292ffb1897e34a5fcfe800686",
+      "url": "https://github.com/handochan/aelix-analytics/actions/runs/37947977296",
+      "jobs": [
+        {
+          "id": 113879106709,
+          "name": "floor · macos-26 · CPython 3.11, stdlib only",
+          "conclusion": "success"
+        },
+        {
+          "id": 113879107138,
+          "name": "platform · macos-26",
+          "conclusion": "success"
+        },
+        {
+          "id": 113879108540,
+          "name": "lint · ruff and documents",
+          "conclusion": "skipped"
+        }
+      ],
+      "contexts": [
+        {
+          "path": "ci-floor-macos-26/context.json",
+          "head_sha": "a881e0d795c21b8292ffb1897e34a5fcfe800686",
+          "run_id": "37947977296",
+          "attempt": "1",
+          "os": "macOS",
+          "job": "floor",
+          "action": "labeled",
+          "label": "ci:macos"
+        },
+        {
+          "path": "ci-platform-macos-26/context.json",
+          "head_sha": "a881e0d795c21b8292ffb1897e34a5fcfe800686",
+          "run_id": "37947977296",
+          "attempt": "1",
+          "os": "macOS",
+          "job": "platform",
+          "action": "labeled",
+          "label": "ci:macos"
+        }
+      ],
+      "junit": [
+        {
+          "path": "ci-platform-macos-26/aelix-py3.11.xml",
+          "tests": 971,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 971,
+          "seconds": 51.284,
+          "skips": []
+        },
+        {
+          "path": "ci-platform-macos-26/aelix-py3.12.xml",
+          "tests": 971,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 971,
+          "seconds": 48.452,
+          "skips": []
+        },
+        {
+          "path": "ci-platform-macos-26/launcher-py3.11.xml",
+          "tests": 197,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 1,
+          "passed": 196,
+          "seconds": 17.481,
+          "skips": [
+            {
+              "name": "test_a_ctrl_c_while_a_child_starts_is_not_sent_again_on_windows",
+              "class": "tests.test_launcher",
+              "reason": "what Windows does; POSIX sends it again (the test above)"
+            }
+          ]
+        },
+        {
+          "path": "ci-platform-macos-26/suite.xml",
+          "tests": 2098,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 76,
+          "passed": 2022,
+          "seconds": 761.642,
+          "skips": [
+            {
+              "name": "tests.test_agent_cli",
+              "class": "",
+              "reason": "collection skipped"
+            },
+            {
+              "name": "tests.test_extension",
+              "class": "",
+              "reason": "collection skipped"
+            },
+            {
+              "name": "tests.test_usage_report",
+              "class": "",
+              "reason": "collection skipped"
+            },
+            {
+              "name": "test_every_implementation_offers_each_port_whole[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_lock_makes_its_directory_and_file_and_keeps_their_bytes[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_lock_is_free_after_its_body_even_one_that_raised[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_lock_excludes_another_process[recording]",
+              "class": "tests.test_contracts",
+              "reason": "the recording implementation does not declare that it excludes other processes"
+            },
+            {
+              "name": "test_a_lock_excludes_another_process[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_trying_a_lock_says_whether_it_made_the_file_and_keeps_its_bytes[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_trying_a_lock_never_makes_its_directory[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_trying_a_lock_is_free_after_its_body_even_one_that_raised[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_lock_held_is_busy_to_a_try_in_the_same_process[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_lock_file_that_cannot_be_written_is_tried_through_reading[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_lock_file_that_cannot_be_created_is_unavailable[recording]",
+              "class": "tests.test_contracts",
+              "reason": "the recording implementation does not declare that it honours a folder's permissions"
+            },
+            {
+              "name": "test_a_lock_file_that_cannot_be_created_is_unavailable[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_trying_a_lock_another_process_holds_is_busy_at_once[recording-exclusive]",
+              "class": "tests.test_contracts",
+              "reason": "the recording implementation does not declare that it excludes other processes"
+            },
+            {
+              "name": "test_trying_a_lock_another_process_holds_is_busy_at_once[recording-try_exclusive]",
+              "class": "tests.test_contracts",
+              "reason": "the recording implementation does not declare that it excludes other processes"
+            },
+            {
+              "name": "test_trying_a_lock_another_process_holds_is_busy_at_once[windows-exclusive]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_trying_a_lock_another_process_holds_is_busy_at_once[windows-try_exclusive]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_replacement_puts_the_new_bytes_in_place[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_replacement_that_cannot_happen_is_raised_not_lost[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_publishing_a_new_name_puts_the_bytes_there_and_the_temporary_name_goes[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_publishing_never_overwrites_what_is_there[windows-file]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_publishing_never_overwrites_what_is_there[windows-directory]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_publishing_never_overwrites_what_is_there[windows-empty file]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_file_system_without_links_is_told_and_nothing_changes[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_renaming_to_a_new_name_puts_the_bytes_there_and_the_old_name_goes[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_renaming_never_overwrites_what_is_there[windows-file]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_renaming_never_overwrites_what_is_there[windows-directory]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_renaming_never_overwrites_what_is_there[windows-empty file]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_system_without_the_exclusive_rename_is_told_and_nothing_changes[recording-ENOTSUP]",
+              "class": "tests.test_contracts",
+              "reason": "the stand-in has no C call to fail"
+            },
+            {
+              "name": "test_a_system_without_the_exclusive_rename_is_told_and_nothing_changes[recording-EINVAL]",
+              "class": "tests.test_contracts",
+              "reason": "the stand-in has no C call to fail"
+            },
+            {
+              "name": "test_a_system_without_the_exclusive_rename_is_told_and_nothing_changes[recording-ENOSYS]",
+              "class": "tests.test_contracts",
+              "reason": "the stand-in has no C call to fail"
+            },
+            {
+              "name": "test_a_system_without_the_exclusive_rename_is_told_and_nothing_changes[windows-no call]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_system_without_the_exclusive_rename_is_told_and_nothing_changes[windows-ENOTSUP]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_system_without_the_exclusive_rename_is_told_and_nothing_changes[windows-EINVAL]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_system_without_the_exclusive_rename_is_told_and_nothing_changes[windows-ENOSYS]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_flushing_writes_through_and_hides_no_error[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_value_that_cannot_be_a_pid_is_not_alive[windows-0]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_value_that_cannot_be_a_pid_is_not_alive[windows--1]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_value_that_cannot_be_a_pid_is_not_alive[windows-1099511627776]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_value_that_cannot_be_a_pid_is_not_alive[windows-x]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_value_that_cannot_be_a_pid_is_not_alive[windows-None]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_value_that_cannot_be_a_pid_is_not_alive[windows-True]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_this_process_is_alive[recording]",
+              "class": "tests.test_contracts",
+              "reason": "the recording implementation does not declare that it sees running processes"
+            },
+            {
+              "name": "test_this_process_is_alive[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_child_s_settings_are_plain_values[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_guard_starts_unmarked_and_puts_back_what_it_replaced[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_region_nothing_disturbs_leaves_no_mark[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_deadline_interrupts_its_region_and_is_marked[recording]",
+              "class": "tests.test_contracts",
+              "reason": "the recording implementation does not declare that it interrupts a region"
+            },
+            {
+              "name": "test_a_deadline_interrupts_its_region_and_is_marked[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_watching_for_a_cancel_stops_when_asked[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_the_injected_implementation_is_the_one_used[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_a_run_goes_through_the_injected_implementation[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_every_implementation_writes_what_the_process_default_writes[windows]",
+              "class": "tests.test_contracts",
+              "reason": "the Windows implementation runs on the Windows leg"
+            },
+            {
+              "name": "test_m_has_its_sizes_and_cases_and_is_the_seed_s",
+              "class": "tests.test_eval_fixtures",
+              "reason": "M writes about 440 MB twice; set AELIX_ANALYTICS_TEST_SCALE_M=1"
+            },
+            {
+              "name": "test_a_ctrl_c_while_a_child_starts_is_not_sent_again_on_windows",
+              "class": "tests.test_launcher",
+              "reason": "what Windows does; POSIX sends it again (the test above)"
+            },
+            {
+              "name": "test_what_a_dry_run_refuses_first_is_a_name_that_is_not_utf8",
+              "class": "tests.test_migrate_command",
+              "reason": "a name that is not UTF-8: Linux's file systems keep one, APFS and NTFS refuse it"
+            },
+            {
+              "name": "test_a_migration_onto_a_file_system_of_another_kind[-]",
+              "class": "tests.test_migrate_command",
+              "reason": "AELIX_ANALYTICS_TEST_FOREIGN_FS names no folder on another file system (a FAT or exFAT volume, say)"
+            },
+            {
+              "name": "test_the_appledouble_rule_on_a_file_system_of_another_kind[-]",
+              "class": "tests.test_migrate_command",
+              "reason": "AELIX_ANALYTICS_TEST_FOREIGN_FS names no folder on another file system (a FAT or exFAT volume, say)"
+            },
+            {
+              "name": "test_a_name_that_is_not_utf8_is_refused",
+              "class": "tests.test_migration",
+              "reason": "a name not UTF-8: Linux keeps the bytes it is given"
+            },
+            {
+              "name": "test_a_source_file_another_program_holds_open_is_reported",
+              "class": "tests.test_migration",
+              "reason": "a file another process holds open without sharing: Windows"
+            },
+            {
+              "name": "test_a_case_variant_dataset_in_a_case_sensitive_windows_directory",
+              "class": "tests.test_path_identity",
+              "reason": "a directory flagged case-sensitive is Windows'"
+            },
+            {
+              "name": "test_a_short_name_of_a_directory_in_the_project_is_recorded_by_its_long_name",
+              "class": "tests.test_path_identity",
+              "reason": "8.3 short names are Windows'"
+            },
+            {
+              "name": "test_a_taskkill_in_the_working_directory_is_not_the_one_that_runs",
+              "class": "tests.test_platform",
+              "reason": "taskkill and CreateProcess's search are Windows'"
+            },
+            {
+              "name": "test_a_project_in_a_case_sensitive_windows_directory_reads_runs_in_another_case_as_linux",
+              "class": "tests.test_platform",
+              "reason": "a directory flagged case-sensitive is Windows'"
+            },
+            {
+              "name": "test_a_windows_disarm_interrupted_holding_the_guard_s_lock_does_not_hang[enter]",
+              "class": "tests.test_platform",
+              "reason": "before 3.14 a `with` calls __enter__ without a CALL, and no signal is handled between its acquiring and the block"
+            },
+            {
+              "name": "test_a_scanned_name_a_record_cannot_hold_is_left_out",
+              "class": "tests.test_platform",
+              "reason": "this file system refuses a name that is not UTF-8: OSError(92, 'Illegal byte sequence')"
+            },
+            {
+              "name": "test_a_scanned_name_in_a_directory_a_record_cannot_hold_is_left_out",
+              "class": "tests.test_platform",
+              "reason": "this file system refuses a name that is not UTF-8: OSError(92, 'Illegal byte sequence')"
+            },
+            {
+              "name": "test_a_root_under_max_path_records_and_reports_outputs_past_it",
+              "class": "tests.test_windows_long_paths",
+              "reason": "MAX_PATH and LongPathsEnabled are Windows'"
+            },
+            {
+              "name": "test_the_extension_cannot_start_a_kit_command_in_a_root_past_max_path",
+              "class": "tests.test_windows_long_paths",
+              "reason": "MAX_PATH and LongPathsEnabled are Windows'"
+            },
+            {
+              "name": "test_the_extension_s_in_process_commands_work_in_a_root_past_max_path",
+              "class": "tests.test_windows_long_paths",
+              "reason": "MAX_PATH and LongPathsEnabled are Windows'"
+            },
+            {
+              "name": "test_lab_init_into_a_root_past_max_path_makes_the_project_then_fails_its_sync",
+              "class": "tests.test_windows_long_paths",
+              "reason": "MAX_PATH and LongPathsEnabled are Windows'"
+            },
+            {
+              "name": "test_no_program_starts_with_a_working_directory_past_max_path",
+              "class": "tests.test_windows_long_paths",
+              "reason": "MAX_PATH and LongPathsEnabled are Windows'"
+            },
+            {
+              "name": "test_the_launcher_from_a_short_directory_with_lab_project_past_max_path",
+              "class": "tests.test_windows_long_paths",
+              "reason": "MAX_PATH and LongPathsEnabled are Windows'"
+            },
+            {
+              "name": "test_a_migration_into_a_destination_past_max_path",
+              "class": "tests.test_windows_long_paths",
+              "reason": "MAX_PATH and LongPathsEnabled are Windows'"
+            }
+          ]
+        }
+      ],
+      "smoke": [
+        {
+          "path": "ci-floor-macos-26/stdlib-smoke.json",
+          "mode": "stdlib-only",
+          "source": {
+            "head": "a881e0d795c21b8292ffb1897e34a5fcfe800686",
+            "dirty": false
+          },
+          "summary": {
+            "holds": 15,
+            "violated": 0,
+            "declared_limitation": 0,
+            "observed": 3,
+            "not_run": 2
+          },
+          "required": {
+            "platform": "posix",
+            "checks": [
+              "imports_without_analysis_libraries",
+              "lock_excludes_another_process",
+              "lock_released_when_its_holder_is_killed",
+              "replace_while_a_reader_holds_the_file",
+              "liveness_of_a_live_an_exited_and_a_bogus_pid",
+              "interrupt_asks_a_python_child_or_declines",
+              "kill_tree_ends_the_child_and_its_grandchild",
+              "kill_tree_after_the_leader_exited",
+              "deadline_interrupts_python_code",
+              "deadline_interrupts_a_sleep",
+              "the_cancel_request_wakes_a_sleeping_run",
+              "the_guard_records_outside_regions_and_interrupts_inside_once",
+              "base_env_is_enough_to_start_a_child",
+              "file_url_leads_back_to_the_file",
+              "utf8_survives_a_pipe"
+            ],
+            "violated": [],
+            "declared_limitation": [],
+            "not_run": [],
+            "hold": true
+          }
+        },
+        {
+          "path": "ci-platform-macos-26/smoke.json",
+          "mode": "full",
+          "source": {
+            "head": "a881e0d795c21b8292ffb1897e34a5fcfe800686",
+            "dirty": false
+          },
+          "summary": {
+            "holds": 25,
+            "violated": 0,
+            "declared_limitation": 0,
+            "observed": 6,
+            "not_run": 0
+          },
+          "required": {
+            "platform": "posix",
+            "checks": [
+              "imports_without_analysis_libraries",
+              "lock_excludes_another_process",
+              "lock_released_when_its_holder_is_killed",
+              "replace_while_a_reader_holds_the_file",
+              "liveness_of_a_live_an_exited_and_a_bogus_pid",
+              "interrupt_asks_a_python_child_or_declines",
+              "kill_tree_ends_the_child_and_its_grandchild",
+              "kill_tree_after_the_leader_exited",
+              "deadline_interrupts_python_code",
+              "deadline_interrupts_a_sleep",
+              "the_cancel_request_wakes_a_sleeping_run",
+              "the_guard_records_outside_regions_and_interrupts_inside_once",
+              "base_env_is_enough_to_start_a_child",
+              "file_url_leads_back_to_the_file",
+              "utf8_survives_a_pipe",
+              "cli_end_to_end",
+              "cli_run_timeout_in_python_code",
+              "cli_run_timeout_in_a_blocking_duckdb_query",
+              "cli_cancel_the_way_the_extension_does",
+              "cli_cancel_reaches_a_run_inside_a_regular_expression",
+              "cli_cancel_reaches_a_run_waiting_on_a_subprocess",
+              "cli_concurrent_runs_are_serialized",
+              "cli_refuses_a_new_reserved_dataset_name",
+              "cli_writes_a_reserved_chart_id_to_a_portable_file",
+              "cli_a_script_saving_a_reserved_name_is_warned_about"
+            ],
+            "violated": [],
+            "declared_limitation": [],
+            "not_run": [],
+            "hold": true
+          }
+        }
+      ],
+      "docs": [],
+      "artifact_files": 182,
+      "artifact_manifest_sha256": "7e12808a2dd63106d373bb2960f2a24a7ff12bf94728f60b13f02ef169b139b4",
+      "artifacts": [
+        {
+          "id": 11627932031,
+          "name": "ci-platform-macos-26",
+          "size_in_bytes": 252544,
+          "digest": "sha256:5e9b442f48b2e76e64508a63df68ad423bf10912e6b3104100206cffd5c2d10b",
+          "expired": false
+        },
+        {
+          "id": 11626767139,
+          "name": "ci-floor-macos-26",
+          "size_in_bytes": 2861,
+          "digest": "sha256:2b68a2c023f9ef73995a64a53a58bed9e85ada8f5da0cda668a7947694ea6a2f",
+          "expired": false
+        }
+      ]
     },
     "superseded_trials": [
       {
@@ -252,5 +3565,9 @@
     "A result and recorded code/data are linked at run grain, not function-level execution lineage.",
     "An in-run pending reply acknowledges a queued private payload, not final append; later input refs may exceed the journal line limit.",
     "Structured readers distinguish unstructured/invalid payloads; they do not fill historical metadata from current definitions."
-  ]
+  ],
+  "final_document_head_ci": {
+    "result": "not_run",
+    "note": "Docs-only completion commit will receive freshCI; source222file manifest matches passedCI head. Final run evidence belongs in PR/local handoff, not an endless document-commit loop."
+  }
 }
