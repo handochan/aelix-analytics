@@ -1,0 +1,133 @@
+{
+  "schema": "aelix-analytics.verification/1",
+  "issue": 14,
+  "recorded_at": "2026-10-09T13:45:34.400282+00:00",
+  "status": "pending_review_and_ci",
+  "measured_tree": {
+    "commit": "63f954e2b1c013e89283a751fda681fa75f26181",
+    "manifest_files": 223,
+    "manifest_sha256": "36707e9b2af5049acacdbd6a247c4c3a33c0bdab6ea570a3e9fd28985f715ed0",
+    "includes": [
+      "src/",
+      "extension/",
+      "tests/",
+      "tools/",
+      "bin/",
+      ".github/workflows/",
+      "pyproject.toml",
+      "uv.lock",
+      "docs/schemas/analytics-records.schema.json"
+    ]
+  },
+  "implementation": {
+    "kit_version": "0.9.0",
+    "record_family": "analytics.event/2",
+    "detail_contracts": [
+      "metric_definition/1",
+      "analysis_focus/1",
+      "metric_observation/1"
+    ],
+    "new_model_tools": 0,
+    "shared_entrypoints": [
+      "CLI record --details-json/--refs-json",
+      "SDK analytics.record(refs=,details=)",
+      "analytics_record tool details+typed refs"
+    ],
+    "calculation_check_default": "unverified"
+  },
+  "design_reviews": {
+    "target": "a9b54b231b34207bdb925e50bd606767c5fba186",
+    "independent": "complete; D14-I1 fixed",
+    "codex": "complete; no blocking findings",
+    "correction": "5607c7981aa950d86dba7eaaaae3718450d4cbce",
+    "correction_check": "pass",
+    "dispositions": {
+      "D14-I1": "Reject caller state-changing refs for structured records; details generate exact relationships; checked under lock"
+    }
+  },
+  "implementation_reviews": {
+    "independent": "not_run",
+    "codex": "not_run",
+    "target": null
+  },
+  "local": {
+    "focused": {
+      "result": "pass",
+      "commit": "63f954e2b1c013e89283a751fda681fa75f26181",
+      "command": "uv run --locked pytest -q tests/test_metrics.py tests/test_writer.py tests/test_layers.py tests/test_marker_gate.py tests/test_run_views.py tests/test_record_contract.py --timeout 600 --timeout-method=thread",
+      "tests_passed": 386,
+      "duration_seconds": 30.01
+    },
+    "earlier_focused": {
+      "result": "pass",
+      "tests_passed": 385,
+      "duration_seconds": 29.61,
+      "source": "dirty implementation before1108110; later metadata hardening remeasured separately"
+    },
+    "lint": {
+      "result": "pass",
+      "command": "uv run --locked ruff check tests extension src tools"
+    },
+    "docs": {
+      "result": "pass",
+      "files": {
+        "markdown": 67,
+        "json": 13,
+        "local_links": 736
+      }
+    },
+    "full_suite": {
+      "result": "pending",
+      "started_commit": "1108110e432072971a1e9d79ca85a9e90b7ea988",
+      "source_note": "Historical metadata hardening/test added while suite pending; final exact-head CI required. Parent HOME and all aelix/trust/config paths are task-scoped."
+    },
+    "aelix_py312": {
+      "result": "pass",
+      "started_commit": "1108110e432072971a1e9d79ca85a9e90b7ea988",
+      "scope": "host model-free tests only, with task-scoped parent HOME; no actual model session",
+      "tests_passed": 964,
+      "duration_seconds": 56.92,
+      "source_note": "Started1108110 and historical metadata hardening landed before suite ended; exact final focused suite separately passed and final CI must be exact head."
+    }
+  },
+  "ci": {
+    "linux_windows": {
+      "result": "not_run",
+      "run_id": null,
+      "head_sha": null
+    },
+    "macos": {
+      "result": "not_run",
+      "run_id": null,
+      "head_sha": null
+    }
+  },
+  "validated_cases": [
+    "unregistered Python exploration",
+    "draft candidates/multiple metrics and roles",
+    "exact definition revisions/parents with original journal bytes",
+    "same-definition scope observations and code-only recomputation",
+    "no implied calculation from run purpose",
+    "focus preserved at run start despite later direction changes",
+    "payload-owned transitions reject unrelated caller state changes",
+    "under-lock concurrency state conflict",
+    "failed/cancelled run observations retain separate statuses",
+    "partial observation write failure surfaced in finalize_errors",
+    "CLI/outside and inside SDK common payloads",
+    "legacy unstructured records preserved",
+    "large result reference to recorded output"
+  ],
+  "not_run": [
+    "real model E2E and tokenizer/token cost",
+    "user project migration or writes",
+    "definition formula/causal correctness checking",
+    "foreign filesystem experiment",
+    "release/publication",
+    "follow-on search/checkpoint/UI gates"
+  ],
+  "limitations": [
+    "A result and recorded code/data are linked at run grain, not function-level execution lineage.",
+    "An in-run pending reply acknowledges a queued private payload, not final append; later input refs may exceed the journal line limit.",
+    "Structured readers distinguish unstructured/invalid payloads; they do not fill historical metadata from current definitions."
+  ]
+}
