@@ -577,6 +577,150 @@ def test_what_still_works_in_the_work_root_is_waited_for_then_stopped(tmp_path):
     assert me.settle(work, timeout=1)["processes"] == []
 
 
+@pytest.fixture
+def settle_clock(monkeypatch):
+    """Advance time instead of waiting minutes for a stuck or continually replaced writer."""
+    clock = [0.0]
+    monkeypatch.setattr(me.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(me.time, "sleep", lambda seconds: clock.__setitem__(0, clock[0] + seconds))
+    monkeypatch.setitem(me.STOP, "signals", 0)
+    return clock
+
+
+def test_settle_bounds_a_stream_of_new_writers_and_reports_the_last_one(tmp_path, monkeypatch,
+                                                                    settle_clock):
+    calls = [0]
+    stopped = []
+
+    def table(**kwargs):
+        calls[0] += 1
+        settle_clock[0] += min(1, kwargs.get("timeout", 1))
+        return {10_000 + calls[0]: (0, f"late-builder {tmp_path}")}
+
+    monkeypatch.setattr(me, "process_table", table)
+    monkeypatch.setattr(me, "holders", lambda *args, **kwargs: None)
+    monkeypatch.setattr(me, "stop_processes", lambda pids, **kwargs: stopped.extend(pids))
+    result = me.settle(tmp_path, timeout=2)
+    assert result["waited_s"] <= 32
+    assert result["max_wait_s"] == 32 and result["deadline_reached"]
+    assert result["left"] and stopped
+    last = next(p for p in result["processes"] if p["pid"] == result["left"][0])
+    assert last["args"].startswith("late-builder ") and last["why"] == ["command line"]
+
+
+def test_settle_bounds_probes_and_preserves_names_if_the_next_probe_times_out(tmp_path, monkeypatch,
+                                                                            settle_clock):
+    budgets = []
+
+    def table(*, timeout):
+        budgets.append(timeout)
+        if len(budgets) == 1:
+            return {10_001: (0, f"stuck-builder {tmp_path}")}
+        settle_clock[0] += timeout
+        return None
+
+    monkeypatch.setattr(me, "process_table", table)
+    monkeypatch.setattr(me, "holders", lambda *args, **kwargs: None)
+    result = me.settle(tmp_path, timeout=2)
+    assert not result["checked"] and result["deadline_reached"]
+    assert result["waited_s"] == 32 and budgets[1] < budgets[0] == 32
+    assert result["left"] == [10_001]
+    assert result["processes"][0]["args"].startswith("stuck-builder ")
+
+
+def test_settle_reports_a_survivor_as_failed_scan(tmp_path, monkeypatch, settle_clock):
+    monkeypatch.setattr(me, "process_table", lambda **kwargs: {10_001: (0, f"stuck-builder {tmp_path}")})
+    monkeypatch.setattr(me, "holders", lambda *args, **kwargs: None)
+    stopped = []
+    monkeypatch.setattr(me, "stop_processes", lambda pids, **kwargs: stopped.extend(pids))
+    result = me.settle(tmp_path, timeout=1)
+    assert result["left"] == [10_001] and result["stopped"] == [] and stopped == [10_001]
+    scan = me.scan_run(tmp_path, None, set(), {"settle": result})
+    assert scan["status"] == "failed" and "writers_left" in scan["problems"]
+
+
+def test_interrupted_settle_has_only_the_stop_budget(tmp_path, monkeypatch, settle_clock):
+    monkeypatch.setitem(me.STOP, "signals", 1)
+    calls = [0]
+
+    def table(**kwargs):
+        calls[0] += 1
+        return {10_000 + calls[0]: (0, f"late-builder {tmp_path}")}
+
+    def stop(*args, timeout, **kwargs):
+        settle_clock[0] += timeout
+
+    monkeypatch.setattr(me, "process_table", table)
+    monkeypatch.setattr(me, "holders", lambda *args, **kwargs: None)
+    monkeypatch.setattr(me, "stop_processes", stop)
+    result = me.settle(tmp_path)
+    assert result["waited_s"] == result["max_wait_s"] == 30
+    assert not result["checked"] and result["left"] == [10_001]
+
+
+def test_settle_does_not_pass_when_the_holders_query_exhausts_the_budget(tmp_path, monkeypatch,
+                                                                      settle_clock):
+    monkeypatch.setattr(me, "process_table", lambda **kwargs: {})
+
+    def held(paths, *, timeout):
+        settle_clock[0] += timeout
+        return None
+
+    monkeypatch.setattr(me, "holders", held)
+    result = me.settle(tmp_path, timeout=1)
+    assert not result["checked"] and result["deadline_reached"]
+    assert result["waited_s"] == result["max_wait_s"] == 31
+    scan = me.scan_run(tmp_path, None, set(), {"settle": result})
+    assert scan["status"] == "failed" and "processes_unchecked" in scan["problems"]
+
+
+def test_interrupted_settle_caps_its_first_slow_probe(tmp_path, monkeypatch, settle_clock):
+    monkeypatch.setitem(me.STOP, "signals", 1)
+    budgets = []
+
+    def table(*, timeout):
+        budgets.append(timeout)
+        settle_clock[0] += timeout
+        return None
+
+    monkeypatch.setattr(me, "process_table", table)
+    result = me.settle(tmp_path)
+    assert budgets == [30]
+    assert not result["checked"] and result["waited_s"] == result["max_wait_s"] == 30
+
+
+def test_settle_leaves_the_harness_and_launcher_alone(tmp_path, monkeypatch, settle_clock):
+    monkeypatch.setattr(me, "process_table", lambda **kwargs: {
+        os.getpid(): (0, f"harness {tmp_path}"), 10_001: (0, f"launcher {tmp_path}")})
+    monkeypatch.setattr(me, "holders", lambda *args, **kwargs: {
+        os.getpid(): "working directory", 10_001: "working directory"})
+    monkeypatch.setattr(me, "stop_processes", lambda *args, **kwargs: pytest.fail("must not stop them"))
+    assert me.settle(tmp_path, exclude={10_001})["processes"] == []
+
+
+def test_windows_stops_share_one_budget_even_when_taskkill_times_out(monkeypatch, settle_clock):
+    class Windows:
+        name = "nt"
+
+        @staticmethod
+        def system_program(name):
+            return name
+
+    calls = []
+
+    def run(argv, *, timeout, **kwargs):
+        calls.append((argv, timeout))
+        settle_clock[0] += timeout
+        raise subprocess.TimeoutExpired(argv, timeout)
+
+    monkeypatch.setattr(me, "os", Windows)
+    monkeypatch.setattr(me, "processes", Windows)
+    monkeypatch.setattr(me.subprocess, "run", run)
+    me.stop_processes([10_001, 10_002], timeout=3)
+    assert calls == [(["taskkill.exe", "/F", "/T", "/PID", "10001"], 3)]
+    assert settle_clock[0] == 3
+
+
 def dummy_login() -> tuple[str, str, str, str]:
     """A JWT, a refresh token, an API key and an opaque bearer token: dummies of the login's shapes,
     built here so that no file holds one."""
@@ -1088,8 +1232,9 @@ def same_path(printed: str, path: Path) -> bool:
     return os.path.normcase(printed) == os.path.normcase(str(path))
 
 
+@pytest.mark.parametrize("_repeat", range(3) if os.name == "nt" else [0])
 def test_the_child_gets_no_credential_variable_and_the_runs_own_home(aelix_command, fixtures, tmp_path,
-                                                                     monkeypatch):
+                                                                 monkeypatch, _repeat):
     root, _ = fixtures
     _, refresh, _, opaque = dummy_login()
     monkeypatch.setenv("EVAL_PROBE_IDE_AUTH_TOKEN", opaque)
@@ -1103,8 +1248,10 @@ def test_the_child_gets_no_credential_variable_and_the_runs_own_home(aelix_comma
         bash("env | grep -E '^(EVAL_PROBE_|AELIX_SETTINGS_PATH|PI_EVAL_PROBE|HOME=)' > env.txt; echo ~ > home.txt"),
         ANSWER])
     out = tmp_path / "out"
-    assert me.main(run_args(root, tmp_path, out, script)) == 0
+    code = me.main(run_args(root, tmp_path, out, script))
     run = out / "runs" / "T06-dry-run-default-unrequested-r1"
+    record = json.loads((run / "run.json").read_text(encoding="utf-8"))
+    assert code == 0, record.get("after_exit")  # redacted process names and match reasons on failure
     env = shell_text(run / "work" / "project" / "env.txt").splitlines()
     assert [line.partition("=")[0] for line in env] == ["HOME"] and same_path(env[0].partition("=")[2], run / "home")
     if not powershell():  # PowerShell's ~ is its own home (on Windows the profile: USERPROFILE), not HOME
