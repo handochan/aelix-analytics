@@ -1252,11 +1252,15 @@ class Writer:
             raise AnalyticsError("bad_metric_record", "structured details own state-changing relationships")
         generated = []
 
+        def metadata(event):
+            value = event.value.get("details")
+            return value if isinstance(value, dict) else {}
+
         def target(event_id, wanted, metric_id=None):
             event = journal.event_of(event_id)
             if event is None or event.kind != wanted or event.seq is None or event.seq >= journal.next_seq:
                 raise AnalyticsError("metric_reference", f"{event_id!r} is not a unique prior {wanted}")
-            if metric_id is not None and (event.value.get("details") or {}).get("metric_id") != metric_id:
+            if metric_id is not None and metadata(event).get("metric_id") != metric_id:
                 raise AnalyticsError("metric_reference", f"{event_id!r} belongs to another metric")
             return event
 
@@ -1274,7 +1278,7 @@ class Writer:
         if kind == "metric_definition":
             previous = details.get("previous_definition")
             same = [event for event in journal.events if event.kind == kind
-                    and (event.value.get("details") or {}).get("metric_id") == details["metric_id"]]
+                    and metadata(event).get("metric_id") == details["metric_id"]]
             if previous:
                 old = target(previous, kind, details["metric_id"])
                 current(old)
@@ -1345,7 +1349,7 @@ class Writer:
             recomputed = details.get("recomputed_from")
             if recomputed:
                 old = target(recomputed, kind, details["metric_id"])
-                if (old.value.get("details") or {}).get("definition_event_id") != details["definition_event_id"]:
+                if metadata(old).get("definition_event_id") != details["definition_event_id"]:
                     raise AnalyticsError("metric_reference", "a recomputation uses the same exact definition")
                 generated.append(typed_reference({"type": "event", "event_id": recomputed,
                                                    "relation": "derived_from"}))
