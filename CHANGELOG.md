@@ -30,16 +30,18 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
   전환은 보고서와 응답에 `agent`로 남습니다.
   aelix의 도구·`/analytics`에는 이 명령이 없습니다. `.venv/`·`report/`·캐시·잠금과 운영체제 메타 파일(`.DS_Store`·`Thumbs.db`·`desktop.ini`,
   macOS가 FAT·exFAT 같은 볼륨에 만드는 AppleDouble `._<이름>`; AppleDouble은 2026-10-09 소유자 결정이며 일반 파일만, 그런 이름의 폴더·링크는
-  보통 항목으로 복사)은 복사하지 않고 보고서에 적으며, 목적지의 것은 무시합니다. 첫 ledger 줄이 끊긴 전환 디렉터리 옆에 macOS가 남긴
+  보통 항목으로 복사)은 복사하지 않고 보고서에 적으며, 목적지의 것은 무시합니다(복사가 원본의 폴더·링크를 놓을 경로의 것은 쓰기 전에
+  `not_empty`로 거절). 첫 ledger 줄이 끊긴 전환 디렉터리 옆에 macOS가 남긴
   `._progress.jsonl`도 내용으로 보지 않아 다시 부르면 새로 시작하고, 그 디렉터리를 지우지 못하면 `destination_write_failed`로 지울 폴더를
   알립니다. 그래서 macOS에서도 FAT32 같은 볼륨으로 전환할 수 있습니다 ([#84]).
 - 링크를 만들 수 없는 목적지(FAT·exFAT 등)에서는 전환이 표식을 제자리에 쓰지 않고 이미 있는 이름을 바꾸지 않는 rename(Linux
   `renameat2(RENAME_NOREPLACE)`, macOS `renamex_np(RENAME_EXCL)`, Windows `os.rename`; 포트의 `AtomicFiles.rename_new`)으로 게시합니다. 그것도
   없는 목적지는 아무것도 복사하기 전에 `destination_invalid`(`details.reason: no_exclusive_rename`)로 거절합니다 ([#84]).
 - aelix 확장이 aelix 프로세스의 환경에 `AELIX_ANALYTICS_ACTOR=agent`와 그 세션을 넣으므로, 에이전트가 aelix의 bash 도구로 부른 `analytics`·
-  `python -m aelix_analytics`가 `agent`로 기록됩니다. 사람이 aelix에서 `!analytics …`처럼 친 줄이 전체로 kit 명령 하나이면 확장의 `user_bash`
-  처리가 `human`으로 기록하게 하고, 다른 `!` 줄 — kit을 부르지 않거나, `;`·`&&`·`|`·줄바꿈·`$(…)` 등으로 다른 명령과 합친 줄 — 은 건드리지
-  않습니다(그 안의 kit 기록은 `agent`). 한계: aelix 0.1.0b2는 마지막 확장의 답만 쓰므로, `!` 명령을 막거나 다른 실행기로 돌리는 확장이 먼저
+  `python -m aelix_analytics`가 `agent`로 기록됩니다. 사람이 aelix에서 `!analytics …`처럼 친 줄이 aelix가 그 줄을 돌릴 셸(POSIX 셸이나
+  PowerShell)로 읽어 전체로 kit 명령 하나이면 확장의 `user_bash` 처리가 `human`으로 기록하게 하고, 다른 `!` 줄 — kit을 부르지 않거나,
+  `;`·`&&`·`|`·줄바꿈·`$(…)` 등으로 다른 명령과 합친 줄, 셸마다 읽는 법이 다른 `$`·`env -S`·모르는 옵션이 든 줄, cmd·fish 같은 다른 셸의 줄 —
+  은 건드리지 않습니다(그 안의 kit 기록은 `agent`). 한계: aelix 0.1.0b2는 마지막 확장의 답만 쓰므로, `!` 명령을 막거나 다른 실행기로 돌리는 확장이 먼저
   등록되면 kit 명령 하나인 줄에 한해 이 처리가 그 막음·실행기를 덮습니다(소유자가 2026-10-09에 그 범위로 정함, [현재 계약](docs/CONTRACTS.md)
   A). aelix 밖의 에이전트 호스트는 `AELIX_ANALYTICS_ACTOR=agent`를 설정합니다 ([#84]).
 

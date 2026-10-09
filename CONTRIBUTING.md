@@ -131,7 +131,9 @@ aelix 프로세스가 분석 라이브러리를 import할 수 있게 되고, 이
 `tests/test_launcher.py`를 실행합니다. 개발 환경의 저장소 시험에는 aelix가 없어 세 aelix 시험 파일을 건너뜁니다.
 `tests/test_agent_cli.py`는 aelix의 확장 로더와 hook 버스로 확장을 실제로 등록하고, aelix의 bash 도구와 `!` 명령 처리로 kit CLI를 불러
 기록된 작성 주체를 확인합니다(모델·네트워크·로그인 없음, HOME과 aelix 에이전트 디렉터리는 시험의 임시 디렉터리). 줄 전체가 kit 명령
-하나인 `!` 명령과 다른 명령과 합친 줄을 셸을 돌려주는 확장·막는 확장과 두 등록 순서로 나눠 봅니다.
+하나인 `!` 명령과 다른 명령과 합친 줄을 셸을 돌려주는 확장·막는 확장과 두 등록 순서로 나눠 봅니다. `tests/test_extension.py`의 함정 줄
+시험은 그 기기에서 찾은 셸(sh·bash·zsh·dash·ksh·pwsh)로 줄을 실제로 돌리므로, 셸이 더 있는 기기에서 더 많은 셸을 덮습니다(Windows에서는
+건너뜀; PowerShell 자식은 CI의 Windows 레그가 T22로 돌립니다).
 
 확장이 모델에 보내는 맥락 블록·도구 줄·도구 정의·도구 응답의 크기와, 그 텍스트가 생략한 사실을 다시 읽을 수 있는지는 같은 격리
 환경에서 명령 하나로 잽니다(Issue #11). 합성 fixture를 만들어 재고 `usage-report.json`, 그 JSON에서만 만든 `usage-report.md`,

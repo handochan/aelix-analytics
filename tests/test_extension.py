@@ -1428,9 +1428,10 @@ def test_the_extension_puts_the_agent_and_this_session_in_the_aelix_process(tmp_
     assert (child["AELIX_ANALYTICS_ACTOR"], child["AELIX_ANALYTICS_MEANS"]) == ("human", "command")
 
 
-# A person's `!` line that is, as a whole, one simple command calling a kit entry point: the handler
-# returns aelix's local shell with the person as the author (the owner's decision of 2026-10-09 as
-# corrected, #13 issuecomment-6072183477).
+# A person's `!` line that is, as a whole, one simple command calling a kit entry point, read as the
+# shell aelix runs it in reads it: the handler returns aelix's local shell with the person as the author
+# (the owner's decision of 2026-10-09 as corrected, #13 issuecomment-6072183477). These are read as a
+# POSIX shell (sh, bash, zsh) reads them.
 SINGLE_KIT_COMMANDS = [
     "analytics status",
     "./bin/analytics record finding 'x y'",
@@ -1438,24 +1439,27 @@ SINGLE_KIT_COMMANDS = [
     '"analytics" status',
     "'./bin/analytics' status",
     r"\analytics status",
+    "analytics.exe status",
     # Assignments, env and its options, the prefixes that run the next word.
     "AELIX_ANALYTICS_PROJECT=/p analytics record note x",
     "A=1 B='two words' C=\"x y\" analytics status",
     "env AELIX_ANALYTICS_PROJECT=/p analytics status",
     "env -i PATH=/bin analytics status",
     "env -u HOME analytics status",
+    "env -uHOME --unset=PATH analytics status",
     "env -C /tmp -u HOME AELIX_ANALYTICS_ACTOR=x analytics status",
+    "env -- analytics status",
     "exec analytics status",
     "command analytics status",
     "time analytics status",
-    "nohup analytics status",
+    "nohup env A=1 analytics status",
     # Redirections to or from a file or a descriptor.
     "analytics status > out.txt 2>&1",
     "analytics status >>log.txt",
     "analytics status >&2",
     "analytics record note x < in.txt",
     "2>/dev/null analytics status",
-    # Python told to run the kit, also through uv run.
+    # Python told to run the kit, also through uv run and the options it is known to take.
     "python -m aelix_analytics status",
     "python3.12 -I -m aelix_analytics record note x",
     ".venv/bin/python -maelix_analytics status",
@@ -1464,23 +1468,24 @@ SINGLE_KIT_COMMANDS = [
     "python3 -IS -c 'import aelix_analytics'",
     "python -c 'import aelix_analytics; aelix_analytics.record(\"note\", \"x\")'",
     "python -c 'from aelix_analytics import record'",
+    "python -X utf8 --check-hash-based-pycs never -m aelix_analytics status",
     "py -3.12 -m aelix_analytics status",
     "uv run --project proj python -m aelix_analytics status",
     "uv run --with=polars -- python -m aelix_analytics status",
     "uv run analytics status",
+    "uv run --no-project -qq --no-binary-package x analytics status",
+    "uv run -p 3.12 --index-strategy unsafe-best-match analytics status",
+    "uv run -p3.12 --python-platform=linux analytics status",
     "AELIX_ANALYTICS_ACTOR=human uv run --project 'my proj' analytics status",
-    # Windows: the program's suffixes, and PowerShell's call operator at the start.
-    r"C:\pack\bin\analytics.exe status",
-    r"& C:\venv\Scripts\python.exe -m aelix_analytics status",
-    r'& "C:\Program Files\pack\analytics.exe" status',
-    # Operator characters and substitutions quoted or escaped are words.
+    # Operator characters quoted or escaped are words, and so are `$` and backticks in single quotes
+    # or escaped in double ones.
     "analytics record note 'a; b && c | d & (e)'",
     'analytics record note "a; b && c | d"',
-    "analytics record note '$(id) `id`'",
-    'analytics record note "\\$(id) \\`id\\`"',
-    'analytics record note "$HOME ${USER:-x}"',
-    r"analytics record note \; x",
+    "analytics record note '$(id) `id` ${x} $y'",
+    'analytics record note "\\$(id) \\`id\\` \\${x}"',
+    r"analytics record note \; x \$HOME",
     "analytics status # a note",
+    'analytics import "C:\\data\\" && x "C:\\out\\"',  # in a POSIX shell `\"` is a quote, not an end
     # A backslash before a new line continues the line: gone, outside quotes and inside double ones.
     "uv run \\\nanalytics status",
     "AELIX_ANALYTICS_ACTOR=x \\\n  analytics status",
@@ -1492,7 +1497,7 @@ SINGLE_KIT_COMMANDS = [
 ]
 
 # Any other line: no result, so aelix runs it as it would and another extension's answer stands. A kit
-# call in such a line records `agent`/declared from the process environment.
+# call in such a line records `agent`/declared from the process environment. Read as a POSIX shell.
 NOT_A_SINGLE_KIT_COMMAND = [
     # Lists and a second command.
     "cd proj && analytics status",
@@ -1510,11 +1515,12 @@ NOT_A_SINGLE_KIT_COMMAND = [
     "analytics status | head",
     "analytics status |& tee log",
     "analytics status 2>&1 | tee log",
-    # Commands on lines of their own.
+    # Commands on lines of their own, and a comment a new line follows.
     "echo hi\nanalytics status",
     "analytics status\necho hi",
     "analytics status\nanalytics render",
     "analytics status \\\n && echo done",
+    "analytics x # '\ntouch x\n'",
     # Subshells, groups, command substitution in each form.
     "(analytics status)",
     "(cd proj && analytics status)",
@@ -1528,6 +1534,16 @@ NOT_A_SINGLE_KIT_COMMAND = [
     "analytics record note `id`",
     'analytics record note "`id`"',
     "analytics record note $((1 + 2))",
+    # `$` outside single quotes: an expansion this reading leaves open (the check of 2026-10-09).
+    "analytics record note $'\\'' ; touch x #'",
+    "analytics record note $'Q3\\'s numbers' && touch x  # it's fine",
+    'analytics record note $"x"',
+    'analytics record note "$\\\n(touch x)"',
+    'analytics x "${(e):-\\$(touch x)}"',
+    "analytics x $[1+1]",
+    "analytics import $HOME/data.csv",
+    'analytics record note "$HOME ${USER:-x}"',
+    "analytics record note cost$",
     # Redirections that start another command or take the next lines, and `&>`.
     "analytics status > >(tee log)",
     "analytics record note x <(cat notes)",
@@ -1541,8 +1557,27 @@ NOT_A_SINGLE_KIT_COMMAND = [
     "! analytics status",
     # An operator after a `#` still counts.
     "analytics status # ; rm x",
-    # PowerShell's call operator, then a second command.
+    # PowerShell's call operator is no POSIX shell's: there `&` starts no line.
+    "& analytics status",
     "& analytics status; ls",
+    # env -S runs its string (the check of 2026-10-09), and an option of env or `uv run` not known
+    # here may take the next word as its value.
+    "env -S 'touch x' analytics",
+    "env -S'touch x' analytics",
+    "env --split-string='touch x' analytics",
+    "env -iu analytics touch x",
+    "env --block-signal analytics",
+    "uv run --no-project --no-binary-package analytics touch x",
+    "uv run --some-new-option analytics touch x",
+    "uv run -qp 3.12 analytics status",
+    "uv run -m aelix_analytics status",
+    "uv run --script analytics status",
+    "uv run env analytics status",
+    "nohup A=1 analytics status",
+    # A control character but a tab and a new line, a backslash ending the line.
+    "analytics status\rtouch x",
+    "analytics status\x00",
+    "analytics status \\",
     # Not the kit at all.
     "",
     "ls",
@@ -1564,6 +1599,10 @@ NOT_A_SINGLE_KIT_COMMAND = [
     "uv run --project analytics python a.py",
     "analytics-report build",
     "my_analytics status",
+    "my_\\analytics status",  # the shell runs `my_analytics`
+    r"C:\pack\bin\analytics.exe status",  # the shell runs `C:packbinanalytics.exe`
+    "analytics.cmd status",  # a batch file: cmd reads its arguments again
+    "analytics.bat status",
     "git log -- analytics",
     "echo 'unclosed",
     "cat < analytics",
@@ -1573,28 +1612,258 @@ NOT_A_SINGLE_KIT_COMMAND = [
     "'ana\\\nlytics' status",
 ]
 
+# The same judgment in PowerShell (aelix's shell on Windows when $SHELL names no file, the check of
+# 2026-10-09): a backslash is a character there, a quote doubled inside its quotes is one, and its call
+# operator `&` may start the line.
+POWERSHELL_SINGLE_KIT_COMMANDS = [
+    "analytics status",
+    "analytics record note 'a; b && c | d'",
+    'analytics record note "a; b && c | d"',
+    "analytics record note 'it''s fine'",
+    'analytics record note "say ""hi"""',
+    "analytics record note '한글 메모'",
+    r"C:\pack\bin\analytics.exe status",
+    r".\bin\analytics.exe status",
+    r"analytics import C:\data\sales.csv",
+    r'analytics import "C:\My Data\sales.csv"',
+    r"& C:\venv\Scripts\python.exe -m aelix_analytics status",
+    r'& "C:\Program Files\pack\analytics.exe" status',
+    "&analytics status",
+    "python -m aelix_analytics status",
+    "py -3.12 -m aelix_analytics status",
+    "uv run --no-project analytics status",
+    "analytics status > out.txt",
+    "analytics status 2>&1",
+    "analytics status 2>> err.txt",
+    "analytics status # a note",
+]
 
+POWERSHELL_NOT_A_SINGLE_KIT_COMMAND = [
+    "analytics status; ls",
+    "analytics status | Select-Object -First 1",
+    "analytics status && ls",
+    "analytics status &",
+    "& analytics status; ls",
+    "& & analytics status",
+    # A backslash is no escape (the check of 2026-10-09).
+    "analytics status \\; touch x",
+    "analytics status \\| touch x",
+    'analytics record note "a\\" ; touch x ; \\"b"',
+    'analytics import "C:\\data\\" && touch x "C:\\out\\"',
+    "analytics x \\'' ; touch x ; #'",
+    # A carriage return or a new line ends a command; a backtick is the escape.
+    "analytics status\rtouch x",
+    "analytics status\ntouch x",
+    "analytics record note 'one\ntwo'",
+    "analytics x `; touch x",
+    "analytics record note 'a `b'",
+    # Expansions and what runs a command in PowerShell.
+    'analytics x "$(touch x)"',
+    "analytics x $(touch x)",
+    "analytics x $env:HOME",
+    'analytics x "\\$(touch x)"',
+    "analytics x @{a=touch}",
+    "analytics x @(touch)",
+    "analytics x {touch}",
+    # Its comments, stop-parsing token and quotes besides ' and ".
+    "analytics x <#' #> ; touch x ; #'",
+    "analytics --% '| touch x'",
+    "analytics \u2013-% '| touch x'",
+    "analytics note 'it\u2019s ; touch x ; \u2019'",
+    "analytics note \"a\u201d ; touch x ; \u201c\"",
+    "analytics x\u00a0--% '| touch x #'",  # it splits on a no-break space: `--%` stands alone there
+    # A `>&` it does not take leaves `&` its background operator; it merges a stream into 1 only.
+    "analytics x =xx>&touch y",
+    "analytics status >&1",
+    "analytics status 2>&x",
+    "analytics status 7> out.txt",
+    # What PowerShell has not: input redirection, assignments and prefixes, a quoted program without
+    # `&` (a value, not a command).
+    "analytics record note x < in.txt",
+    "A=1 analytics status",
+    "env analytics status",
+    "'analytics' status",
+    '"C:\\pack\\analytics.exe" status',
+    # Not the kit.
+    "Get-ChildItem analytics",
+    r"C:\pack\bin\analytics.cmd status",
+    "echo analytics",
+]
+
+# Shells this judgment does not read: every line is left alone there.
+OTHER_SHELLS = ["cmd", "fish", "nu", "tcsh", "csh", "xonsh", "elvish", "busybox", ""]
+
+
+def judged_in(module, monkeypatch, shell: str):
+    """The module with aelix's shell for a person's line taken as `shell` (the_shell's name)."""
+    monkeypatch.setattr(module, "the_shell", lambda: shell)
+    return module
+
+
+def answer(module, command: str):
+    from aelix_agent_core.harness.hooks import UserBashHookEvent
+
+    return module.on_user_bash(UserBashHookEvent(command=command, cwd="."), None)
+
+
+@pytest.mark.parametrize("shell", ["bash", "zsh", "sh"])
 @pytest.mark.parametrize("command", SINGLE_KIT_COMMANDS)
-def test_a_line_that_is_one_kit_command_gets_the_person_s_shell(command):
+def test_a_line_that_is_one_kit_command_gets_the_person_s_shell(command, shell, monkeypatch):
     """design 4.2 as the owner corrected it: the whole line one simple command whose program is the
-    kit — after assignments, env, the prefixes and `uv run`, with redirections to a file or a
-    descriptor — and the handler returns aelix's local shell with the person as the author."""
-    from aelix_agent_core.harness.hooks import UserBashHookEvent, UserBashResult
+    kit — after assignments, env, the prefixes and `uv run` with the options they are known to take,
+    with redirections to a file or a descriptor — read as a POSIX shell reads it, and the handler
+    returns aelix's local shell with the person as the author."""
+    from aelix_agent_core.harness.hooks import UserBashResult
 
-    module = fresh_module()
-    result = module.on_user_bash(UserBashHookEvent(command=command, cwd="."), None)
+    module = judged_in(fresh_module(), monkeypatch, shell)
+    result = answer(module, command)
     assert isinstance(result, UserBashResult) and isinstance(result.operations, module.PersonShell)
 
 
+@pytest.mark.parametrize("shell", ["bash", "zsh", "sh"])
 @pytest.mark.parametrize("command", NOT_A_SINGLE_KIT_COMMAND)
-def test_any_other_line_is_left_alone(command):
-    """A line with any operator but a redirection to a file or a descriptor, a second command, or a
-    program that is not the kit: the handler returns nothing, so another extension's block or shell is
-    set aside for one kit command only (CONTRACTS A), and a kit call in the line stays `agent`."""
-    from aelix_agent_core.harness.hooks import UserBashHookEvent
+def test_any_other_line_is_left_alone(command, shell, monkeypatch):
+    """A line with any operator but a redirection to a file or a descriptor, a second command, what
+    this reading leaves open (`$` outside single quotes, `env -S`, an option not known), or a program
+    that is not the kit: the handler returns nothing, so another extension's block or shell is set
+    aside for one kit command only (CONTRACTS A), and a kit call in the line stays `agent`."""
+    module = judged_in(fresh_module(), monkeypatch, shell)
+    assert answer(module, command) is None
+
+
+@pytest.mark.parametrize("shell", ["pwsh", "powershell"])
+@pytest.mark.parametrize("command", POWERSHELL_SINGLE_KIT_COMMANDS)
+def test_a_powershell_line_that_is_one_kit_command_gets_the_person_s_shell(command, shell, monkeypatch):
+    """The check of 2026-10-09: aelix runs a `!` line in PowerShell on Windows when $SHELL names no
+    file, and the line is read as PowerShell reads it there — and as a POSIX shell would, too."""
+    from aelix_agent_core.harness.hooks import UserBashResult
+
+    module = judged_in(fresh_module(), monkeypatch, shell)
+    result = answer(module, command)
+    assert isinstance(result, UserBashResult) and isinstance(result.operations, module.PersonShell)
+
+
+@pytest.mark.parametrize("shell", ["pwsh", "powershell"])
+@pytest.mark.parametrize("command", POWERSHELL_NOT_A_SINGLE_KIT_COMMAND)
+def test_any_other_powershell_line_is_left_alone(command, shell, monkeypatch):
+    """PowerShell's own operators and quotes: an escaped `\\;` of a POSIX shell, a carriage return, a
+    `\\"` that ends its quote, `<#`, `--%`, `@{…}`, ‘ ’ … are what make a second command there."""
+    module = judged_in(fresh_module(), monkeypatch, shell)
+    assert answer(module, command) is None
+
+
+@pytest.mark.parametrize("shell", OTHER_SHELLS)
+def test_a_line_in_a_shell_this_judgment_does_not_read_is_left_alone(shell, monkeypatch):
+    """cmd, fish, nu, csh and any shell this reading does not know read quotes and operators their own
+    way (cmd takes no single quote, fish escapes in them, nu has raw strings): no line is judged one kit
+    command there, so a person's kit command records `agent` and nothing is set aside."""
+    module = judged_in(fresh_module(), monkeypatch, shell)
+    assert all(answer(module, command) is None
+               for command in [*SINGLE_KIT_COMMANDS, *POWERSHELL_SINGLE_KIT_COMMANDS])
+
+
+def test_the_shell_read_is_the_one_aelix_runs_a_person_s_line_in(monkeypatch):
+    """the_shell names the shell aelix's own rule picks for a `!` line (tools/bash._resolve_shell over
+    the environment get_shell_env makes, the shell PersonShell runs in too): $SHELL on POSIX, whatever
+    its version suffix, and the handler follows it."""
+    from aelix_ai.utils._shell import shell_basename
+    from aelix_coding_agent.tools.bash import _resolve_shell
+    from aelix_coding_agent.util.shell_env import get_shell_env
 
     module = fresh_module()
-    assert module.on_user_bash(UserBashHookEvent(command=command, cwd="."), None) is None
+    assert module.the_shell() == shell_basename(_resolve_shell(get_shell_env()).path)
+    if os.name == "nt":
+        return  # $SHELL counts there only when it names a file; the chain is aelix's (PowerShell, cmd)
+    for path, name, judged in [("/usr/local/bin/bash-5.2", "bash", True), ("/bin/zsh", "zsh", True),
+                               ("/opt/microsoft/powershell/7/pwsh", "pwsh", True),
+                               ("/usr/local/bin/fish", "fish", False)]:
+        monkeypatch.setenv("SHELL", path)
+        assert module.the_shell() == name
+        assert (answer(module, "analytics status") is not None) is judged, path
+        assert answer(module, "analytics status; touch x") is None
+
+
+# Lines a shell aelix may pick reads otherwise than a plain POSIX reading did (the check of
+# 2026-10-09). `@SENT@` is a second command that makes a file; a line the judgment takes as one kit
+# command must not run it in any shell that reads it.
+SHELL_TRAPS = [
+    "analytics record note $'\\'' ; @SENT@ #'",
+    "analytics record note $'Q3\\'s numbers' && @SENT@  # it's fine",
+    "env -S '@SENT@' analytics",
+    "env -S'@SENT@' analytics",
+    "env -iu analytics @SENT@",
+    "analytics status \\; @SENT@",
+    "analytics status \\| @SENT@",
+    'analytics record note "a\\" ; @SENT@ ; \\"b"',
+    "analytics status\r@SENT@",
+    'analytics import "C:\\data\\" && @SENT@ "C:\\out\\"',
+    'analytics record note "$\\\n(@SENT@)"',
+    'analytics x "${(e):-\\$(@SENT@)}"',
+    "analytics x # '\n@SENT@\n'",
+    "analytics x \\'' ; @SENT@ ; #'",
+    "analytics x <#' #> ; @SENT@ ; #'",
+    "analytics x @{a=@SENT@}",
+    "analytics --% '| @SENT@'",
+    "analytics note 'it\u2019s ; @SENT@ ; \u2019'",
+    "analytics x \\${a'} ; @SENT@ ; '}",
+    "analytics x '$(@SENT@)'",
+    'analytics x "\\$(@SENT@)"',
+    "analytics 'a\" & @SENT@ & \"b'",
+    "analytics x \"`@SENT@`\"",
+    "analytics record note 'a; @SENT@ && b | c'",
+    'analytics record note "a; @SENT@"',
+    "analytics status # ; @SENT@",
+    "analytics x =xx>&@SENT@",
+    "analytics x\u00a0--% '| @SENT@ #'",
+]
+
+
+@pytest.mark.skipif(os.name == "nt", reason="the POSIX shells and PowerShell found here, by path")
+def test_a_line_judged_one_kit_command_runs_no_other_command_in_each_shell_here(tmp_path):
+    """The check of 2026-10-09 asked for it: each trap line is judged for each shell found here (sh,
+    bash, zsh, dash, ksh, pwsh), and every one judged a single kit command is run in that shell the way
+    aelix runs a `!` line ([shell, its command flag, its preamble + the line]) with a stand-in
+    `analytics`: none makes the file its second command would. A line the judgment refuses does make
+    it, so the shells are live."""
+    import subprocess
+
+    from aelix_ai.utils._shell import command_flag_for, shell_basename, utf8_output_preamble
+
+    module = fresh_module()
+    shells = {name: path for name in ("sh", "bash", "zsh", "dash", "ksh", "pwsh")
+              if (path := shutil.which(name))}
+    if not shells:
+        pytest.skip("not_run: no shell found here")
+    stand_in = tmp_path / "bin" / "analytics"
+    stand_in.parent.mkdir()
+    stand_in.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    stand_in.chmod(0o755)
+    (tmp_path / "home").mkdir()
+    env = {"PATH": f"{stand_in.parent}{os.pathsep}/usr/bin{os.pathsep}/bin", "HOME": str(tmp_path / "home")}
+    sentinel = tmp_path / "SENT"
+
+    def runs_the_second(path: str, line: str) -> bool:
+        sentinel.unlink(missing_ok=True)
+        subprocess.run([path, command_flag_for(path), utf8_output_preamble(path) + line], cwd=tmp_path,
+                       env=env, capture_output=True, timeout=120)
+        return sentinel.exists()
+
+    seen = {}
+    for name, path in shells.items():
+        family_name = shell_basename(path)
+        assert runs_the_second(path, "analytics status; touch SENT"), (name, "the shell is not live")
+        accepted, ran = [], []
+        for trap in SHELL_TRAPS:
+            line = trap.replace("@SENT@", "touch SENT")
+            if module.is_single_kit_command(line, family_name):
+                accepted.append(line)
+                if runs_the_second(path, line):
+                    ran.append(line)
+        seen[name] = {"path": path, "read_as": family_name, "accepted": len(accepted), "ran_a_second": ran}
+    from conftest import record_observation
+
+    record_observation("issue-13-writer/user-bash-shell-traps", {"traps": len(SHELL_TRAPS), "shells": seen})
+    assert all(not s["ran_a_second"] for s in seen.values()), seen
 
 
 def test_a_person_s_kit_command_runs_in_aelix_s_shell_as_the_person(monkeypatch):

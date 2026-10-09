@@ -258,13 +258,13 @@ PNG 차트는 모델이 이미지 입력을 받을 때 `analytics_run` 결과에
 기록에는 누가 썼는지(`actor`)와 그 근거(`actor_basis`), 실행 수단(`means`)이 남습니다. aelix 도구는 `agent`, `/analytics`는 `human`이고,
 셸의 `analytics`는 `AELIX_ANALYTICS_ACTOR`의 값(밝힌 것, `declared`)이나 없으면 `human`(`inferred`)입니다. aelix 안에서는 확장이 aelix
 프로세스의 환경에 `AELIX_ANALYTICS_ACTOR=agent`와 세션을 넣으므로, 에이전트가 bash 도구로 부른 `analytics`는 `agent`로, 사람이 `!analytics …`로
-부른 것은 `human`으로 기록됩니다(줄 전체가 kit 명령 하나일 때. `cd proj && analytics status`처럼 다른 명령과 합친 줄의 kit 기록은
-`agent`입니다). aelix 밖의 에이전트(다른 코딩 에이전트, 자동화)가 `analytics`나 SDK를 부르게 한다면 그 에이전트의 셸에
+부른 것은 `human`으로 기록됩니다(aelix가 그 줄을 돌릴 셸 — POSIX 셸이나 PowerShell — 로 읽어 줄 전체가 kit 명령 하나일 때. `cd proj &&
+analytics status`처럼 다른 명령과 합친 줄, `$HOME`·`$'…'`처럼 셸이 펼치는 `$`가 든 줄, cmd·fish 같은 다른 셸의 줄의 kit 기록은 `agent`입니다). aelix 밖의 에이전트(다른 코딩 에이전트, 자동화)가 `analytics`나 SDK를 부르게 한다면 그 에이전트의 셸에
 `AELIX_ANALYTICS_ACTOR=agent`를 설정하세요. 설정하지 않으면 사람의 기록(`human`·`inferred`)으로 남습니다. 출처 기록이지 인증이 아닙니다.
 한계: aelix 0.1.0b2는 `!` 명령에 대한 확장들의 답 가운데 마지막 것 하나만 씁니다. 그래서 `!` 명령을 막거나 다른 실행기(샌드박스·원격
 실행 등)로 돌리는 확장이 이 확장보다 먼저 등록되면, **줄 전체가 kit 명령 하나인 `!` 명령에 한해 이 확장이 그 확장의 막음이나 실행기를
-덮어 aelix의 로컬 셸로 돌립니다**(막힌 kit 명령도 돌아 기록을 씁니다). `;`·`&&`·`|` 등으로 다른 명령과 합친 줄과 kit을 부르지 않는 줄은 그
-확장의 답대로입니다. 소유자가 덮는 범위를 그 kit 명령 하나로 줄여 처리기를 두기로 했습니다(2026-10-09). 판정 규칙과 순서별 동작은
+덮어 aelix의 로컬 셸로 돌립니다**(막힌 kit 명령도 돌아 기록을 씁니다). `;`·`&&`·`|` 등으로 다른 명령과 합친 줄, 판정이 열어 두는 줄과
+kit을 부르지 않는 줄은 그 확장의 답대로입니다. 소유자가 덮는 범위를 그 kit 명령 하나로 줄여 처리기를 두기로 했습니다(2026-10-09). 판정 규칙과 순서별 동작은
 [현재 계약](docs/CONTRACTS.md) A "aelix 안의 작성 주체"에 있습니다.
 
 ### 스크립트 API

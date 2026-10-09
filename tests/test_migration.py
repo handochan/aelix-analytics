@@ -987,6 +987,65 @@ def test_a_destination_holding_a_folder_or_a_link_named_appledouble_is_not_empty
     assert error.details["entries"] == [".analytics/._x"], error.to_json()
 
 
+@pytest.mark.parametrize("what", ["folder", "link", "folder in .lab"])
+def test_an_appledouble_file_where_the_copy_puts_a_source_entry_is_in_the_way(tmp_path, what):
+    """design 6.2 (the check of the corrected decisions): a destination's AppleDouble file leaves it
+    empty unless the copy puts one of the source's entries at that path — a folder or a link `._x` of
+    the source (its regular `._x` files are not copied), or `.lab/._d` as `.analytics/._d` — where the
+    copy would stop, `occupied`. Step 1 and the dry run refuse it as not_empty with that path, and so
+    does the judgment under the lock when the file comes after step 1; nothing is copied, and the file
+    is kept. Another AppleDouble file beside it, and one whose name only folds to it, are named too
+    (the volumes that make these files fold case)."""
+    source = plain_source(tmp_path)
+    if what == "folder":
+        (source / "._data").mkdir()
+        (source / "._data" / "x.csv").write_bytes(b"a\n")
+        rel = "._data"
+    elif what == "link":
+        file_link(source / "._l", "data/raw/a.parquet")
+        rel = "._l"
+    else:
+        (source / ".lab" / "._d").mkdir()
+        (source / ".lab" / "._d" / "y").write_bytes(b"y")
+        rel = ".analytics/._d"
+
+    def place(dest: Path, name: str = rel) -> None:
+        (dest / name).parent.mkdir(parents=True, exist_ok=True)
+        (dest / name).write_bytes(APPLEDOUBLE)
+
+    dest = tmp_path / "dest"
+    dest.mkdir()
+    place(dest)
+    (dest / "._other").write_bytes(APPLEDOUBLE)
+    before = tree(dest)
+    for call in (lambda: migrate(source, dest, dry_run=True), lambda: migrate(source, dest)):
+        error = refused("destination_invalid", call)
+        assert (error.details["reason"], error.details["entries"]) == ("not_empty", [rel]), error.to_json()
+        assert "AppleDouble" in error.hint and "nothing was written" in error.hint, error.to_json()
+        assert tree(dest) == before
+    folded = tmp_path / "folded"
+    folded.mkdir()
+    other_case = rel[:rel.rindex("/") + 1] + rel[rel.rindex("/") + 1:].upper() if "/" in rel else rel.upper()
+    place(folded, other_case)
+    error = refused("destination_invalid", lambda: migrate(source, folded))
+    assert error.details["entries"] == [other_case], error.to_json()
+    late = tmp_path / "late"
+    late.mkdir()
+
+    def on_step(name, info):
+        if name == "dest_locked":
+            place(late)
+
+    error = refused("destination_invalid", lambda: migrate(source, late, on_step=on_step))
+    assert (error.details["reason"], error.details["entries"]) == ("not_empty", [rel]), error.to_json()
+    assert "nothing was written" not in error.hint and "migration_incomplete" in error.hint
+    assert (late / rel).read_bytes() == APPLEDOUBLE
+    (late / rel).unlink()
+    result = migrate(source, late)  # once the person removes it, as the hint says
+    assert result["ok"], result
+    assert_committed(late, source)
+
+
 def test_appledouble_files_in_a_destination_resumed_are_passed_over(tmp_path):
     """OQ16: AppleDouble files the ledger does not name — at the root, beside a copy, beside a folder
     and in .analytics/ — are passed over when an interrupted migration goes on, and left as they are
@@ -1082,13 +1141,23 @@ def test_a_migration_directory_that_cannot_be_removed_is_refused_with_a_hint(tmp
         return real(path, *args, **kwargs)
 
     monkeypatch.setattr(os, "rmdir", rmdir)
-    for _ in range(2):
+    cut = f"{migration.MIGRATIONS}/{old.name}/{migration.LEDGER}"
+    for removed in ([cut], []):  # the second call finds the cut ledger gone already
         error = refused("destination_write_failed", lambda: migrate(source, dest))
         assert error.details["path"] == str(old) and "Directory not empty" in error.details["error"]
         assert "AppleDouble" in error.hint and "Remove that folder" in error.hint, error.to_json()
+        assert error.details["removed"] == removed, error.to_json()
+        said = f"this call removed {cut} and copied nothing" if removed else "this call removed nothing"
+        assert said in error.hint, error.to_json()
         assert sorted(p.name for p in old.iterdir()) == ["._progress.jsonl"]
         assert sorted(p.name for p in (dest / migration.MIGRATIONS).iterdir()) == [old.name]
         assert_uncommitted(dest)
+    # A content-less folder before it is removed first, and the hint says so.
+    first = dest / migration.MIGRATIONS / "20261007T000000Z-00000000"
+    first.mkdir()
+    error = refused("destination_write_failed", lambda: migrate(source, dest))
+    assert error.details["removed"] == [f"{migration.MIGRATIONS}/{first.name}/"], error.to_json()
+    assert not first.exists()
     monkeypatch.undo()
     shutil.rmtree(old)  # what the hint says
     result = migrate(source, dest)

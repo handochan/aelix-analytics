@@ -1118,149 +1118,277 @@ def put_the_session_in_the_environment(session) -> None:
 
 # Which `!` line runs in a person's shell (design 4.2; the owner's decision of 2026-10-09 as corrected,
 # #13 issuecomment-6072183477): only a line that is, as a whole, one simple command calling a kit entry
-# point — the program `analytics` (any directory: `analytics`, `./bin/analytics`, `analytics.exe`), or
-# Python given `-m aelix_analytics[.…]` (also bundled, `-Im`) or a `-c` that imports it — after
-# `NAME=value` words, `env` and its options, `exec`, `command`, `time` or `nohup`, and after `uv run`
-# and its options; it may carry redirections to or from a file or a descriptor (`> out.txt`, `2>&1`).
-# The line is read as a POSIX shell reads it. Any other operator — `;` `&` `&&` `|` `||` `|&`, a new
-# line, `(` `)` (a subshell, `$(…)`, `<(…)`), a backtick, a command substitution inside double quotes,
-# `<<`, `<<<` and `&>` — makes it no single kit command, and so does a program that is not the kit (`grep
-# analytics notes.txt`, `sh -c '…'`, `python a.py`). For such a line the handler returns nothing: aelix
-# runs it as it would, another extension's block or shell included, and a kit call in it records
-# `agent`/declared from the process environment. So the handler sets another extension's answer aside
-# for that one kit command only (CONTRACTS A). A line may start with PowerShell's call operator `&`
-# (`& C:\venv\Scripts\python.exe -m aelix_analytics status`), which no POSIX shell takes there.
+# point, read as the shell aelix runs it in reads it. aelix picks that shell by its own rule ($SHELL; on
+# Windows $SHELL when it names a file, then PowerShell, then cmd: the_shell), and two families are read
+# here: the POSIX shells (sh, bash, zsh, dash, ksh, mksh, ash) and PowerShell (pwsh, powershell). Under
+# any other shell — cmd, fish, nu, csh, one this reading does not know — every line is left alone.
+#
+# A kit entry point is the program `analytics` (any directory: `analytics`, `./bin/analytics`,
+# `analytics.exe`), or Python given `-m aelix_analytics[.…]` (also bundled, `-Im`) or a `-c` that
+# imports it, also after `uv run` and the options it is known to take. In a POSIX shell the program may
+# follow `NAME=value` words, `env` with the options it is known to take, `exec`, `command`, `time` and
+# `nohup`; in PowerShell its call operator `&` at the start. The command may carry redirections to or
+# from a file or a descriptor (`> out.txt`, `2>&1`; in PowerShell output ones only).
+#
+# Anything else makes the line no single kit command: an operator — `;` `&` `&&` `|` `||` `|&`, a new
+# line, `(` `)` (a subshell, `$(…)`, `<(…)`), `<<`, `<<<`, `&>` — wherever it is not quoted or escaped,
+# and whatever this reading leaves open: `$` outside single quotes (an expansion: `$'…'`, `$"…"`,
+# `${…}`, `$[…]`, `$((…))`, even `$HOME`), a backtick, a quote not closed, a backslash ending the line,
+# a comment (`#` at a word's start) that a new line follows, a control character but a tab and a new
+# line, `env -S` (env runs the first word of its string) and any option of env or `uv run` not known
+# here (it may take the next word as its value, and the program is another word then). `#` and what
+# follows it are read as well, so an operator there counts. In PowerShell, where a backslash is a
+# character and not an escape, also: a new line, a backtick (its escape), a quote it takes besides ' and
+# " (‘ ’ “ ” …), a space besides a space and a tab, `--%`, `{` `}`, `<` (`<#` opens a comment), a `>&`
+# but `n>&1`, and a line its POSIX reading would refuse. A
+# program that is not the kit (`grep analytics notes.txt`, `sh -c '…'`, `python a.py`) is none either.
+# For such a line the handler returns nothing: aelix runs it as it would, another extension's block or
+# shell included, and a kit call in it records `agent`/declared from the process environment. So the
+# handler sets another extension's answer aside for that one kit command only (CONTRACTS A).
+POSIX_SHELLS = frozenset({"sh", "bash", "zsh", "dash", "ksh", "mksh", "ash"})
+POWERSHELL_SHELLS = frozenset({"pwsh", "powershell"})
 KIT_PROGRAMS = frozenset({"analytics"})
-KIT_PROGRAMS_WINDOWS = frozenset({"analytics.exe", "analytics.cmd", "analytics.bat"})
-# Words that run the word after them, as the same one command.
+# Not a batch file (`analytics.cmd`, `.bat`): Windows runs one through cmd, which reads its arguments
+# again by its own rules (`'a" & x & "b'` runs `x`), and the kit ships none.
+KIT_PROGRAMS_WINDOWS = frozenset({"analytics.exe"})
+# Words that run the word after them, as the same one command (a POSIX shell's).
 COMMAND_PREFIXES = frozenset({"env", "exec", "command", "time", "nohup"})
-# env's options that take the next word as their value (GNU and BSD env): `env -u NAME analytics`.
-ENV_VALUE_OPTIONS = frozenset({"-u", "--unset", "-C", "--chdir", "-S", "--split-string", "-P"})
+# env's options (GNU and BSD env) this reading knows: those that take no value, and those that take the
+# next word — or the rest of their own (`-uNAME`, `--unset=NAME`) — as it. `-S`/`--split-string` is not
+# among them: env splits its string into words and runs the first, so the program is the string's.
+ENV_FLAGS = frozenset({"-", "-i", "--ignore-environment", "-0", "--null", "-v", "--debug"})
+ENV_VALUE_OPTIONS = frozenset({"-u", "--unset", "-C", "--chdir", "-P", "-a", "--argv0"})
 PYTHON_PROGRAM = re.compile(r"(?:python[\d.]*w?|py)(?:\.exe)?", re.IGNORECASE)
 # Python's one-letter options that take no value, which may be bundled before -m or -c (`-Im`).
 PYTHON_FLAGS = frozenset("bBdEhiIOPqRsSuvVx")
 ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
+# `uv run`'s options (uv 0.11, `uv run --help`) this reading knows: those that take no value, and those
+# that take the next word — or the rest of their own (`--with=polars`, `-p3.12`) — as it. `-m`/`--module`,
+# `-s`/`--script` and `--gui-script` are not among them (the next word is no program then), nor is any
+# option uv adds later.
+UV_RUN_FLAGS = frozenset({
+    "--active", "--all-extras", "--all-groups", "--all-packages", "--compile-bytecode", "--exact",
+    "--frozen", "--isolated", "--locked", "--managed-python", "--no-binary", "--no-build",
+    "--no-build-isolation", "--no-cache", "-n", "--no-config", "--no-default-groups", "--no-dev",
+    "--no-editable", "--no-env-file", "--no-index", "--no-managed-python", "--no-progress",
+    "--no-project", "--no-python-downloads", "--no-sources", "--no-sync", "--offline", "--only-dev",
+    "--refresh", "--reinstall", "--system-certs", "--upgrade", "-U", "--quiet", "--verbose"})
+UV_RUN_COUNTED = re.compile(r"-(?:q+|v+)")
 UV_RUN_VALUE_OPTIONS = frozenset({
-    "--project", "--directory", "--python", "-p", "--with", "--with-editable", "--with-requirements",
-    "--package", "--env-file", "--extra", "--group", "--only-group", "--no-group", "--index",
-    "--default-index", "--index-url", "--extra-index-url", "--find-links", "-f", "--cache-dir",
-    "--config-file", "--python-preference", "--color", "--prerelease", "--resolution",
-    "--exclude-newer", "--link-mode", "--refresh-package", "--reinstall-package", "--upgrade-package",
-    "-P"})
+    "--extra", "--no-extra", "--group", "--no-group", "--only-group", "--no-editable-package",
+    "--env-file", "-w", "--with", "--with-editable", "--with-requirements", "--package",
+    "--python-platform", "--index", "--default-index", "-i", "--index-url", "--extra-index-url", "-f",
+    "--find-links", "--index-strategy", "--keyring-provider", "-P", "--upgrade-package",
+    "--upgrade-group", "--resolution", "--prerelease", "--fork-strategy", "--exclude-newer",
+    "--exclude-newer-package", "--no-sources-package", "--reinstall-package", "--link-mode", "-C",
+    "--config-setting", "--config-settings-package", "--no-build-isolation-package",
+    "--no-build-package", "--no-binary-package", "--cache-dir", "--refresh-package", "-p", "--python",
+    "--python-preference", "--color", "--allow-insecure-host", "--directory", "--project",
+    "--config-file"})
 SHELL_OPERATOR_CHARS = frozenset("();<>|&")
+POWERSHELL_OPERATOR_CHARS = frozenset("();<>|&{}")
 # The redirections one simple command may carry, with a descriptor number before them: to or from a
 # file or a descriptor. A here-document or here-string (`<<`, `<<<`), `&>` (in a POSIX shell, `&` and
-# then `>`), `<(` and `>(` are not among them.
+# then `>`), `<(` and `>(` are not among them. PowerShell's are a stream's to a file (`>`, `2>>`) and
+# its merge `n>&1` (`<` is reserved there, and a `>&` it does not take may leave `&` its background
+# operator: `x>&touch y` runs `touch y`).
 REDIRECTION = re.compile(r"[0-9]*(?:>>|>\||>&|<&|<>|<|>)")
+POWERSHELL_REDIRECTION = re.compile(r"[1-6]?(?:>>|>)")
+POWERSHELL_MERGE = re.compile(r"[1-6]>&")
 DESCRIPTOR = re.compile(r"[0-9]+")
+# Characters no line is read with: control characters but a tab and a new line (a carriage return ends
+# a command in PowerShell and is a letter in a POSIX shell), and the Unicode line ends.
+UNREAD_CHARACTERS = re.compile("[\x00-\x08\x0b-\x1f\x7f\x85  ]")
+# What PowerShell takes as a quote besides ' and " (its tokenizer's single and double quotes), and its
+# stop-parsing token `--%`, which it also takes with the dashes it knows (– — ―).
+POWERSHELL_QUOTES = frozenset("‘’‚‛“”„‟")
+POWERSHELL_STOP_PARSING = re.compile("[-–—―]{2}%")
 
 
-def _without_continuations(text: str) -> str:
-    """A double-quoted text without its line continuations (a backslash before a new line); every other
-    backslash stays with the character after it, so `\\\\` before a new line is no continuation."""
-    out, i = [], 0
-    while i < len(text):
-        pair = text[i:i + 2]
-        if pair == "\\\n":
-            i += 2
-        elif text[i] == "\\":
-            out.append(pair)
-            i += 2
+def the_shell() -> str:
+    """aelix's name (aelix_ai.utils._shell.shell_basename: `bash`, `zsh`, `pwsh`, `cmd`, …) for the shell
+    it runs a person's `!` line in: cli/repl.handle_user_bash runs it with create_local_bash_operations()
+    and the environment get_shell_env() makes, whose shell tools/bash._resolve_shell picks — the shell
+    PersonShell runs the line in, too."""
+    from aelix_ai.utils._shell import shell_basename
+    from aelix_coding_agent.tools.bash import _resolve_shell
+    from aelix_coding_agent.util.shell_env import get_shell_env
+
+    return shell_basename(_resolve_shell(get_shell_env()).path)
+
+
+class _Reader:
+    """Words and operators of one line, as a list of (text, whether it is an operator)."""
+
+    def __init__(self) -> None:
+        self.tokens: list[tuple[str, bool]] = []
+        self.word: list[str] = []
+        self.in_word = False
+        self.plain = True  # the word so far has no quote and no escape: its digits may be a descriptor
+
+    def add(self, text: str, *, plain: bool = True) -> None:
+        self.word.append(text)
+        self.in_word = True
+        self.plain = self.plain and plain
+
+    def end_word(self) -> None:
+        if self.in_word:
+            self.tokens.append(("".join(self.word), False))
+        self.word.clear()
+        self.in_word, self.plain = False, True
+
+    def operator(self, line: str, i: int, chars: frozenset) -> int:
+        """The run of operator characters at `i`, with the descriptor number a redirection starts
+        with (`2>&`) when the word so far is only that number; returns where the run ends."""
+        number = "".join(self.word) if self.in_word and self.plain and line[i] in "<>" else ""
+        if DESCRIPTOR.fullmatch(number):
+            self.word.clear()
+            self.in_word, self.plain = False, True
         else:
-            out.append(text[i])
-            i += 1
-    return "".join(out)
+            number = ""
+            self.end_word()
+        j = i
+        while j < len(line) and line[j] in chars:
+            j += 1
+        self.tokens.append((number + line[i:j], True))
+        return j
 
 
-def _substitutes(text: str) -> bool:
-    """Whether a double-quoted text runs a command: `$(` or a backtick that no backslash escapes."""
-    i = 0
-    while i < len(text):
-        if text[i] == "\\":
-            i += 2
-        elif text[i] == "`" or text.startswith("$(", i):
-            return True
-        else:
-            i += 1
-    return False
-
-
-def _shell_words(command: str) -> list[tuple[str, bool]]:
-    """The line's words and operators as a POSIX shell splits them, roughly: (text, whether it is an
-    operator). An operator — a run of `;&|()<>` (with the descriptor number a redirection starts with:
-    `2>&`), a backtick, a new line (as `;`), and `$(` for a command substitution inside double quotes —
-    is one only where it is neither quoted nor escaped; quotes keep a word together and are dropped; a
-    backslash outside single quotes keeps itself and the character after it in the word (a Windows path
-    stays one word, `\\;` is no separator), except before a new line, where the two are a line
-    continuation and gone, outside quotes and inside double ones (`uv run \\<LF>analytics` is `uv run
-    analytics`). `#` is a character as any other: what follows it is read too, so an operator there
-    still counts. An unclosed quote raises ValueError."""
-    tokens: list[tuple[str, bool]] = []
-    word: list[str] = []
-    in_word = False
-    plain = True  # the word so far has no quote and no backslash: its digits may be a descriptor
-    i, n = 0, len(command)
-
-    def end_word() -> None:
-        nonlocal in_word, plain
-        if in_word:
-            tokens.append(("".join(word), False))
-            word.clear()
-            in_word = False
-        plain = True
-
+def _posix_words(line: str) -> list[tuple[str, bool]]:
+    """The line's words and operators as a POSIX shell (sh, bash, zsh) splits them. An operator — a
+    run of `;&|()<>` (with a redirection's descriptor number), and a new line (as `;`) — is one only
+    where it is neither quoted nor escaped. Quotes and escapes go as the shell removes them: single
+    quotes keep everything, a backslash keeps the character after it (inside double quotes only `$`
+    `` ` `` `"` `\\`, before others it stays), and a backslash before a new line is a line continuation,
+    gone (`uv run \\<LF>analytics` is `uv run analytics`). `#` is a character as any other. ValueError
+    for what this reading leaves open: `$` or a backtick outside single quotes, a quote not closed, a
+    backslash ending the line, and a comment (`#` at a word's start) that a new line follows."""
+    reader, i, n = _Reader(), 0, len(line)
     while i < n:
-        c = command[i]
-        if c in " \t\r":
-            end_word()
+        c = line[i]
+        if c in " \t":
+            reader.end_word()
             i += 1
-        elif c in "\n`":
-            end_word()
-            tokens.append((";" if c == "\n" else "`", True))
+        elif c == "\n":
+            reader.end_word()
+            reader.tokens.append((";", True))
             i += 1
+        elif c in "$`":
+            raise ValueError("an expansion")
+        elif c == "#" and not reader.in_word and "\n" in line[i:]:
+            raise ValueError("a comment a new line follows")
         elif c in SHELL_OPERATOR_CHARS:
-            number = "".join(word) if in_word and plain and c in "<>" else ""
-            if DESCRIPTOR.fullmatch(number):
-                word.clear()
-                in_word = False
-            else:
-                number = ""
-                end_word()
-            j = i
-            while j < n and command[j] in SHELL_OPERATOR_CHARS:
-                j += 1
-            tokens.append((number + command[i:j], True))
-            i = j
-        elif c == "\\" and command[i + 1:i + 2] == "\n":
-            i += 2  # a line continuation: neither a word nor a separator
+            i = reader.operator(line, i, SHELL_OPERATOR_CHARS)
         elif c == "\\":
-            in_word, plain = True, False
-            word.append(command[i:i + 2])
+            following = line[i + 1:i + 2]
+            if not following:
+                raise ValueError("a backslash ending the line")
+            if following != "\n":  # a line continuation is neither a word nor a separator
+                reader.add(following, plain=False)
             i += 2
-        elif c in "'\"":
-            in_word, plain = True, False
-            j = i + 1
-            while j < n and command[j] != c:
-                j += 2 if c == '"' and command[j] == "\\" else 1
+        elif c == "'":
+            j = line.find("'", i + 1)
+            if j < 0:
+                raise ValueError("no closing quotation")
+            reader.add(line[i + 1:j], plain=False)
+            i = j + 1
+        elif c == '"':
+            j, text = i + 1, []
+            while j < n and line[j] != '"':
+                if line[j] in "$`":
+                    raise ValueError("an expansion")
+                if line[j] == "\\" and line[j + 1:j + 2] in ("$", "`", '"', "\\", "\n"):
+                    text.append(line[j + 1] if line[j + 1] != "\n" else "")
+                    j += 2
+                else:
+                    text.append(line[j])
+                    j += 1
             if j >= n:
                 raise ValueError("no closing quotation")
-            text = command[i + 1:j]
-            if c == '"':
-                if _substitutes(text):
-                    tokens.append(("$(", True))
-                text = _without_continuations(text)
-            word.append(text)
+            reader.add("".join(text), plain=False)
             i = j + 1
         else:
-            in_word = True
-            word.append(c)
+            reader.add(c)
             i += 1
-    end_word()
-    return tokens
+    reader.end_word()
+    return reader.tokens
 
 
-def _program(word: str) -> str:
-    return re.split(r"[/\\]", word)[-1]
+def _powershell_words(line: str) -> list[tuple[str, bool]]:
+    """The line's words and operators as PowerShell splits them, as far as this reading needs: a
+    backslash is a character, a quoted text ends at its quote when the next character is not the same
+    quote (`''` and `""` inside are one quote), and an operator is a run of `;&|()<>{}` outside
+    quotes. ValueError for what it leaves open: a new line or a carriage return, a backtick (its
+    escape), `$` outside single quotes, a quote it takes besides ' and " (‘ ’ “ ” …), a space outside
+    quotes besides a space and a tab (it splits words on a no-break space, which a POSIX shell does
+    not), a quote not closed, and `--%` (what follows it would be passed on unread)."""
+    reader, i, n = _Reader(), 0, len(line)
+    while i < n:
+        c = line[i]
+        if c in "\r\n`$" or c in POWERSHELL_QUOTES or (c.isspace() and c not in " \t"):
+            raise ValueError("a character this reading leaves open")  # a space it splits on, too
+        if c in " \t":
+            reader.end_word()
+            i += 1
+        elif c in POWERSHELL_OPERATOR_CHARS:
+            i = reader.operator(line, i, POWERSHELL_OPERATOR_CHARS)
+        elif c in "'\"":
+            j, text = i + 1, []
+            while True:
+                if j >= n:
+                    raise ValueError("no closing quotation")
+                d = line[j]
+                if d in "\r\n`" or d in POWERSHELL_QUOTES or (d == "$" and c == '"'):
+                    raise ValueError("a character this reading leaves open")
+                if d == c:
+                    if line[j + 1:j + 2] != c:
+                        break
+                    j += 1  # a doubled quote is one
+                text.append(d)
+                j += 1
+            reader.add("".join(text), plain=False)
+            i = j + 1
+        else:
+            reader.add(c)
+            i += 1
+    reader.end_word()
+    if any(not operator and POWERSHELL_STOP_PARSING.match(text) for text, operator in reader.tokens):
+        raise ValueError("the stop-parsing token")
+    return reader.tokens
+
+
+def _redirection(text: str, target: str, family: str) -> bool:
+    if family == "posix":
+        return bool(REDIRECTION.fullmatch(text))
+    return bool(POWERSHELL_REDIRECTION.fullmatch(text)) or (
+        bool(POWERSHELL_MERGE.fullmatch(text)) and target == "1")
+
+
+def _one_command(tokens: list[tuple[str, bool]], family: str) -> list[str] | None:
+    """The words of one simple command, its redirections and their targets left out; None if an
+    operator is anything else (a second command, a pipeline, a list, a subshell)."""
+    words, i = [], 0
+    while i < len(tokens):
+        text, operator = tokens[i]
+        if operator:
+            if i + 1 >= len(tokens) or tokens[i + 1][1] or not _redirection(text, tokens[i + 1][0],
+                                                                             family):
+                return None
+            i += 2  # a redirection and its target, which is no word of the command
+            continue
+        words.append(text)
+        i += 1
+    return words
+
+
+def _program(word: str, family: str) -> str:
+    """A program word's last part: after a slash, and in PowerShell a backslash too (a POSIX shell
+    took its backslashes as escapes already)."""
+    return re.split(r"[/\\]" if family == "powershell" else "/", word)[-1]
+
+
+def _kit_program(program: str) -> bool:
+    return program in KIT_PROGRAMS or program.lower() in KIT_PROGRAMS_WINDOWS
 
 
 def _python_runs_the_kit(words: list[str]) -> bool:
@@ -1272,7 +1400,7 @@ def _python_runs_the_kit(words: list[str]) -> bool:
         if not word.startswith("-") or word == "-":
             return False  # a script, the standard input, or the end of Python's options
         if word.startswith("--"):
-            i += 1
+            i += 2 if word == "--check-hash-based-pycs" else 1
             continue
         letters = word[1:]
         while letters and letters[0] in PYTHON_FLAGS:
@@ -1289,51 +1417,81 @@ def _python_runs_the_kit(words: list[str]) -> bool:
     return False
 
 
-def _runs_the_kit(words: list[str]) -> bool:
-    """Whether one simple command's words run a kit entry point: its program, after the assignments,
-    the prefixes and `uv run` with their options."""
-    i = 0
-    while i < len(words):
-        word = words[i]
-        if ASSIGNMENT.match(word) or word in COMMAND_PREFIXES:
+def _options_end(words: list[str], i: int, flags, values, counted=None) -> int | None:
+    """Where the program's word is after a command's options at `i` (`--` ends them): those in
+    `flags` take no value; those in `values` take the next word, or the rest of their own (`--name=v`,
+    `-xv`). None for any other option: it may take the next word as its value."""
+    while i < len(words) and words[i].startswith("-"):
+        option = words[i]
+        if option == "--":
+            return i + 1
+        if option in flags or (counted is not None and counted.fullmatch(option)):
             i += 1
-            if word == "env":
-                while i < len(words) and words[i].startswith("-"):
-                    i += 2 if words[i] in ENV_VALUE_OPTIONS else 1
-            continue
-        program = _program(word)
-        if program in KIT_PROGRAMS or program.lower() in KIT_PROGRAMS_WINDOWS:
-            return True
-        if program == "uv" and words[i + 1:i + 2] == ["run"]:
+        elif option in values:
             i += 2
-            while i < len(words) and words[i].startswith("-"):
-                i += 1 if "=" in words[i] or words[i] not in UV_RUN_VALUE_OPTIONS else 2
-            continue  # the program uv runs comes next
-        return bool(PYTHON_PROGRAM.fullmatch(program)) and _python_runs_the_kit(words[i + 1:])
-    return False
+        elif ("=" in option and option.split("=", 1)[0] in values) or (
+                not option.startswith("--") and option[:2] in values):
+            i += 1
+        else:
+            return None
+    return i
 
 
-def is_single_kit_command(command: str) -> bool:
-    """Whether a person's `!` line is, as a whole, one simple command that calls a kit entry point
-    (see above): read as a POSIX shell reads it, no operator in it but a redirection to or from a file
-    or a descriptor, and its program the kit's."""
-    try:
-        tokens = _shell_words(command.strip())
-    except ValueError:  # an unclosed quote: no judgment, the line runs as aelix runs it
+def _runs_the_kit(words: list[str], family: str) -> bool:
+    """Whether one simple command's words run a kit entry point: its program, after what may come
+    before it in that shell (see above)."""
+    i = 0
+    if family == "posix":
+        while i < len(words) and ASSIGNMENT.match(words[i]):
+            i += 1
+        while i < len(words) and words[i] in COMMAND_PREFIXES:
+            if words[i] == "env":
+                i = _options_end(words, i + 1, ENV_FLAGS, ENV_VALUE_OPTIONS)
+                if i is None:
+                    return False
+                while i < len(words) and ASSIGNMENT.match(words[i]):
+                    i += 1
+            else:
+                i += 1
+    if i >= len(words):
         return False
-    if tokens[:1] == [("&", True)]:
-        tokens = tokens[1:]  # PowerShell's call operator: no POSIX shell starts a line with `&`
-    words, i = [], 0
-    while i < len(tokens):
-        text, operator = tokens[i]
-        if operator:
-            if not REDIRECTION.fullmatch(text) or i + 1 >= len(tokens) or tokens[i + 1][1]:
-                return False  # a second command, a pipeline, a list, a subshell, a substitution
-            i += 2  # a redirection and its target, which is no word of the command
-            continue
-        words.append(text)
-        i += 1
-    return _runs_the_kit(words)
+    program = _program(words[i], family)
+    if program == "uv" and words[i + 1:i + 2] == ["run"]:
+        i = _options_end(words, i + 2, UV_RUN_FLAGS, UV_RUN_VALUE_OPTIONS, UV_RUN_COUNTED)
+        if i is None or i >= len(words):
+            return False
+        program = _program(words[i], family)
+    if _kit_program(program):
+        return True
+    return bool(PYTHON_PROGRAM.fullmatch(program)) and _python_runs_the_kit(words[i + 1:])
+
+
+def is_single_kit_command(command: str, shell: str) -> bool:
+    """Whether a person's `!` line is, as a whole, one simple command that calls a kit entry point,
+    read as `shell` — aelix's name for the shell it runs the line in (`bash`, `zsh`, `pwsh`, …,
+    the_shell) — reads it (see above)."""
+    family = ("posix" if shell in POSIX_SHELLS else "powershell" if shell in POWERSHELL_SHELLS
+              else None)
+    line = command.strip()
+    if family is None or not line or UNREAD_CHARACTERS.search(line):
+        return False
+    try:
+        posix = _posix_words(line)
+        if family == "posix":
+            words = _one_command(posix, "posix")
+        else:
+            tokens = _powershell_words(line)
+            if tokens[:1] == [("&", True)]:  # its call operator, at the start only
+                tokens = tokens[1:]
+                posix = posix[1:] if posix[:1] == [("&", True)] else posix
+            elif line[0] in "'\"":
+                return False  # a quoted text first is a value in PowerShell, not a program
+            if _one_command(posix, "posix") is None:
+                return False
+            words = _one_command(tokens, "powershell")
+    except ValueError:  # what this reading leaves open: no judgment, the line runs as aelix runs it
+        return False
+    return words is not None and _runs_the_kit(words, family)
 
 
 class PersonShell:
@@ -1354,11 +1512,12 @@ class PersonShell:
 
 def on_user_bash(event, ctx):
     """A person's `!`/`!!` line: aelix's local shell with the person as the author when the whole line
-    is one kit command, else nothing (aelix keeps the last result a handler returns, of any kind, so a
-    result for any other line would set another extension's block or shell aside for all of it). Never
-    raises: a person's command must run whatever this judgment meets."""
+    is one kit command in the shell aelix runs it in, else nothing (aelix keeps the last result a
+    handler returns, of any kind, so a result for any other line would set another extension's block or
+    shell aside for all of it). Never raises: a person's command must run whatever this judgment
+    meets."""
     try:
-        if not is_single_kit_command(str(getattr(event, "command", "") or "")):
+        if not is_single_kit_command(str(getattr(event, "command", "") or ""), the_shell()):
             return None
         from aelix_coding_agent.tools.bash import create_local_bash_operations
         from aelix_coding_agent.util.shell_env import get_shell_env

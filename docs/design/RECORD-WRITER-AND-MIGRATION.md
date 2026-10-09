@@ -48,6 +48,9 @@
   않음). ADR-0005 결정 5의 개정 문구도 그에 맞췄다. (3)은 앞선 질문의 설명이 실제 동작보다 좁았던 것(그때는 `!` 한 줄의 명령 위치에 kit 호출이
   하나라도 있으면 줄 전체가 로컬 셸에서 돌았다)을 바로잡은 답이다: 처리기는 줄 전체가 kit 진입점을 부르는 단순 명령 하나일 때만 실행기를
   돌려주고, `;`·`&&`·`|`·줄바꿈·치환 등으로 다른 명령과 합친 줄은 건드리지 않으며 그 안의 kit 기록은 `agent`다(4.2절, 현재 계약 A).
+  보정판의 점검이 찾은 빈틈에 따라 줄은 aelix가 그 줄을 돌릴 셸(POSIX 셸이나 PowerShell, 그 밖의 셸에서는 결과 없음)이 읽는 대로 읽고, 셸마다
+  읽는 법이 다른 것(`$`, `env -S`, 모르는 `env`·`uv run` 옵션, PowerShell의 글자인 역슬래시·캐리지 리턴 등)이 든 줄도 건드리지 않는다. 또 목적지의
+  AppleDouble 일반 파일이 복사가 원본의 폴더·링크 `._x`를 놓을 경로이면 1단계에서 `not_empty`로 거절한다(6.2절).
 
 ---
 
@@ -388,7 +391,13 @@ class Origin:
   것이다. 그래도 그 명령에서는 밀어내기가 남으므로 현재 계약 A에 한계로 적는다. ③의 첫 구현은 줄의 명령 위치 어디에든 kit 호출이 있으면 줄
   전체에 실행기를 돌려줬고(`cd p && analytics status`, `echo x; analytics …`), 소유자가 보정한 결정(2026-10-09)으로 줄 전체가 kit 진입점을 부르는
   단순 명령 하나(앞의 `NAME=value`·`env`·`uv run` 등과 파일·디스크립터 리디렉션은 허용)일 때만으로 좁혔다. 다른 명령과 합친 줄은 결과를
-  돌려주지 않아 다른 확장의 결과대로 돌고 그 안의 kit 기록은 `agent`다(규칙은 현재 계약 A). 확장 API가 다른 처리기의 등록을 알려 주는지는 확인하지
+  돌려주지 않아 다른 확장의 결과대로 돌고 그 안의 kit 기록은 `agent`다(규칙은 현재 계약 A). 보정판의 점검(2026-10-09)이 그 판정이 줄을 POSIX
+  셸로만 읽어 실제 셸과 어긋나는 줄을 찾았다: bash·zsh의 `$'…'`(작은따옴표를 `\'`로 품음), Windows에서 aelix의 셸인 PowerShell에서 역슬래시가
+  글자인 줄(`\;`·`"C:\data\"`)과 캐리지 리턴, `env -S`, 판정이 몰랐던 `uv run` 옵션. 그래서 판정은 aelix가 그 줄을 돌릴 셸을 aelix 자신의 규칙
+  (`tools.bash._resolve_shell`)으로 알고 그 셸이 읽는 대로 읽는다: POSIX 셸(sh·bash·zsh·dash·ksh·mksh·ash)과 PowerShell(POSIX 셸로 읽어도 받는
+  줄만), 그 밖의 셸(cmd·fish·nu·csh 등)에서는 결과를 돌려주지 않는다. 셸마다 다르게 펼치거나 읽는 것(작은따옴표 밖의 `$`, 줄바꿈이 뒤따르는
+  주석, 제어 문자, `env -S`, 판정이 모르는 옵션, PowerShell의 줄바꿈·백틱·`--%`·`{`·`<`·그 셸의 따옴표 글자)이 든 줄은 kit 명령 하나로 보지 않는다
+  (받지 않은 kit 명령은 `agent`로 남는 좁힘). 배치 파일(`analytics.cmd`·`.bat`)은 cmd가 인자를 다시 읽으므로 kit 진입점으로 보지 않는다. 확장 API가 다른 처리기의 등록을 알려 주는지는 확인하지
   않았다(hook 버스의 `has_handlers`는 자기 처리기도 세고, 확장에서 닿는지 모른다). RPC 모드의 `bash` 명령(처리기 없이 `os.environ`을 그대로 씀)은
   사람이 부른 CLI가 `agent`로 남는 쪽의 한계다(R18, OQ1).
 - 확장이 aelix 프로세스의 환경을 바꾸는 것은 현재 계약 A(확장이 호스트에 남기는 것)의 변경이다. aelix가 띄우는 다른 자식(MCP 서버, 다른 확장의
@@ -734,7 +743,7 @@ class Writer:
 | 원본 | 원본의 모든 이름을 UTF-8로 쓸 수 있음(POSIX가 UTF-8이 아닌 바이트를 넘기는 짝 없는 surrogate가 없음) | `source_unreadable(reason=name_not_utf8)`과 경로 목록(이름 바이트의 base64와 이스케이프한 글자). OQ12와 같은 방식 |
 | 원본 | `.lab/` 아래 이름이 목적지의 새 관리 이름(`.analytics/migration/`·`publications/`·`run.lock`·`workspace.lock`·`migration.lock`)과 겹치지 않음 | `destination_invalid(name_collision)`(겹친 쌍) |
 | 목적지 | 목적지의 위쪽 디렉터리에 `lab.json`·`analytics.json`이 없고, 표식 없는 전환 기록(`.analytics/migration/`·`.analytics/migration.lock`, 커밋하지 않은 전환의 목적지)도 없음(전환 기록은 2026-10-09 소유자 결정으로 OQ9를 넓힌 것, `writer.project_above`; init도 같음) | `destination_invalid(inside_project)`(`details.project`: 그 디렉터리) |
-| 목적지 | 목적지가 없거나 빈 디렉터리, 또는 6.10절의 이어 쓸 목적지. 빈 디렉터리의 판정은 init과 같다: 루트에 `.DS_Store`만 있으면 빈 것으로 보고, init과 전환이 같은 상수를 쓴다(ADR-0005 결정 5 "init과 같다"). 2026-10-09 소유자 결정(같은 날 보정)으로 AppleDouble 파일 — `._<이름>`인 일반 파일(lstat) — 도 `.DS_Store`처럼 빈 디렉터리에 남아도 되는 항목이다(`core.empty_directory_entry`). 그런 이름의 폴더·링크는 항목이다. 잠금을 잡은 뒤의 재판정에서 `.analytics/` 안의 AppleDouble 파일(macOS가 이 전환의 잠금 옆에 만든 `._migration.lock` 등)도 항목으로 세지 않는다 | `destination_invalid(not_empty)`(남은 항목), 파일이면 `not_a_directory`. OQ4의 권장 답을 받지 않아 운영체제 메타 파일도 복사할 때, 목적지의 `.DS_Store`가 계획이 복사할 경로(원본 루트의 `.DS_Store`)이면 `not_empty`와 그 파일이다(복사 중 `occupied`로 늘 끝나는 일을 미리 거절) |
+| 목적지 | 목적지가 없거나 빈 디렉터리, 또는 6.10절의 이어 쓸 목적지. 빈 디렉터리의 판정은 init과 같다: 루트에 `.DS_Store`만 있으면 빈 것으로 보고, init과 전환이 같은 상수를 쓴다(ADR-0005 결정 5 "init과 같다"). 2026-10-09 소유자 결정(같은 날 보정)으로 AppleDouble 파일 — `._<이름>`인 일반 파일(lstat) — 도 `.DS_Store`처럼 빈 디렉터리에 남아도 되는 항목이다(`core.empty_directory_entry`). 그런 이름의 폴더·링크는 항목이다. 잠금을 잡은 뒤의 재판정에서 `.analytics/` 안의 AppleDouble 파일(macOS가 이 전환의 잠금 옆에 만든 `._migration.lock` 등)도 항목으로 세지 않는다 | `destination_invalid(not_empty)`(남은 항목), 파일이면 `not_a_directory`. OQ4의 권장 답을 받지 않아 운영체제 메타 파일도 복사할 때, 목적지의 `.DS_Store`가 계획이 복사할 경로(원본 루트의 `.DS_Store`)이면 `not_empty`와 그 파일이다(복사 중 `occupied`로 늘 끝나는 일을 미리 거절). 같은 이유로 목적지의 AppleDouble 일반 파일(루트와 `.analytics/`의 것)이 복사가 원본의 항목을 놓을 경로(원본의 폴더·링크 `._x`, `.lab/._d`의 `.analytics/._d`, 또는 그 아래)이면 `not_empty`와 그 파일이다. 이름은 대소문자·정규화를 접어 비교하고(접는지는 2단계에서 앎), 원본의 링크는 목적지가 링크를 만들 수 있는지와 상관없이 그 경로를 차지한다고 본다. 이 파일은 판정의 서명에 들어가 잠금 뒤에 생겨도 다시 판정한다(보정판의 점검) |
 | 목적지 | 목적지 쪽 빈 공간 ≥ 남은 바이트 + 여유(남은 바이트의 1% + 64 MiB) | `insufficient_space` |
 
 - 같은 위치인지는 끝까지 푼 `(st_dev, st_ino)`로, `st_ino`가 0이면 끝까지 푼 경로로 판정한다(ADR-0006 9절). 목적지는 끝까지 푼 경로(없으면 가장
@@ -1006,7 +1015,7 @@ macOS의 AppleDouble `._<이름>`인 일반 파일도, 어느 깊이에서나. �
 
 | 목적지 상태 | 같은 명령을 다시 부르면 |
 |---|---|
-| 없음·빈 디렉터리, 또는 `.analytics/`·`migration.lock`·빈 `.analytics/migration/`만, 또는 그것에 더해 내용 없는 전환 디렉터리 하나(ledger가 없거나 비었거나 끊긴 첫 줄뿐이고 다른 항목이 없음, 2단계 중의 중단. FAT·exFAT에서 macOS가 ledger 옆에 쓰는 AppleDouble 일반 파일 `._progress.jsonl`은 항목으로 세지 않음)만 | 새 전환. 내용 없는 전환 디렉터리는 2단계가 만든 것이므로 지우고 새 id로 시작한다. 지우지 못하면(macOS 밖에서 AppleDouble 파일이 남음, 권한) 끊긴 ledger만 지운 채 `destination_write_failed`(`details.path`: 그 디렉터리)로 거절하고 hint가 그 폴더를 지우라고 알린다(2026-10-09 소유자 결정의 보정 뒤 점검) |
+| 없음·빈 디렉터리, 또는 `.analytics/`·`migration.lock`·빈 `.analytics/migration/`만, 또는 그것에 더해 내용 없는 전환 디렉터리 하나(ledger가 없거나 비었거나 끊긴 첫 줄뿐이고 다른 항목이 없음, 2단계 중의 중단. FAT·exFAT에서 macOS가 ledger 옆에 쓰는 AppleDouble 일반 파일 `._progress.jsonl`은 항목으로 세지 않음)만 | 새 전환. 내용 없는 전환 디렉터리는 2단계가 만든 것이므로 지우고 새 id로 시작한다. 지우지 못하면(macOS 밖에서 AppleDouble 파일이 남음, 권한) `destination_write_failed`(`details.path`: 그 디렉터리)로 거절하고 hint가 그 폴더를 지우라고 알리며, 이 호출이 지운 것(끊긴 ledger, 그 앞의 내용 없는 디렉터리; 없으면 없다고)을 hint와 `details.removed`에 적는다(2026-10-09 소유자 결정의 보정 뒤 점검과 그 다음 점검). macOS의 `rmdir`은 `._` 이름의 일반 파일과 링크를 함께 지우지만, 링크 `._x`가 있는 디렉터리는 내용이 있다고 판정해 지우지 않는다 |
 | 내용 있는 전환 디렉터리가 둘 이상 | `destination_mismatch` |
 | 원본이 주어졌고 ledger의 원본과 다른 위치 | `destination_invalid(not_empty)`(다른 원본의 중단된 전환) |
 | 전환 디렉터리 없이 다른 항목이 있음 | `destination_invalid(not_empty)` |
@@ -1285,7 +1294,7 @@ PR별 주요 파일:
 | T19 덮어쓰지 않는 게시 | 게시 직전(`on_step`)에 다른 프로세스가 계획 경로에 파일을 만듦 → `destination_mismatch(occupied)`, 그 파일의 바이트 그대로, 임시 파일은 ledger에 있음, 다시 부르면 같은 거절. 표식 게시 직전에 `analytics.json`을 만들어 둠 → 같음. 링크를 지원하지 않는 파일 시스템(시험 adapter로 `os.link` 실패를 주입)에서 `direct` 경로가 같은 결과를 냄 | S2·S6 | ② |
 | T20 배치별 관리 디렉터리 | 새 형식 프로젝트에서 스크립트가 `report/out.csv`를 씀 → run 기록의 출력에 저장된 철자로 있음. 같은 프로젝트의 `workspace/x.csv` → 출력 아님. `lab.json` 프로젝트의 `report/` → 지금처럼 출력 아님 | S14 | ③ |
 | T21 다시 부른 전환 | 6.9절의 표: 목적지에 두 표식·깨진 표식·모르는 표식·`lab.json`, 다른 원본의 커밋된 목적지, 같은 원본의 커밋된 목적지(신뢰 항목 있음·없음, 원본을 지우고 원본 없이 부름, 바깥 링크 대상을 치움, 같은 디스크의 빈 공간이 원본보다 작음), `marker_rewritten`, 표식과 같은 inode의 임시 파일을 실제 호출과 `--dry-run`으로. 기대 결과, 신뢰 목록은 누락 보충 말고 바뀌지 않음, 목적지·원본의 `tree_digest` 같음(임시 파일 정리 제외) | S1·S2 | ②·③ |
-| T22 aelix가 부른 CLI의 작성 주체 | aelix 0.1.0b2를 격리 환경에 설치하고(가짜 HOME, 모델·네트워크·로그인 없음) 확장을 aelix의 확장 로더로 실제로 등록한 뒤(`on("user_bash")` 포함, 대역 hook 없이) aelix의 bash 도구 실행 함수로 `analytics record`를 부름 → `actor=agent`·`declared`·`means=cli`와 세션. 같은 프로세스에서 `cli/repl.handle_user_bash`가 실제 hook 버스로 `user_bash`를 발행하게 해 사람의 `!` 명령을 흉내 냄 → 줄 전체가 kit 명령 하나이면 `human`·`declared`, kit을 부르지 않거나 다른 명령과 합친 줄에는 결과를 돌려주지 않음(합친 줄의 kit 기록은 `agent`, OQ1과 2026-10-09 보정). `user_bash` 실행기를 돌려주는 시험용 확장과 `!` 명령을 막는 시험용 확장을 하나씩 더 등록해 등록 순서 둘 다에서 어느 실행기가 도는지, 막는 확장이 먼저일 때 합친 줄이 막힌 채인지 기록(4.2절의 두 방향). 확장 자신의 kit 자식은 영향 없음. Windows 레그의 PowerShell 자식은 실행하기 전까지 `not_run` | S11 | ③ |
+| T22 aelix가 부른 CLI의 작성 주체 | aelix 0.1.0b2를 격리 환경에 설치하고(가짜 HOME, 모델·네트워크·로그인 없음) 확장을 aelix의 확장 로더로 실제로 등록한 뒤(`on("user_bash")` 포함, 대역 hook 없이) aelix의 bash 도구 실행 함수로 `analytics record`를 부름 → `actor=agent`·`declared`·`means=cli`와 세션. 같은 프로세스에서 `cli/repl.handle_user_bash`가 실제 hook 버스로 `user_bash`를 발행하게 해 사람의 `!` 명령을 흉내 냄 → 줄 전체가 kit 명령 하나이면 `human`·`declared`, kit을 부르지 않거나 다른 명령과 합친 줄에는 결과를 돌려주지 않음(합친 줄의 kit 기록은 `agent`, OQ1과 2026-10-09 보정). `user_bash` 실행기를 돌려주는 시험용 확장과 `!` 명령을 막는 시험용 확장을 하나씩 더 등록해 등록 순서 둘 다에서 어느 실행기가 도는지, 막는 확장이 먼저일 때 합친 줄과 `$'…'`가 든 줄(보정판의 점검이 찾은 줄)이 막힌 채인지 기록(4.2절의 두 방향). 확장 자신의 kit 자식은 영향 없음. 판정은 셸 군마다의 표와, 점검이 찾은 함정 줄을 시험 기기의 셸(sh·bash·zsh·dash·ksh·pwsh)로 실제로 돌려 kit 명령 하나로 판정한 줄이 둘째 명령을 돌리지 않음을 보는 시험(`tests/test_extension.py`)이 덮는다. Windows 레그의 PowerShell 자식은 실행하기 전까지 `not_run` | S11 | ③ |
 
 ### 11.3 진입점 행렬 (T8)
 
@@ -1470,7 +1479,7 @@ R9 프로브(18절)로 확인한 것: aelix 0.1.0b2의 bash 도구는 호출마�
      처리기가 그 명령의 환경에 `AELIX_ANALYTICS_ACTOR=human`을 넣는 실행기를 돌려준다. 다른 `!` 명령에는 결과를 돌려주지 않아 다른 확장의
      실행기를 밀어내지 않는다. 글로 판정하므로 스크립트 안에서 kit을 부르는 `!` 명령은 `agent`로 남는다(사람 수를 줄이는 쪽). 2026-10-09
      소유자 결정의 보정으로 "kit을 부르는 것"은 줄 전체가 kit 진입점을 부르는 단순 명령 하나인 것이다: 다른 명령과 합친 줄도 결과를 돌려받지
-     못하고 그 안의 kit 기록은 `agent`다(4.2절).
+     못하고 그 안의 kit 기록은 `agent`다(4.2절). 그 판정은 aelix가 그 줄을 돌릴 셸이 읽는 대로 읽는다(보정판의 점검, 4.2절).
   3. 진입점·사용자가 밝히지 않은 CLI·SDK 호출(aelix 밖의 터미널)은 기본값 `human`과 `actor_basis: inferred`를 남긴다. 런처·`bin/analytics`는 기본값을
      채워 넘기지 않는다.
   4. run 밖 SDK의 `actor="script"`는 `human`(밝히지 않았으면 `inferred`)과 `means="sdk"`로 바꾼다. TTY로 사람을 추정하지 않는다.
@@ -1777,4 +1786,6 @@ Finder·탐색기의 `.DS_Store`·`Thumbs.db`·`desktop.ini`(목적지를 열어
 | 소유자 결정 (2)를 적용한 뒤의 점검: FAT·exFAT에서 2단계의 첫 ledger 줄이 끊긴 전환 디렉터리 옆에 macOS가 `._progress.jsonl`을 써, 내용 없는 전환 디렉터리로 보지 않고 `destination_mismatch`로 거절함(새 전환으로 시작해야 함) | 고침. 내용 없는 디렉터리의 판정이 AppleDouble 일반 파일을 항목으로 세지 않고, 그 디렉터리를 지우지 못하면(`rmdir`이 남은 `._` 파일로 실패) OSError 대신 `destination_write_failed`와 지울 폴더를 알리는 hint. macOS의 `rmdir`은 남은 AppleDouble 파일을 함께 지움(디스크 이미지에서 FAT32 커밋·exFAT `no_exclusive_rename`까지 감) | 6.10절, 현재 계약 B, 측정 기록 |
 | OQ9(다른 프로젝트 안에 새 프로젝트를 만들지 않음)는 표식만 세서, 커밋하지 않은 전환 목적지(표식 없이 `.analytics/migration*`) 안에 `init`·`migrate --to`가 프로젝트를 만듦 | 소유자 질문으로 올림(OQ9의 글은 "위쪽에 표식이 있으면"). 소유자 결정(2026-10-09, [#13](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6070315072)): 넓힘. `project_above`가 표식 없는 전환 기록(`writer.migration_record`)에서도 멈추고 `destination_invalid(inside_project)`로 거절(`details.project`: 그 목적지). init(kit CLI·두 런처·`analytics_init`·`/analytics init`·`demo`)과 `migrate --to`의 시험, T8의 `migrate` 행, 첫 전환은 같은 명령으로 이어 커밋 | 6.2절, OQ9 |
 | 6.2절 1단계를 잠금 안에서 다시 판정한 거절(`not_empty`·`insufficient_space` 등)의 hint가 "nothing was written"이나, 목적지·`.analytics/`·잠금 파일이 이미 있음(②의 엔진, ③이 사람의 명령으로 엶) | 고침. 그 거절의 hint는 복사한 것이 없다는 것과 이 호출이 만든 것, 지우거나 원인을 없앤 뒤 다시 부르라는 것을 적음 | 6.2절, 현재 계약 G |
+| 보정판의 점검: 판정이 줄을 POSIX 셸로만 읽어, 실제 셸이 둘째 명령으로 읽는 줄을 kit 명령 하나로 봄(bash·zsh의 `$'…'`, zsh의 `${(e)…}`, 큰따옴표 안 줄 이음 뒤의 `$(`, PowerShell에서 글자인 역슬래시와 캐리지 리턴, `env -S`, 모르는 `uv run` 옵션). 막는 확장이 먼저일 때 둘째 명령이 돎 | 고침. aelix가 줄을 돌릴 셸을 aelix의 규칙으로 알고 그 셸(POSIX 셸·PowerShell)이 읽는 대로 읽으며, 그 밖의 셸에서는 결과 없음. 셸마다 다르게 읽는 것이 든 줄은 받지 않음(좁힘). `env`·`uv run`은 아는 옵션만, 배치 파일은 진입점 아님. 셸 군마다의 표, 시험 기기의 실제 셸로 함정 줄을 돌리는 시험, T22의 `$'…'` 줄 | 4.2절, OQ1, 현재 계약 A, T22 |
+| 보정판의 점검: 원본의 폴더·링크 `._x`는 복사하는데 목적지의 일반 파일 `._x`는 빈 폴더 판정에서 세지 않아, 1단계·잠금 뒤·`--dry-run`이 받고 복사가 그 자리에서 늘 `occupied`로 멈춤(`.DS_Store`에 대해 이 절이 미리 거절하던 것과 같은 종류) | 고침. 그 경로의 AppleDouble 파일을 `not_empty`와 그 경로로 미리 거절(대소문자·정규화를 접어 비교) | 6.2절, 현재 계약 B |
 | 런처가 커밋 뒤 목적지를 `--to`의 글자로 다시 풀어 `~`를 풀지 못함(원본의 환경을 맞추는 결과) | 고침. 6.1절의 "커밋 뒤 목적지의 환경 준비"는 kit 응답의 `destination`에, 그 폴더에 `analytics.json`이 있을 때만 | 6.1절, 현재 계약 D, T18 |

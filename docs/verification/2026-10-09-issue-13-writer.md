@@ -24,13 +24,21 @@ AppleDouble 행), FAT32·exFAT, 검증 전체와 배포본 E2E, 새 시험의 `d
 `*_before_corrected_decisions`에 그대로 두었고, 다시 재지 않은 키(writer 지연, 전환 S·M의 시간·크기·보존·기록 비교, 명령 E2E, T18, fixture
 재현성)는 그 전 측정 그대로입니다(`measured_tree.after_corrected_decisions.kept`).
 
-이 기록의 값은 모두 개발 기기(macOS)의 것입니다. `8d3695f`의 CI는 위 실패로 끝났고(`runs.at_8d3695f`), 이 판이 잰 코드 `eaf6dfe`(그리고 그 전 판의
-`d0c766b`)는 아직 push하지 않아 CI 칸(`runs.code`·`legs`)은 `pending`입니다.
+그 뒤 `0504cc8`의 점검이 결정 3·2의 구현이 결정보다 넓은 것을 여덟 짚었습니다(요지: `user_bash` 판정이 줄을 POSIX 셸로만 읽어 aelix가 실제로 그
+줄을 돌릴 셸이 둘째 명령으로 읽는 줄을 kit 명령 하나로 봄, 목적지의 AppleDouble 파일이 복사 경로일 때의 `occupied`, 지우지 못한 전환 디렉터리의
+hint). 그 처리(코드 커밋 `fix: answer the check of the corrected decisions`) 뒤 코드가 닿는 부분 — T22(와 `$'…'` 줄), 실제 셸로 돌리는 새 함정
+시험(`user_bash_shell_traps`), 진입점, 중단 행렬, AppleDouble 규칙, FAT32·exFAT, 검증 전체와 배포본 E2E, 새 시험의 `0504cc8` 실행 — 을 다시
+쟀습니다(아래 각 절의 "점검 뒤"). 그 전 값은 JSON의 `*_after_corrected_decisions`·`*_before…`에 그대로 두었고, 다시 재지 않은 키(writer 지연,
+전환 S·M, 명령 E2E, T18, fixture 재현성)는 그 전 측정 그대로입니다(`measured_tree.after_check_of_corrected_decisions.kept`).
+
+이 기록의 값은 모두 개발 기기(macOS)의 것입니다. `8d3695f`의 CI는 위 실패로 끝났고(`runs.at_8d3695f`), 이 판이 잰 코드(그리고 그 전 판의
+`eaf6dfe`·`0504cc8`·`d0c766b`)는 아직 push하지 않아 CI 칸(`runs.code`·`legs`)은 `pending`입니다.
 
 ## 출처와 환경
 
 | 항목 | 근거 |
 |---|---|
+| 다시 잰 코드(점검 뒤) | 커밋 `fix: answer the check of the corrected decisions`(`0504cc8` 위). 커밋 전 worktree에서 쟀고 그 커밋의 코드 파일은 재고 manifest(219개)의 것입니다 |
 | 다시 잰 코드(보정 뒤) | 커밋 `eaf6dfe`(fix: run only a single kit command in a person's shell and count AppleDouble files only, `d0c766b` 위). 커밋 전 worktree에서 쟀고 그 커밋과 파일 manifest(219개, sha256 `f49c1ac8…`)가 같습니다 |
 | 다시 잰 코드(소유자 결정 뒤) | 커밋 `9887509`(fix: answer the CI and the owner's decisions of PR 3, `8d3695f` 위). 커밋 전 worktree에서 쟀고 그 커밋과 파일 manifest(219개, sha256 `fa8a7c5a…`)가 같습니다 |
 | 측정한 코드 | `feat/issue-13-new-writer`의 커밋 여섯(writer → 진입점·저장 이름 → 확장의 작성 주체 → 명령 → 문서 → 첫 측정 기록, 헤드 `ceaf736`; 리뷰가 작성 주체 커밋을 명령 커밋 앞으로 옮김) 위에 리뷰 수정을 커밋하기 전의 worktree. 리뷰 수정 커밋이 잰 코드와 이 기록을 담습니다. `origin/main` `0f3f09f`(PR #82 병합) 위입니다. JSON의 `measured_tree`는 검증 때 만든 파일 manifest(추적하는 `src`·`extension`·`tests`·`tools`·`bin`·`pyproject.toml`·`uv.lock` 파일마다 `shasum -a 256` 한 줄, 경로 순, 219개)의 sha256을 담고, 목록은 run 폴더에 있습니다 |
@@ -41,30 +49,32 @@ AppleDouble 행), FAT32·exFAT, 검증 전체와 배포본 E2E, 새 시험의 `d
 | 격리 | `AELIX_ANALYTICS_TRUST_FILE`·`AELIX_ANALYTICS_UV`를 run 폴더 안으로(`uv`는 실제 uv로의 링크, 측정은 따로 둔 신뢰 목록), `LAB_*`·`AELIX_LAB_*` 없음. 잰 명령은 `~/.aelix`를 읽거나 쓰지 않습니다. T22는 aelix를 시험의 임시 디렉터리를 HOME·`AELIX_CODING_AGENT_DIR`로 한 채 로드합니다(모델·네트워크·로그인 없음). T18의 `~` 사례와 명령 E2E의 `~` 단계는 HOME을 시험·run의 디렉터리로 두고 uv의 캐시·Python은 그대로 씁니다 |
 | 격리(소유자 결정 뒤) | 위와 같고, HOME을 run 폴더의 가짜 디렉터리로 두었습니다(uv의 캐시·Python 디렉터리만 실제 값). 이 판에서 `~/.aelix`를 읽거나 나열하거나 쓰지 않았습니다 |
 | 격리(보정 뒤) | 같은 격리를 이 판의 run 폴더 `corrected/`에 새로 두었습니다(신뢰 목록, 가짜 HOME). 이 판에서 `~/.aelix`를 읽거나 나열하거나 stat하거나 쓰지 않았습니다 |
+| 격리(점검 뒤) | 같은 격리를 run 폴더 `round5/`에 두었습니다(신뢰 목록, 가짜 HOME). 판정을 실제 셸로 돌려 본 탐색은 scratchpad에서 했고, `~/.aelix`를 읽거나 나열하거나 stat하거나 쓰지 않았습니다 |
 | 격리 사고 | 구현 중(G4, 리뷰 전) 데모 프로젝트를 살피던 명령 하나에 `ls ~/.aelix/agent 2>/dev/null \| head -0`이 실수로 들어가 실행됐습니다. 출력은 보지 않고 버려졌고 아무것도 쓰지 않았습니다(run 폴더의 handoff와 PR 본문에 적음). 잰 명령은 `~/.aelix`를 읽거나 나열하지 않았습니다 |
 
 ## 결과
 
-보정한 소유자 결정 뒤의 판(코드 `eaf6dfe`)입니다. 그 전 판들의 결과는 JSON `verification_before_corrected_decisions`(코드 `9887509`: 저장소 시험
-1,952 passed·106 skipped, aelix 레그 253/253, 런처 196 passed 등)와 `previous_verification`(리뷰 수정 판)에 있습니다.
+보정한 결정의 점검을 처리한 판(코드 커밋 `fix: answer the check of the corrected decisions`, `0504cc8` 위)입니다. 그 전 판들의 결과는 JSON
+`verification_after_corrected_decisions`(코드 `eaf6dfe`: 저장소 시험 1,963 passed·107 skipped, aelix 레그 303/303, 런처 196 passed 등),
+`verification_before_corrected_decisions`(코드 `9887509`)와 `previous_verification`(리뷰 수정 판)에 있습니다. 아래 표는 이 판의 값입니다.
 
 | 검사 | 명령 | 결과 |
 |---|---|---|
 | ruff | `uv run --locked ruff check tests extension src tools` | 통과 |
-| 저장소 시험 | `uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread` | 통과: 1,963 passed, 107 skipped(912초). 건너뜀은 Windows 전용·`AELIX_ANALYTICS_TEST_INSTALL`·Linux 전용·opt-in FAT·exFAT 사례와, aelix가 없는 개발 환경에서 건너뛰는 aelix 시험 파일 셋 |
+| 저장소 시험 | `uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread` | 통과: 1,966 passed, 107 skipped(842초). 건너뜀은 Windows 전용·`AELIX_ANALYTICS_TEST_INSTALL`·Linux 전용·opt-in FAT·exFAT 사례와, aelix가 없는 개발 환경에서 건너뛰는 aelix 시험 파일 셋 |
 | 배포본 E2E(CI의 변수) | `CI=1 AELIX_ANALYTICS_TEST_INSTALL=1 … pytest tests/test_packaging.py tests/test_windows_console.py tests/test_windows_long_paths.py` | 통과: 26 passed, 28 skipped(Windows 전용 둘은 건너뜀) |
 | 계층·포트 계약 | `tests/test_layers.py tests/test_contracts.py` | 통과: 126 passed, 52 skipped |
-| aelix 0.1.0b2, CPython 3.12 / 3.11 | `tests/test_extension.py tests/test_usage_report.py tests/test_agent_cli.py`(CONTRIBUTING의 격리 환경) | 통과: 303 passed / 303 passed |
+| aelix 0.1.0b2, CPython 3.12 / 3.11 | `tests/test_extension.py tests/test_usage_report.py tests/test_agent_cli.py`(CONTRIBUTING의 격리 환경) | 통과: 776 passed / 776 passed(셸 군마다의 판정 표와 함정 시험을 더해 늘었습니다) |
 | 런처, CPython 3.11 | `tests/test_launcher.py` | 통과: 196 passed, 1 skipped(Windows) |
-| 사용량 보고서 | `tools/usage_report.py`(aelix 0.1.0b2, 3.12) | 필수 사실 58/58, 불변식 42/42. 그 전 판(`9887509`)의 보고서와 텍스트 76개를 비교해(임시 디렉터리·`source_revision`·aelix의 날짜 줄·가짜 HOME의 폴더 이름을 맞춤) 다른 텍스트 없음. 다른 숫자는 aelix 기본 프롬프트의 크기뿐(가짜 HOME의 폴더 이름 `corrected/home`이 `ci-fix/home`보다 3자 김): 확장이 모델에 주는 글은 같습니다 |
+| 사용량 보고서 | `tools/usage_report.py`(aelix 0.1.0b2, 3.12) | 필수 사실 58/58, 불변식 42/42. 그 전 판(`eaf6dfe`)의 보고서와 텍스트 76개를 비교해(임시 디렉터리·`source_revision`·aelix의 날짜 줄·가짜 HOME의 폴더 이름을 맞춤) 다른 텍스트 없음. 다른 숫자는 aelix 기본 프롬프트의 크기뿐(가짜 HOME의 폴더 이름 `round5/home`이 그 전 `corrected/home`보다 3자 짧음): 확장이 모델에 주는 글은 같습니다 |
 | 플랫폼 스모크 | `tools/platform_smoke.py --gate required` / `--stdlib-only`(3.11) | holds 25, violated 0 / holds 15, violated 0, not_run 2(이 플랫폼에서 필수 아님) |
 | 문서 검사 | `tools/check_docs.py` | `ok: true`, 오류 0(Markdown 66, 로컬 링크 729) |
 | `git diff --check origin/main` | 작업 트리 | 출력 없음 |
 | opt-in FAT32·exFAT | `AELIX_ANALYTICS_TEST_FOREIGN_FS=<디스크 이미지 둘>`, `tests/test_migrate_command.py -k another_kind` | 통과: 4 passed, 51 deselected(전환 시험과 보정한 AppleDouble 규칙의 시험, 두 볼륨; 아래 `foreign_fs`) |
-| 새 시험을 `d0c766b`의 코드에서 | 이 판이 바꾼 시험 파일을 `d0c766b`의 worktree에 넣고 | 기대대로 실패 61개: 저장소 12(AppleDouble·F1), opt-in FAT·exFAT 2(두 볼륨 모두 init이 폴더 `._d` 옆에 만듦), aelix 3.12 47(그 밖의 줄 표의 행 마흔둘 — 다른 명령과 합친 줄, 명령·프로세스 치환, `&>`·here-document, 복합 명령, `#` 뒤의 연산자, `builtin` —, 리디렉션이 프로그램 앞에 온 kit 명령 하나, 처리기 시험 하나, T22 셋). 통과하는 것은 그 전에도 맞던 표의 행(kit 명령 하나인 줄, kit을 부르지 않는 줄)과 그 전부터 있던 AppleDouble·F1 시험 |
-| 새 시험을 `8d3695f`의 코드에서(그 전 판) | 그 판이 바꾼 시험 파일을 `8d3695f`의 worktree에 넣고 | 기대대로 실패 26개(JSON `new_tests_on_8d3695f`) |
+| 새 시험을 `0504cc8`의 코드에서 | 이 판이 바꾼 `tests/test_migration.py`를 `0504cc8`의 worktree에 넣고(지웠음), 그리고 판정 표를 두 코드의 `is_single_kit_command`로 비교(줄을 돌리지 않음) | 전환 충돌 시험 넷이 기대대로 실패(그 전 코드는 복사를 시작해 `occupied`로 끝남; `details.removed`). 판정 표: 그 밖의 줄 표(POSIX 28·PowerShell 28)가 그 전 코드에서 모두 kit 명령 하나로 받아지고, kit 명령 하나인 줄 표 셋(`python -X …`, `uv run`의 아는 옵션 둘)이 그 전엔 거부됨(`new_tests_on_0504cc8`) |
+| 함정 시험(실제 셸) | `tests/test_extension.py::test_a_line_judged_one_kit_command_runs_no_other_command_in_each_shell_here` | 통과. 이 기기의 셸(sh·bash·zsh·dash·ksh·pwsh)로 함정 줄 중 kit 명령 하나로 판정한 것(POSIX 17, pwsh 4)을 실제로 돌려 둘째 명령이 돌지 않음(`user_bash_shell_traps`) |
 
-G1–G4(리뷰 전)의 새 시험을 그 앞 코드에서 돌린 결과는 각 그룹의 run 폴더 증거에 있고 PR 본문이 적습니다.
+이 판(점검 처리)의 결과입니다. G1–G4(리뷰 전)의 새 시험을 그 앞 코드에서 돌린 결과는 각 그룹의 run 폴더 증거에 있고 PR 본문이 적습니다.
 
 ## writer 지연(`writer_latency`, 11.5절)
 
@@ -202,7 +212,10 @@ F1–F16과 F15(링크 없이 사본의 직접 쓰기) 37행이 PR ②의 관측
 끊음)·F2·F6·F8에서 끊은 뒤 macOS가 FAT·exFAT에 만드는 것처럼 AppleDouble 일반 파일(`._progress.jsonl`, `._.analytics`,
 `.analytics/._migration.lock`, `._data`, `data/._raw` 가운데 폴더가 있는 것)을 더하면 여섯 행 모두 이어서 커밋했고, 사본은 중단 없는 전환과
 같으며 더한 파일은 남았습니다. 첫 줄을 끊은 F1과 F6에 폴더 `._x`를 더하면 각각 `destination_invalid(not_empty)`와
-`destination_mismatch(unaccounted)`였습니다(원본 그대로).
+`destination_mismatch(unaccounted)`였습니다(원본 그대로). 점검 뒤 이 판의 코드로 다시 관찰한 중단 행렬
+(`migration.fault_matrix_after_check_of_corrected_decisions`)은 41행과 AppleDouble 여덟 행이 모두 같습니다(`earlier_rows_same`·
+`appledouble_rows_same`). AppleDouble 규칙 자체는 이 판에서 목적지의 판정(복사가 원본의 항목을 놓을 경로의 `._` 파일)과 거절 hint만 바뀌었고,
+목적지 충돌 시험 셋(폴더·링크·`.lab/._d`)과 지우지 못한 디렉터리 시험을 더했습니다(`migration.appledouble.in_the_way`).
 
 **fixture의 재현성**(`migration.fixture_reproducibility`). 리뷰 전 판은 S·M의 바이트와 digest가 PR ②의 fixture와 다른 까닭을 "도구가 PR ②
 뒤에 바뀌어서"라고 적었는데, 근거 없는 문장이었습니다. 재어 보니: fixture의 바이트는 재현되지 않습니다. 이 브랜치의 생성기로 같은 `--out`에 두 번
@@ -233,6 +246,12 @@ CLI를 aelix의 bash 도구와 `cli/repl.handle_user_bash`로 불렀습니다. C
 `UserBashResult`를 쓰는 것을 이 판에서 다시 읽었습니다. 보정 뒤(2026-10-09, [#13](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6072183477)) 다시 남긴 관찰에서 그 전 판의 경우는
 같고(빌드 시각만 다름, `agent_cli.earlier_cases_same_as_before`), 다른 명령 뒤에 kit을 부르는 `!` 줄
 (`echo T22-before; <kit record>`)의 경우를 더했습니다(아래 "보정 뒤" 행). 그 전 판의 관찰은 `agent_cli.before_corrected_decisions`에 있습니다.
+점검 뒤(코드 커밋 `fix: answer the check of the corrected decisions`) 다시 남긴 관찰도 보정 뒤와 같고(빌드 시각만 다름,
+`agent_cli.earlier_cases_same_after_the_check`), 점검이 찾은 줄 — 막는 확장이 먼저일 때 `<kit record note> $'Q3\'s numbers' ; echo
+T22-SECOND-RAN  # it's fine`(bash·zsh가 `$'…'`를 escape된 따옴표로 읽어 `;`가 진짜 둘째 명령) — 이 두 순서 모두 막힌 채이고 아무것도 쓰이지 않음을
+더했습니다(그 전 코드는 이 줄에 셸을 돌려줘 둘째 명령이 막음을 지나 돌았음). 그 전 판의 관찰은 `agent_cli.after_corrected_decisions`에 있습니다.
+판정을 이 기기에서 찾은 셸(sh·bash·zsh·dash·ksh·pwsh)로 실제로 돌려 본 함정 시험은 `user_bash_shell_traps`에 있습니다(kit 명령 하나로 판정한 줄이
+그 셸에서 둘째 명령을 돌리지 않음).
 
 | 경우 | 결과 |
 |---|---|
@@ -246,9 +265,10 @@ CLI를 aelix의 bash 도구와 `cli/repl.handle_user_bash`로 불렀습니다. C
 | 다른 명령과 합친 줄(`echo T22-before; <kit record>`), 다른 확장 없음(보정 뒤) | 이 확장은 결과를 돌려주지 않음, aelix의 셸이 돌아 기록 `agent`·`declared`·`cli`, 그 세션 |
 | 합친 줄, 셸을 돌려주는 다른 확장이 먼저·나중(보정 뒤) | 두 순서 모두 다른 확장의 셸이 돌아 `agent` |
 | 합친 줄, 막는 확장이 먼저·나중(보정 뒤) | 두 순서 모두 막힘, 기록 없음(그 전 코드는 막는 확장이 먼저면 이 줄도 이 확장의 셸로 돌렸음) |
+| `$'…'`가 든 줄, 막는 확장이 먼저·나중(점검 뒤) | 두 순서 모두 막힘, 기록 없음(그 전 코드는 막는 확장이 먼저면 둘째 명령이 막음을 지나 돌았음) |
 | 확장 자신의 kit 자식(`/analytics`) | 기록이 아니라 그 자식의 환경: `AELIX_ANALYTICS_ACTOR=human`, `/analytics`면 `AELIX_ANALYTICS_MEANS=command`(프로세스 환경의 `agent`와 무관) |
 
-Windows의 PowerShell·cmd 자식은 실행하지 않았습니다(CI의 Windows aelix 레그가 돌립니다).
+Windows의 PowerShell·cmd 자식은 실행하지 않았습니다(CI의 Windows aelix 레그가 돌립니다. 함정 시험도 Windows에서는 건너뜁니다).
 
 ## 링크가 없는 파일 시스템(`foreign_fs`)
 
@@ -266,6 +286,10 @@ Windows의 PowerShell·cmd 자식은 실행하지 않았습니다(CI의 Windows 
 init이 `init_not_empty`, 전환이 1단계 `not_empty`로 거절했습니다. 첫 ledger 줄을 끊어 둔 전환 디렉터리에는 두 볼륨 모두 macOS가
 `._progress.jsonl`을 스스로 썼고, 다시 부른 전환이 그 디렉터리를 지우고 새로 시작해 FAT32는 커밋, exFAT은 2단계 `no_exclusive_rename`이었습니다.
 `d0c766b`의 코드에서 새 시험은 두 볼륨 모두 init이 폴더 `._d` 옆에 프로젝트를 만들어 실패합니다.
+
+**점검 뒤(`foreign_fs.after_check_of_corrected_decisions`).** 같은 디스크 이미지에서 같은 opt-in 시험 둘을 이 판의 코드로 다시 돌렸고(4 passed),
+관찰이 보정 뒤와 같습니다(전환 id만 다름, `same_as_before`). 이 판의 AppleDouble 변경(목적지 충돌의 미리 거절)은 이 시험의 목적지에는 닿지
+않습니다(원본에 `._` 폴더·링크가 없음).
 
 **그 전 판(G3, 키 `mnt-fat`·`mnt-exfat`).** 명령 그룹(G3)이 macOS 26.6.2의 FAT32·exFAT 디스크 이미지(fskit, nobrowse)에서 잰 것이며, 리뷰 전 판의
 값을 그대로 옮겼습니다. 두 볼륨 모두 `link`가 ENOTSUP이고, `renamex_np(RENAME_EXCL)`은 있는 이름에서 EEXIST(바이트 그대로)이며 없는 이름은
@@ -287,11 +311,15 @@ src/aelix_analytics`; `__pycache__`는 추적하지 않음) 측정 전체를 다
 보정 뒤의 판(2026-10-09, run 폴더 `corrected/`)은 같은 격리로 코드가 닿는 부분만 다시 쟀습니다(`measured_tree.after_corrected_decisions`). 중단
 행렬은 그 전 판처럼 시간 값이 없는 관찰입니다.
 
+점검 뒤의 판(2026-10-09, run 폴더 `round5/`)도 같은 격리로 코드가 닿는 부분만 다시 쟀습니다
+(`measured_tree.after_check_of_corrected_decisions`). 판정을 실제 셸로 돌려 본 탐색(무작위 줄 포함)은 scratchpad에서 했고, 저장소에는 그 결과를
+시험(`user_bash_shell_traps`)으로만 남겼습니다.
+
 ## 실행하지 않은 것
 
-- 이 판의 커밋(코드 `eaf6dfe`)의 저장소 CI(Linux·Windows·macOS 레그, `pending`: 아직 push하지 않음). Linux의 `renameat2`(ctypes), Windows의
-  `rename_new` = `publish_new`, 런처의 `--no-project`와 응답 읽기를 Windows에서, Windows 전용 시험, T22의 PowerShell·cmd 자식과 합친 줄, `!` 줄
-  표, AppleDouble 규칙(Windows의 junction `._x`), 고친 긴 필드 시험의 Windows 실행이 그 CI에 걸려 있습니다. `8d3695f`의 Windows 저장소 시험 단계는 35분 한도 가운데 1,789초를 썼습니다.
+- 이 판의 커밋(점검 처리)의 저장소 CI(Linux·Windows·macOS 레그, `pending`: 아직 push하지 않음). Linux의 `renameat2`(ctypes), Windows의
+  `rename_new` = `publish_new`, 런처의 `--no-project`와 응답 읽기를 Windows에서, Windows 전용 시험, T22의 PowerShell·cmd 자식과 `$'…'`를 포함한 줄,
+  셸 군마다의 `!` 줄 표와 함정 시험(Windows는 건너뜀), AppleDouble 규칙(Windows의 junction `._x`), 고친 긴 필드 시험의 Windows 실행이 그 CI에 걸려 있습니다. `8d3695f`의 Windows 저장소 시험 단계는 35분 한도 가운데 1,789초를 썼습니다.
 - 실제 이동식 FAT·exFAT 매체와 Linux·Windows의 FAT·exFAT(macOS 디스크 이미지만).
 - 전원 손실과 그 뒤의 내구성, Windows의 디렉터리 flush·읽기 전용 사본·잠금 해제 지연, 네트워크 파일 시스템.
 - 실제 aelix 모델 세션(bash 도구와 `handle_user_bash`를 직접 부름), aelix 밖의 에이전트 호스트, aelix RPC의 `bash`.

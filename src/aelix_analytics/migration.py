@@ -379,17 +379,19 @@ def _write_failed(path, exc: OSError) -> AnalyticsError:
                           details={"path": str(path), "error": str(exc)})
 
 
-def _not_cleared(directory: Path, exc: OSError) -> AnalyticsError:
+def _not_cleared(directory: Path, exc: OSError, removed: list[str]) -> AnalyticsError:
     """A migration directory step 2 left with no full line, which cannot be removed: an AppleDouble
     file macOS wrote beside its ledger (`._progress.jsonl` on a FAT or exFAT volume) stays in it, or
-    the folder's permissions refuse (design 6.10)."""
+    the folder's permissions refuse (design 6.10). `removed` is what this call removed before (the
+    cut ledger, and content-less migration directories before this one), in the destination."""
+    said = (f"this call removed {', '.join(removed)} and copied nothing" if removed
+            else "this call removed nothing and copied nothing")
     return AnalyticsError("destination_write_failed", f"{directory} cannot be removed: {exc}",
                           hint="it held a migration that stopped before its first ledger line ended, "
                                "and what is left in it — an AppleDouble file `._<name>` macOS made "
                                "beside the ledger, say — is not the migration's to remove. Remove that "
-                               "folder, then run the migration again; this call removed only the cut "
-                               "ledger, and nothing was written",
-                          details={"path": str(directory), "error": str(exc)})
+                               f"folder, then run the migration again; {said}",
+                          details={"path": str(directory), "error": str(exc), "removed": removed})
 
 
 def _changed(paths) -> AnalyticsError:
@@ -1006,19 +1008,22 @@ class Judgment:
     its ledger and the marker's bytes). A refusal is raised instead."""
 
     def __init__(self, kind: str, *, ledger: Ledger | None = None, clear=(), marker: bytes | None = None,
-                 rewritten: bool = False, entries=()):
+                 rewritten: bool = False, entries=(), os_files=()):
         self.kind = kind
         self.ledger = ledger
         self.clear = list(clear)
         self.marker = marker
         self.rewritten = rewritten
         self.entries = list(entries)  # what makes a `new` destination not empty (step 3 refuses it)
+        # The AppleDouble files a `new` destination holds at its root and in .analytics/: they leave it
+        # empty, unless the copy puts one of the source's entries at that path (step 3 refuses it).
+        self.os_files = list(os_files)
 
     @property
     def signature(self) -> tuple:
         ledger = self.ledger
         return (self.kind, ledger.migration_id if ledger else None, len(ledger.lines) if ledger else 0,
-                tuple(self.clear), self.marker, tuple(self.entries))
+                tuple(self.clear), self.marker, tuple(self.entries), tuple(self.os_files))
 
     @property
     def reads_source(self) -> bool:
@@ -1144,10 +1149,13 @@ class Migration:
         if not full:
             # macOS's AppleDouble files beside the migration's own entries (`._migration.lock` where
             # a volume keeps no extended attributes) are the OS's, not anyone's state: regular files.
-            stray = [f"{STATE_DIR}/{n}" for n in self._state_entries()
-                     if n not in ("migration", "migration.lock")
-                     and not core.is_appledouble(self.dest / STATE_DIR / n)]
-            return Judgment("new", clear=[d.name for d in dirs], entries=sorted(others + stray))
+            state = [f"{STATE_DIR}/{n}" for n in self._state_entries()
+                     if n not in ("migration", "migration.lock")]
+            stray = [rel for rel in state if not core.is_appledouble(self.dest / rel)]
+            os_files = [n for n in top if core.is_appledouble(self.dest / n)] + [
+                rel for rel in state if rel not in stray]
+            return Judgment("new", clear=[d.name for d in dirs], entries=sorted(others + stray),
+                            os_files=sorted(os_files))
         directory = full[0]
         if len(dirs) > 1:
             raise _mismatch(f"{self.dest} holds migration directories besides {directory.name}",
@@ -1382,6 +1390,14 @@ class Migration:
             raise _invalid("not_empty", f"{self.dest} is not empty",
                            "give a new or empty folder as the destination; nothing was written",
                            entries=judged.entries[:20])
+        in_the_way = self._os_files_in_the_way(judged)
+        if in_the_way:
+            raise _invalid("not_empty", f"{self.dest} is not empty: the copy puts the source's entries "
+                           f"where these AppleDouble files are: {', '.join(in_the_way[:5])}",
+                           "an AppleDouble file `._<name>` is the OS's, but the source has a folder, a "
+                           "file or a link at that path, and the copy writes over nothing: remove those "
+                           "files or give another folder; nothing was written",
+                           entries=in_the_way[:20])
         dest = str(self.dest)
         existing = _existing(dest)
         # The rule init follows too (writer.project_above, OQ9): below a project, or below another
@@ -1402,6 +1418,23 @@ class Migration:
                                      f"free; the copy needs {want:,} with its margin",
                                      hint="free space or choose another disk; nothing was written",
                                      details={"free": free, "needed": needed, "with_margin": want})
+
+    def _os_files_in_the_way(self, judged: Judgment) -> list[str]:
+        """The AppleDouble files of a `new` destination at a path the copy puts one of the source's
+        entries at — a folder or a link `._x` (the source's regular `._x` files are not copied), or
+        what is below one — names compared as a file system that folds case and normalization would
+        (whether this one does is known at step 2): the copy would stop there, `occupied`."""
+        if not judged.os_files or self.inventory is None:
+            return []
+        inventory = self.inventory
+
+        def folded(rel: str) -> str:
+            return "/".join(_folded(part, True, True) for part in rel.split("/"))
+
+        planned = {folded(_dest_rel(item["rel"], "")) for item in
+                   [*inventory.files, *inventory.dirs, *inventory.links]}
+        return [rel for rel in judged.os_files if folded(rel) in planned
+                or any(p.startswith(folded(rel) + "/") for p in planned)]
 
     def _free(self, existing: str) -> int:
         if self.free_space is not None:
@@ -1424,14 +1457,17 @@ class Migration:
         if judged.kind == "committed":
             return self._already(judged)
         if judged.kind == "new":
+            removed: list[str] = []  # what this call removed, for the hint of a folder that stays
             for name in judged.clear:  # step 2's own, with nothing of anyone's in it (design 6.10)
                 directory = self.dest / MIGRATIONS / name
                 try:
                     with contextlib.suppress(FileNotFoundError):
                         _remove_own(directory / LEDGER)
+                        removed.append(f"{MIGRATIONS}/{name}/{LEDGER}")
                     os.rmdir(directory)
                 except OSError as exc:
-                    raise _not_cleared(directory, exc) from exc
+                    raise _not_cleared(directory, exc, removed) from exc
+                removed.append(f"{MIGRATIONS}/{name}/")
             return self._start()
         self.ledger, self.mdir = judged.ledger, judged.ledger.directory
         try:

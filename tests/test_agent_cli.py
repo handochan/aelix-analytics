@@ -121,6 +121,12 @@ def compound(kit_command: str) -> str:
     return f"echo T22-before; {kit_command}"
 
 
+def trap_line(kit_command: str) -> str:
+    """A kit command, then `$'…'` with an escaped quote, a second command and a `#` comment holding a
+    quote (the check of 2026-10-09)."""
+    return f"{kit_command} $'Q3\\'s numbers' ; echo T22-SECOND-RAN  # it's fine"
+
+
 def last_event(root: Path) -> dict:
     lines = [json.loads(line) for line in (root / "journal.jsonl").read_text(encoding="utf-8")
              .splitlines() if line.strip()]
@@ -289,8 +295,9 @@ def test_an_extension_that_blocks_a_command_is_set_aside_when_it_comes_first(ael
     aelix keeps the last UserBashResult of any kind (hooks._reducer_user_bash), not the last shell.
     With an extension that blocks every `!` command registered before this one, this extension's shell
     replaces the block for a line that is one kit command — it runs, and records `human` — while a
-    line that calls the kit after another command, and one that does not call it, stay blocked
-    (nothing written). Registered after this one, the block holds for all three."""
+    line that calls the kit after another command, one that does not call it, and one whose quoting a
+    shell reads otherwise (`$'…'`) stay blocked (nothing written). Registered after this one, the block
+    holds for all four."""
     tmp_path, root, _other = aelix_session
     blocker = tmp_path / "blocker_extension.py"
     blocker.write_text(BLOCKER, encoding="utf-8")
@@ -309,11 +316,17 @@ def test_an_extension_that_blocks_a_command_is_set_aside_when_it_comes_first(ael
         line = compound(python_command("record", "note", f"T22-{order.replace(' ', '-')}-compound"))
         mixed_out = await handle_user_bash(harness, line, exclude_from_context=True, cwd=str(tmp_path))
         mixed = {"output": mixed_out.strip(), "written": (root / "journal.jsonl").read_bytes() != journal}
-        return kit, echoed.strip(), mixed
+        # The check of 2026-10-09: a line a POSIX reading took for one kit command while bash and zsh
+        # read `$'…'` otherwise (the `;` is real there, the `#` comment balances the quotes).
+        trap_out = await handle_user_bash(harness, trap_line(python_command("record", "note")),
+                                          exclude_from_context=True, cwd=str(tmp_path))
+        trap = {"output": trap_out.strip(), "written": (root / "journal.jsonl").read_bytes() != journal}
+        return kit, echoed.strip(), mixed, trap
 
-    kit, echoed, mixed = asyncio.run(scenario())
+    kit, echoed, mixed, trap = asyncio.run(scenario())
     assert echoed == "blocked by policy"
     assert mixed == {"output": "blocked by policy", "written": False}, mixed
+    assert trap == {"output": "blocked by policy", "written": False}, trap
     if order == "blocker first":
         assert kit["written"] and (kit["recorded"]["actor"], kit["recorded"]["actor_basis"]) == (
             "human", "declared"), kit
@@ -321,7 +334,8 @@ def test_an_extension_that_blocks_a_command_is_set_aside_when_it_comes_first(ael
         assert kit["output"] == "blocked by policy" and not kit["written"], kit
     record_observation(f"issue-13-writer/agent-cli-{order.replace(' ', '-')}", {
         "order": order, "python": sys.version.split()[0], "platform": sys.platform,
-        "kit_command": kit, "not_the_kit": echoed, "compound_line": mixed})
+        "kit_command": kit, "not_the_kit": echoed, "compound_line": mixed,
+        "ansi_c_quote_line": {"line": trap_line("<kit record note>"), **trap}})
 
 
 def test_the_user_bash_result_type_is_aelix_s(aelix_session):
