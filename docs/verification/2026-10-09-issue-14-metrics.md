@@ -5,7 +5,7 @@
 
 ## 기준과 변화
 
-측정 코드 `7c59ae9e439135a78c071ed4a46738fb2ba7724a`의 소스·시험·실행 도구·레코드 schema 222개 파일 manifest SHA-256은 `7fd727fc358dc41ecb660794631ba7977b1036f4b4812f22f9a64872c9ffef2d`이다.
+측정 코드 `4088be95ddb1669f1f48d70fbc60a11843202cea`의 소스·시험·실행 도구·레코드 schema 222개 파일 manifest SHA-256은 `77c87823ddd10d4eaa0aca2c38ac6b8cb8afdb1003017a3e44b3c70b3a6263a1`이다.
 로컬 manifest·JUnit·명령 출력은 Issue별 run의 `.devstate`에 보존한다. 사용자 데이터나 실제 프로젝트 절대 경로를 fixture로 옮기지 않았다.
 
 kit 0.9.0은 기존 `analytics.event/2`에 세 상세 계약을 추가한다: `metric_definition/1`, `analysis_focus/1`, `metric_observation/1`.
@@ -29,12 +29,14 @@ C14-2는 자유 본문에 JSON 옵션 이름이 들어가면 해석을 바꿔 �
 |---|---|---|
 | 기존 writer/record/read-view/layer 기준선 | 설계 `a9b54b2` | 283 passed, 10.76s |
 | 새 M0·최소 M1 및 관련 record/gate/layer 시험 | 초기 구현, 1108110 전 | 385 passed, 29.61s. 이후 역사 metadata 처리 보강은 다시 검사 중 |
-| 최종 focused 시험 | `7c59ae9e439135a78c071ed4a46738fb2ba7724a` | 711 passed·10 skipped, 73.28s. standalone reader·기존 형식·line endings·packaging까지 포함. skip 사유는 JSON에 기록 |
+| 최종 focused 시험 | `4088be95ddb1669f1f48d70fbc60a11843202cea` | 711 passed·10 skipped, 73.28s. standalone reader·기존 형식·line endings·packaging까지 포함. skip 사유는 JSON에 기록 |
 | lint·문서 | 구현 | ruff pass; 68 Markdown·14 JSON·736 local links, errors 0 |
 | macOS 로컬 저장소 전체 | 1108110에서 시작 | 중단: 1508 passed·6 failed·76 skipped, 521.22s. 버전/kind 문서·시험 4곳과 SDK resolve 호환성은 수정했고, 실행 중 코드 변경의 kit hash 불일치는 혼합 소스 한계로 보존. parent HOME 등은 task 폴더로 격리. 최종 exact-head CI 필요 |
 | aelix 3.12 모델 없는 통합 | 1108110에서 시작 | 964 passed, 56.92s. metadata 보강이 실행 중 반영되어 최종 exact-head CI를 별도로 확인 |
 | 리뷰 수정의 관련 시험 | f462787 | 502 passed, 24.74s. 결과 버전·pending 최종 재검사 포함 |
 | 리뷰 수정의 aelix 3.12 통합 | f462787 | 971 passed, 54.14s. 일반 문장의 옵션 언급·인용·apostrophe·구조화 명령 포함 |
+| 고정 b1e9cf2 전체 시험 | b1e9cf2 | 2011 passed·1 failed·107 skipped, 557.39s. 실패는 기존 migration_reader의 READER_FORMAT==3 assertion이며 새 규칙의 4로 맞춤; 제품 코드 변경 없음 |
+| reader 형식 assertion 수정 뒤 관련 시험 | 4088be95ddb1669f1f48d70fbc60a11843202cea | migration_reader·metrics·relations 148 passed, 6.71s |
 | Linux·Windows CI | 최종 PR head | not_run |
 | macOS CI | 최종 PR head | not_run |
 

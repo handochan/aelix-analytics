@@ -1,12 +1,12 @@
 {
   "schema": "aelix-analytics.verification/1",
   "issue": 14,
-  "recorded_at": "2026-10-09T14:31:17.985520+00:00",
+  "recorded_at": "2026-10-09T14:56:35.981221+00:00",
   "status": "reviewed_ci_pending",
   "measured_tree": {
-    "commit": "7c59ae9e439135a78c071ed4a46738fb2ba7724a",
+    "commit": "4088be95ddb1669f1f48d70fbc60a11843202cea",
     "manifest_files": 222,
-    "manifest_sha256": "7fd727fc358dc41ecb660794631ba7977b1036f4b4812f22f9a64872c9ffef2d",
+    "manifest_sha256": "77c87823ddd10d4eaa0aca2c38ac6b8cb8afdb1003017a3e44b3c70b3a6263a1",
     "includes": [
       "src/",
       "extension/",
@@ -172,6 +172,23 @@
       "duration_seconds": 24.6,
       "source": "dirty correction with no complete captured manifest",
       "reason": "New assertion expected the error code in finalize_errors; existing guard surfaces the descriptive error message. Corrected assertion and re-ran affected suite; original log retained."
+    },
+    "full_exact_b1e9cf2": {
+      "result": "fail",
+      "commit": "b1e9cf20b0109c5468e29755dff986b0b168b7ba",
+      "tests_passed": 2011,
+      "tests_failed": 1,
+      "tests_skipped": 107,
+      "duration_seconds": 557.39,
+      "failure": "tests/test_migration_reader.py asserted READER_FORMAT==3, while the tagged replay guard intentionally requires4. Assertion aligned; no product code changed.",
+      "scope": "Parent HOME/USERPROFILE/config/aelix/trust task-scoped; actualmodel and install opt-in remain unrun."
+    },
+    "reader_format_correction": {
+      "result": "pass",
+      "commit": "4088be95ddb1669f1f48d70fbc60a11843202cea",
+      "tests_passed": 148,
+      "duration_seconds": 6.71,
+      "scope": "migration_reader, metrics, relations"
     }
   },
   "ci": {
@@ -184,7 +201,21 @@
       "result": "not_run",
       "run_id": null,
       "head_sha": null
-    }
+    },
+    "superseded_trials": [
+      {
+        "run_id": 37945086794,
+        "head_sha": "b1e9cf20b0109c5468e29755dff986b0b168b7ba",
+        "result": "cancelled",
+        "reason": "Stale reader-format assertion confirmed by exact-head local whole suite; replaced with a new push, no rerun."
+      },
+      {
+        "run_id": 37945271292,
+        "head_sha": "b1e9cf20b0109c5468e29755dff986b0b168b7ba",
+        "result": "cancelled",
+        "reason": "Same stale test assertion; macOS job started before cancellation."
+      }
+    ]
   },
   "validated_cases": [
     "unregistered Python exploration",
