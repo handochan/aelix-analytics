@@ -1494,6 +1494,11 @@ SINGLE_KIT_COMMANDS = [
     '"ana\\\nlytics" status',
     'analytics record note "one\ntwo"',
     "  analytics status\n",
+    # Patterns and braces quoted or escaped are words; a tilde starting a word is one word (the check
+    # of 2026-10-09 of ab45982), and a `#…` word ends the words judged, not the kit's command.
+    "analytics record note 'a*b?[c]{d,e}^f' \\*",
+    "uv run --project ~/proj analytics status",
+    "analytics record note '#tag' x",
 ]
 
 # Any other line: no result, so aelix runs it as it would and another extension's answer stands. A kit
@@ -1575,6 +1580,22 @@ NOT_A_SINGLE_KIT_COMMAND = [
     "uv run --script analytics status",
     "uv run env analytics status",
     "nohup A=1 analytics status",
+    # A pattern or a brace the shell expands into words (the check of 2026-10-09 of ab45982): an
+    # option's value may become two words and the next one the program (`env -u X touch analytics`).
+    "env -u {X,touch} analytics",
+    "uv run --with {x,touch} analytics status",
+    "python -X {a,b} -m aelix_analytics status",
+    "env -u * analytics",
+    "uv run --with * analytics status",
+    "uv run --with x? analytics status",
+    "uv run --with [ab] analytics status",
+    "uv run --with ^x analytics status",  # zsh's EXTENDED_GLOB, which a startup file may set
+    "uv run --with x#y analytics status",
+    "uv run --with x~y analytics status",
+    "analytics data import *.csv",  # the kit's own argument: left alone too (CONTRACTS A)
+    # A comment where an option's value is: the shell runs `uv run --with`, not the kit.
+    "uv run --with #x analytics status",
+    "python -X #x -m aelix_analytics status",
     # A control character but a tab and a new line, a backslash ending the line.
     "analytics status\rtouch x",
     "analytics status\x00",
@@ -1643,6 +1664,16 @@ POWERSHELL_SINGLE_KIT_COMMANDS = [
     "analytics status 2>&1",
     "analytics status 2>> err.txt",
     "analytics status # a note",
+    # A quoted text that is a whole word, a quote inside a word starting with `-`, a number, a `:`
+    # after a parameter (the check of 2026-10-09 of ab45982: PowerShell passes these as read here).
+    "& 'analytics' status",
+    "uv run 'analytics' status",
+    "analytics record note --text='hello world'",
+    'python -c"import aelix_analytics"',
+    "uv run -p 3.12 analytics status",
+    "uv run --python=3.12 analytics status",
+    "analytics record note x -1.5",
+    "analytics status #x",
 ]
 
 POWERSHELL_NOT_A_SINGLE_KIT_COMMAND = [
@@ -1703,6 +1734,42 @@ POWERSHELL_NOT_A_SINGLE_KIT_COMMAND = [
     "-c/analytics",
     "& -c/analytics status",
     "!x/analytics status",
+    # Where PowerShell's words are not a POSIX shell's (the check of 2026-10-09 of ab45982, pwsh 7.6):
+    # a quoted text starting a word ends it, so the program is the quoted one (`touch`), or what
+    # follows is an expression; `.` before a quote dot-sources; a quote after other text but in a
+    # `-` word; `-p3.12` passes as `-p3` `.12` (uv runs `.12`); a merge it does not take.
+    "& 'touch'/x/analytics",
+    '& "touch"/x/analytics',
+    "& 'touch'\"/x/analytics\"",
+    "&'touch'/x/analytics",
+    "uv run 'touch'/x/analytics status",
+    ".'touch'/x/analytics",
+    '."touch"/x/analytics',
+    ".'/x'/analytics status",
+    "python '-I'sb -m aelix_analytics status",
+    "analytics x 'a'.Length",
+    "analytics x 'abc'def",
+    "ana'lytics' status",  # it runs `analytics`, but a program word holds a quote only whole
+    "uv run ana'lytics' status",
+    "uv run -p3.12 analytics status",
+    "python -maelix_analytics.cli status",
+    "analytics status 2>&'1'",
+    'analytics status 2>&"1"',
+    "analytics status 2>& 1",
+    # Its array operator, splatting, a `]` or a wildcard starting a word, a `>` inside a word, a
+    # redirection before the program (its name there), a comment where an option's value is.
+    'uv run --with a, "-p x" analytics status',
+    "python -c'import aelix_analytics',x",
+    "analytics x a,b",
+    "uv run --with @args analytics status",
+    "python -X @args -m aelix_analytics status",
+    "uv run --with ]x analytics status",
+    "uv run --with * analytics status",
+    "analytics> status",
+    "analytics status>out.txt",
+    "2>&1 analytics status",
+    "& 2>&1 analytics status",
+    "uv run --with #x analytics status",
     # Not the kit.
     "Get-ChildItem analytics",
     r"C:\pack\bin\analytics.cmd status",
@@ -1865,7 +1932,9 @@ def test_the_shell_read_is_the_one_aelix_runs_a_person_s_line_in(monkeypatch):
 
 # Lines a shell aelix may pick reads otherwise than a plain POSIX reading did (the check of
 # 2026-10-09). `@SENT@` is a second command that makes a file; a line the judgment takes as one kit
-# command must not run it in any shell that reads it.
+# command must not run it in any shell that reads it. The last ones run another program than the kit
+# as the one command (the check of 2026-10-09 of ab45982): `touch` makes the file `analytics` in the
+# folder the line runs in (`@WORK@`).
 SHELL_TRAPS = [
     "analytics record note $'\\'' ; @SENT@ #'",
     "analytics record note $'Q3\\'s numbers' && @SENT@  # it's fine",
@@ -1898,6 +1967,10 @@ SHELL_TRAPS = [
     # A second command only where cmd reads the word again (a batch file on Windows, which this test
     # does not run): one quoted word in every shell here, so it is taken and runs none.
     "analytics 'x&@SENT@'",
+    "& 'touch'@WORK@/analytics",
+    '& "touch"@WORK@/analytics',
+    ".'touch'@WORK@/analytics",
+    "env -u {X,touch} analytics",
 ]
 
 
@@ -1905,9 +1978,11 @@ SHELL_TRAPS = [
 def test_a_line_judged_one_kit_command_runs_no_other_command_in_each_shell_here(tmp_path):
     """The check of 2026-10-09 asked for it: each trap line is judged for each shell found here (sh,
     bash, zsh, dash, ksh, pwsh), and every one judged a single kit command is run in that shell the way
-    aelix runs a `!` line ([shell, its command flag, its preamble + the line]) with a stand-in
-    `analytics`: none makes the file its second command would. A line the judgment refuses does make
-    it, so the shells are live."""
+    aelix runs a `!` line ([shell, its command flag, its preamble + the line]) in an empty folder of its
+    own, with a stand-in `analytics` elsewhere that writes nothing: none makes the file its second
+    command would (`SENT`), nor the one `touch` would as another program than the kit (`analytics`). A
+    line the judgment refuses does make it, so the shells are live."""
+    import itertools
     import subprocess
 
     from aelix_ai.utils._shell import command_flag_for, shell_basename, utf8_output_preamble
@@ -1923,25 +1998,31 @@ def test_a_line_judged_one_kit_command_runs_no_other_command_in_each_shell_here(
     stand_in.chmod(0o755)
     (tmp_path / "home").mkdir()
     env = {"PATH": f"{stand_in.parent}{os.pathsep}/usr/bin{os.pathsep}/bin", "HOME": str(tmp_path / "home")}
-    sentinel = tmp_path / "SENT"
+    runs = itertools.count()
 
-    def runs_the_second(path: str, line: str) -> bool:
-        sentinel.unlink(missing_ok=True)
-        subprocess.run([path, command_flag_for(path), utf8_output_preamble(path) + line], cwd=tmp_path,
-                       env=env, capture_output=True, timeout=120)
-        return sentinel.exists()
+    def a_line(trap: str) -> tuple[str, Path]:
+        work = tmp_path / f"work-{next(runs)}"
+        work.mkdir()
+        return trap.replace("@SENT@", "touch SENT").replace("@WORK@", work.as_posix()), work
+
+    def runs_the_second(path: str, line: str, work: Path) -> bool:
+        """Whether the line made `SENT` (its second command) or `analytics` (`touch`, another program
+        than the kit) in its empty folder; a redirection's file is the kit command's own."""
+        subprocess.run([path, command_flag_for(path), utf8_output_preamble(path) + line], cwd=work,
+                       env=env, capture_output=True, stdin=subprocess.DEVNULL, timeout=120)
+        return (work / "SENT").exists() or (work / "analytics").exists()
 
     seen = {}
     for name, path in shells.items():
         family_name = shell_basename(path)
-        assert runs_the_second(path, "analytics status; touch SENT"), (name, "the shell is not live")
+        assert runs_the_second(path, *a_line("analytics status; @SENT@")), (name, "the shell is not live")
         accepted, ran = [], []
         for trap in SHELL_TRAPS:
-            line = trap.replace("@SENT@", "touch SENT")
+            line, work = a_line(trap)
             if module.is_single_kit_command(line, family_name):
-                accepted.append(line)
-                if runs_the_second(path, line):
-                    ran.append(line)
+                accepted.append(trap)
+                if runs_the_second(path, line, work):
+                    ran.append(trap)
         seen[name] = {"path": path, "read_as": family_name, "accepted": len(accepted), "ran_a_second": ran}
     from conftest import record_observation
 

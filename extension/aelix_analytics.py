@@ -1135,19 +1135,28 @@ def put_the_session_in_the_environment(session) -> None:
 # and whatever this reading leaves open: `$` outside single quotes (an expansion: `$'…'`, `$"…"`,
 # `${…}`, `$[…]`, `$((…))`, even `$HOME`), a backtick, a quote not closed, a backslash ending the line,
 # a comment (`#` at a word's start) that a new line follows, a control character but a tab and a new
-# line, `env -S` (env runs the first word of its string) and any option of env or `uv run` not known
-# here (it may take the next word as its value, and the program is another word then). `#` and what
-# follows it are read as well, so an operator there counts. In PowerShell, where a backslash is a
-# character and not an escape, also: a new line, a backtick (its escape), a quote it takes besides ' and
-# " (‘ ’ “ ” …), a space besides a space and a tab, `--%`, `{` `}`, `<` (`<#` opens a comment), a `>&`
-# but `n>&1`, a line its POSIX reading would refuse, and a program word that does not start with a
-# letter, `_` or a path (`1/…` `@…` `[…]` are expressions there; `-c/analytics` is left alone too). On
-# Windows, in any shell, also a word holding a character cmd reads (CMD_METACHARACTERS): a program found
-# by its bare name may be a batch file there. A
+# line, `env -S` (env runs the first word of its string), any option of env or `uv run` not known
+# here (it may take the next word as its value, and the program is another word then), and a pattern or
+# a brace the shell expands into words (`*` `?` `[` `{` `^`, `#` `~` inside a word: `env -u {X,touch}
+# analytics` runs `touch`). `#` and what follows it are read as well, so an operator there counts,
+# while the words judged end at it (the shell runs the words before a comment). In PowerShell, where a
+# backslash is a character and not an escape, also: a new line, a backtick (its escape), a quote it
+# takes besides ' and " (‘ ’ “ ” …), a space besides a space and a tab, `--%`, `{` `}`, `<` (`<#` opens
+# a comment), a `>&` but `n>&1` written so, a line its POSIX reading would refuse, and a program word
+# that does not start with a letter, `_` or a path (`1/…` `@…` `[…]` are expressions there;
+# `-c/analytics` is left alone too). Where PowerShell's words are not a POSIX shell's, too: a quoted
+# text starting a word that goes on after its closing quote (`& 'touch'/x/analytics` runs `touch`
+# there), a quote after other text but in a word starting with `-` (`.'x'` dot-sources `x`), a
+# parameter-like word with an unquoted `.` (`uv run -p3.12 analytics` passes `-p3` and `.12`, so uv
+# runs `.12`), a `,` (an array), `@` or `]` starting a word, a `>` inside a word, a redirection before
+# the program (its name there) and `2>& 1`. On Windows, in any shell, also a word holding a character
+# cmd reads (CMD_METACHARACTERS): a program found by its bare name may be a batch file there. A
 # program that is not the kit (`grep analytics notes.txt`, `sh -c '…'`, `python a.py`) is none either.
 # Left alone as well, though they run the kit and no second command: `uv run -m`/`--module` (the kit runs
 # as `uv run … python -m aelix_analytics` or `analytics`), `sudo analytics …` (sudo takes options of its
-# own) and a trailing `&` (a list in the background, not a simple command).
+# own), a trailing `&` (a list in the background, not a simple command) and a trailing `;` (an
+# operator here, though nothing follows it), and in PowerShell a mid-word quote in a program word
+# (`ana'lytics'`, which it does run as `analytics`).
 # For such a line the handler returns nothing: aelix runs it as it would, another extension's block or
 # shell included, and a kit call in it records `agent`/declared from the process environment. So the
 # handler sets another extension's answer aside for that one kit command only (CONTRACTS A).
@@ -1193,6 +1202,13 @@ UV_RUN_VALUE_OPTIONS = frozenset({
     "--config-file"})
 SHELL_OPERATOR_CHARS = frozenset("();<>|&")
 POWERSHELL_OPERATOR_CHARS = frozenset("();<>|&{}")
+# What a POSIX shell expands into any number of words when it is not quoted: a pathname pattern
+# (`*` `?` `[`), a brace (`{a,b}` in bash, zsh and ksh; `{ab}` with zsh's BRACE_CCL) and zsh's
+# EXTENDED_GLOB patterns (`^`, and `#` `~` inside a word), which a startup file may turn on. An option's
+# value made so may become two words, and the next one the program (`env -u {X,touch} analytics` runs
+# `touch`). PowerShell expands `*` `?` `[` on Unix too (its native globbing).
+SHELL_PATTERN_CHARS = frozenset("*?[{^")
+SHELL_PATTERN_CHARS_IN_A_WORD = frozenset("#~")
 # The redirections one simple command may carry, with a descriptor number before them: to or from a
 # file or a descriptor. A here-document or here-string (`<<`, `<<<`), `&>` (in a POSIX shell, `&` and
 # then `>`), `<(` and `>(` are not among them. PowerShell's are a stream's to a file (`>`, `2>>`) and
@@ -1214,6 +1230,11 @@ POWERSHELL_STOP_PARSING = re.compile("[-–—―]{2}%")
 # or `,` starts an expression there, not a command (pwsh 7's parser); `-`, `!`, `=`, `*`, `%` start a
 # command name PowerShell does run (`-c/analytics` runs `./-c/analytics`) but are left alone too.
 POWERSHELL_COMMAND_START = re.compile(r"[^\W\d]|\.(?:[^\W\d]|\.?[/\\])|[/\\~]")
+# A word so far that PowerShell may read as a parameter, whose name an unquoted `.` ends: it passes
+# `-p3.12` to a program as `-p3` and `.12` (pwsh 7.6; `[` ends it too, and is a wildcard there). A dash
+# (or – — ―) not followed by another `-` or a digit, and no `:` yet (`-p:3.12`, `--python=3.12`, `-3.12`
+# and `-a'b'.c` pass whole). Wider than PowerShell's rule (`-@a.b` passes whole there).
+POWERSHELL_PARAMETER = re.compile(r"[-–—―](?![-\d])[^:]*")
 # What cmd reads in a batch file's arguments: its operators `&` `|` `<` `>`, its escape `^`, its
 # expansions `%` and `!`, its quote `"` and its blocks `(` `)`. On Windows a program a shell finds by
 # its bare name through PATH and PATHEXT (`analytics`, `python`, `py`, `uv`) may be a batch file — a
@@ -1286,7 +1307,9 @@ def _posix_words(line: str) -> list[tuple[str, bool]]:
     `` ` `` `"` `\\`, before others it stays), and a backslash before a new line is a line continuation,
     gone (`uv run \\<LF>analytics` is `uv run analytics`). `#` is a character as any other. ValueError
     for what this reading leaves open: `$` or a backtick outside single quotes, a quote not closed, a
-    backslash ending the line, and a comment (`#` at a word's start) that a new line follows."""
+    backslash ending the line, a comment (`#` at a word's start) that a new line follows, and a
+    pattern or a brace the shell would expand into words (SHELL_PATTERN_CHARS, the check of 2026-10-09
+    of ab45982)."""
     reader, i, n = _Reader(), 0, len(line)
     while i < n:
         c = line[i]
@@ -1303,6 +1326,8 @@ def _posix_words(line: str) -> list[tuple[str, bool]]:
             raise ValueError("a comment a new line follows")
         elif c in SHELL_OPERATOR_CHARS:
             i = reader.operator(line, i, SHELL_OPERATOR_CHARS)
+        elif c in SHELL_PATTERN_CHARS or (c in SHELL_PATTERN_CHARS_IN_A_WORD and reader.in_word):
+            raise ValueError("a pattern or a brace the shell expands")
         elif c == "\\":
             following = line[i + 1:i + 2]
             if not following:
@@ -1345,18 +1370,38 @@ def _powershell_words(line: str) -> list[tuple[str, bool]]:
     quotes. ValueError for what it leaves open: a new line or a carriage return, a backtick (its
     escape), `$` outside single quotes, a quote it takes besides ' and " (‘ ’ “ ” …), a space outside
     quotes besides a space and a tab (it splits words on a no-break space, which a POSIX shell does
-    not), a quote not closed, and `--%` (what follows it would be passed on unread)."""
+    not), a quote not closed, and `--%` (what follows it would be passed on unread).
+
+    Also where its words are not a POSIX shell's (pwsh 7.6, the check of 2026-10-09 of ab45982): a
+    quoted text that starts a word but does not end it (what follows its closing quote is another word
+    there — `& 'touch'/x/analytics` runs `touch` — or an expression: `'a'.Length`); a quote after other
+    text in a word that does not start with `-` (`.'x'` dot-sources `x`), so that a program word holds a
+    quote only as one quoted text; an unquoted `.` in a word it reads as a parameter
+    (POWERSHELL_PARAMETER: `-p3.12` reaches a program as `-p3` and `.12`); an unquoted `,` (its array
+    operator: an array reaches a program as its source text split at spaces, `a, "b c"` as `a,` `"b`
+    `c"`); `@` starting a word (splatting: `@args` is no word at all); `]` starting a word (another
+    word there); a wildcard `*` `?` `[` (it expands them on Unix); a `>` or `<` right after other text
+    in a word but a descriptor number (`x>y` is one word there, and `analytics>out` its command name);
+    and a merge `>&` not followed by 1 right away (`2>& 1`, `2>&'1'` are parse errors there)."""
     reader, i, n = _Reader(), 0, len(line)
     while i < n:
         c = line[i]
-        if c in "\r\n`$" or c in POWERSHELL_QUOTES or (c.isspace() and c not in " \t"):
+        if c in "\r\n`$," or c in POWERSHELL_QUOTES or (c.isspace() and c not in " \t"):
             raise ValueError("a character this reading leaves open")  # a space it splits on, too
         if c in " \t":
             reader.end_word()
             i += 1
         elif c in POWERSHELL_OPERATOR_CHARS:
+            number = reader.plain and DESCRIPTOR.fullmatch("".join(reader.word))
+            if c in "<>" and reader.in_word and not number:
+                raise ValueError("a redirection inside a word")
             i = reader.operator(line, i, POWERSHELL_OPERATOR_CHARS)
+            if reader.tokens[-1][0].endswith(">&") and line[i:i + 1] != "1":
+                raise ValueError("a merge PowerShell does not take")
         elif c in "'\"":
+            starts_the_word = not reader.in_word
+            if not starts_the_word and not "".join(reader.word).startswith("-"):
+                raise ValueError("a quote after other text")
             j, text = i + 1, []
             while True:
                 if j >= n:
@@ -1370,9 +1415,17 @@ def _powershell_words(line: str) -> list[tuple[str, bool]]:
                     j += 1  # a doubled quote is one
                 text.append(d)
                 j += 1
+            following = line[j + 1:j + 2]
+            if starts_the_word and following and following not in " \t" and (
+                    following not in POWERSHELL_OPERATOR_CHARS):
+                raise ValueError("a quoted text that starts a word but does not end it")
             reader.add("".join(text), plain=False)
             i = j + 1
         else:
+            if c in "*?[" or (c in "@]" and not reader.in_word):
+                raise ValueError("a wildcard, a splat or a bracket starting a word")
+            if c == "." and reader.plain and POWERSHELL_PARAMETER.fullmatch("".join(reader.word)):
+                raise ValueError("a parameter PowerShell splits")
             reader.add(c)
             i += 1
     reader.end_word()
@@ -1512,6 +1565,8 @@ def is_single_kit_command(command: str, shell: str) -> bool:
                 posix = posix[1:] if posix[:1] == [("&", True)] else posix
             elif line[0] in "'\"":
                 return False  # a quoted text first is a value in PowerShell, not a program
+            if tokens[:1] and tokens[0][1]:
+                return False  # a redirection first is the command's name there (`2>&1 x` runs `2>&1`)
             if _one_command(posix, "posix") is None:
                 return False
         words = _one_command(tokens, family)
@@ -1519,6 +1574,10 @@ def is_single_kit_command(command: str, shell: str) -> bool:
         return False
     if words is None:
         return False
+    # A comment (`#` starting a word) ends the command: the shell runs the words before it (`uv run
+    # --with #x analytics` runs `uv run --with`). A quoted `#…` word ends the words judged too, which
+    # only leaves more alone; operators after it counted above.
+    words = words[:next((k for k, word in enumerate(words) if word.startswith("#")), len(words))]
     if cmd_may_read_the_arguments() and any(
             CMD_METACHARACTERS.intersection(text) for text, operator in tokens if not operator):
         return False  # cmd may read the words again (a batch file): any of them may start a command
