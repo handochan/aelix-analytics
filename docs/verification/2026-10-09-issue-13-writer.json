@@ -72,7 +72,7 @@
   "after_check_of_corrected_decisions": {
    "what": "the check of the corrected decisions over 0504cc8 (its findings binding as fixes): the user_bash handler reads a `!` line as the shell aelix runs it in reads it (aelix's own rule, tools.bash._resolve_shell; the POSIX shells and PowerShell, no result under any other shell), leaves alone a line whose reading differs between shells (`$` outside single quotes, `env -S`, an env or `uv run` option it does not know, in PowerShell a new line, a backtick, its quotes and spaces, `--%`, `{}`, `<`, a `>&` but `n>&1`), and takes no batch file as a kit entry point; the migration refuses at step 1, in its dry run and under the lock a destination whose AppleDouble regular file is at a path the copy puts one of the source's entries at (not_empty), and the hint of a clearing that cannot remove a migration directory says what the call removed (details.removed). Measured on the worktree before the commit, which holds the same files (the manifest)",
    "previous_head": "0504cc88ca99c7c0356f9933beb452ef76da516e",
-   "code_commit": "the commit holding this record (fix: answer the check of the corrected decisions (Issue #13 PR 3)): its code files are the manifest's",
+   "code_commit": "221dfbb4f202c726ffde4904af2f3b00039921c2",
    "manifest_sha256": "10aa785452c3a2a2f17fddf0a15817ba057290c31071280080f09be480986ae5",
    "manifest_files": 219,
    "remeasured_at": "2026-10-09T03:09:59Z",
@@ -97,7 +97,7 @@
   "after_the_221dfbb_checks": {
    "what": "the fix of the PowerShell/POSIX checks of 221dfbb (its must-fix binding): on Windows, in any shell, the user_bash judgment leaves alone a line one of whose words (redirection targets too) holds a character cmd reads (& | < > ^ % ! \" ( )), because a bare `analytics`, `python`, `py` or `uv` may resolve to a batch file there and cmd reads its arguments again; in PowerShell it takes a program word only when it starts with a letter, `_`, a dot and a letter, or a path (`1/…`, `.5…`, `@…`, `[…]`, `+…`, `,…` are expressions there; `-c/analytics` and `!…` are left alone too). `uv run -m`/`--module`, `sudo` and a trailing `&` stay left alone, now said in CONTRACTS A. Measured on the worktree before the commit, which holds the same files (the manifest)",
    "previous_head": "221dfbb4f202c726ffde4904af2f3b00039921c2",
-   "code_commit": "the commit holding this record (fix: leave more lines alone in the person's-shell judgment (Issue #13 PR 3)): its code files are the manifest's",
+   "code_commit": "ab459826635c9d53f00c115dff1651f138da2ad8",
    "manifest_sha256": "9a8423c1d37fee4b70e4ba43af61bbe5561861cc1dea41c526eb49f84dca8b5d",
    "manifest_files": 219,
    "remeasured_at": "2026-10-09T04:06:16Z",
@@ -114,7 +114,7 @@
   "after_the_ab45982_checks": {
    "what": "the fix of the PowerShell/POSIX checks of ab45982 (its must-fix binding): in PowerShell the user_bash judgment leaves alone a quoted text starting a word that goes on after its closing quote (`& 'touch'/x/analytics` runs `touch` there), a quote after other text but in a word starting with `-` (`.'x'` dot-sources `x`), an unquoted `.` in a parameter-like word (`-p3.12` reaches a program as `-p3` `.12`), `,`, `@` or `]` starting a word, a wildcard, a `>` inside a word, a redirection before the program and a merge `>&` not followed by 1 right away; found while fixing it, the same kind in the POSIX shells (an unquoted pattern or brace, `env -u {X,touch} analytics` runs `touch`) and a comment where an option's value is (the words judged end at a comment). A trailing `;` is now said in CONTRACTS A. Measured on the worktree before the commit, which holds the same files (the manifest)",
    "previous_head": "ab459826635c9d53f00c115dff1651f138da2ad8",
-   "code_commit": "the commit holding this record (fix: leave more lines alone in the person's-shell judgment (Issue #13 PR 3), over ab45982): its code files are the manifest's",
+   "code_commit": "c399fc3d006b2e9ff37ab01472a8c21dfb847803",
    "manifest_sha256": "8ff4d391da98bc32976e69d84284d0c1530a96624e11b7f57370eedba1d2a29d",
    "manifest_files": 219,
    "remeasured_at": "2026-10-09T05:31:22Z",
@@ -131,7 +131,7 @@
   "after_the_c399fc3_checks": {
    "what": "the fix of the PowerShell check of c399fc3 (one should-fix): PowerShell's all-streams redirection `*>`, `*>>`, `*>&1` (`analytics status *> log.txt`, one kit command with one redirection by pwsh 7.6.5's parser) was left alone by the judgment (both readings take its `*` for a wildcard first) without being said. It stays left alone (the stricter side) and is now said in the extension's comments, CONTRACTS A and README, with three rows in the PowerShell left-alone table; the judgment itself is unchanged. Measured on the worktree before the commit, which holds the same files (the manifest)",
    "previous_head": "c399fc3d006b2e9ff37ab01472a8c21dfb847803",
-   "code_commit": "the commit holding this record (fix: leave more lines alone in the person's-shell judgment (Issue #13 PR 3), over c399fc3): its code files are the manifest's",
+   "code_commit": "ca0cf390d591d1fddcd72005888c12bc6ebf0a0c",
    "manifest_sha256": "58ca05b05d266682fa104ac29bddc40471ce1339e4d439239a3875049fd043c1",
    "manifest_files": 219,
    "remeasured_at": "2026-10-09T06:29:58Z",
@@ -150,9 +150,80 @@
  "workflow": ".github/workflows/ci.yml: the aelix legs run tests/test_agent_cli.py too and keep their observations (evidence-aelix-py3.12/3.11)",
  "runs": {
   "code": {
-   "state": "pending",
-   "measured_commit": "the commit holding this record (fix: leave more lines alone in the person's-shell judgment (Issue #13 PR 3), over c399fc3), manifest sha256 58ca05b05d26…",
-   "why": "not pushed yet; ab45982 and c399fc3 were not pushed either, and 221dfbb (the pushed head) had its CI running when this commit was made (its result is not read here); 8d3695f's CI is at_8d3695f"
+   "state": "pass",
+   "id": 37895642682,
+   "url": "https://github.com/handochan/aelix-analytics/actions/runs/37895642682",
+   "attempt": 1,
+   "conclusion": "success",
+   "head": "ca0cf390d591d1fddcd72005888c12bc6ebf0a0c",
+   "event": "pull_request",
+   "jobs": {
+    "platform · windows-2025": {
+     "id": 113706258646,
+     "conclusion": "success",
+     "started_at": "2026-10-09T06:50:24Z",
+     "completed_at": "2026-10-09T07:34:42Z",
+     "repository_test_step": {
+      "name": "Repository tests, with the distribution's end-to-end leg",
+      "conclusion": "success",
+      "started_at": "2026-10-09T06:53:23Z",
+      "completed_at": "2026-10-09T07:25:00Z"
+     }
+    },
+    "lint · ruff and documents": {
+     "id": 113706258798,
+     "conclusion": "success",
+     "started_at": "2026-10-09T06:50:24Z",
+     "completed_at": "2026-10-09T06:50:41Z",
+     "repository_test_step": null
+    },
+    "platform · ubuntu-24.04": {
+     "id": 113706258813,
+     "conclusion": "success",
+     "started_at": "2026-10-09T06:50:24Z",
+     "completed_at": "2026-10-09T07:07:19Z",
+     "repository_test_step": {
+      "name": "Repository tests, with the distribution's end-to-end leg",
+      "conclusion": "success",
+      "started_at": "2026-10-09T06:51:32Z",
+      "completed_at": "2026-10-09T07:04:34Z"
+     }
+    },
+    "floor · windows-2025 · CPython 3.11, stdlib only": {
+     "id": 113706258885,
+     "conclusion": "success",
+     "started_at": "2026-10-09T06:50:24Z",
+     "completed_at": "2026-10-09T06:51:23Z",
+     "repository_test_step": null
+    },
+    "floor · ubuntu-24.04 · CPython 3.11, stdlib only": {
+     "id": 113706258998,
+     "conclusion": "success",
+     "started_at": "2026-10-09T06:50:25Z",
+     "completed_at": "2026-10-09T06:50:54Z",
+     "repository_test_step": null
+    }
+   },
+   "measured_commit": "ca0cf390d591d1fddcd72005888c12bc6ebf0a0c",
+   "previous_pending": {
+    "state": "pending",
+    "measured_commit": "the commit holding this record (fix: leave more lines alone in the person's-shell judgment (Issue #13 PR 3), over c399fc3), manifest sha256 58ca05b05d26…",
+    "why": "not pushed yet; ab45982 and c399fc3 were not pushed either, and 221dfbb (the pushed head) had its CI running when this commit was made (its result is not read here); 8d3695f's CI is at_8d3695f"
+   },
+   "docs": {
+    "file": "docs.json",
+    "sha256": "378863c6d7bfcd7522c932d449ca676256a21771aa5d0b202864848d02d91099",
+    "ok": true,
+    "counts": {
+     "json_files": 13,
+     "markdown_files": 66,
+     "local_links": 729,
+     "python_examples": 6,
+     "json_examples": 7,
+     "dev_state_examples": 1
+    },
+    "errors": []
+   }
   },
   "at_8d3695f": {
    "what": "PR #84's CI of the earlier head",
@@ -197,17 +268,2394 @@
      "note": "the extension's analytics_import and analytics_run pass description and title on the kit's command line too (as on main): on Windows a field over about 32,000 characters there would be spawn_failed (could not start ...: WinError 206), an error answer and nothing written; pre-existing, not changed here"
     }
    ]
-  }
+  },
+  "macos_label": {
+   "state": "pass",
+   "id": 37895656352,
+   "url": "https://github.com/handochan/aelix-analytics/actions/runs/37895656352",
+   "attempt": 1,
+   "conclusion": "success",
+   "head": "ca0cf390d591d1fddcd72005888c12bc6ebf0a0c",
+   "event": "pull_request",
+   "jobs": {
+    "floor · macos-26 · CPython 3.11, stdlib only": {
+     "id": 113706302102,
+     "conclusion": "success",
+     "started_at": "2026-10-09T06:50:36Z",
+     "completed_at": "2026-10-09T06:51:08Z",
+     "repository_test_step": null
+    },
+    "platform · macos-26": {
+     "id": 113706302265,
+     "conclusion": "success",
+     "started_at": "2026-10-09T06:50:36Z",
+     "completed_at": "2026-10-09T07:06:21Z",
+     "repository_test_step": {
+      "name": "Repository tests, with the distribution's end-to-end leg",
+      "conclusion": "success",
+      "started_at": "2026-10-09T06:52:05Z",
+      "completed_at": "2026-10-09T07:04:21Z"
+     }
+    },
+    "lint · ruff and documents": {
+     "id": 113706303763,
+     "conclusion": "skipped",
+     "started_at": "2026-10-09T06:50:31Z",
+     "completed_at": "2026-10-09T06:50:30Z",
+     "repository_test_step": null
+    }
+   }
+  },
+  "at_221dfbb": [
+   {
+    "conclusion": "success",
+    "databaseId": 37880076923,
+    "headSha": "221dfbb4f202c726ffde4904af2f3b00039921c2",
+    "status": "completed",
+    "url": "https://github.com/handochan/aelix-analytics/actions/runs/37880076923"
+   },
+   {
+    "conclusion": "success",
+    "databaseId": 37880067627,
+    "headSha": "221dfbb4f202c726ffde4904af2f3b00039921c2",
+    "status": "completed",
+    "url": "https://github.com/handochan/aelix-analytics/actions/runs/37880067627"
+   }
+  ],
+  "note": "CI checks out the PR head; github_sha/workflow_sha describe GitHub's workflow merge commit. Artifacts are preserved in local run 71820e49-77c4-4b3c-b609-69c992d82ae2/evidence/ci; GitHub expires them after 90 days. Final documentation-commit CI is recorded in PR #84, not by recursively changing this measurement record."
  },
  "legs": {
   "linux": {
-   "state": "pending"
+   "state": "pass",
+   "run": 37895642682,
+   "attempt": 1,
+   "event": "pull_request",
+   "action": "synchronize",
+   "label": "",
+   "head": "ca0cf390d591d1fddcd72005888c12bc6ebf0a0c",
+   "base": "0f3f09fa8b1ba46b63d50e672d7c8409f785b7b7",
+   "github_sha": "018616d34cd1faee20803466d46222f93354544a",
+   "workflow_sha": "018616d34cd1faee20803466d46222f93354544a",
+   "jobs": {
+    "platform · ubuntu-24.04": {
+     "id": 113706258813,
+     "conclusion": "success",
+     "started_at": "2026-10-09T06:50:24Z",
+     "completed_at": "2026-10-09T07:07:19Z",
+     "repository_test_step": {
+      "name": "Repository tests, with the distribution's end-to-end leg",
+      "conclusion": "success",
+      "started_at": "2026-10-09T06:51:32Z",
+      "completed_at": "2026-10-09T07:04:34Z"
+     }
+    },
+    "floor · ubuntu-24.04 · CPython 3.11, stdlib only": {
+     "id": 113706258998,
+     "conclusion": "success",
+     "started_at": "2026-10-09T06:50:25Z",
+     "completed_at": "2026-10-09T06:50:54Z",
+     "repository_test_step": null
+    }
+   },
+   "runner": {
+    "image": {
+     "ImageOS": "ubuntu24",
+     "ImageVersion": "20261004.327.1"
+    },
+    "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+    "arch": "X64",
+    "python_development": "3.12.3",
+    "interpreters": {
+     "3.11": "3.11.15",
+     "3.12": "3.12.3"
+    },
+    "python_floor": "3.11.17 (main, Oct  1 2026, 14:32:31) [GCC 13.3.0]",
+    "floor_image": {
+     "ImageOS": "ubuntu24",
+     "ImageVersion": "20261004.327.1"
+    }
+   },
+   "artifacts": [
+    {
+     "id": 11600632186,
+     "name": "ci-platform-ubuntu-24.04",
+     "size_in_bytes": 246096,
+     "digest": "sha256:0dd5725ba9fa285a212e643aa05908eb97df72cb87cd499a90f1a217a6a6cd8e",
+     "expired": false
+    },
+    {
+     "id": 11599878234,
+     "name": "ci-floor-ubuntu-24.04",
+     "size_in_bytes": 2789,
+     "digest": "sha256:c73ef60f8207d219eb200814ae6c5432e8208b03e66b7e9f63e111513742a252",
+     "expired": false
+    }
+   ],
+   "artifact_file_manifest": {
+    "files": 179,
+    "sha256": "6bc3c61911904c7e31dd8820888ad0208bd2fb115ed3f4f11715ae7bebb2470a"
+   },
+   "junit": {
+    "aelix-py3.11": {
+     "file": "aelix-py3.11.xml",
+     "sha256": "3b31a7a961dcbc5b3ecf581a930b999eda846bfc494d2c35acff24442fd22d3b",
+     "counts": {
+      "pass": 963
+     },
+     "seconds": 60.888,
+     "timestamp": "2026-10-09T07:05:54.931410+00:00",
+     "failed": [],
+     "skipped_by_reason": {},
+     "issue_13_test_groups": {
+      "tests.test_extension": {
+       "pass": 842
+      },
+      "tests.test_agent_cli": {
+       "pass": 6
+      }
+     }
+    },
+    "aelix-py3.12": {
+     "file": "aelix-py3.12.xml",
+     "sha256": "415405dce0412b1cfbdce891c7a32d453cc80268f8f4eff4f70b64840c2f3f9a",
+     "counts": {
+      "pass": 963
+     },
+     "seconds": 66.611,
+     "timestamp": "2026-10-09T07:04:35.062378+00:00",
+     "failed": [],
+     "skipped_by_reason": {},
+     "issue_13_test_groups": {
+      "tests.test_extension": {
+       "pass": 842
+      },
+      "tests.test_agent_cli": {
+       "pass": 6
+      }
+     }
+    },
+    "launcher-py3.11": {
+     "file": "launcher-py3.11.xml",
+     "sha256": "a5b085ff56d354e1eff6b0ee7c9e76401463bc802ce482e6c68891dfaebc4e47",
+     "counts": {
+      "pass": 196,
+      "skipped": 1
+     },
+     "seconds": 15.002,
+     "timestamp": "2026-10-09T07:06:56.581814+00:00",
+     "failed": [],
+     "skipped_by_reason": {
+      "what Windows does; POSIX sends it again (the test above)": 1
+     },
+     "issue_13_test_groups": {}
+    },
+    "suite": {
+     "file": "suite.xml",
+     "sha256": "40300bebda48f7633345efb69e361ab4320559b5eafa6f83b6b632204954389d",
+     "counts": {
+      "skipped": 74,
+      "pass": 1978
+     },
+     "seconds": 779.851,
+     "timestamp": "2026-10-09T06:51:33.346912+00:00",
+     "failed": [],
+     "skipped_by_reason": {
+      "collection skipped": 3,
+      "the Windows implementation runs on the Windows leg": 43,
+      "the recording implementation does not declare that it excludes other processes": 3,
+      "the recording implementation does not declare that it honours a folder's permissions": 1,
+      "the stand-in has no C call to fail": 3,
+      "the recording implementation does not declare that it sees running processes": 1,
+      "the recording implementation does not declare that it interrupts a region": 1,
+      "M writes about 440 MB twice; set AELIX_ANALYTICS_TEST_SCALE_M=1": 1,
+      "what Windows does; POSIX sends it again (the test above)": 1,
+      "AELIX_ANALYTICS_TEST_FOREIGN_FS names no folder on another file system (a FAT or exFAT volume, say)": 2,
+      "a file another process holds open without sharing: Windows": 1,
+      "this file system tells case apart": 1,
+      "this file system minds case: `Runs` would be a directory of its own": 1,
+      "a directory flagged case-sensitive is Windows'": 2,
+      "8.3 short names are Windows'": 1,
+      "taskkill and CreateProcess's search are Windows'": 1,
+      "before 3.14 a `with` calls __enter__ without a CALL, and no signal is handled between its acquiring and the block": 1,
+      "MAX_PATH and LongPathsEnabled are Windows'": 7
+     },
+     "issue_13_test_groups": {
+      "tests.test_contracts": {
+       "pass": 79,
+       "skipped": 52
+      },
+      "tests.test_layers": {
+       "pass": 47
+      },
+      "tests.test_marker_gate": {
+       "pass": 76
+      },
+      "tests.test_migrate_command": {
+       "pass": 51,
+       "skipped": 2
+      },
+      "tests.test_migration": {
+       "pass": 156,
+       "skipped": 2
+      },
+      "tests.test_migration_reader": {
+       "pass": 5
+      },
+      "tests.test_new_format": {
+       "pass": 27
+      },
+      "tests.test_writer": {
+       "pass": 117
+      }
+     }
+    }
+   },
+   "smoke": {
+    "file": "smoke.json",
+    "sha256": "dc16743039517bd703d60674c2ef4ae798f776ce2d3111c49d4b58a8e49c57d7",
+    "summary": {
+     "holds": 25,
+     "violated": 0,
+     "declared_limitation": 0,
+     "observed": 6,
+     "not_run": 0
+    },
+    "required": {
+     "platform": "posix",
+     "checks": [
+      "imports_without_analysis_libraries",
+      "lock_excludes_another_process",
+      "lock_released_when_its_holder_is_killed",
+      "replace_while_a_reader_holds_the_file",
+      "liveness_of_a_live_an_exited_and_a_bogus_pid",
+      "interrupt_asks_a_python_child_or_declines",
+      "kill_tree_ends_the_child_and_its_grandchild",
+      "kill_tree_after_the_leader_exited",
+      "deadline_interrupts_python_code",
+      "deadline_interrupts_a_sleep",
+      "the_cancel_request_wakes_a_sleeping_run",
+      "the_guard_records_outside_regions_and_interrupts_inside_once",
+      "base_env_is_enough_to_start_a_child",
+      "file_url_leads_back_to_the_file",
+      "utf8_survives_a_pipe",
+      "cli_end_to_end",
+      "cli_run_timeout_in_python_code",
+      "cli_run_timeout_in_a_blocking_duckdb_query",
+      "cli_cancel_the_way_the_extension_does",
+      "cli_cancel_reaches_a_run_inside_a_regular_expression",
+      "cli_cancel_reaches_a_run_waiting_on_a_subprocess",
+      "cli_concurrent_runs_are_serialized",
+      "cli_refuses_a_new_reserved_dataset_name",
+      "cli_writes_a_reserved_chart_id_to_a_portable_file",
+      "cli_a_script_saving_a_reserved_name_is_warned_about"
+     ],
+     "violated": [],
+     "declared_limitation": [],
+     "not_run": [],
+     "hold": true
+    },
+    "source": {
+     "head": "ca0cf390d591d1fddcd72005888c12bc6ebf0a0c",
+     "dirty": false
+    }
+   },
+   "stdlib_smoke": {
+    "file": "stdlib-smoke.json",
+    "sha256": "8374e4674506b953f3f79eeecb75fb5eaee6d18ac592e11d68027d00ea8a00f5",
+    "summary": {
+     "holds": 15,
+     "violated": 0,
+     "declared_limitation": 0,
+     "observed": 3,
+     "not_run": 2
+    },
+    "required": {
+     "platform": "posix",
+     "checks": [
+      "imports_without_analysis_libraries",
+      "lock_excludes_another_process",
+      "lock_released_when_its_holder_is_killed",
+      "replace_while_a_reader_holds_the_file",
+      "liveness_of_a_live_an_exited_and_a_bogus_pid",
+      "interrupt_asks_a_python_child_or_declines",
+      "kill_tree_ends_the_child_and_its_grandchild",
+      "kill_tree_after_the_leader_exited",
+      "deadline_interrupts_python_code",
+      "deadline_interrupts_a_sleep",
+      "the_cancel_request_wakes_a_sleeping_run",
+      "the_guard_records_outside_regions_and_interrupts_inside_once",
+      "base_env_is_enough_to_start_a_child",
+      "file_url_leads_back_to_the_file",
+      "utf8_survives_a_pipe"
+     ],
+     "violated": [],
+     "declared_limitation": [],
+     "not_run": [],
+     "hold": true
+    },
+    "source": {
+     "head": "ca0cf390d591d1fddcd72005888c12bc6ebf0a0c",
+     "dirty": false
+    }
+   },
+   "usage_report": {
+    "file": "usage-report.json",
+    "sha256": "5311ff02cf519ea906279c7841c6ba41322a26a4ceb1b1fee9ecf390e0933ed2",
+    "measured": {
+     "commit": "ca0cf390d591d1fddcd72005888c12bc6ebf0a0c",
+     "dirty": false,
+     "extension_sha256": "b64178fcff4bb0311570efdf9bc69421e4e5d7f3d83d518336555ca96d43bf9e",
+     "kit_sha256": "84d0f3d58ba9fef3b1db74219500a6341a7deea28c983e67315753e33a8bd33b"
+    },
+    "checks": {
+     "P1_sizes_recomputed_from_saved_texts": true,
+     "P2_required_facts_read_back": {
+      "passed": 58,
+      "total": 58
+     },
+     "P2_invariants_hold": {
+      "holding": 42,
+      "total": 42
+     },
+     "P3_hook_returned_a_block": true,
+     "P3_tools_replied_without_error": true,
+     "P3_pinned_section_whole": true,
+     "fixtures_measured": 34,
+     "fixtures_selected": 34
+    },
+    "failures": [],
+    "counter_states": {
+     "qwen3.8-27b": {
+      "status": "not_measured",
+      "reason": "no_tokenizer_given"
+     },
+     "frontier": {
+      "status": "not_measured",
+      "reason": "no_offline_counter"
+     }
+    },
+    "note": "bytes/characters and saved-text checks; model tokens and real model task cost remain unmeasured"
+   },
+   "observations": {
+    "agent_cli_py3.12": {
+     "agent-cli-alone.json": {
+      "file": "agent-cli-alone.json",
+      "sha256": "6211d6dda0aaf6e4a30b96a459eb452fae50e9cba6d06df99b935ad9fefd60d0",
+      "observed": {
+       "agent_bash_tool": {
+        "actor": "agent",
+        "actor_basis": "declared",
+        "means": "cli",
+        "session_present": true,
+        "text": "T22-agent"
+       },
+       "extension_kit_child": {
+        "actor": "human",
+        "means": "command"
+       },
+       "person_bang": {
+        "actor": "human",
+        "actor_basis": "declared",
+        "means": "cli",
+        "session_present": true,
+        "text": "T22-person"
+       },
+       "person_bang_compound": {
+        "handler_result": null,
+        "line": "echo T22-before; <kit record>",
+        "recorded": {
+         "actor": "agent",
+         "actor_basis": "declared",
+         "means": "cli",
+         "session_present": true,
+         "text": "T22-compound"
+        }
+       },
+       "person_bang_not_the_kit": {
+        "handler_result": null,
+        "ran": "aelix's own local shell"
+       },
+       "platform": "linux",
+       "python": "3.12.3",
+       "shell": "/bin/bash"
+      }
+     },
+     "agent-cli-analytics-first.json": {
+      "file": "agent-cli-analytics-first.json",
+      "sha256": "77434bfcdb65aae3769ce3e7c93597d769ad98f67bc1752ae8be9b1c26739573",
+      "observed": {
+       "compound_line": {
+        "other_shell_ran": 1,
+        "recorded": {
+         "actor": "agent",
+         "actor_basis": "declared",
+         "means": "cli",
+         "session_present": true,
+         "text": "T22-analytics-first-compound"
+        },
+        "returned_shell": "OtherShell"
+       },
+       "kit_command": {
+        "other_shell_ran": [
+         "/home/runner/work/_temp/setup-uv-cache/builds-v0/.tmpMZS66b/bin/python -m aelix_analytics record note T22-analytics-first"
+        ],
+        "recorded": {
+         "actor": "agent",
+         "actor_basis": "declared",
+         "means": "cli",
+         "session_present": true,
+         "text": "T22-analytics-first"
+        },
+        "returned_shell": "OtherShell"
+       },
+       "not_the_kit": {
+        "other_shell_ran": [
+         "echo T22"
+        ],
+        "returned_shell": "OtherShell"
+       },
+       "order": "analytics first",
+       "platform": "linux",
+       "python": "3.12.3"
+      }
+     },
+     "agent-cli-blocker-first.json": {
+      "file": "agent-cli-blocker-first.json",
+      "sha256": "bad2d55499335f8fb8b960ef0b6814ecc880eceaff1605c3dcb6fed3155b9f7c",
+      "observed": {
+       "ansi_c_quote_line": {
+        "line": "<kit record note> $'Q3\\'s numbers' ; echo T22-SECOND-RAN  # it's fine",
+        "written": false
+       },
+       "compound_line": {
+        "written": false
+       },
+       "kit_command": {
+        "recorded": {
+         "actor": "human",
+         "actor_basis": "declared",
+         "means": "cli",
+         "session_present": true,
+         "text": "T22-blocker-first"
+        },
+        "written": true
+       },
+       "not_the_kit": "blocked by policy",
+       "order": "blocker first",
+       "platform": "linux",
+       "python": "3.12.3"
+      }
+     },
+     "agent-cli-blocker-last.json": {
+      "file": "agent-cli-blocker-last.json",
+      "sha256": "d87ecc9528a79577dd9183369155016d8c80e516f29434920f876323bafe55ea",
+      "observed": {
+       "ansi_c_quote_line": {
+        "line": "<kit record note> $'Q3\\'s numbers' ; echo T22-SECOND-RAN  # it's fine",
+        "written": false
+       },
+       "compound_line": {
+        "written": false
+       },
+       "kit_command": {
+        "recorded": {
+         "actor": "test",
+         "actor_basis": "declared",
+         "means": "sdk",
+         "session_present": false,
+         "text": "CONTEXT.md recorded"
+        },
+        "written": false
+       },
+       "not_the_kit": "blocked by policy",
+       "order": "blocker last",
+       "platform": "linux",
+       "python": "3.12.3"
+      }
+     },
+     "agent-cli-other-first.json": {
+      "file": "agent-cli-other-first.json",
+      "sha256": "22b0eb69b88b6fb335697cb48afd4f094a9bc6035bad3912e414c9186e484ff7",
+      "observed": {
+       "compound_line": {
+        "other_shell_ran": 1,
+        "recorded": {
+         "actor": "agent",
+         "actor_basis": "declared",
+         "means": "cli",
+         "session_present": true,
+         "text": "T22-other-first-compound"
+        },
+        "returned_shell": "OtherShell"
+       },
+       "kit_command": {
+        "other_shell_ran": [],
+        "recorded": {
+         "actor": "human",
+         "actor_basis": "declared",
+         "means": "cli",
+         "session_present": true,
+         "text": "T22-other-first"
+        },
+        "returned_shell": "PersonShell"
+       },
+       "not_the_kit": {
+        "other_shell_ran": [
+         "echo T22"
+        ],
+        "returned_shell": "OtherShell"
+       },
+       "order": "other first",
+       "platform": "linux",
+       "python": "3.12.3"
+      }
+     },
+     "user-bash-shell-traps.json": {
+      "file": "user-bash-shell-traps.json",
+      "sha256": "53188a5e43f22ba62be356249da1954a05ac268ed2a9fa5f52f1cc47fb9a01dd",
+      "observed": {
+       "shells": {
+        "bash": {
+         "accepted": 17,
+         "ran_a_second": [],
+         "read_as": "bash"
+        },
+        "dash": {
+         "accepted": 17,
+         "ran_a_second": [],
+         "read_as": "dash"
+        },
+        "pwsh": {
+         "accepted": 5,
+         "ran_a_second": [],
+         "read_as": "pwsh"
+        },
+        "sh": {
+         "accepted": 17,
+         "ran_a_second": [],
+         "read_as": "sh"
+        }
+       },
+       "traps": 33
+      }
+     }
+    },
+    "agent_cli_py3.11": {
+     "agent-cli-alone.json": {
+      "file": "agent-cli-alone.json",
+      "sha256": "288a6548ba61bfe6df91f288eae77179341cdfdffd69c54910376ac15deec3ac",
+      "observed": {
+       "agent_bash_tool": {
+        "actor": "agent",
+        "actor_basis": "declared",
+        "means": "cli",
+        "session_present": true,
+        "text": "T22-agent"
+       },
+       "extension_kit_child": {
+        "actor": "human",
+        "means": "command"
+       },
+       "person_bang": {
+        "actor": "human",
+        "actor_basis": "declared",
+        "means": "cli",
+        "session_present": true,
+        "text": "T22-person"
+       },
+       "person_bang_compound": {
+        "handler_result": null,
+        "line": "echo T22-before; <kit record>",
+        "recorded": {
+         "actor": "agent",
+         "actor_basis": "declared",
+         "means": "cli",
+         "session_present": true,
+         "text": "T22-compound"
+        }
+       },
+       "person_bang_not_the_kit": {
+        "handler_result": null,
+        "ran": "aelix's own local shell"
+       },
+       "platform": "linux",
+       "python": "3.11.15",
+       "shell": "/bin/bash"
+      }
+     },
+     "agent-cli-analytics-first.json": {
+      "file": "agent-cli-analytics-first.json",
+      "sha256": "4364f5148997e076ea03bd8818c979a6f2ca7d9375000854f005b512118a4f3b",
+      "observed": {
+       "compound_line": {
+        "other_shell_ran": 1,
+        "recorded": {
+         "actor": "agent",
+         "actor_basis": "declared",
+         "means": "cli",
+         "session_present": true,
+         "text": "T22-analytics-first-compound"
+        },
+        "returned_shell": "OtherShell"
+       },
+       "kit_command": {
+        "other_shell_ran": [
+         "/home/runner/work/_temp/setup-uv-cache/builds-v0/.tmp7RexIL/bin/python -m aelix_analytics record note T22-analytics-first"
+        ],
+        "recorded": {
+         "actor": "agent",
+         "actor_basis": "declared",
+         "means": "cli",
+         "session_present": true,
+         "text": "T22-analytics-first"
+        },
+        "returned_shell": "OtherShell"
+       },
+       "not_the_kit": {
+        "other_shell_ran": [
+         "echo T22"
+        ],
+        "returned_shell": "OtherShell"
+       },
+       "order": "analytics first",
+       "platform": "linux",
+       "python": "3.11.15"
+      }
+     },
+     "agent-cli-blocker-first.json": {
+      "file": "agent-cli-blocker-first.json",
+      "sha256": "270ffd1cd1fac9e4c47f62e2183048d2c7cc2488c051a6256bc142910b746a84",
+      "observed": {
+       "ansi_c_quote_line": {
+        "line": "<kit record note> $'Q3\\'s numbers' ; echo T22-SECOND-RAN  # it's fine",
+        "written": false
+       },
+       "compound_line": {
+        "written": false
+       },
+       "kit_command": {
+        "recorded": {
+         "actor": "human",
+         "actor_basis": "declared",
+         "means": "cli",
+         "session_present": true,
+         "text": "T22-blocker-first"
+        },
+        "written": true
+       },
+       "not_the_kit": "blocked by policy",
+       "order": "blocker first",
+       "platform": "linux",
+       "python": "3.11.15"
+      }
+     },
+     "agent-cli-blocker-last.json": {
+      "file": "agent-cli-blocker-last.json",
+      "sha256": "cdbf39e85967f5e72ef9bae9f2dd8830b30e686f1498f4d93bf8df15d8165777",
+      "observed": {
+       "ansi_c_quote_line": {
+        "line": "<kit record note> $'Q3\\'s numbers' ; echo T22-SECOND-RAN  # it's fine",
+        "written": false
+       },
+       "compound_line": {
+        "written": false
+       },
+       "kit_command": {
+        "recorded": {
+         "actor": "test",
+         "actor_basis": "declared",
+         "means": "sdk",
+         "session_present": false,
+         "text": "CONTEXT.md recorded"
+        },
+        "written": false
+       },
+       "not_the_kit": "blocked by policy",
+       "order": "blocker last",
+       "platform": "linux",
+       "python": "3.11.15"
+      }
+     },
+     "agent-cli-other-first.json": {
+      "file": "agent-cli-other-first.json",
+      "sha256": "6e7a4818ab91cf5b6bc1d3c8eed361b404ddf2eba4b6addcf964dbfccd6938e3",
+      "observed": {
+       "compound_line": {
+        "other_shell_ran": 1,
+        "recorded": {
+         "actor": "agent",
+         "actor_basis": "declared",
+         "means": "cli",
+         "session_present": true,
+         "text": "T22-other-first-compound"
+        },
+        "returned_shell": "OtherShell"
+       },
+       "kit_command": {
+        "other_shell_ran": [],
+        "recorded": {
+         "actor": "human",
+         "actor_basis": "declared",
+         "means": "cli",
+         "session_present": true,
+         "text": "T22-other-first"
+        },
+        "returned_shell": "PersonShell"
+       },
+       "not_the_kit": {
+        "other_shell_ran": [
+         "echo T22"
+        ],
+        "returned_shell": "OtherShell"
+       },
+       "order": "other first",
+       "platform": "linux",
+       "python": "3.11.15"
+      }
+     },
+     "user-bash-shell-traps.json": {
+      "file": "user-bash-shell-traps.json",
+      "sha256": "53188a5e43f22ba62be356249da1954a05ac268ed2a9fa5f52f1cc47fb9a01dd",
+      "observed": {
+       "shells": {
+        "bash": {
+         "accepted": 17,
+         "ran_a_second": [],
+         "read_as": "bash"
+        },
+        "dash": {
+         "accepted": 17,
+         "ran_a_second": [],
+         "read_as": "dash"
+        },
+        "pwsh": {
+         "accepted": 5,
+         "ran_a_second": [],
+         "read_as": "pwsh"
+        },
+        "sh": {
+         "accepted": 17,
+         "ran_a_second": [],
+         "read_as": "sh"
+        }
+       },
+       "traps": 33
+      }
+     }
+    },
+    "migration_fault_matrix": {
+     "file": "fault-matrix.json",
+     "sha256": "7fde2e73da1e2238796301dd9442b281bfc3bc4cb1c2902a192535c2c3923d83",
+     "rows": 35,
+     "results": {
+      "F1-dest-locked": "resume",
+      "F1-migration-dir": "resume",
+      "F1-start-cut": "resume",
+      "F10-durable": "resume",
+      "F10-mapping": "resume",
+      "F10-report-written": "resume",
+      "F10-reported": "resume",
+      "F11-marker-begin": "resume",
+      "F11-marker-temp": "resume",
+      "F11-marker-written": "resume",
+      "F12-link-unlink": "already",
+      "F12-published": "already",
+      "F13-committed": "already",
+      "F14-trusted": "already",
+      "F16-committed-cut": "already",
+      "F16-copied-cut": "resume",
+      "F16-reported-cut": "resume",
+      "F16-source-checked-cut": "resume",
+      "F2-probe": "resume",
+      "F2-start": "resume",
+      "F3-locked": "resume",
+      "F4-plan": "resume",
+      "F4-plan-written": "resume",
+      "F5-begin": "resume",
+      "F5-temp-full": "resume",
+      "F5-temp-partial": "resume",
+      "F6-link-unlink": "resume",
+      "F6-published": "resume",
+      "F7-rechecking": "resume",
+      "F8-source-checked": "resume",
+      "F8-verified": "resume",
+      "F9-transform-begin": "resume",
+      "F9-transform-replaced": "resume",
+      "F9-transform-temp": "resume",
+      "F9-transform-written": "resume"
+     }
+    }
+   }
   },
   "windows": {
-   "state": "pending"
+   "state": "pass",
+   "run": 37895642682,
+   "attempt": 1,
+   "event": "pull_request",
+   "action": "synchronize",
+   "label": "",
+   "head": "ca0cf390d591d1fddcd72005888c12bc6ebf0a0c",
+   "base": "0f3f09fa8b1ba46b63d50e672d7c8409f785b7b7",
+   "github_sha": "018616d34cd1faee20803466d46222f93354544a",
+   "workflow_sha": "018616d34cd1faee20803466d46222f93354544a",
+   "jobs": {
+    "platform · windows-2025": {
+     "id": 113706258646,
+     "conclusion": "success",
+     "started_at": "2026-10-09T06:50:24Z",
+     "completed_at": "2026-10-09T07:34:42Z",
+     "repository_test_step": {
+      "name": "Repository tests, with the distribution's end-to-end leg",
+      "conclusion": "success",
+      "started_at": "2026-10-09T06:53:23Z",
+      "completed_at": "2026-10-09T07:25:00Z"
+     }
+    },
+    "floor · windows-2025 · CPython 3.11, stdlib only": {
+     "id": 113706258885,
+     "conclusion": "success",
+     "started_at": "2026-10-09T06:50:24Z",
+     "completed_at": "2026-10-09T06:51:23Z",
+     "repository_test_step": null
+    }
+   },
+   "runner": {
+    "image": {
+     "ImageOS": "win25-vs2026",
+     "ImageVersion": "20260925.250.1"
+    },
+    "platform": "Windows-2025Server-10.0.26100-SP0",
+    "arch": "X64",
+    "python_development": "3.12.10",
+    "interpreters": {
+     "3.11": "3.11.9",
+     "3.12": "3.12.10"
+    },
+    "python_floor": "3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]",
+    "floor_image": {
+     "ImageOS": "win25-vs2026",
+     "ImageVersion": "20260925.250.1"
+    }
+   },
+   "artifacts": [
+    {
+     "id": 11601956454,
+     "name": "ci-platform-windows-2025",
+     "size_in_bytes": 294732,
+     "digest": "sha256:76be773870bd7117c11e90cd46642e7422c0b795cc88bebb5fa841cb6bb75213",
+     "expired": false
+    },
+    {
+     "id": 11600082415,
+     "name": "ci-floor-windows-2025",
+     "size_in_bytes": 3723,
+     "digest": "sha256:eb41d87610751ee1e345b58bda00fe0aa15c471976975a85cd86578716b7d24c",
+     "expired": false
+    }
+   ],
+   "artifact_file_manifest": {
+    "files": 216,
+    "sha256": "862e36fbbe19f722282cd5855766745f7f7457f1595e668d5c11bc6fded3378c"
+   },
+   "junit": {
+    "aelix-py3.11": {
+     "file": "aelix-py3.11.xml",
+     "sha256": "4ae5f7c30dd44122f72ae2ca5cff3b8884bcbc0c76119d769c0567fc242eefa5",
+     "counts": {
+      "pass": 963,
+      "skipped": 1
+     },
+     "seconds": 104.279,
+     "timestamp": "2026-10-09T07:29:08.265372+00:00",
+     "failed": [],
+     "skipped_by_reason": {
+      "the POSIX shells and PowerShell found here, by path": 1
+     },
+     "issue_13_test_groups": {
+      "tests.test_extension": {
+       "pass": 842,
+       "skipped": 1
+      },
+      "tests.test_agent_cli": {
+       "pass": 6
+      }
+     }
+    },
+    "aelix-py3.12": {
+     "file": "aelix-py3.12.xml",
+     "sha256": "c2cdc36334e4ba8274c818c015b59c970edfd04f386efc72f863ed9237ecb0bb",
+     "counts": {
+      "pass": 963,
+      "skipped": 1
+     },
+     "seconds": 110.773,
+     "timestamp": "2026-10-09T07:26:49.913573+00:00",
+     "failed": [],
+     "skipped_by_reason": {
+      "the POSIX shells and PowerShell found here, by path": 1
+     },
+     "issue_13_test_groups": {
+      "tests.test_extension": {
+       "pass": 842,
+       "skipped": 1
+      },
+      "tests.test_agent_cli": {
+       "pass": 6
+      }
+     }
+    },
+    "console": {
+     "file": "console.xml",
+     "sha256": "7bfec1524ba6ee4f804405b71c9e897d232801c7e35b9505afa0948c263bedf5",
+     "counts": {
+      "pass": 21
+     },
+     "seconds": 104.155,
+     "timestamp": "2026-10-09T07:25:03.032663+00:00",
+     "failed": [],
+     "skipped_by_reason": {},
+     "issue_13_test_groups": {}
+    },
+    "launcher-py3.11": {
+     "file": "launcher-py3.11.xml",
+     "sha256": "95ab225cdefd1d389aac73f55358ee66d952b5f39e218efd9fe3767b4ae3a2c5",
+     "counts": {
+      "pass": 91,
+      "skipped": 106
+     },
+     "seconds": 17.631,
+     "timestamp": "2026-10-09T07:30:54.645675+00:00",
+     "failed": [],
+     "skipped_by_reason": {
+      "bin/analytics is a POSIX shell script": 72,
+      "a FIFO and the links are POSIX's here": 6,
+      "os.startfile would open a real program on Windows": 10,
+      "the links are POSIX's here, and os.startfile would open a real program on Windows": 6,
+      "a POSIX signal": 2,
+      "bytes that are not UTF-8 in the environment are POSIX's": 1,
+      "a terminal's process group; a Windows console's Ctrl+C is tests/test_windows_console.py's": 1,
+      "SIGTERM from outside a process is POSIX": 3,
+      "signal dispositions as POSIX inherits them": 1,
+      "a POSIX signal sent to one process": 1,
+      "a shell's background job": 2,
+      "a symbolic link to a program": 1
+     },
+     "issue_13_test_groups": {}
+    },
+    "long-paths-off": {
+     "file": "long-paths-off.xml",
+     "sha256": "92c51a386b14c3b0d5d66b4422f91af453c3a3e34b44456434919ae2378fa9fc",
+     "counts": {
+      "pass": 7
+     },
+     "seconds": 5.812,
+     "timestamp": "2026-10-09T07:31:15.259117+00:00",
+     "failed": [],
+     "skipped_by_reason": {},
+     "issue_13_test_groups": {}
+    },
+    "suite": {
+     "file": "suite.xml",
+     "sha256": "5002d6e269fb126f6074c9b0ffccb23c9023d6b57719024a76576560be923c60",
+     "counts": {
+      "skipped": 278,
+      "pass": 1798
+     },
+     "seconds": 1891.396,
+     "timestamp": "2026-10-09T06:53:25.081749+00:00",
+     "failed": [],
+     "skipped_by_reason": {
+      "collection skipped": 3,
+      "the POSIX implementation runs on the Linux and macOS legs": 43,
+      "the recording implementation does not declare that it excludes other processes": 3,
+      "the recording implementation does not declare that it honours a folder's permissions": 1,
+      "the windows implementation does not declare that it honours a folder's permissions": 1,
+      "the windows implementation does not declare that it publishes by a link": 1,
+      "the stand-in has no C call to fail": 3,
+      "Windows' rename never replaces: it has no such case": 4,
+      "the recording implementation does not declare that it sees running processes": 1,
+      "the recording implementation does not declare that it interrupts a region": 1,
+      "M writes about 440 MB twice; set AELIX_ANALYTICS_TEST_SCALE_M=1": 1,
+      "bin/analytics is a POSIX shell script": 83,
+      "a FIFO and the links are POSIX's here": 9,
+      "os.startfile would open a real program on Windows": 10,
+      "the links are POSIX's here, and os.startfile would open a real program on Windows": 6,
+      "a POSIX signal": 2,
+      "bytes that are not UTF-8 in the environment are POSIX's": 1,
+      "a terminal's process group; a Windows console's Ctrl+C is tests/test_windows_console.py's": 1,
+      "SIGTERM from outside a process is POSIX": 3,
+      "signal dispositions as POSIX inherits them": 1,
+      "a POSIX signal sent to one process": 1,
+      "a shell's background job": 2,
+      "a symbolic link to a program": 1,
+      "a FIFO is POSIX's": 1,
+      "a name that is not UTF-8: Linux's file systems keep one, APFS and NTFS refuse it": 1,
+      "Windows publishes by a rename: no second name between a link and an unlink": 1,
+      "AELIX_ANALYTICS_TEST_FOREIGN_FS names no folder on another file system (a FAT or exFAT volume, say)": 2,
+      "Windows publishes by a rename: there is no window between a link and an unlink": 2,
+      "a folder's write permission: POSIX, not as root": 2,
+      "a name not UTF-8: Linux keeps the bytes it is given": 1,
+      "Windows makes no such name; the case runs on the POSIX legs": 1,
+      "`..` after a link: POSIX resolves it from the link's target": 1,
+      "POSIX permissions that bind the owner": 1,
+      "a POSIX background job of the bash tool": 1,
+      "POSIX signals": 3,
+      "the launcher masks through its POSIX pipes; links need privileges": 1,
+      "the launcher masks through its POSIX pipes": 1,
+      "POSIX signals and the launcher's lifeline": 1,
+      "the stand-in uv is a script; Windows starts only an .exe": 1,
+      "a POSIX shell script stands in for the opener": 1,
+      "POSIX executables and HOME": 1,
+      "the POSIX guard's signals": 59,
+      "SIGALRM is POSIX": 1,
+      "Windows reads one character and a colon as a drive, and NTFS a colon in a name as a stream": 3,
+      "a directory the process cannot list: POSIX permissions, not root": 1,
+      "process groups are a POSIX concept": 1,
+      "declared: on Windows the ask is a Python thread, which a regular expression holding the GIL starves": 1,
+      "before 3.14 a `with` calls __enter__ without a CALL, and no signal is handled between its acquiring and the block": 1,
+      "names POSIX can hold and Windows reads otherwise": 1,
+      "the broken guard stands in for the POSIX one": 1,
+      "the stub guards stand in for the POSIX one": 2,
+      "the stub guard stands in for the POSIX one": 1,
+      "a symbolic link needs a privilege on Windows": 1
+     },
+     "issue_13_test_groups": {
+      "tests.test_contracts": {
+       "pass": 73,
+       "skipped": 58
+      },
+      "tests.test_layers": {
+       "pass": 47
+      },
+      "tests.test_marker_gate": {
+       "pass": 72,
+       "skipped": 4
+      },
+      "tests.test_migrate_command": {
+       "pass": 39,
+       "skipped": 14
+      },
+      "tests.test_migration": {
+       "pass": 153,
+       "skipped": 7
+      },
+      "tests.test_migration_reader": {
+       "pass": 6
+      },
+      "tests.test_new_format": {
+       "pass": 27
+      },
+      "tests.test_writer": {
+       "pass": 116,
+       "skipped": 1
+      }
+     }
+    }
+   },
+   "smoke": {
+    "file": "smoke.json",
+    "sha256": "0cd04ae9a2b662c33331b9ff7be56d11fb50537d64c41dfb3ec77485f8110c10",
+    "summary": {
+     "holds": 21,
+     "violated": 0,
+     "declared_limitation": 3,
+     "observed": 7,
+     "not_run": 0
+    },
+    "required": {
+     "platform": "windows",
+     "checks": [
+      "imports_without_analysis_libraries",
+      "lock_excludes_another_process",
+      "lock_released_when_its_holder_is_killed",
+      "replace_while_a_reader_holds_the_file",
+      "liveness_of_a_live_an_exited_and_a_bogus_pid",
+      "interrupt_asks_a_python_child_or_declines",
+      "kill_tree_ends_the_child_and_its_grandchild",
+      "kill_tree_after_the_leader_exited",
+      "deadline_interrupts_python_code",
+      "deadline_interrupts_a_sleep",
+      "the_cancel_request_wakes_a_sleeping_run",
+      "the_guard_records_outside_regions_and_interrupts_inside_once",
+      "base_env_is_enough_to_start_a_child",
+      "file_url_leads_back_to_the_file",
+      "utf8_survives_a_pipe",
+      "cli_end_to_end",
+      "cli_run_timeout_in_python_code",
+      "cli_run_timeout_in_a_blocking_duckdb_query",
+      "cli_cancel_the_way_the_extension_does",
+      "cli_cancel_reaches_a_run_inside_a_regular_expression",
+      "cli_cancel_reaches_a_run_waiting_on_a_subprocess",
+      "cli_concurrent_runs_are_serialized",
+      "cli_refuses_a_new_reserved_dataset_name",
+      "cli_writes_a_reserved_chart_id_to_a_portable_file"
+     ],
+     "violated": [],
+     "declared_limitation": [
+      "kill_tree_after_the_leader_exited",
+      "cli_cancel_reaches_a_run_inside_a_regular_expression",
+      "cli_cancel_reaches_a_run_waiting_on_a_subprocess"
+     ],
+     "not_run": [],
+     "hold": true
+    },
+    "source": {
+     "head": "ca0cf390d591d1fddcd72005888c12bc6ebf0a0c",
+     "dirty": false
+    }
+   },
+   "stdlib_smoke": {
+    "file": "stdlib-smoke.json",
+    "sha256": "54f1b458e844bb2fa364c786b0c67bc5a0e48cb41a0e4ca6b8249a5e3cee08f3",
+    "summary": {
+     "holds": 14,
+     "violated": 0,
+     "declared_limitation": 1,
+     "observed": 3,
+     "not_run": 2
+    },
+    "required": {
+     "platform": "windows",
+     "checks": [
+      "imports_without_analysis_libraries",
+      "lock_excludes_another_process",
+      "lock_released_when_its_holder_is_killed",
+      "replace_while_a_reader_holds_the_file",
+      "liveness_of_a_live_an_exited_and_a_bogus_pid",
+      "interrupt_asks_a_python_child_or_declines",
+      "kill_tree_ends_the_child_and_its_grandchild",
+      "kill_tree_after_the_leader_exited",
+      "deadline_interrupts_python_code",
+      "deadline_interrupts_a_sleep",
+      "the_cancel_request_wakes_a_sleeping_run",
+      "the_guard_records_outside_regions_and_interrupts_inside_once",
+      "base_env_is_enough_to_start_a_child",
+      "file_url_leads_back_to_the_file",
+      "utf8_survives_a_pipe"
+     ],
+     "violated": [],
+     "declared_limitation": [
+      "kill_tree_after_the_leader_exited"
+     ],
+     "not_run": [],
+     "hold": true
+    },
+    "source": {
+     "head": "ca0cf390d591d1fddcd72005888c12bc6ebf0a0c",
+     "dirty": false
+    }
+   },
+   "usage_report": {
+    "file": "usage-report.json",
+    "sha256": "20c7dd72d420b23e385675e229b46072cab8d68d2728b36c48a8a20e138209ef",
+    "measured": {
+     "commit": "ca0cf390d591d1fddcd72005888c12bc6ebf0a0c",
+     "dirty": false,
+     "extension_sha256": "b64178fcff4bb0311570efdf9bc69421e4e5d7f3d83d518336555ca96d43bf9e",
+     "kit_sha256": "84d0f3d58ba9fef3b1db74219500a6341a7deea28c983e67315753e33a8bd33b"
+    },
+    "checks": {
+     "P1_sizes_recomputed_from_saved_texts": true,
+     "P2_required_facts_read_back": {
+      "passed": 58,
+      "total": 58
+     },
+     "P2_invariants_hold": {
+      "holding": 42,
+      "total": 42
+     },
+     "P3_hook_returned_a_block": true,
+     "P3_tools_replied_without_error": true,
+     "P3_pinned_section_whole": true,
+     "fixtures_measured": 34,
+     "fixtures_selected": 34
+    },
+    "failures": [],
+    "counter_states": {
+     "qwen3.8-27b": {
+      "status": "not_measured",
+      "reason": "no_tokenizer_given"
+     },
+     "frontier": {
+      "status": "not_measured",
+      "reason": "no_offline_counter"
+     }
+    },
+    "note": "bytes/characters and saved-text checks; model tokens and real model task cost remain unmeasured"
+   },
+   "observations": {
+    "agent_cli_py3.12": {
+     "agent-cli-alone.json": {
+      "file": "agent-cli-alone.json",
+      "sha256": "ee8df38ee765f160d602f9afaa31ffb4eafd6e5809cb4ad6128798ed60767b7a",
+      "observed": {
+       "agent_bash_tool": {
+        "actor": "agent",
+        "actor_basis": "declared",
+        "means": "cli",
+        "session_present": true,
+        "text": "T22-agent"
+       },
+       "extension_kit_child": {
+        "actor": "human",
+        "means": "command"
+       },
+       "person_bang": {
+        "actor": "human",
+        "actor_basis": "declared",
+        "means": "cli",
+        "session_present": true,
+        "text": "T22-person"
+       },
+       "person_bang_compound": {
+        "handler_result": null,
+        "line": "echo T22-before; <kit record>",
+        "recorded": {
+         "actor": "agent",
+         "actor_basis": "declared",
+         "means": "cli",
+         "session_present": true,
+         "text": "T22-compound"
+        }
+       },
+       "person_bang_not_the_kit": {
+        "handler_result": null,
+        "ran": "aelix's own local shell"
+       },
+       "platform": "win32",
+       "python": "3.12.10",
+       "shell": null
+      }
+     },
+     "agent-cli-analytics-first.json": {
+      "file": "agent-cli-analytics-first.json",
+      "sha256": "99f5581416cce8a5c73c51daa9170ca2839e5d64a4390418f54555b8de593a9f",
+      "observed": {
+       "compound_line": {
+        "other_shell_ran": 1,
+        "recorded": {
+         "actor": "agent",
+         "actor_basis": "declared",
+         "means": "cli",
+         "session_present": true,
+         "text": "T22-analytics-first-compound"
+        },
+        "returned_shell": "OtherShell"
+       },
+       "kit_command": {
+        "other_shell_ran": [
+         "D:\\a\\_temp\\setup-uv-cache\\builds-v0\\.tmpwgaomp\\Scripts\\python.exe -m aelix_analytics record note T22-analytics-first"
+        ],
+        "recorded": {
+         "actor": "agent",
+         "actor_basis": "declared",
+         "means": "cli",
+         "session_present": true,
+         "text": "T22-analytics-first"
+        },
+        "returned_shell": "OtherShell"
+       },
+       "not_the_kit": {
+        "other_shell_ran": [
+         "echo T22"
+        ],
+        "returned_shell": "OtherShell"
+       },
+       "order": "analytics first",
+       "platform": "win32",
+       "python": "3.12.10"
+      }
+     },
+     "agent-cli-blocker-first.json": {
+      "file": "agent-cli-blocker-first.json",
+      "sha256": "77cba4e9f4885fa3aa5bca2fc66f1117bf054cc793f89bd6b3d60892dcb1b65b",
+      "observed": {
+       "ansi_c_quote_line": {
+        "line": "<kit record note> $'Q3\\'s numbers' ; echo T22-SECOND-RAN  # it's fine",
+        "written": false
+       },
+       "compound_line": {
+        "written": false
+       },
+       "kit_command": {
+        "recorded": {
+         "actor": "human",
+         "actor_basis": "declared",
+         "means": "cli",
+         "session_present": true,
+         "text": "T22-blocker-first"
+        },
+        "written": true
+       },
+       "not_the_kit": "blocked by policy",
+       "order": "blocker first",
+       "platform": "win32",
+       "python": "3.12.10"
+      }
+     },
+     "agent-cli-blocker-last.json": {
+      "file": "agent-cli-blocker-last.json",
+      "sha256": "3e19df970958a0b0b5cc31e2abef1d5b8c1cc1ebe922430dd820e5b5cb9dd734",
+      "observed": {
+       "ansi_c_quote_line": {
+        "line": "<kit record note> $'Q3\\'s numbers' ; echo T22-SECOND-RAN  # it's fine",
+        "written": false
+       },
+       "compound_line": {
+        "written": false
+       },
+       "kit_command": {
+        "recorded": {
+         "actor": "test",
+         "actor_basis": "declared",
+         "means": "sdk",
+         "session_present": false,
+         "text": "CONTEXT.md recorded"
+        },
+        "written": false
+       },
+       "not_the_kit": "blocked by policy",
+       "order": "blocker last",
+       "platform": "win32",
+       "python": "3.12.10"
+      }
+     },
+     "agent-cli-other-first.json": {
+      "file": "agent-cli-other-first.json",
+      "sha256": "a34dd1290d716452c3fa39ff547baf2a1fa1d1768098b059be1164f9aaa864e4",
+      "observed": {
+       "compound_line": {
+        "other_shell_ran": 1,
+        "recorded": {
+         "actor": "agent",
+         "actor_basis": "declared",
+         "means": "cli",
+         "session_present": true,
+         "text": "T22-other-first-compound"
+        },
+        "returned_shell": "OtherShell"
+       },
+       "kit_command": {
+        "other_shell_ran": [],
+        "recorded": {
+         "actor": "human",
+         "actor_basis": "declared",
+         "means": "cli",
+         "session_present": true,
+         "text": "T22-other-first"
+        },
+        "returned_shell": "PersonShell"
+       },
+       "not_the_kit": {
+        "other_shell_ran": [
+         "echo T22"
+        ],
+        "returned_shell": "OtherShell"
+       },
+       "order": "other first",
+       "platform": "win32",
+       "python": "3.12.10"
+      }
+     }
+    },
+    "agent_cli_py3.11": {
+     "agent-cli-alone.json": {
+      "file": "agent-cli-alone.json",
+      "sha256": "0e26db339040adee7074c8653aee83b025762afed3e231dcba819acfa27f2826",
+      "observed": {
+       "agent_bash_tool": {
+        "actor": "agent",
+        "actor_basis": "declared",
+        "means": "cli",
+        "session_present": true,
+        "text": "T22-agent"
+       },
+       "extension_kit_child": {
+        "actor": "human",
+        "means": "command"
+       },
+       "person_bang": {
+        "actor": "human",
+        "actor_basis": "declared",
+        "means": "cli",
+        "session_present": true,
+        "text": "T22-person"
+       },
+       "person_bang_compound": {
+        "handler_result": null,
+        "line": "echo T22-before; <kit record>",
+        "recorded": {
+         "actor": "agent",
+         "actor_basis": "declared",
+         "means": "cli",
+         "session_present": true,
+         "text": "T22-compound"
+        }
+       },
+       "person_bang_not_the_kit": {
+        "handler_result": null,
+        "ran": "aelix's own local shell"
+       },
+       "platform": "win32",
+       "python": "3.11.9",
+       "shell": null
+      }
+     },
+     "agent-cli-analytics-first.json": {
+      "file": "agent-cli-analytics-first.json",
+      "sha256": "b62a9ac80a9f08a9f8b557b3f56caa0520c95b32c58042e5e2b8e3119a069292",
+      "observed": {
+       "compound_line": {
+        "other_shell_ran": 1,
+        "recorded": {
+         "actor": "agent",
+         "actor_basis": "declared",
+         "means": "cli",
+         "session_present": true,
+         "text": "T22-analytics-first-compound"
+        },
+        "returned_shell": "OtherShell"
+       },
+       "kit_command": {
+        "other_shell_ran": [
+         "D:\\a\\_temp\\setup-uv-cache\\builds-v0\\.tmp7YgP7i\\Scripts\\python.exe -m aelix_analytics record note T22-analytics-first"
+        ],
+        "recorded": {
+         "actor": "agent",
+         "actor_basis": "declared",
+         "means": "cli",
+         "session_present": true,
+         "text": "T22-analytics-first"
+        },
+        "returned_shell": "OtherShell"
+       },
+       "not_the_kit": {
+        "other_shell_ran": [
+         "echo T22"
+        ],
+        "returned_shell": "OtherShell"
+       },
+       "order": "analytics first",
+       "platform": "win32",
+       "python": "3.11.9"
+      }
+     },
+     "agent-cli-blocker-first.json": {
+      "file": "agent-cli-blocker-first.json",
+      "sha256": "36c3d4eade1a0894e43955dd42e182a67e05d6844e5c425966c8f6101e1b3886",
+      "observed": {
+       "ansi_c_quote_line": {
+        "line": "<kit record note> $'Q3\\'s numbers' ; echo T22-SECOND-RAN  # it's fine",
+        "written": false
+       },
+       "compound_line": {
+        "written": false
+       },
+       "kit_command": {
+        "recorded": {
+         "actor": "human",
+         "actor_basis": "declared",
+         "means": "cli",
+         "session_present": true,
+         "text": "T22-blocker-first"
+        },
+        "written": true
+       },
+       "not_the_kit": "blocked by policy",
+       "order": "blocker first",
+       "platform": "win32",
+       "python": "3.11.9"
+      }
+     },
+     "agent-cli-blocker-last.json": {
+      "file": "agent-cli-blocker-last.json",
+      "sha256": "711e0116c8d7541774b162f2bf21c33508ef10542fc42c381555b8ac24fbd958",
+      "observed": {
+       "ansi_c_quote_line": {
+        "line": "<kit record note> $'Q3\\'s numbers' ; echo T22-SECOND-RAN  # it's fine",
+        "written": false
+       },
+       "compound_line": {
+        "written": false
+       },
+       "kit_command": {
+        "recorded": {
+         "actor": "test",
+         "actor_basis": "declared",
+         "means": "sdk",
+         "session_present": false,
+         "text": "CONTEXT.md recorded"
+        },
+        "written": false
+       },
+       "not_the_kit": "blocked by policy",
+       "order": "blocker last",
+       "platform": "win32",
+       "python": "3.11.9"
+      }
+     },
+     "agent-cli-other-first.json": {
+      "file": "agent-cli-other-first.json",
+      "sha256": "0b6ba915e652c0de363339f1f926391e3157a32b82b99c21c5d0338e008f815f",
+      "observed": {
+       "compound_line": {
+        "other_shell_ran": 1,
+        "recorded": {
+         "actor": "agent",
+         "actor_basis": "declared",
+         "means": "cli",
+         "session_present": true,
+         "text": "T22-other-first-compound"
+        },
+        "returned_shell": "OtherShell"
+       },
+       "kit_command": {
+        "other_shell_ran": [],
+        "recorded": {
+         "actor": "human",
+         "actor_basis": "declared",
+         "means": "cli",
+         "session_present": true,
+         "text": "T22-other-first"
+        },
+        "returned_shell": "PersonShell"
+       },
+       "not_the_kit": {
+        "other_shell_ran": [
+         "echo T22"
+        ],
+        "returned_shell": "OtherShell"
+       },
+       "order": "other first",
+       "platform": "win32",
+       "python": "3.11.9"
+      }
+     }
+    },
+    "migration_fault_matrix": {
+     "file": "fault-matrix.json",
+     "sha256": "bfd130de8ceb2ae0ec45241fbdb977e183ade83b8011006728cba019a480550d",
+     "rows": 33,
+     "results": {
+      "F1-dest-locked": "resume",
+      "F1-migration-dir": "resume",
+      "F1-start-cut": "resume",
+      "F10-durable": "resume",
+      "F10-mapping": "resume",
+      "F10-report-written": "resume",
+      "F10-reported": "resume",
+      "F11-marker-begin": "resume",
+      "F11-marker-temp": "resume",
+      "F11-marker-written": "resume",
+      "F12-published": "already",
+      "F13-committed": "already",
+      "F14-trusted": "already",
+      "F16-committed-cut": "already",
+      "F16-copied-cut": "resume",
+      "F16-reported-cut": "resume",
+      "F16-source-checked-cut": "resume",
+      "F2-probe": "resume",
+      "F2-start": "resume",
+      "F3-locked": "resume",
+      "F4-plan": "resume",
+      "F4-plan-written": "resume",
+      "F5-begin": "resume",
+      "F5-temp-full": "resume",
+      "F5-temp-partial": "resume",
+      "F6-published": "resume",
+      "F7-rechecking": "resume",
+      "F8-source-checked": "resume",
+      "F8-verified": "resume",
+      "F9-transform-begin": "resume",
+      "F9-transform-replaced": "resume",
+      "F9-transform-temp": "resume",
+      "F9-transform-written": "resume"
+     }
+    }
+   }
   },
   "macos_ci": {
-   "state": "pending"
+   "state": "pass",
+   "run": 37895656352,
+   "attempt": 1,
+   "event": "pull_request",
+   "action": "labeled",
+   "label": "ci:macos",
+   "head": "ca0cf390d591d1fddcd72005888c12bc6ebf0a0c",
+   "base": "0f3f09fa8b1ba46b63d50e672d7c8409f785b7b7",
+   "github_sha": "018616d34cd1faee20803466d46222f93354544a",
+   "workflow_sha": "018616d34cd1faee20803466d46222f93354544a",
+   "jobs": {
+    "floor · macos-26 · CPython 3.11, stdlib only": {
+     "id": 113706302102,
+     "conclusion": "success",
+     "started_at": "2026-10-09T06:50:36Z",
+     "completed_at": "2026-10-09T06:51:08Z",
+     "repository_test_step": null
+    },
+    "platform · macos-26": {
+     "id": 113706302265,
+     "conclusion": "success",
+     "started_at": "2026-10-09T06:50:36Z",
+     "completed_at": "2026-10-09T07:06:21Z",
+     "repository_test_step": {
+      "name": "Repository tests, with the distribution's end-to-end leg",
+      "conclusion": "success",
+      "started_at": "2026-10-09T06:52:05Z",
+      "completed_at": "2026-10-09T07:04:21Z"
+     }
+    }
+   },
+   "runner": {
+    "image": {
+     "ImageOS": "macos26",
+     "ImageVersion": "20260907.0351.1"
+    },
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "arch": "ARM64",
+    "python_development": "3.12.10",
+    "interpreters": {
+     "3.11": "3.11.9",
+     "3.12": "3.12.10"
+    },
+    "python_floor": "3.11.9 (v3.11.9:de54cf5be3, Apr  2 2024, 07:12:50) [Clang 13.0.0 (clang-1300.0.29.30)]",
+    "floor_image": {
+     "ImageOS": "macos26",
+     "ImageVersion": "20260907.0351.1"
+    }
+   },
+   "artifacts": [
+    {
+     "id": 11600500559,
+     "name": "ci-floor-macos-26",
+     "size_in_bytes": 2859,
+     "digest": "sha256:34fb3308349ec049c74b82fd89307b81ac6c111b865210f89669831e409db549",
+     "expired": false
+    },
+    {
+     "id": 11600472446,
+     "name": "ci-platform-macos-26",
+     "size_in_bytes": 249947,
+     "digest": "sha256:e0db2e284cf0c955dc8baf16eba1fffbda43c537b48b7412ab51c7a2b15d30f7",
+     "expired": false
+    }
+   ],
+   "artifact_file_manifest": {
+    "files": 180,
+    "sha256": "2f4702b4ce2314aefea253fb7b860caaaf29abd7271abf45341f762410dc1b66"
+   },
+   "junit": {
+    "aelix-py3.11": {
+     "file": "aelix-py3.11.xml",
+     "sha256": "a173007dad75eb7aa4e7ed577c24fba3953d23d45fc8f8c6c2dfb5855c52e902",
+     "counts": {
+      "pass": 963
+     },
+     "seconds": 42.579,
+     "timestamp": "2026-10-09T07:05:14.578636+00:00",
+     "failed": [],
+     "skipped_by_reason": {},
+     "issue_13_test_groups": {
+      "tests.test_extension": {
+       "pass": 842
+      },
+      "tests.test_agent_cli": {
+       "pass": 6
+      }
+     }
+    },
+    "aelix-py3.12": {
+     "file": "aelix-py3.12.xml",
+     "sha256": "e8773cee604b26dc3434ff6bbbb1ecd166eca89439cc47c10bc8538fceea1802",
+     "counts": {
+      "pass": 963
+     },
+     "seconds": 42.571,
+     "timestamp": "2026-10-09T07:04:22.280096+00:00",
+     "failed": [],
+     "skipped_by_reason": {},
+     "issue_13_test_groups": {
+      "tests.test_extension": {
+       "pass": 842
+      },
+      "tests.test_agent_cli": {
+       "pass": 6
+      }
+     }
+    },
+    "launcher-py3.11": {
+     "file": "launcher-py3.11.xml",
+     "sha256": "0c04e2ed176989d02325c21aa67419037992358598b93a90658f2dafb6d028be",
+     "counts": {
+      "pass": 196,
+      "skipped": 1
+     },
+     "seconds": 15.074,
+     "timestamp": "2026-10-09T07:05:57.433489+00:00",
+     "failed": [],
+     "skipped_by_reason": {
+      "what Windows does; POSIX sends it again (the test above)": 1
+     },
+     "issue_13_test_groups": {}
+    },
+    "suite": {
+     "file": "suite.xml",
+     "sha256": "d0adee63651e9ba9cbaf60ab66a29bf8e6d7aa611f7935d01dc280a2723708ba",
+     "counts": {
+      "skipped": 76,
+      "pass": 1976
+     },
+     "seconds": 735.157,
+     "timestamp": "2026-10-09T06:52:05.944064+00:00",
+     "failed": [],
+     "skipped_by_reason": {
+      "collection skipped": 3,
+      "the Windows implementation runs on the Windows leg": 43,
+      "the recording implementation does not declare that it excludes other processes": 3,
+      "the recording implementation does not declare that it honours a folder's permissions": 1,
+      "the stand-in has no C call to fail": 3,
+      "the recording implementation does not declare that it sees running processes": 1,
+      "the recording implementation does not declare that it interrupts a region": 1,
+      "M writes about 440 MB twice; set AELIX_ANALYTICS_TEST_SCALE_M=1": 1,
+      "what Windows does; POSIX sends it again (the test above)": 1,
+      "a name that is not UTF-8: Linux's file systems keep one, APFS and NTFS refuse it": 1,
+      "AELIX_ANALYTICS_TEST_FOREIGN_FS names no folder on another file system (a FAT or exFAT volume, say)": 2,
+      "a name not UTF-8: Linux keeps the bytes it is given": 1,
+      "a file another process holds open without sharing: Windows": 1,
+      "a directory flagged case-sensitive is Windows'": 2,
+      "8.3 short names are Windows'": 1,
+      "taskkill and CreateProcess's search are Windows'": 1,
+      "before 3.14 a `with` calls __enter__ without a CALL, and no signal is handled between its acquiring and the block": 1,
+      "this file system refuses a name that is not UTF-8: OSError(92, 'Illegal byte sequence')": 2,
+      "MAX_PATH and LongPathsEnabled are Windows'": 7
+     },
+     "issue_13_test_groups": {
+      "tests.test_contracts": {
+       "pass": 79,
+       "skipped": 52
+      },
+      "tests.test_layers": {
+       "pass": 47
+      },
+      "tests.test_marker_gate": {
+       "pass": 76
+      },
+      "tests.test_migrate_command": {
+       "pass": 50,
+       "skipped": 3
+      },
+      "tests.test_migration": {
+       "pass": 156,
+       "skipped": 2
+      },
+      "tests.test_migration_reader": {
+       "pass": 5
+      },
+      "tests.test_new_format": {
+       "pass": 27
+      },
+      "tests.test_writer": {
+       "pass": 117
+      }
+     }
+    }
+   },
+   "smoke": {
+    "file": "smoke.json",
+    "sha256": "d4d36d3cdb18abaf58cb58f598dc89599c122abb4714e02aea0d0f370ffa53bc",
+    "summary": {
+     "holds": 25,
+     "violated": 0,
+     "declared_limitation": 0,
+     "observed": 6,
+     "not_run": 0
+    },
+    "required": {
+     "platform": "posix",
+     "checks": [
+      "imports_without_analysis_libraries",
+      "lock_excludes_another_process",
+      "lock_released_when_its_holder_is_killed",
+      "replace_while_a_reader_holds_the_file",
+      "liveness_of_a_live_an_exited_and_a_bogus_pid",
+      "interrupt_asks_a_python_child_or_declines",
+      "kill_tree_ends_the_child_and_its_grandchild",
+      "kill_tree_after_the_leader_exited",
+      "deadline_interrupts_python_code",
+      "deadline_interrupts_a_sleep",
+      "the_cancel_request_wakes_a_sleeping_run",
+      "the_guard_records_outside_regions_and_interrupts_inside_once",
+      "base_env_is_enough_to_start_a_child",
+      "file_url_leads_back_to_the_file",
+      "utf8_survives_a_pipe",
+      "cli_end_to_end",
+      "cli_run_timeout_in_python_code",
+      "cli_run_timeout_in_a_blocking_duckdb_query",
+      "cli_cancel_the_way_the_extension_does",
+      "cli_cancel_reaches_a_run_inside_a_regular_expression",
+      "cli_cancel_reaches_a_run_waiting_on_a_subprocess",
+      "cli_concurrent_runs_are_serialized",
+      "cli_refuses_a_new_reserved_dataset_name",
+      "cli_writes_a_reserved_chart_id_to_a_portable_file",
+      "cli_a_script_saving_a_reserved_name_is_warned_about"
+     ],
+     "violated": [],
+     "declared_limitation": [],
+     "not_run": [],
+     "hold": true
+    },
+    "source": {
+     "head": "ca0cf390d591d1fddcd72005888c12bc6ebf0a0c",
+     "dirty": false
+    }
+   },
+   "stdlib_smoke": {
+    "file": "stdlib-smoke.json",
+    "sha256": "cc5ea4209d7b7dae023dbae91d9f37f9eab8101027d5a2a46f3d25a11f52bb95",
+    "summary": {
+     "holds": 15,
+     "violated": 0,
+     "declared_limitation": 0,
+     "observed": 3,
+     "not_run": 2
+    },
+    "required": {
+     "platform": "posix",
+     "checks": [
+      "imports_without_analysis_libraries",
+      "lock_excludes_another_process",
+      "lock_released_when_its_holder_is_killed",
+      "replace_while_a_reader_holds_the_file",
+      "liveness_of_a_live_an_exited_and_a_bogus_pid",
+      "interrupt_asks_a_python_child_or_declines",
+      "kill_tree_ends_the_child_and_its_grandchild",
+      "kill_tree_after_the_leader_exited",
+      "deadline_interrupts_python_code",
+      "deadline_interrupts_a_sleep",
+      "the_cancel_request_wakes_a_sleeping_run",
+      "the_guard_records_outside_regions_and_interrupts_inside_once",
+      "base_env_is_enough_to_start_a_child",
+      "file_url_leads_back_to_the_file",
+      "utf8_survives_a_pipe"
+     ],
+     "violated": [],
+     "declared_limitation": [],
+     "not_run": [],
+     "hold": true
+    },
+    "source": {
+     "head": "ca0cf390d591d1fddcd72005888c12bc6ebf0a0c",
+     "dirty": false
+    }
+   },
+   "usage_report": {
+    "file": "usage-report.json",
+    "sha256": "4209060a2b016cb5f75f519145ab1f12ad5b6e2d7eacc36bbcdc842b97555ec3",
+    "measured": {
+     "commit": "ca0cf390d591d1fddcd72005888c12bc6ebf0a0c",
+     "dirty": false,
+     "extension_sha256": "b64178fcff4bb0311570efdf9bc69421e4e5d7f3d83d518336555ca96d43bf9e",
+     "kit_sha256": "84d0f3d58ba9fef3b1db74219500a6341a7deea28c983e67315753e33a8bd33b"
+    },
+    "checks": {
+     "P1_sizes_recomputed_from_saved_texts": true,
+     "P2_required_facts_read_back": {
+      "passed": 58,
+      "total": 58
+     },
+     "P2_invariants_hold": {
+      "holding": 42,
+      "total": 42
+     },
+     "P3_hook_returned_a_block": true,
+     "P3_tools_replied_without_error": true,
+     "P3_pinned_section_whole": true,
+     "fixtures_measured": 34,
+     "fixtures_selected": 34
+    },
+    "failures": [],
+    "counter_states": {
+     "qwen3.8-27b": {
+      "status": "not_measured",
+      "reason": "no_tokenizer_given"
+     },
+     "frontier": {
+      "status": "not_measured",
+      "reason": "no_offline_counter"
+     }
+    },
+    "note": "bytes/characters and saved-text checks; model tokens and real model task cost remain unmeasured"
+   },
+   "observations": {
+    "agent_cli_py3.12": {
+     "agent-cli-alone.json": {
+      "file": "agent-cli-alone.json",
+      "sha256": "a242ea2c313eadab190ac8656224b98c02d3b758057d37d5db65379a238331dc",
+      "observed": {
+       "agent_bash_tool": {
+        "actor": "agent",
+        "actor_basis": "declared",
+        "means": "cli",
+        "session_present": true,
+        "text": "T22-agent"
+       },
+       "extension_kit_child": {
+        "actor": "human",
+        "means": "command"
+       },
+       "person_bang": {
+        "actor": "human",
+        "actor_basis": "declared",
+        "means": "cli",
+        "session_present": true,
+        "text": "T22-person"
+       },
+       "person_bang_compound": {
+        "handler_result": null,
+        "line": "echo T22-before; <kit record>",
+        "recorded": {
+         "actor": "agent",
+         "actor_basis": "declared",
+         "means": "cli",
+         "session_present": true,
+         "text": "T22-compound"
+        }
+       },
+       "person_bang_not_the_kit": {
+        "handler_result": null,
+        "ran": "aelix's own local shell"
+       },
+       "platform": "darwin",
+       "python": "3.12.10",
+       "shell": "/bin/bash"
+      }
+     },
+     "agent-cli-analytics-first.json": {
+      "file": "agent-cli-analytics-first.json",
+      "sha256": "1595c136631b36ccbc70e67bf35975d38cddc9d7f7fd5f8f6d750460df0b3017",
+      "observed": {
+       "compound_line": {
+        "other_shell_ran": 1,
+        "recorded": {
+         "actor": "agent",
+         "actor_basis": "declared",
+         "means": "cli",
+         "session_present": true,
+         "text": "T22-analytics-first-compound"
+        },
+        "returned_shell": "OtherShell"
+       },
+       "kit_command": {
+        "other_shell_ran": [
+         "/Users/runner/work/_temp/setup-uv-cache/builds-v0/.tmpJtvM4I/bin/python -m aelix_analytics record note T22-analytics-first"
+        ],
+        "recorded": {
+         "actor": "agent",
+         "actor_basis": "declared",
+         "means": "cli",
+         "session_present": true,
+         "text": "T22-analytics-first"
+        },
+        "returned_shell": "OtherShell"
+       },
+       "not_the_kit": {
+        "other_shell_ran": [
+         "echo T22"
+        ],
+        "returned_shell": "OtherShell"
+       },
+       "order": "analytics first",
+       "platform": "darwin",
+       "python": "3.12.10"
+      }
+     },
+     "agent-cli-blocker-first.json": {
+      "file": "agent-cli-blocker-first.json",
+      "sha256": "92ce81ce79037eb3f7a8a8c06bf64a5310dfd4ab9c6b9c36d1c0fa20699f4b65",
+      "observed": {
+       "ansi_c_quote_line": {
+        "line": "<kit record note> $'Q3\\'s numbers' ; echo T22-SECOND-RAN  # it's fine",
+        "written": false
+       },
+       "compound_line": {
+        "written": false
+       },
+       "kit_command": {
+        "recorded": {
+         "actor": "human",
+         "actor_basis": "declared",
+         "means": "cli",
+         "session_present": true,
+         "text": "T22-blocker-first"
+        },
+        "written": true
+       },
+       "not_the_kit": "blocked by policy",
+       "order": "blocker first",
+       "platform": "darwin",
+       "python": "3.12.10"
+      }
+     },
+     "agent-cli-blocker-last.json": {
+      "file": "agent-cli-blocker-last.json",
+      "sha256": "2513747b8f88fd709050cee42d0986889f3e0c8c5d6aa65189802fd69ac26693",
+      "observed": {
+       "ansi_c_quote_line": {
+        "line": "<kit record note> $'Q3\\'s numbers' ; echo T22-SECOND-RAN  # it's fine",
+        "written": false
+       },
+       "compound_line": {
+        "written": false
+       },
+       "kit_command": {
+        "recorded": {
+         "actor": "test",
+         "actor_basis": "declared",
+         "means": "sdk",
+         "session_present": false,
+         "text": "CONTEXT.md recorded"
+        },
+        "written": false
+       },
+       "not_the_kit": "blocked by policy",
+       "order": "blocker last",
+       "platform": "darwin",
+       "python": "3.12.10"
+      }
+     },
+     "agent-cli-other-first.json": {
+      "file": "agent-cli-other-first.json",
+      "sha256": "e1fa28abbbe1933cba04b1e7c40117184e886487cf6d8c43319a777f2401d31c",
+      "observed": {
+       "compound_line": {
+        "other_shell_ran": 1,
+        "recorded": {
+         "actor": "agent",
+         "actor_basis": "declared",
+         "means": "cli",
+         "session_present": true,
+         "text": "T22-other-first-compound"
+        },
+        "returned_shell": "OtherShell"
+       },
+       "kit_command": {
+        "other_shell_ran": [],
+        "recorded": {
+         "actor": "human",
+         "actor_basis": "declared",
+         "means": "cli",
+         "session_present": true,
+         "text": "T22-other-first"
+        },
+        "returned_shell": "PersonShell"
+       },
+       "not_the_kit": {
+        "other_shell_ran": [
+         "echo T22"
+        ],
+        "returned_shell": "OtherShell"
+       },
+       "order": "other first",
+       "platform": "darwin",
+       "python": "3.12.10"
+      }
+     },
+     "user-bash-shell-traps.json": {
+      "file": "user-bash-shell-traps.json",
+      "sha256": "5205d055c9341269abba3ddb80200b0924fa2c8628f6a557681aee8b56f0cf66",
+      "observed": {
+       "shells": {
+        "bash": {
+         "accepted": 17,
+         "ran_a_second": [],
+         "read_as": "bash"
+        },
+        "dash": {
+         "accepted": 17,
+         "ran_a_second": [],
+         "read_as": "dash"
+        },
+        "ksh": {
+         "accepted": 17,
+         "ran_a_second": [],
+         "read_as": "ksh"
+        },
+        "pwsh": {
+         "accepted": 5,
+         "ran_a_second": [],
+         "read_as": "pwsh"
+        },
+        "sh": {
+         "accepted": 17,
+         "ran_a_second": [],
+         "read_as": "sh"
+        },
+        "zsh": {
+         "accepted": 17,
+         "ran_a_second": [],
+         "read_as": "zsh"
+        }
+       },
+       "traps": 33
+      }
+     }
+    },
+    "agent_cli_py3.11": {
+     "agent-cli-alone.json": {
+      "file": "agent-cli-alone.json",
+      "sha256": "5ddc26d6a0cf4f7c001db4a58ae138e7be9dbe1183ca7ef2cd8bf879fdeb5380",
+      "observed": {
+       "agent_bash_tool": {
+        "actor": "agent",
+        "actor_basis": "declared",
+        "means": "cli",
+        "session_present": true,
+        "text": "T22-agent"
+       },
+       "extension_kit_child": {
+        "actor": "human",
+        "means": "command"
+       },
+       "person_bang": {
+        "actor": "human",
+        "actor_basis": "declared",
+        "means": "cli",
+        "session_present": true,
+        "text": "T22-person"
+       },
+       "person_bang_compound": {
+        "handler_result": null,
+        "line": "echo T22-before; <kit record>",
+        "recorded": {
+         "actor": "agent",
+         "actor_basis": "declared",
+         "means": "cli",
+         "session_present": true,
+         "text": "T22-compound"
+        }
+       },
+       "person_bang_not_the_kit": {
+        "handler_result": null,
+        "ran": "aelix's own local shell"
+       },
+       "platform": "darwin",
+       "python": "3.11.9",
+       "shell": "/bin/bash"
+      }
+     },
+     "agent-cli-analytics-first.json": {
+      "file": "agent-cli-analytics-first.json",
+      "sha256": "5fae0cc969810c3281eb8d3b7361362e60ada04dc711f7831f62c78bd1af76f6",
+      "observed": {
+       "compound_line": {
+        "other_shell_ran": 1,
+        "recorded": {
+         "actor": "agent",
+         "actor_basis": "declared",
+         "means": "cli",
+         "session_present": true,
+         "text": "T22-analytics-first-compound"
+        },
+        "returned_shell": "OtherShell"
+       },
+       "kit_command": {
+        "other_shell_ran": [
+         "/Users/runner/work/_temp/setup-uv-cache/builds-v0/.tmpUFtm0p/bin/python -m aelix_analytics record note T22-analytics-first"
+        ],
+        "recorded": {
+         "actor": "agent",
+         "actor_basis": "declared",
+         "means": "cli",
+         "session_present": true,
+         "text": "T22-analytics-first"
+        },
+        "returned_shell": "OtherShell"
+       },
+       "not_the_kit": {
+        "other_shell_ran": [
+         "echo T22"
+        ],
+        "returned_shell": "OtherShell"
+       },
+       "order": "analytics first",
+       "platform": "darwin",
+       "python": "3.11.9"
+      }
+     },
+     "agent-cli-blocker-first.json": {
+      "file": "agent-cli-blocker-first.json",
+      "sha256": "b180b289573fc6a18d9984807942dbfa568c68828d3fc5f841591e5e8ddd8fb9",
+      "observed": {
+       "ansi_c_quote_line": {
+        "line": "<kit record note> $'Q3\\'s numbers' ; echo T22-SECOND-RAN  # it's fine",
+        "written": false
+       },
+       "compound_line": {
+        "written": false
+       },
+       "kit_command": {
+        "recorded": {
+         "actor": "human",
+         "actor_basis": "declared",
+         "means": "cli",
+         "session_present": true,
+         "text": "T22-blocker-first"
+        },
+        "written": true
+       },
+       "not_the_kit": "blocked by policy",
+       "order": "blocker first",
+       "platform": "darwin",
+       "python": "3.11.9"
+      }
+     },
+     "agent-cli-blocker-last.json": {
+      "file": "agent-cli-blocker-last.json",
+      "sha256": "e7d4f424d7a555d93e7f54bd0d42c56e4154e542af275ced277316c4ba6f7c06",
+      "observed": {
+       "ansi_c_quote_line": {
+        "line": "<kit record note> $'Q3\\'s numbers' ; echo T22-SECOND-RAN  # it's fine",
+        "written": false
+       },
+       "compound_line": {
+        "written": false
+       },
+       "kit_command": {
+        "recorded": {
+         "actor": "test",
+         "actor_basis": "declared",
+         "means": "sdk",
+         "session_present": false,
+         "text": "CONTEXT.md recorded"
+        },
+        "written": false
+       },
+       "not_the_kit": "blocked by policy",
+       "order": "blocker last",
+       "platform": "darwin",
+       "python": "3.11.9"
+      }
+     },
+     "agent-cli-other-first.json": {
+      "file": "agent-cli-other-first.json",
+      "sha256": "4cb67858a199ff244d7b5bd48dbfb02bdb210385669ddb2d758306ac899dc8e5",
+      "observed": {
+       "compound_line": {
+        "other_shell_ran": 1,
+        "recorded": {
+         "actor": "agent",
+         "actor_basis": "declared",
+         "means": "cli",
+         "session_present": true,
+         "text": "T22-other-first-compound"
+        },
+        "returned_shell": "OtherShell"
+       },
+       "kit_command": {
+        "other_shell_ran": [],
+        "recorded": {
+         "actor": "human",
+         "actor_basis": "declared",
+         "means": "cli",
+         "session_present": true,
+         "text": "T22-other-first"
+        },
+        "returned_shell": "PersonShell"
+       },
+       "not_the_kit": {
+        "other_shell_ran": [
+         "echo T22"
+        ],
+        "returned_shell": "OtherShell"
+       },
+       "order": "other first",
+       "platform": "darwin",
+       "python": "3.11.9"
+      }
+     },
+     "user-bash-shell-traps.json": {
+      "file": "user-bash-shell-traps.json",
+      "sha256": "5205d055c9341269abba3ddb80200b0924fa2c8628f6a557681aee8b56f0cf66",
+      "observed": {
+       "shells": {
+        "bash": {
+         "accepted": 17,
+         "ran_a_second": [],
+         "read_as": "bash"
+        },
+        "dash": {
+         "accepted": 17,
+         "ran_a_second": [],
+         "read_as": "dash"
+        },
+        "ksh": {
+         "accepted": 17,
+         "ran_a_second": [],
+         "read_as": "ksh"
+        },
+        "pwsh": {
+         "accepted": 5,
+         "ran_a_second": [],
+         "read_as": "pwsh"
+        },
+        "sh": {
+         "accepted": 17,
+         "ran_a_second": [],
+         "read_as": "sh"
+        },
+        "zsh": {
+         "accepted": 17,
+         "ran_a_second": [],
+         "read_as": "zsh"
+        }
+       },
+       "traps": 33
+      }
+     }
+    },
+    "migration_fault_matrix": {
+     "file": "fault-matrix.json",
+     "sha256": "f40c33fdda640ce2133ef351aa66c4a5a3aca9996191fa947fc2b00204f26ff4",
+     "rows": 35,
+     "results": {
+      "F1-dest-locked": "resume",
+      "F1-migration-dir": "resume",
+      "F1-start-cut": "resume",
+      "F10-durable": "resume",
+      "F10-mapping": "resume",
+      "F10-report-written": "resume",
+      "F10-reported": "resume",
+      "F11-marker-begin": "resume",
+      "F11-marker-temp": "resume",
+      "F11-marker-written": "resume",
+      "F12-link-unlink": "already",
+      "F12-published": "already",
+      "F13-committed": "already",
+      "F14-trusted": "already",
+      "F16-committed-cut": "already",
+      "F16-copied-cut": "resume",
+      "F16-reported-cut": "resume",
+      "F16-source-checked-cut": "resume",
+      "F2-probe": "resume",
+      "F2-start": "resume",
+      "F3-locked": "resume",
+      "F4-plan": "resume",
+      "F4-plan-written": "resume",
+      "F5-begin": "resume",
+      "F5-temp-full": "resume",
+      "F5-temp-partial": "resume",
+      "F6-link-unlink": "resume",
+      "F6-published": "resume",
+      "F7-rechecking": "resume",
+      "F8-source-checked": "resume",
+      "F8-verified": "resume",
+      "F9-transform-begin": "resume",
+      "F9-transform-replaced": "resume",
+      "F9-transform-temp": "resume",
+      "F9-transform-written": "resume"
+     }
+    }
+   }
   },
   "macos_developer_machine": {
    "state": "pass",
@@ -6521,7 +8969,6 @@
   "note": "PR 2's record of the engine; its fixtures were made by PR 2's generator, these by this checkout's with that commit's kit (--kit-root): see migration.fixture_reproducibility"
  },
  "not_run": [
-  "the repository CI of this round's commit (fix: leave more lines alone in the person's-shell judgment (Issue #13 PR 3), over c399fc3) on Linux, Windows and the macOS label run (pending: not pushed yet; 221dfbb's CI was running); the user_bash tables, the trap test (Linux: sh, bash, pwsh when installed), T22 with PowerShell children on Windows and the AppleDouble rules then run there; its Windows repository step took 1,789 s of its 35 minutes at 8d3695f",
   "a bare `analytics`, `python`, `py` or `uv` that resolves to a batch file (a version manager's shim) under PowerShell or another shell on Windows, whose arguments cmd reads again: the 221dfbb check's must-fix is fixed by leaving such lines alone, but no Windows host ran it here, and no test starts a batch file",
   "PowerShell's word rules the ab45982 check's fix reads (a quoted text starting a word, a mid-word quote, `-p3.12`, `,`, `@`, `]`, a `>` inside a word, a redirection first) under Windows PowerShell 5.1 or pwsh on Windows: measured with pwsh 7.6.5 on macOS only (no Windows host); on Windows pwsh does not expand wildcards, which the judgment leaves alone anyway. zsh's EXTENDED_GLOB patterns (`^`, `#` and `~` inside a word) were run with `setopt extendedglob` in a scratch folder, not through a startup file",
   "a real removable FAT or exFAT medium, and FAT/exFAT on Linux or Windows (macOS disk images only)",
@@ -7358,5 +9805,64 @@
   },
   "git_diff_check": "the worktree against origin/main, no output",
   "not_run_again": "the distribution E2E, layers and contracts, the launcher, the usage report, the platform smokes, the opt-in FAT/exFAT run, the PowerShell parser fuzz and the handler end to end: no code they run changed and the judgment is the same (verification keeps 221dfbb's, the judgment's keeps ab45982's)"
- }
+ },
+ "owner_project_preview": {
+  "state": "pass",
+  "risk": "R7",
+  "code_commit": "ca0cf390d591d1fddcd72005888c12bc6ebf0a0c",
+  "executed_at": "2026-10-09T11:52:27.975064+00:00",
+  "command": "PYTHONPATH=<PR84 src> python -B -m aelix_analytics --project <owner project> migrate --to <temporary destination> --dry-run",
+  "source_schema": "lab.project/1",
+  "source_kit_version": "0.1.0",
+  "exit_code": 0,
+  "seconds": 0.11278370799999982,
+  "ok": true,
+  "dry_run": true,
+  "state_reported": "new",
+  "plan": {
+   "files": 76,
+   "bytes": 5757076,
+   "links_made": 0,
+   "links_outside": [],
+   "not_copied": [],
+   "folding_pairs": [],
+   "folding_judged": false,
+   "publication_judged": false,
+   "script_proposals": 4,
+   "needed": 72923510,
+   "warnings": [],
+   "running_runs": []
+  },
+  "excluded_by_reason": {
+   "cache": {
+    "entries": 1,
+    "files": 9,
+    "bytes": 77248
+   },
+   "environment": {
+    "entries": 1,
+    "files": 5511,
+    "bytes": 460999340
+   },
+   "lock": {
+    "entries": 3,
+    "files": 3,
+    "bytes": 0
+   },
+   "workspace": {
+    "entries": 1,
+    "files": 18,
+    "bytes": 647107
+   }
+  },
+  "source_unchanged": true,
+  "source_entries": 6455,
+  "source_total_bytes": 467480771,
+  "destination_exists": false,
+  "source_manifest_before_sha256": "8bf2df7da87700afaaf095919b0f579fd38471c1d76f5dc92a4f39558aaa0bb9",
+  "source_manifest_after_sha256": "8bf2df7da87700afaaf095919b0f579fd38471c1d76f5dc92a4f39558aaa0bb9",
+  "local_evidence": "run 71820e49-77c4-4b3c-b609-69c992d82ae2/evidence/r7: command, result, before/after manifests; user paths and original data remain local",
+  "not_run": "actual copy, destination name-folding/publication probes, marker publication and uv sync"
+ },
+ "ci_recorded_at": "2026-10-09T11:56:43.085330+00:00"
 }

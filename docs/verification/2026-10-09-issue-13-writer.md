@@ -51,14 +51,16 @@ splatting·매개변수 나눔)를 찾아 함께 받지 않게 했습니다. 다
 비교뿐입니다(`measured_tree.after_the_c399fc3_checks`). 두 판정의 비교를 다시 하며 `ab45982` 점검 뒤의 비교가 Windows 여부를 새 판정에만 넣어
 받지 않게 된 줄을 더 센 것을 찾아 다시 셌습니다(27,664 → 20,327; 새로 받는 줄 0은 그대로, `judgment_after_the_ab45982_checks.correction`).
 
-이 기록의 값은 모두 개발 기기(macOS)의 것입니다. `8d3695f`의 CI는 위 실패로 끝났고(`runs.at_8d3695f`), `221dfbb`는 push되어 이 판의 커밋을
-만들 때 CI가 돌고 있었으며(결과는 이 기록에서 읽지 않음), 이 판이 잰 코드는 아직 push하지 않아 CI 칸(`runs.code`·`legs`)은 `pending`입니다.
+아래 개발 기기의 측정과 저장소 CI 결과는 구별합니다. 최신 측정 코드 `ca0cf39`의 Linux·Windows 실행 37895642682와 macOS 라벨 실행
+37895656352는 모두 통과했고(attempt 1), artifact의 JUnit·스모크·T22·중단 행렬·사용량 보고서를 읽어 JSON의 `runs.code`·`runs.macos_label`·
+`legs`에 반영했습니다. 그 전 `221dfbb`의 실행 둘도 통과했습니다(`runs.at_221dfbb`). `8d3695f`의 실패는 `runs.at_8d3695f`에 그대로 둡니다.
+소유자가 지정한 실제 `lab.json` 프로젝트의 R7 미리 보기도 같은 코드로 통과했습니다(`owner_project_preview`).
 
 ## 출처와 환경
 
 | 항목 | 근거 |
 |---|---|
-| 다시 잰 코드(`c399fc3` 점검 뒤) | 커밋 `fix: leave more lines alone in the person's-shell judgment`(`c399fc3` 위, 같은 제목의 세 번째 커밋). 커밋 전 worktree에서 쟀고 그 커밋의 코드 파일은 재고 manifest(`measured_tree.after_the_c399fc3_checks`)의 것입니다. 코드의 변경은 확장의 주석과 시험 표의 행 셋뿐입니다 |
+| 다시 잰 코드(`c399fc3` 점검 뒤) | 커밋 `ca0cf390d591d1fddcd72005888c12bc6ebf0a0c`(`c399fc3` 위, 같은 제목의 세 번째 커밋). 커밋 전 worktree에서 쟀고 그 커밋의 코드 파일은 재고 manifest(`measured_tree.after_the_c399fc3_checks`)의 것입니다. CI 기록을 채우기 전 219개 파일의 해시와 manifest 해시가 일치함을 다시 확인했습니다. 코드의 변경은 확장의 주석과 시험 표의 행 셋뿐입니다 |
 | 다시 잰 코드(`ab45982` 점검 뒤) | 커밋 `fix: leave more lines alone in the person's-shell judgment`(`ab45982` 위, 같은 제목의 두 번째 커밋). 커밋 전 worktree에서 쟀고 그 커밋의 코드 파일은 재고 manifest(`measured_tree.after_the_ab45982_checks`)의 것입니다 |
 | 다시 잰 코드(`221dfbb` 점검 뒤) | 커밋 `fix: leave more lines alone in the person's-shell judgment`(`221dfbb` 위). 커밋 전 worktree에서 쟀고 그 커밋의 코드 파일은 재고 manifest(`measured_tree.after_the_221dfbb_checks`)의 것입니다 |
 | 다시 잰 코드(점검 뒤) | 커밋 `fix: answer the check of the corrected decisions`(`0504cc8` 위). 커밋 전 worktree에서 쟀고 그 커밋의 코드 파일은 재고 manifest(219개)의 것입니다 |
@@ -67,7 +69,7 @@ splatting·매개변수 나눔)를 찾아 함께 받지 않게 했습니다. 다
 | 측정한 코드 | `feat/issue-13-new-writer`의 커밋 여섯(writer → 진입점·저장 이름 → 확장의 작성 주체 → 명령 → 문서 → 첫 측정 기록, 헤드 `ceaf736`; 리뷰가 작성 주체 커밋을 명령 커밋 앞으로 옮김) 위에 리뷰 수정을 커밋하기 전의 worktree. 리뷰 수정 커밋이 잰 코드와 이 기록을 담습니다. `origin/main` `0f3f09f`(PR #82 병합) 위입니다. JSON의 `measured_tree`는 검증 때 만든 파일 manifest(추적하는 `src`·`extension`·`tests`·`tools`·`bin`·`pyproject.toml`·`uv.lock` 파일마다 `shasum -a 256` 한 줄, 경로 순, 219개)의 sha256을 담고, 목록은 run 폴더에 있습니다 |
 | 비교한 기준 | writer 지연과 fixture는 PR ③ 전의 kit(`ebd10b6`, `tools/eval_fixtures.py`의 `V1_KIT_COMMIT`; PR #82의 헤드로 main에 있음)의 `src/`를 `git archive`로 꺼내 썼습니다. 리뷰 수정의 시험은 수정 전 코드 `f42a9a3`에서 돌렸습니다(아래) |
 | 워크플로 | `.github/workflows/ci.yml`: aelix 레그가 `tests/test_agent_cli.py`도 돌리고 관찰을 `evidence-aelix-py3.12/`·`3.11/`에 남깁니다(이 PR의 변경) |
-| 코드 실행(CI) | 실행하지 않음: 이 판이 잰 코드 `eaf6dfe`는 push 전입니다(마지막 CI는 `8d3695f`의 것, `runs.at_8d3695f`) |
+| 코드 실행(CI) | `ca0cf39`: [Linux·Windows 37895642682](https://github.com/handochan/aelix-analytics/actions/runs/37895642682), [macOS 37895656352](https://github.com/handochan/aelix-analytics/actions/runs/37895656352), 모두 attempt 1·success. PR head를 체크아웃했고, workflow의 GitHub 병합 커밋 SHA는 JSON에 따로 기록했습니다 |
 | 개발 기기 | macOS 26.6.2 arm64(Apple M5 Pro), uv 0.11.19. 저장소 시험 CPython 3.12.13(`uv.lock`의 개발 환경), aelix 레그 3.12.13·3.11.15, 런처·stdlib 스모크 3.11 |
 | 격리 | `AELIX_ANALYTICS_TRUST_FILE`·`AELIX_ANALYTICS_UV`를 run 폴더 안으로(`uv`는 실제 uv로의 링크, 측정은 따로 둔 신뢰 목록), `LAB_*`·`AELIX_LAB_*` 없음. 잰 명령은 `~/.aelix`를 읽거나 쓰지 않습니다. T22는 aelix를 시험의 임시 디렉터리를 HOME·`AELIX_CODING_AGENT_DIR`로 한 채 로드합니다(모델·네트워크·로그인 없음). T18의 `~` 사례와 명령 E2E의 `~` 단계는 HOME을 시험·run의 디렉터리로 두고 uv의 캐시·Python은 그대로 씁니다 |
 | 격리(소유자 결정 뒤) | 위와 같고, HOME을 run 폴더의 가짜 디렉터리로 두었습니다(uv의 캐시·Python 디렉터리만 실제 값). 이 판에서 `~/.aelix`를 읽거나 나열하거나 쓰지 않았습니다 |
@@ -142,6 +144,47 @@ splatting·매개변수 나눔)를 찾아 함께 받지 않게 했습니다. 다
 | 저장소 시험 | `uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread` | 통과: 1,966 passed, 107 skipped(825초) |
 | 문서 검사 / `git diff --check origin/main` | `tools/check_docs.py` / 작업 트리 | `ok: true`, 오류 0(Markdown 66, 로컬 링크 729) / 출력 없음 |
 | 판정 비교 | `c399fc3`의 `is_single_kit_command`와 이 판의 것을 표의 행·함정 줄·`*>` 줄·무작위 줄 37,292개에 셸 다섯과 Windows 여부로(두 판정 모두 Windows 여부를 넣음, 줄을 돌리지 않음) | 같음: 받는 줄도 받지 않는 줄도 하나도 다르지 않음. `*>`·`*>>`·`*>&1`은 pwsh·powershell·bash·zsh에서(Windows 여부와 상관없이) 그 전에도 이 판에도 받지 않음 |
+
+## 저장소 CI(`ca0cf39`)
+
+2026-10-09에 실행 37895642682(Linux·Windows)와 37895656352(macOS 라벨)의 artifact를 내려받아 확인했습니다. 모두 attempt 1이며,
+Linux 실행의 lint와 세 OS의 platform·CPython 3.11 하한 작업이 통과했습니다. macOS 라벨 실행의 lint는 워크플로 규칙대로 건너뛰었습니다.
+개발 기기와 CI의 수는 설치본 시험 활성화·플랫폼별 사례·건너뜀 조건이 달라 같지 않습니다. 실패·오류는 모든 JUnit에서 0입니다.
+
+| 레그 | 저장소 시험 | aelix 3.12 / 3.11 | 런처 3.11 | 네이티브 콘솔 / 긴 경로 끔 |
+|---|---|---|---|---|
+| Linux (`ubuntu-24.04`) | 1,978 passed, 74 skipped; 779.851초 | 각 963 passed | 196 passed, 1 skipped | 해당 OS 사례 없음 |
+| Windows (`windows-2025`) | 1,798 passed, 278 skipped; 1,891.396초 | 각 963 passed, 1 skipped | 91 passed, 106 skipped | 21 passed / 7 passed |
+| macOS (`macos-26`) | 1,976 passed, 76 skipped; 735.157초 | 각 963 passed | 196 passed, 1 skipped | 해당 OS 사례 없음 |
+
+Windows 저장소 시험 단계는 06:53:23–07:25:00 UTC(1,897초)로 35분 한도 안에서 끝났습니다. Linux·macOS의 스모크는 각 holds 25·
+violated 0, Windows는 holds 21·declared limitation 3·violated 0입니다. CPython 3.11 stdlib 스모크는 Linux·macOS 각 holds 15,
+Windows holds 14·declared limitation 1이고, 각 OS에서 violated 0·not_run 2입니다. 선언된 한계와 건너뜀은 통과 사례로 세지 않습니다.
+
+T22 관찰은 세 OS의 두 aelix 레그에서 에이전트 bash의 `agent`, 사람의 kit 명령 하나의 `human`, 합친 줄의 `agent`, 막는 확장이 있는 합친 줄의
+기록 없음이 유지됨을 보입니다. 단일 kit 명령이 다른 확장의 막음을 덮는 한계도 그대로 관찰됐습니다. 실제 셸 함정 시험은 Linux의 sh·bash·
+dash·pwsh와 macOS의 sh·bash·zsh·dash·ksh·pwsh에서 33줄 중 받아들인 줄을 실행해 둘째 명령·다른 프로그램을 실행한 사례 0입니다.
+Windows는 이 함정 시험 1개를 건너뛰었으므로 Windows에서 같은 실행을 검증한 것으로 쓰지 않습니다. 전환 중단 행렬은 Linux·macOS 각 35행,
+Windows 33행의 결과를 JSON에 기록했습니다. 사용량 보고서는 세 OS 모두 저장 텍스트·필수 사실·불변 조건 검사와 failures 0을 확인했으며,
+모델 토큰과 실제 모델 과제 비용은 측정하지 않았습니다.
+
+JSON의 `legs`에는 run·attempt·job ID·head/base/workflow SHA·러너 이미지·인터프리터·artifact digest·JUnit 파일 해시·건너뜀 이유·
+관련 시험 그룹·관찰 결과를 담았습니다. 원시 artifact와 파일 해시 목록은 로컬 run `71820e49-77c4-4b3c-b609-69c992d82ae2/evidence/ci/`에
+보존합니다. 측정 기록을 채우는 문서 커밋의 CI는 [PR #84](https://github.com/handochan/aelix-analytics/pull/84)에 별도로 기록합니다.
+
+## 실제 프로젝트 미리 보기(R7)
+
+소유자가 지정한 실제 `lab.project/1` 프로젝트(기록된 kit 0.1.0)를 `ca0cf39`의 kit으로 2026-10-09 11:52:27 UTC에 확인했습니다.
+프로젝트 환경을 동기화하지 않고 stdlib 진입점으로 `PYTHONPATH=<PR84 src> python -B -m aelix_analytics --project <owner project> migrate
+--to <temporary destination> --dry-run`을 실행했습니다. 원본 경로·원본 바이트·명령·상세 결과는 로컬 run의 `evidence/r7/`에만 둡니다.
+
+- 종료 코드 0, `ok=true`, `dry_run=true`, `state=new`. 경고·진행 중 run·바깥 링크·복사하지 못할 항목 없음.
+- 계획: 파일 76개, 5,757,076 bytes, 링크 0개, 스크립트 변경 제안 4개. 예상 필요 공간 72,923,510 bytes.
+- 제외: 가상 환경 5,511개 파일(460,999,340 bytes), 파생 Workspace 18개 파일(647,107 bytes), 캐시 9개 파일(77,248 bytes), 잠금 파일 3개.
+- 실행 전후 전체 원본 6,455개 항목(467,480,771 bytes)의 파일 해시·경로·종류·권한·mtime·링크 대상이 동일했고, 목적지는 생성되지 않았습니다.
+
+이것은 전환 계획의 미리 보기입니다. 실제 복사·표식 게시·uv sync는 실행하지 않았고, 목적지의 이름 접기·게시 기능을 프로브하지 않았습니다
+(`folding_judged=false`, `publication_judged=false`). 결과와 전후 manifest 해시는 JSON의 `owner_project_preview`에 있습니다.
 
 ## writer 지연(`writer_latency`, 11.5절)
 
@@ -348,7 +391,8 @@ JSON의 값을 그대로 두었습니다. 함정 시험은 줄마다 빈 폴더�
 | `$'…'`가 든 줄, 막는 확장이 먼저·나중(점검 뒤) | 두 순서 모두 막힘, 기록 없음(그 전 코드는 막는 확장이 먼저면 둘째 명령이 막음을 지나 돌았음) |
 | 확장 자신의 kit 자식(`/analytics`) | 기록이 아니라 그 자식의 환경: `AELIX_ANALYTICS_ACTOR=human`, `/analytics`면 `AELIX_ANALYTICS_MEANS=command`(프로세스 환경의 `agent`와 무관) |
 
-Windows의 PowerShell·cmd 자식은 실행하지 않았습니다(CI의 Windows aelix 레그가 돌립니다. 함정 시험도 Windows에서는 건너뜁니다).
+개발 기기에서는 Windows의 PowerShell·cmd 자식을 실행하지 않았습니다. 위 저장소 CI의 Windows aelix 레그가 T22를 실행했고,
+셸 함정 시험 1개는 Windows에서 건너뛰었습니다.
 
 ## 링크가 없는 파일 시스템(`foreign_fs`)
 
@@ -405,9 +449,6 @@ src/aelix_analytics`; `__pycache__`는 추적하지 않음) 측정 전체를 다
 
 ## 실행하지 않은 것
 
-- 이 판의 커밋(`c399fc3` 점검 처리, `ab45982`·`c399fc3`도 push하지 않음)의 저장소 CI(Linux·Windows·macOS 레그, `pending`: 아직 push하지 않음; `221dfbb`의 CI는 이 커밋을 만들 때 돌고 있었음). Linux의 `renameat2`(ctypes), Windows의
-  `rename_new` = `publish_new`, 런처의 `--no-project`와 응답 읽기를 Windows에서, Windows 전용 시험, T22의 PowerShell·cmd 자식과 `$'…'`를 포함한 줄,
-  셸 군마다의 `!` 줄 표와 함정 시험(Windows는 건너뜀), AppleDouble 규칙(Windows의 junction `._x`), 고친 긴 필드 시험의 Windows 실행이 그 CI에 걸려 있습니다. `8d3695f`의 Windows 저장소 시험 단계는 35분 한도 가운데 1,789초를 썼습니다.
 - 실제 이동식 FAT·exFAT 매체와 Linux·Windows의 FAT·exFAT(macOS 디스크 이미지만).
 - Windows에서 맨 `analytics`·`python`·`py`·`uv`가 배치 파일(버전 관리자의 shim)로 풀려 cmd가 인자를 다시 읽는 경우(`221dfbb` 점검의 꼭 고칠
   것; 그런 줄을 받지 않게 고쳤지만 Windows 기기가 없어 실행하지 않았고, 배치 파일을 띄우는 시험은 없습니다).
