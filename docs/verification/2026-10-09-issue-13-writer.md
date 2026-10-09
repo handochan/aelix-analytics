@@ -31,13 +31,20 @@ hint). 그 처리(코드 커밋 `fix: answer the check of the corrected decision
 쟀습니다(아래 각 절의 "점검 뒤"). 그 전 값은 JSON의 `*_after_corrected_decisions`·`*_before…`에 그대로 두었고, 다시 재지 않은 키(writer 지연,
 전환 S·M, 명령 E2E, T18, fixture 재현성)는 그 전 측정 그대로입니다(`measured_tree.after_check_of_corrected_decisions.kept`).
 
-이 기록의 값은 모두 개발 기기(macOS)의 것입니다. `8d3695f`의 CI는 위 실패로 끝났고(`runs.at_8d3695f`), 이 판이 잰 코드(그리고 그 전 판의
-`eaf6dfe`·`0504cc8`·`d0c766b`)는 아직 push하지 않아 CI 칸(`runs.code`·`legs`)은 `pending`입니다.
+그 뒤 `221dfbb`의 점검(POSIX 셸과 PowerShell 두 갈래)이 `user_bash` 판정에 지적 다섯을 냈습니다(꼭 하나: Windows에서 맨 이름이 배치 파일로 풀리면
+cmd가 인자를 다시 읽음). 그 처리(코드 커밋 `fix: leave more lines alone in the person's-shell judgment`)는 판정만 좁혔으므로 그 코드가 닿는 부분 —
+aelix 레그(T22와 함정 시험), 저장소 시험, 문서 검사, 두 판정의 비교 — 만 다시 쟀습니다(`measured_tree.after_the_221dfbb_checks`). T22는
+`221dfbb`의 값과 같아 그 값을 두었고(`agent_cli.same_after_the_221dfbb_checks`), 함정 시험의 그 전 값은 `user_bash_shell_traps.observations_at_221dfbb`에
+두었으며, 나머지 키는 그 전 측정 그대로입니다.
+
+이 기록의 값은 모두 개발 기기(macOS)의 것입니다. `8d3695f`의 CI는 위 실패로 끝났고(`runs.at_8d3695f`), `221dfbb`는 push되어 이 판의 커밋을
+만들 때 CI가 돌고 있었으며(결과는 이 기록에서 읽지 않음), 이 판이 잰 코드는 아직 push하지 않아 CI 칸(`runs.code`·`legs`)은 `pending`입니다.
 
 ## 출처와 환경
 
 | 항목 | 근거 |
 |---|---|
+| 다시 잰 코드(`221dfbb` 점검 뒤) | 커밋 `fix: leave more lines alone in the person's-shell judgment`(`221dfbb` 위). 커밋 전 worktree에서 쟀고 그 커밋의 코드 파일은 재고 manifest(`measured_tree.after_the_221dfbb_checks`)의 것입니다 |
 | 다시 잰 코드(점검 뒤) | 커밋 `fix: answer the check of the corrected decisions`(`0504cc8` 위). 커밋 전 worktree에서 쟀고 그 커밋의 코드 파일은 재고 manifest(219개)의 것입니다 |
 | 다시 잰 코드(보정 뒤) | 커밋 `eaf6dfe`(fix: run only a single kit command in a person's shell and count AppleDouble files only, `d0c766b` 위). 커밋 전 worktree에서 쟀고 그 커밋과 파일 manifest(219개, sha256 `f49c1ac8…`)가 같습니다 |
 | 다시 잰 코드(소유자 결정 뒤) | 커밋 `9887509`(fix: answer the CI and the owner's decisions of PR 3, `8d3695f` 위). 커밋 전 worktree에서 쟀고 그 커밋과 파일 manifest(219개, sha256 `fa8a7c5a…`)가 같습니다 |
@@ -50,6 +57,7 @@ hint). 그 처리(코드 커밋 `fix: answer the check of the corrected decision
 | 격리(소유자 결정 뒤) | 위와 같고, HOME을 run 폴더의 가짜 디렉터리로 두었습니다(uv의 캐시·Python 디렉터리만 실제 값). 이 판에서 `~/.aelix`를 읽거나 나열하거나 쓰지 않았습니다 |
 | 격리(보정 뒤) | 같은 격리를 이 판의 run 폴더 `corrected/`에 새로 두었습니다(신뢰 목록, 가짜 HOME). 이 판에서 `~/.aelix`를 읽거나 나열하거나 stat하거나 쓰지 않았습니다 |
 | 격리(점검 뒤) | 같은 격리를 run 폴더 `round5/`에 두었습니다(신뢰 목록, 가짜 HOME). 판정을 실제 셸로 돌려 본 탐색은 scratchpad에서 했고, `~/.aelix`를 읽거나 나열하거나 stat하거나 쓰지 않았습니다 |
+| 격리(`221dfbb` 점검 뒤) | 같은 격리를 run 폴더 `round6/`에 두었습니다(신뢰 목록, 가짜 HOME). PowerShell의 파서로 프로그램 단어를 읽어 본 것(실행 없음)과 `-c/analytics` stand-in 실행은 run 폴더·scratchpad에서 했고, `~/.aelix`를 읽거나 나열하거나 stat하거나 쓰지 않았습니다 |
 | 격리 사고 | 구현 중(G4, 리뷰 전) 데모 프로젝트를 살피던 명령 하나에 `ls ~/.aelix/agent 2>/dev/null \| head -0`이 실수로 들어가 실행됐습니다. 출력은 보지 않고 버려졌고 아무것도 쓰지 않았습니다(run 폴더의 handoff와 PR 본문에 적음). 잰 명령은 `~/.aelix`를 읽거나 나열하지 않았습니다 |
 
 ## 결과
@@ -75,6 +83,19 @@ hint). 그 처리(코드 커밋 `fix: answer the check of the corrected decision
 | 함정 시험(실제 셸) | `tests/test_extension.py::test_a_line_judged_one_kit_command_runs_no_other_command_in_each_shell_here` | 통과. 이 기기의 셸(sh·bash·zsh·dash·ksh·pwsh)로 함정 줄 중 kit 명령 하나로 판정한 것(POSIX 17, pwsh 4)을 실제로 돌려 둘째 명령이 돌지 않음(`user_bash_shell_traps`) |
 
 이 판(점검 처리)의 결과입니다. G1–G4(리뷰 전)의 새 시험을 그 앞 코드에서 돌린 결과는 각 그룹의 run 폴더 증거에 있고 PR 본문이 적습니다.
+
+**`221dfbb` 점검 뒤**(코드 커밋 `fix: leave more lines alone in the person's-shell judgment`, JSON `verification_after_the_221dfbb_checks`). 판정만
+바뀌었으므로 그 판정이 닿는 검사만 다시 돌렸습니다. 위 표의 다른 행(배포본 E2E, 계층·포트, 런처, 사용량 보고서, 스모크, FAT·exFAT)은 `221dfbb`의
+값입니다.
+
+| 검사 | 명령 | 결과 |
+|---|---|---|
+| ruff | `uv run --locked ruff check tests extension src tools` | 통과 |
+| aelix 0.1.0b2, CPython 3.12 / 3.11 | `tests/test_extension.py tests/test_usage_report.py tests/test_agent_cli.py`(CONTRIBUTING의 격리 환경) | 통과: 833 passed / 833 passed(Windows 표 둘, PowerShell 프로그램 단어 행, 함정 줄 하나를 더함) |
+| 함정 시험(실제 셸) | 위와 같은 시험 | 통과. 함정 줄 29개 가운데 kit 명령 하나로 판정한 것(POSIX 18, pwsh 5)이 이 기기의 셸에서 둘째 명령을 돌리지 않음 |
+| 저장소 시험 | `uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread` | 통과: 1,966 passed, 107 skipped(845초) |
+| 문서 검사 / `git diff --check origin/main` | `tools/check_docs.py` / 작업 트리 | `ok: true`, 오류 0(Markdown 66, 로컬 링크 729) / 출력 없음 |
+| 판정 비교 | `221dfbb`의 `is_single_kit_command`와 이 판의 것을 표의 행·함정 줄·무작위 줄 37,128개에 셸 다섯과 Windows 여부로(줄을 돌리지 않음) | 새로 받는 줄 0. Windows 밖에서 새로 받지 않는 줄은 PowerShell 프로그램 단어 행 아홉(`judgment_after_the_221dfbb_checks`) |
 
 ## writer 지연(`writer_latency`, 11.5절)
 
@@ -252,6 +273,12 @@ T22-SECOND-RAN  # it's fine`(bash·zsh가 `$'…'`를 escape된 따옴표로 읽
 더했습니다(그 전 코드는 이 줄에 셸을 돌려줘 둘째 명령이 막음을 지나 돌았음). 그 전 판의 관찰은 `agent_cli.after_corrected_decisions`에 있습니다.
 판정을 이 기기에서 찾은 셸(sh·bash·zsh·dash·ksh·pwsh)로 실제로 돌려 본 함정 시험은 `user_bash_shell_traps`에 있습니다(kit 명령 하나로 판정한 줄이
 그 셸에서 둘째 명령을 돌리지 않음).
+`221dfbb` 점검 뒤(판정만 좁힘) 다시 남긴 T22 관찰은 `221dfbb`의 것과 같아(빌드 시각·임시 경로만 다름, `agent_cli.same_after_the_221dfbb_checks`)
+위 표와 JSON의 값을 그대로 두었습니다. T22의 줄은 이 인터프리터의 `python.exe`를 경로로 부르고 cmd가 읽는 글자가 없어 Windows에서도 판정이 같습니다.
+함정 시험에는 줄 `analytics 'x&@SENT@'`를 더했습니다(배치 파일이 받을 때만 둘째 명령이 되는 줄; 이 기기의 셸에서는 한 단어라 받고 둘째 명령이
+돌지 않음). 맨 이름이 배치 파일로 풀려 cmd가 인자를 다시 읽는 경우는 Windows 기기가 없어 실행하지 않았습니다(`agent_cli.windows_batch_file`).
+판정 비교(`judgment_after_the_221dfbb_checks`, 줄을 돌리지 않음)는 `221dfbb`의 판정과 이 판의 판정을 표의 행·함정 줄·무작위 줄에 다섯 셸 이름과
+Windows 여부로 대어, 새로 받는 줄이 없고 Windows 밖에서 새로 받지 않는 줄은 PowerShell의 프로그램 단어 행뿐임을 보입니다.
 
 | 경우 | 결과 |
 |---|---|
@@ -315,12 +342,17 @@ src/aelix_analytics`; `__pycache__`는 추적하지 않음) 측정 전체를 다
 (`measured_tree.after_check_of_corrected_decisions`). 판정을 실제 셸로 돌려 본 탐색(무작위 줄 포함)은 scratchpad에서 했고, 저장소에는 그 결과를
 시험(`user_bash_shell_traps`)으로만 남겼습니다.
 
+`221dfbb` 점검 뒤의 판(2026-10-09, run 폴더 `round6/`)도 같은 격리로 판정이 닿는 부분만 다시 쟀습니다
+(`measured_tree.after_the_221dfbb_checks`). 기기가 다른 일로 바빠(1분 부하 평균 약 47) 시간 값은 그 전 판보다 깁니다.
+
 ## 실행하지 않은 것
 
-- 이 판의 커밋(점검 처리)의 저장소 CI(Linux·Windows·macOS 레그, `pending`: 아직 push하지 않음). Linux의 `renameat2`(ctypes), Windows의
+- 이 판의 커밋(`221dfbb` 점검 처리)의 저장소 CI(Linux·Windows·macOS 레그, `pending`: 아직 push하지 않음; `221dfbb`의 CI는 이 커밋을 만들 때 돌고 있었음). Linux의 `renameat2`(ctypes), Windows의
   `rename_new` = `publish_new`, 런처의 `--no-project`와 응답 읽기를 Windows에서, Windows 전용 시험, T22의 PowerShell·cmd 자식과 `$'…'`를 포함한 줄,
   셸 군마다의 `!` 줄 표와 함정 시험(Windows는 건너뜀), AppleDouble 규칙(Windows의 junction `._x`), 고친 긴 필드 시험의 Windows 실행이 그 CI에 걸려 있습니다. `8d3695f`의 Windows 저장소 시험 단계는 35분 한도 가운데 1,789초를 썼습니다.
 - 실제 이동식 FAT·exFAT 매체와 Linux·Windows의 FAT·exFAT(macOS 디스크 이미지만).
+- Windows에서 맨 `analytics`·`python`·`py`·`uv`가 배치 파일(버전 관리자의 shim)로 풀려 cmd가 인자를 다시 읽는 경우(`221dfbb` 점검의 꼭 고칠
+  것; 그런 줄을 받지 않게 고쳤지만 Windows 기기가 없어 실행하지 않았고, 배치 파일을 띄우는 시험은 없습니다).
 - 전원 손실과 그 뒤의 내구성, Windows의 디렉터리 flush·읽기 전용 사본·잠금 해제 지연, 네트워크 파일 시스템.
 - 실제 aelix 모델 세션(bash 도구와 `handle_user_bash`를 직접 부름), aelix 밖의 에이전트 호스트, aelix RPC의 `bash`.
 - 색인이 있는 writer의 비용(#15).

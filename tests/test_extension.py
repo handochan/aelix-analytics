@@ -1571,6 +1571,7 @@ NOT_A_SINGLE_KIT_COMMAND = [
     "uv run --some-new-option analytics touch x",
     "uv run -qp 3.12 analytics status",
     "uv run -m aelix_analytics status",
+    "uv run --module aelix_analytics status",  # runs the kit, but left alone (CONTRACTS A)
     "uv run --script analytics status",
     "uv run env analytics status",
     "nohup A=1 analytics status",
@@ -1592,6 +1593,7 @@ NOT_A_SINGLE_KIT_COMMAND = [
     "bash -c 'python -m aelix_analytics status'",
     "xargs analytics status",
     "builtin analytics status",
+    "sudo analytics status",  # sudo takes options of its own: left alone (CONTRACTS A)
     "python scripts/a.py",
     "python -m pytest tests/test_kit.py",
     "python -c 'print(\"import aelix_analytics\")'",
@@ -1624,6 +1626,11 @@ POWERSHELL_SINGLE_KIT_COMMANDS = [
     "analytics record note '한글 메모'",
     r"C:\pack\bin\analytics.exe status",
     r".\bin\analytics.exe status",
+    r".venv\Scripts\python.exe -m aelix_analytics status",
+    ".venv/bin/python -m aelix_analytics status",
+    r"..\pack\bin\analytics.exe status",
+    r"\\server\pack\analytics.exe status",
+    "~/bin/analytics status",
     r"analytics import C:\data\sales.csv",
     r'analytics import "C:\My Data\sales.csv"',
     r"& C:\venv\Scripts\python.exe -m aelix_analytics status",
@@ -1684,19 +1691,67 @@ POWERSHELL_NOT_A_SINGLE_KIT_COMMAND = [
     "env analytics status",
     "'analytics' status",
     '"C:\\pack\\analytics.exe" status',
+    # A program word that starts an expression there, not a command (pwsh 7's parser, the check of
+    # 2026-10-09 of 221dfbb), and one that starts a command name this reading leaves alone (PowerShell
+    # runs `./-c/analytics` for `-c/analytics`).
+    "1/analytics status",
+    ".5/analytics status",
+    "@x/analytics status",
+    "[x]/analytics status",
+    "+x/analytics status",
+    ",x/analytics status",
+    "-c/analytics",
+    "& -c/analytics status",
+    "!x/analytics status",
     # Not the kit.
     "Get-ChildItem analytics",
     r"C:\pack\bin\analytics.cmd status",
     "echo analytics",
 ]
 
+# On Windows a program a shell finds by its bare name (`analytics`, `python`, `py`, `uv`) may be a batch
+# file — a version manager's shim — and cmd reads its arguments again by its own rules, so a quoted
+# `'x&y'` runs `y` there (the check of 2026-10-09 of 221dfbb, not run here: no Windows host). There no
+# word may hold a character cmd reads, in any shell aelix may pick; the lines are (shell, line).
+WINDOWS_NOT_A_SINGLE_KIT_COMMAND = [
+    ("pwsh", "analytics 'x&y'"),
+    ("powershell", "analytics 'x&y'"),
+    ("pwsh", "analytics record note 'a; b && c | d'"),
+    ("pwsh", 'analytics record note "say ""hi"""'),
+    ("pwsh", "analytics record note '50% done'"),
+    ("pwsh", "analytics record note 'a^b'"),
+    ("pwsh", "analytics record note 'wow!'"),
+    ("pwsh", "analytics record note '(draft)'"),
+    ("pwsh", "analytics status > 'a&b.txt'"),
+    ("pwsh", "python -c 'import aelix_analytics; aelix_analytics.main()'"),
+    ("powershell", r"& C:\venv\Scripts\python.exe -m aelix_analytics record note 'x|y'"),
+    ("pwsh", "uv run --no-project analytics record note 'a<b'"),
+    ("bash", "analytics record note 'a & b'"),
+    ("bash", 'uv run analytics record note "x|y"'),
+]
+
+# The same lines' plain kit commands still get the person's shell there: a redirection's operator is
+# no word, and a plain word holds none of those characters.
+WINDOWS_SINGLE_KIT_COMMANDS = [
+    ("pwsh", "analytics status"),
+    ("pwsh", "analytics record note 'Q3 numbers'"),
+    ("pwsh", r'analytics import "C:\My Data\sales.csv"'),
+    ("pwsh", "analytics status 2>&1"),
+    ("pwsh", "python -m aelix_analytics status"),
+    ("powershell", r"& C:\venv\Scripts\python.exe -m aelix_analytics status"),
+    ("pwsh", "uv run --no-project analytics status"),
+    ("bash", "analytics status > out.txt 2>&1"),
+]
+
 # Shells this judgment does not read: every line is left alone there.
 OTHER_SHELLS = ["cmd", "fish", "nu", "tcsh", "csh", "xonsh", "elvish", "busybox", ""]
 
 
-def judged_in(module, monkeypatch, shell: str):
-    """The module with aelix's shell for a person's line taken as `shell` (the_shell's name)."""
+def judged_in(module, monkeypatch, shell: str, *, windows: bool = False):
+    """The module with aelix's shell for a person's line taken as `shell` (the_shell's name), on
+    Windows or not whatever the machine (cmd_may_read_the_arguments), so the tables hold everywhere."""
     monkeypatch.setattr(module, "the_shell", lambda: shell)
+    monkeypatch.setattr(module, "cmd_may_read_the_arguments", lambda: windows)
     return module
 
 
@@ -1750,6 +1805,31 @@ def test_any_other_powershell_line_is_left_alone(command, shell, monkeypatch):
     `\\"` that ends its quote, `<#`, `--%`, `@{…}`, ‘ ’ … are what make a second command there."""
     module = judged_in(fresh_module(), monkeypatch, shell)
     assert answer(module, command) is None
+
+
+@pytest.mark.parametrize(("shell", "command"), WINDOWS_NOT_A_SINGLE_KIT_COMMAND)
+def test_on_windows_a_line_whose_words_cmd_would_read_again_is_left_alone(shell, command, monkeypatch):
+    """The check of 2026-10-09 of 221dfbb: on Windows a bare `analytics`, `python`, `py` or `uv` may
+    resolve to a batch file, and cmd reads its arguments again (`'x&y'` runs `y`). A line one of whose
+    words holds a character cmd reads is left alone there; the same line elsewhere is one kit command,
+    so the narrowing is what leaves it alone."""
+    from aelix_agent_core.harness.hooks import UserBashResult
+
+    assert answer(judged_in(fresh_module(), monkeypatch, shell, windows=True), command) is None
+    assert isinstance(answer(judged_in(fresh_module(), monkeypatch, shell), command), UserBashResult)
+
+
+@pytest.mark.parametrize(("shell", "command"), WINDOWS_SINGLE_KIT_COMMANDS)
+def test_on_windows_a_plain_kit_command_still_gets_the_person_s_shell(shell, command, monkeypatch):
+    from aelix_agent_core.harness.hooks import UserBashResult
+
+    module = judged_in(fresh_module(), monkeypatch, shell, windows=True)
+    result = answer(module, command)
+    assert isinstance(result, UserBashResult) and isinstance(result.operations, module.PersonShell)
+
+
+def test_cmd_may_read_the_arguments_on_windows_only():
+    assert fresh_module().cmd_may_read_the_arguments() is (sys.platform == "win32")
 
 
 @pytest.mark.parametrize("shell", OTHER_SHELLS)
@@ -1815,6 +1895,9 @@ SHELL_TRAPS = [
     "analytics status # ; @SENT@",
     "analytics x =xx>&@SENT@",
     "analytics x\u00a0--% '| @SENT@ #'",
+    # A second command only where cmd reads the word again (a batch file on Windows, which this test
+    # does not run): one quoted word in every shell here, so it is taken and runs none.
+    "analytics 'x&@SENT@'",
 ]
 
 

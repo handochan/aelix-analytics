@@ -397,7 +397,8 @@ class Origin:
   (`tools.bash._resolve_shell`)으로 알고 그 셸이 읽는 대로 읽는다: POSIX 셸(sh·bash·zsh·dash·ksh·mksh·ash)과 PowerShell(POSIX 셸로 읽어도 받는
   줄만), 그 밖의 셸(cmd·fish·nu·csh 등)에서는 결과를 돌려주지 않는다. 셸마다 다르게 펼치거나 읽는 것(작은따옴표 밖의 `$`, 줄바꿈이 뒤따르는
   주석, 제어 문자, `env -S`, 판정이 모르는 옵션, PowerShell의 줄바꿈·백틱·`--%`·`{`·`<`·그 셸의 따옴표 글자)이 든 줄은 kit 명령 하나로 보지 않는다
-  (받지 않은 kit 명령은 `agent`로 남는 좁힘). 배치 파일(`analytics.cmd`·`.bat`)은 cmd가 인자를 다시 읽으므로 kit 진입점으로 보지 않는다. 확장 API가 다른 처리기의 등록을 알려 주는지는 확인하지
+  (받지 않은 kit 명령은 `agent`로 남는 좁힘). 배치 파일(`analytics.cmd`·`.bat`)은 cmd가 인자를 다시 읽으므로 kit 진입점으로 보지 않는다. Windows에서는 맨 이름(`analytics`·`python`·`uv`)도
+  배치 파일 shim으로 풀릴 수 있어, cmd가 읽는 글자(`&`·`|`·`<`·`>`·`^`·`%`·`!`·`"`·`(`·`)`)가 든 단어가 있는 줄을 받지 않는다(그 점검 처리를 다시 점검한 뒤의 좁힘). 확장 API가 다른 처리기의 등록을 알려 주는지는 확인하지
   않았다(hook 버스의 `has_handlers`는 자기 처리기도 세고, 확장에서 닿는지 모른다). RPC 모드의 `bash` 명령(처리기 없이 `os.environ`을 그대로 씀)은
   사람이 부른 CLI가 `agent`로 남는 쪽의 한계다(R18, OQ1).
 - 확장이 aelix 프로세스의 환경을 바꾸는 것은 현재 계약 A(확장이 호스트에 남기는 것)의 변경이다. aelix가 띄우는 다른 자식(MCP 서버, 다른 확장의
@@ -1787,5 +1788,6 @@ Finder·탐색기의 `.DS_Store`·`Thumbs.db`·`desktop.ini`(목적지를 열어
 | OQ9(다른 프로젝트 안에 새 프로젝트를 만들지 않음)는 표식만 세서, 커밋하지 않은 전환 목적지(표식 없이 `.analytics/migration*`) 안에 `init`·`migrate --to`가 프로젝트를 만듦 | 소유자 질문으로 올림(OQ9의 글은 "위쪽에 표식이 있으면"). 소유자 결정(2026-10-09, [#13](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6070315072)): 넓힘. `project_above`가 표식 없는 전환 기록(`writer.migration_record`)에서도 멈추고 `destination_invalid(inside_project)`로 거절(`details.project`: 그 목적지). init(kit CLI·두 런처·`analytics_init`·`/analytics init`·`demo`)과 `migrate --to`의 시험, T8의 `migrate` 행, 첫 전환은 같은 명령으로 이어 커밋 | 6.2절, OQ9 |
 | 6.2절 1단계를 잠금 안에서 다시 판정한 거절(`not_empty`·`insufficient_space` 등)의 hint가 "nothing was written"이나, 목적지·`.analytics/`·잠금 파일이 이미 있음(②의 엔진, ③이 사람의 명령으로 엶) | 고침. 그 거절의 hint는 복사한 것이 없다는 것과 이 호출이 만든 것, 지우거나 원인을 없앤 뒤 다시 부르라는 것을 적음 | 6.2절, 현재 계약 G |
 | 보정판의 점검: 판정이 줄을 POSIX 셸로만 읽어, 실제 셸이 둘째 명령으로 읽는 줄을 kit 명령 하나로 봄(bash·zsh의 `$'…'`, zsh의 `${(e)…}`, 큰따옴표 안 줄 이음 뒤의 `$(`, PowerShell에서 글자인 역슬래시와 캐리지 리턴, `env -S`, 모르는 `uv run` 옵션). 막는 확장이 먼저일 때 둘째 명령이 돎 | 고침. aelix가 줄을 돌릴 셸을 aelix의 규칙으로 알고 그 셸(POSIX 셸·PowerShell)이 읽는 대로 읽으며, 그 밖의 셸에서는 결과 없음. 셸마다 다르게 읽는 것이 든 줄은 받지 않음(좁힘). `env`·`uv run`은 아는 옵션만, 배치 파일은 진입점 아님. 셸 군마다의 표, 시험 기기의 실제 셸로 함정 줄을 돌리는 시험, T22의 `$'…'` 줄 | 4.2절, OQ1, 현재 계약 A, T22 |
+| 점검 처리(`221dfbb`)의 다시 점검: Windows에서 확장자 없는 `analytics`·`python`·`py`·`uv`가 PATH·PATHEXT로 배치 파일 shim에 풀리면 cmd가 인자를 다시 읽어, PowerShell이 따옴표로 한 단어로 넘긴 `'x&y'`의 `&`가 둘째 명령이 됨(Windows 기기가 없어 실행하지 않음, PLAUSIBLE). 덜 급한 것: PowerShell에서 식으로 읽히는 프로그램 단어(`1/…`·`@…`·`[…]`)를 받음 | 고침(좁힘). Windows에서는 어느 셸이든 cmd가 읽는 글자가 든 단어가 있는 줄을 받지 않음. PowerShell의 프로그램 단어는 글자·`_`·점과 글자·경로로 시작할 때만(`-c/analytics`도 받지 않음). `uv run -m`·`sudo`·끝의 `&`는 받지 않는 것으로 현재 계약 A에 적음 | 4.2절, 현재 계약 A |
 | 보정판의 점검: 원본의 폴더·링크 `._x`는 복사하는데 목적지의 일반 파일 `._x`는 빈 폴더 판정에서 세지 않아, 1단계·잠금 뒤·`--dry-run`이 받고 복사가 그 자리에서 늘 `occupied`로 멈춤(`.DS_Store`에 대해 이 절이 미리 거절하던 것과 같은 종류) | 고침. 그 경로의 AppleDouble 파일을 `not_empty`와 그 경로로 미리 거절(대소문자·정규화를 접어 비교) | 6.2절, 현재 계약 B |
 | 런처가 커밋 뒤 목적지를 `--to`의 글자로 다시 풀어 `~`를 풀지 못함(원본의 환경을 맞추는 결과) | 고침. 6.1절의 "커밋 뒤 목적지의 환경 준비"는 kit 응답의 `destination`에, 그 폴더에 `analytics.json`이 있을 때만 | 6.1절, 현재 계약 D, T18 |

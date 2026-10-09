@@ -1140,8 +1140,14 @@ def put_the_session_in_the_environment(session) -> None:
 # follows it are read as well, so an operator there counts. In PowerShell, where a backslash is a
 # character and not an escape, also: a new line, a backtick (its escape), a quote it takes besides ' and
 # " (‘ ’ “ ” …), a space besides a space and a tab, `--%`, `{` `}`, `<` (`<#` opens a comment), a `>&`
-# but `n>&1`, and a line its POSIX reading would refuse. A
+# but `n>&1`, a line its POSIX reading would refuse, and a program word that does not start with a
+# letter, `_` or a path (`1/…` `@…` `[…]` are expressions there; `-c/analytics` is left alone too). On
+# Windows, in any shell, also a word holding a character cmd reads (CMD_METACHARACTERS): a program found
+# by its bare name may be a batch file there. A
 # program that is not the kit (`grep analytics notes.txt`, `sh -c '…'`, `python a.py`) is none either.
+# Left alone as well, though they run the kit and no second command: `uv run -m`/`--module` (the kit runs
+# as `uv run … python -m aelix_analytics` or `analytics`), `sudo analytics …` (sudo takes options of its
+# own) and a trailing `&` (a list in the background, not a simple command).
 # For such a line the handler returns nothing: aelix runs it as it would, another extension's block or
 # shell included, and a kit call in it records `agent`/declared from the process environment. So the
 # handler sets another extension's answer aside for that one kit command only (CONTRACTS A).
@@ -1203,6 +1209,24 @@ UNREAD_CHARACTERS = re.compile("[\x00-\x08\x0b-\x1f\x7f\x85  ]")
 # stop-parsing token `--%`, which it also takes with the dashes it knows (– — ―).
 POWERSHELL_QUOTES = frozenset("‘’‚‛“”„‟")
 POWERSHELL_STOP_PARSING = re.compile("[-–—―]{2}%")
+# How a PowerShell program word this reading takes starts: a letter or `_`, a dot and a letter
+# (`.venv\Scripts\python.exe`), or a path (`.\` `..\` `./` `\` `/` `~`). A digit, `.5`, `@`, `[`, `+`
+# or `,` starts an expression there, not a command (pwsh 7's parser); `-`, `!`, `=`, `*`, `%` start a
+# command name PowerShell does run (`-c/analytics` runs `./-c/analytics`) but are left alone too.
+POWERSHELL_COMMAND_START = re.compile(r"[^\W\d]|\.(?:[^\W\d]|\.?[/\\])|[/\\~]")
+# What cmd reads in a batch file's arguments: its operators `&` `|` `<` `>`, its escape `^`, its
+# expansions `%` and `!`, its quote `"` and its blocks `(` `)`. On Windows a program a shell finds by
+# its bare name through PATH and PATHEXT (`analytics`, `python`, `py`, `uv`) may be a batch file — a
+# version manager's shim — which Windows starts through cmd, and cmd reads the arguments again by its own
+# rules: the quoted `'x&y'` a shell passed as one word runs `y` there. These reach a word only through
+# quotes or escapes, so a plain kit command holds none.
+CMD_METACHARACTERS = frozenset('&|<>^%!"()')
+
+
+def cmd_may_read_the_arguments() -> bool:
+    """Whether the program a line names may be a batch file whose arguments cmd reads again: on
+    Windows, whichever shell aelix runs the line in."""
+    return sys.platform == "win32"
 
 
 def the_shell() -> str:
@@ -1455,6 +1479,8 @@ def _runs_the_kit(words: list[str], family: str) -> bool:
                 i += 1
     if i >= len(words):
         return False
+    if family == "powershell" and not POWERSHELL_COMMAND_START.match(words[i]):
+        return False  # an expression there, or a command name this reading leaves alone
     program = _program(words[i], family)
     if program == "uv" and words[i + 1:i + 2] == ["run"]:
         i = _options_end(words, i + 2, UV_RUN_FLAGS, UV_RUN_VALUE_OPTIONS, UV_RUN_COUNTED)
@@ -1478,7 +1504,7 @@ def is_single_kit_command(command: str, shell: str) -> bool:
     try:
         posix = _posix_words(line)
         if family == "posix":
-            words = _one_command(posix, "posix")
+            tokens = posix
         else:
             tokens = _powershell_words(line)
             if tokens[:1] == [("&", True)]:  # its call operator, at the start only
@@ -1488,10 +1514,15 @@ def is_single_kit_command(command: str, shell: str) -> bool:
                 return False  # a quoted text first is a value in PowerShell, not a program
             if _one_command(posix, "posix") is None:
                 return False
-            words = _one_command(tokens, "powershell")
+        words = _one_command(tokens, family)
     except ValueError:  # what this reading leaves open: no judgment, the line runs as aelix runs it
         return False
-    return words is not None and _runs_the_kit(words, family)
+    if words is None:
+        return False
+    if cmd_may_read_the_arguments() and any(
+            CMD_METACHARACTERS.intersection(text) for text, operator in tokens if not operator):
+        return False  # cmd may read the words again (a batch file): any of them may start a command
+    return _runs_the_kit(words, family)
 
 
 class PersonShell:

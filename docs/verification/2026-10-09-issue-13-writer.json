@@ -93,14 +93,31 @@
     "command_e2e, uv (T18)": "not measured again: the launchers and the command did not change",
     "fixture_reproducibility": "unchanged"
    }
+  },
+  "after_the_221dfbb_checks": {
+   "what": "the fix of the PowerShell/POSIX checks of 221dfbb (its must-fix binding): on Windows, in any shell, the user_bash judgment leaves alone a line one of whose words (redirection targets too) holds a character cmd reads (& | < > ^ % ! \" ( )), because a bare `analytics`, `python`, `py` or `uv` may resolve to a batch file there and cmd reads its arguments again; in PowerShell it takes a program word only when it starts with a letter, `_`, a dot and a letter, or a path (`1/…`, `.5…`, `@…`, `[…]`, `+…`, `,…` are expressions there; `-c/analytics` and `!…` are left alone too). `uv run -m`/`--module`, `sudo` and a trailing `&` stay left alone, now said in CONTRACTS A. Measured on the worktree before the commit, which holds the same files (the manifest)",
+   "previous_head": "221dfbb4f202c726ffde4904af2f3b00039921c2",
+   "code_commit": "the commit holding this record (fix: leave more lines alone in the person's-shell judgment (Issue #13 PR 3)): its code files are the manifest's",
+   "manifest_sha256": "9a8423c1d37fee4b70e4ba43af61bbe5561861cc1dea41c526eb49f84dca8b5d",
+   "manifest_files": 219,
+   "remeasured_at": "2026-10-09T04:06:16Z",
+   "measured_again": [
+    "agent_cli (T22, the same as 221dfbb)",
+    "user_bash_shell_traps (one more trap)",
+    "verification_after_the_221dfbb_checks (ruff, the aelix legs, the repository suite, check_docs, git diff --check)",
+    "judgment_after_the_221dfbb_checks (221dfbb's judgment against this one)"
+   ],
+   "kept": {
+    "everything else": "not measured again: the change is the user_bash judgment in extension/aelix_analytics.py and its tests; no kit, launcher, migration or writer code changed, and the entry-point matrix holds no `!` line"
+   }
   }
  },
  "workflow": ".github/workflows/ci.yml: the aelix legs run tests/test_agent_cli.py too and keep their observations (evidence-aelix-py3.12/3.11)",
  "runs": {
   "code": {
    "state": "pending",
-   "measured_commit": "the commit holding this record (fix: answer the check of the corrected decisions (Issue #13 PR 3), over 0504cc8), manifest sha256 10aa785452c3…",
-   "why": "not pushed yet; the last CI is 8d3695f's (at_8d3695f), and d0c766b, eaf6dfe and 0504cc8 were not pushed either"
+   "measured_commit": "the commit holding this record (fix: leave more lines alone in the person's-shell judgment (Issue #13 PR 3), over 221dfbb), manifest sha256 9a8423c1d37f…",
+   "why": "not pushed yet; 221dfbb was pushed and its CI was running when this commit was made (its result is not read here); 8d3695f's CI is at_8d3695f"
   },
   "at_8d3695f": {
    "what": "PR #84's CI of the earlier head",
@@ -6003,7 +6020,9 @@
    }
   },
   "earlier_cases_same_after_the_check": true,
-  "check_of_corrected_decisions": "a blocking extension registered first and the `!` line `<kit record note> $'Q3\\'s numbers' ; echo T22-SECOND-RAN  # it's fine` (the check's line: bash and zsh read `$'…'` with an escaped quote, so the `;` is real there): in both orders the line stays blocked and nothing is written (the earlier code returned its shell for it, and the second command ran past the block)"
+  "check_of_corrected_decisions": "a blocking extension registered first and the `!` line `<kit record note> $'Q3\\'s numbers' ; echo T22-SECOND-RAN  # it's fine` (the check's line: bash and zsh read `$'…'` with an escaped quote, so the `;` is real there): in both orders the line stays blocked and nothing is written (the earlier code returned its shell for it, and the second command ran past the block)",
+  "same_after_the_221dfbb_checks": "true: T22 observed again on this round's code (<run>/round6/evidence/final/observations-aelix-py3.12 and -py3.11) is the same as py3.12/py3.11 above (221dfbb's) but for the kit's build time and temporary paths, so the values above are kept",
+  "windows_batch_file": "not_run: a bare name resolving to a batch file under PowerShell on Windows, whose arguments cmd reads again (the 221dfbb check's must-fix, PLAUSIBLE there: no Windows host). T22's lines name this interpreter's python.exe by its path and hold none of cmd's characters, so they are judged the same on Windows; the narrowing itself is tested in tests/test_extension.py with Windows patched in"
  },
  "foreign_fs": {
   "what": "FAT32 and exFAT disk images (hdiutil, fskit, nobrowse) on macOS 26.6.2, measured by group G3 on b7856c6 (src unchanged since): the port, the shipped migration, and a probe passing over macOS's AppleDouble files (the keys mnt-fat and mnt-exfat; the shipped code after the owner's decisions is under shipped_after_owner_decisions)",
@@ -6464,7 +6483,8 @@
   "note": "PR 2's record of the engine; its fixtures were made by PR 2's generator, these by this checkout's with that commit's kit (--kit-root): see migration.fixture_reproducibility"
  },
  "not_run": [
-  "the repository CI of this round's commit (fix: answer the check of the corrected decisions (Issue #13 PR 3)) on Linux, Windows and the macOS label run (pending: not pushed yet); the user_bash tables, the trap test (Linux: sh, bash, pwsh when installed), T22 with PowerShell children on Windows and the AppleDouble rules then run there; its Windows repository step took 1,789 s of its 35 minutes at 8d3695f",
+  "the repository CI of this round's commit (fix: leave more lines alone in the person's-shell judgment (Issue #13 PR 3)) on Linux, Windows and the macOS label run (pending: not pushed yet; 221dfbb's CI was running); the user_bash tables, the trap test (Linux: sh, bash, pwsh when installed), T22 with PowerShell children on Windows and the AppleDouble rules then run there; its Windows repository step took 1,789 s of its 35 minutes at 8d3695f",
+  "a bare `analytics`, `python`, `py` or `uv` that resolves to a batch file (a version manager's shim) under PowerShell or another shell on Windows, whose arguments cmd reads again: the 221dfbb check's must-fix is fixed by leaving such lines alone, but no Windows host ran it here, and no test starts a batch file",
   "a real removable FAT or exFAT medium, and FAT/exFAT on Linux or Windows (macOS disk images only)",
   "a power loss and durability after it; Windows' directory flush, read-only copies and late lock release; a network file system",
   "a real aelix model session (the bash tool and handle_user_bash were called directly); another agent host than aelix; aelix's RPC bash command",
@@ -6890,6 +6910,91 @@
    "py3.12": {
     "shells": {
      "bash": {
+      "accepted": 18,
+      "path": "/bin/bash",
+      "ran_a_second": [],
+      "read_as": "bash"
+     },
+     "dash": {
+      "accepted": 18,
+      "path": "/bin/dash",
+      "ran_a_second": [],
+      "read_as": "dash"
+     },
+     "ksh": {
+      "accepted": 18,
+      "path": "/bin/ksh",
+      "ran_a_second": [],
+      "read_as": "ksh"
+     },
+     "pwsh": {
+      "accepted": 5,
+      "path": "/opt/homebrew/bin/pwsh",
+      "ran_a_second": [],
+      "read_as": "pwsh"
+     },
+     "sh": {
+      "accepted": 18,
+      "path": "/bin/sh",
+      "ran_a_second": [],
+      "read_as": "sh"
+     },
+     "zsh": {
+      "accepted": 18,
+      "path": "/bin/zsh",
+      "ran_a_second": [],
+      "read_as": "zsh"
+     }
+    },
+    "traps": 29
+   },
+   "py3.11": {
+    "shells": {
+     "bash": {
+      "accepted": 18,
+      "path": "/bin/bash",
+      "ran_a_second": [],
+      "read_as": "bash"
+     },
+     "dash": {
+      "accepted": 18,
+      "path": "/bin/dash",
+      "ran_a_second": [],
+      "read_as": "dash"
+     },
+     "ksh": {
+      "accepted": 18,
+      "path": "/bin/ksh",
+      "ran_a_second": [],
+      "read_as": "ksh"
+     },
+     "pwsh": {
+      "accepted": 5,
+      "path": "/opt/homebrew/bin/pwsh",
+      "ran_a_second": [],
+      "read_as": "pwsh"
+     },
+     "sh": {
+      "accepted": 18,
+      "path": "/bin/sh",
+      "ran_a_second": [],
+      "read_as": "sh"
+     },
+     "zsh": {
+      "accepted": 18,
+      "path": "/bin/zsh",
+      "ran_a_second": [],
+      "read_as": "zsh"
+     }
+    },
+    "traps": 29
+   }
+  },
+  "windows": "skipped there (the shells by path); PowerShell children run in CI's Windows aelix leg (T22). The trap `analytics 'x&@SENT@'` runs a second command only where a batch file takes it (cmd), which this test does not run",
+  "observations_at_221dfbb": {
+   "py3.12": {
+    "shells": {
+     "bash": {
       "accepted": 17,
       "path": "/bin/bash",
       "ran_a_second": [],
@@ -6969,7 +7074,71 @@
     },
     "traps": 28
    }
+  }
+ },
+ "judgment_after_the_221dfbb_checks": {
+  "what": "221dfbb's is_single_kit_command against this commit's — the tables of tests/test_extension.py, the traps and random lines (seed 13) — for each line in bash, zsh, sh, pwsh and powershell, on Windows and not (cmd_may_read_the_arguments patched); a line's judgment computed, never run (<run>/round6/judge_compare.py)",
+  "lines": 37128,
+  "taken_now_but_not_before": [],
+  "left_alone_now_but_taken_before": 8172,
+  "of_them_not_on_windows": [
+   "powershell: !x/analytics status",
+   "powershell: & -c/analytics status",
+   "powershell: +x/analytics status",
+   "powershell: ,x/analytics status",
+   "powershell: -c/analytics",
+   "powershell: .5/analytics status",
+   "powershell: 1/analytics status",
+   "powershell: @x/analytics status",
+   "powershell: [x]/analytics status",
+   "pwsh: !x/analytics status",
+   "pwsh: & -c/analytics status",
+   "pwsh: +x/analytics status",
+   "pwsh: ,x/analytics status",
+   "pwsh: -c/analytics",
+   "pwsh: .5/analytics status",
+   "pwsh: 1/analytics status",
+   "pwsh: @x/analytics status",
+   "pwsh: [x]/analytics status"
+  ],
+  "left_alone_by_design": {
+   "zsh 'uv run -m aelix_analytics'": false,
+   "zsh 'uv run --module aelix_analytics'": false,
+   "zsh 'analytics run x &'": false,
+   "zsh 'sudo analytics run'": false,
+   "zsh 'uv run python -m aelix_analytics'": true,
+   "zsh 'analytics run x'": true,
+   "bash 'uv run -m aelix_analytics'": false,
+   "bash 'uv run --module aelix_analytics'": false,
+   "bash 'analytics run x &'": false,
+   "bash 'sudo analytics run'": false,
+   "bash 'uv run python -m aelix_analytics'": true,
+   "bash 'analytics run x'": true
   },
-  "windows": "skipped there (the shells by path); PowerShell children run in CI's Windows aelix leg (T22)"
+  "powershell_parser": "pwsh 7 (ParseInput, nothing run; <run>/round6/evidence/pwsh-program-word-parse.tsv): `1/…`, `.5/…`, `@x/…`, `[x]/…`, `+x/…`, `,x/…` parse as an expression with errors (nothing runs); `-c/analytics`, `!x/…`, `.venv/bin/python`, `.\\analytics`, `~/bin/analytics` as a command. pwsh 7.6 ran `./-c/analytics` for `-c/analytics` (a stand-in that made a file)"
+ },
+ "verification_after_the_221dfbb_checks": {
+  "ruff": "pass",
+  "aelix_py3.12": "833 passed in 130.27s (0:02:10)",
+  "aelix_py3.11": "833 passed in 126.86s (0:02:06)",
+  "repository_suite": {
+   "command": "uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread",
+   "result": "1966 passed, 107 skipped in 845.34s (0:14:05)",
+   "evidence_dir": "AELIX_ANALYTICS_TEST_EVIDENCE_DIR=<run>/round6/evidence/final/observations"
+  },
+  "check_docs": {
+   "ok": true,
+   "counts": {
+    "json_files": 13,
+    "markdown_files": 66,
+    "local_links": 729,
+    "python_examples": 6,
+    "json_examples": 7,
+    "dev_state_examples": 1
+   },
+   "errors": []
+  },
+  "git_diff_check": "the worktree against origin/main, no output",
+  "not_run_again": "the distribution E2E, layers and contracts, the launcher, the usage report, the platform smokes and the opt-in FAT/exFAT run: no code they run changed (verification keeps 221dfbb's)"
  }
 }
