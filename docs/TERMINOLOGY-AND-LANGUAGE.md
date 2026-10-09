@@ -106,9 +106,11 @@ SDK `scan`은 지연 데이터 읽기이고 정적 코드 스캔은 `static_scan
 | `todo` / Next step | 해야 할 작업 | 질문의 답이나 실행 run |
 | `note` / Note | 별도 종류가 없는 자유 메모 | 모든 journal 사건을 뜻하는 상위 이름 |
 | `workflow_feedback` / Workflow feedback | 분석 도구를 쓰며 막히거나 불편했던 점 | 데이터의 결측 gap, 분석 결론, GitHub Issue |
-| Insights | Findings·Reuse proposals·기록 상태를 읽는 화면 | `insight`라는 중복 원본 종류를 자동 신설하지 않음 |
-| `reuse_proposal` / Reuse proposal | 함수·모듈·패키지·skill로 발전시킬 재사용 후보 | 데이터에 대한 분석 발견 |
-| Skill / Reusable code | 사용·해석·검사 절차 / 실제 계산 구현 | 둘을 한 가지 형식으로 통합하지 않음 |
+| Insights | Findings·Asset candidates·기록 상태를 읽는 화면 | `insight`라는 중복 원본 종류를 자동 신설하지 않음 |
+| Analysis asset / 분석 자산 | 검사·등록 경로로 발전시키는 계산 구현 또는 사용 절차 | 등록·실행·유용성은 별개. #17 구현 전 계약은 [ADR-0010](decisions/0010-analysis-assets-and-suggestion-records.md) |
+| `asset_candidate` / Asset candidate | 함수·모듈·패키지·skill로 발전시킬 자산 후보 | 분석 발견, 실제 등록본. 기존 `reuse_proposal`은 과거 종류 그대로 읽음 |
+| Asset suggestion | 정책을 통과했거나 명시적으로 요청한 후보 안내 | 후보 작성·검사·수락·등록·실행과 구별 |
+| Skill / Analysis code | 사용·해석·검사 절차 / 실제 계산 구현 | 둘을 한 가지 형식으로 통합하지 않음 |
 | `checkpoint` / Analysis checkpoint | 근거를 연결한 작업 구간 요약 | 전체 데이터 스냅샷·트랜잭션 복구 지점 |
 | Context / Project memory | 지금 필요한 작업 맥락 / 검색·재개 가능한 프로젝트 지식 | 사용자 개인 메모리, 전체 대화 덤프 |
 | `event` / Journal entry / Timeline | 기록된 사건 / journal 항목 / 시간 흐름을 읽는 화면 | 세 이름을 별도 진실 저장소로 만들지 않음 |

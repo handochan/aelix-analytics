@@ -2,6 +2,10 @@
 
 작성: 2026-09-18 · 개정: 2026-10-05 · 상태: 설계 제안. 요청 시 기본값, 계수 단위와 베타 상시 모드의 범위는 [ADR-0008](decisions/0008-reuse-proposal-counting-and-deterministic-always-on.md)로 채택했다.
 아래 설정은 아직 구현에 없는 후보 계약이다.
+2026-10-09 사용자 용어 요청에 따라 #17은 Analysis asset / Asset candidate / Asset suggestion으로 구현한다.
+[ADR-0010](decisions/0010-analysis-assets-and-suggestion-records.md)과 [구현 계약](design/ANALYSIS-ASSETS.md)은
+새 kind·참조·설정(`asset_suggestions`)의 이름을 구체화한다. 아래 `reuse_*` 예시는 채택 당시 이름이며 기존 기록의 읽기를 보존한다.
+기본 모드·점수·창·확정 근거·등록 조건의 의미는 유지한다. 현재 runtime에 assets 기능이 있다는 뜻은 아니다.
 [제품 비전](PRODUCT.md)의 분석가 중심 원칙과 [재사용 수명주기](DESIGN-CONTINUITY-AND-REUSE.md#4-재사용-제안에서-라이브러리skill까지)를 구체화한다.
 내부 구현은 [아키텍처](ARCHITECTURE.md)의 ProposalPolicy 경계로 분리한다. 정책을 바꿔도 사용자 모드·거절·빈도·기록의 의미는 유지해야 한다.
 
