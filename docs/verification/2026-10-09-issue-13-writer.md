@@ -44,6 +44,13 @@ splatting·매개변수 나눔)를 찾아 함께 받지 않게 했습니다. 다
 두 판정의 비교, PowerShell 파서 퍼즈, 처리기 E2E — 뿐입니다(`measured_tree.after_the_ab45982_checks`). T22는 그 전 값과 같아 그대로 두었고
 (`agent_cli.same_after_the_ab45982_checks`), 함정 시험의 그 전 값은 `user_bash_shell_traps.observations_at_ab45982`에 두었습니다.
 
+그 뒤 그 처리(`c399fc3`, push하지 않음)의 PowerShell 점검이 고치면 좋을 것 하나를 냈습니다: 그 셸의 모든 스트림 리디렉션 `*>`·`*>>`·`*>&1`
+(`analytics status *> log.txt`)은 pwsh 7.6.5의 파서로 리디렉션 하나를 가진 kit 명령 하나인데, 판정은 `*`를 와일드카드로 먼저 읽어 받지 않고(둘째
+명령이 도는 쪽이 아닌 좁힘) 그것을 어디에도 적지 않았습니다. 그 처리(같은 제목의 코드 커밋, `c399fc3` 위)는 판정을 바꾸지 않고 확장의 주석과
+현재 계약 A·README에 적고 PowerShell 표에 줄 셋을 더했습니다. 다시 잰 것은 aelix 레그(T22와 함정 시험), 저장소 시험, 문서 검사, 두 판정의
+비교뿐입니다(`measured_tree.after_the_c399fc3_checks`). 두 판정의 비교를 다시 하며 `ab45982` 점검 뒤의 비교가 Windows 여부를 새 판정에만 넣어
+받지 않게 된 줄을 더 센 것을 찾아 다시 셌습니다(27,664 → 20,327; 새로 받는 줄 0은 그대로, `judgment_after_the_ab45982_checks.correction`).
+
 이 기록의 값은 모두 개발 기기(macOS)의 것입니다. `8d3695f`의 CI는 위 실패로 끝났고(`runs.at_8d3695f`), `221dfbb`는 push되어 이 판의 커밋을
 만들 때 CI가 돌고 있었으며(결과는 이 기록에서 읽지 않음), 이 판이 잰 코드는 아직 push하지 않아 CI 칸(`runs.code`·`legs`)은 `pending`입니다.
 
@@ -51,6 +58,7 @@ splatting·매개변수 나눔)를 찾아 함께 받지 않게 했습니다. 다
 
 | 항목 | 근거 |
 |---|---|
+| 다시 잰 코드(`c399fc3` 점검 뒤) | 커밋 `fix: leave more lines alone in the person's-shell judgment`(`c399fc3` 위, 같은 제목의 세 번째 커밋). 커밋 전 worktree에서 쟀고 그 커밋의 코드 파일은 재고 manifest(`measured_tree.after_the_c399fc3_checks`)의 것입니다. 코드의 변경은 확장의 주석과 시험 표의 행 셋뿐입니다 |
 | 다시 잰 코드(`ab45982` 점검 뒤) | 커밋 `fix: leave more lines alone in the person's-shell judgment`(`ab45982` 위, 같은 제목의 두 번째 커밋). 커밋 전 worktree에서 쟀고 그 커밋의 코드 파일은 재고 manifest(`measured_tree.after_the_ab45982_checks`)의 것입니다 |
 | 다시 잰 코드(`221dfbb` 점검 뒤) | 커밋 `fix: leave more lines alone in the person's-shell judgment`(`221dfbb` 위). 커밋 전 worktree에서 쟀고 그 커밋의 코드 파일은 재고 manifest(`measured_tree.after_the_221dfbb_checks`)의 것입니다 |
 | 다시 잰 코드(점검 뒤) | 커밋 `fix: answer the check of the corrected decisions`(`0504cc8` 위). 커밋 전 worktree에서 쟀고 그 커밋의 코드 파일은 재고 manifest(219개)의 것입니다 |
@@ -67,6 +75,7 @@ splatting·매개변수 나눔)를 찾아 함께 받지 않게 했습니다. 다
 | 격리(점검 뒤) | 같은 격리를 run 폴더 `round5/`에 두었습니다(신뢰 목록, 가짜 HOME). 판정을 실제 셸로 돌려 본 탐색은 scratchpad에서 했고, `~/.aelix`를 읽거나 나열하거나 stat하거나 쓰지 않았습니다 |
 | 격리(`221dfbb` 점검 뒤) | 같은 격리를 run 폴더 `round6/`에 두었습니다(신뢰 목록, 가짜 HOME). PowerShell의 파서로 프로그램 단어를 읽어 본 것(실행 없음)과 `-c/analytics` stand-in 실행은 run 폴더·scratchpad에서 했고, `~/.aelix`를 읽거나 나열하거나 stat하거나 쓰지 않았습니다 |
 | 격리(`ab45982` 점검 뒤) | 같은 격리를 run 폴더 `round7/`에 두었습니다(신뢰 목록, 가짜 HOME). pwsh 7.6.5로 인자를 찍는 stand-in에 줄을 넘겨 본 것, 퍼즈의 파스(실행 없음), 처리기 E2E와 함정 줄의 실행은 run 폴더에서 표식 파일만 만들었고(`touch`), zsh의 EXTENDED_GLOB 확인은 scratchpad에서 했습니다. `~/.aelix`를 읽거나 나열하거나 stat하거나 쓰지 않았습니다 |
+| 격리(`c399fc3` 점검 뒤) | 같은 격리를 run 폴더 `round8/`에 두었습니다(신뢰 목록, 가짜 HOME). 판정 비교와 `*>` 줄의 판정은 줄을 돌리지 않았고, 실제로 셸을 돌린 것은 함정 시험(그 시험의 빈 폴더와 표식 파일)뿐입니다. `~/.aelix`를 읽거나 나열하거나 stat하거나 쓰지 않았습니다 |
 | 격리 사고 | 구현 중(G4, 리뷰 전) 데모 프로젝트를 살피던 명령 하나에 `ls ~/.aelix/agent 2>/dev/null \| head -0`이 실수로 들어가 실행됐습니다. 출력은 보지 않고 버려졌고 아무것도 쓰지 않았습니다(run 폴더의 handoff와 PR 본문에 적음). 잰 명령은 `~/.aelix`를 읽거나 나열하지 않았습니다 |
 
 ## 결과
@@ -116,10 +125,23 @@ splatting·매개변수 나눔)를 찾아 함께 받지 않게 했습니다. 다
 | 함정 시험(실제 셸) | 위와 같은 시험(빈 폴더마다 돌려 `SENT`와 `touch`가 만드는 `analytics`를 봄) | 통과. 함정 줄 33개 가운데 kit 명령 하나로 판정한 것(POSIX 17, pwsh 5)이 이 기기의 셸에서 둘째 명령도 kit이 아닌 프로그램도 돌리지 않음 |
 | 저장소 시험 | `uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread` | 통과: 1,966 passed, 107 skipped(824초) |
 | 문서 검사 / `git diff --check origin/main` | `tools/check_docs.py` / 작업 트리 | `ok: true`, 오류 0(Markdown 66, 로컬 링크 729) / 출력 없음 |
-| 판정 비교 | `ab45982`의 `is_single_kit_command`와 이 판의 것을 표의 행·함정 줄·무작위 줄(`*?{},#:=`를 더한 글자) 37,287개에 셸 다섯과 Windows 여부로(줄을 돌리지 않음) | 새로 받는 줄 0. 받던 줄 가운데 27,664(셸·Windows 여부별 합)를 받지 않게 됨: 무작위 줄에 더한 패턴 글자 탓이 대부분이고, 받는 줄 표의 행은 모두 그대로 받음 |
+| 판정 비교 | `ab45982`의 `is_single_kit_command`와 이 판의 것을 표의 행·함정 줄·무작위 줄(`*?{},#:=`를 더한 글자) 37,287개에 셸 다섯과 Windows 여부로(줄을 돌리지 않음) | 새로 받는 줄 0. 받던 줄 가운데 20,327(셸·Windows 여부별 합)를 받지 않게 됨: Windows 밖의 12,415 가운데 8,974가 무작위 줄에 더한 글자 `*?{},#:=`를 가지며, 받는 줄 표의 행은 모두 그대로 받음. 처음 적은 27,664는 비교 스크립트가 Windows 여부를 이 판의 판정에만 넣어, `ab45982`에도 있던 Windows 규칙이 받지 않는 줄까지 센 수입니다(`c399fc3` 점검 처리에서 두 판정 모두에 넣어 다시 셈, `judgment_after_the_ab45982_checks.correction`) |
 | 함정 줄을 두 판정으로 | 이 기기의 sh·bash·zsh·dash·ksh·pwsh로 함정 줄 33개를 판정하고 받은 줄을 돌림(`round7/evidence/traps-old-new.txt`) | `ab45982`는 sh·bash·zsh·ksh에서 `env -u {X,touch} analytics`, pwsh에서 `touch` 줄 셋을 받았고 그 줄은 `touch`로 `analytics` 파일을 만듦. 이 판은 그중 아무것도 받지 않음 |
 | 처리기 E2E | 확장의 `on_user_bash`를 `SHELL=pwsh`·`SHELL=bash`로, 답한 줄은 aelix 0.1.0b2의 로컬 셸로 돌림(가짜 HOME, 호출을 남기는 stand-in `analytics`) | `ab45982`는 `& 'touch'…/analytics`(큰따옴표·`.'touch'` 형태 포함)·`uv run 'touch'…/analytics`·`env -u {X,touch} …/analytics`에 셸을 돌려줘 `touch`가 표식을 만들었고, `uv run -p3.12 analytics status`에서는 uv가 `.12`를 띄우려 함. 이 판은 그 줄에 답하지 않음. `analytics status`는 둘 다 답하고 `human`으로 남음 |
 | PowerShell 파서 퍼즈 | 점검의 퍼즈(같은 스크립트, 시드 1–5, 이 판이 pwsh에서 받는 줄 3,000개씩)를 pwsh 7.6.5로 파스(실행 없음) | 명령 요소가 판정의 프로그램과 다르거나 단순 명령 하나가 아닌 줄 0. 단어가 다른 곳은 주석 뒤(판정이 따옴표 안의 `#…` 단어에서도 자름), kit 자신의 `-s: 'x'` 인자, 숫자 상수뿐이고, PowerShell 자신의 단어로도 모두 kit을 돌림 |
+
+**`c399fc3` 점검 뒤**(코드 커밋 `fix: leave more lines alone in the person's-shell judgment`, `c399fc3` 위; JSON
+`verification_after_the_c399fc3_checks`·`judgment_after_the_c399fc3_checks`). 판정은 바뀌지 않았고(확장의 주석과 시험 표의 행 셋), 같은 검사를
+다시 돌렸습니다.
+
+| 검사 | 명령 | 결과 |
+|---|---|---|
+| ruff | `uv run --locked ruff check tests extension src tools` | 통과 |
+| aelix 0.1.0b2, CPython 3.12 / 3.11 | `tests/test_extension.py tests/test_usage_report.py tests/test_agent_cli.py`(CONTRIBUTING의 격리 환경) | 통과: 963 passed / 963 passed(PowerShell 표에 `*>` 줄 셋 × 셸 둘을 더함) |
+| 함정 시험(실제 셸) | 위와 같은 시험 | 통과. 함정 줄 33개에 셸마다 받은 줄이 그 전과 같고, 둘째 명령도 kit이 아닌 프로그램도 돌리지 않음 |
+| 저장소 시험 | `uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread` | 통과: 1,966 passed, 107 skipped(825초) |
+| 문서 검사 / `git diff --check origin/main` | `tools/check_docs.py` / 작업 트리 | `ok: true`, 오류 0(Markdown 66, 로컬 링크 729) / 출력 없음 |
+| 판정 비교 | `c399fc3`의 `is_single_kit_command`와 이 판의 것을 표의 행·함정 줄·`*>` 줄·무작위 줄 37,292개에 셸 다섯과 Windows 여부로(두 판정 모두 Windows 여부를 넣음, 줄을 돌리지 않음) | 같음: 받는 줄도 받지 않는 줄도 하나도 다르지 않음. `*>`·`*>>`·`*>&1`은 pwsh·powershell·bash·zsh에서(Windows 여부와 상관없이) 그 전에도 이 판에도 받지 않음 |
 
 ## writer 지연(`writer_latency`, 11.5절)
 
@@ -308,6 +330,8 @@ JSON의 값을 그대로 두었습니다. 함정 시험은 줄마다 빈 폴더�
 봅니다. 그 줄 넷(`& 'touch'<폴더>/analytics`와 그 큰따옴표·점 소싱 형태, `env -u {X,touch} analytics`)을 더했고, 그 전 판정은 그 줄을 받아
 `touch`가 돌았습니다(`judgment_after_the_ab45982_checks.trap_lines_old_and_new`). 처리기를 aelix의 로컬 셸까지 돌린 E2E와 PowerShell 파서 퍼즈는
 같은 JSON 키에 있습니다.
+`c399fc3` 점검 뒤(판정 그대로) 다시 남긴 T22 관찰도 그 전 값과 같아(`agent_cli.same_after_the_c399fc3_checks`) 위 표와 JSON의 값을 그대로
+두었고, 함정 시험도 셸마다 같은 줄을 받았습니다(`user_bash_shell_traps.same_after_the_c399fc3_checks`).
 
 | 경우 | 결과 |
 |---|---|
@@ -376,9 +400,12 @@ src/aelix_analytics`; `__pycache__`는 추적하지 않음) 측정 전체를 다
 
 `ab45982` 점검 뒤의 판(2026-10-09, run 폴더 `round7/`)도 같은 격리로 판정이 닿는 부분만 다시 쟀습니다(`measured_tree.after_the_ab45982_checks`).
 
+`c399fc3` 점검 뒤의 판(2026-10-09, run 폴더 `round8/`)은 판정이 바뀌지 않아 aelix 레그·저장소 시험·문서 검사·판정 비교만 같은 격리로 다시
+돌렸고(`measured_tree.after_the_c399fc3_checks`), PowerShell 파서 퍼즈와 처리기 E2E는 `ab45982` 점검 뒤의 값을 둡니다.
+
 ## 실행하지 않은 것
 
-- 이 판의 커밋(`ab45982` 점검 처리, `ab45982`도 push하지 않음)의 저장소 CI(Linux·Windows·macOS 레그, `pending`: 아직 push하지 않음; `221dfbb`의 CI는 이 커밋을 만들 때 돌고 있었음). Linux의 `renameat2`(ctypes), Windows의
+- 이 판의 커밋(`c399fc3` 점검 처리, `ab45982`·`c399fc3`도 push하지 않음)의 저장소 CI(Linux·Windows·macOS 레그, `pending`: 아직 push하지 않음; `221dfbb`의 CI는 이 커밋을 만들 때 돌고 있었음). Linux의 `renameat2`(ctypes), Windows의
   `rename_new` = `publish_new`, 런처의 `--no-project`와 응답 읽기를 Windows에서, Windows 전용 시험, T22의 PowerShell·cmd 자식과 `$'…'`를 포함한 줄,
   셸 군마다의 `!` 줄 표와 함정 시험(Windows는 건너뜀), AppleDouble 규칙(Windows의 junction `._x`), 고친 긴 필드 시험의 Windows 실행이 그 CI에 걸려 있습니다. `8d3695f`의 Windows 저장소 시험 단계는 35분 한도 가운데 1,789초를 썼습니다.
 - 실제 이동식 FAT·exFAT 매체와 Linux·Windows의 FAT·exFAT(macOS 디스크 이미지만).

@@ -80,7 +80,7 @@ kit 진입점으로 보지 않습니다(Windows는 그것을 cmd로 돌리고, c
 Windows에서는 확장자 없는 이름(`analytics`·`python`·`py`·`uv`)도 셸이 PATH·PATHEXT에서 배치 파일(버전 관리자의 shim 등)로 찾을 수 있으므로,
 어느 셸에서든 줄의 단어(리디렉션 대상 포함) 가운데 하나라도 cmd가 읽는 글자(`&`·`|`·`<`·`>`·`^`·`%`·`!`·`"`·`(`·`)`)를 가지면 받지 않습니다.
 그 글자는 따옴표나 이스케이프로만 단어에 들어가므로 보통의 kit 명령에는 없고, `analytics record note 'a & b'`·`'50% done'` 같은 줄은 Windows에서
-`agent`로 남습니다(좁힘). 그 명령은 파일이나 디스크립터로의 리디렉션(`> out.txt`·`>> log`·`< in.txt`·`2>&1`·`2>/dev/null`, PowerShell에서는 파일로의 출력과 병합 `n>&1`만)을 가질 수
+`agent`로 남습니다(좁힘). 그 명령은 파일이나 디스크립터로의 리디렉션(`> out.txt`·`>> log`·`< in.txt`·`2>&1`·`2>/dev/null`, PowerShell에서는 스트림 하나의 파일로의 출력 `n>`·`n>>`와 병합 `n>&1`만)을 가질 수
 있습니다. POSIX 셸로는 셸처럼 따옴표와 역슬래시를 풀어 읽고(줄 끝의 역슬래시와 줄바꿈인 줄 이음은 따옴표 밖과 큰따옴표 안에서 지움), 따옴표
 안이나 역슬래시 뒤의 연산자 문자는 단어입니다(`analytics record note 'a; b'`). PowerShell에서는 역슬래시가 이스케이프가 아니라 글자이고 따옴표
 안의 같은 따옴표 둘(`''`·`""`)이 하나이므로 그렇게 읽고, POSIX 셸로 읽어도 받는 줄만 받습니다.
@@ -106,7 +106,7 @@ Windows에서는 확장자 없는 이름(`analytics`·`python`·`py`·`uv`)도 �
 `*`·`?`·`[`(Unix에서 펼침), 단어 가운데의 `>`(`analytics>out`은 그 이름의 명령), 프로그램 앞의 리디렉션(`2>&1 analytics`는 `2>&1`이라는 명령),
 `>&` 바로 뒤에 따옴표 없는 1이 오지 않는 병합(`2>& 1`·`2>&'1'`은 그 셸의 파스 오류). `#` 뒤도 읽으므로 그 뒤의 연산자도 셉니다. kit을 부르고 둘째 명령이 없어도 받지 않는 줄이 있습니다: `uv run -m`·`--module aelix_analytics`(kit은
 `uv run … python -m aelix_analytics`나 `uv run analytics`로 부름), `sudo analytics …`(sudo는 자기 옵션을 받고 프로그램을 다시 찾음), 끝의 `&`
-(`analytics run x &`, 백그라운드 목록이지 단순 명령이 아님), 끝의 `;`(`analytics status;`, 뒤에 아무것도 없어도 연산자로 읽음). 그런 줄은 aelix가 하던 대로(다른 확장의 결과가 있으면 그 결과대로) 돌고, 그 안에서
+(`analytics run x &`, 백그라운드 목록이지 단순 명령이 아님), 끝의 `;`(`analytics status;`, 뒤에 아무것도 없어도 연산자로 읽음), PowerShell의 모든 스트림 리디렉션 `*>`·`*>>`·`*>&1`(`analytics status *> log.txt`·`analytics status *>&1`: pwsh 7.6.5의 파서는 리디렉션 하나를 가진 kit 명령 하나로 읽지만, 판정은 `*`를 와일드카드로 먼저 읽어 받지 않음. 확신이 없는 쪽으로 둔 좁힘, `c399fc3`의 점검). 그런 줄은 aelix가 하던 대로(다른 확장의 결과가 있으면 그 결과대로) 돌고, 그 안에서
 부른 kit은 프로세스 환경대로 `agent`·`declared`로 기록합니다(`cd proj && analytics status`도 그렇습니다).
 한계: 출처 기록이지 인증이 아닙니다(명령이 변수를 지우거나 바꾸면 그대로 기록합니다). aelix 0.1.0b2는 `user_bash` 처리기들이 돌려준
 결과(`UserBashResult`) 가운데 종류와 상관없이 마지막 것 하나만 씁니다: 셸을 바꾸는 결과(`operations`)든 실행을 대신하거나 막는 결과

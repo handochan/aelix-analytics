@@ -1770,6 +1770,12 @@ POWERSHELL_NOT_A_SINGLE_KIT_COMMAND = [
     "2>&1 analytics status",
     "& 2>&1 analytics status",
     "uv run --with #x analytics status",
+    # Its all-streams redirection, which pwsh 7.6 parses as one kit command with one redirection: both
+    # readings take the `*` for a wildcard first, so the line is left alone all the same (a conservative
+    # leave, the check of 2026-10-09 of c399fc3, CONTRACTS A).
+    "analytics status *> log.txt",
+    "analytics status *>> log.txt",
+    "analytics status *>&1",
     # Not the kit.
     "Get-ChildItem analytics",
     r"C:\pack\bin\analytics.cmd status",

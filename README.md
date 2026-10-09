@@ -261,7 +261,7 @@ PNG 차트는 모델이 이미지 입력을 받을 때 `analytics_run` 결과에
 부른 것은 `human`으로 기록됩니다(aelix가 그 줄을 돌릴 셸 — POSIX 셸이나 PowerShell — 로 읽어 줄 전체가 kit 명령 하나일 때. `cd proj &&
 analytics status`처럼 다른 명령과 합친 줄, `$HOME`·`$'…'`처럼 셸이 펼치는 `$`가 든 줄, cmd·fish 같은 다른 셸의 줄, Windows에서 cmd가 읽는
 글자(`&`·`|`·`%`·`"` 등)를 따옴표로 담은 줄(`'a & b'`; 이름이 배치 파일로 풀리면 cmd가 인자를 다시 읽음), 셸이 단어 여럿으로 펼치는
-패턴·중괄호가 따옴표 밖에 든 줄(`*.csv`·`{a,b}`), PowerShell이 단어를 POSIX 셸과 달리 나누는 줄(`'a'b`·`-p3.12`·`a,b`·`@x`), `uv run -m aelix_analytics`·`sudo analytics`·끝의
+패턴·중괄호가 따옴표 밖에 든 줄(`*.csv`·`{a,b}`), PowerShell이 단어를 POSIX 셸과 달리 나누는 줄(`'a'b`·`-p3.12`·`a,b`·`@x`), `uv run -m aelix_analytics`·`sudo analytics`·PowerShell의 모든 스트림 리디렉션(`*> log.txt`·`*>&1`)·끝의
 `&`·`;`처럼 판정이 받지 않는 형태의 kit 기록은 `agent`입니다). aelix 밖의 에이전트(다른 코딩 에이전트, 자동화)가 `analytics`나 SDK를 부르게 한다면 그 에이전트의 셸에
 `AELIX_ANALYTICS_ACTOR=agent`를 설정하세요. 설정하지 않으면 사람의 기록(`human`·`inferred`)으로 남습니다. 출처 기록이지 인증이 아닙니다.
 한계: aelix 0.1.0b2는 `!` 명령에 대한 확장들의 답 가운데 마지막 것 하나만 씁니다. 그래서 `!` 명령을 막거나 다른 실행기(샌드박스·원격

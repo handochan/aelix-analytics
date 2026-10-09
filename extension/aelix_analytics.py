@@ -1156,7 +1156,9 @@ def put_the_session_in_the_environment(session) -> None:
 # as `uv run … python -m aelix_analytics` or `analytics`), `sudo analytics …` (sudo takes options of its
 # own), a trailing `&` (a list in the background, not a simple command) and a trailing `;` (an
 # operator here, though nothing follows it), and in PowerShell a mid-word quote in a program word
-# (`ana'lytics'`, which it does run as `analytics`).
+# (`ana'lytics'`, which it does run as `analytics`) and its all-streams redirection `*>`, `*>>`,
+# `*>&1` (`analytics status *> log.txt` is one command with one redirection there, pwsh 7.6's
+# parser; both readings here take its `*` for a wildcard first: a conservative leave, CONTRACTS A).
 # For such a line the handler returns nothing: aelix runs it as it would, another extension's block or
 # shell included, and a kit call in it records `agent`/declared from the process environment. So the
 # handler sets another extension's answer aside for that one kit command only (CONTRACTS A).
@@ -1206,14 +1208,16 @@ POWERSHELL_OPERATOR_CHARS = frozenset("();<>|&{}")
 # (`*` `?` `[`), a brace (`{a,b}` in bash, zsh and ksh; `{ab}` with zsh's BRACE_CCL) and zsh's
 # EXTENDED_GLOB patterns (`^`, and `#` `~` inside a word), which a startup file may turn on. An option's
 # value made so may become two words, and the next one the program (`env -u {X,touch} analytics` runs
-# `touch`). PowerShell expands `*` `?` `[` on Unix too (its native globbing).
+# `touch`). PowerShell expands `*` `?` `[` on Unix too (its native globbing); a `*` right before `>`
+# is its all-streams redirection there, not a pattern, and is left alone all the same (see above).
 SHELL_PATTERN_CHARS = frozenset("*?[{^")
 SHELL_PATTERN_CHARS_IN_A_WORD = frozenset("#~")
 # The redirections one simple command may carry, with a descriptor number before them: to or from a
 # file or a descriptor. A here-document or here-string (`<<`, `<<<`), `&>` (in a POSIX shell, `&` and
 # then `>`), `<(` and `>(` are not among them. PowerShell's are a stream's to a file (`>`, `2>>`) and
 # its merge `n>&1` (`<` is reserved there, and a `>&` it does not take may leave `&` its background
-# operator: `x>&touch y` runs `touch y`).
+# operator: `x>&touch y` runs `touch y`); its all-streams `*>`, `*>>`, `*>&1` are not taken (the
+# readings stop at the `*` first, see above).
 REDIRECTION = re.compile(r"[0-9]*(?:>>|>\||>&|<&|<>|<|>)")
 POWERSHELL_REDIRECTION = re.compile(r"[1-6]?(?:>>|>)")
 POWERSHELL_MERGE = re.compile(r"[1-6]>&")
@@ -1380,9 +1384,11 @@ def _powershell_words(line: str) -> list[tuple[str, bool]]:
     (POWERSHELL_PARAMETER: `-p3.12` reaches a program as `-p3` and `.12`); an unquoted `,` (its array
     operator: an array reaches a program as its source text split at spaces, `a, "b c"` as `a,` `"b`
     `c"`); `@` starting a word (splatting: `@args` is no word at all); `]` starting a word (another
-    word there); a wildcard `*` `?` `[` (it expands them on Unix); a `>` or `<` right after other text
-    in a word but a descriptor number (`x>y` is one word there, and `analytics>out` its command name);
-    and a merge `>&` not followed by 1 right away (`2>& 1`, `2>&'1'` are parse errors there)."""
+    word there); a wildcard `*` `?` `[` (it expands them on Unix; the `*` of its all-streams
+    redirection `*>` `*>>` `*>&1` is read so too, which leaves that redirection alone); a `>` or `<`
+    right after other text in a word but a descriptor number (`x>y` is one word there, and
+    `analytics>out` its command name); and a merge `>&` not followed by 1 right away (`2>& 1`,
+    `2>&'1'` are parse errors there)."""
     reader, i, n = _Reader(), 0, len(line)
     while i < n:
         c = line[i]

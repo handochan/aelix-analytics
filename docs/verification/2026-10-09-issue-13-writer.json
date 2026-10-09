@@ -127,14 +127,32 @@
    "kept": {
     "everything else": "not measured again: the change is the user_bash judgment in extension/aelix_analytics.py and its tests; no kit, launcher, migration or writer code changed, and the entry-point matrix holds no `!` line"
    }
+  },
+  "after_the_c399fc3_checks": {
+   "what": "the fix of the PowerShell check of c399fc3 (one should-fix): PowerShell's all-streams redirection `*>`, `*>>`, `*>&1` (`analytics status *> log.txt`, one kit command with one redirection by pwsh 7.6.5's parser) was left alone by the judgment (both readings take its `*` for a wildcard first) without being said. It stays left alone (the stricter side) and is now said in the extension's comments, CONTRACTS A and README, with three rows in the PowerShell left-alone table; the judgment itself is unchanged. Measured on the worktree before the commit, which holds the same files (the manifest)",
+   "previous_head": "c399fc3d006b2e9ff37ab01472a8c21dfb847803",
+   "code_commit": "the commit holding this record (fix: leave more lines alone in the person's-shell judgment (Issue #13 PR 3), over c399fc3): its code files are the manifest's",
+   "manifest_sha256": "58ca05b05d266682fa104ac29bddc40471ce1339e4d439239a3875049fd043c1",
+   "manifest_files": 219,
+   "remeasured_at": "2026-10-09T06:29:58Z",
+   "measured_again": [
+    "agent_cli (T22, the same as c399fc3)",
+    "user_bash_shell_traps (the same 33 lines, the same lines taken)",
+    "verification_after_the_c399fc3_checks (ruff, the aelix legs, the repository suite, check_docs, git diff --check)",
+    "judgment_after_the_c399fc3_checks (c399fc3's judgment against this one: the same)"
+   ],
+   "kept": {
+    "everything else": "not measured again: the change is comments in extension/aelix_analytics.py and three rows of tests/test_extension.py; no kit, launcher, migration or writer code changed, nor the judgment",
+    "parser fuzz and handler end to end": "kept from judgment_after_the_ab45982_checks: the judgment is the same line for line (judgment_after_the_c399fc3_checks)"
+   }
   }
  },
  "workflow": ".github/workflows/ci.yml: the aelix legs run tests/test_agent_cli.py too and keep their observations (evidence-aelix-py3.12/3.11)",
  "runs": {
   "code": {
    "state": "pending",
-   "measured_commit": "the commit holding this record (fix: leave more lines alone in the person's-shell judgment (Issue #13 PR 3), over ab45982), manifest sha256 8ff4d391da98…",
-   "why": "not pushed yet; ab45982 was not pushed either, and 221dfbb (the pushed head) had its CI running when this commit was made (its result is not read here); 8d3695f's CI is at_8d3695f"
+   "measured_commit": "the commit holding this record (fix: leave more lines alone in the person's-shell judgment (Issue #13 PR 3), over c399fc3), manifest sha256 58ca05b05d26…",
+   "why": "not pushed yet; ab45982 and c399fc3 were not pushed either, and 221dfbb (the pushed head) had its CI running when this commit was made (its result is not read here); 8d3695f's CI is at_8d3695f"
   },
   "at_8d3695f": {
    "what": "PR #84's CI of the earlier head",
@@ -311,7 +329,8 @@
   "a first run of this measurement (2026-10-08T20:06:50Z) had the kit's bytecode stale after the edits (PYTHONDONTWRITEBYTECODE=1 in the run's environment), so each child compiled the kit as it started: max RSS 44 / 86 MB (S / M), migration wall 1.10 / 9.11 s, the other values within noise of the second run. The kit's bytecode was compiled (python -m compileall src/aelix_analytics; __pycache__ is not tracked) and the whole measurement run again; its values are recorded here, and the first run's files are in the run folder (fix/measure-stale-pyc). The previous record's measurement had current bytecode",
   "this round (after the owner's decisions of 2026-10-09) ran with a fake HOME in the run folder (UV_CACHE_DIR and UV_PYTHON_INSTALL_DIR the real ones): the usage report's one text that differs from the earlier report is aelix's base prompt naming the global extension directory under HOME; the kit's bytecode was compiled before the measurement (python -m compileall src/aelix_analytics); the machine was busy (migration.timing_under_load)",
   "the round after the owner's corrected decisions (2026-10-09, https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6072183477) ran with the same isolation (a fake HOME in the run folder); it measured again only what the code change touches (measured_tree.after_corrected_decisions) and kept every other value",
-  "the round answering the check of the corrected decisions (2026-10-09) ran with the same isolation (a fake HOME in the run folder, round5/); it measured again only what the code change touches (measured_tree.after_check_of_corrected_decisions) and kept every other value; its exploratory runs of the judgment in real shells stayed in the scratchpad, and the suite's trap test is what the record keeps"
+  "the round answering the check of the corrected decisions (2026-10-09) ran with the same isolation (a fake HOME in the run folder, round5/); it measured again only what the code change touches (measured_tree.after_check_of_corrected_decisions) and kept every other value; its exploratory runs of the judgment in real shells stayed in the scratchpad, and the suite's trap test is what the record keeps",
+  "the round answering the PowerShell check of c399fc3 (2026-10-09, round8/) ran with the same isolation (a fake HOME in the run folder); the judgment did not change, so it measured again only the aelix legs, the repository suite, check_docs and the judgment against c399fc3's, and recounted ab45982's comparison (judgment_after_the_ab45982_checks.correction)"
  ],
  "verification": {
   "repository_suite": {
@@ -6040,7 +6059,8 @@
   "check_of_corrected_decisions": "a blocking extension registered first and the `!` line `<kit record note> $'Q3\\'s numbers' ; echo T22-SECOND-RAN  # it's fine` (the check's line: bash and zsh read `$'…'` with an escaped quote, so the `;` is real there): in both orders the line stays blocked and nothing is written (the earlier code returned its shell for it, and the second command ran past the block)",
   "same_after_the_221dfbb_checks": "true: T22 observed again on this round's code (<run>/round6/evidence/final/observations-aelix-py3.12 and -py3.11) is the same as py3.12/py3.11 above (221dfbb's) but for the kit's build time and temporary paths, so the values above are kept",
   "windows_batch_file": "not_run: a bare name resolving to a batch file under PowerShell on Windows, whose arguments cmd reads again (the 221dfbb check's must-fix, PLAUSIBLE there: no Windows host). T22's lines name this interpreter's python.exe by its path and hold none of cmd's characters, so they are judged the same on Windows; the narrowing itself is tested in tests/test_extension.py with Windows patched in",
-  "same_after_the_ab45982_checks": "true: T22 observed again on this round's code (<run>/round7/evidence/final/observations-aelix-py3.12 and -py3.11) is the same as py3.12/py3.11 above but for the kit's build time and temporary paths, so the values above are kept. T22's lines (this interpreter's path, `-m aelix_analytics`, `echo`, `;`, `$'…'`) hold no character the narrowing reads"
+  "same_after_the_ab45982_checks": "true: T22 observed again on this round's code (<run>/round7/evidence/final/observations-aelix-py3.12 and -py3.11) is the same as py3.12/py3.11 above but for the kit's build time and temporary paths, so the values above are kept. T22's lines (this interpreter's path, `-m aelix_analytics`, `echo`, `;`, `$'…'`) hold no character the narrowing reads",
+  "same_after_the_c399fc3_checks": "true: T22 observed again on this round's code (<run>/round8/evidence/final/observations-aelix-py3.12 and -py3.11) is the same as py3.12/py3.11 above but for the kit's build time and temporary paths, so the values above are kept (the judgment did not change)"
  },
  "foreign_fs": {
   "what": "FAT32 and exFAT disk images (hdiutil, fskit, nobrowse) on macOS 26.6.2, measured by group G3 on b7856c6 (src unchanged since): the port, the shipped migration, and a probe passing over macOS's AppleDouble files (the keys mnt-fat and mnt-exfat; the shipped code after the owner's decisions is under shipped_after_owner_decisions)",
@@ -6501,7 +6521,7 @@
   "note": "PR 2's record of the engine; its fixtures were made by PR 2's generator, these by this checkout's with that commit's kit (--kit-root): see migration.fixture_reproducibility"
  },
  "not_run": [
-  "the repository CI of this round's commit (fix: leave more lines alone in the person's-shell judgment (Issue #13 PR 3), over ab45982) on Linux, Windows and the macOS label run (pending: not pushed yet; 221dfbb's CI was running); the user_bash tables, the trap test (Linux: sh, bash, pwsh when installed), T22 with PowerShell children on Windows and the AppleDouble rules then run there; its Windows repository step took 1,789 s of its 35 minutes at 8d3695f",
+  "the repository CI of this round's commit (fix: leave more lines alone in the person's-shell judgment (Issue #13 PR 3), over c399fc3) on Linux, Windows and the macOS label run (pending: not pushed yet; 221dfbb's CI was running); the user_bash tables, the trap test (Linux: sh, bash, pwsh when installed), T22 with PowerShell children on Windows and the AppleDouble rules then run there; its Windows repository step took 1,789 s of its 35 minutes at 8d3695f",
   "a bare `analytics`, `python`, `py` or `uv` that resolves to a batch file (a version manager's shim) under PowerShell or another shell on Windows, whose arguments cmd reads again: the 221dfbb check's must-fix is fixed by leaving such lines alone, but no Windows host ran it here, and no test starts a batch file",
   "PowerShell's word rules the ab45982 check's fix reads (a quoted text starting a word, a mid-word quote, `-p3.12`, `,`, `@`, `]`, a `>` inside a word, a redirection first) under Windows PowerShell 5.1 or pwsh on Windows: measured with pwsh 7.6.5 on macOS only (no Windows host); on Windows pwsh does not expand wildcards, which the judgment leaves alone anyway. zsh's EXTENDED_GLOB patterns (`^`, `#` and `~` inside a word) were run with `setopt extendedglob` in a scratch folder, not through a startup file",
   "a real removable FAT or exFAT medium, and FAT/exFAT on Linux or Windows (macOS disk images only)",
@@ -7177,7 +7197,8 @@
     },
     "traps": 29
    }
-  }
+  },
+  "same_after_the_c399fc3_checks": "true: the trap test run again on this round's code (<run>/round8/evidence/final/observations-aelix-py*/issue-13-writer/user-bash-shell-traps.json) took the same lines in each shell and ran no second command and no other program, so the observations above are kept"
  },
  "judgment_after_the_221dfbb_checks": {
   "what": "221dfbb's is_single_kit_command against this commit's — the tables of tests/test_extension.py, the traps and random lines (seed 13) — for each line in bash, zsh, sh, pwsh and powershell, on Windows and not (cmd_may_read_the_arguments patched); a line's judgment computed, never run (<run>/round6/judge_compare.py)",
@@ -7248,7 +7269,7 @@
   "what": "ab45982's is_single_kit_command against this commit's — the tables of tests/test_extension.py, the traps and random lines (seed 13, the alphabet of 221dfbb's comparison and `*?{},#:=`) — for each line in bash, zsh, sh, pwsh and powershell, on Windows and not (cmd_may_read_the_arguments patched); a line's judgment computed, never run (<run>/round7/judge_compare.py)",
   "lines": 37287,
   "taken_now_but_not_before": [],
-  "left_alone_now_but_taken_before": 27664,
+  "left_alone_now_but_taken_before": 20327,
   "left_alone_by_design": {
    "zsh 'uv run -m aelix_analytics'": false,
    "zsh 'uv run --module aelix_analytics'": false,
@@ -7265,7 +7286,8 @@
   },
   "trap_lines_old_and_new": "<run>/round7/evidence/traps-old-new.txt: run in this machine's sh, bash, zsh, dash, ksh and pwsh, ab45982's judgment took `env -u {X,touch} analytics` in sh, bash, zsh and ksh and the three `touch` lines in pwsh, and each made the file `analytics` (another program than the kit); this commit's takes none of them",
   "handler_end_to_end": "<run>/round7/evidence/e2e-handler.txt: the extension's on_user_bash under SHELL=pwsh and SHELL=bash, and aelix 0.1.0b2's own local shell running a line it answers (a fake HOME, a stand-in `analytics` logging its calls). ab45982 answered `& 'touch'<dir>/analytics` (also double-quoted and `.'touch'`), `uv run 'touch'<dir>/analytics` and `env -u {X,touch} <dir>/analytics`, and `touch` made each marker; it also answered `uv run -p3.12 analytics status`, where uv tried to spawn `.12`. This commit answers none of them; `analytics status` is answered by both and logged as `human`",
-  "powershell_parser_fuzz": "the check's fuzz (<run>/round7/fuzz, its fuzz.py, ast.ps1 and compare2.py unchanged; seeds 1-5, 3,000 lines this commit takes in pwsh each) parsed by pwsh 7.6.5 (ParseInput, nothing run): no line whose command element is not the reader's program or is not one simple command; the words differ only after a comment (a quoted `#…` word the reading cuts as well), in a `-s: 'x'` parameter of the kit's own and in number constants, and PowerShell's own words run the kit in every parsed line (kitcheck.py: parsed 14985, not running the kit by PowerShell's own words: 0)"
+  "powershell_parser_fuzz": "the check's fuzz (<run>/round7/fuzz, its fuzz.py, ast.ps1 and compare2.py unchanged; seeds 1-5, 3,000 lines this commit takes in pwsh each) parsed by pwsh 7.6.5 (ParseInput, nothing run): no line whose command element is not the reader's program or is not one simple command; the words differ only after a comment (a quoted `#…` word the reading cuts as well), in a `-s: 'x'` parameter of the kit's own and in number constants, and PowerShell's own words run the kit in every parsed line (kitcheck.py: parsed 14985, not running the kit by PowerShell's own words: 0)",
+  "correction": "recounted in the fix of the c399fc3 check: <run>/round7/judge_compare.py patched cmd_may_read_the_arguments in this commit's judgment only, so on the Windows half ab45982's judgment ran without its own Windows rule, and the lines that rule leaves alone in both counted as narrowed (27664 at first). Both judgments given the flag (<run>/round8/recheck-r7, c399fc3's tests and tree, the same 37287 lines): 20327 narrowed (12415 off Windows, 8974 of them holding one of the added `*?{},#:=`), none taken now but not before (the same as at first: without its Windows rule ab45982 took a superset)"
  },
  "verification_after_the_ab45982_checks": {
   "ruff": "pass",
@@ -7290,5 +7312,51 @@
   },
   "git_diff_check": "the worktree against origin/main, no output",
   "not_run_again": "the distribution E2E, layers and contracts, the launcher, the usage report, the platform smokes and the opt-in FAT/exFAT run: no code they run changed (verification keeps 221dfbb's)"
+ },
+ "judgment_after_the_c399fc3_checks": {
+  "what": "c399fc3's is_single_kit_command against this commit's — the tables of tests/test_extension.py (the three `*>` rows included), the traps, the `*>` lines and random lines (seed 13, the alphabet of ab45982's comparison) — for each line in bash, zsh, sh, pwsh and powershell, on Windows and not (cmd_may_read_the_arguments patched in both); a line's judgment computed, never run (<run>/round8/judge_compare.py)",
+  "lines": 37292,
+  "same": true,
+  "taken_now_but_not_before": [],
+  "left_alone_now_but_taken_before": 0,
+  "left_alone_by_design": {
+   "zsh 'uv run -m aelix_analytics'": false,
+   "zsh 'uv run --module aelix_analytics'": false,
+   "zsh 'analytics run x &'": false,
+   "zsh 'sudo analytics run'": false,
+   "zsh 'uv run python -m aelix_analytics'": true,
+   "zsh 'analytics run x'": true,
+   "bash 'uv run -m aelix_analytics'": false,
+   "bash 'uv run --module aelix_analytics'": false,
+   "bash 'analytics run x &'": false,
+   "bash 'sudo analytics run'": false,
+   "bash 'uv run python -m aelix_analytics'": true,
+   "bash 'analytics run x'": true
+  },
+  "star_redirection_lines": "<run>/round8/probe/star-redirection.txt judged by c399fc3's and this commit's judgment in pwsh, powershell, bash and zsh, with the Windows flag and without (<run>/round8/evidence/star-redirection-judged.txt, 16 runs): `analytics report *> log.txt`, `*>> log.txt`, `*>&1` and `*>log.txt` left alone in every run; `> log.txt`, `>> log.txt`, `2>&1`, `3>&1` and `analytics status` taken in every run"
+ },
+ "verification_after_the_c399fc3_checks": {
+  "ruff": "pass",
+  "aelix_py3.12": "963 passed in 115.77s (0:01:55)",
+  "aelix_py3.11": "963 passed in 136.07s (0:02:16)",
+  "repository_suite": {
+   "command": "uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread",
+   "result": "1966 passed, 107 skipped in 825.37s (0:13:45)",
+   "evidence_dir": "AELIX_ANALYTICS_TEST_EVIDENCE_DIR=<run>/round8/evidence/final/observations"
+  },
+  "check_docs": {
+   "ok": true,
+   "counts": {
+    "json_files": 13,
+    "markdown_files": 66,
+    "local_links": 729,
+    "python_examples": 6,
+    "json_examples": 7,
+    "dev_state_examples": 1
+   },
+   "errors": []
+  },
+  "git_diff_check": "the worktree against origin/main, no output",
+  "not_run_again": "the distribution E2E, layers and contracts, the launcher, the usage report, the platform smokes, the opt-in FAT/exFAT run, the PowerShell parser fuzz and the handler end to end: no code they run changed and the judgment is the same (verification keeps 221dfbb's, the judgment's keeps ab45982's)"
  }
 }
