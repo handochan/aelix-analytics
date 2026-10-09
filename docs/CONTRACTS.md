@@ -650,7 +650,7 @@ Windows에서는 `analytics.exe`)로 부릅니다(kit 0.3.0 전의 `bin/lab`). �
   environment of DEST failed (uv sync --locked, exit N); the project's next command prepares it`를 적고 0으로 끝납니다(다음 명령은 다른 명령처럼
   `uv run --project`로 환경을 준비합니다). 준비하면 `analytics: the project is DEST now, and the source is as it was (in aelix: /analytics use DEST)`
   입니다. kit이 0이 아니면 그 종료 코드로 끝나고 아무것도 준비하지 않습니다.
-- `record KIND TEXT [--ref NAME]… [--resolves ID]`(kit 0.8.0): `KIND`는 `finding` `decision` `assumption` `question` `todo` `note`
+- `record KIND TEXT [--ref NAME]… [--resolves ID] [--details-json JSON] [--refs-json JSON]`(kit 0.9.0): `KIND`는 `finding` `decision` `assumption` `question` `todo` `note`
   `workflow_feedback` `metric_definition` `analysis_focus` `metric_observation` `resolve`이고, 그 밖의 값(옛 `gap` 포함)은 사용법 오류가 아니라 무엇도 쓰기 전에 `bad_kind`(`details: {kind, kinds}`, `gap`이면
   `use: workflow_feedback`)와 종료 코드 1입니다(그 전에는 argparse의 사용법 오류 2, `gap`은 받음). 본문의 상한은 C1(`text_too_long`), 참조의
   결박은 C1입니다. 같은 거절이 SDK의 `analytics.record`, 확장의 `analytics_record`·`/analytics record`에도 있습니다. 잠금 밖에서 알 수 있는

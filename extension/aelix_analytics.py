@@ -1067,8 +1067,9 @@ TOOLS = [
         "workflow_feedback (a missing capability or friction in this analysis tooling), metric_definition "
         "(a versioned draft or specified definition), analysis_focus (purpose and exact definitions), "
         "metric_observation (a declared result, exact definition, run and scope), or resolve "
-        "(closes the question/todo named in `resolves` without other content). Any kind may also "
-        "resolve an earlier entry, e.g. a finding that answers question e7. Cite evidence in refs: "
+        "(closes the question/todo named in `resolves` without other content). Ordinary journal kinds may also "
+        "resolve an earlier entry, e.g. a finding that answers question e7. Structured metric kinds "
+        "derive state relationships from details and reject caller state-changing refs. Cite evidence in refs: "
         "run ids, chart keys (scripts/x.py::chart-id), dataset names or event ids; the reply says "
         "how each was bound.",
         {"kind": {"type": "string", "enum": list(core.RECORD_KINDS)},
