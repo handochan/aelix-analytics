@@ -33,6 +33,8 @@ family는 `analytics.event/2` 그대로이며, 새 상세 계약의 tag는 `deta
 
 `record(kind, text, details=..., refs=...)`가 기존 기록 경로다. CLI는 `record <kind> <text> --details-json <JSON>`을
 추가하고, SDK `analytics.record`와 `analytics_record` 도구는 `details` 객체와 정확한 typed `refs`를 받는다.
+run 밖 SDK는 작성된 이벤트 ID를 포함한 응답을 반환한다. run 안의 기록은 최종 이벤트 ID가 아직 없으므로
+`pending=true`와 현재 run ID를 반환하고 최종 쓰기 오류는 run의 `finalize_errors`에 남긴다.
 CLI의 `--ref`는 기존 이름 입력을 유지한다. typed refs가 필요한 경우 `--refs-json <JSON array>`를 받는다.
 모델에 지표별 도구를 새로 상시 등록하지 않는다. `/analytics record` 명령도 같은 옵션을 사용한다.
 
@@ -41,6 +43,9 @@ CLI의 `--ref`는 기존 이름 입력을 유지한다. typed refs가 필요한 
 이미 바뀐 정의/초점을 수정하려는 요청은 `state_conflict`다. 판정은 맥락 동기화·lock 생성 전에 가능한 만큼 하고,
 잠금 안에서 journal을 다시 읽어 대상과 상태를 다시 판정한다. 거절은 새 기록이나 표식 버전 변경을 남기지 않는다.
 대상은 같은 프로젝트의 이전 seq에 유일하게 존재해야 한다. 장래 이벤트·최신 이름 추론을 허용하지 않는다.
+구조화 details가 생성할 관계의 정본이다. tagged 기록에 caller가 준 `supersedes`·`updates`·`resolves`는
+거절한다. 작성자가 details의 이전 정의/초점 필드와 다른 대상을 함께 바꾸거나 unrelated 기록을 숨길 수 없게 한다.
+같은 검사는 부수 효과 전과 잠금 안에서 한다. 상태를 바꾸지 않는 cites/supports/contradicts/질문 연결 참조는 허용한다.
 
 `request_id` 입력 공개는 #19 범위로 남긴다. 작성 출처는 기존 Origin과 진입점별 규칙 그대로다.
 
