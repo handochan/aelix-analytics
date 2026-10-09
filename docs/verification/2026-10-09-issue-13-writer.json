@@ -43,13 +43,39 @@
     "writer_latency": "not measured again: the record path did not change (the code changes are writer.project_above and writer.inside, init, the migration's judgment and exclusions, and the extension's user_bash tokenizer)",
     "fixture_reproducibility": "the same fixtures, cloned (cp -c) from the earlier measurement"
    }
+  },
+  "manifest_files_note": "every manifest of this record lists 219 files (the md once said 220 for the code after the owner's decisions; corrected after the owner's corrected decisions of 2026-10-09)",
+  "after_corrected_decisions": {
+   "what": "the owner's decisions of 2026-10-09 as corrected the same day (https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6072183477) over d0c766b: decision 3 — the user_bash handler returns its shell only for a `!` line that is, as a whole, one simple command calling a kit entry point (a line with any other operator or a second command is left alone, and a kit call in it records agent/declared); decision 2 — only regular files named `._<name>` (lstat) are AppleDouble, in the OQ4 exclusion, the OQ16 resume ignore list and the empty-folder judgment of init and of the migration's destination (step 1 and under the lock); the check's F1 gap (an AppleDouble file beside a cut first ledger line is no content, and a clearing that cannot remove the folder is refused with a hint); measured on the worktree before the code commit, which holds the same files (the manifest)",
+   "previous_head": "d0c766b0a4d7c37804ae11602a8cbcec1c94d824",
+   "code_commit": "eaf6dfe7ae55784a56dd6bbbe1a651bf4f3cfb7c",
+   "manifest_sha256": "f49c1ac8148834f60a9373d6a5d77211938d02b125af42cd8980482ee1a53637",
+   "manifest_files": 219,
+   "remeasured_at": "2026-10-09T01:37:15Z",
+   "measured_again": [
+    "agent_cli (T22)",
+    "entry_points",
+    "migration.fault_matrix (with the AppleDouble rows)",
+    "migration.appledouble",
+    "foreign_fs (FAT32, exFAT)",
+    "verification",
+    "distribution_e2e",
+    "new tests on d0c766b's code"
+   ],
+   "kept": {
+    "writer_latency": "not measured again: the record path did not change",
+    "migration S/M phases, sizes, preservation, reader_comparison, timing_under_load": "not measured again: the code change in the migration's walk is a regular-file check for names starting `._`, which the S and M fixtures do not hold (the fault matrix's 41 earlier rows, measured again, are the same)",
+    "command_e2e, uv (T18)": "not measured again: the launchers and the command did not change",
+    "fixture_reproducibility": "unchanged"
+   }
   }
  },
  "workflow": ".github/workflows/ci.yml: the aelix legs run tests/test_agent_cli.py too and keep their observations (evidence-aelix-py3.12/3.11)",
  "runs": {
   "code": {
    "state": "pending",
-   "why": "the head with these changes is not pushed yet"
+   "measured_commit": "eaf6dfe7ae55784a56dd6bbbe1a651bf4f3cfb7c",
+   "why": "the commits of this round (code eaf6dfe and the record) are not pushed yet; the last CI is 8d3695f's (at_8d3695f), and d0c766b was not pushed either"
   },
   "at_8d3695f": {
    "what": "PR #84's CI of the earlier head",
@@ -174,29 +200,53 @@
     "fault exit 0 2026-10-08T23:27:12Z",
     "e2e exit 0 2026-10-08T23:27:37Z"
    ]
+  },
+  "after_corrected_decisions": {
+   "isolation": "corrected/env.sh: AELIX_ANALYTICS_TRUST_FILE and AELIX_ANALYTICS_UV inside the run folder (uv a link to the real uv), a fake HOME in the run folder (UV_CACHE_DIR and UV_PYTHON_INSTALL_DIR the real ones), AELIX_LAB_*/LAB_* and the authorship variables unset; ~/.aelix not read, listed, stat-ed or written in this round",
+   "log": [
+    "head d0c766b0a4d7c37804ae11602a8cbcec1c94d824 2026-10-09T01:36:38Z dirty=15",
+    "ruff exit 0",
+    "pytest exit 0",
+    "install e2e exit 0",
+    "layers-contracts exit 0",
+    "aelix 3.12 exit 0",
+    "aelix 3.11 exit 0",
+    "launcher exit 0",
+    "usage exit 0",
+    "smoke exit 0",
+    "stdlib smoke exit 0",
+    "docs exit 0",
+    "diff-check (worktree vs origin/main) exit 0",
+    "done 2026-10-09T01:59:25Z"
+   ],
+   "measure_log": [
+    "fault start 2026-10-09T01:37:15Z head d0c766b0a4d7c37804ae11602a8cbcec1c94d824 dirty=15",
+    "fault exit 0 2026-10-09T01:37:32Z"
+   ]
   }
  },
  "measurement_notes": [
   "a first run of this measurement (2026-10-08T20:06:50Z) had the kit's bytecode stale after the edits (PYTHONDONTWRITEBYTECODE=1 in the run's environment), so each child compiled the kit as it started: max RSS 44 / 86 MB (S / M), migration wall 1.10 / 9.11 s, the other values within noise of the second run. The kit's bytecode was compiled (python -m compileall src/aelix_analytics; __pycache__ is not tracked) and the whole measurement run again; its values are recorded here, and the first run's files are in the run folder (fix/measure-stale-pyc). The previous record's measurement had current bytecode",
-  "this round (after the owner's decisions of 2026-10-09) ran with a fake HOME in the run folder (UV_CACHE_DIR and UV_PYTHON_INSTALL_DIR the real ones): the usage report's one text that differs from the earlier report is aelix's base prompt naming the global extension directory under HOME; the kit's bytecode was compiled before the measurement (python -m compileall src/aelix_analytics); the machine was busy (migration.timing_under_load)"
+  "this round (after the owner's decisions of 2026-10-09) ran with a fake HOME in the run folder (UV_CACHE_DIR and UV_PYTHON_INSTALL_DIR the real ones): the usage report's one text that differs from the earlier report is aelix's base prompt naming the global extension directory under HOME; the kit's bytecode was compiled before the measurement (python -m compileall src/aelix_analytics); the machine was busy (migration.timing_under_load)",
+  "the round after the owner's corrected decisions (2026-10-09, https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6072183477) ran with the same isolation (a fake HOME in the run folder); it measured again only what the code change touches (measured_tree.after_corrected_decisions) and kept every other value"
  ],
  "verification": {
   "repository_suite": {
    "command": "uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread",
-   "result": "1952 passed, 106 skipped in 899.88s (0:14:59)",
-   "evidence_dir": "AELIX_ANALYTICS_TEST_EVIDENCE_DIR=<run>/ci-fix/evidence/final/observations"
+   "result": "1963 passed, 107 skipped in 911.77s (0:15:11)",
+   "evidence_dir": "AELIX_ANALYTICS_TEST_EVIDENCE_DIR=<run>/corrected/evidence/final/observations"
   },
-  "layers_contracts": "126 passed, 52 skipped in 20.46s",
-  "aelix_py3.12": "253 passed in 95.86s (0:01:35)",
-  "aelix_py3.11": "253 passed in 89.91s (0:01:29)",
-  "launcher_py3.11": "196 passed, 1 skipped in 41.54s",
+  "layers_contracts": "126 passed, 52 skipped in 20.17s",
+  "aelix_py3.12": "303 passed in 91.70s (0:01:31)",
+  "aelix_py3.11": "303 passed in 94.39s (0:01:34)",
+  "launcher_py3.11": "196 passed, 1 skipped in 42.08s",
   "usage_report": [
-   "texts compared after normalizing the temporary directory and source_revision: 76",
-   "differences: texts/T/host-base-prompt.txt",
-   "numeric leaves that differ (times left out): 5: surfaces[3].root_normalized.root_occurrences, surfaces[3].root_normalized.size.chars, surfaces[3].root_normalized.size.utf8_bytes, surfaces[3].size.chars, surfaces[3].size.utf8_bytes",
+   "texts compared after normalizing the temporary directory, source_revision, aelix's date line and the fake HOME's folder (ci-fix/home, corrected/home): 76",
+   "differences: none",
+   "numeric leaves that differ (times left out): 36: always_on[0].host_share.base_prompt_utf8_bytes, always_on[10].host_share.base_prompt_utf8_bytes, always_on[11].host_share.base_prompt_utf8_bytes, always_on[12].host_share.base_prompt_utf8_bytes, always_on[13].host_share.base_prompt_utf8_bytes, always_on[14].host_share.base_prompt_utf8_bytes, always_on[15].host_share.base_prompt_utf8_bytes, always_on[16].host_share.base_prompt_utf8_bytes, always_on[17].host_share.base_prompt_utf8_bytes, always_on[18].host_share.base_prompt_utf8_bytes",
    "checks of the new report: {\"P1_sizes_recomputed_from_saved_texts\": true, \"P2_required_facts_read_back\": {\"passed\": 58, \"total\": 58}, \"P2_invariants_hold\": {\"holding\": 42, \"total\": 42}, \"P3_hook_returned_a_block\": true, \"P3_tools_replied_without_error\": true, \"P3_pinned_section_whole\": true, \"fixtures_measured\": 34, \"fixtures_selected\": 34}",
    "failures of the new report: []",
-   "the one text that differs is aelix's base prompt naming the global extension directory under HOME (this round runs with a fake HOME in the run folder): line 42 only; the numeric leaves that differ are that text's sizes. The extension's texts to the model are the same"
+   "the numeric leaves that differ are all the size of aelix's base prompt (surfaces[3] host-base-prompt, the host share and tool_surface.host): +3 characters, the fake HOME's folder corrected/home against ci-fix/home in the line naming the global extension directory; no text the extension gives the model differs"
   ],
   "platform_smoke": {
    "holds": 25,
@@ -225,7 +275,8 @@
    "errors": []
   },
   "ruff": "pass",
-  "git_diff_check": "the worktree against origin/main, no output"
+  "git_diff_check": "the worktree against origin/main, no output",
+  "foreign_fs_opt_in": "4 passed, 51 deselected in 4.33s"
  },
  "review_fix_tests_on_previous_code": {
   "what": "the review fixes' tests (the test files they changed, today's tests/ copied in) on the code before the fixes (f42a9a3, git worktree in the run folder): the repository's (the changed files of tests/ with uv.lock's environment) and the aelix leg's (aelix 0.1.0b2, CPython 3.12)",
@@ -1279,6 +1330,20 @@
     "tests/test_extension.py::test_a_new_project_inside_a_project_is_refused_by_the_extension[*-migration] (aelix legs)"
    ],
    "result": "pass (in the suites above); each fails on 8d3695f's code (new_tests_on_8d3695f)"
+  },
+  "after_corrected_decisions": {
+   "same_as_before": {
+    "migrate": true,
+    "kit_cli": true,
+    "sdk_outside_a_run": true,
+    "extension_py3.12": true,
+    "extension_py3.11": true
+   },
+   "added_tests": [
+    "tests/test_marker_gate.py::test_init_takes_a_folder_or_a_link_named_appledouble_as_an_entry[folder|link]",
+    "tests/test_extension.py::test_a_line_that_is_one_kit_command_gets_the_person_s_shell[...] (aelix legs)",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[...] (aelix legs)"
+   ]
   }
  },
  "command_e2e": {
@@ -3345,16 +3410,23 @@
    }
   },
   "appledouble": {
-   "what": "the owner's decision 2 (2026-10-09): `._<name>` is OS metadata (OQ4, OQ16) and leaves a directory empty (design 6.2, init's rule too)",
+   "what": "the owner's decision 2 (2026-10-09) as corrected: a regular file `._<name>` (lstat) is OS metadata (OQ4, OQ16) and leaves a directory empty (design 6.2, init's rule too, at step 1 and under the lock); a folder or a link with such a name is an ordinary entry (copied, counted, not empty, unaccounted on a resume); an AppleDouble file beside a cut first ledger line is no content (F1), and a clearing that cannot remove that folder is destination_write_failed with a hint",
    "tests": [
-    "tests/test_migration.py::test_an_appledouble_name_is_operating_system_metadata",
+    "tests/test_migration.py::test_only_a_regular_file_named_appledouble_is_operating_system_metadata[symlink] (junction too on Windows)",
     "tests/test_migration.py::test_the_source_s_appledouble_files_are_reported_and_not_copied",
+    "tests/test_migration.py::test_the_source_s_folder_and_link_named_appledouble_are_copied",
     "tests/test_migration.py::test_a_destination_holding_appledouble_files_only_is_empty",
+    "tests/test_migration.py::test_a_destination_holding_a_folder_or_a_link_named_appledouble_is_not_empty[folder|link]",
     "tests/test_migration.py::test_appledouble_files_made_beside_the_migration_s_own_are_passed_over_under_the_lock",
     "tests/test_migration.py::test_appledouble_files_in_a_destination_resumed_are_passed_over",
-    "tests/test_marker_gate.py::test_init_takes_a_directory_of_operating_system_views_as_empty"
+    "tests/test_migration.py::test_a_folder_or_a_link_named_appledouble_in_a_destination_resumed_is_unaccounted[folder|link]",
+    "tests/test_migration.py::test_a_cut_first_line_beside_an_appledouble_file_is_a_new_migration[3 ledgers]",
+    "tests/test_migration.py::test_a_migration_directory_that_cannot_be_removed_is_refused_with_a_hint",
+    "tests/test_marker_gate.py::test_init_takes_a_directory_of_operating_system_views_as_empty",
+    "tests/test_marker_gate.py::test_init_takes_a_folder_or_a_link_named_appledouble_as_an_entry[folder|link]"
    ],
-   "result": "pass; each fails on 8d3695f's code (new_tests_on_8d3695f)"
+   "macos_rmdir": "macOS's rmdir removes a folder's orphaned AppleDouble regular files with it (a regular `._x` alone: removed; a folder `._x`, a `._._x` or another file beside it: ENOTEMPTY; probed in the scratchpad), so on macOS the F1 clearing goes on; elsewhere the `._` file stays and the clearing is refused with the hint (the test forces that path on every system)",
+   "result": "pass; the new ones fail on d0c766b's code (new_tests_on_d0c766b)"
   },
   "before_owner_decisions": {
    "phases": {
@@ -4497,6 +4569,229 @@
      "load_1min": 57.5
     }
    ]
+  },
+  "fault_matrix_after_corrected_decisions": {
+   "what": "the F table observed again (<run>/corrected/measure-scripts/fault_observe.py) with eight rows the AppleDouble rule touches: F1 (dest locked, migration directory made, first line cut), F2, F6 and F8 with AppleDouble regular files added after the stop — `._progress.jsonl` in the migration's directory, `._.analytics`, `.analytics/._migration.lock`, `._data`, `data/._raw` where their folders were — and F1 (first line cut) and F6 with a folder `._x` at the root",
+   "earlier_rows_same": true,
+   "earlier_rows": 41,
+   "appledouble_rows": {
+    "F1-dest-locked-appledouble": {
+     "stop": {
+      "step": "dest_locked"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "appledouble_added": [
+      "._.analytics",
+      ".analytics/._migration.lock",
+      "._data"
+     ],
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "FileNotFoundError",
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "appledouble_left": true,
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 59,
+     "source_unchanged_after": true
+    },
+    "F1-migration-dir-appledouble": {
+     "stop": {
+      "step": "migration_dir"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "appledouble_added": [
+      ".analytics/migration/20261009T013730Z-7257aac0/._progress.jsonl",
+      "._.analytics",
+      ".analytics/._migration.lock",
+      "._data"
+     ],
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": null,
+     "lines_then": 0,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "appledouble_left": true,
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 59,
+     "source_unchanged_after": true
+    },
+    "F1-start-cut-appledouble": {
+     "stop": {
+      "step": "ledger:start",
+      "action": "cut"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "appledouble_added": [
+      ".analytics/migration/20261009T013730Z-805ecb41/._progress.jsonl",
+      "._.analytics",
+      ".analytics/._migration.lock",
+      "._data"
+     ],
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": null,
+     "lines_then": 0,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "appledouble_left": true,
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 59,
+     "source_unchanged_after": true
+    },
+    "F2-start-appledouble": {
+     "stop": {
+      "step": "start"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "appledouble_added": [
+      ".analytics/migration/20261009T013730Z-dc7707f7/._progress.jsonl",
+      "._.analytics",
+      ".analytics/._migration.lock",
+      "._data"
+     ],
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "start",
+     "lines_then": 1,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "appledouble_left": true,
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 59,
+     "source_unchanged_after": true
+    },
+    "F6-published-appledouble": {
+     "stop": {
+      "step": "published",
+      "path": "data/raw/big.parquet"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "appledouble_added": [
+      ".analytics/migration/20261009T013731Z-66e262ba/._progress.jsonl",
+      "._.analytics",
+      ".analytics/._migration.lock",
+      "._data",
+      "data/._raw"
+     ],
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "begin",
+     "lines_then": 31,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "appledouble_left": true,
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 61,
+     "source_unchanged_after": true
+    },
+    "F8-source-checked-appledouble": {
+     "stop": {
+      "step": "source_checked"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "appledouble_added": [
+      ".analytics/migration/20261009T013731Z-f260fd04/._progress.jsonl",
+      "._.analytics",
+      ".analytics/._migration.lock",
+      "._data",
+      "data/._raw"
+     ],
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "source_checked",
+     "lines_then": 51,
+     "temporary_files_then": [],
+     "called_again": "resumed_and_committed",
+     "appledouble_left": true,
+     "copies_equal_uninterrupted": true,
+     "temporary_files_after": [],
+     "lines_after": 59,
+     "source_unchanged_after": true
+    },
+    "F1-start-cut-appledouble-folder": {
+     "stop": {
+      "step": "ledger:start",
+      "action": "cut"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "appledouble_added": [
+      "._x/"
+     ],
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": null,
+     "lines_then": 0,
+     "temporary_files_then": [],
+     "called_again": "destination_invalid",
+     "details": {
+      "reason": "not_empty",
+      "entries": [
+       "._x"
+      ]
+     },
+     "source_unchanged_after": true
+    },
+    "F6-published-appledouble-folder": {
+     "stop": {
+      "step": "published",
+      "path": "data/raw/big.parquet"
+     },
+     "no_links": false,
+     "state_then": "incomplete",
+     "appledouble_added": [
+      "._x/"
+     ],
+     "older_kit_finds": null,
+     "source_unchanged_then": true,
+     "kit_read_then": "migration_incomplete",
+     "last_step_then": "begin",
+     "lines_then": 31,
+     "temporary_files_then": [],
+     "called_again": "destination_mismatch",
+     "details": {
+      "reason": "unaccounted",
+      "changed": [],
+      "missing": [],
+      "paths": [
+       "._x"
+      ]
+     },
+     "source_unchanged_after": true
+    }
+   }
+  },
+  "appledouble_before_corrected_decisions": {
+   "what": "the owner's decision 2 (2026-10-09): `._<name>` is OS metadata (OQ4, OQ16) and leaves a directory empty (design 6.2, init's rule too)",
+   "tests": [
+    "tests/test_migration.py::test_an_appledouble_name_is_operating_system_metadata",
+    "tests/test_migration.py::test_the_source_s_appledouble_files_are_reported_and_not_copied",
+    "tests/test_migration.py::test_a_destination_holding_appledouble_files_only_is_empty",
+    "tests/test_migration.py::test_appledouble_files_made_beside_the_migration_s_own_are_passed_over_under_the_lock",
+    "tests/test_migration.py::test_appledouble_files_in_a_destination_resumed_are_passed_over",
+    "tests/test_marker_gate.py::test_init_takes_a_directory_of_operating_system_views_as_empty"
+   ],
+   "result": "pass; each fails on 8d3695f's code (new_tests_on_8d3695f)"
   }
  },
  "writer_tests": {
@@ -4776,7 +5071,7 @@
   "same_as_before": true
  },
  "agent_cli": {
-  "what": "T22 (tests/test_agent_cli.py): aelix 0.1.0b2 loads the extension with its own loader and builds a harness (on('user_bash') wired by the harness's hook bus, a JSONL session in the test's directory); the kit's command line through the bash tool and through cli/repl.handle_user_bash, with another extension's shell, and with an extension that blocks every `!` command, each registered before and after",
+  "what": "T22 (tests/test_agent_cli.py): aelix 0.1.0b2 loads the extension with its own loader and builds a harness (on('user_bash') wired by the harness's hook bus, a JSONL session in the test's directory); the kit's command line through the bash tool and through cli/repl.handle_user_bash, with another extension's shell, and with an extension that blocks every `!` command, each registered before and after; since the corrected decision also a line that runs another command, then the kit",
   "aelix": "0.1.0b2",
   "py3.12": {
    "agent-cli-alone": {
@@ -4798,6 +5093,17 @@
      "session": "<tmp>/sessions/<session>.jsonl",
      "text": "T22-person"
     },
+    "person_bang_compound": {
+     "handler_result": null,
+     "line": "echo T22-before; <kit record>",
+     "recorded": {
+      "actor": "agent",
+      "actor_basis": "declared",
+      "means": "cli",
+      "session": "<tmp>/sessions/<session>.jsonl",
+      "text": "T22-compound"
+     }
+    },
     "person_bang_not_the_kit": {
      "handler_result": null,
      "ran": "aelix's own local shell"
@@ -4807,6 +5113,17 @@
     "shell": "/bin/zsh"
    },
    "agent-cli-analytics-first": {
+    "compound_line": {
+     "other_shell_ran": 1,
+     "recorded": {
+      "actor": "agent",
+      "actor_basis": "declared",
+      "means": "cli",
+      "session": "<tmp>/sessions/<session>.jsonl",
+      "text": "T22-analytics-first-compound"
+     },
+     "returned_shell": "OtherShell"
+    },
     "kit_command": {
      "other_shell_ran": [
       "<uv-cache>/bin/python -m aelix_analytics record note T22-analytics-first"
@@ -4832,8 +5149,12 @@
     "python": "3.12.13"
    },
    "agent-cli-blocker-first": {
+    "compound_line": {
+     "output": "blocked by policy",
+     "written": false
+    },
     "kit_command": {
-     "output": ": 2, \"build\": \"20261009-082151-934906\"}}",
+     "output": ": 2, \"build\": \"20261009-105516-999957\"}}",
      "recorded": {
       "actor": "human",
       "actor_basis": "declared",
@@ -4849,6 +5170,10 @@
     "python": "3.12.13"
    },
    "agent-cli-blocker-last": {
+    "compound_line": {
+     "output": "blocked by policy",
+     "written": false
+    },
     "kit_command": {
      "output": "blocked by policy",
      "recorded": {
@@ -4866,6 +5191,17 @@
     "python": "3.12.13"
    },
    "agent-cli-other-first": {
+    "compound_line": {
+     "other_shell_ran": 1,
+     "recorded": {
+      "actor": "agent",
+      "actor_basis": "declared",
+      "means": "cli",
+      "session": "<tmp>/sessions/<session>.jsonl",
+      "text": "T22-other-first-compound"
+     },
+     "returned_shell": "OtherShell"
+    },
     "kit_command": {
      "other_shell_ran": [],
      "recorded": {
@@ -4909,6 +5245,17 @@
      "session": "<tmp>/sessions/<session>.jsonl",
      "text": "T22-person"
     },
+    "person_bang_compound": {
+     "handler_result": null,
+     "line": "echo T22-before; <kit record>",
+     "recorded": {
+      "actor": "agent",
+      "actor_basis": "declared",
+      "means": "cli",
+      "session": "<tmp>/sessions/<session>.jsonl",
+      "text": "T22-compound"
+     }
+    },
     "person_bang_not_the_kit": {
      "handler_result": null,
      "ran": "aelix's own local shell"
@@ -4918,6 +5265,17 @@
     "shell": "/bin/zsh"
    },
    "agent-cli-analytics-first": {
+    "compound_line": {
+     "other_shell_ran": 1,
+     "recorded": {
+      "actor": "agent",
+      "actor_basis": "declared",
+      "means": "cli",
+      "session": "<tmp>/sessions/<session>.jsonl",
+      "text": "T22-analytics-first-compound"
+     },
+     "returned_shell": "OtherShell"
+    },
     "kit_command": {
      "other_shell_ran": [
       "<uv-cache>/bin/python -m aelix_analytics record note T22-analytics-first"
@@ -4943,8 +5301,12 @@
     "python": "3.11.15"
    },
    "agent-cli-blocker-first": {
+    "compound_line": {
+     "output": "blocked by policy",
+     "written": false
+    },
     "kit_command": {
-     "output": ": 2, \"build\": \"20261009-082317-146281\"}}",
+     "output": ": 2, \"build\": \"20261009-105646-427166\"}}",
      "recorded": {
       "actor": "human",
       "actor_basis": "declared",
@@ -4960,6 +5322,10 @@
     "python": "3.11.15"
    },
    "agent-cli-blocker-last": {
+    "compound_line": {
+     "output": "blocked by policy",
+     "written": false
+    },
     "kit_command": {
      "output": "blocked by policy",
      "recorded": {
@@ -4977,6 +5343,17 @@
     "python": "3.11.15"
    },
    "agent-cli-other-first": {
+    "compound_line": {
+     "other_shell_ran": 1,
+     "recorded": {
+      "actor": "agent",
+      "actor_basis": "declared",
+      "means": "cli",
+      "session": "<tmp>/sessions/<session>.jsonl",
+      "text": "T22-other-first-compound"
+     },
+     "returned_shell": "OtherShell"
+    },
     "kit_command": {
      "other_shell_ran": [],
      "recorded": {
@@ -5002,9 +5379,236 @@
   },
   "extension_kit_child": "not a record: the extension's own kit child's environment (AELIX_ANALYTICS_ACTOR=human, AELIX_ANALYTICS_MEANS=command for /analytics, over the process's agent), asserted by tests/test_agent_cli.py",
   "windows_powershell": "not_run",
-  "same_as_before": true,
-  "compared": "with the earlier record's values, the Workspace build stamps in the kit's output masked",
-  "owner_decision": "2026-10-09: the user_bash handler stays as it is; its limit — for kit commands only, it can set aside another extension's block or shell registered before it (aelix 0.1.0b2 keeps the last UserBashResult, hooks._reducer_user_bash, read again in this round) — is stated in CONTRACTS A and the README"
+  "before_corrected_decisions": {
+   "py3.12": {
+    "agent-cli-alone": {
+     "agent_bash_tool": {
+      "actor": "agent",
+      "actor_basis": "declared",
+      "means": "cli",
+      "session": "<tmp>/sessions/<session>.jsonl",
+      "text": "T22-agent"
+     },
+     "extension_kit_child": {
+      "actor": "human",
+      "means": "command"
+     },
+     "person_bang": {
+      "actor": "human",
+      "actor_basis": "declared",
+      "means": "cli",
+      "session": "<tmp>/sessions/<session>.jsonl",
+      "text": "T22-person"
+     },
+     "person_bang_not_the_kit": {
+      "handler_result": null,
+      "ran": "aelix's own local shell"
+     },
+     "platform": "darwin",
+     "python": "3.12.13",
+     "shell": "/bin/zsh"
+    },
+    "agent-cli-analytics-first": {
+     "kit_command": {
+      "other_shell_ran": [
+       "<uv-cache>/bin/python -m aelix_analytics record note T22-analytics-first"
+      ],
+      "recorded": {
+       "actor": "agent",
+       "actor_basis": "declared",
+       "means": "cli",
+       "session": "<tmp>/sessions/<session>.jsonl",
+       "text": "T22-analytics-first"
+      },
+      "returned_shell": "OtherShell"
+     },
+     "not_the_kit": {
+      "other_shell_ran": [
+       "echo T22"
+      ],
+      "output": "T22",
+      "returned_shell": "OtherShell"
+     },
+     "order": "analytics first",
+     "platform": "darwin",
+     "python": "3.12.13"
+    },
+    "agent-cli-blocker-first": {
+     "kit_command": {
+      "output": ": 2, \"build\": \"20261009-082151-934906\"}}",
+      "recorded": {
+       "actor": "human",
+       "actor_basis": "declared",
+       "means": "cli",
+       "session": "<tmp>/sessions/<session>.jsonl",
+       "text": "T22-blocker-first"
+      },
+      "written": true
+     },
+     "not_the_kit": "blocked by policy",
+     "order": "blocker first",
+     "platform": "darwin",
+     "python": "3.12.13"
+    },
+    "agent-cli-blocker-last": {
+     "kit_command": {
+      "output": "blocked by policy",
+      "recorded": {
+       "actor": "test",
+       "actor_basis": "declared",
+       "means": "sdk",
+       "session": null,
+       "text": "CONTEXT.md recorded"
+      },
+      "written": false
+     },
+     "not_the_kit": "blocked by policy",
+     "order": "blocker last",
+     "platform": "darwin",
+     "python": "3.12.13"
+    },
+    "agent-cli-other-first": {
+     "kit_command": {
+      "other_shell_ran": [],
+      "recorded": {
+       "actor": "human",
+       "actor_basis": "declared",
+       "means": "cli",
+       "session": "<tmp>/sessions/<session>.jsonl",
+       "text": "T22-other-first"
+      },
+      "returned_shell": "PersonShell"
+     },
+     "not_the_kit": {
+      "other_shell_ran": [
+       "echo T22"
+      ],
+      "output": "T22",
+      "returned_shell": "OtherShell"
+     },
+     "order": "other first",
+     "platform": "darwin",
+     "python": "3.12.13"
+    }
+   },
+   "py3.11": {
+    "agent-cli-alone": {
+     "agent_bash_tool": {
+      "actor": "agent",
+      "actor_basis": "declared",
+      "means": "cli",
+      "session": "<tmp>/sessions/<session>.jsonl",
+      "text": "T22-agent"
+     },
+     "extension_kit_child": {
+      "actor": "human",
+      "means": "command"
+     },
+     "person_bang": {
+      "actor": "human",
+      "actor_basis": "declared",
+      "means": "cli",
+      "session": "<tmp>/sessions/<session>.jsonl",
+      "text": "T22-person"
+     },
+     "person_bang_not_the_kit": {
+      "handler_result": null,
+      "ran": "aelix's own local shell"
+     },
+     "platform": "darwin",
+     "python": "3.11.15",
+     "shell": "/bin/zsh"
+    },
+    "agent-cli-analytics-first": {
+     "kit_command": {
+      "other_shell_ran": [
+       "<uv-cache>/bin/python -m aelix_analytics record note T22-analytics-first"
+      ],
+      "recorded": {
+       "actor": "agent",
+       "actor_basis": "declared",
+       "means": "cli",
+       "session": "<tmp>/sessions/<session>.jsonl",
+       "text": "T22-analytics-first"
+      },
+      "returned_shell": "OtherShell"
+     },
+     "not_the_kit": {
+      "other_shell_ran": [
+       "echo T22"
+      ],
+      "output": "T22",
+      "returned_shell": "OtherShell"
+     },
+     "order": "analytics first",
+     "platform": "darwin",
+     "python": "3.11.15"
+    },
+    "agent-cli-blocker-first": {
+     "kit_command": {
+      "output": ": 2, \"build\": \"20261009-082317-146281\"}}",
+      "recorded": {
+       "actor": "human",
+       "actor_basis": "declared",
+       "means": "cli",
+       "session": "<tmp>/sessions/<session>.jsonl",
+       "text": "T22-blocker-first"
+      },
+      "written": true
+     },
+     "not_the_kit": "blocked by policy",
+     "order": "blocker first",
+     "platform": "darwin",
+     "python": "3.11.15"
+    },
+    "agent-cli-blocker-last": {
+     "kit_command": {
+      "output": "blocked by policy",
+      "recorded": {
+       "actor": "test",
+       "actor_basis": "declared",
+       "means": "sdk",
+       "session": null,
+       "text": "CONTEXT.md recorded"
+      },
+      "written": false
+     },
+     "not_the_kit": "blocked by policy",
+     "order": "blocker last",
+     "platform": "darwin",
+     "python": "3.11.15"
+    },
+    "agent-cli-other-first": {
+     "kit_command": {
+      "other_shell_ran": [],
+      "recorded": {
+       "actor": "human",
+       "actor_basis": "declared",
+       "means": "cli",
+       "session": "<tmp>/sessions/<session>.jsonl",
+       "text": "T22-other-first"
+      },
+      "returned_shell": "PersonShell"
+     },
+     "not_the_kit": {
+      "other_shell_ran": [
+       "echo T22"
+      ],
+      "output": "T22",
+      "returned_shell": "OtherShell"
+     },
+     "order": "other first",
+     "platform": "darwin",
+     "python": "3.11.15"
+    }
+   },
+   "same_as_before": true,
+   "compared": "with the earlier record's values, the Workspace build stamps in the kit's output masked",
+   "owner_decision": "2026-10-09: the user_bash handler stays as it is; its limit — for kit commands only, it can set aside another extension's block or shell registered before it (aelix 0.1.0b2 keeps the last UserBashResult, hooks._reducer_user_bash, read again in this round) — is stated in CONTRACTS A and the README"
+  },
+  "earlier_cases_same_as_before": true,
+  "compared": "the cases of the earlier record (the new compound-line cases left out) with its values, the Workspace build stamps in the kit's output masked",
+  "owner_decision": "2026-10-09 as corrected (https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6072183477): the handler returns its shell only when the whole `!` line is one simple command calling a kit entry point; a line that joins another command (`echo T22-before; <kit>` here) gets no result: alone it runs in aelix's own shell and records agent/declared with the session, after another extension's shell it runs there (agent), and after a blocking extension it stays blocked, nothing written. The earlier question had described the handler more narrowly than it behaved: until this change a kit call anywhere in command position made the whole line run in this extension's shell"
  },
  "foreign_fs": {
   "what": "FAT32 and exFAT disk images (hdiutil, fskit, nobrowse) on macOS 26.6.2, measured by group G3 on b7856c6 (src unchanged since): the port, the shipped migration, and a probe passing over macOS's AppleDouble files (the keys mnt-fat and mnt-exfat; the shipped code after the owner's decisions is under shipped_after_owner_decisions)",
@@ -5281,6 +5885,95 @@
     ]
    },
    "on_8d3695f": "both volumes destination_invalid(not_empty) at step 1 (._.analytics, .analytics/._migration.lock): the strengthened opt-in test fails there (new_tests_on_8d3695f)"
+  },
+  "after_corrected_decisions": {
+   "what": "the same disk images (hdiutil, fskit, nobrowse) on macOS 26.6.2 (25G83), the opt-in tests (AELIX_ANALYTICS_TEST_FOREIGN_FS) with this round's code: the earlier migration test and a new one for the corrected AppleDouble rule — init beside a regular `._x` (made) and beside a folder `._d` (init_not_empty), the migration's step 1 beside a folder `._d` (not_empty), and F1 there: a first ledger line cut, beside which macOS wrote `._progress.jsonl` itself, cleared by the next call",
+   "test": "4 passed, 51 deselected in 4.33s",
+   "observations": {
+    "foreign-fs-appledouble-mnt-exfat": {
+     "cut_first_line": {
+      "cleared": true,
+      "exit": 1,
+      "reason": "no_exclusive_rename",
+      "result": "destination_invalid"
+     },
+     "cut_first_line_folder": {
+      "appledouble_written_by_macos": true,
+      "entries": [
+       "._progress.jsonl",
+       "progress.jsonl"
+      ]
+     },
+     "init_beside_a_folder_named_appledouble": "init_not_empty",
+     "init_beside_a_regular_appledouble_file": "made",
+     "migration_to_a_folder_holding_a_folder_named_appledouble": "not_empty"
+    },
+    "foreign-fs-appledouble-mnt-fat": {
+     "cut_first_line": {
+      "cleared": true,
+      "exit": 0,
+      "reason": null,
+      "result": "committed"
+     },
+     "cut_first_line_folder": {
+      "appledouble_written_by_macos": true,
+      "entries": [
+       "._progress.jsonl",
+       "progress.jsonl"
+      ]
+     },
+     "init_beside_a_folder_named_appledouble": "init_not_empty",
+     "init_beside_a_regular_appledouble_file": "made",
+     "migration_to_a_folder_holding_a_folder_named_appledouble": "not_empty"
+    },
+    "foreign-fs-mnt-exfat": {
+     "appledouble": [
+      "._.analytics",
+      ".analytics/._migration",
+      ".analytics/._migration.lock",
+      ".analytics/migration/._20261009T013816Z-70675908",
+      ".analytics/migration/20261009T013816Z-70675908/._progress.jsonl"
+     ],
+     "exit": 1,
+     "publish": null,
+     "reason": "no_exclusive_rename",
+     "rename_new": "RenameUnsupported 45",
+     "result": "destination_invalid"
+    },
+    "foreign-fs-mnt-fat": {
+     "again": "already_migrated",
+     "appledouble": [
+      "._.analytics",
+      "._.gitignore",
+      "._analytics.json",
+      "._data",
+      "._journal.jsonl",
+      ".analytics/._context",
+      ".analytics/._migration",
+      ".analytics/._migration.lock",
+      ".analytics/context/._20261001-090000-000000_aaaaaaaaaaaa.md",
+      ".analytics/migration/._20261009T013815Z-d26878fa",
+      ".analytics/migration/20261009T013815Z-d26878fa/._gitignore.diff",
+      ".analytics/migration/20261009T013815Z-d26878fa/._mapping.json",
+      ".analytics/migration/20261009T013815Z-d26878fa/._plan.json",
+      ".analytics/migration/20261009T013815Z-d26878fa/._progress.jsonl",
+      ".analytics/migration/20261009T013815Z-d26878fa/._proposals",
+      ".analytics/migration/20261009T013815Z-d26878fa/._report.json",
+      ".analytics/migration/20261009T013815Z-d26878fa/._report.md",
+      ".analytics/migration/20261009T013815Z-d26878fa/._source-marker.json",
+      ".analytics/migration/20261009T013815Z-d26878fa/proposals/._gitattributes",
+      "data/._raw"
+     ],
+     "exit": 0,
+     "publish": "rename_new",
+     "reason": null,
+     "rename_new": "renamed",
+     "result": "committed"
+    }
+   },
+   "on_d0c766b": "the new test fails on both volumes: a folder `._d` was taken as OS metadata, so init made a project beside it (new_tests_on_d0c766b); the F1 case there would have been destination_mismatch (the ledger of <id> has no start), as the check found",
+   "earlier_test_same": true,
+   "compared": "the earlier test's observations with the previous round's (shipped_after_owner_decisions), migration ids masked"
   }
  },
  "before": {
@@ -5289,7 +5982,7 @@
   "note": "PR 2's record of the engine; its fixtures were made by PR 2's generator, these by this checkout's with that commit's kit (--kit-root): see migration.fixture_reproducibility"
  },
  "not_run": [
-  "the repository CI of this head on Linux, Windows and the macOS label run (pending: not pushed yet); its Windows repository step took 1,789 s of its 35 minutes at 8d3695f",
+  "the repository CI of this round's commits (code eaf6dfe) on Linux, Windows and the macOS label run (pending: not pushed yet); the decision-3 table, T22's compound lines and the AppleDouble rule then run on Linux and Windows (a junction named `._x` on Windows); its Windows repository step took 1,789 s of its 35 minutes at 8d3695f",
   "a real removable FAT or exFAT medium, and FAT/exFAT on Linux or Windows (macOS disk images only)",
   "a power loss and durability after it; Windows' directory flush, read-only copies and late lock release; a network file system",
   "a real aelix model session (the bash tool and handle_user_bash were called directly); another agent host than aelix; aelix's RPC bash command",
@@ -5348,7 +6041,7 @@
  },
  "distribution_e2e": {
   "command": "CI=1 AELIX_ANALYTICS_TEST_INSTALL=1 uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread tests/test_packaging.py tests/test_windows_console.py tests/test_windows_long_paths.py (the CI step's variable; network: PyPI, uv's cache)",
-  "result": "26 passed, 28 skipped in 93.23s (0:01:33)",
+  "result": "26 passed, 28 skipped in 93.40s (0:01:33)",
   "skipped": [
    "SKIPPED [6] tests/test_windows_console.py:138: the Windows console",
    "SKIPPED [1] tests/test_windows_console.py:153: the Windows console",
@@ -5368,8 +6061,7 @@
    "SKIPPED [1] tests/test_windows_long_paths.py:320: MAX_PATH and LongPathsEnabled are Windows'",
    "SKIPPED [1] tests/test_windows_long_paths.py:367: MAX_PATH and LongPathsEnabled are Windows'",
    "SKIPPED [1] tests/test_windows_long_paths.py:402: MAX_PATH and LongPathsEnabled are Windows'"
-  ],
-  "before_the_fix": "8d3695f's code and tests: tests/test_packaging.py::test_aelix_binds_and_loads_the_installed_extension[3.11] and [3.12] failed with assert 5 == 4, as on CI (run folder ci-fix/evidence/baseline/packaging-aelix-binds-8d3695f.txt)"
+  ]
  },
  "new_tests_on_8d3695f": {
   "code": "8d3695f5923c290747b57a409343e17d8bebdc2f",
@@ -5439,5 +6131,159 @@
   },
   "failed_total": 26,
   "expected": "every test of the owner's decisions 2 and 4 and of the tokenizer's line continuation fails there; what passes pins a test fix (the packaging handler count, the Windows command line, the SEQ_BOUND bound), a column already refused (a marker above), or a case whose entry the old code refused too (the lock re-judgment's person's file)"
+ },
+ "verification_before_corrected_decisions": {
+  "repository_suite": {
+   "command": "uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread",
+   "result": "1952 passed, 106 skipped in 899.88s (0:14:59)",
+   "evidence_dir": "AELIX_ANALYTICS_TEST_EVIDENCE_DIR=<run>/ci-fix/evidence/final/observations"
+  },
+  "layers_contracts": "126 passed, 52 skipped in 20.46s",
+  "aelix_py3.12": "253 passed in 95.86s (0:01:35)",
+  "aelix_py3.11": "253 passed in 89.91s (0:01:29)",
+  "launcher_py3.11": "196 passed, 1 skipped in 41.54s",
+  "usage_report": [
+   "texts compared after normalizing the temporary directory and source_revision: 76",
+   "differences: texts/T/host-base-prompt.txt",
+   "numeric leaves that differ (times left out): 5: surfaces[3].root_normalized.root_occurrences, surfaces[3].root_normalized.size.chars, surfaces[3].root_normalized.size.utf8_bytes, surfaces[3].size.chars, surfaces[3].size.utf8_bytes",
+   "checks of the new report: {\"P1_sizes_recomputed_from_saved_texts\": true, \"P2_required_facts_read_back\": {\"passed\": 58, \"total\": 58}, \"P2_invariants_hold\": {\"holding\": 42, \"total\": 42}, \"P3_hook_returned_a_block\": true, \"P3_tools_replied_without_error\": true, \"P3_pinned_section_whole\": true, \"fixtures_measured\": 34, \"fixtures_selected\": 34}",
+   "failures of the new report: []",
+   "the one text that differs is aelix's base prompt naming the global extension directory under HOME (this round runs with a fake HOME in the run folder): line 42 only; the numeric leaves that differ are that text's sizes. The extension's texts to the model are the same"
+  ],
+  "platform_smoke": {
+   "holds": 25,
+   "violated": 0,
+   "declared_limitation": 0,
+   "observed": 6,
+   "not_run": 0
+  },
+  "stdlib_smoke": {
+   "holds": 15,
+   "violated": 0,
+   "declared_limitation": 0,
+   "observed": 3,
+   "not_run": 2
+  },
+  "check_docs": {
+   "ok": true,
+   "counts": {
+    "json_files": 13,
+    "markdown_files": 66,
+    "local_links": 729,
+    "python_examples": 6,
+    "json_examples": 7,
+    "dev_state_examples": 1
+   },
+   "errors": []
+  },
+  "ruff": "pass",
+  "git_diff_check": "the worktree against origin/main, no output"
+ },
+ "distribution_e2e_before_corrected_decisions": {
+  "command": "CI=1 AELIX_ANALYTICS_TEST_INSTALL=1 uv run --locked pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread tests/test_packaging.py tests/test_windows_console.py tests/test_windows_long_paths.py (the CI step's variable; network: PyPI, uv's cache)",
+  "result": "26 passed, 28 skipped in 93.23s (0:01:33)",
+  "skipped": [
+   "SKIPPED [6] tests/test_windows_console.py:138: the Windows console",
+   "SKIPPED [1] tests/test_windows_console.py:153: the Windows console",
+   "SKIPPED [1] tests/test_windows_console.py:163: the Windows console",
+   "SKIPPED [1] tests/test_windows_console.py:172: the Windows console",
+   "SKIPPED [4] tests/test_windows_console.py:208: the Windows console",
+   "SKIPPED [1] tests/test_windows_console.py:245: the Windows console",
+   "SKIPPED [1] tests/test_windows_console.py:250: the Windows console",
+   "SKIPPED [2] tests/test_windows_console.py:256: the Windows console",
+   "SKIPPED [2] tests/test_windows_console.py:280: the Windows console",
+   "SKIPPED [1] tests/test_windows_console.py:313: the Windows console",
+   "SKIPPED [1] tests/test_windows_console.py:324: the Windows console",
+   "SKIPPED [1] tests/test_windows_long_paths.py:176: MAX_PATH and LongPathsEnabled are Windows'",
+   "SKIPPED [1] tests/test_windows_long_paths.py:231: MAX_PATH and LongPathsEnabled are Windows'",
+   "SKIPPED [1] tests/test_windows_long_paths.py:259: MAX_PATH and LongPathsEnabled are Windows'",
+   "SKIPPED [1] tests/test_windows_long_paths.py:298: MAX_PATH and LongPathsEnabled are Windows'",
+   "SKIPPED [1] tests/test_windows_long_paths.py:320: MAX_PATH and LongPathsEnabled are Windows'",
+   "SKIPPED [1] tests/test_windows_long_paths.py:367: MAX_PATH and LongPathsEnabled are Windows'",
+   "SKIPPED [1] tests/test_windows_long_paths.py:402: MAX_PATH and LongPathsEnabled are Windows'"
+  ],
+  "before_the_fix": "8d3695f's code and tests: tests/test_packaging.py::test_aelix_binds_and_loads_the_installed_extension[3.11] and [3.12] failed with assert 5 == 4, as on CI (run folder ci-fix/evidence/baseline/packaging-aelix-binds-8d3695f.txt)"
+ },
+ "new_tests_on_d0c766b": {
+  "code": "d0c766b0a4d7c37804ae11602a8cbcec1c94d824",
+  "what": "this round's changed test files (tests/test_extension.py, tests/test_agent_cli.py, tests/test_migration.py, tests/test_marker_gate.py, tests/test_migrate_command.py) put into a d0c766b worktree",
+  "repository": {
+   "summary": "12 failed, 9 passed, 1 skipped, 262 deselected in 5.94s",
+   "failed": [
+    "tests/test_marker_gate.py::test_init_takes_a_folder_or_a_link_named_appledouble_as_an_entry[folder]",
+    "tests/test_marker_gate.py::test_init_takes_a_folder_or_a_link_named_appledouble_as_an_entry[link]",
+    "tests/test_migration.py::test_a_cut_first_line_beside_an_appledouble_file_is_a_new_migration[None]",
+    "tests/test_migration.py::test_a_cut_first_line_beside_an_appledouble_file_is_a_new_migration[]",
+    "tests/test_migration.py::test_a_cut_first_line_beside_an_appledouble_file_is_a_new_migration[{\"step\": \"start\", \"at\": \"2026-]",
+    "tests/test_migration.py::test_a_destination_holding_a_folder_or_a_link_named_appledouble_is_not_empty[folder]",
+    "tests/test_migration.py::test_a_destination_holding_a_folder_or_a_link_named_appledouble_is_not_empty[link]",
+    "tests/test_migration.py::test_a_folder_or_a_link_named_appledouble_in_a_destination_resumed_is_unaccounted[folder]",
+    "tests/test_migration.py::test_a_folder_or_a_link_named_appledouble_in_a_destination_resumed_is_unaccounted[link]",
+    "tests/test_migration.py::test_a_migration_directory_that_cannot_be_removed_is_refused_with_a_hint",
+    "tests/test_migration.py::test_only_a_regular_file_named_appledouble_is_operating_system_metadata[symlink]",
+    "tests/test_migration.py::test_the_source_s_folder_and_link_named_appledouble_are_copied"
+   ]
+  },
+  "foreign-fs": {
+   "summary": "2 failed, 2 passed, 51 deselected in 4.87s",
+   "failed": [
+    "tests/test_migrate_command.py::test_the_appledouble_rule_on_a_file_system_of_another_kind[<volumes>/mnt-exfat]",
+    "tests/test_migrate_command.py::test_the_appledouble_rule_on_a_file_system_of_another_kind[<volumes>/mnt-fat]"
+   ]
+  },
+  "aelix-py3.12": {
+   "summary": "47 failed, 141 passed in 72.65s (0:01:12)",
+   "failed": [
+    "tests/test_agent_cli.py::test_an_extension_that_blocks_a_command_is_set_aside_when_it_comes_first[blocker first]",
+    "tests/test_agent_cli.py::test_another_extension_s_shell_and_this_one_s_the_last_one_runs[other first]",
+    "tests/test_agent_cli.py::test_the_agent_s_command_line_records_the_agent_and_a_person_s_the_person",
+    "tests/test_extension.py::test_a_line_that_is_one_kit_command_gets_the_person_s_shell[2>/dev/null analytics status]",
+    "tests/test_extension.py::test_a_person_s_kit_command_runs_in_aelix_s_shell_as_the_person",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[! analytics status]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[& analytics status; ls]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[(analytics status)]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[(cd proj && analytics status)]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[X=$(id) analytics status]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[analytics record note \"$(cat notes)\"]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[analytics record note \"${X:-$(id)}\"]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[analytics record note \"`id`\"]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[analytics record note $((1 + 2))]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[analytics record note $(cat notes)]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[analytics record note - <<< 'a text']",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[analytics record note - <<EOF]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[analytics record note `id`]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[analytics record note x <(cat notes)]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[analytics run x &]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[analytics status # ; rm x]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[analytics status & echo next]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[analytics status && echo done]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[analytics status &> log]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[analytics status 2>&1 | tee log]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[analytics status > >(tee log)]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[analytics status >]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[analytics status \\\\\\n && echo done]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[analytics status | head]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[analytics status |& tee log]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[analytics status; analytics render]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[analytics status;]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[analytics status\\nanalytics render]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[analytics status\\necho hi]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[builtin analytics status]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[cat notes | python -m aelix_analytics record note -]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[cd proj && analytics status]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[cd proj; analytics status]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[echo `analytics status`]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[echo hi\\nanalytics status]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[echo x | analytics record note -]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[false || analytics status]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[if analytics status; then echo ok; fi]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[nohup analytics run x &]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[while analytics status; do sleep 1; done]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[x=$(./bin/analytics status)]",
+    "tests/test_extension.py::test_any_other_line_is_left_alone[{ analytics status; }]"
+   ]
+  },
+  "failed_total": 61,
+  "expected": "the decision-3 table fails for every line the earlier handler took although it is not one kit command (lists, pipelines, new lines, subshells, substitutions, `&>`, here-documents, compound commands, an operator after `#`, `builtin`), and for `2>/dev/null analytics status` (a redirection before the program, now read); the lines it already left alone and the single kit commands it already took pass. T22's three cases with a compound line fail (the line ran in this extension's shell, and past a block). The AppleDouble tests fail where a folder or a link named `._x` was taken as metadata, and the F1 tests where `._progress.jsonl` made the directory content (destination_mismatch); the opt-in FAT32/exFAT test fails on both volumes at init's judgment of a folder `._d`"
  }
 }
