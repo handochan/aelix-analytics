@@ -15,6 +15,82 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 없음. 병합된 변경은 그 PR이 병합될 때의 kit 번호 절에 적고, kit 번호를 올리는 PR은 새 절을 엽니다
 ([기여 가이드](CONTRIBUTING.md#첫-공개-전에-남은-운영-결정)).
 
+## [0.8.0] - 2026-10-09
+
+번호를 붙인 PR은 [#13]의 셋째 구현 PR(③, 새 writer와 정책 전환)인 [#84]입니다. 기록 형식이 바뀌는 버전입니다:
+이 kit은 새 형식(`analytics.json`)의 프로젝트에만 쓰고, 그 전의 `lab.json` 프로젝트는 읽기만 하며 `analytics migrate`로 새 폴더에 옮깁니다.
+바뀐 저장 이름의 표는 [README](README.md#옛-이름에서-옮기기)에 있습니다.
+
+### Added
+
+- `analytics migrate --to DIR [--dry-run]`(설치본 `analytics`, `bin/analytics`; kit의 `migrate`): `lab.json` 프로젝트를 새 빈 폴더에 새 형식으로
+  복사합니다. 원본에는 옛 kit의 잠금 파일 둘 말고는 쓰지 않고, `--dry-run`은 아무것도 쓰지 않고 계획과 거절 이유를 먼저 보이며, 끊긴 전환은 같은
+  명령으로 잇고 끝난 전환을 다시 부르면 원본과 사본을 대조합니다. 두 런처는 이 명령을 프로젝트의 환경 없이(`uv run --no-project`) 부르고, 커밋한
+  뒤 kit이 답한 목적지(`~` 포함, kit이 푼 경로)의 환경을 `uv sync --locked`로 준비합니다(실패해도 전환은 끝났다고 알리고 0). 에이전트가 부른
+  전환은 보고서와 응답에 `agent`로 남습니다.
+  aelix의 도구·`/analytics`에는 이 명령이 없습니다. `.venv/`·`report/`·캐시·잠금과 운영체제 메타 파일(`.DS_Store`·`Thumbs.db`·`desktop.ini`,
+  macOS가 FAT·exFAT 같은 볼륨에 만드는 AppleDouble `._<이름>`; AppleDouble은 2026-10-09 소유자 결정이며 일반 파일만, 그런 이름의 폴더·링크는
+  보통 항목으로 복사)은 복사하지 않고 보고서에 적으며, 목적지의 것은 무시합니다(복사가 원본의 폴더·링크를 놓을 경로의 것은 쓰기 전에
+  `not_empty`로 거절). 첫 ledger 줄이 끊긴 전환 디렉터리 옆에 macOS가 남긴
+  `._progress.jsonl`도 내용으로 보지 않아 다시 부르면 새로 시작하고, 그 디렉터리를 지우지 못하면 `destination_write_failed`로 지울 폴더를
+  알립니다. 그래서 macOS에서도 FAT32 같은 볼륨으로 전환할 수 있습니다 ([#84]).
+- 링크를 만들 수 없는 목적지(FAT·exFAT 등)에서는 전환이 표식을 제자리에 쓰지 않고 이미 있는 이름을 바꾸지 않는 rename(Linux
+  `renameat2(RENAME_NOREPLACE)`, macOS `renamex_np(RENAME_EXCL)`, Windows `os.rename`; 포트의 `AtomicFiles.rename_new`)으로 게시합니다. 그것도
+  없는 목적지는 아무것도 복사하기 전에 `destination_invalid`(`details.reason: no_exclusive_rename`)로 거절합니다 ([#84]).
+- aelix 확장이 aelix 프로세스의 환경에 `AELIX_ANALYTICS_ACTOR=agent`와 그 세션을 넣으므로, 에이전트가 aelix의 bash 도구로 부른 `analytics`·
+  `python -m aelix_analytics`가 `agent`로 기록됩니다. 사람이 aelix에서 `!analytics …`처럼 친 줄이 aelix가 그 줄을 돌릴 셸(POSIX 셸이나
+  PowerShell)로 읽어 전체로 kit 명령 하나이면 확장의 `user_bash` 처리가 `human`으로 기록하게 하고, 다른 `!` 줄 — kit을 부르지 않거나,
+  `;`·`&&`·`|`·줄바꿈·`$(…)` 등으로 다른 명령과 합친 줄, 셸마다 읽는 법이 다른 `$`·`env -S`·모르는 옵션이 든 줄, cmd·fish 같은 다른 셸의 줄,
+  Windows에서 cmd가 다시 읽을 수 있는 글자(`&`·`|`·`%`·`"` 등)를 담은 단어가 있는 줄, 셸이 펼치는 패턴·중괄호(`*`·`{a,b}`)나 PowerShell이
+  단어를 달리 나누는 것(`'a'b`·`-p3.12`·`a,b`·`@x`)이 든 줄 — 은 건드리지 않습니다(그 안의 kit 기록은 `agent`). 한계: aelix 0.1.0b2는 마지막 확장의 답만 쓰므로, `!` 명령을 막거나 다른 실행기로 돌리는 확장이 먼저
+  등록되면 kit 명령 하나인 줄에 한해 이 처리가 그 막음·실행기를 덮습니다(소유자가 2026-10-09에 그 범위로 정함, [현재 계약](docs/CONTRACTS.md)
+  A). aelix 밖의 에이전트 호스트는 `AELIX_ANALYTICS_ACTOR=agent`를 설정합니다 ([#84]).
+
+### Changed
+
+- 쓰는 형식이 `analytics.project/2`입니다. `lab.json` 프로젝트의 모든 쓰기(run·import·record·render·demo, SDK, aelix 도구와 `/analytics`)는 새
+  오류 `migration_required`와 전환하는 법을 알리는 안내로 첫 부수 효과 전에 거절되고, 맥락 동기화·캐시·로그 같은 부수 쓰기는 건너뜁니다. `status`
+  JSON의 `project.migration_hint`와 글·맥락 블록의 `Older record format: …` 줄이 그것을 알립니다. `analytics open`은 있는 `report/index.html`을
+  열고 더 갱신되지 않는다고 적으며, 페이지가 없으면 만들지 않고 그 사실과 전환하는 법을 적고 1로 끝납니다. 위쪽 디렉터리에 `lab.json`이 있는 새 형식 프로젝트는 `project.older_project_above`와 `warning:` 줄로
+  알립니다 ([#84]).
+- 새 프로젝트(`analytics init`·`demo`, `/analytics init`·`demo`, `analytics_init`)는 새 저장 이름입니다: `analytics.json`(`project_id`,
+  `min_writer_version`·`kit_version` 0.8.0), `.analytics/`, `workspace/`, `data/imported/`, `runs/<id>/visualizations/`, 새 `.gitignore`.
+  다른 프로젝트 안의 디렉터리와 끝나지 않은 전환의 목적지(표식 없이 전환 기록만 있는 폴더) 안에는 만들지 않습니다(`destination_invalid`,
+  `details.reason: inside_project`; 전환 목적지는 2026-10-09 소유자 결정이며 `analytics migrate --to`도 같음). 그 전환은 같은 명령으로 이어
+  끝냅니다. `.DS_Store`와 AppleDouble `._<이름>` 파일만 있는 폴더는 빈 폴더로 봅니다(그런 이름의 폴더·링크는 항목) ([#84]).
+- 기록: journal 줄은 `analytics.event/2`(`actor_basis`·`means`·`request_id`, 쓰는 때 결박한 참조의 `version_binding`·`relation`·`basis`·`digest`),
+  run은 `analytics.run/2`(`visualizations[]`·`sha256`·`data_sha256`, `reproduction.visualizations`), 가져오기는 `data/imported/`의
+  `analytics.dataset/1`, 입출력의 `via`는 `analytics.*`, 맥락 버전은 `.analytics/context/`이고 `context` 이벤트가 sha256으로 가리킵니다.
+  옛 형식의 기록은 그대로 읽습니다 ([#84]).
+- 기록의 본문을 자르지 않습니다. 32 KiB(UTF-8)를 넘거나 줄(LF 포함)이 50 KiB 미만이 아니면 새 오류 `text_too_long`이고 아무것도 쓰지
+  않습니다 — `record`·`analytics_record`가 먼저 하던 맥락 동기화도 하지 않고, run 안의 `analytics.record`는 부를 때 예외입니다(전에는 모든
+  진입점이 4,000자 뒤를 버렸습니다). kit이 만드는 기록(가져오기·run 완료·프로젝트 생성)은 다른 곳에 통째로 남는 설명·제목을 4,000자까지
+  인용합니다. 이벤트당 참조 24개의 상한과 풀지 못한 이름의 `other[]`는 없어졌습니다 ([#84]).
+- kind `gap`은 `workflow_feedback`이 되었습니다. 입력의 `gap`은 `bad_kind`(안내가 새 이름을 알림)이고, kit CLI `record`의 모르는 kind는 사용법
+  오류 2가 아니라 `bad_kind`와 1입니다. 옛 기록의 `gap`은 그대로 읽습니다 ([#84]).
+- 쓰기(`record`·`run`·`import`·`init`·`render`·`demo`·`migrate`, `analytics_init`)의 응답에 `request_id`가 있고, `record`는 결박(`bindings`)과
+  상태 변화(`targets`: `state_before`·`state_after`, 이미 닫힌 대상이면 앞의 기록 `made_by`)를 돌려줍니다. 공통 writer의 상태 변경(`record_update`)은
+  같은 상태 변경이 겹치면 `state_conflict`로 거절하며, 그것을 부르는 공개 입력은 #14·#19가 엽니다 ([#84]).
+- 작성 출처: 기록에 `actor_basis`(`declared`·`inferred`)와 `means`(`cli`·`sdk`·`tool`·`command`·`hook`)가 있습니다. `analytics`·
+  `bin/analytics`는 `AELIX_ANALYTICS_ACTOR=human`을 채워 넘기지 않아 사람이 부른 기록은 `human`·`inferred`이고, run 밖 SDK의 작성 주체는
+  `script`가 아니라 `human`(또는 밝힌 값)과 `sdk`입니다. kit CLI는 확장이 넘기는 내부 변수 `AELIX_ANALYTICS_MEANS`를 읽고 닫힌 목록 밖의 값은 새
+  오류 `bad_means`로 거절합니다 ([#84]).
+- 신뢰 목록이 `analytics-projects.json`(`analytics.trust/1`)입니다. 옛 `lab-projects.json`은 고치지 않고 `lab.json` 프로젝트의 활성화에만
+  읽습니다 ([#84]).
+- 관리 디렉터리가 표식의 배치마다입니다: 새 프로젝트의 `.lab/`·`report/`는 사람의 폴더라 run이 거기 쓴 파일은 출력이고, 새 프로젝트의
+  `workspace/`·`.analytics/`는 출력이 아닙니다 ([#84]).
+- `analytics`·`bin/analytics`의 프로젝트 찾기가 표식 없는 전환 목적지에서 멈추고 그 자리의 명령을 환경 없이 kit에 넘겨 `migration_incomplete`를
+  보입니다(전에는 지나 위로 올라갔고, uv가 그 자리에 `.venv/`를 만들 수 있었습니다). aelix 확장도 명시한 프로젝트가 그런 목적지이면
+  `migration_incomplete`입니다 ([#84]).
+
+### Removed
+
+- 공개 계약이 아닌 내부 이름 `core.add_note`·`append_event`·`NOTE_KINDS`·`MAX_EVENT_TEXT`·`MAX_EVENT_REFS`·`resolve_ref_aliases`와
+  `/1` 쓰기 경로. 기록은 `core.record`·`writer.Writer`로 씁니다. 저장소 도구 `tools/eval_fixtures.py`의 `--format v1`은 `--kit-root`로 준
+  0.8.0 전 kit으로만 만듭니다 ([#84]).
+
+자세한 것은 [현재 계약](docs/CONTRACTS.md) A–G와 F1의 0.8.0 절, [측정 기록](docs/verification/2026-10-09-issue-13-writer.md)에 있습니다.
+
 ## [0.7.0] - 2026-10-08
 
 번호를 붙인 PR은 [#13]의 둘째 구현 PR(①, 표식 판정과 쓰기 게이트)인 [#80]입니다.
@@ -221,3 +297,4 @@ PR도 이 절입니다.
 [#79]: https://github.com/handochan/aelix-analytics/pull/79
 [#80]: https://github.com/handochan/aelix-analytics/pull/80
 [#82]: https://github.com/handochan/aelix-analytics/pull/82
+[#84]: https://github.com/handochan/aelix-analytics/pull/84

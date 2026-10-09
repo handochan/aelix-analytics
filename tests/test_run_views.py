@@ -69,14 +69,17 @@ def as_new_format(p: LegacyProject) -> None:
     p.write_json("analytics.json", NEW_MARKER)
 
 
-def mixed(tmp_path) -> tuple[LegacyProject, str, str]:
-    """A lab.json project holding a /1 run and a /2 run of one script, each with Visualization
-    `trend` (the /1 one's plotly file has the same data)."""
+def mixed(tmp_path, *, new_format: bool = True) -> tuple[LegacyProject, str, str]:
+    """An analytics.json project holding a /1 run and a /2 run of one script — a migrated project
+    whose source's run was rerun by this kit (design 5.5) — each with Visualization `trend` (the /1
+    one's plotly file has the same data); with `new_format` False the same records under a lab.json."""
     p = LegacyProject(tmp_path / "p")
     old = p.run("20261001-090000-a", charts=["trend"])
     p.file(f"runs/{old}/charts/trend.plotly.json", json.dumps(FIGURE).encode())
     new = "20261001-100000-a"
     write_v2_run(p, new)
+    if new_format:
+        as_new_format(p)
     return p, old, new
 
 
@@ -133,7 +136,7 @@ def test_a_rerun_compares_the_same_ids_across_the_two_forms(tmp_path):
     v2 = json.loads((p.root / "runs" / new / "run.json").read_text(encoding="utf-8"))
     for before, after in ((v1, v2), (v2, v1)):
         result = runner.compare_runs(project, before, after)
-        assert result["charts"] == {"trend": "same data"} and result["verdict"] == "match", result
+        assert result["visualizations"] == {"trend": "same data"} and result["verdict"] == "match", result
 
 
 def test_a_rerun_s_comparison_shows_on_its_page_in_both_forms(tmp_path):
@@ -153,7 +156,7 @@ def test_the_reader_reads_the_new_families_where_they_belong(tmp_path):
     """design 2.6–2.7 and 5.1: analytics.run/2 run records and analytics.dataset/1 import records
     under data/imported/ are read; a family found where it does not belong is a kind of record this
     reader does not know there (unknown_kind)."""
-    p, _, new = mixed(tmp_path)
+    p, _, new = mixed(tmp_path, new_format=False)
     p.write_json("data/imported/fresh.meta.json", {
         "schema": "analytics.dataset/1", "name": "fresh", "path": "data/imported/fresh.parquet",
         "sha256": p.file("data/imported/fresh.parquet", b"fresh"), "bytes": 5, "rows": 1,

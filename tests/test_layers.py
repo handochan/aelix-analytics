@@ -85,7 +85,8 @@ LAYERS: dict[str, Layer] = {
     "distribution": _layer(0, (), (), "where the installed distribution keeps its runtime root"),
     "writer": _layer(1, ("ports", "read_model"), (),
                      "who may write a project's records and how: the marker judgment and the gate, "
-                     "Origin, the error class and the record helpers (#13)"),
+                     "Origin, the error class, the record helpers and the new format's common "
+                     "Writer (#13)"),
     "core": _layer(2, ("ports", "read_model", "writer"), (),
                    "the project model: domain and shared application, not split yet"),
     "runtime": _layer(3, ("core", "ports", "read_model", "runtime", "writer"), ("analysis",),

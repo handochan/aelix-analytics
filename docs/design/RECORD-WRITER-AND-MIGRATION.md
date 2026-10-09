@@ -1,12 +1,17 @@
 # 기록 writer와 프로젝트 전환 설계 — 새 형식의 공통 writer와 원본 보존 복사 전환
 
-- 상태: **Proposed — 일부만 구현됐다.** 첫 구현 PR ①(kit 0.7.0)이 10절 ①의 행 — `writer.py`(표식 판정·게이트·`Origin`·오류 클래스·헬퍼),
-  계층 수준, 가장 가까운 표식 탐색, 모든 쓰기 진입점의 `admit`, `marker_conflict`·`marker_invalid`, `/2` 이벤트 표시, `analytics.run/2`·
-  `analytics.dataset/1`의 정의(기록 schema)와 읽기, `relations.run_visualizations`·`run_reproduction` — 을, 둘째 구현 PR ②(같은 kit 0.7.0)가
-  10절 ②의 행 — `migration.py`(계층 `migration`, 수준 3)의 전환 엔진, 포트 메서드 넷과 계약 시험, 계획·ledger·매핑·보고서와
-  `analytics.migration/1`·표식의 `migration`, `incomplete`와 `migration_incomplete`, 매핑 읽기(5.4절), 고장 주입 시험 — 을 구현했다(명령으로는
-  열지 않음). 그 밖의 것 — `Writer`, 명령 `analytics migrate`, 기록에 쓰는 `means`·`actor_basis`, `analytics.trust/1`, ③의 오류 코드 — 은
-  코드에 없다. 지금 동작은 [현재 계약](../CONTRACTS.md)이 설명하고, ②가 설계와 다르게 고른 것은 그 PR이 적는다.
+- 상태: **구현됨 — #13의 구현 PR 넷(kit 0.6.0–0.8.0).** ⓪(kit 0.6.0)이 내부 이름을, 첫 구현 PR ①(kit 0.7.0)이 10절 ①의 행 —
+  `writer.py`(표식 판정·게이트·`Origin`·오류 클래스·헬퍼), 계층 수준, 가장 가까운 표식 탐색, 모든 쓰기 진입점의 `admit`,
+  `marker_conflict`·`marker_invalid`, `/2` 이벤트 표시, `analytics.run/2`·`analytics.dataset/1`의 정의(기록 schema)와 읽기,
+  `relations.run_visualizations`·`run_reproduction` — 을, 둘째 구현 PR ②(같은 kit 0.7.0)가 10절 ②의 행 — `migration.py`(계층 `migration`,
+  수준 3)의 전환 엔진, 포트 메서드 넷과 계약 시험, 계획·ledger·매핑·보고서와 `analytics.migration/1`·표식의 `migration`, `incomplete`와
+  `migration_incomplete`, 매핑 읽기(5.4절), 고장 주입 시험 — 을, 셋째 구현 PR ③(kit 0.8.0)이 10절 ③의 행 — `Writer`, `WRITABLE` 뒤집기와
+  `migration_required`, 저장 이름과 배치별 관리 디렉터리, 새 형식 init·demo, `analytics migrate`, 신뢰 목록 `analytics.trust/1`, 템플릿,
+  `min_writer_version`, 확장의 거절 글·`AELIX_ANALYTICS_MEANS`·aelix 프로세스 환경의 작성 주체와 `user_bash` 처리 — 를 구현했다.
+  ③은 소유자 결정(2026-10-08, [6060618609](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6060618609))대로 링크가 없는
+  목적지의 표식을 "있으면 실패하는 rename"(포트의 `AtomicFiles.rename_new`)으로 게시하고, 그것도 없으면 복사 전에 거절한다(D19는 사본에만
+  남음). 지금 동작은 [현재 계약](../CONTRACTS.md)이 설명하고, 각 PR이 설계와 다르게 고른 것은 그 PR과 측정 기록이 적는다(③:
+  [측정 기록](../verification/2026-10-09-issue-13-writer.md)).
 - 작업: [#13](https://github.com/handochan/aelix-analytics/issues/13) `[B1-c/N0-b]` 새 기록 writer와 원본 보존 프로젝트 전환.
   완료 조건 다섯과 이 문서의 대응은 1절에 있다.
 - 기준: main `09d22c4`(PR #76, #12 PR-3 병합 뒤), `KIT_VERSION = "0.5.0"`. 코드 위치는 함수 이름으로 적는다. 구현 PR은 그때의
@@ -33,6 +38,19 @@
   좁히고 OQ6은 결정 7의 PR 목록에 ⓪을 더하므로, ⓪의 PR이 [ADR-0005](../decisions/0005-names-first-storage-with-the-new-writer.md)를
   개정했다(결정 5의 예외 셋, 결정 7의 ⓪). ADR이 #13 설계에 맡겼거나 입력이 정하지 않은 설계 선택은
   15절(D1–D29)이며 설계 리뷰가 정한다.
+- 소유자 결정(2026-10-09, [#13](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6070315072), ③ PR #84의 질문 넷): (1) 링크도 배타 rename도 없는 목적지의 거절
+  `destination_invalid(no_exclusive_rename)`을 2단계 시험과 11단계에 구현한 그대로 둔다. (2) macOS의 AppleDouble 파일 `._<이름>`을 운영체제 메타
+  파일(OQ4의 제외, OQ16의 무시, 어느 깊이에서나)에 넣는다 — ADR-0005 결정 5의 예외를 넓히는 것이라 ③이 ADR을 개정했다. (3) `user_bash` 처리기를
+  그대로 두고, kit 명령에 한해 다른 확장의 막음·실행기를 덮는 한계를 현재 계약 A와 README에 적는다(R18). (4) OQ9를 커밋하지 않은 전환 목적지로
+  넓힌다: 표식 없이 전환 기록이 있는 위쪽 디렉터리 아래에도 init과 `migrate --to`가 `destination_invalid(inside_project)`로 거절한다(6.2절).
+- 소유자 결정의 보정(2026-10-09, [#13](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6072183477)): (2)의 AppleDouble은 `._<이름>`인 **일반 파일**(lstat)만이며, 빈 폴더 판정(init과 전환
+  목적지의 1단계·잠금 뒤 재판정)에도 적용한다. 그런 이름의 폴더·링크는 보통 항목이다(복사하고, 빈 폴더 판정에서 세고, 이어 쓰기에서 무시하지
+  않음). ADR-0005 결정 5의 개정 문구도 그에 맞췄다. (3)은 앞선 질문의 설명이 실제 동작보다 좁았던 것(그때는 `!` 한 줄의 명령 위치에 kit 호출이
+  하나라도 있으면 줄 전체가 로컬 셸에서 돌았다)을 바로잡은 답이다: 처리기는 줄 전체가 kit 진입점을 부르는 단순 명령 하나일 때만 실행기를
+  돌려주고, `;`·`&&`·`|`·줄바꿈·치환 등으로 다른 명령과 합친 줄은 건드리지 않으며 그 안의 kit 기록은 `agent`다(4.2절, 현재 계약 A).
+  보정판의 점검이 찾은 빈틈에 따라 줄은 aelix가 그 줄을 돌릴 셸(POSIX 셸이나 PowerShell, 그 밖의 셸에서는 결과 없음)이 읽는 대로 읽고, 셸마다
+  읽는 법이 다른 것(`$`, `env -S`, 모르는 `env`·`uv run` 옵션, PowerShell의 글자인 역슬래시·캐리지 리턴 등)이 든 줄도 건드리지 않는다. 또 목적지의
+  AppleDouble 일반 파일이 복사가 원본의 폴더·링크 `._x`를 놓을 경로이면 1단계에서 `not_empty`로 거절한다(6.2절).
 
 ---
 
@@ -344,7 +362,7 @@ class Origin:
 |---|---|---|---|---|
 | 런처 `analytics`, `bin/analytics`, `python -m aelix_analytics` | `AELIX_ANALYTICS_ACTOR`, 없으면 `human` (OQ1) | 변수가 있으면 `declared`, 없으면 `inferred` | `cli`. 확장이 부른 kit 자식은 확장이 넘긴 값 | `AELIX_ANALYTICS_SESSION` |
 | 위 CLI를 aelix 세션의 에이전트가 bash 도구로 부름 | `agent`(확장이 aelix 프로세스 환경에 넣은 `AELIX_ANALYTICS_ACTOR`) | `declared` | `cli` | 확장이 넣은 `AELIX_ANALYTICS_SESSION` |
-| 위 CLI를 사람이 aelix의 `!`·`!!` 명령으로 부름 | `human`(확장의 `user_bash` 처리가 그 명령의 환경에 넣음) | `declared` | `cli` | 같음 |
+| 위 CLI를 사람이 aelix의 `!`·`!!` 명령으로 부름 | `human`(줄 전체가 kit 명령 하나일 때 확장의 `user_bash` 처리가 그 명령의 환경에 넣음. 다른 명령과 합친 줄은 `agent`) | `declared` | `cli` | 같음 |
 | 확장의 모델 도구 `analytics_*` | `agent` | `declared` | `tool` | aelix 세션 |
 | 확장의 `/analytics` 명령 | `human` | `declared` | `command` | aelix 세션 |
 | 확장의 hook(프롬프트 직전 맥락 동기화, `agent_end`의 Workspace 예약), 상태 도구 안의 동기화 | `system` | `declared` | `hook`(상태 도구 안이면 `tool`) | aelix 세션 |
@@ -362,7 +380,7 @@ class Origin:
   `STATE["session"]`을 정하는 곳) `AELIX_ANALYTICS_SESSION`을 그 값으로 바꾼다. aelix 0.1.0b2의 bash 도구는 호출마다 `os.environ`을 복사해 자식의
   환경을 만들므로 에이전트가 부른 `analytics`가 이 값을 받는다(R9 프로브, 18절). `AELIX_ANALYTICS_MEANS`는 `os.environ`에 넣지 않는다(bash로 부른
   CLI의 실행 수단은 `cli`다). 확장 자신의 kit 자식은 지금처럼 허용 목록으로 만든 환경에 작성 주체를 직접 넣으므로(`child_env`) 영향을 받지 않는다.
-- 같은 `os.environ`은 사람이 aelix에서 친 `!` 명령에도 간다(R9의 D1). 그래서 확장은 `user_bash` 이벤트에서, kit을 부르는 명령이면(아래)
+- 같은 `os.environ`은 사람이 aelix에서 친 `!` 명령에도 간다(R9의 D1). 그래서 확장은 `user_bash` 이벤트에서, 줄 전체가 kit 명령 하나이면(아래)
   `UserBashResult(operations=…)`로 그 명령의 환경에만 `AELIX_ANALYTICS_ACTOR=human`을 넣는 실행기를 돌려준다. R9의 E1은 `cli/repl.handle_user_bash`를 hook 발행만 흉내 낸 대역
   (발행하면 그 결과를 바로 돌려줌)으로 실행해 이 실행기가 그 명령에만 닿는 것을 확인했다. 확장 등록(`on("user_bash")`)에서 aelix의 처리기 합치기
   (`_reducer_user_bash`)까지의 전달은 코드로 읽었고 실행하지 않았다(T22가 실제 등록으로 돈다).
@@ -370,7 +388,20 @@ class Origin:
   생긴다. 다른 확장(샌드박스·원격 실행 등)의 실행기가 마지막이면 사람이 부른 CLI가 `agent`로 남는다. 이 확장의 실행기가 마지막이면 **다른 확장의
   실행기를 조용히 밀어내** 그 `!` 명령이 그 확장 대신 이 확장의 로컬 실행기로 돈다. 사용자가 고른 실행 격리를 끄는 보안상의 부작용이다. 권장(OQ1)은
   명령 글이 kit의 진입점(`analytics`, `bin/analytics`, `aelix_analytics`)을 부를 때만 실행기를 돌려주고 나머지 `!` 명령에는 결과를 돌려주지 않는
-  것이다. 그래도 그 명령에서는 밀어내기가 남으므로 현재 계약 A에 한계로 적는다. 확장 API가 다른 처리기의 등록을 알려 주는지는 확인하지
+  것이다. 그래도 그 명령에서는 밀어내기가 남으므로 현재 계약 A에 한계로 적는다. ③의 첫 구현은 줄의 명령 위치 어디에든 kit 호출이 있으면 줄
+  전체에 실행기를 돌려줬고(`cd p && analytics status`, `echo x; analytics …`), 소유자가 보정한 결정(2026-10-09)으로 줄 전체가 kit 진입점을 부르는
+  단순 명령 하나(앞의 `NAME=value`·`env`·`uv run` 등과 파일·디스크립터 리디렉션은 허용)일 때만으로 좁혔다. 다른 명령과 합친 줄은 결과를
+  돌려주지 않아 다른 확장의 결과대로 돌고 그 안의 kit 기록은 `agent`다(규칙은 현재 계약 A). 보정판의 점검(2026-10-09)이 그 판정이 줄을 POSIX
+  셸로만 읽어 실제 셸과 어긋나는 줄을 찾았다: bash·zsh의 `$'…'`(작은따옴표를 `\'`로 품음), Windows에서 aelix의 셸인 PowerShell에서 역슬래시가
+  글자인 줄(`\;`·`"C:\data\"`)과 캐리지 리턴, `env -S`, 판정이 몰랐던 `uv run` 옵션. 그래서 판정은 aelix가 그 줄을 돌릴 셸을 aelix 자신의 규칙
+  (`tools.bash._resolve_shell`)으로 알고 그 셸이 읽는 대로 읽는다: POSIX 셸(sh·bash·zsh·dash·ksh·mksh·ash)과 PowerShell(POSIX 셸로 읽어도 받는
+  줄만), 그 밖의 셸(cmd·fish·nu·csh 등)에서는 결과를 돌려주지 않는다. 셸마다 다르게 펼치거나 읽는 것(작은따옴표 밖의 `$`, 줄바꿈이 뒤따르는
+  주석, 제어 문자, `env -S`, 판정이 모르는 옵션, PowerShell의 줄바꿈·백틱·`--%`·`{`·`<`·그 셸의 따옴표 글자)이 든 줄은 kit 명령 하나로 보지 않는다
+  (받지 않은 kit 명령은 `agent`로 남는 좁힘). 배치 파일(`analytics.cmd`·`.bat`)은 cmd가 인자를 다시 읽으므로 kit 진입점으로 보지 않는다. Windows에서는 맨 이름(`analytics`·`python`·`uv`)도
+  배치 파일 shim으로 풀릴 수 있어, cmd가 읽는 글자(`&`·`|`·`<`·`>`·`^`·`%`·`!`·`"`·`(`·`)`)가 든 단어가 있는 줄을 받지 않는다(그 점검 처리를 다시 점검한 뒤의 좁힘). 셸이
+  옵션의 값을 단어 여럿으로 펼쳐 프로그램이 바뀌는 줄(POSIX 셸의 따옴표 밖 패턴·중괄호), PowerShell이 단어를 POSIX 셸과 달리 나누는 줄(따옴표로 시작한 단어 뒤의 글자,
+  `-`로 시작하지 않는 단어 가운데의 따옴표, 매개변수 단어의 `.`, `,`·`@`·`]`·와일드카드, 단어 가운데의 `>`, 프로그램 앞의 리디렉션)도 받지 않고,
+  주석(단어 첫머리의 `#`) 앞의 단어로 판정한다(`ab45982`의 점검 뒤의 좁힘). 확장 API가 다른 처리기의 등록을 알려 주는지는 확인하지
   않았다(hook 버스의 `has_handlers`는 자기 처리기도 세고, 확장에서 닿는지 모른다). RPC 모드의 `bash` 명령(처리기 없이 `os.environ`을 그대로 씀)은
   사람이 부른 CLI가 `agent`로 남는 쪽의 한계다(R18, OQ1).
 - 확장이 aelix 프로세스의 환경을 바꾸는 것은 현재 계약 A(확장이 호스트에 남기는 것)의 변경이다. aelix가 띄우는 다른 자식(MCP 서버, 다른 확장의
@@ -518,7 +549,7 @@ class Writer:
 - 기본 relation은 `cites`, basis는 `declared`다. 다른 relation을 받는 공개 입력은 OQ11과 함께 정한다.
 - 최신 성공 버전은 `execution_status=ok`이고 완료 이벤트의 seq가 가장 큰 run의 것이다(ADR-0006 3절).
 - 결박 결과는 응답의 `bindings`에 돌려준다. 확정 연결은 `author`뿐이며 `inferred`를 확정처럼 보이지 않는다(Q4).
-- 참조는 이벤트당 24개(`MAX_EVENT_REFS`)를 그대로 둔다.
+- 참조는 이벤트당 24개(`MAX_EVENT_REFS`)를 그대로 둔다. ③은 이 상한을 두지 않았다(줄 50 KiB가 묶음, 19.3절의 처리).
 
 ### 4.8 정본과 완료 이벤트, `min_writer_version` (③)
 
@@ -715,8 +746,8 @@ class Writer:
 | 원본 | 바깥을 가리키는 링크의 대상이 지금 있음 | `source_unreadable(reason=link_target_missing)`과 링크 경로·링크 글자 목록(OQ12) |
 | 원본 | 원본의 모든 이름을 UTF-8로 쓸 수 있음(POSIX가 UTF-8이 아닌 바이트를 넘기는 짝 없는 surrogate가 없음) | `source_unreadable(reason=name_not_utf8)`과 경로 목록(이름 바이트의 base64와 이스케이프한 글자). OQ12와 같은 방식 |
 | 원본 | `.lab/` 아래 이름이 목적지의 새 관리 이름(`.analytics/migration/`·`publications/`·`run.lock`·`workspace.lock`·`migration.lock`)과 겹치지 않음 | `destination_invalid(name_collision)`(겹친 쌍) |
-| 목적지 | 목적지의 위쪽 디렉터리에 `lab.json`·`analytics.json`이 없음 | `destination_invalid(inside_project)` |
-| 목적지 | 목적지가 없거나 빈 디렉터리, 또는 6.10절의 이어 쓸 목적지. 빈 디렉터리의 판정은 init과 같다: 루트에 `.DS_Store`만 있으면 빈 것으로 보고, init과 전환이 같은 상수를 쓴다(ADR-0005 결정 5 "init과 같다") | `destination_invalid(not_empty)`(남은 항목), 파일이면 `not_a_directory`. OQ4의 권장 답을 받지 않아 운영체제 메타 파일도 복사할 때, 목적지의 `.DS_Store`가 계획이 복사할 경로(원본 루트의 `.DS_Store`)이면 `not_empty`와 그 파일이다(복사 중 `occupied`로 늘 끝나는 일을 미리 거절) |
+| 목적지 | 목적지의 위쪽 디렉터리에 `lab.json`·`analytics.json`이 없고, 표식 없는 전환 기록(`.analytics/migration/`·`.analytics/migration.lock`, 커밋하지 않은 전환의 목적지)도 없음(전환 기록은 2026-10-09 소유자 결정으로 OQ9를 넓힌 것, `writer.project_above`; init도 같음) | `destination_invalid(inside_project)`(`details.project`: 그 디렉터리) |
+| 목적지 | 목적지가 없거나 빈 디렉터리, 또는 6.10절의 이어 쓸 목적지. 빈 디렉터리의 판정은 init과 같다: 루트에 `.DS_Store`만 있으면 빈 것으로 보고, init과 전환이 같은 상수를 쓴다(ADR-0005 결정 5 "init과 같다"). 2026-10-09 소유자 결정(같은 날 보정)으로 AppleDouble 파일 — `._<이름>`인 일반 파일(lstat) — 도 `.DS_Store`처럼 빈 디렉터리에 남아도 되는 항목이다(`core.empty_directory_entry`). 그런 이름의 폴더·링크는 항목이다. 잠금을 잡은 뒤의 재판정에서 `.analytics/` 안의 AppleDouble 파일(macOS가 이 전환의 잠금 옆에 만든 `._migration.lock` 등)도 항목으로 세지 않는다 | `destination_invalid(not_empty)`(남은 항목), 파일이면 `not_a_directory`. OQ4의 권장 답을 받지 않아 운영체제 메타 파일도 복사할 때, 목적지의 `.DS_Store`가 계획이 복사할 경로(원본 루트의 `.DS_Store`)이면 `not_empty`와 그 파일이다(복사 중 `occupied`로 늘 끝나는 일을 미리 거절). 같은 이유로 목적지의 AppleDouble 일반 파일(루트와 `.analytics/`의 것)이 복사가 원본의 항목을 놓을 경로(원본의 폴더·링크 `._x`, `.lab/._d`의 `.analytics/._d`, 또는 그 아래)이면 `not_empty`와 그 파일이다. 이름은 대소문자·정규화를 접어 비교하고(접는지는 2단계에서 앎), 원본의 링크는 목적지가 링크를 만들 수 있는지와 상관없이 그 경로를 차지한다고 본다. 이 파일은 판정의 서명에 들어가 잠금 뒤에 생겨도 다시 판정한다(보정판의 점검) |
 | 목적지 | 목적지 쪽 빈 공간 ≥ 남은 바이트 + 여유(남은 바이트의 1% + 64 MiB) | `insufficient_space` |
 
 - 같은 위치인지는 끝까지 푼 `(st_dev, st_ino)`로, `st_ino`가 0이면 끝까지 푼 경로로 판정한다(ADR-0006 9절). 목적지는 끝까지 푼 경로(없으면 가장
@@ -843,7 +874,7 @@ ledger 먼저: 이 전환이 목적지에 만드는 파일은 모두 그 이름�
 | `.lab/context/*.md`, `.lab/telemetry.jsonl`, `.lab/queries.jsonl`, `.lab/adhoc/`, `.lab/demo/`와 `.lab/` 아래의 그 밖의 항목 | `.analytics/` 아래 같은 상대 경로 | 바이트 그대로. 매핑의 접두 대응 `.lab/` → `.analytics/` |
 | `.lab/cache/`, `.lab/lock`·`run.lock`·`report.lock` | 없음 | 재생성 가능·잠금. 보고서 `excluded`(OQ4) |
 | `report/`, `.venv/`, `__pycache__/` | 없음 | 재생성 가능·환경. 보고서 `excluded`(OQ4) |
-| 운영체제 메타 파일 `.DS_Store`·`Thumbs.db`·`desktop.ini`(어느 깊이에서나) | 없음 | 운영체제가 다시 만드는 보기 설정. 보고서 `excluded`(`os_metadata`, OQ4). 원본 전후 비교에서도 빠지므로 전환 중에 Finder·탐색기가 원본을 열어도 `source_changed`가 되지 않고, 목적지의 같은 이름 파일이 계획 경로를 차지하지 않는다 |
+| 운영체제 메타 파일 `.DS_Store`·`Thumbs.db`·`desktop.ini`와 macOS의 AppleDouble 파일 `._<이름>`(어느 깊이에서나; AppleDouble은 2026-10-09 소유자 결정과 보정으로 일반 파일만이고, 그런 이름의 폴더·링크는 아래 "그 밖의 모든 것") | 없음 | 운영체제가 다시 만드는 보기 설정과 확장 속성. 보고서 `excluded`(`os_metadata`, OQ4). 원본 전후 비교에서도 빠지므로 전환 중에 Finder·탐색기가 원본을 열어도 `source_changed`가 되지 않고, 목적지의 같은 이름 파일이 계획 경로를 차지하지 않는다 |
 | 루트의 `.git`이 파일(git worktree의 `gitdir:` 포인터) | 없음 | 복사하면 목적지가 원본 worktree의 관리 디렉터리(index·HEAD)를 함께 쓴다. 보고서 `not_copied`(`git_worktree_pointer`)와 경고(OQ4) |
 | 그 밖의 모든 것(`journal.jsonl`, `CONTEXT.md`, `runs/`, `data/raw/`, `data/derived/`, `scripts/`, `pyproject.toml`, `uv.lock`, 디렉터리 `.git/` 등) | 같은 상대 경로 | 바이트 그대로 |
 | `.gitignore` | 같은 경로, 끝에 블록 덧붙임 | 6.13절 |
@@ -980,14 +1011,15 @@ flush·표식 단계의 시간은 ledger의 `durable`·`committed` 줄과 응답
 ### 6.10 이어 쓰기와 거절
 
 목적지에 표식이 없고 전환 기록이 있으면 이어 쓰기 판정이다. 판정은 먼저 읽기만 하고(6.2절 순서의 1) 1단계의 목적지 잠금 안에서 다시 한다.
-무시하는 항목은 계획에 없는 `.venv/`·`__pycache__/`와 운영체제 메타 파일(`.DS_Store`·`Thumbs.db`·`desktop.ini`, 어느 깊이에서나)이다. 이 무시는
+무시하는 항목은 계획에 없는 `.venv/`·`__pycache__/`와 운영체제 메타 파일(`.DS_Store`·`Thumbs.db`·`desktop.ini`, 2026-10-09 소유자 결정과 보정으로
+macOS의 AppleDouble `._<이름>`인 일반 파일도, 어느 깊이에서나. 그런 이름의 폴더·링크는 무시하지 않는다)이다. 이 무시는
 결정 5의 "목적지에 전환 보고서가 적은 파일만 있고 해시가 맞을 때만 잇는다"보다 넓게 받는 것이라 소유자 질문 OQ16이었고, 이 목록(15절 D11)을
 소유자가 채택해 ADR-0005 결정 5의 예외로 적었다(2026-10-08). 계획에 있는 경로를 이런 파일이 차지하고 있으면 무시하지 않고 그
 경로의 게시가 `destination_mismatch(occupied)`가 된다(OQ4대로 메타 파일은 계획에 없다).
 
 | 목적지 상태 | 같은 명령을 다시 부르면 |
 |---|---|
-| 없음·빈 디렉터리, 또는 `.analytics/`·`migration.lock`·빈 `.analytics/migration/`만, 또는 그것에 더해 내용 없는 전환 디렉터리 하나(ledger가 없거나 비었거나 끊긴 첫 줄뿐이고 다른 항목이 없음, 2단계 중의 중단)만 | 새 전환. 내용 없는 전환 디렉터리는 2단계가 만든 것이므로 지우고 새 id로 시작한다 |
+| 없음·빈 디렉터리, 또는 `.analytics/`·`migration.lock`·빈 `.analytics/migration/`만, 또는 그것에 더해 내용 없는 전환 디렉터리 하나(ledger가 없거나 비었거나 끊긴 첫 줄뿐이고 다른 항목이 없음, 2단계 중의 중단. FAT·exFAT에서 macOS가 ledger 옆에 쓰는 AppleDouble 일반 파일 `._progress.jsonl`은 항목으로 세지 않음)만 | 새 전환. 내용 없는 전환 디렉터리는 2단계가 만든 것이므로 지우고 새 id로 시작한다. 지우지 못하면(macOS 밖에서 AppleDouble 파일이 남음, 권한) `destination_write_failed`(`details.path`: 그 디렉터리)로 거절하고 hint가 그 폴더를 지우라고 알리며, 이 호출이 지운 것(끊긴 ledger, 그 앞의 내용 없는 디렉터리; 없으면 없다고)을 hint와 `details.removed`에 적는다(2026-10-09 소유자 결정의 보정 뒤 점검과 그 다음 점검). macOS의 `rmdir`은 `._` 이름의 일반 파일과 링크를 함께 지우지만, 링크 `._x`가 있는 디렉터리는 내용이 있다고 판정해 지우지 않는다 |
 | 내용 있는 전환 디렉터리가 둘 이상 | `destination_mismatch` |
 | 원본이 주어졌고 ledger의 원본과 다른 위치 | `destination_invalid(not_empty)`(다른 원본의 중단된 전환) |
 | 전환 디렉터리 없이 다른 항목이 있음 | `destination_invalid(not_empty)` |
@@ -1198,10 +1230,10 @@ ADR-0005 결정 7은 이름 변경·파일 이동·기록 의미 변경을 한 P
 | PR | 내용 | 불변식(ADR-0005 결정 7) | `KIT_VERSION` | 리뷰(운영 정책) | 측정 기록 |
 |---|---|---|---|---|---|
 | D 설계 | 이 문서. ARCHITECTURE·ADR-0005의 링크 | 코드 없음 | 그대로 | 결정만 담은 기록 형식 PR: 이 리뷰가 설계 리뷰(독립 1·Codex 1) | 없음 |
-| ⓪ 내부 이름 | 9절의 ⓪ 행(OQ6). 동작·저장 그대로 | 저장 바이트 그대로(`STORED` 시험 통과) | 올림(공개 JSON 키) | 일반 PR(독립 1·Codex 1) | 없음 |
-| ① 판정·읽기 | `writer.py` 등록(판정·게이트·헬퍼·`Origin`·오류 클래스), 계층 수준 변경, 가장 가까운 표식 탐색, 모든 진입점의 `admit`, `marker_conflict`·`marker_invalid`, `analytics.json` 디렉터리의 모든 쓰기 거절·부수 쓰기 건너뜀, `/2` 이벤트 표시, `analytics.run/2`·`analytics.dataset/1` 정의와 읽기(OQ5·D2·D4가 먼저 정해져야 함), Visualization의 한 보기(`relations.run_visualizations`)와 재실행 비교 결과의 한 보기(`relations.run_reproduction`), 모든 소비자의 전환, `Origin` 배관, (OQ8의 답에 따라) `/1` 덧붙이기 수정 | `analytics.json` 디렉터리에 아무것도 써지지 않음(T8) | 올림(새 거절) | 구현 리뷰 독립 1·Codex 1, 수정 diff 확인 1 | 있음(새 가족 정의, 진입점 행렬) |
-| ② 전환 엔진 | `migration.py` 등록, 포트 메서드 셋과 계약 시험, 계획·ledger·매핑·보고서와 schema, `migration_incomplete`, 매핑 읽기, 고장 주입 시험. 명령·도구로 열지 않음 | 엔진은 시험에서만 `analytics.json`을 씀. ②의 kit은 그 목적지에 쓰지 않음(①의 게이트) | 그대로 | 같음 | 있음(전환 정확성·규모·중단 행렬) |
-| ③ 새 writer·정책 | `Writer`, `WRITABLE` 뒤집기(`lab.json` → `migration_required`), 저장 이름 개명과 배치별 관리 디렉터리(2.3절), 새 형식 init·demo, `analytics migrate`, 신뢰 목록, `.gitignore`·템플릿, `min_writer_version`, 확장의 거절 글·`AELIX_ANALYTICS_MEANS`·aelix 프로세스 환경의 작성 주체와 `user_bash` 처리(OQ1), 현재 계약 전반, `STORED` 시험 뒤집기 | `lab.json` 디렉터리에 쓰지 않음, `analytics.json` 디렉터리에 옛 형식이 써지지 않음 | 올림, `min_writer_version` = 이 값 | 같음 | 있음(writer 지연, 명령 E2E, 전환 재측정) |
+| ⓪ 내부 이름(구현됨, kit 0.6.0, PR #79) | 9절의 ⓪ 행(OQ6). 동작·저장 그대로 | 저장 바이트 그대로(`STORED` 시험 통과) | 올림(공개 JSON 키) | 일반 PR(독립 1·Codex 1) | 없음 |
+| ① 판정·읽기(구현됨, kit 0.7.0, PR #80) | `writer.py` 등록(판정·게이트·헬퍼·`Origin`·오류 클래스), 계층 수준 변경, 가장 가까운 표식 탐색, 모든 진입점의 `admit`, `marker_conflict`·`marker_invalid`, `analytics.json` 디렉터리의 모든 쓰기 거절·부수 쓰기 건너뜀, `/2` 이벤트 표시, `analytics.run/2`·`analytics.dataset/1` 정의와 읽기(OQ5·D2·D4가 먼저 정해져야 함), Visualization의 한 보기(`relations.run_visualizations`)와 재실행 비교 결과의 한 보기(`relations.run_reproduction`), 모든 소비자의 전환, `Origin` 배관, (OQ8의 답에 따라) `/1` 덧붙이기 수정 | `analytics.json` 디렉터리에 아무것도 써지지 않음(T8) | 올림(새 거절) | 구현 리뷰 독립 1·Codex 1, 수정 diff 확인 1 | 있음(새 가족 정의, 진입점 행렬) |
+| ② 전환 엔진(구현됨, kit 0.7.0, PR #82) | `migration.py` 등록, 포트 메서드 셋과 계약 시험, 계획·ledger·매핑·보고서와 schema, `migration_incomplete`, 매핑 읽기, 고장 주입 시험. 명령·도구로 열지 않음 | 엔진은 시험에서만 `analytics.json`을 씀. ②의 kit은 그 목적지에 쓰지 않음(①의 게이트) | 그대로 | 같음 | 있음(전환 정확성·규모·중단 행렬) |
+| ③ 새 writer·정책(구현됨, kit 0.8.0) | `Writer`, `WRITABLE` 뒤집기(`lab.json` → `migration_required`), 저장 이름 개명과 배치별 관리 디렉터리(2.3절), 새 형식 init·demo, `analytics migrate`, 신뢰 목록, `.gitignore`·템플릿, `min_writer_version`, 확장의 거절 글·`AELIX_ANALYTICS_MEANS`·aelix 프로세스 환경의 작성 주체와 `user_bash` 처리(OQ1), 현재 계약 전반, `STORED` 시험 뒤집기 | `lab.json` 디렉터리에 쓰지 않음, `analytics.json` 디렉터리에 옛 형식이 써지지 않음 | 올림, `min_writer_version` = 이 값 | 같음 | 있음(writer 지연, 명령 E2E, 전환 재측정) |
 
 - 게이트를 ①에 먼저 넣는 이유: 위험한 부분(모든 진입점의 첫 부수 효과 전 판정)을 형식 전환과 떼어 먼저 시험한다. ③은 정책을 뒤집는다.
 - ①은 `analytics.run/2`·`analytics.dataset/1`의 reader를 먼저 싣는다. 그래서 OQ5와 D2·D4는 ①이 병합되기 전에 정한다. ③에서 정의를 바꾸면
@@ -1246,7 +1278,7 @@ PR별 주요 파일:
 | 시험 | 내용 | 보장 | PR |
 |---|---|---|---|
 | T1 원본 보존 | 모든 전환 시험(성공·거절·중단·실패·`--dry-run`)에서 원본 `tree_digest` 전후 같음, 따라간 바깥 링크 대상의 `tree_digest`도 같음. 원본: CRLF journal, 끊긴 마지막 줄, P7처럼 붙여 쓴 줄, `/2` 줄이 섞인 journal, 모르는 가족 줄, 한국어·NFD 파일 이름, 빈 파일, 64 MiB 넘는 파일, 읽기 전용 파일, 링크(OQ3), `.lab/`이 없는 원본(디렉터리가 생기지 않음), 읽기 전용으로 마운트한 원본(잠금 없이 진행, `locks: not_taken`), worktree `.git` 파일 | S1 | ② |
-| T2 목적지 규칙 | 원본 안·원본을 품은 위·같은 위치의 다른 철자(대소문자, NFD, 링크, junction), `data -> /ext/data`인 원본에 `--to /ext/data/new`·`--to /ext/data`·`--to /ext`(`overlaps_source`, `details.with`), 비지 않음, 루트에 `.DS_Store`만 있는 목적지(받음, init과 같음)와 `Thumbs.db`만 있는 목적지(`not_empty`), 위쪽 `lab.json`·`analytics.json`, 공간 부족(주입한 빈 공간 값), 대상이 없는 바깥 링크(OQ12), UTF-8이 아닌 이름(Linux), `.lab/migration.lock` 같은 관리 이름 충돌, 대소문자만 다른 두 원본 이름을 이름을 접는 목적지(macOS 기본 볼륨)와 접지 않는 목적지(대소문자 구별 디스크 이미지·Linux)로(앞은 `name_collision`, 뒤는 그대로 복사), 원본의 `.mig-….part` 이름(충돌 없음), 중첩 표식(OQ10), 형제 목적지(`/a/proj`의 `x -> ../proj/y`와 깨진 `z -> ../proj/w`를 `--to /a/proj-new`로: `x`는 링크로 다시 만들지 않고 바이트 사본, `z`는 복사하지 않음, 전환 뒤 목적지에서 `x`를 고쳐도 원본 바이트 그대로) → 각 결과이고 거절이면 목적지·원본·링크 대상 바이트 변화 없음 | S1·S2 | ② |
+| T2 목적지 규칙 | 원본 안·원본을 품은 위·같은 위치의 다른 철자(대소문자, NFD, 링크, junction), `data -> /ext/data`인 원본에 `--to /ext/data/new`·`--to /ext/data`·`--to /ext`(`overlaps_source`, `details.with`), 비지 않음, 루트에 `.DS_Store`만 있는 목적지(받음, init과 같음)와 `Thumbs.db`만 있는 목적지(`not_empty`), `.DS_Store`·AppleDouble 일반 파일만 있는 목적지(받음, 2026-10-09)와 `._<이름>`인 폴더·링크가 있는 목적지(`not_empty`, 1단계와 잠금 뒤, 2026-10-09 보정), 위쪽 `lab.json`·`analytics.json`과 위쪽의 커밋하지 않은 전환 목적지(`inside_project`, 2026-10-09), 공간 부족(주입한 빈 공간 값), 대상이 없는 바깥 링크(OQ12), UTF-8이 아닌 이름(Linux), `.lab/migration.lock` 같은 관리 이름 충돌, 대소문자만 다른 두 원본 이름을 이름을 접는 목적지(macOS 기본 볼륨)와 접지 않는 목적지(대소문자 구별 디스크 이미지·Linux)로(앞은 `name_collision`, 뒤는 그대로 복사), 원본의 `.mig-….part` 이름(충돌 없음), 중첩 표식(OQ10), 형제 목적지(`/a/proj`의 `x -> ../proj/y`와 깨진 `z -> ../proj/w`를 `--to /a/proj-new`로: `x`는 링크로 다시 만들지 않고 바이트 사본, `z`는 복사하지 않음, 전환 뒤 목적지에서 `x`를 고쳐도 원본 바이트 그대로) → 각 결과이고 거절이면 목적지·원본·링크 대상 바이트 변화 없음 | S1·S2 | ② |
 | T3 커밋 지점 | 표식 전 모든 지점에서 목적지 안 새 kit 명령은 `migration_incomplete`, 옛 탐색(지금 `find_project`의 사본)은 `no_project`. 표식은 검증 뒤에만, 신뢰 항목은 표식 뒤에만 있음 | S2 | ②·③ |
 | T4 검증 가능성 | 보고서 schema, 사본 해시 = 보고서, 표식의 `report_sha256` = 보고서 바이트, 위치 대응이 매핑과 같고 `.gitignore`만 변환되며 전후 해시·diff가 맞음, 다시 부르기의 대조가 고친 사본 하나를 잡음 | S3·S4 | ② |
 | T5 복사 중 원본 변경 | 지점마다 telemetry 덧붙이기·파일 추가·삭제·스크립트 편집 → `source_changed`(경로 포함), 표식 없음. journal 덧붙이기는 잠금에서 기다렸다가 놓은 뒤 쓰이고 사본에 없으며 다시 부르기가 그 줄을 셈 | S5 | ② |
@@ -1266,7 +1298,7 @@ PR별 주요 파일:
 | T19 덮어쓰지 않는 게시 | 게시 직전(`on_step`)에 다른 프로세스가 계획 경로에 파일을 만듦 → `destination_mismatch(occupied)`, 그 파일의 바이트 그대로, 임시 파일은 ledger에 있음, 다시 부르면 같은 거절. 표식 게시 직전에 `analytics.json`을 만들어 둠 → 같음. 링크를 지원하지 않는 파일 시스템(시험 adapter로 `os.link` 실패를 주입)에서 `direct` 경로가 같은 결과를 냄 | S2·S6 | ② |
 | T20 배치별 관리 디렉터리 | 새 형식 프로젝트에서 스크립트가 `report/out.csv`를 씀 → run 기록의 출력에 저장된 철자로 있음. 같은 프로젝트의 `workspace/x.csv` → 출력 아님. `lab.json` 프로젝트의 `report/` → 지금처럼 출력 아님 | S14 | ③ |
 | T21 다시 부른 전환 | 6.9절의 표: 목적지에 두 표식·깨진 표식·모르는 표식·`lab.json`, 다른 원본의 커밋된 목적지, 같은 원본의 커밋된 목적지(신뢰 항목 있음·없음, 원본을 지우고 원본 없이 부름, 바깥 링크 대상을 치움, 같은 디스크의 빈 공간이 원본보다 작음), `marker_rewritten`, 표식과 같은 inode의 임시 파일을 실제 호출과 `--dry-run`으로. 기대 결과, 신뢰 목록은 누락 보충 말고 바뀌지 않음, 목적지·원본의 `tree_digest` 같음(임시 파일 정리 제외) | S1·S2 | ②·③ |
-| T22 aelix가 부른 CLI의 작성 주체 | aelix 0.1.0b2를 격리 환경에 설치하고(가짜 HOME, 모델·네트워크·로그인 없음) 확장을 aelix의 확장 로더로 실제로 등록한 뒤(`on("user_bash")` 포함, 대역 hook 없이) aelix의 bash 도구 실행 함수로 `analytics record`를 부름 → `actor=agent`·`declared`·`means=cli`와 세션. 같은 프로세스에서 `cli/repl.handle_user_bash`가 실제 hook 버스로 `user_bash`를 발행하게 해 사람의 `!` 명령을 흉내 냄 → kit을 부르는 명령은 `human`·`declared`, kit을 부르지 않는 명령에는 실행기를 돌려주지 않음(OQ1). `user_bash` 실행기를 돌려주는 시험용 확장을 하나 더 등록해 등록 순서 둘 다에서 어느 실행기가 도는지 기록(4.2절의 두 방향). 확장 자신의 kit 자식은 영향 없음. Windows 레그의 PowerShell 자식은 실행하기 전까지 `not_run` | S11 | ③ |
+| T22 aelix가 부른 CLI의 작성 주체 | aelix 0.1.0b2를 격리 환경에 설치하고(가짜 HOME, 모델·네트워크·로그인 없음) 확장을 aelix의 확장 로더로 실제로 등록한 뒤(`on("user_bash")` 포함, 대역 hook 없이) aelix의 bash 도구 실행 함수로 `analytics record`를 부름 → `actor=agent`·`declared`·`means=cli`와 세션. 같은 프로세스에서 `cli/repl.handle_user_bash`가 실제 hook 버스로 `user_bash`를 발행하게 해 사람의 `!` 명령을 흉내 냄 → 줄 전체가 kit 명령 하나이면 `human`·`declared`, kit을 부르지 않거나 다른 명령과 합친 줄에는 결과를 돌려주지 않음(합친 줄의 kit 기록은 `agent`, OQ1과 2026-10-09 보정). `user_bash` 실행기를 돌려주는 시험용 확장과 `!` 명령을 막는 시험용 확장을 하나씩 더 등록해 등록 순서 둘 다에서 어느 실행기가 도는지, 막는 확장이 먼저일 때 합친 줄과 `$'…'`가 든 줄(보정판의 점검이 찾은 줄)이 막힌 채인지 기록(4.2절의 두 방향). 확장 자신의 kit 자식은 영향 없음. 판정은 셸 군마다의 표와, 점검이 찾은 함정 줄을 시험 기기의 셸(sh·bash·zsh·dash·ksh·pwsh)로 실제로 돌려 kit 명령 하나로 판정한 줄이 둘째 명령이나 kit이 아닌 프로그램(`touch`)을 돌리지 않음을 보는 시험(`tests/test_extension.py`)이 덮는다. Windows 레그의 PowerShell 자식은 실행하기 전까지 `not_run` | S11 | ③ |
 
 ### 11.3 진입점 행렬 (T8)
 
@@ -1339,7 +1371,7 @@ pull_request, base_revision, measured_tree, workflow, runs, legs, developer_mach
 | R15 | plotly 템플릿 개명이 새 그림 JSON의 바이트를 바꿀 수 있다(미확인) | ⓪의 시험이 기존 기록 바이트만 고정하고, 바뀌면 그 항목을 ③으로 옮김 |
 | R16 | ③ 뒤 `/1` fixture 생성이 막혀 #15·#41의 측정이 밀린다 | OQ7 |
 | R17 | ③ 전까지 `/1` writer의 #49 결함이 전환할 원본에 손상을 더한다 | OQ8 |
-| R18 | (1) 확장이 aelix 프로세스 환경에 넣은 `AELIX_ANALYTICS_ACTOR=agent`가 사람의 호출에도 닿는다: RPC 모드의 `bash` 명령, 다른 확장의 `user_bash` 실행기가 마지막일 때의 `!` 명령, aelix가 띄운 다른 자식. (2) 반대로 이 확장의 `user_bash` 실행기가 마지막이면 aelix가 마지막 결과만 쓰므로 다른 확장(샌드박스·원격 실행)의 실행기를 조용히 밀어내, 그 `!` 명령이 사용자가 고른 격리 없이 로컬에서 돈다 | (1)은 사람의 CLI가 `agent`로 남는 쪽의 한계로 현재 계약 A에 적음(#17의 사람 수를 줄이는 쪽의 오류). (2)는 보안상의 부작용이라 OQ1에서 소유자가 정한다. 권장: kit의 진입점을 부르는 `!` 명령에만 실행기를 돌려줘 밀어내기를 그 명령으로 줄이고, 남는 범위를 현재 계약 A에 한계로 적음. T22가 두 등록 순서를 기록 |
+| R18 | (1) 확장이 aelix 프로세스 환경에 넣은 `AELIX_ANALYTICS_ACTOR=agent`가 사람의 호출에도 닿는다: RPC 모드의 `bash` 명령, 다른 확장의 `user_bash` 실행기가 마지막일 때의 `!` 명령, aelix가 띄운 다른 자식. (2) 반대로 이 확장의 `user_bash` 실행기가 마지막이면 aelix가 마지막 결과만 쓰므로 다른 확장(샌드박스·원격 실행)의 실행기를 조용히 밀어내, 그 `!` 명령이 사용자가 고른 격리 없이 로컬에서 돈다 (3) aelix 0.1.0b2의 합치기(`hooks._reducer_user_bash`)는 셸만이 아니라 종류와 상관없이 마지막 `UserBashResult`를 쓴다. 그래서 `!` 명령을 막거나 대신 실행하는 확장(`result`)이 앞에 등록되면 이 확장의 셸이 그 막음을 대신해, 막힌 kit 명령이 로컬에서 돌아 기록을 쓴다(③ 구현 리뷰에서 실제 aelix로 재현) | (1)은 사람의 CLI가 `agent`로 남는 쪽의 한계로 현재 계약 A에 적음(#17의 사람 수를 줄이는 쪽의 오류). (2)는 보안상의 부작용이라 OQ1에서 소유자가 정한다. 권장: kit의 진입점을 부르는 `!` 명령에만 실행기를 돌려줘 밀어내기를 그 명령으로 줄이고, 남는 범위를 현재 계약 A에 한계로 적음. T22가 두 등록 순서를 기록. (3)은 OQ1을 채택할 때의 설명에 없던 효과라 현재 계약 A·README에 적고 소유자 질문으로 올렸고, 소유자가 처리기를 두고 그 한계를 적되, 덮는 범위를 줄 전체가 kit 명령 하나인 `!` 명령으로 줄이기로 했다(2026-10-09과 같은 날의 보정, 19.3절). T22가 막는 확장의 두 등록 순서와, 막는 확장이 먼저일 때 다른 명령과 합친 줄이 막힌 채인 것을 기록 |
 | R19 | 대상이 없는 바깥 링크·UTF-8이 아닌 이름이 있는 원본은 고치기 전까지 전환을 거절해 ③ 뒤 읽기 전용에 더 오래 머문다 | `--dry-run`이 목록을 맨 앞에 보이고 오류가 고칠 방법을 안내(OQ12). R7과 같은 대응 |
 | R20 | 링크를 지원하지 않는 목적지 파일 시스템의 `direct` 게시는 최종 이름에 반쯤 쓴 파일을 남길 수 있다. `direct_intent` 뒤 파일을 만든 직후 `direct` 줄 전에 끊기면 그 파일이 이 전환의 것인지 알 수 없다 | 표식 전이라 어떤 kit도 읽지 않고, ledger의 정체성으로 이 전환의 파일만 지운다(6.12절). 정체성을 적기 전의 창에서 끊긴 파일은 지우지 않고 `destination_mismatch(occupied)`로 거절하며 경로를 알린다(6.11절 F15). 사람이 확인해 지운 뒤 다시 부른다. 실제 FAT·exFAT 매체는 실행하지 않았다 |
 
@@ -1411,22 +1443,22 @@ ADR-0005를 좁히거나 바꾸는 답(OQ4·OQ15·OQ16은 결정 5의 예외, OQ
 
 | 번호 | 질문 | 권장 답(한 줄) | 채택된 보장을 좁히는가 |
 |---|---|---|---|
-| OQ1 | 작성 주체의 기본값과 에이전트가 부른 CLI | 확장이 aelix 프로세스 환경에 `AELIX_ANALYTICS_ACTOR=agent`를 넣어 aelix 에이전트의 CLI를 `agent`로 남기고, 사람의 `!` 명령은 kit을 부를 때만 `user_bash` 실행기로 `human`을 넣으며(다른 확장의 실행기를 밀어내는 범위를 그 명령으로 줄임), 밝히지 않은 CLI는 `human`·`inferred`, #17은 `human`을 basis와 관계없이 세되 둘을 나눠 보인다 | 권장 경로는 좁히지 않는다. aelix 밖 에이전트가 `human`·`inferred`로 남는 경우는 Q17-b를 호스트와 관계없이 읽으면 좁힘이며 그 범위를 소유자가 정한다 |
+| OQ1 | 작성 주체의 기본값과 에이전트가 부른 CLI | 확장이 aelix 프로세스 환경에 `AELIX_ANALYTICS_ACTOR=agent`를 넣어 aelix 에이전트의 CLI를 `agent`로 남기고, 사람의 `!` 명령은 kit을 부를 때만 `user_bash` 실행기로 `human`을 넣으며(다른 확장의 실행기를 밀어내는 범위를 그 명령으로 줄임. 2026-10-09 보정: 줄 전체가 kit 명령 하나일 때만), 밝히지 않은 CLI는 `human`·`inferred`, #17은 `human`을 basis와 관계없이 세되 둘을 나눠 보인다 | 권장 경로는 좁히지 않는다. aelix 밖 에이전트가 `human`·`inferred`로 남는 경우는 Q17-b를 호스트와 관계없이 읽으면 좁힘이며 그 범위를 소유자가 정한다 |
 | OQ2 | 본문 상한 | 본문 UTF-8 32 KiB와 직렬화한 줄 50 KiB 미만을 함께 지키고 넘으면 `text_too_long`으로 거절한다 | 아니오 |
 | OQ3 | 원본 안의 링크·junction | 밖을 가리키는 링크는 대상 바이트를 복사하고 매핑에 적으며, 안을 가리키는 상대 링크는 글자가 루트 안에 머물 때만 다시 만들고 아니면 절대 링크처럼 다룬다 | 아니오 |
-| OQ4 | 복사 범위 | `.venv/`·`report/`·`.lab/cache/`·잠금·`__pycache__/`, 운영체제 메타 파일(`.DS_Store`·`Thumbs.db`·`desktop.ini`)과 루트의 worktree `.git` 파일은 복사하지 않고 보고서에 적는다 | 예: ADR-0005 결정 5의 "기존 파일은 바이트 그대로 복사"를 글자보다 좁힌다 |
+| OQ4 | 복사 범위 | `.venv/`·`report/`·`.lab/cache/`·잠금·`__pycache__/`, 운영체제 메타 파일(`.DS_Store`·`Thumbs.db`·`desktop.ini`; 2026-10-09 소유자 결정과 보정으로 AppleDouble `._<이름>`인 일반 파일도)과 루트의 worktree `.git` 파일은 복사하지 않고 보고서에 적는다 | 예: ADR-0005 결정 5의 "기존 파일은 바이트 그대로 복사"를 글자보다 좁힌다 |
 | OQ5 | `analytics.run/2`에서 바꿀 이름 | `charts[]`·`id`·`reproduction.charts`·`via`의 `lab.` 접두만 새 이름으로 바꾸고 나머지는 둔다. ① 병합 전에 정한다 | 아니오 |
 | OQ6 | 내부 코드 이름의 개명 PR ⓪ | ① 전에 동작을 바꾸지 않는 개명 PR ⓪을 둔다 | 아니오. ADR-0005 결정 7의 PR 목록에 한 줄을 더한다 |
 | OQ7 | ③ 뒤의 `/1` fixture | 생성기에 `--kit-root`를 더해 ③ 전 kit이 실제로 쓴 바이트를 쓴다 | 아니오 |
 | OQ8 | #49의 시기 | ③을 기다리지 않고 #49를 작은 일반 PR로 먼저 고친다 | 아니오 |
-| OQ9 | 새 형식 init의 위쪽 표식 | init도 위쪽에 표식이 있으면 `destination_invalid(inside_project)`로 거절한다 | 지금 허용되는 동작(중첩 프로젝트 만들기)을 막는다. 채택된 보장은 아니다 |
+| OQ9 | 새 형식 init의 위쪽 표식 | init도 위쪽에 표식이 있으면 `destination_invalid(inside_project)`로 거절한다. 2026-10-09 소유자 결정으로 넓힘: 위쪽에 표식 없는 전환 기록(커밋하지 않은 전환 목적지)이 있어도 init과 `migrate --to`가 같은 거절 | 지금 허용되는 동작(중첩 프로젝트 만들기)을 막는다. 채택된 보장은 아니다 |
 | OQ10 | 원본 안의 중첩 프로젝트 | `nested_project`로 거절하고 경로를 모두 보인다 | 아니오 |
 | OQ11 | ③에서 여는 공개 입력 | ③은 writer API와 응답의 `request_id`까지 하고 공개 입력은 #14·#19가 연다 | 아니오 |
 | OQ12 | 대상이 없는 바깥 링크(와 UTF-8이 아닌 이름) | 사전 검사에서 `source_unreadable`과 목록으로 거절하고 사람이 고친 뒤 다시 부르게 한다 | 아니오 |
 | OQ13 | 읽기 명령의 uv 환경 동기화 | 기록이 아닌 환경이라 게이트하지 않고, 현재 계약에 "읽기 전용은 uv 환경 동기화를 포함하지 않는다"를 적는다 | ADR-0005 결정 6의 부수 쓰기 목록은 닫혀 있지 않으므로 이 답은 그 목록에서 환경을 빼는 해석이다. 좁힘으로 읽힐 수 있어 소유자가 정한다 |
 | OQ14 | 에이전트가 부른 전환 | 받고, ledger·보고서·응답에 `actor=agent`·`declared`·`means=cli`로 남긴다 | 아니오. 결정 5는 "명시적인 명령"만 요구한다. 거절을 고르면 결정에 없는 제한을 더한다 |
 | OQ15 | 잠금을 잡을 수 없는 원본(`.lab/` 없음, 잠금 파일을 만들거나 열 수 없음) | 잠금 없이 진행하고 전후 비교로만 지키며 `locks: not_taken`과 이유를 ledger·보고서에 적는다(D10) | 예: ADR-0005 결정 5의 "복사하는 동안 원본의 journal·run 잠금을 잡는다"를 그 두 경우에 지키지 않는다. 받으면 결정 5에 예외를 적는 ADR 개정이 필요하다 |
-| OQ16 | 이어 쓰기에서 보고서가 적지 않은 환경·메타 파일 | 계획에 없는 `.venv/`·`__pycache__/`·운영체제 메타 파일은 무시하고 잇는다. 계획 경로를 차지하면 `occupied`(D11) | 예: 결정 5의 "보고서에 없는 파일이 있으면 거절한다"를 그 이름들에 대해 좁힌다(덮어쓰지 않음은 그대로). 받으면 결정 5에 예외를 적는 ADR 개정이 필요하다 |
+| OQ16 | 이어 쓰기에서 보고서가 적지 않은 환경·메타 파일 | 계획에 없는 `.venv/`·`__pycache__/`·운영체제 메타 파일(2026-10-09부터 AppleDouble 일반 파일 포함, 그 이름의 폴더·링크는 아님)은 무시하고 잇는다. 계획 경로를 차지하면 `occupied`(D11) | 예: 결정 5의 "보고서에 없는 파일이 있으면 거절한다"를 그 이름들에 대해 좁힌다(덮어쓰지 않음은 그대로). 받으면 결정 5에 예외를 적는 ADR 개정이 필요하다 |
 
 **OQ1 작성 주체의 기본값과 에이전트가 부른 CLI.** 런처·`bin/analytics`는 `AELIX_ANALYTICS_ACTOR`가 없으면 `human`을 채워 kit을 부른다. 그래서 에이전트가
 bash 도구로 부른 CLI가 사람 작성으로 남는다. Q17-b는 "에이전트의 CLI 호출을 사람 작성으로 기록하지 않는다"고 하고, ADR-0008 결정 3은 요청 주체와
@@ -1449,7 +1481,9 @@ R9 프로브(18절)로 확인한 것: aelix 0.1.0b2의 bash 도구는 호출마�
      세션에서 실제 모델이 후속 분석)와 ADR-0008 결정 7의 전제를 그대로 지키며 좁히지 않는다.
   2. 사람이 aelix에서 친 `!` 명령 가운데 명령 글이 kit의 진입점(`analytics`, `bin/analytics`, `aelix_analytics`)을 부르는 것에만 확장의 `user_bash`
      처리기가 그 명령의 환경에 `AELIX_ANALYTICS_ACTOR=human`을 넣는 실행기를 돌려준다. 다른 `!` 명령에는 결과를 돌려주지 않아 다른 확장의
-     실행기를 밀어내지 않는다. 글로 판정하므로 스크립트 안에서 kit을 부르는 `!` 명령은 `agent`로 남는다(사람 수를 줄이는 쪽).
+     실행기를 밀어내지 않는다. 글로 판정하므로 스크립트 안에서 kit을 부르는 `!` 명령은 `agent`로 남는다(사람 수를 줄이는 쪽). 2026-10-09
+     소유자 결정의 보정으로 "kit을 부르는 것"은 줄 전체가 kit 진입점을 부르는 단순 명령 하나인 것이다: 다른 명령과 합친 줄도 결과를 돌려받지
+     못하고 그 안의 kit 기록은 `agent`다(4.2절). 그 판정은 aelix가 그 줄을 돌릴 셸이 읽는 대로 읽는다(보정판의 점검, 4.2절).
   3. 진입점·사용자가 밝히지 않은 CLI·SDK 호출(aelix 밖의 터미널)은 기본값 `human`과 `actor_basis: inferred`를 남긴다. 런처·`bin/analytics`는 기본값을
      채워 넘기지 않는다.
   4. run 밖 SDK의 `actor="script"`는 `human`(밝히지 않았으면 `inferred`)과 `means="sdk"`로 바꾼다. TTY로 사람을 추정하지 않는다.
@@ -1738,3 +1772,27 @@ Finder·탐색기의 `.DS_Store`·`Thumbs.db`·`desktop.ini`(목적지를 열어
 | 사소한 것 3: 매핑의 접두 맞춤이 글자 접두, 표식을 다시 쓸 때 `migration`의 보존이 없음 | 적용. 구성 요소 단위(`core._under`와 같은 접기), 표식을 다시 쓸 때 `min_writer_version`·`kit_version`만 바꿈 | 4.8·5.4절 |
 | 사소한 것 4: 루트·`.analytics/`의 권한 복사, Windows의 읽기 전용 `.gitignore` 교체, 보고서를 다시 쓸 때의 `project_id`와 `reported` | 적용. 두 곳에 권한을 옮기지 않음, 교체 전 읽기 전용 해제와 뒤의 복원, `project_id`를 `plan` 줄에, 다시 쓸 때마다 새 `reported`, ledger 줄의 `at` | 6.3·6.4·6.8·6.10절, T6(o) |
 | 사소한 것 5: S6과 지우는 목록의 어긋남, T6의 `tree_digest`와 (h), ①에 계획 디렉터리 없음, D23이 OQ13을 설계 리뷰 항목으로 되풀이 | 적용. S6을 지우는 목록에 맞춤, T6에 (h)의 예외, ①에 계획이 적은 디렉터리, D23은 OQ13을 따른다고 적음 | S6, 6.10절, 15절, T6 |
+
+### 19.3 ③의 구현 리뷰
+
+③(kit 0.8.0)의 구현 리뷰(독립 리뷰와 Codex 리뷰, 2026-10-09)가 설계와 관련해 지적한 것과 그 처리다. 코드의 수정과 시험은 PR 본문의 리뷰 표에
+있다. 여기는 설계의 글자와 다르게 구현한 것, 설계가 정하지 않아 고른 것, 소유자에게 올린 것만 적는다.
+
+| 지적 | 처리 | 고친 곳 |
+|---|---|---|
+| 4.7절은 이벤트당 참조 24개 상한(`MAX_EVENT_REFS`)을 둔다고 적었는데 `Writer`에 개수 상한이 없음 | 설계와 다른 구현으로 남기고 적음. 줄 50 KiB(OQ2)가 묶고, 채택된 보장을 좁히지 않음: 0.8.0 전에도 상한은 run 완료 이벤트의 데이터 참조에만 있었고(`add_note`에는 없음) 지금 그 이벤트는 run 참조 하나다. 거절로 되돌리는 것은 새 거절이라 고르지 않음 | 4.7절, 현재 계약 C1, 측정 기록의 `departures` |
+| 2.9절(OQ2)의 "자르지 않음"을 kit이 만드는 본문에도 적용해, 긴 설명·제목이 가져오기·run·init의 완료 기록을 `text_too_long`으로 막음(데이터·run.json·표식을 쓴 뒤). 0.7.0은 4,000자로 잘라 기록함 | 고침(리뷰의 권장 A). kit이 만드는 본문은 다른 곳에 통째로 남는 필드를 앞 4,000자까지 인용하고 `…`로 줄인다(`writer.excerpt`). OQ2는 호출자가 기록하는 본문에 대한 규칙으로 읽음. run의 `SystemExit` 요약도 예외처럼 300자. 긴 설명을 미리 거절하는 B안은 0.7.0이 받던 입력을 좁혀 소유자의 일이라 고르지 않음 | 2.9절의 적용(현재 계약 C1), T14 |
+| 4.3절의 "스크립트의 거절은 예외": run 안 SDK 기록의 줄 상한을 run이 끝날 때 판정해, 넘는 기록이 말없이 사라짐 | 고침. 부를 때 run이 쓸 줄을 가장 넓은 seq(12자리, `writer.SEQ_BOUND`)로 판정해 예외로 거절. seq가 줄에 두 번 들어가므로 판정한 줄은 실제로 쓸 줄보다 많아야 22 bytes(2 × (12 − 실제 seq의 자릿수)) 길고, 그만큼 상한에 가까운 줄은 run 밖보다 먼저 거절함(현재 계약 C1에 적음; 수정 diff 확인이 처음의 "24 bytes"를 고침) | 4.3절, 현재 계약 C1 |
+| 잠금 밖의 거절(줄 상한, 없는 `--resolves` 대상, `resolve_needs_target`)을 kit CLI `record`·`analytics_record`가 맥락 동기화 뒤에 판정해, 거절된 기록이 `context` 이벤트와 버전을 남김 | 고침. `core.check_record`(공통 writer의 `Writer.check`)가 동기화 전에 판정하고, 줄은 동기화가 쓸 `context` 이벤트 다음의 seq로 잼 | 4.5절, 현재 계약 C1·D |
+| 4.9절의 "모든 쓰기 응답에 `request_id`"를 `record`·`run`·`import`에만 구현 | 고침. `init`·`render`·`demo`·`migrate`(미리 보기 포함)와 `analytics_init`의 `details` | 4.9절, 현재 계약 D |
+| OQ14의 "응답에" 작성 주체를 빼고 ledger·보고서에만 적음 | 고침. 전환의 모든 성공 응답에 `actor`·`actor_basis`·`means`·`session` | OQ14, 현재 계약 B·D |
+| R18에 없던 효과: aelix가 종류와 상관없이 마지막 `UserBashResult`를 써, 앞에 등록된 확장이 막은 `!` kit 명령을 이 확장이 로컬에서 돌림 | 현재 계약 A·README·R18에 적고 소유자 질문으로 올림(OQ1에 더하는 것). 선택지: (a) 지금처럼 두고 적음, (b) 처리기를 빼 사람의 `!` kit 호출을 `agent`로 남김, (c) 결과를 돌려주지 않고 사람을 표시하는 다른 방법(aelix API에 앞 처리기의 결과를 보는 방법이 없음). 소유자 결정(2026-10-09, [#13](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6070315072)): (a). 그 질문은 "kit 명령에 한해"라고 적었으나 실제로는 kit 호출이 하나라도 있는 줄 전체가 로컬 셸에서 돌았다. 그것을 바로잡아 다시 물은 결과(같은 날, [#13](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6072183477)): 줄 전체가 kit 명령 하나일 때만 실행기를 돌려주고, 다른 명령과 합친 줄은 건드리지 않으며 그 안의 kit 기록은 `agent`. 표로 잡은 시험(합친 줄의 연산자 종류마다)과 T22(막는 확장이 먼저일 때 합친 줄은 막힌 채). aelix에 앞 결과를 존중하는 합치기를 요청하는 일은 후속(pending) | R18, 4.2절, 현재 계약 A, T22 |
+| 소유자 결정 (2)를 적용한 뒤의 점검: FAT·exFAT에서 2단계의 첫 ledger 줄이 끊긴 전환 디렉터리 옆에 macOS가 `._progress.jsonl`을 써, 내용 없는 전환 디렉터리로 보지 않고 `destination_mismatch`로 거절함(새 전환으로 시작해야 함) | 고침. 내용 없는 디렉터리의 판정이 AppleDouble 일반 파일을 항목으로 세지 않고, 그 디렉터리를 지우지 못하면(`rmdir`이 남은 `._` 파일로 실패) OSError 대신 `destination_write_failed`와 지울 폴더를 알리는 hint. macOS의 `rmdir`은 남은 AppleDouble 파일을 함께 지움(디스크 이미지에서 FAT32 커밋·exFAT `no_exclusive_rename`까지 감) | 6.10절, 현재 계약 B, 측정 기록 |
+| OQ9(다른 프로젝트 안에 새 프로젝트를 만들지 않음)는 표식만 세서, 커밋하지 않은 전환 목적지(표식 없이 `.analytics/migration*`) 안에 `init`·`migrate --to`가 프로젝트를 만듦 | 소유자 질문으로 올림(OQ9의 글은 "위쪽에 표식이 있으면"). 소유자 결정(2026-10-09, [#13](https://github.com/handochan/aelix-analytics/issues/13#issuecomment-6070315072)): 넓힘. `project_above`가 표식 없는 전환 기록(`writer.migration_record`)에서도 멈추고 `destination_invalid(inside_project)`로 거절(`details.project`: 그 목적지). init(kit CLI·두 런처·`analytics_init`·`/analytics init`·`demo`)과 `migrate --to`의 시험, T8의 `migrate` 행, 첫 전환은 같은 명령으로 이어 커밋 | 6.2절, OQ9 |
+| 6.2절 1단계를 잠금 안에서 다시 판정한 거절(`not_empty`·`insufficient_space` 등)의 hint가 "nothing was written"이나, 목적지·`.analytics/`·잠금 파일이 이미 있음(②의 엔진, ③이 사람의 명령으로 엶) | 고침. 그 거절의 hint는 복사한 것이 없다는 것과 이 호출이 만든 것, 지우거나 원인을 없앤 뒤 다시 부르라는 것을 적음 | 6.2절, 현재 계약 G |
+| 보정판의 점검: 판정이 줄을 POSIX 셸로만 읽어, 실제 셸이 둘째 명령으로 읽는 줄을 kit 명령 하나로 봄(bash·zsh의 `$'…'`, zsh의 `${(e)…}`, 큰따옴표 안 줄 이음 뒤의 `$(`, PowerShell에서 글자인 역슬래시와 캐리지 리턴, `env -S`, 모르는 `uv run` 옵션). 막는 확장이 먼저일 때 둘째 명령이 돎 | 고침. aelix가 줄을 돌릴 셸을 aelix의 규칙으로 알고 그 셸(POSIX 셸·PowerShell)이 읽는 대로 읽으며, 그 밖의 셸에서는 결과 없음. 셸마다 다르게 읽는 것이 든 줄은 받지 않음(좁힘). `env`·`uv run`은 아는 옵션만, 배치 파일은 진입점 아님. 셸 군마다의 표, 시험 기기의 실제 셸로 함정 줄을 돌리는 시험, T22의 `$'…'` 줄 | 4.2절, OQ1, 현재 계약 A, T22 |
+| 점검 처리(`221dfbb`)의 다시 점검: Windows에서 확장자 없는 `analytics`·`python`·`py`·`uv`가 PATH·PATHEXT로 배치 파일 shim에 풀리면 cmd가 인자를 다시 읽어, PowerShell이 따옴표로 한 단어로 넘긴 `'x&y'`의 `&`가 둘째 명령이 됨(Windows 기기가 없어 실행하지 않음, PLAUSIBLE). 덜 급한 것: PowerShell에서 식으로 읽히는 프로그램 단어(`1/…`·`@…`·`[…]`)를 받음 | 고침(좁힘). Windows에서는 어느 셸이든 cmd가 읽는 글자가 든 단어가 있는 줄을 받지 않음. PowerShell의 프로그램 단어는 글자·`_`·점과 글자·경로로 시작할 때만(`-c/analytics`도 받지 않음). `uv run -m`·`sudo`·끝의 `&`는 받지 않는 것으로 현재 계약 A에 적음 | 4.2절, 현재 계약 A |
+| 점검 처리(`ab45982`)의 다시 점검: PowerShell 판정이 따옴표로 시작한 단어와 그 뒤를 한 단어로 읽어, `& 'touch'/x/analytics`·`uv run 'touch'/x/analytics`·`.'touch'/x/analytics`처럼 한 명령이지만 kit이 아닌 프로그램을 돌리는 줄을 kit 명령 하나로 봄(pwsh 7.6.5와 aelix 0.1.0b2의 로컬 셸로 재현, 막는 확장이 먼저이면 그 프로그램이 돎). 덜 급한 것: 끝의 `;`·`$HOME`을 받지 않음(공개 확인), 따옴표 친 병합 대상 `2>&'1'`(파스 오류), `-p3.12` 같은 매개변수 단어가 둘로 나뉨 | 고침(좁힘). PowerShell: 따옴표로 시작한 단어는 그 따옴표로 끝나야 하고, 단어 가운데의 따옴표는 `-`로 시작하는 단어에서만, 매개변수 단어의 `.`·`,`·첫머리의 `@`·`]`·와일드카드·단어 가운데 `>`·프로그램 앞 리디렉션·`>&` 뒤가 바로 1이 아닌 병합은 받지 않음. 고치며 찾은 같은 종류: POSIX 셸의 따옴표 밖 패턴·중괄호(`env -u {X,touch} analytics`가 `touch`를 돎, bash·zsh·ksh에서 실행)와 옵션 값 자리의 주석도 받지 않음. 함정 시험이 다른 프로그램(`touch`)도 봄 | 4.2절, 현재 계약 A |
+| 그 처리(`c399fc3`)의 다시 점검(PowerShell): 모든 스트림 리디렉션 `*>`·`*>>`·`*>&1`(`analytics status *> log.txt`)을 pwsh 7.6.5의 파서는 리디렉션 하나를 가진 kit 명령 하나로 읽는데 판정은 `*`를 와일드카드로 읽어 받지 않음(둘째 명령은 돌지 않는 좁힘). 받지 않는 kit 명령 하나로 공개되지 않았고, 주석의 이유("Unix에서 펼침")는 그 셸이 펼치지 않는 `*>`에 맞지 않음 | 공개(판정은 그대로 받지 않음): 확신이 없는 쪽으로 둔 좁힘으로 현재 계약 A·README·판정의 주석에 적고, PowerShell 표에 세 줄을 더함. 받게 하려면 POSIX 읽기와 PowerShell 읽기 둘 다 `*>`를 따로 읽어야 해서 고르지 않음 | 현재 계약 A |
+| 보정판의 점검: 원본의 폴더·링크 `._x`는 복사하는데 목적지의 일반 파일 `._x`는 빈 폴더 판정에서 세지 않아, 1단계·잠금 뒤·`--dry-run`이 받고 복사가 그 자리에서 늘 `occupied`로 멈춤(`.DS_Store`에 대해 이 절이 미리 거절하던 것과 같은 종류) | 고침. 그 경로의 AppleDouble 파일을 `not_empty`와 그 경로로 미리 거절(대소문자·정규화를 접어 비교) | 6.2절, 현재 계약 B |
+| 런처가 커밋 뒤 목적지를 `--to`의 글자로 다시 풀어 `~`를 풀지 못함(원본의 환경을 맞추는 결과) | 고침. 6.1절의 "커밋 뒤 목적지의 환경 준비"는 kit 응답의 `destination`에, 그 폴더에 `analytics.json`이 있을 때만 | 6.1절, 현재 계약 D, T18 |

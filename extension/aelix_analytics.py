@@ -16,6 +16,9 @@ Analysis code never runs in the aelix process: analytics_run, analytics_import, 
 Workspace renders are `uv run --project <project> python -m aelix_analytics ...` subprocesses in the
 project's own environment.
 Neither side is a sandbox, and aelix does not ask for approval before extension tools run.
+The one thing it changes in the aelix process itself is the environment: AELIX_ANALYTICS_ACTOR=agent
+and the session, which the kit's command line run through aelix's shell records as its author, and a
+person's `!` line that is one kit command runs with `human` instead (design 4.2; see on_user_bash).
 
 Before kit 0.3.0 this file was extension/aelix_lab.py, with the command /lab, the tools lab_*, the
 flag --lab-project and the variables AELIX_LAB_*. None of them is registered or read any more. The old
@@ -41,7 +44,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from aelix_agent_core.harness.hooks import BeforeAgentStartResult
+from aelix_agent_core.harness.hooks import BeforeAgentStartResult, UserBashResult
 from aelix_agent_core.types import AgentTool
 from aelix_ai.messages import ImageContent, TextContent
 from aelix_ai.tools import ToolExecutionContext, ToolResult
@@ -187,6 +190,12 @@ KIT_IN_SHELL = re.compile(
     r"|(?:^|;|-c\s*['\"])[ \t]*(?:import\s+(?:[\w.]+(?:\s+as\s+\w+)?\s*,\s*)*aelix_analytics\b"
     r"|from\s+aelix_analytics(?:\.\w+)*\s+import\b)",
     re.MULTILINE)
+# An `import aelix_analytics` / `from aelix_analytics import` statement where one starts: KIT_IN_SHELL's
+# second half, for the code of a `python -c` a person's line gives (is_single_kit_command).
+KIT_IMPORT = re.compile(
+    r"(?:^|;)[ \t]*(?:import\s+(?:[\w.]+(?:\s+as\s+\w+)?\s*,\s*)*aelix_analytics\b"
+    r"|from\s+aelix_analytics(?:\.\w+)*\s+import\b)",
+    re.MULTILINE)
 
 # Module-level state of one aelix runtime. setup() starts it over: the file loader makes a new module
 # for every session aelix builds, but the installed module is imported once per process.
@@ -223,6 +232,7 @@ def _resolve_project():
     if explicit:
         project = core.Project(explicit)
         if not core.present_marker(project.root):
+            _refuse_incomplete(project)
             raise core.AnalyticsError("project_missing", f"active project {explicit} has no "
                                       "analytics.json or lab.json",
                                       hint="/analytics use DIR to pick another project")
@@ -236,6 +246,7 @@ def _resolve_project():
         if isinstance(value, str) and value.strip():
             project = core.Project(value.strip())
             if not core.present_marker(project.root):
+                _refuse_incomplete(project)
                 raise core.AnalyticsError("project_invalid", f"{via} {project.root} is not an analytics project "
                                           "(no analytics.json or lab.json)",
                                           hint="create it with /analytics init DIR")
@@ -257,6 +268,14 @@ def _resolve_project():
                                    "human can run /analytics init DIR or /analytics use DIR")
 
 
+def _refuse_incomplete(project) -> None:
+    """A named directory without a marker that holds a migration's record is a migration's
+    destination that has not committed: refused as the kit refuses it (migration_incomplete, with
+    how far its migration went), not as a directory that is no project (design 4.3)."""
+    if core.migration_record(project.root):
+        core.readable(project, "use the project")
+
+
 def origin(actor: str, means: str):
     """Who a write this extension makes is by, and how (design 4.2): the model's tools `agent`·`tool`,
     `/analytics` `human`·`command`, a hook `system`·`hook` (the context sync inside analytics_status
@@ -276,7 +295,11 @@ def resolve_uv(processes=None) -> str:
     return found
 
 
-def child_env(processes, actor: str) -> dict:
+def child_env(processes, actor: str, means: str | None = None) -> dict:
+    """A child's environment: the allowed list, the kit (PYTHONPATH), who it writes for
+    (AELIX_ANALYTICS_ACTOR, declared) and this session, and for a kit command how this extension
+    came to start it (AELIX_ANALYTICS_MEANS: `tool`, `command` or `hook`, design 4.2) — an internal
+    protocol, as AELIX_ANALYTICS_CANCEL_FILE (CONTRACTS D)."""
     # What the platform needs to start a process at all goes in first: the allowed list is about
     # what a run may see, not about what the operating system requires to launch one.
     env = processes.base_env()
@@ -285,6 +308,8 @@ def child_env(processes, actor: str) -> dict:
                 if k.startswith("UV_") and not SECRET_NAME.search(k)})
     env.update({"PYTHONPATH": str(KIT), "PYTHONIOENCODING": "utf-8", "PYTHONDONTWRITEBYTECODE": "1",
                 "MPLBACKEND": "Agg", "AELIX_ANALYTICS_ACTOR": actor})
+    if means is not None:
+        env["AELIX_ANALYTICS_MEANS"] = means
     if STATE["session"]:
         env["AELIX_ANALYTICS_SESSION"] = str(STATE["session"])
     return env
@@ -400,8 +425,9 @@ def _stopping(proc, processes, request):
     return task
 
 
-async def run_kit(project, args, *, timeout: float, actor: str = "agent"):
-    """Run `python -m aelix_analytics` in the project's environment. Returns (ok, result object)."""
+async def run_kit(project, args, *, timeout: float, actor: str = "agent", means: str = "tool"):
+    """Run `python -m aelix_analytics` in the project's environment, for `actor` by `means` (the
+    model's tools: agent·tool; /analytics: human·command). Returns (ok, result object)."""
     processes = project.platform.processes
     try:
         uv = resolve_uv(processes)
@@ -410,7 +436,7 @@ async def run_kit(project, args, *, timeout: float, actor: str = "agent"):
         # Only where the platform asks through it: POSIX asks with a signal and needs no file.
         request = _CancelRequest() if processes.asks_by_request else None
         try:
-            env = child_env(processes, actor)
+            env = child_env(processes, actor, means)
             if request is not None:
                 env["AELIX_ANALYTICS_CANCEL_FILE"] = str(request.path)
             timed_out, code, stdout, stderr = await _spawn(argv, project.root, env, timeout,
@@ -464,13 +490,14 @@ async def sync_environment(project):
     return False, said
 
 
-def schedule_workspace_render(project) -> None:
+def schedule_workspace_render(project, means: str = "hook") -> None:
     """Start a detached `render --if-changed` build unless one for this project is still running.
 
     Deliberately not an asyncio task: a cancelled `uv run` whose Python child still holds the pipes
     keeps Process.wait() pending, which would stall aelix's loop shutdown. The kit serializes builds
     with a file lock and skips when nothing changed, so a missed trigger is caught by the next one
-    (agent_end fires after every prompt).
+    (agent_end fires after every prompt). `means` is what scheduled it: the `hook` agent_end, or the
+    `tool` or `command` that recorded something; the build is the kit's own (`system`).
     """
     key = str(project.root)
     running = STATE["render_tasks"].get(key)
@@ -484,7 +511,7 @@ def schedule_workspace_render(project) -> None:
         argv = [resolve_uv(processes), "run", "--project", key, "--quiet", "python", "-m", "aelix_analytics",
                 "--project", key, "render", "--if-changed"]
         STATE["render_tasks"][key] = subprocess.Popen(
-            argv, cwd=key, env=child_env(processes, "system"), stdin=subprocess.DEVNULL,
+            argv, cwd=key, env=child_env(processes, "system", means), stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **processes.spawn_kwargs())
     except Exception:  # noqa: BLE001 - a derived build; it must not fail what was just recorded
         return
@@ -859,30 +886,39 @@ async def tool_run(args, ctx):
 async def tool_record(args, ctx):
     project, _ = resolve_project()
     kind = str(args.get("kind") or "")
+    text = str(args.get("text") or "")
     refs = [str(r) for r in args.get("refs") or []]
-    await asyncio.to_thread(core.admit, project, "record")
+    resolves = args.get("resolves") or None
+    # What the record refuses before its lock is refused before the context sync: a refused record
+    # changes nothing (core.check_record).
+    await asyncio.to_thread(lambda: core.check_record(project, kind, text, refs=refs, resolves=resolves,
+                                                      origin=origin("agent", "tool")))
     await asyncio.to_thread(lambda: core.sync_context(project, origin=origin("system", "tool")))
-    event = await asyncio.to_thread(
-        lambda: core.add_note(project, kind, str(args.get("text") or ""), refs=refs,
-                              resolves=args.get("resolves") or None,
-                              origin=origin("agent", "tool")))
-    schedule_workspace_render(project)
-    extra = f"; resolves {event['refs']['resolves']}" if event["refs"].get("resolves") else ""
-    refs_text = json.dumps({k: v for k, v in event["refs"].items() if k != "resolves"},
-                           ensure_ascii=False)
-    cut = note_cut(str(args.get("text") or ""))
-    return (f"analytics_record: ok — {event['id']} {kind} recorded{extra}; refs {refs_text}"
-            + (f"\n{cut}" if cut else "")), event
+    written = await asyncio.to_thread(
+        lambda: core.record(project, kind, text, refs=refs, resolves=resolves,
+                            origin=origin("agent", "tool")))
+    schedule_workspace_render(project, "tool")
+    return f"analytics_record: ok — {recorded_line(written, kind)}", written.to_json()
 
 
-def note_cut(given: str) -> str:
-    """What a note's reply adds when the journal kept only the start of it (MAX_EVENT_TEXT)."""
-    chars = len(given.strip())
-    if chars <= core.MAX_EVENT_TEXT:
-        return ""
-    return (f"Truncated: the note has {chars:,} characters and only the first "
-            f"{core.MAX_EVENT_TEXT:,} were recorded; the rest is not in the journal — record it as "
-            "another note")
+def recorded_line(written, kind: str) -> str:
+    """A record's reply: its id and kind, the record it resolved or corrected with that record's
+    state before and after (Written.targets: an already resolved one says which event resolved it),
+    and each name given as a reference with how it was bound (author, inferred, none — an inferred
+    binding is a guess the kit made, not a confirmed link: Q4). The request_id is in the details
+    (design 4.9), not in the text: no input takes one yet (OQ11)."""
+    event = written.event
+    parts = [f"{event['id']} {kind} recorded"]
+    for target in written.targets or []:
+        said = (f"{target['relation']} {target['event_id']} "
+                f"({target.get('state_before')} -> {target.get('state_after')}")
+        made = target.get("made_by") or {}
+        if target.get("state_before") == "resolved" and made.get("id"):
+            said += f"; already resolved by {made['id']}"
+        parts.append(said + ")")
+    if written.bindings:
+        parts.append("refs: " + ", ".join(f"{b['input']} ({b['binding']})" for b in written.bindings))
+    return "; ".join(parts)
 
 
 async def tool_init(args, ctx):
@@ -898,14 +934,15 @@ async def tool_init(args, ctx):
     synced, detail = await sync_environment(project)
     lines = [f"analytics_init: ok — project {project.title()} at {project.root} (now the active project)"]
     if synced:
-        await run_kit(project, ["render"], timeout=240)
+        await run_kit(project, ["render"], timeout=240, actor="agent", means="tool")
         lines.append(f"environment: synced from {detail} (DuckDB, Polars, PyArrow, matplotlib, plotly)")
     else:
         lines.append("environment: uv sync FAILED — runs will fail until it succeeds. uv said:\n" + detail)
     lines += [f"report: {project.workspace_dir / 'index.html'}",
               "next: fill CONTEXT.md (goal, questions, data sources), analytics_import the data, then write "
               "scripts/01_<topic>.py and analytics_run it."]
-    return "\n".join(lines), {"project": str(project.root), "synced": synced}
+    return "\n".join(lines), {"project": str(project.root), "synced": synced,
+                              "request_id": project.request_id}
 
 
 def _tool(name, description, properties, required, handler, snippet, guidelines=()):
@@ -952,7 +989,7 @@ TOOLS = [
     _tool(
         "analytics_query",
         "Run ONE read-only DuckDB statement over the project's datasets, for exploration only. Every "
-        "Parquet dataset is a view named after its file (data/raw/sales.parquet -> sales; a derived "
+        "Parquet dataset is a view named after its file (data/imported/sales.parquet -> sales; a derived "
         "dataset whose name collides gets _derived). SELECT/WITH, DESCRIBE <view>, SUMMARIZE <view> "
         "and EXPLAIN are allowed; anything that writes is refused. Returns at most `limit` rows. "
         "Queries are logged but are not runs: anything that feeds a chart, a derived dataset or a "
@@ -966,7 +1003,7 @@ TOOLS = [
     _tool(
         "analytics_import",
         "Import a local data file into the project as an immutable Parquet dataset "
-        "data/raw/<name>.parquet. CSV/TSV/JSON/NDJSON are converted with DuckDB; Parquet is copied. "
+        "data/imported/<name>.parquet. CSV/TSV/JSON/NDJSON are converted with DuckDB; Parquet is copied. "
         "Records the source path and sha256 and the schema, and logs an import event. An existing "
         "name is refused (imported data never changes; use a new name such as sales_v2).",
         {"source": {**STR, "description": "Path of the file to import (absolute, or relative to the "
@@ -974,7 +1011,7 @@ TOOLS = [
          "name": {**STR, "description": "Dataset name: lowercase letters, digits, _ (default: file stem)."},
          "description": {**STR, "description": "What the data is: origin, period, grain, caveats."}},
         ["source"], tool_import,
-        "import a CSV/JSON/Parquet file as an immutable Parquet dataset under data/raw/",
+        "import a CSV/JSON/Parquet file as an immutable Parquet dataset under data/imported/",
     ),
     _tool(
         "analytics_run",
@@ -1009,7 +1046,7 @@ TOOLS = [
         ["title"], tool_run,
         "run a Python analysis script with recorded code, data and charts; rebuilds the HTML report",
         guidelines=(
-            "Analysis data is Parquet: data/raw is imported and never modified; derived tables go to "
+            "Analysis data is Parquet: data/imported is imported and never modified; derived tables go to "
             "data/derived via analytics.save. Process data with DuckDB and Polars, not pandas.",
             "Make every chart and derived dataset with analytics_run, never by running python through bash, "
             "so its code and input data are recorded and linked from the report.",
@@ -1017,31 +1054,34 @@ TOOLS = [
             "data=plotted_df) for charts; one script per question, re-run it to version its charts.",
             "Record findings, decisions, assumptions, questions and todos with analytics_record as soon as they "
             "are established, citing run ids; keep CONTEXT.md current by editing it.",
-            "If the analytics tools block you or force a workaround, record it with analytics_record kind=gap "
-            "(this tooling is being evaluated).",
+            "If the analytics tools block you or force a workaround, record it with analytics_record "
+            "kind=workflow_feedback (this tooling is being evaluated).",
         ),
     ),
     _tool(
         "analytics_record",
         "Append an entry to the project journal, the time-ordered history shown in the report. kind: "
-        "finding (an established result), decision, assumption, question, todo, note, gap (a missing "
-        "capability or friction in this analysis tooling), or resolve (closes the question/todo named "
-        "in `resolves` without other content). Any kind may also resolve an earlier entry, e.g. a "
-        "finding that answers question e7. Cite evidence in refs: run ids, chart keys "
-        "(scripts/x.py::chart-id), dataset names or event ids.",
-        {"kind": {"type": "string", "enum": list(core.NOTE_KINDS)},
-         "text": {**STR, "description": "The entry, self-contained (max 4000 characters)."},
+        "finding (an established result), decision, assumption, question, todo, note, "
+        "workflow_feedback (a missing capability or friction in this analysis tooling), or resolve "
+        "(closes the question/todo named in `resolves` without other content). Any kind may also "
+        "resolve an earlier entry, e.g. a finding that answers question e7. Cite evidence in refs: "
+        "run ids, chart keys (scripts/x.py::chart-id), dataset names or event ids; the reply says "
+        "how each was bound.",
+        {"kind": {"type": "string", "enum": list(core.RECORD_KINDS)},
+         "text": {**STR, "description": "The entry, self-contained. Kept whole up to 32 KiB of UTF-8; "
+                                        "a longer one is refused, never cut."},
          "refs": {"type": "array", "items": STR, "description": "Run ids, chart keys, dataset names, event ids."},
          "resolves": {**STR, "description": "Event id this entry answers or closes, e.g. e7."}},
         ["kind", "text"], tool_record,
-        "record a finding/decision/assumption/question/todo/gap in the project journal",
+        "record a finding/decision/assumption/question/todo/workflow_feedback in the project journal",
     ),
     _tool(
         "analytics_init",
-        "Create a new analytics project directory (lab.json, CONTEXT.md, journal.jsonl, data/, "
-        "scripts/, runs/, report/) with its own uv environment (DuckDB, Polars, PyArrow, matplotlib, "
-        "plotly) and make it the active project. Only when the user asked to start a new analysis; if "
-        "they did not say where, ask them first. The directory must not exist or must be empty.",
+        "Create a new analytics project directory (analytics.json, CONTEXT.md, journal.jsonl, data/, "
+        "scripts/, runs/, workspace/) with its own uv environment (DuckDB, Polars, PyArrow, "
+        "matplotlib, plotly) and make it the active project. Only when the user asked to start a new "
+        "analysis; if they did not say where, ask them first. The directory must not exist or must "
+        "be empty, and must not be inside another analytics project.",
         {"path": {**STR, "description": "Directory to create."},
          "title": {**STR, "description": "Project title."},
          "goal": {**STR, "description": "What the analysis should answer and for whom."}},
@@ -1051,12 +1091,546 @@ TOOLS = [
 ]
 
 
+# --- who calls the kit through aelix's shell (design 4.2, OQ1) ---
+#
+# The kit's command line records AELIX_ANALYTICS_ACTOR as its author (declared), and `human`
+# (inferred) when it is not set. An aelix agent runs it through aelix's bash tool, whose child gets a
+# copy of the aelix process's environment on every call (aelix 0.1.0b2, the design's R9 probe), so
+# this extension puts the author there: `agent`, and this session. A person's `!`/`!!` command gets the
+# same environment, so for a line that is one kit command the user_bash handler hands aelix its own
+# local shell with AELIX_ANALYTICS_ACTOR=human for that command alone. A record of origin, not
+# authentication: a command may change the variable, and is recorded as it says (CONTRACTS A).
+
+def put_the_author_in_the_environment() -> None:
+    """At setup: the agent writes through this aelix process's shells (overwriting a value the shell
+    that started aelix had: an aelix agent's command is the agent's, owner's decision Q17-b), and no
+    session until this session's is known (aelix sets extensions up again for every session)."""
+    os.environ["AELIX_ANALYTICS_ACTOR"] = "agent"
+    put_the_session_in_the_environment(None)
+
+
+def put_the_session_in_the_environment(session) -> None:
+    if session:
+        os.environ["AELIX_ANALYTICS_SESSION"] = str(session)
+    else:
+        os.environ.pop("AELIX_ANALYTICS_SESSION", None)
+
+
+# Which `!` line runs in a person's shell (design 4.2; the owner's decision of 2026-10-09 as corrected,
+# #13 issuecomment-6072183477): only a line that is, as a whole, one simple command calling a kit entry
+# point, read as the shell aelix runs it in reads it. aelix picks that shell by its own rule ($SHELL; on
+# Windows $SHELL when it names a file, then PowerShell, then cmd: the_shell), and two families are read
+# here: the POSIX shells (sh, bash, zsh, dash, ksh, mksh, ash) and PowerShell (pwsh, powershell). Under
+# any other shell — cmd, fish, nu, csh, one this reading does not know — every line is left alone.
+#
+# A kit entry point is the program `analytics` (any directory: `analytics`, `./bin/analytics`,
+# `analytics.exe`), or Python given `-m aelix_analytics[.…]` (also bundled, `-Im`) or a `-c` that
+# imports it, also after `uv run` and the options it is known to take. In a POSIX shell the program may
+# follow `NAME=value` words, `env` with the options it is known to take, `exec`, `command`, `time` and
+# `nohup`; in PowerShell its call operator `&` at the start. The command may carry redirections to or
+# from a file or a descriptor (`> out.txt`, `2>&1`; in PowerShell output ones only).
+#
+# Anything else makes the line no single kit command: an operator — `;` `&` `&&` `|` `||` `|&`, a new
+# line, `(` `)` (a subshell, `$(…)`, `<(…)`), `<<`, `<<<`, `&>` — wherever it is not quoted or escaped,
+# and whatever this reading leaves open: `$` outside single quotes (an expansion: `$'…'`, `$"…"`,
+# `${…}`, `$[…]`, `$((…))`, even `$HOME`), a backtick, a quote not closed, a backslash ending the line,
+# a comment (`#` at a word's start) that a new line follows, a control character but a tab and a new
+# line, `env -S` (env runs the first word of its string), any option of env or `uv run` not known
+# here (it may take the next word as its value, and the program is another word then), and a pattern or
+# a brace the shell expands into words (`*` `?` `[` `{` `^`, `#` `~` inside a word: `env -u {X,touch}
+# analytics` runs `touch`). `#` and what follows it are read as well, so an operator there counts,
+# while the words judged end at it (the shell runs the words before a comment). In PowerShell, where a
+# backslash is a character and not an escape, also: a new line, a backtick (its escape), a quote it
+# takes besides ' and " (‘ ’ “ ” …), a space besides a space and a tab, `--%`, `{` `}`, `<` (`<#` opens
+# a comment), a `>&` but `n>&1` written so, a line its POSIX reading would refuse, and a program word
+# that does not start with a letter, `_` or a path (`1/…` `@…` `[…]` are expressions there;
+# `-c/analytics` is left alone too). Where PowerShell's words are not a POSIX shell's, too: a quoted
+# text starting a word that goes on after its closing quote (`& 'touch'/x/analytics` runs `touch`
+# there), a quote after other text but in a word starting with `-` (`.'x'` dot-sources `x`), a
+# parameter-like word with an unquoted `.` (`uv run -p3.12 analytics` passes `-p3` and `.12`, so uv
+# runs `.12`), a `,` (an array), `@` or `]` starting a word, a `>` inside a word, a redirection before
+# the program (its name there) and `2>& 1`. On Windows, in any shell, also a word holding a character
+# cmd reads (CMD_METACHARACTERS): a program found by its bare name may be a batch file there. A
+# program that is not the kit (`grep analytics notes.txt`, `sh -c '…'`, `python a.py`) is none either.
+# Left alone as well, though they run the kit and no second command: `uv run -m`/`--module` (the kit runs
+# as `uv run … python -m aelix_analytics` or `analytics`), `sudo analytics …` (sudo takes options of its
+# own), a trailing `&` (a list in the background, not a simple command) and a trailing `;` (an
+# operator here, though nothing follows it), and in PowerShell a mid-word quote in a program word
+# (`ana'lytics'`, which it does run as `analytics`) and its all-streams redirection `*>`, `*>>`,
+# `*>&1` (`analytics status *> log.txt` is one command with one redirection there, pwsh 7.6's
+# parser; both readings here take its `*` for a wildcard first: a conservative leave, CONTRACTS A).
+# For such a line the handler returns nothing: aelix runs it as it would, another extension's block or
+# shell included, and a kit call in it records `agent`/declared from the process environment. So the
+# handler sets another extension's answer aside for that one kit command only (CONTRACTS A).
+POSIX_SHELLS = frozenset({"sh", "bash", "zsh", "dash", "ksh", "mksh", "ash"})
+POWERSHELL_SHELLS = frozenset({"pwsh", "powershell"})
+KIT_PROGRAMS = frozenset({"analytics"})
+# Not a batch file (`analytics.cmd`, `.bat`): Windows runs one through cmd, which reads its arguments
+# again by its own rules (`'a" & x & "b'` runs `x`), and the kit ships none.
+KIT_PROGRAMS_WINDOWS = frozenset({"analytics.exe"})
+# Words that run the word after them, as the same one command (a POSIX shell's).
+COMMAND_PREFIXES = frozenset({"env", "exec", "command", "time", "nohup"})
+# env's options (GNU and BSD env) this reading knows: those that take no value, and those that take the
+# next word — or the rest of their own (`-uNAME`, `--unset=NAME`) — as it. `-S`/`--split-string` is not
+# among them: env splits its string into words and runs the first, so the program is the string's.
+ENV_FLAGS = frozenset({"-", "-i", "--ignore-environment", "-0", "--null", "-v", "--debug"})
+ENV_VALUE_OPTIONS = frozenset({"-u", "--unset", "-C", "--chdir", "-P", "-a", "--argv0"})
+PYTHON_PROGRAM = re.compile(r"(?:python[\d.]*w?|py)(?:\.exe)?", re.IGNORECASE)
+# Python's one-letter options that take no value, which may be bundled before -m or -c (`-Im`).
+PYTHON_FLAGS = frozenset("bBdEhiIOPqRsSuvVx")
+ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
+# `uv run`'s options (uv 0.11, `uv run --help`) this reading knows: those that take no value, and those
+# that take the next word — or the rest of their own (`--with=polars`, `-p3.12`) — as it. `-m`/`--module`,
+# `-s`/`--script` and `--gui-script` are not among them (the next word is no program then), nor is any
+# option uv adds later.
+UV_RUN_FLAGS = frozenset({
+    "--active", "--all-extras", "--all-groups", "--all-packages", "--compile-bytecode", "--exact",
+    "--frozen", "--isolated", "--locked", "--managed-python", "--no-binary", "--no-build",
+    "--no-build-isolation", "--no-cache", "-n", "--no-config", "--no-default-groups", "--no-dev",
+    "--no-editable", "--no-env-file", "--no-index", "--no-managed-python", "--no-progress",
+    "--no-project", "--no-python-downloads", "--no-sources", "--no-sync", "--offline", "--only-dev",
+    "--refresh", "--reinstall", "--system-certs", "--upgrade", "-U", "--quiet", "--verbose"})
+UV_RUN_COUNTED = re.compile(r"-(?:q+|v+)")
+UV_RUN_VALUE_OPTIONS = frozenset({
+    "--extra", "--no-extra", "--group", "--no-group", "--only-group", "--no-editable-package",
+    "--env-file", "-w", "--with", "--with-editable", "--with-requirements", "--package",
+    "--python-platform", "--index", "--default-index", "-i", "--index-url", "--extra-index-url", "-f",
+    "--find-links", "--index-strategy", "--keyring-provider", "-P", "--upgrade-package",
+    "--upgrade-group", "--resolution", "--prerelease", "--fork-strategy", "--exclude-newer",
+    "--exclude-newer-package", "--no-sources-package", "--reinstall-package", "--link-mode", "-C",
+    "--config-setting", "--config-settings-package", "--no-build-isolation-package",
+    "--no-build-package", "--no-binary-package", "--cache-dir", "--refresh-package", "-p", "--python",
+    "--python-preference", "--color", "--allow-insecure-host", "--directory", "--project",
+    "--config-file"})
+SHELL_OPERATOR_CHARS = frozenset("();<>|&")
+POWERSHELL_OPERATOR_CHARS = frozenset("();<>|&{}")
+# What a POSIX shell expands into any number of words when it is not quoted: a pathname pattern
+# (`*` `?` `[`), a brace (`{a,b}` in bash, zsh and ksh; `{ab}` with zsh's BRACE_CCL) and zsh's
+# EXTENDED_GLOB patterns (`^`, and `#` `~` inside a word), which a startup file may turn on. An option's
+# value made so may become two words, and the next one the program (`env -u {X,touch} analytics` runs
+# `touch`). PowerShell expands `*` `?` `[` on Unix too (its native globbing); a `*` right before `>`
+# is its all-streams redirection there, not a pattern, and is left alone all the same (see above).
+SHELL_PATTERN_CHARS = frozenset("*?[{^")
+SHELL_PATTERN_CHARS_IN_A_WORD = frozenset("#~")
+# The redirections one simple command may carry, with a descriptor number before them: to or from a
+# file or a descriptor. A here-document or here-string (`<<`, `<<<`), `&>` (in a POSIX shell, `&` and
+# then `>`), `<(` and `>(` are not among them. PowerShell's are a stream's to a file (`>`, `2>>`) and
+# its merge `n>&1` (`<` is reserved there, and a `>&` it does not take may leave `&` its background
+# operator: `x>&touch y` runs `touch y`); its all-streams `*>`, `*>>`, `*>&1` are not taken (the
+# readings stop at the `*` first, see above).
+REDIRECTION = re.compile(r"[0-9]*(?:>>|>\||>&|<&|<>|<|>)")
+POWERSHELL_REDIRECTION = re.compile(r"[1-6]?(?:>>|>)")
+POWERSHELL_MERGE = re.compile(r"[1-6]>&")
+DESCRIPTOR = re.compile(r"[0-9]+")
+# Characters no line is read with: control characters but a tab and a new line (a carriage return ends
+# a command in PowerShell and is a letter in a POSIX shell), and the Unicode line ends.
+UNREAD_CHARACTERS = re.compile("[\x00-\x08\x0b-\x1f\x7f\x85  ]")
+# What PowerShell takes as a quote besides ' and " (its tokenizer's single and double quotes), and its
+# stop-parsing token `--%`, which it also takes with the dashes it knows (– — ―).
+POWERSHELL_QUOTES = frozenset("‘’‚‛“”„‟")
+POWERSHELL_STOP_PARSING = re.compile("[-–—―]{2}%")
+# How a PowerShell program word this reading takes starts: a letter or `_`, a dot and a letter
+# (`.venv\Scripts\python.exe`), or a path (`.\` `..\` `./` `\` `/` `~`). A digit, `.5`, `@`, `[`, `+`
+# or `,` starts an expression there, not a command (pwsh 7's parser); `-`, `!`, `=`, `*`, `%` start a
+# command name PowerShell does run (`-c/analytics` runs `./-c/analytics`) but are left alone too.
+POWERSHELL_COMMAND_START = re.compile(r"[^\W\d]|\.(?:[^\W\d]|\.?[/\\])|[/\\~]")
+# A word so far that PowerShell may read as a parameter, whose name an unquoted `.` ends: it passes
+# `-p3.12` to a program as `-p3` and `.12` (pwsh 7.6; `[` ends it too, and is a wildcard there). A dash
+# (or – — ―) not followed by another `-` or a digit, and no `:` yet (`-p:3.12`, `--python=3.12`, `-3.12`
+# and `-a'b'.c` pass whole). Wider than PowerShell's rule (`-@a.b` passes whole there).
+POWERSHELL_PARAMETER = re.compile(r"[-–—―](?![-\d])[^:]*")
+# What cmd reads in a batch file's arguments: its operators `&` `|` `<` `>`, its escape `^`, its
+# expansions `%` and `!`, its quote `"` and its blocks `(` `)`. On Windows a program a shell finds by
+# its bare name through PATH and PATHEXT (`analytics`, `python`, `py`, `uv`) may be a batch file — a
+# version manager's shim — which Windows starts through cmd, and cmd reads the arguments again by its own
+# rules: the quoted `'x&y'` a shell passed as one word runs `y` there. These reach a word only through
+# quotes or escapes, so a plain kit command holds none.
+CMD_METACHARACTERS = frozenset('&|<>^%!"()')
+
+
+def cmd_may_read_the_arguments() -> bool:
+    """Whether the program a line names may be a batch file whose arguments cmd reads again: on
+    Windows, whichever shell aelix runs the line in."""
+    return sys.platform == "win32"
+
+
+def the_shell() -> str:
+    """aelix's name (aelix_ai.utils._shell.shell_basename: `bash`, `zsh`, `pwsh`, `cmd`, …) for the shell
+    it runs a person's `!` line in: cli/repl.handle_user_bash runs it with create_local_bash_operations()
+    and the environment get_shell_env() makes, whose shell tools/bash._resolve_shell picks — the shell
+    PersonShell runs the line in, too."""
+    from aelix_ai.utils._shell import shell_basename
+    from aelix_coding_agent.tools.bash import _resolve_shell
+    from aelix_coding_agent.util.shell_env import get_shell_env
+
+    return shell_basename(_resolve_shell(get_shell_env()).path)
+
+
+class _Reader:
+    """Words and operators of one line, as a list of (text, whether it is an operator)."""
+
+    def __init__(self) -> None:
+        self.tokens: list[tuple[str, bool]] = []
+        self.word: list[str] = []
+        self.in_word = False
+        self.plain = True  # the word so far has no quote and no escape: its digits may be a descriptor
+
+    def add(self, text: str, *, plain: bool = True) -> None:
+        self.word.append(text)
+        self.in_word = True
+        self.plain = self.plain and plain
+
+    def end_word(self) -> None:
+        if self.in_word:
+            self.tokens.append(("".join(self.word), False))
+        self.word.clear()
+        self.in_word, self.plain = False, True
+
+    def operator(self, line: str, i: int, chars: frozenset) -> int:
+        """The run of operator characters at `i`, with the descriptor number a redirection starts
+        with (`2>&`) when the word so far is only that number; returns where the run ends."""
+        number = "".join(self.word) if self.in_word and self.plain and line[i] in "<>" else ""
+        if DESCRIPTOR.fullmatch(number):
+            self.word.clear()
+            self.in_word, self.plain = False, True
+        else:
+            number = ""
+            self.end_word()
+        j = i
+        while j < len(line) and line[j] in chars:
+            j += 1
+        self.tokens.append((number + line[i:j], True))
+        return j
+
+
+def _posix_words(line: str) -> list[tuple[str, bool]]:
+    """The line's words and operators as a POSIX shell (sh, bash, zsh) splits them. An operator — a
+    run of `;&|()<>` (with a redirection's descriptor number), and a new line (as `;`) — is one only
+    where it is neither quoted nor escaped. Quotes and escapes go as the shell removes them: single
+    quotes keep everything, a backslash keeps the character after it (inside double quotes only `$`
+    `` ` `` `"` `\\`, before others it stays), and a backslash before a new line is a line continuation,
+    gone (`uv run \\<LF>analytics` is `uv run analytics`). `#` is a character as any other. ValueError
+    for what this reading leaves open: `$` or a backtick outside single quotes, a quote not closed, a
+    backslash ending the line, a comment (`#` at a word's start) that a new line follows, and a
+    pattern or a brace the shell would expand into words (SHELL_PATTERN_CHARS, the check of 2026-10-09
+    of ab45982)."""
+    reader, i, n = _Reader(), 0, len(line)
+    while i < n:
+        c = line[i]
+        if c in " \t":
+            reader.end_word()
+            i += 1
+        elif c == "\n":
+            reader.end_word()
+            reader.tokens.append((";", True))
+            i += 1
+        elif c in "$`":
+            raise ValueError("an expansion")
+        elif c == "#" and not reader.in_word and "\n" in line[i:]:
+            raise ValueError("a comment a new line follows")
+        elif c in SHELL_OPERATOR_CHARS:
+            i = reader.operator(line, i, SHELL_OPERATOR_CHARS)
+        elif c in SHELL_PATTERN_CHARS or (c in SHELL_PATTERN_CHARS_IN_A_WORD and reader.in_word):
+            raise ValueError("a pattern or a brace the shell expands")
+        elif c == "\\":
+            following = line[i + 1:i + 2]
+            if not following:
+                raise ValueError("a backslash ending the line")
+            if following != "\n":  # a line continuation is neither a word nor a separator
+                reader.add(following, plain=False)
+            i += 2
+        elif c == "'":
+            j = line.find("'", i + 1)
+            if j < 0:
+                raise ValueError("no closing quotation")
+            reader.add(line[i + 1:j], plain=False)
+            i = j + 1
+        elif c == '"':
+            j, text = i + 1, []
+            while j < n and line[j] != '"':
+                if line[j] in "$`":
+                    raise ValueError("an expansion")
+                if line[j] == "\\" and line[j + 1:j + 2] in ("$", "`", '"', "\\", "\n"):
+                    text.append(line[j + 1] if line[j + 1] != "\n" else "")
+                    j += 2
+                else:
+                    text.append(line[j])
+                    j += 1
+            if j >= n:
+                raise ValueError("no closing quotation")
+            reader.add("".join(text), plain=False)
+            i = j + 1
+        else:
+            reader.add(c)
+            i += 1
+    reader.end_word()
+    return reader.tokens
+
+
+def _powershell_words(line: str) -> list[tuple[str, bool]]:
+    """The line's words and operators as PowerShell splits them, as far as this reading needs: a
+    backslash is a character, a quoted text ends at its quote when the next character is not the same
+    quote (`''` and `""` inside are one quote), and an operator is a run of `;&|()<>{}` outside
+    quotes. ValueError for what it leaves open: a new line or a carriage return, a backtick (its
+    escape), `$` outside single quotes, a quote it takes besides ' and " (‘ ’ “ ” …), a space outside
+    quotes besides a space and a tab (it splits words on a no-break space, which a POSIX shell does
+    not), a quote not closed, and `--%` (what follows it would be passed on unread).
+
+    Also where its words are not a POSIX shell's (pwsh 7.6, the check of 2026-10-09 of ab45982): a
+    quoted text that starts a word but does not end it (what follows its closing quote is another word
+    there — `& 'touch'/x/analytics` runs `touch` — or an expression: `'a'.Length`); a quote after other
+    text in a word that does not start with `-` (`.'x'` dot-sources `x`), so that a program word holds a
+    quote only as one quoted text; an unquoted `.` in a word it reads as a parameter
+    (POWERSHELL_PARAMETER: `-p3.12` reaches a program as `-p3` and `.12`); an unquoted `,` (its array
+    operator: an array reaches a program as its source text split at spaces, `a, "b c"` as `a,` `"b`
+    `c"`); `@` starting a word (splatting: `@args` is no word at all); `]` starting a word (another
+    word there); a wildcard `*` `?` `[` (it expands them on Unix; the `*` of its all-streams
+    redirection `*>` `*>>` `*>&1` is read so too, which leaves that redirection alone); a `>` or `<`
+    right after other text in a word but a descriptor number (`x>y` is one word there, and
+    `analytics>out` its command name); and a merge `>&` not followed by 1 right away (`2>& 1`,
+    `2>&'1'` are parse errors there)."""
+    reader, i, n = _Reader(), 0, len(line)
+    while i < n:
+        c = line[i]
+        if c in "\r\n`$," or c in POWERSHELL_QUOTES or (c.isspace() and c not in " \t"):
+            raise ValueError("a character this reading leaves open")  # a space it splits on, too
+        if c in " \t":
+            reader.end_word()
+            i += 1
+        elif c in POWERSHELL_OPERATOR_CHARS:
+            number = reader.plain and DESCRIPTOR.fullmatch("".join(reader.word))
+            if c in "<>" and reader.in_word and not number:
+                raise ValueError("a redirection inside a word")
+            i = reader.operator(line, i, POWERSHELL_OPERATOR_CHARS)
+            if reader.tokens[-1][0].endswith(">&") and line[i:i + 1] != "1":
+                raise ValueError("a merge PowerShell does not take")
+        elif c in "'\"":
+            starts_the_word = not reader.in_word
+            if not starts_the_word and not "".join(reader.word).startswith("-"):
+                raise ValueError("a quote after other text")
+            j, text = i + 1, []
+            while True:
+                if j >= n:
+                    raise ValueError("no closing quotation")
+                d = line[j]
+                if d in "\r\n`" or d in POWERSHELL_QUOTES or (d == "$" and c == '"'):
+                    raise ValueError("a character this reading leaves open")
+                if d == c:
+                    if line[j + 1:j + 2] != c:
+                        break
+                    j += 1  # a doubled quote is one
+                text.append(d)
+                j += 1
+            following = line[j + 1:j + 2]
+            if starts_the_word and following and following not in " \t" and (
+                    following not in POWERSHELL_OPERATOR_CHARS):
+                raise ValueError("a quoted text that starts a word but does not end it")
+            reader.add("".join(text), plain=False)
+            i = j + 1
+        else:
+            if c in "*?[" or (c in "@]" and not reader.in_word):
+                raise ValueError("a wildcard, a splat or a bracket starting a word")
+            if c == "." and reader.plain and POWERSHELL_PARAMETER.fullmatch("".join(reader.word)):
+                raise ValueError("a parameter PowerShell splits")
+            reader.add(c)
+            i += 1
+    reader.end_word()
+    if any(not operator and POWERSHELL_STOP_PARSING.match(text) for text, operator in reader.tokens):
+        raise ValueError("the stop-parsing token")
+    return reader.tokens
+
+
+def _redirection(text: str, target: str, family: str) -> bool:
+    if family == "posix":
+        return bool(REDIRECTION.fullmatch(text))
+    return bool(POWERSHELL_REDIRECTION.fullmatch(text)) or (
+        bool(POWERSHELL_MERGE.fullmatch(text)) and target == "1")
+
+
+def _one_command(tokens: list[tuple[str, bool]], family: str) -> list[str] | None:
+    """The words of one simple command, its redirections and their targets left out; None if an
+    operator is anything else (a second command, a pipeline, a list, a subshell)."""
+    words, i = [], 0
+    while i < len(tokens):
+        text, operator = tokens[i]
+        if operator:
+            if i + 1 >= len(tokens) or tokens[i + 1][1] or not _redirection(text, tokens[i + 1][0],
+                                                                             family):
+                return None
+            i += 2  # a redirection and its target, which is no word of the command
+            continue
+        words.append(text)
+        i += 1
+    return words
+
+
+def _program(word: str, family: str) -> str:
+    """A program word's last part: after a slash, and in PowerShell a backslash too (a POSIX shell
+    took its backslashes as escapes already)."""
+    return re.split(r"[/\\]" if family == "powershell" else "/", word)[-1]
+
+
+def _kit_program(program: str) -> bool:
+    return program in KIT_PROGRAMS or program.lower() in KIT_PROGRAMS_WINDOWS
+
+
+def _python_runs_the_kit(words: list[str]) -> bool:
+    """Python's own options up to the first word that is not one: `-m aelix_analytics[.…]`, or a `-c`
+    whose code imports it, also after bundled one-letter options (`-Im`, `-I -c`)."""
+    i = 0
+    while i < len(words):
+        word = words[i]
+        if not word.startswith("-") or word == "-":
+            return False  # a script, the standard input, or the end of Python's options
+        if word.startswith("--"):
+            i += 2 if word == "--check-hash-based-pycs" else 1
+            continue
+        letters = word[1:]
+        while letters and letters[0] in PYTHON_FLAGS:
+            letters = letters[1:]
+        if letters[:1] in ("m", "c"):
+            value = letters[1:] or (words[i + 1] if i + 1 < len(words) else "")
+            if letters[0] == "m":
+                return value == "aelix_analytics" or value.startswith("aelix_analytics.")
+            return bool(KIT_IMPORT.search(value))
+        if letters[:1] in ("X", "W"):
+            i += 1 if letters[1:] else 2
+        else:
+            i += 1
+    return False
+
+
+def _options_end(words: list[str], i: int, flags, values, counted=None) -> int | None:
+    """Where the program's word is after a command's options at `i` (`--` ends them): those in
+    `flags` take no value; those in `values` take the next word, or the rest of their own (`--name=v`,
+    `-xv`). None for any other option: it may take the next word as its value."""
+    while i < len(words) and words[i].startswith("-"):
+        option = words[i]
+        if option == "--":
+            return i + 1
+        if option in flags or (counted is not None and counted.fullmatch(option)):
+            i += 1
+        elif option in values:
+            i += 2
+        elif ("=" in option and option.split("=", 1)[0] in values) or (
+                not option.startswith("--") and option[:2] in values):
+            i += 1
+        else:
+            return None
+    return i
+
+
+def _runs_the_kit(words: list[str], family: str) -> bool:
+    """Whether one simple command's words run a kit entry point: its program, after what may come
+    before it in that shell (see above)."""
+    i = 0
+    if family == "posix":
+        while i < len(words) and ASSIGNMENT.match(words[i]):
+            i += 1
+        while i < len(words) and words[i] in COMMAND_PREFIXES:
+            if words[i] == "env":
+                i = _options_end(words, i + 1, ENV_FLAGS, ENV_VALUE_OPTIONS)
+                if i is None:
+                    return False
+                while i < len(words) and ASSIGNMENT.match(words[i]):
+                    i += 1
+            else:
+                i += 1
+    if i >= len(words):
+        return False
+    if family == "powershell" and not POWERSHELL_COMMAND_START.match(words[i]):
+        return False  # an expression there, or a command name this reading leaves alone
+    program = _program(words[i], family)
+    if program == "uv" and words[i + 1:i + 2] == ["run"]:
+        i = _options_end(words, i + 2, UV_RUN_FLAGS, UV_RUN_VALUE_OPTIONS, UV_RUN_COUNTED)
+        if i is None or i >= len(words):
+            return False
+        program = _program(words[i], family)
+    if _kit_program(program):
+        return True
+    return bool(PYTHON_PROGRAM.fullmatch(program)) and _python_runs_the_kit(words[i + 1:])
+
+
+def is_single_kit_command(command: str, shell: str) -> bool:
+    """Whether a person's `!` line is, as a whole, one simple command that calls a kit entry point,
+    read as `shell` — aelix's name for the shell it runs the line in (`bash`, `zsh`, `pwsh`, …,
+    the_shell) — reads it (see above)."""
+    family = ("posix" if shell in POSIX_SHELLS else "powershell" if shell in POWERSHELL_SHELLS
+              else None)
+    line = command.strip()
+    if family is None or not line or UNREAD_CHARACTERS.search(line):
+        return False
+    try:
+        posix = _posix_words(line)
+        if family == "posix":
+            tokens = posix
+        else:
+            tokens = _powershell_words(line)
+            if tokens[:1] == [("&", True)]:  # its call operator, at the start only
+                tokens = tokens[1:]
+                posix = posix[1:] if posix[:1] == [("&", True)] else posix
+            elif line[0] in "'\"":
+                return False  # a quoted text first is a value in PowerShell, not a program
+            if tokens[:1] and tokens[0][1]:
+                return False  # a redirection first is the command's name there (`2>&1 x` runs `2>&1`)
+            if _one_command(posix, "posix") is None:
+                return False
+        words = _one_command(tokens, family)
+    except ValueError:  # what this reading leaves open: no judgment, the line runs as aelix runs it
+        return False
+    if words is None:
+        return False
+    # A comment (`#` starting a word) ends the command: the shell runs the words before it (`uv run
+    # --with #x analytics` runs `uv run --with`). A quoted `#…` word ends the words judged too, which
+    # only leaves more alone; operators after it counted above.
+    words = words[:next((k for k, word in enumerate(words) if word.startswith("#")), len(words))]
+    if cmd_may_read_the_arguments() and any(
+            CMD_METACHARACTERS.intersection(text) for text, operator in tokens if not operator):
+        return False  # cmd may read the words again (a batch file): any of them may start a command
+    return _runs_the_kit(words, family)
+
+
+class PersonShell:
+    """aelix's own local shell for one person's command, with AELIX_ANALYTICS_ACTOR=human in that
+    command's environment alone; everything else as aelix runs a `!` command (cli/repl.handle_user_bash:
+    create_local_bash_operations(), the environment get_shell_env() makes when none is given)."""
+
+    def __init__(self, local, shell_env) -> None:
+        self._local = local
+        self._shell_env = shell_env
+
+    async def exec(self, command, cwd, *, on_data, signal=None, timeout=None, env=None):
+        env = dict(env) if env is not None else self._shell_env()
+        env["AELIX_ANALYTICS_ACTOR"] = "human"
+        return await self._local.exec(command, cwd, on_data=on_data, signal=signal, timeout=timeout,
+                                      env=env)
+
+
+def on_user_bash(event, ctx):
+    """A person's `!`/`!!` line: aelix's local shell with the person as the author when the whole line
+    is one kit command in the shell aelix runs it in, else nothing (aelix keeps the last result a
+    handler returns, of any kind, so a result for any other line would set another extension's block or
+    shell aside for all of it). Never raises: a person's command must run whatever this judgment
+    meets."""
+    try:
+        if not is_single_kit_command(str(getattr(event, "command", "") or ""), the_shell()):
+            return None
+        from aelix_coding_agent.tools.bash import create_local_bash_operations
+        from aelix_coding_agent.util.shell_env import get_shell_env
+
+        return UserBashResult(operations=PersonShell(create_local_bash_operations(), get_shell_env))
+    except Exception:  # noqa: BLE001
+        return None
+
+
 # --- hooks ---
 
 async def on_before_agent_start(event, ctx):
     with contextlib.suppress(Exception):
         session = ctx.session_manager.get_session()
         STATE["session"] = getattr(session, "session_file", None) or STATE["session"]
+    # The shells the agent's commands run in carry this session from here (design 4.2).
+    put_the_session_in_the_environment(STATE["session"])
     try:
         project, _ = resolve_project()
     except Exception:  # noqa: BLE001 - no active project must never block a prompt
@@ -1088,8 +1662,9 @@ def summarize_call(tool: str, args: dict, project) -> tuple[str, list]:
         # through a link that leads out of data/ is still a write under data/. No walk and no
         # directory listing: this runs on aelix's event loop after every tool call.
         below = project.below(path) if path else None
-        if below and (below[0] in ("data", "runs", "report", ".lab")
-                      or (not below[1] and below[0] in ("journal.jsonl", "lab.json"))):
+        layout = project.layout
+        if below and (below[0] in ("data", "runs", layout.workspace_dir, layout.state_dir)
+                      or (not below[1] and below[0] in ("journal.jsonl", layout.marker))):
             flags.append("wrote_managed_path")
         return path[:300], flags
     if tool == "read":
@@ -1128,7 +1703,7 @@ def on_tool_end(event, ctx):
 
 def on_agent_end(event, ctx):
     with contextlib.suppress(Exception):
-        schedule_workspace_render(resolve_project()[0])
+        schedule_workspace_render(resolve_project()[0], "hook")
     return None
 
 
@@ -1142,8 +1717,12 @@ HELP = """/analytics — Aelix Analytics project
   /analytics use DIR            make DIR the active project for this aelix process
   /analytics render | open      rebuild the report | open it in the browser
   /analytics record KIND TEXT   journal entry as a human (finding, decision, question, ...);
-                                KIND gap: something this analysis workflow lacked or made awkward
-  /analytics context            the context block injected into prompts"""
+                                KIND workflow_feedback: something this analysis workflow lacked
+                                or made awkward
+  /analytics context            the context block injected into prompts
+A project of the older record format (lab.json) is read only here: a person copies it into the
+current format in a terminal (analytics migrate --to DIR, preview with --dry-run), then
+/analytics use DIR."""
 
 
 async def analytics_command(args, ctx=None):
@@ -1190,11 +1769,12 @@ async def analytics_command(args, ctx=None):
                 return f"created {project.root}, but uv sync failed:\n{detail}"
             if sub == "demo":
                 _notify(ctx, "analytics: generating synthetic data and example runs …")
-                ok, value = await run_kit(project, ["demo"], timeout=900, actor="human")
+                ok, value = await run_kit(project, ["demo"], timeout=900, actor="human",
+                                          means="command")
                 if not ok:
                     return render_error("/analytics demo", value)
             else:
-                await run_kit(project, ["render"], timeout=240, actor="human")
+                await run_kit(project, ["render"], timeout=240, actor="human", means="command")
             return (f"created {project.root} (active). Report: {project.workspace_dir / 'index.html'}"
                     " — /analytics open to view it.")
         if sub == "use":
@@ -1215,7 +1795,8 @@ async def analytics_command(args, ctx=None):
             if sub == "render" or not index.is_file():
                 # Refused here, before uv makes or syncs the project's environment.
                 await asyncio.to_thread(core.admit, project, "render")
-                ok, value = await run_kit(project, ["render"], timeout=240, actor="human")
+                ok, value = await run_kit(project, ["render"], timeout=240, actor="human",
+                                          means="command")
                 if not ok:
                     return render_error("/analytics render", value)
             if sub == "open":
@@ -1223,18 +1804,21 @@ async def analytics_command(args, ctx=None):
                     project.platform.processes.open_document(index, wait=False)
                 except OSError as exc:
                     return f"could not open {index} ({exc}); open it in a browser yourself"
+                if core.admit(project, "render", side=True) is None:
+                    # A page this kit reads and does not build any more (a lab.json project's).
+                    return (f"opened {index} (not updated: this kit reads {project.root} and does "
+                            "not write to it; /analytics status says why)")
                 return f"opened {index}"
             return f"report rebuilt: {index}"
         if sub == "record":
-            # `/analytics record gap TEXT` is what `/lab gap TEXT` was: kind gap stays the stored
-            # kind until the new record kinds (#13).
+            # Kinds as the common writer has them (writer.RECORD_KINDS): `/analytics record gap TEXT`,
+            # what `/lab gap TEXT` was, is bad_kind with its new name, workflow_feedback (design 2.8).
             project, _ = resolve_project()
             kind, _, body = rest.partition(" ")
-            event = await asyncio.to_thread(
-                lambda: core.add_note(project, kind, body, origin=origin("human", "command")))
-            schedule_workspace_render(project)
-            cut = note_cut(body)
-            return f"{event['id']} {kind} recorded" + (f" — {cut}" if cut else "")
+            written = await asyncio.to_thread(
+                lambda: core.record(project, kind, body, origin=origin("human", "command")))
+            schedule_workspace_render(project, "command")
+            return recorded_line(written, kind)
         if sub == "context":
             project, _ = resolve_project()
             return await asyncio.to_thread(core.context_block, project)
@@ -1288,8 +1872,10 @@ def setup(aelix):
     # before a new session's first prompt would record the previous session's file.
     STATE.update({"api": aelix, "project": None, "session": None, "starts": {},
                   "render_tasks": {}})
+    put_the_author_in_the_environment()
     aelix.register_flag("analytics-project", type="str",
-                        description="Analytics project directory (holds lab.json)")
+                        description="Analytics project directory (holds analytics.json, or an "
+                                    "older lab.json)")
     for tool in TOOLS:
         aelix.register_tool(tool)
     aelix.register_command("analytics", handler=analytics_command,
@@ -1299,5 +1885,6 @@ def setup(aelix):
     aelix.on("tool_execution_start", on_tool_start)
     aelix.on("tool_execution_end", on_tool_end)
     aelix.on("agent_end", on_agent_end)
+    aelix.on("user_bash", on_user_bash)
     if events is not None:
         events.on(INSTANCE_CHANNEL, _answer_as_the_active_copy)

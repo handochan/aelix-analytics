@@ -172,7 +172,7 @@ Protocol 타입 검사만으로 이 계약이 보장되지는 않는다. schema 
 CLI·HTML·에이전트 응답은 이 읽기 모델을 사용하므로, 화면만 최신 정의를 쓰거나 모델만 다른 근거를 받는 일이 없어야 한다.
 공통 기록 계약(정체성·참조와 해석 상태·읽기 기준·저장 완료)은 [ADR-0006](decisions/0006-common-record-contract.md)이 정했다.
 정본을 먼저 확정하고 journal의 완료 이벤트를 마지막에 쓰며, 실행·기록·표시 상태를 따로 둔다.
-이 응용 경로인 #13의 공통 writer와 원본 보존 프로젝트 전환은 [기록 writer와 프로젝트 전환 설계](design/RECORD-WRITER-AND-MIGRATION.md)(#13, Proposed)가 제안한다. 첫 구현 PR(①, kit 0.7.0)은 그 가운데 표식 판정과 모든 쓰기 진입점의 게이트, 작성 출처 `Origin`의 전달, 새 기록 가족의 읽기를 구현했다(모듈 `writer`, §11). 새 writer와 전환은 아직 코드가 아니다.
+이 응용 경로인 #13의 공통 writer와 원본 보존 프로젝트 전환은 [기록 writer와 프로젝트 전환 설계](design/RECORD-WRITER-AND-MIGRATION.md)(#13)가 정했고, 구현 PR 넷이 구현했다. ⓪(kit 0.6.0)은 내부 이름을, 첫 구현 PR(①, kit 0.7.0)은 표식 판정과 모든 쓰기 진입점의 게이트, 작성 출처 `Origin`의 전달, 새 기록 가족의 읽기를 구현했고(모듈 `writer`, §11), 둘째 PR(②)은 전환 엔진을 더했다(모듈 `migration`). 셋째 PR(③, kit 0.8.0)은 새 형식의 공통 writer(`writer.Writer`: journal 줄·run·가져오기 기록, 잠금 안의 표식 재판정과 상태 재생, 쓰는 시점의 참조 결박)를 더하고 모든 쓰기 진입점을 그 writer로 옮겼으며, 쓰는 형식을 `analytics.project/2`로 바꾸고(`lab.json` 프로젝트는 읽기만 함) 전환을 명령 `analytics migrate`로 열었다. 지금 동작은 [현재 계약](CONTRACTS.md)이 설명한다.
 
 검색·관계 인덱스는 원본과 별도 수명을 가진다. 삭제·교체·재구축해도 분석 기록이 사라지지 않는다.
 읽기 모델 재생성은 Python 분석·외부 API 호출·publish의 재실행을 뜻하지 않는다.
@@ -315,7 +315,7 @@ N0의 명칭·기본 언어 전환을 A0의 경계 정리와 조율한다. 현�
 | `ports` | 0 | 플랫폼 포트와 OS별 구현([ADR-0003](decisions/0003-portable-boundaries-and-in-process-kit-loading.md)) | `src/aelix_analytics/_platform.py` | 없음 | stdlib |
 | `read_model` | 0 | 기록의 읽기 모델(§9 `projections/`) | `src/aelix_analytics/relations.py` | 없음 | stdlib |
 | `distribution` | 0 | 설치본의 실행 루트 위치 | `src/aelix_analytics/_install.py` | 없음 | stdlib |
-| `writer` | 1 | 기록 writer의 첫 부분: 표식 판정과 쓰기 게이트, `Origin`, 오류 클래스, 기록 헬퍼(#13) | `src/aelix_analytics/writer.py` | `ports`, `read_model` | stdlib |
+| `writer` | 1 | 기록 writer: 표식 판정과 쓰기 게이트, `Origin`, 오류 클래스, 기록 헬퍼, 새 형식의 공통 `Writer`(#13) | `src/aelix_analytics/writer.py` | `ports`, `read_model` | stdlib |
 | `core` | 2 | 도메인·공유 응용(아직 나뉘지 않음, §2) | `src/aelix_analytics/core.py` | `ports`, `read_model`, `writer` | stdlib |
 | `runtime` | 3 | 실행·캡처·데이터 어댑터와 데모 채우기(§9 `runtime/`) | `src/aelix_analytics/runner.py`, `src/aelix_analytics/capture.py`, `src/aelix_analytics/data.py`, `src/aelix_analytics/demo.py` | `core`, `ports`, `read_model`, `runtime`, `writer` | stdlib, 분석 |
 | `workspace` | 3 | Workspace 렌더러(§5 `WorkspaceRenderer`) | `src/aelix_analytics/workspace.py` | `core`, `ports`, `read_model`, `writer` | stdlib, 분석, 표시 |
@@ -326,14 +326,15 @@ N0의 명칭·기본 언어 전환을 A0의 경계 정리와 조율한다. 현�
 | `host_adapter` | 4 | Aelix 어댑터(aelix 프로세스 안) | `extension/aelix_analytics.py` | `distribution`, `core`, `ports`, `read_model` | stdlib, 호스트 |
 | `user_scripts` | 5 | 프로젝트에 복사되는 예제 사용자 스크립트 | `src/aelix_analytics/demo_scripts/*.py` | `sdk` | stdlib, 분석 |
 
-`writer`는 #13의 첫 구현 PR(①)이 더했다. writer가 `core`를 import하지 못하게 `core` 아래의 새 계층으로 두었고(같은 계층이면 이 검사가
+`writer`는 #13의 첫 구현 PR(①)이 더했고, 셋째 PR(③)이 그 안에 새 형식의 공통 `Writer`를 더했다. writer가 `core`를 import하지 못하게 `core` 아래의 새 계층으로 두었고(같은 계층이면 이 검사가
 writer → core의 순환을 잡지 못한다), 그래서 `core` 이상의 수준이 하나씩 올랐다([설계](design/RECORD-WRITER-AND-MIGRATION.md) 3.2절).
 aelix 프로세스의 확장은 writer를 직접 import하지 않고 `core`가 다시 내보낸 이름(`core.AnalyticsError`·`core.Origin`·`core.present_marker` 등)을 쓴다. `writer.py`는
 `core.py`의 형제로 합성 package에서 함께 로드된다.
 
 `migration`은 #13의 둘째 구현 PR(②)이 더했다. `core` 위 수준 3의 계층이라 `core`·`writer`·`ports`·`read_model`만 쓰고 stdlib뿐이며,
-`core`가 import하지 않으므로 aelix 프로세스는 로드하지 않는다. 그것을 부를 진입점은 kit 명령줄(`kit_entry`)이고, 명령 `analytics migrate`는
-셋째 PR(③)이 연다. 그때까지 엔진은 시험에서만 돈다([설계](design/RECORD-WRITER-AND-MIGRATION.md) 3.2·10절).
+`core`가 import하지 않으므로 aelix 프로세스는 로드하지 않는다. 그것을 부르는 진입점은 kit 명령줄(`kit_entry`)의 `migrate`이고(셋째 PR ③,
+kit 0.8.0), 사람용 `analytics`(`launcher`)와 `bin/analytics`는 그것을 프로젝트의 환경 없이(`uv run --no-project`) 부른다. 원본의 uv 환경을
+만들거나 바꾸지 않기 위해서다([설계](design/RECORD-WRITER-AND-MIGRATION.md) 3.2·6.1·10절).
 
 외부 모듈은 아래 분류로 나눈다(`EXTERNAL`). 분류에 없는 서드파티는 위반이다.
 

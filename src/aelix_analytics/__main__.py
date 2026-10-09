@@ -10,8 +10,17 @@ bin/analytics, the installed `analytics` and the extension do. The installed dis
 not a runtime root, and refuses to run here (not_runtime_root; see _not_the_runtime_root).
 
 AELIX_ANALYTICS_CANCEL_FILE names the file through which the aelix extension asks a command it
-started to stop, where the platform cannot ask with a signal (see _platform.RunControl.watch_for_cancel):
-an internal protocol between the two, not a setting.
+started to stop, where the platform cannot ask with a signal (see _platform.RunControl.watch_for_cancel),
+and AELIX_ANALYTICS_MEANS how the extension came to start it (its model tool, its /analytics command,
+a hook: the records' `means`, design 4.2; without it `cli`): internal protocols between the two, not
+settings.
+
+`migrate --to DEST [--dry-run]` copies the lab.json project found as every command finds its project
+into DEST in the current format, the source left as it is (Issue #13, migration.migrate): it runs on
+the standard library only, as `init` does, and the launchers start it outside any project
+environment (`uv run --no-project`), then prepare DEST's once it is committed (design 6.1). Found
+nowhere, or found to be DEST itself, it is a call without a source, which goes on with a migration
+that checked its source already or confirms a committed one.
 
 An environment variable of the kit's old names (core.RENAMED_ENV: LAB_PROJECT, LAB_ACTOR, LAB_SESSION,
 LAB_STYLE, AELIX_LAB_TRUST_FILE) that is set stops every command with env_renamed before it does
@@ -62,15 +71,25 @@ def _emit(obj: dict) -> None:
 
 # The commands that write to a project, and the one each is refused as: they are judged before
 # their first side effect (core.admit, Issue #13). The others read (status, context, query) and
-# skip their side writes where this kit does not write; `init` makes a new directory (core.init_project).
+# skip their side writes where this kit does not write; `init` makes a new directory
+# (core.init_project) and `migrate` a new project from a lab.json one, each by its own rules for a
+# destination (design 6.2, OQ9): the source is read by the migration's rules, never admitted.
 WRITES = ("run", "import", "record", "render", "demo")
 
 
 def _origin() -> core.Origin:
-    """Who a command line's writes are by (design 4.2): AELIX_ANALYTICS_ACTOR as given (declared),
-    else `human`, which the kit fills in (inferred); the session AELIX_ANALYTICS_SESSION."""
+    """Who a command line's writes are by, and how (design 4.2): AELIX_ANALYTICS_ACTOR as given
+    (declared), else `human`, which the kit fills in (inferred); the means AELIX_ANALYTICS_MEANS (the
+    aelix extension's, one of writer.MEANS), else `cli`; the session AELIX_ANALYTICS_SESSION. A
+    means outside the closed list is refused (bad_means) rather than recorded as another."""
     actor = os.environ.get("AELIX_ANALYTICS_ACTOR") or None
-    return core.Origin(actor or "human", "cli", "declared" if actor else "inferred",
+    means = os.environ.get("AELIX_ANALYTICS_MEANS") or "cli"
+    if means not in core.writer.MEANS:
+        raise core.AnalyticsError("bad_means", f"AELIX_ANALYTICS_MEANS is {means!r}, not a means a "
+                                  "record holds", hint="it is set by the aelix extension for the "
+                                  "commands it starts; unset it to run the command as yourself",
+                                  details={"means": means, "allowed": list(core.writer.MEANS)})
+    return core.Origin(actor or "human", means, "declared" if actor else "inferred",
                        os.environ.get("AELIX_ANALYTICS_SESSION") or None)
 
 
@@ -81,6 +100,22 @@ def _project(args) -> core.Project:
         raise core.AnalyticsError("no_project", f"no analytics project at or above {start}",
                                   hint="create one with: analytics init DIR")
     return core.Project(root)
+
+
+def _migration_source(args) -> str | Path | None:
+    """The project a migration copies, found as every command finds its project (design 6.1), or
+    None where none is found. Where the start is that project itself, it is given as it was spelled:
+    the migration keeps that spelling among the source's (its mapping's `root.from`)."""
+    start = args.project or os.environ.get("AELIX_ANALYTICS_PROJECT") or os.getcwd()
+    found = core.find_project(start)
+    if found is None:
+        return None
+    try:
+        if os.path.samefile(start, found):
+            return start
+    except OSError:
+        pass
+    return found
 
 
 def _not_the_runtime_root() -> dict | None:
@@ -177,7 +212,7 @@ def _command(argv) -> int:
     p.add_argument("--timeout", type=float, default=600.0)
     p.add_argument("--rerun-of")
 
-    p = sub.add_parser("import", help="import a data file as data/raw/<name>.parquet")
+    p = sub.add_parser("import", help="import a data file as data/imported/<name>.parquet")
     p.add_argument("source")
     p.add_argument("--name")
     p.add_argument("--description")
@@ -186,24 +221,45 @@ def _command(argv) -> int:
     p.add_argument("sql")
     p.add_argument("--limit", type=int, default=50)
 
-    p = sub.add_parser("record", help="append a journal entry")
-    p.add_argument("kind", choices=core.NOTE_KINDS)
+    p = sub.add_parser("record", help="append a journal entry (kind: " + ", ".join(core.RECORD_KINDS)
+                       + ")")
+    # Not argparse's choices: a kind it does not have is the kit's bad_kind, with the new name of an
+    # older one (`gap` is workflow_feedback, design 2.8), as every other entry point answers.
+    p.add_argument("kind")
     p.add_argument("text")
     p.add_argument("--ref", action="append", default=[], dest="refs")
     p.add_argument("--resolves")
 
-    p = sub.add_parser("render", help="rebuild the HTML report")
+    p = sub.add_parser("render", help="rebuild the Workspace (HTML)")
     p.add_argument("--if-changed", action="store_true")
 
     p = sub.add_parser("demo", help="fill a new project with synthetic data and example runs")
 
+    # No abbreviated options: the launchers read --to and --dry-run from what is passed on, and an
+    # abbreviation they do not know (--dry) must not make them prepare a destination a dry run named.
+    p = sub.add_parser("migrate", allow_abbrev=False,
+                       help="copy this lab.json project into a new folder in the current format "
+                            "(the project is left as it is)")
+    p.add_argument("--to", required=True, metavar="DEST",
+                   help="a new or empty folder outside every project, or the destination of a "
+                        "migration to go on with")
+    p.add_argument("--dry-run", action="store_true",
+                   help="say what the migration would do now, and write nothing")
+
     args = parser.parse_args(argv)
-    origin = _origin()
     try:
+        origin = _origin()
         if args.command == "init":
             project = core.init_project(args.path, title=args.title, goal=args.goal,
                                         template_dir=TEMPLATE_DIR, origin=origin)
-            _emit({"ok": True, "project": str(project.root), "title": project.title()})
+            _emit({"ok": True, "project": str(project.root), "title": project.title(),
+                   "request_id": project.request_id})
+            return 0
+        if args.command == "migrate":
+            from . import migration
+
+            _emit(migration.migrate(_migration_source(args), args.to, origin=origin,
+                                    dry_run=args.dry_run))
             return 0
         project = _project(args)
         # Before anything is written — a lock file, a context version, a cache — and before the
@@ -250,19 +306,25 @@ def _command(argv) -> int:
         elif args.command == "record":
             from . import workspace
 
+            # What the record refuses before its lock is refused before the context sync too: a
+            # refused record changes nothing (core.check_record).
+            core.check_record(project, args.kind, args.text, refs=args.refs, resolves=args.resolves,
+                              origin=origin)
             core.sync_context(project, origin=core.system_origin(origin))
-            event = core.add_note(project, args.kind, args.text, refs=args.refs,
+            written = core.record(project, args.kind, args.text, refs=args.refs,
                                   resolves=args.resolves, origin=origin)
-            _emit({"ok": True, "event": event, "workspace": _safe_render(workspace, project)})
+            _emit({"ok": True, **written.to_json(), "workspace": _safe_render(workspace, project)})
         elif args.command == "render":
             from . import workspace
 
             core.sync_context(project, origin=core.system_origin(origin))
-            _emit({"ok": True, "workspace": workspace.build(project, if_changed=args.if_changed)})
+            _emit({"ok": True, "workspace": workspace.build(project, if_changed=args.if_changed),
+                   "request_id": core.request_id_of(origin)})
         elif args.command == "demo":
             from . import demo
 
-            _emit({"ok": True, **demo.populate(project, origin=origin)})
+            _emit({"ok": True, **demo.populate(project, origin=origin),
+                   "request_id": core.request_id_of(origin)})
         return 0
     except core.AnalyticsError as exc:
         _emit(exc.to_json())

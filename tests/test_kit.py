@@ -29,7 +29,7 @@ print("rows", by_region.height)
 DUCKDB_PLOTLY = '''import duckdb
 import plotly.express as px
 
-mix = duckdb.sql("SELECT channel, sum(revenue) AS revenue FROM 'data/raw/sales.parquet' GROUP BY ALL ORDER BY channel").pl()
+mix = duckdb.sql("SELECT channel, sum(revenue) AS revenue FROM 'data/imported/sales.parquet' GROUP BY ALL ORDER BY channel").pl()
 fig = px.bar(mix, x="channel", y="revenue", title="Channel mix")
 fig.show()
 '''
@@ -37,7 +37,7 @@ fig.show()
 POLARS_PLT = '''import matplotlib.pyplot as plt
 import polars as pl
 
-df = pl.read_parquet("data/raw/sales.parquet")
+df = pl.read_parquet("data/imported/sales.parquet")
 monthly = df.group_by(pl.col("order_date").dt.month().alias("m")).agg(pl.col("revenue").sum()).sort("m")
 monthly.write_parquet("data/derived/monthly.parquet")
 plt.plot(monthly["m"], monthly["revenue"])
@@ -55,8 +55,8 @@ def test_init_layout_and_journal(tmp_path):
     from conftest import KIT
 
     project = core.init_project(root, title="분석", template_dir=KIT / "aelix_analytics" / "template", origin=core.Origin("test", "sdk"))
-    for rel in ("lab.json", "CONTEXT.md", "journal.jsonl", "pyproject.toml", ".python-version",
-                ".gitignore", "data/raw", "data/derived", "scripts", "runs", "report"):
+    for rel in ("analytics.json", "CONTEXT.md", "journal.jsonl", "pyproject.toml", ".python-version",
+                ".gitignore", "data/imported", "data/derived", "scripts", "runs", "workspace"):
         assert (root / rel).exists(), rel
     kinds = [e["kind"] for e in core.read_events(project)]
     assert kinds == ["project", "context"]
@@ -74,15 +74,18 @@ def test_lab_api_run_records_inputs_outputs_chart_and_code(project):
     assert code == 0, result
     run = result["run"]
     assert run["status"] == "ok"
-    assert [i["path"] for i in run["inputs"]] == ["data/raw/sales.parquet"]
-    assert "lab.read" in run["inputs"][0]["via"]
-    assert run["inputs"][0]["sha256"] == core.sha256_file(project / "data/raw/sales.parquet")
+    assert [i["path"] for i in run["inputs"]] == ["data/imported/sales.parquet"]
+    assert "analytics.read" in run["inputs"][0]["via"]
+    assert run["inputs"][0]["sha256"] == core.sha256_file(project / "data/imported/sales.parquet")
     out = {o["path"]: o for o in run["outputs"]}
     assert out["data/derived/region_revenue.parquet"]["change"] == "created"
-    assert out["data/derived/region_revenue.parquet"]["via"] == "lab.save"
+    assert out["data/derived/region_revenue.parquet"]["via"] == "analytics.save"
     assert out["data/derived/region_revenue.parquet"]["rows"] == 3
-    (chart,) = run["charts"]
-    assert chart["id"] == "region-revenue" and chart["title"] == "지역별 매출"
+    (chart,) = run["visualizations"]
+    assert chart["visualization_id"] == "region-revenue" and chart["title"] == "지역별 매출"
+    # The stored bytes' hashes (design 2.6): the image's and the attached data's.
+    assert chart["sha256"] == core.sha256_file(project / chart["files"]["png"])
+    assert chart["data_sha256"] == core.sha256_file(project / chart["data"])
     assert chart["line"] == 12 and chart["data_rows"] == 3
     assert (project / chart["files"]["png"]).is_file() and (project / chart["data"]).is_file()
     snapshot = project / run["script"]["snapshot"]
@@ -98,16 +101,16 @@ def test_idiomatic_duckdb_plotly_and_polars_matplotlib_are_captured(project):
     _, r1 = _run(project, write_script(project, "02_mix.py", DUCKDB_PLOTLY))
     run = r1["run"]
     assert run["status"] == "ok"
-    assert run["inputs"][0]["path"] == "data/raw/sales.parquet"
+    assert run["inputs"][0]["path"] == "data/imported/sales.parquet"
     assert "duckdb.sql" in run["inputs"][0]["via"]
-    (chart,) = run["charts"]
+    (chart,) = run["visualizations"]
     assert chart["kind"] == "plotly" and chart["via"] == "fig.show" and chart["title"] == "Channel mix"
 
     _, r2 = _run(project, write_script(project, "03_monthly.py", POLARS_PLT))
     run = r2["run"]
     assert "polars.read_parquet" in run["inputs"][0]["via"]
     assert [o["path"] for o in run["outputs"]] == ["data/derived/monthly.parquet"]
-    (chart,) = run["charts"]
+    (chart,) = run["visualizations"]
     assert chart["via"] == "plt.show" and chart["title"] == "Monthly" and not chart.get("data")
     assert any("plotted data not recorded" in w for w in run["warnings"])
 
@@ -121,8 +124,8 @@ def test_lab_sql_records_the_views_it_reads(project):
             "print(rel.pl().height)\n")
     _, result = _run(project, write_script(project, "04_sql.py", body))
     inputs = {i["path"]: i["via"] for i in result["run"]["inputs"]}
-    assert inputs == {"data/derived/part.parquet": ["lab.sql"],
-                      "data/raw/sales.parquet": ["lab.sql"]}
+    assert inputs == {"data/derived/part.parquet": ["analytics.sql"],
+                      "data/imported/sales.parquet": ["analytics.sql"]}
 
 
 def test_failed_run_keeps_error_line_and_traceback(project):
@@ -146,7 +149,7 @@ def test_rerun_match_and_mismatch(project):
     _, again = kit_cli(project, "run", "--rerun-of", first["run"]["id"], "--title", "rerun")
     repro = again["run"]["reproduction"]
     assert repro["verdict"] == "match" and repro["inputs_same"]
-    assert repro["charts"] == {"region-revenue": "same data"}
+    assert repro["visualizations"] == {"region-revenue": "same data"}
 
     noisy = ("import time\nimport matplotlib.pyplot as plt\nimport polars as pl\nimport aelix_analytics as analytics\n"
              "fig, ax = plt.subplots()\n"
@@ -191,7 +194,7 @@ def test_query_is_read_only(project):
 
 
 def test_import_is_immutable_and_records_source(project, tmp_path):
-    meta = json.loads((project / "data/raw/sales.meta.json").read_text(encoding="utf-8"))
+    meta = json.loads((project / "data/imported/sales.meta.json").read_text(encoding="utf-8"))
     assert meta["rows"] == 120 and meta["source"]["format"] == "csv" and meta["source"]["sha256"]
     code, result = kit_cli(project, "import", tmp_path / "sales.csv", "--name", "sales")
     assert code == 1 and result["error"]["code"] == "dataset_exists"
@@ -203,9 +206,12 @@ def test_import_is_immutable_and_records_source(project, tmp_path):
 
 def test_notes_resolution_and_context_history(project):
     p = core.Project(project)
-    q = core.add_note(p, "question", "언제 넘었나?", origin=core.Origin("test", "sdk"))
-    f = core.add_note(p, "finding", "3월에 넘었다", refs=["sales"], resolves=q["id"], origin=core.Origin("test", "sdk"))
-    assert f["refs"] == {"data": ["sales"], "resolves": q["id"]}
+    q = core.record(p, "question", "언제 넘었나?", origin=core.Origin("test", "sdk")).event
+    f = core.record(p, "finding", "3월에 넘었다", refs=["sales"], resolves=q["id"], origin=core.Origin("test", "sdk"))
+    assert [(r["type"], r["relation"], r["version_binding"]) for r in f.event["refs"]] == [
+        ("dataset_import", "cites", "inferred"), ("event", "resolves", "author")]
+    assert f.targets == [{"event_id": q["id"], "relation": "resolves", "state_before": "open",
+                          "state_after": "resolved"}]
     block = core.context_block(p)
     assert "3월에 넘었다" in block and "언제 넘었나?" not in block
     before = len(core.context_versions(p))
@@ -214,10 +220,9 @@ def test_notes_resolution_and_context_history(project):
     assert event and event["text"] == "CONTEXT.md updated (+2 -0 lines)"
     assert core.sync_context(p, origin=core.Origin("system", "sdk")) is None
     assert len(core.context_versions(p)) == before + 1
-    try:
-        core.add_note(p, "resolve", "x", origin=core.Origin("agent", "sdk"))
-    except core.AnalyticsError as exc:
-        assert exc.code == "resolve_needs_target"
+    with pytest.raises(core.AnalyticsError) as caught:
+        core.record(p, "resolve", "x", origin=core.Origin("agent", "sdk"))
+    assert caught.value.code == "resolve_needs_target"
 
 
 class _Links(HTMLParser):
@@ -239,7 +244,7 @@ def test_report_links_point_at_existing_files_and_anchors(project):
     _run(project, write_script(project, "02_mix.py", DUCKDB_PLOTLY))
     code, result = kit_cli(project, "render")
     assert code == 0
-    report = project / "report"
+    report = project / "workspace"
     pages = sorted(report.rglob("*.html"))
     assert len(pages) >= 5
     parsed = {}
@@ -269,8 +274,8 @@ def test_report_links_point_at_existing_files_and_anchors(project):
 def test_the_workspace_build_is_named_workspace_and_the_old_assets_go(project, tmp_path):
     """Kit 0.6.0 (Issue #13 PR 0, design RECORD-WRITER-AND-MIGRATION section 9): each result line
     that carries the Workspace build calls it `workspace` — import, record, run, render — and status
-    gives the Workspace's index under the same key; the values are the stored path report/… until
-    the stored names change (#13's third implementation PR). A render removes the assets an earlier
+    gives the Workspace's index under the same key; the values are the stored path workspace/… since
+    the stored names changed (kit 0.8.0, #13's third implementation PR). A render removes the assets an earlier
     kit wrote under their old names, no page loads them, and build.js sets the renamed global."""
     from conftest import write_sales_csv
 
@@ -284,13 +289,14 @@ def test_the_workspace_build_is_named_workspace_and_the_old_assets_go(project, t
     code, status = kit_cli(project, "status")
     index = core.Project(project).workspace_dir / "index.html"
     assert code == 0 and status["status"]["workspace"] == str(index) and "report" not in status["status"]
-    assert index.parent.name == "report"
+    assert index.parent.name == "workspace"
 
     assets = index.parent / "assets"
     for name in ("report.css", "report.js"):
         (assets / name).write_text("/* an earlier kit's asset */\n", encoding="utf-8")
     code, rendered = kit_cli(project, "render")
-    assert code == 0 and set(rendered) == {"ok", "workspace"} and rendered["workspace"]["pages"], rendered
+    assert code == 0 and set(rendered) == {"ok", "workspace", "request_id"} and rendered["workspace"]["pages"], \
+        rendered
     names = {p.name for p in assets.iterdir()}
     assert {"workspace.css", "workspace.js", "build.js"} <= names, names
     assert not names & {"report.css", "report.js"}, names
@@ -329,13 +335,13 @@ def test_one_figure_reused_for_several_named_charts_keeps_each_chart(project):
             "fig2, ax2 = plt.subplots()\nax2.plot([1, 2])\nplt.show()\n"
             "analytics.visualize(fig2, 'named-after-show', data=pl.DataFrame({'y': [1, 2]}))\n")
     _, result = _run(project, write_script(project, "05_loop.py", body))
-    charts = {c["id"]: c for c in result["run"]["charts"]}
+    charts = {c["visualization_id"]: c for c in result["run"]["visualizations"]}
     assert set(charts) == {"rev-5", "rev-6", "rev-7", "named-after-show"}, charts
     assert [charts[f"rev-{n}"]["data_rows"] for n in (5, 6, 7)] == [5, 6, 7]
     pngs = {core.sha256_file(project / charts[f"rev-{n}"]["files"]["png"]) for n in (5, 6, 7)}
     assert len(pngs) == 3
-    assert charts["named-after-show"]["via"] == "lab.chart"
-    leftovers = sorted(p.name for p in (project / "runs" / result["run"]["id"] / "charts").iterdir())
+    assert charts["named-after-show"]["via"] == "analytics.visualize"
+    leftovers = sorted(p.name for p in (project / "runs" / result["run"]["id"] / "visualizations").iterdir())
     assert not any(name.startswith("chart-") for name in leftovers), leftovers
 
 
@@ -384,7 +390,7 @@ def test_reading_back_an_own_output_is_not_an_input_and_not_stale(project):
     script = write_script(project, "09_readback.py", body)
     _run(project, script)
     _, second = _run(project, script)
-    assert [i["path"] for i in second["run"]["inputs"]] == ["data/raw/sales.parquet"]
+    assert [i["path"] for i in second["run"]["inputs"]] == ["data/imported/sales.parquet"]
     incremental = ("import polars as pl\nimport aelix_analytics as analytics\nfrom pathlib import Path\n"
                    "p = Path('data/derived/acc.parquet')\n"
                    "old = pl.read_parquet(p) if p.exists() else pl.DataFrame({'n': []}, schema={'n': pl.Int64})\n"
@@ -450,18 +456,18 @@ def _refused(result) -> bool:
 
 
 def test_query_cannot_write_or_read_outside_data(project):
-    """A file that exists outside data/ — the project's own lab.json, directly and through
+    """A file that exists outside data/ — the project's own analytics.json, directly and through
     data/.. — is refused by DuckDB's sandbox, while a file inside data/ is read: the refusal is the
     sandbox's, not a path that does not exist (criterion 9: this read /etc/hosts, which Windows
     does not have)."""
     code, result = kit_cli(project, "query", f"EXPLAIN ANALYZE COPY (SELECT * FROM sales) TO '{project}/data/derived/sneaky.parquet'")
     assert code == 1 and result["error"]["code"] == "query_read_only"
     assert not (project / "data/derived/sneaky.parquet").exists()
-    (project / "data" / "raw" / "note.txt").write_text("inside", encoding="utf-8")
+    (project / "data" / "imported" / "note.txt").write_text("inside", encoding="utf-8")
     for separator in SEPARATORS:
-        code, result = _read_text(project, project / "data" / "raw" / "note.txt", separator)
+        code, result = _read_text(project, project / "data" / "imported" / "note.txt", separator)
         assert code == 0 and result["rows"] == [["inside"]], (separator, result)
-        for outside in (project / "lab.json", project / "data" / ".." / "lab.json"):
+        for outside in (project / "analytics.json", project / "data" / ".." / "analytics.json"):
             assert outside.is_file()
             code, result = _read_text(project, outside, separator)
             assert code == 1 and _refused(result), (separator, outside, result)
@@ -476,10 +482,10 @@ def test_query_cannot_read_through_a_link_out_of_data(project, tmp_path, kind):
     outside = tmp_path / "outside"
     outside.mkdir()
     (outside / "secret.txt").write_text("secret", encoding="utf-8")
-    dir_link(kind, project / "data" / "raw" / "out", outside)
-    assert (project / "data" / "raw" / "out" / "secret.txt").is_file()
+    dir_link(kind, project / "data" / "imported" / "out", outside)
+    assert (project / "data" / "imported" / "out" / "secret.txt").is_file()
     for separator in SEPARATORS:
-        code, result = _read_text(project, project / "data" / "raw" / "out" / "secret.txt", separator)
+        code, result = _read_text(project, project / "data" / "imported" / "out" / "secret.txt", separator)
         assert code == 1 and _refused(result), (separator, result)
 
 
@@ -491,9 +497,9 @@ def test_sql_lineage_ignores_columns_and_ctes_named_like_datasets(project, tmp_p
             "JOIN (SELECT 1 AS k) x ON true WHERE s.region IN (SELECT region FROM sales)\")\n"
             "print(rel.pl().height)\n")
     _, result = _run(project, write_script(project, "13_cte.py", body))
-    assert [i["path"] for i in result["run"]["inputs"]] == ["data/raw/sales.parquet"]
+    assert [i["path"] for i in result["run"]["inputs"]] == ["data/imported/sales.parquet"]
     from aelix_analytics import data
-    views = {"sales": "data/raw/sales.parquet", "region": "data/raw/region.parquet"}
+    views = {"sales": "data/imported/sales.parquet", "region": "data/imported/region.parquet"}
     assert data.referenced_views("SELECT * FROM sales s JOIN sales t USING (region)", views) == {"sales"}
 
 
@@ -551,15 +557,15 @@ def test_chart_anchors_are_unique_for_similar_keys():
 
 def test_dynamic_duckdb_params_quoted_paths_and_polars_io_are_detected(project):
     body = ("import duckdb\nfrom polars.io import read_parquet\n"
-            "path = 'data/raw/' + 'sales' + '.parquet'\n"
+            "path = 'data/imported/' + 'sales' + '.parquet'\n"
             "con = duckdb.connect()\ncon.execute('SELECT count(*) FROM read_parquet(?)', [path]).fetchall()\n")
     _, r1 = _run(project, write_script(project, "18_params.py", body))
     assert r1["run"]["inputs"][0]["via"] == ["duckdb.execute"]
     _, r2 = _run(project, write_script(project, "19_io.py", "from polars.io import read_parquet\n"
-                                                           "read_parquet('data/raw/' + 'sales.parquet')\n"))
+                                                           "read_parquet('data/imported/' + 'sales.parquet')\n"))
     assert "polars.read_parquet" in r2["run"]["inputs"][0]["via"]
     _, r3 = _run(project, write_script(project, "20_quoted.py", "import duckdb\n"
-                                                               "duckdb.sql('SELECT count(*) FROM \"data/raw/sales.parquet\"').fetchall()\n"))
+                                                               "duckdb.sql('SELECT count(*) FROM \"data/imported/sales.parquet\"').fetchall()\n"))
     assert "duckdb.sql" in r3["run"]["inputs"][0]["via"]
 
 
@@ -571,9 +577,9 @@ def test_replacing_a_chart_id_leaves_no_phantom_chart(project):
             "fig2, ax2 = plt.subplots()\nax2.plot(df['revenue'].head(9))\nax2.set_title('FINAL chart')\n"
             "analytics.visualize(fig2, 'rev', title='final', data=df.head(9))\n")
     _, result = _run(project, write_script(project, "21_replace.py", body))
-    charts = result["run"]["charts"]
-    assert [(c["id"], c["title"], c["via"], c["data_rows"]) for c in charts] == [
-        ("rev", "final", "lab.chart", 9)]
+    charts = result["run"]["visualizations"]
+    assert [(c["visualization_id"], c["title"], c["via"], c["data_rows"]) for c in charts] == [
+        ("rev", "final", "analytics.visualize", 9)]
     assert result["run"]["warnings"] == []
     keys = [c["key"] for c in core.chart_index(core.list_runs(core.Project(project)))]
     assert keys == ["scripts/21_replace.py::rev"]
@@ -613,11 +619,18 @@ analytics.save(pl.read_csv(r"{source}").head(3), "peek")
 
 def test_a_bare_chart_id_in_a_note_links_to_the_chart(project):
     _run(project, write_script(project, "01_region.py", ANALYTICS_API), "지역별")
-    event = core.add_note(core.Project(project), "finding", "서울 편중",
+    written = core.record(core.Project(project), "finding", "서울 편중",
                           refs=["region-revenue", "sales", "made-up"], origin=core.Origin("agent", "sdk"))
-    assert event["refs"]["charts"] == ["scripts/01_region.py::region-revenue"]
-    assert event["refs"]["data"] == ["sales"]
-    assert event["refs"]["other"] == ["made-up"]
+    # Bound as it is written (design 4.7): the bare Visualization id to its one key's newest
+    # version and the dataset to its import — both inferred — and a name that is neither, unbound.
+    assert [(b["input"], b["binding"]) for b in written.bindings] == [
+        ("region-revenue", "inferred"), ("sales", "inferred"), ("made-up", "none")]
+    vis, data, other = written.event["refs"]
+    assert (vis["type"], vis["visualization_id"]) == ("visualization_version", "region-revenue")
+    assert (data["type"], data["path"]) == ("dataset_import", "data/imported/sales.parquet")
+    assert (other["type"], other["token"]) == ("visualization_version", "made-up")
+    view = core.read_events(core.Project(project))[-1]["refs"]
+    assert view["charts"][1:] == ["made-up"] and len(view["data"]) == 1
 
 
 def test_a_run_over_many_files_stays_readable_in_the_journal_and_report(project):
@@ -631,18 +644,16 @@ def test_a_run_over_many_files_stays_readable_in_the_journal_and_report(project)
     assert code == 0, result
     assert len(result["run"]["inputs"]) >= 70
 
+    # The run's completion event names the run (design 4.8): what it read and wrote is in its record,
+    # so the journal line stays short whatever the run read.
     event = core.read_events(core.Project(project))[-1]
-    assert event["kind"] == "run"
-    assert len(event["refs"]["data"]) <= core.MAX_EVENT_REFS
-    assert "data/derived/combined.parquet" in event["refs"]["data"]  # outputs survive the cap
-    assert "input file(s)" in event["text"]
+    assert event["kind"] == "run" and event["refs"] == {"runs": [result["run"]["id"]]}
     assert len(json.dumps(event, ensure_ascii=False)) < 4000
 
     assert kit_cli(project, "render")[0] == 0
-    index = (project / "report" / "index.html").read_text(encoding="utf-8")
-    assert "12 more" in index, "the timeline does not say how many refs it hid"
-    assert index.count("part_") <= 2 * core.MAX_EVENT_REFS, "the timeline dumped every input path"
-    page = next((project / "report" / "runs").glob("*01-many.html")).read_text(encoding="utf-8")
+    index = (project / "workspace" / "index.html").read_text(encoding="utf-8")
+    assert index.count("part_") <= 48, "the timeline dumped every input path"
+    page = next((project / "workspace" / "runs").glob("*01-many.html")).read_text(encoding="utf-8")
     assert "Input data (70)" in page, "the run page no longer states the real input count"
     assert "10 more — changed inputs are listed first" in page and "run.json" in page
 
@@ -711,11 +722,11 @@ print(df.to_string())
 
 def test_records_from_a_newer_kit_are_skipped_and_said_so(project):
     p = core.Project(project)
-    core.append_jsonl(p.journal, {"schema": "lab.event/2", "seq": 99, "id": "e99",
+    core.append_jsonl(p.journal, {"schema": "analytics.event/3", "seq": 99, "id": "e99",
                                   "kind": "finding", "text": "미래 kit이 쓴 기록"})
     future = p.runs / "20990101-000000-future"
     future.mkdir(parents=True)
-    core.write_json(future / "run.json", {"schema": "lab.run/2", "id": future.name, "status": "ok"})
+    core.write_json(future / "run.json", {"schema": "analytics.run/3", "id": future.name, "status": "ok"})
 
     assert all(e.get("id") != "e99" for e in core.read_events(p))
     assert future.name not in [r["id"] for r in core.list_runs(p)]
@@ -738,19 +749,16 @@ def test_records_from_a_newer_kit_are_skipped_and_said_so(project):
     # A marker of a newer version: the records this kit knows are read and the marker is reported,
     # and nothing is written (Issue #13 PR 1, design 4.3 `unknown`). Before it the read failed too.
     marker = json.loads(p.marker.read_text(encoding="utf-8"))
-    p.marker.write_text(json.dumps({**marker, "schema": "lab.project/2"}), encoding="utf-8")
+    p.marker.write_text(json.dumps({**marker, "schema": "analytics.project/3"}), encoding="utf-8")
     newer = core.Project(project)
     assert newer.title() == marker["title"]
     st = core.status(newer)
-    assert (st["project"]["format"], st["project"]["writable"]) == ("lab.project/2", False)
+    assert (st["project"]["format"], st["project"]["writable"]) == ("analytics.project/3", False)
     assert st["project"]["write_refusal"]["code"] == "project_too_new"
     before = _tree(project)
-    try:
-        core.add_note(newer, "note", "into a newer project", origin=core.Origin("test", "sdk"))
-    except core.AnalyticsError as exc:
-        assert exc.code == "project_too_new"
-    else:
-        raise AssertionError("a project from a newer kit was written to")
+    with pytest.raises(core.AnalyticsError) as caught:
+        core.record(newer, "note", "into a newer project", origin=core.Origin("test", "sdk"))
+    assert caught.value.code == "project_too_new"
     assert _tree(project) == before
 
 
@@ -759,7 +767,7 @@ def test_a_failing_run_says_what_to_write_instead(project):
     assert code != 0
     assert "print(df)" in result["run"]["error"]["hint"]
     assert kit_cli(project, "render")[0] == 0
-    page = next((project / "report" / "runs").glob("*01-habit.html")).read_text(encoding="utf-8")
+    page = next((project / "workspace" / "runs").glob("*01-habit.html")).read_text(encoding="utf-8")
     assert "How to fix: " in page and "df.glimpse()" in page
 
     for summary, expected in (
@@ -962,10 +970,10 @@ def test_the_block_counts_the_entries_it_leaves_out_and_says_where_they_are(tmp_
     says how many entries it leaves out and where the journal is, once a list."""
     p = core.init_project(tmp_path / "p", origin=core.Origin("test", "sdk"))
     for i in range(14):
-        core.add_note(p, "finding", f"finding {i:02d}", origin=core.Origin("test", "sdk"))
-    core.add_note(p, "finding", "long " * 100, origin=core.Origin("test", "sdk"))
+        core.record(p, "finding", f"finding {i:02d}", origin=core.Origin("test", "sdk"))
+    core.record(p, "finding", "long " * 100, origin=core.Origin("test", "sdk"))
     for i in range(3):
-        core.add_note(p, "question", f"question {i}", origin=core.Origin("test", "sdk"))
+        core.record(p, "question", f"question {i}", origin=core.Origin("test", "sdk"))
     block = core.context_block(p)
     key = block.split("## Key information", 1)[1].split("\n## ", 1)[0]
     assert key.rstrip("\n").split("\n")[-1] == (
@@ -1055,16 +1063,16 @@ def _main_status_text(st: dict, max_chars: int = 9000) -> str:
 def _datasets(p, n: int, prefix: str = "part") -> list[dict]:
     """`n` imported datasets as `analytics import` leaves them: a parquet file (a marker: nothing here
     reads its content) and its meta.json."""
-    p.raw.mkdir(parents=True, exist_ok=True)
+    p.imported.mkdir(parents=True, exist_ok=True)
     out = []
     for i in range(n):
         name = f"{prefix}_{i:03d}"
-        (p.raw / f"{name}.parquet").write_bytes(b"PAR1 marker")
-        meta = {"schema": "lab.dataset/1", "name": name, "path": f"data/raw/{name}.parquet",
-                "sha256": core.sha256_file(p.raw / f"{name}.parquet"), "rows": 100,
+        (p.imported / f"{name}.parquet").write_bytes(b"PAR1 marker")
+        meta = {"schema": "analytics.dataset/1", "name": name, "path": f"data/imported/{name}.parquet",
+                "sha256": core.sha256_file(p.imported / f"{name}.parquet"), "rows": 100,
                 "columns": [{"name": "v", "dtype": "Int64"}], "description": f"table {i}",
                 "source": {"path": f"/sources/{name}.csv"}}
-        core.write_json(p.raw / f"{name}.meta.json", meta)
+        core.write_json(p.imported / f"{name}.meta.json", meta)
         out.append(meta)
     return out
 
@@ -1079,22 +1087,23 @@ def _scale_project(root: Path, events: int, datasets: int, runs: int):
     start = core._last_seq(p.journal)
     with open(p.journal, "ab") as fh:
         fh.write("".join(json.dumps({
-            "schema": "lab.event/1", "seq": start + i + 1, "id": f"e{start + i + 1}",
-            "ts": f"2026-09-01T09:{i // 60 % 60:02d}:{i % 60:02d}.000", "kind": kinds[i % 5],
+            "schema": "analytics.event/2", "seq": start + i + 1, "id": f"e{start + i + 1}",
+            "recorded_at": f"2026-09-01T09:{i // 60 % 60:02d}:{i % 60:02d}.000", "kind": kinds[i % 5],
             "actor": "test", "text": f"entry {i}: region {i % 17} grew {i % 9}% apart",
-            "refs": {}}, ensure_ascii=False) + "\n" for i in range(events)).encode())
+            "refs": []}, ensure_ascii=False) + "\n" for i in range(events)).encode())
     for i in range(runs):
         run_id = f"20260901-{9 + i // 3600:02d}{(i // 60) % 60:02d}{i % 60:02d}-run-{i:03d}"
         ds = tables[i % datasets]
         (p.runs / run_id).mkdir(parents=True)
         core.write_json(p.runs / run_id / "run.json", {
-            "schema": "lab.run/1", "id": run_id, "title": f"run {i}", "status": "ok",
+            "schema": "analytics.run/2", "id": run_id, "title": f"run {i}", "status": "ok",
             "started_at": f"2026-09-01T09:{i // 60 % 60:02d}:{i % 60:02d}", "duration_s": 1.0,
             "script": {"path": f"scripts/s{i % 10}.py", "sha256": "0" * 64},
-            "inputs": [{"path": ds["path"], "sha256": ds["sha256"], "via": ["lab.read"]}],
-            "outputs": [], "charts": [{"id": f"c{i % 10}", "title": f"chart {i % 10}",
-                                       "kind": "matplotlib", "via": "lab.chart", "data": None,
-                                       "files": {}}], "warnings": []})
+            "inputs": [{"path": ds["path"], "sha256": ds["sha256"], "via": ["analytics.read"]}],
+            "outputs": [], "visualizations": [{"visualization_id": f"c{i % 10}",
+                                               "title": f"chart {i % 10}", "kind": "matplotlib",
+                                               "via": "analytics.visualize", "files": {}}],
+            "warnings": []})
     return p
 
 
@@ -1164,7 +1173,7 @@ def test_an_overview_main_showed_whole_is_not_shortened_for_the_lines_added(tmp_
     n, main, text = found
     assert [line for line in text.split("\n") if line not in added(text)] == main.split("\n")
     assert not [line for line in added(text) if "dataset" in line]
-    assert sum(1 for line in text.split("\n") if line.startswith("  raw ")) == n
+    assert sum(1 for line in text.split("\n") if line.startswith("  imported ")) == n
 
 
 def test_an_overview_just_over_its_length_keeps_as_many_entries_as_fit(tmp_path):
@@ -1177,7 +1186,7 @@ def test_an_overview_just_over_its_length_keeps_as_many_entries_as_fit(tmp_path)
     assert _budgeted(text) <= core.STATUS_CHARS
     more = re.search(r"^  … ([\d,]+) more dataset\(s\) not listed: call analytics_query with ", text,
                      re.M)
-    shown = sum(1 for line in text.split("\n") if line.startswith("  raw "))
+    shown = sum(1 for line in text.split("\n") if line.startswith("  imported "))
     assert more and shown + int(more.group(1)) == n, text[-2000:]
     assert core.STATUS_FLOORS["datasets"] < shown and n - shown <= 4, (n, shown)
     # One more would not fit.
@@ -1194,8 +1203,8 @@ def test_an_overview_too_long_shortens_its_unbounded_lists_and_says_how_many_and
                          + "\n\n" + "\n\n".join(f"## {heading.format(i=i)}\n" + "- x\n" * 20
                                                 for i in range(200)) + "\n", encoding="utf-8")
     _datasets(p, 503)
-    core.add_note(p, "question", "an open question", origin=core.Origin("test", "sdk"))
-    core.add_note(p, "finding", "a key finding", origin=core.Origin("test", "sdk"))
+    core.record(p, "question", "an open question", origin=core.Origin("test", "sdk"))
+    core.record(p, "finding", "a key finding", origin=core.Origin("test", "sdk"))
     st = core.status(p)
     full = core.status_text(st, max_chars=10 ** 9)
     assert len(full) > core.STATUS_CHARS
@@ -1218,7 +1227,7 @@ def test_an_overview_too_long_shortens_its_unbounded_lists_and_says_how_many_and
     paging = (f"call analytics_query with \"{core.VIEWS_SQL}\" and again with OFFSET 50, 100, … until "
               "it returns fewer than 50 rows")
     assert f"  … 483 more dataset(s) not listed: {paging} to list every view; an imported one's " \
-           "record is data/raw/<name>.meta.json" in lines
+           "record is the <name>.meta.json beside its .parquet" in lines
     views = re.search(r"^datasets \(503\) — query views: (.+) and ([\d,]+) more \((.+)\)$", text,
                       re.M)
     shown = views.group(1).split(", ")
@@ -1240,18 +1249,19 @@ def test_an_overview_that_still_does_not_fit_ends_at_a_line_and_names_what_it_le
     run_id = "20260901-090000-many-inputs"
     (p.runs / run_id).mkdir(parents=True)
     core.write_json(p.runs / run_id / "run.json", {
-        "schema": "lab.run/1", "id": run_id, "title": "many inputs", "status": "ok",
+        "schema": "analytics.run/2", "id": run_id, "title": "many inputs", "status": "ok",
         "started_at": "2026-09-01T09:00:00", "duration_s": 1.0,
         "script": {"path": "scripts/many.py", "sha256": "0" * 64},
-        "inputs": [{"path": f"data/raw/gone/input_{i:03d}.jsonl", "sha256": "1" * 64,
-                    "via": ["lab.read"]} for i in range(503)],
+        "inputs": [{"path": f"data/imported/gone/input_{i:03d}.jsonl", "sha256": "1" * 64,
+                    "via": ["analytics.read"]} for i in range(503)],
         "outputs": [], "warnings": [],
-        "charts": [{"id": f"chart-{i:02d}", "title": f"chart {i}", "kind": "matplotlib",
-                    "via": "lab.chart", "data": None, "files": {}} for i in range(16)]})
+        "visualizations": [{"visualization_id": f"chart-{i:02d}", "title": f"chart {i}",
+                            "kind": "matplotlib", "via": "analytics.visualize", "files": {}}
+                           for i in range(16)]})
     for i in range(42):
-        core.add_note(p, "finding", f"finding {i:02d} " + "evidence " * 50, origin=core.Origin("test", "sdk"))
+        core.record(p, "finding", f"finding {i:02d} " + "evidence " * 50, origin=core.Origin("test", "sdk"))
     for i in range(23):
-        core.add_note(p, "question", f"question {i:02d} " + "detail " * 50, origin=core.Origin("test", "sdk"))
+        core.record(p, "question", f"question {i:02d} " + "detail " * 50, origin=core.Origin("test", "sdk"))
     st = core.status(p)
     assert all(len(c["changed_inputs"]) == 503 for c in st["charts"])
     text = core.status_text(st)
@@ -1390,12 +1400,18 @@ def test_a_script_that_imports_labkit_is_told_the_new_name(project):
     assert "hint" not in quoted["run"]["error"], quoted["run"]["error"]
 
 
-# What a project's records are called until the new writer (ADR-0005 decision 2, #13). #9 and #10
-# change public names only: this list stays as it is through them.
-STORED = {"marker": "lab.json", "managed": ".lab", "report": "report", "imported": "data/raw",
-          "families": {"lab.project/1", "lab.run/1", "lab.event/1", "lab.dataset/1"},
-          "trust": "lab.trust/1",
-          "via": {"lab.read", "lab.scan", "lab.sql", "lab.save", "lab.chart"}}
+# What a project's records are called since the new writer (ADR-0005 decision 2, Issue #13 PR 3, kit
+# 0.8.0; design 2.3, 2.6 and OQ5): the new format's marker, managed directory, Workspace, imports and
+# Visualizations, its families, its trust list, and the `via` of the SDK's own function names. Before it
+# the stored names were lab.json, .lab, report, data/raw, charts, lab.*/1, lab.trust/1 and lab.*.
+STORED = {"marker": "analytics.json", "managed": ".analytics", "workspace": "workspace",
+          "imported": "data/imported", "visualizations": "visualizations",
+          "families": {"analytics.project/2", "analytics.run/2", "analytics.event/2", "analytics.dataset/1"},
+          "trust": "analytics.trust/1",
+          "via": {"analytics.read", "analytics.scan", "analytics.sql", "analytics.save",
+                  "analytics.visualize"}}
+# The older layout's names, which this kit writes nowhere.
+OLDER = (".lab", "report", "data/raw", "lab.json")
 
 # Every SDK call that records something, so a run of it records each `via` of STORED.
 SDK_CALLS = '''import matplotlib.pyplot as plt
@@ -1414,20 +1430,20 @@ print(rows, counted)
 '''
 
 
-def test_storage_names_stay_until_the_new_writer(project, tmp_path):
-    """ADR-0005 confirmation 1: the stored names do not change with the public ones. A project as an
-    earlier kit left it (its marker says kit 0.1.0, as every kit before the rename wrote) is read and
-    written by this kit — status, a note, a run that makes every SDK call that records (read, scan,
-    sql, save, chart), the report — and what was there keeps its bytes: the marker, the data, the
-    runs, the scripts and CONTEXT.md as they were, the journal only appended to. Everything this kit
-    writes uses the names and families of STORED, and the run records exactly STORED's `via` values."""
+def test_this_kit_writes_the_new_format_s_stored_names(project, tmp_path):
+    """ADR-0005 decision 2 with the new writer (Issue #13 PR 3): a project init made is written —
+    status, a record, a run that makes every SDK call that records (read, scan, sql, save,
+    visualize), the Workspace — and everything this kit writes uses the names and families of
+    STORED: the run records exactly STORED's `via` values, and no name of the older layout appears.
+    What was there keeps its bytes: the marker (its kit_version too), the data, the scripts and
+    CONTEXT.md as they were, the journal only appended to."""
     marker = json.loads((project / STORED["marker"]).read_text(encoding="utf-8"))
-    assert marker["schema"] == "lab.project/1"
-    marker["kit_version"] = "0.1.0"
+    assert marker["schema"] == "analytics.project/2" and marker["min_writer_version"] == core.KIT_VERSION
+    marker["kit_version"] = "0.8.0rc1"
     (project / STORED["marker"]).write_text(json.dumps(marker, ensure_ascii=False, indent=2) + "\n",
                                             encoding="utf-8")
     kept = {rel: digest for rel, digest in _tree(project).items()
-            if rel.split("/")[0] in ("lab.json", "data", "runs", "scripts", "CONTEXT.md")}
+            if rel.split("/")[0] in ("analytics.json", "data", "scripts", "CONTEXT.md")}
     journal = (project / "journal.jsonl").read_bytes()
 
     assert kit_cli(project, "status")[0] == 0
@@ -1439,29 +1455,32 @@ def test_storage_names_stay_until_the_new_writer(project, tmp_path):
     after = _tree(project)
     assert {rel: after.get(rel) for rel in kept} == kept
     assert (project / "journal.jsonl").read_bytes().startswith(journal)
-    assert json.loads((project / STORED["marker"]).read_text(encoding="utf-8"))["kit_version"] == "0.1.0"
+    assert json.loads((project / STORED["marker"]).read_text(encoding="utf-8"))["kit_version"] == "0.8.0rc1"
     events = [json.loads(line) for line in
               (project / "journal.jsonl").read_text(encoding="utf-8").splitlines()]
-    assert {e["schema"] for e in events} == {"lab.event/1"}
+    assert {e["schema"] for e in events} == {"analytics.event/2"}
     run = json.loads((project / "runs" / result["run"]["id"] / "run.json").read_text(encoding="utf-8"))
-    assert run["schema"] == "lab.run/1" and run["env"]["kit_version"] == core.KIT_VERSION
+    assert run["schema"] == "analytics.run/2" and run["env"]["kit_version"] == core.KIT_VERSION
     vias = ({v for i in run["inputs"] for v in i["via"]} | {o.get("via") for o in run["outputs"]}
-            | {c["via"] for c in run["charts"]})
+            | {c["via"] for c in run["visualizations"]})
     assert {v for v in vias if v and v.startswith(("lab.", "analytics."))} == STORED["via"], vias
-    chart_files = [f for c in run["charts"] for f in c["files"].values()]
-    assert chart_files and all(f.startswith(f"runs/{run['id']}/charts/") for f in chart_files), \
-        chart_files
+    chart_files = [f for c in run["visualizations"] for f in c["files"].values()]
+    assert chart_files and all(f.startswith(f"runs/{run['id']}/{STORED['visualizations']}/")
+                               for f in chart_files), chart_files
     datasets = list((project / STORED["imported"]).glob("*.json"))
-    assert {json.loads(p.read_text(encoding="utf-8"))["schema"] for p in datasets} == {"lab.dataset/1"}
+    assert {json.loads(p.read_text(encoding="utf-8"))["schema"] for p in datasets} == {"analytics.dataset/1"}
     families = {marker["schema"], run["schema"], *(e["schema"] for e in events),
                 *(json.loads(p.read_text(encoding="utf-8"))["schema"] for p in datasets)}
     assert families == STORED["families"]
-    assert (project / STORED["managed"]).is_dir() and (project / STORED["report"] / "index.html").is_file()
+    assert (project / STORED["managed"]).is_dir() and (project / STORED["workspace"] / "index.html").is_file()
+    assert not [rel for rel in OLDER if (project / rel).exists()]
+    assert not (project / "runs" / run["id"] / "charts").exists()
     trust = json.loads(Path(os.environ["AELIX_ANALYTICS_TRUST_FILE"]).read_text(encoding="utf-8"))
     assert trust["schema"] == STORED["trust"]
     assert (core.MARKER, core.SCHEMA_PROJECT, core.SCHEMA_RUN, core.SCHEMA_EVENT,
-            core.SCHEMA_DATASET) == ("lab.json", "lab.project/1", "lab.run/1", "lab.event/1",
-                                     "lab.dataset/1")
+            core.SCHEMA_DATASET, core.SCHEMA_TRUST) == (
+        "analytics.json", "analytics.project/2", "analytics.run/2", "analytics.event/2",
+        "analytics.dataset/1", "analytics.trust/1")
 
 
 def test_the_plotly_template_name_never_reaches_a_stored_figure(monkeypatch):
@@ -1533,7 +1552,7 @@ def test_the_renamed_variables_are_the_adrs_list():
     assert set(kit_main.OLD_ENV) <= set(ADR_RENAMED) and core.NAMES_RENAMED_IN == "0.3.0"
     # Issue #36 changed how records hold paths and bumped the version, so a reader (#12) can tell
     # the records written before it (ADR-0006 9); the boundary stays fixed as the version moves on.
-    assert core.KIT_VERSION == "0.7.0" and core.PATH_IDENTITY_SINCE == "0.5.0"
+    assert core.KIT_VERSION == "0.8.0" and core.PATH_IDENTITY_SINCE == "0.5.0"
 
 
 @pytest.mark.parametrize("old", ["LAB_PROJECT", "LAB_ACTOR", "LAB_SESSION", "LAB_STYLE",
@@ -1610,7 +1629,8 @@ def test_the_sdk_names_record_and_visualize_and_tells_the_old_ones(project):
     """note became record and chart became visualize (kit 0.3.0): the old names are not aliases.
     The attribute names the new one without importing anything, a run that uses it fails with that
     message and a hint (also for `from aelix_analytics import note`, whose ImportError cannot carry
-    it), and what the new names record is what the old ones did (via lab.chart, kind finding)."""
+    it), and what the new names record is what the old ones did (kind finding; the via of the record's
+    format, analytics.visualize since kit 0.8.0)."""
     import subprocess
     import sys
 
@@ -1645,7 +1665,7 @@ def test_the_sdk_names_record_and_visualize_and_tells_the_old_ones(project):
             "analytics.record('finding', '새 이름으로 기록')\n")
     code, result = _run(project, write_script(project, "03_new.py", body), "새 SDK 이름")
     assert code == 0 and result["run"]["status"] == "ok", result
-    assert [c["via"] for c in result["run"]["charts"]] == ["lab.chart"]
+    assert [c["via"] for c in result["run"]["visualizations"]] == ["analytics.visualize"]
     last = core.read_events(core.Project(project))[-1]
     assert (last["kind"], last["text"]) == ("finding", "새 이름으로 기록")
 
@@ -1674,7 +1694,7 @@ def test_the_kit_names_the_analytics_commands(project, tmp_path):
     code, ran = _run(project, write_script(project, "01_x.py", "print(1)\n"))
     assert code == 0
     kit_cli(project, "render")
-    page = (project / "report" / "runs" / f"{ran['run']['id']}.html").read_text(encoding="utf-8")
+    page = (project / "workspace" / "runs" / f"{ran['run']['id']}.html").read_text(encoding="utf-8")
     assert f"CLI:   analytics run --rerun-of {ran['run']['id']}" in page
     assert f'aelix: analytics_run(title="Rerun comparison", rerun_of="{ran["run"]["id"]}")' in page
     code, refused = kit_cli(project, "demo")

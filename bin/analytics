@@ -9,10 +9,13 @@
 #   analytics import FILE [--name N] [--description D]
 #   analytics query "SQL" [--limit N]
 #   analytics record KIND "TEXT" [--ref R] [--resolves eN]
-#   analytics render | open                     rebuild | open report/index.html
+#   analytics render | open                     rebuild | open the Workspace page
+#   analytics migrate --to DIR [--dry-run]      copy a lab.json project into a new folder DIR
 #
 # Commands other than init/demo use the project in AELIX_ANALYTICS_PROJECT, else the nearest directory
-# at or above the current one with an analytics.json or a lab.json; the kit judges it.
+# at or above the current one with an analytics.json or a lab.json, or with the record of a migration
+# not finished there; the kit judges it. migrate copies that project into DIR in the current format and
+# leaves it as it is (try --dry-run first).
 # Output ends with one JSON line (status and context print text); a run that got past its setup
 # puts an empty line before it. Nothing here is a sandbox.
 set -eu
@@ -25,7 +28,9 @@ done
 PACK=$(CDPATH='' cd -- "$(dirname -- "$self")/.." && pwd -P)
 UV=${AELIX_ANALYTICS_UV:-uv}
 unset VIRTUAL_ENV
-export PYTHONPATH="$PACK/src" MPLBACKEND=Agg PYTHONDONTWRITEBYTECODE=1 AELIX_ANALYTICS_ACTOR="${AELIX_ANALYTICS_ACTOR:-human}"
+# AELIX_ANALYTICS_ACTOR goes on as the caller set it, and only then: without it the kit records
+# `human` as inferred, not declared (the installed command's child_env is the same).
+export PYTHONPATH="$PACK/src" MPLBACKEND=Agg PYTHONDONTWRITEBYTECODE=1
 
 usage() { awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "$self"; }
 
@@ -64,12 +69,36 @@ kit_marker() {
   [ -e "$km_path" ] || [ -L "$km_path" ]
 }
 
+# What a migration keeps in its destination (the installed command's migration_record): an entry of
+# either name, a link being itself, or one that cannot be looked at (a .analytics/ this account cannot
+# search). Without a marker beside it, the folder is a migration's destination that has not committed.
+migration_record() {
+  for mr in "$1/.analytics/migration" "$1/.analytics/migration.lock"; do
+    if [ -e "$mr" ] || [ -L "$mr" ]; then return 0; fi
+  done
+  [ -d "$1/.analytics" ] && [ ! -x "$1/.analytics" ]
+}
+
+# Whether the kit takes the directory it is given for a migration's destination that has not committed
+# (the installed command's unfinished_migration): the first directory at or above it with a marker as
+# the kit counts one or a migration's record has the record and no marker.
+unfinished() {
+  case $1 in /*) um_dir=$1 ;; *) um_dir=$(pwd -P)/$1 ;; esac
+  while :; do
+    if kit_marker "$um_dir/analytics.json" || kit_marker "$um_dir/lab.json"; then return 1; fi
+    if migration_record "$um_dir"; then return 0; fi
+    [ "$um_dir" = / ] && return 1
+    um_dir=$(dirname "$um_dir")
+  done
+}
+
 # The directory the kit takes for the project from where find_project stopped, upward (the installed
-# command's kit_root): `open` opens its page. The start itself when none above has a marker.
+# command's kit_root): `open` opens its page. The start itself when none above has a marker or a
+# migration's record.
 kit_root() {
   kr_dir=$1
   while :; do
-    if kit_marker "$kr_dir/analytics.json" || kit_marker "$kr_dir/lab.json"; then printf '%s\n' "$kr_dir"; return 0; fi
+    if kit_marker "$kr_dir/analytics.json" || kit_marker "$kr_dir/lab.json" || migration_record "$kr_dir"; then printf '%s\n' "$kr_dir"; return 0; fi
     [ "$kr_dir" = / ] && break
     kr_dir=$(dirname "$kr_dir")
   done
@@ -80,7 +109,7 @@ find_project() {
   if [ -n "${AELIX_ANALYTICS_PROJECT:-}" ]; then printf '%s\n' "$AELIX_ANALYTICS_PROJECT"; return 0; fi
   dir=$(pwd -P)
   while :; do
-    if has_marker "$dir/analytics.json" || has_marker "$dir/lab.json"; then printf '%s\n' "$dir"; return 0; fi
+    if has_marker "$dir/analytics.json" || has_marker "$dir/lab.json" || migration_record "$dir"; then printf '%s\n' "$dir"; return 0; fi
     [ "$dir" = / ] && break
     dir=$(dirname "$dir")
   done
@@ -91,6 +120,17 @@ find_project() {
 kit() {  # kit PROJECT ARGS...
   proj=$1; shift
   "$UV" run --project "$proj" --quiet python -m aelix_analytics --project "$proj" "$@"
+}
+
+# The kit outside any environment, as init runs it (the installed command's kit_outside): in a
+# migration's destination that has not committed, where an environment uv made would be a write.
+kit_outside() {  # kit_outside PROJECT ARGS...
+  proj=$1; shift
+  "$UV" run --no-project --python 3.12 --quiet python -m aelix_analytics --project "$proj" "$@"
+}
+
+run_kit() {  # run_kit PROJECT ARGS...: kit, or kit_outside where the kit refuses every command
+  if unfinished "$1"; then kit_outside "$@"; else kit "$@"; fi
 }
 
 cmd=${1:-status}
@@ -111,29 +151,89 @@ case $cmd in
     else
       kit "$proj" render >/dev/null
     fi
-    echo "analytics: report at $proj/report/index.html (analytics open, from inside the project)" >&2
+    echo "analytics: Workspace at $proj/workspace/index.html (analytics open, from inside the project)" >&2
     ;;
   status|context)
     refuse_renamed
     proj=$(find_project)
-    kit "$proj" --text "$cmd"
+    run_kit "$proj" --text "$cmd"
     ;;
   open)
     refuse_renamed
     proj=$(find_project)
     [ -n "${AELIX_ANALYTICS_PROJECT:-}" ] || proj=$(kit_root "$proj")
+    # A migration's destination that has not committed has no page: the step that would build one
+    # is the kit's answer, shown as it is (the installed command's open).
+    if unfinished "$proj"; then kit_outside "$proj" render; fi
     if kit_marker "$proj/analytics.json" && kit_marker "$proj/lab.json"; then
       echo "analytics: $proj holds two project markers, analytics.json and lab.json, and the kit reads neither; analytics status says more" >&2
       exit 1
     fi
-    [ -f "$proj/report/index.html" ] || kit "$proj" render >/dev/null
-    if command -v open >/dev/null 2>&1; then open "$proj/report/index.html"
-    else xdg-open "$proj/report/index.html"; fi
+    # The page of the project's layout, by its marker's name (the installed command's open): a
+    # lab.json project's report/ is opened when it is there, and never built or updated.
+    if kit_marker "$proj/analytics.json"; then index=$proj/workspace/index.html; else index=$proj/report/index.html; fi
+    if [ "$index" = "$proj/report/index.html" ]; then
+      # Opened when it is there; never built, so no environment is made for it either.
+      if [ ! -f "$index" ]; then
+        echo "analytics: $proj uses the older record format (lab.json) and has no page to open: the kit reads it and builds no page for it. Copy it into the current format with \`analytics migrate --to <new empty folder>\` run inside it (preview with --dry-run)" >&2
+        exit 1
+      fi
+      echo "analytics: $proj uses the older record format (lab.json): the kit reads it and no longer updates this page; analytics status says how to migrate it" >&2
+    fi
+    # The kit's answer is shown when it builds no page (a project it does not write to, say).
+    if [ ! -f "$index" ]; then
+      if answer=$(kit "$proj" render); then :; else
+        code=$?
+        printf '%s\n' "$answer"
+        exit "$code"
+      fi
+    fi
+    if command -v open >/dev/null 2>&1; then open "$index"
+    else xdg-open "$index"; fi
     ;;
   run|import|query|record|render)
     refuse_renamed
     proj=$(find_project)
-    kit "$proj" "$cmd" "$@"
+    run_kit "$proj" "$cmd" "$@"
+    ;;
+  migrate)
+    refuse_renamed
+    # The kit's answer is passed on as it came; once it committed (the kit's exit 0, `ok` and not a
+    # dry run), the destination's environment from its lock as it is (the installed command's
+    # _migrate). The destination is the one the answer names: the kit reads --to by its rules (`~`
+    # included), and an environment is prepared only in a folder that holds the analytics.json the
+    # migration published, so uv never looks for a project above it.
+    if answer=$("$UV" run --no-project --python 3.12 --quiet python -m aelix_analytics migrate "$@"); then :; else
+      code=$?
+      [ -z "$answer" ] || printf '%s\n' "$answer"
+      exit "$code"
+    fi
+    [ -z "$answer" ] || printf '%s\n' "$answer"
+    proj=$(printf '%s\n' "$answer" | "$UV" run --no-project --python 3.12 --quiet python -c '
+import json, sys
+lines = [line for line in sys.stdin.read().split("\n") if line.startswith("{")]
+try:
+    value = json.loads(lines[-1]) if lines else None
+except ValueError:
+    value = None
+if isinstance(value, dict) and value.get("ok") is True and not value.get("dry_run"):
+    destination = value.get("destination")
+    if isinstance(destination, str) and destination:
+        sys.stdout.write(destination)
+') || proj=
+    if [ -n "$proj" ]; then
+      if [ -d "$proj" ] && kit_marker "$proj/analytics.json"; then
+        echo "analytics: syncing the project environment (first time can take a minute) ..." >&2
+        if "$UV" sync --project "$proj" --locked --quiet || "$UV" sync --project "$proj" --locked --quiet --offline; then
+          echo "analytics: the project is $proj now, and the source is as it was (in aelix: /analytics use $proj)" >&2
+        else
+          code=$?
+          echo "analytics: the migration is done, but preparing the environment of $proj failed (uv sync --locked, exit $code); the project's next command prepares it" >&2
+        fi
+      else
+        echo "analytics: the kit's answer names $proj, which holds no analytics.json: its environment is not prepared; analytics status there says what it is" >&2
+      fi
+    fi
     ;;
   *) usage >&2; exit 2 ;;
 esac

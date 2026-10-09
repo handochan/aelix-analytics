@@ -144,8 +144,12 @@ def profile(project: core.Project, path: Path, preview_rows: int = 20,
 
 def import_file(project: core.Project, source: str, *, name: str | None = None,
                 description: str | None = None, origin: core.Origin) -> dict:
-    """Import a data file as data/raw/<name>.parquet and its import record, as asked by `origin`.
-    Refused before anything is written where this kit does not write (core.admit, Issue #13)."""
+    """Import a data file as data/imported/<name>.parquet and its import record
+    (analytics.dataset/1, data/imported/<name>.meta.json), as asked by `origin`: the parquet first,
+    then its record, then the `import` event (its dataset_import `about` reference), the record and
+    the event written by the common writer (design 4.8). Refused before anything is written where
+    this kit does not write (core.admit, Issue #13). The answer holds the request's request_id: the
+    caller's, else one the kit made (design 4.9)."""
     core.admit(project, "import")
     import duckdb
 
@@ -168,17 +172,17 @@ def import_file(project: core.Project, source: str, *, name: str | None = None,
     # An import always creates a name the project does not have yet, so a reserved device name is
     # always a new one and is refused outright.
     core.reject_unportable_name(name, kind="dataset")
-    dest = project.raw / f"{name}.parquet"
+    dest = project.imported / f"{name}.parquet"
     taken = core.dataset_name_taken(project, name)
     if taken and not dest.exists():
         raise core.AnalyticsError("dataset_name_taken", f"dataset name {name!r} is already used by {taken}",
                                   hint="choose another name; analytics.read and analytics_query resolve datasets by name")
     if dest.exists():
-        raise core.AnalyticsError("dataset_exists", f"data/raw/{name}.parquet already exists",
+        raise core.AnalyticsError("dataset_exists", f"{project.rel(dest)} already exists",
                                   hint=f"imported data is immutable: import under a new name such as "
                                        f"{name}_v2 and record why with analytics_record")
-    project.raw.mkdir(parents=True, exist_ok=True)
-    tmp = project.raw / f".{name}.{os.getpid()}.tmp.parquet"
+    project.imported.mkdir(parents=True, exist_ok=True)
+    tmp = project.imported / f".{name}.{os.getpid()}.tmp.parquet"
     started = time.perf_counter()
     retyped: list[str] = []
     try:
@@ -217,13 +221,18 @@ def import_file(project: core.Project, source: str, *, name: str | None = None,
                        "format": fmt,
                        "modified_at": datetime.fromtimestamp(st.st_mtime).astimezone().isoformat(
                            timespec="seconds")}}
-    core.write_json(dest.with_suffix(".meta.json"), meta, platform=project.platform)
+    records = core.writer_for(project, origin)
+    records.write_dataset(dest.with_suffix(".meta.json"), meta)
     text = (f"imported {name}: {info['rows']:,} rows × {len(info['columns'])} columns from "
             f"{src.name}")
     if meta["description"]:
-        text += f" — {meta['description']}"
-    event = core.append_event(project, "import", text, refs={"data": [meta["path"]]}, origin=origin)
-    return {"dataset": meta, "profile": info, "event": event["id"],
+        # The description whole is the import record's; the event quotes it (writer.excerpt), so a
+        # long one cannot leave the dataset written without its event.
+        text += f" — {core.writer.excerpt(meta['description'])}"
+    written = records.record("import", text, refs=[core.kit_reference(
+        "dataset_import", path=meta["path"], digest={"sha256": meta["sha256"]})])
+    return {"dataset": meta, "profile": info, "event": written.event["id"],
+            "request_id": origin.request_id or written.request_id,
             "warnings": import_warnings(name, info, retyped),
             "elapsed_s": round(time.perf_counter() - started, 3)}
 
@@ -265,8 +274,8 @@ def import_warnings(name: str, info: dict, retyped: list[str]) -> list[str]:
 
 
 def _log_query(project: core.Project, entry: dict) -> None:
-    """Add a query to .lab/queries.jsonl: a side write of a read, skipped where this kit does not
-    write (core.admit, design 4.10)."""
+    """Add a query to the state directory's queries.jsonl: a side write of a read, skipped where
+    this kit does not write (core.admit, design 4.10)."""
     if core.admit(project, "log the query", side=True) is not None:
         core.append_jsonl(project.queries, entry)
 

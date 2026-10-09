@@ -776,7 +776,10 @@ def test_the_dry_run_goes_through_aelix_and_is_scored(aelix_command, fixtures, t
     t07 = json.loads((runs / "T07-dry-run-default-unrequested-r1" / "run.json").read_text(encoding="utf-8"))
     assert t07["outcome"] == "success"
     [record] = t07["changes"]["new_records"]
-    assert record["kind"] == "finding" and "11.8%" in record["text"] and record["refs"]["events"] == ["e16", "e18"]
+    # The fixture's lab.json project was migrated into the work root (this kit writes the new format):
+    # the record is analytics.event/2, its references a list.
+    cited = [r.get("event_id") for r in record["refs"] if r.get("type") == "event"]
+    assert record["kind"] == "finding" and "11.8%" in record["text"] and cited == ["e16", "e18"]
 
     # Isolation: the trust list, uv, aelix's agent directory and sessions are under OUT; the model
     # worked in a work root outside OUT (and outside the fixtures), kept as work/ afterwards.

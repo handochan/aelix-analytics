@@ -35,8 +35,9 @@ WRITE_CALLS = {"write_parquet", "sink_parquet", "write_csv", "sink_csv", "write_
                "write_database", "to_parquet", "to_csv", "to_json", "to_excel", "savefig",
                "write_html", "write_image", "save", "copy", "copyfile", "copy2", "move", "rename",
                "replace", "write_text", "write_bytes", "mkdir", "touch", "unlink", "rmtree", "chart"}
-PROJECT_FILES = {"lab.json", "journal.jsonl", "CONTEXT.md", "pyproject.toml", "uv.lock",
-                 ".python-version", ".gitignore", ".gitattributes"}
+# A project's own top-level files, never a run's outputs, with its marker (the layout's: diff_outputs).
+PROJECT_FILES = {"journal.jsonl", "CONTEXT.md", "pyproject.toml", "uv.lock", ".python-version",
+                 ".gitignore", ".gitattributes"}
 PACKAGES = ("duckdb", "polars", "pyarrow", "matplotlib", "plotly", "numpy", "pygments",
             "markdown-it-py")
 OUTPUT_TAIL = core.OUTPUT_TAIL
@@ -176,9 +177,10 @@ def diff_outputs(project, before, after, cache, since: int | None = None) -> lis
             set(getattr(before, "boundaries", ()))}
     gone = {ns for ns, _ in set(getattr(before, "boundaries", ())) -
             set(getattr(after, "boundaries", ()))}
+    own = PROJECT_FILES | {project.layout.marker}
     outputs = []
     for rel, st in sorted(after.items()):
-        if rel in PROJECT_FILES or before.get(rel) == st:
+        if rel in own or before.get(rel) == st:
             continue
         if made and since is not None and st[1] < since and _below_any(rel, made):
             continue  # there before the run, and seen since through a link it made
@@ -192,7 +194,7 @@ def diff_outputs(project, before, after, cache, since: int | None = None) -> lis
         outputs.append(entry)
     real = getattr(before, "real", {})
     for rel in sorted(set(before) - set(after)):
-        if rel in PROJECT_FILES:
+        if rel in own:
             continue
         if gone and rel in real and _below_any(rel, gone) and os.path.isfile(real[rel]):
             continue  # still there, below a link the run removed or repointed
@@ -630,13 +632,18 @@ def api_hint(summary: str) -> str | None:
     return None
 
 
+# The characters of a run's error summary (its run.json `error.summary`, and its completion event's
+# text): the message itself is kept in `error.message`.
+SUMMARY_CHARS = 300
+
+
 def _error_info(exc: BaseException, filename: str) -> dict:
     line = None
     for frame in traceback.extract_tb(exc.__traceback__):
         if frame.filename == filename:
             line = frame.lineno
     message = str(exc)
-    summary = f"{type(exc).__name__}: {message}".strip()[:300]
+    summary = f"{type(exc).__name__}: {message}".strip()[:SUMMARY_CHARS]
     info = {"type": type(exc).__name__, "message": message[:2000], "line": line,
             "summary": summary}
     hint = api_hint(summary)
@@ -663,7 +670,7 @@ def snapshot_modules(project: core.Project, code_dir: Path, main_rel: str) -> li
         if core.within(path, kit_dir) or not project.inside(path):
             continue
         rel = project.rel(path)
-        if rel == main_rel or rel.split("/")[0] in MANAGED_DIRS:
+        if rel == main_rel or rel.split("/")[0] in project.layout.managed_dirs:
             continue
         dest = code_dir / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -682,7 +689,8 @@ def compare_runs(project: core.Project, old: dict, new: dict) -> dict:
     a chart or output that differs, appears or disappears makes it `mismatch`. Both runs'
     Visualizations are read through relations.run_visualizations, so a lab.run/1 run and an
     analytics.run/2 run are compared by the same Visualization ids (design 2.6, S13). The result is
-    written in the form of the rerun's own record (this kit's: reproduction.charts)."""
+    written in the form of the rerun's own record (this kit's, analytics.run/2:
+    reproduction.visualizations)."""
     import json
 
     import polars as pl
@@ -735,7 +743,7 @@ def compare_runs(project: core.Project, old: dict, new: dict) -> dict:
     else:
         verdict = "inconclusive"
     return {"of": old["id"], "verdict": verdict, "inputs_same": old_inputs == new_inputs,
-            "charts": charts, "outputs": outputs}
+            "visualizations": charts, "outputs": outputs}
 
 
 def reconcile_inputs(entries: dict, outputs: list[dict]) -> list[dict]:
@@ -754,24 +762,23 @@ def reconcile_inputs(entries: dict, outputs: list[dict]) -> list[dict]:
     return sorted(kept, key=lambda i: i["path"])
 
 
-# Directories the kit manages; a script is never taken from one.
-MANAGED_DIRS = core.MANAGED_DIRS
-
-
-def _in_managed_dir(rel: str) -> bool:
-    """Whether `rel` names a file in a managed directory on some platform: split on both
-    separators, because Windows reads a backslash in a recorded path as one, and compared without
-    case, because macOS and Windows file systems ignore it by default."""
-    return re.split(r"[\\/]", rel)[0].casefold() in MANAGED_DIRS
+def _in_managed_dir(rel: str, managed) -> bool:
+    """Whether `rel` names a file in one of the `managed` directories (the project's layout's: a
+    script is never taken from one) on some platform: split on both separators, because Windows
+    reads a backslash in a recorded path as one, and compared without case, because macOS and
+    Windows file systems ignore it by default."""
+    return re.split(r"[\\/]", rel)[0].casefold() in managed
 
 
 def _in_managed_dir_here(project: core.Project, rel: str) -> bool:
-    """Whether `rel` (a path in its stored spelling) is in a managed directory on this machine's file
-    system: `RUNS/x.py` is, where the file system ignores case and so stores one of the two."""
+    """Whether `rel` (a path in its stored spelling) is in a managed directory of the project's
+    layout on this machine's file system: `RUNS/x.py` is, where the file system ignores case and so
+    stores one of the two."""
+    managed = project.layout.managed_dirs
     first, _, rest = rel.partition("/")
-    if first in MANAGED_DIRS:
+    if first in managed:
         return True
-    if not rest or core.folded(first) not in MANAGED_DIRS:
+    if not rest or core.folded(first) not in managed:
         return False
     return core.same_file(project.root / first, project.root / core.folded(first))
 
@@ -792,7 +799,8 @@ def _script_source(project: core.Project, script) -> tuple[str, Path]:
     # Refused before it is recorded, so the kit never writes a path it would not rerun. That
     # includes a name another platform would read as inside a managed directory (`runs\\x.py` on
     # Windows, `RUNS/x.py` where the file system minds case).
-    if not _platform.record_relative_path(script_rel) or _in_managed_dir(script_rel):
+    if not _platform.record_relative_path(script_rel) or _in_managed_dir(
+            script_rel, project.layout.managed_dirs):
         raise core.AnalyticsError("script_location",
                                   f"{script_rel} is not a path a record can hold on every platform",
                                   hint="keep analysis code under scripts/ with a plain name")
@@ -821,8 +829,9 @@ def _rerun_source(project: core.Project, rerun_of: str) -> tuple[dict, str, Path
     # then where it leads once joined: a directory inside the project may be a link to outside it.
     recorded = script["path"]
     target = project.root / recorded
-    if not _platform.record_relative_path(recorded) or _in_managed_dir(recorded) \
-            or not project.inside(target) or _in_managed_dir(project.rel(target)):
+    managed = project.layout.managed_dirs
+    if not _platform.record_relative_path(recorded) or _in_managed_dir(recorded, managed) \
+            or not project.inside(target) or _in_managed_dir(project.rel(target), managed):
         raise core.AnalyticsError("rerun_snapshot",
                                   f"run {rerun_of} records an invalid script path {recorded!r}")
     return record, recorded, snapshot
@@ -865,11 +874,14 @@ def _write_failure_hint(exc: Exception, path: Path) -> str | None:
 def execute(project: core.Project, *, script: str | None, title: str | None,
             declared_inputs=(), timeout: float = 600.0, rerun_of: str | None = None,
             origin: core.Origin, result_follows: bool = False) -> dict:
-    """Run a script (or rerun a recorded one) and record it, as asked by `origin` (the run's actor
-    and session; its notes and the SDK calls in it are by the same actor). Refused before anything
-    is written where this kit does not write (core.admit, Issue #13), and judged again once the run
-    lock is held. `result_follows`: the caller prints a result line through write_result after this
-    returns and then calls give_back_stdout (the CLI); see _redirected."""
+    """Run a script (or rerun a recorded one) and record it, as asked by `origin` (the run's actor,
+    actor_basis, means and session; its notes and the SDK calls in it are by the same actor, made
+    through the SDK). Refused before anything is written where this kit does not write (core.admit,
+    Issue #13), and judged again once the run lock is held. The run record (analytics.run/2) and its
+    completion event are written by the common writer (writer.Writer.write_run, .record), the event
+    last (design 4.8). The answer holds the request's request_id: the caller's, else one the kit
+    made (design 4.9). `result_follows`: the caller prints a result line through write_result after
+    this returns and then calls give_back_stdout (the CLI); see _redirected."""
     core.admit(project, "run")
     core.sync_context(project, origin=core.system_origin(origin))
     source_run = None
@@ -906,7 +918,9 @@ def _execute_locked(project, *, script_rel, exec_file, code_bytes, title, declar
         snapshot = code_dir / script_rel
         record = {"schema": core.SCHEMA_RUN, "id": run_id, "title": title, "status": "running",
                   "pid": os.getpid(), "started_at": core.iso(), "actor": origin.actor,
+                  "actor_basis": origin.actor_basis, "means": origin.means,
                   "session": origin.session,
+                  **({"request_id": origin.request_id} if origin.request_id else {}),
                   "rerun_of": rerun_of,
                   "script": {"path": script_rel, "sha256": core.sha256_bytes(code_bytes),
                              "snapshot": project.rel(snapshot)}}
@@ -919,7 +933,11 @@ def _execute_locked(project, *, script_rel, exec_file, code_bytes, title, declar
             snapshot.parent.mkdir(parents=True, exist_ok=True)
             snapshot.write_bytes(code_bytes)
             code, what = "record_failed", "run record"
-            core.write_json(run_dir / "run.json", record, platform=project.platform)
+            core.writer_for(project, origin).write_run(run_dir, record)
+        except core.AnalyticsError:
+            # The directory became one this kit does not write to (judged again by the writer).
+            _remove_run_dir(run_dir)
+            raise
         except (OSError, ValueError) as exc:
             _remove_run_dir(run_dir)
             raise core.AnalyticsError(code, f"could not write the {what} of {script_rel}: {exc}",
@@ -1037,17 +1055,19 @@ def _classify(failure, guard, timeout, filename) -> tuple[str, dict | None]:
     if isinstance(failure, SystemExit):
         if failure.code in (None, 0):
             return "ok", None
+        # The summary bounded as an exception's is (_error_info); the message is the whole code.
         return "error", {"type": "SystemExit", "message": str(failure.code), "line": None,
-                         "summary": f"SystemExit({failure.code})"}
+                         "summary": f"SystemExit({failure.code})"[:SUMMARY_CHARS]}
     return "error", _error_info(failure, filename)
 
 
 def _finalize(project, state, record, *, source_run, before, status, error, duration, code_dir,
               stdout_path, stderr_path, origin) -> dict:
     """Write the run record even when parts of the bookkeeping fail; failures are listed. Its
-    completion event and the notes the script made are journal writes, judged again under the
-    journal lock (core.journal_lock): if the directory became one this kit does not write to while
-    the script ran, they are refused and listed, and the run stays `incomplete`
+    completion event — the run's `about` reference only (design 4.8): what the run read, wrote and
+    made is in its record — and the notes the script made are journal writes of the common writer,
+    judged again under the journal lock (Writer.locked): if the directory became one this kit does
+    not write to while the script ran, they are refused and listed, and the run stays `incomplete`
     (no_completion_event, design 4.3)."""
     problems: list[str] = []
 
@@ -1069,7 +1089,8 @@ def _finalize(project, state, record, *, source_run, before, status, error, dura
         "status": status, "ended_at": core.iso(), "duration_s": round(duration, 3),
         "modules": guarded("modules", lambda: snapshot_modules(project, code_dir,
                                                                record["script"]["path"]), []),
-        "inputs": inputs, "outputs": outputs, "charts": state.charts, "error": error,
+        "inputs": inputs, "outputs": outputs, "visualizations": state.visualizations(),
+        "error": error,
         "stdout": project.rel(stdout_path), "stderr": project.rel(stderr_path),
         "env": guarded("environment", lambda: environment(project), {}),
     })
@@ -1080,34 +1101,35 @@ def _finalize(project, state, record, *, source_run, before, status, error, dura
                                          lambda: compare_runs(project, source_run, record), None)
     if problems:
         record["finalize_errors"] = list(problems)
-    core.write_json(run_dir / "run.json", record, platform=project.platform)
+    runs = core.writer_for(project, origin)
+    try:
+        runs.write_run(run_dir, record)
+    except core.AnalyticsError as exc:
+        # The directory became one this kit does not write to while the script ran: the record
+        # stays as it was (`running`, so incomplete), and so does the journal.
+        problems.append(f"run record: {exc.code}: {exc.message}")
     guarded("hash cache", state.cache.save, None)
 
-    ok = status == "ok"
-    written = sorted({o["path"] for o in outputs if o.get("change") != "deleted"})
-    read = sorted({i["path"] for i in inputs} - set(written))
-    data_refs = (written + read)[:core.MAX_EVENT_REFS]
-    refs = {"runs": [run_id],
-            "charts": [core.chart_key(record, c) for c in state.charts] if ok else [],
-            "data": data_refs}
-    text = f"{record['title']} — {status}"
+    # The title whole is the run record's; the completion event quotes it (writer.excerpt), so a
+    # long one — a rerun's, which is its source's unless --title is given — cannot leave the run
+    # without its completion event.
+    text = f"{core.writer.excerpt(record['title'])} — {status}"
     if error:
         text += f" ({error['summary']})"
-    if len(written) + len(read) > len(data_refs):
-        text += f"; {len(read):,} input file(s), {len(written)} output(s) — see the run page"
     if record.get("reproduction"):
         text += f"; rerun of {source_run['id']}: {record['reproduction']['verdict']}"
-    event = guarded("journal", lambda: core.append_event(project, "run", text, refs=refs,
-                                                         origin=origin), None)
+    written = guarded("journal", lambda: runs.record(
+        "run", text, refs=[core.kit_reference("run", run_id=run_id)]), None)
     for kind, note_text in state.notes:
-        guarded(f"note {kind}", lambda k=kind, t=note_text: core.add_note(
+        guarded(f"note {kind}", lambda k=kind, t=note_text: core.record(
             project, k, t, refs=[run_id], origin=state.sdk_origin), None)
 
     if problems and problems != (record.get("finalize_errors") or []):
         record["finalize_errors"] = list(problems)
-        with contextlib.suppress(OSError):
-            core.write_json(run_dir / "run.json", record, platform=project.platform)
-    result = {"run": record, "event": event["id"] if event else None,
+        with contextlib.suppress(OSError, ValueError, core.AnalyticsError):
+            runs.write_run(run_dir, record)
+    result = {"run": record, "event": written.event["id"] if written else None,
+              "request_id": state.request_id,
               "stdout_tail": _tail(stdout_path), "stderr_tail": _tail(stderr_path),
               "page": project.rel(project.workspace_dir / "runs" / f"{run_id}.html")}
     try:
@@ -1135,8 +1157,8 @@ MAX_LISTED_PATHS = 3
 
 
 def imported_sources(project: core.Project) -> dict[str, str]:
-    """Absolute source path -> dataset name, for everything data/raw (and data/imported, the new
-    writer's place, design 2.3) was imported from."""
+    """Absolute source path -> dataset name, for everything data/imported (and data/raw, an older
+    kit's place, design 2.3) was imported from."""
     out = {}
     metas = []
     for directory, _ in relations.IMPORT_DIRS:
@@ -1216,9 +1238,9 @@ def run_warnings(record: dict, project: core.Project | None = None) -> list[str]
     for out in record["outputs"]:
         if out.get("outside_data") and out.get("change") != "deleted":
             warnings.append(f"file written outside data/: {out['path']}")
-        elif out["path"].startswith("data/raw/"):
-            warnings.append(f"run changed imported data {out['path']} (data/raw is meant to be "
-                            "immutable)")
+        elif out["path"].startswith(tuple(f"{place}/" for place, _ in relations.IMPORT_DIRS)):
+            warnings.append(f"run changed imported data {out['path']} (imported data is meant to "
+                            "be immutable)")
         elif out.get("change") != "deleted" and not out["path"].endswith((".parquet", ".json")):
             warnings.append(f"non-Parquet data written: {out['path']}")
     if "pandas" in sys.modules:

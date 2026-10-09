@@ -20,6 +20,21 @@ OLD_ENV = ("LAB_PROJECT", "LAB_ACTOR", "LAB_SESSION", "LAB_STYLE", "AELIX_LAB_PR
            "AELIX_LAB_TRUST_FILE", "AELIX_LAB_KIT", "AELIX_LAB_UV")
 
 
+@pytest.fixture(autouse=True)
+def _the_aelix_process_environment():
+    """The extension's setup() puts the author and the session into the process's environment, as it
+    does in aelix (design 4.2); a test that sets the extension up must not leave them to the tests
+    after it, whose kit commands would record `agent`."""
+    names = ("AELIX_ANALYTICS_ACTOR", "AELIX_ANALYTICS_SESSION")
+    before = {name: os.environ.get(name) for name in names}
+    yield
+    for name, value in before.items():
+        if value is None:
+            os.environ.pop(name, None)
+        else:
+            os.environ[name] = value
+
+
 def kit_env(**extra) -> dict:
     # PYTHONUNBUFFERED changes how a kit lays out its run streams, which tests check; a test that
     # wants it passes it (review 8, critic-4).
@@ -173,12 +188,13 @@ def isolated_trust_file(tmp_path, monkeypatch):
     test inherits a variable of the kit's old names (OLD_ENV) from the shell."""
     for name in OLD_ENV:
         monkeypatch.delenv(name, raising=False)
-    monkeypatch.setenv("AELIX_ANALYTICS_TRUST_FILE", str(tmp_path / "trust" / "lab-projects.json"))
+    monkeypatch.setenv("AELIX_ANALYTICS_TRUST_FILE", str(tmp_path / "trust" / "analytics-projects.json"))
 
 
 @pytest.fixture
 def project(tmp_path):
-    """A new project with data/raw/sales.parquet imported."""
+    """A new project (analytics.json, the format this kit writes) with data/imported/sales.parquet
+    imported."""
     sys.path.insert(0, str(KIT))
     from aelix_analytics import core
 
@@ -188,6 +204,39 @@ def project(tmp_path):
     source = write_sales_csv(tmp_path / "sales.csv")
     code, result = kit_cli(root, "import", source, "--name", "sales", "--description", "test data")
     assert code == 0 and result["ok"], result
+    return root
+
+
+def analytics_project(root, *, title: str = "journal", version: str | None = None,
+                      origin=None) -> Path:
+    """An analytics.json project (analytics.project/2) made by the common writer, as the new
+    format's init makes one: the marker (min_writer_version and kit_version `version`, this kit's by
+    default), CONTEXT.md and its first version under .analytics/context/, and a journal of e1
+    (project) and e2 (context), each ending in LF (Issue #13 PR 3)."""
+    from aelix_analytics import core, writer
+
+    root = Path(root)
+    root.mkdir(parents=True)
+    version = version or core.KIT_VERSION
+    project_id = writer.new_project_id()
+    writer.write_json(root / "analytics.json", {
+        "schema": "analytics.project/2", "project_id": project_id, "title": title,
+        "created_at": core.iso(), "min_writer_version": version, "kit_version": version},
+        platform=core.PLATFORM)
+    context = b"## Goal\nA test of the new format\n"
+    (root / "CONTEXT.md").write_bytes(context)
+    digest = hashlib.sha256(context).hexdigest()
+    name = f"{core.now().strftime('%Y%m%d-%H%M%S-%f')}_{digest[:12]}.md"
+    (root / ".analytics" / "context").mkdir(parents=True)
+    (root / ".analytics" / "context" / name).write_bytes(context)
+    origin = origin or core.Origin("test", "sdk")
+    w = writer.Writer(root, platform=core.PLATFORM, origin=origin, writer_version=version)
+    w.record("project", f"project created: {title}", details={"project_id": project_id})
+    writer.Writer(root, platform=core.PLATFORM, origin=core.system_origin(origin),
+                  writer_version=version).record(
+        "context", "CONTEXT.md recorded",
+        refs=[{"type": "context_version", "version": name, "digest": {"sha256": digest},
+               "relation": "about", "basis": "observed"}])
     return root
 
 

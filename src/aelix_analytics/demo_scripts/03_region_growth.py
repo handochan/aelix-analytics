@@ -4,7 +4,7 @@ records no attached data)."""
 import matplotlib.pyplot as plt
 import polars as pl
 
-sales = pl.read_parquet("data/raw/sales.parquet")
+sales = pl.read_parquet("data/imported/sales.parquet")
 yearly = (
     sales.group_by("region", pl.col("order_date").dt.year().alias("year"))
     .agg(pl.col("revenue").sum())

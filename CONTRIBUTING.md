@@ -99,6 +99,13 @@ Git이 무시하는 파일(`.demo/`, `__pycache__` 밖의 `*.pyc` 등)도 실행
 않기 때문입니다. 그래서 배포본은 깨끗한 체크아웃에서 빌드하고, 빌드 전에 `git clean -ndx src/aelix_analytics`가 `__pycache__/` 말고
 아무것도 보이지 않는지 확인합니다. aelix 0.1.0b2와 실제 uv로 프로젝트를
 끝까지 다루는 단계는 `AELIX_ANALYTICS_TEST_INSTALL=1`일 때만 돌며 네트워크가 필요합니다.
+다른 파일 시스템(FAT·exFAT 등)에 대한 전환은 그 볼륨에 만든 폴더를 `AELIX_ANALYTICS_TEST_FOREIGN_FS`(여럿이면 PATH처럼 구분)에 줄 때만
+`tests/test_migrate_command.py`가 돌립니다. 그 볼륨에 시험용 폴더를 만들고 지우며, 표식을 제자리에 쓰지 않았는지와 원본이 그대로인지,
+전환이 커밋해 다시 부르면 `already_migrated`이거나 복사 전 `no_exclusive_rename`으로만 멈추는지(macOS가 만드는 AppleDouble `._<이름>`
+때문에 멈추지 않음), 그 볼륨에서 일반 파일 `._x`만 있는 폴더는 init이 받고 폴더 `._d`가 있는 폴더는 init과 전환이 거절하는지, 첫 ledger 줄이
+끊긴 전환 디렉터리(macOS가 옆에 `._progress.jsonl`을 씀)를 다시 부른 전환이 지우고 새로 시작하는지를 확인하고, 볼륨이 준 결과는 관찰로
+남깁니다. macOS에서는 `hdiutil create -fs "MS-DOS FAT32"`·`-fs ExFAT`로 만든 디스크
+이미지를 `hdiutil attach -nobrowse`로 붙여 쓸 수 있습니다.
 체크아웃의 `uv sync`는 `[project.scripts]`를 설치하지 않는다는 경고를 냅니다. 정상입니다: 개발 환경은
 `package = false`이고, 이 배치는 editable 설치를 지원하지 않으므로 `package = true`로 바꾸지 마세요. 배포본은 빌드한
 wheel로 확인합니다.
@@ -114,13 +121,19 @@ Aelix 통합 시험은 aelix 0.1.0b2(와 그 의존성), pytest, pytest-timeout�
 
 ```sh
 uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 \
-  python -m pytest -q -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_extension.py tests/test_usage_report.py
+  python -m pytest -q -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_extension.py tests/test_usage_report.py \
+  tests/test_agent_cli.py
 ```
 
 3.11은 `--python 3.11`입니다. `--isolated`를 빼지 마세요. 빼면 3.12에서 uv가 체크아웃의 개발 `.venv` 위에 임시 환경을 얹어
 aelix 프로세스가 분석 라이브러리를 import할 수 있게 되고, 이 시험이 보이려는 것(호스트가 분석 라이브러리를 로드하지 않음)이
 가려집니다. 런처의 하한 시험은 같은 방식으로 `--python 3.11 --with pytest==9.1.1 --with pytest-timeout==2.4.0`에서
-`tests/test_launcher.py`를 실행합니다. 개발 환경의 저장소 시험에는 aelix가 없어 두 aelix 시험 파일을 건너뜁니다.
+`tests/test_launcher.py`를 실행합니다. 개발 환경의 저장소 시험에는 aelix가 없어 세 aelix 시험 파일을 건너뜁니다.
+`tests/test_agent_cli.py`는 aelix의 확장 로더와 hook 버스로 확장을 실제로 등록하고, aelix의 bash 도구와 `!` 명령 처리로 kit CLI를 불러
+기록된 작성 주체를 확인합니다(모델·네트워크·로그인 없음, HOME과 aelix 에이전트 디렉터리는 시험의 임시 디렉터리). 줄 전체가 kit 명령
+하나인 `!` 명령과 다른 명령과 합친 줄을 셸을 돌려주는 확장·막는 확장과 두 등록 순서로 나눠 봅니다. `tests/test_extension.py`의 함정 줄
+시험은 그 기기에서 찾은 셸(sh·bash·zsh·dash·ksh·pwsh)로 줄을 실제로 돌리므로, 셸이 더 있는 기기에서 더 많은 셸을 덮습니다(Windows에서는
+건너뜀; PowerShell 자식은 CI의 Windows 레그가 T22로 돌립니다).
 
 확장이 모델에 보내는 맥락 블록·도구 줄·도구 정의·도구 응답의 크기와, 그 텍스트가 생략한 사실을 다시 읽을 수 있는지는 같은 격리
 환경에서 명령 하나로 잽니다(Issue #11). 합성 fixture를 만들어 재고 `usage-report.json`, 그 JSON에서만 만든 `usage-report.md`,
@@ -157,12 +170,14 @@ uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with tokeni
 
 평가에 쓰는 fixture — Q9의 S/M 규모, Q10의 분석 검사 예제, Q13의 참고 세션 재현 — 는 `tools/eval_fixtures.py`가 만듭니다(#41,
 [평가 fixture 안내](tools/eval_fixtures_data/README.md)). 저장소에 커밋하지 않고 측정할 때 같은 seed로 다시 만듭니다. `--out`은 새
-디렉터리나 빈 디렉터리여야 합니다.
+디렉터리나 빈 디렉터리여야 합니다. fixture는 `lab.*/1` 기록이라 kit 0.8.0 전의 kit이 씁니다: `--kit-root`에 그 kit의 실행 루트를
+줍니다(`tools/eval_fixtures.py`의 `V1_KIT_COMMIT`, 시험과 CI도 그 커밋을 씀).
 
 ```sh
-uv run --locked python tools/eval_fixtures.py scale --scale S --seed 0 --out <dir>   # M은 --scale M
-uv run --locked python tools/eval_fixtures.py q10 --seed 0 --out <dir>
-uv run --locked python tools/eval_fixtures.py q13 --seed 0 --out <dir>
+git worktree add --detach <kit> ebd10b644e8cb8550ccf6446b134666db6bb9386   # V1_KIT_COMMIT
+uv run --locked python tools/eval_fixtures.py scale --scale S --seed 0 --kit-root <kit>/src --out <dir>   # M은 --scale M
+uv run --locked python tools/eval_fixtures.py q10 --seed 0 --kit-root <kit>/src --out <dir>
+uv run --locked python tools/eval_fixtures.py q13 --seed 0 --kit-root <kit>/src --out <dir>
 uv run --locked python tools/eval_fixtures.py check <dir>
 uv run --locked python tools/eval_fixtures.py environment --out <file> --disk <dir> --cache-state cold
 ```
@@ -223,7 +238,7 @@ uv run --locked python tools/check_docs.py --output .devstate/runs/<run-id>/evid
 | 작업 | 언제 | 무엇 | artifact (90일) |
 |---|---|---|---|
 | `lint` | 모든 PR과 main push | ruff, 문서 검사 | 문서 검사 결과, 실행 맥락 |
-| `platform` | Linux(`ubuntu-24.04`)·Windows(`windows-2025`)는 모든 PR과 main push, macOS(`macos-26`)는 아래의 경우 | 플랫폼 스모크(`tools/platform_smoke.py --gate required`), 저장소 시험(`AELIX_ANALYTICS_TEST_INSTALL=1`, 배포본 end-to-end 포함), aelix 0.1.0b2 통합(CPython 3.12·3.11, `tests/test_extension.py`·`tests/test_usage_report.py`), 사용량 보고서(`tools/usage_report.py`, CPython 3.12, 판정 없이 보고만), 런처 시험(CPython 3.11). Windows는 저장소 시험 뒤에 네이티브 콘솔 시험(`tests/test_windows_console.py`, 단계 따로)을, 시험 레그의 마지막에 LongPathsEnabled를 0으로 바꾸고 긴 경로 시험(`tests/test_windows_long_paths.py`)을 새 프로세스로 한 번 더 돌립니다 | 레그별 JUnit, 스모크 JSON(러너 설정 포함), 사용량 보고서(`usage/`: JSON·MD·`texts/`), 시험이 관찰해 남긴 것(`evidence/`, `evidence-long-paths-off/`; 콘솔 사례는 단언하는 것까지 모두), 인터프리터, aelix 환경의 배포판 목록, 실행 맥락 |
+| `platform` | Linux(`ubuntu-24.04`)·Windows(`windows-2025`)는 모든 PR과 main push, macOS(`macos-26`)는 아래의 경우 | 플랫폼 스모크(`tools/platform_smoke.py --gate required`), 저장소 시험(`AELIX_ANALYTICS_TEST_INSTALL=1`, 배포본 end-to-end 포함), aelix 0.1.0b2 통합(CPython 3.12·3.11, `tests/test_extension.py`·`tests/test_usage_report.py`·`tests/test_agent_cli.py`), 사용량 보고서(`tools/usage_report.py`, CPython 3.12, 판정 없이 보고만), 런처 시험(CPython 3.11). Windows는 저장소 시험 뒤에 네이티브 콘솔 시험(`tests/test_windows_console.py`, 단계 따로)을, 시험 레그의 마지막에 LongPathsEnabled를 0으로 바꾸고 긴 경로 시험(`tests/test_windows_long_paths.py`)을 새 프로세스로 한 번 더 돌립니다 | 레그별 JUnit, 스모크 JSON(러너 설정 포함), 사용량 보고서(`usage/`: JSON·MD·`texts/`), 시험이 관찰해 남긴 것(`evidence/`, `evidence-long-paths-off/`, aelix 통합 레그의 `evidence-aelix-py3.12/`·`evidence-aelix-py3.11/`; 콘솔 사례는 단언하는 것까지 모두), 인터프리터, aelix 환경의 배포판 목록, 실행 맥락 |
 | `floor` | `platform`과 같은 OS | `actions/setup-python`의 CPython 3.11에서 표준 라이브러리만으로 플랫폼 스모크(`--stdlib-only`) | 스모크 JSON, 실행 맥락 |
 
 - macOS runner는 비공개 저장소에서 Linux의 약 10배로 과금되므로 PR에서는 요청할 때만 돕니다. PR에 `ci:macos` 라벨을 붙일

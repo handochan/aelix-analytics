@@ -38,7 +38,7 @@ from pathlib import Path
 import pytest
 from conftest import KIT, LINK_KINDS, dir_link, kit_cli, kit_env
 from jsonschema import Draft202012Validator, FormatChecker
-from legacy_records import LegacyProject, at
+from legacy_records import LEGACY_GITIGNORE, LegacyProject, at
 
 from aelix_analytics import _platform, core, migration, writer
 
@@ -140,7 +140,7 @@ def rich_source(base: Path) -> tuple[Path, Path]:
     (base / "ext_file.csv").write_bytes(b"outside file\n")
     p = LegacyProject(base / "src", title="원본 분석")
     p.file("CONTEXT.md", "## Goal\n원본 목표\n".encode())
-    p.file(".gitignore", (migration.TEMPLATE / "gitignore").read_bytes())
+    p.file(".gitignore", LEGACY_GITIGNORE)
     p.file("pyproject.toml", b"[project]\nname = 'x'\n")
     p.file(".lab/context/20261001-090000-000000_aaaaaaaaaaaa.md", b"## Goal\nold\n")
     p.file(".lab/telemetry.jsonl", b'{"tool": "analytics_status"}\n')
@@ -223,10 +223,11 @@ def refused(code: str, call, **kwargs) -> core.AnalyticsError:
     return caught.value
 
 
-def interrupt(source, dest: Path, stop: dict, *, no_links: bool = False, code: int = 9) -> dict | None:
+def interrupt(source, dest: Path, stop: dict, *, no_links: bool = False, no_renames: bool = False,
+              code: int = 9) -> dict | None:
     """The migration in a process of its own, ended at `stop` (tests/migration_driver.py)."""
     args = {"source": None if source is None else str(source), "dest": str(dest), "stop": stop,
-            "no_links": no_links}
+            "no_links": no_links, "no_renames": no_renames}
     done = subprocess.run([sys.executable, str(DRIVER), json.dumps(args)], capture_output=True,
                           env=kit_env(), timeout=300, **_platform.text_kwargs())
     assert done.returncode == code, (done.returncode, done.stdout, done.stderr)
@@ -496,6 +497,10 @@ def test_a_direct_write_where_links_cannot_be_made(shared, tmp_path, stop):
         assert copies(dest) == shared["reference"]
         assert_committed(dest, source)
         assert any(v["step"] == "direct" for v in ledger(dest).lines)
+        # The copies are written directly; the marker never is (owner's decision of 2026-10-08): it
+        # is published by the rename that refuses a taken name, as the probe found it would be.
+        assert writer.MARKER not in ledger(dest).direct_intent
+        assert ledger(dest).probed["publish"] == "rename_new"
     else:
         before = tree(dest)
         error = refused("destination_mismatch", lambda: migrate(source, dest))
@@ -510,6 +515,110 @@ def test_the_fault_matrix_is_kept(shared):
     from conftest import record_observation
 
     record_observation("issue-13-migration/fault-matrix", SEEN)
+
+
+# --- the marker where the file system has no links (owner's decision of 2026-10-08) -----------------
+
+@pytest.mark.parametrize(("stop", "expected"), [({"step": "marker_temp"}, "resume"),
+                                                ({"step": "marker_written"}, "resume"),
+                                                ({"step": "marker_published"}, "already")])
+def test_a_marker_where_links_cannot_be_made_is_published_by_a_rename(shared, tmp_path, stop,
+                                                                       expected):
+    """F11 and F12 where the file system gives no second name: the marker's bytes go to its
+    temporary file first (its line names it), and the rename that refuses a taken name gives it its
+    name, so the marker is whole or absent — never half written in place, which a call made again
+    would find marker_invalid. Interrupted before the rename the destination is not committed and
+    the same call publishes it; after, it is committed."""
+    source = shared["source"]
+    dest = tmp_path / "dest"
+    interrupt(source, dest, stop, no_links=True)
+    if expected == "resume":
+        assert_uncommitted(dest)
+    else:
+        assert writer.marker_state(dest).state == "current"
+    assert writer.MARKER not in ledger(dest).direct_intent
+    interrupt(source, dest, {}, no_links=True, code=0)
+    assert_committed(dest, source)
+    assert copies(dest) == shared["reference"]
+    read = ledger(dest)
+    assert read.probed["publish"] == "rename_new" and writer.MARKER not in read.direct
+    assert not any(p.startswith(migration.MARKER_TEMP) for p in tree(dest))
+    assert source_tree(source) == shared["before"]
+
+
+def test_a_destination_with_neither_links_nor_an_exclusive_rename_is_refused_before_any_copy(
+        shared, tmp_path):
+    """Where the file system can neither link nor rename without replacing, the migration does not
+    write the marker in place: it stops at step 2's probe, before any copy — destination_invalid,
+    reason no_exclusive_rename — and the same call stops there again. The destination holds the
+    migration's record only (no marker, no copy); the source is as it was; the dry run, which
+    writes nothing, says it has not judged how the marker would be published."""
+    source = shared["source"]
+    dest = tmp_path / "dest"
+    dry = migrate(source, dest, dry_run=True)
+    assert dry["state"] == "new" and dry["plan"]["publication_judged"] is False
+    for _ in range(2):
+        error = interrupt(source, dest, {}, no_links=True, no_renames=True, code=0)
+        assert error["error"]["code"] == "destination_invalid", error
+        assert error["error"]["details"]["reason"] == "no_exclusive_rename"
+        assert "nothing was copied" in error["error"]["hint"]
+        assert_uncommitted(dest)
+        assert set(tree(dest)) <= {".analytics", ".analytics/migration.lock", migration.MIGRATIONS,
+                                   f"{migration.MIGRATIONS}/{mdir(dest).name}",
+                                   f"{migration.MIGRATIONS}/{mdir(dest).name}/progress.jsonl"}
+        steps = [v["step"] for v in ledger(dest).lines]
+        assert steps[0] == "start" and steps[-1] == "failed" and "probed" not in steps, steps
+        assert ledger(dest).lines[-1]["reason"] == "no_exclusive_rename"
+    assert source_tree(source) == shared["before"]
+    # On a file system that has the rename after all (another disk mounted there), the same call
+    # goes on from the probe.
+    interrupt(source, dest, {}, no_links=True, code=0)
+    assert_committed(dest, source)
+
+
+def test_the_marker_is_refused_where_the_rename_went_after_the_probe(tmp_path):
+    """Step 11 asks again: a destination whose rename the probe found and that has none when the
+    marker is published (its disk changed meanwhile) is refused there — no_exclusive_rename, before
+    the marker — the marker's temporary file kept as its line names it; the next call on a file
+    system that has the rename removes that file and commits."""
+    from platform_doubles import recording_platform
+
+    bundle, calls = recording_platform()
+    bundle.files.links = False
+    source = plain_source(tmp_path)
+    dest = tmp_path / "dest"
+
+    def lose_the_rename(name, _info):
+        if name == "marker_written":
+            bundle.files.renames = False
+
+    error = refused("destination_invalid", lambda: migrate(source, dest, platform=bundle,
+                                                           on_step=lose_the_rename))
+    assert error.details["reason"] == "no_exclusive_rename"
+    assert "its copies are there, without the marker" in error.hint
+    assert_uncommitted(dest)
+    [temp] = ledger(dest).marker_temps
+    assert (dest / temp).is_file() and ledger(dest).lines[-1]["step"] == "failed"
+    assert ("files.rename_new", "analytics.json") in calls
+    bundle.files.renames = True
+    result = migrate(source, dest, platform=bundle)
+    assert result["ok"] and not result["already_migrated"]
+    assert not (dest / temp).exists()
+    assert_committed(dest, source)
+
+
+def test_a_ledger_that_writes_the_marker_directly_is_no_state(tmp_path):
+    """The ledger no longer takes a direct write of the marker (a migration of kit 0.7.0's engine
+    wrote one where links were not; none was a command): such lines are destination_mismatch, and
+    nothing is removed."""
+    source = _copy_source(tmp_path)
+    dest = tmp_path / "dest"
+    interrupt(source, dest, {"step": "marker_written"})
+    migration.append_line(mdir(dest) / "progress.jsonl",
+                          {"step": "direct_intent", "at": at(1), "path": writer.MARKER})
+    before = tree(dest)
+    refused("destination_mismatch", lambda: migrate(source, dest))
+    assert tree(dest) == before
 
 
 # --- the rows of design 6.10 (T6 a–o) -------------------------------------------------------------
@@ -696,6 +805,366 @@ def test_what_a_person_s_tools_leave_is_passed_over(tmp_path):
     assert writer.marker_state(dest).state == "current"
 
 
+# --- macOS's AppleDouble files: operating system metadata (owner's decision 2026-10-09, as corrected
+# the same day: regular files only, issuecomment-6072183477) --------------------------------------
+
+APPLEDOUBLE = b"\x00\x05\x16\x07\x00\x02\x00\x00Mac OS X        "  # an AppleDouble header
+
+
+def file_link(link: Path, target) -> Path:
+    """`link` a symbolic link to the file `target`; the test skips where the account may not make one
+    (Windows without the privilege, WinError 1314)."""
+    try:
+        os.symlink(target, link)
+    except OSError as exc:
+        if getattr(exc, "winerror", None) == 1314:
+            pytest.skip(f"this account may not create a symbolic link: {exc!r}")
+        raise
+    return link
+
+
+@pytest.mark.parametrize("kind", LINK_KINDS)
+def test_only_a_regular_file_named_appledouble_is_operating_system_metadata(tmp_path, kind):
+    """A regular file `._<name>` (by lstat), at any depth, is metadata as .DS_Store is: not copied
+    (OQ4), passed over in a destination (OQ16), and left in a directory init or a migration takes as
+    empty (design 6.2). A directory, a link (to a file or to a folder) or nothing at all with such a
+    name is an ordinary entry for each of the four. Thumbs.db and desktop.ini stay what they were:
+    not copied, passed over, but not empty."""
+    here = tmp_path / "here"
+    here.mkdir()
+    (here / "target").write_bytes(b"t")
+    for name in ("._a.parquet", "._.DS_Store", "._.analytics", "._migration.lock", "._x", "._데이터"):
+        (here / name).write_bytes(APPLEDOUBLE)
+        assert core.appledouble_name(name), name
+        assert core.is_appledouble(here / name) and migration._os_metadata(here / name), name
+        assert core.empty_directory_entry(here / name), name
+        assert migration._ignored(name, here) and migration._ignored(f"x/{name}", None) is False
+        assert migration._Walker._excluded(f"data/raw/{name}", here / name) == "os_metadata"
+    for name in ("._", "a._b", "x._", "Thumbs.db", ".DS_Store", "_x", ".x"):
+        (here / name).write_bytes(b"x")
+        assert not core.is_appledouble(here / name), name
+    (here / "._dir").mkdir()
+    dir_link(kind, here / "._dirlink", here / "._dir")
+    ordinary = [here / "._dir", here / "._dirlink", here / "._gone"]
+    if kind == "symlink":
+        ordinary.append(file_link(here / "._filelink", here / "target"))
+    for path in ordinary:
+        name = path.name
+        assert core.appledouble_name(name) and not core.is_appledouble(path), name
+        assert not migration._os_metadata(path) and not core.empty_directory_entry(path), name
+        assert not migration._ignored(name, here) and not migration._ignored(f"{name}/a", here), name
+        assert migration._Walker._excluded(name, path) is None, name
+    assert core.empty_directory_entry(here / ".DS_Store")
+    assert not core.empty_directory_entry(here / "Thumbs.db")
+    assert not core.empty_directory_entry(here / "desktop.ini")
+    for rel in ("._.DS_Store", "scripts/._s1.py", ".analytics/._migration"):
+        assert not migration._ignored(rel), rel  # by its name alone: only a regular file is the OS's
+    for rel in (".DS_Store", "scripts/Thumbs.db", "a/__pycache__/x.pyc", ".venv/bin/python"):
+        assert migration._ignored(rel), rel
+    assert migration._Walker._excluded("data/raw/a.parquet", here / "target") is None
+
+
+def test_the_source_s_appledouble_files_are_reported_and_not_copied(tmp_path):
+    """OQ4: a source's AppleDouble files — at its root, beside a folder, in data/ and .lab/ — are not
+    copied and are in the report's `excluded` (os_metadata); one macOS makes in the source during the
+    copy is no source change (they are left out of the comparison before and after); the source's
+    bytes stay as they were but that one."""
+    source = plain_source(tmp_path)
+    names = ("._.DS_Store", "._data", "data/raw/._a.parquet", ".lab/._context")
+    for rel in names:
+        (source / rel).write_bytes(APPLEDOUBLE)
+    before = source_tree(source)
+    made = []
+
+    def on_step(name, info):
+        if name == "copied" and not made:
+            made.append(info.get("path"))
+            (source / "data" / "._raw").write_bytes(APPLEDOUBLE)  # Finder, during the copy
+
+    dest = tmp_path / "dest"
+    result = migrate(source, dest, on_step=on_step)
+    assert result["ok"] and made, result
+    report = assert_committed(dest, source)
+    excluded = {(e["path"], e["reason"]) for e in report["excluded"]}
+    assert {(rel, "os_metadata") for rel in names} <= excluded, excluded
+    assert not [rel for rel in tree(dest) if os.path.basename(rel).startswith("._")]
+    after = source_tree(source)
+    assert after.pop("data/._raw")[0] == "file" and after == before
+
+
+def test_a_destination_holding_appledouble_files_only_is_empty(tmp_path):
+    """design 6.2 (the same rule as init's): a folder holding .DS_Store and AppleDouble files only —
+    what macOS leaves in a folder it looked at on a FAT or exFAT volume — is a new destination, and
+    they are left as they are; a Thumbs.db is still an entry."""
+    source = plain_source(tmp_path)
+    dest = tmp_path / "dest"
+    dest.mkdir()
+    left = (".DS_Store", "._.DS_Store", "._.Trashes")
+    for name in left:
+        (dest / name).write_bytes(APPLEDOUBLE)
+    result = migrate(source, dest)
+    assert result["ok"] and not result["already_migrated"], result
+    assert_committed(dest, source)
+    assert all((dest / name).read_bytes() == APPLEDOUBLE for name in left)
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "._x").write_bytes(APPLEDOUBLE)
+    (other / "Thumbs.db").write_bytes(b"x")
+    error = refused("destination_invalid", lambda: migrate(source, other))
+    assert error.details["reason"] == "not_empty" and error.details["entries"] == ["Thumbs.db"]
+
+
+def test_appledouble_files_made_beside_the_migration_s_own_are_passed_over_under_the_lock(tmp_path):
+    """What G3 measured on FAT32 (macOS 26): macOS writes `._.analytics` beside the .analytics/ the
+    migration made and `.analytics/._migration.lock` beside its lock; the judgment under the lock
+    takes them as the OS's, not as entries (before the owner's decision: not_empty there, and every
+    migration to such a volume stopped at step 1), and so do the copy's checks with one beside a
+    copy. Here the test makes them at those moments; a later call finds it migrated, all the same."""
+    source = plain_source(tmp_path)
+    dest = tmp_path / "dest"
+
+    def on_step(name, info):
+        if name == "dest_locked":
+            (dest / "._.analytics").write_bytes(APPLEDOUBLE)
+            (dest / ".analytics" / "._migration.lock").write_bytes(APPLEDOUBLE)
+        elif name == "copied" and info.get("path") == "data/raw/a.parquet":
+            (dest / "data" / "raw" / "._a.parquet").write_bytes(APPLEDOUBLE)
+
+    result = migrate(source, dest, on_step=on_step)
+    assert result["ok"] and not result["already_migrated"], result
+    assert_committed(dest, source)
+    again = migrate(source, dest)
+    assert again["already_migrated"] and again["differs"] == [] and set(again["compared"]) == {"same"}, again
+    assert (dest / "data" / "raw" / "._a.parquet").read_bytes() == APPLEDOUBLE
+
+
+def test_the_source_s_folder_and_link_named_appledouble_are_copied(tmp_path):
+    """The owner's correction of 2026-10-09: a folder `._data/` (with what is in it) and a link
+    `._link` in the source are ordinary entries — copied, counted, not in `excluded` — beside a
+    regular `._a` file, which is not copied."""
+    source = plain_source(tmp_path)
+    (source / "._data").mkdir()
+    (source / "._data" / "x.csv").write_bytes(b"a,b\n1,2\n")
+    (source / "._a").write_bytes(APPLEDOUBLE)
+    dir_link(LINK_KINDS[0], source / "._link", "data")
+    dest = tmp_path / "dest"
+    result = migrate(source, dest)
+    assert result["ok"] and not result["already_migrated"], result
+    report = assert_committed(dest, source)
+    excluded = {e["path"] for e in report["excluded"]}
+    assert "._a" in excluded and not {"._data", "._data/x.csv", "._link"} & excluded, excluded
+    assert (dest / "._data" / "x.csv").read_bytes() == b"a,b\n1,2\n"
+    assert os.path.islink(dest / "._link") or _platform.is_link(os.lstat(dest / "._link"))
+    assert not (dest / "._a").exists()
+
+
+@pytest.mark.parametrize("what", ["folder", "link"])
+def test_a_destination_holding_a_folder_or_a_link_named_appledouble_is_not_empty(tmp_path, what):
+    """design 6.2 as the owner corrected it: only regular files `._<name>` leave a destination empty;
+    a folder or a link of that name is an entry (not_empty), at step 1 and under the lock — there, one
+    made in .analytics/ beside the lock this call made."""
+    source = plain_source(tmp_path)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+
+    def make(path: Path) -> None:
+        path.mkdir() if what == "folder" else dir_link(LINK_KINDS[0], path, outside)
+
+    dest = tmp_path / "dest"
+    dest.mkdir()
+    (dest / "._ok").write_bytes(APPLEDOUBLE)
+    make(dest / "._d")
+    error = refused("destination_invalid", lambda: migrate(source, dest))
+    assert (error.details["reason"], error.details["entries"]) == ("not_empty", ["._d"]), error.to_json()
+    late = tmp_path / "late"
+
+    def on_step(name, info):
+        if name == "dest_locked":
+            make(late / ".analytics" / "._x")
+
+    error = refused("destination_invalid", lambda: migrate(source, late, on_step=on_step))
+    assert error.details["reason"] == "not_empty", error.to_json()
+    assert error.details["entries"] == [".analytics/._x"], error.to_json()
+
+
+@pytest.mark.parametrize("what", ["folder", "link", "folder in .lab"])
+def test_an_appledouble_file_where_the_copy_puts_a_source_entry_is_in_the_way(tmp_path, what):
+    """design 6.2 (the check of the corrected decisions): a destination's AppleDouble file leaves it
+    empty unless the copy puts one of the source's entries at that path — a folder or a link `._x` of
+    the source (its regular `._x` files are not copied), or `.lab/._d` as `.analytics/._d` — where the
+    copy would stop, `occupied`. Step 1 and the dry run refuse it as not_empty with that path, and so
+    does the judgment under the lock when the file comes after step 1; nothing is copied, and the file
+    is kept. Another AppleDouble file beside it, and one whose name only folds to it, are named too
+    (the volumes that make these files fold case)."""
+    source = plain_source(tmp_path)
+    if what == "folder":
+        (source / "._data").mkdir()
+        (source / "._data" / "x.csv").write_bytes(b"a\n")
+        rel = "._data"
+    elif what == "link":
+        file_link(source / "._l", "data/raw/a.parquet")
+        rel = "._l"
+    else:
+        (source / ".lab" / "._d").mkdir()
+        (source / ".lab" / "._d" / "y").write_bytes(b"y")
+        rel = ".analytics/._d"
+
+    def place(dest: Path, name: str = rel) -> None:
+        (dest / name).parent.mkdir(parents=True, exist_ok=True)
+        (dest / name).write_bytes(APPLEDOUBLE)
+
+    dest = tmp_path / "dest"
+    dest.mkdir()
+    place(dest)
+    (dest / "._other").write_bytes(APPLEDOUBLE)
+    before = tree(dest)
+    for call in (lambda: migrate(source, dest, dry_run=True), lambda: migrate(source, dest)):
+        error = refused("destination_invalid", call)
+        assert (error.details["reason"], error.details["entries"]) == ("not_empty", [rel]), error.to_json()
+        assert "AppleDouble" in error.hint and "nothing was written" in error.hint, error.to_json()
+        assert tree(dest) == before
+    folded = tmp_path / "folded"
+    folded.mkdir()
+    other_case = rel[:rel.rindex("/") + 1] + rel[rel.rindex("/") + 1:].upper() if "/" in rel else rel.upper()
+    place(folded, other_case)
+    error = refused("destination_invalid", lambda: migrate(source, folded))
+    assert error.details["entries"] == [other_case], error.to_json()
+    late = tmp_path / "late"
+    late.mkdir()
+
+    def on_step(name, info):
+        if name == "dest_locked":
+            place(late)
+
+    error = refused("destination_invalid", lambda: migrate(source, late, on_step=on_step))
+    assert (error.details["reason"], error.details["entries"]) == ("not_empty", [rel]), error.to_json()
+    assert "nothing was written" not in error.hint and "migration_incomplete" in error.hint
+    assert (late / rel).read_bytes() == APPLEDOUBLE
+    (late / rel).unlink()
+    result = migrate(source, late)  # once the person removes it, as the hint says
+    assert result["ok"], result
+    assert_committed(late, source)
+
+
+def test_appledouble_files_in_a_destination_resumed_are_passed_over(tmp_path):
+    """OQ16: AppleDouble files the ledger does not name — at the root, beside a copy, beside a folder
+    and in .analytics/ — are passed over when an interrupted migration goes on, and left as they are
+    (the plan names none: the source's are not copied)."""
+    source = _copy_source(tmp_path)
+    dest = tmp_path / "dest"
+    interrupt(source, dest, {"step": "copied", "path": "scripts/s1.py"})
+    made = ("._.analytics", "._scripts", "scripts/._s0.py", ".analytics/._migration", "._data")
+    for rel in made:
+        (dest / rel).write_bytes(APPLEDOUBLE)
+    result = migrate(source, dest)
+    assert result["ok"] and not result["already_migrated"], result
+    assert_committed(dest, source)
+    assert all((dest / rel).read_bytes() == APPLEDOUBLE for rel in made)
+
+
+@pytest.mark.parametrize("what", ["folder", "link"])
+def test_a_folder_or_a_link_named_appledouble_in_a_destination_resumed_is_unaccounted(tmp_path, what):
+    """OQ16 as the owner corrected it: a folder or a link `._x` the ledger does not name is no OS
+    metadata when an interrupted migration goes on — destination_mismatch (unaccounted), nothing
+    removed — while a regular `._` file beside it is passed over."""
+    source = _copy_source(tmp_path)
+    dest = tmp_path / "dest"
+    interrupt(source, dest, {"step": "copied", "path": "scripts/s1.py"})
+    (dest / "scripts" / "._s0.py").write_bytes(APPLEDOUBLE)
+    if what == "folder":
+        (dest / "._x").mkdir()
+    else:
+        dir_link(LINK_KINDS[0], dest / "._x", "scripts")
+    before = tree(dest)
+    error = refused("destination_mismatch", lambda: migrate(source, dest))
+    assert error.details["reason"] == "unaccounted" and error.details["paths"] == ["._x"], error.to_json()
+    assert tree(dest) == before
+
+
+def _cut_beside_appledouble(tmp_path: Path, ledger_bytes: bytes | None) -> tuple[Path, Path, Path]:
+    """A destination whose migration stopped in step 2 before its first ledger line ended, on a
+    volume where macOS wrote `._progress.jsonl` beside the ledger (F1 on FAT or exFAT)."""
+    source = _copy_source(tmp_path)
+    dest = tmp_path / "dest"
+    old = dest / migration.MIGRATIONS / "20261008T000000Z-00000000"
+    old.mkdir(parents=True)
+    (dest / migration.DEST_LOCK).write_bytes(b"")
+    if ledger_bytes is not None:
+        (old / "progress.jsonl").write_bytes(ledger_bytes)
+    (old / "._progress.jsonl").write_bytes(APPLEDOUBLE)
+    return source, dest, old
+
+
+@pytest.mark.parametrize("ledger_bytes", [None, b"", b'{"step": "start", "at": "2026-'])
+def test_a_cut_first_line_beside_an_appledouble_file_is_a_new_migration(tmp_path, ledger_bytes):
+    """F1 on a FAT or exFAT volume (the check of 2026-10-09): the AppleDouble file beside the cut
+    ledger is no content, so the directory is step 2's own and is cleared. macOS's rmdir removes a
+    folder's orphaned AppleDouble files with it, so there the migration starts again at once; where
+    the `._` file stays (another system), the clearing is refused with a hint — never a crash — and
+    once the person removes the folder, the migration starts again. A folder `._x` there is content."""
+    source, dest, old = _cut_beside_appledouble(tmp_path, ledger_bytes)
+    assert migration._contentless(old)
+    assert_uncommitted(dest)
+    if sys.platform == "darwin":
+        result = migrate(source, dest)
+    else:
+        error = refused("destination_write_failed", lambda: migrate(source, dest))
+        assert error.details["path"] == str(old) and "AppleDouble" in error.hint, error.to_json()
+        assert sorted(p.name for p in old.iterdir()) == ["._progress.jsonl"]
+        assert_uncommitted(dest)
+        shutil.rmtree(old)
+        result = migrate(source, dest)
+    assert result["ok"] and result["migration_id"] != old.name and not old.exists(), result
+    assert_committed(dest, source)
+    other = tmp_path / "other"
+    kept = other / migration.MIGRATIONS / "20261008T000000Z-00000001"
+    (kept / "._x").mkdir(parents=True)
+    if ledger_bytes is not None:
+        (kept / "progress.jsonl").write_bytes(ledger_bytes)
+    assert not migration._contentless(kept)
+    refused("destination_mismatch", lambda: migrate(source, other))
+    assert (kept / "._x").is_dir()
+
+
+def test_a_migration_directory_that_cannot_be_removed_is_refused_with_a_hint(tmp_path, monkeypatch):
+    """F1's clearing where the folder stays (an AppleDouble file a system other than macOS keeps, or
+    the folder's permissions): destination_write_failed naming the folder and saying what to do, the
+    same on a second call, not an OSError; nothing but the cut ledger is removed."""
+    source, dest, old = _cut_beside_appledouble(tmp_path, b'{"step": "start", "at": "2026-')
+    import errno
+
+    real = os.rmdir
+
+    def rmdir(path, *args, **kwargs):
+        if Path(path) == old:
+            raise OSError(errno.ENOTEMPTY, "Directory not empty", str(path))
+        return real(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "rmdir", rmdir)
+    cut = f"{migration.MIGRATIONS}/{old.name}/{migration.LEDGER}"
+    for removed in ([cut], []):  # the second call finds the cut ledger gone already
+        error = refused("destination_write_failed", lambda: migrate(source, dest))
+        assert error.details["path"] == str(old) and "Directory not empty" in error.details["error"]
+        assert "AppleDouble" in error.hint and "Remove that folder" in error.hint, error.to_json()
+        assert error.details["removed"] == removed, error.to_json()
+        said = f"this call removed {cut} and copied nothing" if removed else "this call removed nothing"
+        assert said in error.hint, error.to_json()
+        assert sorted(p.name for p in old.iterdir()) == ["._progress.jsonl"]
+        assert sorted(p.name for p in (dest / migration.MIGRATIONS).iterdir()) == [old.name]
+        assert_uncommitted(dest)
+    # A content-less folder before it is removed first, and the hint says so.
+    first = dest / migration.MIGRATIONS / "20261007T000000Z-00000000"
+    first.mkdir()
+    error = refused("destination_write_failed", lambda: migrate(source, dest))
+    assert error.details["removed"] == [f"{migration.MIGRATIONS}/{first.name}/"], error.to_json()
+    assert not first.exists()
+    monkeypatch.undo()
+    shutil.rmtree(old)  # what the hint says
+    result = migrate(source, dest)
+    assert result["ok"] and result["migration_id"] != old.name, result
+    assert_committed(dest, source)
+
+
 @pytest.mark.parametrize("ledger_bytes", [None, b"", b'{"step": "start", "at": "2026-'])
 def test_a_migration_directory_without_its_first_line_is_a_new_migration(tmp_path, ledger_bytes):
     """(k), F1: a migration directory with no ledger, an empty one, or its first line cut, and nothing
@@ -860,6 +1329,43 @@ def test_the_destination_s_other_rules(tmp_path):
     assert_committed(finder)
 
 
+@pytest.mark.parametrize("change", ["entry", "space"])
+def test_a_refusal_judged_again_under_the_lock_says_what_this_attempt_left(tmp_path, change):
+    """design 6.2 step 1 under the lock (review of PR 3): what changed between the judgment and the
+    lock — a person's file in the destination (an AppleDouble file is the OS's and passed over, since
+    the owner's decision of 2026-10-09), a disk filled meanwhile — is refused there, after the folder,
+    its .analytics/ and the lock file were made.
+    The hint no longer says `nothing was written`: it says nothing was copied, names what this
+    attempt left, and how to go on; the destination is a migration's that has not committed."""
+    source = plain_source(tmp_path)
+    dest = tmp_path / "dest"
+    free = {"bytes": 1 << 40}
+
+    def on_step(name, info):
+        if name == "dest_locked":
+            if change == "entry":
+                (dest / "notes.txt").write_bytes(b"\x00")
+            else:  # another call's empty migration directory: judged again, and the disk filled
+                (dest / ".analytics" / "migration" / "20261009T000000Z-00000000").mkdir(parents=True)
+                free["bytes"] = 1000
+
+    code = "destination_invalid" if change == "entry" else "insufficient_space"
+    error = refused(code, lambda: migrate(source, dest, on_step=on_step,
+                                          free_space=lambda _path: free["bytes"]))
+    assert "nothing was written" not in error.hint, error.hint
+    real = Path(core.canonical(dest))
+    left = [str(real), str(real / ".analytics"), str(real / ".analytics" / "migration.lock")]
+    assert f"nothing was copied, and this attempt left {', '.join(left)}" in error.hint, error.hint
+    assert "remove what it made before trying again" in error.hint
+    assert all(os.path.lexists(p) for p in left)
+    assert writer.marker_state(dest).state == writer.INCOMPLETE
+    # Before the lock nothing is written, and the hint says so.
+    fresh = refused(code, lambda: migrate(source, tmp_path / "fresh", free_space=1000)) if change == "space" \
+        else None
+    if fresh is not None:
+        assert "nothing was written" in fresh.hint and not (tmp_path / "fresh").exists()
+
+
 def test_the_source_s_own_refusals(tmp_path):
     """T2, OQ10, OQ12: a link outside whose target is gone, a nested project, a name of .lab/ the
     current layout manages, a source that is not a lab.json project, no source — refused before
@@ -987,13 +1493,22 @@ def test_a_source_changed_under_the_copy_fails_without_a_marker(tmp_path, step, 
     assert ledger(dest).lines[-1]["step"] == "failed"
 
 
+# An older kit's journal write (design 11.1): this kit writes no lab.json project, so the older kit's
+# /1 writer is played by what it did — its journal lock (.lab/lock, the same file and byte range), then
+# one lab.event/1 line with the next seq.
 OLD_WRITER = """
-import sys
+import json, sys
 sys.path.insert(0, {kit!r})
-from aelix_analytics import core
-project = core.Project({root!r})
+from pathlib import Path
+from aelix_analytics import core, relations
+root = Path({root!r})
 open({ready!r}, "w").close()
-core.add_note(project, "note", "written while the migration held the lock", origin=core.Origin("test", "cli"))
+with core.PLATFORM.locks.exclusive(root / ".lab" / "lock"):
+    seq = relations.Journal((root / "journal.jsonl").read_bytes()).next_seq
+    line = {{"schema": "lab.event/1", "seq": seq, "id": f"e{{seq}}", "ts": "2026-10-01T10:00:00.000+09:00",
+            "kind": "note", "actor": "test", "text": "written while the migration held the lock", "refs": {{}}}}
+    with open(root / "journal.jsonl", "ab") as fh:
+        fh.write(json.dumps(line).encode() + b"\\n")
 """
 
 
@@ -1215,6 +1730,9 @@ def test_the_migration_goes_through_the_platform_it_is_given(tmp_path):
     bundle.files.links = False
     migrate(plain_source(tmp_path, "src2"), tmp_path / "direct", platform=bundle)
     assert any(v["step"] == "direct" for v in ledger(tmp_path / "direct").lines)
+    # Its marker by the bundle's rename that refuses a taken name, never written in place.
+    assert ("files.rename_new", "analytics.json") in calls
+    assert writer.MARKER not in ledger(tmp_path / "direct").direct_intent
     assert_committed(tmp_path / "direct")
 
 

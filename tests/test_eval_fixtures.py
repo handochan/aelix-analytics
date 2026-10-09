@@ -12,24 +12,30 @@ generator's.
 
 M is generated only with AELIX_ANALYTICS_TEST_SCALE_M=1 (two generations of about 440 MB each: the
 project's 217 MB of imported data and the sources under input/).
+
+The v1 fixtures are written by a kit before the new record format (design OQ7): the runtime root of
+tool.V1_KIT_COMMIT, made from the checkout's git history (git archive) and given as --kit-root. This
+checkout's kit writes analytics.event/2 only, and refuses v1 without --kit-root.
 """
 
 from __future__ import annotations
 
 import importlib.util
+import io
 import json
 import os
 import re
 import shutil
 import subprocess
 import sys
+import tarfile
 import time
 import types
 from datetime import datetime
 from pathlib import Path
 
 import pytest
-from conftest import OLD_ENV, record_observation
+from conftest import OLD_ENV, git_checkout, record_observation
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOL = ROOT / "tools" / "eval_fixtures.py"
@@ -79,15 +85,28 @@ GENERATED = {
 SAME_OUT = {"s0a": "s0", "s0b": "s0"}
 
 
+@pytest.fixture(scope="session")
+def v1_kit(tmp_path_factory) -> Path:
+    """The runtime root of tool.V1_KIT_COMMIT's kit, the v1 writer (design OQ7): its src/ out of the
+    checkout's git history. Outside a git checkout this skips, and on CI it fails (conftest.git_checkout)."""
+    data = git_checkout("archive", "--format=tar", tool.V1_KIT_COMMIT, "src")
+    base = tmp_path_factory.mktemp("v1-kit")
+    with tarfile.open(fileobj=io.BytesIO(data)) as archive:
+        archive.extractall(base, filter="data")
+    root = base / "src"
+    assert (root / "aelix_analytics" / "core.py").is_file()
+    return root
+
+
 @pytest.fixture(scope="module")
-def fixtures(tmp_path_factory) -> dict[str, Path]:
+def fixtures(tmp_path_factory, v1_kit) -> dict[str, Path]:
     base = tmp_path_factory.mktemp("eval-fixtures")
     env = tool_env(base)
     out, seconds = {}, {}
     for name, args in GENERATED.items():
         target = base / SAME_OUT.get(name, name)
         started = time.perf_counter()
-        done = run_tool(*args, "--out", target, env=env)
+        done = run_tool(*args, "--kit-root", v1_kit, "--out", target, env=env)
         seconds[name] = round(time.perf_counter() - started, 3)
         assert done.returncode == 0, f"{name}: {done.stdout}\n{done.stderr}"
         if name in SAME_OUT:
@@ -237,7 +256,8 @@ def test_every_case_is_there_and_reads_as_the_manifest_says(fixtures):
     assert model.upstream(first)["cycle"] and model.upstream(second)["cycle"]
     long_note = cases["long_korean"]["records"]
     [event] = [e for e in model.journal.events if e.id == long_note["note"]]
-    assert long_note["original_chars"] > core.MAX_EVENT_TEXT == len(event.value["text"])
+    # The /1 writer of a kit before 0.8.0 kept a text's first 4,000 characters (its MAX_EVENT_TEXT).
+    assert long_note["original_chars"] > 4000 == len(event.value["text"])
     assert re.search(r"[가-힣]{2}", event.value["text"])
     unpreserved = cases["unpreserved_data"]["records"]
     assert not (out / "project" / unpreserved["deleted_path"]).exists()
@@ -542,19 +562,35 @@ def test_q13_context_defines_the_metrics_as_expected_json_and_the_script_do(fixt
 
 # --- the command and the environment record --------------------------------------------------------------
 
-def test_usage_errors_write_nothing(tmp_path):
+def test_usage_errors_write_nothing(tmp_path, v1_kit):
     env = tool_env(tmp_path)
     busy = tmp_path / "busy"
     busy.mkdir()
     (busy / "keep.txt").write_text("mine", encoding="utf-8")
-    done = run_tool("q10", "--out", busy, env=env)
+    done = run_tool("q10", "--kit-root", v1_kit, "--out", busy, env=env)
     assert done.returncode == 2 and "not empty" in done.stderr
     assert sorted(p.name for p in busy.iterdir()) == ["keep.txt"]
     for fmt, says in (("v2", "#13"), ("v9", "unknown format")):
         target = tmp_path / f"format-{fmt}"
-        done = run_tool("scale", "--scale", "S", "--format", fmt, "--out", target, env=env)
+        done = run_tool("scale", "--scale", "S", "--format", fmt, "--kit-root", v1_kit, "--out", target,
+                        env=env)
         assert done.returncode == 2 and says in done.stderr and not target.exists()
     assert run_tool("scale", "--scale", "L", "--out", tmp_path / "l", env=env).returncode == 2
+    # This checkout's kit writes the new record format (kit 0.8.0): v1 without --kit-root says how to
+    # give one, and --kit-root that is no runtime root is refused, both before anything is written.
+    for extra, says in (((), "--kit-root"), (("--kit-root", tmp_path), "not a runtime root")):
+        target = tmp_path / f"kit-{len(extra)}"
+        done = run_tool("q10", *extra, "--out", target, env=env)
+        assert done.returncode == 2 and says in done.stderr and not target.exists(), done.stderr
+
+
+def test_the_manifest_names_the_kit_that_wrote_the_fixture(fixtures):
+    """The kit of --kit-root wrote the records (design OQ7): the manifest holds its version, before the new
+    record format, and its commit where git can tell it (an archive's cannot: null)."""
+    manifest = read_json(fixtures["s0a"] / "manifest.json")
+    assert manifest["kit_version"] == "0.7.0" and manifest["kit_commit"] is None
+    journal = (fixtures["s0a"] / "project" / "journal.jsonl").read_text(encoding="utf-8").splitlines()
+    assert {json.loads(line)["schema"] for line in journal} == {"lab.event/1"}
 
 
 def test_a_failed_generation_leaves_nothing_behind(tmp_path, monkeypatch):
@@ -563,6 +599,8 @@ def test_a_failed_generation_leaves_nothing_behind(tmp_path, monkeypatch):
         raise tool.FixtureError("a planned failure")
 
     monkeypatch.setattr(tool, "require_deterministic_process", lambda: None)
+    # This process's kit is the checkout's, which writes no v1 (--kit-root is for a command's process).
+    monkeypatch.setattr(tool, "check_format", lambda fmt: None)
     monkeypatch.setattr(tool, "kit_session", fail)  # after the sources are written under input/
     new = tmp_path / "new"
     with pytest.raises(tool.FixtureError, match="planned"):
@@ -609,12 +647,13 @@ def test_the_environment_record(fixtures, tmp_path):
 
 @pytest.mark.skipif(os.environ.get("AELIX_ANALYTICS_TEST_SCALE_M") != "1",
                     reason="M writes about 440 MB twice; set AELIX_ANALYTICS_TEST_SCALE_M=1")
-def test_m_has_its_sizes_and_cases_and_is_the_seed_s(tmp_path):
+def test_m_has_its_sizes_and_cases_and_is_the_seed_s(tmp_path, v1_kit):
     env = tool_env(tmp_path)
     seconds = {}
     for name in ("a", "b"):
         started = time.perf_counter()
-        done = run_tool("scale", "--scale", "M", "--seed", "0", "--out", tmp_path / name, env=env, timeout=1800)
+        done = run_tool("scale", "--scale", "M", "--seed", "0", "--kit-root", v1_kit, "--out", tmp_path / name,
+                        env=env, timeout=1800)
         seconds[name] = round(time.perf_counter() - started, 3)
         assert done.returncode == 0, done.stderr
     manifest = assert_sizes(tmp_path / "a", "M")

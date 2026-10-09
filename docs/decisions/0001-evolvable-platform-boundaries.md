@@ -32,18 +32,18 @@ Aelix Analytics는 베타 이후에도 지표·맥락·재사용·근거 탐색�
 행 5는 #12의 셋째 PR(2026-10-08)에서 그 PR의 코드로 다시 고쳤다.
 행 1·4와 확인 2·5는 [#43](https://github.com/handochan/aelix-analytics/issues/43)(2026-10-06)에서 그 PR의 코드로 고쳤다.
 행 1은 [#13](https://github.com/handochan/aelix-analytics/issues/13)의 첫 구현 PR(①, kit 0.7.0)에서, 행 1·4는 둘째 구현 PR(②, 같은 kit)에서 그 PR의
-코드로 다시 고쳤다.
+코드로 다시 고쳤다. 행 1·4·5·9는 셋째 구현 PR(③, kit 0.8.0)에서 그 PR의 코드로 다시 고쳤다.
 
 | 결정 | 적용한 것 | 남은 것과 맡는 곳 |
 |---|---|---|
-| 1 단일 배포 패키지, 책임 구분 | wheel 하나와 진입점 둘(`analytics` 런처, aelix 확장). aelix 프로세스는 `core`·`_platform`·`relations`·`writer`만 로드하고 분석 라이브러리는 프로젝트 환경에서만 쓴다(ADR-0003 결정 3, ADR-0004 결정 1·2). 첫 새 책임: 읽기 모델 `relations`(#12, stdlib, 패키지의 형제를 import하지 않음, 의존 방향 `core → relations`). 둘째: 기록 writer의 첫 부분 `writer`(#13 ①, stdlib, `core` 아래의 새 계층이라 `core`를 import하지 못함, `_platform`·`relations`만 import). 셋째: 복사 전환 엔진 `migration`(#13 ②, stdlib, `core` 위 수준 3의 계층, `core`가 import하지 않아 aelix 프로세스가 로드하지 않음, 명령은 #13 ③). 모듈마다 계층을 정한 계층표와 그 의존 방향 검사(#43, [아키텍처 §11](../ARCHITECTURE.md#계층과-의존-방향-검사)) | 도메인·응용·포트의 모듈 구분(지금 `core`는 둘을 겸한다). 아래 "배치"대로 새 책임이 생기는 #13부터. 허용 목록의 예외 넷(제거 조건은 아키텍처 §11) |
+| 1 단일 배포 패키지, 책임 구분 | wheel 하나와 진입점 둘(`analytics` 런처, aelix 확장). aelix 프로세스는 `core`·`_platform`·`relations`·`writer`만 로드하고 분석 라이브러리는 프로젝트 환경에서만 쓴다(ADR-0003 결정 3, ADR-0004 결정 1·2). 첫 새 책임: 읽기 모델 `relations`(#12, stdlib, 패키지의 형제를 import하지 않음, 의존 방향 `core → relations`). 둘째: 기록 writer의 첫 부분 `writer`(#13 ①, stdlib, `core` 아래의 새 계층이라 `core`를 import하지 못함, `_platform`·`relations`만 import). 셋째: 복사 전환 엔진 `migration`(#13 ②, stdlib, `core` 위 수준 3의 계층, `core`가 import하지 않아 aelix 프로세스가 로드하지 않음, 명령 `analytics migrate`는 #13 ③). #13 ③이 `writer`에 새 형식의 공통 쓰기 클래스 `Writer`를 더함. 모듈마다 계층을 정한 계층표와 그 의존 방향 검사(#43, [아키텍처 §11](../ARCHITECTURE.md#계층과-의존-방향-검사)) | 도메인·응용·포트의 모듈 구분(지금 `core`는 둘을 겸한다). 아래 "배치"대로 새 책임이 생기는 #13부터. 허용 목록의 예외 넷(제거 조건은 아키텍처 §11) |
 | 2 core의 의미 소유 | 적용 전. 기록의 의미가 `core.py`·`runner.py`·`report.py`에 나뉘어 있다(아키텍처 §2) | 공통 기록 계약 #4, 공통 writer #13, 지표·초점 #14 |
 | 3 Strategy·어댑터 경계 | 적용 전 | 첫 교체 사례인 두 제안 모드 #17, 두 공유 프로필 #20 |
-| 4 작은 Protocol과 명시적 주입 | 플랫폼 포트 넷(`FileLocks`·`AtomicFiles`·`ProcessControl`·`RunControl`. #13 ②가 포트 안에 전환의 메서드 `try_exclusive`·`publish_new`·`flush_handle`·`flush_dir`를 더함), `Project(root, platform=…)` 주입, 실제 구현을 실패하도록 무장한 계약 시험(ADR-0003). 그 방식을 세 구현(POSIX·Windows·시험 adapter)에 같은 사례로 돌리는 공통 계약 시험(#43, `tests/test_contracts.py`) | 정책 Strategy와 저장·게시 어댑터의 주입. 그 구현을 만드는 Issue(#17·#20 등) |
-| 5 공통 쓰기 경로와 읽기 모델 | 읽기 모델 `relations`(#12 PR-1·PR-2·PR-3): `analytics_status`·`/analytics status`·kit `status`와 Workspace가 기록을 한 번 읽어 같은 판정·식별자·읽기 기준(`as_of_seq`·`source_revision`)을 보인다. 맥락 블록은 journal만 읽는다. kit 0.5.0 전 run이 기록한 옛 경로(절대·상대)는 지금의 정체성 경로로 대응해 읽고 추론(`basis: inferred`)으로 표시한다(PR-3, ADR-0006 9절; 확정 연결로 세지 않고 기록은 고쳐 쓰지 않음) | 공통 writer #13, 질의·인덱스 #15, 보고서 본문·버전 #19 |
+| 4 작은 Protocol과 명시적 주입 | 플랫폼 포트 넷(`FileLocks`·`AtomicFiles`·`ProcessControl`·`RunControl`. #13 ②가 포트 안에 전환의 메서드 `try_exclusive`·`publish_new`·`flush_handle`·`flush_dir`를, ③이 표식을 게시하는 `rename_new`를 더함), `Project(root, platform=…)` 주입, 실제 구현을 실패하도록 무장한 계약 시험(ADR-0003). 그 방식을 세 구현(POSIX·Windows·시험 adapter)에 같은 사례로 돌리는 공통 계약 시험(#43, `tests/test_contracts.py`) | 정책 Strategy와 저장·게시 어댑터의 주입. 그 구현을 만드는 Issue(#17·#20 등) |
+| 5 공통 쓰기 경로와 읽기 모델 | 읽기 모델 `relations`(#12 PR-1·PR-2·PR-3): `analytics_status`·`/analytics status`·kit `status`와 Workspace가 기록을 한 번 읽어 같은 판정·식별자·읽기 기준(`as_of_seq`·`source_revision`)을 보인다. 맥락 블록은 journal만 읽는다. kit 0.5.0 전 run이 기록한 옛 경로(절대·상대)는 지금의 정체성 경로로 대응해 읽고 추론(`basis: inferred`)으로 표시한다(PR-3, ADR-0006 9절; 확정 연결로 세지 않고 기록은 고쳐 쓰지 않음). 공통 쓰기 경로 `writer.Writer`(#13 ③, kit 0.8.0): 모든 쓰기 진입점(kit CLI·SDK·확장·init·데모·runner·가져오기·맥락 동기화)이 journal 줄·run·가져오기 기록을 이 writer로 쓰고, 잠금 안에서 표식을 다시 판정하고 상태를 재생하며 참조를 쓰는 때 결박한다 | 질의·인덱스 #15, 보고서 본문·버전 #19 |
 | 6 계약별 버전·호환성 | 적용 전. 이 결정 전부터 기록에 schema 가족·버전이 있고, 같은 가족의 미래 버전만 가려낸다 | 기록 #4·#13, 스크립트 API #9, 게시 형식 #20·#21, 배포 #24 |
 | 7·8 자유 Python, 도구 수 | 현재 동작이 지키는 원칙이다(자유 Python 실행, 모델 도구 여섯 개) | 새 기능 PR의 리뷰 기준(Q11·Q13) |
-| 9 공개 명칭과 영어 기본값 | 설치본의 명령 이름 `analytics`(ADR-0004 결정 7). #9의 첫 PR(2026-10-06): kit이 package `aelix_analytics`이고 스크립트 API가 `import aelix_analytics`, 모듈 실행이 `python -m aelix_analytics`다(ADR-0004 결정 9 개정) | 함수·명령·도구·flag·환경 변수의 이름 #9의 둘째 PR, 영어 기본값 #10, 저장 이름 #13(ADR-0005) |
+| 9 공개 명칭과 영어 기본값 | 설치본의 명령 이름 `analytics`(ADR-0004 결정 7). #9의 첫 PR(2026-10-06): kit이 package `aelix_analytics`이고 스크립트 API가 `import aelix_analytics`, 모듈 실행이 `python -m aelix_analytics`다(ADR-0004 결정 9 개정) | 함수·명령·도구·flag·환경 변수의 이름 #9의 둘째 PR, 영어 기본값 #10. 저장 이름은 #13 ③(kit 0.8.0, ADR-0005)이 새 프로젝트에 적용했고 옛 프로젝트는 `analytics migrate`로 옮긴다 |
 
 ## OS마다 다른 구현의 기본값
 

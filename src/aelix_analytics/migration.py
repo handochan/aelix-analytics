@@ -24,8 +24,14 @@ What it keeps (design section 1):
   are written and flushed. Before it no kit takes the folder for a project it may write or read
   (`migration_incomplete`); an interrupted migration resumes from the state its ledger's lines define
   (6.10), and the same call on a committed destination of the same source is `already_migrated` (6.9).
+  The marker is never written in place: where the file system has no links it is published by the
+  port's rename that refuses a taken name (`rename_new`), and where it has neither the destination is
+  refused at step 2's probe, before any copy, and again at step 11, before the marker (owner's decision
+  of 2026-10-08: `destination_invalid`, reason `no_exclusive_rename`). A copy there is still written
+  directly (design 6.12, D19).
 
-It is not a command in this PR (PR 3 opens `analytics migrate`), and the aelix process never loads it:
+The kit's command `migrate` runs it (`python -m aelix_analytics migrate --to DEST [--dry-run]`, which
+the launchers start outside any project environment, design 6.1); the aelix process never loads it:
 `core` does not import it. `on_step(name, info)` (private) is the tests' fault injection (design 11.1):
 it is called by name before and after each ledger line (`ledger:<step>`, `<step>`) and at the points in
 between where an interruption leaves something of its own (a temporary file half written, a file
@@ -64,7 +70,9 @@ CHUNK = 1 << 20
 # The older runner's order: its run lock, then inside it the journal lock (design 6.3 step 3).
 SOURCE_LOCKS = ("run.lock", "lock")
 # What is not copied (OQ4): the environment and the Workspace at the root, the cache and the older
-# kit's locks in .lab/, Python's caches and the views an operating system makes of a folder anywhere.
+# kit's locks in .lab/, Python's caches and the views an operating system makes of a folder anywhere:
+# these names, and macOS's AppleDouble files `._<name>` — regular files only (core.is_appledouble, the
+# owner's decision of 2026-10-09 as corrected) — _os_metadata.
 OS_METADATA = frozenset({".DS_Store", "Thumbs.db", "desktop.ini"})
 CACHE_NAMES = frozenset({"__pycache__"})
 EXCLUDED_AT_ROOT = {".venv": "environment", "report": "workspace"}
@@ -99,6 +107,13 @@ OLD_MODULE, NEW_MODULE = "labkit", "aelix_analytics"
 RENAMED_CALLS = {"note": "record", "chart": "visualize"}
 TEMPLATE = Path(core.__file__).resolve().parent / "template"
 MARKER_TEMP = ".analytics-json-"
+# Step 2's test names, inside the migration's own directory (its `start` line names them): the file
+# that tells whether the destination folds names, the link that tells whether it holds one, and the
+# name the file is published under to tell how the marker is published there.
+PROBE, PROBE_LINK, PROBE_PUBLISH = ".probe-Ab\u00e9.tmp", ".probe-link.tmp", ".probe-publish.tmp"
+# How a destination publishes its marker (the `probed` line's `publish`): the port's publish_new (a
+# link, or Windows' rename), or where the file system has no links its rename_new.
+PUBLICATIONS = ("publish_new", "rename_new")
 
 
 def _no_step(_name: str, _info: dict) -> None:
@@ -343,11 +358,40 @@ def _occupied(rel: str) -> AnalyticsError:
                           details={"reason": "occupied", "path": rel})
 
 
+def _no_exclusive_rename(dest, exc: OSError, *, copied: bool) -> AnalyticsError:
+    """The destination's file system can neither link a file nor rename one without replacing what
+    is there (owner's decision of 2026-10-08, Issue #13): the marker is not written in place there,
+    so the migration stops before it — at step 2, before any copy, or at step 11."""
+    where = ("its copies are there, without the marker; " if copied
+             else "nothing was copied: ")
+    return _invalid("no_exclusive_rename", f"the file system of {dest} can neither link a file nor "
+                    "rename one without replacing what is there, so the migration cannot publish its "
+                    "marker there in one step",
+                    f"migrate to a folder on another file system (APFS, ext4 or NTFS, say; FAT and "
+                    f"exFAT may have neither); {where}what the migration made is in this folder, "
+                    "which you can remove", path=str(dest), error=str(exc))
+
+
 def _write_failed(path, exc: OSError) -> AnalyticsError:
     return AnalyticsError("destination_write_failed", f"the destination refused {path}: {exc}",
                           hint="a path too long, a name the destination's system reserves, or its "
                                "permissions: the migration stopped there, before its marker",
                           details={"path": str(path), "error": str(exc)})
+
+
+def _not_cleared(directory: Path, exc: OSError, removed: list[str]) -> AnalyticsError:
+    """A migration directory step 2 left with no full line, which cannot be removed: an AppleDouble
+    file macOS wrote beside its ledger (`._progress.jsonl` on a FAT or exFAT volume) stays in it, or
+    the folder's permissions refuse (design 6.10). `removed` is what this call removed before (the
+    cut ledger, and content-less migration directories before this one), in the destination."""
+    said = (f"this call removed {', '.join(removed)} and copied nothing" if removed
+            else "this call removed nothing and copied nothing")
+    return AnalyticsError("destination_write_failed", f"{directory} cannot be removed: {exc}",
+                          hint="it held a migration that stopped before its first ledger line ended, "
+                               "and what is left in it — an AppleDouble file `._<name>` macOS made "
+                               "beside the ledger, say — is not the migration's to remove. Remove that "
+                               f"folder, then run the migration again; {said}",
+                          details={"path": str(directory), "error": str(exc), "removed": removed})
 
 
 def _changed(paths) -> AnalyticsError:
@@ -366,19 +410,11 @@ def _changed(paths) -> AnalyticsError:
 # --- the ledger ------------------------------------------------------------------------------------
 
 def append_line(path: Path, value: dict) -> None:
-    """Append one ledger line: an LF first when the last byte is not one (a cut-off append before it,
-    design 6.8), then the line and its LF in one write. Not flushed: a resumed migration hashes every
-    copy again, so a ledger behind the disk judges nothing wrongly."""
-    line = json.dumps(value, ensure_ascii=False).encode("utf-8") + b"\n"
-    fd = os.open(path, os.O_RDWR | os.O_APPEND | os.O_CREAT | NOFOLLOW | getattr(os, "O_BINARY", 0), 0o666)
-    with open(fd, "a+b", closefd=True) as fh:
-        fh.seek(0, os.SEEK_END)
-        if fh.tell():
-            fh.seek(-1, os.SEEK_END)
-            if fh.read(1) != b"\n":
-                line = b"\n" + line
-            fh.seek(0, os.SEEK_END)
-        fh.write(line)
+    """Append one ledger line by the writer's rule (writer.append_line): an LF first when the last
+    byte is not one (a cut-off append before it, design 6.8), then the line and its LF in one write,
+    a link at the ledger's name not followed. Not flushed: a resumed migration hashes every copy
+    again, so a ledger behind the disk judges nothing wrongly."""
+    writer.append_line(path, json.dumps(value, ensure_ascii=False).encode("utf-8"), follow=False)
 
 
 class LedgerError(Exception):
@@ -462,8 +498,9 @@ class Ledger:
             "locked": (last == "probed" or copying) and self.source_checked is None,
             "plan": last == "locked",
             "begin": copying,
-            # A direct write (no links on this file system): a copy's, or the marker's after its line.
-            "direct_intent": copying or (last == "marker_begin" and path == writer.MARKER),
+            # A direct write (no links on this file system): a copy's only. The marker is published
+            # by a rename there, never written in place (owner's decision of 2026-10-08).
+            "direct_intent": copying,
             "direct": last == "direct_intent" and path in self.direct_intent,
             "copied": copying and (path in self.begun or path in self.direct),
             "source_checked": copying,
@@ -473,9 +510,7 @@ class Ledger:
             "reported": last in ("verified", "transformed", "reported", "durable", "marker_begin"),
             "durable": last in ("reported", "durable", "marker_begin"),
             "marker_begin": last in ("durable", "marker_begin", "committed", "trusted"),
-            "committed": last == "marker_begin" or (last == "direct" and path is None
-                                                    and self.marker is not None
-                                                    and writer.MARKER in self.direct),
+            "committed": last == "marker_begin",
             "trusted": last in ("committed", "trusted"),
         }[step]
         if not allowed:
@@ -527,9 +562,12 @@ class Ledger:
 
 def _contentless(directory: Path) -> bool:
     """A migration directory holding nothing but a ledger that is missing, empty or one cut-off first
-    line: interrupted in step 2 before its `start` line ended (design 6.10)."""
+    line: interrupted in step 2 before its `start` line ended (design 6.10). An AppleDouble file there
+    (`._progress.jsonl`, which macOS writes beside the ledger on a FAT or exFAT volume) is the OS's,
+    not content."""
     try:
-        names = [e.name for e in os.scandir(directory)]
+        with os.scandir(directory) as listing:
+            names = [e.name for e in listing if not core.is_appledouble(e.path)]
     except OSError:
         return False
     if any(n != LEDGER for n in names):
@@ -677,16 +715,18 @@ class _Walker:
         return files, size
 
     @staticmethod
-    def _excluded(rel: str, name: str) -> str | None:
-        """Why an entry is not copied (OQ4), by its namespace path: so a .lab/ that is a link leading
-        outside leaves out its cache and locks as the folder does."""
+    def _excluded(rel: str, path) -> str | None:
+        """Why an entry is not copied (OQ4), by its namespace path — so a .lab/ that is a link leading
+        outside leaves out its cache and locks as the folder does — and, for an AppleDouble name, by
+        what is at `path` (a regular file only)."""
+        name = rel.rsplit("/", 1)[-1]
         if rel in EXCLUDED_AT_ROOT:
             return EXCLUDED_AT_ROOT[rel]
         if _parent(rel) == LEGACY_STATE_DIR and name in EXCLUDED_IN_STATE:
             return EXCLUDED_IN_STATE[name]
         if name in CACHE_NAMES:
             return "cache"
-        if name in OS_METADATA:
+        if _os_metadata(path):
             return "os_metadata"
         return None
 
@@ -707,7 +747,7 @@ class _Walker:
                     self.out.not_utf8.append({"path": _escaped(rel), "base64": base64.b64encode(
                         os.fsencode(entry.path)).decode("ascii")})
                     continue
-                reason = self._excluded(rel, entry.name)
+                reason = self._excluded(rel, entry.path)
                 if reason:
                     self.out.exclude(rel, reason, *self._count(entry.path))
                     continue
@@ -904,11 +944,21 @@ def _source_rel(rel: str) -> str:
     return rel
 
 
-def _ignored(rel: str) -> bool:
-    """A name a person's tools leave in a destination (OQ16): .venv at the root, __pycache__ and the
-    OS's views anywhere, and what is below them."""
+def _os_metadata(path) -> bool:
+    """A view an operating system makes of a folder (OQ4, OQ16): an entry with one of OS_METADATA's
+    names, or an AppleDouble file `._<name>` — a regular file (the owner's decision of 2026-10-09 as
+    corrected): a directory or a link with that name is an ordinary entry."""
+    return os.path.basename(path) in OS_METADATA or core.is_appledouble(path)
+
+
+def _ignored(rel: str, dest: Path | None = None) -> bool:
+    """A name a person's tools leave in a destination (OQ16): .venv at the root, __pycache__ and
+    OS_METADATA's names anywhere, and what is below them; and, given the destination, an AppleDouble
+    file at `rel` (a regular file: nothing is below it, and a folder of that name is gone into)."""
     parts = rel.split("/")
-    return parts[0] in IGNORED_AT_ROOT or any(p in CACHE_NAMES or p in OS_METADATA for p in parts)
+    if parts[0] in IGNORED_AT_ROOT or any(p in CACHE_NAMES or p in OS_METADATA for p in parts):
+        return True
+    return dest is not None and core.is_appledouble(dest / rel)
 
 
 def _walk_destination(dest: Path):
@@ -958,19 +1008,22 @@ class Judgment:
     its ledger and the marker's bytes). A refusal is raised instead."""
 
     def __init__(self, kind: str, *, ledger: Ledger | None = None, clear=(), marker: bytes | None = None,
-                 rewritten: bool = False, entries=()):
+                 rewritten: bool = False, entries=(), os_files=()):
         self.kind = kind
         self.ledger = ledger
         self.clear = list(clear)
         self.marker = marker
         self.rewritten = rewritten
         self.entries = list(entries)  # what makes a `new` destination not empty (step 3 refuses it)
+        # The AppleDouble files a `new` destination holds at its root and in .analytics/: they leave it
+        # empty, unless the copy puts one of the source's entries at that path (step 3 refuses it).
+        self.os_files = list(os_files)
 
     @property
     def signature(self) -> tuple:
         ledger = self.ledger
         return (self.kind, ledger.migration_id if ledger else None, len(ledger.lines) if ledger else 0,
-                tuple(self.clear), self.marker, tuple(self.entries))
+                tuple(self.clear), self.marker, tuple(self.entries), tuple(self.os_files))
 
     @property
     def reads_source(self) -> bool:
@@ -1043,6 +1096,9 @@ class Migration:
         if dry_run:
             return self._dry_run(judged)
         self._checks(judged)
+        # What this call makes before its lock, which a refusal under the lock leaves (_left).
+        made = [str(p) for p in (self.dest, self.dest / STATE_DIR, self.dest / DEST_LOCK)
+                if not os.path.lexists(p)]
         try:
             self.dest.mkdir(parents=True, exist_ok=True)
             (self.dest / STATE_DIR).mkdir(exist_ok=True)
@@ -1062,7 +1118,10 @@ class Migration:
             self.step("dest_locked", {})
             again = self._judge()
             if again.signature != judged.signature:
-                self._checks(again)  # what changed before the lock is judged again under it
+                try:
+                    self._checks(again)  # what changed before the lock is judged again under it
+                except AnalyticsError as exc:
+                    raise _left(exc, made) from None
             return self._act(again)
 
     # -- the destination's judgment (design 6.2 step 1, 6.9, 6.10): read only
@@ -1079,7 +1138,7 @@ class Migration:
         except OSError as exc:
             raise _invalid("not_a_directory", f"the destination cannot be listed: {exc}",
                            "give a folder this account can read", path=str(self.dest)) from exc
-        others = [n for n in top if n not in core.EMPTY_DIRECTORY_NAMES and n != STATE_DIR]
+        others = [n for n in top if not core.empty_directory_entry(self.dest / n) and n != STATE_DIR]
         if STATE_DIR in top and not (self.dest / STATE_DIR).is_dir():
             others.append(STATE_DIR)
         dirs = self._migration_dirs()
@@ -1088,9 +1147,15 @@ class Migration:
             raise _mismatch(f"{self.dest} holds {len(full)} migrations' records",
                             migrations=[d.name for d in full])
         if not full:
-            stray = [f"{STATE_DIR}/{n}" for n in self._state_entries()
+            # macOS's AppleDouble files beside the migration's own entries (`._migration.lock` where
+            # a volume keeps no extended attributes) are the OS's, not anyone's state: regular files.
+            state = [f"{STATE_DIR}/{n}" for n in self._state_entries()
                      if n not in ("migration", "migration.lock")]
-            return Judgment("new", clear=[d.name for d in dirs], entries=sorted(others + stray))
+            stray = [rel for rel in state if not core.is_appledouble(self.dest / rel)]
+            os_files = [n for n in top if core.is_appledouble(self.dest / n)] + [
+                rel for rel in state if rel not in stray]
+            return Judgment("new", clear=[d.name for d in dirs], entries=sorted(others + stray),
+                            os_files=sorted(os_files))
         directory = full[0]
         if len(dirs) > 1:
             raise _mismatch(f"{self.dest} holds migration directories besides {directory.name}",
@@ -1325,14 +1390,25 @@ class Migration:
             raise _invalid("not_empty", f"{self.dest} is not empty",
                            "give a new or empty folder as the destination; nothing was written",
                            entries=judged.entries[:20])
+        in_the_way = self._os_files_in_the_way(judged)
+        if in_the_way:
+            raise _invalid("not_empty", f"{self.dest} is not empty: the copy puts the source's entries "
+                           f"where these AppleDouble files are: {', '.join(in_the_way[:5])}",
+                           "an AppleDouble file `._<name>` is the OS's, but the source has a folder, a "
+                           "file or a link at that path, and the copy writes over nothing: remove those "
+                           "files or give another folder; nothing was written",
+                           entries=in_the_way[:20])
         dest = str(self.dest)
         existing = _existing(dest)
-        above = [a for a in ([existing] if existing != dest else []) + _ancestors(existing)
-                 if writer.present_marker(a)]
-        if above:
-            raise _invalid("inside_project", f"the destination {dest} is inside the project {above[0]}",
-                           "give a destination outside every analytics project: an older kit run there "
-                           "would write to the project above it", project=above[0])
+        # The rule init follows too (writer.project_above, OQ9): below a project, or below another
+        # migration's destination that has not committed (the owner's decision of 2026-10-09).
+        above = writer.project_above(dest)
+        if above is not None:
+            raise _invalid("inside_project", f"the destination {dest} is inside {writer.inside(above)}",
+                           "give a destination outside every analytics project and every migration's "
+                           "destination: an older kit run there would write to the project above it, "
+                           "and a migration goes on only where nothing but its own copy is",
+                           project=above)
         needed = self._needed(judged)
         if needed is not None:
             free = self._free(existing)
@@ -1342,6 +1418,23 @@ class Migration:
                                      f"free; the copy needs {want:,} with its margin",
                                      hint="free space or choose another disk; nothing was written",
                                      details={"free": free, "needed": needed, "with_margin": want})
+
+    def _os_files_in_the_way(self, judged: Judgment) -> list[str]:
+        """The AppleDouble files of a `new` destination at a path the copy puts one of the source's
+        entries at — a folder or a link `._x` (the source's regular `._x` files are not copied), or
+        what is below one — names compared as a file system that folds case and normalization would
+        (whether this one does is known at step 2): the copy would stop there, `occupied`."""
+        if not judged.os_files or self.inventory is None:
+            return []
+        inventory = self.inventory
+
+        def folded(rel: str) -> str:
+            return "/".join(_folded(part, True, True) for part in rel.split("/"))
+
+        planned = {folded(_dest_rel(item["rel"], "")) for item in
+                   [*inventory.files, *inventory.dirs, *inventory.links]}
+        return [rel for rel in judged.os_files if folded(rel) in planned
+                or any(p.startswith(folded(rel) + "/") for p in planned)]
 
     def _free(self, existing: str) -> int:
         if self.free_space is not None:
@@ -1364,11 +1457,17 @@ class Migration:
         if judged.kind == "committed":
             return self._already(judged)
         if judged.kind == "new":
+            removed: list[str] = []  # what this call removed, for the hint of a folder that stays
             for name in judged.clear:  # step 2's own, with nothing of anyone's in it (design 6.10)
                 directory = self.dest / MIGRATIONS / name
-                with contextlib.suppress(FileNotFoundError):
-                    _remove_own(directory / LEDGER)
-                os.rmdir(directory)
+                try:
+                    with contextlib.suppress(FileNotFoundError):
+                        _remove_own(directory / LEDGER)
+                        removed.append(f"{MIGRATIONS}/{name}/{LEDGER}")
+                    os.rmdir(directory)
+                except OSError as exc:
+                    raise _not_cleared(directory, exc, removed) from exc
+                removed.append(f"{MIGRATIONS}/{name}/")
             return self._start()
         self.ledger, self.mdir = judged.ledger, judged.ledger.directory
         try:
@@ -1422,24 +1521,25 @@ class Migration:
                        locks=[{"path": f"{LEGACY_STATE_DIR}/{name}",
                                "existed": os.path.lexists(source / LEGACY_STATE_DIR / name)}
                               for name in SOURCE_LOCKS],
-                       probe=".probe-Ab\u00e9.tmp", probe_link=".probe-link.tmp")
+                       probe=PROBE, probe_link=PROBE_LINK, probe_publish=PROBE_PUBLISH)
             return self._from_probe()
         except AnalyticsError as exc:
             self._failed(exc)
             raise
 
     def _origin(self) -> dict:
-        o = self.origin
-        return {"actor": o.actor, "actor_basis": o.actor_basis, "means": o.means,
-                **({"session": o.session} if o.session else {})}
+        return said_by(self.origin)
 
     def _from_probe(self) -> dict:
         """Step 2's probe (design 6.2, 6.3): whether the destination folds case and Unicode
-        normalization, and whether it holds a symbolic link, judged by a test file and a test link the
-        `start` line named, removed after."""
-        probe = self.mdir / self.ledger.start["probe"]
-        link = self.mdir / self.ledger.start["probe_link"]
-        for leftover in (probe, link):
+        normalization, whether it holds a symbolic link, and how it publishes the marker
+        (_publication), judged by a test file, a test link and a test name the `start` line named,
+        removed after."""
+        start = self.ledger.start
+        probe = self.mdir / start["probe"]
+        link = self.mdir / start["probe_link"]
+        published = self.mdir / start.get("probe_publish", PROBE_PUBLISH)
+        for leftover in (probe, link, published):
             if os.path.lexists(leftover):
                 _remove_own(leftover)
         with open(probe, "xb"):
@@ -1447,12 +1547,35 @@ class Migration:
         self.step("probe_made", {})
         try:
             folds = probe_destination(probe, link)
+            folds["publish"] = self._publication(probe, published)
         finally:
-            _remove_own(probe)
+            for made in (probe, published):
+                if os.path.lexists(made):
+                    _remove_own(made)
             if os.path.lexists(link):
                 os.unlink(link)
         self._line("probed", **folds)
         return self._from_locks()
+
+    def _publication(self, probe: Path, published: Path) -> str:
+        """How the marker is published here (owner's decision of 2026-10-08), tried on the probe file,
+        which then has the name `published`: the port's publish_new where the file system links, else
+        its rename_new — a rename that refuses a taken name — else destination_invalid
+        (no_exclusive_rename), before any copy: the marker is never written in place."""
+        try:
+            self.files.publish_new(probe, published)
+            return "publish_new"
+        except _platform.LinkUnsupported:
+            pass
+        except OSError as exc:
+            raise _write_failed(published, exc) from exc
+        try:
+            self.files.rename_new(probe, published)
+            return "rename_new"
+        except _platform.RenameUnsupported as exc:
+            raise _no_exclusive_rename(self.dest, exc, copied=False) from exc
+        except OSError as exc:
+            raise _write_failed(published, exc) from exc
 
     # -- steps 3-7: under the source's locks, then 8-12
 
@@ -1606,7 +1729,7 @@ class Migration:
             bad = [p for p in entry["from"].split("/") if not _platform.portable_name(p)]
             if bad:
                 warnings.append({"path": entry["from"], "reason": "unportable_name", "name": bad[0]})
-        project_id = ledger.project_id or "prj_" + secrets.token_hex(8)
+        project_id = ledger.project_id or writer.new_project_id()
         transforms = [{"path": ".gitignore", "kind": "gitignore_append"}] if any(
             e["to"] == ".gitignore" and e["kind"] == "file" for e in entries) else []
         plan = {"schema": FAMILY, "record": "plan", "migration_id": mid, "project_id": project_id,
@@ -2044,7 +2167,7 @@ class Migration:
             seen.add(rel)
             if rel in (STATE_DIR, DEST_LOCK, MIGRATIONS, own) or rel.startswith(own + "/"):
                 continue
-            if _ignored(rel) and rel not in planned_files and rel not in planned_dirs:
+            if _ignored(rel, self.dest) and rel not in planned_files and rel not in planned_dirs:
                 continue
             if kind == "dir":
                 if rel not in planned_dirs:
@@ -2542,7 +2665,7 @@ class Migration:
         except OSError as exc:
             raise _write_failed(temp, exc) from exc
         self.step("marker_written", {})
-        self._publish(temp, self.dest / writer.MARKER, writer.MARKER)
+        self._publish_marker_file(temp)
         self.step("marker_published", {})
         try:
             self.files.flush_dir(self.dest)
@@ -2550,6 +2673,31 @@ class Migration:
             raise _write_failed(self.dest, exc) from exc
         self._line("committed")
         return self._trust(report, already=False, write_line=True)
+
+    def _publish_marker_file(self, temp: Path) -> None:
+        """The commit point (step 11): the marker's temporary file given its name only where none is —
+        by the port's publish_new, or where the file system has no links by its rename_new, a rename
+        that refuses a taken name — never written in place, so the marker is there whole or not at
+        all (owner's decision of 2026-10-08). Where neither is there the migration stops before the
+        marker; its temporary file stays, named by its line, for the next call to remove."""
+        final = self.dest / writer.MARKER
+        try:
+            self.files.publish_new(temp, final)
+            return
+        except FileExistsError:
+            raise _occupied(writer.MARKER) from None
+        except _platform.LinkUnsupported:
+            pass
+        except OSError as exc:
+            raise _write_failed(final, exc) from exc
+        try:
+            self.files.rename_new(temp, final)
+        except FileExistsError:
+            raise _occupied(writer.MARKER) from None
+        except _platform.RenameUnsupported as exc:
+            raise _no_exclusive_rename(self.dest, exc, copied=True) from exc
+        except OSError as exc:
+            raise _write_failed(final, exc) from exc
 
     def _trust(self, report: dict, *, already: bool, write_line: bool) -> dict:
         """Step 12: the destination added to the trust list this kit writes (design 6.14). A failure
@@ -2801,7 +2949,9 @@ class Migration:
                 "files": len(inventory.files), "bytes": needed, "links_made": len(inventory.links),
                 "excluded": inventory.excluded_list(), "not_copied": inventory.not_copied,
                 "folding_pairs": [v for v in groups.values() if len(v) > 1],
-                "folding_judged": False, "gitignore_lines": lines, "script_proposals": scripts,
+                # Neither is judged without writing to the destination: step 2's probe does both.
+                "folding_judged": False, "publication_judged": False,
+                "gitignore_lines": lines, "script_proposals": scripts,
                 "needed": needed + int(needed * SPACE_SHARE) + SPACE_MARGIN,
                 "free": self._free(_existing(str(self.dest))), "running_runs": running,
                 "warnings": inventory.warnings}
@@ -3024,6 +3174,29 @@ def _summary(report: dict) -> bytes:
 
 # --- the entry --------------------------------------------------------------------------------------
 
+def _left(exc: AnalyticsError, made: list[str]) -> AnalyticsError:
+    """A refusal of the judgment made again under the destination's lock (design 6.2 step 1): the
+    folder, its .analytics/ and the lock file this call made are there, so the destination is a
+    migration's that has not committed (migration_incomplete) — its hint says so instead of
+    `nothing was written`, and what to do about it."""
+    said = "nothing was copied"
+    if made:
+        said += (f", and this attempt left {', '.join(made)} (so kit commands there say "
+                 "migration_incomplete): remove what it made before trying again, or run the same "
+                 "command again once the cause is gone")
+    hint = exc.hint or ""
+    exc.hint = (hint.replace("nothing was written", said) if "nothing was written" in hint
+                else f"{hint}; {said}" if hint else said)
+    return exc
+
+
+def said_by(origin: Origin) -> dict:
+    """Who a migration is by, as its ledger's `start`, its report and its answer say (OQ14): the
+    actor, how that is known, the means, and the session when there is one."""
+    return {"actor": origin.actor, "actor_basis": origin.actor_basis, "means": origin.means,
+            **({"session": origin.session} if origin.session else {})}
+
+
 def migrate(source, destination, *, origin: Origin, dry_run: bool = False, platform=None,
             on_step=None, free_space=None, trust=None) -> dict:
     """Copy the lab.json project at `source` into `destination` in the current format (design 6): the
@@ -3034,5 +3207,7 @@ def migrate(source, destination, *, origin: Origin, dry_run: bool = False, platf
     bundle of ports (core.PLATFORM by default); `free_space` (bytes, or a function of a path) and
     `trust` (a function of the destination) stand for the disk and the trust list in tests;
     `on_step` is the tests' fault injection (design 11.1)."""
-    return Migration(source, destination, origin=origin, platform=platform, on_step=on_step,
-                     free_space=free_space, trust=trust).run(dry_run)
+    out = Migration(source, destination, origin=origin, platform=platform, on_step=on_step,
+                    free_space=free_space, trust=trust).run(dry_run)
+    # Every answer says who the call is by (OQ14) and carries its request_id (design 4.9).
+    return {**out, **said_by(origin), "request_id": core.request_id_of(origin)}

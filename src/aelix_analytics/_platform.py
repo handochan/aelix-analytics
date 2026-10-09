@@ -62,6 +62,12 @@ class LinkUnsupported(OSError):
     create-if-absent publication by a link cannot be made there; nothing was changed."""
 
 
+class RenameUnsupported(OSError):
+    """`AtomicFiles.rename_new`: neither the system nor the file system has a rename that refuses a
+    name already taken, so the create-if-absent publication by a rename cannot be made there;
+    nothing was changed."""
+
+
 # --- ports ----------------------------------------------------------------------------------------
 
 
@@ -100,6 +106,14 @@ class AtomicFiles(Protocol):
     design 6.4 and 6.12). On a file system that cannot link a file it raises LinkUnsupported and
     changes nothing. `src` and `dst` are in the same directory.
 
+    `rename_new` gives `src` the name `dst` by renaming it, only when nothing is at `dst`, atomically:
+    an entry already there raises FileExistsError and nothing changes. It makes no second name, so it
+    publishes where `publish_new` cannot link (FAT, exFAT); a migration publishes its marker so there
+    (owner's decision of 2026-10-08, Issue #13). Where neither the system nor the file system has
+    such a rename it raises RenameUnsupported and changes nothing: POSIX asks Linux's
+    renameat2(RENAME_NOREPLACE) or macOS's renamex_np(RENAME_EXCL) and has none elsewhere; Windows'
+    rename never replaces. `src` and `dst` are in the same directory.
+
     `flush_handle` writes a file's buffered bytes through to the device (a file object open for
     writing); `flush_dir` does that for a directory's entries where the platform can. Neither hides
     an error. They are the migration's durable writes before its commit point: a goal, not a
@@ -108,6 +122,8 @@ class AtomicFiles(Protocol):
     def replace(self, src: Path | str, dst: Path | str) -> None: ...
 
     def publish_new(self, src: Path | str, dst: Path | str) -> None: ...
+
+    def rename_new(self, src: Path | str, dst: Path | str) -> None: ...
 
     def flush_handle(self, fh) -> None: ...
 
@@ -634,9 +650,56 @@ _NO_LINK_ERRNOS = frozenset({errno.EPERM, errno.EMLINK, getattr(errno, "ENOTSUP"
                              getattr(errno, "EOPNOTSUPP", errno.EPERM)})
 # What F_FULLFSYNC gives on a file system that does not take it (macOS over SMB, say): fsync then.
 _NO_FULLFSYNC_ERRNOS = frozenset({errno.EINVAL, errno.ENOTTY, getattr(errno, "ENOTSUP", errno.EINVAL)})
+# The rename that refuses a taken name (rename_new, owner's decision of 2026-10-08): Linux's
+# renameat2(AT_FDCWD, src, AT_FDCWD, dst, RENAME_NOREPLACE) — glibc 2.28 and later, <linux/fs.h> — and
+# macOS's renamex_np(src, dst, RENAME_EXCL) — macOS 10.12 and later, <stdio.h>. Both give EEXIST for a
+# taken name. Where the file system does not take the flag the call says so: EINVAL on Linux, ENOTSUP
+# on macOS (measured on an exFAT disk image, whose renamex_np gave EEXIST for a taken name and
+# ENOTSUP for a free one; an MS-DOS one renamed); ENOSYS where the kernel lacks the call.
+_AT_FDCWD = -100
+_RENAME_NOREPLACE = 1
+_RENAME_EXCL = 0x00000004
+_NO_RENAME_ERRNOS = frozenset({errno.EINVAL, errno.ENOSYS, getattr(errno, "ENOTSUP", errno.EINVAL),
+                               getattr(errno, "EOPNOTSUPP", errno.EINVAL)})
+_RENAME_CALLS: dict[str, Callable[[bytes, bytes], int] | None] = {}
+
+
+def _exclusive_rename(name: str | None) -> Callable[[bytes, bytes], int] | None:
+    """The C call `name` ("renameat2", "renamex_np") of this process's C library, typed, or None
+    where the library has no such function (musl, an older glibc). Looked up once, when first used:
+    only a migration needs it, and the aelix process never runs one."""
+    if name is None:
+        return None
+    if name not in _RENAME_CALLS:
+        import ctypes  # noqa: PLC0415 - only this call needs it
+
+        try:
+            function = getattr(ctypes.CDLL(None, use_errno=True), name)
+        except (OSError, AttributeError):
+            _RENAME_CALLS[name] = None
+            return None
+        function.restype = ctypes.c_int
+        if name == "renameat2":
+            function.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p,
+                                 ctypes.c_uint)
+            _RENAME_CALLS[name] = lambda src, dst: function(_AT_FDCWD, src, _AT_FDCWD, dst,
+                                                            _RENAME_NOREPLACE)
+        elif name == "renamex_np":
+            function.argtypes = (ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint)
+            _RENAME_CALLS[name] = lambda src, dst: function(src, dst, _RENAME_EXCL)
+        else:
+            _RENAME_CALLS[name] = None
+    return _RENAME_CALLS[name]
 
 
 class PosixAtomicFiles:
+    """`exclusive_rename` names the C call rename_new makes — "renameat2" on Linux, "renamex_np" on
+    macOS — or is None where the system has neither (rename_new then raises RenameUnsupported):
+    detect() chooses it by the machine, as it chooses the document opener."""
+
+    def __init__(self, exclusive_rename: str | None = None) -> None:
+        self.exclusive_rename = exclusive_rename
+
     def replace(self, src: Path | str, dst: Path | str) -> None:
         os.replace(src, dst)
 
@@ -652,6 +715,22 @@ class PosixAtomicFiles:
                 raise LinkUnsupported(exc.errno, f"{dst} cannot be made by a link: {exc}") from exc
             raise
         os.unlink(src)
+
+    def rename_new(self, src: Path | str, dst: Path | str) -> None:
+        call = _exclusive_rename(self.exclusive_rename)
+        if call is None:
+            raise RenameUnsupported(errno.ENOSYS, f"{dst} cannot be made by a rename that refuses a "
+                                    "taken name: this system's C library has none")
+        if call(os.fsencode(src), os.fsencode(dst)) == 0:
+            return
+        import ctypes  # noqa: PLC0415 - imported already by _exclusive_rename
+
+        code = ctypes.get_errno()
+        if code in _NO_RENAME_ERRNOS:
+            raise RenameUnsupported(code, f"{dst} cannot be made by a rename that refuses a taken "
+                                    f"name: {os.strerror(code)}")
+        # EEXIST makes this a FileExistsError: the name is taken, and nothing changed.
+        raise OSError(code, os.strerror(code), os.fspath(src), None, os.fspath(dst))
 
     def flush_handle(self, fh) -> None:
         import fcntl  # noqa: PLC0415 - absent on Windows, so it is imported with its user
@@ -960,6 +1039,11 @@ class WindowsAtomicFiles:
                     raise
                 time.sleep(REPLACE_POLL_SECONDS)
         os.rename(src, dst)
+
+    def rename_new(self, src: Path | str, dst: Path | str) -> None:
+        # MoveFileEx without MOVEFILE_REPLACE_EXISTING is the rename that refuses a taken name, on
+        # every file system Windows renames on: publish_new's own call, retried within its budget.
+        self.publish_new(src, dst)
 
     def flush_handle(self, fh) -> None:
         fh.flush()
@@ -1358,8 +1442,9 @@ def detect(name: str | None = None) -> Platform:
 
     `core.PLATFORM` calls this once, when core is imported, for this process; a test calls it with
     a name to build the other platform's bundle. The POSIX bundle's document opener follows this
-    machine (`open` on macOS, `xdg-open` elsewhere); a test that wants the other one builds
-    `PosixProcessControl(opener)` itself. Nothing chooses an implementation by reading the
+    machine (`open` on macOS, `xdg-open` elsewhere), and so does its exclusive rename (renamex_np on
+    macOS, renameat2 on Linux, none elsewhere); a test that wants another one builds
+    `PosixProcessControl(opener)` or `PosixAtomicFiles(rename)` itself. Nothing chooses an implementation by reading the
     environment or by importing a module named in a record. Building a bundle does not
     import the operating-system module it will need, so the wiring can be asserted from either
     platform — constructing the Windows bundle on Linux proves nothing about Windows."""
@@ -1369,8 +1454,10 @@ def detect(name: str | None = None) -> Platform:
                        WindowsProcessControl(), WindowsRunControl())
     if chosen == "posix":
         opener = "open" if sys.platform == "darwin" else "xdg-open"
-        return _Bundle("posix", PosixFileLocks(), PosixAtomicFiles(), PosixProcessControl(opener),
-                       PosixRunControl())
+        rename = ("renamex_np" if sys.platform == "darwin"
+                  else "renameat2" if sys.platform.startswith("linux") else None)
+        return _Bundle("posix", PosixFileLocks(), PosixAtomicFiles(rename),
+                       PosixProcessControl(opener), PosixRunControl())
     raise ValueError(f"unknown platform {name!r}; expected 'posix' or 'windows'")
 
 

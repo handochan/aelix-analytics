@@ -6,7 +6,7 @@ import plotly.express as px
 mix = duckdb.sql(
     """
     SELECT region, channel, sum(revenue) / 1e6 AS revenue_m
-    FROM 'data/raw/sales.parquet'
+    FROM 'data/imported/sales.parquet'
     WHERE year(order_date) = 2025
     GROUP BY ALL
     ORDER BY region, channel

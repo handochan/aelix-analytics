@@ -90,10 +90,14 @@ jobs:
       matrix:
         os: ${{ fromJSON(github.event.action == 'labeled' && '["macos-26"]' || (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.macos)) && '["ubuntu-24.04","windows-2025","macos-26"]' || '["ubuntu-24.04","windows-2025"]') }}
     steps:
+      # The whole history: tests/test_eval_fixtures.py makes the v1 fixtures' kit from an older commit of
+      # this repository (tools/eval_fixtures.py V1_KIT_COMMIT, git archive; design OQ7), which a shallow
+      # checkout does not hold.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           version: "0.11.19"
@@ -131,10 +135,13 @@ jobs:
       # and a session's end deletes the older runs' directories. On Windows deleting the repository
       # suite's tree took longer than this leg's limit (PR #50, run 37319341748), so each leg here has
       # its own root outside the uploaded ci/ directory, which pytest clears at start, not at end.
+      # The evidence directory keeps what tests/test_agent_cli.py saw the shells' children record (T22).
       - name: aelix 0.1.0b2 integration, CPython 3.12
         if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
         timeout-minutes: 12
-        run: uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread --basetemp "${{ runner.temp }}/pytest-aelix-py3.12" --junitxml "${{ runner.temp }}/ci/aelix-py3.12.xml" tests/test_extension.py tests/test_usage_report.py
+        env:
+          AELIX_ANALYTICS_TEST_EVIDENCE_DIR: ${{ runner.temp }}/ci/evidence-aelix-py3.12
+        run: uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread --basetemp "${{ runner.temp }}/pytest-aelix-py3.12" --junitxml "${{ runner.temp }}/ci/aelix-py3.12.xml" tests/test_extension.py tests/test_usage_report.py tests/test_agent_cli.py
       # What the extension gives a model, measured on synthetic fixtures (Issue #11): a report, not a
       # gate. It exits 0 when a target is exceeded or a fact is lost; tests/test_usage_report.py in
       # the two integration steps judges. Its trust list and uv are inside its own temporary
@@ -146,7 +153,9 @@ jobs:
       - name: aelix 0.1.0b2 integration, CPython 3.11
         if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
         timeout-minutes: 12
-        run: uv run --isolated --no-project --python 3.11 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread --basetemp "${{ runner.temp }}/pytest-aelix-py3.11" --junitxml "${{ runner.temp }}/ci/aelix-py3.11.xml" tests/test_extension.py tests/test_usage_report.py
+        env:
+          AELIX_ANALYTICS_TEST_EVIDENCE_DIR: ${{ runner.temp }}/ci/evidence-aelix-py3.11
+        run: uv run --isolated --no-project --python 3.11 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread --basetemp "${{ runner.temp }}/pytest-aelix-py3.11" --junitxml "${{ runner.temp }}/ci/aelix-py3.11.xml" tests/test_extension.py tests/test_usage_report.py tests/test_agent_cli.py
       - name: The launcher on the entry-point floor, CPython 3.11
         if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
         timeout-minutes: 5

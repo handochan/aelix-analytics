@@ -197,8 +197,8 @@ def korean_project(tmp_path: Path):
 def rendered_pages(root: Path) -> dict[str, str]:
     code, rendered = kit_cli(root, "render")
     assert code == 0, rendered
-    return {p.relative_to(root / "report").as_posix(): p.read_text(encoding="utf-8")
-            for p in (root / "report").rglob("*.html")}
+    return {p.relative_to(root / "workspace").as_posix(): p.read_text(encoding="utf-8")
+            for p in (root / "workspace").rglob("*.html")}
 
 
 def test_a_korean_project_keeps_its_text_and_gets_english_labels(tmp_path):
@@ -208,8 +208,8 @@ def test_a_korean_project_keeps_its_text_and_gets_english_labels(tmp_path):
     # The run recorded the decomposed names as they are on disk.
     run = json.loads((root / "runs" / run_id / "run.json").read_text(encoding="utf-8"))
     assert DERIVED in [o["path"] for o in run["outputs"]], run["outputs"]
-    assert run["charts"][0]["title"] == CHART_TITLE and run["charts"][0]["caption"] == CAPTION
-    assert run["charts"][0]["data_columns"] == ["지역", "매출"]
+    assert run["visualizations"][0]["title"] == CHART_TITLE and run["visualizations"][0]["caption"] == CAPTION
+    assert run["visualizations"][0]["data_columns"] == ["지역", "매출"]
 
     # status: the JSON the CLI gives (and analytics_status reads), then its text.
     code, out = kit_cli(root, "status")
@@ -219,7 +219,7 @@ def test_a_korean_project_keeps_its_text_and_gets_english_labels(tmp_path):
     datasets = {d["path"]: d for d in st["datasets"]}
     assert datasets[DERIVED]["name"] == DERIVED_NAME
     assert unicodedata.normalize("NFC", DERIVED) not in datasets
-    raw = datasets["data/raw/sales.parquet"]
+    raw = datasets["data/imported/sales.parquet"]
     assert raw["description"] == DESCRIPTION and Path(raw["source"]).parts[-2:] == SOURCE_PARTS
     assert [r["title"] for r in st["runs"]] == [RUN_TITLE]
     assert [(c["key"], c["title"]) for c in st["charts"]] == [("scripts/01_region.py::region-sales",
@@ -376,7 +376,7 @@ def test_a_new_project_and_its_empty_workspace_are_english(tmp_path):
     project = core.init_project(root, template_dir=TEMPLATE, origin=core.Origin("test", "sdk"))
     files = {name: (root / name).read_text(encoding="utf-8")
              for name in ("CONTEXT.md", "pyproject.toml", ".gitignore", ".gitattributes",
-                          "journal.jsonl", "lab.json")}
+                          "journal.jsonl", "analytics.json")}
     assert 'name = "analytics-q3-review"' in files["pyproject.toml"]
     _, included, omitted, _ = core.context_selection(core.context_file_text(project))
     assert [s["name"] for s in included if s["pinned"]] == ["Goal", "Analysis focus", "Next steps"]
@@ -385,7 +385,7 @@ def test_a_new_project_and_its_empty_workspace_are_english(tmp_path):
     assert core.status(project)["project"]["goal"] == ""
     code, rendered = kit_cli(root, "render")
     assert code == 0, rendered
-    pages = {p.name: p.read_text(encoding="utf-8") for p in (root / "report").rglob("*.html")}
+    pages = {p.name: p.read_text(encoding="utf-8") for p in (root / "workspace").rglob("*.html")}
     texts = {**files, "context block": core.context_block(project),
              "status": core.status_text(core.status(project)), **pages}
     assert {name: HANGUL.findall(text) for name, text in texts.items() if HANGUL.search(text)} == {}
@@ -395,6 +395,11 @@ def test_a_new_project_and_its_empty_workspace_are_english(tmp_path):
                   "No workflow feedback yet.", "No tool calls recorded by the aelix extension.",
                   'aria-label="Filter by kind"'):
         assert empty in index, empty
+    # The kind the empty Evaluation tab names is the one the entry points take (design 2.8): `gap`
+    # is refused with its new name.
+    feedback = index[index.index("No workflow feedback yet."):].split("</div>", 1)[0]
+    assert "/analytics record workflow_feedback TEXT" in feedback, feedback
+    assert 'analytics_record(kind="workflow_feedback")' in feedback and "gap" not in feedback, feedback
     # A Korean title is the project's own text: the uv project name keeps its ASCII part only.
     titled = core.init_project(tmp_path / "titled", title="새 분석 Q3", template_dir=TEMPLATE,
                                origin=core.Origin("test", "sdk"))
@@ -410,7 +415,7 @@ def test_the_demo_is_english(tmp_path):
     seen = {}
     for path in sorted(root.rglob("*")):
         rel = path.relative_to(root).as_posix()
-        if (not path.is_file() or rel.startswith((".venv/", "report/assets/plotly"))
+        if (not path.is_file() or rel.startswith((".venv/", "workspace/assets/plotly"))
                 or path.suffix not in (".md", ".json", ".jsonl", ".py", ".html", ".csv", ".txt",
                                        ".toml", ".js", ".css")):
             continue
@@ -421,6 +426,25 @@ def test_the_demo_is_english(tmp_path):
     assert titles == {"Monthly revenue trend", "Channel mix by region in 2025", "Growth by region",
                       "Rerun comparison of the monthly revenue"}
     assert core.status(core.Project(root))["project"]["goal"].startswith("Find out how fast")
+    # S9 for the demo (review of PR 3): every record it writes is the new format's and valid against
+    # the record schema, under the new layout's names, and its answer carries a request_id (4.9).
+    from jsonschema import Draft202012Validator, FormatChecker
+
+    from aelix_analytics import writer
+
+    schema = json.loads((PACK / "docs" / "schemas" / "analytics-records.schema.json").read_text(encoding="utf-8"))
+    validator = Draft202012Validator(schema, format_checker=FormatChecker())
+    records = [json.loads(line) for line in (root / "journal.jsonl").read_text(encoding="utf-8").splitlines()]
+    records += [json.loads(p.read_text(encoding="utf-8")) for p in (*root.glob("runs/*/run.json"),
+                                                                     *root.glob("data/imported/*.meta.json"),
+                                                                     root / "analytics.json")]
+    for record in records:
+        assert [e.message for e in validator.iter_errors(record)] == [], record
+    assert {r["schema"] for r in records} == {"analytics.event/2", "analytics.run/2", "analytics.dataset/1",
+                                              "analytics.project/2"}
+    for name in ("lab.json", ".lab", "report", "data/raw"):
+        assert not (root / name).exists(), name
+    assert writer.REQUEST_ID_RE.fullmatch(result["request_id"]), result
 
 
 # --- the pin marks and the goal heading -----------------------------------------------------------

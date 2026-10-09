@@ -211,6 +211,15 @@ def test_the_wheel_metadata(dist):
     assert "[aelix.extensions]\naelix-analytics = aelix_analytics.extension:setup" in points
 
 
+def test_the_current_contract_names_the_kit_s_version():
+    """The current contract's distribution row states the version (CONTRACTS E): kept equal to
+    KIT_VERSION and pyproject.toml, which a version bump changes together (review of PR 3: one bump
+    missed the sentence)."""
+    text = (PACK / "docs" / "CONTRACTS.md").read_text(encoding="utf-8")
+    assert f"버전은 {core.KIT_VERSION}입니다(`KIT_VERSION`, manifest와 같음)" in text
+    assert pyproject()["project"]["version"] == core.KIT_VERSION
+
+
 def test_the_manifest_agrees_with_the_distribution(dist):
     with zipfile.ZipFile(dist["wheel"]) as wheel:
         manifest = tomllib.loads(wheel.read("aelix_analytics/aelix-plugin.toml").decode("utf-8"))
@@ -463,7 +472,10 @@ def test_aelix_binds_and_loads_the_installed_extension(dist, tmp_path, python):
     assert copy["tools"] == ["analytics_import", "analytics_init", "analytics_query", "analytics_record",
                              "analytics_run", "analytics_status"]
     assert copy["commands"] == ["analytics"] and copy["flags"] == ["analytics-project"]
-    assert sum(copy["handlers"].values()) == 4
+    # One handler per event, user_bash among them since kit 0.8.0 (a person's `!` kit command,
+    # CONTRACTS A): the set tests/test_extension.py reads from the file's own load, each once.
+    assert copy["handlers"] == {"before_agent_start": 1, "tool_execution_start": 1, "tool_execution_end": 1,
+                                "agent_end": 1, "user_bash": 1}
     assert seen["errors"] == [] and seen["analysis"] == []
     # The extension's own package, its __init__ that imports nothing of the kit, and _install: core
     # and _platform come from the runtime root under a synthetic name (ADR-0003), not this package.
@@ -650,8 +662,9 @@ def test_the_installed_command_drives_a_project_without_aelix(dist, tmp_path, py
     assert f"ROOT {kit}" in tail
     assert f"PYTHONPATH {kit}" in tail.splitlines(), tail
     assert "RUN None" not in tail
-    [chart] = record["charts"]
-    assert chart["id"] == "by-region" and chart.get("data")
+    [chart] = record["visualizations"]
+    assert record["schema"] == "analytics.run/2"
+    assert chart["visualization_id"] == "by-region" and chart.get("data")
     journal = [json.loads(line) for line in
                (project / "journal.jsonl").read_text(encoding="utf-8").splitlines()]
     [finding] = [e for e in journal if e["kind"] == "finding"]

@@ -9,16 +9,22 @@ Q9(S/M 규모), Q10(분석 검사 예제), Q13(참고 세션 재현)이 이 fixt
 개발 환경에서 실행한다(분석 라이브러리가 필요하다). `--out`은 새 디렉터리나 빈 디렉터리여야 한다.
 
 ```sh
-uv run --locked python tools/eval_fixtures.py scale --scale S --seed 0 --out DIR
-uv run --locked python tools/eval_fixtures.py scale --scale M --seed 0 --out DIR
-uv run --locked python tools/eval_fixtures.py q10 --seed 0 --out DIR
-uv run --locked python tools/eval_fixtures.py q13 --seed 0 --out DIR
+git worktree add --detach KIT ebd10b644e8cb8550ccf6446b134666db6bb9386   # V1_KIT_COMMIT의 kit(manifest의 kit_commit)
+uv run --locked python tools/eval_fixtures.py scale --scale S --seed 0 --kit-root KIT/src --out DIR
+uv run --locked python tools/eval_fixtures.py scale --scale M --seed 0 --kit-root KIT/src --out DIR
+uv run --locked python tools/eval_fixtures.py q10 --seed 0 --kit-root KIT/src --out DIR
+uv run --locked python tools/eval_fixtures.py q13 --seed 0 --kit-root KIT/src --out DIR
 uv run --locked python tools/eval_fixtures.py check DIR
 uv run --locked python tools/eval_fixtures.py environment --out FILE --disk DIR --cache-state cold --browser chrome=141.0
 ```
 
-`--format`은 `v1`(지금 kit이 쓰는 `lab.*/1` 기록)만 된다. `v2`는 #13의 writer가 병합된 뒤 같은 계획으로 쓴다. 종료 코드는 0(성공),
-1(kit 오류나 `check`가 찾은 문제), 2(사용법 오류: 비어 있지 않은 `--out`, 아직 없는 형식)다. 생성기는 Polars를 한 스레드로
+`--format`은 `v1`(`lab.*/1` 기록)만 된다. kit 0.8.0([#13](https://github.com/handochan/aelix-analytics/issues/13)의 셋째 PR)부터
+이 저장소의 kit은 `/1`을 쓰지 않으므로, `v1`은 `--kit-root`로 준 그 전 kit의 실행 루트(`src/`)가 쓴다([설계](../../docs/design/RECORD-WRITER-AND-MIGRATION.md)
+OQ7). 시험과 CI는 `tools/eval_fixtures.py`의 `V1_KIT_COMMIT`을 `git archive`로 꺼내 쓰고(CI의 플랫폼 job은 그래서 전체 이력을 가져온다),
+`manifest.json`의 `kit_commit`이 그 kit의 커밋이다(실행 루트가 git 작업 트리 맨 위의 `src/`이고 바뀐 것이 없을 때만. 꺼낸 사본처럼 알 수 없으면 null이고, kit의 번호는 늘 적는다). `--kit-root` 없이 `v1`을
+부르면 그것을 알리는 사용법 오류다. `v2`는 같은 계획으로 새 writer가 쓰게 될 형식이고 아직 없다. `check`와 `environment`는 이 체크아웃의
+kit으로 읽는다. 종료 코드는 0(성공), 1(kit 오류나 `check`가 찾은 문제), 2(사용법 오류: 비어 있지 않은 `--out`, 아직 없는 형식,
+`--kit-root` 없는 `v1`)다. 생성기는 Polars를 한 스레드로
 돌린다(`POLARS_MAX_THREADS=1`): 여러 스레드의 group_by는 부동소수 합의 순서가 실행마다 달라 마지막 비트가 바뀐다. Python
 API(`generate_scale`·`generate_q10`·`generate_q13`·`check`·`tree_digest`·`environment_record`)는 Polars를 여러 스레드로 이미 불러온
 프로세스에서는 생성을 거절한다. 생성 중에는 신뢰 목록과 uv를 임시 디렉터리로 돌려 사용자의 것을 건드리지 않는다. 생성이 실패하면
@@ -55,7 +61,7 @@ schema는 [`schemas/`](schemas/)에 있다: [manifest](schemas/manifest.schema.j
 
 ## 기록을 만드는 방법
 
-기록의 바이트는 kit의 /1 writer 함수가 쓴다. 프로젝트 생성(`core.init_project`)·가져오기(`data.import_file`)·journal 기록(`core.add_note`,
+기록의 바이트는 `--kit-root`로 준 kit의 /1 writer 함수가 쓴다. 프로젝트 생성(`core.init_project`)·가져오기(`data.import_file`)·journal 기록(`core.add_note`,
 `core.append_event`)은 모두 실제 kit이다. q10·q13의 모든 run과 규모 fixture의 run 3개는 kit이 스크립트를 실행한다(`runner.execute`,
 스크립트는 [`scripts/`](scripts/)). 규모 fixture의 나머지 run은 실행하지 않고 run 디렉터리와 기록을 만들어 kit의 `core.write_json`으로
 쓴다(실행한 run과 키·순서가 같은지 `tests/test_eval_fixtures.py`가 확인). 그 run의 코드는 기록이 말하는 입력을 읽고(파생 표는 경로

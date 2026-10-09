@@ -38,6 +38,7 @@ import os
 import re
 import signal
 import stat
+import sys
 import textwrap
 import threading
 import time
@@ -60,6 +61,10 @@ SEES_PROCESSES = "sees running processes"
 INTERRUPTS = "interrupts a region"
 # publish_new makes the new name by a hard link, so a failing link is the file system's (POSIX).
 LINKS = "publishes by a link"
+# rename_new has a rename that refuses a taken name here: Linux's renameat2, macOS's renamex_np,
+# Windows' rename (Issue #13 PR 3); the POSIX implementation has none on another system.
+RENAMES = "renames without replacing"
+_POSIX_RENAMES = sys.platform == "darwin" or sys.platform.startswith("linux")
 # A folder's permissions stop a file being created in it (POSIX, as a user other than root; Windows'
 # read-only attribute on a folder does not).
 FOLDER_PERMISSIONS = "honours a folder's permissions"
@@ -80,12 +85,13 @@ IMPLEMENTATIONS: dict[str, Implementation] = {
     impl.name: impl for impl in (
         Implementation("posix", lambda: _platform.detect("posix"), os.name != "nt",
                        "the POSIX implementation runs on the Linux and macOS legs",
-                       REAL | {LINKS} | ({FOLDER_PERMISSIONS} if _NOT_ROOT else set())),
+                       REAL | {LINKS} | ({FOLDER_PERMISSIONS} if _NOT_ROOT else set())
+                       | ({RENAMES} if _POSIX_RENAMES else set())),
         Implementation("windows", lambda: _platform.detect("windows"), os.name == "nt",
-                       "the Windows implementation runs on the Windows leg", REAL),
+                       "the Windows implementation runs on the Windows leg", REAL | {RENAMES}),
         # In this process only: its lock excludes nothing outside it, alive is False for every pid,
-        # and its guard never interrupts.
-        Implementation("recording", lambda: recording_platform()[0], True, "", frozenset()),
+        # and its guard never interrupts. Its rename_new is a link and an unlink in this process.
+        Implementation("recording", lambda: recording_platform()[0], True, "", frozenset({RENAMES})),
     )}
 
 PORTS = {"locks": _platform.FileLocks, "files": _platform.AtomicFiles,
@@ -476,6 +482,78 @@ def test_a_file_system_without_links_is_told_and_nothing_changes(implementation,
     assert src.read_bytes() == b"bytes" and not dst.exists()
 
 
+def test_renaming_to_a_new_name_puts_the_bytes_there_and_the_old_name_goes(implementation, tmp_path):
+    """rename_new (Issue #13 PR 3, owner's decision of 2026-10-08): the marker's publication where
+    the file system has no links — the bytes under the new name, the temporary name gone."""
+    needs(implementation, RENAMES)
+    files = implementation.make().files
+    src, dst = tmp_path / ".analytics-json-0", tmp_path / "analytics.json"
+    src.write_bytes(b'{"schema": "analytics.project/2"}\n')
+    files.rename_new(src, dst)
+    assert dst.read_bytes() == b'{"schema": "analytics.project/2"}\n' and not src.exists()
+    src.write_bytes(b"x")
+    files.rename_new(str(src), str(tmp_path / "other.json"))
+    assert (tmp_path / "other.json").read_bytes() == b"x" and not src.exists()
+
+
+@pytest.mark.parametrize("there", ["file", "directory", "empty file"])
+def test_renaming_never_overwrites_what_is_there(implementation, tmp_path, there):
+    """A name taken meanwhile keeps what is there, and the temporary file stays for its ledger line
+    to name: FileExistsError, nothing changed (a rename that replaces would lose a person's file)."""
+    needs(implementation, RENAMES)
+    files = implementation.make().files
+    src, dst = tmp_path / ".analytics-json-0", tmp_path / "analytics.json"
+    src.write_bytes(b"the marker")
+    if there == "directory":
+        dst.mkdir()
+    else:
+        dst.write_bytes(b"" if there == "empty file" else b"a person's file")
+    with pytest.raises(OSError) as raised:
+        files.rename_new(src, dst)
+    assert isinstance(raised.value, FileExistsError) or there == "directory", raised.value
+    assert not isinstance(raised.value, _platform.RenameUnsupported)
+    assert src.read_bytes() == b"the marker"
+    if there == "directory":
+        assert dst.is_dir() and not any(dst.iterdir())
+    else:
+        assert dst.read_bytes() == (b"" if there == "empty file" else b"a person's file")
+
+
+@pytest.mark.parametrize("why", ["no call", "ENOTSUP", "EINVAL", "ENOSYS"])
+def test_a_system_without_the_exclusive_rename_is_told_and_nothing_changes(implementation, tmp_path,
+                                                                           arming, why):
+    """Where neither the system nor the file system has a rename that refuses a taken name — a C
+    library without renameat2, a file system that does not take the flag (an exFAT disk image on
+    macOS answered ENOTSUP) — rename_new says so (RenameUnsupported) and changes nothing: the
+    migration then stops before its marker rather than writing it in place."""
+    if implementation.name == "windows":
+        pytest.skip("Windows' rename never replaces: it has no such case")
+    bundle = implementation.make()
+    if implementation.name == "recording":
+        if why != "no call":
+            pytest.skip("the stand-in has no C call to fail")
+        bundle.files.renames = False
+    elif why == "no call":
+        bundle.files.exclusive_rename = None
+    else:
+        import ctypes
+
+        code = getattr(errno, why)
+
+        def refusing(_src, _dst):
+            ctypes.set_errno(code)
+            return -1
+
+        name = "refusing-" + why
+        arming.setitem(_platform._RENAME_CALLS, name, refusing)
+        bundle.files.exclusive_rename = name
+    src, dst = tmp_path / ".analytics-json-0", tmp_path / "analytics.json"
+    src.write_bytes(b"the marker")
+    with pytest.raises(_platform.RenameUnsupported):
+        bundle.files.rename_new(src, dst)
+    assert src.read_bytes() == b"the marker" and not dst.exists()
+
+
 def test_flushing_writes_through_and_hides_no_error(implementation, tmp_path):
     files = implementation.make().files
     path = tmp_path / ".mig-0-0.part"
@@ -678,7 +756,7 @@ def _flow(root: Path, source: Path, platform) -> dict:
     project = core.init_project(root, title="교체 계약", goal="어느 구현이든 같은 기록",
                                 template_dir=TEMPLATE, origin=core.Origin("test", "sdk"), platform=platform)
     data.import_file(project, source, name="sales", description="test data", origin=core.Origin("test", "sdk"))
-    core.add_note(project, "finding", "구현을 바꿔도 같은 기록", refs=["sales"], origin=core.Origin("test", "sdk"))
+    core.record(project, "finding", "구현을 바꿔도 같은 기록", refs=["sales"], origin=core.Origin("test", "sdk"))
     stuck = project.runs / "20260922-101010-left-running"
     stuck.mkdir(parents=True)
     (stuck / "run.json").write_text(json.dumps({"schema": core.SCHEMA_RUN, "status": "running",
@@ -704,7 +782,7 @@ def test_the_injected_implementation_is_the_one_used(implementation, tmp_path, a
 
     assert seen["listed"] == [("20260922-101010-left-running", "incomplete")], seen["listed"]
     replaced = [args[-1] for what, args in calls if what == "files.replace"]
-    assert "sales.parquet" in replaced and "lab.json" in replaced, calls
+    assert "sales.parquet" in replaced and "analytics.json" in replaced, calls
     assert ("locks.exclusive", ("lock",)) in calls, calls
     assert ("processes.alive", (DEAD_PID,)) in calls, calls
 

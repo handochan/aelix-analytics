@@ -81,8 +81,8 @@ def test_real_loader_registers_the_basic_contract_surface():
     assert set(ext.tools) == TOOL_NAMES
     assert set(ext.commands) == {"analytics"}
     assert set(ext.flags) == {"analytics-project"}
-    assert {"before_agent_start", "tool_execution_start", "tool_execution_end",
-            "agent_end"} <= set(ext.handlers)
+    assert set(ext.handlers) == {"before_agent_start", "tool_execution_start", "tool_execution_end",
+                                 "agent_end", "user_bash"}
 
 
 @pytest.mark.parametrize("argv", [["--lab-project", "/a/project"], ["--lab-project=/a/project"]])
@@ -141,11 +141,28 @@ def test_status_note_context_injection_and_telemetry(lab):
     assert not result.is_error and "project: 확장 테스트" in text_of(result)
 
     question = call(tools["analytics_record"], {"kind": "question", "text": "무엇이 달라졌나?"})
-    assert not question.is_error and question.details["id"] == "e3"
+    assert not question.is_error and question.details["event"]["id"] == "e3"
+    # The model's tool writes as the agent, through a tool, in this session (design 4.2), and the
+    # answer holds the request's id (design 4.9).
+    event = question.details["event"]
+    assert (event["actor"], event["actor_basis"], event["means"]) == ("agent", "declared", "tool")
+    assert question.details["request_id"].startswith("req-")
     finding = call(tools["analytics_record"], {"kind": "finding", "text": "3월에 달라졌다", "resolves": "e3",
                                                "refs": ["20260916-010101-x", "sales"]})
-    assert finding.details["refs"] == {"runs": ["20260916-010101-x"], "data": ["sales"],
-                                       "resolves": "e3"}
+    assert [(r["type"], r["relation"], r["version_binding"]) for r in finding.details["event"]["refs"]] == [
+        # `sales` names no dataset here (none was imported): an unbound name (design 4.7, D25).
+        ("run", "cites", "author"), ("visualization_version", "cites", "none"), ("event", "resolves", "author")]
+    assert finding.details["targets"] == [{"event_id": "e3", "relation": "resolves",
+                                           "state_before": "open", "state_after": "resolved"}]
+    assert "resolves e3 (open -> resolved)" in text_of(finding)
+    assert "refs: 20260916-010101-x (author), sales (none)" in text_of(finding)
+    # T13 (design 4.6, OQ11): closing it again is written, and the reply names the record that
+    # closed it before.
+    again = call(tools["analytics_record"], {"kind": "resolve", "text": "다시 닫음", "resolves": "e3"})
+    assert not again.is_error and again.details["targets"] == [{
+        "event_id": "e3", "relation": "resolves", "state_before": "resolved", "state_after": "resolved",
+        "made_by": {"id": finding.details["event"]["id"]}}]
+    assert f"already resolved by {finding.details['event']['id']}" in text_of(again)
     bad = call(tools["analytics_record"], {"kind": "resolve", "text": "x"})
     assert bad.is_error and "resolve_needs_target" in text_of(bad)
 
@@ -162,11 +179,11 @@ def test_status_note_context_injection_and_telemetry(lab):
     module.on_tool_start(ToolExecutionStartHookEvent(tool_call_id="w1", tool_name="write",
                                                      args={"path": str(root / "data/raw/x.parquet")}), ctx)
     module.on_tool_end(ToolExecutionEndHookEvent(tool_call_id="w1", tool_name="write", is_error=True), ctx)
-    lines = [json.loads(line) for line in (root / ".lab/telemetry.jsonl").read_text(encoding="utf-8").splitlines()]
+    lines = [json.loads(line) for line in (root / ".analytics/telemetry.jsonl").read_text(encoding="utf-8").splitlines()]
     assert [(t["tool"], t["flags"], t["error"]) for t in lines] == [
         ("bash", ["python_via_bash"], False), ("write", ["wrote_managed_path"], True)]
     # Written by append_jsonl inside the aelix process (on the 3.11 floor too): LF everywhere (ADR-0007).
-    assert b"\r" not in (root / ".lab/telemetry.jsonl").read_bytes()
+    assert b"\r" not in (root / ".analytics/telemetry.jsonl").read_bytes()
     assert b"\r" not in (root / "journal.jsonl").read_bytes()
 
 
@@ -219,7 +236,7 @@ def test_two_projects_in_one_host_keep_their_own_records(tmp_path, monkeypatch):
     for name, other in (("A", "B"), ("B", "A")):
         assert f"title: 프로젝트 {name}" in blocks[name] and f"{name}에서만 본 것" in blocks[name]
         assert f"프로젝트 {other}" not in blocks[name] and f"{other}에서만" not in blocks[name]
-        telemetry = [json.loads(line) for line in (roots[name] / ".lab" / "telemetry.jsonl")
+        telemetry = [json.loads(line) for line in (roots[name] / ".analytics" / "telemetry.jsonl")
                      .read_text(encoding="utf-8").splitlines()]
         assert [row["tool"] for row in telemetry] == ["analytics_record"], telemetry
         assert f"{name}에서만 본 것" in telemetry[0]["summary"], telemetry
@@ -268,14 +285,14 @@ def test_status_in_the_aelix_process_names_a_linked_data_directory_s_datasets_by
     link is walked as part of the namespace, so analytics_status lists its datasets by project
     paths. On Windows' 3.11 a junction is told by its reparse tag (no DirEntry.is_junction)."""
     module, root = lab
-    (root / "data" / "raw" / "sales.parquet").write_bytes(b"PAR1")
+    (root / "data" / "imported" / "sales.parquet").write_bytes(b"PAR1")
     elsewhere = tmp_path / "bigdisk"
     shutil.move(root / "data", elsewhere)
     dir_link(kind, root / "data", elsewhere)
     result = call(tools_of(module)["analytics_status"], {})
     assert not result.is_error, text_of(result)
     assert [(d["name"], d["path"]) for d in result.details["datasets"]] == \
-        [("sales", "data/raw/sales.parquet")]
+        [("sales", "data/imported/sales.parquet")]
 
 
 def test_a_write_through_a_linked_data_directory_is_flagged_without_a_walk(lab, tmp_path,
@@ -305,7 +322,7 @@ def test_a_write_s_telemetry_lists_no_directory(lab, tmp_path, monkeypatch):
     `inside`), never by listing the directories on its path (head spelled every one: ~100 ms for a
     directory of 200,000 entries). A managed directory stored in another case is that directory."""
     module, root = lab
-    ignores_case = (root / "LAB.JSON").exists()
+    ignores_case = (root / "ANALYTICS.JSON").exists()
     if ignores_case:
         os.rename(root / "runs", root / "runs-tmp")
         os.rename(root / "runs-tmp", root / "Runs")
@@ -319,10 +336,14 @@ def test_a_write_s_telemetry_lists_no_directory(lab, tmp_path, monkeypatch):
 
     monkeypatch.setattr(module.core.os, "scandir", no_listing)
     monkeypatch.setattr(module.core.os, "listdir", no_listing)
+    # The layout's managed names (design 2.3): workspace/ and .analytics/ in an analytics.json
+    # project, where report/ and .lab/ are a person's folders.
     cases = [(root / "data" / "derived" / "x.parquet", True), ("data/raw/y.csv", True),
-             (root / "report" / "index.html", True), (root / "journal.jsonl", True),
+             (root / "workspace" / "index.html", True), (root / "journal.jsonl", True),
+             (root / "analytics.json", True), (root / "report" / "index.html", False),
+             (root / "lab.json", False), (root / ".lab" / "x.json", False),
              (root / "scripts" / "a.py", False), (root / "notes" / "journal.jsonl", False),
-             (outside / "z.csv", False), (tmp_path / "alias" / ".lab" / "x.json", True)]
+             (outside / "z.csv", False), (tmp_path / "alias" / ".analytics" / "x.json", True)]
     if ignores_case:
         cases += [(Path(str(root).swapcase()) / "data" / "w.csv", True),
                   (root / "RUNS" / "r" / "x.txt", True)]
@@ -362,12 +383,23 @@ def test_a_tool_call_s_project_lookup_lists_no_directory_once_warm(lab, monkeypa
 
 
 def test_lab_command_where_help_and_gap(lab):
+    """`/analytics record gap TEXT` (what `/lab gap` was) is refused with the kind's new name
+    (design 2.8: bad_kind, workflow_feedback), nothing written; `/analytics record workflow_feedback`
+    records as a person, through the command, in this session (design 4.2)."""
     module, root = lab
     assert "kit:" in asyncio.run(module.analytics_command("where"))
     assert "/analytics init DIR" in asyncio.run(module.analytics_command("help"))
-    assert "gap recorded" in asyncio.run(module.analytics_command("record gap 차트 id를 한글로 못 붙인다"))
-    events = module.core.read_events(module.core.Project(root))
-    assert events[-1]["kind"] == "gap" and events[-1]["actor"] == "human"
+    journal = (root / "journal.jsonl").read_bytes()
+    said = asyncio.run(module.analytics_command("record gap 차트 id를 한글로 못 붙인다"))
+    assert "error [bad_kind]" in said and "workflow_feedback" in said, said
+    assert (root / "journal.jsonl").read_bytes() == journal
+    said = asyncio.run(module.analytics_command("record workflow_feedback 차트 id를 한글로 못 붙인다"))
+    assert said.endswith(" workflow_feedback recorded"), said
+    event = json.loads((root / "journal.jsonl").read_bytes().splitlines()[-1])
+    assert (event["kind"], event["actor"], event["actor_basis"], event["means"]) == (
+        "workflow_feedback", "human", "declared", "command")
+    help_text = asyncio.run(module.analytics_command("help"))
+    assert "KIND workflow_feedback" in help_text and "analytics migrate --to DIR" in help_text
 
 
 # sha256 of the inline code below as the extension writes it: the same on every platform.
@@ -407,11 +439,15 @@ def test_import_query_and_run_through_the_project_environment(lab, tmp_path):
     body = text_of(ran)
     assert not ran.is_error, body
     assert body.startswith("analytics_run: ok — run ")
-    assert "data/raw/sales.parquet" in body and "via lab.sql" in body
+    assert "data/imported/sales.parquet" in body and "via analytics.sql" in body
     assert "scripts/01_by_region.py::by-region" in body
     assert any(isinstance(c, ImageContent) for c in ran.content)
     run_id = ran.details["run"]["id"]
-    assert (root / "report" / "runs" / f"{run_id}.html").is_file()
+    assert (root / "workspace" / "runs" / f"{run_id}.html").is_file()
+    # The kit child the tool started recorded the run as the agent's, through a tool (design 4.2:
+    # AELIX_ANALYTICS_MEANS from the extension).
+    assert (ran.details["run"]["actor"], ran.details["run"]["actor_basis"], ran.details["run"]["means"]) == (
+        "agent", "declared", "tool")
     # Inline code is text the kit writes (ADR-0007 decision 2): LF, so its sha256 is this constant on
     # every leg (7 ②); code sent with CR line ends is written with LF and runs the same.
     assert (root / "scripts" / "01_by_region.py").read_bytes() == code.encode("utf-8")
@@ -535,7 +571,7 @@ def test_a_project_the_user_never_chose_is_not_activated(tmp_path, monkeypatch):
     module.on_tool_start(ToolExecutionStartHookEvent(tool_call_id="x", tool_name="bash",
                                                      args={"command": "python x.py"}), SimpleNamespace())
     module.on_tool_end(ToolExecutionEndHookEvent(tool_call_id="x", tool_name="bash"), SimpleNamespace())
-    assert not (root / ".lab" / "telemetry.jsonl").exists()
+    assert not (root / ".analytics" / "telemetry.jsonl").exists()
 
     assert "active project" in asyncio.run(module.analytics_command(f"use {root}"))
     after = fresh_module()  # a later session finds it trusted
@@ -587,7 +623,7 @@ def test_a_run_over_many_inputs_still_shows_stdout_and_says_what_it_hid():
                             "via": "lab.chart", "data": True, "data_rows": 5,
                             "files": {"png": f"runs/20260916-100727-01-build/charts/c{i}.png"}}
                            for i in range(5)]},
-        "stdout_tail": "STDOUT-MARKER parts 503\n", "event": "e7", "page": "report/runs/x.html"}
+        "stdout_tail": "STDOUT-MARKER parts 503\n", "event": "e7", "page": "workspace/runs/x.html"}
 
     text = module.render_run(project, value, (3, 5))
     assert len(text) < module.MAX_TEXT and "(truncated" not in text
@@ -639,7 +675,7 @@ def _many(module, root: Path, status="ok", stderr_tail="", stdout_tail="STDOUT\n
                 "warnings": [f"warning {i}" for i in range(14)],
                 "stdout": f"runs/{run_id}/stdout.txt", "stderr": f"runs/{run_id}/stderr.txt"},
         "stdout_tail": stdout_tail, "stderr_tail": stderr_tail, "event": "e7",
-        "page": f"report/runs/{run_id}.html"}
+        "page": f"workspace/runs/{run_id}.html"}
 
 
 def test_a_run_reply_says_where_each_list_and_log_it_shortens_is(lab):
@@ -878,22 +914,134 @@ def test_a_query_reply_counts_rows_not_lines(lab, monkeypatch):
     assert len(reply) + len(rows[shown]) + 1 > module.MAX_TEXT  # one more would not fit
 
 
-def test_a_note_cut_to_the_journal_limit_says_so(lab):
-    """Issue #11 G9 (D11): a note longer than 4,000 characters is recorded cut (C1); the replies
-    of analytics_record, /analytics record and /analytics record gap say so. aelix_analytics record and
-    analytics.record() do not change."""
+def test_a_record_is_kept_whole_or_refused_never_cut(lab):
+    """design 2.9 (OQ2): a record's text is kept whole up to 32 KiB of UTF-8, and refused over it —
+    text_too_long, nothing written — by analytics_record and /analytics record alike. The journal
+    holds no cut text, and no reply says one was cut (kit 0.8.0; before it a note was cut at 4,000
+    characters)."""
     module, root = lab
-    text = "근거와 한계를 함께 적는다. " * 300 + "END"
-    said = (f"Truncated: the note has {len(text):,} characters and only the first 4,000 were "
-            "recorded; the rest is not in the journal — record it as another note")
-    reply = text_of(call(tools_of(module)["analytics_record"], {"kind": "finding", "text": text}))
-    assert reply.split("\n")[1] == said
-    assert asyncio.run(module.analytics_command(f"record finding {text}")).endswith(f" — {said}")
-    assert asyncio.run(module.analytics_command(f"record gap {text}")).endswith(f" — {said}")
-    events = module.core.read_events(module.core.Project(root))
-    assert [len(e["text"]) for e in events[-3:]] == [4000] * 3
-    assert "Truncated" not in text_of(call(tools_of(module)["analytics_record"],
-                                           {"kind": "finding", "text": "short"}))
+    long = "근거와 한계를 함께 적는다. " * 300 + "END"
+    reply = call(tools_of(module)["analytics_record"], {"kind": "finding", "text": long})
+    assert not reply.is_error and "Truncated" not in text_of(reply)
+    assert module.core.read_events(module.core.Project(root))[-1]["text"] == long
+    journal = (root / "journal.jsonl").read_bytes()
+    too_long = "가" * (module.core.writer.TEXT_LIMIT // 3 + 1)
+    refused = call(tools_of(module)["analytics_record"], {"kind": "finding", "text": too_long})
+    assert refused.is_error and refused.details["error"]["code"] == "text_too_long"
+    assert refused.details["error"]["details"]["text_bytes"] == len(too_long.encode("utf-8"))
+    said = asyncio.run(module.analytics_command(f"record finding {too_long}"))
+    assert "error [text_too_long]" in said, said[:300]
+    assert (root / "journal.jsonl").read_bytes() == journal
+    assert not hasattr(module, "note_cut") and not hasattr(module.core, "MAX_EVENT_TEXT")
+
+
+def test_a_gap_record_from_the_model_is_stopped_before_and_by_the_tool(lab):
+    """design 2.8: the tool's kind enum is writer.RECORD_KINDS, which has no `gap`. aelix 0.1.0b2
+    checks a call's arguments against the tool's schema before the tool runs (the agent loop's
+    validate_tool_arguments), so the model is shown the enum, workflow_feedback in it. A call that
+    reaches the tool all the same (a host that does not check) is refused as bad_kind naming
+    workflow_feedback, and nothing is written."""
+    from aelix_ai.tools import ToolArgumentValidationError, validate_tool_arguments
+
+    module, root = lab
+    tool = tools_of(module)["analytics_record"]
+    assert tool.parameters["properties"]["kind"]["enum"] == list(module.core.writer.RECORD_KINDS)
+    with pytest.raises(ToolArgumentValidationError) as caught:
+        asyncio.run(validate_tool_arguments(tool, {"kind": "gap", "text": "the tools got in the way"}))
+    assert "'gap' is not one of" in str(caught.value) and "workflow_feedback" in str(caught.value)
+    journal = (root / "journal.jsonl").read_bytes()
+    refused = call(tool, {"kind": "gap", "text": "the tools got in the way"})
+    assert refused.is_error and refused.details["error"]["code"] == "bad_kind"
+    assert refused.details["error"]["details"]["use"] == "workflow_feedback"
+    assert (root / "journal.jsonl").read_bytes() == journal
+
+
+@pytest.mark.parametrize("args, code", [
+    ({"kind": "note", "text": "\x01" * 9000 + "x"}, "text_too_long"),
+    ({"kind": "finding", "text": "x", "resolves": "e999"}, "unknown_event"),
+    ({"kind": "resolve", "text": "closes nothing"}, "resolve_needs_target"),
+], ids=["line", "unknown target", "no target"])
+def test_a_record_the_tool_refuses_leaves_the_context_unsynced(lab, args, code):
+    """analytics_record judges what the writer refuses before its lock — a line over 50 KiB from a
+    text under 32 KiB, a closed record that is not there, a `resolve` without one — before the
+    context sync (core.check_record): CONTEXT.md changed, and no `context` event or version is
+    written for a record that is refused."""
+    module, root = lab
+    with (root / "CONTEXT.md").open("a", encoding="utf-8") as fh:
+        fh.write("more\n")
+    before = ext_snapshot(root)
+    refused = call(tools_of(module)["analytics_record"], args)
+    assert refused.is_error and refused.details["error"]["code"] == code, text_of(refused)
+    assert ext_snapshot(root) == before
+
+
+@pytest.mark.parametrize("above", ["project", "migration"])
+@pytest.mark.parametrize("how", ["analytics_init", "/analytics init", "/analytics demo"])
+def test_a_new_project_inside_a_project_is_refused_by_the_extension(lab, monkeypatch, how, above):
+    """OQ9 through the extension's tool and commands: a directory inside a project, or inside a
+    migration's destination that has not committed (`migration`: a migration directory and its lock,
+    no marker; the owner's decision of 2026-10-09), is refused (destination_invalid, inside_project)
+    before anything is made — no directory, no environment, no change to the folder above."""
+    module, root = lab
+    if above == "migration":
+        root = root.parent / "unfinished"
+        (root / ".analytics" / "migration" / "20261009T000000Z-0a1b2c3d").mkdir(parents=True)
+        (root / ".analytics" / "migration.lock").write_bytes(b"")
+    monkeypatch.setattr(module, "sync_environment", lambda project: pytest.fail("synced"))
+    before = ext_snapshot(root)
+    target = root / "inner" / "new"
+    said_inside = "inside the project" if above == "project" else "a migration that has not committed"
+    if how == "analytics_init":
+        result = call(tools_of(module)["analytics_init"], {"path": str(target)})
+        assert result.is_error and result.details["error"]["code"] == "destination_invalid"
+        assert result.details["error"]["details"]["reason"] == "inside_project"
+        assert said_inside in text_of(result), text_of(result)
+    else:
+        said = asyncio.run(module.analytics_command(f"{how.split()[1]} {target}"))
+        assert "error [destination_invalid]" in said and said_inside in said, said
+    assert not (root / "inner").exists() and ext_snapshot(root) == before
+
+
+def test_analytics_init_answers_with_its_request_id(tmp_path, monkeypatch):
+    """design 4.9: the tool's details carry the request_id of the init's records (the kit made it:
+    in the answer only)."""
+    module = fresh_module()
+    monkeypatch.setenv("AELIX_ANALYTICS_TRUST_FILE", str(tmp_path / "trust.json"))
+
+    async def synced(project):
+        return False, "not run in this test"
+
+    monkeypatch.setattr(module, "sync_environment", synced)
+    result = call(tools_of(module)["analytics_init"], {"path": str(tmp_path / "made")})
+    assert not result.is_error, text_of(result)
+    assert module.core.writer.REQUEST_ID_RE.fullmatch(result.details["request_id"])
+    events = module.core.read_events(module.core.Project(tmp_path / "made"))
+    assert not [e for e in events if "request_id" in e]
+
+
+def test_open_shows_a_lab_json_project_s_page_and_says_it_is_not_updated(tmp_path, monkeypatch):
+    """design 7: /analytics open in a lab.json project opens the page an older kit built, says this kit
+    does not update it, and builds nothing (no kit child)."""
+    from legacy_records import LegacyProject
+
+    module = fresh_module()
+    monkeypatch.setenv("AELIX_ANALYTICS_TRUST_FILE", str(tmp_path / "trust.json"))
+    root = LegacyProject(tmp_path / "older").root
+    (root / "report").mkdir()
+    (root / "report" / "index.html").write_text("<html>", encoding="utf-8")
+    monkeypatch.setenv("AELIX_ANALYTICS_PROJECT", str(root))
+    opened = []
+    monkeypatch.setattr(module.core.PLATFORM.processes, "open_document",
+                        lambda path, wait: opened.append(path))
+
+    async def no_kit(*args, **kwargs):
+        pytest.fail("the kit was started")
+
+    monkeypatch.setattr(module, "run_kit", no_kit)
+    before = ext_snapshot(root)
+    said = asyncio.run(module.analytics_command("open"))
+    assert said.startswith(f"opened {root / 'report' / 'index.html'} (not updated: this kit reads")
+    assert opened == [root / "report" / "index.html"] and ext_snapshot(root) == before
 
 
 def test_an_error_says_what_its_details_leave_out(lab, monkeypatch):
@@ -1011,7 +1159,8 @@ NEW_MARKER = {"schema": "analytics.project/2", "project_id": "prj_7f3a9c2e41d84b
 # A column: the markers of a project the extension made (lab.json, analytics.json; None removes it,
 # bytes are written as they are) and what a write is refused with there. `both` refuses reads too.
 EXT_COLUMNS = {
-    "analytics_2": (None, NEW_MARKER, "project_too_new"),
+    "lab_project_1": ({"schema": "lab.project/1", "title": "t"}, None, "migration_required"),
+    "analytics_2_too_old": (None, {**NEW_MARKER, "min_writer_version": "99.0"}, "writer_too_old"),
     "lab_project_9": ({"schema": "lab.project/9", "title": "t"}, None, "project_too_new"),
     "analytics_invalid": (None, b'{"schema": "analytics.pro', "marker_invalid"),
     "both": ({"schema": "lab.project/1", "title": "t"}, NEW_MARKER, "marker_conflict"),
@@ -1044,7 +1193,7 @@ def test_the_extension_writes_only_where_the_kit_may(tmp_path, monkeypatch, colu
                              origin=module.core.Origin("test", "sdk"))
     (root / "CONTEXT.md").write_text("# changed since the last version\n", encoding="utf-8")
     lab_value, new_value, refused = EXT_COLUMNS[column]
-    (root / "lab.json").unlink()
+    (root / "analytics.json").unlink()
     for name, value in (("lab.json", lab_value), ("analytics.json", new_value)):
         if value is not None:
             (root / name).write_bytes(value if isinstance(value, bytes) else json.dumps(value).encode())
@@ -1054,7 +1203,7 @@ def test_the_extension_writes_only_where_the_kit_may(tmp_path, monkeypatch, colu
     source.write_text("a,b\n1,2\n", encoding="utf-8")
     kit_calls, started = [], []
 
-    async def no_kit(project, args, *, timeout, actor="agent"):
+    async def no_kit(project, args, *, timeout, actor="agent", means="tool"):
         kit_calls.append(args[0])
         return True, {"ok": True, "columns": [], "rows": [], "truncated": False, "limit": 50,
                       "tables": [], "views": {}, "elapsed_ms": 0}
@@ -1081,6 +1230,8 @@ def test_the_extension_writes_only_where_the_kit_may(tmp_path, monkeypatch, colu
     status = tool_row("analytics_status", {}, read=True)
     if not reads_refused:
         assert "\nread only: " in text_of(status)
+        # A lab.json project says how a person copies it into the current format (design 7).
+        assert (column == "lab_project_1") is (module.core.OLDER_FORMAT_LINE in text_of(status))
     tool_row("analytics_query", {"sql": "SELECT 1"}, read=True)
     assert kit_calls == ([] if reads_refused else ["query"])
 
@@ -1120,13 +1271,15 @@ def test_the_extension_writes_only_where_the_kit_may(tmp_path, monkeypatch, colu
 
 def test_the_extension_finds_the_nearest_marker_from_the_working_directory(tmp_path, monkeypatch):
     """design 4.3: an analytics.json directory below a lab.json project, as aelix's working
-    directory, is that directory — the extension does not write to the project above it."""
+    directory, is that directory — the extension writes there, never to the project above it."""
+    from legacy_records import LegacyProject
+
     module = fresh_module()
     monkeypatch.setenv("AELIX_ANALYTICS_TRUST_FILE", str(tmp_path / "trust.json"))
     monkeypatch.delenv("AELIX_ANALYTICS_PROJECT", raising=False)
-    root = tmp_path / "old"
-    module.core.init_project(root, title="old", template_dir=module.KIT / "aelix_analytics" / "template",
-                             origin=module.core.Origin("test", "sdk"))
+    root = LegacyProject(tmp_path / "old", title="old")
+    root.event("project")
+    root = root.root
     sub = root / "new"
     sub.mkdir()
     (sub / "analytics.json").write_text(json.dumps(NEW_MARKER), encoding="utf-8")
@@ -1134,8 +1287,8 @@ def test_the_extension_finds_the_nearest_marker_from_the_working_directory(tmp_p
     monkeypatch.chdir(sub)
     journal = (root / "journal.jsonl").read_bytes()
     result = call(tools_of(module)["analytics_record"], {"kind": "finding", "text": "x"})
-    assert result.is_error and result.details["error"]["code"] == "project_too_new"
-    assert str(sub) in result.details["error"]["message"]
+    assert not result.is_error, text_of(result)
+    assert (sub / "journal.jsonl").read_bytes().count(b"\n") == 1
     assert (root / "journal.jsonl").read_bytes() == journal
     assert module.resolve_project()[0].root == module.core.Project(sub).root
 
@@ -1166,9 +1319,759 @@ def test_a_run_reply_shows_both_record_forms_and_their_comparisons(lab, tmp_path
     for record in (v1, v2):
         images, with_png = module.chart_images(project, record, ctx)
         assert (len(images), with_png) == (1, 1)
-        text = module.render_run(project, {"run": record, "event": "e9", "page": "report/runs/x.html"},
+        text = module.render_run(project, {"run": record, "event": "e9", "page": "workspace/runs/x.html"},
                                  (len(images), with_png))
         assert "charts (1):" in text and "scripts/a.py::trend \"Trend\"" in text
         assert "reproduction of 20261007-090000-a: mismatch (inputs same; trend: image bytes differ)" in text
         replies.append(text)
     assert replies[0] == replies[1]
+
+
+def test_the_extension_tells_its_kit_children_how_it_started_them(lab, monkeypatch):
+    """design 4.2 (D3): a kit child the extension starts records the means it was started by —
+    AELIX_ANALYTICS_MEANS, an internal protocol beside the actor and the session: `tool` for the
+    model's tools and the render after a record, `command` for /analytics, `hook` for the render
+    after a turn. A child that is no kit command (uv sync) gets none, and neither does the aelix
+    process's own environment."""
+    module, root = lab
+    processes = module.core.PLATFORM.processes
+    env = module.child_env(processes, "agent", "tool")
+    assert (env["AELIX_ANALYTICS_ACTOR"], env["AELIX_ANALYTICS_MEANS"]) == ("agent", "tool")
+    assert "AELIX_ANALYTICS_MEANS" not in module.child_env(processes, "system")
+    assert "AELIX_ANALYTICS_MEANS" not in os.environ
+    asked = []
+
+    async def kit(project, args, *, timeout, actor="agent", means="tool"):
+        asked.append((args[0], actor, means))
+        return True, {"ok": True, "workspace": {"path": "x"}}
+
+    monkeypatch.setattr(module, "run_kit", kit)
+    asyncio.run(module.analytics_command("render"))
+    assert asked == [("render", "human", "command")]
+    started = []
+    monkeypatch.setattr(module, "resolve_uv", lambda processes=None: "uv")
+    monkeypatch.setattr(module.subprocess, "Popen",
+                        lambda argv, **kwargs: started.append(kwargs["env"]) or SimpleNamespace(poll=lambda: 0))
+    assert not call(tools_of(module)["analytics_record"], {"kind": "note", "text": "x"}).is_error
+    module.on_agent_end(SimpleNamespace(), SimpleNamespace())
+    assert [(e["AELIX_ANALYTICS_ACTOR"], e["AELIX_ANALYTICS_MEANS"]) for e in started] == [
+        ("system", "tool"), ("system", "hook")]
+
+
+def test_a_named_destination_of_an_unfinished_migration_is_refused_as_such(lab, tmp_path, monkeypatch):
+    """design 4.3: a directory named as the project — AELIX_ANALYTICS_PROJECT, --analytics-project,
+    /analytics use — that holds a migration's record and no marker is a migration's destination that
+    has not committed: migration_incomplete, saying how far the migration went, not a directory
+    that is no project."""
+    module, _root = lab
+    dest = tmp_path / "dest"
+    (dest / ".analytics" / "migration" / "20261008T010203Z-a1b2c3d4").mkdir(parents=True)
+    monkeypatch.setenv("AELIX_ANALYTICS_PROJECT", str(dest))
+    result = call(tools_of(module)["analytics_status"], {})
+    assert result.is_error and result.details["error"]["code"] == "migration_incomplete", text_of(result)
+    assert result.details["error"]["details"]["migrations"][0]["id"] == "20261008T010203Z-a1b2c3d4"
+    monkeypatch.delenv("AELIX_ANALYTICS_PROJECT")
+    module.STATE["project"] = str(dest)
+    result = call(tools_of(module)["analytics_status"], {})
+    assert result.is_error and result.details["error"]["code"] == "migration_incomplete", text_of(result)
+    assert "error [migration_incomplete]" in asyncio.run(module.analytics_command(f"use {dest}"))
+    # --analytics-project, as aelix's get_flag answers it.
+    module.STATE["project"] = None
+    module.STATE["api"] = SimpleNamespace(get_flag=lambda name: str(dest) if name == "analytics-project"
+                                          else None)
+    result = call(tools_of(module)["analytics_status"], {})
+    assert result.is_error and result.details["error"]["code"] == "migration_incomplete", text_of(result)
+    assert sorted(p.name for p in dest.iterdir()) == [".analytics"]
+
+
+# --- who calls the kit through aelix's shell (design 4.2, OQ1; T22 in tests/test_agent_cli.py) ---
+
+
+def test_the_extension_puts_the_agent_and_this_session_in_the_aelix_process(tmp_path, monkeypatch):
+    """design 4.2 (OQ1, owner's decision Q17-b): an aelix agent runs the kit's command line through
+    aelix's bash tool, whose child gets a copy of the aelix process's environment — so the extension
+    puts AELIX_ANALYTICS_ACTOR=agent there when it is set up, overwriting what the shell that started
+    aelix had, and the session once a prompt says which it is. Every session aelix builds sets the
+    extension up again (/new, /resume), and the previous session's value does not stay. The means is
+    never put there: the command line's is `cli`."""
+    from aelix_coding_agent.extensions.loader import load_extensions
+
+    monkeypatch.delenv("AELIX_ANALYTICS_PROJECT", raising=False)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("AELIX_ANALYTICS_ACTOR", "human")
+    monkeypatch.setenv("AELIX_ANALYTICS_SESSION", "the shell's session")
+    monkeypatch.delenv("AELIX_ANALYTICS_MEANS", raising=False)
+    loaded = asyncio.run(load_extensions([str(EXT)]))
+    assert loaded.errors == []
+    (ext,) = loaded.extensions
+    assert os.environ["AELIX_ANALYTICS_ACTOR"] == "agent"
+    assert "AELIX_ANALYTICS_SESSION" not in os.environ
+    [before] = ext.handlers["before_agent_start"]
+
+    def prompt(session_file):
+        session = SimpleNamespace(session_file=session_file)
+        ctx = SimpleNamespace(session_manager=SimpleNamespace(get_session=lambda: session))
+        asyncio.run(before(BeforeAgentStartHookEvent(prompt="hi", system_prompt="BASE"), ctx))
+
+    prompt(str(tmp_path / "sessions" / "A.jsonl"))
+    assert os.environ["AELIX_ANALYTICS_SESSION"] == str(tmp_path / "sessions" / "A.jsonl")
+    assert os.environ["AELIX_ANALYTICS_ACTOR"] == "agent" and "AELIX_ANALYTICS_MEANS" not in os.environ
+    # /new: aelix sets the extension up again; the first prompt of a session without a file has none.
+    assert asyncio.run(load_extensions([str(EXT)])).errors == []
+    assert "AELIX_ANALYTICS_SESSION" not in os.environ
+    before.__globals__["STATE"]["session"] = None
+    prompt(None)
+    assert "AELIX_ANALYTICS_SESSION" not in os.environ
+    # The extension's own kit children are not the shell's: their author is the one it passes.
+    child = before.__globals__["child_env"](before.__globals__["core"].PLATFORM.processes, "human",
+                                            "command")
+    assert (child["AELIX_ANALYTICS_ACTOR"], child["AELIX_ANALYTICS_MEANS"]) == ("human", "command")
+
+
+# A person's `!` line that is, as a whole, one simple command calling a kit entry point, read as the
+# shell aelix runs it in reads it: the handler returns aelix's local shell with the person as the author
+# (the owner's decision of 2026-10-09 as corrected, #13 issuecomment-6072183477). These are read as a
+# POSIX shell (sh, bash, zsh) reads them.
+SINGLE_KIT_COMMANDS = [
+    "analytics status",
+    "./bin/analytics record finding 'x y'",
+    "/opt/pack/bin/analytics status --json",
+    '"analytics" status',
+    "'./bin/analytics' status",
+    r"\analytics status",
+    "analytics.exe status",
+    # Assignments, env and its options, the prefixes that run the next word.
+    "AELIX_ANALYTICS_PROJECT=/p analytics record note x",
+    "A=1 B='two words' C=\"x y\" analytics status",
+    "env AELIX_ANALYTICS_PROJECT=/p analytics status",
+    "env -i PATH=/bin analytics status",
+    "env -u HOME analytics status",
+    "env -uHOME --unset=PATH analytics status",
+    "env -C /tmp -u HOME AELIX_ANALYTICS_ACTOR=x analytics status",
+    "env -- analytics status",
+    "exec analytics status",
+    "command analytics status",
+    "time analytics status",
+    "nohup env A=1 analytics status",
+    # Redirections to or from a file or a descriptor.
+    "analytics status > out.txt 2>&1",
+    "analytics status >>log.txt",
+    "analytics status >&2",
+    "analytics record note x < in.txt",
+    "2>/dev/null analytics status",
+    # Python told to run the kit, also through uv run and the options it is known to take.
+    "python -m aelix_analytics status",
+    "python3.12 -I -m aelix_analytics record note x",
+    ".venv/bin/python -maelix_analytics status",
+    "python -m aelix_analytics.cli status",
+    "python3 -Im aelix_analytics status",
+    "python3 -IS -c 'import aelix_analytics'",
+    "python -c 'import aelix_analytics; aelix_analytics.record(\"note\", \"x\")'",
+    "python -c 'from aelix_analytics import record'",
+    "python -X utf8 --check-hash-based-pycs never -m aelix_analytics status",
+    "py -3.12 -m aelix_analytics status",
+    "uv run --project proj python -m aelix_analytics status",
+    "uv run --with=polars -- python -m aelix_analytics status",
+    "uv run analytics status",
+    "uv run --no-project -qq --no-binary-package x analytics status",
+    "uv run -p 3.12 --index-strategy unsafe-best-match analytics status",
+    "uv run -p3.12 --python-platform=linux analytics status",
+    "AELIX_ANALYTICS_ACTOR=human uv run --project 'my proj' analytics status",
+    # Operator characters quoted or escaped are words, and so are `$` and backticks in single quotes
+    # or escaped in double ones.
+    "analytics record note 'a; b && c | d & (e)'",
+    'analytics record note "a; b && c | d"',
+    "analytics record note '$(id) `id` ${x} $y'",
+    'analytics record note "\\$(id) \\`id\\` \\${x}"',
+    r"analytics record note \; x \$HOME",
+    "analytics status # a note",
+    'analytics import "C:\\data\\" && x "C:\\out\\"',  # in a POSIX shell `\"` is a quote, not an end
+    # A backslash before a new line continues the line: gone, outside quotes and inside double ones.
+    "uv run \\\nanalytics status",
+    "AELIX_ANALYTICS_ACTOR=x \\\n  analytics status",
+    "env \\\n  -u HOME analytics status",
+    "ana\\\nlytics status",
+    '"ana\\\nlytics" status',
+    'analytics record note "one\ntwo"',
+    "  analytics status\n",
+    # Patterns and braces quoted or escaped are words; a tilde starting a word is one word (the check
+    # of 2026-10-09 of ab45982), and a `#…` word ends the words judged, not the kit's command.
+    "analytics record note 'a*b?[c]{d,e}^f' \\*",
+    "uv run --project ~/proj analytics status",
+    "analytics record note '#tag' x",
+]
+
+# Any other line: no result, so aelix runs it as it would and another extension's answer stands. A kit
+# call in such a line records `agent`/declared from the process environment. Read as a POSIX shell.
+NOT_A_SINGLE_KIT_COMMAND = [
+    # Lists and a second command.
+    "cd proj && analytics status",
+    "cd proj; analytics status",
+    "false || analytics status",
+    "analytics status && echo done",
+    "analytics status; analytics render",
+    "analytics status;",
+    "analytics run x &",
+    "nohup analytics run x &",
+    "analytics status & echo next",
+    # Pipelines into the kit and out of it.
+    "echo x | analytics record note -",
+    "cat notes | python -m aelix_analytics record note -",
+    "analytics status | head",
+    "analytics status |& tee log",
+    "analytics status 2>&1 | tee log",
+    # Commands on lines of their own, and a comment a new line follows.
+    "echo hi\nanalytics status",
+    "analytics status\necho hi",
+    "analytics status\nanalytics render",
+    "analytics status \\\n && echo done",
+    "analytics x # '\ntouch x\n'",
+    # Subshells, groups, command substitution in each form.
+    "(analytics status)",
+    "(cd proj && analytics status)",
+    "{ analytics status; }",
+    "x=$(./bin/analytics status)",
+    "X=$(id) analytics status",
+    "analytics record note $(cat notes)",
+    'analytics record note "$(cat notes)"',
+    'analytics record note "${X:-$(id)}"',
+    "echo `analytics status`",
+    "analytics record note `id`",
+    'analytics record note "`id`"',
+    "analytics record note $((1 + 2))",
+    # `$` outside single quotes: an expansion this reading leaves open (the check of 2026-10-09).
+    "analytics record note $'\\'' ; touch x #'",
+    "analytics record note $'Q3\\'s numbers' && touch x  # it's fine",
+    'analytics record note $"x"',
+    'analytics record note "$\\\n(touch x)"',
+    'analytics x "${(e):-\\$(touch x)}"',
+    "analytics x $[1+1]",
+    "analytics import $HOME/data.csv",
+    'analytics record note "$HOME ${USER:-x}"',
+    "analytics record note cost$",
+    # Redirections that start another command or take the next lines, and `&>`.
+    "analytics status > >(tee log)",
+    "analytics record note x <(cat notes)",
+    "analytics status &> log",
+    "analytics record note - <<EOF",
+    "analytics record note - <<< 'a text'",
+    "analytics status >",
+    # The shell's compound commands.
+    "if analytics status; then echo ok; fi",
+    "while analytics status; do sleep 1; done",
+    "! analytics status",
+    # An operator after a `#` still counts.
+    "analytics status # ; rm x",
+    # PowerShell's call operator is no POSIX shell's: there `&` starts no line.
+    "& analytics status",
+    "& analytics status; ls",
+    # env -S runs its string (the check of 2026-10-09), and an option of env or `uv run` not known
+    # here may take the next word as its value.
+    "env -S 'touch x' analytics",
+    "env -S'touch x' analytics",
+    "env --split-string='touch x' analytics",
+    "env -iu analytics touch x",
+    "env --block-signal analytics",
+    "uv run --no-project --no-binary-package analytics touch x",
+    "uv run --some-new-option analytics touch x",
+    "uv run -qp 3.12 analytics status",
+    "uv run -m aelix_analytics status",
+    "uv run --module aelix_analytics status",  # runs the kit, but left alone (CONTRACTS A)
+    "uv run --script analytics status",
+    "uv run env analytics status",
+    "nohup A=1 analytics status",
+    # A pattern or a brace the shell expands into words (the check of 2026-10-09 of ab45982): an
+    # option's value may become two words and the next one the program (`env -u X touch analytics`).
+    "env -u {X,touch} analytics",
+    "uv run --with {x,touch} analytics status",
+    "python -X {a,b} -m aelix_analytics status",
+    "env -u * analytics",
+    "uv run --with * analytics status",
+    "uv run --with x? analytics status",
+    "uv run --with [ab] analytics status",
+    "uv run --with ^x analytics status",  # zsh's EXTENDED_GLOB, which a startup file may set
+    "uv run --with x#y analytics status",
+    "uv run --with x~y analytics status",
+    "analytics data import *.csv",  # the kit's own argument: left alone too (CONTRACTS A)
+    # A comment where an option's value is: the shell runs `uv run --with`, not the kit.
+    "uv run --with #x analytics status",
+    "python -X #x -m aelix_analytics status",
+    # A control character but a tab and a new line, a backslash ending the line.
+    "analytics status\rtouch x",
+    "analytics status\x00",
+    "analytics status \\",
+    # Not the kit at all.
+    "",
+    "ls",
+    "echo hi",
+    "grep analytics notes.txt",
+    "cat bin/analytics",
+    "ls analytics/",
+    "echo analytics status",
+    "echo 'analytics status'",
+    'echo "$(analytics status)"',
+    "sh -c 'analytics status'",
+    "bash -c 'python -m aelix_analytics status'",
+    "xargs analytics status",
+    "builtin analytics status",
+    "sudo analytics status",  # sudo takes options of its own: left alone (CONTRACTS A)
+    "python scripts/a.py",
+    "python -m pytest tests/test_kit.py",
+    "python -c 'print(\"import aelix_analytics\")'",
+    "uv run python scripts/a.py",
+    "uv run --project analytics python a.py",
+    "analytics-report build",
+    "my_analytics status",
+    "my_\\analytics status",  # the shell runs `my_analytics`
+    r"C:\pack\bin\analytics.exe status",  # the shell runs `C:packbinanalytics.exe`
+    "analytics.cmd status",  # a batch file: cmd reads its arguments again
+    "analytics.bat status",
+    "git log -- analytics",
+    "echo 'unclosed",
+    "cat < analytics",
+    "echo ';' analytics",
+    r"echo \; analytics",
+    "echo \\\nanalytics status",
+    "'ana\\\nlytics' status",
+]
+
+# The same judgment in PowerShell (aelix's shell on Windows when $SHELL names no file, the check of
+# 2026-10-09): a backslash is a character there, a quote doubled inside its quotes is one, and its call
+# operator `&` may start the line.
+POWERSHELL_SINGLE_KIT_COMMANDS = [
+    "analytics status",
+    "analytics record note 'a; b && c | d'",
+    'analytics record note "a; b && c | d"',
+    "analytics record note 'it''s fine'",
+    'analytics record note "say ""hi"""',
+    "analytics record note '한글 메모'",
+    r"C:\pack\bin\analytics.exe status",
+    r".\bin\analytics.exe status",
+    r".venv\Scripts\python.exe -m aelix_analytics status",
+    ".venv/bin/python -m aelix_analytics status",
+    r"..\pack\bin\analytics.exe status",
+    r"\\server\pack\analytics.exe status",
+    "~/bin/analytics status",
+    r"analytics import C:\data\sales.csv",
+    r'analytics import "C:\My Data\sales.csv"',
+    r"& C:\venv\Scripts\python.exe -m aelix_analytics status",
+    r'& "C:\Program Files\pack\analytics.exe" status',
+    "&analytics status",
+    "python -m aelix_analytics status",
+    "py -3.12 -m aelix_analytics status",
+    "uv run --no-project analytics status",
+    "analytics status > out.txt",
+    "analytics status 2>&1",
+    "analytics status 2>> err.txt",
+    "analytics status # a note",
+    # A quoted text that is a whole word, a quote inside a word starting with `-`, a number, a `:`
+    # after a parameter (the check of 2026-10-09 of ab45982: PowerShell passes these as read here).
+    "& 'analytics' status",
+    "uv run 'analytics' status",
+    "analytics record note --text='hello world'",
+    'python -c"import aelix_analytics"',
+    "uv run -p 3.12 analytics status",
+    "uv run --python=3.12 analytics status",
+    "analytics record note x -1.5",
+    "analytics status #x",
+]
+
+POWERSHELL_NOT_A_SINGLE_KIT_COMMAND = [
+    "analytics status; ls",
+    "analytics status | Select-Object -First 1",
+    "analytics status && ls",
+    "analytics status &",
+    "& analytics status; ls",
+    "& & analytics status",
+    # A backslash is no escape (the check of 2026-10-09).
+    "analytics status \\; touch x",
+    "analytics status \\| touch x",
+    'analytics record note "a\\" ; touch x ; \\"b"',
+    'analytics import "C:\\data\\" && touch x "C:\\out\\"',
+    "analytics x \\'' ; touch x ; #'",
+    # A carriage return or a new line ends a command; a backtick is the escape.
+    "analytics status\rtouch x",
+    "analytics status\ntouch x",
+    "analytics record note 'one\ntwo'",
+    "analytics x `; touch x",
+    "analytics record note 'a `b'",
+    # Expansions and what runs a command in PowerShell.
+    'analytics x "$(touch x)"',
+    "analytics x $(touch x)",
+    "analytics x $env:HOME",
+    'analytics x "\\$(touch x)"',
+    "analytics x @{a=touch}",
+    "analytics x @(touch)",
+    "analytics x {touch}",
+    # Its comments, stop-parsing token and quotes besides ' and ".
+    "analytics x <#' #> ; touch x ; #'",
+    "analytics --% '| touch x'",
+    "analytics \u2013-% '| touch x'",
+    "analytics note 'it\u2019s ; touch x ; \u2019'",
+    "analytics note \"a\u201d ; touch x ; \u201c\"",
+    "analytics x\u00a0--% '| touch x #'",  # it splits on a no-break space: `--%` stands alone there
+    # A `>&` it does not take leaves `&` its background operator; it merges a stream into 1 only.
+    "analytics x =xx>&touch y",
+    "analytics status >&1",
+    "analytics status 2>&x",
+    "analytics status 7> out.txt",
+    # What PowerShell has not: input redirection, assignments and prefixes, a quoted program without
+    # `&` (a value, not a command).
+    "analytics record note x < in.txt",
+    "A=1 analytics status",
+    "env analytics status",
+    "'analytics' status",
+    '"C:\\pack\\analytics.exe" status',
+    # A program word that starts an expression there, not a command (pwsh 7's parser, the check of
+    # 2026-10-09 of 221dfbb), and one that starts a command name this reading leaves alone (PowerShell
+    # runs `./-c/analytics` for `-c/analytics`).
+    "1/analytics status",
+    ".5/analytics status",
+    "@x/analytics status",
+    "[x]/analytics status",
+    "+x/analytics status",
+    ",x/analytics status",
+    "-c/analytics",
+    "& -c/analytics status",
+    "!x/analytics status",
+    # Where PowerShell's words are not a POSIX shell's (the check of 2026-10-09 of ab45982, pwsh 7.6):
+    # a quoted text starting a word ends it, so the program is the quoted one (`touch`), or what
+    # follows is an expression; `.` before a quote dot-sources; a quote after other text but in a
+    # `-` word; `-p3.12` passes as `-p3` `.12` (uv runs `.12`); a merge it does not take.
+    "& 'touch'/x/analytics",
+    '& "touch"/x/analytics',
+    "& 'touch'\"/x/analytics\"",
+    "&'touch'/x/analytics",
+    "uv run 'touch'/x/analytics status",
+    ".'touch'/x/analytics",
+    '."touch"/x/analytics',
+    ".'/x'/analytics status",
+    "python '-I'sb -m aelix_analytics status",
+    "analytics x 'a'.Length",
+    "analytics x 'abc'def",
+    "ana'lytics' status",  # it runs `analytics`, but a program word holds a quote only whole
+    "uv run ana'lytics' status",
+    "uv run -p3.12 analytics status",
+    "python -maelix_analytics.cli status",
+    "analytics status 2>&'1'",
+    'analytics status 2>&"1"',
+    "analytics status 2>& 1",
+    # Its array operator, splatting, a `]` or a wildcard starting a word, a `>` inside a word, a
+    # redirection before the program (its name there), a comment where an option's value is.
+    'uv run --with a, "-p x" analytics status',
+    "python -c'import aelix_analytics',x",
+    "analytics x a,b",
+    "uv run --with @args analytics status",
+    "python -X @args -m aelix_analytics status",
+    "uv run --with ]x analytics status",
+    "uv run --with * analytics status",
+    "analytics> status",
+    "analytics status>out.txt",
+    "2>&1 analytics status",
+    "& 2>&1 analytics status",
+    "uv run --with #x analytics status",
+    # Its all-streams redirection, which pwsh 7.6 parses as one kit command with one redirection: both
+    # readings take the `*` for a wildcard first, so the line is left alone all the same (a conservative
+    # leave, the check of 2026-10-09 of c399fc3, CONTRACTS A).
+    "analytics status *> log.txt",
+    "analytics status *>> log.txt",
+    "analytics status *>&1",
+    # Not the kit.
+    "Get-ChildItem analytics",
+    r"C:\pack\bin\analytics.cmd status",
+    "echo analytics",
+]
+
+# On Windows a program a shell finds by its bare name (`analytics`, `python`, `py`, `uv`) may be a batch
+# file — a version manager's shim — and cmd reads its arguments again by its own rules, so a quoted
+# `'x&y'` runs `y` there (the check of 2026-10-09 of 221dfbb, not run here: no Windows host). There no
+# word may hold a character cmd reads, in any shell aelix may pick; the lines are (shell, line).
+WINDOWS_NOT_A_SINGLE_KIT_COMMAND = [
+    ("pwsh", "analytics 'x&y'"),
+    ("powershell", "analytics 'x&y'"),
+    ("pwsh", "analytics record note 'a; b && c | d'"),
+    ("pwsh", 'analytics record note "say ""hi"""'),
+    ("pwsh", "analytics record note '50% done'"),
+    ("pwsh", "analytics record note 'a^b'"),
+    ("pwsh", "analytics record note 'wow!'"),
+    ("pwsh", "analytics record note '(draft)'"),
+    ("pwsh", "analytics status > 'a&b.txt'"),
+    ("pwsh", "python -c 'import aelix_analytics; aelix_analytics.main()'"),
+    ("powershell", r"& C:\venv\Scripts\python.exe -m aelix_analytics record note 'x|y'"),
+    ("pwsh", "uv run --no-project analytics record note 'a<b'"),
+    ("bash", "analytics record note 'a & b'"),
+    ("bash", 'uv run analytics record note "x|y"'),
+]
+
+# The same lines' plain kit commands still get the person's shell there: a redirection's operator is
+# no word, and a plain word holds none of those characters.
+WINDOWS_SINGLE_KIT_COMMANDS = [
+    ("pwsh", "analytics status"),
+    ("pwsh", "analytics record note 'Q3 numbers'"),
+    ("pwsh", r'analytics import "C:\My Data\sales.csv"'),
+    ("pwsh", "analytics status 2>&1"),
+    ("pwsh", "python -m aelix_analytics status"),
+    ("powershell", r"& C:\venv\Scripts\python.exe -m aelix_analytics status"),
+    ("pwsh", "uv run --no-project analytics status"),
+    ("bash", "analytics status > out.txt 2>&1"),
+]
+
+# Shells this judgment does not read: every line is left alone there.
+OTHER_SHELLS = ["cmd", "fish", "nu", "tcsh", "csh", "xonsh", "elvish", "busybox", ""]
+
+
+def judged_in(module, monkeypatch, shell: str, *, windows: bool = False):
+    """The module with aelix's shell for a person's line taken as `shell` (the_shell's name), on
+    Windows or not whatever the machine (cmd_may_read_the_arguments), so the tables hold everywhere."""
+    monkeypatch.setattr(module, "the_shell", lambda: shell)
+    monkeypatch.setattr(module, "cmd_may_read_the_arguments", lambda: windows)
+    return module
+
+
+def answer(module, command: str):
+    from aelix_agent_core.harness.hooks import UserBashHookEvent
+
+    return module.on_user_bash(UserBashHookEvent(command=command, cwd="."), None)
+
+
+@pytest.mark.parametrize("shell", ["bash", "zsh", "sh"])
+@pytest.mark.parametrize("command", SINGLE_KIT_COMMANDS)
+def test_a_line_that_is_one_kit_command_gets_the_person_s_shell(command, shell, monkeypatch):
+    """design 4.2 as the owner corrected it: the whole line one simple command whose program is the
+    kit — after assignments, env, the prefixes and `uv run` with the options they are known to take,
+    with redirections to a file or a descriptor — read as a POSIX shell reads it, and the handler
+    returns aelix's local shell with the person as the author."""
+    from aelix_agent_core.harness.hooks import UserBashResult
+
+    module = judged_in(fresh_module(), monkeypatch, shell)
+    result = answer(module, command)
+    assert isinstance(result, UserBashResult) and isinstance(result.operations, module.PersonShell)
+
+
+@pytest.mark.parametrize("shell", ["bash", "zsh", "sh"])
+@pytest.mark.parametrize("command", NOT_A_SINGLE_KIT_COMMAND)
+def test_any_other_line_is_left_alone(command, shell, monkeypatch):
+    """A line with any operator but a redirection to a file or a descriptor, a second command, what
+    this reading leaves open (`$` outside single quotes, `env -S`, an option not known), or a program
+    that is not the kit: the handler returns nothing, so another extension's block or shell is set
+    aside for one kit command only (CONTRACTS A), and a kit call in the line stays `agent`."""
+    module = judged_in(fresh_module(), monkeypatch, shell)
+    assert answer(module, command) is None
+
+
+@pytest.mark.parametrize("shell", ["pwsh", "powershell"])
+@pytest.mark.parametrize("command", POWERSHELL_SINGLE_KIT_COMMANDS)
+def test_a_powershell_line_that_is_one_kit_command_gets_the_person_s_shell(command, shell, monkeypatch):
+    """The check of 2026-10-09: aelix runs a `!` line in PowerShell on Windows when $SHELL names no
+    file, and the line is read as PowerShell reads it there — and as a POSIX shell would, too."""
+    from aelix_agent_core.harness.hooks import UserBashResult
+
+    module = judged_in(fresh_module(), monkeypatch, shell)
+    result = answer(module, command)
+    assert isinstance(result, UserBashResult) and isinstance(result.operations, module.PersonShell)
+
+
+@pytest.mark.parametrize("shell", ["pwsh", "powershell"])
+@pytest.mark.parametrize("command", POWERSHELL_NOT_A_SINGLE_KIT_COMMAND)
+def test_any_other_powershell_line_is_left_alone(command, shell, monkeypatch):
+    """PowerShell's own operators and quotes: an escaped `\\;` of a POSIX shell, a carriage return, a
+    `\\"` that ends its quote, `<#`, `--%`, `@{…}`, ‘ ’ … are what make a second command there."""
+    module = judged_in(fresh_module(), monkeypatch, shell)
+    assert answer(module, command) is None
+
+
+@pytest.mark.parametrize(("shell", "command"), WINDOWS_NOT_A_SINGLE_KIT_COMMAND)
+def test_on_windows_a_line_whose_words_cmd_would_read_again_is_left_alone(shell, command, monkeypatch):
+    """The check of 2026-10-09 of 221dfbb: on Windows a bare `analytics`, `python`, `py` or `uv` may
+    resolve to a batch file, and cmd reads its arguments again (`'x&y'` runs `y`). A line one of whose
+    words holds a character cmd reads is left alone there; the same line elsewhere is one kit command,
+    so the narrowing is what leaves it alone."""
+    from aelix_agent_core.harness.hooks import UserBashResult
+
+    assert answer(judged_in(fresh_module(), monkeypatch, shell, windows=True), command) is None
+    assert isinstance(answer(judged_in(fresh_module(), monkeypatch, shell), command), UserBashResult)
+
+
+@pytest.mark.parametrize(("shell", "command"), WINDOWS_SINGLE_KIT_COMMANDS)
+def test_on_windows_a_plain_kit_command_still_gets_the_person_s_shell(shell, command, monkeypatch):
+    from aelix_agent_core.harness.hooks import UserBashResult
+
+    module = judged_in(fresh_module(), monkeypatch, shell, windows=True)
+    result = answer(module, command)
+    assert isinstance(result, UserBashResult) and isinstance(result.operations, module.PersonShell)
+
+
+def test_cmd_may_read_the_arguments_on_windows_only():
+    assert fresh_module().cmd_may_read_the_arguments() is (sys.platform == "win32")
+
+
+@pytest.mark.parametrize("shell", OTHER_SHELLS)
+def test_a_line_in_a_shell_this_judgment_does_not_read_is_left_alone(shell, monkeypatch):
+    """cmd, fish, nu, csh and any shell this reading does not know read quotes and operators their own
+    way (cmd takes no single quote, fish escapes in them, nu has raw strings): no line is judged one kit
+    command there, so a person's kit command records `agent` and nothing is set aside."""
+    module = judged_in(fresh_module(), monkeypatch, shell)
+    assert all(answer(module, command) is None
+               for command in [*SINGLE_KIT_COMMANDS, *POWERSHELL_SINGLE_KIT_COMMANDS])
+
+
+def test_the_shell_read_is_the_one_aelix_runs_a_person_s_line_in(monkeypatch):
+    """the_shell names the shell aelix's own rule picks for a `!` line (tools/bash._resolve_shell over
+    the environment get_shell_env makes, the shell PersonShell runs in too): $SHELL on POSIX, whatever
+    its version suffix, and the handler follows it."""
+    from aelix_ai.utils._shell import shell_basename
+    from aelix_coding_agent.tools.bash import _resolve_shell
+    from aelix_coding_agent.util.shell_env import get_shell_env
+
+    module = fresh_module()
+    assert module.the_shell() == shell_basename(_resolve_shell(get_shell_env()).path)
+    if os.name == "nt":
+        return  # $SHELL counts there only when it names a file; the chain is aelix's (PowerShell, cmd)
+    for path, name, judged in [("/usr/local/bin/bash-5.2", "bash", True), ("/bin/zsh", "zsh", True),
+                               ("/opt/microsoft/powershell/7/pwsh", "pwsh", True),
+                               ("/usr/local/bin/fish", "fish", False)]:
+        monkeypatch.setenv("SHELL", path)
+        assert module.the_shell() == name
+        assert (answer(module, "analytics status") is not None) is judged, path
+        assert answer(module, "analytics status; touch x") is None
+
+
+# Lines a shell aelix may pick reads otherwise than a plain POSIX reading did (the check of
+# 2026-10-09). `@SENT@` is a second command that makes a file; a line the judgment takes as one kit
+# command must not run it in any shell that reads it. The last ones run another program than the kit
+# as the one command (the check of 2026-10-09 of ab45982): `touch` makes the file `analytics` in the
+# folder the line runs in (`@WORK@`).
+SHELL_TRAPS = [
+    "analytics record note $'\\'' ; @SENT@ #'",
+    "analytics record note $'Q3\\'s numbers' && @SENT@  # it's fine",
+    "env -S '@SENT@' analytics",
+    "env -S'@SENT@' analytics",
+    "env -iu analytics @SENT@",
+    "analytics status \\; @SENT@",
+    "analytics status \\| @SENT@",
+    'analytics record note "a\\" ; @SENT@ ; \\"b"',
+    "analytics status\r@SENT@",
+    'analytics import "C:\\data\\" && @SENT@ "C:\\out\\"',
+    'analytics record note "$\\\n(@SENT@)"',
+    'analytics x "${(e):-\\$(@SENT@)}"',
+    "analytics x # '\n@SENT@\n'",
+    "analytics x \\'' ; @SENT@ ; #'",
+    "analytics x <#' #> ; @SENT@ ; #'",
+    "analytics x @{a=@SENT@}",
+    "analytics --% '| @SENT@'",
+    "analytics note 'it\u2019s ; @SENT@ ; \u2019'",
+    "analytics x \\${a'} ; @SENT@ ; '}",
+    "analytics x '$(@SENT@)'",
+    'analytics x "\\$(@SENT@)"',
+    "analytics 'a\" & @SENT@ & \"b'",
+    "analytics x \"`@SENT@`\"",
+    "analytics record note 'a; @SENT@ && b | c'",
+    'analytics record note "a; @SENT@"',
+    "analytics status # ; @SENT@",
+    "analytics x =xx>&@SENT@",
+    "analytics x\u00a0--% '| @SENT@ #'",
+    # A second command only where cmd reads the word again (a batch file on Windows, which this test
+    # does not run): one quoted word in every shell here, so it is taken and runs none.
+    "analytics 'x&@SENT@'",
+    "& 'touch'@WORK@/analytics",
+    '& "touch"@WORK@/analytics',
+    ".'touch'@WORK@/analytics",
+    "env -u {X,touch} analytics",
+]
+
+
+@pytest.mark.skipif(os.name == "nt", reason="the POSIX shells and PowerShell found here, by path")
+def test_a_line_judged_one_kit_command_runs_no_other_command_in_each_shell_here(tmp_path):
+    """The check of 2026-10-09 asked for it: each trap line is judged for each shell found here (sh,
+    bash, zsh, dash, ksh, pwsh), and every one judged a single kit command is run in that shell the way
+    aelix runs a `!` line ([shell, its command flag, its preamble + the line]) in an empty folder of its
+    own, with a stand-in `analytics` elsewhere that writes nothing: none makes the file its second
+    command would (`SENT`), nor the one `touch` would as another program than the kit (`analytics`). A
+    line the judgment refuses does make it, so the shells are live."""
+    import itertools
+    import subprocess
+
+    from aelix_ai.utils._shell import command_flag_for, shell_basename, utf8_output_preamble
+
+    module = fresh_module()
+    shells = {name: path for name in ("sh", "bash", "zsh", "dash", "ksh", "pwsh")
+              if (path := shutil.which(name))}
+    if not shells:
+        pytest.skip("not_run: no shell found here")
+    stand_in = tmp_path / "bin" / "analytics"
+    stand_in.parent.mkdir()
+    stand_in.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    stand_in.chmod(0o755)
+    (tmp_path / "home").mkdir()
+    env = {"PATH": f"{stand_in.parent}{os.pathsep}/usr/bin{os.pathsep}/bin", "HOME": str(tmp_path / "home")}
+    runs = itertools.count()
+
+    def a_line(trap: str) -> tuple[str, Path]:
+        work = tmp_path / f"work-{next(runs)}"
+        work.mkdir()
+        return trap.replace("@SENT@", "touch SENT").replace("@WORK@", work.as_posix()), work
+
+    def runs_the_second(path: str, line: str, work: Path) -> bool:
+        """Whether the line made `SENT` (its second command) or `analytics` (`touch`, another program
+        than the kit) in its empty folder; a redirection's file is the kit command's own."""
+        subprocess.run([path, command_flag_for(path), utf8_output_preamble(path) + line], cwd=work,
+                       env=env, capture_output=True, stdin=subprocess.DEVNULL, timeout=120)
+        return (work / "SENT").exists() or (work / "analytics").exists()
+
+    seen = {}
+    for name, path in shells.items():
+        family_name = shell_basename(path)
+        assert runs_the_second(path, *a_line("analytics status; @SENT@")), (name, "the shell is not live")
+        accepted, ran = [], []
+        for trap in SHELL_TRAPS:
+            line, work = a_line(trap)
+            if module.is_single_kit_command(line, family_name):
+                accepted.append(trap)
+                if runs_the_second(path, line, work):
+                    ran.append(trap)
+        seen[name] = {"path": path, "read_as": family_name, "accepted": len(accepted), "ran_a_second": ran}
+    from conftest import record_observation
+
+    record_observation("issue-13-writer/user-bash-shell-traps", {"traps": len(SHELL_TRAPS), "shells": seen})
+    assert all(not s["ran_a_second"] for s in seen.values()), seen
+
+
+def test_a_person_s_kit_command_runs_in_aelix_s_shell_as_the_person(monkeypatch):
+    """design 4.2 (OQ1): for a `!` line that is one kit command the handler returns aelix's own local
+    shell (create_local_bash_operations, the environment get_shell_env makes when none is given) with
+    AELIX_ANALYTICS_ACTOR=human for that command alone; for any other line — one that does not call the
+    kit, or calls it beside another command — it returns nothing, so aelix runs it as it would and
+    another extension's shell is not set aside. It never raises."""
+    from aelix_agent_core.harness.hooks import UserBashHookEvent, UserBashResult
+    from aelix_coding_agent.tools import bash
+
+    module = fresh_module()
+    assert module.on_user_bash(UserBashHookEvent(command="ls -la", cwd="."), None) is None
+    assert module.on_user_bash(UserBashHookEvent(command="ls && analytics status", cwd="."), None) is None
+    result = module.on_user_bash(UserBashHookEvent(command="analytics status", cwd="."), None)
+    assert isinstance(result, UserBashResult) and result.result is None
+    shell = result.operations
+    assert isinstance(shell, module.PersonShell)
+    assert type(shell._local) is type(bash.create_local_bash_operations())
+    seen = []
+
+    class Local:
+        async def exec(self, command, cwd, *, on_data, signal=None, timeout=None, env=None):
+            seen.append((command, cwd, env, signal, timeout))
+            return "done"
+
+    monkeypatch.setenv("AELIX_ANALYTICS_ACTOR", "agent")
+    person = module.PersonShell(Local(), lambda: {**os.environ, "PATH": "aelix-bin"})
+    assert asyncio.run(person.exec("analytics status", "/w", on_data=print)) == "done"
+    given = {"AELIX_ANALYTICS_ACTOR": "agent", "X": "1"}
+    asyncio.run(person.exec("analytics status", "/w", on_data=print, timeout=5, env=given))
+    assert seen[0][2]["AELIX_ANALYTICS_ACTOR"] == "human" and seen[0][2]["PATH"] == "aelix-bin"
+    assert seen[1][2] == {"AELIX_ANALYTICS_ACTOR": "human", "X": "1"} and seen[1][4] == 5
+    assert given["AELIX_ANALYTICS_ACTOR"] == "agent" and os.environ["AELIX_ANALYTICS_ACTOR"] == "agent"
+
+    class Broken:
+        @property
+        def command(self):
+            raise RuntimeError("no command")
+
+    assert module.on_user_bash(Broken(), None) is None

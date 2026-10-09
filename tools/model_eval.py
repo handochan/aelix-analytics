@@ -16,7 +16,9 @@ Run it in the development environment, where the evaluation fixtures can be made
 The tasks, the answers, the model configurations and the conditions are files under
 tools/model_eval_data/ (README.md there says what each holds). Per run the harness makes the task's
 fixture with tools/eval_fixtures.py (seed fixed: the answers are written for one seed, and another
---seed is refused), copies only its project/ and input/ into a new work root outside OUT
+--seed is refused; the fixtures are lab.json projects written by the kit of eval_fixtures.py's
+V1_KIT_COMMIT, made once from this checkout's git history under the fixtures directory, design OQ7),
+copies only its project/ and input/ into a new work root outside OUT
 (manifest.json and expected.json hold answers), starts the real aelix 0.1.0b2 in its JSON event mode
 there with this checkout's extension (or another checkout's: --checkout), moves the work root into
 the run's directory when aelix has exited, reads the events, and records the model and its whole
@@ -106,6 +108,7 @@ import functools
 import hashlib
 import http.server
 import importlib.util
+import io
 import json
 import os
 import platform
@@ -118,6 +121,7 @@ import stat
 import statistics
 import subprocess
 import sys
+import tarfile
 import tempfile
 import threading
 import time
@@ -1635,6 +1639,35 @@ def fixture_name(spec: dict, seed: int) -> str:
     return spec["kind"] + (f"-{spec['scale']}" if spec.get("scale") else "") + f"-s{seed}"
 
 
+def v1_kit(root: Path) -> Path:
+    """The runtime root of the kit that writes the v1 fixtures — tools/eval_fixtures.py's
+    V1_KIT_COMMIT, the last kit before the new record format (design OQ7) — made once under `root`
+    from this checkout's git history (git archive of its src/)."""
+    found = re.search(r'^V1_KIT_COMMIT = "([0-9a-f]{40})"', FIXTURE_TOOL.read_text(encoding="utf-8"),
+                      re.MULTILINE)
+    if found is None:
+        raise HarnessError(f"{FIXTURE_TOOL} names no V1_KIT_COMMIT")
+    commit = found.group(1)
+    target = root / f"v1-kit-{commit[:12]}"
+    if (target / "src" / "aelix_analytics" / "core.py").is_file():
+        return target / "src"
+    try:
+        done = subprocess.run(["git", "-C", str(ROOT), "archive", "--format=tar", commit, "src"],
+                              capture_output=True, timeout=300)
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise HarnessError(f"git cannot make the v1 fixtures' kit ({commit}): {exc}") from exc
+    if done.returncode != 0:
+        raise HarnessError(f"git cannot make the v1 fixtures' kit ({commit}): "
+                           f"{done.stderr.decode('utf-8', 'replace')[-500:]}")
+    partial = root / f".{target.name}.{os.getpid()}"
+    shutil.rmtree(partial, ignore_errors=True)
+    partial.mkdir(parents=True)
+    with tarfile.open(fileobj=io.BytesIO(done.stdout)) as archive:
+        archive.extractall(partial, filter="data")
+    os.replace(partial, target)
+    return target / "src"
+
+
 def ensure_fixture(spec: dict, seed: int, root: Path) -> Path:
     """The fixture made by tools/eval_fixtures.py with this seed, made once under `root`."""
     path = root / fixture_name(spec, seed)
@@ -1643,7 +1676,8 @@ def ensure_fixture(spec: dict, seed: int, root: Path) -> Path:
         if path.exists() and any(path.iterdir()):
             raise HarnessError(f"{path} exists without a manifest.json: remove it")
         args = (["scale", "--scale", spec["scale"]] if spec["kind"] == "scale" else [spec["kind"]])
-        argv = [sys.executable, str(FIXTURE_TOOL), *args, "--seed", str(seed), "--out", str(path)]
+        argv = [sys.executable, str(FIXTURE_TOOL), *args, "--seed", str(seed), "--kit-root",
+                str(v1_kit(root)), "--out", str(path)]
         done = subprocess.run(argv, cwd=ROOT, env=isolated_env(), capture_output=True, text=True,
                               encoding="utf-8", errors="replace", timeout=900)
         if done.returncode != 0:
@@ -1670,6 +1704,43 @@ def init_project(kit_src: Path, project: Path, title: str, goal: str, env: dict)
         raise HarnessError(f"making the fresh project failed: {(done.stderr or done.stdout)[-1500:]}")
 
 
+# How a fixture's lab.json project reaches the work root (design OQ7): copied for a checkout whose kit
+# writes lab.json projects; for one whose kit writes the new format (kit 0.8.0, Issue #13 PR 3, where a
+# lab.json project is read only), copied and then migrated by that kit's own migration engine, as a
+# person migrates one — its journal lines, run records and files are the same bytes, so the answers'
+# ids hold. The engine takes the copy's locks, not the fixture's; no trust list is written (the run's
+# own is set for aelix).
+FIXTURE_PROJECT = """\
+import shutil, sys
+from pathlib import Path
+from aelix_analytics import core
+source, project = Path(sys.argv[1]), Path(sys.argv[2])
+if core.MARKER != "analytics.json":
+    shutil.copytree(source, project, symlinks=True)
+    print("copied")
+else:
+    from aelix_analytics import migration
+    copy = project.parent / ".fixture-project"
+    shutil.copytree(source, copy, symlinks=True)
+    try:
+        migration.migrate(copy, project, origin=core.Origin("system", "cli"), trust=lambda root: None)
+    finally:
+        shutil.rmtree(copy, ignore_errors=True)
+    print("migrated")
+"""
+
+
+def fixture_project(kit_src: Path, source: Path, project: Path, env: dict) -> str:
+    """The fixture's project in the work root as the checkout's kit writes it (FIXTURE_PROJECT):
+    `copied` or `migrated`."""
+    done = subprocess.run([sys.executable, "-c", FIXTURE_PROJECT, str(source), str(project)],
+                          cwd=project.parent, env={**env, "PYTHONPATH": str(kit_src)}, capture_output=True,
+                          text=True, encoding="utf-8", errors="replace", timeout=900)
+    if done.returncode != 0:
+        raise HarnessError(f"preparing the fixture's project failed: {(done.stderr or done.stdout)[-1500:]}")
+    return done.stdout.strip().splitlines()[-1]
+
+
 def prepare_work(task: dict, fixture: Path, work: Path, kit_src: Path, env: dict) -> Path:
     """project/ and input/ only: manifest.json and expected.json carry answers."""
     work.mkdir(parents=True, exist_ok=True)
@@ -1677,7 +1748,7 @@ def prepare_work(task: dict, fixture: Path, work: Path, kit_src: Path, env: dict
         raise HarnessError(f"the work root {work} is not empty")
     project = work / "project"
     if task["setup"] == "fixture":
-        shutil.copytree(fixture / "project", project, symlinks=True)
+        fixture_project(kit_src, fixture / "project", project, env)
         if (fixture / "input").is_dir():
             shutil.copytree(fixture / "input", work / "input", symlinks=True)
     else:

@@ -1,12 +1,14 @@
 """The Workspace: static HTML generated from the project files (never edited by hand).
 
-report/index.html        overview · charts · timeline · data · runs · context · evaluation
-report/runs/<id>.html    one run: charts with plotted data, code, inputs (with freshness), outputs,
-                         logs, environment, reproduction
-report/data/<view>.html  one dataset: schema, statistics, preview, lineage
-report/context.html      CONTEXT.md now and every recorded version with diffs
+workspace/index.html        overview · charts · timeline · data · runs · context · evaluation
+workspace/runs/<id>.html    one run: charts with plotted data, code, inputs (with freshness),
+                            outputs, logs, environment, reproduction
+workspace/data/<view>.html  one dataset: schema, statistics, preview, lineage
+workspace/context.html      CONTEXT.md now and every recorded version with diffs
 
-Pages use relative links only, so they work from file:// and inside a copied project.
+In the project's Workspace directory (Project.workspace_dir: workspace/ of the format this kit
+writes; report/ of a lab.json project, which this kit does not build). Pages use relative links
+only, so they work from file:// and inside a copied project.
 """
 
 from __future__ import annotations
@@ -194,11 +196,11 @@ class Site:
         # Each run's script as the gallery reads it (an older kit's spelling as today's).
         self.script_of = {r["id"]: self.script_path(r) for r in self.runs}
         self.resolved = core.resolved_targets(self.events)
-        # The tool log of this kit's state directory, and the new format's after it (design 5.3).
-        self.telemetry = [row for place in (project.telemetry,
-                                            project.root / ".analytics" / "telemetry.jsonl")
-                          for row in core.read_jsonl(place)]
-        self.queries = core.read_jsonl(project.queries)
+        # The tool and query logs of both state directories (design 5.3): this kit's (.analytics/),
+        # and an older kit's (.lab/) — a migrated project's copy of them is in .analytics/ already.
+        logs = dict.fromkeys((project.state_dir, project.legacy_state_dir))
+        self.telemetry = [row for place in logs for row in core.read_jsonl(place / "telemetry.jsonl")]
+        self.queries = [row for place in logs for row in core.read_jsonl(place / "queries.jsonl")]
         # The CONTEXT.md versions of both state directories (design 5.3), as a reference resolves them.
         self.versions = core.context_versions(project)
         self.build = core.now().strftime("%Y%m%d-%H%M%S-%f")
@@ -206,7 +208,7 @@ class Site:
         self.uses_plotly = False
         self._fig = 0
 
-    # --- links (depth 0 = report/, 1 = report/runs|data/) ---
+    # --- links (depth 0 = workspace/, 1 = workspace/runs|data/) ---
 
     def up(self, depth: int) -> str:
         return "../" * (depth + 1)
@@ -219,7 +221,7 @@ class Site:
             return "#"
         # A path recorded as absolute is absolute on the platform that recorded it. os.path.isabs
         # answers for the platform rebuilding the report, so a Windows path read on Linux would be
-        # linked as if it sat inside report/.
+        # linked as if it sat inside workspace/.
         if _platform.absolute_record_path(rel):
             # A record is data: a path no link can name (a device path, a UNC path without a
             # share) gets no link rather than stopping the build.
@@ -601,6 +603,24 @@ class Site:
 """
 
 
+def dataset_counts(site) -> str:
+    """The Datasets tile's note: the datasets of each kind — the layout's imports (imported, or raw
+    in a lab.json project) and the other kind of imports when there are any, then derived."""
+    own = "raw" if site.p.layout.imported_dir == "data/raw" else "imported"
+    kinds = [k for k in ("imported", "raw") if k == own or any(d["kind"] == k for d in site.datasets)]
+    return " · ".join(f"{k} {sum(d['kind'] == k for d in site.datasets)}" for k in (*kinds, "derived"))
+
+
+def imported_note(site) -> str:
+    """Where the imported data is (kept unchanged): data/imported, and data/raw a lab.json project's."""
+    if site.p.layout.imported_dir == "data/raw":
+        return "data/raw holds imported data (kept unchanged)"
+    if any(ds["kind"] == "raw" for ds in site.datasets):
+        return ("data/imported holds imported data and data/raw the imports of a lab.json project (both "
+                "kept unchanged)")
+    return "data/imported holds imported data (kept unchanged)"
+
+
 def fingerprint(project: core.Project) -> str:
     parts = []
     for path in (*project.markers, project.context, project.journal, project.telemetry,
@@ -632,7 +652,7 @@ def build(project: core.Project, *, if_changed: bool = False) -> dict:
     the fingerprint after the lock, so queued triggers collapse into one build. A write: refused
     before its lock file is made where this kit does not write (core.admit, Issue #13)."""
     core.admit(project, "render")
-    with project.platform.locks.exclusive(project.state_dir / "report.lock"):
+    with project.platform.locks.exclusive(project.state_dir / project.layout.workspace_lock):
         return _build_locked(project, if_changed)
 
 
@@ -937,11 +957,7 @@ def index_page(site: Site) -> str:
                 f'<span class="value">{fmt_num(value)}</span><span class="note">{note}</span></a>')
 
     tiles = "".join([
-        tile("Datasets", len(site.datasets),
-             (f"imported {sum(d['kind'] == 'imported' for d in site.datasets)} · "
-              if any(d["kind"] == "imported" for d in site.datasets) else "")
-             + f"raw {sum(d['kind'] == 'raw' for d in site.datasets)}"
-             f" · derived {sum(d['kind'] == 'derived' for d in site.datasets)}", "data"),
+        tile("Datasets", len(site.datasets), dataset_counts(site), "data"),
         tile("Runs", len(site.runs), f"{len(failed)} not succeeded" if failed else "All succeeded",
              "runs"),
         tile("Visualizations", len(current), f"⚠ {len(stale)} with input changes" if stale
@@ -1005,7 +1021,7 @@ def index_page(site: Site) -> str:
     data = f"""
 <section id="data" class="tab">
   <div class="toolbar"><h2>Data</h2></div>
-  <p class="muted">data/raw holds imported data (kept unchanged), data/derived the Parquet files runs made. Each dataset shows its name as written and, where they differ, its SQL view — the name analytics_query and analytics.sql use.</p>
+  <p class="muted">{esc(imported_note(site))}, data/derived the Parquet files runs made. Each dataset shows its name as written and, where they differ, its SQL view — the name analytics_query and analytics.sql use.</p>
   {('<div class="table-wrap"><table class="list"><thead><tr><th>Dataset</th><th>Kind</th><th>Rows</th><th>Columns</th><th>Size</th><th>Path</th><th>Source / producer candidates</th><th>Used by runs</th><th>sha256</th></tr></thead><tbody>' + ''.join(data_rows) + '</tbody></table></div>') if data_rows else '<div class="empty">No datasets yet. Import one with analytics_import (or analytics import).</div>'}
 </section>"""
 
@@ -1116,7 +1132,7 @@ def evaluation_section(site: Site) -> str:
         f"{''.join(badge('warning', '⚑', f) for f in t['flags'])} <span class='muted'{USER}>{esc(t.get('summary'))}</span></li>"
         for t in flagged[::-1][:30])
     gap_html = site.events_html(gaps[::-1], 0) if gaps else \
-        '<div class="empty">No workflow feedback yet. Record where the tools got in the way or needed a workaround with /analytics record gap or analytics_record(kind="gap").</div>'
+        '<div class="empty">No workflow feedback yet. Record where the tools got in the way or needed a workaround with /analytics record workflow_feedback TEXT or analytics_record(kind="workflow_feedback").</div>'
     telemetry_html = (f'<div class="table-wrap"><table class="list"><thead><tr><th>Tool</th><th>Calls</th>'
                       f'<th>Errors</th><th>Mean ms</th></tr></thead><tbody>{tool_rows}</tbody></table></div>'
                       if tool_rows else '<div class="empty">No tool calls recorded by the aelix extension.</div>')
@@ -1186,8 +1202,8 @@ def run_page(site: Site, run: dict) -> str:
         # The summary is the script's exception as it said it; the hint is the kit's.
         callouts += (f'<div class="callout tone-critical"><strong{USER}>{esc(err.get("summary"))}</strong>'
                      f'{where}{fix}</div>')
-    # Each Visualization's comparison, whichever record holds it (reproduction.charts of a
-    # lab.run/1 run, reproduction.visualizations of an analytics.run/2 one: design 5.3).
+    # Each Visualization's comparison, whichever record holds it (reproduction.visualizations of an
+    # analytics.run/2 run, reproduction.charts of a lab.run/1 one: design 5.3).
     repro = relations.run_reproduction(run)
     if repro:
         tone = {"match": "good", "mismatch": "critical", "failed": "critical"}.get(
@@ -1369,7 +1385,7 @@ def dataset_page(site: Site, ds: dict, view: str) -> str:
         prof = {"columns": [], "preview": {"columns": [], "rows": []}, "error": str(exc)}
     # An import record this kit cannot read says nothing here (core.list_datasets).
     meta = (core.read_json(p.path(ds["path"]).with_suffix(".meta.json"))
-            if ds["kind"] == "raw" and not ds.get("unsupported_record") else None)
+            if ds["kind"] in core.IMPORT_FAMILIES and not ds.get("unsupported_record") else None)
     label = dataset_label(ds["name"], view)
     facts = [f'<code{USER}>{esc(ds["path"])}</code>',
              f'{fmt_num(prof.get("rows"))} rows × {len(prof.get("columns") or [])} columns',
@@ -1482,7 +1498,7 @@ def context_page(site: Site) -> str:
         blocks.append(f'<article class="version" id="v-{esc(v.stem)}"><h3>{fmt_time(core._version_time(v))}{who}</h3>'
                       f'<pre class="diff"{USER if diff else ""}>{lines}</pre></article>')
     body = f"""
-<div class="page-head"><h1>Context history</h1><div class="sub">Each change to CONTEXT.md leaves a version in .lab/context/ (.analytics/context/ in the new format, listed here too). A new version is noticed at a run, an import, a record and a Workspace render.</div></div>
+<div class="page-head"><h1>Context history</h1><div class="sub">Each change to CONTEXT.md leaves a version in .analytics/context/ (.lab/context/ holds a lab.json project's, listed here too). A new version is noticed at a run, an import, a record and a Workspace render.</div></div>
 <div class="columns wide-left">
   <article class="panel markdown"{USER if current else ""}>{render_markdown(current) if current else '<div class="empty">Empty</div>'}</article>
   <aside class="panel"><h3>{len(versions)} version(s)</h3><ul class="plain">{''.join(f'<li><a href="#v-{esc(v.stem)}">{fmt_time(core._version_time(v))}</a></li>' for v in versions[::-1])}</ul></aside>
