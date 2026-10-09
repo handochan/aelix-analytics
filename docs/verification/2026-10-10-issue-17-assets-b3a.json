@@ -1163,7 +1163,7 @@
     }
   ],
   "ci": {
-    "status": "not_run",
+    "status": "not_started_billing",
     "reason": "runtime draft follows the reviewed dependency branch; final actual merged-main CI pending. The prerequisite Issue14 final jobs did not start due billing/spending limit. No platform test failure is inferred from this account block.",
     "prerequisite_issue14": {
       "head": "166f991c50f37ea7de583ce2014a43afca342246",
@@ -1174,7 +1174,20 @@
       "steps": 0,
       "annotation_reason": "recent account payments have failed or spending limit needs to be increased"
     },
-    "runtime_runs": []
+    "runtime_runs": [
+      {
+        "id": 37962902000,
+        "attempt": 1,
+        "head": "58f7ac1acbf7b15348f26904d7186ed683b97d0b",
+        "url": "https://github.com/handochan/aelix-analytics/actions/runs/37962902000",
+        "github_conclusion": "failure",
+        "validation_status": "not_run",
+        "jobs": 5,
+        "steps": 0,
+        "reason": "account payments/spending limit prevented all jobs from starting",
+        "macos": "not_run, no label dispatch while account is blocked"
+      }
+    ]
   },
   "reviews": {
     "design_independent": "completed16101c1",

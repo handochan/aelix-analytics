@@ -43,7 +43,10 @@ SDK의 실행 중 검사 선언은 실제 run 완료 관측으로 다시 검증�
 수정 diff782e363..e9c2d79의 **한 번 확인도 통과**했다. 원본 줄은 보존하고 잘못된 전이는 경고/미적용으로 남는다.
 현재 파일이 나중에 바뀌어도 과거 journal proof의 정체성 검증을 live bytes로 다시 쓰지 않는다.
 
-런타임 최종 CI와 main rebase는 **pending**이다. 선행 PR87 마지막166f991의 [CI37960224053 attempt1](https://github.com/handochan/aelix-analytics/actions/runs/37960224053)은
+Draft [PR88](https://github.com/handochan/aelix-analytics/pull/88)은 #14 branch를 base로 두어 고유 diff만 담는다.
+런타임 [CI37962902000 attempt1](https://github.com/handochan/aelix-analytics/actions/runs/37962902000)은 정확한 HEAD58f7ac1의5개 job이
+같은 결제/사용 한도 사유로0step이며 시험 **not_run**이다. GitHub conclusion은 failure이고 macOS는 아직 dispatch하지 않았다.
+실제 main rebase와 최종 세 OS CI 통과는 **pending**이다. 선행 PR87 마지막166f991의 [CI37960224053 attempt1](https://github.com/handochan/aelix-analytics/actions/runs/37960224053)은
 계정 결제/사용 한도 annotation으로5개 job이 **step을 시작하지 못했다**. 이것을 코드 시험 실패나 CI 통과로 바꾸지 않는다.
 실제 merged main과 최종 CI 조건을 채우기 전에는 이 runtime을 병합하지 않는다.
 
