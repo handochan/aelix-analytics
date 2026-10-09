@@ -37,6 +37,7 @@ import importlib.util
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -887,16 +888,17 @@ async def tool_record(args, ctx):
     project, _ = resolve_project()
     kind = str(args.get("kind") or "")
     text = str(args.get("text") or "")
-    refs = [str(r) for r in args.get("refs") or []]
+    refs = list(args.get("refs") or [])
+    details = args.get("details")
     resolves = args.get("resolves") or None
     # What the record refuses before its lock is refused before the context sync: a refused record
     # changes nothing (core.check_record).
     await asyncio.to_thread(lambda: core.check_record(project, kind, text, refs=refs, resolves=resolves,
-                                                      origin=origin("agent", "tool")))
+                                                      details=details, origin=origin("agent", "tool")))
     await asyncio.to_thread(lambda: core.sync_context(project, origin=origin("system", "tool")))
     written = await asyncio.to_thread(
         lambda: core.record(project, kind, text, refs=refs, resolves=resolves,
-                            origin=origin("agent", "tool")))
+                            details=details, origin=origin("agent", "tool")))
     schedule_workspace_render(project, "tool")
     return f"analytics_record: ok — {recorded_line(written, kind)}", written.to_json()
 
@@ -1070,7 +1072,11 @@ TOOLS = [
         {"kind": {"type": "string", "enum": list(core.RECORD_KINDS)},
          "text": {**STR, "description": "The entry, self-contained. Kept whole up to 32 KiB of UTF-8; "
                                         "a longer one is refused, never cut."},
-         "refs": {"type": "array", "items": STR, "description": "Run ids, chart keys, dataset names, event ids."},
+         "refs": {"type": "array", "items": {"anyOf": [STR, {"type": "object"}]},
+                  "description": "Run ids, chart keys, dataset names, event ids, or exact typed references."},
+         "details": {"type": "object", "description": "Structured metric_definition/1, analysis_focus/1, "
+                     "or metric_observation/1 payload; exact definitions and explicit scope. "
+                     "Metric/focus state changes are generated from these fields."},
          "resolves": {**STR, "description": "Event id this entry answers or closes, e.g. e7."}},
         ["kind", "text"], tool_record,
         "record a finding/decision/assumption/question/todo/workflow_feedback in the project journal",
@@ -1815,8 +1821,26 @@ async def analytics_command(args, ctx=None):
             # what `/lab gap TEXT` was, is bad_kind with its new name, workflow_feedback (design 2.8).
             project, _ = resolve_project()
             kind, _, body = rest.partition(" ")
+            details, refs = None, []
+            if "--details-json" in body or "--refs-json" in body:
+                argv = shlex.split(rest)
+                if len(argv) < 2 or (len(argv) - 2) % 2:
+                    raise core.AnalyticsError("bad_record_input", "quote the text and JSON option values")
+                kind, body = argv[:2]
+                for flag, value in zip(argv[2::2], argv[3::2], strict=True):
+                    try:
+                        payload = json.loads(value)
+                    except ValueError as exc:
+                        raise core.AnalyticsError("bad_record_input", "record options hold JSON values") from exc
+                    if flag == "--details-json":
+                        details = payload
+                    elif flag == "--refs-json" and isinstance(payload, list):
+                        refs += payload
+                    else:
+                        raise core.AnalyticsError("bad_record_input", "use --details-json or --refs-json array")
             written = await asyncio.to_thread(
-                lambda: core.record(project, kind, body, origin=origin("human", "command")))
+                lambda: core.record(project, kind, body, refs=refs, details=details,
+                                    origin=origin("human", "command")))
             schedule_workspace_render(project, "command")
             return recorded_line(written, kind)
         if sub == "context":

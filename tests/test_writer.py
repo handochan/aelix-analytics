@@ -168,7 +168,8 @@ def test_the_families_the_writer_writes_are_named_by_what_they_are():
 
 def test_the_kinds_a_person_or_an_agent_records():
     assert writer.RECORD_KINDS == ("finding", "decision", "assumption", "question", "todo", "note",
-                                   "workflow_feedback", "resolve")
+                                   "workflow_feedback", "metric_definition", "analysis_focus",
+                                   "metric_observation", "resolve")
     assert writer.KIT_KINDS == ("project", "import", "run", "context")
     assert set(writer.RECORD_KINDS + writer.KIT_KINDS) <= relations.KINDS[relations.EVENT_V2]
     assert "gap" not in writer.RECORD_KINDS and "record_update" not in writer.RECORD_KINDS
@@ -204,7 +205,7 @@ def test_the_writer_has_no_author_of_its_own_and_reads_no_environment():
     assert not reads, f"writer.py reads the environment at lines {reads}"
     imported = {alias.name for node in ast.walk(tree_) if isinstance(node, ast.ImportFrom)
                 and node.level == 1 for alias in node.names}
-    assert imported == {"_platform", "relations"}
+    assert imported == {"_platform", "relations", "metrics"}
     with pytest.raises(TypeError):
         writer.Writer(KIT, platform=core.PLATFORM, writer_version=core.KIT_VERSION)  # no origin
     with pytest.raises(TypeError):
@@ -252,6 +253,10 @@ def test_every_line_of_the_writer_follows_the_record_schema(tmp_path):
     root = analytics_project(tmp_path / "p")
     p = core.Project(root)
     for kind in writer.RECORD_KINDS:
+        if kind in ("metric_definition", "analysis_focus", "metric_observation"):
+            # These kinds need structured details and their schema/semantic coverage is in
+            # test_metrics.py; a kind alone is deliberately no valid record.
+            continue
         if kind == "resolve":
             core.record(p, kind, "closed", resolves="e3", origin=ORIGIN)
         else:

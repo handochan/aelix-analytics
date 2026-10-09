@@ -44,7 +44,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-from . import _platform, relations
+from . import _platform, metrics, relations
 
 
 class AnalyticsError(Exception):
@@ -697,7 +697,7 @@ def classify_refs(items) -> dict:
 # The kinds a person or an agent records (design 2.8): `gap` is `workflow_feedback` in this format,
 # and the other kinds of analytics.event/2 open with the Issues of their features (#14 on).
 RECORD_KINDS = ("finding", "decision", "assumption", "question", "todo", "note", "workflow_feedback",
-                "resolve")
+                *metrics.KINDS, "resolve")
 # The kinds the kit records on its own (design 4.8): a project's creation and the completion events of
 # an import, a run and a context version.
 KIT_KINDS = ("project", "import", "run", "context")
@@ -988,6 +988,8 @@ class _Prepared:
     typed: list
     journal: relations.Journal | None
     bound: dict
+    details: dict | None
+    requires: str | None
 
 
 class Locked:
@@ -1169,16 +1171,25 @@ class Writer:
         min_writer_version to that version under the lock before the record is written (design 4.8).
         Steps 1–7 of design 4.5; a refusal at any step writes nothing."""
         op = "record"
+        refs = [refs] if isinstance(refs, (str, dict)) else list(refs or ())
         prepared = self._prepare(op, kind, text, refs, details, requires)
         text, items, typed, outside, bound = (prepared.text, prepared.items, prepared.typed,
                                               prepared.journal, prepared.bound)
         with self.locked(op) as held:
+            if kind in metrics.KINDS:
+                # The caller's original fields, not the generated state-changing references, are
+                # checked again. Concurrent definition/focus changes cannot be overwritten.
+                details, generated = self._metric(kind, details, refs, held.journal)
+                items = _items([*list(refs or ()), *generated])
+                bound = self._bind(items)
             if held.journal.as_of_seq != outside.as_of_seq:
                 bound = self._bind(items)  # a run completed meanwhile, say
             _check_resolved(held.journal, typed)
             refs_written = _refs(items, bound)
             before = held.journal
-            event = held.append(kind, text, refs=refs_written, details=details, requires=requires)
+            event = held.append(kind, text, refs=refs_written,
+                                details=details if kind in metrics.KINDS else prepared.details,
+                                requires=prepared.requires)
             # The journal after the append is read again only for a record that changes another's
             # state (design 4.6): most records change none.
             targets = (_targets(before, held.journal, refs_written)
@@ -1195,6 +1206,7 @@ class Writer:
         is refused changes nothing. The line is judged with the seq the record gets after `ahead`
         more records (the context event the sync is about to write), or with `seq` (SEQ_BOUND: a
         note made now and written when its run finishes)."""
+        refs = [refs] if isinstance(refs, (str, dict)) else list(refs or ())
         self._prepare("record", kind, text, refs, details, None, ahead=ahead, seq=seq)
 
     def _prepare(self, op: str, kind: str, text: str, refs, details, requires, *, ahead: int = 0,
@@ -1203,6 +1215,12 @@ class Writer:
         make not even the lock file."""
         self.admit(op)
         check_kind(kind, RECORD_KINDS + KIT_KINDS)
+        outside = None
+        if kind in metrics.KINDS:
+            outside = relations.Journal(_journal_bytes(self.journal))
+            details, generated = self._metric(kind, details, refs, outside)
+            refs = [*list(refs or ()), *generated]
+            requires = metrics.SINCE
         text, text_bytes = _text(text)
         request_id = self._request_id()
         items = _items(refs)
@@ -1212,8 +1230,7 @@ class Writer:
                 requires) > relations.version_key(self.writer_version)):
             raise ValueError(f"requires is a PEP 440 version in its normal form, at most this writer's "
                              f"{self.writer_version}: {requires!r}")
-        outside = None
-        if seq is None or any(ref["relation"] == "resolves" for ref in typed):
+        if outside is not None or seq is None or any(ref["relation"] == "resolves" for ref in typed):
             outside = relations.Journal(_journal_bytes(self.journal))
             _check_resolved(outside, typed)
         bound = self._bind(items)
@@ -1222,7 +1239,117 @@ class Writer:
         problem = _too_long(text_bytes, line)
         if problem:
             raise problem
-        return _Prepared(text, request_id, items, typed, outside, bound)
+        return _Prepared(text, request_id, items, typed, outside, bound, details, requires)
+
+    def _metric(self, kind, details, refs, journal):
+        """ADR-0011: payload-owned relationships and exact prior targets, checked under lock too."""
+        try:
+            details = metrics.validate(kind, details)
+        except metrics.ContractError as exc:
+            raise AnalyticsError("bad_metric_record", str(exc)) from exc
+        caller = _items(refs)
+        if any(ref is not None and ref["relation"] in metrics.STATE_RELATIONS for _, ref in caller):
+            raise AnalyticsError("bad_metric_record", "structured details own state-changing relationships")
+        generated = []
+
+        def target(event_id, wanted, metric_id=None):
+            event = journal.event_of(event_id)
+            if event is None or event.kind != wanted or event.seq is None or event.seq >= journal.next_seq:
+                raise AnalyticsError("metric_reference", f"{event_id!r} is not a unique prior {wanted}")
+            if metric_id is not None and (event.value.get("details") or {}).get("metric_id") != metric_id:
+                raise AnalyticsError("metric_reference", f"{event_id!r} belongs to another metric")
+            return event
+
+        def current(event):
+            state = journal.replay().state_of(event.id)
+            if state is None or state["state"] != "current":
+                raise AnalyticsError("state_conflict", f"{event.id} is no longer current", details=state)
+
+        def definition(item, relation="uses"):
+            target(item["event_id"], "metric_definition", item["metric_id"])
+            generated.append(typed_reference({"type": "metric_definition", "metric_id": item["metric_id"],
+                                               "event_id": item["event_id"],
+                                               "relation": relation}))
+
+        if kind == "metric_definition":
+            previous = details.get("previous_definition")
+            same = [event for event in journal.events if event.kind == kind
+                    and (event.value.get("details") or {}).get("metric_id") == details["metric_id"]]
+            if previous:
+                old = target(previous, kind, details["metric_id"])
+                current(old)
+                if sum((journal.replay().state_of(e.id) or {}).get("state") == "current"
+                       for e in same) != 1:
+                    raise AnalyticsError("state_conflict", "this metric has conflicting current definitions")
+                definition({"metric_id": details["metric_id"], "event_id": previous}, "supersedes")
+            elif same:
+                raise AnalyticsError("state_conflict", "an existing metric needs previous_definition")
+            for parent in details["derived_from"]:
+                definition(parent, "derived_from")
+        elif kind == "analysis_focus":
+            view = metrics.projection([e.value for e in journal.events], journal.replay().record_states())
+            previous = details.get("previous_focus")
+            if previous:
+                old = target(previous, kind)
+                current(old)
+                if view["focus_state"] != "current" or view["current_focus"]["event_id"] != previous:
+                    raise AnalyticsError("state_conflict", "the current analysis focus is ambiguous or changed")
+                generated.append(typed_reference({"type": "analysis_focus", "event_id": previous,
+                                                   "relation": "supersedes"}))
+            elif view["focus_state"] != "absent":
+                raise AnalyticsError("state_conflict", "a focus change needs previous_focus")
+            for item in details["metrics"]:
+                definition({"metric_id": item["metric_id"], "event_id": item["event_id"]})
+        else:
+            definition({"metric_id": details["metric_id"], "event_id": details["definition_event_id"]})
+            if "run_id" not in details:
+                raise AnalyticsError("bad_metric_record", "an observation names its recorded run_id")
+            run = _Lookup(self).model.run(details["run_id"])
+            if run is None:
+                raise AnalyticsError("metric_reference", "the observation run is missing or unsupported")
+            generated.append(typed_reference({"type": "run", "run_id": run["id"],
+                                               "relation": "generated_by"}))
+            script = run.get("script") or {}
+            if script.get("snapshot") and SHA256_RE.fullmatch(script.get("sha256") or ""):
+                generated.append(typed_reference({"type": "code_snapshot", "run_id": run["id"],
+                    "path": script["snapshot"], "digest": {"sha256": script["sha256"]},
+                    "relation": "uses", "basis": "observed"}))
+            for item in run.get("inputs") or []:
+                via = item.get("via") or []
+                basis = ("observed" if any(v not in ("scan", "declared") for v in via)
+                         else "declared" if "declared" in via else "inferred")
+                ref = {"type": "data_observation", "run_id": run["id"], "role": "input",
+                       "path": item["path"], "relation": "uses", "basis": basis}
+                if SHA256_RE.fullmatch(item.get("sha256") or ""):
+                    ref["digest"] = {"sha256": item["sha256"]}
+                generated.append(typed_reference(ref))
+            result_ref = details.get("result_ref")
+            if result_ref:
+                result_ref = typed_reference(result_ref)
+                details["result_ref"] = result_ref
+                if result_ref["version_binding"] != "author" or result_ref["relation"] in metrics.STATE_RELATIONS:
+                    raise AnalyticsError("metric_reference", "result_ref is an exact, non-state-changing version")
+                if result_ref.get("run_id") != run["id"] or (result_ref["type"] == "data_observation"
+                                                            and result_ref.get("role") != "output"):
+                    raise AnalyticsError("metric_reference", "result_ref names an output of the observation run")
+                if run.get("status") != "running":
+                    if result_ref["type"] == "data_observation":
+                        found = any(o.get("path") == result_ref["path"] and o.get("change") != "deleted"
+                                    for o in run.get("outputs") or [])
+                    else:
+                        found = any(v["id"] == result_ref["visualization_id"]
+                                    for v in relations.run_visualizations(run))
+                    if not found:
+                        raise AnalyticsError("metric_reference", "result_ref is not a recorded run output")
+                generated.append(result_ref)
+            recomputed = details.get("recomputed_from")
+            if recomputed:
+                old = target(recomputed, kind, details["metric_id"])
+                if (old.value.get("details") or {}).get("definition_event_id") != details["definition_event_id"]:
+                    raise AnalyticsError("metric_reference", "a recomputation uses the same exact definition")
+                generated.append(typed_reference({"type": "event", "event_id": recomputed,
+                                                   "relation": "derived_from"}))
+        return details, generated
 
     def update(self, target: str, *, expected: str, new: str, text: str) -> Written:
         """Change one record's state (withdraw, restore, reopen, a reuse step: ADR-0006 6) by a
@@ -1429,6 +1556,9 @@ def _check_resolved(journal: relations.Journal, typed: list[dict]) -> None:
 
 def _check_kind_refs(kind: str, typed: list[dict], details) -> None:
     """What the record schema asks of a kind (event_2), before anything is written."""
+    if isinstance(details, dict) and details.get("contract") in {f"{k}/1" for k in metrics.KINDS}:
+        if details["contract"] != f"{kind}/1":
+            raise AnalyticsError("bad_metric_record", "the structured contract matches its record kind")
     if kind == "resolve" and not any(ref["relation"] == "resolves" for ref in typed):
         raise AnalyticsError("resolve_needs_target", "kind 'resolve' needs resolves=<event id>",
                              hint="pass the id of the question or todo being closed, e.g. e7")

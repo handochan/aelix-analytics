@@ -373,10 +373,10 @@ kit CLI, SDK, 확장, init·데모, run·가져오기·맥락 동기화가 남�
 | `schema` | `analytics.event/2` |
 | `seq`, `id` | 1부터 증가하는 번호와 `e<seq>`. 프로젝트 파일 잠금(`.analytics/lock`) 안에서 그때의 journal을 읽어 배정합니다: 파싱하거나 복구한 모든 줄(모르는 가족·버전·kind의 줄과 `lab.event/1` 줄 포함)의 가장 큰 seq 다음 값입니다(ADR-0006 6절). 끊긴 줄에 글자로 남은 seq는 세지 않습니다. 그 쓰기는 끝나지 않아 id를 돌려준 적이 없고, reader는 그 줄에서 id를 읽지 않습니다. 그래서 다음 기록이 그 번호를 받을 수 있지만 같은 id의 두 기록으로 읽히지는 않습니다. 읽히는 줄이 그 번호의 id를 이미 가지고 있으면(손으로 고친 줄: seq가 정수가 아니거나(`"3"`, `3.0`, `true`) id의 번호와 다름) 그 번호를 건너뛰고 다음 번호를 받습니다. kit 0.5.0의 #49 수정 전에는 읽히는 마지막 줄의 seq 다음 값이었습니다 |
 | `recorded_at` | 로컬 시간대 ISO 8601(밀리초). `lab.event/1`의 `ts` |
-| `kind` | kit 자신의 기록 `project` `import` `run` `context`와 사람·에이전트의 기록 `finding` `decision` `assumption` `question` `todo` `note` `workflow_feedback` `resolve`(`writer.RECORD_KINDS`). 기록하는 진입점에 준 `gap`은 쓰지 않고 `bad_kind`(`details.use: workflow_feedback`)입니다. 그 밖의 `/2` kind(지표·재사용·게시 등)는 읽기만 합니다 |
+| `kind` | kit 자신의 기록 `project` `import` `run` `context`와 사람·에이전트의 기록 `finding` `decision` `assumption` `question` `todo` `note` `workflow_feedback` `resolve`(`writer.RECORD_KINDS`). 기록하는 진입점에 준 `gap`은 쓰지 않고 `bad_kind`(`details.use: workflow_feedback`)입니다. kit 0.9.0은 `metric_definition`·`analysis_focus`·`metric_observation`도 구조화 details로 씁니다(C6). 그 밖의 `/2` kind(분석 자산·게시 등)는 읽기만 합니다 |
 | `actor`, `actor_basis`, `means` | 작성 출처(`Origin`): 작성 주체(`agent` `human` `system` 등), 진입점이 그것을 알거나 선언받았는지(`declared`) 선언이 없어 `human`으로 본 것인지(`inferred`), 실행 수단(`cli` `sdk` `tool` `command` `hook`). 진입점마다의 값은 아래 "작성 출처"와 A |
 | `session` | aelix 세션 파일 경로(있을 때) |
-| `request_id` | 부른 쪽이 요청 id를 넘긴 쓰기에만 있습니다. 공개 진입점은 그 입력을 열지 않았으므로(#14·#19) 지금은 쓰기의 응답에만 있습니다(D) |
+| `request_id` | 부른 쪽이 요청 id를 넘긴 쓰기에만 있습니다. 공개 진입점은 그 입력을 열지 않았으므로(#19) 지금은 쓰기의 응답에만 있습니다(D) |
 | `text` | 앞뒤 공백을 지운 본문(비어 있으면 `empty_note`). UTF-8로 32 KiB(32,768 bytes, `writer.TEXT_LIMIT`)를 넘거나 쓸 줄(LF 포함)이 50 KiB(51,200 bytes, `writer.LINE_LIMIT`) 미만이 아니면 아무것도 쓰지 않고 `text_too_long`입니다. 자르지 않습니다. 잠금 밖에서 알 수 있는 거절(이 둘, 없는 `--resolves` 대상의 `unknown_event`, `resolve_needs_target`, `bad_kind`)은 kit CLI `record`와 `analytics_record`가 그 전에 하는 맥락 동기화보다 먼저 판정해, 거절된 기록은 `context` 이벤트·버전도 남기지 않습니다(`core.check_record`; 줄은 동기화가 쓸 `context` 이벤트 다음의 seq로 잽니다). SDK가 run 안에서 만든 기록은 run이 끝날 때 쓰므로 그 줄은 부를 때 가장 넓은 seq(12자리, `writer.SEQ_BOUND`)로 판정하고, 넘으면 그 호출의 예외입니다. seq는 줄에 두 번(`seq`·`id`) 들어가므로 판정한 줄은 실제로 쓸 줄보다 2 × (12 − 실제 seq의 자릿수) bytes, 많아야 22 bytes 깁니다. 그래서 그만큼 상한에 가까운 줄은 run 밖에서는 쓰일 기록도 거절합니다. kit이 만드는 본문 — 가져오기의 `import`, run의 완료 `run`, init의 `project` 기록 — 은 다른 곳에 통째로 남는 필드(가져오기 기록의 `description`, `run.json`의 `title`, 표식의 `title`)를 앞 4,000자까지 인용하고 더 길면 `…`로 줄입니다(`writer.excerpt`, kit 0.8.0 전에 모든 본문을 자르던 길이). run의 오류 요약은 예외든 `SystemExit`이든 300자이고 메시지 전체는 `run.json`의 `error.message`에 있습니다. 그래서 그런 필드가 길어도 그 기록이 거절되지 않습니다 |
 | `refs` | 참조의 목록(기록 schema의 `reference`): `type`·`relation`·`basis`·`version_binding`(`author`·`inferred`·`none`)과 대상의 키(`event_id`·`run_id`·`visualization_id`·`key`·`path`·`version`), 결박한 바이트의 `digest`, 입력한 글자 `token`. 개수의 상한은 없고 줄의 상한이 제한합니다(설계 4.7절의 이벤트당 24개 상한 `MAX_EVENT_REFS`는 두지 않았습니다: kit 0.8.0 전에도 run 완료 이벤트의 데이터 참조에만 있었고 지금 그 이벤트는 run 참조 하나입니다. 설계와의 차이로 측정 기록과 설계 19절에 적음) |
 | `details` | kind의 부가 정보(예: `project`의 `project_id`) |
@@ -388,8 +388,7 @@ kit CLI, SDK, 확장, init·데모, run·가져오기·맥락 동기화가 남�
   출력한 최신 성공 run(`inferred`), 그 밖의 글자는 `token`만(`none`)입니다. 이름은 잠금 밖에서 결박하고, 잠금 안에서 journal이 자랐으면 다시
   결박합니다. kit CLI의 `--resolves`(확장 도구의 `resolves`)는 `relation: resolves`의 이벤트 참조이고, 대상이 journal에 없으면 `unknown_event`,
   `resolve`에 대상이 없으면 `resolve_needs_target`입니다. 이미 닫힌 대상을 다시 닫는 기록도 씁니다(응답의 `targets`, D). run·가져오기·맥락 버전의
-  완료 기록은 그 대상을 `relation: about`·`basis: observed`·`author`로 가리킵니다(run의 완료 기록은 run id 하나). SDK의 `analytics.record`는
-  참조를 받지 않고, run 안의 기록은 그 run을 가리킵니다.
+  완료 기록은 그 대상을 `relation: about`·`basis: observed`·`author`로 가리킵니다(run의 완료 기록은 run id 하나). kit 0.9.0의 SDK `analytics.record`는 이름·typed 참조와 details를 받으며, run 안의 기록은 그 run도 가리킵니다.
 - **작성 출처**([설계](design/RECORD-WRITER-AND-MIGRATION.md) 4.2절). kit CLI는 `AELIX_ANALYTICS_ACTOR`가 있으면 그 값(`declared`), 없으면
   `human`(`inferred`)이고, 실행 수단은 `AELIX_ANALYTICS_MEANS`(없으면 `cli`, D)입니다. 런처·`bin/analytics`는 kit 0.8.0부터 `AELIX_ANALYTICS_ACTOR`를
   채워 넘기지 않습니다. SDK는 run 밖에서 `AELIX_ANALYTICS_ACTOR`의 값이나 `human`(`inferred`), `sdk`, `AELIX_ANALYTICS_SESSION`이고(kit 0.8.0 전에는
@@ -407,7 +406,7 @@ kit CLI, SDK, 확장, init·데모, run·가져오기·맥락 동기화가 남�
   줄 순서, seq 없는 줄은 끝) 보입니다(그 전에는 `/1` 줄만 줄 순서로 보이고 `/2` 줄은 `not_listed`로 셌습니다). `/2` 줄의 참조는 화면에서만
   `/1`의 `refs` 모양(`runs`·`events`·`charts`·`data`·`context`·`resolves`·`other`)으로 보이고, 판정은 E의 참조 판정입니다. `/2` 기록이 핵심
   정보·열린 항목인지는 위 규칙에 더해 상태 재생(ADR-0006 6절)으로 정합니다: 철회·정정·충돌한 내용 기록(`withdrawn`·`superseded`·`conflict`)과
-  닫힌 질문·할 일은 빠집니다. `workflow_feedback`은 `gap`과 같은 Workflow feedback이고, 지표·재사용·게시 kind는 타임라인에만 보입니다.
+  닫힌 질문·할 일은 빠집니다. `workflow_feedback`은 `gap`과 같은 Workflow feedback이고, tag 없는 지표·분석 자산·게시 kind는 타임라인에 보입니다. kit 0.9.0의 구조화 지표는 C6의 기본 조회도 제공합니다.
 - **참조의 읽기**: 화면(`analytics_status`·`/analytics status`·kit의 `status`, Workspace)은 `refs`를 고쳐 쓰지 않고 E의 참조 판정으로 보입니다. journal은 바이트로 읽어 LF로 나누고, 파싱하지 못한 줄은 `damaged`, 그 줄 뒤에 붙은 기록은 복구해 읽습니다. 같은 id의 줄이 여럿이면 줄마다 하나의 기록(`journal:<줄>`)입니다. 모르는 가족·버전·kind의 줄은 `unsupported`로 위치와 함께 셉니다(G).
 
 `lab.event/1`(kit 0.8.0 전의 kit이 쓴 줄, 읽기만):
@@ -504,6 +503,31 @@ kit 0.8.0부터 이 kit이 쓰는 가져오기 기록은 `analytics.dataset/1`([
   바이트의 줄 끝 변형 — E의 `line_endings_only`와 같은 규칙 — 중 하나와 같을 때), 그 밖에는 `CONTEXT.md updated (+추가 -삭제 lines)`입니다.
   kit 0.8.0부터 그 이벤트는 버전을 `context_version` 참조(`about`·`observed`·`author`, 바이트의 sha256)로 가리키고, 버전과 이벤트를 같은 journal
   잠금 안에서 씁니다. 직전 버전은 `.analytics/context/`와 `.lab/context/`의 마지막 것이라, 전환 직후 같은 CONTEXT.md는 새 버전이 되지 않습니다.
+
+### C6. 지표 정의·현재 초점·명시적 관측 (kit 0.9.0)
+
+[ADR-0011](decisions/0011-metric-focus-and-observation-contract.md)의 M0·최소 M1입니다. 세 kind는 기존 `analytics.event/2`의
+`details.contract`로 `metric_definition/1`·`analysis_focus/1`·`metric_observation/1`을 구별합니다. 각각의 입력 필드는 ADR 4–6절,
+기계 스키마는 `metric_definition_details`·`analysis_focus_details`·`metric_observation_details`입니다. 새 기록 전에는 잠금 안에서
+`min_writer_version`을 0.9.0으로 올립니다. 기존 /1·tag 없는 /2를 고쳐 쓰거나 구조화 기록으로 추정하지 않습니다.
+
+- 정의는 Unicode metric ID와 정확한 이벤트 버전을 구별합니다. draft·빈 정의·여러 지표·역할을 허용하며 자유 실행에는 등록이 필요하지 않습니다.
+  수정은 같은 ID의 current `previous_definition`에, 파생은 다른 ID의 정확한 이전 정의들에 연결합니다. 부모가 나중에 바뀌어도 과거 파생과 관측은 원래 버전입니다.
+- 초점은 목적·질문·작업 의도·다음 확인·미정 사항·변경 이유와 정확한 정의/역할 묶음입니다. 변경은 current `previous_focus`를 명시합니다.
+  run은 시작할 때의 초점·조회 기준 seq를 `analysis_focus`에 보존합니다. 실행 중 초점이 바뀌어도 다시 결박하지 않습니다. 없거나 모호하면 실행은 계속되고 상태를 남깁니다.
+- 관측은 정확한 정의·run·scope·JSON result(큰 결과는 null과 output/Visualization `result_ref`)·재계산 이유를 명시합니다. `recomputed_from`은 같은 정의의 이전 관측입니다.
+  코드 스냅샷과 기록된 입력 참조를 연결하고 capture의 observed/declared/inferred 근거를 구별합니다. 이는 run 전체와 결과 선언의 연결이며 함수 수준 데이터 계보를 보장하지 않습니다.
+  읽기는 `execution_status`·`recording_status`·`calculation_check=unverified`를 따로 제공합니다. 실패·취소 run에서 선언한 값을 실행 성공이나 수학적 검증으로 올리지 않습니다.
+- 구조화 details가 상태 변경 관계의 정본입니다. caller가 추가한 supersedes/updates/resolves를 거절하며, 잘못된 payload는 `bad_metric_record`,
+  누락·중복·wrong-kind/ID·장래 대상은 `metric_reference`, 이미 바뀐 수정 대상은 `state_conflict`입니다. 부수 효과 전과 잠금 안에서 확인합니다.
+- `core.metric_records(project)`는 모든 원래 정의/초점/관측 버전과 상태·참조 판정을 재구성합니다. status JSON은 각 목록의 최근 16개(기본 limit 8),
+  전체 counts/omitted/read_more를 제공하며 현재 초점은 별도로 유지합니다. status/context의 초점 텍스트는 필드당 240자·지표 8개·미정 4개까지이며 전체는 journal에서 읽습니다.
+  CONTEXT.md를 자동으로 수정하지 않습니다. 상세 검색/checkpoint/관계 UI는 #15·#16·#18의 범위입니다.
+
+SDK `analytics.record(kind, text, *, refs=(), details=None)`는 run 밖에서 작성된 event/request ID를, run 안에서 `pending=true`와 run ID를 반환합니다.
+run 안의 관측은 run_id를 생략하면 현재 run으로 채우고, payload·refs의 JSON 사본을 완료 이벤트 뒤에 씁니다. 최종 쓰기 오류는 run의 finalize_errors이며
+관측이 성공했다는 응답이 아닙니다. 나중에 capture한 입력들이 관측 줄을 늘려 상한을 넘으면 최종 쓰기도 거절됩니다.
+실제 계산식 검증·추가 모델 호출·외부 semantic engine은 구현하지 않았습니다.
 
 ## D. kit CLI
 

@@ -194,31 +194,44 @@ def visualize(obj, id: str | None = None, *, title: str | None = None, caption: 
     return state.capture(obj, id, title=title, caption=caption, data=data)
 
 
-def record(kind: str, text: str) -> None:
-    """Journal entry: in a run linked to the run (written when the run finishes), by the run's
-    actor; outside a run written now, by AELIX_ANALYTICS_ACTOR, else `human` (inferred), through the
-    SDK (design 4.2). Named `note` before kit 0.3.0. `kind` is one a person or an agent records
-    (writer.RECORD_KINDS) but `resolve`, which needs a target the SDK does not take; `gap` is refused
-    with its new name, workflow_feedback (bad_kind). The text is kept whole: over its limit it is
-    refused (text_too_long, OQ2), never cut: in a run its line is judged when it is called, with the
-    widest seq a journal reaches (writer.SEQ_BOUND), so a note that returns is one the run writes.
-    Refused when it is made where this kit does not write (core.admit, Issue #13): in a run, an
-    error in the script."""
+def record(kind: str, text: str, *, refs=(), details=None) -> dict:
+    """A journal entry with names/typed refs and optional structured details (ADR-0011). Outside a
+    run returns the written event and request ID; inside a run returns pending=True and the run ID,
+    retaining a private payload until finalization. Final write failures are finalize_errors, not
+    successful observations. An in-run metric_observation defaults to that run_id. Definition,
+    focus and observation use their details.contract tags; free Python still needs no registration.
+    Authorship follows the run or the outside-run SDK Origin. Whole text and line limits apply at
+    the call and final write; no truncation. A run's later captured inputs can enlarge an observation
+    line, so a pending reply is not a guarantee of final append. Refused before effects where the kit
+    may not write. `gap` names its replacement workflow_feedback in bad_kind; `resolve` needs an
+    explicit typed resolves ref. Named `note` before kit 0.3.0."""
     from . import capture, core
 
-    # The kinds a person or an agent records, but `resolve`: it needs a target the SDK does not take.
-    core.writer.check_kind(kind, tuple(k for k in core.RECORD_KINDS if k != "resolve"))
+    core.writer.check_kind(kind)
     text = str(text)
     state = capture.ACTIVE
     if state is not None:
+        refs = [refs] if isinstance(refs, (str, dict)) else list(refs or ())
+        refs = [*refs, state.run_id]
+        if kind == "metric_observation" and isinstance(details, dict):
+            details = {**details, "run_id": details.get("run_id", state.run_id)}
+            if details["run_id"] != state.run_id:
+                raise core.AnalyticsError("metric_reference", "an in-run observation uses this run_id")
         # Judged now as the run will write it — linked to the run, by the run's actor through the
         # SDK — with the widest seq (SEQ_BOUND): a note refused for its text or its line is this
         # call's exception, never a note the run loses when it finishes.
         core.writer_for(state.project, state.sdk_origin).check(
-            kind, text, refs=[state.run_id], seq=core.writer.SEQ_BOUND)
-        state.notes.append((kind, text))
+            kind, text, refs=refs, details=details, seq=core.writer.SEQ_BOUND)
+        # Preserve a JSON snapshot, so mutating a caller's dictionary after acknowledgement does
+        # not change the queued record. Full final relationships are rechecked when the run ends.
+        import json
+
+        state.notes.append((kind, text, json.loads(json.dumps(refs)),
+                            json.loads(json.dumps(details)) if details is not None else None))
+        return {"pending": True, "run_id": state.run_id}
     else:
-        core.record(project(), kind, text, origin=_script_origin())
+        return core.record(project(), kind, text, refs=refs, details=details,
+                           origin=_script_origin()).to_json()
 
 
 

@@ -898,15 +898,20 @@ def execute(project: core.Project, *, script: str | None, title: str | None,
         # Judged again once the lock is held: a run that waited for another may find the directory
         # changed meanwhile, and nothing of the run is written yet (design 4.3).
         core.admit(project, "run")
+        focus = core.metric_records(project)
+        purpose = {"state": focus["focus_state"], "as_of_seq": focus["as_of_seq"], "refs": []}
+        if focus["current_focus"] is not None:
+            purpose["refs"] = [core.writer.typed_reference({"type": "analysis_focus",
+                "event_id": focus["current_focus"]["event_id"], "relation": "about"})]
         return _execute_locked(project, script_rel=script_rel, exec_file=exec_file,
                                code_bytes=code_bytes, title=title,
                                declared_inputs=declared_inputs, timeout=timeout,
                                source_run=source_run, origin=origin,
-                               result_follows=result_follows)
+                               result_follows=result_follows, analysis_focus=purpose)
 
 
 def _execute_locked(project, *, script_rel, exec_file, code_bytes, title, declared_inputs,
-                    timeout, source_run, origin, result_follows=False) -> dict:
+                    timeout, source_run, origin, result_follows=False, analysis_focus=None) -> dict:
     # The run's signal handling is installed once, here, and taken out after the record is
     # written. Between the two regions below it only records: nothing it does can stop the path to
     # the record, and inside a region it raises once at most (see _platform.RunControl).
@@ -920,6 +925,7 @@ def _execute_locked(project, *, script_rel, exec_file, code_bytes, title, declar
                   "pid": os.getpid(), "started_at": core.iso(), "actor": origin.actor,
                   "actor_basis": origin.actor_basis, "means": origin.means,
                   "session": origin.session,
+                  "analysis_focus": analysis_focus,
                   **({"request_id": origin.request_id} if origin.request_id else {}),
                   "rerun_of": rerun_of,
                   "script": {"path": script_rel, "sha256": core.sha256_bytes(code_bytes),
@@ -1119,10 +1125,11 @@ def _finalize(project, state, record, *, source_run, before, status, error, dura
     if record.get("reproduction"):
         text += f"; rerun of {source_run['id']}: {record['reproduction']['verdict']}"
     written = guarded("journal", lambda: runs.record(
-        "run", text, refs=[core.kit_reference("run", run_id=run_id)]), None)
-    for kind, note_text in state.notes:
-        guarded(f"note {kind}", lambda k=kind, t=note_text: core.record(
-            project, k, t, refs=[run_id], origin=state.sdk_origin), None)
+        "run", text, refs=[core.kit_reference("run", run_id=run_id),
+                           *((record.get("analysis_focus") or {}).get("refs") or [])]), None)
+    for kind, note_text, refs, details in state.notes:
+        guarded(f"note {kind}", lambda k=kind, t=note_text, r=refs, d=details: core.record(
+            project, k, t, refs=r, details=d, origin=state.sdk_origin), None)
 
     if problems and problems != (record.get("finalize_errors") or []):
         record["finalize_errors"] = list(problems)

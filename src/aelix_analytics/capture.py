@@ -143,7 +143,7 @@ class RunState:
         # one it wrote only when it was modified since (runner.diff_outputs).
         self.since: int | None = None
         self.charts: list[dict] = []
-        self.notes: list[tuple[str, str]] = []
+        self.notes: list[tuple[str, str, list, dict | None]] = []
         # id(figure) -> (latest record made from it, fingerprint of what was saved)
         self._by_figure: dict[int, tuple[dict, str | None]] = {}
         self._keepalive: list = []

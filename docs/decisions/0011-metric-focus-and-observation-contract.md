@@ -1,9 +1,9 @@
 # ADR-0011 — 분석 초점·지표 정의·관측의 최소 계약
 
-작성: 2026-10-09 · 상태: Proposed · 작업: [#14](https://github.com/handochan/aelix-analytics/issues/14)
+작성: 2026-10-09 · 상태: Adopted · 작업: [#14](https://github.com/handochan/aelix-analytics/issues/14)
 
 [지표 중심 분석 설계](../METRIC-DRIVEN-ANALYSIS.md)의 M0·최소 M1을 구현하기 위한 구체 계약이다.
-이 ADR이 채택·병합되고 구현 증거가 기록되기 전에는 아래 입력과 읽기 보장이 현재 기능이 아니다.
+구현은 kit 0.9.0의 기록·기본 조회 범위다. 독립·Codex 설계 리뷰와 D14-I1 처분은 #14의 구현 PR에 남긴다.
 기반은 [ADR-0006](0006-common-record-contract.md)의 `analytics.event/2`·정확한 버전 참조·덧붙이기·상태 재생과
 [#13 writer 설계](../design/RECORD-WRITER-AND-MIGRATION.md)다. 새 계산 엔진이나 분석 승인 절차를 추가하지 않는다.
 
@@ -25,7 +25,7 @@ family는 `analytics.event/2` 그대로이며, 새 상세 계약의 tag는 `deta
 `unstructured`로 구분한다. 미지원 tag·잘못된 구조화 payload·중복 ID는 원본 위치와 상태를 표시한다.
 스키마는 이 tag가 있을 때에만 새 상세 조건을 적용한다.
 
-구조화 기록을 처음 쓰는 잠금 안에서 `min_writer_version`을 구현 kit 버전(예정 `0.9.0`)으로 올린다.
+구조화 기록을 처음 쓰는 잠금 안에서 `min_writer_version`을 구현 kit 버전(`0.9.0`)으로 올린다.
 #17과 같은 배치의 버전 갱신은 순차 병합 때 조율한다. 낮은 writer가 이 기록을 이해하지 않은 채 쓰는 것을 gate가 거절한다.
 과거 결과·부모 정의·run 목적의 참조를 현재 정의나 현재 초점으로 덮어쓰지 않는다.
 
