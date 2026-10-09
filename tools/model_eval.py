@@ -42,7 +42,8 @@ interrupt is stopped with SIGTERM to aelix's group and SIGKILL only after STOP_G
 in progress finishes writing the login). The harness then waits until no process works in the work
 root (named on its command line, its working directory or an open file there, or started by aelix: the
 kit's detached report build, a job the model left in the background; after_exit, at most
-SETTLE_TIMEOUT seconds, then such processes are stopped), removes the project's Python environment
+SETTLE_TIMEOUT seconds, then such processes are stopped within SETTLE_STOP_TIMEOUT more seconds;
+the same deadline bounds process probes and all stop attempts), removes the project's Python environment
 (.venv, which the kit makes with uv from the project's uv.lock: about 450 MB of public packages and
 links into uv's Python and cache) without following a link, removes the links in the work root that
 reach outside it (symbolic links leaving it, every name of a file that also has a name outside it —
@@ -2703,13 +2704,16 @@ def written_since(root: Path, since: float, skip: set, prefix: str = "") -> list
 # --- processes that outlive aelix ------------------------------------------------------------------
 
 # How long the harness waits, after aelix has exited, for processes still working in the work root.
-SETTLE_TIMEOUT = 600
+SETTLE_TIMEOUT = 60
+# One shared budget for probes and stops after the natural-exit wait, including new writers that
+# appear while earlier ones are stopped. Each settle call takes at most 90 seconds by default.
+SETTLE_STOP_TIMEOUT = 30
 # How long aelix gets after SIGTERM before SIGKILL: its token refresh (aelix_ai/oauth/openai_codex.py,
 # httpx timeout 30 s for each of connect, write and read) is let finish writing the login.
 STOP_GRACE = 100
 
 
-def process_table() -> dict[int, tuple[int, str]] | None:
+def process_table(*, timeout: float = 120) -> dict[int, tuple[int, str]] | None:
     """pid -> (parent pid, command line) of every process; None when the list cannot be read."""
     if os.name == "nt":
         argv = ["powershell", "-NoProfile", "-NonInteractive", "-Command",
@@ -2719,7 +2723,7 @@ def process_table() -> dict[int, tuple[int, str]] | None:
         argv = ["ps", "-A", "-ww", "-o", "pid=", "-o", "ppid=", "-o", "args="]
     try:
         done = subprocess.run(argv, capture_output=True, text=True, encoding="utf-8", errors="replace",
-                              timeout=120)
+                              timeout=timeout)
     except (OSError, subprocess.SubprocessError):
         return None
     if done.returncode != 0:
@@ -2732,7 +2736,7 @@ def process_table() -> dict[int, tuple[int, str]] | None:
     return table
 
 
-def holders(paths: list[str]) -> dict[int, str] | None:
+def holders(paths: list[str], *, timeout: float = 120) -> dict[int, str] | None:
     """Processes whose working directory is under one of paths or that hold a file open there (pid ->
     which): /proc on Linux, lsof elsewhere on POSIX. None when that cannot be listed (Windows: its
     process list has no working directory)."""
@@ -2741,9 +2745,12 @@ def holders(paths: list[str]) -> dict[int, str] | None:
 
     if os.name == "nt":
         return None
+    deadline = time.monotonic() + timeout
     found: dict[int, str] = {}
     if os.path.isdir("/proc/self/fd"):
         for entry in os.listdir("/proc"):
+            if time.monotonic() >= deadline:
+                return None
             if not entry.isdigit():
                 continue
             with contextlib.suppress(OSError):
@@ -2752,6 +2759,8 @@ def holders(paths: list[str]) -> dict[int, str] | None:
                     continue
             with contextlib.suppress(OSError):
                 for fd in os.listdir(f"/proc/{entry}/fd"):
+                    if time.monotonic() >= deadline:
+                        return None
                     with contextlib.suppress(OSError):
                         if under(os.readlink(f"/proc/{entry}/fd/{fd}")):
                             found[int(entry)] = "open file"
@@ -2763,7 +2772,7 @@ def holders(paths: list[str]) -> dict[int, str] | None:
         return None
     try:
         done = subprocess.run([lsof, "-n", "-P", "-w", "-F", "pfn"], capture_output=True, text=True,
-                              encoding="utf-8", errors="replace", timeout=120)
+                              encoding="utf-8", errors="replace", timeout=timeout)
     except (OSError, subprocess.SubprocessError):
         return None
     if not done.stdout:
@@ -2780,20 +2789,30 @@ def holders(paths: list[str]) -> dict[int, str] | None:
     return found
 
 
-def stop_processes(pids: list[int], grace: float = 5) -> None:
+def stop_processes(pids: list[int], grace: float = 5, *, timeout: float = SETTLE_STOP_TIMEOUT) -> None:
     """SIGTERM, then SIGKILL to what is left after grace (Windows: the tree, at once)."""
     ports = processes()
+    deadline = time.monotonic() + timeout
     if os.name == "nt":
         for pid in pids:
-            with contextlib.suppress(OSError):
-                ports.kill_tree(pid)
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            # The kit's kill_tree has its own per-pid timeout. The harness needs one shared deadline
+            # for this list instead: taskkill's outcome is checked by settle's next process probe.
+            with contextlib.suppress(OSError, subprocess.SubprocessError):
+                subprocess.run([ports.system_program("taskkill.exe"), "/F", "/T", "/PID", str(pid)],
+                               capture_output=True, text=True, encoding="utf-8", errors="replace",
+                               timeout=remaining, check=False)
         return
     for pid in pids:
+        if time.monotonic() >= deadline:
+            return
         with contextlib.suppress(OSError):
             os.kill(pid, signal.SIGTERM)
-    deadline = time.monotonic() + grace
-    while time.monotonic() < deadline and any(ports.alive(p) for p in pids):
-        time.sleep(0.1)
+    grace_deadline = min(deadline, time.monotonic() + grace)
+    while time.monotonic() < grace_deadline and any(ports.alive(p) for p in pids):
+        time.sleep(min(0.1, max(0, grace_deadline - time.monotonic())))
     for pid in pids:
         if ports.alive(pid):
             with contextlib.suppress(OSError):
@@ -2870,16 +2889,23 @@ def settle(work, timeout: float = SETTLE_TIMEOUT, tracked: dict | None = None,
     roots = [work] if isinstance(work, (str, Path)) else list(work)
     paths = sorted({str(p) for p in roots} | {os.path.realpath(p) for p in roots})
     started = time.monotonic()
+    max_wait = max(0, timeout) + SETTLE_STOP_TIMEOUT
+    deadline = started + max_wait
     seen: dict[int, dict] = {}
     signalled: list[int] = []
     found: dict[int, set] = {}
     cwd_checked = True
+    checked, reason = True, None
+    cleanup_started = False
     while True:
-        table = process_table()
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            checked, reason = False, "the settle deadline was reached before the next process check"
+            break
+        table = process_table(timeout=remaining)
         if table is None:
-            return {"checked": False, "reason": "the process list could not be read",
-                    "waited_s": round(time.monotonic() - started, 1), "processes": list(seen.values()),
-                    "stopped": [], "left": sorted(found)}
+            checked, reason = False, "the process list could not be read within the settle deadline"
+            break
         me = os.getpid()
         found = {}
         for pid, (_, args) in table.items():
@@ -2889,7 +2915,8 @@ def settle(work, timeout: float = SETTLE_TIMEOUT, tracked: dict | None = None,
                 found.setdefault(pid, set()).add("command line")
             if tracked and tracked.get(pid) == args[:300]:
                 found.setdefault(pid, set()).add("started by aelix")
-        held = holders(paths)
+        remaining = deadline - time.monotonic()
+        held = holders(paths, timeout=remaining) if remaining > 0 else None
         if held is None:
             cwd_checked = False
         else:
@@ -2902,16 +2929,23 @@ def settle(work, timeout: float = SETTLE_TIMEOUT, tracked: dict | None = None,
         if not found:
             break
         elapsed = time.monotonic() - started
-        if elapsed > timeout or STOP["signals"]:
+        if elapsed >= timeout or STOP["signals"]:
+            if not cleanup_started:
+                deadline = min(deadline, time.monotonic() + SETTLE_STOP_TIMEOUT)
+                max_wait = deadline - started
+                cleanup_started = True
             fresh = [pid for pid in found if pid not in signalled]
-            if not fresh or elapsed > timeout + 300:  # stopped once already and still there
+            if not fresh or time.monotonic() >= deadline:
                 break
-            stop_processes(fresh)
+            stop_processes(fresh, timeout=deadline - time.monotonic())
             signalled += fresh
             continue
-        time.sleep(0.5)
+        time.sleep(min(0.5, max(0, deadline - time.monotonic())))
     left = sorted(found)
-    return {"checked": True, "cwd_checked": cwd_checked, "waited_s": round(time.monotonic() - started, 1),
+    return {"checked": checked, "reason": reason, "cwd_checked": cwd_checked,
+            "waited_s": round(time.monotonic() - started, 1), "timeout_s": max(0, timeout),
+            "stop_timeout_s": SETTLE_STOP_TIMEOUT, "max_wait_s": max_wait,
+            "deadline_reached": time.monotonic() >= deadline,
             "processes": sorted(seen.values(), key=lambda e: e["pid"]),
             "stopped": [pid for pid in signalled if pid not in left], "left": left,
             "what": "processes still working in the work root after aelix exited (named on their command "

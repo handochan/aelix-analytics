@@ -220,9 +220,15 @@ UTF-16)에 대비해, 로그인을 쓰는 모델의 run은 런처가 끝에 로�
 --project <프로젝트> … render --if-changed`)를 분리된 프로세스로 띄워 aelix보다 오래 살고, 모델의 bash 명령은 저마다 새 세션에서 돈다
 (aelix의 bash 도구). 하네스는 aelix가 도는 동안 프로세스 목록으로 aelix의 자손을 모으고, aelix가 끝난 뒤 작업 루트에서 일하는
 프로세스(명령줄에 작업 루트가 나옴, 작업 디렉터리나 연 파일이 그 안에 있음(Linux `/proc`, 그 밖의 POSIX `lsof`), aelix의 자손)가 없어질
-때까지 기다리고(최대 600초, 넘으면 SIGTERM, 5초 뒤 SIGKILL, `after_exit`; 실제로 사라진 것만 `stopped`, 남은 것은 `left`) 그다음
+때까지 기다린다(`after_exit`). 자연 종료 대기는 최대 60초, 이후 목록 조회·종료 시도에는 공유된 30초 예산을 쓴다. POSIX는 SIGTERM 후
+그 예산 안에서 최대 5초를 기다리고 SIGKILL, Windows는 `taskkill /T /F`로 종료한다. 새 프로세스가 계속 생겨도 예산을 연장하지 않는다.
+프로세스 조회와 Windows 종료 명령의 timeout도 남은 예산으로 제한하며, 한 `settle` 호출의 기본 최대 대기는 90초다. 결과의 `timeout_s`·
+`stop_timeout_s`·`max_wait_s`·`deadline_reached`와 실제 `waited_s`를 함께 남긴다. 실제로 사라진 것만 `stopped`, 남은 pid는 `left`이고,
+`processes`에 가린 명령줄과 판정 근거를 보존한다. 조회를 완료하지 못하면 `checked: false`다. 남은 프로세스나 미완료 조회는 검사 실패이며
+종료 코드 1이다. Windows의 HOME 격리 시험은 독립 임시 폴더에서 세 번 실행하고 실패 시 이 결과를 출력한다. 그다음
 프로젝트의 Python 환경(`.venv`, kit이 uv로 만든 공개 패키지 약 450 MB와 uv의 Python·캐시로 가는 링크)을 지우고(링크를 따라가지 않음,
-`uv.lock`이 남아 다시 만들 수 있음, `environments_removed`) 작업 루트를 옮긴 뒤 한 번 더 확인한다(`after_exit.after_move`). 기다린 시간은
+`uv.lock`이 남아 다시 만들 수 있음, `environments_removed`) 작업 루트를 옮긴 뒤 같은 한도로 한 번 더 확인한다(`after_exit.after_move`;
+두 호출의 기본 대기 예산 합은 180초, run timeout/환경 삭제/이동/파일 검사는 이 예산에 포함하지 않음). 기다린 시간은
 `elapsed_s`에 들지 않는다. `OUT/summary.json`과 그것에서 만든 `summary.md`가 run과 (모델, 과제, 표면, 조건)별 집계를 담는다.
 
 - **모델·서빙**: 설정 id, provider, model, API, thinking, backend와 버전, 양자화, digest, tokenizer, context, 출력 예약, 표본 추출, 서빙 확인
