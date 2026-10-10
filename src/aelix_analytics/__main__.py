@@ -229,6 +229,8 @@ def _command(argv) -> int:
     p.add_argument("text")
     p.add_argument("--ref", action="append", default=[], dest="refs")
     p.add_argument("--resolves")
+    p.add_argument("--details-json", type=json.loads)
+    p.add_argument("--refs-json", type=json.loads, default=[])
 
     p = sub.add_parser("render", help="rebuild the Workspace (HTML)")
     p.add_argument("--if-changed", action="store_true")
@@ -308,11 +310,14 @@ def _command(argv) -> int:
 
             # What the record refuses before its lock is refused before the context sync too: a
             # refused record changes nothing (core.check_record).
-            core.check_record(project, args.kind, args.text, refs=args.refs, resolves=args.resolves,
-                              origin=origin)
+            if not isinstance(args.refs_json, list):
+                raise core.AnalyticsError("bad_record_input", "--refs-json is a JSON array")
+            refs = [*args.refs, *args.refs_json]
+            core.check_record(project, args.kind, args.text, refs=refs, resolves=args.resolves,
+                              details=args.details_json, origin=origin)
             core.sync_context(project, origin=core.system_origin(origin))
-            written = core.record(project, args.kind, args.text, refs=args.refs,
-                                  resolves=args.resolves, origin=origin)
+            written = core.record(project, args.kind, args.text, refs=refs,
+                                  resolves=args.resolves, details=args.details_json, origin=origin)
             _emit({"ok": True, **written.to_json(), "workspace": _safe_render(workspace, project)})
         elif args.command == "render":
             from . import workspace

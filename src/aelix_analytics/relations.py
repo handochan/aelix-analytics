@@ -2,7 +2,8 @@
 Standard library only.
 
 This module reads; it never writes a record, a cache or an index. It imports neither `core` nor
-`_platform` (nor any other module of the package), so it can be loaded by its file path alone, and
+`_platform` (nor any other package module), so it can be loaded by its file path alone.
+The pure metric payload contracts below also have no I/O or host dependencies (ADR-0011).
 `core` can import it without a cycle. What differs by platform or by caller is passed in:
 
 - `alive(pid) -> bool`: whether a process of that id still runs (the platform's process port).
@@ -77,6 +78,7 @@ bytes; it is never a confirmed link and never counted as one.
 from __future__ import annotations
 
 import bisect
+import copy
 import hashlib
 import json
 import os
@@ -84,11 +86,190 @@ import re
 from datetime import datetime
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
+# --- pure metric payload contracts (ADR-0011; no I/O or package imports) ---
+
+METRIC_KINDS = ("metric_definition", "analysis_focus", "metric_observation")
+METRIC_SINCE = "0.9.0"
+METRIC_EVENT_ID_RE = re.compile(r"e[1-9][0-9]*")
+METRIC_RUN_ID_RE = re.compile(r"[0-9]{8}-[0-9]{6}-[a-z0-9][a-z0-9-]{0,60}")
+METRIC_STATE_RELATIONS = frozenset({"supersedes", "updates", "resolves"})
+
+
+class MetricContractError(ValueError):
+    pass
+
+
+def _metric_string(value, name):
+    if not isinstance(value, str) or not value.strip():
+        raise MetricContractError(f"{name} is a non-empty string")
+
+
+def _metric_strings(value, name):
+    if not isinstance(value, list):
+        raise MetricContractError(f"{name} is a list of strings")
+    for item in value:
+        _metric_string(item, name)
+
+
+def _metric_event(value, name):
+    if not isinstance(value, str) or not METRIC_EVENT_ID_RE.fullmatch(value):
+        raise MetricContractError(f"{name} is an exact event id, e.g. e3")
+
+
+def _metric_definitions(value, name, *, role=False):
+    if not isinstance(value, list):
+        raise MetricContractError(f"{name} is a list of exact metric definitions")
+    seen = set()
+    for item in value:
+        if not isinstance(item, dict):
+            raise MetricContractError(f"{name} entries are objects")
+        _metric_string(item.get("metric_id"), f"{name}.metric_id")
+        _metric_event(item.get("event_id"), f"{name}.event_id")
+        if role:
+            _metric_string(item.get("role"), f"{name}.role")
+        key = (item["metric_id"], item["event_id"])
+        if key in seen:
+            raise MetricContractError(f"{name} contains a duplicate definition")
+        seen.add(key)
+
+
+def validate_metric(kind, details) -> dict:
+    """A private finite-JSON copy, or MetricContractError. No canonical record is mutated."""
+    if kind not in METRIC_KINDS:
+        raise MetricContractError(f"{kind!r} is not a structured metric record")
+    if not isinstance(details, dict) or details.get("contract") != f"{kind}/1":
+        raise MetricContractError(f"details.contract is {kind}/1")
+    try:
+        def json_value(value):
+            if value is None or type(value) in (str, int, float, bool):
+                return
+            if isinstance(value, list):
+                for item in value:
+                    json_value(item)
+                return
+            if isinstance(value, dict) and all(isinstance(k, str) for k in value):
+                for item in value.values():
+                    json_value(item)
+                return
+            raise ValueError("not a JSON type")
+
+        json_value(details)
+        json.dumps(details, ensure_ascii=False, allow_nan=False).encode("utf-8")
+    except (TypeError, ValueError, UnicodeError, RecursionError) as exc:
+        raise MetricContractError("details holds finite JSON values encoded as UTF-8") from exc
+    for name in ("change_reason",):
+        _metric_string(details.get(name), name)
+    if kind in ("metric_definition", "analysis_focus"):
+        _metric_strings(details.get("unresolved"), "unresolved")
+    if kind == "metric_definition":
+        for name in ("metric_id", "name"):
+            _metric_string(details.get(name), name)
+        if details.get("status") not in ("draft", "specified"):
+            raise MetricContractError("status is draft or specified, not an analysis-check verdict")
+        if not isinstance(details.get("definition"), dict):
+            raise MetricContractError("definition is a JSON object (an empty draft is allowed)")
+        _metric_definitions(details.get("derived_from"), "derived_from")
+        if "previous_definition" in details:
+            _metric_event(details["previous_definition"], "previous_definition")
+        if any(p["metric_id"] == details["metric_id"] for p in details["derived_from"]):
+            raise MetricContractError("a derived metric has a different logical id from its parents")
+    elif kind == "analysis_focus":
+        for name in ("goal", "question", "activity", "next_check"):
+            _metric_string(details.get(name), name)
+        _metric_definitions(details.get("metrics"), "metrics", role=True)
+        if "previous_focus" in details:
+            _metric_event(details["previous_focus"], "previous_focus")
+    else:
+        _metric_string(details.get("metric_id"), "metric_id")
+        _metric_event(details.get("definition_event_id"), "definition_event_id")
+        if "run_id" in details and (not isinstance(details["run_id"], str)
+                                    or not METRIC_RUN_ID_RE.fullmatch(details["run_id"])):
+            raise MetricContractError("run_id is an exact recorded run id")
+        if not isinstance(details.get("scope"), dict):
+            raise MetricContractError("scope is a JSON object (empty means unspecified scope)")
+        if "result" not in details:
+            raise MetricContractError("result is explicit, including null for a result_ref")
+        if details["result"] is None and "result_ref" not in details:
+            raise MetricContractError("a null result requires result_ref")
+        if "result_ref" in details:
+            ref = details["result_ref"]
+            if not isinstance(ref, dict) or ref.get("type") not in (
+                    "data_observation", "visualization_version"):
+                raise MetricContractError("result_ref is a run output or Visualization version")
+        if "recomputed_from" in details:
+            _metric_event(details["recomputed_from"], "recomputed_from")
+    return copy.deepcopy(details)
+
+
+def metric_projection(events, states) -> dict:
+    """All tagged versions and their current state, reconstructed from original event objects."""
+    result = {"definitions": [], "focus_versions": [], "observations": [], "unstructured": [],
+              "invalid": [], "current_focus": None, "focus_state": "absent"}
+    for event in events:
+        kind = event.get("kind")
+        if kind not in METRIC_KINDS:
+            continue
+        details = event.get("details")
+        if not isinstance(details, dict) or "contract" not in details:
+            result["unstructured"].append(event.get("id"))
+            continue
+        try:
+            payload = validate_metric(kind, details)
+            problem = metric_event_problem(kind, payload, event.get("refs"))
+            if problem:
+                raise MetricContractError(problem)
+        except MetricContractError as exc:
+            result["invalid"].append({"event_id": event.get("id"), "reason": str(exc)})
+            continue
+        item = {"event_id": event.get("id"), "details": payload,
+                "state": (states.get(event.get("id")) or {}).get("state", "unknown")}
+        collection = {"metric_definition": "definitions", "analysis_focus": "focus_versions",
+                      "metric_observation": "observations"}[kind]
+        result[collection].append(item)
+    focuses = [f for f in result["focus_versions"] if f["state"] == "current"]
+    if len(focuses) == 1:
+        result.update(current_focus=focuses[0], focus_state="current")
+    elif focuses:
+        result["focus_state"] = "conflict"
+    return result
+
+
+def metric_event_problem(kind, details, refs) -> str | None:
+    """Tagged payloads may change state only through their one authoritative prior version.
+
+    None for historical unstructured records, whose original replay contract remains intact.
+    Invalid or unsupported tagged records remain readable but may change no target state.
+    """
+    if kind not in METRIC_KINDS or not isinstance(details, dict) or "contract" not in details:
+        return None
+    try:
+        validate_metric(kind, details)
+    except MetricContractError as exc:
+        return str(exc)
+    state_refs = [ref for ref in refs or () if isinstance(ref, dict)
+                  and ref.get("relation") in METRIC_STATE_RELATIONS]
+    previous = details.get("previous_definition" if kind == "metric_definition" else "previous_focus")
+    if kind == "metric_observation":
+        previous = None
+    if not previous:
+        return "a structured record has no caller state-changing references" if state_refs else None
+    if len(state_refs) != 1:
+        return "a structured revision has exactly its previous-version supersedes reference"
+    ref = state_refs[0]
+    wanted = {"type": kind, "event_id": previous, "relation": "supersedes", "version_binding": "author"}
+    if kind == "metric_definition":
+        wanted["metric_id"] = details["metric_id"]
+    if any(ref.get(k) != v for k, v in wanted.items()) or ref.get("basis") not in ("declared", "observed"):
+        return "the state-changing reference does not match the structured previous version"
+    return None
+
+
 # The version of this reader's rules, part of every source_revision it gives (ADR-0006 5). 2 since
 # Issue #13 PR 1: analytics.run/2 and analytics.dataset/1 are read, and data/imported/ with them. 3
 # since its PR 2: a migrated project's older paths are read through the migration's mapping
 # (core.mapped_identity, design 5.4), and analytics.migration/1 is a family this reader knows.
-READER_FORMAT = 3
+# 4 since ADR-0011: invalid/unsupported tagged metric content cannot change another record state.
+READER_FORMAT = 4
 
 EVENT_V1 = "lab.event/1"
 EVENT_V2 = "analytics.event/2"
@@ -606,6 +787,8 @@ class Replay:
             return [("resolves", {"type": "event", "event_id": value, "relation": "resolves",
                                   "basis": "declared", "version_binding": "author"})
                     for value in _strings(refs.get("resolves")) if isinstance(value, str)]
+        if metric_event_problem(event.kind, event.value.get("details"), _dicts(event.refs)):
+            return []  # invalid/unsupported tagged content cannot retire a valid past record
         return [(ref["relation"], ref) for ref in _dicts(event.refs)
                 if _known_ref(ref) and ref["type"] in EVENT_TARGETS
                 and ref["relation"] in ("supersedes", "resolves")]

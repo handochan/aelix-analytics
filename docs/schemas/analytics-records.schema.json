@@ -110,6 +110,45 @@
       ]
     },
     "references": {"type": "array", "items": {"$ref": "#/$defs/reference"}},
+    "metric_parent": {
+      "type": "object", "required": ["metric_id", "event_id"],
+      "properties": {"metric_id": {"type": "string", "minLength": 1}, "event_id": {"$ref": "#/$defs/event_id"}}
+    },
+    "metric_definition_details": {
+      "type": "object", "required": ["contract", "metric_id", "name", "status", "definition", "unresolved", "change_reason", "derived_from"],
+      "properties": {
+        "contract": {"const": "metric_definition/1"}, "metric_id": {"type": "string", "minLength": 1},
+        "name": {"type": "string", "minLength": 1}, "status": {"enum": ["draft", "specified"]},
+        "definition": {"type": "object"}, "unresolved": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "change_reason": {"type": "string", "minLength": 1}, "previous_definition": {"$ref": "#/$defs/event_id"},
+        "derived_from": {"type": "array", "items": {"$ref": "#/$defs/metric_parent"}, "uniqueItems": true}
+      }
+    },
+    "analysis_focus_details": {
+      "type": "object", "required": ["contract", "goal", "question", "activity", "next_check", "change_reason", "metrics", "unresolved"],
+      "properties": {
+        "contract": {"const": "analysis_focus/1"}, "goal": {"type": "string", "minLength": 1},
+        "question": {"type": "string", "minLength": 1}, "activity": {"type": "string", "minLength": 1},
+        "next_check": {"type": "string", "minLength": 1}, "change_reason": {"type": "string", "minLength": 1},
+        "metrics": {"type": "array", "items": {"allOf": [{"$ref": "#/$defs/metric_parent"},
+          {"required": ["role"], "properties": {"role": {"type": "string", "minLength": 1}}}]}},
+        "unresolved": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "previous_focus": {"$ref": "#/$defs/event_id"}
+      }
+    },
+    "metric_observation_details": {
+      "type": "object", "required": ["contract", "metric_id", "definition_event_id", "run_id", "scope", "result", "change_reason"],
+      "properties": {
+        "contract": {"const": "metric_observation/1"}, "metric_id": {"type": "string", "minLength": 1},
+        "definition_event_id": {"$ref": "#/$defs/event_id"}, "run_id": {"$ref": "#/$defs/run_id"},
+        "scope": {"type": "object"}, "result": {}, "change_reason": {"type": "string", "minLength": 1},
+        "recomputed_from": {"$ref": "#/$defs/event_id"},
+        "result_ref": {"allOf": [{"$ref": "#/$defs/reference"},
+          {"properties": {"type": {"enum": ["data_observation", "visualization_version"]}, "role": {"const": "output"},
+                          "version_binding": {"const": "author"}}}]}
+      },
+      "allOf": [{"if": {"properties": {"result": {"type": "null"}}}, "then": {"required": ["result_ref"]}}]
+    },
     "event_2": {
       "type": "object",
       "required": ["schema", "seq", "id", "recorded_at", "kind", "actor", "text", "refs"],
@@ -132,6 +171,12 @@
         "details": {"type": "object"}
       },
       "allOf": [
+        {"if": {"required": ["details"], "properties": {"details": {"required": ["contract"], "properties": {"contract": {"const": "metric_definition/1"}}}}},
+         "then": {"properties": {"kind": {"const": "metric_definition"}, "details": {"$ref": "#/$defs/metric_definition_details"}}}},
+        {"if": {"required": ["details"], "properties": {"details": {"required": ["contract"], "properties": {"contract": {"const": "analysis_focus/1"}}}}},
+         "then": {"properties": {"kind": {"const": "analysis_focus"}, "details": {"$ref": "#/$defs/analysis_focus_details"}}}},
+        {"if": {"required": ["details"], "properties": {"details": {"required": ["contract"], "properties": {"contract": {"const": "metric_observation/1"}}}}},
+         "then": {"properties": {"kind": {"const": "metric_observation"}, "details": {"$ref": "#/$defs/metric_observation_details"}}}},
         {"if": {"properties": {"kind": {"const": "project"}}},
          "then": {"required": ["details"], "properties": {"details": {"required": ["project_id"]}}}},
         {"if": {"properties": {"kind": {"const": "import"}}},

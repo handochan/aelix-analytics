@@ -53,7 +53,7 @@ analytics — human CLI for Aelix Analytics projects (the same kit the aelix ext
   analytics run --rerun-of RUN_ID --title T   re-execute a run's code snapshot and compare
   analytics import FILE [--name N] [--description D]
   analytics query "SQL" [--limit N]
-  analytics record KIND "TEXT" [--ref R] [--resolves eN]
+  analytics record KIND "TEXT" [--ref R] [--resolves eN] [--details-json JSON] [--refs-json JSON]
   analytics render | open                     rebuild | open the Workspace page
   analytics migrate --to DIR [--dry-run]      copy a lab.json project into a new folder DIR
 

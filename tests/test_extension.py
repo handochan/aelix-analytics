@@ -134,6 +134,58 @@ def test_no_project_is_a_clear_tool_error(tmp_path, monkeypatch):
     assert "analytics_init" in text_of(result)
 
 
+def test_metric_details_and_exact_refs_share_the_common_tool_contract(lab, monkeypatch):
+    module, root = lab
+    monkeypatch.setattr(module, "schedule_workspace_render", lambda *args: None)
+    details = {"contract": "metric_definition/1", "metric_id": "quality", "name": "Quality",
+               "status": "draft", "definition": {}, "unresolved": ["분모 미정"],
+               "change_reason": "exploration", "derived_from": []}
+    tools = tools_of(module)
+    reply = call(tools["analytics_record"], {"kind": "metric_definition", "text": "candidate", "details": details})
+    assert not reply.is_error
+    event = reply.details["event"]
+    assert event["details"] == details and (event["actor"], event["means"]) == ("agent", "tool")
+    note = call(tools["analytics_record"], {"kind": "note", "text": "explicit definition citation",
+        "refs": [{"type": "metric_definition", "metric_id": "quality", "event_id": event["id"]}]})
+    assert not note.is_error and note.details["event"]["refs"][0]["event_id"] == event["id"]
+    before = (root / "journal.jsonl").read_bytes()
+    (root / "CONTEXT.md").write_text("changed but invalid request", encoding="utf-8")
+    bad = call(tools["analytics_record"], {"kind": "metric_definition", "text": "invalid", "details": {}})
+    assert bad.is_error and bad.details["error"]["code"] == "bad_metric_record"
+    assert (root / "journal.jsonl").read_bytes() == before
+
+
+@pytest.mark.parametrize("body", ["Explain --details-json flag", "Explain --refs-json flag",
+    "Don't reinterpret --details-json in prose", 'A note about "quotes" and --refs-json',
+    "'A quoted mention of --details-json'", "'An unmatched apostrophe --refs-json"])
+def test_record_command_preserves_literal_metadata_flags_and_prose(lab, monkeypatch, body):
+    module, root = lab
+    monkeypatch.setattr(module, "schedule_workspace_render", lambda *args: None)
+    reply = asyncio.run(module.analytics_command("record note " + body))
+    assert "recorded" in reply
+    event = json.loads((root / "journal.jsonl").read_text(encoding="utf-8").splitlines()[-1])
+    assert event["text"] == body and event["kind"] == "note"
+
+
+def test_record_command_accepts_quoted_structured_metric_and_exact_refs(lab, monkeypatch):
+    import shlex
+
+    module, root = lab
+    monkeypatch.setattr(module, "schedule_workspace_render", lambda *args: None)
+    details = {"contract": "metric_definition/1", "metric_id": "quality", "name": "Quality",
+               "status": "draft", "definition": {}, "unresolved": ["분모 미정"],
+               "change_reason": "exploration", "derived_from": []}
+    command = "record metric_definition '미정 후보' --details-json " + shlex.quote(json.dumps(details))
+    assert "recorded" in asyncio.run(module.analytics_command(command))
+    event = json.loads((root / "journal.jsonl").read_text(encoding="utf-8").splitlines()[-1])
+    assert event["text"] == "미정 후보" and event["details"] == details
+    command = "record note '정의 근거' --refs-json " + shlex.quote(json.dumps([
+        {"type": "metric_definition", "metric_id": "quality", "event_id": event["id"]}]))
+    assert "recorded" in asyncio.run(module.analytics_command(command))
+    note = json.loads((root / "journal.jsonl").read_text(encoding="utf-8").splitlines()[-1])
+    assert note["refs"][0]["event_id"] == event["id"] and note["text"] == "정의 근거"
+
+
 def test_status_note_context_injection_and_telemetry(lab):
     module, root = lab
     tools = tools_of(module)

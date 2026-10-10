@@ -1,6 +1,8 @@
 # 지표를 중심으로 방향을 유지하는 분석 프로젝트
 
-작성: 2026-09-18 · 상태: 설계 제안. 아래 객체·참조·화면은 현재 구현에 없는 후속 계약이다.
+작성: 2026-09-18 · 개정: 2026-10-09 · 상태: 제품 설계. M0·최소 M1의 기록·기본 조회는 kit 0.9.0에 구현되었으며
+정확한 입력과 범위는 [ADR-0011](decisions/0011-metric-focus-and-observation-contract.md)과 [현재 계약 C6](CONTRACTS.md#c6-지표-정의현재-초점명시적-관측-kit-090)을 따른다.
+아래 개념 예시·후속 화면·검색/checkpoint는 구현된 입력이나 기능으로 취급하지 않는다.
 [제품 비전](PRODUCT.md)과 [맥락·근거 설계](DESIGN-CONTINUITY-AND-REUSE.md)를 보완한다.
 
 명칭은 [용어집](TERMINOLOGY-AND-LANGUAGE.md)을 따른다. Metric·Metric definition·Metric observation을 구별하고, 표현 객체는 Visualization, 통계 차트는 그 한 유형이다.
@@ -188,9 +190,9 @@ flowchart LR
 ## 7. 기록과 도입 순서
 
 현재는 [CONTEXT.md 템플릿](../src/aelix_analytics/template/CONTEXT.md)의 ‘Definitions and rules’(#10 전의 템플릿은 ‘정의와 규칙’), 코드, finding 문장에 지표 의미가 분산되어 있다.
-독립적인 지표 ID·정의 버전·결과 참조 계약은 없다. 현재 기록에 새 보장이 이미 있는 것처럼 해석하지 않는다.
+kit 0.9.0은 journal에 독립적인 지표 ID·정의 이벤트 버전·관측을 기록한다(ADR-0011). 기존 tag 없는 기록에 새 보장이 이미 있는 것처럼 해석하지 않는다.
 
-첫 구조화 구현은 기존 B1의 스키마 전환에 다음을 포함하는 안으로 시작한다.
+첫 구조화 구현은 기존 B1의 새 형식과 writer를 이용해 다음을 포함한다.
 
 - **정의·초점:** journal의 버전 있는 정의·초점 기록. 안정된 metric ID와 정의 이벤트 ID를 구별한다. 수정 시 새 이벤트를 추가한다.
 - **적용·관측:** run과 결과 기록에서 당시 초점·정의 버전·실제 입력·코드·범위·단위·검사로 연결한다. 큰 결과는 보존된 표를 참조한다.

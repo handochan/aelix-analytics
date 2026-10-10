@@ -44,7 +44,7 @@ from .writer import migration_record as migration_record
 from .writer import new_request_id as new_request_id
 from .writer import present_marker as present_marker
 
-KIT_VERSION = "0.8.0"
+KIT_VERSION = "0.9.0"
 # The marker and the record families of the projects this kit writes: the new format's, through
 # the common writer (writer.Writer, Issue #13 PR 3; writer.FAMILIES). A project is found by either
 # marker, analytics.json or lab.json, and judged by writer.marker_state: a lab.json project
@@ -1750,14 +1750,14 @@ def writer_for(project: Project, origin: Origin) -> writer.Writer:
 
 
 def _record_items(refs, resolves) -> list:
-    items = [refs] if isinstance(refs, str) else list(refs or [])
+    items = [refs] if isinstance(refs, (str, dict)) else list(refs or [])
     if resolves:
         items.append({"type": "event", "event_id": str(resolves).strip(), "relation": "resolves"})
     return items
 
 
 def check_record(project: Project, kind: str, text: str, *, refs=None, resolves=None,
-                 origin: Origin) -> None:
+                 details=None, origin: Origin) -> None:
     """What `record` refuses before its lock, judged now and nothing written (writer.Writer.check):
     an entry point that syncs the context before a record calls this first, so a record refused —
     a kind it does not take, a text or a line over the limits (OQ2), a closed record that is not
@@ -1765,12 +1765,15 @@ def check_record(project: Project, kind: str, text: str, *, refs=None, resolves=
     the seq it gets after the context event the sync is about to write."""
     admit(project, "record")
     writer.check_kind(kind)
-    writer_for(project, origin).check(kind, text, refs=_record_items(refs, resolves),
-                                      ahead=1 if context_pending(project) else 0)
+    try:
+        writer_for(project, origin).check(kind, text, refs=_record_items(refs, resolves), details=details,
+                                          ahead=1 if context_pending(project) else 0)
+    except ValueError as exc:
+        raise AnalyticsError("bad_record_input", str(exc)) from exc
 
 
 def record(project: Project, kind: str, text: str, *, refs=None, resolves=None,
-           origin: Origin) -> writer.Written:
+           details=None, origin: Origin) -> writer.Written:
     """Record a journal entry by `origin` through the common writer (writer.Writer.record): judged
     before anything else (the writer's gate), a kind a person or an agent records (RECORD_KINDS;
     `gap` is refused with its new name), the names in `refs` bound as they are written, and
@@ -1779,7 +1782,34 @@ def record(project: Project, kind: str, text: str, *, refs=None, resolves=None,
     w = writer_for(project, origin)
     w.admit("record")
     writer.check_kind(kind)
-    return w.record(kind, text, refs=_record_items(refs, resolves))
+    try:
+        return w.record(kind, text, refs=_record_items(refs, resolves), details=details)
+    except ValueError as exc:
+        raise AnalyticsError("bad_record_input", str(exc)) from exc
+
+
+def metric_records(project: Project, *, model=None) -> dict:
+    """ADR-0011 structured versions, distinct from historical unstructured metric events."""
+    model = model or read_model(project)
+    journal = model.journal
+    view = relations.metric_projection([e.value for e in journal.events], journal.replay().record_states())
+    shared = set(i for i, lines in journal.lines_of.items() if len(lines) != 1)
+    for name in ("definitions", "focus_versions", "observations"):
+        for item in view[name]:
+            if item["event_id"] in shared:
+                item["state"] = "ambiguous"
+            item["references"] = model.references(item["event_id"])
+    focuses = [f for f in view["focus_versions"] if f["state"] == "current"]
+    view["current_focus"] = focuses[0] if len(focuses) == 1 else None
+    view["focus_state"] = "current" if len(focuses) == 1 else "conflict" if focuses else "absent"
+    run_states = {r["run_id"]: r for r in model.runs()}
+    for item in view["observations"]:
+        run = run_states.get(item["details"].get("run_id")) or {}
+        item.update(execution_status=run.get("execution_status", "missing"),
+                    recording_status=run.get("recording_status", "incomplete"),
+                    recording_reasons=run.get("reasons", ["run_absent"]) if not run else run["reasons"],
+                    calculation_check="unverified")
+    return {"as_of_seq": model.as_of_seq, **view}
 
 
 def request_id_of(origin: Origin) -> str:
@@ -2416,6 +2446,13 @@ def status(project: Project, limit: int = STATUS_LIMIT) -> dict:
     skipped = ["hash_cache"] if cache.save() else []
     versions = context_versions(project)
     config = dict(marker.value) if isinstance(marker.value, dict) else {}
+    metric_view = metric_records(project, model=model)
+    metric_counts = {name: len(metric_view[name]) for name in ("definitions", "focus_versions", "observations")}
+    metric_view["counts"] = metric_counts
+    for name in metric_counts:
+        metric_view[name] = metric_view[name][-limit * 2:]
+    metric_view["omitted"] = {name: metric_counts[name] - len(metric_view[name]) for name in metric_counts}
+    metric_view["read_more"] = str(project.journal)
     return {
         "project": {"root": str(project.root),
                     "title": str(config.get("title") or project.root.name),
@@ -2456,6 +2493,7 @@ def status(project: Project, limit: int = STATUS_LIMIT) -> dict:
         "open": [_brief(e, source[id(e)]) for e in open_items[-limit * 2:]],
         "key": key_rows,
         "recent": [_brief(e, source[id(e)]) for e in events[-10:]],
+        "metrics": metric_view,
     }
 
 
@@ -2671,6 +2709,8 @@ def _status_lines(st: dict, caps: dict[str, int]) -> list[tuple[str, str, bool]]
         add("head", f"journal: {journal}", note=True)
     if p.get("goal"):
         add("head", f"goal: {_one_line(p['goal'])}")
+    for line in metric_focus_text(st.get("metrics") or {}, journal):
+        add("head", line)
     if st.get("versions"):
         add("head", f"environment: {versions_line(st['versions'])} — use APIs of these versions")
     for line in _records_lines(st, journal):
@@ -3158,6 +3198,9 @@ def context_block(project: Project, max_context_chars: int = CONTEXT_PROMPT_CHAR
                   f"{project.context}:"]
         parts += [f"- {s['name']} ({s['lines']} lines): read offset {s['line']} limit {s['lines']}"
                   for s in omitted]
+    view = metric_records(project)
+    if view["focus_state"] != "absent":
+        parts += ["", "## Current analysis focus", *metric_focus_text(view, project.journal)]
     if key:
         parts += ["", "## Key information (unresolved journal entries)"]
         parts += _journal_entries(key, max_items, project.journal, refs=True)
@@ -3165,6 +3208,26 @@ def context_block(project: Project, max_context_chars: int = CONTEXT_PROMPT_CHAR
         parts += ["", "## Open questions and todos"]
         parts += _journal_entries(open_items, max_items, project.journal)
     return "\n".join(parts)
+
+
+def metric_focus_text(view, journal) -> list[str]:
+    """A bounded direction summary, with exact IDs and the location of the whole payload."""
+    focus = view.get("current_focus")
+    if focus is None:
+        return ([f"analysis focus: {view.get('focus_state')} — read {journal}"]
+                if view.get("focus_state") == "conflict" else [])
+    details = focus["details"]
+    lines = [f"analysis focus: {focus['event_id']} (purpose; calculation check separate)"]
+    for name in ("goal", "question", "activity", "next_check", "change_reason"):
+        value = details[name]
+        lines.append(f"{name}: {_one_line(value, 240)}")
+    selected = details["metrics"]
+    lines += [f"metric: {m['metric_id']} @ {m['event_id']} ({_one_line(m['role'], 80)})"
+              for m in selected[:8]]
+    lines += [f"unresolved: {_one_line(u, 160)}" for u in details["unresolved"][:4]]
+    lines.append(f"whole focus and definition versions: read {journal}; "
+                 f"{len(selected)} metric(s), {len(details['unresolved'])} unresolved item(s)")
+    return lines
 
 
 def _journal_entries(entries: list[dict], max_items: int, journal: Path,
