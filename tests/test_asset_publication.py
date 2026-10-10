@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from datetime import timedelta
@@ -117,6 +118,36 @@ def test_output_failure_consumes_window_and_the_record_is_pending(prepared, monk
     assert app.publish_suggestion()["published"] is None
     assert len(app.suggestion_status()["pending"]) == 1
     assert len(automatic(project)) == 1
+
+
+@pytest.mark.parametrize("options", [["--query", "missing part"], ["--direction", "outgoing"],
+                                     ["--kind", "finding"], ["--state", "active"],
+                                     ["--since", "2026-10-10T00:00:00Z"]])
+def test_invalid_status_options_do_not_publish_before_bad_query(prepared, monkeypatch, capsys, options):
+    project, _, _ = qualified(prepared)
+    application(project).set_mode("always_on")
+    monkeypatch.setenv("AELIX_ANALYTICS_ACTOR", "human")
+    before = project.journal.read_bytes()
+    code = entry.main(["--project", str(project.root), "--text", "status", *options])
+    error = json.loads(capsys.readouterr().out.splitlines()[-1])
+    assert code == 1 and error["error"]["code"] == "bad_query"
+    assert project.journal.read_bytes() == before and not automatic(project)
+
+
+def test_overview_read_failure_precedes_any_publication_attempt(prepared, monkeypatch, capsys):
+    project, _, _ = qualified(prepared)
+    application(project).set_mode("always_on")
+    monkeypatch.setenv("AELIX_ANALYTICS_ACTOR", "human")
+    before = project.journal.read_bytes()
+
+    def failed_overview(*args, **kwargs):
+        raise core.AnalyticsError("injected_overview_failure", "Overview is not ready")
+
+    monkeypatch.setattr(core, "status", failed_overview)
+    monkeypatch.setattr(core, "publish_asset_suggestion", lambda *a, **k: pytest.fail("published before overview validation"))
+    assert entry.main(["--project", str(project.root), "--text", "status"]) == 1
+    assert json.loads(capsys.readouterr().out.splitlines()[-1])["error"]["code"] == "injected_overview_failure"
+    assert project.journal.read_bytes() == before and not automatic(project)
 
 
 def test_sdk_mode_and_status_use_the_shared_contract_without_automatic_publication(prepared, monkeypatch):
