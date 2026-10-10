@@ -214,7 +214,7 @@ def _command(args: list[str], kit: Path | None, uv_argv: list[str] | None,
         return children.run(kit_outside(uv, project, command, *args), env)
     kit_call = kit_outside if outside else kit_argv
     if command in ("status", "context"):
-        return children.run(kit_call(uv, project, "--text", command), env)
+        return children.run(kit_call(uv, project, "--text", command, *args), env)
     return children.run(kit_call(uv, project, command, *args), env, cancellable=command == "run")
 
 

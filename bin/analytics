@@ -160,7 +160,7 @@ case $cmd in
   status|context)
     refuse_renamed
     proj=$(find_project)
-    run_kit "$proj" --text "$cmd"
+    run_kit "$proj" --text "$cmd" "$@"
     ;;
   open)
     refuse_renamed

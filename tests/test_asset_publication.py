@@ -7,7 +7,7 @@ import sys
 from datetime import timedelta
 
 import pytest
-from conftest import kit_env, record_observation
+from conftest import KIT, kit_env, record_observation
 from test_asset_suggestions import T0, application, automatic, effect, qualified
 from test_assets import ORIGIN, candidate, checked, run
 from test_assets import prepared as prepared
@@ -79,6 +79,26 @@ def test_json_agent_and_every_detail_page_are_read_only(prepared, tmp_path, acto
     assert result.returncode == 0, result.stderr + result.stdout
     assert project.journal.read_bytes() == before
     assert not automatic(project)
+
+
+@pytest.mark.parametrize("actor", ["human", "agent"])
+@pytest.mark.parametrize("part", ["records", "relations", "context"])
+def test_real_python_launcher_passes_detail_args_without_publishing(prepared, tmp_path, actor, part):
+    project, _, proposed = qualified(prepared)
+    application(project).set_mode("always_on")
+    proxy = tmp_path / "uv-proxy.py"
+    proxy.write_text("import subprocess,sys\na=sys.argv[1:]\ni=a.index('python')\n"
+                     "sys.exit(subprocess.call([sys.executable,*a[i+1:]]))\n", encoding="utf-8")
+    code = ("import sys\nfrom pathlib import Path\nfrom aelix_analytics import cli\n"
+            "sys.exit(cli.run(sys.argv[3:], kit=Path(sys.argv[1]), uv=[sys.executable,sys.argv[2]]))\n")
+    args = ["status", "--part", part, *(["--id", proposed["id"]] if part == "relations" else [])]
+    env = child_env(tmp_path, "actual-launcher-child", actor=actor)
+    env["AELIX_ANALYTICS_PROJECT"] = str(project.root)
+    before = project.journal.read_bytes()
+    result = subprocess.run([sys.executable, "-c", code, str(KIT), str(proxy), *args],
+                            env=env, capture_output=True, text=True, encoding="utf-8", timeout=60)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert project.journal.read_bytes() == before and not automatic(project)
 
 
 def test_output_failure_consumes_window_and_the_record_is_pending(prepared, monkeypatch):
