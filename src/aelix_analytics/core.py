@@ -2641,7 +2641,8 @@ def retrieve(project: Project, *, part="records", query="", id=None, cursor=None
         if value is not None:
             instant = relations._instant(value)
             if instant is None or instant.utcoffset() is None:
-                raise AnalyticsError("bad_query", "since and until must be ISO timestamps with UTC offsets")
+                raise AnalyticsError("bad_query", "since and until must be ISO timestamps with UTC offsets",
+                                     hint="use a bound such as 2030-01-01T00:00:00+00:00; timezone is required")
     if part != "records" and (query or kind or state or since or until):
         raise AnalyticsError("bad_query", "search filters belong to records")
     if id is not None and (query or kind or state or since or until):
@@ -2748,6 +2749,8 @@ def retrieve(project: Project, *, part="records", query="", id=None, cursor=None
         for field in ("record_state", "legacy_resolved_by", "evidence", "interpretation"):
             result.pop(field, None)
     result["absence_is_not_proof"] = "no matches means no lexical match in this scope; unreadable or differently worded records may exist"
+    if since or until:
+        result["absence_is_not_proof"] += "; records with unknown or naive timestamps are excluded from this period scope"
     return result
 
 

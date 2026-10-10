@@ -304,7 +304,7 @@ def test_period_bounds_require_offset_and_exclude_unqualified_instants(tmp_path)
     for naive in ("2030-01-01", "2030-01-01T00:00:00"):
         with pytest.raises(core.AnalyticsError) as error:
             core.retrieve(p, query="revenue", since=naive)
-        assert error.value.code == "bad_query"
+        assert error.value.code == "bad_query" and "+00:00" in error.value.hint
     assert core.retrieve(p, query="revenue", since="2030-01-01T00:00:00+00:00")["returned"] == 0
     rows = [json.loads(line) for line in p.journal.read_text(encoding="utf-8").splitlines()]
     for row in rows:
@@ -313,4 +313,5 @@ def test_period_bounds_require_offset_and_exclude_unqualified_instants(tmp_path)
     p.journal.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
     filtered = core.retrieve(p, query="revenue", since="2019-01-01T00:00:00+00:00")
     assert filtered["returned"] == 0 and filtered["time_filter_scope"]
+    assert "unknown or naive timestamps" in filtered["absence_is_not_proof"]
     assert core.retrieve(p, query="revenue")["returned"] == 1

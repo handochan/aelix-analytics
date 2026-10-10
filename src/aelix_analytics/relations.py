@@ -2706,7 +2706,7 @@ def query_text(value) -> str:
 class QueryPolicy:
     """Replaceable lexical ranking and pagination, independent of storage and host adapters.
     Full records are authoritative. Summaries say what they omit; detail fields are indivisible."""
-    version = "lexical/3"
+    version = "lexical/4"
 
     def terms(self, query: str) -> list[str]:
         return query_text(query).split()
