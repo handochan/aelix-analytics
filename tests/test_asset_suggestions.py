@@ -9,8 +9,8 @@ import pytest
 from test_assets import ORIGIN, VALIDATOR, candidate, checked, record, run
 from test_assets import prepared as prepared
 
+from aelix_analytics import asset_policy, core, relations, writer
 from aelix_analytics import asset_suggestions as suggestions
-from aelix_analytics import core, relations, writer
 
 CLI = core.Origin("human", "cli", "declared")
 T0 = datetime(2026, 10, 10, 12, tzinfo=UTC)
@@ -114,11 +114,39 @@ def test_mode_partial_failure_is_visible_and_same_command_repairs_without_duplic
         app.set_mode("always_on")
     assert error.value.code == "asset_mode_incomplete"
     assert app.suggestion_status()["settings_errors"]
+    overview = core.status(project)
+    assert overview["asset_suggestions"]["settings_errors"][0]["code"] == "asset_mode_incomplete"
+    assert "repeat the human mode command" in core.status_text(overview)
     count = len(relations.read_journal(project.root).events)
     monkeypatch.setattr(writer, "write_json", real)
     assert app.set_mode("always_on")["repaired"]
     assert len(relations.read_journal(project.root).events) == count
     assert not app.suggestion_status()["settings_errors"]
+
+
+def test_application_bookkeeping_does_not_mutate_a_conforming_memo_policy(prepared):
+    class MemoPolicy:
+        def __init__(self):
+            self.cache = {}
+
+        def assess(self, facts, *, min_score=8):
+            key = (json.dumps(facts, sort_keys=True), min_score)
+            if key not in self.cache:
+                self.cache[key] = asset_policy.DeterministicPolicy().assess(facts, min_score=min_score)
+            return self.cache[key]
+
+    project, _, proposed = qualified(prepared)
+    app = application(project)
+    policy = MemoPolicy()
+    app.policy = policy
+    app.review("growth-rate")
+    app.review("growth-rate")  # Same facts must remain a conforming cached result.
+    app.update(proposed["id"], expected="proposed", new="deferred", text="Later", details={"reason_items": ["checks"]})
+    app.set_mode("always_on")
+    assert app.publish_suggestion()["published"] is None
+    for value in policy.cache.values():
+        assert "identity" not in value["requirements"]
+        assert set(value["scores"]) == {"demand", "checks", "scope", "benefit"}
 
 
 def test_append_precedes_return_and_requested_history_does_not_consume_window(prepared):

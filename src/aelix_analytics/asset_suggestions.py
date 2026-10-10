@@ -85,6 +85,25 @@ def _records(journal):
             if event.seq is not None and journal.source_of(event) == event.id]
 
 
+def _ambiguous_history(journal):
+    """Shared or unbound history cannot erase a choice/window or split an identity group.
+
+    Diagnose the original IDs without choosing an occurrence; all original lines remain readable.
+    Unrelated generic record ambiguity is outside asset suggestion bookkeeping.
+    """
+    kinds = {"asset_candidate", "asset_notification", "asset_mode", "reuse_proposal", "reuse_notification", "reuse_mode"}
+    ambiguous = set()
+    for event in journal.events:
+        if event.seq is not None and journal.source_of(event) == event.id:
+            continue
+        details = event.value.get("details")
+        choice = event.kind == "record_update" and isinstance(details, dict) and (
+            details.get("contract") == contract.CONTRACT or "asset_id" in details or "proposal_id" in details)
+        if event.kind in kinds or choice:
+            ambiguous.add(event.id if event.id is not None else journal.source_of(event))
+    return sorted(ambiguous)
+
+
 def _mode(journal):
     return next((event.value for event in reversed(_records(journal))
                  if event.kind == "asset_mode" and event.value.get("actor") == "human"
@@ -273,6 +292,10 @@ def _base(assets, model, config):
 
 
 def evaluate(assets, model, config):
+    ambiguous = _ambiguous_history(model.journal)
+    if ambiguous:
+        return {"eligible": [], "suppressed": [], "history": [],
+                "history_errors": [{"code": "ambiguous_asset_history", "event_ids": ambiguous}]}
     identities = groups(model)
     prior = history(model, identities)
     eligible, suppressed = [], []
@@ -307,6 +330,10 @@ def evaluate(assets, model, config):
 
 
 def window(journal, config, now):
+    ambiguous = _ambiguous_history(journal)
+    if ambiguous:
+        return {"allowed": False, "wait_reason": "ambiguous_asset_history", "next_automatic_at": None,
+                "ambiguous_event_ids": ambiguous}
     automatic = [event.value for event in _records(journal)
                  if event.kind in ("asset_notification", "reuse_notification")
                  and isinstance(event.value.get("details"), dict)

@@ -2502,7 +2502,7 @@ def status(project: Project, limit: int = STATUS_LIMIT, *, part=None, **options)
     metric_view["read_more"] = str(project.journal)
     suggestion_view = (asset_suggestion_status(project, journal=journal, marker=config)
                        if any(key in config for key in ("asset_suggestions", "reuse_proposals", "skill_proposals"))
-                       or any(event.kind == "asset_notification" for event in journal.events) else None)
+                       or any(event.kind in ("asset_notification", "asset_mode") for event in journal.events) else None)
     return {
         "project": {"root": str(project.root),
                     "title": str(config.get("title") or project.root.name),
@@ -2997,8 +2997,10 @@ def _status_lines(st: dict, caps: dict[str, int]) -> list[tuple[str, str, bool]]
         add("head", f"Asset suggestions: {suggestions['mode']} (model-free; project window)")
         for error in suggestions.get("settings_errors", []):
             add("head", f"  {error['code']}: {error['message']}")
-        if suggestions.get("wait_reason") in ("window", "clock_backwards", "malformed_automatic_history", "clock_unavailable"):
+        if suggestions.get("wait_reason") in ("window", "clock_backwards", "malformed_automatic_history", "clock_unavailable", "ambiguous_asset_history"):
             add("head", f"  waiting: {suggestions['wait_reason']}; next automatic time: {suggestions.get('next_automatic_at') or 'unknown'}")
+        if suggestions.get("ambiguous_event_ids"):
+            add("head", f"  ambiguous asset history: {', '.join(suggestions['ambiguous_event_ids'][:3])}; inspect the original journal records")
         pending = suggestions.get("pending", [])
         for notice in pending[-3:]:
             add("head", f"  pending {notice['event_id']} / {notice['asset_id']}: {_one_line(notice['text'], 140)}")

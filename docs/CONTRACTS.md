@@ -653,6 +653,8 @@ marker 갱신 실패는 asset_mode_incomplete입니다. 상태가 event와 다�
 같은 프로젝트의 마지막 automatic asset/reuse_notification 시각부터 최소 cooldown_hours가 지나야 다음 1개를 발행합니다.
 요청 알림은 이 창을 소비하지 않습니다. aware timestamp를 UTC로 비교하고 과거 자동 이력이 잘못된 시각이면 malformed_automatic_history,
 현재 시각이 마지막 자동 이벤트보다 이르면 clock_backwards로 멈춥니다. 창 만료 뒤에는 새 seq가 없어도 대기 후보를 다시 판정합니다.
+후보·모드·알림·자산 상태/정체성 이력의 ID/seq를 확정할 수 없거나 ID가 여러 줄에 겹치면 ambiguous_asset_history로 자동 판정을 멈춥니다.
+어느 발생분도 임의로 선택하지 않으며 원본 줄을 그대로 보존합니다. 창 만료나 새 프로세스로 불확실한 이력을 초기화하지 않습니다.
 automatic 이벤트 append가 성공한 뒤 새 제안 출력을 반환합니다. 두 프로세스가 동시에 진입해도 새 이벤트/발행 출력은 하나이며,
 출력 실패도 창을 소비하고 저장된 알림은 pending에서 조회합니다. pending의 반복 조회는 새 발행이 아닙니다.
 

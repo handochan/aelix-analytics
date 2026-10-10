@@ -44,4 +44,6 @@ def assessed(policy: ProposalPolicy, facts: dict, *, min_score: int = 8) -> dict
     if not isinstance(result, dict) or any(result.get(k) != standard[k] for k in
                                           ("scores", "total", "requirements", "qualified")):
         raise ValueError("ProposalPolicy does not implement the shared deterministic score contract")
-    return {**result, "policy_version": VERSION}
+    # Application bookkeeping must not mutate a conforming policy's memoized result.
+    return {**result, "scores": dict(result["scores"]), "requirements": dict(result["requirements"]),
+            "policy_version": VERSION}

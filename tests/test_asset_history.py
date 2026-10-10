@@ -32,6 +32,84 @@ def old_notice(project, proposal_id, assessed, *, automatic=False):
                       "evidence": assessed["evidence"], "scores": assessed["scores"]})
 
 
+@pytest.mark.parametrize("hours", [0, 48])
+@pytest.mark.parametrize("trigger", ["automatic", "requested", "legacy"])
+def test_ambiguous_notification_cannot_reset_window_or_same_evidence_history(prepared, hours, trigger):
+    project, _, proposed = qualified(prepared)
+    app = application(project)
+    app.set_mode("always_on")
+    if trigger == "automatic":
+        notice = app.publish_suggestion()["published"]["notification"]
+    elif trigger == "requested":
+        notice = app.review("growth-rate")["assets"][0]["notification"]
+    else:
+        old_record(project, "reuse_proposal", {"proposal_id": "기존 후보"})
+        notice = old_notice(project, "기존 후보", app.assessment(proposed, app.model()), automatic=True)
+    row = next(line for line in project.journal.read_bytes().splitlines() if json.loads(line)["id"] == notice["id"])
+    with project.journal.open("ab") as stream:
+        stream.write(row + b"\n")  # Duplicate the exact original bytes; do not select either occurrence.
+    before = project.journal.read_bytes()
+    restarted = application(project, T0 + timedelta(hours=hours))
+    status = restarted.suggestion_status()
+    assert not status["allowed"] and status["wait_reason"] == "ambiguous_asset_history"
+    assert status["ambiguous_event_ids"] == [notice["id"]]
+    assert restarted.publish_suggestion()["published"] is None
+    evaluated = suggestions.evaluate(restarted, restarted.model(), suggestions.DEFAULTS)
+    assert evaluated["eligible"] == [] and evaluated["history_errors"][0]["code"] == "ambiguous_asset_history"
+    assert project.journal.read_bytes() == before
+
+
+@pytest.mark.parametrize("kind", ["mode", "choice", "identity"])
+def test_ambiguous_mode_and_user_choices_are_conservative_without_arbitrary_replay(prepared, kind):
+    project, source, proposed = qualified(prepared)
+    app = application(project)
+    event = app.set_mode("always_on")["event"]
+    if kind == "choice":
+        event = app.update(proposed["id"], expected="proposed", new="rejected", text="Stronger checks",
+                           details={"reason_items": ["checks"]})["event"]
+    elif kind == "identity":
+        other = candidate(project, source, asset_id="other-rate")
+        event = app.update(proposed["id"], expected="proposed", new="proposed", text="Same asset",
+                           details={"identity": {"relation": "duplicate_of", "target": {
+                               "type": "asset_candidate", "asset_id": "other-rate", "event_id": other["id"]}}})["event"]
+    row = next(line for line in project.journal.read_bytes().splitlines() if json.loads(line)["id"] == event["id"])
+    with project.journal.open("ab") as stream:
+        stream.write(row + b"\n")
+    before = project.journal.read_bytes()
+    assert application(project, T0 + timedelta(days=2)).publish_suggestion()["published"] is None
+    assert app.suggestion_status()["ambiguous_event_ids"] == [event["id"]]
+    assert project.journal.read_bytes() == before
+
+
+def test_unrelated_generic_ambiguity_does_not_erase_asset_history_or_add_a_new_gate(prepared):
+    project, _, _ = qualified(prepared)
+    app = application(project)
+    app.set_mode("always_on")
+    note = core.record(project, "note", "An unrelated observation", origin=ORIGIN).event
+    row = next(line for line in project.journal.read_bytes().splitlines() if json.loads(line)["id"] == note["id"])
+    with project.journal.open("ab") as stream:
+        stream.write(row + b"\n")
+    assert app.publish_suggestion()["published"] is not None
+
+
+@pytest.mark.parametrize("field", ["id", "seq"])
+def test_unbound_known_notification_is_diagnosed_instead_of_becoming_absent_history(prepared, field):
+    project, _, _ = qualified(prepared)
+    app = application(project)
+    app.set_mode("always_on")
+    notice = app.publish_suggestion()["published"]["notification"]
+    lines = project.journal.read_bytes().splitlines()
+    changed = json.loads(lines[-1])
+    assert changed["id"] == notice["id"]
+    changed.pop(field)
+    project.journal.write_bytes(b"\n".join([*lines[:-1], json.dumps(changed).encode("utf-8")]) + b"\n")
+    before = project.journal.read_bytes()
+    restarted = application(project, T0 + timedelta(days=2))
+    assert restarted.suggestion_status()["wait_reason"] == "ambiguous_asset_history"
+    assert restarted.publish_suggestion()["published"] is None
+    assert project.journal.read_bytes() == before
+
+
 def test_legacy_namespaces_do_not_collide_but_explicit_derivation_unions_history(prepared):
     project, source, proposed = qualified(prepared)
     old = old_record(project, "reuse_proposal", {"proposal_id": "growth-rate"})
