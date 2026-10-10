@@ -202,14 +202,17 @@ def test_explicit_review_is_recorded_but_list_details_and_cli_reads_have_no_even
     VALIDATOR.validate(notification)
 
 
-def test_skill_only_candidate_registers_without_a_python_implementation_or_host_dependency(tmp_path):
-    from asset_fixtures import SKILL, skill_project
+@pytest.mark.parametrize("newline", ["\n", "\r\n"], ids=["lf", "crlf"])
+def test_skill_only_candidate_registers_without_a_python_implementation_or_host_dependency(tmp_path, newline):
+    from asset_fixtures import skill_project
 
-    project, proposed = skill_project(tmp_path / "skill-project")
+    project, proposed = skill_project(tmp_path / "skill-project", newline=newline)
+    source_bytes = (project.root / "draft/SKILL.md").read_bytes()
     assert "code" not in proposed["details"]
     result = core.register_asset(project, proposed["id"], name="denominator-rule", origin=ORIGIN)
     target = project.root / ".aelix/skills/denominator-rule/SKILL.md"
-    assert target.read_bytes() == SKILL.encode("utf-8")
+    assert target.read_bytes() == source_bytes
+    assert (project.root / "draft/SKILL.md").read_bytes() == source_bytes
     assert result["registered"] and result["registration"]["loader_discovery"]["result"] == "not_run"
     assert core.assets(project)["assets"][0]["state"] == "registered"
 

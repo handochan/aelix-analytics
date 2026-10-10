@@ -27,10 +27,10 @@ Fail when periods do not match or the required columns are absent.
 """
 
 
-def skill_project(root):
+def skill_project(root, *, newline=None):
     project = core.Project(analytics_project(root, version="0.9.0"))
     (project.root / "draft").mkdir()
-    (project.root / "draft/SKILL.md").write_text(SKILL, encoding="utf-8")
+    (project.root / "draft/SKILL.md").write_text(SKILL, encoding="utf-8", newline=newline)
     (project.root / "data").mkdir()
     (project.root / "scripts").mkdir()
     for name, values in (("original", [{"n": 10, "d": 5}]), ("other", [{"n": 20, "d": 10}]),

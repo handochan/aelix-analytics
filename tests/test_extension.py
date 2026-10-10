@@ -2129,13 +2129,15 @@ def test_a_person_s_kit_command_runs_in_aelix_s_shell_as_the_person(monkeypatch)
     assert module.on_user_bash(Broken(), None) is None
 
 
-def test_registered_skill_only_asset_is_discovered_by_the_pinned_host_loader_in_its_project(tmp_path):
+@pytest.mark.parametrize("newline", ["\n", "\r\n"], ids=["lf", "crlf"])
+def test_registered_skill_only_asset_is_discovered_by_the_pinned_host_loader_in_its_project(tmp_path, newline):
     from aelix_agent_core.harness.skills import load_skills
-    from asset_fixtures import ORIGIN, SKILL, skill_project
+    from asset_fixtures import ORIGIN, skill_project
 
     from aelix_analytics import core
 
-    project, proposed = skill_project(tmp_path / "skill-project")
+    project, proposed = skill_project(tmp_path / "skill-project", newline=newline)
+    source_bytes = (project.root / "draft/SKILL.md").read_bytes()
 
     def discovery(directory):
         # Explicit project directory only: no user Aelix home or default/global discovery.
@@ -2149,5 +2151,6 @@ def test_registered_skill_only_asset_is_discovered_by_the_pinned_host_loader_in_
     result = core.register_asset(project, proposed["id"], name="denominator-rule", origin=ORIGIN,
                                  skill_discovery=discovery)
     assert result["registration"]["loader_discovery"]["result"] == "pass"
-    assert (project.root / ".aelix/skills/denominator-rule/SKILL.md").read_bytes() == SKILL.encode("utf-8")
+    assert (project.root / ".aelix/skills/denominator-rule/SKILL.md").read_bytes() == source_bytes
+    assert (project.root / "draft/SKILL.md").read_bytes() == source_bytes
 
