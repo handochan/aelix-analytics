@@ -300,11 +300,16 @@ def _command(argv) -> int:
             options = {name: getattr(args, name) for name in
                        ("part", "query", "id", "cursor", "kind", "state", "since", "until", "direction", "as_of_seq", "limit")
                        if getattr(args, name) is not None}
+            publication = None
             if args.text and args.part is None and origin.actor == "human":
-                core.publish_asset_suggestion(project, origin=origin)
+                publication = core.publish_asset_suggestion(project, origin=origin).get("published")
             st = core.status(project, **options)
             text = core.retrieval_text(st) if args.part else core.status_text(st)
             if args.text:
+                if publication is not None:
+                    notice = publication["notification"]
+                    title = core._one_line(publication["candidate"]["details"]["title"], 140)
+                    text = f"Asset suggestion (new, {notice['id']}): {title}\n{text}"
                 print(text)
                 return 0
             _emit({"ok": True, "status": st, "text": text})

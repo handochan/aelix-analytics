@@ -307,6 +307,15 @@ def test_each_command_reaches_the_kit_in_the_project_environment(fake, tmp_path,
 
 
 @pytest.mark.parametrize("which", WHICH)
+def test_asset_mode_reaches_the_same_stdlib_kit_without_preparing_the_project(fake, tmp_path, which):
+    project = project_dir(tmp_path)
+    done = launch(fake, "assets", "mode", "always_on", cwd=project, which=which)
+    assert done.returncode == 0, done.stderr
+    [call] = calls(fake)
+    assert uv_args(call) == outside_call(project, "assets", "mode", "always_on")
+
+
+@pytest.mark.parametrize("which", WHICH)
 def test_the_actor_and_project_variables_are_passed_as_they_are(fake, tmp_path, which):
     elsewhere = str(tmp_path / "not-a-project")  # not checked: the kit reports it
     done = launch(fake, "status", cwd=tmp_path, which=which, AELIX_ANALYTICS_ACTOR="someone",

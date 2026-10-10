@@ -244,6 +244,10 @@ class Assets:
                     continue
                 proposed = versions[-1]
                 assessed = self.assessment(proposed, model)
+                from . import asset_suggestions
+
+                assessed["requirements"]["identity"] = asset_suggestions.identity_clear(model, proposed, assessed)
+                assessed["duplicate_suspicion"] = not assessed["requirements"]["identity"]
                 details = {"contract": contract.CONTRACT, "asset_id": item["asset_id"],
                            "candidate_event_id": proposed["id"], "trigger": "requested", "surface": surface,
                            **{k: assessed[k] for k in ("as_of_seq", "context_version", "evidence", "scores",

@@ -412,7 +412,7 @@ kit CLI, SDK, 확장, init·데모, run·가져오기·맥락 동기화가 남�
 | `schema` | `analytics.event/2` |
 | `seq`, `id` | 1부터 증가하는 번호와 `e<seq>`. 프로젝트 파일 잠금(`.analytics/lock`) 안에서 그때의 journal을 읽어 배정합니다: 파싱하거나 복구한 모든 줄(모르는 가족·버전·kind의 줄과 `lab.event/1` 줄 포함)의 가장 큰 seq 다음 값입니다(ADR-0006 6절). 끊긴 줄에 글자로 남은 seq는 세지 않습니다. 그 쓰기는 끝나지 않아 id를 돌려준 적이 없고, reader는 그 줄에서 id를 읽지 않습니다. 그래서 다음 기록이 그 번호를 받을 수 있지만 같은 id의 두 기록으로 읽히지는 않습니다. 읽히는 줄이 그 번호의 id를 이미 가지고 있으면(손으로 고친 줄: seq가 정수가 아니거나(`"3"`, `3.0`, `true`) id의 번호와 다름) 그 번호를 건너뛰고 다음 번호를 받습니다. kit 0.5.0의 #49 수정 전에는 읽히는 마지막 줄의 seq 다음 값이었습니다 |
 | `recorded_at` | 로컬 시간대 ISO 8601(밀리초). `lab.event/1`의 `ts` |
-| `kind` | kit 자신의 기록 `project` `import` `run` `context`와 사람·에이전트의 기록 `finding` `decision` `assumption` `question` `todo` `note` `workflow_feedback` `resolve`(`writer.RECORD_KINDS`). 기록하는 진입점에 준 `gap`은 쓰지 않고 `bad_kind`(`details.use: workflow_feedback`)입니다. kit 0.9.0은 `metric_definition`·`analysis_focus`·`metric_observation`도 구조화 details로 씁니다(C6). kit 0.10.0은 `asset_candidate`·`asset_check`·`asset_effect`를 받고 자산 응용 기능이 requested `asset_notification`·승격 `record_update`를 씁니다(C7). 게시 등 그 밖의 종류와 mode/automatic 자산 기록은 읽기만 합니다 |
+| `kind` | kit 자신의 기록 `project` `import` `run` `context`와 사람·에이전트의 기록 `finding` `decision` `assumption` `question` `todo` `note` `workflow_feedback` `resolve`(`writer.RECORD_KINDS`). 기록하는 진입점에 준 `gap`은 쓰지 않고 `bad_kind`(`details.use: workflow_feedback`)입니다. kit 0.9.0은 `metric_definition`·`analysis_focus`·`metric_observation`도 구조화 details로 씁니다(C6). kit 0.10.0은 `asset_candidate`·`asset_check`·`asset_effect`를 받고 자산 응용 기능이 requested `asset_notification`·승격 `record_update`를 씁니다(C7). kit 0.12.0은 사람의 프로젝트 `asset_mode`·automatic `asset_notification`과 새 거절/보류 requirements snapshot을 응용 기능에서 씁니다(C8). 게시 등 그 밖의 종류는 읽기만 합니다 |
 | `actor`, `actor_basis`, `means` | 작성 출처(`Origin`): 작성 주체(`agent` `human` `system` 등), 진입점이 그것을 알거나 선언받았는지(`declared`) 선언이 없어 `human`으로 본 것인지(`inferred`), 실행 수단(`cli` `sdk` `tool` `command` `hook`). 진입점마다의 값은 아래 "작성 출처"와 A |
 | `session` | aelix 세션 파일 경로(있을 때) |
 | `request_id` | 부른 쪽이 요청 id를 넘긴 쓰기에만 있습니다. 공개 진입점은 그 입력을 열지 않았으므로(#19) 지금은 쓰기의 응답에만 있습니다(D) |
@@ -611,8 +611,53 @@ Analysis asset는 계산 구현 또는 사용 절차이며 Asset candidate는 �
 명시적인 사용 run은 선택 `used_in`의 정확한 run refs로 `uses`를 생성합니다. 출처의 단순 인용·산출물 생성만으로 사용을 세지 않습니다.
 독립 사용은 실제 script/module 경로·hash 관측 또는 이 uses 연결, ok, rerun이 아닌 서로 다른(script,input hash집합)입니다.
 
-이 버전은 B3-a입니다. 프로젝트/세션 모드 변경, always_on 자동 사전 판정·롤링 창·발행, Aelix 맥락 발행·Workspace 자산 상세·Q11 비용 계측은
-B3-b/B3-c의 미구현 범위입니다. #17 전체 완료나 실제 모델/사람 리허설 통과를 뜻하지 않습니다.
+C7의 최초 버전은 B3-a의 0.10.0입니다. 프로젝트 모드·자동 CLI 발행은 다음 C8, 세션·Aelix 맥락·Workspace 자산 상세·Q11은 B3-c 범위입니다.
+
+### C8. 프로젝트 모드와 결정적 자동 제안 (kit 0.12.0, #17 B3-b)
+
+`analytics assets mode on_demand|always_on`·SDK `set_asset_mode(mode)`는 human 출처만 받습니다. CLI는 프로젝트 범위만 지원합니다.
+새 mode/automatic 기록과 거절·보류의 `suggestion_history=analysis_assets.suggestions/1` 요구조건 snapshot 전에 표식 floor를 0.12.0으로 올립니다.
+후보·검사·효과·requested 알림의 최초 floor 0.10.0과 지표 floor 0.9.0은 바뀌지 않습니다.
+
+`analytics.json.asset_suggestions`의 기본값은 다음과 같습니다. 없는 키는 이 값으로 읽으며 marker의 다른 필드는 보존합니다.
+
+```json
+{"mode":"on_demand","min_score":8,"cooldown_hours":24,
+ "measurement_targets":{"input_tokens_per_review":1024,"output_tokens_per_review":256}}
+```
+
+min_score는 정수 0..10, cooldown_hours는 finite 숫자 24 이상, 측정 목표는 finite 비음수이며 bool은 숫자가 아닙니다.
+측정 목표는 허용/절단 기준이 아닙니다. 잘못된 설정은 settings_errors로 보이며 자동 발행을 멈춥니다.
+과거 reuse_proposals/skill_proposals 키는 legacy_asset_settings이며 새 키를 안내합니다. 키를 자동 변환하거나 삭제하지 않습니다.
+모드 명령은 journal lock 안에서 human asset_mode와 원하는 설정 snapshot을 먼저 기록하고 marker를 갱신합니다.
+marker 갱신 실패는 asset_mode_incomplete입니다. 상태가 event와 다르면 자동 발행하지 않으며 같은 명령을 다시 실행하면 중복 이벤트 없이 marker를 맞춥니다.
+
+자동 발행 경계는 **사람의 일반 텍스트 overview**(`analytics --text status`)입니다. JSON status·SDK status·agent-origin CLI,
+모든 records/relations/context 상세 페이지(사람 --text 포함)·context·목록·query/import/run/error에서는 발행하지 않습니다.
+기본 on_demand와 끈 모드는 자동 점수 평가도 하지 않습니다. 읽기 상태의 pending은 이미 저장한 미응답 알림이며 읽어도 창을 소비하지 않습니다.
+거절·보류·등록·deprecated 응답을 기록하면 해당 후보의 앞선 알림은 pending에서 빠집니다. 모드를 꺼도 이력과 pending은 남습니다.
+
+발행 경계에서 journal lock으로 marker·후보·확정 근거·현재 파일 hash·선택 이력·시간을 다시 확인합니다.
+같은 logical asset ID의 모든 버전, 확인된 duplicate_of/merged_into/derived_from만 같은 그룹으로 셉니다. 과거 proposal_id는 별도 namespace이고
+명시적인 정확한 연결이 있을 때만 그룹을 합칩니다. 다른 프로젝트·모호한 대상·잘못된 링크는 그룹을 합치지 않습니다.
+이전 알림보다 새 확정 근거가 있고 점수 항목 또는 알려진 source/identity 요구조건이 개선되어야 다시 알립니다.
+거절·보류는 기록한 사유 항목도 개선되어야 하며 사유 항목이 없으면 요청 검토로만 보입니다. 과거 snapshot에 없는 boolean 요구조건은 개선으로 추정하지 않습니다.
+문구 변경·같은 근거 재인용·다른 후보 버전 검사·단순 rerun은 새 점수 근거가 아닙니다.
+다른 그룹의 앞선 알림/선택 근거에 전부 포함된 후보는 duplicate_suspicion으로 억제하며 명시적 review에서 이를 표시합니다.
+
+최고 점수 1개를 고르고 동점이면 처음 실제 문턱을 넘은 seq, asset_id 순서입니다. prefix 판정은 Journal.through/ReadModel.through를 써
+뒤에 완료한 run·검사·효과를 과거 문턱에 붙이지 않습니다. 보존 파일의 존재/hash는 지금 검사하며 과거 파일 snapshot을 주장하지 않습니다.
+판정은 발행 경계에서 원본을 다시 계산합니다. 별도 지속 cache가 없고 cache 삭제·새 프로세스로 이력/창을 초기화할 수 없습니다.
+전체 관련 prefix를 읽는 비용은 기록 크기와 후보 수에 따라 늘며 큰 프로젝트의 증분 사전 판정 최적화는 별도 성능 범위입니다.
+
+같은 프로젝트의 마지막 automatic asset/reuse_notification 시각부터 최소 cooldown_hours가 지나야 다음 1개를 발행합니다.
+요청 알림은 이 창을 소비하지 않습니다. aware timestamp를 UTC로 비교하고 과거 자동 이력이 잘못된 시각이면 malformed_automatic_history,
+현재 시각이 마지막 자동 이벤트보다 이르면 clock_backwards로 멈춥니다. 창 만료 뒤에는 새 seq가 없어도 대기 후보를 다시 판정합니다.
+automatic 이벤트 append가 성공한 뒤 새 제안 출력을 반환합니다. 두 프로세스가 동시에 진입해도 새 이벤트/발행 출력은 하나이며,
+출력 실패도 창을 소비하고 저장된 알림은 pending에서 조회합니다. pending의 반복 조회는 새 발행이 아닙니다.
+
+Aelix 세션 모드·hook 사전 판정·에이전트 맥락 발행·Workspace 자산 화면·Q11 계측은 B3-c이며 이 절의 구현이 아닙니다.
+추가 모델 호출·자동 등록은 없으며 #17 전체 완료나 실제 모델/사람 리허설 통과를 뜻하지 않습니다.
 
 ## D. kit CLI
 

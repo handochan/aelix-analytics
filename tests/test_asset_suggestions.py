@@ -6,7 +6,7 @@ import json
 from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
-from test_assets import ORIGIN, candidate, checked, record, run
+from test_assets import ORIGIN, VALIDATOR, candidate, checked, record, run
 from test_assets import prepared as prepared
 
 from aelix_analytics import asset_suggestions as suggestions
@@ -218,6 +218,25 @@ def test_generic_notification_and_mode_inputs_remain_unavailable(prepared):
     for kind in ("asset_mode", "asset_notification"):
         with pytest.raises(core.AnalyticsError):
             core.record(project, kind, "No bookkeeping bypass", details={}, origin=ORIGIN)
+
+
+def test_new_mode_notification_and_choice_records_validate_and_keep_known_boolean_snapshots(prepared):
+    project, _, proposed = qualified(prepared)
+    app = application(project)
+    mode = app.set_mode("always_on")["event"]
+    notice = app.publish_suggestion()["published"]["notification"]
+    choice = core.update_asset(project, proposed["id"], expected="proposed", new="deferred", text="Later",
+                               details={"reason_items": ["source", "identity"]}, origin=ORIGIN)["event"]
+    for event in (mode, notice, choice):
+        VALIDATOR.validate(event)
+    marker = writer.marker_state(project.root).value
+    VALIDATOR.validate(marker)
+    assert mode["details"]["settings"] == marker["asset_suggestions"]
+    assert choice["details"]["suggestion_history"] == "analysis_assets.suggestions/1"
+    assert {"source", "identity"} <= choice["details"]["requirements"].keys()
+    assert all(type(value) is bool for value in choice["details"]["requirements"].values())
+    for bad in ({"min_score": True}, {"cooldown_hours": 23}, {"measurement_targets": {"input_tokens_per_review": False}}):
+        assert not VALIDATOR.is_valid({**marker, "asset_suggestions": bad})
 
 
 def test_malformed_automatic_time_blocks_instead_of_resetting_history(prepared):

@@ -15,6 +15,12 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 없음. 병합된 변경은 그 PR이 병합될 때의 kit 번호 절에 적고, kit 번호를 올리는 PR은 새 절을 엽니다
 ([기여 가이드](CONTRIBUTING.md#첫-공개-전에-남은-운영-결정)).
 
+## [0.12.0] - 2026-10-10
+
+- 사람의 CLI `assets mode`와 SDK `set_asset_mode`로 프로젝트의 요청 시/상시 제안 모드를 선택합니다. 기본 모드는 on_demand이며 모델을 호출하지 않습니다.
+- 일반 사람 텍스트 status에서 확정 근거·점수·거절 사유·명시적 정체성·롤링 창을 잠금 안에서 확인하고 자동 알림 하나를 먼저 기록합니다. 출력 실패도 창을 소비하며 미응답 기록은 pending으로 조회합니다.
+- JSON·에이전트·SDK status와 모든 records/relations/context 상세 페이지는 자동 알림을 발행하지 않습니다. Aelix 세션·맥락 발행·Workspace 자산 화면과 Q11은 다음 B3-c 범위입니다.
+
 ## [0.11.0] - 2026-10-10
 
 번호를 붙인 변경은 [#15 구현 PR89](https://github.com/handochan/aelix-analytics/pull/89)입니다.

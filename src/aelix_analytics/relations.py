@@ -2028,6 +2028,8 @@ def _asset_event(value, key="candidate_event_id") -> str:
 def asset_exact(ref, kind: str) -> dict:
     if not isinstance(ref, dict) or ref.get("type") != kind:
         _asset_fail(f"an exact {kind} reference is required")
+    if "project_id" in ref:
+        _asset_fail("asset references are local to this project; a project_id-qualified target is unsupported")
     out = {
         "relation": "cites",
         "basis": "declared",

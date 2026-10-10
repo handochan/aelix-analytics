@@ -244,7 +244,7 @@ def _fresh(assessed, prior, *, reasons=None):
     current = _evidence(assessed["evidence"])
     if not current - prior["evidence"]:
         return False
-    items = reasons if reasons is not None else SCORE_MAX
+    items = reasons if reasons is not None else (*SCORE_MAX, "source", "identity")
     return any((assessed["scores"].get(key, 0) > prior["scores"].get(key, 0) if key in SCORE_MAX else
                 prior["requirements"].get(key) is False and assessed["requirements"].get(key) is True)
                for key in items)
