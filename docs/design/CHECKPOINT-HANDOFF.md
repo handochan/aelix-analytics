@@ -1,9 +1,9 @@
 # Checkpoint와 사람·에이전트 인계 — 구현 전 설계
 
-상태: Proposed · 2026-10-10 · Issue [#16](https://github.com/handochan/aelix-analytics/issues/16)
+상태: 설계 검토 완료·채택 PR(구현 미완료) · 2026-10-10 · Issue [#16](https://github.com/handochan/aelix-analytics/issues/16)
 
 기준 소스는 실제 #15 main `74e5e96c4a49917ad8980b0724dc4add62bc6077`(kit 0.11.0)이다.
-이 문서와 [ADR-0012](../decisions/0012-checkpoint-and-handoff.md)는 설계 리뷰 대상이며 구현 완료가 아니다.
+이 문서와 [ADR-0012](../decisions/0012-checkpoint-and-handoff.md)는 이 설계 PR의 병합으로 채택하며 구현 완료가 아니다.
 따르는 결정은 [ADR-0006](../decisions/0006-common-record-contract.md) 1·2·3·5·6절,
 [연속성 설계](../DESIGN-CONTINUITY-AND-REUSE.md#작업-구간-요약-checkpoint),
 [작성 출처](../CONTRACTS.md#c-레코드), [Q2·Q12·Q17](../BETA-QUALITY-GATES.md),
@@ -173,3 +173,16 @@ core 응용은 Project/read_model/context sync를 조율한다. CLI·SDK·확장
 저장 필드·schema 변경의 실제 source measurement md+JSON에는 명령·환경·scope·bytes/원본 해시·실패/skip/not_run을 남긴다.
 토큰은 tokenizer로 측정했을 때만 토큰이며, 결정적 fixture/모의 Origin 교대는 실제 Q17-b가 아니다.
 Q2·Q12·Q17 전체 beta gate나 릴리스 완료는 이 설계/합성 구현 검증으로 선언하지 않는다.
+
+## 7. 설계 리뷰와 처분
+
+`5647d9b`의 세 문서/219줄을 독립 reviewer와 별도 Codex가 각각 한 번 읽었다. 다음 두 P2는 두 리뷰가 확인한
+동일 지적이며 네 건으로 중복 세지 않는다. runtime/model 시험을 실행한 리뷰로 취급하지 않는다.
+
+| 지적 | 처분 | 수정 확인 |
+|---|---|---|
+| 기본 pending checkpoint에 SDK가 진행 중 run 근거를 자동 추가해 call-time basis와 충돌 | §3: checkpoint만 암묵적 근거 생략, Origin/private pending run_id 유지, 명시적 미래 근거 거절. T9/T10에서 성공·거절을 분리 | `9745856`, correction diff 1회 해결 확인 |
+| 선택한 todo 닫힘/재개가 needs_review 열거에서 빠짐 | §4/T5: question/todo 같은 상태 축, close→reopen의 중간 이유 유지, 무관한 todo 갱신 구별 | `9745856`, 같은 correction diff 1회 해결 확인 |
+
+전체 리뷰를 반복하지 않았다. 설계 문서 검사와 후속 PR CI는 실제 head로 기록하고, schema/writer/인계의 구현 리뷰와
+Q2/Q12/Q17 런타임·사람·모델 검증은 별도 남은 작업이다. 설계만 채택해서 Issue #16을 닫지 않는다.

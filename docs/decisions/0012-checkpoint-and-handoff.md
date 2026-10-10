@@ -1,6 +1,6 @@
 # ADR-0012: checkpoint의 기준과 결정적 인계
 
-상태: Proposed · 2026-10-10 · 작업: [#16](https://github.com/handochan/aelix-analytics/issues/16)
+상태: Adopted(이 설계 PR의 병합으로 채택) · 2026-10-10 · 작업: [#16](https://github.com/handochan/aelix-analytics/issues/16)
 
 ## 맥락
 
@@ -13,7 +13,7 @@ kit 0.11.0은 이 종류를 읽지만 checkpoint 작성·평가·인계 기능�
 이 결정은 그 범위의 writer·reader·공개 진입점을 구체화한다. 원문·기존 종류·작성 주체의 뜻을 바꾸거나
 새 가족으로 전환하지 않는다. 자세한 필드·충돌·시험은 [구현 전 설계](../design/CHECKPOINT-HANDOFF.md)에 있다.
 
-## 제안하는 결정
+## 결정
 
 1. 새 writer는 기존 `analytics.event/2`, `kind=checkpoint`에 `details.contract=analysis_checkpoint/1`을 쓴다.
    `as_of_seq`는 null이 아닌 정수이고 checkpoint 자체보다 앞의 journal 기준이다. CONTEXT는 정확한 버전과
@@ -43,3 +43,10 @@ kit 0.11.0은 이 종류를 읽지만 checkpoint 작성·평가·인계 기능�
 기본 status를 전체 checkpoint 덤프로 바꾸거나 요약용 모델 도구를 더하지 않는다. 일반 record는 명시적으로 작성한
 본문을 저장하고, CLI·SDK의 별도 편의 함수가 결정적 생성을 제공한다. 토큰·의미 회수·실제 인계의 성공은 설계로
 선언하지 않으며 Q2·Q12·Q17의 합성 검증과 실제 모델·사람 검증을 별도로 기록한다.
+
+## 설계 검토
+
+frozen `5647d9b`에서 독립 설계 리뷰 1회·별도 Codex 설계 리뷰 1회를 수행했고 같은 두 P2를 확인했다.
+진행 중 checkpoint의 암묵적 run 근거와 선택한 todo의 변경 판정을 `9745856`에서 고쳤다.
+독립 reviewer가 그 수정 diff만 한 번 확인했고 두 건 모두 해결됐으며 추가 지적은 없었다.
+현재 문서 검사 통과는 runtime·실제 모델·사람 Q17 시험을 대신하지 않는다. 구현/검증은 후속 PR이다.
