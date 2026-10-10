@@ -1667,7 +1667,9 @@ def on_user_bash(event, ctx):
 # --- hooks ---
 
 async def on_before_agent_start(event, ctx):
-    STATE["session"] = current_session(ctx)
+    session = current_session(ctx)
+    hook_origin = core.Origin("system", "hook", "declared", session)
+    STATE["session"] = session
     # The shells the agent's commands run in carry this session from here (design 4.2).
     put_the_session_in_the_environment(STATE["session"])
     try:
@@ -1675,15 +1677,16 @@ async def on_before_agent_start(event, ctx):
     except Exception:  # noqa: BLE001 - no active project must never block a prompt
         return None
     with contextlib.suppress(Exception):
-        await asyncio.to_thread(lambda: core.sync_context(project, origin=origin("system", "hook")))
+        await asyncio.to_thread(lambda: core.sync_context(project, origin=hook_origin))
     try:
         block = await asyncio.to_thread(core.context_block, project)
     except Exception:  # noqa: BLE001 - a broken journal must not stop the prompt
         return None
-    with contextlib.suppress(Exception):
-        result = await asyncio.to_thread(lambda: core.publish_asset_suggestion(
-            project, origin=origin("system", "hook"), surface="aelix_context"))
-        block += core.asset_context_notice(result.get("published"))
+    if session is not None:
+        with contextlib.suppress(Exception):
+            result = await asyncio.to_thread(lambda: core.publish_asset_suggestion(
+                project, origin=hook_origin, surface="aelix_context"))
+            block += core.asset_context_notice(result.get("published"))
     return BeforeAgentStartResult(system_prompt=f"{event.system_prompt}\n\n{block}")
 
 
@@ -1748,8 +1751,9 @@ def on_agent_end(event, ctx):
     with contextlib.suppress(Exception):
         project = resolve_project()[0]
         session = current_session(ctx)
-        hook_origin = core.Origin("system", "hook", "declared", session)
-        core.preassess_asset_suggestions(project, origin=hook_origin)
+        if session is not None:
+            hook_origin = core.Origin("system", "hook", "declared", session)
+            core.preassess_asset_suggestions(project, origin=hook_origin)
     with contextlib.suppress(Exception):
         schedule_workspace_render(resolve_project()[0], "hook")
     return None
@@ -1786,12 +1790,15 @@ async def analytics_command(args, ctx=None):
             project, via = resolve_project()
             options = human_options(rest, {"part", "query", "id", "cursor", "kind", "state", "since", "until",
                                            "direction", "as_of_seq", "limit"})
-            session = current_session(ctx)
+            authored = command_origin(ctx)
+            session = authored.session
+            STATE["session"] = session
+            put_the_session_in_the_environment(session)
             st = await asyncio.to_thread(lambda: core.status(project, asset_session=session, **options))
             publication = None
-            if not options.get("part"):
+            if session is not None and not options.get("part"):
                 result = await asyncio.to_thread(lambda: core.publish_asset_suggestion(
-                    project, origin=command_origin(ctx), surface="aelix_command_status"))
+                    project, origin=authored, surface="aelix_command_status"))
                 publication = result.get("published")
                 if publication is not None:
                     st = await asyncio.to_thread(lambda: core.status(project, asset_session=session, **options))

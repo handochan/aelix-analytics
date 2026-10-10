@@ -67,6 +67,21 @@ def test_agent_tool_cannot_claim_a_host_publication_surface(prepared, monkeypatc
     assert project.journal.read_bytes() == before
 
 
+@pytest.mark.parametrize("surface,actor,means", [("aelix_context", "system", "hook"),
+                                               ("aelix_command_status", "human", "command")])
+def test_unknown_host_session_skips_automatic_assessment_before_any_append(prepared, monkeypatch, surface, actor, means):
+    project, _, _ = qualified(prepared)
+    application(project).set_mode("always_on")
+    app = host_app(project, None, actor=actor, means=means)
+    monkeypatch.setattr(app, "assessment", lambda *a, **k: pytest.fail("unknown host session scored"))
+    before = project.journal.read_bytes()
+    assert app.publish_suggestion(surface=surface)["reason"] == "asset_session_unavailable"
+    assert asset_suggestions.preassess(app)["reason"] == "asset_session_unavailable"
+    assert project.journal.read_bytes() == before
+    assert not (project.root / ".analytics/cache/asset-progress.json").exists()
+    assert core.status(project)["asset_suggestions"]["mode"] == "always_on"  # The project read remains available.
+
+
 def test_preassessment_default_is_off_and_progress_cache_contains_no_candidate_body(prepared, monkeypatch):
     project, _, _ = qualified(prepared)
     app = host_app(project, actor="system", means="hook")

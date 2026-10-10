@@ -6,6 +6,7 @@ import asyncio
 import json
 import subprocess
 import sys
+import threading
 from types import SimpleNamespace
 
 import pytest
@@ -87,6 +88,52 @@ def test_current_session_failure_never_reuses_old_scope(host_project, tmp_path):
     assert module.STATE["session"] is None and not notices(project)
     answer = asyncio.run(module.analytics_command("assets mode always_on --scope session", unavailable))
     assert "asset_session_required" in answer
+
+
+@pytest.mark.parametrize("project_mode,session_mode", [("always_on", "on_demand"), ("on_demand", "always_on")])
+def test_getter_failure_never_authorizes_host_automatic_effects(host_project, tmp_path, monkeypatch, project_mode, session_mode):
+    module, project, _ = host_project
+    ctx = context(str(tmp_path / "sessions/A.jsonl"))
+    asyncio.run(module.analytics_command(f"assets mode {project_mode}", ctx))
+    asyncio.run(module.analytics_command(f"assets mode {session_mode} --scope session", ctx))
+    unavailable = SimpleNamespace(session_manager=SimpleNamespace(
+        get_session=lambda: (_ for _ in ()).throw(ValueError("unavailable"))))
+    assert "Asset suggestion (" not in before(module, unavailable).system_prompt
+    assert "error [" not in asyncio.run(module.analytics_command("status", unavailable))
+    assert module.STATE["session"] is None and not notices(project)
+    monkeypatch.setattr(module.core, "preassess_asset_suggestions", lambda *a, **k: pytest.fail("unknown session preassessed"))
+    module.on_agent_end(SimpleNamespace(), unavailable)
+    assert not (project.root / ".analytics/cache/asset-progress.json").exists()
+
+
+def test_hook_origin_is_held_when_another_context_changes_state_during_await(host_project, tmp_path, monkeypatch):
+    module, project, _ = host_project
+    ctx_a, ctx_b = [context(str(tmp_path / f"sessions/{name}.jsonl")) for name in ("A", "B")]
+    asyncio.run(module.analytics_command("assets mode on_demand --scope session", ctx_a))
+    entered, release = threading.Event(), threading.Event()
+    original = module.core.context_block
+
+    def held_read(p):
+        entered.set()
+        assert release.wait(timeout=10), "controlled context read was not released"
+        return original(p)
+
+    monkeypatch.setattr(module.core, "context_block", held_read)
+
+    async def controlled_callbacks():
+        task = asyncio.create_task(module.on_before_agent_start(
+            BeforeAgentStartHookEvent(prompt="hello", system_prompt="BASE"), ctx_a))
+        try:
+            assert await asyncio.to_thread(entered.wait, 10)
+            selected = await module.analytics_command("assets mode always_on --scope session", ctx_b)
+            assert json.loads(selected)["scope"] == "session"
+        finally:
+            release.set()
+        return await task
+
+    value = asyncio.run(controlled_callbacks())
+    assert "Asset suggestion (" not in value.system_prompt and not notices(project)
+    assert module.STATE["session"] == ctx_b.session_manager.get_session().session_file
 
 
 def test_default_context_stays_unchanged_and_read_only_surfaces_do_not_publish(host_project, tmp_path):

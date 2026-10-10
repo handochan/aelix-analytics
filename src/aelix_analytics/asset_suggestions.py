@@ -419,6 +419,8 @@ def status(assets, *, journal=None, marker=None, at=None, session=None):
 
 def preassess(assets):
     """Regenerable progress/counts only; this cache never authorizes a publication."""
+    if not isinstance(assets.writer.origin.session, str) or not assets.writer.origin.session:
+        return {"assessed": False, "reason": "asset_session_unavailable", "model_calls": 0}
     current = status(assets, session=assets.writer.origin.session)
     if current["mode"] != "always_on" or current["settings_errors"]:
         return {"assessed": False, "reason": current["wait_reason"], "model_calls": 0}
@@ -456,6 +458,8 @@ def publish(assets, *, surface="cli_text_status"):
     if (surface, assets.writer.origin.actor, assets.writer.origin.means) not in allowed:
         return {"published": None, "reason": "read_only_surface", "model_calls": 0}
     session = assets.writer.origin.session
+    if surface != "cli_text_status" and (not isinstance(session, str) or not session):
+        return {"published": None, "reason": "asset_session_unavailable", "model_calls": 0}
     initial = status(assets, session=session)
     if initial["settings_errors"] or initial["mode"] != "always_on":
         return {"published": None, "status": initial, "model_calls": 0}

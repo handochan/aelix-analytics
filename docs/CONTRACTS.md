@@ -666,6 +666,8 @@ Aelix 세션과 맥락 발행은 C9에서 추가합니다. C8의 CLI/project mod
 현재 파일을 얻지 못하면 `asset_session_required`이며 이전 STATE의 세션으로 쓰지 않습니다. 현재 세션의 마지막 유효 human·command
 asset_mode가 프로젝트 설정에 우선합니다. mode·scope·details.session과 최상위 session이 함께 일치해야 적용합니다.
 reload/resume은 같은 파일의 기록을 읽고, 새 파일의 new/fork은 프로젝트 모드를 따릅니다. CLI·SDK 모드 선택은 project 범위입니다.
+현재 세션 조회가 실패하면 프로젝트 모드를 자동 허가로 대신 쓰지 않습니다. 호스트의 사전 판정·자동 발행을 건너뛰고 기존 맥락/상태 읽기는 유지합니다.
+각 hook/사람 상태 callback은 진입 시 얻은 작성 출처·세션을 그 호출의 sync/publication에 전달하며 await 뒤의 전역 STATE로 바꾸지 않습니다.
 session 모드 이벤트와 Aelix context/status automatic 이벤트는 최초 floor 0.13.0입니다. 기존 C6/C7/C8 floor를 올리지 않습니다.
 
 `/analytics assets list|show|review|update|register`는 공통 자산 응용 기능을 씁니다. review는 requested 기록이며 자동 창을 소비하지 않습니다.
@@ -687,6 +689,8 @@ hook은 새 턴·모델·send_message·UI notify를 시작하지 않습니다. �
 
 Workspace Analysis assets 탭은 같은 read basis에서 후보 버전·현재 상태·저장된 score snapshot·미응답 알림과 canonical journal 참조를
 보입니다. 새 판정·실행·등록·발행을 시작하지 않습니다. 과거 reuse_* kind/proposal_id와 authored 내용은 raw 필드와 발생분 링크로 보존합니다.
+저장 score 선택은 보통의 append 순서에서 최신 snapshot입니다. 외부에서 유효한 journal 줄의 물리 순서를 바꾸면 이전 score snapshot을 선택할 수
+있습니다(P3 기록된 한계). 원본/전체 timeline은 보존되며 여기서 원본을 다시 쓰거나 점수를 재판정하지 않습니다.
 Q11은 `tools/asset_host_eval.py`가 실제 여섯 도구 정의/description/schema와 합성 skill 후보의 요청 시/상시/다음 턴 맥락을 비교합니다.
 UTF-8 bytes와 등록된 파일 hash가 일치하는 tokenizer tokens만 계측하며 목표 초과·not_measured를 그대로 보고합니다.
 실제 모델의 review 비용·출력·지연, provider framing, 사람이 본 여부는 이 model-free 검증에서 측정하지 않습니다.
