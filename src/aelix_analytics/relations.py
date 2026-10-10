@@ -1970,6 +1970,7 @@ def read(root, *, alive, sha, legacy_path=None, frame=None) -> ReadModel:
 
 ASSET_CONTRACT = "analysis_asset/1"
 ASSET_WRITER_SINCE = "0.10.0"
+ASSET_AUTOMATIC_SINCE = "0.12.0"
 ASSET_PUBLIC_KINDS = ("asset_candidate", "asset_check", "asset_effect")
 ASSET_SYSTEM_KINDS = ("asset_mode", "asset_notification")
 ASSET_KINDS = ASSET_PUBLIC_KINDS + ASSET_SYSTEM_KINDS
@@ -2544,6 +2545,13 @@ def asset_update_problem(details, refs) -> str | None:
         reasons = details.get("reason_items", [])
         if not isinstance(reasons, list) or any(r not in ASSET_REASONS for r in reasons):
             _asset_fail("reason_items names adopted required/score items")
+        if "suggestion_history" in details:
+            requirements = details.get("requirements")
+            if (details["suggestion_history"] != "analysis_assets.suggestions/1"
+                    or new not in ("rejected", "deferred") or not isinstance(requirements, dict)
+                    or not {"source", "identity"} <= set(requirements)
+                    or any(type(value) is not bool for value in requirements.values())):
+                _asset_fail("suggestion choice history preserves boolean requirements of its known contract")
         if new in ("rejected", "deferred"):
             if (
                 type(details.get("as_of_seq")) is not int

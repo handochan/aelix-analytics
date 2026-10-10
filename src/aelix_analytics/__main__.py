@@ -214,6 +214,8 @@ def _command(argv) -> int:
     asset = sub.add_parser("assets", help="read, review or explicitly register analysis assets")
     commands = asset.add_subparsers(dest="asset_action", required=True)
     commands.add_parser("list", help="read candidate versions and prior legacy records")
+    p = commands.add_parser("mode", help="set project-local suggestion mode as a human")
+    p.add_argument("mode", choices=("on_demand", "always_on"))
     p = commands.add_parser("show", help="read one candidate and its evidence")
     p.add_argument("asset_id")
     p = commands.add_parser("review", help="explicit model-free review; record requested suggestions")
@@ -298,6 +300,8 @@ def _command(argv) -> int:
             options = {name: getattr(args, name) for name in
                        ("part", "query", "id", "cursor", "kind", "state", "since", "until", "direction", "as_of_seq", "limit")
                        if getattr(args, name) is not None}
+            if args.text and args.part is None and origin.actor == "human":
+                core.publish_asset_suggestion(project, origin=origin)
             st = core.status(project, **options)
             text = core.retrieval_text(st) if args.part else core.status_text(st)
             if args.text:
@@ -359,6 +363,8 @@ def _command(argv) -> int:
                     raise core.AnalyticsError("bad_asset", "--details-json is a JSON object")
                 result = core.update_asset(project, args.event_id, expected=args.expected, new=args.new,
                                            text=args.reason, details=args.details_json, origin=origin)
+            elif action == "mode":
+                result = core.set_asset_mode(project, args.mode, origin=origin)
             else:
                 result = core.register_asset(project, args.event_id, name=args.name, origin=origin)
             _emit({"ok": True, **result})

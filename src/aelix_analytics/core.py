@@ -45,7 +45,7 @@ from .writer import migration_record as migration_record
 from .writer import new_request_id as new_request_id
 from .writer import present_marker as present_marker
 
-KIT_VERSION = "0.11.0"
+KIT_VERSION = "0.12.0"
 # The marker and the record families of the projects this kit writes: the new format's, through
 # the common writer (writer.Writer, Issue #13 PR 3; writer.FAMILIES). A project is found by either
 # marker, analytics.json or lab.json, and judged by writer.marker_state: a lab.json project
@@ -1777,6 +1777,21 @@ def register_asset(project: Project, event_id: str, *, name: str, origin: Origin
     return asset_application(project, origin, skill_discovery=skill_discovery).register(event_id, name=name)
 
 
+def set_asset_mode(project: Project, mode: str, *, origin: Origin) -> dict:
+    return asset_application(project, origin).set_mode(mode)
+
+
+def asset_suggestion_status(project: Project, *, journal=None, marker=None) -> dict:
+    return asset_application(project, Origin("system", "sdk")).suggestion_status(journal=journal, marker=marker)
+
+
+def publish_asset_suggestion(project: Project, *, origin: Origin) -> dict:
+    # A read-only/older project keeps its status readable and skips this side write.
+    if admit(project, "publish an asset suggestion", side=True) is None:
+        return {"published": None, "reason": "read_only_project", "model_calls": 0}
+    return asset_application(project, origin).publish_suggestion()
+
+
 def _record_items(refs, resolves) -> list:
     items = [refs] if isinstance(refs, (str, dict)) else list(refs or [])
     if resolves:
@@ -2485,6 +2500,9 @@ def status(project: Project, limit: int = STATUS_LIMIT, *, part=None, **options)
         metric_view[name] = metric_view[name][-limit * 2:]
     metric_view["omitted"] = {name: metric_counts[name] - len(metric_view[name]) for name in metric_counts}
     metric_view["read_more"] = str(project.journal)
+    suggestion_view = (asset_suggestion_status(project, journal=journal, marker=config)
+                       if any(key in config for key in ("asset_suggestions", "reuse_proposals", "skill_proposals"))
+                       or any(event.kind == "asset_notification" for event in journal.events) else None)
     return {
         "project": {"root": str(project.root),
                     "title": str(config.get("title") or project.root.name),
@@ -2526,6 +2544,7 @@ def status(project: Project, limit: int = STATUS_LIMIT, *, part=None, **options)
         "key": key_rows,
         "recent": [_brief(e, source[id(e)]) for e in events[-10:]],
         "metrics": metric_view,
+        **({"asset_suggestions": suggestion_view} if suggestion_view is not None else {}),
     }
 
 
@@ -2973,6 +2992,18 @@ def _status_lines(st: dict, caps: dict[str, int]) -> list[tuple[str, str, bool]]
         add("head", f"goal: {_one_line(p['goal'])}")
     for line in metric_focus_text(st.get("metrics") or {}, journal):
         add("head", line)
+    suggestions = st.get("asset_suggestions")
+    if suggestions:
+        add("head", f"Asset suggestions: {suggestions['mode']} (model-free; project window)")
+        for error in suggestions.get("settings_errors", []):
+            add("head", f"  {error['code']}: {error['message']}")
+        if suggestions.get("wait_reason") in ("window", "clock_backwards", "malformed_automatic_history", "clock_unavailable"):
+            add("head", f"  waiting: {suggestions['wait_reason']}; next automatic time: {suggestions.get('next_automatic_at') or 'unknown'}")
+        pending = suggestions.get("pending", [])
+        for notice in pending[-3:]:
+            add("head", f"  pending {notice['event_id']} / {notice['asset_id']}: {_one_line(notice['text'], 140)}")
+        if len(pending) > 3:
+            add("head", f"  {len(pending) - 3} more recorded suggestions; analytics status --part records --kind asset_notification", note=True)
     if st.get("versions"):
         add("head", f"environment: {versions_line(st['versions'])} — use APIs of these versions")
     for line in _records_lines(st, journal):
