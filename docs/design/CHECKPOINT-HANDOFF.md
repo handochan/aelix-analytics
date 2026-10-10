@@ -74,7 +74,7 @@ CLI 편의 명령은 `analytics checkpoint [TEXT] [--ref REF ...] [--from-seq N]
 역사 기준은 `--as-of-seq N`과 `--context-version VERSION` 또는 `--context-unknown`을 함께 받는다.
 SDK 편의 함수는 `analytics.checkpoint(text=None, *, refs=(), as_of_seq=None, context_version=UNSET, from_seq=0, limit=8)`이다.
 UNSET은 인자를 생략한 기본값이고 명시적 `None`은 미확인 CONTEXT다. 두 뜻을 하나의 None 기본값으로 합치지 않는다.
-TEXT/text를 주면 authored, 생략하면 결정적 생성이다. `analytics record checkpoint TEXT --details ...`와
+TEXT/text를 주면 authored, 생략하면 결정적 생성이다. `analytics record checkpoint TEXT --details-json JSON`과
 SDK `analytics.record("checkpoint", text, details=...)`도 같은 writer 검증·반환 형식을 사용한다.
 record의 CLI JSON 입력은 기존 `--details-json`·`--refs-json`을 사용한다. 태그·basis를 생략한 공개 authored 요청은
 checkpoint 응용이 현재 basis·태그를 채우고 refs가 지정한 선택 ID를 구조화한다. 자유 본문에서 ID·의미를 추정하지 않으며,
@@ -103,6 +103,9 @@ context 버전/이벤트는 남을 수 있으며 답은 그 부분 효과를 명
 긴 본문·refs로 기존 저장 상한을 넘으면 `text_too_long`이며, 범위를 좁히거나 본문을 직접 쓰도록 안내한다. 원문/JSON을 잘라 통과시키지 않는다.
 
 SDK의 실행 중 호출은 기존 pending journal 규칙을 따른다. 호출 순간 읽은 basis를 payload에 유지하고 run 완료 때 재검증한다.
+checkpoint에 한해서 기존 SDK가 자동으로 추가하는 진행 중 `state.run_id` 근거 참조는 생략한다. Origin과 private pending
+payload/응답의 run_id는 그대로 유지하며, 그것을 summary의 과거 근거나 완료 사실로 세지 않는다. 호출자가 명시한 refs는
+그대로 검증하므로 당시 미완료인 같은 run이나 basis 뒤에 완료한 다른 run을 근거로 주면 `checkpoint_reference`로 거절한다.
 그때 생긴 run 완료 사실을 호출 당시 요약으로 소급하지 않는다. pending은 저장 성공이 아니며 실패는 finalize_errors로 남긴다.
 완료 run 자체를 요약하려면 run 완료 뒤 별도 checkpoint를 작성한다.
 
@@ -114,7 +117,7 @@ SDK의 실행 중 호출은 기존 pending journal 규칙을 따른다. 호출 �
 
 | 출력 | 판정 |
 |---|---|
-| `needs_review` | 선택한 판단에 기준 뒤 정정·철회·복원·conflict·질문 닫힘/재개가 적용됨, 선택한 정확한 근거/CONTEXT가 missing/changed/unsupported/ambiguous, 또는 저장 기준 prefix 변경이면 true. 알려진 구조·기준·참조에서 그런 신호가 없으면 false. 전문 평가가 불가능하면 null과 사유 |
+| `needs_review` | 선택한 판단에 기준 뒤 정정·철회·복원·conflict·질문/todo 닫힘/재개가 적용됨, 선택한 정확한 근거/CONTEXT가 missing/changed/unsupported/ambiguous, 또는 저장 기준 prefix 변경이면 true. 알려진 구조·기준·참조에서 그런 신호가 없으면 false. 전문 평가가 불가능하면 null과 사유 |
 | `updates_available` | checkpoint 자체를 제외하고 `as_of_seq` 뒤의 journal 기록이 있으면 true. 없으면 false. journal을 읽거나 기준을 확정할 수 없으면 null과 사유 |
 | `review_reasons` | 대상 ID, 당시/현재 상태 또는 참조 resolution, 변경 이벤트 ID와 원문 상세 위치. 여러 정정을 하나의 최신 진실로 고르지 않음 |
 | `updates` | 기준 뒤 기록의 제한 페이지. `source_revision`·as_of·returned/total/has_more/omitted/cursor/read_more는 #15와 같은 계약 |
@@ -122,7 +125,8 @@ SDK의 실행 중 호출은 기존 pending journal 규칙을 따른다. 호출 �
 
 두 값은 독립적이다. 새 무관한 note면 `false/true`, 정정이 추가되면 `true/true`, 원장 append 없이 근거 파일이
 사라지면 `true/false`다. null을 false나 최신 유효 판단으로 바꾸지 않는다. 이미 미확인인 참조도 확인 필요 사유를 보인다.
-철회 후 복원·질문 닫힘 후 재개로 현재 상태 문자열이 처음과 같아도 그 사이에 적용된 판단 변경은 review 이유에 남긴다.
+철회 후 복원·질문/todo 닫힘 후 재개로 현재 상태 문자열이 처음과 같아도 그 사이에 적용된 판단 변경은 review 이유에 남긴다.
+선택하지 않은 무관한 todo의 갱신은 그 자체로 needs_review가 아니며 새 기록의 updates_available로 구별한다.
 `needs_review=false`는 선택된 기계적 신호가 없다는 뜻이며 자유 본문의 의미·통계적 검사·확인하지 않은 의존성이 검토됐다는 뜻이 아니다.
 reader_format이 달라 prefix token을 비교할 수 없으면 명시적 qualification과 null을 답하며 원문을 읽을 수 있게 한다.
 CONTEXT의 저장되지 않은 편집은 `context_pending`으로 따로 표시하며 read에서 sync/append하지 않는다.
@@ -156,12 +160,12 @@ core 응용은 Project/read_model/context sync를 조율한다. CLI·SDK·확장
 | T2 | generic 기존 /2 checkpoint·미래 태그·모르는 선택 필드·mixed /1·/2·damaged journal. 원문 보존, 전문 평가 qualification, 거짓 확정 0 |
 | T3 | current CONTEXT 버전+digest/명시적 historical 버전/unknown null. 현재 파일을 과거 맥락으로 채우지 않고 sync 실패/부분 효과를 표시 |
 | T4 | 표식/legacy/unknown/conflict/oldwriter gate, 첫 효과 전 오류, 최초 기능 floor0.14; metric/asset floors 유지. prefix 변경과 append-only 경계 재검증 |
-| T5 | finding 정정·withdrawal·복원·충돌, question resolve/reopen, 지표 정의/초점 교체; review 원인/old/new ID와 과거 원문 유지 |
+| T5 | finding 정정·withdrawal·복원·충돌, 선택한 question/todo resolve/reopen, 지표 정의/초점 교체; review 원인/old/new ID와 과거 원문 유지. todo 닫힘→재개로 open이 같아도 변경 이유 유지, 무관한 todo 갱신은 구별 |
 | T6 | 무관한 append·checkpoint 자체·새 checkpoint·파일 missing/changed: false/true, true/true, true/false 및 평가 불가 null 구별 |
 | T7 | historical as_of에 이후 run/Report/import 완료·상태가 섞이지 않음. 근거 가용성의 현재 판정과 구별 |
 | T8 | 후속 변경 page/cursor/같은 기준/읽는 중 변경·cache 없음/손상. 필드/JSON 자르지 않음, omitted/read_more 위치 유지 |
-| T9 | 사람이 CLI/SDK authored·deterministic checkpoint 작성 → 모의 에이전트 Origin/tool/agentCLI → 사람이 정정·새 checkpoint; 별도 ID/주체/means, session 없어도 인계 |
-| T10 | 실제 배포본/두 런처에서 Unicode·공백 경로·status3parts/context 인자와 exit parity, 원장 쓰기/자동 asset publication 0. SDK pending/run finalization 실패 구별 |
+| T9 | 사람이 CLI/SDK authored·deterministic checkpoint 작성 → 모의 에이전트 Origin/tool/agentCLI → 사람이 정정·새 checkpoint; 별도 ID/주체/means, session 없어도 인계. 진행 중 checkpoint의 Origin/private pending run_id 유지 |
+| T10 | 실제 배포본/두 런처에서 Unicode·공백 경로·status3parts/context 인자와 exit parity, 원장 쓰기/자동 asset publication 0. SDK refs 없는 기본 pending checkpoint가 같은 call-time basis로 성공 append됨을 확인하고, 명시적 미완료/기준 뒤 완료 run 근거 거절과 finalize_errors를 별도 확인 |
 | T11 | provider/send_message/model 경로를 호출 즉시 실패하도록 무장한 host 시험. 기본 읽기/결정적 생성 시 호출·시도0, 새 상시 모델 도구0 |
 | T12 | exact-head 모델 없는 CLI·SDK/stdlib·layer/host 회귀, Linux/Windows/macOS artifact/context/JUnit/smoke. 실제 모델/사람 Q17은 별도 미실행으로 기록 |
 
