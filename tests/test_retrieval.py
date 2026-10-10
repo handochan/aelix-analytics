@@ -296,3 +296,21 @@ def test_cli_and_sdk_use_the_same_bounded_record_contract(tmp_path, monkeypatch)
     cli = result["status"]
     assert sdk["items"] == cli["items"] and sdk["source_revision"] == cli["source_revision"]
     assert cli["items"][0]["id"] == entry["id"]
+
+
+def test_period_bounds_require_offset_and_exclude_unqualified_instants(tmp_path):
+    p = project_at(tmp_path)
+    entry = record(p, text="revenue")
+    for naive in ("2030-01-01", "2030-01-01T00:00:00"):
+        with pytest.raises(core.AnalyticsError) as error:
+            core.retrieve(p, query="revenue", since=naive)
+        assert error.value.code == "bad_query"
+    assert core.retrieve(p, query="revenue", since="2030-01-01T00:00:00+00:00")["returned"] == 0
+    rows = [json.loads(line) for line in p.journal.read_text(encoding="utf-8").splitlines()]
+    for row in rows:
+        if row["id"] == entry["id"]:
+            row["recorded_at"] = "2020-01-01T00:00:00"
+    p.journal.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+    filtered = core.retrieve(p, query="revenue", since="2019-01-01T00:00:00+00:00")
+    assert filtered["returned"] == 0 and filtered["time_filter_scope"]
+    assert core.retrieve(p, query="revenue")["returned"] == 1

@@ -192,7 +192,8 @@ CRLF의 `\r`은 제목을 찾고 이름을 붙일 때만 떼고, 블록에 넣�
 새 journal 기록을 남기지 않습니다. 검색 캐시의 부수 쓰기도 먼저 표식 gate를 통과합니다.
 
 - `records`: 읽을 수 있는 journal의 ID·전체 JSON 필드에 대해 NFC/casefold 리터럴 단어를 AND 검색합니다. `kind`·재생한
-  `state`·포함하는 기록 시각 `since`/`until`(ISO)로 좁힙니다. 어휘·현재 상태·근거 존재가 순위를 정하고, 동점에서는 가장
+  `state`·포함하는 기록 시각 `since`/`until`(UTC offset이 있는 ISO timestamp)로 좁힙니다.
+  기간 필터는 offset이 있는 읽을 수 있는 기록 시각만 비교하며, 그 범위는 `time_filter_scope`로 밝힙니다. 시각 미확인 기록은 ID·기간 없는 조회로 읽습니다. 어휘·현재 상태·근거 존재가 순위를 정하고, 동점에서는 가장
   오래된 것과 최신 것을 번갈아 보여 줍니다. 의미 검색은 없습니다. 요약(240자)의 생략은 `summary_omitted`·`text_chars`로
   밝힙니다. 모든 일치 결과는 페이지에 남고, 안 나온 사실을 없었다고 단정하지 않습니다.
 - `records` + `id`: 선택한 기록의 `{field, value}`를 순서대로 돌려줍니다. `eN`·중복 ID의 `journal:<line>`·

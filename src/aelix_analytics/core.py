@@ -2638,8 +2638,10 @@ def retrieve(project: Project, *, part="records", query="", id=None, cursor=None
     if as_of_seq is not None and (not isinstance(as_of_seq, int) or isinstance(as_of_seq, bool) or as_of_seq < 0):
         raise AnalyticsError("bad_query", "as_of_seq must be a nonnegative integer")
     for value in (since, until):
-        if value is not None and relations._instant(value) is None:
-            raise AnalyticsError("bad_query", "since and until must be ISO timestamps")
+        if value is not None:
+            instant = relations._instant(value)
+            if instant is None or instant.utcoffset() is None:
+                raise AnalyticsError("bad_query", "since and until must be ISO timestamps with UTC offsets")
     if part != "records" and (query or kind or state or since or until):
         raise AnalyticsError("bad_query", "search filters belong to records")
     if id is not None and (query or kind or state or since or until):
@@ -2739,6 +2741,7 @@ def retrieve(project: Project, *, part="records", query="", id=None, cursor=None
                   index=index_state, unsupported=list(model.unsupported),
                   damaged={"journal": model.journal.damaged, "files": model.damaged_files},
                   evidence_availability="checked now; as_of_seq bounds recorded knowledge, not file snapshots",
+                  time_filter_scope="only parseable UTC-offset recorded timestamps" if since or until else None,
                   search_scope="readable journal records" if part == "records" and id is None else part)
     if result["updating"]:
         result["total"] = "unknown"

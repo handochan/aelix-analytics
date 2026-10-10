@@ -2734,7 +2734,7 @@ class QueryPolicy:
             if since is not None or until is not None:
                 at = _instant(event.recorded_at)
                 lo, hi = _instant(since), _instant(until)
-                if at is None or (lo is not None and not _not_after(lo, at)) or (
+                if at is None or at.utcoffset() is None or (lo is not None and not _not_after(lo, at)) or (
                         hi is not None and not _not_after(at, hi)):
                     continue
             if self.matches(self.document(event), query):
