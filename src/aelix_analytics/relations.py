@@ -271,6 +271,7 @@ def metric_event_problem(kind, details, refs) -> str | None:
 # since its PR 2: a migrated project's older paths are read through the migration's mapping
 # (core.mapped_identity, design 5.4), and analytics.migration/1 is a family this reader knows.
 # 4 since ADR-0011: invalid/unsupported tagged metric content cannot change another record state.
+# 5 since Issue #15: CONTEXT version stat changes and bounded historical query knowledge.
 READER_FORMAT = 5
 
 EVENT_V1 = "lab.event/1"
@@ -665,6 +666,16 @@ class Journal:
         return Journal(b"\n".join(raw if self.seq_of.get(n) is not None
                                   and self.seq_of[n] <= seq else b""
                                   for n, raw in enumerate(lines, 1)))
+
+    def prefix_revision(self, seq: int) -> str:
+        """Original line identities and bytes known through seq; future blank placeholders and
+        appended seqs above the boundary do not change it. Edited/inserted held records do."""
+        digest = hashlib.sha256(str(READER_FORMAT).encode("ascii"))
+        for line, raw in enumerate(self.data.split(b"\n"), 1):
+            known = self.seq_of.get(line)
+            if known is not None and known <= seq:
+                digest.update(str(line).encode("ascii") + b":" + raw + b"\n")
+        return digest.hexdigest()
 
     def legacy_resolutions(self) -> dict[str, list[str]]:
         """The older kit's resolves convention, separately from /2 correction/withdrawal states.
@@ -1177,6 +1188,10 @@ class ReadModel:
         historical._runs = {key: value for key, value in historical._runs.items()
                             if historical.completion_seq(key) is not None}
         historical._unsupported_runs = set()
+        complete_imports = {row["location"] for row in historical.imports()
+                            if row["recording_status"] == "complete"}
+        historical._metas = [(location, value) for location, value in historical._metas
+                             if location in complete_imports]
         done = historical._completion_seqs()
         historical._manifests = [(directory, value, staging) for directory, value, staging in historical._manifests
                                  if not staging and (value.get("report_id"), value.get("revision_id")) in done]
@@ -1466,6 +1481,17 @@ class ReadModel:
         """The same judgment as references(), for one proposed exact reference without a write."""
         return self._judge_v2([ref], None, None, self.journal.next_seq if before is None else before)[0]
 
+    def incoming_sources(self, target: str) -> list[str]:
+        """Cheap journal and saved Report candidates for one query identity; exact judgments
+        still come from references(), so unsupported/unbound references are never confirmed."""
+        out = incoming_sources(self.journal, target)
+        for _directory, manifest, staging in self._manifests:
+            based_on = manifest.get("based_on")
+            if not staging and isinstance(based_on, dict) and any(
+                    _query_ref_targets(ref, target) for ref in _dicts(based_on.get("refs"))):
+                out.append(report_key(manifest.get("report_id"), manifest.get("revision_id")))
+        return out
+
     def references(self, source: str | None = None) -> list[dict]:
         """One judgment for every reference of every readable event and saved Report manifest, in
         journal order and then manifest order; only those of `source` (`e<seq>`, `journal:<line>` or
@@ -1483,6 +1509,17 @@ class ReadModel:
                         self._judge_v1(event, source, before) if event.schema == EVENT_V1
                         else self._judge_v2(event.refs, source, event.line, before))
                 return list(self._one_source[source])
+        if source is not None and self._references is None:
+            for _directory, manifest, staging in self._manifests:
+                if staging or report_key(manifest.get("report_id"), manifest.get("revision_id")) != source:
+                    continue
+                based_on = manifest.get("based_on")
+                if not isinstance(based_on, dict):
+                    return []
+                as_of = _int(based_on.get("as_of_seq"))
+                before = as_of + 1 if as_of is not None else self._completion_seqs().get(
+                    (_str(manifest.get("report_id")), _str(manifest.get("revision_id"))), self.journal.next_seq)
+                return self._judge_v2(based_on.get("refs"), source, None, before)
         if self._references is None:
             out: list[dict] = []
             for event in self.journal.events:
@@ -2730,7 +2767,7 @@ class QueryPolicy:
         return out
 
     def page(self, rows: list, *, revision: str, request: dict, cursor=None, limit=8,
-             journal_order=False, as_of_seq=None) -> dict:
+             journal_order=False, as_of_seq=None, boundary_revision=None) -> dict:
         if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 100:
             raise QueryError("bad_query", "limit must be an integer from 1 to 100")
         fingerprint = hashlib.sha256(json.dumps([self.version, request, limit], sort_keys=True,
@@ -2743,7 +2780,10 @@ class QueryPolicy:
                 held = json.loads(base64.urlsafe_b64decode(cursor.encode("ascii")))
                 if held["query"] != fingerprint:
                     raise QueryError("cursor_query_mismatch", "cursor belongs to another query")
-                if held["revision"] != revision and not (journal_order and as_of_seq is not None):
+                unchanged_prefix = (journal_order and as_of_seq is not None
+                                    and held.get("boundary") == boundary_revision)
+                if (journal_order and as_of_seq is not None and not unchanged_prefix) or (
+                        held["revision"] != revision and not unchanged_prefix):
                     raise QueryError("stale_cursor", "project changed; restart this query", source_revision=revision)
                 position = held["position"]
                 if not isinstance(position, int) or isinstance(position, bool) or not 0 <= position <= len(rows):
@@ -2755,7 +2795,8 @@ class QueryPolicy:
         selected = rows[position:position + limit]
         end, more = position + len(selected), position + len(selected) < len(rows)
         token = (base64.urlsafe_b64encode(json.dumps({"revision": revision, "query": fingerprint,
-                                                    "position": end}, separators=(",", ":")).encode()).decode()
+                                                    "position": end, "boundary": boundary_revision},
+                                                   separators=(",", ":")).encode()).decode()
                  if more else None)
         return {"items": selected, "returned": len(selected), "total": len(rows), "has_more": more,
                 "cursor": token, "omitted": {"count": len(rows) - end,
@@ -2768,6 +2809,10 @@ def query_target(judgment: dict) -> str | None:
     target = judgment.get("target") or {}
     if target.get("event_id") is not None:
         return target["event_id"]
+    if judgment.get("type") == "run" and isinstance(target.get("run_id"), str):
+        return "run:" + target["run_id"]
+    if judgment.get("type") == "context_version" and isinstance(target.get("version"), str):
+        return "context:" + target["version"]
     if target.get("visualization_id") is not None:
         return f"{target.get('run_id')}/{target['visualization_id']}"
     if target.get("report_id") is not None:
@@ -2778,19 +2823,23 @@ def query_target(judgment: dict) -> str | None:
     return None
 
 
+def _query_ref_targets(ref: dict, target: str) -> bool:
+    if query_target({"type": ref.get("type"), "target": ref}) == target:
+        return True
+    return target in [ref.get(k) for k in ("event_id", "path", "key", "token")]
+
+
 def incoming_sources(journal: Journal, target: str) -> list[str]:
     """Cheap candidate sources before judging references; no hashing all unrelated run files."""
     out = []
+    raw = target.partition(":")[2] if target.startswith(("run:", "context:")) else target
     for event in journal.in_order():
         refs = event.refs
         if event.schema == EVENT_V1:
             values = [v for key in V1_FIELDS for v in _strings((refs or {}).get(key))] if isinstance(refs, dict) else []
-            found = target in values
+            found = raw in values
         else:
-            found = any(target in [ref.get(k) for k in ("event_id", "run_id", "path", "key", "token", "version")]
-                        or (ref.get("report_id") is not None and target == report_key(ref.get("report_id"), ref.get("revision_id")))
-                        or (ref.get("visualization_id") is not None and target == f"{ref.get('run_id')}/{ref['visualization_id']}")
-                        for ref in _dicts(refs))
+            found = any(_query_ref_targets(ref, target) for ref in _dicts(refs))
         if found:
             out.append(journal.source_of(event))
     return out

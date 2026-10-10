@@ -2569,7 +2569,7 @@ class QueryIndex:
                 # database means concurrent readers/builders never share an in-place rebuild.
                 temporary = self.project.cache / ("retrieval-" + writer.new_request_id() + ".tmp")
                 try:
-                    with sqlite3.connect(temporary, timeout=0.1) as build:
+                    with contextlib.closing(sqlite3.connect(temporary, timeout=0.1)) as build, build:
                         build.execute("CREATE TABLE documents (id TEXT PRIMARY KEY, text TEXT NOT NULL)")
                         build.executemany("INSERT INTO documents VALUES (?, ?)", expected)
                         try:
@@ -2676,14 +2676,15 @@ def retrieve(project: Project, *, part="records", query="", id=None, cursor=None
                      "summary_omitted": len(str(event.value.get("text") or "")) > 240,
                      "record_state": model.journal.replay().state_of(model.journal.source_of(event)),
                      "legacy_resolved_by": legacy_resolved.get(model.journal.source_of(event), []),
-                     "read_more": {"part": "records", "id": model.journal.source_of(event)}} for event in selected]
+                     "read_more": {"part": "records", "id": model.journal.source_of(event),
+                                   **({"as_of_seq": as_of_seq} if as_of_seq is not None else {})}} for event in selected]
         elif part == "records":
             record, location = _query_record(model, id)
             rows = [{"field": key, "value": value} for key, value in record.items()]
         elif part == "relations":
             # Validate the source except exact target identities (run IDs and Visualization IDs)
             # that appear as reference targets. Incoming lookup never invents a version.
-            sources = relations.incoming_sources(model.journal, id) if direction != "outgoing" else []
+            sources = model.incoming_sources(id) if direction != "outgoing" else []
             if not sources:
                 _query_record(model, id)
             outgoing = model.references(id) if direction != "incoming" else []
@@ -2707,7 +2708,9 @@ def retrieve(project: Project, *, part="records", query="", id=None, cursor=None
         try:
             result = policy.page(rows, revision=revision, request=request, cursor=cursor, limit=limit,
                                  journal_order=part == "records" and id is None and not query,
-                                 as_of_seq=as_of_seq)
+                                 as_of_seq=as_of_seq,
+                                 boundary_revision=model.journal.prefix_revision(as_of_seq)
+                                 if as_of_seq is not None else None)
         except relations.QueryError as error:
             raise AnalyticsError(error.code, str(error), details=error.details) from None
         if part == "records" and id is None:

@@ -207,10 +207,11 @@ CRLF의 `\r`은 제목을 찾고 이름을 붙일 때만 떼고, 블록에 넣�
 모든 페이지는 `source_revision`·`as_of_seq`·`returned`·`total`·`has_more`·`omitted`·`cursor`·`read_more`를 담습니다.
 `limit`은 1–100(기본 8)이며 cursor는 part/ID/필터/방향/as_of/limit/정책에 결박됩니다. 다른 질의면
 `cursor_query_mismatch`, 원본 기준이 달라지면 `stale_cursor`와 현재 기준입니다. 질의 없는 journal 순서 목록만 명시한
-`as_of_seq`를 유지해 새 append 뒤에도 이어 읽습니다. 조회 중 기준 변경은 두 번까지 재시도하며 계속 바뀌면 `updating`과
+`as_of_seq`를 유지해 새 append 뒤에도 이어 읽습니다. cursor에 보존한 구간의 원래 줄 ID·바이트 지문도 결박하여
+그 구간이 수정되면 이어 읽지 않고 `stale_cursor`로 거절합니다. 조회 중 기준 변경은 두 번까지 재시도하며 계속 바뀌면 `updating`과
 관측 기준, 빈 결과, unknown total을 반환합니다. 토큰은 서명·변조 방지나 스냅샷을 보장하지 않는 싼 일관성 표식입니다.
 
-`as_of_seq`는 그때까지의 journal 판단과 완료 사실을 재생합니다. 더 늦은 run/Report 완료는 과거 근거 대상을 만들지 않습니다.
+`as_of_seq`는 그때까지의 journal 판단과 완료 사실을 재생합니다. 더 늦은 run/Report/import 완료는 과거 근거 대상을 만들지 않습니다.
 현재 보존 파일의 유무·해시는 지금 확인하며 과거 바이트 스냅샷으로 표시하지 않습니다. `record_state`와 `/1`의 별도
 `legacy_resolved_by`는 원래 판단·정정/철회·미적용 update를 유지하고, 판단의 현재성은 데이터 현재성·계산 검사·결론 검토와 별개입니다.
 

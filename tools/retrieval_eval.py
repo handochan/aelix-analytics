@@ -8,6 +8,7 @@ No model/tokenizer/host runs: bytes are bytes and every token value is not_measu
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import json
 import math
@@ -92,7 +93,7 @@ def main(argv=None):
         cold = timing(p, query, 1)
         warm = timing(p, query, args.repeats)
         direct = timing(p, query, args.repeats, index=SourceIndex())
-        with sqlite3.connect(cache) as db:
+        with contextlib.closing(sqlite3.connect(cache)) as db, db:
             db.execute("UPDATE documents SET text='corrupt projection' WHERE id=?", (expected[0],))
         rebuild = timing(p, query, 1)
         page = core.retrieve(p, query=query, limit=8)
