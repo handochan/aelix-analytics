@@ -2,14 +2,20 @@
   "schema": "aelix-analytics.verification/1",
   "issue": 17,
   "slice": "B3-a",
-  "status": "reviewed_on_dependency_stack_ci_blocked",
-  "recorded_at": "2026-10-09T16:55:46.803322+00:00",
+  "status": "source_three_os_verified_final_delivery_ci_in_pr",
+  "recorded_at": "2026-10-10T10:00:42.959649+00:00",
   "source": {
-    "measured_commit": "58d5b406e97a4e16706d6a3ac7f7928a7d436b2b",
-    "shared_issue14_base": "166f991c50f37ea7de583ce2014a43afca342246",
-    "temporary_stack": true,
-    "code_manifest_sha256": "eded8dcb74491549475a8157a0d58acb63d4b51331979a4d4b3a8ff6be9f8a6d",
-    "final_merged_main_rebase": "pending, Issue14 final CI jobs did not start due billing/spending limit",
+    "measured_commit": "044c72372d92e3d72c7cb505374a5efd2f8bb068",
+    "shared_issue14_base": "19c7a9212b9c18f8f20fe43992416a0096f151dd",
+    "temporary_stack": false,
+    "code_manifest_sha256": "6c0292b1653ef68c0cc02bf77f2cedd2a8448acb53d4d4fc127f53e31e5c5823",
+    "final_merged_main_rebase": {
+      "status": "pass",
+      "base": "19c7a9212b9c18f8f20fe43992416a0096f151dd",
+      "head": "044c72372d92e3d72c7cb505374a5efd2f8bb068",
+      "source_files": 226,
+      "source_differences": 3
+    },
     "feature_floors": {
       "metric": "0.9.0",
       "asset": "0.10.0"
@@ -138,7 +144,7 @@
       },
       {
         "path": "tests/asset_fixtures.py",
-        "sha256": "885a4ce879e5258a184f8910449778953896d675e3630cb716d5e278c7cc41dc"
+        "sha256": "741a38dd04d1b616e0550a470f49e66921086154d5c39c1289d75ac0fdbd72cb"
       },
       {
         "path": "tests/conftest.py",
@@ -590,7 +596,7 @@
       },
       {
         "path": "tests/test_assets.py",
-        "sha256": "b4ee25474913ad3d6965aa0771a125606d90a3960a791e58c00c9a8d6e30b278"
+        "sha256": "05637af5f8675b23471cc59f0b61e901d63ea52150545d91e683d4ba98ae7994"
       },
       {
         "path": "tests/test_contracts.py",
@@ -606,7 +612,7 @@
       },
       {
         "path": "tests/test_extension.py",
-        "sha256": "83e80e86aca44824a8628f2fd0ab3272cb4a18af3d746c6442c9112e06ec9198"
+        "sha256": "3df5c77b5c11cf1ff415534a8fda7de5061b43733445225491714b97e134ee65"
       },
       {
         "path": "tests/test_human_baseline.py",
@@ -927,6 +933,20 @@
       "equal_code_files": 226,
       "code_manifest_sha256": "eded8dcb74491549475a8157a0d58acb63d4b51331979a4d4b3a8ff6be9f8a6d",
       "only_extra_fixes": "README wheel names and CONTRACTS E distribution version; no runtime/test code difference"
+    },
+    "prior_measured_commit": "58d5b406e97a4e16706d6a3ac7f7928a7d436b2b",
+    "equivalent_reviewed_production": "e9c2d793831ba8d1b5a55e3f04554d5a51795d09",
+    "prior_code_manifest_sha256": "eded8dcb74491549475a8157a0d58acb63d4b51331979a4d4b3a8ff6be9f8a6d",
+    "code_manifest_encoding": "UTF-8 canonical JSON array with sort_keys=True and separators=(',',':'), no trailing LF",
+    "test_only_correction": {
+      "commit": "044c72372d92e3d72c7cb505374a5efd2f8bb068",
+      "changed_files": [
+        "tests/asset_fixtures.py",
+        "tests/test_assets.py",
+        "tests/test_extension.py"
+      ],
+      "production_byte_equivalent": true,
+      "cause": "LF-only literal assertions compared against CRLF authored input on Windows; compare captured original bytes and exercise both LF/CRLF"
     }
   },
   "scope": [
@@ -1150,6 +1170,26 @@
       "json": 15,
       "local_links": 747,
       "exit_code": 0
+    },
+    {
+      "check": "rebased current-version document checks",
+      "commit": "044c72372d92e3d72c7cb505374a5efd2f8bb068",
+      "status": "pass",
+      "passed": 2,
+      "command": [
+        ".devstate/runs/dd3a547e-5fc2-4b60-a72a-32329eda517e/isolation/development-env/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/test_packaging.py::test_the_current_contract_names_the_kit_s_version",
+        "tests/test_packaging.py::test_the_readme_names_the_wheel_this_version_builds"
+      ],
+      "executed_at": "2026-10-10T08:22:47.063867+00:00",
+      "exit_code": 0,
+      "parent_home_scoped": true,
+      "uv_dirs_scoped": true
     }
   ],
   "prior_attempts": [
@@ -1163,31 +1203,993 @@
     }
   ],
   "ci": {
-    "status": "not_started_billing",
-    "reason": "runtime draft follows the reviewed dependency branch; final actual merged-main CI pending. The prerequisite Issue14 final jobs did not start due billing/spending limit. No platform test failure is inferred from this account block.",
-    "prerequisite_issue14": {
-      "head": "166f991c50f37ea7de583ce2014a43afca342246",
-      "run_id": 37960224053,
+    "status": "source_three_os_passed",
+    "source_run": {
+      "id": 38040680262,
       "attempt": 1,
-      "url": "https://github.com/handochan/aelix-analytics/actions/runs/37960224053",
-      "jobs": 5,
-      "steps": 0,
-      "annotation_reason": "recent account payments have failed or spending limit needs to be increased"
+      "head": "044c72372d92e3d72c7cb505374a5efd2f8bb068",
+      "url": "https://github.com/handochan/aelix-analytics/actions/runs/38040680262",
+      "github_conclusion": "success",
+      "validation_status": "pass",
+      "jobs": [
+        {
+          "name": "platform · ubuntu-24.04",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "floor · windows-2025 · CPython 3.11, stdlib only",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "floor · ubuntu-24.04 · CPython 3.11, stdlib only",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "platform · macos-26",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "platform · windows-2025",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "lint · ruff and documents",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "floor · macos-26 · CPython 3.11, stdlib only",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
     },
-    "runtime_runs": [
-      {
-        "id": 37962902000,
-        "attempt": 1,
-        "head": "58f7ac1acbf7b15348f26904d7186ed683b97d0b",
-        "url": "https://github.com/handochan/aelix-analytics/actions/runs/37962902000",
-        "github_conclusion": "failure",
-        "validation_status": "not_run",
-        "jobs": 5,
-        "steps": 0,
-        "reason": "account payments/spending limit prevented all jobs from starting",
-        "macos": "not_run, no label dispatch while account is blocked"
-      }
-    ]
+    "inspection": {
+      "contexts": [
+        {
+          "path": "ci-floor-macos-26/context.json",
+          "head_sha": "044c72372d92e3d72c7cb505374a5efd2f8bb068",
+          "run_id": "38040680262",
+          "attempt": "1",
+          "os": "macOS",
+          "job": "floor",
+          "action": "",
+          "label": ""
+        },
+        {
+          "path": "ci-floor-ubuntu-24.04/context.json",
+          "head_sha": "044c72372d92e3d72c7cb505374a5efd2f8bb068",
+          "run_id": "38040680262",
+          "attempt": "1",
+          "os": "Linux",
+          "job": "floor",
+          "action": "",
+          "label": ""
+        },
+        {
+          "path": "ci-floor-windows-2025/context.json",
+          "head_sha": "044c72372d92e3d72c7cb505374a5efd2f8bb068",
+          "run_id": "38040680262",
+          "attempt": "1",
+          "os": "Windows",
+          "job": "floor",
+          "action": "",
+          "label": ""
+        },
+        {
+          "path": "ci-lint/context.json",
+          "head_sha": "044c72372d92e3d72c7cb505374a5efd2f8bb068",
+          "run_id": "38040680262",
+          "attempt": "1",
+          "os": "Linux",
+          "job": "lint",
+          "action": "",
+          "label": null
+        },
+        {
+          "path": "ci-platform-macos-26/context.json",
+          "head_sha": "044c72372d92e3d72c7cb505374a5efd2f8bb068",
+          "run_id": "38040680262",
+          "attempt": "1",
+          "os": "macOS",
+          "job": "platform",
+          "action": "",
+          "label": ""
+        },
+        {
+          "path": "ci-platform-ubuntu-24.04/context.json",
+          "head_sha": "044c72372d92e3d72c7cb505374a5efd2f8bb068",
+          "run_id": "38040680262",
+          "attempt": "1",
+          "os": "Linux",
+          "job": "platform",
+          "action": "",
+          "label": ""
+        },
+        {
+          "path": "ci-platform-windows-2025/context.json",
+          "head_sha": "044c72372d92e3d72c7cb505374a5efd2f8bb068",
+          "run_id": "38040680262",
+          "attempt": "1",
+          "os": "Windows",
+          "job": "platform",
+          "action": "",
+          "label": ""
+        }
+      ],
+      "junit": [
+        {
+          "path": "ci-platform-macos-26/aelix-py3.11.xml",
+          "tests": 973,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 973,
+          "seconds": 51.785,
+          "skip_reasons": []
+        },
+        {
+          "path": "ci-platform-macos-26/aelix-py3.12.xml",
+          "tests": 973,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 973,
+          "seconds": 53.843,
+          "skip_reasons": []
+        },
+        {
+          "path": "ci-platform-macos-26/launcher-py3.11.xml",
+          "tests": 197,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 1,
+          "passed": 196,
+          "seconds": 18.917,
+          "skip_reasons": [
+            {
+              "reason": "what Windows does; POSIX sends it again (the test above)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "path": "ci-platform-macos-26/suite.xml",
+          "tests": 2149,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 76,
+          "passed": 2073,
+          "seconds": 720.648,
+          "skip_reasons": [
+            {
+              "reason": "8.3 short names are Windows'",
+              "count": 1
+            },
+            {
+              "reason": "AELIX_ANALYTICS_TEST_FOREIGN_FS names no folder on another file system (a FAT or exFAT volume, say)",
+              "count": 2
+            },
+            {
+              "reason": "M writes about 440 MB twice; set AELIX_ANALYTICS_TEST_SCALE_M=1",
+              "count": 1
+            },
+            {
+              "reason": "MAX_PATH and LongPathsEnabled are Windows'",
+              "count": 7
+            },
+            {
+              "reason": "a directory flagged case-sensitive is Windows'",
+              "count": 2
+            },
+            {
+              "reason": "a file another process holds open without sharing: Windows",
+              "count": 1
+            },
+            {
+              "reason": "a name not UTF-8: Linux keeps the bytes it is given",
+              "count": 1
+            },
+            {
+              "reason": "a name that is not UTF-8: Linux's file systems keep one, APFS and NTFS refuse it",
+              "count": 1
+            },
+            {
+              "reason": "before 3.14 a `with` calls __enter__ without a CALL, and no signal is handled between its acquiring and the block",
+              "count": 1
+            },
+            {
+              "reason": "collection skipped",
+              "count": 3
+            },
+            {
+              "reason": "taskkill and CreateProcess's search are Windows'",
+              "count": 1
+            },
+            {
+              "reason": "the Windows implementation runs on the Windows leg",
+              "count": 43
+            },
+            {
+              "reason": "the recording implementation does not declare that it excludes other processes",
+              "count": 3
+            },
+            {
+              "reason": "the recording implementation does not declare that it honours a folder's permissions",
+              "count": 1
+            },
+            {
+              "reason": "the recording implementation does not declare that it interrupts a region",
+              "count": 1
+            },
+            {
+              "reason": "the recording implementation does not declare that it sees running processes",
+              "count": 1
+            },
+            {
+              "reason": "the stand-in has no C call to fail",
+              "count": 3
+            },
+            {
+              "reason": "this file system refuses a name that is not UTF-8: OSError(92, 'Illegal byte sequence')",
+              "count": 2
+            },
+            {
+              "reason": "what Windows does; POSIX sends it again (the test above)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "path": "ci-platform-ubuntu-24.04/aelix-py3.11.xml",
+          "tests": 973,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 973,
+          "seconds": 57.679,
+          "skip_reasons": []
+        },
+        {
+          "path": "ci-platform-ubuntu-24.04/aelix-py3.12.xml",
+          "tests": 973,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 973,
+          "seconds": 61.225,
+          "skip_reasons": []
+        },
+        {
+          "path": "ci-platform-ubuntu-24.04/launcher-py3.11.xml",
+          "tests": 197,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 1,
+          "passed": 196,
+          "seconds": 13.99,
+          "skip_reasons": [
+            {
+              "reason": "what Windows does; POSIX sends it again (the test above)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "path": "ci-platform-ubuntu-24.04/suite.xml",
+          "tests": 2149,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 74,
+          "passed": 2075,
+          "seconds": 748.519,
+          "skip_reasons": [
+            {
+              "reason": "8.3 short names are Windows'",
+              "count": 1
+            },
+            {
+              "reason": "AELIX_ANALYTICS_TEST_FOREIGN_FS names no folder on another file system (a FAT or exFAT volume, say)",
+              "count": 2
+            },
+            {
+              "reason": "M writes about 440 MB twice; set AELIX_ANALYTICS_TEST_SCALE_M=1",
+              "count": 1
+            },
+            {
+              "reason": "MAX_PATH and LongPathsEnabled are Windows'",
+              "count": 7
+            },
+            {
+              "reason": "a directory flagged case-sensitive is Windows'",
+              "count": 2
+            },
+            {
+              "reason": "a file another process holds open without sharing: Windows",
+              "count": 1
+            },
+            {
+              "reason": "before 3.14 a `with` calls __enter__ without a CALL, and no signal is handled between its acquiring and the block",
+              "count": 1
+            },
+            {
+              "reason": "collection skipped",
+              "count": 3
+            },
+            {
+              "reason": "taskkill and CreateProcess's search are Windows'",
+              "count": 1
+            },
+            {
+              "reason": "the Windows implementation runs on the Windows leg",
+              "count": 43
+            },
+            {
+              "reason": "the recording implementation does not declare that it excludes other processes",
+              "count": 3
+            },
+            {
+              "reason": "the recording implementation does not declare that it honours a folder's permissions",
+              "count": 1
+            },
+            {
+              "reason": "the recording implementation does not declare that it interrupts a region",
+              "count": 1
+            },
+            {
+              "reason": "the recording implementation does not declare that it sees running processes",
+              "count": 1
+            },
+            {
+              "reason": "the stand-in has no C call to fail",
+              "count": 3
+            },
+            {
+              "reason": "this file system minds case: `Runs` would be a directory of its own",
+              "count": 1
+            },
+            {
+              "reason": "this file system tells case apart",
+              "count": 1
+            },
+            {
+              "reason": "what Windows does; POSIX sends it again (the test above)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "path": "ci-platform-windows-2025/aelix-py3.11.xml",
+          "tests": 974,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 1,
+          "passed": 973,
+          "seconds": 118.967,
+          "skip_reasons": [
+            {
+              "reason": "the POSIX shells and PowerShell found here, by path",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "path": "ci-platform-windows-2025/aelix-py3.12.xml",
+          "tests": 974,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 1,
+          "passed": 973,
+          "seconds": 116.501,
+          "skip_reasons": [
+            {
+              "reason": "the POSIX shells and PowerShell found here, by path",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "path": "ci-platform-windows-2025/console.xml",
+          "tests": 21,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 21,
+          "seconds": 104.861,
+          "skip_reasons": []
+        },
+        {
+          "path": "ci-platform-windows-2025/launcher-py3.11.xml",
+          "tests": 197,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 106,
+          "passed": 91,
+          "seconds": 16.673,
+          "skip_reasons": [
+            {
+              "reason": "SIGTERM from outside a process is POSIX",
+              "count": 3
+            },
+            {
+              "reason": "a FIFO and the links are POSIX's here",
+              "count": 6
+            },
+            {
+              "reason": "a POSIX signal",
+              "count": 2
+            },
+            {
+              "reason": "a POSIX signal sent to one process",
+              "count": 1
+            },
+            {
+              "reason": "a shell's background job",
+              "count": 2
+            },
+            {
+              "reason": "a symbolic link to a program",
+              "count": 1
+            },
+            {
+              "reason": "a terminal's process group; a Windows console's Ctrl+C is tests/test_windows_console.py's",
+              "count": 1
+            },
+            {
+              "reason": "bin/analytics is a POSIX shell script",
+              "count": 72
+            },
+            {
+              "reason": "bytes that are not UTF-8 in the environment are POSIX's",
+              "count": 1
+            },
+            {
+              "reason": "os.startfile would open a real program on Windows",
+              "count": 10
+            },
+            {
+              "reason": "signal dispositions as POSIX inherits them",
+              "count": 1
+            },
+            {
+              "reason": "the links are POSIX's here, and os.startfile would open a real program on Windows",
+              "count": 6
+            }
+          ]
+        },
+        {
+          "path": "ci-platform-windows-2025/long-paths-off.xml",
+          "tests": 7,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 7,
+          "seconds": 4.234,
+          "skip_reasons": []
+        },
+        {
+          "path": "ci-platform-windows-2025/suite.xml",
+          "tests": 2175,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 278,
+          "passed": 1897,
+          "seconds": 1821.376,
+          "skip_reasons": [
+            {
+              "reason": "AELIX_ANALYTICS_TEST_FOREIGN_FS names no folder on another file system (a FAT or exFAT volume, say)",
+              "count": 2
+            },
+            {
+              "reason": "M writes about 440 MB twice; set AELIX_ANALYTICS_TEST_SCALE_M=1",
+              "count": 1
+            },
+            {
+              "reason": "POSIX executables and HOME",
+              "count": 1
+            },
+            {
+              "reason": "POSIX permissions that bind the owner",
+              "count": 1
+            },
+            {
+              "reason": "POSIX signals",
+              "count": 3
+            },
+            {
+              "reason": "POSIX signals and the launcher's lifeline",
+              "count": 1
+            },
+            {
+              "reason": "SIGALRM is POSIX",
+              "count": 1
+            },
+            {
+              "reason": "SIGTERM from outside a process is POSIX",
+              "count": 3
+            },
+            {
+              "reason": "Windows makes no such name; the case runs on the POSIX legs",
+              "count": 1
+            },
+            {
+              "reason": "Windows publishes by a rename: no second name between a link and an unlink",
+              "count": 1
+            },
+            {
+              "reason": "Windows publishes by a rename: there is no window between a link and an unlink",
+              "count": 2
+            },
+            {
+              "reason": "Windows reads one character and a colon as a drive, and NTFS a colon in a name as a stream",
+              "count": 3
+            },
+            {
+              "reason": "Windows' rename never replaces: it has no such case",
+              "count": 4
+            },
+            {
+              "reason": "`..` after a link: POSIX resolves it from the link's target",
+              "count": 1
+            },
+            {
+              "reason": "a FIFO and the links are POSIX's here",
+              "count": 9
+            },
+            {
+              "reason": "a FIFO is POSIX's",
+              "count": 1
+            },
+            {
+              "reason": "a POSIX background job of the bash tool",
+              "count": 1
+            },
+            {
+              "reason": "a POSIX shell script stands in for the opener",
+              "count": 1
+            },
+            {
+              "reason": "a POSIX signal",
+              "count": 2
+            },
+            {
+              "reason": "a POSIX signal sent to one process",
+              "count": 1
+            },
+            {
+              "reason": "a directory the process cannot list: POSIX permissions, not root",
+              "count": 1
+            },
+            {
+              "reason": "a folder's write permission: POSIX, not as root",
+              "count": 2
+            },
+            {
+              "reason": "a name not UTF-8: Linux keeps the bytes it is given",
+              "count": 1
+            },
+            {
+              "reason": "a name that is not UTF-8: Linux's file systems keep one, APFS and NTFS refuse it",
+              "count": 1
+            },
+            {
+              "reason": "a shell's background job",
+              "count": 2
+            },
+            {
+              "reason": "a symbolic link needs a privilege on Windows",
+              "count": 1
+            },
+            {
+              "reason": "a symbolic link to a program",
+              "count": 1
+            },
+            {
+              "reason": "a terminal's process group; a Windows console's Ctrl+C is tests/test_windows_console.py's",
+              "count": 1
+            },
+            {
+              "reason": "before 3.14 a `with` calls __enter__ without a CALL, and no signal is handled between its acquiring and the block",
+              "count": 1
+            },
+            {
+              "reason": "bin/analytics is a POSIX shell script",
+              "count": 83
+            },
+            {
+              "reason": "bytes that are not UTF-8 in the environment are POSIX's",
+              "count": 1
+            },
+            {
+              "reason": "collection skipped",
+              "count": 3
+            },
+            {
+              "reason": "declared: on Windows the ask is a Python thread, which a regular expression holding the GIL starves",
+              "count": 1
+            },
+            {
+              "reason": "names POSIX can hold and Windows reads otherwise",
+              "count": 1
+            },
+            {
+              "reason": "os.startfile would open a real program on Windows",
+              "count": 10
+            },
+            {
+              "reason": "process groups are a POSIX concept",
+              "count": 1
+            },
+            {
+              "reason": "signal dispositions as POSIX inherits them",
+              "count": 1
+            },
+            {
+              "reason": "the POSIX guard's signals",
+              "count": 59
+            },
+            {
+              "reason": "the POSIX implementation runs on the Linux and macOS legs",
+              "count": 43
+            },
+            {
+              "reason": "the broken guard stands in for the POSIX one",
+              "count": 1
+            },
+            {
+              "reason": "the launcher masks through its POSIX pipes",
+              "count": 1
+            },
+            {
+              "reason": "the launcher masks through its POSIX pipes; links need privileges",
+              "count": 1
+            },
+            {
+              "reason": "the links are POSIX's here, and os.startfile would open a real program on Windows",
+              "count": 6
+            },
+            {
+              "reason": "the recording implementation does not declare that it excludes other processes",
+              "count": 3
+            },
+            {
+              "reason": "the recording implementation does not declare that it honours a folder's permissions",
+              "count": 1
+            },
+            {
+              "reason": "the recording implementation does not declare that it interrupts a region",
+              "count": 1
+            },
+            {
+              "reason": "the recording implementation does not declare that it sees running processes",
+              "count": 1
+            },
+            {
+              "reason": "the stand-in has no C call to fail",
+              "count": 3
+            },
+            {
+              "reason": "the stand-in uv is a script; Windows starts only an .exe",
+              "count": 1
+            },
+            {
+              "reason": "the stub guard stands in for the POSIX one",
+              "count": 1
+            },
+            {
+              "reason": "the stub guards stand in for the POSIX one",
+              "count": 2
+            },
+            {
+              "reason": "the windows implementation does not declare that it honours a folder's permissions",
+              "count": 1
+            },
+            {
+              "reason": "the windows implementation does not declare that it publishes by a link",
+              "count": 1
+            }
+          ]
+        }
+      ],
+      "smoke": [
+        {
+          "path": "ci-floor-macos-26/stdlib-smoke.json",
+          "mode": "stdlib-only",
+          "source": {
+            "head": "044c72372d92e3d72c7cb505374a5efd2f8bb068",
+            "dirty": false
+          },
+          "summary": {
+            "holds": 15,
+            "violated": 0,
+            "declared_limitation": 0,
+            "observed": 3,
+            "not_run": 2
+          },
+          "required": {
+            "platform": "posix",
+            "checks": [
+              "imports_without_analysis_libraries",
+              "lock_excludes_another_process",
+              "lock_released_when_its_holder_is_killed",
+              "replace_while_a_reader_holds_the_file",
+              "liveness_of_a_live_an_exited_and_a_bogus_pid",
+              "interrupt_asks_a_python_child_or_declines",
+              "kill_tree_ends_the_child_and_its_grandchild",
+              "kill_tree_after_the_leader_exited",
+              "deadline_interrupts_python_code",
+              "deadline_interrupts_a_sleep",
+              "the_cancel_request_wakes_a_sleeping_run",
+              "the_guard_records_outside_regions_and_interrupts_inside_once",
+              "base_env_is_enough_to_start_a_child",
+              "file_url_leads_back_to_the_file",
+              "utf8_survives_a_pipe"
+            ],
+            "violated": [],
+            "declared_limitation": [],
+            "not_run": [],
+            "hold": true
+          }
+        },
+        {
+          "path": "ci-floor-ubuntu-24.04/stdlib-smoke.json",
+          "mode": "stdlib-only",
+          "source": {
+            "head": "044c72372d92e3d72c7cb505374a5efd2f8bb068",
+            "dirty": false
+          },
+          "summary": {
+            "holds": 15,
+            "violated": 0,
+            "declared_limitation": 0,
+            "observed": 3,
+            "not_run": 2
+          },
+          "required": {
+            "platform": "posix",
+            "checks": [
+              "imports_without_analysis_libraries",
+              "lock_excludes_another_process",
+              "lock_released_when_its_holder_is_killed",
+              "replace_while_a_reader_holds_the_file",
+              "liveness_of_a_live_an_exited_and_a_bogus_pid",
+              "interrupt_asks_a_python_child_or_declines",
+              "kill_tree_ends_the_child_and_its_grandchild",
+              "kill_tree_after_the_leader_exited",
+              "deadline_interrupts_python_code",
+              "deadline_interrupts_a_sleep",
+              "the_cancel_request_wakes_a_sleeping_run",
+              "the_guard_records_outside_regions_and_interrupts_inside_once",
+              "base_env_is_enough_to_start_a_child",
+              "file_url_leads_back_to_the_file",
+              "utf8_survives_a_pipe"
+            ],
+            "violated": [],
+            "declared_limitation": [],
+            "not_run": [],
+            "hold": true
+          }
+        },
+        {
+          "path": "ci-floor-windows-2025/stdlib-smoke.json",
+          "mode": "stdlib-only",
+          "source": {
+            "head": "044c72372d92e3d72c7cb505374a5efd2f8bb068",
+            "dirty": false
+          },
+          "summary": {
+            "holds": 14,
+            "violated": 0,
+            "declared_limitation": 1,
+            "observed": 3,
+            "not_run": 2
+          },
+          "required": {
+            "platform": "windows",
+            "checks": [
+              "imports_without_analysis_libraries",
+              "lock_excludes_another_process",
+              "lock_released_when_its_holder_is_killed",
+              "replace_while_a_reader_holds_the_file",
+              "liveness_of_a_live_an_exited_and_a_bogus_pid",
+              "interrupt_asks_a_python_child_or_declines",
+              "kill_tree_ends_the_child_and_its_grandchild",
+              "kill_tree_after_the_leader_exited",
+              "deadline_interrupts_python_code",
+              "deadline_interrupts_a_sleep",
+              "the_cancel_request_wakes_a_sleeping_run",
+              "the_guard_records_outside_regions_and_interrupts_inside_once",
+              "base_env_is_enough_to_start_a_child",
+              "file_url_leads_back_to_the_file",
+              "utf8_survives_a_pipe"
+            ],
+            "violated": [],
+            "declared_limitation": [
+              "kill_tree_after_the_leader_exited"
+            ],
+            "not_run": [],
+            "hold": true
+          }
+        },
+        {
+          "path": "ci-platform-macos-26/smoke.json",
+          "mode": "full",
+          "source": {
+            "head": "044c72372d92e3d72c7cb505374a5efd2f8bb068",
+            "dirty": false
+          },
+          "summary": {
+            "holds": 25,
+            "violated": 0,
+            "declared_limitation": 0,
+            "observed": 6,
+            "not_run": 0
+          },
+          "required": {
+            "platform": "posix",
+            "checks": [
+              "imports_without_analysis_libraries",
+              "lock_excludes_another_process",
+              "lock_released_when_its_holder_is_killed",
+              "replace_while_a_reader_holds_the_file",
+              "liveness_of_a_live_an_exited_and_a_bogus_pid",
+              "interrupt_asks_a_python_child_or_declines",
+              "kill_tree_ends_the_child_and_its_grandchild",
+              "kill_tree_after_the_leader_exited",
+              "deadline_interrupts_python_code",
+              "deadline_interrupts_a_sleep",
+              "the_cancel_request_wakes_a_sleeping_run",
+              "the_guard_records_outside_regions_and_interrupts_inside_once",
+              "base_env_is_enough_to_start_a_child",
+              "file_url_leads_back_to_the_file",
+              "utf8_survives_a_pipe",
+              "cli_end_to_end",
+              "cli_run_timeout_in_python_code",
+              "cli_run_timeout_in_a_blocking_duckdb_query",
+              "cli_cancel_the_way_the_extension_does",
+              "cli_cancel_reaches_a_run_inside_a_regular_expression",
+              "cli_cancel_reaches_a_run_waiting_on_a_subprocess",
+              "cli_concurrent_runs_are_serialized",
+              "cli_refuses_a_new_reserved_dataset_name",
+              "cli_writes_a_reserved_chart_id_to_a_portable_file",
+              "cli_a_script_saving_a_reserved_name_is_warned_about"
+            ],
+            "violated": [],
+            "declared_limitation": [],
+            "not_run": [],
+            "hold": true
+          }
+        },
+        {
+          "path": "ci-platform-ubuntu-24.04/smoke.json",
+          "mode": "full",
+          "source": {
+            "head": "044c72372d92e3d72c7cb505374a5efd2f8bb068",
+            "dirty": false
+          },
+          "summary": {
+            "holds": 25,
+            "violated": 0,
+            "declared_limitation": 0,
+            "observed": 6,
+            "not_run": 0
+          },
+          "required": {
+            "platform": "posix",
+            "checks": [
+              "imports_without_analysis_libraries",
+              "lock_excludes_another_process",
+              "lock_released_when_its_holder_is_killed",
+              "replace_while_a_reader_holds_the_file",
+              "liveness_of_a_live_an_exited_and_a_bogus_pid",
+              "interrupt_asks_a_python_child_or_declines",
+              "kill_tree_ends_the_child_and_its_grandchild",
+              "kill_tree_after_the_leader_exited",
+              "deadline_interrupts_python_code",
+              "deadline_interrupts_a_sleep",
+              "the_cancel_request_wakes_a_sleeping_run",
+              "the_guard_records_outside_regions_and_interrupts_inside_once",
+              "base_env_is_enough_to_start_a_child",
+              "file_url_leads_back_to_the_file",
+              "utf8_survives_a_pipe",
+              "cli_end_to_end",
+              "cli_run_timeout_in_python_code",
+              "cli_run_timeout_in_a_blocking_duckdb_query",
+              "cli_cancel_the_way_the_extension_does",
+              "cli_cancel_reaches_a_run_inside_a_regular_expression",
+              "cli_cancel_reaches_a_run_waiting_on_a_subprocess",
+              "cli_concurrent_runs_are_serialized",
+              "cli_refuses_a_new_reserved_dataset_name",
+              "cli_writes_a_reserved_chart_id_to_a_portable_file",
+              "cli_a_script_saving_a_reserved_name_is_warned_about"
+            ],
+            "violated": [],
+            "declared_limitation": [],
+            "not_run": [],
+            "hold": true
+          }
+        },
+        {
+          "path": "ci-platform-windows-2025/smoke.json",
+          "mode": "full",
+          "source": {
+            "head": "044c72372d92e3d72c7cb505374a5efd2f8bb068",
+            "dirty": false
+          },
+          "summary": {
+            "holds": 21,
+            "violated": 0,
+            "declared_limitation": 3,
+            "observed": 7,
+            "not_run": 0
+          },
+          "required": {
+            "platform": "windows",
+            "checks": [
+              "imports_without_analysis_libraries",
+              "lock_excludes_another_process",
+              "lock_released_when_its_holder_is_killed",
+              "replace_while_a_reader_holds_the_file",
+              "liveness_of_a_live_an_exited_and_a_bogus_pid",
+              "interrupt_asks_a_python_child_or_declines",
+              "kill_tree_ends_the_child_and_its_grandchild",
+              "kill_tree_after_the_leader_exited",
+              "deadline_interrupts_python_code",
+              "deadline_interrupts_a_sleep",
+              "the_cancel_request_wakes_a_sleeping_run",
+              "the_guard_records_outside_regions_and_interrupts_inside_once",
+              "base_env_is_enough_to_start_a_child",
+              "file_url_leads_back_to_the_file",
+              "utf8_survives_a_pipe",
+              "cli_end_to_end",
+              "cli_run_timeout_in_python_code",
+              "cli_run_timeout_in_a_blocking_duckdb_query",
+              "cli_cancel_the_way_the_extension_does",
+              "cli_cancel_reaches_a_run_inside_a_regular_expression",
+              "cli_cancel_reaches_a_run_waiting_on_a_subprocess",
+              "cli_concurrent_runs_are_serialized",
+              "cli_refuses_a_new_reserved_dataset_name",
+              "cli_writes_a_reserved_chart_id_to_a_portable_file"
+            ],
+            "violated": [],
+            "declared_limitation": [
+              "kill_tree_after_the_leader_exited",
+              "cli_cancel_reaches_a_run_inside_a_regular_expression",
+              "cli_cancel_reaches_a_run_waiting_on_a_subprocess"
+            ],
+            "not_run": [],
+            "hold": true
+          }
+        }
+      ],
+      "docs": [
+        {
+          "path": "ci-lint/docs.json",
+          "ok": true,
+          "counts": {
+            "json_files": 15,
+            "markdown_files": 71,
+            "local_links": 747,
+            "python_examples": 6,
+            "json_examples": 7,
+            "dev_state_examples": 1
+          },
+          "errors": []
+        }
+      ],
+      "manifest_files": 583,
+      "manifest_sha256": "7a474a2ae1374ba1b6fe8f1794723fd233a3077fc40f54b931bc509fecbf507e",
+      "errors": []
+    },
+    "final_delivery_ci": {
+      "authority": "https://github.com/handochan/aelix-analytics/pull/88",
+      "scope": "new exact-head three-OS CI for the evidence-only final commit is recorded in the PR/Issue verification table, without a self-referential commit loop"
+    }
   },
   "reviews": {
     "design_independent": "completed16101c1",
@@ -1215,17 +2217,89 @@
     "B3-b project/automatic modes, rolling window and automatic publication",
     "B3-c Aelix session/context publication and Workspace asset detail",
     "Q11 new feature cost measurement",
-    "Linux and Windows runtime CI",
     "real model and human rehearsal",
     "real user project registration",
-    "global registration, release and external publication",
-    "final runtime three-OS CI and actual merged-main rebase"
+    "global registration, release and external publication"
   ],
   "limitations": [
     "loader_discovery is not_run without a supplied host port; registration and discovery/execution are distinct",
     "prepared-only or absent receipt never adopts an existing destination, including identical bytes",
     "artifact files are explicit project-only regular files; links/junctions and special files are refused",
     "only confirmed exact versions strengthen deterministic scores; declarations are provenance, not authentication or universal correctness",
-    "actual merged-main source/CI/date must be refreshed before merge; current code equals the reviewed/tested correction manifest"
-  ]
+    "The final evidence-only delivery CI is linked in PR88/Issue17; this committed report measures the byte-equivalent source head."
+  ],
+  "prior_actual_ci_failures": [
+    {
+      "id": 38037643566,
+      "attempt": 1,
+      "head": "de75c0ea8a1b3ec5456471e737ea95a01d39a46e",
+      "url": "https://github.com/handochan/aelix-analytics/actions/runs/38037643566",
+      "github_conclusion": "failure",
+      "validation_status": "fail",
+      "contexts": 7,
+      "junit": 14,
+      "smoke": 6,
+      "manifest_files": 583,
+      "manifest_sha256": "f01cb575733b7e09eec9c2aed238d7eb80028dbb42a518724b6517e581cd9508",
+      "concrete_failures": [
+        {
+          "report": "ci-platform-windows-2025/aelix-py3.11.xml",
+          "name": "test_registered_skill_only_asset_is_discovered_by_the_pinned_host_loader_in_its_project",
+          "type": "failure",
+          "cause": "CRLF preserved correctly; test compared to LF-only SKILL literal"
+        },
+        {
+          "report": "ci-platform-windows-2025/aelix-py3.12.xml",
+          "name": "test_registered_skill_only_asset_is_discovered_by_the_pinned_host_loader_in_its_project",
+          "type": "failure",
+          "cause": "CRLF preserved correctly; test compared to LF-only SKILL literal"
+        },
+        {
+          "report": "ci-platform-windows-2025/suite.xml",
+          "name": "test_skill_only_candidate_registers_without_a_python_implementation_or_host_dependency",
+          "type": "failure",
+          "cause": "CRLF preserved correctly; test compared to LF-only SKILL literal"
+        }
+      ],
+      "disposition": "test-only correction044c723; production bytes unchanged; failed original result retained"
+    }
+  ],
+  "prior_blocked_ci": {
+    "status": "not_started_billing",
+    "reason": "runtime draft follows the reviewed dependency branch; final actual merged-main CI pending. The prerequisite Issue14 final jobs did not start due billing/spending limit. No platform test failure is inferred from this account block.",
+    "prerequisite_issue14": {
+      "head": "166f991c50f37ea7de583ce2014a43afca342246",
+      "run_id": 37960224053,
+      "attempt": 1,
+      "url": "https://github.com/handochan/aelix-analytics/actions/runs/37960224053",
+      "jobs": 5,
+      "steps": 0,
+      "annotation_reason": "recent account payments have failed or spending limit needs to be increased"
+    },
+    "runtime_runs": [
+      {
+        "id": 37962902000,
+        "attempt": 1,
+        "head": "58f7ac1acbf7b15348f26904d7186ed683b97d0b",
+        "url": "https://github.com/handochan/aelix-analytics/actions/runs/37962902000",
+        "github_conclusion": "failure",
+        "validation_status": "not_run",
+        "jobs": 5,
+        "steps": 0,
+        "reason": "account payments/spending limit prevented all jobs from starting",
+        "macos": "not_run, no label dispatch while account is blocked"
+      },
+      {
+        "id": 37963316892,
+        "attempt": 1,
+        "head": "e7dfdb5014bda3eaf73f37aadd90c4e92f02463b",
+        "url": "https://github.com/handochan/aelix-analytics/actions/runs/37963316892",
+        "github_conclusion": "failure",
+        "validation_status": "not_run",
+        "jobs": 5,
+        "steps": 0,
+        "reason": "account payments/spending limit prevented all jobs from starting"
+      }
+    ]
+  }
 }

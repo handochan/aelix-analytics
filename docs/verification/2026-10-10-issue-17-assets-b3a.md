@@ -1,56 +1,44 @@
-# #17 B3-a — 분석 자산 후보·검사·등록 측정
+# Issue17 B3-a verification: analysis asset candidate/check/registration
 
-작성: 2026-10-10 · 상태: **구현 리뷰·수정 검증 완료, 의존 branch의 CI 차단**. #17 전체 완료가 아니다.
-정본 집계와 source manifest는 [JSON](2026-10-10-issue-17-assets-b3a.json)이다. 구현·미실행 범위는 [계약 C7](../CONTRACTS.md#c7-분석-자산의-후보검사명시적-등록-kit-0100-17-b3-a)을 따른다.
+Recorded: 2026-10-10T10:00:42.959649+00:00. This record measures B3-a only. Full source manifest, exact commands, prior failed attempts and CI inspection summaries are in [JSON](2026-10-10-issue-17-assets-b3a.json). Current behavior is [CONTRACTS C7](../CONTRACTS.md#c7-분석-자산의-후보검사명시적-등록-kit-0100-17-b3-a).
 
-## 코드 기준
+## Source and preserved reviews
 
-측정/재구성 commit: `58d5b406e97a4e16706d6a3ac7f7928a7d436b2b`. 공유 #14 최종 branch 기반: `166f991c50f37ea7de583ce2014a43afca342246`(아직 main 병합 전).
-수정 검증 commit `e9c2d793831ba8d1b5a55e3f04554d5a51795d09`와 **226개 코드 파일의 내용이 같다**.
-manifest sha256: `eded8dcb74491549475a8157a0d58acb63d4b51331979a4d4b3a8ff6be9f8a6d`. 추가 차이는 README wheel 이름·CONTRACTS 배포 버전의 문서 정정뿐이다.
-#14 변경과 이미 병합한 PR85 네 설계 문서를 #17 runtime diff로 셈하지 않는다. metric floor 0.9.0, asset floor/kit 0.10.0.
-원래 stack은 별도 backup branch로 보존했다. 실제 main rebase·최종 CI·병합 날짜는 차단 해제 뒤 확정해야 한다.
+Measured source `044c72372d92e3d72c7cb505374a5efd2f8bb068` is rebased onto actual merged Issue14 main `19c7a9212b9c18f8f20fe43992416a0096f151dd`. Production files have the same bytes as reviewed/tested correction e9c2d79. Three test/helper files now compare captured original bytes and explicitly exercise LF/CRLF; the updated226-file source manifest SHA256 `6c0292b1653ef68c0cc02bf77f2cedd2a8448acb53d4d4fc127f53e31e5c5823`. Metric floor0.9.0 and asset/kit0.10.0 remain distinct. CHANGELOG uses the actual KST main-delivery date.
 
-## 확인한 범위
+Design independent/Codex reviews and one design correction check completed before PR85 delivery. Implementation independent/Codex reviews completed on frozen782e363; the two reproduced P2 findings were fixed by e9c2d79 and ONE bounded correction-diff check passed. Common Replay owns chronology and unique prior candidate/check/artifact/source proof. These runtime/record reviews were not repeated for a production-byte-equivalent rebase and test-only correction. Original invalid rows are preserved/warned rather than applied, and later live-byte drift does not rewrite historical journal proof identity.
 
-| 검증 | 기준/환경 | 결과 |
-|---|---|---|
-| 수정 영향: 자산/계약/standalone reader/writer/marker/layers | e9c2d79, macOS Python3.12.13, scoped parent+child HOME | **497 passed** |
-| 전체 저장소·wheel/sdist·실제 설치 E2E | e9c2d79, AELIX_ANALYTICS_TEST_INSTALL=1 | **2070 passed,76 skipped,2 version-doc failures** (685.41s) |
-| 위 두 문서 버전 실패의 영향 검사 | 58d5b406e97a4e16706d6a3ac7f7928a7d436b2b | **2 passed**. 전체 실행을 소급해 green으로 쓰지 않음 |
-| 고정 aelix0.1.0b2 host/usage/agent CLI | Python3.12 1a786ba / Python3.11 e9c2d79, scoped HOME | 각각 **972 passed** |
-| SKILL.md-only 등록과 실제 load_skills discovery | explicit synthetic project skill dir만 | 위 pinned host suite에 포함, pass |
-| 실제 kit CLI 명시적 등록 | e9c2d79, 성공·별도 입력·경계 검사 뒤 | byte/journal 보존·공통 reader registered, pass |
-| Python3.11 stdlib-only platform smoke | e9c2d79, macOS | required hold, 15 holds/3 observed/2 not_run |
-| ruff / docs links/examples | e9c2d79 | pass / 71 Markdown,15JSON,747 local links pass |
+## Actual source CI
 
-실제 stdlib run의 파일 버전·출력 assert로 원래 입력/별도 입력/경계 검사를 만들었다.
-module과 SKILL.md-only 후보를 각각 trial/validated로 승격하고 명시적 project destination에 바이트 그대로 등록했다.
-기존 동일 바이트 목적지의 무소유 채택을 거절하고, journal 실패 뒤 owned published receipt가 남은 등록만 이어서 완료한다.
-canonical journal 성공 뒤 private receipt 갱신 실패는 registered=true와 경고이며 미등록으로 뒤집지 않는다.
-malformed envelope/상태 참조/빈 등록 receipt와 mismatched human update는 상태·점수 근거에 쓰지 않는다.
-SDK의 실행 중 검사 선언은 실제 run 완료 관측으로 다시 검증한다. 초기 후보·자유 분석은 사전 등록을 요구하지 않는다.
+[CI38040680262 attempt1](https://github.com/handochan/aelix-analytics/actions/runs/38040680262) executed all7 jobs on exact source `044c72372d92e3d72c7cb505374a5efd2f8bb068`: Linux/macOS/Windows platform suites, three CPython3.11 stdlib floors, and lint/documents. Artifact inspection checked7 contexts,14 JUnit reports and6 required smoke reports: **0 inspection errors**, 583 files, artifact manifest SHA256 `7a474a2ae1374ba1b6fe8f1794723fd233a3077fc40f54b931bc509fecbf507e`. Failed/skipped/not-run scope is preserved in JSON; skips are not passes.
 
-이전 broad 실행916pass/1skip/2fail은 보존한다. stale version/public-kind assertion 수정 뒤 affected240pass와495pass를 확인했다.
-최신 전체 실행의 두 실패는 README wheel 이름·CONTRACTS 배포 버전이0.9.0으로 남은 문서 오류였다. 이를0.10.0으로 고쳐 해당2검사를 다시 통과시켰다.
-원시 로그·정확한 명령·HOME scope·snapshot은 로컬 run evidence, skip 이유는 JSON에 있다.
+| Actual CI leg | Result |
+|---|---|
+| ci-platform-macos-26/aelix-py3.11.xml | 973 passed / 0 skipped / 0 failures / 0 errors |
+| ci-platform-macos-26/aelix-py3.12.xml | 973 passed / 0 skipped / 0 failures / 0 errors |
+| ci-platform-macos-26/launcher-py3.11.xml | 196 passed / 1 skipped / 0 failures / 0 errors |
+| ci-platform-macos-26/suite.xml | 2073 passed / 76 skipped / 0 failures / 0 errors |
+| ci-platform-ubuntu-24.04/aelix-py3.11.xml | 973 passed / 0 skipped / 0 failures / 0 errors |
+| ci-platform-ubuntu-24.04/aelix-py3.12.xml | 973 passed / 0 skipped / 0 failures / 0 errors |
+| ci-platform-ubuntu-24.04/launcher-py3.11.xml | 196 passed / 1 skipped / 0 failures / 0 errors |
+| ci-platform-ubuntu-24.04/suite.xml | 2075 passed / 74 skipped / 0 failures / 0 errors |
+| ci-platform-windows-2025/aelix-py3.11.xml | 973 passed / 1 skipped / 0 failures / 0 errors |
+| ci-platform-windows-2025/aelix-py3.12.xml | 973 passed / 1 skipped / 0 failures / 0 errors |
+| ci-platform-windows-2025/console.xml | 21 passed / 0 skipped / 0 failures / 0 errors |
+| ci-platform-windows-2025/launcher-py3.11.xml | 91 passed / 106 skipped / 0 failures / 0 errors |
+| ci-platform-windows-2025/long-paths-off.xml | 7 passed / 0 skipped / 0 failures / 0 errors |
+| ci-platform-windows-2025/suite.xml | 1897 passed / 278 skipped / 0 failures / 0 errors |
 
-## 리뷰와 CI·미실행
+The final evidence-only commit receives NEW exact-head three-OS CI. Its exact commit/run/attempt and artifact inspection are recorded in [PR88](https://github.com/handochan/aelix-analytics/pull/88) and Issue17, avoiding a report commit that must cite its own future run. This source result is distinct from the final delivery gate.
 
-설계 독립/Codex 리뷰와 한 번의 correction diff 확인 후 PR85를 병합했다.
-구현은 고정782e363에 별도 독립/Codex 리뷰를 받았고 같은 두 P2를 재현했다: private replay의 prior chronology 불일치,
-후보 artifact/source/check identity와 관계없는 promotion proof. e9c2d79에서 공통 Replay와 journal-only identity 검증으로 고쳤다.
-수정 diff782e363..e9c2d79의 **한 번 확인도 통과**했다. 원본 줄은 보존하고 잘못된 전이는 경고/미적용으로 남는다.
-현재 파일이 나중에 바뀌어도 과거 journal proof의 정체성 검증을 live bytes로 다시 쓰지 않는다.
+## Local and prior evidence
 
-Draft [PR88](https://github.com/handochan/aelix-analytics/pull/88)은 #14 branch를 base로 두어 고유 diff만 담는다.
-런타임 [CI37962902000 attempt1](https://github.com/handochan/aelix-analytics/actions/runs/37962902000)은 정확한 HEAD58f7ac1의5개 job이
-같은 결제/사용 한도 사유로0step이며 시험 **not_run**이다. GitHub conclusion은 failure이고 macOS는 아직 dispatch하지 않았다.
-실제 main rebase와 최종 세 OS CI 통과는 **pending**이다. 선행 PR87 마지막166f991의 [CI37960224053 attempt1](https://github.com/handochan/aelix-analytics/actions/runs/37960224053)은
-계정 결제/사용 한도 annotation으로5개 job이 **step을 시작하지 못했다**. 이것을 코드 시험 실패나 CI 통과로 바꾸지 않는다.
-실제 merged main과 최종 CI 조건을 채우기 전에는 이 runtime을 병합하지 않는다.
+- Correction influence checks:497 passed. Pinned aelix0.1.0b2 host/usage/agent-CLI suites on Python3.11/3.12: each972 passed, including actual project-only SKILL.md loader discovery.
+- Prior install-enabled full run:2070 passed,76 skipped,2 version-document failures. Two corrected document checks then passed; those historical failures remain failed. Rebased source current-version document checks also passed2 in isolated parent HOME/config/trust and explicit uv directories.
+- Actual synthetic kit CLI registration preserved exact candidate bytes and previous journal bytes, with common reader state registered. Module and SKILL.md-only candidates use actual original/distinct/boundary run assertions before explicit project-only copy. Receipt-less identical destinations are refused; only owned published receipts recover an incomplete journal append. Registration, loader discovery, execution and usefulness remain separate.
+- Actual first source CI38037643566 had exactly3 Windows failures: the same LF-only expectation in asset registration and pinned3.11/3.12 loader tests. All583 artifact files,7 contexts,14 JUnit and6 smoke reports were inspected; no other concrete failures. Its failed result remains preserved. Test-only044c723 captures original bytes and explicitly covers LF/CRLF; local asset2pass plus pinned3.11/3.12 loader each2pass.
+- Historical CI37962902000 and exact e7dfdb5 CI37963316892 attempt1 were GitHub failures with5 jobs/0 steps due account billing/spending admission. Tests were not_run, no macOS was dispatched, and these cited runs were never rerun or relabeled. Issue14 old admission failure is likewise retained; actual Issue14 main is now merged after its new gates.
 
-B3-b 모드/롤링 창/자동 발행, B3-c 세션/맥락/UI/Q11은 아직 구현하지 않았다.
-Linux/Windows current-target CI, 실제 모델·사람 리허설·사용자 프로젝트 등록은 미실행이다.
-loader port가 없는 stdlib CLI/SDK의 loader_discovery=not_run을 pass로 쓰지 않는다. 등록·발견·실행·유용성은 별개다.
-전역 등록·릴리스·외부 게시는 하지 않았다.
+## Remaining scope
+
+B3-b project modes/automatic history/window/publication, B3-c session/context/UI/Q11, live model/human rehearsal and user-project registration remain unexecuted here. Loader discovery without a supplied host port is not_run. Declaration provenance does not certify universal correctness or individual function execution lineage. No global registration, release or external publication, and no user ~/.aelix read/stat/list.
