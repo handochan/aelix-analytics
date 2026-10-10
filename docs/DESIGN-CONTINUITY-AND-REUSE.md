@@ -167,6 +167,9 @@ Visualization의 논리적 이름은 버전 모음의 식별자이고, 과거 �
 
 ## 3. 검색 가능한 프로젝트 메모리
 
+kit 0.11.0은 기존 `analytics_status`의 `records`·`relations`·`context` 부분 조회를 구현합니다([현재 계약 A2](CONTRACTS.md#a2-제한된-맥락기록근거-조회-kit-0110)).
+아래 L0–L3 목표 중 checkpoint 작성·자동 재개는 #16이고, 의미 검색·추가 도구는 채택하지 않았습니다.
+
 | 공개 단계 | 기본 내용 | 상세로 가는 방법 |
 |---|---|---|
 | L0: 시작 맥락 | 목적, 현재 지표 묶음·정의 버전·미정 사항, 풀고 있는 질문, 다음 확인, 기록 기준 | 생략 수와 조회 방법 |
@@ -408,7 +411,7 @@ JavaScript를 사용할 수 없을 때도 링크와 관계 목록으로 내용�
 
 검색·관계·프로젝트 탐색 HTML은 공통 읽기 모델을 사용한다. 보존한 보고서 본문·첨부는 이 화면의 입력이다. 새 graph DB나 별도 수동 관계 파일을 정본으로 만들지 않는다.
 생성 기준은 journal의 유효 범위, CONTEXT 해시, run·데이터·보고서 버전 manifest의 내용 지문, 인덱스 형식 버전으로 구성한다.
-`source_revision`·cursor·영속 기준 `as_of_seq`의 규칙은 [ADR-0006](decisions/0006-common-record-contract.md) 5절이 정했다. 현재 구현에 그런 필드는 아직 없다.
+`source_revision`·cursor·영속 기준 `as_of_seq`의 규칙은 [ADR-0006](decisions/0006-common-record-contract.md) 5절이 정했다. 읽기 기준은 공유 reader에서 구현됐고, kit 0.11.0의 제한 조회·cursor는 [현재 계약 A2](CONTRACTS.md#a2-제한된-맥락기록근거-조회-kit-0110)를 따른다.
 
 run은 finalize 중 바뀔 수 있으므로 journal의 마지막 seq만으로 전체 일관성을 판단하지 않는다.
 읽기 전후 기준이 다르면 두 번까지 다시 읽고, 계속 바뀌면 `updating`과 관측 기준을 반환한다.

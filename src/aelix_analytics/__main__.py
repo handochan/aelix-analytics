@@ -202,7 +202,13 @@ def _command(argv) -> int:
     p.add_argument("--title")
     p.add_argument("--goal")
 
-    sub.add_parser("status", help="project overview")
+    p = sub.add_parser("status", help="project overview or bounded record/context/relationship read")
+    p.add_argument("--part", choices=("records", "relations", "context"))
+    for name in ("query", "id", "cursor", "kind", "state", "since", "until"):
+        p.add_argument("--" + name)
+    p.add_argument("--direction", choices=("both", "incoming", "outgoing"))
+    p.add_argument("--as-of-seq", type=int)
+    p.add_argument("--limit", type=int)
     sub.add_parser("context", help="the context block injected into agent prompts")
 
     asset = sub.add_parser("assets", help="read, review or explicitly register analysis assets")
@@ -289,11 +295,15 @@ def _command(argv) -> int:
         else:
             core.readable(project, args.command)
         if args.command == "status":
-            st = core.status(project)
+            options = {name: getattr(args, name) for name in
+                       ("part", "query", "id", "cursor", "kind", "state", "since", "until", "direction", "as_of_seq", "limit")
+                       if getattr(args, name) is not None}
+            st = core.status(project, **options)
+            text = core.retrieval_text(st) if args.part else core.status_text(st)
             if args.text:
-                print(core.status_text(st))
+                print(text)
                 return 0
-            _emit({"ok": True, "status": st, "text": core.status_text(st)})
+            _emit({"ok": True, "status": st, "text": text})
         elif args.command == "context":
             block = core.context_block(project)
             if args.text:

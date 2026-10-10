@@ -188,6 +188,11 @@ fixture를 cold로 둡니다. `tests/test_eval_fixtures.py`가 S·Q10·Q13을 �
 합쳐 약 440 MB, 두 번 만듦)은 `AELIX_ANALYTICS_TEST_SCALE_M=1`일 때만 돕니다. 생성기를 바꾸면 `GENERATOR_VERSION`을 올리고 그
 시험도 실행하세요.
 
+제한 조회의 결정적 S/M 측정(#15)은 생성기의 fixture를 명시적으로 전환한 합성 사본에서 합니다. 원본 fixture를 고치지 않습니다.
+`tools/retrieval_eval.py --fixture <fixture> --project <전환 사본> --out <새 결과 dir> --repeats 10`은 같은 사례의 cold/warm/재구축/직접 읽기,
+ID 회수·판단 상태·원본 journal 해시와 UTF-8 응답 bytes를 남깁니다. cold는 파생 인덱스가 없는 경우이며 OS 파일 캐시를 비우지 않습니다.
+토큰·실제 모델·브라우저 지연은 미측정/미실행입니다.
+
 실제 모델 평가의 과제 12개·정답(초안)·모델 설정과 하네스는 `tools/model_eval.py`와 `tools/model_eval_data/`에 있습니다(#40,
 [실제 모델 평가 안내](tools/model_eval_data/README.md)). 하네스는 과제의 fixture를 위 생성기로 만들고, aelix 0.1.0b2를 `--mode json`으로
 띄워 이 checkout의 확장으로 과제를 실행한 뒤 도구 호출·인자 오류·토큰·프로젝트의 변화를 기록하고 정답 파일로 채점합니다. 모델 없이 전

@@ -2154,3 +2154,31 @@ def test_registered_skill_only_asset_is_discovered_by_the_pinned_host_loader_in_
     assert (project.root / ".aelix/skills/denominator-rule/SKILL.md").read_bytes() == source_bytes
     assert (project.root / "draft/SKILL.md").read_bytes() == source_bytes
 
+
+
+def test_bounded_status_reads_share_ids_and_preserve_complete_text(lab):
+    module, root = lab
+    tools = tools_of(module)
+    text = "보존된 한국어 " * 700
+    entry = call(tools["analytics_record"], {"kind": "finding", "text": text}).details["event"]
+    before = (root / "journal.jsonl").read_bytes()
+    (root / "CONTEXT.md").write_text("changed context without implicit sync", encoding="utf-8")
+    found = call(tools["analytics_status"], {"part": "records", "query": "한국어", "limit": 2})
+    assert not found.is_error and found.details["items"][0]["id"] == entry["id"]
+    assert found.details["source_revision"]
+    assert (root / "journal.jsonl").read_bytes() == before
+    fields, cursor = {}, None
+    while True:
+        args = {"part": "records", "id": entry["id"], "limit": 3}
+        if cursor:
+            args["cursor"] = cursor
+        detail = call(tools["analytics_status"], args)
+        assert not detail.is_error
+        parsed = json.loads(text_of(detail).split("\n", 1)[1])
+        assert parsed == detail.details
+        fields.update((row["field"], row["value"]) for row in parsed["items"])
+        if not parsed["has_more"]:
+            break
+        cursor = parsed["cursor"]
+    assert fields["text"] == entry["text"]
+    assert set(tools) == TOOL_NAMES

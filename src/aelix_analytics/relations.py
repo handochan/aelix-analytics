@@ -77,6 +77,7 @@ bytes; it is never a confirmed link and never counted as one.
 
 from __future__ import annotations
 
+import base64
 import bisect
 import copy
 import hashlib
@@ -270,7 +271,8 @@ def metric_event_problem(kind, details, refs) -> str | None:
 # since its PR 2: a migrated project's older paths are read through the migration's mapping
 # (core.mapped_identity, design 5.4), and analytics.migration/1 is a family this reader knows.
 # 4 since ADR-0011: invalid/unsupported tagged metric content cannot change another record state.
-READER_FORMAT = 4
+# 5 since Issue #15: CONTEXT version stat changes and bounded historical query knowledge.
+READER_FORMAT = 5
 
 EVENT_V1 = "lab.event/1"
 EVENT_V2 = "analytics.event/2"
@@ -549,6 +551,7 @@ class Journal:
     lines with one id are all kept."""
 
     def __init__(self, data: bytes):
+        self.data = data
         lines = data.split(b"\n")
         if lines and lines[-1] == b"":
             lines.pop()
@@ -655,6 +658,37 @@ class Journal:
         if self._ordered is None:
             self._ordered = sorted(self.events, key=lambda e: (e.seq is None, e.seq or 0, e.line))
         return self._ordered
+
+    def through(self, seq: int) -> Journal:
+        """The journal known through seq, with original line locations retained. No readable
+        record without a seq becomes a historical fact; undated diagnostics cannot be time-bound."""
+        lines = self.data.split(b"\n")
+        return Journal(b"\n".join(raw if self.seq_of.get(n) is not None
+                                  and self.seq_of[n] <= seq else b""
+                                  for n, raw in enumerate(lines, 1)))
+
+    def prefix_revision(self, seq: int) -> str:
+        """Original line identities and bytes known through seq; future blank placeholders and
+        appended seqs above the boundary do not change it. Edited/inserted held records do."""
+        digest = hashlib.sha256(str(READER_FORMAT).encode("ascii"))
+        for line, raw in enumerate(self.data.split(b"\n"), 1):
+            known = self.seq_of.get(line)
+            if known is not None and known <= seq:
+                digest.update(str(line).encode("ascii") + b":" + raw + b"\n")
+        return digest.hexdigest()
+
+    def legacy_resolutions(self) -> dict[str, list[str]]:
+        """The older kit's resolves convention, separately from /2 correction/withdrawal states.
+        A valid earlier unique target only; no present-day correction semantics are inferred."""
+        out: dict[str, list[str]] = {}
+        for event in self.in_order():
+            if event.schema != EVENT_V1 or event.seq is None or not isinstance(event.refs, dict):
+                continue
+            for target in _strings(event.refs.get("resolves")):
+                state, _, _ = self.event_target("event", {"event_id": target}, event.seq)
+                if state == "resolved":
+                    out.setdefault(target, []).append(self.source_of(event))
+        return out
 
     def replay(self) -> Replay:
         if self._replay is None:
@@ -947,7 +981,8 @@ def _snapshot(root: Path, state=None) -> list:
     out += [stat(f"{directory}/manifest.json") for directory, _ in _report_dirs(root)]
     for directory, _ in IMPORT_DIRS:
         out += [stat(f"{directory}/{name}") for name in _files(root / directory, ".meta.json")]
-    out += [[directory, _files(root / directory, ".md")] for directory in CONTEXT_DIRS]
+    out += [stat(f"{directory}/{name}") for directory in CONTEXT_DIRS
+            for name in _files(root / directory, ".md")]
     if state is not None:
         out.append(["frame", state])
     return out
@@ -1028,6 +1063,7 @@ class ReadModel:
         self.root = root
         self.journal = journal
         self._sha = sha
+        self._alive = alive
         self._legacy_path = legacy_path
         self._older: dict[str, bool] = {}
         self._read_as: dict[str, str | None] = {}
@@ -1143,6 +1179,39 @@ class ReadModel:
     def run(self, run_id: str) -> dict | None:
         """The run record as it was read, or None."""
         return self._runs.get(run_id)
+
+    def through(self, seq: int) -> ReadModel:
+        """Journal knowledge and completed target versions through seq; physical files are read
+        now. Later completion facts cannot be used to resolve an earlier query's reference."""
+        historical = ReadModel(self.root, self.journal.through(seq), alive=self._alive,
+                               sha=self._sha, legacy_path=self._legacy_path)
+        historical._runs = {key: value for key, value in historical._runs.items()
+                            if historical.completion_seq(key) is not None}
+        historical._unsupported_runs = set()
+        complete_imports = {row["location"] for row in historical.imports()
+                            if row["recording_status"] == "complete"}
+        historical._metas = [(location, value) for location, value in historical._metas
+                             if location in complete_imports]
+        done = historical._completion_seqs()
+        historical._manifests = [(directory, value, staging) for directory, value, staging in historical._manifests
+                                 if not staging and (value.get("report_id"), value.get("revision_id")) in done]
+        historical._saved = {key: value for key, value in historical._saved.items() if key in done}
+        return historical
+
+    def record_payload(self, source: str) -> tuple[dict, str] | None:
+        """A complete readable record and its project-relative location; no latest-version lookup."""
+        event = self.journal.event_of(source)
+        if event is not None:
+            return event.value, f"journal:{event.line}"
+        if source.startswith("run:"):
+            run_id = source[4:]
+            if (value := self.run(run_id)) is not None:
+                return value, f"runs/{run_id}/run.json"
+        if source.startswith("report:"):
+            for directory, value, staging in self._manifests:
+                if not staging and report_key(value.get("report_id"), value.get("revision_id")) == source:
+                    return value, f"{directory}/manifest.json"
+        return None
 
     # --- paths an older kit recorded (ADR-0006 9) --------------------------------------------------
 
@@ -1412,6 +1481,17 @@ class ReadModel:
         """The same judgment as references(), for one proposed exact reference without a write."""
         return self._judge_v2([ref], None, None, self.journal.next_seq if before is None else before)[0]
 
+    def incoming_sources(self, target: str) -> list[str]:
+        """Cheap journal and saved Report candidates for one query identity; exact judgments
+        still come from references(), so unsupported/unbound references are never confirmed."""
+        out = incoming_sources(self.journal, target)
+        for _directory, manifest, staging in self._manifests:
+            based_on = manifest.get("based_on")
+            if not staging and isinstance(based_on, dict) and any(
+                    _query_ref_targets(ref, target) for ref in _dicts(based_on.get("refs"))):
+                out.append(report_key(manifest.get("report_id"), manifest.get("revision_id")))
+        return out
+
     def references(self, source: str | None = None) -> list[dict]:
         """One judgment for every reference of every readable event and saved Report manifest, in
         journal order and then manifest order; only those of `source` (`e<seq>`, `journal:<line>` or
@@ -1429,6 +1509,17 @@ class ReadModel:
                         self._judge_v1(event, source, before) if event.schema == EVENT_V1
                         else self._judge_v2(event.refs, source, event.line, before))
                 return list(self._one_source[source])
+        if source is not None and self._references is None:
+            for _directory, manifest, staging in self._manifests:
+                if staging or report_key(manifest.get("report_id"), manifest.get("revision_id")) != source:
+                    continue
+                based_on = manifest.get("based_on")
+                if not isinstance(based_on, dict):
+                    return []
+                as_of = _int(based_on.get("as_of_seq"))
+                before = as_of + 1 if as_of is not None else self._completion_seqs().get(
+                    (_str(manifest.get("report_id")), _str(manifest.get("revision_id"))), self.journal.next_seq)
+                return self._judge_v2(based_on.get("refs"), source, None, before)
         if self._references is None:
             out: list[dict] = []
             for event in self.journal.events:
@@ -1871,6 +1962,7 @@ def read(root, *, alive, sha, legacy_path=None, frame=None) -> ReadModel:
         model.updating = True
     model.observed_revisions = observed
     model.source_revision = observed[-1]
+    model.source_snapshot = after
     return model
 
 
@@ -2596,3 +2688,164 @@ does not undo a valid historical transition and an invented proof cannot advance
         if registration["artifact_digest"] != digest or registration["files"] != wanted:
             return "asset registration proof differs from its candidate artifact version"
     return None
+
+
+# --- bounded journal queries (Issue #15, ADR-0006 5) -----------------------------------------------
+
+class QueryError(ValueError):
+    def __init__(self, code, message, **details):
+        super().__init__(message)
+        self.code, self.details = code, details
+
+
+def query_text(value) -> str:
+    """Unicode NFC/casefold substring vocabulary; SQL/FTS syntax is never a query language."""
+    return unicodedata.normalize("NFC", str(value)).casefold()
+
+
+class QueryPolicy:
+    """Replaceable lexical ranking and pagination, independent of storage and host adapters.
+    Full records are authoritative. Summaries say what they omit; detail fields are indivisible."""
+    version = "lexical/4"
+
+    def terms(self, query: str) -> list[str]:
+        return query_text(query).split()
+
+    def document(self, event: Event) -> str:
+        return query_text(json.dumps(event.value, ensure_ascii=False, sort_keys=True))
+
+    def matches(self, document: str, query: str) -> bool:
+        return all(term in document for term in self.terms(query))
+
+    def select(self, journal: Journal, *, query="", kind=None, state=None, since=None, until=None,
+               candidates=None) -> list[Event]:
+        replay = journal.replay()
+        legacy = journal.legacy_resolutions()
+        out = []
+        for event in journal.in_order():
+            source = journal.source_of(event)
+            if candidates is not None and source not in candidates:
+                continue
+            judgment = replay.state_of(source) or {}
+            if kind is not None and event.kind != kind:
+                continue
+            if state is not None and judgment.get("state") != state:
+                continue
+            if since is not None or until is not None:
+                at = _instant(event.recorded_at)
+                lo, hi = _instant(since), _instant(until)
+                if at is None or at.utcoffset() is None or (lo is not None and not _not_after(lo, at)) or (
+                        hi is not None and not _not_after(at, hi)):
+                    continue
+            if self.matches(self.document(event), query):
+                out.append(event)
+        if query:
+            terms = self.terms(query)
+            def rank(event):
+                source = journal.source_of(event)
+                text = query_text(event.value.get("text", ""))
+                relevance = (sum(term in text for term in terms)
+                             + int(query_text(source) == query_text(query))
+                             + int(query_text(query) in text))
+                current = (replay.state_of(source) or {}).get("state") in ("current", "open") and source not in legacy
+                evidence = (any(bool(values) for values in event.refs.values())
+                            if isinstance(event.refs, dict) else bool(_dicts(event.refs)))
+                return (-relevance, -int(current), -int(evidence))
+            groups: dict[tuple, list[Event]] = {}
+            for event in sorted(out, key=lambda e: (rank(e), e.seq is None, e.seq or 0, e.line)):
+                groups.setdefault(rank(event), []).append(event)
+            out = []
+            # Equal lexical/state/evidence scores cover both ends of recorded history. Recency
+            # alone must not bury every older relevant judgment; all middle records stay paged.
+            for group in groups.values():
+                left, right = 0, len(group) - 1
+                while left <= right:
+                    out.append(group[left])
+                    if left < right:
+                        out.append(group[right])
+                    left, right = left + 1, right - 1
+        return out
+
+    def page(self, rows: list, *, revision: str, request: dict, cursor=None, limit=8,
+             journal_order=False, as_of_seq=None, boundary_revision=None) -> dict:
+        if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 100:
+            raise QueryError("bad_query", "limit must be an integer from 1 to 100")
+        fingerprint = hashlib.sha256(json.dumps([self.version, request, limit], sort_keys=True,
+                                                ensure_ascii=True).encode("ascii")).hexdigest()
+        position = 0
+        if cursor is not None:
+            try:
+                if not isinstance(cursor, str) or len(cursor) > 4096:
+                    raise ValueError()
+                held = json.loads(base64.urlsafe_b64decode(cursor.encode("ascii")))
+                if held["query"] != fingerprint:
+                    raise QueryError("cursor_query_mismatch", "cursor belongs to another query")
+                unchanged_prefix = (journal_order and as_of_seq is not None
+                                    and held.get("boundary") == boundary_revision)
+                if (journal_order and as_of_seq is not None and not unchanged_prefix) or (
+                        held["revision"] != revision and not unchanged_prefix):
+                    raise QueryError("stale_cursor", "project changed; restart this query", source_revision=revision)
+                position = held["position"]
+                if not isinstance(position, int) or isinstance(position, bool) or not 0 <= position <= len(rows):
+                    raise ValueError()
+            except QueryError:
+                raise
+            except (ValueError, KeyError, TypeError, UnicodeError):
+                raise QueryError("bad_cursor", "cursor cannot be read; restart this query") from None
+        selected = rows[position:position + limit]
+        end, more = position + len(selected), position + len(selected) < len(rows)
+        token = (base64.urlsafe_b64encode(json.dumps({"revision": revision, "query": fingerprint,
+                                                    "position": end, "boundary": boundary_revision},
+                                                   separators=(",", ":")).encode()).decode()
+                 if more else None)
+        return {"items": selected, "returned": len(selected), "total": len(rows), "has_more": more,
+                "cursor": token, "omitted": {"count": len(rows) - end,
+                                               "reason": "page_limit" if more else None},
+                "read_more": {**request, "limit": limit, "cursor": token} if more else None}
+
+
+def query_target(judgment: dict) -> str | None:
+    """A version-bound target's query identity. Unbound names remain names, never version IDs."""
+    target = judgment.get("target") or {}
+    if target.get("event_id") is not None:
+        return target["event_id"]
+    if judgment.get("type") == "run" and isinstance(target.get("run_id"), str):
+        return "run:" + target["run_id"]
+    if judgment.get("type") == "context_version" and isinstance(target.get("version"), str):
+        return "context:" + target["version"]
+    if target.get("visualization_id") is not None:
+        return f"{target.get('run_id')}/{target['visualization_id']}"
+    if target.get("report_id") is not None:
+        return report_key(target.get("report_id"), target.get("revision_id"))
+    for key in ("run_id", "version", "path", "key", "token"):
+        if isinstance(target.get(key), str):
+            return target[key]
+    return None
+
+
+def _query_ref_targets(ref: dict, target: str) -> bool:
+    if query_target({"type": ref.get("type"), "target": ref}) == target:
+        return True
+    return target in [ref.get(k) for k in ("event_id", "path", "key", "token")]
+
+
+def incoming_sources(journal: Journal, target: str) -> list[str]:
+    """Cheap candidate sources before judging references; no hashing all unrelated run files."""
+    out = []
+    raw = target.partition(":")[2] if target.startswith(("run:", "context:")) else target
+    for event in journal.in_order():
+        refs = event.refs
+        if event.schema == EVENT_V1:
+            values = [v for key in V1_FIELDS for v in _strings((refs or {}).get(key))] if isinstance(refs, dict) else []
+            found = raw in values
+        else:
+            found = any(_query_ref_targets(ref, target) for ref in _dicts(refs))
+        if found:
+            out.append(journal.source_of(event))
+    return out
+
+
+def observed_basis(root, frame=None) -> tuple[list, str]:
+    """The cheap current snapshot and revision token used by read's before/after rule."""
+    snapshot = _snapshot(Path(root), frame)
+    return snapshot, _token(snapshot, read_journal(root).as_of_seq)

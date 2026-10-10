@@ -39,7 +39,7 @@ if TYPE_CHECKING:
     from . import core
 
 __all__ = ["assets", "datasets", "path", "project", "read", "record", "register_asset", "review_assets",
-           "run_id", "save", "scan", "sql", "update_asset", "visualize"]
+           "run_id", "save", "scan", "sql", "status", "update_asset", "visualize"]
 
 # The script API's functions renamed in kit 0.3.0 (Issue #9), by their old names. The version is fixed:
 # it names the boundary, core.NAMES_RENAMED_IN, which this module may not import at load.
@@ -284,3 +284,11 @@ def register_asset(event_id: str, *, name: str) -> dict:
     from . import core
 
     return core.register_asset(project(), event_id, name=name, origin=_asset_origin())
+
+
+def status(*, part=None, **options) -> dict:
+    """The same overview/record/context/relation read as analytics status and analytics_status.
+    No model, host or analysis library is needed by core's retrieval implementation."""
+    from . import core
+
+    return core.status(project(), part=part, **options)
