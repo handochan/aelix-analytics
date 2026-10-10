@@ -14,7 +14,7 @@ import secrets
 import stat
 from pathlib import Path
 
-from . import _platform, asset_policy, relations, writer
+from . import _platform, asset_policy, asset_suggestions, relations, writer
 from . import asset_contract as contract
 
 _STEPS = frozenset({("proposed", "trial"), ("trial", "validated"), ("validated", "registered"),
@@ -218,18 +218,12 @@ class Assets:
                 "as_of_seq": model.as_of_seq, "context_version": self.context_version(model.journal)}
 
     def set_mode(self, mode):
-        from . import asset_suggestions
-
         return asset_suggestions.set_mode(self, mode)
 
     def suggestion_status(self, *, journal=None, marker=None):
-        from . import asset_suggestions
-
         return asset_suggestions.status(self, journal=journal, marker=marker)
 
     def publish_suggestion(self, *, surface="cli_text_status"):
-        from . import asset_suggestions
-
         return asset_suggestions.publish(self, surface=surface)
 
     def review(self, asset_id=None, *, surface="sdk") -> dict:
@@ -244,8 +238,6 @@ class Assets:
                     continue
                 proposed = versions[-1]
                 assessed = self.assessment(proposed, model)
-                from . import asset_suggestions
-
                 assessed["requirements"]["identity"] = asset_suggestions.identity_clear(model, proposed, assessed)
                 assessed["duplicate_suspicion"] = not assessed["requirements"]["identity"]
                 details = {"contract": contract.CONTRACT, "asset_id": item["asset_id"],
@@ -301,8 +293,6 @@ class Assets:
             supplied = {**details, "contract": contract.CONTRACT, "asset_id": event.value["details"]["asset_id"],
                         "candidate_event_id": event_id, "expected_state": expected, "new_state": new}
             if new in ("rejected", "deferred"):
-                from . import asset_suggestions
-
                 assessed = self.assessment(event.value, model)
                 supplied.update({k: assessed[k] for k in ("as_of_seq", "context_version", "evidence", "scores", "requirements")})
                 supplied["requirements"]["identity"] = asset_suggestions.identity_clear(model, event.value, assessed)

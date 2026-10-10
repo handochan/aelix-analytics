@@ -85,6 +85,45 @@ def test_real_loader_registers_the_basic_contract_surface():
                                  "agent_end", "user_bash"}
 
 
+@pytest.mark.parametrize("history", ["mode", "notification"])
+def test_loaded_host_reads_asset_summary_after_namespace_cleanup(tmp_path, monkeypatch, history):
+    from asset_fixtures import ORIGIN, skill_project
+
+    from aelix_analytics import core as sdk_core
+
+    project, proposed = skill_project(tmp_path / "synthetic")
+    if history == "mode":
+        sdk_core.set_asset_mode(project, "always_on", origin=ORIGIN)
+    else:
+        sdk_core.review_assets(project, proposed["details"]["asset_id"], origin=ORIGIN)
+    module = fresh_module()
+    host_project = module.core.Project(project.root)
+    monkeypatch.setattr(module, "resolve_project", lambda: (host_project, "synthetic"))
+    module.core.sync_context(host_project, origin=module.core.Origin("system", "tool"))
+    before = project.journal.read_bytes()
+    summary = module.core.status(host_project)
+    assert "asset_suggestions" in summary
+    result = call(tools_of(module)["analytics_status"], {})
+    assert not result.is_error, text_of(result)
+    assert project.journal.read_bytes() == before
+    assert not any(name.startswith("aelix_analytics_runtime_") for name in sys.modules)
+
+
+def test_loaded_asset_reader_keeps_host_import_boundary():
+    # A regular installed/imported package remains the host's package; the loaded kit binds only
+    # stdlib asset siblings and leaves no synthetic namespace or analysis engine imported.
+    import aelix_analytics
+
+    before_package = sys.modules["aelix_analytics"]
+    before_modules = set(sys.modules)
+    module = fresh_module()
+    assert sys.modules["aelix_analytics"] is before_package is aelix_analytics
+    assert module.core.asset_app.Assets.__module__.startswith("aelix_analytics_runtime_")
+    assert not any(name.startswith("aelix_analytics_runtime_") for name in sys.modules)
+    forbidden = {"duckdb", "polars", "numpy", "pandas", "matplotlib"}
+    assert not {name.split(".")[0] for name in set(sys.modules) - before_modules} & forbidden
+
+
 @pytest.mark.parametrize("argv", [["--lab-project", "/a/project"], ["--lab-project=/a/project"]])
 def test_the_real_loader_shows_the_old_flag_as_a_load_error(monkeypatch, argv):
     """Owner's decision (2026-10-05/06): aelix 0.1.0b2 takes the unregistered --lab-project without a

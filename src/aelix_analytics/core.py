@@ -28,7 +28,7 @@ import unicodedata
 from datetime import datetime
 from pathlib import Path, PureWindowsPath
 
-from . import _platform, relations, writer
+from . import _platform, asset_app, relations, writer
 from ._platform import newlines_as_lf as newlines_as_lf
 from ._platform import open_text as open_text
 from ._platform import write_text as write_text
@@ -1752,9 +1752,7 @@ def writer_for(project: Project, origin: Origin) -> writer.Writer:
 
 def asset_application(project: Project, origin: Origin, *, policy=None, skill_discovery=None):
     """Construct the stdlib asset application for this project and explicit writing origin."""
-    from .asset_app import Assets
-
-    return Assets(writer_for(project, origin), policy=policy, skill_discovery=skill_discovery)
+    return asset_app.Assets(writer_for(project, origin), policy=policy, skill_discovery=skill_discovery)
 
 
 def assets(project: Project, asset_id=None) -> dict:
