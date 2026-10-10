@@ -778,6 +778,9 @@ def bypass_note(project) -> str:
 
 async def tool_status(args, ctx):
     project, via = resolve_project()
+    if args:
+        st = await asyncio.to_thread(lambda: core.status(project, **args))
+        return "analytics_status: ok\n" + core.retrieval_text(st), st
     await asyncio.to_thread(lambda: core.sync_context(project, origin=origin("system", "tool")))
     st = await asyncio.to_thread(core.status, project)
     text = f"analytics_status: ok (project found via {via})\n" + core.status_text(st)
@@ -984,8 +987,23 @@ TOOLS = [
         "Overview of the active analytics project: datasets (Parquet) with query view names, recent "
         "runs, the latest version of every chart with staleness (inputs changed since the chart was "
         "made), open questions/todos, key findings/decisions/assumptions and the recent journal. "
-        "Read-only. Call it first in a session and whenever you are unsure what already exists.",
-        {}, [], tool_status,
+        "Read-only. With part=records, search journal judgments by words or read an exact ID; "
+        "part=relations reads one-hop evidence; part=context reads complete CONTEXT sections. "
+        "Pages share source_revision; restart on stale_cursor. Old judgments and missing evidence "
+        "are not current facts. Default overview is unchanged.",
+        {"part": {"type": "string", "enum": ["records", "relations", "context"]},
+         "query": {**STR, "description": "Literal words, including short Korean/code names; records only."},
+         "id": {**STR, "description": "Exact record ID (eN, journal:line, run:ID, report:ID/version), or context:version."},
+         "cursor": {**STR, "description": "Opaque next-page token from this same query."},
+         "limit": {"type": "integer", "minimum": 1, "maximum": 100},
+         "kind": {**STR, "description": "Journal kind filter; records only."},
+         "state": {**STR, "description": "Replayed record-state filter; records only."},
+         "since": {**STR, "description": "Inclusive ISO recorded timestamp; records only."},
+         "until": {**STR, "description": "Inclusive ISO recorded timestamp; records only."},
+         "direction": {"type": "string", "enum": ["both", "incoming", "outgoing"]},
+         "as_of_seq": {"type": "integer", "minimum": 0,
+                       "description": "Journal knowledge boundary; physical evidence is checked now."}},
+        [], tool_status,
         "overview of the analysis project: datasets, runs, charts (with staleness), journal",
     ),
     _tool(

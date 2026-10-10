@@ -20,6 +20,7 @@ import heapq
 import json
 import os
 import re
+import sqlite3
 import stat
 import time
 import tomllib
@@ -44,7 +45,7 @@ from .writer import migration_record as migration_record
 from .writer import new_request_id as new_request_id
 from .writer import present_marker as present_marker
 
-KIT_VERSION = "0.10.0"
+KIT_VERSION = "0.11.0"
 # The marker and the record families of the projects this kit writes: the new format's, through
 # the common writer (writer.Writer, Issue #13 PR 3; writer.FAMILIES). A project is found by either
 # marker, analytics.json or lab.json, and judged by writer.marker_state: a lab.json project
@@ -2418,10 +2419,14 @@ def versions_line(versions: dict[str, str]) -> str:
 STATUS_LIMIT = 8
 
 
-def status(project: Project, limit: int = STATUS_LIMIT) -> dict:
+def status(project: Project, limit: int = STATUS_LIMIT, *, part=None, **options) -> dict:
     """The project overview analytics_status, /analytics status and the kit's `status` give, from
     one read of the records (read_model): the identifiers and the read's `as_of_seq` and
     `source_revision` are those the Workspace shows."""
+    if part is not None:
+        return retrieve(project, part=part, limit=limit, **options)
+    if options:
+        raise AnalyticsError("bad_query", "retrieval arguments require part")
     marker = readable(project, "status")
     cache = HashCache(project)
     model = read_model(project, cache)
@@ -2522,6 +2527,227 @@ def status(project: Project, limit: int = STATUS_LIMIT) -> dict:
         "recent": [_brief(e, source[id(e)]) for e in events[-10:]],
         "metrics": metric_view,
     }
+
+
+class QueryIndex:
+    """Disposable SQLite lexical adapter. Its entire projection is checked against source
+    documents before it can narrow a query; neither stored text nor ghost IDs are answers."""
+    format = "retrieval/1"
+
+    def __init__(self, project: Project, *, fts=True):
+        self.project, self.fts = project, fts
+        self.path = project.cache / "retrieval.sqlite3"
+
+    def candidates(self, documents: dict[str, str], query: str, revision: str,
+                   policy: relations.QueryPolicy) -> tuple[set[str] | None, dict]:
+        expected = sorted(documents.items())
+        status = {"adapter": "sqlite", "state": "ready", "fts": False, "rebuilt": False}
+        connection = None
+        try:
+            if self.path.is_symlink() or self.path.parent.is_symlink():
+                raise OSError("unsafe_cache_path")
+            if not self.path.is_file():
+                status["state"] = "missing"
+            else:
+                connection = sqlite3.connect(self.path.as_uri() + "?mode=ro", uri=True, timeout=0.1)
+                metadata = dict(connection.execute("SELECT key, value FROM metadata"))
+                if metadata.get("revision") != revision or metadata.get("format") != self.format or metadata.get("policy") != policy.version:
+                    status["state"] = "stale"
+                elif list(connection.execute("SELECT id, text FROM documents ORDER BY id")) != expected:
+                    status["state"] = "corrupt"
+                else:
+                    status["fts"] = metadata.get("fts") == "1"
+            if status["state"] != "ready":
+                if connection is not None:
+                    connection.close()
+                    connection = None
+                if admit(self.project, "rebuild the retrieval index", side=True) is None:
+                    status["write_skipped"] = True
+                    return None, status
+                self.project.cache.mkdir(parents=True, exist_ok=True)
+                # File replacement goes through the project's platform port. A unique temporary
+                # database means concurrent readers/builders never share an in-place rebuild.
+                temporary = self.project.cache / ("retrieval-" + writer.new_request_id() + ".tmp")
+                try:
+                    with sqlite3.connect(temporary, timeout=0.1) as build:
+                        build.execute("CREATE TABLE documents (id TEXT PRIMARY KEY, text TEXT NOT NULL)")
+                        build.executemany("INSERT INTO documents VALUES (?, ?)", expected)
+                        try:
+                            if self.fts:
+                                build.execute("CREATE VIRTUAL TABLE vocabulary USING fts5(id UNINDEXED, text)")
+                                build.executemany("INSERT INTO vocabulary VALUES (?, ?)", expected)
+                                status["fts"] = True
+                        except sqlite3.DatabaseError:
+                            status["fts"] = False
+                        build.execute("CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+                        build.executemany("INSERT INTO metadata VALUES (?, ?)",
+                                          [("revision", revision), ("format", self.format),
+                                           ("policy", policy.version), ("fts", str(int(status["fts"])))] )
+                    self.project.platform.files.replace(temporary, self.path)
+                finally:
+                    with contextlib.suppress(OSError):
+                        temporary.unlink()
+                status["rebuilt"] = True
+                # The rebuilding call answers from source, and explicitly says so. The next call
+                # can use the validated cache. A cache error cannot change a fact or its state.
+                return None, status
+            terms = policy.terms(query)
+            sql = "SELECT id FROM documents" + (" WHERE " + " AND ".join("instr(text, ?) > 0" for _ in terms) if terms else "")
+            return {row[0] for row in connection.execute(sql, terms)}, status
+        except (OSError, sqlite3.DatabaseError, ValueError):
+            # Bad SQL schema, a truncated DB and permissions are all cache failures, not source
+            # failures. Rebuild on the next call after detecting an unreadable database.
+            status.update(state="corrupt", fallback="source")
+            if connection is not None:
+                connection.close()
+                connection = None
+            if admit(self.project, "discard a corrupt retrieval index", side=True) is not None:
+                if not self.path.is_symlink() and not self.path.parent.is_symlink():
+                    with contextlib.suppress(OSError):
+                        self.path.unlink()
+            else:
+                status["write_skipped"] = True
+            return None, status
+        finally:
+            if connection is not None:
+                connection.close()
+
+
+def _query_record(model, source):
+    if (found := model.record_payload(source)) is not None:
+        return found
+    if len(model.journal.lines_of.get(source, [])) > 1:
+        raise AnalyticsError("ambiguous_id", "several journal lines share this ID",
+                             details={"candidates": [f"journal:{n}" for n in model.journal.lines_of[source]]})
+    raise AnalyticsError("record_not_found", "no readable record with this ID", details={"id": source})
+
+
+def retrieve(project: Project, *, part="records", query="", id=None, cursor=None, limit=8,
+             kind=None, state=None, since=None, until=None, direction="both", as_of_seq=None,
+             policy=None, index=None) -> dict:
+    """Shared bounded read for the CLI, SDK and existing analytics_status tool. Journal search,
+    full selected records, CONTEXT sections and one-hop reference judgments share one read basis.
+    as_of_seq replays journal knowledge; physical evidence availability is checked now."""
+    readable(project, "retrieve")
+    policy = policy or relations.QueryPolicy()
+    if part not in ("records", "relations", "context") or direction not in ("both", "outgoing", "incoming"):
+        raise AnalyticsError("bad_query", "unknown retrieval part or direction")
+    for value in (query, id, cursor, kind, state, since, until):
+        if value is not None and not isinstance(value, str):
+            raise AnalyticsError("bad_query", "query arguments must be strings")
+    if as_of_seq is not None and (not isinstance(as_of_seq, int) or isinstance(as_of_seq, bool) or as_of_seq < 0):
+        raise AnalyticsError("bad_query", "as_of_seq must be a nonnegative integer")
+    for value in (since, until):
+        if value is not None and relations._instant(value) is None:
+            raise AnalyticsError("bad_query", "since and until must be ISO timestamps")
+    if part != "records" and (query or kind or state or since or until):
+        raise AnalyticsError("bad_query", "search filters belong to records")
+    if id is not None and (query or kind or state or since or until):
+        raise AnalyticsError("bad_query", "selected ID and search filters are separate reads")
+    if part == "relations" and not id:
+        raise AnalyticsError("bad_query", "relations requires an ID")
+    if part == "context" and as_of_seq is not None:
+        raise AnalyticsError("bad_query", "historical context requires its exact context version ID")
+    observed = []
+    for _attempt in range(3):
+        cache = HashCache(project)
+        model = read_model(project, cache)
+        revision, snapshot = model.source_revision, model.source_snapshot
+        reader_updating = model.updating
+        if as_of_seq is not None:
+            if as_of_seq > model.as_of_seq:
+                raise AnalyticsError("bad_query", "as_of_seq is beyond the observed journal")
+            model = model.through(as_of_seq)
+        legacy_resolved = model.journal.legacy_resolutions()
+        request = {"part": part, "query": query, "id": id, "kind": kind, "state": state,
+                   "since": since, "until": until, "direction": direction, "as_of_seq": as_of_seq}
+        index_state = {"adapter": "source", "state": "not_needed"}
+        if part == "records" and id is None:
+            candidates = None
+            if query and as_of_seq is None:
+                documents = {model.journal.source_of(event): policy.document(event) for event in model.journal.events}
+                candidates, index_state = (index or QueryIndex(project)).candidates(documents, query, revision, policy)
+                index_state["answered_from"] = "index_candidates_and_source" if candidates is not None else "source"
+            selected = policy.select(model.journal, query=query, kind=kind, state=state,
+                                     since=since, until=until, candidates=candidates)
+            rows = [{"id": model.journal.source_of(event), "kind": event.kind, "seq": event.seq,
+                     "recorded_at": event.recorded_at, "summary": _one_line(event.value.get("text"), 240),
+                     "text_chars": len(str(event.value.get("text") or "")),
+                     "summary_omitted": len(str(event.value.get("text") or "")) > 240,
+                     "record_state": model.journal.replay().state_of(model.journal.source_of(event)),
+                     "legacy_resolved_by": legacy_resolved.get(model.journal.source_of(event), []),
+                     "read_more": {"part": "records", "id": model.journal.source_of(event)}} for event in selected]
+        elif part == "records":
+            record, location = _query_record(model, id)
+            rows = [{"field": key, "value": value} for key, value in record.items()]
+        elif part == "relations":
+            # Validate the source except exact target identities (run IDs and Visualization IDs)
+            # that appear as reference targets. Incoming lookup never invents a version.
+            sources = relations.incoming_sources(model.journal, id) if direction != "outgoing" else []
+            if not sources:
+                _query_record(model, id)
+            outgoing = model.references(id) if direction != "incoming" else []
+            rows = [{"direction": "outgoing", **judged} for judged in outgoing]
+            for source in sources:
+                rows += [{"direction": "incoming", **judged} for judged in model.references(source)
+                         if relations.query_target(judged) == id]
+        else:
+            if id is None or id == "context:current":
+                text, location = context_file_text(project), "CONTEXT.md"
+            elif id.startswith("context:"):
+                name = id[len("context:"):]
+                path = relations.context_file(project.root, name)
+                if path is None:
+                    raise AnalyticsError("record_not_found", "no preserved CONTEXT version", details={"id": id})
+                text, location = path.read_text(encoding="utf-8"), str(path.relative_to(project.root))
+            else:
+                raise AnalyticsError("bad_query", "context ID must be context:current or context:<version>")
+            preamble, sections = context_sections(text)
+            rows = ([{"name": "Preamble", "text": preamble, "line": 1}] if preamble else []) + sections
+        try:
+            result = policy.page(rows, revision=revision, request=request, cursor=cursor, limit=limit,
+                                 journal_order=part == "records" and id is None and not query,
+                                 as_of_seq=as_of_seq)
+        except relations.QueryError as error:
+            raise AnalyticsError(error.code, str(error), details=error.details) from None
+        if part == "records" and id is None:
+            for row in result["items"]:
+                row["evidence"] = references_summary(model.references(row["id"]))
+                row["interpretation"] = "recorded judgment; data may have changed; conclusion review is separate"
+        elif part == "records":
+            result.update(id=id, location=location, record_state=model.journal.replay().state_of(id),
+                          legacy_resolved_by=legacy_resolved.get(id, []),
+                          evidence=references_summary(model.references(id)),
+                          interpretation="recorded judgment; data may have changed; conclusion review is separate")
+        elif part == "context":
+            result.update(location=location)
+        frame = _project_migration(project)[2] if project.marker_state().state == writer.CURRENT else None
+        after, current_revision = relations.observed_basis(project.root, frame)
+        observed.append(current_revision)
+        changed = snapshot != after
+        if not changed and not reader_updating:
+            break
+    else:
+        result["items"], result["returned"], result["cursor"] = [], 0, None
+        result["has_more"], result["read_more"] = False, None
+        result["omitted"] = {"count": "unknown", "reason": "updating"}
+    result.update(source_revision=observed[-1], as_of_seq=as_of_seq if as_of_seq is not None else model.as_of_seq,
+                  updating=changed or reader_updating, observed_revisions=observed,
+                  index=index_state, unsupported=list(model.unsupported),
+                  damaged={"journal": model.journal.damaged, "files": model.damaged_files},
+                  evidence_availability="checked now; as_of_seq bounds recorded knowledge, not file snapshots",
+                  search_scope="readable journal records" if part == "records" and id is None else part)
+    if result["updating"]:
+        result["total"] = "unknown"
+        for field in ("record_state", "legacy_resolved_by", "evidence", "interpretation"):
+            result.pop(field, None)
+    result["absence_is_not_proof"] = "no matches means no lexical match in this scope; unreadable or differently worded records may exist"
+    return result
+
+
+def retrieval_text(result: dict) -> str:
+    """Whole structured fields and explicit next-page instructions, never clipping JSON/text."""
+    return json.dumps(result, ensure_ascii=False, indent=2)
 
 
 # The order a judgment's states are counted in (ADR-0006 4).
@@ -3194,7 +3420,8 @@ def context_block(project: Project, max_context_chars: int = CONTEXT_PROMPT_CHAR
     """Project context appended to the system prompt. Only slow-changing parts, so it stays
     stable across prompts: CONTEXT.md, unresolved key information and open questions."""
     marker = readable(project, "context")
-    lists = JournalLists(relations.read_journal(project.root))
+    model = read_model(project)
+    lists = JournalLists(model.journal)
     preamble, included, omitted, _ = context_selection(
         context_file_text(project), max_context_chars, path=project.context)
     key, open_items = lists.key, lists.open
@@ -3214,6 +3441,11 @@ def context_block(project: Project, max_context_chars: int = CONTEXT_PROMPT_CHAR
         parts.append(read_only_line(refused.to_json()["error"]))
     parts += [
         "Call analytics_status for datasets, runs, charts and the recent journal.",
+        "part=records query=words finds older judgments; "
+        "part=records id=ID reads full fields; part=relations id=ID reads evidence.",
+        f"Journal knowledge: as_of_seq {model.as_of_seq}; source_revision {model.source_revision}; "
+        f"updating {model.updating}. "
+        "past judgments are records, not proof of current data or reviewed conclusions.",
         "",
         "## CONTEXT.md",
         preamble or "(empty — fill in goal, questions, data sources and definitions)",
@@ -3225,7 +3457,7 @@ def context_block(project: Project, max_context_chars: int = CONTEXT_PROMPT_CHAR
                   f"{project.context}:"]
         parts += [f"- {s['name']} ({s['lines']} lines): read offset {s['line']} limit {s['lines']}"
                   for s in omitted]
-    view = metric_records(project)
+    view = metric_records(project, model=model)
     if view["focus_state"] != "absent":
         parts += ["", "## Current analysis focus", *metric_focus_text(view, project.journal)]
     if key:

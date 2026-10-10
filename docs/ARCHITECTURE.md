@@ -392,6 +392,10 @@ kit 0.8.0), 사람용 `analytics`(`launcher`)와 `bin/analytics`는 그것을 �
 교체 가능한 구현의 공통 계약 시험은 `tests/test_contracts.py`다. 지금 대상은 플랫폼 포트 넷의 세 구현(POSIX·Windows·시험 adapter)이고,
 포트의 계약과 조립(주입한 구현만 쓰이고 기록이 같음)을 같은 사례로 확인한다. #13의 둘째 PR이 포트 안에 전환의 메서드 넷 —
 `FileLocks.try_exclusive`, `AtomicFiles.publish_new`·`flush_handle`·`flush_dir` — 을 더하며 그 사례와 전환의 조립 사례를 같은 파일에 더했다. 새 구현은 그 파일의 구현 표에 지원 능력과 함께 등록한다.
+Issue #15의 `relations.QueryPolicy`는 stdlib 어휘 순위·페이지 정책이고 `core.QueryIndex`는 SQLite 파생 캐시 어댑터입니다.
+`core.retrieve`가 둘을 주입받아 조립하며 원래 reader의 상태·근거 판정을 유지합니다.
+`tests/test_retrieval.py`는 직접 읽기/SQLite/FTS 없는 경로를 같은 원본·ID·상태·필드 페이지로 검증합니다.
+
 정책 Strategy(#17의 `ProposalPolicy`, #20의 `PublicationProjection`)는 자기 구현 표와 사례를 같은 형태로 더한다.
 
 ## 참고와 적용 범위

@@ -48,7 +48,8 @@ analytics — human CLI for Aelix Analytics projects (the same kit the aelix ext
 
   analytics init DIR [--title T] [--goal G]   create a project and its uv environment
   analytics demo DIR                          new project with synthetic data and example runs
-  analytics status | context                  overview | the context block agents receive
+  analytics status [--part records|relations|context] [--query WORDS|--id ID] [--cursor TOKEN]
+  analytics context                           the context block agents receive
   analytics run SCRIPT --title T [--input P] [--timeout S]
   analytics run --rerun-of RUN_ID --title T   re-execute a run's code snapshot and compare
   analytics import FILE [--name N] [--description D]
