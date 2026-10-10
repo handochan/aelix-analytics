@@ -165,6 +165,9 @@ Visualization의 논리적 이름은 버전 모음의 식별자이고, 과거 �
 요약은 근거 원문을 대체하지 않는다. 참조된 발견이 정정되면 `needs_review`, 단순히 새 기록이 추가되면 `updates_available`로 구별한다.
 새 세션은 유효한 checkpoint와 그 뒤의 작은 변경 묶음을 읽고, 오래된 요약을 현재 결론처럼 사용하지 않는다.
 
+#16의 구체적인 writer·평가·인계 계약은 [checkpoint 구현 전 설계](design/CHECKPOINT-HANDOFF.md)와
+[ADR-0012](decisions/0012-checkpoint-and-handoff.md)의 Proposed 리뷰 대상이다. 현재 kit 0.11.0의 checkpoint 작성 지원을 뜻하지 않는다.
+
 ## 3. 검색 가능한 프로젝트 메모리
 
 kit 0.11.0은 기존 `analytics_status`의 `records`·`relations`·`context` 부분 조회를 구현합니다([현재 계약 A2](CONTRACTS.md#a2-제한된-맥락기록근거-조회-kit-0110)).
