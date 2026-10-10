@@ -193,6 +193,14 @@ fixture를 cold로 둡니다. `tests/test_eval_fixtures.py`가 S·Q10·Q13을 �
 ID 회수·판단 상태·원본 journal 해시와 UTF-8 응답 bytes를 남깁니다. cold는 파생 인덱스가 없는 경우이며 OS 파일 캐시를 비우지 않습니다.
 토큰·실제 모델·브라우저 지연은 미측정/미실행입니다.
 
+분석 자산 host의 Q11 측정(#17)은 `tools/asset_host_eval.py --out <새 결과 dir> --baseline-extension <B3-b 확장 소스>`로
+실제 Aelix 여섯 도구의 definition/description/schema와 합성 skill 후보의 요청 시/상시/다음 턴 맥락을 비교합니다.
+부모 HOME·USERPROFILE·XDG_CONFIG_HOME·trust 경로를 합성 run에 두고, pinned Aelix 0.1.0b2와 pytest가 있는 Python에서 실행합니다.
+`--tokenizer qwen3.8-27b=<등록된 tokenizer.json>`을 주면 usage_report의 고정 hash를 확인해 실제 tokens를 세며, 없거나 다르면
+not_measured입니다. JSON·Markdown과 정확한 UTF-8 payload, 합성 프로젝트의 Workspace를 남깁니다. 실제 모델 review usage·지연과
+사람이 본 여부는 실행하지 않습니다. host 회귀는 `tests/test_asset_extension.py`, 공용 계약/Workspace는
+`tests/test_asset_host.py`·`tests/test_asset_workspace.py`가 확인합니다. CI의 pinned Aelix 3.11/3.12 레그에도 host 사례를 포함합니다.
+
 실제 모델 평가의 과제 12개·정답(초안)·모델 설정과 하네스는 `tools/model_eval.py`와 `tools/model_eval_data/`에 있습니다(#40,
 [실제 모델 평가 안내](tools/model_eval_data/README.md)). 하네스는 과제의 fixture를 위 생성기로 만들고, aelix 0.1.0b2를 `--mode json`으로
 띄워 이 checkout의 확장으로 과제를 실행한 뒤 도구 호출·인자 오류·토큰·프로젝트의 변화를 기록하고 정답 파일로 채점합니다. 모델 없이 전

@@ -5,7 +5,7 @@
 [ADR-0010](../decisions/0010-analysis-assets-and-suggestion-records.md)의 구체 계약이다.
 [ADR-0006](../decisions/0006-common-record-contract.md)의 버전·참조·공통 writer,
 [ADR-0008](../decisions/0008-reuse-proposal-counting-and-deterministic-always-on.md)의 제안 정책을 따른다.
-현재 구현은 [현재 계약](../CONTRACTS.md) C7(B3-a)·C8(B3-b)을 따른다. B3-c의 세션·호스트·Workspace 표면은 후속 구현이다.
+현재 구현은 [현재 계약](../CONTRACTS.md) C7(B3-a)·C8(B3-b)·C9(B3-c)를 따른다. 채택·구현과 실제 모델/사람 검증은 각각 구별한다.
 기본 영어 표시는 Analysis assets / Asset candidate / Asset suggestion이다.
 
 ## 1. 공개 표면과 구현 경계

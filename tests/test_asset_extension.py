@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import subprocess
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -12,7 +14,8 @@ pytest.importorskip("aelix_coding_agent")
 
 from aelix_agent_core.harness.hooks import BeforeAgentStartHookEvent  # noqa: E402
 from asset_fixtures import ORIGIN, skill_project  # noqa: E402
-from test_extension import fresh_module  # noqa: E402
+from test_asset_publication import child_env  # noqa: E402
+from test_extension import EXT, fresh_module  # noqa: E402
 
 from aelix_analytics import core, relations  # noqa: E402
 
@@ -124,3 +127,88 @@ def test_human_asset_command_registers_only_project_skill_with_real_loader(host_
     result = json.loads(asyncio.run(module.analytics_command(f"assets register {proposed['id']} --name denominator-rule", ctx)))
     assert result["registered"] and result["registration"]["loader_discovery"]["result"] == "pass"
     assert (project.root / ".aelix/skills/denominator-rule/SKILL.md").read_bytes() == original
+
+
+def test_default_hook_and_agent_end_never_score_or_publish(host_project, tmp_path, monkeypatch):
+    module, project, _ = host_project
+    ctx = context(str(tmp_path / "sessions/A.jsonl"))
+    monkeypatch.setattr(module.core.asset_app.Assets, "assessment", lambda *a, **k: pytest.fail("on_demand scored"))
+    value = before(module, ctx)
+    assert value is not None and "Asset suggestion" not in value.system_prompt
+    assert "Use when reporting a ratio" not in value.system_prompt
+    module.on_agent_end(SimpleNamespace(), ctx)
+    assert not notices(project)
+    assert not (project.root / ".analytics/cache/asset-progress.json").exists()
+
+
+def test_host_overview_and_context_read_failures_precede_publication(host_project, tmp_path, monkeypatch):
+    module, project, _ = host_project
+    ctx = context(str(tmp_path / "sessions/A.jsonl"))
+    asyncio.run(module.analytics_command("assets mode always_on", ctx))
+    monkeypatch.setattr(module.core, "publish_asset_suggestion", lambda *a, **k: pytest.fail("published before read validation"))
+
+    def failed_read(*args, **kwargs):
+        raise module.core.AnalyticsError("injected_read_failure", "Reader unavailable")
+
+    monkeypatch.setattr(module.core, "status", failed_read)
+    assert "injected_read_failure" in asyncio.run(module.analytics_command("status", ctx))
+    monkeypatch.setattr(module.core, "context_block", failed_read)
+    assert before(module, ctx) is None
+    assert not notices(project)
+
+
+def test_human_asset_commands_use_requested_shared_records_and_preserve_text(host_project, tmp_path):
+    module, project, proposed = host_project
+    ctx = context(str(tmp_path / "sessions/A.jsonl"))
+    for command in ("assets list", "assets show ratio-procedure"):
+        assert json.loads(asyncio.run(module.analytics_command(command, ctx)))["assets"][0]["asset_id"] == "ratio-procedure"
+    review = json.loads(asyncio.run(module.analytics_command("assets review ratio-procedure", ctx)))
+    assert review["requested"] and review["model_calls"] == 0
+    notice = review["assets"][0]["notification"]
+    assert notice["actor"] == "human" and notice["session"] == ctx.session_manager.get_session().session_file
+    assert notice["details"]["trigger"] == "requested" and notice["details"]["surface"] == "aelix_command"
+    command = f'assets update {proposed["id"]} --expected validated --to deferred --reason "나중에 확인" --details-json \'{{"reason_items":["benefit"]}}\''
+    changed = json.loads(asyncio.run(module.analytics_command(command, ctx)))
+    assert changed["event"]["text"] == "나중에 확인"
+    assert changed["event"]["details"]["reason_items"] == ["benefit"]
+    assert not notices(project)
+
+
+def test_real_cli_and_loaded_host_command_share_one_window(host_project, tmp_path):
+    module, project, _ = host_project
+    ctx = context(str(tmp_path / "sessions/A.jsonl"))
+    asyncio.run(module.analytics_command("assets mode always_on", ctx))
+    cli = ("import sys\nfrom aelix_analytics.__main__ import main\n"
+           "print('READY',flush=True)\nsys.stdin.readline()\n"
+           "sys.exit(main(['--project',sys.argv[1],'--text','status']))\n")
+    host = ("import asyncio,importlib.util,sys\nfrom types import SimpleNamespace\n"
+            "spec=importlib.util.spec_from_file_location('isolated_host',sys.argv[2])\n"
+            "m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)\n"
+            "p=m.core.Project(sys.argv[1]);m.resolve_project=lambda:(p,'synthetic')\n"
+            "m.schedule_workspace_render=lambda *a,**k:None\n"
+            "ctx=SimpleNamespace(session_manager=SimpleNamespace(get_session=lambda:SimpleNamespace(session_file=sys.argv[3])))\n"
+            "print('READY',flush=True)\nsys.stdin.readline()\n"
+            "print(asyncio.run(m.analytics_command('status',ctx)))\n")
+    children = [subprocess.Popen([sys.executable, "-c", code, str(project.root), str(EXT), str(tmp_path / "sessions/A.jsonl")],
+                                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                text=True, encoding="utf-8", env=child_env(tmp_path, f"host-publication-child-{i}"))
+                for i, code in enumerate((cli, host))]
+    output = []
+    try:
+        for child in children:
+            assert child.stdout.readline().strip() == "READY"
+        for child in children:
+            child.stdin.write("go\n")
+            child.stdin.flush()
+        for child in children:
+            stdout, stderr = child.communicate(timeout=60)
+            assert child.returncode == 0, stdout + stderr
+            assert "error [" not in stdout
+            output.append(stdout)
+    finally:
+        for child in children:
+            if child.poll() is None:
+                child.kill()
+                child.communicate(timeout=10)
+    assert len(notices(project)) == 1
+    assert sum("Asset suggestion (new," in text for text in output) == 1

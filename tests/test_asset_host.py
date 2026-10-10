@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+from datetime import timedelta
 
 import pytest
+from test_asset_publication import candidate, checked, effect
 from test_asset_suggestions import T0, application, qualified
 from test_assets import prepared as prepared
 
@@ -88,3 +90,46 @@ def test_preassessment_default_is_off_and_progress_cache_contains_no_candidate_b
     cache.unlink()
     assert asset_suggestions.preassess(host_app(project, actor="system", means="hook"))["counts"] == first["counts"]
     assert project.journal.read_bytes() == before  # Preassessment is never publication.
+
+
+def test_progress_cache_reassesses_at_window_expiry_without_new_records(prepared, monkeypatch):
+    project, source, _ = qualified(prepared)
+    application(project).set_mode("always_on")
+    application(project).publish_suggestion()
+    other = candidate(project, source, asset_id="pending-rate")
+    checked(project, other, source)
+    effect(project, other)
+    app = host_app(project, actor="system", means="hook")
+    first = asset_suggestions.preassess(app)
+    assert first["assessed"] and first["counts"]["eligible"] == 1
+    before = project.journal.read_bytes()
+    monkeypatch.setattr(app, "assessment", lambda *a, **k: pytest.fail("unchanged preassessment rescored"))
+    assert asset_suggestions.preassess(app)["cached"]
+    monkeypatch.undo()
+    app.writer.clock = lambda: T0 + timedelta(hours=24)
+    expired = asset_suggestions.preassess(app)
+    assert expired["assessed"] and expired["counts"] == first["counts"]
+    assert project.journal.read_bytes() == before
+    # Publication reads authoritative facts again, independently of regenerable cache contents.
+    cache = project.root / ".analytics/cache/asset-progress.json"
+    value = json.loads(cache.read_text(encoding="utf-8"))
+    value["counts"] = {"eligible": 0, "suppressed": 0}
+    cache.write_text(json.dumps(value), encoding="utf-8")
+    result = app.publish_suggestion(surface="aelix_context")
+    assert result["published"]["candidate"]["id"] == other["id"]
+
+
+@pytest.mark.parametrize("feature", ["session", "context", "human_status"])
+def test_host_effect_introduces_floor13_while_old_project_mode_stays12(prepared, feature):
+    project, _, _ = qualified(prepared)
+    application(project).set_mode("always_on")
+    assert writer.marker_state(project.root).value["min_writer_version"] == "0.12.0"
+    if feature == "session":
+        event = host_app(project).set_mode("always_on", scope="session")["event"]
+    else:
+        app = host_app(project, actor="system" if feature == "context" else "human",
+                       means="hook" if feature == "context" else "command")
+        event = app.publish_suggestion(surface="aelix_context" if feature == "context" else "aelix_command_status")["published"]["notification"]
+    assert event["kind"] in ("asset_mode", "asset_notification")
+    marker = writer.marker_state(project.root).value
+    assert marker["min_writer_version"] == marker["kit_version"] == "0.13.0"
