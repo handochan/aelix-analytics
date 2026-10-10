@@ -301,12 +301,12 @@ def _command(argv) -> int:
                        ("part", "query", "id", "cursor", "kind", "state", "since", "until", "direction", "as_of_seq", "limit")
                        if getattr(args, name) is not None}
             # Validate and read the requested surface before an ordinary overview may publish.
-            st = core.status(project, **options)
+            st = core.status(project, asset_session=origin.session, **options)
             publication = None
             if args.text and args.part is None and origin.actor == "human":
                 publication = core.publish_asset_suggestion(project, origin=origin).get("published")
                 if publication is not None:
-                    st = core.status(project, **options)
+                    st = core.status(project, asset_session=origin.session, **options)
             text = core.retrieval_text(st) if args.part else core.status_text(st)
             if args.text:
                 if publication is not None:

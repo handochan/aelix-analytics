@@ -88,13 +88,13 @@ class Assets:
         """The common replay owns chronology, identity and promotion proof for every surface."""
         return (journal.replay().state_of(proposed["id"]) or {}).get("state", "proposed")
 
-    def list(self, asset_id=None) -> dict:
+    def list(self, asset_id=None, *, model=None) -> dict:
         if asset_id is not None:
             try:
                 contract.name(asset_id)
             except contract.InvalidAsset as exc:
                 raise _error(exc) from exc
-        model = self.model()
+        model = model if model is not None else self.model()
         records, warnings = self._records(model.journal)
         warnings += [{"event_id": entry["event_id"], "reason": entry["reason"]}
                      for entry in model.journal.replay().unapplied
@@ -126,7 +126,7 @@ class Assets:
             d = event.value.get("details") or {}
             if asset_id is None or d.get("proposal_id") == asset_id:
                 legacy.append({"event_id": event.id, "raw_kind": event.kind, "proposal_id": d.get("proposal_id"),
-                               "legacy": True, "record": event.value})
+                               "source": model.journal.source_of(event), "legacy": True, "record": event.value})
         return {"assets": items, "legacy_candidates": legacy, "warnings": warnings,
                 "as_of_seq": model.as_of_seq, "context_version": self.context_version(model.journal)}
 
@@ -217,11 +217,11 @@ class Assets:
         return {**result, "facts": facts, "evidence": [evidence[k] for k in sorted(evidence)],
                 "as_of_seq": model.as_of_seq, "context_version": self.context_version(model.journal)}
 
-    def set_mode(self, mode):
-        return asset_suggestions.set_mode(self, mode)
+    def set_mode(self, mode, *, scope="project"):
+        return asset_suggestions.set_mode(self, mode, scope=scope)
 
-    def suggestion_status(self, *, journal=None, marker=None):
-        return asset_suggestions.status(self, journal=journal, marker=marker)
+    def suggestion_status(self, *, journal=None, marker=None, session=None):
+        return asset_suggestions.status(self, journal=journal, marker=marker, session=session)
 
     def publish_suggestion(self, *, surface="cli_text_status"):
         return asset_suggestions.publish(self, surface=surface)

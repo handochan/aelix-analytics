@@ -277,6 +277,19 @@ def _refuse_incomplete(project) -> None:
         core.readable(project, "use the project")
 
 
+def current_session(ctx):
+    """Only this command/hook context identifies its session; no stale STATE fallback."""
+    try:
+        value = ctx.session_manager.get_session().session_file
+        return str(value) if value else None
+    except Exception:  # noqa: BLE001 - unavailable context must clear, never reuse, a prior session
+        return None
+
+
+def command_origin(ctx):
+    return core.Origin("human", "command", "declared", current_session(ctx))
+
+
 def origin(actor: str, means: str):
     """Who a write this extension makes is by, and how (design 4.2): the model's tools `agent`·`tool`,
     `/analytics` `human`·`command`, a hook `system`·`hook` (the context sync inside analytics_status
@@ -782,7 +795,7 @@ async def tool_status(args, ctx):
         st = await asyncio.to_thread(lambda: core.status(project, **args))
         return "analytics_status: ok\n" + core.retrieval_text(st), st
     await asyncio.to_thread(lambda: core.sync_context(project, origin=origin("system", "tool")))
-    st = await asyncio.to_thread(core.status, project)
+    st = await asyncio.to_thread(lambda: core.status(project, asset_session=STATE["session"]))
     text = f"analytics_status: ok (project found via {via})\n" + core.status_text(st)
     return text + await asyncio.to_thread(bypass_note, project), st
 
@@ -1654,9 +1667,7 @@ def on_user_bash(event, ctx):
 # --- hooks ---
 
 async def on_before_agent_start(event, ctx):
-    with contextlib.suppress(Exception):
-        session = ctx.session_manager.get_session()
-        STATE["session"] = getattr(session, "session_file", None) or STATE["session"]
+    STATE["session"] = current_session(ctx)
     # The shells the agent's commands run in carry this session from here (design 4.2).
     put_the_session_in_the_environment(STATE["session"])
     try:
@@ -1669,6 +1680,10 @@ async def on_before_agent_start(event, ctx):
         block = await asyncio.to_thread(core.context_block, project)
     except Exception:  # noqa: BLE001 - a broken journal must not stop the prompt
         return None
+    with contextlib.suppress(Exception):
+        result = await asyncio.to_thread(lambda: core.publish_asset_suggestion(
+            project, origin=origin("system", "hook"), surface="aelix_context"))
+        block += core.asset_context_notice(result.get("published"))
     return BeforeAgentStartResult(system_prompt=f"{event.system_prompt}\n\n{block}")
 
 
@@ -1731,6 +1746,11 @@ def on_tool_end(event, ctx):
 
 def on_agent_end(event, ctx):
     with contextlib.suppress(Exception):
+        project = resolve_project()[0]
+        session = current_session(ctx)
+        hook_origin = core.Origin("system", "hook", "declared", session)
+        core.preassess_asset_suggestions(project, origin=hook_origin)
+    with contextlib.suppress(Exception):
         schedule_workspace_render(resolve_project()[0], "hook")
     return None
 
@@ -1748,6 +1768,10 @@ HELP = """/analytics — Aelix Analytics project
                                 KIND workflow_feedback: something this analysis workflow lacked
                                 or made awkward
   /analytics context            the context block injected into prompts
+  /analytics assets list | show ID | review [ID]
+  /analytics assets mode on_demand|always_on [--scope project|session]
+  /analytics assets update EVENT --expected STATE --to STATE --reason TEXT [--details-json JSON]
+  /analytics assets register EVENT --name NAME
 A project of the older record format (lab.json) is read only here: a person copies it into the
 current format in a terminal (analytics migrate --to DIR, preview with --dry-run), then
 /analytics use DIR."""
@@ -1760,8 +1784,24 @@ async def analytics_command(args, ctx=None):
     try:
         if sub in ("", "status"):
             project, via = resolve_project()
-            st = await asyncio.to_thread(core.status, project)
-            return f"(project via {via})\n" + core.status_text(st)
+            options = human_options(rest, {"part", "query", "id", "cursor", "kind", "state", "since", "until",
+                                           "direction", "as_of_seq", "limit"})
+            session = current_session(ctx)
+            st = await asyncio.to_thread(lambda: core.status(project, asset_session=session, **options))
+            publication = None
+            if not options.get("part"):
+                result = await asyncio.to_thread(lambda: core.publish_asset_suggestion(
+                    project, origin=command_origin(ctx), surface="aelix_command_status"))
+                publication = result.get("published")
+                if publication is not None:
+                    st = await asyncio.to_thread(lambda: core.status(project, asset_session=session, **options))
+            shown = core.retrieval_text(st) if options.get("part") else core.status_text(st)
+            if publication is not None:
+                notice = publication["notification"]
+                shown = f"Asset suggestion (new, {notice['id']}): {core._one_line(publication['candidate']['details']['title'], 140)}\n{shown}"
+            return f"(project via {via})\n" + shown
+        if sub == "assets":
+            return await human_assets(rest, ctx)
         if sub in ("help", "-h", "--help"):
             return HELP
         if sub == "where":
@@ -1883,6 +1923,84 @@ async def analytics_command(args, ctx=None):
 def _notify(ctx, message: str) -> None:
     with contextlib.suppress(Exception):
         ctx.ui.notify(message, "info")
+
+
+def human_options(text, allowed):
+    """Flags are parsed as values, never as shell code; the shared core validates semantics."""
+    try:
+        words = shlex.split(text)
+    except ValueError as exc:
+        raise core.AnalyticsError("bad_query", "quote option values") from exc
+    if len(words) % 2:
+        raise core.AnalyticsError("bad_query", "options are --name VALUE pairs")
+    result = {}
+    for flag, value in zip(words[::2], words[1::2], strict=True):
+        name = flag[2:].replace("-", "_") if flag.startswith("--") else ""
+        if name not in allowed:
+            raise core.AnalyticsError("bad_query", f"unsupported option {flag!r}")
+        if name in ("limit", "as_of_seq"):
+            try:
+                value = int(value)
+            except ValueError as exc:
+                raise core.AnalyticsError("bad_query", f"{flag} is an integer") from exc
+        result[name] = value
+    return result
+
+
+async def human_assets(text, ctx):
+    try:
+        words = shlex.split(text)
+    except ValueError as exc:
+        raise core.AnalyticsError("bad_asset", "quote asset option values") from exc
+    if not words:
+        return "usage: /analytics assets list|show|review|mode|update|register"
+    action, args = words[0], words[1:]
+    project, _ = resolve_project()
+    authored = command_origin(ctx)
+    STATE["session"] = authored.session
+    put_the_session_in_the_environment(authored.session)
+    if action == "mode" and args:
+        mode, tail = args[0], args[1:]
+        options = human_options(shlex.join(tail), {"scope"})
+        result = await asyncio.to_thread(lambda: core.set_asset_mode(project, mode, origin=authored,
+                                                                    scope=options.get("scope", "project")))
+    elif action in ("list", "show"):
+        if (action == "list" and args) or (action == "show" and len(args) != 1):
+            raise core.AnalyticsError("bad_asset", "list has no argument; show needs one asset_id")
+        result = await asyncio.to_thread(core.assets, project, args[0] if args else None)
+    elif action == "review" and len(args) <= 1:
+        result = await asyncio.to_thread(lambda: core.review_assets(project, args[0] if args else None,
+                                                                   origin=authored, surface="aelix_command"))
+    elif action in ("update", "register") and args:
+        event_id, tail = args[0], args[1:]
+        allowed = {"name"} if action == "register" else {"expected", "to", "reason", "details_json"}
+        options = human_options(shlex.join(tail), allowed)
+        if action == "register" and set(options) == {"name"}:
+            result = await asyncio.to_thread(lambda: core.register_asset(project, event_id, name=options["name"],
+                                                                         origin=authored, skill_discovery=_discover_project_skill))
+        elif action == "update" and {"expected", "to", "reason"} <= set(options):
+            try:
+                details = json.loads(options["details_json"]) if "details_json" in options else None
+            except ValueError as exc:
+                raise core.AnalyticsError("bad_asset", "details-json is a JSON object") from exc
+            result = await asyncio.to_thread(lambda: core.update_asset(project, event_id, expected=options["expected"],
+                new=options["to"], text=options["reason"], details=details, origin=authored))
+        else:
+            raise core.AnalyticsError("bad_asset", "register needs --name; update needs --expected/--to/--reason")
+    else:
+        raise core.AnalyticsError("bad_asset", "unknown asset action or arguments")
+    return json.dumps(result, ensure_ascii=False, indent=2)
+
+
+def _discover_project_skill(directory):
+    from aelix_agent_core.harness.skills import load_skills
+
+    loaded = load_skills([directory])
+    expected = directory / "SKILL.md"
+    found = [skill for skill in loaded.skills if Path(skill.file_path) == expected]
+    return {"result": "pass" if found else "failed", "scope": "project",
+            "loader": "aelix 0.1.0b2 load_skills", "files": [str(expected)],
+            "diagnostics": [str(value) for value in loaded.diagnostics]}
 
 
 # The channel on aelix's shared event bus through which a copy of this extension that is already set

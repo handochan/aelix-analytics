@@ -1971,6 +1971,7 @@ def read(root, *, alive, sha, legacy_path=None, frame=None) -> ReadModel:
 ASSET_CONTRACT = "analysis_asset/1"
 ASSET_WRITER_SINCE = "0.10.0"
 ASSET_AUTOMATIC_SINCE = "0.12.0"
+ASSET_HOST_SINCE = "0.13.0"
 ASSET_PUBLIC_KINDS = ("asset_candidate", "asset_check", "asset_effect")
 ASSET_SYSTEM_KINDS = ("asset_mode", "asset_notification")
 ASSET_KINDS = ASSET_PUBLIC_KINDS + ASSET_SYSTEM_KINDS
