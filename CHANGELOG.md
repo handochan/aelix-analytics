@@ -17,6 +17,8 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 
 ## [0.11.0] - 2026-10-10
 
+번호를 붙인 변경은 [#15 구현 PR89](https://github.com/handochan/aelix-analytics/pull/89)입니다.
+
 - 기존 analytics_status와 CLI·SDK에서 같은 기준으로 기록 검색·전체 필드·맥락 섹션·한 단계 근거를 페이지로 읽습니다.
 - 한국어·코드 어휘, 과거 판단·정정 연결, source revision/cursor와 읽는 동안의 변경을 표시합니다. 파생 인덱스가 없어도 원본으로 답합니다.
 
