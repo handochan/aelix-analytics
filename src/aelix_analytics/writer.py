@@ -697,13 +697,14 @@ def classify_refs(items) -> dict:
 # The kinds a person or an agent records (design 2.8): `gap` is `workflow_feedback` in this format,
 # and the other kinds of analytics.event/2 open with the Issues of their features (#14 on).
 RECORD_KINDS = ("finding", "decision", "assumption", "question", "todo", "note", "workflow_feedback",
-                *relations.METRIC_KINDS, "resolve")
+                *relations.METRIC_KINDS, *relations.ASSET_PUBLIC_KINDS, "resolve")
 # The kinds the kit records on its own (design 4.8): a project's creation and the completion events of
 # an import, a run and a context version.
 KIT_KINDS = ("project", "import", "run", "context")
 # An input name that is another kind now, with no alias (TERMINOLOGY: an old name is an error that
 # names the new one).
-RENAMED_KINDS = {"gap": "workflow_feedback"}
+RENAMED_KINDS = {"gap": "workflow_feedback", "reuse_proposal": "asset_candidate",
+                 "reuse_notification": "asset_notification", "reuse_mode": "asset_mode"}
 # OQ2: a record keeps its whole text up to this many bytes of UTF-8, in a journal line (its LF
 # included) shorter than LINE_LIMIT bytes — the aelix read tool reads no longer line (CONTRACTS A).
 TEXT_LIMIT = 32 * 1024
@@ -723,13 +724,14 @@ BOUND_TARGET = {"event": ("event_id",), "analysis_focus": ("event_id",), "run": 
                 "data_observation": ("run_id", "role", "path"), "dataset_import": ("path", "digest"),
                 "code_snapshot": ("run_id", "path", "digest"), "context_version": ("version", "digest"),
                 "metric_definition": ("metric_id", "event_id"), "reuse_proposal": ("proposal_id", "event_id"),
+                "asset_candidate": ("asset_id", "event_id"),
                 "report_revision": ("report_id", "revision_id", "digest")}
 ALWAYS_BOUND = frozenset({"event", "run", "analysis_focus", "publication"})
-UNBOUND_KEYS = ("key", "path", "metric_id", "proposal_id", "report_id", "token")
+UNBOUND_KEYS = ("key", "path", "metric_id", "proposal_id", "report_id", "token", "asset_id")
 # A reference's fields in the order the Writer writes them: what it is, its target, then how it is
 # related and bound (the record examples' order).
 REFERENCE_HEAD = ("type", "run_id", "event_id", "visualization_id", "role", "path", "version", "key",
-                  "metric_id", "proposal_id", "report_id", "revision_id", "publication_id", "token",
+                  "metric_id", "proposal_id", "asset_id", "report_id", "revision_id", "publication_id", "token",
                   "digest")
 REFERENCE_TAIL = ("relation", "basis", "version_binding")
 # The relations through which a new record changes another's state (ADR-0006 6).
@@ -888,7 +890,7 @@ def reference_problem(ref) -> str | None:
         if name == "role" and value not in ("input", "output"):
             return f"role {value!r} is not input or output"
         if name in ("token", "key", "path", "visualization_id", "version", "metric_id",
-                    "proposal_id") and not (isinstance(value, str) and value):
+                    "proposal_id", "asset_id") and not (isinstance(value, str) and value):
             return f"{name} is a non-empty string"
     if binding == "none":
         if kind in ALWAYS_BOUND:
@@ -998,10 +1000,11 @@ class Locked:
     the lock is held, and the appends made under it. A Report save (#19) checks and completes inside
     one of these, as the Writer's record and update do."""
 
-    def __init__(self, writer: Writer, state: MarkerState, data: bytes):
+    def __init__(self, writer: Writer, state: MarkerState, data: bytes, *, operation="write"):
         self.writer = writer
         self.state = state
         self.data = data
+        self.operation = operation
         self._journal: relations.Journal | None = None
 
     @property
@@ -1040,6 +1043,12 @@ class Locked:
             problem = reference_problem(ref)
             if problem:
                 raise ValueError(f"not a reference of the record schema: {problem}: {ref!r}")
+        if kind in relations.ASSET_KINDS:
+            self.writer._asset_written(kind, details, refs, self.journal, operation=self.operation)
+            requires = relations.ASSET_WRITER_SINCE
+        elif kind == "record_update" and relations.asset_update_targets({"details": details, "refs": refs}, self.journal):
+            self.writer._asset_update(details, refs, self.journal, registration=self.operation == "register_asset")
+            requires = relations.ASSET_WRITER_SINCE
         text, text_bytes = _text(text)
         event, line = self.line(kind, text, refs, details)
         problem = _too_long(text_bytes, line)
@@ -1134,7 +1143,7 @@ class Writer:
         self.admit(op)
         with self.platform.locks.exclusive(self.root / LAYOUT.state_dir / LAYOUT.journal_lock):
             state = self.admit(op)
-            yield Locked(self, state, _journal_bytes(self.journal))
+            yield Locked(self, state, _journal_bytes(self.journal), operation=op)
 
     # --- records ---------------------------------------------------------------------------------
 
@@ -1182,13 +1191,17 @@ class Writer:
                 details, generated = self._metric(kind, details, refs, held.journal)
                 items = _items([*list(refs or ()), *generated])
                 bound = self._bind(items)
+            elif kind in relations.ASSET_PUBLIC_KINDS:
+                details, generated = self._asset(kind, details, refs, held.journal)
+                items = _items([*refs, *generated])
+                bound = self._bind(items)
             if held.journal.as_of_seq != outside.as_of_seq:
                 bound = self._bind(items)  # a run completed meanwhile, say
             _check_resolved(held.journal, typed)
             refs_written = _refs(items, bound)
             before = held.journal
             event = held.append(kind, text, refs=refs_written,
-                                details=details if kind in relations.METRIC_KINDS else prepared.details,
+                                details=details if kind in (*relations.METRIC_KINDS, *relations.ASSET_PUBLIC_KINDS) else prepared.details,
                                 requires=prepared.requires)
             # The journal after the append is read again only for a record that changes another's
             # state (design 4.6): most records change none.
@@ -1222,6 +1235,11 @@ class Writer:
             details, generated = self._metric(kind, details, refs, outside, pending_run=pending_run)
             refs = [*list(refs or ()), *generated]
             requires = relations.METRIC_SINCE
+        elif kind in relations.ASSET_PUBLIC_KINDS:
+            outside = relations.Journal(_journal_bytes(self.journal))
+            details, generated = self._asset(kind, details, refs, outside, pending_run=pending_run)
+            refs = [*list(refs or ()), *generated]
+            requires = relations.ASSET_WRITER_SINCE
         text, text_bytes = _text(text)
         request_id = self._request_id()
         items = _items(refs)
@@ -1241,6 +1259,72 @@ class Writer:
         if problem:
             raise problem
         return _Prepared(text, request_id, items, typed, outside, bound, details, requires)
+
+    def _asset_model(self, journal):
+        return relations.ReadModel(self.root, journal, alive=self.platform.processes.alive,
+                                   sha=_file_sha, legacy_path=self.legacy_path)
+
+    def _asset(self, kind, details, refs, journal, *, pending_run=None):
+        try:
+            normalized = relations.asset_validate(kind, details)
+            caller = _items(refs)
+            relations.asset_input_refs([ref for _, ref in caller if ref is not None])
+            model = self._asset_model(journal)
+            checking = normalized.get("check_run", {}).get("run_id") if kind == "asset_check" else None
+            run = model.run(checking) if checking else None
+            if (kind == "asset_check" and pending_run == checking and self.origin.means == "sdk"
+                    and run is not None and run.get("status") == "running"):
+                # The SDK queues this declaration. All fields and prior candidate/version identity
+                # are checked now; the run's final observations are checked by record(), after
+                # write_run, before the declaration can become a journal record.
+                proposed = relations.asset_candidate(journal, normalized["asset_id"], normalized["candidate_event_id"])
+                if normalized["artifact_digest"] != relations.asset_bundle_digest(proposed["details"]):
+                    raise relations.AssetRecordError("the queued check names the candidate's artifact version")
+                if proposed["details"].get("code") and relations.asset_target(normalized.get("code") or {}) != relations.asset_target(proposed["details"]["code"]):
+                    raise relations.AssetRecordError("the queued check names the candidate's calculation code version")
+            else:
+                relations.asset_validate_context(kind, normalized, journal, model)
+            generated = [typed_reference(ref) for ref in relations.asset_semantic_refs(kind, normalized)]
+        except relations.AssetRecordError as exc:
+            raise AnalyticsError("bad_asset", str(exc)) from exc
+        return normalized, generated
+
+    def _asset_written(self, kind, details, refs, journal, *, operation):
+        problem = relations.asset_record_problem(kind, details, refs)
+        if problem:
+            raise AnalyticsError("bad_asset", problem)
+        if kind == "asset_mode" and (operation != "set_asset_mode" or self.origin.actor != "human"):
+            raise AnalyticsError("bad_asset", "asset mode changes are made by the human settings application")
+        if kind == "asset_notification" and operation not in ("review assets", "publish_asset_suggestion"):
+            raise AnalyticsError("bad_asset", "asset notifications are written only by the shared review/publication application")
+        try:
+            relations.asset_validate_context(kind, details, journal, self._asset_model(journal))
+        except relations.AssetRecordError as exc:
+            raise AnalyticsError("bad_asset", str(exc)) from exc
+
+    def _asset_update(self, details, refs, journal, *, registration=False):
+        problem = relations.asset_update_problem(details, refs)
+        if problem:
+            raise AnalyticsError("bad_asset", problem)
+        model = self._asset_model(journal)
+        try:
+            proposed = relations.asset_candidate(journal, details["asset_id"], details["candidate_event_id"])
+            problem = _state_conflict(journal, proposed["id"], details["expected_state"], details["new_state"])
+            if problem:
+                raise problem
+            new = details["new_state"]
+            if new == "registered" and not registration:
+                raise AnalyticsError("registration_required", "register the candidate explicitly before recording registered")
+            if new in ("trial", "validated") and details["expected_state"] != new:
+                proof = relations.asset_promotion_proof(proposed, new, journal, model)
+                if details.get("promotion") != proof:
+                    raise AnalyticsError("bad_asset", "asset promotion evidence differs from the confirmed current artifact checks")
+            identity = details.get("identity")
+            if identity and (not model.reference(identity["target"])["confirmed"] or
+                             identity["target"].get("asset_id") == details["asset_id"]):
+                raise AnalyticsError("bad_asset", "identity targets a confirmed different candidate")
+        except relations.AssetRecordError as exc:
+            raise AnalyticsError("bad_asset", str(exc)) from exc
 
     def _metric(self, kind, details, refs, journal, *, pending_run=None):
         """ADR-0011: payload-owned relationships and exact prior targets, checked under lock too."""
@@ -1377,6 +1461,10 @@ class Writer:
                "version_binding": "author"}
         details = {"expected_state": expected, "new_state": new}
         outside = relations.Journal(_journal_bytes(self.journal))
+        asset_target = outside.event_of(target)
+        if asset_target is not None and asset_target.kind == "asset_candidate":
+            raise AnalyticsError("registration_required" if new == "registered" else "asset_update_required",
+                                 "asset state changes use the shared asset application to preserve their evidence and history")
         # Judged before the lock as well, so a refusal known then makes not even the lock file; the
         # judgment under the lock is the one that counts (another writer may change the state).
         problem = _too_long(text_bytes, _encode(self._event(outside.next_seq, "record_update", text, [ref],

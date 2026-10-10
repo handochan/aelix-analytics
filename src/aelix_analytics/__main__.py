@@ -205,6 +205,23 @@ def _command(argv) -> int:
     sub.add_parser("status", help="project overview")
     sub.add_parser("context", help="the context block injected into agent prompts")
 
+    asset = sub.add_parser("assets", help="read, review or explicitly register analysis assets")
+    commands = asset.add_subparsers(dest="asset_action", required=True)
+    commands.add_parser("list", help="read candidate versions and prior legacy records")
+    p = commands.add_parser("show", help="read one candidate and its evidence")
+    p.add_argument("asset_id")
+    p = commands.add_parser("review", help="explicit model-free review; record requested suggestions")
+    p.add_argument("asset_id", nargs="?")
+    p = commands.add_parser("update", help="change a candidate state or record demand/identity metadata")
+    p.add_argument("event_id")
+    p.add_argument("--expected", required=True)
+    p.add_argument("--to", required=True, dest="new")
+    p.add_argument("--reason", required=True)
+    p.add_argument("--details-json", type=json.loads, default={})
+    p = commands.add_parser("register", help="explicitly copy a validated version into this project")
+    p.add_argument("event_id")
+    p.add_argument("--name", required=True)
+
     p = sub.add_parser("run", help="run a script and record provenance")
     p.add_argument("script", nargs="?")
     p.add_argument("--title")
@@ -319,6 +336,22 @@ def _command(argv) -> int:
             written = core.record(project, args.kind, args.text, refs=refs,
                                   resolves=args.resolves, details=args.details_json, origin=origin)
             _emit({"ok": True, **written.to_json(), "workspace": _safe_render(workspace, project)})
+        elif args.command == "assets":
+            action = args.asset_action
+            if action in ("list", "show"):
+                result = core.assets(project, args.asset_id if action == "show" else None)
+                if action == "show" and not result["assets"] and not result["legacy_candidates"]:
+                    raise core.AnalyticsError("unknown_asset", f"no asset candidate {args.asset_id!r}")
+            elif action == "review":
+                result = core.review_assets(project, args.asset_id, origin=origin, surface="cli")
+            elif action == "update":
+                if not isinstance(args.details_json, dict):
+                    raise core.AnalyticsError("bad_asset", "--details-json is a JSON object")
+                result = core.update_asset(project, args.event_id, expected=args.expected, new=args.new,
+                                           text=args.reason, details=args.details_json, origin=origin)
+            else:
+                result = core.register_asset(project, args.event_id, name=args.name, origin=origin)
+            _emit({"ok": True, **result})
         elif args.command == "render":
             from . import workspace
 

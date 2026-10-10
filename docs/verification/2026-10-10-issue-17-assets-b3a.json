@@ -1,0 +1,2305 @@
+{
+  "schema": "aelix-analytics.verification/1",
+  "issue": 17,
+  "slice": "B3-a",
+  "status": "source_three_os_verified_final_delivery_ci_in_pr",
+  "recorded_at": "2026-10-10T10:00:42.959649+00:00",
+  "source": {
+    "measured_commit": "044c72372d92e3d72c7cb505374a5efd2f8bb068",
+    "shared_issue14_base": "19c7a9212b9c18f8f20fe43992416a0096f151dd",
+    "temporary_stack": false,
+    "code_manifest_sha256": "6c0292b1653ef68c0cc02bf77f2cedd2a8448acb53d4d4fc127f53e31e5c5823",
+    "final_merged_main_rebase": {
+      "status": "pass",
+      "base": "19c7a9212b9c18f8f20fe43992416a0096f151dd",
+      "head": "044c72372d92e3d72c7cb505374a5efd2f8bb068",
+      "source_files": 226,
+      "source_differences": 3
+    },
+    "feature_floors": {
+      "metric": "0.9.0",
+      "asset": "0.10.0"
+    },
+    "kit_version": "0.10.0",
+    "code_manifest": [
+      {
+        "path": "bin/analytics",
+        "sha256": "f23427db57f98b323b9ee466ff819c1977976517b2c0576081836d33b4dc5238"
+      },
+      {
+        "path": "extension/aelix_analytics.py",
+        "sha256": "84d588f415dafc1404d6287176a4d82b12216d59f31566b963c40d724c9d8dc7"
+      },
+      {
+        "path": "pyproject.toml",
+        "sha256": "ce0de1fd9350fc6c3c317e6109686098201ff9ed9a7e5494fdb54cceb73fc54c"
+      },
+      {
+        "path": "src/aelix_analytics/__init__.py",
+        "sha256": "9a5711bcabdab83765740309d11021e8d09ddac6a9fdb9429b98dbbf0e12711d"
+      },
+      {
+        "path": "src/aelix_analytics/__main__.py",
+        "sha256": "1d01a544f6dd92691574be26b34006cab5f76961d53b5101e5bb0d2ec4b7a710"
+      },
+      {
+        "path": "src/aelix_analytics/_install.py",
+        "sha256": "b015715ff2025cc17edd9816b56b61975849a2b7c3ee1da482a29dc96e13d153"
+      },
+      {
+        "path": "src/aelix_analytics/_platform.py",
+        "sha256": "a06fe4c63bad3f624948a20161f23ea181c27b033ea8de75c210eed41ef50514"
+      },
+      {
+        "path": "src/aelix_analytics/aelix-plugin.toml",
+        "sha256": "2b659369eabd227640a0ba4992db15dc11065d09fcd5fc5b079fdf497ed691ca"
+      },
+      {
+        "path": "src/aelix_analytics/asset_app.py",
+        "sha256": "dfd704d03bf9d22647eb18490a9f622fae7a95f18e0668e3ab26c7732f199d16"
+      },
+      {
+        "path": "src/aelix_analytics/asset_contract.py",
+        "sha256": "cd7d71d78eef72cda8f20b640aaac9e8176e046c98c5f360b6e7a48a24640549"
+      },
+      {
+        "path": "src/aelix_analytics/asset_policy.py",
+        "sha256": "12a7ea420afa1796cf00d88268f992874ea4a29d86b359fc1da93a50a54dccd3"
+      },
+      {
+        "path": "src/aelix_analytics/assets/workspace.css",
+        "sha256": "837ffdeec6cfa9940707356f3edb71717ed873181f176b9df6ee36b969bb3dfe"
+      },
+      {
+        "path": "src/aelix_analytics/assets/workspace.js",
+        "sha256": "b7689225a9bb9d106d343afddd3a3d62bc171c392659dcd94d5150acce1fadd6"
+      },
+      {
+        "path": "src/aelix_analytics/capture.py",
+        "sha256": "2fe5d0735319797e8efded34590241d52c495ec5f031ff605431693d8d5ecb8e"
+      },
+      {
+        "path": "src/aelix_analytics/cli.py",
+        "sha256": "865a1968f850d20d38a73274652d54fc3acd0988d7c3681baba996c13a887451"
+      },
+      {
+        "path": "src/aelix_analytics/core.py",
+        "sha256": "b06df2da7b5d0abfc9a48f0e234473843ede6a6b6fb2db025f620fabe3de56a5"
+      },
+      {
+        "path": "src/aelix_analytics/data.py",
+        "sha256": "bbd549f39132976750bab6eb77d17f058e0f7ad31c96fb144ff6d625e69e4634"
+      },
+      {
+        "path": "src/aelix_analytics/demo.py",
+        "sha256": "b25446715a6a7b45a63f2b39fbcefca6af805f242c1bb4486708c30087a999ac"
+      },
+      {
+        "path": "src/aelix_analytics/demo_scripts/01_monthly_revenue.py",
+        "sha256": "141872b576b6764242b3782f9942a4dccb43f9a1e37971839f81d518d324051c"
+      },
+      {
+        "path": "src/aelix_analytics/demo_scripts/02_channel_mix.py",
+        "sha256": "3921fb6afc89c40a8edd31b732ea1f2b671335b28da065b58a50292600144f32"
+      },
+      {
+        "path": "src/aelix_analytics/demo_scripts/03_region_growth.py",
+        "sha256": "5137ee2886979ce1013beb2804756d6ae4496eb308dd647c4dcf1fe5b0e82d6d"
+      },
+      {
+        "path": "src/aelix_analytics/migration.py",
+        "sha256": "f23a344eb95b13dbf0706919dd671b5c22efac141752417235e44972f01e2841"
+      },
+      {
+        "path": "src/aelix_analytics/relations.py",
+        "sha256": "a801eb8f33fff429d41474de6c4f9215e3f3e613225b56249914703ce71c1ab0"
+      },
+      {
+        "path": "src/aelix_analytics/runner.py",
+        "sha256": "d35c6470050c93b84cae09498732f88503d46600b5e3c3fca97b56209fa2cecc"
+      },
+      {
+        "path": "src/aelix_analytics/template/CONTEXT.md",
+        "sha256": "ae31dc4fc7178a26ce8ad85ba43acc980af7f1cec06073eeea46828bc77c3769"
+      },
+      {
+        "path": "src/aelix_analytics/template/gitattributes",
+        "sha256": "66b748264be11611b9428c43a486454118278853b83c13397133c946929b6c15"
+      },
+      {
+        "path": "src/aelix_analytics/template/gitignore",
+        "sha256": "9a7128ef037b02a37df92002ecc27e3f2901b95f2a19d85f440e98cd830da87f"
+      },
+      {
+        "path": "src/aelix_analytics/template/pyproject.toml",
+        "sha256": "db355e0b3bdad632c33724468a91903dea6a4e26fb9a4d065dfe31c3eb6d994c"
+      },
+      {
+        "path": "src/aelix_analytics/workspace.py",
+        "sha256": "4c19664b67ba0f70dca86b978fc4b5f87f58f54626f7a5eb291d1d1653694c74"
+      },
+      {
+        "path": "src/aelix_analytics/writer.py",
+        "sha256": "acba84195786eb4d168cd9ff81e7029b2365434c95545aec2d1f5e9b5675ecfd"
+      },
+      {
+        "path": "tests/asset_fixtures.py",
+        "sha256": "741a38dd04d1b616e0550a470f49e66921086154d5c39c1289d75ac0fdbd72cb"
+      },
+      {
+        "path": "tests/conftest.py",
+        "sha256": "f8ad66f474747019f79af1b9943ef09d19108522b2441f2af673ff693469a3b6"
+      },
+      {
+        "path": "tests/fixtures/human_baseline/README.md",
+        "sha256": "b224c3e8fd06d5bfb0ea397732d508d4b4cf94d75a0c2c7f2ea15e44ff280a2b"
+      },
+      {
+        "path": "tests/fixtures/human_baseline/by_region.sql",
+        "sha256": "7d2899a7d4af4444019bc4259141c7c71250d8e46210131a59bee83047d782e5"
+      },
+      {
+        "path": "tests/fixtures/human_baseline/direct_libraries.py",
+        "sha256": "6d356709a558ccc03f8c2cfe47b94555b63c2eb2fb6051c52c51754bbd147492"
+      },
+      {
+        "path": "tests/fixtures/human_baseline/expected.json",
+        "sha256": "74b82e14455b51593cae07e08812ac07380cd1292b06e6bdbeb021ef2e08293a"
+      },
+      {
+        "path": "tests/fixtures/human_baseline/failure.py",
+        "sha256": "d90d28826b176da671597e3f1a535855ce014e9c9496b1d2bd86b84732e7cba4"
+      },
+      {
+        "path": "tests/fixtures/human_baseline/region_summary.py",
+        "sha256": "269e54f266871ce5efbf910e8ae4b696987b6e258ed34168abb21e09a446c0e9"
+      },
+      {
+        "path": "tests/fixtures/human_baseline/sales.csv",
+        "sha256": "2e63a1d33589a30a6273d916224ff4a0b0da53edb31ba55e37135d9467b025b1"
+      },
+      {
+        "path": "tests/fixtures/records/.gitattributes",
+        "sha256": "03697ed957f0e93ce92db65435bff8af9cf43cf2aaf9323b9e933487b250bf8b"
+      },
+      {
+        "path": "tests/fixtures/records/README.md",
+        "sha256": "883b30f6c2947f7332cf441a0372e738b455bc6c92e887b4cbece217cf1df10a"
+      },
+      {
+        "path": "tests/fixtures/records/conflict/analytics.json",
+        "sha256": "70de4dd5ad06cf212a04c5e07b7ec9e573701985d0181f46ffcafc5a50dd12ee"
+      },
+      {
+        "path": "tests/fixtures/records/conflict/artifacts/reports/q3-review/01K6QCNF000000000000000001/content/index.md",
+        "sha256": "dad5e68050842810cf827641ef14b0f7f86c5a7126acf3cb98de44999024189d"
+      },
+      {
+        "path": "tests/fixtures/records/conflict/artifacts/reports/q3-review/01K6QCNF000000000000000001/manifest.json",
+        "sha256": "52bcd58445446d9d02a639094518ee28d891c4cf92ba88c37e2acba7d2f0c5d3"
+      },
+      {
+        "path": "tests/fixtures/records/conflict/artifacts/reports/q3-review/01K6QCNF000000000000000002/content/index.md",
+        "sha256": "c354634e3127c841e8957d7f5583ac04bfd9c7e06d48cee7783ad0a7d7947ef0"
+      },
+      {
+        "path": "tests/fixtures/records/conflict/artifacts/reports/q3-review/01K6QCNF000000000000000002/manifest.json",
+        "sha256": "5e679ea9d37405464d7b82edd7dd030fddf4efcc492e614a0de948eb5709fb37"
+      },
+      {
+        "path": "tests/fixtures/records/conflict/expected.json",
+        "sha256": "180fc8b781bce3bbc04e090258230a314157b080037c0f2148636f87e6932525"
+      },
+      {
+        "path": "tests/fixtures/records/conflict/journal.jsonl",
+        "sha256": "afd8c85198801ec2b84e9b91e90e10c6d332e757c54d7c554b4ceec75e9ccd48"
+      },
+      {
+        "path": "tests/fixtures/records/expected.schema.json",
+        "sha256": "7eab93b64dcdab3f7013fb3c59bd9e4730d9f6d3ed0b88e40f37b00393a265dc"
+      },
+      {
+        "path": "tests/fixtures/records/fingerprint-vectors.json",
+        "sha256": "1d76cf6258251c4a8e6522aa6fb5e70b7790a5bc518ced9781e09101ea51bcc6"
+      },
+      {
+        "path": "tests/fixtures/records/future-version/analytics.json",
+        "sha256": "a7667aaee1dbd4aef70ab7c7e9cbb1d61ab0634482836be0bf08032eaa3bdc27"
+      },
+      {
+        "path": "tests/fixtures/records/future-version/expected.json",
+        "sha256": "b35cb5f9ed07b1640e5664f0c1f98ffa0389a719b988af6a59d1ab49db8f76c5"
+      },
+      {
+        "path": "tests/fixtures/records/future-version/journal.jsonl",
+        "sha256": "def005511a1c94a50fd5330b530205b9a1546c9e09be890f86e4daa881b6447c"
+      },
+      {
+        "path": "tests/fixtures/records/future-version/runs/20261001-110000-future/run.json",
+        "sha256": "88044d3ce5b80d6b069c439684d6b99a9a6ec9648c2575d5839657e2796f415d"
+      },
+      {
+        "path": "tests/fixtures/records/interrupted/analytics.json",
+        "sha256": "21ee604084d9a49e536243b2b0381fa88a3413a613baf1348b99b3fa6189ed71"
+      },
+      {
+        "path": "tests/fixtures/records/interrupted/artifacts/reports/daily-status/01K6QDAY000000000000000001/content/index.md",
+        "sha256": "91d7c613f7b4f46469b504b84fad2dbc9c1e286a3736db1994f2187feb642d9a"
+      },
+      {
+        "path": "tests/fixtures/records/interrupted/artifacts/reports/daily-status/01K6QDAY000000000000000001/manifest.json",
+        "sha256": "aac554c6844b5202e82244d9a22ce2c839121b2e48e35682a719225f9eefbacc"
+      },
+      {
+        "path": "tests/fixtures/records/interrupted/artifacts/reports/daily-status/01K6QDAY000000000000000002/content/index.md",
+        "sha256": "1c02daba90737a508983e67ec735e59a10e30432a3bac4c7e88f680a84e693e7"
+      },
+      {
+        "path": "tests/fixtures/records/interrupted/artifacts/reports/daily-status/01K6QDAY000000000000000002/manifest.json",
+        "sha256": "f6c17706907301df477a0813e50227193e949183c2d22283e93ed99158b8e73e"
+      },
+      {
+        "path": "tests/fixtures/records/interrupted/artifacts/reports/daily-status/01K6QDAY000000000000000003/content/index.md",
+        "sha256": "75fe6d84bbe96064a50a29f3b2c75e2744a718ea11cf582e4d6be39631195948"
+      },
+      {
+        "path": "tests/fixtures/records/interrupted/artifacts/reports/daily-status/01K6QDAY000000000000000003/manifest.json",
+        "sha256": "da6be51d2635724c5329490b3c1e52a0c1cd23602a7685d2f13c65e797602623"
+      },
+      {
+        "path": "tests/fixtures/records/interrupted/artifacts/reports/weekly-status/.staging/01K6QTRP000000000000000003/content/index.md",
+        "sha256": "38267bfc25083ff6aca8b31cacae70d44dd79adebcadf3973ec05ddd53330c5a"
+      },
+      {
+        "path": "tests/fixtures/records/interrupted/artifacts/reports/weekly-status/.staging/01K6QTRP000000000000000003/manifest.json",
+        "sha256": "9b4f09e3078d8407ad471809a6fe03459102515c6566bad23b1f83e24fb18703"
+      },
+      {
+        "path": "tests/fixtures/records/interrupted/artifacts/reports/weekly-status/01K6QTRP000000000000000001/content/index.md",
+        "sha256": "27df3da0d07dbf52b7e0083171e56bfd32abb5e4f664339073263027c2dfc222"
+      },
+      {
+        "path": "tests/fixtures/records/interrupted/artifacts/reports/weekly-status/01K6QTRP000000000000000001/manifest.json",
+        "sha256": "6fd069c19a7dcfc1812942be85745f3ea9bfb87a70a1c1207cd7eebea61a6d87"
+      },
+      {
+        "path": "tests/fixtures/records/interrupted/artifacts/reports/weekly-status/01K6QTRP000000000000000002/content/index.md",
+        "sha256": "aec63b44d30ad199ec361bca9c11beeb48ef37d8a7520ebc2c75fac0badde524"
+      },
+      {
+        "path": "tests/fixtures/records/interrupted/artifacts/reports/weekly-status/01K6QTRP000000000000000002/manifest.json",
+        "sha256": "eb50c57c548bd7291a681b2b786fedf6d29625a8ffc00dbbedf9231d1dab4797"
+      },
+      {
+        "path": "tests/fixtures/records/interrupted/expected.json",
+        "sha256": "2d4ef418549847bab45fce0fa3384348e9c274c4950f05f5201bcaf3f19d353e"
+      },
+      {
+        "path": "tests/fixtures/records/interrupted/journal.jsonl",
+        "sha256": "14b1b95560a091c5d7e6a872d3481a93d7c84658929695dde53a1b92a56b854c"
+      },
+      {
+        "path": "tests/fixtures/records/interrupted/runs/20261001-100000-long-job/code/scripts/long_job.py",
+        "sha256": "b8bd5d6770aeefef99f0d5f1760b5cf68bfab53ddced475ba1ff2f5d89d731cc"
+      },
+      {
+        "path": "tests/fixtures/records/interrupted/runs/20261001-100000-long-job/run.json",
+        "sha256": "2e1cceb17811ce7bfc009fb113024cfe4ab61d529adb64f2521566183866eb78"
+      },
+      {
+        "path": "tests/fixtures/records/interrupted/runs/20261001-100000-long-job/stderr.txt",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "tests/fixtures/records/interrupted/runs/20261001-100000-long-job/stdout.txt",
+        "sha256": "dc51b8c96c2d745df3bd5590d990230a482fd247123599548e0632fdbf97fc22"
+      },
+      {
+        "path": "tests/fixtures/records/interrupted/runs/20261001-100100-summary/code/scripts/summary.py",
+        "sha256": "881ec3766cbf892231465b4c7b38717d5e8aaa3801b4fc0cc3d27cba81537ec2"
+      },
+      {
+        "path": "tests/fixtures/records/interrupted/runs/20261001-100100-summary/run.json",
+        "sha256": "dd2c343d43be1da932a1765ce6e92072d301f5c2ad418b727c5f014501c9a9e3"
+      },
+      {
+        "path": "tests/fixtures/records/interrupted/runs/20261001-100100-summary/stderr.txt",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "tests/fixtures/records/interrupted/runs/20261001-100100-summary/stdout.txt",
+        "sha256": "dc51b8c96c2d745df3bd5590d990230a482fd247123599548e0632fdbf97fc22"
+      },
+      {
+        "path": "tests/fixtures/records/interrupted/scripts/long_job.py",
+        "sha256": "b8bd5d6770aeefef99f0d5f1760b5cf68bfab53ddced475ba1ff2f5d89d731cc"
+      },
+      {
+        "path": "tests/fixtures/records/interrupted/scripts/summary.py",
+        "sha256": "881ec3766cbf892231465b4c7b38717d5e8aaa3801b4fc0cc3d27cba81537ec2"
+      },
+      {
+        "path": "tests/fixtures/records/missing/analytics.json",
+        "sha256": "0d3504551c9677bcd01328f6ab24db4ee88a7faa200c4e3e5e01e7ea36988f95"
+      },
+      {
+        "path": "tests/fixtures/records/missing/artifacts/reports/audit/01K6QMSS000000000000000001/manifest.json",
+        "sha256": "9424ed0af5865b0b9ca7210849e7004ce9998da582cba73670edbfdf3581b305"
+      },
+      {
+        "path": "tests/fixtures/records/missing/data/derived/table.csv",
+        "sha256": "188faeb9c0882b7e75f76befda45131c529f80cb0231432bfc2893b56dbf58dd"
+      },
+      {
+        "path": "tests/fixtures/records/missing/data/input.csv",
+        "sha256": "1d1c91d15ace6e21ea5f551e16e717f326992bdf800f6696628859be29b906bf"
+      },
+      {
+        "path": "tests/fixtures/records/missing/expected.json",
+        "sha256": "21331e28fcb76971faf1aef86ff19400f67f3e09cdaeeadabe5c11ed34084ba5"
+      },
+      {
+        "path": "tests/fixtures/records/missing/journal.jsonl",
+        "sha256": "0bb47263461c7b44b0893a1c4e70aa76307e0254500857bbdd638ad5a34a211d"
+      },
+      {
+        "path": "tests/fixtures/records/missing/runs/20261001-120000-table/charts/table-view.plotly.json",
+        "sha256": "a23d5a53cd45cf4808940459399304680829b1aabc1925087f5a4812b7d642ff"
+      },
+      {
+        "path": "tests/fixtures/records/missing/runs/20261001-120000-table/run.json",
+        "sha256": "3cceedc66cb128de97b8000c87d31b7fbd069098cb68dcbbaa80a57757c7c13c"
+      },
+      {
+        "path": "tests/fixtures/records/missing/runs/20261001-120000-table/stderr.txt",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "tests/fixtures/records/missing/runs/20261001-120000-table/stdout.txt",
+        "sha256": "dc51b8c96c2d745df3bd5590d990230a482fd247123599548e0632fdbf97fc22"
+      },
+      {
+        "path": "tests/fixtures/records/missing/scripts/table.py",
+        "sha256": "1433b6db239c3a9ac977302a4c5e2abfb51b886f4f431161abe9e581df766126"
+      },
+      {
+        "path": "tests/fixtures/records/mixed-version/.lab/context/20260930-090000-000000_7b3b3fb88d82.md",
+        "sha256": "7b3b3fb88d82178480db9d67e8ea8a7156c09ab57b445f9b1e096d94d6d2c8d9"
+      },
+      {
+        "path": "tests/fixtures/records/mixed-version/CONTEXT.md",
+        "sha256": "7b3b3fb88d82178480db9d67e8ea8a7156c09ab57b445f9b1e096d94d6d2c8d9"
+      },
+      {
+        "path": "tests/fixtures/records/mixed-version/analytics.json",
+        "sha256": "d6c6b4afe1523b9c597771c8ce62a14b7916ee7e7effbcb5808937e1ac36f679"
+      },
+      {
+        "path": "tests/fixtures/records/mixed-version/data/derived/same.csv",
+        "sha256": "7dc87ab8618e73b3df42ca900743ae609ec2e7e74a94655a86a2e63abdb97326"
+      },
+      {
+        "path": "tests/fixtures/records/mixed-version/expected.json",
+        "sha256": "44cdc5db60eb218935fc354aa4281c3ae6f87f1623f0c38bfa3d63ef760a91ed"
+      },
+      {
+        "path": "tests/fixtures/records/mixed-version/journal.jsonl",
+        "sha256": "c4c617a187df8c91e2713d51eb3e41af891c8bd85c6886041a9003ae3ee2ca95"
+      },
+      {
+        "path": "tests/fixtures/records/mixed-version/runs/20260930-091000-trend/charts/trend.plotly.json",
+        "sha256": "62dff57684d20d5994818058c06e725723f578f58f8e9a48406dbd031a0b10a6"
+      },
+      {
+        "path": "tests/fixtures/records/mixed-version/runs/20260930-091000-trend/code/scripts/trend.py",
+        "sha256": "aa0c3a54d94884c9283c207e7042b2681d9a328184265aa70143dd48e5b2a24d"
+      },
+      {
+        "path": "tests/fixtures/records/mixed-version/runs/20260930-091000-trend/run.json",
+        "sha256": "12faf5a8b1319021e2af9c42cbd812080e8d56d0431668b6d68e6b2b48e46822"
+      },
+      {
+        "path": "tests/fixtures/records/mixed-version/runs/20260930-091000-trend/stderr.txt",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "tests/fixtures/records/mixed-version/runs/20260930-091000-trend/stdout.txt",
+        "sha256": "dc51b8c96c2d745df3bd5590d990230a482fd247123599548e0632fdbf97fc22"
+      },
+      {
+        "path": "tests/fixtures/records/mixed-version/runs/20260930-092000-trend/charts/trend.plotly.json",
+        "sha256": "62dff57684d20d5994818058c06e725723f578f58f8e9a48406dbd031a0b10a6"
+      },
+      {
+        "path": "tests/fixtures/records/mixed-version/runs/20260930-092000-trend/code/scripts/trend.py",
+        "sha256": "aa0c3a54d94884c9283c207e7042b2681d9a328184265aa70143dd48e5b2a24d"
+      },
+      {
+        "path": "tests/fixtures/records/mixed-version/runs/20260930-092000-trend/run.json",
+        "sha256": "f158786d998e679c9f7e691a034cd5d9c9ce744e64df4ae6a7e56f40540a2519"
+      },
+      {
+        "path": "tests/fixtures/records/mixed-version/runs/20260930-092000-trend/stderr.txt",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "tests/fixtures/records/mixed-version/runs/20260930-092000-trend/stdout.txt",
+        "sha256": "dc51b8c96c2d745df3bd5590d990230a482fd247123599548e0632fdbf97fc22"
+      },
+      {
+        "path": "tests/fixtures/records/mixed-version/runs/20261001-093000-use-same/charts/trend.plotly.json",
+        "sha256": "f36dd1cf18d62d272984dc2ce112b539ce01ed738eb6a88750a8ddd1307b943b"
+      },
+      {
+        "path": "tests/fixtures/records/mixed-version/runs/20261001-093000-use-same/code/scripts/use_same.py",
+        "sha256": "96ed52ac5f368e27bd473ea12013043360e33e9d7ffe21c885360b2e5611c625"
+      },
+      {
+        "path": "tests/fixtures/records/mixed-version/runs/20261001-093000-use-same/run.json",
+        "sha256": "a63301506bf832769d2343761129e0571eb53c06622fa00d8a9c5057d98d5e74"
+      },
+      {
+        "path": "tests/fixtures/records/mixed-version/runs/20261001-093000-use-same/stderr.txt",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "tests/fixtures/records/mixed-version/runs/20261001-093000-use-same/stdout.txt",
+        "sha256": "dc51b8c96c2d745df3bd5590d990230a482fd247123599548e0632fdbf97fc22"
+      },
+      {
+        "path": "tests/fixtures/records/mixed-version/scripts/trend.py",
+        "sha256": "aa0c3a54d94884c9283c207e7042b2681d9a328184265aa70143dd48e5b2a24d"
+      },
+      {
+        "path": "tests/fixtures/records/mixed-version/scripts/use_same.py",
+        "sha256": "96ed52ac5f368e27bd473ea12013043360e33e9d7ffe21c885360b2e5611c625"
+      },
+      {
+        "path": "tests/fixtures/records/normal/.analytics/context/20261001-090000-000000_c3c0b6b900db.md",
+        "sha256": "c3c0b6b900db27c7d7da25700c87e81acf05eeee2c17264ca6275de61c8d2b07"
+      },
+      {
+        "path": "tests/fixtures/records/normal/CONTEXT.md",
+        "sha256": "c3c0b6b900db27c7d7da25700c87e81acf05eeee2c17264ca6275de61c8d2b07"
+      },
+      {
+        "path": "tests/fixtures/records/normal/analytics.json",
+        "sha256": "195dfc856cbe2ec50614a8692ddb4bf0de7a546097b42392b95bf7b922c57d4b"
+      },
+      {
+        "path": "tests/fixtures/records/normal/artifacts/reports/region-review/01K6QNRM000000000000000001/content/index.md",
+        "sha256": "2d68d2ce64ed13536216097b1a7a6caf4ca0f35087ee8c461a2f0bb8d4fea81b"
+      },
+      {
+        "path": "tests/fixtures/records/normal/artifacts/reports/region-review/01K6QNRM000000000000000001/manifest.json",
+        "sha256": "1e716e62a1381651589f44307f5b1928b6dacf159467f596710d553ee2ee61b5"
+      },
+      {
+        "path": "tests/fixtures/records/normal/artifacts/reports/region-review/01K6QNRM000000000000000002/content/index.md",
+        "sha256": "cab78a8511a9d79041408ee9f3047990814ae5a7be8532f419019543ca1b60cc"
+      },
+      {
+        "path": "tests/fixtures/records/normal/artifacts/reports/region-review/01K6QNRM000000000000000002/content/region_summary.csv",
+        "sha256": "9f6a799bc14ab42c2fa5732905836ba11e96255902c3727361527239baa8cc5b"
+      },
+      {
+        "path": "tests/fixtures/records/normal/artifacts/reports/region-review/01K6QNRM000000000000000002/manifest.json",
+        "sha256": "01c7aaebbb5490b409c9cbce9c9e21492ab977407dd86abf0bb77dcbe8f90c2d"
+      },
+      {
+        "path": "tests/fixtures/records/normal/data/derived/monthly.csv",
+        "sha256": "269706f7162fb239930816e75be57b73a4160871d1dd9f27bb8f6ee78bd3d2f2"
+      },
+      {
+        "path": "tests/fixtures/records/normal/data/derived/region_summary.csv",
+        "sha256": "9f6a799bc14ab42c2fa5732905836ba11e96255902c3727361527239baa8cc5b"
+      },
+      {
+        "path": "tests/fixtures/records/normal/data/sales.csv",
+        "sha256": "84c1153f79ff53e56e866071904c9140610a698272bb05654776b7eef9400b16"
+      },
+      {
+        "path": "tests/fixtures/records/normal/expected.json",
+        "sha256": "2a917ab76f1273130f3ce3739c04049d4c53ca6836e7799b232f9d24abaea72f"
+      },
+      {
+        "path": "tests/fixtures/records/normal/journal.jsonl",
+        "sha256": "82a24cf0f9323147fe456f6673c13d03d5f88e752252e2b3ac9eedf500854c74"
+      },
+      {
+        "path": "tests/fixtures/records/normal/runs/20261001-091000-region-summary/charts/region-revenue.plotly.json",
+        "sha256": "604ce7b4fdf1364bfad9a9357edbe93e7c7d3c66cf43e92c56123fda3185fd5f"
+      },
+      {
+        "path": "tests/fixtures/records/normal/runs/20261001-091000-region-summary/code/scripts/region_summary.py",
+        "sha256": "478b42fe5fed1f8fcec2a6df5abf02189674e6517e5fe20b2e2ad77c26ea24fc"
+      },
+      {
+        "path": "tests/fixtures/records/normal/runs/20261001-091000-region-summary/run.json",
+        "sha256": "e240877322330ebec285ba2c257d082e5bbf80a078e89b6a9b5ea72b0979f59e"
+      },
+      {
+        "path": "tests/fixtures/records/normal/runs/20261001-091000-region-summary/stderr.txt",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "tests/fixtures/records/normal/runs/20261001-091000-region-summary/stdout.txt",
+        "sha256": "dc51b8c96c2d745df3bd5590d990230a482fd247123599548e0632fdbf97fc22"
+      },
+      {
+        "path": "tests/fixtures/records/normal/runs/20261001-092000-monthly-trend/charts/monthly-trend.plotly.json",
+        "sha256": "92dda9ce3919d2e186c2fc270d06fb9367c1bbb39cdd697f43d89d09cb380c11"
+      },
+      {
+        "path": "tests/fixtures/records/normal/runs/20261001-092000-monthly-trend/code/scripts/monthly_trend.py",
+        "sha256": "b7b2126e93e4b6e387ec3e2e7935f8edf726f6de5eb3074b193d9c97e5e2cf79"
+      },
+      {
+        "path": "tests/fixtures/records/normal/runs/20261001-092000-monthly-trend/run.json",
+        "sha256": "5819ef7605df5c97287c2dafb67ded0393cfbd8de0726065f1704281f33d4083"
+      },
+      {
+        "path": "tests/fixtures/records/normal/runs/20261001-092000-monthly-trend/stderr.txt",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "tests/fixtures/records/normal/runs/20261001-092000-monthly-trend/stdout.txt",
+        "sha256": "dc51b8c96c2d745df3bd5590d990230a482fd247123599548e0632fdbf97fc22"
+      },
+      {
+        "path": "tests/fixtures/records/normal/scripts/monthly_trend.py",
+        "sha256": "b7b2126e93e4b6e387ec3e2e7935f8edf726f6de5eb3074b193d9c97e5e2cf79"
+      },
+      {
+        "path": "tests/fixtures/records/normal/scripts/region_summary.py",
+        "sha256": "478b42fe5fed1f8fcec2a6df5abf02189674e6517e5fe20b2e2ad77c26ea24fc"
+      },
+      {
+        "path": "tests/legacy_records.py",
+        "sha256": "fbdc5c31d1e1288b7be186f660e47d3deac292fa52531dbaf95328331cc7c179"
+      },
+      {
+        "path": "tests/migration_driver.py",
+        "sha256": "efb2f5f6bc0399dcd9004d97cb886c6e893bf5dc93427d9bb93819bd44265a7c"
+      },
+      {
+        "path": "tests/platform_doubles.py",
+        "sha256": "c96f81a9a9e1b4d24690545a920136bbab7899f665670bea88712239fac1c3ce"
+      },
+      {
+        "path": "tests/test_agent_cli.py",
+        "sha256": "ba1d1ff76f7a32d272e6d232385798b33a6364d07a7f31741994f0f6067a3655"
+      },
+      {
+        "path": "tests/test_asset_contract.py",
+        "sha256": "a1687cda4ff538d1b24f838156c97d789eac5b1e5469288dc15f3c259c56f533"
+      },
+      {
+        "path": "tests/test_assets.py",
+        "sha256": "05637af5f8675b23471cc59f0b61e901d63ea52150545d91e683d4ba98ae7994"
+      },
+      {
+        "path": "tests/test_contracts.py",
+        "sha256": "0331239f6479f655657bafbeaeb2eb59e72b0344f696b1ea694d3c9512913413"
+      },
+      {
+        "path": "tests/test_doc_checks.py",
+        "sha256": "d4f938d50c82bba38cb7ece3008db12b867fb47465aa55cb83d6894c8a79e160"
+      },
+      {
+        "path": "tests/test_eval_fixtures.py",
+        "sha256": "8854e2a9d1367f33c27c2721894ea386108a29b9cd9bdfe29f758f6862047a20"
+      },
+      {
+        "path": "tests/test_extension.py",
+        "sha256": "3df5c77b5c11cf1ff415534a8fda7de5061b43733445225491714b97e134ee65"
+      },
+      {
+        "path": "tests/test_human_baseline.py",
+        "sha256": "598c653d122a37129e0d7450c300c8dd539b608e936883055692fa7a0b6fc77d"
+      },
+      {
+        "path": "tests/test_journal_append.py",
+        "sha256": "a00199d7f21c87139860f38b3de13ed983985df24996d4346216f7d99cd8cd87"
+      },
+      {
+        "path": "tests/test_kit.py",
+        "sha256": "abc043c9a83b71e5c927a91c8f909a8bc78025f1284c68f27bc143f821a7a80b"
+      },
+      {
+        "path": "tests/test_language.py",
+        "sha256": "ac89168b26d75a64a934850a6f58e2304b353669c88d8c435a60752b919fa620"
+      },
+      {
+        "path": "tests/test_launcher.py",
+        "sha256": "bb2a985a9015f1b94f0d07fc7b7cf33072f852a665c764e4cf47571710e008d3"
+      },
+      {
+        "path": "tests/test_layers.py",
+        "sha256": "163f51af0555c087b8ea92ca830f8a7906850831c81baddce51cd87aa771b599"
+      },
+      {
+        "path": "tests/test_line_endings.py",
+        "sha256": "3966dcda021a1b20556a0b10bc5cd58fd525e4878f4eec189caf256c1a5b1799"
+      },
+      {
+        "path": "tests/test_marker_gate.py",
+        "sha256": "18a35f1368b597dec6e312c4dbc6baf086e66175260f718dc46d585848b7a4ad"
+      },
+      {
+        "path": "tests/test_metrics.py",
+        "sha256": "d263f1a99dd5797e311f9e6b8b98fff15ed05b97794f50a43c70edec4fb17081"
+      },
+      {
+        "path": "tests/test_migrate_command.py",
+        "sha256": "ca124a83c7bc3e3eafa793d1ba74293afe6697a8872f2c7021eddacfe9698bbd"
+      },
+      {
+        "path": "tests/test_migration.py",
+        "sha256": "71c1943e9c5140f56837b92f4183b91c339c14f9f6fbd8cb041ee07aeea15f88"
+      },
+      {
+        "path": "tests/test_migration_reader.py",
+        "sha256": "b749804816ba4004d3899536a3e08da87bff66fccaf816bca478bf19060e84ee"
+      },
+      {
+        "path": "tests/test_model_eval.py",
+        "sha256": "76eaf3efa3e4b8a4d79dd7a05e16f56c40fc4f0617977440e5976aeeed26d988"
+      },
+      {
+        "path": "tests/test_model_eval_scoring.py",
+        "sha256": "d2eb2bc34feac23c57051fc47b13b8c5d1e18135b75d374227f1ab0cb458386c"
+      },
+      {
+        "path": "tests/test_new_format.py",
+        "sha256": "ee6e8fac4e05b95fbc42411e81c6bf62927590bf87aef600111d725c76ab2277"
+      },
+      {
+        "path": "tests/test_packaging.py",
+        "sha256": "ea1f79439f8bef3a8f2f49a18829ef412a7bf3bd548b63fdc3224f9ee504f6fd"
+      },
+      {
+        "path": "tests/test_path_identity.py",
+        "sha256": "61d7c7133e686597fda54ae5d7f3c82cdbf4376bd130fe0d10bcb6952c98838c"
+      },
+      {
+        "path": "tests/test_platform.py",
+        "sha256": "f4775c5e5b7ec9aa3e92accaca8b1775e53d309ae311c3aa2c47ddf8d9790b62"
+      },
+      {
+        "path": "tests/test_platform_smoke.py",
+        "sha256": "736895a38ed6f41d3a289b7e9d155bd22ef6ccd74a48f739ccd8f9b776f60054"
+      },
+      {
+        "path": "tests/test_record_contract.py",
+        "sha256": "5a861a7f60cc1415ff1b75874e9094c083cd830097f9cfecbc8694510cb1cabf"
+      },
+      {
+        "path": "tests/test_relation_screens.py",
+        "sha256": "1877c34cae46d1da2688bc0cb0ceea9b44fd45112c33233ba66e6fa0e3aacd8a"
+      },
+      {
+        "path": "tests/test_relations.py",
+        "sha256": "f6893d9ca819b3216c813a9359d2139597f669b14fbe74671b16678889360296"
+      },
+      {
+        "path": "tests/test_result_line.py",
+        "sha256": "645ef23b1dd4cca7bf8340b66f54b0dc777645e87cb9be575da0b9f2cb4733f5"
+      },
+      {
+        "path": "tests/test_run_views.py",
+        "sha256": "2a534bb536a984c542749d06234fdf7d52e8b0cea194dd4565daae7fd429688b"
+      },
+      {
+        "path": "tests/test_usage_report.py",
+        "sha256": "17ac366e0690c38c4b2f9bdc5c611fbfc8d4fe93dd3371162704c9c23717424e"
+      },
+      {
+        "path": "tests/test_windows_console.py",
+        "sha256": "ca931109381c54f00ec6fcce8975160ef6071ecd9ea0d7bdb7470cb212c80fcc"
+      },
+      {
+        "path": "tests/test_windows_long_paths.py",
+        "sha256": "f5866d321bbd2efb5b49f8b70862c30185990b8c5d590f9cce500fff8e8eeb92"
+      },
+      {
+        "path": "tests/test_writer.py",
+        "sha256": "0684a0be007f41635312a6830d01ec278d61b90c419c0dbf1c9479b9eedd782c"
+      },
+      {
+        "path": "tests/windows_console.py",
+        "sha256": "bed3df4274e600f118d312a143775bf2163243eb1c0c3a37a194e12f62f420e6"
+      },
+      {
+        "path": "tools/check_docs.py",
+        "sha256": "7ada7ce7fb1614d8422a77b3790c3beffd6c7d031de1cb0479f19366c1e4000d"
+      },
+      {
+        "path": "tools/ci_context.py",
+        "sha256": "8f09ec57d4f9c87755a73dfd2b12e08d3f98c59679f57f7e7b0d3fb003da5923"
+      },
+      {
+        "path": "tools/eval_fixtures.py",
+        "sha256": "95be56e6a0a41feb4e6d28803c99a12fbf7f71efec7bfc430f45119c8af6330f"
+      },
+      {
+        "path": "tools/eval_fixtures_data/README.md",
+        "sha256": "876de5c99b6137e51d67ffb2534043aa774ead3e776f9b568fd30c173a8d7a21"
+      },
+      {
+        "path": "tools/eval_fixtures_data/schemas/environment.schema.json",
+        "sha256": "6fd3a24b165af0dc07e531d821d588e378f621bfac1b64a2e06a168773b8d775"
+      },
+      {
+        "path": "tools/eval_fixtures_data/schemas/expected.schema.json",
+        "sha256": "42184ddaf277bc8001ac36af1cdc49abc9ecca8d91ce61715f8de514fd15bae5"
+      },
+      {
+        "path": "tools/eval_fixtures_data/schemas/manifest.schema.json",
+        "sha256": "6d2c35f758007aeb41cd547dc31f41f07aaa07ddb6a5cd4443dc68d5f1dfbde8"
+      },
+      {
+        "path": "tools/eval_fixtures_data/scripts/q10/aggregation_key_flawed.py",
+        "sha256": "39307009e0eb75f8093824588427129512bb9f57c93bc3ccde7a600d218eaea9"
+      },
+      {
+        "path": "tools/eval_fixtures_data/scripts/q10/aggregation_key_sound.py",
+        "sha256": "bb84bf8dfa087cedd6f9429ac64a9bd3a8033aade6a5c2d030268732be039344"
+      },
+      {
+        "path": "tools/eval_fixtures_data/scripts/q10/denominator_flawed.py",
+        "sha256": "b0e597a178140334813e4ea3bcbe0dc152d076e87c518ee2ab0be5fc7900573e"
+      },
+      {
+        "path": "tools/eval_fixtures_data/scripts/q10/denominator_sound.py",
+        "sha256": "c550129435d7049e8fa0a0d0e9b7746b5b52fa76d16a333b054d54f14e8d4f6e"
+      },
+      {
+        "path": "tools/eval_fixtures_data/scripts/q10/period_flawed.py",
+        "sha256": "6435f8fc53069f253a57b1de0cdfe973f62656a9990f05d7c4a91730b1c314d7"
+      },
+      {
+        "path": "tools/eval_fixtures_data/scripts/q10/period_sound.py",
+        "sha256": "18bbcc075004230956e5949abe72f71ce4dbb42e76d75172dd2d644b9b5ec314"
+      },
+      {
+        "path": "tools/eval_fixtures_data/scripts/q10/unit_flawed.py",
+        "sha256": "bc600a452efdc9a7e9ff67170050435a68bdd894581401904dd0fa6ba97c3ba0"
+      },
+      {
+        "path": "tools/eval_fixtures_data/scripts/q10/unit_sound.py",
+        "sha256": "8823dce13d5021a46a7249b8aa6f5c93f493a606551665b16163f9b4b739fa7b"
+      },
+      {
+        "path": "tools/eval_fixtures_data/scripts/q13/01_eda_training_traces.broken.py",
+        "sha256": "92301fa60ea0b718e78e7ab60974618d2668c548c322012e5f38828eddf3edaf"
+      },
+      {
+        "path": "tools/eval_fixtures_data/scripts/q13/01_eda_training_traces.py",
+        "sha256": "e5a224f372f1a8b7c7e70f78a039aa8385e4f6d684ac81586902446f3262ee12"
+      },
+      {
+        "path": "tools/eval_fixtures_data/scripts/q13/02_step_profiles.py",
+        "sha256": "9170781f07427e0f06aebdf02708ce00e51cbfca67cd0401fba66dbab064c486"
+      },
+      {
+        "path": "tools/eval_fixtures_data/scripts/q13/03_sample_zscores.broken.py",
+        "sha256": "c4ec3cdfa0d26c0ada086812da6a3daa76880b90b043c57254cbf657a10e2e2d"
+      },
+      {
+        "path": "tools/eval_fixtures_data/scripts/q13/03_sample_zscores.py",
+        "sha256": "41feb376009e0aa03c20add5e273de8b3d550a46c0ff5ca4a44637503b7b6fcc"
+      },
+      {
+        "path": "tools/eval_fixtures_data/scripts/q13/04_all_sensor_bands.py",
+        "sha256": "c650301899bc18e159357e08e7f78386c87ebcd96e948fcc02fed13b73e287c2"
+      },
+      {
+        "path": "tools/eval_fixtures_data/scripts/scale/k01_region_summary.py",
+        "sha256": "298e5b59faaed9d188424c45736d5b9cd098d7efd7883409dad0564dfa6221d9"
+      },
+      {
+        "path": "tools/eval_fixtures_data/scripts/scale/k02_sensor_profile.py",
+        "sha256": "f4f39fd26eda46612ccc695437880d722fc70124cae705d61e903ad99da9491b"
+      },
+      {
+        "path": "tools/eval_fixtures_data/scripts/scale/k03_join_profiles.py",
+        "sha256": "d850bc6264f13f2e8d3fd59ef9ec7f5eed15cbf6b83359a14c3c396cadecc39a"
+      },
+      {
+        "path": "tools/model_eval.py",
+        "sha256": "881bba8cefaa3fa47eea1c3fb687e3ddb95cf55a2eb4046408b4aa8944bac8ec"
+      },
+      {
+        "path": "tools/model_eval_aelix.py",
+        "sha256": "fecf55ea99760aa5626f36ec74ce2d10df817d08f14942a03d247bd7c2363ce4"
+      },
+      {
+        "path": "tools/model_eval_data/README.md",
+        "sha256": "7e2c81c0eb5793cfe92a968753c5b03437d14fe09d429ec208f0f46e778343f1"
+      },
+      {
+        "path": "tools/model_eval_data/answers/T01.json",
+        "sha256": "41b242dd3f8a4ec5807d9c07de88e0578a0bd8c91e5c68dbb3281d3a467aea8f"
+      },
+      {
+        "path": "tools/model_eval_data/answers/T02.json",
+        "sha256": "640dc9ca9cdfd35d23d5fdd937a932e2c9d45bd6672abb83671a0369354b0b35"
+      },
+      {
+        "path": "tools/model_eval_data/answers/T03.json",
+        "sha256": "16b39689eeeaefd02eaeeb4304b94af20ee37029d1e40c26ce6ef28bf59d297b"
+      },
+      {
+        "path": "tools/model_eval_data/answers/T04.json",
+        "sha256": "04b19cb04051524961f58252729853dc54340f80131e07b67e6421db23831743"
+      },
+      {
+        "path": "tools/model_eval_data/answers/T05.json",
+        "sha256": "2610fec3bef99ac55b3609119ba51553481548d4fc6e7051e33d170a2d64fce4"
+      },
+      {
+        "path": "tools/model_eval_data/answers/T06.json",
+        "sha256": "0d7749a1f28def4c4d3eedf7d63a936ef702fcf44e07dcb6a0145641930af635"
+      },
+      {
+        "path": "tools/model_eval_data/answers/T07.json",
+        "sha256": "728f3129187c7b4127fd5abf99b7e9a426f940b9dd044fc272f7ea17cca1474b"
+      },
+      {
+        "path": "tools/model_eval_data/answers/T08.json",
+        "sha256": "3e8c97b8b47a754e2c31298e2c98b626d346f6aae53684b4f0ff1df58332b19c"
+      },
+      {
+        "path": "tools/model_eval_data/answers/T09.json",
+        "sha256": "07565030baf05050110ab7341564f298b58530cf71f8821befb138ad207d95e7"
+      },
+      {
+        "path": "tools/model_eval_data/answers/T10.json",
+        "sha256": "f622f04c7f9f8058ed7e3b6680cc7d354894eb8eb6242fb6d234ec3a05a2ebc3"
+      },
+      {
+        "path": "tools/model_eval_data/answers/T11.json",
+        "sha256": "28186ad6b8480dfdb7f7f411db0667088ee8e6174dcfafdd0524bbe8f9e47b23"
+      },
+      {
+        "path": "tools/model_eval_data/answers/T12.json",
+        "sha256": "5df89dca58d4339767ce19dce30ed15de240a31426a0b926987798b12b7f6265"
+      },
+      {
+        "path": "tools/model_eval_data/conditions.json",
+        "sha256": "4721fa296b09ef6f8401b40f7489a81db459a9bd4b4915de8028d4a01adda851"
+      },
+      {
+        "path": "tools/model_eval_data/dry_run/T06.json",
+        "sha256": "83f8ce5c1785014fb3d93d00aa93d685ac143d1a60b6972117041042fdeff2dd"
+      },
+      {
+        "path": "tools/model_eval_data/dry_run/T07.json",
+        "sha256": "46e60d0873da1915ded3c2392a2607b70c8e1bee626f8b610244258d2583abc6"
+      },
+      {
+        "path": "tools/model_eval_data/models/dry-run.json",
+        "sha256": "b976e4d6947f9a4f344b2c8dfd3d413c40966c34f56d519146da0eb6d573ab24"
+      },
+      {
+        "path": "tools/model_eval_data/models/gpt-5.6-sol.json",
+        "sha256": "d8ae584c0608f3aeaddf9f8aab88a1fe5b3358a6f33a41af30274526d9a69bb3"
+      },
+      {
+        "path": "tools/model_eval_data/models/qwen3.8-27b-local.json",
+        "sha256": "c1bf6591ae33a9d0b579dbe8c7b62daa54ac056e84662343f0e62165b1841246"
+      },
+      {
+        "path": "tools/model_eval_data/tasks.json",
+        "sha256": "7778d91113ec87b023500aaed4fef47875f7bdf2c1e4d3e3ce4d1b088ae9df91"
+      },
+      {
+        "path": "tools/platform_smoke.py",
+        "sha256": "ced8fb28ede26f1dec5c620994d2eb63e4598238e0984ee02b2eaf8397a4452d"
+      },
+      {
+        "path": "tools/usage_report.py",
+        "sha256": "19e78faa551bc1601a35e9b2f13880cb84631ac90d60c3f0c92c46fa74d91113"
+      },
+      {
+        "path": "uv.lock",
+        "sha256": "78243d7d4316067cd55cf15d29013a5fe7b3811f1059b277f6544fc63858d772"
+      }
+    ],
+    "source_equivalence": {
+      "reviewed_and_tested_correction": "e9c2d793831ba8d1b5a55e3f04554d5a51795d09",
+      "reconstructed_commit": "58d5b406e97a4e16706d6a3ac7f7928a7d436b2b",
+      "equal_code_files": 226,
+      "code_manifest_sha256": "eded8dcb74491549475a8157a0d58acb63d4b51331979a4d4b3a8ff6be9f8a6d",
+      "only_extra_fixes": "README wheel names and CONTRACTS E distribution version; no runtime/test code difference"
+    },
+    "prior_measured_commit": "58d5b406e97a4e16706d6a3ac7f7928a7d436b2b",
+    "equivalent_reviewed_production": "e9c2d793831ba8d1b5a55e3f04554d5a51795d09",
+    "prior_code_manifest_sha256": "eded8dcb74491549475a8157a0d58acb63d4b51331979a4d4b3a8ff6be9f8a6d",
+    "code_manifest_encoding": "UTF-8 canonical JSON array with sort_keys=True and separators=(',',':'), no trailing LF",
+    "test_only_correction": {
+      "commit": "044c72372d92e3d72c7cb505374a5efd2f8bb068",
+      "changed_files": [
+        "tests/asset_fixtures.py",
+        "tests/test_assets.py",
+        "tests/test_extension.py"
+      ],
+      "production_byte_equivalent": true,
+      "cause": "LF-only literal assertions compared against CRLF authored input on Windows; compare captured original bytes and exercise both LF/CRLF"
+    }
+  },
+  "scope": [
+    "candidate/check/effect records",
+    "exact artifact bundle and checking run versions",
+    "independent input and boundary promotion",
+    "explicit project-only copy and owned published receipt recovery",
+    "requested model-free review",
+    "standalone reader and malformed state-edge protection",
+    "SDK/CLI/record tool shared input and marker gates"
+  ],
+  "local": [
+    {
+      "check": "assets/contracts/reader/writer/marker/layers",
+      "commit": "1a786bacc4cd2406eaf142233824bfc69791dae7",
+      "status": "pass",
+      "passed": 495,
+      "python": "3.12.13",
+      "os": "macOS",
+      "parent_home_scoped": true,
+      "command": "python -m pytest -q --timeout 600 --timeout-method=thread tests/test_assets.py tests/test_asset_contract.py tests/test_layers.py tests/test_relations.py tests/test_record_contract.py tests/test_writer.py tests/test_marker_gate.py",
+      "cwd": "isolated Issue17 worktree (local absolute path omitted)",
+      "executed_at": "2026-10-09T15:40:46.247354+00:00",
+      "exit_code": 0
+    },
+    {
+      "check": "pinned Aelix extension/usage/agent-CLI",
+      "commit": "1a786bacc4cd2406eaf142233824bfc69791dae7",
+      "status": "pass",
+      "passed": 972,
+      "aelix": "0.1.0b2",
+      "python": "3.12",
+      "os": "macOS",
+      "parent_home_scoped": true,
+      "project_only_skill_loader_discovery": "pass",
+      "command": "uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_extension.py tests/test_usage_report.py tests/test_agent_cli.py",
+      "cwd": "isolated Issue17 worktree (local absolute path omitted)",
+      "executed_at": "2026-10-09T15:48:46.242090+00:00",
+      "exit_code": 0
+    },
+    {
+      "check": "ruff tests/src/extension/tools",
+      "commit": "1a786bacc4cd2406eaf142233824bfc69791dae7",
+      "status": "pass",
+      "command": "ruff check tests src extension tools",
+      "cwd": "isolated Issue17 worktree",
+      "exit_code": 0
+    },
+    {
+      "check": "docs links/examples",
+      "commit": "1a786bacc4cd2406eaf142233824bfc69791dae7",
+      "status": "pass",
+      "markdown": 70,
+      "json": 14,
+      "local_links": 745,
+      "command": "python tools/check_docs.py --output <local-run>/evidence/pre-review-docs.json",
+      "cwd": "isolated Issue17 worktree",
+      "exit_code": 0
+    },
+    {
+      "check": "review correction asset/contracts/reader/writer/marker/layers",
+      "commit": "e9c2d793831ba8d1b5a55e3f04554d5a51795d09",
+      "status": "pass",
+      "passed": 497,
+      "python": "3.12.13",
+      "os": "macOS",
+      "parent_home_scoped": true,
+      "command": "python -m pytest -q --timeout 600 --timeout-method=thread tests/test_assets.py tests/test_asset_contract.py tests/test_layers.py tests/test_relations.py tests/test_record_contract.py tests/test_writer.py tests/test_marker_gate.py",
+      "exit_code": 0
+    },
+    {
+      "check": "full repository with installed distribution E2E",
+      "commit": "e9c2d793831ba8d1b5a55e3f04554d5a51795d09",
+      "status": "fail",
+      "passed": 2070,
+      "skipped": 76,
+      "failed": 2,
+      "elapsed_seconds": 685.41,
+      "python": "3.12.13",
+      "os": "macOS",
+      "parent_home_scoped": true,
+      "install_gate": true,
+      "command": "AELIX_ANALYTICS_TEST_INSTALL=1 python -m pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread --ignore tests/test_windows_console.py --junitxml <local-run>/evidence/correction-full-suite.xml",
+      "executed_at": "2026-10-09T16:39:48.846027+00:00",
+      "exit_code": 1,
+      "failure_cause": "current README wheel name and CONTRACTS distribution row still named0.9.0",
+      "disposition": "two document version strings corrected; affected checks pass at reconstructed commit; not represented as an entirely green full run",
+      "skip_reasons": [
+        {
+          "reason": "8.3 short names are Windows'",
+          "count": 1
+        },
+        {
+          "reason": "AELIX_ANALYTICS_TEST_FOREIGN_FS names no folder on another file system (a FAT or exFAT volume, say)",
+          "count": 2
+        },
+        {
+          "reason": "M writes about 440 MB twice; set AELIX_ANALYTICS_TEST_SCALE_M=1",
+          "count": 1
+        },
+        {
+          "reason": "MAX_PATH and LongPathsEnabled are Windows'",
+          "count": 7
+        },
+        {
+          "reason": "a directory flagged case-sensitive is Windows'",
+          "count": 2
+        },
+        {
+          "reason": "a file another process holds open without sharing: Windows",
+          "count": 1
+        },
+        {
+          "reason": "a name not UTF-8: Linux keeps the bytes it is given",
+          "count": 1
+        },
+        {
+          "reason": "a name that is not UTF-8: Linux's file systems keep one, APFS and NTFS refuse it",
+          "count": 1
+        },
+        {
+          "reason": "before 3.14 a `with` calls __enter__ without a CALL, and no signal is handled between its acquiring and the block",
+          "count": 1
+        },
+        {
+          "reason": "collection skipped",
+          "count": 3
+        },
+        {
+          "reason": "taskkill and CreateProcess's search are Windows'",
+          "count": 1
+        },
+        {
+          "reason": "the Windows implementation runs on the Windows leg",
+          "count": 43
+        },
+        {
+          "reason": "the recording implementation does not declare that it excludes other processes",
+          "count": 3
+        },
+        {
+          "reason": "the recording implementation does not declare that it honours a folder's permissions",
+          "count": 1
+        },
+        {
+          "reason": "the recording implementation does not declare that it interrupts a region",
+          "count": 1
+        },
+        {
+          "reason": "the recording implementation does not declare that it sees running processes",
+          "count": 1
+        },
+        {
+          "reason": "the stand-in has no C call to fail",
+          "count": 3
+        },
+        {
+          "reason": "this file system refuses a name that is not UTF-8: OSError(92, 'Illegal byte sequence')",
+          "count": 2
+        },
+        {
+          "reason": "what Windows does; POSIX sends it again (the test above)",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "check": "affected current-version document checks",
+      "commit": "58d5b406e97a4e16706d6a3ac7f7928a7d436b2b",
+      "status": "pass",
+      "passed": 2,
+      "command": "python -m pytest -q -p no:cacheprovider tests/test_packaging.py::test_the_current_contract_names_the_kit_s_version tests/test_packaging.py::test_the_readme_names_the_wheel_this_version_builds",
+      "exit_code": 0
+    },
+    {
+      "check": "pinned Aelix extension/usage/agent-CLI Python3.11",
+      "commit": "e9c2d793831ba8d1b5a55e3f04554d5a51795d09",
+      "status": "pass",
+      "passed": 972,
+      "aelix": "0.1.0b2",
+      "python": "3.11",
+      "os": "macOS",
+      "parent_home_scoped": true,
+      "project_only_skill_loader_discovery": "pass",
+      "command": "uv run --isolated --no-project --python 3.11 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_extension.py tests/test_usage_report.py tests/test_agent_cli.py",
+      "executed_at": "2026-10-09T16:39:48.846043+00:00",
+      "exit_code": 0
+    },
+    {
+      "check": "actual kit CLI explicit registration",
+      "commit": "e9c2d793831ba8d1b5a55e3f04554d5a51795d09",
+      "status": "pass",
+      "python": "3.12.13",
+      "os": "macOS",
+      "parent_home_scoped": true,
+      "case": "real original/independent/boundary runs and exact-version asset checks, then assets register",
+      "byte_preserved": true,
+      "journal_append_preserved": true,
+      "reader_state": "registered",
+      "loader_discovery": "not_run, no host port supplied",
+      "model_calls": 0,
+      "exit_code": 0
+    },
+    {
+      "check": "CPython3.11 stdlib-only platform smoke",
+      "commit": "e9c2d793831ba8d1b5a55e3f04554d5a51795d09",
+      "status": "pass",
+      "holds": 15,
+      "observed": 3,
+      "not_run": 2,
+      "required_hold": true,
+      "command": "uv run --isolated --no-project --python 3.11 python tools/platform_smoke.py --stdlib-only --output <local-run>/evidence/correction-floor311.json",
+      "exit_code": 0
+    },
+    {
+      "check": "post-correction lint and docs",
+      "commit": "e9c2d793831ba8d1b5a55e3f04554d5a51795d09",
+      "status": "pass",
+      "command": "ruff check tests src extension tools; python tools/check_docs.py --output <local-run>/evidence/correction-docs.json",
+      "markdown": 71,
+      "json": 15,
+      "local_links": 747,
+      "exit_code": 0
+    },
+    {
+      "check": "rebased current-version document checks",
+      "commit": "044c72372d92e3d72c7cb505374a5efd2f8bb068",
+      "status": "pass",
+      "passed": 2,
+      "command": [
+        ".devstate/runs/dd3a547e-5fc2-4b60-a72a-32329eda517e/isolation/development-env/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/test_packaging.py::test_the_current_contract_names_the_kit_s_version",
+        "tests/test_packaging.py::test_the_readme_names_the_wheel_this_version_builds"
+      ],
+      "executed_at": "2026-10-10T08:22:47.063867+00:00",
+      "exit_code": 0,
+      "parent_home_scoped": true,
+      "uv_dirs_scoped": true
+    }
+  ],
+  "prior_attempts": [
+    {
+      "status": "fail",
+      "passed": 916,
+      "skipped": 1,
+      "failed": 2,
+      "cause": "stale kit-version and public-kind inventory assertions",
+      "disposition": "updated and affected240 tests passed on f465b42"
+    }
+  ],
+  "ci": {
+    "status": "source_three_os_passed",
+    "source_run": {
+      "id": 38040680262,
+      "attempt": 1,
+      "head": "044c72372d92e3d72c7cb505374a5efd2f8bb068",
+      "url": "https://github.com/handochan/aelix-analytics/actions/runs/38040680262",
+      "github_conclusion": "success",
+      "validation_status": "pass",
+      "jobs": [
+        {
+          "name": "platform · ubuntu-24.04",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "floor · windows-2025 · CPython 3.11, stdlib only",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "floor · ubuntu-24.04 · CPython 3.11, stdlib only",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "platform · macos-26",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "platform · windows-2025",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "lint · ruff and documents",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "floor · macos-26 · CPython 3.11, stdlib only",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    "inspection": {
+      "contexts": [
+        {
+          "path": "ci-floor-macos-26/context.json",
+          "head_sha": "044c72372d92e3d72c7cb505374a5efd2f8bb068",
+          "run_id": "38040680262",
+          "attempt": "1",
+          "os": "macOS",
+          "job": "floor",
+          "action": "",
+          "label": ""
+        },
+        {
+          "path": "ci-floor-ubuntu-24.04/context.json",
+          "head_sha": "044c72372d92e3d72c7cb505374a5efd2f8bb068",
+          "run_id": "38040680262",
+          "attempt": "1",
+          "os": "Linux",
+          "job": "floor",
+          "action": "",
+          "label": ""
+        },
+        {
+          "path": "ci-floor-windows-2025/context.json",
+          "head_sha": "044c72372d92e3d72c7cb505374a5efd2f8bb068",
+          "run_id": "38040680262",
+          "attempt": "1",
+          "os": "Windows",
+          "job": "floor",
+          "action": "",
+          "label": ""
+        },
+        {
+          "path": "ci-lint/context.json",
+          "head_sha": "044c72372d92e3d72c7cb505374a5efd2f8bb068",
+          "run_id": "38040680262",
+          "attempt": "1",
+          "os": "Linux",
+          "job": "lint",
+          "action": "",
+          "label": null
+        },
+        {
+          "path": "ci-platform-macos-26/context.json",
+          "head_sha": "044c72372d92e3d72c7cb505374a5efd2f8bb068",
+          "run_id": "38040680262",
+          "attempt": "1",
+          "os": "macOS",
+          "job": "platform",
+          "action": "",
+          "label": ""
+        },
+        {
+          "path": "ci-platform-ubuntu-24.04/context.json",
+          "head_sha": "044c72372d92e3d72c7cb505374a5efd2f8bb068",
+          "run_id": "38040680262",
+          "attempt": "1",
+          "os": "Linux",
+          "job": "platform",
+          "action": "",
+          "label": ""
+        },
+        {
+          "path": "ci-platform-windows-2025/context.json",
+          "head_sha": "044c72372d92e3d72c7cb505374a5efd2f8bb068",
+          "run_id": "38040680262",
+          "attempt": "1",
+          "os": "Windows",
+          "job": "platform",
+          "action": "",
+          "label": ""
+        }
+      ],
+      "junit": [
+        {
+          "path": "ci-platform-macos-26/aelix-py3.11.xml",
+          "tests": 973,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 973,
+          "seconds": 51.785,
+          "skip_reasons": []
+        },
+        {
+          "path": "ci-platform-macos-26/aelix-py3.12.xml",
+          "tests": 973,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 973,
+          "seconds": 53.843,
+          "skip_reasons": []
+        },
+        {
+          "path": "ci-platform-macos-26/launcher-py3.11.xml",
+          "tests": 197,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 1,
+          "passed": 196,
+          "seconds": 18.917,
+          "skip_reasons": [
+            {
+              "reason": "what Windows does; POSIX sends it again (the test above)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "path": "ci-platform-macos-26/suite.xml",
+          "tests": 2149,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 76,
+          "passed": 2073,
+          "seconds": 720.648,
+          "skip_reasons": [
+            {
+              "reason": "8.3 short names are Windows'",
+              "count": 1
+            },
+            {
+              "reason": "AELIX_ANALYTICS_TEST_FOREIGN_FS names no folder on another file system (a FAT or exFAT volume, say)",
+              "count": 2
+            },
+            {
+              "reason": "M writes about 440 MB twice; set AELIX_ANALYTICS_TEST_SCALE_M=1",
+              "count": 1
+            },
+            {
+              "reason": "MAX_PATH and LongPathsEnabled are Windows'",
+              "count": 7
+            },
+            {
+              "reason": "a directory flagged case-sensitive is Windows'",
+              "count": 2
+            },
+            {
+              "reason": "a file another process holds open without sharing: Windows",
+              "count": 1
+            },
+            {
+              "reason": "a name not UTF-8: Linux keeps the bytes it is given",
+              "count": 1
+            },
+            {
+              "reason": "a name that is not UTF-8: Linux's file systems keep one, APFS and NTFS refuse it",
+              "count": 1
+            },
+            {
+              "reason": "before 3.14 a `with` calls __enter__ without a CALL, and no signal is handled between its acquiring and the block",
+              "count": 1
+            },
+            {
+              "reason": "collection skipped",
+              "count": 3
+            },
+            {
+              "reason": "taskkill and CreateProcess's search are Windows'",
+              "count": 1
+            },
+            {
+              "reason": "the Windows implementation runs on the Windows leg",
+              "count": 43
+            },
+            {
+              "reason": "the recording implementation does not declare that it excludes other processes",
+              "count": 3
+            },
+            {
+              "reason": "the recording implementation does not declare that it honours a folder's permissions",
+              "count": 1
+            },
+            {
+              "reason": "the recording implementation does not declare that it interrupts a region",
+              "count": 1
+            },
+            {
+              "reason": "the recording implementation does not declare that it sees running processes",
+              "count": 1
+            },
+            {
+              "reason": "the stand-in has no C call to fail",
+              "count": 3
+            },
+            {
+              "reason": "this file system refuses a name that is not UTF-8: OSError(92, 'Illegal byte sequence')",
+              "count": 2
+            },
+            {
+              "reason": "what Windows does; POSIX sends it again (the test above)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "path": "ci-platform-ubuntu-24.04/aelix-py3.11.xml",
+          "tests": 973,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 973,
+          "seconds": 57.679,
+          "skip_reasons": []
+        },
+        {
+          "path": "ci-platform-ubuntu-24.04/aelix-py3.12.xml",
+          "tests": 973,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 973,
+          "seconds": 61.225,
+          "skip_reasons": []
+        },
+        {
+          "path": "ci-platform-ubuntu-24.04/launcher-py3.11.xml",
+          "tests": 197,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 1,
+          "passed": 196,
+          "seconds": 13.99,
+          "skip_reasons": [
+            {
+              "reason": "what Windows does; POSIX sends it again (the test above)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "path": "ci-platform-ubuntu-24.04/suite.xml",
+          "tests": 2149,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 74,
+          "passed": 2075,
+          "seconds": 748.519,
+          "skip_reasons": [
+            {
+              "reason": "8.3 short names are Windows'",
+              "count": 1
+            },
+            {
+              "reason": "AELIX_ANALYTICS_TEST_FOREIGN_FS names no folder on another file system (a FAT or exFAT volume, say)",
+              "count": 2
+            },
+            {
+              "reason": "M writes about 440 MB twice; set AELIX_ANALYTICS_TEST_SCALE_M=1",
+              "count": 1
+            },
+            {
+              "reason": "MAX_PATH and LongPathsEnabled are Windows'",
+              "count": 7
+            },
+            {
+              "reason": "a directory flagged case-sensitive is Windows'",
+              "count": 2
+            },
+            {
+              "reason": "a file another process holds open without sharing: Windows",
+              "count": 1
+            },
+            {
+              "reason": "before 3.14 a `with` calls __enter__ without a CALL, and no signal is handled between its acquiring and the block",
+              "count": 1
+            },
+            {
+              "reason": "collection skipped",
+              "count": 3
+            },
+            {
+              "reason": "taskkill and CreateProcess's search are Windows'",
+              "count": 1
+            },
+            {
+              "reason": "the Windows implementation runs on the Windows leg",
+              "count": 43
+            },
+            {
+              "reason": "the recording implementation does not declare that it excludes other processes",
+              "count": 3
+            },
+            {
+              "reason": "the recording implementation does not declare that it honours a folder's permissions",
+              "count": 1
+            },
+            {
+              "reason": "the recording implementation does not declare that it interrupts a region",
+              "count": 1
+            },
+            {
+              "reason": "the recording implementation does not declare that it sees running processes",
+              "count": 1
+            },
+            {
+              "reason": "the stand-in has no C call to fail",
+              "count": 3
+            },
+            {
+              "reason": "this file system minds case: `Runs` would be a directory of its own",
+              "count": 1
+            },
+            {
+              "reason": "this file system tells case apart",
+              "count": 1
+            },
+            {
+              "reason": "what Windows does; POSIX sends it again (the test above)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "path": "ci-platform-windows-2025/aelix-py3.11.xml",
+          "tests": 974,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 1,
+          "passed": 973,
+          "seconds": 118.967,
+          "skip_reasons": [
+            {
+              "reason": "the POSIX shells and PowerShell found here, by path",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "path": "ci-platform-windows-2025/aelix-py3.12.xml",
+          "tests": 974,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 1,
+          "passed": 973,
+          "seconds": 116.501,
+          "skip_reasons": [
+            {
+              "reason": "the POSIX shells and PowerShell found here, by path",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "path": "ci-platform-windows-2025/console.xml",
+          "tests": 21,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 21,
+          "seconds": 104.861,
+          "skip_reasons": []
+        },
+        {
+          "path": "ci-platform-windows-2025/launcher-py3.11.xml",
+          "tests": 197,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 106,
+          "passed": 91,
+          "seconds": 16.673,
+          "skip_reasons": [
+            {
+              "reason": "SIGTERM from outside a process is POSIX",
+              "count": 3
+            },
+            {
+              "reason": "a FIFO and the links are POSIX's here",
+              "count": 6
+            },
+            {
+              "reason": "a POSIX signal",
+              "count": 2
+            },
+            {
+              "reason": "a POSIX signal sent to one process",
+              "count": 1
+            },
+            {
+              "reason": "a shell's background job",
+              "count": 2
+            },
+            {
+              "reason": "a symbolic link to a program",
+              "count": 1
+            },
+            {
+              "reason": "a terminal's process group; a Windows console's Ctrl+C is tests/test_windows_console.py's",
+              "count": 1
+            },
+            {
+              "reason": "bin/analytics is a POSIX shell script",
+              "count": 72
+            },
+            {
+              "reason": "bytes that are not UTF-8 in the environment are POSIX's",
+              "count": 1
+            },
+            {
+              "reason": "os.startfile would open a real program on Windows",
+              "count": 10
+            },
+            {
+              "reason": "signal dispositions as POSIX inherits them",
+              "count": 1
+            },
+            {
+              "reason": "the links are POSIX's here, and os.startfile would open a real program on Windows",
+              "count": 6
+            }
+          ]
+        },
+        {
+          "path": "ci-platform-windows-2025/long-paths-off.xml",
+          "tests": 7,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 7,
+          "seconds": 4.234,
+          "skip_reasons": []
+        },
+        {
+          "path": "ci-platform-windows-2025/suite.xml",
+          "tests": 2175,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 278,
+          "passed": 1897,
+          "seconds": 1821.376,
+          "skip_reasons": [
+            {
+              "reason": "AELIX_ANALYTICS_TEST_FOREIGN_FS names no folder on another file system (a FAT or exFAT volume, say)",
+              "count": 2
+            },
+            {
+              "reason": "M writes about 440 MB twice; set AELIX_ANALYTICS_TEST_SCALE_M=1",
+              "count": 1
+            },
+            {
+              "reason": "POSIX executables and HOME",
+              "count": 1
+            },
+            {
+              "reason": "POSIX permissions that bind the owner",
+              "count": 1
+            },
+            {
+              "reason": "POSIX signals",
+              "count": 3
+            },
+            {
+              "reason": "POSIX signals and the launcher's lifeline",
+              "count": 1
+            },
+            {
+              "reason": "SIGALRM is POSIX",
+              "count": 1
+            },
+            {
+              "reason": "SIGTERM from outside a process is POSIX",
+              "count": 3
+            },
+            {
+              "reason": "Windows makes no such name; the case runs on the POSIX legs",
+              "count": 1
+            },
+            {
+              "reason": "Windows publishes by a rename: no second name between a link and an unlink",
+              "count": 1
+            },
+            {
+              "reason": "Windows publishes by a rename: there is no window between a link and an unlink",
+              "count": 2
+            },
+            {
+              "reason": "Windows reads one character and a colon as a drive, and NTFS a colon in a name as a stream",
+              "count": 3
+            },
+            {
+              "reason": "Windows' rename never replaces: it has no such case",
+              "count": 4
+            },
+            {
+              "reason": "`..` after a link: POSIX resolves it from the link's target",
+              "count": 1
+            },
+            {
+              "reason": "a FIFO and the links are POSIX's here",
+              "count": 9
+            },
+            {
+              "reason": "a FIFO is POSIX's",
+              "count": 1
+            },
+            {
+              "reason": "a POSIX background job of the bash tool",
+              "count": 1
+            },
+            {
+              "reason": "a POSIX shell script stands in for the opener",
+              "count": 1
+            },
+            {
+              "reason": "a POSIX signal",
+              "count": 2
+            },
+            {
+              "reason": "a POSIX signal sent to one process",
+              "count": 1
+            },
+            {
+              "reason": "a directory the process cannot list: POSIX permissions, not root",
+              "count": 1
+            },
+            {
+              "reason": "a folder's write permission: POSIX, not as root",
+              "count": 2
+            },
+            {
+              "reason": "a name not UTF-8: Linux keeps the bytes it is given",
+              "count": 1
+            },
+            {
+              "reason": "a name that is not UTF-8: Linux's file systems keep one, APFS and NTFS refuse it",
+              "count": 1
+            },
+            {
+              "reason": "a shell's background job",
+              "count": 2
+            },
+            {
+              "reason": "a symbolic link needs a privilege on Windows",
+              "count": 1
+            },
+            {
+              "reason": "a symbolic link to a program",
+              "count": 1
+            },
+            {
+              "reason": "a terminal's process group; a Windows console's Ctrl+C is tests/test_windows_console.py's",
+              "count": 1
+            },
+            {
+              "reason": "before 3.14 a `with` calls __enter__ without a CALL, and no signal is handled between its acquiring and the block",
+              "count": 1
+            },
+            {
+              "reason": "bin/analytics is a POSIX shell script",
+              "count": 83
+            },
+            {
+              "reason": "bytes that are not UTF-8 in the environment are POSIX's",
+              "count": 1
+            },
+            {
+              "reason": "collection skipped",
+              "count": 3
+            },
+            {
+              "reason": "declared: on Windows the ask is a Python thread, which a regular expression holding the GIL starves",
+              "count": 1
+            },
+            {
+              "reason": "names POSIX can hold and Windows reads otherwise",
+              "count": 1
+            },
+            {
+              "reason": "os.startfile would open a real program on Windows",
+              "count": 10
+            },
+            {
+              "reason": "process groups are a POSIX concept",
+              "count": 1
+            },
+            {
+              "reason": "signal dispositions as POSIX inherits them",
+              "count": 1
+            },
+            {
+              "reason": "the POSIX guard's signals",
+              "count": 59
+            },
+            {
+              "reason": "the POSIX implementation runs on the Linux and macOS legs",
+              "count": 43
+            },
+            {
+              "reason": "the broken guard stands in for the POSIX one",
+              "count": 1
+            },
+            {
+              "reason": "the launcher masks through its POSIX pipes",
+              "count": 1
+            },
+            {
+              "reason": "the launcher masks through its POSIX pipes; links need privileges",
+              "count": 1
+            },
+            {
+              "reason": "the links are POSIX's here, and os.startfile would open a real program on Windows",
+              "count": 6
+            },
+            {
+              "reason": "the recording implementation does not declare that it excludes other processes",
+              "count": 3
+            },
+            {
+              "reason": "the recording implementation does not declare that it honours a folder's permissions",
+              "count": 1
+            },
+            {
+              "reason": "the recording implementation does not declare that it interrupts a region",
+              "count": 1
+            },
+            {
+              "reason": "the recording implementation does not declare that it sees running processes",
+              "count": 1
+            },
+            {
+              "reason": "the stand-in has no C call to fail",
+              "count": 3
+            },
+            {
+              "reason": "the stand-in uv is a script; Windows starts only an .exe",
+              "count": 1
+            },
+            {
+              "reason": "the stub guard stands in for the POSIX one",
+              "count": 1
+            },
+            {
+              "reason": "the stub guards stand in for the POSIX one",
+              "count": 2
+            },
+            {
+              "reason": "the windows implementation does not declare that it honours a folder's permissions",
+              "count": 1
+            },
+            {
+              "reason": "the windows implementation does not declare that it publishes by a link",
+              "count": 1
+            }
+          ]
+        }
+      ],
+      "smoke": [
+        {
+          "path": "ci-floor-macos-26/stdlib-smoke.json",
+          "mode": "stdlib-only",
+          "source": {
+            "head": "044c72372d92e3d72c7cb505374a5efd2f8bb068",
+            "dirty": false
+          },
+          "summary": {
+            "holds": 15,
+            "violated": 0,
+            "declared_limitation": 0,
+            "observed": 3,
+            "not_run": 2
+          },
+          "required": {
+            "platform": "posix",
+            "checks": [
+              "imports_without_analysis_libraries",
+              "lock_excludes_another_process",
+              "lock_released_when_its_holder_is_killed",
+              "replace_while_a_reader_holds_the_file",
+              "liveness_of_a_live_an_exited_and_a_bogus_pid",
+              "interrupt_asks_a_python_child_or_declines",
+              "kill_tree_ends_the_child_and_its_grandchild",
+              "kill_tree_after_the_leader_exited",
+              "deadline_interrupts_python_code",
+              "deadline_interrupts_a_sleep",
+              "the_cancel_request_wakes_a_sleeping_run",
+              "the_guard_records_outside_regions_and_interrupts_inside_once",
+              "base_env_is_enough_to_start_a_child",
+              "file_url_leads_back_to_the_file",
+              "utf8_survives_a_pipe"
+            ],
+            "violated": [],
+            "declared_limitation": [],
+            "not_run": [],
+            "hold": true
+          }
+        },
+        {
+          "path": "ci-floor-ubuntu-24.04/stdlib-smoke.json",
+          "mode": "stdlib-only",
+          "source": {
+            "head": "044c72372d92e3d72c7cb505374a5efd2f8bb068",
+            "dirty": false
+          },
+          "summary": {
+            "holds": 15,
+            "violated": 0,
+            "declared_limitation": 0,
+            "observed": 3,
+            "not_run": 2
+          },
+          "required": {
+            "platform": "posix",
+            "checks": [
+              "imports_without_analysis_libraries",
+              "lock_excludes_another_process",
+              "lock_released_when_its_holder_is_killed",
+              "replace_while_a_reader_holds_the_file",
+              "liveness_of_a_live_an_exited_and_a_bogus_pid",
+              "interrupt_asks_a_python_child_or_declines",
+              "kill_tree_ends_the_child_and_its_grandchild",
+              "kill_tree_after_the_leader_exited",
+              "deadline_interrupts_python_code",
+              "deadline_interrupts_a_sleep",
+              "the_cancel_request_wakes_a_sleeping_run",
+              "the_guard_records_outside_regions_and_interrupts_inside_once",
+              "base_env_is_enough_to_start_a_child",
+              "file_url_leads_back_to_the_file",
+              "utf8_survives_a_pipe"
+            ],
+            "violated": [],
+            "declared_limitation": [],
+            "not_run": [],
+            "hold": true
+          }
+        },
+        {
+          "path": "ci-floor-windows-2025/stdlib-smoke.json",
+          "mode": "stdlib-only",
+          "source": {
+            "head": "044c72372d92e3d72c7cb505374a5efd2f8bb068",
+            "dirty": false
+          },
+          "summary": {
+            "holds": 14,
+            "violated": 0,
+            "declared_limitation": 1,
+            "observed": 3,
+            "not_run": 2
+          },
+          "required": {
+            "platform": "windows",
+            "checks": [
+              "imports_without_analysis_libraries",
+              "lock_excludes_another_process",
+              "lock_released_when_its_holder_is_killed",
+              "replace_while_a_reader_holds_the_file",
+              "liveness_of_a_live_an_exited_and_a_bogus_pid",
+              "interrupt_asks_a_python_child_or_declines",
+              "kill_tree_ends_the_child_and_its_grandchild",
+              "kill_tree_after_the_leader_exited",
+              "deadline_interrupts_python_code",
+              "deadline_interrupts_a_sleep",
+              "the_cancel_request_wakes_a_sleeping_run",
+              "the_guard_records_outside_regions_and_interrupts_inside_once",
+              "base_env_is_enough_to_start_a_child",
+              "file_url_leads_back_to_the_file",
+              "utf8_survives_a_pipe"
+            ],
+            "violated": [],
+            "declared_limitation": [
+              "kill_tree_after_the_leader_exited"
+            ],
+            "not_run": [],
+            "hold": true
+          }
+        },
+        {
+          "path": "ci-platform-macos-26/smoke.json",
+          "mode": "full",
+          "source": {
+            "head": "044c72372d92e3d72c7cb505374a5efd2f8bb068",
+            "dirty": false
+          },
+          "summary": {
+            "holds": 25,
+            "violated": 0,
+            "declared_limitation": 0,
+            "observed": 6,
+            "not_run": 0
+          },
+          "required": {
+            "platform": "posix",
+            "checks": [
+              "imports_without_analysis_libraries",
+              "lock_excludes_another_process",
+              "lock_released_when_its_holder_is_killed",
+              "replace_while_a_reader_holds_the_file",
+              "liveness_of_a_live_an_exited_and_a_bogus_pid",
+              "interrupt_asks_a_python_child_or_declines",
+              "kill_tree_ends_the_child_and_its_grandchild",
+              "kill_tree_after_the_leader_exited",
+              "deadline_interrupts_python_code",
+              "deadline_interrupts_a_sleep",
+              "the_cancel_request_wakes_a_sleeping_run",
+              "the_guard_records_outside_regions_and_interrupts_inside_once",
+              "base_env_is_enough_to_start_a_child",
+              "file_url_leads_back_to_the_file",
+              "utf8_survives_a_pipe",
+              "cli_end_to_end",
+              "cli_run_timeout_in_python_code",
+              "cli_run_timeout_in_a_blocking_duckdb_query",
+              "cli_cancel_the_way_the_extension_does",
+              "cli_cancel_reaches_a_run_inside_a_regular_expression",
+              "cli_cancel_reaches_a_run_waiting_on_a_subprocess",
+              "cli_concurrent_runs_are_serialized",
+              "cli_refuses_a_new_reserved_dataset_name",
+              "cli_writes_a_reserved_chart_id_to_a_portable_file",
+              "cli_a_script_saving_a_reserved_name_is_warned_about"
+            ],
+            "violated": [],
+            "declared_limitation": [],
+            "not_run": [],
+            "hold": true
+          }
+        },
+        {
+          "path": "ci-platform-ubuntu-24.04/smoke.json",
+          "mode": "full",
+          "source": {
+            "head": "044c72372d92e3d72c7cb505374a5efd2f8bb068",
+            "dirty": false
+          },
+          "summary": {
+            "holds": 25,
+            "violated": 0,
+            "declared_limitation": 0,
+            "observed": 6,
+            "not_run": 0
+          },
+          "required": {
+            "platform": "posix",
+            "checks": [
+              "imports_without_analysis_libraries",
+              "lock_excludes_another_process",
+              "lock_released_when_its_holder_is_killed",
+              "replace_while_a_reader_holds_the_file",
+              "liveness_of_a_live_an_exited_and_a_bogus_pid",
+              "interrupt_asks_a_python_child_or_declines",
+              "kill_tree_ends_the_child_and_its_grandchild",
+              "kill_tree_after_the_leader_exited",
+              "deadline_interrupts_python_code",
+              "deadline_interrupts_a_sleep",
+              "the_cancel_request_wakes_a_sleeping_run",
+              "the_guard_records_outside_regions_and_interrupts_inside_once",
+              "base_env_is_enough_to_start_a_child",
+              "file_url_leads_back_to_the_file",
+              "utf8_survives_a_pipe",
+              "cli_end_to_end",
+              "cli_run_timeout_in_python_code",
+              "cli_run_timeout_in_a_blocking_duckdb_query",
+              "cli_cancel_the_way_the_extension_does",
+              "cli_cancel_reaches_a_run_inside_a_regular_expression",
+              "cli_cancel_reaches_a_run_waiting_on_a_subprocess",
+              "cli_concurrent_runs_are_serialized",
+              "cli_refuses_a_new_reserved_dataset_name",
+              "cli_writes_a_reserved_chart_id_to_a_portable_file",
+              "cli_a_script_saving_a_reserved_name_is_warned_about"
+            ],
+            "violated": [],
+            "declared_limitation": [],
+            "not_run": [],
+            "hold": true
+          }
+        },
+        {
+          "path": "ci-platform-windows-2025/smoke.json",
+          "mode": "full",
+          "source": {
+            "head": "044c72372d92e3d72c7cb505374a5efd2f8bb068",
+            "dirty": false
+          },
+          "summary": {
+            "holds": 21,
+            "violated": 0,
+            "declared_limitation": 3,
+            "observed": 7,
+            "not_run": 0
+          },
+          "required": {
+            "platform": "windows",
+            "checks": [
+              "imports_without_analysis_libraries",
+              "lock_excludes_another_process",
+              "lock_released_when_its_holder_is_killed",
+              "replace_while_a_reader_holds_the_file",
+              "liveness_of_a_live_an_exited_and_a_bogus_pid",
+              "interrupt_asks_a_python_child_or_declines",
+              "kill_tree_ends_the_child_and_its_grandchild",
+              "kill_tree_after_the_leader_exited",
+              "deadline_interrupts_python_code",
+              "deadline_interrupts_a_sleep",
+              "the_cancel_request_wakes_a_sleeping_run",
+              "the_guard_records_outside_regions_and_interrupts_inside_once",
+              "base_env_is_enough_to_start_a_child",
+              "file_url_leads_back_to_the_file",
+              "utf8_survives_a_pipe",
+              "cli_end_to_end",
+              "cli_run_timeout_in_python_code",
+              "cli_run_timeout_in_a_blocking_duckdb_query",
+              "cli_cancel_the_way_the_extension_does",
+              "cli_cancel_reaches_a_run_inside_a_regular_expression",
+              "cli_cancel_reaches_a_run_waiting_on_a_subprocess",
+              "cli_concurrent_runs_are_serialized",
+              "cli_refuses_a_new_reserved_dataset_name",
+              "cli_writes_a_reserved_chart_id_to_a_portable_file"
+            ],
+            "violated": [],
+            "declared_limitation": [
+              "kill_tree_after_the_leader_exited",
+              "cli_cancel_reaches_a_run_inside_a_regular_expression",
+              "cli_cancel_reaches_a_run_waiting_on_a_subprocess"
+            ],
+            "not_run": [],
+            "hold": true
+          }
+        }
+      ],
+      "docs": [
+        {
+          "path": "ci-lint/docs.json",
+          "ok": true,
+          "counts": {
+            "json_files": 15,
+            "markdown_files": 71,
+            "local_links": 747,
+            "python_examples": 6,
+            "json_examples": 7,
+            "dev_state_examples": 1
+          },
+          "errors": []
+        }
+      ],
+      "manifest_files": 583,
+      "manifest_sha256": "7a474a2ae1374ba1b6fe8f1794723fd233a3077fc40f54b931bc509fecbf507e",
+      "errors": []
+    },
+    "final_delivery_ci": {
+      "authority": "https://github.com/handochan/aelix-analytics/pull/88",
+      "scope": "new exact-head three-OS CI for the evidence-only final commit is recorded in the PR/Issue verification table, without a self-referential commit loop"
+    }
+  },
+  "reviews": {
+    "design_independent": "completed16101c1",
+    "design_codex": "completed16101c1",
+    "design_correction": "completed7b93554",
+    "implementation_independent": "completed782e363, separate review agent; same two P2 findings",
+    "implementation_codex": "completed782e363, separate Issue14 Codex reviewer; same two P2 findings",
+    "implementation_correction": "one bounded correction-diff check782e363..e9c2d79, passed; no additional blocking finding",
+    "findings": [
+      {
+        "id": "I17A-1/C17A-1",
+        "severity": "P2",
+        "problem": "application private state replay advanced a candidate from a non-prior update",
+        "disposition": "fixed: common Replay owns all surface chronology and invalid update warnings"
+      },
+      {
+        "id": "I17A-2/C17A-2",
+        "severity": "P2",
+        "problem": "promotion proof format could advance a source-less candidate without belonging to its artifact/source/check versions",
+        "disposition": "fixed: exact unique prior candidate and prior checks, same artifact/source/check identity, journal-only historical validation"
+      }
+    ]
+  },
+  "not_run": [
+    "B3-b project/automatic modes, rolling window and automatic publication",
+    "B3-c Aelix session/context publication and Workspace asset detail",
+    "Q11 new feature cost measurement",
+    "real model and human rehearsal",
+    "real user project registration",
+    "global registration, release and external publication"
+  ],
+  "limitations": [
+    "loader_discovery is not_run without a supplied host port; registration and discovery/execution are distinct",
+    "prepared-only or absent receipt never adopts an existing destination, including identical bytes",
+    "artifact files are explicit project-only regular files; links/junctions and special files are refused",
+    "only confirmed exact versions strengthen deterministic scores; declarations are provenance, not authentication or universal correctness",
+    "The final evidence-only delivery CI is linked in PR88/Issue17; this committed report measures the byte-equivalent source head."
+  ],
+  "prior_actual_ci_failures": [
+    {
+      "id": 38037643566,
+      "attempt": 1,
+      "head": "de75c0ea8a1b3ec5456471e737ea95a01d39a46e",
+      "url": "https://github.com/handochan/aelix-analytics/actions/runs/38037643566",
+      "github_conclusion": "failure",
+      "validation_status": "fail",
+      "contexts": 7,
+      "junit": 14,
+      "smoke": 6,
+      "manifest_files": 583,
+      "manifest_sha256": "f01cb575733b7e09eec9c2aed238d7eb80028dbb42a518724b6517e581cd9508",
+      "concrete_failures": [
+        {
+          "report": "ci-platform-windows-2025/aelix-py3.11.xml",
+          "name": "test_registered_skill_only_asset_is_discovered_by_the_pinned_host_loader_in_its_project",
+          "type": "failure",
+          "cause": "CRLF preserved correctly; test compared to LF-only SKILL literal"
+        },
+        {
+          "report": "ci-platform-windows-2025/aelix-py3.12.xml",
+          "name": "test_registered_skill_only_asset_is_discovered_by_the_pinned_host_loader_in_its_project",
+          "type": "failure",
+          "cause": "CRLF preserved correctly; test compared to LF-only SKILL literal"
+        },
+        {
+          "report": "ci-platform-windows-2025/suite.xml",
+          "name": "test_skill_only_candidate_registers_without_a_python_implementation_or_host_dependency",
+          "type": "failure",
+          "cause": "CRLF preserved correctly; test compared to LF-only SKILL literal"
+        }
+      ],
+      "disposition": "test-only correction044c723; production bytes unchanged; failed original result retained"
+    }
+  ],
+  "prior_blocked_ci": {
+    "status": "not_started_billing",
+    "reason": "runtime draft follows the reviewed dependency branch; final actual merged-main CI pending. The prerequisite Issue14 final jobs did not start due billing/spending limit. No platform test failure is inferred from this account block.",
+    "prerequisite_issue14": {
+      "head": "166f991c50f37ea7de583ce2014a43afca342246",
+      "run_id": 37960224053,
+      "attempt": 1,
+      "url": "https://github.com/handochan/aelix-analytics/actions/runs/37960224053",
+      "jobs": 5,
+      "steps": 0,
+      "annotation_reason": "recent account payments have failed or spending limit needs to be increased"
+    },
+    "runtime_runs": [
+      {
+        "id": 37962902000,
+        "attempt": 1,
+        "head": "58f7ac1acbf7b15348f26904d7186ed683b97d0b",
+        "url": "https://github.com/handochan/aelix-analytics/actions/runs/37962902000",
+        "github_conclusion": "failure",
+        "validation_status": "not_run",
+        "jobs": 5,
+        "steps": 0,
+        "reason": "account payments/spending limit prevented all jobs from starting",
+        "macos": "not_run, no label dispatch while account is blocked"
+      },
+      {
+        "id": 37963316892,
+        "attempt": 1,
+        "head": "e7dfdb5014bda3eaf73f37aadd90c4e92f02463b",
+        "url": "https://github.com/handochan/aelix-analytics/actions/runs/37963316892",
+        "github_conclusion": "failure",
+        "validation_status": "not_run",
+        "jobs": 5,
+        "steps": 0,
+        "reason": "account payments/spending limit prevented all jobs from starting"
+      }
+    ]
+  }
+}

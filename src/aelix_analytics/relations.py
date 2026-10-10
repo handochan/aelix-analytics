@@ -83,6 +83,7 @@ import hashlib
 import json
 import os
 import re
+import unicodedata
 from datetime import datetime
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
@@ -299,20 +300,21 @@ KINDS = {
                          "question", "todo", "note", "resolve", "workflow_feedback", "analysis_focus",
                          "metric_definition", "metric_observation", "record_update", "checkpoint",
                          "reuse_proposal", "reuse_notification", "reuse_mode", "report_revision",
-                         "publication", "publish_receipt"}),
+                         "publication", "publish_receipt", "asset_candidate", "asset_check", "asset_effect",
+                         "asset_notification", "asset_mode"}),
 }
 REF_TYPES = frozenset({"event", "run", "visualization_version", "data_observation", "dataset_import",
                        "code_snapshot", "context_version", "metric_definition", "analysis_focus",
-                       "reuse_proposal", "report_revision", "publication"})
+                       "reuse_proposal", "report_revision", "publication", "asset_candidate"})
 RELATIONS = frozenset({"supports", "contradicts", "cites", "uses", "derived_from", "generated_by",
                        "about", "includes", "resolves", "supersedes", "updates"})
 BASES = frozenset({"observed", "declared", "inferred", "unverified"})
 BINDINGS = frozenset({"author", "inferred", "none"})
-EVENT_TARGETS = frozenset({"event", "analysis_focus", "metric_definition", "reuse_proposal"})
+EVENT_TARGETS = frozenset({"event", "analysis_focus", "metric_definition", "reuse_proposal", "asset_candidate"})
 # ADR-0006 2: the logical id a typed event target holds in its details (analysis_focus has none).
-EVENT_LOGICAL_IDS = {"metric_definition": "metric_id", "reuse_proposal": "proposal_id"}
+EVENT_LOGICAL_IDS = {"metric_definition": "metric_id", "reuse_proposal": "proposal_id", "asset_candidate": "asset_id"}
 # Fields that hold a logical key when a reference is left unbound (ADR-0006 2 and 3).
-LOGICAL_KEYS = ("key", "path", "metric_id", "proposal_id", "report_id")
+LOGICAL_KEYS = ("key", "path", "metric_id", "proposal_id", "report_id", "asset_id")
 # ADR-0006 6: the records that have a state, by kind (`gap` is the /1 name of workflow_feedback).
 CONTENT_KINDS = frozenset({"finding", "decision", "assumption", "note", "workflow_feedback", "gap",
                            "metric_definition", "analysis_focus"})
@@ -622,6 +624,8 @@ class Journal:
         if self.is_unsupported(lines[0]):
             return "unsupported", None, None
         target = self._event_at[lines[0]]
+        if target.kind in ASSET_KINDS and asset_event_problem(target.value):
+            return "unsupported", "invalid_asset_record", None
         if type_ != "event" and target.kind != type_:
             return "missing", "record_absent", None
         field = EVENT_LOGICAL_IDS.get(type_)
@@ -678,7 +682,7 @@ def _display(state: dict) -> str:
     group = state["group"]
     if group == "question":
         return "resolved" if state["resolved"] else "open"
-    if group == "reuse":
+    if group in ("reuse", "asset"):
         return state["stage"]
     if state["withdrawn"]:
         return "withdrawn"
@@ -694,6 +698,8 @@ def _allowed(state: dict, expected, new) -> bool:
         return (expected, new) == ("resolved", "open")
     if group == "report":
         return (expected, new) in (("current", "withdrawn"), ("withdrawn", "current"))
+    if group == "asset":
+        return expected == new or (expected, new) in REUSE_STEPS
     if group == "reuse":
         return (expected, new) in REUSE_STEPS
     if new == "withdrawn":
@@ -705,7 +711,7 @@ def _apply(state: dict, new) -> None:
     group = state["group"]
     if group == "question":
         state["resolved"] = new == "resolved"
-    elif group == "reuse":
+    elif group in ("reuse", "asset"):
         state["stage"] = new
     else:
         state["withdrawn"] = new == "withdrawn"
@@ -753,6 +759,13 @@ class Replay:
         for event in journal.in_order():
             before = event.seq if event.seq is not None else journal.next_seq
             name = journal.source_of(event)
+            if event.kind in ASSET_KINDS and asset_event_problem(event.value):
+                self.unapplied.append({"event_id": name, "reason": "invalid_asset_record"})
+                continue
+            if event.kind == "record_update" and asset_update_targets(event.value, journal):
+                if asset_update_context_problem(event.value, journal):
+                    self.unapplied.append({"event_id": name, "reason": "invalid_asset_update"})
+                    continue
             for relation, ref in self._links(event):
                 state, _ = self._target(journal, ref, before)
                 if state is None:
@@ -772,6 +785,8 @@ class Replay:
                 self.states[name] = {"group": "question", "resolved": False, "mismatched": []}
             elif event.kind == "reuse_proposal" and event.schema == EVENT_V2:
                 self.states[name] = {"group": "reuse", "stage": "proposed", "mismatched": []}
+            elif event.kind == "asset_candidate" and event.schema == EVENT_V2:
+                self.states[name] = {"group": "asset", "stage": "proposed", "mismatched": []}
             elif event.kind == "report_revision" and event.schema == EVENT_V2:
                 for ref in _dicts(event.refs):
                     if _known_ref(ref) and ref["type"] == "report_revision" and ref["relation"] == "about":
@@ -1393,6 +1408,10 @@ class ReadModel:
 
     # --- reference judgments (ADR-0006 3 and 4) --------------------------------------------------
 
+    def reference(self, ref: dict, *, before: int | None = None) -> dict:
+        """The same judgment as references(), for one proposed exact reference without a write."""
+        return self._judge_v2([ref], None, None, self.journal.next_seq if before is None else before)[0]
+
     def references(self, source: str | None = None) -> list[dict]:
         """One judgment for every reference of every readable event and saved Report manifest, in
         journal order and then manifest order; only those of `source` (`e<seq>`, `journal:<line>` or
@@ -1853,3 +1872,727 @@ def read(root, *, alive, sha, legacy_path=None, frame=None) -> ReadModel:
     model.observed_revisions = observed
     model.source_revision = observed[-1]
     return model
+
+
+# --- analysis asset record/value rules (ADR-0010), shared with the Writer and application ---
+
+ASSET_CONTRACT = "analysis_asset/1"
+ASSET_WRITER_SINCE = "0.10.0"
+ASSET_PUBLIC_KINDS = ("asset_candidate", "asset_check", "asset_effect")
+ASSET_SYSTEM_KINDS = ("asset_mode", "asset_notification")
+ASSET_KINDS = ASSET_PUBLIC_KINDS + ASSET_SYSTEM_KINDS
+ASSET_ARTIFACT_KINDS = ("function", "module", "package", "skill")
+ASSET_REASONS = ("demand", "checks", "scope", "benefit", "source", "identity")
+ASSET_STATES = (
+    "proposed",
+    "trial",
+    "validated",
+    "registered",
+    "deferred",
+    "rejected",
+    "deprecated",
+)
+ASSET_STATE_RELATIONS = frozenset({"supersedes", "updates", "resolves"})
+ASSET_SHA = re.compile(r"[0-9a-f]{64}")
+ASSET_EVENT = re.compile(r"e[1-9][0-9]*")
+ASSET_RUN = re.compile(r"[0-9]{8}-[0-9]{6}-[a-z0-9][a-z0-9-]{0,60}")
+ASSET_NAME = re.compile(r"[a-z0-9][a-z0-9_-]{0,62}")
+ASSET_DEVICES = frozenset(
+    {"con", "prn", "aux", "nul", *[f"{stem}{i}" for stem in ("com", "lpt") for i in range(1, 10)]}
+)
+
+
+class AssetRecordError(ValueError):
+    """A value would make an invalid asset record; the Writer turns it into a handled error."""
+
+
+def _asset_fail(message: str):
+    raise AssetRecordError(message)
+
+
+def asset_name(value) -> str:
+    if not isinstance(value, str) or not ASSET_NAME.fullmatch(value) or value in ASSET_DEVICES:
+        _asset_fail(
+            "asset_id/name is a portable lower-case ASCII name of 1 to 63 letters, digits, '_' or '-'"
+        )
+    return value
+
+
+def _asset_text(details: dict, key: str, *, empty: bool = False) -> str:
+    value = details.get(key)
+    if not isinstance(value, str) or (not empty and not value.strip()):
+        _asset_fail(f"{key} is {'a' if empty else 'a non-empty'} string")
+    value.encode("utf-8")
+    return value
+
+
+def _asset_event(value, key="candidate_event_id") -> str:
+    if not isinstance(value, str) or not ASSET_EVENT.fullmatch(value):
+        _asset_fail(f"{key} is an exact event id")
+    return value
+
+
+def asset_exact(ref, kind: str) -> dict:
+    if not isinstance(ref, dict) or ref.get("type") != kind:
+        _asset_fail(f"an exact {kind} reference is required")
+    out = {
+        "relation": "cites",
+        "basis": "declared",
+        "version_binding": "author",
+        **copy.deepcopy(ref),
+    }
+    if out["version_binding"] != "author" or out["basis"] not in ("declared", "observed"):
+        _asset_fail(f"{kind} is author-bound with observed or declared basis")
+    if kind in ("code_snapshot", "data_observation", "run"):
+        if not isinstance(out.get("run_id"), str) or not ASSET_RUN.fullmatch(out["run_id"]):
+            _asset_fail(f"{kind} needs an exact run_id")
+    if kind in ("code_snapshot", "data_observation"):
+        if not isinstance(out.get("path"), str) or not out["path"]:
+            _asset_fail(f"{kind} needs a path")
+        asset_bundle_path(out["path"])
+        digest = out.get("digest")
+        if (
+            not isinstance(digest, dict)
+            or not isinstance(digest.get("sha256"), str)
+            or not ASSET_SHA.fullmatch(digest["sha256"])
+        ):
+            _asset_fail(f"{kind} needs its recorded sha256 digest")
+    if kind == "data_observation" and out.get("role") not in ("input", "output"):
+        _asset_fail("a data observation's role is input or output")
+    if kind in ("asset_candidate", "reuse_proposal"):
+        if kind == "asset_candidate":
+            asset_name(out.get("asset_id"))
+        elif not isinstance(out.get("proposal_id"), str) or not out["proposal_id"]:
+            _asset_fail("a legacy proposal reference keeps its original non-empty proposal_id")
+        _asset_event(out.get("event_id"), "event_id")
+    return out
+
+
+def asset_bundle_path(value) -> str:
+    if (
+        not isinstance(value, str)
+        or not value
+        or "\\" in value
+        or "\x00" in value
+        or PurePosixPath(value).is_absolute()
+        or str(PurePosixPath(value)) != value
+        or any(
+            part in (".", "..")
+            or not part
+            or part.endswith((".", " "))
+            or part.split(".")[0].lower() in ASSET_DEVICES
+            or ":" in part
+            for part in value.split("/")
+        )
+    ):
+        _asset_fail(
+            "a bundle path is a portable relative file path without links or parent traversal"
+        )
+    return value
+
+
+def asset_files(details: dict) -> list[dict]:
+    values = details.get("files")
+    if (
+        values is None
+        and details.get("artifact_kind") in ("function", "module")
+        and details.get("code")
+    ):
+        code = asset_exact(details["code"], "code_snapshot")
+        values = [{"path": PurePosixPath(code["path"]).name, "ref": code}]
+    if values is None:
+        return []
+    if not isinstance(values, list) or not values:
+        _asset_fail("files is a non-empty array of {path, ref}")
+    output, paths = [], set()
+    for item in values:
+        if not isinstance(item, dict):
+            _asset_fail("each file is {path, ref}")
+        path = asset_bundle_path(item.get("path"))
+        folded = unicodedata.normalize("NFC", path).casefold()
+        if folded in paths or any(
+            folded.startswith(p + "/") or p.startswith(folded + "/") for p in paths
+        ):
+            _asset_fail("bundle paths are distinct, including case and parent/file conflicts")
+        paths.add(folded)
+        ref = item.get("ref")
+        kind = ref.get("type") if isinstance(ref, dict) else None
+        if kind not in ("code_snapshot", "data_observation"):
+            _asset_fail("a file refers to a code snapshot or data observation")
+        output.append({"path": path, "ref": asset_exact(ref, kind)})
+    if details.get("artifact_kind") in ("function", "module") and len(output) != 1:
+        _asset_fail("a function/module is one code file; use package for a tree")
+    if details.get("artifact_kind") in ("function", "module", "package") and details.get("code"):
+        code_target = asset_target(asset_exact(details["code"], "code_snapshot"))
+        if not any(asset_target(f["ref"]) == code_target for f in output):
+            _asset_fail("the calculation code version is one of the candidate's artifact files")
+    if details.get("artifact_kind") == "skill" and "SKILL.md" not in [f["path"] for f in output]:
+        _asset_fail("a skill bundle includes SKILL.md at its root")
+    return sorted(output, key=lambda f: f["path"])
+
+
+def asset_bundle_digest(details: dict) -> str | None:
+    entries = asset_files(details)
+    if not entries:
+        return None
+    intent = [{"path": f["path"], "sha256": f["ref"]["digest"]["sha256"]} for f in entries]
+    return hashlib.sha256(
+        json.dumps(intent, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode(
+            "utf-8"
+        )
+    ).hexdigest()
+
+
+def asset_validate(kind: str, details, *, system: bool = False) -> dict:
+    if kind not in (ASSET_KINDS if system else ASSET_PUBLIC_KINDS):
+        _asset_fail(f"{kind!r} is not a public asset record kind")
+    if not isinstance(details, dict):
+        _asset_fail("asset details is an object")
+    try:
+        json.dumps(details, ensure_ascii=False, allow_nan=False).encode("utf-8")
+    except (TypeError, ValueError, UnicodeError) as exc:
+        _asset_fail(f"asset details is a finite JSON object: {exc}")
+    out = copy.deepcopy(details)
+    if out.get("contract", ASSET_CONTRACT) != ASSET_CONTRACT:
+        _asset_fail("unknown analysis asset details contract")
+    out["contract"] = ASSET_CONTRACT
+    if kind == "asset_mode":
+        if out.get("mode") not in ("on_demand", "always_on") or out.get("scope") not in (
+            "project",
+            "session",
+        ):
+            _asset_fail("asset mode is on_demand/always_on with project/session scope")
+        if out["scope"] == "session":
+            _asset_text(out, "session")
+        return out
+    asset_name(out.get("asset_id"))
+    if kind == "asset_candidate":
+        for key in ("title", "problem"):
+            _asset_text(out, key)
+        for key in ("conditions", "exclusions", "next_check"):
+            _asset_text(out, key, empty=True)
+        if out.get("artifact_kind") not in ASSET_ARTIFACT_KINDS:
+            _asset_fail("artifact_kind is function, module, package or skill")
+        for key in ("input_contract", "output_contract"):
+            if key in out:
+                _asset_text(out, key, empty=True)
+        if "code" in out:
+            out["code"] = asset_exact(out["code"], "code_snapshot")
+        if "files" in out:
+            out["files"] = asset_files(out)
+        if "previous_event_id" in out:
+            _asset_event(out["previous_event_id"], "previous_event_id")
+        if "derived_from" in out:
+            asset_target = out["derived_from"]
+            kind_ = asset_target.get("type") if isinstance(asset_target, dict) else None
+            if kind_ not in ("asset_candidate", "reuse_proposal"):
+                _asset_fail("derived_from is an exact asset candidate or legacy proposal")
+            out["derived_from"] = asset_exact(asset_target, kind_)
+        if "used_in" in out:
+            if not isinstance(out["used_in"], list):
+                _asset_fail("used_in is an array of exact declared run references")
+            out["used_in"] = [asset_exact(ref, "run") for ref in out["used_in"]]
+        return out
+    _asset_event(out.get("candidate_event_id"))
+    if kind == "asset_check":
+        if out.get("result") not in ("passed", "failed") or type(out.get("boundary")) is not bool:
+            _asset_fail("an asset check has passed/failed result and boolean boundary")
+        _asset_text(out, "check_scope")
+        out["check_run"] = asset_exact(out.get("check_run"), "run")
+        out["check_code"] = asset_exact(out.get("check_code"), "code_snapshot")
+        if out["check_code"]["run_id"] != out["check_run"]["run_id"]:
+            _asset_fail("check_code is the checking run's snapshot")
+        if "code" in out:
+            out["code"] = asset_exact(out["code"], "code_snapshot")
+        if not isinstance(out.get("artifact_digest"), str) or not ASSET_SHA.fullmatch(
+            out["artifact_digest"]
+        ):
+            _asset_fail("an asset check names the tested bundle's sha256 artifact_digest")
+    elif kind == "asset_effect":
+        if out.get("effect_basis") not in ("estimated", "observed"):
+            _asset_fail("effect_basis is estimated or observed")
+        _asset_text(out, "description")
+        if out["effect_basis"] == "observed":
+            for key in ("authoring_cost", "maintenance_cost", "measurement"):
+                _asset_text(out, key)
+    else:
+        if out.get("trigger") not in ("requested", "automatic"):
+            _asset_fail("notification trigger is requested or automatic")
+        for key in ("surface", "policy_version"):
+            _asset_text(out, key)
+        if type(out.get("as_of_seq")) is not int or out["as_of_seq"] < 0:
+            _asset_fail("notification as_of_seq is a non-negative integer")
+        if "context_version" not in out or (
+            out["context_version"] is not None and not isinstance(out["context_version"], str)
+        ):
+            _asset_fail("notification context_version is a version string or null")
+        if (
+            not isinstance(out.get("evidence"), list)
+            or not isinstance(out.get("scores"), dict)
+            or not isinstance(out.get("requirements"), dict)
+        ):
+            _asset_fail("notification keeps evidence, scores and requirements")
+    return out
+
+
+def asset_candidate_ref(details: dict, relation: str = "about") -> dict:
+    return {
+        "type": "asset_candidate",
+        "asset_id": details["asset_id"],
+        "event_id": details["candidate_event_id"],
+        "relation": relation,
+        "basis": "declared",
+        "version_binding": "author",
+    }
+
+
+def asset_semantic_refs(kind: str, details: dict) -> list[dict]:
+    """Only the feature's producer creates these relationships; caller references are citations."""
+    refs = []
+    if kind == "asset_candidate":
+        if details.get("previous_event_id"):
+            refs.append(
+                asset_candidate_ref(
+                    {**details, "candidate_event_id": details["previous_event_id"]}, "supersedes"
+                )
+            )
+        if details.get("derived_from"):
+            refs.append({**details["derived_from"], "relation": "derived_from"})
+        if details.get("code"):
+            refs.append({**details["code"], "relation": "uses"})
+        refs.extend({**f["ref"], "relation": "uses"} for f in asset_files(details))
+        refs.extend({**ref, "relation": "uses"} for ref in details.get("used_in", []))
+    elif kind in ("asset_check", "asset_effect", "asset_notification"):
+        refs.append(asset_candidate_ref(details))
+        if kind == "asset_check":
+            refs.extend({**details[key], "relation": "uses"} for key in ("check_run", "check_code"))
+            if details.get("code"):
+                refs.append({**details["code"], "relation": "uses"})
+    seen, result = set(), []
+    for ref in refs:
+        token = json.dumps(ref, sort_keys=True, ensure_ascii=False)
+        if token not in seen:
+            result.append(ref)
+            seen.add(token)
+    return result
+
+
+def asset_input_refs(refs) -> None:
+    for ref in refs:
+        if isinstance(ref, dict) and ref.get("relation") in ASSET_STATE_RELATIONS:
+            _asset_fail(
+                "asset state-changing references are generated from details; caller refs are citations"
+            )
+        if isinstance(ref, dict) and ref.get("relation") in ("about", "uses"):
+            _asset_fail(
+                "asset about/uses references are generated from details; cite sources with cites/supports"
+            )
+
+
+def asset_record_problem(kind: str, details, refs) -> str | None:
+    """Reader check of structural values and producer-owned edges, without reference resolution."""
+    try:
+        if not isinstance(details, dict) or details.get("contract") != ASSET_CONTRACT:
+            _asset_fail("an asset record declares its analysis_asset/1 contract")
+        value = asset_validate(kind, details, system=True)
+        expected = asset_semantic_refs(kind, value)
+        if not isinstance(refs, list):
+            _asset_fail("asset refs is an array")
+        used = []
+        for ref in refs:
+            if not isinstance(ref, dict):
+                _asset_fail("asset refs contains an object")
+            if ref.get("relation") in (*ASSET_STATE_RELATIONS, "about", "uses"):
+                if ref not in expected or ref in used:
+                    _asset_fail("asset semantic reference conflicts with details or appears twice")
+                used.append(ref)
+        if any(ref not in refs for ref in expected):
+            _asset_fail("asset record is missing a generated semantic reference")
+    except (AssetRecordError, UnicodeError, TypeError) as exc:
+        return str(exc)
+    return None
+
+
+def asset_target(ref: dict) -> dict:
+    """Version identity, independent of the sentence's relation and declared/observed label."""
+    return {k: v for k, v in ref.items() if k not in ("relation", "basis", "version_binding")}
+
+
+def asset_input_set(run: dict) -> tuple | None:
+    """Unknown input digests never establish independent use or a distinct checking input."""
+    entries = run.get("inputs")
+    if not isinstance(entries, list):
+        return None
+    result = []
+    for entry in entries:
+        if (
+            not isinstance(entry, dict)
+            or not isinstance(entry.get("path"), str)
+            or not isinstance(entry.get("sha256"), str)
+            or not ASSET_SHA.fullmatch(entry["sha256"])
+        ):
+            return None
+        result.append((entry["path"], entry["sha256"]))
+    return tuple(sorted(set(result)))
+
+
+def asset_candidate(journal, asset_id: str, event_id: str) -> dict:
+    event = journal.event_of(event_id)
+    d = event.value.get("details") if event is not None else None
+    if (
+        event is None
+        or event.kind != "asset_candidate"
+        or not isinstance(d, dict)
+        or d.get("asset_id") != asset_id
+        or asset_event_problem(event.value)
+    ):
+        _asset_fail("the exact candidate version does not exist or does not match asset_id")
+    return event.value
+
+
+def asset_candidate_versions(journal, asset_id: str) -> list[dict]:
+    result = []
+    for event in journal.in_order():
+        d = event.value.get("details")
+        if (
+            event.kind == "asset_candidate"
+            and isinstance(d, dict)
+            and d.get("asset_id") == asset_id
+        ):
+            if (
+                not asset_event_problem(event.value)
+                and journal.source_of(event) == event.id
+            ):
+                result.append(event.value)
+    return result
+
+
+def asset_original_run(details: dict, model) -> dict | None:
+    ref = details.get("code") or (asset_files(details)[0]["ref"] if asset_files(details) else None)
+    return model.run(ref["run_id"]) if ref else None
+
+
+def _asset_source_file(ref: dict, model) -> tuple[str, str] | None:
+    if ref["type"] == "data_observation":
+        return ref["path"], ref["digest"]["sha256"]
+    run = model.run(ref["run_id"])
+    if not run:
+        return None
+    entries = [run.get("script", {}), *(run.get("modules") or [])]
+    for entry in entries:
+        if (
+            isinstance(entry, dict)
+            and entry.get("snapshot") == ref["path"]
+            and entry.get("sha256") == ref["digest"]["sha256"]
+        ):
+            return entry.get("path"), entry["sha256"]
+    return None
+
+
+def asset_check_matches(details: dict, proposed: dict, model, *, passed: bool = False) -> bool:
+    """The declared result belongs to this artifact version and an actually recorded checking run."""
+    if details.get("artifact_digest") != asset_bundle_digest(proposed) or not asset_files(proposed):
+        return False
+    if proposed.get("code") and asset_target(details.get("code") or {}) != asset_target(
+        proposed["code"]
+    ):
+        return False
+    run = model.run(details["check_run"]["run_id"])
+    if not run or run.get("id") != details["check_run"]["run_id"] or (passed and (details["result"] != "passed" or run.get("status") != "ok")):
+        return False
+    script = run.get("script") or {}
+    check_code = details["check_code"]
+    if (
+        script.get("snapshot") != check_code["path"]
+        or script.get("sha256") != check_code["digest"]["sha256"]
+    ):
+        return False
+    required = [
+        details["check_run"],
+        check_code,
+        *([details["code"]] if details.get("code") else []),
+    ]
+    required += [f["ref"] for f in asset_files(proposed)]
+    if not all(model.reference(ref)["confirmed"] for ref in required):
+        return False
+    observed = {
+        (item.get("path"), item.get("sha256"))
+        for item in [
+            script,
+            *(run.get("modules") or []),
+            *(run.get("inputs") or []),
+            *(run.get("outputs") or []),
+        ]
+        if isinstance(item, dict)
+    }
+    return all(_asset_source_file(f["ref"], model) in observed for f in asset_files(proposed))
+
+
+def asset_validate_context(kind: str, details: dict, journal, model) -> None:
+    """Checks that need other records, repeated under the same journal lock as the append."""
+    if kind == "asset_candidate":
+        versions = asset_candidate_versions(journal, details["asset_id"])
+        previous = details.get("previous_event_id")
+        if (bool(versions) != bool(previous)) or (versions and versions[-1]["id"] != previous):
+            _asset_fail("a candidate revision names its same asset_id's single latest version")
+        if previous:
+            asset_candidate(journal, details["asset_id"], previous)
+        if (
+            details.get("derived_from")
+            and not model.reference(details["derived_from"])["confirmed"]
+        ):
+            _asset_fail("derived_from is a confirmed prior candidate")
+        return
+    if kind in ("asset_check", "asset_effect", "asset_notification"):
+        found = asset_candidate(journal, details["asset_id"], details["candidate_event_id"])
+        if kind == "asset_check" and not asset_check_matches(details, found["details"], model):
+            _asset_fail(
+                "the check's run, checking code and observed artifact files do not match this candidate version"
+            )
+
+
+def asset_passed_checks(journal, proposed: dict, model) -> list[dict]:
+    output = []
+    for event in journal.in_order():
+        d = event.value.get("details")
+        if (
+            event.kind != "asset_check"
+            or not isinstance(d, dict)
+            or d.get("asset_id") != proposed["details"]["asset_id"]
+            or d.get("candidate_event_id") != proposed["id"]
+            or asset_event_problem(event.value)
+        ):
+            continue
+        if (not asset_event_problem(event.value) and model.reference({"type": "event", "event_id": event.id,
+                "relation": "supports", "basis": "declared", "version_binding": "author"})["confirmed"]
+                and all(r["confirmed"] for r in model.references(event.id))
+                and asset_check_matches(d, proposed["details"], model, passed=True)):
+            output.append(event.value)
+    return output
+
+
+def asset_promotion(proposed: dict, new: str, journal, model) -> None:
+    d = proposed["details"]
+    if new == "trial":
+        if (
+            not asset_files(d)
+            or (d["artifact_kind"] != "skill" and not d.get("code"))
+            or not all(
+                isinstance(d.get(k), str) and d[k].strip()
+                for k in ("input_contract", "output_contract", "next_check")
+            )
+        ):
+            _asset_fail("trial needs the artifact version, input/output contracts and next check")
+        if not all(model.reference(f["ref"])["confirmed"] for f in asset_files(d)):
+            _asset_fail("trial's artifact files are confirmed exact versions")
+        if (
+            asset_original_run(d, model) is None
+            or asset_input_set(asset_original_run(d, model)) is None
+        ):
+            _asset_fail("trial needs the source run's known input set")
+    elif new == "validated":
+        checks = asset_passed_checks(journal, proposed, model)
+        original = asset_original_run(d, model)
+        original_inputs = asset_input_set(original) if original else None
+        independent = [
+            c
+            for c in checks
+            if asset_input_set(model.run(c["details"]["check_run"]["run_id"])) is not None
+            and asset_input_set(model.run(c["details"]["check_run"]["run_id"])) != original_inputs
+        ]
+        if not checks or not independent or not any(c["details"]["boundary"] for c in checks):
+            _asset_fail(
+                "validated needs passed success, different-input and boundary checks for this artifact version"
+            )
+
+
+def asset_promotion_proof(proposed: dict, new: str, journal, model) -> dict:
+    asset_promotion(proposed, new, journal, model)
+    run = asset_original_run(proposed["details"], model)
+    return {
+        "artifact_digest": asset_bundle_digest(proposed["details"]),
+        "source_run_id": run.get("id") if run else None,
+        "check_events": [c["id"] for c in asset_passed_checks(journal, proposed, model)]
+        if new == "validated"
+        else [],
+    }
+
+
+def asset_update_problem(details, refs) -> str | None:
+    """The asset form of a record_update; unrelated generic record updates keep their own contract."""
+    try:
+        if not isinstance(details, dict) or details.get("contract") != ASSET_CONTRACT:
+            _asset_fail("an asset update declares its analysis_asset/1 contract")
+        asset_name(details.get("asset_id"))
+        _asset_event(details.get("candidate_event_id"))
+        expected, new = details.get("expected_state"), details.get("new_state")
+        if expected not in ASSET_STATES or new not in ASSET_STATES:
+            _asset_fail("an asset update names the expected and new asset state")
+        if refs != [asset_candidate_ref(details, "updates")]:
+            _asset_fail("an asset update has one generated updates target matching its details")
+        if "demand" in details and (
+            not isinstance(details["demand"], dict)
+            or type(details["demand"].get("repeated_need")) is not bool
+        ):
+            _asset_fail("demand.repeated_need is boolean")
+        if "identity" in details:
+            identity = details["identity"]
+            if not isinstance(identity, dict) or identity.get("relation") not in (
+                "duplicate_of",
+                "merged_into",
+            ):
+                _asset_fail("identity relation is duplicate_of or merged_into")
+            ref = identity.get("target")
+            kind = ref.get("type") if isinstance(ref, dict) else None
+            if kind not in ("asset_candidate", "reuse_proposal"):
+                _asset_fail("identity target is an exact candidate")
+            asset_exact(ref, kind)
+        if expected == new and not any(key in details for key in ("demand", "identity")):
+            _asset_fail("state-maintaining asset updates carry demand or identity metadata")
+        reasons = details.get("reason_items", [])
+        if not isinstance(reasons, list) or any(r not in ASSET_REASONS for r in reasons):
+            _asset_fail("reason_items names adopted required/score items")
+        if new in ("rejected", "deferred"):
+            if (
+                type(details.get("as_of_seq")) is not int
+                or details["as_of_seq"] < 0
+                or "context_version" not in details
+                or not isinstance(details.get("evidence"), list)
+                or not isinstance(details.get("scores"), dict)
+            ):
+                _asset_fail(
+                    "rejection/deferral keeps the read basis, evidence versions and item scores"
+                )
+        if expected != new and new in ("trial", "validated"):
+            proof = details.get("promotion")
+            if (
+                not isinstance(proof, dict)
+                or not isinstance(proof.get("artifact_digest"), str)
+                or not ASSET_SHA.fullmatch(proof["artifact_digest"])
+                or not isinstance(proof.get("check_events"), list)
+                or (new == "validated" and not proof["check_events"])
+            ):
+                _asset_fail("asset promotion preserves its artifact version and checking event IDs")
+            for event_id in proof["check_events"]:
+                _asset_event(event_id, "check_events")
+        if new == "registered":
+            registration = details.get("registration")
+            if not isinstance(registration, dict):
+                _asset_fail("registered preserves the explicit registration receipt")
+            registration_id = registration.get("registration_id")
+            if (registration.get("schema") != "analytics.asset_registration/1" or
+                    not isinstance(registration_id, str) or not re.fullmatch(r"[0-9a-f]{32}", registration_id) or
+                    registration.get("candidate_event_id") != details["candidate_event_id"] or
+                    registration.get("asset_id") != details["asset_id"] or registration.get("state") != "published" or
+                    registration.get("source") != f"assets/candidates/{details['asset_id']}/{details['candidate_event_id']}" or
+                    registration.get("receipt") != f".analytics/asset-registrations/{registration_id}/receipt.json" or
+                    registration.get("artifact_kind") not in ASSET_ARTIFACT_KINDS):
+                _asset_fail("registration preserves this candidate's owned published receipt and paths")
+            asset_bundle_path(registration.get("destination"))
+            digest = registration.get("artifact_digest")
+            if not isinstance(digest, str) or not ASSET_SHA.fullmatch(digest):
+                _asset_fail("registration preserves the exact artifact bundle digest")
+            entries = registration.get("files")
+            if (not isinstance(entries, list) or not entries or
+                    any(not isinstance(item, dict) or not isinstance(item.get("sha256"), str) or
+                        not ASSET_SHA.fullmatch(item["sha256"]) for item in entries)):
+                _asset_fail("registration preserves file paths and sha256 values")
+            for item in entries:
+                asset_bundle_path(item.get("path"))
+            checks = registration.get("check_events")
+            if not isinstance(checks, list) or not checks:
+                _asset_fail("registration preserves its checking event IDs")
+            for event_id in checks:
+                _asset_event(event_id, "check_events")
+    except (AssetRecordError, TypeError, UnicodeError) as exc:
+        return str(exc)
+    return None
+
+
+def asset_update_targets(value: dict, journal) -> bool:
+    details = value.get("details")
+    tag = details.get("contract") if isinstance(details, dict) else None
+    if isinstance(tag, str) and tag.startswith("analysis_asset/"):
+        return True
+    refs = value.get("refs")
+    if not isinstance(refs, list):
+        return False
+    for ref in refs:
+        if not isinstance(ref, dict) or ref.get("relation") != "updates":
+            continue
+        if ref.get("type") == "asset_candidate":
+            return True
+        found = journal.event_of(ref.get("event_id"))
+        if found is not None and found.kind == "asset_candidate":
+            return True
+    return False
+
+
+def asset_event_problem(value: dict) -> str | None:
+    """New asset records retain their full envelope as well as their typed payload semantics."""
+    if (value.get("schema") != EVENT_V2 or type(value.get("seq")) is not int or value["seq"] < 1
+            or not isinstance(value.get("id"), str) or not ASSET_EVENT.fullmatch(value["id"])
+            or not isinstance(value.get("actor"), str) or not value["actor"]
+            or not isinstance(value.get("text"), str) or not value["text"].strip()
+            or value.get("actor_basis") not in ("declared", "inferred")
+            or value.get("means") not in ("cli", "sdk", "tool", "command", "hook")):
+        return "asset record envelope has a positive seq, exact id, actor/origin and text"
+    try:
+        at = datetime.fromisoformat(value.get("recorded_at", ""))
+        if at.tzinfo is None:
+            return "asset record time has a timezone"
+        value["text"].encode("utf-8")
+    except (ValueError, TypeError, UnicodeError):
+        return "asset record time/text is not a timestamp/UTF-8 string"
+    if value.get("kind") == "record_update":
+        return asset_update_problem(value.get("details"), value.get("refs"))
+    return asset_record_problem(value.get("kind"), value.get("details"), value.get("refs"))
+
+
+def asset_update_context_problem(value: dict, journal) -> str | None:
+    """Durable proof identity, using only prior journal bytes (never current file contents).
+
+Full actual file/run/check admission is the Writer's pre-write job. Historical replay checks
+that the stored proof belongs to its candidate/source/check versions, so later file drift
+does not undo a valid historical transition and an invented proof cannot advance a draft.
+"""
+    problem = asset_event_problem(value)
+    if problem:
+        return problem
+    d = value["details"]
+    if len(journal.lines_of.get(value["id"], [])) != 1:
+        return "asset update identity is ambiguous"
+    ref = asset_candidate_ref(d, "updates")
+    state, _, _ = journal.event_target("asset_candidate", ref, value["seq"])
+    if state != "resolved":
+        return "asset update needs its unique prior candidate version"
+    proposed = journal.event_of(d["candidate_event_id"]).value
+    candidate = proposed["details"]
+    entries = asset_files(candidate)
+    digest = asset_bundle_digest(candidate)
+    if d["expected_state"] != d["new_state"] and d["new_state"] in ("trial", "validated"):
+        proof = d["promotion"]
+        if (not entries or (candidate["artifact_kind"] != "skill" and not candidate.get("code"))
+                or not all(isinstance(candidate.get(k), str) and candidate[k].strip()
+                           for k in ("input_contract", "output_contract", "next_check"))
+                or proof["artifact_digest"] != digest):
+            return "asset promotion proof differs from its candidate artifact/contract version"
+        source = candidate.get("code") or entries[0]["ref"]
+        if proof.get("source_run_id") != source["run_id"]:
+            return "asset promotion proof differs from its candidate source run"
+        for event_id in proof["check_events"]:
+            checked = journal.event_of(event_id)
+            if (checked is None or checked.kind != "asset_check" or checked.seq is None or
+                    checked.seq >= value["seq"] or asset_event_problem(checked.value)):
+                return "asset promotion proof needs unique prior checking records"
+            check = checked.value["details"]
+            if (check["asset_id"] != d["asset_id"] or check["candidate_event_id"] != proposed["id"] or
+                    check["artifact_digest"] != digest or check["result"] != "passed" or
+                    (candidate.get("code") and asset_target(check.get("code") or {}) != asset_target(candidate["code"]))):
+                return "asset promotion proof checking record belongs to another artifact version"
+    if d["new_state"] == "registered":
+        registration = d["registration"]
+        wanted = [{"path": entry["path"], "sha256": entry["ref"]["digest"]["sha256"]} for entry in entries]
+        if registration["artifact_digest"] != digest or registration["files"] != wanted:
+            return "asset registration proof differs from its candidate artifact version"
+    return None

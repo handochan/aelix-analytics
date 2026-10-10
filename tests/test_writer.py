@@ -169,7 +169,7 @@ def test_the_families_the_writer_writes_are_named_by_what_they_are():
 def test_the_kinds_a_person_or_an_agent_records():
     assert writer.RECORD_KINDS == ("finding", "decision", "assumption", "question", "todo", "note",
                                    "workflow_feedback", "metric_definition", "analysis_focus",
-                                   "metric_observation", "resolve")
+                                   "metric_observation", "asset_candidate", "asset_check", "asset_effect", "resolve")
     assert writer.KIT_KINDS == ("project", "import", "run", "context")
     assert set(writer.RECORD_KINDS + writer.KIT_KINDS) <= relations.KINDS[relations.EVENT_V2]
     assert "gap" not in writer.RECORD_KINDS and "record_update" not in writer.RECORD_KINDS
@@ -253,9 +253,9 @@ def test_every_line_of_the_writer_follows_the_record_schema(tmp_path):
     root = analytics_project(tmp_path / "p")
     p = core.Project(root)
     for kind in writer.RECORD_KINDS:
-        if kind in ("metric_definition", "analysis_focus", "metric_observation"):
+        if kind in ("metric_definition", "analysis_focus", "metric_observation", "asset_candidate", "asset_check", "asset_effect"):
             # These kinds need structured details and their schema/semantic coverage is in
-            # test_metrics.py; a kind alone is deliberately no valid record.
+            # test_metrics.py/test_assets.py; a kind alone is deliberately no valid record.
             continue
         if kind == "resolve":
             core.record(p, kind, "closed", resolves="e3", origin=ORIGIN)
