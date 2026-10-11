@@ -116,7 +116,7 @@ def main():
     assert not attempted_calls
     workspace.build(project)
     report = {"schema": "analysis_assets.host_measurement/1", "command": sys.argv,
-              "head": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
+              "head": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True, encoding="utf-8").strip(),
               "dirty": bool(subprocess.check_output(["git", "status", "--porcelain"], cwd=ROOT)),
               "packages": {name: package_version(name) for name in ("aelix", "tokenizers")},
               "counter": counter.describe(), "baseline_extension": str(args.baseline_extension.resolve()),
