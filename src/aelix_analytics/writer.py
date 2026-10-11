@@ -1052,6 +1052,10 @@ class Locked:
             feature = (relations.ASSET_AUTOMATIC_SINCE if kind == "asset_mode" or
                        (kind == "asset_notification" and details.get("trigger") == "automatic")
                        else relations.ASSET_WRITER_SINCE)
+            if ((kind == "asset_mode" and details.get("scope") == "session") or
+                    (kind == "asset_notification" and details.get("trigger") == "automatic" and
+                     details.get("surface") in ("aelix_context", "aelix_command_status"))):
+                feature = relations.ASSET_HOST_SINCE
             requires = max((feature, requires or feature), key=relations.version_key)
         elif kind == "record_update" and relations.asset_update_targets({"details": details, "refs": refs}, self.journal):
             self.writer._asset_update(details, refs, self.journal, registration=self.operation == "register_asset",

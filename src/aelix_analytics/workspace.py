@@ -1070,8 +1070,57 @@ def index_page(site: Site) -> str:
   </div>
 </section>"""
 
-    return site.page(0, "Workspace", "", overview + charts + timeline + data + runs + context
+    return site.page(0, "Workspace", "", overview + charts + timeline + data + runs + context + asset_section(site)
                      + evaluation_section(site), "index")
+
+
+def asset_section(site: Site) -> str:
+    """Read-only candidates and stored assessments; rendering never starts policy scoring."""
+    app = core.asset_application(site.p, core.Origin("system", "sdk"))
+    view = app.list(model=site.model)
+    mode = app.suggestion_status(journal=site.model.journal)
+    by_id = {event.id: event.value for event in site.model.journal.events
+             if site.model.journal.source_of(event) == event.id}
+    items = []
+    for asset in view["assets"]:
+        versions = []
+        for candidate in reversed(asset["versions"]):
+            event_id = candidate["id"]
+            snapshots = [event for event in by_id.values() if event.get("kind") in ("asset_notification", "record_update")
+                         and isinstance(event.get("details"), dict)
+                         and event["details"].get("candidate_event_id") == event_id
+                         and isinstance(event["details"].get("scores"), dict)
+                         and not relations.asset_event_problem(event)]
+            snapshot = snapshots[-1] if snapshots else None
+            scores = (snapshot.get("details") or {}).get("scores") if snapshot else None
+            score = "No recorded score"
+            if (isinstance(scores, dict) and set(scores) == {"demand", "checks", "scope", "benefit"}
+                    and all(type(value) is int for value in scores.values())):
+                score = f"Recorded score: {sum(scores.values())}/10 at seq {snapshot['details'].get('as_of_seq')} ({snapshot['id']})"
+            source = f'<a href="#{esc(event_id)}">{esc(event_id)} · canonical journal references</a>'
+            versions.append(f'<details id="asset-{esc(event_id)}"><summary>{source} · {esc(score)}</summary>'
+                            f'<p{USER}>{esc(candidate["details"]["problem"])}</p>{site.refs_html(candidate, 0)}'
+                            f'<h4>Stored candidate fields</h4><pre{USER}>{esc(json.dumps(candidate, ensure_ascii=False, indent=2))}</pre>'
+                            + (f'<h4>Recorded assessment {esc(snapshot["id"])}</h4><pre{USER}>{esc(json.dumps(snapshot, ensure_ascii=False, indent=2))}</pre>'
+                               if snapshot else "") + '</details>')
+        items.append(f'<article class="panel"><h3{USER}>{esc(asset["title"])}</h3>'
+                     f'<p>Analysis asset <code>{esc(asset["asset_id"])}</code> · {esc(asset["artifact_kind"])} · '
+                     f'state: {esc(asset["state"])} · {len(asset["versions"])} version(s)</p>{"".join(versions)}</article>')
+    for old in view["legacy_candidates"]:
+        anchor = old["source"].replace(":", "-")
+        items.append(f'<article class="panel"><h3>Asset candidate (legacy)</h3><p>Raw kind: {esc(old["raw_kind"])} · '
+                     f'proposal_id: <span{USER}>{esc(old["proposal_id"])}</span> · '
+                     f'<a href="#{esc(anchor)}">{esc(old["source"])}</a></p>'
+                     f'<pre{USER}>{esc(json.dumps(old["record"], ensure_ascii=False, indent=2))}</pre></article>')
+    pending = ''.join(f'<li><a href="#{esc(notice["event_id"])}">{esc(notice["event_id"])}</a> '
+                      f'<span{USER}>{esc(notice["text"])}</span> · {esc(notice["surface"])}</li>' for notice in mode["pending"])
+    errors = ''.join(f'<li>{esc(error["code"])}: {esc(error["message"])}</li>' for error in mode["settings_errors"])
+    return (f'<section id="assets" class="tab"><div class="toolbar"><h2>Analysis assets</h2></div>'
+            f'<p>Project suggestion mode: {esc(mode["mode"])}. This view reads stored candidate versions and score snapshots; '
+            'it does not review, publish, execute or register them.</p>'
+            + (f'<ul>{errors}</ul>' if errors else '')
+            + f'<h3>Pending asset suggestions</h3><ul>{pending or "<li>No recorded pending suggestions.</li>"}</ul>'
+            + ''.join(items) + '</section>')
 
 
 def section_names(sections: list[dict]) -> str:

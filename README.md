@@ -93,9 +93,9 @@ aelix 안에서: `/analytics`(현황) · `/analytics open`(리포트) · "지역
 배포본은 아직 어디에도 게시하지 않았으므로 체크아웃에서 직접 만듭니다.
 
 ```sh
-cd $PACK && uv build                                   # dist/aelix_analytics-0.12.0-py3-none-any.whl
-uv tool install --python 3.12 dist/aelix_analytics-0.12.0-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
-uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.12.0-py3-none-any.whl   # aelix와 함께
+cd $PACK && uv build                                   # dist/aelix_analytics-0.13.0-py3-none-any.whl
+uv tool install --python 3.12 dist/aelix_analytics-0.13.0-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
+uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.13.0-py3-none-any.whl   # aelix와 함께
 ```
 
 - `analytics`는 체크아웃의 `bin/analytics`와 같은 명령·인자·usage(바이트까지 같음)를 쓰고 kit의 출력을 바이트 그대로 넘깁니다
@@ -302,8 +302,16 @@ matplotlib에는 한글 폰트와 검증된 기본 팔레트가 적용됩니다(
 일반 사람 텍스트 상태(`analytics --text status`)에서 확정 근거·점수·거절 사유·중복과 최소 24시간 프로젝트 창을 확인해 한 후보를 제안합니다.
 `analytics assets mode on_demand`로 끕니다. 추가 모델 호출은 없고, 끄더라도 이미 기록한 미응답 제안은 pending으로 조회할 수 있습니다.
 JSON·agent-origin CLI·SDK status와 모든 records/relations/context 상세 페이지는 자동 발행하지 않습니다.
-설정 오류와 과거 설정 키는 상태에 표시하며 자동 활성화하지 않습니다. 세션·Aelix 맥락·Workspace 자산 화면은 후속 B3-c입니다.
+설정 오류와 과거 설정 키는 상태에 표시하며 자동 활성화하지 않습니다.
 점수·이력·빈도·실패의 자세한 규칙은 [현재 계약 C8](docs/CONTRACTS.md#c8-프로젝트-모드와-결정적-자동-제안-kit-0120-17-b3-b)에 있습니다.
+
+Aelix에서는 사람 명령 `/analytics assets mode always_on --scope session`으로 현재 세션만 켤 수 있습니다.
+같은 세션 파일을 reload/resume하면 선택이 유지되고 new/fork은 프로젝트 모드를 따릅니다. `on_demand`로 끌 수 있습니다.
+`/analytics assets list|show|review|update|register`는 같은 자산 응용 기능을 쓰며 등록은 명시적인 프로젝트 파일 복사입니다.
+상시 모드의 다음 턴 맥락과 일반 사람 `/analytics status`는 CLI와 같은 프로젝트 창을 사용합니다. AssistantDone는 사전 판정만 하고
+모델·새 턴·UI 알림을 시작하지 않습니다. 기본 요청 시 모드는 후보 본문이나 검토 지침을 맥락에 추가하지 않습니다.
+Workspace의 **Analysis assets**는 저장된 후보 버전·판정 snapshot·미응답 알림과 정식 기록 링크를 읽습니다.
+세션·표면·파생 cache의 자세한 규칙은 [현재 계약 C9](docs/CONTRACTS.md#c9-aelix-세션맥락과-workspace-분석-자산-kit-0130-17-b3-c)에 있습니다.
 
 ### 옛 이름에서 옮기기
 

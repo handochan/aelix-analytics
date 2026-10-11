@@ -28,7 +28,7 @@ import unicodedata
 from datetime import datetime
 from pathlib import Path, PureWindowsPath
 
-from . import _platform, asset_app, relations, writer
+from . import _platform, asset_app, asset_suggestions, relations, writer
 from ._platform import newlines_as_lf as newlines_as_lf
 from ._platform import open_text as open_text
 from ._platform import write_text as write_text
@@ -45,7 +45,7 @@ from .writer import migration_record as migration_record
 from .writer import new_request_id as new_request_id
 from .writer import present_marker as present_marker
 
-KIT_VERSION = "0.12.0"
+KIT_VERSION = "0.13.0"
 # The marker and the record families of the projects this kit writes: the new format's, through
 # the common writer (writer.Writer, Issue #13 PR 3; writer.FAMILIES). A project is found by either
 # marker, analytics.json or lab.json, and judged by writer.marker_state: a lab.json project
@@ -1775,19 +1775,38 @@ def register_asset(project: Project, event_id: str, *, name: str, origin: Origin
     return asset_application(project, origin, skill_discovery=skill_discovery).register(event_id, name=name)
 
 
-def set_asset_mode(project: Project, mode: str, *, origin: Origin) -> dict:
-    return asset_application(project, origin).set_mode(mode)
+def set_asset_mode(project: Project, mode: str, *, origin: Origin, scope="project") -> dict:
+    return asset_application(project, origin).set_mode(mode, scope=scope)
 
 
-def asset_suggestion_status(project: Project, *, journal=None, marker=None) -> dict:
-    return asset_application(project, Origin("system", "sdk")).suggestion_status(journal=journal, marker=marker)
+def asset_suggestion_status(project: Project, *, journal=None, marker=None, session=None) -> dict:
+    return asset_application(project, Origin("system", "sdk")).suggestion_status(journal=journal, marker=marker, session=session)
 
 
-def publish_asset_suggestion(project: Project, *, origin: Origin) -> dict:
+def publish_asset_suggestion(project: Project, *, origin: Origin, surface="cli_text_status") -> dict:
     # A read-only/older project keeps its status readable and skips this side write.
     if admit(project, "publish an asset suggestion", side=True) is None:
         return {"published": None, "reason": "read_only_project", "model_calls": 0}
-    return asset_application(project, origin).publish_suggestion()
+    return asset_application(project, origin).publish_suggestion(surface=surface)
+
+
+def preassess_asset_suggestions(project: Project, *, origin: Origin) -> dict:
+    return asset_suggestions.preassess(asset_application(project, origin))
+
+
+def asset_context_notice(publication) -> str:
+    """The recorded notice is relayed without requesting a model review or claiming human visibility."""
+    if not publication:
+        return ""
+    notice = publication["notification"]
+    title = _one_line(publication["candidate"]["details"]["title"], 120)
+    refs = list(dict.fromkeys(ref.get("event_id") or ref.get("run_id") for ref in notice["details"]["evidence"]
+                             if ref.get("event_id") or ref.get("run_id")))
+    ids = ", ".join(refs[:4]) or "recorded source references"
+    more = f" (+{len(refs) - 4} more in {notice['id']})" if len(refs) > 4 else ""
+    return (f"\n\n## Asset suggestion ({notice['id']})\n{title}\n"
+            f"Repeated need, recorded checks, documented scope and benefit. Evidence: {ids}{more}.\n"
+            "Relay this suggestion; review only when the user requests it.")
 
 
 def _record_items(refs, resolves) -> list:
@@ -2432,7 +2451,7 @@ def versions_line(versions: dict[str, str]) -> str:
 STATUS_LIMIT = 8
 
 
-def status(project: Project, limit: int = STATUS_LIMIT, *, part=None, **options) -> dict:
+def status(project: Project, limit: int = STATUS_LIMIT, *, part=None, asset_session=None, **options) -> dict:
     """The project overview analytics_status, /analytics status and the kit's `status` give, from
     one read of the records (read_model): the identifiers and the read's `as_of_seq` and
     `source_revision` are those the Workspace shows."""
@@ -2498,7 +2517,7 @@ def status(project: Project, limit: int = STATUS_LIMIT, *, part=None, **options)
         metric_view[name] = metric_view[name][-limit * 2:]
     metric_view["omitted"] = {name: metric_counts[name] - len(metric_view[name]) for name in metric_counts}
     metric_view["read_more"] = str(project.journal)
-    suggestion_view = (asset_suggestion_status(project, journal=journal, marker=config)
+    suggestion_view = (asset_suggestion_status(project, journal=journal, marker=config, session=asset_session)
                        if any(key in config for key in ("asset_suggestions", "reuse_proposals", "skill_proposals"))
                        or any(event.kind in ("asset_notification", "asset_mode") for event in journal.events) else None)
     return {

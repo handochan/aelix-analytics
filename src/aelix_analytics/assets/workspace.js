@@ -46,7 +46,7 @@
   // --- tabs (index page): sections become tabs; any #anchor opens the tab that holds it ---
   const tabs = Array.from(document.querySelectorAll("main > section.tab"));
   // Tab names are labels; the section ids (URL anchors) stay as they are.
-  const labels = { overview: "Overview", charts: "Visualizations", timeline: "Timeline", data: "Data", runs: "Runs", context: "Context", evaluation: "Evaluation" };
+  const labels = { overview: "Overview", charts: "Visualizations", timeline: "Timeline", data: "Data", runs: "Runs", context: "Context", assets: "Analysis assets", evaluation: "Evaluation" };
   if (tabs.length) {
     doc.classList.add("js-tabs");
     const nav = document.createElement("nav");

@@ -15,6 +15,7 @@ from . import asset_contract as contract
 from . import relations, writer
 
 SINCE = "0.12.0"
+HOST_SINCE = relations.ASSET_HOST_SINCE
 SCORE_MAX = {"demand": 3, "checks": 3, "scope": 2, "benefit": 2}
 DEFAULTS = {"mode": "on_demand", "min_score": 8, "cooldown_hours": 24,
             "measurement_targets": {"input_tokens_per_review": 1024, "output_tokens_per_review": 256}}
@@ -111,6 +112,16 @@ def _mode(journal):
                  and event.value["details"].get("scope") == "project"), None)
 
 
+def _session_mode(journal, session):
+    if not isinstance(session, str) or not session:
+        return None
+    return next((event.value for event in reversed(_records(journal))
+                 if event.kind == "asset_mode" and event.value.get("actor") == "human"
+                 and event.value.get("means") == "command" and event.value.get("session") == session
+                 and not contract.event_problem(event.value) and event.value["details"].get("scope") == "session"
+                 and event.value["details"].get("session") == session), None)
+
+
 def _mode_errors(marker, journal, config):
     latest = _mode(journal)
     if latest is None:
@@ -123,16 +134,29 @@ def _mode_errors(marker, journal, config):
     return []
 
 
-def set_mode(assets, mode):
+def set_mode(assets, mode, *, scope="project"):
     assets.writer.admit("set_asset_mode")
     if assets.writer.origin.actor != "human":
         raise writer.AnalyticsError("human_mode_required", "Only a human changes asset suggestion mode.")
     if mode not in ("on_demand", "always_on"):
         raise writer.AnalyticsError("bad_asset_settings", "mode is on_demand or always_on")
+    if scope not in ("project", "session"):
+        raise writer.AnalyticsError("bad_asset_settings", "scope is project or session")
+    session = assets.writer.origin.session
+    if scope == "session" and (assets.writer.origin.means != "command" or not isinstance(session, str) or not session):
+        raise writer.AnalyticsError("asset_session_required", "Session mode needs the current Aelix human command session.")
     with assets.writer.locked("set_asset_mode") as held:
         config, errors = settings(held.state.value, mode=mode)
         if errors:
             raise writer.AnalyticsError(errors[0]["code"], "Asset suggestion settings are invalid.", details={"settings_errors": errors})
+        if scope == "session":
+            latest = _session_mode(held.journal, session)
+            if latest is not None and latest["details"]["mode"] == mode:
+                return {"mode": mode, "scope": scope, "changed": False, "repaired": False, "event": latest, "model_calls": 0}
+            event = held.append("asset_mode", f"Asset suggestion session mode: {mode}",
+                                details={"contract": contract.CONTRACT, "mode": mode, "scope": scope, "session": session},
+                                requires=HOST_SINCE)
+            return {"mode": mode, "scope": scope, "changed": True, "repaired": False, "event": event, "model_calls": 0}
         latest = _mode(held.journal)
         same = latest is not None and latest["details"].get("settings") == config
         if same and held.state.value.get("asset_suggestions") == config:
@@ -375,28 +399,72 @@ def pending(journal):
             and answered.get(event.value["details"].get("asset_id"), -1) < event.seq]
 
 
-def status(assets, *, journal=None, marker=None, at=None):
+def status(assets, *, journal=None, marker=None, at=None, session=None):
     journal = journal if journal is not None else relations.read_journal(assets.root)
     marker = marker if marker is not None else writer.marker_state(assets.root).value
     marker = marker if isinstance(marker, dict) else {}
     config, errors = settings(marker)
     errors += _mode_errors(marker, journal, config)
+    selected = _session_mode(journal, session)
+    if selected is not None:
+        config = {**config, "mode": selected["details"]["mode"]}
     state = window(journal, config, instant(assets.writer.clock() if at is None else at)) if not errors else {"allowed": False, "wait_reason": "settings", "next_automatic_at": None}
     if config["mode"] != "always_on":
         state.update(allowed=False, wait_reason="on_demand")
-    return {"mode": config["mode"], "settings": config, "settings_errors": errors,
+    return {"mode": config["mode"], "scope": "session" if selected is not None else "project",
+            "mode_event_id": selected["id"] if selected is not None else None,
+            "settings": config, "settings_errors": errors,
             **state, "pending": pending(journal), "as_of_seq": journal.as_of_seq, "model_calls": 0}
+
+
+def preassess(assets):
+    """Regenerable progress/counts only; this cache never authorizes a publication."""
+    if not isinstance(assets.writer.origin.session, str) or not assets.writer.origin.session:
+        return {"assessed": False, "reason": "asset_session_unavailable", "model_calls": 0}
+    current = status(assets, session=assets.writer.origin.session)
+    if current["mode"] != "always_on" or current["settings_errors"]:
+        return {"assessed": False, "reason": current["wait_reason"], "model_calls": 0}
+    model = relations.read(assets.root, alive=assets.writer.platform.processes.alive,
+                           sha=assets._sha, legacy_path=assets.writer.legacy_path)
+    basis = {"source_revision": model.source_revision, "as_of_seq": model.as_of_seq,
+             "settings": current["settings"], "session": assets.writer.origin.session}
+    cache = assets._safe(".analytics/cache/asset-progress.json")
+    previous = None
+    try:
+        previous = json.loads(cache.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        pass
+    counts = previous.get("counts") if isinstance(previous, dict) else None
+    valid = (isinstance(counts, dict) and set(counts) == {"eligible", "suppressed"}
+             and all(type(v) is int and v >= 0 for v in counts.values()))
+    if (valid and previous.get("contract") == "analysis_assets.progress/1" and previous.get("basis") == basis
+            and not (current["allowed"] and previous.get("window_allowed") is False)):
+        return {"assessed": False, "cached": True, "counts": counts, "basis": basis, "model_calls": 0}
+    evaluated = evaluate(assets, model, current["settings"])
+    counts = {name: len(evaluated[name]) for name in ("eligible", "suppressed")}
+    value = {"contract": "analysis_assets.progress/1", "basis": basis, "counts": counts,
+             "window_allowed": current["allowed"]}
+    admitted = writer.admit(assets.root, "asset progress cache", side=True,
+                            writer_version=assets.writer.writer_version, writable=assets.writer.WRITES)
+    if admitted is not None and not model.updating:
+        writer.write_json(cache, value, platform=assets.writer.platform)
+    return {"assessed": True, "cached": False, "counts": counts, "basis": basis, "model_calls": 0}
 
 
 def publish(assets, *, surface="cli_text_status"):
     """Only the human overview boundary calls this; append succeeds before output is returned."""
-    if surface != "cli_text_status" or assets.writer.origin.actor != "human" or assets.writer.origin.means != "cli":
+    allowed = {("cli_text_status", "human", "cli"), ("aelix_command_status", "human", "command"),
+               ("aelix_context", "system", "hook")}
+    if (surface, assets.writer.origin.actor, assets.writer.origin.means) not in allowed:
         return {"published": None, "reason": "read_only_surface", "model_calls": 0}
-    initial = status(assets)
+    session = assets.writer.origin.session
+    if surface != "cli_text_status" and (not isinstance(session, str) or not session):
+        return {"published": None, "reason": "asset_session_unavailable", "model_calls": 0}
+    initial = status(assets, session=session)
     if initial["settings_errors"] or initial["mode"] != "always_on":
         return {"published": None, "status": initial, "model_calls": 0}
     with assets.writer.locked("publish_asset_suggestion") as held:
-        current = status(assets, journal=held.journal, marker=held.state.value)
+        current = status(assets, journal=held.journal, marker=held.state.value, session=session)
         if current["settings_errors"] or current["mode"] != "always_on" or not current["allowed"]:
             return {"published": None, "status": current, "model_calls": 0}
         model = assets.model(held.journal)
@@ -417,6 +485,7 @@ def publish(assets, *, surface="cli_text_status"):
         if not final_window["allowed"]:
             return {"published": None, "status": {**current, **final_window}, "model_calls": 0}
         event = held.append("asset_notification", f"Asset suggestion: {proposed['details']['title']}",
-                            refs=contract.semantic_refs("asset_notification", details), details=details, requires=SINCE,
+                            refs=contract.semantic_refs("asset_notification", details), details=details,
+                            requires=HOST_SINCE if surface != "cli_text_status" else SINCE,
                             recorded_at=recorded_at)
         return {"published": {"candidate": proposed, "assessment": assessed, "notification": event}, "model_calls": 0}

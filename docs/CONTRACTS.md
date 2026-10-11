@@ -412,7 +412,7 @@ kit CLI, SDK, 확장, init·데모, run·가져오기·맥락 동기화가 남�
 | `schema` | `analytics.event/2` |
 | `seq`, `id` | 1부터 증가하는 번호와 `e<seq>`. 프로젝트 파일 잠금(`.analytics/lock`) 안에서 그때의 journal을 읽어 배정합니다: 파싱하거나 복구한 모든 줄(모르는 가족·버전·kind의 줄과 `lab.event/1` 줄 포함)의 가장 큰 seq 다음 값입니다(ADR-0006 6절). 끊긴 줄에 글자로 남은 seq는 세지 않습니다. 그 쓰기는 끝나지 않아 id를 돌려준 적이 없고, reader는 그 줄에서 id를 읽지 않습니다. 그래서 다음 기록이 그 번호를 받을 수 있지만 같은 id의 두 기록으로 읽히지는 않습니다. 읽히는 줄이 그 번호의 id를 이미 가지고 있으면(손으로 고친 줄: seq가 정수가 아니거나(`"3"`, `3.0`, `true`) id의 번호와 다름) 그 번호를 건너뛰고 다음 번호를 받습니다. kit 0.5.0의 #49 수정 전에는 읽히는 마지막 줄의 seq 다음 값이었습니다 |
 | `recorded_at` | 로컬 시간대 ISO 8601(밀리초). `lab.event/1`의 `ts` |
-| `kind` | kit 자신의 기록 `project` `import` `run` `context`와 사람·에이전트의 기록 `finding` `decision` `assumption` `question` `todo` `note` `workflow_feedback` `resolve`(`writer.RECORD_KINDS`). 기록하는 진입점에 준 `gap`은 쓰지 않고 `bad_kind`(`details.use: workflow_feedback`)입니다. kit 0.9.0은 `metric_definition`·`analysis_focus`·`metric_observation`도 구조화 details로 씁니다(C6). kit 0.10.0은 `asset_candidate`·`asset_check`·`asset_effect`를 받고 자산 응용 기능이 requested `asset_notification`·승격 `record_update`를 씁니다(C7). kit 0.12.0은 사람의 프로젝트 `asset_mode`·automatic `asset_notification`과 새 거절/보류 requirements snapshot을 응용 기능에서 씁니다(C8). 게시 등 그 밖의 종류는 읽기만 합니다 |
+| `kind` | kit 자신의 기록 `project` `import` `run` `context`와 사람·에이전트의 기록 `finding` `decision` `assumption` `question` `todo` `note` `workflow_feedback` `resolve`(`writer.RECORD_KINDS`). 기록하는 진입점에 준 `gap`은 쓰지 않고 `bad_kind`(`details.use: workflow_feedback`)입니다. kit 0.9.0은 `metric_definition`·`analysis_focus`·`metric_observation`도 구조화 details로 씁니다(C6). kit 0.10.0은 `asset_candidate`·`asset_check`·`asset_effect`를 받고 자산 응용 기능이 requested `asset_notification`·승격 `record_update`를 씁니다(C7). kit 0.12.0은 사람의 프로젝트 `asset_mode`·automatic `asset_notification`과 새 거절/보류 requirements snapshot을 응용 기능에서 씁니다(C8). kit 0.13.0은 사람의 session asset_mode와 Aelix context/status automatic asset_notification을 응용 기능에서 씁니다(C9). 게시 등 그 밖의 종류는 읽기만 합니다 |
 | `actor`, `actor_basis`, `means` | 작성 출처(`Origin`): 작성 주체(`agent` `human` `system` 등), 진입점이 그것을 알거나 선언받았는지(`declared`) 선언이 없어 `human`으로 본 것인지(`inferred`), 실행 수단(`cli` `sdk` `tool` `command` `hook`). 진입점마다의 값은 아래 "작성 출처"와 A |
 | `session` | aelix 세션 파일 경로(있을 때) |
 | `request_id` | 부른 쪽이 요청 id를 넘긴 쓰기에만 있습니다. 공개 진입점은 그 입력을 열지 않았으므로(#19) 지금은 쓰기의 응답에만 있습니다(D) |
@@ -658,8 +658,42 @@ marker 갱신 실패는 asset_mode_incomplete입니다. 상태가 event와 다�
 automatic 이벤트 append가 성공한 뒤 새 제안 출력을 반환합니다. 두 프로세스가 동시에 진입해도 새 이벤트/발행 출력은 하나이며,
 출력 실패도 창을 소비하고 저장된 알림은 pending에서 조회합니다. pending의 반복 조회는 새 발행이 아닙니다.
 
-Aelix 세션 모드·hook 사전 판정·에이전트 맥락 발행·Workspace 자산 화면·Q11 계측은 B3-c이며 이 절의 구현이 아닙니다.
-추가 모델 호출·자동 등록은 없으며 #17 전체 완료나 실제 모델/사람 리허설 통과를 뜻하지 않습니다.
+Aelix 세션과 맥락 발행은 C9에서 추가합니다. C8의 CLI/project mode 최초 floor는 0.12.0으로 유지합니다.
+
+### C9. Aelix 세션·맥락과 Workspace 분석 자산 (kit 0.13.0, #17 B3-c)
+
+사람의 `/analytics assets mode MODE --scope session`은 현재 command context가 준 세션 파일을 필요로 합니다.
+현재 파일을 얻지 못하면 `asset_session_required`이며 이전 STATE의 세션으로 쓰지 않습니다. 현재 세션의 마지막 유효 human·command
+asset_mode가 프로젝트 설정에 우선합니다. mode·scope·details.session과 최상위 session이 함께 일치해야 적용합니다.
+reload/resume은 같은 파일의 기록을 읽고, 새 파일의 new/fork은 프로젝트 모드를 따릅니다. CLI·SDK 모드 선택은 project 범위입니다.
+현재 세션 조회가 실패하면 프로젝트 모드를 자동 허가로 대신 쓰지 않습니다. 호스트의 사전 판정·자동 발행을 건너뛰고 기존 맥락/상태 읽기는 유지합니다.
+각 hook/사람 상태 callback은 진입 시 얻은 작성 출처·세션을 그 호출의 sync/publication에 전달하며 await 뒤의 전역 STATE로 바꾸지 않습니다.
+session 모드 이벤트와 Aelix context/status automatic 이벤트는 최초 floor 0.13.0입니다. 기존 C6/C7/C8 floor를 올리지 않습니다.
+
+`/analytics assets list|show|review|update|register`는 공통 자산 응용 기능을 씁니다. review는 requested 기록이며 자동 창을 소비하지 않습니다.
+update는 `EVENT --expected STATE --to STATE --reason TEXT [--details-json JSON]`, register는 `EVENT --name NAME`입니다.
+등록은 명시적 사람 선택이며 Aelix의 loader 발견 확인도 프로젝트 목적지 하나만 검사합니다.
+
+before_agent_start는 현재 세션을 새로 얻고 맥락 읽기에 성공한 뒤에만 자동 발행합니다. on_demand는 기존 맥락 블록과 같고 후보 목록·
+SKILL 본문·검토 지침을 더하지 않습니다. always_on의 새 알림은 짧은 제목·사유·근거 ID와
+`Relay this suggestion; review only when the user requests it.`를 더합니다. 저장 surface는 aelix_context이며 사람이 봤다는 기록이 아닙니다.
+일반 사람 `/analytics status`의 surface는 aelix_command_status입니다. CLI와 같은 journal 잠금·프로젝트 롤링 창을 쓰므로 함께 하나만
+발행할 수 있습니다. 맥락/overview 읽기 오류·잘못된 상세 인자는 발행 전에 거절합니다. 출력 실패는 기록된 창을 소비하며 pending에 남습니다.
+모델 도구·JSON·agent CLI·상세 status·Workspace는 자동 발행하지 않습니다. 추가 model tool 수는 0입니다.
+
+agent_end는 현재 세션의 유효 상시 모드에서 사전 판정만 합니다. `.analytics/cache/asset-progress.json`은 source_revision·as_of_seq·
+설정·세션 기준과 eligible/suppressed 통계, window_allowed만 보존합니다. 후보 본문·등록 명령을 저장하지 않고 발행 허가로 쓰지 않습니다.
+같은 기준은 재사용하고, 원본/완료 run/설정·세션이 달라지거나 창이 닫혔다가 만료되면 다시 계산합니다. cache 삭제/새 프로세스도 이력과 창을
+초기화하지 않습니다. 판정과 prefix replay의 비용은 데이터 크기에 따라 늘며 hook 지연 상한은 측정하지 않았습니다.
+hook은 새 턴·모델·send_message·UI notify를 시작하지 않습니다. 기존 Workspace 렌더 예약은 유지합니다.
+
+Workspace Analysis assets 탭은 같은 read basis에서 후보 버전·현재 상태·저장된 score snapshot·미응답 알림과 canonical journal 참조를
+보입니다. 새 판정·실행·등록·발행을 시작하지 않습니다. 과거 reuse_* kind/proposal_id와 authored 내용은 raw 필드와 발생분 링크로 보존합니다.
+저장 score 선택은 보통의 append 순서에서 최신 snapshot입니다. 외부에서 유효한 journal 줄의 물리 순서를 바꾸면 이전 score snapshot을 선택할 수
+있습니다(P3 기록된 한계). 원본/전체 timeline은 보존되며 여기서 원본을 다시 쓰거나 점수를 재판정하지 않습니다.
+Q11은 `tools/asset_host_eval.py`가 실제 여섯 도구 정의/description/schema와 합성 skill 후보의 요청 시/상시/다음 턴 맥락을 비교합니다.
+UTF-8 bytes와 등록된 파일 hash가 일치하는 tokenizer tokens만 계측하며 목표 초과·not_measured를 그대로 보고합니다.
+실제 모델의 review 비용·출력·지연, provider framing, 사람이 본 여부는 이 model-free 검증에서 측정하지 않습니다.
 
 ## D. kit CLI
 
@@ -898,7 +932,7 @@ Windows의 한계는 G절에 있습니다.
 | 파일명 — 차트 | kit이 저장하는 차트 파일(`analytics.visualize`의 이미지·plotly JSON·플롯 데이터)만 이식 가능한 이름으로 바꿉니다(`con` → `con_.png`). 정체성 `script::id`는 생성된 id까지 그대로입니다. 이 대응은 단사입니다 — 차트 id는 slug이라 `_`를 포함할 수 없으므로 `con-file` 같은 보통 id와 충돌하지 않습니다. 스크립트가 차트 id 본래 이름에 쓴 파일(차트 `con`의 `charts/con.png`, 대소문자를 구별하지 않는 파일 시스템에서는 `charts/CON.png`도)은 이전 구현이 그 차트를 쓰거나 덮어쓴 파일이므로 따로 차트로 기록하지도 경고하지도 않고, 그 차트가 버려지면 함께 지웁니다. 그 밖에 스크립트가 run 디렉터리에 직접 쓴 파일(`register_loose_files`)은 스크립트가 정한 이름 그대로 차트가 되며 위 경고로만 알립니다 |
 | 경로·인코딩 | 리포트의 절대 경로 링크는 기록한 플랫폼 기준으로 해석한 `file://` URL입니다(`C:\…` → `file:///C:/…`, `\\server\share\…` → `file://server/share/…`). 그래서 POSIX에서 이름이 `X:\`나 `\\`로 시작하는 프로젝트 파일은 그 Windows 경로로 링크되거나, 공유 이름이 없으면 링크되지 않습니다. CLI는 인자를 읽기 전에 표준 스트림을 UTF-8(`errors='replace'`)로 고정하고, 텍스트를 읽는 파일·자식 프로세스 호출은 인코딩을 명시합니다. run 로그도 UTF-8이며 인코딩할 수 없는 문자(짝 없는 surrogate)는 `?`로 씁니다. kit이 쓰는 텍스트 파일(B)은 `core.open_text`·`core.write_text`로만 쓰며(UTF-8, `_platform.TEXT_NEWLINE` = LF, 번역 없음; `tests/test_line_endings.py`의 가드가 확인), run 로그를 감싸는 스트림도 줄 끝을 번역하지 않습니다(kit 0.4.0부터). run 동안 stdout·stderr는 파일 기술자와 Python 스트림을 함께 바꾸고, 출력은 이전처럼 블록 단위로 버퍼링됩니다. 이렇게 해서 콘솔 전용 스트림이 파일에 쓰지 못하는 문제를 피합니다. Windows에서는 설치본 `analytics`를 의사 콘솔(ConPTY)에서 실행해 확인했습니다(측정): run의 stdout 로그에 스크립트의 한국어 출력이 남았고, 콘솔 코드 페이지 437과 949에서 한국어 제목이 콘솔에 그대로 보였습니다. 이것은 Python의 콘솔 경로로 쓴 kit의 출력(결과 줄의 한국어 제목)에 대한 결과입니다. 런처의 글도 같은 경로로 쓰인다고 봅니다(코드에서 읽음, 실행하지 않았습니다). 콘솔 파일 기술자에 바이트를 직접 쓰는 출력과, 출력 파이프가 없는 고전 콘솔의 글 순서·인코딩은 실행하지 않았습니다(`not_run`) |
 | 사람용 진입점 | 체크아웃의 `bin/analytics`(POSIX 셸, kit 0.3.0 전 `bin/lab`)과 설치본의 `analytics`(stdlib Python 런처, 모든 플랫폼; Windows에서는 `analytics.exe`)입니다. `bin/analytics`는 wheel로 설치하지 않습니다. 하위 명령은 둘 다 `record`·`render` 등이고 옛 `note`·`report`는 usage와 2입니다. 둘은 같은 명령·인자·usage(바이트까지)·종료 코드와 옛 환경 변수의 오류(D)를 지키고 kit의 출력을 바이트 그대로 넘기며, POSIX에서 같은 stand-in uv로 동등성을 시험합니다. 런처는 자식을 같은 process group·콘솔에서 표준 스트림을 물려준 채 기다리고 SIGINT·SIGBREAK를 기록만 하므로, 터미널의 Ctrl+C를 런처는 다시 보내지 않고 kit의 기록을 기다려 kit의 종료 코드로 끝납니다. uv는 자기 표준 입력이 터미널이 아니면 200 ms 뒤 kit에 한 번 더 보냅니다(`bin/analytics`에서도 같습니다). 런처가 무시된 SIGINT를 물려받으면(셸의 백그라운드 작업) 그대로 두어 kit도 무시한 채 시작합니다. 자식을 시작하는 순간에 온 Ctrl+C는 자식이 뜬 뒤 한 번 더 보냅니다(POSIX). 그 순간 터미널의 Ctrl+C를 이미 받은 자식에게는 두 번 갑니다. Windows에서는 다시 보내지 않습니다 — 한 프로세스에 SIGINT를 보낼 방법이 없고, 시험이 이를 고정합니다. 같은 콘솔의 자식은 콘솔의 Ctrl+C를 직접 받습니다. Windows 콘솔의 Ctrl+C도 런처가 다시 보내지 않고 kit의 기록을 기다려 kit의 종료 코드로 끝납니다(측정: 의사 콘솔과 고전 콘솔에서 런처가 `cancelled` 기록 뒤 3으로 끝났고 남은 프로세스가 없었습니다. Ctrl+Break는 G). 두 번 오더라도 kit은 run을 구간마다 한 번만 중단합니다(D1). 런처와 `bin/analytics`의 차이: 런처만 받은 SIGTERM은 kit의 `run`에만 전하고(run이 `cancelled`로 기록), 그 밖의 단계(init·migrate·sync·status·context·import·query·record·render·demo와 `analytics open`의 문서 열기)는 끝까지 두고 다음 단계를 시작하지 않은 채 143으로 끝납니다(`bin/analytics`의 셸은 그 자식을 남기고 곧바로 끝납니다). 이 SIGTERM은 POSIX의 것입니다 — Windows에서는 다른 프로세스가 처리기에 SIGTERM을 보낼 수 없고 `os.kill`·`taskkill /F`가 런처를 곧바로 끝냅니다(강제 종료, D1). 런처가 Ctrl+C나 SIGTERM을 기록한 뒤에는 다음 단계를 — `analytics open`의 문서 열기도 — 시작하지 않습니다. 단계를 시작하는 그 짧은 순간 온 신호는 그 단계를 막지 못할 수 있습니다. 그러면 Ctrl+C는 그 단계에 다시 보내고 SIGTERM은 kit의 `run`에만 보내며, 문서를 여는 프로그램에는 어느 것도 보내지 않으므로 리포트가 열릴 수 있습니다. uv가 없으면 런처는 자기 문구로 127입니다(`bin/analytics`은 셸의 오류로 끝나며, macOS의 sh는 없는 경로에 1). 런처는 macOS에서만 `open`을 씁니다(`bin/analytics`은 `open`이 있으면 어디서나). dash로 도는 `bin/analytics`은 Ctrl+C 뒤 SIGINT로 끝납니다. 측정한 경계 사례의 차이: 빈 첫 인자(`analytics ""`)는 `bin/analytics`에서 status, 런처에서 usage와 2입니다. 실행할 수 없는 uv(디렉터리이거나 실행 권한이 없는 파일인 `AELIX_ANALYTICS_UV`, PATH에서 실행 권한이 없는 `uv` 파일)는 `bin/analytics`에서 셸의 오류와 셸·플랫폼에 따른 종료 코드(126·127·1), 런처에서 uv를 찾지 못했다는 문구와 127입니다. 찾았지만 시작할 수 없는 uv(없는 인터프리터를 가리키는 스크립트)는 `bin/analytics`에서 셸의 오류와 126(macOS의 sh)·127(dash), 런처에서 시작할 수 없다는 문구와 127입니다. 문서를 여는 프로그램이 없으면 둘 다 127이고, 런처는 자기 문구를, `bin/analytics`은 셸의 오류를 냅니다. 작업 디렉터리가 지워졌으면 런처는 읽을 수 없다는 문구와 1로 끝나고, `bin/analytics`은 macOS의 sh에서 셸의 오류와 1로 끝나지만 dash에서는 프로젝트를 찾는 반복이 끝나지 않습니다(kit 0.3.0 전의 `bin/lab`과 같습니다). `AELIX_ANALYTICS_UV`의 `~`와 끝의 `/`는 런처만 풀어 uv를 실행합니다(`bin/analytics`은 dash 127, macOS의 sh 1). 런처 자신의 글을 닫힌 파이프에 쓰면 `bin/analytics`은 141, 런처는 `BrokenPipeError`와 120이고, 표준 출력을 닫은 채(`>&-`) `--help`를 부르면 `bin/analytics`은 2, 런처는 traceback과 1입니다. symlink로 들어온 작업 디렉터리에서 `init ../DIR`은 `bin/analytics`에서 kit이 프로젝트를 만든 뒤 실패하고(셸에 따라 1이나 2), 런처에서는 끝까지 진행합니다. 런처 자신의 글(usage, 안내)은 로캘과 상관없이 UTF-8 바이트입니다. 그 안의 경로·값은 Python의 파일 시스템 인코딩이 글자로 읽은 부분을 그 글자의 UTF-8로, 읽지 못한 바이트를 받은 그대로 씁니다. 그 인코딩이 UTF-8이면(macOS; Linux의 UTF-8 로캘과, Python이 기본으로 UTF-8 모드로 도는 C 로캘) 모든 경로·값이 받은 바이트 그대로이고, 그 인코딩이 Latin-1·EUC-KR 같은 것이면(그런 로캘의 Linux) UTF-8인 이름도 바뀝니다(`bin/analytics`은 늘 받은 바이트). 런처는 `AELIX_ANALYTICS_RUNTIME_PATH`를 따르지 않고 자기 kit을 씁니다 |
-| 배포 형태 | wheel 하나를 hatchling이 체크아웃에서 만듭니다(`uv build`): package `aelix_analytics` — kit 전체(체크아웃의 `src/aelix_analytics`: 템플릿·assets·데모 스크립트 포함, 런처 `cli.py`, 실행 루트 위치 `_install.py`, manifest)와 확장 `extension.py`(체크아웃의 `extension/aelix_analytics.py`) — 와, 같은 소스의 사본 `aelix_analytics/kit/aelix_analytics`(실행 루트 `aelix_analytics/kit`). 자식은 실행 루트만 `PYTHONPATH`로 받고 사본에는 `extension.py`가 없습니다. 버전은 0.12.0입니다(`KIT_VERSION`, manifest와 같음). 의존성은 없고, 분석 라이브러리는 프로젝트 환경에만 설치됩니다. aelix 연동은 이 wheel을 aelix의 환경에 설치하는 것이며 extra는 없습니다. 개발 환경은 `package = false`로 프로젝트를 설치하지 않습니다. 라이선스는 Apache-2.0입니다(`LICENSE`; wheel의 `License-Expression`과 manifest의 `license`). 관리자는 GitHub 핸들 `handochan`이고 이메일은 적지 않습니다(wheel의 `Author`·`Maintainer`, manifest의 `authors`). 배포 이름은 첫 공개 전에 정할 사항이고, 이 wheel은 어디에도 게시하지 않았습니다 |
+| 배포 형태 | wheel 하나를 hatchling이 체크아웃에서 만듭니다(`uv build`): package `aelix_analytics` — kit 전체(체크아웃의 `src/aelix_analytics`: 템플릿·assets·데모 스크립트 포함, 런처 `cli.py`, 실행 루트 위치 `_install.py`, manifest)와 확장 `extension.py`(체크아웃의 `extension/aelix_analytics.py`) — 와, 같은 소스의 사본 `aelix_analytics/kit/aelix_analytics`(실행 루트 `aelix_analytics/kit`). 자식은 실행 루트만 `PYTHONPATH`로 받고 사본에는 `extension.py`가 없습니다. 버전은 0.13.0입니다(`KIT_VERSION`, manifest와 같음). 의존성은 없고, 분석 라이브러리는 프로젝트 환경에만 설치됩니다. aelix 연동은 이 wheel을 aelix의 환경에 설치하는 것이며 extra는 없습니다. 개발 환경은 `package = false`로 프로젝트를 설치하지 않습니다. 라이선스는 Apache-2.0입니다(`LICENSE`; wheel의 `License-Expression`과 manifest의 `license`). 관리자는 GitHub 핸들 `handochan`이고 이메일은 적지 않습니다(wheel의 `Author`·`Maintainer`, manifest의 `authors`). 배포 이름은 첫 공개 전에 정할 사항이고, 이 wheel은 어디에도 게시하지 않았습니다 |
 
 ### F1. 이전 구현(`48b79cc`)과 달라진 POSIX 동작
 
