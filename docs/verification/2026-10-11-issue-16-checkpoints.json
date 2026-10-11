@@ -1,0 +1,919 @@
+{
+  "record_kind": "aelix-analytics-checkpoint-runtime-source",
+  "observed_at": "2026-10-11T09:08:30.774051+00:00",
+  "issue": "https://github.com/handochan/aelix-analytics/issues/16",
+  "pull_request": "https://github.com/handochan/aelix-analytics/pull/93",
+  "kit_version": "0.14.0",
+  "base_revision": "14a404c0278e3aa9825a7d87b686072c6680fd83",
+  "measured_source": "bb69fb158f39d328aeeac887b953fda075705222",
+  "scope": "adopted ADR0012/T1–T12 synthetic record contracts, model-free CLI/SDK/host and three-OS source/install/layer checks; actual model/human Q17 separate",
+  "actual_reviews": {
+    "design": "DONE on PR90, not repeated",
+    "implementation_frozen_source": "730079d05d2bea9346b4569cc5e67ae5502595e9",
+    "independent_passes": 1,
+    "codex_passes": 1,
+    "grouped_p2": [
+      {
+        "id": "F1/C16-I1",
+        "problem": "tagged pending call-time refs/digest",
+        "disposition": "copied typed/generated refs and digest at call; no/named-ref regression"
+      },
+      {
+        "id": "F2/C16-I2",
+        "problem": "specialist reader invalid selection/ref validation",
+        "disposition": "shared pure validation; invalid qualified null/latest raw; positive physical/prefix/generic controls retained"
+      },
+      {
+        "id": "C16-I3",
+        "problem": "provided authored from_seq overwritten",
+        "disposition": "preserve provided field, validate bool/future before effects, default only absent"
+      }
+    ],
+    "correction_diff_passes": 1,
+    "correction_source": "6856a04360fb0e0a844c3cf030a56887a5e274e8",
+    "correction_result": "pass; all three resolved within executed scope",
+    "further_reviews": "not_run/not required under budget"
+  },
+  "raw_byte_measurement": {
+    "schema": "aelix-analytics.checkpoint-measurement/1",
+    "source_commit": "bb69fb158f39d328aeeac887b953fda075705222",
+    "baseline_commit": "14a404c0278e3aa9825a7d87b686072c6680fd83",
+    "kit_version": "0.14.0",
+    "scope": "Synthetic record bytes/Origin/basis/selected state changes, not actual Q17",
+    "journal_prefix_preserved": true,
+    "raw_artifacts": {
+      "authored.json": {
+        "bytes": 2919,
+        "sha256": "d8e434f118b4ae07ac8c7cab6ac2de94ea6455d1de222b116725b7579f64c3a6"
+      },
+      "deterministic.json": {
+        "bytes": 3346,
+        "sha256": "0fb0fbe8f0cc1be454d8c20c982798146f59e255a8eeb9ba406e6bfd96757b37"
+      },
+      "journal-after.jsonl": {
+        "bytes": 9127,
+        "sha256": "37db31fa22687b4953244c9f23f9e18c702a7b91c0055d2fffc9a41312dea515"
+      },
+      "journal-before.jsonl": {
+        "bytes": 1915,
+        "sha256": "1e828e5a39daaf17688cb8b29a2e4c42621c64357ed99df77c45a8f4eae41fed"
+      },
+      "missing.json": {
+        "bytes": 2140,
+        "sha256": "1efe5bc29615f1ee1fceaa114f3df94cad1fb0c86db150670e505b7053f0cbae"
+      },
+      "preserved-context.md": {
+        "bytes": 1136,
+        "sha256": "3f39a1a2e1d27b75909cc7a314c73e09c1be7d077bf8d89c334d6f7afa110916"
+      },
+      "review.json": {
+        "bytes": 2587,
+        "sha256": "5c661289b8b367dcf4f3950dd3bd68837e8248959cdd5c34dca3dc7ce50269ca"
+      }
+    },
+    "legacy_fixture_bytes": [
+      {
+        "path": "tests/fixtures/records/conflict/journal.jsonl",
+        "bytes": 2762,
+        "before_sha256": "afd8c85198801ec2b84e9b91e90e10c6d332e757c54d7c554b4ceec75e9ccd48",
+        "after_sha256": "afd8c85198801ec2b84e9b91e90e10c6d332e757c54d7c554b4ceec75e9ccd48",
+        "identical": true
+      },
+      {
+        "path": "tests/fixtures/records/future-version/journal.jsonl",
+        "bytes": 1755,
+        "before_sha256": "def005511a1c94a50fd5330b530205b9a1546c9e09be890f86e4daa881b6447c",
+        "after_sha256": "def005511a1c94a50fd5330b530205b9a1546c9e09be890f86e4daa881b6447c",
+        "identical": true
+      },
+      {
+        "path": "tests/fixtures/records/interrupted/journal.jsonl",
+        "bytes": 2201,
+        "before_sha256": "14b1b95560a091c5d7e6a872d3481a93d7c84658929695dde53a1b92a56b854c",
+        "after_sha256": "14b1b95560a091c5d7e6a872d3481a93d7c84658929695dde53a1b92a56b854c",
+        "identical": true
+      },
+      {
+        "path": "tests/fixtures/records/missing/journal.jsonl",
+        "bytes": 2929,
+        "before_sha256": "0bb47263461c7b44b0893a1c4e70aa76307e0254500857bbdd638ad5a34a211d",
+        "after_sha256": "0bb47263461c7b44b0893a1c4e70aa76307e0254500857bbdd638ad5a34a211d",
+        "identical": true
+      },
+      {
+        "path": "tests/fixtures/records/mixed-version/journal.jsonl",
+        "bytes": 3211,
+        "before_sha256": "c4c617a187df8c91e2713d51eb3e41af891c8bd85c6886041a9003ae3ee2ca95",
+        "after_sha256": "c4c617a187df8c91e2713d51eb3e41af891c8bd85c6886041a9003ae3ee2ca95",
+        "identical": true
+      },
+      {
+        "path": "tests/fixtures/records/normal/journal.jsonl",
+        "bytes": 7133,
+        "before_sha256": "82a24cf0f9323147fe456f6673c13d03d5f88e752252e2b3ac9eedf500854c74",
+        "after_sha256": "82a24cf0f9323147fe456f6673c13d03d5f88e752252e2b3ac9eedf500854c74",
+        "identical": true
+      }
+    ],
+    "authored_utf8_bytes": 47,
+    "deterministic_utf8_bytes": 241,
+    "omitted_finding_count": 3,
+    "selected_todo_changes": [
+      "e10",
+      "e11"
+    ],
+    "flag_scenarios": {
+      "selected_intermediate_change": [
+        true,
+        true
+      ],
+      "missing_context_without_append": [
+        true,
+        false
+      ]
+    },
+    "tokens": {
+      "status": "not_measured",
+      "reason": "no pinned tokenizer used; bytes are not tokens"
+    },
+    "model_human_q17": "not_run",
+    "actual_browser_interaction": "not_run; explicit URL policy, no workaround",
+    "reviews": "not_run",
+    "source_all3os_ci": "not_run"
+  },
+  "raw_measurement_provenance_note": "raw helper reviews/sourceCI not_run fields describe that measurement command scope; actual review/CI execution is separately recorded above/below",
+  "measurement_script_sha256": "5bb18f226afb2847963110fb95fe01d519bff7ba2d9f994b710c75bda110d963",
+  "local_checks": [
+    {
+      "name": "clean-affected",
+      "source": {
+        "head": "9c37a0964e2ac152014ab14fa3ff297915b32001",
+        "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "untracked": {}
+      },
+      "command_display": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "--timeout",
+        "600",
+        "--timeout-method=thread",
+        "tests/test_checkpoints.py",
+        "tests/test_retrieval.py",
+        "tests/test_marker_gate.py",
+        "tests/test_layers.py",
+        "tests/test_line_endings.py",
+        "tests/test_record_contract.py"
+      ],
+      "command_note": "portable display; exact argv/cwd/environment retained in ignored local result",
+      "started_at": "2026-10-11T07:33:09.109415+00:00",
+      "ended_at": "2026-10-11T07:33:54.309292+00:00",
+      "result": "pass",
+      "exit_code": 0,
+      "result_sha256": "a4d8659bd5fac0de8f7943c6bd30f38a64757a120f0c23cc88db157613ad520f"
+    },
+    {
+      "name": "clean-host-311",
+      "source": {
+        "head": "9c37a0964e2ac152014ab14fa3ff297915b32001",
+        "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "untracked": {}
+      },
+      "command_display": [
+        "uv",
+        "run",
+        "--isolated",
+        "--no-project",
+        "--python",
+        "3.11",
+        "--with",
+        "aelix==0.1.0b2",
+        "--with",
+        "pytest==9.1.1",
+        "--with",
+        "pytest-timeout==2.4.0",
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "--timeout",
+        "300",
+        "--timeout-method=thread",
+        "tests/test_extension.py",
+        "tests/test_usage_report.py",
+        "tests/test_agent_cli.py",
+        "tests/test_checkpoint_extension.py"
+      ],
+      "command_note": "portable display; exact argv/cwd/environment retained in ignored local result",
+      "started_at": "2026-10-11T07:33:09.109359+00:00",
+      "ended_at": "2026-10-11T07:34:24.911083+00:00",
+      "result": "pass",
+      "exit_code": 0,
+      "result_sha256": "38c39656101fd430d2df16e9032b1c22e969c525d5ee414ac771faf240e0cfdd"
+    },
+    {
+      "name": "clean-launcher-311",
+      "source": {
+        "head": "9c37a0964e2ac152014ab14fa3ff297915b32001",
+        "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "untracked": {}
+      },
+      "command_display": [
+        "uv",
+        "run",
+        "--isolated",
+        "--no-project",
+        "--python",
+        "3.11",
+        "--with",
+        "pytest==9.1.1",
+        "--with",
+        "pytest-timeout==2.4.0",
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "--timeout",
+        "300",
+        "--timeout-method=thread",
+        "tests/test_launcher.py"
+      ],
+      "command_note": "portable display; exact argv/cwd/environment retained in ignored local result",
+      "started_at": "2026-10-11T07:33:09.109443+00:00",
+      "ended_at": "2026-10-11T07:34:10.913141+00:00",
+      "result": "pass",
+      "exit_code": 0,
+      "result_sha256": "a2afdfcbe55d3acdd6528d61389282eca4b4ff69159cb769fad2bf8c739761f6"
+    },
+    {
+      "name": "clean-install",
+      "source": {
+        "head": "9c37a0964e2ac152014ab14fa3ff297915b32001",
+        "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "untracked": {}
+      },
+      "command_display": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "--timeout",
+        "600",
+        "--timeout-method=thread",
+        "tests/test_packaging.py"
+      ],
+      "command_note": "portable display; exact argv/cwd/environment retained in ignored local result",
+      "started_at": "2026-10-11T07:33:09.109255+00:00",
+      "ended_at": "2026-10-11T07:34:18.878150+00:00",
+      "result": "fail",
+      "exit_code": 1,
+      "result_sha256": "7a6a41fc0e6e9a7649e58f5e9706a12aeec532d348b63f522d47d00ab61bfcc9"
+    },
+    {
+      "name": "readme-correction",
+      "source": {
+        "head": "b949e2d66450191687d6ed30268abf3483407d58",
+        "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "untracked": {}
+      },
+      "command_display": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_packaging.py::test_the_readme_names_the_wheel_this_version_builds"
+      ],
+      "command_note": "portable display; exact argv/cwd/environment retained in ignored local result",
+      "started_at": "2026-10-11T07:35:45.545655+00:00",
+      "ended_at": "2026-10-11T07:35:46.381428+00:00",
+      "result": "pass",
+      "exit_code": 0,
+      "result_sha256": "347aabad0e1c7ea0eb6ebb883e78b526b9e8392e56bd64de5a34ab882e42d9fc"
+    },
+    {
+      "name": "correction-regressions",
+      "source": {
+        "head": "730079d05d2bea9346b4569cc5e67ae5502595e9",
+        "diff_sha256": "66871b4bbc55d7ad56c6cfc0b78d4814c5afda15ed965005a400864b43782f4c",
+        "untracked": {}
+      },
+      "command_display": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "--timeout",
+        "600",
+        "--timeout-method=thread",
+        "tests/test_checkpoints.py"
+      ],
+      "command_note": "portable display; exact argv/cwd/environment retained in ignored local result",
+      "started_at": "2026-10-11T08:04:48.754010+00:00",
+      "ended_at": "2026-10-11T08:04:50.144138+00:00",
+      "result": "pass",
+      "exit_code": 0,
+      "result_sha256": "a8a12208aaa416978b8dc4435419af93e04f9cad7de387d3d007ae6527460fb6"
+    },
+    {
+      "name": "correction-affected",
+      "source": {
+        "head": "730079d05d2bea9346b4569cc5e67ae5502595e9",
+        "diff_sha256": "66871b4bbc55d7ad56c6cfc0b78d4814c5afda15ed965005a400864b43782f4c",
+        "untracked": {}
+      },
+      "command_display": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "--timeout",
+        "600",
+        "--timeout-method=thread",
+        "tests/test_writer.py",
+        "tests/test_relations.py",
+        "tests/test_retrieval.py",
+        "tests/test_metrics.py",
+        "tests/test_layers.py",
+        "tests/test_marker_gate.py",
+        "tests/test_line_endings.py"
+      ],
+      "command_note": "portable display; exact argv/cwd/environment retained in ignored local result",
+      "started_at": "2026-10-11T08:05:59.629751+00:00",
+      "ended_at": "2026-10-11T08:06:45.159434+00:00",
+      "result": "pass",
+      "exit_code": 0,
+      "result_sha256": "3235ee99f8bd3503bc32e676571a090af34606ef1c6672881cd02c8359044cde"
+    },
+    {
+      "name": "correction-host-312",
+      "source": {
+        "head": "730079d05d2bea9346b4569cc5e67ae5502595e9",
+        "diff_sha256": "66871b4bbc55d7ad56c6cfc0b78d4814c5afda15ed965005a400864b43782f4c",
+        "untracked": {}
+      },
+      "command_display": [
+        "uv",
+        "run",
+        "--isolated",
+        "--no-project",
+        "--python",
+        "3.12",
+        "--with",
+        "aelix==0.1.0b2",
+        "--with",
+        "pytest==9.1.1",
+        "--with",
+        "pytest-timeout==2.4.0",
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "--timeout",
+        "300",
+        "--timeout-method=thread",
+        "tests/test_checkpoint_extension.py"
+      ],
+      "command_note": "portable display; exact argv/cwd/environment retained in ignored local result",
+      "started_at": "2026-10-11T08:05:59.629746+00:00",
+      "ended_at": "2026-10-11T08:06:00.748788+00:00",
+      "result": "pass",
+      "exit_code": 0,
+      "result_sha256": "625e792d762cc3ffce6fed1df52e7dc680d99b5b25b0f961e1527b51d1570c7d"
+    },
+    {
+      "name": "ci-remediation",
+      "source": {
+        "head": "6856a04360fb0e0a844c3cf030a56887a5e274e8",
+        "diff_sha256": "e043b6fd392e3d1e9a2ba35751f459a2e0a660fe5e5d18f76b3b5a0ff7992ccb",
+        "untracked": {}
+      },
+      "command_display": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "--timeout",
+        "600",
+        "--timeout-method=thread",
+        "tests/test_checkpoints.py",
+        "tests/test_asset_host.py::test_host_effect_introduces_floor13_while_old_project_mode_stays12",
+        "tests/test_kit.py::test_the_renamed_variables_are_the_adrs_list",
+        "tests/test_language.py",
+        "tests/test_new_format.py::test_an_older_name_of_a_kind_is_refused_with_its_new_name",
+        "tests/test_platform.py::test_loading_the_kit_pulls_no_analysis_library_into_the_host_process",
+        "tests/test_platform.py::test_importing_the_package_imports_nothing_of_the_kit",
+        "tests/test_platform.py::test_the_shipped_code_names_the_encoding_of_every_text_call_the_scan_knows"
+      ],
+      "command_note": "portable display; exact argv/cwd/environment retained in ignored local result",
+      "started_at": "2026-10-11T08:19:40.415715+00:00",
+      "ended_at": "2026-10-11T08:19:55.490843+00:00",
+      "result": "pass",
+      "exit_code": 0,
+      "result_sha256": "4de42feef1734849a99ea295b9dcf5d6b7b04edcbaa7a213ce17499b4d286ad4"
+    },
+    {
+      "name": "ci-remediation-lint",
+      "source": {
+        "head": "6856a04360fb0e0a844c3cf030a56887a5e274e8",
+        "diff_sha256": "e043b6fd392e3d1e9a2ba35751f459a2e0a660fe5e5d18f76b3b5a0ff7992ccb",
+        "untracked": {}
+      },
+      "command_display": [
+        "ruff",
+        "check",
+        "tests",
+        "src",
+        "extension",
+        "tools"
+      ],
+      "command_note": "portable display; exact argv/cwd/environment retained in ignored local result",
+      "started_at": "2026-10-11T08:19:40.415695+00:00",
+      "ended_at": "2026-10-11T08:19:40.460080+00:00",
+      "result": "pass",
+      "exit_code": 0,
+      "result_sha256": "b6ded44ad47ae154956c67617496dcb00b898d95c3daff336707987bf6bba634"
+    },
+    {
+      "name": "measurement-bb69",
+      "source": {
+        "head": "bb69fb158f39d328aeeac887b953fda075705222",
+        "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "untracked": {}
+      },
+      "command_display": [
+        "python",
+        "measure_checkpoints.py"
+      ],
+      "command_note": "portable display; exact argv/cwd/environment retained in ignored local result",
+      "started_at": "2026-10-11T08:22:31.804368+00:00",
+      "ended_at": "2026-10-11T08:22:31.958238+00:00",
+      "result": "pass",
+      "exit_code": 0,
+      "result_sha256": "996a984cf96d8d3e4fd73a76bb01b53237d97493e1e919c5a26733ccabe069c0"
+    },
+    {
+      "name": "docs-bb69",
+      "source": {
+        "head": "bb69fb158f39d328aeeac887b953fda075705222",
+        "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "untracked": {}
+      },
+      "command_display": [
+        "python",
+        "tools/check_docs.py",
+        "--output",
+        "docs-bb69.json"
+      ],
+      "command_note": "portable display; exact argv/cwd/environment retained in ignored local result",
+      "started_at": "2026-10-11T08:22:31.804369+00:00",
+      "ended_at": "2026-10-11T08:22:32.904192+00:00",
+      "result": "pass",
+      "exit_code": 0,
+      "result_sha256": "848529f6200a8c63ab784807b000ebb826d680b3365cedb56df880147a5f2cc5"
+    }
+  ],
+  "source_ci": {
+    "result": "pass",
+    "at": "2026-10-11T09:05:37.184428+00:00",
+    "head": "bb69fb158f39d328aeeac887b953fda075705222",
+    "run": "38124655881",
+    "attempt": 1,
+    "files": 586,
+    "contexts": 7,
+    "junit": 14,
+    "smoke": [
+      {
+        "path": "ci-floor-macos-26/stdlib-smoke.json",
+        "mode": "stdlib-only",
+        "summary": {
+          "holds": 15,
+          "violated": 0,
+          "declared_limitation": 0,
+          "observed": 3,
+          "not_run": 2
+        },
+        "required": {
+          "platform": "posix",
+          "checks": [
+            "imports_without_analysis_libraries",
+            "lock_excludes_another_process",
+            "lock_released_when_its_holder_is_killed",
+            "replace_while_a_reader_holds_the_file",
+            "liveness_of_a_live_an_exited_and_a_bogus_pid",
+            "interrupt_asks_a_python_child_or_declines",
+            "kill_tree_ends_the_child_and_its_grandchild",
+            "kill_tree_after_the_leader_exited",
+            "deadline_interrupts_python_code",
+            "deadline_interrupts_a_sleep",
+            "the_cancel_request_wakes_a_sleeping_run",
+            "the_guard_records_outside_regions_and_interrupts_inside_once",
+            "base_env_is_enough_to_start_a_child",
+            "file_url_leads_back_to_the_file",
+            "utf8_survives_a_pipe"
+          ],
+          "violated": [],
+          "declared_limitation": [],
+          "not_run": [],
+          "hold": true
+        }
+      },
+      {
+        "path": "ci-floor-ubuntu-24.04/stdlib-smoke.json",
+        "mode": "stdlib-only",
+        "summary": {
+          "holds": 15,
+          "violated": 0,
+          "declared_limitation": 0,
+          "observed": 3,
+          "not_run": 2
+        },
+        "required": {
+          "platform": "posix",
+          "checks": [
+            "imports_without_analysis_libraries",
+            "lock_excludes_another_process",
+            "lock_released_when_its_holder_is_killed",
+            "replace_while_a_reader_holds_the_file",
+            "liveness_of_a_live_an_exited_and_a_bogus_pid",
+            "interrupt_asks_a_python_child_or_declines",
+            "kill_tree_ends_the_child_and_its_grandchild",
+            "kill_tree_after_the_leader_exited",
+            "deadline_interrupts_python_code",
+            "deadline_interrupts_a_sleep",
+            "the_cancel_request_wakes_a_sleeping_run",
+            "the_guard_records_outside_regions_and_interrupts_inside_once",
+            "base_env_is_enough_to_start_a_child",
+            "file_url_leads_back_to_the_file",
+            "utf8_survives_a_pipe"
+          ],
+          "violated": [],
+          "declared_limitation": [],
+          "not_run": [],
+          "hold": true
+        }
+      },
+      {
+        "path": "ci-floor-windows-2025/stdlib-smoke.json",
+        "mode": "stdlib-only",
+        "summary": {
+          "holds": 14,
+          "violated": 0,
+          "declared_limitation": 1,
+          "observed": 3,
+          "not_run": 2
+        },
+        "required": {
+          "platform": "windows",
+          "checks": [
+            "imports_without_analysis_libraries",
+            "lock_excludes_another_process",
+            "lock_released_when_its_holder_is_killed",
+            "replace_while_a_reader_holds_the_file",
+            "liveness_of_a_live_an_exited_and_a_bogus_pid",
+            "interrupt_asks_a_python_child_or_declines",
+            "kill_tree_ends_the_child_and_its_grandchild",
+            "kill_tree_after_the_leader_exited",
+            "deadline_interrupts_python_code",
+            "deadline_interrupts_a_sleep",
+            "the_cancel_request_wakes_a_sleeping_run",
+            "the_guard_records_outside_regions_and_interrupts_inside_once",
+            "base_env_is_enough_to_start_a_child",
+            "file_url_leads_back_to_the_file",
+            "utf8_survives_a_pipe"
+          ],
+          "violated": [],
+          "declared_limitation": [
+            "kill_tree_after_the_leader_exited"
+          ],
+          "not_run": [],
+          "hold": true
+        }
+      },
+      {
+        "path": "ci-platform-macos-26/smoke.json",
+        "mode": "full",
+        "summary": {
+          "holds": 25,
+          "violated": 0,
+          "declared_limitation": 0,
+          "observed": 6,
+          "not_run": 0
+        },
+        "required": {
+          "platform": "posix",
+          "checks": [
+            "imports_without_analysis_libraries",
+            "lock_excludes_another_process",
+            "lock_released_when_its_holder_is_killed",
+            "replace_while_a_reader_holds_the_file",
+            "liveness_of_a_live_an_exited_and_a_bogus_pid",
+            "interrupt_asks_a_python_child_or_declines",
+            "kill_tree_ends_the_child_and_its_grandchild",
+            "kill_tree_after_the_leader_exited",
+            "deadline_interrupts_python_code",
+            "deadline_interrupts_a_sleep",
+            "the_cancel_request_wakes_a_sleeping_run",
+            "the_guard_records_outside_regions_and_interrupts_inside_once",
+            "base_env_is_enough_to_start_a_child",
+            "file_url_leads_back_to_the_file",
+            "utf8_survives_a_pipe",
+            "cli_end_to_end",
+            "cli_run_timeout_in_python_code",
+            "cli_run_timeout_in_a_blocking_duckdb_query",
+            "cli_cancel_the_way_the_extension_does",
+            "cli_cancel_reaches_a_run_inside_a_regular_expression",
+            "cli_cancel_reaches_a_run_waiting_on_a_subprocess",
+            "cli_concurrent_runs_are_serialized",
+            "cli_refuses_a_new_reserved_dataset_name",
+            "cli_writes_a_reserved_chart_id_to_a_portable_file",
+            "cli_a_script_saving_a_reserved_name_is_warned_about"
+          ],
+          "violated": [],
+          "declared_limitation": [],
+          "not_run": [],
+          "hold": true
+        }
+      },
+      {
+        "path": "ci-platform-ubuntu-24.04/smoke.json",
+        "mode": "full",
+        "summary": {
+          "holds": 25,
+          "violated": 0,
+          "declared_limitation": 0,
+          "observed": 6,
+          "not_run": 0
+        },
+        "required": {
+          "platform": "posix",
+          "checks": [
+            "imports_without_analysis_libraries",
+            "lock_excludes_another_process",
+            "lock_released_when_its_holder_is_killed",
+            "replace_while_a_reader_holds_the_file",
+            "liveness_of_a_live_an_exited_and_a_bogus_pid",
+            "interrupt_asks_a_python_child_or_declines",
+            "kill_tree_ends_the_child_and_its_grandchild",
+            "kill_tree_after_the_leader_exited",
+            "deadline_interrupts_python_code",
+            "deadline_interrupts_a_sleep",
+            "the_cancel_request_wakes_a_sleeping_run",
+            "the_guard_records_outside_regions_and_interrupts_inside_once",
+            "base_env_is_enough_to_start_a_child",
+            "file_url_leads_back_to_the_file",
+            "utf8_survives_a_pipe",
+            "cli_end_to_end",
+            "cli_run_timeout_in_python_code",
+            "cli_run_timeout_in_a_blocking_duckdb_query",
+            "cli_cancel_the_way_the_extension_does",
+            "cli_cancel_reaches_a_run_inside_a_regular_expression",
+            "cli_cancel_reaches_a_run_waiting_on_a_subprocess",
+            "cli_concurrent_runs_are_serialized",
+            "cli_refuses_a_new_reserved_dataset_name",
+            "cli_writes_a_reserved_chart_id_to_a_portable_file",
+            "cli_a_script_saving_a_reserved_name_is_warned_about"
+          ],
+          "violated": [],
+          "declared_limitation": [],
+          "not_run": [],
+          "hold": true
+        }
+      },
+      {
+        "path": "ci-platform-windows-2025/smoke.json",
+        "mode": "full",
+        "summary": {
+          "holds": 21,
+          "violated": 0,
+          "declared_limitation": 3,
+          "observed": 7,
+          "not_run": 0
+        },
+        "required": {
+          "platform": "windows",
+          "checks": [
+            "imports_without_analysis_libraries",
+            "lock_excludes_another_process",
+            "lock_released_when_its_holder_is_killed",
+            "replace_while_a_reader_holds_the_file",
+            "liveness_of_a_live_an_exited_and_a_bogus_pid",
+            "interrupt_asks_a_python_child_or_declines",
+            "kill_tree_ends_the_child_and_its_grandchild",
+            "kill_tree_after_the_leader_exited",
+            "deadline_interrupts_python_code",
+            "deadline_interrupts_a_sleep",
+            "the_cancel_request_wakes_a_sleeping_run",
+            "the_guard_records_outside_regions_and_interrupts_inside_once",
+            "base_env_is_enough_to_start_a_child",
+            "file_url_leads_back_to_the_file",
+            "utf8_survives_a_pipe",
+            "cli_end_to_end",
+            "cli_run_timeout_in_python_code",
+            "cli_run_timeout_in_a_blocking_duckdb_query",
+            "cli_cancel_the_way_the_extension_does",
+            "cli_cancel_reaches_a_run_inside_a_regular_expression",
+            "cli_cancel_reaches_a_run_waiting_on_a_subprocess",
+            "cli_concurrent_runs_are_serialized",
+            "cli_refuses_a_new_reserved_dataset_name",
+            "cli_writes_a_reserved_chart_id_to_a_portable_file"
+          ],
+          "violated": [],
+          "declared_limitation": [
+            "kill_tree_after_the_leader_exited",
+            "cli_cancel_reaches_a_run_inside_a_regular_expression",
+            "cli_cancel_reaches_a_run_waiting_on_a_subprocess"
+          ],
+          "not_run": [],
+          "hold": true
+        }
+      }
+    ],
+    "docs_inputs": 136,
+    "errors": [],
+    "manifest_sha256": "578515452c8409c435bbda54899a610ebcc4949c361f1c74a2ee75b00eb6e34a",
+    "inspection_sha256": "11f047bf9b0d95fc12c1a049c23cbd11f83c65bcceab383229131a2ee2962e66",
+    "provenance_sha256": "ac92dc192d9c8124e694f17447c0f723f8c4be8bb44a1b734cda2c9f2435c9e0",
+    "legs": [
+      {
+        "path": "ci-platform-macos-26/aelix-py3.11.xml",
+        "passed": 989,
+        "skipped": 0,
+        "failures": 0,
+        "errors": 0,
+        "seconds": 58.513
+      },
+      {
+        "path": "ci-platform-macos-26/aelix-py3.12.xml",
+        "passed": 989,
+        "skipped": 0,
+        "failures": 0,
+        "errors": 0,
+        "seconds": 61.281
+      },
+      {
+        "path": "ci-platform-macos-26/launcher-py3.11.xml",
+        "passed": 208,
+        "skipped": 1,
+        "failures": 0,
+        "errors": 0,
+        "seconds": 19.166
+      },
+      {
+        "path": "ci-platform-macos-26/suite.xml",
+        "passed": 2288,
+        "skipped": 78,
+        "failures": 0,
+        "errors": 0,
+        "seconds": 869.214
+      },
+      {
+        "path": "ci-platform-ubuntu-24.04/aelix-py3.11.xml",
+        "passed": 989,
+        "skipped": 0,
+        "failures": 0,
+        "errors": 0,
+        "seconds": 68.489
+      },
+      {
+        "path": "ci-platform-ubuntu-24.04/aelix-py3.12.xml",
+        "passed": 989,
+        "skipped": 0,
+        "failures": 0,
+        "errors": 0,
+        "seconds": 75.945
+      },
+      {
+        "path": "ci-platform-ubuntu-24.04/launcher-py3.11.xml",
+        "passed": 208,
+        "skipped": 1,
+        "failures": 0,
+        "errors": 0,
+        "seconds": 16.132
+      },
+      {
+        "path": "ci-platform-ubuntu-24.04/suite.xml",
+        "passed": 2290,
+        "skipped": 76,
+        "failures": 0,
+        "errors": 0,
+        "seconds": 854.526
+      },
+      {
+        "path": "ci-platform-windows-2025/aelix-py3.11.xml",
+        "passed": 989,
+        "skipped": 1,
+        "failures": 0,
+        "errors": 0,
+        "seconds": 121.168
+      },
+      {
+        "path": "ci-platform-windows-2025/aelix-py3.12.xml",
+        "passed": 989,
+        "skipped": 1,
+        "failures": 0,
+        "errors": 0,
+        "seconds": 117.396
+      },
+      {
+        "path": "ci-platform-windows-2025/console.xml",
+        "passed": 21,
+        "skipped": 0,
+        "failures": 0,
+        "errors": 0,
+        "seconds": 88.857
+      },
+      {
+        "path": "ci-platform-windows-2025/launcher-py3.11.xml",
+        "passed": 97,
+        "skipped": 112,
+        "failures": 0,
+        "errors": 0,
+        "seconds": 16.805
+      },
+      {
+        "path": "ci-platform-windows-2025/long-paths-off.xml",
+        "passed": 7,
+        "skipped": 0,
+        "failures": 0,
+        "errors": 0,
+        "seconds": 4.399
+      },
+      {
+        "path": "ci-platform-windows-2025/suite.xml",
+        "passed": 2106,
+        "skipped": 286,
+        "failures": 0,
+        "errors": 0,
+        "seconds": 1751.899
+      }
+    ],
+    "url": "https://github.com/handochan/aelix-analytics/actions/runs/38124655881",
+    "event": "workflow_dispatch",
+    "macos": true,
+    "all_jobs": 7,
+    "all_jobs_success": true,
+    "download_audit_count": 1,
+    "scope": "source audit; final-head CI is a separate new run",
+    "docs_git_bytes_and_checker": {
+      "inputs": 136,
+      "errors": 0
+    },
+    "workflow_provenance": {
+      "contexts": 7,
+      "sha": "bb69fb158f39d328aeeac887b953fda075705222",
+      "errors": 0
+    }
+  },
+  "retained_failures": [
+    {
+      "scope": "first checkpoint fixtures",
+      "passed": 20,
+      "failed": 3,
+      "note": "original setup/fixture failures retained, not retroactive pass"
+    },
+    {
+      "scope": "initial affected layer cascade",
+      "passed": 376,
+      "failed": 48,
+      "note": "peer-import/fixed expectations/new tracking fixtures; original retained"
+    },
+    {
+      "scope": "first measurement setup",
+      "result": "fail",
+      "reason": "Project wrapped twice; corrected scoped script/new output folder"
+    },
+    {
+      "scope": "install9c37",
+      "passed": 25,
+      "failed": 1,
+      "reason": "README old wheel name; later single corrected assertion pass"
+    },
+    {
+      "scope": "ordinary CI38122021787",
+      "source": "730079d05d2bea9346b4569cc5e67ae5502595e9",
+      "result": "failure on Linux/Windows",
+      "failed_cases_each": 9,
+      "note": "expected version/kind/module/floor values, test encoding and duplicated legacy Goal reader; fixed bounded checks63 pass; original run/log never rerun or relabeled"
+    }
+  ],
+  "limits": [
+    "mechanical selected changes are not conclusion or statistical review",
+    "current convenience explicit preserved CONTEXT filename-ref is refused at null-context preview; tagged/historical exact route available",
+    "Windows declared post-leader kill-tree and regex/subprocess CLI cancellation limitations retained",
+    "tokens not_measured, no tokenizer; bytes are not tokens",
+    "raw fixture files and synthetic Origin handoff do not prove actual model/human Q17"
+  ],
+  "not_run": [
+    "actual model/human Q17",
+    "actual browser interaction; explicit URL policy, no workaround",
+    "release/publication",
+    "final-head all3OS at report creation; final results only PR/Issue"
+  ]
+}
