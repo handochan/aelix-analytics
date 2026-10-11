@@ -54,6 +54,8 @@ analytics — human CLI for Aelix Analytics projects (the same kit the aelix ext
   analytics run --rerun-of RUN_ID --title T   re-execute a run's code snapshot and compare
   analytics import FILE [--name N] [--description D]
   analytics query "SQL" [--limit N]
+  analytics checkpoint [TEXT] [--ref REF] [--from-seq N] [--limit N]
+                       [--as-of-seq N --context-version VERSION|--context-unknown]
   analytics record KIND "TEXT" [--ref R] [--resolves eN] [--details-json JSON] [--refs-json JSON]
   analytics assets list | show ID | review [ID] | update EVENT --expected STATE --to STATE --reason TEXT
   analytics assets register EVENT --name NAME    copy a validated asset into this project
@@ -69,7 +71,7 @@ Output ends with one JSON line (status and context print text); a run that got p
 puts an empty line before it. Nothing here is a sandbox.
 """
 
-COMMANDS = ("init", "demo", "status", "context", "open", "run", "import", "query", "record", "render",
+COMMANDS = ("init", "demo", "status", "context", "open", "run", "import", "query", "record", "checkpoint", "render",
             "migrate", "assets")
 
 # The environment variables this command read under the kit's old names (before kit 0.3.0), each with

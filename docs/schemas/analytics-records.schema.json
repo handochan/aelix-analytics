@@ -18,6 +18,136 @@
     {"if": {"properties": {"schema": {"const": "analytics.migration/1"}}}, "then": {"$ref": "#/$defs/migration_1"}}
   ],
   "$defs": {
+    "analysis_checkpoint_details": {
+      "type": "object",
+      "required": [
+        "contract",
+        "as_of_seq",
+        "context_version",
+        "summary_source",
+        "from_seq",
+        "summary",
+        "omitted",
+        "journal_basis"
+      ],
+      "properties": {
+        "contract": {
+          "const": "analysis_checkpoint/1"
+        },
+        "as_of_seq": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "context_version": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "summary_source": {
+          "enum": [
+            "authored",
+            "deterministic"
+          ]
+        },
+        "from_seq": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "summary": {
+          "type": "object",
+          "required": [
+            "goal",
+            "focus_event_id",
+            "metric_event_ids",
+            "finding_event_ids",
+            "change_event_ids",
+            "question_event_ids",
+            "todo_event_ids",
+            "next_actions"
+          ],
+          "properties": {
+            "goal": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "focus_event_id": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/event_id"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "metric_event_ids": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/event_id"
+              },
+              "uniqueItems": true
+            },
+            "finding_event_ids": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/event_id"
+              },
+              "uniqueItems": true
+            },
+            "change_event_ids": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/event_id"
+              },
+              "uniqueItems": true
+            },
+            "question_event_ids": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/event_id"
+              },
+              "uniqueItems": true
+            },
+            "todo_event_ids": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/event_id"
+              },
+              "uniqueItems": true
+            },
+            "next_actions": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "omitted": {
+          "type": "object"
+        },
+        "journal_basis": {
+          "type": "object",
+          "required": [
+            "reader_format",
+            "prefix_revision"
+          ],
+          "properties": {
+            "reader_format": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "prefix_revision": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        }
+      }
+    },
     "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "timestamp": {"type": "string", "format": "date-time"},
     "event_id": {"type": "string", "pattern": "^e[1-9][0-9]*$"},
@@ -591,7 +721,9 @@
                   "properties": {"details": {"required": ["as_of_seq", "context_version"],
                                              "properties": {"as_of_seq": {"type": "integer", "minimum": 0},
                                                             "context_version": {"type": ["string", "null"],
-                                                                                "minLength": 1}}}}}},
+                                                                                "minLength": 1}},
+                                             "allOf": [{"if": {"required": ["contract"], "properties": {"contract": {"const": "analysis_checkpoint/1"}}},
+                                                        "then": {"$ref": "#/$defs/analysis_checkpoint_details"}}]}}}},
         {"if": {"properties": {"kind": {"const": "metric_definition"}}},
          "then": {"required": ["details"], "properties": {"details": {"required": ["metric_id"]}}}},
         {"if": {"properties": {"kind": {"const": "reuse_proposal"}}},

@@ -313,7 +313,7 @@ N0의 명칭·기본 언어 전환을 A0의 경계 정리와 조율한다. 현�
 | 계층 | 수준 | 역할 | 모듈 | import해도 되는 계층 | 외부 모듈 |
 |---|---|---|---|---|---|
 | `ports` | 0 | 플랫폼 포트와 OS별 구현([ADR-0003](decisions/0003-portable-boundaries-and-in-process-kit-loading.md)) | `src/aelix_analytics/_platform.py` | 없음 | stdlib |
-| `read_model` | 0 | 기록의 읽기 모델(§9 `projections/`)·자산의 순수 값/점수 계약 | `src/aelix_analytics/relations.py`, `src/aelix_analytics/asset_policy.py` | 없음 | stdlib |
+| `read_model` | 0 | 기록의 읽기 모델(§9 `projections/`)·자산의 순수 값/점수 계약·주입한 reader로 평가하는 checkpoint 값 | `src/aelix_analytics/relations.py`, `src/aelix_analytics/asset_policy.py`, `src/aelix_analytics/checkpoints.py` | 없음 | stdlib |
 | `distribution` | 0 | 설치본의 실행 루트 위치 | `src/aelix_analytics/_install.py` | 없음 | stdlib |
 | `writer` | 1 | 기록 writer: 표식 판정과 쓰기 게이트, `Origin`, 오류 클래스, 기록 헬퍼, 새 형식의 공통 `Writer`(#13) | `src/aelix_analytics/writer.py`, `src/aelix_analytics/asset_contract.py` | `ports`, `read_model` | stdlib |
 | `core` | 2 | 도메인·공유 응용(아직 나뉘지 않음, §2) | `src/aelix_analytics/core.py` | `ports`, `read_model`, `writer`, `asset_application` | stdlib |

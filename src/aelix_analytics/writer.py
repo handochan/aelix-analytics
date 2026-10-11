@@ -44,7 +44,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-from . import _platform, relations
+from . import _platform, checkpoints, relations
 
 
 class AnalyticsError(Exception):
@@ -697,7 +697,7 @@ def classify_refs(items) -> dict:
 # The kinds a person or an agent records (design 2.8): `gap` is `workflow_feedback` in this format,
 # and the other kinds of analytics.event/2 open with the Issues of their features (#14 on).
 RECORD_KINDS = ("finding", "decision", "assumption", "question", "todo", "note", "workflow_feedback",
-                *relations.METRIC_KINDS, *relations.ASSET_PUBLIC_KINDS, "resolve")
+                *relations.METRIC_KINDS, *relations.ASSET_PUBLIC_KINDS, "checkpoint", "resolve")
 # The kinds the kit records on its own (design 4.8): a project's creation and the completion events of
 # an import, a run and a context version.
 KIT_KINDS = ("project", "import", "run", "context")
@@ -1047,6 +1047,13 @@ class Locked:
             problem = reference_problem(ref)
             if problem:
                 raise ValueError(f"not a reference of the record schema: {problem}: {ref!r}")
+        if kind == "checkpoint":
+            details, generated, model = self.writer._checkpoint(details, refs, self.journal)
+            if details["as_of_seq"] >= self.next_seq:
+                raise AnalyticsError("checkpoint_reference", "checkpoint basis must precede its event")
+            refs = _refs(_items([*refs, *generated]), {})
+            refs = list({json.dumps(ref, sort_keys=True): ref for ref in refs}.values())
+            requires = checkpoints.SINCE
         if kind in relations.ASSET_KINDS:
             self.writer._asset_written(kind, details, refs, self.journal, operation=self.operation)
             feature = (relations.ASSET_AUTOMATIC_SINCE if kind == "asset_mode" or
@@ -1199,7 +1206,11 @@ class Writer:
         text, items, typed, outside, bound = (prepared.text, prepared.items, prepared.typed,
                                               prepared.journal, prepared.bound)
         with self.locked(op) as held:
-            if kind in relations.METRIC_KINDS:
+            if kind == "checkpoint":
+                details, generated, model = self._checkpoint(prepared.details, refs, held.journal)
+                items = _items([*refs, *generated])
+                bound = self._bind(items, model=model)
+            elif kind in relations.METRIC_KINDS:
                 # The caller's original fields, not the generated state-changing references, are
                 # checked again. Concurrent definition/focus changes cannot be overwritten.
                 details, generated = self._metric(kind, details, refs, held.journal)
@@ -1209,13 +1220,13 @@ class Writer:
                 details, generated = self._asset(kind, details, refs, held.journal)
                 items = _items([*refs, *generated])
                 bound = self._bind(items)
-            if held.journal.as_of_seq != outside.as_of_seq:
+            if kind != "checkpoint" and held.journal.as_of_seq != outside.as_of_seq:
                 bound = self._bind(items)  # a run completed meanwhile, say
             _check_resolved(held.journal, typed)
             refs_written = _refs(items, bound)
             before = held.journal
             event = held.append(kind, text, refs=refs_written,
-                                details=details if kind in (*relations.METRIC_KINDS, *relations.ASSET_PUBLIC_KINDS) else prepared.details,
+                                details=details if kind in (*relations.METRIC_KINDS, *relations.ASSET_PUBLIC_KINDS, "checkpoint") else prepared.details,
                                 requires=prepared.requires)
             # The journal after the append is read again only for a record that changes another's
             # state (design 4.6): most records change none.
@@ -1244,7 +1255,13 @@ class Writer:
         self.admit(op)
         check_kind(kind, RECORD_KINDS + KIT_KINDS)
         outside = None
-        if kind in relations.METRIC_KINDS:
+        checkpoint_model = None
+        if kind == "checkpoint":
+            outside = relations.Journal(_journal_bytes(self.journal))
+            details, generated, checkpoint_model = self._checkpoint(details, refs, outside, pending_run=pending_run)
+            refs = [*list(refs or ()), *generated]
+            requires = checkpoints.SINCE
+        elif kind in relations.METRIC_KINDS:
             outside = relations.Journal(_journal_bytes(self.journal))
             details, generated = self._metric(kind, details, refs, outside, pending_run=pending_run)
             refs = [*list(refs or ()), *generated]
@@ -1266,13 +1283,38 @@ class Writer:
         if outside is not None or seq is None or any(ref["relation"] == "resolves" for ref in typed):
             outside = relations.Journal(_journal_bytes(self.journal))
             _check_resolved(outside, typed)
-        bound = self._bind(items)
+        bound = self._bind(items, model=checkpoint_model)
         number = seq if seq is not None else outside.next_seq + ahead
         line = _encode(self._event(number, kind, text, _refs(items, bound), details))
         problem = _too_long(text_bytes, line)
         if problem:
             raise problem
         return _Prepared(text, request_id, items, typed, outside, bound, details, requires)
+
+    def _checkpoint(self, details, refs, journal, *, pending_run=None):
+        try:
+            details = checkpoints.validate(details)
+            model = self._asset_model(journal)
+            historical = model.through(details["as_of_seq"])
+            items = _items(refs)
+            bound = self._bind(items, model=historical)
+            typed = _refs(items, bound)
+            version = details["context_version"]
+            context_refs = [ref for ref in typed if ref.get("type") == "context_version"]
+            if any(ref.get("version") != version for ref in context_refs):
+                raise checkpoints.CheckpointError("checkpoint_reference", "CONTEXT refs must match the checkpoint's exact version")
+            context_path = relations.context_file(self.root, version) if version is not None else None
+            digest = (context_refs[0].get("digest", {}).get("sha256") if context_refs else
+                      _file_sha(context_path) if context_path is not None else None)
+            if version is not None and digest is None:
+                raise checkpoints.CheckpointError("checkpoint_reference", "the preserved CONTEXT digest is unavailable")
+            generated = checkpoints.generated_refs(details, journal, digest)
+            if any(ref.get("relation") not in ("cites", "supports", "contradicts") and ref not in generated for ref in typed):
+                raise checkpoints.CheckpointError("bad_checkpoint_record", "caller checkpoint refs only cite, support or contradict evidence")
+            checkpoints.validate_basis(details, model, [*typed, *generated], reader=relations, pending_run=pending_run)
+            return details, generated, historical
+        except checkpoints.CheckpointError as exc:
+            raise AnalyticsError(exc.code, str(exc)) from exc
 
     def _asset_model(self, journal):
         return relations.ReadModel(self.root, journal, alive=self.platform.processes.alive,
@@ -1518,10 +1560,10 @@ class Writer:
 
     # --- binding names at write time (design 4.7) ------------------------------------------------
 
-    def _bind(self, items) -> dict[int, tuple[dict, dict]]:
+    def _bind(self, items, *, model=None) -> dict[int, tuple[dict, dict]]:
         """Position of each name in `items` -> (the reference written, its binding entry). The read
         model is read once, and only when a name needs it."""
-        lookup = _Lookup(self)
+        lookup = _Lookup(self, model)
         return {index: self._bind_name(name, lookup) for index, (name, _) in enumerate(items)
                 if name is not None}
 
@@ -1590,9 +1632,9 @@ class Writer:
 class _Lookup:
     """The read model a binding reads, read once and only when a name needs it."""
 
-    def __init__(self, writer: Writer):
+    def __init__(self, writer: Writer, model=None):
         self.writer = writer
-        self._model: relations.ReadModel | None = None
+        self._model: relations.ReadModel | None = model
 
     @property
     def model(self) -> relations.ReadModel:

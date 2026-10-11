@@ -907,14 +907,16 @@ async def tool_record(args, ctx):
     refs = list(args.get("refs") or [])
     details = args.get("details")
     resolves = args.get("resolves") or None
+    authored = origin("agent", "tool")
     # What the record refuses before its lock is refused before the context sync: a refused record
     # changes nothing (core.check_record).
     await asyncio.to_thread(lambda: core.check_record(project, kind, text, refs=refs, resolves=resolves,
-                                                      details=details, origin=origin("agent", "tool")))
-    await asyncio.to_thread(lambda: core.sync_context(project, origin=origin("system", "tool")))
+                                                      details=details, origin=authored))
+    if kind != "checkpoint":
+        await asyncio.to_thread(lambda: core.sync_context(project, origin=core.system_origin(authored)))
     written = await asyncio.to_thread(
         lambda: core.record(project, kind, text, refs=refs, resolves=resolves,
-                            details=details, origin=origin("agent", "tool")))
+                            details=details, origin=authored))
     schedule_workspace_render(project, "tool")
     return f"analytics_record: ok — {recorded_line(written, kind)}", written.to_json()
 
@@ -1098,7 +1100,7 @@ TOOLS = [
         "workflow_feedback (a missing capability or friction in this analysis tooling), metric_definition "
         "(a versioned draft or specified definition), analysis_focus (purpose and exact definitions), "
         "metric_observation (a declared result, exact definition, run and scope), asset_candidate, "
-        "asset_check, asset_effect (analysis_asset/1 details), or resolve "
+        "asset_check, asset_effect (analysis_asset/1 details), checkpoint (an authored summary with exact basis), or resolve "
         "(closes the question/todo named in `resolves` without other content). Ordinary journal kinds may also "
         "resolve an earlier entry, e.g. a finding that answers question e7. Structured metric and asset kinds "
         "derive state relationships from details and reject caller state-changing refs. Cite evidence in refs: "
@@ -1110,7 +1112,7 @@ TOOLS = [
          "refs": {"type": "array", "items": {"anyOf": [STR, {"type": "object"}]},
                   "description": "Run ids, chart keys, dataset names, event ids, or exact typed references."},
          "details": {"type": "object", "description": "Structured metric_definition/1, analysis_focus/1, "
-                     "metric_observation/1, or analysis_asset/1 payload. Exact versions and explicit scope; "
+                     "metric_observation/1, analysis_asset/1, or analysis_checkpoint/1 payload. Exact versions and explicit scope; "
                      "state relationships are generated from these fields. See the metric/asset contract docs."},
          "resolves": {**STR, "description": "Event id this entry answers or closes, e.g. e7."}},
         ["kind", "text"], tool_record,

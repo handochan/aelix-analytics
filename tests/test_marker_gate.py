@@ -471,6 +471,7 @@ READ_REFUSED = {"both": "marker_conflict", "none": "no_project", "incomplete": "
 
 WRITES = {
     "record": ("record", "finding", "a finding"),
+    "checkpoint": ("checkpoint", "a checkpoint"),
     "asset_candidate_record": ("record", "asset_candidate", "An early candidate", "--details-json", json.dumps({
         "asset_id": "candidate", "title": "Candidate", "problem": "A recurring question", "artifact_kind": "skill",
         "conditions": "", "exclusions": "", "next_check": ""})),
@@ -629,6 +630,7 @@ def test_a_project_below_a_lab_json_one_is_warned_of_and_written(base, tmp_path)
 
 SDK_CALLS = {
     "record": "analytics.record('note', 'from the script API')",
+    "checkpoint": "analytics.checkpoint('from the script API')",
     "asset_candidate_record": "analytics.record('asset_candidate', 'Early candidate', details={'asset_id':'candidate',"
                               "'title':'Candidate','problem':'A recurring question','artifact_kind':'skill',"
                               "'conditions':'','exclusions':'','next_check':''})",

@@ -28,7 +28,7 @@ import unicodedata
 from datetime import datetime
 from pathlib import Path, PureWindowsPath
 
-from . import _platform, asset_app, asset_suggestions, relations, writer
+from . import _platform, asset_app, asset_suggestions, checkpoints, relations, writer
 from ._platform import newlines_as_lf as newlines_as_lf
 from ._platform import open_text as open_text
 from ._platform import write_text as write_text
@@ -45,7 +45,7 @@ from .writer import migration_record as migration_record
 from .writer import new_request_id as new_request_id
 from .writer import present_marker as present_marker
 
-KIT_VERSION = "0.13.0"
+KIT_VERSION = "0.14.0"
 # The marker and the record families of the projects this kit writes: the new format's, through
 # the common writer (writer.Writer, Issue #13 PR 3; writer.FAMILIES). A project is found by either
 # marker, analytics.json or lab.json, and judged by writer.marker_state: a lab.json project
@@ -1825,6 +1825,11 @@ def check_record(project: Project, kind: str, text: str, *, refs=None, resolves=
     the seq it gets after the context event the sync is about to write."""
     admit(project, "record")
     writer.check_kind(kind)
+    if kind == "checkpoint":
+        if resolves:
+            raise AnalyticsError("bad_checkpoint_record", "a checkpoint cannot resolve another record")
+        prepare_checkpoint(project, text, refs=refs, details=details, origin=origin, sync=False)
+        return
     try:
         writer_for(project, origin).check(kind, text, refs=_record_items(refs, resolves), details=details,
                                           ahead=1 if context_pending(project) else 0)
@@ -1842,10 +1847,167 @@ def record(project: Project, kind: str, text: str, *, refs=None, resolves=None,
     w = writer_for(project, origin)
     w.admit("record")
     writer.check_kind(kind)
+    if kind == "checkpoint":
+        if resolves:
+            raise AnalyticsError("bad_checkpoint_record", "a checkpoint cannot resolve another record")
+        prepared = prepare_checkpoint(project, text, refs=refs, details=details, origin=origin)
+        try:
+            written = w.record(kind, prepared["text"], refs=prepared["refs"], details=prepared["details"])
+            return writer.Written(written.event, written.request_id, prepared.get("bindings", written.bindings), written.targets)
+        except AnalyticsError as exc:
+            if prepared.get("context_synced") is not None:
+                exc.details = {**(exc.details or {}), "context_synced": prepared["context_synced"]}
+            raise
     try:
         return w.record(kind, text, refs=_record_items(refs, resolves), details=details)
     except ValueError as exc:
         raise AnalyticsError("bad_record_input", str(exc)) from exc
+
+
+def prepare_checkpoint(project: Project, text=None, *, refs=(), details=None, as_of_seq=None,
+                       context_version=checkpoints.UNSET, from_seq=0, limit=8, origin: Origin,
+                       sync=True, pending_run=None) -> dict:
+    """Capture a complete call-time payload for all entries, including SDK pending writes.
+
+    Current requests alone sync CONTEXT. Fully tagged and explicit historical requests keep their
+    basis. Known refusals are preflighted before sync; its separate partial effect is reported.
+    """
+    admit(project, "checkpoint")
+    w = writer_for(project, origin)
+    refs = _record_items(refs, None)
+    if text is not None:
+        writer.check_text(text)
+    try:
+        checkpoints.integer(limit, "limit", 1, 100)
+        if details is not None and not isinstance(details, dict):
+            raise checkpoints.CheckpointError("bad_checkpoint_record", "details is an object")
+        supplied = dict(details or {})
+        if "contract" in supplied:
+            normalized = checkpoints.validate(supplied)
+            if text is None:
+                raise checkpoints.CheckpointError("bad_checkpoint_record", "tagged records include their complete text")
+            w.check("checkpoint", text, refs=refs, details=normalized, pending_run=pending_run)
+            model = read_model(project)
+            normalized, generated, historical = w._checkpoint(normalized, refs, model.journal, pending_run=pending_run)
+            items = writer._items(refs)
+            bound = w._bind(items, model=historical)
+            return {"text": text, "refs": [*writer._refs(items, bound), *generated], "details": normalized,
+                    "bindings": [entry for _, entry in bound.values()], "context_synced": None}
+        if "as_of_seq" in supplied:
+            as_of_seq = supplied["as_of_seq"]
+            checkpoints.integer(as_of_seq, "as_of_seq")
+        if "from_seq" in supplied:
+            from_seq = supplied["from_seq"]
+        if "context_version" in supplied:
+            context_version = supplied["context_version"]
+        if as_of_seq is not None:
+            checkpoints.integer(as_of_seq, "as_of_seq")
+            if context_version is checkpoints.UNSET:
+                raise checkpoints.CheckpointError("bad_checkpoint_record", "historical as_of_seq requires exact context_version or explicit null")
+        elif context_version is not checkpoints.UNSET:
+            raise checkpoints.CheckpointError("bad_checkpoint_record", "explicit context_version requires as_of_seq")
+        current = as_of_seq is None
+
+        def payload(model, version, *, preview=False):
+            top = model.as_of_seq if current else as_of_seq
+            if top > model.as_of_seq:
+                raise checkpoints.CheckpointError("checkpoint_reference", "as_of_seq is beyond the observed journal")
+            historical = model.through(top)
+            bound = w._bind(writer._items(refs), model=historical)
+            typed = writer._refs(writer._items(refs), bound)
+            goal = None
+            if preview and current:
+                goal = checkpoint_goal(context_file_text(project))
+            if version is not None:
+                path = relations.context_file(project.root, version)
+                if path is None:
+                    raise checkpoints.CheckpointError("checkpoint_reference", "no exact preserved CONTEXT version")
+                goal = checkpoint_goal(path.read_text(encoding="utf-8"))
+            summary, omitted = checkpoints.select(historical, reader=relations, goal=goal, from_seq=from_seq, limit=limit,
+                                                  explicit=[r.get("event_id") for r in typed if r.get("event_id")],
+                                                  authored=text is not None)
+            if "summary" in supplied:
+                summary = supplied["summary"]
+            normalized = {**supplied, "contract": checkpoints.CONTRACT, "as_of_seq": top,
+                          "context_version": version, "from_seq": from_seq,
+                          "summary_source": "authored" if text is not None else "deterministic",
+                          "summary": summary, "omitted": omitted,
+                          "journal_basis": {"reader_format": relations.READER_FORMAT,
+                                            "prefix_revision": model.journal.prefix_revision(top)}}
+            body = text if text is not None else checkpoints.text_of(normalized, historical.journal)
+            w.check("checkpoint", body, refs=refs, details=normalized,
+                    ahead=1 if current and context_pending(project) else 0, pending_run=pending_run)
+            # Typed refs retain their call-time binding/digest for pending finalization.
+            normalized, generated, _ = w._checkpoint(normalized, typed, model.journal, pending_run=pending_run)
+            return {"text": body, "details": normalized, "refs": [*typed, *generated],
+                    "bindings": [entry for _, entry in bound.values()]}
+
+        model = read_model(project)
+        # Known input, line and evidence errors are rejected before a current CONTEXT sync.
+        prepared = payload(model, None if current else context_version, preview=True)
+        context_synced = None
+        if current and sync:
+            context_synced = sync_context(project, origin=system_origin(origin))
+            model = read_model(project)
+            versions = context_versions(project)
+            version = versions[-1].name if versions and not context_pending(project) else None
+            try:
+                prepared = payload(model, version)
+            except (AnalyticsError, checkpoints.CheckpointError) as exc:
+                if isinstance(exc, checkpoints.CheckpointError):
+                    exc = AnalyticsError(exc.code, str(exc))
+                exc.details = {**(exc.details or {}), "context_synced": context_synced}
+                raise exc
+        prepared["context_synced"] = context_synced
+        return prepared
+    except checkpoints.CheckpointError as exc:
+        raise AnalyticsError(exc.code, str(exc)) from exc
+    except (TypeError, ValueError) as exc:
+        raise AnalyticsError("bad_checkpoint_record", str(exc)) from exc
+
+
+def checkpoint_goal(text):
+    """The exact purpose line from a preserved CONTEXT version, without display clipping."""
+    return context_goal(text, max_chars=None) or None
+
+
+def checkpoint(project: Project, text=None, *, refs=(), as_of_seq=None,
+               context_version=checkpoints.UNSET, from_seq=0, limit=8, origin: Origin) -> dict:
+    prepared = prepare_checkpoint(project, text, refs=refs, as_of_seq=as_of_seq,
+                                  context_version=context_version, from_seq=from_seq, limit=limit, origin=origin)
+    try:
+        written = writer_for(project, origin).record("checkpoint", prepared["text"], refs=prepared["refs"],
+                                                     details=prepared["details"])
+    except AnalyticsError as exc:
+        exc.details = {**(exc.details or {}), "context_synced": prepared["context_synced"]}
+        raise
+    return {**written.to_json(), "bindings": prepared.get("bindings", written.bindings),
+            "basis": {key: prepared["details"][key] for key in
+            ("as_of_seq", "context_version", "journal_basis")}, "context_synced": prepared["context_synced"]}
+
+
+def checkpoint_view(model, event=None, *, limit=8, cursor=None):
+    events = [e for e in model.journal.in_order() if e.kind == "checkpoint"]
+    event = event or (events[-1] if events else None)
+    if event is None:
+        return None
+    evaluated = checkpoints.evaluate(event, model, reader=relations)
+    updates = evaluated.pop("updates", [])
+    evaluated.pop("text", None)
+    details = evaluated.pop("details", None)
+    reasons = evaluated["review_reasons"]
+    evaluated["review_reasons"] = reasons[:limit]
+    evaluated["review_reasons_omitted"] = {"count": max(0, len(reasons)-limit),
+                                         "reason": "item_limit" if len(reasons)>limit else None,
+                                         "read_more": {"part": "context", "id": model.journal.source_of(event), "limit": 100}}
+    evaluated["basis"] = {key: details.get(key) for key in ("as_of_seq", "context_version", "journal_basis")} if isinstance(details, dict) else None
+    evaluated["summary_read_more"] = {"part": "records", "id": model.journal.source_of(event)}
+    evaluated["updates"] = relations.QueryPolicy().page(
+        updates, revision=model.source_revision or model.journal.prefix_revision(model.as_of_seq),
+        request={"part": "context", "id": model.journal.source_of(event), "as_of_seq": model.as_of_seq},
+        cursor=cursor, limit=limit, journal_order=True, as_of_seq=model.as_of_seq,
+        boundary_revision=model.journal.prefix_revision(model.as_of_seq))
+    return evaluated
 
 
 def metric_records(project: Project, *, model=None) -> dict:
@@ -1978,7 +2140,7 @@ def context_pending(project: Project) -> bool:
     return not _context_recorded(project, sha256_bytes(data)[:12])
 
 
-def context_goal(text: str) -> str:
+def context_goal(text: str, *, max_chars: int | None = 200) -> str:
     """First content line under a Goal heading (or 목표, the heading of earlier templates, which
     projects keep), else the first paragraph line."""
     lines = text.splitlines()
@@ -1990,11 +2152,11 @@ def context_goal(text: str) -> str:
                     break
                 s = s.lstrip("-*> ").strip()
                 if s and not s.startswith("("):
-                    return s[:200]
+                    return s if max_chars is None else s[:max_chars]
     for line in lines:
         s = line.strip().lstrip("-* ").strip()
         if s and not s.startswith(("#", ">", "|", "<!--", "(")):
-            return s[:200]
+            return s if max_chars is None else s[:max_chars]
     return ""
 
 
@@ -2685,7 +2847,8 @@ def retrieve(project: Project, *, part="records", query="", id=None, cursor=None
         raise AnalyticsError("bad_query", "selected ID and search filters are separate reads")
     if part == "relations" and not id:
         raise AnalyticsError("bad_query", "relations requires an ID")
-    if part == "context" and as_of_seq is not None:
+    checkpoint_id = part == "context" and isinstance(id, str) and (id.startswith("e") or id.startswith("journal:"))
+    if part == "context" and as_of_seq is not None and not checkpoint_id:
         raise AnalyticsError("bad_query", "historical context requires its exact context version ID")
     observed = []
     for _attempt in range(3):
@@ -2731,6 +2894,16 @@ def retrieve(project: Project, *, part="records", query="", id=None, cursor=None
             for source in sources:
                 rows += [{"direction": "incoming", **judged} for judged in model.references(source)
                          if relations.query_target(judged) == id]
+        elif checkpoint_id:
+            event = model.journal.event_of(id)
+            if event is None or event.kind != "checkpoint":
+                raise AnalyticsError("record_not_found", "no checkpoint with this exact ID")
+            try:
+                result = checkpoint_view(model, event, limit=limit, cursor=cursor)
+            except relations.QueryError as error:
+                raise AnalyticsError(error.code, str(error), details=error.details) from None
+            result = {**result["updates"], "checkpoint": {key: value for key, value in result.items() if key != "updates"}}
+            rows = None
         else:
             if id is None or id == "context:current":
                 text, location = context_file_text(project), "CONTEXT.md"
@@ -2745,7 +2918,7 @@ def retrieve(project: Project, *, part="records", query="", id=None, cursor=None
             preamble, sections = context_sections(text)
             rows = ([{"name": "Preamble", "text": preamble, "line": 1}] if preamble else []) + sections
         try:
-            result = policy.page(rows, revision=revision, request=request, cursor=cursor, limit=limit,
+            result = result if checkpoint_id else policy.page(rows, revision=revision, request=request, cursor=cursor, limit=limit,
                                  journal_order=part == "records" and id is None and not query,
                                  as_of_seq=as_of_seq,
                                  boundary_revision=model.journal.prefix_revision(as_of_seq)
@@ -2762,7 +2935,13 @@ def retrieve(project: Project, *, part="records", query="", id=None, cursor=None
                           evidence=references_summary(model.references(id)),
                           interpretation="recorded judgment; data may have changed; conclusion review is separate")
         elif part == "context":
-            result.update(location=location)
+            if not checkpoint_id:
+                result.update(location=location, checkpoint=checkpoint_view(model, limit=limit),
+                              context_pending=context_pending(project))
+        if part == "records" and id is not None:
+            event = model.journal.event_of(id)
+            if event is not None and event.kind == "checkpoint":
+                result["checkpoint"] = checkpoint_view(model, event, limit=limit)
         frame = _project_migration(project)[2] if project.marker_state().state == writer.CURRENT else None
         after, current_revision = relations.observed_basis(project.root, frame)
         observed.append(current_revision)
@@ -2782,6 +2961,9 @@ def retrieve(project: Project, *, part="records", query="", id=None, cursor=None
                   search_scope="readable journal records" if part == "records" and id is None else part)
     if result["updating"]:
         result["total"] = "unknown"
+        if result.get("checkpoint") is not None:
+            result["checkpoint"].update(needs_review=None, updates_available=None)
+            result["checkpoint"]["qualification"].append("checkpoint_knowledge_updating")
         for field in ("record_state", "legacy_resolved_by", "evidence", "interpretation"):
             result.pop(field, None)
     result["absence_is_not_proof"] = "no matches means no lexical match in this scope; unreadable or differently worded records may exist"
@@ -3498,6 +3680,9 @@ def context_block(project: Project, max_context_chars: int = CONTEXT_PROMPT_CHAR
     else:
         # This kit builds no Workspace where it does not write: no report line, the reason instead.
         parts.append(read_only_line(refused.to_json()["error"]))
+    checkpoint = checkpoint_view(model, limit=4)
+    if checkpoint is not None:
+        parts += ["Checkpoint handoff: " + json.dumps(checkpoint, ensure_ascii=False)]
     parts += [
         "Call analytics_status for datasets, runs, charts and the recent journal.",
         "part=records query=words finds older judgments; "
