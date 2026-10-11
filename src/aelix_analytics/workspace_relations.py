@@ -77,7 +77,7 @@ class RelationPages:
                              f"{'confirmed link' if row.get('confirmed') else 'not a confirmed link'}")
             sides[row["direction"]].append(
                 f'<div class="relation-node ref-{esc(row["state"])}" data-direction="{row["direction"]}" data-edge="{i}">'
-                f'<div{USER}>{esc(label)}</div><small>{esc(qualification)}</small></div>')
+                f'<div{USER}>{esc(label)}</div><small{USER}>{esc(qualification)}</small></div>')
             source_link = self.link(row["from"], 1, anchor="#record")
             other_link = self.link(other, 1) if other else None
             node = f'<a href="{other_link}"{USER}>{esc(label)}</a>' if other_link else user_text(label)
@@ -87,8 +87,8 @@ class RelationPages:
             detail = json.dumps({k: v for k, v in row.items() if k != "direction"}, ensure_ascii=False, indent=2)
             content_action = f' · <a href="{esc(content)}">Open exact content</a>' if content else ""
             items.append(f'<li class="relation-item" data-direction="{row["direction"]}"><p>{direction} {node}</p>'
-                         f'<p>{esc(qualification)}{": " + esc(row["reason"]) if row.get("reason") else ""}</p>'
-                         f'<p><a href="{source_link}">Source record {esc(row["from"])}</a> · '
+                         f'<p{USER}>{esc(qualification)}{": " + esc(row["reason"]) if row.get("reason") else ""}</p>'
+                         f'<p>Source record <a href="{source_link}"{USER}>{esc(row["from"])}</a> · '
                          f'location {esc("journal:" + str(row["line"]) if row.get("line") else "saved manifest")}'
                          f'{content_action}</p>'
                          f'<details><summary>Recorded reference and judgment</summary><pre{USER}>{esc(detail)}</pre></details></li>')

@@ -250,8 +250,11 @@ def test_a_korean_project_keeps_its_text_and_gets_english_labels(tmp_path):
     pages = rendered_pages(root)
     view = core.view_names(core.list_datasets(project))
     derived_view = next(v for v, path in view.items() if path == DERIVED)
-    assert set(pages) == {"index.html", "context.html", f"runs/{run_id}.html", "data/sales.html",
-                          f"data/{derived_view}.html"}
+    primary = {"index.html", "context.html", f"runs/{run_id}.html", "data/sales.html", f"data/{derived_view}.html"}
+    assert primary <= set(pages)
+    added = set(pages) - primary
+    assert added and all(name.startswith(("relations/", "lists/")) for name in added)
+    assert "lists/timeline-0.html" in added and "lists/insights-0.html" in added
     for name, page in pages.items():
         assert '<html lang="en" ' in page, name
         # Nothing composed the decomposed names (the goal holds the composed words on purpose).
@@ -307,8 +310,13 @@ def test_the_workspace_gives_what_people_wrote_no_language_and_its_own_words_eng
         assert misplaced == [], name
         titles = [text for _, tag, text in scopes.texts if tag == "title"]
         assert len(titles) == 1 and titles[0].endswith(f" · {TITLE}"), titles
-        assert titles[0].removesuffix(f" · {TITLE}") in ("Workspace", "Context history", RUN_TITLE,
-                                                         DERIVED_NAME, "sales"), titles
+        page_title = titles[0].removesuffix(f" · {TITLE}")
+        if name.startswith("relations/"):
+            assert page_title.startswith("Relations · "), titles
+        elif name.startswith("lists/"):
+            assert page_title == name.split("/")[1].split("-")[0].title(), titles
+        else:
+            assert page_title in ("Workspace", "Context history", RUN_TITLE, DERIVED_NAME, "sales"), titles
         for lang, _, text in scopes.texts:
             langs.setdefault(text.strip(), set()).add(lang)
     for label in SYSTEM_LABELS:
