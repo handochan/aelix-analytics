@@ -1556,6 +1556,34 @@ class ReadModel:
             return list(self._references)
         return list(self._by_source.get(source, []))
 
+    def prepare_reference_neighborhoods(self) -> None:
+        """Index an already global read for static generation; bounded reads stay lazy."""
+        order = {self.journal.source_of(event): n
+                 for n, event in enumerate(self.journal.in_order())}
+        incoming: dict[str, list[dict]] = {}
+        for judged in sorted(self.references(), key=lambda row: order.get(row["from"], len(order))):
+            target = query_target(judged)
+            if isinstance(target, str):
+                incoming.setdefault(target, []).append(judged)
+        self._incoming_references = incoming
+
+    def reference_neighborhood(self, source: str, direction: str = "both") -> list[dict]:
+        """One-hop reference rows shared by bounded retrieval and static Workspace pages.
+
+        Exact query identities and qualification remain unchanged. This is reference navigation,
+        not new inferred lineage. Without a prepared global index, judge only candidate sources.
+        """
+        rows = ([{"direction": "outgoing", **row} for row in self.references(source)]
+                if direction != "incoming" else [])
+        if direction != "outgoing":
+            if hasattr(self, "_incoming_references"):
+                incoming = self._incoming_references.get(source, [])
+            else:
+                incoming = [row for candidate in self.incoming_sources(source)
+                            for row in self.references(candidate) if query_target(row) == source]
+            rows += [{"direction": "incoming", **row} for row in incoming]
+        return rows
+
     def _event_of(self, source: str) -> Event | None:
         """The readable event `source` names (Journal.event_of); None for a Report revision."""
         return self.journal.event_of(source)

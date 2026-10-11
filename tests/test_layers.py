@@ -137,6 +137,7 @@ MODULES: dict[str, str] = {
     "src/aelix_analytics/demo.py": "runtime",
     "src/aelix_analytics/runner.py": "runtime",
     "src/aelix_analytics/workspace.py": "workspace",
+    "src/aelix_analytics/workspace_relations.py": "workspace",
     "src/aelix_analytics/migration.py": "migration",
     "src/aelix_analytics/__init__.py": "sdk",
     "src/aelix_analytics/__main__.py": "kit_entry",
@@ -156,6 +157,10 @@ class Allowed:
 # Imports the table does not allow and the code still has, each in the functions it is in, with why
 # and when it goes. Keyed by (importing file, imported file); the same edge anywhere else fails.
 ALLOWLIST: dict[tuple[str, str], Allowed] = {
+    ("src/aelix_analytics/workspace.py", "src/aelix_analytics/workspace_relations.py"): Allowed(
+        scopes=frozenset({"Site.__init__"}),
+        why="Site constructs its selected-reference page renderer within the existing Workspace subsystem; the helper takes Site and ReadModel and has no reverse import.",
+        remove_when="the Workspace build coordinator injects this renderer instead of Site constructing it."),
     ("src/aelix_analytics/runner.py", "src/aelix_analytics/workspace.py"): Allowed(
         scopes=frozenset({"_finalize"}),
         why="runner._finalize rebuilds the Workspace when a run ends and puts it in the run's result "
@@ -654,6 +659,7 @@ def test_every_allowlist_entry_says_why_and_when_it_goes():
     for edge, allowed in ALLOWLIST.items():
         assert allowed.why.strip() and allowed.remove_when.strip() and allowed.scopes, edge
     assert set(ALLOWLIST) == {
+        ("src/aelix_analytics/workspace.py", "src/aelix_analytics/workspace_relations.py"),
         ("src/aelix_analytics/runner.py", "src/aelix_analytics/workspace.py"),
         ("src/aelix_analytics/workspace.py", "src/aelix_analytics/runner.py"),
         ("src/aelix_analytics/workspace.py", "src/aelix_analytics/data.py"),

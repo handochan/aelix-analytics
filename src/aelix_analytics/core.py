@@ -2889,11 +2889,7 @@ def retrieve(project: Project, *, part="records", query="", id=None, cursor=None
             sources = model.incoming_sources(id) if direction != "outgoing" else []
             if not sources:
                 _query_record(model, id)
-            outgoing = model.references(id) if direction != "incoming" else []
-            rows = [{"direction": "outgoing", **judged} for judged in outgoing]
-            for source in sources:
-                rows += [{"direction": "incoming", **judged} for judged in model.references(source)
-                         if relations.query_target(judged) == id]
+            rows = model.reference_neighborhood(id, direction)
         elif checkpoint_id:
             event = model.journal.event_of(id)
             if event is None or event.kind != "checkpoint":

@@ -319,7 +319,7 @@ N0의 명칭·기본 언어 전환을 A0의 경계 정리와 조율한다. 현�
 | `core` | 2 | 도메인·공유 응용(아직 나뉘지 않음, §2) | `src/aelix_analytics/core.py` | `ports`, `read_model`, `writer`, `asset_application` | stdlib |
 | `asset_application` | 2 | 주입한 Writer로 자산 검토·승격·등록·프로젝트 제안 정책을 처리하며 core/host를 import하지 않음 | `src/aelix_analytics/asset_app.py`, `src/aelix_analytics/asset_suggestions.py` | `ports`, `read_model`, `writer`, 같은 `asset_application` | stdlib |
 | `runtime` | 3 | 실행·캡처·데이터 어댑터와 데모 채우기(§9 `runtime/`) | `src/aelix_analytics/runner.py`, `src/aelix_analytics/capture.py`, `src/aelix_analytics/data.py`, `src/aelix_analytics/demo.py` | `core`, `ports`, `read_model`, `runtime`, `writer` | stdlib, 분석 |
-| `workspace` | 3 | Workspace 렌더러(§5 `WorkspaceRenderer`) | `src/aelix_analytics/workspace.py` | `core`, `ports`, `read_model`, `writer` | stdlib, 분석, 표시 |
+| `workspace` | 3 | Workspace 렌더러(§5 `WorkspaceRenderer`) | `src/aelix_analytics/workspace.py`, `src/aelix_analytics/workspace_relations.py` | `core`, `ports`, `read_model`, `writer` | stdlib, 분석, 표시 |
 | `migration` | 3 | `lab.json` 프로젝트를 새 형식으로 옮기는 복사 전환(#13) | `src/aelix_analytics/migration.py` | `core`, `ports`, `read_model`, `writer` | stdlib |
 | `sdk` | 4 | 스크립트 API 진입점 | `src/aelix_analytics/__init__.py` | `core`, `ports`, `read_model`, `runtime`, `workspace`, `writer` | stdlib, 분석 |
 | `kit_entry` | 4 | 프로젝트 환경의 kit 명령줄 진입점 | `src/aelix_analytics/__main__.py` | `core`, `migration`, `ports`, `read_model`, `runtime`, `workspace`, `writer` | stdlib, 분석 |
@@ -377,6 +377,7 @@ kit 0.8.0), 사람용 `analytics`(`launcher`)와 `bin/analytics`는 그것을 �
 
 | 허용 간선 | 위치 | 이유 | 제거 조건 |
 |---|---|---|---|
+| `workspace.py` → `workspace_relations.py` | `workspace.Site.__init__` | 같은 Workspace에서 선택 버전 관계 페이지 renderer를 구성한다. helper는 Site·ReadModel을 받아 역방향 import 없이 표시한다 | build coordinator가 renderer를 주입하면 |
 | `runner.py` → `workspace.py` | `runner._finalize` | run이 끝나면 Workspace를 다시 빌드해 결과에 싣는다 | Workspace 갱신을 진입점이나 공통 쓰기 경로의 후속 처리(§7)가 부르게 되면 |
 | `workspace.py` → `runner.py` | `workspace.fingerprint` | Workspace 지문에 kit의 해시 `runner.kit_sha()`가 들어간다 | `kit_sha`가 둘 다 import해도 되는 계층(`core` 등)으로 옮겨지면 |
 | `workspace.py` → `data.py` | `workspace.dataset_page`, `workspace.Site.frame_preview` | dataset 페이지가 데이터 어댑터로 프로필을 만들고 셀을 서식화한다 | Workspace가 프로필·셀 서식을 읽기 모델이나 진입점이 넘긴 값으로 받게 되면 |
