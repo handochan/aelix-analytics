@@ -170,3 +170,70 @@ def test_navigation_controller_origin_history_geometry_and_escape_without_browse
                              str(root / 'src/aelix_analytics/assets/workspace.js')],
                             capture_output=True, text=True, encoding="utf-8", errors="replace")
     assert result.returncode == 0, result.stderr
+
+
+def test_all_data_details_regenerate_beyond_the_initial_index_limit(tmp_path):
+    from legacy_records import at
+
+    legacy = LegacyProject(tmp_path / "many-data", migrated=True)
+    for n in range(51):
+        path = legacy.dataset(f"d{n:03}", imported_at=at(0))
+        legacy.event("import", {"data": [path]})
+    p = core.Project(legacy.root)
+    journal = p.journal.read_bytes()
+    workspace.build(p)
+    target = p.workspace_dir / "data/d050.html"
+    assert len(list((p.workspace_dir / "data").glob("*.html"))) == 51
+    assert target.is_file()
+    continuation = (p.workspace_dir / "lists/data-1.html").read_text(encoding="utf-8")
+    assert '../data/d050.html' in continuation
+    meta_path = p.root / 'data/raw/d050.meta.json'
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    meta['description'] = 'Updated outside the initial slice · 한국어'
+    meta_path.write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
+    workspace.build(p)
+    assert meta['description'] in target.read_text(encoding="utf-8")
+    assert p.journal.read_bytes() == journal
+
+
+def test_overview_links_old_key_and_open_items_to_exact_existing_records(tmp_path):
+    p = project(tmp_path)
+    finding = core.record(p, "finding", "Retained old finding", origin=ORIGIN).event
+    question = core.record(p, "question", "Retained old question", origin=ORIGIN).event
+    for n in range(60):
+        core.record(p, "note", f"Later note {n}", origin=ORIGIN)
+    workspace.build(p)
+    index = (p.workspace_dir / 'index.html').read_text(encoding="utf-8")
+    overview = index.split('<section id="overview"', 1)[1].split('</section>', 1)[0]
+    for event in (finding, question):
+        assert f'id="{event["id"]}"' not in index
+        link = f'relations/{workspace_relations.name(event["id"])}#record'
+        assert link in overview
+        assert 'id="record"' in (p.workspace_dir / 'relations' / workspace_relations.name(event['id'])).read_text(encoding="utf-8")
+
+
+def test_retired_chart_continuations_offer_visibility_controls_and_exact_targets(tmp_path):
+    legacy = LegacyProject(tmp_path / 'retired', migrated=True)
+    charts = [f'c{n:02}' for n in range(21)]
+    legacy.run('20261011-160000-old', charts=charts)
+    legacy.run('20261011-160100-new')
+    p = core.Project(legacy.root)
+    workspace.build(p)
+    page = (p.workspace_dir / 'lists/charts-1.html').read_text(encoding="utf-8")
+    assert 'is-retired' in page and 'id="show-retired"' in page
+    assert 'data-selection=' in page
+    site = workspace.Site(p)
+    last = site.charts[20]
+    assert site.chart_anchor(last['key'], 0).startswith('lists/charts-1.html#chart-')
+
+
+def test_controller_list_origin_invalid_page_and_retired_repairs_without_browser():
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node unavailable: controller checks are not browser QA")
+    root = Path(__file__).resolve().parents[1]
+    result = subprocess.run([node, str(root / 'tests/workspace_navigation_repairs.cjs'),
+                             str(root / 'src/aelix_analytics/assets/workspace-state.js'),
+                             str(root / 'src/aelix_analytics/assets/workspace.js')],
+                            capture_output=True, text=True, encoding="utf-8", errors="replace")
+    assert result.returncode == 0, result.stderr

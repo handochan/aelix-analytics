@@ -67,6 +67,8 @@
   function show() {
     const id = anchor();
     const target = id ? document.getElementById(id) : null;
+    const retiredCard = target && target.closest(".chart-card.is-retired");
+    if (retired && retiredCard) { retired.checked = true; doc.classList.add("show-retired"); }
     const tab = (target && target.closest("section.tab")) || document.getElementById(state && state.tab) || tabs[0];
     tabs.forEach(t => t.classList.toggle("on", t === tab));
     if (nav) nav.querySelectorAll("a").forEach(a => {
@@ -116,7 +118,10 @@
   }
   function restore(value) {
     restoring = true;
-    if (value && value.page !== page) { restoring = false; return; }
+    if (value && value.page !== page) {
+      warn("The saved state belongs to another Workspace page and was ignored. Showing this page's current scope.");
+      value = null;
+    }
     state = value || null;
     if (retired) { retired.checked = !!(state && state.retired); doc.classList.toggle("show-retired", retired.checked); }
     document.querySelectorAll(".filters").forEach(bar => {

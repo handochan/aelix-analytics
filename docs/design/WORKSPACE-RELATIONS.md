@@ -25,9 +25,9 @@ rendering remains read-only and neither scores nor publishes suggestions.
 
 The URL codec stores section, page-local kind filter, retired toggle, source revision, selected
 identity, origin card and pixel offset relative to that card. Browser history holds the same state;
-session storage is optional and cannot be the only recovery path. Navigation carries one validated
-origin snapshot, without recursive nesting. Return links accept only generated Workspace HTML paths.
-Invalid URL state is ignored with a visible notice. A vanished card/selection is reported and never
+session storage is optional and cannot be the only recovery path. Selecting from an index or continuation list creates an origin at that actual page/card/filter.
+Detail descendants carry one validated origin snapshot, without recursive nesting. Return links accept only generated Workspace HTML paths.
+Invalid URL state, including a different saved page, is ignored with a visible notice and a usable current-page fallback. A vanished card/selection is reported and never
 silently replaced by its newest version. A rebuilt source preserves the identity while visibly
 naming the changed basis. Back/forward, refresh and explicit return restore selection/filter/card
 position, including when browser storage is unavailable.

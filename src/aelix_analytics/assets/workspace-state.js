@@ -43,8 +43,12 @@
   function next(value, page, anchor = "") {
     const held = normalize(value);
     if (!held || !safePage(page)) return null;
-    const origin = normalize(held.origin || held, false);
-    return normalize({ ...held, page, anchor, card: "", offset: 0, filter: "", retired: false, selection: "", origin });
+    // A card selected while browsing defines a new origin. Detail descendants retain it.
+    const browsing = held.page === "index.html" || held.page.startsWith("lists/");
+    const origin = normalize(browsing ? held : held.origin || held, false);
+    const chartList = page.startsWith("lists/charts-");
+    const retired = chartList && (held.retired || !!(held.origin && held.origin.retired));
+    return normalize({ ...held, page, anchor, card: "", offset: 0, filter: "", retired, selection: "", origin });
   }
   function scrollTarget(value, currentScroll, cardTop = null) {
     const held = normalize(value);

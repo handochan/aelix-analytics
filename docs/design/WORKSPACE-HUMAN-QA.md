@@ -14,7 +14,7 @@ fixture/source revision, task outcome and screenshots when this checklist is run
    Inspect the attached table and recorded code; use Return to origin and browser Back/Forward.
    The same finding/card, filter, version and position must return. View latest is an explicit
    different action. Follow the correction and return to the original finding's retained history.
-3. Filter the Timeline or an offline Insights list, scroll to a card, open details, refresh details, return, and
+3. From Browse all, advance to a continuation list, filter it and scroll to a card. Open details, refresh details, return, and
    use Back/Forward through filter changes. Repeat with storage disabled. The URL carries the
    origin state. Invalid saved state, a vanished card after rebuilding, and a changed source basis
    must produce a visible qualified notice instead of substituting the latest version.
@@ -30,7 +30,8 @@ fixture/source revision, task outcome and screenshots when this checklist is run
    wide diagram/long stored record. Labels wrap without tiny text or page overflow. Native scroll
    works with touch; primary controls have comfortable hit areas. Check mobile landscape and
    increased text size. Reduced motion retains all relationships and controls.
-7. Open the S and M scale artifacts. Record actual first-screen usable time and initial transfer
+7. Open the S and M scale artifacts. In M, use the second Data list to open a dataset beyond the initial 50.
+   In Visualizations, use the retired visibility toggle on a continuation page and an exact card link. Record actual first-screen usable time and initial transfer
    size separately from generation time. Continue to old records outside the first bounded page;
    choose a historical version and return to the same original list/card. Check `display_safety`
    examples as text and compare source revision across relation/detail pages.

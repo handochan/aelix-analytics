@@ -759,6 +759,8 @@ JavaScript는 URL의 작은 `ws` 상태에 section·페이지 필터·retired �
 생성 HTML·Node의 mock DOM/history 시험은 실제 화면 QA가 아니며, 미실행은 `not_run`입니다. Q6/Q9 출시 통과를 여기서 선언하지 않습니다.
 기록 형식·Report 저장·새 도구·등록·게시 계약은 바꾸지 않습니다.
 
+From an index or continuation list, selecting a card creates a new origin at that actual page/card/filter. Detail descendants retain the single origin without recursive state. Chart continuation pages retain the retired control/state and reveal an explicitly selected retired card. A saved state for another page is qualified and discarded while the current page initializes a usable fallback. Every Data detail is generated/refreshed beyond the initial list limit; old Overview items link to an emitted exact record target.
+
 ## D. kit CLI
 
 `uv run --project P python -m aelix_analytics --project P <command> …`. `PYTHONPATH`는 정확히 실행 루트 하나입니다: 체크아웃의

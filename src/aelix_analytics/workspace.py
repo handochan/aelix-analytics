@@ -703,7 +703,7 @@ def _build_locked(project: core.Project, if_changed: bool) -> dict:
     for run in site.runs:
         _write(out / "runs" / f"{run['id']}.html", run_page(site, run), project.platform)
         pages += 1
-    for ds in site.datasets[:INDEX_LIMIT]:
+    for ds in site.datasets:
         view = site.view_by_path.get(ds["path"])
         if view:
             _write(out / "data" / f"{view}.html", dataset_page(site, ds, view), project.platform)
@@ -1011,7 +1011,7 @@ def index_page(site: Site) -> str:
             return f'<div class="empty">{empty}</div>'
         return '<ul class="items">' + "".join(
             f'<li id="key-{esc(e["id"])}">{kind_chip(e["kind"])} <span class="item-text"{USER}>{esc(e["text"])}</span>'
-            f'<span class="item-meta"><a href="#{esc(site.anchor(e))}">{esc(site.source(e))}</a> · {fmt_time(e.get("ts"))}</span>'
+            f'<span class="item-meta"><a href="{esc(site.relations.content(site.source(e), 0) or site.relations.link(site.source(e), 0, anchor="#record"))}">{esc(site.source(e))}</a> · {fmt_time(e.get("ts"))}</span>'
             f'{site.refs_html(e, 0)}</li>' for e in reversed(items[-12:])) + "</ul>"
 
     skipped = records_notice(site)
@@ -1150,7 +1150,8 @@ def write_list_pages(site: Site, out: Path) -> int:
             if kind in ("timeline", "insights", "feedback"):
                 content = site.events_html(subset, 1, filters=True)
             elif kind == "charts":
-                content = '<div class="gallery">' + ''.join(site.chart_card(c, 1, full=True) for c in subset) + '</div>'
+                content = ('<label class="toggle"><input type="checkbox" id="show-retired"> Also show those absent from the latest run</label>'
+                           + '<div class="gallery">' + ''.join(site.chart_card(c, 1, full=True) for c in subset) + '</div>')
             else:
                 content = '<ul class="plain">' + ''.join(
                     f'<li><a href="{site.run_link(r["id"], 1) if kind == "runs" else site.data_link(r["path"], 1)}"{USER}>'
