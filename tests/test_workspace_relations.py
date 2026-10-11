@@ -54,10 +54,10 @@ def test_exact_versions_and_unbound_names_have_separate_links_and_source_qualifi
     before = p.journal.read_bytes()
     workspace.build(p)
     site = workspace.Site(p)
-    page = (p.workspace_dir / "relations" / workspace_relations.name(cited)).read_text()
+    page = (p.workspace_dir / "relations" / workspace_relations.name(cited)).read_text(encoding="utf-8")
     assert "version_unbound" in page and "not a confirmed link" in page
     assert "&lt;script&gt;原文&lt;/script&gt;" in page and "<script>原文</script>" not in page
-    old = (p.workspace_dir / "relations" / workspace_relations.name(first + "/trend")).read_text()
+    old = (p.workspace_dir / "relations" / workspace_relations.name(first + "/trend")).read_text(encoding="utf-8")
     assert f'../runs/{first}.html#chart-trend' in old
     assert "View latest version" in old and "Small directed neighborhood" in old
     assert first != second
@@ -73,19 +73,19 @@ def test_bounded_index_full_continuation_and_paginated_relations_preserve_all_re
         expected.append(core.record(p, "note", f"note {n}", refs=[{"type": "event", "event_id": target["id"]}], origin=ORIGIN).event["id"])
     before = p.journal.read_bytes()
     workspace.build(p)
-    index = (p.workspace_dir / "index.html").read_text()
+    index = (p.workspace_dir / "index.html").read_text(encoding="utf-8")
     timeline = index.split('<section id="timeline"', 1)[1].split('</section>', 1)[0]
     assert len(re.findall(r'<li class="ev"', timeline)) == workspace.INDEX_LIMIT
     assert "outside this page" in timeline and 'lists/timeline-0.html' in timeline
-    listing = ''.join(p.read_text() for p in sorted((p.workspace_dir / "lists").glob('timeline-*.html')))
+    listing = ''.join(p.read_text(encoding="utf-8") for p in sorted((p.workspace_dir / "lists").glob('timeline-*.html')))
     assert all(f'id="{id_}"' in listing for id_ in expected)
     pages = sorted((p.workspace_dir / "relations").glob(workspace_relations.name(target["id"]).split('-0.html')[0] + '-*.html'))
     assert len(pages) == 7
     for page in pages:
-        html = page.read_text()
+        html = page.read_text(encoding="utf-8")
         assert html.count('class="relation-item"') <= workspace_relations.PAGE_SIZE
         assert html.count('class="relation-node ') <= workspace_relations.PAGE_SIZE
-    assert all(id_ in ''.join(page.read_text() for page in pages) for id_ in expected)
+    assert all(id_ in ''.join(page.read_text(encoding="utf-8") for page in pages) for id_ in expected)
     assert p.journal.read_bytes() == before
 
 
@@ -98,7 +98,7 @@ def test_unsupported_target_values_stay_text_and_cannot_break_static_generation(
     with p.journal.open("a", encoding="utf-8") as out:
         out.write(json.dumps(value) + "\n")
     workspace.build(p)
-    page = (p.workspace_dir / "relations" / workspace_relations.name("e999")).read_text()
+    page = (p.workspace_dir / "relations" / workspace_relations.name("e999")).read_text(encoding="utf-8")
     judged = core.read_model(p).references("e999")[0]
     assert judged["state"] in page and "Unknown target" in page
     assert "not a confirmed link" in page
@@ -112,7 +112,7 @@ def test_all_generated_internal_links_point_to_existing_pages_and_fragments(tmp_
     workspace.build(p)
     from urllib.parse import unquote, urlsplit
     for file in p.workspace_dir.rglob('*.html'):
-        for raw in re.findall(r'href="([^"]+)"', file.read_text()):
+        for raw in re.findall(r'href="([^"]+)"', file.read_text(encoding="utf-8")):
             link = urlsplit(unescape(raw))
             if link.scheme or not link.path:
                 continue
@@ -121,7 +121,7 @@ def test_all_generated_internal_links_point_to_existing_pages_and_fragments(tmp_
                 continue
             assert target.is_file(), (file.name, raw)
             if link.fragment:
-                assert f'id="{unquote(link.fragment)}"' in target.read_text(), (file.name, raw)
+                assert f'id="{unquote(link.fragment)}"' in target.read_text(encoding="utf-8"), (file.name, raw)
 
 
 def test_url_state_codec_roundtrip_without_browser_or_storage_and_invalid_origins():
@@ -153,10 +153,10 @@ assert.equal(origin.card, "insight-e2"); // traversing descendants does not muta
 assert.equal(codec.normalize({...origin, offset:Infinity}).offset, 0);
 assert.equal(codec.normalize({...state, origin:{...origin,origin:state}}).origin.origin, undefined);
 '''
-    result = subprocess.run([node, '-e', script, str(codec)], capture_output=True, text=True)
+    result = subprocess.run([node, '-e', script, str(codec)], capture_output=True, text=True, encoding="utf-8", errors="replace")
     assert result.returncode == 0, result.stderr
     for file in ('workspace-state.js', 'workspace.js'):
-        checked = subprocess.run([node, '--check', str(codec.with_name(file))], capture_output=True, text=True)
+        checked = subprocess.run([node, '--check', str(codec.with_name(file))], capture_output=True, text=True, encoding="utf-8", errors="replace")
         assert checked.returncode == 0, checked.stderr
 
 
@@ -168,5 +168,5 @@ def test_navigation_controller_origin_history_geometry_and_escape_without_browse
     result = subprocess.run([node, str(root / 'tests/workspace_navigation.cjs'),
                              str(root / 'src/aelix_analytics/assets/workspace-state.js'),
                              str(root / 'src/aelix_analytics/assets/workspace.js')],
-                            capture_output=True, text=True)
+                            capture_output=True, text=True, encoding="utf-8", errors="replace")
     assert result.returncode == 0, result.stderr
