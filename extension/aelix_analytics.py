@@ -81,8 +81,8 @@ KIT, KIT_ROUTE = _kit()
 def _load_core():
     """Load the pack's stdlib-only project model into the aelix process.
 
-    core.py imports two siblings — _platform and relations, stdlib only for the same reason — so it
-    is loaded as a submodule of a synthetic package whose search path is this pack's kit. The
+    core.py binds its stdlib project-model and asset siblings while loading, so it is loaded as a
+    submodule of a synthetic package whose search path is this pack's kit. The
     package name carries a digest of the resolved kit path, so two packs, or one pack before and
     after AELIX_ANALYTICS_RUNTIME_PATH changes, never share a cached submodule. The sys.modules entries exist only while the modules
     execute and are removed afterwards: the loaded objects stay alive through the reference this

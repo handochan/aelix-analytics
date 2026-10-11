@@ -39,7 +39,7 @@ if TYPE_CHECKING:
     from . import core
 
 __all__ = ["assets", "datasets", "path", "project", "read", "record", "register_asset", "review_assets",
-           "run_id", "save", "scan", "sql", "status", "update_asset", "visualize"]
+           "run_id", "save", "scan", "set_asset_mode", "sql", "status", "update_asset", "visualize"]
 
 # The script API's functions renamed in kit 0.3.0 (Issue #9), by their old names. The version is fixed:
 # it names the boundary, core.NAMES_RENAMED_IN, which this module may not import at load.
@@ -292,3 +292,10 @@ def status(*, part=None, **options) -> dict:
     from . import core
 
     return core.status(project(), part=part, **options)
+
+
+def set_asset_mode(mode: str) -> dict:
+    """Choose project-local on-demand or model-free automatic suggestions as a human."""
+    from . import core
+
+    return core.set_asset_mode(project(), mode, origin=_asset_origin())

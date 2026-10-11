@@ -93,9 +93,9 @@ aelix 안에서: `/analytics`(현황) · `/analytics open`(리포트) · "지역
 배포본은 아직 어디에도 게시하지 않았으므로 체크아웃에서 직접 만듭니다.
 
 ```sh
-cd $PACK && uv build                                   # dist/aelix_analytics-0.11.0-py3-none-any.whl
-uv tool install --python 3.12 dist/aelix_analytics-0.11.0-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
-uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.11.0-py3-none-any.whl   # aelix와 함께
+cd $PACK && uv build                                   # dist/aelix_analytics-0.12.0-py3-none-any.whl
+uv tool install --python 3.12 dist/aelix_analytics-0.12.0-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
+uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.12.0-py3-none-any.whl   # aelix와 함께
 ```
 
 - `analytics`는 체크아웃의 `bin/analytics`와 같은 명령·인자·usage(바이트까지 같음)를 쓰고 kit의 출력을 바이트 그대로 넘깁니다
@@ -291,6 +291,19 @@ SDK를 쓰지 않은 **관용 코드도 기록됩니다**: `pl.read_parquet("dat
 `plt.show()`, plotly `fig.show()`. 차트의 **명시적인 첨부 표**는 `analytics.visualize(..., data=df)`로 남깁니다.
 첨부 표가 요약 통계나 일부 계열이면 그림 전체를 재구성하는 데 입력·코드도 필요하며, 첨부 자체가 완전한 플롯 대응을 보장하지 않습니다.
 matplotlib에는 한글 폰트와 검증된 기본 팔레트가 적용됩니다(`AELIX_ANALYTICS_STYLE=0`으로 끔).
+
+### 분석 자산과 선택적 제안
+
+`analytics assets list/show ID`와 SDK `assets()`는 후보의 버전·검사·효과를 읽습니다. `assets review [ID]`와
+`review_assets()`는 명시적 요청이며 모델 없이 판정하고 요청 이력을 남깁니다. 검증한 후보의 등록은 `assets register EVENT --name NAME`으로
+명시적으로 선택합니다. 프로젝트의 파일만 복사하며 등록·발견·실행은 별개입니다.
+
+기본 제안 모드는 on_demand입니다. 사람이 `analytics assets mode always_on` 또는 SDK `set_asset_mode("always_on")`을 실행하면
+일반 사람 텍스트 상태(`analytics --text status`)에서 확정 근거·점수·거절 사유·중복과 최소 24시간 프로젝트 창을 확인해 한 후보를 제안합니다.
+`analytics assets mode on_demand`로 끕니다. 추가 모델 호출은 없고, 끄더라도 이미 기록한 미응답 제안은 pending으로 조회할 수 있습니다.
+JSON·agent-origin CLI·SDK status와 모든 records/relations/context 상세 페이지는 자동 발행하지 않습니다.
+설정 오류와 과거 설정 키는 상태에 표시하며 자동 활성화하지 않습니다. 세션·Aelix 맥락·Workspace 자산 화면은 후속 B3-c입니다.
+점수·이력·빈도·실패의 자세한 규칙은 [현재 계약 C8](docs/CONTRACTS.md#c8-프로젝트-모드와-결정적-자동-제안-kit-0120-17-b3-b)에 있습니다.
 
 ### 옛 이름에서 옮기기
 

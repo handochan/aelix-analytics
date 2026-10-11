@@ -114,3 +114,22 @@ def test_a_replacement_policy_cannot_change_scores_or_claim_a_low_evidence_candi
 
     with pytest.raises(ValueError, match="shared deterministic"):
         asset_policy.assessed(Broken(), {})
+
+
+@pytest.mark.parametrize("min_score", [0, 8, 9, 10])
+@pytest.mark.parametrize("changes", [{}, {"source_confirmed": False}, {"independent_uses": 1},
+                                    {"passed_check": False}, {"conditions": ""}, {"estimated_effect": False},
+                                    {"passed_distinct_or_boundary": True, "observed_effect": True}])
+def test_replacement_and_default_policy_share_each_mandatory_predicate_and_threshold(min_score, changes):
+    class Replacement:
+        def assess(self, facts, *, min_score=8):
+            return asset_policy.DeterministicPolicy().assess(facts, min_score=min_score)
+
+    facts = {"independent_uses": 2, "passed_check": True, "conditions": "x", "exclusions": "y",
+             "estimated_effect": True, "source_confirmed": True, "problem": "Recurring need", "artifact_kind": "module",
+             **changes}
+    expected = asset_policy.DeterministicPolicy().assess(facts, min_score=min_score)
+    assert asset_policy.assessed(Replacement(), facts, min_score=min_score) == expected
+    if changes in ({"source_confirmed": False}, {"independent_uses": 1}, {"passed_check": False},
+                   {"conditions": ""}, {"estimated_effect": False}):
+        assert not expected["qualified"]  # Low configurable totals do not relax mandatory evidence.

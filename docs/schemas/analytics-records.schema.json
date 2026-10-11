@@ -45,6 +45,7 @@
         "created_at": {"$ref": "#/$defs/timestamp"},
         "min_writer_version": {"$ref": "#/$defs/kit_version"},
         "kit_version": {"$ref": "#/$defs/kit_version"},
+        "asset_suggestions": {"$ref": "#/$defs/asset_suggestion_settings"},
         "migration": {
           "description": "On a project a migration made (design 2.4): the report it wrote, bound by its sha256. A writer that writes the marker again keeps it as it is (design 4.8).",
           "type": "object",
@@ -347,6 +348,39 @@
         }
       ]
     },
+    "asset_suggestion_settings": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "enum": [
+            "on_demand",
+            "always_on"
+          ]
+        },
+        "min_score": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "cooldown_hours": {
+          "type": "number",
+          "minimum": 24
+        },
+        "measurement_targets": {
+          "type": "object",
+          "properties": {
+            "input_tokens_per_review": {
+              "type": "number",
+              "minimum": 0
+            },
+            "output_tokens_per_review": {
+              "type": "number",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
     "asset_mode_details": {
       "type": "object",
       "required": [
@@ -370,6 +404,7 @@
             "session"
           ]
         },
+        "settings": {"$ref": "#/$defs/asset_suggestion_settings"},
         "session": {
           "type": "string",
           "minLength": 1
@@ -469,6 +504,8 @@
         "candidate_event_id": {
           "$ref": "#/$defs/event_id"
         },
+        "suggestion_history": {"const": "analysis_assets.suggestions/1"},
+        "requirements": {"type": "object", "additionalProperties": {"type": "boolean"}},
         "expected_state": {
           "enum": [
             "proposed",

@@ -2962,15 +2962,17 @@ def test_loading_the_kit_pulls_no_analysis_library_into_the_host_process(monkeyp
     assert "KIT_OK:analytics.run/2" in proc.stdout, proc.stdout + proc.stderr
     loaded = next(line for line in proc.stdout.splitlines() if line.startswith("LOADED:"))
     assert loaded == "LOADED:", f"the aelix process would have imported {loaded[len('LOADED:'):]}"
-    # From a checkout the package itself is not imported at all: core, _platform, relations and writer come
-    # from its directory under the synthetic name (Issue #9: the kit is now the package
+    # From a checkout the package itself is not imported at all: the stdlib model and asset siblings
+    # come from its directory under the synthetic name (Issue #9: the kit is now the package
     # aelix_analytics).
     assert "OURS:" in proc.stdout.splitlines(), proc.stdout
     # What the synthetic package imported (the audit hook's `import` events; the package itself is
-    # gone from sys.modules after the load; core itself is loaded by its file): the three modules
-    # core imports, never the migration, which core does not import (Issue #13 PR 2, design 3.2).
+    # gone from sys.modules after the load; core itself is loaded by its file): core binds these
+    # stdlib siblings before namespace cleanup so asset readers work after load. It still imports
+    # no migration or analysis engine (Issue #13 PR 2, design 3.2; Issue #17 B3-b).
     runtime = next(line for line in proc.stdout.splitlines() if line.startswith("RUNTIME:"))
-    assert set(runtime[len("RUNTIME:"):].split(",")) == {"_platform", "relations", "writer"}, runtime
+    assert set(runtime[len("RUNTIME:"):].split(",")) == {
+        "_platform", "relations", "writer", "asset_app", "asset_contract", "asset_policy", "asset_suggestions"}, runtime
 
 
 def test_importing_the_package_imports_nothing_of_the_kit():
@@ -2999,7 +3001,9 @@ def test_importing_the_package_imports_nothing_of_the_kit():
     assert seen["analysis"] == [] and seen["analysis_after_version"] == []
     assert seen["version"] == core.KIT_VERSION
     assert seen["after_version"] == ["aelix_analytics", "aelix_analytics._install",
-                                     "aelix_analytics._platform", "aelix_analytics.cli",
+                                     "aelix_analytics._platform", "aelix_analytics.asset_app",
+                                     "aelix_analytics.asset_contract", "aelix_analytics.asset_policy",
+                                     "aelix_analytics.asset_suggestions", "aelix_analytics.cli",
                                      "aelix_analytics.core", "aelix_analytics.relations",
                                      "aelix_analytics.writer"]
 

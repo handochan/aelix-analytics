@@ -57,6 +57,7 @@ analytics — human CLI for Aelix Analytics projects (the same kit the aelix ext
   analytics record KIND "TEXT" [--ref R] [--resolves eN] [--details-json JSON] [--refs-json JSON]
   analytics assets list | show ID | review [ID] | update EVENT --expected STATE --to STATE --reason TEXT
   analytics assets register EVENT --name NAME    copy a validated asset into this project
+  analytics assets mode on_demand|always_on      human project suggestion mode
   analytics render | open                     rebuild | open the Workspace page
   analytics migrate --to DIR [--dry-run]      copy a lab.json project into a new folder DIR
 
@@ -213,7 +214,7 @@ def _command(args: list[str], kit: Path | None, uv_argv: list[str] | None,
         return children.run(kit_outside(uv, project, command, *args), env)
     kit_call = kit_outside if outside else kit_argv
     if command in ("status", "context"):
-        return children.run(kit_call(uv, project, "--text", command), env)
+        return children.run(kit_call(uv, project, "--text", command, *args), env)
     return children.run(kit_call(uv, project, command, *args), env, cancellable=command == "run")
 
 

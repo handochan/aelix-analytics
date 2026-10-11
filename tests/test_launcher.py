@@ -277,6 +277,13 @@ def kit_call(project: Path, *args) -> list[str]:
 
 CASES = [
     (["status"], ["--text", "status"]),
+    (["status", "--part", "records", "--query", "월 매출", "--kind", "finding", "--limit", "2"],
+     ["--text", "status", "--part", "records", "--query", "월 매출", "--kind", "finding", "--limit", "2"]),
+    (["status", "--part", "relations", "--id", "e4", "--direction", "outgoing"],
+     ["--text", "status", "--part", "relations", "--id", "e4", "--direction", "outgoing"]),
+    (["status", "--part", "context", "--id", "section-2"],
+     ["--text", "status", "--part", "context", "--id", "section-2"]),
+    (["context", "--not-an-option"], ["--text", "context", "--not-an-option"]),
     ([], ["--text", "status"]),
     (["context"], ["--text", "context"]),
     (["run", "scripts/a.py", "--title", "한글 제목 & \"따옴표\""],
@@ -304,6 +311,24 @@ def test_each_command_reaches_the_kit_in_the_project_environment(fake, tmp_path,
     assert call["env"] == {"PYTHONPATH": str(KIT), "MPLBACKEND": "Agg",
                            "PYTHONDONTWRITEBYTECODE": "1", "AELIX_ANALYTICS_ACTOR": None,
                            "VIRTUAL_ENV": None}
+
+
+@pytest.mark.parametrize("which", WHICH)
+def test_asset_mode_reaches_the_same_stdlib_kit_without_preparing_the_project(fake, tmp_path, which):
+    project = project_dir(tmp_path)
+    done = launch(fake, "assets", "mode", "always_on", cwd=project, which=which)
+    assert done.returncode == 0, done.stderr
+    [call] = calls(fake)
+    assert uv_args(call) == outside_call(project, "assets", "mode", "always_on")
+
+
+@pytest.mark.parametrize("which", WHICH)
+def test_detail_usage_exit_is_passed_through_from_the_kit(fake, tmp_path, which):
+    project = project_dir(tmp_path)
+    do = {"status": {"exit": 2, "stderr": b"bad detail arguments\n".hex()}}
+    result = launch(fake, "status", "--part", "records", "--not-an-option", cwd=project, which=which, do=do)
+    assert result.returncode == 2 and result.stderr == b"bad detail arguments\n"
+    assert uv_args(calls(fake)[0]) == kit_call(project, "--text", "status", "--part", "records", "--not-an-option")
 
 
 @pytest.mark.parametrize("which", WHICH)

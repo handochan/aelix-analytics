@@ -674,6 +674,7 @@ def test_the_script_api_outside_a_run_writes_only_where_it_may(base, tmp_path, c
                                     "analytics_3", "analytics_invalid", "both", "none", "incomplete"])
 def test_new_asset_write_actions_are_admitted_before_any_side_effect(base, tmp_path, column):
     actions = {
+        "mode": (("assets", "mode", "always_on"), "analytics.set_asset_mode('always_on')"),
         "review": (("assets", "review"), "analytics.review_assets()"),
         "update": (("assets", "update", "e3", "--expected", "proposed", "--to", "trial", "--reason", "Try"),
                    "analytics.update_asset('e3', expected='proposed', new='trial', text='Try')"),
@@ -695,6 +696,30 @@ def test_new_asset_write_actions_are_admitted_before_any_side_effect(base, tmp_p
                 result = _sdk(target, sdk)
             assert result["error"]["code"] == REFUSED[column], (name, entry, result)
             assert snapshot(tree) == before, (name, entry)
+
+
+@pytest.mark.parametrize("column", ["lab_project_1", "lab_unparsable", "lab_project_9", "analytics_2_too_old",
+                                    "analytics_3", "analytics_invalid", "both", "none", "incomplete"])
+def test_automatic_publication_cannot_make_a_first_effect_in_a_refused_project(base, tmp_path, column):
+    target, tree = _column(base, tmp_path / "automatic-publication", column)
+    marker = target / "analytics.json"
+    if marker.is_file():
+        try:
+            value = json.loads(marker.read_text(encoding="utf-8"))
+        except ValueError:
+            value = None
+        if isinstance(value, dict):
+            value["asset_suggestions"] = {"mode": "always_on"}
+            write_marker(target, "analytics.json", value)
+    before = snapshot(tree)
+    app = core.asset_application(core.Project(target), core.Origin("human", "cli"))
+    try:
+        result = app.publish_suggestion()
+    except core.AnalyticsError as exc:
+        assert exc.code in GATE_CODES | {"migration_incomplete"}
+    else:
+        assert result["published"] is None
+    assert snapshot(tree) == before
 
 
 IN_RUN = """\

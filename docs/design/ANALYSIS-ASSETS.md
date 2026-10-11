@@ -1,11 +1,12 @@
 # 분석 자산 — #17 구현 계약
 
-작성: 2026-10-09 · 상태: Proposed, 구현 전 설계
+작성: 2026-10-09 · 상태: Accepted ([PR85](https://github.com/handochan/aelix-analytics/pull/85)), 단계별 구현 계약
 
 [ADR-0010](../decisions/0010-analysis-assets-and-suggestion-records.md)의 구체 계약이다.
 [ADR-0006](../decisions/0006-common-record-contract.md)의 버전·참조·공통 writer,
 [ADR-0008](../decisions/0008-reuse-proposal-counting-and-deterministic-always-on.md)의 제안 정책을 따른다.
-아래 명령과 필드는 아직 현재 기능이 아니다. 기본 영어 표시는 Analysis assets / Asset candidate / Asset suggestion이다.
+현재 구현은 [현재 계약](../CONTRACTS.md) C7(B3-a)·C8(B3-b)을 따른다. B3-c의 세션·호스트·Workspace 표면은 후속 구현이다.
+기본 영어 표시는 Analysis assets / Asset candidate / Asset suggestion이다.
 
 ## 1. 공개 표면과 구현 경계
 
@@ -188,4 +189,4 @@ Workspace 읽기 전용 목록/상세 링크, 추가 도구 수 0과 Q11 bytes·
 대표 합성 CLI/SDK 후보 1개에 성공·별도 입력·경계 검사 후 명시적 프로젝트 등록, 과거 버전 유지와 잘못된 승격 거절을 확인한다.
 계산 구현과 SKILL.md-only 후보를 각각 이 경로로 확인하고, caller의 부수 state-changing refs 및 receipt 없는 동일 바이트 목적지의 복구를 거절하는 회귀 사례를 포함한다.
 실제 모델 세션, 실제 사용자 데이터, 실사용 유효 제안률/방해 측정은 #23/#24 리허설에서 별도로 다룬다.
-모델 없는 시험 통과를 실제 모델·사람 검증 통과로 바꾸지 않는다. 이 설계 PR의 검증은 문서/예시/계약 리뷰다.
+모델 없는 시험 통과를 실제 모델·사람 검증 통과로 바꾸지 않는다. 채택 PR85의 검증은 문서/예시/계약 리뷰이며 구현 증거와 구별한다.
