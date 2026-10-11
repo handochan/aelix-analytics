@@ -3,6 +3,8 @@
 상태: 설계 검토 완료·채택 PR(구현 미완료) · 2026-10-10 · Issue [#16](https://github.com/handochan/aelix-analytics/issues/16)
 
 기준 소스는 실제 #15 main `74e5e96c4a49917ad8980b0724dc4add62bc6077`(kit 0.11.0)이다.
+설계 리뷰·수정 확인은 이 기준에서 완료했다. 2026-10-11 전달의 통합 기준은 실제 B3-b main
+`abcf1015e6de67cf61ce64c8a0aeadaa8e0825d1`(kit 0.12.0)이며, 문서만 rebase했다. checkpoint runtime은 아직 구현하지 않았다.
 이 문서와 [ADR-0012](../decisions/0012-checkpoint-and-handoff.md)는 이 설계 PR의 병합으로 채택하며 구현 완료가 아니다.
 따르는 결정은 [ADR-0006](../decisions/0006-common-record-contract.md) 1·2·3·5·6절,
 [연속성 설계](../DESIGN-CONTINUITY-AND-REUSE.md#작업-구간-요약-checkpoint),
@@ -150,7 +152,8 @@ core 응용은 Project/read_model/context sync를 조율한다. CLI·SDK·확장
 설계 PR은 이 문서·ADR·관련 링크만 바꾼다. schema 예제/전문 필드 조건, writer/reader, CLI·SDK/호스트, 저장/인계 fixture는
 채택 뒤 구현 PR에 함께 넣고 kit 0.14.0과 floor를 실제 도입한다. 과거 /1·/2 줄·CONTEXT·run/Report/import bytes는 변환하지 않는다.
 실제 B3-b 0.12.0 → B3-c 0.13.0 main 순서를 지키고 구현 최종 gates 직전에 rebase한다.
-현재 발견된 런처 status/context 인자 전달 누락은 #17 B3-b 통합이 고친다. #16은 그 실제 main의 두 런처 동작/읽기 경계를 검증한다.
+0.11 런처의 status/context 인자 전달 누락은 실제 B3-b 0.12.0 main에서 고쳤다. #16 runtime은 그 이후 실제 main의
+두 런처 동작/읽기 경계를 검증한다. 기존 0.11의 검증 결과를 수정된 런처 검증으로 소급하지 않는다.
 
 ## 6. 구현 검증 계획
 

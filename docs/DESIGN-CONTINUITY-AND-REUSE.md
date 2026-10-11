@@ -167,7 +167,7 @@ Visualization의 논리적 이름은 버전 모음의 식별자이고, 과거 �
 
 #16의 구체적인 writer·평가·인계 계약은 [checkpoint 구현 전 설계](design/CHECKPOINT-HANDOFF.md)와
 [ADR-0012](decisions/0012-checkpoint-and-handoff.md)를 따른다. 설계 PR의 채택과 구현 완료는 구별하며,
-현재 kit 0.11.0의 checkpoint 작성 지원을 뜻하지 않는다.
+checkpoint 작성은 후속 runtime 0.14.0의 범위다. 제한 조회 0.11.0이나 B3-b 0.12.0의 checkpoint 작성 지원을 뜻하지 않는다.
 
 ## 3. 검색 가능한 프로젝트 메모리
 
