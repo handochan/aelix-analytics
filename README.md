@@ -11,7 +11,7 @@ Jupyter Notebook과 BI가 만들어 온 분석 작업방식을 바탕으로, 목
 베타 이후의 지속적인 발전을 위해 지표·근거·버전 계약을 보존하고, 정책·저장소·실행·게시 구현을 교체할 수 있는 구조를 설계합니다.
 이 저장소는 비교 실험용 `aelix-analytics-baseline`에서 출발해 2026-09-18에 정식 제품 이름인
 `aelix-analytics`로 변경했습니다. 과거 평가 문서에는 당시의 baseline 명칭이 이력으로 남아 있습니다.
-아래 사용법은 현재 구현 기준입니다. 새 인사이트 화면·재사용 제안·메모리 조회·Reports 탭은 아직 설계 단계입니다.
+아래 사용법은 현재 구현 기준입니다. 새 인사이트 화면·Reports 탭은 아직 설계 단계입니다. 제한 조회·분석 자산과 checkpoint 인계는 현재 CLI·SDK·도구에서 제공합니다.
 분석 도중에도 자유 형식 보고서를 만들고, 작성 시점·근거·버전과 컬럼별 반복 보고서 묶음을 관리하는 흐름을 설계합니다.
 진행 중인 분석을 팀원에게 전달하는 독립 HTML 빌드와 `publish` 흐름도 설계에 포함합니다.
 공식 명칭은 `analytics` 명령·SDK, 분석 인터페이스 `Workspace`, 시각화 객체 `Visualization`, 문서 산출물 `Report`로 정리합니다.
@@ -542,3 +542,12 @@ bin/analytics                 사람용 CLI (체크아웃, POSIX)
 ## 라이선스
 
 [Apache License 2.0](LICENSE).
+
+## Checkpoint와 인계
+
+`analytics checkpoint`는 현재 기준의 결정적 ID/당시 상태 요약을 저장합니다. `analytics checkpoint "사람이 작성한 요약" --ref e7`은
+원문과 선택 근거를 남깁니다. `analytics status --part context`에서 최신 checkpoint의 basis·needs_review·updates_available를 확인하고,
+`analytics status --part records --id eN`으로 그 원문을 읽습니다. `analytics status --part context --id eN`은 이후 변경 페이지입니다.
+SDK는 `analytics.checkpoint()` 또는 `analytics.checkpoint("요약", refs=["e7"])`입니다. 역사 작성에는 as_of_seq와 정확한
+context_version 또는 명시적 None을 함께 줍니다. 결정적 생성/기본 읽기는 모델을 부르지 않으며, 실제 결론 검토와 사람/모델 인계 검증은 별도입니다.
+[현재 계약 C10](docs/CONTRACTS.md#c10-분석-checkpoint와-결정적-인계-kit-0140-16)을 따릅니다.

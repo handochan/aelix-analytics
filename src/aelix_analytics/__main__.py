@@ -74,7 +74,7 @@ def _emit(obj: dict) -> None:
 # skip their side writes where this kit does not write; `init` makes a new directory
 # (core.init_project) and `migrate` a new project from a lab.json one, each by its own rules for a
 # destination (design 6.2, OQ9): the source is read by the migration's rules, never admitted.
-WRITES = ("run", "import", "record", "render", "demo")
+WRITES = ("run", "import", "record", "checkpoint", "render", "demo")
 
 
 def _origin() -> core.Origin:
@@ -246,6 +246,16 @@ def _command(argv) -> int:
     p.add_argument("sql")
     p.add_argument("--limit", type=int, default=50)
 
+    p = sub.add_parser("checkpoint", help="write an authored or deterministic analysis checkpoint")
+    p.add_argument("text", nargs="?")
+    p.add_argument("--ref", dest="refs", action="append", default=[])
+    p.add_argument("--from-seq", type=int, default=0)
+    p.add_argument("--limit", type=int, default=8)
+    p.add_argument("--as-of-seq", type=int)
+    context = p.add_mutually_exclusive_group()
+    context.add_argument("--context-version")
+    context.add_argument("--context-unknown", action="store_true")
+
     p = sub.add_parser("record", help="append a journal entry (kind: " + ", ".join(core.RECORD_KINDS)
                        + ")")
     # Not argparse's choices: a kind it does not have is the kit's bad_kind, with the new name of an
@@ -344,6 +354,12 @@ def _command(argv) -> int:
             from . import data
 
             _emit({"ok": True, **data.query(project, args.sql, args.limit)})
+        elif args.command == "checkpoint":
+            options = {}
+            if args.context_version is not None or args.context_unknown:
+                options["context_version"] = args.context_version
+            _emit({"ok": True, **core.checkpoint(project, args.text, refs=args.refs, as_of_seq=args.as_of_seq,
+                                                from_seq=args.from_seq, limit=args.limit, origin=origin, **options)})
         elif args.command == "record":
             from . import workspace
 
@@ -354,7 +370,8 @@ def _command(argv) -> int:
             refs = [*args.refs, *args.refs_json]
             core.check_record(project, args.kind, args.text, refs=refs, resolves=args.resolves,
                               details=args.details_json, origin=origin)
-            core.sync_context(project, origin=core.system_origin(origin))
+            if args.kind != "checkpoint":
+                core.sync_context(project, origin=core.system_origin(origin))
             written = core.record(project, args.kind, args.text, refs=refs,
                                   resolves=args.resolves, details=args.details_json, origin=origin)
             _emit({"ok": True, **written.to_json(), "workspace": _safe_render(workspace, project)})

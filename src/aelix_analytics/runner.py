@@ -1081,7 +1081,8 @@ def _finalize(project, state, record, *, source_run, before, status, error, dura
         try:
             return fn()
         except Exception as exc:  # noqa: BLE001 - recorded in finalize_errors
-            problems.append(f"{label}: {type(exc).__name__}: {exc}")
+            code = f"{exc.code}: " if isinstance(exc, core.AnalyticsError) and exc.code.startswith("checkpoint_") else ""
+            problems.append(f"{label}: {type(exc).__name__}: {code}{exc}")
             return default
 
     run_id, run_dir = record["id"], state.run_dir

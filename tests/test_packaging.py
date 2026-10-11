@@ -727,6 +727,7 @@ def test_the_kit_s_stdlib_commands_run_on_the_floor(dist, tmp_path):
     project = tmp_path / "proj"
     for args in (["init", project], ["--project", project, "status"],
                  ["--project", project, "context"],
+                 ["--project", project, "checkpoint", "3.11 checkpoint"],
                  ["--project", project, "record", "finding", "3.11에서"],
                  ["--project", project, "render"]):
         done = ok([venv_python(venv), "-m", "aelix_analytics", *args], cwd=tmp_path, env=env)

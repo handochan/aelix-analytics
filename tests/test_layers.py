@@ -124,6 +124,7 @@ EXTERNAL: dict[str, str] = {
 MODULES: dict[str, str] = {
     "src/aelix_analytics/_platform.py": "ports",
     "src/aelix_analytics/relations.py": "read_model",
+    "src/aelix_analytics/checkpoints.py": "read_model",
     "src/aelix_analytics/asset_contract.py": "writer",
     "src/aelix_analytics/asset_policy.py": "read_model",
     "src/aelix_analytics/asset_app.py": "asset_application",

@@ -38,7 +38,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from . import core
 
-__all__ = ["assets", "datasets", "path", "project", "read", "record", "register_asset", "review_assets",
+__all__ = ["assets", "checkpoint", "datasets", "path", "project", "read", "record", "register_asset", "review_assets",
            "run_id", "save", "scan", "set_asset_mode", "sql", "status", "update_asset", "visualize"]
 
 # The script API's functions renamed in kit 0.3.0 (Issue #9), by their old names. The version is fixed:
@@ -63,6 +63,7 @@ def __getattr__(name: str):
 
 
 _CONNECTION = None
+UNSET = object()
 
 
 def project() -> core.Project:
@@ -216,7 +217,12 @@ def record(kind: str, text: str, *, refs=(), details=None) -> dict:
     state = capture.ACTIVE
     if state is not None:
         refs = [refs] if isinstance(refs, (str, dict)) else list(refs or ())
-        refs = [*refs, state.run_id]
+        if kind == "checkpoint":
+            prepared = core.prepare_checkpoint(state.project, text, refs=refs, details=details,
+                                               origin=state.sdk_origin, pending_run=state.run_id)
+            text, refs, details = prepared["text"], prepared["refs"], prepared["details"]
+        else:
+            refs = [*refs, state.run_id]
         if kind == "metric_observation" and isinstance(details, dict):
             details = {**details, "run_id": details.get("run_id", state.run_id)}
             if details["run_id"] != state.run_id:
@@ -236,6 +242,22 @@ def record(kind: str, text: str, *, refs=(), details=None) -> dict:
     else:
         return core.record(project(), kind, text, refs=refs, details=details,
                            origin=_script_origin()).to_json()
+
+
+def checkpoint(text=None, *, refs=(), as_of_seq=None, context_version=UNSET, from_seq=0, limit=8):
+    """Explicit authored or model-free deterministic summary at an exact call-time basis."""
+    from . import capture, core
+
+    state = capture.ACTIVE
+    options = {"refs": refs, "as_of_seq": as_of_seq, "from_seq": from_seq, "limit": limit}
+    if context_version is not UNSET:
+        options["context_version"] = context_version
+    if state is not None:
+        prepared = core.prepare_checkpoint(state.project, text, origin=state.sdk_origin, pending_run=state.run_id, **options)
+        answer = record("checkpoint", prepared["text"], refs=prepared["refs"], details=prepared["details"])
+        answer["basis"] = {key: prepared["details"][key] for key in ("as_of_seq", "context_version", "journal_basis")}
+        return answer
+    return core.checkpoint(project(), text, origin=_script_origin(), **options)
 
 
 

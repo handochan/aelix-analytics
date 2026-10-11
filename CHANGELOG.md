@@ -15,6 +15,14 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 없음. 병합된 변경은 그 PR이 병합될 때의 kit 번호 절에 적고, kit 번호를 올리는 PR은 새 절을 엽니다
 ([기여 가이드](CONTRIBUTING.md#첫-공개-전에-남은-운영-결정)).
 
+## [0.14.0] - 2026-10-11
+
+### Added
+
+- #16: authored/결정적 checkpoint를 같은 CLI·SDK·기존 record tool에서 작성합니다. 정확한 journal/CONTEXT/근거/Origin 기준,
+  needs_review와 updates_available의 독립 평가, immutable 원문과 제한된 인계/후속 페이지를 제공합니다. SDK pending은 호출 당시 기준을 유지하며
+  미래 근거 실패를 finalize_errors에 남깁니다. 모델 호출·새 model tool은 추가하지 않습니다. 실제 모델/사람 Q17과 릴리스는 별도 게이트입니다.
+
 ## [0.13.0] - 2026-10-11
 
 번호를 붙인 변경은 [#17 B3-c 구현 PR92](https://github.com/handochan/aelix-analytics/pull/92)입니다.
