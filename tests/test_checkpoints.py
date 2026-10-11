@@ -11,7 +11,7 @@ from jsonschema import Draft202012Validator, FormatChecker
 from aelix_analytics import checkpoints, core, relations, runner, writer
 
 HUMAN = core.Origin("human", "sdk", "inferred")
-VALIDATOR = Draft202012Validator(json.loads((Path(__file__).resolve().parents[1] / "docs/schemas/analytics-records.schema.json").read_text()),
+VALIDATOR = Draft202012Validator(json.loads((Path(__file__).resolve().parents[1] / "docs/schemas/analytics-records.schema.json").read_text(encoding="utf-8")),
                                 format_checker=FormatChecker())
 
 
@@ -382,3 +382,13 @@ def test_review_f3_supplied_authored_range_retained_and_default_only_if_absent(t
     written = core.record(p, "checkpoint", "declared range", details={"from_seq": 2}, origin=HUMAN).event
     assert written["details"]["from_seq"] == 2
     assert core.record(p, "checkpoint", "default", origin=HUMAN).event["details"]["from_seq"] == 0
+
+
+def test_shared_goal_reader_keeps_ordinary_display_bound_and_complete_checkpoint_purpose(tmp_path):
+    p = project(tmp_path)
+    goal = "목적의 원문 " * 100
+    text = "# Goal\n" + goal.strip() + "\n"
+    p.context.write_text(text, encoding="utf-8")
+    assert core.context_goal(text) == goal.strip()[:200]
+    assert core.checkpoint_goal(text) == goal.strip()
+    assert checkpoint(p)["details"]["summary"]["goal"] == goal.strip()

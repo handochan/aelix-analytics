@@ -2972,7 +2972,7 @@ def test_loading_the_kit_pulls_no_analysis_library_into_the_host_process(monkeyp
     # no migration or analysis engine (Issue #13 PR 2, design 3.2; Issue #17 B3-b).
     runtime = next(line for line in proc.stdout.splitlines() if line.startswith("RUNTIME:"))
     assert set(runtime[len("RUNTIME:"):].split(",")) == {
-        "_platform", "relations", "writer", "asset_app", "asset_contract", "asset_policy", "asset_suggestions"}, runtime
+        "_platform", "relations", "writer", "asset_app", "asset_contract", "asset_policy", "asset_suggestions", "checkpoints"}, runtime
 
 
 def test_importing_the_package_imports_nothing_of_the_kit():
@@ -3003,7 +3003,7 @@ def test_importing_the_package_imports_nothing_of_the_kit():
     assert seen["after_version"] == ["aelix_analytics", "aelix_analytics._install",
                                      "aelix_analytics._platform", "aelix_analytics.asset_app",
                                      "aelix_analytics.asset_contract", "aelix_analytics.asset_policy",
-                                     "aelix_analytics.asset_suggestions", "aelix_analytics.cli",
+                                     "aelix_analytics.asset_suggestions", "aelix_analytics.checkpoints", "aelix_analytics.cli",
                                      "aelix_analytics.core", "aelix_analytics.relations",
                                      "aelix_analytics.writer"]
 

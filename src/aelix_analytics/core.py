@@ -1968,17 +1968,7 @@ def prepare_checkpoint(project: Project, text=None, *, refs=(), details=None, as
 
 def checkpoint_goal(text):
     """The exact purpose line from a preserved CONTEXT version, without display clipping."""
-    lines = text.splitlines()
-    for index, line in enumerate(lines):
-        if re.match(r"^#{1,3}\s*(목표|goal|objective)", line.strip(), re.IGNORECASE):
-            for follow in lines[index+1:]:
-                if follow.strip().startswith("#"):
-                    break
-                value = follow.strip().lstrip("-*> ").strip()
-                if value and not value.startswith("("):
-                    return value
-    return next((line.strip().lstrip("-* ").strip() for line in lines
-                 if line.strip() and not line.strip().startswith(("#", "<!--"))), None)
+    return context_goal(text, max_chars=None) or None
 
 
 def checkpoint(project: Project, text=None, *, refs=(), as_of_seq=None,
@@ -2150,7 +2140,7 @@ def context_pending(project: Project) -> bool:
     return not _context_recorded(project, sha256_bytes(data)[:12])
 
 
-def context_goal(text: str) -> str:
+def context_goal(text: str, *, max_chars: int | None = 200) -> str:
     """First content line under a Goal heading (or 목표, the heading of earlier templates, which
     projects keep), else the first paragraph line."""
     lines = text.splitlines()
@@ -2162,11 +2152,11 @@ def context_goal(text: str) -> str:
                     break
                 s = s.lstrip("-*> ").strip()
                 if s and not s.startswith("("):
-                    return s[:200]
+                    return s if max_chars is None else s[:max_chars]
     for line in lines:
         s = line.strip().lstrip("-* ").strip()
         if s and not s.startswith(("#", ">", "|", "<!--", "(")):
-            return s[:200]
+            return s if max_chars is None else s[:max_chars]
     return ""
 
 

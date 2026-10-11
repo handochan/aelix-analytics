@@ -147,4 +147,5 @@ def test_host_effect_introduces_floor13_while_old_project_mode_stays12(prepared,
         event = app.publish_suggestion(surface="aelix_context" if feature == "context" else "aelix_command_status")["published"]["notification"]
     assert event["kind"] in ("asset_mode", "asset_notification")
     marker = writer.marker_state(project.root).value
-    assert marker["min_writer_version"] == marker["kit_version"] == "0.13.0"
+    assert marker["min_writer_version"] == "0.13.0"
+    assert marker["kit_version"] == core.KIT_VERSION

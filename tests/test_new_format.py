@@ -238,7 +238,7 @@ def test_an_older_name_of_a_kind_is_refused_with_its_new_name(project, monkeypat
     assert tree(root) == before
     assert core.RECORD_KINDS == ("finding", "decision", "assumption", "question", "todo", "note",
                                  "workflow_feedback", "metric_definition", "analysis_focus",
-                                 "metric_observation", "asset_candidate", "asset_check", "asset_effect", "resolve")
+                                 "metric_observation", "asset_candidate", "asset_check", "asset_effect", "checkpoint", "resolve")
     assert kit_cli(root, "record", "workflow_feedback", "the tools got in the way")[0] == 0
 
 
