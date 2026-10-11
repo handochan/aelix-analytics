@@ -1887,9 +1887,17 @@ def prepare_checkpoint(project: Project, text=None, *, refs=(), details=None, as
             if text is None:
                 raise checkpoints.CheckpointError("bad_checkpoint_record", "tagged records include their complete text")
             w.check("checkpoint", text, refs=refs, details=normalized, pending_run=pending_run)
-            return {"text": text, "refs": refs, "details": normalized, "context_synced": None}
+            model = read_model(project)
+            normalized, generated, historical = w._checkpoint(normalized, refs, model.journal, pending_run=pending_run)
+            items = writer._items(refs)
+            bound = w._bind(items, model=historical)
+            return {"text": text, "refs": [*writer._refs(items, bound), *generated], "details": normalized,
+                    "bindings": [entry for _, entry in bound.values()], "context_synced": None}
         if "as_of_seq" in supplied:
             as_of_seq = supplied["as_of_seq"]
+            checkpoints.integer(as_of_seq, "as_of_seq")
+        if "from_seq" in supplied:
+            from_seq = supplied["from_seq"]
         if "context_version" in supplied:
             context_version = supplied["context_version"]
         if as_of_seq is not None:

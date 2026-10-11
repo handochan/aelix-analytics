@@ -724,6 +724,9 @@ updates_available은 checkpoint 자체를 뺀 basis 뒤 기록입니다. 무관�
 현재 보존 파일의 가용성/해시는 지금의 판정이고 과거 journal/완료 판단과 별개입니다. needs_review=false는 선택한 기계적 변화 없음이며
 자유 문장의 진실·통계적 검사·결론 검토가 끝났다는 뜻이 아닙니다.
 
+현재 편의 작성에 이미 기록된 CONTEXT 파일 이름을 추가 ref로 주는 경우 preflight의 null-context 기준으로 거절되는 입력 경계가 있습니다.
+정확한 context refs는 완전한 tagged payload 또는 as_of_seq/context_version을 함께 지정한 역사 경로로 작성합니다(비차단 후속 관찰).
+
 SDK의 진행 중 checkpoint는 call-time basis/refs/details를 복사한 private pending payload이고 성공 append가 아닙니다.
 checkpoint에만 암묵적 진행 run 근거를 붙이지 않으며 Origin과 private/응답 run_id는 유지합니다. 명시한 미완료/기준 뒤 run 근거는
 완료 시 checkpoint_reference로 거절하고 finalize_errors에 남깁니다. 그 run의 나중 완료를 당시 요약의 근거로 올리지 않습니다.

@@ -838,6 +838,11 @@ class Replay:
                     for value in _strings(refs.get("resolves")) if isinstance(value, str)]
         if metric_event_problem(event.kind, event.value.get("details"), _dicts(event.refs)):
             return []  # invalid/unsupported tagged content cannot retire a valid past record
+        details = event.value.get("details")
+        if (event.kind == "checkpoint" and isinstance(details, dict)
+                and details.get("contract") == "analysis_checkpoint/1"
+                and any(ref.get("relation") in ("supersedes", "updates", "resolves") for ref in _dicts(event.refs))):
+            return []  # this known checkpoint contract never changes another record's state
         return [(ref["relation"], ref) for ref in _dicts(event.refs)
                 if _known_ref(ref) and ref["type"] in EVENT_TARGETS
                 and ref["relation"] in ("supersedes", "resolves")]

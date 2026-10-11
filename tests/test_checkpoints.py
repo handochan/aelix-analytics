@@ -1,5 +1,6 @@
 """ADR0012 T1–T10: exact journal basis, mechanical review and immutable pending handoff."""
 import copy
+import hashlib
 import json
 from pathlib import Path
 
@@ -281,3 +282,103 @@ def test_t5_metric_and_focus_replacement_keep_exact_selected_versions(tmp_path):
     core.record(p, "metric_definition", "changed", details=definition(previous_definition=old["id"]), origin=HUMAN)
     assert view(p, cp)["needs_review"]
     assert cp["details"]["summary"]["metric_event_ids"] == [old["id"]]
+
+
+@pytest.mark.parametrize("named_ref", [False, True])
+def test_review_f1_tagged_pending_keeps_call_time_context_digest(tmp_path, named_ref):
+    p = project(tmp_path)
+    original = checkpoint(p, "old exact basis")
+    version = original["details"]["context_version"]
+    path = relations.context_file(p.root, version)
+    old_digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    refs = [version] if named_ref else []
+    result = execute(p, "import aelix_analytics as a\n" +
+                     f"a.record('checkpoint', 'tagged pending', details={original['details']!r}, refs={refs!r})\n" +
+                     f"(a.project().context_history / {version!r}).write_bytes(b'# Goal\\nchanged preserved bytes\\n')\n")
+    assert result["run"]["status"] == "ok" and not result.get("finalize_errors")
+    latest = core.read_model(p).journal.events[-1].value
+    digest = next(ref["digest"]["sha256"] for ref in latest["refs"] if ref["type"] == "context_version")
+    assert latest["kind"] == "checkpoint" and digest == old_digest
+    assert digest != hashlib.sha256(path.read_bytes()).hexdigest()
+    assert latest["details"]["as_of_seq"] == original["details"]["as_of_seq"]
+    assert view(p, latest)["needs_review"] is True
+
+
+@pytest.mark.parametrize("case", ["wrong_focus", "plain_change", "closed_question", "closed_todo",
+                                  "resolves", "malformed_digest", "non_object", "non_string_type"])
+def test_review_f2_specialist_reader_invalid_payload_is_qualified_and_raw_latest_preserved(tmp_path, case):
+    p = project(tmp_path)
+    q = record(p, "question")
+    todo = record(p, "todo")
+    note = record(p, "note")
+    if case in ("closed_question", "closed_todo"):
+        target = q if case == "closed_question" else todo
+        record(p, "resolve", "closed before basis", refs=[{"type": "event", "event_id": target["id"], "relation": "resolves"}])
+    original = checkpoint(p, "valid source")
+    bad = copy.deepcopy(original)
+    bad.update(seq=original["seq"]+1, id=f"e{original['seq']+1}")
+    summary = bad["details"]["summary"]
+    if case == "wrong_focus":
+        summary["focus_event_id"] = note["id"]
+    if case == "plain_change":
+        summary["change_event_ids"] = [note["id"]]
+    if case in ("closed_question", "closed_todo"):
+        summary["question_event_ids" if case == "closed_question" else "todo_event_ids"] = [target["id"]]
+    digest = next(ref["digest"]["sha256"] for ref in original["refs"] if ref["type"] == "context_version")
+    bad["refs"] = checkpoints.generated_refs(bad["details"], core.read_model(p).journal, digest)
+    if case == "resolves":
+        bad["refs"].append(writer.typed_reference({"type": "event", "event_id": q["id"], "relation": "resolves"}))
+    if case == "malformed_digest":
+        next(ref for ref in bad["refs"] if ref["type"] == "context_version")["digest"] = "invalid digest"
+    if case == "non_object":
+        bad["refs"].append(17)
+    if case == "non_string_type":
+        bad["refs"].append({"type": [], "relation": "cites", "basis": "declared", "version_binding": "author"})
+    append_raw(p, bad)
+    before = p.journal.read_bytes()
+    result = core.status(p, part="context")["checkpoint"]
+    assert result["id"] == bad["id"] and result["needs_review"] is None
+    assert "invalid_checkpoint" in result["qualification"] and p.journal.read_bytes() == before
+    raw = core.retrieve(p, id=bad["id"], limit=100)
+    assert dict((row["field"], row["value"]) for row in raw["items"])["refs"] == bad["refs"]
+    if case == "resolves":
+        assert core.read_model(p).journal.replay().state_of(q["id"])["state"] == "open"
+
+
+def test_review_f2_prefix_change_remains_positive_review_and_generic_relations_keep_meaning(tmp_path):
+    p = project(tmp_path)
+    q = record(p, "question", "selected")
+    cp = checkpoint(p, "valid", refs=[q["id"]])
+    p.journal.write_bytes(p.journal.read_bytes().replace(b'"kind": "question"', b'"kind": "note"'))
+    result = view(p, cp)
+    assert result["needs_review"] is True
+    assert any(reason["reason"] == "checkpoint_basis_changed" for reason in result["review_reasons"])
+    q2 = record(p, "question", "generic compatibility")
+    generic = copy.deepcopy(cp)
+    seq = core.read_model(p).journal.next_seq
+    generic.update(seq=seq, id=f"e{seq}")
+    generic["details"] = {"as_of_seq": seq-1, "context_version": None}
+    generic["refs"] = [writer.typed_reference({"type": "event", "event_id": q2["id"], "relation": "resolves"})]
+    append_raw(p, generic)
+    assert core.read_model(p).journal.replay().state_of(q2["id"])["state"] == "resolved"
+    assert "generic_checkpoint" in view(p, generic)["qualification"]
+
+
+@pytest.mark.parametrize("start", [True, 999])
+def test_review_f3_supplied_authored_range_is_validated_before_effects(tmp_path, start):
+    p = project(tmp_path)
+    record(p)
+    p.context.write_text("# Goal\nunsaved purpose\n", encoding="utf-8")
+    before = {str(f.relative_to(p.root)): f.read_bytes() for f in p.root.rglob("*") if f.is_file()}
+    with pytest.raises(core.AnalyticsError):
+        core.record(p, "checkpoint", "bad authored range", details={"from_seq": start}, origin=HUMAN)
+    assert {str(f.relative_to(p.root)): f.read_bytes() for f in p.root.rglob("*") if f.is_file()} == before
+
+
+def test_review_f3_supplied_authored_range_retained_and_default_only_if_absent(tmp_path):
+    p = project(tmp_path)
+    record(p)
+    record(p)
+    written = core.record(p, "checkpoint", "declared range", details={"from_seq": 2}, origin=HUMAN).event
+    assert written["details"]["from_seq"] == 2
+    assert core.record(p, "checkpoint", "default", origin=HUMAN).event["details"]["from_seq"] == 0

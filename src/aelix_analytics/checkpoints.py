@@ -116,6 +116,43 @@ def generated_refs(details, journal, context_digest=None):
     return refs
 
 
+def validate_selection(details, journal, *, reader):
+    """Shared writer/reader selection semantics, without a physical-file judgment."""
+    top = details["as_of_seq"]
+    historical = journal.through(top)
+    summary = details["summary"]
+    fields = [("focus_event_id", "analysis_focus", [summary["focus_event_id"]] if summary["focus_event_id"] else [])]
+    fields += [(key, kind, summary[key]) for key, kind in LIST_KINDS.items()]
+    for field, kind, values in fields:
+        for event_id in values:
+            event = journal.event_of(event_id)
+            if event is None or event.seq is None or event.seq > top or (kind and event.kind != kind):
+                raise CheckpointError("checkpoint_reference", f"{event_id!r} is not a unique prior {kind or 'change'}")
+            if kind in ("question", "todo") and (historical.replay().state_of(event_id) or {}).get("state") != "open":
+                raise CheckpointError("checkpoint_reference", f"{event_id} was not open at the checkpoint basis")
+            if field == "change_event_ids" and not changes(journal, journal.replay().states, after=event.seq-1, through=event.seq, reader=reader):
+                raise CheckpointError("checkpoint_reference", f"{event_id} is not an applied judgment change")
+
+
+def validate_refs(refs, *, reader):
+    """Known tagged payloads validate every raw reference before reading nested values."""
+    if not isinstance(refs, list):
+        raise CheckpointError("bad_checkpoint_record", "checkpoint refs are a list")
+    for ref in refs:
+        if (not isinstance(ref, dict) or any(not isinstance(ref.get(key), str) for key in
+                ("type", "relation", "basis", "version_binding")) or not reader._known_ref(ref)):
+            raise CheckpointError("bad_checkpoint_record", "invalid checkpoint reference")
+        for key in ("event_id", "run_id", "version", "path", "metric_id", "asset_id", "proposal_id", "token", "key"):
+            if key in ref and not isinstance(ref[key], str):
+                raise CheckpointError("bad_checkpoint_record", f"checkpoint reference {key} is a string")
+        if ref.get("relation") in ("supersedes", "updates", "resolves"):
+            raise CheckpointError("bad_checkpoint_record", "a checkpoint cannot change another record's state")
+        if "digest" in ref:
+            digest = ref["digest"]
+            if not isinstance(digest, dict) or not isinstance(digest.get("sha256"), str) or not SHA.fullmatch(digest["sha256"]):
+                raise CheckpointError("bad_checkpoint_record", "a checkpoint digest is a sha256 object")
+
+
 def validate_basis(details, model, refs, *, reader, pending_run=None):
     relations = reader
     top = details["as_of_seq"]
@@ -126,22 +163,10 @@ def validate_basis(details, model, refs, *, reader, pending_run=None):
         raise CheckpointError("checkpoint_basis_changed", "checkpoint reader format cannot be compared")
     if details["journal_basis"]["prefix_revision"] != journal.prefix_revision(top):
         raise CheckpointError("checkpoint_basis_changed", "the held journal prefix changed")
+    validate_selection(details, journal, reader=reader)
+    validate_refs(refs, reader=reader)
     historical = model.through(top)
-    summary = details["summary"]
-    fields = [("focus_event_id", "analysis_focus", [summary["focus_event_id"]] if summary["focus_event_id"] else [])]
-    fields += [(key, kind, summary[key]) for key, kind in LIST_KINDS.items()]
-    for field, kind, values in fields:
-        for event_id in values:
-            event = journal.event_of(event_id)
-            if event is None or event.seq is None or event.seq > top or (kind and event.kind != kind):
-                raise CheckpointError("checkpoint_reference", f"{event_id!r} is not a unique prior {kind or 'change'}")
-            if kind in ("question", "todo") and (historical.journal.replay().state_of(event_id) or {}).get("state") != "open":
-                raise CheckpointError("checkpoint_reference", f"{event_id} was not open at the checkpoint basis")
-            if field == "change_event_ids" and not changes(journal, journal.replay().states, after=event.seq-1, through=event.seq, reader=reader):
-                raise CheckpointError("checkpoint_reference", f"{event_id} is not an applied judgment change")
     for ref in refs:
-        if ref.get("relation") in ("supersedes", "updates", "resolves"):
-            raise CheckpointError("bad_checkpoint_record", "a checkpoint cannot change another record's state")
         if ref.get("version_binding") == "none":
             continue
         if pending_run is not None and ref.get("run_id") and historical.completion_seq(ref["run_id"]) is None:
@@ -269,11 +294,20 @@ def evaluate(event, model, *, reader):
     if details["journal_basis"]["prefix_revision"] != model.journal.prefix_revision(top):
         reasons.append({"reason": "checkpoint_basis_changed"})
     historical = model.through(top)
+    try:
+        validate_selection(details, historical.journal, reader=reader)
+        validate_refs(event.refs, reader=reader)
+    except CheckpointError as error:
+        qualification.append("invalid_checkpoint")
+        out["validation_reason"] = str(error)
+        out["needs_review"] = True if reasons else None
+        return out
     expected = generated_refs(details, historical.journal,
                               next((r.get("digest", {}).get("sha256") for r in relations._dicts(event.refs)
                                     if r.get("type") == "context_version" and r.get("version") == details["context_version"]), None))
     if any(ref not in relations._dicts(event.refs) for ref in expected):
         qualification.append("invalid_checkpoint_references")
+        out["needs_review"] = True if reasons else None
         return out
     reasons.extend({"reason": "selected_judgment_changed", **row} for row in changes(model.journal, selected(details), after=top, reader=reader))
     for ref in relations._dicts(event.refs):
@@ -291,11 +325,6 @@ def evaluate(event, model, *, reader):
             reasons.append({"reason": "selected_record_unavailable", "target_id": event_id})
         elif selected_event.kind in relations.METRIC_KINDS and not selected_event.value.get("details", {}).get("contract"):
             qualification.append("generic_selected_record")
-        for key, wanted in LIST_KINDS.items():
-            if event_id in details["summary"][key] and wanted is not None and selected_event is not None and selected_event.kind != wanted:
-                qualification.append("invalid_checkpoint_selection")
-                out["needs_review"] = None
-                return out
     if model.journal.damaged or model.journal.unsupported or any(e.seq is None for e in model.journal.events) or model.updating:
         qualification.append("journal_knowledge_incomplete")
         out["needs_review"] = True if reasons else None
