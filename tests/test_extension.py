@@ -2195,13 +2195,23 @@ def test_registered_skill_only_asset_is_discovered_by_the_pinned_host_loader_in_
 
 
 
-def test_bounded_status_reads_share_ids_and_preserve_complete_text(lab):
+def test_bounded_status_reads_share_ids_and_preserve_complete_text(lab, monkeypatch):
     module, root = lab
+    # The preceding record schedules a detached render, which is a writer and may sync CONTEXT
+    # after we edit it. Hold that separate writer while testing the bounded read's own side effects.
+    scheduled = []
+    monkeypatch.setattr(module, "schedule_workspace_render", lambda *args: scheduled.append(args))
     tools = tools_of(module)
     text = "보존된 한국어 " * 700
     entry = call(tools["analytics_record"], {"kind": "finding", "text": text}).details["event"]
+    assert len(scheduled) == 1 and scheduled[0][1] == "tool"
     before = (root / "journal.jsonl").read_bytes()
     (root / "CONTEXT.md").write_text("changed context without implicit sync", encoding="utf-8")
+
+    def unexpected_sync(*args, **kwargs):
+        pytest.fail("bounded analytics_status must not sync CONTEXT")
+
+    monkeypatch.setattr(module.core, "sync_context", unexpected_sync)
     found = call(tools["analytics_status"], {"part": "records", "query": "한국어", "limit": 2})
     assert not found.is_error and found.details["items"][0]["id"] == entry["id"]
     assert found.details["source_revision"]
@@ -2220,4 +2230,6 @@ def test_bounded_status_reads_share_ids_and_preserve_complete_text(lab):
             break
         cursor = parsed["cursor"]
     assert fields["text"] == entry["text"]
+    assert (root / "journal.jsonl").read_bytes() == before
+    assert len(scheduled) == 1, "bounded reads must not schedule another writer"
     assert set(tools) == TOOL_NAMES
