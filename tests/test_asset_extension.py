@@ -238,7 +238,9 @@ def test_real_cli_and_loaded_host_command_share_one_window(host_project, tmp_pat
             "print(asyncio.run(m.analytics_command('status',ctx)))\n")
     children = [subprocess.Popen([sys.executable, "-c", code, str(project.root), str(EXT), str(tmp_path / "sessions/A.jsonl")],
                                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                text=True, encoding="utf-8", env=child_env(tmp_path, f"host-publication-child-{i}"))
+                                text=True, encoding="utf-8",
+                                env={**child_env(tmp_path, f"host-publication-child-{i}"),
+                                     "PYTHONIOENCODING": "utf-8"})
                 for i, code in enumerate((cli, host))]
     output = []
     try:
@@ -249,6 +251,7 @@ def test_real_cli_and_loaded_host_command_share_one_window(host_project, tmp_pat
             child.stdin.flush()
         for child in children:
             stdout, stderr = child.communicate(timeout=60)
+            assert isinstance(stdout, str) and isinstance(stderr, str), (child.returncode, stdout, stderr)
             assert child.returncode == 0, stdout + stderr
             assert "error [" not in stdout
             output.append(stdout)

@@ -82,7 +82,7 @@ jobs:
     name: platform · ${{ matrix.os }}
     if: ${{ github.event.action != 'labeled' || github.event.label.name == 'ci:macos' }}
     runs-on: ${{ matrix.os }}
-    # Longer than the step limits below added up (138 minutes), so a hung leg is ended by its own
+    # Longer than the step limits below added up (148 minutes), so a hung leg is ended by its own
     # limit and the later legs and the upload still run. A step added below raises this too.
     timeout-minutes: 150
     strategy:
@@ -115,7 +115,7 @@ jobs:
       # step of its own (below), so a hung console case cannot take the suite's JUnit with it.
       - name: Repository tests, with the distribution's end-to-end leg
         if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
-        timeout-minutes: 35
+        timeout-minutes: 45
         env:
           AELIX_ANALYTICS_TEST_INSTALL: "1"
           AELIX_ANALYTICS_TEST_EVIDENCE_DIR: ${{ runner.temp }}/ci/evidence
