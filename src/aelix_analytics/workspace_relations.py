@@ -83,10 +83,11 @@ class RelationPages:
             node = f'<a href="{other_link}"{USER}>{esc(label)}</a>' if other_link else user_text(label)
             content = self.content(other, 1) if other and (row["direction"] == "incoming" or (
                 row["state"] == "resolved" and row.get("version_binding") != "none")) else None
-            direction = "→ Selected version" if row["direction"] == "incoming" else "Selected version →"
+            # The text alternative reads in the edge's direction, like the diagram: source → target.
+            edge = f"{node} → Selected version" if row["direction"] == "incoming" else f"Selected version → {node}"
             detail = json.dumps({k: v for k, v in row.items() if k != "direction"}, ensure_ascii=False, indent=2)
             content_action = f' · <a href="{esc(content)}">Open exact content</a>' if content else ""
-            items.append(f'<li class="relation-item" data-direction="{row["direction"]}"><p>{direction} {node}</p>'
+            items.append(f'<li class="relation-item" data-direction="{row["direction"]}"><p>{edge}</p>'
                          f'<p{USER}>{esc(qualification)}{": " + esc(row["reason"]) if row.get("reason") else ""}</p>'
                          f'<p>Source record <a href="{source_link}"{USER}>{esc(row["from"])}</a> · '
                          f'location {esc("journal:" + str(row["line"]) if row.get("line") else "saved manifest")}'
@@ -125,14 +126,14 @@ class RelationPages:
 <p{USER}>{esc(self.label(identity))}</p><div class="workspace-actions"><a data-return href="../index.html#insights">Return to origin</a> {exact} {latest}<a href="{self.link(identity, 1)}" data-reset>Reset view</a></div></div>
 <p class="state-notice" role="status" hidden></p>
 <p class="relation-scope">One-hop recorded references. Evidence availability is checked now; this view does not prove the conclusion, causal links or row-level lineage. {"Records changed while read; counts and judgments may be partial." if self.model.updating else ""}</p>
-<section id="record"><h2>Record</h2>{record}</section>
 <section id="related"><h2>Related items</h2><p>{counts}</p>
-<details class="relation-diagram" open><summary>Small directed neighborhood</summary><p>Blue border: selected version. Amber: unbound, ambiguous or unknown. Red: missing or changed evidence. Labels carry the same state.</p>
+<details class="relation-diagram"><summary>Small directed neighborhood</summary><p>Blue border: selected version. Amber: unbound, ambiguous or unknown. Red: missing or changed evidence. Labels carry the same state.</p>
 <div class="relation-map" aria-hidden="true"><svg class="relation-connectors"></svg><div class="relation-in">{''.join(sides['incoming']) or '<p>No incoming references on this page</p>'}</div>
 <div class="relation-selected"><strong>Selected version</strong><div{USER}>{esc(identity)}</div></div><div class="relation-out">{''.join(sides['outgoing']) or '<p>No outgoing references on this page</p>'}</div></div></details>
 <div class="filters relation-filters" role="group" aria-label="Filter relations on this page"><button class="on" data-kind="">Both directions</button><button data-kind="incoming">Incoming</button><button data-kind="outgoing">Outgoing</button></div>
 <p>Direction filters apply to this page. The list is the text alternative to the diagram; every relation has the same qualification.</p>
-<ol id="evidence" class="relation-list">{''.join(items) or '<li>No recorded references in this scope; absence is not proof of no relationship.</li>'}</ol><nav class="continuation" aria-label="Relation pages">{nav}</nav></section>'''
+<ol id="evidence" class="relation-list">{''.join(items) or '<li>No recorded references in this scope; absence is not proof of no relationship.</li>'}</ol><nav class="continuation" aria-label="Relation pages">{nav}</nav></section>
+<section id="record"><h2>Record</h2>{record}</section>'''
         return s.page(1, f"Relations · {identity}", ' <span>/</span> Relations', body, "relations",
                       page_path="relations/" + name(identity, page), selection=identity)
 

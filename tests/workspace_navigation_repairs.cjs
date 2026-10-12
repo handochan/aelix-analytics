@@ -12,12 +12,13 @@ function classList() {
 function element(id='') {
   return {id,dataset:{},attrs:{},classList:classList(),children:[],offsetParent:{},
     setAttribute(k,v){this.attrs[k]=v;},removeAttribute(k){delete this.attrs[k];},hasAttribute(k){return k in this.attrs;},
-    appendChild(v){this.children.push(v);},querySelectorAll(){return this.children;},addEventListener(){},
+    appendChild(v){this.children.push(v);},querySelectorAll(){return this.children;},addEventListener(name,callback){(this.on ||= {})[name]=callback;},
     closest(){return null;},focus(){},getBoundingClientRect(){return {top:0};}};
 }
 function environment(page, state, options={}) {
   let url = new URL('file:///synthetic/workspace/'+page+codec.search(state)+(options.anchor?'#'+options.anchor:''));
   const events={},docEvents={},frames=[],notice={hidden:true,textContent:''};
+  if(options.dismissible){notice.nodes=[];notice.append=(...nodes)=>notice.nodes.push(...nodes);}
   const tabs=(options.tabs||[]).map(id=>element(id));
   const card=element(options.card||'e7');card.dataset={selection:card.id,kind:'finding'};
   card.closest=selector=>selector==='.chart-card.is-retired'&&options.retiredCard?card:null;
@@ -33,13 +34,14 @@ function environment(page, state, options={}) {
     querySelector(selector){if(selector==='.state-notice') return notice;if(selector==='main') return {prepend(){}};
       if(selector==='.filters button.on') return buttons.find(b=>b.classList.contains('on'))||null;return null;},
     querySelectorAll(selector){if(selector==='main > section.tab') return tabs;if(selector==='.filters') return options.filters?[bar]:[];
-      if(selector==='a[data-return]') return [back];return [];},createElement(){return element();},
+      if(selector==='a[data-return]') return [back];if(selector==='.topbar, nav.tabs, nav.jump') return options.sticky||[];return [];},createElement(){return element();},
     addEventListener(name,callback){(docEvents[name] ||= []).push(callback);}};
   const back={href:'../index.html'};
   const history={state:null,replaceState(value,_,path){this.state=value;url=new URL(path,url);},pushState(value,_,path){this.replaceState(value,_,path);}};
   const location={get href(){return url.href;},get pathname(){return url.pathname;},get protocol(){return url.protocol;},get host(){return url.host;},
     get search(){return url.search;},get hash(){return url.hash;},reload(){}};
-  const window={scrollY:0,AnalyticsWorkspaceState:codec,scrollTo(_,y){this.scrollY=y;},addEventListener(name,callback){(events[name] ||= []).push(callback);}};
+  const window={scrollY:0,AnalyticsWorkspaceState:codec,scrollTo(_,y){this.scrollY=y;},addEventListener(name,callback){(events[name] ||= []).push(callback);},
+    getComputedStyle(el){return el.style;}};
   card.getBoundingClientRect=()=>({top:820-window.scrollY});
   vm.runInNewContext(shipped,{window,document,location,history,URL,URLSearchParams,Set,
     requestAnimationFrame:f=>frames.push(f),setInterval(){},setTimeout(){return 1;},clearTimeout(){}});
@@ -79,3 +81,14 @@ assert.equal(direct.retired.checked,true);
 assert.equal(direct.document.documentElement.classList.contains('show-retired'),true);
 assert.equal(codec.next({...initial,retired:true},'lists/charts-0.html').retired,true);
 assert.equal(codec.next({...initial,page:'lists/charts-0.html',retired:true},'lists/charts-1.html').retired,true);
+// A newly opened anchor clears the measured sticky bars instead of landing under them.
+const sticky=[{style:{position:'sticky',top:'0px'},offsetHeight:45},{style:{position:'sticky',top:'45px'},offsetHeight:40},
+  {style:{position:'static',top:'auto'},offsetHeight:300}];
+const opened=environment('runs/old.html',codec.next(initial,'runs/old.html','e7'),{anchor:'e7',sticky});
+assert.equal(opened.window.scrollY,820-(45+40+12));
+// A shown notice stays dismissible wherever the restored position lands.
+const shown=environment('index.html',wrong,{tabs:['overview','timeline'],dismissible:true});
+const dismiss=shown.notice.nodes.find(n=>n.className==='notice-close');
+assert.equal(shown.notice.hidden,false);
+dismiss.on.click();
+assert.equal(shown.notice.hidden,true);

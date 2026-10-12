@@ -237,7 +237,16 @@ ul.flagged li:first-child { border-top: 0; }
 .workspace-actions, .continuation { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
 .workspace-actions a, .continuation a, .filters button, .relation-diagram summary { min-height: 44px; display: inline-flex; align-items: center; padding: 8px 12px; }
 .selected-id, .relation-scope, .state-notice { overflow-wrap: anywhere; }
-.state-notice { border-left: 4px solid var(--warning); padding: 8px 12px; background: var(--surface); }
+/* A shown notice stays in view wherever a restored position lands, until dismissed. */
+.state-notice { position: fixed; z-index: 20; left: 50%; bottom: 16px; transform: translateX(-50%); width: min(720px, calc(100% - 32px));
+  margin: 0; border: 1px solid var(--border); border-left: 4px solid var(--warning); border-radius: 8px; padding: 8px 12px;
+  background: var(--surface); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12); }
+.notice-close { min-height: 44px; margin-left: 8px; padding: 8px 12px; font: inherit; border: 1px solid var(--border); border-radius: 999px;
+  background: var(--card); color: var(--ink); cursor: pointer; }
+/* Anchored targets clear the sticky top bar and section/jump navigation. */
+[id] { scroll-margin-top: 96px; }
+/* A restored tab or section receives focus as the keyboard start point, without outlining the whole section. */
+section[tabindex="-1"]:focus { outline: none; }
 .relation-map { position: relative; display: grid; grid-template-columns: minmax(0,1fr) minmax(140px,.65fr) minmax(0,1fr); gap: 50px; padding: 12px 0; }
 .relation-in, .relation-out { display: flex; flex-direction: column; gap: 12px; }
 .relation-node, .relation-selected { z-index: 1; background: var(--card); border: 1px solid var(--axis); border-radius: 8px; padding: 10px; overflow-wrap: anywhere; }
@@ -261,15 +270,7 @@ ul.flagged li:first-child { border-top: 0; }
   .relation-in::before { content: "Incoming → selected version"; font-weight: 600; }
   .relation-out::before { content: "Selected version → outgoing"; font-weight: 600; }
   .relation-connectors { display: none; }
-  .page-relations #related { display: flex; flex-direction: column; }
-  .page-relations .relation-diagram { order: 2; }
-  .page-relations .relation-list { margin-top: 0; }
 }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { animation: none !important; transition: none !important; } }
-@media (max-width: 640px) {
-  .page-relations main { display: flex; flex-direction: column; }
-  .page-relations #related { order: 1; }
-  .page-relations #record { order: 2; }
-}
 .relation-node.ref-missing, .relation-node.ref-content_changed { border-color: var(--critical); }
 .relation-node.ref-version_unbound, .relation-node.ref-ambiguous, .relation-node.ref-unknown { border-color: var(--warning); }

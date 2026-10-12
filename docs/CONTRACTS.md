@@ -753,7 +753,8 @@ JavaScript는 URL의 작은 `ws` 상태에 section·페이지 필터·retired �
 이 상태는 새 기록을 쓰거나 모델을 부르지 않습니다. JavaScript가 없어도 링크·관계 목록·페이지 연결로 내용을 읽습니다.
 필터·관계 탐색에 fetch·CDN·로컬 서버를 요구하지 않습니다. 기존 auto-reload는 로컬 `assets/build.js`를 script로 읽습니다.
 
-작은 화면에서는 선택 버전·텍스트 관계 목록을 넓은 그래프와 긴 기록 원문보다 먼저 배치합니다. native scroll·링크·disclosure·
+모든 화면 폭에서 선택 버전·텍스트 관계 목록을 긴 기록 원문보다 먼저 두고, 화면 순서와 DOM·focus 순서가 같습니다.
+작은 화면에서는 넓은 그래프를 접힌 disclosure로 둡니다. 상태 알림은 닫을 때까지 화면에 남고, anchor 대상은 고정 상단 막대 아래에 놓입니다. native scroll·링크·disclosure·
 가시적인 focus·Escape 복귀·reset과 reduced-motion 경로를 제공하며 essential 값을 hover/color만으로 표현하지 않습니다.
 [소유자 화면 QA](design/WORKSPACE-HUMAN-QA.md)는 실제 file URL·키보드·모바일·기록 규모 확인을 요구합니다.
 생성 HTML·Node의 mock DOM/history 시험은 실제 화면 QA가 아니며, 미실행은 `not_run`입니다. Q6/Q9 출시 통과를 여기서 선언하지 않습니다.

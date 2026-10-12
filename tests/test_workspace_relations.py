@@ -65,6 +65,22 @@ def test_exact_versions_and_unbound_names_have_separate_links_and_source_qualifi
     assert p.journal.read_bytes() == before
 
 
+def test_relation_text_follows_edge_direction_and_one_order_serves_every_width(tmp_path):
+    p = project(tmp_path)
+    original = core.record(p, "finding", "원래 발견", origin=ORIGIN).event
+    correction = core.record(p, "finding", "정정", origin=ORIGIN,
+                             refs=[{"type": "event", "event_id": original["id"], "relation": "supersedes"}]).event
+    workspace.build(p)
+    page = (p.workspace_dir / "relations" / workspace_relations.name(original["id"])).read_text(encoding="utf-8")
+    incoming = page.split('<li class="relation-item" data-direction="incoming"><p>', 1)[1].split("</p>", 1)[0]
+    assert incoming.index(correction["id"]) < incoming.index("→ Selected version")  # source → target, like the diagram
+    # Focus follows what is shown: the DOM order is the visual order, with no CSS reordering.
+    assert page.index('id="related"') < page.index('class="relation-diagram"') < page.index('id="evidence"') < page.index('id="record"')
+    assert '<details class="relation-diagram">' in page  # collapsed until the script finds room for its columns
+    css = (p.workspace_dir / "assets" / "workspace.css").read_text(encoding="utf-8")
+    assert not re.search(r"(^|[^-a-z])order\s*:", css)
+
+
 def test_bounded_index_full_continuation_and_paginated_relations_preserve_all_records(tmp_path):
     p = project(tmp_path)
     target = core.record(p, "finding", "重要な古い記録", origin=ORIGIN).event

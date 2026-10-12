@@ -33,7 +33,9 @@ naming the changed basis. Back/forward, refresh and explicit return restore sele
 position, including when browser storage is unavailable.
 
 Portrait 360–430 px leads with the selected version and relation list; the wider diagram is a
-secondary disclosure. Desktop shows the same diagram and list. Native scrolling owns touch and
+secondary disclosure, collapsed where its columns do not fit. Desktop shows the same diagram and list.
+Every width uses one DOM order (selected version, relations, then the stored record), so focus follows
+what is shown. A state notice stays in view until dismissed; anchored targets clear the sticky bars. Native scrolling owns touch and
 wheel gestures; no drag/pinch interception or animated layout. Links, disclosures and filters use
 native keyboard behavior, visible focus, 44 px primary hit areas, Escape to return, and Reset view.
 No essential value depends on hover. Reduced motion disables smooth scrolling. Neutral borders

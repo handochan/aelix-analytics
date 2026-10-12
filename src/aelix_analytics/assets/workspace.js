@@ -57,7 +57,24 @@
   let held = codec.decode(location.search);
   let state = held.state;
   const notice = document.querySelector(".state-notice");
-  function warn(message) { if (notice) { notice.hidden = false; notice.textContent = message; } }
+  function warn(message) {
+    if (!notice) return;
+    notice.hidden = false; notice.textContent = message;
+    if (!notice.append) return;
+    const close = document.createElement("button");
+    close.type = "button"; close.className = "notice-close"; close.textContent = "Dismiss";
+    close.addEventListener("click", () => { notice.hidden = true; });
+    notice.append(" ", close);
+  }
+  // The height the sticky top bar and section/jump navigation cover once stuck.
+  function clearance() {
+    let covered = 0;
+    document.querySelectorAll(".topbar, nav.tabs, nav.jump").forEach(el => {
+      const style = window.getComputedStyle(el);
+      if (style.position === "sticky" || style.position === "fixed") covered = Math.max(covered, (parseFloat(style.top) || 0) + el.offsetHeight);
+    });
+    return covered ? covered + 12 : 72;
+  }
   if (held.invalid) warn("Invalid saved Workspace state was ignored. Select the original item again.");
   if (state && state.source && state.source !== doc.dataset.source) warn("Source records changed since this view was saved. The selected identity is retained; evidence availability is checked now.");
   if (state && selectedIdentity() && state.selection && state.selection !== selectedIdentity()) warn("The requested selected identity is not present on this page. No latest-version substitution was made.");
@@ -134,10 +151,16 @@
     requestAnimationFrame(() => {
       const target = state && state.card ? document.getElementById(state.card) : document.getElementById(anchor());
       if (state && state.card && !target) warn("The original card is no longer in this page's scope. Its saved identity was not replaced by a latest version.");
-      if (state) {
+      if (state && state.card) {
         const position = codec.scrollTarget(state, window.scrollY, target ? target.getBoundingClientRect().top : null);
         if (position !== null) window.scrollTo(0, position);
-      } else if (target) window.scrollTo(0, window.scrollY + target.getBoundingClientRect().top - 72);
+      } else if (target) {
+        // A newly opened anchor has no saved card offset: place it below the sticky navigation.
+        window.scrollTo(0, Math.max(0, window.scrollY + target.getBoundingClientRect().top - clearance()));
+      } else if (state) {
+        const position = codec.scrollTarget(state, window.scrollY, null);
+        if (position !== null) window.scrollTo(0, position);
+      }
       if (target && state && state.card) {
         if (!target.hasAttribute("tabindex")) target.setAttribute("tabindex", "-1");
         target.focus({ preventScroll: true });
@@ -207,6 +230,10 @@
   }
   window.addEventListener("resize", drawRelations);
   document.querySelectorAll(".relation-diagram").forEach(el => el.addEventListener("toggle", drawRelations));
+  // The diagram is a secondary disclosure: it opens by default only where its three columns fit.
+  if (window.matchMedia && window.matchMedia("(min-width: 641px)").matches) {
+    document.querySelectorAll(".relation-diagram").forEach(el => { el.open = true; });
+  }
   restore(state);
 
   // --- live reload: poll assets/build.js (a script tag, so it also works from file://) ---
