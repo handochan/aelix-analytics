@@ -18,7 +18,8 @@ function element(id='') {
 function environment(page, state, options={}) {
   let url = new URL('file:///synthetic/workspace/'+page+codec.search(state)+(options.anchor?'#'+options.anchor:''));
   const events={},docEvents={},frames=[],notice={hidden:true,textContent:''};
-  if(options.dismissible){notice.nodes=[];notice.append=(...nodes)=>notice.nodes.push(...nodes);}
+  if(options.dismissible){notice.nodes=[];notice.append=(...nodes)=>notice.nodes.push(...nodes);notice.contains=node=>notice.nodes.includes(node);}
+  const diagram={open:false,addEventListener(){}};
   const tabs=(options.tabs||[]).map(id=>element(id));
   const card=element(options.card||'e7');card.dataset={selection:card.id,kind:'finding'};
   card.closest=selector=>selector==='.chart-card.is-retired'&&options.retiredCard?card:null;
@@ -34,7 +35,8 @@ function environment(page, state, options={}) {
     querySelector(selector){if(selector==='.state-notice') return notice;if(selector==='main') return {prepend(){}};
       if(selector==='.filters button.on') return buttons.find(b=>b.classList.contains('on'))||null;return null;},
     querySelectorAll(selector){if(selector==='main > section.tab') return tabs;if(selector==='.filters') return options.filters?[bar]:[];
-      if(selector==='a[data-return]') return [back];if(selector==='.topbar, nav.tabs, nav.jump') return options.sticky||[];return [];},createElement(){return element();},
+      if(selector==='a[data-return]') return [back];if(selector==='.topbar, nav.tabs, nav.jump') return options.sticky||[];
+      if(selector==='.relation-diagram') return [diagram];return [];},createElement(){return element();},
     addEventListener(name,callback){(docEvents[name] ||= []).push(callback);}};
   const back={href:'../index.html'};
   const history={state:null,replaceState(value,_,path){this.state=value;url=new URL(path,url);},pushState(value,_,path){this.replaceState(value,_,path);}};
@@ -42,11 +44,12 @@ function environment(page, state, options={}) {
     get search(){return url.search;},get hash(){return url.hash;},reload(){}};
   const window={scrollY:0,AnalyticsWorkspaceState:codec,scrollTo(_,y){this.scrollY=y;},addEventListener(name,callback){(events[name] ||= []).push(callback);},
     getComputedStyle(el){return el.style;}};
+  if('narrow' in options) window.matchMedia=query=>({matches:query==='(max-width: 640px)'&&options.narrow});
   card.getBoundingClientRect=()=>({top:820-window.scrollY});
   vm.runInNewContext(shipped,{window,document,location,history,URL,URLSearchParams,Set,
     requestAnimationFrame:f=>frames.push(f),setInterval(){},setTimeout(){return 1;},clearTimeout(){}});
   while(frames.length) frames.shift()();
-  return {window,document,history,notice,tabs,card,bar,buttons,back,retired,
+  return {window,document,history,notice,tabs,card,bar,buttons,back,retired,diagram,docEvents,
     click(href){const a={href,hasAttribute(){return false;},closest(selector){return selector==='a[href]'?this:card;}};
       docEvents.click.forEach(f=>f({target:a}));return new URL(a.href,url);}};
 }
@@ -92,3 +95,14 @@ const dismiss=shown.notice.nodes.find(n=>n.className==='notice-close');
 assert.equal(shown.notice.hidden,false);
 dismiss.on.click();
 assert.equal(shown.notice.hidden,true);
+// Escape inside the notice closes it instead of leaving the page.
+shown.notice.hidden=false;shown.back.click=()=>assert.fail('Escape in the notice left the page');
+shown.docEvents.keydown.forEach(f=>f({key:'Escape',target:dismiss}));
+assert.equal(shown.notice.hidden,true);
+// The diagram opens by default only where the CSS keeps its three columns.
+assert.equal(environment('relations/selected-0.html',selected,{narrow:false}).diagram.open,true);
+assert.equal(environment('relations/selected-0.html',selected,{narrow:true}).diagram.open,false);
+// A vanished saved card is reported and never replaced by scrolling to another position.
+const vanished=environment('lists/timeline-1.html',{...listState,card:'gone',offset:40});
+assert.equal(vanished.notice.hidden,false);assert.match(vanished.notice.textContent,/no longer in this page/);
+assert.equal(vanished.window.scrollY,0);

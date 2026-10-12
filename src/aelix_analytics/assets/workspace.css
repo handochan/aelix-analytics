@@ -37,7 +37,8 @@
 }
 
 * { box-sizing: border-box; }
-html { scroll-padding-top: 72px; }
+/* Anchored and focused targets clear the sticky top bar and section/jump navigation. */
+html { scroll-padding-top: 96px; }
 body { margin: 0; background: var(--page); color: var(--ink); font: 14px/1.55 var(--sans); }
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
@@ -243,8 +244,6 @@ ul.flagged li:first-child { border-top: 0; }
   background: var(--surface); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12); }
 .notice-close { min-height: 44px; margin-left: 8px; padding: 8px 12px; font: inherit; border: 1px solid var(--border); border-radius: 999px;
   background: var(--card); color: var(--ink); cursor: pointer; }
-/* Anchored targets clear the sticky top bar and section/jump navigation. */
-[id] { scroll-margin-top: 96px; }
 /* A restored tab or section receives focus as the keyboard start point, without outlining the whole section. */
 section[tabindex="-1"]:focus { outline: none; }
 .relation-map { position: relative; display: grid; grid-template-columns: minmax(0,1fr) minmax(140px,.65fr) minmax(0,1fr); gap: 50px; padding: 12px 0; }

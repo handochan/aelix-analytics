@@ -204,6 +204,7 @@
   let scrollTimer;
   window.addEventListener("scroll", () => { clearTimeout(scrollTimer); scrollTimer = setTimeout(() => save(), 180); }, { passive: true });
   document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && notice && !notice.hidden && notice.contains && notice.contains(e.target)) { notice.hidden = true; return; }
     if (e.key === "Escape" && !e.target.matches("input,textarea,select")) {
       const a = document.querySelector("a[data-return]"); if (a) a.click();
     }
@@ -231,7 +232,7 @@
   window.addEventListener("resize", drawRelations);
   document.querySelectorAll(".relation-diagram").forEach(el => el.addEventListener("toggle", drawRelations));
   // The diagram is a secondary disclosure: it opens by default only where its three columns fit.
-  if (window.matchMedia && window.matchMedia("(min-width: 641px)").matches) {
+  if (window.matchMedia && !window.matchMedia("(max-width: 640px)").matches) {
     document.querySelectorAll(".relation-diagram").forEach(el => { el.open = true; });
   }
   restore(state);
