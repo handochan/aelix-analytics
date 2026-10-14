@@ -2,8 +2,15 @@
 
 assets/i18n/en.json holds every key in English and is the source of the kit's words; ko.json holds
 the Korean of the keys it translates, and a key it lacks is shown in English. The generator writes
-English and marks each word a page can switch with its key (`t`, `attr`); assets/i18n.js carries
-both catalogs, so a page switches language in the browser with no server and no fetch.
+English and puts each word a page can switch in a <k-w> element (`t`), or marks a switchable
+attribute with its key (`attr`); assets/i18n.js carries both catalogs, so a page switches language
+in the browser with no server and no fetch.
+
+<k-w> is an element HTML does not know: inline, with no style of its own (a span would take the
+styles of `.crumbs span` or `.badge span`), read the same without a script. A word without values
+whose English names one translation is written bare, `<k-w>Evidence</k-w>`, and the page finds its
+key by its English; any other carries its key, and its values as JSON: `<k-w k="…" a="…">`. Each
+word costs a page a few bytes, which matters on pages that repeat a label per item.
 
 A message never takes what people or scripts wrote as an argument: that text stays its own
 lang="" element beside the kit's words, so it keeps its unknown language in every UI language.
@@ -17,6 +24,7 @@ import hashlib
 import html
 import json
 import re
+from collections import defaultdict
 from importlib import resources
 
 LANGUAGES = ("en", "ko")
@@ -28,6 +36,7 @@ PLACEHOLDER = re.compile(r"\{([a-z][a-z0-9_]*)\}")
 NESTED = re.compile(r"\{@([a-z][a-z0-9_.]*)\}")
 # Both, read in one pass: a value put in is never read again as a placeholder or a nested message.
 TOKEN = re.compile(NESTED.pattern + "|" + PLACEHOLDER.pattern)
+WORD = "k-w"
 _ASSETS = resources.files(__package__) / "assets"
 
 
@@ -59,25 +68,60 @@ def message(key: str, language: str = DEFAULT, **args) -> str:
                      entry)
 
 
-def _args(args: dict, attribute: str | None = None) -> str:
-    if not args:
-        return ""
-    name = f"data-i18n-{attribute}-args" if attribute else "data-i18n-args"
-    data = json.dumps(args, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
-    return f' {name}="{html.escape(data, quote=True)}"'
+def _json(args: dict) -> str:
+    return html.escape(json.dumps(args, ensure_ascii=False, separators=(",", ":"), sort_keys=True), quote=True)
+
+
+@functools.cache
+def _keys_saying() -> dict[str, list[str]]:
+    """English text -> the keys of the messages without values that say it."""
+    said = defaultdict(list)
+    for key, text in catalog(DEFAULT).items():
+        if isinstance(text, str) and "{" not in text:
+            said[text].append(key)
+    return said
+
+
+@functools.cache
+def by_english(key: str) -> bool:
+    """Whether a page may name `key` by its English alone: a message without values, and every
+    other key that says the same English says the same in each translation (or none of them does).
+    workspace-i18n.js finds such a key by the text the page was written in."""
+    text = catalog(DEFAULT)[key]
+    if not isinstance(text, str) or "{" in text:
+        return False
+    keys = _keys_saying()[text]
+    return all(len({catalog(language).get(k) for k in keys}) == 1
+               for language in LANGUAGES if language != DEFAULT)
+
+
+@functools.cache
+def _word(key: str) -> str:
+    named = "" if by_english(key) else f' k="{key}"'
+    return f"<{WORD}{named}>{html.escape(message(key), quote=False)}</{WORD}>"
 
 
 def t(key: str, **args) -> str:
     """The kit's words for `key`, in an element a page switches (it holds no other element)."""
-    return f'<span data-i18n="{key}"{_args(args)}>{html.escape(message(key, **args), quote=False)}</span>'
+    if not args:
+        return _word(key)
+    return (f'<{WORD} k="{key}" a="{_json(args)}">'
+            f"{html.escape(message(key, **args), quote=False)}</{WORD}>")
+
+
+@functools.cache
+def _attr(name: str, key: str) -> str:
+    return f' {name}="{html.escape(message(key), quote=True)}" data-i18n-{name}="{key}"'
 
 
 def attr(name: str, key: str, **args) -> str:
     """A switchable attribute of the kit's words: ` name="…" data-i18n-name="key"`."""
     if name not in ATTRIBUTES:
         raise ValueError(name)
+    if not args:
+        return _attr(name, key)
     return (f' {name}="{html.escape(message(key, **args), quote=True)}" data-i18n-{name}="{key}"'
-            + _args(args, name))
+            f' data-i18n-{name}-args="{_json(args)}"')
 
 
 def digest() -> str:

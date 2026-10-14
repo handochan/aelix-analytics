@@ -118,9 +118,10 @@ def test_a_message_falls_back_to_english_and_fills_its_values_once(monkeypatch):
 
 
 def test_the_markup_escapes_the_words_and_their_values():
-    assert i18n.t("tab.insights") == '<span data-i18n="tab.insights">Insights</span>'
+    # A word without values whose English names one translation is bare; the page finds its key.
+    assert i18n.by_english("tab.insights") and i18n.t("tab.insights") == "<k-w>Insights</k-w>"
     assert i18n.t("context.versions_count", n=3) == \
-        '<span data-i18n="context.versions_count" data-i18n-args="{&quot;n&quot;:3}">3 version(s)</span>'
+        '<k-w k="context.versions_count" a="{&quot;n&quot;:3}">3 version(s)</k-w>'
     assert i18n.attr("title", "badge.input_changed_title", n=2) == (
         f' title="{html.escape(i18n.message("badge.input_changed_title", n=2))}"'
         ' data-i18n-title="badge.input_changed_title" data-i18n-title-args="{&quot;n&quot;:2}"')
@@ -129,6 +130,22 @@ def test_the_markup_escapes_the_words_and_their_values():
     script = i18n.script()
     assert "</" not in script.split("AnalyticsI18n.register(", 1)[1]
     assert script.rstrip().endswith('AnalyticsI18n.start(typeof window === "undefined" ? null : window);')
+
+
+def test_a_word_whose_english_two_translations_share_carries_its_key(monkeypatch):
+    held = {"en": {"a.one": "Same", "a.two": "Same", "a.three": "Other", "a.four": "{n} x"},
+            "ko": {"a.one": "하나", "a.two": "둘", "a.three": "다른"}}
+    caches = (i18n._keys_saying, i18n.by_english, i18n._word)
+    for cached in caches:
+        cached.cache_clear()
+    monkeypatch.setattr(i18n, "catalog", lambda language: held[language])
+    try:
+        assert not i18n.by_english("a.one") and i18n.t("a.one") == '<k-w k="a.one">Same</k-w>'
+        assert i18n.by_english("a.three") and i18n.t("a.three") == "<k-w>Other</k-w>"
+        assert not i18n.by_english("a.four")  # a message with values always carries its key
+    finally:
+        for cached in caches:
+            cached.cache_clear()
 
 
 def test_the_workspace_is_rebuilt_when_only_the_words_change(tmp_path, monkeypatch):
@@ -167,41 +184,50 @@ def marked_project(tmp_path) -> core.Project:
 
 
 class Words(HTMLParser):
-    """The switchable words of a page: (key, args, text) of each data-i18n element, (attribute,
-    key, args, value) of each data-i18n-<attribute>, and any element inside a data-i18n one."""
+    """The switchable words of a page: (key, args, text, bare) of each <k-w>, (attribute, key, args,
+    value) of each data-i18n-<attribute>, (datetime, text) of each <time datetime>, and any element
+    inside a <k-w>."""
 
     VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source",
             "track", "wbr"}
 
     def __init__(self, page: str):
         super().__init__(convert_charrefs=True)
-        self.words, self.attributes, self.nested, self.open = [], [], [], []
+        self.words, self.attributes, self.times, self.nested, self.open = [], [], [], [], []
         self.feed(page)
         self.close()
 
     def handle_starttag(self, tag, attrs):
         held = dict(attrs)
-        if any(key for _, key, _, _ in self.open):
-            self.nested.append((self.open[-1][1], tag))
+        if any(t == i18n.WORD for t, *_ in self.open):
+            self.nested.append(tag)
         for name in i18n.ATTRIBUTES:
             if f"data-i18n-{name}" in held:
                 self.attributes.append((name, held[f"data-i18n-{name}"],
                                         json.loads(held.get(f"data-i18n-{name}-args") or "{}"), held.get(name)))
         if tag not in self.VOID:
-            self.open.append((tag, held.get("data-i18n"), json.loads(held.get("data-i18n-args") or "{}"), []))
+            self.open.append((tag, held, []))
 
     def handle_endtag(self, tag):
         for i in range(len(self.open) - 1, -1, -1):
             if self.open[i][0] == tag:
-                _, key, args, text = self.open[i]
-                if key:
-                    self.words.append((key, args, "".join(text)))
+                _, held, text = self.open[i]
+                if tag == i18n.WORD:
+                    self.words.append((held.get("k"), json.loads(held.get("a") or "{}"), "".join(text), "k" not in held))
+                elif tag == "time" and "datetime" in held:
+                    self.times.append((held["datetime"], "".join(text)))
                 del self.open[i:]
                 return
 
     def handle_data(self, data):
-        if self.open:
-            self.open[-1][3].append(data)
+        for _, _, text in self.open:
+            text.append(data)
+
+
+def english_date(stamp: str) -> str:
+    """What a page shows for a <time datetime>: the day in English, then the time when it has one."""
+    y, m, d, hh, mm = workspace.STAMP.match(stamp).groups()
+    return i18n.message(f"time.date.{int(m)}", y=y, d=int(d)) + (f" {hh}:{mm}" if hh else "")
 
 
 def test_every_switchable_word_is_a_known_key_its_english_and_no_one_s_text(tmp_path):
@@ -209,12 +235,20 @@ def test_every_switchable_word_is_a_known_key_its_english_and_no_one_s_text(tmp_
     workspace.build(project)
     pages = sorted(project.workspace_dir.rglob("*.html"))
     assert len(pages) > 5
-    seen = set()
+    english = {}
+    for key, text in catalog("en").items():
+        if i18n.by_english(key):
+            english.setdefault(text, key)
+    seen, dates = set(), 0
     for path in pages:
         page = path.read_text(encoding="utf-8")
         found = Words(page)
         assert found.nested == [], (path.name, found.nested[:3])
-        for key, args, text in found.words:
+        for key, args, text, bare in found.words:
+            if bare:
+                # Found by its English in the browser: a message without values, one translation.
+                assert text in english, (path.name, text)
+                key = english[text]
             seen.add(key)
             assert text == i18n.message(key, **args), (path.name, key)
             assert MARK not in json.dumps(args) and MARK not in text, (path.name, key, args)
@@ -224,14 +258,16 @@ def test_every_switchable_word_is_a_known_key_its_english_and_no_one_s_text(tmp_
             assert value == i18n.message(key, **args), (path.name, name, key)
             assert MARK not in json.dumps(args) and MARK not in (value or ""), (path.name, name, key, args)
             i18n.message(key, "ko", **args)
+        for stamp, text in found.times:
+            assert text == english_date(stamp), (path.name, stamp, text)
+            dates += 1
         # The page is English without a script, and loads the catalogs before its body.
         assert page.startswith('<!doctype html>\n<html lang="en" ')
         head = page.split("<body", 1)[0]
-        assert 'assets/i18n.js' in head and re.search(r"<script src=\"[^\"]*assets/i18n\.js\?v=[^\"]+\"></script>", head)
-    # The build exercised a good part of the catalog, Korean included.
-    assert len(seen) > 150
-    assets = project.workspace_dir / "assets"
-    script = (assets / "i18n.js").read_text(encoding="utf-8")
+        assert re.search(r"<script src=\"[^\"]*assets/i18n\.js\?v=[^\"]+\"></script>", head)
+    # The build exercised a good part of the catalog, and dates.
+    assert len(seen) > 150 and dates > 5
+    script = (project.workspace_dir / "assets" / "i18n.js").read_text(encoding="utf-8")
     assert script == i18n.script()
 
 

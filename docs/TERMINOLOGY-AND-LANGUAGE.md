@@ -316,7 +316,7 @@ HTML을 그리지 않아 주석이 글자로 보이고, 목표를 읽는 쪽은 
   페이지가 view를 옆에 적는다.
 - 새 프로젝트의 템플릿(`CONTEXT.md`, uv 프로젝트 이름 `analytics-<slug>`)과 데모(데이터·제목·기록·스크립트)는 영어다.
 - 용량은 1024 단위이므로 `KiB`·`MiB`·`GiB`로 적는다. 시각은 기록의 offset 그대로의 벽시계 시각이고 읽는 사람의 시간대로 바꾸지 않는다.
-  날짜는 화면 언어의 형식(`Aug 3, 2026 09:10`, `2026년 8월 3일 09:10`)이며, offset을 포함한 원래 값은 `<time>`의 `datetime`·`title`에 있다.
+  날짜는 화면 언어의 형식(`Aug 3, 2026 09:10`, `2026년 8월 3일 09:10`)이며, offset을 포함한 원래 값은 `<time>`의 `datetime`에 있다.
 - Workspace의 kit 문구는 message key 카탈로그다: `assets/i18n/en.json`이 원본, `ko.json`이 한국어이고, 생성기와 관계 페이지와 스크립트가
   같은 key를 쓴다. status·CLI·SDK·모델 도구의 출력과 게시본의 UI locale은 영어 그대로다(#96 범위 밖). `tests/test_language.py`가
   출하 파일의 한국어(한국어 카탈로그와, 옛 CONTEXT의 목표 제목·고정 표식을 읽는 줄만 허용)와, 한국어 프로젝트의 status·맥락 블록에서

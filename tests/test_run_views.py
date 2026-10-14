@@ -123,7 +123,7 @@ def test_every_consumer_sees_both_forms(tmp_path):
     page = (project.workspace_dir / "runs" / f"{new}.html").read_text(encoding="utf-8")
     assert "Visualizations (1)" in page and 'id="chart-trend"' in page
     assert "scripts/a.py::trend" in page and '"type": "bar"' in page
-    index = (project.workspace_dir / "index.html").read_text(encoding="utf-8")
+    index = plain((project.workspace_dir / "index.html").read_text(encoding="utf-8"))
     assert f"runs/{new}.html#L-main-3" in index and ">v2</span>" in index
 
 

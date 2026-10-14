@@ -116,23 +116,26 @@ STAMP = re.compile(r"(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?")
 
 
 def fmt_day(y: str, m: str, d: str) -> str:
-    """A date in the page's language (time.date.<month>; "Aug 3, 2026" in English)."""
-    return t(f"time.date.{int(m)}", y=y, d=int(d))
+    """A date in English (time.date.<month>: "Aug 3, 2026"). A page shows it in its language from
+    the <time datetime> it is in (workspace-i18n.js)."""
+    return esc(i18n.message(f"time.date.{int(m)}", y=y, d=int(d)))
 
 
 def fmt_time(ts, with_date=True) -> str:
     """A record's time as its record holds it: the wall clock of the record's own offset, never the
-    reader's zone (design WORKSPACE-READABILITY 3.1), the stamp itself in <time datetime>."""
+    reader's zone (design WORKSPACE-READABILITY 3.1). A date carries the stamp in <time datetime>;
+    a time alone (under a day heading) is the same in every language."""
     if not ts:
         return "-"
     text = str(ts)
     found = STAMP.match(text)
     if not found or found.group(4) is None or not 1 <= int(found.group(2)) <= 12:
         text = text.replace("T", " ")
-        return esc(text[:16] if with_date else text[11:16])
+        return esc(text[:16]) if with_date else f"<time>{esc(text[11:16])}</time>"
     y, m, d, hh, mm = found.groups()
-    shown = f"{fmt_day(y, m, d)} {hh}:{mm}" if with_date else f"{hh}:{mm}"
-    return f'<time datetime="{esc(text)}" title="{esc(text)}">{shown}</time>'
+    if not with_date:
+        return f"<time>{hh}:{mm}</time>"
+    return f'<time datetime="{esc(text)}">{fmt_day(y, m, d)} {hh}:{mm}</time>'
 
 
 def fmt_date(ts) -> str:

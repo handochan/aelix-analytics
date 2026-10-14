@@ -768,8 +768,12 @@ From an index or continuation list, selecting a card creates a new origin at tha
 Workspace의 kit 문구(탭·제목·배지·버튼·빈 화면·안내·tooltip·aria-label·알림·문서 제목의 kit 부분)는 message key 카탈로그에서 옵니다.
 `src/aelix_analytics/assets/i18n/en.json`이 원본이고 `ko.json`이 한국어입니다. 한국어에 없는 key는 영어로 보이고 그 요소에 `lang="en"`이 붙습니다.
 
-- **생성 HTML**: 지금처럼 영어이고 `<html lang="en">`입니다. 바꿀 수 있는 문구 요소는 `data-i18n`(key)과 `data-i18n-args`(수와 kit의 값),
-  속성은 `data-i18n-title`·`data-i18n-aria-label`·`data-i18n-placeholder`를 가집니다. 생성기는 두 카탈로그와 runtime을
+- **생성 HTML**: 지금처럼 영어이고 `<html lang="en">`입니다. 바꿀 수 있는 문구는 `<k-w>` 요소입니다. HTML이 모르는 요소라 스타일이 없는
+  inline 요소이고, 스크립트가 없어도 같은 글로 읽힙니다.
+  - 값이 없고 영어 글로 번역 하나를 가리키는 문구는 key 없이 `<k-w>Evidence</k-w>`로 쓰고, 스크립트가 영어 글로 key를 찾습니다.
+  - 그 밖의 문구는 `k`(key)와 `a`(수와 kit의 값, JSON)를 가집니다: `<k-w k="…" a="…">`.
+  - 속성은 `data-i18n-title`·`data-i18n-aria-label`·`data-i18n-placeholder`(값은 `…-args`)를 가지고, 스크립트가 넣는 문구는 `data-i18n`을 가집니다.
+  - 생성기는 두 카탈로그와 runtime을
   `workspace/assets/i18n.js`(전역 `AnalyticsI18n`) 하나로 쓰고, 페이지는 `<head>`에서 그것을 `<script src>`로 읽습니다. fetch·서버가 없어도 `file://`에서 동작합니다.
   카탈로그가 바뀌면 Workspace 지문이 바뀌어 다시 그립니다.
 - **언어 선택**: 상단 막대의 메뉴(`Language · 화면 언어`, 선택지 `English`·`한국어`)는 스크립트가 만듭니다. JavaScript가 없으면 메뉴가 없고 모든 화면이 영어입니다.
@@ -779,7 +783,7 @@ Workspace의 kit 문구(탭·제목·배지·버튼·빈 화면·안내·tooltip
 - **바뀌지 않는 것**: 사람·에이전트·스크립트가 쓴 글(`lang=""` 요소, 메시지 값으로 넘기지 않음), 화면에 원문으로 적는 저장 값, 경로·ID·URL·anchor, 코드,
   CLI·SDK·모델 도구의 출력, 기록 형식. 프로젝트 기본 언어 설정은 없습니다(#95의 열린 결정).
 - **시각**: 기록의 offset 그대로의 벽시계 시각이며 읽는 사람의 시간대로 바꾸지 않습니다. 날짜는 화면 언어로 `Aug 3, 2026 09:10`·`2026년 8월 3일 09:10`처럼 보이고,
-  `<time>`의 `datetime`과 `title`에 기록의 원래 값(offset 포함)이 있습니다.
+  날짜가 있는 시각은 `<time datetime>`에 기록의 원래 값(offset 포함)을 두며 스크립트가 그 값으로 다시 씁니다. 날짜 제목 아래의 시각(`09:10`)은 언어마다 같습니다.
 - **첫 그림**: `<head>`의 스크립트가 `<html lang>`을 먼저 정하고 문구는 본문 끝의 스크립트가 바꿉니다. 영어가 잠깐 보일 수 있으며, 측정은 #96 PR의 검증 기록에 있습니다.
 
 ## D. kit CLI

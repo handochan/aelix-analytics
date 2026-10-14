@@ -1,7 +1,8 @@
 // The Workspace's own words by message key (i18n.py). A page is written in English; each word it can
-// switch carries data-i18n="key" (and data-i18n-args), or data-i18n-<attribute> for an attribute.
-// Elements people and scripts wrote carry lang="" and are never touched. No DOM is needed to format,
-// so nonbrowser Node checks exercise this file too.
+// switch is a <k-w> element — bare when its English names its key, else with k="key" (and a="{values}")
+// — or an attribute marked data-i18n-<attribute>="key"; words a script adds carry data-i18n="key".
+// A date is a <time datetime> written from its stamp. Elements people and scripts wrote carry lang=""
+// and are never touched. No DOM is needed to format, so nonbrowser Node checks exercise this file too.
 (function (root, factory) {
   const api = factory();
   if (typeof module === "object" && module.exports) module.exports = api;
@@ -9,12 +10,22 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
   const LANGUAGES = ["en", "ko"], DEFAULT = "en", KEY = "analytics-language";
-  const ATTRIBUTES = ["title", "aria-label", "placeholder"];
+  const ATTRIBUTES = ["title", "aria-label", "placeholder"], WORD = "k-w";
   let catalogs = { en: {}, ko: {} };
+  // English text -> a key that says it, for the bare words (i18n.by_english keeps them unambiguous).
+  let byEnglish = new Map();
   let current = DEFAULT;
   // Each document's title as it was written (English), so switching back and forth keeps its rest.
   const titles = new WeakMap();
-  function register(data) { if (data && typeof data === "object") catalogs = data; }
+  function register(data) {
+    if (!data || typeof data !== "object") return;
+    catalogs = data;
+    byEnglish = new Map();
+    Object.keys(catalogs[DEFAULT] || {}).forEach(key => {
+      const text = catalogs[DEFAULT][key];
+      if (typeof text === "string" && text.indexOf("{") < 0 && !byEnglish.has(text)) byEnglish.set(text, key);
+    });
+  }
   function known(language) { return LANGUAGES.indexOf(language) >= 0; }
   function has(key) { return Object.prototype.hasOwnProperty.call(catalogs[DEFAULT] || {}, key); }
   function value(arg) {
@@ -59,16 +70,36 @@
       return state && known(state.lang) ? state.lang : null;
     } catch (_) { return null; }
   }
+  // A word's text in the page's language: an English word left in a Korean page says so.
+  function show(el, result) {
+    el.textContent = result.text;
+    if (result.fallback) el.setAttribute("lang", "en"); else el.removeAttribute("lang");
+  }
   function apply(doc, language) {
     current = known(language) ? language : DEFAULT;
     const html = doc.documentElement;
     if (html && html.setAttribute) html.setAttribute("lang", current);
     if (!doc.querySelectorAll) return current;
+    doc.querySelectorAll(WORD).forEach(el => {
+      // A bare word is found by the English the page was written in, once: its key is kept on it.
+      let key = el.getAttribute("k");
+      if (!key) {
+        key = byEnglish.get(el.textContent);
+        if (!key) return;
+        el.setAttribute("k", key);
+      }
+      show(el, format(key, parse(el.getAttribute("a"))));
+    });
     doc.querySelectorAll("[data-i18n]").forEach(el => {
-      const result = format(el.getAttribute("data-i18n"), parse(el.getAttribute("data-i18n-args")));
-      el.textContent = result.text;
-      // An English word left in a Korean page says so; otherwise the page's language holds.
-      if (result.fallback) el.setAttribute("lang", "en"); else el.removeAttribute("lang");
+      show(el, format(el.getAttribute("data-i18n"), parse(el.getAttribute("data-i18n-args"))));
+    });
+    // A date: the wall clock the record wrote, in its own offset (never the reader's zone).
+    doc.querySelectorAll("time[datetime]").forEach(el => {
+      const stamp = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/.exec(el.getAttribute("datetime") || "");
+      const month = stamp ? Number(stamp[2]) : 0;
+      if (month < 1 || month > 12) return;
+      const day = format("time.date." + month, { y: stamp[1], d: Number(stamp[3]) });
+      show(el, { text: day.text + (stamp[4] ? " " + stamp[4] + ":" + stamp[5] : ""), fallback: day.fallback });
     });
     ATTRIBUTES.forEach(name => {
       doc.querySelectorAll("[data-i18n-" + name + "]").forEach(el => {
@@ -122,6 +153,6 @@
     label.appendChild(select);
     return label;
   }
-  return { LANGUAGES, DEFAULT, KEY, register, has, format, t, stored, save, choose, urlLanguage, start, apply, menu,
+  return { LANGUAGES, DEFAULT, KEY, WORD, register, has, format, t, stored, save, choose, urlLanguage, start, apply, menu,
     get language() { return current; } };
 });

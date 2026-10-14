@@ -84,32 +84,53 @@ function page(elements, title, titleKey) {
   const html = node({lang: 'en', 'data-i18n-doctitle': titleKey});
   return {documentElement: html, title, elements,
     querySelectorAll(selector) {
+      if (selector === 'k-w') return elements.filter(el => el.tag === 'k-w');
+      if (selector === 'time[datetime]') return elements.filter(el => el.tag === 'time' && 'datetime' in el.attrs);
       const name = /^\[([a-z0-9-]+)\]$/.exec(selector);
       assert.ok(name, selector);
       return elements.filter(el => name[1] in el.attrs);
     }};
 }
-const tab = node({'data-i18n': 'tab.insights'}, 'Insights');
-const counted = node({'data-i18n': 'context.versions_count', 'data-i18n-args': '{"n":3}'}, '3 version(s)');
-const english = node({'data-i18n': 'x.only_en'}, 'English only');
+function word(attrs, text) { const el = node(attrs, text); el.tag = 'k-w'; return el; }
+function time(attrs, text) { const el = node(attrs, text); el.tag = 'time'; return el; }
+// As the generator writes them: a bare word, a word with its key and values, a word the Korean
+// catalog lacks, and a word a script added (data-i18n).
+const tab = word({}, 'Insights');
+const counted = word({k: 'context.versions_count', a: '{"n":3}'}, '3 version(s)');
+const english = word({k: 'x.only_en'}, 'English only');
+const added = node({'data-i18n': 'action.dismiss'}, 'Dismiss');
+const unknown = word({}, 'Not a message of the kit');
 const written = node({lang: ''}, '사람이 쓴 글 — written as it was');
 const labelled = node({'aria-label': 'Filter by kind', 'data-i18n-aria-label': 'filters.by_kind'});
 const titled = node({title: '2 inputs', 'data-i18n-title': 'badge.input_changed_title', 'data-i18n-title-args': '{"n":2}'});
-const relations = page([tab, counted, english, written, labelled, titled], 'Relations · scripts/a.py::trend', 'page.relations');
+// Dates: a day heading, a time in its record's own offset (never the reader's zone), and a time
+// alone (no datetime: the same in every language).
+const day = time({datetime: '2026-10-01'}, 'Oct 1, 2026');
+const stamped = time({datetime: '2026-08-03T23:46:12.123+09:00'}, 'Aug 3, 2026 23:46');
+const clock = time({}, '23:46');
+const relations = page([tab, counted, english, added, unknown, written, labelled, titled, day, stamped, clock],
+                       'Relations · scripts/a.py::trend', 'page.relations');
 assert.equal(I18n.apply(relations, 'ko'), 'ko');
 assert.equal(I18n.language, 'ko');
 assert.equal(relations.documentElement.attrs.lang, 'ko');
 assert.equal(tab.textContent, ko['tab.insights']);
+assert.equal(tab.attrs.k, 'list.title.insights');  // found by its English once, then kept
 assert.equal(counted.textContent, '버전 3개');
 assert.equal('lang' in tab.attrs, false);
-// A key the Korean catalog lacks is shown in English and says so.
+assert.equal(added.textContent, ko['action.dismiss']);
+// A key the Korean catalog lacks is shown in English and says so; text that is no message is left.
 assert.equal(english.textContent, 'English only');
 assert.equal(english.attrs.lang, 'en');
+assert.equal(unknown.textContent, 'Not a message of the kit');
+assert.equal('k' in unknown.attrs, false);
 // What people wrote is not the kit's: never touched, and it keeps lang="".
 assert.equal(written.textContent, '사람이 쓴 글 — written as it was');
 assert.equal(written.attrs.lang, '');
 assert.equal(labelled.attrs['aria-label'], ko['filters.by_kind']);
 assert.equal(titled.attrs.title, ko['badge.input_changed_title'].replace('{n}', '2'));
+assert.equal(day.textContent, '2026년 10월 1일');
+assert.equal(stamped.textContent, '2026년 8월 3일 23:46');
+assert.equal(clock.textContent, '23:46');
 // The title: the kit's words of the page, then the rest as written.
 assert.equal(relations.title, '관계 · scripts/a.py::trend');
 // And back: the English the page was written in, lang marks gone.
@@ -117,8 +138,11 @@ I18n.apply(relations, 'en');
 assert.equal(relations.documentElement.attrs.lang, 'en');
 assert.equal(tab.textContent, 'Insights');
 assert.equal(counted.textContent, '3 version(s)');
+assert.equal(added.textContent, 'Dismiss');
 assert.equal('lang' in english.attrs, false);
 assert.equal(labelled.attrs['aria-label'], 'Filter by kind');
+assert.equal(day.textContent, 'Oct 1, 2026');
+assert.equal(stamped.textContent, 'Aug 3, 2026 23:46');
 assert.equal(relations.title, 'Relations · scripts/a.py::trend');
 // Another page has its own title (one runtime serves one page in a browser, two here).
 const other = page([], 'Workspace · 지역 매출', 'page.workspace');
