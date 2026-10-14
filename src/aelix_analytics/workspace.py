@@ -37,6 +37,8 @@ LOG_LIMIT = 200_000
 # A run over hundreds of files would otherwise bury the timeline and its own page in paths.
 REF_LIMIT = 12
 FILE_ROW_LIMIT = 60
+INDEX_LIMIT = 50
+CHART_INDEX_LIMIT = 20
 # The Workspace's own words are English (TERMINOLOGY 7); what people and scripts wrote is shown as
 # written. An event kind's label: the stored kind stays the machine value (`gap`, `todo`).
 KIND_LABEL = {"project": "Project", "import": "Import", "run": "Run", "context": "Context",
@@ -168,7 +170,13 @@ class Site:
     carry the identifiers, as_of_seq and source_revision analytics_status gives for the same
     files."""
 
+    esc = staticmethod(esc)
+    user_text = staticmethod(user_text)
+    user_language = USER
+
     def __init__(self, project: core.Project):
+        from .workspace_relations import RelationPages
+
         self.p = project
         self.cache = core.HashCache(project)
         self.model = core.read_model(project, self.cache)
@@ -210,6 +218,7 @@ class Site:
         self.built_at = core.iso()
         self.uses_plotly = False
         self._fig = 0
+        self.relations = RelationPages(self)
 
     # --- links (depth 0 = workspace/, 1 = workspace/runs|data/) ---
 
@@ -244,7 +253,16 @@ class Site:
     def chart_anchor(self, key: str, depth: int) -> str:
         """The gallery card of a logical key: the key an older kit's run recorded in another
         spelling of its script is today's (ReadModel.chart_key), where its card is."""
-        return f"{self.root(depth)}index.html#chart-{slug_key(self.model.chart_key(key))}"
+        key = self.model.chart_key(key)
+        position = next((i for i, chart in enumerate(self.charts) if chart["key"] == key), None)
+        page = f"lists/charts-{position // CHART_INDEX_LIMIT}.html" if position is not None and position >= CHART_INDEX_LIMIT else "index.html"
+        return f"{self.root(depth)}{page}#chart-{slug_key(key)}"
+
+    def relation_actions(self, identity: str, depth: int) -> str:
+        return ('<div class="workspace-actions">' + " ".join(
+            f'<a href="{self.relations.link(identity, depth, anchor=anchor)}">{label}</a>'
+            for anchor, label in (("#evidence", "Evidence"), ("#related", "Related items"),
+                                  ("#history", "History"))) + "</div>")
 
     def script_path(self, run: dict) -> str | None:
         """A run's script path as the gallery reads it: an older kit's spelling as today's
@@ -301,15 +319,15 @@ class Site:
         groups: dict = {}
         for judged in self.model.references(self.source(event) or ""):
             groups.setdefault((judged.get("ref") or {}).get("field"), []).append(judged)
-        for field, group in groups.items():
-            shown = group if field in ("runs", "events", "resolves", "context") else group[:REF_LIMIT]
+        for _field, group in groups.items():
+            shown = group[:REF_LIMIT]
             hidden += len(group) - len(shown)
             if any(j["state"] == "version_unbound" for j in shown):
                 items.append(f'<span class="ref-label" title="the record names no version: the link '
                              f'is the {LATEST}">Version unbound</span>')
             items += [self.ref_html(judged, depth) for judged in shown]
         if hidden:
-            items.append(f'<span class="ref muted" title="The run page lists them all">'
+            items.append(f'<span class="ref muted" title="Related items lists them all">'
                          f'{hidden:,} more</span>')
         return f'<div class="refs">{"".join(items)}</div>' if items else ""
 
@@ -340,7 +358,7 @@ class Site:
             body = self.path_html(path, depth, LATEST) if path else user_text(item)
         elif kind == "event":
             prefix = "Resolves: " if field == "resolves" else ""
-            body = (f'<a href="{esc(self.root(depth))}index.html#{esc(label)}">{prefix}{esc(label)}</a>'
+            body = (f'<a href="{esc(self.relations.content(label, depth) or self.relations.link(label, depth))}">{prefix}{esc(label)}</a>'
                     if found else f"{prefix}{esc(label)}")
         elif kind == "context_version" and found:
             body = (f'<a href="{esc(self.root(depth))}context.html#v-{esc(Path(label).stem)}" '
@@ -366,12 +384,12 @@ class Site:
             body += f' <small class="ref-state tone-{tone}">{esc(words + reason)}</small>'
         return f'<span class="ref ref-{esc(state)}">{body}</span>'
 
-    def closed_badge(self, resolver: dict) -> str:
+    def closed_badge(self, resolver: dict, depth: int = 0) -> str:
         """The badge of a record another one closes by refs.resolves, as the lists select (C1):
         resolved only when the read finds that reference, and otherwise the state it judges, in
         words (a forward refs.resolves is `missing`, record_absent)."""
         source = self.source(resolver) or ""
-        link = f"#{esc(self.anchor(resolver))}"
+        link = "#" + esc(self.anchor(resolver)) if depth == 0 and any(self.source(e) == source for e in self.events[-INDEX_LIMIT:]) else esc(self.relations.content(source, depth) or self.relations.link(source, depth))
         judged = next((j for j in self.model.references(source)
                        if (j.get("ref") or {}).get("field") == "resolves"), None)
         if judged is not None and judged["state"] == "resolved":
@@ -480,15 +498,16 @@ class Site:
         version_links = ""
         if full and len(versions) > 1:
             version_links = ('<div class="versions">Earlier versions: ' + " · ".join(
-                f'<a href="{self.run_link(v["run"], depth)}">{fmt_time(v.get("started_at"))}</a>'
+                f'<a href="{self.run_link(v["run"], depth, "#chart-" + href(str(chart["id"])))}">{fmt_time(v.get("started_at"))}</a>'
                 + (f' <small title="{esc(INFERRED_TITLE)}">(inferred)</small>' if v.get("inferred") else "")
                 for v in versions[-2::-1][:8]) + "</div>")
+        card_id = ("chart-" if full else "recent-chart-") + slug_key(chart["key"])
         classes = "chart-card" + (" is-stale" if fresh["stale"] else "") + \
             (" is-retired" if chart.get("retired") else "")
         caption = (f'<p class="caption"{USER}>{esc(chart["caption"])}</p>' if chart.get("caption")
                    else "")
         return f"""
-<article class="{classes}" id="chart-{slug_key(chart['key'])}">
+<article class="{classes}" id="{card_id}" data-selection="{quote(chart["run"] + "/" + str(chart["id"]), safe="")}">
   <header><h3{USER}>{esc(chart.get('title') or chart['id'])}</h3><div class="badges">{''.join(badges)}</div></header>
   <div class="chart-body">{self.chart_html(chart, depth)}</div>
   {caption}
@@ -499,6 +518,7 @@ class Site:
     <div><dt>Run</dt><dd><a href="{run_page}">{esc(chart['run'])}</a> · {fmt_time(run.get('started_at'))} · {run.get('duration_s', '-')}s</dd></div>
   </dl>
   {version_links}
+  {self.relation_actions(chart["run"] + "/" + str(chart["id"]), depth)}
 </article>"""
 
     # --- tables ---
@@ -542,7 +562,7 @@ class Site:
 
     # --- events ---
 
-    def events_html(self, events, depth: int, *, filters=False) -> str:
+    def events_html(self, events, depth: int, *, filters=False, prefix="") -> str:
         if not events:
             return '<div class="empty">No journal entries yet.</div>'
         out, day = [], None
@@ -554,7 +574,7 @@ class Site:
             resolved = self.resolved.get(ev.get("id"))
             state = ""
             if ev.get("kind") in core.OPEN_KINDS + core.KEY_KINDS and resolved:
-                state = self.closed_badge(resolved)
+                state = self.closed_badge(resolved, depth)
             elif ev.get("kind") in core.OPEN_KINDS:
                 state = ' <span class="badge tone-warning">● Open</span>'
             # A record whose id other lines share is named by its line, and so is its anchor.
@@ -562,10 +582,10 @@ class Site:
             if anchor != ev.get("id"):
                 shown += f' <small title="several journal lines have this id">{esc(source)}</small>'
             out.append(
-                f'<li class="ev" id="{esc(anchor)}" data-kind="{esc(ev.get("kind"))}">'
+                f'<li class="ev" id="{esc(prefix + anchor)}" data-kind="{esc(ev.get("kind"))}" data-selection="{quote(source or "", safe="")}">'
                 f'<div class="ev-head"><time>{fmt_time(ts, with_date=False)}</time>{kind_chip(ev.get("kind"))}'
                 f'<span class="ev-id">{shown}</span><span class="actor">{esc(ev.get("actor"))}</span>{state}</div>'
-                f'<div class="ev-text"{USER}>{esc(ev.get("text"))}</div>{self.refs_html(ev, depth)}</li>')
+                f'<div class="ev-text"{USER}>{esc(ev.get("text"))}</div>{self.refs_html(ev, depth)}{self.relation_actions(source, depth)}</li>')
         chips = ""
         if filters:
             counts = Counter(e.get("kind") for e in events)
@@ -577,14 +597,18 @@ class Site:
 
     # --- page shell ---
 
-    def page(self, depth: int, title: str, crumb: str, body: str, kind: str) -> str:
+    def page(self, depth: int, title: str, crumb: str, body: str, kind: str, *,
+             page_path: str | None = None, selection: str = "") -> str:
         root = self.root(depth)
+        page_path = page_path or ("index.html" if kind == "index" else "context.html" if kind == "context" else "")
+        if kind != "index" and "data-return" not in body:
+            body = f'<div class="workspace-actions"><a data-return href="{root}index.html">Return to origin</a></div>' + body
         v = f"?v={self.build}"  # new URLs per build, so a reload never runs cached assets
         plotly = (f'<script src="{root}assets/plotly.min.js?v={core.KIT_VERSION}"></script>'
                   if self.uses_plotly else "")
         self.uses_plotly = False
         return f"""<!doctype html>
-<html lang="en" data-root="{root}" data-build="{self.build}">
+<html lang="en" data-root="{root}" data-build="{self.build}" data-source="{esc(self.model.source_revision)}" data-page="{href(page_path)}" data-selection="{quote(selection, safe="")}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -597,9 +621,10 @@ class Site:
   <div class="crumbs"><a href="{root}index.html"{USER}>{esc(self.p.title())}</a>{crumb}</div>
   <div class="build">Rendered {fmt_time(self.built_at)} · <label><input type="checkbox" id="live" checked> Auto-reload</label></div>
 </header>
-<main>{body}</main>
+<main><p class="state-notice" role="status" hidden></p>{body}</main>
 <footer>Aelix Analytics {core.KIT_VERSION} · Generated from the run records, the journal and CONTEXT.md — do not edit by hand. · <span class="read-basis">Read at {esc(self.read_footer())}</span></footer>
 {plotly}
+<script src="{root}assets/workspace-state.js{v}"></script>
 <script src="{root}assets/workspace.js{v}"></script>
 </body>
 </html>
@@ -671,6 +696,8 @@ def _build_locked(project: core.Project, if_changed: bool) -> dict:
     out = project.workspace_dir
     (out / "runs").mkdir(parents=True, exist_ok=True)
     (out / "data").mkdir(parents=True, exist_ok=True)
+    (out / "relations").mkdir(parents=True, exist_ok=True)
+    (out / "lists").mkdir(parents=True, exist_ok=True)
     _write_assets(site, out)
     pages = 0
     for run in site.runs:
@@ -681,6 +708,16 @@ def _build_locked(project: core.Project, if_changed: bool) -> dict:
         if view:
             _write(out / "data" / f"{view}.html", dataset_page(site, ds, view), project.platform)
             pages += 1
+    relation_names = set()
+    for identity in sorted(site.relations.identities):
+        count = len(site.model.reference_neighborhood(identity))
+        for n in range(max(1, (count + site.relations.page_size - 1) // site.relations.page_size)):
+            filename = site.relations.filename(identity, n)
+            _write(out / "relations" / filename, site.relations.render(identity, n), project.platform)
+            relation_names.add(filename)
+            pages += 1
+    _prune(out / "relations", relation_names)
+    pages += write_list_pages(site, out)
     _write(out / "context.html", context_page(site), project.platform)
     _write(index, index_page(site), project.platform)
     pages += 2
@@ -717,7 +754,7 @@ def _prune(directory: Path, keep: set[str]) -> None:
 def _write_assets(site: Site, out: Path) -> None:
     assets = out / "assets"
     assets.mkdir(parents=True, exist_ok=True)
-    for name in ("workspace.css", "workspace.js"):
+    for name in ("workspace.css", "workspace.js", "workspace-state.js"):
         with resources.as_file(ASSETS / name) as source:
             shutil.copyfile(source, assets / name)
     code_css = assets / "code.css"
@@ -974,7 +1011,7 @@ def index_page(site: Site) -> str:
             return f'<div class="empty">{empty}</div>'
         return '<ul class="items">' + "".join(
             f'<li id="key-{esc(e["id"])}">{kind_chip(e["kind"])} <span class="item-text"{USER}>{esc(e["text"])}</span>'
-            f'<span class="item-meta"><a href="#{esc(site.anchor(e))}">{esc(site.source(e))}</a> · {fmt_time(e.get("ts"))}</span>'
+            f'<span class="item-meta"><a href="{esc(site.relations.content(site.source(e), 0) or site.relations.link(site.source(e), 0, anchor="#record"))}">{esc(site.source(e))}</a> · {fmt_time(e.get("ts"))}</span>'
             f'{site.refs_html(e, 0)}</li>' for e in reversed(items[-12:])) + "</ul>"
 
     skipped = records_notice(site)
@@ -991,25 +1028,28 @@ def index_page(site: Site) -> str:
   <h2 class="section-title">Recent visualizations</h2>
   <div class="gallery">{''.join(site.chart_card(c, 0) for c in current[:4]) or '<div class="empty">No visualizations yet. Run a script with analytics_run (or analytics run) and its visualizations appear here.</div>'}</div>
   <h2 class="section-title">Recent journal entries</h2>
-  {site.events_html(site.events[-8:][::-1], 0)}
+  {site.events_html(site.events[-8:][::-1], 0, prefix="recent-")}
 </section>"""
 
-    all_cards = "".join(site.chart_card(c, 0, full=True) for c in site.charts)
+    all_cards = "".join(site.chart_card(c, 0, full=True) for c in site.charts[:CHART_INDEX_LIMIT])
     charts = f"""
 <section id="charts" class="tab">
   <div class="toolbar"><h2>Visualizations</h2><label class="toggle"><input type="checkbox" id="show-retired"> Also show those absent from the latest run</label></div>
   <p class="muted">The version from the latest successful run, for each script::chart id. Each card's code, input data and attached data links lead to the records that made it.</p>
+  {list_notice("charts", len(site.charts), CHART_INDEX_LIMIT)}
   <div class="gallery">{all_cards or '<div class="empty">No visualizations yet.</div>'}</div>
 </section>"""
 
     timeline = f"""
 <section id="timeline" class="tab">
   <div class="toolbar"><h2>Timeline</h2></div>
-  {site.events_html(site.events[::-1], 0, filters=True)}
+  {list_notice("timeline", len(site.events), INDEX_LIMIT)}
+  <p>Filters apply to the records on this page.</p>
+  {site.events_html(site.events[-INDEX_LIMIT:][::-1], 0, filters=True)}
 </section>"""
 
     data_rows = []
-    for ds in site.datasets:
+    for ds in site.datasets[:INDEX_LIMIT]:
         view = site.view_by_path.get(ds["path"])
         origin = origin_html(site, ds, 0)
         label = dataset_label(ds["name"], view)
@@ -1024,12 +1064,13 @@ def index_page(site: Site) -> str:
     data = f"""
 <section id="data" class="tab">
   <div class="toolbar"><h2>Data</h2></div>
+  {list_notice("data", len(site.datasets), INDEX_LIMIT)}
   <p class="muted">{esc(imported_note(site))}, data/derived the Parquet files runs made. Each dataset shows its name as written and, where they differ, its SQL view — the name analytics_query and analytics.sql use.</p>
   {('<div class="table-wrap"><table class="list"><thead><tr><th>Dataset</th><th>Kind</th><th>Rows</th><th>Columns</th><th>Size</th><th>Path</th><th>Source / producer candidates</th><th>Used by runs</th><th>sha256</th></tr></thead><tbody>' + ''.join(data_rows) + '</tbody></table></div>') if data_rows else '<div class="empty">No datasets yet. Import one with analytics_import (or analytics import).</div>'}
 </section>"""
 
     run_rows = []
-    for run in site.runs[::-1]:
+    for run in site.runs[-INDEX_LIMIT:][::-1]:
         repro = relations.run_reproduction(run) or {}
         verdict = ""
         if repro:
@@ -1045,6 +1086,7 @@ def index_page(site: Site) -> str:
     runs = f"""
 <section id="runs" class="tab">
   <div class="toolbar"><h2>Runs</h2></div>
+  {list_notice("runs", len(site.runs), INDEX_LIMIT)}
   {('<div class="table-wrap"><table class="list"><thead><tr><th>Started</th><th>Run</th><th>Status</th><th>Title</th><th>Visualizations</th><th>Inputs</th><th>Outputs</th><th>Seconds</th></tr></thead><tbody>' + ''.join(run_rows) + '</tbody></table></div>') if run_rows else '<div class="empty">No runs yet.</div>'}
 </section>"""
 
@@ -1070,8 +1112,65 @@ def index_page(site: Site) -> str:
   </div>
 </section>"""
 
-    return site.page(0, "Workspace", "", overview + charts + timeline + data + runs + context + asset_section(site)
+    return site.page(0, "Workspace", "", overview + insights_section(site) + charts + timeline + data + runs + context + asset_section(site)
                      + evaluation_section(site), "index")
+
+
+def list_notice(kind: str, total: int, limit: int, depth: int = 0) -> str:
+    more = max(0, total - limit)
+    if not more:
+        return ""
+    return (f'<p class="list-scope">Showing {min(total, limit):,} of {total:,}; {more:,} outside this page. '
+            f'<a href="{"../" * depth}lists/{kind}-0.html">Browse all {kind}</a></p>')
+
+
+def insights_section(site: Site) -> str:
+    events = [e for e in site.events if e.get("kind") in core.KEY_KINDS]
+    cards = "".join(
+        f'<article class="panel" id="insight-{esc(site.anchor(e))}"><h3>{kind_chip(e["kind"])} {esc(site.source(e))}</h3>'
+        f'<p{USER}>{esc(e.get("text"))}</p><p>State: {esc((site.model.journal.replay().state_of(site.source(e)) or {}).get("state", "unknown"))}</p>'
+        f'{site.relation_actions(site.source(e), 0)}</article>' for e in events[-INDEX_LIMIT:][::-1])
+    return ('<section id="insights" class="tab"><h2>Insights</h2>'
+            '<p>Findings, decisions and assumptions are recorded judgments. Evidence and conclusion review are separate. '
+            '<a href="#assets">Analysis assets and asset suggestions</a></p>'
+            + list_notice("insights", len(events), INDEX_LIMIT)
+            + (cards or '<div class="empty">No findings, decisions or assumptions recorded.</div>') + '</section>')
+
+
+def write_list_pages(site: Site, out: Path) -> int:
+    groups = {"timeline": list(reversed(site.events)), "insights": [e for e in reversed(site.events) if e.get("kind") in core.KEY_KINDS],
+              "feedback": list(reversed(site.lists.feedback)), "charts": site.charts,
+              "runs": list(reversed(site.runs)), "data": site.datasets}
+    keep = set()
+    for kind, records in groups.items():
+        limit = CHART_INDEX_LIMIT if kind == "charts" else INDEX_LIMIT
+        for page in range(max(1, (len(records) + limit - 1) // limit)):
+            filename = f"{kind}-{page}.html"
+            subset = records[page * limit:(page + 1) * limit]
+            if kind in ("timeline", "insights", "feedback"):
+                content = site.events_html(subset, 1, filters=True)
+            elif kind == "charts":
+                content = ('<label class="toggle"><input type="checkbox" id="show-retired"> Also show those absent from the latest run</label>'
+                           + '<div class="gallery">' + ''.join(site.chart_card(c, 1, full=True) for c in subset) + '</div>')
+            else:
+                content = '<ul class="plain">' + ''.join(
+                    f'<li><a href="{site.run_link(r["id"], 1) if kind == "runs" else site.data_link(r["path"], 1)}"{USER}>'
+                    f'{esc(r.get("title") or r.get("name") or r.get("id"))}</a>'
+                    f'{site.relation_actions("run:" + r["id"] if kind == "runs" else r["path"], 1)}</li>'
+                    for r in subset) + '</ul>'
+            nav = (f'<a href="{kind}-{page-1}.html">Previous {kind}</a>' if page else '')
+            if (page+1) * limit < len(records):
+                nav += f' <a href="{kind}-{page+1}.html">Next {kind}</a>'
+            start = page * limit + 1 if subset else 0
+            body = (f'<h1>{esc(kind.title())}</h1><p class="list-scope">Items {start}–{page * limit + len(subset)} '
+                    f'of {len(records):,}; {len(records)-len(subset):,} outside this page. Filters apply to this page.</p>'
+                    '<p class="state-notice" role="status" hidden></p><a data-return href="../index.html">Return to origin</a>'
+                    + content + f'<nav class="continuation" aria-label="List pages">{nav}</nav>')
+            _write(out / "lists" / filename, site.page(1, kind.title(), ' <span>/</span> Browse', body, "list",
+                                                      page_path="lists/" + filename), site.p.platform)
+            keep.add(filename)
+    _prune(out / "lists", keep)
+    return len(keep)
 
 
 def asset_section(site: Site) -> str:
@@ -1097,7 +1196,8 @@ def asset_section(site: Site) -> str:
             if (isinstance(scores, dict) and set(scores) == {"demand", "checks", "scope", "benefit"}
                     and all(type(value) is int for value in scores.values())):
                 score = f"Recorded score: {sum(scores.values())}/10 at seq {snapshot['details'].get('as_of_seq')} ({snapshot['id']})"
-            source = f'<a href="#{esc(event_id)}">{esc(event_id)} · canonical journal references</a>'
+            target = ("#" + site.anchor(candidate)) if any(site.source(e) == event_id for e in site.events[-INDEX_LIMIT:]) else site.relations.link(event_id, 0, anchor="#record")
+            source = f'<a href="{esc(target)}">{esc(event_id)} · canonical journal references</a>'
             versions.append(f'<details id="asset-{esc(event_id)}"><summary>{source} · {esc(score)}</summary>'
                             f'<p{USER}>{esc(candidate["details"]["problem"])}</p>{site.refs_html(candidate, 0)}'
                             f'<h4>Stored candidate fields</h4><pre{USER}>{esc(json.dumps(candidate, ensure_ascii=False, indent=2))}</pre>'
@@ -1177,13 +1277,13 @@ def evaluation_section(site: Site) -> str:
         f"<tr><td><code>{esc(tool)}</code></td><td class='num'>{len(items)}</td>"
         f"<td class='num'>{sum(1 for i in items if i.get('error'))}</td>"
         f"<td class='num'>{fmt_num(round(sum(i.get('ms') or 0 for i in items) / max(1, len(items))))}</td></tr>"
-        for tool, items in sorted(by_tool.items(), key=lambda kv: -len(kv[1])))
+        for tool, items in sorted(by_tool.items(), key=lambda kv: -len(kv[1]))[:INDEX_LIMIT])
     flagged = [t for t in site.telemetry if t.get("flags")]
     flag_items = "".join(
         f"<li><time>{fmt_time(t.get('ts'))}</time> <code>{esc(t.get('tool'))}</code> "
         f"{''.join(badge('warning', '⚑', f) for f in t['flags'])} <span class='muted'{USER}>{esc(t.get('summary'))}</span></li>"
         for t in flagged[::-1][:30])
-    gap_html = site.events_html(gaps[::-1], 0) if gaps else \
+    gap_html = site.events_html(gaps[-INDEX_LIMIT:][::-1], 0, prefix="feedback-") if gaps else \
         '<div class="empty">No workflow feedback yet. Record where the tools got in the way or needed a workaround with /analytics record workflow_feedback TEXT or analytics_record(kind="workflow_feedback").</div>'
     telemetry_html = (f'<div class="table-wrap"><table class="list"><thead><tr><th>Tool</th><th>Calls</th>'
                       f'<th>Errors</th><th>Mean ms</th></tr></thead><tbody>{tool_rows}</tbody></table></div>'
@@ -1193,7 +1293,7 @@ def evaluation_section(site: Site) -> str:
   <div class="toolbar"><h2>Evaluation</h2></div>
   <p class="muted">Where the tools fell short or needed a workaround during the analysis, how much the records cover, and how the agent used its tools.</p>
   <div class="columns">
-    <div class="panel"><h3>Workflow feedback ({len(gaps)})</h3>{gap_html}</div>
+    <div class="panel"><h3>Workflow feedback ({len(gaps)})</h3>{list_notice("feedback", len(gaps), INDEX_LIMIT)}{gap_html}</div>
     <div class="panel"><h3>Record coverage</h3><div class="table-wrap"><table class="kv">{signals}</table></div></div>
   </div>
   <div class="columns">
@@ -1315,12 +1415,13 @@ def run_page(site: Site, run: dict) -> str:
                         f'{esc(core.INFERRED_NOTE)}</small>'
                         if key != core.chart_key(run, chart) else "")
         charts.append(f"""
-<article class="chart-card wide" id="chart-{esc(chart['id'])}">
+<article class="chart-card wide" id="chart-{esc(chart['id'])}" data-selection="{quote(rid + "/" + str(chart["id"]), safe="")}">
   <header><h3{USER}>{esc(chart.get('title'))}</h3><div class="badges"><span class="badge tone-muted">{esc(chart.get('kind'))} · {esc(chart.get('via'))}</span></div></header>
   <div class="chart-body">{site.chart_html(chart, 1, lazy=False)}</div>
   {f'<p class="caption"{USER}>{esc(chart["caption"])}</p>' if chart.get('caption') else ''}
   <div class="prov-line">id <code{USER}>{esc(key)}</code>{inferred_key}{line} · <a href="{site.chart_anchor(key, 1)}">Show in Visualizations</a></div>
   {data_block}
+  {site.relation_actions(rid + "/" + str(chart["id"]), 1)}
 </article>""")
     charts_html = "".join(charts) or '<div class="empty">This run made no visualizations.</div>'
 
@@ -1422,7 +1523,8 @@ def run_page(site: Site, run: dict) -> str:
 <pre class="cmd">aelix: analytics_run(title="Rerun comparison", rerun_of="{esc(rid)}")
 CLI:   analytics run --rerun-of {esc(rid)}</pre></section>"""
     crumb = f' <span>/</span> <a href="../index.html#runs">Runs</a> <span>/</span> {esc(rid)}'
-    return site.page(1, run.get("title") or rid, crumb, body, "run")
+    return site.page(1, run.get("title") or rid, crumb, site.relation_actions("run:" + rid, 1) + body, "run",
+                     page_path="runs/" + rid + ".html", selection="run:" + rid)
 
 
 # --- dataset page ---
@@ -1517,7 +1619,8 @@ def dataset_page(site: Site, ds: dict, view: str) -> str:
 <section><h2>Query</h2><pre class="cmd">analytics_query(sql="SELECT * FROM {esc(view)} LIMIT 20")
 analytics.read("{esc(view)}")   ·   analytics.sql("SELECT count(*) FROM {esc(view)}").pl()</pre></section>"""
     crumb = f' <span>/</span> <a href="../index.html#data">Data</a> <span>/</span> {user_text(label)}'
-    return site.page(1, label, crumb, body, "dataset")
+    return site.page(1, label, crumb, site.relation_actions(ds["path"], 1) + body, "dataset",
+                     page_path="data/" + view + ".html", selection=ds["path"])
 
 
 # --- context page ---
@@ -1547,7 +1650,7 @@ def context_page(site: Site) -> str:
             for d in diff) or '<span class="ctx">(first version)</span>\n'
         event = next((e for e in site.events if (e.get("refs") or {}).get("context") == v.name), None)
         who = f" · {esc(event.get('actor'))} · {esc(event.get('id'))}" if event else ""
-        blocks.append(f'<article class="version" id="v-{esc(v.stem)}"><h3>{fmt_time(core._version_time(v))}{who}</h3>'
+        blocks.append(site.relation_actions("context:" + v.name, 0) + f'<article class="version" id="v-{esc(v.stem)}"><h3>{fmt_time(core._version_time(v))}{who}</h3>'
                       f'<pre class="diff"{USER if diff else ""}>{lines}</pre></article>')
     body = f"""
 <div class="page-head"><h1>Context history</h1><div class="sub">Each change to CONTEXT.md leaves a version in .analytics/context/ (.lab/context/ holds a lab.json project's, listed here too). A new version is noticed at a run, an import, a record and a Workspace render.</div></div>

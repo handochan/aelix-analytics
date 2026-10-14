@@ -37,7 +37,8 @@
 }
 
 * { box-sizing: border-box; }
-html { scroll-padding-top: 72px; }
+/* Anchored and focused targets clear the sticky top bar and section/jump navigation. */
+html { scroll-padding-top: 96px; }
 body { margin: 0; background: var(--page); color: var(--ink); font: 14px/1.55 var(--sans); }
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
@@ -230,3 +231,45 @@ pre.diff .hunk { color: var(--muted); }
 .markdown code { background: var(--surface); padding: 1px 4px; border-radius: 4px; }
 ul.flagged li { padding: 5px 0; border-top: 1px solid var(--grid); font-size: 13px; }
 ul.flagged li:first-child { border-top: 0; }
+
+/* Selected references: geometry follows real text boxes, never scaled labels. */
+[hidden] { display: none !important; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.workspace-actions, .continuation { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.workspace-actions a, .continuation a, .filters button, .relation-diagram summary { min-height: 44px; display: inline-flex; align-items: center; padding: 8px 12px; }
+.selected-id, .relation-scope, .state-notice { overflow-wrap: anywhere; }
+/* A shown notice stays in view wherever a restored position lands, until dismissed. */
+.state-notice { position: fixed; z-index: 20; left: 50%; bottom: 16px; transform: translateX(-50%); width: min(720px, calc(100% - 32px));
+  margin: 0; border: 1px solid var(--border); border-left: 4px solid var(--warning); border-radius: 8px; padding: 8px 12px;
+  background: var(--surface); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12); }
+.notice-close { min-height: 44px; margin-left: 8px; padding: 8px 12px; font: inherit; border: 1px solid var(--border); border-radius: 999px;
+  background: var(--card); color: var(--ink); cursor: pointer; }
+/* A restored tab or section receives focus as the keyboard start point, without outlining the whole section. */
+section[tabindex="-1"]:focus { outline: none; }
+.relation-map { position: relative; display: grid; grid-template-columns: minmax(0,1fr) minmax(140px,.65fr) minmax(0,1fr); gap: 50px; padding: 12px 0; }
+.relation-in, .relation-out { display: flex; flex-direction: column; gap: 12px; }
+.relation-node, .relation-selected { z-index: 1; background: var(--card); border: 1px solid var(--axis); border-radius: 8px; padding: 10px; overflow-wrap: anywhere; }
+.relation-node small { display: block; margin: 6px 0 0; color: var(--ink-2); }
+.relation-selected { align-self: center; border: 2px solid var(--accent); background: var(--accent-wash); }
+.relation-selected div { margin-top: 8px; }
+.relation-connectors { position: absolute; width: 100%; height: 100%; inset: 0; pointer-events: none; }
+.relation-connectors path { stroke: var(--ink-2); fill: none; stroke-width: 1.5; }
+.relation-list { padding-left: 22px; }
+.relation-item { border-top: 1px solid var(--grid); padding: 8px 0; overflow-wrap: anywhere; }
+.relation-item p { margin: 6px 0; }
+.relation-item pre, #record pre { white-space: pre-wrap; overflow-wrap: anywhere; background: var(--surface); padding: 12px; }
+#record .lead { white-space: pre-wrap; }
+@media (max-width: 640px) {
+  main { padding: 12px 14px 40px; }
+  .topbar { padding: 8px 14px; flex-wrap: wrap; }
+  .tabs { position: static; margin: 0 -14px 12px; padding: 0 14px; }
+  .build { white-space: normal; }
+  .relation-map { grid-template-columns: 1fr; gap: 12px; }
+  .relation-selected { grid-row: 1; }
+  .relation-in::before { content: "Incoming → selected version"; font-weight: 600; }
+  .relation-out::before { content: "Selected version → outgoing"; font-weight: 600; }
+  .relation-connectors { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { animation: none !important; transition: none !important; } }
+.relation-node.ref-missing, .relation-node.ref-content_changed { border-color: var(--critical); }
+.relation-node.ref-version_unbound, .relation-node.ref-ambiguous, .relation-node.ref-unknown { border-color: var(--warning); }

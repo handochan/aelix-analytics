@@ -45,7 +45,7 @@ from .writer import migration_record as migration_record
 from .writer import new_request_id as new_request_id
 from .writer import present_marker as present_marker
 
-KIT_VERSION = "0.14.0"
+KIT_VERSION = "0.15.0"
 # The marker and the record families of the projects this kit writes: the new format's, through
 # the common writer (writer.Writer, Issue #13 PR 3; writer.FAMILIES). A project is found by either
 # marker, analytics.json or lab.json, and judged by writer.marker_state: a lab.json project
@@ -2889,11 +2889,7 @@ def retrieve(project: Project, *, part="records", query="", id=None, cursor=None
             sources = model.incoming_sources(id) if direction != "outgoing" else []
             if not sources:
                 _query_record(model, id)
-            outgoing = model.references(id) if direction != "incoming" else []
-            rows = [{"direction": "outgoing", **judged} for judged in outgoing]
-            for source in sources:
-                rows += [{"direction": "incoming", **judged} for judged in model.references(source)
-                         if relations.query_target(judged) == id]
+            rows = model.reference_neighborhood(id, direction)
         elif checkpoint_id:
             event = model.journal.event_of(id)
             if event is None or event.kind != "checkpoint":
