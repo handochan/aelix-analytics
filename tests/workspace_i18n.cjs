@@ -76,23 +76,25 @@ assert.equal(I18n.start(null), 'en');
 
 // --- switching a page: the kit's words, their attributes, <html lang> and the title ---
 function node(attrs = {}, text = '') {
-  return {attrs: {...attrs}, textContent: text,
-    getAttribute(k) { return k in this.attrs ? this.attrs[k] : null; },
+  return {attrs: {...attrs}, textContent: text, nodeType: 1, localName: 'span',
+    getAttribute(k) { return k in this.attrs ? this.attrs[k] : null; }, hasAttribute(k) { return k in this.attrs; },
     setAttribute(k, v) { this.attrs[k] = String(v); }, removeAttribute(k) { delete this.attrs[k]; }};
+}
+// The selectors workspace-i18n.js asks for: a list of `k-w`, `time[datetime]` and `[attribute]`.
+function matches(el, selector) {
+  return selector.split(',').some(one => {
+    const part = /^([a-z-]*)(?:\[([a-z0-9-]+)\])?$/.exec(one.trim());
+    assert.ok(part, one);
+    return (!part[1] || el.localName === part[1]) && (!part[2] || el.hasAttribute(part[2]));
+  });
 }
 function page(elements, title, titleKey) {
   const html = node({lang: 'en', 'data-i18n-doctitle': titleKey});
   return {documentElement: html, title, elements,
-    querySelectorAll(selector) {
-      if (selector === 'k-w') return elements.filter(el => el.tag === 'k-w');
-      if (selector === 'time[datetime]') return elements.filter(el => el.tag === 'time' && 'datetime' in el.attrs);
-      const name = /^\[([a-z0-9-]+)\]$/.exec(selector);
-      assert.ok(name, selector);
-      return elements.filter(el => name[1] in el.attrs);
-    }};
+    querySelectorAll(selector) { return elements.filter(el => matches(el, selector)); }};
 }
-function word(attrs, text) { const el = node(attrs, text); el.tag = 'k-w'; return el; }
-function time(attrs, text) { const el = node(attrs, text); el.tag = 'time'; return el; }
+function word(attrs, text) { const el = node(attrs, text); el.localName = 'k-w'; return el; }
+function time(attrs, text) { const el = node(attrs, text); el.localName = 'time'; return el; }
 // As the generator writes them: a bare word, a word with its key and values, a word the Korean
 // catalog lacks, and a word a script added (data-i18n).
 const tab = word({}, 'Insights');
@@ -153,6 +155,78 @@ assert.equal(relations.title, '관계 · scripts/a.py::trend');
 // A language the kit does not have shows English.
 assert.equal(I18n.apply(relations, 'fr'), 'en');
 assert.equal(tab.textContent, 'Insights');
+
+// --- in the head: words switched as the parser adds them, before the page paints ---
+// A small tree the "parser" appends to; the observer is told of each addition, as a browser would.
+function parsed(storage, search) {
+  const observers = [], loaded = [];
+  class MutationObserver {
+    constructor(callback) { this.callback = callback; this.on = false; observers.push(this); }
+    observe() { this.on = true; }
+    disconnect() { this.on = false; }
+  }
+  function tree(el) {
+    el.children = [];
+    el.querySelectorAll = selector => el.children.flatMap(c => c.nodeType === 1 ? [...(matches(c, selector) ? [c] : []), ...c.querySelectorAll(selector)] : []);
+    el.matches = selector => matches(el, selector);
+    return el;
+  }
+  const root = tree(node({lang: 'en'}));
+  root.localName = 'html';
+  const win = {location: {search}, MutationObserver,
+    document: {documentElement: root, addEventListener(name, f) { loaded.push(f); }}};
+  Object.defineProperty(win, 'localStorage', {get() { if (storage === blocked) throw new Error('SecurityError'); return storage; }});
+  let writes = 0;
+  function add(parent, child) {
+    child.parentNode = parent;
+    child.previousSibling = parent.children[parent.children.length - 1] || null;
+    parent.children.push(child);
+    observers.filter(o => o.on).forEach(o => o.callback([{addedNodes: [child]}]));
+    return child;
+  }
+  function element(localName, attrs = {}) {
+    const el = tree(node(attrs));
+    el.localName = localName;
+    let text = '';
+    Object.defineProperty(el, 'textContent', {get() { return text; }, set(v) { text = v; writes += 1; }});
+    el.grow = more => { text += more; };  // the parser adding to a text node: no childList record
+    return el;
+  }
+  const textNode = value => ({nodeType: 3, textContent: value});
+  return {win, root, add, element, textNode, observers, loaded, writes: () => writes};
+}
+const reading = parsed(memory({'analytics-language': 'ko'}), '');
+assert.equal(I18n.start(reading.win), 'ko');
+assert.equal(reading.root.attrs.lang, 'ko');
+const body = reading.add(reading.root, reading.element('body'));
+const first = reading.add(body, reading.element('k-w'));
+first.grow('Insights');
+reading.add(first, reading.textNode('Insights'));
+assert.equal(first.textContent, 'Insights');  // nothing after it yet: its text may not be whole
+reading.add(body, reading.textNode(' · '));
+assert.equal(first.textContent, ko['tab.insights']);  // the parser moved past it: switched
+// A word whose text arrives in parts is switched once it is whole, never by its first part
+// ("Run" is a message too).
+const whole = reading.add(body, reading.element('k-w'));
+whole.grow('Run');
+reading.add(whole, reading.textNode('Run'));
+assert.equal(whole.textContent, 'Run');
+whole.grow(' failed');
+const dated = reading.add(body, reading.element('time', {datetime: '2026-10-01T09:10:00+09:00'}));
+dated.grow('Oct 1, 2026 09:10');
+reading.add(body, reading.element('footer'));
+assert.equal(whole.textContent, ko['verdict.failed']);
+assert.equal(dated.textContent, '2026년 10월 1일 09:10');
+// Switching again writes nothing (each write would be another mutation for the observer).
+const before = reading.writes();
+I18n.apply(reading.win.document, 'ko');
+assert.equal(reading.writes(), before);
+// Read: the observer stops. And an English page has none.
+reading.loaded.forEach(f => f());
+assert.equal(reading.observers.every(o => !o.on), true);
+const plain = parsed(memory(), '');
+assert.equal(I18n.start(plain.win), 'en');
+assert.equal(plain.observers.length, 0);
 
 // --- the language menu: each language named in its own language ---
 function element(tag) {

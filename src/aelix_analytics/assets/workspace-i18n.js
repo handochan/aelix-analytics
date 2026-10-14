@@ -71,49 +71,52 @@
       return state && known(state.lang) ? state.lang : null;
     } catch (_) { return null; }
   }
-  // A word's text in the page's language: an English word left in a Korean page says so.
+  // A word's text in the page's language: an English word left in a Korean page says so. Text that is
+  // already right is not written again (a write is a mutation, which the head's observer would see).
   function show(el, result) {
-    el.textContent = result.text;
-    if (result.fallback) el.setAttribute("lang", "en"); else el.removeAttribute("lang");
+    if (el.textContent !== result.text) el.textContent = result.text;
+    if (result.fallback) el.setAttribute("lang", "en"); else if (el.hasAttribute("lang")) el.removeAttribute("lang");
+  }
+  // A key found by the English the page was written in, once: it is kept on the element.
+  function keyOf(el, name, english) {
+    let key = el.getAttribute(name);
+    if (!key) {
+      key = byEnglish.get(english);
+      if (!key) return null;
+      el.setAttribute(name, key);
+    }
+    return key;
+  }
+  const SWITCHED = WORD + ",[data-i18n],time[datetime]," + ATTRIBUTES.map(name => "[data-i18n-" + name + "]").join(",");
+  function switchOne(el) {
+    const tag = String(el.localName || el.tagName || "").toLowerCase();
+    if (tag === WORD) {
+      const key = keyOf(el, "k", el.textContent);
+      if (key) show(el, format(key, parse(el.getAttribute("a"))));
+    } else if (tag === "time" && el.hasAttribute("datetime")) {
+      // A date: the wall clock the record wrote, in its own offset (never the reader's zone).
+      const stamp = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/.exec(el.getAttribute("datetime") || "");
+      const month = stamp ? Number(stamp[2]) : 0;
+      if (month >= 1 && month <= 12) {
+        const day = format("time.date." + month, { y: stamp[1], d: Number(stamp[3]) });
+        show(el, { text: day.text + (stamp[4] ? " " + stamp[4] + ":" + stamp[5] : ""), fallback: day.fallback });
+      }
+    }
+    if (el.hasAttribute("data-i18n")) show(el, format(el.getAttribute("data-i18n"), parse(el.getAttribute("data-i18n-args"))));
+    ATTRIBUTES.forEach(name => {
+      if (!el.hasAttribute("data-i18n-" + name)) return;
+      // A bare mark: the key is found by the attribute's English, as for a bare word.
+      const key = keyOf(el, "data-i18n-" + name, el.getAttribute(name));
+      const text = key && t(key, parse(el.getAttribute("data-i18n-" + name + "-args")));
+      if (text && el.getAttribute(name) !== text) el.setAttribute(name, text);
+    });
   }
   function apply(doc, language) {
     current = known(language) ? language : DEFAULT;
     const html = doc.documentElement;
     if (html && html.setAttribute) html.setAttribute("lang", current);
     if (!doc.querySelectorAll) return current;
-    doc.querySelectorAll(WORD).forEach(el => {
-      // A bare word is found by the English the page was written in, once: its key is kept on it.
-      let key = el.getAttribute("k");
-      if (!key) {
-        key = byEnglish.get(el.textContent);
-        if (!key) return;
-        el.setAttribute("k", key);
-      }
-      show(el, format(key, parse(el.getAttribute("a"))));
-    });
-    doc.querySelectorAll("[data-i18n]").forEach(el => {
-      show(el, format(el.getAttribute("data-i18n"), parse(el.getAttribute("data-i18n-args"))));
-    });
-    // A date: the wall clock the record wrote, in its own offset (never the reader's zone).
-    doc.querySelectorAll("time[datetime]").forEach(el => {
-      const stamp = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/.exec(el.getAttribute("datetime") || "");
-      const month = stamp ? Number(stamp[2]) : 0;
-      if (month < 1 || month > 12) return;
-      const day = format("time.date." + month, { y: stamp[1], d: Number(stamp[3]) });
-      show(el, { text: day.text + (stamp[4] ? " " + stamp[4] + ":" + stamp[5] : ""), fallback: day.fallback });
-    });
-    ATTRIBUTES.forEach(name => {
-      doc.querySelectorAll("[data-i18n-" + name + "]").forEach(el => {
-        // A bare mark: the key is found by the attribute's English, once, as for a bare word.
-        let key = el.getAttribute("data-i18n-" + name);
-        if (!key) {
-          key = byEnglish.get(el.getAttribute(name));
-          if (!key) return;
-          el.setAttribute("data-i18n-" + name, key);
-        }
-        el.setAttribute(name, t(key, parse(el.getAttribute("data-i18n-" + name + "-args"))));
-      });
-    });
+    doc.querySelectorAll(SWITCHED).forEach(switchOne);
     // The document title: the kit's words of the page, then what follows them as written.
     const titleKey = html && html.getAttribute && html.getAttribute("data-i18n-doctitle");
     if (titleKey && typeof doc.title === "string") {
@@ -124,13 +127,31 @@
     }
     return current;
   }
-  // In the head, before the body is read: the language the page will show sets <html lang> now.
+  // In the head, before the body is read: the language the page will show sets <html lang> now and,
+  // when it is not English, the words are switched while the parser adds them, so the page does not
+  // paint in English first. An element is switched once the parser has added the node after it: by
+  // then its text is whole (a word's text arrives after its element, and may arrive in parts). The
+  // last few words of a parser pass wait for the next one, and the script at the end of the body
+  // applies the whole page again; the observer stops once the page is read.
   function start(win) {
     if (!win || !win.document || !win.document.documentElement) return DEFAULT;
     let storage = null;
     try { storage = win.localStorage; } catch (_) { storage = null; }
     const language = choose(storage, urlLanguage(win.location && win.location.search));
-    if (language !== DEFAULT) win.document.documentElement.setAttribute("lang", language);
+    if (language === DEFAULT) return language;
+    const doc = win.document;
+    doc.documentElement.setAttribute("lang", language);
+    current = language;
+    if (typeof win.MutationObserver === "function") {
+      const observer = new win.MutationObserver(records => records.forEach(record => record.addedNodes.forEach(node => {
+        const whole = node.previousSibling;
+        if (!whole || whole.nodeType !== 1) return;
+        if (whole.matches(SWITCHED)) switchOne(whole);
+        whole.querySelectorAll(SWITCHED).forEach(switchOne);
+      })));
+      observer.observe(doc.documentElement, { childList: true, subtree: true });
+      doc.addEventListener("DOMContentLoaded", () => observer.disconnect(), { once: true });
+    }
     return language;
   }
   // The language menu: each language named in its own language, built here so a page holds no
