@@ -40,10 +40,13 @@
     if (entry === undefined) return { text: key, fallback: true };
     if (entry && typeof entry === "object") entry = args && args.n === 1 && "one" in entry ? entry.one : entry.other;
     // {@key}: another message of the same language and arguments (a long explanation written once),
-    // and {name}: a value. One pass, so a value put in is never read again as either.
+    // and {name}: a value. One pass, so a value put in is never read again as either. A message
+    // shown in English is English throughout (i18n.py does the same); a nested message left in
+    // English marks the whole text as a fallback, and the next one keeps the language.
+    const nestedLanguage = fallback ? DEFAULT : lang;
     const text = String(entry).replace(/\{@([a-z][a-z0-9_.]*)\}|\{([a-z][a-z0-9_]*)\}/g, (whole, nested, name) => {
       if (nested) {
-        const inner = format(nested, args, fallback ? DEFAULT : lang);
+        const inner = format(nested, args, nestedLanguage);
         if (inner.fallback) fallback = true;
         return inner.text;
       }

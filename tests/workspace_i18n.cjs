@@ -12,8 +12,10 @@ const ko = JSON.parse(fs.readFileSync(path.join(catalogs, 'ko.json'), 'utf8'));
 // --- formatting: placeholders, plurals, nested messages and the English fallback ---
 I18n.register({
   en: {...en, 'x.count': {one: '{n} item', other: '{n} items'}, 'x.only_en': 'English only',
-       'x.nest': 'A {@x.count} here', 'x.two': '{a} and {b}'},
-  ko: {...ko, 'x.count': {other: '{n}개'}, 'x.nest': '여기 {@x.count}', 'x.two': '{b}, {a}'},
+       'x.nest': 'A {@x.count} here', 'x.two': '{a} and {b}', 'x.both': 'English', 'x.outer': 'A {@x.both}!',
+       'x.mixed': '{@x.only_en} and {@x.both}'},
+  ko: {...ko, 'x.count': {other: '{n}개'}, 'x.nest': '여기 {@x.count}', 'x.two': '{b}, {a}', 'x.both': '한국어',
+       'x.mixed': '{@x.only_en} 그리고 {@x.both}'},
 });
 assert.deepEqual(I18n.format('x.count', {n: 1}, 'en'), {text: '1 item', fallback: false});
 assert.equal(I18n.format('x.count', {n: 1200}, 'en').text, '1,200 items');
@@ -22,6 +24,10 @@ assert.equal(I18n.format('x.nest', {n: 2}, 'ko').text, '여기 2개');
 assert.deepEqual(I18n.format('x.only_en', undefined, 'ko'), {text: 'English only', fallback: true});
 assert.deepEqual(I18n.format('x.unknown', undefined, 'ko'), {text: 'x.unknown', fallback: true});
 assert.equal(I18n.format('x.two', {a: 'A', b: 'B'}, 'ko').text, 'B, A');
+// A message shown in English is English throughout, as in i18n.py; a nested message left in English
+// marks the text as a fallback and the next nested message keeps the language.
+assert.deepEqual(I18n.format('x.outer', undefined, 'ko'), {text: 'A English!', fallback: true});
+assert.deepEqual(I18n.format('x.mixed', undefined, 'ko'), {text: 'English only 그리고 한국어', fallback: true});
 // A value is put in as given: never read again as a placeholder or a nested message.
 assert.equal(I18n.format('x.two', {a: '{b}', b: '{@x.count}'}, 'en').text, '{b} and {@x.count}');
 assert.equal(I18n.format('x.nest', {n: '{n}'}, 'en').text, 'A {n} items here');

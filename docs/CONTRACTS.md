@@ -767,6 +767,7 @@ From an index or continuation list, selecting a card creates a new origin at tha
 
 Workspace의 kit 문구(탭·제목·배지·버튼·빈 화면·안내·tooltip·aria-label·알림·문서 제목의 kit 부분)는 message key 카탈로그에서 옵니다.
 `src/aelix_analytics/assets/i18n/en.json`이 원본이고 `ko.json`이 한국어입니다. 한국어에 없는 key는 영어로 보이고 그 요소에 `lang="en"`이 붙습니다.
+속성(title·aria-label·placeholder)은 언어를 따로 적을 수 없으므로, 속성에 쓰는 key는 모두 번역합니다(시험으로 확인).
 
 - **생성 HTML**: 지금처럼 영어이고 `<html lang="en">`입니다. 바꿀 수 있는 문구는 `<k-w>` 요소입니다. HTML이 모르는 요소라 스타일이 없는
   inline 요소이고, 스크립트가 없어도 같은 글로 읽힙니다.

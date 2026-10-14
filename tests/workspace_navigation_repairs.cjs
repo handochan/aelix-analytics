@@ -180,3 +180,25 @@ assert.equal(noticed.notice.nodes.find(n=>n.className==='notice-close').textCont
 assert.deepEqual(noticed.main.nav.children.map(a=>[a.dataset.tab,a.textContent]),
   [['overview',ko['tab.overview']],['timeline',ko['tab.timeline']]]);
 assert.equal(noticed.main.nav.attrs['aria-label'],ko['nav.sections']);
+// A page opened directly (no origin) where storage is blocked: its own return link carries the
+// language too, and Escape follows that link.
+const opened2=environment('runs/old.html',{...initial,page:'runs/old.html',anchor:'',card:'',lang:'ko'},{storage:'blocked',build:true});
+assert.equal(I18n.language,'ko');
+const home=new URL(opened2.back.href,'file:///synthetic/workspace/runs/old.html');
+assert.equal(home.pathname,'/synthetic/workspace/index.html');
+assert.equal(codec.decode(home.search).state.lang,'ko');
+const openedMenu=opened2.build.children[0].children[1];
+openedMenu.value='en';openedMenu.on.change();
+assert.equal(new URL(opened2.back.href,'file:///synthetic/workspace/runs/old.html').search,'');
+// Back and Forward where storage is blocked: each history entry's language, as on load.
+const travel=environment('index.html',{...initial,lang:'ko'},{storage:'blocked',build:true,tabs:['overview','timeline']});
+assert.equal(I18n.language,'ko');
+travel.events.popstate.forEach(f=>f({state:{...initial}}));
+assert.equal(I18n.language,'en');
+assert.equal(travel.document.documentElement.attrs.lang,'en');
+travel.events.popstate.forEach(f=>f({state:{...initial,lang:'ko'}}));
+assert.equal(I18n.language,'ko');
+// A stored choice holds whatever the entry says.
+const kept=environment('index.html',{...initial},{storage:memory({'analytics-language':'ko'}),build:true});
+kept.events.popstate.forEach(f=>f({state:{...initial}}));
+assert.equal(I18n.language,'ko');

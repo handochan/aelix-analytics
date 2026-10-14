@@ -262,7 +262,9 @@ def test_a_stale_candidate_upstream_is_not_said_to_be_a_changed_input(tmp_path):
             in pages[f"runs/{case.a}.html"])
     card = _card(pages["index.html"], "scripts/c.py::summary")
     assert "Input changed" not in card and "Upstream candidate stale" in card
-    assert f"output of run(s) {case.a}, {case.b}, whose inputs" in card
+    # The title names the first candidates and counts them all (#96: a value of the kit's words is
+    # an id or a number, never "and 2 more").
+    assert f"the output of 2 run(s): {case.a}, {case.b}. Their inputs" in card
     assert "Input changed" in _card(pages["index.html"], "scripts/a.py::trend")
 
 
@@ -447,6 +449,12 @@ def test_the_workspace_shows_producers_and_outputs_not_preserved(tmp_path):
     assert "same bytes as now" in pages["data/t.html"]
     assert "Producer ambiguous" in pages["index.html"]
     assert "No matching run output" in pages["index.html"]
+    # The card marks the input several runs output the same bytes as, beside its path (#96: the
+    # badge's title counts the inputs and does not repeat the paths people wrote).
+    card = _card(pages["index.html"], "scripts/c.py::summary")
+    marked = card.split('title="Producer ambiguous: several successful runs output these bytes"', 1)
+    assert len(marked) == 2 and "data/derived/t.parquet" in marked[0].rsplit('<span class="input">', 1)[1]
+    assert "1 input(s); the inputs marked ? say which" in card
     run_page = pages[f"runs/{case.overwritten}.html"]
     assert "Overwritten since this run — this run's bytes are not preserved" in run_page
     consumer = pages[f"runs/{case.c}.html"]

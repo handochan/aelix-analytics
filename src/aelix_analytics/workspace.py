@@ -501,15 +501,20 @@ class Site:
         if line:
             code_link += f' · <a href="{run_page}#L-main-{line}">L{line}</a>'
         inputs = []
+        # The inputs several successful runs output the same bytes as: marked here, beside the path
+        # people wrote, as the card's Producer ambiguous badge says.
+        ambiguous = set(fresh.get("ambiguous_inputs") or [])
         for entry in fresh["inputs"]:
             state = entry["state"] if entry["state"] in INPUT_STATE else "unknown"
             tone, icon = INPUT_STATE[state]
             reason = (f" {line_endings_badge()}" if entry.get("reason") == core.LINE_ENDINGS_ONLY
                       else "")
+            several = (f'<span class="state tone-warning"{attr("title", "card.producer_ambiguous")}>?</span>'
+                       if entry["path"] in ambiguous else "")
             inputs.append(f'<span class="input">{self.path_html(entry["path"], depth)} '
                           f'<span class="sha">{short(entry.get("sha256"))}</span>'
                           f'<span class="state tone-{tone}"{attr("title", "card.file_now." + state)}>{icon}</span>'
-                          f'{reason}</span>')
+                          f'{several}{reason}</span>')
         if chart.get("data"):
             data_html = (f'<a href="{run_page}#chart-{esc(chart["id"])}-data">'
                          f'{t("card.rows_columns", rows=fmt_num(chart.get("data_rows")), columns=len(chart.get("data_columns") or []))}</a>'
@@ -909,8 +914,9 @@ def inferred_runs_note(runs) -> str:
 
 
 def title_ids(ids: list[str]) -> str:
-    """Run ids as a value of the kit's words in a title: the first few, and "…" for the rest, which
-    the page lists (an id is the same in every language; "and 2 more" would not be)."""
+    """Run ids as a value of the kit's words in a title: the first few, and "…" for the rest, whose
+    number the message says beside them (an id is the same in every language; "and 2 more" would
+    not be)."""
     return ", ".join(ids[:SHOWN_CANDIDATES]) + (", …" if len(ids) > SHOWN_CANDIDATES else "")
 
 
@@ -924,12 +930,12 @@ def stale_badges(fresh: dict) -> list[str]:
         out.append(badge("critical", "⚠", t("badge.input_changed"),
                          attr("title", "badge.input_changed_title", n=len(fresh["changed_inputs"]))))
     if fresh["stale_upstream"]:
-        named = title_ids(fresh["stale_upstream"])
-        inferred = fresh.get("inferred_upstream") or []
+        runs, inferred = fresh["stale_upstream"], fresh.get("inferred_upstream") or []
         if inferred:
-            title = attr("title", "stale.upstream_title_inferred", runs=named, inferred=title_ids(inferred))
+            title = attr("title", "stale.upstream_title_inferred", n=len(runs), runs=title_ids(runs),
+                         m=len(inferred), inferred=title_ids(inferred))
         else:
-            title = attr("title", "stale.upstream_title", runs=named)
+            title = attr("title", "stale.upstream_title", n=len(runs), runs=title_ids(runs))
         out.append(badge("warning", "⚠", t("badge.upstream_stale"), title))
     return out
 

@@ -101,13 +101,19 @@ def test_every_key_the_code_names_is_in_the_catalog_and_every_key_is_named():
 
 
 def test_a_message_falls_back_to_english_and_fills_its_values_once(monkeypatch):
-    held = {"en": {"x.count": "{n} rows of {name}", "x.nest": "{@x.count}!", "x.only": "English"},
-            "ko": {"x.count": "{name}의 {n}행", "x.nest": "{@x.count}?"}}
+    held = {"en": {"x.count": "{n} rows of {name}", "x.nest": "{@x.count}!", "x.only": "English",
+                   "x.both": "English", "x.outer": "A {@x.both}!", "x.mixed": "{@x.only} and {@x.both}"},
+            "ko": {"x.count": "{name}의 {n}행", "x.nest": "{@x.count}?", "x.both": "한국어",
+                   "x.mixed": "{@x.only} 그리고 {@x.both}"}}
     monkeypatch.setattr(i18n, "catalog", lambda language: held[language])
     assert i18n.message("x.count", n=1234, name="t") == "1,234 rows of t"
     assert i18n.message("x.count", "ko", n=2, name="t") == "t의 2행"
     assert i18n.message("x.nest", "ko", n=2, name="t") == "t의 2행?"
     assert i18n.message("x.only", "ko") == "English"
+    # A message shown in English is English throughout (workspace-i18n.js does the same); a nested
+    # message left in English does not change the language of the next one.
+    assert i18n.message("x.outer", "ko") == "A English!"
+    assert i18n.message("x.mixed", "ko") == "English 그리고 한국어"
     # A value is put in as given: never read again as a placeholder or a nested message.
     assert i18n.message("x.count", n=1, name="{n} {@x.only}") == "1 rows of {n} {@x.only}"
     assert i18n.message("x.nest", n="{name}", name="t") == "{name} rows of t!"
@@ -266,6 +272,8 @@ def test_every_switchable_word_is_a_known_key_its_english_and_no_one_s_text(tmp_
                 key = english[value]
             seen.add(key)
             assert value == i18n.message(key, **args), (path.name, name, key)
+            # An attribute cannot say its own language, so its words are never left in English.
+            assert key in catalog("ko"), (path.name, name, key)
             assert MARK not in json.dumps(args) and MARK not in (value or ""), (path.name, name, key, args)
             i18n.message(key, "ko", **args)
         for stamp, text in found.times:

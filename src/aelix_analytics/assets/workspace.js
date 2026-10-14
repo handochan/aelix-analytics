@@ -204,11 +204,19 @@
   function returnLinks() {
     document.querySelectorAll("a[data-return]").forEach(a => {
       const origin = state && state.origin;
-      if (!origin) return;
-      // Back at the origin in the language chosen since, not the one it was left in.
-      const back = { ...origin };
-      if (language !== "en") back.lang = language; else delete back.lang;
-      a.href = root + origin.page + codec.search(back) + (origin.anchor ? "#" + encodeURIComponent(origin.anchor) : "");
+      if (origin) {
+        // Back at the origin in the language chosen since, not the one it was left in.
+        const back = { ...origin };
+        if (language !== "en") back.lang = language; else delete back.lang;
+        a.href = root + origin.page + codec.search(back) + (origin.anchor ? "#" + encodeURIComponent(origin.anchor) : "");
+        return;
+      }
+      // No origin (a page opened directly): the page's own return link, in the reader's language.
+      if (a.dataset && !a.dataset.home) a.dataset.home = a.getAttribute("href");
+      const home = new URL((a.dataset && a.dataset.home) || a.href, location.href);
+      const dest = home.pathname.slice(directory.length);
+      home.search = language !== "en" && codec.safePage(dest) ? codec.search({ v: 1, page: dest, lang: language }) : "";
+      a.href = home.href;
     });
   }
   document.querySelectorAll(".filters").forEach(bar => bar.addEventListener("click", e => {
@@ -236,19 +244,32 @@
     url.search = codec.search(next, url.search); a.href = url.href;
   });
   window.addEventListener("hashchange", () => { show(); save(); returnLinks(); });
-  window.addEventListener("popstate", e => { const decoded = codec.decode(location.search); restore(codec.normalize(e.state) || decoded.state); });
-  // Shown again (the back-forward cache) or open in another tab: a choice made on another page since.
-  function relanguage() {
-    if (!I18n) return;
-    const chosen = I18n.choose(storage, language);
-    if (chosen === language) return;
+  window.addEventListener("popstate", e => {
+    const value = codec.normalize(e.state) || codec.decode(location.search).state;
+    // Back or Forward: where storage is blocked, the entry's language (a stored choice holds).
+    relanguage(value && value.lang);
+    restore(value);
+  });
+  // The language as the page chooses it on load — a working storage's choice, else the URL state's,
+  // else English — again: after Back or Forward, when shown from the back-forward cache, or when
+  // another tab chose. True when it changed.
+  function relanguage(stateLanguage) {
+    if (!I18n) return false;
+    const chosen = I18n.choose(storage, stateLanguage);
+    if (chosen === language) return false;
     language = chosen;
     I18n.apply(document, language);
     document.querySelectorAll(".build .language select").forEach(select => { select.value = language; });
-    save(); returnLinks();
+    return true;
   }
-  window.addEventListener("pageshow", () => { relanguage(); restore(codec.decode(location.search).state || state); });
-  window.addEventListener("storage", e => { if (I18n && e.key === I18n.KEY) relanguage(); });
+  window.addEventListener("pageshow", () => {
+    const value = codec.decode(location.search).state || state;
+    relanguage(value && value.lang);
+    restore(value);
+  });
+  window.addEventListener("storage", e => {
+    if (I18n && e.key === I18n.KEY && relanguage(state && state.lang)) { save(); returnLinks(); }
+  });
   window.addEventListener("pagehide", () => save());
   let scrollTimer;
   window.addEventListener("scroll", () => { clearTimeout(scrollTimer); scrollTimer = setTimeout(() => save(), 180); }, { passive: true });

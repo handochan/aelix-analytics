@@ -59,11 +59,12 @@ def _arg(value) -> str:
 
 
 def message(key: str, language: str = DEFAULT, **args) -> str:
-    """The text of `key` in `language` (English where it has none), its {names} filled. A key no
-    catalog has is a KeyError: the generator never shows a key."""
+    """The text of `key` in `language` (English where it has none), its {names} filled. A message
+    shown in English is English throughout, its nested messages too (workspace-i18n.js does the
+    same). A key no catalog has is a KeyError: the generator never shows a key."""
     entry = catalog(language).get(key)
     if entry is None:
-        entry = catalog(DEFAULT)[key]
+        entry, language = catalog(DEFAULT)[key], DEFAULT
     if isinstance(entry, dict):
         entry = entry["one"] if args.get("n") == 1 and "one" in entry else entry["other"]
     return TOKEN.sub(lambda m: message(m.group(1), language, **args) if m.group(1) else _arg(args[m.group(2)]),
