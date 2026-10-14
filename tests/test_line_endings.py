@@ -28,6 +28,7 @@ from conftest import (
     record_observation,
     tracked_kit_sha,
 )
+from workspace_words import plain
 
 from aelix_analytics import core, runner
 
@@ -466,11 +467,16 @@ def test_line_endings_only_reaches_status_and_the_workspace(tmp_path):
     assert "script edited since (line endings only)" in core.status_text(st)
     code, rendered = kit_cli(project.root, "render")
     assert code == 0, rendered
-    page = (project.workspace_dir / "runs" / f"{run_id}.html").read_text(encoding="utf-8")
+    page = plain((project.workspace_dir / "runs" / f"{run_id}.html").read_text(encoding="utf-8"))
     assert "Line endings only" in page and '<span lang="">data/in.csv</span> (line endings only)' in page
     assert "Current file edited (line endings only)" in page
-    index = (project.workspace_dir / "index.html").read_text(encoding="utf-8")
-    assert "data/in.csv (line endings only)" in index
+    index = plain((project.workspace_dir / "index.html").read_text(encoding="utf-8"))
+    # The card names the input beside its line-endings badge. Since #96 the Input changed badge's title
+    # counts the inputs rather than repeating the paths people wrote inside the kit's words.
+    named = [part.split("</dd>", 1)[0] for part in index.split('<span class="input">')[1:]
+             if "data/in.csv" in part.split("</dd>", 1)[0]]
+    assert named and all("Line endings only" in part for part in named), named
+    assert 'title="1 input(s) differ from the files now' in index
 
     data.write_bytes(CRLF_TABLE + b"daegu,5\r\n")
     script.write_bytes(JUDGED_SCRIPT + b"# edited, more than the line ends\n")

@@ -20,13 +20,15 @@ import hashlib
 import html
 import json
 import os
+import re
 import shutil
 from collections import Counter, defaultdict
 from importlib import resources
 from pathlib import Path
 from urllib.parse import quote
 
-from . import _platform, core, relations
+from . import _platform, core, i18n, relations
+from .i18n import attr, t
 
 ASSETS = resources.files(__package__) / "assets"
 # The names the Workspace's own assets had before kit 0.6.0 (workspace.css and workspace.js since):
@@ -39,50 +41,42 @@ REF_LIMIT = 12
 FILE_ROW_LIMIT = 60
 INDEX_LIMIT = 50
 CHART_INDEX_LIMIT = 20
-# The Workspace's own words are English (TERMINOLOGY 7); what people and scripts wrote is shown as
-# written. An event kind's label: the stored kind stays the machine value (`gap`, `todo`).
-KIND_LABEL = {"project": "Project", "import": "Import", "run": "Run", "context": "Context",
-              "finding": "Finding", "decision": "Decision", "assumption": "Assumption",
-              "question": "Question", "todo": "Next step", "note": "Note",
-              "gap": "Workflow feedback", "resolve": "Resolution",
-              # analytics.event/2's kinds (ADR-0006 1.2): `workflow_feedback` is what `gap` is.
-              "workflow_feedback": "Workflow feedback", "analysis_focus": "Analysis focus",
-              "metric_definition": "Metric definition", "metric_observation": "Metric observation",
-              "record_update": "Record update", "checkpoint": "Analysis checkpoint",
-              "reuse_proposal": "Asset candidate", "reuse_notification": "Asset suggestion",
-              "reuse_mode": "Asset suggestion mode", "asset_candidate": "Asset candidate",
-              "asset_check": "Asset check", "asset_effect": "Asset effect",
-              "asset_notification": "Asset suggestion", "asset_mode": "Asset suggestion mode",
-              "report_revision": "Report revision",
-              "publication": "Publication", "publish_receipt": "Publish receipt"}
-STATUS = {"ok": ("good", "✓", "Succeeded"), "error": ("critical", "✕", "Error"),
-          "timeout": ("serious", "⏱", "Timed out"), "cancelled": ("warning", "■", "Cancelled"),
-          "incomplete": ("muted", "…", "Incomplete"), "running": ("muted", "…", "Running")}
-INPUT_STATE = {"same": ("good", "✓", "Same"), "changed": ("critical", "⚠", "Changed"),
-               "missing": ("critical", "⚠", "Missing"), "unknown": ("muted", "?", "Unknown")}
-# A rerun comparison's verdict as the Workspace says it (TERMINOLOGY 6); the record keeps the value.
-VERDICT = {"match": "Matched", "mismatch": "Different", "failed": "Run failed",
-           "inconclusive": "Inconclusive"}
-# A reference's state as the read judges it (ADR-0006 4), said in words and not only in colour.
-REF_STATE = {"resolved": ("good", "Resolved"), "content_changed": ("critical", "Content changed"),
-             "missing": ("critical", "Missing"), "version_unbound": ("muted", "Version unbound"),
-             "ambiguous": ("warning", "Ambiguous"), "unknown": ("muted", "Unknown"),
-             "unsupported": ("muted", "Unsupported")}
-LATEST = "latest, not the cited version"
-# The current state of a file a run recorded as its output.
-OUTPUT_STATE = {"resolved": ("good", "✓", "Same as recorded"),
-                "content_changed": ("critical", "⚠",
-                                    "Overwritten since this run — this run's bytes are not preserved"),
-                "missing": ("critical", "⚠", "Missing"),
-                "unknown": ("muted", "?", "Unknown (no hash recorded)")}
-RECORDING_REASON = {"not_final": "the run record is not final (it is running, or stopped while running)",
-                    "no_completion_event": "the journal has no completion event for this run",
-                    "finalize_errors": "some recording steps failed"}
+# The Workspace's own words are messages of i18n.py: English as written, Korean when a reader
+# switches (TERMINOLOGY 7); what people and scripts wrote is shown as written. An event kind's
+# words are `kind.<kind>`: the stored kind stays the machine value (`gap`, `todo`).
+# A run's status: its tone and mark; its words are `status.<status>`.
+STATUS = {"ok": ("good", "✓"), "error": ("critical", "✕"), "timeout": ("serious", "⏱"),
+          "cancelled": ("warning", "■"), "incomplete": ("muted", "…"), "running": ("muted", "…")}
+# An input's state now (`input.<state>`).
+INPUT_STATE = {"same": ("good", "✓"), "changed": ("critical", "⚠"), "missing": ("critical", "⚠"),
+               "unknown": ("muted", "?")}
+# A reference's state as the read judges it (ADR-0006 4), said in words (`ref.<state>`) and not
+# only in colour. A rerun comparison's verdict is `verdict.<verdict>` (TERMINOLOGY 6); the record
+# keeps the value.
+REF_STATE = {"resolved": "good", "content_changed": "critical", "missing": "critical",
+             "version_unbound": "muted", "ambiguous": "warning", "unknown": "muted",
+             "unsupported": "muted"}
+# The current state of a file a run recorded as its output (`output.<state>`).
+OUTPUT_STATE = {"resolved": ("good", "✓"), "content_changed": ("critical", "⚠"),
+                "missing": ("critical", "⚠"), "unknown": ("muted", "?")}
 SHOWN_CANDIDATES = 3
 # The pages are lang="en" (the kit's words). What people and scripts wrote is in a language the
 # records do not name, so its element says "unknown" (lang=""): a screen reader reads it in the
 # reader's own voice rather than an English one, and nothing guesses the language (TERMINOLOGY 7).
 USER = ' lang=""'
+
+
+def words(prefix: str, value) -> str:
+    """The kit's words for a stored value (`prefix.value`), or the value itself as stored when the
+    catalog has none (a value a newer kit wrote)."""
+    key = f"{prefix}.{value}"
+    return t(key) if i18n.has(key) else esc(value)
+
+
+def comparison_words(value) -> str:
+    """A rerun comparison's value as the runner wrote it (runner.compare_runs: "same data", …)."""
+    key = "comparison." + str(value).replace(" ", "_")
+    return t(key) if i18n.has(key) else esc(value)
 
 
 def esc(value) -> str:
@@ -118,25 +112,55 @@ def fmt_num(n) -> str:
     return esc(n)
 
 
+STAMP = re.compile(r"(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?")
+
+
+def fmt_day(y: str, m: str, d: str) -> str:
+    """A date in the page's language (time.date.<month>; "Aug 3, 2026" in English)."""
+    return t(f"time.date.{int(m)}", y=y, d=int(d))
+
+
 def fmt_time(ts, with_date=True) -> str:
+    """A record's time as its record holds it: the wall clock of the record's own offset, never the
+    reader's zone (design WORKSPACE-READABILITY 3.1), the stamp itself in <time datetime>."""
     if not ts:
         return "-"
-    text = str(ts).replace("T", " ")
-    return text[:16] if with_date else text[11:16]
+    text = str(ts)
+    found = STAMP.match(text)
+    if not found or found.group(4) is None or not 1 <= int(found.group(2)) <= 12:
+        text = text.replace("T", " ")
+        return esc(text[:16] if with_date else text[11:16])
+    y, m, d, hh, mm = found.groups()
+    shown = f"{fmt_day(y, m, d)} {hh}:{mm}" if with_date else f"{hh}:{mm}"
+    return f'<time datetime="{esc(text)}" title="{esc(text)}">{shown}</time>'
 
 
-def badge(tone: str, icon: str, label: str, title: str | None = None) -> str:
-    t = f' title="{esc(title)}"' if title else ""
-    return f'<span class="badge tone-{tone}"{t}><span aria-hidden="true">{icon}</span> {esc(label)}</span>'
+def fmt_date(ts) -> str:
+    """The day of a record's time (a timeline's day heading), in the page's language."""
+    found = STAMP.match(str(ts or ""))
+    if not found or not 1 <= int(found.group(2)) <= 12:
+        return esc(str(ts or "")[:10])
+    y, m, d = found.group(1, 2, 3)
+    return f'<time datetime="{y}-{m}-{d}">{fmt_day(y, m, d)}</time>'
+
+
+def title_attr(text) -> str:
+    """A title of what people and scripts wrote (paths, ids): as written, not the kit's words."""
+    return f' title="{esc(text)}"' if text else ""
+
+
+def badge(tone: str, icon: str, label: str, title: str = "") -> str:
+    """`label` is HTML of the kit's words (t); `title` an attribute (attr, or title_attr)."""
+    return f'<span class="badge tone-{tone}"{title}><span aria-hidden="true">{icon}</span> {label}</span>'
 
 
 def status_badge(status) -> str:
-    tone, icon, label = STATUS.get(status or "", ("muted", "?", str(status)))
-    return badge(tone, icon, label)
+    tone, icon = STATUS.get(status or "", ("muted", "?"))
+    return badge(tone, icon, words("status", status))
 
 
 def verdict_label(verdict) -> str:
-    return VERDICT.get(verdict, str(verdict))
+    return words("verdict", verdict)
 
 
 def dataset_label(name: str, view: str) -> str:
@@ -153,7 +177,7 @@ def user_text(value) -> str:
 
 def kind_chip(kind) -> str:
     return (f'<span class="chip kind-{esc(kind)}"><span class="dot" aria-hidden="true"></span>'
-            f'{esc(KIND_LABEL.get(kind, kind))}</span>')
+            f'{words("kind", kind)}</span>')
 
 
 @functools.lru_cache(maxsize=4096)
@@ -172,6 +196,7 @@ class Site:
 
     esc = staticmethod(esc)
     user_text = staticmethod(user_text)
+    words = staticmethod(words)
     user_language = USER
 
     def __init__(self, project: core.Project):
@@ -260,9 +285,9 @@ class Site:
 
     def relation_actions(self, identity: str, depth: int) -> str:
         return ('<div class="workspace-actions">' + " ".join(
-            f'<a href="{self.relations.link(identity, depth, anchor=anchor)}">{label}</a>'
-            for anchor, label in (("#evidence", "Evidence"), ("#related", "Related items"),
-                                  ("#history", "History"))) + "</div>")
+            f'<a href="{self.relations.link(identity, depth, anchor=anchor)}">{t(key)}</a>'
+            for anchor, key in (("#evidence", "action.evidence"), ("#related", "action.related"),
+                                ("#history", "action.history"))) + "</div>")
 
     def script_path(self, run: dict) -> str | None:
         """A run's script path as the gallery reads it: an older kit's spelling as today's
@@ -284,22 +309,23 @@ class Site:
         shown = f"<code{USER}>{esc(read)}</code>"
         if link:
             shown = f'<a href="{link}">{shown}</a>'
-        return (f' <small class="ref-note" title="{esc(INFERRED_TITLE)}">read as {shown} — '
-                f'{esc(core.INFERRED_NOTE)}</small>')
+        return (f' <small class="ref-note"{inferred_title()}>{t("inferred.read_as")} {shown} — '
+                f'{t("inferred.note")}</small>')
 
     def dataset_name(self, path: str) -> str | None:
         """The name the Workspace shows for the dataset at `path` (dataset_label), if it is one."""
         view = self.view_by_path.get(path)
         return dataset_label(self.name_by_path.get(path) or view, view) if view else None
 
-    def path_html(self, path: str, depth: int, note: str = "") -> str:
+    def path_html(self, path: str, depth: int) -> str:
+        """A path people or scripts wrote, linked to its dataset page (titled by the path) or file.
+        That a link is the latest version and not a cited one is said once for its field (the
+        `Version unbound` label of refs_html), in the kit's words."""
         link = self.data_link(path, depth)
         label = self.dataset_name(path) or path
         if link:
-            title = f"{path} — {note}" if note else path
-            return f'<a href="{link}" title="{esc(title)}"{USER}>{esc(label)}</a>'
-        title = f' title="{esc(note)}"' if note else ""
-        return f'<a href="{self.file_link(path, depth)}"{title}{USER}>{esc(path)}</a>'
+            return f'<a href="{link}" title="{esc(path)}"{USER}>{esc(label)}</a>'
+        return f'<a href="{self.file_link(path, depth)}"{USER}>{esc(path)}</a>'
 
     def source(self, event: dict) -> str | None:
         """How the read names an event: its id, or `journal:<line>` when several lines have it."""
@@ -323,12 +349,12 @@ class Site:
             shown = group[:REF_LIMIT]
             hidden += len(group) - len(shown)
             if any(j["state"] == "version_unbound" for j in shown):
-                items.append(f'<span class="ref-label" title="the record names no version: the link '
-                             f'is the {LATEST}">Version unbound</span>')
+                items.append(f'<span class="ref-label"{attr("title", "refs.unbound_title")}>'
+                             f'{t("ref.version_unbound")}</span>')
             items += [self.ref_html(judged, depth) for judged in shown]
         if hidden:
-            items.append(f'<span class="ref muted" title="Related items lists them all">'
-                         f'{hidden:,} more</span>')
+            items.append(f'<span class="ref muted"{attr("title", "refs.more_title")}>'
+                         f'{t("refs.more", n=hidden)}</span>')
         return f'<div class="refs">{"".join(items)}</div>' if items else ""
 
     def ref_html(self, judged: dict, depth: int) -> str:
@@ -340,48 +366,48 @@ class Site:
         found = state == "resolved"
         field = (judged.get("ref") or {}).get("field")
         if kind == "run":
-            body = (f'<a href="{esc(self.run_link(label, depth))}">run {esc(label)}</a>' if found
-                    else f"run {esc(label)}")
+            body = (f'<a href="{esc(self.run_link(label, depth))}">{t("refs.run")} {esc(label)}</a>' if found
+                    else f"{t('refs.run')} {esc(label)}")
         elif kind == "visualization_version" and judged.get("version_binding") != "none":
             run, chart = target.get("run_id"), target.get("visualization_id")
             anchor = f"#chart-{href(str(chart))}"
             body = (f'<a href="{esc(self.run_link(run, depth, anchor))}" title="{esc(label)}">'
-                    f"chart {esc(chart)}</a>" if found and run else f"chart {esc(label)}")
+                    f"{t('refs.chart')} {esc(chart)}</a>" if found and run else f"{t('refs.chart')} {esc(label)}")
         elif kind == "visualization_version":
             key = str(target.get("key") or target.get("token") or label)
-            body = (f'<a href="{esc(self.chart_anchor(key, depth))}" title="{LATEST}">'
-                    f"chart {esc(key)}</a>")
+            body = (f'<a href="{esc(self.chart_anchor(key, depth))}"{attr("title", "refs.latest")}>'
+                    f"{t('refs.chart')} {esc(key)}</a>")
         elif kind in ("data_observation", "dataset_import"):
             item = str(target.get("key") or target.get("path") or label)
             path = item if item in self.view_by_path else self.views.get(item)
             # A name or path that is no dataset is still what people and scripts wrote (lang="").
-            body = self.path_html(path, depth, LATEST) if path else user_text(item)
+            body = self.path_html(path, depth) if path else user_text(item)
         elif kind == "event":
-            prefix = "Resolves: " if field == "resolves" else ""
+            prefix = t("refs.resolves") + " " if field == "resolves" else ""
             body = (f'<a href="{esc(self.relations.content(label, depth) or self.relations.link(label, depth))}">{prefix}{esc(label)}</a>'
                     if found else f"{prefix}{esc(label)}")
         elif kind == "context_version" and found:
             body = (f'<a href="{esc(self.root(depth))}context.html#v-{esc(Path(label).stem)}" '
-                    f'title="{esc(label)}">View version</a>')
+                    f'title="{esc(label)}">{t("refs.view_version")}</a>')
         else:
             body = esc(label)
         candidates = judged.get("candidates")
         if candidates and state in ("version_unbound", "ambiguous"):
             # An event target's candidates are the journal lines with its id; the others' are
             # versions.
-            what = "record(s)" if kind in relations.EVENT_TARGETS else "version(s)"
+            what = "refs.candidate_records" if kind in relations.EVENT_TARGETS else "refs.candidate_versions"
             inferred = judged.get("inferred_candidates") or []
             body += (f' <small class="ref-note" title="{esc(", ".join(candidates))}">'
-                     f"{len(candidates):,} candidate {what}</small>")
+                     f"{t(what, n=len(candidates))}</small>")
             if inferred:
                 # The versions hold Visualization ids people and scripts wrote: only their count
-                # beside the kit's English title (#10, lang="").
-                body += (f' <small class="ref-note" title="{esc(INFERRED_TITLE)}">'
-                         f'{len(inferred):,} {esc(core.INFERRED_NOTE)}</small>')
+                # beside the kit's title (#10, lang="").
+                body += (f' <small class="ref-note"{inferred_title()}>'
+                         f'{t("inferred.count_note", n=len(inferred))}</small>')
         if state not in ("resolved", "version_unbound"):
-            tone, words = REF_STATE.get(state, ("muted", state))
+            tone = REF_STATE.get(state, "muted")
             reason = f": {judged['reason']}" if judged.get("reason") else ""
-            body += f' <small class="ref-state tone-{tone}">{esc(words + reason)}</small>'
+            body += f' <small class="ref-state tone-{tone}">{words("ref", state)}{esc(reason)}</small>'
         return f'<span class="ref ref-{esc(state)}">{body}</span>'
 
     def closed_badge(self, resolver: dict, depth: int = 0) -> str:
@@ -393,26 +419,26 @@ class Site:
         judged = next((j for j in self.model.references(source)
                        if (j.get("ref") or {}).get("field") == "resolves"), None)
         if judged is not None and judged["state"] == "resolved":
-            return f' <a class="badge tone-good" href="{link}">✓ Resolved by {esc(source)}</a>'
+            return f' <a class="badge tone-good" href="{link}">✓ {t("records.resolved_by")} {esc(source)}</a>'
         state = judged["state"] if judged is not None else "unknown"
-        tone, words = REF_STATE.get(state, ("muted", state))
+        tone = REF_STATE.get(state, "muted")
         reason = f": {judged['reason']}" if judged is not None and judged.get("reason") else ""
-        return (f' <a class="badge tone-{tone}" href="{link}" title="the lists take this record as '
-                f'closed by {esc(source)} (refs.resolves), and the read judges that reference '
-                f'{esc(state)}">closed by {esc(source)} · {esc(words + reason)}</a>')
+        return (f' <a class="badge tone-{tone}" href="{link}"{attr("title", "records.closed_title", id=source, state=state)}>'
+                f'{t("records.closed_by")} {esc(source)} · {words("ref", state)}{esc(reason)}</a>')
 
     def read_footer(self) -> str:
-        """The read every page was made from, as analytics_status names it."""
-        text = (f"as_of_seq {self.model.as_of_seq} · source_revision {self.model.source_revision}")
+        """The read every page was made from, as analytics_status names it (the names are
+        identifiers, the same in every language)."""
+        text = esc(f"as_of_seq {self.model.as_of_seq} · source_revision {self.model.source_revision}")
         if self.model.updating:
-            text += " · updating: the records changed while they were read"
+            text += " · " + t("footer.updating")
         return text
 
     def producer_html(self, candidates: list[str], depth: int) -> str:
         links = [f'<a href="{esc(self.run_link(r, depth))}">{esc(r)}</a>'
                  for r in candidates[:SHOWN_CANDIDATES]]
         more = len(candidates) - SHOWN_CANDIDATES
-        return ", ".join(links) + (f" and {more:,} more" if more > 0 else "")
+        return ", ".join(links) + (" " + t("list.and_more", n=more) if more > 0 else "")
 
     # --- charts ---
 
@@ -430,11 +456,10 @@ class Site:
             try:
                 size = path.stat().st_size
             except OSError:
-                return '<div class="empty">The chart file is missing.</div>'
+                return f'<div class="empty">{t("chart.file_missing")}</div>'
             if size > PLOTLY_EMBED_LIMIT:
-                return (f'<div class="empty">This plotly figure ({fmt_bytes(size)}) is too large to '
-                        f'embed in this page. <a href="{self.file_link(files["plotly"], depth)}">Open '
-                        'the JSON</a></div>')
+                return (f'<div class="empty">{t("chart.too_large", size=fmt_bytes(size))} '
+                        f'<a href="{self.file_link(files["plotly"], depth)}">{t("chart.open_json")}</a></div>')
             self.uses_plotly = True
             self._fig += 1
             payload = path.read_text(encoding="utf-8").replace("</", "<\\/")
@@ -444,7 +469,7 @@ class Site:
         if files.get("html"):
             return (f'<iframe class="chart-frame" src="{self.file_link(files["html"], depth)}" '
                     f'loading="lazy" title="{title}"{USER}></iframe>')
-        return '<div class="empty">No file to show for this visualization.</div>'
+        return f'<div class="empty">{t("chart.no_file")}</div>'
 
     def chart_card(self, chart: dict, depth: int, *, full=False) -> str:
         run = self.run_by_id.get(chart["run"]) or {}
@@ -454,23 +479,18 @@ class Site:
         badges += stale_badges(fresh)
         badges += producer_badges(fresh)
         if fresh["code"] == "changed":
-            badges.append(badge("warning", "✎", "Script edited",
-                                "The script file changed after this visualization was made"))
+            badges.append(badge("warning", "✎", t("badge.script_edited"), attr("title", "badge.script_edited_title")))
             if fresh.get("code_reason") == core.LINE_ENDINGS_ONLY:
                 badges.append(line_endings_badge())
         elif fresh["code"] == "missing":
-            badges.append(badge("warning", "✎", "Script missing",
-                                "The script that made this visualization is no longer there "
-                                "(renamed or deleted)"))
+            badges.append(badge("warning", "✎", t("badge.script_missing"), attr("title", "badge.script_missing_title")))
         versions = chart.get("versions") or []
         if len(versions) > 1:
-            badges.append(f'<span class="badge tone-muted">v{len(versions)}</span>')
+            badges.append(f'<span class="badge tone-muted">{t("badge.versions", n=len(versions))}</span>')
         if chart.get("inferred_versions"):
-            badges.append(inferred_badge(
-                f"{chart['inferred_versions']:,} of the {len(versions):,} version(s) of this key were "
-                "recorded under another spelling of the script's path"))
+            badges.append(inferred_badge("inferred.title_versions", n=chart["inferred_versions"], total=len(versions)))
         if chart.get("retired"):
-            badges.append(badge("muted", "↺", "Absent from latest run"))
+            badges.append(badge("muted", "↺", t("badge.retired")))
         run_page = self.run_link(chart["run"], depth)
         line = chart.get("line")
         code_link = (f'<a href="{run_page}#code"{USER}>{esc(script.get("path"))}</a> '
@@ -479,27 +499,27 @@ class Site:
             code_link += f' · <a href="{run_page}#L-main-{line}">L{line}</a>'
         inputs = []
         for entry in fresh["inputs"]:
-            tone, icon, label = INPUT_STATE.get(entry["state"], INPUT_STATE["unknown"])
+            state = entry["state"] if entry["state"] in INPUT_STATE else "unknown"
+            tone, icon = INPUT_STATE[state]
             reason = (f" {line_endings_badge()}" if entry.get("reason") == core.LINE_ENDINGS_ONLY
                       else "")
             inputs.append(f'<span class="input">{self.path_html(entry["path"], depth)} '
                           f'<span class="sha">{short(entry.get("sha256"))}</span>'
-                          f'<span class="state tone-{tone}" title="File now: {esc(label)}">{icon}</span>'
+                          f'<span class="state tone-{tone}"{attr("title", "card.file_now." + state)}>{icon}</span>'
                           f'{reason}</span>')
         if chart.get("data"):
             data_html = (f'<a href="{run_page}#chart-{esc(chart["id"])}-data">'
-                         f'{fmt_num(chart.get("data_rows"))} rows · '
-                         f'{len(chart.get("data_columns") or [])} columns</a>'
+                         f'{t("card.rows_columns", rows=fmt_num(chart.get("data_rows")), columns=len(chart.get("data_columns") or []))}</a>'
                          f' · <a href="{self.file_link(chart["data"], depth)}">parquet</a>')
         elif chart.get("kind") == "plotly":
-            data_html = '<span class="muted">In the plotly figure JSON</span>'
+            data_html = f'<span class="muted">{t("card.in_plotly_json")}</span>'
         else:
-            data_html = '<span class="muted">Not recorded — analytics.visualize(..., data=df)</span>'
+            data_html = f'<span class="muted">{t("card.data_not_recorded")}</span>'
         version_links = ""
         if full and len(versions) > 1:
-            version_links = ('<div class="versions">Earlier versions: ' + " · ".join(
+            version_links = (f'<div class="versions">{t("card.earlier_versions")} ' + " · ".join(
                 f'<a href="{self.run_link(v["run"], depth, "#chart-" + href(str(chart["id"])))}">{fmt_time(v.get("started_at"))}</a>'
-                + (f' <small title="{esc(INFERRED_TITLE)}">(inferred)</small>' if v.get("inferred") else "")
+                + (f' <small{inferred_title()}>{t("inferred.short")}</small>' if v.get("inferred") else "")
                 for v in versions[-2::-1][:8]) + "</div>")
         card_id = ("chart-" if full else "recent-chart-") + slug_key(chart["key"])
         classes = "chart-card" + (" is-stale" if fresh["stale"] else "") + \
@@ -512,10 +532,10 @@ class Site:
   <div class="chart-body">{self.chart_html(chart, depth)}</div>
   {caption}
   <dl class="prov">
-    <div><dt>Code</dt><dd>{code_link}</dd></div>
-    <div><dt>Input data</dt><dd>{''.join(inputs) or '<span class="muted">No inputs detected</span>'}</dd></div>
-    <div><dt>Attached data</dt><dd>{data_html}</dd></div>
-    <div><dt>Run</dt><dd><a href="{run_page}">{esc(chart['run'])}</a> · {fmt_time(run.get('started_at'))} · {run.get('duration_s', '-')}s</dd></div>
+    <div><dt>{t("card.code")}</dt><dd>{code_link}</dd></div>
+    <div><dt>{t("card.input_data")}</dt><dd>{''.join(inputs) or f'<span class="muted">{t("card.no_inputs")}</span>'}</dd></div>
+    <div><dt>{t("card.attached_data")}</dt><dd>{data_html}</dd></div>
+    <div><dt>{t("card.run")}</dt><dd><a href="{run_page}">{esc(chart['run'])}</a> · {fmt_time(run.get('started_at'))} · {run.get('duration_s', '-')}s</dd></div>
   </dl>
   {version_links}
   {self.relation_actions(chart["run"] + "/" + str(chart["id"]), depth)}
@@ -525,10 +545,11 @@ class Site:
 
     def table(self, columns, rows, *, types=None, klass="data", data_head=True) -> str:
         """A table of data: its text cells, and its column names when they are the data's
-        (`data_head`), are the data's text (USER); `null` and numbers are the kit's."""
+        (`data_head`), are the data's text (USER); `null` and numbers are the kit's. Column names
+        that are not the data's are the kit's words, as HTML (t)."""
         lang = USER if data_head else ""
         head = "".join(
-            f'<th{lang}>{esc(c)}{f"<small>{esc(types[i])}</small>" if types else ""}</th>'
+            f'<th{lang}>{esc(c) if data_head else c}{f"<small>{esc(types[i])}</small>" if types else ""}</th>'
             for i, c in enumerate(columns))
         body = []
         for row in rows:
@@ -554,43 +575,43 @@ class Site:
             schema = lf.collect_schema()
             frame = lf.head(limit).collect()
             total = lf.select(pl.len()).collect().item()
-            note = (f'<p class="muted">First {min(limit, total):,} of {fmt_num(total)} rows</p>'
+            note = (f'<p class="muted">{t("data.preview_first", shown=min(limit, total), total=total)}</p>'
                     if total > limit else "")
             return note + self.table(frame.columns, [[cell(v, 120) for v in r] for r in frame.rows()],
-                                     types=[str(t) for t in schema.values()])
-        return '<div class="empty">Could not read the data.</div>'
+                                     types=[str(dtype) for dtype in schema.values()])
+        return f'<div class="empty">{t("data.unreadable")}</div>'
 
     # --- events ---
 
     def events_html(self, events, depth: int, *, filters=False, prefix="") -> str:
         if not events:
-            return '<div class="empty">No journal entries yet.</div>'
+            return f'<div class="empty">{t("events.empty")}</div>'
         out, day = [], None
         for ev in events:
             ts = str(ev.get("ts") or "")
             if ts[:10] != day:
                 day = ts[:10]
-                out.append(f'<li class="day">{esc(day)}</li>')
+                out.append(f'<li class="day">{fmt_date(ts)}</li>')
             resolved = self.resolved.get(ev.get("id"))
             state = ""
             if ev.get("kind") in core.OPEN_KINDS + core.KEY_KINDS and resolved:
                 state = self.closed_badge(resolved, depth)
             elif ev.get("kind") in core.OPEN_KINDS:
-                state = ' <span class="badge tone-warning">● Open</span>'
+                state = f' <span class="badge tone-warning">● {t("badge.open")}</span>'
             # A record whose id other lines share is named by its line, and so is its anchor.
             source, anchor, shown = self.source(ev), self.anchor(ev), esc(ev.get("id"))
             if anchor != ev.get("id"):
-                shown += f' <small title="several journal lines have this id">{esc(source)}</small>'
+                shown += f' <small{attr("title", "events.shared_id_title")}>{esc(source)}</small>'
             out.append(
                 f'<li class="ev" id="{esc(prefix + anchor)}" data-kind="{esc(ev.get("kind"))}" data-selection="{quote(source or "", safe="")}">'
-                f'<div class="ev-head"><time>{fmt_time(ts, with_date=False)}</time>{kind_chip(ev.get("kind"))}'
-                f'<span class="ev-id">{shown}</span><span class="actor">{esc(ev.get("actor"))}</span>{state}</div>'
+                f'<div class="ev-head">{fmt_time(ts, with_date=False)}{kind_chip(ev.get("kind"))}'
+                f'<span class="ev-id">{shown}</span><span class="actor">{words("actor", ev.get("actor"))}</span>{state}</div>'
                 f'<div class="ev-text"{USER}>{esc(ev.get("text"))}</div>{self.refs_html(ev, depth)}{self.relation_actions(source, depth)}</li>')
         chips = ""
         if filters:
             counts = Counter(e.get("kind") for e in events)
-            chips = '<div class="filters" role="group" aria-label="Filter by kind"><button class="on" data-kind="">All</button>' + "".join(
-                f'<button data-kind="{esc(k)}">{esc(KIND_LABEL.get(k, k))} {n}</button>'
+            chips = f'<div class="filters" role="group"{attr("aria-label", "filters.by_kind")}><button class="on" data-kind="">{t("filters.all")}</button>' + "".join(
+                f'<button data-kind="{esc(k)}">{words("kind", k)} {n}</button>'
                 for k, n in sorted(counts.items(), key=lambda kv: core.EVENT_KINDS.index(kv[0])
                                    if kv[0] in core.EVENT_KINDS else 99)) + "</div>"
         return f'{chips}<ol class="timeline">{"".join(out)}</ol>'
@@ -598,31 +619,42 @@ class Site:
     # --- page shell ---
 
     def page(self, depth: int, title: str, crumb: str, body: str, kind: str, *,
-             page_path: str | None = None, selection: str = "") -> str:
+             page_path: str | None = None, selection: str = "", title_key: str = "",
+             title_args: dict | None = None) -> str:
+        """A page. Its title is `title` as written, or the kit's words of `title_key` (then the
+        page switches them too); either way the project's title follows as written."""
         root = self.root(depth)
         page_path = page_path or ("index.html" if kind == "index" else "context.html" if kind == "context" else "")
         if kind != "index" and "data-return" not in body:
-            body = f'<div class="workspace-actions"><a data-return href="{root}index.html">Return to origin</a></div>' + body
+            body = f'<div class="workspace-actions"><a data-return href="{root}index.html">{t("action.return")}</a></div>' + body
         v = f"?v={self.build}"  # new URLs per build, so a reload never runs cached assets
         plotly = (f'<script src="{root}assets/plotly.min.js?v={core.KIT_VERSION}"></script>'
                   if self.uses_plotly else "")
         self.uses_plotly = False
+        if title_key:
+            # The kit's words first, then what follows them as written (a selected identity).
+            title = i18n.message(title_key, **(title_args or {})) + (f" · {title}" if title else "")
+            switched = f' data-i18n-doctitle="{title_key}"' + (
+                f' data-i18n-doctitle-args="{esc(json.dumps(title_args, sort_keys=True))}"' if title_args else "")
+        else:
+            switched = ""
         return f"""<!doctype html>
-<html lang="en" data-root="{root}" data-build="{self.build}" data-source="{esc(self.model.source_revision)}" data-page="{href(page_path)}" data-selection="{quote(selection, safe="")}">
+<html lang="en" data-root="{root}" data-build="{self.build}" data-source="{esc(self.model.source_revision)}" data-page="{href(page_path)}" data-selection="{quote(selection, safe="")}"{switched}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{esc(title)} · {esc(self.p.title())}</title>
 <link rel="stylesheet" href="{root}assets/workspace.css{v}">
 <link rel="stylesheet" href="{root}assets/code.css{v}">
+<script src="{root}assets/i18n.js{v}"></script>
 </head>
 <body class="page-{kind}">
 <header class="topbar">
   <div class="crumbs"><a href="{root}index.html"{USER}>{esc(self.p.title())}</a>{crumb}</div>
-  <div class="build">Rendered {fmt_time(self.built_at)} · <label><input type="checkbox" id="live" checked> Auto-reload</label></div>
+  <div class="build">{t("chrome.rendered")} {fmt_time(self.built_at)} · <label><input type="checkbox" id="live" checked> {t("chrome.auto_reload")}</label></div>
 </header>
 <main><p class="state-notice" role="status" hidden></p>{body}</main>
-<footer>Aelix Analytics {core.KIT_VERSION} · Generated from the run records, the journal and CONTEXT.md — do not edit by hand. · <span class="read-basis">Read at {esc(self.read_footer())}</span></footer>
+<footer>Aelix Analytics {core.KIT_VERSION} · {t("chrome.generated")} · <span class="read-basis">{t("chrome.read_at")} {self.read_footer()}</span></footer>
 {plotly}
 <script src="{root}assets/workspace-state.js{v}"></script>
 <script src="{root}assets/workspace.js{v}"></script>
@@ -636,17 +668,17 @@ def dataset_counts(site) -> str:
     in a lab.json project) and the other kind of imports when there are any, then derived."""
     own = "raw" if site.p.layout.imported_dir == "data/raw" else "imported"
     kinds = [k for k in ("imported", "raw") if k == own or any(d["kind"] == k for d in site.datasets)]
-    return " · ".join(f"{k} {sum(d['kind'] == k for d in site.datasets)}" for k in (*kinds, "derived"))
+    return " · ".join(f"{words('data.kind', k)} {sum(d['kind'] == k for d in site.datasets)}"
+                      for k in (*kinds, "derived"))
 
 
 def imported_note(site) -> str:
     """Where the imported data is (kept unchanged): data/imported, and data/raw a lab.json project's."""
     if site.p.layout.imported_dir == "data/raw":
-        return "data/raw holds imported data (kept unchanged)"
+        return t("data.imported_note.raw")
     if any(ds["kind"] == "raw" for ds in site.datasets):
-        return ("data/imported holds imported data and data/raw the imports of a lab.json project (both "
-                "kept unchanged)")
-    return "data/imported holds imported data (kept unchanged)"
+        return t("data.imported_note.both")
+    return t("data.imported_note.imported")
 
 
 def fingerprint(project: core.Project) -> str:
@@ -672,6 +704,8 @@ def fingerprint(project: core.Project) -> str:
     from .runner import kit_sha
 
     parts.append(kit_sha())
+    # The catalogs are .json, which kit_sha leaves out: a change of words alone rebuilds the pages.
+    parts.append(i18n.digest())
     return hashlib.sha256(json.dumps(parts, sort_keys=True).encode()).hexdigest()
 
 
@@ -757,6 +791,8 @@ def _write_assets(site: Site, out: Path) -> None:
     for name in ("workspace.css", "workspace.js", "workspace-state.js"):
         with resources.as_file(ASSETS / name) as source:
             shutil.copyfile(source, assets / name)
+    # The runtime and both catalogs in one script the page loads in its head (i18n.py).
+    core.write_text(assets / "i18n.js", i18n.script())
     code_css = assets / "code.css"
     with resources.as_file(ASSETS / "workspace.css") as css:
         stale = not code_css.is_file() or code_css.stat().st_mtime < css.stat().st_mtime
@@ -784,7 +820,7 @@ SHOWN_PLACES = 20
 
 def _places(items: list[str]) -> str:
     more = len(items) - SHOWN_PLACES
-    return ", ".join(items[:SHOWN_PLACES]) + (f" and {more:,} more" if more > 0 else "")
+    return esc(", ".join(items[:SHOWN_PLACES])) + (" " + t("list.and_more", n=more) if more > 0 else "")
 
 
 def records_notice(site: Site) -> str:
@@ -797,78 +833,67 @@ def records_notice(site: Site) -> str:
         places = [f"{u['location']} ({u['reason']})" for u in m.unsupported]
         # Only a known family's newer version is one a newer kit may read.
         newer = sum(1 for u in m.unsupported if u["reason"] == "unknown_version")
-        later = (" A newer kit may read them." if newer == len(places) else
-                 f" A newer kit may read the {newer:,} of an unknown version." if newer else "")
-        items.append(f"<li><strong>Unsupported: {len(places):,} record(s) this kit cannot read</strong> "
-                     f"are in no list of this report — {esc(_places(places))}.{later}</li>")
+        later = (" " + t("notice.newer_kit_all") if newer == len(places) else
+                 " " + t("notice.newer_kit_some", n=newer) if newer else "")
+        items.append(f"<li><strong>{t('notice.unsupported', n=len(places))}</strong> "
+                     f"{t('notice.unsupported_where')} {_places(places)}.{later}</li>")
     journal = m.journal
     if journal.damaged:
-        recovered = (f"; the record a later write appended onto {len(journal.recovered):,} of them is "
-                     f"read ({esc(_places([f'journal:{n}' for n in journal.recovered]))})"
+        recovered = (f"; {t('notice.recovered', n=len(journal.recovered))} "
+                     f"({_places([f'journal:{n}' for n in journal.recovered])})"
                      if journal.recovered else "")
-        items.append(f"<li><strong>Damaged: {len(journal.damaged):,} journal line(s) do not parse</strong> "
-                     f"({esc(_places([f'journal:{n}' for n in journal.damaged]))}){recovered}.</li>")
+        items.append(f"<li><strong>{t('notice.damaged_lines', n=len(journal.damaged))}</strong> "
+                     f"({_places([f'journal:{n}' for n in journal.damaged])}){recovered}.</li>")
     if m.damaged_files:
         places = [f"{f['location']} ({f['reason']})" for f in m.damaged_files]
-        items.append(f"<li><strong>Damaged: {len(places):,} record file(s) not read</strong> — "
-                     f"{esc(_places(places))}.</li>")
+        items.append(f"<li><strong>{t('notice.damaged_files', n=len(places))}</strong> — "
+                     f"{_places(places)}.</li>")
     shared = {i: [f"journal:{n}" for n in lines] for i, lines in journal.lines_of.items()
               if len(lines) > 1}
     if shared:
         listed, cut = core.shared_ids_text(shared, SHOWN_PLACES)
-        rest = (" (the kit's <code>status</code> command lists every line in its JSON "
-                "<code>shared_ids</code>)" if cut else "")
-        items.append(f"<li><strong>Ids on several lines:</strong> {esc(listed)}{rest} — each line is "
-                     "its own record, and a reference to the id is ambiguous.</li>")
+        rest = " " + t("notice.shared_ids_more") if cut else ""
+        items.append(f"<li><strong>{t('notice.shared_ids')}</strong> {esc(listed)}{rest} — "
+                     f"{t('notice.shared_ids_meaning')}</li>")
     if m.updating:
-        items.append("<li><strong>Updating:</strong> the records changed while they were read; this "
-                     "report shows the last of three reads.</li>")
+        items.append(f"<li><strong>{t('notice.updating')}</strong> {t('notice.updating_meaning')}</li>")
     if not items:
         return ""
-    return ('<div class="callout tone-warning"><strong>Records this report does not show as they '
-            f'are</strong><ul>{"".join(items)}</ul></div>')
-
-
-# What a stale producer candidate upstream means for the run that read its bytes (ADR-0006 4).
-UPSTREAM_STALE = ("An input has the same bytes as the output of run(s) {runs}, whose inputs (or those "
-                  "of a run before them) changed: producer candidates, not confirmed links.")
-
-
-# A changed file whose bytes differ from the record only in their line ends (ADR-0007 decision 4).
-LINE_ENDINGS_TITLE = ("Only the line endings differ from the recorded bytes (CRLF/LF); the hash "
-                      "compares bytes, so it still counts as changed")
+    return (f'<div class="callout tone-warning"><strong>{t("notice.title")}</strong>'
+            f'<ul>{"".join(items)}</ul></div>')
 
 
 def line_endings_badge() -> str:
-    return badge("muted", "↵", "Line endings only", LINE_ENDINGS_TITLE)
+    """A changed file whose bytes differ from the record only in their line ends (ADR-0007
+    decision 4)."""
+    return badge("muted", "↵", t("badge.line_endings"), attr("title", "badge.line_endings_title"))
 
 
 # A relation found only by reading a path a kit before 0.5.0 recorded as today's identity path
 # (ADR-0006 9): an inference from today's links and names, never an observed or confirmed link.
-INFERRED_TITLE = (f"A kit before {core.PATH_IDENTITY_SINCE} recorded this path by its real place or "
-                  "in another spelling; it is read as today's path of the same file. An inference, "
-                  "not an observed or confirmed link; the records are as they were written.")
+def inferred_title(key: str = "inferred.title", **args) -> str:
+    """The title attribute of such an inference, `key` saying which (inferred.title_*)."""
+    return attr("title", key, since=core.PATH_IDENTITY_SINCE, **args)
 
 
-def inferred_badge(what: str = "") -> str:
-    """The mark of a relation found only through an older kit's path, `what` saying which."""
-    title = f"{what}: {INFERRED_TITLE}" if what else INFERRED_TITLE
-    return badge("muted", "≈", "Inferred from an older kit's path", title)
+def inferred_badge(key: str = "inferred.title", **args) -> str:
+    """The mark of a relation found only through an older kit's path."""
+    return badge("muted", "≈", t("inferred.badge"), inferred_title(key, **args))
 
 
 def inferred_mark(run_id: str, runs) -> str:
     """` · inferred from an older kit's path` beside a run listed only through such a reading."""
     if not runs or run_id not in runs:
         return ""
-    return f' · <span class="ref-note" title="{esc(INFERRED_TITLE)}">{esc(core.INFERRED_NOTE)}</span>'
+    return f' · <span class="ref-note"{inferred_title()}>{t("inferred.note")}</span>'
 
 
 def inferred_count_html(runs) -> str:
     """` (N inferred)` for the runs of a count found only through an older kit's path."""
     if not runs:
         return ""
-    return (f' <small class="ref-note" title="{esc(", ".join(runs))}: {esc(INFERRED_TITLE)}">'
-            f'({len(runs):,} inferred)</small>')
+    return (f' <small class="ref-note"{inferred_title("inferred.title_runs", runs=", ".join(runs))}>'
+            f'{t("inferred.count", n=len(runs))}</small>')
 
 
 def inferred_runs_note(runs) -> str:
@@ -876,36 +901,33 @@ def inferred_runs_note(runs) -> str:
     if not runs:
         return ""
     more = len(runs) - SHOWN_CANDIDATES
-    named = ", ".join(runs[:SHOWN_CANDIDATES]) + (f" and {more:,} more" if more > 0 else "")
-    return (f' <small class="ref-note" title="{esc(INFERRED_TITLE)}">({esc(named)}: '
-            f'{esc(core.INFERRED_NOTE)})</small>')
+    named = esc(", ".join(runs[:SHOWN_CANDIDATES])) + (" " + t("list.and_more", n=more) if more > 0 else "")
+    return f' <small class="ref-note"{inferred_title()}>({named}: {t("inferred.note")})</small>'
 
 
-def changed_inputs_text(fresh: dict) -> list[str]:
-    """A run's changed or missing inputs, each that differs only in its line ends saying so."""
-    reasons = fresh.get("change_reasons") or {}
-    return [f"{path} {core.LINE_ENDINGS_NOTE}" if reasons.get(path) == core.LINE_ENDINGS_ONLY
-            else path for path in fresh["changed_inputs"]]
+def title_ids(ids: list[str]) -> str:
+    """Run ids as a value of the kit's words in a title: the first few, and "…" for the rest, which
+    the page lists (an id is the same in every language; "and 2 more" would not be)."""
+    return ", ".join(ids[:SHOWN_CANDIDATES]) + (", …" if len(ids) > SHOWN_CANDIDATES else "")
 
 
 def stale_badges(fresh: dict) -> list[str]:
     """Why a run's charts may be out of date: an input of its own changed or is missing, or a run that
     output the same bytes as one of its inputs is stale. That run is a producer candidate, so the
-    badge says so and does not say this run's input changed."""
+    badge says so and does not say this run's input changed. A badge's title holds the kit's words
+    and counts: the inputs a person wrote are listed by the card and the run page beside it."""
     out = []
     if fresh["changed_inputs"]:
-        out.append(badge("critical", "⚠", "Input changed", "; ".join(changed_inputs_text(fresh))))
+        out.append(badge("critical", "⚠", t("badge.input_changed"),
+                         attr("title", "badge.input_changed_title", n=len(fresh["changed_inputs"]))))
     if fresh["stale_upstream"]:
-        runs = fresh["stale_upstream"]
-        more = len(runs) - SHOWN_CANDIDATES
-        named = ", ".join(runs[:SHOWN_CANDIDATES]) + (f" and {more:,} more" if more > 0 else "")
+        named = title_ids(fresh["stale_upstream"])
         inferred = fresh.get("inferred_upstream") or []
-        more_inferred = len(inferred) - SHOWN_CANDIDATES
-        said = (f" ({', '.join(inferred[:SHOWN_CANDIDATES])}"
-                + (f" and {more_inferred:,} more" if more_inferred > 0 else "")
-                + f": {core.INFERRED_NOTE})" if inferred else "")
-        out.append(badge("warning", "⚠", "Upstream candidate stale",
-                         UPSTREAM_STALE.format(runs=named) + said))
+        if inferred:
+            title = attr("title", "stale.upstream_title_inferred", runs=named, inferred=title_ids(inferred))
+        else:
+            title = attr("title", "stale.upstream_title", runs=named)
+        out.append(badge("warning", "⚠", t("badge.upstream_stale"), title))
     return out
 
 
@@ -913,20 +935,14 @@ def producer_badges(fresh: dict) -> list[str]:
     """Badges for a run whose inputs several runs could have output, or whose producers cycle."""
     out = []
     if fresh.get("ambiguous_inputs"):
-        paths = fresh["ambiguous_inputs"]
-        out.append(badge("warning", "?", "Producer ambiguous",
-                         f"several successful runs output the same bytes as {len(paths):,} input(s): "
-                         + ", ".join(paths[:SHOWN_CANDIDATES])
-                         + (f" and {len(paths) - SHOWN_CANDIDATES:,} more" if len(paths) > SHOWN_CANDIDATES else "")))
+        out.append(badge("warning", "?", t("badge.producer_ambiguous"),
+                         attr("title", "badge.producer_ambiguous_inputs_title", n=len(fresh["ambiguous_inputs"]))))
     if fresh.get("cycle"):
-        out.append(badge("warning", "↻", "Producer cycle",
-                         "following the runs that output these inputs comes back to a run on the way"))
+        out.append(badge("warning", "↻", t("badge.producer_cycle"), attr("title", "badge.producer_cycle_title")))
     if fresh.get("inferred_inputs"):
         # The paths are what people and scripts wrote, so they are not in the kit's title: the run
         # page's inputs say which (read as …).
-        out.append(inferred_badge(
-            f"a producer candidate of {len(fresh['inferred_inputs']):,} input(s) was found only "
-            "through a path an older kit recorded; the run's inputs say which"))
+        out.append(inferred_badge("inferred.title_inputs", n=len(fresh["inferred_inputs"])))
     return out
 
 
@@ -938,24 +954,25 @@ def origin_html(site: Site, ds: dict, depth: int) -> str:
     inferred = (ds.get("inferred") or {}).get("producer_candidates") or []
     if state == "resolved":
         run = candidates[0]
-        return (f'<a href="{esc(site.run_link(run, depth))}" title="same bytes as this run\'s output">'
-                f"{esc(run)}</a>" + (" " + inferred_badge(f"run {run}") if inferred else ""))
+        return (f'<a href="{esc(site.run_link(run, depth))}"{attr("title", "data.same_bytes_title")}>'
+                f"{esc(run)}</a>" + (" " + inferred_badge("inferred.title_run", run=run) if inferred else ""))
     if state == "ambiguous":
-        return (badge("warning", "?", "Producer ambiguous",
-                      f"same bytes as the output of {len(candidates):,} runs")
+        return (badge("warning", "?", t("badge.producer_ambiguous"),
+                      attr("title", "badge.producer_ambiguous_runs_title", n=len(candidates)))
                 + " " + site.producer_html(candidates, depth) + inferred_runs_note(inferred))
     if ds.get("unsupported_record"):
         record = ds["unsupported_record"]
-        return badge("muted", "?", "Import record not read", f"{record['location']}: {record['reason']}")
+        return badge("muted", "?", t("badge.import_not_read"),
+                     attr("title", "badge.import_not_read_title", reason=record["reason"]))
     if ds.get("source"):
         return user_text(Path(ds["source"]).name)
     if state == "unknown":
-        return badge("muted", "?", "Producer unknown", "the file could not be hashed")
+        return badge("muted", "?", t("badge.producer_unknown"), attr("title", "badge.producer_unknown_title"))
     if ds.get("written_by"):
-        return badge("warning", "⚠", "No matching run output",
-                     "no successful run output these bytes; runs that wrote this path: "
-                     + ", ".join(ds["written_by"][::-1][:SHOWN_CANDIDATES]))
-    return badge("critical", "⚠", "No run output recorded")
+        return badge("warning", "⚠", t("badge.no_matching_output"),
+                     attr("title", "badge.no_matching_output_title",
+                          runs=", ".join(ds["written_by"][::-1][:SHOWN_CANDIDATES])))
+    return badge("critical", "⚠", t("badge.no_run_output"))
 
 
 def producer_cell(site: Site, judged: dict | None, depth: int) -> str:
@@ -967,13 +984,13 @@ def producer_cell(site: Site, judged: dict | None, depth: int) -> str:
     inferred = judged.get("inferred_candidates") or []
     if judged["producer"] == "resolved":
         return site.producer_html(candidates, depth) + (
-            " " + inferred_badge(f"run {candidates[0]}") if inferred else "")
+            " " + inferred_badge("inferred.title_run", run=candidates[0]) if inferred else "")
     if judged["producer"] == "ambiguous":
-        return (badge("warning", "?", "Producer ambiguous",
-                      f"{len(candidates):,} successful runs output these bytes")
+        return (badge("warning", "?", t("badge.producer_ambiguous"),
+                      attr("title", "badge.producer_ambiguous_count_title", n=len(candidates)))
                 + " " + site.producer_html(candidates, depth) + inferred_runs_note(inferred))
     if judged["producer"] == "unknown":
-        return badge("muted", "?", "Unknown", "the input has no recorded hash")
+        return badge("muted", "?", t("input.unknown"), attr("title", "badge.no_recorded_hash_title"))
     return '<span class="muted">-</span>'
 
 
@@ -992,23 +1009,23 @@ def index_page(site: Site) -> str:
     failed = [r for r in site.runs if r.get("status") != "ok"]
     open_items, key_items, gaps = site.lists.open, site.lists.key, site.lists.feedback
 
-    def tile(label, value, note="", target=""):
-        return (f'<a class="tile" href="#{target}"><span class="label">{esc(label)}</span>'
+    def tile(label_key, value, note="", target=""):
+        return (f'<a class="tile" href="#{target}"><span class="label">{t(label_key)}</span>'
                 f'<span class="value">{fmt_num(value)}</span><span class="note">{note}</span></a>')
 
     tiles = "".join([
-        tile("Datasets", len(site.datasets), dataset_counts(site), "data"),
-        tile("Runs", len(site.runs), f"{len(failed)} not succeeded" if failed else "All succeeded",
-             "runs"),
-        tile("Visualizations", len(current), f"⚠ {len(stale)} with input changes" if stale
-             else "No input changes", "charts"),
-        tile("Open questions and next steps", len(open_items), "", "overview-open"),
-        tile("Workflow feedback", len(gaps), "In Evaluation", "evaluation"),
+        tile("overview.tile.datasets", len(site.datasets), dataset_counts(site), "data"),
+        tile("overview.tile.runs", len(site.runs),
+             t("overview.runs_not_ok", n=len(failed)) if failed else t("overview.runs_all_ok"), "runs"),
+        tile("overview.tile.charts", len(current), "⚠ " + t("overview.charts_stale", n=len(stale)) if stale
+             else t("overview.charts_fresh"), "charts"),
+        tile("overview.tile.open", len(open_items), "", "overview-open"),
+        tile("overview.tile.feedback", len(gaps), t("overview.feedback_where"), "evaluation"),
     ])
 
-    def item_list(items, empty):
+    def item_list(items, empty_key):
         if not items:
-            return f'<div class="empty">{empty}</div>'
+            return f'<div class="empty">{t(empty_key)}</div>'
         return '<ul class="items">' + "".join(
             f'<li id="key-{esc(e["id"])}">{kind_chip(e["kind"])} <span class="item-text"{USER}>{esc(e["text"])}</span>'
             f'<span class="item-meta"><a href="{esc(site.relations.content(site.source(e), 0) or site.relations.link(site.source(e), 0, anchor="#record"))}">{esc(site.source(e))}</a> · {fmt_time(e.get("ts"))}</span>'
@@ -1018,33 +1035,33 @@ def index_page(site: Site) -> str:
 
     overview = f"""
 <section id="overview" class="tab">
-  <div class="hero"><h1{USER}>{esc(p.title())}</h1>{st_goal}<div class="where">Project <code{USER}>{esc(p.root)}</code></div></div>
+  <div class="hero"><h1{USER}>{esc(p.title())}</h1>{st_goal}<div class="where">{t("overview.project")} <code{USER}>{esc(p.root)}</code></div></div>
   {skipped}
   <div class="tiles">{tiles}</div>
   <div class="columns">
-    <div class="panel"><h2>Key information</h2>{item_list(key_items, 'Findings, decisions and assumptions appear here once they are recorded.')}</div>
-    <div class="panel" id="overview-open"><h2>Open questions · next steps</h2>{item_list(open_items, 'No open questions or next steps.')}</div>
+    <div class="panel"><h2>{t("overview.key")}</h2>{item_list(key_items, "overview.key_empty")}</div>
+    <div class="panel" id="overview-open"><h2>{t("overview.open")}</h2>{item_list(open_items, "overview.open_empty")}</div>
   </div>
-  <h2 class="section-title">Recent visualizations</h2>
-  <div class="gallery">{''.join(site.chart_card(c, 0) for c in current[:4]) or '<div class="empty">No visualizations yet. Run a script with analytics_run (or analytics run) and its visualizations appear here.</div>'}</div>
-  <h2 class="section-title">Recent journal entries</h2>
+  <h2 class="section-title">{t("overview.recent_charts")}</h2>
+  <div class="gallery">{''.join(site.chart_card(c, 0) for c in current[:4]) or f'<div class="empty">{t("overview.charts_empty")}</div>'}</div>
+  <h2 class="section-title">{t("overview.recent_events")}</h2>
   {site.events_html(site.events[-8:][::-1], 0, prefix="recent-")}
 </section>"""
 
     all_cards = "".join(site.chart_card(c, 0, full=True) for c in site.charts[:CHART_INDEX_LIMIT])
     charts = f"""
 <section id="charts" class="tab">
-  <div class="toolbar"><h2>Visualizations</h2><label class="toggle"><input type="checkbox" id="show-retired"> Also show those absent from the latest run</label></div>
-  <p class="muted">The version from the latest successful run, for each script::chart id. Each card's code, input data and attached data links lead to the records that made it.</p>
+  <div class="toolbar"><h2>{t("tab.charts")}</h2><label class="toggle"><input type="checkbox" id="show-retired"> {t("charts.show_retired")}</label></div>
+  <p class="muted">{t("charts.lead")}</p>
   {list_notice("charts", len(site.charts), CHART_INDEX_LIMIT)}
-  <div class="gallery">{all_cards or '<div class="empty">No visualizations yet.</div>'}</div>
+  <div class="gallery">{all_cards or f'<div class="empty">{t("charts.empty")}</div>'}</div>
 </section>"""
 
     timeline = f"""
 <section id="timeline" class="tab">
-  <div class="toolbar"><h2>Timeline</h2></div>
+  <div class="toolbar"><h2>{t("tab.timeline")}</h2></div>
   {list_notice("timeline", len(site.events), INDEX_LIMIT)}
-  <p>Filters apply to the records on this page.</p>
+  <p>{t("timeline.filters_scope")}</p>
   {site.events_html(site.events[-INDEX_LIMIT:][::-1], 0, filters=True)}
 </section>"""
 
@@ -1053,20 +1070,22 @@ def index_page(site: Site) -> str:
         view = site.view_by_path.get(ds["path"])
         origin = origin_html(site, ds, 0)
         label = dataset_label(ds["name"], view)
-        also = f' <small>view <code>{esc(view)}</code></small>' if label != view else ""
+        also = f' <small>{t("data.view")} <code>{esc(view)}</code></small>' if label != view else ""
         data_rows.append(
-            f'<tr><td><a href="data/{href(view)}.html"{USER}>{esc(label)}</a>{also}</td><td>{esc(ds["kind"])}</td>'
+            f'<tr><td><a href="data/{href(view)}.html"{USER}>{esc(label)}</a>{also}</td><td>{words("data.kind", ds["kind"])}</td>'
             f'<td class="num">{fmt_num(ds.get("rows"))}</td><td class="num">{fmt_num(ds.get("columns"))}</td>'
             f'<td class="num">{fmt_bytes(ds.get("bytes"))}</td><td><code{USER}>{esc(ds["path"])}</code></td>'
             f'<td>{origin}</td><td class="num">{len(ds.get("used_by") or [])}'
             f'{inferred_count_html((ds.get("inferred") or {}).get("used_by"))}</td>'
             f'<td class="sha">{short(ds.get("sha256"), 12)}</td></tr>')
+    data_head = "".join(f"<th>{t('data.col.' + c)}</th>" for c in
+                        ("dataset", "kind", "rows", "columns", "size", "path", "source", "used_by")) + "<th>sha256</th>"
     data = f"""
 <section id="data" class="tab">
-  <div class="toolbar"><h2>Data</h2></div>
+  <div class="toolbar"><h2>{t("tab.data")}</h2></div>
   {list_notice("data", len(site.datasets), INDEX_LIMIT)}
-  <p class="muted">{esc(imported_note(site))}, data/derived the Parquet files runs made. Each dataset shows its name as written and, where they differ, its SQL view — the name analytics_query and analytics.sql use.</p>
-  {('<div class="table-wrap"><table class="list"><thead><tr><th>Dataset</th><th>Kind</th><th>Rows</th><th>Columns</th><th>Size</th><th>Path</th><th>Source / producer candidates</th><th>Used by runs</th><th>sha256</th></tr></thead><tbody>' + ''.join(data_rows) + '</tbody></table></div>') if data_rows else '<div class="empty">No datasets yet. Import one with analytics_import (or analytics import).</div>'}
+  <p class="muted">{imported_note(site)} {t("data.lead")}</p>
+  {(f'<div class="table-wrap"><table class="list"><thead><tr>{data_head}</tr></thead><tbody>' + ''.join(data_rows) + '</tbody></table></div>') if data_rows else f'<div class="empty">{t("data.empty")}</div>'}
 </section>"""
 
     run_rows = []
@@ -1076,65 +1095,66 @@ def index_page(site: Site) -> str:
         if repro:
             tone = {"match": "good", "mismatch": "critical", "failed": "critical"}.get(
                 repro.get("verdict"), "muted")
-            verdict = badge(tone, "↻", f"Rerun {verdict_label(repro.get('verdict'))}")
+            verdict = badge(tone, "↻", f'{t("runs.rerun")} {verdict_label(repro.get("verdict"))}')
         run_rows.append(
             f'<tr><td>{fmt_time(run.get("started_at"))}</td><td><a href="runs/{href(run["id"])}.html">{esc(run["id"])}</a></td>'
             f'<td>{status_badge(run.get("status"))} {verdict}</td><td{USER}>{esc(run.get("title"))}</td>'
             f'<td class="num">{len(relations.run_visualizations(run))}</td><td class="num">{len(run.get("inputs") or [])}</td>'
             f'<td class="num">{sum(1 for o in run.get("outputs") or [] if o.get("change") != "deleted")}</td>'
             f'<td class="num">{run.get("duration_s", "-")}</td></tr>')
+    run_head = "".join(f"<th>{t('runs.col.' + c)}</th>" for c in
+                       ("started", "run", "status", "title", "charts", "inputs", "outputs", "seconds"))
     runs = f"""
 <section id="runs" class="tab">
-  <div class="toolbar"><h2>Runs</h2></div>
+  <div class="toolbar"><h2>{t("tab.runs")}</h2></div>
   {list_notice("runs", len(site.runs), INDEX_LIMIT)}
-  {('<div class="table-wrap"><table class="list"><thead><tr><th>Started</th><th>Run</th><th>Status</th><th>Title</th><th>Visualizations</th><th>Inputs</th><th>Outputs</th><th>Seconds</th></tr></thead><tbody>' + ''.join(run_rows) + '</tbody></table></div>') if run_rows else '<div class="empty">No runs yet.</div>'}
+  {(f'<div class="table-wrap"><table class="list"><thead><tr>{run_head}</tr></thead><tbody>' + ''.join(run_rows) + '</tbody></table></div>') if run_rows else f'<div class="empty">{t("runs.empty")}</div>'}
 </section>"""
 
     context_html = render_markdown(context_text) if context_text else \
-        '<div class="empty">CONTEXT.md is empty.</div>'
+        f'<div class="empty">{t("context.empty")}</div>'
     version_items = "".join(
         f'<li><a href="context.html#v-{esc(v.stem)}">{fmt_time(core._version_time(v))}</a></li>'
         for v in site.versions[::-1][:12])
     # The context block's own selection, from the file as aelix's read tool numbers its lines.
     _, injected, omitted, _ = core.context_selection(core.context_file_text(p))
     prompt_note = (
-        f'<p class="muted">Sections in every prompt: {section_names(injected) or "none"}.'
-        + (f' Sections the prompt names with their line ranges only: '
-           f'{section_names(omitted)} — the agent reads them when it needs them.'
+        f'<p class="muted">{t("context.in_prompt")} {section_names(injected) or t("context.none")}.'
+        + (f' {t("context.by_range")} {section_names(omitted)} — {t("context.by_range_tail")}'
            if omitted else "") + "</p>")
     context = f"""
 <section id="context" class="tab">
-  <div class="toolbar"><h2>Context <small>CONTEXT.md</small></h2><a href="context.html">{len(site.versions)} recorded version(s) →</a></div>
+  <div class="toolbar"><h2>{t("tab.context")} <small>CONTEXT.md</small></h2><a href="context.html">{t("context.versions_link", n=len(site.versions))} →</a></div>
   {prompt_note}
   <div class="columns wide-left">
     <article class="panel markdown"{USER if context_text else ""}>{context_html}</article>
-    <aside class="panel"><h3>Recent versions</h3><ul class="plain">{version_items or '<li class="muted">None</li>'}</ul></aside>
+    <aside class="panel"><h3>{t("context.recent_versions")}</h3><ul class="plain">{version_items or f'<li class="muted">{t("context.no_versions")}</li>'}</ul></aside>
   </div>
 </section>"""
 
-    return site.page(0, "Workspace", "", overview + insights_section(site) + charts + timeline + data + runs + context + asset_section(site)
-                     + evaluation_section(site), "index")
+    return site.page(0, "", "", overview + insights_section(site) + charts + timeline + data + runs + context + asset_section(site)
+                     + evaluation_section(site), "index", title_key="page.workspace")
 
 
 def list_notice(kind: str, total: int, limit: int, depth: int = 0) -> str:
     more = max(0, total - limit)
     if not more:
         return ""
-    return (f'<p class="list-scope">Showing {min(total, limit):,} of {total:,}; {more:,} outside this page. '
-            f'<a href="{"../" * depth}lists/{kind}-0.html">Browse all {kind}</a></p>')
+    return (f'<p class="list-scope">{t("list.showing", shown=min(total, limit), total=total, more=more)} '
+            f'<a href="{"../" * depth}lists/{kind}-0.html">{t("list.browse_all." + kind)}</a></p>')
 
 
 def insights_section(site: Site) -> str:
     events = [e for e in site.events if e.get("kind") in core.KEY_KINDS]
     cards = "".join(
         f'<article class="panel" id="insight-{esc(site.anchor(e))}"><h3>{kind_chip(e["kind"])} {esc(site.source(e))}</h3>'
-        f'<p{USER}>{esc(e.get("text"))}</p><p>State: {esc((site.model.journal.replay().state_of(site.source(e)) or {}).get("state", "unknown"))}</p>'
+        f'<p{USER}>{esc(e.get("text"))}</p><p>{t("insights.state")} '
+        f'{words("state", (site.model.journal.replay().state_of(site.source(e)) or {}).get("state", "unknown"))}</p>'
         f'{site.relation_actions(site.source(e), 0)}</article>' for e in events[-INDEX_LIMIT:][::-1])
-    return ('<section id="insights" class="tab"><h2>Insights</h2>'
-            '<p>Findings, decisions and assumptions are recorded judgments. Evidence and conclusion review are separate. '
-            '<a href="#assets">Analysis assets and asset suggestions</a></p>'
+    return (f'<section id="insights" class="tab"><h2>{t("tab.insights")}</h2>'
+            f'<p>{t("insights.lead")} <a href="#assets">{t("insights.assets_link")}</a></p>'
             + list_notice("insights", len(events), INDEX_LIMIT)
-            + (cards or '<div class="empty">No findings, decisions or assumptions recorded.</div>') + '</section>')
+            + (cards or f'<div class="empty">{t("insights.empty")}</div>') + '</section>')
 
 
 def write_list_pages(site: Site, out: Path) -> int:
@@ -1150,7 +1170,7 @@ def write_list_pages(site: Site, out: Path) -> int:
             if kind in ("timeline", "insights", "feedback"):
                 content = site.events_html(subset, 1, filters=True)
             elif kind == "charts":
-                content = ('<label class="toggle"><input type="checkbox" id="show-retired"> Also show those absent from the latest run</label>'
+                content = (f'<label class="toggle"><input type="checkbox" id="show-retired"> {t("charts.show_retired")}</label>'
                            + '<div class="gallery">' + ''.join(site.chart_card(c, 1, full=True) for c in subset) + '</div>')
             else:
                 content = '<ul class="plain">' + ''.join(
@@ -1158,16 +1178,18 @@ def write_list_pages(site: Site, out: Path) -> int:
                     f'{esc(r.get("title") or r.get("name") or r.get("id"))}</a>'
                     f'{site.relation_actions("run:" + r["id"] if kind == "runs" else r["path"], 1)}</li>'
                     for r in subset) + '</ul>'
-            nav = (f'<a href="{kind}-{page-1}.html">Previous {kind}</a>' if page else '')
+            nav = (f'<a href="{kind}-{page-1}.html">{t("list.previous." + kind)}</a>' if page else '')
             if (page+1) * limit < len(records):
-                nav += f' <a href="{kind}-{page+1}.html">Next {kind}</a>'
+                nav += f' <a href="{kind}-{page+1}.html">{t("list.next." + kind)}</a>'
             start = page * limit + 1 if subset else 0
-            body = (f'<h1>{esc(kind.title())}</h1><p class="list-scope">Items {start}–{page * limit + len(subset)} '
-                    f'of {len(records):,}; {len(records)-len(subset):,} outside this page. Filters apply to this page.</p>'
-                    '<p class="state-notice" role="status" hidden></p><a data-return href="../index.html">Return to origin</a>'
-                    + content + f'<nav class="continuation" aria-label="List pages">{nav}</nav>')
-            _write(out / "lists" / filename, site.page(1, kind.title(), ' <span>/</span> Browse', body, "list",
-                                                      page_path="lists/" + filename), site.p.platform)
+            body = (f'<h1>{t("list.title." + kind)}</h1><p class="list-scope">'
+                    f'{t("list.items", start=start, end=page * limit + len(subset), total=len(records), outside=len(records) - len(subset))} '
+                    f'{t("list.filters_scope")}</p>'
+                    f'<p class="state-notice" role="status" hidden></p><a data-return href="../index.html">{t("action.return")}</a>'
+                    + content + f'<nav class="continuation"{attr("aria-label", "list.pages")}>{nav}</nav>')
+            _write(out / "lists" / filename, site.page(1, "", f' <span>/</span> {t("list.crumb")}', body, "list",
+                                                      page_path="lists/" + filename, title_key="list.title." + kind),
+                   site.p.platform)
             keep.add(filename)
     _prune(out / "lists", keep)
     return len(keep)
@@ -1192,34 +1214,34 @@ def asset_section(site: Site) -> str:
                          and not relations.asset_event_problem(event)]
             snapshot = snapshots[-1] if snapshots else None
             scores = (snapshot.get("details") or {}).get("scores") if snapshot else None
-            score = "No recorded score"
+            score = t("assets.no_score")
             if (isinstance(scores, dict) and set(scores) == {"demand", "checks", "scope", "benefit"}
                     and all(type(value) is int for value in scores.values())):
-                score = f"Recorded score: {sum(scores.values())}/10 at seq {snapshot['details'].get('as_of_seq')} ({snapshot['id']})"
+                score = t("assets.score", score=sum(scores.values()), seq=str(snapshot["details"].get("as_of_seq")),
+                          id=snapshot["id"])
             target = ("#" + site.anchor(candidate)) if any(site.source(e) == event_id for e in site.events[-INDEX_LIMIT:]) else site.relations.link(event_id, 0, anchor="#record")
-            source = f'<a href="{esc(target)}">{esc(event_id)} · canonical journal references</a>'
-            versions.append(f'<details id="asset-{esc(event_id)}"><summary>{source} · {esc(score)}</summary>'
+            source = f'<a href="{esc(target)}">{esc(event_id)} · {t("assets.journal_refs")}</a>'
+            versions.append(f'<details id="asset-{esc(event_id)}"><summary>{source} · {score}</summary>'
                             f'<p{USER}>{esc(candidate["details"]["problem"])}</p>{site.refs_html(candidate, 0)}'
-                            f'<h4>Stored candidate fields</h4><pre{USER}>{esc(json.dumps(candidate, ensure_ascii=False, indent=2))}</pre>'
-                            + (f'<h4>Recorded assessment {esc(snapshot["id"])}</h4><pre{USER}>{esc(json.dumps(snapshot, ensure_ascii=False, indent=2))}</pre>'
+                            f'<h4>{t("assets.stored_fields")}</h4><pre{USER}>{esc(json.dumps(candidate, ensure_ascii=False, indent=2))}</pre>'
+                            + (f'<h4>{t("assets.assessment")} {esc(snapshot["id"])}</h4><pre{USER}>{esc(json.dumps(snapshot, ensure_ascii=False, indent=2))}</pre>'
                                if snapshot else "") + '</details>')
         items.append(f'<article class="panel"><h3{USER}>{esc(asset["title"])}</h3>'
-                     f'<p>Analysis asset <code>{esc(asset["asset_id"])}</code> · {esc(asset["artifact_kind"])} · '
-                     f'state: {esc(asset["state"])} · {len(asset["versions"])} version(s)</p>{"".join(versions)}</article>')
+                     f'<p>{t("assets.asset")} <code>{esc(asset["asset_id"])}</code> · {esc(asset["artifact_kind"])} · '
+                     f'{t("assets.state")} {esc(asset["state"])} · {t("assets.versions", n=len(asset["versions"]))}</p>{"".join(versions)}</article>')
     for old in view["legacy_candidates"]:
         anchor = old["source"].replace(":", "-")
-        items.append(f'<article class="panel"><h3>Asset candidate (legacy)</h3><p>Raw kind: {esc(old["raw_kind"])} · '
+        items.append(f'<article class="panel"><h3>{t("assets.legacy")}</h3><p>{t("assets.raw_kind")} {esc(old["raw_kind"])} · '
                      f'proposal_id: <span{USER}>{esc(old["proposal_id"])}</span> · '
                      f'<a href="#{esc(anchor)}">{esc(old["source"])}</a></p>'
                      f'<pre{USER}>{esc(json.dumps(old["record"], ensure_ascii=False, indent=2))}</pre></article>')
     pending = ''.join(f'<li><a href="#{esc(notice["event_id"])}">{esc(notice["event_id"])}</a> '
                       f'<span{USER}>{esc(notice["text"])}</span> · {esc(notice["surface"])}</li>' for notice in mode["pending"])
     errors = ''.join(f'<li>{esc(error["code"])}: {esc(error["message"])}</li>' for error in mode["settings_errors"])
-    return (f'<section id="assets" class="tab"><div class="toolbar"><h2>Analysis assets</h2></div>'
-            f'<p>Project suggestion mode: {esc(mode["mode"])}. This view reads stored candidate versions and score snapshots; '
-            'it does not review, publish, execute or register them.</p>'
+    return (f'<section id="assets" class="tab"><div class="toolbar"><h2>{t("tab.assets")}</h2></div>'
+            f'<p>{t("assets.mode")} {esc(mode["mode"])}. {t("assets.lead")}</p>'
             + (f'<ul>{errors}</ul>' if errors else '')
-            + f'<h3>Pending asset suggestions</h3><ul>{pending or "<li>No recorded pending suggestions.</li>"}</ul>'
+            + f'<h3>{t("assets.pending")}</h3><ul>{pending or "<li>" + t("assets.no_pending") + "</li>"}</ul>'
             + ''.join(items) + '</section>')
 
 
@@ -1249,56 +1271,53 @@ def evaluation_section(site: Site) -> str:
     stale = [c for c in site.charts if not c.get("retired") and site.fresh.of(c["run"])["stale"]]
     gaps = site.lists.feedback
 
-    def row(label, value, detail=""):
-        return f"<tr><th>{esc(label)}</th><td class='num'>{value}</td><td>{detail}</td></tr>"
+    def row(label_key, value, detail=""):
+        return f"<tr><th>{t(label_key)}</th><td class='num'>{value}</td><td>{detail}</td></tr>"
 
     def run_list(items):
         return ", ".join(f'<a href="runs/{href(r["id"])}.html">{esc(r["id"])}</a>' for r in items[:6])
 
     signals = "".join([
-        row("Run status", len(runs), " · ".join(f"{esc(STATUS.get(k, (0, 0, k))[2])} {v}"
-                                               for k, v in statuses.items())),
-        row("Runs with no input detected", len(no_input), run_list(no_input)),
-        row("matplotlib charts without attached data", len(undocumented),
+        row("evaluation.run_status", len(runs), " · ".join(f"{words('status', k)} {v}" for k, v in statuses.items())),
+        row("evaluation.no_input", len(no_input), run_list(no_input)),
+        row("evaluation.undocumented", len(undocumented),
             ", ".join(f'<a href="runs/{href(r["id"])}.html"{USER}>{esc(c["id"])}</a>' for r, c in undocumented[:6])),
-        row("Input files outside the project", len(external),
-            ", ".join(user_text(i["path"]) for _, i in external[:4])),
-        row("Files written outside data/", len(outside), ", ".join(user_text(o["path"]) for _, o in outside[:4])),
-        row("Visualizations with input changes", len(stale), ", ".join(user_text(c["key"]) for c in stale[:4])),
-        row("Rerun comparisons", len(reruns),
-            " · ".join(f"{esc(verdict_label(k))} {v}" for k, v in verdicts.items())),
-        row("analytics_query queries", len(site.queries),
-            f"{sum(1 for q in site.queries if q.get('error'))} with an error"),
+        row("evaluation.external", len(external), ", ".join(user_text(i["path"]) for _, i in external[:4])),
+        row("evaluation.outside", len(outside), ", ".join(user_text(o["path"]) for _, o in outside[:4])),
+        row("evaluation.stale", len(stale), ", ".join(user_text(c["key"]) for c in stale[:4])),
+        row("evaluation.reruns", len(reruns), " · ".join(f"{verdict_label(k)} {v}" for k, v in verdicts.items())),
+        row("evaluation.queries", len(site.queries),
+            t("evaluation.query_errors", n=sum(1 for q in site.queries if q.get('error')))),
     ])
     by_tool: dict[str, list[dict]] = defaultdict(list)
-    for t in site.telemetry:
-        by_tool[str(t.get("tool"))].append(t)
+    for tel in site.telemetry:
+        by_tool[str(tel.get("tool"))].append(tel)
     tool_rows = "".join(
         f"<tr><td><code>{esc(tool)}</code></td><td class='num'>{len(items)}</td>"
         f"<td class='num'>{sum(1 for i in items if i.get('error'))}</td>"
         f"<td class='num'>{fmt_num(round(sum(i.get('ms') or 0 for i in items) / max(1, len(items))))}</td></tr>"
         for tool, items in sorted(by_tool.items(), key=lambda kv: -len(kv[1]))[:INDEX_LIMIT])
-    flagged = [t for t in site.telemetry if t.get("flags")]
+    flagged = [tel for tel in site.telemetry if tel.get("flags")]
     flag_items = "".join(
-        f"<li><time>{fmt_time(t.get('ts'))}</time> <code>{esc(t.get('tool'))}</code> "
-        f"{''.join(badge('warning', '⚑', f) for f in t['flags'])} <span class='muted'{USER}>{esc(t.get('summary'))}</span></li>"
-        for t in flagged[::-1][:30])
+        f"<li>{fmt_time(tel.get('ts'))} <code>{esc(tel.get('tool'))}</code> "
+        f"{''.join(badge('warning', '⚑', esc(f)) for f in tel['flags'])} <span class='muted'{USER}>{esc(tel.get('summary'))}</span></li>"
+        for tel in flagged[::-1][:30])
     gap_html = site.events_html(gaps[-INDEX_LIMIT:][::-1], 0, prefix="feedback-") if gaps else \
-        '<div class="empty">No workflow feedback yet. Record where the tools got in the way or needed a workaround with /analytics record workflow_feedback TEXT or analytics_record(kind="workflow_feedback").</div>'
-    telemetry_html = (f'<div class="table-wrap"><table class="list"><thead><tr><th>Tool</th><th>Calls</th>'
-                      f'<th>Errors</th><th>Mean ms</th></tr></thead><tbody>{tool_rows}</tbody></table></div>'
-                      if tool_rows else '<div class="empty">No tool calls recorded by the aelix extension.</div>')
+        f'<div class="empty">{t("evaluation.feedback_empty")}</div>'
+    tool_head = "".join(f"<th>{t('evaluation.col.' + c)}</th>" for c in ("tool", "calls", "errors", "mean_ms"))
+    telemetry_html = (f'<div class="table-wrap"><table class="list"><thead><tr>{tool_head}</tr></thead><tbody>{tool_rows}</tbody></table></div>'
+                      if tool_rows else f'<div class="empty">{t("evaluation.tools_empty")}</div>')
     return f"""
 <section id="evaluation" class="tab">
-  <div class="toolbar"><h2>Evaluation</h2></div>
-  <p class="muted">Where the tools fell short or needed a workaround during the analysis, how much the records cover, and how the agent used its tools.</p>
+  <div class="toolbar"><h2>{t("tab.evaluation")}</h2></div>
+  <p class="muted">{t("evaluation.lead")}</p>
   <div class="columns">
-    <div class="panel"><h3>Workflow feedback ({len(gaps)})</h3>{list_notice("feedback", len(gaps), INDEX_LIMIT)}{gap_html}</div>
-    <div class="panel"><h3>Record coverage</h3><div class="table-wrap"><table class="kv">{signals}</table></div></div>
+    <div class="panel"><h3>{t("evaluation.feedback", n=len(gaps))}</h3>{list_notice("feedback", len(gaps), INDEX_LIMIT)}{gap_html}</div>
+    <div class="panel"><h3>{t("evaluation.coverage")}</h3><div class="table-wrap"><table class="kv">{signals}</table></div></div>
   </div>
   <div class="columns">
-    <div class="panel"><h3>Tool usage</h3>{telemetry_html}</div>
-    <div class="panel"><h3>Possible workarounds ({len(flagged)})</h3>{('<ul class="plain flagged">' + flag_items + '</ul>') if flag_items else '<div class="empty">None</div>'}</div>
+    <div class="panel"><h3>{t("evaluation.tools")}</h3>{telemetry_html}</div>
+    <div class="panel"><h3>{t("evaluation.workarounds", n=len(flagged))}</h3>{('<ul class="plain flagged">' + flag_items + '</ul>') if flag_items else f'<div class="empty">{t("evaluation.none")}</div>'}</div>
   </div>
 </section>"""
 
@@ -1333,24 +1352,26 @@ def run_page(site: Site, run: dict) -> str:
     pos = next((i for i, r in enumerate(same_script) if r["id"] == rid), 0)
     nav = []
     if pos > 0:
-        nav.append(f'<a href="{href(same_script[pos - 1]["id"])}.html">← Previous run</a>')
+        nav.append(f'<a href="{href(same_script[pos - 1]["id"])}.html">← {t("run.previous")}</a>')
     if pos < len(same_script) - 1:
-        nav.append(f'<a href="{href(same_script[pos + 1]["id"])}.html">Next run →</a>')
-    sub = [f"run <code>{esc(rid)}</code>", fmt_time(run.get("started_at")),
-           f"{run.get('duration_s', '-')}s", f"actor {esc(run.get('actor') or '-')}"]
+        nav.append(f'<a href="{href(same_script[pos + 1]["id"])}.html">{t("run.next")} →</a>')
+    sub = [f"{t('run.label')} <code>{esc(rid)}</code>", fmt_time(run.get("started_at")),
+           f"{run.get('duration_s', '-')}s", f"{t('run.actor')} {words('actor', run.get('actor') or '-')}"]
     if run.get("session"):
-        sub.append(f'<span title="{esc(run["session"])}">aelix session {esc(Path(run["session"]).name)}</span>')
+        sub.append(f'<span title="{esc(run["session"])}">{t("run.session")} {esc(Path(run["session"]).name)}</span>')
     head = f"""
 <div class="page-head">
   <div class="title-row"><h1{USER}>{esc(run.get('title'))}</h1>{status_badge(run.get('status'))}</div>
   <div class="sub">{' · '.join(sub)}</div>
-  <div class="sub">Ran <code{USER}>{esc(script.get('path'))}</code> · run {pos + 1} of {len(same_script)} of this script {' '.join(nav)}</div>
+  <div class="sub">{t("run.ran")} <code{USER}>{esc(script.get('path'))}</code> · {t("run.position", n=pos + 1, total=len(same_script))} {' '.join(nav)}</div>
 </div>"""
     callouts = ""
     if run.get("error"):
         err = run["error"]
-        where = f' (line <a href="#L-main-{err["line"]}">{err["line"]}</a>)' if err.get("line") else ""
-        fix = f'<div class="fix">How to fix: {esc(err["hint"])}</div>' if err.get("hint") else ""
+        where = f' ({t("run.line")} <a href="#L-main-{err["line"]}">{err["line"]}</a>)' if err.get("line") else ""
+        # The hint is the kit's, written in English where it is made (core): said so in a Korean page.
+        fix = (f'<div class="fix">{t("run.how_to_fix")} <span lang="en">{esc(err["hint"])}</span></div>'
+               if err.get("hint") else "")
         # The summary is the script's exception as it said it; the hint is the kit's.
         callouts += (f'<div class="callout tone-critical"><strong{USER}>{esc(err.get("summary"))}</strong>'
                      f'{where}{fix}</div>')
@@ -1360,70 +1381,69 @@ def run_page(site: Site, run: dict) -> str:
     if repro:
         tone = {"match": "good", "mismatch": "critical", "failed": "critical"}.get(
             repro.get("verdict"), "muted")
-        details = "".join(f"<li><code{USER}>{esc(k)}</code>: {esc(v)}</li>"
+        details = "".join(f"<li><code{USER}>{esc(k)}</code>: {comparison_words(v)}</li>"
                           for k, v in {**repro["visualizations"], **repro["outputs"]}.items())
-        callouts += (f'<div class="callout tone-{tone}"><strong>Rerun comparison: '
-                     f'{esc(verdict_label(repro.get("verdict")))}</strong> — reran the code snapshot of '
-                     f'<a href="{href(repro.get("of", ""))}.html">{esc(repro.get("of"))}</a>. Inputs '
-                     f'{"same" if repro.get("inputs_same") else "different"}. A rerun is not counted as '
-                     f'a version of its visualizations.<ul>{details}</ul></div>')
+        inputs_same = t("run.inputs_same") if repro.get("inputs_same") else t("run.inputs_different")
+        callouts += (f'<div class="callout tone-{tone}"><strong>{t("run.rerun_comparison")} '
+                     f'{verdict_label(repro.get("verdict"))}</strong> — {t("run.reran_snapshot")} '
+                     f'<a href="{href(repro.get("of", ""))}.html">{esc(repro.get("of"))}</a>. {inputs_same} '
+                     f'{t("run.rerun_not_version")}<ul>{details}</ul></div>')
     if run.get("finalize_errors"):
-        callouts += '<div class="callout tone-critical"><strong>Some recording steps failed</strong><ul>' + "".join(
-            f"<li>{esc(w)}</li>" for w in run["finalize_errors"]) + "</ul></div>"
+        callouts += (f'<div class="callout tone-critical"><strong>{t("run.finalize_failed")}</strong><ul>' + "".join(
+            f'<li lang="en">{esc(w)}</li>' for w in run["finalize_errors"]) + "</ul></div>")
     if run.get("warnings"):
         # Runs recorded before warnings were grouped can carry one line per input file.
         shown = run["warnings"][:REF_LIMIT]
         rest = len(run["warnings"]) - len(shown)
-        callouts += ('<div class="callout tone-warning"><strong>Recording warnings</strong><ul>'
-                     + "".join(f"<li>{esc(w)}</li>" for w in shown)
-                     + (f"<li class='muted'>{rest:,} more</li>" if rest > 0 else "")
+        callouts += (f'<div class="callout tone-warning"><strong>{t("run.warnings")}</strong><ul>'
+                     + "".join(f'<li lang="en">{esc(w)}</li>' for w in shown)
+                     + (f"<li class='muted'>{t('refs.more', n=rest)}</li>" if rest > 0 else "")
                      + "</ul></div>")
     recording = site.recording.get(rid) or {}
     if recording.get("recording_status") == "incomplete":
-        callouts += ('<div class="callout tone-warning"><strong>Recording incomplete</strong><ul>'
-                     + "".join(f"<li><code>{esc(r)}</code>: {esc(RECORDING_REASON.get(r, r))}</li>"
+        callouts += (f'<div class="callout tone-warning"><strong>{t("run.recording_incomplete")}</strong><ul>'
+                     + "".join(f"<li><code>{esc(r)}</code>: {words('recording', r)}</li>"
                                for r in recording.get("reasons") or [])
                      + "</ul></div>")
     if fresh["changed_inputs"]:
         reasons = fresh.get("change_reasons") or {}
-        callouts += ('<div class="callout tone-critical"><strong>This run\'s inputs differ from the files now.</strong> '
-                     + ", ".join(user_text(path) + (f" {esc(core.LINE_ENDINGS_NOTE)}"
+        callouts += (f'<div class="callout tone-critical"><strong>{t("run.inputs_differ")}</strong> '
+                     + ", ".join(user_text(path) + (" " + t("run.line_endings_note")
                                                     if reasons.get(path) == core.LINE_ENDINGS_ONLY else "")
                                  for path in fresh["changed_inputs"]) + "</div>")
     if fresh["stale_upstream"]:
         # The stale runs upstream output the same bytes as an input: candidates, not its producer.
-        callouts += ('<div class="callout tone-warning"><strong>Upstream candidate stale.</strong> '
-                     + UPSTREAM_STALE.format(runs=site.producer_html(fresh["stale_upstream"], 1))
-                     + inferred_runs_note(fresh.get("inferred_upstream")) + "</div>")
+        callouts += (f'<div class="callout tone-warning"><strong>{t("run.upstream_stale")}</strong> '
+                     + t("stale.upstream_lead") + " " + site.producer_html(fresh["stale_upstream"], 1)
+                     + t("stale.upstream_tail") + inferred_runs_note(fresh.get("inferred_upstream")) + "</div>")
     if fresh.get("ambiguous_inputs") or fresh.get("cycle"):
         callouts += ('<div class="callout tone-warning">' + " ".join(producer_badges(fresh))
-                     + " The inputs below name every successful run that output their bytes; none is "
-                     "chosen as the producer.</div>")
+                     + " " + t("run.producers_listed") + "</div>")
 
     charts = []
     for chart in relations.run_visualizations(run):
         key = site.chart_key(run, chart)
         data_block = ""
         if chart.get("data"):
-            data_block = (f'<details class="data-block" id="chart-{esc(chart["id"])}-data"><summary>Attached data · '
-                          f'{fmt_num(chart.get("data_rows"))} rows · <a href="{site.file_link(chart["data"], 1)}">parquet</a></summary>'
+            data_block = (f'<details class="data-block" id="chart-{esc(chart["id"])}-data"><summary>{t("card.attached_data")} · '
+                          f'{t("run.rows", rows=fmt_num(chart.get("data_rows")))} · <a href="{site.file_link(chart["data"], 1)}">parquet</a></summary>'
                           f'{site.frame_preview(chart["data"])}</details>')
-        line = f' · code <a href="#L-main-{chart["line"]}">L{chart["line"]}</a>' if chart.get("line") else ""
+        line = f' · {t("run.code_word")} <a href="#L-main-{chart["line"]}">L{chart["line"]}</a>' if chart.get("line") else ""
         # The key the run recorded is the older kit's spelling (what people wrote: lang="").
-        inferred_key = (f' <small class="ref-note" title="{esc(INFERRED_TITLE)}">recorded as '
+        inferred_key = (f' <small class="ref-note"{inferred_title()}>{t("inferred.recorded_as")} '
                         f'<code{USER}>{esc(core.chart_key(run, chart))}</code> — '
-                        f'{esc(core.INFERRED_NOTE)}</small>'
+                        f'{t("inferred.note")}</small>'
                         if key != core.chart_key(run, chart) else "")
         charts.append(f"""
 <article class="chart-card wide" id="chart-{esc(chart['id'])}" data-selection="{quote(rid + "/" + str(chart["id"]), safe="")}">
   <header><h3{USER}>{esc(chart.get('title'))}</h3><div class="badges"><span class="badge tone-muted">{esc(chart.get('kind'))} · {esc(chart.get('via'))}</span></div></header>
   <div class="chart-body">{site.chart_html(chart, 1, lazy=False)}</div>
   {f'<p class="caption"{USER}>{esc(chart["caption"])}</p>' if chart.get('caption') else ''}
-  <div class="prov-line">id <code{USER}>{esc(key)}</code>{inferred_key}{line} · <a href="{site.chart_anchor(key, 1)}">Show in Visualizations</a></div>
+  <div class="prov-line">id <code{USER}>{esc(key)}</code>{inferred_key}{line} · <a href="{site.chart_anchor(key, 1)}">{t("run.show_in_charts")}</a></div>
   {data_block}
   {site.relation_actions(rid + "/" + str(chart["id"]), 1)}
 </article>""")
-    charts_html = "".join(charts) or '<div class="empty">This run made no visualizations.</div>'
+    charts_html = "".join(charts) or f'<div class="empty">{t("run.no_charts")}</div>'
 
     hl = [c.get("line") for c in relations.run_visualizations(run)]
     if run.get("error") and run["error"].get("line"):
@@ -1431,22 +1451,20 @@ def run_page(site: Site, run: dict) -> str:
     code_blocks = []
     snap = script.get("snapshot")
     if snap and p.path(snap).is_file():
-        state = {"same": "Same as the current file", "changed": "Current file edited",
-                 "missing": "Current file missing", "n/a": "Rerun snapshot"}.get(fresh["code"],
-                                                                                fresh["code"])
+        state = words("code", fresh["code"])
         if fresh.get("code_reason") == core.LINE_ENDINGS_ONLY:
-            state += f" {core.LINE_ENDINGS_NOTE}"
+            state += " " + t("run.line_endings_note")
         code_blocks.append(
             f'<div class="codefile" id="code-main"><div class="file-head"><code{USER}>{esc(script.get("path"))}</code>'
-            f'<span class="sha">sha256 {short(script.get("sha256"), 12)}</span><span>{esc(state)}</span>'
-            f'<a href="{site.file_link(snap, 1)}">Snapshot file</a></div>'
+            f'<span class="sha">sha256 {short(script.get("sha256"), 12)}</span><span>{state}</span>'
+            f'<a href="{site.file_link(snap, 1)}">{t("run.snapshot_file")}</a></div>'
             f'{code_html(p.path(snap).read_text(encoding="utf-8", errors="replace"), "main", hl)}</div>')
     for i, mod in enumerate(run.get("modules") or [], 1):
         mp = p.path(mod.get("snapshot", ""))
         if mp.is_file():
             code_blocks.append(
                 f'<details class="codefile"><summary><code{USER}>{esc(mod["path"])}</code> <span class="sha">'
-                f'sha256 {short(mod.get("sha256"), 12)}</span> (imported local module)</summary>'
+                f'sha256 {short(mod.get("sha256"), 12)}</span> ({t("run.local_module")})</summary>'
                 f'{code_html(mp.read_text(encoding="utf-8", errors="replace"), f"m{i}")}</details>')
 
     pairs = list(zip(run.get("inputs") or [], fresh["inputs"], strict=False))
@@ -1455,19 +1473,19 @@ def run_page(site: Site, run: dict) -> str:
     ordered = sorted(pairs, key=lambda pair: pair[1]["state"] == "same")[:FILE_ROW_LIMIT]
     input_rows = []
     for entry, f_entry in ordered:
-        tone, icon, label = INPUT_STATE.get(f_entry["state"], INPUT_STATE["unknown"])
+        state = f_entry["state"] if f_entry["state"] in INPUT_STATE else "unknown"
+        tone, icon = INPUT_STATE[state]
         producer = producer_cell(site, site.model.producer(rid, entry.get("path")), 1)
         input_rows.append(
             f'<tr><td>{site.path_html(entry["path"], 1)}{site.read_as_html(rid, entry.get("path"), 1)}</td>'
             f'<td>{esc(", ".join(entry.get("via") or []))}</td>'
             f'<td class="num">{fmt_bytes(entry.get("bytes"))}</td><td class="sha">{short(entry.get("sha256"), 12)}</td>'
-            f'<td>{badge(tone, icon, label)}'
+            f'<td>{badge(tone, icon, words("input", state))}'
             f'{" " + line_endings_badge() if f_entry.get("reason") == core.LINE_ENDINGS_ONLY else ""}'
             f'</td><td>{producer}</td></tr>')
     if n_inputs > len(input_rows):
         input_rows.append(
-            f'<tr><td colspan="6" class="muted">{n_inputs - len(input_rows):,} more — changed inputs '
-            f'are listed first. The full list is in '
+            f'<tr><td colspan="6" class="muted">{t("run.inputs_more", n=n_inputs - len(input_rows))} '
             f'<a href="{site.file_link(f"runs/{rid}/run.json", 1)}">run.json</a>.</td></tr>')
     output_rows = []
     for out in run.get("outputs") or []:
@@ -1475,11 +1493,12 @@ def run_page(site: Site, run: dict) -> str:
             now = '<span class="muted">-</span>'
         else:
             seen = site.model.observation(rid, "output", out.get("path"))
-            tone, icon, label = OUTPUT_STATE.get(seen["state"], OUTPUT_STATE["unknown"])
-            now = badge(tone, icon, label, seen.get("reason"))
+            state = seen["state"] if seen["state"] in OUTPUT_STATE else "unknown"
+            tone, icon = OUTPUT_STATE[state]
+            now = badge(tone, icon, words("output", state), title_attr(seen.get("reason")))
         output_rows.append(
             f'<tr><td>{site.path_html(out["path"], 1)}{site.read_as_html(rid, out.get("path"), 1)}</td>'
-            f'<td>{esc(out.get("change"))}</td>'
+            f'<td>{words("change", out.get("change"))}</td>'
             f'<td>{esc(out.get("via", ""))}</td><td class="num">{fmt_num(out.get("rows"))}</td>'
             f'<td{USER}>{esc(", ".join(c[0] for c in (out.get("schema") or [])[:12]))}</td>'
             f'<td class="sha">{short(out.get("sha256"), 12)}</td><td>{now}</td></tr>')
@@ -1497,7 +1516,7 @@ def run_page(site: Site, run: dict) -> str:
             text = fh.read().decode("utf-8", errors="replace")
         opened = " open" if label == "stderr" and run.get("status") != "ok" and size else ""
         # What the script printed is its own text; "(empty)" is the kit's.
-        shown = f"<pre{USER}>{esc(text)}</pre>" if text else "<pre>(empty)</pre>"
+        shown = f"<pre{USER}>{esc(text)}</pre>" if text else f"<pre>{t('run.log_empty')}</pre>"
         return (f'<details class="log"{opened}><summary>{label} · {fmt_bytes(size)}</summary>'
                 f'{shown}</details>')
 
@@ -1507,27 +1526,69 @@ def run_page(site: Site, run: dict) -> str:
         ("kit", f"{env.get('kit_version')} · {short(env.get('kit_sha256'), 12)}"),
         *sorted((env.get("packages") or {}).items())])
     related = site.related.get(rid, [])
+    jump = "".join(f'<a href="#{anchor}">{t("run.nav." + anchor)}</a>'
+                   for anchor in ("charts", "code", "inputs", "outputs", "logs", "env", "journal", "reproduce"))
+    input_head = "".join(f"<th>{t('run.col.' + c)}</th>" for c in ("path", "via", "size", "recorded_sha", "now", "producer"))
+    output_head = "".join(f"<th>{t('run.col.' + c)}</th>" for c in ("path", "change", "via", "rows", "columns")) + \
+        f"<th>sha256</th><th>{t('run.col.now')}</th>"
 
     body = f"""{head}{callouts}
-<nav class="jump"><a href="#charts">Visualizations</a><a href="#code">Code</a><a href="#inputs">Inputs</a><a href="#outputs">Outputs</a><a href="#logs">Logs</a><a href="#env">Environment</a><a href="#journal">Journal</a><a href="#reproduce">Rerun</a></nav>
-<section id="charts"><h2>Visualizations ({len(charts)})</h2>{charts_html}</section>
-<section id="code"><h2>Code</h2><p class="muted">A snapshot of the bytes the run executed. Highlighted lines recorded a visualization or raised the error.</p>{''.join(code_blocks) or '<div class="empty">No code snapshot.</div>'}</section>
-<section id="inputs"><h2>Input data ({n_inputs})</h2><p class="muted">via: runtime (seen while polars, duckdb or lab.* read it), scan (a path literal in the code), declared (given with the run). The state compares the file's sha256 now with the record. Producer: every successful run that output this path with these bytes and did not start after this run — same bytes, not a confirmed link.</p>
-{('<div class="table-wrap"><table class="list"><thead><tr><th>Path</th><th>via</th><th>Size</th><th>Recorded sha256</th><th>Now</th><th>Producer</th></tr></thead><tbody>' + ''.join(input_rows) + '</tbody></table></div>') if input_rows else '<div class="empty">No inputs detected.</div>'}</section>
-<section id="outputs"><h2>Outputs ({len(output_rows)})</h2>
-{('<div class="table-wrap"><table class="list"><thead><tr><th>Path</th><th>Change</th><th>via</th><th>Rows</th><th>Columns</th><th>sha256</th><th>Now</th></tr></thead><tbody>' + ''.join(output_rows) + '</tbody></table></div>') if output_rows else '<div class="empty">The run created or changed no project files.</div>'}</section>
-<section id="logs"><h2>Logs</h2>{log_block('stdout', run.get('stdout'))}{log_block('stderr', run.get('stderr'))}</section>
-<section id="env"><h2>Environment</h2><div class="table-wrap"><table class="kv">{env_rows}</table></div></section>
-<section id="journal"><h2>Journal entries for this run</h2>{site.events_html(related, 1)}</section>
-<section id="reproduce"><h2>Rerun</h2><p>Runs the same code snapshot again and compares its attached data and outputs (a rerun comparison).</p>
+<nav class="jump">{jump}</nav>
+<section id="charts"><h2>{t("run.h.charts", n=len(charts))}</h2>{charts_html}</section>
+<section id="code"><h2>{t("run.h.code")}</h2><p class="muted">{t("run.code_lead")}</p>{''.join(code_blocks) or f'<div class="empty">{t("run.no_code")}</div>'}</section>
+<section id="inputs"><h2>{t("run.h.inputs", n=n_inputs)}</h2><p class="muted">{t("run.inputs_lead")}</p>
+{(f'<div class="table-wrap"><table class="list"><thead><tr>{input_head}</tr></thead><tbody>' + ''.join(input_rows) + '</tbody></table></div>') if input_rows else f'<div class="empty">{t("run.no_inputs")}</div>'}</section>
+<section id="outputs"><h2>{t("run.h.outputs", n=len(output_rows))}</h2>
+{(f'<div class="table-wrap"><table class="list"><thead><tr>{output_head}</tr></thead><tbody>' + ''.join(output_rows) + '</tbody></table></div>') if output_rows else f'<div class="empty">{t("run.no_outputs")}</div>'}</section>
+<section id="logs"><h2>{t("run.h.logs")}</h2>{log_block('stdout', run.get('stdout'))}{log_block('stderr', run.get('stderr'))}</section>
+<section id="env"><h2>{t("run.h.env")}</h2><div class="table-wrap"><table class="kv">{env_rows}</table></div></section>
+<section id="journal"><h2>{t("run.h.journal")}</h2>{site.events_html(related, 1)}</section>
+<section id="reproduce"><h2>{t("run.h.rerun")}</h2><p>{t("run.rerun_lead")}</p>
 <pre class="cmd">aelix: analytics_run(title="Rerun comparison", rerun_of="{esc(rid)}")
 CLI:   analytics run --rerun-of {esc(rid)}</pre></section>"""
-    crumb = f' <span>/</span> <a href="../index.html#runs">Runs</a> <span>/</span> {esc(rid)}'
+    crumb = f' <span>/</span> <a href="../index.html#runs">{t("tab.runs")}</a> <span>/</span> {esc(rid)}'
     return site.page(1, run.get("title") or rid, crumb, site.relation_actions("run:" + rid, 1) + body, "run",
                      page_path="runs/" + rid + ".html", selection="run:" + rid)
 
 
 # --- dataset page ---
+
+def _ids(items: list[str]) -> str:
+    """Run ids, SHOWN_CANDIDATES of them and how many more."""
+    more = len(items) - SHOWN_CANDIDATES
+    return esc(", ".join(items[:SHOWN_CANDIDATES])) + (" " + t("list.and_more", n=more) if more > 0 else "")
+
+
+def dataset_origin_html(ds: dict) -> str:
+    """core.dataset_origin in the kit's switchable words: where a dataset's current bytes come from,
+    as far as the records say (ADR-0006 4). A run is named as having output the same bytes, not as
+    having made them, and one found only through an older kit's path says so (ADR-0006 9)."""
+    state = ds.get("producer_state")
+    candidates = ds.get("producer_candidates") or []
+    inferred = ds.get("inferred") or {}
+
+    def inferred_ids(runs) -> str:
+        return f"; {t('inferred.note')}: {_ids(runs)}" if runs else ""
+
+    if state == "resolved":
+        return t("dataset.origin.resolved", run=candidates[0]) + (
+            f" ({t('inferred.note')})" if inferred.get("producer_candidates") else "")
+    if state == "ambiguous":
+        return (t("dataset.origin.ambiguous", n=len(candidates)) + " " + _ids(candidates)
+                + inferred_ids(inferred.get("producer_candidates")))
+    if ds.get("unsupported_record"):
+        record = ds["unsupported_record"]
+        return f'{t("dataset.origin.import_not_read")} ({user_text(record["location"])}: {esc(record["reason"])})'
+    if ds.get("source"):
+        return f'{t("dataset.origin.from")} {user_text(ds["source"])}'
+    if state == "unknown":
+        return t("dataset.origin.unknown")
+    written = ds.get("written_by") or []
+    if written:
+        return (t("dataset.origin.no_match") + " " + _ids(written[::-1])
+                + inferred_ids((inferred.get("written_by") or [])[::-1]))
+    return t("dataset.origin.none")
+
 
 def dataset_page(site: Site, ds: dict, view: str) -> str:
     from . import data
@@ -1542,37 +1603,31 @@ def dataset_page(site: Site, ds: dict, view: str) -> str:
             if ds["kind"] in core.IMPORT_FAMILIES and not ds.get("unsupported_record") else None)
     label = dataset_label(ds["name"], view)
     facts = [f'<code{USER}>{esc(ds["path"])}</code>',
-             f'{fmt_num(prof.get("rows"))} rows × {len(prof.get("columns") or [])} columns',
+             t("dataset.rows_columns", rows=fmt_num(prof.get("rows")), columns=len(prof.get("columns") or [])),
              fmt_bytes(prof.get("bytes")), f'sha256 <span class="sha">{short(prof.get("sha256"), 16)}</span>']
     if label != view:
-        facts.append(f"SQL view <code>{esc(view)}</code>")
+        facts.append(f"{t('dataset.sql_view')} <code>{esc(view)}</code>")
     origin = ""
     if isinstance(meta, dict):
         src = meta.get("source") or {}
-        origin = (f'<dl class="facts"><div><dt>Source file</dt><dd><code{USER}>{esc(src.get("path"))}</code></dd></div>'
-                  f'<div><dt>Source sha256</dt><dd class="sha">{short(src.get("sha256"), 16)}</dd></div>'
-                  f'<div><dt>Format</dt><dd>{esc(src.get("format"))}</dd></div>'
-                  f'<div><dt>Imported at</dt><dd>{fmt_time(meta.get("imported_at"))}</dd></div></dl>')
+        origin = (f'<dl class="facts"><div><dt>{t("dataset.source_file")}</dt><dd><code{USER}>{esc(src.get("path"))}</code></dd></div>'
+                  f'<div><dt>{t("dataset.source_sha")}</dt><dd class="sha">{short(src.get("sha256"), 16)}</dd></div>'
+                  f'<div><dt>{t("dataset.format")}</dt><dd>{esc(src.get("format"))}</dd></div>'
+                  f'<div><dt>{t("dataset.imported_at")}</dt><dd>{fmt_time(meta.get("imported_at"))}</dd></div></dl>')
         if meta.get("description"):
             origin = f'<p class="lead"{USER}>{esc(meta["description"])}</p>' + origin
     producers = ds.get("producers") or []
     candidates = ds.get("producer_candidates") or []
     inferred = ds.get("inferred") or {}
-    said = core.dataset_origin(ds)
-    # The file it was imported from is named by the path as written.
-    current = (f"from {user_text(ds['source'])}" if ds.get("source") and said == f"from {ds['source']}"
-               else esc(said))
+    current = dataset_origin_html(ds)
     if ds.get("producer_state") in ("resolved", "ambiguous"):
         # Only then does a run named here hold these bytes: with `none` the runs named wrote other
         # bytes or did not succeed.
-        current += (f" ({site.producer_html(candidates, 1)}). A run named here output this path with "
-                    "these bytes, which is what the records show; it is not a confirmed link to the "
-                    "run that made them")
+        current += f" ({site.producer_html(candidates, 1)}). {t('dataset.candidate_meaning')}"
         if inferred.get("producer_candidates"):
-            current += (" " + inferred_badge(", ".join(inferred["producer_candidates"]))
-                        + " A run marked so recorded the path by its real place or in another "
-                        "spelling, and is named here by reading it as this path")
-    lineage = [f"<h3>Current bytes</h3><p>{current}.</p>"]
+            current += (" " + inferred_badge("inferred.title_runs", runs=", ".join(inferred["producer_candidates"]))
+                        + " " + t("dataset.inferred_meaning"))
+    lineage = [f"<h3>{t('dataset.current_bytes')}</h3><p>{current}.</p>"]
 
     def change(run_id: str):
         changes = [o.get("change") for o in (site.run_by_id.get(run_id) or {}).get("outputs") or []
@@ -1582,25 +1637,25 @@ def dataset_page(site: Site, ds: dict, view: str) -> str:
     if producers:
         # Every successful run that recorded this path as an output, whatever its bytes, and a
         # deletion as such: none of them is said to have made the file.
-        lineage.append("<h3>Successful runs that recorded an output at this path</h3><ul class='plain'>"
+        lineage.append(f"<h3>{t('dataset.producers')}</h3><ul class='plain'>"
                        + "".join(
             f'<li><a href="{esc(site.run_link(r, 1))}">{esc(r)}</a> {user_text((site.run_by_id.get(r) or {}).get("title"))}'
-            f'{" · deleted this path" if change(r) == "deleted" else ""}'
-            f'{" · same bytes as now" if r in candidates else ""}'
+            f'{" · " + t("dataset.deleted_path") if change(r) == "deleted" else ""}'
+            f'{" · " + t("dataset.same_as_now") if r in candidates else ""}'
             f'{inferred_mark(r, inferred.get("producers"))}</li>'
             for r in dict.fromkeys(producers)) + "</ul>")
     users = ds.get("used_by") or []
-    lineage.append("<h3>Runs that read this data</h3>" + ("<ul class='plain'>" + "".join(
+    lineage.append(f"<h3>{t('dataset.readers')}</h3>" + ("<ul class='plain'>" + "".join(
         f'<li><a href="{site.run_link(r, 1)}">{esc(r)}</a> {user_text((site.run_by_id.get(r) or {}).get("title"))}'
         f'{inferred_mark(r, inferred.get("used_by"))}</li>'
-        for r in users) + "</ul>" if users else '<div class="empty">None yet</div>'))
+        for r in users) + "</ul>" if users else f'<div class="empty">{t("dataset.none_yet")}</div>'))
     # A chart's run read this data when it recorded its path, or (inferred) an older kit's path read
     # as it.
     used_charts = [c for c in site.charts if not c.get("retired") and ds["path"] in
                    {site.model.read_as(c["run"], i.get("path")) or i.get("path")
                     for i in (site.run_by_id.get(c["run"]) or {}).get("inputs") or []}]
     if used_charts:
-        lineage.append("<h3>Visualizations made from this data (latest versions)</h3><ul class='plain'>" + "".join(
+        lineage.append(f"<h3>{t('dataset.charts')}</h3><ul class='plain'>" + "".join(
             f'<li><a href="{site.chart_anchor(c["key"], 1)}"{USER}>{esc(c.get("title"))}</a> <code{USER}>{esc(c["key"])}</code>'
             f'{inferred_mark(c["run"], inferred.get("used_by"))}</li>'
             for c in used_charts) + "</ul>")
@@ -1609,16 +1664,17 @@ def dataset_page(site: Site, ds: dict, view: str) -> str:
                     *("–" if c.get(k) is None else c.get(k) for k in ("min", "max", "mean", "distinct"))]
                    for c in prof.get("columns") or []]
     preview = prof.get("preview") or {}
+    schema_head = [t("dataset.col." + c) for c in ("column", "type", "null", "min", "max", "mean", "distinct")]
     body = f"""
-<div class="page-head"><div class="title-row"><h1{USER}>{esc(label)}</h1><span class="badge tone-muted">{esc(ds['kind'])}</span></div>
+<div class="page-head"><div class="title-row"><h1{USER}>{esc(label)}</h1><span class="badge tone-muted">{words("data.kind", ds['kind'])}</span></div>
 <div class="sub">{' · '.join(facts)}</div></div>
 {origin}
-<section><h2>Schema and statistics</h2>{site.table(['Column', 'Type', 'null', 'min', 'max', 'mean', 'distinct≈'], schema_rows, klass='list', data_head=False)}</section>
-<section><h2>Preview</h2>{site.table(preview.get('columns') or [], preview.get('rows') or [])}</section>
-<section><h2>Relations</h2>{''.join(lineage)}</section>
-<section><h2>Query</h2><pre class="cmd">analytics_query(sql="SELECT * FROM {esc(view)} LIMIT 20")
+<section><h2>{t("dataset.h.schema")}</h2>{site.table(schema_head, schema_rows, klass='list', data_head=False)}</section>
+<section><h2>{t("dataset.h.preview")}</h2>{site.table(preview.get('columns') or [], preview.get('rows') or [])}</section>
+<section><h2>{t("dataset.h.relations")}</h2>{''.join(lineage)}</section>
+<section><h2>{t("dataset.h.query")}</h2><pre class="cmd">analytics_query(sql="SELECT * FROM {esc(view)} LIMIT 20")
 analytics.read("{esc(view)}")   ·   analytics.sql("SELECT count(*) FROM {esc(view)}").pl()</pre></section>"""
-    crumb = f' <span>/</span> <a href="../index.html#data">Data</a> <span>/</span> {user_text(label)}'
+    crumb = f' <span>/</span> <a href="../index.html#data">{t("tab.data")}</a> <span>/</span> {user_text(label)}'
     return site.page(1, label, crumb, site.relation_actions(ds["path"], 1) + body, "dataset",
                      page_path="data/" + view + ".html", selection=ds["path"])
 
@@ -1647,16 +1703,17 @@ def context_page(site: Site) -> str:
         diff = list(difflib.unified_diff(old, new, lineterm="", n=2))[2:]
         lines = "".join(
             f'<span class="{"add" if d.startswith("+") else "del" if d.startswith("-") else "hunk" if d.startswith("@@") else "ctx"}">{esc(d)}</span>\n'
-            for d in diff) or '<span class="ctx">(first version)</span>\n'
+            for d in diff) or f'<span class="ctx">{t("context.first_version")}</span>\n'
         event = next((e for e in site.events if (e.get("refs") or {}).get("context") == v.name), None)
-        who = f" · {esc(event.get('actor'))} · {esc(event.get('id'))}" if event else ""
+        who = f" · {words('actor', event.get('actor'))} · {esc(event.get('id'))}" if event else ""
         blocks.append(site.relation_actions("context:" + v.name, 0) + f'<article class="version" id="v-{esc(v.stem)}"><h3>{fmt_time(core._version_time(v))}{who}</h3>'
                       f'<pre class="diff"{USER if diff else ""}>{lines}</pre></article>')
     body = f"""
-<div class="page-head"><h1>Context history</h1><div class="sub">Each change to CONTEXT.md leaves a version in .analytics/context/ (.lab/context/ holds a lab.json project's, listed here too). A new version is noticed at a run, an import, a record and a Workspace render.</div></div>
+<div class="page-head"><h1>{t("page.context_history")}</h1><div class="sub">{t("context.history_lead")}</div></div>
 <div class="columns wide-left">
-  <article class="panel markdown"{USER if current else ""}>{render_markdown(current) if current else '<div class="empty">Empty</div>'}</article>
-  <aside class="panel"><h3>{len(versions)} version(s)</h3><ul class="plain">{''.join(f'<li><a href="#v-{esc(v.stem)}">{fmt_time(core._version_time(v))}</a></li>' for v in versions[::-1])}</ul></aside>
+  <article class="panel markdown"{USER if current else ""}>{render_markdown(current) if current else f'<div class="empty">{t("context.page_empty")}</div>'}</article>
+  <aside class="panel"><h3>{t("context.versions_count", n=len(versions))}</h3><ul class="plain">{''.join(f'<li><a href="#v-{esc(v.stem)}">{fmt_time(core._version_time(v))}</a></li>' for v in versions[::-1])}</ul></aside>
 </div>
-<section><h2>Changes</h2>{''.join(blocks) or '<div class="empty">No versions recorded.</div>'}</section>"""
-    return site.page(0, "Context history", ' <span>/</span> Context history', body, "context")
+<section><h2>{t("context.changes")}</h2>{''.join(blocks) or f'<div class="empty">{t("context.no_versions_recorded")}</div>'}</section>"""
+    return site.page(0, "", f' <span>/</span> {t("page.context_history")}', body, "context",
+                     title_key="page.context_history")

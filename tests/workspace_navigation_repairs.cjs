@@ -3,6 +3,12 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const codec = require(process.argv[2]);
+// The kit's words as a page has them: the runtime and both catalogs beside workspace.js (#96).
+const path = require('node:path');
+const assets = path.dirname(process.argv[3]);
+const I18n = require(path.join(assets, 'workspace-i18n.js'));
+const ko = JSON.parse(fs.readFileSync(path.join(assets, 'i18n', 'ko.json'), 'utf8'));
+I18n.register({en: JSON.parse(fs.readFileSync(path.join(assets, 'i18n', 'en.json'), 'utf8')), ko});
 const shipped = fs.readFileSync(process.argv[3], 'utf8');
 const sourceRevision = 'aabbccddeeff0011';
 function classList() {
@@ -18,8 +24,14 @@ function element(id='') {
 function environment(page, state, options={}) {
   let url = new URL('file:///synthetic/workspace/'+page+codec.search(state)+(options.anchor?'#'+options.anchor:''));
   const events={},docEvents={},frames=[],notice={hidden:true,textContent:''};
-  if(options.dismissible){notice.nodes=[];notice.append=(...nodes)=>notice.nodes.push(...nodes);notice.contains=node=>notice.nodes.includes(node);}
+  if(options.dismissible){notice.nodes=[];notice.append=(...nodes)=>notice.nodes.push(...nodes);notice.contains=node=>notice.nodes.includes(node);
+    // Like the DOM: the text is the nodes' text, and setting it replaces them.
+    Object.defineProperty(notice,'textContent',{get(){return this.nodes.map(n=>typeof n==='string'?n:n.textContent||'').join('');},
+      set(v){this.nodes=v?[v]:[];}});}
   const diagram={open:false,addEventListener(){}};
+  // The build bar the language menu goes into, and the reader's storage: an object, or 'blocked'.
+  const build=element();build.prepend=(...nodes)=>build.children.unshift(...nodes);
+  const main={prepend(nav){main.nav=nav;}};
   const tabs=(options.tabs||[]).map(id=>element(id));
   const card=element(options.card||'e7');card.dataset={selection:card.id,kind:'finding'};
   card.closest=selector=>selector==='.chart-card.is-retired'&&options.retiredCard?card:null;
@@ -30,27 +42,33 @@ function environment(page, state, options={}) {
   });
   bar.children=buttons;bar.addEventListener=(name,callback)=>{bar[name]=callback;};
   bar.nextElementSibling={matches:()=>true,querySelectorAll:selector=>selector==='li.ev,li.relation-item'?[card]:[]};
-  const document={documentElement:{dataset:{root:page.includes('/')?'../':'',page,source:sourceRevision,selection:''},classList:classList()},
+  const document={documentElement:{dataset:{root:page.includes('/')?'../':'',page,source:sourceRevision,selection:''},classList:classList(),
+      attrs:{lang:'en'},setAttribute(k,v){this.attrs[k]=v;},getAttribute(k){return k in this.attrs?this.attrs[k]:null;}},
     hidden:false,head:{appendChild(){}},getElementById(id){return id===card.id?card:id==='show-retired'?retired:tabs.find(t=>t.id===id)||null;},
-    querySelector(selector){if(selector==='.state-notice') return notice;if(selector==='main') return {prepend(){}};
+    querySelector(selector){if(selector==='.state-notice') return notice;if(selector==='main') return main;
+      if(selector==='.topbar .build') return options.build?build:null;
       if(selector==='.filters button.on') return buttons.find(b=>b.classList.contains('on'))||null;return null;},
     querySelectorAll(selector){if(selector==='main > section.tab') return tabs;if(selector==='.filters') return options.filters?[bar]:[];
       if(selector==='a[data-return]') return [back];if(selector==='.topbar, nav.tabs, nav.jump') return options.sticky||[];
       if(selector==='.relation-diagram') return [diagram];return [];},createElement(){return element();},
+    createTextNode(text){return {textContent:text};},
     addEventListener(name,callback){(docEvents[name] ||= []).push(callback);}};
   const back={href:'../index.html'};
   const history={state:null,replaceState(value,_,path){this.state=value;url=new URL(path,url);},pushState(value,_,path){this.replaceState(value,_,path);}};
   const location={get href(){return url.href;},get pathname(){return url.pathname;},get protocol(){return url.protocol;},get host(){return url.host;},
     get search(){return url.search;},get hash(){return url.hash;},reload(){}};
-  const window={scrollY:0,AnalyticsWorkspaceState:codec,scrollTo(_,y){this.scrollY=y;},addEventListener(name,callback){(events[name] ||= []).push(callback);},
+  const window={scrollY:0,AnalyticsWorkspaceState:codec,AnalyticsI18n:I18n,
+    get localStorage(){if(options.storage==='blocked') throw new Error('SecurityError');return options.storage;},scrollTo(_,y){this.scrollY=y;},addEventListener(name,callback){(events[name] ||= []).push(callback);},
     getComputedStyle(el){return el.style;}};
   if('narrow' in options) window.matchMedia=query=>({matches:query==='(max-width: 640px)'&&options.narrow});
   card.getBoundingClientRect=()=>({top:820-window.scrollY});
   vm.runInNewContext(shipped,{window,document,location,history,URL,URLSearchParams,Set,
     requestAnimationFrame:f=>frames.push(f),setInterval(){},setTimeout(){return 1;},clearTimeout(){}});
   while(frames.length) frames.shift()();
-  return {window,document,history,notice,tabs,card,bar,buttons,back,retired,diagram,docEvents,
+  return {window,document,history,notice,tabs,card,bar,buttons,back,retired,diagram,docEvents,events,build,main,
     click(href){const a={href,hasAttribute(){return false;},closest(selector){return selector==='a[href]'?this:card;}};
+      docEvents.click.forEach(f=>f({target:a}));return new URL(a.href,url);},
+    reset(href){const a={href,hasAttribute(name){return name==='data-reset';},closest(selector){return selector==='a[href]'?this:card;}};
       docEvents.click.forEach(f=>f({target:a}));return new URL(a.href,url);}};
 }
 const initial={v:1,page:'index.html',anchor:'timeline',tab:'timeline',filter:'',retired:false,
@@ -106,3 +124,59 @@ assert.equal(environment('relations/selected-0.html',selected,{narrow:true}).dia
 const vanished=environment('lists/timeline-1.html',{...listState,card:'gone',offset:40});
 assert.equal(vanished.notice.hidden,false);assert.match(vanished.notice.textContent,/no longer in this page/);
 assert.equal(vanished.window.scrollY,0);
+// --- the reader's language (#96): a working storage's choice first, else the URL state's ---
+function memory(held={}){return {held,getItem:k=>(k in held?held[k]:null),setItem(k,v){held[k]=String(v);}};}
+const detail='file:///synthetic/workspace/relations/';
+// Storage blocked: the URL's language is shown, and links, the return link and a reset carry it.
+const koState={...selected,lang:'ko'};
+const korean=environment('relations/selected-0.html',koState,{anchor:'record',storage:'blocked',build:true});
+assert.equal(I18n.language,'ko');
+assert.equal(korean.document.documentElement.attrs.lang,'ko');
+assert.equal(codec.decode(korean.click('file:///synthetic/workspace/runs/old.html#code').search).state.lang,'ko');
+assert.equal(codec.decode(new URL(korean.back.href,detail).search).state.lang,'ko');
+assert.equal(codec.decode(korean.reset(detail+'selected-0.html').search).state.lang,'ko');
+// The menu, built by the script: each language in its own language, the page's selected.
+const [menu]=korean.build.children;
+const select=menu.children[1];
+assert.deepEqual(select.children.map(o=>[o.value,o.attrs.lang,!!o.selected]),[['en','en',false],['ko','ko',true]]);
+// Switching to English: <html lang>, the URL and the return link drop the language; a reset is empty.
+select.value='en';select.on.change();
+assert.equal(I18n.language,'en');
+assert.equal(korean.document.documentElement.attrs.lang,'en');
+assert.equal(korean.history.state.lang,undefined);
+assert.equal(codec.decode(new URL(korean.back.href,detail).search).state.lang,undefined);
+assert.equal(korean.reset(detail+'selected-0.html').search,'');
+// And back to Korean where storage is blocked: the URL state carries it from now on.
+select.value='ko';select.on.change();
+assert.equal(korean.history.state.lang,'ko');
+assert.equal(codec.decode(new URL(korean.back.href,detail).search).state.lang,'ko');
+// A working storage's choice wins over the URL's, and a choice made on the page is kept there.
+const stored=memory({'analytics-language':'en'});
+const english=environment('relations/selected-0.html',koState,{anchor:'record',storage:stored,build:true});
+assert.equal(I18n.language,'en');
+assert.equal(codec.decode(english.click('file:///synthetic/workspace/runs/old.html#code').search).state.lang,undefined);
+const picker=english.build.children[0].children[1];
+picker.value='ko';picker.on.change();
+assert.equal(stored.held['analytics-language'],'ko');
+assert.equal(I18n.language,'ko');
+// Shown again from the back-forward cache after another page chose English: it follows the choice.
+stored.held['analytics-language']='en';
+english.events.pageshow.forEach(f=>f({persisted:true}));
+assert.equal(I18n.language,'en');
+assert.equal(english.document.documentElement.attrs.lang,'en');
+// A choice made in another tab reaches an open page too; another storage key does not.
+stored.held['analytics-language']='ko';
+english.events.storage.forEach(f=>f({key:'analytics-live'}));
+assert.equal(I18n.language,'en');
+english.events.storage.forEach(f=>f({key:'analytics-language'}));
+assert.equal(I18n.language,'ko');
+// A notice the script adds later is in the page's language, its Dismiss button too.
+const noticed=environment('index.html',wrong,{tabs:['overview','timeline'],dismissible:true,
+  storage:memory({'analytics-language':'ko'})});
+const said=noticed.notice.nodes.find(n=>n.attrs&&n.attrs['data-i18n']==='notice.state_other_page');
+assert.equal(said.textContent,ko['notice.state_other_page']);
+assert.equal(noticed.notice.nodes.find(n=>n.className==='notice-close').textContent,ko['action.dismiss']);
+// The section navigation the script builds names each section, and itself, in the page's language.
+assert.deepEqual(noticed.main.nav.children.map(a=>[a.dataset.tab,a.textContent]),
+  [['overview',ko['tab.overview']],['timeline',ko['tab.timeline']]]);
+assert.equal(noticed.main.nav.attrs['aria-label'],ko['nav.sections']);
