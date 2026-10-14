@@ -78,6 +78,12 @@ assert.equal(early.html.attrs.lang, 'ko');
 early = head(memory(), '');
 assert.equal(I18n.start(early.win), 'en');
 assert.equal(early.html.attrs.lang, 'en');
+// The <title> comes before the script in the head: it is switched there too.
+early = head(memory({'analytics-language': 'ko'}), '');
+early.html.attrs['data-i18n-doctitle'] = 'page.relations';
+early.win.document.title = 'Relations · e7';
+I18n.start(early.win);
+assert.equal(early.win.document.title, '관계 · e7');
 assert.equal(I18n.start(null), 'en');
 
 // --- switching a page: the kit's words, their attributes, <html lang> and the title ---

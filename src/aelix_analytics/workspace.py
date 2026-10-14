@@ -1562,10 +1562,14 @@ CLI:   analytics run --rerun-of {esc(rid)}</pre></section>"""
 
 # --- dataset page ---
 
-def _ids(items: list[str]) -> str:
-    """Run ids, SHOWN_CANDIDATES of them and how many more."""
+def _ids(items: list[str], field: str) -> str:
+    """Run ids, SHOWN_CANDIDATES of them, how many more, and where all of them are listed: the
+    status JSON's `field` (core.dataset_origin says the same)."""
     more = len(items) - SHOWN_CANDIDATES
-    return esc(", ".join(items[:SHOWN_CANDIDATES])) + (" " + t("list.and_more", n=more) if more > 0 else "")
+    if more <= 0:
+        return esc(", ".join(items))
+    return (esc(", ".join(items[:SHOWN_CANDIDATES])) + " " + t("list.and_more", n=more)
+            + f" ({t('list.status_lists_all')} <code>{esc(field)}</code>)")
 
 
 def dataset_origin_html(ds: dict) -> str:
@@ -1576,15 +1580,15 @@ def dataset_origin_html(ds: dict) -> str:
     candidates = ds.get("producer_candidates") or []
     inferred = ds.get("inferred") or {}
 
-    def inferred_ids(runs) -> str:
-        return f"; {t('inferred.note')}: {_ids(runs)}" if runs else ""
+    def inferred_ids(runs, field: str) -> str:
+        return f"; {t('inferred.note')}: {_ids(runs, 'inferred.' + field)}" if runs else ""
 
     if state == "resolved":
         return t("dataset.origin.resolved", run=candidates[0]) + (
             f" ({t('inferred.note')})" if inferred.get("producer_candidates") else "")
     if state == "ambiguous":
-        return (t("dataset.origin.ambiguous", n=len(candidates)) + " " + _ids(candidates)
-                + inferred_ids(inferred.get("producer_candidates")))
+        return (t("dataset.origin.ambiguous", n=len(candidates)) + " " + _ids(candidates, "producer_candidates")
+                + inferred_ids(inferred.get("producer_candidates"), "producer_candidates"))
     if ds.get("unsupported_record"):
         record = ds["unsupported_record"]
         return f'{t("dataset.origin.import_not_read")} ({user_text(record["location"])}: {esc(record["reason"])})'
@@ -1594,8 +1598,8 @@ def dataset_origin_html(ds: dict) -> str:
         return t("dataset.origin.unknown")
     written = ds.get("written_by") or []
     if written:
-        return (t("dataset.origin.no_match") + " " + _ids(written[::-1])
-                + inferred_ids((inferred.get("written_by") or [])[::-1]))
+        return (t("dataset.origin.no_match") + " " + _ids(written[::-1], "written_by")
+                + inferred_ids((inferred.get("written_by") or [])[::-1], "written_by"))
     return t("dataset.origin.none")
 
 

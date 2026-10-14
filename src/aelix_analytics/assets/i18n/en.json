@@ -260,6 +260,7 @@
  "list.previous.runs": "Previous runs",
  "list.previous.timeline": "Previous timeline",
  "list.showing": "Showing {shown} of {total}; {more} outside this page.",
+ "list.status_lists_all": "the kit's status command lists every one in its JSON field",
  "list.title.charts": "Charts",
  "list.title.data": "Data",
  "list.title.feedback": "Feedback",

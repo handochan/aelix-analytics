@@ -121,7 +121,8 @@ class RelationPages:
         if event:
             state = self.model.journal.replay().state_of(identity)
             record = (f'<p class="lead"{USER}>{esc(event.value.get("text"))}</p>'
-                      f'<p>{t("relations.recorded_kind")} {s.words("kind", event.kind)} · {esc(event.recorded_at)}</p>')
+                      # The kind as the record holds it (`gap` and `workflow_feedback` stay apart).
+                      f'<p>{t("relations.recorded_kind")} {esc(event.kind)} · {esc(event.recorded_at)}</p>')
             record += f'<div id="history"><h2>{t("relations.history")}</h2><pre{USER}>{esc(json.dumps(state, ensure_ascii=False, indent=2))}</pre></div>'
         if not event:
             record += f'<div id="history"><h2>{t("relations.history")}</h2><p>{t("relations.no_state")}</p></div>'

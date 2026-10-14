@@ -162,13 +162,15 @@ def test_a_word_whose_english_two_translations_share_carries_its_key(monkeypatch
 
 
 def test_the_workspace_is_rebuilt_when_only_the_words_change(tmp_path, monkeypatch):
+    project = marked_project(tmp_path)
+    before = workspace.fingerprint(project)
     copy = tmp_path / "assets"
     shutil.copytree(ASSETS, copy)
     monkeypatch.setattr(i18n, "_ASSETS", copy)
-    before = i18n.digest()
+    assert workspace.fingerprint(project) == before  # the same words, the same fingerprint
     ko = copy / "i18n" / "ko.json"
     ko.write_text(ko.read_text(encoding="utf-8").replace("인사이트", "통찰"), encoding="utf-8")
-    assert i18n.digest() != before
+    assert workspace.fingerprint(project) != before
 
 
 # --- the pages ------------------------------------------------------------------------------------

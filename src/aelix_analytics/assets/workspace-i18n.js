@@ -120,15 +120,19 @@
     if (html && html.setAttribute) html.setAttribute("lang", current);
     if (!doc.querySelectorAll) return current;
     doc.querySelectorAll(SWITCHED).forEach(switchOne);
-    // The document title: the kit's words of the page, then what follows them as written.
-    const titleKey = html && html.getAttribute && html.getAttribute("data-i18n-doctitle");
-    if (titleKey && typeof doc.title === "string") {
-      const titleArgs = parse(html.getAttribute("data-i18n-doctitle-args"));
-      if (!titles.has(doc)) titles.set(doc, doc.title);
-      const written = titles.get(doc), english = format(titleKey, titleArgs, DEFAULT).text;
-      if (written.indexOf(english) === 0) doc.title = t(titleKey, titleArgs) + written.slice(english.length);
-    }
+    switchTitle(doc);
     return current;
+  }
+  // The document title: the kit's words of the page, then what follows them as written.
+  function switchTitle(doc) {
+    const html = doc.documentElement;
+    const titleKey = html && html.getAttribute && html.getAttribute("data-i18n-doctitle");
+    if (!titleKey || typeof doc.title !== "string") return;
+    const titleArgs = parse(html.getAttribute("data-i18n-doctitle-args"));
+    if (!titles.has(doc)) titles.set(doc, doc.title);
+    const written = titles.get(doc), english = format(titleKey, titleArgs, DEFAULT).text;
+    const shown = t(titleKey, titleArgs) + written.slice(english.length);
+    if (written.indexOf(english) === 0 && doc.title !== shown) doc.title = shown;
   }
   // In the head, before the body is read: the language the page will show sets <html lang> now and,
   // when it is not English, the words are switched while the parser adds them, so the page does not
@@ -145,6 +149,7 @@
     const doc = win.document;
     doc.documentElement.setAttribute("lang", language);
     current = language;
+    switchTitle(doc);  // the <title> comes before this script in the head
     if (typeof win.MutationObserver === "function") {
       const observer = new win.MutationObserver(records => records.forEach(record => record.addedNodes.forEach(node => {
         const whole = node.previousSibling;

@@ -440,6 +440,19 @@ def test_the_workspace_links_a_run_events_chart_to_that_run_and_marks_unbound_on
     assert "1 candidate version(s)" in index
 
 
+def test_a_long_list_of_runs_says_where_every_one_is_listed(tmp_path):
+    """Review of #96 (I3): the dataset page names the first runs that wrote a path and says that the
+    status JSON lists every one, as core.dataset_origin does."""
+    p = LegacyProject(tmp_path / "p", migrated=True)
+    for i in range(5):
+        p.run(f"20261001-09{i}000-w{i}", script=f"scripts/w{i}.py", started_at=at(10 + i), ts=at(11 + i),
+              outputs=[("data/derived/w.parquet", p.file("data/derived/w.parquet", f"w{i}".encode()))])
+    p.file("data/derived/w.parquet", b"other")  # no successful run output these bytes
+    page = built(p)["data/w.html"]
+    assert ("and 2 more (the kit's status command lists every one in its JSON field <code>written_by</code>)"
+            in page)
+
+
 def test_the_workspace_shows_producers_and_outputs_not_preserved(tmp_path):
     """F11: the dataset page called the last producer the current version."""
     case = evidence_project(tmp_path)
