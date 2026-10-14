@@ -9,8 +9,10 @@ in the browser with no server and no fetch.
 <k-w> is an element HTML does not know: inline, with no style of its own (a span would take the
 styles of `.crumbs span` or `.badge span`), read the same without a script. A word without values
 whose English names one translation is written bare, `<k-w>Evidence</k-w>`, and the page finds its
-key by its English; any other carries its key, and its values as JSON: `<k-w k="…" a="…">`. Each
-word costs a page a few bytes, which matters on pages that repeat a label per item.
+key by its English; any other carries its key, and its values as JSON: `<k-w k="…" a='{"n":3}'>`.
+A switchable attribute is marked the same way: ` title="…" data-i18n-title` bare, else with its key
+(and `data-i18n-title-args`). Each word costs a page a few bytes, which matters on pages that repeat
+a label per item.
 
 A message never takes what people or scripts wrote as an argument: that text stays its own
 lang="" element beside the kit's words, so it keeps its unknown language in every UI language.
@@ -69,7 +71,9 @@ def message(key: str, language: str = DEFAULT, **args) -> str:
 
 
 def _json(args: dict) -> str:
-    return html.escape(json.dumps(args, ensure_ascii=False, separators=(",", ":"), sort_keys=True), quote=True)
+    """Values as a single-quoted attribute: JSON's double quotes stay as they are."""
+    data = json.dumps(args, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+    return "'" + html.escape(data, quote=False).replace("'", "&#x27;") + "'"
 
 
 @functools.cache
@@ -105,23 +109,24 @@ def t(key: str, **args) -> str:
     """The kit's words for `key`, in an element a page switches (it holds no other element)."""
     if not args:
         return _word(key)
-    return (f'<{WORD} k="{key}" a="{_json(args)}">'
-            f"{html.escape(message(key, **args), quote=False)}</{WORD}>")
+    return f'<{WORD} k="{key}" a={_json(args)}>{html.escape(message(key, **args), quote=False)}</{WORD}>'
 
 
 @functools.cache
 def _attr(name: str, key: str) -> str:
-    return f' {name}="{html.escape(message(key), quote=True)}" data-i18n-{name}="{key}"'
+    marked = f"data-i18n-{name}" if by_english(key) else f'data-i18n-{name}="{key}"'
+    return f' {name}="{html.escape(message(key), quote=True)}" {marked}'
 
 
 def attr(name: str, key: str, **args) -> str:
-    """A switchable attribute of the kit's words: ` name="…" data-i18n-name="key"`."""
+    """A switchable attribute of the kit's words: ` name="…" data-i18n-name` (bare as t's words are),
+    or ` name="…" data-i18n-name="key"` with its values."""
     if name not in ATTRIBUTES:
         raise ValueError(name)
     if not args:
         return _attr(name, key)
     return (f' {name}="{html.escape(message(key, **args), quote=True)}" data-i18n-{name}="{key}"'
-            f' data-i18n-{name}-args="{_json(args)}"')
+            f" data-i18n-{name}-args={_json(args)}")
 
 
 def digest() -> str:

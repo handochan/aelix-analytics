@@ -121,10 +121,17 @@ def test_the_markup_escapes_the_words_and_their_values():
     # A word without values whose English names one translation is bare; the page finds its key.
     assert i18n.by_english("tab.insights") and i18n.t("tab.insights") == "<k-w>Insights</k-w>"
     assert i18n.t("context.versions_count", n=3) == \
-        '<k-w k="context.versions_count" a="{&quot;n&quot;:3}">3 version(s)</k-w>'
+        '<k-w k="context.versions_count" a=\'{"n":3}\'>3 version(s)</k-w>'
+    # Values are JSON in single quotes; a quote or ampersand in a value is escaped.
+    odd = "it's & <x>"
+    shown = html.escape(i18n.message("badge.import_not_read_title", reason=odd), quote=False)
+    assert i18n.t("badge.import_not_read_title", reason=odd) == (
+        '<k-w k="badge.import_not_read_title" a=\'{"reason":"it&#x27;s &amp; &lt;x&gt;"}\'>' + shown + "</k-w>")
+    assert i18n.attr("title", "refs.more_title") == \
+        f' title="{html.escape(i18n.message("refs.more_title"))}" data-i18n-title'
     assert i18n.attr("title", "badge.input_changed_title", n=2) == (
         f' title="{html.escape(i18n.message("badge.input_changed_title", n=2))}"'
-        ' data-i18n-title="badge.input_changed_title" data-i18n-title-args="{&quot;n&quot;:2}"')
+        ' data-i18n-title="badge.input_changed_title" data-i18n-title-args=\'{"n":2}\'')
     with pytest.raises(ValueError):
         i18n.attr("onclick", "tab.insights")
     script = i18n.script()
@@ -203,7 +210,7 @@ class Words(HTMLParser):
             self.nested.append(tag)
         for name in i18n.ATTRIBUTES:
             if f"data-i18n-{name}" in held:
-                self.attributes.append((name, held[f"data-i18n-{name}"],
+                self.attributes.append((name, held[f"data-i18n-{name}"] or None,
                                         json.loads(held.get(f"data-i18n-{name}-args") or "{}"), held.get(name)))
         if tag not in self.VOID:
             self.open.append((tag, held, []))
@@ -254,6 +261,9 @@ def test_every_switchable_word_is_a_known_key_its_english_and_no_one_s_text(tmp_
             assert MARK not in json.dumps(args) and MARK not in text, (path.name, key, args)
             i18n.message(key, "ko", **args)  # every translation fills from the same values
         for name, key, args, value in found.attributes:
+            if key is None:  # a bare mark, found by its English as a bare word is
+                assert value in english and not args, (path.name, name, value)
+                key = english[value]
             seen.add(key)
             assert value == i18n.message(key, **args), (path.name, name, key)
             assert MARK not in json.dumps(args) and MARK not in (value or ""), (path.name, name, key, args)

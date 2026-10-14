@@ -1,6 +1,7 @@
 // The Workspace's own words by message key (i18n.py). A page is written in English; each word it can
-// switch is a <k-w> element — bare when its English names its key, else with k="key" (and a="{values}")
-// — or an attribute marked data-i18n-<attribute>="key"; words a script adds carry data-i18n="key".
+// switch is a <k-w> element — bare when its English names its key, else with k="key" (and a='{values}')
+// — or an attribute marked data-i18n-<attribute> (bare, or ="key"); words a script adds carry
+// data-i18n="key".
 // A date is a <time datetime> written from its stamp. Elements people and scripts wrote carry lang=""
 // and are never touched. No DOM is needed to format, so nonbrowser Node checks exercise this file too.
 (function (root, factory) {
@@ -103,7 +104,14 @@
     });
     ATTRIBUTES.forEach(name => {
       doc.querySelectorAll("[data-i18n-" + name + "]").forEach(el => {
-        el.setAttribute(name, t(el.getAttribute("data-i18n-" + name), parse(el.getAttribute("data-i18n-" + name + "-args"))));
+        // A bare mark: the key is found by the attribute's English, once, as for a bare word.
+        let key = el.getAttribute("data-i18n-" + name);
+        if (!key) {
+          key = byEnglish.get(el.getAttribute(name));
+          if (!key) return;
+          el.setAttribute("data-i18n-" + name, key);
+        }
+        el.setAttribute(name, t(key, parse(el.getAttribute("data-i18n-" + name + "-args"))));
       });
     });
     // The document title: the kit's words of the page, then what follows them as written.

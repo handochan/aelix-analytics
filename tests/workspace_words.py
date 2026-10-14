@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import re
 
-WORD = re.compile(r'<k-w(?: k="[^"]*")?(?: a="[^"]*")?>([^<]*)</k-w>')
-ATTRIBUTE = re.compile(r' data-i18n-[a-z-]+="[^"]*"')
+WORD = re.compile(r'<k-w(?: k="[^"]*")?(?: a=\'[^\']*\')?>([^<]*)</k-w>')
+ATTRIBUTE = re.compile(r' data-i18n-[a-z-]+(?:="[^"]*"|=\'[^\']*\')?(?=[ >])')
 
 
 def plain(page: str) -> str:

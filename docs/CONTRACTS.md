@@ -771,8 +771,9 @@ Workspace의 kit 문구(탭·제목·배지·버튼·빈 화면·안내·tooltip
 - **생성 HTML**: 지금처럼 영어이고 `<html lang="en">`입니다. 바꿀 수 있는 문구는 `<k-w>` 요소입니다. HTML이 모르는 요소라 스타일이 없는
   inline 요소이고, 스크립트가 없어도 같은 글로 읽힙니다.
   - 값이 없고 영어 글로 번역 하나를 가리키는 문구는 key 없이 `<k-w>Evidence</k-w>`로 쓰고, 스크립트가 영어 글로 key를 찾습니다.
-  - 그 밖의 문구는 `k`(key)와 `a`(수와 kit의 값, JSON)를 가집니다: `<k-w k="…" a="…">`.
-  - 속성은 `data-i18n-title`·`data-i18n-aria-label`·`data-i18n-placeholder`(값은 `…-args`)를 가지고, 스크립트가 넣는 문구는 `data-i18n`을 가집니다.
+  - 그 밖의 문구는 `k`(key)와 `a`(수와 kit의 값, 작은따옴표 안의 JSON)를 가집니다: `<k-w k="…" a='{"n":3}'>`.
+  - 속성은 `data-i18n-title`·`data-i18n-aria-label`·`data-i18n-placeholder`를 가집니다. 문구와 같은 규칙으로 값 없이 표시만 하거나 key(와 `…-args`)를 적습니다.
+    스크립트가 넣는 문구는 `data-i18n`을 가집니다.
   - 생성기는 두 카탈로그와 runtime을
   `workspace/assets/i18n.js`(전역 `AnalyticsI18n`) 하나로 쓰고, 페이지는 `<head>`에서 그것을 `<script src>`로 읽습니다. fetch·서버가 없어도 `file://`에서 동작합니다.
   카탈로그가 바뀌면 Workspace 지문이 바뀌어 다시 그립니다.

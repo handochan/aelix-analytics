@@ -101,7 +101,7 @@ const english = word({k: 'x.only_en'}, 'English only');
 const added = node({'data-i18n': 'action.dismiss'}, 'Dismiss');
 const unknown = word({}, 'Not a message of the kit');
 const written = node({lang: ''}, '사람이 쓴 글 — written as it was');
-const labelled = node({'aria-label': 'Filter by kind', 'data-i18n-aria-label': 'filters.by_kind'});
+const labelled = node({'aria-label': 'Filter by kind', 'data-i18n-aria-label': ''});  // a bare mark
 const titled = node({title: '2 inputs', 'data-i18n-title': 'badge.input_changed_title', 'data-i18n-title-args': '{"n":2}'});
 // Dates: a day heading, a time in its record's own offset (never the reader's zone), and a time
 // alone (no datetime: the same in every language).
