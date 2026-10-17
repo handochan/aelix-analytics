@@ -145,8 +145,13 @@ ul.plain li { padding: 0.1875rem 0; }
 .refs { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.375rem; min-width: 0; }
 .ref { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 0 0.25rem; max-width: 100%; padding: 0.0625rem 0.5rem; border-radius: 999px;
   font-size: 0.75rem; font-weight: 500; color: var(--ink-2); background: var(--surface); border: 1px solid var(--border); overflow-wrap: anywhere; }
-.ref .mark { font-weight: 700; }
-.ref .sep { opacity: 0.6; }
+/* The mark is decoration beside the words (an empty alternative: not read out). */
+.ref::before { font-weight: 700; }
+.ref.tone-good::before { content: "✓"; content: "✓" / ""; }
+.ref.tone-warning::before { content: "⚠"; content: "⚠" / ""; }
+.ref.tone-critical::before { content: "⊗"; content: "⊗" / ""; }
+.ref.tone-muted[data-state]::before { content: "–"; content: "–" / ""; }
+.ref.tone-link::before { content: "→"; content: "→" / ""; }
 .ref a { color: inherit; text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 40%, transparent); }
 .ref.tone-good { color: var(--good-text); background: color-mix(in srgb, var(--good) 10%, transparent); border-color: transparent; }
 .ref.tone-warning { color: var(--warning-text); background: color-mix(in srgb, var(--warning) 18%, transparent); border-color: transparent; }

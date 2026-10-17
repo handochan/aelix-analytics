@@ -403,7 +403,7 @@ class Site:
         kind, state = judged.get("type"), judged["state"]
         target, label = judged.get("target") or {}, core.reference_label(judged)
         found = state == "resolved"
-        tone, mark = REF_STATE.get(state, ("muted", "?"))
+        tone = REF_STATE.get(state, ("muted", "?"))[0]
         problem = ref_words(state, judged.get("reason"))
         if state == "version_unbound":
             # The link is to the latest version: said where the badge says no version was named.
@@ -415,17 +415,17 @@ class Site:
             if relation in ("supersedes", "resolves"):
                 lead = t("refs.corrects" if relation == "supersedes" else "refs.resolves")
                 if found:
-                    return self.ref_badge("link", "→", lead, shown, state)
-                return self.ref_badge(tone, mark, lead, shown, state, tail=problem, note=self.recorded_later(judged, depth))
+                    return self.ref_badge("link", lead, shown, state)
+                return self.ref_badge(tone, lead, shown, state, tail=problem, note=self.recorded_later(judged, depth))
             if found:
                 event = self.relations.events.get(label)
-                return self.ref_badge(tone, mark, words("kind", event.kind) if event else t("ref.resolved"), shown, state)
-            return self.ref_badge(tone, mark, problem, shown, state, sep=True,
+                return self.ref_badge(tone, words("kind", event.kind) if event else t("ref.resolved"), shown, state)
+            return self.ref_badge(tone, problem, shown, state, sep=True,
                                   note=self.recorded_later(judged, depth) + self.candidates_note(judged))
         if kind == "run":
             if found:
-                return self.ref_badge(tone, mark, t("refs.run_found"), f'<a href="{esc(self.run_link(label, depth))}">{esc(label)}</a>', state)
-            return self.ref_badge(tone, mark, problem, f'{t("refs.run")} {esc(label)}', state, sep=True)
+                return self.ref_badge(tone, t("refs.run_found"), f'<a href="{esc(self.run_link(label, depth))}">{esc(label)}</a>', state)
+            return self.ref_badge(tone, problem, f'{t("refs.run")} {esc(label)}', state, sep=True)
         if kind == "visualization_version" and judged.get("version_binding") != "none":
             run, chart = target.get("run_id"), target.get("visualization_id")
             if found and run:
@@ -434,37 +434,38 @@ class Site:
                 anchor = f"#chart-{href(str(chart))}"
                 shown = (f'<a href="{esc(self.run_link(run, depth, anchor))}" title="{esc(label)}"{USER}>'
                          f'{esc(title or chart)}</a>')
-                return self.ref_badge(tone, mark, t("ref.resolved"), shown, state, sep=True)
-            return self.ref_badge(tone, mark, problem, f'{t("refs.chart")} <span{USER}>{esc(label)}</span>', state,
+                return self.ref_badge(tone, t("ref.resolved"), shown, state, sep=True)
+            return self.ref_badge(tone, problem, f'{t("refs.chart")} <span{USER}>{esc(label)}</span>', state,
                                   sep=True, note=self.candidates_note(judged))
         if kind == "visualization_version":
             # A logical key is `script::chart`: the chart's id shows, the whole key is its title.
             key = str(target.get("key") or target.get("token") or label)
             shown = (f'<a href="{esc(self.chart_anchor(key, depth))}"><span title="{esc(key)}"{USER}>'
                      f'{esc(key.rsplit("::", 1)[-1])}</span></a>')
-            return self.ref_badge(tone, mark, problem, shown, state, sep=True, note=self.candidates_note(judged))
+            return self.ref_badge(tone, problem, shown, state, sep=True, note=self.candidates_note(judged))
         if kind in ("data_observation", "dataset_import"):
             item = str(target.get("key") or target.get("path") or label)
             path = item if item in self.view_by_path else self.views.get(item)
             # A name or path that is no dataset is still what people and scripts wrote (lang="").
             shown = self.path_html(path, depth) if path else user_text(item)
-            return self.ref_badge(tone, mark, t("ref.resolved") if found else problem, shown, state, sep=True,
+            return self.ref_badge(tone, t("ref.resolved") if found else problem, shown, state, sep=True,
                                   note=self.candidates_note(judged))
         if kind == "context_version" and found:
             shown = (f'<a href="{esc(self.root(depth))}context.html#v-{esc(Path(label).stem)}" '
                      f'title="{esc(label)}">CONTEXT.md</a>')
-            return self.ref_badge(tone, mark, t("ref.resolved"), shown, state, sep=True)
-        return self.ref_badge(tone, mark, t("ref.resolved") if found else problem, f"<span{USER}>{esc(label)}</span>",
+            return self.ref_badge(tone, t("ref.resolved"), shown, state, sep=True)
+        return self.ref_badge(tone, t("ref.resolved") if found else problem, f"<span{USER}>{esc(label)}</span>",
                               state, sep=True, note=self.candidates_note(judged))
 
     @staticmethod
-    def ref_badge(tone: str, mark: str, lead: str, target: str, state: str, *, sep: bool = False,
+    def ref_badge(tone: str, lead: str, target: str, state: str, *, sep: bool = False,
                   tail: str = "", note: str = "") -> str:
-        """A reference badge: `mark lead target`, a dot before the target when `lead` is a judgment
-        rather than its kind, then the judgment of a relation's target (`tail`) and a note."""
-        dot = '<span class="sep" aria-hidden="true">·</span>'
-        return (f'<span class="ref tone-{tone}" data-state="{esc(state)}"><span class="mark" aria-hidden="true">{mark}</span> '
-                f'{lead}{" " + dot if sep else ""} {target}{f" {dot} {tail}" if tail else ""}{note}</span>')
+        """A reference badge: `lead target`, a dot before the target when `lead` is a judgment rather
+        than its kind, then the judgment of a relation's target (`tail`) and a note. Its mark (✓ ⚠ ⊗ –
+        →, REF_STATE's) is the stylesheet's, by tone: decoration beside the words, a few bytes less on
+        every badge of a list (design 9)."""
+        return (f'<span class="ref tone-{tone}" data-state="{esc(state)}">{lead}{" ·" if sep else ""} {target}'
+                f'{f" · {tail}" if tail else ""}{note}</span>')
 
     def candidates_note(self, judged: dict) -> str:
         """How many versions (or records) a name left unbound or ambiguous could be."""

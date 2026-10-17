@@ -96,10 +96,10 @@ def test_the_overview_and_the_workspace_name_one_read_and_one_identifier(tmp_pat
     key_line = next(line for line in text.split("\n") if line.startswith(f"  {case.finding} finding:"))
     assert "1 missing (e999)" in key_line and "2 version_unbound" in key_line
     found = badges(pages["index.html"])
-    assert ("missing", "⊗ Not found when cited · e999") in found
+    assert ("missing", "Not found when cited · e999") in found
     # The unbound key, by its logical key: the chart's id shows, and the whole key is its title.
     assert 'title="scripts/a.py::trend" lang="">trend</span>' in pages["index.html"]
-    assert ("version_unbound", "⚠ Version not named · trend 1 candidate version(s)") in found
+    assert ("version_unbound", "Version not named · trend 1 candidate version(s)") in found
 
 
 def test_a_key_entry_counts_its_references_by_state(tmp_path):
@@ -151,7 +151,7 @@ def test_a_target_is_one_short_line_and_an_unreadable_field_is_named(tmp_path):
                                                    {"state": "unsupported", "target": "refs.weird"}]
     assert (f"  {finding} finding: odd · refs: 1 missing ({long_id[:79]}…), 1 unsupported "
             "(refs.weird)") in text.split("\n")
-    assert ("unsupported", "– Not supported · refs.weird") in badges(built(p)["index.html"])
+    assert ("unsupported", "Not supported · refs.weird") in badges(built(p)["index.html"])
 
 
 # --- producers --------------------------------------------------------------------------------------
@@ -436,12 +436,12 @@ def test_the_workspace_links_a_run_events_chart_to_that_run_and_marks_unbound_on
     index = pages["index.html"]
     # The run's completion event binds its chart to that run (ADR-0006 4).
     assert f'href="runs/{case.a}.html#chart-trend" title="{case.a}/trend" lang="">' in index
-    assert any(state == "resolved" and text.startswith("✓ Exact version · ") for state, text in badges(index))
+    assert any(state == "resolved" and text.startswith("Exact version · ") for state, text in badges(index))
     # The finding left its chart unbound: the gallery card is the latest, not the cited one, as the
     # badge's words say on hover.
-    unbound = re.search(r'<span title="latest, not the cited version">Version not named</span> '
-                        r'<span class="sep" aria-hidden="true">·</span> <a href="index\.html#chart-[^"]+">'
-                        r'<span title="scripts/a\.py::trend" lang="">trend</span></a>', index)
+    unbound = re.search(r'<span title="latest, not the cited version">Version not named</span> · '
+                        r'<a href="index\.html#chart-[^"]+"><span title="scripts/a\.py::trend" lang="">trend</span></a>',
+                        index)
     assert unbound
     assert "1 candidate version(s)" in index
 

@@ -53,7 +53,7 @@ def test_an_insight_is_one_row_with_its_words_its_badges_and_one_way_to_its_rela
     assert '<span class="rec-kind kind-finding">' in row and ">Finding</span>" in row
     assert '<span class="rec-text" lang="">서울 매출이 줄었다</span>' in row
     assert f'<span class="rec-id">{finding["id"]}</span> · <time datetime=' in row and ">human</span>" in row
-    assert ("resolved", f"✓ Question {question['id']}") in badges(row)
+    assert ("resolved", f"Question {question['id']}") in badges(row)
     # One link to its relations, counted, and none of the three links it had (#95's density problem).
     assert re.search(r'<a class="rec-action" href="relations/[0-9a-f]{64}-0\.html">Relations 1</a>', row)
     for word in ("Evidence</a>", "Related items</a>", "History</a>", "State:"):
@@ -88,7 +88,7 @@ def test_a_row_shows_its_state_only_when_it_is_not_as_it_was_made(tmp_path):
     assert '<span aria-hidden="true">●</span> Open</span>' in found[asked["id"]]
     assert 'class="badge' not in found[current["id"]].split('<div class="rec-meta">', 1)[0]
     # The correction's own row says what it corrects.
-    assert ("resolved", f"→ Corrects {corrected['id']}") in badges(found[correction["id"]])
+    assert ("resolved", f"Corrects {corrected['id']}") in badges(found[correction["id"]])
 
 
 def test_a_row_shows_a_few_references_and_its_relation_page_the_rest(tmp_path):
@@ -116,8 +116,10 @@ def test_every_judgment_has_words_of_its_own_and_its_reason_when_the_catalog_has
     assert plain(workspace.ref_words("unknown", "unresolved_name")) == "Unknown name"
     assert plain(workspace.ref_words("version_unbound")) == "Version not named"
     assert plain(workspace.ref_words("content_changed")) == "Changed since cited"
-    # Each tone carries a mark as well as a colour.
-    assert {mark for _, mark in workspace.REF_STATE.values()} >= {"✓", "⚠", "⊗", "–"}
+    # Each tone carries a mark as well as a colour: the stylesheet's, beside the words.
+    css = (Path(workspace.__file__).parent / "assets" / "workspace.css").read_text(encoding="utf-8")
+    for tone, mark in {*workspace.REF_STATE.values(), ("link", "→")}:
+        assert re.search(rf'\.ref\.tone-{tone}(\[data-state\])?::before {{ content: "{mark}"; content: "{mark}" / ""; }}', css), tone
 
 
 def test_a_record_cited_before_it_was_written_says_it_was_recorded_later(tmp_path):
@@ -129,7 +131,7 @@ def test_a_record_cited_before_it_was_written_says_it_was_recorded_later(tmp_pat
     assert later["id"] == "e4", later
     workspace.build(p)
     row = rows(section(page(p, "index.html"), "insights"))["insight-" + early["id"]]
-    assert ("missing", "⊗ Not found when cited · e4 recorded later: e4") in badges(row)
+    assert ("missing", "Not found when cited · e4 recorded later: e4") in badges(row)
     # A mistyped id that no record holds says only that it was not found.
     q = project(tmp_path / "q")
     gone = core.record(q, "finding", "없는 기록 인용", origin=ORIGIN,
@@ -137,7 +139,7 @@ def test_a_record_cited_before_it_was_written_says_it_was_recorded_later(tmp_pat
                               "version_binding": "author"}]).event
     workspace.build(q)
     row = rows(section(page(q, "index.html"), "insights"))["insight-" + gone["id"]]
-    assert ("missing", "⊗ Not found when cited · e99") in badges(row)
+    assert ("missing", "Not found when cited · e99") in badges(row)
 
 
 # --- each kind's own list (owner decision A, 2026-10-14) ---------------------------------------------
@@ -204,10 +206,13 @@ def test_the_relation_page_reads_as_the_record_with_its_correction_first(tmp_pat
     note = html.split('role="note">', 1)[1].split("</div>", 1)[0]
     assert "This record was corrected." in note and f'{correction["id"]} “<span lang="">정정한 발견</span>”' in note
     assert "The original text and its evidence stay as recorded." in note
-    # The stored values are under each relation's Details, as stored.
+    # Each relation's Details says in words how the link is known, its version and whether it is a
+    # confirmed link, and holds the judgment's stored values as written.
     details = html.split('<details class="relation-details">', 1)[1].split("</details>", 1)[0]
-    assert "<code>declared</code>" in details and "<code>author</code>" in details and "<code>resolved</code>" in details
-    assert "Confirmed link" in details and "&quot;relation&quot;: &quot;supersedes&quot;" in details
+    assert details.startswith("<summary>Details: Stated in the record · Named by the author · confirmed link · journal:")
+    for stored in ('&quot;basis&quot;: &quot;declared&quot;', '&quot;version_binding&quot;: &quot;author&quot;',
+                   '&quot;state&quot;: &quot;resolved&quot;', '&quot;relation&quot;: &quot;supersedes&quot;'):
+        assert stored in details, stored
     # The record's stored state and fields come last, folded.
     technical = html.split('<section id="technical">', 1)[1]
     assert technical.startswith('<details class="technical">') and "&quot;corrected_by&quot;" in technical

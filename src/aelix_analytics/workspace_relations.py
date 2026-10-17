@@ -119,28 +119,17 @@ class RelationPages:
         return s.badge(tone, mark, words)
 
     def details(self, row: dict, location: str) -> str:
-        """A relation's stored values (ADR-0006 3 and 4), each beside its words, and the whole
-        judgment as the read returns it."""
+        """A relation's Details (mockup 2-B): how the link is known, its version and whether it is a
+        confirmed link, in words, and where it is recorded; inside, the judgment as the read returns
+        it, its stored values as written (ADR-0006 3 and 4)."""
         s = self.site
-        esc, USER = s.esc, s.user_language
-
-        def value(shown: str, stored) -> str:
-            return t("relations.unknown") if stored is None else f'{shown} <code>{esc(stored)}</code>'
-
         basis, binding = row.get("basis"), row.get("version_binding")
-        state = esc(row["state"]) + (esc(": " + str(row["reason"])) if row.get("reason") else "")
-        facts = [
-            ("relations.fact.relation", s.user_text(row["relation"]) if row.get("relation") else t("relations.unknown_relation")),
-            ("relations.fact.basis", value(s.words("relations.basis", basis), basis)),
-            ("relations.fact.binding", value(s.words("relations.binding", binding), binding)),
-            ("relations.fact.state", f'{s.ref_words(row["state"], row.get("reason"))} <code>{state}</code>'),
-            ("relations.fact.confirmed", t("relations.confirmed") if row.get("confirmed") else t("relations.not_confirmed")),
-            ("relations.fact.source", f'<a href="{self.link(row["from"], 1, anchor="#record")}"{USER}>{esc(row["from"])}</a> · {location}'),
-        ]
+        said = [s.words("relations.basis", basis) if basis is not None else t("relations.unknown_basis"),
+                s.words("relations.binding", binding) if binding is not None else t("relations.unknown"),
+                t("relations.confirmed") if row.get("confirmed") else t("relations.not_confirmed"), location]
         detail = json.dumps({k: v for k, v in row.items() if k != "direction"}, ensure_ascii=False, indent=2)
-        return (f'<details class="relation-details"><summary>{t("relations.details")}</summary><dl class="facts">'
-                + "".join(f"<div><dt>{t(key)}</dt><dd>{html}</dd></div>" for key, html in facts)
-                + f'</dl><p class="muted">{t("relations.recorded")}</p><pre{USER}>{esc(detail)}</pre></details>')
+        return (f'<details class="relation-details"><summary>{t("relations.details")}: {" · ".join(said)}</summary>'
+                f'<pre{s.user_language}>{s.esc(detail)}</pre></details>')
 
     def card(self, row: dict, other: str | None) -> str:
         """One relation (design 8.1): what the other side is and how it relates, its name, its
