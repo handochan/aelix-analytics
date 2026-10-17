@@ -59,6 +59,9 @@ small { color: var(--muted); font-weight: 400; margin-left: 6px; font-size: 12px
 .crumbs span { color: var(--muted); margin: 0 6px; font-weight: 400; }
 .build { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
 .build label { cursor: pointer; }
+.build .language { display: inline-flex; align-items: center; gap: 6px; }
+.build .language select { font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--border);
+  border-radius: 6px; padding: 2px 6px; min-height: 28px; }
 main { max-width: 1280px; margin: 0 auto; padding: 20px 24px 60px; }
 footer { max-width: 1280px; margin: 0 auto; padding: 18px 24px 40px; color: var(--muted); font-size: 12px; }
 

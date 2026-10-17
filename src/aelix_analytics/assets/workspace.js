@@ -8,6 +8,18 @@
     get(k) { try { return localStorage.getItem(k); } catch (_) { return null; } },
     set(k, v) { try { localStorage.setItem(k, v); } catch (_) { /* storage unavailable */ } },
   };
+  // --- the kit's words: English as written, or the reader's language (workspace-i18n.js) ---
+  const I18n = window.AnalyticsI18n || null;
+  function T(key, args) { return I18n ? I18n.t(key, args) : key; }
+  // An element whose words become the kit's: switched with the page from now on.
+  function kitWords(el, key, args) {
+    el.setAttribute("data-i18n", key);
+    if (args) el.setAttribute("data-i18n-args", JSON.stringify(args)); else el.removeAttribute("data-i18n-args");
+    // As the page's own words are: English where the language has none says so.
+    const shown = I18n ? I18n.format(key, args) : { text: key, fallback: false };
+    if (shown.fallback) el.setAttribute("lang", "en"); else el.removeAttribute("lang");
+    el.textContent = shown.text;
+  }
 
   // --- plotly: render a figure once it is visible (hidden tabs have no size) ---
   const pending = new Set(document.querySelectorAll(".plotly-chart[data-fig]"));
@@ -15,8 +27,7 @@
     if (!pending.has(el)) return;
     if (!window.Plotly) {
       // The figure's element holds the chart's own text (lang=""); this message is the kit's.
-      el.lang = "en";
-      el.textContent = "Could not load plotly.js (assets/plotly.min.js).";
+      kitWords(el, "chart.plotly_missing");
       pending.delete(el);
       return;
     }
@@ -25,8 +36,12 @@
       const fig = JSON.parse(document.getElementById(el.dataset.fig).textContent);
       window.Plotly.newPlot(el, fig.data || [], fig.layout || {}, { responsive: true, displaylogo: false });
     } catch (err) {
-      el.lang = "en";
-      el.textContent = "Could not draw the plotly figure: " + err;
+      // The error is plotly's or the browser's, in their language: beside the kit's words, not in them.
+      const words = document.createElement("span"), detail = document.createElement("span");
+      kitWords(words, "chart.plotly_failed");
+      detail.setAttribute("lang", "");
+      detail.textContent = String(err);
+      el.replaceChildren(words, " ", detail);
     }
   }
   const observer = "IntersectionObserver" in window
@@ -56,15 +71,24 @@
   function anchor() { try { return decodeURIComponent(location.hash.slice(1)); } catch (_) { return ""; } }
   let held = codec.decode(location.search);
   let state = held.state;
+  // The page's language: a working storage's choice first, else the URL state's (storage blocked).
+  let storage = null;
+  try { storage = window.localStorage; } catch (_) { storage = null; }
+  let language = I18n ? I18n.choose(storage, state && state.lang) : "en";
+  if (I18n) I18n.apply(document, language);
   const notice = document.querySelector(".state-notice");
-  function warn(message) {
+  function warn(key) {
     if (!notice) return;
-    notice.hidden = false; notice.textContent = message;
-    if (!notice.append) return;
+    notice.hidden = false;
+    if (!notice.append) { notice.textContent = T(key); return; }
+    notice.textContent = "";
+    const text = document.createElement("span");
+    kitWords(text, key);
     const close = document.createElement("button");
-    close.type = "button"; close.className = "notice-close"; close.textContent = "Dismiss";
+    close.type = "button"; close.className = "notice-close";
+    kitWords(close, "action.dismiss");
     close.addEventListener("click", () => { notice.hidden = true; });
-    notice.append(" ", close);
+    notice.append(text, " ", close);
   }
   // The height the sticky top bar and section/jump navigation cover once stuck.
   function clearance() {
@@ -75,11 +99,10 @@
     });
     return covered ? covered + 12 : 72;
   }
-  if (held.invalid) warn("Invalid saved Workspace state was ignored. Select the original item again.");
-  if (state && state.source && state.source !== doc.dataset.source) warn("Source records changed since this view was saved. The selected identity is retained; evidence availability is checked now.");
-  if (state && selectedIdentity() && state.selection && state.selection !== selectedIdentity()) warn("The requested selected identity is not present on this page. No latest-version substitution was made.");
+  if (held.invalid) warn("notice.state_invalid");
+  if (state && state.source && state.source !== doc.dataset.source) warn("notice.state_source_changed");
+  if (state && selectedIdentity() && state.selection && state.selection !== selectedIdentity()) warn("notice.state_selection_absent");
   const tabs = Array.from(document.querySelectorAll("main > section.tab"));
-  const labels = { overview: "Overview", insights: "Insights", charts: "Visualizations", timeline: "Timeline", data: "Data", runs: "Runs", context: "Context", assets: "Analysis assets", evaluation: "Evaluation" };
   let nav;
   function show() {
     const id = anchor();
@@ -97,8 +120,14 @@
   }
   if (tabs.length) {
     doc.classList.add("js-tabs");
-    nav = document.createElement("nav"); nav.className = "tabs"; nav.setAttribute("aria-label", "Workspace sections");
-    tabs.forEach(t => { const a = document.createElement("a"); a.href = "#" + t.id; a.textContent = labels[t.id] || t.id; a.dataset.tab = t.id; nav.appendChild(a); });
+    nav = document.createElement("nav"); nav.className = "tabs";
+    nav.setAttribute("aria-label", T("nav.sections")); nav.setAttribute("data-i18n-aria-label", "nav.sections");
+    tabs.forEach(t => {
+      const a = document.createElement("a"); a.href = "#" + t.id; a.dataset.tab = t.id;
+      if (I18n && I18n.has("tab." + t.id)) kitWords(a, "tab." + t.id);
+      else { const heading = t.querySelector && t.querySelector("h2"); a.textContent = heading ? heading.textContent : t.id; }
+      nav.appendChild(a);
+    });
     document.querySelector("main").prepend(nav);
   }
   const retired = document.getElementById("show-retired");
@@ -124,6 +153,8 @@
     const value = { v: 1, page, anchor: anchor(), tab: tab ? tab.id : "overview", filter: bar ? bar.dataset.kind : "",
       retired: !!(retired && retired.checked), selection: (card && identity(card.dataset.selection)) || selectedIdentity() || "",
       source: doc.dataset.source, card: target ? target.id : "", offset: target ? target.getBoundingClientRect().top : -window.scrollY };
+    // The URL carries a language other than English, so a page whose storage is blocked keeps it.
+    if (language !== "en") value.lang = language;
     if (state && state.origin) value.origin = state.origin;
     return codec.normalize(value);
   }
@@ -136,7 +167,7 @@
   function restore(value) {
     restoring = true;
     if (value && value.page !== page) {
-      warn("The saved state belongs to another Workspace page and was ignored. Showing this page's current scope.");
+      warn("notice.state_other_page");
       value = null;
     }
     state = value || null;
@@ -144,13 +175,13 @@
     document.querySelectorAll(".filters").forEach(bar => {
       const wanted = state && state.filter || "";
       const valid = Array.from(bar.querySelectorAll("button")).some(b => b.dataset.kind === wanted);
-      if (!valid && wanted) warn("The saved filter is no longer available on this page. Showing this page's complete scope.");
+      if (!valid && wanted) warn("notice.state_filter_gone");
       filter(bar, valid ? wanted : "");
     });
     show();
     requestAnimationFrame(() => {
       const target = state && state.card ? document.getElementById(state.card) : document.getElementById(anchor());
-      if (state && state.card && !target) warn("The original card is no longer in this page's scope. Its saved identity was not replaced by a latest version.");
+      if (state && state.card && !target) warn("notice.state_card_gone");
       if (state && state.card) {
         const position = codec.scrollTarget(state, window.scrollY, target ? target.getBoundingClientRect().top : null);
         if (position !== null) window.scrollTo(0, position);
@@ -173,8 +204,19 @@
   function returnLinks() {
     document.querySelectorAll("a[data-return]").forEach(a => {
       const origin = state && state.origin;
-      if (!origin) return;
-      a.href = root + origin.page + codec.search(origin) + (origin.anchor ? "#" + encodeURIComponent(origin.anchor) : "");
+      if (origin) {
+        // Back at the origin in the language chosen since, not the one it was left in.
+        const back = { ...origin };
+        if (language !== "en") back.lang = language; else delete back.lang;
+        a.href = root + origin.page + codec.search(back) + (origin.anchor ? "#" + encodeURIComponent(origin.anchor) : "");
+        return;
+      }
+      // No origin (a page opened directly): the page's own return link, in the reader's language.
+      if (a.dataset && !a.dataset.home) a.dataset.home = a.getAttribute("href");
+      const home = new URL((a.dataset && a.dataset.home) || a.href, location.href);
+      const dest = home.pathname.slice(directory.length);
+      home.search = language !== "en" && codec.safePage(dest) ? codec.search({ v: 1, page: dest, lang: language }) : "";
+      a.href = home.href;
     });
   }
   document.querySelectorAll(".filters").forEach(bar => bar.addEventListener("click", e => {
@@ -188,7 +230,11 @@
     if (url.protocol !== location.protocol || url.host !== location.host || !url.pathname.startsWith(directory)) return;
     const dest = url.pathname.slice(directory.length);
     if (!codec.safePage(dest)) return;
-    if (a.hasAttribute("data-reset")) { url.search = ""; a.href = url.href; return; }
+    if (a.hasAttribute("data-reset")) {
+      // A reset view keeps the reader's language: a page whose storage is blocked has it only here.
+      url.search = language !== "en" ? codec.search({ v: 1, page: dest, lang: language }) : "";
+      a.href = url.href; return;
+    }
     if (a.hasAttribute("data-return")) return;
     const card = a.closest(".chart-card[id],li.ev[id],article.panel[id],li[id],tr[id]");
     save(false, card);
@@ -198,8 +244,32 @@
     url.search = codec.search(next, url.search); a.href = url.href;
   });
   window.addEventListener("hashchange", () => { show(); save(); returnLinks(); });
-  window.addEventListener("popstate", e => { const decoded = codec.decode(location.search); restore(codec.normalize(e.state) || decoded.state); });
-  window.addEventListener("pageshow", () => restore(codec.decode(location.search).state || state));
+  window.addEventListener("popstate", e => {
+    const value = codec.normalize(e.state) || codec.decode(location.search).state;
+    // Back or Forward: where storage is blocked, the entry's language (a stored choice holds).
+    relanguage(value && value.lang);
+    restore(value);
+  });
+  // The language as the page chooses it on load — a working storage's choice, else the URL state's,
+  // else English — again: after Back or Forward, when shown from the back-forward cache, or when
+  // another tab chose. True when it changed.
+  function relanguage(stateLanguage) {
+    if (!I18n) return false;
+    const chosen = I18n.choose(storage, stateLanguage);
+    if (chosen === language) return false;
+    language = chosen;
+    I18n.apply(document, language);
+    document.querySelectorAll(".build .language select").forEach(select => { select.value = language; });
+    return true;
+  }
+  window.addEventListener("pageshow", () => {
+    const value = codec.decode(location.search).state || state;
+    relanguage(value && value.lang);
+    restore(value);
+  });
+  window.addEventListener("storage", e => {
+    if (I18n && e.key === I18n.KEY && relanguage(state && state.lang)) { save(); returnLinks(); }
+  });
   window.addEventListener("pagehide", () => save());
   let scrollTimer;
   window.addEventListener("scroll", () => { clearTimeout(scrollTimer); scrollTimer = setTimeout(() => save(), 180); }, { passive: true });
@@ -236,6 +306,17 @@
     document.querySelectorAll(".relation-diagram").forEach(el => { el.open = true; });
   }
   restore(state);
+
+  // --- the language menu: a reader's choice is kept in storage, else carried in the URL state ---
+  const buildBar = document.querySelector(".topbar .build");
+  if (I18n && buildBar && buildBar.prepend) {
+    buildBar.prepend(I18n.menu(document, chosen => {
+      language = chosen;
+      I18n.save(storage, chosen);
+      I18n.apply(document, language);
+      save(); returnLinks();
+    }), " · ");
+  }
 
   // --- live reload: poll assets/build.js (a script tag, so it also works from file://) ---
   // The storage keys were lab-live and lab-scroll: before kit 0.6.0. A missing new key takes the

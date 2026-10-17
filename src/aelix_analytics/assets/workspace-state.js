@@ -6,6 +6,8 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
   const tabs = new Set(["overview", "insights", "charts", "timeline", "data", "runs", "context", "assets", "evaluation"]);
+  // The UI languages a URL may carry (workspace-i18n.js): the page's language when storage is blocked.
+  const languages = new Set(["en", "ko"]);
   function text(value, max) { return typeof value === "string" && value.length <= max ? value : ""; }
   function safePage(value) {
     if (typeof value !== "string" || value.length > 2048) return false;
@@ -21,6 +23,7 @@
       retired: value.retired === true, selection: text(value.selection, 4096),
       source: /^[a-f0-9]{16}$/.test(value.source) ? value.source : "",
       card: text(value.card, 1024), offset: Number.isFinite(value.offset) ? Math.max(-1000000, Math.min(1000000, value.offset)) : 0 };
+    if (languages.has(value.lang)) result.lang = value.lang;
     if (originAllowed && value.origin) {
       result.origin = normalize(value.origin, false);
       if (!result.origin) return null;

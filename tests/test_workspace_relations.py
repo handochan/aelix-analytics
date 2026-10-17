@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 from legacy_records import LegacyProject
+from workspace_words import plain
 
 from aelix_analytics import core, workspace, workspace_relations
 
@@ -71,7 +72,7 @@ def test_relation_text_follows_edge_direction_and_one_order_serves_every_width(t
     correction = core.record(p, "finding", "정정", origin=ORIGIN,
                              refs=[{"type": "event", "event_id": original["id"], "relation": "supersedes"}]).event
     workspace.build(p)
-    page = (p.workspace_dir / "relations" / workspace_relations.name(original["id"])).read_text(encoding="utf-8")
+    page = plain((p.workspace_dir / "relations" / workspace_relations.name(original["id"])).read_text(encoding="utf-8"))
     incoming = page.split('<li class="relation-item" data-direction="incoming"><p>', 1)[1].split("</p>", 1)[0]
     assert incoming.index(correction["id"]) < incoming.index("→ Selected version")  # source → target, like the diagram
     # Focus follows what is shown: the DOM order is the visual order, with no CSS reordering.

@@ -25,6 +25,7 @@ import pytest
 from conftest import KIT, PACK, git_checkout, kit_cli, kit_env, write_sales_csv, write_script
 from jsonschema import Draft202012Validator, FormatChecker
 from legacy_records import LegacyProject
+from workspace_words import plain
 
 from aelix_analytics import _platform, core, migration, writer
 
@@ -673,5 +674,5 @@ def test_a_migrated_run_reruns_as_it_reruns_where_it_came_from(tmp_path):
         assert after["reproduction"][name] == before["reproduction"][name], name
     assert after["reproduction"]["verdict"] == "match"
     assert not schema_errors(after)
-    page = (destination / "workspace" / "runs" / f"{here['run']['id']}.html").read_text(encoding="utf-8")
+    page = plain((destination / "workspace" / "runs" / f"{here['run']['id']}.html").read_text(encoding="utf-8"))
     assert "Rerun comparison: Match" in page and '<code lang="">trend</code>: same data' in page
