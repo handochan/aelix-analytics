@@ -188,7 +188,7 @@ dl.prov dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .data-block { margin-top: 0.625rem; }
 .data-block summary, details.log summary, details.codefile summary { color: var(--ink-2); min-height: 2.75rem; }
 /* A disclosure keeps its open/closed mark when its summary is a 44px flex row. */
-summary { display: flex; align-items: center; gap: 0.375rem; cursor: pointer; list-style: none; }
+summary { display: flex; align-items: center; gap: 0.375rem; min-height: 2.75rem; cursor: pointer; list-style: none; }
 summary::-webkit-details-marker { display: none; }
 summary::before { content: "▸"; flex: none; color: var(--muted); font-size: 0.8em; }
 details[open] > summary::before { content: "▾"; }

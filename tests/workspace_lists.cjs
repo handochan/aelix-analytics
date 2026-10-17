@@ -86,6 +86,16 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
     [{...browsing,page:'lists/feedback-1.html',tab:'overview'}, 'back.list.feedback', 'Back to Workflow feedback'],
     [{...browsing,page:'lists/insights-0.html',tab:'overview'}, 'back.tab.insights', 'Back to Insights'],
   ];
+  // A page opened directly is the origin of the pages a reader opens from it (codec.next):
+  // the way back names it too (Codex review of #97, R3).
+  for (const [page, key, english] of [['runs/r.html', 'back.page.run', 'Back to the run'],
+      ['data/t.html', 'back.page.data', 'Back to the dataset'], ['context.html', 'back.page.context', 'Back to Context history'],
+      ['relations/bb-0.html', 'back.page.relations', 'Back to the relations']]) {
+    const held = {...browsing, page, tab:'overview', anchor:'', card:''};
+    const state = codec.next(held, 'relations/aa-0.html', 'record');
+    assert.equal(state.origin.page, page);
+    cases.push([held, key, english]);
+  }
   for (const [origin, key, english] of cases) {
     const state = codec.next(origin, 'relations/aa-0.html', 'record');
     const shown = page('relations/aa-0.html', state);

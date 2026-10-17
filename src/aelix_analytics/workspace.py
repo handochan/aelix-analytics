@@ -416,7 +416,8 @@ class Site:
                 lead = t("refs.corrects" if relation == "supersedes" else "refs.resolves")
                 if found:
                     return self.ref_badge("link", lead, shown, state)
-                return self.ref_badge(tone, lead, shown, state, tail=problem, note=self.recorded_later(judged, depth))
+                return self.ref_badge(tone, lead, shown, state, tail=problem,
+                                      note=self.recorded_later(judged, depth) + self.candidates_note(judged))
             if found:
                 event = self.relations.events.get(label)
                 return self.ref_badge(tone, words("kind", event.kind) if event else t("ref.resolved"), shown, state)
@@ -497,14 +498,16 @@ class Site:
         link = self.relations.content(event_id, depth) or self.relations.link(event_id, depth)
         return f' <small class="ref-note">{t("refs.recorded_later")} <a href="{esc(link)}">{esc(event_id)}</a></small>'
 
-    def closed_badge(self, resolver: dict, depth: int = 0) -> str:
+    def closed_badge(self, resolver: dict, depth: int = 0, closed: str | None = None) -> str:
         """The badge of a record another one closes by refs.resolves, as the lists select (C1):
         resolved only when the read finds that reference, and otherwise the state it judges, in
-        words (a forward refs.resolves is `missing`, record_absent)."""
+        words (a forward refs.resolves is `missing`, record_absent). The reference is the resolver's
+        `resolves` one naming `closed` (a /1 `refs.resolves` and a /2 reference alike)."""
         source = self.source(resolver) or ""
         link = "#" + esc(self.anchor(resolver)) if depth == 0 and any(self.source(e) == source for e in self.events[-INDEX_LIMIT:]) else esc(self.relations.content(source, depth) or self.relations.link(source, depth))
-        judged = next((j for j in self.model.references(source)
-                       if (j.get("ref") or {}).get("field") == "resolves"), None)
+        closing = [j for j in self.model.references(source) if j.get("relation") == "resolves"]
+        judged = next((j for j in closing if (j.get("target") or {}).get("event_id") == closed),
+                      closing[0] if closing else None)
         if judged is not None and judged["state"] == "resolved":
             return (f'<a class="badge tone-good" href="{link}"><span aria-hidden="true">✓</span> '
                     f'{t("records.resolved_by")} {esc(source)}</a>')
@@ -521,7 +524,7 @@ class Site:
         kind = event.get("kind")
         resolver = self.resolved.get(event.get("id"))
         if kind in core.OPEN_KINDS + core.KEY_KINDS and resolver:
-            return self.closed_badge(resolver, depth)
+            return self.closed_badge(resolver, depth, event.get("id"))
         if kind in core.OPEN_KINDS:
             return badge("warning", "●", t("badge.open"))
         state = self.model.journal.replay().state_of(self.source(event) or "") or {}

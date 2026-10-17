@@ -104,6 +104,32 @@ def test_a_row_shows_a_few_references_and_its_relation_page_the_rest(tmp_path):
     assert all(e["id"] in relation_page(p, finding["id"]) for e in cited)
 
 
+def test_a_question_closed_by_a_new_format_record_says_who_closed_it(tmp_path):
+    """Codex review of #97 (R1): a /2 `resolves` reference has no `refs.resolves` field, and the
+    badge read its judgment as unknown."""
+    p = project(tmp_path)
+    asked = core.record(p, "question", "왜 줄었나?", origin=ORIGIN).event
+    answer = core.record(p, "resolve", "중복 주문 때문", origin=ORIGIN,
+                         refs=[{"type": "event", "event_id": asked["id"], "relation": "resolves"}]).event
+    workspace.build(p)
+    row = rows(section(page(p, "index.html"), "timeline"))[asked["id"]]
+    assert f'<span aria-hidden="true">✓</span> Resolved by {answer["id"]}</a>' in row
+    head = relation_page(p, asked["id"]).split('id="record">', 1)[1].split("</header>", 1)[0]
+    assert f"Resolved by {answer['id']}" in head and "Unknown" not in head
+
+
+def test_an_ambiguous_correction_or_closing_reference_keeps_its_candidates(tmp_path):
+    """Codex review of #97 (R2): the candidates of a `resolves` reference to an id on several lines."""
+    q = LegacyProject(tmp_path / "q", migrated=True)
+    q.event("question", text="one", seq=1)
+    q.event("question", text="two", seq=1)
+    closer = q.event("finding", {"resolves": "e1"}, seq=2, text="closes e1")
+    p = core.Project(q.root)
+    workspace.build(p)
+    found = badges(rows(section(page(p, "index.html"), "timeline"))[closer])
+    assert ("ambiguous", "Resolves e1 · Several matches 2 candidate record(s)") in found
+
+
 # --- judgments in words -----------------------------------------------------------------------------
 
 def test_every_judgment_has_words_of_its_own_and_its_reason_when_the_catalog_has_them():
@@ -116,6 +142,8 @@ def test_every_judgment_has_words_of_its_own_and_its_reason_when_the_catalog_has
     assert plain(workspace.ref_words("unknown", "unresolved_name")) == "Unknown name"
     assert plain(workspace.ref_words("version_unbound")) == "Version not named"
     assert plain(workspace.ref_words("content_changed")) == "Changed since cited"
+    # How a link is known, in words true of every observation (Codex review of #97, R4).
+    assert plain(workspace.words("relations.basis", "observed")) == "Observed"
     # Each tone carries a mark as well as a colour: the stylesheet's, beside the words.
     css = (Path(workspace.__file__).parent / "assets" / "workspace.css").read_text(encoding="utf-8")
     for tone, mark in {*workspace.REF_STATE.values(), ("link", "→")}:
@@ -264,6 +292,8 @@ def test_plotly_is_read_when_a_figure_shows_not_before_the_page_paints(tmp_path)
     css = (Path(workspace.__file__).parent / "assets" / "workspace.css").read_text(encoding="utf-8")
     # Text sizes follow the reader's setting: no font size in px.
     assert not re.search(r"font(-size)?:\s*[0-9.]+px", css)
+    # Every disclosure's summary is a 44px target (Codex review of #97, R5).
+    assert re.search(r"\nsummary \{[^}]*min-height: 2\.75rem", css)
 
 
 def test_the_script_names_the_way_back_reads_plotly_late_and_folds_the_menu_without_a_browser():
