@@ -4,7 +4,8 @@
   나머지 화면·탭·ReadModel 함수·파일은 아직 코드에 없다. 지금 동작은 [현재 계약](../CONTRACTS.md)과 [#18 선택 버전 관계 설계](WORKSPACE-RELATIONS.md)가 설명한다.
 - 작업: [#95](https://github.com/handochan/aelix-analytics/issues/95)와 하위 Issue [#96](https://github.com/handochan/aelix-analytics/issues/96)–[#100](https://github.com/handochan/aelix-analytics/issues/100).
   기준 소스는 #18이 병합된 main `3f1d209`(kit 0.15.0)이다. 2026-10-14 작성.
-- 시안: 소유자 전용 비공개 Design canvas 1–9행. 예시 값은 #18 QA용 합성 fixture S/M(`47b8739`에서 생성)의 실제 기록이다.
+- 시안: 소유자 전용 비공개 Design canvas 1–9행. 개선안·참조 보드 15장의 캡처는 [시안 그림](workspace-readability/README.md)에 있다.
+  기준은 이 글이며, 그림과 글이 다르면 글을 따른다. 예시 값은 #18 QA용 합성 fixture S/M(`47b8739`에서 생성)의 실제 기록이다.
   시안의 색은 예시다. 실제 색은 §4대로 지금의 종류 토큰에 맞춘다.
 
 ## 1. 목적과 경계
@@ -153,6 +154,8 @@ Workspace는 기록·관계·정확한 버전을 빠짐없이 보여 주지만 �
 
 ## 5. 버전 기록 (#99)
 
+시안: [6-B](workspace-readability/6-B-visualization-versions.webp), [6-C](workspace-readability/6-C-versions-card.webp), [9-A](workspace-readability/9-A-data-versions.webp), [9-B](workspace-readability/9-B-code-versions.webp), [9-C](workspace-readability/9-C-context-versions.webp), [9-D](workspace-readability/9-D-version-rules.webp).
+
 ### 5.1 공통 표현
 
 모든 버전 대상이 같은 순서와 기호를 쓴다.
@@ -185,7 +188,7 @@ Workspace는 기록·관계·정확한 버전을 빠짐없이 보여 주지만 �
 
 **실패한 run**:
 - 시각화·데이터 파일의 버전을 만들지 않고, 시간축에 ×로 둔다.
-- 코드는 실행 전에 스냅샷을 남긴다. 그래서 실패한 run의 코드 hash도 코드 버전이 되고 '실패' 표시를 단다(시안 9-B의 v2).
+- 코드는 실행 전에 스냅샷을 남긴다. 그래서 실패한 run의 코드 hash도 코드 버전이 되고 '실패' 표시를 단다([시안 9-B](workspace-readability/9-B-code-versions.webp)의 v2).
 - 완료되지 않은 run은 어느 버전도 만들지 않는다.
 
 **묶음**:
@@ -195,7 +198,7 @@ Workspace는 기록·관계·정확한 버전을 빠짐없이 보여 주지만 �
 
 **최신 안내**: 최신 버전을 아직 아무도 인용·사용하지 않았으면 그 사실과 마지막으로 사용된 버전을 알린다.
 
-**시안 9행의 예**(fixture M):
+**[시안 9행](workspace-readability/README.md#9행-다른-버전-기록)의 예**(fixture M):
 - `t10_delivery_delay`: 19번 쓰여 14개 버전이 됐고, 최신 v14는 아직 어떤 run도 읽지 않았다.
 - `s10_delivery_delay.py`: 코드 버전 3개. v2가 실패한 뒤 v1로 돌아갔다.
 - CONTEXT.md: 13개 버전. 고정 섹션은 v2 이후 그대로다.
@@ -208,7 +211,7 @@ Workspace는 기록·관계·정확한 버전을 빠짐없이 보여 주지만 �
   - 기록에서 오는 값(버전 번호·묶음·사용처)은 같은 기록 입력(journal·run 기록)에서 같다.
   - 지금 파일과 비교한 값(지금 파일이 어느 버전인지, 읽은 뒤 바뀜)은 읽은 때의 관측이다.
     페이지는 지금처럼 읽은 기준(`as_of_seq`, `source_revision`)을 함께 적는다([ADR-0006](../decisions/0006-common-record-contract.md) §5).
-- **시각화**: 선택 버전 페이지와 카드에 둔다(시안 6행).
+- **시각화**: 선택 버전 페이지와 카드에 둔다([시안 6행](workspace-readability/README.md#6행-시각화-버전)).
 - **데이터 파일**: 데이터셋 페이지에 둔다.
 - **CONTEXT.md**: Context 페이지에 둔다. 지금의 diff 목록이 버전 목록이 된다.
 - **스크립트 코드**: 경로마다 스크립트 페이지를 새로 만든다(fixture S 22개).
@@ -216,6 +219,8 @@ Workspace는 기록·관계·정확한 버전을 빠짐없이 보여 주지만 �
 - **긴 이력**: 묶음을 접어 보인다. 한 페이지의 목록 행이 100개를 넘으면 이어 보기 페이지로 나누고, 그 페이지 수를 §9에 센다.
 
 ## 6. 출처 추적 (#100)
+
+시안: [7-B](workspace-readability/7-B-provenance.webp), [7-C](workspace-readability/7-C-provenance-mobile.webp).
 
 ### 6.1 무엇을 보여 주나
 
@@ -289,7 +294,7 @@ Workspace는 기록·관계·정확한 버전을 빠짐없이 보여 주지만 �
   - 입력이 많은 run(예: 503개)은 한 줄로 접고 수를 적는다.
 - **순회**: 단계(깊이) 순이다. 같은 단계 안은 참조 순서와 run의 입력 기록 순서를 따라 결정적이다.
 - **글 목록**: 같은 순서의 문장이 같은 내용을 담는다. JS 없이 읽히고, 키보드·화면 낭독기·좁은 화면의 기본 표현이다.
-  모바일은 세로 경로다(시안 7-C).
+  모바일은 세로 경로다([시안 7-C](workspace-readability/7-C-provenance-mobile.webp)).
 
 ### 6.4 페이지와 읽기
 
@@ -304,6 +309,8 @@ Workspace는 기록·관계·정확한 버전을 빠짐없이 보여 주지만 �
   상자는 실제 DOM이고 선은 SVG다(#18과 같음). 외부 배치 라이브러리는 쓰지 않는다.
 
 ## 7. Overview 상태 요약과 분석 지도 (#98)
+
+시안: [5-B](workspace-readability/5-B-overview.webp), [5-C](workspace-readability/5-C-analysis-map.webp).
 
 ### 7.1 Overview
 
@@ -351,10 +358,12 @@ Workspace는 기록·관계·정확한 버전을 빠짐없이 보여 주지만 �
 
 ## 8. 목록·관계 표현, 목록 필터, 모바일 (#97)
 
+시안: [1-B](workspace-readability/1-B-insights-list.webp), [2-B](workspace-readability/2-B-relation-page.webp), [3-B](workspace-readability/3-B-relation-mobile.webp), [4](workspace-readability/4-status-labels.webp).
+
 ### 8.1 목록과 관계 표현
 
 - **한 줄 행**: 종류 점, 글, 메타, 근거 배지, '관계 보기' 하나와 개수로 이룬다. 'State: current' 반복은 없애고, 정정·철회일 때만 배지를 붙인다.
-- **판정 배지**: 아이콘과 글자로 보인다(시안 4행: 확정 연결 → `Exact version`, `version_unbound` → `Version not named` 등). 원래 값은 Details에 둔다.
+- **판정 배지**: 아이콘과 글자로 보인다([시안 4행](workspace-readability/4-status-labels.webp): 확정 연결 → `Exact version`, `version_unbound` → `Version not named` 등). 원래 값은 Details에 둔다.
 - **관계 문장**: 사람이 읽는 문장으로 쓰고, '이 기록이 가리키는 것'과 '이 기록을 가리키는 것'으로 묶는다.
 - **돌아가기**: 돌아갈 곳의 이름을 보인다(`← Insights`).
 
