@@ -6,6 +6,75 @@
  "actor.agent": "에이전트",
  "actor.human": "사람",
  "actor.system": "시스템",
+ "analysis.evidence.changed": "인용 뒤 바뀜 {n}",
+ "analysis.evidence.confirmed": "확정 연결 {n}",
+ "analysis.evidence.empty": "발견·결정·가정이 기록되면 인용한 근거에 따라 여기서 셉니다.",
+ "analysis.evidence.found": "찾음·확정 아님 {n}",
+ "analysis.evidence.head": {
+  "other": "현재 인사이트 {total}개 중 {n}개에 확정 연결"
+ },
+ "analysis.evidence.link": {
+  "other": "확정 연결이 없는 {n}개 보기"
+ },
+ "analysis.evidence.none": {
+  "other": "인용 없음 {n}"
+ },
+ "analysis.evidence.problem": "못 찾음·불분명 {n}",
+ "analysis.evidence.title": "인사이트의 근거",
+ "analysis.evidence.unbound": "버전 미지정 {n}",
+ "analysis.inputs.direct": {
+  "other": "{n}개는 읽은 뒤 바뀐 입력으로 만들었습니다."
+ },
+ "analysis.inputs.empty": "실행이 시각화를 만들면 여기에 나옵니다.",
+ "analysis.inputs.head": {
+  "other": "입력이 바뀐 시각화 {n}개"
+ },
+ "analysis.inputs.link": {
+  "other": "{n}개 보기"
+ },
+ "analysis.inputs.none": "입력 변경 없음",
+ "analysis.inputs.none_note": {
+  "other": "시각화 {n}개를 만든 실행의 입력이 지금과 같습니다."
+ },
+ "analysis.inputs.title": "입력 변경",
+ "analysis.inputs.upstream": {
+  "other": "{n}개는 입력이 바뀐 실행 위에서 만들었습니다."
+ },
+ "analysis.lead": "상태마다 따로 봅니다. 확정 연결은 결론을 검토했다는 뜻이 아닙니다.",
+ "analysis.none_recorded": "기록 없음",
+ "analysis.not_run": "실행 안 함",
+ "analysis.open.empty": "질문과 다음 할 일은 닫는 기록이 생길 때까지 여기에 남습니다.",
+ "analysis.open.head": "열린 항목 {n}개",
+ "analysis.open.link": {
+  "other": "{n}개 모두 보기"
+ },
+ "analysis.open.newest": "가장 최근:",
+ "analysis.open.none": "열린 항목 없음",
+ "analysis.open.questions": {
+  "other": "질문 {n}개"
+ },
+ "analysis.open.title": "열린 질문 · 다음 할 일",
+ "analysis.open.todos": {
+  "other": "다음 할 일 {n}개"
+ },
+ "analysis.rerun.empty": "아직 재실행해 비교한 실행이 없습니다. 일치해도 비교한 파일까지만 말해 줍니다.",
+ "analysis.rerun.head": {
+  "other": "재실행과 비교한 실행 {n}개"
+ },
+ "analysis.rerun.note": "일치는 비교한 파일까지만 말해 줍니다.",
+ "analysis.rerun.title": "재실행 비교",
+ "analysis.review.checks": "분석 검사",
+ "analysis.review.conclusions": "결론 검토",
+ "analysis.review.empty": "집계 키·단위·분모·기간 검사와 사람의 결론 검토는 기록되면 여기에 나옵니다.",
+ "analysis.review.title": "분석 검사 · 결론 검토",
+ "analysis.runs.empty": "analytics_run(또는 analytics run)으로 스크립트를 실행하면 여기에 나옵니다.",
+ "analysis.runs.head": "성공 {n}",
+ "analysis.runs.last": "마지막 실행",
+ "analysis.runs.link": {
+  "other": "성공하지 못한 실행 {n}개 보기"
+ },
+ "analysis.runs.title": "실행",
+ "analysis.title": "분석 상태",
  "assets.assessment": "기록된 평가",
  "assets.asset": "분석 자산",
  "assets.journal_refs": "정본 journal 참조",
@@ -263,6 +332,7 @@
  "list.next.feedback": "다음 피드백",
  "list.next.insights": "다음 인사이트",
  "list.next.kind": "다음 페이지",
+ "list.next.open": "다음 열린 항목",
  "list.next.runs": "다음 실행",
  "list.next.timeline": "다음 타임라인",
  "list.pages": "목록 페이지",
@@ -271,6 +341,7 @@
  "list.previous.feedback": "이전 피드백",
  "list.previous.insights": "이전 인사이트",
  "list.previous.kind": "이전 페이지",
+ "list.previous.open": "이전 열린 항목",
  "list.previous.runs": "이전 실행",
  "list.previous.timeline": "이전 타임라인",
  "list.showing": "전체 {total}개 중 {shown}개를 보여 줍니다 · 이 페이지 밖 {more}개.",
@@ -279,8 +350,96 @@
  "list.title.data": "데이터",
  "list.title.feedback": "피드백",
  "list.title.insights": "인사이트",
+ "list.title.open": "열린 질문 · 다음 할 일",
  "list.title.runs": "실행",
  "list.title.timeline": "타임라인",
+ "map.attn.ambiguous": {
+  "other": "생산자 후보가 여럿인 파일 {n}개"
+ },
+ "map.attn.ambiguous_note": "여러 실행이 같은 바이트를 썼습니다",
+ "map.attn.changed": {
+  "other": "입력이 바뀐 스크립트 {n}개"
+ },
+ "map.attn.changed_note": "읽은 파일이 나중에 바뀌었거나, 앞 단계 실행이 그런 파일을 읽었습니다",
+ "map.attn.cite_failed": {
+  "other": "성공하지 못한 실행을 인용한 인사이트 {n}개"
+ },
+ "map.attn.cycle": {
+  "other": "순환에 걸린 스크립트 {n}개"
+ },
+ "map.attn.cycle_note": "실행들이 서로의 출력을 읽었습니다",
+ "map.attn.exchange": "파일을 주고받는 스크립트",
+ "map.attn.exchange_note": "서로 다른 실행에서 상대가 쓴 파일을 읽었습니다. 순환은 아닙니다",
+ "map.attn.failed": {
+  "other": "성공하지 못한 실행 {n}개"
+ },
+ "map.attn.none": "살펴볼 것이 없습니다. 모든 실행이 성공했고, 바뀐 입력이 없고, 읽은 파일마다 생산자가 하나입니다.",
+ "map.attn.title": "살펴볼 것",
+ "map.cite_failed": {
+  "other": "이 실행을 인용한 인사이트 {n}개"
+ },
+ "map.confirmed": "확정 {n}",
+ "map.cycle": "순환",
+ "map.empty": "analytics_run(또는 analytics run)으로 스크립트를 실행하면 지도가 나옵니다.",
+ "map.flow": "흐름 {n}",
+ "map.input_changed": "입력 바뀜",
+ "map.insights": {
+  "other": "인사이트 {n}개"
+ },
+ "map.kind.imported": "가져온 데이터",
+ "map.kind.insights": "인사이트",
+ "map.kind.runs": "실행",
+ "map.kind.viz": "시각화",
+ "map.latest_failed": "최근 실행 실패",
+ "map.lead": "상자 하나는 스크립트 하나와 그 실행입니다. 화살표는 한 스크립트의 실행이 쓴 파일을 다른 스크립트의 실행이 읽은 관계이며, 경로와 바이트로 맞춥니다. 실행 기록으로 만들며 행 단위 계보는 보여 주지 않습니다.",
+ "map.legend.chip": "한 스크립트가 쓰고 다음 스크립트가 읽은 파일(경로와 바이트로 맞춤)",
+ "map.legend.facts": "만든 시각화 · 그 실행을 인용한 인사이트(확정: 확정 연결)",
+ "map.legend.marks": "성공하지 못함 · 읽은 뒤 바뀐 입력(상자에도 글로 적음)",
+ "map.legend.note": "경로와 바이트가 같으면 생산자 후보일 뿐 확정 연결은 아닙니다.",
+ "map.legend.run": "스크립트 하나와 그 실행",
+ "map.legend.title": "읽는 법",
+ "map.more": {
+  "other": "작은 흐름 {n}개"
+ },
+ "map.more.ambiguous": "생산자 후보가 여럿인 파일 포함",
+ "map.more.cycle": "순환 포함",
+ "map.possible_producers": "(생산자 후보 여럿 중 하나)",
+ "map.reads": "읽음",
+ "map.run": "실행",
+ "map.runs": {
+  "other": "실행 {n}개"
+ },
+ "map.script": "스크립트",
+ "map.scripts": {
+  "other": "스크립트 {n}개"
+ },
+ "map.upstream_changed": "앞 단계 바뀜",
+ "map.viz": {
+  "other": "시각화 {n}개"
+ },
+ "map.writes": "씀",
+ "mapsum.changed": "입력 변경 {n}",
+ "mapsum.cite_nothing": {
+  "other": "인용 없음 {n}"
+ },
+ "mapsum.confirmed": {
+  "other": "{n}개에 확정 연결"
+ },
+ "mapsum.derived": {
+  "other": "파생 파일 {n}개 더"
+ },
+ "mapsum.failed": "성공하지 못함 {n}",
+ "mapsum.flows": {
+  "other": "흐름 {n}개"
+ },
+ "mapsum.lead": "가져온 데이터가 실행을 거쳐 시각화와 인사이트로 이어지는 흐름",
+ "mapsum.made_by": {
+  "other": "실행 {n}개가 만듦"
+ },
+ "mapsum.open": "지도 전체 보기",
+ "mapsum.scripts": {
+  "other": "스크립트 {n}개"
+ },
  "nav.sections": "Workspace 구역",
  "notice.damaged_files": "손상: 읽지 못한 기록 파일 {n}개",
  "notice.damaged_lines": "손상: 해석하지 못한 journal 줄 {n}개",
@@ -305,24 +464,78 @@
  "output.missing": "없음",
  "output.resolved": "기록과 같음",
  "output.unknown": "알 수 없음(기록된 해시 없음)",
+ "overview.all_charts": "시각화 전체",
+ "overview.all_insights": "인사이트 전체({n})",
+ "overview.all_open": {
+  "other": "열린 항목 {n}개 모두"
+ },
+ "overview.as_of": "기준",
  "overview.charts_empty": "아직 시각화가 없습니다. analytics_run(또는 analytics run)으로 스크립트를 실행하면 그 시각화가 여기에 나옵니다.",
- "overview.charts_fresh": "입력 변경 없음",
- "overview.charts_stale": "입력이 바뀐 시각화 {n}개",
- "overview.feedback_where": "평가 탭에 있음",
- "overview.key": "핵심 정보",
+ "overview.coverage": "기록 범위와 작업 피드백",
+ "overview.coverage_gaps": {
+  "other": "기록에서 빠진 것이 있는 실행 {n}개"
+ },
+ "overview.coverage_lead": "입력을 기록하지 않은 실행, 데이터 없이 그린 그림, 프로젝트 밖의 입력, 작업 피드백 전체:",
+ "overview.coverage_link": "평가",
+ "overview.direction": "현재 방향",
+ "overview.direction_from": "CONTEXT.md의 고정 섹션을 쓴 그대로 보입니다.",
+ "overview.entries": {
+  "other": "기록 {n}개"
+ },
+ "overview.fact.assumption": {
+  "other": "가정 {n}"
+ },
+ "overview.fact.charts": {
+  "other": "시각화 {n}개"
+ },
+ "overview.fact.corrected": "정정됨 {n}",
+ "overview.fact.decision": {
+  "other": "결정 {n}"
+ },
+ "overview.fact.derived": {
+  "other": "파생 표 {n}개"
+ },
+ "overview.fact.finding": {
+  "other": "발견 {n}"
+ },
+ "overview.fact.imported": {
+  "other": "가져온 데이터 {n}개"
+ },
+ "overview.fact.insights": {
+  "other": "인사이트 {n}개"
+ },
+ "overview.fact.period": "기록 기간",
+ "overview.fact.runs": {
+  "other": "실행 {n}개"
+ },
+ "overview.fact.withdrawn": "철회됨 {n}",
+ "overview.feedback_items": {
+  "other": "작업 피드백 {n}개"
+ },
+ "overview.focus": "분석 초점",
+ "overview.focus_conflict": "분석 초점의 버전이 서로 충돌합니다",
+ "overview.goal": "목표",
+ "overview.key": "현재 인사이트",
  "overview.key_empty": "발견·결정·가정을 기록하면 여기에 나옵니다.",
+ "overview.kicker": "분석 개요",
+ "overview.latest": "최근:",
+ "overview.metrics": "지표:",
+ "overview.metrics_defined": {
+  "other": "지표 {n}개를 정의했고, 분석 초점은 기록되지 않았습니다."
+ },
+ "overview.metrics_none": "지표: 아직 정의하지 않음.",
+ "overview.no_pinned": "고정한 CONTEXT.md 섹션이 없습니다. 제목에 <!-- pin -->을 붙이면 여기에 나옵니다.",
  "overview.open": "열린 질문 · 다음 할 일",
+ "overview.open_context": "맥락 열기",
  "overview.open_empty": "열린 질문이나 다음 할 일이 없습니다.",
  "overview.project": "프로젝트",
+ "overview.read_rest": "나머지는 맥락에서 읽기",
  "overview.recent_charts": "최근 시각화",
- "overview.recent_events": "최근 journal 기록",
- "overview.runs_all_ok": "모두 성공",
- "overview.runs_not_ok": "성공하지 못함 {n}개",
- "overview.tile.charts": "시각화",
- "overview.tile.datasets": "데이터셋",
- "overview.tile.feedback": "작업 피드백",
- "overview.tile.open": "열린 질문과 다음 할 일",
- "overview.tile.runs": "실행",
+ "overview.recent_events": "최근 활동",
+ "overview.record": "기록 {n}",
+ "overview.shown_current": "현재 {total}개 중 {shown}개",
+ "overview.shown_open": "열린 {total}개 중 {shown}개",
+ "overview.shown_total": "{total}개 중 {shown}개",
  "page.context_history": "맥락 이력",
  "page.relations": "관계",
  "page.workspace": "Workspace",
@@ -522,6 +735,7 @@
  "tab.data": "데이터",
  "tab.evaluation": "평가",
  "tab.insights": "인사이트",
+ "tab.map": "분석 지도",
  "tab.overview": "개요",
  "tab.runs": "실행",
  "tab.timeline": "타임라인",

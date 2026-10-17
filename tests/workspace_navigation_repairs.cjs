@@ -32,7 +32,8 @@ function environment(page, state, options={}) {
   // The build bar the language menu goes into, and the reader's storage: an object, or 'blocked'.
   const build=element();build.prepend=(...nodes)=>build.children.unshift(...nodes);
   const main={prepend(nav){main.nav=nav;}};
-  const tabs=(options.tabs||[]).map(id=>element(id));
+  // A section's count (data-count, #98) where the options give one.
+  const tabs=(options.tabs||[]).map(id=>{const tab=element(id);if((options.counts||{})[id]) tab.dataset.count=options.counts[id];return tab;});
   const card=element(options.card||'e7');card.dataset={selection:card.id,kind:'finding'};
   card.closest=selector=>selector==='.chart-card.is-retired'&&options.retiredCard?card:null;
   const retired=options.retired?element('show-retired'):null;
@@ -171,15 +172,19 @@ assert.equal(I18n.language,'en');
 english.events.storage.forEach(f=>f({key:'analytics-language'}));
 assert.equal(I18n.language,'ko');
 // A notice the script adds later is in the page's language, its Dismiss button too.
-const noticed=environment('index.html',wrong,{tabs:['overview','timeline'],dismissible:true,
+const noticed=environment('index.html',wrong,{tabs:['overview','timeline'],dismissible:true,counts:{timeline:'1234'},
   storage:memory({'analytics-language':'ko'})});
 const said=noticed.notice.nodes.find(n=>n.attrs&&n.attrs['data-i18n']==='notice.state_other_page');
 assert.equal(said.textContent,ko['notice.state_other_page']);
 assert.equal(noticed.notice.nodes.find(n=>n.className==='notice-close').textContent,ko['action.dismiss']);
-// The section navigation the script builds names each section, and itself, in the page's language.
-assert.deepEqual(noticed.main.nav.children.map(a=>[a.dataset.tab,a.textContent]),
+// The section navigation the script builds names each section, and itself, in the page's language:
+// a tab's words are its first element, so a count beside them (#98) stays as the switch rewrites them.
+assert.deepEqual(noticed.main.nav.children.map(a=>[a.dataset.tab,a.children[0].textContent]),
   [['overview',ko['tab.overview']],['timeline',ko['tab.timeline']]]);
 assert.equal(noticed.main.nav.attrs['aria-label'],ko['nav.sections']);
+// A section that lists items says how many after its words (#98); one that does not, nothing.
+assert.deepEqual(noticed.main.nav.children.map(a=>a.children.slice(1).map(n=>[n.className,n.textContent])),
+  [[],[['n','1,234']]]);
 // A page opened directly (no origin) where storage is blocked: its own return link carries the
 // language too, and Escape follows that link.
 const opened2=environment('runs/old.html',{...initial,page:'runs/old.html',anchor:'',card:'',lang:'ko'},{storage:'blocked',build:true});

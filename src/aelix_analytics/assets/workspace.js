@@ -145,8 +145,14 @@
     nav.setAttribute("aria-label", T("nav.sections")); nav.setAttribute("data-i18n-aria-label", "nav.sections");
     tabs.forEach(t => {
       const a = document.createElement("a"); a.href = "#" + t.id; a.dataset.tab = t.id;
-      if (I18n && I18n.has("tab." + t.id)) kitWords(a, "tab." + t.id);
-      else { const heading = t.querySelector && t.querySelector("h2"); a.textContent = heading ? heading.textContent : t.id; }
+      // The tab's words in an element of their own: a language switch rewrites them, not the count.
+      const label = document.createElement("span");
+      if (I18n && I18n.has("tab." + t.id)) kitWords(label, "tab." + t.id);
+      else { const heading = t.querySelector && t.querySelector("h2"); label.textContent = heading ? heading.textContent : t.id; }
+      a.appendChild(label);
+      // How many items a section lists, as it says (design WORKSPACE-READABILITY 7.1).
+      const count = t.dataset && t.dataset.count;
+      if (count) { const n = document.createElement("span"); n.className = "n"; n.textContent = Number(count).toLocaleString("en-US"); a.appendChild(n); }
       nav.appendChild(a);
     });
     document.querySelector("main").prepend(nav);

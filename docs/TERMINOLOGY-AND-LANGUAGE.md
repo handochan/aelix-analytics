@@ -134,6 +134,7 @@ SDK `scan`은 지연 데이터 읽기이고 정적 코드 스캔은 `static_scan
 | Attached data / Plotted data | 시각화에 첨부한 표 / 실제 플롯 요소에 대응하는 데이터 | 대응 범위가 확인되지 않으면 Attached data로 표시 |
 | Evidence / Evidence reference | 판단을 확인하는 자료 / 그 자료의 정확한 버전 참조 | 참조만 있다고 자료 보존·결론 검토가 완료된 것은 아님 |
 | Provenance / Relations / Row lineage | 생성·관측 출처 / 연결 관계 / 행 수준 대응 | 그래프의 연결을 완전한 행 계보나 인과관계로 부르지 않음 |
+| Analysis map | 스크립트 단위의 프로젝트 흐름: 상자는 스크립트와 그 run, 화살표는 한 스크립트의 run이 쓰고 다른 스크립트의 run이 읽은 같은 경로·바이트의 파일(Workspace 탭, kit 0.18.0, [계약 C14](CONTRACTS.md#c14-overview의-분석-상태와-분석-지도-kit-0180-98)) | 화살표는 생산자 후보이며 확정 연결·행 계보가 아님. Provenance(한 대상에서 거슬러 올라가는 출처)와 구별 |
 | Run / Rerun | 기록된 분석 코드 실행 / 이전 실행과 연결된 재실행 | 호스트 Session·일반 도구 호출·분석 과제 전체와 구별 |
 | Task / Session / Tool call | 사용자가 해결하려는 과제 / 호스트 대화 단위 / 개별 도구 호출 | 세 수치를 모델 요청 횟수·토큰과 혼용하지 않음 |
 | Input / Output change | 실행에서 관측·선언한 입력 / 생성·수정·삭제한 파일 변화 | `outputs`에 잡혔다고 모두 보존한 artifact는 아님 |
@@ -171,7 +172,7 @@ Report는 Visualization·설명·발견을 선택해 구성한 문서이며, Vis
 | 요청 응답 `ok` / run `status=ok` | 요청 처리 성공과 Run succeeded를 구별. 원본 저장값의 전환은 schema별 대응으로 처리 |
 | 실행·기록·표시의 한 가지 성공 표시 | Execution status / Recording status / Render status를 구별 |
 | `reproduction`, `verdict`, ‘재현 검증 완료’ | Rerun comparison, `rerun_comparison`, `comparison_result`. Matched / Different / Inconclusive / Run failed를 비교 범위와 함께 표시 |
-| 하나의 Verified·Quality 배지 | Analysis checks / Conclusion review / Record coverage / Tool usage를 별도로 표시 |
+| 하나의 Verified·Quality 배지 | Analysis checks / Conclusion review / Record coverage / Tool usage를 별도로 표시. Overview의 Analysis status는 근거 연결·실행·입력 변경·열린 항목·재실행 비교·분석 검사와 결론 검토를 칸마다 따로 세며 하나의 점수로 합치지 않음(kit 0.18.0). 기록이 없는 칸은 `None recorded`, 하지 않은 재실행 비교는 `Not run` |
 | `Freshness`, `stale` | Input changes와 확인 시점. `InputComparison`은 입력·코드 비교를 구별하고, 입력이 바뀌었다는 이유로 과거 결론을 거짓이라고 하지 않음 |
 | `retired` chart | Absent from latest run. 최신 실행에 없다는 뜻이며 삭제·철회·사용 중단 선언은 아님 |
 | `has_data` | Attached data present. 전체 플롯 데이터 보존 여부는 별도 범위 |
@@ -247,7 +248,7 @@ Report는 Visualization·설명·발견을 선택해 구성한 문서이며, Vis
 | 프로젝트 locale / 게시 locale | 설정할 경우 서로 명시적으로 구분. 게시본의 UI locale은 빌드에 고정하고 원래 보고서 언어와 구별 |
 | 저장소 설명·연구·과거 검토 문서 | 이번 정책으로 일괄 번역하지 않음. 사용자용 기본 템플릿과 개발 과정의 한국어 문서는 다른 대상 |
 
-기본 탭은 `Overview`, `Insights`, `Reports`, `Visualizations`, `Data`, `Runs`, `Timeline`, `Context`다.
+기본 탭은 `Overview`, `Insights`, `Reports`, `Visualizations`, `Analysis map`, `Data`, `Runs`, `Timeline`, `Context`다.
 속성은 `Created at`, `Based on`, `Version`, `Status`, `Evidence`, `Scope`처럼 표시하고, 기계 키는 `created_at`처럼 유지한다.
 기록 상태 구역은 `Record coverage`, 도구 사용은 `Tool usage`, 사용 중 문제는 `Workflow feedback`으로 표현한다.
 새 섹션·메뉴를 용어마다 만들라는 뜻은 아니다. Metrics 등은 기존 점진적 공개 설계의 위치를 따른다.
@@ -305,8 +306,9 @@ HTML을 그리지 않아 주석이 글자로 보이고, 목표를 읽는 쪽은 
   기본 음성으로 읽는다(#10 전에는 페이지가 `ko`라 한국어 프로젝트의 글을 한국어로 읽었고, 이 접근성을 잃지 않음). kit의 label은 화면
   언어의 범위에 남는다. 사람이 쓴 글은 화면 언어와 관계없이 `lang=""`이고 메시지 값으로 넘기지 않는다. 문서 제목(`<title>`)은 kit의 글과
   사용자 글을 한 문자열로 이으며, 화면 언어를 바꾸면 kit의 글 부분만 바뀐다. CSS 글꼴 목록은 macOS·Windows·Linux의 한국어 글꼴을 포함한다.
-- 지금 탭은 `Overview`, `Visualizations`, `Timeline`, `Data`, `Runs`, `Context`, `Evaluation`이다. `Insights`·`Reports`는 그 기능의 Issue
-  ([#18](https://github.com/handochan/aelix-analytics/issues/18)·[#19](https://github.com/handochan/aelix-analytics/issues/19))가 만든다.
+- 지금 탭은 `Overview`, `Insights`, `Visualizations`, `Analysis map`, `Timeline`, `Data`, `Runs`, `Context`, `Analysis assets`, `Evaluation`이다
+  (`Insights`는 [#18](https://github.com/handochan/aelix-analytics/issues/18), `Analysis map`은 [#98](https://github.com/handochan/aelix-analytics/issues/98)).
+  `Reports`는 그 기능의 Issue([#19](https://github.com/handochan/aelix-analytics/issues/19))가 만든다.
   `Evaluation`은 옛 '평가' 탭의 이름을 옮긴 것이고, 안의 구역은 `Workflow feedback`·`Record coverage`·`Tool usage`다. 탭의 URL anchor
   (`#charts`, `#evaluation` 등)는 안정 식별자라 그대로다.
 - 사람과 스크립트가 쓴 글은 번역하거나 Unicode 정규화(NFC 등)하지 않고 쓴 그대로 보인다. `CONTEXT.md`는 Markdown으로 그린다(HTML은

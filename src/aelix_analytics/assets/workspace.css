@@ -25,6 +25,8 @@
   --k-run: #2a78d6; --k-import: #1baf7a; --k-finding: #008300; --k-decision: #4a3aa7;
   --k-assumption: #eda100; --k-question: #eb6834; --k-todo: #e87ba4; --k-gap: #e34948;
   --k-note: #898781; --k-context: #52514e; --k-project: #52514e; --k-resolve: #008300;
+  /* A visualization's kind (design WORKSPACE-READABILITY 4): apart from a decision's indigo and a run's blue. */
+  --k-viz: #a2369f;
   --sans: system-ui, -apple-system, "Apple SD Gothic Neo", "Segoe UI", "Malgun Gothic", "Noto Sans CJK KR", "Noto Sans KR", sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --radius: 10px;
@@ -40,7 +42,7 @@
     --warning-text: #f3c461; --critical-text: #ff8f8f; --link-text: #9cc4f5;
     --k-run: #3987e5; --k-import: #199e70; --k-decision: #9085e9; --k-assumption: #c98500;
     --k-question: #d95926; --k-todo: #d55181; --k-gap: #e66767; --k-context: #c3c2b7;
-    --k-project: #c3c2b7;
+    --k-project: #c3c2b7; --k-viz: #d27ad0;
   }
 }
 
@@ -103,12 +105,130 @@ footer { max-width: 1280px; margin: 0 auto; padding: 1.125rem 1.5rem 2.5rem; col
 .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; margin-bottom: 0.625rem; flex-wrap: wrap; }
 .toggle { display: inline-flex; align-items: center; gap: 0.5rem; min-height: 2.75rem; color: var(--ink-2); cursor: pointer; }
 
-.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10.5rem), 1fr)); gap: 0.625rem; margin-bottom: 1rem; }
-.tile { display: flex; flex-direction: column; padding: 0.75rem 0.875rem; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); color: var(--ink); }
-.tile:hover { text-decoration: none; border-color: var(--accent); }
-.tile .label { color: var(--ink-2); font-size: 0.78rem; }
-.tile .value { font-size: 1.75rem; font-weight: 620; line-height: 1.2; }
-.tile .note { color: var(--muted); font-size: 0.75rem; min-height: 1rem; }
+/* The Overview (design WORKSPACE-READABILITY 7.1): where the analysis goes, its status cell by cell, the map's summary. */
+.overview-head { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(min(100%, 20rem), 1fr); gap: 1.25rem; align-items: start; }
+.kicker { margin: 0 0 0.375rem; color: var(--muted); font-size: 0.78rem; }
+.goal-label { margin: 0.875rem 0 0; color: var(--ink-2); font-size: 0.78rem; font-weight: 600; }
+.hero .goal { margin-top: 0.125rem; }
+.facts { margin: 0.375rem 0 0; color: var(--ink-2); max-width: 56rem; }
+.direction .panel-head h2 { margin: 0; }
+.direction .pinned h3 { margin: 0.75rem 0 0.25rem; font-size: 0.875rem; }
+.direction .markdown > :first-child { margin-top: 0; }
+.direction .markdown ul { margin: 0.25rem 0; padding-left: 1.125rem; }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem 1rem; flex-wrap: wrap; margin-bottom: 0.375rem; }
+.panel-head h2 { margin: 0; }
+.panel-link { margin: 0.5rem 0 0; }
+.panel-link a, .cell-link a, .head-link { display: inline-flex; align-items: center; min-height: 2.75rem; }
+.section-head { display: flex; align-items: baseline; gap: 0.25rem 1rem; flex-wrap: wrap; margin: 1.75rem 0 0.75rem; }
+.section-head .muted { margin: 0; }
+.section-head .head-link { margin-left: auto; }
+.status-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; }
+.status-cell { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.875rem 1rem; min-width: 0; }
+.status-cell h3 { display: flex; align-items: center; gap: 0.375rem; color: var(--ink-2); font-size: 0.8125rem; font-weight: 600; }
+.cell-icon { width: 1.1em; text-align: center; color: var(--muted); }
+.cell-head { margin: 0.5rem 0 0; font-size: 1.125rem; font-weight: 620; line-height: 1.35; overflow-wrap: anywhere; }
+.cell-head .badge { vertical-align: 0.125rem; }
+.cell-head .n { font-size: 0.875rem; font-weight: 600; margin-right: 0.25rem; }
+.cell-note { margin: 0.375rem 0 0; color: var(--ink-2); font-size: 0.8125rem; overflow-wrap: anywhere; }
+.cell-link { margin: 0.25rem 0 0; }
+.cell-lines { display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.75rem; margin: 0.5rem 0 0; }
+.cell-lines dt { color: var(--ink-2); }
+.cell-lines dd { margin: 0; font-weight: 620; }
+.evidence-bar { display: flex; gap: 2px; height: 0.5rem; margin-top: 0.625rem; border-radius: 999px; overflow: hidden; background: var(--grid); }
+.evidence-bar .seg { flex-basis: 0; min-width: 0.25rem; }
+.seg.tone-good { background: var(--good); } .seg.tone-link { background: var(--k-run); } .seg.tone-warning { background: var(--warning); }
+.seg.tone-critical { background: var(--critical); } .seg.tone-muted { background: var(--axis); }
+.map-boxes { list-style: none; margin: 0; padding: 0.875rem; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.5rem 2.25rem;
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); position: relative; }
+.map-box { position: relative; padding: 0.75rem 0.875rem; border: 1px solid var(--border); border-radius: var(--radius); min-width: 0; overflow-wrap: anywhere; }
+.map-box p { margin: 0; }
+.box-kind { display: flex; align-items: center; gap: 0.375rem; font-size: 0.8125rem; font-weight: 600; color: var(--ink-2); }
+.kind-mark { width: 0.625rem; height: 0.625rem; border-radius: 3px; background: var(--muted); flex: none; }
+.box-n { font-size: 1.625rem; font-weight: 650; line-height: 1.25; }
+.box-sub { color: var(--ink-2); font-size: 0.8125rem; }
+.map-box .badge { margin-top: 0.375rem; }
+.map-box.kind-data { background: color-mix(in srgb, var(--k-import) 9%, var(--card)); border-color: color-mix(in srgb, var(--k-import) 45%, transparent); }
+.map-box.kind-data .kind-mark { background: var(--k-import); }
+.map-box.kind-run { background: color-mix(in srgb, var(--k-run) 12%, var(--card)); border: 0; border-radius: 0; padding-inline: 1.5rem;
+  clip-path: polygon(1rem 0, calc(100% - 1rem) 0, 100% 50%, calc(100% - 1rem) 100%, 1rem 100%, 0 50%); }
+.map-box.kind-run .kind-mark { background: var(--k-run); clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%); border-radius: 0; }
+.map-box.kind-viz { background: color-mix(in srgb, var(--k-viz) 8%, var(--card)); border-color: color-mix(in srgb, var(--k-viz) 45%, transparent); }
+.map-box.kind-viz .kind-mark { background: var(--k-viz); }
+.map-box.kind-insight { background: color-mix(in srgb, var(--k-finding) 8%, var(--card)); border-color: color-mix(in srgb, var(--k-finding) 40%, transparent); }
+.map-box.kind-insight .kind-mark { background: var(--k-finding); border-radius: 50%; }
+/* The arrows between the boxes: drawn by the box before, except the hexagon's (its shape would cut it off). */
+.map-box:not(:last-child):not(.kind-run)::after, .map-box.kind-run + .map-box::before { content: "→"; content: "→" / "";
+  position: absolute; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 1.125rem; }
+.map-box:not(:last-child):not(.kind-run)::after { right: -1.625rem; }
+.map-box.kind-run + .map-box::before { left: -1.625rem; }
+details.fold { margin-top: 1.25rem; border-top: 1px solid var(--grid); }
+details.fold > summary h2 { display: inline; }
+details.fold > summary .muted { font-size: 0.8125rem; }
+details.fold .gallery { grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr)); }
+.tabs a .n { margin-left: 0.375rem; padding: 0 0.375rem; border-radius: 999px; background: var(--grid); color: var(--ink-2); font-size: 0.72rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* The Analysis map (design 7.2): a script and its runs as a hexagon, the files between them on the arrows. One list
+   is both the diagram and its words: on a narrow screen or without room it reads as the list it is. */
+.map-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(min(100%, 16rem), 18rem); gap: 1rem; align-items: start; }
+.map-side { display: grid; gap: 0.875rem; }
+.flow { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.75rem 0.875rem; margin-bottom: 0.875rem; }
+.flow h3 { margin-bottom: 0.625rem; font-size: 0.8125rem; color: var(--ink-2); }
+.flow-scroll { overflow-x: auto; padding-bottom: 0.25rem; }
+.flow-canvas { position: relative; }
+.flow-edges { position: absolute; top: 0; left: 0; overflow: visible; }
+.flow-edges path { fill: none; stroke: var(--ink-2); stroke-width: 0.09; }
+.flow-edges path.maybe { stroke-dasharray: 0.35 0.25; stroke: var(--warning-text); }
+.flow-edges marker path { fill: var(--ink-2); stroke: none; }
+.flow-nodes { list-style: none; margin: 0; padding: 0; position: relative; display: grid; grid-auto-columns: var(--node-w); grid-auto-rows: var(--node-h);
+  column-gap: var(--gap-x); row-gap: var(--gap-y); }
+.map-node { min-width: 0; height: var(--node-h); padding: 0.625rem 1.375rem; overflow: hidden; background: color-mix(in srgb, var(--k-run) 14%, var(--card));
+  clip-path: polygon(1rem 0, calc(100% - 1rem) 0, 100% 50%, calc(100% - 1rem) 100%, 1rem 100%, 0 50%); }
+.map-node:target, .map-node:focus-within { background: color-mix(in srgb, var(--k-run) 26%, var(--card)); }
+.map-node.is-failed { background: color-mix(in srgb, var(--critical) 10%, color-mix(in srgb, var(--k-run) 12%, var(--card))); }
+.map-node p, .map-node ul { margin: 0; }
+.node-kind { color: var(--link-text); font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+.map-node h4 { font-size: 0.8125rem; margin: 0.125rem 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.map-node h4 a { color: var(--ink); }
+.node-state, .node-flags { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem; font-size: 0.75rem; color: var(--ink-2); }
+.node-flags { margin-top: 0.125rem; }
+.node-facts { list-style: none; padding: 0; font-size: 0.75rem; color: var(--ink-2); }
+.node-facts > li { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.node-facts > li::before { content: ""; display: inline-block; width: 0.5rem; height: 0.5rem; margin-right: 0.375rem; border-radius: 2px; vertical-align: 0.05em; background: var(--muted); }
+.node-facts .fact-viz::before { background: var(--k-viz); }
+.node-facts .fact-insight::before { background: var(--k-finding); border-radius: 50%; }
+.node-facts .fact-data::before { background: var(--k-import); }
+.node-facts .fact-insight.alert { color: var(--critical-text); font-weight: 600; }
+/* What a box writes and who reads it: the arrows say it in the diagram, these words in the list. */
+.map-out { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.map-out ul { list-style: none; padding: 0; margin: 0; }
+.map-chip { position: absolute; transform: translate(-50%, -50%); max-width: calc(var(--gap-x) - 0.25rem); padding: 0 0.375rem; border: 1px solid color-mix(in srgb, var(--k-import) 60%, transparent);
+  border-radius: 6px; background: color-mix(in srgb, var(--k-import) 10%, var(--card)); color: var(--ink); font: 0.65rem/1.5 var(--mono);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; z-index: 1; }
+.map-chip.maybe { border-style: dashed; border-color: var(--warning-text); }
+details.flow-more { border: 1px dashed var(--axis); border-radius: var(--radius); padding: 0 0.875rem 0.5rem; }
+details.flow-more > summary .muted { font-size: 0.8125rem; }
+.attention { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.625rem; }
+.attention li { display: grid; grid-template-columns: 1.25rem minmax(0, 1fr); gap: 0.375rem; }
+.attention p { margin: 0.125rem 0 0; color: var(--ink-2); font-size: 0.8125rem; overflow-wrap: anywhere; }
+.attn-mark { font-weight: 700; text-align: center; }
+.attention .tone-critical .attn-mark { color: var(--critical); } .attention .tone-warning .attn-mark { color: var(--warning-text); }
+.attention .tone-muted .attn-mark { color: var(--muted); }
+.legend li { display: grid; grid-template-columns: 2.5rem minmax(0, 1fr); gap: 0.5rem; align-items: center; padding: 0.25rem 0; }
+.legend-sample { display: block; height: 1rem; }
+.legend-sample.legend-run { background: color-mix(in srgb, var(--k-run) 22%, var(--card)); clip-path: polygon(0.4rem 0, calc(100% - 0.4rem) 0, 100% 50%, calc(100% - 0.4rem) 100%, 0.4rem 100%, 0 50%); }
+.legend-sample.legend-chip { border: 1px solid color-mix(in srgb, var(--k-import) 60%, transparent); border-radius: 4px; background: color-mix(in srgb, var(--k-import) 10%, var(--card)); }
+.legend-sample.legend-dots { background: radial-gradient(circle at 30% 50%, var(--k-viz) 0 0.25rem, transparent 0.26rem), radial-gradient(circle at 70% 50%, var(--k-finding) 0 0.25rem, transparent 0.26rem); }
+.legend-sample.legend-marks { background: radial-gradient(circle at 30% 50%, var(--critical) 0 0.3rem, transparent 0.31rem), radial-gradient(circle at 70% 50%, var(--warning) 0 0.3rem, transparent 0.31rem); }
+@media (max-width: 56.25em) {
+  .overview-head, .map-layout { grid-template-columns: minmax(0, 1fr); }
+  .status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .map-boxes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .map-box.kind-run + .map-box::before { content: none; }
+}
+@media (forced-colors: active) {
+  .map-node, .map-box.kind-run, .legend-sample.legend-run { clip-path: none; border: 2px solid CanvasText; }
+  .evidence-bar .seg { forced-color-adjust: none; }
+}
 
 .columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.875rem; margin-top: 0.875rem; }
 .columns.wide-left { grid-template-columns: minmax(0, 2.4fr) minmax(min(100%, 14rem), 1fr); }
@@ -365,5 +485,14 @@ section[tabindex="-1"]:focus { outline: none; }
   .relation-connectors { display: none; }
   .record-head h1 { font-size: 1.3125rem; }
   .gallery { grid-template-columns: minmax(0, 1fr); }
+  .status-grid, .map-boxes { grid-template-columns: minmax(0, 1fr); }
+  .map-box::after, .map-box::before { content: none !important; }
+  /* The map reads as its list: one box after another, each saying what it writes and who reads it. */
+  .flow-canvas { width: auto !important; height: auto !important; }
+  .flow-edges, .map-chip { display: none; }
+  .flow-nodes { display: block; }
+  .map-node { height: auto; margin-bottom: 0.5rem; clip-path: none; border-left: 4px solid var(--k-run); border-radius: 6px; padding: 0.5rem 0.75rem; }
+  .map-node h4, .node-facts > li { white-space: normal; }
+  .map-out { position: static; width: auto; height: auto; overflow: visible; clip-path: none; white-space: normal; }
 }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { animation: none !important; transition: none !important; } }

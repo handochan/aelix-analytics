@@ -6,6 +6,88 @@
  "actor.agent": "agent",
  "actor.human": "human",
  "actor.system": "system",
+ "analysis.evidence.changed": "{n} changed since cited",
+ "analysis.evidence.confirmed": "{n} confirmed",
+ "analysis.evidence.empty": "Once findings, decisions and assumptions are recorded, each is counted here by the evidence it cites.",
+ "analysis.evidence.found": "{n} found, not confirmed",
+ "analysis.evidence.head": {
+  "one": "{n} of {total} current insights has a confirmed link",
+  "other": "{n} of {total} current insights have a confirmed link"
+ },
+ "analysis.evidence.link": {
+  "one": "Review the insight without a confirmed link",
+  "other": "Review the {n} without a confirmed link"
+ },
+ "analysis.evidence.none": {
+  "one": "{n} cites nothing",
+  "other": "{n} cite nothing"
+ },
+ "analysis.evidence.problem": "{n} not found or unclear",
+ "analysis.evidence.title": "Evidence for insights",
+ "analysis.evidence.unbound": "{n} version not named",
+ "analysis.inputs.direct": {
+  "one": "{n} was made from inputs that changed afterwards.",
+  "other": "{n} were made from inputs that changed afterwards."
+ },
+ "analysis.inputs.empty": "Visualizations appear here once a run makes them.",
+ "analysis.inputs.head": {
+  "one": "{n} visualization rests on changed inputs",
+  "other": "{n} visualizations rest on changed inputs"
+ },
+ "analysis.inputs.link": {
+  "one": "Review it",
+  "other": "Review the {n}"
+ },
+ "analysis.inputs.none": "No input changes",
+ "analysis.inputs.none_note": {
+  "one": "The run behind the {n} visualization reads its inputs as they are now.",
+  "other": "The runs behind all {n} visualizations read their inputs as they are now."
+ },
+ "analysis.inputs.title": "Input changes",
+ "analysis.inputs.upstream": {
+  "one": "{n} builds on a run whose input changed.",
+  "other": "{n} build on runs whose inputs changed."
+ },
+ "analysis.lead": "Each status is separate. A confirmed link is not a reviewed conclusion.",
+ "analysis.none_recorded": "None recorded",
+ "analysis.not_run": "Not run",
+ "analysis.open.empty": "Questions and next steps stay here until a record closes them.",
+ "analysis.open.head": "{n} open",
+ "analysis.open.link": {
+  "one": "See it",
+  "other": "See all {n}"
+ },
+ "analysis.open.newest": "The newest is from",
+ "analysis.open.none": "Nothing open",
+ "analysis.open.questions": {
+  "one": "{n} question",
+  "other": "{n} questions"
+ },
+ "analysis.open.title": "Open questions · next steps",
+ "analysis.open.todos": {
+  "one": "{n} next step",
+  "other": "{n} next steps"
+ },
+ "analysis.rerun.empty": "No run has been rerun and compared yet. A match covers only the files it compared.",
+ "analysis.rerun.head": {
+  "one": "{n} run compared with its rerun",
+  "other": "{n} runs compared with their reruns"
+ },
+ "analysis.rerun.note": "A match covers only the files it compared.",
+ "analysis.rerun.title": "Rerun comparison",
+ "analysis.review.checks": "Analysis checks",
+ "analysis.review.conclusions": "Conclusion review",
+ "analysis.review.empty": "Checks of keys, units, denominators and periods, and a person's review of a conclusion, appear here once they are recorded.",
+ "analysis.review.title": "Analysis checks · Conclusion review",
+ "analysis.runs.empty": "Runs appear here once a script runs with analytics_run (or analytics run).",
+ "analysis.runs.head": "{n} succeeded",
+ "analysis.runs.last": "Last run",
+ "analysis.runs.link": {
+  "one": "See the run that did not succeed",
+  "other": "See the {n} runs that did not succeed"
+ },
+ "analysis.runs.title": "Runs",
+ "analysis.title": "Analysis status",
  "assets.assessment": "Recorded assessment",
  "assets.asset": "Analysis asset",
  "assets.journal_refs": "canonical journal references",
@@ -263,6 +345,7 @@
  "list.next.feedback": "Next feedback",
  "list.next.insights": "Next insights",
  "list.next.kind": "Next page",
+ "list.next.open": "Next open items",
  "list.next.runs": "Next runs",
  "list.next.timeline": "Next timeline",
  "list.pages": "List pages",
@@ -271,6 +354,7 @@
  "list.previous.feedback": "Previous feedback",
  "list.previous.insights": "Previous insights",
  "list.previous.kind": "Previous page",
+ "list.previous.open": "Previous open items",
  "list.previous.runs": "Previous runs",
  "list.previous.timeline": "Previous timeline",
  "list.showing": "Showing {shown} of {total}; {more} outside this page.",
@@ -279,8 +363,113 @@
  "list.title.data": "Data",
  "list.title.feedback": "Feedback",
  "list.title.insights": "Insights",
+ "list.title.open": "Open questions · next steps",
  "list.title.runs": "Runs",
  "list.title.timeline": "Timeline",
+ "map.attn.ambiguous": {
+  "one": "{n} file with several possible producers",
+  "other": "{n} files with several possible producers"
+ },
+ "map.attn.ambiguous_note": "several runs wrote the same bytes",
+ "map.attn.changed": {
+  "one": "{n} script rests on changed inputs",
+  "other": "{n} scripts rest on changed inputs"
+ },
+ "map.attn.changed_note": "a file it read changed afterwards, or a run it builds on read one",
+ "map.attn.cite_failed": {
+  "one": "{n} insight cites a run that did not succeed",
+  "other": "{n} insights cite a run that did not succeed"
+ },
+ "map.attn.cycle": {
+  "one": "{n} script on a cycle",
+  "other": "{n} scripts on a cycle"
+ },
+ "map.attn.cycle_note": "their runs read each other's output",
+ "map.attn.exchange": "Scripts that exchange files",
+ "map.attn.exchange_note": "each read a file the other wrote in another run; not a cycle",
+ "map.attn.failed": {
+  "one": "{n} run did not succeed",
+  "other": "{n} runs did not succeed"
+ },
+ "map.attn.none": "Nothing needs attention: every run succeeded, no input changed and every file read has one producer.",
+ "map.attn.title": "Needs attention",
+ "map.cite_failed": {
+  "one": "{n} insight cites this run",
+  "other": "{n} insights cite this run"
+ },
+ "map.confirmed": "{n} confirmed",
+ "map.cycle": "Cycle",
+ "map.empty": "The map appears once a script runs with analytics_run (or analytics run).",
+ "map.flow": "Flow {n}",
+ "map.input_changed": "Input changed",
+ "map.insights": {
+  "one": "{n} insight",
+  "other": "{n} insights"
+ },
+ "map.kind.imported": "Imported data",
+ "map.kind.insights": "Insights",
+ "map.kind.runs": "Runs",
+ "map.kind.viz": "Visualizations",
+ "map.latest_failed": "Latest did not succeed",
+ "map.lead": "Each box is one script and its runs. An arrow is a file a run of one script wrote and a run of another read, matched by path and bytes. Made from the run records; it does not show row-level lineage.",
+ "map.legend.chip": "A file one script wrote and the next read, matched by path and bytes",
+ "map.legend.facts": "Visualizations made · insights citing the runs (confirmed: a confirmed link)",
+ "map.legend.marks": "Did not succeed · inputs changed since read (also written in the box)",
+ "map.legend.note": "A matching path and bytes makes a run a producer candidate, not a confirmed link.",
+ "map.legend.run": "One script and its runs",
+ "map.legend.title": "How to read it",
+ "map.more": {
+  "one": "{n} smaller flow",
+  "other": "{n} smaller flows"
+ },
+ "map.more.ambiguous": "Includes a file with several possible producers",
+ "map.more.cycle": "Includes a cycle",
+ "map.possible_producers": "(one of several possible producers)",
+ "map.reads": "Reads",
+ "map.run": "Run",
+ "map.runs": {
+  "one": "{n} run",
+  "other": "{n} runs"
+ },
+ "map.script": "Script",
+ "map.scripts": {
+  "one": "{n} script",
+  "other": "{n} scripts"
+ },
+ "map.upstream_changed": "Upstream changed",
+ "map.viz": {
+  "one": "{n} visualization",
+  "other": "{n} visualizations"
+ },
+ "map.writes": "Writes",
+ "mapsum.changed": "{n} with input changes",
+ "mapsum.cite_nothing": {
+  "one": "{n} cites nothing",
+  "other": "{n} cite nothing"
+ },
+ "mapsum.confirmed": {
+  "one": "{n} has a confirmed link",
+  "other": "{n} have a confirmed link"
+ },
+ "mapsum.derived": {
+  "one": "plus {n} derived file",
+  "other": "plus {n} derived files"
+ },
+ "mapsum.failed": "{n} did not succeed",
+ "mapsum.flows": {
+  "one": "{n} flow",
+  "other": "{n} flows"
+ },
+ "mapsum.lead": "How imported data moves through runs into visualizations and insights",
+ "mapsum.made_by": {
+  "one": "made by {n} run",
+  "other": "made by {n} runs"
+ },
+ "mapsum.open": "Open the full map",
+ "mapsum.scripts": {
+  "one": "in {n} script",
+  "other": "in {n} scripts"
+ },
  "nav.sections": "Workspace sections",
  "notice.damaged_files": "Damaged: {n} record file(s) not read",
  "notice.damaged_lines": "Damaged: {n} journal line(s) do not parse",
@@ -305,24 +494,91 @@
  "output.missing": "Missing",
  "output.resolved": "Same as recorded",
  "output.unknown": "Unknown (no hash recorded)",
+ "overview.all_charts": "All visualizations",
+ "overview.all_insights": "All insights ({n})",
+ "overview.all_open": {
+  "one": "The {n} open item",
+  "other": "All {n} open"
+ },
+ "overview.as_of": "as of",
  "overview.charts_empty": "No visualizations yet. Run a script with analytics_run (or analytics run) and its visualizations appear here.",
- "overview.charts_fresh": "No input changes",
- "overview.charts_stale": "{n} with input changes",
- "overview.feedback_where": "In Evaluation",
- "overview.key": "Key information",
+ "overview.coverage": "Record coverage and workflow feedback",
+ "overview.coverage_gaps": {
+  "one": "{n} run leaves something out of its record",
+  "other": "{n} runs leave something out of their records"
+ },
+ "overview.coverage_lead": "Runs with no input recorded, plots without their data, inputs from outside the project, and the workflow feedback, in full:",
+ "overview.coverage_link": "Evaluation",
+ "overview.direction": "Current direction",
+ "overview.direction_from": "CONTEXT.md's pinned sections, as written.",
+ "overview.entries": {
+  "one": "{n} entry",
+  "other": "{n} entries"
+ },
+ "overview.fact.assumption": {
+  "one": "{n} assumption",
+  "other": "{n} assumptions"
+ },
+ "overview.fact.charts": {
+  "one": "{n} visualization",
+  "other": "{n} visualizations"
+ },
+ "overview.fact.corrected": "{n} corrected",
+ "overview.fact.decision": {
+  "one": "{n} decision",
+  "other": "{n} decisions"
+ },
+ "overview.fact.derived": {
+  "one": "{n} derived table",
+  "other": "{n} derived tables"
+ },
+ "overview.fact.finding": {
+  "one": "{n} finding",
+  "other": "{n} findings"
+ },
+ "overview.fact.imported": {
+  "one": "{n} imported dataset",
+  "other": "{n} imported datasets"
+ },
+ "overview.fact.insights": {
+  "one": "{n} insight",
+  "other": "{n} insights"
+ },
+ "overview.fact.period": "recorded",
+ "overview.fact.runs": {
+  "one": "{n} run",
+  "other": "{n} runs"
+ },
+ "overview.fact.withdrawn": "{n} withdrawn",
+ "overview.feedback_items": {
+  "one": "{n} workflow feedback item",
+  "other": "{n} workflow feedback items"
+ },
+ "overview.focus": "Analysis focus",
+ "overview.focus_conflict": "The analysis focus has conflicting versions",
+ "overview.goal": "Goal",
+ "overview.key": "Current insights",
  "overview.key_empty": "Findings, decisions and assumptions appear here once they are recorded.",
+ "overview.kicker": "Analysis overview",
+ "overview.latest": "latest:",
+ "overview.metrics": "Metrics:",
+ "overview.metrics_defined": {
+  "one": "{n} metric defined; no analysis focus recorded.",
+  "other": "{n} metrics defined; no analysis focus recorded."
+ },
+ "overview.metrics_none": "Metrics: none defined yet.",
+ "overview.no_pinned": "No section of CONTEXT.md is pinned. A heading marked <!-- pin --> shows here.",
  "overview.open": "Open questions · next steps",
+ "overview.open_context": "Open Context",
  "overview.open_empty": "No open questions or next steps.",
  "overview.project": "Project",
+ "overview.read_rest": "Read the rest in Context",
  "overview.recent_charts": "Recent visualizations",
- "overview.recent_events": "Recent journal entries",
- "overview.runs_all_ok": "All succeeded",
- "overview.runs_not_ok": "{n} not succeeded",
- "overview.tile.charts": "Visualizations",
- "overview.tile.datasets": "Datasets",
- "overview.tile.feedback": "Workflow feedback",
- "overview.tile.open": "Open questions and next steps",
- "overview.tile.runs": "Runs",
+ "overview.recent_events": "Recent activity",
+ "overview.record": "record {n}",
+ "overview.shown_current": "{shown} of {total} current",
+ "overview.shown_open": "{shown} of {total} open",
+ "overview.shown_total": "{shown} of {total}",
  "page.context_history": "Context history",
  "page.relations": "Relations",
  "page.workspace": "Workspace",
@@ -522,6 +778,7 @@
  "tab.data": "Data",
  "tab.evaluation": "Evaluation",
  "tab.insights": "Insights",
+ "tab.map": "Analysis map",
  "tab.overview": "Overview",
  "tab.runs": "Runs",
  "tab.timeline": "Timeline",

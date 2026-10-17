@@ -95,7 +95,7 @@ class LangScopes(HTMLParser):
 LEGACY_READER_LINES = {
     "src/aelix_analytics/core.py": (
         '"""First content line under a Goal heading (or 목표, the heading of earlier templates, which',
-        r'if re.match(r"^#{1,3}\s*(목표|goal|objective)", line.strip(), re.IGNORECASE):',
+        r'GOAL_RE = re.compile(r"^(목표|goal|objective)", re.IGNORECASE)',
         "# template writes; `<!-- always -->` and `<!-- 항상 -->` are the marks of earlier templates, which",
         r'PIN_RE = re.compile(r"<!--\s*(pin|always|항상)\s*-->", re.IGNORECASE)',
     ),
@@ -283,7 +283,7 @@ def test_a_korean_project_keeps_its_text_and_gets_english_labels(tmp_path):
     assert f'<code lang="">{DERIVED}</code>' in index
     assert (f'<a href="data/{derived_view}.html" lang="">{DERIVED_NAME}</a> '
             f'<small>view <code>{derived_view}</code></small>') in index
-    assert ">Visualizations</h2>" in index and ">Key information</h2>" in index
+    assert ">Visualizations</h2>" in index and ">Current insights</h2>" in index
     assert f'<h1 lang="">{RUN_TITLE}</h1>' in run_page and '<td lang="">지역, 매출</td>' in run_page
     assert f'title="{DERIVED}" lang="">{DERIVED_NAME}</a>' in run_page
     assert "Attached data · 3 rows" in run_page and '<pre lang="">지역 수 3' in run_page
@@ -301,7 +301,7 @@ def test_a_korean_project_keeps_its_text_and_gets_english_labels(tmp_path):
 
 # The kit's labels the Korean project's pages show on every platform: each stays in the page's
 # English. (`(empty)`, what an empty log says, depends on the platform: see the test.)
-SYSTEM_LABELS = ("Key information", "Recent journal entries", "Visualizations", "Timeline", "Data",
+SYSTEM_LABELS = ("Current insights", "Recent activity", "Analysis status", "Analysis map", "Visualizations", "Timeline", "Data",
                  "Runs", "Evaluation", "Record coverage", "Tool usage", "Attached data",
                  "Input data", "Code", "Question", "Finding", "Logs", "Environment",
                  "Journal entries for this run", "Snapshot file", "Same as the current file",
@@ -334,7 +334,8 @@ def test_the_workspace_gives_what_people_wrote_no_language_and_its_own_words_eng
             kind = name.split("/")[1].removeprefix("kind-").rsplit("-", 1)[0]
             assert page_title == i18n.message("kind." + kind), titles
         elif name.startswith("lists/"):
-            assert page_title == name.split("/")[1].split("-")[0].title(), titles
+            # A list family's pages are titled as its own list is (the open items' since #98).
+            assert page_title == i18n.message("list.title." + name.split("/")[1].rsplit("-", 1)[0]), titles
         else:
             assert page_title in ("Workspace", "Context history", RUN_TITLE, DERIVED_NAME, "sales"), titles
         for lang, _, text in scopes.texts:

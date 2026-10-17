@@ -37,6 +37,13 @@ fixture/source revision, task outcome and screenshots when this checklist is run
    size separately from generation time. Continue to old records outside the first bounded page;
    choose a historical version and return to the same original list/card. Check `display_safety`
    examples as text and compare source revision across relation/detail pages.
+8. (kit 0.18.0, #98) On the Overview at 1366×900, the goal, the pinned key questions and the six status cells show on the first
+   screen. Each cell says its own state and nothing adds them into one score; compare a cell's numbers with its source (the
+   Insights badges, the Runs statuses, the Visualizations' input badges, the Evaluation rerun row). Open Analysis map: in S, the
+   three main flows (k01/k02 → k03, s01 → s02 → s03, s04 → s05 → s06), the failed k03 run with the six insights citing it, the
+   input changes, and in Needs attention and the folded smaller flows the file with two possible producers and the cycle.
+   At 360/390/430 px, at increased text size and without JavaScript, the map reads as a list of boxes, each naming the files it
+   writes and the box that reads them. Repeat in Korean.
 
 The agent records measured HTML bytes and Workspace generation/cache-rebuild costs separately.
 The owner's actual-screen task results fulfill the remaining Issue #18 acceptance condition.

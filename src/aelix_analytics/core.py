@@ -45,7 +45,7 @@ from .writer import migration_record as migration_record
 from .writer import new_request_id as new_request_id
 from .writer import present_marker as present_marker
 
-KIT_VERSION = "0.17.0"
+KIT_VERSION = "0.18.0"
 # The marker and the record families of the projects this kit writes: the new format's, through
 # the common writer (writer.Writer, Issue #13 PR 3; writer.FAMILIES). A project is found by either
 # marker, analytics.json or lab.json, and judged by writer.marker_state: a lab.json project
@@ -2140,12 +2140,17 @@ def context_pending(project: Project) -> bool:
     return not _context_recorded(project, sha256_bytes(data)[:12])
 
 
+# A heading's words that name the goal (the Workspace's Overview finds the goal's section by them).
+GOAL_RE = re.compile(r"^(목표|goal|objective)", re.IGNORECASE)
+
+
 def context_goal(text: str, *, max_chars: int | None = 200) -> str:
     """First content line under a Goal heading (or 목표, the heading of earlier templates, which
     projects keep), else the first paragraph line."""
     lines = text.splitlines()
     for i, line in enumerate(lines):
-        if re.match(r"^#{1,3}\s*(목표|goal|objective)", line.strip(), re.IGNORECASE):
+        heading = re.match(r"^#{1,3}\s*(.*)", line.strip())
+        if heading and GOAL_RE.match(heading.group(1)):
             for follow in lines[i + 1:]:
                 s = follow.strip()
                 if s.startswith("#"):
