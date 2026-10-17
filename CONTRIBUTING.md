@@ -201,7 +201,7 @@ not_measured입니다. JSON·Markdown과 정확한 UTF-8 payload, 합성 프로�
 사람이 본 여부는 실행하지 않습니다. host 회귀는 `tests/test_asset_extension.py`, 공용 계약/Workspace는
 `tests/test_asset_host.py`·`tests/test_asset_workspace.py`가 확인합니다. CI의 pinned Aelix 3.11/3.12 레그에도 host 사례를 포함합니다.
 
-실제 모델 평가의 과제 12개·정답(초안)·모델 설정과 하네스는 `tools/model_eval.py`와 `tools/model_eval_data/`에 있습니다(#40,
+실제 모델 평가의 과제 12개·정답(2026-10-17 소유자 확인)·모델 설정과 하네스는 `tools/model_eval.py`와 `tools/model_eval_data/`에 있습니다(#40,
 [실제 모델 평가 안내](tools/model_eval_data/README.md)). 하네스는 과제의 fixture를 위 생성기로 만들고, aelix 0.1.0b2를 `--mode json`으로
 띄워 이 checkout의 확장으로 과제를 실행한 뒤 도구 호출·인자 오류·토큰·프로젝트의 변화를 기록하고 정답 파일로 채점합니다. 모델 없이 전
 경로를 확인하는 dry-run(스크립트를 따르는 가짜 모델)은 `tests/test_model_eval.py`가 돌립니다(uv로 aelix 0.1.0b2를 받을 수 있을 때, 아니면
@@ -282,7 +282,7 @@ uv run --locked python tools/check_docs.py --output .devstate/runs/<run-id>/evid
 
 ## 첫 공개 전에 남은 운영 결정
 
-배포 이름과 릴리스 절차는 확정해 공개해야 합니다.
+배포 이름은 `aelix-analytics`입니다(2026-10-17 소유자 결정, [#24](https://github.com/handochan/aelix-analytics/issues/24)). 릴리스 절차는 확정해 공개해야 합니다.
 관리자는 GitHub 핸들 [@handochan](https://github.com/handochan)이며 이메일은 적지 않습니다(2026-10-07 결정, `pyproject.toml`의 `authors`·`maintainers`).
 보안 취약점은 GitHub의 비공개 취약점 신고로 받고 공개 Issue로 받지 않습니다([SECURITY.md](SECURITY.md), 2026-10-07 결정). 그 설정은 저장소를 공개할 때 켜며, 그 전에는 비공개 신고 경로가 없습니다. 보안 수정을 받는 버전, 신고의 처리 절차와 공지는 아직 정하지 않았습니다([SECURITY.md](SECURITY.md#아직-정하지-않은-것)).
 라이선스는 Apache License 2.0입니다([LICENSE](LICENSE), 2026-09-30 결정).
