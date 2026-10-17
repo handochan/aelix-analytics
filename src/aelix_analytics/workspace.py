@@ -240,6 +240,12 @@ class Site:
         self.lists = core.JournalLists(journal)
         self.events = self.lists.events
         self.source_of = self.lists.source
+        # The records the index's lists show (the newest INDEX_LIMIT): a link to one of them goes to its
+        # row there. Read once: every row and relation card asks.
+        self.recent_sources = {self.source(e) for e in self.events[-INDEX_LIMIT:]}
+        # The project's title, read from its marker once (every page shows it twice).
+        self.project_title = project.title()
+        self._kind_counts: dict[str, tuple[list, Counter]] = {}
         self.runs = core.model_runs(project, self.model)
         self.run_by_id = {r["id"]: r for r in self.runs}
         self.recording = {r["run_id"]: r for r in self.model.runs()}
@@ -504,7 +510,7 @@ class Site:
         words (a forward refs.resolves is `missing`, record_absent). The reference is the resolver's
         `resolves` one naming `closed` (a /1 `refs.resolves` and a /2 reference alike)."""
         source = self.source(resolver) or ""
-        link = "#" + esc(self.anchor(resolver)) if depth == 0 and any(self.source(e) == source for e in self.events[-INDEX_LIMIT:]) else esc(self.relations.content(source, depth) or self.relations.link(source, depth))
+        link = "#" + esc(self.anchor(resolver)) if depth == 0 and source in self.recent_sources else esc(self.relations.content(source, depth) or self.relations.link(source, depth))
         closing = [j for j in self.model.references(source) if j.get("relation") == "resolves"]
         judged = next((j for j in closing if (j.get("target") or {}).get("event_id") == closed),
                       closing[0] if closing else None)
@@ -563,8 +569,10 @@ class Site:
         """A list's kind filter (design 8.2, owner decision A): links to each kind's own list pages,
         counted over every record, so it filters the whole journal and works without a script.
         `family`: timeline (every kind) or insights (findings, decisions and assumptions)."""
-        records = self.events if family == "timeline" else [e for e in self.events if e.get("kind") in core.KEY_KINDS]
-        counts = Counter(e.get("kind") for e in records)
+        if family not in self._kind_counts:
+            records = self.events if family == "timeline" else [e for e in self.events if e.get("kind") in core.KEY_KINDS]
+            self._kind_counts[family] = (records, Counter(e.get("kind") for e in records))
+        records, counts = self._kind_counts[family]
         root = self.root(depth)
 
         def link(target: str, words_html: str, n: int, on: bool) -> str:
@@ -784,14 +792,14 @@ class Site:
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{esc(title)} · {esc(self.p.title())}</title>
+<title>{esc(title)} · {esc(self.project_title)}</title>
 <link rel="stylesheet" href="{root}assets/workspace.css{v}">
 <link rel="stylesheet" href="{root}assets/code.css{v}">
 <script src="{root}assets/i18n.js{v}"></script>
 </head>
 <body class="page-{kind}">
 <header class="topbar">
-  <div class="crumbs"><a href="{root}index.html"{USER}>{esc(self.p.title())}</a>{crumb}</div>
+  <div class="crumbs"><a href="{root}index.html"{USER}>{esc(self.project_title)}</a>{crumb}</div>
   <div class="build" id="page-menu">{t("chrome.rendered")} {fmt_time(self.built_at)} · <label class="live"><input type="checkbox" id="live" checked> {t("chrome.auto_reload")}</label></div>
 </header>
 <main><p class="state-notice" role="status" hidden></p>{body}</main>
@@ -1393,7 +1401,7 @@ def asset_section(site: Site) -> str:
                     and all(type(value) is int for value in scores.values())):
                 score = t("assets.score", score=sum(scores.values()), seq=str(snapshot["details"].get("as_of_seq")),
                           id=snapshot["id"])
-            target = ("#" + site.anchor(candidate)) if any(site.source(e) == event_id for e in site.events[-INDEX_LIMIT:]) else site.relations.link(event_id, 0, anchor="#record")
+            target = ("#" + site.anchor(candidate)) if event_id in site.recent_sources else site.relations.link(event_id, 0, anchor="#record")
             source = f'<a href="{esc(target)}">{esc(event_id)} · {t("assets.journal_refs")}</a>'
             versions.append(f'<details id="asset-{esc(event_id)}"><summary>{source} · {score}</summary>'
                             f'<p{USER}>{esc(candidate["details"]["problem"])}</p>{site.refs_html(candidate, 0)}'

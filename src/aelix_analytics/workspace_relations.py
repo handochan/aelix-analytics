@@ -51,7 +51,7 @@ class RelationPages:
         s = self.site
         if identity in self.events:
             return f"{s.root(depth)}index.html#{s.anchor(self.events[identity].value)}" if (
-                any(s.source(e) == identity for e in s.events[-50:])) else self.link(identity, depth, anchor="#record")
+                identity in s.recent_sources) else self.link(identity, depth, anchor="#record")
         if identity.startswith("run:") and identity[4:] in s.run_by_id:
             return s.run_link(identity[4:], depth)
         if identity in self.visualizations:
