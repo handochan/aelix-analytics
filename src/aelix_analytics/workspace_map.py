@@ -22,7 +22,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 
-from . import core, relations
+from . import relations
 from .i18n import t
 
 # The strongest citation an insight has, strongest first (design 7.1): a confirmed link, a target
