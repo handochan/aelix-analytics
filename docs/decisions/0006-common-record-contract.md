@@ -257,6 +257,9 @@ CONTEXT 버전(`context_version`, `/1`의 `refs.context`)은 버전 파일 이�
 
 ### 7. Report 저장 골격
 
+#19의 구현 선택·선택 메타데이터·반복 묶음 구체안은 [ADR-0013](0013-report-storage-and-collections.md)(Proposed)에서 검토한다.
+그 제안이 아래 채택 계약이나 현재 구현을 이미 바꿨다는 뜻은 아니다.
+
 ```text
 artifacts/reports/<report_id>/
   .staging/<revision_id>/    준비 중(prepared): manifest.json, content/. 저장 시도마다 새로 만든다
