@@ -65,6 +65,7 @@ SDK `scan`은 지연 데이터 읽기이고 정적 코드 스캔은 `static_scan
 | 관리 디렉터리 `.lab/` | `.analytics/` | context 버전·작업 상태·보조 로그·캐시. 폴더 전체가 버려도 되는 캐시는 아님 |
 | 화면 `report/` | `workspace/` | 재생성 가능한 Workspace HTML·자원 |
 | 개별 보고서 | `artifacts/reports/<report_id>/<revision_id>/` | 보존할 본문·첨부·manifest. Workspace와 다른 수명 |
+| 독립 공유 패키지(구현 전) | `.analytics/publications/<publication_id>/publication.json`, `analytics.publication/1` | [ADR-0014](decisions/0014-publication-record-contract.md)의 Proposed 계약. `publication_id`는 `pub-`와 소문자 ULID. 결박 이벤트와 패키지 해시가 정체성을 남기며 build 폴더는 보존 정본과 구별 |
 | 실행의 시각화 `runs/<id>/charts/` | `runs/<id>/visualizations/` | 새 실행의 저장 경로. 과거 manifest·경로·바이트는 legacy 대응으로 보존 |
 | 가져온 데이터 `data/raw/` | `data/imported/` | 가져오며 형식·타입을 변환했을 수 있는 데이터. 외부 원본 파일과 구별 |
 | 파생 데이터·실행 코드 | `data/derived/`, `scripts/`, `runs/` | 이름 유지. 파생 데이터라는 이유만으로 언제든 재생성 가능하다고 가정하지 않음 |
@@ -199,6 +200,8 @@ Report는 Visualization·설명·발견을 선택해 구성한 문서이며, Vis
 | 근거가 연결됨 | 확정 연결은 `version_binding=author`이고 `basis`가 observed·declared이며 `resolved`인 참조뿐. 결론의 검토와 별개 |
 | 참조의 관계 | `relation`: `supports`·`contradicts`(작성자의 주장) / `cites`(중립 인용) / `uses` / `derived_from` / `generated_by` / `about` / `includes` / `resolves` / `supersedes` / `updates`. 관계 근거 `basis`와 다른 축 |
 | 기록 기준의 `through_seq`, 마지막 seq | 영속 기준은 `as_of_seq`(그 시점까지 포함한 journal seq)와 `context_version`(CONTEXT 버전 파일 이름). checkpoint 초안의 `through_seq`를 대체 |
+| 게시본의 `content_seq`, `content_recorded_at`(구현 전) | [ADR-0014](decisions/0014-publication-record-contract.md)의 Proposed 내용 기준. `as_of_seq` 이하에서 정상 게시 계열만 제외한 마지막 seq와 기록 시각. 후보가 없으면 0·null. 전체 journal 기준·build 순서·Report 작성 기준과 구별 |
+| 게시본의 `package_sha256`, `content_sha256`(구현 전) | `publication.json` 최종 바이트의 해시 / 정체성 파일 셋을 뺀 파일 목록의 내용 해시. 패키지 정체성과 반복 build의 내용 비교를 구별. 결론 검토·분석 검사 인증은 아님 |
 | 조회 페이지의 이어 읽기 | cursor는 `source_revision`에 묶인 불투명 토큰. 기준이 바뀌면 `stale_cursor`, 읽는 동안 계속 바뀌면 `updating` |
 | 같은 요청의 재시도 | `request_id`(쓰기의 선택 필드, 대소문자를 구별하지 않고 비교)와 `request_fingerprint`(요청 의도의 RFC 8785 JSON의 sha256). 같은 키에 다른 지문이면 `request_conflict`. 베타의 보장은 Report 저장과 게시(`publication_id`+대상)뿐 |
 | 버전·상태의 충돌 | `revision_conflict`(기대한 `previous_revision`이 head가 아님), `state_conflict`(`record_update`의 기대 상태 불일치나 허용하지 않는 전이), 정정이 갈린 기록의 `conflict`. 최신 시각으로 한쪽을 고르지 않음. 공통 writer의 `state_conflict` `details`: `target`·`expected_state`·`new_state`, `reason`(`target_missing`·`target_ambiguous`(`candidates`)·`no_state`(상태가 없는 기록)·`state_differs`·`transition_not_allowed`), 지금 상태 `state`, 그 상태에서 허용하는 전이 `allowed`, 그 상태를 만든 이벤트 `made_by`(`id`·`request_id`) |

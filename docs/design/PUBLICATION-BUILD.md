@@ -3,9 +3,10 @@
 - 상태: **Proposed — 현재 동작이 아니다.** `analytics build`, `publication.json`, `PublicationProjection`과 이 문서의 명령 인자·파일·필드·
   오류 코드·화면 label은 코드에 없다. 지금 동작은 [현재 계약](../CONTRACTS.md)이 설명한다. 지금의 `report/`는 공유본이 아니다(계약 G
   "반출 정책·가림").
-- 작업: [#20](https://github.com/handochan/aelix-analytics/issues/20) `[B4-s/P0]`. 2026-10-03 소유자 계획(#1)대로 지금은 설계만 하고
-  구현은 [#18](https://github.com/handochan/aelix-analytics/issues/18)·[#19](https://github.com/handochan/aelix-analytics/issues/19) 뒤에 한다.
-  #19가 #13에 막혀 있으므로 구현 때에는 #13의 writer(`analytics.event/2`), 표식의 `project_id`, 관리 디렉터리 `.analytics/`가 있다고 전제한다.
+- 작업: [#20](https://github.com/handochan/aelix-analytics/issues/20) `[B4-s/P0]`.
+  [2026-10-17 순서 완화](https://github.com/handochan/aelix-analytics/issues/20#issuecomment-6232441606)로 PR-0~PR-3은
+  [#19](https://github.com/handochan/aelix-analytics/issues/19) 앞에 시작할 수 있다. Report 범위 PR-4는 #19 뒤다.
+  #13·#18은 병합됐으며 현재의 writer(`analytics.event/2`)·`project_id`·`.analytics/`를 기준으로 구현한다.
 - 기준: 코드 줄 번호는 `6c4c2cd` 기준이다. 구현 PR은 그때의 코드와 이 문서를 다시 대조한다.
 - 따르는 결정: [공유 설계](../PUBLISH-AND-SHARING.md)(아래 PUBLISH), [ADR-0009](../decisions/0009-first-publish-target.md),
   [ADR-0006](../decisions/0006-common-record-contract.md), [ADR-0001](../decisions/0001-evolvable-platform-boundaries.md),
@@ -14,7 +15,8 @@
   [용어집](../TERMINOLOGY-AND-LANGUAGE.md), [보고서 설계](../REPORT-ARTIFACTS.md), [아키텍처](../ARCHITECTURE.md).
 - 소유자 결정: binding 문서가 정하지 않은 제품 결정 25개(15절, OQ1–OQ25)는 2026-10-07 소유자가 **권장안을 모두 채택**했다
   ([#20 코멘트](https://github.com/handochan/aelix-analytics/issues/20)). 본문에서 "(OQn)"이 붙은 규칙은 그 결정이다. OQ15(새 기록 필드
-  `content_seq`)와 OQ20(ADR-0006 §4에 없는 판정)은 구현 전 PR-0의 ADR에 적는다. 새 공개 이름은 구현 PR이 용어집 §8대로 먼저 등록한다.
+  `content_seq`)와 OQ20(ADR-0006 §4에 없는 판정)은 [ADR-0014](../decisions/0014-publication-record-contract.md)에
+  구체화했다(Proposed, PR-0 설계 리뷰 대상). 새 공개 이름은 용어집 §8대로 먼저 등록한다.
 - 리뷰: `7010c6e`의 설계 리뷰(독립 1·Codex 1)를 반영했다. 지적과 처분은 PR 본문의 표에 있다.
 
 ## 0. 요약
@@ -391,13 +393,14 @@ class PublicationProjection(Protocol):
 - **`as_of_seq`는 ADR의 뜻 그대로다.** manifest와 이벤트의 `basis.as_of_seq`는 ADR-0006 §5의 "그 시점까지 포함한 journal seq"이고, 현재 계약
   E(읽기 기준)와 같이 이 읽기가 본 마지막 seq(파싱·복구한 줄의 최대, `relations.py:287-289`)다. reader와 게시본에서 같은 이름이 같은 값을 갖는다.
 - **내용 기준 `content_seq`(OQ15).** 띠와 내용 비교는 새 필드 `content_seq`를 쓴다. `as_of_seq` 이하에서 게시 계열 kind가 아닌 마지막 줄의
-  seq다. 게시 계열은 schema에 두는 닫힌 집합이다. 지금은 ADR-0006 §1 표의 `publication`·`publish_receipt`이고, #21이 ADR-0009 결정 7대로
+  seq다. 게시 계열은 schema에 두는 닫힌 집합이다. 지금은 정상 `analytics.event/2`의 `publication`·`publish_receipt`이고, #21이 ADR-0009 결정 7대로
   게시 시작 기록의 kind를 정하면 그때 더한다. 모르는 kind의 줄, `unsupported` 줄, 복구한 줄은 건너뛰지 않는다(보수적: 내용 기준이 늦어질 뿐
   다른 내용을 같다고 하지 않는다). 게시 계열 이벤트는 어떤 프로필에도 담지 않고 상태 재생도 바꾸지 않으므로(ADR-0006 §6의 표에 없음), 그
-  뒤에 게시 계열 이벤트만 있으면 패키지 내용은 같다.
+  뒤에 게시 계열 이벤트만 있으면 패키지 내용은 같다. 내용 기준 후보가 없으면 `content_seq=0`이고 기록 시각은 null이다.
+  seq를 얻지 못한 손상 줄에 seq나 시각을 추정하지 않는다. 자세한 기록 규칙은 ADR-0014 결정 2를 따른다.
 - `as_of_seq`는 정체성 파일(`publication.json`, `about.html`)에만 있고 내용 해시(10.4)에 들지 않는다. 그래서 앞 build의 `publication` 이벤트가
   `as_of_seq`를 올려도 같은 기록으로 다시 만든 build의 내용 바이트는 같다. `content_seq`는 새 공개 이름이므로 용어집 §6에 먼저 등록하고
-  PR-0의 ADR에 기록 형식 필드로 적는다. 이 새 필드를 받지 않으면 PR-0을 ADR-0006 §5를 개정하는 ADR로 만든다(OQ15).
+  ADR-0014 결정 2에 기록 형식 필드로 제안했다. `as_of_seq`의 뜻을 바꾸지 않는다(OQ15).
 - 이 규칙 덕분에 기준까지 되돌려 재생하는 읽기를 relations에 더하지 않고, 과거 기준으로 build하는 내부 API도 두지 않는다. 기준은 언제나
   build 때의 끝이다. 공개 명령에도 `--as-of`가 없다(9.5).
 - `context_version`은 seq가 `as_of_seq` 이하인 마지막 `context` 이벤트가 가리킨 버전이다. 없으면 null이다(ADR-0006 §5). 두 값 사이에는 게시
@@ -757,11 +760,12 @@ analytics build --zip-of <publication_id> --zip <path>
   않는다. schema의 `opaque_id`(대소문자 혼용 허용)보다 좁힌다.
 - reader(`relations._resolve`, 지금 `relations.py:1101-1102`는 `unsupported`)는 참조 type `publication`을 이렇게 판정한다(OQ20): 대상 기록은
   `details.publication_id`가 같은 `publication` 이벤트다. 없으면 `missing`(`record_absent`), 여럿이면 `ambiguous`, 참조의 `digest`가
-  `details.package_sha256`과 다르면 `missing`(`digest_mismatch`), 그 밖에는 `resolved`다. build 폴더는 게시한 뒤 지워도 되는 전달 준비물이라
+  `details.package_sha256`과 다르거나 없으면 `missing`(`digest_mismatch`), 그 밖에는 `resolved`다. 공통 역사적 참조 경계를 지키고,
+  모르는 형식이나 필수 결박을 해석할 수 없으면 `unsupported`다(ADR-0014 결정 6). build 폴더는 게시한 뒤 지워도 되는 전달 준비물이라
   보존 파일로 보지 않는다. 폴더가 있는지는 참조 판정이 아니라 `--list`의 폴더 상태다.
 - 이 권장안이면 폴더가 지워지거나 바뀐 publication 참조도 `resolved`다. 그래서 Workspace와 `analytics_status`가 `resolved`를 "패키지가 온전함"으로
   읽히게 두지 않도록 그 참조 옆에 `--list`의 기록·폴더 상태를 함께 보인다. ADR-0006 §4의 5단계는 publication을 따로 정하지 않으므로 이 판정은
-  PR-0의 ADR에 §4의 개정으로 적는다(OQ20).
+  ADR-0014 결정 6에 §4의 예외로 제안했다(OQ20). 실제 reader·표시는 PR-3 범위다.
 
 ### 9.5 최신과 더 오래된 build(ADR-0009)
 
@@ -1107,18 +1111,21 @@ ZIP에 들어간다. 하위 디렉터리 entry(`content/sub/report.md`가 `img/a
 
 | PR | 시점 | 내용 | 리뷰 | 끝났다는 증거 |
 |---|---|---|---|---|
-| PR-0 결정 | 지금(이 branch) | 이 문서, 15절의 소유자 답 반영, 기록 형식 결정(ADR로: `publication` 이벤트 `details`, `analytics.publication/1`, `publication_id` 패턴, `publication` 참조 판정(ADR-0006 §4 개정), `content_seq` 필드(받지 않으면 ADR-0006 §5 개정)), 용어집 등록 후보, PUBLISH §4·§5 보완(구현 전 표시 유지) | 결정 PR이며 그 리뷰가 기록 형식의 설계 리뷰다(독립 1·Codex 1) | 문서 검사, 리뷰 처분 |
-| PR-1 투영 | #13·#18·#19 병합 뒤 | `model.py`·`projection.py`·`scope.py`(공통 닫힘), `ShareSnapshot`(미리 계산한 digest 표), `content_seq` 규칙과 손으로 쓴 `publication` 줄 fixture의 결정성 시험, 상태 대응, 관계 재생성, 계층 등록, 계약 시험 C1–C13, 필드 포괄 시험, 모델 수준 canary | 일반(독립 1·Codex 1) | 세 레그 CI, 계약 시험 표 |
+| PR-0 결정 | #13·#18 뒤, #19 대기 없음 | ADR-0014의 `publication` 이벤트 `details`·`analytics.publication/1`·ID·참조 예외·`content_seq`, ADR-0006 연결, 용어집 등록, PUBLISH §4·§5·현재 순서 보완(구현 전 표시 유지) | 결정 PR이며 그 리뷰가 기록 형식의 설계 리뷰다(독립 1·Codex 1) | 문서 검사, 리뷰 처분 |
+| PR-1 투영 | PR-0 채택·#13·#18 병합 뒤. #19 대기 없음 | `model.py`·`projection.py`·`scope.py`(공통 닫힘), `ShareSnapshot`(미리 계산한 digest 표), `content_seq` 규칙과 손으로 쓴 `publication` 줄 fixture의 결정성 시험, 상태 대응, 관계 재생성, 계층 등록, 계약 시험 C1–C13, 필드 포괄 시험, 모델 수준 canary | 일반(독립 1·Codex 1) | 세 레그 CI, 계약 시험 표 |
 | PR-2 패키지·검사·미리보기 | PR-1 뒤 | `render.py`, loader·writer, `checks.py`(링크·이름·형식 판정·`verify_package`·누출·7.5 판정), `extract.py`, `analytics build --preview`(기록·파일을 쓰지 않음, 잠금 없음), 적대적 투영, 패키지 수준 canary 행렬과 형식 음성·양성 fixture, 정적 크롤러(`file://`·HTTP), 결정성 시험 | 일반 | CI, canary 결과 표 |
 | PR-3 build와 결박 | PR-2 뒤 | 실제 build 폴더, build 잠금, manifest, `publication` 이벤트와 reader의 `publication` 판정, 9단계 실패의 다시 읽기(8.4), `--list`·`--verify`, 템플릿 `.gitignore`와 #13 전환의 무시 규칙, 현재 계약(현재 동작과 G "반출 정책·가림")·README "현재 공유 범위", 용어집 등록 | 기록 형식 PR: 구현 리뷰(독립 1·Codex 1)와 수정 diff 확인(설계 리뷰는 PR-0) | CI, 측정 기록(md+JSON) |
-| PR-4 Report 범위 | PR-3 뒤 | `--report`·`--collection`·`--scope`, 철회 처리, Report 보기 페이지(#19의 `ReportRenderer` 주입과 7.5의 계약), Report HTML·SVG의 7.5 처리, 검사할 수 없는 Report 파일(OQ23), 12.4 사례 | 일반 | CI, 시험 표, Q16의 #20 몫 결과표 |
+| PR-4 Report 범위 | PR-3·#19 뒤 | `--report`·`--collection`·`--scope`, 철회 처리, Report 보기 페이지(#19의 `ReportRenderer` 주입과 7.5의 계약), Report HTML·SVG의 7.5 처리, 검사할 수 없는 Report 파일(OQ23), 12.4 사례 | 일반 | CI, 시험 표, Q16의 #20 몫 결과표 |
 | PR-5 ZIP과 독자 E2E | PR-4 뒤 | 결정적 ZIP·`--zip`·`--zip-of`, OS 도구로 풀기, 7.6 누락 표시, 브라우저 E2E job(OQ22, Report 보기 포함), CSP(측정 뒤), M 규모 측정 | 일반 | CI 실행 링크, Q14의 #20 몫 결과표 |
 
 - PR-2의 `--preview`는 결박 없이도 쓸모가 있다. 공유 범위와 누출 검사를 기록 형식 PR보다 먼저 써 보고 고치기 위해 일부러 나눈다. 미리보기는
   아무것도 쓰지 않고 결박하지 않으므로 build 잠금이 필요 없다(9.5). 그래서 잠금은 PR-3에 둔다.
 - PR-1·PR-2는 사용자에게 보이는 기록이 없어 #18·#19의 화면 설계가 바뀌어도 되돌리는 비용이 작다.
-- #21 구현은 #20 완료 뒤에 시작한다(#1 흐름 A 6 "#18 → #19 → #20 구현 → #21 구현", #21의 "Blocked by #20", 운영 정책의 착수 규칙). 그전에는
-  설계·읽기 검토만 한다. `verify_package`·결박·링크 규칙은 #21이 그대로 쓰도록 `publishing/checks.py`의 함수로 둔다.
+- #21 구현은 #20 PR-3의 결박·manifest·`verify_package`가 병합된 뒤 시작할 수 있다(2026-10-17 소유자 결정,
+  [#21](https://github.com/handochan/aelix-analytics/issues/21)). Report·ZIP은 #20 PR-4·PR-5에서 이어 가고 #20 전체 수용은 그때까지 미완료다.
+  `verify_package`·결박·링크 규칙은 #21이 그대로 쓰도록 `publishing/checks.py`의 함수로 둔다.
+- #19와 겹치는 ADR-0006·`relations.py`는 먼저 병합한 계약을 뒤 PR이 반영한다. #19의 새 기록 필드는 PR-1 필드 포괄 시험이
+  공유 여부 결정을 요구하게 하고 기본 투영에는 자동 포함하지 않는다. Workspace 파일은 #20 renderer가 고치지 않는다.
 - 이름 변경·파일 이동·기록 의미 변경을 한 PR에 섞지 않는다(베타 기준 §5).
 
 ## 14. 요구 추적표
