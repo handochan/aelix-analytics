@@ -1,12 +1,14 @@
 """The kit's own words are English; what people and scripts wrote stays as written (Issue #10,
 TERMINOLOGY-AND-LANGUAGE.md 7).
 
-Two guards. A static one: the only Hangul in the files the kit ships are the exact lines that read
-the goal heading and the pin mark of earlier CONTEXT.md templates. And checks of the output for a
-Korean project: the status and the context block hold no Hangul once each thing written into the
-project is taken out whole, and every Hangul the Workspace shows sits in an element marked
-lang="" (a language the records do not name) while the kit's labels stay in the page's English —
-so a Korean label of the kit's fails even where a user wrote the same word. Then the cases: a
+Two guards. A static one: the only Hangul in the files the kit ships are the Workspace's Korean
+catalog (#96: the messages of assets/i18n/ko.json, which a reader chooses in the browser) and the
+exact lines that read the goal heading and the pin mark of earlier CONTEXT.md templates. And checks
+of the output for a Korean project: the status and the context block hold no Hangul once each thing
+written into the project is taken out whole, and every Hangul the generated Workspace shows sits in
+an element marked lang="" (a language the records do not name) while the kit's labels stay in the
+page's English — so a Korean label of the kit's fails even where a user wrote the same word. The
+catalog asset a Workspace loads (assets/i18n.js) is the one other place its Korean may be. Then the cases: a
 Korean project's text, column names, dataset name and NFD paths come back as written; every
 dataset is shown by its name as written, with its SQL view beside it where they differ; a new
 project, its empty Workspace and the demo are English; every pin mark pins.
@@ -24,8 +26,9 @@ from pathlib import Path
 
 import pytest
 from conftest import KIT, PACK, git_checkout, kit_cli, kit_env, write_script
+from workspace_words import plain
 
-from aelix_analytics import _platform, core
+from aelix_analytics import _platform, core, i18n
 
 TEMPLATE = KIT / "aelix_analytics" / "template"
 # Hangul in any form: conjoining jamo (what NFD makes of a syllable), compatibility and halfwidth
@@ -99,6 +102,12 @@ LEGACY_READER_LINES = {
 }
 
 
+# The Workspace's Korean catalog (#96) and the English one it translates: Hangul only in its
+# messages, never in a key, and no key the English catalog lacks (tests/test_workspace_i18n.py
+# checks the placeholders and the rest).
+TRANSLATIONS = {"src/aelix_analytics/assets/i18n/ko.json": "src/aelix_analytics/assets/i18n/en.json"}
+
+
 def shipped_files() -> list[str]:
     """What the kit ships and shows from, as git tracks it (as conftest's tracked_kit_sha lists the
     package): the package (code, Workspace assets, templates, demo, manifest), the aelix extension
@@ -108,8 +117,14 @@ def shipped_files() -> list[str]:
 
 
 def test_the_kit_s_own_files_hold_no_hangul_but_the_legacy_readers():
-    found, used = [], Counter()
+    found, used, translated = [], Counter(), set()
     for rel in shipped_files():
+        if rel in TRANSLATIONS:
+            held = json.loads((PACK / rel).read_text(encoding="utf-8"))
+            english = json.loads((PACK / TRANSLATIONS[rel]).read_text(encoding="utf-8"))
+            assert not [key for key in held if HANGUL.search(key)] and set(held) <= set(english), rel
+            translated.add(rel)
+            continue
         allowed = LEGACY_READER_LINES.get(rel, ())
         for number, line in enumerate((PACK / rel).read_text(encoding="utf-8").split("\n"), 1):
             if not HANGUL.search(line):
@@ -122,6 +137,7 @@ def test_the_kit_s_own_files_hold_no_hangul_but_the_legacy_readers():
     expected = {(rel, line) for rel, lines in LEGACY_READER_LINES.items() for line in lines}
     assert set(used) == expected, f"allowed but no longer there: {expected - set(used)}"
     assert all(n == 1 for n in used.values()), f"a reader line copied: {used}"
+    assert translated == set(TRANSLATIONS), "the Korean catalog is not shipped"
 
 
 # --- a project written in Korean ------------------------------------------------------------------
@@ -260,7 +276,7 @@ def test_a_korean_project_keeps_its_text_and_gets_english_labels(tmp_path):
         # Nothing composed the decomposed names (the goal holds the composed words on purpose).
         composed = unicodedata.normalize("NFC", DERIVED_NAME)
         assert unicodedata.normalize("NFC", DERIVED) not in page and f">{composed}<" not in page, name
-    index, run_page = pages["index.html"], pages[f"runs/{run_id}.html"]
+    index, run_page = plain(pages["index.html"]), plain(pages[f"runs/{run_id}.html"])
     for value in (TITLE, GOAL, QUESTION, FINDING, RUN_TITLE, CHART_TITLE, CAPTION):
         assert html.escape(value) in index, value
     assert f'alt="{html.escape(CHART_TITLE)}" lang=""' in index
@@ -271,11 +287,11 @@ def test_a_korean_project_keeps_its_text_and_gets_english_labels(tmp_path):
     assert f'<h1 lang="">{RUN_TITLE}</h1>' in run_page and '<td lang="">지역, 매출</td>' in run_page
     assert f'title="{DERIVED}" lang="">{DERIVED_NAME}</a>' in run_page
     assert "Attached data · 3 rows" in run_page and '<pre lang="">지역 수 3' in run_page
-    derived_page = pages[f"data/{derived_view}.html"]
+    derived_page = plain(pages[f"data/{derived_view}.html"])
     assert f'<h1 lang="">{DERIVED_NAME}</h1>' in derived_page
     assert f"SQL view <code>{derived_view}</code>" in derived_page
     assert '<td lang="">지역</td>' in derived_page and '<th lang="">매출' in derived_page
-    raw_page = pages["data/sales.html"]
+    raw_page = plain(pages["data/sales.html"])
     assert f'<p class="lead" lang="">{html.escape(DESCRIPTION)}</p>' in raw_page
     assert '<td lang="">서울</td>' in raw_page
     assert f'<code lang="">{html.escape(raw["source"])}</code>' in raw_page
@@ -362,9 +378,9 @@ def test_a_dataset_is_shown_by_its_name_as_written_and_its_view_beside_it(tmp_pa
     views = core.view_names(core.list_datasets(project))
     assert {Path(path).stem: view for view, path in views.items()} == DATASET_NAMES
     pages = rendered_pages(root)
-    index, run_page = pages["index.html"], pages[f"runs/{run_id}.html"]
+    index, run_page = plain(pages["index.html"]), plain(pages[f"runs/{run_id}.html"])
     for name, view in DATASET_NAMES.items():
-        page, path = pages[f"data/{view}.html"], f"data/derived/{name}.parquet"
+        page, path = plain(pages[f"data/{view}.html"]), f"data/derived/{name}.parquet"
         assert f"<title>{name} · names</title>" in page and f'<h1 lang="">{name}</h1>' in page
         assert f'<span>/</span> <span lang="">{name}</span></div>' in page
         assert f'title="{path}" lang="">{name}</a>' in run_page
@@ -423,6 +439,10 @@ def test_the_demo_is_english(tmp_path):
     seen = {}
     for path in sorted(root.rglob("*")):
         rel = path.relative_to(root).as_posix()
+        # The Workspace's catalog asset holds its Korean UI (#96), the kit's own: it is the catalogs.
+        if rel == "workspace/assets/i18n.js":
+            assert path.read_text(encoding="utf-8") == i18n.script()
+            continue
         if (not path.is_file() or rel.startswith((".venv/", "workspace/assets/plotly"))
                 or path.suffix not in (".md", ".json", ".jsonl", ".py", ".html", ".csv", ".txt",
                                        ".toml", ".js", ".css")):

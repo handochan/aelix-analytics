@@ -8,6 +8,7 @@ from test_asset_history import old_record
 from test_asset_suggestions import application, qualified
 from test_assets import ORIGIN
 from test_assets import prepared as prepared
+from workspace_words import plain
 
 from aelix_analytics import asset_app, core, workspace
 
@@ -24,7 +25,7 @@ def test_asset_workspace_versions_scores_pending_and_canonical_links_are_read_on
     before = project.journal.read_bytes()
     monkeypatch.setattr(asset_app.Assets, "assessment", lambda *a, **k: (_ for _ in ()).throw(AssertionError("Workspace scored")))
     workspace.build(project)
-    page = (project.workspace_dir / "index.html").read_text(encoding="utf-8")
+    page = plain((project.workspace_dir / "index.html").read_text(encoding="utf-8"))
     assert '<section id="assets" class="tab">' in page
     assert "Analysis assets" in page and "Pending asset suggestions" in page
     assert "Recorded score: 8/10" in page and "No recorded score" in page
@@ -42,7 +43,7 @@ def test_legacy_asset_workspace_preserves_raw_fields_and_ambiguous_occurrence_li
         out.write(project.journal.read_bytes().splitlines(keepends=True)[-1])
     before = project.journal.read_bytes()
     workspace.build(project)
-    page = (project.workspace_dir / "index.html").read_text(encoding="utf-8")
+    page = plain((project.workspace_dir / "index.html").read_text(encoding="utf-8"))
     assert "Asset candidate (legacy)" in page and "Raw kind: reuse_proposal" in page
     assert "proposal_id" in page and "사용자 원본" in page and "기존 설명" in page
     section = page.split('<section id="assets"', 1)[1].split('</section>', 1)[0]

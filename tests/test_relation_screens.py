@@ -18,8 +18,12 @@ from types import SimpleNamespace
 
 import pytest
 from legacy_records import LegacyProject, at
+from workspace_words import plain
 
-from aelix_analytics import core, relations, workspace
+from aelix_analytics import core, i18n, relations, workspace
+
+# The English title of a relation found only through an older kit's path (workspace.inferred_title).
+INFERRED_TITLE = i18n.message("inferred.title", since=core.PATH_IDENTITY_SINCE)
 
 READ_TEXT = re.compile(r"^read: as_of_seq (\d+) · source_revision ([0-9a-f]{16})$", re.M)
 READ_HTML = re.compile(r"Read at as_of_seq (\d+) · source_revision ([0-9a-f]{16})")
@@ -38,7 +42,7 @@ def built(p: LegacyProject) -> dict[str, str]:
     """The Workspace's pages, by path under workspace/."""
     project = project_of(p)
     workspace.build(project)
-    return {path.relative_to(project.workspace_dir).as_posix(): path.read_text(encoding="utf-8")
+    return {path.relative_to(project.workspace_dir).as_posix(): plain(path.read_text(encoding="utf-8"))
             for path in project.workspace_dir.rglob("*.html")}
 
 
@@ -211,7 +215,8 @@ def test_an_import_record_this_kit_cannot_read_gives_only_its_place(tmp_path):
     assert plain["unsupported_record"] == place and "rows" not in plain
     pages = built(p)
     assert "/elsewhere/future.csv" not in pages["data/future.html"]
-    assert "import record not read (data/raw/future.meta.json: unknown_version)" in pages["data/future.html"]
+    # The record's place is a path people wrote (lang=""), beside the kit's words (#96).
+    assert 'import record not read (<span lang="">data/raw/future.meta.json</span>: unknown_version)' in pages["data/future.html"]
     assert "Import record not read" in pages["index.html"]
 
 
@@ -257,7 +262,9 @@ def test_a_stale_candidate_upstream_is_not_said_to_be_a_changed_input(tmp_path):
             in pages[f"runs/{case.a}.html"])
     card = _card(pages["index.html"], "scripts/c.py::summary")
     assert "Input changed" not in card and "Upstream candidate stale" in card
-    assert f"output of run(s) {case.a}, {case.b}, whose inputs" in card
+    # The title names the first candidates and counts them all (#96: a value of the kit's words is
+    # an id or a number, never "and 2 more").
+    assert f"the output of 2 run(s): {case.a}, {case.b}. Their inputs" in card
     assert "Input changed" in _card(pages["index.html"], "scripts/a.py::trend")
 
 
@@ -370,7 +377,7 @@ def test_an_id_on_many_lines_names_two_lines_an_id_and_five_in_all(tmp_path):
     assert "recent journal:" in text and "truncated" not in text
     index = built(p)["index.html"]
     assert "e1 (journal:1, journal:2 and 1,198 more line(s)), e2 (journal:1201" in index
-    assert "lists every line in its JSON <code>shared_ids</code>" in index
+    assert "lists every line in its JSON shared_ids" in index
 
 
 def test_a_cut_line_and_the_record_appended_onto_it(tmp_path):
@@ -412,7 +419,7 @@ def test_a_read_that_keeps_changing_is_said_on_both_screens(tmp_path):
     assert "· updating: the records changed while they were read (read three times)" in \
         core.status_text(st)
     workspace.build(project)
-    index = (project.workspace_dir / "index.html").read_text(encoding="utf-8")
+    index = plain((project.workspace_dir / "index.html").read_text(encoding="utf-8"))
     assert "· updating: the records changed while they were read</span></footer>" in index
     assert "<strong>Updating:</strong> the records changed while they were read" in index
 
@@ -433,6 +440,19 @@ def test_the_workspace_links_a_run_events_chart_to_that_run_and_marks_unbound_on
     assert "1 candidate version(s)" in index
 
 
+def test_a_long_list_of_runs_says_where_every_one_is_listed(tmp_path):
+    """Review of #96 (I3): the dataset page names the first runs that wrote a path and says that the
+    status JSON lists every one, as core.dataset_origin does."""
+    p = LegacyProject(tmp_path / "p", migrated=True)
+    for i in range(5):
+        p.run(f"20261001-09{i}000-w{i}", script=f"scripts/w{i}.py", started_at=at(10 + i), ts=at(11 + i),
+              outputs=[("data/derived/w.parquet", p.file("data/derived/w.parquet", f"w{i}".encode()))])
+    p.file("data/derived/w.parquet", b"other")  # no successful run output these bytes
+    page = built(p)["data/w.html"]
+    assert ("and 2 more (the kit's status command lists every one in its JSON field <code>written_by</code>)"
+            in page)
+
+
 def test_the_workspace_shows_producers_and_outputs_not_preserved(tmp_path):
     """F11: the dataset page called the last producer the current version."""
     case = evidence_project(tmp_path)
@@ -442,8 +462,14 @@ def test_the_workspace_shows_producers_and_outputs_not_preserved(tmp_path):
     assert "same bytes as now" in pages["data/t.html"]
     assert "Producer ambiguous" in pages["index.html"]
     assert "No matching run output" in pages["index.html"]
+    # The card marks the input several runs output the same bytes as, beside its path (#96: the
+    # badge's title counts the inputs and does not repeat the paths people wrote).
+    card = _card(pages["index.html"], "scripts/c.py::summary")
+    marked = card.split('title="Producer ambiguous: several successful runs output these bytes"', 1)
+    assert len(marked) == 2 and "data/derived/t.parquet" in marked[0].rsplit('<span class="input">', 1)[1]
+    assert "1 input(s); the inputs marked ? say which" in card
     run_page = pages[f"runs/{case.overwritten}.html"]
-    assert "Overwritten since this run — this run&#x27;s bytes are not preserved" in run_page
+    assert "Overwritten since this run — this run's bytes are not preserved" in run_page
     consumer = pages[f"runs/{case.c}.html"]
     assert "<th>Producer</th>" in consumer and "Producer ambiguous" in consumer
     assert f'runs/{case.a}.html' in consumer and f'runs/{case.b}.html' in consumer
@@ -633,31 +659,31 @@ def test_the_workspace_marks_what_it_reads_through_an_older_kit_s_path(tmp_path,
     pages = built(case.p)
     # The cited key's versions found through the older kit's script spelling: their count beside the
     # kit's English title, not the versions (Visualization ids people wrote) in it (#10).
-    assert (f'<small class="ref-note" title="{workspace.esc(workspace.INFERRED_TITLE)}">1 inferred from an '
-            "older kit&#x27;s path</small>") in pages["index.html"]
+    assert (f'<small class="ref-note" title="{workspace.esc(INFERRED_TITLE)}">1 inferred from an '
+            "older kit's path</small>") in pages["index.html"]
     consumer = pages[f"runs/{case.consumer}.html"]
     inputs = consumer.split('id="inputs"', 1)[1].split("</section>", 1)[0]
     assert (f'<span lang="">{case.absolute}</span>' in inputs or f'>{case.absolute}</a>' in inputs)
     assert 'read as <a href="../data/agg.html"><code lang="">data/derived/agg.parquet</code></a> — ' \
-           "inferred from an older kit&#x27;s path" in inputs
-    assert f'runs/{case.maker}.html' in inputs and "Inferred from an older kit&#x27;s path" in inputs
-    assert f"({case.maker}: inferred from an older kit&#x27;s path)" in consumer  # the stale callout
+           "inferred from an older kit's path" in inputs
+    assert f'runs/{case.maker}.html' in inputs and "Inferred from an older kit's path" in inputs
+    assert f"({case.maker}: inferred from an older kit's path)" in consumer  # the stale callout
     today = pages[f"runs/{case.today}.html"]
     assert "read as" not in today and "older kit" not in today
     dataset = pages["data/agg.html"]
     assert f'{case.consumer}</a> <span lang="">{case.consumer}</span> · <span class="ref-note"' in dataset
-    assert dataset.count("inferred from an older kit&#x27;s path</span>") >= 2  # producers and readers
-    assert "Inferred from an older kit&#x27;s path" in dataset  # the current bytes' candidate
+    assert dataset.count("inferred from an older kit's path</span>") >= 2  # producers and readers
+    assert "Inferred from an older kit's path" in dataset  # the current bytes' candidate
     card = _card(pages["index.html"], "scripts/plot.py::trend")
     assert "v2" in card and "1 of the 2 version(s) of this key were recorded under another spelling" in card
     # The gallery's card lists the earlier version, recorded by the older kit, as inferred.
     gallery = pages["index.html"].split('id="charts"', 1)[1]
     earlier = _card(gallery, "scripts/plot.py::trend").split('class="versions"', 1)[1]
     assert f'runs/{case.maker}.html' in earlier and "(inferred)</small>" in earlier
-    assert "Inferred from an older kit&#x27;s path" in _card(pages["index.html"], "scripts/use.py::usage")
+    assert "Inferred from an older kit's path" in _card(pages["index.html"], "scripts/use.py::usage")
     maker = pages[f"runs/{case.maker}.html"]
     assert ('id <code lang="">scripts/plot.py::trend</code> <small class="ref-note"' in maker
-            and 'recorded as <code lang="">Scripts/Plot.py::trend</code> — inferred from an older kit&#x27;s path'
+            and 'recorded as <code lang="">Scripts/Plot.py::trend</code> — inferred from an older kit\'s path'
             in maker)
     assert f'index.html#chart-{workspace.slug_key("scripts/plot.py::trend")}' in maker
     assert records_of(case.p.root) == before, "the Workspace rewrites no record"
@@ -684,7 +710,7 @@ def test_the_inferred_marks_keep_what_people_wrote_in_lang_empty(tmp_path, monke
 
     case = older_kit_screens(tmp_path, monkeypatch, folder="요약", script="그림")
     pages = built(case.p)
-    assert "Inferred from an older kit&#x27;s path" in pages[f"runs/{case.consumer}.html"]
+    assert "Inferred from an older kit's path" in pages[f"runs/{case.consumer}.html"]
     assert 'recorded as <code lang="">Scripts/그림.py::trend</code>' in pages[f"runs/{case.maker}.html"]
     for name, page in pages.items():
         scopes = LangScopes(page)

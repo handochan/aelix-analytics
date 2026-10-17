@@ -46,7 +46,7 @@ Workspace는 프로젝트를 탐색하는 인터페이스이며 프로젝트 루
 | 기록 writer(#13의 ①, kit 0.7.0) | 모듈 `writer.py`(계층 `writer`). 표식 판정 `marker_state`와 그 결과 `MarkerState`(상태 `none`·`legacy`·`current`·`unknown`·`invalid`·`conflict`, ②부터 `incomplete`), 쓰기 게이트 `admit`(읽기의 부수 쓰기는 `side=True`), 읽기의 판정 `readable`, 이 kit이 쓰는 표식 형식 `WRITABLE`(kit 0.8.0부터 `analytics.project/2`, 그 전 `lab.project/1`), 작성 출처 `Origin`, 옛 배치의 저장 이름표 `LegacyLayout`(kit 0.8.0 전에는 이 kit이 쓰던 배치). 읽기 모델의 Visualization 보기 `run_visualizations`·재실행 비교 보기 `run_reproduction`(`relations`), journal 목록 `JournalLists`(`core`) | 유지. 새 형식의 이름표와 쓰기 클래스는 아래 '공통 writer' 행 |
 | 공통 writer(#13의 셋째 PR ③) | 같은 모듈의 새 형식 이름표 `Layout`(값 `LAYOUT`; 표식 판정이 배치를 고르는 `layout_of`. `LegacyLayout`에 잠금 이름 `journal_lock`·`run_lock`·`workspace_lock`), 쓰기 클래스 `Writer`(`record`·`update`·`write_run`·`write_dataset`·`locked`, `record`가 잠금 밖에서 거절하는 것을 쓰지 않고 판정하는 `check`; 잠금 안의 문맥 `Locked`, 쓰기의 결과 `Written`), 기록 가족 표 `FAMILIES`(키 `project`·`event`·`run`·`dataset`·`trust`·`migration`), 사람·에이전트가 기록하는 kind `RECORD_KINDS`와 kit 자신의 kind `KIT_KINDS`, 덧붙이기 `append_line`, 프로젝트 id `new_project_id`, 줄 없이 하는 본문 검사 `check_text`, 나중에 쓸 기록(SDK의 run 안 기록)의 줄을 재는 가장 넓은 seq `SEQ_BOUND`, kit이 만드는 본문이 다른 곳에 통째로 남는 필드를 인용하는 `excerpt`와 그 길이 `EXCERPT_CHARS`(4,000자), `lab.json` 프로젝트 쓰기의 거절 `migration_required`와 그 안내 `migration_hint`·`MIGRATE_COMMAND`, 다른 프로젝트나 커밋하지 않은 전환 목적지 안의 새 프로젝트를 찾는 `project_above`(init과 전환의 목적지 규칙, 전환 기록은 2026-10-09 소유자 결정)와 그 거절 글의 `inside`. `core`의 얇은 진입 `core.record`·`core.writer_for`, 맥락 동기화 전의 기록 판정 `core.check_record`와 동기화가 버전을 만들지 `core.context_pending`, 응답의 요청 id `core.request_id_of`, kit 자신의 기록이 주는 참조 `core.kit_reference`(`about`·`observed`·`author`), 상태 글의 `core.OLDER_FORMAT_LINE`·`core.older_project_above`. 읽기 모델(`relations`)의 상태 재생 `Replay.state_of`·`Journal.event_of`와 결박용 조회 `latest_version`·`keys_named`·`runs_of_request`·`import_record`·`latest_output` | 유지. kit 0.8.0부터 모든 쓰기 진입점이 이 writer로 쓰고 `core.NOTE_KINDS`·`core.add_note`·`core.append_event`·`MAX_EVENT_TEXT`는 없음([설계](design/RECORD-WRITER-AND-MIGRATION.md) 4.4·4.5·9절) |
 | 전환 엔진(#13의 ②, kit 0.7.0) | 모듈 `migration.py`(계층 `migration`, 수준 3)의 `migrate`. 포트 메서드 `FileLocks.try_exclusive`(기다리지 않는 잠금, `LockBusy`·`LockUnavailable`), `AtomicFiles.publish_new`(없을 때만 이름을 줌, `LinkUnsupported`)·`flush_handle`·`flush_dir`, kit 0.8.0의 `AtomicFiles.rename_new`(이미 있는 이름을 바꾸지 않는 rename: Linux `renameat2(RENAME_NOREPLACE)`·macOS `renamex_np(RENAME_EXCL)`·Windows `os.rename`, 없으면 `RenameUnsupported`; 링크가 없는 목적지의 표식 게시). 매핑을 읽는 `core.MigrationMapping`·`mapped_identity`·`migration_mapping`. 전환의 작성 주체(ledger의 `start`·보고서·응답에 같은 값)를 만드는 `migration.said_by`. macOS의 AppleDouble 판정 — 이름만 보는 `core.appledouble_name`(`._<이름>`)과 그 이름의 일반 파일(lstat)인지 보는 `core.is_appledouble`(2026-10-09 소유자 결정과 같은 날의 보정으로 운영체제 메타 파일, 폴더·링크는 아님) — 과 init·전환이 함께 쓰는 빈 디렉터리 판정 `core.empty_directory_entry`(`.DS_Store`·AppleDouble 파일) | 유지. 명령 `analytics migrate`는 kit 0.8.0(#13의 셋째 PR)부터 |
-| Workspace 내부 식별자 | `window.__ANALYTICS_BUILD__`, 브라우저 저장 키 `analytics-live`·`analytics-scroll:<경로>`, plotly 템플릿 `analytics`(`plotly_white+analytics`), capture의 표식 `__analytics_wrapped__`(kit 0.6.0부터. 그 전은 `__LAB_BUILD__`, `lab-live`·`lab-scroll:`, `lab`, `__lab_wrapped__`). 새 저장 키가 없으면 옛 키를 한 번 읽고 옛 키는 남긴다. `build.js`는 연 채로 둔 옛 페이지가 다시 읽도록 옛 전역도 같은 값으로 정한다. 저장하는 그림 JSON에는 템플릿 이름이 없다 | 유지 |
+| Workspace 내부 식별자 | `window.__ANALYTICS_BUILD__`, 화면 언어의 전역 `AnalyticsI18n`과 저장 키 `analytics-language`(kit 0.16.0, #96), 브라우저 저장 키 `analytics-live`·`analytics-scroll:<경로>`, plotly 템플릿 `analytics`(`plotly_white+analytics`), capture의 표식 `__analytics_wrapped__`(kit 0.6.0부터. 그 전은 `__LAB_BUILD__`, `lab-live`·`lab-scroll:`, `lab`, `__lab_wrapped__`). 새 저장 키가 없으면 옛 키를 한 번 읽고 옛 키는 남긴다. `build.js`는 연 채로 둔 옛 페이지가 다시 읽도록 옛 전역도 같은 값으로 정한다. 저장하는 그림 JSON에는 템플릿 이름이 없다 | 유지 |
 
 위 CLI 작업은 Aelix의 `/analytics` 아래에서도 같은 의미를 사용한다. 지원하는 하위 명령은 실제 구현 기준으로 공개한다.
 `ReportRenderer`는 이전 아키텍처 제안의 명칭이었으며 현재 코드의 클래스가 아니다. 새 설계에서는 Workspace 표시와 Report 형식 처리를 구별한다.
@@ -295,13 +295,16 @@ HTML을 그리지 않아 주석이 글자로 보이고, 목표를 읽는 쪽은 
 
 ### 현재 구현(#10)
 
-- Workspace(정적 HTML)의 탭·제목·배지·버튼·빈 화면·tooltip·aria-label·오류와 kit의 status 안내는 영어다. 문서의 `lang`은 `en`이다.
+- 생성한 Workspace(정적 HTML)의 탭·제목·배지·버튼·빈 화면·tooltip·aria-label·오류와 kit의 status 안내는 영어다. 문서의 `lang`은 `en`이다.
+  #96부터 읽는 사람이 상단 메뉴로 화면을 한국어로 바꿀 수 있다([현재 계약](CONTRACTS.md#c12-workspace-화면-언어-kit-0160-96)). 바꾸면 `<html lang>`이 `ko`가 되고,
+  번역이 없어 영어로 남는 kit 문구 요소에는 `lang="en"`이 붙는다. 속성(title·aria-label)은 언어를 따로 적을 수 없어, 속성에 쓰는 key는
+  모두 번역한다.
   사람과 스크립트가 쓴 내용을 담은 요소는 `lang=""`(언어 모름)이다: CONTEXT 본문과 버전 diff, 기록 글, 프로젝트 제목·목표·경로,
   run·Visualization 제목·caption·그림의 대체 글, 데이터셋 이름·경로·설명, 열 이름과 값, 스크립트의 코드·출력·오류 요약, 맥락 섹션
   이름. 프로젝트에 언어를 적는 곳이 없어 알려진 언어가 없으므로 추정하지 않고, 화면 낭독기는 그 글을 영어 음성이 아니라 읽는 사람의
-  기본 음성으로 읽는다(#10 전에는 페이지가 `ko`라 한국어 프로젝트의 글을 한국어로 읽었고, 이 접근성을 잃지 않음). kit의 label은 `en`
-  범위에 남는다. 문서 제목(`<title>`)은 kit의 글과 사용자 글을 한 문자열로 이어 `en`이다. CSS 글꼴 목록은 macOS·Windows·Linux의
-  한국어 글꼴을 포함한다.
+  기본 음성으로 읽는다(#10 전에는 페이지가 `ko`라 한국어 프로젝트의 글을 한국어로 읽었고, 이 접근성을 잃지 않음). kit의 label은 화면
+  언어의 범위에 남는다. 사람이 쓴 글은 화면 언어와 관계없이 `lang=""`이고 메시지 값으로 넘기지 않는다. 문서 제목(`<title>`)은 kit의 글과
+  사용자 글을 한 문자열로 이으며, 화면 언어를 바꾸면 kit의 글 부분만 바뀐다. CSS 글꼴 목록은 macOS·Windows·Linux의 한국어 글꼴을 포함한다.
 - 지금 탭은 `Overview`, `Visualizations`, `Timeline`, `Data`, `Runs`, `Context`, `Evaluation`이다. `Insights`·`Reports`는 그 기능의 Issue
   ([#18](https://github.com/handochan/aelix-analytics/issues/18)·[#19](https://github.com/handochan/aelix-analytics/issues/19))가 만든다.
   `Evaluation`은 옛 '평가' 탭의 이름을 옮긴 것이고, 안의 구역은 `Workflow feedback`·`Record coverage`·`Tool usage`다. 탭의 URL anchor
@@ -313,10 +316,13 @@ HTML을 그리지 않아 주석이 글자로 보이고, 목표를 읽는 쪽은 
   `My Sales`→`my_sales`, `my-data`→`my_data`, `123sales`→`t_123sales`, 한국어 이름→`___…`)이 그 이름과 다르면 데이터 탭과 데이터셋
   페이지가 view를 옆에 적는다.
 - 새 프로젝트의 템플릿(`CONTEXT.md`, uv 프로젝트 이름 `analytics-<slug>`)과 데모(데이터·제목·기록·스크립트)는 영어다.
-- 용량은 1024 단위이므로 `KiB`·`MiB`·`GiB`로 적는다. 시각 표시의 offset은 아직 버린다(남은 일).
-- 문자열은 아직 message key 카탈로그가 아니라 코드 안의 영어 글이다. UI 언어가 하나뿐이라 카탈로그가 바꿀 동작이 없고, 두 번째 UI
-  locale을 도입할 때 함께 만든다. 그동안 `tests/test_language.py`가 출하 파일의 한국어(옛 CONTEXT의 목표 제목·고정 표식을 읽는 줄만
-  허용)와, 한국어 프로젝트의 status·맥락 블록에서 사용자가 쓴 글 밖의 한국어, Workspace에서 `lang=""` 요소 밖의 한국어를 막는다.
+- 용량은 1024 단위이므로 `KiB`·`MiB`·`GiB`로 적는다. 시각은 기록의 offset 그대로의 벽시계 시각이고 읽는 사람의 시간대로 바꾸지 않는다.
+  날짜는 화면 언어의 형식(`Aug 3, 2026 09:10`, `2026년 8월 3일 09:10`)이며, offset을 포함한 원래 값은 `<time>`의 `datetime`에 있다.
+- Workspace의 kit 문구는 message key 카탈로그다: `assets/i18n/en.json`이 원본, `ko.json`이 한국어이고, 생성기와 관계 페이지와 스크립트가
+  같은 key를 쓴다. status·CLI·SDK·모델 도구의 출력과 게시본의 UI locale은 영어 그대로다(#96 범위 밖). `tests/test_language.py`가
+  출하 파일의 한국어(한국어 카탈로그와, 옛 CONTEXT의 목표 제목·고정 표식을 읽는 줄만 허용)와, 한국어 프로젝트의 status·맥락 블록에서
+  사용자가 쓴 글 밖의 한국어, 생성 HTML에서 `lang=""` 요소 밖의 한국어를 막는다. `tests/test_workspace_i18n.py`가 두 카탈로그의 key·자리표시자와
+  페이지의 key·영어·메시지 값을, Node 시험이 전환·저장소 차단·URL 전달·영어 대체를 확인한다.
 - 이미 영어인 표면의 이름(CLI 도움말의 `HTML report`, status 글의 `charts`, 저장 이름 `report/`)은 이 전환의 범위가 아니다(§2·§3).
 
 ## 8. 적용과 변경 관리

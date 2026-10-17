@@ -19,6 +19,7 @@ from pathlib import Path
 
 import pytest
 from legacy_records import LegacyProject, at
+from workspace_words import plain
 
 from aelix_analytics import core, relations, runner, workspace
 
@@ -122,7 +123,7 @@ def test_every_consumer_sees_both_forms(tmp_path):
     page = (project.workspace_dir / "runs" / f"{new}.html").read_text(encoding="utf-8")
     assert "Visualizations (1)" in page and 'id="chart-trend"' in page
     assert "scripts/a.py::trend" in page and '"type": "bar"' in page
-    index = (project.workspace_dir / "index.html").read_text(encoding="utf-8")
+    index = plain((project.workspace_dir / "index.html").read_text(encoding="utf-8"))
     assert f"runs/{new}.html#L-main-3" in index and ">v2</span>" in index
 
 
@@ -146,7 +147,7 @@ def test_a_rerun_s_comparison_shows_on_its_page_in_both_forms(tmp_path):
         "visualizations": {"trend": "different data", "gone": "missing"}, "outputs": {}})
     project = core.Project(p.root)
     workspace.build(project)
-    page = (project.workspace_dir / "runs" / "20261001-110000-a.html").read_text(encoding="utf-8")
+    page = plain((project.workspace_dir / "runs" / "20261001-110000-a.html").read_text(encoding="utf-8"))
     assert "Rerun comparison: Different" in page
     assert "<code lang=\"\">trend</code>: different data" in page
     assert "<code lang=\"\">gone</code>: missing" in page

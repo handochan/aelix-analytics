@@ -8,6 +8,7 @@ from urllib.parse import unquote, urlparse
 
 import pytest
 from conftest import LINK_KINDS, dir_link, kit_cli, write_script
+from workspace_words import plain
 
 from aelix_analytics import _platform, core, runner
 
@@ -742,7 +743,7 @@ def test_records_from_a_newer_kit_are_skipped_and_said_so(project):
             f"report — journal:{line} (unknown_version), runs/{future.name}/run.json "
             "(unknown_version); a newer kit may read them") in text
     assert kit_cli(project, "render")[0] == 0
-    index = (p.workspace_dir / "index.html").read_text(encoding="utf-8")
+    index = plain((p.workspace_dir / "index.html").read_text(encoding="utf-8"))
     assert "Unsupported: 2 record(s) this kit cannot read" in index
     assert f"journal:{line} (unknown_version)" in index
 
@@ -767,7 +768,7 @@ def test_a_failing_run_says_what_to_write_instead(project):
     assert code != 0
     assert "print(df)" in result["run"]["error"]["hint"]
     assert kit_cli(project, "render")[0] == 0
-    page = next((project / "workspace" / "runs").glob("*01-habit.html")).read_text(encoding="utf-8")
+    page = plain(next((project / "workspace" / "runs").glob("*01-habit.html")).read_text(encoding="utf-8"))
     assert "How to fix: " in page and "df.glimpse()" in page
 
     for summary, expected in (
@@ -803,7 +804,7 @@ def test_context_is_disclosed_by_section_not_truncated_mid_sentence(project):
     assert "데이터 출처" in text and "mark its heading <!-- pin --> to pin it" in text
 
     assert kit_cli(project, "render")[0] == 0
-    index = (p.workspace_dir / "index.html").read_text(encoding="utf-8")
+    index = plain((p.workspace_dir / "index.html").read_text(encoding="utf-8"))
     assert 'Sections in every prompt: <span lang="">목표</span>, <span lang="">다음 할 일</span>.' in index
     assert "| a | b |" in index, "the report still shows the whole file"
 
@@ -1552,7 +1553,7 @@ def test_the_renamed_variables_are_the_adrs_list():
     assert set(kit_main.OLD_ENV) <= set(ADR_RENAMED) and core.NAMES_RENAMED_IN == "0.3.0"
     # Issue #36 changed how records hold paths and bumped the version, so a reader (#12) can tell
     # the records written before it (ADR-0006 9); the boundary stays fixed as the version moves on.
-    assert core.KIT_VERSION == "0.15.0" and core.PATH_IDENTITY_SINCE == "0.5.0"
+    assert core.KIT_VERSION == "0.16.0" and core.PATH_IDENTITY_SINCE == "0.5.0"
 
 
 @pytest.mark.parametrize("old", ["LAB_PROJECT", "LAB_ACTOR", "LAB_SESSION", "LAB_STYLE",

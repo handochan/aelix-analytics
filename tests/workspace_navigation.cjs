@@ -3,6 +3,11 @@ const assert = require('node:assert/strict');
 const vm = require('node:vm');
 const fs = require('node:fs');
 const codec = require(process.argv[2]);
+// The kit's words as a page has them: the runtime and both catalogs beside workspace.js (#96).
+const assets = require('node:path').dirname(process.argv[3]);
+const I18n = require(require('node:path').join(assets, 'workspace-i18n.js'));
+I18n.register({en: JSON.parse(require('node:fs').readFileSync(require('node:path').join(assets, 'i18n', 'en.json'), 'utf8')),
+  ko: JSON.parse(require('node:fs').readFileSync(require('node:path').join(assets, 'i18n', 'ko.json'), 'utf8'))});
 const source = fs.readFileSync(process.argv[3], 'utf8');
 const origin = {v:1,page:'index.html',anchor:'insight-e2',tab:'insights',filter:'finding',retired:true,
   selection:'old/図',source:'aabbccddeeff0011',card:'insight-e2',offset:115};
@@ -20,7 +25,7 @@ const document = {documentElement:{dataset:{root:'../',page:'runs/old.html',sour
   querySelector(selector){return selector==='.state-notice'?notice:selector==='a[data-return]'?back:null;},
   querySelectorAll(selector){return selector==='a[data-return]'?[back]:[];},
   addEventListener(k,f){(documentEvents[k] ||= []).push(f);},createElement(){return {remove(){}};}};
-const window = {AnalyticsWorkspaceState:codec,scrollY:1300,scrollTo(_,y){this.scrollY=y;},
+const window = {AnalyticsWorkspaceState:codec,AnalyticsI18n:I18n,scrollY:1300,scrollTo(_,y){this.scrollY=y;},
   addEventListener(k,f){(events[k] ||= []).push(f);}};
 vm.runInNewContext(source,{window,document,location,history,URL,URLSearchParams,Set,
   requestAnimationFrame:f=>frames.push(f),setInterval(){},setTimeout(){return 1;},clearTimeout(){}});
