@@ -431,6 +431,7 @@
  "relations.view_latest": "View latest version",
  "relations.view_latest_unbound": "View latest version (unbound name)",
  "relations.visualization": "Visualization",
+ "relations.what.code": "Code snapshot",
  "relations.what.context": "CONTEXT.md version",
  "relations.what.data": "Data",
  "relations.what.name": "Name in the records",

@@ -29,16 +29,16 @@ function element(tag='span') {
   return el;
 }
 // A way back as the generator writes it: an arrow, then the kit's words in a <k-w>.
-function backLink(home, english) {
+function backLink(home, english, homeKey) {
   const words = element('k-w');
   words.textContent = english;
   words.replaceWith = replacement => { link.parts[1] = replacement; };
   const link = {href:home,dataset:{},parts:[{textContent:'←'},words],
-    getAttribute(k){return k==='href'?home:null;},
+    getAttribute(k){return k==='href'?home:k==='data-back'?homeKey:null;},
     get innerHTML(){return this.parts.map(p=>p.localName==='k-w'?`<k-w>${p.textContent}</k-w>`:p.textContent).join(' ');},
     set innerHTML(v){this.parts=[{textContent:'←'},Object.assign(element('k-w'),{textContent:/<k-w>(.*)<\/k-w>/.exec(v)[1],replaceWith:words.replaceWith})];},
     querySelector(selector){
-      if(selector==='[data-back]') return this.parts.find(p=>p.attrs&&'data-back' in p.attrs)||null;
+      if(selector==='[data-back-words]') return this.parts.find(p=>p.attrs&&'data-back-words' in p.attrs)||null;
       if(selector===I18n.WORD) return this.parts.find(p=>p.localName==='k-w')||null;
       return null;},
     append(v){this.parts.push(v);},
@@ -48,7 +48,7 @@ function backLink(home, english) {
 function page(name, state, options={}) {
   let url = new URL('file:///synthetic/workspace/'+name+(state?codec.search(state):''));
   const listeners={},docListeners={},frames=[],head=[];
-  const back = backLink(options.home||'../index.html#insights', options.homeWords||'Back to Insights');
+  const back = backLink(options.home||'../index.html#insights', options.homeWords||'Back to Insights', 'back.tab.insights');
   const topbar = element('header'), pageMenu = element('div');
   topbar.insertBefore=(node)=>{topbar.inserted=node;};
   const figures=(options.figures||[]).map(n=>{const f=element('div');f.dataset.fig='fig'+n;return f;});
@@ -72,7 +72,8 @@ function page(name, state, options={}) {
   vm.runInNewContext(shipped,{window,document,location,history,URL,URLSearchParams,Set,Promise,
     requestAnimationFrame:f=>frames.push(f),setInterval(){},setTimeout(){return 1;},clearTimeout(){}});
   while(frames.length) frames.shift()();
-  return {window,document,back,head,figures,topbar,pageMenu,docListeners,html};
+  return {window,document,back,head,figures,topbar,pageMenu,docListeners,html,listeners,
+    flush(){while(frames.length) frames.shift()();}};
 }
 const flush = () => new Promise(resolve => setImmediate(resolve));
 
@@ -99,7 +100,7 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
   for (const [origin, key, english] of cases) {
     const state = codec.next(origin, 'relations/aa-0.html', 'record');
     const shown = page('relations/aa-0.html', state);
-    const words = shown.back.querySelector('[data-back]');
+    const words = shown.back.querySelector('[data-back-words]');
     assert.ok(words, key);
     assert.equal(words.attrs['data-i18n'], key);
     assert.equal(words.textContent, english);
@@ -108,10 +109,33 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
   // Opened directly: the page's own way back, its own words.
   const direct = page('relations/aa-0.html', null);
   assert.equal(direct.back.words(), 'Back to Insights');
-  assert.equal(direct.back.querySelector('[data-back]'), null);
+  assert.equal(direct.back.querySelector('[data-back-words]'), null);
   // In Korean, from a kind's list.
   const korean = page('relations/aa-0.html', {...codec.next({...browsing,page:'lists/kind-note-0.html'}, 'relations/aa-0.html'), lang:'ko'});
-  assert.equal(korean.back.querySelector('[data-back]').textContent, ko['back.list.kind']);
+  assert.equal(korean.back.querySelector('[data-back-words]').textContent, ko['back.list.kind']);
+  // Independent review of #97 (I3): the words of a way back switch with the page and never go back
+  // to the language the page loaded in. Opened directly: the page's own <k-w>, which the page
+  // switches; a later language change leaves it to that switching.
+  let chosen = 'en';
+  const storage = {getItem(){return chosen;}, setItem(){}};
+  const opened = page('relations/aa-0.html', null, {storage});
+  const own = opened.back.parts[1];
+  own.textContent = ko['back.tab.insights'];  // as the page's switching writes it
+  chosen = 'ko';
+  opened.listeners.storage.forEach(f => f({key: I18n.KEY}));
+  opened.flush();
+  assert.equal(opened.back.parts[1], own);
+  assert.equal(own.textContent, ko['back.tab.insights']);
+  // An origin's words, then Back to an entry without one: the page's own key, in the language now.
+  chosen = 'ko';
+  const returned = page('relations/aa-0.html', codec.next(browsing, 'relations/aa-0.html', 'record'), {storage});
+  assert.equal(returned.back.querySelector('[data-back-words]').textContent, ko['back.tab.insights']);
+  returned.listeners.popstate.forEach(f => f({state: {v:1,page:'relations/aa-0.html',anchor:'',tab:'overview',filter:'',
+    retired:false,selection:'',source,card:'',offset:0}}));
+  returned.flush();
+  const home = returned.back.querySelector('[data-back-words]');
+  assert.equal(home.attrs['data-i18n'], 'back.tab.insights');
+  assert.equal(home.textContent, ko['back.tab.insights']);
 
   // --- plotly: read when a figure shows ----------------------------------------------------------
   const wide = page('runs/r.html', null, {plotly:true, figures:[1, 2]});

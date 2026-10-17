@@ -197,6 +197,21 @@ def ref_words(state, reason=None) -> str:
     return t(f"ref.{state}.{reason}") if reason and i18n.has(f"ref.{state}.{reason}") else words("ref", state)
 
 
+@functools.cache
+def _kind_list(kind: str) -> str:
+    english = i18n.message(f"kind.{kind}")
+    alike = [key[5:] for key, text in i18n.catalog(i18n.DEFAULT).items()
+             if key.startswith("kind.") and text == english]
+    return min(alike, key=lambda k: (core.EVENT_KINDS.index(k) if k in core.EVENT_KINDS else len(core.EVENT_KINDS), k))
+
+
+def kind_list(kind):
+    """The kind whose own list holds a stored kind's records: kinds the catalog names alike share one
+    list (`gap` is the /1 name of `workflow_feedback`, `reuse_proposal` an earlier `asset_candidate`),
+    so a kind filter never shows two links that say the same. The first by EVENT_KINDS, else by name."""
+    return _kind_list(kind) if isinstance(kind, str) and i18n.has(f"kind.{kind}") else kind
+
+
 def kind_file(kind) -> str:
     """The part of a kind's list page names (`lists/kind-<part>-<n>.html`): the kind as stored when it
     is a plain name, else `x-` and a digest of it (a `-` no plain name has), so any stored kind has a
@@ -529,23 +544,25 @@ class Site:
         or withdrawn (ADR-0006 6). A current record shows nothing."""
         kind = event.get("kind")
         resolver = self.resolved.get(event.get("id"))
+        closed = ""
         if kind in core.OPEN_KINDS + core.KEY_KINDS and resolver:
-            return self.closed_badge(resolver, depth, event.get("id"))
-        if kind in core.OPEN_KINDS:
-            return badge("warning", "●", t("badge.open"))
+            closed = self.closed_badge(resolver, depth, event.get("id"))
+        elif kind in core.OPEN_KINDS:
+            closed = badge("warning", "●", t("badge.open"))
+        # A finding a record closed can also have been corrected or withdrawn: both are said.
         state = self.model.journal.replay().state_of(self.source(event) or "") or {}
         shown = state.get("state")
         if shown not in RECORD_STATE:
-            return ""
+            return closed
         tone, mark = RECORD_STATE[shown]
         by = state.get("corrected_by") or []
         if shown == "superseded" and by:
             link = self.relations.content(by[0], depth) or self.relations.link(by[0], depth)
-            return (f'<a class="badge tone-{tone}" href="{esc(link)}"><span aria-hidden="true">{mark}</span> '
-                    f'{t("record.superseded_by")} {esc(by[0])}</a>')
+            return closed + (f'<a class="badge tone-{tone}" href="{esc(link)}"><span aria-hidden="true">{mark}</span> '
+                             f'{t("record.superseded_by")} {esc(by[0])}</a>')
         if shown == "conflict":
-            return badge(tone, mark, t("record.conflict", n=len(by)), title_attr(", ".join(by)))
-        return badge(tone, mark, t("record." + shown))
+            return closed + badge(tone, mark, t("record.conflict", n=len(by)), title_attr(", ".join(by)))
+        return closed + badge(tone, mark, t("record." + shown))
 
     def record_row(self, ev: dict, depth: int, *, row_id: str, time_only: bool = False) -> str:
         """One record in a list (design 8.1): its kind, its text as written with its state when that
@@ -571,7 +588,7 @@ class Site:
         `family`: timeline (every kind) or insights (findings, decisions and assumptions)."""
         if family not in self._kind_counts:
             records = self.events if family == "timeline" else [e for e in self.events if e.get("kind") in core.KEY_KINDS]
-            self._kind_counts[family] = (records, Counter(e.get("kind") for e in records))
+            self._kind_counts[family] = (records, Counter(kind_list(e.get("kind")) for e in records))
         records, counts = self._kind_counts[family]
         root = self.root(depth)
 
@@ -774,8 +791,8 @@ class Site:
         page_path = page_path or ("index.html" if kind == "index" else "context.html" if kind == "context" else "")
         if kind != "index":
             back = back or BACK.get(kind, "overview")
-            body = (f'<div class="workspace-actions"><a class="back" data-return href="{root}index.html#{back}">'
-                    f'<span aria-hidden="true">←</span> {t("back.tab." + back)}</a>{actions}</div>' + body)
+            body = (f'<div class="workspace-actions"><a class="back" data-return data-back="back.tab.{back}" '
+                    f'href="{root}index.html#{back}"><span aria-hidden="true">←</span> {t("back.tab." + back)}</a>{actions}</div>' + body)
         v = f"?v={self.build}"  # new URLs per build, so a reload never runs cached assets
         # Plotly is read when a figure is about to show (workspace.js), not before the page paints.
         plotly = (f' data-plotly="{root}assets/plotly.min.js?v={core.KIT_VERSION}"' if self.uses_plotly else "")
@@ -1358,7 +1375,7 @@ def write_list_pages(site: Site, out: Path) -> int:
             keep.add(filename)
     by_kind: dict[str, list[dict]] = {}
     for event in reversed(site.events):
-        by_kind.setdefault(event.get("kind"), []).append(event)
+        by_kind.setdefault(kind_list(event.get("kind")), []).append(event)
     for kind, records in by_kind.items():
         part, named = kind_file(kind), i18n.has(f"kind.{kind}")
         for page in range((len(records) + INDEX_LIMIT - 1) // INDEX_LIMIT):

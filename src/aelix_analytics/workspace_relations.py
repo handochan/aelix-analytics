@@ -152,10 +152,21 @@ class RelationPages:
         # A record or a run is named by its id beside its kind (a run's without its `run:` prefix).
         named = (" " + esc(other[4:] if other.startswith("run:") else other)
                  if other and (other in self.events or other.startswith("run:")) else "")
+        name = self.title(other) if other else t("relations.unknown_target")
+        sub = s.user_text(other) if other and not named else ""
+        target = row.get("target") or {}
+        if row["direction"] == "outgoing" and row.get("type") in ("data_observation", "dataset_import", "code_snapshot"):
+            # A file a run read or wrote, or a script it kept: named by its path (the query identity
+            # of a run's observation is the run), its id line the path and the run.
+            path, run = target.get("path"), target.get("run_id")
+            what = t("relations.what.code") if row["type"] == "code_snapshot" else t("relations.what.data")
+            if isinstance(path, str):
+                name = s.user_text(s.dataset_name(path) or path)
+                sub = s.user_text(path) + (f' · {t("refs.run")} {esc(run)}' if isinstance(run, str) else "")
         return (f'<li class="relation-item" data-direction="{row["direction"]}">'
                 f'<div class="relation-head"><div class="relation-what"><p class="kicker">{what}{named} · {relation}</p>'
-                f'<p class="relation-name">{self.title(other) if other else t("relations.unknown_target")}</p>'
-                + (f'<p class="relation-id">{s.user_text(other)}</p>' if other and not named else "")
+                f'<p class="relation-name">{name}</p>'
+                + (f'<p class="relation-id">{sub}</p>' if sub else "")
                 + f'</div>{self.judgment(row)}</div>'
                 f'<div class="relation-actions">{" ".join(actions)}</div>{self.details(row, location)}</li>')
 

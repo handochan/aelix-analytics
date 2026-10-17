@@ -82,11 +82,11 @@ footer { max-width: 1280px; margin: 0 auto; padding: 1.125rem 1.5rem 2.5rem; col
   background: color-mix(in srgb, var(--page) 88%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border);
   overflow-x: auto; scrollbar-width: none; }
 .tabs::-webkit-scrollbar { display: none; }
-.tabs.more-after { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 3rem), transparent);
+.tabs.more-after, nav.jump.more-after { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 3rem), transparent);
   mask-image: linear-gradient(to right, #000 calc(100% - 3rem), transparent); }
-.tabs.more-before { -webkit-mask-image: linear-gradient(to right, transparent, #000 3rem);
+.tabs.more-before, nav.jump.more-before { -webkit-mask-image: linear-gradient(to right, transparent, #000 3rem);
   mask-image: linear-gradient(to right, transparent, #000 3rem); }
-.tabs.more-before.more-after { -webkit-mask-image: linear-gradient(to right, transparent, #000 3rem, #000 calc(100% - 3rem), transparent);
+.tabs.more-before.more-after, nav.jump.more-before.more-after { -webkit-mask-image: linear-gradient(to right, transparent, #000 3rem, #000 calc(100% - 3rem), transparent);
   mask-image: linear-gradient(to right, transparent, #000 3rem, #000 calc(100% - 3rem), transparent); }
 .tabs a { display: inline-flex; align-items: center; min-height: 2.75rem; padding: 0 0.875rem; color: var(--ink-2); border-bottom: 2px solid transparent; white-space: nowrap; }
 .tabs a:hover { text-decoration: none; color: var(--ink); }
@@ -188,9 +188,9 @@ dl.prov dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .data-block { margin-top: 0.625rem; }
 .data-block summary, details.log summary, details.codefile summary { color: var(--ink-2); min-height: 2.75rem; }
 /* A disclosure keeps its open/closed mark when its summary is a 44px flex row. */
-summary { display: flex; align-items: center; gap: 0.375rem; min-height: 2.75rem; cursor: pointer; list-style: none; }
+summary { display: block; min-height: 2.75rem; padding: 0.625rem 0; cursor: pointer; list-style: none; overflow-wrap: anywhere; }
 summary::-webkit-details-marker { display: none; }
-summary::before { content: "▸"; flex: none; color: var(--muted); font-size: 0.8em; }
+summary::before { content: "▸"; display: inline-block; width: 1.1em; color: var(--muted); font-size: 0.8em; }
 details[open] > summary::before { content: "▾"; }
 
 /* lists: one row per record (design 8.1), and the kind filter's links (8.2) */
@@ -257,7 +257,7 @@ pre.cmd { padding: 0.625rem 0.875rem; background: var(--surface); border: 1px so
 
 /* code */
 .codefile { margin: 0.625rem 0 1rem; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--card); }
-details.codefile summary { padding: 0 0.75rem; }
+details.codefile summary { padding: 0.625rem 0.75rem; }
 .file-head { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: baseline; padding: 0.5rem 0.75rem; background: var(--surface); border-bottom: 1px solid var(--border); font-size: 0.78rem; color: var(--ink-2); overflow-wrap: anywhere; }
 .code { overflow-x: auto; background: var(--card); }
 .code table { width: auto; border: 0; font-size: 0.78rem; }
@@ -293,7 +293,7 @@ ul.flagged li:first-child { border-top: 0; }
 [hidden] { display: none !important; }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 .workspace-actions, .continuation { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.625rem 0; }
-.workspace-actions a, .continuation a, .filters button, .relation-diagram summary { min-height: 2.75rem; display: inline-flex; align-items: center; padding: 0.5rem 0.75rem; }
+.workspace-actions a, .continuation a, .filters button { min-height: 2.75rem; display: inline-flex; align-items: center; padding: 0.5rem 0.75rem; }
 .workspace-actions a.back { gap: 0.375rem; padding: 0 0.875rem 0 0.625rem; border: 1px solid var(--border); border-radius: 8px; font-weight: 600; }
 .workspace-actions a.back:hover { text-decoration: none; border-color: var(--accent); }
 .selected-id, .relation-scope, .state-notice { overflow-wrap: anywhere; }

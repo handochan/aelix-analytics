@@ -130,6 +130,57 @@ def test_an_ambiguous_correction_or_closing_reference_keeps_its_candidates(tmp_p
     assert ("ambiguous", "Resolves e1 · Several matches 2 candidate record(s)") in found
 
 
+def test_a_closed_finding_that_was_also_corrected_or_withdrawn_says_both(tmp_path):
+    """Independent review of #97 (I1): a finding a record closed by `resolves` lost its replayed
+    state, which main's Insights showed as `State: …`."""
+    p = project(tmp_path)
+    corrected = core.record(p, "finding", "닫히고 정정된 발견", origin=ORIGIN).event
+    withdrawn = core.record(p, "finding", "닫히고 철회된 발견", origin=ORIGIN).event
+    correction = core.record(p, "finding", "정정", origin=ORIGIN,
+                             refs=[{"type": "event", "event_id": corrected["id"], "relation": "supersedes"}]).event
+    core.writer_for(p, ORIGIN).update(withdrawn["id"], expected="current", new="withdrawn", text="철회")
+    for closed in (corrected, withdrawn):
+        core.record(p, "note", "닫음", origin=ORIGIN,
+                    refs=[{"type": "event", "event_id": closed["id"], "relation": "resolves"}])
+    workspace.build(p)
+    found = rows(section(page(p, "index.html"), "insights"))
+    assert "Resolved by" in found["insight-" + corrected["id"]] and f"Superseded by {correction['id']}" in found["insight-" + corrected["id"]]
+    assert "Resolved by" in found["insight-" + withdrawn["id"]] and "Withdrawn</span>" in found["insight-" + withdrawn["id"]]
+
+
+def test_a_relation_to_a_file_a_run_read_is_named_by_the_file(tmp_path):
+    """Independent review of #97 (I8): the query identity of a run's observation is the run; the card
+    names the file and the run."""
+    q = LegacyProject(tmp_path / "q", migrated=True)
+    path = "data/derived/t.parquet"
+    run = q.run("20261001-090000-a", started_at=at(0), ts=at(1), outputs=[(path, q.file(path, b"t"))])
+    p = core.Project(q.root)
+    finding = core.record(p, "finding", "t가 늘었다", origin=ORIGIN,
+                          refs=[{"type": "data_observation", "run_id": run, "role": "output", "path": path,
+                                 "relation": "uses"}]).event
+    workspace.build(p)
+    card = relation_page(p, finding["id"]).split('<li class="relation-item" data-direction="outgoing">', 1)[1].split("</li>", 1)[0]
+    assert '<p class="kicker">Data · uses</p>' in card
+    assert '<p class="relation-name"><span lang="">t</span></p>' in card
+    assert f'<p class="relation-id"><span lang="">{path}</span> · run {run}</p>' in card
+
+
+def test_kinds_named_alike_share_one_list(tmp_path):
+    """Independent review of #97 (I9): `gap` is the /1 name of `workflow_feedback`."""
+    q = LegacyProject(tmp_path / "q", migrated=True)
+    old = q.event("gap", text="옛 피드백")
+    p = core.Project(q.root)
+    new = core.record(p, "workflow_feedback", "새 피드백", origin=ORIGIN).event
+    workspace.build(p)
+    timeline = section(page(p, "index.html"), "timeline")
+    assert timeline.count(">Workflow feedback <span") == 1
+    assert 'href="lists/kind-workflow_feedback-0.html"' in timeline and "lists/kind-gap" not in timeline
+    listed = page(p, "lists/kind-workflow_feedback-0.html")
+    assert f'id="{old}"' in listed and f'id="{new["id"]}"' in listed
+    assert not (p.workspace_dir / "lists" / "kind-gap-0.html").exists()
+    assert workspace.kind_list("gap") == "workflow_feedback" and workspace.kind_list("reuse_proposal") == "asset_candidate"
+
+
 # --- judgments in words -----------------------------------------------------------------------------
 
 def test_every_judgment_has_words_of_its_own_and_its_reason_when_the_catalog_has_them():
@@ -253,12 +304,14 @@ def test_every_page_but_the_index_names_where_its_way_back_goes(tmp_path):
     p = project(tmp_path)
     finding = core.record(p, "finding", "발견", origin=ORIGIN).event
     workspace.build(p)
-    back = re.compile(r'<a class="back" data-return href="([^"]+)"><span aria-hidden="true">←</span> ([^<]+)</a>')
-    assert back.search(relation_page(p, finding["id"])).groups() == ("../index.html#insights", "Back to Insights")
-    assert back.search(page(p, "context.html")).groups() == ("index.html#context", "Back to Context")
-    assert back.search(page(p, "lists/timeline-0.html")).groups() == ("../index.html#timeline", "Back to Timeline")
-    assert back.search(page(p, "lists/insights-0.html")).groups() == ("../index.html#insights", "Back to Insights")
-    assert back.search(page(p, "lists/kind-finding-0.html")).groups() == ("../index.html#timeline", "Back to Timeline")
+    # The link carries its own words' key (data-back), which the script falls back to (I3).
+    back = re.compile(r'<a class="back" data-return data-back="back\.tab\.(\w+)" href="([^"]+)">'
+                      r'<span aria-hidden="true">←</span> ([^<]+)</a>')
+    assert back.search(relation_page(p, finding["id"])).groups() == ("insights", "../index.html#insights", "Back to Insights")
+    assert back.search(page(p, "context.html")).groups() == ("context", "index.html#context", "Back to Context")
+    assert back.search(page(p, "lists/timeline-0.html")).groups() == ("timeline", "../index.html#timeline", "Back to Timeline")
+    assert back.search(page(p, "lists/insights-0.html")).groups() == ("insights", "../index.html#insights", "Back to Insights")
+    assert back.search(page(p, "lists/kind-finding-0.html")).groups() == ("timeline", "../index.html#timeline", "Back to Timeline")
     assert "data-return" not in page(p, "index.html")
     for name in ("relations/" + workspace_relations.name(finding["id"]), "lists/kind-finding-0.html"):
         assert page(p, name).count("data-return") == 1, name

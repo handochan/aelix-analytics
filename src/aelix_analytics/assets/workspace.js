@@ -230,13 +230,21 @@
     const detail = /^(runs|data|relations)\//.exec(origin.page);
     return detail ? PAGE_BACK[detail[1]] : null;
   }
+  // The words of a way back: its origin's, else the page's own (`data-back`). Both are the kit's
+  // words of a key, so they switch with the page's language.
   function backWords(a, key) {
-    if (a.homeWords === undefined) a.homeWords = a.innerHTML;
-    if (!key || !I18n || !I18n.has(key)) { if (a.innerHTML !== a.homeWords) a.innerHTML = a.homeWords; return; }
-    let words = a.querySelector("[data-back]");
+    if (!I18n) return;
+    let words = a.querySelector("[data-back-words]");
+    if (!key || !I18n.has(key)) {
+      // No origin: the page's own words, which the page switches as its other words (a <k-w>);
+      // an origin's words written here before go back to the page's own key.
+      const home = a.getAttribute && a.getAttribute("data-back");
+      if (words && home && I18n.has(home)) kitWords(words, home);
+      return;
+    }
     if (!words) {
       words = document.createElement("span");
-      words.setAttribute("data-back", "");
+      words.setAttribute("data-back-words", "");
       const written = a.querySelector(I18n.WORD);
       if (written) written.replaceWith(words); else a.append(words);
     }
@@ -381,14 +389,16 @@
   }
   topbarHeight();
   window.addEventListener("resize", topbarHeight);
-  // The section bar scrolls sideways on a narrow screen: an edge fades where more sections are, and
-  // the section shown is scrolled into the bar.
-  function edges() {
-    if (!nav || !nav.classList || typeof nav.scrollWidth !== "number") return;
-    const end = nav.scrollWidth - nav.clientWidth;
-    nav.classList.toggle("more-before", nav.scrollLeft > 2);
-    nav.classList.toggle("more-after", nav.scrollLeft < end - 2);
+  // The section bar and a page's jump bar scroll sideways on a narrow screen: an edge fades where
+  // more links are, and the section shown is scrolled into the bar.
+  function edgesOf(bar) {
+    if (!bar || !bar.classList || typeof bar.scrollWidth !== "number") return;
+    const end = bar.scrollWidth - bar.clientWidth;
+    bar.classList.toggle("more-before", bar.scrollLeft > 2);
+    bar.classList.toggle("more-after", bar.scrollLeft < end - 2);
   }
+  function bars() { return document.querySelectorAll ? Array.from(document.querySelectorAll("nav.tabs, nav.jump")) : []; }
+  function edges() { bars().forEach(edgesOf); }
   function revealTab() {
     if (!nav || typeof nav.querySelector !== "function") return;
     const on = nav.querySelector("a.on");
@@ -397,11 +407,10 @@
     }
     edges();
   }
-  if (nav && nav.addEventListener) {
-    nav.addEventListener("scroll", edges, { passive: true });
-    window.addEventListener("resize", edges);
-    revealTab();
-  }
+  bars().forEach(bar => { if (bar.addEventListener) bar.addEventListener("scroll", () => edgesOf(bar), { passive: true }); });
+  window.addEventListener("resize", edges);
+  revealTab();
+  edges();
 
   // --- the language menu: a reader's choice is kept in storage, else carried in the URL state ---
   const buildBar = document.querySelector(".topbar .build");
