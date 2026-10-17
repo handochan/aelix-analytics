@@ -9,6 +9,8 @@ Status: Accepted — 2026-10-03 소유자 결정, 2026-10-05 소유자 결정으
 동기화 폴더)이고, 접근 범위는 그 폴더의 권한이며 "팀 전용"으로 표시하지 않고, 확인을 마친 버전만 최신 주소가 된다.
 채택은 구현이 아니다. `build`·`publish`는 현재 코드에 없고([현재 계약](../CONTRACTS.md)), 구현은
 [#20](https://github.com/handochan/aelix-analytics/issues/20)의 독립 build 뒤에 #21에서 한다. #21은 그 구현을 위해 열려 있다.
+구현 착수 조건은 [2026-10-17 소유자 결정](https://github.com/handochan/aelix-analytics/issues/21#issuecomment-6232441756)으로
+#20 전체 완료에서 PR-3(build 폴더·manifest·결박) 병합 뒤로 완화했다. Report 내용 버전 구별의 수용은 #20 PR-4 뒤에 확인한다.
 
 이 결정은 다음 두 결정에 기댄다.
 
