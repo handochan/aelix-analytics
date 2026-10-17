@@ -160,6 +160,8 @@ def test_an_invalid_configuration_is_refused_with_every_problem(tmp_path):
     edit_json(data / "answers" / "T07.json", lambda a: a.update(status="final"))
     edit_json(data / "answers" / "T08.json", lambda a: a["checks"].append(
         {"id": "y", "kind": "critical", "type": "text_any", "values": ["22%"]}))
+    # A confirmed answer says who confirmed it (all twelve are confirmed since Issue #40).
+    edit_json(data / "answers" / "T10.json", lambda a: a.update(confirmed_by=None))
     edit_json(data / "answers" / "T09.json", lambda a: a["checks"].append(
         {"id": "z", "kind": "critical", "type": "stated_as_current", "patterns": ["(unclosed"],
          "unless": "@superseded"}))
@@ -177,7 +179,8 @@ def test_an_invalid_configuration_is_refused_with_every_problem(tmp_path):
     message = str(caught.value)
     for expected in ("type 'guess' is unknown", "status must be one of", "a critical check is a "
                      "stated_as_current check", "does not compile", "may not start with - or @",
-                     "looks like a real key", "answers/T12.json is missing", "auth must say its source",
+                     "looks like a real key", "answers/T12.json is missing", "names who confirmed it",
+                     "auth must say its source",
                      "an aelix login or a key variable, not both", "api must be one of",
                      "qwen3.8-27b-local.json: the configuration holds credential-shaped text (credential_field)"):
         assert expected in message
