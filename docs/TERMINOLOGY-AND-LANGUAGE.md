@@ -172,7 +172,7 @@ Report는 Visualization·설명·발견을 선택해 구성한 문서이며, Vis
 | 요청 응답 `ok` / run `status=ok` | 요청 처리 성공과 Run succeeded를 구별. 원본 저장값의 전환은 schema별 대응으로 처리 |
 | 실행·기록·표시의 한 가지 성공 표시 | Execution status / Recording status / Render status를 구별 |
 | `reproduction`, `verdict`, ‘재현 검증 완료’ | Rerun comparison, `rerun_comparison`, `comparison_result`. Matched / Different / Inconclusive / Run failed를 비교 범위와 함께 표시 |
-| 하나의 Verified·Quality 배지 | Analysis checks / Conclusion review / Record coverage / Tool usage를 별도로 표시. Overview의 Analysis status는 근거 연결·실행·입력 변경·열린 항목·재실행 비교·분석 검사와 결론 검토를 칸마다 따로 세며 하나의 점수로 합치지 않음(kit 0.18.0). 기록이 없는 칸은 `None recorded`, 하지 않은 재실행 비교는 `Not run` |
+| 하나의 Verified·Quality 배지 | Analysis checks / Conclusion review / Record coverage / Tool usage를 별도로 표시. Overview의 Analysis status는 근거 연결·실행·입력 변경·열린 항목·재실행 비교·분석 검사와 결론 검토를 칸마다 따로 세며 하나의 점수로 합치지 않음(kit 0.18.0). 기록이 없는 칸은 `None recorded`(열린 항목이 없으면 `Nothing open`, 입력이 바뀐 시각화가 없으면 `No input changes`), 하지 않은 재실행 비교는 `Not run` |
 | `Freshness`, `stale` | Input changes와 확인 시점. `InputComparison`은 입력·코드 비교를 구별하고, 입력이 바뀌었다는 이유로 과거 결론을 거짓이라고 하지 않음 |
 | `retired` chart | Absent from latest run. 최신 실행에 없다는 뜻이며 삭제·철회·사용 중단 선언은 아님 |
 | `has_data` | Attached data present. 전체 플롯 데이터 보존 여부는 별도 범위 |

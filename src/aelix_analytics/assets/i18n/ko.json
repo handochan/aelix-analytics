@@ -13,9 +13,7 @@
  "analysis.evidence.head": {
   "other": "현재 인사이트 {total}개 중 {n}개에 확정 연결"
  },
- "analysis.evidence.link": {
-  "other": "확정 연결이 없는 {n}개 보기"
- },
+ "analysis.evidence.link": "인사이트와 그 근거 보기",
  "analysis.evidence.none": {
   "other": "인용 없음 {n}"
  },
@@ -29,9 +27,7 @@
  "analysis.inputs.head": {
   "other": "입력이 바뀐 시각화 {n}개"
  },
- "analysis.inputs.link": {
-  "other": "{n}개 보기"
- },
+ "analysis.inputs.link": "시각화 보기",
  "analysis.inputs.none": "입력 변경 없음",
  "analysis.inputs.none_note": {
   "other": "시각화 {n}개를 만든 실행의 입력이 지금과 같습니다."
@@ -70,9 +66,7 @@
  "analysis.runs.empty": "analytics_run(또는 analytics run)으로 스크립트를 실행하면 여기에 나옵니다.",
  "analysis.runs.head": "성공 {n}",
  "analysis.runs.last": "마지막 실행",
- "analysis.runs.link": {
-  "other": "성공하지 못한 실행 {n}개 보기"
- },
+ "analysis.runs.link": "실행 보기",
  "analysis.runs.title": "실행",
  "analysis.title": "분석 상태",
  "assets.assessment": "기록된 평가",
@@ -91,6 +85,7 @@
  "assets.versions": "버전 {n}개",
  "back.list.feedback": "작업 피드백으로 돌아가기",
  "back.list.kind": "목록으로 돌아가기",
+ "back.list.open": "열린 항목으로 돌아가기",
  "back.page.context": "맥락 이력으로 돌아가기",
  "back.page.data": "데이터셋으로 돌아가기",
  "back.page.relations": "관계로 돌아가기",
@@ -101,6 +96,7 @@
  "back.tab.data": "데이터로 돌아가기",
  "back.tab.evaluation": "평가로 돌아가기",
  "back.tab.insights": "인사이트로 돌아가기",
+ "back.tab.map": "분석 지도로 돌아가기",
  "back.tab.overview": "개요로 돌아가기",
  "back.tab.runs": "실행으로 돌아가기",
  "back.tab.timeline": "타임라인으로 돌아가기",
@@ -353,6 +349,7 @@
  "list.title.open": "열린 질문 · 다음 할 일",
  "list.title.runs": "실행",
  "list.title.timeline": "타임라인",
+ "map.as_list": "지도를 목록으로 읽기",
  "map.attn.ambiguous": {
   "other": "생산자 후보가 여럿인 파일 {n}개"
  },
@@ -373,7 +370,7 @@
  "map.attn.failed": {
   "other": "성공하지 못한 실행 {n}개"
  },
- "map.attn.none": "살펴볼 것이 없습니다. 모든 실행이 성공했고, 바뀐 입력이 없고, 읽은 파일마다 생산자가 하나입니다.",
+ "map.attn.none": "살펴볼 것이 없습니다. 성공하지 못하고 끝난 실행, 입력이 바뀐 최근 성공 실행, 생산자 후보가 여럿인 파일, 서로의 출력을 읽은 실행이 모두 없습니다.",
  "map.attn.title": "살펴볼 것",
  "map.cite_failed": {
   "other": "이 실행을 인용한 인사이트 {n}개"
@@ -403,6 +400,9 @@
  },
  "map.more.ambiguous": "생산자 후보가 여럿인 파일 포함",
  "map.more.cycle": "순환 포함",
+ "map.no_script": {
+  "other": "스크립트 없는 실행 {n}개"
+ },
  "map.possible_producers": "(생산자 후보 여럿 중 하나)",
  "map.reads": "읽음",
  "map.run": "실행",
@@ -437,9 +437,6 @@
   "other": "실행 {n}개가 만듦"
  },
  "mapsum.open": "지도 전체 보기",
- "mapsum.scripts": {
-  "other": "스크립트 {n}개"
- },
  "nav.sections": "Workspace 구역",
  "notice.damaged_files": "손상: 읽지 못한 기록 파일 {n}개",
  "notice.damaged_lines": "손상: 해석하지 못한 journal 줄 {n}개",
@@ -533,6 +530,7 @@
  "overview.recent_charts": "최근 시각화",
  "overview.recent_events": "최근 활동",
  "overview.record": "기록 {n}",
+ "overview.section": "섹션 {n}",
  "overview.shown_current": "현재 {total}개 중 {shown}개",
  "overview.shown_open": "열린 {total}개 중 {shown}개",
  "overview.shown_total": "{total}개 중 {shown}개",

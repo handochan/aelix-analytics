@@ -110,6 +110,9 @@ footer { max-width: 1280px; margin: 0 auto; padding: 1.125rem 1.5rem 2.5rem; col
 .kicker { margin: 0 0 0.375rem; color: var(--muted); font-size: 0.78rem; }
 .goal-label { margin: 0.875rem 0 0; color: var(--ink-2); font-size: 0.78rem; font-weight: 600; }
 .hero .goal { margin-top: 0.125rem; }
+.hero .goal.markdown > :first-child { margin-top: 0; }
+.hero .goal.markdown :is(p, ul, ol) { margin: 0.25rem 0; }
+.hero .goal.markdown :is(ul, ol) { padding-left: 1.25rem; }
 .facts { margin: 0.375rem 0 0; color: var(--ink-2); max-width: 56rem; }
 .direction .panel-head h2 { margin: 0; }
 .direction .pinned h3 { margin: 0.75rem 0 0.25rem; font-size: 0.875rem; }
@@ -118,7 +121,7 @@ footer { max-width: 1280px; margin: 0 auto; padding: 1.125rem 1.5rem 2.5rem; col
 .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem 1rem; flex-wrap: wrap; margin-bottom: 0.375rem; }
 .panel-head h2 { margin: 0; }
 .panel-link { margin: 0.5rem 0 0; }
-.panel-link a, .cell-link a, .head-link { display: inline-flex; align-items: center; min-height: 2.75rem; }
+.panel-link a, .cell-link a, .head-link, .panel-head > a { display: inline-flex; align-items: center; min-height: 2.75rem; }
 .section-head { display: flex; align-items: baseline; gap: 0.25rem 1rem; flex-wrap: wrap; margin: 1.75rem 0 0.75rem; }
 .section-head .muted { margin: 0; }
 .section-head .head-link { margin-left: auto; }
@@ -189,6 +192,9 @@ details.fold .gallery { grid-template-columns: repeat(auto-fill, minmax(min(100%
 .node-kind { color: var(--link-text); font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
 .map-node h4 { font-size: 0.8125rem; margin: 0.125rem 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .map-node h4 a { color: var(--ink); }
+/* A box is one target: its script's link covers it (the box shows no other link; its words for the list are hidden). */
+.map-node { position: relative; }
+.map-node h4 a::after { content: ""; position: absolute; inset: 0; }
 .node-state, .node-flags { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem; font-size: 0.75rem; color: var(--ink-2); }
 .node-flags { margin-top: 0.125rem; }
 .node-facts { list-style: none; padding: 0; font-size: 0.75rem; color: var(--ink-2); }
@@ -201,6 +207,13 @@ details.fold .gallery { grid-template-columns: repeat(auto-fill, minmax(min(100%
 /* What a box writes and who reads it: the arrows say it in the diagram, these words in the list. */
 .map-out { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .map-out ul { list-style: none; padding: 0; margin: 0; }
+/* On the diagram, a key that reaches a box's words shows them over the box. */
+@media (min-width: 40.0625em) {
+  .map-flows:not(:has(> details.as-list[open])) .map-out:focus-within { position: absolute; left: 0.75rem; right: 0.75rem; bottom: 0.5rem;
+    width: auto; height: auto; clip-path: none; white-space: normal; z-index: 2; padding: 0.375rem 0.5rem; background: var(--card);
+    border: 1px solid var(--border); border-radius: 6px; }
+}
+.map-out a { position: relative; z-index: 1; }
 .map-chip { position: absolute; transform: translate(-50%, -50%); max-width: calc(var(--gap-x) - 0.25rem); padding: 0 0.375rem; border: 1px solid color-mix(in srgb, var(--k-import) 60%, transparent);
   border-radius: 6px; background: color-mix(in srgb, var(--k-import) 10%, var(--card)); color: var(--ink); font: 0.65rem/1.5 var(--mono);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; z-index: 1; }
@@ -210,6 +223,7 @@ details.flow-more > summary .muted { font-size: 0.8125rem; }
 .flow-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.625rem; }
 .flow-row .row-head { margin: 0 0 0.25rem; color: var(--ink-2); font-size: 0.8125rem; font-weight: 600; }
 .flow-row li { padding: 0.25rem 0 0.25rem 0.75rem; border-left: 3px solid var(--k-run); overflow-wrap: anywhere; }
+.flow-row li > a:first-child { display: inline-flex; align-items: center; min-height: 2.75rem; }
 .flow-row li:target { background: var(--accent-wash); }
 .attention { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.625rem; }
 .attention li { display: grid; grid-template-columns: 1.25rem minmax(0, 1fr); gap: 0.375rem; }
@@ -223,6 +237,18 @@ details.flow-more > summary .muted { font-size: 0.8125rem; }
 .legend-sample.legend-chip { border: 1px solid color-mix(in srgb, var(--k-import) 60%, transparent); border-radius: 4px; background: color-mix(in srgb, var(--k-import) 10%, var(--card)); }
 .legend-sample.legend-dots { background: radial-gradient(circle at 30% 50%, var(--k-viz) 0 0.25rem, transparent 0.26rem), radial-gradient(circle at 70% 50%, var(--k-finding) 0 0.25rem, transparent 0.26rem); }
 .legend-sample.legend-marks { background: radial-gradient(circle at 30% 50%, var(--critical) 0 0.3rem, transparent 0.31rem), radial-gradient(circle at 70% 50%, var(--warning) 0 0.3rem, transparent 0.31rem); }
+details.as-list { margin-bottom: 0.5rem; }
+/* The map as its list at any width and without a script (the same rules as a narrow screen's). */
+.map-flows:has(> details.as-list[open]) .flow-canvas { width: auto !important; height: auto !important; }
+.map-flows:has(> details.as-list[open]) :is(.flow-edges, .map-chip) { display: none; }
+.map-flows:has(> details.as-list[open]) .flow-nodes { display: block; }
+.map-flows:has(> details.as-list[open]) .map-node { height: auto; margin-bottom: 0.5rem; clip-path: none; border-left: 4px solid var(--k-run);
+  border-radius: 6px; padding: 0.5rem 0.75rem; }
+.map-flows:has(> details.as-list[open]) :is(.map-node h4, .node-facts > li) { white-space: normal; }
+.map-flows:has(> details.as-list[open]) .map-out { position: static; width: auto; height: auto; overflow: visible; clip-path: none;
+  white-space: normal; background: none; border: 0; padding: 0; }
+.map-flows:has(> details.as-list[open]) .map-node h4 a { display: inline-flex; align-items: center; min-height: 2.75rem; }
+.map-flows:has(> details.as-list[open]) .map-node h4 a::after { content: none; }
 @media (max-width: 56.25em) {
   .overview-head, .map-layout { grid-template-columns: minmax(0, 1fr); }
   .status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -498,5 +524,8 @@ section[tabindex="-1"]:focus { outline: none; }
   .map-node { height: auto; margin-bottom: 0.5rem; clip-path: none; border-left: 4px solid var(--k-run); border-radius: 6px; padding: 0.5rem 0.75rem; }
   .map-node h4, .node-facts > li { white-space: normal; }
   .map-out { position: static; width: auto; height: auto; overflow: visible; clip-path: none; white-space: normal; }
+  /* As a list, a box's name is a link of its own: the words below it hold links too. */
+  .map-node h4 a { display: inline-flex; align-items: center; min-height: 2.75rem; }
+  .map-node h4 a::after { content: none; }
 }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { animation: none !important; transition: none !important; } }

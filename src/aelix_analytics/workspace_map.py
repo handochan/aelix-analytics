@@ -20,6 +20,7 @@ from __future__ import annotations
 import hashlib
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import PurePosixPath
 
 from . import relations
@@ -38,7 +39,7 @@ UNFINISHED = frozenset({"running"})
 MAIN_FLOWS = 3
 # The geometry of a flow, in rem, so a reader's text size scales boxes, gaps and arrows together.
 # The stylesheet takes them from the canvas (--node-w, …), so the arrows meet the boxes at any text size.
-NODE_W, NODE_H, GAP_X, GAP_Y = 13.0, 10.0, 7.0, 1.25
+NODE_W, NODE_H, GAP_X, GAP_Y = 13.0, 11.5, 7.0, 1.25
 # How far above its arrow a file's chip sits, so the arrow and its head stay in sight.
 CHIP_LIFT = 0.8
 SHOWN_NAMES = 4
@@ -60,6 +61,19 @@ def evidence_class(judgments) -> str:
 
 def failed(run: dict) -> bool:
     return run.get("status") not in ("ok", *UNFINISHED)
+
+
+def started(run: dict) -> tuple:
+    """A run's place in time: its start as an instant (offsets applied), then its id. A start that
+    cannot be read, or one without an offset, comes after the ones that can, by its text."""
+    text = run.get("started_at")
+    try:
+        at = datetime.fromisoformat(text) if isinstance(text, str) else None
+    except ValueError:
+        at = None
+    if at is not None and at.tzinfo is not None:
+        return (0, at.timestamp(), "", run["id"])
+    return (1, 0.0, str(text or ""), run["id"])
 
 
 class AnalysisStatus:
@@ -123,8 +137,7 @@ class AnalysisStatus:
         bar = "".join(f'<span class="seg tone-{EVIDENCE_TONE[k]}" style="flex-grow:{self.evidence[k]}"></span>'
                       for k in EVIDENCE if self.evidence.get(k))
         legend = " · ".join(t(f"analysis.evidence.{k}", n=self.evidence[k]) for k in EVIDENCE if self.evidence.get(k))
-        rest = total - confirmed
-        link = self.more("#insights", t("analysis.evidence.link", n=rest)) if rest else ""
+        link = self.more("#insights", t("analysis.evidence.link")) if total - confirmed else ""
         return self.cell("evidence", "🔗", t("analysis.evidence.title"),
                          t("analysis.evidence.head", n=confirmed, total=total),
                          f'<div class="evidence-bar" aria-hidden="true">{bar}</div><p class="cell-note">{legend}</p>', link)
@@ -140,7 +153,7 @@ class AnalysisStatus:
         last = self.runs[-1]
         note = (f'<p class="cell-note">{t("analysis.runs.last")} {s.fmt_time(last.get("started_at"))} — '
                 f'<a href="runs/{s.href(last["id"])}.html"{s.user_language}>{s.esc(last.get("title") or last["id"])}</a></p>')
-        link = self.more("#runs", t("analysis.runs.link", n=len(self.not_ok))) if self.not_ok else ""
+        link = self.more("#runs", t("analysis.runs.link")) if self.not_ok else ""
         return self.cell("runs", "▷", t("analysis.runs.title"),
                          f'{t("analysis.runs.head", n=ok)} {others}', note, link)
 
@@ -156,7 +169,7 @@ class AnalysisStatus:
         total = len(self.changed) + len(self.upstream)
         return self.cell("inputs", "⚠", t("analysis.inputs.title"),
                          t("analysis.inputs.head", n=total), note,
-                         self.more("#charts", t("analysis.inputs.link", n=total)))
+                         self.more("#charts", t("analysis.inputs.link")))
 
     def open_cell(self) -> str:
         s = self.site
@@ -346,7 +359,7 @@ class AnalysisMap:
     def __init__(self, site):
         self.site = site
         model = site.model
-        runs = sorted(site.runs, key=lambda r: (str(r.get("started_at") or ""), r["id"]))
+        runs = sorted(site.runs, key=started)
         self.nodes: dict[str, Node] = {}
         node_of: dict[str, str] = {}
         for run in runs:
@@ -371,6 +384,7 @@ class AnalysisMap:
         charts_by_run = Counter(c["run"] for c in site.charts if not c.get("retired"))
         edges: dict[tuple, Edge] = {}
         self.ambiguous: dict[str, list] = {}
+        reads_from: dict[str, set] = defaultdict(set)
         for run in runs:
             key = node_of[run["id"]]
             node = self.nodes[key]
@@ -382,8 +396,12 @@ class AnalysisMap:
                 if path in imported and imported[path] not in node.reads:
                     node.reads.append(imported[path])
                 candidates, _ = model.producer_candidates(path, entry.get("sha256"), consumer=run["id"])
+                reads_from[run["id"]].update(candidates)
                 if len(candidates) > 1:
                     self.ambiguous.setdefault(path, candidates)
+                # Between scripts, a file is uncertain only when runs of more than one script wrote
+                # those bytes (a rerun that wrote them again is the same script's).
+                several = len({node_of.get(c) for c in candidates}) > 1
                 for candidate in candidates:
                     source = node_of.get(candidate)
                     if source is None or source == key:
@@ -391,15 +409,27 @@ class AnalysisMap:
                     edge = edges.setdefault((source, key), Edge(source, key))
                     if path not in edge.files:
                         edge.files.append(path)
-                    edge.ambiguous |= len(candidates) > 1
-            if model.upstream(run["id"])["cycle"]:
-                node.cycle = True
+                    edge.ambiguous |= several
+        # A run is on a cycle when a run it read from reaches it again by producer candidates: a member
+        # of the cycle the read model's upstream walk reports (ReadModel.upstream), not a run whose walk
+        # only meets one further up.
+        for run in runs:
+            if any(run["id"] in model.upstream(p)["upstream"] for p in reads_from[run["id"]]):
+                self.nodes[node_of[run["id"]]].cycle = True
+        # A box's input marks judge the runs its visualizations come from (the gallery's, as the
+        # Overview's Input changes cell counts them) and its latest successful run.
+        shown = defaultdict(set)
+        for chart in site.charts:
+            if not chart.get("retired") and chart["run"] in node_of:
+                shown[node_of[chart["run"]]].add(chart["run"])
         for node in self.nodes.values():
+            judged = set(shown[node.key])
             done = [r for r in node.runs if r.get("status") == "ok"]
             if done:
-                fresh = site.fresh.of(done[-1]["id"])
-                node.changed = bool(fresh["changed_inputs"])
-                node.upstream = not node.changed and bool(fresh["stale_upstream"])
+                judged.add(done[-1]["id"])
+            fresh = [site.fresh.of(r) for r in sorted(judged)]
+            node.changed = any(f["changed_inputs"] for f in fresh)
+            node.upstream = not node.changed and any(f["stale_upstream"] for f in fresh)
         self.edges = sorted(edges.values(), key=lambda e: (e.source, e.target))
         for edge in self.edges:
             edge.files.sort()
@@ -444,7 +474,7 @@ class AnalysisMap:
         boxes = [
             self.box("data", t("map.kind.imported"), len(imported), names_html),
             self.box("run", t("map.kind.runs"), len(s.runs),
-                     f'<p class="box-sub">{t("mapsum.scripts", n=len(self.nodes))} · {t("mapsum.flows", n=len(self.main) + len(self.rest))}</p>'
+                     f'<p class="box-sub">{self.scripts_words(self.nodes)} · {t("mapsum.flows", n=len(self.main) + len(self.rest))}</p>'
                      + (f'<p>{s.badge("critical", "⊗", t("mapsum.failed", n=len(status.not_ok)))}</p>' if status.not_ok else "")),
             self.box("viz", t("map.kind.viz"), len(status.charts),
                      f'<p class="box-sub">{t("mapsum.made_by", n=made_by)} · {t("mapsum.derived", n=len(derived))}</p>'
@@ -458,6 +488,13 @@ class AnalysisMap:
                 f'<h2 id="mapsum-title">{t("tab.map")}</h2><p class="muted">{t("mapsum.lead")}</p>'
                 f'<a class="head-link" href="#map">{t("mapsum.open")} <span aria-hidden="true">→</span></a></div>'
                 f'<ol class="map-boxes">{"".join(boxes)}</ol></div>')
+
+    def scripts_words(self, keys) -> str:
+        """How many scripts, and how many runs without a script (a box of their own each)."""
+        scripts = sum(1 for k in keys if self.nodes[k].script)
+        alone = sum(1 for k in keys if not self.nodes[k].script)
+        return " · ".join(([t("map.scripts", n=scripts)] if scripts or not alone else [])
+                          + ([t("map.no_script", n=alone)] if alone else []))
 
     def box(self, kind: str, title: str, n: int, body: str) -> str:
         return (f'<li class="map-box kind-{kind}"><p class="box-kind"><span class="kind-mark" aria-hidden="true"></span>{title}</p>'
@@ -482,38 +519,30 @@ class AnalysisMap:
                 if any(e.ambiguous for e in self.edges if e.target in keys):
                     marks.append(t("map.more.ambiguous"))
                 flows += (f'<details class="flow-more"><summary><strong>{t("map.more", n=len(self.rest))}</strong> · '
-                          f'{t("map.scripts", n=len(keys))} · {t("map.runs", n=runs)} · {t("map.viz", n=charts)} · '
+                          f'{self.scripts_words(keys)} · {t("map.runs", n=runs)} · {t("map.viz", n=charts)} · '
                           f'{t("map.insights", n=len(cited))} ({t("map.confirmed", n=len(exact))})'
                           + (f'<br><span class="muted">{" · ".join(marks)}</span>' if marks else "") + '</summary>'
                           + '<ol class="flow-rows">' + "".join(self.rows_html(f, n) for n, f in enumerate(self.rest, len(self.main) + 1))
                           + '</ol></details>')
-            body = (f'<div class="map-layout"><div class="map-flows">{flows}</div>'
+            as_list = f'<details class="as-list"><summary>{t("map.as_list")}</summary></details>'
+            body = (f'<div class="map-layout"><div class="map-flows">{as_list}{flows}</div>'
                     f'<aside class="map-side">{self.attention_html()}{self.legend_html()}</aside></div>')
         return (f'<section id="map" class="tab"><div class="toolbar"><h2>{t("tab.map")}</h2></div>'
                 f'<p class="muted">{t("map.lead")}</p>{body}</section>')
 
     def flow_html(self, flow: Flow, number: int) -> str:
         s = self.site
-        head = (f'<h3 id="flow-{number}">{t("map.flow", n=number)} · {t("map.scripts", n=len(flow.keys))} · '
+        head = (f'<h3 id="flow-{number}">{t("map.flow", n=number)} · {self.scripts_words(flow.keys)} · '
                 f'{t("map.runs", n=flow.runs)}</h3>')
         width = flow.columns * NODE_W + (flow.columns - 1) * GAP_X
         height = flow.rows * NODE_H + (flow.rows - 1) * GAP_Y
         inner = [e for e in self.edges if e.source in flow.keys]
         paths, chips = [], []
+        pairs = {(e.source, e.target) for e in inner}
         for edge in inner:
-            (c1, r1), (c2, r2) = flow.place[edge.source], flow.place[edge.target]
-            y1, y2 = r1 * (NODE_H + GAP_Y) + NODE_H / 2, r2 * (NODE_H + GAP_Y) + NODE_H / 2
-            if c1 == c2:
-                # Scripts of one stage that read each other's files: an arc beside their column.
-                x = c1 * (NODE_W + GAP_X) + NODE_W
-                bend = x + GAP_X * 0.55
-                d = f"M{x:g} {y1:g}C{bend:g} {y1:g} {bend:g} {y2:g} {x + 0.2:g} {y2:g}"
-                cx, cy = x + GAP_X * 0.41, (y1 + y2) / 2
-            else:
-                x1, x2 = c1 * (NODE_W + GAP_X) + NODE_W, c2 * (NODE_W + GAP_X)
-                mid = (x1 + x2) / 2
-                d = f"M{x1:g} {y1:g}C{mid:g} {y1:g} {mid:g} {y2:g} {x2 - 0.2:g} {y2:g}"
-                cx, cy = mid, (y1 + y2) / 2 - CHIP_LIFT
+            d, cx, cy, low = edge_geometry(flow.place[edge.source], flow.place[edge.target],
+                                           outer=(edge.target, edge.source) in pairs and edge.source > edge.target)
+            height = max(height, low)
             dash = ' class="maybe"' if edge.ambiguous else ""
             paths.append(f'<path d="{d}"{dash}/>')
             label = PurePosixPath(edge.files[0]).stem + (f" +{len(edge.files) - 1}" if len(edge.files) > 1 else "")
@@ -551,7 +580,7 @@ class AnalysisMap:
             items.append(f'<li id="{self.anchor(node)}"><a href="runs/{s.href(latest["id"])}.html"{title}{s.user_language}>'
                          f'{s.esc(node.name)}</a> · {" · ".join(facts)}'
                          + (f' · {t("map.writes")} {"; ".join(outs)}' if outs else "") + '</li>')
-        return (f'<li class="flow-row"><p class="row-head">{t("map.flow", n=number)} · {t("map.scripts", n=len(flow.keys))} · '
+        return (f'<li class="flow-row"><p class="row-head">{t("map.flow", n=number)} · {self.scripts_words(flow.keys)} · '
                 f'{t("map.runs", n=flow.runs)}</p><ul class="plain">{"".join(items)}</ul></li>')
 
     def node_html(self, node: Node, flow: Flow, inner: list) -> str:
@@ -568,10 +597,10 @@ class AnalysisMap:
             flags.append(s.badge("warning", "⚠", t("map.upstream_changed")))
         if node.cycle:
             flags.append(s.badge("warning", "↻", t("map.cycle")))
-        cited = len(node.cited)
-        insights = (f'<li class="fact-insight{" alert" if failed(latest) and cited else ""}">'
-                    + (t("map.cite_failed", n=cited) if failed(latest) and cited
-                       else f'{t("map.insights", n=cited)} · {t("map.confirmed", n=len(node.confirmed))}') + '</li>')
+        on_latest = len(self.citing.get(latest["id"], ())) if failed(latest) else 0
+        insights = (f'<li class="fact-insight{" alert" if on_latest else ""}">'
+                    + (t("map.cite_failed", n=on_latest) if on_latest
+                       else f'{t("map.insights", n=len(node.cited))} · {t("map.confirmed", n=len(node.confirmed))}') + '</li>')
         reads = (f'<li class="fact-data">{t("map.reads")} <span{s.user_language}>{s.esc(", ".join(node.reads[:3]))}</span>'
                  + (f' {t("list.and_more", n=len(node.reads) - 3)}' if len(node.reads) > 3 else "") + '</li>') if node.reads else ""
         outs = []
@@ -654,6 +683,31 @@ class AnalysisMap:
         items = "".join(f'<li><span class="legend-sample {k}" aria-hidden="true"></span>{words}</li>' for k, words in rows)
         return (f'<div class="panel legend"><h3>{t("map.legend.title")}</h3><ul class="plain">{items}</ul>'
                 f'<p class="muted">{t("map.legend.note")}</p></div>')
+
+
+def edge_geometry(source: tuple, target: tuple, *, outer: bool = False) -> tuple[str, float, float, float]:
+    """An arrow between two boxes, in rem: (SVG path, chip x, chip y, lowest y it reaches). Columns
+    next to each other get a curve with the file's chip above it. An arrow that skips columns runs
+    through the gap under its source's row, so it never passes behind a box, and its chip sits where
+    it leaves. Boxes of one stage (scripts that read each other's files) get an arc beside their
+    column; `outer` is the second of two opposite arcs, drawn wider with its chip lower."""
+    (c1, r1), (c2, r2) = source, target
+    y1, y2 = r1 * (NODE_H + GAP_Y) + NODE_H / 2, r2 * (NODE_H + GAP_Y) + NODE_H / 2
+    if c1 == c2:
+        x = c1 * (NODE_W + GAP_X) + NODE_W
+        bend = x + GAP_X * (0.85 if outer else 0.55)
+        d = f"M{x:g} {y1:g}C{bend:g} {y1:g} {bend:g} {y2:g} {x + 0.2:g} {y2:g}"
+        return d, x + GAP_X * (0.62 if outer else 0.41), (y1 + y2) / 2 + (0.75 if outer else -0.75), max(y1, y2)
+    x1, x2 = c1 * (NODE_W + GAP_X) + NODE_W, c2 * (NODE_W + GAP_X)
+    if c2 == c1 + 1:
+        mid = (x1 + x2) / 2
+        d = f"M{x1:g} {y1:g}C{mid:g} {y1:g} {mid:g} {y2:g} {x2 - 0.2:g} {y2:g}"
+        return d, mid, (y1 + y2) / 2 - CHIP_LIFT, max(y1, y2)
+    gap = r1 * (NODE_H + GAP_Y) + NODE_H + GAP_Y / 2
+    xa, xb, xc, xd = x1 + GAP_X * 0.35, x1 + GAP_X * 0.6, x2 - GAP_X * 0.6, x2 - GAP_X * 0.35
+    d = (f"M{x1:g} {y1:g}C{xa:g} {y1:g} {xa:g} {gap:g} {xb:g} {gap:g}L{xc:g} {gap:g}"
+         f"C{xd:g} {gap:g} {xd:g} {y2:g} {x2 - 0.2:g} {y2:g}")
+    return d, x1 + GAP_X * 0.5, (y1 + gap) / 2 + CHIP_LIFT, gap + GAP_Y / 2
 
 
 def hash_text(text: str) -> int:

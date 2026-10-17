@@ -837,15 +837,6 @@ class Site:
 """
 
 
-def dataset_counts(site) -> str:
-    """The Datasets tile's note: the datasets of each kind — the layout's imports (imported, or raw
-    in a lab.json project) and the other kind of imports when there are any, then derived."""
-    own = "raw" if site.p.layout.imported_dir == "data/raw" else "imported"
-    kinds = [k for k in ("imported", "raw") if k == own or any(d["kind"] == k for d in site.datasets)]
-    return " · ".join(f"{words('data.kind', k)} {sum(d['kind'] == k for d in site.datasets)}"
-                      for k in (*kinds, "derived"))
-
-
 def imported_note(site) -> str:
     """Where the imported data is (kept unchanged): data/imported, and data/raw a lab.json project's."""
     if site.p.layout.imported_dir == "data/raw":
@@ -1277,11 +1268,19 @@ def overview_section(site: Site, context_text: str) -> str:
     pinned sections as written, and the analysis focus), the analysis status, each state apart, the
     map's summary, the current findings and the open items six each, and the rest folded."""
     p, status = site.p, site.status
+    _, sections = core.context_sections(core.context_file_text(p)) if context_text else ("", [])
+    goal_section = next((sec for sec in sections if core.GOAL_RE.match(section_heading(sec))), None)
     goal = core.context_goal(context_text)
     key_all = [e for e in site.events if e.get("kind") in core.KEY_KINDS]
     kicker = (f'<p class="kicker">{t("overview.kicker")} · {t("overview.as_of")} {fmt_time(site.built_at)} · '
               f'{t("overview.record", n=site.model.as_of_seq or 0)}</p>')
-    goal_html = (f'<p class="goal-label">{t("overview.goal")}</p><p class="goal"{USER}>{esc(goal)}</p>' if goal else "")
+    if goal_section is not None:
+        body, cut = section_body(goal_section)
+        goal_html = (f'<p class="goal-label">{t("overview.goal")}</p><div class="goal markdown"{USER}>{render_markdown(body)}</div>'
+                     + (f'<p class="panel-link"><a href="#context">{t("overview.read_rest")}</a></p>' if cut else ""))
+    else:
+        # A first line of CONTEXT.md found without a goal heading: shown, not called the goal.
+        goal_html = f'<p class="goal"{USER}>{esc(goal)}</p>' if goal else ""
     hero = (f'<div class="hero">{kicker}<h1{USER}>{esc(p.title())}</h1>{goal_html}{overview_facts(site, key_all)}'
             f'<div class="where">{t("overview.project")} <code{USER}>{esc(p.root)}</code></div></div>')
     key_items, open_items = site.lists.key, site.lists.open
@@ -1304,7 +1303,7 @@ def overview_section(site: Site, context_text: str) -> str:
     lists = ('<div class="columns">'
              + panel("overview-key", "overview.key", "overview.shown_current", key_items, "key-", "overview.key_empty",
                      "#insights", t("overview.all_insights", n=len(key_all)), len(key_all))
-             + panel("overview-open", "overview.open", "overview.shown_open", open_items, "open-", "overview.open_empty",
+             + panel("overview-open", "overview.open", "overview.shown_open", open_items, "key-", "overview.open_empty",
                      "lists/open-0.html", t("overview.all_open", n=len(open_items)), len(open_items))
              + "</div>")
     current = status.charts
@@ -1318,7 +1317,7 @@ def overview_section(site: Site, context_text: str) -> str:
               if recent else "")
     activity = (f'<details class="fold"><summary><h2>{t("overview.recent_events")}</h2> <span class="muted">'
                 f'{t("overview.entries", n=len(recent))}{latest}</span></summary>{site.events_html(recent, 0, prefix="recent-")}</details>')
-    return (f'<section id="overview" class="tab"><div class="overview-head">{hero}{direction_panel(site, context_text, goal)}</div>'
+    return (f'<section id="overview" class="tab"><div class="overview-head">{hero}{direction_panel(site, sections, goal_section)}</div>'
             f'{records_notice(site)}{status.html()}{site.map.summary_html(status)}{lists}{charts}{activity}'
             f'{coverage_fold(site)}</section>')
 
@@ -1344,21 +1343,31 @@ def overview_facts(site: Site, key_all: list[dict]) -> str:
     return f'<p class="facts">{work}{period}</p><p class="facts">{insights}</p>'
 
 
-def direction_panel(site: Site, context_text: str, goal: str) -> str:
+def section_heading(section: dict) -> str:
+    """A CONTEXT.md section's heading as written, its pin mark aside (not the prompt's shortened
+    name)."""
+    return core.PIN_RE.sub("", section["text"].split("\n", 1)[0][3:]).strip()
+
+
+def section_body(section: dict) -> tuple[str, bool]:
+    """A section's words under its heading, up to PINNED_CHARS (cut at a line), and whether it was cut."""
+    body = section["text"].split("\n", 1)[1] if "\n" in section["text"] else ""
+    if len(body) <= PINNED_CHARS:
+        return body, False
+    return body[:PINNED_CHARS].rsplit("\n", 1)[0], True
+
+
+def direction_panel(site: Site, sections: list[dict], goal_section: dict | None) -> str:
     """Where the analysis is going now (design 7.1): CONTEXT.md's pinned sections with their headings
-    and words as written (the one the goal came from is in the hero already), and the analysis focus
-    and metrics the journal holds (#14)."""
-    _, sections = core.context_sections(core.context_file_text(site.p)) if context_text else ("", [])
-    pinned = [s for s in sections if s["pinned"] and not (goal and core.GOAL_RE.match(s["name"]))]
+    and words as written (the goal's own section is the hero's), and the analysis focus and metrics
+    the journal holds (#14)."""
+    pinned = [s for s in sections if s["pinned"] and s is not goal_section]
     blocks = []
     for section in pinned:
-        body = section["text"].split("\n", 1)[1] if "\n" in section["text"] else ""
-        cut = len(body) > PINNED_CHARS
-        if cut:
-            body = body[:PINNED_CHARS].rsplit("\n", 1)[0]
-        heading = section["text"].split("\n", 1)[0][3:]
-        named = bool(core.PIN_RE.sub("", heading).strip())
-        title = user_text(section["name"]) if named else esc(section["name"])
+        body, cut = section_body(section)
+        # A heading that is only a pin mark is the section's number in the kit's words.
+        heading = section_heading(section)
+        title = user_text(heading) if heading else t("overview.section", n=sections.index(section) + 1)
         blocks.append(f'<div class="pinned"><h3>{title}</h3><div class="markdown"{USER}>{render_markdown(body)}</div>'
                       + (f'<p class="panel-link"><a href="#context">{t("overview.read_rest")}</a></p>' if cut else "") + "</div>")
     if not blocks:

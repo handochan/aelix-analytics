@@ -14,10 +14,7 @@
   "one": "{n} of {total} current insights has a confirmed link",
   "other": "{n} of {total} current insights have a confirmed link"
  },
- "analysis.evidence.link": {
-  "one": "Review the insight without a confirmed link",
-  "other": "Review the {n} without a confirmed link"
- },
+ "analysis.evidence.link": "See the insights and their evidence",
  "analysis.evidence.none": {
   "one": "{n} cites nothing",
   "other": "{n} cite nothing"
@@ -34,10 +31,7 @@
   "one": "{n} visualization rests on changed inputs",
   "other": "{n} visualizations rest on changed inputs"
  },
- "analysis.inputs.link": {
-  "one": "Review it",
-  "other": "Review the {n}"
- },
+ "analysis.inputs.link": "See the visualizations",
  "analysis.inputs.none": "No input changes",
  "analysis.inputs.none_note": {
   "one": "The run behind the {n} visualization reads its inputs as they are now.",
@@ -82,10 +76,7 @@
  "analysis.runs.empty": "Runs appear here once a script runs with analytics_run (or analytics run).",
  "analysis.runs.head": "{n} succeeded",
  "analysis.runs.last": "Last run",
- "analysis.runs.link": {
-  "one": "See the run that did not succeed",
-  "other": "See the {n} runs that did not succeed"
- },
+ "analysis.runs.link": "See the runs",
  "analysis.runs.title": "Runs",
  "analysis.title": "Analysis status",
  "assets.assessment": "Recorded assessment",
@@ -104,6 +95,7 @@
  "assets.versions": "{n} version(s)",
  "back.list.feedback": "Back to Workflow feedback",
  "back.list.kind": "Back to the list",
+ "back.list.open": "Back to the open items",
  "back.page.context": "Back to Context history",
  "back.page.data": "Back to the dataset",
  "back.page.relations": "Back to the relations",
@@ -114,6 +106,7 @@
  "back.tab.data": "Back to Data",
  "back.tab.evaluation": "Back to Evaluation",
  "back.tab.insights": "Back to Insights",
+ "back.tab.map": "Back to Analysis map",
  "back.tab.overview": "Back to Overview",
  "back.tab.runs": "Back to Runs",
  "back.tab.timeline": "Back to Timeline",
@@ -366,6 +359,7 @@
  "list.title.open": "Open questions · next steps",
  "list.title.runs": "Runs",
  "list.title.timeline": "Timeline",
+ "map.as_list": "Read the map as a list",
  "map.attn.ambiguous": {
   "one": "{n} file with several possible producers",
   "other": "{n} files with several possible producers"
@@ -391,7 +385,7 @@
   "one": "{n} run did not succeed",
   "other": "{n} runs did not succeed"
  },
- "map.attn.none": "Nothing needs attention: every run succeeded, no input changed and every file read has one producer.",
+ "map.attn.none": "Nothing needs attention: no run ended without succeeding, no script's latest successful run rests on changed inputs, no file has several possible producers and no runs read each other's output.",
  "map.attn.title": "Needs attention",
  "map.cite_failed": {
   "one": "{n} insight cites this run",
@@ -424,6 +418,10 @@
  },
  "map.more.ambiguous": "Includes a file with several possible producers",
  "map.more.cycle": "Includes a cycle",
+ "map.no_script": {
+  "one": "{n} run without a script",
+  "other": "{n} runs without a script"
+ },
  "map.possible_producers": "(one of several possible producers)",
  "map.reads": "Reads",
  "map.run": "Run",
@@ -466,10 +464,6 @@
   "other": "made by {n} runs"
  },
  "mapsum.open": "Open the full map",
- "mapsum.scripts": {
-  "one": "in {n} script",
-  "other": "in {n} scripts"
- },
  "nav.sections": "Workspace sections",
  "notice.damaged_files": "Damaged: {n} record file(s) not read",
  "notice.damaged_lines": "Damaged: {n} journal line(s) do not parse",
@@ -576,6 +570,7 @@
  "overview.recent_charts": "Recent visualizations",
  "overview.recent_events": "Recent activity",
  "overview.record": "record {n}",
+ "overview.section": "Section {n}",
  "overview.shown_current": "{shown} of {total} current",
  "overview.shown_open": "{shown} of {total} open",
  "overview.shown_total": "{shown} of {total}",

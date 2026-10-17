@@ -3,6 +3,7 @@ file a run of another wrote with the same path and bytes, the main flows open an
 and the same content as words without a script (design WORKSPACE-READABILITY 7.2)."""
 from __future__ import annotations
 
+import json
 import re
 
 from legacy_records import LegacyProject, at, sha
@@ -43,8 +44,10 @@ def test_a_flow_is_scripts_joined_by_the_files_their_runs_wrote_and_read(tmp_pat
     # c's only run failed and an insight cites it; b builds on a's first run, whose input changed.
     assert amap.nodes["scripts/c.py"].cited == {ids["correction"]}
     assert amap.nodes["scripts/b.py"].upstream and not amap.nodes["scripts/b.py"].changed
-    # a's latest successful run (the rerun) reads its input as it is now.
-    assert not amap.nodes["scripts/a.py"].changed and len(amap.nodes["scripts/a.py"].runs) == 2
+    # a's latest successful run (the rerun) reads its input as it is now, but its visualization comes
+    # from its first run, whose input changed: the box says so, as the Overview's cell counts it
+    # (independent review of #98, I10).
+    assert amap.nodes["scripts/a.py"].changed and len(amap.nodes["scripts/a.py"].runs) == 2
     workspace.build(p)
     tab = map_tab(p)
     boxes = nodes(tab)
@@ -151,3 +154,100 @@ def test_the_map_reads_as_its_words_and_hides_only_decoration(tmp_path):
     assert '<a class="head-link" href="#map">' in index
     summary = index.split('<ol class="map-boxes">', 1)[1].split("</ol>", 1)[0]
     assert re.findall(r'<li class="map-box kind-(\w+)">', summary) == ["data", "run", "viz", "insight"]
+
+
+def test_a_box_counts_the_insights_of_its_latest_run_by_when_runs_started(tmp_path):
+    """Codex review of #98: the latest run is the one that started last as an instant (offsets
+    applied), and a box whose latest run failed counts the insights citing that run, not the
+    script's other runs (R01, R02)."""
+    q = LegacyProject(tmp_path / "p", migrated=True)
+    # 09:00 at +09:00 is 00:00Z; 01:00 at +00:00 is an hour later, though its text sorts first.
+    early = q.run("20261001-090000-a", script="scripts/a.py", started_at="2026-10-01T09:00:00.000+09:00", ts=at(1))
+    late = q.run("20261001-010000-a", script="scripts/a.py", status="error", started_at="2026-10-01T01:00:00.000+00:00",
+                 ts=at(2))
+    p = core.Project(q.root)
+    core.record(p, "finding", "앞 실행이 근거", origin=ORIGIN, refs=[{"type": "run", "run_id": early, "relation": "cites"}])
+    amap = workspace.Site(p).map
+    node = amap.nodes["scripts/a.py"]
+    assert node.latest["id"] == late and len(node.cited) == 1
+    workspace.build(p)
+    box = nodes(map_tab(p))["a.py"]
+    assert "Latest did not succeed" in box and "1 insight · 1 confirmed" in box
+    assert "cites this run" not in box
+
+
+def test_runs_without_a_script_are_not_counted_as_scripts(tmp_path):
+    """Codex review of #98 (R03): a run whose record names no script is a box of its own, counted
+    as a run without a script."""
+    q = LegacyProject(tmp_path / "p", migrated=True)
+    run = q.run("20261001-090000-loose", started_at=at(0), ts=at(1))
+    record = json.loads((q.root / "runs" / run / "run.json").read_text(encoding="utf-8"))
+    record["script"] = {}
+    q.write_json(f"runs/{run}/run.json", record)
+    p = core.Project(q.root)
+    assert list(workspace.Site(p).map.nodes) == [f"run:{run}"]
+    workspace.build(p)
+    index = plain((p.workspace_dir / "index.html").read_text(encoding="utf-8"))
+    summary = index.split('<ol class="map-boxes">', 1)[1].split("</ol>", 1)[0]
+    assert "1 run without a script · 1 flow" in summary and "script" not in summary.split("1 run without a script")[0]
+    assert "Flow 1 · 1 run without a script · 1 run" in map_tab(p)
+
+
+def test_only_runs_on_a_cycle_are_marked_as_on_one(tmp_path):
+    """Codex review of #98 (R04): a run whose upstream walk only meets a cycle further up is not on
+    it; the read model's cycle is the members'."""
+    q = LegacyProject(tmp_path / "p", migrated=True)
+    x, y, z = (f"data/derived/{n}.parquet" for n in "xyz")
+    q.run("20261001-090000-a", script="scripts/a.py", started_at=at(0), ts=at(1), inputs=[(x, sha(b"x"))],
+          outputs=[(y, q.file(y, b"y"))])
+    q.run("20261001-090000-b", script="scripts/b.py", started_at=at(0), ts=at(2), inputs=[(y, sha(b"y"))],
+          outputs=[(x, q.file(x, b"x"))])
+    q.run("20261001-091000-c", script="scripts/c.py", started_at=at(10), ts=at(11), inputs=[(y, sha(b"y"))],
+          outputs=[(z, q.file(z, b"z"))])
+    p = core.Project(q.root)
+    site = workspace.Site(p)
+    assert site.model.upstream("20261001-091000-c")["cycle"]
+    assert {k for k, n in site.map.nodes.items() if n.cycle} == {"scripts/a.py", "scripts/b.py"}
+    workspace.build(p)
+    tab = map_tab(p)
+    assert "2 scripts on a cycle" in tab and "Cycle" not in nodes(tab)["c.py"]
+
+
+def test_nothing_to_look_at_says_only_what_was_checked(tmp_path):
+    """Codex review of #98 (R05): a raw input has no producer at all, and the panel does not say
+    every file has one."""
+    q = LegacyProject(tmp_path / "p", migrated=True)
+    raw = "data/raw/in.parquet"
+    q.run("20261001-090000-a", script="scripts/a.py", started_at=at(0), ts=at(1), inputs=[(raw, q.file(raw, b"in"))])
+    p = core.Project(q.root)
+    workspace.build(p)
+    attention = map_tab(p).split("Needs attention", 1)[1]
+    assert ("Nothing needs attention: no run ended without succeeding, no script's latest successful run rests on "
+            "changed inputs, no file has several possible producers and no runs read each other's output.") in attention
+
+
+def test_arrows_never_pass_behind_a_box():
+    """Independent review of #98 (I6): an arrow that skips a column runs through the gap under its
+    source's row, and two opposite arcs of one stage part, their chips apart."""
+    gap = workspace_map.NODE_H + workspace_map.GAP_Y / 2
+    d, cx, cy, low = workspace_map.edge_geometry((0, 0), (2, 0))
+    assert f" {gap:g}L" in d and low > workspace_map.NODE_H
+    assert cx < workspace_map.NODE_W + workspace_map.GAP_X  # its chip is in the first gap
+    near = workspace_map.edge_geometry((0, 0), (0, 1))
+    far = workspace_map.edge_geometry((0, 1), (0, 0), outer=True)
+    assert near[0] != far[0] and abs(near[2] - far[2]) >= 1.5
+
+
+def test_a_rerun_that_wrote_the_same_bytes_leaves_the_arrow_certain(tmp_path):
+    """Independent review of #98 (I9): between scripts, an arrow is uncertain only when runs of more
+    than one script wrote the bytes read."""
+    q = LegacyProject(tmp_path / "p", migrated=True)
+    t_ = "data/derived/t.parquet"
+    q.run("20261001-090000-a", script="scripts/a.py", started_at=at(0), ts=at(1), outputs=[(t_, q.file(t_, b"t"))])
+    q.run("20261001-091000-a", script="scripts/a.py", started_at=at(10), ts=at(11), outputs=[(t_, sha(b"t"))])
+    q.run("20261001-092000-b", script="scripts/b.py", started_at=at(20), ts=at(21), inputs=[(t_, sha(b"t"))])
+    p = core.Project(q.root)
+    amap = workspace.Site(p).map
+    assert [(e.source, e.target, e.ambiguous) for e in amap.edges] == [("scripts/a.py", "scripts/b.py", False)]
+    # The read model still has two producer candidates: the panel says so, as the data pages do.
+    assert amap.ambiguous == {t_: ["20261001-090000-a", "20261001-091000-a"]}

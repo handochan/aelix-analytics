@@ -140,15 +140,20 @@ def test_a_new_project_says_what_is_not_recorded_yet(tmp_path):
     # The new template pins Goal, Analysis focus and Next steps: the goal is the hero's, the others the panel's.
     direction = page.split('<aside class="direction panel">', 1)[1].split("</aside>", 1)[0]
     assert '<h3><span lang="">Analysis focus</span></h3>' in direction and '<h3><span lang="">Next steps</span></h3>' in direction
-    assert "Goal</span></h3>" not in direction and '<p class="goal" lang="">Find out</p>' in page
+    # The goal's own section is the hero's, whole (independent review of #98, I7).
+    assert "Goal</span></h3>" not in direction and '<div class="goal markdown" lang=""><p>Find out</p>' in page
     assert "Metrics: none defined yet." in direction
 
 
 def test_the_lists_show_six_records_and_say_where_the_rest_are(tmp_path):
     core.init_project(tmp_path / "p", title="Lists", goal="많이 기록", origin=ORIGIN)
     p = core.Project(tmp_path / "p")
+    long = "다음 분기 계획에 넣을 지역별 지표와 그 정의를 정하기 위한 핵심 질문들"
     context = p.context.read_text(encoding="utf-8").replace("## Analysis focus <!-- pin -->",
-                                                            "## 핵심 질문 <!-- pin -->\n- 왜 줄었나?\n\n## Analysis focus")
+                                                            f"## 핵심 질문 <!-- pin -->\n- 왜 줄었나?\n\n## {long} <!-- pin -->\n- 긴 제목\n\n"
+                                                            "## <!-- pin -->\n- 제목 없는 섹션\n\n"
+                                                            "## Goals for Q4 <!-- pin -->\n- 분기 목표\n\n## Analysis focus")
+    context = context.replace("많이 기록\n", "많이 기록\n- 두 번째 목표 줄\n", 1)
     p.context.write_text(context, encoding="utf-8")
     findings = [core.record(p, "finding", f"발견 {n}", origin=ORIGIN).event["id"] for n in range(8)]
     asked = [core.record(p, "question", f"질문 {n}", origin=ORIGIN).event["id"] for n in range(8)]
@@ -158,7 +163,8 @@ def test_the_lists_show_six_records_and_say_where_the_rest_are(tmp_path):
     assert re.findall(r'<li class="ev rec" id="key-(e\d+)"', key) == findings[:1:-1]
     assert "6 of 8 current" in key and '<a href="#insights">All insights (8)' in key
     open_panel = page.split('id="overview-open"', 1)[1]
-    assert re.findall(r'<li class="ev rec" id="open-(e\d+)"', open_panel) == asked[:1:-1]
+    # The Overview's rows keep main's `key-` ids in both lists, so a link to one still lands (Codex review R06).
+    assert re.findall(r'<li class="ev rec" id="key-(e\d+)"', open_panel) == asked[:1:-1]
     assert "6 of 8 open" in open_panel and '<a href="lists/open-0.html">All 8 open' in open_panel
     rest = plain((p.workspace_dir / "lists" / "open-0.html").read_text(encoding="utf-8"))
     assert re.findall(r'<li class="ev rec" id="open-(e\d+)"', rest) == asked[::-1]
@@ -166,6 +172,15 @@ def test_the_lists_show_six_records_and_say_where_the_rest_are(tmp_path):
     # CONTEXT.md's pinned section, as written, beside the hero's goal.
     direction = page.split('<aside class="direction panel">', 1)[1].split("</aside>", 1)[0]
     assert '<h3><span lang="">핵심 질문</span></h3>' in direction and "왜 줄었나?" in direction
+    # A heading longer than the prompt's 48-character name shows whole; one that is only a pin mark is
+    # the section's number in the kit's words (Codex review R11).
+    assert f'<h3><span lang="">{long}</span></h3>' in direction
+    assert re.search(r'<h3>Section \d+</h3>', direction) and "제목 없는 섹션" in direction
+    # Only the goal's own section is the hero's: another pinned section whose heading starts with
+    # "Goal" stays in the panel, and every line of the goal shows (independent review of #98, I7).
+    assert '<h3><span lang="">Goals for Q4</span></h3>' in direction and "분기 목표" in direction
+    goal = page.split('<div class="goal markdown" lang="">', 1)[1].split("</div>", 1)[0]
+    assert "많이 기록" in goal and "두 번째 목표 줄" in goal
 
 
 def test_tabs_say_how_many_items_their_sections_list(tmp_path):
