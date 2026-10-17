@@ -8,17 +8,19 @@ fixture/source revision, task outcome and screenshots when this checklist is run
 
 1. Open the supplied `qa-S/workspace/index.html` as a local file. Keep network disconnected.
    Use Insights to find the supplied original finding. Its Unicode and HTML-like text must remain
-   authored text; the correction retains the original. Follow Evidence/Related items/History.
+   authored text; the correction retains the original. Follow its Relations link (one link per item
+   since kit 0.17.0; Evidence/Related items/History before).
 2. In the original finding's small graph and relation list, verify direction, basis, binding,
    confirmation and source location agree. Open the supplied exact historical Visualization.
-   Inspect the attached table and recorded code; use Return to origin and browser Back/Forward.
+   Inspect the attached table and recorded code; use the way back (named by where it goes since kit
+   0.17.0) and browser Back/Forward.
    The same finding/card, filter, version and position must return. View latest is an explicit
    different action. Follow the correction and return to the original finding's retained history.
-3. From Browse all, advance to a continuation list, filter it and scroll to a card. Open details, refresh details, return, and
-   use Back/Forward through filter changes. Repeat with storage disabled. The URL carries the
+3. From Browse all, advance to a continuation list, choose a kind (its own list page since kit 0.17.0) and scroll to a card.
+   Open details, refresh details, return, and use Back/Forward through kind list changes. Repeat with storage disabled. The URL carries the
    origin state. Invalid saved state, a vanished card after rebuilding, and a changed source basis
    must produce a visible qualified notice instead of substituting the latest version.
-4. From Data follow Related items to its recorded references and a related finding. In the S
+4. From Data follow its Relations link to its recorded references and a related finding. In the S
    fixture, inspect version-unbound chart names, missing/changed data, ambiguous producer
    candidates and cyclic/forward references. Do not read an unbound/current link as old evidence.
    Browse all relation pages: shown/omitted totals and direction-filter page scope must be clear.

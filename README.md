@@ -93,9 +93,9 @@ aelix 안에서: `/analytics`(현황) · `/analytics open`(리포트) · "지역
 배포본은 아직 어디에도 게시하지 않았으므로 체크아웃에서 직접 만듭니다.
 
 ```sh
-cd $PACK && uv build                                   # dist/aelix_analytics-0.16.0-py3-none-any.whl
-uv tool install --python 3.12 dist/aelix_analytics-0.16.0-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
-uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.16.0-py3-none-any.whl   # aelix와 함께
+cd $PACK && uv build                                   # dist/aelix_analytics-0.17.0-py3-none-any.whl
+uv tool install --python 3.12 dist/aelix_analytics-0.17.0-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
+uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.17.0-py3-none-any.whl   # aelix와 함께
 ```
 
 - `analytics`는 체크아웃의 `bin/analytics`와 같은 명령·인자·usage(바이트까지 같음)를 쓰고 kit의 출력을 바이트 그대로 넘깁니다
@@ -424,7 +424,7 @@ kit이 쓰는 텍스트(기록·템플릿 사본·inline 스크립트·Workspace
   생산자 후보) 가운데 stale인 것이 있으면(전이) 표시됩니다. 후보가 여럿이면 하나를 고르지 않고 모두 따라가며 `producer ambiguous`라고 적습니다.
   후보는 같은 바이트를 출력했다는 관측이라, stale인 후보는 생산자로 단정하지 않고 `upstream candidate`로 적습니다.
 - **관계의 상태**: `analytics_status`와 리포트는 기록을 한 번 읽어 참조마다 상태를 보입니다(ADR-0006): run 이벤트의 차트는 그 run의 차트로, 버전을
-  고정하지 않은 차트·데이터는 `Version unbound`와 최신 버전 링크("latest, not the cited version")로, 없는 대상은 `Missing`으로.
+  고정하지 않은 차트·데이터는 `Version not named`와 최신 버전 링크("latest, not the cited version")로, 없는 대상은 `Not found when cited`·`File missing now`처럼 그 이유로.
   두 화면은 같은 식별자와 읽기 기준(`as_of_seq`·`source_revision`)을 적습니다.
 - **버전**: `스크립트::차트id`마다 최신 성공 run이 현재 버전이고, 이전 버전은 카드와 run 페이지에서 따라갈 수 있습니다.
 - **재실행 검증**: `analytics_run(rerun_of=…)`은 원래 스냅샷을 다시 실행해 플롯 데이터 프레임 동등성, 출력 바이트를 비교하고

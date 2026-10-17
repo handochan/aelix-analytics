@@ -15,6 +15,20 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 없음. 병합된 변경은 그 PR이 병합될 때의 kit 번호 절에 적고, kit 번호를 올리는 PR은 새 절을 엽니다
 ([기여 가이드](CONTRIBUTING.md#첫-공개-전에-남은-운영-결정)).
 
+## [0.17.0] - 2026-10-17
+
+### Changed
+
+- #97: Workspace의 기록 목록이 기록마다 한 줄 행입니다(종류, 글, id·시각·작성자, 참조 판정 배지, 관계 링크 하나 `Relations N`).
+  `State: current` 반복과 `Evidence`·`Related items`·`History` 세 링크를 없앴습니다. 기록의 상태는 정정·철회처럼 바뀐 때만 배지로 보입니다.
+  참조 판정은 표시와 글자로 보입니다(`Version unbound` → `Version not named`, `Missing` → `Not found when cited`·`File missing now` 등, `Producer ambiguous` → `Several possible sources`).
+  저장 값은 관계 페이지의 Details에 원문 그대로 있습니다.
+- #97: Timeline·Insights의 종류 필터가 종류별 전체 목록 페이지(`lists/kind-<kind>-<n>.html`)로 가는 링크입니다. 개수는 journal 전체 기준이고 JavaScript 없이 동작합니다.
+- #97: 관계 페이지는 기록의 글을 제목으로 두고, 정정 안내, "This record cites"·"Cited by" 묶음, 관계마다의 Details, 접힌 기술 세부로 다시 짰습니다.
+  돌아가기 링크는 돌아갈 곳의 이름을 보입니다(`← Back to Insights`).
+- #97: 좁은 화면과 글자 확대: 글자 크기는 rem, 화면 나눔은 em이고, 좁은 화면의 상단 막대는 한 줄(메뉴 단추)이며 구역 탭은 넘치는 쪽을 흐리게 보입니다.
+  주요 컨트롤은 44px 이상이고, plotly는 첫 그림이 보일 때 읽습니다(페이지를 막는 script가 아님). Data·Runs 표의 행에 id가 있어 원점 복귀가 그 행으로 돌아옵니다.
+
 ## [0.16.0] - 2026-10-17
 
 ### Added
