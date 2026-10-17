@@ -15,8 +15,9 @@ OQ20은 보존 파일을 검사하는 일반 참조 규칙의 예외이므로 �
 
 `a57ee7b`의 `relations.KINDS`·`REF_TYPES`는 이름을 알지만 `ReadModel._resolve`는 `publication`을
 `unsupported`로 돌려준다. `Journal.as_of_seq`는 파싱·복구한 줄의 최대 seq를 포함한다. `writer.KIT_KINDS`에는
-실제 publication writer가 없고, `publishing/`·`analytics build`도 없다. 기록 schema는 kind를 예약했지만
-publication 전용 필수 details나 manifest를 검증하지 않는다. 이 PR은 runtime·schema·kit 버전·표식을 바꾸지 않는다.
+실제 publication writer가 없고, `publishing/`·`analytics build`도 없다. 기록 schema는 kind를 예약하고
+`publication`·`publish_receipt`의 필수 `details.publication_id`와 참조의 `publication_id`를 검사한다.
+새로 구체화하는 결박 필드들과 manifest는 아직 검증하지 않는다. 이 PR은 runtime·schema·kit 버전·표식을 바꾸지 않는다.
 
 ## 결정
 
@@ -100,7 +101,9 @@ manifest와 결박 이벤트의 ID·형식·두 해시·프로필·범위 종류
 
 `scope.kind`는 이벤트의 `details.scope`와 같다. Report 선택이 없으면 `scope.reports=[]`다.
 파일 경로는 패키지 안의 상대 경로이고 중복·대소문자/정규화 충돌·경로 이탈·symlink를 허용하지 않는다.
-원본 대조를 마친 파일만 넣고, 해시가 기록되지 않은 사본은 `verified=false`로 구별한다. `ItemKey`·`sources`·검사 상태와
+기록 해시가 있는 사본은 대조에 통과한 바이트만 넣고 `verified: recorded_hash`로 표시한다. 기록 해시가 없는 사본은
+`verified: no_recorded_hash`로 구별하며 과거 바이트와 일치한다고 보장하지 않는다. kit 생성물은 `verified: kit_generated`다.
+복사 중 변경 검사는 어느 사본에도 적용한다. `ItemKey`·`sources`·검사 상태와
 누출 판정의 세부 구조는 [build 설계 §4·§7·§11](../design/PUBLICATION-BUILD.md)에 따른다.
 `project_id`·프로젝트 경로·기기·사용자·`source_revision`은 manifest에 넣지 않는다.
 Report 묶음 선택은 #19가 채택한 묶음 버전 계약을 PR-4가 따르며 임시 저장 형식을 먼저 만들지 않는다.
