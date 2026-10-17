@@ -74,6 +74,11 @@
 6. 예외나 응답 손실은 실제 디렉터리·이벤트 상태로 다시 읽는다. prepared와 rename 후 incomplete를 성공으로 바꾸지 않는다.
    호출자가 자동 재생성을 원한다고 해석하지 않는다. 같은 request ID로 저장을 재시도한다.
 
+5단계는 같은 파일 시스템에서 **부모가 다른 디렉터리**의 배타적 이동이다. 현재 `AtomicFiles`의 같은 부모 계약과
+파일 hard-link를 쓰는 대체 구현만으로 이 동작을 보장했다고 취급하지 않는다. PR-1에서 포트 계약·실제 구현·대체 구현을
+함께 확장하고 세 OS에서 디렉터리 이동, 기존 목적지 거절/양쪽 바이트 보존, 미지원 파일 시스템의 명시적 거절을 시험한다.
+지원되지 않을 때 덮어쓰는 rename이나 비원자적 복사로 조용히 대체하지 않는다. 이 시험은 아직 미실행이다.
+
 잠금 순서는 시도 잠금 → journal 잠금이다. 시도 잠금은 `.analytics/report-attempts/<revision_id>.lock`에 있고
 복사 시작부터 완료/실패 처분까지 유지한다. 보존 파일 안에 lock을 두거나 lock 파일을 자동 삭제하지 않는다.
 명시적인 `reports clean --prepared <report_id>@<revision_id>`는 같은 시도 잠금과 journal 잠금 순서로 검사하고,
@@ -127,13 +132,18 @@ bounded 조회는 metadata/파일 목록/근거부터 시작하고 본문은 선
 
 ## 7. ReportRenderer와 Workspace·공유
 
-`reports.py` 응용 기능은 주입받은 Writer·플랫폼과 읽기 모델로 저장을 조정한다. read_model은 이 모듈을 import하지 않는다.
+`report_app.py` 응용 기능은 주입받은 Writer·플랫폼과 읽기 모델로 저장을 조정한다. read_model은 이 모듈을 import하지 않는다.
+SDK의 callable `analytics.reports(...)`를 Python 서브모듈 import가 덮어쓰지 않도록 내부 모듈 이름 `reports.py`는 쓰지 않는다.
+PR-1에서 import 전후와 반복 SDK 호출의 callable 보존을 확인한다.
 형식별 보기 자료형과 `ReportRenderer` Protocol은 별도 낮은 계층 모듈에 두고, 진입점이 구현을 주입한다.
 새 모듈을 더하는 구현 PR에서 `tests/test_layers.py`·아키텍처 §11을 함께 갱신한다.
 
-`ReportRenderer`의 입력은 검증된 ReportRef·manifest·선택 파일 바이트와 렌더 대상의 상대 링크 매핑이다.
+`ReportRenderer`는 entry를 포함한 선택 파일 바이트와 `{manifest 경로: 보기/패키지 경로}` 대응만 받는다.
+원시 manifest·ReportRef·요청 ID·요청 지문·프로젝트 객체를 renderer에 넘기지 않는다. 제목·버전·상태·근거 등의
+보기 바깥 정보는 Workspace adapter 또는 #20의 허용목록 투영 모델로 감싼다. 공유 입력은 #20 §5.3의 허용 필드만 가진다.
 출력은 `{path: bytes}`인 재생성 보기 파일과 원본 파일 링크·지원/미지원 사유다. renderer는 프로젝트 폴더,
-현재 데이터·최신 정의·모델·네트워크·생성 실행을 직접 조회하지 않는다. #20은 공유 범위를 적용한 입력만 준다.
+현재 데이터·최신 정의·모델·네트워크·생성 실행을 직접 조회하지 않는다. 상대 URL은 entry 경로에서 풀어 주입한 대응으로만
+다시 쓰고, 대응에 없는 경로는 지원/공유 검사 실패로 남긴다. #20 §7.5의 renderer 입력 경계를 그대로 따른다.
 
 Markdown은 원시 HTML 실행 없이 보기, HTML은 원본 보존과 별도로 script·원격 자원을 실행하지 않는 격리 보기 또는
 정적 미리보기/다운로드를 제공한다. 임의 HTML을 Workspace DOM에 삽입하지 않는다. PDF·Office·미지원 형식은
