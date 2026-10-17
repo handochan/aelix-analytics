@@ -50,16 +50,24 @@ STATUS = {"ok": ("good", "✓"), "error": ("critical", "✕"), "timeout": ("seri
 # An input's state now (`input.<state>`).
 INPUT_STATE = {"same": ("good", "✓"), "changed": ("critical", "⚠"), "missing": ("critical", "⚠"),
                "unknown": ("muted", "?")}
-# A reference's state as the read judges it (ADR-0006 4), said in words (`ref.<state>`) and not
-# only in colour. A rerun comparison's verdict is `verdict.<verdict>` (TERMINOLOGY 6); the record
-# keeps the value.
-REF_STATE = {"resolved": "good", "content_changed": "critical", "missing": "critical",
-             "version_unbound": "muted", "ambiguous": "warning", "unknown": "muted",
-             "unsupported": "muted"}
+# A reference's state as the read judges it (ADR-0006 4): its tone and mark, and its words
+# (`ref.<state>.<reason>`, else `ref.<state>`), never colour alone (design WORKSPACE-READABILITY 4).
+# The stored values stay as written under a relation's Details. A rerun comparison's verdict is
+# `verdict.<verdict>` (TERMINOLOGY 6); the record keeps the value.
+REF_STATE = {"resolved": ("good", "✓"), "content_changed": ("critical", "⊗"), "missing": ("critical", "⊗"),
+             "version_unbound": ("warning", "⚠"), "ambiguous": ("warning", "⚠"), "unknown": ("warning", "⚠"),
+             "unsupported": ("muted", "–")}
+# A record's own state when it is not as it was made (ADR-0006 6): `record.<state>`.
+RECORD_STATE = {"superseded": ("muted", "↺"), "conflict": ("warning", "⚠"), "withdrawn": ("muted", "⊘")}
+# How many references a list row shows before "N more" (the relation page lists them all).
+ROW_REFS = 4
 # The current state of a file a run recorded as its output (`output.<state>`).
 OUTPUT_STATE = {"resolved": ("good", "✓"), "content_changed": ("critical", "⚠"),
                 "missing": ("critical", "⚠"), "unknown": ("muted", "?")}
 SHOWN_CANDIDATES = 3
+# The index section a page's way back goes to when the page a reader came from is not known: the
+# section its kind is listed in (`back.tab.<section>` names it).
+BACK = {"run": "runs", "dataset": "data", "relations": "insights", "context": "context", "list": "timeline"}
 # The pages are lang="en" (the kit's words). What people and scripts wrote is in a language the
 # records do not name, so its element says "unknown" (lang=""): a screen reader reads it in the
 # reader's own voice rather than an English one, and nothing guesses the language (TERMINOLOGY 7).
@@ -183,6 +191,35 @@ def kind_chip(kind) -> str:
             f'{words("kind", kind)}</span>')
 
 
+def ref_words(state, reason=None) -> str:
+    """A reference judgment in the kit's words: its reason's when the catalog says it apart
+    (`ref.missing.file_absent`), else its state's."""
+    return t(f"ref.{state}.{reason}") if reason and i18n.has(f"ref.{state}.{reason}") else words("ref", state)
+
+
+@functools.cache
+def _kind_list(kind: str) -> str:
+    english = i18n.message(f"kind.{kind}")
+    alike = [key[5:] for key, text in i18n.catalog(i18n.DEFAULT).items()
+             if key.startswith("kind.") and text == english]
+    return min(alike, key=lambda k: (core.EVENT_KINDS.index(k) if k in core.EVENT_KINDS else len(core.EVENT_KINDS), k))
+
+
+def kind_list(kind):
+    """The kind whose own list holds a stored kind's records: kinds the catalog names alike share one
+    list (`gap` is the /1 name of `workflow_feedback`, `reuse_proposal` an earlier `asset_candidate`),
+    so a kind filter never shows two links that say the same. The first by EVENT_KINDS, else by name."""
+    return _kind_list(kind) if isinstance(kind, str) and i18n.has(f"kind.{kind}") else kind
+
+
+def kind_file(kind) -> str:
+    """The part of a kind's list page names (`lists/kind-<part>-<n>.html`): the kind as stored when it
+    is a plain name, else `x-` and a digest of it (a `-` no plain name has), so any stored kind has a
+    page of its own and none can name a path."""
+    text = str(kind)
+    return text if re.fullmatch(r"[a-z][a-z0-9_]{0,47}", text) else "x-" + hashlib.sha1(text.encode()).hexdigest()[:12]
+
+
 @functools.lru_cache(maxsize=4096)
 def slug_key(key: str) -> str:
     """Anchor for a script::chart key: readable prefix plus a hash, so similar keys never collide.
@@ -200,7 +237,12 @@ class Site:
     esc = staticmethod(esc)
     user_text = staticmethod(user_text)
     words = staticmethod(words)
+    ref_words = staticmethod(ref_words)
+    fmt_time = staticmethod(fmt_time)
+    badge = staticmethod(badge)
+    kind_chip = staticmethod(kind_chip)
     user_language = USER
+    REF_STATE = REF_STATE
 
     def __init__(self, project: core.Project):
         from .workspace_relations import RelationPages
@@ -213,6 +255,12 @@ class Site:
         self.lists = core.JournalLists(journal)
         self.events = self.lists.events
         self.source_of = self.lists.source
+        # The records the index's lists show (the newest INDEX_LIMIT): a link to one of them goes to its
+        # row there. Read once: every row and relation card asks.
+        self.recent_sources = {self.source(e) for e in self.events[-INDEX_LIMIT:]}
+        # The project's title, read from its marker once (every page shows it twice).
+        self.project_title = project.title()
+        self._kind_counts: dict[str, tuple[list, Counter]] = {}
         self.runs = core.model_runs(project, self.model)
         self.run_by_id = {r["id"]: r for r in self.runs}
         self.recording = {r["run_id"]: r for r in self.model.runs()}
@@ -286,11 +334,17 @@ class Site:
         page = f"lists/charts-{position // CHART_INDEX_LIMIT}.html" if position is not None and position >= CHART_INDEX_LIMIT else "index.html"
         return f"{self.root(depth)}{page}#chart-{slug_key(key)}"
 
+    def relation_link(self, identity: str, depth: int, *, record: bool = False, klass: str = "rec-action") -> str:
+        """The one way from an item to its relation page (design WORKSPACE-READABILITY 8.1):
+        `Relations N`, N the 1-hop references that page lists. A record with none says `Open`: its
+        page still holds the record, its state and its stored fields."""
+        n = len(self.model.reference_neighborhood(identity))
+        if record and not n:
+            return f'<a class="{klass}" href="{self.relations.link(identity, depth, anchor="#record")}">{t("action.open")}</a>'
+        return f'<a class="{klass}" href="{self.relations.link(identity, depth)}">{t("action.relations", n=n)}</a>'
+
     def relation_actions(self, identity: str, depth: int) -> str:
-        return ('<div class="workspace-actions">' + " ".join(
-            f'<a href="{self.relations.link(identity, depth, anchor=anchor)}">{t(key)}</a>'
-            for anchor, key in (("#evidence", "action.evidence"), ("#related", "action.related"),
-                                ("#history", "action.history"))) + "</div>")
+        return f'<div class="workspace-actions">{self.relation_link(identity, depth, klass="action")}</div>'
 
     def script_path(self, run: dict) -> str | None:
         """A run's script path as the gallery reads it: an older kit's spelling as today's
@@ -322,8 +376,8 @@ class Site:
 
     def path_html(self, path: str, depth: int) -> str:
         """A path people or scripts wrote, linked to its dataset page (titled by the path) or file.
-        That a link is the latest version and not a cited one is said once for its field (the
-        `Version unbound` label of refs_html), in the kit's words."""
+        That a link is the latest version and not a cited one is said by its reference's badge
+        (ref_html), in the kit's words."""
         link = self.data_link(path, depth)
         label = self.dataset_name(path) or path
         if link:
@@ -339,95 +393,213 @@ class Site:
         source = self.source(event)
         return event.get("id") if not source or source == event.get("id") else source.replace(":", "-")
 
-    def refs_html(self, event: dict, depth: int) -> str:
+    def refs_html(self, event: dict, depth: int, *, limit: int | None = None, empty: bool = False) -> str:
         """An event's references as the read judges them (ADR-0006 4), the same judgments
-        analytics_status counts. A field that names many targets shows REF_LIMIT of them and how
-        many more; a target left unbound links the latest version and says it is not the cited
-        one."""
-        items, hidden = [], 0
+        analytics_status counts, a badge each (design WORKSPACE-READABILITY 8.1). A field that names
+        many targets shows REF_LIMIT of them and how many more; a list row shows `limit` in all and
+        leaves the rest to its relation page. `empty`: say so when the record cites nothing."""
+        shown, hidden = [], 0
         groups: dict = {}
         for judged in self.model.references(self.source(event) or ""):
             groups.setdefault((judged.get("ref") or {}).get("field"), []).append(judged)
-        for _field, group in groups.items():
-            shown = group[:REF_LIMIT]
-            hidden += len(group) - len(shown)
-            if any(j["state"] == "version_unbound" for j in shown):
-                items.append(f'<span class="ref-label"{attr("title", "refs.unbound_title")}>'
-                             f'{t("ref.version_unbound")}</span>')
-            items += [self.ref_html(judged, depth) for judged in shown]
+        for group in groups.values():
+            shown += group[:REF_LIMIT]
+            hidden += max(0, len(group) - REF_LIMIT)
+        if limit is not None and len(shown) > limit:
+            hidden += len(shown) - limit
+            shown = shown[:limit]
+        items = [self.ref_html(judged, depth) for judged in shown]
         if hidden:
-            items.append(f'<span class="ref muted"{attr("title", "refs.more_title")}>'
-                         f'{t("refs.more", n=hidden)}</span>')
-        return f'<div class="refs">{"".join(items)}</div>' if items else ""
+            items.append(f'<span class="ref-more"{attr("title", "refs.more_title")}>{t("refs.more", n=hidden)}</span>')
+        if not items and empty:
+            items.append(f'<span class="ref tone-muted">{t("refs.none")}</span>')
+        return f'<span class="refs">{"".join(items)}</span>' if items else ""
 
     def ref_html(self, judged: dict, depth: int) -> str:
-        """One reference: its target by the identifier analytics_status uses, linked when the read
-        found it, and its state in words unless it is resolved or (said once for its field)
-        unbound."""
+        """One reference as a badge: a mark and the judgment in words, never colour alone, and the
+        target by the identifier analytics_status uses (what people wrote stays lang=""), linked where
+        the read found it. A found record a reference corrects or closes says so (`Corrects e3`); a
+        name left unbound links the latest version and says it is not the cited one. The stored
+        values are under the relation's Details on its relation page."""
         kind, state = judged.get("type"), judged["state"]
         target, label = judged.get("target") or {}, core.reference_label(judged)
         found = state == "resolved"
-        field = (judged.get("ref") or {}).get("field")
+        tone = REF_STATE.get(state, ("muted", "?"))[0]
+        problem = ref_words(state, judged.get("reason"))
+        if state == "version_unbound":
+            # The link is to the latest version: said where the badge says no version was named.
+            problem = f'<span{attr("title", "refs.latest")}>{problem}</span>'
+        if kind in relations.EVENT_TARGETS:
+            link = self.relations.content(label, depth) or self.relations.link(label, depth)
+            shown = f'<a href="{esc(link)}">{esc(label)}</a>' if found else esc(label)
+            relation = judged.get("relation")
+            if relation in ("supersedes", "resolves"):
+                lead = t("refs.corrects" if relation == "supersedes" else "refs.resolves")
+                if found:
+                    return self.ref_badge("link", lead, shown, state)
+                return self.ref_badge(tone, lead, shown, state, tail=problem,
+                                      note=self.recorded_later(judged, depth) + self.candidates_note(judged))
+            if found:
+                event = self.relations.events.get(label)
+                return self.ref_badge(tone, words("kind", event.kind) if event else t("ref.resolved"), shown, state)
+            return self.ref_badge(tone, problem, shown, state, sep=True,
+                                  note=self.recorded_later(judged, depth) + self.candidates_note(judged))
         if kind == "run":
-            body = (f'<a href="{esc(self.run_link(label, depth))}">{t("refs.run")} {esc(label)}</a>' if found
-                    else f"{t('refs.run')} {esc(label)}")
-        elif kind == "visualization_version" and judged.get("version_binding") != "none":
+            if found:
+                return self.ref_badge(tone, t("refs.run_found"), f'<a href="{esc(self.run_link(label, depth))}">{esc(label)}</a>', state)
+            return self.ref_badge(tone, problem, f'{t("refs.run")} {esc(label)}', state, sep=True)
+        if kind == "visualization_version" and judged.get("version_binding") != "none":
             run, chart = target.get("run_id"), target.get("visualization_id")
-            anchor = f"#chart-{href(str(chart))}"
-            body = (f'<a href="{esc(self.run_link(run, depth, anchor))}" title="{esc(label)}">'
-                    f"{t('refs.chart')} {esc(chart)}</a>" if found and run else f"{t('refs.chart')} {esc(label)}")
-        elif kind == "visualization_version":
+            if found and run:
+                title = next((v.get("title") for v in relations.run_visualizations(self.run_by_id.get(run) or {})
+                              if v.get("id") == chart and v.get("title")), None)
+                anchor = f"#chart-{href(str(chart))}"
+                shown = (f'<a href="{esc(self.run_link(run, depth, anchor))}" title="{esc(label)}"{USER}>'
+                         f'{esc(title or chart)}</a>')
+                return self.ref_badge(tone, t("ref.resolved"), shown, state, sep=True)
+            return self.ref_badge(tone, problem, f'{t("refs.chart")} <span{USER}>{esc(label)}</span>', state,
+                                  sep=True, note=self.candidates_note(judged))
+        if kind == "visualization_version":
+            # A logical key is `script::chart`: the chart's id shows, the whole key is its title.
             key = str(target.get("key") or target.get("token") or label)
-            body = (f'<a href="{esc(self.chart_anchor(key, depth))}"{attr("title", "refs.latest")}>'
-                    f"{t('refs.chart')} {esc(key)}</a>")
-        elif kind in ("data_observation", "dataset_import"):
+            shown = (f'<a href="{esc(self.chart_anchor(key, depth))}"><span title="{esc(key)}"{USER}>'
+                     f'{esc(key.rsplit("::", 1)[-1])}</span></a>')
+            return self.ref_badge(tone, problem, shown, state, sep=True, note=self.candidates_note(judged))
+        if kind in ("data_observation", "dataset_import"):
             item = str(target.get("key") or target.get("path") or label)
             path = item if item in self.view_by_path else self.views.get(item)
             # A name or path that is no dataset is still what people and scripts wrote (lang="").
-            body = self.path_html(path, depth) if path else user_text(item)
-        elif kind == "event":
-            prefix = t("refs.resolves") + " " if field == "resolves" else ""
-            body = (f'<a href="{esc(self.relations.content(label, depth) or self.relations.link(label, depth))}">{prefix}{esc(label)}</a>'
-                    if found else f"{prefix}{esc(label)}")
-        elif kind == "context_version" and found:
-            body = (f'<a href="{esc(self.root(depth))}context.html#v-{esc(Path(label).stem)}" '
-                    f'title="{esc(label)}">{t("refs.view_version")}</a>')
-        else:
-            body = esc(label)
-        candidates = judged.get("candidates")
-        if candidates and state in ("version_unbound", "ambiguous"):
-            # An event target's candidates are the journal lines with its id; the others' are
-            # versions.
-            what = "refs.candidate_records" if kind in relations.EVENT_TARGETS else "refs.candidate_versions"
-            inferred = judged.get("inferred_candidates") or []
-            body += (f' <small class="ref-note" title="{esc(", ".join(candidates))}">'
-                     f"{t(what, n=len(candidates))}</small>")
-            if inferred:
-                # The versions hold Visualization ids people and scripts wrote: only their count
-                # beside the kit's title (#10, lang="").
-                body += (f' <small class="ref-note"{inferred_title()}>'
-                         f'{t("inferred.count_note", n=len(inferred))}</small>')
-        if state not in ("resolved", "version_unbound"):
-            tone = REF_STATE.get(state, "muted")
-            reason = f": {judged['reason']}" if judged.get("reason") else ""
-            body += f' <small class="ref-state tone-{tone}">{words("ref", state)}{esc(reason)}</small>'
-        return f'<span class="ref ref-{esc(state)}">{body}</span>'
+            shown = self.path_html(path, depth) if path else user_text(item)
+            return self.ref_badge(tone, t("ref.resolved") if found else problem, shown, state, sep=True,
+                                  note=self.candidates_note(judged))
+        if kind == "context_version" and found:
+            shown = (f'<a href="{esc(self.root(depth))}context.html#v-{esc(Path(label).stem)}" '
+                     f'title="{esc(label)}">CONTEXT.md</a>')
+            return self.ref_badge(tone, t("ref.resolved"), shown, state, sep=True)
+        return self.ref_badge(tone, t("ref.resolved") if found else problem, f"<span{USER}>{esc(label)}</span>",
+                              state, sep=True, note=self.candidates_note(judged))
 
-    def closed_badge(self, resolver: dict, depth: int = 0) -> str:
+    @staticmethod
+    def ref_badge(tone: str, lead: str, target: str, state: str, *, sep: bool = False,
+                  tail: str = "", note: str = "") -> str:
+        """A reference badge: `lead target`, a dot before the target when `lead` is a judgment rather
+        than its kind, then the judgment of a relation's target (`tail`) and a note. Its mark (✓ ⚠ ⊗ –
+        →, REF_STATE's) is the stylesheet's, by tone: decoration beside the words, a few bytes less on
+        every badge of a list (design 9)."""
+        return (f'<span class="ref tone-{tone}" data-state="{esc(state)}">{lead}{" ·" if sep else ""} {target}'
+                f'{f" · {tail}" if tail else ""}{note}</span>')
+
+    def candidates_note(self, judged: dict) -> str:
+        """How many versions (or records) a name left unbound or ambiguous could be."""
+        candidates = judged.get("candidates")
+        if not candidates or judged["state"] not in ("version_unbound", "ambiguous"):
+            return ""
+        # An event target's candidates are the journal lines with its id; the others' are versions.
+        what = "refs.candidate_records" if judged.get("type") in relations.EVENT_TARGETS else "refs.candidate_versions"
+        out = f' <small class="ref-note" title="{esc(", ".join(candidates))}">{t(what, n=len(candidates))}</small>'
+        inferred = judged.get("inferred_candidates") or []
+        if inferred:
+            # The versions hold Visualization ids people and scripts wrote: only their count beside
+            # the kit's title (#10, lang="").
+            out += f' <small class="ref-note"{inferred_title()}>{t("inferred.count_note", n=len(inferred))}</small>'
+        return out
+
+    def recorded_later(self, judged: dict, depth: int) -> str:
+        """` recorded later: e187` for a record cited before it was written: the read finds it
+        `missing` (`record_absent`) and the one line with its id comes after the citing record."""
+        if judged.get("reason") != "record_absent" or judged.get("type") not in relations.EVENT_TARGETS:
+            return ""
+        journal = self.model.journal
+        event_id = (judged.get("target") or {}).get("event_id")
+        lines = journal.lines_of.get(event_id, []) if isinstance(event_id, str) else []
+        citing = journal.event_of(judged.get("from") or "")
+        seq = journal.seq_of.get(lines[0]) if len(lines) == 1 else None
+        if seq is None or citing is None or citing.seq is None or seq <= citing.seq:
+            return ""
+        link = self.relations.content(event_id, depth) or self.relations.link(event_id, depth)
+        return f' <small class="ref-note">{t("refs.recorded_later")} <a href="{esc(link)}">{esc(event_id)}</a></small>'
+
+    def closed_badge(self, resolver: dict, depth: int = 0, closed: str | None = None) -> str:
         """The badge of a record another one closes by refs.resolves, as the lists select (C1):
         resolved only when the read finds that reference, and otherwise the state it judges, in
-        words (a forward refs.resolves is `missing`, record_absent)."""
+        words (a forward refs.resolves is `missing`, record_absent). The reference is the resolver's
+        `resolves` one naming `closed` (a /1 `refs.resolves` and a /2 reference alike)."""
         source = self.source(resolver) or ""
-        link = "#" + esc(self.anchor(resolver)) if depth == 0 and any(self.source(e) == source for e in self.events[-INDEX_LIMIT:]) else esc(self.relations.content(source, depth) or self.relations.link(source, depth))
-        judged = next((j for j in self.model.references(source)
-                       if (j.get("ref") or {}).get("field") == "resolves"), None)
+        link = "#" + esc(self.anchor(resolver)) if depth == 0 and source in self.recent_sources else esc(self.relations.content(source, depth) or self.relations.link(source, depth))
+        closing = [j for j in self.model.references(source) if j.get("relation") == "resolves"]
+        judged = next((j for j in closing if (j.get("target") or {}).get("event_id") == closed),
+                      closing[0] if closing else None)
         if judged is not None and judged["state"] == "resolved":
-            return f' <a class="badge tone-good" href="{link}">✓ {t("records.resolved_by")} {esc(source)}</a>'
+            return (f'<a class="badge tone-good" href="{link}"><span aria-hidden="true">✓</span> '
+                    f'{t("records.resolved_by")} {esc(source)}</a>')
         state = judged["state"] if judged is not None else "unknown"
-        tone = REF_STATE.get(state, "muted")
-        reason = f": {judged['reason']}" if judged is not None and judged.get("reason") else ""
-        return (f' <a class="badge tone-{tone}" href="{link}"{attr("title", "records.closed_title", id=source, state=state)}>'
-                f'{t("records.closed_by")} {esc(source)} · {words("ref", state)}{esc(reason)}</a>')
+        tone, mark = REF_STATE.get(state, ("muted", "?"))
+        reason = judged.get("reason") if judged is not None else None
+        return (f'<a class="badge tone-{tone}" href="{link}"{attr("title", "records.closed_title", id=source, state=state)}>'
+                f'<span aria-hidden="true">{mark}</span> {t("records.closed_by")} {esc(source)} · {ref_words(state, reason)}</a>')
+
+    def record_state_html(self, event: dict, depth: int) -> str:
+        """A record's state, shown only when it is not as it was made (design 8.1): a question or
+        next step open or closed (C1's selection); a record corrected, corrected by several records,
+        or withdrawn (ADR-0006 6). A current record shows nothing."""
+        kind = event.get("kind")
+        resolver = self.resolved.get(event.get("id"))
+        closed = ""
+        if kind in core.OPEN_KINDS + core.KEY_KINDS and resolver:
+            closed = self.closed_badge(resolver, depth, event.get("id"))
+        elif kind in core.OPEN_KINDS:
+            closed = badge("warning", "●", t("badge.open"))
+        # A finding a record closed can also have been corrected or withdrawn: both are said.
+        state = self.model.journal.replay().state_of(self.source(event) or "") or {}
+        shown = state.get("state")
+        if shown not in RECORD_STATE:
+            return closed
+        tone, mark = RECORD_STATE[shown]
+        by = state.get("corrected_by") or []
+        if shown == "superseded" and by:
+            link = self.relations.content(by[0], depth) or self.relations.link(by[0], depth)
+            return closed + (f'<a class="badge tone-{tone}" href="{esc(link)}"><span aria-hidden="true">{mark}</span> '
+                             f'{t("record.superseded_by")} {esc(by[0])}</a>')
+        if shown == "conflict":
+            return closed + badge(tone, mark, t("record.conflict", n=len(by)), title_attr(", ".join(by)))
+        return closed + badge(tone, mark, t("record." + shown))
+
+    def record_row(self, ev: dict, depth: int, *, row_id: str, time_only: bool = False) -> str:
+        """One record in a list (design 8.1): its kind, its text as written with its state when that
+        changed, then its id, time and actor and its references as badges, and one link to its
+        relations. Rows of every list are alike."""
+        source = self.source(ev)
+        kind = ev.get("kind")
+        shown_id = esc(ev.get("id"))
+        if self.anchor(ev) != ev.get("id"):
+            shown_id += f' <small{attr("title", "events.shared_id_title")}>{esc(source)}</small>'
+        state = self.record_state_html(ev, depth)
+        return (f'<li class="ev rec" id="{esc(row_id)}" data-kind="{esc(kind)}" data-selection="{quote(source or "", safe="")}">'
+                f'<span class="rec-kind kind-{esc(kind)}"><span class="dot" aria-hidden="true"></span>{words("kind", kind)}</span>'
+                f'<div class="rec-main"><div class="rec-line"><span class="rec-text"{USER}>{esc(ev.get("text"))}</span>{state}</div>'
+                f'<div class="rec-meta"><span class="rec-id">{shown_id}</span> · {fmt_time(ev.get("ts"), with_date=not time_only)} · '
+                f'<span class="actor">{words("actor", ev.get("actor"))}</span>'
+                f'{self.refs_html(ev, depth, limit=ROW_REFS, empty=kind in core.KEY_KINDS)}</div></div>'
+                f'{self.relation_link(source, depth, record=True)}</li>')
+
+    def kind_nav(self, family: str, depth: int, current: str | None = None) -> str:
+        """A list's kind filter (design 8.2, owner decision A): links to each kind's own list pages,
+        counted over every record, so it filters the whole journal and works without a script.
+        `family`: timeline (every kind) or insights (findings, decisions and assumptions)."""
+        if family not in self._kind_counts:
+            records = self.events if family == "timeline" else [e for e in self.events if e.get("kind") in core.KEY_KINDS]
+            self._kind_counts[family] = (records, Counter(kind_list(e.get("kind")) for e in records))
+        records, counts = self._kind_counts[family]
+        root = self.root(depth)
+
+        def link(target: str, words_html: str, n: int, on: bool) -> str:
+            mark = ' class="on" aria-current="page"' if on else ""
+            return f'<a href="{target}"{mark}>{words_html} <span class="n">{fmt_num(n)}</span></a>'
+
+        order = sorted(counts, key=lambda k: (core.EVENT_KINDS.index(k) if k in core.EVENT_KINDS else len(core.EVENT_KINDS), str(k)))
+        items = [link(f"{root}index.html#{family}", t("filters.all"), len(records), current is None)]
+        items += [link(f"{root}lists/kind-{kind_file(k)}-0.html", words("kind", k), counts[k], k == current) for k in order]
+        return f'<nav class="kinds"{attr("aria-label", "filters.by_kind")}>{"".join(items)}</nav>'
 
     def read_footer(self) -> str:
         """The read every page was made from, as analytics_status names it (the names are
@@ -591,7 +763,8 @@ class Site:
 
     # --- events ---
 
-    def events_html(self, events, depth: int, *, filters=False, prefix="") -> str:
+    def events_html(self, events, depth: int, *, prefix="") -> str:
+        """Records by day as given (newest first), a row each (record_row) under each day's date."""
         if not events:
             return f'<div class="empty">{t("events.empty")}</div>'
         out, day = [], None
@@ -600,44 +773,29 @@ class Site:
             if ts[:10] != day:
                 day = ts[:10]
                 out.append(f'<li class="day">{fmt_date(ts)}</li>')
-            resolved = self.resolved.get(ev.get("id"))
-            state = ""
-            if ev.get("kind") in core.OPEN_KINDS + core.KEY_KINDS and resolved:
-                state = self.closed_badge(resolved, depth)
-            elif ev.get("kind") in core.OPEN_KINDS:
-                state = f' <span class="badge tone-warning">● {t("badge.open")}</span>'
             # A record whose id other lines share is named by its line, and so is its anchor.
-            source, anchor, shown = self.source(ev), self.anchor(ev), esc(ev.get("id"))
-            if anchor != ev.get("id"):
-                shown += f' <small{attr("title", "events.shared_id_title")}>{esc(source)}</small>'
-            out.append(
-                f'<li class="ev" id="{esc(prefix + anchor)}" data-kind="{esc(ev.get("kind"))}" data-selection="{quote(source or "", safe="")}">'
-                f'<div class="ev-head">{fmt_time(ts, with_date=False)}{kind_chip(ev.get("kind"))}'
-                f'<span class="ev-id">{shown}</span><span class="actor">{words("actor", ev.get("actor"))}</span>{state}</div>'
-                f'<div class="ev-text"{USER}>{esc(ev.get("text"))}</div>{self.refs_html(ev, depth)}{self.relation_actions(source, depth)}</li>')
-        chips = ""
-        if filters:
-            counts = Counter(e.get("kind") for e in events)
-            chips = f'<div class="filters" role="group"{attr("aria-label", "filters.by_kind")}><button class="on" data-kind="">{t("filters.all")}</button>' + "".join(
-                f'<button data-kind="{esc(k)}">{words("kind", k)} {n}</button>'
-                for k, n in sorted(counts.items(), key=lambda kv: core.EVENT_KINDS.index(kv[0])
-                                   if kv[0] in core.EVENT_KINDS else 99)) + "</div>"
-        return f'{chips}<ol class="timeline">{"".join(out)}</ol>'
+            out.append(self.record_row(ev, depth, row_id=prefix + self.anchor(ev), time_only=True))
+        return f'<ol class="timeline records">{"".join(out)}</ol>'
 
     # --- page shell ---
 
     def page(self, depth: int, title: str, crumb: str, body: str, kind: str, *,
              page_path: str | None = None, selection: str = "", title_key: str = "",
-             title_args: dict | None = None) -> str:
+             title_args: dict | None = None, back: str = "", actions: str = "") -> str:
         """A page. Its title is `title` as written, or the kit's words of `title_key` (then the
-        page switches them too); either way the project's title follows as written."""
+        page switches them too); either way the project's title follows as written. A page other
+        than the index starts with its way back, named by where it goes (design 8.1): the index
+        section `back` (by default the one its kind is listed in), or the page a reader came from
+        (workspace.js), then `actions`."""
         root = self.root(depth)
         page_path = page_path or ("index.html" if kind == "index" else "context.html" if kind == "context" else "")
-        if kind != "index" and "data-return" not in body:
-            body = f'<div class="workspace-actions"><a data-return href="{root}index.html">{t("action.return")}</a></div>' + body
+        if kind != "index":
+            back = back or BACK.get(kind, "overview")
+            body = (f'<div class="workspace-actions"><a class="back" data-return data-back="back.tab.{back}" '
+                    f'href="{root}index.html#{back}"><span aria-hidden="true">←</span> {t("back.tab." + back)}</a>{actions}</div>' + body)
         v = f"?v={self.build}"  # new URLs per build, so a reload never runs cached assets
-        plotly = (f'<script src="{root}assets/plotly.min.js?v={core.KIT_VERSION}"></script>'
-                  if self.uses_plotly else "")
+        # Plotly is read when a figure is about to show (workspace.js), not before the page paints.
+        plotly = (f' data-plotly="{root}assets/plotly.min.js?v={core.KIT_VERSION}"' if self.uses_plotly else "")
         self.uses_plotly = False
         if title_key:
             # The kit's words first, then what follows them as written (a selected identity).
@@ -647,23 +805,22 @@ class Site:
         else:
             switched = ""
         return f"""<!doctype html>
-<html lang="en" data-root="{root}" data-build="{self.build}" data-source="{esc(self.model.source_revision)}" data-page="{href(page_path)}" data-selection="{quote(selection, safe="")}"{switched}>
+<html lang="en" data-root="{root}" data-build="{self.build}" data-source="{esc(self.model.source_revision)}" data-page="{href(page_path)}" data-selection="{quote(selection, safe="")}"{switched}{plotly}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{esc(title)} · {esc(self.p.title())}</title>
+<title>{esc(title)} · {esc(self.project_title)}</title>
 <link rel="stylesheet" href="{root}assets/workspace.css{v}">
 <link rel="stylesheet" href="{root}assets/code.css{v}">
 <script src="{root}assets/i18n.js{v}"></script>
 </head>
 <body class="page-{kind}">
 <header class="topbar">
-  <div class="crumbs"><a href="{root}index.html"{USER}>{esc(self.p.title())}</a>{crumb}</div>
-  <div class="build">{t("chrome.rendered")} {fmt_time(self.built_at)} · <label><input type="checkbox" id="live" checked> {t("chrome.auto_reload")}</label></div>
+  <div class="crumbs"><a href="{root}index.html"{USER}>{esc(self.project_title)}</a>{crumb}</div>
+  <div class="build" id="page-menu">{t("chrome.rendered")} {fmt_time(self.built_at)} · <label class="live"><input type="checkbox" id="live" checked> {t("chrome.auto_reload")}</label></div>
 </header>
 <main><p class="state-notice" role="status" hidden></p>{body}</main>
 <footer>Aelix Analytics {core.KIT_VERSION} · {t("chrome.generated")} · <span class="read-basis">{t("chrome.read_at")} {self.read_footer()}</span></footer>
-{plotly}
 <script src="{root}assets/workspace-state.js{v}"></script>
 <script src="{root}assets/workspace.js{v}"></script>
 </body>
@@ -1035,10 +1192,8 @@ def index_page(site: Site) -> str:
     def item_list(items, empty_key):
         if not items:
             return f'<div class="empty">{t(empty_key)}</div>'
-        return '<ul class="items">' + "".join(
-            f'<li id="key-{esc(e["id"])}">{kind_chip(e["kind"])} <span class="item-text"{USER}>{esc(e["text"])}</span>'
-            f'<span class="item-meta"><a href="{esc(site.relations.content(site.source(e), 0) or site.relations.link(site.source(e), 0, anchor="#record"))}">{esc(site.source(e))}</a> · {fmt_time(e.get("ts"))}</span>'
-            f'{site.refs_html(e, 0)}</li>' for e in reversed(items[-12:])) + "</ul>"
+        return '<ol class="records">' + "".join(
+            site.record_row(e, 0, row_id="key-" + site.anchor(e)) for e in reversed(items[-12:])) + "</ol>"
 
     skipped = records_notice(site)
 
@@ -1069,9 +1224,9 @@ def index_page(site: Site) -> str:
     timeline = f"""
 <section id="timeline" class="tab">
   <div class="toolbar"><h2>{t("tab.timeline")}</h2></div>
+  {site.kind_nav("timeline", 0)}
   {list_notice("timeline", len(site.events), INDEX_LIMIT)}
-  <p>{t("timeline.filters_scope")}</p>
-  {site.events_html(site.events[-INDEX_LIMIT:][::-1], 0, filters=True)}
+  {site.events_html(site.events[-INDEX_LIMIT:][::-1], 0)}
 </section>"""
 
     data_rows = []
@@ -1081,7 +1236,7 @@ def index_page(site: Site) -> str:
         label = dataset_label(ds["name"], view)
         also = f' <small>{t("data.view")} <code>{esc(view)}</code></small>' if label != view else ""
         data_rows.append(
-            f'<tr><td><a href="data/{href(view)}.html"{USER}>{esc(label)}</a>{also}</td><td>{words("data.kind", ds["kind"])}</td>'
+            f'<tr id="data-{esc(view)}"><td><a href="data/{href(view)}.html"{USER}>{esc(label)}</a>{also}</td><td>{words("data.kind", ds["kind"])}</td>'
             f'<td class="num">{fmt_num(ds.get("rows"))}</td><td class="num">{fmt_num(ds.get("columns"))}</td>'
             f'<td class="num">{fmt_bytes(ds.get("bytes"))}</td><td><code{USER}>{esc(ds["path"])}</code></td>'
             f'<td>{origin}</td><td class="num">{len(ds.get("used_by") or [])}'
@@ -1106,7 +1261,7 @@ def index_page(site: Site) -> str:
                 repro.get("verdict"), "muted")
             verdict = badge(tone, "↻", f'{t("runs.rerun")} {verdict_label(repro.get("verdict"))}')
         run_rows.append(
-            f'<tr><td>{fmt_time(run.get("started_at"))}</td><td><a href="runs/{href(run["id"])}.html">{esc(run["id"])}</a></td>'
+            f'<tr id="run-{esc(run["id"])}"><td>{fmt_time(run.get("started_at"))}</td><td><a href="runs/{href(run["id"])}.html">{esc(run["id"])}</a></td>'
             f'<td>{status_badge(run.get("status"))} {verdict}</td><td{USER}>{esc(run.get("title"))}</td>'
             f'<td class="num">{len(relations.run_visualizations(run))}</td><td class="num">{len(run.get("inputs") or [])}</td>'
             f'<td class="num">{sum(1 for o in run.get("outputs") or [] if o.get("change") != "deleted")}</td>'
@@ -1154,19 +1309,34 @@ def list_notice(kind: str, total: int, limit: int, depth: int = 0) -> str:
 
 
 def insights_section(site: Site) -> str:
+    """Findings, decisions and assumptions, newest first: a row each (design 8.1), the kind filter
+    over all of them (8.2), and where the rest are."""
     events = [e for e in site.events if e.get("kind") in core.KEY_KINDS]
-    cards = "".join(
-        f'<article class="panel" id="insight-{esc(site.anchor(e))}"><h3>{kind_chip(e["kind"])} {esc(site.source(e))}</h3>'
-        f'<p{USER}>{esc(e.get("text"))}</p><p>{t("insights.state")} '
-        f'{words("state", (site.model.journal.replay().state_of(site.source(e)) or {}).get("state", "unknown"))}</p>'
-        f'{site.relation_actions(site.source(e), 0)}</article>' for e in events[-INDEX_LIMIT:][::-1])
-    return (f'<section id="insights" class="tab"><h2>{t("tab.insights")}</h2>'
-            f'<p>{t("insights.lead")} <a href="#assets">{t("insights.assets_link")}</a></p>'
-            + list_notice("insights", len(events), INDEX_LIMIT)
-            + (cards or f'<div class="empty">{t("insights.empty")}</div>') + '</section>')
+    rows = "".join(site.record_row(e, 0, row_id="insight-" + site.anchor(e)) for e in events[-INDEX_LIMIT:][::-1])
+    return (f'<section id="insights" class="tab"><div class="toolbar"><h2>{t("tab.insights")}</h2></div>'
+            f'<p class="muted">{t("insights.lead")} <a href="#assets">{t("insights.assets_link")}</a></p>'
+            + (site.kind_nav("insights", 0) if events else "") + list_notice("insights", len(events), INDEX_LIMIT)
+            + (f'<ol class="records">{rows}</ol>' if rows else f'<div class="empty">{t("insights.empty")}</div>') + '</section>')
+
+
+# The index section a list family continues: where its pages' way back goes.
+LIST_TAB = {"timeline": "timeline", "insights": "insights", "feedback": "evaluation", "charts": "charts",
+            "runs": "runs", "data": "data"}
+
+
+def list_page(site: Site, out: Path, filename: str, heading: str, scope: str, content: str, nav: str, *,
+              back: str, title_key: str = "", title: str = "") -> None:
+    body = (f'<h1>{heading}</h1><p class="list-scope">{scope}</p>' + content
+            + f'<nav class="continuation"{attr("aria-label", "list.pages")}>{nav}</nav>')
+    _write(out / "lists" / filename, site.page(1, title, f' <span>/</span> {t("list.crumb")}', body, "list",
+                                              page_path="lists/" + filename, title_key=title_key, back=back),
+           site.p.platform)
 
 
 def write_list_pages(site: Site, out: Path) -> int:
+    """The pages that continue the index's lists (`lists/<family>-<n>.html`), and each journal
+    kind's own list (`lists/kind-<kind>-<n>.html`, design 8.2, owner decision A of 2026-10-14) that
+    the kind filters of the Timeline and Insights link to: every record of the kind, newest first."""
     groups = {"timeline": list(reversed(site.events)), "insights": [e for e in reversed(site.events) if e.get("kind") in core.KEY_KINDS],
               "feedback": list(reversed(site.lists.feedback)), "charts": site.charts,
               "runs": list(reversed(site.runs)), "data": site.datasets}
@@ -1176,29 +1346,49 @@ def write_list_pages(site: Site, out: Path) -> int:
         for page in range(max(1, (len(records) + limit - 1) // limit)):
             filename = f"{kind}-{page}.html"
             subset = records[page * limit:(page + 1) * limit]
-            if kind in ("timeline", "insights", "feedback"):
-                content = site.events_html(subset, 1, filters=True)
+            if kind == "timeline":
+                content = site.kind_nav("timeline", 1) + site.events_html(subset, 1)
+            elif kind == "insights":
+                content = site.kind_nav("insights", 1) + ('<ol class="records">' + "".join(
+                    site.record_row(e, 1, row_id="insight-" + site.anchor(e)) for e in subset) + "</ol>"
+                    if subset else f'<div class="empty">{t("insights.empty")}</div>')
+            elif kind == "feedback":
+                content = site.events_html(subset, 1)
             elif kind == "charts":
                 content = (f'<label class="toggle"><input type="checkbox" id="show-retired"> {t("charts.show_retired")}</label>'
                            + '<div class="gallery">' + ''.join(site.chart_card(c, 1, full=True) for c in subset) + '</div>')
             else:
-                content = '<ul class="plain">' + ''.join(
-                    f'<li><a href="{site.run_link(r["id"], 1) if kind == "runs" else site.data_link(r["path"], 1)}"{USER}>'
-                    f'{esc(r.get("title") or r.get("name") or r.get("id"))}</a>'
-                    f'{site.relation_actions("run:" + r["id"] if kind == "runs" else r["path"], 1)}</li>'
+                content = '<ul class="plain items">' + ''.join(
+                    f'<li id="{"run-" + esc(r["id"]) if kind == "runs" else "data-" + esc(site.view_by_path.get(r["path"]) or "")}">'
+                    f'<a href="{site.run_link(r["id"], 1) if kind == "runs" else site.data_link(r["path"], 1)}"{USER}>'
+                    f'{esc(r.get("title") or r.get("name") or r.get("id"))}</a> '
+                    f'{site.relation_link("run:" + r["id"] if kind == "runs" else r["path"], 1)}</li>'
                     for r in subset) + '</ul>'
             nav = (f'<a href="{kind}-{page-1}.html">{t("list.previous." + kind)}</a>' if page else '')
             if (page+1) * limit < len(records):
                 nav += f' <a href="{kind}-{page+1}.html">{t("list.next." + kind)}</a>'
             start = page * limit + 1 if subset else 0
-            body = (f'<h1>{t("list.title." + kind)}</h1><p class="list-scope">'
-                    f'{t("list.items", start=start, end=page * limit + len(subset), total=len(records), outside=len(records) - len(subset))} '
-                    f'{t("list.filters_scope")}</p>'
-                    f'<p class="state-notice" role="status" hidden></p><a data-return href="../index.html">{t("action.return")}</a>'
-                    + content + f'<nav class="continuation"{attr("aria-label", "list.pages")}>{nav}</nav>')
-            _write(out / "lists" / filename, site.page(1, "", f' <span>/</span> {t("list.crumb")}', body, "list",
-                                                      page_path="lists/" + filename, title_key="list.title." + kind),
-                   site.p.platform)
+            scope = t("list.items", start=start, end=page * limit + len(subset), total=len(records),
+                      outside=len(records) - len(subset))
+            list_page(site, out, filename, t("list.title." + kind), scope, content, nav, back=LIST_TAB[kind],
+                      title_key="list.title." + kind)
+            keep.add(filename)
+    by_kind: dict[str, list[dict]] = {}
+    for event in reversed(site.events):
+        by_kind.setdefault(kind_list(event.get("kind")), []).append(event)
+    for kind, records in by_kind.items():
+        part, named = kind_file(kind), i18n.has(f"kind.{kind}")
+        for page in range((len(records) + INDEX_LIMIT - 1) // INDEX_LIMIT):
+            filename = f"kind-{part}-{page}.html"
+            subset = records[page * INDEX_LIMIT:(page + 1) * INDEX_LIMIT]
+            nav = (f'<a href="kind-{part}-{page-1}.html">{t("list.previous.kind")}</a>' if page else '')
+            if (page + 1) * INDEX_LIMIT < len(records):
+                nav += f' <a href="kind-{part}-{page+1}.html">{t("list.next.kind")}</a>'
+            scope = t("list.items", start=page * INDEX_LIMIT + 1, end=page * INDEX_LIMIT + len(subset),
+                      total=len(records), outside=len(records) - len(subset))
+            list_page(site, out, filename, words("kind", kind), scope,
+                      site.kind_nav("timeline", 1, current=kind) + site.events_html(subset, 1), nav,
+                      back="timeline", title_key=f"kind.{kind}" if named else "", title="" if named else str(kind))
             keep.add(filename)
     _prune(out / "lists", keep)
     return len(keep)
@@ -1228,7 +1418,7 @@ def asset_section(site: Site) -> str:
                     and all(type(value) is int for value in scores.values())):
                 score = t("assets.score", score=sum(scores.values()), seq=str(snapshot["details"].get("as_of_seq")),
                           id=snapshot["id"])
-            target = ("#" + site.anchor(candidate)) if any(site.source(e) == event_id for e in site.events[-INDEX_LIMIT:]) else site.relations.link(event_id, 0, anchor="#record")
+            target = ("#" + site.anchor(candidate)) if event_id in site.recent_sources else site.relations.link(event_id, 0, anchor="#record")
             source = f'<a href="{esc(target)}">{esc(event_id)} · {t("assets.journal_refs")}</a>'
             versions.append(f'<details id="asset-{esc(event_id)}"><summary>{source} · {score}</summary>'
                             f'<p{USER}>{esc(candidate["details"]["problem"])}</p>{site.refs_html(candidate, 0)}'
@@ -1556,8 +1746,8 @@ def run_page(site: Site, run: dict) -> str:
 <pre class="cmd">aelix: analytics_run(title="Rerun comparison", rerun_of="{esc(rid)}")
 CLI:   analytics run --rerun-of {esc(rid)}</pre></section>"""
     crumb = f' <span>/</span> <a href="../index.html#runs">{t("tab.runs")}</a> <span>/</span> {esc(rid)}'
-    return site.page(1, run.get("title") or rid, crumb, site.relation_actions("run:" + rid, 1) + body, "run",
-                     page_path="runs/" + rid + ".html", selection="run:" + rid)
+    return site.page(1, run.get("title") or rid, crumb, body, "run", page_path="runs/" + rid + ".html",
+                     selection="run:" + rid, actions=site.relation_link("run:" + rid, 1, klass="action"))
 
 
 # --- dataset page ---
@@ -1688,8 +1878,8 @@ def dataset_page(site: Site, ds: dict, view: str) -> str:
 <section><h2>{t("dataset.h.query")}</h2><pre class="cmd">analytics_query(sql="SELECT * FROM {esc(view)} LIMIT 20")
 analytics.read("{esc(view)}")   ·   analytics.sql("SELECT count(*) FROM {esc(view)}").pl()</pre></section>"""
     crumb = f' <span>/</span> <a href="../index.html#data">{t("tab.data")}</a> <span>/</span> {user_text(label)}'
-    return site.page(1, label, crumb, site.relation_actions(ds["path"], 1) + body, "dataset",
-                     page_path="data/" + view + ".html", selection=ds["path"])
+    return site.page(1, label, crumb, body, "dataset", page_path="data/" + view + ".html",
+                     selection=ds["path"], actions=site.relation_link(ds["path"], 1, klass="action"))
 
 
 # --- context page ---

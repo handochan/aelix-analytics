@@ -1,4 +1,4 @@
-// Aelix Analytics Workspace: tabs, lazy plotly rendering, timeline filters, live reload.
+// Aelix Analytics Workspace: tabs, plotly read and drawn when a figure shows, relation filters, live reload.
 (function () {
   "use strict";
   const doc = document.documentElement;
@@ -21,28 +21,48 @@
     el.textContent = shown.text;
   }
 
-  // --- plotly: render a figure once it is visible (hidden tabs have no size) ---
+  // --- plotly: read the library when a figure is about to show, not before the page paints, and
+  // draw each figure once it is visible (hidden tabs have no size) ---
   const pending = new Set(document.querySelectorAll(".plotly-chart[data-fig]"));
+  let library = null;
+  function plotlyLibrary() {
+    if (window.Plotly) return Promise.resolve(window.Plotly);
+    if (!doc.dataset.plotly || !document.createElement) return Promise.resolve(null);
+    if (!library) {
+      library = new Promise(resolve => {
+        const script = document.createElement("script");
+        script.src = doc.dataset.plotly;
+        script.onload = () => resolve(window.Plotly || null);
+        script.onerror = () => resolve(null);
+        document.head.appendChild(script);
+      });
+    }
+    return library;
+  }
+  // A narrow screen draws a figure without plotly's tool bar, which would cover its title.
+  function narrow() { return !!(window.matchMedia && window.matchMedia("(max-width: 40em)").matches); }
   function renderPlot(el) {
     if (!pending.has(el)) return;
-    if (!window.Plotly) {
-      // The figure's element holds the chart's own text (lang=""); this message is the kit's.
-      kitWords(el, "chart.plotly_missing");
-      pending.delete(el);
-      return;
-    }
     pending.delete(el);
-    try {
-      const fig = JSON.parse(document.getElementById(el.dataset.fig).textContent);
-      window.Plotly.newPlot(el, fig.data || [], fig.layout || {}, { responsive: true, displaylogo: false });
-    } catch (err) {
-      // The error is plotly's or the browser's, in their language: beside the kit's words, not in them.
-      const words = document.createElement("span"), detail = document.createElement("span");
-      kitWords(words, "chart.plotly_failed");
-      detail.setAttribute("lang", "");
-      detail.textContent = String(err);
-      el.replaceChildren(words, " ", detail);
-    }
+    return plotlyLibrary().then(Plotly => {
+      if (!Plotly) {
+        // The figure's element holds the chart's own text (lang=""); this message is the kit's.
+        kitWords(el, "chart.plotly_missing");
+        return;
+      }
+      try {
+        const fig = JSON.parse(document.getElementById(el.dataset.fig).textContent);
+        Plotly.newPlot(el, fig.data || [], fig.layout || {}, { responsive: true, displaylogo: false,
+          displayModeBar: narrow() ? false : "hover" });
+      } catch (err) {
+        // The error is plotly's or the browser's, in their language: beside the kit's words, not in them.
+        const words = document.createElement("span"), detail = document.createElement("span");
+        kitWords(words, "chart.plotly_failed");
+        detail.setAttribute("lang", "");
+        detail.textContent = String(err);
+        el.replaceChildren(words, " ", detail);
+      }
+    });
   }
   const observer = "IntersectionObserver" in window
     ? new IntersectionObserver((entries) => {
@@ -115,6 +135,7 @@
       a.classList.toggle("on", a.dataset.tab === (tab && tab.id));
       if (a.classList.contains("on")) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
     });
+    revealTab();
     renderVisiblePlots();
     drawRelations();
   }
@@ -131,17 +152,11 @@
     document.querySelector("main").prepend(nav);
   }
   const retired = document.getElementById("show-retired");
+  // A relation page's direction filter (this page's relations): what the record cites, or what cites it.
+  // A list's kind filter is a set of links to each kind's own list pages, which need no script.
   function filter(bar, kind) {
-    const list = bar.nextElementSibling && (bar.nextElementSibling.matches("ol") ? bar.nextElementSibling : bar.parentElement.querySelector("ol"));
-    if (!list) return;
     bar.querySelectorAll("button").forEach(b => { b.classList.toggle("on", b.dataset.kind === kind); b.setAttribute("aria-pressed", String(b.dataset.kind === kind)); });
-    list.querySelectorAll("li.ev,li.relation-item").forEach(li => { li.hidden = !!kind && (li.dataset.kind || li.dataset.direction) !== kind; });
-    list.querySelectorAll("li.day").forEach(day => {
-      let n = day.nextElementSibling, any = false;
-      while (n && !n.classList.contains("day")) { if (!n.hidden) any = true; n = n.nextElementSibling; }
-      day.hidden = !any;
-    });
-    if (bar.classList.contains("relation-filters")) document.querySelectorAll(".relation-node").forEach(el => { el.hidden = !!kind && el.dataset.direction !== kind; });
+    document.querySelectorAll(".relation-group,.relation-node").forEach(el => { el.hidden = !!kind && el.dataset.direction !== kind; });
     drawRelations();
   }
   let restoring = false;
@@ -201,6 +216,40 @@
       if (!value) save();
     });
   }
+  // The way back names where it goes (design WORKSPACE-READABILITY 8.1): the index section or the
+  // list the reader came from, or the page a reader opened directly and left (codec.next keeps a
+  // page with no origin of its own as the origin).
+  const LIST_BACK = { timeline: "back.tab.timeline", insights: "back.tab.insights", charts: "back.tab.charts",
+    runs: "back.tab.runs", data: "back.tab.data", feedback: "back.list.feedback" };
+  const PAGE_BACK = { runs: "back.page.run", data: "back.page.data", relations: "back.page.relations" };
+  function backKey(origin) {
+    if (origin.page === "index.html") return "back.tab." + (origin.tab || "overview");
+    if (origin.page === "context.html") return "back.page.context";
+    const list = /^lists\/(kind-.+|[a-z]+)-\d+\.html$/.exec(origin.page);
+    if (list) return list[1].indexOf("kind-") === 0 ? "back.list.kind" : LIST_BACK[list[1]] || null;
+    const detail = /^(runs|data|relations)\//.exec(origin.page);
+    return detail ? PAGE_BACK[detail[1]] : null;
+  }
+  // The words of a way back: its origin's, else the page's own (`data-back`). Both are the kit's
+  // words of a key, so they switch with the page's language.
+  function backWords(a, key) {
+    if (!I18n) return;
+    let words = a.querySelector("[data-back-words]");
+    if (!key || !I18n.has(key)) {
+      // No origin: the page's own words, which the page switches as its other words (a <k-w>);
+      // an origin's words written here before go back to the page's own key.
+      const home = a.getAttribute && a.getAttribute("data-back");
+      if (words && home && I18n.has(home)) kitWords(words, home);
+      return;
+    }
+    if (!words) {
+      words = document.createElement("span");
+      words.setAttribute("data-back-words", "");
+      const written = a.querySelector(I18n.WORD);
+      if (written) written.replaceWith(words); else a.append(words);
+    }
+    kitWords(words, key);
+  }
   function returnLinks() {
     document.querySelectorAll("a[data-return]").forEach(a => {
       const origin = state && state.origin;
@@ -209,8 +258,10 @@
         const back = { ...origin };
         if (language !== "en") back.lang = language; else delete back.lang;
         a.href = root + origin.page + codec.search(back) + (origin.anchor ? "#" + encodeURIComponent(origin.anchor) : "");
+        if (a.querySelector) backWords(a, backKey(origin));
         return;
       }
+      if (a.querySelector) backWords(a, null);
       // No origin (a page opened directly): the page's own return link, in the reader's language.
       if (a.dataset && !a.dataset.home) a.dataset.home = a.getAttribute("href");
       const home = new URL((a.dataset && a.dataset.home) || a.href, location.href);
@@ -275,6 +326,8 @@
   window.addEventListener("scroll", () => { clearTimeout(scrollTimer); scrollTimer = setTimeout(() => save(), 180); }, { passive: true });
   document.addEventListener("keydown", e => {
     if (e.key === "Escape" && notice && !notice.hidden && notice.contains && notice.contains(e.target)) { notice.hidden = true; return; }
+    // An open page menu closes first, and its button takes the focus back.
+    if (e.key === "Escape" && topbar && topbar.classList.contains("menu-open")) { menuOpen(false); if (menuButton) menuButton.focus(); return; }
     if (e.key === "Escape" && !e.target.matches("input,textarea,select")) {
       const a = document.querySelector("a[data-return]"); if (a) a.click();
     }
@@ -302,10 +355,62 @@
   window.addEventListener("resize", drawRelations);
   document.querySelectorAll(".relation-diagram").forEach(el => el.addEventListener("toggle", drawRelations));
   // The diagram is a secondary disclosure: it opens by default only where its three columns fit.
-  if (window.matchMedia && !window.matchMedia("(max-width: 640px)").matches) {
+  if (window.matchMedia && !window.matchMedia("(max-width: 40em)").matches) {
     document.querySelectorAll(".relation-diagram").forEach(el => { el.open = true; });
   }
   restore(state);
+
+  // --- a narrow screen's top bar is one line: the build line folds behind a menu button ---
+  const topbar = document.querySelector(".topbar"), pageMenu = document.getElementById("page-menu");
+  let menuButton = null;
+  function menuOpen(open) {
+    if (!topbar || !menuButton) return;
+    topbar.classList.toggle("menu-open", open);
+    menuButton.setAttribute("aria-expanded", String(open));
+  }
+  if (topbar && pageMenu && topbar.insertBefore && document.createElement) {
+    menuButton = document.createElement("button");
+    menuButton.type = "button"; menuButton.className = "menu-toggle";
+    menuButton.setAttribute("aria-controls", "page-menu");
+    menuButton.setAttribute("aria-expanded", "false");
+    menuButton.setAttribute("aria-label", T("chrome.menu")); menuButton.setAttribute("data-i18n-aria-label", "chrome.menu");
+    menuButton.textContent = "⋯";
+    menuButton.addEventListener("click", () => menuOpen(!topbar.classList.contains("menu-open")));
+    topbar.insertBefore(menuButton, pageMenu);
+    doc.classList.add("js-menu");
+    // A click elsewhere closes an open menu.
+    document.addEventListener("click", e => {
+      if (topbar.classList.contains("menu-open") && topbar.contains && !topbar.contains(e.target)) menuOpen(false);
+    });
+  }
+  // The sticky section bar sits below the top bar, whatever height the reader's text size gives it.
+  function topbarHeight() {
+    if (topbar && doc.style && doc.style.setProperty && topbar.offsetHeight) doc.style.setProperty("--topbar", topbar.offsetHeight + "px");
+  }
+  topbarHeight();
+  window.addEventListener("resize", topbarHeight);
+  // The section bar and a page's jump bar scroll sideways on a narrow screen: an edge fades where
+  // more links are, and the section shown is scrolled into the bar.
+  function edgesOf(bar) {
+    if (!bar || !bar.classList || typeof bar.scrollWidth !== "number") return;
+    const end = bar.scrollWidth - bar.clientWidth;
+    bar.classList.toggle("more-before", bar.scrollLeft > 2);
+    bar.classList.toggle("more-after", bar.scrollLeft < end - 2);
+  }
+  function bars() { return document.querySelectorAll ? Array.from(document.querySelectorAll("nav.tabs, nav.jump")) : []; }
+  function edges() { bars().forEach(edgesOf); }
+  function revealTab() {
+    if (!nav || typeof nav.querySelector !== "function") return;
+    const on = nav.querySelector("a.on");
+    if (on && (on.offsetLeft < nav.scrollLeft || on.offsetLeft + on.offsetWidth > nav.scrollLeft + nav.clientWidth)) {
+      nav.scrollLeft = Math.max(0, on.offsetLeft - 16);
+    }
+    edges();
+  }
+  bars().forEach(bar => { if (bar.addEventListener) bar.addEventListener("scroll", () => edgesOf(bar), { passive: true }); });
+  window.addEventListener("resize", edges);
+  revealTab();
+  edges();
 
   // --- the language menu: a reader's choice is kept in storage, else carried in the URL state ---
   const buildBar = document.querySelector(".topbar .build");

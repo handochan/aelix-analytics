@@ -5,7 +5,7 @@
 [plugin]
 id = "aelix-analytics"
 name = "Aelix Analytics"
-version = "0.16.0"
+version = "0.17.0"
 description = "Analysis projects with durable context, runs, evidence and reports, for people and agents"
 authors = ["handochan"]
 repository = "https://github.com/handochan/aelix-analytics"

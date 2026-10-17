@@ -735,20 +735,21 @@ checkpoint에만 암묵적 진행 run 근거를 붙이지 않으며 Origin과 pr
 ### C11. 선택 버전 관계와 Workspace 복귀 (kit 0.15.0, #18)
 
 Workspace의 `Insights`는 발견·결정·가정을 구별하고, Analysis assets는 기존의 저장된 후보·판정·제안만 읽습니다.
-각 항목의 `Evidence`·`Related items`·`History`는 정확한 선택 정체성의 정적 관계 페이지로 연결됩니다.
+각 항목의 관계 링크 하나(`Relations N`, 관계가 없는 기록은 `Open`. kit 0.15.0의 `Evidence`·`Related items`·`History`를 kit 0.17.0에서 합침, C13)는 정확한 선택 정체성의 정적 관계 페이지로 연결됩니다.
 관계 행은 `ReadModel.reference_neighborhood`에서 CLI·SDK 제한 조회와 함께 선택하며, 같은 `source_revision`·`as_of_seq`·참조 판단을 사용합니다.
 버전 없는 이름·누락·변경·복수 후보·미확인은 그대로 표시하고 최신 버전으로 결박하지 않습니다. `View latest version`이나
 `View current data`는 별도 선택입니다. 데이터 관측의 query identity도 현재 제한 조회의 정체성을 따르며 세부 role/path/hash는
 관계 판단 원문에 있습니다. run 수준의 참조·첨부 표는 행·함수 수준 계보나 결론 검증으로 승격하지 않습니다.
 
 선택 항목의 1-hop 참조를 incoming/selected/outgoing DOM 상자와 보조 SVG 선으로 보여 주고, 텍스트 목록에 방향·종류·basis·
-state·version_binding·confirmed·원본 위치와 판단 원문을 함께 적습니다. 관계 페이지 하나는 18개 관계와 선택 상자를 표시합니다.
+state·version_binding·confirmed·원본 위치와 판단 원문을 함께 적습니다(kit 0.17.0부터 방향별 묶음과 관계마다의 Details, C13). 관계 페이지 하나는 18개 관계와 선택 상자를 표시합니다.
 전체 수·페이지 밖 수·다음/이전 링크를 유지하며 방향 필터는 해당 페이지의 범위입니다. 참조가 없다는 것이 관계가 없다는 증명은 아닙니다.
 첫 index의 Timeline·Insights·Runs·Data·Workflow feedback은 최대 50개, Visualization gallery는 20개이며 나머지는 정적 목록 페이지로 연결됩니다.
 현재 CONTEXT·Analysis assets의 기존 전체 표시와 개별 기록의 원문은 이 목록 상한과 구별합니다. 재생성은 전체 기록을 읽고 정적 페이지를 만듭니다.
 
-JavaScript는 URL의 작은 `ws` 상태에 section·페이지 필터·retired 선택·선택 정체성·원래 카드/상대 스크롤 위치·읽기 기준을 저장합니다.
-브라우저 history와 storage는 보조 수단입니다. 상세의 `Return to origin`과 Back/Forward가 같은 원점 상태를 사용합니다.
+JavaScript는 URL의 작은 `ws` 상태에 section·관계 페이지의 방향 필터·retired 선택·선택 정체성·원래 카드/상대 스크롤 위치·읽기 기준을 저장합니다.
+목록의 종류 필터는 kit 0.17.0부터 종류별 목록 페이지로 가는 링크입니다(C13).
+브라우저 history와 storage는 보조 수단입니다. 상세의 돌아가기 링크(kit 0.17.0부터 돌아갈 곳의 이름, C13)와 Back/Forward가 같은 원점 상태를 사용합니다.
 복귀 대상은 생성된 Workspace HTML 경로로 제한하고, 잘못된 상태·원래 카드 소멸·바뀐 source 기준은 알림으로 표시합니다.
 이 상태는 새 기록을 쓰거나 모델을 부르지 않습니다. JavaScript가 없어도 링크·관계 목록·페이지 연결로 내용을 읽습니다.
 필터·관계 탐색에 fetch·CDN·로컬 서버를 요구하지 않습니다. 기존 auto-reload는 로컬 `assets/build.js`를 script로 읽습니다.
@@ -780,18 +781,74 @@ Workspace의 kit 문구(탭·제목·배지·버튼·빈 화면·안내·tooltip
   카탈로그가 바뀌면 Workspace 지문이 바뀌어 다시 그립니다.
 - **언어 선택**: 상단 막대의 메뉴(`Language · 화면 언어`, 선택지 `English`·`한국어`)는 스크립트가 만듭니다. JavaScript가 없으면 메뉴가 없고 모든 화면이 영어입니다.
   보이는 언어는 동작하는 브라우저 저장소의 선택(localStorage `analytics-language`), 없으면 URL `ws` 상태의 `lang`, 둘 다 없으면 `en`입니다.
-  URL 상태는 `en`이 아닐 때만 `lang`을 싣고, 링크·`Return to origin`·Escape·`Reset view`가 지금 언어를 이어 갑니다. back-forward cache에서 다시
+  URL 상태는 `en`이 아닐 때만 `lang`을 싣고, 링크·돌아가기 링크·Escape·`Reset view`가 지금 언어를 이어 갑니다. back-forward cache에서 다시
   보이거나 다른 탭에서 언어를 바꾸면 저장된 선택을 따릅니다. 저장소가 막힌 페이지의 브라우저 Back은 그 history 항목의 언어로 보입니다.
-- **바뀌지 않는 것**: 사람·에이전트·스크립트가 쓴 글(`lang=""` 요소, 메시지 값으로 넘기지 않음), 화면에 원문으로 적는 저장 값(관계 판정의
-  relation·basis·state·binding, 관계 페이지의 기록 종류, 저장된 기록 JSON), 경로·ID·URL·anchor, 코드, CLI·SDK·모델 도구의 출력, 기록 형식.
+- **바뀌지 않는 것**: 사람·에이전트·스크립트가 쓴 글(`lang=""` 요소, 메시지 값으로 넘기지 않음), 화면에 원문으로 적는 저장 값(관계 페이지의
+  기록 종류, 관계 판정의 JSON과 저장된 기록 JSON), 경로·ID·URL·anchor, 코드, CLI·SDK·모델 도구의 출력, 기록 형식.
   프로젝트 기본 언어는 영어이고 프로젝트별 설정은 없습니다(2026-10-15 소유자 결정, #95).
-- **이름표로 보이는 저장 값**: 기록 종류·run 상태·재실행 판정·참조 상태·입력과 출력의 상태·변경·작성자·데이터 종류·인사이트 상태는
-  화면에 이름표로 보이고, 그 이름표가 화면 언어를 따릅니다. 원래 값은 기록 원문에 그대로 있습니다.
+- **이름표로 보이는 저장 값**: 기록 종류·run 상태·재실행 판정·참조 상태·입력과 출력의 상태·변경·작성자·데이터 종류와, kit 0.17.0(C13)부터
+  기록의 바뀐 상태(정정·철회·열림)와 관계의 relation·basis·version_binding은 화면에 이름표로 보이고, 그 이름표가 화면 언어를 따릅니다.
+  원래 값은 기록 원문과 관계의 Details에 있는 판정 JSON에 그대로 있습니다.
 - **시각**: 기록의 offset 그대로의 벽시계 시각이며 읽는 사람의 시간대로 바꾸지 않습니다. 날짜는 화면 언어로 `Aug 3, 2026 09:10`·`2026년 8월 3일 09:10`처럼 보이고,
   날짜가 있는 시각은 `<time datetime>`에 기록의 원래 값(offset 포함)을 두며 스크립트가 그 값으로 다시 씁니다. 날짜 제목 아래의 시각(`09:10`)은 언어마다 같습니다.
 - **첫 그림**: `<head>`의 스크립트가 `<html lang>`과 문서 제목을 먼저 정합니다. 영어가 아니면 파서가 요소를 넣는 대로 문구를 바꿉니다(요소 뒤에 다음 노드가
   들어온 뒤). 본문 끝의 스크립트는 페이지 전체를 다시 적용합니다. 그래서 파서가 한 번에 읽은 범위의 끝에 있는 단어 몇 개는 그때까지 영어로 보일 수 있습니다.
   측정은 [PR #102](https://github.com/handochan/aelix-analytics/pull/102)의 검증 표에 있습니다(첫 프레임에 영어 단어 5개, 480여 개 중).
+
+### C13. 목록·관계 표현, 종류별 목록, 좁은 화면 (kit 0.17.0, #97)
+
+[설계](design/WORKSPACE-READABILITY.md) §8의 구현입니다. 기록 형식·ReadModel 판정·CLI·SDK·도구·게시본은 바꾸지 않습니다.
+
+**기록 한 줄 행.** Workspace의 기록 목록(Insights, Timeline, 이어 보기 목록, 종류별 목록, Overview의 목록, Workflow feedback, run 페이지의 journal)은 기록마다 한 행입니다.
+- 순서: 종류(점과 이름), 사람이 쓴 글(`lang=""`, 자르지 않음), 바뀐 상태의 배지, id·시각·작성자, 참조 판정 배지, 관계 페이지로 가는 링크 하나.
+- 관계 링크: `Relations N`. N은 그 관계 페이지가 적는 1-hop 관계 수입니다. 관계가 없는 기록은 `Open`이며 그 기록의 자리(`#record`)로 갑니다.
+  차트 카드, run·데이터셋 페이지, 맥락 버전, 목록 페이지의 run·데이터도 같은 링크 하나입니다(전의 `Evidence`·`Related items`·`History` 세 링크).
+- 상태 배지는 기록이 만든 때와 다를 때만 붙습니다(ADR-0006 6). `current`에는 없습니다(전의 `State: current` 줄은 없앴습니다).
+  닫힌 발견·결정·가정이 정정·철회되기도 했으면 두 배지가 함께 붙습니다.
+  - 정정된 기록 `↺ Superseded by e3`(정정한 기록으로 링크), 정정이 갈린 기록 `⚠ Corrected by N records`, 철회 `⊘ Withdrawn`
+  - 질문·다음 할 일의 `● Open`과 C1의 닫힘 배지(`✓ Resolved by e3`, 아니면 `closed by e3 · <판정>`)
+- 참조 판정 배지는 표시와 글자로 판정을 말합니다. 색만으로 구별하지 않습니다. 저장 값은 관계 페이지의 Details에 원문 그대로 있습니다.
+
+| 판정(`state`·`reason`) | 배지 |
+|---|---|
+| `resolved` | 찾은 대상의 종류와 id(`✓ Run …`, `✓ Question e3`), 버전이 있는 대상은 `✓ Exact version · 이름`. 정정·닫는 관계는 `→ Corrects e3`·`→ Resolves e3` |
+| `version_unbound` | `⚠ Version not named · 이름`. 링크는 최신 버전이고, 배지의 title이 인용한 버전이 아님을 말합니다. 후보 버전 수를 함께 적습니다 |
+| `ambiguous` | `⚠ Several matches`와 후보 수 |
+| `unknown` | `⚠ Unknown name`(`unresolved_name`), `⚠ No hash recorded`(`no_digest`) |
+| `missing` | `⊗ Not found when cited`(`record_absent`. 같은 id의 기록이 인용한 기록 뒤에 하나 있으면 `recorded later: e3`), `⊗ File missing now`(`file_absent`), `⊗ Cited bytes differ`(`digest_mismatch`) |
+| `content_changed` | `⊗ Changed since cited` |
+| `unsupported` | `– Not supported` |
+
+- 행은 참조 배지를 4개까지 보이고 나머지 수를 적습니다. 관계 페이지가 모두 적습니다. 인용이 없는 발견·결정·가정은 `No references recorded`라고 적습니다.
+- 논리 키(`script::chart`)는 차트 id를 보이고 키 전체를 title로 둡니다.
+
+**종류별 목록(필터 A안, 소유자 결정 2026-10-14).**
+- `lists/kind-<kind>-<n>.html`: journal에 있는 종류마다, 한 페이지 50개, 최신 먼저입니다. 저장된 kind가 `[a-z][a-z0-9_]{0,47}`가 아니면 `<kind>` 자리는 `x-`와 그 값의 해시입니다.
+  화면 이름이 같은 종류(`gap`과 `workflow_feedback`, `reuse_proposal`과 `asset_candidate` 등)는 한 목록을 함께 씁니다.
+- Timeline과 Insights(발견·결정·가정)의 종류 필터는 이 페이지로 가는 링크입니다. 개수는 journal 전체 기준이고 JavaScript 없이 동작합니다.
+  같은 필터가 이어 보기 목록과 종류별 목록에도 있고, 지금 페이지의 종류는 `aria-current="page"`입니다. 'Filters apply to this page' 문구는 없앴습니다.
+- 종류별 목록은 C11의 목록 페이지처럼 원점이 됩니다. 늘어난 페이지 수는 kind마다 `ceil(기록 수 / 50)`입니다.
+
+**관계 페이지.**
+- 머리: 종류·상태 배지, 기록의 글을 제목으로(200자를 넘으면 종류·id 제목 아래 글), id·기록 시각·작성자·journal 줄. 기록이 아닌 정체성은 그 이름(run·시각화의 제목, 데이터셋 이름)입니다.
+- 정정·갈린 정정·철회는 머리 아래 안내(`role="note"`)가 말하고 정정한 기록으로 잇습니다. 원래 글과 근거는 기록된 그대로입니다.
+- 관계는 "This record cites"(나가는 참조)와 "Cited by"(들어오는 참조)로 묶습니다. 관계마다 대상의 종류와 관계 이름, 사람이 쓴 이름, 판정 배지, 열기 링크(정확한 내용이 있을 때)와 그 대상의 관계 페이지, Details(관계·basis·version_binding·판정의 글과 저장 값, 확정 연결, 기록 위치, 판정 JSON)가 있습니다.
+- 방향 필터(All·Cites·Cited by)는 C11대로 이 페이지의 관계 범위입니다. 방향 그림은 목록 뒤의 disclosure입니다(C11).
+- 마지막의 접힌 기술 세부: 저장된 kind와 시각, 상태 replay(`state_of`), 저장된 기록 전체.
+
+**돌아가기.** index가 아닌 페이지는 돌아갈 곳의 이름을 단 링크로 시작합니다(`← Back to Insights`).
+- 정적 기본값은 그 페이지 종류가 목록에 있는 index 구역입니다: run → Runs, 데이터셋 → Data, 관계 → Insights, 맥락 → Context, 목록 → 그 목록의 구역(Workflow feedback → Evaluation), 종류별 목록 → Timeline.
+- 스크립트는 C11의 원점 상태로 href와 이름을 함께 바꿉니다(index 구역의 이름, 목록의 이름, 종류별 목록은 `Back to the list`).
+  직접 연 상세 페이지는 원점이 없어 그 페이지가 다음 페이지의 원점이 되며, 그때 이름은 `Back to the run`·`Back to the dataset`·
+  `Back to the relations`·`Back to Context history`입니다. 이름은 화면 언어를 따릅니다.
+
+**좁은 화면과 접근성.**
+- 글자 크기는 rem, 화면 나눔은 em입니다. 그래서 브라우저의 글자 크기 설정을 따르고, 넘치지 않고 줄을 바꿉니다.
+- 40em 아래에서 스크립트는 상단 막대를 한 줄로 두고, 생성 시각·화면 언어·자동 새로고침을 메뉴 단추 뒤에 둡니다. Escape는 열린 메뉴를 먼저 닫습니다. JavaScript가 없으면 상단 막대가 줄을 바꿉니다.
+- 구역 탭은 상단 막대 아래에 고정되고, 넘치는 쪽 가장자리를 흐리게 해 더 있음을 보입니다(run 페이지의 구역 이동 막대도 같음). 지금 구역은 보이는 자리로 스크롤됩니다.
+- 주요 컨트롤(탭, 종류 필터, 행의 관계 링크, 돌아가기, 관계 필터·열기, 접기 요약, 메뉴, 체크박스의 라벨)은 44px 이상입니다. 문장과 배지 안의 링크는 글의 일부라 제외합니다.
+- plotly: 그림이 있는 페이지는 `<html data-plotly>`에 `assets/plotly.min.js`의 경로만 적습니다. 스크립트가 첫 그림이 보일 때 한 번 읽고, 그 전에 페이지를 막지 않습니다. 읽지 못하면 지금처럼 그 그림 자리에 kit 문구로 알립니다. 40em 아래에서는 도구 막대 없이 그립니다.
+- Data·Runs 표의 행은 `data-<view>`·`run-<id>` id를 가져, C11의 원점 복귀가 그 행으로 돌아옵니다.
 
 ## D. kit CLI
 
@@ -995,7 +1052,7 @@ Windows의 한계는 G절에 있습니다.
 | stale | 입력 중 `changed`·`missing`이 있거나, 입력의 생산자 후보 가운데 stale인 run이 있음(전이). 후보를 모두 따라가고 마지막 run을 고르지 않습니다. 후보가 둘 이상인 입력은 `ambiguous_inputs`, 따라가다 아직 걷는 중인 run으로 돌아오면 `cycle`이며(같은 시각에 시작했거나 시작 시각을 읽지 못한 run 사이에서만 생깁니다. 두 길로 닿는 다이아몬드는 순환이 아님) 깊이 제한 없이 run마다 한 번 방문해 끝납니다. 화면은 stale인 후보를 생산자로 단정하지 않습니다: `analytics_status`는 `STALE(upstream candidate(s) …)`, Workspace는 입력이 직접 바뀐 run에만 "This run's inputs differ from the files now."를 적고, 후보만 stale이면 "Upstream candidate stale"(같은 바이트를 출력한 run의 입력이 바뀜)을 적습니다 |
 | 생산자 후보 | 입력의 `(path, sha256)`과 같은 출력(`deleted` 아님)을 남긴 `ok` run 가운데, 소비 run이 아니고 그보다 늦게 시작하지 않은 것(시작 시각은 시간대를 반영한 시점, 읽지 못하면 빼지 않음). 0개 `none`, 1개 `resolved`, 여럿 `ambiguous`(모두 보임), 입력에 해시가 없으면 `unknown`. 데이터셋은 현재 바이트로 같은 판정을 합니다(소비 run 없음). 후보는 같은 바이트를 출력했다는 관측(basis `observed`)이며 확정 연결이 아니고, 화면은 `same bytes as run X's output`(여럿이면 `same bytes as N runs: X, Y`)으로 적습니다(ADR-0006 4). 데이터셋 페이지는 후보가 있을 때만 "그 run이 이 경로에 이 바이트를 출력했다"고 적고, 그 경로를 출력으로 기록한 성공 run은 바이트와 무관한 목록("Successful runs that recorded an output at this path", 지운 것은 `deleted this path`)으로 따로 적습니다. 옛 kit의 경로로만 맞은 후보는 추론입니다(아래 행) |
 | 참조 판정 | ADR-0006 3·4절대로 읽습니다: `/1` `refs`의 정규화(4절 끝의 목록), 해석 상태, `confirmed`(author ∧ observed/declared ∧ resolved). 이벤트 계열 참조(`/1`의 `refs.events`·`refs.resolves`, `/2`·Report manifest의 결박된 `event`·`analysis_focus`·`metric_definition`·`reuse_proposal`)는 대상의 seq가 참조한 기록의 seq보다 작을 때만 찾고, 같거나 크거나 seq가 없으면 `missing`(`record_absent`)·`confirmed=false`입니다. ADR-0006 4절 2단계("대상 기록을 찾는다")의 읽기입니다(G). `/1` `refs.runs`는 run의 `started_at`이 이벤트 `ts`보다 늦으면 `missing`, `kind=run` 이벤트의 `refs.charts`는 `refs.runs`가 하나일 때 그 run의 버전에 결박되고(여럿이면 `ambiguous`), 그 밖의 `refs.charts`·`refs.data`는 `version_unbound`입니다. 미결박 차트의 후보는 그 이벤트 앞의 완료 이벤트를 가진 성공 run의 버전이고, 그 가운데 옛 kit의 경로로만 그 키의 버전인 것은 `inferred_candidates`에도 있습니다(아래 행) |
-| 참조 표시 | run 이벤트의 차트는 그 run 페이지의 차트(`runs/<run>.html#chart-<id>`), 미결박 차트·데이터는 "Version unbound"와 함께 최신 갤러리 카드·데이터셋 페이지로 잇고 "latest, not the cited version"과 후보 수를 적습니다. 그 밖의 상태(`missing`·`ambiguous`·`unknown`·`unsupported`·`content_changed`)는 색이 아니라 글로 적습니다. 타임라인의 해결 배지는 C1의 선택을 따르되, 닫는 기록의 `refs.resolves` 판정이 `resolved`일 때만 "✓ Resolved by e3"이고 아니면 그 상태를 적습니다(`closed by e3 · Missing: record_absent`). `analytics_status`의 핵심 정보는 살펴볼 상태(`missing`·`ambiguous`·`content_changed`·`unsupported`)의 참조가 있을 때 상태별 수와 확정 연결 수, 그 상태의 대상 식별자를 적습니다. 참조가 모두 `resolved`·`version_unbound`·`unknown`인 항목은 아무것도 붙이지 않고 수는 JSON의 `references`에 있습니다(`/1` 메모의 차트·데이터는 원래 미결박입니다). 식별자는 두 화면이 같습니다: 이벤트 `e<seq>`(여러 줄이면 `journal:<줄>`), run id, `<run_id>/<chart_id>`, 논리 키 `script::chart`, 경로, 읽지 못하는 참조는 기록 안의 자리(`/1` `refs.<field>`, `/2` `refs[<index>]`). 여러 줄의 id를 가리키는 이벤트 참조의 후보는 기록(`candidate record(s)`), 미결박 차트의 후보는 버전입니다 |
+| 참조 표시 | 참조마다 표시와 글자의 배지입니다(kit 0.17.0, C13의 표). run 이벤트의 차트는 그 run 페이지의 차트(`runs/<run>.html#chart-<id>`), 미결박 차트·데이터는 "Version not named"와 함께 최신 갤러리 카드·데이터셋 페이지로 잇고, 배지의 title "latest, not the cited version"과 후보 수를 적습니다. 그 밖의 상태(`missing`·`ambiguous`·`unknown`·`unsupported`·`content_changed`)도 색이 아니라 글로 적고, 저장 값은 관계 페이지의 Details에 원문 그대로 둡니다. 타임라인의 해결 배지는 C1의 선택을 따르되, 닫는 기록의 `refs.resolves` 판정이 `resolved`일 때만 "✓ Resolved by e3"이고 아니면 그 상태를 적습니다(`closed by e3 · Not found when cited`). `analytics_status`의 핵심 정보는 살펴볼 상태(`missing`·`ambiguous`·`content_changed`·`unsupported`)의 참조가 있을 때 상태별 수와 확정 연결 수, 그 상태의 대상 식별자를 적습니다. 참조가 모두 `resolved`·`version_unbound`·`unknown`인 항목은 아무것도 붙이지 않고 수는 JSON의 `references`에 있습니다(`/1` 메모의 차트·데이터는 원래 미결박입니다). 식별자는 두 화면이 같습니다: 이벤트 `e<seq>`(여러 줄이면 `journal:<줄>`), run id, `<run_id>/<chart_id>`, 논리 키 `script::chart`, 경로, 읽지 못하는 참조는 기록 안의 자리(`/1` `refs.<field>`, `/2` `refs[<index>]`). 여러 줄의 id를 가리키는 이벤트 참조의 후보는 기록(`candidate record(s)`), 미결박 차트의 후보는 버전입니다 |
 | 읽기 기준 | `analytics_status`의 `read:` 줄과 Workspace의 모든 페이지 바닥이 같은 `as_of_seq`(journal의 마지막 seq)와 `source_revision`(읽기 규칙의 번호 `relations.READER_FORMAT`과 journal·run.json·manifest·meta(`data/raw`·`data/imported`)·CONTEXT의 크기와 mtime, 전환한 프로젝트는 그 매핑의 상태(E "전환한 프로젝트의 매핑")로 만든 16자, 절대 경로 없음)을 적습니다. 번호는 kit 0.7.0에서 2가 되었고 #13의 둘째 PR(같은 kit 번호)에서 3이 되어(전환한 프로젝트의 매핑 읽기), 같은 파일의 `source_revision`도 그 전과 다릅니다. 읽는 동안 파일이 바뀌면 두 번까지 다시 읽고, 그래도 바뀌면 `updating`이라고 적습니다(ADR-0006 5) |
 | 출력의 현재 상태 | run 페이지는 출력마다 지금 파일을 기록한 sha256과 비교합니다: 같음, 다름("Overwritten since this run — this run's bytes are not preserved"), 없음(`file_absent`), 해시 없음(`unknown`) |
 | 코드 상태 | 원래 스크립트 파일 sha256 대비 `same` / `changed` / `missing` (재실행은 `n/a`). `changed`인 코드도 입력 상태와 같은 규칙으로 사유를 붙입니다: JSON `code_reason`(`line_endings_only`, 없으면 `null`), 글 `script edited since (line endings only)`, Workspace의 `Line endings only` 배지와 코드 상태 `Current file edited (line endings only)` |
@@ -1031,7 +1088,7 @@ Windows의 한계는 G절에 있습니다.
 | 파일명 — 차트 | kit이 저장하는 차트 파일(`analytics.visualize`의 이미지·plotly JSON·플롯 데이터)만 이식 가능한 이름으로 바꿉니다(`con` → `con_.png`). 정체성 `script::id`는 생성된 id까지 그대로입니다. 이 대응은 단사입니다 — 차트 id는 slug이라 `_`를 포함할 수 없으므로 `con-file` 같은 보통 id와 충돌하지 않습니다. 스크립트가 차트 id 본래 이름에 쓴 파일(차트 `con`의 `charts/con.png`, 대소문자를 구별하지 않는 파일 시스템에서는 `charts/CON.png`도)은 이전 구현이 그 차트를 쓰거나 덮어쓴 파일이므로 따로 차트로 기록하지도 경고하지도 않고, 그 차트가 버려지면 함께 지웁니다. 그 밖에 스크립트가 run 디렉터리에 직접 쓴 파일(`register_loose_files`)은 스크립트가 정한 이름 그대로 차트가 되며 위 경고로만 알립니다 |
 | 경로·인코딩 | 리포트의 절대 경로 링크는 기록한 플랫폼 기준으로 해석한 `file://` URL입니다(`C:\…` → `file:///C:/…`, `\\server\share\…` → `file://server/share/…`). 그래서 POSIX에서 이름이 `X:\`나 `\\`로 시작하는 프로젝트 파일은 그 Windows 경로로 링크되거나, 공유 이름이 없으면 링크되지 않습니다. CLI는 인자를 읽기 전에 표준 스트림을 UTF-8(`errors='replace'`)로 고정하고, 텍스트를 읽는 파일·자식 프로세스 호출은 인코딩을 명시합니다. run 로그도 UTF-8이며 인코딩할 수 없는 문자(짝 없는 surrogate)는 `?`로 씁니다. kit이 쓰는 텍스트 파일(B)은 `core.open_text`·`core.write_text`로만 쓰며(UTF-8, `_platform.TEXT_NEWLINE` = LF, 번역 없음; `tests/test_line_endings.py`의 가드가 확인), run 로그를 감싸는 스트림도 줄 끝을 번역하지 않습니다(kit 0.4.0부터). run 동안 stdout·stderr는 파일 기술자와 Python 스트림을 함께 바꾸고, 출력은 이전처럼 블록 단위로 버퍼링됩니다. 이렇게 해서 콘솔 전용 스트림이 파일에 쓰지 못하는 문제를 피합니다. Windows에서는 설치본 `analytics`를 의사 콘솔(ConPTY)에서 실행해 확인했습니다(측정): run의 stdout 로그에 스크립트의 한국어 출력이 남았고, 콘솔 코드 페이지 437과 949에서 한국어 제목이 콘솔에 그대로 보였습니다. 이것은 Python의 콘솔 경로로 쓴 kit의 출력(결과 줄의 한국어 제목)에 대한 결과입니다. 런처의 글도 같은 경로로 쓰인다고 봅니다(코드에서 읽음, 실행하지 않았습니다). 콘솔 파일 기술자에 바이트를 직접 쓰는 출력과, 출력 파이프가 없는 고전 콘솔의 글 순서·인코딩은 실행하지 않았습니다(`not_run`) |
 | 사람용 진입점 | 체크아웃의 `bin/analytics`(POSIX 셸, kit 0.3.0 전 `bin/lab`)과 설치본의 `analytics`(stdlib Python 런처, 모든 플랫폼; Windows에서는 `analytics.exe`)입니다. `bin/analytics`는 wheel로 설치하지 않습니다. 하위 명령은 둘 다 `record`·`render` 등이고 옛 `note`·`report`는 usage와 2입니다. 둘은 같은 명령·인자·usage(바이트까지)·종료 코드와 옛 환경 변수의 오류(D)를 지키고 kit의 출력을 바이트 그대로 넘기며, POSIX에서 같은 stand-in uv로 동등성을 시험합니다. 런처는 자식을 같은 process group·콘솔에서 표준 스트림을 물려준 채 기다리고 SIGINT·SIGBREAK를 기록만 하므로, 터미널의 Ctrl+C를 런처는 다시 보내지 않고 kit의 기록을 기다려 kit의 종료 코드로 끝납니다. uv는 자기 표준 입력이 터미널이 아니면 200 ms 뒤 kit에 한 번 더 보냅니다(`bin/analytics`에서도 같습니다). 런처가 무시된 SIGINT를 물려받으면(셸의 백그라운드 작업) 그대로 두어 kit도 무시한 채 시작합니다. 자식을 시작하는 순간에 온 Ctrl+C는 자식이 뜬 뒤 한 번 더 보냅니다(POSIX). 그 순간 터미널의 Ctrl+C를 이미 받은 자식에게는 두 번 갑니다. Windows에서는 다시 보내지 않습니다 — 한 프로세스에 SIGINT를 보낼 방법이 없고, 시험이 이를 고정합니다. 같은 콘솔의 자식은 콘솔의 Ctrl+C를 직접 받습니다. Windows 콘솔의 Ctrl+C도 런처가 다시 보내지 않고 kit의 기록을 기다려 kit의 종료 코드로 끝납니다(측정: 의사 콘솔과 고전 콘솔에서 런처가 `cancelled` 기록 뒤 3으로 끝났고 남은 프로세스가 없었습니다. Ctrl+Break는 G). 두 번 오더라도 kit은 run을 구간마다 한 번만 중단합니다(D1). 런처와 `bin/analytics`의 차이: 런처만 받은 SIGTERM은 kit의 `run`에만 전하고(run이 `cancelled`로 기록), 그 밖의 단계(init·migrate·sync·status·context·import·query·record·render·demo와 `analytics open`의 문서 열기)는 끝까지 두고 다음 단계를 시작하지 않은 채 143으로 끝납니다(`bin/analytics`의 셸은 그 자식을 남기고 곧바로 끝납니다). 이 SIGTERM은 POSIX의 것입니다 — Windows에서는 다른 프로세스가 처리기에 SIGTERM을 보낼 수 없고 `os.kill`·`taskkill /F`가 런처를 곧바로 끝냅니다(강제 종료, D1). 런처가 Ctrl+C나 SIGTERM을 기록한 뒤에는 다음 단계를 — `analytics open`의 문서 열기도 — 시작하지 않습니다. 단계를 시작하는 그 짧은 순간 온 신호는 그 단계를 막지 못할 수 있습니다. 그러면 Ctrl+C는 그 단계에 다시 보내고 SIGTERM은 kit의 `run`에만 보내며, 문서를 여는 프로그램에는 어느 것도 보내지 않으므로 리포트가 열릴 수 있습니다. uv가 없으면 런처는 자기 문구로 127입니다(`bin/analytics`은 셸의 오류로 끝나며, macOS의 sh는 없는 경로에 1). 런처는 macOS에서만 `open`을 씁니다(`bin/analytics`은 `open`이 있으면 어디서나). dash로 도는 `bin/analytics`은 Ctrl+C 뒤 SIGINT로 끝납니다. 측정한 경계 사례의 차이: 빈 첫 인자(`analytics ""`)는 `bin/analytics`에서 status, 런처에서 usage와 2입니다. 실행할 수 없는 uv(디렉터리이거나 실행 권한이 없는 파일인 `AELIX_ANALYTICS_UV`, PATH에서 실행 권한이 없는 `uv` 파일)는 `bin/analytics`에서 셸의 오류와 셸·플랫폼에 따른 종료 코드(126·127·1), 런처에서 uv를 찾지 못했다는 문구와 127입니다. 찾았지만 시작할 수 없는 uv(없는 인터프리터를 가리키는 스크립트)는 `bin/analytics`에서 셸의 오류와 126(macOS의 sh)·127(dash), 런처에서 시작할 수 없다는 문구와 127입니다. 문서를 여는 프로그램이 없으면 둘 다 127이고, 런처는 자기 문구를, `bin/analytics`은 셸의 오류를 냅니다. 작업 디렉터리가 지워졌으면 런처는 읽을 수 없다는 문구와 1로 끝나고, `bin/analytics`은 macOS의 sh에서 셸의 오류와 1로 끝나지만 dash에서는 프로젝트를 찾는 반복이 끝나지 않습니다(kit 0.3.0 전의 `bin/lab`과 같습니다). `AELIX_ANALYTICS_UV`의 `~`와 끝의 `/`는 런처만 풀어 uv를 실행합니다(`bin/analytics`은 dash 127, macOS의 sh 1). 런처 자신의 글을 닫힌 파이프에 쓰면 `bin/analytics`은 141, 런처는 `BrokenPipeError`와 120이고, 표준 출력을 닫은 채(`>&-`) `--help`를 부르면 `bin/analytics`은 2, 런처는 traceback과 1입니다. symlink로 들어온 작업 디렉터리에서 `init ../DIR`은 `bin/analytics`에서 kit이 프로젝트를 만든 뒤 실패하고(셸에 따라 1이나 2), 런처에서는 끝까지 진행합니다. 런처 자신의 글(usage, 안내)은 로캘과 상관없이 UTF-8 바이트입니다. 그 안의 경로·값은 Python의 파일 시스템 인코딩이 글자로 읽은 부분을 그 글자의 UTF-8로, 읽지 못한 바이트를 받은 그대로 씁니다. 그 인코딩이 UTF-8이면(macOS; Linux의 UTF-8 로캘과, Python이 기본으로 UTF-8 모드로 도는 C 로캘) 모든 경로·값이 받은 바이트 그대로이고, 그 인코딩이 Latin-1·EUC-KR 같은 것이면(그런 로캘의 Linux) UTF-8인 이름도 바뀝니다(`bin/analytics`은 늘 받은 바이트). 런처는 `AELIX_ANALYTICS_RUNTIME_PATH`를 따르지 않고 자기 kit을 씁니다 |
-| 배포 형태 | wheel 하나를 hatchling이 체크아웃에서 만듭니다(`uv build`): package `aelix_analytics` — kit 전체(체크아웃의 `src/aelix_analytics`: 템플릿·assets·데모 스크립트 포함, 런처 `cli.py`, 실행 루트 위치 `_install.py`, manifest)와 확장 `extension.py`(체크아웃의 `extension/aelix_analytics.py`) — 와, 같은 소스의 사본 `aelix_analytics/kit/aelix_analytics`(실행 루트 `aelix_analytics/kit`). 자식은 실행 루트만 `PYTHONPATH`로 받고 사본에는 `extension.py`가 없습니다. 버전은 0.16.0입니다(`KIT_VERSION`, manifest와 같음). 의존성은 없고, 분석 라이브러리는 프로젝트 환경에만 설치됩니다. aelix 연동은 이 wheel을 aelix의 환경에 설치하는 것이며 extra는 없습니다. 개발 환경은 `package = false`로 프로젝트를 설치하지 않습니다. 라이선스는 Apache-2.0입니다(`LICENSE`; wheel의 `License-Expression`과 manifest의 `license`). 관리자는 GitHub 핸들 `handochan`이고 이메일은 적지 않습니다(wheel의 `Author`·`Maintainer`, manifest의 `authors`). 배포 이름은 첫 공개 전에 정할 사항이고, 이 wheel은 어디에도 게시하지 않았습니다 |
+| 배포 형태 | wheel 하나를 hatchling이 체크아웃에서 만듭니다(`uv build`): package `aelix_analytics` — kit 전체(체크아웃의 `src/aelix_analytics`: 템플릿·assets·데모 스크립트 포함, 런처 `cli.py`, 실행 루트 위치 `_install.py`, manifest)와 확장 `extension.py`(체크아웃의 `extension/aelix_analytics.py`) — 와, 같은 소스의 사본 `aelix_analytics/kit/aelix_analytics`(실행 루트 `aelix_analytics/kit`). 자식은 실행 루트만 `PYTHONPATH`로 받고 사본에는 `extension.py`가 없습니다. 버전은 0.17.0입니다(`KIT_VERSION`, manifest와 같음). 의존성은 없고, 분석 라이브러리는 프로젝트 환경에만 설치됩니다. aelix 연동은 이 wheel을 aelix의 환경에 설치하는 것이며 extra는 없습니다. 개발 환경은 `package = false`로 프로젝트를 설치하지 않습니다. 라이선스는 Apache-2.0입니다(`LICENSE`; wheel의 `License-Expression`과 manifest의 `license`). 관리자는 GitHub 핸들 `handochan`이고 이메일은 적지 않습니다(wheel의 `Author`·`Maintainer`, manifest의 `authors`). 배포 이름은 첫 공개 전에 정할 사항이고, 이 wheel은 어디에도 게시하지 않았습니다 |
 
 ### F1. 이전 구현(`48b79cc`)과 달라진 POSIX 동작
 

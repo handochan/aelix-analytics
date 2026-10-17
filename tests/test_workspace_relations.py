@@ -73,10 +73,18 @@ def test_relation_text_follows_edge_direction_and_one_order_serves_every_width(t
                              refs=[{"type": "event", "event_id": original["id"], "relation": "supersedes"}]).event
     workspace.build(p)
     page = plain((p.workspace_dir / "relations" / workspace_relations.name(original["id"])).read_text(encoding="utf-8"))
-    incoming = page.split('<li class="relation-item" data-direction="incoming"><p>', 1)[1].split("</p>", 1)[0]
-    assert incoming.index(correction["id"]) < incoming.index("→ Selected version")  # source → target, like the diagram
-    # Focus follows what is shown: the DOM order is the visual order, with no CSS reordering.
-    assert page.index('id="related"') < page.index('class="relation-diagram"') < page.index('id="evidence"') < page.index('id="record"')
+    # The direction is said by the group a relation is in: what cites this record, named by its kind
+    # and id, under "Cited by"; the correction's own page has it under "This record cites".
+    incoming = page.split('<section class="relation-group" data-direction="incoming">', 1)[1].split("</section>", 1)[0]
+    assert "Cited by · 1" in incoming and f"Finding {correction['id']} · corrects" in incoming
+    assert 'data-direction="outgoing"' not in page.split('id="evidence"', 1)[1].split('class="relation-diagram"', 1)[0]
+    other = plain((p.workspace_dir / "relations" / workspace_relations.name(correction["id"])).read_text(encoding="utf-8"))
+    outgoing = other.split('<section class="relation-group" data-direction="outgoing">', 1)[1].split("</section>", 1)[0]
+    assert "This record cites · 1" in outgoing and f"Finding {original['id']} · corrects" in outgoing
+    # Focus follows what is shown: the DOM order is the visual order, with no CSS reordering. The
+    # record's text heads the page; its stored fields come after its relations.
+    assert (page.index('id="record"') < page.index('id="related"') < page.index('id="evidence"')
+            < page.index('class="relation-diagram"') < page.index('id="technical"'))
     assert '<details class="relation-diagram">' in page  # collapsed until the script finds room for its columns
     css = (p.workspace_dir / "assets" / "workspace.css").read_text(encoding="utf-8")
     assert not re.search(r"(^|[^-a-z])order\s*:", css)
@@ -92,7 +100,7 @@ def test_bounded_index_full_continuation_and_paginated_relations_preserve_all_re
     workspace.build(p)
     index = (p.workspace_dir / "index.html").read_text(encoding="utf-8")
     timeline = index.split('<section id="timeline"', 1)[1].split('</section>', 1)[0]
-    assert len(re.findall(r'<li class="ev"', timeline)) == workspace.INDEX_LIMIT
+    assert len(re.findall(r'<li class="ev rec"', timeline)) == workspace.INDEX_LIMIT
     assert "outside this page" in timeline and 'lists/timeline-0.html' in timeline
     listing = ''.join(p.read_text(encoding="utf-8") for p in sorted((p.workspace_dir / "lists").glob('timeline-*.html')))
     assert all(f'id="{id_}"' in listing for id_ in expected)

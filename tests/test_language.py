@@ -329,6 +329,10 @@ def test_the_workspace_gives_what_people_wrote_no_language_and_its_own_words_eng
         page_title = titles[0].removesuffix(f" · {TITLE}")
         if name.startswith("relations/"):
             assert page_title.startswith("Relations · "), titles
+        elif name.startswith("lists/kind-"):
+            # A kind's own list (#97) is titled by the kind's words.
+            kind = name.split("/")[1].removeprefix("kind-").rsplit("-", 1)[0]
+            assert page_title == i18n.message("kind." + kind), titles
         elif name.startswith("lists/"):
             assert page_title == name.split("/")[1].split("-")[0].title(), titles
         else:

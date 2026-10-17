@@ -18,7 +18,7 @@ from types import SimpleNamespace
 
 import pytest
 from legacy_records import LegacyProject, at
-from workspace_words import plain
+from workspace_words import badges, plain
 
 from aelix_analytics import core, i18n, relations, workspace
 
@@ -95,8 +95,11 @@ def test_the_overview_and_the_workspace_name_one_read_and_one_identifier(tmp_pat
     # One reference, one identifier: the later event the finding names is e999 on both screens.
     key_line = next(line for line in text.split("\n") if line.startswith(f"  {case.finding} finding:"))
     assert "1 missing (e999)" in key_line and "2 version_unbound" in key_line
-    assert "e999 <small class=\"ref-state tone-critical\">Missing: record_absent</small>" in pages["index.html"]
-    assert "chart scripts/a.py::trend" in pages["index.html"]  # the unbound key, by its logical key
+    found = badges(pages["index.html"])
+    assert ("missing", "Not found when cited · e999") in found
+    # The unbound key, by its logical key: the chart's id shows, and the whole key is its title.
+    assert 'title="scripts/a.py::trend" lang="">trend</span>' in pages["index.html"]
+    assert ("version_unbound", "Version not named · trend 1 candidate version(s)") in found
 
 
 def test_a_key_entry_counts_its_references_by_state(tmp_path):
@@ -148,7 +151,7 @@ def test_a_target_is_one_short_line_and_an_unreadable_field_is_named(tmp_path):
                                                    {"state": "unsupported", "target": "refs.weird"}]
     assert (f"  {finding} finding: odd · refs: 1 missing ({long_id[:79]}…), 1 unsupported "
             "(refs.weird)") in text.split("\n")
-    assert 'refs.weird <small class="ref-state tone-muted">Unsupported</small>' in built(p)["index.html"]
+    assert ("unsupported", "Not supported · refs.weird") in badges(built(p)["index.html"])
 
 
 # --- producers --------------------------------------------------------------------------------------
@@ -432,11 +435,14 @@ def test_the_workspace_links_a_run_events_chart_to_that_run_and_marks_unbound_on
     pages = built(case.p)
     index = pages["index.html"]
     # The run's completion event binds its chart to that run (ADR-0006 4).
-    assert f'href="runs/{case.a}.html#chart-trend" title="{case.a}/trend">chart trend</a>' in index
-    # The finding left its chart unbound: the gallery card is the latest, not the cited one.
-    unbound = re.search(r'<a href="index\.html#chart-[^"]+" title="latest, not the cited version">'
-                        r"chart scripts/a\.py::trend</a>", index)
-    assert unbound and "Version unbound</span>" in index
+    assert f'href="runs/{case.a}.html#chart-trend" title="{case.a}/trend" lang="">' in index
+    assert any(state == "resolved" and text.startswith("Exact version · ") for state, text in badges(index))
+    # The finding left its chart unbound: the gallery card is the latest, not the cited one, as the
+    # badge's words say on hover.
+    unbound = re.search(r'<span title="latest, not the cited version">Version not named</span> · '
+                        r'<a href="index\.html#chart-[^"]+"><span title="scripts/a\.py::trend" lang="">trend</span></a>',
+                        index)
+    assert unbound
     assert "1 candidate version(s)" in index
 
 
@@ -460,18 +466,18 @@ def test_the_workspace_shows_producers_and_outputs_not_preserved(tmp_path):
     assert "current version" not in pages["data/t.html"].lower()
     assert "same bytes as 3 runs:" in pages["data/t.html"]
     assert "same bytes as now" in pages["data/t.html"]
-    assert "Producer ambiguous" in pages["index.html"]
+    assert "Several possible sources" in pages["index.html"]
     assert "No matching run output" in pages["index.html"]
     # The card marks the input several runs output the same bytes as, beside its path (#96: the
     # badge's title counts the inputs and does not repeat the paths people wrote).
     card = _card(pages["index.html"], "scripts/c.py::summary")
-    marked = card.split('title="Producer ambiguous: several successful runs output these bytes"', 1)
+    marked = card.split('title="Several possible sources: several successful runs output these bytes"', 1)
     assert len(marked) == 2 and "data/derived/t.parquet" in marked[0].rsplit('<span class="input">', 1)[1]
     assert "1 input(s); the inputs marked ? say which" in card
     run_page = pages[f"runs/{case.overwritten}.html"]
     assert "Overwritten since this run — this run's bytes are not preserved" in run_page
     consumer = pages[f"runs/{case.c}.html"]
-    assert "<th>Producer</th>" in consumer and "Producer ambiguous" in consumer
+    assert "<th>Producer</th>" in consumer and "Several possible sources" in consumer
     assert f'runs/{case.a}.html' in consumer and f'runs/{case.b}.html' in consumer
     assert f'runs/{case.late}.html' not in consumer.split('id="inputs"', 1)[1].split("</section>", 1)[0]
 
@@ -517,10 +523,10 @@ def test_the_timeline_says_the_state_of_a_closing_reference(tmp_path):
     assert later not in {e["id"] for e in st["open"]}
     assert f"  {early} finding: early · refs: 1 missing (e4)" in text.split("\n")
     index = built(p)["index.html"]
-    assert f'<a class="badge tone-good" href="#{closes}">✓ Resolved by {closes}</a>' in index
+    assert f'<a class="badge tone-good" href="#{closes}"><span aria-hidden="true">✓</span> Resolved by {closes}</a>' in index
     assert (f'<a class="badge tone-critical" href="#{early}" title="the lists take this record as '
-            f'closed by {early} (refs.resolves), and the read judges that reference missing">closed by '
-            f"{early} · Missing: record_absent</a>") in index
+            f'closed by {early} (refs.resolves), and the read judges that reference missing">'
+            f'<span aria-hidden="true">⊗</span> closed by {early} · Not found when cited</a>') in index
     assert f"✓ Resolved by {early}" not in index
 
 
@@ -550,7 +556,8 @@ def test_labels_and_paths_from_records_are_escaped(tmp_path):
     assert '1 missing (e9"><b>)' in text  # the text is text
     index = built(p)["index.html"]
     assert "<img src=x" not in index and "<script>alert(2)" not in index and '"><b>' not in index
-    assert "chart scripts/a.py::&lt;img src=x onerror=&quot;alert(1)&quot;&gt;" in index
+    assert ('title="scripts/a.py::&lt;img src=x onerror=&quot;alert(1)&quot;&gt;" lang="">'
+            '&lt;img src=x onerror=&quot;alert(1)&quot;&gt;</span>') in index
     assert "&lt;script&gt;alert(2)&lt;/script&gt;" in index
 
 

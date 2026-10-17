@@ -60,7 +60,7 @@ function environment(page, state, options={}) {
   const window={scrollY:0,AnalyticsWorkspaceState:codec,AnalyticsI18n:I18n,
     get localStorage(){if(options.storage==='blocked') throw new Error('SecurityError');return options.storage;},scrollTo(_,y){this.scrollY=y;},addEventListener(name,callback){(events[name] ||= []).push(callback);},
     getComputedStyle(el){return el.style;}};
-  if('narrow' in options) window.matchMedia=query=>({matches:query==='(max-width: 640px)'&&options.narrow});
+  if('narrow' in options) window.matchMedia=query=>({matches:query==='(max-width: 40em)'&&options.narrow});
   card.getBoundingClientRect=()=>({top:820-window.scrollY});
   vm.runInNewContext(shipped,{window,document,location,history,URL,URLSearchParams,Set,
     requestAnimationFrame:f=>frames.push(f),setInterval(){},setTimeout(){return 1;},clearTimeout(){}});
