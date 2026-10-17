@@ -1,6 +1,7 @@
 # 분석 도중의 자유 형식 보고서와 버전 관리
 
 작성: 2026-09-18 · 상태: 설계 제안. `Reports` 탭·보고서 등록·버전 관리는 아직 구현되지 않았다.
+구현 전 저장·반복 묶음·형식별 보기의 구체안과 PR 경계는 [ADR-0013](decisions/0013-report-storage-and-collections.md)(Proposed, #19)에 있다.
 제품 방향은 [PRODUCT.md](PRODUCT.md), 공유는 [PUBLISH-AND-SHARING.md](PUBLISH-AND-SHARING.md), 현재 기능은 [CONTRACTS.md](CONTRACTS.md)를 따른다.
 명칭은 [용어집](TERMINOLOGY-AND-LANGUAGE.md)의 Workspace·Visualization·Report 구분을 따른다. 통계 차트는 Visualization의 한 유형이다.
 
