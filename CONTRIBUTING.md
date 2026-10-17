@@ -282,7 +282,7 @@ uv run --locked python tools/check_docs.py --output .devstate/runs/<run-id>/evid
 
 ## 첫 공개 전에 남은 운영 결정
 
-배포 이름과 릴리스 절차는 확정해 공개해야 합니다.
+배포 이름은 `aelix-analytics`입니다(2026-10-17 소유자 결정, [#24](https://github.com/handochan/aelix-analytics/issues/24)). 릴리스 절차는 확정해 공개해야 합니다.
 관리자는 GitHub 핸들 [@handochan](https://github.com/handochan)이며 이메일은 적지 않습니다(2026-10-07 결정, `pyproject.toml`의 `authors`·`maintainers`).
 보안 취약점은 GitHub의 비공개 취약점 신고로 받고 공개 Issue로 받지 않습니다([SECURITY.md](SECURITY.md), 2026-10-07 결정). 그 설정은 저장소를 공개할 때 켜며, 그 전에는 비공개 신고 경로가 없습니다. 보안 수정을 받는 버전, 신고의 처리 절차와 공지는 아직 정하지 않았습니다([SECURITY.md](SECURITY.md#아직-정하지-않은-것)).
 라이선스는 Apache License 2.0입니다([LICENSE](LICENSE), 2026-09-30 결정).
