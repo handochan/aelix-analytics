@@ -15,11 +15,11 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 없음. 병합된 변경은 그 PR이 병합될 때의 kit 번호 절에 적고, kit 번호를 올리는 PR은 새 절을 엽니다
 ([기여 가이드](CONTRIBUTING.md#첫-공개-전에-남은-운영-결정)).
 
-## [0.16.0] - Unreleased
+## [0.16.0] - 2026-10-17
 
 ### Added
 
-- #96: Workspace의 kit 문구를 message key 카탈로그(`en.json` 원본, `ko.json` 한국어)로 옮기고, 상단 메뉴로 화면을 English/한국어로 바꿉니다.
+- [PR #102](https://github.com/handochan/aelix-analytics/pull/102), #96: Workspace의 kit 문구를 message key 카탈로그(`en.json` 원본, `ko.json` 한국어)로 옮기고, 상단 메뉴로 화면을 English/한국어로 바꿉니다.
   선택은 브라우저에 기억하고 저장소가 막히면 URL 상태로 이어 갑니다. 사람이 쓴 글·경로·ID·코드와 기록은 바꾸지 않고, 종류·상태 같은 저장 값은
   화면의 이름표만 화면 언어로 보입니다(원래 값은 기록 원문에 그대로 있습니다).
   날짜는 화면 언어의 형식으로 보이고 기록의 offset을 바꾸지 않습니다. JavaScript가 없으면 지금처럼 영어입니다.
