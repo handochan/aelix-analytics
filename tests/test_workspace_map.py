@@ -121,7 +121,10 @@ def test_main_flows_are_the_largest_three_and_the_rest_fold(tmp_path):
     tab = map_tab(p)
     folded = tab.split('<details class="flow-more">', 1)[1]
     assert folded.startswith("<summary><strong>2 smaller flows</strong> · 2 scripts · 2 runs · ")
-    assert tab.count('<div class="flow" role="group"') == 5
+    # The main flows are diagrams; a smaller flow is a line per script with the same facts.
+    assert tab.count('<div class="flow" role="group"') == 3
+    rows = re.findall(r'<li class="flow-row">.*?</ul></li>', folded, re.S)
+    assert len(rows) == 2 and ">tiny_1.py</a> · 1 run · " in rows[0] and ">lone_1.py</a> · 1 run · " in rows[1]
 
 
 def test_layout_puts_scripts_by_the_longest_path_and_names(tmp_path):

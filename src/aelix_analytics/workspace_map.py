@@ -485,7 +485,8 @@ class AnalysisMap:
                           f'{t("map.scripts", n=len(keys))} · {t("map.runs", n=runs)} · {t("map.viz", n=charts)} · '
                           f'{t("map.insights", n=len(cited))} ({t("map.confirmed", n=len(exact))})'
                           + (f'<br><span class="muted">{" · ".join(marks)}</span>' if marks else "") + '</summary>'
-                          + "".join(self.flow_html(f, n) for n, f in enumerate(self.rest, len(self.main) + 1)) + '</details>')
+                          + '<ol class="flow-rows">' + "".join(self.rows_html(f, n) for n, f in enumerate(self.rest, len(self.main) + 1))
+                          + '</ol></details>')
             body = (f'<div class="map-layout"><div class="map-flows">{flows}</div>'
                     f'<aside class="map-side">{self.attention_html()}{self.legend_html()}</aside></div>')
         return (f'<section id="map" class="tab"><div class="toolbar"><h2>{t("tab.map")}</h2></div>'
@@ -530,6 +531,29 @@ class AnalysisMap:
                 f'--gap-x:{GAP_X:g}rem;--gap-y:{GAP_Y:g}rem">{svg}{"".join(chips)}'
                 f'<ol class="flow-nodes">{nodes}</ol></div></div></div>')
 
+    def rows_html(self, flow: Flow, number: int) -> str:
+        """A smaller flow, folded: a line per script with the facts of its box, in the order of its
+        columns. The first page of a large project stays small; the main flows carry the diagram."""
+        s = self.site
+        inner = [e for e in self.edges if e.source in flow.keys]
+        items = []
+        for key in sorted(flow.keys, key=lambda k: flow.place[k]):
+            node = self.nodes[key]
+            latest = node.latest
+            facts = [t("map.runs", n=len(node.runs)), s.status_badge(latest.get("status")),
+                     t("map.viz", n=node.charts), f'{t("map.insights", n=len(node.cited))} ({t("map.confirmed", n=len(node.confirmed))})']
+            facts += [w for w, on in ((t("map.input_changed"), node.changed), (t("map.upstream_changed"), node.upstream),
+                                      (t("map.cycle"), node.cycle)) if on]
+            outs = [f'<span{s.user_language}>{s.esc(", ".join(PurePosixPath(f).name for f in e.files))}</span> → '
+                    f'<a href="#{self.anchor(self.nodes[e.target])}"{s.user_language}>{s.esc(self.nodes[e.target].name)}</a>'
+                    + (f' {t("map.possible_producers")}' if e.ambiguous else "") for e in inner if e.source == key]
+            title = s.title_attr(node.script) if node.script else ""
+            items.append(f'<li id="{self.anchor(node)}"><a href="runs/{s.href(latest["id"])}.html"{title}{s.user_language}>'
+                         f'{s.esc(node.name)}</a> · {" · ".join(facts)}'
+                         + (f' · {t("map.writes")} {"; ".join(outs)}' if outs else "") + '</li>')
+        return (f'<li class="flow-row"><p class="row-head">{t("map.flow", n=number)} · {t("map.scripts", n=len(flow.keys))} · '
+                f'{t("map.runs", n=flow.runs)}</p><ul class="plain">{"".join(items)}</ul></li>')
+
     def node_html(self, node: Node, flow: Flow, inner: list) -> str:
         s = self.site
         column, row = flow.place[node.key]
@@ -569,7 +593,7 @@ class AnalysisMap:
                 + f'<ul class="node-facts"><li class="fact-viz">{t("map.viz", n=node.charts)}</li>{insights}{reads}{writes}</ul></li>')
 
     def anchor(self, node: Node) -> str:
-        return "script-" + core.slugify(node.key, 60) + "-" + format(abs(hash_text(node.key)), "x")[:8]
+        return "script-" + format(hash_text(node.key), "x")[:10]
 
     def attention_html(self) -> str:
         """What needs a look (design 7.2's marks): runs that did not succeed and the insights citing
@@ -583,14 +607,17 @@ class AnalysisMap:
                               f' ({s.fmt_time(r.get("started_at"))})' for r in broken[:3])
             kinds = sorted({(r.get("error") or {}).get("type") for r in broken} - {None})
             why = f' · <code{s.user_language}>{s.esc(", ".join(kinds))}</code>' if kinds else ""
-            items.append(("critical", "⊗", t("map.attn.failed", n=len(broken)), shown + why))
-            for run in broken:
-                cited = sorted(self.citing.get(run["id"], ()), key=_seq)
-                if cited:
-                    links = ", ".join(self.record_link(c) for c in cited[:8]) + (
-                        " " + t("list.and_more", n=len(cited) - 8) if len(cited) > 8 else "")
-                    items.append(("critical", "⊗", t("map.attn.cite_failed", n=len(cited)),
-                                  f'<span{s.user_language}>{s.esc(self.nodes[self.node_of[run["id"]]].name)}</span> · {links}'))
+            more = len(broken) - 3
+            items.append(("critical", "⊗", t("map.attn.failed", n=len(broken)),
+                          shown + (f' {t("list.and_more", n=more)}' if more > 0 else "") + why))
+            cited = sorted(set().union(*(self.citing.get(r["id"], set()) for r in broken)), key=_seq)
+            if cited:
+                names = sorted({self.nodes[self.node_of[r["id"]]].name for r in broken if self.citing.get(r["id"])})
+                links = ", ".join(self.record_link(c) for c in cited[:8]) + (
+                    " " + t("list.and_more", n=len(cited) - 8) if len(cited) > 8 else "")
+                items.append(("critical", "⊗", t("map.attn.cite_failed", n=len(cited)),
+                              f'<span{s.user_language}>{s.esc(", ".join(names[:4]))}</span>'
+                              + (f' {t("list.and_more", n=len(names) - 4)}' if len(names) > 4 else "") + f' · {links}'))
         changed = [n for n in self.nodes.values() if n.changed]
         upstream = [n for n in self.nodes.values() if n.upstream]
         if changed or upstream:
