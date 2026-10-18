@@ -1,6 +1,7 @@
 {
   "schema": "aelix-analytics.model-eval-tasks/1",
-  "status": "draft",
+  "status": "confirmed",
+  "confirmed_by": "handochan (owner), 2026-10-18, Issue #40",
   "note": "Issue #40. Requests and setup of the 12 real-model tasks; the answers are in answers/<id>.json. Requests never name a tool, so the same text serves every tool surface (Q11) and both generations of names (#9). {input} is replaced with the absolute path of the run's input directory.",
   "fixtures": {
     "S": {"kind": "scale", "scale": "S", "seed": 0, "generator_version": 1},

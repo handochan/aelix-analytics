@@ -8,7 +8,7 @@
 
 | 파일 | 내용 |
 |---|---|
-| [`tasks.json`](tasks.json) | 과제 12개: 사용자 요청 글, fixture, 준비 방식, 게이트, Q11 요청 유형, Q5 조건, 제한 시간 |
+| [`tasks.json`](tasks.json) | 과제 12개: 사용자 요청 글, fixture, 준비 방식, 게이트, Q11 요청 유형, Q5 조건, 제한 시간. 소유자가 과제 목록을 확인했다(`status: confirmed`, 2026-10-18). 하네스는 이 값을 읽지 않는다 |
 | [`answers/`](answers/) | 과제별 정답: 바른 완료(글), 근거 ID, 채점 검사, 쓴 fixture의 seed. 에이전트가 쓴 초안을 소유자가 모두 확인했다(`status: confirmed`, 2026-10-17). T12는 `always_review`(아래 채점) |
 | [`models/`](models/) | 모델 설정: [로컬 Qwen](models/qwen3.8-27b-local.json), [프론티어](models/gpt-5.6-sol.json), [dry-run](models/dry-run.json) |
 | [`conditions.json`](conditions.json) | 도구 표면(Q11), 제안 조건(Q5), 글 판정에 쓰는 낱말 묶음 |
