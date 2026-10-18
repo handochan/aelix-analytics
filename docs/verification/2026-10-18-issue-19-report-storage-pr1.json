@@ -1,0 +1,158 @@
+{
+  "record_kind": "aelix-analytics-report-storage-pr1",
+  "observed_at": "2026-10-18T11:35:19.690622+00:00",
+  "issue": "https://github.com/handochan/aelix-analytics/issues/19",
+  "pull_request": null,
+  "kit_version": "0.21.0",
+  "base_revision": "707e04ba2b3868fee241b02c16e33cfe4c508821",
+  "measured_source": "ef850ae7bd0029e744c0195160f8fc26aaf3c242",
+  "scope": "ADR0013 PR1 synthetic storage/register/version, CLI/SDK, strict manifest/completion, withdrawal/restore, exact prepared cleanup; PR2/3 excluded",
+  "actual_reviews": {
+    "design": "PR106 accepted/merged; prior independent1+Codex1 complete, not repeated",
+    "implementation_frozen_source": "33bf1dacf8a7c0df1d4903522c919cb132608821",
+    "independent_passes": 1,
+    "codex_passes": 1,
+    "grouped_p2": [
+      {
+        "id": "R1-path-prefix",
+        "problem": "casefold-equivalent parent directory spellings",
+        "disposition": "shared pure path-set validation before staging and in strict manifests"
+      },
+      {
+        "id": "R2-update-request",
+        "problem": "invalid update request ID persisted / generated response ID missing",
+        "disposition": "common Writer request validation/generation before update lock"
+      },
+      {
+        "id": "R3-basis-shape",
+        "problem": "authored refs without bound target fields were saved",
+        "disposition": "common pure reference validation shared by writer and manifest reader"
+      },
+      {
+        "id": "R4-malformed-completion",
+        "problem": "array/object completion identity caused reader TypeError",
+        "disposition": "type-normalized identity lookup and conservative writer refusal"
+      }
+    ],
+    "correction_diff_passes": 0,
+    "correction_status": "pending; exactly one check scheduled",
+    "follow_up_prepared": "small scoped improvement: expose no-manifest prepared identity with manifest_unavailable; never synthesize completion"
+  },
+  "raw_byte_measurement": {
+    "schema": "aelix-analytics.report-storage-eval/1",
+    "recorded_at": "2026-10-18T11:34:06.837811+00:00",
+    "source_commit": "ef850ae7bd0029e744c0195160f8fc26aaf3c242",
+    "tracked_dirty": false,
+    "command": "uv run --locked python tools/report_storage_eval.py --out <new directory>",
+    "environment": {
+      "python": "3.12.13",
+      "platform": "darwin",
+      "kit_version": "0.21.0"
+    },
+    "fixture": {
+      "kind": "synthetic authored files",
+      "file_count": 2,
+      "attachment_bytes": 1048576
+    },
+    "measurements": [
+      {
+        "operation": "save_v1",
+        "seconds": 0.0077453749981941655,
+        "response_utf8_bytes": 868
+      },
+      {
+        "operation": "same_request",
+        "seconds": 0.006291458994382992,
+        "response_utf8_bytes": 871
+      },
+      {
+        "operation": "save_v2",
+        "seconds": 0.0072837090119719505,
+        "response_utf8_bytes": 868
+      },
+      {
+        "operation": "list",
+        "seconds": 0.0007461250061169267,
+        "response_utf8_bytes": 435
+      },
+      {
+        "operation": "show_v1_metadata",
+        "seconds": 0.0007407079974655062,
+        "response_utf8_bytes": 920
+      },
+      {
+        "operation": "read_v1_file_range",
+        "seconds": 0.0007401250040857121,
+        "response_utf8_bytes": 2392
+      },
+      {
+        "operation": "withdrawn",
+        "seconds": 0.0024600420001661405,
+        "response_utf8_bytes": 653
+      },
+      {
+        "operation": "current",
+        "seconds": 0.0023726669896859676,
+        "response_utf8_bytes": 651
+      }
+    ],
+    "assertions": {
+      "same_request_existing": true,
+      "v1_hashes_unchanged_after_v2_and_state_updates": true
+    },
+    "preserved_v1_sha256": {
+      "content/attachment.bin": "fbbab289f7f94b25736c58be46a994c441fd02552cc6022352e3d86d2fab7c83",
+      "content/요약.md": "1fac39c6837dc06de260135e6833f5edce1c117181adbdbaf5a299d5f1a874b5",
+      "manifest.json": "9baca8fc9b5b4f4bd9921537739a57e77b23de4451c46aa830ab732a88f47a4f"
+    },
+    "not_run": [
+      "generation",
+      "ReportRenderer",
+      "Workspace UI",
+      "real model",
+      "owner acceptance"
+    ],
+    "tokens": {
+      "status": "not_measured"
+    }
+  },
+  "local_verification": {
+    "full_frozen_source": {
+      "source": "33bf1dacf8a7c0df1d4903522c919cb132608821",
+      "result": "fail",
+      "passed": 2416,
+      "failed": 3,
+      "skipped": 113,
+      "seconds": 556.96,
+      "failures": [
+        "test_kit version literal",
+        "current contract distribution version",
+        "evaluation tool subprocess explicit encoding"
+      ]
+    },
+    "correction_targeted": {
+      "result": "pass",
+      "passed": 320,
+      "seconds": 18.04,
+      "source": "corrected working tree, followed by clean ef850ae; final clean-source full suite authoritative"
+    },
+    "full_corrected_source": {
+      "source": "ef850ae7bd0029e744c0195160f8fc26aaf3c242",
+      "result": "not_run",
+      "execution": "running; result not yet obtained"
+    }
+  },
+  "ci": {
+    "result": "not_run",
+    "reason": "final PR/head not yet submitted for three-OS validation"
+  },
+  "prior_working_tree_failures": "Preserved separately in run4aae878d evidence: initial6fail, follow-up2fail/131errors, matrix/live-edit5fail/143errors. No failed/skipped/partial run is promoted to pass.",
+  "not_run": [
+    "PR2 metadata/collections/ReportRenderer",
+    "Reports Workspace UI",
+    "actual model generation",
+    "owner browser/keyboard acceptance",
+    "real Q17 handoff"
+  ],
+  "tokens": "not_measured"
+}
