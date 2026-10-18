@@ -86,6 +86,9 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
     [{...browsing,page:'lists/kind-finding-2.html',tab:'overview'}, 'back.list.kind', 'Back to the list'],
     [{...browsing,page:'lists/feedback-1.html',tab:'overview'}, 'back.list.feedback', 'Back to Workflow feedback'],
     [{...browsing,page:'lists/insights-0.html',tab:'overview'}, 'back.tab.insights', 'Back to Insights'],
+    // The Analysis map tab and the open items' list (#98, Codex review R08).
+    [{...browsing,page:'index.html',tab:'map'}, 'back.tab.map', 'Back to Analysis map'],
+    [{...browsing,page:'lists/open-1.html',tab:'overview'}, 'back.list.open', 'Back to the open items'],
   ];
   // A page opened directly is the origin of the pages a reader opens from it (codec.next):
   // the way back names it too (Codex review of #97, R3).
