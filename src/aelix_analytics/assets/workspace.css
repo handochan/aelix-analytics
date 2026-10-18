@@ -540,8 +540,10 @@ ol.vh-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(
 .vh-card .vh-open { display: inline-flex; align-items: center; min-height: 2.75rem; }
 .vh-diff > summary { cursor: pointer; }
 .vh-diffs details { margin: 0.5rem 0; }
-.vh-chain { margin: 0.5rem 0 0; padding-left: 1.25rem; }
-.vh-chain li { padding: 0.25rem 0; overflow-wrap: anywhere; }
+/* A correction history has no numbers: an ordered list without its markers. */
+.vh-chain { margin: 0.5rem 0 0; padding: 0; list-style: none; }
+.vh-chain li { padding: 0.25rem 0; overflow-wrap: anywhere; border-top: 1px solid var(--grid); }
+.vh-chain a { display: inline-flex; align-items: center; min-height: 2.75rem; }
 @media (forced-colors: active) {
   .vh-strip * { forced-color-adjust: auto; }
   .vh-version, .vh-shown { stroke: CanvasText; } .vh-shown, .vh-again, .vh-x, .vh-label { fill: CanvasText; }

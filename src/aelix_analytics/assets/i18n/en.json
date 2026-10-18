@@ -100,6 +100,7 @@
  "back.page.data": "Back to the dataset",
  "back.page.relations": "Back to the relations",
  "back.page.run": "Back to the run",
+ "back.page.script": "Back to the script",
  "back.tab.assets": "Back to Analysis assets",
  "back.tab.charts": "Back to Visualizations",
  "back.tab.context": "Back to Context",
@@ -791,6 +792,14 @@
  "verdict.match": "Matched",
  "verdict.mismatch": "Different",
  "versions.all_on_latest": "All {n} versions on the latest version's page",
+ "versions.chain_earlier": {
+  "one": "{n} earlier record in this history",
+  "other": "{n} earlier records in this history"
+ },
+ "versions.chain_later": {
+  "one": "{n} later record in this history",
+  "other": "{n} later records in this history"
+ },
  "versions.changes_from": "Changes from code version {first} to {last}",
  "versions.cited_by": "Cited by {n}",
  "versions.code_at": "code",
@@ -831,6 +840,7 @@
   "one": "{n} insight",
   "other": "{n} insights"
  },
+ "versions.insights_partial": "{n} insights in {counted} of {total} versions",
  "versions.insights_rule": "Insight counts are the findings, decisions and assumptions written while a version was the latest. They do not mean the insight used that text.",
  "versions.latest": "Latest",
  "versions.legend.again": "Same content written again",
@@ -850,6 +860,7 @@
   "other": "made {n} versions"
  },
  "versions.makes": "Makes",
+ "versions.makes_no_version": "makes no version",
  "versions.n_of": "Version {n} of {total}",
  "versions.named_without": {
   "one": "{n} record names this visualization without a version.",
@@ -860,8 +871,9 @@
   "other": "{n} records name this file without a version."
  },
  "versions.no_code": "No run of this script has ended yet.",
- "versions.no_visualization": "no visualization",
  "versions.not_a_version": "This visualization is no version: its run did not succeed.",
+ "versions.not_ended": "This run has not ended: it makes no version.",
+ "versions.not_of_key": "This visualization is no version of its key.",
  "versions.note.changed_both": "Version {n} changed both the code and the input.",
  "versions.note.changed_code": "Version {n} changed the code.",
  "versions.note.changed_inputs": "Version {n} changed the input.",
@@ -878,6 +890,7 @@
   "other": "{n} later versions kept them."
  },
  "versions.note.pinned_since": "The pinned sections last changed in version {n}",
+ "versions.note.pinned_unchanged": "The pinned sections have not changed since version 1.",
  "versions.open": "Open",
  "versions.open_diff": "Open diff",
  "versions.open_run": "Open run",
@@ -916,10 +929,12 @@
  },
  "versions.reason.outside": "Changed outside an import",
  "versions.reason.pinned": "Pinned sections changed",
+ "versions.reason.script": "Written by another script",
  "versions.reason.written": "Written by a run",
  "versions.replaced_unread": "replaced before any run read it",
  "versions.rerun": "Rerun",
  "versions.rerun_of": "This run re-executed version {n}: a rerun makes no version.",
+ "versions.rerun_of_run": "This run re-executed another run; a rerun makes no version:",
  "versions.rows": {
   "one": "{n} row",
   "other": "{n} rows"
@@ -932,6 +947,7 @@
  "versions.same_code_inputs": "same code and inputs",
  "versions.script": "Script",
  "versions.see_unbound": "See them under Version not named",
+ "versions.shown": "Shown",
  "versions.this_record": "this record",
  "versions.v": "v{n}",
  "versions.v_again": "v{n} again",
@@ -949,5 +965,6 @@
  "versions.written_by": "written by",
  "versions.written_by_code": "written by code",
  "versions.wrote_not_version": "wrote bytes that are no version",
- "versions.wrote_nothing": "wrote nothing here"
+ "versions.wrote_nothing": "wrote nothing here",
+ "versions.wrote_version": "wrote the bytes of version {n}, and makes no version"
 }

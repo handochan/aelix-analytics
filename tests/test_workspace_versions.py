@@ -156,13 +156,15 @@ def test_a_code_version_is_a_snapshot_hash_and_earlier_code_keeps_its_number(tmp
     p, ids = versions_project(tmp_path)
     history = core.read_model(p).code_history("scripts/s.py")
     assert [(v["number"], v["failed"], len(v["runs"])) for v in history["versions"]] == [
-        (1, False, 4), (2, True, 1), (3, False, 1)]
+        (1, False, 3), (2, True, 1), (3, False, 1)]
     # Lines changed against the code run before each version first ran (v2 and v3 against v1).
     assert [(v["added"], v["removed"], v["against"]) for v in history["versions"]] == [
         (None, None, None), (1, 0, 1), (1, 1, 1)]
-    assert [(s["number"], s["again"], [r["run"] for r in s["runs"]]) for s in history["segments"]] == [
-        (1, False, [ids["v1"], ids["again"]]), (2, False, [ids["failed"]]),
-        (1, True, [ids["v3"], ids["rerun"]]), (3, False, [ids["v4"]])]
+    # The rerun re-executed v3's run: it sits with that segment, never as code coming back.
+    assert [(s["number"], s["again"], [r["run"] for r in s["runs"]], [r["run"] for r in s["reruns"]])
+            for s in history["segments"]] == [
+        (1, False, [ids["v1"], ids["again"]], []), (2, False, [ids["failed"]], []),
+        (1, True, [ids["v3"]], [ids["rerun"]]), (3, False, [ids["v4"]], [])]
     # What each segment made, by the numbers the other histories give; the rerun makes none.
     assert [s["visualizations"] for s in history["segments"]] == [{KEY: [1, 2]}, {}, {KEY: [3]}, {KEY: [4]}]
     assert [s["data"] for s in history["segments"]] == [{T: [1, 1]}, {}, {T: [2]}, {T: [3]}]
@@ -245,7 +247,7 @@ def test_every_page_shows_the_same_numbers_and_reads_without_a_script(tmp_path):
     assert [r.split(" ", 1)[0] for r in listed] == ["v4", "v3", "×", "v2", "v1"]
     # The rerun's own citation is beside it (a rerun's version is cited apart), not the version's.
     assert "Rerun Matched · Cited by 1" in listed[1] and listed[1].endswith("Cited by 0")
-    assert "Failed run" in listed[2] and "no visualization" in listed[2]
+    assert "Failed run" in listed[2] and "makes no version" in listed[2]
     assert listed[4].endswith("Cited by 2 Open")
     assert "1 record names this visualization without a version." in chart
     # A rerun's page says it is no version and which one it re-executed.
@@ -327,3 +329,199 @@ def test_a_long_history_shows_the_rows_near_a_version_and_all_of_them_on_the_lat
     assert len(rows(first)) == workspace_versions.WINDOW_ROWS and "vh-strip" not in first.split("chart-c-versions", 1)[1]
     assert f"All {count} versions on the latest version's page" in first
     assert len(rows(latest)) == count and '<svg class="vh-strip' in latest
+
+
+def test_a_chart_that_is_no_version_says_why(tmp_path):
+    """Independent review of PR #112, I1: a rerun of a failed run or of a rerun succeeded; only a run
+    that did not succeed is said not to have."""
+    q = LegacyProject(tmp_path / "p", migrated=True)
+    q.run(run_id(0), script="scripts/s.py", started_at=at(0), ts=at(1), charts=["c"], code=CODE_1)
+    q.run(run_id(2), script="scripts/s.py", status="error", started_at=at(2), ts=at(3), charts=["c"], code=CODE_1)
+    q.run(run_id(4), script="scripts/s.py", started_at=at(4), ts=at(5), charts=["c"], code=CODE_1)
+    rerun(q, run_id(4), run_id(2), "match")
+    q.run(run_id(6), script="scripts/s.py", started_at=at(6), ts=at(7), charts=["c"], code=CODE_1)
+    rerun(q, run_id(6), run_id(0), "match")
+    q.run(run_id(8), script="scripts/s.py", started_at=at(8), ts=at(9), charts=["c"], code=CODE_1)
+    rerun(q, run_id(8), run_id(6), "match")
+    p = core.Project(q.root)
+    workspace.build(p)
+
+    def said(rid: str) -> str:
+        page = plain((p.workspace_dir / "runs" / f"{rid}.html").read_text(encoding="utf-8"))
+        return re.sub(r"<[^>]+>", "", page.split('id="chart-c-versions">', 1)[1].split("</p>", 1)[0])
+
+    assert said(run_id(2)) == "This visualization is no version: its run did not succeed."
+    assert said(run_id(4)).startswith("This run re-executed another run; a rerun makes no version: 20261001-090200-s")
+    assert said(run_id(6)).startswith("This run re-executed version 1")
+    assert said(run_id(8)).startswith("This run re-executed version 1")  # a rerun of a rerun
+    history = core.read_model(p).visualization_history(KEY)
+    assert [r["run"] for r in history["versions"][0]["reruns"]] == [run_id(6), run_id(8)]
+    assert [r["run"] for r in history["failed"][0]["reruns"]] == [run_id(4)]
+
+
+def test_the_kit_s_own_completion_records_name_no_file(tmp_path):
+    """Independent review of PR #112, I2: a lab.event/1 run's or import's refs.data is the record of
+    what it read and wrote, not a record naming the file without a version."""
+    q = LegacyProject(tmp_path / "p", migrated=True)
+    raw = q.dataset("in", imported_at=at(0))
+    q.event("import", {"data": [raw]})
+    q.run(run_id(2), script="scripts/s.py", started_at=at(2), ts=at(3), inputs=[(raw, sha(b"in"))], outputs=[(T, q.file(T, b"t"))])
+    q.run(run_id(4, "r"), script="scripts/r.py", started_at=at(4), ts=at(5), inputs=[(T, sha(b"t"))])
+    q.event("finding", {"data": [T]})
+    model = core.read_model(core.Project(q.root))
+    assert len(model.data_history(T)["named_by"]) == 1 and model.data_history(raw)["named_by"] == []
+
+
+def test_a_long_history_of_one_group_still_shows_only_the_rows_near_a_version(tmp_path):
+    """Independent review I3 and Codex R01 of PR #112: the window counts versions, not groups, so
+    a history whose versions share code and inputs does not grow as its square."""
+    q = LegacyProject(tmp_path / "p", migrated=True)
+    count = workspace_versions.WINDOW_ROWS + 30
+    for n in range(count):
+        q.run(f"20261001-{n // 60:02d}{n % 60:02d}00-s", started_at=at(n % 60, hour=n // 60),
+              ts=at(n % 60, hour=n // 60), code=CODE_1, inputs=[(RAW, sha(b"same"))], charts=["c"])
+    p = core.Project(q.root)
+    workspace.build(p)
+    first = plain((p.workspace_dir / "runs" / "20261001-000000-s.html").read_text(encoding="utf-8"))
+    assert len(rows(first)) == workspace_versions.WINDOW_ROWS
+    assert '<svg class="vh-strip' not in first and "All 130 versions on the latest version's page" in first
+    latest = plain((p.workspace_dir / "runs" / f"20261001-{(count - 1) // 60:02d}{(count - 1) % 60:02d}00-s.html")
+                   .read_text(encoding="utf-8"))
+    assert len(rows(latest)) == count
+
+
+def test_what_a_failed_run_wrote_is_said_as_it_is(tmp_path):
+    """Independent review I4 and Codex R04/R08 of PR #112: a failed run that wrote a version's bytes
+    says so; a failed run without a script is still a failure of the path; on imported data, bytes a
+    failed run wrote are no version even when a run reads them."""
+    q = LegacyProject(tmp_path / "p", migrated=True)
+    q.run(run_id(0), script="scripts/s.py", started_at=at(0), ts=at(1), outputs=[(T, q.file(T, b"a"))])
+    q.run(run_id(2), script="scripts/s.py", status="error", started_at=at(2), ts=at(3), outputs=[(T, sha(b"a"))])
+    q.run(run_id(4), script="scripts/s.py", status="error", started_at=at(4), ts=at(5), outputs=[(T, q.file(T, b"partial"))])
+    data = json.loads((q.root / "runs" / run_id(4) / "run.json").read_text(encoding="utf-8"))
+    data["script"] = {}
+    q.write_json(f"runs/{run_id(4)}/run.json", data)
+    raw = q.dataset("in", imported_at=at(6))
+    q.run(run_id(8, "x"), script="scripts/x.py", status="error", started_at=at(8), ts=at(9), outputs=[(raw, q.file(raw, b"half"))])
+    q.run(run_id(10, "r"), script="scripts/r.py", started_at=at(10), ts=at(11), inputs=[(raw, sha(b"half"))])
+    p = core.Project(q.root)
+    model = core.read_model(p)
+    history = model.data_history(T)
+    assert [(f["run"], f["wrote_version"]) for f in history["failed"]] == [(run_id(2), 1), (run_id(4), None)]
+    assert history["now"] == {"state": "failed_output", "run": run_id(4), "sha256": sha(b"partial")}
+    imported = model.data_history(raw)
+    assert [v["source"] for v in imported["versions"]] == ["import"]
+    assert [(r["run"], r["failed_output"]) for r in imported["other_reads"]] == [(run_id(10, "r"), run_id(8, "x"))]
+    workspace.build(p)
+    page = plain((p.workspace_dir / "data" / "t.html").read_text(encoding="utf-8"))
+    assert "wrote the bytes of version 1, and makes no version" in page
+
+
+def test_the_context_page_says_unchanged_pins_and_unknown_counts_as_they_are(tmp_path):
+    """Independent review I7, M2 and Codex R07 of PR #112."""
+    q = LegacyProject(tmp_path / "p", migrated=True)
+    for n in range(4):
+        name = f"20261001-09{n:02d}00-000000_{n:012x}.md"
+        q.file(f".analytics/context/{name}", f"# P\n\n## Goal <!-- pin -->\nsame\n\n## Note\n{n}\n".encode())
+        if n != 2:  # the third version has no completion record
+            q.event("context", {"context": name}, ts=at(n * 10))
+        q.event("finding", ts=at(n * 10 + 1))
+    p = core.Project(q.root)
+    history = core.context_history(core.read_model(p))
+    # v2's time as the latest ended when v3 was saved, which no record says: its count is unknown.
+    assert [v["insights"] for v in history["versions"]] == [1, None, None, 1]
+    assert history["latest"]["pinned_since"] is None and history["versions"][-1]["pinned"] == 1
+    workspace.build(p)
+    page = plain((p.workspace_dir / "context.html").read_text(encoding="utf-8"))
+    assert "The pinned sections have not changed since version 1." in page
+    assert "last changed in version" not in page
+    group = page.split('<li class="vh-group">', 1)[1].split("</summary>", 1)[0]
+    assert "–" in group and "0 insights" not in group
+
+
+def test_a_rerun_of_old_code_is_no_code_coming_back(tmp_path):
+    """Independent review I8 of PR #112: the script's latest code stays the latest code run."""
+    q = LegacyProject(tmp_path / "p", migrated=True)
+    q.run(run_id(0), script="scripts/s.py", started_at=at(0), ts=at(1), code=CODE_1)
+    q.run(run_id(2), script="scripts/s.py", started_at=at(2), ts=at(3), code=CODE_3)
+    q.run(run_id(4), script="scripts/s.py", started_at=at(4), ts=at(5), code=CODE_1)
+    rerun(q, run_id(4), run_id(0), "match")
+    history = core.read_model(core.Project(q.root)).code_history("scripts/s.py")
+    assert history["latest"] == {"number": 2}
+    assert [(s["number"], s["again"], [r["run"] for r in s["reruns"]]) for s in history["segments"]] == [
+        (1, False, [run_id(4)]), (2, False, [])]
+
+
+def test_a_correction_page_shows_the_records_near_it(tmp_path):
+    """Codex R02 of PR #112: each record's page shows CHAIN_ROWS records on each side, and counts the
+    rest."""
+    q = LegacyProject(tmp_path / "p", migrated=True)
+    p = core.Project(q.root)
+    ids = [core.record(p, "finding", "0", origin=ORIGIN).event["id"]]
+    for n in range(1, 30):
+        ids.append(core.record(p, "finding", str(n), origin=ORIGIN,
+                               refs=[{"type": "event", "event_id": ids[-1], "relation": "supersedes"}]).event["id"])
+    workspace.build(p)
+    site = workspace.Site(p)
+    page = plain((p.workspace_dir / "relations" / site.relations.filename(ids[0])).read_text(encoding="utf-8"))
+    chain = page.split('id="corrections"', 1)[1].split("</section>", 1)[0]
+    assert chain.count("<li>") == workspace_versions.CHAIN_ROWS + 1 and "19 later records in this history" in chain
+
+
+def test_bytes_of_an_import_a_later_import_replaced_are_a_version(tmp_path):
+    """Codex R03 of PR #112: an import's completion record keeps its bytes when a later import of the
+    same name replaced the import record."""
+    from test_relation_screens import v2_event
+    q = LegacyProject(tmp_path / "p", migrated=True)
+    path = q.dataset("in", imported_at=at(30))
+    for digest in (sha(b"old"), sha(b"in")):
+        v2_event(q, "import", "imported in", [{"type": "dataset_import", "path": path, "digest": {"sha256": digest},
+                                               "relation": "about", "basis": "observed", "version_binding": "author"}])
+    q.run(run_id(40), started_at=at(40), ts=at(41), inputs=[(path, sha(b"old"))])
+    history = core.read_model(core.Project(q.root)).data_history(path)
+    assert [(v["number"], v["source"], v["sha256"]) for v in history["versions"]] == [
+        (1, "import", sha(b"old")), (2, "import", sha(b"in"))]
+    assert [r["run"] for r in history["versions"][0]["readers"]] == [run_id(40)]
+
+
+def test_another_script_writing_a_file_is_said_and_a_run_reads_once(tmp_path):
+    """Independent review M3 and Codex R06 of PR #112."""
+    q = LegacyProject(tmp_path / "p", migrated=True)
+    q.run(run_id(0), script="scripts/s.py", started_at=at(0), ts=at(1), outputs=[(T, q.file(T, b"a"))])
+    q.run(run_id(2, "o"), script="scripts/o.py", started_at=at(2), ts=at(3), outputs=[(T, q.file(T, b"b"))])
+    q.run(run_id(4, "r"), script="scripts/r.py", started_at=at(4), ts=at(5), inputs=[(T, sha(b"b")), (T, sha(b"b"))])
+    history = core.read_model(core.Project(q.root)).data_history(T)
+    assert history["versions"][1]["reasons"] == [{"kind": "script", "from": "scripts/s.py", "to": "scripts/o.py"}]
+    assert [r["run"] for r in history["versions"][1]["readers"]] == [run_id(4, "r")]
+
+
+def test_a_single_version_with_a_cited_rerun_shows_its_history_and_the_card_strip_is_bounded(tmp_path):
+    """Codex R10 and independent review M4 of PR #112."""
+    q = LegacyProject(tmp_path / "p", migrated=True)
+    q.run(run_id(0), script="scripts/s.py", started_at=at(0), ts=at(1), charts=["c"], code=CODE_1)
+    q.run(run_id(2), script="scripts/s.py", started_at=at(2), ts=at(3), charts=["c"], code=CODE_1)
+    rerun(q, run_id(2), run_id(0), "match")
+    p = core.Project(q.root)
+    core.record(p, "finding", "재실행", origin=ORIGIN,
+                refs=[{"type": "visualization_version", "run_id": run_id(2), "visualization_id": "c", "relation": "cites"}])
+    workspace.build(p)
+    page = plain((p.workspace_dir / "runs" / f"{run_id(0)}.html").read_text(encoding="utf-8"))
+    assert 'id="chart-c-versions"' in page and any("Rerun Matched · Cited by 1" in row for row in rows(page))
+    q2 = LegacyProject(tmp_path / "q", migrated=True)
+    for n in range(workspace_versions.CARD_POINTS + 10):
+        q2.run(f"20261001-{n // 60:02d}{n % 60:02d}00-s", started_at=at(n % 60, hour=n // 60),
+               ts=at(n % 60, hour=n // 60), code=CODE_1, inputs=[(RAW, sha(str(n).encode()))], charts=["c"])
+    p2 = core.Project(q2.root)
+    workspace.build(p2)
+    card = (p2.workspace_dir / "index.html").read_text(encoding="utf-8").split('class="vh-card"', 1)[1].split("</div></div>", 1)[0]
+    assert card.count("<circle") == workspace_versions.CARD_POINTS
+
+
+def test_a_script_without_an_ended_run_still_gets_a_page(tmp_path):
+    """Codex R12 of PR #112."""
+    q = LegacyProject(tmp_path / "p", migrated=True)
+    q.run(run_id(0), script="scripts/s.py", status="running", started_at=at(0), pid=999999999, completion=False)
+    p = core.Project(q.root)
+    workspace.build(p)
+    page = (p.workspace_dir / "scripts" / workspace_versions.script_page("scripts/s.py")).read_text(encoding="utf-8")
+    assert page.startswith("<!doctype html>") and "No run of this script has ended yet." in plain(page)

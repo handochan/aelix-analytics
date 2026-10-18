@@ -90,6 +90,7 @@
  "back.page.data": "데이터셋으로 돌아가기",
  "back.page.relations": "관계로 돌아가기",
  "back.page.run": "실행으로 돌아가기",
+ "back.page.script": "스크립트로 돌아가기",
  "back.tab.assets": "분석 자산으로 돌아가기",
  "back.tab.charts": "시각화로 돌아가기",
  "back.tab.context": "맥락으로 돌아가기",
@@ -751,6 +752,12 @@
  "verdict.match": "일치",
  "verdict.mismatch": "다름",
  "versions.all_on_latest": "버전 {n}개 전부는 최신 버전의 페이지에",
+ "versions.chain_earlier": {
+  "other": "이 이력의 앞선 기록 {n}개"
+ },
+ "versions.chain_later": {
+  "other": "이 이력의 뒤의 기록 {n}개"
+ },
  "versions.changes_from": "코드 버전 {first}에서 {last}로 바뀐 것",
  "versions.cited_by": "인용 {n}",
  "versions.code_at": "코드",
@@ -787,7 +794,8 @@
  "versions.insights": {
   "other": "인사이트 {n}개"
  },
- "versions.insights_rule": "인사이트 수는 그 버전이 최신이던 동안 쓴 발견·결정·가정입니다. 그 인사이트가 그 글을 썼다는 뜻은 아닙니다.",
+ "versions.insights_partial": "버전 {total}개 중 {counted}개에서 인사이트 {n}개",
+ "versions.insights_rule": "인사이트 수는 그 버전이 최신이던 동안 쓴 발견·결정·가정입니다. 그 인사이트가 그 버전의 글에 근거했다는 뜻은 아닙니다.",
  "versions.latest": "최신",
  "versions.legend.again": "같은 내용을 다시 씀",
  "versions.legend.failed": "실패한 실행",
@@ -804,6 +812,7 @@
   "other": "버전 {n}개를 만듦"
  },
  "versions.makes": "만드는 것",
+ "versions.makes_no_version": "버전을 만들지 않음",
  "versions.n_of": "버전 {n}/{total}",
  "versions.named_without": {
   "other": "버전 없이 이 시각화를 이름으로 든 기록이 {n}개 있습니다."
@@ -812,8 +821,9 @@
   "other": "버전 없이 이 파일을 이름으로 든 기록이 {n}개 있습니다."
  },
  "versions.no_code": "이 스크립트의 실행이 아직 끝나지 않았습니다.",
- "versions.no_visualization": "시각화 없음",
  "versions.not_a_version": "이 시각화는 버전이 아닙니다: 실행이 성공하지 않았습니다.",
+ "versions.not_ended": "이 실행은 끝나지 않아 버전을 만들지 않습니다.",
+ "versions.not_of_key": "이 시각화는 그 key의 버전이 아닙니다.",
  "versions.note.changed_both": "버전 {n}에서 코드와 입력이 모두 바뀌었습니다.",
  "versions.note.changed_code": "버전 {n}에서 코드가 바뀌었습니다.",
  "versions.note.changed_inputs": "버전 {n}에서 입력이 바뀌었습니다.",
@@ -829,6 +839,7 @@
   "other": "뒤의 버전 {n}개는 그대로 두었습니다."
  },
  "versions.note.pinned_since": "고정 섹션이 마지막으로 바뀐 버전은 버전 {n}입니다",
+ "versions.note.pinned_unchanged": "고정 섹션은 버전 1부터 그대로입니다.",
  "versions.open": "열기",
  "versions.open_diff": "변경 보기",
  "versions.open_run": "실행 열기",
@@ -861,10 +872,12 @@
  },
  "versions.reason.outside": "가져오기 밖에서 바뀜",
  "versions.reason.pinned": "고정 섹션 변경",
+ "versions.reason.script": "다른 스크립트가 씀",
  "versions.reason.written": "실행이 씀",
  "versions.replaced_unread": "어느 실행도 읽기 전에 바뀜",
  "versions.rerun": "재실행",
  "versions.rerun_of": "이 실행은 버전 {n}을 다시 실행했습니다. 재실행은 버전을 만들지 않습니다.",
+ "versions.rerun_of_run": "이 실행은 다른 실행을 다시 실행했고, 재실행은 버전을 만들지 않습니다:",
  "versions.rows": {
   "other": "{n}행"
  },
@@ -875,6 +888,7 @@
  "versions.same_code_inputs": "같은 코드와 입력",
  "versions.script": "스크립트",
  "versions.see_unbound": "'버전 미지정'에서 보기",
+ "versions.shown": "보고 있음",
  "versions.this_record": "이 기록",
  "versions.v": "v{n}",
  "versions.v_again": "v{n} 다시",
@@ -890,5 +904,6 @@
  "versions.written_by": "쓴 실행:",
  "versions.written_by_code": "쓴 코드",
  "versions.wrote_not_version": "버전이 아닌 바이트를 씀",
- "versions.wrote_nothing": "여기에 쓴 것 없음"
+ "versions.wrote_nothing": "여기에 쓴 것 없음",
+ "versions.wrote_version": "버전 {n}과 같은 바이트를 썼고, 버전을 만들지 않음"
 }

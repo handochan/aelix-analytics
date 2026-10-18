@@ -686,6 +686,9 @@ def test_the_workspace_marks_what_it_reads_through_an_older_kit_s_path(tmp_path,
     assert f'{case.consumer}</a> <span lang="">{case.consumer}</span> · <span class="ref-note"' in dataset
     assert dataset.count("inferred from an older kit's path</span>") >= 2  # producers and readers
     assert "Inferred from an older kit's path" in dataset  # the current bytes' candidate
+    # The data history (#99) says which of its writers and readers it found only through such a reading.
+    history = dataset.split('id="versions"', 1)[1].split('id="version-history"', 1)[1]
+    assert "inferred from an older kit's path" in history
     card = _card(pages["index.html"], "scripts/plot.py::trend")
     assert "v2" in card and "1 of the 2 version(s) of this key were recorded under another spelling" in card
     # The gallery's card leads to the key's history (#99), where the earlier version, recorded by the

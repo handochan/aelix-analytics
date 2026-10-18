@@ -366,6 +366,10 @@ class Site:
     def inferred_mark(run_id: str, runs) -> str:
         return inferred_mark(run_id, runs)
 
+    @staticmethod
+    def inferred_count(runs) -> str:
+        return inferred_count_html(runs)
+
     def script_path(self, run: dict) -> str | None:
         """A run's script path as the gallery reads it: an older kit's spelling as today's
         (ReadModel.read_as), else as recorded."""

@@ -41,6 +41,10 @@ SHOWN_INPUTS = 2
 # every version's run page holding every row would grow as the square of the versions. The latest
 # version's page holds them all (design 5.3: a long history folds its groups).
 WINDOW_ROWS = 100
+# How many marks a gallery card's strip shows: the latest ones.
+CARD_POINTS = 40
+# How many records before and after a record its correction history shows.
+CHAIN_ROWS = 10
 SCRIPT_DIR = "scripts"
 
 
@@ -189,19 +193,21 @@ class Versions:
 
     @staticmethod
     def block(anchor: str, facts: str, strip: str, legend: str, rows: list[str], foot: str = "", *,
-              heading: str = "versions.history") -> str:
-        """A history: its heading and facts, the strip and its key, the rows, a closing note. Open:
-        it is what the page is for, and it reads without a script."""
+              heading: str = "versions.history", level: int = 2) -> str:
+        """A history: its heading (`level`: under the page's sections, or under a chart's heading on a
+        run page) and facts, the strip and its key, the rows, a closing note. Open: it is what the
+        page is for, and it reads without a script."""
         picture = f'<div class="vh-strip-wrap">{strip}</div>' if strip else ""
-        return (f'<section class="vh" id="{anchor}"><details class="vh-fold" open><summary><h2>{t(heading)}</h2> '
+        return (f'<section class="vh" id="{anchor}"><details class="vh-fold" open><summary><h{level}>{t(heading)}</h{level}> '
                 f'<span class="muted">{facts}</span></summary>{picture}{legend}'
                 f'<ol class="vh-list">{"".join(rows)}</ol>{foot}</details></section>')
 
     @staticmethod
-    def showing(number: int, total: int, at: str, *, latest: bool, extra: str = "") -> str:
+    def showing(number: int, total: int, at: str, *, latest: bool, extra: str = "", anchor: str = "") -> str:
         """'Version n of N · time · latest' (design 5.1)."""
         tail = f' · {t("versions.latest")}' if latest else ""
-        return (f'<p class="vh-showing"><span class="badge tone-muted">{t("versions.v", n=number)}</span> '
+        named = f' id="{anchor}"' if anchor else ""
+        return (f'<p class="vh-showing"{named}><span class="badge tone-muted">{t("versions.v", n=number)}</span> '
                 f'{t("versions.n_of", n=number, total=total)} · {at}{tail}{extra}</p>')
 
     def runs_html(self, runs: list[str], depth: int, anchor: str = "") -> str:
@@ -230,6 +236,9 @@ class Versions:
                                    + f' · <span class="sha">@{s.short(reason.get("to"))}</span>'))
             elif kind == "inputs":
                 out.append(self.input_badge(reason))
+            elif kind == "script":
+                out.append(s.badge("warning", "⇄", t("versions.reason.script") + " · "
+                                   + s.user_text(PurePosixPath(reason.get("to") or "?").name)))
             elif kind in ("imported", "outside", "written"):
                 out.append(s.badge("warning" if kind == "outside" else "muted", "↻", t("versions.reason." + kind)))
         return out
@@ -247,6 +256,7 @@ class Versions:
         if failure.get("error"):
             body.append(s.user_text(failure["error"]))
         body.append(what)
+        body += self.reruns_html(failure.get("reruns") or [], depth)
         return self.row(f'<span aria-hidden="true">×</span> {t("versions.failed_run")}', s.fmt_time(failure.get("started_at")),
                         [s.status_badge(failure.get("status"))], " · ".join(body), "",
                         f'<a href="{s.esc(s.run_link(failure["run"], depth))}">{t("versions.open_run")}</a>',
@@ -301,6 +311,12 @@ class Versions:
         if len(versions) < 2:
             return ""
         points, groups = self.chart_points(history, run_id)
+        if len(points) > CARD_POINTS:
+            # The card's strip is the latest CARD_POINTS marks: the index stays small however long the
+            # history (the run page has all of it).
+            cut = len(points) - CARD_POINTS
+            points = points[cut:]
+            groups = [g for g in ([i - cut for i in group if i >= cut] for group in groups) if g]
         link = s.run_link(run_id, depth, f"#chart-{s.href(str(chart_id))}-versions")
         return (f'<div class="vh-card"><span class="vh-count">{t("versions.count", n=len(versions))}</span>'
                 f'<span class="vh-days">{self.span(versions[0]["started_at"], versions[-1]["started_at"])}</span>'
@@ -324,38 +340,65 @@ class Versions:
         groups = [[place[n] for n in group] for group in history["groups"]]
         return points, groups
 
+    def not_a_version(self, run: dict, chart: dict, versions: list[dict], anchor: str) -> str:
+        """Why a run's chart is no version (design 5.2): it re-executed another run (a version, or
+        a run that is none), it has not ended, or it did not succeed."""
+        s = self.site
+        ended = (s.recording.get(run["id"]) or {}).get("execution_status", run.get("status"))
+        of = next((v for v in versions for again in v["reruns"] if again["run"] == run["id"]), None)
+        if of is not None:
+            return (f'<p class="vh-showing" id="{anchor}">{t("versions.rerun_of", n=of["number"])} '
+                    f'<a href="{s.esc(s.run_link(of["run"], 1, "#chart-" + s.href(str(chart.get("id")))))}">'
+                    f'{t("versions.open_version", n=of["number"])}</a></p>')
+        rerun_of = run.get("rerun_of")
+        if isinstance(rerun_of, str) and rerun_of:
+            return (f'<p class="vh-showing" id="{anchor}">{t("versions.rerun_of_run")} '
+                    f'<a href="{s.esc(s.run_link(rerun_of, 1))}">{s.esc(rerun_of)}</a></p>')
+        if ended in ("running", "incomplete"):
+            return f'<p class="vh-showing" id="{anchor}">{t("versions.not_ended")}</p>'
+        if ended != "ok":
+            return f'<p class="vh-showing" id="{anchor}">{t("versions.not_a_version")}</p>'
+        return f'<p class="vh-showing" id="{anchor}">{t("versions.not_of_key")}</p>'
+
     def chart_history(self, run: dict, chart: dict, key: str) -> str:
         """The chart on its run's page is the version it shows (design 5.3): 'Version n of N', what a
         reader needs first, and the key's whole history with this version marked. A run whose chart
-        is no version (it failed, or it reran another run) says why."""
+        is no version says why. On the page of a version that is not the latest, a history of more
+        than WINDOW_ROWS versions and failed runs shows those nearest the version (groups cut to them,
+        no strip): the latest version's page holds them all."""
         s = self.site
         history = self.visualization(key)
         versions = history["versions"]
         version = self.version_of(key, run["id"])
         anchor = f'chart-{s.esc(str(chart.get("id")))}-versions'
         if version is None:
-            of = next((v for v in versions for again in v["reruns"] if again["run"] == run["id"]), None)
-            if of is not None:
-                return (f'<p class="vh-showing" id="{anchor}">{t("versions.rerun_of", n=of["number"])} '
-                        f'<a href="{s.esc(s.run_link(of["run"], 1, "#chart-" + s.href(str(chart.get("id")))))}">'
-                        f'{t("versions.open_version", n=of["number"])}</a></p>')
-            return f'<p class="vh-showing" id="{anchor}">{t("versions.not_a_version")}</p>'
+            return self.not_a_version(run, chart, versions, anchor)
         head = self.showing(version["number"], len(versions), s.fmt_time(version["started_at"]),
-                            latest=version["number"] == len(versions))
-        if len(versions) < 2 and not history["failed"]:
+                            latest=version["number"] == len(versions), anchor=anchor)
+        if (len(versions) < 2 and not history["failed"] and not history["named_by"]
+                and not any(v["reruns"] or v["cited_by"] for v in versions)):
             return head
-        items = arrange(history["groups"], history["failed"], {len(versions), version["number"]})
-        latest_page = version["number"] == len(versions)
-        windowed = not latest_page and len(items) > WINDOW_ROWS
+        # Versions and failed runs in time order; on a page that is not the latest's, those nearest.
+        sequence: list[tuple] = []
+        waiting = sorted(history["failed"], key=lambda f: f["after"])
+        for v in versions:
+            while waiting and waiting[0]["after"] < v["number"]:
+                sequence.append(("failed", waiting.pop(0)))
+            sequence.append(("version", v["number"]))
+        sequence += [("failed", f) for f in waiting]
+        windowed = version["number"] != len(versions) and len(sequence) > WINDOW_ROWS
+        groups, failed = history["groups"], history["failed"]
         if windowed:
-            at = items.index(("version", version["number"]))
-            start = max(0, min(at - WINDOW_ROWS // 2, len(items) - WINDOW_ROWS))
-            items = items[start:start + WINDOW_ROWS]
-        points, groups = self.chart_points(history, run["id"])
+            at = sequence.index(("version", version["number"]))
+            start = max(0, min(at - WINDOW_ROWS // 2, len(sequence) - WINDOW_ROWS))
+            kept = sequence[start:start + WINDOW_ROWS]
+            numbers = {item for kind, item in kept if kind == "version"}
+            groups = [g for g in ([n for n in group if n in numbers] for group in groups) if g]
+            failed = [item for kind, item in kept if kind == "failed"]
         rows = []
-        for kind, item in items:
+        for kind, item in arrange(groups, failed, {len(versions), version["number"]}):
             if kind == "failed":
-                rows.append(self.failed_row(item, 1, t("versions.no_visualization")))
+                rows.append(self.failed_row(item, 1, t("versions.makes_no_version")))
             elif kind == "version":
                 rows.append(self.chart_row(versions[item - 1], len(versions), version["number"], chart))
             else:
@@ -371,40 +414,62 @@ class Versions:
         foot = ""
         if windowed:
             whole = s.run_link(versions[-1]["run"], 1, f"#{anchor}")
-            foot += (f'<p class="vh-foot">{t("versions.window", n=len(rows))} '
+            foot += (f'<p class="vh-foot">{t("versions.window", n=WINDOW_ROWS)} '
                      f'<a href="{s.esc(whole)}">{t("versions.all_on_latest", n=len(versions))}</a></p>')
         if named:
             target = s.relations.link(key, 1) if key in s.relations.identities else ""
             foot += (f'<p class="vh-foot">{t("versions.named_without", n=len(named))}'
-                    + (f' <a href="{s.esc(target)}">{t("versions.see_unbound")}</a>' if target else "") + "</p>")
+                     + (f' <a href="{s.esc(target)}">{t("versions.see_unbound")}</a>' if target else "") + "</p>")
         facts = " · ".join(filter(None, [t("versions.count", n=len(versions)),
                                          self.span(versions[0]["started_at"], versions[-1]["started_at"]),
                                          t("versions.failed_runs", n=len(history["failed"])) if history["failed"] else ""]))
-        legend = self.legend(["version", "shown", *(["again"] if any(v["reruns"] for v in versions) else []),
-                              *(["failed"] if history["failed"] else []),
-                              *(["use_cited"] if any(v["cited_by"] for v in versions) else [])])
-        strip = "" if windowed else self.strip(points, groups, "viz")
-        return head + self.chart_note(key) + self.block(anchor, facts, strip, "" if windowed else legend, rows, foot)
+        if windowed:
+            strip = legend = ""
+        else:
+            points, point_groups = self.chart_points(history, run["id"])
+            strip = self.strip(points, point_groups, "viz")
+            legend = self.legend(["version", "shown", *(["again"] if any(v["reruns"] for v in versions) else []),
+                                  *(["failed"] if history["failed"] else []),
+                                  *(["use_cited"] if any(v["cited_by"] for v in versions) else [])])
+        return head + self.chart_note(key) + self.block(anchor + "-list", facts, strip, legend, rows, foot, level=4)
 
     def chart_row(self, version: dict, total: int, shown: int, chart: dict) -> str:
         s = self.site
         n = version["number"]
-        badges = self.reason_badges(version["reasons"])
-        if n == total:
-            badges.append(f'<span class="badge tone-muted">{t("versions.latest")}</span>')
+        badges = self.reason_badges(version["reasons"]) + self.place_badges(n, total, shown)
         body = []
         run = s.run_by_id.get(version["run"]) or {}
         body.append(s.user_text(run.get("title") or version["run"])
                     + (s.inferred_mark(version["run"], [version["run"]]) if version["inferred"] else ""))
-        for again in version["reruns"]:
-            body.append(f'<a href="{s.esc(s.run_link(again["run"], 1))}">{t("versions.rerun")}</a> '
-                        + s.words("verdict", again.get("verdict") or "unknown")
-                        + (f' · {t("versions.cited_by", n=len(again["cited_by"]))}' if again["cited_by"] else ""))
+        body += self.reruns_html(version["reruns"], 1, cited=True)
         link = ("" if n == shown else
                 f'<a href="{s.esc(s.run_link(version["run"], 1, "#chart-" + s.href(str(chart.get("id")))))}">{t("versions.open")}</a>')
         return self.row(t("versions.v", n=n), s.fmt_time(version["started_at"]), badges, " · ".join(body),
                         t("versions.cited_by", n=len(version["cited_by"])), link,
                         classes=" is-shown" if n == shown else "")
+
+    def reruns_html(self, reruns: list[dict], depth: int, *, cited: bool = False) -> list[str]:
+        """`Rerun <how it ended or its comparison>` for each rerun beside what it re-executed."""
+        s = self.site
+        out = []
+        for again in reruns:
+            said = (s.words("verdict", again["verdict"]) if again.get("verdict")
+                    else s.words("status", again.get("status") or "unknown"))
+            out.append(f'<a href="{s.esc(s.run_link(again["run"], depth))}">{t("versions.rerun")}</a> {said}'
+                       + (f' · {t("versions.cited_by", n=len(again["cited_by"]))}'
+                          if cited and again.get("cited_by") else ""))
+        return out
+
+    @staticmethod
+    def place_badges(n: int, total: int, shown: int | None) -> list[str]:
+        """`Latest` and `Shown`: the row of the latest version and of the version the page shows say
+        so in words, not by their background alone."""
+        out = []
+        if n == total:
+            out.append(f'<span class="badge tone-muted">{t("versions.latest")}</span>')
+        if n == shown:
+            out.append(f'<span class="badge tone-muted">{t("versions.shown")}</span>')
+        return out
 
     # --- data files (the dataset page) --------------------------------------------------------------
 
@@ -467,6 +532,7 @@ class Versions:
         for kind, item in arrange(history["groups"], history["failed"], {len(versions), shown}):
             if kind == "failed":
                 what = (t("versions.wrote_nothing") if not item.get("wrote") else
+                        t("versions.wrote_version", n=item["wrote_version"]) if item.get("wrote_version") else
                         t("versions.wrote_not_version") + f' <span class="sha">{s.short(item["wrote"], 12)}</span>')
                 rows.append(self.failed_row(item, 1, what))
             elif kind == "version":
@@ -507,9 +573,7 @@ class Versions:
     def data_row(self, version: dict, total: int, shown: int) -> str:
         s = self.site
         n = version["number"]
-        badges = self.reason_badges(version["reasons"])
-        if n == total:
-            badges.append(f'<span class="badge tone-muted">{t("versions.latest")}</span>')
+        badges = self.reason_badges(version["reasons"]) + self.place_badges(n, total, shown)
         facts = []
         if version["rows"] is not None:
             facts.append(t("versions.rows", n=version["rows"]))
@@ -521,17 +585,18 @@ class Versions:
         elif version["source"] == "read":
             facts.append(t("versions.first_read_by") + " " + self.runs_html([version["run"]], 1))
         elif version["run"]:
-            facts.append(t("versions.written_by") + " " + self.runs_html([version["run"]], 1, "#outputs"))
+            facts.append(t("versions.written_by") + " " + self.runs_html([version["run"]], 1, "#outputs")
+                         + (s.inferred_mark(version["run"], [version["run"]]) if version.get("inferred") else ""))
         if len(version["writes"]) > 1:
             facts.append(t("versions.written_again", n=len(version["writes"]) - 1))
-        for again in version["reruns"]:
-            facts.append(f'<a href="{s.esc(s.run_link(again["run"], 1))}">{t("versions.rerun")}</a> '
-                         + s.words("verdict", again.get("verdict") or "unknown"))
+        facts += self.reruns_html(version["reruns"], 1)
         readers = version["readers"]
         failed = [r["run"] for r in readers if r.get("status") != "ok"]
+        inferred = [r["run"] for r in readers if r.get("inferred")]
         if readers:
             facts.append(t("versions.read_by_runs") + " " + self.runs_html([r["run"] for r in readers], 1, "#inputs")
-                         + (f' ({t("versions.reads_failed", n=len(failed))})' if failed else ""))
+                         + (f' ({t("versions.reads_failed", n=len(failed))})' if failed else "")
+                         + (" " + s.inferred_count(inferred) if inferred else ""))
         elif n < total:
             facts.append(t("versions.replaced_unread"))
         return self.row(t("versions.v", n=n), s.fmt_time(version["started_at"]), badges, " · ".join(facts),
@@ -589,8 +654,11 @@ class Versions:
                 f'<span class="badge tone-muted">{t("versions.script")}</span></div>'
                 f'<div class="sub">{" · ".join(facts)}</div>'
                 + (f'<div class="sub">{t("versions.makes")} {", ".join(makes)}</div>' if makes else "") + "</div>")
+        crumb = (f' <span>/</span> <a href="../index.html#runs">{t("tab.runs")}</a> <span>/</span> '
+                 f'<span{s.user_language}>{s.esc(name)}</span>')
         if not versions:
-            return head + f'<div class="empty">{t("versions.no_code")}</div>'
+            return s.page(1, name, crumb, head + f'<div class="empty">{t("versions.no_code")}</div>', "script",
+                          page_path=f"{SCRIPT_DIR}/{script_page(script)}", selection=script)
         last_segment = segments[-1]
         showing = self.showing(latest["number"], len(versions),
                                s.fmt_time(last_segment["runs"][-1]["started_at"]), latest=True)
@@ -616,8 +684,6 @@ class Versions:
                 + self.block("code-history", facts_line, self.strip(points, groups, "code"), legend, rows[::-1],
                              f'<p class="vh-foot">{t("versions.code_rule")}</p>', heading="versions.code_history")
                 + (f'<section class="vh-diffs"><h2>{t("versions.code_changes")}</h2>{diffs}</section>' if diffs else ""))
-        crumb = (f' <span>/</span> <a href="../index.html#runs">{t("tab.runs")}</a> <span>/</span> '
-                 f'<span{s.user_language}>{s.esc(name)}</span>')
         return s.page(1, name, crumb, body, "script", page_path=f"{SCRIPT_DIR}/{script_page(script)}",
                       selection=script)
 
@@ -681,13 +747,15 @@ class Versions:
         failed = [e for e in runs if e["status"] != "ok"]
         if failed and len(failed) == len(runs):
             badges.append(s.status_badge(failed[0]["status"]))
-        if latest:
-            badges.append(f'<span class="badge tone-muted">{t("versions.latest")}</span>')
-        body = [f'<span class="sha">@{s.short(version["sha256"])}</span>']
+        badges += self.place_badges(n, n, n) if latest else []
+        body = [f'<span class="sha">@{s.short(version["sha256"])}</span>'
+                + (s.inferred_mark(version["run"], [version["run"]]) if version.get("inferred") and not segment["again"] else "")]
         if segment["again"]:
             body.append(t("versions.same_code_as", n=n))
         elif n == 1:
             body.append(t("versions.first_version"))
+        # A rerun runs the snapshot of the run it re-executes: listed here, never as code coming back.
+        body += self.reruns_html(segment.get("reruns") or [], 1)
         uses = [t("versions.runs", n=len(runs))]
         for numbers in segment["visualizations"].values():
             uses.append(t("versions.viz_short") + " " + number_range(numbers))
@@ -727,6 +795,9 @@ class Versions:
             note = (f'<div class="callout tone-muted vh-note" role="note"><strong>{t("versions.note.pinned_since", n=since)}</strong> '
                     f'({changed_at}). ' + (t("versions.note.pinned_kept", n=total - since) if since < total else "")
                     + "</div>")
+        elif total > 1 and latest.get("pinned"):
+            # Pinned sections that no version changed: the same since the first.
+            note = f'<div class="callout tone-muted vh-note" role="note">{t("versions.note.pinned_unchanged")}</div>'
         return self.showing(total, total, s.fmt_time(latest["recorded_at"] or self.name_time(latest["name"])),
                             latest=True) + note
 
@@ -758,11 +829,13 @@ class Versions:
                 rows.append(self.context_row(versions[item - 1], total, lines))
             else:
                 members = [versions[n - 1] for n in item]
-                insights = sum(v["insights"] or 0 for v in members)
+                counted = [v["insights"] for v in members if v["insights"] is not None]
+                insights = ("–" if not counted else t("versions.insights", n=sum(counted)) if len(counted) == len(members)
+                            else t("versions.insights_partial", n=sum(counted), counted=len(counted), total=len(members)))
                 summary = (f'<span class="vh-n">{t("versions.range", first=item[0], last=item[-1])} · '
                            f'{t("versions.count", n=len(item))}</span> '
                            f'{self.span(members[0]["recorded_at"], members[-1]["recorded_at"])} · {t("versions.pinned_same")}')
-                rows.append(self.group(summary, t("versions.insights", n=insights),
+                rows.append(self.group(summary, insights,
                                        [self.context_row(v, total, lines) for v in members[::-1]]))
         changed = sum(1 for v in versions if v["pinned_changed"])
         facts = " · ".join([t("versions.count", n=total),
@@ -805,8 +878,7 @@ class Versions:
         badges = [self.lines_badge(version["added"], version["removed"])]
         if version["pinned_changed"]:
             badges.append(s.badge("warning", "⚑", t("versions.reason.pinned")))
-        if n == total:
-            badges.append(f'<span class="badge tone-muted">{t("versions.latest")}</span>')
+        badges += self.place_badges(n, total, total)
         new = lines(n)
         old = lines(n - 1) if n > 1 else []
         diff = list(difflib.unified_diff(old, new, lineterm="", n=2))[2:]
@@ -818,7 +890,9 @@ class Versions:
             f'<pre class="diff"{s.user_language if diff else ""}>{shown}</pre></details>')
         who = ""
         if version["event"]:
-            who = f' · <span class="muted">{s.esc(version["event"])}</span>'
+            event = s.relations.events.get(version["event"])
+            actor = f'{s.words("actor", event.value.get("actor"))} · ' if event else ""
+            who = f' · <span class="muted">{actor}{s.esc(version["event"])}</span>'
         use = ("–" if version["insights"] is None else t("versions.insights", n=version["insights"]))
         at = s.fmt_time(version["recorded_at"] or self.name_time(version["name"]))
         link = s.relation_link("context:" + version["name"], 0)
@@ -834,8 +908,12 @@ class Versions:
         chain = self.model.correction_history(identity)
         if not chain:
             return ""
-        rows = []
-        for item in chain:
+        # The records nearest this one: a page per record holding the whole of a long history would
+        # grow as its square (each record's page has the rest as counts).
+        at = next(i for i, item in enumerate(chain) if item["source"] == identity)
+        before, after = max(0, at - CHAIN_ROWS), min(len(chain), at + CHAIN_ROWS + 1)
+        rows = [f'<li class="muted">{t("versions.chain_earlier", n=before)}</li>'] if before else []
+        for item in chain[before:after]:
             source = item["source"]
             event = s.relations.events.get(source)
             text = s.user_text(str(event.value.get("text") or "")[:140]) if event else ""
@@ -853,6 +931,8 @@ class Versions:
             corrects = (f' · {t("versions.corrects")} ' + ", ".join(s.esc(c) for c in item["corrects"])) if item["corrects"] else ""
             link = s.relations.content(source, 1) or s.relations.link(source, 1)
             rows.append(f'<li><a href="{s.esc(link)}">{s.esc(source)}</a>{this} {when} {badge}{corrects}<br>{text}</li>')
+        if after < len(chain):
+            rows.append(f'<li class="muted">{t("versions.chain_later", n=len(chain) - after)}</li>')
         return (f'<section class="vh-corrections" id="corrections"><h2>{t("versions.correction_history")}</h2>'
                 f'<p class="muted">{t("versions.correction_lead")}</p><ol class="vh-chain">{"".join(rows)}</ol></section>')
 
