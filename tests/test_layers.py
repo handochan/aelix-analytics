@@ -85,6 +85,11 @@ LAYERS: dict[str, Layer] = {
     "distribution": _layer(0, (), (), "where the installed distribution keeps its runtime root"),
     # Issue #96: the Workspace's own words by message key, a leaf the renderer imports.
     "messages": _layer(0, (), (), "the Workspace's own words by message key and their catalogs"),
+    "share_model": _layer(0, (), (), "immutable publication values; no record objects or I/O"),
+    "publication_policy": _layer(1, ("read_model", "share_model", "publication_policy"), (),
+                                 "pure publication profiles, independent scope closure and field rules"),
+    "publishing": _layer(3, ("core", "ports", "read_model", "writer", "share_model", "publication_policy"), (),
+                          "eager snapshot and future publication I/O adapters, separate from Workspace"),
     "writer": _layer(1, ("ports", "read_model"), (),
                      "who may write a project's records and how: the marker judgment and the gate, "
                      "Origin, the error class, the record helpers and the new format's common "
@@ -133,6 +138,13 @@ MODULES: dict[str, str] = {
     "src/aelix_analytics/asset_policy.py": "read_model",
     "src/aelix_analytics/asset_app.py": "asset_application",
     "src/aelix_analytics/asset_suggestions.py": "asset_application",
+    "src/aelix_analytics/publishing/__init__.py": "share_model",
+    "src/aelix_analytics/publishing/model.py": "share_model",
+    "src/aelix_analytics/publishing/field_policy.py": "publication_policy",
+    "src/aelix_analytics/publishing/basis.py": "publication_policy",
+    "src/aelix_analytics/publishing/scope.py": "publication_policy",
+    "src/aelix_analytics/publishing/projection.py": "publication_policy",
+    "src/aelix_analytics/publishing/snapshot.py": "publishing",
     "src/aelix_analytics/_install.py": "distribution",
     "src/aelix_analytics/writer.py": "writer",
     "src/aelix_analytics/core.py": "core",
