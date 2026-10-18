@@ -1176,6 +1176,7 @@ class ReadModel:
         self._instants: dict[str, datetime | None] = {}
         self._upstream: dict[str, dict] = {}
         self._by_script: dict[str, list[str]] | None = None
+        self._by_path: dict[str, dict] | None = None
         self._cited: tuple[dict, dict] | None = None
         self._histories: dict[tuple, dict] = {}
         self._correction_index: tuple[dict, dict, dict] | None = None
@@ -2158,6 +2159,21 @@ class ReadModel:
         self._histories[("visualization", key)] = result
         return result
 
+    def _path_entries(self) -> dict[str, dict[str, list[tuple[str, dict]]]]:
+        """Identity path -> the (run, entry) of every output (not deleted) and every input runs recorded
+        at it, in run order, an older kit's path read as read_as gives it: one pass per read."""
+        if self._by_path is None:
+            index: dict[str, dict[str, list]] = {}
+            for run_id, run in self._runs.items():
+                for role, field in (("outputs", "outputs"), ("inputs", "inputs")):
+                    for entry in _dicts(run.get(field)):
+                        held = _str(entry.get("path"))
+                        if held is None or (role == "outputs" and entry.get("change") == "deleted"):
+                            continue
+                        index.setdefault(self._as_read(run_id, held), {}).setdefault(role, []).append((run_id, entry))
+            self._by_path = index
+        return self._by_path
+
     def data_history(self, path: str) -> dict:
         """The byte versions of a data file at an identity path (design 5.2). A successful run that
         is not a rerun and output the path with bytes no version had makes the next version; the same
@@ -2192,29 +2208,23 @@ class ReadModel:
             if digest:
                 seen.append((_order(meta.get("imported_at")), len(seen), "import", digest, None, meta))
         rerun_writes: list[tuple] = []
-        for run_id, run in self._runs.items():
-            for out in _dicts(run.get("outputs")):
-                held = _str(out.get("path"))
-                if held is None or out.get("change") == "deleted" or self._as_read(run_id, held) != path:
-                    continue
-                writers.add(self._as_read(run_id, _str(_script(run).get("path")) or "?"))
-                digest = _str(out.get("sha256"))
-                if run.get("status") != "ok" or not digest:
-                    continue
-                if _str(run.get("rerun_of")):
-                    rerun_writes.append((run_id, digest))
-                else:
-                    seen.append((_order(run.get("started_at")), len(seen), "write", digest, run_id, out))
-        reads: list[tuple[str, str, list]] = []
-        for run_id, run in self._runs.items():
-            if self._ended(run_id) is None:
+        entries = self._path_entries().get(path, {})
+        for run_id, out in entries.get("outputs", []):
+            run = self._runs[run_id]
+            writers.add(self._as_read(run_id, _str(_script(run).get("path")) or "?"))
+            digest = _str(out.get("sha256"))
+            if run.get("status") != "ok" or not digest:
                 continue
-            for entry in _dicts(run.get("inputs")):
-                held = _str(entry.get("path"))
-                if held is not None and self._as_read(run_id, held) == path:
-                    via = entry.get("via")
-                    reads.append((run_id, _str(entry.get("sha256")) or "",
-                                  [v for v in via if isinstance(v, str)] if isinstance(via, list) else []))
+            if _str(run.get("rerun_of")):
+                rerun_writes.append((run_id, digest))
+            else:
+                seen.append((_order(run.get("started_at")), len(seen), "write", digest, run_id, out))
+        reads: list[tuple[str, str, list]] = []
+        for run_id, entry in entries.get("inputs", []):
+            if self._ended(run_id) is not None:
+                via = entry.get("via")
+                reads.append((run_id, _str(entry.get("sha256")) or "",
+                              [v for v in via if isinstance(v, str)] if isinstance(via, list) else []))
         if self._imports(path):
             known = {item[3] for item in seen}
             for run_id, digest, _ in reads:
@@ -2228,8 +2238,7 @@ class ReadModel:
                 run = self._runs[run_id]
                 if self._ended(run_id) not in ENDED_FAILED or _str(run.get("rerun_of")):
                     continue
-                wrote = next((_str(o.get("sha256")) for o in _dicts(run.get("outputs"))
-                              if _str(o.get("path")) and self._as_read(run_id, o["path"]) == path), None)
+                wrote = next((_str(o.get("sha256")) for r, o in entries.get("outputs", []) if r == run_id), None)
                 failures.append((_order(run.get("started_at")), run_id, wrote))
         seen.sort(key=lambda item: item[:2])
         versions: list[dict] = []

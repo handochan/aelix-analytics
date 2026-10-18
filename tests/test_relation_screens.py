@@ -676,17 +676,22 @@ def test_the_workspace_marks_what_it_reads_through_an_older_kit_s_path(tmp_path,
     assert f'runs/{case.maker}.html' in inputs and "Inferred from an older kit's path" in inputs
     assert f"({case.maker}: inferred from an older kit's path)" in consumer  # the stale callout
     today = pages[f"runs/{case.today}.html"]
-    assert "read as" not in today and "older kit" not in today
+    # Today's run reads nothing through an older kit's path; only the key's version history (#99) marks
+    # the earlier version that is the key's through one.
+    history = today.split('<section class="vh"', 1)[1].split("</section>", 1)[0]
+    outside = today.replace(history, "")
+    assert "read as" not in outside and "older kit" not in outside
+    assert f"{case.maker}</span> · <span class=\"ref-note\"" in history and "older kit" in history
     dataset = pages["data/agg.html"]
     assert f'{case.consumer}</a> <span lang="">{case.consumer}</span> · <span class="ref-note"' in dataset
     assert dataset.count("inferred from an older kit's path</span>") >= 2  # producers and readers
     assert "Inferred from an older kit's path" in dataset  # the current bytes' candidate
     card = _card(pages["index.html"], "scripts/plot.py::trend")
     assert "v2" in card and "1 of the 2 version(s) of this key were recorded under another spelling" in card
-    # The gallery's card lists the earlier version, recorded by the older kit, as inferred.
+    # The gallery's card leads to the key's history (#99), where the earlier version, recorded by the
+    # older kit, is marked inferred (asserted on today's run page above).
     gallery = pages["index.html"].split('id="charts"', 1)[1]
-    earlier = _card(gallery, "scripts/plot.py::trend").split('class="versions"', 1)[1]
-    assert f'runs/{case.maker}.html' in earlier and "(inferred)</small>" in earlier
+    assert f'runs/{case.today}.html#chart-trend-versions' in _card(gallery, "scripts/plot.py::trend")
     assert "Inferred from an older kit's path" in _card(pages["index.html"], "scripts/use.py::usage")
     maker = pages[f"runs/{case.maker}.html"]
     assert ('id <code lang="">scripts/plot.py::trend</code> <small class="ref-note"' in maker
@@ -802,7 +807,7 @@ def test_the_context_history_of_both_state_directories_is_shown(tmp_path):
     assert {r["state"] for r in model.references()} == {"resolved"}
     pages = built(p)
     context = pages["context.html"]
-    assert "2 version(s)" in context and f'id="v-{new[:-3]}"' in context
+    assert "2 versions" in context and f'id="v-{new[:-3]}"' in context
     assert "Recorded context" in context and "not the one a reference resolves to" not in context
     assert f"context.html#v-{new[:-3]}" in pages["index.html"]
     assert "2 recorded version(s)" in pages["index.html"]
