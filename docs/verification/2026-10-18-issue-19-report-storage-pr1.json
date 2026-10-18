@@ -1,6 +1,6 @@
 {
   "record_kind": "aelix-analytics-report-storage-pr1",
-  "observed_at": "2026-10-18T11:35:19.690622+00:00",
+  "observed_at": "2026-10-18T11:43:56.017305+00:00",
   "issue": "https://github.com/handochan/aelix-analytics/issues/19",
   "pull_request": null,
   "kit_version": "0.21.0",
@@ -34,9 +34,10 @@
         "disposition": "type-normalized identity lookup and conservative writer refusal"
       }
     ],
-    "correction_diff_passes": 0,
-    "correction_status": "pending; exactly one check scheduled",
-    "follow_up_prepared": "small scoped improvement: expose no-manifest prepared identity with manifest_unavailable; never synthesize completion"
+    "correction_diff_passes": 1,
+    "correction_status": "pass; four P2 dispositions and prepared visibility verified by five narrow synthetic checks",
+    "follow_up_prepared": "small scoped improvement: expose no-manifest prepared identity with manifest_unavailable; never synthesize completion",
+    "correction_source": "271ceddfa86e5bc04c331688bdfa30531a65a3ef"
   },
   "raw_byte_measurement": {
     "schema": "aelix-analytics.report-storage-eval/1",
@@ -138,8 +139,27 @@
     },
     "full_corrected_source": {
       "source": "ef850ae7bd0029e744c0195160f8fc26aaf3c242",
-      "result": "not_run",
-      "execution": "running; result not yet obtained"
+      "result": "pass",
+      "execution": "completed normally; exit0; 271cedd only adds verification docs to measured runtime",
+      "passed": 2428,
+      "failed": 0,
+      "skipped": 113,
+      "seconds": 535.84
+    },
+    "stdlib_floor": {
+      "result": "pass",
+      "source": "ef850ae7bd0029e744c0195160f8fc26aaf3c242 runtime; 271cedd only adds verification docs",
+      "python": "3.11.15",
+      "command": "PYTHONPATH=src uv run --isolated --no-project --python 3.11 python - (synthetic stdin probe)",
+      "sdk_save_read_update": true,
+      "cli_same_request_existing": true,
+      "exact_authored_bytes": true,
+      "analysis_or_host_imports": []
+    },
+    "static_checks": {
+      "ruff": "pass",
+      "documents": "pass at prior corrected checkpoint; final-link check scheduled",
+      "git_diff_check": "pass"
     }
   },
   "ci": {
