@@ -81,6 +81,8 @@ PROJECT_LAYERS = ("core", "ports", "read_model", "runtime", "workspace", "writer
 # project model — and every layer from core up is one level higher than before.
 LAYERS: dict[str, Layer] = {
     "ports": _layer(0, (), (), "the platform ports and their per-OS implementations (ADR-0003)"),
+    "report_view_contract": _layer(0, (), (), "byte-only ReportRenderer and immutable view values"),
+    "report_views": _layer(3, ("report_view_contract",), ("rendering",), "conservative Report byte renderers; no filesystem or record model"),
     "read_model": _layer(0, (), (), "the records read as ADR-0006 says (ADR-0001 decision 5)"),
     "distribution": _layer(0, (), (), "where the installed distribution keeps its runtime root"),
     # Issue #96: the Workspace's own words by message key, a leaf the renderer imports.
@@ -149,6 +151,8 @@ MODULES: dict[str, str] = {
     "src/aelix_analytics/writer.py": "writer",
     "src/aelix_analytics/core.py": "core",
     "src/aelix_analytics/report_app.py": "report_application",
+    "src/aelix_analytics/report_renderer.py": "report_view_contract",
+    "src/aelix_analytics/report_renderers.py": "report_views",
     "src/aelix_analytics/capture.py": "runtime",
     "src/aelix_analytics/data.py": "runtime",
     "src/aelix_analytics/demo.py": "runtime",

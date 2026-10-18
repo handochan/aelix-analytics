@@ -24,7 +24,8 @@ CLASSIFIED_FIELDS = {
         "rows": "evidence", "columns": "evidence", "description": "evidence", "imported_at": "exclude", "source": "exclude"},
     "report_revision_1": {k: "deferred_PR4" for k in (
         "schema", "report_id", "revision_id", "previous_revision", "request_id", "request_fingerprint", "created_at",
-        "actor", "title", "entry", "files", "based_on")},
+        "actor", "title", "entry", "files", "based_on", "summary", "scope", "purpose", "change_reason",
+        "generation", "content_status", "metadata_file", "collection")},
     "metric_definition_details": {
         "contract": "internal", "metric_id": "include", "name": "include", "status": "include", "definition": "include",
         "unresolved": "include", "change_reason": "include", "previous_definition": "references", "derived_from": "references"},
@@ -213,6 +214,9 @@ PERSISTED_FIELD_PATHS = {
         'based_on.refs[].visualization_id created_at entry files files[].bytes files[].media_type '
         'files[].path files[].sha256 previous_revision report_id request_fingerprint request_id revision_id '
         'schema title '
+            'summary scope purpose change_reason generation content_status metadata_file collection '
+        'collection.contract collection.members collection.members[].member_key collection.members[].scope '
+        'collection.members[].status collection.members[].report_id collection.members[].revision_id collection.members[].reason '
     ).split()),
     'metric_definition_details': frozenset((
         'change_reason contract definition derived_from derived_from[].event_id derived_from[].metric_id '
