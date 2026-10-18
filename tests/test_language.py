@@ -269,7 +269,7 @@ def test_a_korean_project_keeps_its_text_and_gets_english_labels(tmp_path):
     primary = {"index.html", "context.html", f"runs/{run_id}.html", "data/sales.html", f"data/{derived_view}.html"}
     assert primary <= set(pages)
     added = set(pages) - primary
-    assert added and all(name.startswith(("relations/", "lists/")) for name in added)
+    assert added and all(name.startswith(("relations/", "lists/", "scripts/")) for name in added)
     assert "lists/timeline-0.html" in added and "lists/insights-0.html" in added
     for name, page in pages.items():
         assert '<html lang="en" ' in page, name
@@ -306,7 +306,7 @@ SYSTEM_LABELS = ("Current insights", "Recent activity", "Analysis status", "Anal
                  "Input data", "Code", "Question", "Finding", "Logs", "Environment",
                  "Journal entries for this run", "Snapshot file", "Same as the current file",
                  "Schema and statistics", "Preview", "Relations", "Runs that read this data",
-                 "Source file", "Context history", "Changes", "Auto-reload", "Column", "Type")
+                 "Source file", "Context history", "Pinned sections now", "Auto-reload", "Column", "Type")
 
 
 def test_the_workspace_gives_what_people_wrote_no_language_and_its_own_words_english(tmp_path):
@@ -336,6 +336,9 @@ def test_the_workspace_gives_what_people_wrote_no_language_and_its_own_words_eng
         elif name.startswith("lists/"):
             # A list family's pages are titled as its own list is (the open items' since #98).
             assert page_title == i18n.message("list.title." + name.split("/")[1].rsplit("-", 1)[0]), titles
+        elif name.startswith("scripts/"):
+            # A script's page (#99) is titled by the script's file name as written.
+            assert page_title.endswith(".py"), titles
         else:
             assert page_title in ("Workspace", "Context history", RUN_TITLE, DERIVED_NAME, "sales"), titles
         for lang, _, text in scopes.texts:

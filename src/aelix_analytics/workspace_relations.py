@@ -282,7 +282,9 @@ class RelationPages:
         elif not event:
             technical += f'<p>{t("relations.no_content")}</p>'
         empty = f'<p>{t("relations.empty")}</p>'
-        body = f'''{head}{self.note(identity)}
+        # A record's corrections, in order and without numbers (design WORKSPACE-READABILITY 5.2).
+        corrections = s.history.corrections(identity) if event else ""
+        body = f'''{head}{self.note(identity)}{corrections}
 <p class="relation-scope">{t("relations.scope")}{updating}</p>
 <section id="related"><h2>{t("relations.heading")}</h2><p>{counts}</p>
 {filters}

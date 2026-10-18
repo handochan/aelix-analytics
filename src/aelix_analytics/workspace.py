@@ -14,7 +14,6 @@ only, so they work from file:// and inside a copied project.
 from __future__ import annotations
 
 import contextlib
-import difflib
 import functools
 import hashlib
 import html
@@ -67,7 +66,8 @@ OUTPUT_STATE = {"resolved": ("good", "✓"), "content_changed": ("critical", "�
 SHOWN_CANDIDATES = 3
 # The index section a page's way back goes to when the page a reader came from is not known: the
 # section its kind is listed in (`back.tab.<section>` names it).
-BACK = {"run": "runs", "dataset": "data", "relations": "insights", "context": "context", "list": "timeline"}
+BACK = {"run": "runs", "dataset": "data", "relations": "insights", "context": "context", "list": "timeline",
+        "script": "runs"}
 # The pages are lang="en" (the kit's words). What people and scripts wrote is in a language the
 # records do not name, so its element says "unknown" (lang=""): a screen reader reads it in the
 # reader's own voice rather than an English one, and nothing guesses the language (TERMINOLOGY 7).
@@ -239,7 +239,10 @@ class Site:
     words = staticmethod(words)
     ref_words = staticmethod(ref_words)
     fmt_time = staticmethod(fmt_time)
+    fmt_date = staticmethod(fmt_date)
     fmt_num = staticmethod(fmt_num)
+    fmt_bytes = staticmethod(fmt_bytes)
+    short = staticmethod(short)
     href = staticmethod(href)
     title_attr = staticmethod(title_attr)
     badge = staticmethod(badge)
@@ -247,10 +250,12 @@ class Site:
     kind_chip = staticmethod(kind_chip)
     user_language = USER
     REF_STATE = REF_STATE
+    RECORD_STATE = RECORD_STATE
 
     def __init__(self, project: core.Project):
         from .workspace_map import AnalysisMap, AnalysisStatus
         from .workspace_relations import RelationPages
+        from .workspace_versions import Versions
 
         self.p = project
         self.cache = core.HashCache(project)
@@ -304,6 +309,8 @@ class Site:
         # from the same read.
         self.status = AnalysisStatus(self)
         self.map = AnalysisMap(self)
+        # Every version history the pages show (design WORKSPACE-READABILITY 5, #99), from the same read.
+        self.history = Versions(self)
 
     # --- links (depth 0 = workspace/, 1 = workspace/runs|data/) ---
 
@@ -354,6 +361,10 @@ class Site:
 
     def relation_actions(self, identity: str, depth: int) -> str:
         return f'<div class="workspace-actions">{self.relation_link(identity, depth, klass="action")}</div>'
+
+    @staticmethod
+    def inferred_mark(run_id: str, runs) -> str:
+        return inferred_mark(run_id, runs)
 
     def script_path(self, run: dict) -> str | None:
         """A run's script path as the gallery reads it: an older kit's spelling as today's
@@ -669,8 +680,7 @@ class Site:
         elif fresh["code"] == "missing":
             badges.append(badge("warning", "✎", t("badge.script_missing"), attr("title", "badge.script_missing_title")))
         versions = chart.get("versions") or []
-        if len(versions) > 1:
-            badges.append(f'<span class="badge tone-muted">{t("badge.versions", n=len(versions))}</span>')
+        badges.insert(0, self.history.chart_badge(chart["key"], chart["run"]))
         if chart.get("inferred_versions"):
             badges.append(inferred_badge("inferred.title_versions", n=chart["inferred_versions"], total=len(versions)))
         if chart.get("retired"):
@@ -704,12 +714,10 @@ class Site:
             data_html = f'<span class="muted">{t("card.in_plotly_json")}</span>'
         else:
             data_html = f'<span class="muted">{t("card.data_not_recorded")}</span>'
-        version_links = ""
-        if full and len(versions) > 1:
-            version_links = (f'<div class="versions">{t("card.earlier_versions")} ' + " · ".join(
-                f'<a href="{self.run_link(v["run"], depth, "#chart-" + href(str(chart["id"])))}">{fmt_time(v.get("started_at"))}</a>'
-                + (f' <small{inferred_title()}>{t("inferred.short")}</small>' if v.get("inferred") else "")
-                for v in versions[-2::-1][:8]) + "</div>")
+        # The card's versions (design 5.1, mockup 6-C): what a reader needs first about the latest, and
+        # the folded strip with the way to the whole history on the latest version's run page.
+        version_links = (self.history.chart_note(chart["key"], card=True) + self.history.chart_strip_row(
+            chart["key"], chart["id"], chart["run"], depth)) if full else ""
         card_id = ("chart-" if full else "recent-chart-") + slug_key(chart["key"])
         classes = "chart-card" + (" is-stale" if fresh["stale"] else "") + \
             (" is-retired" if chart.get("retired") else "")
@@ -907,6 +915,13 @@ def _build_locked(project: core.Project, if_changed: bool) -> dict:
         if view:
             _write(out / "data" / f"{view}.html", dataset_page(site, ds, view), project.platform)
             pages += 1
+    # A page per script path with its code versions (design 5.3).
+    (out / site.history.directory).mkdir(parents=True, exist_ok=True)
+    scripts = {site.history.page_name(script): script for script in site.model.scripts()}
+    for name, script in scripts.items():
+        _write(out / site.history.directory / name, site.history.script_html(script), project.platform)
+        pages += 1
+    _prune(out / site.history.directory, set(scripts))
     relation_names = set()
     for identity in sorted(site.relations.identities):
         count = len(site.model.reference_neighborhood(identity))
@@ -1669,7 +1684,7 @@ def run_page(site: Site, run: dict) -> str:
 <div class="page-head">
   <div class="title-row"><h1{USER}>{esc(run.get('title'))}</h1>{status_badge(run.get('status'))}</div>
   <div class="sub">{' · '.join(sub)}</div>
-  <div class="sub">{t("run.ran")} <code{USER}>{esc(script.get('path'))}</code> · {t("run.position", n=pos + 1, total=len(same_script))} {' '.join(nav)}</div>
+  <div class="sub">{t("run.ran")} <code{USER}>{esc(script.get('path'))}</code>{site.history.run_code(run)} · {t("run.position", n=pos + 1, total=len(same_script))} {' '.join(nav)}</div>
 </div>"""
     callouts = ""
     if run.get("error"):
@@ -1746,6 +1761,7 @@ def run_page(site: Site, run: dict) -> str:
   <div class="chart-body">{site.chart_html(chart, 1, lazy=False)}</div>
   {f'<p class="caption"{USER}>{esc(chart["caption"])}</p>' if chart.get('caption') else ''}
   <div class="prov-line">id <code{USER}>{esc(key)}</code>{inferred_key}{line} · <a href="{site.chart_anchor(key, 1)}">{t("run.show_in_charts")}</a></div>
+  {site.history.chart_history(run, chart, key)}
   {data_block}
   {site.relation_actions(rid + "/" + str(chart["id"]), 1)}
 </article>""")
@@ -1979,6 +1995,7 @@ def dataset_page(site: Site, ds: dict, view: str) -> str:
 <div class="page-head"><div class="title-row"><h1{USER}>{esc(label)}</h1><span class="badge tone-muted">{words("data.kind", ds['kind'])}</span></div>
 <div class="sub">{' · '.join(facts)}</div></div>
 {origin}
+{site.history.data_history(ds)}
 <section><h2>{t("dataset.h.schema")}</h2>{site.table(schema_head, schema_rows, klass='list', data_head=False)}</section>
 <section><h2>{t("dataset.h.preview")}</h2>{site.table(preview.get('columns') or [], preview.get('rows') or [])}</section>
 <section><h2>{t("dataset.h.relations")}</h2>{''.join(lineage)}</section>
@@ -2001,29 +2018,30 @@ def render_markdown(text: str) -> str:
 
 
 def context_page(site: Site) -> str:
+    """CONTEXT.md now, its pinned sections, and every recorded version (design 5.2, mockup 9-C): what
+    each changed, whether its pinned sections changed, and the insights written while it was the
+    latest. A version keeps its anchor (#v-<snapshot name>), where references to it lead."""
     p = site.p
     current = (p.context.read_text(encoding="utf-8", errors="replace")
                if p.context.is_file() else "")
-    blocks = []
-    versions = site.versions
-    for i in range(len(versions) - 1, -1, -1):
-        v = versions[i]
-        new = v.read_text(encoding="utf-8", errors="replace").splitlines()
-        old = versions[i - 1].read_text(encoding="utf-8", errors="replace").splitlines() if i else []
-        diff = list(difflib.unified_diff(old, new, lineterm="", n=2))[2:]
-        lines = "".join(
-            f'<span class="{"add" if d.startswith("+") else "del" if d.startswith("-") else "hunk" if d.startswith("@@") else "ctx"}">{esc(d)}</span>\n'
-            for d in diff) or f'<span class="ctx">{t("context.first_version")}</span>\n'
-        event = next((e for e in site.events if (e.get("refs") or {}).get("context") == v.name), None)
-        who = f" · {words('actor', event.get('actor'))} · {esc(event.get('id'))}" if event else ""
-        blocks.append(site.relation_actions("context:" + v.name, 0) + f'<article class="version" id="v-{esc(v.stem)}"><h3>{fmt_time(core._version_time(v))}{who}</h3>'
-                      f'<pre class="diff"{USER if diff else ""}>{lines}</pre></article>')
+    pinned = core.context_sections(core.context_file_text(p))[1] if current else []
+    pinned = [section for section in pinned if section["pinned"]]
+    pins = "".join(
+        f'<div class="pinned"><h3>{user_text(section_heading(section)) if section_heading(section) else t("overview.section", n=n)}</h3>'
+        f'<div class="markdown"{USER}>{render_markdown(section_body(section)[0])}</div></div>'
+        for n, section in enumerate(pinned, 1)) or f'<p class="muted">{t("overview.no_pinned")}</p>'
+    paths = {v.name: v for v in site.versions}
+    history = site.history.context_versions(paths)
     body = f"""
 <div class="page-head"><h1>{t("page.context_history")}</h1><div class="sub">{t("context.history_lead")}</div></div>
-<div class="columns wide-left">
-  <article class="panel markdown"{USER if current else ""}>{render_markdown(current) if current else f'<div class="empty">{t("context.page_empty")}</div>'}</article>
-  <aside class="panel"><h3>{t("context.versions_count", n=len(versions))}</h3><ul class="plain">{''.join(f'<li><a href="#v-{esc(v.stem)}">{fmt_time(core._version_time(v))}</a></li>' for v in versions[::-1])}</ul></aside>
+{site.history.context_head()}
+<div class="columns">
+  {site.history.context_latest_changes(paths)}
+  <aside class="panel"><h3>{t("context.pinned_now")}</h3>{pins}</aside>
 </div>
-<section><h2>{t("context.changes")}</h2>{''.join(blocks) or f'<div class="empty">{t("context.no_versions_recorded")}</div>'}</section>"""
+{history or f'<div class="empty">{t("context.no_versions_recorded")}</div>'}
+<details class="fold" id="now"><summary><h2>{t("context.now")}</h2></summary>
+  <article class="panel markdown"{USER if current else ""}>{render_markdown(current) if current else f'<div class="empty">{t("context.page_empty")}</div>'}</article>
+</details>"""
     return site.page(0, "", f' <span>/</span> {t("page.context_history")}', body, "context",
                      title_key="page.context_history")

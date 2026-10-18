@@ -494,6 +494,59 @@ section[tabindex="-1"]:focus { outline: none; }
 .relation-node.ref-missing, .relation-node.ref-content_changed { border-color: var(--critical); }
 .relation-node.ref-version_unbound, .relation-node.ref-ambiguous, .relation-node.ref-unknown { border-color: var(--warning); }
 
+/* Version histories (design 5.1, mockups 6-B, 6-C, 9-A–9-D): 'Version n of N', a time strip that is a picture
+   only (the list after it says the same), the reasons as badges, groups folded, the uses of each version. */
+.vh-showing { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.5rem; margin: 0.625rem 0; color: var(--ink-2); }
+.badge.tone-viz { border-color: color-mix(in srgb, var(--k-viz) 45%, transparent); color: var(--ink); }
+.vh { margin-top: 1rem; }
+.vh-fold > summary { cursor: pointer; }
+.vh-fold > summary h2 { display: inline; font-size: 1rem; }
+.vh-fold > summary .muted { font-size: 0.8125rem; }
+.vh-strip-wrap { margin: 0.5rem 0 0.25rem; }
+.vh-strip { display: block; overflow: visible; }
+.vh-band { fill: var(--grid); opacity: 0.7; }
+.vh-axis { stroke: var(--axis); stroke-width: 1; }
+.vh-version { fill: var(--card); stroke-width: 2; }
+.vh-shown { stroke-width: 2; }
+.vh-again { fill: var(--ink-2); }
+.vh-x { fill: var(--critical-text); font-size: 0.9375rem; font-weight: 700; }
+.vh-label { fill: var(--ink-2); font-size: 0.6875rem; }
+.vh-bar { opacity: 0.55; }
+.kind-viz .vh-version, .kind-viz .vh-shown { stroke: var(--k-viz); } .kind-viz .vh-shown, .kind-viz .vh-bar { fill: var(--k-viz); }
+.kind-data .vh-version, .kind-data .vh-shown { stroke: var(--k-import); } .kind-data .vh-shown, .kind-data .vh-bar { fill: var(--k-import); }
+.kind-code .vh-version, .kind-code .vh-shown { stroke: var(--k-run); } .kind-code .vh-shown, .kind-code .vh-bar { fill: var(--k-run); }
+.kind-context .vh-version, .kind-context .vh-shown { stroke: var(--k-context); } .kind-context .vh-shown, .kind-context .vh-bar { fill: var(--k-context); }
+.vh-legend { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; font-size: 0.75rem; color: var(--ink-2); }
+.vh-key { display: inline-block; width: 1em; text-align: center; }
+.vh-key-failed { color: var(--critical-text); }
+ol.vh-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--grid); }
+.vh-row, .vh-group > details > summary { display: grid; grid-template-columns: minmax(4.5rem, auto) minmax(7.5rem, auto) minmax(0, 1fr) auto auto;
+  gap: 0.25rem 0.75rem; align-items: baseline; padding: 0.5rem 0.25rem; border-bottom: 1px solid var(--grid); overflow-wrap: anywhere; }
+/* The summary's open/closed mark (summary::before) is its first column. */
+.vh-group > details > summary { grid-template-columns: 1.1em minmax(0, 1fr) auto; cursor: pointer; }
+.vh-group ol.vh-list { border-top: 0; padding-left: 1.25rem; }
+.vh-row.is-shown { background: var(--accent-wash); }
+.vh-row.is-failed .vh-n { color: var(--critical-text); }
+.vh-n { font-weight: 650; white-space: nowrap; }
+.vh-at { color: var(--ink-2); font-size: 0.8125rem; }
+.vh-what .badge { margin-right: 0.25rem; }
+.vh-use { color: var(--ink-2); font-size: 0.8125rem; white-space: nowrap; }
+.vh-link a { display: inline-flex; align-items: center; min-height: 2.75rem; }
+.vh-foot { color: var(--ink-2); font-size: 0.8125rem; margin: 0.625rem 0 0; }
+.vh-card { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; gap: 0.5rem; align-items: center; margin-top: 0.5rem;
+  padding-top: 0.5rem; border-top: 1px solid var(--grid); font-size: 0.8125rem; }
+.vh-card .vh-strip-wrap { margin: 0; }
+.vh-card .vh-count { font-weight: 650; }
+.vh-card .vh-open { display: inline-flex; align-items: center; min-height: 2.75rem; }
+.vh-diff > summary { cursor: pointer; }
+.vh-diffs details { margin: 0.5rem 0; }
+.vh-chain { margin: 0.5rem 0 0; padding-left: 1.25rem; }
+.vh-chain li { padding: 0.25rem 0; overflow-wrap: anywhere; }
+@media (forced-colors: active) {
+  .vh-strip * { forced-color-adjust: auto; }
+  .vh-version, .vh-shown { stroke: CanvasText; } .vh-shown, .vh-again, .vh-x, .vh-label { fill: CanvasText; }
+}
+
 @media (max-width: 40em) {
   main { padding: 0.75rem 0.875rem 2.5rem; }
   .topbar { padding: 0.25rem 0.875rem; flex-wrap: wrap; }
@@ -527,5 +580,9 @@ section[tabindex="-1"]:focus { outline: none; }
   /* As a list, a box's name is a link of its own: the words below it hold links too. */
   .map-node h4 a { display: inline-flex; align-items: center; min-height: 2.75rem; }
   .map-node h4 a::after { content: none; }
+  .vh-row { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .vh-row .vh-what { grid-column: 1 / -1; }
+  .vh-card { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .vh-card .vh-days { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { animation: none !important; transition: none !important; } }

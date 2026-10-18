@@ -80,6 +80,7 @@ from __future__ import annotations
 import base64
 import bisect
 import copy
+import difflib
 import hashlib
 import json
 import os
@@ -416,6 +417,36 @@ def _not_after(first: datetime | None, second: datetime | None) -> bool:
         return first <= second
     except TypeError:
         return True
+
+
+# How a run that did not succeed ended (a run's `status`); `incomplete` and `running` have not ended.
+ENDED_FAILED = ("error", "timeout", "cancelled")
+
+
+def _order(text) -> tuple:
+    """A time as a key that orders instants: an aware time by its instant, anything else after
+    every aware time (a naive time cannot be compared with one)."""
+    at = _instant(text)
+    return (0, at.timestamp()) if at is not None and at.tzinfo is not None else (1, 0.0)
+
+
+def _input_change(before: tuple, after: tuple) -> dict:
+    """The input paths read with other bytes or newly (`changed`), and those no longer read
+    (`removed`), between two runs' (path, sha256) pairs."""
+    held = set(before)
+    return {"changed": sorted({path for path, digest in after if (path, digest) not in held}),
+            "removed": sorted({path for path, _ in before} - {path for path, _ in after})}
+
+
+def _line_changes(old: list[str], new: list[str]) -> tuple[int, int]:
+    """(lines added, lines removed) from one text's lines to another's."""
+    added = removed = 0
+    for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, old, new, autojunk=False).get_opcodes():
+        if tag in ("replace", "delete"):
+            removed += i2 - i1
+        if tag in ("replace", "insert"):
+            added += j2 - j1
+    return added, removed
 
 
 def _int(value) -> int | None:
@@ -1144,6 +1175,10 @@ class ReadModel:
         self._edges_of: dict[str, list[str]] = {}
         self._instants: dict[str, datetime | None] = {}
         self._upstream: dict[str, dict] = {}
+        self._by_script: dict[str, list[str]] | None = None
+        self._cited: tuple[dict, dict] | None = None
+        self._histories: dict[tuple, dict] = {}
+        self._correction_index: tuple[dict, dict, dict] | None = None
 
     # --- runs, imports and Report revisions --------------------------------------------------------
 
@@ -1963,6 +1998,523 @@ class ReadModel:
         result = {"run_id": run_id, "upstream": sorted(reached), "cycle": cycle}
         self._upstream[run_id] = result
         return result
+
+    # --- version histories (design WORKSPACE-READABILITY 5, #99) -----------------------------------
+    #
+    # A version number is a value for people to read, counted from the records each time they are
+    # read: the same records give the same numbers, groups and uses, and a version keeps its number as
+    # records are added (versions are counted in the order their runs started, their imports were made
+    # or their snapshots were taken). Addresses and citations keep the identifiers the records hold:
+    # run ids, sha256, snapshot names. Only what compares the records with a file now (which version
+    # the file is) is an observation of this read.
+
+    def _script_runs(self) -> dict[str, list[str]]:
+        """Script path as read (read_as) -> its runs in run order (the order they started); `?` holds
+        the runs that recorded no script path, as the gallery names their keys."""
+        if self._by_script is None:
+            index: dict[str, list[str]] = {}
+            for run_id, run in self._runs.items():
+                recorded = _str(_script(run).get("path"))
+                index.setdefault(self._as_read(run_id, recorded) if recorded else "?", []).append(run_id)
+            self._by_script = index
+        return self._by_script
+
+    def scripts(self) -> list[str]:
+        """Every script path a run recorded, as read (read_as), sorted."""
+        return sorted(script for script in self._script_runs() if script != "?")
+
+    def _ended(self, run_id) -> str | None:
+        """How a run ended: `ok` or one of ENDED_FAILED; None while it runs, or when its process is
+        gone with no end recorded (`incomplete`). A run that has not ended makes no version."""
+        status = self._execution.get(run_id)
+        return status if status == "ok" or status in ENDED_FAILED else None
+
+    def _inputs_of(self, run_id: str) -> tuple:
+        """The (path as read, sha256) of a run's inputs, once each and sorted."""
+        run = self._runs.get(run_id) or {}
+        return tuple(sorted({(self._as_read(run_id, path), _str(entry.get("sha256")) or "")
+                             for entry in _dicts(run.get("inputs")) if (path := _str(entry.get("path")))}))
+
+    def _reruns(self) -> dict[str, list[str]]:
+        """Run id -> the runs that re-executed it (`rerun_of`), in run order."""
+        index: dict[str, list[str]] = {}
+        for run_id, run in self._runs.items():
+            of = _str(run.get("rerun_of"))
+            if of:
+                index.setdefault(of, []).append(run_id)
+        return index
+
+    def _citations(self) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
+        """(identity -> the records citing it with a version, name -> the records naming it without
+        one), each record once, in journal order. A version is named by its query identity
+        (`<run_id>/<visualization_id>`, …); a name left unbound by its logical key (a Visualization key
+        as chart_key reads it), and a Visualization name given without its script counts for every
+        key its candidates are versions of. The kit's own records of what it recorded (`about`,
+        `observed`: a run's completion event) cite nothing."""
+        if self._cited is None:
+            key_of = {version: key for key, versions in self._version_index()[0].items()
+                      for _, version, _ in versions}
+            bound: dict[str, dict] = {}
+            unbound: dict[str, dict] = {}
+            for judged in self.references():
+                if judged.get("relation") == "about" and judged.get("basis") == "observed":
+                    continue
+                source = judged["from"]
+                if judged.get("version_binding") == "none":
+                    target = judged.get("target") or {}
+                    visualization = judged.get("type") == "visualization_version"
+                    names = set()
+                    if isinstance(target.get("key"), str):
+                        names.add(self.chart_key(target["key"]) if visualization else target["key"])
+                    if isinstance(target.get("path"), str):
+                        names.add(target["path"])
+                    if visualization:
+                        names.update(key_of[c] for c in judged.get("candidates") or [] if c in key_of)
+                    for name in names:
+                        unbound.setdefault(name, {})[source] = None
+                    continue
+                target = query_target(judged)
+                if isinstance(target, str):
+                    bound.setdefault(target, {})[source] = None
+            self._cited = ({k: list(v) for k, v in bound.items()}, {k: list(v) for k, v in unbound.items()})
+        return self._cited
+
+    def _failure(self, run_id: str, after: int) -> dict:
+        run = self._runs[run_id]
+        error = run.get("error") if isinstance(run.get("error"), dict) else {}
+        return {"run": run_id, "status": self._ended(run_id), "started_at": _str(run.get("started_at")),
+                "code": _str(_script(run).get("sha256")), "error": _str(error.get("summary")), "after": after}
+
+    def visualization_history(self, key: str) -> dict:
+        """The versions of a logical Visualization key (design 5.2), counted as the gallery counts
+        them (core.chart_index): a successful run that is not a rerun and recorded a Visualization of
+        the key makes the next version, in run order; a run an older kit recorded in another spelling
+        of its script counts for today's key (`inferred`, ADR-0006 9).
+
+        `versions`: `number`, `version` (`<run_id>/<visualization_id>`, as a reference names it),
+        `run`, `started_at`, `code` (the script's sha256), `inputs` ((path, sha256) pairs), `reasons`
+        (what differs from the version before: `code` with `from` and `to`, `inputs` with the
+        `changed` and `removed` paths), `cited_by` (the records citing that version) and `reruns` (the
+        runs that re-executed its run, which make no version: `run`, `status`, `verdict`,
+        `started_at`, `cited_by`). `failed`: the script's other runs that ended without success, each
+        after `after` versions; none makes a version. `named_by`: the records naming the key without a
+        version. `groups`: the version numbers in order, joined while the code and the inputs stay the
+        same and no failed run comes between. `latest`: the last version's `number`, whether a record
+        cites it, and the last version one does (`last_cited`)."""
+        key = self.chart_key(key)
+        cached = self._histories.get(("visualization", key))
+        if cached is not None:
+            return cached
+        script, _, vis_id = key.rpartition("::")
+        bound, unbound = self._citations()
+        reruns = self._reruns()
+        versions: list[dict] = []
+        failed: list[dict] = []
+        groups: list[list[int]] = []
+        joined = False
+        for run_id in self._script_runs().get(script, []):
+            run = self._runs[run_id]
+            ended = self._ended(run_id)
+            if ended is None or _str(run.get("rerun_of")):
+                continue
+            if ended != "ok":
+                failed.append(self._failure(run_id, len(versions)))
+                joined = False
+                continue
+            if not any(v["id"] == vis_id for v in run_visualizations(run)):
+                continue
+            code, inputs = _str(_script(run).get("sha256")), self._inputs_of(run_id)
+            before = versions[-1] if versions else None
+            reasons = []
+            if before is not None and before["code"] != code:
+                reasons.append({"kind": "code", "from": before["code"], "to": code})
+            if before is not None and before["inputs"] != inputs:
+                reasons.append({"kind": "inputs", **_input_change(before["inputs"], inputs)})
+            number = len(versions) + 1
+            again = []
+            for rerun in reruns.get(run_id, []):
+                if self._ended(rerun) is None:
+                    continue
+                rerun_record = self._runs[rerun]
+                again.append({"run": rerun, "status": self._ended(rerun),
+                              "started_at": _str(rerun_record.get("started_at")),
+                              "verdict": (run_reproduction(rerun_record) or {}).get("verdict"),
+                              "cited_by": bound.get(f"{rerun}/{vis_id}", [])})
+            versions.append({"number": number, "version": f"{run_id}/{vis_id}", "run": run_id,
+                             "started_at": _str(run.get("started_at")), "code": code, "inputs": inputs,
+                             "reasons": reasons, "cited_by": bound.get(f"{run_id}/{vis_id}", []),
+                             "reruns": again,
+                             "inferred": _str(_script(run).get("path")) not in (script, None)})
+            if joined and before is not None and not reasons:
+                groups[-1].append(number)
+            else:
+                groups.append([number])
+            joined = True
+        cited = [v["number"] for v in versions if v["cited_by"]]
+        result = {"key": key, "versions": versions, "failed": failed, "groups": groups,
+                  "named_by": unbound.get(key, []),
+                  "latest": {"number": len(versions), "cited": bool(versions and versions[-1]["cited_by"]),
+                             "last_cited": cited[-1] if cited else None}}
+        self._histories[("visualization", key)] = result
+        return result
+
+    def data_history(self, path: str) -> dict:
+        """The byte versions of a data file at an identity path (design 5.2). A successful run that
+        is not a rerun and output the path with bytes no version had makes the next version; the same
+        bytes written again (an earlier version's too) are a rewrite of that version. A path with an
+        import record also gets a version for each import's bytes and for bytes a run recorded reading
+        that no import or run wrote there (changed outside an import). Counted in time order: a run's
+        start, an import's `imported_at` (a time that cannot be read comes last).
+
+        `versions`: `number`, `sha256`, `started_at`, `source` (`write`, `import` or `read`: how the
+        version was first seen), `run` (that run, or None), `writes` (the runs that wrote these bytes,
+        in order, the first included), `imports`, `code` and `inputs` (of the first writer), `bytes`
+        and `rows` as recorded, `reasons` (what differs from the version before: `code`, `inputs`,
+        `imported`, `outside`), `readers` (the runs that recorded reading these bytes: `run`,
+        `status`, `via`) and `reruns` (runs re-executing a writer, with the bytes they wrote: `run`,
+        `sha256`, `verdict`). `failed`: the runs of the writing scripts that ended without success,
+        each after `after` versions, with the bytes they recorded for the path (`wrote`) — never a
+        version. `other_reads`: reads of bytes that are no version (`sha256`, "" when the read
+        recorded none). `named_by`: records naming the path
+        without a version. `scripts`: the scripts that wrote it (`writers`) and read it (`readers`).
+        `groups` as visualization_history's. `latest`: the last `number`, whether a run read it and
+        the last version one did (`last_read`). `now`: what the file is now — `version` (with its
+        `number`), `failed_output` (bytes a failed run recorded, `run`), `other`, `missing` — an
+        observation of this read."""
+        cached = self._histories.get(("data", path))
+        if cached is not None:
+            return cached
+        _bound, unbound = self._citations()
+        seen: list[tuple] = []  # (instant, order, source, sha256, run, detail)
+        writers: set[str] = set()
+        for meta in self._imports(path):
+            digest = _str(meta.get("sha256"))
+            if digest:
+                seen.append((_order(meta.get("imported_at")), len(seen), "import", digest, None, meta))
+        rerun_writes: list[tuple] = []
+        for run_id, run in self._runs.items():
+            for out in _dicts(run.get("outputs")):
+                held = _str(out.get("path"))
+                if held is None or out.get("change") == "deleted" or self._as_read(run_id, held) != path:
+                    continue
+                writers.add(self._as_read(run_id, _str(_script(run).get("path")) or "?"))
+                digest = _str(out.get("sha256"))
+                if run.get("status") != "ok" or not digest:
+                    continue
+                if _str(run.get("rerun_of")):
+                    rerun_writes.append((run_id, digest))
+                else:
+                    seen.append((_order(run.get("started_at")), len(seen), "write", digest, run_id, out))
+        reads: list[tuple[str, str, list]] = []
+        for run_id, run in self._runs.items():
+            if self._ended(run_id) is None:
+                continue
+            for entry in _dicts(run.get("inputs")):
+                held = _str(entry.get("path"))
+                if held is not None and self._as_read(run_id, held) == path:
+                    via = entry.get("via")
+                    reads.append((run_id, _str(entry.get("sha256")) or "",
+                                  [v for v in via if isinstance(v, str)] if isinstance(via, list) else []))
+        if self._imports(path):
+            known = {item[3] for item in seen}
+            for run_id, digest, _ in reads:
+                if digest and digest not in known:
+                    known.add(digest)
+                    seen.append((_order(self._runs[run_id].get("started_at")), len(seen), "read", digest,
+                                 run_id, None))
+        failures: list[tuple] = []
+        for script in sorted(writers - {"?"}):
+            for run_id in self._script_runs().get(script, []):
+                run = self._runs[run_id]
+                if self._ended(run_id) not in ENDED_FAILED or _str(run.get("rerun_of")):
+                    continue
+                wrote = next((_str(o.get("sha256")) for o in _dicts(run.get("outputs"))
+                              if _str(o.get("path")) and self._as_read(run_id, o["path"]) == path), None)
+                failures.append((_order(run.get("started_at")), run_id, wrote))
+        seen.sort(key=lambda item: item[:2])
+        versions: list[dict] = []
+        by_sha: dict[str, dict] = {}
+        timeline: list[tuple] = []
+        for at, order, source, digest, run_id, detail in seen:
+            if digest in by_sha:
+                if run_id is not None and source == "write":
+                    by_sha[digest]["writes"].append(run_id)
+                elif source == "import":
+                    by_sha[digest]["imports"] += 1
+                continue
+            run = self._runs.get(run_id) or {}
+            code = _str(_script(run).get("sha256")) if source == "write" else None
+            inputs = self._inputs_of(run_id) if source == "write" else ()
+            before = versions[-1] if versions else None
+            reasons = []
+            if before is not None and source == "write" and before["source"] == "write":
+                if before["code"] != code:
+                    reasons.append({"kind": "code", "from": before["code"], "to": code})
+                if before["inputs"] != inputs:
+                    reasons.append({"kind": "inputs", **_input_change(before["inputs"], inputs)})
+            elif before is not None:
+                reasons.append({"kind": "imported" if source == "import" else "outside" if source == "read"
+                                else "written"})
+            detail = detail or {}
+            version = {"number": len(versions) + 1, "sha256": digest, "source": source, "run": run_id,
+                       "started_at": _str(run.get("started_at")) if run_id else _str(detail.get("imported_at")),
+                       "writes": [run_id] if source == "write" else [], "imports": int(source == "import"),
+                       "code": code, "inputs": inputs, "bytes": _int(detail.get("bytes")),
+                       "rows": _int(detail.get("rows")), "reasons": reasons, "readers": [], "reruns": []}
+            versions.append(version)
+            by_sha[digest] = version
+            timeline.append((at, order, version))
+        for run_id, digest in rerun_writes:
+            of = _str(self._runs[run_id].get("rerun_of"))
+            target = next((v for v in versions if of in v["writes"]), None)
+            if target is not None:
+                target["reruns"].append({"run": run_id, "sha256": digest,
+                                         "verdict": (run_reproduction(self._runs[run_id]) or {}).get("verdict")})
+        other_reads = []
+        for run_id, digest, via in reads:
+            entry = {"run": run_id, "status": self._ended(run_id), "via": via}
+            if digest in by_sha:
+                by_sha[digest]["readers"].append(entry)
+            else:
+                other_reads.append({**entry, "sha256": digest})
+        failed = [{**self._failure(run_id, sum(1 for t in timeline if t[0] <= at)), "wrote": wrote}
+                  for at, run_id, wrote in sorted(failures, key=lambda item: item[0])]
+        groups: list[list[int]] = []
+        breaks = {f["after"] for f in failed}
+        for version in versions:
+            n = version["number"]
+            if groups and not version["reasons"] and (n - 1) not in breaks:
+                groups[-1].append(n)
+            else:
+                groups.append([n])
+        current = self._sha(self.root / path) if _inside(path) else None
+        if current is None:
+            now = {"state": "missing", "sha256": None}
+        elif current in by_sha:
+            now = {"state": "version", "number": by_sha[current]["number"], "sha256": current}
+        else:
+            failed_output = next((f["run"] for f in failed if f["wrote"] == current), None)
+            now = ({"state": "failed_output", "run": failed_output, "sha256": current} if failed_output
+                   else {"state": "other", "sha256": current})
+        read = [v["number"] for v in versions if v["readers"]]
+        named = list(dict.fromkeys(unbound.get(path, []) + unbound.get(PurePosixPath(path).stem, [])))
+        result = {"path": path, "versions": versions, "failed": failed, "other_reads": other_reads,
+                  "named_by": named, "groups": groups,
+                  "scripts": {"writers": sorted(writers - {"?"}),
+                              "readers": sorted({self._as_read(r, _str(_script(self._runs[r]).get("path")) or "?")
+                                                 for r, _, _ in reads} - {"?"})},
+                  "latest": {"number": len(versions), "read": bool(versions and versions[-1]["readers"]),
+                             "last_read": read[-1] if read else None},
+                  "now": now}
+        self._histories[("data", path)] = result
+        return result
+
+    def code_history(self, script: str) -> dict:
+        """The code versions of a script path as read (design 5.2): each sha256 of the script's
+        snapshot a run that ended recorded, numbered by the run that first ran it. A failed run's code
+        is a version too (the snapshot is kept before the script runs); a run that has not ended makes
+        none. Runs in a row with the same code are one segment, and code that comes back keeps its
+        number (`again`).
+
+        `versions`: `number`, `sha256`, `snapshot` (the first run's copy), `run` and `started_at` (the
+        first run), `runs`, `failed` (every run of it failed), `lines`, and `added`, `removed` and
+        `against` (the lines changed from the code of the segment before it first ran; None when
+        there is none or a snapshot cannot be read). `segments`, in run order: `number`, `again`,
+        `runs` (`run`, `status`, `started_at`, `rerun_of`), `visualizations` and `data` (key or path ->
+        the version numbers its runs made: visualization_history's and data_history's), and `inputs`
+        (`changed` and `removed` input paths against the segment before, when they differ).
+        `latest`: the number of the last segment."""
+        cached = self._histories.get(("code", script))
+        if cached is not None:
+            return cached
+        by_sha: dict[str, dict] = {}
+        versions: list[dict] = []
+        segments: list[dict] = []
+        texts: dict[str, list[str] | None] = {}
+
+        def lines(snapshot) -> list[str] | None:
+            if snapshot not in texts:
+                try:
+                    texts[snapshot] = ((self.root / snapshot).read_bytes().decode("utf-8", errors="replace")
+                                       .splitlines() if _inside(snapshot) else None)
+                except OSError:
+                    texts[snapshot] = None
+            return texts[snapshot]
+
+        for run_id in self._script_runs().get(script, []):
+            ended = self._ended(run_id)
+            if ended is None:
+                continue
+            run = self._runs[run_id]
+            recorded = _script(run)
+            digest = _str(recorded.get("sha256")) or ""
+            version = by_sha.get(digest)
+            if version is None:
+                snapshot = _str(recorded.get("snapshot"))
+                text = lines(snapshot)
+                against = versions[segments[-1]["number"] - 1] if segments else None
+                old = lines(against["snapshot"]) if against else None
+                added, removed = (_line_changes(old, text) if old is not None and text is not None
+                                  else (None, None))
+                version = {"number": len(versions) + 1, "sha256": digest or None, "snapshot": snapshot,
+                           "run": run_id, "started_at": _str(run.get("started_at")), "runs": [],
+                           "failed": True, "lines": len(text) if text is not None else None,
+                           "added": added, "removed": removed,
+                           "against": against["number"] if against and added is not None else None}
+                versions.append(version)
+                by_sha[digest] = version
+            version["runs"].append(run_id)
+            version["failed"] = version["failed"] and ended != "ok"
+            entry = {"run": run_id, "status": ended, "started_at": _str(run.get("started_at")),
+                     "rerun_of": _str(run.get("rerun_of"))}
+            if segments and segments[-1]["number"] == version["number"]:
+                segments[-1]["runs"].append(entry)
+                continue
+            inputs = {path for path, _ in self._inputs_of(run_id)}
+            change = {}
+            if segments:
+                earlier = {path for path, _ in self._inputs_of(segments[-1]["runs"][-1]["run"])}
+                if earlier != inputs:
+                    change = {"changed": sorted(inputs - earlier), "removed": sorted(earlier - inputs)}
+            segments.append({"number": version["number"], "again": version["run"] != run_id,
+                             "runs": [entry], "inputs": change, "visualizations": {}, "data": {}})
+        for segment in segments:
+            for entry in segment["runs"]:
+                run = self._runs[entry["run"]]
+                if entry["status"] != "ok" or entry["rerun_of"]:
+                    continue
+                for vis in run_visualizations(run):
+                    key = f"{script}::{vis['id']}"
+                    numbers = {v["run"]: v["number"] for v in self.visualization_history(key)["versions"]}
+                    if entry["run"] in numbers:
+                        segment["visualizations"].setdefault(self.chart_key(key), []).append(numbers[entry["run"]])
+                for out in _dicts(run.get("outputs")):
+                    held = _str(out.get("path"))
+                    if held is None or out.get("change") == "deleted":
+                        continue
+                    path = self._as_read(entry["run"], held)
+                    numbers = {v["sha256"]: v["number"] for v in self.data_history(path)["versions"]}
+                    digest = _str(out.get("sha256"))
+                    if digest in numbers:
+                        segment["data"].setdefault(path, []).append(numbers[digest])
+        result = {"script": script, "versions": versions, "segments": segments,
+                  "latest": {"number": segments[-1]["number"] if segments else 0}}
+        self._histories[("code", script)] = result
+        return result
+
+    def context_history(self, pinned=None, kinds=()) -> dict:
+        """The CONTEXT.md versions (design 5.2): every snapshot of the two state directories, in name
+        (= time) order, a name in both read from the first (CONTEXT_DIRS, as a reference resolves it).
+        `pinned(text)` gives what of a version's text is pinned (the caller's reading of its sections:
+        this module does not parse CONTEXT.md); `kinds` are the record kinds counted as insights.
+
+        `versions`: `number`, `name` (the snapshot's file name, how references name it), `event` (the
+        record of its completion, or None) and `recorded_at`, `lines`, `added` and `removed` (against
+        the version before), `pinned_changed` (None for the first, or without `pinned`), and
+        `insights`: the records of `kinds` written while it was the latest version — after its
+        completion record and before the next version's — or None when it has no completion record.
+        They are records written then, not records that used its text. `groups`: the numbers in order,
+        joined while the pinned sections stay the same (the first version alone). `latest`: the last
+        `number` and the version that last changed the pinned sections (`pinned_since`)."""
+        cached = self._histories.get(("context", tuple(kinds), pinned is not None))
+        if cached is not None:
+            return cached
+        found: dict[str, Path] = {}
+        for directory in CONTEXT_DIRS:
+            place = self.root / directory
+            if place.is_dir():
+                for entry in sorted(place.glob("*.md")):
+                    if entry.is_file():
+                        found.setdefault(entry.name, entry)
+        completed: dict[str, Event] = {}
+        insight_seqs: list[int] = []
+        for event in self.journal.in_order():
+            if event.kind in kinds and event.seq is not None:
+                insight_seqs.append(event.seq)
+            if event.kind != "context":
+                continue
+            if event.schema == EVENT_V1:
+                refs = event.refs if isinstance(event.refs, dict) else {}
+                names = [v for v in _strings(refs.get("context")) if isinstance(v, str)]
+            else:
+                names = [_str(r.get("version")) for r in _dicts(event.refs) if _known_ref(r)
+                         and r["type"] == "context_version" and r["relation"] == "about"]
+            for name in filter(None, names):
+                completed.setdefault(name, event)
+        names = sorted(found)
+        starts = sorted((completed[n].seq, n) for n in names if n in completed and completed[n].seq is not None)
+        counts: dict[str, int] = {name: 0 for _, name in starts}
+        for seq in insight_seqs:
+            at = bisect.bisect_right(starts, (seq,)) - 1
+            if at >= 0:
+                counts[starts[at][1]] += 1
+        versions: list[dict] = []
+        groups: list[list[int]] = []
+        previous_lines: list[str] | None = None
+        previous_pins = None
+        for n, name in enumerate(names, 1):
+            text = found[name].read_bytes().decode("utf-8", errors="replace")
+            current = text.splitlines()
+            pins = pinned(text) if pinned is not None else None
+            added, removed = (_line_changes(previous_lines, current) if previous_lines is not None
+                              else (len(current), 0))
+            changed = None if n == 1 or pinned is None else pins != previous_pins
+            event = completed.get(name)
+            versions.append({"number": n, "name": name, "event": self.journal.source_of(event) if event else None,
+                             "recorded_at": event.recorded_at if event else None, "lines": len(current),
+                             "added": added, "removed": removed, "pinned_changed": changed,
+                             "insights": counts.get(name)})
+            if groups and n > 2 and changed is False and groups[-1][-1] == n - 1 and \
+                    versions[n - 2]["pinned_changed"] is False:
+                groups[-1].append(n)
+            else:
+                groups.append([n])
+            previous_lines, previous_pins = current, pins
+        since = max((v["number"] for v in versions if v["pinned_changed"]), default=1 if versions else 0)
+        result = {"versions": versions, "groups": groups,
+                  "latest": {"number": len(versions), "pinned_since": since}}
+        self._histories[("context", tuple(kinds), pinned is not None)] = result
+        return result
+
+    def _corrections(self) -> tuple[dict, dict, dict]:
+        """(record -> the records correcting it, record -> the records it corrects, record -> its place
+        in the journal), from the state replay, once per read."""
+        if self._correction_index is None:
+            replay = self.journal.replay()
+            by = {name: sorted(state["by"]) for name, state in replay.states.items()
+                  if state.get("group") == "content" and state["by"]}
+            corrects: dict[str, list[str]] = {}
+            for name, correctors in by.items():
+                for corrector in correctors:
+                    corrects.setdefault(corrector, []).append(name)
+            order = {self.journal.source_of(event): n for n, event in enumerate(self.journal.in_order())}
+            self._correction_index = (by, corrects, order)
+        return self._correction_index
+
+    def correction_history(self, source: str) -> list[dict]:
+        """The records a record's corrections join it to (ADR-0006 6): those it corrects
+        (`supersedes`) and those that correct it, each in turn, in journal order — `source`, `state`,
+        `corrects` and `corrected_by` of each. Empty when nothing corrects it and it corrects nothing.
+        A correction history has no version numbers."""
+        by, corrects, order = self._corrections()
+        if source not in by and source not in corrects:
+            return []
+        joined, todo = {source}, [source]
+        while todo:
+            name = todo.pop()
+            for other in by.get(name, []) + corrects.get(name, []):
+                if other not in joined:
+                    joined.add(other)
+                    todo.append(other)
+        replay = self.journal.replay()
+
+        def place(name: str) -> int:
+            return order.get(name, len(order))
+
+        return [{"source": name, "state": (replay.state_of(name) or {}).get("state"),
+                 "corrects": sorted(corrects.get(name, []), key=place),
+                 "corrected_by": sorted(by.get(name, []), key=place)}
+                for name in sorted(joined, key=place)]
 
     # --- record states -----------------------------------------------------------------------------
 
