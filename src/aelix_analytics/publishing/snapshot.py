@@ -38,15 +38,19 @@ def _key(ref_type, target):
 
 
 def _refs(rows):
+    def known(value, allowed):
+        return value if isinstance(value, str) and value in allowed else None
+
     out = []
     categories = {"dataset_import": "dataset", "data_observation": "data_observation", "code_snapshot": "code",
                   "context_version": "context", "visualization_version": "visualization", "report_revision": "report", "run": "run"}
     for r in rows:
-        out.append(Reference(r.get("relation") if r.get("relation") in relations.RELATIONS else None,
-            r.get("version_binding") if r.get("version_binding") in relations.BINDINGS else None,
-            r.get("basis") if r.get("basis") in relations.BASES else None, r["state"], r.get("reason"),
-            categories.get(r.get("type"), "event"), _key(r.get("type"), r.get("target")), r.get("confirmed", False),
-            tuple(ItemKey(categories.get(r.get("type"), "event"), candidate)
+        type_ = known(r.get("type"), relations.REF_TYPES)
+        category = categories.get(type_, "event")
+        out.append(Reference(known(r.get("relation"), relations.RELATIONS),
+            known(r.get("version_binding"), relations.BINDINGS), known(r.get("basis"), relations.BASES), r["state"], r.get("reason"),
+            category, _key(type_, r.get("target")), r.get("confirmed", False),
+            tuple(ItemKey(category, candidate)
                   for candidate in r.get("candidates") or () if isinstance(candidate, str))))
     return tuple(out)
 

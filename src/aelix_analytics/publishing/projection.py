@@ -152,8 +152,9 @@ def _metadata(value, *, output=False):
     path = value.get("path")
     outside = not isinstance(path, str) or any(p.anchor or ".." in p.parts for p in (PurePosixPath(path), PureWindowsPath(path)))
     if value.get("external") or outside:
+        digest = value.get("sha256")
         return FrozenMap(tuple((k, v) for k, v in (("path", Text("Outside the project" if value.get("external") else "Path not included", "kit")),
-                                                   ("sha256", value.get("sha256"))) if v is not None))
+                                                   ("sha256", digest if relations._reference_digest({"sha256": digest}) else None)) if v is not None))
     entries = []
     for k, v in value.entries:
         if k not in allowed:
@@ -161,6 +162,15 @@ def _metadata(value, *, output=False):
         if k == "schema":
             v = _columns(v)
             if v is MISSING:
+                continue
+        elif k in ("bytes", "rows"):
+            if v is not None and not (type(v) is int and v >= 0):
+                continue
+        elif k == "sha256":
+            if v is not None and not relations._reference_digest({"sha256": v}):
+                continue
+        elif k == "change":
+            if not isinstance(v, str) or v not in ("created", "modified", "deleted"):
                 continue
         entries.append((k, v))
     return FrozenMap(tuple(entries))
@@ -192,7 +202,8 @@ def _safe_value(item, name, included):
         return tuple(FrozenMap(tuple((k, part) for k, part in v.entries if k in ("metric_id", "event_id", "role")))
                      for v in (value if isinstance(value, tuple) else ()) if isinstance(v, FrozenMap)
                      and cited(ItemKey("event", v.get("event_id"))))
-    if name in ("details.previous_definition", "details.definition_event_id", "details.previous_focus"):
+    if name in ("details.previous_definition", "details.definition_event_id", "details.previous_focus",
+                "details.recomputed_from"):
         return value if cited(ItemKey("event", value)) else MISSING
     if name == "details.run_id":
         return value if cited(ItemKey("run", value)) else MISSING

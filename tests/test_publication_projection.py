@@ -498,3 +498,78 @@ def test_malformed_scalar_record_field_does_not_become_a_container_for_unapprove
     out = project(capture_snapshot(p))
     assert CANARY not in json.dumps(asdict(out.model))
     assert any(i.kind == "finding" for i in out.model.items), "the valid original text remains readable"
+
+
+def test_recomputed_observation_metadata_follows_the_included_resolved_reference(tmp_path):
+    p = core.init_project(tmp_path/"p", title="Public", origin=ORIGIN)
+    definition = core.record(p, "metric_definition", "Definition", details={"contract": "metric_definition/1",
+        "metric_id": "measurement", "name": "Measurement", "status": "draft", "definition": {},
+        "unresolved": [], "derived_from": [], "change_reason": "Initial"}, origin=ORIGIN).event
+    (p.scripts/"p.py").write_text("print(1)\n", encoding="utf-8")
+    run = runner.execute(p, script="scripts/p.py", title="Calculation", origin=ORIGIN)["run"]
+    details = {"contract": "metric_observation/1", "metric_id": "measurement",
+        "definition_event_id": definition["id"], "run_id": run["id"], "scope": {},
+        "result": 1, "change_reason": "Measured"}
+    first = core.record(p, "metric_observation", "First measurement", details=details, origin=ORIGIN).event
+    later = core.record(p, "metric_observation", "Second measurement",
+        details={**details, "recomputed_from": first["id"]}, origin=ORIGIN).event
+    snapshot = capture_snapshot(p)
+    first_key, later_key = ItemKey("event", first["id"]), ItemKey("event", later["id"])
+    for profile in ("read", "evidence"):
+        included = project(snapshot, profile=profile)
+        current = next(i for i in included.model.items if i.key == later_key)
+        assert next(f.value.value for f in current.fields if f.name == "details.recomputed_from") == first["id"]
+        excluded = project(snapshot, ShareRequest(exclude=frozenset({first_key})), profile=profile)
+        current = next(i for i in excluded.model.items if i.key == later_key)
+        assert all(f.name != "details.recomputed_from" for f in current.fields)
+        assert any(r.state == "not_included" and r.reason == "excluded" and r.target is None
+                   for r in current.references)
+        for state in ("missing", "unsupported", "unknown"):
+            changed = replace(snapshot, items=tuple(replace(i, references=tuple(
+                replace(r, state=state) if r.target == first_key else r for r in i.references))
+                if i.key == later_key else i for i in snapshot.items))
+            current = next(i for i in project(changed, profile=profile).model.items if i.key == later_key)
+            assert all(f.name != "details.recomputed_from" for f in current.fields)
+
+
+def test_run_metadata_scalar_containers_do_not_export_unclassified_nested_fields(tmp_path):
+    p = core.init_project(tmp_path/"p", title="Public", origin=ORIGIN)
+    (p.scripts/"p.py").write_text("print(1)\n", encoding="utf-8")
+    run = runner.execute(p, script="scripts/p.py", title="Calculation", origin=ORIGIN)["run"]
+    core.record(p, "finding", "Calculation", refs=[core.kit_reference("run", run_id=run["id"])], origin=ORIGIN)
+    manifest = p.runs/run["id"]/"run.json"
+    original = json.loads(manifest.read_text(encoding="utf-8"))
+    for role in ("inputs", "outputs"):
+        for path, external in (("data/a.csv", False), ("data/a.csv", True), ("/private/a.csv", False)):
+            for malformed in ({"unclassified_nested": CANARY}, [CANARY]):
+                value = {**original, role: [{"path": path, "external": external,
+                    **{name: malformed for name in ("sha256", "bytes", "rows", "change")}}]}
+                manifest.write_text(json.dumps(value), encoding="utf-8")
+                out = project(capture_snapshot(p), profile="evidence")
+                assert CANARY not in json.dumps(asdict(out.model))
+    value = {**original, "outputs": [{"path": "data/a.csv", "sha256": HASH, "bytes": 3, "rows": 2,
+                                     "change": "created", "schema": [{"name": "x", "type": "int"}]}]}
+    manifest.write_text(json.dumps(value), encoding="utf-8")
+    out = project(capture_snapshot(p), profile="evidence")
+    current = next(i for i in out.model.items if i.key == ItemKey("run", run["id"]))
+    fields = next(f.value for f in current.fields if f.name == "outputs")
+    meta = {k.value: v.value if isinstance(v, Text) else v for k, v in fields[0].entries}
+    assert {k: meta[k] for k in ("path", "sha256", "bytes", "rows", "change")} == {
+        "path": "data/a.csv", "sha256": HASH, "bytes": 3, "rows": 2, "change": "created"}
+
+
+@pytest.mark.parametrize("name", ["type", "relation", "basis", "version_binding"])
+@pytest.mark.parametrize("malformed", [[], {}])
+def test_snapshot_preserves_unsupported_reference_enums_without_typeerror(tmp_path, name, malformed):
+    p = core.init_project(tmp_path/"p", title="Public", origin=ORIGIN)
+    seq = core.read_model(p).journal.next_seq
+    raw = event(seq, refs=[{"type": "event", "relation": "cites", "basis": "declared",
+                            "version_binding": "author", "event_id": "e1", name: malformed}])
+    with p.journal.open("ab") as file:
+        file.write(json.dumps(raw).encode()+b"\n")
+    assert core.read_model(p).references(raw["id"])[0]["state"] == "unsupported"
+    snapshot = capture_snapshot(p)
+    for profile in ("read", "evidence"):
+        current = next(i for i in project(snapshot, profile=profile).model.items if i.key == ItemKey("event", raw["id"]))
+        assert len(current.references) == 1
+        assert current.references[0].state == "unsupported" and current.references[0].target is None
