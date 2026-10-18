@@ -18,7 +18,7 @@ from pathlib import Path
 from . import _platform, relations, writer
 
 # Assigned with the kit version at integration; older writers must refuse the new write rules.
-SINCE = "0.21.0"
+SINCE = "0.22.0"
 
 
 def revision_id():
@@ -159,7 +159,7 @@ class Reports:
                 last = revision
         return model, rows, heads[0]["revision_id"] if heads else None
 
-    def save(self, report_id, *, files, entry, title, previous_revision, request_id=None, based_on=None):
+    def save(self, report_id, *, files, entry, title, previous_revision, request_id=None, based_on=None, metadata=None):
         self.writer.admit("save_report")
         if not relations.report_name(report_id):
             _fail("name_not_portable", "report_id must be a portable lower-case ASCII name")
@@ -174,14 +174,14 @@ class Reports:
                                    writer_version=self.writer.writer_version, clock=self.writer.clock,
                                    legacy_path=self.writer.legacy_path))
         try:
-            return app._save(report_id, files, entry, title, previous_revision, request_id, based_on)
+            return app._save(report_id, files, entry, title, previous_revision, request_id, based_on, metadata)
         except writer.AnalyticsError as exc:
             exc.details = {**(exc.details if isinstance(exc.details, dict) else {}), "request_id": request_id}
             raise
         except OSError as exc:
             _fail("report_io", f"Report storage failed: {exc}; retry with the same request_id", request_id=request_id)
 
-    def _save(self, report_id, files, entry, title, previous, request, based_on):
+    def _save(self, report_id, files, entry, title, previous, request, based_on, metadata):
         try:
             plan = _source_plan(files)
         except (OSError, ValueError, TypeError) as exc:
@@ -193,6 +193,17 @@ class Reports:
                     "created_at": self.writer.clock().isoformat(), "actor": self.writer.origin.actor,
                     "title": title, "entry": entry,
                     "files": [{"path": name, "bytes": info[1][2], "sha256": info[2]} for name, info in plan.items()]}
+        metadata_data = None
+        if metadata is not None:
+            problem = relations.report_metadata_problem(metadata)
+            if problem:
+                _fail("report_input_invalid", problem)
+            metadata_data = relations.report_metadata_bytes(metadata)
+            # Snapshot caller-owned containers before any copy or lock wait.
+            manifest.update(json.loads(metadata_data))
+            manifest["metadata_file"] = relations.REPORT_METADATA_FILE
+            manifest["files"].append({"path": relations.REPORT_METADATA_FILE, "bytes": len(metadata_data),
+                                      "sha256": hashlib.sha256(metadata_data).hexdigest()})
         if based_on is not None:
             # Snapshot authored evidence; never substitute the current context or data.
             try:
@@ -216,7 +227,7 @@ class Reports:
             try:
                 stage.mkdir()
             except FileExistsError:
-                return self._save(report_id, files, entry, title, previous, request, based_on)
+                return self._save(report_id, files, entry, title, previous, request, based_on, metadata)
             manifest["revision_id"] = revision
             renamed = False
             try:
@@ -230,6 +241,10 @@ class Reports:
                         _fail("report_source_changed", "Report source changed while copying", path=name)
                 if _source_plan(files) != plan:
                     _fail("report_source_changed", "Report source listing or bytes changed while copying")
+                if metadata_data is not None:
+                    sidecar = stage / "content" / relations.REPORT_METADATA_FILE
+                    sidecar.parent.mkdir(parents=True, exist_ok=True)
+                    sidecar.write_bytes(metadata_data)
                 writer.write_json(stage / "manifest.json", manifest, platform=self.writer.platform)
                 with self.writer.locked("save_report") as held:
                     _plain(self.root, directory)
@@ -244,11 +259,13 @@ class Reports:
                             return self._answer("existing", saved, model, plan)
                         if head != saved["previous_revision"]:
                             _fail("revision_conflict", "Report head changed before incomplete revision could resume", head=head)
+                        self._collection_targets(model, saved)
                         held.require(SINCE)
                         self._complete(held, directory / saved["revision_id"], saved)
                         return self._answer("resumed", saved, self._model(held.journal), plan)
                     if head != previous:
                         _fail("revision_conflict", "Report head does not match previous_revision", head=head)
+                    self._collection_targets(model, manifest)
                     held.require(SINCE)
                     # No replace/copy fallback: unsupported filesystems fail explicitly.
                     try:
@@ -270,11 +287,28 @@ class Reports:
             "basis": "observed", "version_binding": "author"}],
             details={"previous_revision": manifest["previous_revision"]})
 
+    def _collection_targets(self, model, manifest):
+        """Only exact prior completions with intact bytes; no implicit latest or generation."""
+        collection = manifest.get("collection")
+        if collection is None:
+            return
+        complete = set(model._report_completions())
+        for member in collection["members"]:
+            if member["status"] != "complete":
+                continue
+            key = (member["report_id"], member["revision_id"])
+            saved = model._saved.get(key)
+            if (key not in complete or saved is None or model._content(*saved) != "resolved"
+                    or model._metadata_binding(*saved)):
+                _fail("report_member_invalid", "A complete collection member must name an intact prior completed revision",
+                      member_key=member["member_key"], report_id=key[0], revision_id=key[1])
+
     def _answer(self, outcome, manifest, model, plan):
         ref = {"report_id": manifest["report_id"], "revision_id": manifest["revision_id"]}
         row = next(row for row in model.report_revisions() if all(row[k] == v for k, v in ref.items()))
         return {"outcome": outcome, "request_id": manifest["request_id"], "report": row,
-                "files": [{"source": str(plan[f["path"]][0]), "path": f["path"],
+                "files": [{"source": str(plan[f["path"]][0]) if f["path"] in plan else None,
+                           **({"generated_by": "kit"} if f["path"] not in plan else {}), "path": f["path"],
                            "preserved_path": f"artifacts/reports/{ref['report_id']}/{ref['revision_id']}/content/{f['path']}"}
                           for f in manifest["files"]]}
 

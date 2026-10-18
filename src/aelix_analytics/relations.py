@@ -83,6 +83,7 @@ import copy
 import difflib
 import hashlib
 import json
+import math
 import os
 import re
 import stat
@@ -1187,6 +1188,76 @@ def report_paths(paths) -> bool:
                    for path in folded for n in range(1, len(path.split("/"))))
 
 
+REPORT_METADATA_FILE = "_analytics/metadata.json"
+REPORT_BASE_FIELDS = frozenset({"schema", "report_id", "revision_id", "previous_revision", "request_id",
+                                "request_fingerprint", "created_at", "actor", "title", "entry", "files", "based_on",
+                                "metadata_file"})
+
+
+def finite_json(value) -> bool:
+    """JSON values only: no coercion of Python keys, tuples, NaN or Unicode surrogates."""
+    if value is None or type(value) in (bool, int):
+        return True
+    if type(value) is float:
+        return math.isfinite(value)
+    if isinstance(value, str):
+        value.encode("utf-8")
+        return True
+    if isinstance(value, list):
+        return all(finite_json(item) for item in value)
+    if isinstance(value, dict):
+        return all(isinstance(key, str) and finite_json(key) and finite_json(item) for key, item in value.items())
+    return False
+
+
+def report_metadata_bytes(value) -> bytes:
+    """ADR-0013 sidecar vectors; deliberately separate from ADR-0006 canonical intent."""
+    if not isinstance(value, dict) or not finite_json(value):
+        raise ValueError("Report metadata must be an object of finite JSON values")
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+
+
+def report_metadata_problem(value) -> str | None:
+    try:
+        report_metadata_bytes(value)
+        if REPORT_BASE_FIELDS.intersection(value):
+            return "reserved_metadata_field"
+        if any(key in value and not isinstance(value[key], str) for key in ("summary", "purpose", "change_reason")):
+            return "invalid_metadata_text"
+        if "content_status" in value and value["content_status"] not in ("partial", "complete"):
+            return "invalid_content_status"
+        if "collection" in value:
+            collection = value["collection"]
+            if not isinstance(collection, dict) or collection.get("contract") != "report_collection/1" or not isinstance(collection.get("members"), list):
+                return "invalid_collection"
+            seen = set()
+            for member in collection["members"]:
+                if not isinstance(member, dict) or not isinstance(member.get("member_key"), str) or not member["member_key"] or member["member_key"] in seen:
+                    return "invalid_collection_member"
+                seen.add(member["member_key"])
+                if member.get("status") == "complete":
+                    if not report_name(member.get("report_id")) or not isinstance(member.get("revision_id"), str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", member["revision_id"]):
+                        return "invalid_collection_target"
+                elif member.get("status") in ("failed", "not_generated"):
+                    if any(key in member for key in ("report_id", "revision_id")) or not isinstance(member.get("reason"), str) or not member["reason"]:
+                        return "invalid_collection_reason"
+                else:
+                    return "invalid_collection_status"
+    except (ValueError, TypeError, OverflowError, RecursionError):
+        return "invalid_metadata"
+    return None
+
+
+def report_metadata(manifest) -> dict:
+    return {key: value for key, value in manifest.items() if key not in REPORT_BASE_FIELDS}
+
+
+def collection_counts(collection) -> dict:
+    members = collection["members"]
+    return {"requested": len(members), **{status: sum(member["status"] == status for member in members)
+                                          for status in ("complete", "failed", "not_generated")}}
+
+
 def report_manifest_problem(value, directory=None) -> str | None:
     """Pure validation of the stored manifest; completion and content integrity stay separate."""
     try:
@@ -1215,6 +1286,21 @@ def report_manifest_problem(value, directory=None) -> str | None:
             paths.append(item["path"])
         if not report_paths(paths) or value["entry"] not in paths:
             return "invalid_paths"
+        if value["entry"].split("/")[0].casefold() == "_analytics":
+            return "reserved_entry"
+        metadata = report_metadata(value)
+        if metadata or "metadata_file" in value:
+            problem = report_metadata_problem(metadata)
+            if problem:
+                return problem
+            data = report_metadata_bytes(metadata)
+            sidecar = next((item for item in files if item["path"] == REPORT_METADATA_FILE), None)
+            if (value.get("metadata_file") != REPORT_METADATA_FILE or sidecar is None
+                    or sidecar["sha256"] != hashlib.sha256(data).hexdigest() or sidecar["bytes"] != len(data)):
+                return "metadata_binding_mismatch"
+        if any(path.split("/")[0].casefold() == "_analytics" and
+               (path != REPORT_METADATA_FILE or "metadata_file" not in value) for path in paths):
+            return "reserved_metadata_path"
         if "based_on" in value:
             basis = value["based_on"]
             if not isinstance(basis, dict) or "as_of_seq" not in basis or "context_version" not in basis:
@@ -1230,7 +1316,7 @@ def report_manifest_problem(value, directory=None) -> str | None:
             return "fingerprint_mismatch"
         # Also rejects lone surrogates in fields excluded from the request fingerprint.
         json.dumps(value, ensure_ascii=False, allow_nan=False).encode("utf-8")
-    except (ValueError, TypeError, KeyError, IndexError, OverflowError):
+    except (ValueError, TypeError, KeyError, IndexError, OverflowError, RecursionError):
         return "invalid_manifest"
     return None
 
@@ -1555,7 +1641,7 @@ class ReadModel:
         for directory, manifest, staging in self._manifests:
             key = (_str(manifest.get("report_id")), _str(manifest.get("revision_id")))
             recording = "prepared" if staging else "complete" if key in completed else "incomplete"
-            problem = report_manifest_problem(manifest, directory)
+            problem = report_manifest_problem(manifest, directory) or self._metadata_binding(directory, manifest)
             claimed = any(event.kind == "report_revision" and any(
                 (r.get("report_id"), r.get("revision_id")) == key for r in _dicts(event.refs))
                 for event in self.journal.events)
@@ -1565,8 +1651,24 @@ class ReadModel:
                         "request_id": manifest.get("request_id"), "recording_status": recording,
                         "content": self._content(directory, manifest) if verify_content else "not_checked",
                         "head": not staging and heads.get(key[0]) == key[1],
+                        **({"collection_counts": collection_counts(manifest["collection"])}
+                           if not problem and "collection" in manifest else {}),
                         **({"problem": problem} if problem else {})})
         return out
+
+    def _metadata_binding(self, directory, manifest):
+        """Read only the small kit sidecar, never the authored body for a metadata query."""
+        if "metadata_file" not in manifest:
+            return None
+        if report_manifest_problem(manifest, directory):
+            return "metadata_binding_mismatch"
+        target = self.root / directory / "content" / REPORT_METADATA_FILE
+        try:
+            if not _report_plain(self.root, target) or target.read_bytes() != report_metadata_bytes(report_metadata(manifest)):
+                return "metadata_sidecar_mismatch"
+        except OSError:
+            return "metadata_sidecar_missing"
+        return None
 
     def _content(self, directory: str, manifest: dict) -> str:
         """`missing`, `content_changed` or `resolved` for the files a manifest names. A path that is
@@ -1733,9 +1835,50 @@ class ReadModel:
         out = incoming_sources(self.journal, target)
         for _directory, manifest, staging in self._manifests:
             based_on = manifest.get("based_on")
-            if not staging and isinstance(based_on, dict) and any(
-                    _query_ref_targets(ref, target) for ref in _dicts(based_on.get("refs"))):
+            if not staging and (isinstance(based_on, dict) and any(
+                    _query_ref_targets(ref, target) for ref in _dicts(based_on.get("refs"))) or any(
+                    _query_ref_targets(ref, target) for ref in self._collection_refs(manifest))):
                 out.append(report_key(manifest.get("report_id"), manifest.get("revision_id")))
+        return out
+
+    def _collection_refs(self, manifest):
+        if "collection" not in manifest or report_manifest_problem(manifest):
+            return []
+        refs, digests = [], {}
+        for event in self.journal.in_order():
+            if event.kind == "report_revision":
+                for ref in _dicts(event.refs):
+                    if ref.get("type") == "report_revision" and ref.get("relation") == "about":
+                        key = (_str(ref.get("report_id")), _str(ref.get("revision_id")))
+                        digests.setdefault(key, _digest(ref))
+        for member in manifest["collection"]["members"]:
+            if member["status"] == "complete":
+                # The completion's recorded digest binds the manifest; never take a new hash
+                # of damaged files as authored evidence. Target existence is judged separately.
+                digest = digests.get((member["report_id"], member["revision_id"]))
+                refs.append({"type": "report_revision", "report_id": member["report_id"], "revision_id": member["revision_id"],
+                             **({"digest": {"sha256": digest}} if digest else {}),
+                             "relation": "includes", "basis": "declared", "version_binding": "author"})
+        return refs
+
+    def _manifest_references(self, directory, manifest, source):
+        based_on = manifest.get("based_on")
+        basis = based_on if isinstance(based_on, dict) else {}
+        as_of = _int(basis.get("as_of_seq"))
+        completion = self._completion_seqs().get((_str(manifest.get("report_id")), _str(manifest.get("revision_id"))), self.journal.next_seq)
+        out = self._judge_v2(basis.get("refs"), source, None, as_of + 1 if as_of is not None else completion)
+        if not self._metadata_binding(directory, manifest):
+            refs = self._collection_refs(manifest)
+            completed = set(self._report_completions()) if refs else set()
+            seqs = self._completion_seqs() if refs else {}
+            for judged in self._judge_v2(refs, source, None, completion):
+                # Structural membership is kept apart from authored document evidence.
+                judged["structural"] = True
+                judged["ref"] = {"field": "collection.members", "index": judged["ref"]["index"]}
+                key = (judged["target"].get("report_id"), judged["target"].get("revision_id"))
+                if key not in completed or seqs.get(key, completion) >= completion:
+                    judged.update(state="missing", reason="record_absent", confirmed=False)
+                out.append(judged)
         return out
 
     def references(self, source: str | None = None) -> list[dict]:
@@ -1759,13 +1902,7 @@ class ReadModel:
             for _directory, manifest, staging in self._manifests:
                 if staging or report_key(manifest.get("report_id"), manifest.get("revision_id")) != source:
                     continue
-                based_on = manifest.get("based_on")
-                if not isinstance(based_on, dict):
-                    return []
-                as_of = _int(based_on.get("as_of_seq"))
-                before = as_of + 1 if as_of is not None else self._completion_seqs().get(
-                    (_str(manifest.get("report_id")), _str(manifest.get("revision_id"))), self.journal.next_seq)
-                return self._judge_v2(based_on.get("refs"), source, None, before)
+                return self._manifest_references(_directory, manifest, source)
         if self._references is None:
             out: list[dict] = []
             for event in self.journal.events:
@@ -1775,21 +1912,11 @@ class ReadModel:
                     out += self._judge_v1(event, source_id, before)
                 else:
                     out += self._judge_v2(event.refs, source_id, event.line, before)
-            completions = None
             for _directory, manifest, staging in self._manifests:
-                based_on = manifest.get("based_on")
-                if staging or not isinstance(based_on, dict):
+                if staging:
                     continue
-                as_of = _int(based_on.get("as_of_seq"))
-                if as_of is not None:
-                    before = as_of + 1
-                else:  # before the revision's completion event, or what the journal holds
-                    if completions is None:
-                        completions = self._completion_seqs()
-                    before = completions.get((_str(manifest.get("report_id")),
-                                              _str(manifest.get("revision_id"))), self.journal.next_seq)
                 source_id = report_key(manifest.get("report_id"), manifest.get("revision_id"))
-                out += self._judge_v2(based_on.get("refs"), source_id, None, before)
+                out += self._manifest_references(_directory, manifest, source_id)
             self._references = out
             for judged in out:
                 self._by_source.setdefault(judged["from"], []).append(judged)

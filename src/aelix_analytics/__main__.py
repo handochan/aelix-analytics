@@ -221,6 +221,7 @@ def _command(argv) -> int:
     p.add_argument("--previous", required=True)
     p.add_argument("--request-id")
     p.add_argument("--based-on", help="authored evidence JSON file; never inferred")
+    p.add_argument("--metadata", help="optional authored metadata/collection JSON file")
     for action in ("list", "show"):
         p = commands.add_parser(action)
         if action == "show":
@@ -337,15 +338,17 @@ def _command(argv) -> int:
         if args.command == "reports":
             action = args.report_action
             if action == "save":
-                basis = None
-                if args.based_on:
-                    try:
-                        basis = json.loads(Path(args.based_on).read_bytes())
-                    except (OSError, ValueError) as exc:
-                        raise core.AnalyticsError("report_input_invalid", f"Cannot read --based-on: {exc}") from exc
+                optional = {}
+                for name in ("based_on", "metadata"):
+                    path = getattr(args, name)
+                    if path:
+                        try:
+                            optional[name] = json.loads(Path(path).read_bytes())
+                        except (OSError, ValueError) as exc:
+                            raise core.AnalyticsError("report_input_invalid", f"Cannot read --{name.replace('_', '-')}: {exc}") from exc
                 result = core.save_report(project, args.report_id, files=args.files, entry=args.entry,
                                           title=args.title, previous_revision=None if args.previous == "none" else args.previous,
-                                          request_id=args.request_id, based_on=basis, origin=origin)
+                                          request_id=args.request_id, **optional, origin=origin)
             elif action == "list":
                 result = core.reports(project, limit=args.limit, offset=args.offset, verify_files=args.verify_files)
             else:

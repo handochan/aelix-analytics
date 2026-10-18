@@ -15,6 +15,13 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 없음. 병합된 변경은 그 PR이 병합될 때의 kit 번호 절에 적고, kit 번호를 올리는 PR은 새 절을 엽니다
 ([기여 가이드](CONTRIBUTING.md#첫-공개-전에-남은-운영-결정)).
 
+## [0.22.0] - 2026-10-19
+
+### Added
+
+- Report optional metadata and exact partial collection snapshots, with canonical metadata bytes bound through the existing retry fingerprint. CLI `reports save --metadata` and SDK use the same path (#19 PR2).
+- Byte-only ReportRenderer contract and conservative Markdown/text views with original download links; arbitrary HTML/SVG/PDF/Office remain download-only. Workspace Reports integration follows in PR3.
+
 ## [0.21.0] - 2026-10-18
 
 - #20 PR1: 内부 공유 모델·read/evidence 투영·공통 범위 닫힘·고정 snapshot과 `content_seq`를 구현했습니다. 허용 필드·참조 상태·파일 역할을 모델에서 검증하며 build/preview 명령·패키지 writer·Report 범위는 후속 PR입니다. 공개 진입점과 저장 형식은 그대로여서 kit 번호를 별도로 올리지 않았습니다.

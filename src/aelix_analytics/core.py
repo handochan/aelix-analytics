@@ -45,7 +45,7 @@ from .writer import migration_record as migration_record
 from .writer import new_request_id as new_request_id
 from .writer import present_marker as present_marker
 
-KIT_VERSION = "0.21.0"
+KIT_VERSION = "0.22.0"
 # The marker and the record families of the projects this kit writes: the new format's, through
 # the common writer (writer.Writer, Issue #13 PR 3; writer.FAMILIES). A project is found by either
 # marker, analytics.json or lab.json, and judged by writer.marker_state: a lab.json project
@@ -1731,12 +1731,12 @@ def resolved_targets(events) -> dict[str, dict]:
 # --- the new format's records (Issue #13 PR 3, design 4.5 and 9) ---
 
 def save_report(project: Project, report_id, *, files, entry, title, previous_revision,
-                request_id=None, based_on=None, origin: Origin):
+                request_id=None, based_on=None, metadata=None, origin: Origin):
     from . import report_app
 
     return report_app.Reports(writer_for(project, origin)).save(
         report_id, files=files, entry=entry, title=title, previous_revision=previous_revision,
-        request_id=request_id, based_on=based_on)
+        request_id=request_id, based_on=based_on, metadata=metadata)
 
 
 def reports(project: Project, report_id=None, revision_id=None, **options):
@@ -3054,7 +3054,7 @@ def references_summary(judgments: list[dict]) -> dict:
     for judged in judgments:
         states[judged["state"]] = states.get(judged["state"], 0) + 1
     return {"states": {s: states[s] for s in REFERENCE_STATES if s in states},
-            "confirmed": sum(1 for judged in judgments if judged["confirmed"]),
+            "confirmed": sum(1 for judged in judgments if judged["confirmed"] and not judged.get("structural")),
             "not_resolved": [{"state": judged["state"], "target": reference_label(judged)}
                              for judged in judgments if judged["state"] != "resolved"]}
 

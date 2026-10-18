@@ -1,8 +1,8 @@
 # 분석 도중의 자유 형식 보고서와 버전 관리
 
-작성: 2026-09-18 · 상태: 설계 제안. `Reports` 탭·보고서 등록·버전 관리는 아직 구현되지 않았다.
+작성: 2026-09-18 · 상태: 설계와 단계별 구현. 등록·버전 저장은 구현됐고 `Reports` 탭은 후속 PR이다.
 저장·반복 묶음·형식별 보기의 구체안과 PR 경계는 [ADR-0013](decisions/0013-report-storage-and-collections.md)(Accepted, #19)에 있다.
-kit 0.21.0은 PR1의 개별 저장·조회·철회/복원·prepared 정리만 구현한다([현재 계약](CONTRACTS.md#c16-불변-report-저장등록버전-kit-0210-19-pr1)). 반복 묶음·형식별 보기·Reports 화면은 후속 PR이다.
+kit 0.21.0은 PR1의 개별 저장·조회·철회/복원·prepared 정리만 구현한다([현재 계약](CONTRACTS.md#c16-불변-report-저장등록버전-kit-0210-19-pr1)). kit0.22.0은 선택 metadata·반복 묶음과 내부 형식별 보기 adapter를 더한다([현재 계약 C17](CONTRACTS.md#c17-report-선택-metadata반복-묶음형식별-보기-kit-0220-19-pr2)). Reports 화면 조립은 PR3이다.
 제품 방향은 [PRODUCT.md](PRODUCT.md), 공유는 [PUBLISH-AND-SHARING.md](PUBLISH-AND-SHARING.md), 현재 기능은 [CONTRACTS.md](CONTRACTS.md)를 따른다.
 명칭은 [용어집](TERMINOLOGY-AND-LANGUAGE.md)의 Workspace·Visualization·Report 구분을 따른다. 통계 차트는 Visualization의 한 유형이다.
 

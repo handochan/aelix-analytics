@@ -314,6 +314,8 @@ N0의 명칭·기본 언어 전환을 A0의 경계 정리와 조율한다. 현�
 |---|---|---|---|---|---|
 | `ports` | 0 | 플랫폼 포트와 OS별 구현([ADR-0003](decisions/0003-portable-boundaries-and-in-process-kit-loading.md)) | `src/aelix_analytics/_platform.py` | 없음 | stdlib |
 | `read_model` | 0 | 기록의 읽기 모델(§9 `projections/`)·자산의 순수 값/점수 계약·주입한 reader로 평가하는 checkpoint 값 | `src/aelix_analytics/relations.py`, `src/aelix_analytics/asset_policy.py`, `src/aelix_analytics/checkpoints.py` | 없음 | stdlib |
+| `report_view_contract` | 0 | 선택 파일 바이트만 받는 ReportRenderer와 불변 보기 값 | `src/aelix_analytics/report_renderer.py` | 없음 | stdlib |
+| `report_views` | 3 | 원시 기록·프로젝트·네트워크를 읽지 않는 보수적인 Report 형식별 보기 | `src/aelix_analytics/report_renderers.py` | `report_view_contract` | stdlib, 표시 |
 | `distribution` | 0 | 설치본의 실행 루트 위치 | `src/aelix_analytics/_install.py` | 없음 | stdlib |
 | `messages` | 0 | Workspace의 kit 문구를 message key로 찾는 카탈로그(#96) | `src/aelix_analytics/i18n.py` | 없음 | stdlib |
 | `share_model` | 0 | 원시 기록·Project·I/O 객체 없는 불변 공유 자료형 | `src/aelix_analytics/publishing/__init__.py`, `src/aelix_analytics/publishing/model.py` | 없음 | stdlib |
