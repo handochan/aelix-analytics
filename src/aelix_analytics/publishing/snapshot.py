@@ -89,7 +89,7 @@ def _file(project, sha, source, role, recorded=None):
     return SnapshotFile(source, role, suffix, recorded, digest, size, format_)
 
 
-def capture_snapshot(project, *, reader=core.read_model, validate_reference=writer.reference_problem):
+def capture_snapshot(project, *, reader=core.read_model, validate_reference=relations.reference_problem):
     """Read once with one memoized digest source for judgments, content and copy candidates."""
     hashes = core.HashCache(project)
     digests = {}

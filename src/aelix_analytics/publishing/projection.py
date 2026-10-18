@@ -129,6 +129,20 @@ def _at(values, path):
     return values
 
 
+def _columns(value):
+    if not isinstance(value, tuple):
+        return MISSING
+    result = []
+    for column in value:
+        if isinstance(column, FrozenMap):
+            kept = tuple((k, v) for k, v in column.entries if k in ("name", "type") and isinstance(v, str))
+            if kept:
+                result.append(FrozenMap(kept))
+        elif isinstance(column, tuple) and len(column) >= 2 and all(isinstance(v, str) for v in column[:2]):
+            result.append(column[:2])
+    return tuple(result)
+
+
 def _metadata(value, *, output=False):
     if not isinstance(value, FrozenMap):
         return FrozenMap()
@@ -138,7 +152,16 @@ def _metadata(value, *, output=False):
     if value.get("external") or outside:
         return FrozenMap(tuple((k, v) for k, v in (("path", Text("Outside the project" if value.get("external") else "Path not included", "kit")),
                                                    ("sha256", value.get("sha256"))) if v is not None))
-    return FrozenMap(tuple((k, v) for k, v in value.entries if k in allowed))
+    entries = []
+    for k, v in value.entries:
+        if k not in allowed:
+            continue
+        if k == "schema":
+            v = _columns(v)
+            if v is MISSING:
+                continue
+        entries.append((k, v))
+    return FrozenMap(tuple(entries))
 
 
 def _safe_value(item, name, included):
@@ -148,15 +171,26 @@ def _safe_value(item, name, included):
     if name in ("path", "script.path") and isinstance(value, str):
         if item.values.get("_outside") or any(p.anchor or ".." in p.parts for p in (PurePosixPath(value), PureWindowsPath(value))):
             return Text("Outside the project" if item.values.get("_outside") else "Path not included", "kit")
+    if name in ("columns", "schema"):
+        return _columns(value)
+    if name == "env.packages" and isinstance(value, FrozenMap):
+        return FrozenMap(tuple((k, v) for k, v in value.entries if isinstance(v, str)))
     if name in ("inputs", "outputs"):
         return tuple(_metadata(v, output=name == "outputs") for v in (value or ()))
+    def cited(key):
+        return key in included and any(r.target == key and r.state == "resolved" for r in item.references)
+
     if name in ("details.metrics", "details.derived_from"):
-        return tuple(v for v in (value or ()) if isinstance(v, FrozenMap)
-                     and ItemKey("event", v.get("event_id")) in included)
+        return tuple(FrozenMap(tuple((k, part) for k, part in v.entries if k in ("metric_id", "event_id", "role")))
+                     for v in (value or ()) if isinstance(v, FrozenMap)
+                     and cited(ItemKey("event", v.get("event_id"))))
     if name in ("details.previous_definition", "details.definition_event_id", "details.previous_focus"):
-        return value if ItemKey("event", value) in included else MISSING
+        return value if cited(ItemKey("event", value)) else MISSING
     if name == "details.run_id":
-        return value if ItemKey("run", value) in included else MISSING
+        return value if cited(ItemKey("run", value)) else MISSING
+    if name == "details.metric_id" and item.kind == "metric_observation":
+        definition = _at(item.values, "details.definition_event_id")
+        return value if cited(ItemKey("event", definition)) else MISSING
     # Reproduction's path/id keyed maps can name versions absent from this publication. Project
     # its verdict and boolean only; exact versions remain ordinary filtered Reference objects.
     if name == "reproduction" and isinstance(value, FrozenMap):

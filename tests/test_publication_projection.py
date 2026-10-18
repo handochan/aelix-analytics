@@ -436,3 +436,44 @@ def test_content_basis_uses_injected_common_reference_validation_and_retains_ref
     value["refs"][0]["relation"] = "supersedes"
     basis, _ = content_basis(journal([event(1), value]), validate_reference=writer.reference_problem)
     assert basis.content.content_seq == 2
+
+
+def test_partial_structures_do_not_copy_column_statistics_or_unknown_metric_parent_fields():
+    s = synthetic()
+    dataset = SnapshotItem(ItemKey("dataset", "d"), "dataset", freeze({"name": "Public", "columns": [
+        {"name": "x", "type": "int", "min": SECRET, "preview": [SECRET]}]}), root=True)
+    s = replace(s, items=(*s.items, dataset))
+    out = project(s, ShareRequest(exclude=frozenset({HIDDEN})), profile="evidence")
+    assert SECRET not in json.dumps(asdict(out.model))
+    d = next(i for i in out.model.items if i.key == dataset.key)
+    columns = next(f.value for f in d.fields if f.name == "columns")
+    assert {k.value for k, _ in columns[0].entries} == {"name", "type"}
+
+
+def test_observation_does_not_reveal_an_excluded_definition_identity_through_details(tmp_path):
+    p = core.init_project(tmp_path/"p", origin=ORIGIN)
+    definition = core.record(p, "metric_definition", "Definition", details={"contract": "metric_definition/1",
+        "metric_id": SECRET, "name": SECRET, "status": "draft", "definition": {}, "unresolved": [],
+        "derived_from": [], "change_reason": "Initial"}, origin=ORIGIN).event
+    script = p.scripts/"p.py"
+    script.write_text("print(1)\n", encoding="utf-8")
+    run = runner.execute(p, script="scripts/p.py", title="Calculation", origin=ORIGIN)["run"]
+    core.record(p, "metric_observation", "Measurement", details={"contract": "metric_observation/1",
+        "metric_id": SECRET, "definition_event_id": definition["id"], "run_id": run["id"], "scope": {},
+        "result": 1, "change_reason": "Measured"}, origin=ORIGIN)
+    snapshot = capture_snapshot(p)
+    request = ShareRequest(exclude=frozenset({ItemKey("event", definition["id"])}))
+    for profile in ("read", "evidence"):
+        out = project(snapshot, request, profile=profile)
+        assert SECRET not in json.dumps(asdict(out.model))
+        observation = next(i for i in out.model.items if i.kind == "metric_observation")
+        assert all(f.name not in ("details.metric_id", "details.definition_event_id") for f in observation.fields)
+
+
+def test_current_common_validator_rejects_a_delivery_ref_missing_required_version():
+    value = publication(2)
+    value["refs"] = [{"type": "context_version", "relation": "includes", "basis": "observed",
+                      "version_binding": "author", "digest": {"sha256": HASH}}]
+    assert relations.reference_problem(value["refs"][0]) is not None
+    basis, excluded = content_basis(journal([event(1), value]), validate_reference=relations.reference_problem)
+    assert basis.content.content_seq == 2 and not excluded

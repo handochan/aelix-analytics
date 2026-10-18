@@ -17,6 +17,8 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 
 ## [0.21.0] - 2026-10-18
 
+- #20 PR1: 内부 공유 모델·read/evidence 투영·공통 범위 닫힘·고정 snapshot과 `content_seq`를 구현했습니다. 허용 필드·참조 상태·파일 역할을 모델에서 검증하며 build/preview 명령·패키지 writer·Report 범위는 후속 PR입니다. 공개 진입점과 저장 형식은 그대로여서 kit 번호를 별도로 올리지 않았습니다.
+
 - [#116](https://github.com/handochan/aelix-analytics/pull/116): Report 파일을 불변 버전으로 등록·보존하는 CLI/SDK, 같은 요청의 재시도·중단 복구·이전 버전 충돌 검사, 정확한 버전 철회/복원과 prepared 정리를 추가했습니다. metadata·이력과 선택한 파일 범위를 모델 없이 읽으며 Reports 화면·반복 묶음·형식별 보기는 후속 PR입니다.
 
 ## [0.20.0] - 2026-10-18
