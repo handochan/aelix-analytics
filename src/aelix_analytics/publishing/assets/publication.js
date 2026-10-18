@@ -1,0 +1,6 @@
+(function(){"use strict";
+function missing(el,path){var p=document.createElement("p");p.textContent="Missing from this copy: "+path;el.replaceWith(p);}
+function draw(el){var path=el.dataset.payload,key=el.dataset.figure;if(!window.Plotly){missing(el,"plotly.min.js");return;}var load=function(){var f=(window.AnalyticsFigures||{})[key];if(f){window.Plotly.newPlot(el,f.data,f.layout||{},{responsive:true});}};if((window.AnalyticsFigures||{})[key]){load();return;}var script=document.createElement("script");script.src=path;script.onload=load;script.onerror=function(){missing(el,path);};document.head.appendChild(script);}
+document.addEventListener("DOMContentLoaded",function(){document.querySelectorAll("[data-payload]").forEach(function(el){var button=el.querySelector("button");if(button){button.addEventListener("click",function(){button.remove();draw(el);});}else{draw(el);}});document.querySelectorAll("img").forEach(function(el){if(el.complete&&!el.naturalWidth){missing(el,el.getAttribute("src"));}});});
+window.addEventListener("error",function(event){var el=event.target;if(el&&el.tagName&&/^(IMG|SCRIPT|LINK)$/.test(el.tagName)){missing(el,el.getAttribute("src")||el.getAttribute("href")||"resource");}},true);
+})();

@@ -60,6 +60,7 @@ analytics — human CLI for Aelix Analytics projects (the same kit the aelix ext
   analytics reports save ID --files DIR --entry PATH --title TEXT --previous REV|none [--request-id ID]
   analytics reports list | show ID@REV [--file PATH] | update ID@REV --expected-state STATE --state STATE --reason TEXT
   analytics reports clean --prepared ID@REV    remove one explicitly named prepared attempt
+  analytics build --preview [--profile read|evidence] [--exclude REF]...
   analytics assets list | show ID | review [ID] | update EVENT --expected STATE --to STATE --reason TEXT
   analytics assets register EVENT --name NAME    copy a validated asset into this project
   analytics assets mode on_demand|always_on      human project suggestion mode
@@ -75,7 +76,7 @@ puts an empty line before it. Nothing here is a sandbox.
 """
 
 COMMANDS = ("init", "demo", "status", "context", "open", "run", "import", "query", "record", "checkpoint", "render",
-            "migrate", "assets", "reports")
+            "migrate", "assets", "reports", "build")
 
 # The environment variables this command read under the kit's old names (before kit 0.3.0), each with
 # its new name; bin/analytics refuses the same three in the same order with the same words. The kit
@@ -212,6 +213,15 @@ def _command(args: list[str], kit: Path | None, uv_argv: list[str] | None,
             _say(f"analytics: could not open {index} ({exc}); open it in a browser yourself")
             return 127 if isinstance(exc, FileNotFoundError) else 1
         return children.stopped or status
+    if command == "build":
+        # A preview must not let uv create/sync .venv or change the project's lock. Use the
+        # already prepared project interpreter, and suppress import bytecode side writes.
+        python = Path(project) / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+        if not python.is_file():
+            _say("analytics: preview needs an existing project environment; run uv sync first")
+            return 1
+        env["PYTHONDONTWRITEBYTECODE"] = "1"
+        return children.run([str(python), "-m", "aelix_analytics", "--project", project, command, *args], env)
     uv = uv_argv or _uv(processes)
     if uv is None:
         return 127

@@ -1,0 +1,355 @@
+"""A pure shared-model renderer. It receives no Project, source records, ledger or file access."""
+
+from __future__ import annotations
+
+import hashlib
+import html
+import json
+import posixpath
+
+from .model import Object, PublicationError, Text
+
+PAGE_SIZE = 200
+LABELS = {
+    "analysis_focus": "Analysis focus",
+    "metric_definition": "Metric definition",
+    "metric_observation": "Metric observation",
+    "finding": "Finding",
+    "decision": "Decision",
+    "question": "Question",
+    "todo": "Next check",
+    "assumption": "Assumption",
+    "note": "Note",
+    "run": "Run",
+    "visualization": "Visualization",
+    "context": "Context",
+    "context_history": "Earlier context",
+    "dataset": "Dataset",
+    "code": "Code",
+    "data_observation": "Data observation",
+}
+FIELD_LABELS = {
+    "id": "Record",
+    "text": "Text",
+    "recorded_at": "Recorded",
+    "started_at": "Started",
+    "ended_at": "Ended",
+    "actor_role": "Author role",
+    "state": "State at this point",
+    "state_history": "State history",
+    "status": "Execution",
+    "recording_status": "Recording",
+    "recording_reasons": "Recording details",
+    "title": "Title",
+    "caption": "Caption",
+    "details.metric_id": "Metric",
+    "details.name": "Name",
+    "details.definition_event_id": "Definition record",
+    "details.definition": "Definition",
+    "details.scope": "Scope",
+    "details.result": "Result",
+    "details.run_id": "Run",
+    "details.change_reason": "Reason",
+    "details.recomputed_from": "Recomputed from",
+    "observation": "Checked when this copy was built",
+}
+REASONS = {
+    "profile": "outside this profile",
+    "file_absent": "file missing",
+    "format": "file format not included",
+    "scripts": "scripts are not allowed",
+    "remote_resources": "remote resources are not allowed",
+    "content_changed": "recorded bytes changed",
+    "no_digest": "no recorded code hash",
+    "outside_project": "outside the project",
+    "invalid_digest": "invalid recorded hash",
+}
+
+
+def esc(value):
+    return html.escape(str(value), quote=True)
+
+
+def key_name(key):
+    return hashlib.sha256(f"{key.category}:{key.identity}".encode()).hexdigest()[:16]
+
+
+def _plain(value):
+    if isinstance(value, Text):
+        return value.value
+    if isinstance(value, Object):
+        return {k.value: _plain(v) for k, v in value.entries}
+    if isinstance(value, tuple):
+        return [_plain(v) for v in value]
+    return value
+
+
+def _shown(value):
+    value = _plain(value)
+    return (
+        value
+        if isinstance(value, str)
+        else json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2)
+    )
+
+
+def render(model, *, profile="read", context_status="recorded", file_sizes=()):
+    if context_status not in ("pending", "recorded", "not_recorded"):
+        raise PublicationError("package_check_failed", "unknown context status")
+    sizes = dict(file_sizes)
+    pages = {}
+    targets = {}
+    anchors = {}
+    events = []
+    for item in model.items:
+        token = key_name(item.key)
+        if token in anchors and anchors[token] != item.key:
+            raise PublicationError("package_check_failed", "item page hash collision")
+        anchors[token] = item.key
+        if item.key.category == "event":
+            events.append(item)
+            targets[item.key] = f"pages/timeline/{(len(events) - 1) // PAGE_SIZE + 1}.html#i{token}"
+        elif item.key.category == "project":
+            targets[item.key] = "index.html"
+        else:
+            folder = {
+                "run": "runs",
+                "dataset": "data",
+                "visualization": "figures",
+                "context": "context",
+                "code": "code",
+                "data_observation": "observations",
+            }.get(item.key.category, "items")
+            targets[item.key] = f"pages/{folder}/{token}.html"
+
+    def relative(path, target):
+        file, sep, fragment = target.partition("#")
+        value = posixpath.relpath(file, posixpath.dirname(path) or ".")
+        return value + ("#" + fragment if sep else "")
+
+    def link(path, target, label):
+        return f'<a href="{esc(relative(path, target))}">{label}</a>'
+
+    def user(value):
+        return '<span lang="">' + esc(_shown(value)) + "</span>"
+
+    def title(item):
+        return next(
+            (
+                user(f.value)
+                for f in item.fields
+                if f.name in ("title", "details.name", "text", "name")
+            ),
+            esc(LABELS.get(item.kind, "Included item")),
+        )
+
+    def band(path):
+        basis = model.basis
+        recorded = (
+            f"Records up to {esc(basis.content_recorded_at)} (e{basis.content_seq})"
+            if basis.content_recorded_at
+            else f"Records up to e{basis.content_seq} (recorded time unknown)"
+        )
+        context = (
+            "Context: pending preview — not recorded"
+            if context_status == "pending"
+            else "Context version: " + esc(basis.context_version)
+            if basis.context_version
+            else "Context: not recorded at this point"
+        )
+        return (
+            f'<div class="band"><p>Shared snapshot — a fixed copy that does not update</p><p>{user(model.title)}</p>'
+            f"<p>{recorded}</p><p>{context}</p><p>Analysis: {'complete' if model.analysis_state == 'complete' else 'in progress'} (declared when built)</p>"
+            f"<p>Scope: {esc(profile)} profile · {sum(o.count for o in model.not_included)} items not included · "
+            f"{link(path, 'index.html#scope', 'Scope and limits')}</p></div>"
+        )
+
+    has_plotly = any(f.format == "payload" for i in model.items for f in i.files)
+
+    def page(path, name, body):
+        scripts = (
+            f'<script src="{esc(relative(path, "assets/plotly.min.js"))}" defer></script>'
+            if has_plotly
+            else ""
+        )
+        value = (
+            f'<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+            f'<meta name="referrer" content="no-referrer"><meta name="robots" content="noindex"><title>{esc(name)}</title>'
+            f'<link rel="stylesheet" href="{esc(relative(path, "assets/publication.css"))}">{scripts}'
+            f'<script src="{esc(relative(path, "assets/publication.js"))}" defer></script></head><body>'
+            f'<a class="skip" href="#main">Skip to content</a><p class="load-failure">This page could not load its files. '
+            f"If you opened it from inside a ZIP archive, extract the whole archive first; otherwise this copy is incomplete.</p>"
+            f"<header>{band(path)}<nav>{link(path, 'index.html', 'Overview')} {link(path, 'about.html', 'About this copy')}</nav></header>"
+            f'<main id="main">{body}</main><footer>This copy is a fixed snapshot. Its source may have changed.</footer></body></html>\n'
+        )
+        pages[path] = value.encode("utf-8")
+
+    def card(item, path):
+        body = f'<article class="card" id="i{key_name(item.key)}"><h2>{esc(LABELS.get(item.kind, "Included item"))}</h2>'
+        if item.key.category == "context":
+            text = next((f.value.value for f in item.fields if f.name == "text"), None)
+            if text is not None:
+                from markdown_it import MarkdownIt
+
+                body += (
+                    '<div lang="">'
+                    + MarkdownIt("commonmark", {"html": False}).render(text)
+                    + "</div>"
+                )
+        body += "<dl>"
+        for field in item.fields:
+            if item.key.category == "context" and field.name == "text":
+                continue
+            name = FIELD_LABELS.get(
+                field.name,
+                field.name.removeprefix("details.")
+                .replace("_", " ")
+                .replace(".", " ")
+                .capitalize(),
+            )
+            body += f'<dt>{esc(name)}</dt><dd><pre lang="">{esc(_shown(field.value))}</pre></dd>'
+        body += "</dl>"
+        for ref in item.references:
+            target = (
+                link(
+                    path,
+                    targets[ref.target],
+                    title(next(i for i in model.items if i.key == ref.target)),
+                )
+                if ref.target in targets
+                else esc(ref.category)
+            )
+            # Original states and binding/confirmed remain separate visible facts.
+            body += f"<p>{esc(ref.relation or 'Reference')}: {target} · {esc(ref.state)}"
+            if ref.reason:
+                body += " · " + esc(ref.reason)
+            body += (
+                " · "
+                + (
+                    "Confirmed link"
+                    if ref.confirmed
+                    else "Inferred link"
+                    if ref.binding == "inferred"
+                    else "Unconfirmed link"
+                )
+                + "</p>"
+            )
+            if ref.candidates:
+                body += (
+                    "<ul>"
+                    + "".join(
+                        "<li>" + link(path, targets[k], "Possible included version") + "</li>"
+                        for k in ref.candidates
+                    )
+                    + "</ul>"
+                )
+            if ref.omitted_candidates:
+                body += f"<p>{ref.omitted_candidates} other candidates are not included.</p>"
+        for file in item.files:
+            target = relative(path, file.package_path)
+            url = esc(target)
+            if file.role == "figure":
+                if file.format == "html":
+                    body += f'<iframe src="{url}" sandbox title="Included figure"></iframe><p>If this frame is empty, its file is missing from this copy: {esc(file.package_path)}</p>'
+                elif file.format == "payload":
+                    key = Pure_name(file.package_path)
+                    size = sizes.get(file.package_path, 0)
+                    button = (
+                        f'<button type="button">Load figure ({size / 1048576:.1f} MiB)</button>'
+                        if size > 3000000
+                        else ""
+                    )
+                    body += f'<div role="img" aria-label="Interactive figure" data-figure="{key}" data-payload="{url}"><p>Interactive figure — needs JavaScript</p>{button}</div><p>Interactive figures include the data they plot.</p>'
+                else:
+                    body += f'<img src="{url}" alt="Included visualization" loading="lazy">'
+            else:
+                body += f'<p><a href="{url}" download>{"Data attached by the script" if file.role == "attached_data" else "Code snapshot"}</a></p>'
+            body += (
+                '<p class="muted">'
+                + (
+                    "Compared with the recorded hash"
+                    if file.verified == "recorded_hash"
+                    else "No hash was recorded; checked when this copy was built"
+                )
+                + "</p>"
+            )
+        for notice in item.file_notices:
+            body += (
+                "<p>Not included: "
+                + esc(REASONS.get(notice.reason, notice.reason.replace("_", " ")))
+                + "</p>"
+            )
+        return body + "</article>"
+
+    # A page for each included exact target; only included keys have page names.
+    for item in model.items:
+        if item.key.category not in ("event", "project"):
+            path = targets[item.key]
+            page(path, LABELS.get(item.kind, "Included item"), card(item, path))
+    for n in range(0, len(events), PAGE_SIZE):
+        path = f"pages/timeline/{n // PAGE_SIZE + 1}.html"
+        navigation = (
+            "<nav>"
+            + "".join(
+                link(path, f"pages/timeline/{k}.html", f"Records page{k}")
+                for k in range(1, (len(events) - 1) // PAGE_SIZE + 2)
+            )
+            + "</nav>"
+        )
+        page(
+            path,
+            "Included records",
+            navigation + "".join(card(item, path) for item in events[n : n + PAGE_SIZE]),
+        )
+    path = "index.html"
+    body = "<h1>" + user(model.title) + "</h1><p>Included analysis and evidence at this point.</p>"
+    order = {
+        "context": 0,
+        "analysis_focus": 1,
+        "metric_definition": 2,
+        "question": 3,
+        "finding": 4,
+        "decision": 5,
+        "todo": 6,
+        "visualization": 7,
+    }
+    for item in sorted(
+        (i for i in model.items if i.key.category != "project"), key=lambda i: order.get(i.kind, 8)
+    ):
+        body += (
+            "<p>"
+            + esc(LABELS.get(item.kind, "Included item"))
+            + ": "
+            + link(path, targets[item.key], title(item))
+            + "</p>"
+        )
+    body += (
+        '<section id="scope"><h2>Scope and limits</h2><p>Profile: '
+        + esc(profile)
+        + ". Rules version1.</p>"
+    )
+    body += (
+        "<p>Code and data are not included in this publication; it cannot be re-run from this copy.</p>"
+        if profile == "read"
+        else "<p>Input data is not included.</p>"
+    )
+    body += "<table><thead><tr><th>Category</th><th>Reason not included</th><th>Count</th></tr></thead><tbody>"
+    for omission in (*model.not_included, *model.diagnostics):
+        body += f"<tr><td>{esc(omission.category)}</td><td>{esc(omission.reason.replace('_', ' '))}</td><td>{omission.count}</td></tr>"
+    body += "</tbody></table><p>Missing, content changed, unknown, unsupported, unbound and not included are distinct states. "
+    body += "Checks do not detect paraphrases, arbitrary encodings in text, text in image pixels, or secrets in included content.</p></section>"
+    page(path, model.title.value, body)
+    page(
+        "about.html",
+        "About this copy",
+        "<h1>About this copy</h1><p>Preview only. No publication has been saved or recorded.</p>"
+        + body[body.index('<section id="scope">') :],
+    )
+    pages["README.txt"] = (
+        b"Open index.html after copying the whole folder. Extract the whole ZIP first. This is a fixed snapshot and does not update.\n"
+    )
+    return pages
+
+
+def Pure_name(path):
+    return path.rsplit("/", 1)[-1].split(".")[0]

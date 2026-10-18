@@ -6,6 +6,7 @@ from collections import Counter
 
 from .. import core, relations, writer
 from .basis import PUBLICATION_KINDS, content_basis
+from .inspections import detect_format
 from .model import ItemKey, Omission, PublicationError, Reference
 from .projection import ShareSnapshot, SnapshotFile, SnapshotItem, freeze
 
@@ -68,28 +69,19 @@ def _file(project, sha, source, role, recorded=None):
             raise OSError("not a regular file")
         digest = sha(real)
         with open(real, "rb") as fh:
-            head = fh.read(8192)
+            data = fh.read()
         size = real.stat().st_size
     except ValueError:
         return SnapshotFile(source, role, "", recorded, None, reason="outside_project")
     except OSError:
         return SnapshotFile(source, role, "", recorded, None, reason="file_absent")
-    suffix, format_ = path.suffix.lower(), "unsupported"
-    if head.startswith(b"\x89PNG\r\n\x1a\n"):
-        suffix, format_ = ".png", "png"
-    elif head.startswith(b"\xff\xd8\xff"):
-        suffix, format_ = ".jpg", "jpeg"
-    elif head.startswith((b"GIF87a", b"GIF89a")):
-        suffix, format_ = ".gif", "gif"
-    elif head.startswith(b"RIFF") and head[8:12] == b"WEBP":
-        suffix, format_ = ".webp", "webp"
-    elif head.startswith(b"PAR1"):
-        suffix, format_ = ".parquet", "parquet"
-    elif role == "code_snapshot" and suffix == ".py":
+    if hashlib.sha256(data).hexdigest() != digest:
+        raise PublicationError("source_changed", "file changed after its digest was observed")
+    format_ = detect_format(data, role=role) or "unsupported"
+    if role == "code_snapshot" and format_ == "text":
         format_ = "python"
-    elif role == "attached_data" and suffix in (".csv", ".json"):
-        format_ = suffix[1:]
-    # HTML/SVG/Plotly need the full independent parser/checker in PR2. Do not guess them safe here.
+    suffix = {"png": ".png", "jpeg": ".jpg", "gif": ".gif", "webp": ".webp", "svg": ".svg",
+              "html": ".html", "plotly": ".json", "parquet": ".parquet", "python": ".py"}.get(format_, "")
     return SnapshotFile(source, role, suffix, recorded, digest, size, format_)
 
 
@@ -260,5 +252,6 @@ def capture_snapshot(project, *, reader=core.read_model, validate_reference=rela
         if values:
             counts["journal", reason] = len(values)
     unique = {item.key: item for item in items}
+    private_values = (marker["project_id"],) if isinstance(marker, dict) and isinstance(marker.get("project_id"), str) else ()
     return ShareSnapshot(basis, tuple(unique[k] for k in sorted(unique)),
-                         tuple(Omission(cat, reason, n) for (cat, reason), n in sorted(counts.items())))
+                         tuple(Omission(cat, reason, n) for (cat, reason), n in sorted(counts.items())), private_values)

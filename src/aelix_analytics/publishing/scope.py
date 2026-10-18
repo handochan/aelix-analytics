@@ -118,3 +118,118 @@ def scope_closure(snapshot, request, profile: Profile) -> frozenset[ItemKey]:
 def validate_scope(snapshot, request, profile, included) -> None:
     if not frozenset(included) <= scope_closure(snapshot, request, profile):
         raise PublicationError("leak_found", "projection_out_of_scope")
+
+
+def leak_policy(snapshot, request, profile, projection, *, environment=()):
+    """Independent forbidden values: snapshot minus (claimed ledger intersected with closure)."""
+    from dataclasses import fields, is_dataclass
+
+    from .model import BanToken, LeakPolicy, Text
+
+    included = frozenset(projection.ledger.included) & scope_closure(snapshot, request, profile)
+    allowed = set()
+
+    def allow(value):
+        if isinstance(value, Text):
+            if value.origin == "kit" or value.source and value.source[0] in included:
+                allowed.add(value.value)
+        elif is_dataclass(value):
+            for f in fields(value):
+                allow(getattr(value, f.name))
+        elif isinstance(value, tuple):
+            for part in value:
+                allow(part)
+
+    allow(projection.model)
+    tokens = set()
+    short = 0
+
+    def add(value, mode, key=None, field=None, exempt=True):
+        nonlocal short
+        if not isinstance(value, str) or not value or exempt and value in allowed:
+            return
+        if mode != "weak" and len(value) < 8:
+            short += 1
+            return
+        tokens.add(BanToken(value, mode, key, field))
+
+    def flatten(value, path=""):
+        if isinstance(value, str):
+            yield path, value
+        elif hasattr(value, "entries"):
+            for name, part in value.entries:
+                yield from flatten(part, (path + "." if path else "") + name)
+        elif isinstance(value, tuple):
+            for n, part in enumerate(value):
+                yield from flatten(part, f"{path}[{n}]")
+
+    for item in snapshot.items:
+        # Completion events accompany included objects. Their private text never gets rendered,
+        # but an included run's own ID is not a forbidden identifier merely due to its run event.
+        completion = item.kind in ("run", "import", "context", "report_revision") and any(
+            r.relation == "about" and r.target in included for r in item.references
+        )
+        outside = item.key not in included and not completion
+        if outside:
+            if item.key.category in ("run", "visualization", "context", "report"):
+                add(item.key.identity, "strong", item.key, "identity")
+            elif item.key.category == "event":
+                add(item.key.identity, "weak", item.key, "identity")
+        for field, value in flatten(item.values):
+            if outside:
+                if field == "name":
+                    add(value, "strong" if len(value) >= 8 else "weak", item.key, field)
+                if field.endswith(
+                    (
+                        "path",
+                        "snapshot",
+                        "version",
+                        "revision_id",
+                        "report_id",
+                        "visualization_id",
+                        "run_id",
+                    )
+                ):
+                    add(
+                        value,
+                        "strong" if "/" in value or "\\" in value or len(value) >= 8 else "weak",
+                        item.key,
+                        field,
+                    )
+                if field == "text":
+                    for line in value.splitlines():
+                        if len(" ".join(line.split())) >= 24:
+                            add(line, "sentence", item.key, field)
+            # Private environment fields are blocked even when their source item is included.
+            if field in (
+                "env.platform",
+                "env.executable",
+                "request_id",
+                "request_fingerprint",
+                "session",
+            ) or field.endswith(".session"):
+                add(value, "strong", item.key, field, exempt=False)
+            if item.key in included and (
+                field.startswith(
+                    (
+                        "stdout",
+                        "stderr",
+                        "warnings",
+                        "finalize_errors",
+                        "error.message",
+                        "error.summary",
+                        "error.hint",
+                    )
+                )
+            ):
+                for line in value.splitlines():
+                    if len(" ".join(line.split())) >= 24:
+                        add(line, "warning", item.key, field)
+    for value in environment:
+        add(value, "strong", exempt=False)
+        if isinstance(value, str):
+            add(value.replace("\\", "/"), "strong", exempt=False)
+            add(value.replace("/", "\\"), "strong", exempt=False)
+    return LeakPolicy(
+        tuple(sorted(tokens, key=lambda t: (t.mode, t.value, str(t.source), t.field or ""))), short
+    )

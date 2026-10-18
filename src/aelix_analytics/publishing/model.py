@@ -6,8 +6,8 @@ from typing import Literal
 
 
 class PublicationError(ValueError):
-    def __init__(self, code: str, message: str):
-        self.code, self.message = code, message
+    def __init__(self, code: str, message: str, *, details=None):
+        self.code, self.message, self.details = code, message, details or {}
         super().__init__(message)
 
 
@@ -55,6 +55,13 @@ class FileSlot:
     package_path: str
     role: str
     verified: Literal["recorded_hash", "no_recorded_hash", "kit_generated"]
+    format: str | None = None
+
+
+@dataclass(frozen=True)
+class FileNotice:
+    role: str
+    reason: str
 
 
 @dataclass(frozen=True)
@@ -75,6 +82,7 @@ class ShareItem:
     fields: tuple[Field, ...]
     references: tuple[Reference, ...] = ()
     files: tuple[FileSlot, ...] = ()
+    file_notices: tuple[FileNotice, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -121,3 +129,40 @@ class Projection:
     copy_plan: tuple[CopyEntry, ...]
     ledger: ScopeLedger
     basis: SnapshotBasis
+
+
+@dataclass(frozen=True)
+class ScanText:
+    value: str
+    location: str
+    name_slot: bool = False
+
+
+@dataclass(frozen=True)
+class ResourceLink:
+    value: str
+    location: str
+    resource: bool = True
+
+
+@dataclass(frozen=True)
+class Inspection:
+    format: str
+    strings: tuple[ScanText, ...]
+    links: tuple[ResourceLink, ...] = ()
+    metadata_keys: tuple[str, ...] = ()
+    ids: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class BanToken:
+    value: str
+    mode: Literal["strong", "weak", "sentence", "warning"]
+    source: ItemKey | None = None
+    field: str | None = None
+
+
+@dataclass(frozen=True)
+class LeakPolicy:
+    tokens: tuple[BanToken, ...] = ()
+    short_markers: int = 0
