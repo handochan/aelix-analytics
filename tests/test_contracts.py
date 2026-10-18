@@ -814,3 +814,53 @@ def test_every_implementation_writes_what_the_process_default_writes(implementat
     reference = _flow(tmp_path / "default", source, core.PLATFORM)
     chosen = _flow(tmp_path / "chosen", source, implementation.make())
     assert chosen == reference
+
+
+# PublicationProjection (Issue20 PR1): model/scope contracts now exist. Package/build/Report
+# capabilities are intentionally absent; their cases are skipped rather than called acceptance.
+@dataclass(frozen=True)
+class ProjectionImplementation:
+    id: str
+    profile: str
+    capabilities: frozenset[str]
+
+
+PROJECTION_IMPLEMENTATIONS = (
+    ProjectionImplementation("read", "read", frozenset({"project", "model", "no_io", "files", "references"})),
+    ProjectionImplementation("evidence", "evidence", frozenset({"project", "model", "no_io", "files", "references"})),
+    ProjectionImplementation("recording", "read", frozenset({"project", "model", "no_io"})),
+)
+
+
+@pytest.mark.parametrize("implementation", PROJECTION_IMPLEMENTATIONS, ids=lambda i: i.id)
+def test_publication_implementation_contract(implementation):
+    from publication_doubles import RecordingProjection
+
+    from aelix_analytics.publishing.model import ContentBasis, ItemKey, SnapshotBasis
+    from aelix_analytics.publishing.projection import (
+        ShareRequest,
+        ShareSnapshot,
+        SnapshotItem,
+        freeze,
+        project,
+    )
+    from aelix_analytics.publishing.scope import PROFILES, scope_closure
+
+    snapshot = ShareSnapshot(SnapshotBasis(0, ContentBasis(0, None, None)), (
+        SnapshotItem(ItemKey("project", "project"), "project", freeze({"title": "Public"}), root=True),))
+    request = ShareRequest()
+    recording = RecordingProjection() if implementation.id == "recording" else None
+    result = project(snapshot, request, profile=implementation.profile, implementation=recording)
+    assert set(result.ledger.included) <= scope_closure(snapshot, request, PROFILES[implementation.profile])
+    assert result == project(snapshot, request, profile=implementation.profile, implementation=recording)
+    assert result.model.title.value == "Public"
+    if recording:
+        assert recording.requests == [request, request]
+
+
+@pytest.mark.parametrize("implementation", PROJECTION_IMPLEMENTATIONS, ids=lambda i: i.id)
+@pytest.mark.parametrize("capability", ["reports", "collection", "full_build_injection"])
+def test_publication_later_capability_is_not_claimed(implementation, capability):
+    if capability not in implementation.capabilities:
+        pytest.skip(f"{implementation.id}: {capability} is PR4 or the later build adapter, not PR1 acceptance")
+    raise AssertionError("new capability needs an actual contract case before it can be advertised")

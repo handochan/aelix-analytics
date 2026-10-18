@@ -1,8 +1,8 @@
 # 공유 build 설계 — 선택 범위의 독립 HTML·ZIP 패키지
 
-- 상태: **설계 채택·구현 전.** `analytics build`, `publication.json`, `PublicationProjection`과 이 문서의 명령 인자·파일·필드·
-  오류 코드·화면 label은 코드에 없다. 지금 동작은 [현재 계약](../CONTRACTS.md)이 설명한다. 지금의 `report/`는 공유본이 아니다(계약 G
-  "반출 정책·가림").
+- 상태: **설계 채택·단계별 구현 중.** PR1은 내부 `PublicationProjection`·공유 모델·공통 닫힘·snapshot의 순수 경계를 구현했다.
+  `analytics build`·preview·`publication.json` 쓰기/결박·Report 범위·패키지 검사·독자 검증은 후속 PR이다.
+  현재 공개 동작은 [현재 계약](../CONTRACTS.md)이 설명한다. Workspace는 프로젝트의 파일을 참조하며 공유 패키지 생성은 아직 없다.
 - 작업: [#20](https://github.com/handochan/aelix-analytics/issues/20) `[B4-s/P0]`.
   [2026-10-17 순서 완화](https://github.com/handochan/aelix-analytics/issues/20#issuecomment-6232441606)로 PR-0~PR-3은
   [#19](https://github.com/handochan/aelix-analytics/issues/19) 앞에 시작할 수 있다. Report 범위 PR-4는 #19 뒤다.
@@ -419,8 +419,9 @@ class PublicationProjection(Protocol):
 | 데이터 관측 | 있다 | 메타데이터만. 바이트는 복사하지 않는다 | 메타데이터의 상태만 |
 
 - writer는 복사하면서 해시를 다시 계산하고 스냅샷의 digest 표(4.1)와 대조한다. 투영 때 같았던 파일이 복사 중 바뀌면 `source_changed`로
-  build를 끝낸다. 기록된 해시가 없는 `/1` 그림·첨부 표는 digest 표에 없으므로 기록 뒤의 변경도, 복사 중의 변경도 알아채지 못한다. 복사하며
-  계산한 해시를 manifest에 적을 뿐이다(R6).
+  build를 끝낸다. 기록 해시가 없는 `/1` 그림·첨부 표도 지금의 digest를 snapshot 표에 고정한다.
+  [ADR-0014 결정 4](../decisions/0014-publication-record-contract.md#4-manifest의-필수-계약)대로 후속 writer는 어느 사본이든 복사 중 변경을 대조한다.
+  기록 뒤부터 build 전까지 바뀌었는지는 기록 해시가 없는 사본에서 알 수 없으므로 "No recorded hash"를 유지한다(R6).
 - 원본은 프로젝트 안의 일반 파일이어야 한다. 끝까지 푼 경로가 프로젝트 밖이거나 일반 파일이 아니면 복사하지 않고 `unsupported`(`outside_project`)로
   보인다. 보안 판정은 끝까지 푼 경로로 한다는 ADR-0006 §9의 규칙을 따른다. 심볼릭 링크로 임의의 로컬 파일이 패키지에 들어오는 길을 막는다.
 - 지금 경로의 다른 바이트(다시 쓴 파생 표, 고친 스크립트)를 "그 버전"으로 복사하는 일은 어떤 경우에도 없다.
@@ -1242,3 +1243,13 @@ PR-0의 설계 리뷰에서도 확인한다. OQ23–OQ25는 `7010c6e`의 설계 
 - `7010c6e`의 설계 리뷰(독립 1·Codex 1)가 고칠 것 12개, 고려할 것 18개, 새 소유자 질문 3개를 냈다. 리뷰가 인용한 코드 줄(`capture.py:363-370`,
   `_platform.py:1247-1257`, `core.py:575-576`, `relations.py:287-289`·`553-570`·`812-820`, `runner.py:112`·`699`·`1018-1020`,
   `tools/eval_fixtures.py:1211-1217`, CONTRACTS.md:315)은 `6c4c2cd`에서 다시 읽어 확인했다.
+
+## PR1 구현 증거의 범위
+
+`publishing/`의 내부 snapshot·순수 투영·공통 닫힘이 구현되어 read/evidence와 주입한 작은 시험 구현을 모델 수준에서 검증한다.
+현재 실제 snapshot adapter의 그림 형식 관측은 PNG/JPEG/GIF/WebP를 지원한다. HTML/SVG/Plotly는 PR2의 전체 파서·검사 전에는 보수적으로
+`format` 사유로 복사 계획에서 제외한다. 첨부 표·코드의 관측은 독립 바이트 검사 통과를 뜻하지 않는다. renderer·패키지 writer는 아직 없다.
+
+범위 밖 대상의 참조·후보 정체성과 허용하지 않은 필드가 모델에 들어가지 않는 canary를 확인한다. 포함한 사용자 글이 제외한 이름을 직접
+언급하는 경우는 원문과 `Text.source`를 보존하며 PR2의 독립 누출 검사에서 해당 필드를 짚어 거절한다. PR1 모델을 검사 완료 패키지로
+취급하지 않는다. Report/collection 실제 범위와 C11의 전체 build 주입은 후속 PR의 미실행 범위다.

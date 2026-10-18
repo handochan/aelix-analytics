@@ -316,6 +316,9 @@ N0의 명칭·기본 언어 전환을 A0의 경계 정리와 조율한다. 현�
 | `read_model` | 0 | 기록의 읽기 모델(§9 `projections/`)·자산의 순수 값/점수 계약·주입한 reader로 평가하는 checkpoint 값 | `src/aelix_analytics/relations.py`, `src/aelix_analytics/asset_policy.py`, `src/aelix_analytics/checkpoints.py` | 없음 | stdlib |
 | `distribution` | 0 | 설치본의 실행 루트 위치 | `src/aelix_analytics/_install.py` | 없음 | stdlib |
 | `messages` | 0 | Workspace의 kit 문구를 message key로 찾는 카탈로그(#96) | `src/aelix_analytics/i18n.py` | 없음 | stdlib |
+| `share_model` | 0 | 원시 기록·Project·I/O 객체 없는 불변 공유 자료형 | `src/aelix_analytics/publishing/__init__.py`, `src/aelix_analytics/publishing/model.py` | 없음 | stdlib |
+| `publication_policy` | 1 | 순수 read/evidence 투영, 공통 닫힘, 허용 필드·출처 판정 | `src/aelix_analytics/publishing/projection.py`, `src/aelix_analytics/publishing/scope.py`, `src/aelix_analytics/publishing/field_policy.py`, `src/aelix_analytics/publishing/basis.py` | `read_model`, `share_model`, 같은 `publication_policy` | stdlib |
+| `publishing` | 3 | 투영 전 읽기·digest·형식 판정을 고정하는 snapshot adapter; Workspace와 분리 | `src/aelix_analytics/publishing/snapshot.py` | `core`, `ports`, `read_model`, `writer`, `share_model`, `publication_policy` | stdlib |
 | `writer` | 1 | 기록 writer: 표식 판정과 쓰기 게이트, `Origin`, 오류 클래스, 기록 헬퍼, 새 형식의 공통 `Writer`(#13) | `src/aelix_analytics/writer.py`, `src/aelix_analytics/asset_contract.py` | `ports`, `read_model` | stdlib |
 | `core` | 2 | 도메인·공유 응용(아직 나뉘지 않음, §2) | `src/aelix_analytics/core.py` | `ports`, `read_model`, `writer`, `asset_application` | stdlib |
 | `asset_application` | 2 | 주입한 Writer로 자산 검토·승격·등록·프로젝트 제안 정책을 처리하며 core/host를 import하지 않음 | `src/aelix_analytics/asset_app.py`, `src/aelix_analytics/asset_suggestions.py` | `ports`, `read_model`, `writer`, 같은 `asset_application` | stdlib |
@@ -410,3 +413,5 @@ Issue #15의 `relations.QueryPolicy`는 stdlib 어휘 순위·페이지 정책�
 [PEP 544](https://peps.python.org/pep-0544/)의 Protocol은 Python의 구조적 타입 경계를 표현하는 수단이며 런타임 의미 검증의 대체물이 아니다.
 
 이 패턴들을 이 프로젝트의 변경 축에 적용하는 방식과 인터페이스 이름은 본 문서의 설계 제안이다.
+
+Issue #20 PR1은 순수 공유 모델·투영·공통 범위 닫힘과 snapshot adapter를 더합니다. `analytics build`·preview·publication writer·manifest 결박·Report 범위는 아직 구현 전입니다. `publishing`의 수준은 현재 core2/Workspace3/진입점4에 맞춘3이며, 설계 문서의 옛 수준2 숫자를 그대로 따르지 않습니다.
