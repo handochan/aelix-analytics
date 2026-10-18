@@ -90,7 +90,7 @@ IMPLEMENTATIONS: dict[str, Implementation] = {
         Implementation("windows", lambda: _platform.detect("windows"), os.name == "nt",
                        "the Windows implementation runs on the Windows leg", REAL | {RENAMES}),
         # In this process only: its lock excludes nothing outside it, alive is False for every pid,
-        # and its guard never interrupts. Its rename_new is a link and an unlink in this process.
+        # and its guard never interrupts. Its rename_new uses a process-local mutex.
         Implementation("recording", lambda: recording_platform()[0], True, "", frozenset({RENAMES})),
     )}
 
@@ -496,6 +496,39 @@ def test_renaming_to_a_new_name_puts_the_bytes_there_and_the_old_name_goes(imple
     assert (tmp_path / "other.json").read_bytes() == b"x" and not src.exists()
 
 
+@pytest.mark.parametrize("destination", ["absent", "empty_directory", "directory", "file"])
+def test_directory_rename_between_parents_never_replaces(implementation, tmp_path, destination):
+    """Report publication is one exclusive tree rename across parents, including on Windows."""
+    needs(implementation, RENAMES)
+    files = implementation.make().files
+    stage = tmp_path / ".staging" / "attempt"
+    stage.mkdir(parents=True)
+    (stage / "content").mkdir()
+    (stage / "content" / "원문.bin").write_bytes(b"immutable\x00\xff")
+    (stage / "manifest.json").write_bytes(b"manifest")
+    dst = tmp_path / "revision"
+    if destination == "file":
+        dst.write_bytes(b"person's existing file")
+    elif destination != "absent":
+        dst.mkdir()
+        if destination == "directory":
+            (dst / "existing.bin").write_bytes(b"existing")
+    if destination == "absent":
+        files.rename_new(stage, dst)
+        assert not stage.exists()
+        assert (dst / "content" / "원문.bin").read_bytes() == b"immutable\x00\xff"
+    else:
+        with pytest.raises(FileExistsError):
+            files.rename_new(stage, dst)
+        assert (stage / "content" / "원문.bin").read_bytes() == b"immutable\x00\xff"
+        if destination == "file":
+            assert dst.read_bytes() == b"person's existing file"
+        elif destination == "directory":
+            assert (dst / "existing.bin").read_bytes() == b"existing"
+        else:
+            assert dst.is_dir() and not any(dst.iterdir())
+
+
 @pytest.mark.parametrize("there", ["file", "directory", "empty file"])
 def test_renaming_never_overwrites_what_is_there(implementation, tmp_path, there):
     """A name taken meanwhile keeps what is there, and the temporary file stays for its ledger line
@@ -552,6 +585,14 @@ def test_a_system_without_the_exclusive_rename_is_told_and_nothing_changes(imple
     with pytest.raises(_platform.RenameUnsupported):
         bundle.files.rename_new(src, dst)
     assert src.read_bytes() == b"the marker" and not dst.exists()
+
+    tree = tmp_path / ".staging" / "attempt"
+    tree.mkdir(parents=True)
+    (tree / "content.bin").write_bytes(b"preserved tree")
+    target = tmp_path / "revision"
+    with pytest.raises(_platform.RenameUnsupported):
+        bundle.files.rename_new(tree, target)
+    assert (tree / "content.bin").read_bytes() == b"preserved tree" and not target.exists()
 
 
 def test_flushing_writes_through_and_hides_no_error(implementation, tmp_path):

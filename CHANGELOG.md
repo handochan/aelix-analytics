@@ -15,6 +15,10 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 없음. 병합된 변경은 그 PR이 병합될 때의 kit 번호 절에 적고, kit 번호를 올리는 PR은 새 절을 엽니다
 ([기여 가이드](CONTRIBUTING.md#첫-공개-전에-남은-운영-결정)).
 
+## [0.21.0] - 2026-10-18
+
+- [#116](https://github.com/handochan/aelix-analytics/pull/116): Report 파일을 불변 버전으로 등록·보존하는 CLI/SDK, 같은 요청의 재시도·중단 복구·이전 버전 충돌 검사, 정확한 버전 철회/복원과 prepared 정리를 추가했습니다. metadata·이력과 선택한 파일 범위를 모델 없이 읽으며 Reports 화면·반복 묶음·형식별 보기는 후속 PR입니다.
+
 ## [0.20.0] - 2026-10-18
 
 ### Fixed
