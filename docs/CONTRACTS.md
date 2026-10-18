@@ -966,7 +966,34 @@ Workspace의 kit 문구(탭·제목·배지·버튼·빈 화면·안내·tooltip
 - rename은 같은 파일 시스템의 서로 다른 부모 사이에서 파일/디렉터리를 배타적으로 옮깁니다. 기존 목적지를 덮지 않으며
   지원하지 않는 파일 시스템은 `no_exclusive_rename`으로 거절합니다. 비원자적 복사로 대체하지 않습니다.
 
-선택 metadata·반복 묶음·형식별 보기·Reports 화면은 후속 PR입니다. 이 PR의 합성 저장/실패 검증은 실제 모델 생성·사람의 열람 수용을 대신하지 않습니다.
+kit0.21.0은 개별 저장 계약을 도입했습니다. kit0.22.0은 아래 metadata·collection 쓰기 규칙을 사용하므로
+새 저장과 상태 변경의 writer floor는 0.22.0입니다. 과거 버전의 보존 파일·지문은 바꾸지 않습니다.
+
+### C17. Report 선택 metadata·반복 묶음·형식별 보기 (kit 0.22.0, #19 PR2)
+
+- `reports save`의 `--metadata JSON_FILE`과 SDK `save_report(..., metadata=OBJECT)`가 같은 응용 경로를 씁니다.
+  summary/purpose/change_reason은 문자열, scope/generation은 유한 JSON, content_status는 partial/complete입니다.
+  알 수 없는 선택 필드도 원래 값으로 보존합니다. 필수 manifest 필드와 metadata_file은 선택 입력에서 덮지 못합니다.
+- 선택 입력이 있으면 kit 전용 `_analytics/metadata.json`을 UTF-8·키 정렬·공백 없는 유한 JSON으로 보존하고
+  manifest의 같은 선택 값·metadata_file 및 files의 bytes/sha256과 결박합니다. 모든 선택 값 변경은 이 파일 해시를 통해
+  기존 ADR-0006 지문에 들어갑니다. 선택 입력을 생략한 과거 지문 벡터는 그대로입니다.
+  기본 조회는 본문을 해시하지 않지만 metadata sidecar의 바이트 일치는 확인합니다. 불일치는 problem으로 표시하고 새 저장/재시도를 거절합니다.
+- `collection.contract=report_collection/1`, `members`는 요청한 전체 구성원의 순서 있는 목록입니다.
+  각 member_key는 중복 없는 원문 문자열이며 scope는 선택 유한 JSON입니다. complete는 이 프로젝트의 온전한 **이전 완료 버전**
+  report_id/revision_id를 필수로 받습니다. failed/not_generated는 reason이 필수이고 Report 주소를 갖지 않습니다.
+  requested/complete/failed/not_generated는 실제 목록에서 계산합니다. authored content_status·기록 완료·파일 무결성·검토는 별개입니다.
+  실패분 추가·구성원 새 버전·내용 변경은 새 묶음 버전이며 과거 묶음의 바이트/정확한 구성원 주소를 고치지 않습니다.
+- 구성원 관계는 includes/declared/author와 structural=true로 읽고 작성 근거 based_on.refs와 구별합니다.
+  구조 관계가 resolved여도 references_summary의 문서 근거 confirmed 수를 늘리지 않습니다. 결론 검토를 새로 만들지 않습니다.
+- 내부 `ReportRenderer`는 선택 파일의 bytes, entry, `{보존 경로: 패키지 경로}`만 받습니다.
+  원시 manifest/ReportRef/request ID/프로젝트/모델은 받지 않으며 직접 파일·네트워크·생성 실행을 조회하지 않습니다.
+  결과는 재생성 `{path: bytes}`, 원본 다운로드 링크, supported/reasons입니다. 원본 복사는 호출자가 맡습니다.
+  StaticReportRenderer는 Markdown의 raw HTML을 끄고 명시한 local 경로만 다시 씁니다. 원격/미대응 경로는 지원 실패 사유로 남기고
+  이미지는 다운로드로 남깁니다. HTML/SVG·PDF/Office·모르는 형식은 **다운로드만** 제공하며 authored HTML을 DOM에 넣지 않습니다.
+  이는 공유 적합성 통과가 아닙니다. #20의 형식·제외 내용 검사는 별도로 적용합니다.
+
+ReportRenderer는 교체 계약과 원본 불변성 검증을 마친 내부 adapter이며 Workspace 조립·Reports 탭은 PR3 범위입니다.
+실제 모델 생성·브라우저/사람의 열람 수용은 후속 검증이며 합성 저장/renderer 시험과 구별합니다.
 
 ## D. kit CLI
 

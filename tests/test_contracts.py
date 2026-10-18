@@ -924,3 +924,55 @@ def test_publication_preview_uses_each_injected_implementation(implementation, t
     assert f"Profile: {implementation.id}.".encode() in files["index.html"]
     if implementation.id == "recording":
         assert chosen.requests == [ShareRequest()]
+
+# ReportRenderer (Issue19 PR2): production conservative view and boundary-recording stand-in.
+# The stand-in delegates format parsing; it proves replacement and input boundaries, not a second
+# Markdown implementation. HTML/Office/PDF views remain download-only for both.
+@dataclass(frozen=True)
+class ReportRendererImplementation:
+    id: str
+    capabilities: frozenset[str]
+
+
+REPORT_RENDERER_IMPLEMENTATIONS = (
+    ReportRendererImplementation("static", frozenset({"markdown", "text", "download", "no_io"})),
+    ReportRendererImplementation("recording", frozenset({"markdown", "text", "download", "no_io"})),
+)
+
+
+@pytest.mark.parametrize("implementation", REPORT_RENDERER_IMPLEMENTATIONS, ids=lambda i: i.id)
+def test_report_renderer_replacement_contract(implementation, monkeypatch):
+    import inspect
+    import socket
+
+    from report_renderer_doubles import RecordingReportRenderer
+
+    from aelix_analytics.report_renderer import ReportRenderer
+    from aelix_analytics.report_renderers import StaticReportRenderer
+
+    renderer = RecordingReportRenderer() if implementation.id == "recording" else StaticReportRenderer()
+    assert list(inspect.signature(renderer.render).parameters) == ["files", "entry", "paths"]
+    assert list(inspect.signature(ReportRenderer.render).parameters) == ["self", "files", "entry", "paths"]
+    files, paths = {"한글.md": b"# Exact bytes\r\n"}, {"한글.md": "original/한글.md"}
+    # Import the parser before refusing external I/O (Python's module loader reads its source).
+    from markdown_it import MarkdownIt
+    assert MarkdownIt
+
+    def refuse(*args, **kwargs):
+        raise AssertionError("ReportRenderer looked outside its explicit byte input")
+
+    monkeypatch.setattr(Path, "read_bytes", refuse)
+    monkeypatch.setattr(Path, "read_text", refuse)
+    monkeypatch.setattr(socket, "create_connection", refuse)
+    before = dict(files)
+    first = renderer.render(files, entry="한글.md", paths=paths)
+    assert first == renderer.render(files, entry="한글.md", paths=paths)
+    assert first.supported and files == before
+    assert set(first.originals) == set(files) and all(isinstance(b, bytes) for b in first.files.values())
+    with pytest.raises(TypeError):
+        first.files["overwritten"] = b"bad"
+    if implementation.id == "recording":
+        assert renderer.calls == [(files, "한글.md", paths), (files, "한글.md", paths)]
+    fallback = renderer.render({"a.pdf": b"%PDF"}, entry="a.pdf", paths={"a.pdf": "original/a.pdf"})
+    assert not fallback.supported and fallback.reasons == ("format_download_only",)
+    assert fallback.originals == {"a.pdf": "../original/a.pdf"}

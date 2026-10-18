@@ -21,6 +21,13 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 
 - #20 PR2: `analytics build --preview`와 명시적 `/analytics build --preview`로 read/evidence 범위의 메모리 패키지·링크·형식·누출 검사를 확인합니다. 원본 해시·과거 버전을 대조하고 파일별 제외와 검사 상태를 표시하며 프로젝트·환경을 새로 쓰지 않습니다. 저장 build·publication 결박·Report/collection·ZIP·publish는 후속입니다.
 
+## [0.22.0] - 2026-10-19
+
+### Added
+
+- Report optional metadata and exact partial collection snapshots, with canonical metadata bytes bound through the existing retry fingerprint. CLI `reports save --metadata` and SDK use the same path ([PR118](https://github.com/handochan/aelix-analytics/pull/118), #19 PR2).
+- Byte-only ReportRenderer contract and conservative Markdown/text views with original download links; arbitrary HTML/SVG/PDF/Office remain download-only. Workspace Reports integration follows in PR3.
+
 ## [0.21.0] - 2026-10-18
 
 - #20 PR1: 内부 공유 모델·read/evidence 투영·공통 범위 닫힘·고정 snapshot과 `content_seq`를 구현했습니다. 허용 필드·참조 상태·파일 역할을 모델에서 검증하며 build/preview 명령·패키지 writer·Report 범위는 후속 PR입니다. 공개 진입점과 저장 형식은 그대로여서 kit 번호를 별도로 올리지 않았습니다.

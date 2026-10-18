@@ -780,6 +780,14 @@
             }
           }
         },
+        "summary": {"type": "string"},
+        "purpose": {"type": "string"},
+        "change_reason": {"type": "string"},
+        "scope": {},
+        "generation": {},
+        "content_status": {"enum": ["partial", "complete"]},
+        "metadata_file": {"const": "_analytics/metadata.json"},
+        "collection": {"$ref": "#/$defs/report_collection_1"},
         "based_on": {
           "type": "object",
           "required": ["as_of_seq", "context_version"],
@@ -789,6 +797,27 @@
             "refs": {"$ref": "#/$defs/references"}
           }
         }
+      }
+    },
+    "report_collection_1": {
+      "type": "object",
+      "required": ["contract", "members"],
+      "properties": {
+        "contract": {"const": "report_collection/1"},
+        "members": {"type": "array", "items": {
+          "type": "object", "required": ["member_key", "status"],
+          "properties": {
+            "member_key": {"type": "string", "minLength": 1},
+            "scope": {},
+            "status": {"enum": ["complete", "failed", "not_generated"]},
+            "report_id": {"$ref": "#/$defs/report_id"},
+            "revision_id": {"$ref": "#/$defs/opaque_id"},
+            "reason": {"type": "string", "minLength": 1}
+          },
+          "allOf": [{"if": {"properties": {"status": {"const": "complete"}}},
+                     "then": {"required": ["report_id", "revision_id"]},
+                     "else": {"required": ["reason"], "not": {"anyOf": [{"required": ["report_id"]}, {"required": ["revision_id"]}]}}}]
+        }}
       }
     },
     "run_2": {

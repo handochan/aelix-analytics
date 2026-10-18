@@ -1731,12 +1731,12 @@ def resolved_targets(events) -> dict[str, dict]:
 # --- the new format's records (Issue #13 PR 3, design 4.5 and 9) ---
 
 def save_report(project: Project, report_id, *, files, entry, title, previous_revision,
-                request_id=None, based_on=None, origin: Origin):
+                request_id=None, based_on=None, metadata=None, origin: Origin):
     from . import report_app
 
     return report_app.Reports(writer_for(project, origin)).save(
         report_id, files=files, entry=entry, title=title, previous_revision=previous_revision,
-        request_id=request_id, based_on=based_on)
+        request_id=request_id, based_on=based_on, metadata=metadata)
 
 
 def reports(project: Project, report_id=None, revision_id=None, **options):
@@ -3054,7 +3054,7 @@ def references_summary(judgments: list[dict]) -> dict:
     for judged in judgments:
         states[judged["state"]] = states.get(judged["state"], 0) + 1
     return {"states": {s: states[s] for s in REFERENCE_STATES if s in states},
-            "confirmed": sum(1 for judged in judgments if judged["confirmed"]),
+            "confirmed": sum(1 for judged in judgments if judged["confirmed"] and not judged.get("structural")),
             "not_resolved": [{"state": judged["state"], "target": reference_label(judged)}
                              for judged in judgments if judged["state"] != "resolved"]}
 
