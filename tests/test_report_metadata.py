@@ -98,13 +98,13 @@ def test_sidecar_and_manifest_disagreement_refuses_reads_and_retry(case, tamper)
     if tamper == "manifest":
         manifest["summary"] = "unbound change"
         assert relations.report_manifest_problem(manifest) == "metadata_binding_mismatch"
-        (path / "manifest.json").write_text(json.dumps(manifest))
+        (path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     elif tamper == "missing_sidecar":
         sidecar.unlink()
     elif tamper == "noncanonical_sidecar":
-        sidecar.write_text('{ "summary": "v1" }')
+        sidecar.write_text('{ "summary": "v1" }', encoding="utf-8")
     else:
-        sidecar.write_text('{"summary":"different"}')
+        sidecar.write_text('{"summary":"different"}', encoding="utf-8")
     read = core.reports(case[0], "weekly", first["report"]["revision_id"])
     assert read["reports"][0]["problem"]
     error("report_record_invalid", lambda: save(case, metadata={"summary": "v1"}))
@@ -180,6 +180,37 @@ def test_collection_retry_after_rename_rechecks_member_integrity(case, monkeypat
     assert row["recording_status"] == "incomplete"
 
 
+def test_interleaved_partial_members_keep_original_structural_source_locations(case):
+    a, b = save(case, "member-a"), save(case, "member-b")
+    members = [{"member_key": "failure", "status": "failed", "reason": "failed"}, complete("a", a),
+               {"member_key": "later", "status": "not_generated", "reason": "later"}, complete("b", b)]
+    answer = save(case, "collection", metadata=collection(members))
+    m = model(case)
+    source = relations.report_key("collection", answer["report"]["revision_id"])
+    refs = m.references(source)
+    assert [r["ref"] for r in refs] == [{"field": "collection.members", "index": 1}, {"field": "collection.members", "index": 3}]
+    for r in refs:
+        member = members[r["ref"]["index"]]
+        assert (r["target"]["report_id"], r["target"]["revision_id"]) == (member["report_id"], member["revision_id"])
+    assert [r for r in m.references() if r["from"] == source] == refs
+
+
+@pytest.mark.parametrize("reason", [None, 42, [], {}, ""])
+def test_complete_optional_reason_must_match_stored_schema_before_staging(case, reason):
+    member = save(case, "member")
+    metadata = collection([{**complete("member", member), "reason": reason}])
+    error("report_input_invalid", lambda: save(case, "collection", metadata=metadata))
+    assert not (case[0].root / "artifacts/reports/collection").exists()
+
+
+def test_complete_optional_reason_is_preserved_when_valid(case):
+    member = save(case, "member")
+    answer = save(case, "collection", metadata=collection([{**complete("member", member), "reason": "Recovered from an earlier failure"}]))
+    manifest = json.loads((directory(case, answer) / "manifest.json").read_bytes())
+    VALIDATOR.validate(manifest)
+    assert manifest["collection"]["members"][0]["reason"] == "Recovered from an earlier failure"
+
+
 @pytest.mark.parametrize("kind", ["missing", "prepared", "incomplete", "damaged"])
 def test_complete_members_require_prior_completion_and_intact_bytes(case, monkeypatch, kind):
     if kind in ("prepared", "incomplete"):
@@ -226,7 +257,7 @@ def test_sdk_and_cli_metadata_use_same_application(case, monkeypatch, tmp_path):
     first = analytics.save_report("weekly", files=case[1], entry="요약.md", title="보고서", previous_revision=None,
                                   request_id="shared-request", metadata=metadata)
     args = tmp_path / "메타데이터.json"
-    args.write_text(json.dumps(metadata, ensure_ascii=False))
+    args.write_text(json.dumps(metadata, ensure_ascii=False), encoding="utf-8")
     result = kit_cli(case[0].root, "reports", "save", "weekly", "--files", str(case[1]), "--entry", "요약.md", "--title", "보고서",
                   "--previous", "none", "--request-id", "shared-request", "--metadata", str(args))
     assert result[0] == 0, result

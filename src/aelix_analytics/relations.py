@@ -1235,6 +1235,8 @@ def report_metadata_problem(value) -> str | None:
                 if not isinstance(member, dict) or not isinstance(member.get("member_key"), str) or not member["member_key"] or member["member_key"] in seen:
                     return "invalid_collection_member"
                 seen.add(member["member_key"])
+                if "reason" in member and (not isinstance(member["reason"], str) or not member["reason"]):
+                    return "invalid_collection_reason"
                 if member.get("status") == "complete":
                     if not report_name(member.get("report_id")) or not isinstance(member.get("revision_id"), str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", member["revision_id"]):
                         return "invalid_collection_target"
@@ -1871,10 +1873,12 @@ class ReadModel:
             refs = self._collection_refs(manifest)
             completed = set(self._report_completions()) if refs else set()
             seqs = self._completion_seqs() if refs else {}
-            for judged in self._judge_v2(refs, source, None, completion):
+            indices = [index for index, member in enumerate(manifest["collection"]["members"])
+                       if member["status"] == "complete"] if refs else []
+            for index, judged in zip(indices, self._judge_v2(refs, source, None, completion), strict=True):
                 # Structural membership is kept apart from authored document evidence.
                 judged["structural"] = True
-                judged["ref"] = {"field": "collection.members", "index": judged["ref"]["index"]}
+                judged["ref"] = {"field": "collection.members", "index": index}
                 key = (judged["target"].get("report_id"), judged["target"].get("revision_id"))
                 if key not in completed or seqs.get(key, completion) >= completion:
                     judged.update(state="missing", reason="record_absent", confirmed=False)
