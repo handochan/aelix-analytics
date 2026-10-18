@@ -1244,12 +1244,13 @@ PR-0의 설계 리뷰에서도 확인한다. OQ23–OQ25는 `7010c6e`의 설계 
   `_platform.py:1247-1257`, `core.py:575-576`, `relations.py:287-289`·`553-570`·`812-820`, `runner.py:112`·`699`·`1018-1020`,
   `tools/eval_fixtures.py:1211-1217`, CONTRACTS.md:315)은 `6c4c2cd`에서 다시 읽어 확인했다.
 
-## PR1 구현 증거의 범위
+## PR1–PR2 구현 증거의 범위
 
-`publishing/`의 내부 snapshot·순수 투영·공통 닫힘이 구현되어 read/evidence와 주입한 작은 시험 구현을 모델 수준에서 검증한다.
-현재 실제 snapshot adapter의 그림 형식 관측은 PNG/JPEG/GIF/WebP를 지원한다. HTML/SVG/Plotly는 PR2의 전체 파서·검사 전에는 보수적으로
-`format` 사유로 복사 계획에서 제외한다. 첨부 표·코드의 관측은 독립 바이트 검사 통과를 뜻하지 않는다. renderer·패키지 writer는 아직 없다.
+PR1의 고정 snapshot·모델·read/evidence·공통 닫힘은 PR117로 병합했다. PR2는 별도 renderer와 loader/writer·형식 추출기·독립 검사,
+프로젝트에 쓰지 않는 build --preview를 연결한다. HTML/SVG/Plotly도 이제 형식·참조·누출 검사를 거치며 검사 결과/원본 소스와 파일별 제외를 기록한다.
+기본 전략을 무장한 주입, 패키지 canary·형식 양성/음성·정적 file/HTTP·무쓰기 audit를 검증한다.
+모델의 사용자 원문과 Text.source는 보존하고 독립 검사가 알려진 제외 값과 대조한다. 형식 판정은 비밀 탐지나 분석 결론 인증이 아니다.
 
-범위 밖 대상의 참조·후보 정체성과 허용하지 않은 필드가 모델에 들어가지 않는 canary를 확인한다. 포함한 사용자 글이 제외한 이름을 직접
-언급하는 경우는 원문과 `Text.source`를 보존하며 PR2의 독립 누출 검사에서 해당 필드를 짚어 거절한다. PR1 모델을 검사 완료 패키지로
-취급하지 않는다. Report/collection 실제 범위와 C11의 전체 build 주입은 후속 PR의 미실행 범위다.
+실제 build 폴더/manifest/완료 이벤트는 PR3, Report/collection과 ReportRenderer 주입은 PR4, ZIP 운반·실제 브라우저/다른 독자·CSP·M규모는 PR5다.
+그 사례는 미실행/미지원으로 구별한다. 현재 정적 Plotly 정책의 실행 증거는 프로젝트 환경의 plotly.py6.9.0/plotly.js3.7.0이며,
+다른 표시 라이브러리 판·런타임 네트워크·브라우저 상호작용을 이 증거로 확대하지 않는다. 미리보기는 renderer 판을 응답에 남긴다.

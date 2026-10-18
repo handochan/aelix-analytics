@@ -68,9 +68,15 @@ def _file(project, sha, source, role, recorded=None):
         if not real.is_file():
             raise OSError("not a regular file")
         digest = sha(real)
+        size = real.stat().st_size
+        if recorded is not None and digest != recorded:
+            return SnapshotFile(source, role, "", recorded, digest, size)
+        if role not in ("figure", "attached_data", "code_snapshot"):
+            # Input/output/context observations need the frozen digest, not a copy candidate's
+            # full format payload. The context loader below separately compares its text bytes.
+            return SnapshotFile(source, role, "", recorded, digest, size)
         with open(real, "rb") as fh:
             data = fh.read()
-        size = real.stat().st_size
     except ValueError:
         return SnapshotFile(source, role, "", recorded, None, reason="outside_project")
     except OSError:
@@ -78,7 +84,7 @@ def _file(project, sha, source, role, recorded=None):
     if hashlib.sha256(data).hexdigest() != digest:
         raise PublicationError("source_changed", "file changed after its digest was observed")
     format_ = detect_format(data, role=role) or "unsupported"
-    if role == "code_snapshot" and format_ == "text":
+    if role == "code_snapshot" and format_ == "text" and path.suffix.lower() == ".py":
         format_ = "python"
     suffix = {"png": ".png", "jpeg": ".jpg", "gif": ".gif", "webp": ".webp", "svg": ".svg",
               "html": ".html", "plotly": ".json", "parquet": ".parquet", "python": ".py"}.get(format_, "")

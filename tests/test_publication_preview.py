@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import io
 import json
+import os
 import struct
 import subprocess
 import sys
@@ -12,9 +14,10 @@ import threading
 import zlib
 from dataclasses import replace
 from functools import partial
+from html.parser import HTMLParser
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urldefrag, urljoin, urlsplit
 from urllib.request import urlopen
 
 import pytest
@@ -410,11 +413,620 @@ def test_same_preview_bytes_and_static_file_and_http_subpath_crawler(tmp_path):
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
+
+        class References(HTMLParser):
+            def __init__(self, data):
+                super().__init__(convert_charrefs=True)
+                self.links = []
+                self.feed(data)
+
+            def handle_starttag(self, tag, attrs):
+                for key, value in attrs:
+                    if value and key in ("href", "src", "data-payload"):
+                        self.links.append((value, key == "href" and tag in ("a", "area")))
+
         for name, data in files.items():
-            assert urlopen((destination / name).as_uri()).read() == data
-            with urlopen(f"http://127.0.0.1:{server.server_port}/copy/{quote(name)}") as response:
-                assert response.read() == data
+            for base in (
+                destination.as_uri() + "/",
+                f"http://127.0.0.1:{server.server_port}/copy/",
+            ):
+                address = urljoin(base, quote(name))
+                with urlopen(address) as response:
+                    assert response.read() == data
+                if not name.endswith(".html"):
+                    continue
+                for target, navigation in References(data.decode("utf-8")).links:
+                    absolute = urljoin(address, target)
+                    parsed = urlsplit(absolute)
+                    if (
+                        parsed.scheme == "data"
+                        or navigation
+                        and parsed.scheme in ("http", "https", "mailto")
+                        and parsed.netloc != urlsplit(base).netloc
+                    ):
+                        continue
+                    assert not parsed.path.endswith("/"), (
+                        "a file reader cannot open a directory link"
+                    )
+                    assert (
+                        parsed.scheme == urlsplit(base).scheme
+                        and parsed.netloc == urlsplit(base).netloc
+                    )
+                    with urlopen(urldefrag(absolute)[0]) as response:
+                        assert response.read()
     finally:
         server.shutdown()
         thread.join()
         server.server_close()
+
+
+def test_css_tokenizer_decodes_quoted_escapes_and_does_not_invent_links_in_content_strings():
+    raw = b'p{content:"url(https://example.test/is-text)";background:u\\72l("https\\3a //remote.test/a\\"b.png")}'
+    inspected = inspect_bytes(raw, role="generated", path="assets/test.css")
+    assert [link.value for link in inspected.links] == ['https://remote.test/a"b.png']
+    encoded = "".join("\\" + format(ord(char), "x") + " " for char in CANARY)
+    css = ('p{content:"' + encoded + '"}').encode()
+    with pytest.raises(PublicationError):
+        checks.check_strings(
+            inspect_bytes(css, role="generated", path="a.css").strings, POLICY, path="a.css"
+        )
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        b'<meta content=">" http-equiv=" refresh " content="0;https://remote.test">',
+        b'<div onclick="alert(1)">bad</div>',
+        b'<iframe src="index.html"></iframe>',
+        b'<iframe srcdoc="&lt;script&gt;alert(1)&lt;/script&gt;" sandbox></iframe>',
+        b'<script>fetch("https://remote.test")</script>',
+    ],
+)
+def test_generated_html_cannot_bypass_resource_rules_through_inline_execution(raw):
+    with pytest.raises(PublicationError) as caught:
+        checks.check_package({"index.html": raw}, {"index.html": "generated"})
+    assert caught.value.code == "package_check_failed"
+
+
+def test_leading_space_data_uri_is_still_inspected_and_nested_depth_is_bounded():
+    raw = (
+        b'<img src=" \tdata:image/png;base64,'
+        + base64.b64encode(png((b"tEXt", b"Author\0" + CANARY.encode())))
+        + b'">'
+    )
+    result = inspect_bytes(raw, role="figure")
+    with pytest.raises(PublicationError):
+        checks.check_strings(result.strings, POLICY, path="data.html")
+    for _ in range(6):
+        raw = b'<img src="data:text/html;base64,' + base64.b64encode(raw) + b'">'
+    with pytest.raises(PublicationError, match="depth4"):
+        inspect_bytes(raw, role="figure")
+
+
+def test_actual_plotly_payload_is_safe_escaped_deduplicated_and_bundle_is_scanned(
+    tmp_path, monkeypatch
+):
+    p = core.init_project(tmp_path / "p", title="Public", origin=ORIGIN)
+    script = p.scripts / "plot.py"
+    script.write_text(
+        "import aelix_analytics as a\nimport plotly.graph_objects as go\n"
+        'f=go.Figure(go.Scatter(y=[1,2],customdata=["</script>","\\u2028" ]))\n'
+        'a.visualize(f,"one",title="Included figure")\na.visualize(f,"two",title="Second copy")\n',
+        encoding="utf-8",
+    )
+    assert (
+        runner.execute(p, script="scripts/plot.py", title="Public chart", origin=ORIGIN)["run"][
+            "status"
+        ]
+        == "ok"
+    )
+    summary, files = build.preview_package(p)
+    payloads = [name for name in files if name.startswith("assets/figures/")]
+    assert len(payloads) == 1 and summary["limits"]["interactive_figure_points"] == 2
+    payload = files[payloads[0]]
+    assert (
+        b"</script>" not in payload
+        and b"\\u003c/script\\u003e" in payload
+        and b"\\u2028" in payload
+    )
+    assert "assets/plotly.min.js" in files and b"MIT" in files["assets/NOTICE.txt"]
+    import plotly
+
+    fake = tmp_path / "fake_plotly"
+    (fake / "package_data").mkdir(parents=True)
+    (fake / "package_data/plotly.min.js").write_text("/* " + str(p.root) + " */", encoding="utf-8")
+    monkeypatch.setattr(plotly, "__file__", str(fake / "__init__.py"))
+    with pytest.raises(PublicationError) as caught:
+        build.preview_package(p)
+    assert caught.value.code == "leak_found"
+
+
+def test_excluded_copied_code_literal_fails_only_where_code_is_in_the_profile(tmp_path):
+    p = core.init_project(tmp_path / "p", title="Public", origin=ORIGIN)
+    private = core.record(p, "note", CANARY, origin=ORIGIN).event
+    (p.scripts / "p.py").write_text("# " + CANARY + "\nprint(1)\n", encoding="utf-8")
+    run = runner.execute(p, script="scripts/p.py", title="Public run", origin=ORIGIN)["run"]
+    core.record(
+        p,
+        "finding",
+        "Calculation",
+        refs=[core.kit_reference("run", run_id=run["id"])],
+        origin=ORIGIN,
+    )
+    request = ShareRequest(exclude=frozenset({ItemKey("event", private["id"])}))
+    assert build.preview_package(p, request, profile="read")[0]["ok"]
+    with pytest.raises(PublicationError) as caught:
+        build.preview_package(p, request, profile="evidence")
+    assert caught.value.code == "leak_found" and caught.value.details["cause"] == "copied_file"
+
+
+def test_preview_open_audit_allows_only_declared_read_channels_and_no_writes():
+    script = r"""
+import sys,os,tempfile
+from pathlib import Path
+from importlib import metadata
+from aelix_analytics import core
+from aelix_analytics.publishing import build,package
+with tempfile.TemporaryDirectory() as temporary:
+    project=core.init_project(Path(temporary)/'p',title='Public',origin=core.Origin('human','sdk'))
+    private=project.root/'not-a-record.txt';private.write_text('must not read',encoding='utf-8')
+    build.preview_package(project) # rendering imports are prepared before the I/O boundary
+    allowed={p.resolve() for p in project.root.rglob('*') if p.is_file() and p!=private}
+    allowed.add((project.root/'.analytics/cache/hashes.json').resolve())
+    allowed.update(p.resolve() for p in Path(package.__file__).with_name('assets').iterdir())
+    dist=metadata.distribution('markdown-it-py')
+    allowed.update(Path(dist.locate_file(p)).resolve() for p in dist.files if str(p).endswith('/METADATA'))
+    tempfile.tempdir=None # expose accidental temporary-directory probes inside the preview.
+    armed=[True]
+    def audit(event,args):
+        if not armed[0] or event!='open' or not isinstance(args[0],(str,bytes,os.PathLike)):
+            return
+        path=Path(os.fsdecode(args[0])).resolve();mode=args[1] or '';flags=args[2]
+        if any(c in mode for c in 'wa+') or flags&(os.O_WRONLY|os.O_RDWR|os.O_CREAT|os.O_TRUNC|os.O_APPEND):
+            raise AssertionError('preview attempted a write')
+        if path not in allowed:
+            raise AssertionError('preview opened an undeclared source: '+str(path))
+    sys.addaudithook(audit)
+    for op in (lambda:private.read_bytes(),lambda:project.context.open('wb')):
+        try:op()
+        except AssertionError:pass
+        else:raise AssertionError('I/O audit negative control failed')
+    build.preview_package(project)
+    armed[0]=False # tempfile teardown is outside the product's I/O boundary.
+    print('PASS: declared reads, no write/lock/context sync')
+"""
+    done = subprocess.run(
+        [sys.executable, "-c", script],
+        env=kit_env(),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    assert done.returncode == 0, done.stderr
+    assert done.stdout.startswith("PASS: declared reads")
+
+
+def test_renderer_has_no_project_or_file_channel_after_modules_are_loaded():
+    script = r"""
+import sys
+from markdown_it import MarkdownIt
+from aelix_analytics.publishing.render import render
+from aelix_analytics.publishing.model import *
+MarkdownIt('commonmark',{'html':False}).render('warmup')
+key=ItemKey('context','recorded.md')
+model=ShareModel(ContentBasis(1,None,'recorded.md'),'in_progress',Text('Public','user',(ItemKey('project','project'),'title')),
+    (ShareItem(key,'context',(Field('text',Text('Included **context**','user',(key,'text'))),)),),())
+def audit(event,args):
+    if event=='open':raise AssertionError('renderer opened a file')
+sys.addaudithook(audit)
+files=render(model)
+assert b'Included <strong>context</strong>' in b''.join(files.values())
+print('PASS: pure renderer')
+"""
+    done = subprocess.run(
+        [sys.executable, "-c", script],
+        env=kit_env(),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    assert done.returncode == 0, done.stderr
+    assert done.stdout.strip() == "PASS: pure renderer"
+
+
+def manifest_fixture():
+    from aelix_analytics.publishing.checks import content_hash
+
+    files = {
+        "index.html": b'<!doctype html><html lang="en"><p>Public</p></html>',
+        "about.html": b'<!doctype html><html lang="en"><p>About this copy</p></html>',
+    }
+    value = {
+        "schema": "analytics.publication/1",
+        "publication_id": "pub-" + "0" * 26,
+        "built_at": "2026-10-01T00:00:00+00:00",
+        "entry": "index.html",
+        "basis": {
+            "as_of_seq": 1,
+            "content_seq": 1,
+            "content_recorded_at": "2026-10-01T00:00:00+00:00",
+            "context_version": None,
+        },
+        "analysis_state": {"value": "in_progress", "basis": "declared"},
+        "ui_locale": "en",
+        "profile": {"id": "read", "rules_version": 1},
+        "scope": {"kind": "project", "reports": []},
+        "included": [{"category": "project", "identity": "project"}],
+        "not_included": [],
+        "reader_features": ["read", "relations"],
+        "renderer": {"kit_version": "0.21.0", "format": 1, "libraries": []},
+        "remote_links": [],
+        "limits": {},
+        "checks": {
+            "format": 1,
+            "result": "pass",
+            "inspection": {"inspected": 3, "pinned_scanned": 0, "not_inspectable": 0},
+        },
+        "content_sha256": content_hash(files),
+        "files": [
+            {
+                "path": p,
+                "bytes": len(b),
+                "sha256": hashlib.sha256(b).hexdigest(),
+                "origin": "identity" if p == "about.html" else "generated",
+                "format": "html",
+                "inspection": "inspected",
+            }
+            for p, b in sorted(files.items())
+        ],
+    }
+    return value, files
+
+
+def with_manifest(value, files):
+    return {
+        **files,
+        "publication.json": (
+            json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":")) + "\n"
+        ).encode(),
+    }
+
+
+def test_verify_package_memory_and_folder_refuses_mutation_extra_files_and_links(tmp_path):
+    value, files = manifest_fixture()
+    package_files = with_manifest(value, files)
+    assert checks.verify_package(package_files)["ok"]
+    folder = package.write_package(tmp_path / "package", package_files)
+    (folder / ".DS_Store").write_bytes(b"OS metadata")
+    assert checks.verify_package(folder)["metadata"] == [".DS_Store"]
+    (folder / "index.html").write_bytes(b"changed")
+    with pytest.raises(PublicationError, match="bytes differ"):
+        checks.verify_package(folder)
+    (folder / "index.html").write_bytes(files["index.html"])
+    (folder / "unexpected.txt").write_bytes(b"not declared")
+    with pytest.raises(PublicationError, match="file list"):
+        checks.verify_package(folder)
+    (folder / "unexpected.txt").unlink()
+    (folder / "empty").mkdir()
+    with pytest.raises(PublicationError, match="empty"):
+        checks.verify_package(folder)
+    (folder / "empty").rmdir()
+    try:
+        (folder / "link").symlink_to(folder / "index.html")
+    except OSError:
+        pytest.skip("platform does not allow fixture symlinks; prior assertions already executed")
+    with pytest.raises(PublicationError, match="link"):
+        checks.verify_package(folder)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        lambda m: m["basis"].update(content_seq=2),
+        lambda m: m["basis"].update(content_seq=True),
+        lambda m: m["analysis_state"].update(basis="observed"),
+        lambda m: m["profile"].update(rules_version=False),
+        lambda m: m["reader_features"].append("search"),
+        lambda m: m["included"][0].update(unknown=CANARY),
+        lambda m: m["files"][0].update(inspection="not_inspectable"),
+        lambda m: m["files"][0].update(origin="unknown"),
+        lambda m: m.update(project_id=CANARY),
+        lambda m: m["renderer"].update(source_revision=CANARY),
+    ],
+)
+def test_verify_package_validates_the_known_manifest_contract_not_only_its_file_hashes(change):
+    value, files = manifest_fixture()
+    change(value)
+    with pytest.raises(PublicationError):
+        checks.verify_package(with_manifest(value, files))
+
+
+def test_verify_package_checks_binding_semantics_in_addition_to_digest():
+    value, files = manifest_fixture()
+    view = with_manifest(value, files)
+    binding = {
+        "publication_id": value["publication_id"],
+        "format": value["schema"],
+        "package_sha256": hashlib.sha256(view["publication.json"]).hexdigest(),
+        "content_sha256": value["content_sha256"],
+        "profile": value["profile"],
+        "scope": value["scope"]["kind"],
+        "basis": {k: v for k, v in value["basis"].items() if k != "content_recorded_at"},
+        "analysis_state": value["analysis_state"],
+        "checks": value["checks"],
+    }
+    assert checks.verify_package(view, binding)["ok"]
+    with pytest.raises(PublicationError, match="binding"):
+        checks.verify_package(view, {**binding, "profile": {"id": "evidence", "rules_version": 1}})
+
+
+def test_excluded_legacy_device_names_and_kit_vocabulary_do_not_make_generated_names_unusable(
+    tmp_path,
+):
+    from aelix_analytics.publishing.projection import SnapshotItem, freeze
+
+    p = core.init_project(tmp_path / "p", title="Public", origin=ORIGIN)
+    snapshot = capture_snapshot(p)
+    names = ("con", "nul", "publication", "stylesheet", "en")
+    snapshot = replace(
+        snapshot,
+        items=(
+            *snapshot.items,
+            *(
+                SnapshotItem(ItemKey("dataset", "opaque-" + n), "dataset", freeze({"name": n}))
+                for n in names
+            ),
+        ),
+    )
+    summary, files = build.preview_package(p, snapshot=snapshot)
+    assert summary["ok"] and summary["included"].get("dataset", 0) == 0
+    assert all("/con." not in name and "/nul." not in name for name in files)
+
+
+def test_human_launcher_requires_existing_environment_and_never_bootstraps_it(
+    tmp_path, monkeypatch, capsys
+):
+    from aelix_analytics import cli
+
+    p = core.init_project(tmp_path / "p", title="Public", origin=ORIGIN)
+    monkeypatch.setenv("AELIX_ANALYTICS_PROJECT", str(p.root))
+    monkeypatch.setattr(cli, "_uv", lambda *a: pytest.fail("preview bootstrapped uv"))
+    calls = []
+
+    def child(self, argv, env, **kwargs):
+        calls.append(
+            (
+                argv,
+                {k: env.get(k) for k in ("PYTHONDONTWRITEBYTECODE", "VIRTUAL_ENV", "PYTHONPATH")},
+            )
+        )
+        return 0
+
+    monkeypatch.setattr(cli._Children, "run", child)
+    assert cli.run(["build", "--preview"], kit=ROOT / "src") == 1
+    assert not (p.root / ".venv").exists() and not calls
+    assert "existing project environment" in capsys.readouterr().err
+    python = p.root / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    python.parent.mkdir(parents=True)
+    python.touch()
+    assert cli.run(["build", "--preview"], kit=ROOT / "src") == 0
+    assert calls[0][0] == [
+        str(python),
+        "-m",
+        "aelix_analytics",
+        "--project",
+        str(p.root),
+        "build",
+        "--preview",
+    ]
+    assert calls[0][1]["PYTHONDONTWRITEBYTECODE"] == "1" and calls[0][1]["VIRTUAL_ENV"] is None
+
+
+def test_unobserved_inspection_facts_cannot_be_injected_by_a_projection(tmp_path):
+    from aelix_analytics.publishing.model import RenderFacts
+
+    p = core.init_project(tmp_path / "p", title="Public", origin=ORIGIN)
+    snapshot = capture_snapshot(p)
+    base = ReadProjection().project(snapshot, ShareRequest())
+
+    class Invented:
+        id, rules_version = "invented", 1
+
+        def project(self, *args):
+            return replace(base, model=replace(base.model, facts=RenderFacts(no_recorded_hash=999)))
+
+    with pytest.raises(PublicationError, match="unobserved inspection facts"):
+        build.preview_package(p, projection=Invented())
+
+
+def test_final_scope_has_inspection_facts_and_plotly_count(tmp_path):
+    p = core.init_project(tmp_path / "p", title="Public", origin=ORIGIN)
+    summary, files = build.preview_package(p)
+    assert (str(summary["checks"]["inspection"]["inspected"]) + " files.").encode() in files[
+        "index.html"
+    ]
+    assert b"Files without a recorded hash: 0." in files["index.html"]
+    assert (
+        summary["renderer"]["kit_version"] == core.KIT_VERSION and summary["checks"]["format"] == 1
+    )
+
+
+@pytest.mark.parametrize(
+    "paths", [["a", "a/b"], ["A/a", "a/b"], ["😀" * 100 + ".html"], ["bad\ud800.html"]]
+)
+def test_portable_names_account_for_directory_spelling_and_utf8_utf16_lengths(paths):
+    with pytest.raises(PublicationError):
+        checks.check_names(paths)
+
+
+def test_self_consistent_manifest_with_forbidden_links_is_not_verified():
+    value, files = manifest_fixture()
+    files["index.html"] = b'<!doctype html><html><img src="https://remote.test/private"></html>'
+    value["files"] = [
+        {
+            **row,
+            "bytes": len(files[row["path"]]),
+            "sha256": hashlib.sha256(files[row["path"]]).hexdigest(),
+        }
+        for row in value["files"]
+    ]
+    value["content_sha256"] = checks.content_hash(files)
+    with pytest.raises(PublicationError, match="external resource"):
+        checks.verify_package(with_manifest(value, files))
+
+
+def test_manifest_duplicate_keys_and_nonfinite_json_are_refused():
+    value, files = manifest_fixture()
+    view = with_manifest(value, files)
+    duplicate = b'{"entry":"private",' + view["publication.json"][1:]
+    with pytest.raises(PublicationError, match="duplicate"):
+        checks.verify_package({**view, "publication.json": duplicate})
+    invalid = view["publication.json"].replace(b'"limits":{}', b'"limits":{"unsupported":NaN}')
+    with pytest.raises(PublicationError, match="nonfinite"):
+        checks.verify_package({**view, "publication.json": invalid})
+
+
+def test_xml_namespace_and_xmp_entities_are_decoded_in_svg_png_jpeg_webp():
+    escaped = "".join("&#" + str(ord(c)) + ";" for c in CANARY).encode()
+    packet = (
+        b'<x:xmpmeta xmlns:x="adobe:ns:meta/" xmlns:r="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><r:RDF><r:Description Artist="'
+        + escaped
+        + b'"/></r:RDF></x:xmpmeta>'
+    )
+    body = b"http://ns.adobe.com/xap/1.0/\0" + packet
+    jpeg = image("JPEG")
+    jpeg = jpeg[:2] + b"\xff\xe1" + struct.pack(">H", len(body) + 2) + body + jpeg[2:]
+    webp = image("WEBP")
+    extra = b"XMP " + struct.pack("<I", len(packet)) + packet + (b"\0" if len(packet) & 1 else b"")
+    webp = webp[:4] + struct.pack("<I", len(webp) + len(extra) - 8) + webp[8:] + extra
+    svg = (
+        b'<svg xmlns="http://www.w3.org/2000/svg" xmlns:unused="urn:'
+        + escaped
+        + b'"><path d="M0 0"/></svg>'
+    )
+    for data in (jpeg, webp, svg, png((b"iTXt", b"XML:com.adobe.xmp\0\0\0\0\0" + packet))):
+        inspected = inspect_bytes(data, role="figure")
+        with pytest.raises(PublicationError, match="excluded content"):
+            checks.check_strings(inspected.strings, POLICY, path="metadata")
+
+
+def test_plotly_frames_image_sources_typed_arrays_and_record_disguises():
+    import numpy as np
+    import plotly.graph_objects as go
+
+    from aelix_analytics.publishing.package import figure_points
+
+    value = json.loads(
+        go.Figure(go.Scatter(y=np.array([1.0, 2.0]), customdata=[[1, 2, 3], [4, 5, 6]])).to_json()
+    )
+    assert figure_points(value) == 2
+    value["frames"] = [{"name": "next", "data": [{"type": "scatter", "y": [3, 4]}]}]
+    assert figure_points(value) == 4
+    assert inspect_bytes(json.dumps(value).encode(), role="figure") is not None
+    for figure in (
+        {"data": [{"type": "image", "source": "https://remote.test/a.png"}], "layout": {}},
+        {"data": [], "layout": {}, "frames": [{"data": [{"type": "scattergeo"}]}]},
+    ):
+        with pytest.raises(PublicationError) as caught:
+            inspect_bytes(json.dumps(figure).encode(), role="figure")
+        assert caught.value.code == "figure_not_shareable"
+    assert (
+        inspect_bytes(b'{"schema":"analytics.run/2","data":[],"layout":{}}', role="figure") is None
+    )
+    assert (
+        inspect_bytes(
+            b"<html>invalid Python source but readable code snapshot</html>", role="code_snapshot"
+        )
+        is not None
+    )
+
+
+def test_exact_relative_path_bound_is_physically_writable_on_the_running_platform(tmp_path):
+    name = "x" * 209
+    assert checks.check_names([name]) == 240
+    root = package.write_package(tmp_path / ("pub-" + "0" * 26), {name: b"portable"})
+    assert (root / name).read_bytes() == b"portable"
+    measured = {
+        "platform": sys.platform,
+        "python": sys.version.split()[0],
+        "relative_utf16": 240,
+        "absolute_utf16": len(str(root / name).encode("utf-16-le")) // 2,
+        "write_read": "pass",
+    }
+    output = os.environ.get("AELIX_ANALYTICS_TEST_EVIDENCE_DIR")
+    if output:
+        path = Path(output) / "publication-path-bound.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(measured, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def test_strategy_cannot_omit_the_required_basis_context_and_export_its_identity(tmp_path):
+    p = core.init_project(tmp_path / "p", title="Public", origin=ORIGIN)
+    snapshot = capture_snapshot(p)
+    base = ReadProjection().project(snapshot, ShareRequest())
+    removed = {i.key for i in snapshot.items if i.kind == "context"}
+
+    class MissingBasis:
+        id, rules_version = "missing-basis", 1
+
+        def project(self, *args):
+            return replace(
+                base,
+                model=replace(
+                    base.model, items=tuple(i for i in base.model.items if i.key not in removed)
+                ),
+                ledger=replace(
+                    base.ledger, included=tuple(k for k in base.ledger.included if k not in removed)
+                ),
+            )
+
+    with pytest.raises(PublicationError, match="basis CONTEXT"):
+        build.preview_package(p, projection=MissingBasis())
+
+
+def test_included_canary_remains_authored_content_in_both_profiles(tmp_path):
+    p = core.init_project(tmp_path / "p", title="Public", origin=ORIGIN)
+    core.record(p, "finding", CANARY + "\r\n원문", origin=ORIGIN)
+    for profile in ("read", "evidence"):
+        summary, files = build.preview_package(p, profile=profile)
+        assert summary["ok"] and CANARY.encode() in b"".join(files.values())
+        assert b"&#13;" in b"".join(files.values())
+        assert all(
+            b"\r" not in data
+            for path, data in files.items()
+            if path.endswith((".html", ".txt", ".css", ".js"))
+        )
+
+
+def test_zip_verifier_checks_root_utf8_and_fixed_metadata_before_trusting_files(tmp_path):
+    import zipfile
+
+    value, files = manifest_fixture()
+    view = with_manifest(value, files)
+
+    class UTF8Info(zipfile.ZipInfo):
+        def _encodeFilenameFlags(self):
+            return self.filename.encode("utf-8"), self.flag_bits | 0x800
+
+    def archive(prefix, utf8=True, date=(1980, 1, 1, 0, 0, 0)):
+        out = io.BytesIO()
+        with zipfile.ZipFile(out, "w") as writer:
+            for name, data in sorted(view.items()):
+                info = (UTF8Info if utf8 else zipfile.ZipInfo)(prefix + name, date_time=date)
+                info.create_system = 3
+                info.external_attr = 0o100644 << 16
+                info.compress_type = zipfile.ZIP_DEFLATED
+                writer.writestr(info, data)
+        target = tmp_path / "package.zip"
+        target.write_bytes(out.getvalue())
+        return target
+
+    assert checks.verify_package(archive(value["publication_id"] + "/"))["ok"]
+    for prefix, utf8, date in [
+        ("../" + value["publication_id"] + "/", True, (1980, 1, 1, 0, 0, 0)),
+        (value["publication_id"] + "/", False, (1980, 1, 1, 0, 0, 0)),
+        (value["publication_id"] + "/", True, (2026, 1, 1, 0, 0, 0)),
+        ("pub-" + "1" * 26 + "/", True, (1980, 1, 1, 0, 0, 0)),
+    ]:
+        with pytest.raises(PublicationError):
+            checks.verify_package(archive(prefix, utf8, date))

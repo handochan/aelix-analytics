@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 import hashlib
 import json
 import os
+import re
 from collections import Counter
 from dataclasses import replace
 from importlib import metadata
@@ -14,7 +17,7 @@ from urllib.parse import unquote, urlsplit
 from .. import relations
 from .checks import check_names
 from .extract import parquet_strings
-from .inspections import inspect_bytes
+from .inspections import detect_format, inspect_bytes
 from .model import FileNotice, Omission, PublicationError
 
 
@@ -56,18 +59,55 @@ def payload_json(value):
 def figure_points(value):
     def lengths(part):
         if isinstance(part, dict):
+            if isinstance(part.get("bdata"), str) and isinstance(part.get("dtype"), str):
+                units = {
+                    "i1": 1,
+                    "u1": 1,
+                    "b1": 1,
+                    "i2": 2,
+                    "u2": 2,
+                    "i4": 4,
+                    "u4": 4,
+                    "i8": 8,
+                    "u8": 8,
+                    "f4": 4,
+                    "f8": 8,
+                }
+                if part["dtype"] not in units:
+                    raise PublicationError("inspection_failed", "unknown Plotly typed-array dtype")
+                try:
+                    data = base64.b64decode(part["bdata"], validate=True)
+                    if len(data) % units[part["dtype"]]:
+                        raise ValueError("array byte count")
+                    size = len(data) // units[part["dtype"]]
+                    if "shape" in part:
+                        dimensions = [int(v.strip()) for v in str(part["shape"]).split(",")]
+                        if any(v < 0 for v in dimensions):
+                            raise ValueError("array dimension")
+                        size = dimensions[0]
+                    return [size]
+                except (ValueError, binascii.Error) as exc:
+                    raise PublicationError(
+                        "inspection_failed", "invalid Plotly typed array"
+                    ) from exc
             return [n for value in part.values() for n in lengths(value)]
         return [len(part)] if isinstance(part, list) else []
 
     return sum(
-        max(lengths(trace), default=0) for trace in value.get("data", []) if isinstance(trace, dict)
+        max(lengths(trace), default=0)
+        for figure in (value, *value.get("frames", []))
+        for trace in figure.get("data", [])
+        if isinstance(trace, dict)
     )
 
 
 def _user_links(inspection):
     for link in inspection.links:
         value = unquote(link.value).strip()
-        parsed = urlsplit(value)
+        try:
+            parsed = urlsplit(value)
+        except ValueError as exc:
+            raise PublicationError("figure_not_shareable", "remote_resources") from exc
         if parsed.scheme.lower() == "javascript":
             raise PublicationError("figure_not_shareable", "scripts")
         if (
@@ -88,8 +128,22 @@ def prepare_files(project, projection):
     points = {}
     counts = Counter()
     for entry in projection.copy_plan:
-        data = source_bytes(project, entry)
         try:
+            data = source_bytes(project, entry)
+            if detect_format(data, role=entry.role, path=entry.package_path) == "plotly":
+                try:
+                    from plotly.graph_objects import Figure
+
+                    Figure(json.loads(data.decode("utf-8")), skip_invalid=False)
+                except ImportError as exc:
+                    raise PublicationError(
+                        "renderer_unavailable", "plotly is required to validate this figure"
+                    ) from exc
+                except (ValueError, TypeError, RecursionError) as exc:
+                    raise PublicationError(
+                        "inspection_failed",
+                        "figure JSON does not match the renderer's Plotly schema",
+                    ) from exc
             inspection = inspect_bytes(
                 data, role=entry.role, path=entry.package_path, parquet_extractor=parquet_strings
             )
@@ -97,7 +151,21 @@ def prepare_files(project, projection):
                 _user_links(inspection)
         except PublicationError as exc:
             if exc.code != "figure_not_shareable" or entry.role != "figure":
-                raise
+                raise PublicationError(
+                    exc.code,
+                    exc.message,
+                    details={
+                        **exc.details,
+                        "path": entry.package_path,
+                        "sources": [
+                            {
+                                "category": entry.item.category,
+                                "identity": entry.item.identity,
+                                "role": entry.role,
+                            }
+                        ],
+                    },
+                ) from exc
             rejected[entry.item, entry.package_path] = FileNotice(entry.role, exc.message)
             counts["file", exc.message] += 1
             continue
@@ -192,10 +260,11 @@ def prepare_files(project, projection):
             files[path] = data
             roles[path] = "library"
             pinned[path] = data
+            js_version = re.search(rb"plotly\.js v([0-9A-Za-z.+-]+)", data[:512])
             renderer["libraries"].append(
                 {
-                    "name": "plotly",
-                    "version": plotly.__version__,
+                    "name": "plotly.js",
+                    "version": js_version[1].decode("ascii") if js_version else "unknown",
                     "sha256": hashlib.sha256(data).hexdigest(),
                     "license": "MIT",
                 }

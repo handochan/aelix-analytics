@@ -114,6 +114,22 @@ class ScopeLedger:
 
 
 @dataclass(frozen=True)
+class ReaderNotice:
+    path: str
+    code: Literal["path_pattern", "excluded_field_line", "image_metadata"]
+    metadata_kind: Literal["gps", "author", "serial", "other"] = "other"
+
+
+@dataclass(frozen=True)
+class RenderFacts:
+    """Trusted inspection facts, filled after projection validation. No authored raw strings."""
+    inspection: tuple[tuple[str, int], ...] = ()
+    notices: tuple[ReaderNotice, ...] = ()
+    no_recorded_hash: int = 0
+    points: tuple[tuple[str, int], ...] = ()
+
+
+@dataclass(frozen=True)
 class ShareModel:
     basis: ContentBasis
     analysis_state: Literal["in_progress", "complete"]
@@ -121,6 +137,7 @@ class ShareModel:
     items: tuple[ShareItem, ...]
     not_included: tuple[Omission, ...]
     diagnostics: tuple[Omission, ...] = ()
+    facts: RenderFacts = RenderFacts()
 
 
 @dataclass(frozen=True)

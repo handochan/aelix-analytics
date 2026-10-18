@@ -1,6 +1,7 @@
 """Independent scope closure and reviewed field allow-lists (PUBLICATION-BUILD 5)."""
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from .model import ItemKey, PublicationError
@@ -59,12 +60,29 @@ class Profile:
 
 PROFILES = {"read": Profile("read", False), "evidence": Profile("evidence", True)}
 
+# Fixed reader words/structural names are public vocabulary, not an excluded object's name.
+# This is an independent allow-list: it is never assembled from renderer output or record data.
+KIT_VOCABULARY = frozenset({
+    "publication", "stylesheet", "viewport", "charset", "en", "utf-8", "data", "layout", "config",
+    "index.html", "about.html", "README.txt", "read", "evidence", "schema", "scope",
+    "assets", "files", "pages", "figures", "runs", "timeline", "context", "code", "observations", "reports",
+    "inspected", "pinned_scanned", "pinned scanned", "not_inspectable", "not inspectable", "in_progress", "complete", "declared", "AnalyticsFigures",
+    "General path pattern warning", "An excluded diagnostic line also appears in included content",
+    "GPS metadata", "Author/software metadata", "Device serial metadata", "Image metadata",
+    "Untitled project", "Shared snapshot — a fixed copy that does not update",
+    "Included analysis and evidence at this point.", "Scope and limits", "About this copy",
+    "Code and data are not included in this publication; it cannot be re-run from this copy.",
+    "Input data is not included.", "Interactive figure", "Included visualization",
+    "Preview only. No publication has been saved or recorded.",
+    "This copy is a fixed snapshot. Its source may have changed.",
+})
+
 
 def request_check(request, profile: Profile) -> None:
     if request.scope not in ("project", "reports", "collection"):
         raise PublicationError("scope_unknown", "unknown publication scope")
-    if request.scope not in profile.capabilities or request.reports:
-        raise PublicationError("scope_unsupported", "Report and collection scopes require Issue20 PR4")
+    if request.scope not in profile.capabilities or request.reports or request.allow_withdrawn:
+        raise PublicationError("scope_unsupported", "Report and collection scopes are not available in this preview")
     if request.analysis_state not in ("in_progress", "complete"):
         raise PublicationError("analysis_state_invalid", "analysis state is explicitly declared")
     if request.ui_locale != "en":
@@ -127,7 +145,11 @@ def leak_policy(snapshot, request, profile, projection, *, environment=()):
     from .model import BanToken, LeakPolicy, Text
 
     included = frozenset(projection.ledger.included) & scope_closure(snapshot, request, profile)
-    allowed = set()
+    labels = set(KIT_VOCABULARY) | set(PROJECT_KINDS) | set(EVIDENCE_FIELDS)
+    for names in (*READ_FIELDS.values(), *EVIDENCE_FIELDS.values(), *METRIC_FIELDS.values()):
+        labels.update(name.removeprefix("details.").replace("_", " ").replace(".", " ") for name in names)
+    allowed = labels | {word for label in labels for word in re.findall(r"[\w-]+", label)}
+    allowed |= {value.lower() for value in allowed}
 
     def allow(value):
         if isinstance(value, Text):
@@ -141,6 +163,11 @@ def leak_policy(snapshot, request, profile, projection, *, environment=()):
                 allow(part)
 
     allow(projection.model)
+    for item in projection.model.items:
+        if item.key in included:
+            for ref in item.references:
+                allowed.update(value for value in (ref.relation, ref.binding, ref.basis, ref.state, ref.reason, ref.category)
+                               if isinstance(value, str))
     tokens = set()
     short = 0
 

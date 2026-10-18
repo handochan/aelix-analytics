@@ -21,6 +21,7 @@ from .model import (
     Projection,
     PublicationError,
     Reference,
+    RenderFacts,
     ScopeLedger,
     ShareItem,
     ShareModel,
@@ -341,11 +342,16 @@ def project(snapshot, request=None, *, profile="read", implementation=None):
 def validate_projection(snapshot, request, profile, projection):
     """The coordinator's independent model/closure check, also used for injected strategies."""
     validate_scope(snapshot, request, profile, projection.ledger.included)
+    if projection.model.facts != RenderFacts():
+        raise PublicationError("leak_found", "projection supplied unobserved inspection facts")
     if projection.basis != snapshot.basis or projection.model.basis != snapshot.basis.content:
         raise PublicationError("leak_found", "snapshot basis changed")
     if projection.model.analysis_state != request.analysis_state:
         raise PublicationError("leak_found", "declared analysis state changed")
     included = frozenset(projection.ledger.included)
+    required = {i.key for i in snapshot.items if i.key.category == "project" or i.kind == "context" and i.root}
+    if not required <= included:
+        raise PublicationError("leak_found", "projection omitted the project or basis CONTEXT")
     source = {i.key: i for i in snapshot.items}
     if {i.key for i in projection.model.items} != included:
         raise PublicationError("leak_found", "model and scope ledger disagree")

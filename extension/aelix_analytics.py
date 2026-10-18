@@ -2076,7 +2076,7 @@ def setup(aelix):
         aelix.register_tool(tool)
     aelix.register_command("analytics", handler=analytics_command,
                            description="Analytics: status | where | init | demo | use | render | "
-                                       "open | record | context")
+                                       "open | record | context | build --preview")
     aelix.on("before_agent_start", on_before_agent_start)
     aelix.on("tool_execution_start", on_tool_start)
     aelix.on("tool_execution_end", on_tool_end)

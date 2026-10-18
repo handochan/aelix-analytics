@@ -14,7 +14,7 @@ from dataclasses import fields, is_dataclass
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
-from .inspections import inspect_bytes
+from .inspections import detect_format, inspect_bytes
 from .model import LeakPolicy, PublicationError, ScanText, Text
 
 IDENTITY_FILES = frozenset({"publication.json", "about.html", "assets/identity.js"})
@@ -43,7 +43,9 @@ def normalized(value):
 
 
 def check_names(paths):
+    paths = tuple(paths)
     seen = set()
+    nodes = {}
     for path in paths:
         if (
             not isinstance(path, str)
@@ -53,7 +55,12 @@ def check_names(paths):
             or "\x00" in path
         ):
             reject("invalid package path", path=path)
-        if len(path) + 33 > MAX_PACKAGE_PATH:
+        try:
+            length = len(path.encode("utf-16-le")) // 2 + 31
+            overlong_part = any(len(part.encode("utf-8")) > 255 for part in path.split("/"))
+        except UnicodeError:
+            reject("package path is not a Unicode scalar string", path=path)
+        if length > MAX_PACKAGE_PATH or overlong_part:
             reject(
                 "package path exceeds the portable relative path bound",
                 path=path,
@@ -73,7 +80,13 @@ def check_names(paths):
         if folded in seen:
             reject("casefold package path collision", path=path)
         seen.add(folded)
-    return max((len(p) + 33 for p in paths), default=0)
+        for n in range(1, len(parts) + 1):
+            prefix = "/".join(parts[:n])
+            node = (prefix, n == len(parts))
+            if prefix.casefold() in nodes and nodes[prefix.casefold()] != node:
+                reject("file/directory or casefold directory collision", path=path)
+            nodes[prefix.casefold()] = node
+    return max((len(p.encode("utf-16-le")) // 2 + 31 for p in paths), default=0)
 
 
 def resolve_link(path, link, files, ids=None):
@@ -213,6 +226,12 @@ def check_package(files, roles, *, policy=None, parquet_extractor=None, pinned=N
             if (pinned or {}).get(path) != data:
                 reject("library bytes do not match their pinned source", path=path)
             result = inspect_bytes(data, role=role, path=path)
+            if result is None:
+                raise PublicationError(
+                    "inspection_failed",
+                    "pinned library is not an inspectable text resource",
+                    details={"path": path},
+                )
             if path == "assets/publication.js" and any(
                 name in data.decode("utf-8") for name in NETWORK_APIS
             ):
@@ -243,14 +262,13 @@ def check_package(files, roles, *, policy=None, parquet_extractor=None, pinned=N
             from .inspections import HTMLInspection
 
             parsed = HTMLInspection(data.decode("utf-8"))
-            if any("base" in reason for reason in parsed.unsafe):
-                reject("base element is not allowed", path=path)
-            if re.search(
-                r'<\s*(?:base\b|form\b)|<meta\b[^>]*http-equiv\s*=\s*["\']?refresh',
-                data.decode("utf-8"),
-                re.I,
+            if parsed.forbidden or any(
+                name in script for script in parsed.script_text for name in NETWORK_APIS
             ):
-                reject("base, forms and refresh are forbidden", path=path)
+                reject(
+                    "base, forms, refresh, unsafe frames and executable handlers are forbidden",
+                    path=path,
+                )
         if path == "assets/publication.js" and any(
             name in data.decode("utf-8") for name in NETWORK_APIS
         ):
@@ -321,7 +339,7 @@ def _folder_files(root):
             else:
                 reject("package contains a nonregular entry", path=relative)
 
-    if root.is_symlink():
+    if root.is_symlink() or getattr(root.lstat(), "st_reparse_tag", 0):
         reject("package root is a link")
     walk(root)
     for directory in directories:
@@ -330,9 +348,279 @@ def _folder_files(root):
     return out, metadata
 
 
+def _manifest_shape(value):
+    """Validate the accepted manifest fields, without creating a stored publication (PR3)."""
+    from .. import relations
+    from .basis import _time
+
+    def exact(part, keys):
+        return isinstance(part, dict) and set(part) == set(keys)
+
+    def need(condition, message):
+        if not condition:
+            reject("invalid publication manifest: " + message)
+
+    def nonnegative(part):
+        return type(part) is int and part >= 0
+
+    def digest(part):
+        return relations._reference_digest({"sha256": part}) is not None
+
+    def item_key(part):
+        return (
+            exact(part, ("category", "identity"))
+            and part["category"]
+            in {
+                "project",
+                "event",
+                "run",
+                "visualization",
+                "context",
+                "code",
+                "dataset",
+                "data_observation",
+                "report",
+            }
+            and isinstance(part["identity"], str)
+            and bool(part["identity"])
+        )
+
+    need(
+        isinstance(value["publication_id"], str)
+        and re.fullmatch(r"pub-[0-9a-hjkmnp-tv-z]{26}", value["publication_id"]),
+        "identity",
+    )
+    need(_time(value["built_at"]) is not None, "built_at")
+    basis = value["basis"]
+    need(
+        exact(basis, ("as_of_seq", "content_seq", "content_recorded_at", "context_version")),
+        "basis fields",
+    )
+    need(
+        nonnegative(basis["as_of_seq"])
+        and nonnegative(basis["content_seq"])
+        and basis["content_seq"] <= basis["as_of_seq"],
+        "basis sequence",
+    )
+    need(
+        basis["content_recorded_at"] is None or _time(basis["content_recorded_at"]) is not None,
+        "content time",
+    )
+    need(
+        basis["context_version"] is None
+        or isinstance(basis["context_version"], str)
+        and bool(basis["context_version"]),
+        "context version",
+    )
+    need(
+        exact(value["analysis_state"], ("value", "basis"))
+        and value["analysis_state"]["value"] in ("in_progress", "complete")
+        and value["analysis_state"]["basis"] == "declared",
+        "declared analysis state",
+    )
+    profile = value["profile"]
+    need(
+        exact(profile, ("id", "rules_version"))
+        and isinstance(profile["id"], str)
+        and bool(profile["id"])
+        and type(profile["rules_version"]) is int
+        and profile["rules_version"] > 0,
+        "profile",
+    )
+    need(value["ui_locale"] == "en", "locale")
+    scope = value["scope"]
+    need(
+        exact(scope, ("kind", "reports"))
+        and scope["kind"] in ("project", "reports")
+        and isinstance(scope["reports"], list),
+        "scope",
+    )
+    if scope["reports"] or scope["kind"] == "reports":
+        raise PublicationError(
+            "scope_unsupported", "Report package verification is not available in this kit"
+        )
+    need(
+        isinstance(value["included"], list) and all(item_key(k) for k in value["included"]),
+        "included keys",
+    )
+    included = {(k["category"], k["identity"]) for k in value["included"]}
+    need(len(included) == len(value["included"]), "duplicate included keys")
+    need(
+        isinstance(value["not_included"], list)
+        and all(
+            exact(o, ("category", "reason", "count"))
+            and isinstance(o["category"], str)
+            and isinstance(o["reason"], str)
+            and type(o["count"]) is int
+            and o["count"] > 0
+            for o in value["not_included"]
+        ),
+        "omission counts",
+    )
+    need(
+        isinstance(value["reader_features"], list)
+        and len(set(value["reader_features"])) == len(value["reader_features"])
+        and all(
+            v in ("read", "relations", "downloads", "interactive_figures")
+            for v in value["reader_features"]
+        ),
+        "reader features",
+    )
+    renderer = value["renderer"]
+    need(
+        exact(renderer, ("kit_version", "format", "libraries"))
+        and relations.version_key(renderer["kit_version"]) is not None
+        and type(renderer["format"]) is int
+        and renderer["format"] == 1
+        and isinstance(renderer["libraries"], list),
+        "renderer",
+    )
+    for lib in renderer["libraries"]:
+        need(
+            isinstance(lib, dict)
+            and {"name", "version"} <= set(lib) <= {"name", "version", "sha256", "license"}
+            and all(isinstance(lib[k], str) and lib[k] for k in ("name", "version")),
+            "renderer library",
+        )
+        need(
+            "sha256" not in lib or lib["sha256"] is None or digest(lib["sha256"]), "library digest"
+        )
+        need("license" not in lib or isinstance(lib["license"], str), "library license")
+    need(
+        isinstance(value["remote_links"], list)
+        and all(
+            isinstance(v, str) and urlsplit(v).scheme in ("http", "https", "mailto")
+            for v in value["remote_links"]
+        ),
+        "remote navigation links",
+    )
+    need(isinstance(value["limits"], dict), "limits")
+    need(digest(value["content_sha256"]), "content digest")
+    summary = value["checks"]
+    need(
+        exact(summary, ("format", "result", "inspection"))
+        and type(summary["format"]) is int
+        and summary["format"] == 1
+        and summary["result"] == "pass",
+        "checks",
+    )
+    need(
+        exact(summary["inspection"], ("inspected", "pinned_scanned", "not_inspectable"))
+        and all(nonnegative(v) for v in summary["inspection"].values())
+        and summary["inspection"]["not_inspectable"] == 0,
+        "inspection counts",
+    )
+    need(isinstance(value["files"], list), "file inventory")
+    counts = {
+        "inspected": 1,
+        "pinned_scanned": 0,
+        "not_inspectable": 0,
+    }  # manifest itself is inspected separately.
+    for row in value["files"]:
+        need(
+            isinstance(row, dict)
+            and {"path", "bytes", "sha256", "origin", "format", "inspection"}
+            <= set(row)
+            <= {
+                "path",
+                "bytes",
+                "sha256",
+                "origin",
+                "format",
+                "inspection",
+                "sources",
+                "derived_from",
+            },
+            "file fields",
+        )
+        need(
+            isinstance(row["path"], str) and nonnegative(row["bytes"]) and digest(row["sha256"]),
+            "file identity",
+        )
+        need(
+            row["origin"] in ("generated", "bundled", "copied", "identity")
+            and row["inspection"] in ("inspected", "pinned_scanned"),
+            "file origin/inspection",
+        )
+        need(
+            row["format"]
+            in (
+                "html",
+                "css",
+                "javascript",
+                "payload",
+                "png",
+                "jpeg",
+                "gif",
+                "webp",
+                "svg",
+                "plotly",
+                "parquet",
+                "python",
+                "text",
+            ),
+            "file format",
+        )
+        need(
+            (row["origin"] == "bundled") == (row["inspection"] == "pinned_scanned"),
+            "bundled inspection",
+        )
+        counts[row["inspection"]] += 1
+        if row["origin"] == "copied":
+            need(isinstance(row.get("sources"), list) and bool(row["sources"]), "copied provenance")
+        for name in ("sources", "derived_from"):
+            if name not in row:
+                continue
+            need(isinstance(row[name], list) and bool(row[name]), "source list")
+            for source in row[name]:
+                need(
+                    isinstance(source, dict)
+                    and "item" in source
+                    and item_key(source["item"])
+                    and (source["item"]["category"], source["item"]["identity"]) in included,
+                    "source item",
+                )
+                if name == "sources":
+                    need(
+                        {"item", "role", "verified"}
+                        <= set(source)
+                        <= {
+                            "item",
+                            "role",
+                            "verified",
+                            "sha256",
+                            "recorded_sha256",
+                            "current_sha256",
+                        }
+                        and source["role"]
+                        in ("figure", "code_snapshot", "attached_data", "report_file"),
+                        "source role",
+                    )
+                    need(
+                        source["verified"]
+                        in ("recorded_hash", "no_recorded_hash", "kit_generated"),
+                        "source verification",
+                    )
+                    recorded = source.get("recorded_sha256")
+                    if source["verified"] == "recorded_hash":
+                        need(digest(recorded), "recorded source digest")
+                    elif source["verified"] == "no_recorded_hash":
+                        need(recorded is None, "unrecorded source digest")
+                need(
+                    all(
+                        v is None or digest(v)
+                        for k, v in source.items()
+                        if k in ("sha256", "recorded_sha256", "current_sha256", "source_sha256")
+                    ),
+                    "source digest",
+                )
+    need(counts == summary["inspection"], "inspection inventory differs from summary")
+
+
 def verify_package(path, binding=None):
     """Verify a folder or deterministic ZIP against its own manifest; #21 reuses this function."""
     metadata = []
+    zip_root = None
     if isinstance(path, dict):
         files = dict(path)
     else:
@@ -350,12 +638,17 @@ def verify_package(path, binding=None):
                     if len(manifests) != 1:
                         reject("ZIP needs one publication root")
                     prefix = manifests[0][: -len("publication.json")]
+                    if not re.fullmatch(r"pub-[0-9a-hjkmnp-tv-z]{26}/", prefix):
+                        reject("invalid ZIP publication root")
+                    zip_root = prefix[:-1]
                     files = {}
                     for info in infos:
                         if (
                             not info.filename.startswith(prefix)
                             or info.is_dir()
                             or info.flag_bits & 1
+                            or not info.flag_bits & 0x800
+                            or info.compress_type != zipfile.ZIP_DEFLATED
                             or info.date_time != (1980, 1, 1, 0, 0, 0)
                             or info.extra
                             or info.comment
@@ -373,7 +666,20 @@ def verify_package(path, binding=None):
     check_names(files)
     try:
         raw = files["publication.json"]
-        manifest = json.loads(raw.decode("utf-8"))
+
+        def unique_object(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    reject("duplicate publication manifest key")
+                result[key] = value
+            return result
+
+        manifest = json.loads(
+            raw.decode("utf-8"),
+            object_pairs_hook=unique_object,
+            parse_constant=lambda value: reject("nonfinite publication JSON"),
+        )
         required = {
             "schema",
             "publication_id",
@@ -403,6 +709,9 @@ def verify_package(path, binding=None):
             reject("unknown or incomplete publication manifest")
         if not re.fullmatch(r"pub-[0-9a-hjkmnp-tv-z]{26}", manifest["publication_id"]):
             reject("invalid publication identity")
+        _manifest_shape(manifest)
+        if zip_root is not None and zip_root != manifest["publication_id"]:
+            reject("ZIP root differs from its manifest identity")
         listed = manifest["files"]
         if not isinstance(listed, list) or len({r["path"] for r in listed}) != len(listed):
             reject("duplicate manifest files")
@@ -420,12 +729,70 @@ def verify_package(path, binding=None):
                 reject("file bytes differ from manifest", path=name)
         if content_hash(files) != manifest["content_sha256"]:
             reject("content hash differs from manifest")
+        # These rules do not require the sender's private records or a Parquet environment.
+        # Original leak/metadata inspections stay pinned by the manifest/binding byte hashes.
+        views = {}
+        for row in listed:
+            name = row["path"]
+            origin = row["origin"]
+            role = (
+                "library"
+                if origin == "bundled"
+                else "identity"
+                if origin == "identity"
+                else "generated"
+            )
+            if origin == "copied":
+                role = row["sources"][0]["role"]
+            observed = detect_format(files[name], role=role, path=name)
+            declared = "text" if row["format"] == "python" else row["format"]
+            if observed != declared:
+                reject("file format differs from the manifest", path=name)
+            if observed in ("html", "css", "svg", "payload"):
+                inspection = inspect_bytes(files[name], role=role, path=name)
+                if inspection is None:
+                    reject("file role does not allow its format", path=name)
+                views[name] = inspection
+            if name == "assets/publication.js" and any(
+                word in files[name].decode("utf-8") for word in NETWORK_APIS
+            ):
+                reject("publication runtime contains a network API", path=name)
+        ids = {
+            name: set(value.ids) for name, value in views.items() if value.format in ("html", "svg")
+        }
+        remote = set()
+        for name, view in views.items():
+            if view.format == "html":
+                from .inspections import HTMLInspection
+
+                parsed = HTMLInspection(files[name].decode("utf-8"))
+                if parsed.forbidden or any(
+                    word in script for script in parsed.script_text for word in NETWORK_APIS
+                ):
+                    reject("forbidden executable HTML behavior", path=name)
+            for link in view.links:
+                target = resolve_link(name, link, files, ids)
+                if target:
+                    remote.add(target)
+        if sorted(remote) != sorted(manifest["remote_links"]):
+            reject("remote navigation list differs from manifest")
         digest = hashlib.sha256(raw).hexdigest()
-        if binding is not None and (
-            binding.get("package_sha256") != digest
-            or binding.get("publication_id") != manifest["publication_id"]
-        ):
-            reject("manifest differs from its binding")
+        if binding is not None:
+            expected = {
+                "publication_id": manifest["publication_id"],
+                "format": manifest["schema"],
+                "package_sha256": digest,
+                "content_sha256": manifest["content_sha256"],
+                "profile": manifest["profile"],
+                "scope": manifest["scope"]["kind"],
+                "basis": {k: v for k, v in manifest["basis"].items() if k != "content_recorded_at"},
+                "analysis_state": manifest["analysis_state"],
+                "checks": manifest["checks"],
+            }
+            if not isinstance(binding, dict) or any(
+                binding.get(k) != v for k, v in expected.items()
+            ):
+                reject("manifest differs from its binding")
     except (KeyError, TypeError, ValueError, UnicodeError) as exc:
         if isinstance(exc, PublicationError):
             raise

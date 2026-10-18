@@ -10,7 +10,7 @@ import struct
 import xml.etree.ElementTree as ET
 import zlib
 from html.parser import HTMLParser
-from urllib.parse import unquote_to_bytes
+from urllib.parse import unquote, unquote_to_bytes
 
 from .model import Inspection, PublicationError, ResourceLink, ScanText
 
@@ -62,6 +62,8 @@ def detect_format(data: bytes, *, role="", path=""):
         return None
     if "\x00" in text:
         return None
+    if role == "code_snapshot":
+        return "text"
     stripped = text.lstrip("\ufeff \t\r\n")
     # Comments before the document element do not turn an HTML/SVG fragment into plain text.
     stripped = re.sub(r"^(?:<!--.*?-->\s*)+", "", stripped, flags=re.S)
@@ -72,10 +74,11 @@ def detect_format(data: bytes, *, role="", path=""):
     if stripped.startswith(("{", "[")):
         try:
             value = json.loads(stripped)
-        except ValueError:
+        except (ValueError, RecursionError):
             value = None
         if (
             isinstance(value, dict)
+            and set(value) <= {"data", "layout", "frames"}
             and isinstance(value.get("data"), list)
             and isinstance(value.get("layout", {}), dict)
         ):
@@ -104,21 +107,138 @@ def strings(value, location="$"):
             yield from strings(part, f"{location}[{n}]")
 
 
+def css_tokens(text, location="css"):
+    """Tokenize resource functions and strings while retaining CSS escape semantics."""
+    pos, links, values = 0, [], []
+
+    def escape():
+        nonlocal pos
+        pos += 1
+        if pos >= len(text):
+            failed("unterminated CSS escape")
+        if text[pos] in "\r\n\f":
+            if text[pos : pos + 2] == "\r\n":
+                pos += 1
+            pos += 1
+            return ""
+        match = re.match(r"[0-9a-fA-F]{1,6}", text[pos:])
+        if match:
+            number = int(match[0], 16)
+            pos += len(match[0])
+            if pos < len(text) and text[pos].isspace():
+                if text[pos : pos + 2] == "\r\n":
+                    pos += 1
+                pos += 1
+            return (
+                chr(number)
+                if 0 < number <= 0x10FFFF and not 0xD800 <= number <= 0xDFFF
+                else "\ufffd"
+            )
+        value = text[pos]
+        pos += 1
+        return value
+
+    def skip():
+        nonlocal pos
+        while pos < len(text):
+            if text[pos].isspace():
+                pos += 1
+            elif text[pos : pos + 2] == "/*":
+                end = text.find("*/", pos + 2)
+                if end < 0:
+                    failed("unterminated CSS comment")
+                pos = end + 2
+            else:
+                break
+
+    def quoted():
+        nonlocal pos
+        quote = text[pos]
+        pos += 1
+        value = ""
+        while pos < len(text):
+            char = text[pos]
+            if char == quote:
+                pos += 1
+                return value
+            if char in "\r\n\f":
+                failed("unescaped newline in CSS string")
+            if char == "\\":
+                value += escape()
+            else:
+                value += char
+                pos += 1
+        failed("unterminated CSS string")
+
+    def identifier():
+        nonlocal pos
+        value = ""
+        while pos < len(text):
+            if text[pos] == "\\":
+                value += escape()
+            elif text[pos].isalnum() or text[pos] in "_-":
+                value += text[pos]
+                pos += 1
+            else:
+                break
+        return value
+
+    importing = False
+    while pos < len(text):
+        skip()
+        if pos >= len(text):
+            break
+        start = pos
+        if text[pos] in "\"'":
+            value = quoted()
+            values.append(ScanText(value, f"{location}:{start}"))
+            if importing:
+                links.append(ResourceLink(value, f"{location}:{start}"))
+                importing = False
+        elif text[pos] == "@":
+            pos += 1
+            importing = identifier().lower() == "import"
+        elif text[pos].isalpha() or text[pos] in "_-\\":
+            name = identifier()
+            values.append(ScanText(name, f"{location}:{start}"))
+            skip()
+            if name.lower() == "url" and pos < len(text) and text[pos] == "(":
+                pos += 1
+                skip()
+                if pos < len(text) and text[pos] in "\"'":
+                    value = quoted()
+                    skip()
+                else:
+                    value = ""
+                    while pos < len(text) and text[pos] != ")":
+                        char = text[pos]
+                        if char.isspace():
+                            skip()
+                            if pos >= len(text) or text[pos] != ")":
+                                failed("whitespace inside an unquoted CSS URL")
+                            break
+                        if char in "(\"'":
+                            failed("invalid unquoted CSS URL")
+                        if char == "\\":
+                            value += escape()
+                        else:
+                            value += char
+                            pos += 1
+                if pos >= len(text) or text[pos] != ")":
+                    failed("unterminated CSS URL")
+                pos += 1
+                links.append(ResourceLink(value, f"{location}:{start}"))
+                values.append(ScanText(value, f"{location}:{start}", True))
+                importing = False
+        else:
+            if text[pos] == ";":
+                importing = False
+            pos += 1
+    return tuple(links), tuple(values)
+
+
 def css_links(text, location="css"):
-    # Decode CSS escapes before tokenizing; comments do not create resource references.
-    value = re.sub(
-        r"\\([0-9a-fA-F]{1,6})\s?|\\([^\r\n0-9a-fA-F])",
-        lambda m: (
-            chr(int(m[1], 16)) if m[1] and 0 < int(m[1], 16) <= 0x10FFFF else (m[2] or "\ufffd")
-        ),
-        text,
-    )
-    value = re.sub(r"/\*.*?\*/", "", value, flags=re.S)
-    pattern = (
-        r"""url\(\s*(?:"([^"]*)"|'([^']*)'|([^\s)]+))\s*\)|@import\s+(?:"([^"]*)"|'([^']*)')"""
-    )
-    for match in re.finditer(pattern, value, flags=re.I):
-        yield ResourceLink(next(v for v in match.groups() if v is not None), location)
+    return css_tokens(text, location)[0]
 
 
 class HTMLInspection(HTMLParser):
@@ -126,16 +246,34 @@ class HTMLInspection(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.strings = [ScanText(text, "raw")]
         self.links, self.ids, self.unsafe = [], [], []
+        self.forbidden, self.script_text = [], []
         self._style = False
+        self._script = False
         self.feed(text)
         self.close()
 
     def handle_starttag(self, tag, attrs):
         values = dict(attrs)
         if (
+            tag in ("base", "form")
+            or tag == "meta"
+            and (values.get("http-equiv") or "").strip().lower() == "refresh"
+        ):
+            self.forbidden.append(tag)
+        if tag == "iframe" and (
+            "sandbox" not in values
+            or any(
+                flag in (values.get("sandbox") or "").lower().split()
+                for flag in ("allow-scripts", "allow-same-origin")
+            )
+        ):
+            self.forbidden.append("iframe sandbox")
+        if tag == "script":
+            self._script = True
+        if (
             tag in UNSAFE_TAGS
             or tag == "meta"
-            and (values.get("http-equiv") or "").lower() == "refresh"
+            and (values.get("http-equiv") or "").strip().lower() == "refresh"
         ):
             self.unsafe.append("scripts" if tag == "script" else "remote_resources")
         if tag == "style":
@@ -143,13 +281,36 @@ class HTMLInspection(HTMLParser):
         for name, value in attrs:
             value = value or ""
             loc = f"line{self.getpos()[0]}:{tag}@{name}"
-            self.strings.append(ScanText(value, loc, True))
+            self.strings.append(
+                ScanText(
+                    value,
+                    loc,
+                    name
+                    in (
+                        "href",
+                        "src",
+                        "srcset",
+                        "id",
+                        "download",
+                        "data-payload",
+                        "data-figure",
+                        "title",
+                        "alt",
+                        "aria-label",
+                    ),
+                )
+            )
             if name == "id":
                 self.ids.append(value)
             if name.startswith("on"):
                 self.unsafe.append("scripts")
+                self.forbidden.append("event handler")
+            if name == "srcdoc":
+                self.forbidden.append("srcdoc")
             if name == "style":
-                self.links.extend(css_links(value, loc))
+                links, values_ = css_tokens(value, loc)
+                self.links.extend(links)
+                self.strings.extend(values_)
             elif name == "srcset":
                 for candidate in re.finditer(
                     r"(?:data:[^\s]+|[^\s,]+)(?:\s+\d+(?:\.\d+)?[wx])?", value
@@ -168,11 +329,17 @@ class HTMLInspection(HTMLParser):
     def handle_endtag(self, tag):
         if tag == "style":
             self._style = False
+        if tag == "script":
+            self._script = False
 
     def handle_data(self, data):
         self.strings.append(ScanText(data, f"line{self.getpos()[0]}:text"))
         if self._style:
-            self.links.extend(css_links(data))
+            links, values = css_tokens(data)
+            self.links.extend(links)
+            self.strings.extend(values)
+        if self._script:
+            self.script_text.append(data)
 
     def handle_comment(self, data):
         self.strings.append(ScanText(data, f"line{self.getpos()[0]}:comment"))
@@ -205,8 +372,55 @@ def _expanded(data):
         failed(f"compressed image metadata cannot be decoded: {exc}")
 
 
+class _XMLBuilder(ET.TreeBuilder):
+    def __init__(self):
+        super().__init__(insert_comments=True, insert_pis=True)
+        self.namespaces = []
+
+    def start_ns(self, prefix, uri):
+        self.namespaces.append((prefix, uri))
+
+    def doctype(self, *args):
+        failed("XML document/entity declarations are not permitted")
+
+
+def _xml(data):
+    target = _XMLBuilder()
+    try:
+        root = ET.fromstring(data, parser=ET.XMLParser(target=target))
+    except ET.ParseError as exc:
+        failed(f"invalid XML metadata/document: {type(exc).__name__}")
+    return root, tuple(target.namespaces)
+
+
+def _xmp(data, where):
+    root, namespaces = _xml(data)
+    values = [ScanText(uri, where + ":namespace") for _, uri in namespaces]
+    keys = []
+    for element in root.iter():
+        if isinstance(element.tag, str):
+            values.append(ScanText(element.tag, where + ":tag", True))
+            keys.append(element.tag.rsplit("}", 1)[-1])
+        for value in (element.text, element.tail):
+            if value:
+                values.append(ScanText(value, where + ":value"))
+        for key, value in element.attrib.items():
+            values.extend(
+                (ScanText(key, where + ":key", True), ScanText(value, where + ":attribute"))
+            )
+            keys.append(key.rsplit("}", 1)[-1])
+    return values, keys
+
+
 def _exif(data, where):
     keys = []
+    if data.startswith(b"http://ns.adobe.com/xmp/extension/"):
+        failed("extended XMP metadata is not supported")
+    prefix = b"http://ns.adobe.com/xap/1.0/\0"
+    if data.startswith(prefix) or "XMP" in where:
+        packet = data[len(prefix) :] if data.startswith(prefix) else data
+        values, keys = _xmp(packet, where)
+        return [*_binary_strings(data, where), *values], keys
     raw = data[6:] if data.startswith(b"Exif\x00\x00") else data
     if len(raw) >= 8 and raw[:2] in (b"II", b"MM"):
         order = "<" if raw[:2] == b"II" else ">"
@@ -278,6 +492,10 @@ def _image(data, format_):
                         values.extend(_binary_strings(language + translated, loc))
                         rest = _expanded(rest) if flag else rest
                     values.extend(_binary_strings(keyword + b" " + rest, loc))
+                    if keyword.lower() == b"xml:com.adobe.xmp":
+                        texts, names = _xmp(rest, loc)
+                        values.extend(texts)
+                        keys.extend(names)
                 except (ValueError, IndexError):
                     failed("malformed PNG text metadata")
             elif kind == b"eXIf":
@@ -424,24 +642,47 @@ def inspect_bytes(data, *, role, path="", parquet_extractor=None, depth=0):
             failed("invalid figure JSON")
         if not isinstance(value, dict) or not isinstance(value.get("data"), list):
             failed("figure payload must be an object with data")
-        layout = value.get("layout") or {}
-        if (
-            any(isinstance(t, dict) and t.get("type") in REMOTE_TRACES for t in value["data"])
-            or any(k in layout for k in ("geo", "map", "mapbox"))
-            or any(
-                isinstance(i, dict)
-                and isinstance(i.get("source"), str)
-                and re.match(r"(?:https?:)?//", i["source"])
-                for i in layout.get("images", [])
-            )
-        ):
+        links = []
+        frames = value.get("frames", [])
+        if not isinstance(frames, list) or not all(isinstance(frame, dict) for frame in frames):
+            failed("figure frames are not objects")
+        for figure in (value, *frames):
+            traces = figure.get("data", [])
+            layout = figure.get("layout", {})
+            if not isinstance(traces, list) or not isinstance(layout, dict):
+                failed("figure data/layout has an invalid shape")
+            for trace in traces:
+                if (
+                    not isinstance(trace, dict)
+                    or "type" in trace
+                    and not isinstance(trace["type"], str)
+                ):
+                    failed("figure trace has an invalid shape")
+                if trace.get("type") in REMOTE_TRACES:
+                    raise PublicationError("figure_not_shareable", "remote_resources")
+                if trace.get("type") == "image" and isinstance(trace.get("source"), str):
+                    links.append(ResourceLink(trace["source"], "plotly:data.source"))
+            if any(k in layout for k in ("geo", "map", "mapbox")):
+                raise PublicationError("figure_not_shareable", "remote_resources")
+            template = layout.get("template", {})
+            template = template if isinstance(template, dict) else {}
+            layouts = (layout, template.get("layout", {}))
+            for part in layouts:
+                if not isinstance(part, dict) or not isinstance(part.get("images", []), list):
+                    failed("figure images have an invalid shape")
+                for image in part.get("images", []):
+                    if isinstance(image, dict) and isinstance(image.get("source"), str):
+                        links.append(ResourceLink(image["source"], "plotly:layout.images.source"))
+            for source in (
+                template.get("data", {}).get("image", [])
+                if isinstance(template.get("data", {}), dict)
+                else []
+            ):
+                if isinstance(source, dict) and isinstance(source.get("source"), str):
+                    links.append(ResourceLink(source["source"], "plotly:template.image.source"))
+        if any(re.match(r"(?:https?:)?//", link.value) for link in links):
             raise PublicationError("figure_not_shareable", "remote_resources")
-        links = tuple(
-            ResourceLink(i["source"], "plotly:layout.images.source")
-            for i in layout.get("images", [])
-            if isinstance(i, dict) and isinstance(i.get("source"), str)
-        )
-        result = Inspection(format_, tuple(strings(value)), links)
+        result = Inspection(format_, tuple(strings(value)), tuple(links))
     elif format_ == "html":
         parsed = HTMLInspection(utf8(data))
         if role in ("figure", "report_file", "inline") and parsed.unsafe:
@@ -454,12 +695,14 @@ def inspect_bytes(data, *, role, path="", parquet_extractor=None, depth=0):
         if re.search(r"<!\s*(?:DOCTYPE|ENTITY)", text, re.I):
             failed("SVG document/entity declarations are not permitted")
         try:
-            root = ET.fromstring(
-                text, parser=ET.XMLParser(target=ET.TreeBuilder(insert_comments=True))
-            )
+            root, namespaces = _xml(text)
         except ET.ParseError:
             failed("invalid SVG XML")
-        values, links, ids = [ScanText(text, "raw")], [], []
+        values, links, ids = (
+            [ScanText(text, "raw"), *(ScanText(uri, "svg:namespace") for _, uri in namespaces)],
+            [],
+            [],
+        )
         for element in root.iter():
             tag = (
                 element.tag.rsplit("}", 1)[-1].lower()
@@ -481,22 +724,26 @@ def inspect_bytes(data, *, role, path="", parquet_extractor=None, depth=0):
                 if k == "href":
                     links.append(ResourceLink(v, "svg:@href"))
                 if k == "style":
-                    links.extend(css_links(v, "svg:style"))
+                    refs, parts = css_tokens(v, "svg:style")
+                    links.extend(refs)
+                    values.extend(parts)
             if tag == "style" and element.text:
-                links.extend(css_links(element.text, "svg:style"))
+                refs, parts = css_tokens(element.text, "svg:style")
+                links.extend(refs)
+                values.extend(parts)
         result = Inspection(format_, tuple(values), tuple(links), ids=tuple(ids))
     else:
         text = utf8(data)
-        result = Inspection(
-            format_, (ScanText(text, "raw"),), tuple(css_links(text)) if format_ == "css" else ()
-        )
+        refs, parts = css_tokens(text) if format_ == "css" else ((), ())
+        result = Inspection(format_, (ScanText(text, "raw"), *parts), refs)
     nested = []
     for link in result.links:
-        if link.value.lower().startswith("data:"):
+        if unquote(link.value.strip().split(",", 1)[0]).lower().startswith("data:"):
             try:
-                header, payload = link.value.split(",", 1)
+                header, payload = link.value.strip().split(",", 1)
+                header = unquote(header)
                 value = (
-                    base64.b64decode(payload, validate=True)
+                    base64.b64decode(unquote_to_bytes(payload), validate=True)
                     if header.lower().endswith(";base64")
                     else unquote_to_bytes(payload)
                 )

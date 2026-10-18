@@ -67,7 +67,7 @@ REASONS = {
 
 
 def esc(value):
-    return html.escape(str(value), quote=True)
+    return html.escape(str(value), quote=True).replace("\r", "&#13;")
 
 
 def key_name(key):
@@ -97,6 +97,7 @@ def render(model, *, profile="read", context_status="recorded", file_sizes=()):
     if context_status not in ("pending", "recorded", "not_recorded"):
         raise PublicationError("package_check_failed", "unknown context status")
     sizes = dict(file_sizes)
+    points = dict(model.facts.points)
     pages = {}
     targets = {}
     anchors = {}
@@ -131,7 +132,8 @@ def render(model, *, profile="read", context_status="recorded", file_sizes=()):
         return f'<a href="{esc(relative(path, target))}">{label}</a>'
 
     def user(value):
-        return '<span lang="">' + esc(_shown(value)) + "</span>"
+        language = "en" if isinstance(value, Text) and value.origin == "kit" else ""
+        return f'<span lang="{language}">' + esc(_shown(value)) + "</span>"
 
     def title(item):
         return next(
@@ -207,7 +209,8 @@ def render(model, *, profile="read", context_status="recorded", file_sizes=()):
                 .replace(".", " ")
                 .capitalize(),
             )
-            body += f'<dt>{esc(name)}</dt><dd><pre lang="">{esc(_shown(field.value))}</pre></dd>'
+            language = "en" if isinstance(field.value, Text) and field.value.origin == "kit" else ""
+            body += f'<dt>{esc(name)}</dt><dd><pre lang="{language}">{esc(_shown(field.value))}</pre></dd>'
         body += "</dl>"
         for ref in item.references:
             target = (
@@ -259,7 +262,7 @@ def render(model, *, profile="read", context_status="recorded", file_sizes=()):
                         if size > 3000000
                         else ""
                     )
-                    body += f'<div role="img" aria-label="Interactive figure" data-figure="{key}" data-payload="{url}"><p>Interactive figure — needs JavaScript</p>{button}</div><p>Interactive figures include the data they plot.</p>'
+                    body += f'<div role="img" aria-label="Interactive figure" data-figure="{key}" data-payload="{url}"><p>Interactive figure — needs JavaScript</p>{button}</div><p>Interactive figures include the data they plot ({points.get(file.package_path, 0)} points).</p>'
                 else:
                     body += f'<img src="{url}" alt="Included visualization" loading="lazy">'
             else:
@@ -330,13 +333,31 @@ def render(model, *, profile="read", context_status="recorded", file_sizes=()):
     )
     body += (
         "<p>Code and data are not included in this publication; it cannot be re-run from this copy.</p>"
-        if profile == "read"
+        if not any(
+            f.role in ("code_snapshot", "attached_data") for item in model.items for f in item.files
+        )
         else "<p>Input data is not included.</p>"
     )
     body += "<table><thead><tr><th>Category</th><th>Reason not included</th><th>Count</th></tr></thead><tbody>"
     for omission in (*model.not_included, *model.diagnostics):
         body += f"<tr><td>{esc(omission.category)}</td><td>{esc(omission.reason.replace('_', ' '))}</td><td>{omission.count}</td></tr>"
-    body += "</tbody></table><p>Missing, content changed, unknown, unsupported, unbound and not included are distinct states. "
+    body += "</tbody></table><p>Missing, content changed, unknown, unsupported, unbound and not included are distinct states.</p>"
+    body += f"<p>Files without a recorded hash: {model.facts.no_recorded_hash}.</p>"
+    for status, count in model.facts.inspection:
+        body += f"<p>{esc(status.replace('_', ' '))}: {count} files.</p>"
+    for notice in model.facts.notices:
+        labels = {
+            "path_pattern": "General path pattern warning",
+            "excluded_field_line": "An excluded diagnostic line also appears in included content",
+            "image_metadata": {
+                "gps": "GPS metadata",
+                "author": "Author/software metadata",
+                "serial": "Device serial metadata",
+                "other": "Image metadata",
+            }[notice.metadata_kind],
+        }
+        body += f"<p>{esc(labels[notice.code])}: {esc(notice.path)}</p>"
+    body += "<p>"
     body += "Checks do not detect paraphrases, arbitrary encodings in text, text in image pixels, or secrets in included content.</p></section>"
     page(path, model.title.value, body)
     page(

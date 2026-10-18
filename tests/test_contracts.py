@@ -867,9 +867,9 @@ class ProjectionImplementation:
 
 
 PROJECTION_IMPLEMENTATIONS = (
-    ProjectionImplementation("read", "read", frozenset({"project", "model", "no_io", "files", "references"})),
-    ProjectionImplementation("evidence", "evidence", frozenset({"project", "model", "no_io", "files", "references"})),
-    ProjectionImplementation("recording", "read", frozenset({"project", "model", "no_io"})),
+    ProjectionImplementation("read", "read", frozenset({"project", "model", "no_io", "files", "references", "preview"})),
+    ProjectionImplementation("evidence", "evidence", frozenset({"project", "model", "no_io", "files", "references", "preview"})),
+    ProjectionImplementation("recording", "read", frozenset({"project", "model", "no_io", "preview"})),
 )
 
 
@@ -905,3 +905,22 @@ def test_publication_later_capability_is_not_claimed(implementation, capability)
     if capability not in implementation.capabilities:
         pytest.skip(f"{implementation.id}: {capability} is PR4 or the later build adapter, not PR1 acceptance")
     raise AssertionError("new capability needs an actual contract case before it can be advertised")
+
+
+@pytest.mark.parametrize("implementation", PROJECTION_IMPLEMENTATIONS, ids=lambda i: i.id)
+def test_publication_preview_uses_each_injected_implementation(implementation, tmp_path, monkeypatch):
+    from publication_doubles import RecordingProjection
+
+    from aelix_analytics import core
+    from aelix_analytics.publishing.build import preview_package
+    from aelix_analytics.publishing.projection import PROJECTIONS, ShareRequest
+
+    chosen = RecordingProjection() if implementation.id == "recording" else PROJECTIONS[implementation.id]()
+    project = core.init_project(tmp_path / "p", title="Public", origin=core.Origin("human", "sdk"))
+    for name in PROJECTIONS:
+        monkeypatch.setitem(PROJECTIONS, name, lambda: pytest.fail("preview selected a default implementation"))
+    summary, files = preview_package(project, profile=implementation.profile, projection=chosen)
+    assert summary["profile"]["id"] == implementation.id
+    assert f"Profile: {implementation.id}.".encode() in files["index.html"]
+    if implementation.id == "recording":
+        assert chosen.requests == [ShareRequest()]

@@ -300,7 +300,7 @@ def _command(argv) -> int:
 
     p = sub.add_parser("build", help="inspect a sharing preview without writing a publication")
     p.add_argument("--preview", action="store_true", required=True,
-                   help="inspect in memory; saved publications arrive in Issue20 PR3")
+                   help="inspect in memory without saving a publication")
     p.add_argument("--profile", default="read")
     p.add_argument("--scope", default="project")
     p.add_argument("--report", action="append", default=[])
@@ -350,13 +350,15 @@ def _command(argv) -> int:
             from .publishing.model import PublicationError
             from .publishing.projection import ShareRequest
 
-            request = ShareRequest(scope="collection" if args.collection else args.scope,
+            request = ShareRequest(scope="collection" if args.collection is not None else args.scope,
                                    reports=tuple((r, "") for r in args.report),
                                    analysis_state=args.analysis_state, allow_withdrawn=args.allow_withdrawn)
             try:
                 result, _ = preview_package(project, request, profile=args.profile, exclude=args.exclude)
             except PublicationError as exc:
                 raise core.AnalyticsError(exc.code, exc.message, details=exc.details) from exc
+            except (UnicodeError, RecursionError) as exc:
+                raise core.AnalyticsError("records_unsupported", "the preview input text or nesting is not supported") from exc
             except (ImportError, OSError) as exc:
                 raise core.AnalyticsError("renderer_unavailable", "the preview's rendering resources are unavailable") from exc
             _emit(result)
