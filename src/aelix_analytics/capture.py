@@ -183,15 +183,16 @@ class RunState:
                 # The directory's tree as the namespace walk sees it (core.Project.walk): each file
                 # with the path a record holds for it, the first 500 the walk finds (a directory's
                 # entries in code point order of their names). Finish enumerating to count skipped
-                # candidates, but do not open/hash their contents or retain all their paths.
+                # identities, but do not open/hash their contents. Inward file aliases can have
+                # the same recorded path: the count and the cap must both use that unique identity.
                 files: dict[str, str] = {}
-                count = 0
+                seen: set[str] = set()
                 for rel, real, name, _entry, _place in self.project.walk(start=path):
-                    if Path(name).suffix.lower() in core.DATA_SUFFIXES:
-                        count += 1
+                    if Path(name).suffix.lower() in core.DATA_SUFFIXES and rel not in seen:
+                        seen.add(rel)
                         if len(files) < RUNTIME_INPUT_LIMIT:
-                            files.setdefault(rel, real)
-                self._input_limit(via, item, count)
+                            files[rel] = real
+                self._input_limit(via, item, len(seen))
                 for rel, real in files.items():
                     self._record_file(Path(real), via, located=(rel, real))
             elif path.is_file():

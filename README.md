@@ -93,9 +93,9 @@ aelix 안에서: `/analytics`(현황) · `/analytics open`(리포트) · "지역
 배포본은 아직 어디에도 게시하지 않았으므로 체크아웃에서 직접 만듭니다.
 
 ```sh
-cd $PACK && uv build                                   # dist/aelix_analytics-0.19.0-py3-none-any.whl
-uv tool install --python 3.12 dist/aelix_analytics-0.19.0-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
-uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.19.0-py3-none-any.whl   # aelix와 함께
+cd $PACK && uv build                                   # dist/aelix_analytics-0.20.0-py3-none-any.whl
+uv tool install --python 3.12 dist/aelix_analytics-0.20.0-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
+uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.20.0-py3-none-any.whl   # aelix와 함께
 ```
 
 - `analytics`는 체크아웃의 `bin/analytics`와 같은 명령·인자·usage(바이트까지 같음)를 쓰고 kit의 출력을 바이트 그대로 넘깁니다

@@ -534,6 +534,29 @@ def test_a_directory_read_hashes_first_500_and_counts_the_rest(tmp_path, monkeyp
     assert len(state.input_warnings) == 1 and "1 file candidate(s) omitted" in state.input_warnings[0]
 
 
+@pytest.mark.parametrize("distinct", [1, 501])
+def test_directory_cap_counts_unique_identities_when_file_aliases_repeat(tmp_path, distinct):
+    """Review R1: 503 alias names can be one input, or 501 distinct inputs; count cap omissions
+    in the same unique recorded identities the directory cap actually selects."""
+    root = bare(tmp_path)
+    targets = [write(root / "data" / "raw" / "sources" / f"source_{i:03d}.csv")
+               for i in range(distinct)]
+    directory = root / "data" / "raw" / "aliases"
+    directory.mkdir()
+    for i in range(503):
+        file_link(directory / f"alias_{i:03d}.csv", targets[i % distinct])
+    state = capture.RunState(core.Project(root), "r", tmp_path / "r", tmp_path / "x.py")
+    state.record_read(str(directory), "polars.read_csv")
+    assert sorted(state.inputs) == [f"data/raw/sources/source_{i:03d}.csv"
+                                    for i in range(min(distinct, 500))]
+    if distinct == 1:
+        assert state.input_warnings == []
+    else:
+        assert len(state.input_warnings) == 1
+        assert "capped at 500" in state.input_warnings[0]
+        assert "1 file candidate(s) omitted" in state.input_warnings[0]
+
+
 def test_an_inward_link_to_a_directory_of_the_person_s_is_recorded_at_its_real_place(project,
                                                                                     tmp_path):
     """Review of 3a95f38: the name mapping and the walk's claims are the managed directories'
