@@ -1,6 +1,6 @@
 # ADR-0013 — Report 저장·반복 묶음과 형식별 보기
 
-작성: 2026-10-17 · 상태: Proposed — [#19](https://github.com/handochan/aelix-analytics/issues/19) 구현 전 설계 리뷰 대상.
+작성: 2026-10-17 · 상태: Accepted — 2026-10-18 [소유자 병합 승인](https://github.com/handochan/aelix-analytics/issues/1#issuecomment-6247629844)으로 채택. [#19](https://github.com/handochan/aelix-analytics/issues/19) 구현·검증은 후속 PR이다.
 
 [ADR-0006 §7·§8](0006-common-record-contract.md)의 채택된 저장·재시도 골격을 구현하기 위한 선택이다.
 기존 필수 필드·저장 순서·지문 알고리즘을 유지하고, 선택 메타데이터와 묶음의 표현을 구체화한다.

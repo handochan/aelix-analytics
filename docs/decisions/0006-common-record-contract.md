@@ -257,8 +257,8 @@ CONTEXT 버전(`context_version`, `/1`의 `refs.context`)은 버전 파일 이�
 
 ### 7. Report 저장 골격
 
-#19의 구현 선택·선택 메타데이터·반복 묶음 구체안은 [ADR-0013](0013-report-storage-and-collections.md)(Proposed)에서 검토한다.
-그 제안이 아래 채택 계약이나 현재 구현을 이미 바꿨다는 뜻은 아니다.
+#19의 구현 선택·선택 메타데이터·반복 묶음 구체안은 [ADR-0013](0013-report-storage-and-collections.md)(Accepted, 2026-10-18)에서 정한다.
+아래 저장 골격을 유지하며 실제 writer·reader·SDK 구현과 검증은 #19의 후속 PR에서 한다.
 
 ```text
 artifacts/reports/<report_id>/

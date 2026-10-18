@@ -330,9 +330,9 @@ HTML을 그리지 않아 주석이 글자로 보이고, 목표를 읽는 쪽은 
 
 ## 8. 적용과 변경 관리
 
-### #19 공개 이름 후보 — 구현 전
+### #19 채택한 공개 이름 — 구현 전
 
-[ADR-0013](decisions/0013-report-storage-and-collections.md)의 설계 리뷰 대상이다. 현재 명령·SDK·기록을 뜻하지 않는다.
+[ADR-0013](decisions/0013-report-storage-and-collections.md)은 2026-10-18 채택했다. 아래 이름의 명령·SDK·기록은 아직 구현 전이다.
 
 | 이름 | 범위와 기존 개념과의 차이 |
 |---|---|
