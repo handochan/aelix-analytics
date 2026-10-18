@@ -1030,3 +1030,154 @@ def test_zip_verifier_checks_root_utf8_and_fixed_metadata_before_trusting_files(
     ]:
         with pytest.raises(PublicationError):
             checks.verify_package(archive(prefix, utf8, date))
+
+
+@pytest.mark.parametrize(
+    "attribute", ["fill", "stroke", "filter", "clip-path", "mask", "marker-start", "cursor"]
+)
+def test_svg_presentation_urls_share_the_css_resource_and_data_uri_checks(attribute):
+    remote = f'<svg xmlns="http://www.w3.org/2000/svg"><path {attribute}="url(https://remote.test/a.svg#paint)"/></svg>'.encode()
+    inspected = inspect_bytes(remote, role="figure")
+    assert inspected.links[0].value == "https://remote.test/a.svg#paint"
+    with pytest.raises(PublicationError, match="remote_resources"):
+        package._user_links(inspected)
+    with pytest.raises(PublicationError, match="external resource"):
+        checks.check_package({"files/figure.svg": remote}, {"files/figure.svg": "figure"})
+    child = (
+        '<svg xmlns="http://www.w3.org/2000/svg"><metadata>'
+        + CANARY
+        + '</metadata><linearGradient id="paint"/></svg>'
+    ).encode()
+    raw = (
+        f'<svg xmlns="http://www.w3.org/2000/svg"><path {attribute}="url(data:image/svg+xml;base64,'.encode()
+        + base64.b64encode(child)
+        + b'#paint)"/></svg>'
+    )
+    with pytest.raises(PublicationError, match="excluded content"):
+        checks.check_strings(
+            inspect_bytes(raw, role="figure").strings, POLICY, path="files/copy.svg"
+        )
+    local = f'<svg xmlns="http://www.w3.org/2000/svg"><linearGradient id="paint"/><path {attribute}="url(#paint)"/></svg>'.encode()
+    checks.check_package({"files/figure.svg": local}, {"files/figure.svg": "figure"})
+
+
+def test_full_preview_rejects_svg_data_uri_canary_and_omits_remote_resources(tmp_path):
+    child = (
+        '<svg xmlns="http://www.w3.org/2000/svg"><metadata>' + CANARY + "</metadata></svg>"
+    ).encode()
+    cases = {
+        "remote.svg": b'<svg xmlns="http://www.w3.org/2000/svg"><path fill="url(https://remote.test/a.svg#paint)"/></svg>',
+        "remote.html": b'<body background="https://remote.test/bg.png"><p>Included</p></body>',
+        "private.svg": b'<svg xmlns="http://www.w3.org/2000/svg"><path fill="url(data:image/svg+xml;base64,'
+        + base64.b64encode(child)
+        + b')"/></svg>',
+    }
+    for n, (name, raw) in enumerate(cases.items()):
+        p = core.init_project(tmp_path / f"p{n}", title="Public", origin=ORIGIN)
+        core.record(p, "note", CANARY, origin=ORIGIN)
+        (p.root / name).write_bytes(raw)
+        (p.scripts / "show.py").write_text(
+            "from pathlib import Path\nimport aelix_analytics as a\na.visualize(Path("
+            + repr(name)
+            + '), "one", title="Included figure")\n',
+            encoding="utf-8",
+        )
+        assert (
+            runner.execute(p, script="scripts/show.py", title="Public chart", origin=ORIGIN)["run"][
+                "status"
+            ]
+            == "ok"
+        )
+        if name == "private.svg":
+            with pytest.raises(PublicationError) as caught:
+                build.preview_package(p)
+            assert caught.value.code == "leak_found"
+        else:
+            summary, files = build.preview_package(p)
+            assert raw not in files.values()
+            assert any(row["reason"] == "remote_resources" for row in summary["not_included"])
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        b"II",
+        b"II" + struct.pack("<HIH", 41, 8, 0) + bytes(4),
+        b"II"
+        + struct.pack("<HIH", 42, 8, 1)
+        + struct.pack("<HHII", 0x13B, 2, 100, 100000)
+        + bytes(4),
+    ],
+)
+def test_malformed_exif_cannot_be_reported_as_inspected(value):
+    with pytest.raises(PublicationError) as caught:
+        checks.check_package(
+            {"files/meta.png": png((b"eXIf", value))}, {"files/meta.png": "figure"}
+        )
+    assert caught.value.code == "inspection_failed"
+
+
+def test_nested_image_metadata_warns_on_the_enclosing_preview_file(tmp_path):
+    from PIL import Image
+
+    output = io.BytesIO()
+    exif = Image.Exif()
+    exif[0x013B] = "Public author"
+    Image.new("RGB", (1, 1)).save(output, format="JPEG", exif=exif)
+    raw = b'<img src="data:image/jpeg;base64,' + base64.b64encode(output.getvalue()) + b'">'
+    inspected = inspect_bytes(raw, role="figure")
+    assert any("Artist" in key for key in inspected.metadata_keys)
+    p = core.init_project(tmp_path / "p", title="Public", origin=ORIGIN)
+    (p.root / "source.html").write_bytes(raw)
+    (p.scripts / "show.py").write_text(
+        'from pathlib import Path\nimport aelix_analytics as a\na.visualize(Path("source.html"), "one", title="Public figure")\n',
+        encoding="utf-8",
+    )
+    assert (
+        runner.execute(p, script="scripts/show.py", title="Public chart", origin=ORIGIN)["run"][
+            "status"
+        ]
+        == "ok"
+    )
+    summary, files = build.preview_package(p)
+    assert any(
+        row["reason"] == "image_metadata" and "Artist" in row["key"] for row in summary["warnings"]
+    )
+    assert b"Author/software metadata" in files["index.html"]
+
+
+def test_parquet_map_schema_keys_values_and_field_metadata_are_inspected():
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    for where in ("clean", "key", "value", "metadata"):
+        typ = pa.map_(
+            pa.string(),
+            pa.field(
+                "value",
+                pa.string(),
+                metadata={b"author": CANARY.encode()} if where == "metadata" else None,
+            ),
+        )
+        schema = pa.schema([pa.field("values", typ)])
+        out = io.BytesIO()
+        table = pa.Table.from_pylist(
+            [
+                {
+                    "values": [
+                        (
+                            CANARY if where == "key" else "name",
+                            CANARY if where == "value" else "value",
+                        )
+                    ]
+                }
+            ],
+            schema=schema,
+        )
+        pq.write_table(table, out)
+        inspected = parquet_strings(out.getvalue())
+        if where == "clean":
+            checks.check_strings(inspected.strings, POLICY, path="files/table.parquet")
+        else:
+            with pytest.raises(PublicationError, match="excluded content"):
+                checks.check_strings(inspected.strings, POLICY, path="files/table.parquet")

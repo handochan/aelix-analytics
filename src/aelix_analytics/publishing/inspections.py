@@ -10,7 +10,7 @@ import struct
 import xml.etree.ElementTree as ET
 import zlib
 from html.parser import HTMLParser
-from urllib.parse import unquote, unquote_to_bytes
+from urllib.parse import unquote, unquote_to_bytes, urldefrag
 
 from .model import Inspection, PublicationError, ResourceLink, ScanText
 
@@ -28,7 +28,22 @@ REMOTE_TRACES = frozenset(
         "densitymap",
     }
 )
-RESOURCE_ATTRS = frozenset({"src", "poster", "data-payload"})
+RESOURCE_ATTRS = frozenset({"src", "poster", "background", "data-payload"})
+SVG_URL_ATTRS = frozenset(
+    {
+        "fill",
+        "stroke",
+        "filter",
+        "clip-path",
+        "mask",
+        "marker",
+        "marker-start",
+        "marker-mid",
+        "marker-end",
+        "cursor",
+        "color-profile",
+    }
+)
 UNSAFE_TAGS = frozenset({"script", "iframe", "object", "embed", "base", "foreignobject", "form"})
 
 
@@ -422,40 +437,47 @@ def _exif(data, where):
         values, keys = _xmp(packet, where)
         return [*_binary_strings(data, where), *values], keys
     raw = data[6:] if data.startswith(b"Exif\x00\x00") else data
-    if len(raw) >= 8 and raw[:2] in (b"II", b"MM"):
-        order = "<" if raw[:2] == b"II" else ">"
-        seen, pending = set(), [struct.unpack_from(order + "I", raw, 4)[0]]
-        names = {
-            0x010F: "Make",
-            0x0110: "Model",
-            0x0131: "Software",
-            0x013B: "Artist",
-            0x8298: "Copyright",
-            0x8825: "GPS",
-            0xA431: "BodySerialNumber",
-            0xA435: "LensSerialNumber",
-        }
-        while pending:
-            off = pending.pop()
-            if off in seen:
-                continue
-            seen.add(off)
-            if off + 2 > len(raw):
-                failed("EXIF directory offset is outside its bytes")
-            count = struct.unpack_from(order + "H", raw, off)[0]
-            if off + 2 + 12 * count + 4 > len(raw):
-                failed("truncated EXIF directory")
-            for n in range(count):
-                tag, type_, count_, value = struct.unpack_from(
-                    order + "HHII", raw, off + 2 + n * 12
-                )
-                if tag in names:
-                    keys.append(where + ":" + names[tag])
-                if tag in (0x8769, 0x8825, 0xA005) and type_ == 4 and count_ == 1:
-                    pending.append(value)
-            next_ = struct.unpack_from(order + "I", raw, off + 2 + 12 * count)[0]
-            if next_:
-                pending.append(next_)
+    if len(raw) < 8 or raw[:2] not in (b"II", b"MM"):
+        failed("EXIF metadata has no complete TIFF header")
+    order = "<" if raw[:2] == b"II" else ">"
+    if struct.unpack_from(order + "H", raw, 2)[0] != 42:
+        failed("unsupported EXIF TIFF header")
+    seen, pending = set(), [struct.unpack_from(order + "I", raw, 4)[0]]
+    sizes = {1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 6: 1, 7: 1, 8: 2, 9: 4, 10: 8, 11: 4, 12: 8, 13: 4}
+    names = {
+        0x010F: "Make",
+        0x0110: "Model",
+        0x0131: "Software",
+        0x013B: "Artist",
+        0x8298: "Copyright",
+        0x8825: "GPS",
+        0xA431: "BodySerialNumber",
+        0xA435: "LensSerialNumber",
+    }
+    while pending:
+        off = pending.pop()
+        if off in seen:
+            continue
+        seen.add(off)
+        if off < 8 or off + 2 > len(raw):
+            failed("EXIF directory offset is outside its bytes")
+        count = struct.unpack_from(order + "H", raw, off)[0]
+        if off + 2 + 12 * count + 4 > len(raw):
+            failed("truncated EXIF directory")
+        for n in range(count):
+            tag, type_, count_, value = struct.unpack_from(order + "HHII", raw, off + 2 + n * 12)
+            if type_ not in sizes:
+                failed("unsupported EXIF value type")
+            size = sizes[type_] * count_
+            if size > 4 and (value < 8 or value + size > len(raw)):
+                failed("EXIF value is outside its bytes")
+            if tag in names:
+                keys.append(where + ":" + names[tag])
+            if tag in (0x8769, 0x8825, 0xA005) and type_ == 4 and count_ == 1 and value:
+                pending.append(value)
+        next_ = struct.unpack_from(order + "I", raw, off + 2 + 12 * count)[0]
+        if next_:
+            pending.append(next_)
     return list(_binary_strings(data, where)), keys
 
 
@@ -534,7 +556,11 @@ def _image(data, format_):
                 failed("invalid JPEG segment length")
             body = data[pos + 2 : pos + length]
             if marker in (0xE1, 0xFE):
-                texts, names = _exif(body, "jpeg:" + hex(marker))
+                # JPEG comments are free text; only APP1 has EXIF/XMP structure.
+                if marker == 0xFE:
+                    texts, names = list(_binary_strings(body, "jpeg:comment")), []
+                else:
+                    texts, names = _exif(body, "jpeg:" + hex(marker))
                 values.extend(texts)
                 keys.extend(names)
                 keys.append("JPEG APP1" if marker == 0xE1 else "JPEG comment")
@@ -723,8 +749,8 @@ def inspect_bytes(data, *, role, path="", parquet_extractor=None, depth=0):
                     ids.append(v)
                 if k == "href":
                     links.append(ResourceLink(v, "svg:@href"))
-                if k == "style":
-                    refs, parts = css_tokens(v, "svg:style")
+                if k == "style" or k in SVG_URL_ATTRS:
+                    refs, parts = css_tokens(v, "svg:@" + k)
                     links.extend(refs)
                     values.extend(parts)
             if tag == "style" and element.text:
@@ -740,7 +766,7 @@ def inspect_bytes(data, *, role, path="", parquet_extractor=None, depth=0):
     for link in result.links:
         if unquote(link.value.strip().split(",", 1)[0]).lower().startswith("data:"):
             try:
-                header, payload = link.value.strip().split(",", 1)
+                header, payload = urldefrag(link.value.strip())[0].split(",", 1)
                 header = unquote(header)
                 value = (
                     base64.b64decode(unquote_to_bytes(payload), validate=True)
@@ -765,6 +791,6 @@ def inspect_bytes(data, *, role, path="", parquet_extractor=None, depth=0):
         result.format,
         (*result.strings, *(s for r in nested for s in r.strings)),
         (*result.links, *(link for r in nested for link in r.links)),
-        result.metadata_keys,
+        tuple(sorted(set((*result.metadata_keys, *(k for r in nested for k in r.metadata_keys))))),
         result.ids,
     )

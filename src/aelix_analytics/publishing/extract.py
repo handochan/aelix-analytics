@@ -54,7 +54,10 @@ def parquet_strings(data):
         typ = item.type
         if pa.types.is_dictionary(typ):
             typ = typ.value_type
-        if pa.types.is_struct(typ) or pa.types.is_map(typ):
+        if pa.types.is_map(typ):
+            field(typ.key_field, where + ".map.key")
+            field(typ.item_field, where + ".map.value")
+        elif pa.types.is_struct(typ):
             for child in typ:
                 field(child, where + "." + child.name)
         elif (
