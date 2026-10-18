@@ -8,13 +8,13 @@
 
 | 파일 | 내용 |
 |---|---|
-| [`tasks.json`](tasks.json) | 과제 12개: 사용자 요청 글, fixture, 준비 방식, 게이트, Q11 요청 유형, Q5 조건, 제한 시간 |
-| [`answers/`](answers/) | 과제별 정답: 바른 완료(글), 근거 ID, 채점 검사, 쓴 fixture의 seed. **모두 초안**(`status: draft`). T12는 `always_review`(아래 채점) |
+| [`tasks.json`](tasks.json) | 과제 12개: 사용자 요청 글, fixture, 준비 방식, 게이트, Q11 요청 유형, Q5 조건, 제한 시간. 소유자가 과제 목록을 확인했다(`status: confirmed`, 2026-10-18). 하네스는 이 값을 읽지 않는다 |
+| [`answers/`](answers/) | 과제별 정답: 바른 완료(글), 근거 ID, 채점 검사, 쓴 fixture의 seed. 에이전트가 쓴 초안을 소유자가 모두 확인했다(`status: confirmed`, 2026-10-17). T12는 `always_review`(아래 채점) |
 | [`models/`](models/) | 모델 설정: [로컬 Qwen](models/qwen3.8-27b-local.json), [프론티어](models/gpt-5.6-sol.json), [dry-run](models/dry-run.json) |
 | [`conditions.json`](conditions.json) | 도구 표면(Q11), 제안 조건(Q5), 글 판정에 쓰는 낱말 묶음 |
 | [`dry_run/`](dry_run/) | dry-run의 가짜 모델이 따르는 스크립트(과제별, 없으면 상태 확인 뒤 답 하나) |
 
-정답은 에이전트가 fixture를 읽고 쓴 초안이다. 소유자가 확인하면 `status`를 `confirmed`로, `confirmed_by`에 확인한 사람을 적는다.
+정답은 에이전트가 fixture를 읽고 쓴 초안이었고, 소유자가 12개를 모두 확인했다(2026-10-17, #40): `status`는 `confirmed`, `confirmed_by`는 확인한 사람이다.
 초안 정답의 점수는 확정 결과가 아니다(run 기록의 `answer.status`). 정답을 바꾼 뒤에는 `score`로 이미 실행한 run을 다시 채점한다.
 
 ## 과제
@@ -318,7 +318,7 @@ aelix 자신이 로그인 파일 하나만 그 자리에서 읽고 갱신하며,
 
 ## 한계
 
-- 정답은 초안이다. 글 기반 판정은 휴리스틱이다(필요조건, `needs_review`는 사람이 확정). 정답은 seed 0 fixture에만 있다.
+- 정답은 소유자가 확인했지만 글 기반 판정은 휴리스틱이다(필요조건, `needs_review`는 사람이 확정). 정답은 seed 0 fixture에만 있다.
 - Q12의 파생·코드만 수정한 재계산·부모 버전 변경은 지표 기록(#14)이 없어 과제가 없다. Q5의 `always_on`은 kit의 설정(#17)이 생기면 실행한다.
 - aelix는 요청 본문(시스템 지침·도구 schema)을 사건으로 내지 않는다. 실제 모델 run의 전체 입력 크기는 API의 입력 토큰으로만 알고, 그
   본문의 바이트 수는 같은 조건의 dry-run이 남긴다.

@@ -5,7 +5,7 @@
   else root.AnalyticsWorkspaceState = codec;
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
-  const tabs = new Set(["overview", "insights", "charts", "timeline", "data", "runs", "context", "assets", "evaluation"]);
+  const tabs = new Set(["overview", "insights", "charts", "map", "timeline", "data", "runs", "context", "assets", "evaluation"]);
   // The UI languages a URL may carry (workspace-i18n.js): the page's language when storage is blocked.
   const languages = new Set(["en", "ko"]);
   function text(value, max) { return typeof value === "string" && value.length <= max ? value : ""; }
@@ -14,7 +14,7 @@
     let decoded;
     try { decoded = decodeURIComponent(value); } catch (_) { return false; }
     if (/[\\:#?\x00-\x1f]/.test(decoded) || decoded.split("/").some(p => p === "." || p.startsWith(".."))) return false;
-    return /^(index|context)\.html$/.test(decoded) || /^(runs|data|relations|lists)\/[^/]+\.html$/.test(decoded);
+    return /^(index|context)\.html$/.test(decoded) || /^(runs|data|relations|lists|scripts)\/[^/]+\.html$/.test(decoded);
   }
   function normalize(value, originAllowed = true) {
     if (!value || typeof value !== "object" || Array.isArray(value) || value.v !== 1 || !safePage(value.page)) return null;

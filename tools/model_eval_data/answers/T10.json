@@ -1,9 +1,9 @@
 {
   "schema": "aelix-analytics.model-eval-answer/1",
   "task": "T10",
-  "status": "draft",
+  "status": "confirmed",
   "author": "Claude Code (agent) from the seed-0 fixtures of tools/eval_fixtures.py, 2026-10-07; to be confirmed by the owner (Issue #40 decision 2026-10-07)",
-  "confirmed_by": null,
+  "confirmed_by": "handochan (owner), 2026-10-17, Issue #40",
   "fixture": {
     "kind": "q13",
     "seed": 0,

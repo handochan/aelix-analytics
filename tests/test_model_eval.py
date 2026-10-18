@@ -1,6 +1,6 @@
 """The real-model evaluation harness of tools/model_eval.py and its data (Issue #40).
 
-Without a model: the configuration (12 tasks, their draft answers, the pinned model configurations and
+Without a model: the configuration (12 tasks, their confirmed answers, the pinned model configurations and
 the conditions) is valid, and an invalid one is refused; every id an answer cites is in the seed-0 fixture
 it is written for, and the answers' numbers and verdicts are those tools/eval_fixtures.py's expected
 judgments and manifest hold; the scoring passes a right answer and fails a wrong one, a stale value stated
@@ -104,12 +104,12 @@ def fixtures(tmp_path_factory, config):
 
 # --- configuration --------------------------------------------------------------------------------
 
-def test_the_configuration_has_twelve_tasks_with_draft_answers_and_both_models(config):
+def test_the_configuration_has_twelve_tasks_with_confirmed_answers_and_both_models(config):
     assert sorted(config.tasks) == [f"T{i:02d}" for i in range(1, 13)]
     assert sorted(config.answers) == sorted(config.tasks)
-    # Agent-written answers stay drafts until the owner confirms them (Issue #40, 2026-10-07).
-    assert {a["status"] for a in config.answers.values()} == {"draft"}
-    assert all(a["confirmed_by"] is None for a in config.answers.values())
+    # The agent wrote the answers as drafts and the owner confirmed all twelve (Issue #40, 2026-10-17).
+    assert {a["status"] for a in config.answers.values()} == {"confirmed"}
+    assert all(a["confirmed_by"] == "handochan (owner), 2026-10-17, Issue #40" for a in config.answers.values())
     gates = {g for t in config.tasks.values() for g in t["gates"]}
     assert gates == set(me.GATES)
     assert {t["q11_request"] for t in config.tasks.values()} >= {"single", "combination", "ambiguous"}
@@ -160,6 +160,8 @@ def test_an_invalid_configuration_is_refused_with_every_problem(tmp_path):
     edit_json(data / "answers" / "T07.json", lambda a: a.update(status="final"))
     edit_json(data / "answers" / "T08.json", lambda a: a["checks"].append(
         {"id": "y", "kind": "critical", "type": "text_any", "values": ["22%"]}))
+    # A confirmed answer says who confirmed it (all twelve are confirmed since Issue #40).
+    edit_json(data / "answers" / "T10.json", lambda a: a.update(confirmed_by=None))
     edit_json(data / "answers" / "T09.json", lambda a: a["checks"].append(
         {"id": "z", "kind": "critical", "type": "stated_as_current", "patterns": ["(unclosed"],
          "unless": "@superseded"}))
@@ -177,7 +179,8 @@ def test_an_invalid_configuration_is_refused_with_every_problem(tmp_path):
     message = str(caught.value)
     for expected in ("type 'guess' is unknown", "status must be one of", "a critical check is a "
                      "stated_as_current check", "does not compile", "may not start with - or @",
-                     "looks like a real key", "answers/T12.json is missing", "auth must say its source",
+                     "looks like a real key", "answers/T12.json is missing", "names who confirmed it",
+                     "auth must say its source",
                      "an aelix login or a key variable, not both", "api must be one of",
                      "qwen3.8-27b-local.json: the configuration holds credential-shaped text (credential_field)"):
         assert expected in message
@@ -906,7 +909,7 @@ def test_the_dry_run_goes_through_aelix_and_is_scored(aelix_command, fixtures, t
     t06 = json.loads((runs / "T06-dry-run-default-unrequested-r1" / "run.json").read_text(encoding="utf-8"))
     assert t06["outcome"] == "success" and t06["exit_code"] == 0 and not t06["timed_out"]
     assert t06["host"]["aelix"] == me.AELIX_VERSION and t06["kit"]["kit_version"] == core.KIT_VERSION
-    assert t06["answer"]["status"] == "draft" and t06["fixture"]["kind"] == "q10"
+    assert t06["answer"]["status"] == "confirmed" and t06["fixture"]["kind"] == "q10"
     assert [c["error_class"] for c in t06["tool_calls"]] == ["schema", None]
     assert t06["tool_summary"]["argument_errors"] == 1
     assert t06["tool_calls"][1]["result_head"].splitlines()[-1].strip() == "5838"

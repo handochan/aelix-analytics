@@ -27,6 +27,7 @@ from aelix_analytics import core, i18n, workspace
 
 ASSETS = KIT / "aelix_analytics" / "assets"
 CODE = [KIT / "aelix_analytics" / "workspace.py", KIT / "aelix_analytics" / "workspace_relations.py",
+        KIT / "aelix_analytics" / "workspace_map.py", KIT / "aelix_analytics" / "workspace_versions.py",
         ASSETS / "workspace.js", ASSETS / "workspace-i18n.js"]
 SHAPE = re.compile(r"\{@?[a-z][a-z0-9_.]*\}")
 KEY = re.compile(r"^[a-z][a-z0-9_]*(\.[a-z0-9_/]+)+$")
@@ -126,8 +127,8 @@ def test_a_message_falls_back_to_english_and_fills_its_values_once(monkeypatch):
 def test_the_markup_escapes_the_words_and_their_values():
     # A word without values whose English names one translation is bare; the page finds its key.
     assert i18n.by_english("tab.insights") and i18n.t("tab.insights") == "<k-w>Insights</k-w>"
-    assert i18n.t("context.versions_count", n=3) == \
-        '<k-w k="context.versions_count" a=\'{"n":3}\'>3 version(s)</k-w>'
+    assert i18n.t("versions.count", n=3) == \
+        '<k-w k="versions.count" a=\'{"n":3}\'>3 versions</k-w>'
     # Values are JSON in single quotes; a quote or ampersand in a value is escaped.
     odd = "it's & <x>"
     shown = html.escape(i18n.message("badge.import_not_read_title", reason=odd), quote=False)

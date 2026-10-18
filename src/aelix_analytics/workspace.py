@@ -14,7 +14,6 @@ only, so they work from file:// and inside a copied project.
 from __future__ import annotations
 
 import contextlib
-import difflib
 import functools
 import hashlib
 import html
@@ -67,7 +66,8 @@ OUTPUT_STATE = {"resolved": ("good", "✓"), "content_changed": ("critical", "�
 SHOWN_CANDIDATES = 3
 # The index section a page's way back goes to when the page a reader came from is not known: the
 # section its kind is listed in (`back.tab.<section>` names it).
-BACK = {"run": "runs", "dataset": "data", "relations": "insights", "context": "context", "list": "timeline"}
+BACK = {"run": "runs", "dataset": "data", "relations": "insights", "context": "context", "list": "timeline",
+        "script": "runs"}
 # The pages are lang="en" (the kit's words). What people and scripts wrote is in a language the
 # records do not name, so its element says "unknown" (lang=""): a screen reader reads it in the
 # reader's own voice rather than an English one, and nothing guesses the language (TERMINOLOGY 7).
@@ -239,13 +239,23 @@ class Site:
     words = staticmethod(words)
     ref_words = staticmethod(ref_words)
     fmt_time = staticmethod(fmt_time)
+    fmt_date = staticmethod(fmt_date)
+    fmt_num = staticmethod(fmt_num)
+    fmt_bytes = staticmethod(fmt_bytes)
+    short = staticmethod(short)
+    href = staticmethod(href)
+    title_attr = staticmethod(title_attr)
     badge = staticmethod(badge)
+    status_badge = staticmethod(status_badge)
     kind_chip = staticmethod(kind_chip)
     user_language = USER
     REF_STATE = REF_STATE
+    RECORD_STATE = RECORD_STATE
 
     def __init__(self, project: core.Project):
+        from .workspace_map import AnalysisMap, AnalysisStatus
         from .workspace_relations import RelationPages
+        from .workspace_versions import Versions
 
         self.p = project
         self.cache = core.HashCache(project)
@@ -295,6 +305,12 @@ class Site:
         self.uses_plotly = False
         self._fig = 0
         self.relations = RelationPages(self)
+        # The Overview's analysis status and the Analysis map (design WORKSPACE-READABILITY 7, #98),
+        # from the same read.
+        self.status = AnalysisStatus(self)
+        self.map = AnalysisMap(self)
+        # Every version history the pages show (design WORKSPACE-READABILITY 5, #99), from the same read.
+        self.history = Versions(self)
 
     # --- links (depth 0 = workspace/, 1 = workspace/runs|data/) ---
 
@@ -345,6 +361,14 @@ class Site:
 
     def relation_actions(self, identity: str, depth: int) -> str:
         return f'<div class="workspace-actions">{self.relation_link(identity, depth, klass="action")}</div>'
+
+    @staticmethod
+    def inferred_mark(run_id: str, runs) -> str:
+        return inferred_mark(run_id, runs)
+
+    @staticmethod
+    def inferred_count(runs) -> str:
+        return inferred_count_html(runs)
 
     def script_path(self, run: dict) -> str | None:
         """A run's script path as the gallery reads it: an older kit's spelling as today's
@@ -660,8 +684,7 @@ class Site:
         elif fresh["code"] == "missing":
             badges.append(badge("warning", "✎", t("badge.script_missing"), attr("title", "badge.script_missing_title")))
         versions = chart.get("versions") or []
-        if len(versions) > 1:
-            badges.append(f'<span class="badge tone-muted">{t("badge.versions", n=len(versions))}</span>')
+        badges.insert(0, self.history.chart_badge(chart["key"], chart["run"]))
         if chart.get("inferred_versions"):
             badges.append(inferred_badge("inferred.title_versions", n=chart["inferred_versions"], total=len(versions)))
         if chart.get("retired"):
@@ -695,12 +718,10 @@ class Site:
             data_html = f'<span class="muted">{t("card.in_plotly_json")}</span>'
         else:
             data_html = f'<span class="muted">{t("card.data_not_recorded")}</span>'
-        version_links = ""
-        if full and len(versions) > 1:
-            version_links = (f'<div class="versions">{t("card.earlier_versions")} ' + " · ".join(
-                f'<a href="{self.run_link(v["run"], depth, "#chart-" + href(str(chart["id"])))}">{fmt_time(v.get("started_at"))}</a>'
-                + (f' <small{inferred_title()}>{t("inferred.short")}</small>' if v.get("inferred") else "")
-                for v in versions[-2::-1][:8]) + "</div>")
+        # The card's versions (design 5.1, mockup 6-C): what a reader needs first about the latest, and
+        # the folded strip with the way to the whole history on the latest version's run page.
+        version_links = (self.history.chart_note(chart["key"], card=True) + self.history.chart_strip_row(
+            chart["key"], chart["id"], chart["run"], depth)) if full else ""
         card_id = ("chart-" if full else "recent-chart-") + slug_key(chart["key"])
         classes = "chart-card" + (" is-stale" if fresh["stale"] else "") + \
             (" is-retired" if chart.get("retired") else "")
@@ -828,15 +849,6 @@ class Site:
 """
 
 
-def dataset_counts(site) -> str:
-    """The Datasets tile's note: the datasets of each kind — the layout's imports (imported, or raw
-    in a lab.json project) and the other kind of imports when there are any, then derived."""
-    own = "raw" if site.p.layout.imported_dir == "data/raw" else "imported"
-    kinds = [k for k in ("imported", "raw") if k == own or any(d["kind"] == k for d in site.datasets)]
-    return " · ".join(f"{words('data.kind', k)} {sum(d['kind'] == k for d in site.datasets)}"
-                      for k in (*kinds, "derived"))
-
-
 def imported_note(site) -> str:
     """Where the imported data is (kept unchanged): data/imported, and data/raw a lab.json project's."""
     if site.p.layout.imported_dir == "data/raw":
@@ -907,6 +919,13 @@ def _build_locked(project: core.Project, if_changed: bool) -> dict:
         if view:
             _write(out / "data" / f"{view}.html", dataset_page(site, ds, view), project.platform)
             pages += 1
+    # A page per script path with its code versions (design 5.3).
+    (out / site.history.directory).mkdir(parents=True, exist_ok=True)
+    scripts = {site.history.page_name(script): script for script in site.model.scripts()}
+    for name, script in scripts.items():
+        _write(out / site.history.directory / name, site.history.script_html(script), project.platform)
+        pages += 1
+    _prune(out / site.history.directory, set(scripts))
     relation_names = set()
     for identity in sorted(site.relations.identities):
         count = len(site.model.reference_neighborhood(identity))
@@ -1164,57 +1183,13 @@ def producer_cell(site: Site, judged: dict | None, depth: int) -> str:
 
 def index_page(site: Site) -> str:
     p = site.p
-    st_goal = ""
     context_text = (p.context.read_text(encoding="utf-8", errors="replace")
                     if p.context.is_file() else "")
-    goal = core.context_goal(context_text)
-    if goal:
-        st_goal = f'<p class="goal"{USER}>{esc(goal)}</p>'
-    current = [c for c in site.charts if not c.get("retired")]
-    stale = [c for c in current if site.fresh.of(c["run"])["stale"]]
-    failed = [r for r in site.runs if r.get("status") != "ok"]
-    open_items, key_items, gaps = site.lists.open, site.lists.key, site.lists.feedback
-
-    def tile(label_key, value, note="", target=""):
-        return (f'<a class="tile" href="#{target}"><span class="label">{t(label_key)}</span>'
-                f'<span class="value">{fmt_num(value)}</span><span class="note">{note}</span></a>')
-
-    tiles = "".join([
-        tile("overview.tile.datasets", len(site.datasets), dataset_counts(site), "data"),
-        tile("overview.tile.runs", len(site.runs),
-             t("overview.runs_not_ok", n=len(failed)) if failed else t("overview.runs_all_ok"), "runs"),
-        tile("overview.tile.charts", len(current), "⚠ " + t("overview.charts_stale", n=len(stale)) if stale
-             else t("overview.charts_fresh"), "charts"),
-        tile("overview.tile.open", len(open_items), "", "overview-open"),
-        tile("overview.tile.feedback", len(gaps), t("overview.feedback_where"), "evaluation"),
-    ])
-
-    def item_list(items, empty_key):
-        if not items:
-            return f'<div class="empty">{t(empty_key)}</div>'
-        return '<ol class="records">' + "".join(
-            site.record_row(e, 0, row_id="key-" + site.anchor(e)) for e in reversed(items[-12:])) + "</ol>"
-
-    skipped = records_notice(site)
-
-    overview = f"""
-<section id="overview" class="tab">
-  <div class="hero"><h1{USER}>{esc(p.title())}</h1>{st_goal}<div class="where">{t("overview.project")} <code{USER}>{esc(p.root)}</code></div></div>
-  {skipped}
-  <div class="tiles">{tiles}</div>
-  <div class="columns">
-    <div class="panel"><h2>{t("overview.key")}</h2>{item_list(key_items, "overview.key_empty")}</div>
-    <div class="panel" id="overview-open"><h2>{t("overview.open")}</h2>{item_list(open_items, "overview.open_empty")}</div>
-  </div>
-  <h2 class="section-title">{t("overview.recent_charts")}</h2>
-  <div class="gallery">{''.join(site.chart_card(c, 0) for c in current[:4]) or f'<div class="empty">{t("overview.charts_empty")}</div>'}</div>
-  <h2 class="section-title">{t("overview.recent_events")}</h2>
-  {site.events_html(site.events[-8:][::-1], 0, prefix="recent-")}
-</section>"""
+    overview = overview_section(site, context_text)
 
     all_cards = "".join(site.chart_card(c, 0, full=True) for c in site.charts[:CHART_INDEX_LIMIT])
     charts = f"""
-<section id="charts" class="tab">
+<section id="charts" class="tab" data-count="{len(site.status.charts)}">
   <div class="toolbar"><h2>{t("tab.charts")}</h2><label class="toggle"><input type="checkbox" id="show-retired"> {t("charts.show_retired")}</label></div>
   <p class="muted">{t("charts.lead")}</p>
   {list_notice("charts", len(site.charts), CHART_INDEX_LIMIT)}
@@ -1222,7 +1197,7 @@ def index_page(site: Site) -> str:
 </section>"""
 
     timeline = f"""
-<section id="timeline" class="tab">
+<section id="timeline" class="tab" data-count="{len(site.events)}">
   <div class="toolbar"><h2>{t("tab.timeline")}</h2></div>
   {site.kind_nav("timeline", 0)}
   {list_notice("timeline", len(site.events), INDEX_LIMIT)}
@@ -1245,7 +1220,7 @@ def index_page(site: Site) -> str:
     data_head = "".join(f"<th>{t('data.col.' + c)}</th>" for c in
                         ("dataset", "kind", "rows", "columns", "size", "path", "source", "used_by")) + "<th>sha256</th>"
     data = f"""
-<section id="data" class="tab">
+<section id="data" class="tab" data-count="{len(site.datasets)}">
   <div class="toolbar"><h2>{t("tab.data")}</h2></div>
   {list_notice("data", len(site.datasets), INDEX_LIMIT)}
   <p class="muted">{imported_note(site)} {t("data.lead")}</p>
@@ -1269,7 +1244,7 @@ def index_page(site: Site) -> str:
     run_head = "".join(f"<th>{t('runs.col.' + c)}</th>" for c in
                        ("started", "run", "status", "title", "charts", "inputs", "outputs", "seconds"))
     runs = f"""
-<section id="runs" class="tab">
+<section id="runs" class="tab" data-count="{len(site.runs)}">
   <div class="toolbar"><h2>{t("tab.runs")}</h2></div>
   {list_notice("runs", len(site.runs), INDEX_LIMIT)}
   {(f'<div class="table-wrap"><table class="list"><thead><tr>{run_head}</tr></thead><tbody>' + ''.join(run_rows) + '</tbody></table></div>') if run_rows else f'<div class="empty">{t("runs.empty")}</div>'}
@@ -1296,8 +1271,156 @@ def index_page(site: Site) -> str:
   </div>
 </section>"""
 
-    return site.page(0, "", "", overview + insights_section(site) + charts + timeline + data + runs + context + asset_section(site)
-                     + evaluation_section(site), "index", title_key="page.workspace")
+    return site.page(0, "", "", overview + insights_section(site) + charts + site.map.tab_html() + timeline + data + runs + context
+                     + asset_section(site) + evaluation_section(site), "index", title_key="page.workspace")
+
+
+# How many records each Overview list shows before its link to all of them (design 7.1), and how
+# many characters of a pinned CONTEXT.md section the direction panel shows before its link.
+OVERVIEW_ROWS = 6
+OVERVIEW_CHARTS = 3
+PINNED_CHARS = 600
+
+
+def overview_section(site: Site, context_text: str) -> str:
+    """The Overview (design WORKSPACE-READABILITY 7.1): where the analysis is going (CONTEXT.md's
+    pinned sections as written, and the analysis focus), the analysis status, each state apart, the
+    map's summary, the current findings and the open items six each, and the rest folded."""
+    p, status = site.p, site.status
+    _, sections = core.context_sections(core.context_file_text(p)) if context_text else ("", [])
+    goal_section = next((sec for sec in sections if core.GOAL_RE.match(section_heading(sec))), None)
+    goal = core.context_goal(context_text)
+    key_all = [e for e in site.events if e.get("kind") in core.KEY_KINDS]
+    kicker = (f'<p class="kicker">{t("overview.kicker")} · {t("overview.as_of")} {fmt_time(site.built_at)} · '
+              f'{t("overview.record", n=site.model.as_of_seq or 0)}</p>')
+    if goal_section is not None:
+        body, cut = section_body(goal_section)
+        goal_html = (f'<p class="goal-label">{t("overview.goal")}</p><div class="goal markdown"{USER}>{render_markdown(body)}</div>'
+                     + (f'<p class="panel-link"><a href="#context">{t("overview.read_rest")}</a></p>' if cut else ""))
+    else:
+        # A first line of CONTEXT.md found without a goal heading: shown, not called the goal.
+        goal_html = f'<p class="goal"{USER}>{esc(goal)}</p>' if goal else ""
+    hero = (f'<div class="hero">{kicker}<h1{USER}>{esc(p.title())}</h1>{goal_html}{overview_facts(site, key_all)}'
+            f'<div class="where">{t("overview.project")} <code{USER}>{esc(p.root)}</code></div></div>')
+    key_items, open_items = site.lists.key, site.lists.open
+
+    def rows(items, prefix: str, empty_key: str) -> str:
+        if not items:
+            return f'<div class="empty">{t(empty_key)}</div>'
+        return '<ol class="records">' + "".join(
+            site.record_row(e, 0, row_id=prefix + site.anchor(e)) for e in reversed(items[-OVERVIEW_ROWS:])) + "</ol>"
+
+    def panel(panel_id: str, title_key: str, shown_key: str, items, prefix, empty_key, link: str, link_words: str,
+              total: int) -> str:
+        shown = min(len(items), OVERVIEW_ROWS)
+        count = f'<span class="muted">{t(shown_key, shown=shown, total=len(items))}</span>' if items else ""
+        # The way to all of them, where there is anything to see there.
+        more = f'<p class="panel-link"><a href="{link}">{link_words} <span aria-hidden="true">→</span></a></p>' if total else ""
+        return (f'<div class="panel" id="{panel_id}"><div class="panel-head"><h2>{t(title_key)}</h2>{count}</div>'
+                f'{rows(items, prefix, empty_key)}{more}</div>')
+
+    lists = ('<div class="columns">'
+             + panel("overview-key", "overview.key", "overview.shown_current", key_items, "key-", "overview.key_empty",
+                     "#insights", t("overview.all_insights", n=len(key_all)), len(key_all))
+             + panel("overview-open", "overview.open", "overview.shown_open", open_items, "key-", "overview.open_empty",
+                     "lists/open-0.html", t("overview.all_open", n=len(open_items)), len(open_items))
+             + "</div>")
+    current = status.charts
+    charts = (f'<details class="fold" open><summary><h2>{t("overview.recent_charts")}</h2>'
+              + (f' <span class="muted">{t("overview.shown_total", shown=min(len(current), OVERVIEW_CHARTS), total=len(current))}</span>' if current else "")
+              + '</summary><div class="gallery">'
+              + (''.join(site.chart_card(c, 0) for c in current[:OVERVIEW_CHARTS]) or f'<div class="empty">{t("overview.charts_empty")}</div>')
+              + f'</div><p class="panel-link"><a href="#charts">{t("overview.all_charts")} <span aria-hidden="true">→</span></a></p></details>')
+    recent = site.events[-8:][::-1]
+    latest = (f' · {t("overview.latest")} {esc(recent[0].get("id"))} {words("kind", recent[0].get("kind"))}, {fmt_time(recent[0].get("ts"))}'
+              if recent else "")
+    activity = (f'<details class="fold"><summary><h2>{t("overview.recent_events")}</h2> <span class="muted">'
+                f'{t("overview.entries", n=len(recent))}{latest}</span></summary>{site.events_html(recent, 0, prefix="recent-")}</details>')
+    return (f'<section id="overview" class="tab"><div class="overview-head">{hero}{direction_panel(site, sections, goal_section)}</div>'
+            f'{records_notice(site)}{status.html()}{site.map.summary_html(status)}{lists}{charts}{activity}'
+            f'{coverage_fold(site)}</section>')
+
+
+def overview_facts(site: Site, key_all: list[dict]) -> str:
+    """What the records hold, in numbers (design 7.1's summary, made without a model): a line of the
+    work and its period, and a line of the insights. A count each, so English says one and many."""
+    imported = sum(1 for ds in site.datasets if ds.get("kind") in ("imported", "raw"))
+    derived = sum(1 for ds in site.datasets if ds.get("kind") == "derived")
+    work = " · ".join([t("overview.fact.runs", n=len(site.runs)), t("overview.fact.imported", n=imported),
+                       t("overview.fact.charts", n=len(site.status.charts)), t("overview.fact.derived", n=derived)])
+    stamps = [e.get("ts") for e in site.events if e.get("ts")]
+    period = (f' · {t("overview.fact.period")} {fmt_date(min(stamps))} – {fmt_date(max(stamps))}' if stamps else "")
+    kinds = Counter(e.get("kind") for e in key_all)
+    states = Counter((site.model.journal.replay().state_of(site.source(e) or "") or {}).get("state") for e in key_all)
+    parts = [t(f"overview.fact.{k}", n=kinds[k]) for k in core.KEY_KINDS if kinds[k]]
+    changed = states.get("superseded", 0) + states.get("conflict", 0)
+    if changed:
+        parts.append(t("overview.fact.corrected", n=changed))
+    if states.get("withdrawn"):
+        parts.append(t("overview.fact.withdrawn", n=states["withdrawn"]))
+    insights = t("overview.fact.insights", n=len(key_all)) + (": " + " · ".join(parts) if parts else "")
+    return f'<p class="facts">{work}{period}</p><p class="facts">{insights}</p>'
+
+
+def section_heading(section: dict) -> str:
+    """A CONTEXT.md section's heading as written, its pin mark aside (not the prompt's shortened
+    name)."""
+    return core.PIN_RE.sub("", section["text"].split("\n", 1)[0][3:]).strip()
+
+
+def section_body(section: dict) -> tuple[str, bool]:
+    """A section's words under its heading, up to PINNED_CHARS (cut at a line), and whether it was cut."""
+    body = section["text"].split("\n", 1)[1] if "\n" in section["text"] else ""
+    if len(body) <= PINNED_CHARS:
+        return body, False
+    return body[:PINNED_CHARS].rsplit("\n", 1)[0], True
+
+
+def direction_panel(site: Site, sections: list[dict], goal_section: dict | None) -> str:
+    """Where the analysis is going now (design 7.1): CONTEXT.md's pinned sections with their headings
+    and words as written (the goal's own section is the hero's), and the analysis focus and metrics
+    the journal holds (#14)."""
+    pinned = [s for s in sections if s["pinned"] and s is not goal_section]
+    blocks = []
+    for section in pinned:
+        body, cut = section_body(section)
+        # A heading that is only a pin mark is the section's number in the kit's words.
+        heading = section_heading(section)
+        title = user_text(heading) if heading else t("overview.section", n=sections.index(section) + 1)
+        blocks.append(f'<div class="pinned"><h3>{title}</h3><div class="markdown"{USER}>{render_markdown(body)}</div>'
+                      + (f'<p class="panel-link"><a href="#context">{t("overview.read_rest")}</a></p>' if cut else "") + "</div>")
+    if not blocks:
+        blocks.append(f'<p class="muted">{t("overview.no_pinned")}</p>')
+    view = core.metric_records(site.p, model=site.model)
+    focus = view.get("current_focus")
+    if focus is not None:
+        details = focus["details"]
+        metrics = ", ".join(m["metric_id"] for m in details["metrics"][:6])
+        blocks.append(f'<div class="pinned"><h3>{t("overview.focus")}</h3><p{USER}>{esc(details.get("question"))}</p>'
+                      + (f'<p>{t("overview.metrics")} <span{USER}>{esc(metrics)}</span></p>' if metrics else "") + "</div>")
+    elif view.get("focus_state") == "conflict":
+        blocks.append(f'<p>{badge("warning", "⚠", t("overview.focus_conflict"))}</p>')
+    defined = [d for d in view["definitions"] if d.get("state") == "current"]
+    if focus is None:
+        blocks.append(f'<p class="muted">{t("overview.metrics_defined", n=len(defined)) if defined else t("overview.metrics_none")}</p>')
+    return (f'<aside class="direction panel"><div class="panel-head"><h2>{t("overview.direction")}</h2>'
+            f'<a href="#context">{t("overview.open_context")}</a></div><p class="muted">{t("overview.direction_from")}</p>'
+            f'{"".join(blocks)}</aside>')
+
+
+def coverage_fold(site: Site) -> str:
+    """Record coverage and Workflow feedback, folded (design 7.1): the runs a record leaves something
+    out of, and the feedback, both in full in Evaluation."""
+    runs = site.runs
+    gaps = {r["id"] for r in runs if r.get("status") == "ok" and not r.get("inputs")
+            and (relations.run_visualizations(r) or r.get("outputs"))}
+    gaps |= {r["id"] for r in runs if r.get("status") == "ok" for c in relations.run_visualizations(r)
+             if c.get("kind") == "matplotlib" and not c.get("data")}
+    gaps |= {r["id"] for r in runs for i in r.get("inputs") or [] if i.get("external")}
+    feedback = site.lists.feedback
+    note = f'{t("overview.coverage_gaps", n=len(gaps))} · {t("overview.feedback_items", n=len(feedback))}'
+    return (f'<details class="fold"><summary><h2>{t("overview.coverage")}</h2> <span class="muted">{note}</span></summary>'
+            f'<p>{t("overview.coverage_lead")} <a href="#evaluation">{t("overview.coverage_link")} <span aria-hidden="true">→</span></a></p></details>')
 
 
 def list_notice(kind: str, total: int, limit: int, depth: int = 0) -> str:
@@ -1313,7 +1436,7 @@ def insights_section(site: Site) -> str:
     over all of them (8.2), and where the rest are."""
     events = [e for e in site.events if e.get("kind") in core.KEY_KINDS]
     rows = "".join(site.record_row(e, 0, row_id="insight-" + site.anchor(e)) for e in events[-INDEX_LIMIT:][::-1])
-    return (f'<section id="insights" class="tab"><div class="toolbar"><h2>{t("tab.insights")}</h2></div>'
+    return (f'<section id="insights" class="tab" data-count="{len(events)}"><div class="toolbar"><h2>{t("tab.insights")}</h2></div>'
             f'<p class="muted">{t("insights.lead")} <a href="#assets">{t("insights.assets_link")}</a></p>'
             + (site.kind_nav("insights", 0) if events else "") + list_notice("insights", len(events), INDEX_LIMIT)
             + (f'<ol class="records">{rows}</ol>' if rows else f'<div class="empty">{t("insights.empty")}</div>') + '</section>')
@@ -1321,7 +1444,7 @@ def insights_section(site: Site) -> str:
 
 # The index section a list family continues: where its pages' way back goes.
 LIST_TAB = {"timeline": "timeline", "insights": "insights", "feedback": "evaluation", "charts": "charts",
-            "runs": "runs", "data": "data"}
+            "runs": "runs", "data": "data", "open": "overview"}
 
 
 def list_page(site: Site, out: Path, filename: str, heading: str, scope: str, content: str, nav: str, *,
@@ -1339,7 +1462,7 @@ def write_list_pages(site: Site, out: Path) -> int:
     the kind filters of the Timeline and Insights link to: every record of the kind, newest first."""
     groups = {"timeline": list(reversed(site.events)), "insights": [e for e in reversed(site.events) if e.get("kind") in core.KEY_KINDS],
               "feedback": list(reversed(site.lists.feedback)), "charts": site.charts,
-              "runs": list(reversed(site.runs)), "data": site.datasets}
+              "runs": list(reversed(site.runs)), "data": site.datasets, "open": list(reversed(site.lists.open))}
     keep = set()
     for kind, records in groups.items():
         limit = CHART_INDEX_LIMIT if kind == "charts" else INDEX_LIMIT
@@ -1348,6 +1471,9 @@ def write_list_pages(site: Site, out: Path) -> int:
             subset = records[page * limit:(page + 1) * limit]
             if kind == "timeline":
                 content = site.kind_nav("timeline", 1) + site.events_html(subset, 1)
+            elif kind == "open":
+                content = ('<ol class="records">' + "".join(site.record_row(e, 1, row_id="open-" + site.anchor(e)) for e in subset)
+                           + "</ol>" if subset else f'<div class="empty">{t("overview.open_empty")}</div>')
             elif kind == "insights":
                 content = site.kind_nav("insights", 1) + ('<ol class="records">' + "".join(
                     site.record_row(e, 1, row_id="insight-" + site.anchor(e)) for e in subset) + "</ol>"
@@ -1507,7 +1633,7 @@ def evaluation_section(site: Site) -> str:
     telemetry_html = (f'<div class="table-wrap"><table class="list"><thead><tr>{tool_head}</tr></thead><tbody>{tool_rows}</tbody></table></div>'
                       if tool_rows else f'<div class="empty">{t("evaluation.tools_empty")}</div>')
     return f"""
-<section id="evaluation" class="tab">
+<section id="evaluation" class="tab" data-count="{len(gaps)}">
   <div class="toolbar"><h2>{t("tab.evaluation")}</h2></div>
   <p class="muted">{t("evaluation.lead")}</p>
   <div class="columns">
@@ -1562,7 +1688,7 @@ def run_page(site: Site, run: dict) -> str:
 <div class="page-head">
   <div class="title-row"><h1{USER}>{esc(run.get('title'))}</h1>{status_badge(run.get('status'))}</div>
   <div class="sub">{' · '.join(sub)}</div>
-  <div class="sub">{t("run.ran")} <code{USER}>{esc(script.get('path'))}</code> · {t("run.position", n=pos + 1, total=len(same_script))} {' '.join(nav)}</div>
+  <div class="sub">{t("run.ran")} <code{USER}>{esc(script.get('path'))}</code>{site.history.run_code(run)} · {t("run.position", n=pos + 1, total=len(same_script))} {' '.join(nav)}</div>
 </div>"""
     callouts = ""
     if run.get("error"):
@@ -1639,6 +1765,7 @@ def run_page(site: Site, run: dict) -> str:
   <div class="chart-body">{site.chart_html(chart, 1, lazy=False)}</div>
   {f'<p class="caption"{USER}>{esc(chart["caption"])}</p>' if chart.get('caption') else ''}
   <div class="prov-line">id <code{USER}>{esc(key)}</code>{inferred_key}{line} · <a href="{site.chart_anchor(key, 1)}">{t("run.show_in_charts")}</a></div>
+  {site.history.chart_history(run, chart, key)}
   {data_block}
   {site.relation_actions(rid + "/" + str(chart["id"]), 1)}
 </article>""")
@@ -1872,6 +1999,7 @@ def dataset_page(site: Site, ds: dict, view: str) -> str:
 <div class="page-head"><div class="title-row"><h1{USER}>{esc(label)}</h1><span class="badge tone-muted">{words("data.kind", ds['kind'])}</span></div>
 <div class="sub">{' · '.join(facts)}</div></div>
 {origin}
+{site.history.data_history(ds)}
 <section><h2>{t("dataset.h.schema")}</h2>{site.table(schema_head, schema_rows, klass='list', data_head=False)}</section>
 <section><h2>{t("dataset.h.preview")}</h2>{site.table(preview.get('columns') or [], preview.get('rows') or [])}</section>
 <section><h2>{t("dataset.h.relations")}</h2>{''.join(lineage)}</section>
@@ -1894,29 +2022,30 @@ def render_markdown(text: str) -> str:
 
 
 def context_page(site: Site) -> str:
+    """CONTEXT.md now, its pinned sections, and every recorded version (design 5.2, mockup 9-C): what
+    each changed, whether its pinned sections changed, and the insights written while it was the
+    latest. A version keeps its anchor (#v-<snapshot name>), where references to it lead."""
     p = site.p
     current = (p.context.read_text(encoding="utf-8", errors="replace")
                if p.context.is_file() else "")
-    blocks = []
-    versions = site.versions
-    for i in range(len(versions) - 1, -1, -1):
-        v = versions[i]
-        new = v.read_text(encoding="utf-8", errors="replace").splitlines()
-        old = versions[i - 1].read_text(encoding="utf-8", errors="replace").splitlines() if i else []
-        diff = list(difflib.unified_diff(old, new, lineterm="", n=2))[2:]
-        lines = "".join(
-            f'<span class="{"add" if d.startswith("+") else "del" if d.startswith("-") else "hunk" if d.startswith("@@") else "ctx"}">{esc(d)}</span>\n'
-            for d in diff) or f'<span class="ctx">{t("context.first_version")}</span>\n'
-        event = next((e for e in site.events if (e.get("refs") or {}).get("context") == v.name), None)
-        who = f" · {words('actor', event.get('actor'))} · {esc(event.get('id'))}" if event else ""
-        blocks.append(site.relation_actions("context:" + v.name, 0) + f'<article class="version" id="v-{esc(v.stem)}"><h3>{fmt_time(core._version_time(v))}{who}</h3>'
-                      f'<pre class="diff"{USER if diff else ""}>{lines}</pre></article>')
+    pinned = core.context_sections(core.context_file_text(p))[1] if current else []
+    pinned = [section for section in pinned if section["pinned"]]
+    pins = "".join(
+        f'<div class="pinned"><h3>{user_text(section_heading(section)) if section_heading(section) else t("overview.section", n=n)}</h3>'
+        f'<div class="markdown"{USER}>{render_markdown(section_body(section)[0])}</div></div>'
+        for n, section in enumerate(pinned, 1)) or f'<p class="muted">{t("overview.no_pinned")}</p>'
+    paths = {v.name: v for v in site.versions}
+    history = site.history.context_versions(paths)
     body = f"""
 <div class="page-head"><h1>{t("page.context_history")}</h1><div class="sub">{t("context.history_lead")}</div></div>
-<div class="columns wide-left">
-  <article class="panel markdown"{USER if current else ""}>{render_markdown(current) if current else f'<div class="empty">{t("context.page_empty")}</div>'}</article>
-  <aside class="panel"><h3>{t("context.versions_count", n=len(versions))}</h3><ul class="plain">{''.join(f'<li><a href="#v-{esc(v.stem)}">{fmt_time(core._version_time(v))}</a></li>' for v in versions[::-1])}</ul></aside>
+{site.history.context_head()}
+<div class="columns">
+  {site.history.context_latest_changes(paths)}
+  <aside class="panel"><h3>{t("context.pinned_now")}</h3>{pins}</aside>
 </div>
-<section><h2>{t("context.changes")}</h2>{''.join(blocks) or f'<div class="empty">{t("context.no_versions_recorded")}</div>'}</section>"""
+{history or f'<div class="empty">{t("context.no_versions_recorded")}</div>'}
+<details class="fold" id="now"><summary><h2>{t("context.now")}</h2></summary>
+  <article class="panel markdown"{USER if current else ""}>{render_markdown(current) if current else f'<div class="empty">{t("context.page_empty")}</div>'}</article>
+</details>"""
     return site.page(0, "", f' <span>/</span> {t("page.context_history")}', body, "context",
                      title_key="page.context_history")
