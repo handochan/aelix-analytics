@@ -85,6 +85,7 @@ import hashlib
 import json
 import os
 import re
+import stat
 import unicodedata
 from datetime import datetime
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -955,14 +956,32 @@ def _report_dirs(root: Path) -> list[tuple[str, bool]]:
     """(project-relative directory, staging) of every saved and prepared Report revision."""
     base = root / "artifacts" / "reports"
     out = []
-    for report in _subdirs(base):
-        for revision in _subdirs(base / report):
+    def directories(path):
+        if not _report_plain(root, path):
+            return []
+        return [name for name in _subdirs(path) if _report_plain(root, path / name)]
+
+    for report in directories(base):
+        for revision in directories(base / report):
             if revision == ".staging":
                 out += [(f"artifacts/reports/{report}/.staging/{name}", True)
-                        for name in _subdirs(base / report / ".staging")]
+                        for name in directories(base / report / ".staging")]
             else:
                 out.append((f"artifacts/reports/{report}/{revision}", False))
     return out
+
+
+def _report_plain(root, path):
+    current = root
+    try:
+        for part in path.relative_to(root).parts:
+            current = current / part
+            value = current.lstat()
+            if stat.S_ISLNK(value.st_mode) or getattr(value, "st_reparse_tag", 0) == 0xA0000003:
+                return False
+    except OSError:
+        return False
+    return True
 
 
 def _subdirs(path: Path) -> list[str]:
@@ -1029,6 +1048,64 @@ def _token(snapshot: list, as_of_seq: int) -> str:
     return hashlib.sha256(text.encode("ascii")).hexdigest()[:16]
 
 
+# --- common pure reference shape validation (writer and Report manifests) ---
+
+BOUND_TARGET = {"event": ("event_id",), "analysis_focus": ("event_id",), "run": ("run_id",),
+                "publication": ("publication_id",), "visualization_version": ("run_id", "visualization_id"),
+                "data_observation": ("run_id", "role", "path"), "dataset_import": ("path", "digest"),
+                "code_snapshot": ("run_id", "path", "digest"), "context_version": ("version", "digest"),
+                "metric_definition": ("metric_id", "event_id"), "reuse_proposal": ("proposal_id", "event_id"),
+                "asset_candidate": ("asset_id", "event_id"),
+                "report_revision": ("report_id", "revision_id", "digest")}
+ALWAYS_BOUND = frozenset({"event", "run", "analysis_focus", "publication"})
+UNBOUND_KEYS = ("key", "path", "metric_id", "proposal_id", "report_id", "token", "asset_id")
+def _reference_digest(value) -> bool:
+    return isinstance(value, dict) and isinstance(value.get("sha256"), str) and bool(
+        re.fullmatch(r"[0-9a-f]{64}", value["sha256"]))
+
+
+def reference_problem(ref) -> str | None:
+    """What makes `ref` no reference of the record schema (its `reference`), or None. The schema is
+    the rule; this is what the Writer checks before it writes, standard library only."""
+    if not isinstance(ref, dict):
+        return "a reference is an object"
+    kind, binding = ref.get("type"), ref.get("version_binding")
+    for name, allowed in (("type", REF_TYPES), ("relation", RELATIONS),
+                          ("basis", BASES), ("version_binding", BINDINGS)):
+        if not isinstance(ref.get(name), str) or ref[name] not in allowed:
+            return f"{name} {ref.get(name)!r} is not one of {', '.join(sorted(allowed))}"
+    for name, value in ref.items():
+        if name in ("event_id",) and not (isinstance(value, str) and re.fullmatch(r"e[1-9][0-9]*", value)):
+            return f"event_id {value!r} is not an event id"
+        if name == "run_id" and not (isinstance(value, str) and re.fullmatch(r"[0-9]{8}-[0-9]{6}-[a-z0-9][a-z0-9-]{0,60}", value)):
+            return f"run_id {value!r} is not a run id"
+        if name == "digest" and not _reference_digest(value):
+            return f"digest {value!r} is not {{'sha256': <64 hex>}}"
+        if name == "role" and value not in ("input", "output"):
+            return f"role {value!r} is not input or output"
+        if name == "report_id" and not report_name(value):
+            return f"report_id {value!r} is not a portable Report identity"
+        if name in ("revision_id", "publication_id") and not (
+                isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", value)):
+            return f"{name} {value!r} is not an opaque identity"
+        if name in ("token", "key", "path", "visualization_id", "version", "metric_id",
+                    "proposal_id", "asset_id") and not (isinstance(value, str) and value):
+            return f"{name} is a non-empty string"
+    if binding == "none":
+        if kind in ALWAYS_BOUND:
+            return f"a reference to a {kind} is bound"
+        if not any(name in ref for name in UNBOUND_KEYS):
+            return "an unbound reference names its target by " + ", ".join(UNBOUND_KEYS)
+    else:
+        missing = [name for name in BOUND_TARGET[kind] if name not in ref]
+        if binding == "inferred" and "token" not in ref:
+            missing.append("token")
+        if missing:
+            return f"a {binding} reference to a {kind} holds " + ", ".join(missing)
+    return None
+
+
+
 # --- request fingerprints (ADR-0006 8) -------------------------------------------------------------
 
 INTENT_FIELDS = ("report_id", "previous_revision", "title", "entry", "based_on")
@@ -1070,6 +1147,92 @@ def request_fingerprint(request: dict) -> str:
     """ADR-0006 8: the sha256 of the canonical intent of a Report save request or manifest. Times
     and request_id are not part of it."""
     return hashlib.sha256(canonical(request)).hexdigest()
+
+
+def report_name(value) -> bool:
+    return (isinstance(value, str) and re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", value) is not None
+            and value not in ASSET_DEVICES)
+
+
+def report_path(value) -> bool:
+    """ADR-0006 §7: canonical, portable NFC paths, without repairing authored names."""
+    if not isinstance(value, str) or not value or unicodedata.normalize("NFC", value) != value:
+        return False
+    try:
+        value.encode("utf-8")
+    except UnicodeError:
+        return False
+    return all(part not in ("", ".", "..") and not part.endswith((".", " "))
+               and not re.search(r'[<>:"\\|?*\x00-\x1f]', part)
+               and part.partition(".")[0].rstrip(" ").casefold() not in (
+                   ASSET_DEVICES | {"conin$", "conout$", "com¹", "com²", "com³", "lpt¹", "lpt²", "lpt³"})
+               for part in value.split("/"))
+
+
+def report_paths(paths) -> bool:
+    """Every path prefix has one spelling, including shared directory names on Windows/macOS."""
+    prefixes = {}
+    folded = set()
+    for path in paths:
+        if not report_path(path) or path.casefold() in folded:
+            return False
+        folded.add(path.casefold())
+        parts = path.split("/")
+        for n in range(1, len(parts) + 1):
+            prefix = "/".join(parts[:n])
+            previous = prefixes.setdefault(prefix.casefold(), prefix)
+            if previous != prefix:
+                return False
+    return not any("/".join(path.split("/")[:n]) in folded
+                   for path in folded for n in range(1, len(path.split("/"))))
+
+
+def report_manifest_problem(value, directory=None) -> str | None:
+    """Pure validation of the stored manifest; completion and content integrity stay separate."""
+    try:
+        if not isinstance(value, dict) or value.get("schema") != REPORT_V1 or not report_name(value.get("report_id")):
+            return "invalid_manifest"
+        for key in ("revision_id", "request_id"):
+            name = value.get(key)
+            if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9._-]{0,126}[A-Za-z0-9_-])?", name) or name.partition(".")[0].lower() in ASSET_DEVICES:
+                return "invalid_identity"
+        previous = value["previous_revision"]
+        if previous is not None and (not isinstance(previous, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", previous)):
+            return "invalid_previous_revision"
+        if directory is not None:
+            parts = directory.split("/")
+            if parts[2] != value["report_id"] or parts[-1] != value["revision_id"]:
+                return "manifest_identity_mismatch"
+        if not _instant(value.get("created_at")) or any(not isinstance(value.get(key), str) or not value[key] for key in ("actor", "title")):
+            return "invalid_manifest"
+        files = value["files"]
+        if not isinstance(files, list) or not files:
+            return "empty_files"
+        paths = []
+        for item in files:
+            if not isinstance(item, dict) or not report_path(item.get("path")) or type(item.get("bytes")) is not int or item["bytes"] < 0 or not isinstance(item.get("sha256"), str) or not re.fullmatch(r"[0-9a-f]{64}", item["sha256"]):
+                return "invalid_file"
+            paths.append(item["path"])
+        if not report_paths(paths) or value["entry"] not in paths:
+            return "invalid_paths"
+        if "based_on" in value:
+            basis = value["based_on"]
+            if not isinstance(basis, dict) or "as_of_seq" not in basis or "context_version" not in basis:
+                return "invalid_basis"
+            seq, context = basis["as_of_seq"], basis["context_version"]
+            if seq is not None and (type(seq) is not int or seq < 0):
+                return "invalid_basis"
+            if context is not None and (not isinstance(context, str) or not context):
+                return "invalid_basis"
+            if "refs" in basis and (not isinstance(basis["refs"], list) or any(reference_problem(ref) for ref in basis["refs"])):
+                return "invalid_basis"
+        if request_fingerprint(value) != value.get("request_fingerprint"):
+            return "fingerprint_mismatch"
+        # Also rejects lone surrogates in fields excluded from the request fingerprint.
+        json.dumps(value, ensure_ascii=False, allow_nan=False).encode("utf-8")
+    except (ValueError, TypeError, KeyError, IndexError, OverflowError):
+        return "invalid_manifest"
+    return None
 
 
 # --- the read model --------------------------------------------------------------------------------
@@ -1131,14 +1294,17 @@ class ReadModel:
             dead = status == "running" and not alive(pid if isinstance(pid, (int, str)) else None)
             self._execution[name] = "incomplete" if dead else status
         self._manifests: list[tuple[str, dict, bool]] = []
+        self._prepared_unavailable: list[tuple[str, str]] = []
         self._saved: dict[tuple, tuple[str, dict]] = {}
         self._unsupported_reports: set[tuple[str, str]] = set()
         for directory, staging in _report_dirs(root):
             location = f"{directory}/manifest.json"
-            value, problem = _load(root / location)
+            value, problem = _load(root / location) if _report_plain(root, root / location) else (None, "absent_or_link")
             if problem:
                 if not staging:  # a staging directory being prepared has no manifest yet
                     self.damaged_files.append({"location": location, "reason": problem})
+                else:
+                    self._prepared_unavailable.append((directory, problem))
                 continue
             reason = unsupported_reason(value, frozenset({REPORT_V1}))
             if reason:
@@ -1346,27 +1512,60 @@ class ReadModel:
         return out
 
     def _report_completions(self) -> list[tuple[str, str]]:
-        """(report_id, revision_id) of the Report completion events, in seq order."""
-        out = []
+        """Only unique, bound completion events whose manifest digest and request agree."""
+        out, counts = [], {}
         for event in self.journal.in_order():
             if event.kind == "report_revision" and event.schema == EVENT_V2:
-                out += [(_str(r.get("report_id")), _str(r.get("revision_id"))) for r in _dicts(event.refs)
-                        if _known_ref(r) and r["type"] == "report_revision" and r["relation"] == "about"]
-        return out
+                refs = [r for r in _dicts(event.refs) if r.get("type") == "report_revision" and r.get("relation") == "about"]
+                for ref in refs:
+                    key = (_str(ref.get("report_id")), _str(ref.get("revision_id")))
+                    counts[key] = counts.get(key, 0) + 1
+                if len(refs) != 1:
+                    continue
+                ref = refs[0]
+                key = (_str(ref.get("report_id")), _str(ref.get("revision_id")))
+                saved = self._saved.get(key)
+                if not saved or not _known_ref(ref) or ref.get("version_binding") == "none":
+                    continue
+                directory, manifest = saved
+                if (report_manifest_problem(manifest, directory) or event.id != f"e{event.seq}"
+                        or len(self.journal.lines_of.get(event.id, [])) != 1
+                        or list(self.journal.seq_of.values()).count(event.seq) != 1
+                        or _digest(ref) != self._sha(self.root / directory / "manifest.json")
+                        or not isinstance(event.value.get("request_id"), str)
+                        or event.value["request_id"].casefold() != manifest["request_id"].casefold()
+                        or not isinstance(event.value.get("details"), dict)
+                        or "previous_revision" not in event.value["details"]
+                        or event.value["details"]["previous_revision"] != manifest["previous_revision"]):
+                    continue
+                out.append(key)
+        return [key for key in out if counts[key] == 1]
 
-    def report_revisions(self) -> list[dict]:
+    def report_revisions(self, *, verify_content=True) -> list[dict]:
         """Every saved and prepared Report revision (ADR-0006 7): its recording status, whether its
         files are the bytes its manifest names, and whether it is the head of its Report."""
         order = self._report_completions()
         completed, heads = set(order), {report_id: revision_id for report_id, revision_id in order}
         out = []
+        for directory, problem in self._prepared_unavailable:
+            parts = directory.split("/")
+            out.append({"report_id": parts[2], "revision_id": parts[-1], "request_id": None,
+                        "recording_status": "prepared", "content": "not_checked", "head": False,
+                        "problem": "manifest_unavailable", "manifest_problem": problem})
         for directory, manifest, staging in self._manifests:
             key = (_str(manifest.get("report_id")), _str(manifest.get("revision_id")))
             recording = "prepared" if staging else "complete" if key in completed else "incomplete"
+            problem = report_manifest_problem(manifest, directory)
+            claimed = any(event.kind == "report_revision" and any(
+                (r.get("report_id"), r.get("revision_id")) == key for r in _dicts(event.refs))
+                for event in self.journal.events)
+            if not staging and claimed and key not in completed:
+                problem = problem or "invalid_completion"
             out.append({"report_id": key[0], "revision_id": key[1],
                         "request_id": manifest.get("request_id"), "recording_status": recording,
-                        "content": self._content(directory, manifest),
-                        "head": not staging and heads.get(key[0]) == key[1]})
+                        "content": self._content(directory, manifest) if verify_content else "not_checked",
+                        "head": not staging and heads.get(key[0]) == key[1],
+                        **({"problem": problem} if problem else {})})
         return out
 
     def _content(self, directory: str, manifest: dict) -> str:
@@ -1374,9 +1573,14 @@ class ReadModel:
         not relative to the revision's content directory (absolute, with a drive, or with `..`)
         names no preserved file of it and is not hashed: `missing`."""
         states = set()
+        if not isinstance(manifest.get("files"), list) or not manifest["files"]:
+            return "missing"
         for item in _dicts(manifest.get("files")):
             path = item.get("path")
-            current = self._sha(self.root / directory / "content" / path) if _inside(path) else None
+            target = self.root / directory / "content" / path if report_path(path) else None
+            current = self._sha(target) if target and _report_plain(self.root, target) else None
+            if current is not None and "bytes" in item and target.stat().st_size != item["bytes"]:
+                current = "size_mismatch"
             states.add("missing" if current is None else "resolved" if current == item.get("sha256")
                        else "content_changed")
         for state in ("missing", "content_changed"):

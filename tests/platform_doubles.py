@@ -8,7 +8,7 @@ process, `alive` says no recorded process is running, its run guard never interr
 flushes ask nothing of the device. Its `files.links = False` stands for a file system without
 links: `publish_new` then raises LinkUnsupported (Issue #13 PR 2); its `files.renames = False` for
 one without a rename that refuses a taken name: `rename_new` then raises RenameUnsupported (PR 3).
-Its `rename_new` makes the name in this process by a link and an unlink, which is as atomic for a
+Its `rename_new` checks and renames under a process-local mutex, which is as atomic for a
 taken name as the real call.
 
 Shared by tests/test_platform.py (Issue #8's injection tests) and tests/test_contracts.py (Issue #43).
@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import contextlib
 import os
+import threading
 import types
 from pathlib import Path
 
@@ -67,6 +68,7 @@ class _RecordingLocks:
 
 
 class _RecordingFiles:
+    _rename_lock = threading.Lock()
     # Whether publish_new can make a second name; a test sets it False to stand for a file system
     # without links (design 6.12, T19's `direct` path). Whether rename_new has its rename; a test
     # sets it False for a file system without one either (the marker's refusal, Issue #13 PR 3).
@@ -91,8 +93,10 @@ class _RecordingFiles:
         self.calls.append(("files.rename_new", Path(dst).name))
         if not self.renames:
             raise _platform.RenameUnsupported(95, f"no exclusive rename here: {Path(dst).name}")
-        os.link(src, dst)  # as rename_new: FileExistsError when dst is there, and src is gone after
-        os.unlink(src)
+        with self._rename_lock:
+            if os.path.lexists(dst):
+                raise FileExistsError(str(dst))
+            os.rename(src, dst)  # this double promises only in-process exclusion
 
     def flush_handle(self, fh):
         self.calls.append(("files.flush_handle", Path(str(fh.name)).name))

@@ -470,6 +470,7 @@ REFUSED = {"lab_project_1": "migration_required", "lab_unparsable": "migration_r
 READ_REFUSED = {"both": "marker_conflict", "none": "no_project", "incomplete": "migration_incomplete"}
 
 WRITES = {
+    "report_save": ("reports", "save", "matrix", "--files", "{report_source}", "--entry", "again.py", "--title", "Matrix", "--previous", "none"),
     "record": ("record", "finding", "a finding"),
     "checkpoint": ("checkpoint", "a checkpoint"),
     "asset_candidate_record": ("record", "asset_candidate", "An early candidate", "--details-json", json.dumps({
@@ -506,7 +507,7 @@ def test_the_kit_command_line_writes_only_where_it_may(base, tmp_path, column):
     for command, args in {**WRITES, **READS}.items():
         target, tree = _column(base, tmp_path / command, column)
         before = snapshot(tree)
-        code, result = kit_cli(target, *(str(csv) if a == "{csv}" else a for a in args))
+        code, result = kit_cli(target, *(str(csv) if a == "{csv}" else str(target / "scripts") if a == "{report_source}" else a for a in args))
         refused = _expected(column, command)
         got = None if result["ok"] else result["error"]["code"]
         seen[command] = got
@@ -629,6 +630,7 @@ def test_a_project_below_a_lab_json_one_is_warned_of_and_written(base, tmp_path)
 # --- the script API (T8) -------------------------------------------------------------------------
 
 SDK_CALLS = {
+    "save_report": "analytics.save_report('matrix', files={'index.py':analytics.project().scripts/'again.py'}, entry='index.py', title='Matrix', previous_revision=None)",
     "record": "analytics.record('note', 'from the script API')",
     "checkpoint": "analytics.checkpoint('from the script API')",
     "asset_candidate_record": "analytics.record('asset_candidate', 'Early candidate', details={'asset_id':'candidate',"
@@ -690,6 +692,30 @@ def test_new_asset_write_actions_are_admitted_before_any_side_effect(base, tmp_p
                 # boundary is separate from these handled marker refusals. CLI covers this row.
                 continue
             target, tree = _column(base, tmp_path / f"asset-{name}-{entry}", column)
+            before = snapshot(tree)
+            if entry == "cli":
+                code, result = kit_cli(target, *cli)
+                assert code == 1
+            else:
+                result = _sdk(target, sdk)
+            assert result["error"]["code"] == REFUSED[column], (name, entry, result)
+            assert snapshot(tree) == before, (name, entry)
+
+
+@pytest.mark.parametrize("column", ["lab_project_1", "lab_unparsable", "lab_project_9", "analytics_2_too_old",
+                                    "analytics_3", "analytics_invalid", "both", "none", "incomplete"])
+def test_report_state_and_cleanup_actions_refuse_before_effects(base, tmp_path, column):
+    actions = {
+        "update": (("reports", "update", "weekly@revision", "--expected-state", "current", "--state", "withdrawn", "--reason", "Review"),
+                   "analytics.update_report('weekly','revision',expected='current',new='withdrawn',reason='Review')"),
+        "clean": (("reports", "clean", "--prepared", "weekly@revision"),
+                  "analytics.clean_report_prepared('weekly','revision')"),
+    }
+    for name, (cli, sdk) in actions.items():
+        for entry in ("cli", "sdk"):
+            if entry == "sdk" and column == "none":
+                continue
+            target, tree = _column(base, tmp_path / f"report-{name}-{entry}", column)
             before = snapshot(tree)
             if entry == "cli":
                 code, result = kit_cli(target, *cli)
@@ -780,7 +806,7 @@ def test_a_marker_that_changes_during_a_run_refuses_what_comes_after(base, tmp_p
 def test_a_journal_write_is_judged_again_under_the_lock(tmp_path, monkeypatch):
     """S8: a journal write is judged before the lock (its file is the first side effect) and again
     once the lock is held, so a marker made in between refuses the write and nothing is appended."""
-    project = core.init_project(tmp_path / "p", template_dir=TEMPLATE, origin=ORIGIN)
+    project = core.init_project(tmp_path / "p", template_dir=TEMPLATE, origin=ORIGIN, platform=_platform.detect())
     journal = project.journal.read_bytes()
     locks = project.platform.locks
     real = locks.exclusive
