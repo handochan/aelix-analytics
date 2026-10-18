@@ -500,7 +500,7 @@ section[tabindex="-1"]:focus { outline: none; }
 .badge.tone-viz { border-color: color-mix(in srgb, var(--k-viz) 45%, transparent); color: var(--ink); }
 .vh { margin-top: 1rem; }
 .vh-fold > summary { cursor: pointer; }
-.vh-fold > summary h2 { display: inline; font-size: 1rem; }
+.vh-fold > summary h2, .vh-fold > summary h4 { display: inline; margin: 0; font-size: 1rem; }
 .vh-fold > summary .muted { font-size: 0.8125rem; }
 .vh-strip-wrap { margin: 0.5rem 0 0.25rem; }
 .vh-strip { display: block; overflow: visible; }
