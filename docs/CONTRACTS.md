@@ -1545,8 +1545,18 @@ kit 0.8.0([#13](https://github.com/handochan/aelix-analytics/issues/13)의 셋�
 ## G. 약속하지 않는 것
 
 - 격리·샌드박스·승인. `analytics_run` 스크립트는 사용자가 읽을 수 있는 모든 파일에 닿습니다(`analytics_query`만 `data/`로 묶여 있습니다).
-- 계보의 완전성. 입력 감지는 최선 노력입니다(pyarrow 직접 읽기처럼 훅이 없는 경로는 놓칩니다). 일부만 감지된
-  경우 경고도 없습니다 — 경고는 입력이 하나도 없을 때만 나옵니다. 행 단위 계보와 선택(마킹) 기반 후속 분석은 없습니다.
+- 계보의 완전성. 입력 감지는 최선 노력입니다(pyarrow 직접 읽기처럼 훅이 없는 경로는 놓칩니다). 감지하지 못한 입력은 경고할 수도 없습니다.
+  감지한 뒤 상한으로 생략한 경우는 다릅니다([#46](https://github.com/handochan/aelix-analytics/issues/46)): 실행 중 읽기 한 번의 glob·디렉터리는
+  파일 후보 500개, 정적 스캔은 경로 글자 하나당 200개까지 해시하고 기록합니다. 정적 glob 결과·경로 글자는 정렬하고 디렉터리는 namespace walk의
+  이름 순서를 따릅니다. 디렉터리는 생략 수를 세기 위해 나머지 이름도 열거하지만 내용은 열지 않습니다. 기존 run `warnings`의 앞부분에
+  감지 방식·상한·그 감지 패스가 생략한 파일 후보 수를 남기고 실행 응답과 run 화면에 보입니다. 다른 감지 패스가 같은 파일을 기록할 수 있어
+  생략 수는 전체 run에서 빠진 고유 파일 수가 아닙니다. 신선도(stale)와 계보(producer·`used_by`)는 기록된 입력만 판정하며, 경고가 없는 것을
+  완전한 계보로 보지 않습니다. 행 단위 계보와 선택(마킹) 기반 후속 분석은 없습니다.
+- 다수 입력 run의 지표 관측. writer는 `metric_observation`마다 해당 run의 기록 입력 전체를 typed ref로 펼칩니다. 본문이 짧아도 경로·해시·참조
+  때문에 journal 한 줄이 50 KiB 이상이면 기존 `text_too_long`으로 거절하고 입력이나 참조를 자르지 않습니다(C1). 입력 수의 고정 임계값은 없고
+  경로 길이 등에 따라 다릅니다. run 밖 호출은 아무것도 덧붙이지 않으며, run 안의 pending 관측은 최종 입력이 늘어 최종 쓰기가 거절될 수 있고
+  그 경우 `finalize_errors`와 불완전한 기록 상태로 보입니다. run의 입력 목록·실행 결과는 보존됩니다. 짧은 본문만으로 이 제한을 해결할 수는
+  없습니다. 간접 입력 참조나 관측 분할의 의미를 바꾸는 일은 [별도 계약 결정 #114](https://github.com/handochan/aelix-analytics/issues/114)이며 현재 writer는 기존 명시적 거절을 유지합니다.
 - 관계의 읽기(#12).
   - 앞 참조. writer(kit 0.8.0 전의 `/1` writer와 kit 0.8.0의 공통 writer)는 참조한 `e<seq>`·run id의 대상이 있는지 확인하지 않아(공통 writer는 `version_binding: author`로 씀), 아직 없는 id나 오타 id를 적을 수 있습니다. reader는 대상 seq ≥ 참조한 기록의 seq인 이벤트 계열 참조를 `missing`(`record_absent`)·`confirmed=false`로 읽습니다(E). ADR-0006 4절 2단계의 읽기이고 ADR 본문은 고치지 않았습니다. 그래서 그런 참조가 나중에 생긴 다른 기록과 확정 연결이 되지는 않지만, 쓰기는 받습니다.
   - `lab.event/1` 기록의 핵심 정보·열린 항목 선택은 C1의 규칙(`refs.resolves`가 가리키는 id) 그대로이며 ADR-0006 6절의 상태 재생과 다를 수 있습니다(`analytics.event/2` 기록은 kit 0.7.0부터 상태 재생도 봅니다, C1). 여러 줄의 id를 닫는 `resolves`는 재생에서는 아무것도 닫지 않지만(`ambiguous`), 목록에서는 그 id의 줄을 모두 닫힌 것으로 셉니다. `resolves`의 확인(kit 0.8.0 전의 `add_note`와 공통 writer)은 journal만 읽고 그 id의 읽히는 기록이 있으면 통과합니다. 공통 writer는 그 id가 여러 줄이면 응답 `targets`에 `reason: target_ambiguous`를 적습니다. 상태 재생을 화면에 쓰는 일은 #16입니다. 여러 줄의 id는 #49 수정 전의 kit이 끊긴 줄 뒤에 쓴 journal이나 손으로 고친 journal에 있습니다. 지금 writer는 이미 읽히는 줄의 seq나 id를 다시 주지 않습니다(C1).

@@ -67,32 +67,42 @@ def scan_literals(source: str) -> tuple[set[str], set[str]]:
     return reads, writes
 
 
-def static_input_files(project: core.Project, literals: set[str], writes: set[str]) -> list[Path]:
+STATIC_INPUT_LIMIT = 200
+
+
+def static_input_files(project: core.Project, literals: set[str], writes: set[str], *,
+                       warnings: list[str] | None = None) -> list[Path]:
     found: dict[str, Path] = {}
-    for literal in literals:
+    for literal in sorted(literals):
         # The literal itself, and the quoted data-file names in it: a SQL text's
         # 'data/raw/sales.parquet', and as well one a message or a docstring quotes.
-        for token in {literal, *capture.sql_file_literals(literal)}:
+        for token in sorted({literal, *capture.sql_file_literals(literal)}):
             # One the kit cannot use — a name longer than the file system takes, say — is skipped
             # on its own, and does not take the inputs the other literals found with it.
             with contextlib.suppress(Exception):
                 if len(token) <= 400 and "\n" not in token and token not in writes and (
                         "/" in token or token.lower().endswith(core.DATA_SUFFIXES)):
-                    found.update(_token_inputs(project, token))
-    return list(found.values())
+                    found.update(_token_inputs(project, token, warnings=warnings))
+    return [found[key] for key in sorted(found)]
 
 
-def _token_inputs(project: core.Project, token: str) -> dict[str, Path]:
+def _token_inputs(project: core.Project, token: str, *, warnings: list[str] | None = None) -> dict[str, Path]:
     import glob
 
     # Project.path takes a `~name` whose home does not exist (an Office lock file's `~$budget.xlsx`)
     # as written, so such a file in the project is an input like any other.
     path = project.path(token)
     text = str(path)
-    candidates = [Path(m) for m in glob.glob(text, recursive=True)[:200]] \
+    candidates = [Path(m) for m in sorted(glob.glob(text, recursive=True))] \
         if any(ch in text for ch in "*?[") else [path]
-    return {str(c): c for c in candidates
-            if c.is_file() and c.suffix.lower() in core.DATA_SUFFIXES and _recordable(c)}
+    candidates = [c for c in candidates
+                  if c.is_file() and c.suffix.lower() in core.DATA_SUFFIXES and _recordable(c)]
+    if len(candidates) > STATIC_INPUT_LIMIT and warnings is not None:
+        warning = capture.input_limit_warning("static scan", token, STATIC_INPUT_LIMIT,
+                                              len(candidates) - STATIC_INPUT_LIMIT)
+        if warning not in warnings:
+            warnings.append(warning)
+    return {str(c): c for c in candidates[:STATIC_INPUT_LIMIT]}
 
 
 def _recordable(path: Path) -> bool:
@@ -962,7 +972,7 @@ def _execute_locked(project, *, script_rel, exec_file, code_bytes, title, declar
                 before = tree_stat(project)
                 with contextlib.suppress(Exception):
                     reads, writes = scan_literals(code_bytes.decode("utf-8", errors="replace"))
-                    for p in static_input_files(project, reads, writes):
+                    for p in static_input_files(project, reads, writes, warnings=state.input_warnings):
                         state.record_read(str(p), "scan")
                 for item in declared_inputs or ():
                     state.record_read(str(project.path(item)), "declared")
@@ -1102,7 +1112,7 @@ def _finalize(project, state, record, *, source_run, before, status, error, dura
         "env": guarded("environment", lambda: environment(project), {}),
     })
     record.pop("pid", None)
-    record["warnings"] = guarded("warnings", lambda: run_warnings(record, project), [])
+    record["warnings"] = state.input_warnings + guarded("warnings", lambda: run_warnings(record, project), [])
     if source_run is not None:
         record["reproduction"] = guarded("reproduction",
                                          lambda: compare_runs(project, source_run, record), None)
