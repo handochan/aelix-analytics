@@ -65,7 +65,7 @@ report 밖을 가리키는 이미지 참조가 28회, 고유 이미지 파일은
 
 P0 공유 build([#20](https://github.com/handochan/aelix-analytics/issues/20))의 구현 설계는 [공유 build 설계](design/PUBLICATION-BUILD.md)에 있다.
 현재 동작이 아니다. 이 절과 5절의 구조·manifest·프로필을 구체화한 OQ1–OQ25는 2026-10-07 소유자가 채택했다.
-기록 필드·결박·OQ15·OQ20은 [ADR-0014](decisions/0014-publication-record-contract.md)에 구체화했다(Proposed, PR-0 설계 리뷰 대상).
+기록 필드·결박·OQ15·OQ20은 [ADR-0014](decisions/0014-publication-record-contract.md)에 구체화했다(Accepted, 2026-10-18). 채택은 구현 완료가 아니다.
 
 빌드 결과의 구조 예시:
 

@@ -2,7 +2,7 @@
 
 Date: 2026-10-17
 
-Status: Proposed — [#20](https://github.com/handochan/aelix-analytics/issues/20) PR-0의 설계 리뷰 대상.
+Status: Accepted — 2026-10-18 [소유자 병합 승인](https://github.com/handochan/aelix-analytics/issues/1#issuecomment-6247629844)으로 채택. [#20](https://github.com/handochan/aelix-analytics/issues/20) 구현·검증은 후속 PR이다.
 OQ1–OQ25의 제품 선택은 [2026-10-07 소유자 결정](https://github.com/handochan/aelix-analytics/issues/20#issuecomment-6038725925)이다.
 이 ADR은 그 선택의 기록 형식을 구체화하며, 채택과 구현·검증 완료를 구별한다.
 

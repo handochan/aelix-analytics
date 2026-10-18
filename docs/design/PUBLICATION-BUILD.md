@@ -1,6 +1,6 @@
 # 공유 build 설계 — 선택 범위의 독립 HTML·ZIP 패키지
 
-- 상태: **Proposed — 현재 동작이 아니다.** `analytics build`, `publication.json`, `PublicationProjection`과 이 문서의 명령 인자·파일·필드·
+- 상태: **설계 채택·구현 전.** `analytics build`, `publication.json`, `PublicationProjection`과 이 문서의 명령 인자·파일·필드·
   오류 코드·화면 label은 코드에 없다. 지금 동작은 [현재 계약](../CONTRACTS.md)이 설명한다. 지금의 `report/`는 공유본이 아니다(계약 G
   "반출 정책·가림").
 - 작업: [#20](https://github.com/handochan/aelix-analytics/issues/20) `[B4-s/P0]`.
@@ -16,7 +16,7 @@
 - 소유자 결정: binding 문서가 정하지 않은 제품 결정 25개(15절, OQ1–OQ25)는 2026-10-07 소유자가 **권장안을 모두 채택**했다
   ([#20 코멘트](https://github.com/handochan/aelix-analytics/issues/20)). 본문에서 "(OQn)"이 붙은 규칙은 그 결정이다. OQ15(새 기록 필드
   `content_seq`)와 OQ20(ADR-0006 §4에 없는 판정)은 [ADR-0014](../decisions/0014-publication-record-contract.md)에
-  구체화했다(Proposed, PR-0 설계 리뷰 대상). 새 공개 이름은 용어집 §8대로 먼저 등록한다.
+  구체화했다(Accepted, 2026-10-18). 새 공개 이름은 용어집 §8대로 먼저 등록한다.
 - 리뷰: `7010c6e`의 설계 리뷰(독립 1·Codex 1)를 반영했다. 지적과 처분은 PR 본문의 표에 있다.
 
 ## 0. 요약
@@ -765,7 +765,7 @@ analytics build --zip-of <publication_id> --zip <path>
   보존 파일로 보지 않는다. 폴더가 있는지는 참조 판정이 아니라 `--list`의 폴더 상태다.
 - 이 권장안이면 폴더가 지워지거나 바뀐 publication 참조도 `resolved`다. 그래서 Workspace와 `analytics_status`가 `resolved`를 "패키지가 온전함"으로
   읽히게 두지 않도록 그 참조 옆에 `--list`의 기록·폴더 상태를 함께 보인다. ADR-0006 §4의 5단계는 publication을 따로 정하지 않으므로 이 판정은
-  ADR-0014 결정 6에 §4의 예외로 제안했다(OQ20). 실제 reader·표시는 PR-3 범위다.
+  ADR-0014 결정 6에 §4의 예외로 채택했다(OQ20). 실제 reader·표시는 PR-3 범위다.
 
 ### 9.5 최신과 더 오래된 build(ADR-0009)
 
