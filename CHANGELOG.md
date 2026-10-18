@@ -19,7 +19,7 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 
 ### Added
 
-- Report optional metadata and exact partial collection snapshots, with canonical metadata bytes bound through the existing retry fingerprint. CLI `reports save --metadata` and SDK use the same path (#19 PR2).
+- Report optional metadata and exact partial collection snapshots, with canonical metadata bytes bound through the existing retry fingerprint. CLI `reports save --metadata` and SDK use the same path ([PR118](https://github.com/handochan/aelix-analytics/pull/118), #19 PR2).
 - Byte-only ReportRenderer contract and conservative Markdown/text views with original download links; arbitrary HTML/SVG/PDF/Office remain download-only. Workspace Reports integration follows in PR3.
 
 ## [0.21.0] - 2026-10-18
