@@ -2,7 +2,7 @@
   "record_kind": "aelix-analytics-report-storage-pr1",
   "observed_at": "2026-10-18T11:43:56.017305+00:00",
   "issue": "https://github.com/handochan/aelix-analytics/issues/19",
-  "pull_request": null,
+  "pull_request": "https://github.com/handochan/aelix-analytics/pull/116",
   "kit_version": "0.21.0",
   "base_revision": "707e04ba2b3868fee241b02c16e33cfe4c508821",
   "measured_source": "ef850ae7bd0029e744c0195160f8fc26aaf3c242",

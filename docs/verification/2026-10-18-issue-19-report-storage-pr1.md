@@ -1,5 +1,7 @@
 # Issue19 PR1 — Report 저장·등록·버전 검증
 
+[PR116](https://github.com/handochan/aelix-analytics/pull/116), [Issue19](https://github.com/handochan/aelix-analytics/issues/19).
+
 측정한 코드는 `ef850ae7bd0029e744c0195160f8fc26aaf3c242`(kit0.21.0), 기준 main은 `707e04ba2b3868fee241b02c16e33cfe4c508821`이다.
 수치·판정의 정본은 [JSON](2026-10-18-issue-19-report-storage-pr1.json)이다. 합성 fixture이며 실제 모델 생성·사용자 자료·화면 수용을 대신하지 않는다.
 
