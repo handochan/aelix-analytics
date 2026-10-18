@@ -333,14 +333,17 @@ HTML을 그리지 않아 주석이 글자로 보이고, 목표를 읽는 쪽은 
 
 ## 8. 적용과 변경 관리
 
-### #19 채택한 공개 이름 — 구현 전
+### #19 채택한 공개 이름
 
-[ADR-0013](decisions/0013-report-storage-and-collections.md)은 2026-10-18 채택했다. 아래 이름의 명령·SDK·기록은 아직 구현 전이다.
+[ADR-0013](decisions/0013-report-storage-and-collections.md)은 2026-10-18 채택했다.
+kit 0.21.0은 개별 버전 저장·조회·철회/복원·prepared 정리의 CLI/SDK를 구현한다.
+`ReportRenderer`·collection·선택 metadata는 후속 PR이다.
 
 | 이름 | 범위와 기존 개념과의 차이 |
 |---|---|
 | `analytics reports` | 개별 Report의 저장·목록·정확한 버전 조회·철회/복원·명시적 prepared 정리. Workspace를 재생성하는 `analytics render`와 구별 |
 | `analytics.save_report`·`analytics.reports` | 같은 공통 저장/읽기 기능의 SDK. 자유 생성 코드를 실행하거나 전용 상시 모델 도구를 추가하는 이름이 아님 |
+| `analytics.update_report`·`analytics.clean_report_prepared` | 정확한 완료 버전의 철회/복원과 지정한 준비 시도의 명시적 정리. 과거 바이트·다른 시도를 고치는 API가 아님 |
 | `ReportRenderer` | 이미 보존한 버전을 보기 파일로 바꾸는 주입 가능한 형식별 경계. 생성·저장·공유 범위 판정과 구별 |
 | `report_collection/1` | `analytics.report_revision/1`의 선택 `collection.contract` 값. 별도 schema 가족이 아니며, 요청한 전체 구성원의 정확한 버전·실패·미생성 상태를 고정한 묶음 |
 | `metadata_file` | 선택 메타데이터를 지문에 결박하는 보존 파일 경로. 사용자 본문이나 재생성 Workspace 파일과 구별 |

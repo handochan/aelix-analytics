@@ -317,8 +317,9 @@ N0의 명칭·기본 언어 전환을 A0의 경계 정리와 조율한다. 현�
 | `distribution` | 0 | 설치본의 실행 루트 위치 | `src/aelix_analytics/_install.py` | 없음 | stdlib |
 | `messages` | 0 | Workspace의 kit 문구를 message key로 찾는 카탈로그(#96) | `src/aelix_analytics/i18n.py` | 없음 | stdlib |
 | `writer` | 1 | 기록 writer: 표식 판정과 쓰기 게이트, `Origin`, 오류 클래스, 기록 헬퍼, 새 형식의 공통 `Writer`(#13) | `src/aelix_analytics/writer.py`, `src/aelix_analytics/asset_contract.py` | `ports`, `read_model` | stdlib |
-| `core` | 2 | 도메인·공유 응용(아직 나뉘지 않음, §2) | `src/aelix_analytics/core.py` | `ports`, `read_model`, `writer`, `asset_application` | stdlib |
+| `core` | 2 | 도메인·공유 응용(아직 나뉘지 않음, §2) | `src/aelix_analytics/core.py` | `ports`, `read_model`, `writer`, `asset_application`, `report_application` | stdlib |
 | `asset_application` | 2 | 주입한 Writer로 자산 검토·승격·등록·프로젝트 제안 정책을 처리하며 core/host를 import하지 않음 | `src/aelix_analytics/asset_app.py`, `src/aelix_analytics/asset_suggestions.py` | `ports`, `read_model`, `writer`, 같은 `asset_application` | stdlib |
+| `report_application` | 2 | 주입한 Writer로 불변 Report 저장·재시도·조회·철회·prepared 정리를 조정하며 core/renderer/host를 import하지 않음 | `src/aelix_analytics/report_app.py` | `ports`, `read_model`, `writer` | stdlib |
 | `runtime` | 3 | 실행·캡처·데이터 어댑터와 데모 채우기(§9 `runtime/`) | `src/aelix_analytics/runner.py`, `src/aelix_analytics/capture.py`, `src/aelix_analytics/data.py`, `src/aelix_analytics/demo.py` | `core`, `ports`, `read_model`, `runtime`, `writer` | stdlib, 분석 |
 | `workspace` | 3 | Workspace 렌더러(§5 `WorkspaceRenderer`) | `src/aelix_analytics/workspace.py`, `src/aelix_analytics/workspace_relations.py`, `src/aelix_analytics/workspace_map.py`, `src/aelix_analytics/workspace_versions.py` | `core`, `messages`, `ports`, `read_model`, `writer` | stdlib, 분석, 표시 |
 | `migration` | 3 | `lab.json` 프로젝트를 새 형식으로 옮기는 복사 전환(#13) | `src/aelix_analytics/migration.py` | `core`, `ports`, `read_model`, `writer` | stdlib |

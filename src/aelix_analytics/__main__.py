@@ -211,6 +211,34 @@ def _command(argv) -> int:
     p.add_argument("--limit", type=int)
     sub.add_parser("context", help="the context block injected into agent prompts")
 
+    report = sub.add_parser("reports", help="preserve and read immutable Report revisions")
+    commands = report.add_subparsers(dest="report_action", required=True)
+    p = commands.add_parser("save", help="register files without executing their generator")
+    p.add_argument("report_id")
+    p.add_argument("--entry", required=True)
+    p.add_argument("--files", required=True)
+    p.add_argument("--title", required=True)
+    p.add_argument("--previous", required=True)
+    p.add_argument("--request-id")
+    p.add_argument("--based-on", help="authored evidence JSON file; never inferred")
+    for action in ("list", "show"):
+        p = commands.add_parser(action)
+        if action == "show":
+            p.add_argument("target", help="exact report_id@revision_id")
+            p.add_argument("--file")
+            p.add_argument("--file-offset", type=int, default=0)
+            p.add_argument("--file-limit", type=int, default=8192)
+        p.add_argument("--limit", type=int, default=20)
+        p.add_argument("--offset", type=int, default=0)
+        p.add_argument("--verify-files", action="store_true", help="explicitly hash the preserved files")
+    p = commands.add_parser("update")
+    p.add_argument("target")
+    p.add_argument("--expected-state", required=True)
+    p.add_argument("--state", required=True)
+    p.add_argument("--reason", required=True)
+    p = commands.add_parser("clean")
+    p.add_argument("--prepared", required=True)
+
     asset = sub.add_parser("assets", help="read, review or explicitly register analysis assets")
     commands = asset.add_subparsers(dest="asset_action", required=True)
     commands.add_parser("list", help="read candidate versions and prior legacy records")
@@ -306,7 +334,35 @@ def _command(argv) -> int:
             core.admit(project, args.command)
         else:
             core.readable(project, args.command)
-        if args.command == "status":
+        if args.command == "reports":
+            action = args.report_action
+            if action == "save":
+                basis = None
+                if args.based_on:
+                    try:
+                        basis = json.loads(Path(args.based_on).read_bytes())
+                    except (OSError, ValueError) as exc:
+                        raise core.AnalyticsError("report_input_invalid", f"Cannot read --based-on: {exc}") from exc
+                result = core.save_report(project, args.report_id, files=args.files, entry=args.entry,
+                                          title=args.title, previous_revision=None if args.previous == "none" else args.previous,
+                                          request_id=args.request_id, based_on=basis, origin=origin)
+            elif action == "list":
+                result = core.reports(project, limit=args.limit, offset=args.offset, verify_files=args.verify_files)
+            else:
+                target = args.prepared if action == "clean" else args.target
+                if target.count("@") != 1 or not all(target.split("@")):
+                    raise core.AnalyticsError("report_input_invalid", "Give an exact report_id@revision_id")
+                report_id, revision_id = target.split("@")
+                if action == "show":
+                    result = core.reports(project, report_id, revision_id, limit=args.limit, offset=args.offset,
+                                          file=args.file, file_offset=args.file_offset, file_limit=args.file_limit, verify_files=args.verify_files)
+                elif action == "update":
+                    result = core.update_report(project, report_id, revision_id, expected=args.expected_state,
+                                                new=args.state, reason=args.reason, origin=origin)
+                else:
+                    result = core.clean_report_prepared(project, report_id, revision_id, origin=origin)
+            _emit({"ok": True, **result})
+        elif args.command == "status":
             options = {name: getattr(args, name) for name in
                        ("part", "query", "id", "cursor", "kind", "state", "since", "until", "direction", "as_of_seq", "limit")
                        if getattr(args, name) is not None}

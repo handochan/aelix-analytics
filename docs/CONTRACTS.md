@@ -929,6 +929,40 @@ Workspace의 kit 문구(탭·제목·배지·버튼·빈 화면·안내·tooltip
   보이고(묶음도 그 안에서, 띠 없음), 전체는 최신 버전의 run 페이지에 있습니다. 데이터셋·스크립트·Context 페이지는 대상마다 한 페이지라 행을 모두 보이며, 설계 §5.3의
   이어 보기 페이지는 만들지 않았습니다(fixture M의 가장 긴 이력은 시각화 19버전·데이터 14버전).
 
+### C16. 불변 Report 저장·등록·버전 (kit 0.21.0, #19 PR1)
+
+`report_app.Reports`가 주입한 공통 Writer로 저장·재시도·조회·상태 변경·prepared 정리를 조정합니다.
+외부에서 작성한 일반 파일을 등록하며 원래 분석이나 생성 코드를 실행하지 않습니다. 본문과 첨부의 바이트·Unicode·줄 끝은 그대로 보존합니다.
+
+- `analytics reports save ID --files DIR --entry PATH --title TEXT --previous REV|none [--request-id ID] [--based-on JSON_FILE]`.
+  SDK는 `analytics.save_report(ID, files=DIR_OR_PATH_MAPPING, entry=PATH, title=TEXT, previous_revision=REV_OR_NONE, request_id=ID, based_on=OBJECT)`입니다.
+  SDK도 `previous_revision`을 명시합니다. 근거를 생략하면 현재 CONTEXT/데이터를 채우지 않습니다. 진입점의 `Origin`을 기록하며 외부 생성의 실제 작성자를 추정하지 않습니다.
+- `artifacts/reports/<report_id>/.staging/<revision_id>/content/`에 복사하고 manifest를 쓴 뒤, 하나의 journal 잠금 안에서
+  현재 head·요청·파일을 확인하고 배타적 디렉터리 rename과 `report_revision` 완료 이벤트를 씁니다.
+  첫 완료 전 writer floor를 `0.21.0`으로 올립니다. manifest digest·request ID·이전 버전·유일한 이벤트 ID/seq가 맞는 완료만 head가 됩니다.
+  잘못된 완료·manifest·파일을 가진 해당 Report는 `report_record_invalid`로 새 저장을 거절합니다.
+- 같은 Report 안의 request ID는 대소문자를 무시해 비교합니다. 같은 의도의 완료 버전이면 `existing`, 다른 의도면 `request_conflict`입니다.
+  rename 뒤 완료 이벤트가 없으면 head가 그대로일 때 `resumed`로 완료하며, head가 달라졌으면 `revision_conflict`입니다.
+  다른 Report의 같은 request ID는 독립입니다. 요청 ID를 생략하면 응답에 새 ID를 돌려줍니다.
+- report ID는 1–64자의 소문자 ASCII 영숫자·하이픈이며 영숫자로 시작하고 장치명이 아닙니다.
+  보존 경로는 ADR-0006 §7의 NFC·이식 가능한 상대 경로이고 casefold 중복을 받지 않습니다. `_analytics/`는 예약합니다.
+  링크·junction·일반 파일이 아닌 항목은 거절합니다. 목록·정체성·크기/시각·해시의 복사 전후 관측이 달라지면 실패합니다.
+  동시 편집의 원자적 스냅샷이나 악의적 변경에 대한 인증은 약속하지 않습니다.
+- `analytics reports list [--limit N --offset N]`, `show ID@REV [--file PATH --file-offset N --file-limit N]`와
+  `analytics.reports(report_id=None, revision_id=None, ...)`는 metadata·이력부터 읽습니다. 기본 limit 20, 최대 100이며 다음 offset을 돌려줍니다.
+  선택한 파일은 기본 8,192·최대 65,536 bytes씩 base64로 돌려주며 원본 바이트와 다음 offset을 보존합니다. 큰 metadata 한 필드는 잘라 재작성하지 않습니다.
+  기록 완료·파일 무결성·head·재생한 `current`/`withdrawn`을 구분하며 본문 전체를 목록 응답에 넣지 않습니다.
+- `analytics reports update ID@REV --expected-state STATE --state STATE --reason TEXT`와
+  `analytics.update_report(ID, REV, expected=STATE, new=STATE, reason=TEXT)`는 정확한 완료 버전의 `current ↔ withdrawn`만 공통 상태 재생으로 검사합니다.
+  본문·manifest·버전 순서를 바꾸지 않습니다. 준비/미완료 버전이나 기대 상태가 맞지 않으면 `state_conflict`입니다.
+- `analytics reports clean --prepared ID@REV`와 `analytics.clean_report_prepared(ID, REV)`는 시도 잠금 → journal 잠금 순서로 기다린 뒤
+  지정한 staging 하나만 지웁니다. 완료/미완료 버전·다른 시도는 지우지 않고 오래됐다는 이유로 작업자를 인수하지 않습니다.
+  잠금 파일은 `.analytics/report-attempts/<revision_id>.lock`에 두며 자동 삭제하지 않습니다.
+- rename은 같은 파일 시스템의 서로 다른 부모 사이에서 파일/디렉터리를 배타적으로 옮깁니다. 기존 목적지를 덮지 않으며
+  지원하지 않는 파일 시스템은 `no_exclusive_rename`으로 거절합니다. 비원자적 복사로 대체하지 않습니다.
+
+선택 metadata·반복 묶음·형식별 보기·Reports 화면은 후속 PR입니다. 이 PR의 합성 저장/실패 검증은 실제 모델 생성·사람의 열람 수용을 대신하지 않습니다.
+
 ## D. kit CLI
 
 `uv run --project P python -m aelix_analytics --project P <command> …`. `PYTHONPATH`는 정확히 실행 루트 하나입니다: 체크아웃의

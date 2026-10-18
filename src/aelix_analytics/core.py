@@ -45,7 +45,7 @@ from .writer import migration_record as migration_record
 from .writer import new_request_id as new_request_id
 from .writer import present_marker as present_marker
 
-KIT_VERSION = "0.19.0"
+KIT_VERSION = "0.21.0"
 # The marker and the record families of the projects this kit writes: the new format's, through
 # the common writer (writer.Writer, Issue #13 PR 3; writer.FAMILIES). A project is found by either
 # marker, analytics.json or lab.json, and judged by writer.marker_state: a lab.json project
@@ -1729,6 +1729,35 @@ def resolved_targets(events) -> dict[str, dict]:
 
 
 # --- the new format's records (Issue #13 PR 3, design 4.5 and 9) ---
+
+def save_report(project: Project, report_id, *, files, entry, title, previous_revision,
+                request_id=None, based_on=None, origin: Origin):
+    from . import report_app
+
+    return report_app.Reports(writer_for(project, origin)).save(
+        report_id, files=files, entry=entry, title=title, previous_revision=previous_revision,
+        request_id=request_id, based_on=based_on)
+
+
+def reports(project: Project, report_id=None, revision_id=None, **options):
+    from . import report_app
+
+    return report_app.Reports(writer_for(project, Origin("system", "cli", "inferred"))).read(
+        report_id, revision_id, **options)
+
+
+def update_report(project: Project, report_id, revision_id, *, expected, new, reason, origin: Origin):
+    from . import report_app
+
+    return report_app.Reports(writer_for(project, origin)).update(
+        report_id, revision_id, expected=expected, new=new, reason=reason)
+
+
+def clean_report_prepared(project: Project, report_id, revision_id, *, origin: Origin):
+    from . import report_app
+
+    return report_app.Reports(writer_for(project, origin)).clean(report_id, revision_id)
+
 
 def writer_for(project: Project, origin: Origin) -> writer.Writer:
     """The common writer of a project for one request by `origin`: this kit's version, the

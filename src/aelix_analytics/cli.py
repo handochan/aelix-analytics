@@ -57,6 +57,9 @@ analytics — human CLI for Aelix Analytics projects (the same kit the aelix ext
   analytics checkpoint [TEXT] [--ref REF] [--from-seq N] [--limit N]
                        [--as-of-seq N --context-version VERSION|--context-unknown]
   analytics record KIND "TEXT" [--ref R] [--resolves eN] [--details-json JSON] [--refs-json JSON]
+  analytics reports save ID --files DIR --entry PATH --title TEXT --previous REV|none [--request-id ID]
+  analytics reports list | show ID@REV [--file PATH] | update ID@REV --expected-state STATE --state STATE --reason TEXT
+  analytics reports clean --prepared ID@REV    remove one explicitly named prepared attempt
   analytics assets list | show ID | review [ID] | update EVENT --expected STATE --to STATE --reason TEXT
   analytics assets register EVENT --name NAME    copy a validated asset into this project
   analytics assets mode on_demand|always_on      human project suggestion mode
@@ -72,7 +75,7 @@ puts an empty line before it. Nothing here is a sandbox.
 """
 
 COMMANDS = ("init", "demo", "status", "context", "open", "run", "import", "query", "record", "checkpoint", "render",
-            "migrate", "assets")
+            "migrate", "assets", "reports")
 
 # The environment variables this command read under the kit's old names (before kit 0.3.0), each with
 # its new name; bin/analytics refuses the same three in the same order with the same words. The kit
@@ -212,7 +215,7 @@ def _command(args: list[str], kit: Path | None, uv_argv: list[str] | None,
     uv = uv_argv or _uv(processes)
     if uv is None:
         return 127
-    if command == "assets":
+    if command in ("assets", "reports"):
         return children.run(kit_outside(uv, project, command, *args), env)
     kit_call = kit_outside if outside else kit_argv
     if command in ("status", "context"):
