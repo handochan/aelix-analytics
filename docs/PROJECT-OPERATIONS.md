@@ -186,7 +186,8 @@ claim에는 Issue URL·run ID·도구·branch·worktree·시작/갱신 시각과
 이 잠금은 같은 checkout 범위다. 다른 clone·컴퓨터·클라우드에는 효력이 없다. GitHub Project의 Status·Issue 코멘트도 원자적인 분산 잠금이 아니다.
 초기에는 같은 Issue의 실행 환경을 하나로 배정하고, 다른 환경은 종료·인계 확인 뒤 이어받는다. 전역 자동 배정·동시 인수는 실제 조정기를 구현·검증한 뒤 도입한다.
 별도 Issue의 병렬 작업은 독립 worktree를 사용하고, 공통 계약 변경은 선행 Issue와 병합 순서를 명시한다.
-베타까지는 서로 다른 Issue 두 개를 두 흐름으로 병행한다(2026-10-03 소유자 결정). 흐름별 배정과 순서는 [#1](https://github.com/handochan/aelix-analytics/issues/1)에 기록한다.
+베타까지는 서로 다른 Issue를 최대 세 흐름으로 병행한다(2026-10-17 소유자 결정; 2026-10-03의 두 흐름 제한을 대체). 흐름별 배정과 순서는 [#1](https://github.com/handochan/aelix-analytics/issues/1#issuecomment-6232550803)에 기록한다.
+각 흐름은 별도 Issue의 단일 작성자·독립 worktree를 유지한다. 병렬 착수가 선행 계약·병합 순서·리뷰·검증 조건을 없애지는 않는다.
 
 ## 7. GitHub 동기화와 인수인계
 

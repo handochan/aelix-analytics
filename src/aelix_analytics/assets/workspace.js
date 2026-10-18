@@ -145,8 +145,18 @@
     nav.setAttribute("aria-label", T("nav.sections")); nav.setAttribute("data-i18n-aria-label", "nav.sections");
     tabs.forEach(t => {
       const a = document.createElement("a"); a.href = "#" + t.id; a.dataset.tab = t.id;
-      if (I18n && I18n.has("tab." + t.id)) kitWords(a, "tab." + t.id);
-      else { const heading = t.querySelector && t.querySelector("h2"); a.textContent = heading ? heading.textContent : t.id; }
+      // The tab's words in an element of their own: a language switch rewrites them, not the count.
+      const label = document.createElement("span");
+      if (I18n && I18n.has("tab." + t.id)) kitWords(label, "tab." + t.id);
+      else { const heading = t.querySelector && t.querySelector("h2"); label.textContent = heading ? heading.textContent : t.id; }
+      a.appendChild(label);
+      // How many items a section lists, as it says (design WORKSPACE-READABILITY 7.1).
+      const count = t.dataset && t.dataset.count;
+      if (count) {
+        // A space between the words and the count, so they are not read as one word.
+        a.appendChild(document.createTextNode(" "));
+        const n = document.createElement("span"); n.className = "n"; n.textContent = Number(count).toLocaleString("en-US"); a.appendChild(n);
+      }
       nav.appendChild(a);
     });
     document.querySelector("main").prepend(nav);
@@ -197,6 +207,10 @@
     requestAnimationFrame(() => {
       const target = state && state.card ? document.getElementById(state.card) : document.getElementById(anchor());
       if (state && state.card && !target) warn("notice.state_card_gone");
+      // A row inside a closed fold (Recent activity, the map's smaller flows) is shown before the page
+      // measures and focuses it (#98).
+      for (let fold = target && target.closest && target.closest("details:not([open])"); fold;
+        fold = fold.parentElement && fold.parentElement.closest ? fold.parentElement.closest("details:not([open])") : null) fold.open = true;
       if (state && state.card) {
         const position = codec.scrollTarget(state, window.scrollY, target ? target.getBoundingClientRect().top : null);
         if (position !== null) window.scrollTo(0, position);
@@ -220,14 +234,15 @@
   // list the reader came from, or the page a reader opened directly and left (codec.next keeps a
   // page with no origin of its own as the origin).
   const LIST_BACK = { timeline: "back.tab.timeline", insights: "back.tab.insights", charts: "back.tab.charts",
-    runs: "back.tab.runs", data: "back.tab.data", feedback: "back.list.feedback" };
-  const PAGE_BACK = { runs: "back.page.run", data: "back.page.data", relations: "back.page.relations" };
+    runs: "back.tab.runs", data: "back.tab.data", feedback: "back.list.feedback", open: "back.list.open" };
+  const PAGE_BACK = { runs: "back.page.run", data: "back.page.data", relations: "back.page.relations",
+    scripts: "back.page.script" };
   function backKey(origin) {
     if (origin.page === "index.html") return "back.tab." + (origin.tab || "overview");
     if (origin.page === "context.html") return "back.page.context";
     const list = /^lists\/(kind-.+|[a-z]+)-\d+\.html$/.exec(origin.page);
     if (list) return list[1].indexOf("kind-") === 0 ? "back.list.kind" : LIST_BACK[list[1]] || null;
-    const detail = /^(runs|data|relations)\//.exec(origin.page);
+    const detail = /^(runs|data|relations|scripts)\//.exec(origin.page);
     return detail ? PAGE_BACK[detail[1]] : null;
   }
   // The words of a way back: its origin's, else the page's own (`data-back`). Both are the kit's

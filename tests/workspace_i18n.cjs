@@ -110,7 +110,7 @@ function time(attrs, text) { const el = node(attrs, text); el.localName = 'time'
 // As the generator writes them: a bare word, a word with its key and values, a word the Korean
 // catalog lacks, and a word a script added (data-i18n).
 const tab = word({}, 'Insights');
-const counted = word({k: 'context.versions_count', a: '{"n":3}'}, '3 version(s)');
+const counted = word({k: 'versions.count', a: '{"n":3}'}, '3 versions');
 const english = word({k: 'x.only_en'}, 'English only');
 const added = node({'data-i18n': 'action.dismiss'}, 'Dismiss');
 const unknown = word({}, 'Not a message of the kit');
@@ -151,7 +151,7 @@ assert.equal(relations.title, '관계 · scripts/a.py::trend');
 I18n.apply(relations, 'en');
 assert.equal(relations.documentElement.attrs.lang, 'en');
 assert.equal(tab.textContent, 'Insights');
-assert.equal(counted.textContent, '3 version(s)');
+assert.equal(counted.textContent, '3 versions');
 assert.equal(added.textContent, 'Dismiss');
 assert.equal('lang' in english.attrs, false);
 assert.equal(labelled.attrs['aria-label'], 'Filter by kind');

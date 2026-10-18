@@ -32,9 +32,15 @@ function environment(page, state, options={}) {
   // The build bar the language menu goes into, and the reader's storage: an object, or 'blocked'.
   const build=element();build.prepend=(...nodes)=>build.children.unshift(...nodes);
   const main={prepend(nav){main.nav=nav;}};
-  const tabs=(options.tabs||[]).map(id=>element(id));
+  // A section's count (data-count, #98) where the options give one.
+  const tabs=(options.tabs||[]).map(id=>{const tab=element(id);if((options.counts||{})[id]) tab.dataset.count=options.counts[id];return tab;});
   const card=element(options.card||'e7');card.dataset={selection:card.id,kind:'finding'};
-  card.closest=selector=>selector==='.chart-card.is-retired'&&options.retiredCard?card:null;
+  // A card inside closed folds (#98): the Overview's Recent activity, the map's smaller flows.
+  const folds=(options.folds||0)?Array.from({length:options.folds},()=>({open:false})):[];
+  folds.forEach((fold,i)=>{fold.parentElement={closest:selector=>selector==='details:not([open])'?folds.slice(i+1).find(f=>!f.open)||null:null};});
+  card.closest=selector=>selector==='.chart-card.is-retired'&&options.retiredCard?card
+    :selector==='details:not([open])'?folds.find(f=>!f.open)||null:null;
+  card.folds=folds;
   const retired=options.retired?element('show-retired'):null;
   if(retired) retired.checked=false;
   const bar=element(),buttons=['','finding'].map(kind=>{
@@ -102,6 +108,9 @@ assert.equal(direct.retired.checked,true);
 assert.equal(direct.document.documentElement.classList.contains('show-retired'),true);
 assert.equal(codec.next({...initial,retired:true},'lists/charts-0.html').retired,true);
 assert.equal(codec.next({...initial,page:'lists/charts-0.html',retired:true},'lists/charts-1.html').retired,true);
+// A card inside closed folds is shown before the return measures and focuses it (independent review of #98, I4).
+const folded=environment('index.html',{...initial,anchor:'recent-e7',tab:'overview',card:'e7'},{tabs:['overview'],folds:2});
+assert.deepEqual(folded.card.folds.map(f=>f.open),[true,true]);
 // A newly opened anchor clears the measured sticky bars instead of landing under them.
 const sticky=[{style:{position:'sticky',top:'0px'},offsetHeight:45},{style:{position:'sticky',top:'45px'},offsetHeight:40},
   {style:{position:'static',top:'auto'},offsetHeight:300}];
@@ -171,15 +180,19 @@ assert.equal(I18n.language,'en');
 english.events.storage.forEach(f=>f({key:'analytics-language'}));
 assert.equal(I18n.language,'ko');
 // A notice the script adds later is in the page's language, its Dismiss button too.
-const noticed=environment('index.html',wrong,{tabs:['overview','timeline'],dismissible:true,
+const noticed=environment('index.html',wrong,{tabs:['overview','timeline'],dismissible:true,counts:{timeline:'1234'},
   storage:memory({'analytics-language':'ko'})});
 const said=noticed.notice.nodes.find(n=>n.attrs&&n.attrs['data-i18n']==='notice.state_other_page');
 assert.equal(said.textContent,ko['notice.state_other_page']);
 assert.equal(noticed.notice.nodes.find(n=>n.className==='notice-close').textContent,ko['action.dismiss']);
-// The section navigation the script builds names each section, and itself, in the page's language.
-assert.deepEqual(noticed.main.nav.children.map(a=>[a.dataset.tab,a.textContent]),
+// The section navigation the script builds names each section, and itself, in the page's language:
+// a tab's words are its first element, so a count beside them (#98) stays as the switch rewrites them.
+assert.deepEqual(noticed.main.nav.children.map(a=>[a.dataset.tab,a.children[0].textContent]),
   [['overview',ko['tab.overview']],['timeline',ko['tab.timeline']]]);
 assert.equal(noticed.main.nav.attrs['aria-label'],ko['nav.sections']);
+// A section that lists items says how many after its words and a space (#98); one that does not, nothing.
+assert.deepEqual(noticed.main.nav.children.map(a=>a.children.slice(1).map(n=>[n.className||null,n.textContent])),
+  [[],[[null,' '],['n','1,234']]]);
 // A page opened directly (no origin) where storage is blocked: its own return link carries the
 // language too, and Escape follows that link.
 const opened2=environment('runs/old.html',{...initial,page:'runs/old.html',anchor:'',card:'',lang:'ko'},{storage:'blocked',build:true});
