@@ -330,6 +330,8 @@ core.save_report(core.Project(sys.argv[1]),'weekly',files=sys.argv[2],entry='요
     abandoned = next(parent.iterdir())
     prior = {p.name: p.read_bytes() for p in abandoned.rglob("*") if p.is_file()}
     assert prior and not (abandoned / "manifest.json").exists()
+    prepared = next(row for row in core.reports(case[0])["reports"] if row["revision_id"] == abandoned.name)
+    assert prepared["recording_status"] == "prepared" and prepared["problem"] == "manifest_unavailable"
     saved = save(case)
     assert saved["outcome"] == "saved"
     assert {p.name: p.read_bytes() for p in abandoned.rglob("*") if p.is_file()} == prior
@@ -393,3 +395,55 @@ def test_metadata_reads_do_not_hash_report_body_until_explicitly_requested(case,
     verified = core.reports(case[0], "weekly", first["report"]["revision_id"], verify_files=True)
     assert verified["reports"][0]["content"] == "resolved"
     assert any("content" in p.parts for p in calls)
+
+
+def test_all_parent_path_prefixes_keep_one_spelling_before_any_effect(case):
+    source = case[1] / "요약.md"
+    error("report_path_invalid", lambda: core.save_report(case[0], "weekly", files={"A/x.md": source, "a/y.md": source},
+          entry="A/x.md", title="x", previous_revision=None, origin=HUMAN))
+    assert not (case[0].root / "artifacts").exists()
+    good = core.save_report(case[0], "weekly", files={"A/x.md": source, "A/y.md": source},
+                            entry="A/x.md", title="x", previous_revision=None, origin=HUMAN)
+    manifest = json.loads((directory(case, good) / "manifest.json").read_bytes())
+    manifest["files"][1]["path"] = "a/y.md"
+    manifest["request_fingerprint"] = relations.request_fingerprint(manifest)
+    assert relations.report_manifest_problem(manifest) == "invalid_paths"
+
+
+@pytest.mark.parametrize("ref", [
+    {"type": "event", "relation": "cites", "basis": "declared", "version_binding": "author"},
+    {"type": "event", "event_id": [], "relation": "cites", "basis": "declared", "version_binding": "author"},
+    {"type": [], "relation": "cites", "basis": "declared", "version_binding": "author"},
+    {"type": "report_revision", "report_id": [], "revision_id": "r1", "digest": {"sha256": "0" * 64},
+     "relation": "cites", "basis": "declared", "version_binding": "author"},
+])
+def test_authored_basis_reference_shape_uses_common_validation_before_staging(case, ref):
+    error("report_input_invalid", lambda: save(case, based_on={"as_of_seq": None, "context_version": None, "refs": [ref]}))
+    assert not (case[0].root / "artifacts").exists()
+    assert writer.reference_problem(ref) == relations.reference_problem(ref)
+
+
+@pytest.mark.parametrize("field,value", [("report_id", []), ("revision_id", {}), ("revision_id", [])])
+def test_malformed_completion_identity_is_read_conservatively_without_typeerror(case, field, value):
+    first = save(case)
+    ref = {"type": "report_revision", "report_id": "weekly", "revision_id": first["report"]["revision_id"],
+           "relation": "about", "basis": "observed", "version_binding": "author"}
+    ref[field] = value
+    bad = {"schema": relations.EVENT_V2, "id": "e99", "seq": 99, "kind": "report_revision", "refs": [ref]}
+    writer.append_line(case[0].journal, json.dumps(bad).encode())
+    assert core.reports(case[0])["reports"][0]["head"]
+    if field == "revision_id":
+        error("report_record_invalid", lambda: save(case, request="new", previous=first["report"]["revision_id"]))
+
+
+def test_update_validates_request_before_lock_and_generates_common_response_id(case):
+    first = save(case)
+    revision = first["report"]["revision_id"]
+    before = case[0].journal.read_bytes()
+    bad = core.Origin("human", "sdk", request_id="bad / id")
+    error("name_not_portable", lambda: core.update_report(case[0], "weekly", revision, expected="current", new="withdrawn", reason="review", origin=bad))
+    assert case[0].journal.read_bytes() == before
+    result = core.update_report(case[0], "weekly", revision, expected="current", new="withdrawn", reason="review", origin=HUMAN)
+    writer.check_request_id(result["request_id"])
+    assert result["request_id"] and "request_id" not in result["event"]  # common generated-response-ID rule
+    VALIDATOR.validate(result["event"])

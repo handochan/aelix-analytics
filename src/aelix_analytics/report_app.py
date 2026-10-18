@@ -83,6 +83,8 @@ def _source_plan(files):
         walk(root)
     if not paths:
         _fail("report_source_invalid", "Report files cannot be empty")
+    if not relations.report_paths(paths):
+        _fail("report_path_invalid", "Report paths and shared directory prefixes must have one portable spelling")
     folded = set()
     for name in paths:
         if not relations.report_path(name) or name.split("/")[0].casefold() == "_analytics":
@@ -135,7 +137,7 @@ class Reports:
         recorded = [(event, ref) for event in held.journal.events if event.kind == "report_revision"
                     for ref in relations._dicts(event.refs) if ref.get("report_id") == report_id]
         known = {row["revision_id"] for row in rows}
-        if any(ref.get("revision_id") not in known for _, ref in recorded):
+        if any(not isinstance(ref.get("revision_id"), str) or ref["revision_id"] not in known for _, ref in recorded):
             _fail("report_record_invalid", "A Report completion has no readable preserved revision")
         requests = set()
         for row in rows:
@@ -319,6 +321,7 @@ class Reports:
 
     def update(self, report_id, revision, *, expected, new, reason):
         self.writer.admit("update_report")
+        request_id = self.writer._request_id()
         if not relations.report_name(report_id):
             _fail("name_not_portable", "Invalid Report identity")
         writer.check_request_id(revision)
@@ -336,7 +339,7 @@ class Reports:
                 "digest": {"sha256": _sha(self.root / model._saved[(report_id, revision)][0] / "manifest.json")},
                 "relation": "updates", "basis": "declared", "version_binding": "author"}],
                 details={"expected_state": expected, "new_state": new}, requires=SINCE)
-            return {"event": event, "request_id": event.get("request_id"), "state": new}
+            return {"event": event, "request_id": request_id, "state": new}
 
     def clean(self, report_id, revision):
         self.writer.admit("clean_report_prepared")

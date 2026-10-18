@@ -64,7 +64,7 @@ def main():
     result = {
         "schema": "aelix-analytics.report-storage-eval/1",
         "recorded_at": datetime.now(UTC).isoformat(),
-        "source_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=PACK, text=True).strip(),
+        "source_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=PACK, text=True, encoding="utf-8").strip(),
         "tracked_dirty": bool(subprocess.check_output(["git", "diff", "HEAD", "--name-only"], cwd=PACK)),
         "command": "uv run --locked python tools/report_storage_eval.py --out <new directory>",
         "environment": {"python": platform.python_version(), "platform": sys.platform, "kit_version": core.KIT_VERSION},

@@ -1048,6 +1048,64 @@ def _token(snapshot: list, as_of_seq: int) -> str:
     return hashlib.sha256(text.encode("ascii")).hexdigest()[:16]
 
 
+# --- common pure reference shape validation (writer and Report manifests) ---
+
+BOUND_TARGET = {"event": ("event_id",), "analysis_focus": ("event_id",), "run": ("run_id",),
+                "publication": ("publication_id",), "visualization_version": ("run_id", "visualization_id"),
+                "data_observation": ("run_id", "role", "path"), "dataset_import": ("path", "digest"),
+                "code_snapshot": ("run_id", "path", "digest"), "context_version": ("version", "digest"),
+                "metric_definition": ("metric_id", "event_id"), "reuse_proposal": ("proposal_id", "event_id"),
+                "asset_candidate": ("asset_id", "event_id"),
+                "report_revision": ("report_id", "revision_id", "digest")}
+ALWAYS_BOUND = frozenset({"event", "run", "analysis_focus", "publication"})
+UNBOUND_KEYS = ("key", "path", "metric_id", "proposal_id", "report_id", "token", "asset_id")
+def _reference_digest(value) -> bool:
+    return isinstance(value, dict) and isinstance(value.get("sha256"), str) and bool(
+        re.fullmatch(r"[0-9a-f]{64}", value["sha256"]))
+
+
+def reference_problem(ref) -> str | None:
+    """What makes `ref` no reference of the record schema (its `reference`), or None. The schema is
+    the rule; this is what the Writer checks before it writes, standard library only."""
+    if not isinstance(ref, dict):
+        return "a reference is an object"
+    kind, binding = ref.get("type"), ref.get("version_binding")
+    for name, allowed in (("type", REF_TYPES), ("relation", RELATIONS),
+                          ("basis", BASES), ("version_binding", BINDINGS)):
+        if not isinstance(ref.get(name), str) or ref[name] not in allowed:
+            return f"{name} {ref.get(name)!r} is not one of {', '.join(sorted(allowed))}"
+    for name, value in ref.items():
+        if name in ("event_id",) and not (isinstance(value, str) and re.fullmatch(r"e[1-9][0-9]*", value)):
+            return f"event_id {value!r} is not an event id"
+        if name == "run_id" and not (isinstance(value, str) and re.fullmatch(r"[0-9]{8}-[0-9]{6}-[a-z0-9][a-z0-9-]{0,60}", value)):
+            return f"run_id {value!r} is not a run id"
+        if name == "digest" and not _reference_digest(value):
+            return f"digest {value!r} is not {{'sha256': <64 hex>}}"
+        if name == "role" and value not in ("input", "output"):
+            return f"role {value!r} is not input or output"
+        if name == "report_id" and not report_name(value):
+            return f"report_id {value!r} is not a portable Report identity"
+        if name in ("revision_id", "publication_id") and not (
+                isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", value)):
+            return f"{name} {value!r} is not an opaque identity"
+        if name in ("token", "key", "path", "visualization_id", "version", "metric_id",
+                    "proposal_id", "asset_id") and not (isinstance(value, str) and value):
+            return f"{name} is a non-empty string"
+    if binding == "none":
+        if kind in ALWAYS_BOUND:
+            return f"a reference to a {kind} is bound"
+        if not any(name in ref for name in UNBOUND_KEYS):
+            return "an unbound reference names its target by " + ", ".join(UNBOUND_KEYS)
+    else:
+        missing = [name for name in BOUND_TARGET[kind] if name not in ref]
+        if binding == "inferred" and "token" not in ref:
+            missing.append("token")
+        if missing:
+            return f"a {binding} reference to a {kind} holds " + ", ".join(missing)
+    return None
+
+
+
 # --- request fingerprints (ADR-0006 8) -------------------------------------------------------------
 
 INTENT_FIELDS = ("report_id", "previous_revision", "title", "entry", "based_on")
@@ -1111,6 +1169,24 @@ def report_path(value) -> bool:
                for part in value.split("/"))
 
 
+def report_paths(paths) -> bool:
+    """Every path prefix has one spelling, including shared directory names on Windows/macOS."""
+    prefixes = {}
+    folded = set()
+    for path in paths:
+        if not report_path(path) or path.casefold() in folded:
+            return False
+        folded.add(path.casefold())
+        parts = path.split("/")
+        for n in range(1, len(parts) + 1):
+            prefix = "/".join(parts[:n])
+            previous = prefixes.setdefault(prefix.casefold(), prefix)
+            if previous != prefix:
+                return False
+    return not any("/".join(path.split("/")[:n]) in folded
+                   for path in folded for n in range(1, len(path.split("/"))))
+
+
 def report_manifest_problem(value, directory=None) -> str | None:
     """Pure validation of the stored manifest; completion and content integrity stay separate."""
     try:
@@ -1137,7 +1213,7 @@ def report_manifest_problem(value, directory=None) -> str | None:
             if not isinstance(item, dict) or not report_path(item.get("path")) or type(item.get("bytes")) is not int or item["bytes"] < 0 or not isinstance(item.get("sha256"), str) or not re.fullmatch(r"[0-9a-f]{64}", item["sha256"]):
                 return "invalid_file"
             paths.append(item["path"])
-        if len({p.casefold() for p in paths}) != len(paths) or value["entry"] not in paths:
+        if not report_paths(paths) or value["entry"] not in paths:
             return "invalid_paths"
         if "based_on" in value:
             basis = value["based_on"]
@@ -1148,7 +1224,7 @@ def report_manifest_problem(value, directory=None) -> str | None:
                 return "invalid_basis"
             if context is not None and (not isinstance(context, str) or not context):
                 return "invalid_basis"
-            if "refs" in basis and (not isinstance(basis["refs"], list) or any(not isinstance(ref, dict) or not _known_ref(ref) for ref in basis["refs"])):
+            if "refs" in basis and (not isinstance(basis["refs"], list) or any(reference_problem(ref) for ref in basis["refs"])):
                 return "invalid_basis"
         if request_fingerprint(value) != value.get("request_fingerprint"):
             return "fingerprint_mismatch"
@@ -1218,6 +1294,7 @@ class ReadModel:
             dead = status == "running" and not alive(pid if isinstance(pid, (int, str)) else None)
             self._execution[name] = "incomplete" if dead else status
         self._manifests: list[tuple[str, dict, bool]] = []
+        self._prepared_unavailable: list[tuple[str, str]] = []
         self._saved: dict[tuple, tuple[str, dict]] = {}
         self._unsupported_reports: set[tuple[str, str]] = set()
         for directory, staging in _report_dirs(root):
@@ -1226,6 +1303,8 @@ class ReadModel:
             if problem:
                 if not staging:  # a staging directory being prepared has no manifest yet
                     self.damaged_files.append({"location": location, "reason": problem})
+                else:
+                    self._prepared_unavailable.append((directory, problem))
                 continue
             reason = unsupported_reason(value, frozenset({REPORT_V1}))
             if reason:
@@ -1444,7 +1523,7 @@ class ReadModel:
                 if len(refs) != 1:
                     continue
                 ref = refs[0]
-                key = (ref.get("report_id"), ref.get("revision_id"))
+                key = (_str(ref.get("report_id")), _str(ref.get("revision_id")))
                 saved = self._saved.get(key)
                 if not saved or not _known_ref(ref) or ref.get("version_binding") == "none":
                     continue
@@ -1468,6 +1547,11 @@ class ReadModel:
         order = self._report_completions()
         completed, heads = set(order), {report_id: revision_id for report_id, revision_id in order}
         out = []
+        for directory, problem in self._prepared_unavailable:
+            parts = directory.split("/")
+            out.append({"report_id": parts[2], "revision_id": parts[-1], "request_id": None,
+                        "recording_status": "prepared", "content": "not_checked", "head": False,
+                        "problem": "manifest_unavailable", "manifest_problem": problem})
         for directory, manifest, staging in self._manifests:
             key = (_str(manifest.get("report_id")), _str(manifest.get("revision_id")))
             recording = "prepared" if staging else "complete" if key in completed else "incomplete"
