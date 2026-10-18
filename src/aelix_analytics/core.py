@@ -45,7 +45,7 @@ from .writer import migration_record as migration_record
 from .writer import new_request_id as new_request_id
 from .writer import present_marker as present_marker
 
-KIT_VERSION = "0.18.0"
+KIT_VERSION = "0.19.0"
 # The marker and the record families of the projects this kit writes: the new format's, through
 # the common writer (writer.Writer, Issue #13 PR 3; writer.FAMILIES). A project is found by either
 # marker, analytics.json or lab.json, and judged by writer.marker_state: a lab.json project
@@ -2056,6 +2056,19 @@ def context_versions(project: Project) -> list[Path]:
                 if version.is_file():
                     found.setdefault(version.name, version)
     return [found[name] for name in sorted(found)]
+
+
+def context_history(model: relations.ReadModel) -> dict:
+    """The CONTEXT.md versions as ReadModel.context_history counts them, with the pinned sections
+    as the prompt selects them (context_sections: `<!-- pin -->` headings and their text) and the
+    key-information kinds (KEY_KINDS) as the insights written while each version was the latest
+    (design WORKSPACE-READABILITY 5.2)."""
+    return model.context_history(pinned=pinned_sections, kinds=KEY_KINDS)
+
+
+def pinned_sections(text: str) -> list[tuple[str, str]]:
+    """(name, text) of the pinned sections of a CONTEXT.md text, in file order."""
+    return [(s["name"], s["text"]) for s in context_sections(text)[1] if s["pinned"]]
 
 
 def kit_reference(kind: str, **target) -> dict:

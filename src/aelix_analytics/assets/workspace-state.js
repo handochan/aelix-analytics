@@ -14,7 +14,7 @@
     let decoded;
     try { decoded = decodeURIComponent(value); } catch (_) { return false; }
     if (/[\\:#?\x00-\x1f]/.test(decoded) || decoded.split("/").some(p => p === "." || p.startsWith(".."))) return false;
-    return /^(index|context)\.html$/.test(decoded) || /^(runs|data|relations|lists)\/[^/]+\.html$/.test(decoded);
+    return /^(index|context)\.html$/.test(decoded) || /^(runs|data|relations|lists|scripts)\/[^/]+\.html$/.test(decoded);
   }
   function normalize(value, originAllowed = true) {
     if (!value || typeof value !== "object" || Array.isArray(value) || value.v !== 1 || !safePage(value.page)) return null;

@@ -90,6 +90,7 @@
  "back.page.data": "데이터셋으로 돌아가기",
  "back.page.relations": "관계로 돌아가기",
  "back.page.run": "실행으로 돌아가기",
+ "back.page.script": "스크립트로 돌아가기",
  "back.tab.assets": "분석 자산으로 돌아가기",
  "back.tab.charts": "시각화로 돌아가기",
  "back.tab.context": "맥락으로 돌아가기",
@@ -125,11 +126,9 @@
  "badge.script_missing": "스크립트 없음",
  "badge.script_missing_title": "이 시각화를 만든 스크립트가 더 이상 없습니다(이름 변경 또는 삭제)",
  "badge.upstream_stale": "앞 단계 후보의 입력 바뀜",
- "badge.versions": "v{n}",
  "card.attached_data": "첨부 데이터",
  "card.code": "코드",
  "card.data_not_recorded": "기록 안 됨 — analytics.visualize(..., data=df)",
- "card.earlier_versions": "이전 버전:",
  "card.file_now.changed": "지금 파일: 바뀜",
  "card.file_now.missing": "지금 파일: 없음",
  "card.file_now.same": "지금 파일: 같음",
@@ -173,7 +172,6 @@
  "comparison.same_image": "같은 이미지",
  "context.by_range": "줄 범위만 프롬프트에 적는 섹션:",
  "context.by_range_tail": "에이전트가 필요할 때 읽습니다.",
- "context.changes": "변경",
  "context.empty": "CONTEXT.md가 비어 있습니다.",
  "context.first_version": "(첫 버전)",
  "context.history_lead": "CONTEXT.md를 바꿀 때마다 .analytics/context/에 버전이 남습니다(lab.json 프로젝트의 .lab/context/도 함께 보입니다). 새 버전은 실행·가져오기·기록·Workspace 생성 때 감지됩니다.",
@@ -181,9 +179,10 @@
  "context.no_versions": "없음",
  "context.no_versions_recorded": "기록된 버전이 없습니다.",
  "context.none": "없음",
+ "context.now": "지금의 CONTEXT.md",
  "context.page_empty": "비어 있음",
+ "context.pinned_now": "지금의 고정 섹션",
  "context.recent_versions": "최근 버전",
- "context.versions_count": "버전 {n}개",
  "context.versions_link": "기록된 버전 {n}개",
  "data.col.columns": "열",
  "data.col.dataset": "데이터셋",
@@ -270,7 +269,6 @@
  "inferred.note": "옛 kit 경로에서 추론",
  "inferred.read_as": "읽은 경로:",
  "inferred.recorded_as": "기록된 이름:",
- "inferred.short": "(추론)",
  "inferred.title": "{since} 전의 kit은 이 경로를 실제 위치나 다른 철자로 기록했고, 여기서는 같은 파일의 지금 경로로 읽었습니다. 관측이나 확정 연결이 아닌 추론이며, 기록은 쓴 그대로입니다.",
  "inferred.title_inputs": "입력 {n}개의 생산자 후보를 옛 kit이 기록한 경로로만 찾았습니다. 어느 입력인지는 실행의 입력 목록에 있습니다: {@inferred.title}",
  "inferred.title_run": "실행 {run}: {@inferred.title}",
@@ -752,5 +750,160 @@
  "verdict.failed": "실행 실패",
  "verdict.inconclusive": "판단할 수 없음",
  "verdict.match": "일치",
- "verdict.mismatch": "다름"
+ "verdict.mismatch": "다름",
+ "versions.all_on_latest": "버전 {n}개 전부는 최신 버전의 페이지에",
+ "versions.chain_earlier": {
+  "other": "이 이력의 앞선 기록 {n}개"
+ },
+ "versions.chain_later": {
+  "other": "이 이력의 뒤의 기록 {n}개"
+ },
+ "versions.changes_from": "코드 버전 {first}에서 {last}로 바뀐 것",
+ "versions.cited_by": "인용 {n}",
+ "versions.code_at": "코드",
+ "versions.code_changes": "코드 버전 사이의 변경",
+ "versions.code_count": {
+  "other": "코드 버전 {n}개"
+ },
+ "versions.code_history": "코드 이력",
+ "versions.code_n_of": "코드 버전 {n}/{total}",
+ "versions.code_rule": "코드 버전은 스크립트 스냅샷 hash가 다른 것입니다. 예전 코드를 다시 실행하면 그 번호를 그대로 씁니다.",
+ "versions.corrected": "정정됨",
+ "versions.correction_history": "정정 이력",
+ "versions.correction_lead": "이 기록을 정정한 기록과 이 기록이 정정한 기록을 쓴 순서대로 보입니다. 정정된 기록도 쓴 그대로 남습니다.",
+ "versions.corrects": "정정한 기록:",
+ "versions.count": {
+  "other": "버전 {n}개"
+ },
+ "versions.current_record": "현재",
+ "versions.data_rule": "버전은 이 경로의 바이트가 다른 것입니다. 같은 바이트를 다시 쓰면 버전 번호가 그대로입니다.",
+ "versions.data_short": "데이터",
+ "versions.failed_run": "실패한 실행",
+ "versions.failed_runs": {
+  "other": "실패한 실행 {n}개"
+ },
+ "versions.file_now.failed_output": "지금 파일은 실패한 실행이 쓴 바이트(버전 아님)",
+ "versions.file_now.missing": "지금 파일이 없음",
+ "versions.file_now.other": "지금 파일은 어느 버전도 아닌 바이트",
+ "versions.file_now.version": "지금 파일은 버전 {n}",
+ "versions.first_read_by": "처음 읽은 실행:",
+ "versions.first_recorded": "처음 기록됨",
+ "versions.first_version": "첫 버전",
+ "versions.history": "버전 이력",
+ "versions.imported": "가져옴",
+ "versions.insights": {
+  "other": "인사이트 {n}개"
+ },
+ "versions.insights_partial": "버전 {total}개 중 {counted}개에서 인사이트 {n}개",
+ "versions.insights_rule": "인사이트 수는 그 버전이 최신이던 동안 쓴 발견·결정·가정입니다. 그 인사이트가 그 버전의 글에 근거했다는 뜻은 아닙니다.",
+ "versions.latest": "최신",
+ "versions.legend.again": "같은 내용을 다시 씀",
+ "versions.legend.failed": "실패한 실행",
+ "versions.legend.shown": "보고 있는 버전",
+ "versions.legend.use_cited": "그 버전을 인용한 기록",
+ "versions.legend.use_insights": "그 버전이 최신일 때 쓴 인사이트",
+ "versions.legend.use_read": "그 버전을 읽은 실행",
+ "versions.legend.version": "버전",
+ "versions.lines": "+{added} −{removed}줄",
+ "versions.lines_total": {
+  "other": "{n}줄"
+ },
+ "versions.made": {
+  "other": "버전 {n}개를 만듦"
+ },
+ "versions.makes": "만드는 것",
+ "versions.makes_no_version": "버전을 만들지 않음",
+ "versions.n_of": "버전 {n}/{total}",
+ "versions.named_without": {
+  "other": "버전 없이 이 시각화를 이름으로 든 기록이 {n}개 있습니다."
+ },
+ "versions.named_without_data": {
+  "other": "버전 없이 이 파일을 이름으로 든 기록이 {n}개 있습니다."
+ },
+ "versions.no_code": "이 스크립트의 실행이 아직 끝나지 않았습니다.",
+ "versions.not_a_version": "이 시각화는 버전이 아닙니다: 실행이 성공하지 않았습니다.",
+ "versions.not_ended": "이 실행은 끝나지 않아 버전을 만들지 않습니다.",
+ "versions.not_of_key": "이 시각화는 그 key의 버전이 아닙니다.",
+ "versions.note.changed_both": "버전 {n}에서 코드와 입력이 모두 바뀌었습니다.",
+ "versions.note.changed_code": "버전 {n}에서 코드가 바뀌었습니다.",
+ "versions.note.changed_inputs": "버전 {n}에서 입력이 바뀌었습니다.",
+ "versions.note.code_again": "최근 실행은 코드 버전 {n}을 다시 씁니다.",
+ "versions.note.code_inputs": "이 코드의 실행은 다른 입력을 읽습니다:",
+ "versions.note.code_lines": "코드 버전 {n}은 버전 {against}보다 {added}줄을 더하고 {removed}줄을 뺐습니다.",
+ "versions.note.last_cited": "기록이 인용한 마지막 버전은 버전 {n}입니다. 인용은 각자 인용한 버전을 그대로 가리킵니다.",
+ "versions.note.last_read": "실행이 읽은 마지막 버전은 버전 {n}입니다:",
+ "versions.note.none_cited": "아직 어떤 버전도 인용한 기록이 없습니다.",
+ "versions.note.not_cited": "버전 {n}을 인용한 기록이 아직 없습니다.",
+ "versions.note.not_read": "버전 {n}을 읽은 실행이 아직 없습니다.",
+ "versions.note.pinned_kept": {
+  "other": "뒤의 버전 {n}개는 그대로 두었습니다."
+ },
+ "versions.note.pinned_since": "고정 섹션이 마지막으로 바뀐 버전은 버전 {n}입니다",
+ "versions.note.pinned_unchanged": "고정 섹션은 버전 1부터 그대로입니다.",
+ "versions.open": "열기",
+ "versions.open_diff": "변경 보기",
+ "versions.open_run": "실행 열기",
+ "versions.open_version": "버전 {n} 열기",
+ "versions.pinned_changed_n": {
+  "other": "고정 섹션 변경 {n}번"
+ },
+ "versions.pinned_never": "고정 섹션 변경 없음",
+ "versions.pinned_same": "고정 섹션 그대로",
+ "versions.range": "v{first}–v{last}",
+ "versions.read_by": "읽음 {n}",
+ "versions.read_by_runs": "읽은 실행:",
+ "versions.reads": {
+  "other": "읽기 {n}번"
+ },
+ "versions.reads_failed": {
+  "other": "그중 {n}개는 실패한 실행"
+ },
+ "versions.reads_no_hash": {
+  "other": "hash 없이 기록된 읽기가 {n}번 있습니다."
+ },
+ "versions.reads_other": {
+  "other": "어느 버전도 아닌 바이트를 기록한 읽기가 {n}번 있습니다."
+ },
+ "versions.reason.code": "코드 변경",
+ "versions.reason.imported": "다시 가져옴",
+ "versions.reason.inputs": "입력 변경",
+ "versions.reason.inputs_removed": {
+  "other": "더 읽지 않는 입력 {n}개"
+ },
+ "versions.reason.outside": "가져오기 밖에서 바뀜",
+ "versions.reason.pinned": "고정 섹션 변경",
+ "versions.reason.script": "다른 스크립트가 씀",
+ "versions.reason.written": "실행이 씀",
+ "versions.replaced_unread": "어느 실행도 읽기 전에 바뀜",
+ "versions.rerun": "재실행",
+ "versions.rerun_of": "이 실행은 버전 {n}을 다시 실행했습니다. 재실행은 버전을 만들지 않습니다.",
+ "versions.rerun_of_run": "이 실행은 다른 실행을 다시 실행했고, 재실행은 버전을 만들지 않습니다:",
+ "versions.rows": {
+  "other": "{n}행"
+ },
+ "versions.runs": {
+  "other": "실행 {n}개"
+ },
+ "versions.same_code_as": "v{n}과 같은 코드",
+ "versions.same_code_inputs": "같은 코드와 입력",
+ "versions.script": "스크립트",
+ "versions.see_unbound": "'버전 미지정'에서 보기",
+ "versions.shown": "보고 있음",
+ "versions.this_record": "이 기록",
+ "versions.v": "v{n}",
+ "versions.v_again": "v{n} 다시",
+ "versions.viz_short": "시각화",
+ "versions.what_changed": "버전 {n}에서 바뀐 것",
+ "versions.window": "이 버전에 가까운 {n}행입니다.",
+ "versions.writes": {
+  "other": "쓰기 {n}번"
+ },
+ "versions.written_again": {
+  "other": "{n}번 다시 씀"
+ },
+ "versions.written_by": "쓴 실행:",
+ "versions.written_by_code": "쓴 코드",
+ "versions.wrote_not_version": "버전이 아닌 바이트를 씀",
+ "versions.wrote_nothing": "여기에 쓴 것 없음",
+ "versions.wrote_version": "버전 {n}과 같은 바이트를 썼고, 버전을 만들지 않음"
 }

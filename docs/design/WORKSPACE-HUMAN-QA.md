@@ -44,6 +44,13 @@ fixture/source revision, task outcome and screenshots when this checklist is run
    input changes, and in Needs attention and the folded smaller flows the file with two possible producers and the cycle.
    At 360/390/430 px, at increased text size and without JavaScript, the map reads as a list of boxes, each naming the files it
    writes and the box that reads them. Repeat in Korean.
+9. (kit 0.19.0, #99) In M, open the run page of `delivery_delay 요약 차트`'s latest version: `Version 19 of 19`, the note that
+   both its code and input changed, the strip and the list with v15–v18 and v1–v14 folded and the failed run of Sep 1 between them.
+   Open the dataset page of `t10_delivery_delay` (14 versions from 19 writes, each with the runs that read it, version 14 read by
+   none yet), the script page of `s10_delivery_delay.py` from the run page's `code version` link (3 code versions: v2 failed, then
+   `v1 again`, and v3's diff), and the Context page (13 versions, the pinned sections last changed in version 2). Check that the
+   numbers agree across the gallery card, the run pages and the dataset page, and that each list reads without JavaScript and at
+   360/390/430 px. Repeat in Korean.
 
 The agent records measured HTML bytes and Workspace generation/cache-rebuild costs separately.
 The owner's actual-screen task results fulfill the remaining Issue #18 acceptance condition.

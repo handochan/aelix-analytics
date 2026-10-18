@@ -100,6 +100,7 @@
  "back.page.data": "Back to the dataset",
  "back.page.relations": "Back to the relations",
  "back.page.run": "Back to the run",
+ "back.page.script": "Back to the script",
  "back.tab.assets": "Back to Analysis assets",
  "back.tab.charts": "Back to Visualizations",
  "back.tab.context": "Back to Context",
@@ -135,11 +136,9 @@
  "badge.script_missing": "Script missing",
  "badge.script_missing_title": "The script that made this visualization is no longer there (renamed or deleted)",
  "badge.upstream_stale": "Upstream candidate stale",
- "badge.versions": "v{n}",
  "card.attached_data": "Attached data",
  "card.code": "Code",
  "card.data_not_recorded": "Not recorded — analytics.visualize(..., data=df)",
- "card.earlier_versions": "Earlier versions:",
  "card.file_now.changed": "File now: Changed",
  "card.file_now.missing": "File now: Missing",
  "card.file_now.same": "File now: Same",
@@ -183,7 +182,6 @@
  "comparison.same_image": "same image",
  "context.by_range": "Sections the prompt names with their line ranges only:",
  "context.by_range_tail": "the agent reads them when it needs them.",
- "context.changes": "Changes",
  "context.empty": "CONTEXT.md is empty.",
  "context.first_version": "(first version)",
  "context.history_lead": "Each change to CONTEXT.md leaves a version in .analytics/context/ (.lab/context/ holds a lab.json project's, listed here too). A new version is noticed at a run, an import, a record and a Workspace render.",
@@ -191,9 +189,10 @@
  "context.no_versions": "None",
  "context.no_versions_recorded": "No versions recorded.",
  "context.none": "none",
+ "context.now": "CONTEXT.md now",
  "context.page_empty": "Empty",
+ "context.pinned_now": "Pinned sections now",
  "context.recent_versions": "Recent versions",
- "context.versions_count": "{n} version(s)",
  "context.versions_link": "{n} recorded version(s)",
  "data.col.columns": "Columns",
  "data.col.dataset": "Dataset",
@@ -280,7 +279,6 @@
  "inferred.note": "inferred from an older kit's path",
  "inferred.read_as": "read as",
  "inferred.recorded_as": "recorded as",
- "inferred.short": "(inferred)",
  "inferred.title": "A kit before {since} recorded this path by its real place or in another spelling; it is read as today's path of the same file. An inference, not an observed or confirmed link; the records are as they were written.",
  "inferred.title_inputs": "a producer candidate of {n} input(s) was found only through a path an older kit recorded; the run's inputs say which: {@inferred.title}",
  "inferred.title_run": "run {run}: {@inferred.title}",
@@ -792,5 +790,181 @@
  "verdict.failed": "Run failed",
  "verdict.inconclusive": "Inconclusive",
  "verdict.match": "Matched",
- "verdict.mismatch": "Different"
+ "verdict.mismatch": "Different",
+ "versions.all_on_latest": "All {n} versions on the latest version's page",
+ "versions.chain_earlier": {
+  "one": "{n} earlier record in this history",
+  "other": "{n} earlier records in this history"
+ },
+ "versions.chain_later": {
+  "one": "{n} later record in this history",
+  "other": "{n} later records in this history"
+ },
+ "versions.changes_from": "Changes from code version {first} to {last}",
+ "versions.cited_by": "Cited by {n}",
+ "versions.code_at": "code",
+ "versions.code_changes": "Changes between code versions",
+ "versions.code_count": {
+  "one": "{n} code version",
+  "other": "{n} code versions"
+ },
+ "versions.code_history": "Code history",
+ "versions.code_n_of": "code version {n} of {total}",
+ "versions.code_rule": "A code version is a different hash of the script's snapshot. Running earlier code again keeps its number.",
+ "versions.corrected": "Corrected",
+ "versions.correction_history": "Correction history",
+ "versions.correction_lead": "The records that correct this one and those it corrects, in the order they were written. A corrected record stays as it was written.",
+ "versions.corrects": "corrects",
+ "versions.count": {
+  "one": "{n} version",
+  "other": "{n} versions"
+ },
+ "versions.current_record": "Current",
+ "versions.data_rule": "A version is a different set of bytes at this path. Writing the same bytes again keeps the version's number.",
+ "versions.data_short": "data",
+ "versions.failed_run": "Failed run",
+ "versions.failed_runs": {
+  "one": "{n} failed run",
+  "other": "{n} failed runs"
+ },
+ "versions.file_now.failed_output": "the file now holds bytes a failed run wrote (no version)",
+ "versions.file_now.missing": "the file is missing now",
+ "versions.file_now.other": "the file now holds bytes that are no version",
+ "versions.file_now.version": "the file now is version {n}",
+ "versions.first_read_by": "first seen in a read by",
+ "versions.first_recorded": "First recorded",
+ "versions.first_version": "first version",
+ "versions.history": "Version history",
+ "versions.imported": "imported",
+ "versions.insights": {
+  "one": "{n} insight",
+  "other": "{n} insights"
+ },
+ "versions.insights_partial": "{n} insights in {counted} of {total} versions",
+ "versions.insights_rule": "Insight counts are the findings, decisions and assumptions written while a version was the latest. They do not mean the insight used that text.",
+ "versions.latest": "Latest",
+ "versions.legend.again": "Same content written again",
+ "versions.legend.failed": "Failed run",
+ "versions.legend.shown": "Version shown",
+ "versions.legend.use_cited": "Records citing that version",
+ "versions.legend.use_insights": "Insights written while it was the latest",
+ "versions.legend.use_read": "Runs that read that version",
+ "versions.legend.version": "Version",
+ "versions.lines": "+{added} −{removed} lines",
+ "versions.lines_total": {
+  "one": "{n} line",
+  "other": "{n} lines"
+ },
+ "versions.made": {
+  "one": "made {n} version",
+  "other": "made {n} versions"
+ },
+ "versions.makes": "Makes",
+ "versions.makes_no_version": "makes no version",
+ "versions.n_of": "Version {n} of {total}",
+ "versions.named_without": {
+  "one": "{n} record names this visualization without a version.",
+  "other": "{n} records name this visualization without a version."
+ },
+ "versions.named_without_data": {
+  "one": "{n} record names this file without a version.",
+  "other": "{n} records name this file without a version."
+ },
+ "versions.no_code": "No run of this script has ended yet.",
+ "versions.not_a_version": "This visualization is no version: its run did not succeed.",
+ "versions.not_ended": "This run has not ended: it makes no version.",
+ "versions.not_of_key": "This visualization is no version of its key.",
+ "versions.note.changed_both": "Version {n} changed both the code and the input.",
+ "versions.note.changed_code": "Version {n} changed the code.",
+ "versions.note.changed_inputs": "Version {n} changed the input.",
+ "versions.note.code_again": "The latest runs use code version {n} again.",
+ "versions.note.code_inputs": "Its runs read other inputs:",
+ "versions.note.code_lines": "Code version {n} added {added} lines and removed {removed} against version {against}.",
+ "versions.note.last_cited": "The last version a record cites is version {n}; each citation keeps pointing at the version it cited.",
+ "versions.note.last_read": "The last version a run read is version {n}:",
+ "versions.note.none_cited": "No record cites any version of it yet.",
+ "versions.note.not_cited": "No record cites version {n} yet.",
+ "versions.note.not_read": "No run has read version {n} yet.",
+ "versions.note.pinned_kept": {
+  "one": "{n} later version kept them.",
+  "other": "{n} later versions kept them."
+ },
+ "versions.note.pinned_since": "The pinned sections last changed in version {n}",
+ "versions.note.pinned_unchanged": "The pinned sections have not changed since version 1.",
+ "versions.open": "Open",
+ "versions.open_diff": "Open diff",
+ "versions.open_run": "Open run",
+ "versions.open_version": "Open version {n}",
+ "versions.pinned_changed_n": {
+  "one": "pinned sections changed once",
+  "other": "pinned sections changed {n} times"
+ },
+ "versions.pinned_never": "pinned sections never changed",
+ "versions.pinned_same": "pinned sections unchanged",
+ "versions.range": "v{first}–v{last}",
+ "versions.read_by": "Read by {n}",
+ "versions.read_by_runs": "read by",
+ "versions.reads": {
+  "one": "{n} read",
+  "other": "{n} reads"
+ },
+ "versions.reads_failed": {
+  "one": "{n} by a run that failed",
+  "other": "{n} by runs that failed"
+ },
+ "versions.reads_no_hash": {
+  "one": "{n} read recorded no hash.",
+  "other": "{n} reads recorded no hash."
+ },
+ "versions.reads_other": {
+  "one": "{n} read recorded bytes that are no version.",
+  "other": "{n} reads recorded bytes that are no version."
+ },
+ "versions.reason.code": "Code changed",
+ "versions.reason.imported": "Imported again",
+ "versions.reason.inputs": "Input changed",
+ "versions.reason.inputs_removed": {
+  "one": "{n} input no longer read",
+  "other": "{n} inputs no longer read"
+ },
+ "versions.reason.outside": "Changed outside an import",
+ "versions.reason.pinned": "Pinned sections changed",
+ "versions.reason.script": "Written by another script",
+ "versions.reason.written": "Written by a run",
+ "versions.replaced_unread": "replaced before any run read it",
+ "versions.rerun": "Rerun",
+ "versions.rerun_of": "This run re-executed version {n}: a rerun makes no version.",
+ "versions.rerun_of_run": "This run re-executed another run; a rerun makes no version:",
+ "versions.rows": {
+  "one": "{n} row",
+  "other": "{n} rows"
+ },
+ "versions.runs": {
+  "one": "{n} run",
+  "other": "{n} runs"
+ },
+ "versions.same_code_as": "same code as v{n}",
+ "versions.same_code_inputs": "same code and inputs",
+ "versions.script": "Script",
+ "versions.see_unbound": "See them under Version not named",
+ "versions.shown": "Shown",
+ "versions.this_record": "this record",
+ "versions.v": "v{n}",
+ "versions.v_again": "v{n} again",
+ "versions.viz_short": "viz",
+ "versions.what_changed": "What version {n} changed",
+ "versions.window": "These are the {n} rows nearest this version.",
+ "versions.writes": {
+  "one": "{n} write",
+  "other": "{n} writes"
+ },
+ "versions.written_again": {
+  "one": "written again once",
+  "other": "written again {n} times"
+ },
+ "versions.written_by": "written by",
+ "versions.written_by_code": "written by code",
+ "versions.wrote_not_version": "wrote bytes that are no version",
+ "versions.wrote_nothing": "wrote nothing here",
+ "versions.wrote_version": "wrote the bytes of version {n}, and makes no version"
 }
