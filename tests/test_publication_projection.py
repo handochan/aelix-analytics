@@ -36,14 +36,14 @@ from aelix_analytics.publishing.snapshot import capture_snapshot, content_basis
 
 ROOT = Path(__file__).resolve().parents[1]
 ORIGIN = core.Origin("human", "sdk")
-SECRET = "EXCLUDED_CANARY_6c42"
+CANARY = "EXCLUDED_CANARY_6c42"
 HASH = "a" * 64
 P = ItemKey("project", "project")
 R1, R2 = ItemKey("run", "r1"), ItemKey("run", "r2")
 V1, V2 = ItemKey("visualization", "r1/v"), ItemKey("visualization", "r2/v")
 C = ItemKey("code", "opaque-code")
 E = ItemKey("event", "e4")
-HIDDEN = ItemKey("event", SECRET)
+HIDDEN = ItemKey("event", CANARY)
 MISSING_DATA = ItemKey("dataset", "opaque-missing")
 
 
@@ -51,12 +51,12 @@ def synthetic():
     f = SnapshotFile("runs/r2/visualizations/v.png", "figure", ".png", HASH, HASH, 8, "png")
     code = SnapshotFile("runs/r2/code/main.py", "code_snapshot", ".py", HASH, HASH, 9, "python")
     items = (
-        SnapshotItem(P, "project", freeze({"title": "Public title", "project_id": SECRET}), root=True),
+        SnapshotItem(P, "project", freeze({"title": "Public title", "project_id": CANARY}), root=True),
         SnapshotItem(R1, "run", freeze({"id": "r1", "title": "Old", "status": "ok", "recording_status": "complete"})),
         SnapshotItem(R2, "run", freeze({"id": "r2", "title": "New", "status": "ok", "recording_status": "complete",
-            "env": {"python": "3.12", "packages": {"polars": "1"}, "executable": SECRET}, "stdout": SECRET,
-            "script": {"path": "scripts/main.py"}, "warnings": [SECRET], "warning_count": 1,
-            "inputs": [{"path": "/home/secret/file.csv", "external": True, "sha256": HASH, "private": SECRET}]}),
+            "env": {"python": "3.12", "packages": {"polars": "1"}, "executable": CANARY}, "stdout": CANARY,
+            "script": {"path": "scripts/main.py"}, "warnings": [CANARY], "warning_count": 1,
+            "inputs": [{"path": "/home/secret/file.csv", "external": True, "sha256": HASH, "private": CANARY}]}),
             attachments=(C,)),
         SnapshotItem(C, "code", freeze({"path": "scripts/main.py", "sha256": HASH}), files=(code,)),
         SnapshotItem(V1, "visualization", freeze({"title": "Historical", "visualization_id": "v", "kind": "matplotlib"}),
@@ -67,10 +67,10 @@ def synthetic():
             seq=4, references=(Reference("cites", "author", "declared", "resolved", None, "visualization", V1, True),
                 Reference("cites", "author", "declared", "missing", "file_absent", "dataset", MISSING_DATA),
                 Reference("cites", "none", "unverified", "version_unbound", None, "visualization", None,
-                          candidates=(V1, ItemKey("visualization", SECRET))))),
-        SnapshotItem(HIDDEN, "note", freeze({"id": SECRET, "text": SECRET, "state": "current"})),
-        SnapshotItem(MISSING_DATA, "dataset", freeze({"name": SECRET})),
-        SnapshotItem(ItemKey("run", "running"), "run", freeze({"title": SECRET}), root=True, complete=False),
+                          candidates=(V1, ItemKey("visualization", CANARY))))),
+        SnapshotItem(HIDDEN, "note", freeze({"id": CANARY, "text": CANARY, "state": "current"})),
+        SnapshotItem(MISSING_DATA, "dataset", freeze({"name": CANARY})),
+        SnapshotItem(ItemKey("run", "running"), "run", freeze({"title": CANARY}), root=True, complete=False),
     )
     return ShareSnapshot(SnapshotBasis(4, ContentBasis(4, "2026-10-01T00:00:00+00:00", None)), items)
 
@@ -80,7 +80,7 @@ def test_contract_sources_scope_history_states_and_model_canaries(profile):
     s, request = synthetic(), ShareRequest(exclude=frozenset({HIDDEN}))
     result = project(s, request, profile=profile)
     assert set(result.ledger.included) <= scope_closure(s, request, PROFILES[profile])
-    assert SECRET not in json.dumps(asdict(result.model), ensure_ascii=False)
+    assert CANARY not in json.dumps(asdict(result.model), ensure_ascii=False)
     finding = next(i for i in result.model.items if i.key == E)
     assert finding.references[0].target == V1 and finding.references[0].confirmed
     assert finding.references[1].state == "missing" and finding.references[1].reason == "file_absent"
@@ -112,7 +112,7 @@ def test_outside_reference_identity_is_removed_for_every_original_state(state):
     out = project(s, ShareRequest(exclude=frozenset({HIDDEN})))
     actual = next(i for i in out.model.items if i.key == finding.key).references[0]
     assert actual.state == state and actual.target is None
-    assert SECRET not in json.dumps(asdict(out.model))
+    assert CANARY not in json.dumps(asdict(out.model))
 
 
 @pytest.mark.parametrize("scope", ["reports", "collection", "unknown"])
@@ -146,7 +146,7 @@ def test_injected_strategy_is_used_and_adversarial_model_ledger_copy_are_rejecte
     bad_ledger = replace(expected.ledger, included=(*expected.ledger.included, HIDDEN))
     with pytest.raises(PublicationError, match="projection_out_of_scope"):
         validate_projection(s, request, PROFILES["read"], replace(expected, ledger=bad_ledger))
-    bad_field = Field("text", Text(SECRET, "user", (E, "text")))
+    bad_field = Field("text", Text(CANARY, "user", (E, "text")))
     bad_model = replace(expected.model, items=tuple(replace(i, fields=(bad_field,)) if i.key == E else i for i in expected.model.items))
     with pytest.raises(PublicationError, match="not from"):
         validate_projection(s, request, PROFILES["read"], replace(expected, model=bad_model))
@@ -221,8 +221,8 @@ def test_field_inventory_is_exhaustive_and_new_fields_require_classification():
     for family, classified in CLASSIFIED_FIELDS.items():
         assert set(classified) == set(schema["$defs"][family]["properties"])
     future = copy.deepcopy(schema)
-    future["$defs"]["run_2"]["properties"][SECRET] = {"type": "string"}
-    assert unclassified_fields(future) == {"run_2": [SECRET]}
+    future["$defs"]["run_2"]["properties"][CANARY] = {"type": "string"}
+    assert unclassified_fields(future) == {"run_2": [CANARY]}
 
 
 def test_real_snapshot_freezes_bytes_and_repeat_publication_changes_identity_basis_only(tmp_path):
@@ -237,9 +237,9 @@ def test_real_snapshot_freezes_bytes_and_repeat_publication_changes_identity_bas
     assert b.model == a.model and b.copy_plan == a.copy_plan
     assert b.basis.as_of_seq > a.basis.as_of_seq
     # Working CONTEXT changes after capture do not leak into the frozen model.
-    p.context.write_text(SECRET, encoding="utf-8")
+    p.context.write_text(CANARY, encoding="utf-8")
     assert project(first) == a
-    assert SECRET not in json.dumps(asdict(project(first).model))
+    assert CANARY not in json.dumps(asdict(project(first).model))
 
 
 def test_real_run_snapshot_preserves_old_version_and_hash_checks(tmp_path):
@@ -252,7 +252,7 @@ def test_real_run_snapshot_preserves_old_version_and_hash_checks(tmp_path):
     assert any(i.key.category == "visualization" for i in out.model.items)
     assert {e.role for e in out.copy_plan} == {"figure", "code_snapshot"}
     original = result["run"]["script"]["snapshot"]
-    (p.root/original).write_text(SECRET, encoding="utf-8")
+    (p.root/original).write_text(CANARY, encoding="utf-8")
     assert project(snapshot, profile="evidence") == out
     newer = project(capture_snapshot(p), profile="evidence")
     assert not any(e.role == "code_snapshot" for e in newer.copy_plan)
@@ -271,8 +271,8 @@ def test_nested_field_coverage_requires_a_decision_and_legacy_fixture_fields_are
     for family, paths in PERSISTED_FIELD_PATHS.items():
         assert schema_field_paths(schema, family) == paths, family
     future = copy.deepcopy(schema)
-    future["$defs"]["run_2"]["properties"]["env"]["properties"][SECRET] = {"type": "string"}
-    assert schema_field_paths(future, "run_2") - PERSISTED_FIELD_PATHS["run_2"] == {"env."+SECRET}
+    future["$defs"]["run_2"]["properties"]["env"]["properties"][CANARY] = {"type": "string"}
+    assert schema_field_paths(future, "run_2") - PERSISTED_FIELD_PATHS["run_2"] == {"env."+CANARY}
     for path in (ROOT/"tests/fixtures/records").glob("**/run.json"):
         value = json.loads(path.read_text(encoding="utf-8"))
         if value.get("schema") == "lab.run/1":
@@ -288,7 +288,7 @@ def test_negative_controls_refuse_raw_display_text_rewritten_judgment_and_wrong_
     model = replace(expected.model, items=tuple(changed if i.key == E else i for i in expected.model.items))
     with pytest.raises(PublicationError, match="reference judgment changed"):
         validate_projection(s, req, PROFILES[profile], replace(expected, model=model))
-    raw = replace(finding, fields=(Field("text", SECRET),))
+    raw = replace(finding, fields=(Field("text", CANARY),))
     model = replace(expected.model, items=tuple(raw if i.key == E else i for i in expected.model.items))
     with pytest.raises(PublicationError):
         validate_projection(s, req, PROFILES[profile], replace(expected, model=model))
@@ -325,7 +325,7 @@ def test_external_paths_are_never_exported_even_when_an_old_record_omits_externa
     absolute = r"C:\Users\private\EXCLUDED_CANARY_6c42.py"
     items = tuple(replace(i, values=freeze({"path": absolute, "sha256": HASH})) if i.key == C else i for i in s.items)
     out = project(replace(s, items=items), ShareRequest(exclude=frozenset({HIDDEN})), profile="evidence")
-    assert absolute not in json.dumps(asdict(out.model)) and SECRET not in json.dumps(asdict(out.model))
+    assert absolute not in json.dumps(asdict(out.model)) and CANARY not in json.dumps(asdict(out.model))
     code = next(i for i in out.model.items if i.key == C)
     assert next(f.value for f in code.fields if f.name == "path") == Text("Path not included", "kit")
 
@@ -354,11 +354,11 @@ def test_snapshot_digest_provider_is_shared_by_reference_judgments_and_copy_plan
 
 def test_snapshot_does_not_write_project_files_or_use_working_context(tmp_path):
     p = core.init_project(tmp_path/"p", title="Public", origin=ORIGIN)
-    p.context.write_text(SECRET, encoding="utf-8")
+    p.context.write_text(CANARY, encoding="utf-8")
     before = {f.relative_to(p.root).as_posix(): f.read_bytes() for f in p.root.rglob("*") if f.is_file()}
     snapshot = capture_snapshot(p)
     for profile in ("read", "evidence"):
-        assert SECRET not in json.dumps(asdict(project(snapshot, profile=profile).model))
+        assert CANARY not in json.dumps(asdict(project(snapshot, profile=profile).model))
     after = {f.relative_to(p.root).as_posix(): f.read_bytes() for f in p.root.rglob("*") if f.is_file()}
     assert after == before
 
@@ -367,14 +367,14 @@ def test_mutated_stored_context_is_refused_instead_of_using_new_bytes(tmp_path):
     p = core.init_project(tmp_path/"p", origin=ORIGIN)
     basis, _ = content_basis(core.read_model(p).journal, validate_reference=writer.reference_problem)
     path = relations.context_file(p.root, basis.content.context_version)
-    path.write_text(SECRET, encoding="utf-8")
+    path.write_text(CANARY, encoding="utf-8")
     with pytest.raises(PublicationError, match="CONTEXT bytes changed"):
         capture_snapshot(p)
 
 
 def test_authored_text_keeps_its_source_for_the_later_independent_leak_checker():
     s = synthetic()
-    text = "An included title mentioning " + SECRET
+    text = "An included title mentioning " + CANARY
     s = replace(s, items=tuple(replace(i, values=freeze({"title": text})) if i.key == P else i for i in s.items))
     result = project(s, ShareRequest(exclude=frozenset({HIDDEN})))
     assert result.model.title == Text(text, "user", (P, "title"))
@@ -441,10 +441,10 @@ def test_content_basis_uses_injected_common_reference_validation_and_retains_ref
 def test_partial_structures_do_not_copy_column_statistics_or_unknown_metric_parent_fields():
     s = synthetic()
     dataset = SnapshotItem(ItemKey("dataset", "d"), "dataset", freeze({"name": "Public", "columns": [
-        {"name": "x", "type": "int", "min": SECRET, "preview": [SECRET]}]}), root=True)
+        {"name": "x", "type": "int", "min": CANARY, "preview": [CANARY]}]}), root=True)
     s = replace(s, items=(*s.items, dataset))
     out = project(s, ShareRequest(exclude=frozenset({HIDDEN})), profile="evidence")
-    assert SECRET not in json.dumps(asdict(out.model))
+    assert CANARY not in json.dumps(asdict(out.model))
     d = next(i for i in out.model.items if i.key == dataset.key)
     columns = next(f.value for f in d.fields if f.name == "columns")
     assert {k.value for k, _ in columns[0].entries} == {"name", "type"}
@@ -453,19 +453,19 @@ def test_partial_structures_do_not_copy_column_statistics_or_unknown_metric_pare
 def test_observation_does_not_reveal_an_excluded_definition_identity_through_details(tmp_path):
     p = core.init_project(tmp_path/"p", origin=ORIGIN)
     definition = core.record(p, "metric_definition", "Definition", details={"contract": "metric_definition/1",
-        "metric_id": SECRET, "name": SECRET, "status": "draft", "definition": {}, "unresolved": [],
+        "metric_id": CANARY, "name": CANARY, "status": "draft", "definition": {}, "unresolved": [],
         "derived_from": [], "change_reason": "Initial"}, origin=ORIGIN).event
     script = p.scripts/"p.py"
     script.write_text("print(1)\n", encoding="utf-8")
     run = runner.execute(p, script="scripts/p.py", title="Calculation", origin=ORIGIN)["run"]
     core.record(p, "metric_observation", "Measurement", details={"contract": "metric_observation/1",
-        "metric_id": SECRET, "definition_event_id": definition["id"], "run_id": run["id"], "scope": {},
+        "metric_id": CANARY, "definition_event_id": definition["id"], "run_id": run["id"], "scope": {},
         "result": 1, "change_reason": "Measured"}, origin=ORIGIN)
     snapshot = capture_snapshot(p)
     request = ShareRequest(exclude=frozenset({ItemKey("event", definition["id"])}))
     for profile in ("read", "evidence"):
         out = project(snapshot, request, profile=profile)
-        assert SECRET not in json.dumps(asdict(out.model))
+        assert CANARY not in json.dumps(asdict(out.model))
         observation = next(i for i in out.model.items if i.kind == "metric_observation")
         assert all(f.name not in ("details.metric_id", "details.definition_event_id") for f in observation.fields)
 
@@ -477,3 +477,24 @@ def test_current_common_validator_rejects_a_delivery_ref_missing_required_versio
     assert relations.reference_problem(value["refs"][0]) is not None
     basis, excluded = content_basis(journal([event(1), value]), validate_reference=relations.reference_problem)
     assert basis.content.content_seq == 2 and not excluded
+
+
+def test_adversarial_technical_metadata_cannot_carry_unapproved_text():
+    from aelix_analytics.publishing.model import Omission
+
+    s, req = synthetic(), ShareRequest(exclude=frozenset({HIDDEN}))
+    out = project(s, req)
+    bad = (Omission(CANARY, "profile", 1),)
+    malicious = replace(out, model=replace(out.model, not_included=bad), ledger=replace(out.ledger, not_included=bad))
+    with pytest.raises(PublicationError, match="unregistered omission"):
+        validate_projection(s, req, PROFILES["read"], malicious)
+
+
+def test_malformed_scalar_record_field_does_not_become_a_container_for_unapproved_content(tmp_path):
+    p = core.init_project(tmp_path/"p", title="Public", origin=ORIGIN)
+    raw = event(3, id={"unexpected": CANARY})
+    with p.journal.open("ab") as file:
+        file.write(json.dumps(raw).encode()+b"\n")
+    out = project(capture_snapshot(p))
+    assert CANARY not in json.dumps(asdict(out.model))
+    assert any(i.kind == "finding" for i in out.model.items), "the valid original text remains readable"

@@ -50,7 +50,10 @@ class Profile:
         if item.key.category == "event":
             if item.kind not in PROJECT_KINDS and not (self.evidence and item.kind == "note"):
                 return ()
-            return (*EVENT_FIELDS, *METRIC_FIELDS.get(item.kind, ()))
+            details = item.values.get("details")
+            contract = details.get("contract") if hasattr(details, "get") else None
+            extra = METRIC_FIELDS.get(item.kind, ()) if contract == f"{item.kind}/1" else ()
+            return (*EVENT_FIELDS, *extra)
         return (EVIDENCE_FIELDS if self.evidence else READ_FIELDS).get(item.key.category, ())
 
 

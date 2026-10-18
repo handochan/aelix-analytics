@@ -8,6 +8,8 @@ from dataclasses import dataclass, fields, is_dataclass
 from pathlib import PurePosixPath, PureWindowsPath
 from typing import Protocol
 
+from .. import relations
+from .basis import _time
 from .model import (
     ContentBasis,
     CopyEntry,
@@ -173,16 +175,22 @@ def _safe_value(item, name, included):
             return Text("Outside the project" if item.values.get("_outside") else "Path not included", "kit")
     if name in ("columns", "schema"):
         return _columns(value)
-    if name == "env.packages" and isinstance(value, FrozenMap):
-        return FrozenMap(tuple((k, v) for k, v in value.entries if isinstance(v, str)))
+    if name == "env.packages":
+        return FrozenMap(tuple((k, v) for k, v in value.entries if isinstance(v, str))) if isinstance(value, FrozenMap) else MISSING
     if name in ("inputs", "outputs"):
-        return tuple(_metadata(v, output=name == "outputs") for v in (value or ()))
+        return tuple(_metadata(v, output=name == "outputs") for v in value) if isinstance(value, tuple) else MISSING
+    if name in ("details.definition", "details.scope"):
+        return value if isinstance(value, FrozenMap) else MISSING
+    if name == "details.result":
+        return value
+    if name in ("data_columns", "details.unresolved"):
+        return tuple(v for v in value if isinstance(v, str)) if isinstance(value, tuple) else MISSING
     def cited(key):
         return key in included and any(r.target == key and r.state == "resolved" for r in item.references)
 
     if name in ("details.metrics", "details.derived_from"):
         return tuple(FrozenMap(tuple((k, part) for k, part in v.entries if k in ("metric_id", "event_id", "role")))
-                     for v in (value or ()) if isinstance(v, FrozenMap)
+                     for v in (value if isinstance(value, tuple) else ()) if isinstance(v, FrozenMap)
                      and cited(ItemKey("event", v.get("event_id"))))
     if name in ("details.previous_definition", "details.definition_event_id", "details.previous_focus"):
         return value if cited(ItemKey("event", value)) else MISSING
@@ -193,15 +201,25 @@ def _safe_value(item, name, included):
         return value if cited(ItemKey("event", definition)) else MISSING
     # Reproduction's path/id keyed maps can name versions absent from this publication. Project
     # its verdict and boolean only; exact versions remain ordinary filtered Reference objects.
-    if name == "reproduction" and isinstance(value, FrozenMap):
+    if name == "reproduction":
+        if not isinstance(value, FrozenMap):
+            return MISSING
         kept = [(k, v) for k, v in value.entries if k in ("verdict", "inputs_same")]
         original = value.get("of")
         if isinstance(original, str) and ItemKey("run", original) in included:
             kept.append(("of", original))
         return FrozenMap(tuple(sorted(kept)))
     if name == "state_history":
-        return tuple(v for v in (value or ()) if isinstance(v, str) and ItemKey("event", v) in included)
-    return value
+        return tuple(v for v in (value if isinstance(value, tuple) else ()) if isinstance(v, str) and ItemKey("event", v) in included)
+    if name in ("actor_role", "state", "status", "recording_status", "observation", "role"):
+        return value
+    if name in ("bytes", "rows", "line", "error.line", "warning_count", "finalize_error_count", "data_rows"):
+        return value if value is None or type(value) is int and value >= 0 else MISSING
+    if name == "sha256":
+        return value if value is None or relations._reference_digest({"sha256": value}) else MISSING
+    if name in ("recorded_at", "started_at", "ended_at"):
+        return _time(value)
+    return value if value is None or isinstance(value, str) else MISSING
 
 
 def _reference(ref, included, excluded, reasons=None):
@@ -373,6 +391,16 @@ def validate_projection(snapshot, request, profile, projection):
             for v in value:
                 visit(v)
     visit(projection.model)
+    if projection.model.not_included != projection.ledger.not_included or projection.model.diagnostics != snapshot.diagnostics:
+        raise PublicationError("leak_found", "omission or diagnostic ledger changed")
+    categories = {"project", "event", "run", "visualization", "context", "code", "dataset", "data_observation", "report", "file", "journal"}
+    reasons_allowed = {"profile", "excluded", "in_progress", "out_of_scope", "unsupported", "file_absent", "format",
+                       "content_changed", "no_digest", "outside_project", "invalid_digest", "damaged", "recovered", "unsupported_delivery"}
+    for omission in (*projection.model.not_included, *projection.model.diagnostics):
+        if (not isinstance(omission.category, str) or omission.category not in categories
+                or not isinstance(omission.reason, str) or omission.reason not in reasons_allowed
+                or type(omission.count) is not int or omission.count <= 0):
+            raise PublicationError("leak_found", "unregistered omission metadata")
     allowed_entries, allowed_slots = set(), set()
     for key in included:
         for file in source[key].files:
