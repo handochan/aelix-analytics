@@ -1181,3 +1181,60 @@ def test_parquet_map_schema_keys_values_and_field_metadata_are_inspected():
         else:
             with pytest.raises(PublicationError, match="excluded content"):
                 checks.check_strings(inspected.strings, POLICY, path="files/table.parquet")
+
+
+@pytest.mark.parametrize("profile", ["read", "evidence"])
+def test_integrated_report_metadata_and_collection_remain_deferred_from_preview(tmp_path, profile):
+    p = core.init_project(tmp_path / "p", title="Public", origin=ORIGIN)
+    source = tmp_path / "report-source"
+    source.mkdir()
+    (source / "entry.md").write_text(CANARY, encoding="utf-8")
+    first = core.save_report(
+        p,
+        "private-report",
+        files=source,
+        entry="entry.md",
+        title=CANARY,
+        previous_revision=None,
+        metadata={
+            "summary": CANARY,
+            "scope": {"private": CANARY},
+            "future_field": {"value": CANARY},
+        },
+        origin=ORIGIN,
+    )["report"]
+    collection = core.save_report(
+        p,
+        "private-collection",
+        files=source,
+        entry="entry.md",
+        title=CANARY,
+        previous_revision=None,
+        metadata={
+            "summary": CANARY,
+            "content_status": "partial",
+            "collection": {
+                "contract": "report_collection/1",
+                "members": [
+                    {
+                        "member_key": CANARY,
+                        "status": "complete",
+                        "report_id": first["report_id"],
+                        "revision_id": first["revision_id"],
+                    }
+                ],
+            },
+        },
+        origin=ORIGIN,
+    )["report"]
+    before = tree_bytes(p.root)
+    summary, files = build.preview_package(p, profile=profile)
+    rendered = b"".join(files.values())
+    for private in (CANARY, first["revision_id"], collection["revision_id"]):
+        assert private.encode() not in rendered
+    assert summary["included"].get("report", 0) == 0
+    assert tree_bytes(p.root) == before
+    for scope in ("reports", "collection"):
+        with pytest.raises(PublicationError) as caught:
+            build.preview_package(p, ShareRequest(scope=scope), profile=profile)
+        assert caught.value.code == "scope_unsupported"
