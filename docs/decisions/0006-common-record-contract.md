@@ -12,6 +12,9 @@ Status: Accepted — 2026-10-03 소유자 결정 (Issue #4)
 이 계약이 기대는 형제 결정:
 [ADR-0005](0005-names-first-storage-with-the-new-writer.md)(#3 전환 순서), [ADR-0008](0008-reuse-proposal-counting-and-deterministic-always-on.md)(#6 재사용 제안),
 [ADR-0009](0009-first-publish-target.md)(#21 첫 게시).
+`publication`의 필수 결박·내용 기준·참조 예외를 구체화하는
+[ADR-0014](0014-publication-record-contract.md)는 2026-10-18 채택했다.
+아래 ADR-0014 연결 문장은 채택한 구체 계약의 적용 위치다. 실제 writer·reader·표시는 #20 PR-3에서 구현한다.
 
 ## 배경
 
@@ -106,6 +109,8 @@ Status: Accepted — 2026-10-03 소유자 결정 (Issue #4)
 - `report_id`는 프로젝트 안에서 유일한 이름이고 경로 구성 요소가 된다. 사람이 정하는 새 이름이므로
   [ADR-0003](0003-portable-boundaries-and-in-process-kit-loading.md) 결정 6의 규칙으로 검사한다.
 - 표식의 `project_id`는 무작위 값이다. 복사한 프로젝트도 같은 값을 가지므로 계통을 알려 줄 뿐 유일성을 보장하지 않는다.
+- 게시본의 `publication_id` 패턴은 [ADR-0014 결정 1](0014-publication-record-contract.md#1-불변-정체성과-두-해시)로
+  구체화했다(Accepted, 구현 전). build 순서는 ID의 시각 성분이 아니라 결박 이벤트의 seq다.
 - 경로는 9절의 정체성 경로다.
 
 ### 3. 참조 형태와 버전 결박
@@ -183,6 +188,11 @@ reader는 참조마다 다음 중 하나를 돌려준다. 해석은 읽기의 �
    `files[]`도 같은 방식으로 본다. 해시가 없는 대상(이벤트, run, `/1`의 차트)은 기록과 보존 파일이 있으면 `resolved`이고,
    `digest`가 없는 `/1`의 `refs.context`는 그 버전 파일이 있으면 `resolved`다.
 
+`publication`의 채택된 예외(OQ20): [ADR-0014 결정 6](0014-publication-record-contract.md#6-publication-참조-판정--oq20-adr-0006-4의-예외)는
+같은 역사적 경계의 유일한 완료 이벤트와 `package_sha256`을 대조하고 build 폴더는 보존 파일로 보지 않는다.
+따라서 이 예외의 `resolved`는 기록된 패키지 정체성을 찾았다는 뜻이며 폴더 무결성이 아니다. 폴더 상태는 별도로 함께 표시한다.
+다른 type의 파일 비교 규칙은 유지한다. 실제 reader·표시는 #20 PR-3에서 구현한다.
+
 CONTEXT 버전(`context_version`, `/1`의 `refs.context`)은 버전 파일 이름으로 찾는다. reader는 `.analytics/context/`, 그다음
 `.lab/context/`를 보고, 전환 기록에 대응이 있으면 그 대응을 따른다. 전환한 프로젝트의 옛 버전을 어디에 둘지는 #13이 정한다
 ([ADR-0005](0005-names-first-storage-with-the-new-writer.md) 결정 5).
@@ -204,6 +214,8 @@ CONTEXT 버전(`context_version`, `/1`의 `refs.context`)은 버전 파일 이�
   모두 쓰고, 모르거나 없는 값은 생략하지 않고 null(미확인)로 쓴다. checkpoint의 `details`는 둘을 반드시 담고 `as_of_seq`는
   null이 아니다. Report manifest의 `based_on`은 작성자나 생성 run이 알 때만 쓰며, 쓰면 둘을 담는다(7절). 게시본의 기준은
   #20의 build manifest가 같은 두 값으로 남긴다([ADR-0009](0009-first-publish-target.md)).
+- 게시본의 추가 내용 기준 `content_seq`(OQ15)는 [ADR-0014 결정 2](0014-publication-record-contract.md#2-as_of_seq와-content_seq--oq15)에서
+  정한다. `as_of_seq`의 뜻을 바꾸지 않고 정상 게시 계열 줄만 제외한 내용 기준을 별도 필드에 둔다.
 - `source_revision`은 읽기가 본 원본의 싼 변경 토큰이다. journal의 크기와 마지막 seq, run.json·manifest·CONTEXT의 크기와
   mtime(필요한 곳은 해시), reader 형식 버전으로 만든 불투명 값이며 절대 경로를 담지 않는다. 같은 기계의 같은 파일에서만
   비교할 뜻이 있고 스냅샷 보장이 아니다. 목록 응답마다 돌려준다.
