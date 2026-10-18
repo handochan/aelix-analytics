@@ -51,6 +51,14 @@ DUCKDB_SQL = ("sql", "query", "execute", "from_query")
 SOURCE_KWARGS = ("source", "query", "file_glob", "file_globs", "path_or_buffer", "file_name",
                  "path", "sql")
 PARAM_KWARGS = ("parameters", "params")
+RUNTIME_INPUT_LIMIT = 500
+
+
+def input_limit_warning(via: str, source: str, limit: int, omitted: int) -> str:
+    """A detector-local count: another read can still capture those same candidates."""
+    return (f"input detection capped at {limit:,} for {via} {source!r}: "
+            f"{omitted:,} file candidate(s) omitted by this detection pass "
+            "(another read may record them); freshness and lineage cover recorded inputs only")
 
 
 def sql_file_literals(text: str) -> list[str]:
@@ -134,6 +142,7 @@ class RunState:
         self.script_file = str(script_file)
         self.cache = core.HashCache(project)
         self.inputs: dict[str, dict] = {}
+        self.input_warnings: list[str] = []
         self.saved: dict[str, str] = {}
         # The real path of each input and of each dataset saved, by the path the record holds for it,
         # for a run that changes the namespace's links (rekey).
@@ -166,23 +175,35 @@ class RunState:
                 path = Path.cwd() / path
             text = str(path)
             if any(ch in text for ch in "*?["):
-                for match in sorted(glob.glob(text, recursive=True))[:500]:
-                    if os.path.isfile(match):
-                        self._record_file(Path(match), via)
+                matches = [m for m in sorted(glob.glob(text, recursive=True)) if os.path.isfile(m)]
+                self._input_limit(via, item, len(matches))
+                for match in matches[:RUNTIME_INPUT_LIMIT]:
+                    self._record_file(Path(match), via)
             elif path.is_dir():
                 # The directory's tree as the namespace walk sees it (core.Project.walk): each file
                 # with the path a record holds for it, the first 500 the walk finds (a directory's
-                # entries in code point order of their names), where the walk stops.
+                # entries in code point order of their names). Finish enumerating to count skipped
+                # identities, but do not open/hash their contents. Inward file aliases can have
+                # the same recorded path: the count and the cap must both use that unique identity.
                 files: dict[str, str] = {}
+                seen: set[str] = set()
                 for rel, real, name, _entry, _place in self.project.walk(start=path):
-                    if Path(name).suffix.lower() in core.DATA_SUFFIXES:
-                        files.setdefault(rel, real)
-                        if len(files) == 500:
-                            break
+                    if Path(name).suffix.lower() in core.DATA_SUFFIXES and rel not in seen:
+                        seen.add(rel)
+                        if len(files) < RUNTIME_INPUT_LIMIT:
+                            files[rel] = real
+                self._input_limit(via, item, len(seen))
                 for rel, real in files.items():
                     self._record_file(Path(real), via, located=(rel, real))
             elif path.is_file():
                 self._record_file(path, via)
+
+    def _input_limit(self, via: str, source: str, count: int) -> None:
+        if count > RUNTIME_INPUT_LIMIT:
+            warning = input_limit_warning(via, source, RUNTIME_INPUT_LIMIT,
+                                          count - RUNTIME_INPUT_LIMIT)
+            if warning not in self.input_warnings:
+                self.input_warnings.append(warning)
 
     def record_sql(self, query, via: str, params=None) -> None:
         if isinstance(query, str):

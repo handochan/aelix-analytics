@@ -511,21 +511,50 @@ def test_a_walk_from_a_start_does_not_go_back_up_through_a_link(tmp_path, kind):
         [("s", "raw", "data/raw/s.parquet")]
 
 
-def test_a_directory_read_records_the_first_500_files_the_walk_finds_and_stops(tmp_path,
-                                                                                monkeypatch):
-    """Review of 3a95f38: a directory read collected its whole tree before taking 500 files. The
-    walk goes depth first in code point order of the names, and the read stops at the 500th data
-    file, so b/ after a/'s 500 files is never listed."""
+def test_a_directory_read_hashes_first_500_and_counts_the_rest(tmp_path, monkeypatch):
+    """Issue46: keep hashing bounded while enumerating the rest to report the omitted count.
+    The walk still goes depth first in code point order, so b/ is counted but never hashed."""
     root = bare(tmp_path)
     for i in range(500):
         write(root / "data" / "raw" / "a" / f"f{i:03d}.csv")
     write(root / "data" / "raw" / "b" / "g.csv")
     project = core.Project(root)
     listed = _listing_of(monkeypatch)
+    real_sha = core.HashCache.sha
+
+    def sha(cache, path):
+        assert Path(path).name != "g.csv", "the omitted file must not be opened for hashing"
+        return real_sha(cache, path)
+
+    monkeypatch.setattr(core.HashCache, "sha", sha)
     state = capture.RunState(project, "r", tmp_path / "r", tmp_path / "x.py")
     state.record_read(str(root / "data" / "raw"), "polars.read_csv")
     assert sorted(state.inputs) == [f"data/raw/a/f{i:03d}.csv" for i in range(500)]
-    assert _real(root / "data" / "raw" / "b") not in listed
+    assert _real(root / "data" / "raw" / "b") in listed
+    assert len(state.input_warnings) == 1 and "1 file candidate(s) omitted" in state.input_warnings[0]
+
+
+@pytest.mark.parametrize("distinct", [1, 501])
+def test_directory_cap_counts_unique_identities_when_file_aliases_repeat(tmp_path, distinct):
+    """Review R1: 503 alias names can be one input, or 501 distinct inputs; count cap omissions
+    in the same unique recorded identities the directory cap actually selects."""
+    root = bare(tmp_path)
+    targets = [write(root / "data" / "raw" / "sources" / f"source_{i:03d}.csv")
+               for i in range(distinct)]
+    directory = root / "data" / "raw" / "aliases"
+    directory.mkdir()
+    for i in range(503):
+        file_link(directory / f"alias_{i:03d}.csv", targets[i % distinct])
+    state = capture.RunState(core.Project(root), "r", tmp_path / "r", tmp_path / "x.py")
+    state.record_read(str(directory), "polars.read_csv")
+    assert sorted(state.inputs) == [f"data/raw/sources/source_{i:03d}.csv"
+                                    for i in range(min(distinct, 500))]
+    if distinct == 1:
+        assert state.input_warnings == []
+    else:
+        assert len(state.input_warnings) == 1
+        assert "capped at 500" in state.input_warnings[0]
+        assert "1 file candidate(s) omitted" in state.input_warnings[0]
 
 
 def test_an_inward_link_to_a_directory_of_the_person_s_is_recorded_at_its_real_place(project,
