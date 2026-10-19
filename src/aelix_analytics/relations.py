@@ -2105,7 +2105,7 @@ class ReadModel:
                       if k not in ("type", "relation", "basis", "version_binding")}
             binding, basis = ref.get("version_binding"), ref.get("basis")
             inferred = None
-            if not _known_ref(ref):
+            if not _known_ref(ref) or (ref.get("type") == "publication" and reference_problem(ref)):
                 state, reason, candidates = "unsupported", None, None
             elif binding == "none":
                 state, reason, candidates, inferred = self._unbound(ref, before)

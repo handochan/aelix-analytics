@@ -192,7 +192,12 @@ def test_shared_writer_admits_only_the_build_completion_and_preserves_oversize_r
 
     origin = core.Origin("human", "sdk")
     p = core.init_project(tmp_path / "project", title="Public", origin=origin)
-    w = writer.Writer(p.root, platform=p.platform, origin=origin, writer_version=relations.PUBLICATION_WRITER_SINCE)
+    w = writer.Writer(
+        p.root,
+        platform=p.platform,
+        origin=origin,
+        writer_version=relations.PUBLICATION_WRITER_SINCE,
+    )
     original = p.journal.read_bytes()
     marker = p.marker.read_bytes()
     with w.locked("write") as held:
@@ -220,7 +225,23 @@ def test_shared_writer_admits_only_the_build_completion_and_preserves_oversize_r
             "publication", event["text"], refs=event["refs"], details=event["details"]
         )
     assert written["actor"] == origin.actor
-    assert json.loads(p.marker.read_bytes())["min_writer_version"] == relations.PUBLICATION_WRITER_SINCE
+    assert (
+        json.loads(p.marker.read_bytes())["min_writer_version"]
+        == relations.PUBLICATION_WRITER_SINCE
+    )
     with pytest.raises(writer.AnalyticsError) as caught:
-        writer.Writer(p.root, platform=p.platform, origin=origin, writer_version="0.23.0").admit("build_publication")
+        writer.Writer(p.root, platform=p.platform, origin=origin, writer_version="0.23.0").admit(
+            "build_publication"
+        )
     assert caught.value.code == "writer_too_old"
+
+
+def test_malformed_publication_reference_uses_common_shape_validation(tmp_path):
+    r = model(tmp_path, completion())
+    for value in ([], {}, None, 1):
+        ref = reference()
+        ref["publication_id"] = value
+        assert r.reference(ref)["state"] == "unsupported"
+    ref = reference()
+    ref["version_binding"] = "none"
+    assert r.reference(ref)["state"] == "unsupported"
