@@ -51,6 +51,13 @@ fixture/source revision, task outcome and screenshots when this checklist is run
    `v1 again`, and v3's diff), and the Context page (13 versions, the pinned sections last changed in version 2). Check that the
    numbers agree across the gallery card, the run pages and the dataset page, and that each list reads without JavaScript and at
    360/390/430 px. Repeat in Korean.
+10. (kit 0.24.0, #100) In S, open Insights' finding e151 (`장바구니 이탈 — 기준 기간보다 12% 높다`). Its Provenance tab is first: at
+   1366×900 the trail goes up from e151 through funnel_check #6, cohort_view #5 and anomaly_scan #4 to sensor_03, with sensor_04
+   and sales_kr on the left, the three charts on the right, and t04_anomaly_scan and t05_cohort_view marked `Changed since read`
+   with the runs whose output they are now. Check that each kind reads by its colour, shape and words, that each state has a mark and
+   words, and that What can be checked lists its seven lines apart. Without JavaScript and at 360/390/430 px, read the same trail as a
+   vertical list whose boxes each say how they join the next. Follow a box's link and come back; switch a run's page between Where it
+   comes from and What uses it; open All relations and History. Repeat in Korean.
 
 The agent records measured HTML bytes and Workspace generation/cache-rebuild costs separately.
 The owner's actual-screen task results fulfill the remaining Issue #18 acceptance condition.
