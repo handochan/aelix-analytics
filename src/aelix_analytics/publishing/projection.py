@@ -1,7 +1,6 @@
 """Pure publication strategies over an eagerly frozen snapshot. No filesystem access."""
 from __future__ import annotations
 
-import hashlib
 import math
 from collections import Counter
 from dataclasses import dataclass, fields, is_dataclass
@@ -14,6 +13,7 @@ from .model import (
     ContentBasis,
     CopyEntry,
     Field,
+    FileNotice,
     FileSlot,
     ItemKey,
     Object,
@@ -21,6 +21,7 @@ from .model import (
     Projection,
     PublicationError,
     Reference,
+    RenderFacts,
     ScopeLedger,
     ShareItem,
     ShareModel,
@@ -88,6 +89,7 @@ class ShareSnapshot:
     basis: SnapshotBasis
     items: tuple[SnapshotItem, ...]
     diagnostics: tuple[Omission, ...] = ()
+    private_values: tuple[str, ...] = ()
 
     def current_digest(self, item: ItemKey, source: str):
         return next((f.current_sha256 for i in self.items if i.key == item
@@ -259,12 +261,11 @@ def _file(item, file, profile):
                "attached_data": {"parquet", "csv", "json"}, "code_snapshot": {"python"}}
     if file.format not in formats.get(file.role, set()):
         return None, "format"
-    token = hashlib.sha256(f"{item.key.category}:{item.key.identity}:{file.role}:{file.source}".encode()).hexdigest()[:16]
-    package_path = f"{'assets' if file.role == 'figure' else 'evidence'}/{token}{file.suffix}"
+    package_path = f"files/{file.current_sha256}{file.suffix}"
     entry = CopyEntry(item.key, file.source, package_path, file.role, file.recorded_sha256,
                       file.current_sha256, file.bytes)
     verified = "recorded_hash" if file.recorded_sha256 else "no_recorded_hash"
-    return (FileSlot(package_path, file.role, verified), entry), None
+    return (FileSlot(package_path, file.role, verified, file.format), entry), None
 
 
 def _field(item, name, included):
@@ -293,7 +294,7 @@ class ReadProjection:
         reasons = {k: exclusion_reason(i, request, profile) or "out_of_scope" for k, i in source.items()}
         items, copies = [], []
         for key in sorted(included, key=lambda k: (source[k].seq, k)):
-            item, projected, slots = source[key], [], []
+            item, projected, slots, notices = source[key], [], [], []
             for name in profile.fields(item):
                 field = _field(item, name, included)
                 if field is not None:
@@ -306,8 +307,9 @@ class ReadProjection:
                     copies.append(entry)
                 else:
                     counts["file", reason] += 1
+                    notices.append(FileNotice(file.role, reason))
             refs = tuple(_reference(r, included, request.exclude, reasons) for r in item.references)
-            items.append(ShareItem(key, item.kind, tuple(projected), refs, tuple(slots)))
+            items.append(ShareItem(key, item.kind, tuple(projected), refs, tuple(slots), tuple(notices)))
         omitted = tuple(Omission(category, reason, count) for (category, reason), count in sorted(counts.items()))
         title = next((f.value for i in items if i.key.category == "project" for f in i.fields if f.name == "title"),
                      Text("Untitled project", "kit"))
@@ -340,11 +342,16 @@ def project(snapshot, request=None, *, profile="read", implementation=None):
 def validate_projection(snapshot, request, profile, projection):
     """The coordinator's independent model/closure check, also used for injected strategies."""
     validate_scope(snapshot, request, profile, projection.ledger.included)
+    if projection.model.facts != RenderFacts():
+        raise PublicationError("leak_found", "projection supplied unobserved inspection facts")
     if projection.basis != snapshot.basis or projection.model.basis != snapshot.basis.content:
         raise PublicationError("leak_found", "snapshot basis changed")
     if projection.model.analysis_state != request.analysis_state:
         raise PublicationError("leak_found", "declared analysis state changed")
     included = frozenset(projection.ledger.included)
+    required = {i.key for i in snapshot.items if i.key.category == "project" or i.kind == "context" and i.root}
+    if not required <= included:
+        raise PublicationError("leak_found", "projection omitted the project or basis CONTEXT")
     source = {i.key: i for i in snapshot.items}
     if {i.key for i in projection.model.items} != included:
         raise PublicationError("leak_found", "model and scope ledger disagree")
@@ -368,6 +375,10 @@ def validate_projection(snapshot, request, profile, projection):
             raise PublicationError("leak_found", "field value is not from its included allowed field")
         if item.kind != source[item.key].kind or any(f.name not in profile.fields(source[item.key]) for f in item.fields):
             raise PublicationError("leak_found", "unapproved item kind or field")
+        allowed_notices = {FileNotice(f.role, reason) for f in source[item.key].files
+                           if (reason := _file(source[item.key], f, profile)[1])}
+        if not set(item.file_notices) <= allowed_notices:
+            raise PublicationError("leak_found", "unregistered file omission")
 
     def visit(value, technical=False):
         if isinstance(value, Text):
@@ -393,7 +404,7 @@ def validate_projection(snapshot, request, profile, projection):
                     raise PublicationError("leak_found", "out-of-scope candidate identity")
             for f in fields(value):
                 # These are finite enums, fixed field names and snapshot identifiers, not page text.
-                meta = (isinstance(value, (Reference, FileSlot, Omission, ContentBasis))
+                meta = (isinstance(value, (Reference, FileSlot, FileNotice, Omission, ContentBasis))
                         or isinstance(value, Field) and f.name == "name"
                         or isinstance(value, ShareItem) and f.name == "kind"
                         or isinstance(value, ShareModel) and f.name == "analysis_state")

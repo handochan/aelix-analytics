@@ -319,8 +319,9 @@ N0의 명칭·기본 언어 전환을 A0의 경계 정리와 조율한다. 현�
 | `distribution` | 0 | 설치본의 실행 루트 위치 | `src/aelix_analytics/_install.py` | 없음 | stdlib |
 | `messages` | 0 | Workspace의 kit 문구를 message key로 찾는 카탈로그(#96) | `src/aelix_analytics/i18n.py` | 없음 | stdlib |
 | `share_model` | 0 | 원시 기록·Project·I/O 객체 없는 불변 공유 자료형 | `src/aelix_analytics/publishing/__init__.py`, `src/aelix_analytics/publishing/model.py` | 없음 | stdlib |
-| `publication_policy` | 1 | 순수 read/evidence 투영, 공통 닫힘, 허용 필드·출처 판정 | `src/aelix_analytics/publishing/projection.py`, `src/aelix_analytics/publishing/scope.py`, `src/aelix_analytics/publishing/field_policy.py`, `src/aelix_analytics/publishing/basis.py` | `read_model`, `share_model`, 같은 `publication_policy` | stdlib |
-| `publishing` | 3 | 투영 전 읽기·digest·형식 판정을 고정하는 snapshot adapter; Workspace와 분리 | `src/aelix_analytics/publishing/snapshot.py` | `core`, `ports`, `read_model`, `writer`, `share_model`, `publication_policy` | stdlib |
+| `publication_policy` | 1 | 순수 read/evidence 투영, 공통 닫힘, 허용 필드·출처 판정 | `src/aelix_analytics/publishing/projection.py`, `src/aelix_analytics/publishing/scope.py`, `src/aelix_analytics/publishing/field_policy.py`, `src/aelix_analytics/publishing/basis.py`, `src/aelix_analytics/publishing/checks.py`, `src/aelix_analytics/publishing/inspections.py` | `read_model`, `share_model`, 같은 `publication_policy` | stdlib |
+| `share_render` | 1 | SharedModel only, pure HTML | `src/aelix_analytics/publishing/render.py` | `share_model` | stdlib, 표시 |
+| `publishing` | 3 | 투영 전 읽기·digest·형식 판정을 고정하는 snapshot adapter; Workspace와 분리 | `src/aelix_analytics/publishing/snapshot.py`, `src/aelix_analytics/publishing/build.py`, `src/aelix_analytics/publishing/package.py`, `src/aelix_analytics/publishing/extract.py` | `core`, `ports`, `read_model`, `writer`, `share_model`, `publication_policy`, `share_render`, 같은 `publishing` | stdlib, 분석 |
 | `writer` | 1 | 기록 writer: 표식 판정과 쓰기 게이트, `Origin`, 오류 클래스, 기록 헬퍼, 새 형식의 공통 `Writer`(#13) | `src/aelix_analytics/writer.py`, `src/aelix_analytics/asset_contract.py` | `ports`, `read_model` | stdlib |
 | `core` | 2 | 도메인·공유 응용(아직 나뉘지 않음, §2) | `src/aelix_analytics/core.py` | `ports`, `read_model`, `writer`, `asset_application`, `report_application` | stdlib |
 | `asset_application` | 2 | 주입한 Writer로 자산 검토·승격·등록·프로젝트 제안 정책을 처리하며 core/host를 import하지 않음 | `src/aelix_analytics/asset_app.py`, `src/aelix_analytics/asset_suggestions.py` | `ports`, `read_model`, `writer`, 같은 `asset_application` | stdlib |
@@ -329,7 +330,7 @@ N0의 명칭·기본 언어 전환을 A0의 경계 정리와 조율한다. 현�
 | `workspace` | 3 | Workspace 렌더러(§5 `WorkspaceRenderer`) | `src/aelix_analytics/workspace.py`, `src/aelix_analytics/workspace_relations.py`, `src/aelix_analytics/workspace_map.py`, `src/aelix_analytics/workspace_versions.py` | `core`, `messages`, `ports`, `read_model`, `writer` | stdlib, 분석, 표시 |
 | `migration` | 3 | `lab.json` 프로젝트를 새 형식으로 옮기는 복사 전환(#13) | `src/aelix_analytics/migration.py` | `core`, `ports`, `read_model`, `writer` | stdlib |
 | `sdk` | 4 | 스크립트 API 진입점 | `src/aelix_analytics/__init__.py` | `core`, `ports`, `read_model`, `runtime`, `workspace`, `writer` | stdlib, 분석 |
-| `kit_entry` | 4 | 프로젝트 환경의 kit 명령줄 진입점 | `src/aelix_analytics/__main__.py` | `core`, `migration`, `ports`, `read_model`, `runtime`, `workspace`, `writer` | stdlib, 분석 |
+| `kit_entry` | 4 | 프로젝트 환경의 kit 명령줄 진입점 | `src/aelix_analytics/__main__.py` | `core`, `migration`, `ports`, `read_model`, `runtime`, `workspace`, `writer`, `publishing`, `publication_policy`, `share_model` | stdlib, 분석 |
 | `launcher` | 4 | 사람용 `analytics`(호스트 쪽, 3.11) | `src/aelix_analytics/cli.py` | `distribution`, `ports` | stdlib |
 | `host_adapter` | 4 | Aelix 어댑터(aelix 프로세스 안) | `extension/aelix_analytics.py` | `distribution`, `core`, `ports`, `read_model` | stdlib, 호스트 |
 | `user_scripts` | 5 | 프로젝트에 복사되는 예제 사용자 스크립트 | `src/aelix_analytics/demo_scripts/*.py` | `sdk` | stdlib, 분석 |

@@ -444,13 +444,21 @@ async def run_kit(project, args, *, timeout: float, actor: str = "agent", means:
     model's tools: agent·tool; /analytics: human·command). Returns (ok, result object)."""
     processes = project.platform.processes
     try:
-        uv = resolve_uv(processes)
-        argv = [uv, "run", "--project", str(project.root), "--quiet", "python", "-m", "aelix_analytics",
-                "--project", str(project.root), *args]
+        if args[:1] == ["build"]:
+            python = project.root / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+            if not python.is_file():
+                raise core.AnalyticsError("renderer_unavailable", "preview needs an existing project environment; run uv sync first")
+            argv = [str(python), "-m", "aelix_analytics", "--project", str(project.root), *args]
+        else:
+            uv = resolve_uv(processes)
+            argv = [uv, "run", "--project", str(project.root), "--quiet", "python", "-m", "aelix_analytics",
+                    "--project", str(project.root), *args]
         # Only where the platform asks through it: POSIX asks with a signal and needs no file.
-        request = _CancelRequest() if processes.asks_by_request else None
+        request = _CancelRequest() if processes.asks_by_request and args[:1] != ["build"] else None
         try:
             env = child_env(processes, actor, means)
+            if args[:1] == ["build"]:
+                env["PYTHONDONTWRITEBYTECODE"] = "1"
             if request is not None:
                 env["AELIX_ANALYTICS_CANCEL_FILE"] = str(request.path)
             timed_out, code, stdout, stderr = await _spawn(argv, project.root, env, timeout,
@@ -1770,6 +1778,7 @@ HELP = """/analytics — Aelix Analytics project
   /analytics demo DIR           new project with synthetic data and example runs
   /analytics use DIR            make DIR the active project for this aelix process
   /analytics render | open      rebuild the report | open it in the browser
+  /analytics build --preview    inspect a sharing preview without writing a publication
   /analytics record KIND TEXT   journal entry as a human (finding, decision, question, ...);
                                 KIND workflow_feedback: something this analysis workflow lacked
                                 or made awkward
@@ -1887,6 +1896,15 @@ async def analytics_command(args, ctx=None):
                             "not write to it; /analytics status says why)")
                 return f"opened {index}"
             return f"report rebuilt: {index}"
+        if sub == "build":
+            project, _ = resolve_project()
+            await asyncio.to_thread(core.readable, project, "preview publication")
+            try:
+                args = shlex.split(rest)
+            except ValueError as exc:
+                raise core.AnalyticsError("scope_invalid", "quote the preview arguments") from exc
+            ok, value = await run_kit(project, ["build", *args], timeout=1200, actor="human", means="command")
+            return json.dumps(value, ensure_ascii=False, indent=2) if ok else render_error("/analytics build", value)
         if sub == "record":
             # Kinds as the common writer has them (writer.RECORD_KINDS): `/analytics record gap TEXT`,
             # what `/lab gap TEXT` was, is bad_kind with its new name, workflow_feedback (design 2.8).
@@ -2058,7 +2076,7 @@ def setup(aelix):
         aelix.register_tool(tool)
     aelix.register_command("analytics", handler=analytics_command,
                            description="Analytics: status | where | init | demo | use | render | "
-                                       "open | record | context")
+                                       "open | record | context | build --preview")
     aelix.on("before_agent_start", on_before_agent_start)
     aelix.on("tool_execution_start", on_tool_start)
     aelix.on("tool_execution_end", on_tool_end)

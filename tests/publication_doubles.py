@@ -26,8 +26,10 @@ class RecordingProjection:
         item = next(i for i in snapshot.items if i.key.category == "project" and i.key in closure)
         title = Text(item.values.get("title"), "user", (item.key, "title"))
         shared = ShareItem(item.key, item.kind, (Field("title", title),))
-        counts = Counter(i.key.category for i in snapshot.items if i.key != item.key)
+        contexts = tuple(ShareItem(i.key, i.kind, ()) for i in snapshot.items if i.kind == "context" and i.root)
+        included = (item.key, *(i.key for i in contexts))
+        counts = Counter(i.key.category for i in snapshot.items if i.key not in included)
         omitted = tuple(Omission(c, "out_of_scope", n) for c, n in sorted(counts.items()))
-        model = ShareModel(snapshot.basis.content, request.analysis_state, title, (shared,), omitted,
+        model = ShareModel(snapshot.basis.content, request.analysis_state, title, (shared, *contexts), omitted,
                            snapshot.diagnostics)
-        return Projection(model, (), ScopeLedger((item.key,), omitted), snapshot.basis)
+        return Projection(model, (), ScopeLedger(included, omitted), snapshot.basis)

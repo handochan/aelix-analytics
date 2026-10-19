@@ -15,6 +15,12 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 없음. 병합된 변경은 그 PR이 병합될 때의 kit 번호 절에 적고, kit 번호를 올리는 PR은 새 절을 엽니다
 ([기여 가이드](CONTRIBUTING.md#첫-공개-전에-남은-운영-결정)).
 
+## [0.23.0] - 2026-10-19
+
+### Added
+
+- #20 PR2: `analytics build --preview`와 명시적 `/analytics build --preview`로 read/evidence 범위의 메모리 패키지·링크·형식·누출 검사를 확인합니다. 원본 해시·과거 버전을 대조하고 파일별 제외와 검사 상태를 표시하며 프로젝트·환경을 새로 쓰지 않습니다. 저장 build·publication 결박·Report/collection·ZIP·publish는 후속입니다.
+
 ## [0.22.0] - 2026-10-19
 
 ### Added
