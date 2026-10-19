@@ -387,7 +387,7 @@ def _manifest_shape(value):
 
     need(
         isinstance(value["publication_id"], str)
-        and re.fullmatch(r"pub-[0-9a-hjkmnp-tv-z]{26}", value["publication_id"]),
+        and relations.PUBLICATION_ID.fullmatch(value["publication_id"]),
         "identity",
     )
     need(_time(value["built_at"]) is not None, "built_at")

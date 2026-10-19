@@ -1,15 +1,13 @@
 """Pure conservative publication basis policy (ADR0014 decision2)."""
 from __future__ import annotations
 
-import re
 from datetime import datetime
 
 from .. import relations
 from .model import ContentBasis, SnapshotBasis
 
 PUBLICATION_KINDS = frozenset({"publication", "publish_receipt"})
-PUBLICATION_ID = re.compile(r"pub-[0-9a-hjkmnp-tv-z]{26}\Z")
-SHA = re.compile(r"[0-9a-f]{64}\Z")
+PUBLICATION_ID = relations.PUBLICATION_ID
 
 
 def _time(value):
@@ -29,54 +27,19 @@ def _normal_delivery(event, journal, validate_reference):
             or not isinstance(v.get("actor"), str) or not v["actor"] or not isinstance(v.get("text"), str)
             or not isinstance(v.get("refs"), list)):
         return False
+    if event.kind == "publication":
+        return relations.publication_event_problem(v, validate_reference=validate_reference) is None
     try:
         for ref in v["refs"]:
-            if validate_reference(ref) is not None:
+            if validate_reference(ref) is not None or ref.get("relation") in ("supersedes", "resolves", "updates"):
                 return False
-            if ref.get("relation") in ("supersedes", "resolves", "updates"):
-                return False
-            if event.kind == "publication" and (ref.get("type") not in ("report_revision", "context_version")
-                    or ref.get("relation") != "includes" or ref.get("version_binding") != "author"
-                    or ref.get("basis") not in ("observed", "declared")):
-                return False
-    except Exception:  # an unvalidated row is retained, never presumed harmless
+    except Exception:
         return False
     d = v.get("details")
     if not isinstance(d, dict) or not isinstance(d.get("publication_id"), str) or not PUBLICATION_ID.fullmatch(d["publication_id"]):
         return False
-    # Publication's accepted binding fields are known already; an incomplete hand-written binding
-    # must not be silently treated as a harmless publication. Receipt's stronger contract is #21.
-    if event.kind == "publication":
-        required = {"format", "package_sha256", "content_sha256", "profile", "scope", "basis",
-                    "analysis_state", "exclusions", "location", "checks"}
-        if not required <= d.keys() or d["format"] != "analytics.publication/1":
-            return False
-        if any(not isinstance(d[k], str) or not SHA.fullmatch(d[k]) for k in ("package_sha256", "content_sha256")):
-            return False
-        if d["profile"] not in ({"id": "read", "rules_version": 1}, {"id": "evidence", "rules_version": 1}):
-            return False
-        basis, state, checks = d["basis"], d["analysis_state"], d["checks"]
-        if (d["scope"] not in ("project", "reports") or not isinstance(basis, dict)
-                or not {"as_of_seq", "content_seq", "context_version"} <= basis.keys()
-                or type(basis["as_of_seq"]) is not int or type(basis["content_seq"]) is not int
-                or not 0 <= basis["content_seq"] <= basis["as_of_seq"] < event.seq
-                or state not in ({"value": "in_progress", "basis": "declared"}, {"value": "complete", "basis": "declared"})
-                or not isinstance(d["exclusions"], list) or d["location"] != f".analytics/publications/{d['publication_id']}"
-                or not isinstance(checks, dict) or type(checks.get("format")) is not int
-                or checks.get("format") != 1 or checks.get("result") != "pass"
-                or basis["context_version"] is not None and not relations._file_name(basis["context_version"])):
-            return False
-        inspection = checks.get("inspection")
-        if not isinstance(inspection, dict) or any(type(inspection.get(k)) is not int or inspection[k] < 0
-                                                 for k in ("inspected", "pinned_scanned", "not_inspectable")):
-            return False
-        if type(d["profile"].get("rules_version")) is not int:
-            return False
-        try:
-            if any(validate_reference(r) is not None for r in d["exclusions"]):
-                return False
-        except Exception:
-            return False
+    # Receipt's stronger contract belongs to #21. Only its currently known normal shape is ignored.
+
     return True
 
 
