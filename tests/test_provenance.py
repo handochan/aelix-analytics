@@ -498,7 +498,9 @@ def test_uses_find_citations_and_readers_through_an_older_kit_s_path(tmp_path, m
     q = LegacyProject(tmp_path / "p", migrated=True)
     agg = ("data/derived/agg.parquet", q.file("data/derived/agg.parquet", b"agg"))
     maker = q.run(run_id(1, "maker"), script="scripts/m.py", started_at=at(1), ts=at(2), outputs=[agg], kit_version="0.5.0")
-    old = "data/derived/AGG.parquet"
+    # The real path an older kit recorded: there on every platform, so the reader finds the cited input (a
+    # spelling only a case-insensitive file system finds would be judged missing elsewhere, and is no use).
+    old = os.path.join(os.path.realpath(q.root), "data", "derived", "agg.parquet")
     reader = q.run(run_id(3, "reader"), script="scripts/r.py", started_at=at(3), ts=at(4), inputs=[(old, agg[1])])
     monkeypatch.setattr(core.Project, "legacy_identity", lambda self, recorded: {old: agg[0]}.get(recorded))
     p = core.Project(q.root)
