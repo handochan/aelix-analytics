@@ -3060,12 +3060,12 @@ class ReadModel:
             step, _, nid = heapq.heappop(heap)
             node = found[nid]
             for child, edge in self._trail_children(node, direction, state):
-                child_step = step + (1 if child["kind"] == "run" else 0)
-                if depth is not None and child["kind"] == "run" and child_step > depth:
-                    node["beyond_depth"] = True
-                    continue
                 key = (edge["from"], edge["to"], edge["kind"])
                 if key in seen_edges:
+                    continue
+                child_step = step + (1 if child["kind"] == "run" else 0)
+                if depth is not None and child["id"] not in found and child["kind"] == "run" and child_step > depth:
+                    node["beyond_depth"] = True
                     continue
                 seen_edges.add(key)
                 edges.append(edge)
