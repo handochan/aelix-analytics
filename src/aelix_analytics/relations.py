@@ -3062,29 +3062,30 @@ class ReadModel:
         while heap:
             step, _, nid = heapq.heappop(heap)
             node = found[nid]
-            for child, edge in self._trail_children(node, direction, state):
-                key = (edge["from"], edge["to"], edge["kind"])
+            for child, edge, key, run in self._trail_children(node, direction, state):
                 if key in seen_edges:
                     continue
-                child_step = step + (1 if child["kind"] == "run" else 0)
-                if depth is not None and child["id"] not in found and child["kind"] == "run" and child_step > depth:
+                cid = key[1] if key[0] == nid else key[0]
+                child_step = step + run
+                new = cid not in found
+                if new and run and depth is not None and child_step > depth:
                     node["beyond_depth"] = True
                     continue
                 seen_edges.add(key)
                 edges.append(edge)
-                if child["id"] not in found:
+                if new:
                     child = dict(child)
                     child["step"] = child_step
-                    found[child["id"]] = child
-                    order.append(child["id"])
-                    parent[child["id"]] = nid
+                    found[cid] = child
+                    order.append(cid)
+                    parent[cid] = nid
                     tree.append(True)
                     count += 1
-                    heapq.heappush(heap, (child_step, count, child["id"]))
+                    heapq.heappush(heap, (child_step, count, cid))
                     continue
                 tree.append(False)
                 walk = nid
-                while walk is not None and walk != child["id"]:
+                while walk is not None and walk != cid:
                     walk = parent[walk]
                 if walk is not None:
                     # Back to a node on this walk's own path (only runs that started at the same instant,
@@ -3109,9 +3110,11 @@ class ReadModel:
                         found[end]["continues"] = True
         all_nodes = [found[nid] for nid in order]
         checks = self._trail_checks(root, all_nodes, edges)
+        for node in all_nodes:
+            node.pop("_origin", None)  # how the walk met a data file: its own, not the trail's
         return {"start": root["id"], "direction": direction, "depth": depth,
                 "budget": {"nodes": nodes_budget, "edges": edges_budget},
-                "nodes": [{k: v for k, v in found[nid].items() if not k.startswith("_")} for nid in shown],
+                "nodes": [found[nid] for nid in shown],
                 "edges": [{**edges[n], "cycle": True} if n in closing else dict(edges[n]) for n in sorted(kept_set)],
                 "omitted": {"nodes": len(order) - len(shown), "edges": len(edges) - len(kept_set)},
                 "total": {"nodes": len(order), "edges": len(edges)},
@@ -3287,12 +3290,14 @@ class ReadModel:
                 edge[field] = judged[field]
         return edge
 
-    def _trail_children(self, node: dict, direction: str, state) -> list[tuple[dict, dict]]:
-        """(child, edge) of one node in one direction, in the order the records hold them, judged once
-        per node and read: a walk copies what it keeps and marks (the dicts here are shared)."""
+    def _trail_children(self, node: dict, direction: str, state) -> list[tuple[dict, dict, tuple, int]]:
+        """(child, edge, the edge's key, 1 when the child is a run) of one node in one direction, in the
+        order the records hold them, judged once per node and read: a walk copies what it keeps and marks
+        (the dicts here are shared)."""
         key = (direction, node["id"], node.get("_origin"), state)
         if key not in self._trail_cache:
-            self._trail_cache[key] = self._children(node, direction, state)
+            self._trail_cache[key] = [(child, edge, (edge["from"], edge["to"], edge["kind"]), int(child["kind"] == "run"))
+                                      for child, edge in self._children(node, direction, state)]
         return self._trail_cache[key]
 
     def _children(self, node: dict, direction: str, state) -> list[tuple[dict, dict]]:

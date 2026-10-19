@@ -120,22 +120,14 @@ class Provenance:
     def node_html(self, trail: dict, n: int, parent: dict, extra: dict, place: dict, rows: int, prefix: str) -> str:
         s = self.site
         node = trail["nodes"][n]
-        kind = node["kind"]
         row, column = place[n]
         grid_row = row + 1 if trail["direction"] == "uses" else rows - row
-        classes = ["pv", "pv-" + {"record": "rec", "visualization": "viz"}.get(kind, kind)]
-        if n == 0:
-            classes.append("is-start")
-        if kind == "record" and node.get("record_kind") in RECORD_TOKENS:
-            classes.append("kind-" + node["record_kind"])
-        if kind == "data":
-            classes.append("st-" + str(node.get("state")))
         # A box says the same of a node on every page it is on: made once (its join line and place differ).
         key = (node["id"], n == 0, node.get("state"), node.get("producer"), tuple(node.get("current_writers") or ()),
                node.get("read_as"))
         if key not in self._described:
-            self._described[key] = self.describe(node, n == 0)
-        what, name, facts = self._described[key]
+            self._described[key] = self.box(node, n == 0)
+        classes, body = self._described[key]
         joins = [self.join_html(trail, n, other, edge, prefix) for other, edge in ([parent[n]] if n in parent else []) + extra.get(n, [])]
         more = ""
         if node.get("continues") and n:
@@ -143,8 +135,20 @@ class Provenance:
             if page:
                 more = f' <a class="pv-more" href="{s.esc(page)}#provenance">{t("provenance.continue")}</a>'
         joined = "".join(f'<p class="pj">{j}</p>' for j in joins if j)
-        return (f'<li class="{" ".join(classes)}" id="{prefix}-{n}" style="grid-area:{grid_row}/{column + 1}">'
-                f'<p class="pk">{what}</p><p class="pn">{name}</p>{facts}{joined}{more}</li>')
+        return f'<li class="{classes}" id="{prefix}-{n}" style="grid-area:{grid_row}/{column + 1}">{body}{joined}{more}</li>'
+
+    def box(self, node: dict, start: bool) -> tuple[str, str]:
+        """(classes, HTML) of a box but its id, place and join lines: kind, start, record kind, data state."""
+        kind = node["kind"]
+        classes = ["pv", "pv-" + {"record": "rec", "visualization": "viz"}.get(kind, kind)]
+        if start:
+            classes.append("is-start")
+        if kind == "record" and node.get("record_kind") in RECORD_TOKENS:
+            classes.append("kind-" + node["record_kind"])
+        if kind == "data":
+            classes.append("st-" + str(node.get("state")))
+        what, name, facts = self.describe(node, start)
+        return " ".join(classes), f'<p class="pk">{what}</p><p class="pn">{name}</p>{facts}'
 
     def describe(self, node: dict, start: bool) -> tuple[str, str, str]:
         """(kind words, name HTML, facts HTML) of one box."""
@@ -382,73 +386,51 @@ def layout(trail: dict, parent: dict) -> tuple[dict[int, tuple[int, int]], int, 
     going on puts its first ending input (output) in line, as the end of the path. Boxes that go on from
     one box stand side by side, each with the width its own boxes need."""
     nodes = trail["nodes"]
+    count = len(nodes)
     uses = trail["direction"] == "uses"
-    children: dict[int, list[int]] = {}
-    for n in range(1, len(nodes)):
+    children: list[list[int]] = [[] for _ in nodes]
+    for n in range(1, count):
         if n in parent:
-            children.setdefault(parent[n][0], []).append(n)
-
-    def goes_on(n: int) -> bool:
-        return nodes[n]["kind"] == "run" or bool(children.get(n))
-
-    def side(n: int) -> str:
-        kind = nodes[n]["kind"]
-        if uses:
-            return "left" if kind == "record" else "right"
-        # What a run read stands on its left and what it made on its right; what a record cites, on its right.
-        return "left" if nodes[parent[n][0]]["kind"] == "run" and kind in ("data", "inputs") else "right"
-
-    split: dict[int, tuple[list, list, list]] = {}
-
-    def parts(n: int) -> tuple[list, list, list]:
-        if n not in split:
-            kids = children.get(n, [])
-            chain = [c for c in kids if goes_on(c)]
-            ends = [c for c in kids if not goes_on(c)]
-            if not chain and nodes[n]["kind"] == "run":
-                inline = [c for c in ends if nodes[c]["kind"] in ("data", "inputs")]
-                if inline:
-                    chain = [inline[0]]
-                    ends = [c for c in ends if c != inline[0]]
-            split[n] = (chain, [c for c in ends if side(c) == "left"], [c for c in ends if side(c) == "right"])
-        return split[n]
-
-    width: dict[int, int] = {}
-
-    def measure(n: int) -> int:
-        # Iterative over the tree, deepest first: a trail is small, but nothing here recurses.
-        stack = [(n, False)]
-        while stack:
-            m, done = stack.pop()
-            if m in width:
-                continue
-            chain = parts(m)[0]
-            if done or not chain:
-                width[m] = max(3, sum(width[c] for c in chain))
-                continue
-            stack.append((m, True))
-            stack.extend((c, False) for c in chain if c not in width)
-        return width[n]
-
+            children[parent[n][0]].append(n)
+    chain: list[list[int]] = [[] for _ in nodes]
+    lefts: list[list[int]] = [[] for _ in nodes]
+    rights: list[list[int]] = [[] for _ in nodes]
+    for n in range(count):
+        ends = []
+        for c in children[n]:
+            (chain[n] if nodes[c]["kind"] == "run" or children[c] else ends).append(c)
+        if not chain[n] and nodes[n]["kind"] == "run":
+            inline = next((c for c in ends if nodes[c]["kind"] in ("data", "inputs")), None)
+            if inline is not None:
+                chain[n].append(inline)
+                ends.remove(inline)
+        for c in ends:
+            kind = nodes[c]["kind"]
+            # Toward uses, what cites stands on the left; else what a run read is on its left, the rest on the right.
+            left = kind == "record" if uses else nodes[n]["kind"] == "run" and kind in ("data", "inputs")
+            (lefts[n] if left else rights[n]).append(c)
+    # A box's parent comes before it in the trail's order, so widths add up from the last box back.
+    width = [3] * count
+    for n in range(count - 1, -1, -1):
+        if chain[n]:
+            width[n] = max(3, sum(width[c] for c in chain[n]))
     place: dict[int, tuple[int, int]] = {}
     todo = [(0, 0, 0)]
     while todo:
         n, row, left = todo.pop()
-        measure(n)
-        chain, lefts, rights = parts(n)
         center = left + 1
         place[n] = (row, center)
-        for i, c in enumerate(lefts):
+        for i, c in enumerate(lefts[n]):
             place[c] = (row + i, center - 1)
-        for i, c in enumerate(rights):
+        for i, c in enumerate(rights[n]):
             place[c] = (row + i, center + 1)
-        band = max(1, len(lefts), len(rights))
+        band = max(1, len(lefts[n]), len(rights[n]))
         x = left
-        for c in chain:
+        for c in chain[n]:
             todo.append((c, row + band, x))
-            x += measure(c)
+            x += width[c]
     # A box no edge of the tree reaches (none should be) stands at the end.
-    for n in range(len(nodes)):
+    for n in range(count):
         if n not in place:
             place[n] = (max(r for r, _ in place.values()) + 1, 1)
     rows = max(r for r, _ in place.values()) + 1
