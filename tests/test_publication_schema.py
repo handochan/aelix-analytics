@@ -68,3 +68,32 @@ def test_schema_preserves_existing_typed_exclusions_with_opaque_public_keys(tmp_
         len(k["identity"]) == 16 and all(c in "0123456789abcdef" for c in k["identity"])
         for k in manifest["included"]
     )
+
+
+def test_actual_manifest_has_closed_warning_counts_without_private_source_locations(
+    tmp_path, monkeypatch
+):
+    original = build._environment
+    monkeypatch.setattr(
+        build,
+        "_environment",
+        lambda project, snapshot: (*original(project, snapshot), "tiny", "short"),
+    )
+    p = core.init_project(tmp_path / "project", title="Public", origin=ORIGIN)
+    core.record(
+        p,
+        "finding",
+        r"Example documentation path C:\Windows\Example is public text.",
+        origin=ORIGIN,
+    )
+    answer = build.build_publication(p, origin=ORIGIN)
+    manifest = checks.verify_package(p.root / answer["path"])["manifest"]
+    assert manifest["limits"]["warnings"]
+    expected = {}
+    for warning in answer["warnings"]:
+        expected[warning["reason"]] = expected.get(warning["reason"], 0) + warning.get("count", 1)
+    assert manifest["limits"]["warnings"] == [
+        {"reason": reason, "count": count} for reason, count in sorted(expected.items())
+    ]
+    VALIDATOR.validate(manifest)
+    assert all(set(warning) == {"reason", "count"} for warning in manifest["limits"]["warnings"])

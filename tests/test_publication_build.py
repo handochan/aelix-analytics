@@ -602,3 +602,100 @@ def test_two_process_builds_serialize_snapshot_through_binding(tmp_path):
     assert results[1]["basis"]["as_of_seq"] >= results[0]["record"]["seq"]
     assert results[1]["basis"]["content_seq"] >= results[0]["basis"]["content_seq"]
     assert results[1]["content_sha256"] == results[0]["content_sha256"]
+
+
+def test_interrupt_during_uncertain_reread_keeps_unknown_result_and_interrupt_status(
+    tmp_path, monkeypatch
+):
+    import json
+
+    from aelix_analytics import writer
+
+    p = core.init_project(tmp_path / "project", title="Public", origin=ORIGIN)
+    read, append = writer._journal_bytes, writer.append_line
+    failed = False
+
+    def interrupted_read(path):
+        if failed:
+            raise KeyboardInterrupt
+        return read(path)
+
+    def lose_response(path, line):
+        nonlocal failed
+        if json.loads(line)["kind"] == "publication":
+            failed = True
+            raise OSError("append result lost")
+        return append(path, line)
+
+    monkeypatch.setattr(writer, "_journal_bytes", interrupted_read)
+    monkeypatch.setattr(writer, "append_line", lose_response)
+    with pytest.raises(PublicationError) as caught:
+        build.build_publication(p, origin=ORIGIN)
+    assert caught.value.details["binding"] == "unknown" and caught.value.details["interrupted"]
+    assert checks.verify_package(p.root / caught.value.details["path"])["ok"]
+
+
+def test_zip_cleanup_never_deletes_a_replacement_target(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    from aelix_analytics.publishing import package
+
+    p = core.init_project(tmp_path / "project", title="Public", origin=ORIGIN)
+    result = build.build_publication(p, origin=ORIGIN)
+    target, moved = tmp_path / "transport.zip", tmp_path / "owned.zip"
+    original = checks.verify_package
+
+    def replaced(path, *args, **kwargs):
+        if Path(path) == target:
+            target.rename(moved)
+            target.write_bytes(b"foreign")
+            raise PublicationError("package_check_failed", "injected ZIP replacement")
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(checks, "verify_package", replaced)
+    with pytest.raises(PublicationError) as caught:
+        package.write_zip(
+            p.root / result["path"],
+            target,
+            project_root=p.root,
+            binding=_publications(p)[0]["details"],
+        )
+    assert target.read_bytes() == b"foreign" and moved.exists()
+    assert "identity changed" in caught.value.details["cleanup_error"]
+
+
+def test_actual_build_large_exclusion_record_is_explicitly_unbound_without_raising_floor(tmp_path):
+    import json
+
+    from aelix_analytics import relations
+
+    p = core.init_project(tmp_path / "project", title="Public", origin=ORIGIN)
+    marker_path = p.root / "analytics.json"
+    marker = json.loads(marker_path.read_bytes())
+    marker.update(min_writer_version="0.23.0", kit_version="0.23.0")
+    marker_path.write_text(json.dumps(marker), encoding="utf-8")
+    rows = [
+        {
+            "schema": "analytics.event/2",
+            "seq": n,
+            "id": f"e{n}",
+            "kind": "finding",
+            "actor": "human",
+            "recorded_at": "2026-10-19T00:00:00+00:00",
+            "text": f"Private synthetic finding number {n}.",
+            "refs": [],
+        }
+        for n in range(1, 501)
+    ]
+    p.journal.write_bytes(b"".join(json.dumps(row).encode() + b"\n" for row in rows))
+    with pytest.raises(PublicationError) as caught:
+        build.build_publication(p, exclude=[row["id"] for row in rows], origin=ORIGIN)
+    assert (
+        caught.value.code == "publication_not_recorded"
+        and caught.value.details["binding"] == "unbound"
+    )
+    assert (
+        not _publications(p) and checks.verify_package(p.root / caught.value.details["path"])["ok"]
+    )
+    marker = json.loads((p.root / "analytics.json").read_bytes())
+    assert relations.version_key(marker["min_writer_version"]) < relations.version_key("0.24.0")

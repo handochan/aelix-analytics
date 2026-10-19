@@ -244,3 +244,34 @@ def test_status_overview_records_relations_keep_resolved_identity_beside_missing
     references = core.retrieve(p, part="relations", id=finding["id"], direction="outgoing")
     assert references["items"][0]["state"] == "resolved"
     assert references["items"][0]["publication"]["folder_status"] == "missing"
+
+
+@pytest.mark.parametrize("complete", [False, True])
+def test_cli_interruption_preserves_complete_or_unknown_result_with_exit130(
+    tmp_path, monkeypatch, capsys, complete
+):
+    from aelix_analytics import __main__
+
+    p = _project(tmp_path)
+
+    def interrupt(*args, **kwargs):
+        if complete:
+            return {
+                "ok": True,
+                "recording_status": "complete",
+                "interrupted": True,
+                "binding_recovered": True,
+            }
+        raise PublicationError(
+            "publication_not_recorded",
+            "retained",
+            details={"binding": "unknown", "interrupted": True},
+        )
+
+    monkeypatch.setattr(build, "build_publication", interrupt)
+    assert __main__._command(["--project", str(p.root), "build"]) == 130
+    result = json.loads(capsys.readouterr().out)
+    if complete:
+        assert result["recording_status"] == "complete" and result["binding_recovered"]
+    else:
+        assert result["error"]["details"]["binding"] == "unknown"

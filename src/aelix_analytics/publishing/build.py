@@ -470,9 +470,7 @@ def _manifest(summary, files, assembled, identity):
             sources = []
             for key, slot in sorted(slots[path], key=lambda pair: pair[0]):
                 entry = next(
-                    e
-                    for e in projection.copy_plan
-                    if e.item == key and e.package_path == path
+                    e for e in projection.copy_plan if e.item == key and e.package_path == path
                 )
                 sources.append(
                     {
@@ -495,6 +493,9 @@ def _manifest(summary, files, assembled, identity):
                 for d in assembled["details"]["derived"][path]
             ]
         rows.append(row)
+    warning_counts = Counter()
+    for warning in summary["warnings"]:
+        warning_counts[warning["reason"]] += warning.get("count", 1)
     inspection = dict(summary["checks"]["inspection"])
     inspection["inspected"] += (
         1  # publication.json is checked as the last file, not listed in files[].
@@ -522,7 +523,13 @@ def _manifest(summary, files, assembled, identity):
         ],
         "renderer": summary["renderer"],
         "remote_links": summary["remote_links"],
-        "limits": {**summary["limits"], "warnings": summary["warnings"]},
+        "limits": {
+            **summary["limits"],
+            "warnings": [
+                {"reason": reason, "count": count}
+                for reason, count in sorted(warning_counts.items())
+            ],
+        },
         "checks": {"format": 1, "result": "pass", "inspection": inspection},
         "content_sha256": checks.content_hash(files),
         "files": rows,
@@ -557,12 +564,14 @@ def _observe_completion(record_writer, pid, digest):
             state, _reason, _candidates, value = relations.publication_record(journal, pid)
             if state == "resolved":
                 if value["details"]["package_sha256"] == digest:
-                    return "complete", value
-                return "unbound", None
-            return ("unbound" if state == "missing" else "unknown"), None
+                    return "complete", value, False
+                return "unbound", None, False
+            return ("unbound" if state == "missing" else "unknown"), None, False
 
-    except (Exception, KeyboardInterrupt):
-        return "unknown", None
+    except KeyboardInterrupt:
+        return "unknown", None, True
+    except Exception:
+        return "unknown", None, False
 
 
 def build_publication(
@@ -648,14 +657,14 @@ def build_publication(
                         requires=relations.PUBLICATION_WRITER_SINCE,
                     )
             except BaseException as exc:
-                state, event = _observe_completion(w, pid, digest)
+                state, event, reread_interrupted = _observe_completion(w, pid, digest)
                 if state != "complete":
                     raise PublicationError(
                         "publication_not_recorded",
                         "publication folder retained; completion was not confirmed",
                         details={
                             "binding": state,
-                            "interrupted": isinstance(exc, KeyboardInterrupt),
+                            "interrupted": isinstance(exc, KeyboardInterrupt) or reread_interrupted,
                             "publication_id": pid,
                             "path": details["location"],
                             "package_sha256": digest,
@@ -705,6 +714,7 @@ def build_publication(
             "recording_status": "complete",
             "record": {"id": event["id"], "seq": event["seq"]},
             "zip": None,
+            "review": f"Open {details['location']}/index.html to check it before you share it.",
         }
         if recovered is not None:
             result["binding_recovered"] = True
