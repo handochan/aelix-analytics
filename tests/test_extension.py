@@ -369,6 +369,38 @@ def test_lab_status_shows_relations_as_the_kit_reads_them(tmp_path, monkeypatch)
     assert read in command.split("\n") and "1 missing (e99)" in command
 
 
+def test_analytics_status_reads_a_provenance_trail_as_the_kit_does(tmp_path, monkeypatch):
+    """#100 (design WORKSPACE-READABILITY 12, decision 3): analytics_status's part=relations takes
+    direction=sources|uses and depth and answers the same trail as the kit's read, and /analytics
+    status takes the same options."""
+    from legacy_records import LegacyProject, at
+
+    module = fresh_module()
+    monkeypatch.setenv("AELIX_ANALYTICS_TRUST_FILE", str(tmp_path / "trust.json"))
+    p = LegacyProject(tmp_path / "legacy")
+    table = ("data/derived/t.parquet", p.file("data/derived/t.parquet", b"t"))
+    a = p.run("20261001-091000-a", started_at=at(10), ts=at(11), outputs=[table])
+    b = p.run("20261001-092000-b", script="scripts/b.py", started_at=at(20), ts=at(21), inputs=[table])
+    finding = p.event("finding", {"runs": [b]}, ts=at(30), text="b read t")
+    monkeypatch.setenv("AELIX_ANALYTICS_PROJECT", str(p.root))
+    monkeypatch.chdir(tmp_path)
+    tool = tools_of(module)["analytics_status"]
+    assert set(tool.parameters["properties"]["direction"]["enum"]) == {"both", "incoming", "outgoing", "sources", "uses"}
+    result = call(tool, {"part": "relations", "id": finding, "direction": "sources"})
+    assert not result.is_error, text_of(result)
+    kit = module.core.status(module.core.Project(p.root), part="relations", id=finding, direction="sources")
+    assert result.details["items"] == kit["items"] and result.details["trail"] == kit["trail"]
+    assert [n["id"] for n in kit["items"]] == [finding, "run:" + b, f"data:{table[0]}@{table[1]}", "run:" + a]
+    one = call(tool, {"part": "relations", "id": finding, "direction": "sources", "depth": 1})
+    # Beyond the depth, from the run the input's producer judgment names, with the same depth.
+    assert one.details["trail"]["continue_from"] == [
+        {"node": f"data:{table[0]}@{table[1]}", "read": {"part": "relations", "id": "run:" + a, "direction": "sources", "depth": 1}}]
+    command = asyncio.run(module.analytics_command(f"status --part relations --id {finding} --direction sources --depth 1"))
+    assert '"continue_from"' in command and '"depth": 1' in command
+    bad = call(tool, {"part": "relations", "id": finding, "direction": "both", "depth": 2})
+    assert bad.is_error and "depth" in text_of(bad)
+
+
 @pytest.mark.parametrize("kind", LINK_KINDS)
 def test_status_in_the_aelix_process_names_a_linked_data_directory_s_datasets_by_project_paths(
         lab, tmp_path, kind):

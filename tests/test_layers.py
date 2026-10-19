@@ -169,6 +169,7 @@ MODULES: dict[str, str] = {
     "src/aelix_analytics/workspace_relations.py": "workspace",
     "src/aelix_analytics/workspace_map.py": "workspace",
     "src/aelix_analytics/workspace_versions.py": "workspace",
+    "src/aelix_analytics/workspace_provenance.py": "workspace",
     "src/aelix_analytics/i18n.py": "messages",
     "src/aelix_analytics/migration.py": "migration",
     "src/aelix_analytics/__init__.py": "sdk",
@@ -200,6 +201,10 @@ ALLOWLIST: dict[tuple[str, str], Allowed] = {
     ("src/aelix_analytics/workspace.py", "src/aelix_analytics/workspace_versions.py"): Allowed(
         scopes=frozenset({"Site.__init__"}),
         why="Site constructs the version histories (#99) its pages show from its one read; the helper takes Site and has no reverse import.",
+        remove_when="the Workspace build coordinator injects this view instead of Site constructing it."),
+    ("src/aelix_analytics/workspace.py", "src/aelix_analytics/workspace_provenance.py"): Allowed(
+        scopes=frozenset({"Site.__init__"}),
+        why="Site constructs the provenance trails (#100) its relation pages show from its one read; the helper takes Site and has no reverse import.",
         remove_when="the Workspace build coordinator injects this view instead of Site constructing it."),
     ("src/aelix_analytics/runner.py", "src/aelix_analytics/workspace.py"): Allowed(
         scopes=frozenset({"_finalize"}),
@@ -702,6 +707,7 @@ def test_every_allowlist_entry_says_why_and_when_it_goes():
         ("src/aelix_analytics/workspace.py", "src/aelix_analytics/workspace_relations.py"),
         ("src/aelix_analytics/workspace.py", "src/aelix_analytics/workspace_map.py"),
         ("src/aelix_analytics/workspace.py", "src/aelix_analytics/workspace_versions.py"),
+        ("src/aelix_analytics/workspace.py", "src/aelix_analytics/workspace_provenance.py"),
         ("src/aelix_analytics/runner.py", "src/aelix_analytics/workspace.py"),
         ("src/aelix_analytics/workspace.py", "src/aelix_analytics/runner.py"),
         ("src/aelix_analytics/workspace.py", "src/aelix_analytics/data.py"),

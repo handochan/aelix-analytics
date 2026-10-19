@@ -110,6 +110,13 @@ def t(key: str, **args) -> str:
     """The kit's words for `key`, in an element a page switches (it holds no other element)."""
     if not args:
         return _word(key)
+    return _valued(key, tuple(sorted(args.items())))
+
+
+@functools.lru_cache(maxsize=65536, typed=True)
+def _valued(key: str, items: tuple) -> str:
+    # The same words with the same values recur on many pages (counts, version numbers): made once.
+    args = dict(items)
     return f'<{WORD} k="{key}" a={_json(args)}>{html.escape(message(key, **args), quote=False)}</{WORD}>'
 
 

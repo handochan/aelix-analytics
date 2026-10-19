@@ -254,6 +254,7 @@ class Site:
 
     def __init__(self, project: core.Project):
         from .workspace_map import AnalysisMap, AnalysisStatus
+        from .workspace_provenance import Provenance
         from .workspace_relations import RelationPages
         from .workspace_versions import Versions
 
@@ -311,6 +312,8 @@ class Site:
         self.map = AnalysisMap(self)
         # Every version history the pages show (design WORKSPACE-READABILITY 5, #99), from the same read.
         self.history = Versions(self)
+        # The provenance trails of the relation pages (design WORKSPACE-READABILITY 6, #100), from the same read.
+        self.provenance = Provenance(self)
 
     # --- links (depth 0 = workspace/, 1 = workspace/runs|data/) ---
 

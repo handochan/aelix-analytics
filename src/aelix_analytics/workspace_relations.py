@@ -194,6 +194,25 @@ class RelationPages:
             return ""
         return f'<div class="callout tone-muted record-note" role="note">{body}</div>'
 
+    def versions_line(self, identity: str) -> str:
+        """Where a run's, a Visualization version's or a data file's versions are listed (#99), as a
+        line of the History tab; '' for anything else."""
+        s = self.site
+        if identity in self.visualizations:
+            run, v = self.visualizations[identity]
+            link = s.run_link(run["id"], 1, f"#chart-{core_href(str(v['id']))}-versions")
+        elif identity.startswith("run:") and identity[4:] in s.run_by_id:
+            script = s.script_of.get(identity[4:])
+            link = f"{s.root(1)}{s.history.directory}/{s.history.page_name(script)}" if script else None
+        elif identity in s.view_by_path:
+            link = f"{s.data_link(identity, 1)}#version-history"
+        else:
+            # A path with versions and no dataset page (its file is gone): how many, as its history counts them.
+            path = "/" in identity and not identity.startswith(("report:", "context:"))
+            versions = len(self.model.data_history(identity)["versions"]) if path else 0
+            return f'<p>{t("versions.count", n=versions)}</p>' if versions else ""
+        return f'<p><a href="{s.esc(link)}">{t("versions.history")}</a></p>' if link else ""
+
     def render(self, identity: str, page: int = 0) -> str:
         s = self.site
         USER, esc = s.user_language, s.esc
@@ -267,30 +286,35 @@ class RelationPages:
                    f'<button data-kind="incoming">{t("relations.cited_by", n=n_in)}</button></div>') if shown else ""
         state = self.model.journal.replay().state_of(identity) if event else None
         payload = self.model.record_payload(identity)
+        # History (design WORKSPACE-READABILITY 6.4): a record's corrections, in order and without numbers
+        # (5.2), or where the selected item's versions are listed (#99).
+        history = (s.history.corrections(identity, level=3) if event else "") + self.versions_line(identity)
         technical = ""
         if event:
             # The kind as the record holds it (`gap` and `workflow_feedback` stay apart).
             technical += (f'<p>{t("relations.recorded_kind")} <code>{esc(event.kind)}</code> · '
                           f'<code>{esc(event.recorded_at)}</code></p>'
-                          f'<div id="history"><h3>{t("relations.history")}</h3>'
+                          f'<div id="state"><h3>{t("relations.history")}</h3>'
                           f'<pre{USER}>{esc(json.dumps(state, ensure_ascii=False, indent=2))}</pre></div>')
         else:
-            technical += f'<div id="history"><h3>{t("relations.history")}</h3><p>{t("relations.no_state")}</p></div>'
+            technical += f'<div id="state"><h3>{t("relations.history")}</h3><p>{t("relations.no_state")}</p></div>'
         if payload:
             technical += (f'<h3>{t("relations.full_record")} · {esc(payload[1])}</h3>'
                           f'<pre{USER}>{esc(json.dumps(payload[0], ensure_ascii=False, indent=2))}</pre>')
         elif not event:
             technical += f'<p>{t("relations.no_content")}</p>'
         empty = f'<p>{t("relations.empty")}</p>'
-        # A record's corrections, in order and without numbers (design WORKSPACE-READABILITY 5.2).
-        corrections = s.history.corrections(identity) if event else ""
-        body = f'''{head}{self.note(identity)}{corrections}
-<p class="relation-scope">{t("relations.scope")}{updating}</p>
-<section id="related"><h2>{t("relations.heading")}</h2><p>{counts}</p>
+        # Three tabs (design 6.4): Provenance first where the item has a trail, the one-hop relations of
+        # #18 as they were, and History. Without a script they read one after the other.
+        provenance = s.provenance.tab_html(identity) if not page else ""
+        body = f'''{head}{self.note(identity)}{provenance}
+<section id="related" class="tab" data-count="{len(rows)}"><h2>{t("relations.heading")}</h2>
+<p class="relation-scope">{t("relations.scope")}{updating}</p><p>{counts}</p>
 {filters}
 <div id="evidence" class="relation-groups">{groups or empty}</div>
 <nav class="continuation"{attr("aria-label", "relations.pages")}>{nav}</nav>
 {diagram}</section>
+<section id="history" class="tab"><h2>{t("tab.history")}</h2>{history or "<p>" + t("relations.no_history") + "</p>"}</section>
 <section id="technical"><details class="technical"><summary>{t("relations.technical")}</summary>{technical}</details></section>'''
         return s.page(1, identity, f' <span>/</span> {t("page.relations")}', body, "relations",
                       page_path="relations/" + name(identity, page), selection=identity, title_key="page.relations",

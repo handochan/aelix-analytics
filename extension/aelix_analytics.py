@@ -1011,7 +1011,9 @@ TOOLS = [
         "runs, the latest version of every chart with staleness (inputs changed since the chart was "
         "made), open questions/todos, key findings/decisions/assumptions and the recent journal. "
         "Read-only. With part=records, search journal judgments by words or read an exact ID; "
-        "part=relations reads one-hop evidence; part=context reads complete CONTEXT sections. "
+        "part=relations reads one-hop evidence, or with direction=sources|uses a bounded provenance trail "
+        "(what an item was made from or what uses it, run by run; depth limits the runs); "
+        "part=context reads complete CONTEXT sections. "
         "Pages share source_revision; restart on stale_cursor. Old judgments and missing evidence "
         "are not current facts. Default overview is unchanged.",
         {"part": {"type": "string", "enum": ["records", "relations", "context"]},
@@ -1023,7 +1025,10 @@ TOOLS = [
          "state": {**STR, "description": "Replayed record-state filter; records only."},
          "since": {**STR, "description": "Inclusive ISO recorded timestamp with UTC offset; records only."},
          "until": {**STR, "description": "Inclusive ISO recorded timestamp with UTC offset; records only."},
-         "direction": {"type": "string", "enum": ["both", "incoming", "outgoing"]},
+         "direction": {"type": "string", "enum": ["both", "incoming", "outgoing", "sources", "uses"],
+                       "description": "relations: one hop (both/incoming/outgoing) or a provenance trail (sources/uses)."},
+         "depth": {"type": "integer", "minimum": 1, "maximum": 100,
+                   "description": "Provenance trail only: how many runs away; omit for as far as the records go."},
          "as_of_seq": {"type": "integer", "minimum": 0,
                        "description": "Journal knowledge boundary; physical evidence is checked now."}},
         [], tool_status,
@@ -1800,7 +1805,7 @@ async def analytics_command(args, ctx=None):
         if sub in ("", "status"):
             project, via = resolve_project()
             options = human_options(rest, {"part", "query", "id", "cursor", "kind", "state", "since", "until",
-                                           "direction", "as_of_seq", "limit"})
+                                           "direction", "depth", "as_of_seq", "limit"})
             authored = command_origin(ctx)
             session = authored.session
             STATE["session"] = session
@@ -1965,7 +1970,7 @@ def human_options(text, allowed):
         name = flag[2:].replace("-", "_") if flag.startswith("--") else ""
         if name not in allowed:
             raise core.AnalyticsError("bad_query", f"unsupported option {flag!r}")
-        if name in ("limit", "as_of_seq"):
+        if name in ("limit", "as_of_seq", "depth"):
             try:
                 value = int(value)
             except ValueError as exc:

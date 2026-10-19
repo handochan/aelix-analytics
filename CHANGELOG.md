@@ -15,6 +15,20 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 없음. 병합된 변경은 그 PR이 병합될 때의 kit 번호 절에 적고, kit 번호를 올리는 PR은 새 절을 엽니다
 ([기여 가이드](CONTRIBUTING.md#첫-공개-전에-남은-운영-결정)).
 
+## [0.24.0] - 2026-10-19
+
+### Added
+
+- #100: 관계 페이지에 `Provenance`·`All relations`·`History` 탭이 생겼습니다. `Provenance`는 기록·run·시각화 버전·데이터 파일이 무엇에서
+  만들어졌는지(`Where it comes from`)와 무엇이 그것을 썼는지(`What uses it`)를 run 단위로 따라간 경로입니다: 인용 → run → 입력 → 그 바이트의
+  생산자 후보 run → … → 가져온 데이터, 각 run이 만든 시각화는 곁가지로. 상자는 종류 이름·색·모양(run은 육각형), 상태(`Unchanged`·
+  `Changed since read`·`Missing now`, 바뀐 파일은 지금 바이트를 쓴 run 후보)와 잇는 문장을 담고, JS 없이나 좁은 화면에서는 세로 목록,
+  넓은 화면에서는 그림입니다. 노드 20개·선 30개를 넘으면 생략 수와 `Continue from here`를 보이고, 순환과 생산자 후보 여러 개를 표시합니다.
+  `What can be checked`가 인용·run·코드 보존·가져온 데이터·중간 데이터·재실행 비교·분석 검사/결론 검토를 따로 말합니다. 결론의 증명이나 행
+  단위 계보가 아닙니다.
+- #100: `analytics_status`·`analytics status`·SDK `status`의 `part=relations`가 `direction=sources|uses`와 `depth`를 받아 같은 경로를
+  같은 예산으로 돌려줍니다(새 도구·명령 이름 없음, 설계 §12의 3). 한 단계 조회는 그대로입니다.
+
 ## [0.23.0] - 2026-10-19
 
 ### Added

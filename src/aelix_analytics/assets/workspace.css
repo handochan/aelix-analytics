@@ -549,6 +549,92 @@ ol.vh-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(
   .vh-version, .vh-shown { stroke: CanvasText; } .vh-shown, .vh-again, .vh-x, .vh-label { fill: CanvasText; }
 }
 
+/* Provenance (design 6, mockups 7-B and 7-C): one list is the trail's words and its boxes. Without a script or on a
+   narrow screen it is the vertical path; a wide screen with a script places the boxes on the grid each one names
+   (grid-area) and draws the lines between them. Kind by colour, shape and words; state by a mark and words. */
+/* A direction: its path and what can be checked along it, side by side. */
+.pv-trail { display: grid; grid-template-columns: minmax(0, 1fr) minmax(min(100%, 16rem), 20rem); gap: 1rem; align-items: start; margin-bottom: 0.875rem; }
+.pv-dir { display: flex; flex-wrap: wrap; gap: 0.375rem; margin: 0.5rem 0 0.75rem; }
+.pv-dir a { display: inline-flex; align-items: center; min-height: 2.75rem; padding: 0 0.875rem; border: 1px solid var(--border); border-radius: 999px;
+  color: var(--ink-2); background: var(--card); }
+.pv-dir a.on { border-color: var(--accent); color: var(--ink); background: var(--accent-wash); font-weight: 600; }
+.pv-path { min-width: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.75rem 0.875rem; }
+.pv-path h3 { margin: 0 0 0.5rem; }
+.pv-note, .pv-legend { margin: 0 0 0.5rem; color: var(--ink-2); font-size: 0.8125rem; overflow-wrap: anywhere; }
+.pv-scroll { position: relative; overflow-x: auto; padding-bottom: 0.25rem; }
+/* As a list the boxes are one column in the order the page holds them; the grid places only the graph's. */
+.pv-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.pv { --kc: var(--muted); position: relative; min-width: 0; padding: 0.5rem 0.75rem; background: color-mix(in srgb, var(--kc) 9%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--kc) 45%, transparent); border-radius: var(--radius); overflow-wrap: anywhere; }
+.pv p { margin: 0; }
+.pv .pk { color: color-mix(in srgb, var(--kc) 70%, var(--ink)); font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+.pv .pn { font-weight: 600; white-space: pre-wrap; }
+.pv .pn a, .pv .pj a, .pv .pf a { display: inline-flex; align-items: center; min-height: 2.75rem; min-width: 1.5rem; }
+.pv .pf, .pv .pj { font-size: 0.78rem; color: var(--ink-2); }
+.pv-data { --kc: var(--k-import); }
+.pv-viz { --kc: var(--k-viz); }
+.pv-run { --kc: var(--k-run); border-left-width: 4px; }
+.pv-context { --kc: var(--k-context); }
+.pv-rec.kind-finding { --kc: var(--k-finding); } .pv-rec.kind-decision { --kc: var(--k-decision); }
+.pv-rec.kind-assumption { --kc: var(--k-assumption); } .pv-rec.kind-question { --kc: var(--k-question); }
+.pv-rec.kind-todo { --kc: var(--k-todo); } .pv-rec.kind-gap { --kc: var(--k-gap); } .pv-rec.kind-note { --kc: var(--k-note); }
+.pv-rec.kind-context, .pv-rec.kind-project { --kc: var(--k-context); } .pv-rec.kind-resolve { --kc: var(--k-resolve); }
+.pv-rec.kind-run { --kc: var(--k-run); } .pv-rec.kind-import { --kc: var(--k-import); }
+/* A file read and changed since, or gone: a border as well as its words (never colour alone). */
+.pv-data.st-changed { border: 2px solid var(--warning); }
+.pv-data.st-missing { border: 2px solid var(--critical); }
+.pv.is-start { border: 2px solid var(--accent); box-shadow: 0 0 0 3px var(--accent-wash); }
+.pv:target { box-shadow: 0 0 0 3px var(--accent); }
+.st { font-weight: 600; }
+.st::before { content: attr(data-m) " "; content: attr(data-m) " " / ""; }
+.st.tone-good::before { color: var(--good); } .st.tone-warning::before { color: var(--warning-text); }
+.st.tone-critical::before { color: var(--critical); } .st.tone-serious::before { color: var(--serious); }
+.st.tone-muted::before { color: var(--muted); }
+.pv-more { display: inline-flex; align-items: center; min-height: 2.75rem; font-size: 0.8125rem; font-weight: 600; }
+.pv-lines { position: absolute; overflow: visible; pointer-events: none; }
+.pv-lines path { fill: none; stroke: var(--ink-2); stroke-width: 1.5; }
+.pv-lines path.c { stroke-dasharray: 5 4; stroke: var(--link-text); }
+.pv-lines path.maybe { stroke-dasharray: 3 3; stroke: var(--warning-text); }
+.pv-lines path.head { stroke: none; fill: var(--ink-2); stroke-dasharray: none; }
+.pv-lines path.head.c { fill: var(--link-text); } .pv-lines path.head.maybe { fill: var(--warning-text); }
+.pv-lines text { fill: var(--ink-2); font: 0.6875rem var(--sans); paint-order: stroke; stroke: var(--surface); stroke-width: 4px; }
+.pv-checks { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.75rem 0.875rem; }
+.pv-checks h3 { margin: 0 0 0.5rem; }
+.pv-checks ul { list-style: none; margin: 0 0 0.5rem; padding: 0; display: grid; gap: 0.5rem; }
+.pv-checks li { position: relative; padding-left: 1.375rem; overflow-wrap: anywhere; font-size: 0.8125rem; }
+.pv-checks li::before { position: absolute; left: 0; width: 1rem; font-weight: 700; text-align: center; }
+.pv-checks .ck-good::before { content: "✓"; content: "✓" / ""; color: var(--good); }
+.pv-checks .ck-warn::before { content: "⚠"; content: "⚠" / ""; color: var(--warning-text); }
+.pv-checks .ck-none::before { content: "–"; content: "–" / ""; color: var(--muted); }
+.pv-checks ul ul { margin: 0.25rem 0 0; gap: 0; }
+.pv-checks ul ul li { padding-left: 0; }
+.pv-checks ul ul li::before { content: none; }
+.pv-checks a { display: inline-flex; align-items: center; min-height: 2.75rem; }
+@media (min-width: 56.3125em) {
+  /* The graph: the boxes on their grid, a run as a hexagon, the lines drawn between them. A box's joining words stay
+     for a screen reader; on screen the lines say them, except a join that carries a judgment. */
+  .js-trail .pv-list { --graph: 1; display: grid; grid-template-columns: repeat(var(--cols), 15rem); gap: 2.25rem 3.75rem; width: max-content;
+    align-items: center; }
+  .js-trail .pv-run { border: 0; border-radius: 0; padding-inline: 1.75rem; background: color-mix(in srgb, var(--k-run) 16%, var(--card));
+    clip-path: polygon(1.125rem 0, calc(100% - 1.125rem) 0, 100% 50%, calc(100% - 1.125rem) 100%, 1.125rem 100%, 0 50%); }
+  .js-trail .pv-run:target { background: color-mix(in srgb, var(--k-run) 30%, var(--card)); }
+  .js-trail .pv .pj:not(:has(.st, .ref-note, .muted)):not(:focus-within) { position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip-path: inset(50%); white-space: nowrap; }
+  /* A box is one target, its name's link covering it; the other links in it stay above that and keep their size. */
+  .js-trail .pv .pn a { min-height: 0; }
+  .js-trail .pv .pn a::after { content: ""; position: absolute; inset: 0; }
+  .js-trail .pv :is(.pf, .pj) a, .js-trail .pv .pv-more { position: relative; z-index: 1; }
+}
+@media (max-width: 56.25em) {
+  .pv-trail { grid-template-columns: minmax(0, 1fr); }
+  .pv-checks { grid-row: 1; }
+}
+@media (forced-colors: active) {
+  .js-trail .pv-run { clip-path: none; border: 2px solid CanvasText; }
+  .pv-data.st-changed, .pv-data.st-missing, .pv.is-start { border: 3px double CanvasText; }
+  .pv-lines path { stroke: CanvasText; } .pv-lines path.head { fill: CanvasText; } .pv-lines text { fill: CanvasText; stroke: Canvas; }
+}
+
 @media (max-width: 40em) {
   main { padding: 0.75rem 0.875rem 2.5rem; }
   .topbar { padding: 0.25rem 0.875rem; flex-wrap: wrap; }
