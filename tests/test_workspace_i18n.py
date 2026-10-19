@@ -28,7 +28,7 @@ from aelix_analytics import core, i18n, workspace
 ASSETS = KIT / "aelix_analytics" / "assets"
 CODE = [KIT / "aelix_analytics" / "workspace.py", KIT / "aelix_analytics" / "workspace_relations.py",
         KIT / "aelix_analytics" / "workspace_map.py", KIT / "aelix_analytics" / "workspace_versions.py",
-        ASSETS / "workspace.js", ASSETS / "workspace-i18n.js"]
+        KIT / "aelix_analytics" / "workspace_provenance.py", ASSETS / "workspace.js", ASSETS / "workspace-i18n.js"]
 SHAPE = re.compile(r"\{@?[a-z][a-z0-9_.]*\}")
 KEY = re.compile(r"^[a-z][a-z0-9_]*(\.[a-z0-9_/]+)+$")
 FILE = re.compile(r"\.(html|json|jsonl|js|css|md|py|parquet|csv|txt|toml)$")

@@ -2838,16 +2838,33 @@ def _query_record(model, source):
     raise AnalyticsError("record_not_found", "no readable record with this ID", details={"id": source})
 
 
+# The directions of a relations read: one hop of references, or a provenance trail (design
+# WORKSPACE-READABILITY 6, the owner's decision 3 of 2026-10-17): what the item was made from
+# (`sources`) or what was made from it (`uses`), bounded as the Workspace shows it.
+ONE_HOP = ("both", "outgoing", "incoming")
+TRAIL_DEPTH = 100
+
+
 def retrieve(project: Project, *, part="records", query="", id=None, cursor=None, limit=8,
-             kind=None, state=None, since=None, until=None, direction="both", as_of_seq=None,
+             kind=None, state=None, since=None, until=None, direction="both", depth=None, as_of_seq=None,
              policy=None, index=None) -> dict:
     """Shared bounded read for the CLI, SDK and existing analytics_status tool. Journal search,
-    full selected records, CONTEXT sections and one-hop reference judgments share one read basis.
-    as_of_seq replays journal knowledge; physical evidence availability is checked now."""
+    full selected records, CONTEXT sections, one-hop reference judgments and provenance trails share
+    one read basis. as_of_seq replays journal knowledge; physical evidence availability is checked now."""
     readable(project, "retrieve")
     policy = policy or relations.QueryPolicy()
-    if part not in ("records", "relations", "context") or direction not in ("both", "outgoing", "incoming"):
+    if part not in ("records", "relations", "context") or direction not in ONE_HOP + relations.TRAIL_DIRECTIONS:
         raise AnalyticsError("bad_query", "unknown retrieval part or direction")
+    trail = direction in relations.TRAIL_DIRECTIONS
+    if trail and part != "relations":
+        raise AnalyticsError("bad_query", "a provenance trail is a relations read",
+                             hint="use part=relations with direction=sources or uses")
+    if depth is not None and (not trail or not isinstance(depth, int) or isinstance(depth, bool)
+                              or not 1 <= depth <= TRAIL_DEPTH):
+        raise AnalyticsError("bad_query", f"depth is a whole number of runs from 1 to {TRAIL_DEPTH}, for direction=sources or uses")
+    if trail and cursor is not None:
+        raise AnalyticsError("bad_query", "a provenance trail is one bounded answer; it has no cursor",
+                             hint="continue from a node listed in continue_from")
     for value in (query, id, cursor, kind, state, since, until):
         if value is not None and not isinstance(value, str):
             raise AnalyticsError("bad_query", "query arguments must be strings")
@@ -2881,6 +2898,8 @@ def retrieve(project: Project, *, part="records", query="", id=None, cursor=None
         legacy_resolved = model.journal.legacy_resolutions()
         request = {"part": part, "query": query, "id": id, "kind": kind, "state": state,
                    "since": since, "until": until, "direction": direction, "as_of_seq": as_of_seq}
+        if depth is not None:
+            request["depth"] = depth
         index_state = {"adapter": "source", "state": "not_needed"}
         if part == "records" and id is None:
             candidates = None
@@ -2901,6 +2920,9 @@ def retrieve(project: Project, *, part="records", query="", id=None, cursor=None
         elif part == "records":
             record, location = _query_record(model, id)
             rows = [{"field": key, "value": value} for key, value in record.items()]
+        elif trail:
+            result = trail_answer(project, model, cache, id, direction, depth)
+            rows = None
         elif part == "relations":
             # Validate the source except exact target identities (run IDs and Visualization IDs)
             # that appear as reference targets. Incoming lookup never invents a version.
@@ -2932,7 +2954,7 @@ def retrieve(project: Project, *, part="records", query="", id=None, cursor=None
             preamble, sections = context_sections(text)
             rows = ([{"name": "Preamble", "text": preamble, "line": 1}] if preamble else []) + sections
         try:
-            result = result if checkpoint_id else policy.page(rows, revision=revision, request=request, cursor=cursor, limit=limit,
+            result = result if checkpoint_id or trail else policy.page(rows, revision=revision, request=request, cursor=cursor, limit=limit,
                                  journal_order=part == "records" and id is None and not query,
                                  as_of_seq=as_of_seq,
                                  boundary_revision=model.journal.prefix_revision(as_of_seq)
@@ -2965,6 +2987,8 @@ def retrieve(project: Project, *, part="records", query="", id=None, cursor=None
     else:
         result["items"], result["returned"], result["cursor"] = [], 0, None
         result["has_more"], result["read_more"] = False, None
+        if trail:
+            result["edges"], result["trail"] = [], None
         result["omitted"] = {"count": "unknown", "reason": "updating"}
     result.update(source_revision=observed[-1], as_of_seq=as_of_seq if as_of_seq is not None else model.as_of_seq,
                   updating=changed or reader_updating, observed_revisions=observed,
@@ -2984,6 +3008,36 @@ def retrieve(project: Project, *, part="records", query="", id=None, cursor=None
     if since or until:
         result["absence_is_not_proof"] += "; records with unknown or naive timestamps are excluded from this period scope"
     return result
+
+
+def trail_answer(project: Project, model: relations.ReadModel, cache: HashCache, start, direction: str,
+                 depth: int | None) -> dict:
+    """A provenance trail as a bounded read answers it (design WORKSPACE-READABILITY 6, §12's decision 3):
+    the read model's trail with the Workspace's budget (relations.TRAIL_BUDGET nodes and edges), its
+    nodes as the page's items, and a read to continue from each node the budget or `depth` stopped."""
+    found = model.provenance(start, direction, depth=depth,
+                             input_state=Freshness(project, [], cache, model).input_state)
+    if found is None:
+        raise AnalyticsError("record_not_found", "no record, run, visualization version, CONTEXT.md version or "
+                             "data file with this ID", details={"id": start})
+    proceed = []
+    for node in found["nodes"]:
+        identity = node["path"] if node["kind"] == "data" else node["id"] if node["kind"] in (
+            "record", "run", "visualization", "context") else None
+        if identity and (node.get("continues") or node.get("beyond_depth")):
+            proceed.append({"node": node["id"], "read": {"part": "relations", "id": identity, "direction": direction}})
+    omitted = found["omitted"]
+    more = bool(omitted["nodes"] or omitted["edges"] or proceed)
+    return {"items": found["nodes"], "edges": found["edges"], "returned": len(found["nodes"]),
+            "total": found["total"]["nodes"], "has_more": more, "cursor": None,
+            "omitted": {"count": omitted["nodes"], "edges": omitted["edges"],
+                        "reason": "trail_budget" if omitted["nodes"] or omitted["edges"] else None},
+            "read_more": None,
+            "trail": {"start": found["start"], "direction": direction, "depth": depth, "budget": found["budget"],
+                      "total_edges": found["total"]["edges"], "cycles": found["cycles"], "checks": found["checks"],
+                      "continue_from": proceed,
+                      "scope": "recorded run inputs and citations followed from one start; not a proof of a "
+                               "conclusion and not row-level lineage"}}
 
 
 def retrieval_text(result: dict) -> str:

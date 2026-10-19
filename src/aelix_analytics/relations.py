@@ -82,6 +82,7 @@ import bisect
 import copy
 import difflib
 import hashlib
+import heapq
 import json
 import os
 import re
@@ -421,6 +422,21 @@ def _not_after(first: datetime | None, second: datetime | None) -> bool:
 
 # How a run that did not succeed ended (a run's `status`); `incomplete` and `running` have not ended.
 ENDED_FAILED = ("error", "timeout", "cancelled")
+
+# A provenance trail (design WORKSPACE-READABILITY 6, #100) goes one way from its start: to what
+# it was made from (`sources`), or to what was made from it (`uses`).
+TRAIL_DIRECTIONS = ("sources", "uses")
+# The nodes and edges one direction of a trail shows (design 6.3, DESIGN-CONTINUITY 5): the
+# Workspace's and the bounded read's, the nearest steps first.
+TRAIL_BUDGET = (20, 30)
+# A run that read more files than this shows them as one node with their count (design 6.3).
+TRAIL_FOLD = 12
+# References that change a record's state (a correction, an update, a resolved question) are its
+# history, not what it was made from: a trail does not follow them.
+TRAIL_SKIPPED = frozenset({"supersedes", "updates", "resolves"})
+# How a run recorded an input, as a trail says it (design 6.1): read while it ran, found by the
+# static scan, or declared. A run's `inputs[].via` holds the names; every other name is a read.
+TRAIL_VIA = {"scan": "scan", "declared": "declared"}
 
 
 def _order(text) -> tuple:
@@ -1181,6 +1197,10 @@ class ReadModel:
         self._cited: tuple[dict, dict] | None = None
         self._histories: dict[tuple, dict] = {}
         self._correction_index: tuple[dict, dict, dict] | None = None
+        self._inputs_by_bytes: dict[tuple, list] | None = None
+        self._cited_by_raw: dict[str, list[str]] | None = None
+        self._trail_cache: dict[tuple, list] = {}
+        self._version_of: dict[tuple, dict] = {}
 
     # --- runs, imports and Report revisions --------------------------------------------------------
 
@@ -2629,6 +2649,589 @@ class ReadModel:
                  "corrects": sorted(corrects.get(name, []), key=place),
                  "corrected_by": sorted(by.get(name, []), key=place)}
                 for name in sorted(joined, key=place)]
+
+    # --- provenance trails (design WORKSPACE-READABILITY 6, #100) ----------------------------------
+    #
+    # A trail joins judgments this reader already makes — a record's references, a run's recorded
+    # inputs, outputs and Visualizations, the producer candidates of an input — from one start, the
+    # nearest steps first, and makes none of its own. It is what the records say a thing was made from
+    # (`sources`) or what was made from it (`uses`): not a proof of a conclusion, not row-level lineage.
+    # A step is a run: what is reached before the next run is on the step of the run before it.
+
+    def trail_start(self, identity) -> dict | None:
+        """The node a trail from `identity` begins with — a record (`e<seq>`, `journal:<line>`,
+        `report:<report_id>/<revision_id>`), a run (`run:<run_id>`), a Visualization version
+        (`<run_id>/<visualization_id>`), a CONTEXT.md version (`context:<name>`) or a data file (its
+        identity path, as its bytes are now) — or None when this read knows nothing by it."""
+        if not isinstance(identity, str):
+            return None
+        event = self.journal.event_of(identity)
+        if event is not None:
+            return self._record_node(self.journal.source_of(event))
+        if identity.startswith("report:"):
+            report, _, revision = identity[len("report:"):].partition("/")
+            return self._report_node(identity) if (report, revision) in self._saved else None
+        if identity.startswith("run:"):
+            return self._run_node(identity[4:]) if identity[4:] in self._runs else None
+        if identity.startswith("context:"):
+            name = identity[len("context:"):]
+            return self._context_node(name) if self._context_file(name) is not None else None
+        run_id, _, vis_id = identity.partition("/")
+        if run_id in self._runs and any(v["id"] == vis_id for v in run_visualizations(self._runs[run_id])):
+            return self._visualization_node(run_id, vis_id)
+        if identity in self._path_entries() or self._imports(identity):
+            current = self._sha(self.root / identity)
+            return self._data_node(identity, current, state="same" if current else "missing", origin=("now",))
+        return None
+
+    def provenance(self, start: str, direction: str = "sources", *, depth: int | None = None,
+                   budget: tuple[int, int] = TRAIL_BUDGET, input_state=None) -> dict | None:
+        """The trail from `start` (trail_start) in one direction, or None when the read knows nothing
+        by `start`. `depth` is how many runs away it goes (None: as far as the records go); `budget`
+        the nodes and edges it shows, the nearest steps first; `input_state(entry, own_outputs)` the
+        state of a run's recorded input against the file now (core's Freshness.input_state: `same`,
+        `changed`, `missing`, `unknown`), else the input's observation.
+
+        Sources: a record's references (not those that change a state, TRAIL_SKIPPED) to records,
+        runs, Visualization versions, data a run read or wrote, imports, code snapshots and CONTEXT.md
+        versions; a Visualization's run; a run's inputs (its Visualizations beside them); an input's
+        producer candidates (the judgment of the run that read it), on until imported data or nothing
+        more. Uses: the records citing a record, a run, a Visualization version or data (not the kit's
+        own completion records); a run's outputs and Visualizations; the runs that read a data file's
+        bytes (when a run of the trail wrote them, those of which it is a producer candidate).
+
+        `nodes` (`id`, `kind`, `step`, what the records say of it, `continues` when an edge of it is
+        not shown, `beyond_depth` when `depth` stopped it), `edges` (`from` does `kind` to `to`:
+        `cites`, `read`, `wrote`, `made`; with the judgment they come from), the `omitted` counts of
+        the whole trail, the `cycles` met (a walk back to a node on its own path, where it stops) and
+        `checks` (design 6.2) over the whole trail."""
+        if direction not in TRAIL_DIRECTIONS:
+            raise ValueError(direction)
+        root = self.trail_start(start)
+        if root is None:
+            return None
+        state = input_state or self._observed_input_state
+        root["step"] = 1 if root["kind"] == "run" else 0
+        found: dict[str, dict] = {root["id"]: root}
+        order = [root["id"]]
+        parent: dict[str, str | None] = {root["id"]: None}
+        edges: list[dict] = []
+        tree: list[bool] = []
+        seen_edges: set[tuple] = set()
+        cycles: list[dict] = []
+        heap = [(root["step"], 0, root["id"])]
+        count = 0
+        while heap:
+            step, _, nid = heapq.heappop(heap)
+            node = found[nid]
+            for child, edge in self._trail_children(node, direction, state):
+                child_step = step + (1 if child["kind"] == "run" else 0)
+                if depth is not None and child["kind"] == "run" and child_step > depth:
+                    node["beyond_depth"] = True
+                    continue
+                key = (edge["from"], edge["to"], edge["kind"])
+                if key in seen_edges:
+                    continue
+                seen_edges.add(key)
+                edges.append(edge)
+                if child["id"] not in found:
+                    child["step"] = child_step
+                    found[child["id"]] = child
+                    order.append(child["id"])
+                    parent[child["id"]] = nid
+                    tree.append(True)
+                    count += 1
+                    heapq.heappush(heap, (child_step, count, child["id"]))
+                    continue
+                tree.append(False)
+                walk = nid
+                while walk is not None and walk != child["id"]:
+                    walk = parent[walk]
+                if walk is not None:
+                    # Back to a node on this walk's own path (only runs that started at the same instant,
+                    # or whose start cannot be read, make one): said, and the walk stops there.
+                    edge["cycle"] = True
+                    cycles.append({"from": edge["from"], "to": edge["to"]})
+        place = {nid: n for n, nid in enumerate(order)}
+        nodes_budget, edges_budget = budget
+        shown = sorted(order, key=lambda nid: (found[nid]["step"], place[nid]))[:nodes_budget]
+        inside = set(shown)
+        kept = [n for n, edge in enumerate(edges) if tree[n] and edge["from"] in inside and edge["to"] in inside]
+        for n, edge in enumerate(edges):
+            if len(kept) >= edges_budget:
+                break
+            if not tree[n] and edge["from"] in inside and edge["to"] in inside:
+                kept.append(n)
+        kept_set = set(kept)
+        for n, edge in enumerate(edges):
+            if n not in kept_set:
+                for end in (edge["from"], edge["to"]):
+                    if end in inside:
+                        found[end]["continues"] = True
+        all_nodes = [found[nid] for nid in order]
+        checks = self._trail_checks(root, all_nodes, edges)
+        return {"start": root["id"], "direction": direction, "depth": depth,
+                "budget": {"nodes": nodes_budget, "edges": edges_budget},
+                "nodes": [{k: v for k, v in found[nid].items() if not k.startswith("_")} for nid in shown],
+                "edges": [edges[n] for n in sorted(kept_set)],
+                "omitted": {"nodes": len(order) - len(shown), "edges": len(edges) - len(kept_set)},
+                "total": {"nodes": len(order), "edges": len(edges)},
+                "cycles": cycles,
+                "checks": checks}
+
+    def _observed_input_state(self, entry: dict, own_outputs: dict | None = None) -> str:
+        """An input's state from its observation (a reference to it, judged): without core's rule for a
+        file the run read and wrote again, or a directory."""
+        if not _str(entry.get("sha256")):
+            return "unknown"
+        state, _, _ = self._compare(self.root / str(entry.get("path")), entry["sha256"])
+        current = self._sha(self.root / str(entry.get("path")))
+        if state == "content_changed" and own_outputs and own_outputs.get(entry.get("path")) == current:
+            return "same"
+        return {"resolved": "same", "content_changed": "changed"}.get(state, state)
+
+    # The nodes of a trail. Each is a dict of what the records say of one thing; `id` is the trail's
+    # name for it: the query identity of a record, a run (`run:`), a Visualization version or a CONTEXT.md
+    # version, and `data:<path>@<sha256>` for a data file's bytes (`@?<run_id>` when the run recorded
+    # no hash), as a page and a read name it by its path.
+
+    def _record_node(self, source: str) -> dict:
+        event = self.journal.event_of(source)
+        value = event.value if event is not None else {}
+        text = str(value.get("text") or "")
+        state = self.journal.replay().state_of(source) or {}
+        node = {"id": source, "kind": "record", "record_kind": event.kind if event else None,
+                "summary": " ".join(text.split())[:240], "text_chars": len(text),
+                "recorded_at": event.recorded_at if event else None, "actor": value.get("actor"),
+                "state": state.get("state")}
+        if state.get("corrected_by"):
+            node["corrections"] = len(state["corrected_by"])
+        return node
+
+    def _report_node(self, key: str) -> dict:
+        report, _, revision = key[len("report:"):].partition("/")
+        _, manifest = self._saved.get((report, revision), (None, {}))
+        title = str(manifest.get("title") or "")
+        return {"id": key, "kind": "record", "record_kind": "report_revision",
+                "summary": " ".join(title.split())[:240], "text_chars": len(title),
+                "recorded_at": _str(manifest.get("created_at")), "actor": None, "state": None}
+
+    def _run_node(self, run_id: str) -> dict:
+        run = self._runs[run_id]
+        script = _str(_script(run).get("path"))
+        return {"id": "run:" + run_id, "kind": "run", "run": run_id, "title": _str(run.get("title")),
+                "status": self._execution.get(run_id), "script": self._as_read(run_id, script) if script else None,
+                "code": _str(_script(run).get("sha256")), "started_at": _str(run.get("started_at")),
+                "duration_s": run.get("duration_s") if isinstance(run.get("duration_s"), (int, float)) else None,
+                "rerun_of": _str(run.get("rerun_of")),
+                "inputs": len({p for e in _dicts(run.get("inputs")) if (p := _str(e.get("path")))}),
+                "visualizations": len(run_visualizations(run))}
+
+    def _visualization_node(self, run_id: str, vis_id) -> dict:
+        run = self._runs[run_id]
+        found = next((v for v in run_visualizations(run) if v["id"] == vis_id), {})
+        script = _str(_script(run).get("path"))
+        key = self.chart_key(f"{self._as_read(run_id, script) if script else '?'}::{vis_id}")
+        if ("visualization", key) not in self._version_of:
+            history = self.visualization_history(key)
+            self._version_of[("visualization", key)] = {"total": len(history["versions"]),
+                                                        **{v["version"]: v["number"] for v in history["versions"]}}
+        numbers = self._version_of[("visualization", key)]
+        return {"id": f"{run_id}/{vis_id}", "kind": "visualization", "run": run_id, "visualization": vis_id,
+                "key": key, "title": _str(found.get("title")), "version": numbers.get(f"{run_id}/{vis_id}"),
+                "versions": numbers["total"]}
+
+    def _data_node(self, path: str, sha256, *, state: str, origin: tuple, recorded=None) -> dict:
+        """The bytes `sha256` of a data file at identity path `path`. `origin` is how the trail met them
+        (the producer candidates and readers follow from it): `("read", run, path as the run recorded
+        it)`, `("wrote", run)`, `("cited", run, role, recorded path)`, `("import",)`, `("now",)`."""
+        imported = bool(self._imports(path))
+        number = total = None
+        if sha256:
+            if ("data", path) not in self._version_of:
+                history = self.data_history(path)
+                self._version_of[("data", path)] = {"total": len(history["versions"]),
+                                                    **{v["sha256"]: v["number"] for v in history["versions"]}}
+            numbers = self._version_of[("data", path)]
+            total, number = numbers["total"], numbers.get(sha256)
+        node = {"id": f"data:{path}@" + (sha256 or "?" + str(origin[1] if len(origin) > 1 else "")),
+                "kind": "data", "path": path, "sha256": sha256, "imported": imported, "state": state,
+                "version": number, "versions": total, "_origin": origin}
+        producer = self._producer_of(node)
+        if producer is not None:
+            node["producer"] = producer["producer"]
+        if recorded is not None and recorded != path:
+            node["read_as"] = path
+            node["recorded_path"] = recorded
+        if state == "changed" and sha256:
+            current = self._sha(self.root / path)
+            node["current_writers"] = self.producer_candidates(path, current)[0] if current else []
+        return node
+
+    def _context_node(self, name: str) -> dict:
+        return {"id": "context:" + name, "kind": "context", "version": name}
+
+    def _target_node(self, judged: dict, index: int) -> dict | None:
+        """The node a record's reference names, when it names one this read has: a record, a run, a
+        Visualization version, a run's input or output, an import, a code snapshot or a CONTEXT.md
+        version; any other (unbound, unknown, missing) is a `name` node with the judgment's target,
+        which a trail does not follow."""
+        target = judged.get("target") or {}
+        kind, state = judged.get("type"), judged.get("state")
+        bound = judged.get("version_binding") != "none"
+        exists = state in ("resolved", "content_changed")
+        if bound and exists:
+            if kind in EVENT_TARGETS and isinstance(target.get("event_id"), str):
+                event = self.journal.event_of(target["event_id"])
+                if event is not None:
+                    return self._record_node(self.journal.source_of(event))
+            run_id = _str(target.get("run_id"))
+            if kind == "run" and run_id in self._runs:
+                return self._run_node(run_id)
+            if kind == "visualization_version" and run_id in self._runs:
+                return self._visualization_node(run_id, target.get("visualization_id"))
+            if kind == "data_observation" and run_id in self._runs:
+                role = target.get("role")
+                field = "inputs" if role == "input" else "outputs"
+                entry = next((e for e in _dicts(self._runs[run_id].get(field)) if e.get("path") == target.get("path")), {})
+                path = self._as_read(run_id, _str(entry.get("path")) or "")
+                sha = _str(entry.get("sha256"))
+                own = self._own_outputs(run_id) if role == "input" else None
+                return self._data_node(path, sha, state=self._observed_input_state({"path": path, "sha256": sha}, own),
+                                       origin=("cited", run_id, role, entry.get("path")), recorded=entry.get("path"))
+            if kind == "dataset_import" and isinstance(target.get("path"), str):
+                meta = self.import_record(target["path"]) or {}
+                sha = _str(meta.get("sha256"))
+                return self._data_node(target["path"], sha,
+                                       state=self._observed_input_state({"path": target["path"], "sha256": sha}),
+                                       origin=("import",))
+            if kind == "context_version" and isinstance(target.get("version"), str):
+                return {**self._context_node(target["version"]), "state": state}
+            if kind == "report_revision":
+                key = query_target(judged)
+                if isinstance(key, str):
+                    return self._report_node(key)
+            if kind == "code_snapshot" and run_id in self._runs:
+                return {"id": f"code:{run_id}/{target.get('path')}", "kind": "code", "run": run_id,
+                        "path": target.get("path"), "state": state}
+        label = query_target(judged)
+        return {"id": f"ref:{judged['from']}#{index}", "kind": "name", "type": kind, "label": label,
+                "state": state, "reason": judged.get("reason"), "binding": judged.get("version_binding"),
+                "candidates": len(judged.get("candidates") or [])}
+
+    def _own_outputs(self, run_id: str) -> dict:
+        """Path as the run recorded it -> sha256 of the outputs it did not delete."""
+        return {o.get("path"): o.get("sha256") for o in _dicts((self._runs.get(run_id) or {}).get("outputs"))
+                if o.get("change") != "deleted"}
+
+    @staticmethod
+    def _cites(judged: dict, child: str) -> dict:
+        edge = {"from": judged["from"], "to": child, "kind": "cites"}
+        for field in ("relation", "state", "reason", "version_binding", "basis", "confirmed"):
+            if judged.get(field) is not None:
+                edge[field] = judged[field]
+        return edge
+
+    def _trail_children(self, node: dict, direction: str, state) -> list[tuple[dict, dict]]:
+        """(child, edge) of one node in one direction, in the order the records hold them: new dicts
+        each time (a walk marks its own), the judgments made once per node and read."""
+        key = (direction, node["id"], node.get("_origin"), state)
+        if key not in self._trail_cache:
+            self._trail_cache[key] = self._children(node, direction, state)
+        return [(dict(child), dict(edge)) for child, edge in self._trail_cache[key]]
+
+    def _children(self, node: dict, direction: str, state) -> list[tuple[dict, dict]]:
+        kind = node["kind"]
+        out: list[tuple[dict, dict]] = []
+        if direction == "sources":
+            if kind == "record":
+                for index, judged in enumerate(self.references(node["id"])):
+                    if judged.get("relation") in TRAIL_SKIPPED:
+                        continue
+                    child = self._target_node(judged, index)
+                    if child is not None:
+                        out.append((child, self._cites(judged, child["id"])))
+            elif kind == "visualization":
+                run = self._run_node(node["run"])
+                out.append((run, {"from": run["id"], "to": node["id"], "kind": "made"}))
+            elif kind == "run":
+                out += self._run_inputs(node["run"], state)
+                out += self._run_visualizations(node["run"])
+            elif kind == "data":
+                out += self._writers(node)
+            return out
+        if kind == "run":
+            run_id = node["run"]
+            for entry in _dicts(self._runs[run_id].get("outputs")):
+                path, sha = _str(entry.get("path")), _str(entry.get("sha256"))
+                if path is None or entry.get("change") == "deleted":
+                    continue
+                identity = self._as_read(run_id, path)
+                child = self._data_node(identity, sha, state=self._observed_input_state({"path": identity, "sha256": sha}),
+                                        origin=("wrote", run_id), recorded=path)
+                out.append((child, {"from": node["id"], "to": child["id"], "kind": "wrote", "basis": "observed",
+                                    "recorded": True}))
+            out += self._run_visualizations(run_id)
+        elif kind == "data":
+            out += self._readers(node, state)
+        if kind in ("record", "run", "visualization", "context", "data"):
+            out += self._citing(node)
+        return out
+
+    def _run_inputs(self, run_id: str, state) -> list[tuple[dict, dict]]:
+        """A run's inputs, once per path in the order recorded (the ways it recorded each merged), or
+        one `inputs` node with their count and states when there are more than TRAIL_FOLD."""
+        run = self._runs[run_id]
+        own = self._own_outputs(run_id)
+        merged: dict[str, dict] = {}
+        for entry in _dicts(run.get("inputs")):
+            path = _str(entry.get("path"))
+            if path is None:
+                continue
+            held = merged.setdefault(path, {"entry": entry, "via": []})
+            for via in _strings(entry.get("via") or []):
+                if isinstance(via, str) and via not in held["via"]:
+                    held["via"].append(via)
+        if len(merged) > TRAIL_FOLD:
+            states: dict[str, int] = {}
+            for held in merged.values():
+                judged = state(held["entry"], own)
+                states[judged] = states.get(judged, 0) + 1
+            fold = {"id": f"run:{run_id}#inputs", "kind": "inputs", "run": run_id, "count": len(merged),
+                    "states": dict(sorted(states.items()))}
+            return [(fold, {"from": "run:" + run_id, "to": fold["id"], "kind": "read"})]
+        out = []
+        for path, held in merged.items():
+            entry = held["entry"]
+            identity = self._as_read(run_id, path)
+            judged = state(entry, own)
+            child = self._data_node(identity, _str(entry.get("sha256")), state=judged,
+                                    origin=("read", run_id, path), recorded=path)
+            ways = [TRAIL_VIA.get(v, "read") for v in held["via"]]
+            how = sorted(set(ways), key=("read", "scan", "declared").index)
+            edge = {"from": "run:" + run_id, "to": child["id"], "kind": "read", "how": how,
+                    "via": held["via"], "state": judged}
+            if identity != path:
+                edge["read_as"] = identity
+            out.append((child, edge))
+        return out
+
+    def _run_visualizations(self, run_id: str) -> list[tuple[dict, dict]]:
+        out = []
+        for vis in run_visualizations(self._runs[run_id]):
+            if vis["id"] is None:
+                continue
+            child = self._visualization_node(run_id, vis["id"])
+            out.append((child, {"from": "run:" + run_id, "to": child["id"], "kind": "made"}))
+        return out
+
+    def _producer_of(self, node: dict) -> dict | None:
+        """The producer judgment a trail uses for a data file's bytes (design 6.1): that of the run that
+        read them, or of the run whose input a record cites; for the bytes now and an import, the runs
+        that output them; None for bytes a run of the trail wrote or a record cites as its output."""
+        origin, sha = node["_origin"], node.get("sha256")
+        if origin[0] == "read":
+            return self.producer(origin[1], origin[2])
+        if origin[0] == "cited" and origin[2] == "input":
+            return self.producer(origin[1], origin[3])
+        if origin[0] in ("now", "import") and sha:
+            candidates, inferred = self.producer_candidates(node["path"], sha)
+            return {"producer": "none" if not candidates else "resolved" if len(candidates) == 1 else "ambiguous",
+                    "candidates": candidates, "inferred_candidates": inferred}
+        return None
+
+    def _writers(self, node: dict) -> list[tuple[dict, dict]]:
+        """The runs a trail says wrote a data file's bytes: the producer candidates of its judgment
+        (_producer_of), or the run whose output a record cites."""
+        origin = node["_origin"]
+        if not node.get("sha256"):
+            return []
+        if origin[0] == "cited" and origin[2] == "output":
+            run = self._run_node(origin[1])
+            return [(run, {"from": run["id"], "to": node["id"], "kind": "wrote", "basis": "observed", "recorded": True})]
+        judged = self._producer_of(node) or {}
+        inferred = set(judged.get("inferred_candidates") or [])
+        out = []
+        for candidate in judged.get("candidates") or []:
+            run = self._run_node(candidate)
+            out.append((run, {"from": run["id"], "to": node["id"], "kind": "wrote", "producer": judged["producer"],
+                              "basis": "inferred" if candidate in inferred else "observed"}))
+        return out
+
+    def _input_index(self) -> dict[tuple, list[tuple[str, dict]]]:
+        """(identity path, sha256) -> the (run, entry) of every input recorded with those bytes, in run
+        order (once per run)."""
+        if self._inputs_by_bytes is None:
+            index: dict[tuple, list] = {}
+            for path, roles in self._path_entries().items():
+                for run_id, entry in roles.get("inputs", []):
+                    sha = _str(entry.get("sha256"))
+                    rows = index.setdefault((path, sha), [])
+                    if sha and all(run_id != r for r, _ in rows):
+                        rows.append((run_id, entry))
+            self._inputs_by_bytes = index
+        return self._inputs_by_bytes
+
+    def _readers(self, node: dict, state) -> list[tuple[dict, dict]]:
+        """The runs that recorded reading a data file's bytes: when a run of the trail wrote them, those
+        of which it is a producer candidate (their own judgment), else every one."""
+        sha = node.get("sha256")
+        if not sha:
+            return []
+        origin = node["_origin"]
+        writer = origin[1] if origin[0] == "wrote" else None
+        out = []
+        for run_id, entry in self._input_index().get((node["path"], sha), []):
+            if run_id == writer:
+                continue
+            if writer is not None and writer not in self.producers(entry.get("path"), sha, consumer=run_id):
+                continue
+            run = self._run_node(run_id)
+            via = [v for v in _strings(entry.get("via") or []) if isinstance(v, str)]
+            how = sorted({TRAIL_VIA.get(v, "read") for v in via}, key=("read", "scan", "declared").index)
+            out.append((run, {"from": run["id"], "to": node["id"], "kind": "read", "how": how, "via": via,
+                              "state": state(entry, self._own_outputs(run_id))}))
+        return out
+
+    def _citing_index(self) -> dict[str, list[str]]:
+        """Query identity (and a /1 reference's raw value) -> the records and saved Report revisions
+        whose references name it, in journal order: one pass, without judging (incoming_sources)."""
+        if self._cited_by_raw is None:
+            index: dict[str, list[str]] = {}
+            for event in self.journal.in_order():
+                source = self.journal.source_of(event)
+                names: set[str] = set()
+                if event.schema == EVENT_V1:
+                    if isinstance(event.refs, dict):
+                        names.update(v for key in V1_FIELDS for v in _strings(event.refs.get(key)) if isinstance(v, str))
+                else:
+                    for ref in _dicts(event.refs):
+                        names.update(n for n in (query_target({"type": ref.get("type"), "target": ref}),
+                                                 *(ref.get(k) for k in ("event_id", "path", "key", "token")))
+                                     if isinstance(n, str))
+                for name in names:
+                    index.setdefault(name, []).append(source)
+            for _directory, manifest, staging in self._manifests:
+                based_on = manifest.get("based_on")
+                if staging or not isinstance(based_on, dict):
+                    continue
+                source = report_key(manifest.get("report_id"), manifest.get("revision_id"))
+                for ref in _dicts(based_on.get("refs")):
+                    for name in (query_target({"type": ref.get("type"), "target": ref}), ref.get("event_id"), ref.get("path")):
+                        if isinstance(name, str):
+                            index.setdefault(name, []).append(source)
+            self._cited_by_raw = index
+        return self._cited_by_raw
+
+    def _citing(self, node: dict) -> list[tuple[dict, dict]]:
+        """The records citing a node with a version (not the kit's own completion records, not a state
+        change): a record, a run, a Visualization version, a CONTEXT.md version, or a data file's bytes
+        as a run's observation of them or an import of them names them."""
+        kind = node["kind"]
+        if kind == "data":
+            origin = node["_origin"]
+            wanted = set()
+            if origin[0] in ("wrote", "read", "cited"):
+                wanted.add(origin[1])
+            names = [*wanted, node["path"]]
+        elif kind == "run":
+            names = [node["run"], node["id"]]
+        elif kind == "context":
+            names = [node["version"], node["id"]]
+        else:
+            names = [node["id"]]
+        sources: list[str] = []
+        for name in names:
+            for source in self._citing_index().get(name, []):
+                if source not in sources:
+                    sources.append(source)
+        out = []
+        for source in sources:
+            for judged in self.references(source):
+                if judged.get("relation") in TRAIL_SKIPPED or judged.get("version_binding") == "none":
+                    continue
+                if judged.get("relation") == "about" and (judged.get("basis") == "observed" or self._kit_completion(source)):
+                    continue
+                if not self._names(judged, node):
+                    continue
+                child = self._record_node(source) if not source.startswith("report:") else self._report_node(source)
+                out.append((child, self._cites(judged, node["id"])))
+        return out
+
+    def _names(self, judged: dict, node: dict) -> bool:
+        """Whether a bound reference names this node."""
+        target, kind = judged.get("target") or {}, node["kind"]
+        if kind != "data":
+            return query_target(judged) == node["id"]
+        if judged.get("type") == "data_observation":
+            # A run's input or output, named by the run, its role and the path it recorded: these bytes
+            # when that entry holds them.
+            run_id = _str(target.get("run_id"))
+            field = "inputs" if target.get("role") == "input" else "outputs"
+            entry = next((e for e in _dicts((self._runs.get(run_id) or {}).get(field))
+                          if e.get("path") == target.get("path")), None)
+            return (entry is not None and self._as_read(run_id, target.get("path")) == node["path"]
+                    and _str(entry.get("sha256")) == node.get("sha256"))
+        if judged.get("type") == "dataset_import" and target.get("path") == node["path"]:
+            # An import, named by its path (and its hash when given): the bytes of that import.
+            meta = self.import_record(node["path"]) or {}
+            return (_digest(target) or meta.get("sha256")) == node.get("sha256")
+        return False
+
+    def _trail_checks(self, root: dict, nodes: list[dict], edges: list[dict]) -> dict:
+        """What can be checked along a whole trail (design 6.2), each on its own line and never one
+        score: the start's citations, the runs' ends, their code snapshots, the imported and derived
+        data as they are now, the reruns' comparisons; analysis checks and conclusion reviews have no
+        record of their own in this record format."""
+        runs = [n for n in nodes if n["kind"] == "run"]
+        data = [n for n in nodes if n["kind"] == "data"]
+        citations = None
+        if root["kind"] == "record":
+            states: dict[str, int] = {}
+            judged_all = [j for j in self.references(root["id"]) if j.get("relation") not in TRAIL_SKIPPED]
+            for judged in judged_all:
+                states[judged["state"]] = states.get(judged["state"], 0) + 1
+            citations = {"total": len(judged_all), "states": dict(sorted(states.items())),
+                         "confirmed": sum(1 for j in judged_all if j["confirmed"])}
+        code: dict[str, list[str]] = {}
+        for node in runs:
+            run = self._runs[node["run"]]
+            held = [_str(_script(run).get("snapshot"))] + [_str(m.get("snapshot")) for m in _dicts(run.get("modules"))]
+            held = [h for h in held if h]
+            if not held:
+                code.setdefault("not_recorded", []).append(node["run"])
+                continue
+            judged = {self._resolve({"type": "code_snapshot", "run_id": node["run"], "path": h})[0] for h in held}
+            worst = next((s for s in ("missing", "content_changed", "unknown") if s in judged), "resolved")
+            code.setdefault(worst, []).append(node["run"])
+
+        def files(rows: list[dict]) -> dict:
+            states: dict[str, int] = {}
+            for row in rows:
+                states[row["state"]] = states.get(row["state"], 0) + 1
+            return {"total": len(rows), "states": dict(sorted(states.items())),
+                    "not_same": [{"path": r["path"], "sha256": r["sha256"], "state": r["state"],
+                                  **({"current_writers": r["current_writers"]} if "current_writers" in r else {})}
+                                 for r in rows if r["state"] != "same"]}
+
+        reruns = []
+        for node in runs:
+            record = self._runs[node["run"]]
+            if node["rerun_of"]:
+                reruns.append({"run": node["run"], "of": node["rerun_of"],
+                               "verdict": (run_reproduction(record) or {}).get("verdict")})
+            for rerun in self._reruns().get(node["run"], []):
+                if self._ended(rerun) is not None:
+                    reruns.append({"run": rerun, "of": node["run"],
+                                   "verdict": (run_reproduction(self._runs[rerun]) or {}).get("verdict")})
+        return {"citations": citations,
+                "runs": {"total": len(runs), "succeeded": sum(1 for n in runs if n["status"] == "ok"),
+                         "not_succeeded": [{"run": n["run"], "status": n["status"]} for n in runs if n["status"] != "ok"]},
+                "code": {state: sorted(rows) for state, rows in sorted(code.items())},
+                "imported": files([n for n in data if n["imported"]]),
+                "derived": files([n for n in data if not n["imported"]]),
+                "reruns": reruns,
+                "analysis_checks": None, "conclusion_review": None}
 
     # --- record states -----------------------------------------------------------------------------
 

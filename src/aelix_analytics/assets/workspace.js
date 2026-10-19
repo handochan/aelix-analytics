@@ -124,6 +124,10 @@
   if (state && selectedIdentity() && state.selection && state.selection !== selectedIdentity()) warn("notice.state_selection_absent");
   const tabs = Array.from(document.querySelectorAll("main > section.tab"));
   let nav;
+  // A relation page's provenance trails, one direction shown at a time (design WORKSPACE-READABILITY 6.3).
+  const trails = Array.from(document.querySelectorAll(".pv-trail"));
+  let shownTrail = trails.length ? trails[0].id : "";
+  if (trails.length) doc.classList.add("js-trail");
   function show() {
     const id = anchor();
     const target = id ? document.getElementById(id) : null;
@@ -135,9 +139,13 @@
       a.classList.toggle("on", a.dataset.tab === (tab && tab.id));
       if (a.classList.contains("on")) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
     });
+    // A trail's box or direction in the address shows that direction (design 6.3: one at a time).
+    const trail = target && target.closest && target.closest(".pv-trail");
+    if (trails.length) direction(trail ? trail.id : shownTrail);
     revealTab();
     renderVisiblePlots();
     drawRelations();
+    drawTrails();
   }
   if (tabs.length) {
     doc.classList.add("js-tabs");
@@ -159,7 +167,9 @@
       }
       nav.appendChild(a);
     });
-    document.querySelector("main").prepend(nav);
+    // A relation page names its item first and then its sections (design 6.4, mockup 7-B); the index starts with them.
+    if (/^relations\//.test(page || "") && tabs[0].before) tabs[0].before(nav);
+    else document.querySelector("main").prepend(nav);
   }
   const retired = document.getElementById("show-retired");
   // A relation page's direction filter (this page's relations): what the record cites, or what cites it.
@@ -368,6 +378,82 @@
     });
   }
   window.addEventListener("resize", drawRelations);
+  // A provenance trail (design WORKSPACE-READABILITY 6): the boxes are the list the page holds; on a wide screen the
+  // style sheet places them on their grid (--graph) and the lines between them are drawn here from data-e, each
+  // `from>to` with its kind (c cites, r read, w wrote, m made) and flags (a one of several sources, i inferred, y cycle).
+  function direction(id) {
+    const wanted = trails.find(tr => tr.id === id) || trails[0];
+    shownTrail = wanted.id;
+    trails.forEach(tr => { tr.hidden = trails.length > 1 && tr !== wanted; });
+    document.querySelectorAll(".pv-dir a").forEach(a => {
+      const on = a.getAttribute("href") === "#" + wanted.id;
+      a.classList.toggle("on", on);
+      if (on) a.setAttribute("aria-current", "true"); else a.removeAttribute("aria-current");
+    });
+  }
+  const SVG = "http://www.w3.org/2000/svg";
+  const LINE_WORDS = { c: "provenance.line.cites", r: "provenance.line.read", w: "provenance.line.wrote", m: "provenance.line.made" };
+  function drawTrails() {
+    if (!document.createElementNS) return;
+    document.querySelectorAll(".pv-list").forEach(list => {
+      const scroll = list.parentElement;
+      let svg = scroll.querySelector("svg.pv-lines");
+      let legend = scroll.parentElement.querySelector(".pv-legend");
+      const graph = !!list.offsetWidth && window.getComputedStyle(list).getPropertyValue("--graph").trim() === "1";
+      if (!graph) {
+        if (svg) svg.replaceChildren();
+        if (legend) legend.hidden = true;
+        return;
+      }
+      if (!svg) {
+        svg = document.createElementNS(SVG, "svg");
+        svg.setAttribute("class", "pv-lines"); svg.setAttribute("aria-hidden", "true"); svg.setAttribute("focusable", "false");
+        scroll.insertBefore(svg, list);
+      }
+      if (!legend) {
+        legend = document.createElement("p"); legend.className = "pv-legend";
+        kitWords(legend, "provenance.legend");
+        scroll.after(legend);
+      }
+      legend.hidden = false;
+      svg.replaceChildren();
+      const area = list.getBoundingClientRect();
+      svg.setAttribute("width", area.width); svg.setAttribute("height", area.height);
+      svg.style.left = list.offsetLeft + "px"; svg.style.top = list.offsetTop + "px";
+      const first = list.querySelector("li[id]");
+      const prefix = first ? first.id.replace(/-\d+$/, "") : "";
+      (list.dataset.e || "").split(" ").forEach(spec => {
+        const m = /^(\d+)>(\d+)([crwm])([aiy]*)$/.exec(spec);
+        const a = m && document.getElementById(prefix + "-" + m[1]), b = m && document.getElementById(prefix + "-" + m[2]);
+        if (!a || !b || a.hidden || b.hidden) return;
+        const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+        const ax = (ra.left + ra.right) / 2 - area.left, ay = (ra.top + ra.bottom) / 2 - area.top;
+        const bx = (rb.left + rb.right) / 2 - area.left, by = (rb.top + rb.bottom) / 2 - area.top;
+        let x1, y1, x2, y2, d, dx = 0, dy = 0;
+        if (Math.abs(ax - bx) < Math.min(ra.width, rb.width) / 2) {
+          // One above the other: from one box's edge to the other's, straight down or up.
+          x1 = ax; x2 = bx; y1 = ay < by ? ra.bottom - area.top : ra.top - area.top; y2 = ay < by ? rb.top - area.top : rb.bottom - area.top;
+          const mid = (y1 + y2) / 2; d = `M${x1},${y1} C${x1},${mid} ${x2},${mid} ${x2},${y2}`; dy = y2 > y1 ? 1 : -1;
+        } else {
+          x1 = ax < bx ? ra.right - area.left : ra.left - area.left; x2 = ax < bx ? rb.left - area.left : rb.right - area.left;
+          y1 = ay; y2 = by;
+          const mid = (x1 + x2) / 2; d = `M${x1},${y1} C${mid},${y1} ${mid},${y2} ${x2},${y2}`; dx = x2 > x1 ? 1 : -1;
+        }
+        const tone = m[3] === "c" ? "c" : /[ai]/.test(m[4]) ? "maybe" : "";
+        const path = document.createElementNS(SVG, "path"); path.setAttribute("d", d); if (tone) path.setAttribute("class", tone);
+        const head = document.createElementNS(SVG, "path");
+        head.setAttribute("class", "head " + tone);
+        head.setAttribute("d", dy ? `M${x2 - 4},${y2 - 6 * dy} L${x2},${y2} L${x2 + 4},${y2 - 6 * dy}Z` : `M${x2 - 6 * dx},${y2 - 4} L${x2},${y2} L${x2 - 6 * dx},${y2 + 4}Z`);
+        // The kind of a line beside it: right of a vertical line, centred above a horizontal one.
+        const label = document.createElementNS(SVG, "text");
+        label.setAttribute("x", (x1 + x2) / 2 + (dy ? 6 : 0)); label.setAttribute("y", (y1 + y2) / 2 + (dx ? -5 : 4));
+        if (dx) label.setAttribute("text-anchor", "middle");
+        kitWords(label, LINE_WORDS[m[3]]);
+        svg.append(path, head, label);
+      });
+    });
+  }
+  window.addEventListener("resize", drawTrails);
   document.querySelectorAll(".relation-diagram").forEach(el => el.addEventListener("toggle", drawRelations));
   // The diagram is a secondary disclosure: it opens by default only where its three columns fit.
   if (window.matchMedia && !window.matchMedia("(max-width: 40em)").matches) {
