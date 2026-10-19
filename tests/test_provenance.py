@@ -111,9 +111,10 @@ def test_a_record_s_trail_goes_through_its_runs_to_the_imported_data(tmp_path):
     checks = found["checks"]
     assert checks["citations"] == {"total": 1, "states": {"resolved": 1}, "confirmed": 1}
     assert checks["runs"] == {"total": 3, "succeeded": 3, "not_succeeded": []}
-    assert checks["code"] == {"resolved": sorted(ids[k] for k in ("a", "b", "c"))}
+    assert checks["code"] == {"resolved": {"count": 3, "runs": sorted(ids[k] for k in ("a", "b", "c"))}}
     assert checks["imported"]["states"] == {"same": 2} and checks["derived"]["states"] == {"changed": 2}
-    assert checks["reruns"] == [] and checks["analysis_checks"] is None and checks["conclusion_review"] is None
+    assert checks["reruns"] == {"total": 0, "verdicts": {}, "runs": []}
+    assert checks["analysis_checks"] is None and checks["conclusion_review"] is None
     # The same records give the same trail.
     assert trail(p, ids["finding"]) == found
 
@@ -234,8 +235,8 @@ def test_reruns_failed_and_unended_runs_are_said_as_recorded(tmp_path):
     assert (nodes["run:" + failed]["status"], nodes["run:" + running]["status"]) == ("error", "incomplete")
     checks = found["checks"]
     assert checks["runs"]["not_succeeded"] == [{"run": failed, "status": "error"}, {"run": running, "status": "incomplete"}]
-    assert checks["reruns"] == [{"run": rerun, "of": ids["c"], "verdict": "match"}]
-    assert checks["code"]["resolved"] and set(checks["code"]["resolved"]) >= {ids["c"], failed}
+    assert checks["reruns"] == {"total": 1, "verdicts": {"match": 1}, "runs": [{"run": rerun, "of": ids["c"], "verdict": "match"}]}
+    assert set(checks["code"]["resolved"]["runs"]) >= {ids["c"], failed}
 
 
 def test_a_state_change_is_history_and_a_name_without_a_version_is_not_followed(tmp_path):
@@ -294,11 +295,15 @@ def test_the_bounded_read_answers_a_trail_with_the_workspace_s_budget(tmp_path, 
     for other in (sdk, cli["status"]):
         assert other["items"] == core_read["items"] and other["edges"] == core_read["edges"]
         assert other["trail"] == core_read["trail"] and other["source_revision"] == core_read["source_revision"]
-    # Where depth stops it, each node to go on from is a read of its own.
+    # Where depth stops it, the trail goes on from what is beyond: from a data file's bytes, from the runs
+    # its producer judgment named, with the same direction and depth.
     one = core.status(p, part="relations", id=ids["finding"], direction="sources", depth=1)
     assert one["has_more"] and one["trail"]["continue_from"] == [
-        {"node": data(B, b"b-1"), "read": {"part": "relations", "id": B, "direction": "sources"}}]
+        {"node": data(B, b"b-1"), "read": {"part": "relations", "id": "run:" + ids["b"], "direction": "sources", "depth": 1}}]
+    # A data path starts at its bytes now; the bytes a trail met start where the trail names them.
     assert core.status(p, part="relations", id=B, direction="sources")["items"][0]["id"] == data(B, b"b-2")
+    met = core.status(p, part="relations", id=data(B, b"b-1"), direction="sources")
+    assert [n["id"] for n in met["items"]][:2] == [data(B, b"b-1"), "run:" + ids["b"]] and met["items"][0]["state"] == "changed"
 
 
 def test_over_budget_the_read_names_the_nodes_to_go_on_from(tmp_path):
@@ -388,7 +393,7 @@ def test_the_relation_page_shows_the_trail_as_its_words_and_its_boxes(tmp_path):
     # What can be checked, each on its own line, and what the trail is not.
     checks = section(tab, '<aside class="pv-checks">', "</aside>")
     assert checks.count("<li class=\"ck-") == 7 and "row-level lineage" in checks
-    assert "1 of 1 citations are exact links" in checks and "0 of 2 derived files unchanged since read" in checks
+    assert "1 of 1 citations are exact links" in checks and "0 of 2 derived files unchanged" in checks
     # A record with no citation has no Provenance tab; its relations come first.
     assert '<section id="provenance"' in relation_page(p, ids["note"])  # the note cites run A
     uncited = core.record(p, "note", "인용 없음", origin=ORIGIN).event["id"]
@@ -417,3 +422,178 @@ def test_the_controller_shows_one_direction_and_puts_the_tabs_under_the_record(t
     result = subprocess.run(["node", str(script), str(PACK / "src" / "aelix_analytics" / "assets")],
                             capture_output=True, text=True, encoding="utf-8", timeout=60)
     assert result.returncode == 0, result.stderr + result.stdout
+
+
+# --- what the reviews of #121 found (Codex R1–R10, independent I1–I11, N1–N8) -------------------------
+
+def test_reruns_are_counted_once_with_what_each_re_executed(tmp_path):
+    """R3·I1: a rerun of a rerun names the rerun it re-executed, and each rerun counts once even when the
+    original and its reruns are all on the trail (a matching rerun is a producer candidate too)."""
+    q = LegacyProject(tmp_path / "p", migrated=True)
+    x = ("data/derived/x.parquet", q.file("data/derived/x.parquet", b"x"))
+    o = q.run(run_id(1, "o"), script="scripts/o.py", started_at=at(1), ts=at(2), outputs=[x])
+    r1 = q.run(run_id(3, "o"), script="scripts/o.py", started_at=at(3), ts=at(4), outputs=[x])
+    r2 = q.run(run_id(5, "o"), script="scripts/o.py", started_at=at(5), ts=at(6), outputs=[x])
+    for rerun, of in ((r1, o), (r2, r1)):
+        set_run(q, rerun, rerun_of=of, reproduction={"of": of, "verdict": "match", "inputs_same": True, "charts": {}, "outputs": {}})
+    unchecked = q.run(run_id(7, "o"), script="scripts/o.py", started_at=at(7), ts=at(8))
+    set_run(q, unchecked, rerun_of=o)
+    use = q.run(run_id(9, "use"), script="scripts/use.py", started_at=at(9), ts=at(10), inputs=[x])
+    p = core.Project(q.root)
+    cites = core.record(p, "finding", "x", origin=ORIGIN, refs=[{"type": "run", "run_id": use, "relation": "cites"}]).event["id"]
+    reruns = trail(p, cites)["checks"]["reruns"]
+    assert reruns["total"] == 3 and reruns["verdicts"] == {"match": 2, "none": 1}
+    assert sorted((r["run"], r["of"]) for r in reruns["runs"]) == sorted([(r1, o), (r2, r1), (unchecked, o)])
+    workspace.build(p)
+    assert "<k-w>No comparison recorded</k-w> 1" in relation_page(p, cites)
+
+
+def cycle_project(tmp_path):
+    q = LegacyProject(tmp_path / "p", migrated=True)
+    x = ("data/derived/x.parquet", q.file("data/derived/x.parquet", b"x"))
+    y = ("data/derived/y.parquet", q.file("data/derived/y.parquet", b"y"))
+    a = q.run("20261001-090000-cycle-a", script="scripts/a.py", started_at=at(0), ts=at(1), inputs=[y], outputs=[x])
+    b = q.run("20261001-090000-cycle-b", script="scripts/b.py", started_at=at(0), ts=at(1), inputs=[x], outputs=[y])
+    return core.Project(q.root), a, b
+
+
+def test_a_cycle_between_two_branches_is_found(tmp_path):
+    """R4·I7: a record citing both runs of a cycle reaches each first from the record; the cycle between
+    them is still found, as upstream() finds it."""
+    p, a, b = cycle_project(tmp_path)
+    both = core.record(p, "finding", "both", origin=ORIGIN,
+                       refs=[{"type": "run", "run_id": r, "relation": "cites"} for r in (a, b)]).event["id"]
+    found = trail(p, both)
+    assert core.read_model(p).upstream(a)["cycle"] and found["cycles"]
+    assert len({n["id"] for n in found["nodes"]}) == len(found["nodes"])
+
+
+def test_what_uses_bytes_follows_only_references_the_reader_found(tmp_path):
+    """I4·R5: a reference judged missing (a record not there when cited, a digest that differs) is no use:
+    the trail of uses stops where the trail of sources stops, and no record cycle appears."""
+    p, ids = chain_project(tmp_path)
+    q = LegacyProject.__new__(LegacyProject)
+    q.root, q.seq, q.minute = p.root, 0, 40
+    later = core.read_model(p).journal.next_seq + 1
+    forward = core.record(p, "note", "앞으로의 기록을 가리킴", origin=ORIGIN,
+                          refs=[{"type": "event", "event_id": f"e{later}", "relation": "cites"}]).event["id"]
+    target = core.record(p, "note", "나중 기록", origin=ORIGIN,
+                         refs=[{"type": "event", "event_id": forward, "relation": "cites"}]).event["id"]
+    assert target == f"e{later}"
+    uses = trail(p, target, "uses")
+    assert forward not in nodes_of(uses) and uses["cycles"] == []
+    wrong = core.record(p, "finding", "다른 바이트", origin=ORIGIN, refs=[
+        {"type": "data_observation", "run_id": ids["b"], "role": "output", "path": B, "relation": "cites",
+         "digest": {"sha256": sha(b"other")}}]).event["id"]
+    exact = core.record(p, "finding", "같은 바이트", origin=ORIGIN, refs=[
+        {"type": "data_observation", "run_id": ids["b"], "role": "output", "path": B, "relation": "cites",
+         "digest": {"sha256": sha(b"b-1")}}]).event["id"]
+    found = nodes_of(trail(p, "run:" + ids["b"], "uses"))
+    assert exact in found and wrong not in found
+
+
+def test_uses_find_citations_and_readers_through_an_older_kit_s_path(tmp_path, monkeypatch):
+    """R6: a record citing an older run's input in its own spelling uses those bytes, and the reader's edge
+    says the path was read as today's (inferred)."""
+    q = LegacyProject(tmp_path / "p", migrated=True)
+    agg = ("data/derived/agg.parquet", q.file("data/derived/agg.parquet", b"agg"))
+    maker = q.run(run_id(1, "maker"), script="scripts/m.py", started_at=at(1), ts=at(2), outputs=[agg], kit_version="0.5.0")
+    old = "data/derived/AGG.parquet"
+    reader = q.run(run_id(3, "reader"), script="scripts/r.py", started_at=at(3), ts=at(4), inputs=[(old, agg[1])])
+    monkeypatch.setattr(core.Project, "legacy_identity", lambda self, recorded: {old: agg[0]}.get(recorded))
+    p = core.Project(q.root)
+    cites = core.record(p, "finding", "옛 철자로 인용", origin=ORIGIN, refs=[
+        {"type": "data_observation", "run_id": reader, "role": "input", "path": old, "relation": "cites"}]).event["id"]
+    found = trail(p, "run:" + maker, "uses")
+    assert cites in nodes_of(found)
+    read = next(e for e in found["edges"] if e["kind"] == "read")
+    assert (read["from"], read["read_as"]) == ("run:" + reader, agg[0])
+
+
+def test_a_directory_or_a_uri_start_is_unknown_not_missing(tmp_path):
+    """R7·N1: bytes the reader cannot hash — a directory, a URI — are of unknown state, as a run's input is."""
+    q = LegacyProject(tmp_path / "p", migrated=True)
+    (q.root / "data" / "folder").mkdir(parents=True)
+    q.run(run_id(1, "a"), script="scripts/a.py", started_at=at(1), ts=at(2),
+          inputs=[("data/folder", None), ("s3://bucket/table", None)])
+    p = core.Project(q.root)
+    model = core.read_model(p)
+    assert model.trail_start("data/folder")["state"] == "unknown"
+    assert model.trail_start("s3://bucket/table")["state"] == "unknown"
+    assert model._observed_input_state({"path": "data/folder", "sha256": "0" * 64}) == "unknown"
+
+
+def test_the_start_is_never_where_a_read_goes_on(tmp_path):
+    """I5·R2: when the start's own edges pass the budget, the read goes on from what is beyond it, never
+    from the start again; a data file's bytes are named so that the read keeps them."""
+    q = LegacyProject(tmp_path / "p", migrated=True)
+    outputs = [(f"data/derived/o{n:02d}.parquet", q.file(f"data/derived/o{n:02d}.parquet", f"o{n}".encode())) for n in range(25)]
+    run = q.run(run_id(1, "wide"), script="scripts/w.py", started_at=at(1), ts=at(2), outputs=outputs)
+    p = core.Project(q.root)
+    read = core.status(p, part="relations", id="run:" + run, direction="uses")
+    ids_ = [go["read"]["id"] for go in read["trail"]["continue_from"]]
+    assert ids_ and "run:" + run not in ids_ and all(i.startswith("data:data/derived/o") for i in ids_)
+    first = core.status(p, part="relations", id=ids_[0], direction="uses")
+    assert first["items"][0]["id"] == ids_[0]
+
+
+def test_answers_are_the_caller_s_to_change(tmp_path):
+    """R10: changing a list in an answer changes nothing the next read gives."""
+    p, ids = chain_project(tmp_path)
+    model = core.read_model(p)
+    fresh = core.Freshness(p, [], None, model)
+    first = model.provenance(ids["finding"], input_state=fresh.input_state)
+    next(e for e in first["edges"] if e["kind"] == "read")["how"].append("tampered")
+    second = model.provenance(ids["finding"], input_state=fresh.input_state)
+    assert all("tampered" not in e.get("how", []) for e in second["edges"])
+
+
+def test_an_id_several_lines_share_is_ambiguous_in_a_trail_read(tmp_path):
+    """I10: as in every other read."""
+    q = LegacyProject(tmp_path / "p", migrated=True)
+    q.event("finding", {}, seq=1, text="first")
+    q.event("finding", {}, seq=1, text="again")
+    with pytest.raises(core.AnalyticsError) as raised:
+        core.status(core.Project(q.root), part="relations", id="e1", direction="sources")
+    assert raised.value.code == "ambiguous_id"
+
+
+def test_each_direction_has_its_checks_and_goes_on_in_its_own_direction(tmp_path):
+    """R1·I6·N2: a run's page shows what can be checked along each direction with that direction; a
+    uses trail's continue links open that direction (or the relations of a page with none); an output is
+    compared with what was written."""
+    p, ids = chain_project(tmp_path)
+    workspace.build(p)
+    html = relation_page(p, "run:" + ids["a"])
+    sources = section(html, '<div class="pv-trail" id="trail-sources">', '<div class="pv-trail" id="trail-uses">')
+    uses = section(html, '<div class="pv-trail" id="trail-uses">', '<section id="related"')
+    assert sources.count('<aside class="pv-checks">') == 1 and uses.count('<aside class="pv-checks">') == 1
+    assert "1 of 1 runs succeeded" in sources and "1 of 1 runs succeeded" not in uses
+    assert "<k-w>Changed since written</k-w>" in uses and "<k-w>Changed since written</k-w>" not in sources
+    assert "#provenance" not in uses
+
+
+def test_every_relation_page_keeps_its_history(tmp_path):
+    """I2·N6: a corrected record's later relation pages show its correction history too, inside the History
+    tab under its heading; a path with versions and no dataset page says how many."""
+    p, ids = chain_project(tmp_path)
+    for n in range(20):
+        core.record(p, "note", f"인용 {n}", origin=ORIGIN, refs=[{"type": "event", "event_id": ids["finding"], "relation": "cites"}])
+    core.record(p, "finding", "정정", origin=ORIGIN, refs=[{"type": "event", "event_id": ids["finding"], "relation": "supersedes"}])
+    workspace.build(p)
+    for page in (0, 1):
+        history = section(relation_page(p, ids["finding"], page), '<section id="history" class="tab">', "</section>\n<section")
+        assert "<h3><k-w>Correction history</k-w></h3>" in history and "Nothing records" not in history
+
+
+def test_the_codec_keeps_a_relation_page_s_tab(tmp_path):
+    """R8: the URL state (C11) keeps the Provenance, All relations and History tabs."""
+    script = ("const codec = require(process.argv[1]);"
+              "for (const tab of ['provenance', 'related', 'history']) {"
+              "  const v = codec.normalize({v: 1, page: 'relations/a-0.html', tab});"
+              "  if (!v || v.tab !== tab) { console.error(tab, JSON.stringify(v)); process.exit(1); } }")
+    if shutil.which("node") is None:
+        pytest.skip("node is not installed")
+    result = subprocess.run(["node", "-e", script, str(PACK / "src" / "aelix_analytics" / "assets" / "workspace-state.js")],
+                            capture_output=True, text=True, encoding="utf-8", timeout=60)
+    assert result.returncode == 0, result.stderr

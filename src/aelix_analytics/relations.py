@@ -436,6 +436,8 @@ TRAIL_FOLD = 12
 # References that change a record's state (a correction, an update, a resolved question) are its
 # history, not what it was made from: a trail does not follow them.
 TRAIL_SKIPPED = frozenset({"supersedes", "updates", "resolves"})
+# How many items a check line of a trail names; it counts them all (design 6.2).
+TRAIL_CHECK_ROWS = 20
 # How a run recorded an input, as a trail says it (design 6.1): read while it ran, found by the
 # static scan, or declared. A run's `inputs[].via` holds the names; every other name is a read.
 TRAIL_VIA = {"scan": "scan", "declared": "declared"}
@@ -479,6 +481,11 @@ def _str(value) -> str | None:
 
 def _dicts(items) -> list[dict]:
     return [item for item in items if isinstance(item, dict)] if isinstance(items, list) else []
+
+
+def _fresh(value: dict) -> dict:
+    """A dict of a read's answer, its lists its own (a caller may change them; the read keeps its)."""
+    return {k: list(v) if isinstance(v, list) else v for k, v in value.items()}
 
 
 def _strings(value) -> list:
@@ -2998,8 +3005,9 @@ class ReadModel:
     def trail_start(self, identity) -> dict | None:
         """The node a trail from `identity` begins with — a record (`e<seq>`, `journal:<line>`,
         `report:<report_id>/<revision_id>`), a run (`run:<run_id>`), a Visualization version
-        (`<run_id>/<visualization_id>`), a CONTEXT.md version (`context:<name>`) or a data file (its
-        identity path, as its bytes are now) — or None when this read knows nothing by it."""
+        (`<run_id>/<visualization_id>`), a CONTEXT.md version (`context:<name>`), a data file (its
+        identity path, as its bytes are now) or bytes a record holds for it (`data:<path>@<sha256>`, as a
+        trail names a data node) — or None when this read knows nothing by it."""
         if not isinstance(identity, str):
             return None
         event = self.journal.event_of(identity)
@@ -3016,10 +3024,36 @@ class ReadModel:
         run_id, _, vis_id = identity.partition("/")
         if run_id in self._runs and any(v["id"] == vis_id for v in run_visualizations(self._runs[run_id])):
             return self._visualization_node(run_id, vis_id)
+        if identity.startswith("data:") and "@" in identity:
+            path, _, sha = identity[len("data:"):].rpartition("@")
+            if sha and self._holds(path, sha):
+                return self._data_node(path, sha, state=self._state_now(path, sha), origin=("bytes",))
+            return None
         if identity in self._path_entries() or self._imports(identity):
             current = self._sha(self.root / identity)
-            return self._data_node(identity, current, state="same" if current else "missing", origin=("now",))
+            state = "same" if current else "missing" if self._state_now(identity, None) == "missing" else "unknown"
+            return self._data_node(identity, current, state=state, origin=("now",))
         return None
+
+    def _holds(self, path: str, sha: str) -> bool:
+        """Whether a run's input or output, or an import record, holds these bytes at this path."""
+        if any(_str(meta.get("sha256")) == sha for meta in self._imports(path)):
+            return True
+        return any(_str(entry.get("sha256")) == sha for entries in self._path_entries().get(path, {}).values()
+                   for _, entry in entries)
+
+    def _state_now(self, path: str, sha) -> str:
+        """Bytes against the file at `path` now: `same`, `changed`, `missing`, or `unknown` for a URI, a
+        directory or no hash — as core's input state reads a run's input (Freshness.input_state)."""
+        target = self.root / path
+        if "://" in path or target.is_dir():
+            return "unknown"
+        current = self._sha(target)
+        if current is None:
+            return "missing"
+        if not sha:
+            return "unknown"
+        return "same" if current == sha else "changed"
 
     def provenance(self, start: str, direction: str = "sources", *, depth: int | None = None,
                    budget: tuple[int, int] = TRAIL_BUDGET, input_state=None) -> dict | None:
@@ -3051,12 +3085,11 @@ class ReadModel:
         root["step"] = 1 if root["kind"] == "run" else 0
         found: dict[str, dict] = {root["id"]: root}
         order = [root["id"]]
-        parent: dict[str, str | None] = {root["id"]: None}
         edges: list[dict] = []
         tree: list[bool] = []
         seen_edges: set[tuple] = set()
-        cycles: list[dict] = []
-        closing: set[int] = set()
+        arcs: list[tuple[str, str]] = []
+        beyond: dict[str, list[str]] = {}
         heap = [(root["step"], 0, root["id"])]
         count = 0
         while heap:
@@ -3070,28 +3103,23 @@ class ReadModel:
                 new = cid not in found
                 if new and run and depth is not None and child_step > depth:
                     node["beyond_depth"] = True
+                    beyond.setdefault(nid, []).append(cid)
                     continue
                 seen_edges.add(key)
                 edges.append(edge)
+                arcs.append((nid, cid))
                 if new:
                     child = dict(child)
                     child["step"] = child_step
                     found[cid] = child
                     order.append(cid)
-                    parent[cid] = nid
                     tree.append(True)
                     count += 1
                     heapq.heappush(heap, (child_step, count, cid))
                     continue
                 tree.append(False)
-                walk = nid
-                while walk is not None and walk != cid:
-                    walk = parent[walk]
-                if walk is not None:
-                    # Back to a node on this walk's own path (only runs that started at the same instant,
-                    # or whose start cannot be read, make one): said, and the walk stops there.
-                    closing.add(len(edges) - 1)
-                    cycles.append({"from": edge["from"], "to": edge["to"]})
+        closing = self._closing(root["id"], arcs)
+        cycles = [{"from": edges[n]["from"], "to": edges[n]["to"]} for n in sorted(closing)]
         place = {nid: n for n, nid in enumerate(order)}
         nodes_budget, edges_budget = budget
         shown = sorted(order, key=lambda nid: (found[nid]["step"], place[nid]))[:nodes_budget]
@@ -3103,34 +3131,83 @@ class ReadModel:
             if not tree[n] and edge["from"] in inside and edge["to"] in inside:
                 kept.append(n)
         kept_set = set(kept)
-        for n, edge in enumerate(edges):
-            if n not in kept_set:
-                for end in (edge["from"], edge["to"]):
-                    if end in inside:
-                        found[end]["continues"] = True
+        # Where to go on (design 6.3): from a node an edge not shown leaves, or from the node beyond it
+        # when that node is the start (reading it again gives the same answer) or a data file (its
+        # producer candidates are those of the run that read it, kept by going on from them).
+        proceed: list[dict] = []
+        seen_proceed: set[tuple] = set()
+
+        def go_on(node_id: str, target: str) -> None:
+            # Bytes without a hash (`@?<run>`) are no start: nothing names them again.
+            if (node_id, target) not in seen_proceed and "@?" not in target:
+                seen_proceed.add((node_id, target))
+                proceed.append({"node": node_id, "id": target})
+
+        for n, (nid, cid) in enumerate(arcs):
+            if n in kept_set:
+                continue
+            for end in (edges[n]["from"], edges[n]["to"]):
+                if end in inside:
+                    found[end]["continues"] = True
+            if nid in inside and cid not in inside:
+                go_on(nid, cid if nid == root["id"] or found[nid]["kind"] == "data" else nid)
+        for nid in shown:
+            for cid in beyond.get(nid, []):
+                go_on(nid, cid if nid == root["id"] or found[nid]["kind"] == "data" else nid)
         all_nodes = [found[nid] for nid in order]
         checks = self._trail_checks(root, all_nodes, edges)
         for node in all_nodes:
             node.pop("_origin", None)  # how the walk met a data file: its own, not the trail's
         return {"start": root["id"], "direction": direction, "depth": depth,
                 "budget": {"nodes": nodes_budget, "edges": edges_budget},
-                "nodes": [found[nid] for nid in shown],
-                "edges": [{**edges[n], "cycle": True} if n in closing else dict(edges[n]) for n in sorted(kept_set)],
+                "nodes": [_fresh(found[nid]) for nid in shown],
+                "edges": [_fresh({**edges[n], "cycle": True} if n in closing else edges[n]) for n in sorted(kept_set)],
                 "omitted": {"nodes": len(order) - len(shown), "edges": len(edges) - len(kept_set)},
                 "total": {"nodes": len(order), "edges": len(edges)},
                 "cycles": cycles,
+                "continue_from": proceed,
                 "checks": checks}
 
+    @staticmethod
+    def _closing(start: str, arcs: list[tuple[str, str]]) -> set[int]:
+        """The edges that close a cycle: a step of the walk back to a node still on its path, found by a
+        depth-first walk over every step the trail took (not only the first path to each node), as
+        upstream() finds one. Only runs that started at the same instant, or whose start cannot be read,
+        make one; the trail stops there, each node shown once."""
+        out: dict[str, list[tuple[int, str]]] = {}
+        for n, (a, b) in enumerate(arcs):
+            out.setdefault(a, []).append((n, b))
+        closing: set[int] = set()
+        on_path, done = {start}, set()
+        stack = [(start, iter(out.get(start, [])))]
+        while stack:
+            node, steps = stack[-1]
+            nxt = next(steps, None)
+            if nxt is None:
+                stack.pop()
+                on_path.discard(node)
+                done.add(node)
+                continue
+            n, child = nxt
+            if child in on_path:
+                closing.add(n)
+            elif child not in done:
+                on_path.add(child)
+                stack.append((child, iter(out.get(child, []))))
+        return closing
+
     def _observed_input_state(self, entry: dict, own_outputs: dict | None = None) -> str:
-        """An input's state from its observation (a reference to it, judged): without core's rule for a
-        file the run read and wrote again, or a directory."""
+        """An input's state as core's rule reads one (Freshness.input_state), for when no rule is passed:
+        `unknown` without a hash, for a directory or a URI; `missing`; `same`, also for a file the run read
+        and wrote again (`own_outputs`, keyed by the paths the run recorded: the entry's `recorded`); or
+        `changed`."""
+        path = str(entry.get("path"))
         if not _str(entry.get("sha256")):
             return "unknown"
-        state, _, _ = self._compare(self.root / str(entry.get("path")), entry["sha256"])
-        current = self._sha(self.root / str(entry.get("path")))
-        if state == "content_changed" and own_outputs and own_outputs.get(entry.get("path")) == current:
+        state = self._state_now(path, entry["sha256"])
+        if state == "changed" and own_outputs and own_outputs.get(entry.get("recorded", path)) == self._sha(self.root / path):
             return "same"
-        return {"resolved": "same", "content_changed": "changed"}.get(state, state)
+        return state
 
     # The nodes of a trail. Each is a dict of what the records say of one thing; `id` is the trail's
     # name for it: the query identity of a record, a run (`run:`), a Visualization version or a CONTEXT.md
@@ -3202,7 +3279,8 @@ class ReadModel:
     def _data_node(self, path: str, sha256, *, state: str, origin: tuple, recorded=None) -> dict:
         """The bytes `sha256` of a data file at identity path `path`. `origin` is how the trail met them
         (the producer candidates and readers follow from it): `("read", run, path as the run recorded
-        it)`, `("wrote", run)`, `("cited", run, role, recorded path)`, `("import",)`, `("now",)`."""
+        it)`, `("wrote", run)`, `("cited", run, role, recorded path)`, `("import",)`, `("now",)` (the bytes
+        now) or `("bytes",)` (bytes named by `data:<path>@<sha256>`)."""
         imported = bool(self._imports(path))
         number = total = None
         if sha256:
@@ -3215,6 +3293,8 @@ class ReadModel:
         node = {"id": f"data:{path}@" + (sha256 or "?" + str(origin[1] if len(origin) > 1 else "")),
                 "kind": "data", "path": path, "sha256": sha256, "imported": imported, "state": state,
                 "version": number, "versions": total, "_origin": origin}
+        if origin[0] == "wrote":
+            node["written"] = True  # its state is the file now against what the run wrote, not read
         producer = self._producer_of(node)
         if producer is not None:
             node["producer"] = producer["producer"]
@@ -3255,7 +3335,8 @@ class ReadModel:
                 path = self._as_read(run_id, _str(entry.get("path")) or "")
                 sha = _str(entry.get("sha256"))
                 own = self._own_outputs(run_id) if role == "input" else None
-                return self._data_node(path, sha, state=self._observed_input_state({"path": path, "sha256": sha}, own),
+                return self._data_node(path, sha, state=self._observed_input_state(
+                    {"path": path, "sha256": sha, "recorded": entry.get("path")}, own),
                                        origin=("cited", run_id, role, entry.get("path")), recorded=entry.get("path"))
             if kind == "dataset_import" and isinstance(target.get("path"), str):
                 meta = self.import_record(target["path"]) or {}
@@ -3388,13 +3469,14 @@ class ReadModel:
     def _producer_of(self, node: dict) -> dict | None:
         """The producer judgment a trail uses for a data file's bytes (design 6.1): that of the run that
         read them, or of the run whose input a record cites; for the bytes now and an import, the runs
-        that output them; None for bytes a run of the trail wrote or a record cites as its output."""
+        that output them (as for bytes a trail names, `data:<path>@<sha256>`); None for bytes a run of the trail
+        wrote or a record cites as its output."""
         origin, sha = node["_origin"], node.get("sha256")
         if origin[0] == "read":
             return self.producer(origin[1], origin[2])
         if origin[0] == "cited" and origin[2] == "input":
             return self.producer(origin[1], origin[3])
-        if origin[0] in ("now", "import") and sha:
+        if origin[0] in ("now", "import", "bytes") and sha:
             candidates, inferred = self.producer_candidates(node["path"], sha)
             return {"producer": "none" if not candidates else "resolved" if len(candidates) == 1 else "ambiguous",
                     "candidates": candidates, "inferred_candidates": inferred}
@@ -3423,12 +3505,13 @@ class ReadModel:
         order (once per run)."""
         if self._inputs_by_bytes is None:
             index: dict[tuple, list] = {}
+            seen: set[tuple] = set()
             for path, roles in self._path_entries().items():
                 for run_id, entry in roles.get("inputs", []):
                     sha = _str(entry.get("sha256"))
-                    rows = index.setdefault((path, sha), [])
-                    if sha and all(run_id != r for r, _ in rows):
-                        rows.append((run_id, entry))
+                    if sha and (path, sha, run_id) not in seen:
+                        seen.add((path, sha, run_id))
+                        index.setdefault((path, sha), []).append((run_id, entry))
             self._inputs_by_bytes = index
         return self._inputs_by_bytes
 
@@ -3449,8 +3532,11 @@ class ReadModel:
             run = self._run_node(run_id)
             via = [v for v in _strings(entry.get("via") or []) if isinstance(v, str)]
             how = sorted({TRAIL_VIA.get(v, "read") for v in via}, key=("read", "scan", "declared").index)
-            out.append((run, {"from": run["id"], "to": node["id"], "kind": "read", "how": how, "via": via,
-                              "state": state(entry, self._own_outputs(run_id))}))
+            edge = {"from": run["id"], "to": node["id"], "kind": "read", "how": how, "via": via,
+                    "state": state(entry, self._own_outputs(run_id))}
+            if entry.get("path") != node["path"]:
+                edge["read_as"] = node["path"]  # the run recorded another spelling (ADR-0006 9): inferred
+            out.append((run, edge))
         return out
 
     def _citing_index(self) -> dict[str, list[str]]:
@@ -3484,16 +3570,18 @@ class ReadModel:
         return self._cited_by_raw
 
     def _citing(self, node: dict) -> list[tuple[dict, dict]]:
-        """The records citing a node with a version (not the kit's own completion records, not a state
-        change): a record, a run, a Visualization version, a CONTEXT.md version, or a data file's bytes
-        as a run's observation of them or an import of them names them."""
+        """The records citing a node with a version whose target the reader found (`resolved` or
+        `content_changed`: a reference judged missing, a digest that differs or a record not there when
+        cited is not a use, as a trail toward sources stops at it), not the kit's own completion records
+        and not a state change: a record, a run, a Visualization version, a CONTEXT.md version, or a data
+        file's bytes as a run's observation of them (in any spelling the run recorded) or an import names them."""
         kind = node["kind"]
         if kind == "data":
-            origin = node["_origin"]
-            wanted = set()
-            if origin[0] in ("wrote", "read", "cited"):
-                wanted.add(origin[1])
-            names = [*wanted, node["path"]]
+            names = [node["path"]]
+            for entries in self._path_entries().get(node["path"], {}).values():
+                for run_id, entry in entries:
+                    if node.get("sha256") and _str(entry.get("sha256")) == node["sha256"]:
+                        names += [run_id, str(entry.get("path"))]
         elif kind == "run":
             names = [node["run"], node["id"]]
         elif kind == "context":
@@ -3501,14 +3589,18 @@ class ReadModel:
         else:
             names = [node["id"]]
         sources: list[str] = []
-        for name in names:
+        seen: set[str] = set()
+        for name in dict.fromkeys(names):
             for source in self._citing_index().get(name, []):
-                if source not in sources:
+                if source not in seen:
+                    seen.add(source)
                     sources.append(source)
         out = []
         for source in sources:
             for judged in self.references(source):
                 if judged.get("relation") in TRAIL_SKIPPED or judged.get("version_binding") == "none":
+                    continue
+                if judged.get("state") not in ("resolved", "content_changed"):
                     continue
                 if judged.get("relation") == "about" and (judged.get("basis") == "observed" or self._kit_completion(source)):
                     continue
@@ -3531,7 +3623,8 @@ class ReadModel:
             entry = next((e for e in _dicts((self._runs.get(run_id) or {}).get(field))
                           if e.get("path") == target.get("path")), None)
             return (entry is not None and self._as_read(run_id, target.get("path")) == node["path"]
-                    and _str(entry.get("sha256")) == node.get("sha256"))
+                    and _str(entry.get("sha256")) == node.get("sha256")
+                    and _digest(target) in (None, node.get("sha256")))
         if judged.get("type") == "dataset_import" and target.get("path") == node["path"]:
             # An import, named by its path (and its hash when given): the bytes of that import.
             meta = self.import_record(node["path"]) or {}
@@ -3567,6 +3660,8 @@ class ReadModel:
                 states[judged["state"]] = states.get(judged["state"], 0) + 1
             citations = {"total": len(judged_all), "states": dict(sorted(states.items())),
                          "confirmed": sum(1 for j in judged_all if j["confirmed"])}
+        # Each line counts the whole trail and names its first TRAIL_CHECK_ROWS: a long trail's answer stays bounded.
+        cap = TRAIL_CHECK_ROWS
         code: dict[str, list[str]] = {}
         for node in runs:
             code.setdefault(self._code_state(node["run"]), []).append(node["run"])
@@ -3578,25 +3673,27 @@ class ReadModel:
             return {"total": len(rows), "states": dict(sorted(states.items())),
                     "not_same": [{"path": r["path"], "sha256": r["sha256"], "state": r["state"],
                                   **({"current_writers": r["current_writers"]} if "current_writers" in r else {})}
-                                 for r in rows if r["state"] != "same"]}
+                                 for r in rows if r["state"] != "same"][:cap]}
 
-        reruns = []
+        # A rerun once, with what it re-executed as its record says (a rerun of a rerun names that rerun).
+        reruns: dict[str, dict] = {}
         for node in runs:
-            record = self._runs[node["run"]]
-            if node["rerun_of"]:
-                reruns.append({"run": node["run"], "of": node["rerun_of"],
-                               "verdict": (run_reproduction(record) or {}).get("verdict")})
-            for rerun in self._reruns().get(node["run"], []):
-                if self._ended(rerun) is not None:
-                    reruns.append({"run": rerun, "of": node["run"],
-                                   "verdict": (run_reproduction(self._runs[rerun]) or {}).get("verdict")})
+            for rerun in ([node["run"]] if node["rerun_of"] else []) + self._reruns().get(node["run"], []):
+                if rerun not in reruns and self._ended(rerun) is not None:
+                    record = self._runs[rerun]
+                    reruns[rerun] = {"run": rerun, "of": _str(record.get("rerun_of")),
+                                     "verdict": (run_reproduction(record) or {}).get("verdict")}
+        verdicts: dict[str, int] = {}
+        for rerun in reruns.values():
+            key = str(rerun["verdict"]) if rerun["verdict"] is not None else "none"
+            verdicts[key] = verdicts.get(key, 0) + 1
+        not_succeeded = [{"run": n["run"], "status": n["status"]} for n in runs if n["status"] != "ok"]
         return {"citations": citations,
-                "runs": {"total": len(runs), "succeeded": sum(1 for n in runs if n["status"] == "ok"),
-                         "not_succeeded": [{"run": n["run"], "status": n["status"]} for n in runs if n["status"] != "ok"]},
-                "code": {state: sorted(rows) for state, rows in sorted(code.items())},
+                "runs": {"total": len(runs), "succeeded": len(runs) - len(not_succeeded), "not_succeeded": not_succeeded[:cap]},
+                "code": {state: {"count": len(rows), "runs": sorted(rows)[:cap]} for state, rows in sorted(code.items())},
                 "imported": files([n for n in data if n["imported"]]),
                 "derived": files([n for n in data if not n["imported"]]),
-                "reruns": reruns,
+                "reruns": {"total": len(reruns), "verdicts": dict(sorted(verdicts.items())), "runs": list(reruns.values())[:cap]},
                 "analysis_checks": None, "conclusion_review": None}
 
     # --- record states -----------------------------------------------------------------------------

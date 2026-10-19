@@ -552,13 +552,14 @@ ol.vh-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(
 /* Provenance (design 6, mockups 7-B and 7-C): one list is the trail's words and its boxes. Without a script or on a
    narrow screen it is the vertical path; a wide screen with a script places the boxes on the grid each one names
    (grid-area) and draws the lines between them. Kind by colour, shape and words; state by a mark and words. */
-.pv-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(min(100%, 16rem), 20rem); gap: 1rem; align-items: start; }
+/* A direction: its path and what can be checked along it, side by side. */
+.pv-trail { display: grid; grid-template-columns: minmax(0, 1fr) minmax(min(100%, 16rem), 20rem); gap: 1rem; align-items: start; margin-bottom: 0.875rem; }
 .pv-dir { display: flex; flex-wrap: wrap; gap: 0.375rem; margin: 0.5rem 0 0.75rem; }
 .pv-dir a { display: inline-flex; align-items: center; min-height: 2.75rem; padding: 0 0.875rem; border: 1px solid var(--border); border-radius: 999px;
   color: var(--ink-2); background: var(--card); }
 .pv-dir a.on { border-color: var(--accent); color: var(--ink); background: var(--accent-wash); font-weight: 600; }
-.pv-trail { min-width: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.75rem 0.875rem; margin-bottom: 0.875rem; }
-.pv-trail h3 { margin: 0 0 0.5rem; }
+.pv-path { min-width: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.75rem 0.875rem; }
+.pv-path h3 { margin: 0 0 0.5rem; }
 .pv-note, .pv-legend { margin: 0 0 0.5rem; color: var(--ink-2); font-size: 0.8125rem; overflow-wrap: anywhere; }
 .pv-scroll { position: relative; overflow-x: auto; padding-bottom: 0.25rem; }
 /* As a list the boxes are one column in the order the page holds them; the grid places only the graph's. */
@@ -568,7 +569,7 @@ ol.vh-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(
 .pv p { margin: 0; }
 .pv .pk { color: color-mix(in srgb, var(--kc) 70%, var(--ink)); font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
 .pv .pn { font-weight: 600; white-space: pre-wrap; }
-.pv .pn a, .pv .pj a, .pv .pf a { display: inline-flex; align-items: center; min-height: 2.75rem; }
+.pv .pn a, .pv .pj a, .pv .pf a { display: inline-flex; align-items: center; min-height: 2.75rem; min-width: 1.5rem; }
 .pv .pf, .pv .pj { font-size: 0.78rem; color: var(--ink-2); }
 .pv-data { --kc: var(--k-import); }
 .pv-viz { --kc: var(--k-viz); }
@@ -625,7 +626,7 @@ ol.vh-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(
   .js-trail .pv :is(.pf, .pj) a, .js-trail .pv .pv-more { position: relative; z-index: 1; }
 }
 @media (max-width: 56.25em) {
-  .pv-layout { grid-template-columns: minmax(0, 1fr); }
+  .pv-trail { grid-template-columns: minmax(0, 1fr); }
   .pv-checks { grid-row: 1; }
 }
 @media (forced-colors: active) {

@@ -76,10 +76,10 @@ class Provenance:
         if len(directions) > 1:
             switch = ('<p class="pv-dir">' + " ".join(
                 f'<a href="#trail-{d}" data-dir="{d}">{t("provenance.direction." + d)}</a>' for d in directions) + "</p>")
-        trails = "".join(self.trail_html(self.trail(identity, d)) for d in directions)
-        return (f'<section id="provenance" class="tab"><h2>{t("tab.provenance")}</h2>{switch}'
-                f'<div class="pv-layout"><div class="pv-trails">{trails}</div>'
-                f'{self.checks_html(self.trail(identity, directions[0]))}</div></section>')
+        # Each direction with what can be checked along it: a switch shows one direction and its checks.
+        trails = "".join(f'<div class="pv-trail" id="trail-{d}">{self.trail_html(self.trail(identity, d))}'
+                         f'{self.checks_html(self.trail(identity, d))}</div>' for d in directions)
+        return f'<section id="provenance" class="tab"><h2>{t("tab.provenance")}</h2>{switch}{trails}</section>'
 
     def trail_html(self, trail: dict) -> str:
         direction = trail["direction"]
@@ -104,13 +104,17 @@ class Provenance:
         if omitted["nodes"] or omitted["edges"]:
             counts = (f'<p class="pv-note">{t("provenance.omitted", nodes=len(nodes), total=total["nodes"], edges=len(trail["edges"]), all=total["edges"])}'
                       f' {t("provenance.omitted_more")}</p>')
+        start = [go["id"] for go in trail["continue_from"] if go["node"] == nodes[0]["id"]]
+        if start:
+            # What the start leads to beyond the shown items: the trail goes on from those items' own pages.
+            counts += f'<p class="pv-note">{t("provenance.continue_from")} {self.continue_links(start, direction)}</p>'
         if trail["cycles"]:
             counts += f'<p class="pv-note">{t("provenance.cycle_note")}</p>'
         if any(edge["kind"] == "wrote" and not edge.get("recorded") for edge in trail["edges"]):
             counts += f'<p class="pv-note">{t("provenance.wrote_note")}</p>'
         summary = t("provenance.summary", runs=sum(1 for node in nodes if node["kind"] == "run"),
                     files=sum(1 for node in nodes if node["kind"] == "data"))
-        return (f'<div class="pv-trail" id="trail-{direction}"><h3>{t("provenance.direction." + direction)} '
+        return (f'<div class="pv-path"><h3>{t("provenance.direction." + direction)} '
                 f'<small>{summary}</small></h3>{counts}'
                 f'<div class="pv-scroll"><ol class="pv-list" data-e="{" ".join(lines)}" style="--cols:{columns}">'
                 f'{items}</ol></div></div>')
@@ -124,16 +128,20 @@ class Provenance:
         grid_row = row + 1 if trail["direction"] == "uses" else rows - row
         # A box says the same of a node on every page it is on: made once (its join line and place differ).
         key = (node["id"], n == 0, node.get("state"), node.get("producer"), tuple(node.get("current_writers") or ()),
-               node.get("read_as"))
+               node.get("read_as"), node.get("written"))
         if key not in self._described:
             self._described[key] = self.box(node, n == 0)
         classes, body = self._described[key]
         joins = [self.join_html(trail, n, other, edge, prefix) for other, edge in ([parent[n]] if n in parent else []) + extra.get(n, [])]
         more = ""
-        if node.get("continues") and n:
+        targets = [go["id"] for go in trail["continue_from"] if go["node"] == node["id"]] if n else []
+        if targets == [node["id"]]:
             page = self.page(node)
             if page:
-                more = f' <a class="pv-more" href="{s.esc(page)}#provenance">{t("provenance.continue")}</a>'
+                more = f' <a class="pv-more" href="{s.esc(page + self.anchor(node["id"], trail["direction"]))}">{t("provenance.continue")}</a>'
+        elif targets:
+            # A data file goes on from the runs and records beyond it, as this trail judged them.
+            more = f'<p class="pf">{t("provenance.continue_from")} {self.continue_links(targets, trail["direction"])}</p>'
         joined = "".join(f'<p class="pj">{j}</p>' for j in joins if j)
         return f'<li class="{classes}" id="{prefix}-{n}" style="grid-area:{grid_row}/{column + 1}">{body}{joined}{more}</li>'
 
@@ -192,7 +200,9 @@ class Provenance:
             link = s.data_link(path, 1) or s.relations.link(path, 1)
             name = f'<a href="{s.esc(link)}"{s.user_language}>{s.esc(label)}</a>'
             state = node.get("state") or "unknown"
-            mark = marked(*DATA_STATE.get(state, ("muted", "?")), t("provenance.state." + state))
+            # An output a run of the trail wrote is compared with what it wrote, not with what was read.
+            words = "provenance.state.changed_written" if state == "changed" and node.get("written") else "provenance.state." + state
+            mark = marked(*DATA_STATE.get(state, ("muted", "?")), t(words))
             sha = s.short(node.get("sha256"))
             bits = [mark, f'<code{s.user_language}>{s.esc(sha)}</code>' if sha else ""]
             if node.get("version") and node["versions"] > 1:
@@ -274,6 +284,29 @@ class Provenance:
         run = s.run_by_id.get(run_id) or {}
         return f'<a href="{s.run_link(run_id, 1)}"{s.user_language}>{s.esc(run.get("title") or run_id)}</a>'
 
+    def anchor(self, identity: str, direction: str) -> str:
+        """Where a relation page shows a direction's trail; its one-hop relations when it has no such
+        trail (a record has no trail of what uses it: what cites it is among its relations)."""
+        return f"#trail-{direction}" if direction in self.directions(identity) else "#related"
+
+    def continue_links(self, targets: list[str], direction: str) -> str:
+        """Links to the pages the trail goes on from (the first three, then how many more)."""
+        s = self.site
+        links = []
+        for target in targets:
+            found = self.model.trail_start(target) or {"kind": "?", "id": target}
+            # Bytes have a page when they are the file now: its path's page shows their trail.
+            identity = found["path"] if found["kind"] == "data" and found.get("state") == "same" else target
+            page = s.relations.link(identity, 1) if identity in s.relations.identities else None
+            if page:
+                target = identity
+                links.append(f'<a href="{s.esc(page + self.anchor(target, direction))}"{s.user_language}>'
+                             f'{s.esc(self.short_name(found))}</a>')
+        if not links:
+            return t("provenance.continue_none")
+        more = f' {t("list.and_more", n=len(links) - 3)}' if len(links) > 3 else ""
+        return ", ".join(links[:3]) + more
+
     def page(self, node: dict) -> str | None:
         """The relation page a box's trail goes on from (its selected version page, design 6.3)."""
         s = self.site
@@ -307,15 +340,15 @@ class Provenance:
         runs = checks["runs"]
         if runs["total"]:
             failed = [f'{self.run_name(r["run"])} {s.words("status", r["status"])}' for r in runs["not_succeeded"][:3]]
-            line("good" if not runs["not_succeeded"] else "warn",
+            line("good" if runs["succeeded"] == runs["total"] else "warn",
                  t("provenance.check.runs", ok=runs["succeeded"], n=runs["total"]), items=failed)
         else:
             line("none", t("provenance.check.no_runs"))
         code = checks["code"]
         if code:
-            kept = len(code.get("resolved", []))
-            rest = [f'{t("provenance.code." + state)} {s.fmt_num(len(rows))}' for state, rows in code.items() if state != "resolved"]
-            line("good" if not rest else "warn", t("provenance.check.code", kept=kept, n=sum(len(r) for r in code.values())),
+            kept = code.get("resolved", {}).get("count", 0)
+            rest = [f'{t("provenance.code." + state)} {s.fmt_num(row["count"])}' for state, row in code.items() if state != "resolved"]
+            line("good" if not rest else "warn", t("provenance.check.code", kept=kept, n=sum(r["count"] for r in code.values())),
                  " · ".join(rest))
         for family in ("imported", "derived"):
             files = checks[family]
@@ -332,15 +365,15 @@ class Provenance:
                         ", ".join(self.run_name(r) for r in row["current_writers"][:2]) if row["current_writers"]
                         else t("provenance.no_matching_output"))
                 body.append(said)
-            line("good" if not not_same else "warn",
-                 t(f"provenance.check.{family}", same=files["total"] - len(not_same), n=files["total"]), items=body)
+            same = files["states"].get("same", 0)
+            line("good" if same == files["total"] else "warn",
+                 t(f"provenance.check.{family}", same=same, n=files["total"]), items=body)
         reruns = checks["reruns"]
-        if reruns:
-            verdicts: dict[str, int] = {}
-            for rerun in reruns:
-                verdicts[str(rerun["verdict"])] = verdicts.get(str(rerun["verdict"]), 0) + 1
-            line("good" if set(verdicts) == {"match"} else "warn", t("provenance.check.reruns", n=len(reruns)),
-                 " · ".join(f'{s.words("verdict", v)} {s.fmt_num(k)}' for v, k in verdicts.items()))
+        if reruns["total"]:
+            verdicts = reruns["verdicts"]
+            line("good" if set(verdicts) == {"match"} else "warn", t("provenance.check.reruns", n=reruns["total"]),
+                 " · ".join(f'{t("provenance.no_verdict") if v == "none" else s.words("verdict", v)} {s.fmt_num(k)}'
+                            for v, k in verdicts.items()))
         else:
             line("none", t("provenance.check.no_reruns"))
         line("none", t("provenance.check.reviews"))

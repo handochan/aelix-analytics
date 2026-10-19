@@ -2950,7 +2950,7 @@ def retrieve(project: Project, *, part="records", query="", id=None, cursor=None
             record, location = _query_record(model, id)
             rows = [{"field": key, "value": value} for key, value in record.items()]
         elif trail:
-            result = trail_answer(project, model, cache, id, direction, depth)
+            result = trail_answer(project, model, cache, id, direction, depth, as_of_seq)
             rows = None
         elif part == "relations":
             # Validate the source except exact target identities (run IDs and Visualization IDs)
@@ -3040,21 +3040,23 @@ def retrieve(project: Project, *, part="records", query="", id=None, cursor=None
 
 
 def trail_answer(project: Project, model: relations.ReadModel, cache: HashCache, start, direction: str,
-                 depth: int | None) -> dict:
+                 depth: int | None, as_of_seq: int | None = None) -> dict:
     """A provenance trail as a bounded read answers it (design WORKSPACE-READABILITY 6, §12's decision 3):
     the read model's trail with the Workspace's budget (relations.TRAIL_BUDGET nodes and edges), its
-    nodes as the page's items, and a read to continue from each node the budget or `depth` stopped."""
+    nodes as the page's items, and a read of the same direction, depth and journal boundary to go on
+    with from each node the budget or `depth` stopped (ReadModel.provenance's `continue_from`: never the
+    start again; a data file's bytes, or the runs beyond them, by the id a trail names them)."""
     found = model.provenance(start, direction, depth=depth,
                              input_state=Freshness(project, [], cache, model).input_state)
     if found is None:
+        if len(model.journal.lines_of.get(start, [])) > 1:
+            raise AnalyticsError("ambiguous_id", "several journal lines share this ID",
+                                 details={"candidates": [f"journal:{n}" for n in model.journal.lines_of[start]]})
         raise AnalyticsError("record_not_found", "no record, run, visualization version, CONTEXT.md version or "
                              "data file with this ID", details={"id": start})
-    proceed = []
-    for node in found["nodes"]:
-        identity = node["path"] if node["kind"] == "data" else node["id"] if node["kind"] in (
-            "record", "run", "visualization", "context") else None
-        if identity and (node.get("continues") or node.get("beyond_depth")):
-            proceed.append({"node": node["id"], "read": {"part": "relations", "id": identity, "direction": direction}})
+    bounds = {**({"depth": depth} if depth is not None else {}), **({"as_of_seq": as_of_seq} if as_of_seq is not None else {})}
+    proceed = [{"node": go["node"], "read": {"part": "relations", "id": go["id"], "direction": direction, **bounds}}
+               for go in found["continue_from"]]
     omitted = found["omitted"]
     more = bool(omitted["nodes"] or omitted["edges"] or proceed)
     return {"items": found["nodes"], "edges": found["edges"], "returned": len(found["nodes"]),

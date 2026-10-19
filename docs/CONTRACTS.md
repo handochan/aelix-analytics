@@ -211,7 +211,8 @@ kit 0.11.0의 같은 기준에 묶인 cursor·다음 페이지·부분 조회는
   `trail`에 출발점·방향·깊이·예산·전체 선 수·순환(`cycles`)·확인 줄(`checks`)·이어 읽기(`continue_from`: 예산이나 깊이가 멈춘 노드마다
   `{part: relations, id, direction}`)를 담습니다. cursor는 없고(`cursor`를 주면 `bad_query`) `limit`은 쓰지 않습니다. 모르는 출발점은
   `record_not_found`입니다. 판정은 공유 reader(E)의 값 그대로이며 새 판정이 없습니다. 사람 CLI는
-  `analytics status --part relations --id ID --direction sources [--depth N]`, `/analytics status`도 같은 옵션입니다.
+  `analytics status --part relations --id ID --direction sources [--depth N]`, `/analytics status`도 같은 옵션입니다. `continue_from`의 각 읽기는
+  같은 방향·`depth`·`as_of_seq`이고 출발점 자신이 아니며, 데이터의 바이트는 `data:<경로>@<sha256>`로 이어 읽습니다.
 - `context`: CONTEXT의 preamble/섹션을 통째로 페이지로 읽습니다. `id=context:<보존 파일명>`이면 정확한 옛 버전,
   생략하거나 `context:current`이면 현재 파일입니다. `as_of_seq`만으로 당시 CONTEXT를 추정하지 않습니다.
 
@@ -1014,28 +1015,36 @@ ReportRenderer는 교체 계약과 원본 불변성 검증을 마친 내부 adap
 
 | 출발·노드 | 출처 방향(`sources`)으로 이어지는 것 | 사용처 방향(`uses`)으로 이어지는 것 |
 |---|---|---|
-| 기록·Report 버전 | 그 참조(`references`)의 대상: 기록, run, 시각화 버전, run의 입력·출력(`data_observation`), 가져오기, 코드 스냅샷, CONTEXT.md 버전. 상태를 바꾸는 참조(`supersedes`·`updates`·`resolves`)는 이력이라 따르지 않음. 버전 없이 이름만 든 참조·없는 대상은 `name` 노드에서 멈춤 | 그것을 버전과 함께 인용한 기록 |
+| 기록·Report 버전 | 그 참조(`references`)의 대상: 기록, run, 시각화 버전, run의 입력·출력(`data_observation`), 가져오기, 코드 스냅샷, CONTEXT.md 버전. 상태를 바꾸는 참조(`supersedes`·`updates`·`resolves`)는 이력이라 따르지 않음. 버전 없이 이름만 든 참조·없는 대상은 `name` 노드에서 멈춤 | 그것을 버전과 함께 인용한 기록. reader가 대상을 찾은 참조(`resolved`·`content_changed`)만이며, 없음·digest 불일치·인용할 때 없던 기록은 사용처가 아님 |
 | run | 입력(경로마다 하나, 기록 방식 `via`는 합침)과 곁가지로 만든 시각화 | 출력(지운 것 제외)과 시각화, 그 run을 인용한 기록 |
 | 시각화 버전 | 그것을 만든 run | 인용한 기록 |
-| 데이터(경로·sha256) | 그 바이트의 생산자 후보: 그 바이트를 읽은 run의 `producer` 판정(먼저 만난 run의 것), 기록이 run의 출력을 인용했으면 그 run, 지금 바이트·가져오기는 그 바이트를 출력한 성공 run | 그 바이트를 입력으로 기록한 run. 경로 위의 run이 쓴 바이트면 그 run이 생산자 후보인 run만. 그 바이트(run의 입력·출력, 가져오기)를 인용한 기록 |
+| 데이터(경로·sha256) | 그 바이트의 생산자 후보: 그 바이트를 읽은 run의 `producer` 판정(먼저 만난 run의 것), 기록이 run의 출력을 인용했으면 그 run, 지금 바이트·가져오기·`data:<경로>@<sha256>`로 고른 바이트는 그 바이트를 출력한 성공 run | 그 바이트를 입력으로 기록한 run(다른 철자로 기록했으면 `read_as`). 경로 위의 run이 쓴 바이트면 그 run이 생산자 후보인 run만. 그 바이트(그 바이트를 기록한 run의 입력·출력을 어느 철자로든, 가져오기)를 인용한 기록 |
 
+- **출발점**은 기록·Report 버전·`run:<id>`·`<run_id>/<visualization_id>`·`context:<이름>`·데이터 파일의 정체성 경로(지금 바이트)·
+  `data:<경로>@<sha256>`(기록이 그 경로에 남긴 바이트, 경로의 노드 id)입니다. URI·디렉터리·해시 없는 바이트의 상태는 `unknown`입니다.
 - **단계**는 run입니다. run 노드는 앞 노드보다 한 단계 멀고, 그 밖의 노드는 앞 노드와 같은 단계입니다(run 출발점은 1, 나머지는 0).
   (단계, 만난 순서)로 결정적으로 따라가며, 같은 단계 안은 참조 순서와 run의 입력 기록 순서입니다. 같은 노드에 두 길로 닿으면 한 번만 둡니다.
 - **예산**: 가까운 단계부터 노드 20개, 그 노드들 사이의 선 30개입니다. 처음 만난 길의 선을 먼저 두므로 보이는 노드는 모두 출발점과
   보이는 선으로 이어집니다. 나머지는 `omitted`(노드·선 수, 전체 경로 기준)이고, 보이지 않는 선이 있는 노드는 `continues`입니다.
   `depth`가 멈춘 노드는 `beyond_depth`이며 그 너머는 세지 않습니다. 입력이 13개 이상인 run은 입력을 `inputs` 노드 하나(수와 상태별 수)로
   접고 그 너머를 따르지 않습니다.
-- **순환**: 지나온 길 위의 노드로 돌아가는 선은 `cycle`이고 `cycles`에 적으며, 거기서 멈춥니다(같은 시각에 시작한 run끼리만 생김).
+- **이어 읽기(`continue_from`)**: 예산이나 `depth`가 멈춘 곳마다 `{node, id}`입니다. 보통은 그 노드 자신이고, 출발점이면(다시 읽으면 같은 답)
+  그 너머의 노드, 데이터 파일이면 그 너머의 run·기록(그 경로의 판정을 지킴)입니다. 출발점 자신은 들지 않으며, 해시 없는 바이트는 이어 읽을 수
+  없어 들지 않습니다.
+- **순환**: 경로가 걸은 모든 걸음 위에서 지나온 길의 노드로 돌아가는 선(깊이 우선으로 찾음, `upstream()`과 같음)은 `cycle`이고 `cycles`에
+  적으며, 노드는 한 번만 둡니다. 같은 시각에 시작했거나 시작 시각을 읽을 수 없는 run끼리만 생깁니다(사용처는 찾은 참조만 따르므로 기록끼리는 생기지 않음).
 - **노드**: `id`, `kind`(`record`·`run`·`visualization`·`data`·`context`·`code`·`name`·`inputs`), `step`과 종류별 값입니다. 데이터는
   `data:<경로>@<sha256>`(해시가 없으면 `@?<run>`)이고 가져오기 여부, 입력 상태(`same`·`changed`·`missing`·`unknown`, 같은 run이 읽고 다시 쓴
-  파일은 `same`: 계약 E의 입력 상태와 같은 규칙), #99의 버전 번호, 생산자 판정, 옛 kit 경로(`read_as`·`recorded_path`), 읽은 뒤 바뀌었으면
-  지금 바이트를 출력한 run 후보(`current_writers`)를 담습니다. 시각화는 #99의 버전 번호, run은 상태·스크립트·코드 sha256·재실행 대상입니다.
+  파일은 `same`: 계약 E의 입력 상태와 같은 규칙), #99의 버전 번호, 생산자 판정, 옛 kit 경로(`read_as`·`recorded_path`), 바뀌었으면
+  지금 바이트를 출력한 run 후보(`current_writers`), 경로 위의 run이 쓴 출력이면 `written`(상태는 쓴 바이트와 지금 파일의 비교)을 담습니다. 시각화는 #99의 버전 번호, run은 상태·스크립트·코드 sha256·재실행 대상입니다.
 - **선**: `from`이 `kind`를 `to`에 함: `cites`(참조 판정의 relation·state·version_binding·basis·confirmed), `read`(기록 방식 `how`: 실행 중
   읽기 `read`가 앞, `scan`, `declared`; 입력 상태), `wrote`(생산자 후보면 `producer`와 `basis` observed·inferred, run 자신의 출력이면
   `recorded`), `made`.
 - **확인 줄(`checks`)**은 경로 전체에서 따로 셉니다: 출발 기록의 인용(전체·상태별·확정 연결 수), run의 성공, 코드 스냅샷(run마다 가장 나쁜
-  `code_snapshot` 판정 또는 `not_recorded`), 가져온 데이터와 파생 데이터의 상태(같지 않은 파일과 지금 바이트의 run 후보), 재실행 비교
-  (`run_reproduction`의 판정), 분석 방법 검사·결론 검토(이 기록 형식에 전용 기록이 없어 `null`). 하나의 점수로 합치지 않습니다.
+  `code_snapshot` 판정 또는 `not_recorded`, 상태별 수), 가져온 데이터와 파생 데이터의 상태(같지 않은 파일과 지금 바이트의 run 후보), 재실행 비교
+  (재실행마다 한 번, 그 기록의 `rerun_of`와 `run_reproduction`의 판정, 판정별 수), 분석 방법 검사·결론 검토(이 기록 형식에 전용 기록이 없어
+  `null`). 하나의 점수로 합치지 않습니다. 줄마다 전체를 세고 이름은 앞의 20개까지 듭니다(긴 경로에서도 답의 크기가 묶임).
+- 반환하는 dict와 그 목록은 호출자의 것입니다(고쳐도 다음 읽기에 남지 않음).
 
 경로는 기록된 run 입력과 인용을 따라간 것입니다. 결론의 증명이나 행 단위 계보가 아니며, 생산자 후보는 같은 바이트라는 관측입니다(확정 연결 아님).
 
@@ -1043,13 +1052,16 @@ ReportRenderer는 교체 계약과 원본 불변성 검증을 마친 내부 adap
 버전 이력의 위치) 탭을 둡니다. 출처 경로가 있는 대상이면 `Provenance`가 첫 탭이고, 기록은 출처 방향, run·시각화 버전·데이터 파일은 두 방향을
 `Where it comes from`·`What uses it`로 하나씩 보입니다. 새 페이지 종류는 없고 경로는 각 관계 페이지의 첫 쪽에만 있습니다.
 - 한 순서 목록이 경로의 글이자 상자입니다. 상자는 종류 이름(`Imported data`·`Derived data`·`Run`·`Visualization`·기록 종류), 이름 링크,
-  상태(표시와 글자: `Unchanged`·`Changed since read`·`Missing now`·`Unknown`, run의 상태), 출발점 쪽 상자와 이어지는 문장(`Read by`·
-  `Wrote`·`Made by`·`Cited by` 등과 그 판정)을 담습니다. JS가 없거나 좁은 화면은 세로 경로이고, 넓은 화면에서 JS가 있으면 생성기가 준
+  상태(표시와 글자: `Unchanged`·`Changed since read`·`Changed since written`·`Missing now`·`Unknown`, run의 상태), 출발점 쪽 상자와 이어지는
+  문장(`Read by`·`Read`·`Wrote`·`Written by`·`Made`·`Made by`·`Cited by`·`Cites`와 그 판정)을 담습니다. JS가 없거나 좁은 화면은 세로 경로이고, 넓은 화면에서 JS가 있으면 생성기가 준
   격자 자리(출처는 출발점이 맨 아래, 사용처는 맨 위, 읽은 입력은 왼쪽, 만든 시각화는 오른쪽)에 놓고 선을 그립니다. 선은 그림이며
   (`aria-hidden`) 이어지는 문장이 같은 내용을 말합니다. 인용은 점선, 생산자 후보 여러 개·옛 kit 경로는 주황 점선입니다.
-- 종류 색은 `--k-import`·`--k-run`·`--k-viz`와 기록 종류 토큰이고 run은 육각형(forced-colors에서는 테두리)입니다. 읽은 뒤 바뀐 파일과 없는
-  파일은 테두리도 다릅니다. 생략 수, 순환, 생산자 후보의 뜻을 경로 위에 적고, 보이지 않는 선이 있는 상자에는 그 대상의 관계 페이지로 가는
-  `Continue from here`를 답니다. 오른쪽(좁은 화면은 위)의 `What can be checked`가 확인 줄을 하나씩 말하고 범위 문장을 붙입니다.
+- 종류 색은 `--k-import`·`--k-run`·`--k-viz`와 기록 종류 토큰입니다. run은 그림에서 육각형(forced-colors에서는 테두리), 목록에서 왼쪽 굵은
+  테두리입니다. 바뀐 파일과 없는 파일은 테두리도 다릅니다. 생략 수, 순환, 생산자 후보의 뜻을 경로 위에 적습니다. 이어 읽기마다 상자에
+  `Continue from here`(그 대상의 관계 페이지, 같은 방향의 경로나 그 방향이 없으면 `#related`)나 `Continue from:`과 그 너머의 run·기록을 답니다.
+  출발점의 이어 읽기는 생략 안내 줄에 있습니다. 방향마다 그 경로를 따라 센 `What can be checked`(넓은 화면은 오른쪽, 좁은 화면은 위)가 확인
+  줄을 하나씩 말하고 범위 문장을 붙이며, 방향 전환이 둘을 함께 바꿉니다.
+- History 탭은 모든 쪽에서 기록의 정정 이력과 버전 이력의 위치(데이터셋 페이지가 없는 경로는 버전 수)를 보입니다.
 - 저장된 상태와 필드는 전처럼 접힌 기술 세부(`#technical`, 상태는 `#state`)에 있습니다.
 
 크기: 기록 페이지마다 경로가 들어가 전체 HTML이 늘어납니다(설계 §9의 측정). 설계 §9의 전체 HTML 예산을 넘는 것은 소유자가 받아들였습니다

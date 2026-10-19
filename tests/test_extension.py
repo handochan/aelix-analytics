@@ -392,10 +392,11 @@ def test_analytics_status_reads_a_provenance_trail_as_the_kit_does(tmp_path, mon
     assert result.details["items"] == kit["items"] and result.details["trail"] == kit["trail"]
     assert [n["id"] for n in kit["items"]] == [finding, "run:" + b, f"data:{table[0]}@{table[1]}", "run:" + a]
     one = call(tool, {"part": "relations", "id": finding, "direction": "sources", "depth": 1})
+    # Beyond the depth, from the run the input's producer judgment names, with the same depth.
     assert one.details["trail"]["continue_from"] == [
-        {"node": f"data:{table[0]}@{table[1]}", "read": {"part": "relations", "id": table[0], "direction": "sources"}}]
+        {"node": f"data:{table[0]}@{table[1]}", "read": {"part": "relations", "id": "run:" + a, "direction": "sources", "depth": 1}}]
     command = asyncio.run(module.analytics_command(f"status --part relations --id {finding} --direction sources --depth 1"))
-    assert '"continue_from"' in command and f'"run:{a}"' not in command
+    assert '"continue_from"' in command and '"depth": 1' in command
     bad = call(tool, {"part": "relations", "id": finding, "direction": "both", "depth": 2})
     assert bad.is_error and "depth" in text_of(bad)
 

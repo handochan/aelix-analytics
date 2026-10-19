@@ -207,7 +207,10 @@ class RelationPages:
         elif identity in s.view_by_path:
             link = f"{s.data_link(identity, 1)}#version-history"
         else:
-            link = None
+            # A path with versions and no dataset page (its file is gone): how many, as its history counts them.
+            path = "/" in identity and not identity.startswith(("report:", "context:"))
+            versions = len(self.model.data_history(identity)["versions"]) if path else 0
+            return f'<p>{t("versions.count", n=versions)}</p>' if versions else ""
         return f'<p><a href="{s.esc(link)}">{t("versions.history")}</a></p>' if link else ""
 
     def render(self, identity: str, page: int = 0) -> str:
@@ -285,7 +288,7 @@ class RelationPages:
         payload = self.model.record_payload(identity)
         # History (design WORKSPACE-READABILITY 6.4): a record's corrections, in order and without numbers
         # (5.2), or where the selected item's versions are listed (#99).
-        history = (s.history.corrections(identity) if event and not page else "") + self.versions_line(identity)
+        history = (s.history.corrections(identity, level=3) if event else "") + self.versions_line(identity)
         technical = ""
         if event:
             # The kind as the record holds it (`gap` and `workflow_feedback` stay apart).

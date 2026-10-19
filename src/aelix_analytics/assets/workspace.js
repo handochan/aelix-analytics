@@ -429,27 +429,36 @@
         const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
         const ax = (ra.left + ra.right) / 2 - area.left, ay = (ra.top + ra.bottom) / 2 - area.top;
         const bx = (rb.left + rb.right) / 2 - area.left, by = (rb.top + rb.bottom) / 2 - area.top;
-        let x1, y1, x2, y2, d, dx = 0, dy = 0;
+        let x1, y1, x2, y2, d, dx = 0, dy = 0, lx, ly;
         if (Math.abs(ax - bx) < Math.min(ra.width, rb.width) / 2) {
-          // One above the other: from one box's edge to the other's, straight down or up.
+          // In one column: from one box's top or bottom edge to the other's.
           x1 = ax; x2 = bx; y1 = ay < by ? ra.bottom - area.top : ra.top - area.top; y2 = ay < by ? rb.top - area.top : rb.bottom - area.top;
-          const mid = (y1 + y2) / 2; d = `M${x1},${y1} C${x1},${mid} ${x2},${mid} ${x2},${y2}`; dy = y2 > y1 ? 1 : -1;
+          d = `M${x1},${y1} L${x2},${y2}`; dy = y2 > y1 ? 1 : -1; lx = x1 + 6; ly = (y1 + y2) / 2 + 4;
         } else {
+          // In other columns: from the facing sides, through the gap beside the first box, so a line never runs
+          // behind a box and seems to leave it.
           x1 = ax < bx ? ra.right - area.left : ra.left - area.left; x2 = ax < bx ? rb.left - area.left : rb.right - area.left;
-          y1 = ay; y2 = by;
-          const mid = (x1 + x2) / 2; d = `M${x1},${y1} C${mid},${y1} ${mid},${y2} ${x2},${y2}`; dx = x2 > x1 ? 1 : -1;
+          y1 = ay; y2 = by; dx = x2 > x1 ? 1 : -1;
+          const gap = Math.min(Math.abs(x2 - x1) / 2, 28), gx = x1 + dx * gap, r = Math.min(8, Math.abs(y2 - y1) / 2);
+          const dv = y2 > y1 ? 1 : -1;
+          d = Math.abs(y2 - y1) < 1 ? `M${x1},${y1} L${x2},${y2}`
+            : `M${x1},${y1} L${gx - dx * r},${y1} Q${gx},${y1} ${gx},${y1 + dv * r} L${gx},${y2 - dv * r} Q${gx},${y2} ${gx + dx * r},${y2} L${x2},${y2}`;
+          // A bent line has no label: the gap is too narrow for one, and the boxes' words say it.
+          if (Math.abs(y2 - y1) < 1) { lx = (x1 + x2) / 2; ly = y1 - 5; }
         }
         const tone = m[3] === "c" ? "c" : /[ai]/.test(m[4]) ? "maybe" : "";
         const path = document.createElementNS(SVG, "path"); path.setAttribute("d", d); if (tone) path.setAttribute("class", tone);
         const head = document.createElementNS(SVG, "path");
         head.setAttribute("class", "head " + tone);
         head.setAttribute("d", dy ? `M${x2 - 4},${y2 - 6 * dy} L${x2},${y2} L${x2 + 4},${y2 - 6 * dy}Z` : `M${x2 - 6 * dx},${y2 - 4} L${x2},${y2} L${x2 - 6 * dx},${y2 + 4}Z`);
+        svg.append(path, head);
+        if (lx === undefined) return;
         // The kind of a line beside it: right of a vertical line, centred above a horizontal one.
         const label = document.createElementNS(SVG, "text");
-        label.setAttribute("x", (x1 + x2) / 2 + (dy ? 6 : 0)); label.setAttribute("y", (y1 + y2) / 2 + (dx ? -5 : 4));
+        label.setAttribute("x", lx); label.setAttribute("y", ly);
         if (dx) label.setAttribute("text-anchor", "middle");
         kitWords(label, LINE_WORDS[m[3]]);
-        svg.append(path, head, label);
+        svg.append(label);
       });
     });
   }

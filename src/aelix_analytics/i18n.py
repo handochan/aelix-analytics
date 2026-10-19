@@ -113,7 +113,7 @@ def t(key: str, **args) -> str:
     return _valued(key, tuple(sorted(args.items())))
 
 
-@functools.lru_cache(maxsize=65536)
+@functools.lru_cache(maxsize=65536, typed=True)
 def _valued(key: str, items: tuple) -> str:
     # The same words with the same values recur on many pages (counts, version numbers): made once.
     args = dict(items)
