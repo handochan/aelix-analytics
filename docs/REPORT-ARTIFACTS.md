@@ -1,6 +1,8 @@
 # 분석 도중의 자유 형식 보고서와 버전 관리
 
-작성: 2026-09-18 · 상태: 설계 제안. `Reports` 탭·보고서 등록·버전 관리는 아직 구현되지 않았다.
+작성: 2026-09-18 · 상태: 설계와 단계별 구현. 등록·버전 저장은 구현됐고 `Reports` 탭은 후속 PR이다.
+저장·반복 묶음·형식별 보기의 구체안과 PR 경계는 [ADR-0013](decisions/0013-report-storage-and-collections.md)(Accepted, #19)에 있다.
+kit 0.21.0은 PR1의 개별 저장·조회·철회/복원·prepared 정리만 구현한다([현재 계약](CONTRACTS.md#c16-불변-report-저장등록버전-kit-0210-19-pr1)). kit0.22.0은 선택 metadata·반복 묶음과 내부 형식별 보기 adapter를 더한다([현재 계약 C17](CONTRACTS.md#c17-report-선택-metadata반복-묶음형식별-보기-kit-0220-19-pr2)). Reports 화면 조립은 PR3이다.
 제품 방향은 [PRODUCT.md](PRODUCT.md), 공유는 [PUBLISH-AND-SHARING.md](PUBLISH-AND-SHARING.md), 현재 기능은 [CONTRACTS.md](CONTRACTS.md)를 따른다.
 명칭은 [용어집](TERMINOLOGY-AND-LANGUAGE.md)의 Workspace·Visualization·Report 구분을 따른다. 통계 차트는 Visualization의 한 유형이다.
 
@@ -43,7 +45,7 @@ PDF·슬라이드 등도 파일로 보존할 수 있으나, 각 형식의 생성
 
 보고서의 논리적 ID와 저장한 버전의 ID를 나눈다. 예를 들어 `sensor-review`의 Version 1, Version 2는 같은 보고서의 이력이며, 주소는 `revision_id`를 쓴다.
 파일명이나 수정 시각만으로 버전을 식별하지 않는다. 아래 표의 정체성·작성 주체·`created_at`·`based_on`·파일 manifest의 필수 필드는
-[ADR-0006](decisions/0006-common-record-contract.md) 7절로 채택했다(manifest 가족 `analytics.report_revision/1`, 아직 구현 전).
+[ADR-0006](decisions/0006-common-record-contract.md) 7절로 채택했다(manifest 가족 `analytics.report_revision/1`, 개별 버전 저장은 kit 0.21.0에 구현).
 `scope`·생성 경로·용도·묶음은 #19가 같은 manifest의 선택 필드로 확정한다.
 
 | 기록 | 내용 |

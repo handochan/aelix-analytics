@@ -929,6 +929,72 @@ Workspace의 kit 문구(탭·제목·배지·버튼·빈 화면·안내·tooltip
   보이고(묶음도 그 안에서, 띠 없음), 전체는 최신 버전의 run 페이지에 있습니다. 데이터셋·스크립트·Context 페이지는 대상마다 한 페이지라 행을 모두 보이며, 설계 §5.3의
   이어 보기 페이지는 만들지 않았습니다(fixture M의 가장 긴 이력은 시각화 19버전·데이터 14버전).
 
+### C16. 불변 Report 저장·등록·버전 (kit 0.21.0, #19 PR1)
+
+`report_app.Reports`가 주입한 공통 Writer로 저장·재시도·조회·상태 변경·prepared 정리를 조정합니다.
+외부에서 작성한 일반 파일을 등록하며 원래 분석이나 생성 코드를 실행하지 않습니다. 본문과 첨부의 바이트·Unicode·줄 끝은 그대로 보존합니다.
+
+- `analytics reports save ID --files DIR --entry PATH --title TEXT --previous REV|none [--request-id ID] [--based-on JSON_FILE]`.
+  SDK는 `analytics.save_report(ID, files=DIR_OR_PATH_MAPPING, entry=PATH, title=TEXT, previous_revision=REV_OR_NONE, request_id=ID, based_on=OBJECT)`입니다.
+  SDK도 `previous_revision`을 명시합니다. 근거를 생략하면 현재 CONTEXT/데이터를 채우지 않습니다. 진입점의 `Origin`을 기록하며 외부 생성의 실제 작성자를 추정하지 않습니다.
+- `artifacts/reports/<report_id>/.staging/<revision_id>/content/`에 복사하고 manifest를 쓴 뒤, 하나의 journal 잠금 안에서
+  현재 head·요청·파일을 확인하고 배타적 디렉터리 rename과 `report_revision` 완료 이벤트를 씁니다.
+  첫 완료 전 writer floor를 `0.21.0`으로 올립니다. manifest digest·request ID·이전 버전·유일한 이벤트 ID/seq가 맞는 완료만 head가 됩니다.
+  잘못된 완료·manifest·파일을 가진 해당 Report는 `report_record_invalid`로 새 저장을 거절합니다.
+- 같은 Report 안의 request ID는 대소문자를 무시해 비교합니다. 같은 의도의 완료 버전이면 `existing`, 다른 의도면 `request_conflict`입니다.
+  rename 뒤 완료 이벤트가 없으면 head가 그대로일 때 `resumed`로 완료하며, head가 달라졌으면 `revision_conflict`입니다.
+  다른 Report의 같은 request ID는 독립입니다. 요청 ID를 생략하면 응답에 새 ID를 돌려줍니다.
+  저장 중 I/O 실패는 `report_io`와 재시도할 request ID를 돌려줍니다.
+- report ID는 1–64자의 소문자 ASCII 영숫자·하이픈이며 영숫자로 시작하고 장치명이 아닙니다.
+  응답은 원본 `source`·목적 `path`·`preserved_path`를 구분하며 원본 위치를 manifest에 자동 추가하지 않습니다.
+  보존 경로는 ADR-0006 §7의 NFC·이식 가능한 상대 경로입니다. 파일 전체와 모든 부모 경로는 casefold 기준 한 철자만 쓰며 `_analytics/`는 예약합니다.
+  링크·junction·일반 파일이 아닌 항목은 거절합니다. 목록·정체성·크기/시각·해시의 복사 전후 관측이 달라지면 실패합니다.
+  동시 편집의 원자적 스냅샷이나 악의적 변경에 대한 인증은 약속하지 않습니다.
+- `analytics reports list [--limit N --offset N]`, `show ID@REV [--file PATH --file-offset N --file-limit N]`와
+  `analytics.reports(report_id=None, revision_id=None, ...)`는 metadata·이력부터 읽습니다. 기본 limit 20, 최대 100이며 다음 offset을 돌려줍니다.
+  선택한 파일은 기본 8,192·최대 65,536 bytes씩 base64로 돌려주며 원본 바이트와 다음 offset을 보존합니다. 큰 metadata 한 필드는 잘라 재작성하지 않습니다.
+  기본 조회는 본문 파일을 읽지 않고 `content=not_checked`입니다. `--verify-files`(SDK `verify_files=True`)를 요청하면 보존 파일 전체를 해시합니다.
+  기록 완료·파일 무결성·head·재생한 `current`/`withdrawn`을 구분하며 본문 전체를 목록 응답에 넣지 않습니다.
+  `based_on.refs`의 형식 검사는 공통 순수 reference validator를 쓰며 실제 대상의 존재·결론 검토를 대신하지 않습니다.
+- `analytics reports update ID@REV --expected-state STATE --state STATE --reason TEXT`와
+  `analytics.update_report(ID, REV, expected=STATE, new=STATE, reason=TEXT)`는 정확한 완료 버전의 `current ↔ withdrawn`만 공통 상태 재생으로 검사합니다.
+  본문·manifest·버전 순서를 바꾸지 않습니다. 준비/미완료 버전이나 기대 상태가 맞지 않으면 `state_conflict`입니다.
+- `analytics reports clean --prepared ID@REV`와 `analytics.clean_report_prepared(ID, REV)`는 시도 잠금 → journal 잠금 순서로 기다린 뒤
+  지정한 staging 하나만 지웁니다. 완료/미완료 버전·다른 시도는 지우지 않고 오래됐다는 이유로 작업자를 인수하지 않습니다.
+  잠금 파일은 `.analytics/report-attempts/<revision_id>.lock`에 두며 자동 삭제하지 않습니다.
+  manifest 작성 전 멈춘 시도도 목록의 `prepared`/`manifest_unavailable`로 찾아 정리할 수 있으며 완료나 파일 무결성으로 올리지 않습니다.
+- rename은 같은 파일 시스템의 서로 다른 부모 사이에서 파일/디렉터리를 배타적으로 옮깁니다. 기존 목적지를 덮지 않으며
+  지원하지 않는 파일 시스템은 `no_exclusive_rename`으로 거절합니다. 비원자적 복사로 대체하지 않습니다.
+
+kit0.21.0은 개별 저장 계약을 도입했습니다. kit0.22.0은 아래 metadata·collection 쓰기 규칙을 사용하므로
+새 저장과 상태 변경의 writer floor는 0.22.0입니다. 과거 버전의 보존 파일·지문은 바꾸지 않습니다.
+
+### C17. Report 선택 metadata·반복 묶음·형식별 보기 (kit 0.22.0, #19 PR2)
+
+- `reports save`의 `--metadata JSON_FILE`과 SDK `save_report(..., metadata=OBJECT)`가 같은 응용 경로를 씁니다.
+  summary/purpose/change_reason은 문자열, scope/generation은 유한 JSON, content_status는 partial/complete입니다.
+  알 수 없는 선택 필드도 원래 값으로 보존합니다. 필수 manifest 필드와 metadata_file은 선택 입력에서 덮지 못합니다.
+- 선택 입력이 있으면 kit 전용 `_analytics/metadata.json`을 UTF-8·키 정렬·공백 없는 유한 JSON으로 보존하고
+  manifest의 같은 선택 값·metadata_file 및 files의 bytes/sha256과 결박합니다. 모든 선택 값 변경은 이 파일 해시를 통해
+  기존 ADR-0006 지문에 들어갑니다. 선택 입력을 생략한 과거 지문 벡터는 그대로입니다.
+  기본 조회는 본문을 해시하지 않지만 metadata sidecar의 바이트 일치는 확인합니다. 불일치는 problem으로 표시하고 새 저장/재시도를 거절합니다.
+- `collection.contract=report_collection/1`, `members`는 요청한 전체 구성원의 순서 있는 목록입니다.
+  각 member_key는 중복 없는 원문 문자열이며 scope는 선택 유한 JSON입니다. complete는 이 프로젝트의 온전한 **이전 완료 버전**
+  report_id/revision_id를 필수로 받습니다. failed/not_generated는 reason이 필수이고 Report 주소를 갖지 않습니다.
+  requested/complete/failed/not_generated는 실제 목록에서 계산합니다. authored content_status·기록 완료·파일 무결성·검토는 별개입니다.
+  실패분 추가·구성원 새 버전·내용 변경은 새 묶음 버전이며 과거 묶음의 바이트/정확한 구성원 주소를 고치지 않습니다.
+- 구성원 관계는 includes/declared/author와 structural=true로 읽고 작성 근거 based_on.refs와 구별합니다.
+  구조 관계가 resolved여도 references_summary의 문서 근거 confirmed 수를 늘리지 않습니다. 결론 검토를 새로 만들지 않습니다.
+- 내부 `ReportRenderer`는 선택 파일의 bytes, entry, `{보존 경로: 패키지 경로}`만 받습니다.
+  원시 manifest/ReportRef/request ID/프로젝트/모델은 받지 않으며 직접 파일·네트워크·생성 실행을 조회하지 않습니다.
+  결과는 재생성 `{path: bytes}`, 원본 다운로드 링크, supported/reasons입니다. 원본 복사는 호출자가 맡습니다.
+  StaticReportRenderer는 Markdown의 raw HTML을 끄고 명시한 local 경로만 다시 씁니다. 원격/미대응 경로는 지원 실패 사유로 남기고
+  이미지는 다운로드로 남깁니다. HTML/SVG·PDF/Office·모르는 형식은 **다운로드만** 제공하며 authored HTML을 DOM에 넣지 않습니다.
+  이는 공유 적합성 통과가 아닙니다. #20의 형식·제외 내용 검사는 별도로 적용합니다.
+
+ReportRenderer는 교체 계약과 원본 불변성 검증을 마친 내부 adapter이며 Workspace 조립·Reports 탭은 PR3 범위입니다.
+실제 모델 생성·브라우저/사람의 열람 수용은 후속 검증이며 합성 저장/renderer 시험과 구별합니다.
+
 ## D. kit CLI
 
 `uv run --project P python -m aelix_analytics --project P <command> …`. `PYTHONPATH`는 정확히 실행 루트 하나입니다: 체크아웃의
@@ -1120,6 +1186,43 @@ kit은 run 하나에 중단 처리기를 한 번 설치하고 run 기록을 쓴 
 스크립트가 이 시그널에 자기 처리기를 설치하면 kit 대신 그 처리기가 받습니다. 그 경우와 한 번만 중단하는 규칙의 비용,
 Windows의 한계는 G절에 있습니다.
 
+### D2. 공유 범위의 무쓰기 미리보기 (kit 0.23.0)
+
+`analytics build --preview [--profile read|evidence] [--exclude REF]... [--analysis-state in_progress|complete]`와
+명시적으로 부른 `/analytics build --preview`가 같은 kit 경로를 씁니다. SDK 함수나 상시 모델 도구는 없습니다.
+기준 snapshot에서 모델·복사 후보를 고정하고 원본 digest를 다시 대조한 뒤 메모리 renderer 출력과 사본 바이트에 같은 검사를 적용합니다.
+프로젝트 기록·CONTEXT 버전·캐시·잠금·패키지 폴더·manifest·결박을 쓰지 않습니다. 이미 준비된 `.venv` 인터프리터를 쓰고
+환경 생성·sync·import bytecode 쓰기를 하지 않습니다. 환경이 없으면 먼저 별도로 준비하도록 거절합니다.
+작업 CONTEXT가 기록된 버전과 다르면 본문을 메모리에서만 사용하고 `basis.context_status=pending`, 버전 이름은 null로 알립니다.
+미래 기록 시각이나 seq를 만들지 않습니다.
+
+반환 JSON은 `preview`, `profile`, `basis`(전체 `as_of_seq`와 내용 `content_seq`·기록 시각·CONTEXT 상태), 선언한 `analysis_state`,
+범주별 `included` 수와 `not_included` 수, 파일/바이트 수, 메모리 내용 해시, renderer 판, 검사 상태별 수, `limits`·`warnings`·원격 이동 링크입니다.
+저장된 publication ID나 패키지 경로는 반환하지 않습니다. `--preview` 없는 build와 저장·list·verify·ZIP·publish 명령은 아직 없습니다.
+Report/collection 요청과 철회 Report 허용 요청은 `scope_unsupported`로 거절하며 다른 범위로 계속하지 않습니다.
+
+read는 허용 기록·현재 기준 CONTEXT·포함한 그림과 run 요약을, evidence는 코드 스냅샷·첨부 표·기록된 입력/출력 메타데이터·CONTEXT 이력을 더합니다.
+입력 원본 데이터·원시 run/journal/metadata 기록·로그·session·실행 파일 경로는 복사 계획의 역할이 아닙니다.
+범위 밖 참조는 이름/ID/경로를 제거하고 원본 상태와 not_included를 구별합니다. 선언한 분석 완료와 실행·기록·검사·결론 검토를 합치지 않습니다.
+
+검사는 생성물·번들·사본 모두에 적용됩니다. HTML·CSS·SVG의 참조를 정규화하여 패키지 안 파일 또는 허용한 data URI만 자원으로 쓰며,
+원격 이동 링크만 http/https/mailto를 허용합니다. 이름은 NFC·예약명·casefold/파일-디렉터리 충돌을 검사합니다.
+루트 publication 이름을 포함한 상대 경로 상한은 UTF-16 단위240, 구성요소는 UTF-8로255바이트입니다. 절대 경로 길이의 OS 전체 보장은 아닙니다.
+PNG 텍스트/압축 텍스트·Exif, JPEG/GIF/WebP 메타데이터, XMP XML·SVG의 값/속성/주석/namespace,
+Plotly JSON과 payload의 키·문자열/원격 trace·이미지 자원, Parquet key-value·Arrow schema/중첩 필드·문자열/binary 값/통계,
+UTF-8 코드 바이트를 검사합니다. Plotly는 프로젝트 환경의 schema로 유효성도 확인하고 JS·라이선스를 그 환경에서 얻습니다.
+허용 역할의 형식이 아니면 format 제외, 허용 형식의 파싱/추출 실패면 inspection_failed입니다. data URI 중첩은4단계,
+압축 메타데이터와 data URI 풀기는 각각32MiB 상한이며 초과 시 통과시키지 않습니다.
+사용자 HTML/SVG의 스크립트·원격 자원은 해당 그림 파일을 제외하며 제목/caption과 사유는 남습니다.
+
+독립 금지 목록은 snapshot에서 공통 닫힘과 포함 집합의 교집합을 빼서 구성합니다. 모델과 디코딩한 바이트에서 알려진 제외 토큰/문장·환경 값을 찾으면
+leak_found로 멈추고 모델 필드 또는 사본 ItemKey/역할을 짚습니다. 짧은 이름은 이름 자리에만 검사하고 허용 필드/고정 kit 어휘와 같은 값은 구별합니다.
+일반 경로 모양과 포함 기록의 제외된 진단 줄은 경고, GPS·작성자·일련번호 메타데이터는 키/파일 경고입니다. 사용자 바이트를 가리거나 재작성하지 않습니다.
+
+이 단계의 내부 verify_package는 manifest 형식/파일 목록·해시·이름·링크·결박 일치를 검사합니다. 현재 Report 패키지는 거절합니다.
+원래 비공개 snapshot 없이 검증할 때의 파일 일치는 최초 반출 검사나 분석 결론의 인증을 뜻하지 않습니다.
+실제 저장/결박, 수신자의 ZIP·브라우저/다른 독자·CSP·M규모 검증은 후속이며 이 미리보기 성공으로 통과 처리하지 않습니다.
+
 ## E. 계산 규칙
 
 | 대상 | 규칙 |
@@ -1167,7 +1270,7 @@ Windows의 한계는 G절에 있습니다.
 | 파일명 — 차트 | kit이 저장하는 차트 파일(`analytics.visualize`의 이미지·plotly JSON·플롯 데이터)만 이식 가능한 이름으로 바꿉니다(`con` → `con_.png`). 정체성 `script::id`는 생성된 id까지 그대로입니다. 이 대응은 단사입니다 — 차트 id는 slug이라 `_`를 포함할 수 없으므로 `con-file` 같은 보통 id와 충돌하지 않습니다. 스크립트가 차트 id 본래 이름에 쓴 파일(차트 `con`의 `charts/con.png`, 대소문자를 구별하지 않는 파일 시스템에서는 `charts/CON.png`도)은 이전 구현이 그 차트를 쓰거나 덮어쓴 파일이므로 따로 차트로 기록하지도 경고하지도 않고, 그 차트가 버려지면 함께 지웁니다. 그 밖에 스크립트가 run 디렉터리에 직접 쓴 파일(`register_loose_files`)은 스크립트가 정한 이름 그대로 차트가 되며 위 경고로만 알립니다 |
 | 경로·인코딩 | 리포트의 절대 경로 링크는 기록한 플랫폼 기준으로 해석한 `file://` URL입니다(`C:\…` → `file:///C:/…`, `\\server\share\…` → `file://server/share/…`). 그래서 POSIX에서 이름이 `X:\`나 `\\`로 시작하는 프로젝트 파일은 그 Windows 경로로 링크되거나, 공유 이름이 없으면 링크되지 않습니다. CLI는 인자를 읽기 전에 표준 스트림을 UTF-8(`errors='replace'`)로 고정하고, 텍스트를 읽는 파일·자식 프로세스 호출은 인코딩을 명시합니다. run 로그도 UTF-8이며 인코딩할 수 없는 문자(짝 없는 surrogate)는 `?`로 씁니다. kit이 쓰는 텍스트 파일(B)은 `core.open_text`·`core.write_text`로만 쓰며(UTF-8, `_platform.TEXT_NEWLINE` = LF, 번역 없음; `tests/test_line_endings.py`의 가드가 확인), run 로그를 감싸는 스트림도 줄 끝을 번역하지 않습니다(kit 0.4.0부터). run 동안 stdout·stderr는 파일 기술자와 Python 스트림을 함께 바꾸고, 출력은 이전처럼 블록 단위로 버퍼링됩니다. 이렇게 해서 콘솔 전용 스트림이 파일에 쓰지 못하는 문제를 피합니다. Windows에서는 설치본 `analytics`를 의사 콘솔(ConPTY)에서 실행해 확인했습니다(측정): run의 stdout 로그에 스크립트의 한국어 출력이 남았고, 콘솔 코드 페이지 437과 949에서 한국어 제목이 콘솔에 그대로 보였습니다. 이것은 Python의 콘솔 경로로 쓴 kit의 출력(결과 줄의 한국어 제목)에 대한 결과입니다. 런처의 글도 같은 경로로 쓰인다고 봅니다(코드에서 읽음, 실행하지 않았습니다). 콘솔 파일 기술자에 바이트를 직접 쓰는 출력과, 출력 파이프가 없는 고전 콘솔의 글 순서·인코딩은 실행하지 않았습니다(`not_run`) |
 | 사람용 진입점 | 체크아웃의 `bin/analytics`(POSIX 셸, kit 0.3.0 전 `bin/lab`)과 설치본의 `analytics`(stdlib Python 런처, 모든 플랫폼; Windows에서는 `analytics.exe`)입니다. `bin/analytics`는 wheel로 설치하지 않습니다. 하위 명령은 둘 다 `record`·`render` 등이고 옛 `note`·`report`는 usage와 2입니다. 둘은 같은 명령·인자·usage(바이트까지)·종료 코드와 옛 환경 변수의 오류(D)를 지키고 kit의 출력을 바이트 그대로 넘기며, POSIX에서 같은 stand-in uv로 동등성을 시험합니다. 런처는 자식을 같은 process group·콘솔에서 표준 스트림을 물려준 채 기다리고 SIGINT·SIGBREAK를 기록만 하므로, 터미널의 Ctrl+C를 런처는 다시 보내지 않고 kit의 기록을 기다려 kit의 종료 코드로 끝납니다. uv는 자기 표준 입력이 터미널이 아니면 200 ms 뒤 kit에 한 번 더 보냅니다(`bin/analytics`에서도 같습니다). 런처가 무시된 SIGINT를 물려받으면(셸의 백그라운드 작업) 그대로 두어 kit도 무시한 채 시작합니다. 자식을 시작하는 순간에 온 Ctrl+C는 자식이 뜬 뒤 한 번 더 보냅니다(POSIX). 그 순간 터미널의 Ctrl+C를 이미 받은 자식에게는 두 번 갑니다. Windows에서는 다시 보내지 않습니다 — 한 프로세스에 SIGINT를 보낼 방법이 없고, 시험이 이를 고정합니다. 같은 콘솔의 자식은 콘솔의 Ctrl+C를 직접 받습니다. Windows 콘솔의 Ctrl+C도 런처가 다시 보내지 않고 kit의 기록을 기다려 kit의 종료 코드로 끝납니다(측정: 의사 콘솔과 고전 콘솔에서 런처가 `cancelled` 기록 뒤 3으로 끝났고 남은 프로세스가 없었습니다. Ctrl+Break는 G). 두 번 오더라도 kit은 run을 구간마다 한 번만 중단합니다(D1). 런처와 `bin/analytics`의 차이: 런처만 받은 SIGTERM은 kit의 `run`에만 전하고(run이 `cancelled`로 기록), 그 밖의 단계(init·migrate·sync·status·context·import·query·record·render·demo와 `analytics open`의 문서 열기)는 끝까지 두고 다음 단계를 시작하지 않은 채 143으로 끝납니다(`bin/analytics`의 셸은 그 자식을 남기고 곧바로 끝납니다). 이 SIGTERM은 POSIX의 것입니다 — Windows에서는 다른 프로세스가 처리기에 SIGTERM을 보낼 수 없고 `os.kill`·`taskkill /F`가 런처를 곧바로 끝냅니다(강제 종료, D1). 런처가 Ctrl+C나 SIGTERM을 기록한 뒤에는 다음 단계를 — `analytics open`의 문서 열기도 — 시작하지 않습니다. 단계를 시작하는 그 짧은 순간 온 신호는 그 단계를 막지 못할 수 있습니다. 그러면 Ctrl+C는 그 단계에 다시 보내고 SIGTERM은 kit의 `run`에만 보내며, 문서를 여는 프로그램에는 어느 것도 보내지 않으므로 리포트가 열릴 수 있습니다. uv가 없으면 런처는 자기 문구로 127입니다(`bin/analytics`은 셸의 오류로 끝나며, macOS의 sh는 없는 경로에 1). 런처는 macOS에서만 `open`을 씁니다(`bin/analytics`은 `open`이 있으면 어디서나). dash로 도는 `bin/analytics`은 Ctrl+C 뒤 SIGINT로 끝납니다. 측정한 경계 사례의 차이: 빈 첫 인자(`analytics ""`)는 `bin/analytics`에서 status, 런처에서 usage와 2입니다. 실행할 수 없는 uv(디렉터리이거나 실행 권한이 없는 파일인 `AELIX_ANALYTICS_UV`, PATH에서 실행 권한이 없는 `uv` 파일)는 `bin/analytics`에서 셸의 오류와 셸·플랫폼에 따른 종료 코드(126·127·1), 런처에서 uv를 찾지 못했다는 문구와 127입니다. 찾았지만 시작할 수 없는 uv(없는 인터프리터를 가리키는 스크립트)는 `bin/analytics`에서 셸의 오류와 126(macOS의 sh)·127(dash), 런처에서 시작할 수 없다는 문구와 127입니다. 문서를 여는 프로그램이 없으면 둘 다 127이고, 런처는 자기 문구를, `bin/analytics`은 셸의 오류를 냅니다. 작업 디렉터리가 지워졌으면 런처는 읽을 수 없다는 문구와 1로 끝나고, `bin/analytics`은 macOS의 sh에서 셸의 오류와 1로 끝나지만 dash에서는 프로젝트를 찾는 반복이 끝나지 않습니다(kit 0.3.0 전의 `bin/lab`과 같습니다). `AELIX_ANALYTICS_UV`의 `~`와 끝의 `/`는 런처만 풀어 uv를 실행합니다(`bin/analytics`은 dash 127, macOS의 sh 1). 런처 자신의 글을 닫힌 파이프에 쓰면 `bin/analytics`은 141, 런처는 `BrokenPipeError`와 120이고, 표준 출력을 닫은 채(`>&-`) `--help`를 부르면 `bin/analytics`은 2, 런처는 traceback과 1입니다. symlink로 들어온 작업 디렉터리에서 `init ../DIR`은 `bin/analytics`에서 kit이 프로젝트를 만든 뒤 실패하고(셸에 따라 1이나 2), 런처에서는 끝까지 진행합니다. 런처 자신의 글(usage, 안내)은 로캘과 상관없이 UTF-8 바이트입니다. 그 안의 경로·값은 Python의 파일 시스템 인코딩이 글자로 읽은 부분을 그 글자의 UTF-8로, 읽지 못한 바이트를 받은 그대로 씁니다. 그 인코딩이 UTF-8이면(macOS; Linux의 UTF-8 로캘과, Python이 기본으로 UTF-8 모드로 도는 C 로캘) 모든 경로·값이 받은 바이트 그대로이고, 그 인코딩이 Latin-1·EUC-KR 같은 것이면(그런 로캘의 Linux) UTF-8인 이름도 바뀝니다(`bin/analytics`은 늘 받은 바이트). 런처는 `AELIX_ANALYTICS_RUNTIME_PATH`를 따르지 않고 자기 kit을 씁니다 |
-| 배포 형태 | wheel 하나를 hatchling이 체크아웃에서 만듭니다(`uv build`): package `aelix_analytics` — kit 전체(체크아웃의 `src/aelix_analytics`: 템플릿·assets·데모 스크립트 포함, 런처 `cli.py`, 실행 루트 위치 `_install.py`, manifest)와 확장 `extension.py`(체크아웃의 `extension/aelix_analytics.py`) — 와, 같은 소스의 사본 `aelix_analytics/kit/aelix_analytics`(실행 루트 `aelix_analytics/kit`). 자식은 실행 루트만 `PYTHONPATH`로 받고 사본에는 `extension.py`가 없습니다. 버전은 0.19.0입니다(`KIT_VERSION`, manifest와 같음). 의존성은 없고, 분석 라이브러리는 프로젝트 환경에만 설치됩니다. aelix 연동은 이 wheel을 aelix의 환경에 설치하는 것이며 extra는 없습니다. 개발 환경은 `package = false`로 프로젝트를 설치하지 않습니다. 라이선스는 Apache-2.0입니다(`LICENSE`; wheel의 `License-Expression`과 manifest의 `license`). 관리자는 GitHub 핸들 `handochan`이고 이메일은 적지 않습니다(wheel의 `Author`·`Maintainer`, manifest의 `authors`). 배포 이름은 `aelix-analytics`입니다(2026-10-17 소유자 결정, #24). 이 wheel은 어디에도 게시하지 않았습니다 |
+| 배포 형태 | wheel 하나를 hatchling이 체크아웃에서 만듭니다(`uv build`): package `aelix_analytics` — kit 전체(체크아웃의 `src/aelix_analytics`: 템플릿·assets·데모 스크립트 포함, 런처 `cli.py`, 실행 루트 위치 `_install.py`, manifest)와 확장 `extension.py`(체크아웃의 `extension/aelix_analytics.py`) — 와, 같은 소스의 사본 `aelix_analytics/kit/aelix_analytics`(실행 루트 `aelix_analytics/kit`). 자식은 실행 루트만 `PYTHONPATH`로 받고 사본에는 `extension.py`가 없습니다. 버전은 0.23.0입니다(`KIT_VERSION`, manifest와 같음). 의존성은 없고, 분석 라이브러리는 프로젝트 환경에만 설치됩니다. aelix 연동은 이 wheel을 aelix의 환경에 설치하는 것이며 extra는 없습니다. 개발 환경은 `package = false`로 프로젝트를 설치하지 않습니다. 라이선스는 Apache-2.0입니다(`LICENSE`; wheel의 `License-Expression`과 manifest의 `license`). 관리자는 GitHub 핸들 `handochan`이고 이메일은 적지 않습니다(wheel의 `Author`·`Maintainer`, manifest의 `authors`). 배포 이름은 `aelix-analytics`입니다(2026-10-17 소유자 결정, #24). 이 wheel은 어디에도 게시하지 않았습니다 |
 
 ### F1. 이전 구현(`48b79cc`)과 달라진 POSIX 동작
 
@@ -1506,8 +1609,18 @@ kit 0.8.0([#13](https://github.com/handochan/aelix-analytics/issues/13)의 셋�
 ## G. 약속하지 않는 것
 
 - 격리·샌드박스·승인. `analytics_run` 스크립트는 사용자가 읽을 수 있는 모든 파일에 닿습니다(`analytics_query`만 `data/`로 묶여 있습니다).
-- 계보의 완전성. 입력 감지는 최선 노력입니다(pyarrow 직접 읽기처럼 훅이 없는 경로는 놓칩니다). 일부만 감지된
-  경우 경고도 없습니다 — 경고는 입력이 하나도 없을 때만 나옵니다. 행 단위 계보와 선택(마킹) 기반 후속 분석은 없습니다.
+- 계보의 완전성. 입력 감지는 최선 노력입니다(pyarrow 직접 읽기처럼 훅이 없는 경로는 놓칩니다). 감지하지 못한 입력은 경고할 수도 없습니다.
+  감지한 뒤 상한으로 생략한 경우는 다릅니다([#46](https://github.com/handochan/aelix-analytics/issues/46)): 실행 중 읽기 한 번의 glob·디렉터리는
+  파일 후보 500개, 정적 스캔은 경로 글자 하나당 200개까지 해시하고 기록합니다. 정적 glob 결과·경로 글자는 정렬하고 디렉터리는 namespace walk의
+  이름 순서를 따릅니다. 디렉터리는 생략 수를 세기 위해 나머지 이름도 열거하지만 내용은 열지 않습니다. 기존 run `warnings`의 앞부분에
+  감지 방식·상한·그 감지 패스가 생략한 파일 후보 수를 남기고 실행 응답과 run 화면에 보입니다. 다른 감지 패스가 같은 파일을 기록할 수 있어
+  생략 수는 전체 run에서 빠진 고유 파일 수가 아닙니다. 신선도(stale)와 계보(producer·`used_by`)는 기록된 입력만 판정하며, 경고가 없는 것을
+  완전한 계보로 보지 않습니다. 행 단위 계보와 선택(마킹) 기반 후속 분석은 없습니다.
+- 다수 입력 run의 지표 관측. writer는 `metric_observation`마다 해당 run의 기록 입력 전체를 typed ref로 펼칩니다. 본문이 짧아도 경로·해시·참조
+  때문에 journal 한 줄이 50 KiB 이상이면 기존 `text_too_long`으로 거절하고 입력이나 참조를 자르지 않습니다(C1). 입력 수의 고정 임계값은 없고
+  경로 길이 등에 따라 다릅니다. run 밖 호출은 아무것도 덧붙이지 않으며, run 안의 pending 관측은 최종 입력이 늘어 최종 쓰기가 거절될 수 있고
+  그 경우 `finalize_errors`와 불완전한 기록 상태로 보입니다. run의 입력 목록·실행 결과는 보존됩니다. 짧은 본문만으로 이 제한을 해결할 수는
+  없습니다. 간접 입력 참조나 관측 분할의 의미를 바꾸는 일은 [별도 계약 결정 #114](https://github.com/handochan/aelix-analytics/issues/114)이며 현재 writer는 기존 명시적 거절을 유지합니다.
 - 관계의 읽기(#12).
   - 앞 참조. writer(kit 0.8.0 전의 `/1` writer와 kit 0.8.0의 공통 writer)는 참조한 `e<seq>`·run id의 대상이 있는지 확인하지 않아(공통 writer는 `version_binding: author`로 씀), 아직 없는 id나 오타 id를 적을 수 있습니다. reader는 대상 seq ≥ 참조한 기록의 seq인 이벤트 계열 참조를 `missing`(`record_absent`)·`confirmed=false`로 읽습니다(E). ADR-0006 4절 2단계의 읽기이고 ADR 본문은 고치지 않았습니다. 그래서 그런 참조가 나중에 생긴 다른 기록과 확정 연결이 되지는 않지만, 쓰기는 받습니다.
   - `lab.event/1` 기록의 핵심 정보·열린 항목 선택은 C1의 규칙(`refs.resolves`가 가리키는 id) 그대로이며 ADR-0006 6절의 상태 재생과 다를 수 있습니다(`analytics.event/2` 기록은 kit 0.7.0부터 상태 재생도 봅니다, C1). 여러 줄의 id를 닫는 `resolves`는 재생에서는 아무것도 닫지 않지만(`ambiguous`), 목록에서는 그 id의 줄을 모두 닫힌 것으로 셉니다. `resolves`의 확인(kit 0.8.0 전의 `add_note`와 공통 writer)은 journal만 읽고 그 id의 읽히는 기록이 있으면 통과합니다. 공통 writer는 그 id가 여러 줄이면 응답 `targets`에 `reason: target_ambiguous`를 적습니다. 상태 재생을 화면에 쓰는 일은 #16입니다. 여러 줄의 id는 #49 수정 전의 kit이 끊긴 줄 뒤에 쓴 journal이나 손으로 고친 journal에 있습니다. 지금 writer는 이미 읽히는 줄의 seq나 id를 다시 주지 않습니다(C1).
@@ -1570,7 +1683,9 @@ kit 0.8.0([#13](https://github.com/handochan/aelix-analytics/issues/13)의 셋�
 - 원자성·복구·멱등성. 한 프로젝트의 run은 직렬화되지만, 강제 종료된 run은 `incomplete`로 남고 되돌리지 않습니다.
   프로젝트 밖에서 같은 파일을 건드리는 다른 프로세스는 막지 않습니다.
 - 결정성과 다른 환경 재현. 재실행은 같은 환경을 가정하고 환경 지문을 비교하지 않습니다.
-- 반출 정책·가림. 리포트에는 데이터 미리보기와 로그가 그대로 들어갑니다.
+- Workspace의 반출 정책·가림. Workspace에는 데이터 미리보기와 로그가 그대로 들어갑니다. D2의 공유 미리보기는 별도 허용 범위·검사를
+  적용하지만 아직 저장된 독립 패키지를 만들지 않습니다. 바꿔 말한 내용·사용자 글의 임의 base64·픽셀 속 글자·선택한 코드의 API키 같은 비밀은
+  탐지하지 않으며, 모르는 기기의 경로는 일반 패턴 경고까지만 할 수 있습니다. 수신자 브라우저·실제 다른 독자의 수용은 미실행입니다.
 - 규모 한도. 명시적 상한이 없고 큰 데이터에서는 느려집니다.
 - 스크립트가 가로챈 중단과 한 번만 중단하는 규칙의 비용(모든 플랫폼). 취소와 제한 시간은 kit의 처리기를 거쳐서만
   스크립트에 닿습니다(D1).

@@ -152,10 +152,11 @@ NOT_RUN = [
                                              "aelix_agent_core/loop.py)", "where": "-"},
 ]
 
-F3_CAVEAT = ("F3's run.json is synthetic: the harness writes all 503 inputs into the record. A "
-             "real run that reads 503 files through one glob records 502 of them: input "
-             "detection keeps at most 500 files of a glob read at run time and 200 of a glob in "
-             "the code, and nothing marks the rest (N1, #46).")
+F3_CAVEAT = ("F3's run.json is synthetic: the harness writes all 503 inputs into the record. "
+             "Real detection keeps at most 500 file candidates per runtime glob/directory and "
+             "200 per static path literal; run warnings now report each capped detection pass "
+             "and its omitted count (#46). Another pass can capture those candidates; freshness "
+             "and lineage still cover recorded inputs only. F3 does not measure real capture.")
 
 
 # --- sizes, encodings, normalization -----------------------------------------------------------

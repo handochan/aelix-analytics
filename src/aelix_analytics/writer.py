@@ -719,15 +719,9 @@ RUN_ID_V2_RE = re.compile(r"[0-9]{8}-[0-9]{6}-[a-z0-9][a-z0-9-]{0,60}")
 SHA256_RE = re.compile(r"[0-9a-f]{64}")
 # ADR-0006 3 and the record schema's reference: what each target type holds when it is bound (author
 # or inferred), the types that are never left unbound, and the fields an unbound one names.
-BOUND_TARGET = {"event": ("event_id",), "analysis_focus": ("event_id",), "run": ("run_id",),
-                "publication": ("publication_id",), "visualization_version": ("run_id", "visualization_id"),
-                "data_observation": ("run_id", "role", "path"), "dataset_import": ("path", "digest"),
-                "code_snapshot": ("run_id", "path", "digest"), "context_version": ("version", "digest"),
-                "metric_definition": ("metric_id", "event_id"), "reuse_proposal": ("proposal_id", "event_id"),
-                "asset_candidate": ("asset_id", "event_id"),
-                "report_revision": ("report_id", "revision_id", "digest")}
-ALWAYS_BOUND = frozenset({"event", "run", "analysis_focus", "publication"})
-UNBOUND_KEYS = ("key", "path", "metric_id", "proposal_id", "report_id", "token", "asset_id")
+BOUND_TARGET = relations.BOUND_TARGET
+ALWAYS_BOUND = relations.ALWAYS_BOUND
+UNBOUND_KEYS = relations.UNBOUND_KEYS
 # A reference's fields in the order the Writer writes them: what it is, its target, then how it is
 # related and bound (the record examples' order).
 REFERENCE_HEAD = ("type", "run_id", "event_id", "visualization_id", "role", "path", "version", "key",
@@ -865,45 +859,9 @@ def check_request_id(request_id) -> None:
                              details={"request_id": request_id})
 
 
-def _digest(value) -> bool:
-    return isinstance(value, dict) and isinstance(value.get("sha256"), str) and bool(
-        SHA256_RE.fullmatch(value["sha256"]))
-
-
 def reference_problem(ref) -> str | None:
-    """What makes `ref` no reference of the record schema (its `reference`), or None. The schema is
-    the rule; this is what the Writer checks before it writes, standard library only."""
-    if not isinstance(ref, dict):
-        return "a reference is an object"
-    kind, binding = ref.get("type"), ref.get("version_binding")
-    for name, allowed in (("type", relations.REF_TYPES), ("relation", relations.RELATIONS),
-                          ("basis", relations.BASES), ("version_binding", relations.BINDINGS)):
-        if ref.get(name) not in allowed:
-            return f"{name} {ref.get(name)!r} is not one of {', '.join(sorted(allowed))}"
-    for name, value in ref.items():
-        if name in ("event_id",) and not (isinstance(value, str) and EVENT_ID_V2_RE.fullmatch(value)):
-            return f"event_id {value!r} is not an event id"
-        if name == "run_id" and not (isinstance(value, str) and RUN_ID_V2_RE.fullmatch(value)):
-            return f"run_id {value!r} is not a run id"
-        if name == "digest" and not _digest(value):
-            return f"digest {value!r} is not {{'sha256': <64 hex>}}"
-        if name == "role" and value not in ("input", "output"):
-            return f"role {value!r} is not input or output"
-        if name in ("token", "key", "path", "visualization_id", "version", "metric_id",
-                    "proposal_id", "asset_id") and not (isinstance(value, str) and value):
-            return f"{name} is a non-empty string"
-    if binding == "none":
-        if kind in ALWAYS_BOUND:
-            return f"a reference to a {kind} is bound"
-        if not any(name in ref for name in UNBOUND_KEYS):
-            return "an unbound reference names its target by " + ", ".join(UNBOUND_KEYS)
-    else:
-        missing = [name for name in BOUND_TARGET[kind] if name not in ref]
-        if binding == "inferred" and "token" not in ref:
-            missing.append("token")
-        if missing:
-            return f"a {binding} reference to a {kind} holds " + ", ".join(missing)
-    return None
+    """The shared pure record-reference contract, also used by Report manifest readers."""
+    return relations.reference_problem(ref)
 
 
 def _ordered(ref: dict) -> dict:

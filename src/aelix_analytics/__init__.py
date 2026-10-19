@@ -39,7 +39,8 @@ if TYPE_CHECKING:
     from . import core
 
 __all__ = ["assets", "checkpoint", "datasets", "path", "project", "read", "record", "register_asset", "review_assets",
-           "run_id", "save", "scan", "set_asset_mode", "sql", "status", "update_asset", "visualize"]
+           "run_id", "save", "scan", "set_asset_mode", "sql", "status", "update_asset", "visualize",
+           "save_report", "reports", "update_report", "clean_report_prepared"]
 
 # The script API's functions renamed in kit 0.3.0 (Issue #9), by their old names. The version is fixed:
 # it names the boundary, core.NAMES_RENAMED_IN, which this module may not import at load.
@@ -284,6 +285,41 @@ def _asset_origin():
     from . import capture
 
     return capture.ACTIVE.sdk_origin if capture.ACTIVE is not None else _script_origin()
+
+
+def save_report(report_id, *, files, entry, title, previous_revision, request_id=None, based_on=None, metadata=None):
+    """Register authored files as one immutable Report revision, without running generation code.
+
+    previous_revision is explicit (None for the first revision). Preserve request_id for retries.
+    Evidence is only the supplied based_on, never inferred from the current project.
+    """
+    from . import core
+
+    return core.save_report(project(), report_id, files=files, entry=entry, title=title,
+                            previous_revision=previous_revision, request_id=request_id,
+                            based_on=based_on, metadata=metadata, origin=_asset_origin())
+
+
+def reports(report_id=None, revision_id=None, **options):
+    """Bounded Report metadata/history or one file's exact bytes, encoded as base64."""
+    from . import core
+
+    return core.reports(project(), report_id, revision_id, **options)
+
+
+def update_report(report_id, revision_id, *, expected, new, reason):
+    """Withdraw or restore an exact completed revision, keeping its authored bytes immutable."""
+    from . import core
+
+    return core.update_report(project(), report_id, revision_id, expected=expected, new=new,
+                              reason=reason, origin=_asset_origin())
+
+
+def clean_report_prepared(report_id, revision_id):
+    """Explicitly remove only the named prepared attempt after taking its lock."""
+    from . import core
+
+    return core.clean_report_prepared(project(), report_id, revision_id, origin=_asset_origin())
 
 
 def review_assets(asset_id=None) -> dict:

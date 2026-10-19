@@ -93,9 +93,9 @@ aelix 안에서: `/analytics`(현황) · `/analytics open`(리포트) · "지역
 배포본은 아직 어디에도 게시하지 않았으므로 체크아웃에서 직접 만듭니다.
 
 ```sh
-cd $PACK && uv build                                   # dist/aelix_analytics-0.19.0-py3-none-any.whl
-uv tool install --python 3.12 dist/aelix_analytics-0.19.0-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
-uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.19.0-py3-none-any.whl   # aelix와 함께
+cd $PACK && uv build                                   # dist/aelix_analytics-0.23.0-py3-none-any.whl
+uv tool install --python 3.12 dist/aelix_analytics-0.23.0-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
+uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.23.0-py3-none-any.whl   # aelix와 함께
 ```
 
 - `analytics`는 체크아웃의 `bin/analytics`와 같은 명령·인자·usage(바이트까지 같음)를 쓰고 kit의 출력을 바이트 그대로 넘깁니다
@@ -490,7 +490,11 @@ kit이 쓰는 텍스트(기록·템플릿 사본·inline 스크립트·Workspace
 - **개인정보.** 텔레메트리에 bash 명령 앞 300자가 로컬로 남습니다. 리포트는 실데이터 미리보기를 담습니다 — 공유 전에 확인하세요.
   프로젝트 `.gitignore`는 `data/`·`workspace/`와 Visualization의 플롯 데이터를 기본 제외합니다.
 - **현재 공유 범위.** `workspace/`는 프로젝트의 차트·데이터 파일을 상대 경로로 참조하므로 그 폴더만으로 독립 공유를 보장하지 않습니다.
-  독립 `build`·`publish`는 위 공유 설계의 후속 구현이며 현재 명령이 아닙니다.
+  `analytics build --preview`는 공유 범위·파일 형식·누출·링크 검사를 메모리에서 실행하고 JSON 요약을 냅니다.
+  `--profile read|evidence`와 `--exclude REF`를 쓰며 기록·CONTEXT 버전·캐시·잠금·패키지 폴더를 만들지 않습니다.
+  터미널과 `/analytics build --preview`는 이미 준비된 프로젝트 `.venv`를 쓰고 환경을 새로 만들거나 동기화하지 않습니다.
+  없으면 먼저 별도로 `uv sync`로 환경을 준비합니다. SDK build 함수는 없습니다.
+  저장·결박하는 build, Report/collection 범위, ZIP·publish는 아직 제공하지 않습니다.
 
 ## 개발
 

@@ -15,6 +15,38 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 없음. 병합된 변경은 그 PR이 병합될 때의 kit 번호 절에 적고, kit 번호를 올리는 PR은 새 절을 엽니다
 ([기여 가이드](CONTRIBUTING.md#첫-공개-전에-남은-운영-결정)).
 
+## [0.23.0] - 2026-10-19
+
+### Added
+
+- #20 PR2: `analytics build --preview`와 명시적 `/analytics build --preview`로 read/evidence 범위의 메모리 패키지·링크·형식·누출 검사를 확인합니다. 원본 해시·과거 버전을 대조하고 파일별 제외와 검사 상태를 표시하며 프로젝트·환경을 새로 쓰지 않습니다. 저장 build·publication 결박·Report/collection·ZIP·publish는 후속입니다.
+
+## [0.22.0] - 2026-10-19
+
+### Added
+
+- Report optional metadata and exact partial collection snapshots, with canonical metadata bytes bound through the existing retry fingerprint. CLI `reports save --metadata` and SDK use the same path ([PR118](https://github.com/handochan/aelix-analytics/pull/118), #19 PR2).
+- Byte-only ReportRenderer contract and conservative Markdown/text views with original download links; arbitrary HTML/SVG/PDF/Office remain download-only. Workspace Reports integration follows in PR3.
+
+## [0.21.0] - 2026-10-18
+
+- #20 PR1: 内부 공유 모델·read/evidence 투영·공통 범위 닫힘·고정 snapshot과 `content_seq`를 구현했습니다. 허용 필드·참조 상태·파일 역할을 모델에서 검증하며 build/preview 명령·패키지 writer·Report 범위는 후속 PR입니다. 공개 진입점과 저장 형식은 그대로여서 kit 번호를 별도로 올리지 않았습니다.
+
+- [#116](https://github.com/handochan/aelix-analytics/pull/116): Report 파일을 불변 버전으로 등록·보존하는 CLI/SDK, 같은 요청의 재시도·중단 복구·이전 버전 충돌 검사, 정확한 버전 철회/복원과 prepared 정리를 추가했습니다. metadata·이력과 선택한 파일 범위를 모델 없이 읽으며 Reports 화면·반복 묶음·형식별 보기는 후속 PR입니다.
+
+## [0.20.0] - 2026-10-18
+
+### Fixed
+
+- #46: 입력 감지가 실행 중 glob·디렉터리500개 또는 정적 경로 글자200개 상한에 걸리면 기존 run `warnings`에 상한·감지 패스가 생략한 파일 후보 수를 남깁니다.
+  실행 응답과 run 화면에 표시하고, 신선도·계보는 기록된 입력까지만 본다는 한계를 알립니다. 다른 패스가 같은 파일을 기록할 수 있으므로 패스별 수를 전체 run의 고유 누락 수로 보지 않습니다.
+- #46: 정적 스캔의 경로 글자와 glob 결과를 정렬하여 같은 입력 목록을 기록합니다. 디렉터리는 생략 수를 세기 위해 나머지 이름을 열거하되 파일 내용 해시는500개까지만 읽습니다.
+
+### Changed
+
+- #46: 지표 관측이 많은 입력 참조 때문에 journal50KiB 한도를 넘는 실제 사례와 기존 거절·최종 기록 실패를 회귀시험하고 문서에 명시했습니다.
+  참조 의미·저장 형식은 그대로이며 처리 방식 결정은 [#114](https://github.com/handochan/aelix-analytics/issues/114)에서 이어갑니다.
+
 ## [0.19.0] - 2026-10-18
 
 ### Added

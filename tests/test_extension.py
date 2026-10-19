@@ -2233,3 +2233,47 @@ def test_bounded_status_reads_share_ids_and_preserve_complete_text(lab, monkeypa
     assert (root / "journal.jsonl").read_bytes() == before
     assert len(scheduled) == 1, "bounded reads must not schedule another writer"
     assert set(tools) == TOOL_NAMES
+
+
+def test_explicit_build_preview_uses_only_the_existing_project_interpreter(lab, monkeypatch):
+    module, root = lab
+    python = root / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    python.parent.mkdir(parents=True)
+    python.touch()
+    calls = []
+
+    async def spawned(argv, cwd, env, timeout, processes, request):
+        calls.append(
+            (
+                argv,
+                {k: env.get(k) for k in ("PYTHONDONTWRITEBYTECODE", "VIRTUAL_ENV", "PYTHONPATH")},
+                request,
+            )
+        )
+        return False, 0, b'{"ok":true,"preview":true}\n', b""
+
+    monkeypatch.setattr(module, "_spawn", spawned)
+    monkeypatch.setattr(module, "resolve_uv", lambda *a: pytest.fail("preview called uv"))
+    monkeypatch.setattr(
+        module, "_CancelRequest", lambda *a: pytest.fail("preview created a request file")
+    )
+    assert asyncio.run(
+        module.run_kit(module.core.Project(root), ["build", "--preview"], timeout=30)
+    ) == (True, {"ok": True, "preview": True})
+    assert calls[0][0] == [
+        str(python),
+        "-m",
+        "aelix_analytics",
+        "--project",
+        str(root),
+        "build",
+        "--preview",
+    ]
+    assert calls[0][1]["PYTHONDONTWRITEBYTECODE"] == "1" and calls[0][2] is None
+    said = asyncio.run(module.analytics_command("build --preview --profile evidence"))
+    assert '"preview": true' in said and calls[-1][0][-4:] == [
+        "build",
+        "--preview",
+        "--profile",
+        "evidence",
+    ]

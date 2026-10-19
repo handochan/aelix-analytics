@@ -213,6 +213,35 @@ def _command(argv) -> int:
     p.add_argument("--limit", type=int)
     sub.add_parser("context", help="the context block injected into agent prompts")
 
+    report = sub.add_parser("reports", help="preserve and read immutable Report revisions")
+    commands = report.add_subparsers(dest="report_action", required=True)
+    p = commands.add_parser("save", help="register files without executing their generator")
+    p.add_argument("report_id")
+    p.add_argument("--entry", required=True)
+    p.add_argument("--files", required=True)
+    p.add_argument("--title", required=True)
+    p.add_argument("--previous", required=True)
+    p.add_argument("--request-id")
+    p.add_argument("--based-on", help="authored evidence JSON file; never inferred")
+    p.add_argument("--metadata", help="optional authored metadata/collection JSON file")
+    for action in ("list", "show"):
+        p = commands.add_parser(action)
+        if action == "show":
+            p.add_argument("target", help="exact report_id@revision_id")
+            p.add_argument("--file")
+            p.add_argument("--file-offset", type=int, default=0)
+            p.add_argument("--file-limit", type=int, default=8192)
+        p.add_argument("--limit", type=int, default=20)
+        p.add_argument("--offset", type=int, default=0)
+        p.add_argument("--verify-files", action="store_true", help="explicitly hash the preserved files")
+    p = commands.add_parser("update")
+    p.add_argument("target")
+    p.add_argument("--expected-state", required=True)
+    p.add_argument("--state", required=True)
+    p.add_argument("--reason", required=True)
+    p = commands.add_parser("clean")
+    p.add_argument("--prepared", required=True)
+
     asset = sub.add_parser("assets", help="read, review or explicitly register analysis assets")
     commands = asset.add_subparsers(dest="asset_action", required=True)
     commands.add_parser("list", help="read candidate versions and prior legacy records")
@@ -272,6 +301,17 @@ def _command(argv) -> int:
     p = sub.add_parser("render", help="rebuild the Workspace (HTML)")
     p.add_argument("--if-changed", action="store_true")
 
+    p = sub.add_parser("build", help="inspect a sharing preview without writing a publication")
+    p.add_argument("--preview", action="store_true", required=True,
+                   help="inspect in memory without saving a publication")
+    p.add_argument("--profile", default="read")
+    p.add_argument("--scope", default="project")
+    p.add_argument("--report", action="append", default=[])
+    p.add_argument("--collection")
+    p.add_argument("--exclude", action="append", default=[])
+    p.add_argument("--analysis-state", default="in_progress")
+    p.add_argument("--allow-withdrawn", action="store_true")
+
     p = sub.add_parser("demo", help="fill a new project with synthetic data and example runs")
 
     # No abbreviated options: the launchers read --to and --dry-run from what is passed on, and an
@@ -308,7 +348,55 @@ def _command(argv) -> int:
             core.admit(project, args.command)
         else:
             core.readable(project, args.command)
-        if args.command == "status":
+        if args.command == "build":
+            from .publishing.build import preview_package
+            from .publishing.model import PublicationError
+            from .publishing.projection import ShareRequest
+
+            request = ShareRequest(scope="collection" if args.collection is not None else args.scope,
+                                   reports=tuple((r, "") for r in args.report),
+                                   analysis_state=args.analysis_state, allow_withdrawn=args.allow_withdrawn)
+            try:
+                result, _ = preview_package(project, request, profile=args.profile, exclude=args.exclude)
+            except PublicationError as exc:
+                raise core.AnalyticsError(exc.code, exc.message, details=exc.details) from exc
+            except (UnicodeError, RecursionError) as exc:
+                raise core.AnalyticsError("records_unsupported", "the preview input text or nesting is not supported") from exc
+            except (ImportError, OSError) as exc:
+                raise core.AnalyticsError("renderer_unavailable", "the preview's rendering resources are unavailable") from exc
+            _emit(result)
+            return 0
+        if args.command == "reports":
+            action = args.report_action
+            if action == "save":
+                optional = {}
+                for name in ("based_on", "metadata"):
+                    path = getattr(args, name)
+                    if path:
+                        try:
+                            optional[name] = json.loads(Path(path).read_bytes())
+                        except (OSError, ValueError) as exc:
+                            raise core.AnalyticsError("report_input_invalid", f"Cannot read --{name.replace('_', '-')}: {exc}") from exc
+                result = core.save_report(project, args.report_id, files=args.files, entry=args.entry,
+                                          title=args.title, previous_revision=None if args.previous == "none" else args.previous,
+                                          request_id=args.request_id, **optional, origin=origin)
+            elif action == "list":
+                result = core.reports(project, limit=args.limit, offset=args.offset, verify_files=args.verify_files)
+            else:
+                target = args.prepared if action == "clean" else args.target
+                if target.count("@") != 1 or not all(target.split("@")):
+                    raise core.AnalyticsError("report_input_invalid", "Give an exact report_id@revision_id")
+                report_id, revision_id = target.split("@")
+                if action == "show":
+                    result = core.reports(project, report_id, revision_id, limit=args.limit, offset=args.offset,
+                                          file=args.file, file_offset=args.file_offset, file_limit=args.file_limit, verify_files=args.verify_files)
+                elif action == "update":
+                    result = core.update_report(project, report_id, revision_id, expected=args.expected_state,
+                                                new=args.state, reason=args.reason, origin=origin)
+                else:
+                    result = core.clean_report_prepared(project, report_id, revision_id, origin=origin)
+            _emit({"ok": True, **result})
+        elif args.command == "status":
             options = {name: getattr(args, name) for name in
                        ("part", "query", "id", "cursor", "kind", "state", "since", "until", "direction", "depth",
                         "as_of_seq", "limit")

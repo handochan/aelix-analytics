@@ -13,6 +13,10 @@
 #   analytics checkpoint [TEXT] [--ref REF] [--from-seq N] [--limit N]
 #                        [--as-of-seq N --context-version VERSION|--context-unknown]
 #   analytics record KIND "TEXT" [--ref R] [--resolves eN] [--details-json JSON] [--refs-json JSON]
+#   analytics reports save ID --files DIR --entry PATH --title TEXT --previous REV|none [--request-id ID] [--metadata JSON_FILE]
+#   analytics reports list | show ID@REV [--file PATH] | update ID@REV --expected-state STATE --state STATE --reason TEXT
+#   analytics reports clean --prepared ID@REV    remove one explicitly named prepared attempt
+#   analytics build --preview [--profile read|evidence] [--exclude REF]...
 #   analytics assets list | show ID | review [ID] | update EVENT --expected STATE --to STATE --reason TEXT
 #   analytics assets register EVENT --name NAME    copy a validated asset into this project
 #   analytics assets mode on_demand|always_on      human project suggestion mode
@@ -203,10 +207,20 @@ case $cmd in
     proj=$(find_project)
     run_kit "$proj" "$cmd" "$@"
     ;;
-  assets)
+  build)
     refuse_renamed
     proj=$(find_project)
-    kit_outside "$proj" assets "$@"
+    python=$proj/.venv/bin/python
+    if [ ! -f "$python" ]; then
+      echo "analytics: preview needs an existing project environment; run uv sync first" >&2
+      exit 1
+    fi
+    "$python" -m aelix_analytics --project "$proj" build "$@"
+    ;;
+  assets|reports)
+    refuse_renamed
+    proj=$(find_project)
+    kit_outside "$proj" "$cmd" "$@"
     ;;
   migrate)
     refuse_renamed

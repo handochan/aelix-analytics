@@ -90,7 +90,7 @@ IMPLEMENTATIONS: dict[str, Implementation] = {
         Implementation("windows", lambda: _platform.detect("windows"), os.name == "nt",
                        "the Windows implementation runs on the Windows leg", REAL | {RENAMES}),
         # In this process only: its lock excludes nothing outside it, alive is False for every pid,
-        # and its guard never interrupts. Its rename_new is a link and an unlink in this process.
+        # and its guard never interrupts. Its rename_new uses a process-local mutex.
         Implementation("recording", lambda: recording_platform()[0], True, "", frozenset({RENAMES})),
     )}
 
@@ -496,6 +496,39 @@ def test_renaming_to_a_new_name_puts_the_bytes_there_and_the_old_name_goes(imple
     assert (tmp_path / "other.json").read_bytes() == b"x" and not src.exists()
 
 
+@pytest.mark.parametrize("destination", ["absent", "empty_directory", "directory", "file"])
+def test_directory_rename_between_parents_never_replaces(implementation, tmp_path, destination):
+    """Report publication is one exclusive tree rename across parents, including on Windows."""
+    needs(implementation, RENAMES)
+    files = implementation.make().files
+    stage = tmp_path / ".staging" / "attempt"
+    stage.mkdir(parents=True)
+    (stage / "content").mkdir()
+    (stage / "content" / "원문.bin").write_bytes(b"immutable\x00\xff")
+    (stage / "manifest.json").write_bytes(b"manifest")
+    dst = tmp_path / "revision"
+    if destination == "file":
+        dst.write_bytes(b"person's existing file")
+    elif destination != "absent":
+        dst.mkdir()
+        if destination == "directory":
+            (dst / "existing.bin").write_bytes(b"existing")
+    if destination == "absent":
+        files.rename_new(stage, dst)
+        assert not stage.exists()
+        assert (dst / "content" / "원문.bin").read_bytes() == b"immutable\x00\xff"
+    else:
+        with pytest.raises(FileExistsError):
+            files.rename_new(stage, dst)
+        assert (stage / "content" / "원문.bin").read_bytes() == b"immutable\x00\xff"
+        if destination == "file":
+            assert dst.read_bytes() == b"person's existing file"
+        elif destination == "directory":
+            assert (dst / "existing.bin").read_bytes() == b"existing"
+        else:
+            assert dst.is_dir() and not any(dst.iterdir())
+
+
 @pytest.mark.parametrize("there", ["file", "directory", "empty file"])
 def test_renaming_never_overwrites_what_is_there(implementation, tmp_path, there):
     """A name taken meanwhile keeps what is there, and the temporary file stays for its ledger line
@@ -552,6 +585,14 @@ def test_a_system_without_the_exclusive_rename_is_told_and_nothing_changes(imple
     with pytest.raises(_platform.RenameUnsupported):
         bundle.files.rename_new(src, dst)
     assert src.read_bytes() == b"the marker" and not dst.exists()
+
+    tree = tmp_path / ".staging" / "attempt"
+    tree.mkdir(parents=True)
+    (tree / "content.bin").write_bytes(b"preserved tree")
+    target = tmp_path / "revision"
+    with pytest.raises(_platform.RenameUnsupported):
+        bundle.files.rename_new(tree, target)
+    assert (tree / "content.bin").read_bytes() == b"preserved tree" and not target.exists()
 
 
 def test_flushing_writes_through_and_hides_no_error(implementation, tmp_path):
@@ -814,3 +855,124 @@ def test_every_implementation_writes_what_the_process_default_writes(implementat
     reference = _flow(tmp_path / "default", source, core.PLATFORM)
     chosen = _flow(tmp_path / "chosen", source, implementation.make())
     assert chosen == reference
+
+
+# PublicationProjection (Issue20 PR1): model/scope contracts now exist. Package/build/Report
+# capabilities are intentionally absent; their cases are skipped rather than called acceptance.
+@dataclass(frozen=True)
+class ProjectionImplementation:
+    id: str
+    profile: str
+    capabilities: frozenset[str]
+
+
+PROJECTION_IMPLEMENTATIONS = (
+    ProjectionImplementation("read", "read", frozenset({"project", "model", "no_io", "files", "references", "preview"})),
+    ProjectionImplementation("evidence", "evidence", frozenset({"project", "model", "no_io", "files", "references", "preview"})),
+    ProjectionImplementation("recording", "read", frozenset({"project", "model", "no_io", "preview"})),
+)
+
+
+@pytest.mark.parametrize("implementation", PROJECTION_IMPLEMENTATIONS, ids=lambda i: i.id)
+def test_publication_implementation_contract(implementation):
+    from publication_doubles import RecordingProjection
+
+    from aelix_analytics.publishing.model import ContentBasis, ItemKey, SnapshotBasis
+    from aelix_analytics.publishing.projection import (
+        ShareRequest,
+        ShareSnapshot,
+        SnapshotItem,
+        freeze,
+        project,
+    )
+    from aelix_analytics.publishing.scope import PROFILES, scope_closure
+
+    snapshot = ShareSnapshot(SnapshotBasis(0, ContentBasis(0, None, None)), (
+        SnapshotItem(ItemKey("project", "project"), "project", freeze({"title": "Public"}), root=True),))
+    request = ShareRequest()
+    recording = RecordingProjection() if implementation.id == "recording" else None
+    result = project(snapshot, request, profile=implementation.profile, implementation=recording)
+    assert set(result.ledger.included) <= scope_closure(snapshot, request, PROFILES[implementation.profile])
+    assert result == project(snapshot, request, profile=implementation.profile, implementation=recording)
+    assert result.model.title.value == "Public"
+    if recording:
+        assert recording.requests == [request, request]
+
+
+@pytest.mark.parametrize("implementation", PROJECTION_IMPLEMENTATIONS, ids=lambda i: i.id)
+@pytest.mark.parametrize("capability", ["reports", "collection", "full_build_injection"])
+def test_publication_later_capability_is_not_claimed(implementation, capability):
+    if capability not in implementation.capabilities:
+        pytest.skip(f"{implementation.id}: {capability} is PR4 or the later build adapter, not PR1 acceptance")
+    raise AssertionError("new capability needs an actual contract case before it can be advertised")
+
+
+@pytest.mark.parametrize("implementation", PROJECTION_IMPLEMENTATIONS, ids=lambda i: i.id)
+def test_publication_preview_uses_each_injected_implementation(implementation, tmp_path, monkeypatch):
+    from publication_doubles import RecordingProjection
+
+    from aelix_analytics import core
+    from aelix_analytics.publishing.build import preview_package
+    from aelix_analytics.publishing.projection import PROJECTIONS, ShareRequest
+
+    chosen = RecordingProjection() if implementation.id == "recording" else PROJECTIONS[implementation.id]()
+    project = core.init_project(tmp_path / "p", title="Public", origin=core.Origin("human", "sdk"))
+    for name in PROJECTIONS:
+        monkeypatch.setitem(PROJECTIONS, name, lambda: pytest.fail("preview selected a default implementation"))
+    summary, files = preview_package(project, profile=implementation.profile, projection=chosen)
+    assert summary["profile"]["id"] == implementation.id
+    assert f"Profile: {implementation.id}.".encode() in files["index.html"]
+    if implementation.id == "recording":
+        assert chosen.requests == [ShareRequest()]
+
+# ReportRenderer (Issue19 PR2): production conservative view and boundary-recording stand-in.
+# The stand-in delegates format parsing; it proves replacement and input boundaries, not a second
+# Markdown implementation. HTML/Office/PDF views remain download-only for both.
+@dataclass(frozen=True)
+class ReportRendererImplementation:
+    id: str
+    capabilities: frozenset[str]
+
+
+REPORT_RENDERER_IMPLEMENTATIONS = (
+    ReportRendererImplementation("static", frozenset({"markdown", "text", "download", "no_io"})),
+    ReportRendererImplementation("recording", frozenset({"markdown", "text", "download", "no_io"})),
+)
+
+
+@pytest.mark.parametrize("implementation", REPORT_RENDERER_IMPLEMENTATIONS, ids=lambda i: i.id)
+def test_report_renderer_replacement_contract(implementation, monkeypatch):
+    import inspect
+    import socket
+
+    from report_renderer_doubles import RecordingReportRenderer
+
+    from aelix_analytics.report_renderer import ReportRenderer
+    from aelix_analytics.report_renderers import StaticReportRenderer
+
+    renderer = RecordingReportRenderer() if implementation.id == "recording" else StaticReportRenderer()
+    assert list(inspect.signature(renderer.render).parameters) == ["files", "entry", "paths"]
+    assert list(inspect.signature(ReportRenderer.render).parameters) == ["self", "files", "entry", "paths"]
+    files, paths = {"한글.md": b"# Exact bytes\r\n"}, {"한글.md": "original/한글.md"}
+    # Import the parser before refusing external I/O (Python's module loader reads its source).
+    from markdown_it import MarkdownIt
+    assert MarkdownIt
+
+    def refuse(*args, **kwargs):
+        raise AssertionError("ReportRenderer looked outside its explicit byte input")
+
+    monkeypatch.setattr(Path, "read_bytes", refuse)
+    monkeypatch.setattr(Path, "read_text", refuse)
+    monkeypatch.setattr(socket, "create_connection", refuse)
+    before = dict(files)
+    first = renderer.render(files, entry="한글.md", paths=paths)
+    assert first == renderer.render(files, entry="한글.md", paths=paths)
+    assert first.supported and files == before
+    assert set(first.originals) == set(files) and all(isinstance(b, bytes) for b in first.files.values())
+    with pytest.raises(TypeError):
+        first.files["overwritten"] = b"bad"
+    if implementation.id == "recording":
+        assert renderer.calls == [(files, "한글.md", paths), (files, "한글.md", paths)]
+    fallback = renderer.render({"a.pdf": b"%PDF"}, entry="a.pdf", paths={"a.pdf": "original/a.pdf"})
+    assert not fallback.supported and fallback.reasons == ("format_download_only",)
+    assert fallback.originals == {"a.pdf": "../original/a.pdf"}

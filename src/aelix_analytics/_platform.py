@@ -112,7 +112,10 @@ class AtomicFiles(Protocol):
     (owner's decision of 2026-10-08, Issue #13). Where neither the system nor the file system has
     such a rename it raises RenameUnsupported and changes nothing: POSIX asks Linux's
     renameat2(RENAME_NOREPLACE) or macOS's renamex_np(RENAME_EXCL) and has none elsewhere; Windows'
-    rename never replaces. `src` and `dst` are in the same directory.
+    rename never replaces. `src` may be a regular file or a directory tree. `src` and `dst`
+    may have different parents on the same filesystem (Report staging → immutable revision).
+    A taken destination, including an empty directory, preserves both source and destination.
+    Cross-filesystem moves fail; implementations never fall back to copy or replacing rename.
 
     `flush_handle` writes a file's buffered bytes through to the device (a file object open for
     writing); `flush_dir` does that for a directory's entries where the platform can. Neither hides
