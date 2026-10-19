@@ -74,6 +74,7 @@ KIT_VOCABULARY = frozenset({
     "Code and data are not included in this publication; it cannot be re-run from this copy.",
     "Input data is not included.", "Interactive figure", "Included visualization",
     "Preview only. No publication has been saved or recorded.",
+    "Copy identity", "Built at", "Records through", "Resource counts exclude publication.json, which is checked separately when a copy is saved.",
     "This copy is a fixed snapshot. Its source may have changed.",
 })
 

@@ -14,7 +14,14 @@ from pathlib import Path, PureWindowsPath
 from .. import core
 from . import checks
 from .extract import parquet_strings
-from .model import ContentBasis, ItemKey, PublicationError, ReaderNotice, RenderFacts
+from .model import (
+    ContentBasis,
+    ItemKey,
+    PublicationError,
+    PublicationIdentity,
+    ReaderNotice,
+    RenderFacts,
+)
 from .package import prepare_files
 from .projection import ShareRequest, SnapshotItem, freeze
 from .projection import project as project_projection
@@ -166,8 +173,16 @@ def _checked_files(files, roles, policy, pinned, model):
         raise
 
 
-def preview_package(
-    project, request=None, *, profile="read", projection=None, exclude=(), snapshot=None
+def _assemble(
+    project,
+    request=None,
+    *,
+    profile="read",
+    projection=None,
+    exclude=(),
+    snapshot=None,
+    pending=True,
+    identity=None,
 ):
     """Full in-memory byte path, injectable strategy, no project writes, locks or context sync."""
     if profile not in PROFILES:
@@ -177,7 +192,18 @@ def preview_package(
     strategy_id = getattr(projection, "id", profile)
     strategy_rules = getattr(projection, "rules_version", PROFILES[profile].rules_version)
     snapshot = capture_snapshot(project) if snapshot is None else snapshot
-    snapshot, context_status = _pending_context(project, snapshot)
+    if identity is not None and (
+        pending
+        or not isinstance(identity, PublicationIdentity)
+        or identity.as_of_seq != snapshot.basis.as_of_seq
+    ):
+        raise PublicationError(
+            "package_check_failed", "copy identity and recorded snapshot basis differ"
+        )
+    if pending:
+        snapshot, context_status = _pending_context(project, snapshot)
+    else:
+        context_status = "recorded" if snapshot.basis.content.context_version else "not_recorded"
     if exclude:
         request = replace(request, exclude=request.exclude | resolve_exclusions(snapshot, exclude))
     result = project_projection(snapshot, request, profile=profile, implementation=projection)
@@ -190,6 +216,7 @@ def preview_package(
         prepared.model,
         profile=strategy_id,
         context_status=context_status,
+        identity=identity,
         file_sizes=tuple((p, len(b)) for p, b in files.items()),
     )
     if set(pages) & set(files):
@@ -198,7 +225,7 @@ def preview_package(
         )
     generated_paths = frozenset(pages)
     files.update(pages)
-    roles.update({p: "identity" if p == "about.html" else "generated" for p in pages})
+    roles.update({p: "identity" if p in checks.IDENTITY_FILES else "generated" for p in pages})
     checked = _checked_files(files, roles, policy, pinned, prepared.model)
     # Counts and closed warning labels are the only post-inspection renderer inputs.
     notices = set()
@@ -231,6 +258,7 @@ def preview_package(
         replace(prepared.model, facts=facts),
         profile=strategy_id,
         context_status=context_status,
+        identity=identity,
         file_sizes=tuple((p, len(b)) for p, b in files.items()),
     )
     if frozenset(pages) != generated_paths:
@@ -272,4 +300,28 @@ def preview_package(
         "remote_links": checked["remote_links"],
     }
     # Byte view is an internal return only. CLI serializes summary, never file data or source paths.
+    return (
+        summary,
+        files,
+        {
+            "snapshot": snapshot,
+            "projection": prepared,
+            "original_projection": result,
+            "roles": roles,
+            "pinned": pinned,
+            "details": details,
+            "policy": policy,
+            "checked": checked,
+            "context_status": context_status,
+        },
+    )
+
+
+def preview_package(
+    project, request=None, *, profile="read", projection=None, exclude=(), snapshot=None
+):
+    """Full byte preview, preserving its public two-tuple and its no-write/no-lock boundary."""
+    summary, files, _private = _assemble(
+        project, request, profile=profile, projection=projection, exclude=exclude, snapshot=snapshot
+    )
     return summary, files

@@ -7,7 +7,7 @@ import html
 import json
 import posixpath
 
-from .model import Object, PublicationError, Text
+from .model import Object, PublicationError, PublicationIdentity, Text
 
 PAGE_SIZE = 200
 LABELS = {
@@ -93,9 +93,17 @@ def _shown(value):
     )
 
 
-def render(model, *, profile="read", context_status="recorded", file_sizes=()):
+def render(model, *, profile="read", context_status="recorded", file_sizes=(), identity=None):
     if context_status not in ("pending", "recorded", "not_recorded"):
         raise PublicationError("package_check_failed", "unknown context status")
+    if identity is not None and (
+        not isinstance(identity, PublicationIdentity)
+        or not isinstance(identity.publication_id, str)
+        or not isinstance(identity.built_at, str)
+        or type(identity.as_of_seq) is not int
+        or identity.as_of_seq < 0
+    ):
+        raise PublicationError("package_check_failed", "unknown copy identity")
     sizes = dict(file_sizes)
     points = dict(model.facts.points)
     pages = {}
@@ -345,6 +353,7 @@ def render(model, *, profile="read", context_status="recorded", file_sizes=()):
     body += f"<p>Files without a recorded hash: {model.facts.no_recorded_hash}.</p>"
     for status, count in model.facts.inspection:
         body += f"<p>{esc(status.replace('_', ' '))}: {count} files.</p>"
+    body += "<p>Resource counts exclude publication.json, which is checked separately when a copy is saved.</p>"
     for notice in model.facts.notices:
         labels = {
             "path_pattern": "General path pattern warning",
@@ -360,12 +369,42 @@ def render(model, *, profile="read", context_status="recorded", file_sizes=()):
     body += "<p>"
     body += "Checks do not detect paraphrases, arbitrary encodings in text, text in image pixels, or secrets in included content.</p></section>"
     page(path, model.title.value, body)
+    about = "<h1>About this copy</h1>"
+    metadata = None
+    if identity is None:
+        about += "<p>Preview only. No publication has been saved or recorded.</p>"
+    else:
+        metadata = {
+            "publication_id": identity.publication_id,
+            "built_at": identity.built_at,
+            "as_of_seq": identity.as_of_seq,
+        }
+        about += (
+            f"<dl><dt>Copy identity</dt><dd>{esc(identity.publication_id)}</dd>"
+            f"<dt>Built at</dt><dd>{esc(identity.built_at)}</dd>"
+            f"<dt>Records through</dt><dd>e{identity.as_of_seq}</dd></dl>"
+        )
     page(
         "about.html",
         "About this copy",
-        "<h1>About this copy</h1><p>Preview only. No publication has been saved or recorded.</p>"
-        + body[body.index('<section id="scope">') :],
+        about
+        + body[body.index('<section id="scope">') :]
+        + '<script src="assets/identity.js" defer></script>',
     )
+    payload = json.dumps(
+        metadata, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).translate(
+        {
+            ord("<"): "\\u003c",
+            ord(">"): "\\u003e",
+            ord("&"): "\\u0026",
+            0x2028: "\\u2028",
+            0x2029: "\\u2029",
+        }
+    )
+    # Null in a preview invents neither an ID nor a timestamp. Keeping the resource in both
+    # modes makes content-file bytes independent of whether a fresh identity was allocated.
+    pages["assets/identity.js"] = f"window.AnalyticsPublication = {payload};\n".encode()
     pages["README.txt"] = (
         b"Open index.html after copying the whole folder. Extract the whole ZIP first. This is a fixed snapshot and does not update.\n"
     )
