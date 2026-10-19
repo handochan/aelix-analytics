@@ -1035,6 +1035,8 @@ class Locked:
             problem = relations.publication_event_problem(event)
             if problem:
                 raise ValueError("not a publication completion: " + problem)
+            if details["publication_id"] in self.journal._publications:
+                raise ValueError("publication identity is already recorded")
             requires = max((requires or relations.PUBLICATION_WRITER_SINCE,
                             relations.PUBLICATION_WRITER_SINCE), key=relations.version_key)
         problem = _too_long(text_bytes, line)

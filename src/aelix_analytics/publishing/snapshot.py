@@ -38,7 +38,7 @@ def _key(ref_type, target):
     return None
 
 
-def _refs(rows):
+def _refs(rows, *, journal=None, before=None):
     def known(value, allowed):
         return value if isinstance(value, str) and value in allowed else None
 
@@ -48,9 +48,18 @@ def _refs(rows):
     for r in rows:
         type_ = known(r.get("type"), relations.REF_TYPES)
         category = categories.get(type_, "event")
+        target = _key(type_, r.get("target"))
+        if type_ == "publication" and r.get("state") == "resolved" and journal is not None:
+            value = r.get("target")
+            pid = value.get("publication_id") if isinstance(value, dict) else None
+            state, _reason, _candidates, event = relations.publication_record(journal, pid, before=before)
+            if state == "resolved":
+                # Delivery records never enter the package's content closure. Preserve a real
+                # event target until the common projection turns it into not_included.
+                target = ItemKey("event", event["id"])
         out.append(Reference(known(r.get("relation"), relations.RELATIONS),
             known(r.get("version_binding"), relations.BINDINGS), known(r.get("basis"), relations.BASES), r["state"], r.get("reason"),
-            category, _key(type_, r.get("target")), r.get("confirmed", False),
+            category, target, r.get("confirmed", False),
             tuple(ItemKey(category, candidate)
                   for candidate in r.get("candidates") or () if isinstance(candidate, str))))
     return tuple(out)
@@ -135,7 +144,7 @@ def capture_snapshot(project, *, reader=core.read_model, validate_reference=rela
                       state_history=(state or {}).get("corrected_by", []))
         problem = relations.metric_event_problem(event.kind, event.value.get("details"), event.refs)
         items.append(SnapshotItem(ItemKey("event", name), event.kind, freeze(values), event.seq or 0,
-                                  references=_refs(by_source.get(name, ())),
+                                  references=_refs(by_source.get(name, ()), journal=model.journal, before=event.seq),
                                   problem="unsupported" if problem else None))
     run_status = {v["run_id"]: v for v in model.runs()}
     latest = {}

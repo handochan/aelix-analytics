@@ -1,18 +1,23 @@
-"""Read-only preview assembly. Actual folder/manifest/binding is Issue20 PR3."""
+"""Shared publication assembly, private build writing and journal binding; preview stays read-only."""
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import platform
+import secrets
+import shutil
 import socket
 import sys
 import tempfile
+import time
 from collections import Counter
 from dataclasses import asdict, replace
 from pathlib import Path, PureWindowsPath
 
-from .. import core
-from . import checks
+from .. import _platform, core, relations, writer
+from . import checks, package
 from .extract import parquet_strings
 from .model import (
     ContentBasis,
@@ -215,6 +220,7 @@ def _assemble(
     pages = render(
         prepared.model,
         profile=strategy_id,
+        rules_version=strategy_rules,
         context_status=context_status,
         identity=identity,
         file_sizes=tuple((p, len(b)) for p, b in files.items()),
@@ -257,6 +263,7 @@ def _assemble(
     pages = render(
         replace(prepared.model, facts=facts),
         profile=strategy_id,
+        rules_version=strategy_rules,
         context_status=context_status,
         identity=identity,
         file_sizes=tuple((p, len(b)) for p, b in files.items()),
@@ -305,6 +312,7 @@ def _assemble(
         files,
         {
             "snapshot": snapshot,
+            "request": request,
             "projection": prepared,
             "original_projection": result,
             "roles": roles,
@@ -325,3 +333,393 @@ def preview_package(
         project, request, profile=profile, projection=projection, exclude=exclude, snapshot=snapshot
     )
     return summary, files
+
+
+def new_publication_id():
+    alphabet = "0123456789abcdefghjkmnpqrstvwxyz"
+    milliseconds = int(time.time() * 1000)
+    if not 0 <= milliseconds < 1 << 48:
+        raise PublicationError("package_check_failed", "clock is outside the publication ID range")
+    value = (milliseconds << 80) | secrets.randbits(80)
+    return "pub-" + "".join(alphabet[(value >> (5 * n)) & 31] for n in reversed(range(26)))
+
+
+def _managed(root, path):
+    current = root
+    for part in path.relative_to(root).parts:
+        current = current / part
+        try:
+            if _platform.is_link(current.lstat()):
+                raise PublicationError(
+                    "package_check_failed", "publication storage cannot follow a link"
+                )
+        except FileNotFoundError:
+            pass
+
+
+def _json_bytes(value):
+    return (
+        json.dumps(
+            value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
+        )
+        + "\n"
+    ).encode()
+
+
+def _exclusion_refs(snapshot, request):
+    items = {item.key: item for item in snapshot.items}
+    types = {
+        "code": "code_snapshot",
+        "context": "context_version",
+        "dataset": "dataset_import",
+        "data_observation": "data_observation",
+        "report": "report_revision",
+    }
+    result = []
+    for key in sorted(request.exclude):
+        item = items[key]
+        ref = {"relation": "about", "basis": "declared", "version_binding": "author"}
+        if key.category == "event":
+            ref.update(type="event", event_id=item.values.get("id"), token=key.identity)
+        elif key.category == "run":
+            ref.update(type="run", run_id=key.identity)
+        elif key.category == "visualization":
+            rid, _, vid = key.identity.partition("/")
+            ref.update(type="visualization_version", run_id=rid, visualization_id=vid)
+        elif key.category in types:
+            # A negative selector is not an invented historical file digest. Its exact immutable
+            # snapshot key stays in the existing unbound token vocabulary of TypedRef.
+            ref.update(type=types[key.category], version_binding="none", token=key.identity)
+        else:
+            raise PublicationError(
+                "scope_invalid", "target cannot be excluded", details={"target": key.identity}
+            )
+        if relations.reference_problem(ref):
+            raise PublicationError(
+                "scope_invalid",
+                "excluded target has no supported exact reference",
+                details={"target": key.identity},
+            )
+        result.append(ref)
+    return result
+
+
+def _context_refs(project, snapshot):
+    version = snapshot.basis.content.context_version
+    if version is None:
+        return []
+    item = next(
+        (i for i in snapshot.items if i.kind == "context" and i.key.identity == version), None
+    )
+    path = relations.context_file(project.root, version)
+    if path is None or item is None or not isinstance(item.values.get("text"), str):
+        raise PublicationError("context_missing", "the exact preserved CONTEXT is unavailable")
+    try:
+        data = path.read_bytes()
+    except OSError as exc:
+        raise PublicationError("context_missing", "cannot read the preserved CONTEXT") from exc
+    if data != item.values.get("text").encode():
+        raise PublicationError("source_changed", "preserved CONTEXT changed after snapshot capture")
+    return [
+        {
+            "type": "context_version",
+            "version": version,
+            "digest": {"sha256": hashlib.sha256(data).hexdigest()},
+            "relation": "includes",
+            "basis": "observed",
+            "version_binding": "author",
+        }
+    ]
+
+
+def _manifest(summary, files, assembled, identity):
+    projection = assembled["projection"]
+    slots = {}
+    for item in projection.model.items:
+        for slot in item.files:
+            slots.setdefault(slot.package_path, []).append((item.key, slot))
+    rows = []
+    for path, data in sorted(files.items()):
+        observed = assembled["checked"]["files"][path]
+        role = assembled["roles"][path]
+        origin = (
+            "identity"
+            if path in checks.IDENTITY_FILES
+            else "bundled"
+            if role == "library"
+            else "copied"
+            if path in slots and path not in assembled["details"]["derived"]
+            else "generated"
+        )
+        row = {
+            "path": path,
+            "bytes": len(data),
+            "sha256": hashlib.sha256(data).hexdigest(),
+            "origin": origin,
+            "format": observed["format"],
+            "inspection": observed["inspection"],
+        }
+        if origin == "copied":
+            sources = []
+            for key, slot in sorted(slots[path], key=lambda pair: pair[0]):
+                entry = next(
+                    e
+                    for e in projection.copy_plan
+                    if e.item == key and e.package_path == path
+                )
+                sources.append(
+                    {
+                        "item": asdict(key),
+                        "role": entry.role,
+                        "verified": slot.verified,
+                        "recorded_sha256": entry.recorded_sha256,
+                        "current_sha256": entry.current_sha256,
+                    }
+                )
+            row["sources"] = sources
+        if path in assembled["details"]["derived"]:
+            row["derived_from"] = [
+                {
+                    "item": asdict(d["item"]),
+                    "role": d["role"],
+                    "recorded_sha256": d["recorded_sha256"],
+                    "source_sha256": d["source_sha256"],
+                }
+                for d in assembled["details"]["derived"][path]
+            ]
+        rows.append(row)
+    inspection = dict(summary["checks"]["inspection"])
+    inspection["inspected"] += (
+        1  # publication.json is checked as the last file, not listed in files[].
+    )
+    return {
+        "schema": relations.PUBLICATION_V1,
+        "publication_id": identity.publication_id,
+        "built_at": identity.built_at,
+        "entry": "index.html",
+        "basis": {
+            k: summary["basis"][k]
+            for k in ("as_of_seq", "content_seq", "content_recorded_at", "context_version")
+        },
+        "analysis_state": summary["analysis_state"],
+        "ui_locale": "en",
+        "profile": summary["profile"],
+        "scope": {"kind": assembled["request"].scope, "reports": []},
+        "included": [asdict(k) for k in sorted(projection.ledger.included)],
+        "not_included": summary["not_included"],
+        "reader_features": [
+            "read",
+            "relations",
+            "downloads",
+            *(["interactive_figures"] if assembled["details"]["points"] else []),
+        ],
+        "renderer": summary["renderer"],
+        "remote_links": summary["remote_links"],
+        "limits": {**summary["limits"], "warnings": summary["warnings"]},
+        "checks": {"format": 1, "result": "pass", "inspection": inspection},
+        "content_sha256": checks.content_hash(files),
+        "files": rows,
+    }
+
+
+def _completion_details(manifest, digest, exclusions):
+    pid = manifest["publication_id"]
+    return {
+        "publication_id": pid,
+        "format": manifest["schema"],
+        "package_sha256": digest,
+        "content_sha256": manifest["content_sha256"],
+        "profile": manifest["profile"],
+        "scope": manifest["scope"]["kind"],
+        "basis": {k: manifest["basis"][k] for k in ("as_of_seq", "content_seq", "context_version")},
+        "analysis_state": manifest["analysis_state"],
+        "exclusions": exclusions,
+        "location": f".analytics/publications/{pid}",
+        "checks": manifest["checks"],
+    }
+
+
+def _observe_completion(record_writer, pid, digest):
+    # Read-only reconciliation must also work after another writer raises the marker. It takes
+    # the common journal lock but neither admits a new write nor raises a floor.
+    try:
+        with record_writer.platform.locks.exclusive(
+            record_writer.root / writer.LAYOUT.state_dir / writer.LAYOUT.journal_lock
+        ):
+            journal = relations.Journal(writer._journal_bytes(record_writer.journal))
+            state, _reason, _candidates, value = relations.publication_record(journal, pid)
+            if state == "resolved":
+                if value["details"]["package_sha256"] == digest:
+                    return "complete", value
+                return "unbound", None
+            return ("unbound" if state == "missing" else "unknown"), None
+
+    except Exception:
+        return "unknown", None
+
+
+def build_publication(
+    project, request=None, *, profile="read", projection=None, exclude=(), zip_path=None, origin
+):
+    """Build privately, bind once, reconcile uncertain append results; never execute analysis."""
+    if profile not in PROFILES:
+        raise PublicationError("profile_unknown", "unknown publication profile")
+    request = ShareRequest() if request is None else request
+    request_check(request, PROFILES[profile])
+    w = core.writer_for(project, origin)
+    w.admit("build_publication")
+    base = project.root / ".analytics/publications"
+    lock = base / ".lock"
+    _managed(project.root, lock)
+    with project.platform.locks.exclusive(lock):
+        w.admit("build_publication")
+        core.sync_context(project, origin=core.system_origin(origin))
+        snapshot = capture_snapshot(project)
+        pid = new_publication_id()
+        if not isinstance(pid, str) or not relations.PUBLICATION_ID.fullmatch(pid):
+            raise PublicationError("package_check_failed", "invalid generated publication identity")
+        directory = base / pid
+        _managed(project.root, directory)
+        if (
+            directory.exists()
+            or pid in relations.Journal(writer._journal_bytes(w.journal))._publications
+        ):
+            raise PublicationError("package_check_failed", "publication identity already exists")
+        identity = PublicationIdentity(pid, core.iso(), snapshot.basis.as_of_seq)
+        summary, files, assembled = _assemble(
+            project,
+            request,
+            profile=profile,
+            projection=projection,
+            exclude=exclude,
+            snapshot=snapshot,
+            pending=False,
+            identity=identity,
+        )
+        refs = _context_refs(project, snapshot)
+        exclusions = _exclusion_refs(snapshot, assembled["request"])
+        manifest = _manifest(summary, files, assembled, identity)
+        files = {**files, "publication.json": _json_bytes(manifest)}
+        roles = {**assembled["roles"], "publication.json": "identity"}
+        checked = _checked_files(
+            files, roles, assembled["policy"], assembled["pinned"], assembled["projection"].model
+        )
+        if checked["inspection"] != manifest["checks"]["inspection"]:
+            raise PublicationError(
+                "package_check_failed", "manifest inspection counts differ from observed files"
+            )
+        verified = checks.verify_package(files)
+        digest = verified["package_sha256"]
+        details = _completion_details(manifest, digest, exclusions)
+        problem = relations.publication_details_problem(details, refs=refs)
+        if problem:
+            raise PublicationError("package_check_failed", problem)
+        created = False
+        binding_started = False
+        event = None
+        recovered = None
+        try:
+            directory.mkdir()
+            created = True
+            owned = directory.stat().st_dev, directory.stat().st_ino
+            package.write_files(
+                directory,
+                {name: data for name, data in files.items() if name != "publication.json"},
+            )
+            package.write_files(directory, {"publication.json": files["publication.json"]})
+            checks.verify_package(directory)
+            binding_started = True
+            try:
+                with w.locked("build_publication") as held:
+                    if pid in held.journal._publications:
+                        raise ValueError("publication identity already recorded")
+                    event = held.append(
+                        "publication",
+                        f"Built publication {pid} ({summary['profile']['id']}; records up to e{snapshot.basis.as_of_seq})",
+                        refs=refs,
+                        details=details,
+                        requires=relations.PUBLICATION_WRITER_SINCE,
+                    )
+            except BaseException as exc:
+                state, event = _observe_completion(w, pid, digest)
+                if state != "complete":
+                    raise PublicationError(
+                        "publication_not_recorded",
+                        "publication folder retained; completion was not confirmed",
+                        details={
+                            "binding": state,
+                            "publication_id": pid,
+                            "path": details["location"],
+                            "package_sha256": digest,
+                            "cause": getattr(exc, "code", type(exc).__name__),
+                        },
+                    ) from exc
+                recovered = exc
+        except BaseException as exc:
+            if created and not binding_started:
+                try:
+                    current = directory.lstat()
+                    if _platform.is_link(current) or (current.st_dev, current.st_ino) != owned:
+                        raise OSError("created folder identity changed")
+                    shutil.rmtree(directory)
+                except OSError as cleanup:
+                    if isinstance(exc, PublicationError):
+                        exc.details.update(
+                            cleanup_path=details["location"], cleanup_error=str(cleanup)
+                        )
+                    else:
+                        raise PublicationError(
+                            "package_check_failed",
+                            "failed build could not be cleaned up",
+                            details={
+                                "path": details["location"],
+                                "cause": type(exc).__name__,
+                                "cleanup_error": str(cleanup),
+                            },
+                        ) from exc
+            if isinstance(exc, OSError):
+                raise PublicationError(
+                    "package_check_failed",
+                    "cannot write publication files",
+                    details={"path": details["location"], "cause": type(exc).__name__},
+                ) from exc
+            raise
+        result = {
+            **summary,
+            "preview": False,
+            "publication_id": pid,
+            "path": details["location"],
+            "package_sha256": digest,
+            "content_sha256": manifest["content_sha256"],
+            "files": len(files),
+            "bytes": sum(map(len, files.values())),
+            "checks": manifest["checks"],
+            "recording_status": "complete",
+            "record": {"id": event["id"], "seq": event["seq"]},
+            "zip": None,
+        }
+        if recovered is not None:
+            result["binding_recovered"] = True
+            result["interrupted"] = isinstance(recovered, KeyboardInterrupt)
+        if zip_path is not None and not result.get("interrupted"):
+            try:
+                result["zip"] = package.write_zip(
+                    directory, zip_path, project_root=project.root, binding=details
+                )
+            except BaseException as exc:
+                if isinstance(exc, (SystemExit, GeneratorExit)):
+                    raise
+                result.update(
+                    ok=False,
+                    error={
+                        "code": getattr(exc, "code", "package_check_failed"),
+                        "message": str(exc),
+                        "details": {
+                            **getattr(exc, "details", {}),
+                            "recording_status": "complete",
+                            "publication_id": pid,
+                        },
+                    },
+                    interrupted=isinstance(exc, KeyboardInterrupt),
+                )
+        return result

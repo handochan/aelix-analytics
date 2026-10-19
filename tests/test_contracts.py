@@ -857,8 +857,8 @@ def test_every_implementation_writes_what_the_process_default_writes(implementat
     assert chosen == reference
 
 
-# PublicationProjection (Issue20 PR1): model/scope contracts now exist. Package/build/Report
-# capabilities are intentionally absent; their cases are skipped rather than called acceptance.
+# PublicationProjection: model, memory preview and saved-build injection are executable.
+# Report/collection capabilities remain explicitly deferred to PR4.
 @dataclass(frozen=True)
 class ProjectionImplementation:
     id: str
@@ -867,9 +867,9 @@ class ProjectionImplementation:
 
 
 PROJECTION_IMPLEMENTATIONS = (
-    ProjectionImplementation("read", "read", frozenset({"project", "model", "no_io", "files", "references", "preview"})),
-    ProjectionImplementation("evidence", "evidence", frozenset({"project", "model", "no_io", "files", "references", "preview"})),
-    ProjectionImplementation("recording", "read", frozenset({"project", "model", "no_io", "preview"})),
+    ProjectionImplementation("read", "read", frozenset({"project", "model", "no_io", "files", "references", "preview", "full_build_injection"})),
+    ProjectionImplementation("evidence", "evidence", frozenset({"project", "model", "no_io", "files", "references", "preview", "full_build_injection"})),
+    ProjectionImplementation("recording", "read", frozenset({"project", "model", "no_io", "preview", "full_build_injection"})),
 )
 
 
@@ -900,7 +900,7 @@ def test_publication_implementation_contract(implementation):
 
 
 @pytest.mark.parametrize("implementation", PROJECTION_IMPLEMENTATIONS, ids=lambda i: i.id)
-@pytest.mark.parametrize("capability", ["reports", "collection", "full_build_injection"])
+@pytest.mark.parametrize("capability", ["reports", "collection"])
 def test_publication_later_capability_is_not_claimed(implementation, capability):
     if capability not in implementation.capabilities:
         pytest.skip(f"{implementation.id}: {capability} is PR4 or the later build adapter, not PR1 acceptance")
@@ -976,3 +976,70 @@ def test_report_renderer_replacement_contract(implementation, monkeypatch):
     fallback = renderer.render({"a.pdf": b"%PDF"}, entry="a.pdf", paths={"a.pdf": "original/a.pdf"})
     assert not fallback.supported and fallback.reasons == ("format_download_only",)
     assert fallback.originals == {"a.pdf": "../original/a.pdf"}
+
+
+@pytest.mark.parametrize("implementation", PROJECTION_IMPLEMENTATIONS, ids=lambda i: i.id)
+def test_publication_saved_build_uses_each_injected_strategy(implementation, tmp_path, monkeypatch):
+    import json
+    import re
+
+    from publication_doubles import RecordingProjection
+
+    from aelix_analytics.publishing import build, checks
+    from aelix_analytics.publishing.projection import (
+        PROJECTIONS,
+        EvidenceProjection,
+        ReadProjection,
+        ShareRequest,
+    )
+
+    assert "full_build_injection" in implementation.capabilities
+    origin = core.Origin("human", "cli")
+    p = core.init_project(tmp_path / "project", title="Public", origin=origin)
+    baseline = build.build_publication(p, profile=implementation.profile, origin=origin)
+    first = json.loads((p.root / baseline["path"] / "publication.json").read_bytes())
+    chosen = (
+        RecordingProjection()
+        if implementation.id == "recording"
+        else PROJECTIONS[implementation.profile]()
+    )
+    selected_method = chosen.project
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("saved build fell back to a default strategy")
+
+    monkeypatch.setattr(ReadProjection, "project", forbidden)
+    monkeypatch.setattr(EvidenceProjection, "project", forbidden)
+    monkeypatch.setattr(chosen, "project", selected_method)
+    for name in tuple(PROJECTIONS):
+        monkeypatch.setitem(PROJECTIONS, name, forbidden)
+    answer = build.build_publication(
+        p, profile=implementation.profile, projection=chosen, origin=origin
+    )
+    manifest = json.loads((p.root / answer["path"] / "publication.json").read_bytes())
+    event = next(
+        e.value
+        for e in core.read_model(p).journal.events
+        if e.kind == "publication"
+        and e.value["details"]["publication_id"] == answer["publication_id"]
+    )
+    previous = next(
+        e.value
+        for e in core.read_model(p).journal.events
+        if e.kind == "publication"
+        and e.value["details"]["publication_id"] == baseline["publication_id"]
+    )
+    assert manifest["profile"]["id"] == event["details"]["profile"]["id"] == implementation.id
+    assert re.fullmatch(r"pub-[0-9a-hjkmnp-tv-z]{26}", answer["publication_id"])
+    assert manifest["basis"]["content_seq"] == first["basis"]["content_seq"]
+    assert manifest["basis"]["context_version"] == first["basis"]["context_version"]
+    assert (
+        manifest["analysis_state"] == first["analysis_state"] and event["refs"] == previous["refs"]
+    )
+    assert (
+        answer["recording_status"] == "complete"
+        and checks.verify_package(p.root / answer["path"], binding=event["details"])["ok"]
+    )
+    if implementation.id == "recording":
+        assert chosen.requests == [ShareRequest()]
+    assert build.capture_snapshot(p).basis.content.content_seq == first["basis"]["content_seq"]

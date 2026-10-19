@@ -1169,7 +1169,7 @@ def publication_details_problem(value, *, refs=None, seq=None, validate_referenc
             or any(type(v) is not int or v < 0 for v in inspection.values())
             or inspection["not_inspectable"] != 0):
         return "invalid publication inspection counts"
-    validate_reference = validate_reference or reference_problem
+    validate_reference = reference_problem if validate_reference is None else validate_reference
     exclusions = value["exclusions"]
     try:
         if not isinstance(exclusions, list) or any(validate_reference(r) for r in exclusions):
@@ -1211,6 +1211,25 @@ def publication_event_problem(event, *, validate_reference=None) -> str | None:
         return "invalid publication completion references"
     return publication_details_problem(event.get("details"), refs=event["refs"], seq=event["seq"],
                                        validate_reference=validate_reference)
+
+
+def publication_record(journal, publication_id, *, before=None, validate_reference=None):
+    """(state, reason, candidates, event) for one logical completed identity, without file I/O."""
+    if not isinstance(publication_id, str):
+        return "unsupported", "invalid_publication_identity", None, None
+    boundary = journal.next_seq if before is None else before
+    rows = [(line, value) for line, value in journal._publications.get(publication_id, ())
+            if journal.seq_of[line] is not None and journal.seq_of[line] < boundary]
+    if not rows:
+        return "missing", "record_absent", None, None
+    if len(rows) > 1:
+        return "ambiguous", None, [f"journal:{line}" for line, _ in rows], None
+    line, value = rows[0]
+    if (line in journal.recovered or journal.is_unsupported(line)
+            or publication_event_problem(value, validate_reference=validate_reference)
+            or len(journal.lines_of.get(value["id"], ())) != 1):
+        return "unsupported", "invalid_publication_record", None, None
+    return "resolved", None, None, value
 
 
 
@@ -2236,18 +2255,9 @@ class ReadModel:
         if kind in EVENT_TARGETS:
             return self.journal.event_target(kind, ref, self.journal.next_seq if before is None else before)
         if kind == "publication":
-            boundary = self.journal.next_seq if before is None else before
-            rows = [(line, value) for line, value in self.journal._publications.get(ref.get("publication_id"), ())
-                    if self.journal.seq_of[line] is not None and self.journal.seq_of[line] < boundary]
-            if not rows:
-                return "missing", "record_absent", None
-            if len(rows) > 1:
-                return "ambiguous", None, [f"journal:{line}" for line, _ in rows]
-            line, value = rows[0]
-            if (line in self.journal.recovered or self.journal.is_unsupported(line)
-                    or publication_event_problem(value)
-                    or len(self.journal.lines_of.get(value["id"], ())) != 1):
-                return "unsupported", "invalid_publication_record", None
+            state, reason, candidates, value = publication_record(self.journal, ref.get("publication_id"), before=before)
+            if state != "resolved":
+                return state, reason, candidates
             if _digest(ref) != value["details"]["package_sha256"]:
                 return "missing", "digest_mismatch", None
             return "resolved", None, None

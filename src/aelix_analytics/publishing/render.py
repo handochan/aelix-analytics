@@ -93,9 +93,19 @@ def _shown(value):
     )
 
 
-def render(model, *, profile="read", context_status="recorded", file_sizes=(), identity=None):
+def render(
+    model,
+    *,
+    profile="read",
+    rules_version=1,
+    context_status="recorded",
+    file_sizes=(),
+    identity=None,
+):
     if context_status not in ("pending", "recorded", "not_recorded"):
         raise PublicationError("package_check_failed", "unknown context status")
+    if type(rules_version) is not int or rules_version < 1:
+        raise PublicationError("package_check_failed", "unknown projection rules version")
     if identity is not None and (
         not isinstance(identity, PublicationIdentity)
         or not isinstance(identity.publication_id, str)
@@ -337,7 +347,7 @@ def render(model, *, profile="read", context_status="recorded", file_sizes=(), i
     body += (
         '<section id="scope"><h2>Scope and limits</h2><p>Profile: '
         + esc(profile)
-        + ". Rules version1.</p>"
+        + f". Rules version {rules_version}.</p>"
     )
     body += (
         "<p>Code and data are not included in this publication; it cannot be re-run from this copy.</p>"
