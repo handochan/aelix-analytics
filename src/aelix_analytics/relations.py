@@ -1455,6 +1455,8 @@ class ReadModel:
         self._cited_by_raw: dict[str, list[str]] | None = None
         self._trail_cache: dict[tuple, list] = {}
         self._version_of: dict[tuple, dict] = {}
+        self._trail_nodes: dict[str, dict] = {}
+        self._code_kept: dict[str, str] = {}
 
     # --- runs, imports and Report revisions --------------------------------------------------------
 
@@ -3054,6 +3056,7 @@ class ReadModel:
         tree: list[bool] = []
         seen_edges: set[tuple] = set()
         cycles: list[dict] = []
+        closing: set[int] = set()
         heap = [(root["step"], 0, root["id"])]
         count = 0
         while heap:
@@ -3070,6 +3073,7 @@ class ReadModel:
                 seen_edges.add(key)
                 edges.append(edge)
                 if child["id"] not in found:
+                    child = dict(child)
                     child["step"] = child_step
                     found[child["id"]] = child
                     order.append(child["id"])
@@ -3085,7 +3089,7 @@ class ReadModel:
                 if walk is not None:
                     # Back to a node on this walk's own path (only runs that started at the same instant,
                     # or whose start cannot be read, make one): said, and the walk stops there.
-                    edge["cycle"] = True
+                    closing.add(len(edges) - 1)
                     cycles.append({"from": edge["from"], "to": edge["to"]})
         place = {nid: n for n, nid in enumerate(order)}
         nodes_budget, edges_budget = budget
@@ -3108,7 +3112,7 @@ class ReadModel:
         return {"start": root["id"], "direction": direction, "depth": depth,
                 "budget": {"nodes": nodes_budget, "edges": edges_budget},
                 "nodes": [{k: v for k, v in found[nid].items() if not k.startswith("_")} for nid in shown],
-                "edges": [edges[n] for n in sorted(kept_set)],
+                "edges": [{**edges[n], "cycle": True} if n in closing else dict(edges[n]) for n in sorted(kept_set)],
                 "omitted": {"nodes": len(order) - len(shown), "edges": len(edges) - len(kept_set)},
                 "total": {"nodes": len(order), "edges": len(edges)},
                 "cycles": cycles,
@@ -3131,6 +3135,11 @@ class ReadModel:
     # no hash), as a page and a read name it by its path.
 
     def _record_node(self, source: str) -> dict:
+        if source not in self._trail_nodes:
+            self._trail_nodes[source] = self._make_record_node(source)
+        return dict(self._trail_nodes[source])
+
+    def _make_record_node(self, source: str) -> dict:
         event = self.journal.event_of(source)
         value = event.value if event is not None else {}
         text = str(value.get("text") or "")
@@ -3152,6 +3161,11 @@ class ReadModel:
                 "recorded_at": _str(manifest.get("created_at")), "actor": None, "state": None}
 
     def _run_node(self, run_id: str) -> dict:
+        if "run:" + run_id not in self._trail_nodes:
+            self._trail_nodes["run:" + run_id] = self._make_run_node(run_id)
+        return dict(self._trail_nodes["run:" + run_id])
+
+    def _make_run_node(self, run_id: str) -> dict:
         run = self._runs[run_id]
         script = _str(_script(run).get("path"))
         return {"id": "run:" + run_id, "kind": "run", "run": run_id, "title": _str(run.get("title")),
@@ -3163,6 +3177,12 @@ class ReadModel:
                 "visualizations": len(run_visualizations(run))}
 
     def _visualization_node(self, run_id: str, vis_id) -> dict:
+        key = f"{run_id}/{vis_id}"
+        if key not in self._trail_nodes:
+            self._trail_nodes[key] = self._make_visualization_node(run_id, vis_id)
+        return dict(self._trail_nodes[key])
+
+    def _make_visualization_node(self, run_id: str, vis_id) -> dict:
         run = self._runs[run_id]
         found = next((v for v in run_visualizations(run) if v["id"] == vis_id), {})
         script = _str(_script(run).get("path"))
@@ -3268,12 +3288,12 @@ class ReadModel:
         return edge
 
     def _trail_children(self, node: dict, direction: str, state) -> list[tuple[dict, dict]]:
-        """(child, edge) of one node in one direction, in the order the records hold them: new dicts
-        each time (a walk marks its own), the judgments made once per node and read."""
+        """(child, edge) of one node in one direction, in the order the records hold them, judged once
+        per node and read: a walk copies what it keeps and marks (the dicts here are shared)."""
         key = (direction, node["id"], node.get("_origin"), state)
         if key not in self._trail_cache:
             self._trail_cache[key] = self._children(node, direction, state)
-        return [(dict(child), dict(edge)) for child, edge in self._trail_cache[key]]
+        return self._trail_cache[key]
 
     def _children(self, node: dict, direction: str, state) -> list[tuple[dict, dict]]:
         kind = node["kind"]
@@ -3513,6 +3533,20 @@ class ReadModel:
             return (_digest(target) or meta.get("sha256")) == node.get("sha256")
         return False
 
+    def _code_state(self, run_id: str) -> str:
+        """How a run's code snapshots (the script's and its modules') stand: the worst of their
+        code_snapshot judgments, or `not_recorded` when the run kept none (once per run per read)."""
+        if run_id not in self._code_kept:
+            run = self._runs[run_id]
+            held = [_str(_script(run).get("snapshot"))] + [_str(m.get("snapshot")) for m in _dicts(run.get("modules"))]
+            held = [h for h in held if h]
+            if not held:
+                self._code_kept[run_id] = "not_recorded"
+            else:
+                judged = {self._resolve({"type": "code_snapshot", "run_id": run_id, "path": h})[0] for h in held}
+                self._code_kept[run_id] = next((s for s in ("missing", "content_changed", "unknown") if s in judged), "resolved")
+        return self._code_kept[run_id]
+
     def _trail_checks(self, root: dict, nodes: list[dict], edges: list[dict]) -> dict:
         """What can be checked along a whole trail (design 6.2), each on its own line and never one
         score: the start's citations, the runs' ends, their code snapshots, the imported and derived
@@ -3530,15 +3564,7 @@ class ReadModel:
                          "confirmed": sum(1 for j in judged_all if j["confirmed"])}
         code: dict[str, list[str]] = {}
         for node in runs:
-            run = self._runs[node["run"]]
-            held = [_str(_script(run).get("snapshot"))] + [_str(m.get("snapshot")) for m in _dicts(run.get("modules"))]
-            held = [h for h in held if h]
-            if not held:
-                code.setdefault("not_recorded", []).append(node["run"])
-                continue
-            judged = {self._resolve({"type": "code_snapshot", "run_id": node["run"], "path": h})[0] for h in held}
-            worst = next((s for s in ("missing", "content_changed", "unknown") if s in judged), "resolved")
-            code.setdefault(worst, []).append(node["run"])
+            code.setdefault(self._code_state(node["run"]), []).append(node["run"])
 
         def files(rows: list[dict]) -> dict:
             states: dict[str, int] = {}

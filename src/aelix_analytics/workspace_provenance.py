@@ -43,6 +43,7 @@ class Provenance:
         self.site = site
         self.model = site.model
         self._trails: dict[tuple, dict | None] = {}
+        self._described: dict[tuple, tuple[str, str, str]] = {}
 
     def trail(self, identity: str, direction: str) -> dict | None:
         key = (identity, direction)
@@ -129,7 +130,12 @@ class Provenance:
             classes.append("kind-" + node["record_kind"])
         if kind == "data":
             classes.append("st-" + str(node.get("state")))
-        what, name, facts = self.describe(node, n == 0)
+        # A box says the same of a node on every page it is on: made once (its join line and place differ).
+        key = (node["id"], n == 0, node.get("state"), node.get("producer"), tuple(node.get("current_writers") or ()),
+               node.get("read_as"))
+        if key not in self._described:
+            self._described[key] = self.describe(node, n == 0)
+        what, name, facts = self._described[key]
         joins = [self.join_html(trail, n, other, edge, prefix) for other, edge in ([parent[n]] if n in parent else []) + extra.get(n, [])]
         more = ""
         if node.get("continues") and n:
