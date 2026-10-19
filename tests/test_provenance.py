@@ -415,5 +415,5 @@ def test_the_controller_shows_one_direction_and_puts_the_tabs_under_the_record(t
     graph draws no lines."""
     script = PACK / "tests" / "workspace_provenance.cjs"
     result = subprocess.run(["node", str(script), str(PACK / "src" / "aelix_analytics" / "assets")],
-                            capture_output=True, text=True, timeout=60)
+                            capture_output=True, text=True, encoding="utf-8", timeout=60)
     assert result.returncode == 0, result.stderr + result.stdout
