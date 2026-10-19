@@ -183,3 +183,42 @@ def test_bad_completion_header_and_recovered_rows_cannot_resolve(tmp_path):
     assert recovered.recovered
     r = relations.ReadModel(tmp_path, recovered, alive=lambda _: False, sha=lambda _: None)
     assert r.reference(reference())["state"] == "unsupported"
+
+
+def test_shared_writer_admits_only_the_build_completion_and_preserves_oversize_refusal(tmp_path):
+    from aelix_analytics import core, writer
+
+    origin = core.Origin("human", "sdk")
+    p = core.init_project(tmp_path / "project", title="Public", origin=origin)
+    w = writer.Writer(p.root, platform=p.platform, origin=origin, writer_version=relations.PUBLICATION_WRITER_SINCE)
+    original = p.journal.read_bytes()
+    marker = p.marker.read_bytes()
+    with w.locked("write") as held:
+        event = completion(held.next_seq)
+        with pytest.raises(ValueError, match="build application"):
+            held.append("publication", event["text"], refs=event["refs"], details=event["details"])
+    with w.locked("build_publication") as held:
+        event = completion(held.next_seq)
+        event["details"]["exclusions"] = [
+            {
+                "type": "event",
+                "event_id": f"e{n + 1}",
+                "relation": "about",
+                "basis": "declared",
+                "version_binding": "author",
+            }
+            for n in range(1000)
+        ]
+        with pytest.raises(writer.AnalyticsError):
+            held.append("publication", event["text"], refs=event["refs"], details=event["details"])
+    assert p.journal.read_bytes() == original and p.marker.read_bytes() == marker
+    with w.locked("build_publication") as held:
+        event = completion(held.next_seq)
+        written = held.append(
+            "publication", event["text"], refs=event["refs"], details=event["details"]
+        )
+    assert written["actor"] == origin.actor
+    assert json.loads(p.marker.read_bytes())["min_writer_version"] == relations.PUBLICATION_WRITER_SINCE
+    with pytest.raises(writer.AnalyticsError) as caught:
+        writer.Writer(p.root, platform=p.platform, origin=origin, writer_version="0.23.0").admit("build_publication")
+    assert caught.value.code == "writer_too_old"

@@ -136,7 +136,7 @@ def test_the_mapping_s_rules_are_by_path_components():
 
 
 def test_the_reader_knows_the_migration_family():
-    assert relations.READER_FORMAT == 5
+    assert relations.READER_FORMAT == 6
     assert relations.MIGRATION_V1 in relations.KNOWN
     assert relations.unsupported_reason({"schema": "analytics.migration/1", "record": "plan"},
                                         frozenset({relations.MIGRATION_V1})) is None

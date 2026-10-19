@@ -275,7 +275,8 @@ def metric_event_problem(kind, details, refs) -> str | None:
 # (core.mapped_identity, design 5.4), and analytics.migration/1 is a family this reader knows.
 # 4 since ADR-0011: invalid/unsupported tagged metric content cannot change another record state.
 # 5 since Issue #15: CONTEXT version stat changes and bounded historical query knowledge.
-READER_FORMAT = 5
+# 6 since Issue #20 PR3: publication bindings resolve independently of current package folders.
+READER_FORMAT = 6
 
 EVENT_V1 = "lab.event/1"
 EVENT_V2 = "analytics.event/2"
