@@ -67,7 +67,7 @@ kind 철자가 같아도 제외하지 않는다. reader가 파싱·복구하여 
 | `publication_id` | 결정 1의 ID |
 | `format` | `analytics.publication/1` |
 | `package_sha256`, `content_sha256` | 결정 1의 소문자 64자리 SHA-256 |
-| `profile` | `{id: read 또는 evidence, rules_version: 1}` |
+| `profile` | 공개 CLI는 `{id: read 또는 evidence, rules_version: 1}`. 주입 계약 시험의 등록된 전략은 선택한 nonempty ID·양의 rules_version을 기록 |
 | `scope` | `project` 또는 `reports`. 선택 Report 버전은 manifest에 보존 |
 | `basis` | `as_of_seq`, `content_seq`, `context_version`을 모두 포함. 앞 두 값은 결정 2, CONTEXT 없음은 null |
 | `analysis_state` | `{value: in_progress 또는 complete, basis: declared}`. 실행·기록·분석 검사·결론 검토와 별개 |
@@ -100,6 +100,13 @@ manifest와 결박 이벤트의 ID·형식·두 해시·프로필·범위 종류
 | `files` | manifest 자신을 뺀 모든 파일의 `path`·`bytes`·`sha256`·`origin`·판정한 `format`·`inspection`. 사본은 `sources`, 가공본은 `derived_from` |
 
 `scope.kind`는 이벤트의 `details.scope`와 같다. Report 선택이 없으면 `scope.reports=[]`다.
+패키지에 직렬화하는 `included`·`sources[].item`·`derived_from[].item`의 `ItemKey.identity`는 기존 페이지/anchor의
+`key_name`이다: 내부 `category:identity` UTF-8의 SHA-256 앞 16자리 소문자 hex. `category`는 그대로다.
+선택한 그림의 내부 키에 들어 있는 제외 run ID를 manifest에 다시 노출하지 않기 위한 결정적 대응이며 원문을 바꾸는 규칙이 아니다.
+공통 renderer가 키 충돌을 거절한다. 내부 snapshot/원장과 이벤트의 정확한 TypedRef에는 원래 ID를 유지한다.
+패키지는 제외 ID 목록을 받지 않으며 원본 프로젝트의 소유자는 같은 함수로 대응을 계산할 수 있다.
+이는 비밀을 암호화하거나 추측을 막는 보장이 아니다. raw 내부 키를 그대로 넣은 손작성 manifest와의 호환을 약속하지 않는다.
+
 파일 경로는 패키지 안의 상대 경로이고 중복·대소문자/정규화 충돌·경로 이탈·symlink를 허용하지 않는다.
 기록 해시가 있는 사본은 대조에 통과한 바이트만 넣고 `verified: recorded_hash`로 표시한다. 기록 해시가 없는 사본은
 `verified: no_recorded_hash`로 구별하며 과거 바이트와 일치한다고 보장하지 않는다. kit 생성물은 `verified: kit_generated`다.

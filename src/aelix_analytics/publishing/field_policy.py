@@ -250,3 +250,61 @@ RECORD_FAMILIES = {
     "analytics.trust/1": "excluded_internal",
     "analytics.migration/1": "excluded_internal",
 }
+
+CLASSIFIED_FIELDS['publication_details'] = {k: "delivery_only_excluded" for k in ('publication_id', 'format', 'package_sha256', 'content_sha256', 'profile', 'scope', 'basis', 'analysis_state', 'exclusions', 'location', 'checks')}
+
+CLASSIFIED_FIELDS['publication_1'] = {k: "delivery_only_excluded" for k in ('schema', 'publication_id', 'built_at', 'entry', 'basis', 'analysis_state', 'ui_locale', 'profile', 'scope', 'included', 'not_included', 'reader_features', 'renderer', 'remote_links', 'limits', 'checks', 'content_sha256', 'files')}
+
+# PR3 explicit delivery fields: never included in the shared content projection.
+PERSISTED_FIELD_PATHS['event_2'] |= frozenset((
+    'details.analysis_state details.analysis_state.basis details.analysis_state.value details.basis '
+    'details.basis.as_of_seq details.basis.content_seq details.basis.context_version details.checks '
+    'details.checks.format details.checks.inspection details.checks.inspection.inspected '
+    'details.checks.inspection.not_inspectable details.checks.inspection.pinned_scanned '
+    'details.checks.result details.content_sha256 details.exclusions[].asset_id '
+    'details.exclusions[].basis details.exclusions[].digest details.exclusions[].digest.sha256 '
+    'details.exclusions[].event_id details.exclusions[].key details.exclusions[].metric_id '
+    'details.exclusions[].path details.exclusions[].proposal_id details.exclusions[].publication_id '
+    'details.exclusions[].relation details.exclusions[].report_id details.exclusions[].revision_id '
+    'details.exclusions[].role details.exclusions[].run_id details.exclusions[].token '
+    'details.exclusions[].type details.exclusions[].version details.exclusions[].version_binding '
+    'details.exclusions[].visualization_id details.format details.location details.package_sha256 '
+    'details.profile details.profile.id details.profile.rules_version details.publication_id '
+).split())
+
+# PR3 explicit delivery fields: never included in the shared content projection.
+PERSISTED_FIELD_PATHS['publication_details'] = frozenset((
+    'analysis_state analysis_state.basis analysis_state.value basis basis.as_of_seq basis.content_seq '
+    'basis.context_version checks checks.format checks.inspection checks.inspection.inspected '
+    'checks.inspection.not_inspectable checks.inspection.pinned_scanned checks.result content_sha256 '
+    'exclusions exclusions[].asset_id exclusions[].basis exclusions[].digest exclusions[].digest.sha256 '
+    'exclusions[].event_id exclusions[].key exclusions[].metric_id exclusions[].path '
+    'exclusions[].proposal_id exclusions[].publication_id exclusions[].relation exclusions[].report_id '
+    'exclusions[].revision_id exclusions[].role exclusions[].run_id exclusions[].token '
+    'exclusions[].type exclusions[].version exclusions[].version_binding exclusions[].visualization_id '
+    'format location package_sha256 profile profile.id profile.rules_version publication_id scope '
+).split())
+
+# PR3 explicit delivery fields: never included in the shared content projection.
+PERSISTED_FIELD_PATHS['publication_1'] = frozenset((
+    'analysis_state analysis_state.basis analysis_state.value basis basis.as_of_seq '
+    'basis.content_recorded_at basis.content_seq basis.context_version built_at checks checks.format '
+    'checks.inspection checks.inspection.inspected checks.inspection.not_inspectable '
+    'checks.inspection.pinned_scanned checks.result content_sha256 entry files files[].bytes '
+    'files[].derived_from files[].derived_from[].item files[].derived_from[].item.category '
+    'files[].derived_from[].item.identity files[].derived_from[].recorded_sha256 '
+    'files[].derived_from[].role files[].derived_from[].source_sha256 files[].format files[].inspection '
+    'files[].origin files[].path files[].sha256 files[].sources files[].sources[].current_sha256 '
+    'files[].sources[].item files[].sources[].item.category files[].sources[].item.identity '
+    'files[].sources[].recorded_sha256 files[].sources[].role files[].sources[].sha256 '
+    'files[].sources[].verified included included[].category included[].identity limits '
+    'limits.interactive_figure_points limits.longest_relative_path limits.no_recorded_hash '
+    'limits.warnings limits.warnings[].count limits.warnings[].reason not_included '
+    'not_included[].category not_included[].count not_included[].reason profile profile.id '
+    'profile.rules_version publication_id reader_features remote_links renderer renderer.format '
+    'renderer.kit_version renderer.libraries renderer.libraries[].license renderer.libraries[].name '
+    'renderer.libraries[].sha256 renderer.libraries[].version schema scope scope.kind scope.reports '
+    'ui_locale '
+).split())
+
+RECORD_FAMILIES["analytics.publication/1"] = "delivery_only_excluded"

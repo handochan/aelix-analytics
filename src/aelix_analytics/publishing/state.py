@@ -96,7 +96,7 @@ def list_publications(model):
     base = Path(model.root) / ".analytics/publications"
     try:
         if base.exists() or base.is_symlink():
-            if _platform.is_link(base.lstat()):
+            if any(_platform.is_link(part.lstat()) for part in (base.parent, base)):
                 raise PublicationError("package_check_failed", "publication directory is a link")
             ids.update(p.name for p in base.iterdir() if relations.PUBLICATION_ID.fullmatch(p.name))
     except OSError as exc:

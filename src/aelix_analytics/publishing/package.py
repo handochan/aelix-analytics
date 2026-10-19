@@ -313,7 +313,9 @@ def write_files(directory, files):
         for current in candidates:
             try:
                 if _platform.is_link(current.lstat()):
-                    raise PublicationError("package_check_failed", "package writes cannot follow a link")
+                    raise PublicationError(
+                        "package_check_failed", "package writes cannot follow a link"
+                    )
             except FileNotFoundError:
                 pass
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -375,9 +377,17 @@ def write_zip(directory, destination, *, project_root, binding):
                 pass
             except OSError as cleanup:
                 if isinstance(exc, PublicationError):
-                    exc.details.update(
-                        cleanup_path=str(target), cleanup_error=type(cleanup).__name__
-                    )
+                    exc.details.update(cleanup_path=str(target), cleanup_error=str(cleanup))
+                else:
+                    raise PublicationError(
+                        "package_check_failed",
+                        "failed ZIP could not be cleaned up",
+                        details={
+                            "cleanup_path": str(target),
+                            "cleanup_error": str(cleanup),
+                            "cause": type(exc).__name__,
+                        },
+                    ) from exc
         if isinstance(exc, FileExistsError):
             raise PublicationError("zip_path_invalid", "ZIP target already exists") from exc
         raise

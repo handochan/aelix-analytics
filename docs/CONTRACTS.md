@@ -1198,7 +1198,7 @@ Windows의 한계는 G절에 있습니다.
 
 반환 JSON은 `preview`, `profile`, `basis`(전체 `as_of_seq`와 내용 `content_seq`·기록 시각·CONTEXT 상태), 선언한 `analysis_state`,
 범주별 `included` 수와 `not_included` 수, 파일/바이트 수, 메모리 내용 해시, renderer 판, 검사 상태별 수, `limits`·`warnings`·원격 이동 링크입니다.
-저장된 publication ID나 패키지 경로는 반환하지 않습니다. `--preview` 없는 build와 저장·list·verify·ZIP·publish 명령은 아직 없습니다.
+preview는 저장된 publication ID나 패키지 경로를 반환하지 않습니다. 실제 저장 경로는 아래 D3과 구별합니다. publish는 아직 없습니다.
 Report/collection 요청과 철회 Report 허용 요청은 `scope_unsupported`로 거절하며 다른 범위로 계속하지 않습니다.
 
 read는 허용 기록·현재 기준 CONTEXT·포함한 그림과 run 요약을, evidence는 코드 스냅샷·첨부 표·기록된 입력/출력 메타데이터·CONTEXT 이력을 더합니다.
@@ -2013,3 +2013,37 @@ kit 0.8.0([#13](https://github.com/handochan/aelix-analytics/issues/13)의 셋�
   - Developer Mode만 켜거나 관리자 권한만으로 만든 링크, `mklink`·`New-Item`으로 만든 링크: 시험은 관리자이며 Developer Mode가 켜진
     러너에서 `os.symlink`와 `_winapi.CreateJunction`으로 링크를 만들었습니다(조상 디렉터리를 가리키는 junction도 kit 0.5.0의 시험이
     만듭니다).
+
+
+### D3. 사적 공유 build와 완료 결박 (kit 0.24.0, #20 PR3)
+
+`analytics build`와 명시적 `/analytics build`는 read/evidence의 같은 투영·검사 경로를 사용해 새
+`.analytics/publications/<publication_id>/`를 만듭니다. SDK나 상시 모델 도구는 추가하지 않습니다.
+표식 허용 판정을 최초 부수 효과 전에 하고, 프로젝트별 build 잠금 안에서 system-origin CONTEXT 동기화→기록 읽기→파일→manifest→완료 이벤트 순서로 진행합니다.
+기존 분석·모델 실행을 부르지 않고, 이미 준비된 환경을 사용합니다. Reader format은6이며 publication 첫 기록의 writer floor는0.24.0입니다.
+기존 TypedRef enum·Report fingerprint·50KiB journal 한도는 유지합니다. 큰 제외 목록은 명시적으로 거절될 수 있습니다.
+
+새 manifest 가족은 `analytics.publication/1`입니다. [ADR-0014](decisions/0014-publication-record-contract.md)의 필수 필드·정상/음성 shape를
+[기록 schema](schemas/analytics-records.schema.json)와 [예제](../tests/fixtures/publication-binding.json)에 함께 둡니다.
+`included`·`sources[].item`·`derived_from[].item`은 category와 기존 `key_name`의 16자리 hex를 쓰고 내부 snapshot/TypedRef의 정확한 ID와 구별합니다.
+제외 ID는 private 완료 이벤트의 `details.exclusions`에만 남깁니다. 원문이나 내부 identity 알고리즘을 바꾸지 않습니다.
+
+`publication` 이벤트가 커밋 지점입니다. 결과가 불확실하면 journal 잠금 안에서 동일 ID/manifest 해시를 다시 읽습니다.
+완료가 확인되면 `binding_recovered`, 없으면 `publication_not_recorded`/`binding=unbound`, 읽지 못하면 `binding=unknown`입니다.
+결박 시작 뒤 폴더를 삭제하지 않습니다. 결박 전 실패만 자기 생성 폴더의 동일 inode를 확인해 정리를 시도하며 실패 위치를 보존합니다.
+강제 종료 뒤 폴더만 있으면 미완료입니다. 재시도는 새 ID이며 Report의 요청 재시도 계약을 추가하지 않습니다.
+
+`analytics build --list`는 완료 이벤트와 유효 이름의 폴더를 결박 seq 순으로 합칩니다. `recording_status=complete|incomplete` 및 사유
+(`not_final`·`no_completion_event`, 또는 unsupported/ambiguous 판정)을 현재 `folder_status=same|changed|missing`과 구별합니다.
+읽지 못한 관찰은 `folder_checked=false`와 사유, null 상태로 표시합니다. 같은 renderer가 확인되고 content 해시가 같은 앞 build에만 `same_content_as`를 적습니다.
+`analytics_status`의 publication 참조도 정체성의 `reference_state`와 기록/폴더 상태를 나란히 표시합니다.
+Workspace의 같은 표시는 #100 공유 파일 인계 뒤 통합할 항목이며 현재 이 branch에서 검증하지 않았습니다.
+
+`analytics build --verify FOLDER_OR_ZIP`는 manifest/실제 파일·링크·이름·해시를 대조합니다. 원본 프로젝트가 없으면 stdlib Python3.11+로 실행하고
+`project_binding_checked=false`, `recording_status=null`을 반환합니다. 프로젝트 안에서는 동일 ID의 유일한 지원 완료 이벤트와도 대조합니다.
+환경·캐시·잠금·기록을 만들지 않습니다. 실제 누출 정책의 입력인 원본 제외 목록을 갖지 않으므로 verify는 누출 검사를 다시 수행하는 명령이 아닙니다.
+
+`--zip PATH`와 `--zip-of ID --zip PATH`는 결박된 폴더만 운반하며 받은 경로·resolve 경로가 프로젝트 밖이고 없을 때 배타 생성합니다.
+이름 순·1980시각·UTF8 flag·권한·압축 조건을 고정하고 다시 열어 검사합니다. 다른 zlib 판의 압축 bytes 일치는 보장하지 않습니다.
+ZIP 실패는 완료 build를 되돌리지 않고 결과가 `ok=false`여도 `recording_status=complete`를 보존하며 종료1입니다. 처리한 중단은130입니다.
+ZIP·폴더는 자동 정리/덮어쓰기하지 않고 다른 독자·브라우저·OS 도구 수용은 PR5까지 미실행입니다. Report/collection 범위는 PR4까지 거절합니다.

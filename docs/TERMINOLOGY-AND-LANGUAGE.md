@@ -359,3 +359,10 @@ kit 0.21.0은 개별 버전 저장·조회·철회/복원·prepared 정리의 CL
 반면 `gap` 종류, `record_update`, timestamp 필드, schema namespace·디렉터리 변경은 reader·writer·참조·전환을 함께 검증한다.
 공개 계약의 새 용어는 이 용어집에 뜻·범위·기존 개념과의 차이를 먼저 남기고 관련 예제·오류·화면에 같은 이름을 쓴다.
 상세한 이행 순서와 수용 기준은 [점검 기록](REVIEW-TERMINOLOGY-2026-09-18.md), 출시 관리는 [베타 기준](BETA-QUALITY-GATES.md)을 따른다.
+
+
+#20 PR3의 `analytics.publication/1`은 실제 독립 사본 manifest 가족입니다. `publication_id`는 소문자 pub-ULID이며
+`package_sha256`은 manifest 자체, `content_sha256`은 세 정체성 파일을 뺀 내용 파일을 식별합니다.
+manifest `ItemKey`는 category와 페이지의 결정적 16자리 hex `key_name`을 쓰고 private snapshot/이벤트의 TypedRef ID와 구별합니다.
+`recording_status`와 `folder_status`는 각각 기록 완료와 현재 사본의 관찰이며 `resolved`는 전자의 정체성 판정입니다.
+`project_binding_checked=false`인 독립 verify는 원본 기록을 확인하지 않았습니다. 분석 상태는 여전히 declared이며 검사/결론 검토를 대신하지 않습니다.

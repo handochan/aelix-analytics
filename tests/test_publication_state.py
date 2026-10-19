@@ -37,11 +37,6 @@ def _cli(tmp_path, *args, wrapper="module", project=None):
         command = [
             sys.executable,
             "-c",
-            "from aelix_analytics.cli import run; import sys; raise SystemExit(run(sys.argv[1:], kit=__import__('pathlib').Path(sys.argv[1])))",
-        ]
-        command = [
-            sys.executable,
-            "-c",
             f"from aelix_analytics.cli import run; import sys; from pathlib import Path; raise SystemExit(run(sys.argv[1:],kit=Path({str(ROOT / 'src')!r})))",
             "build",
             *args,
@@ -211,3 +206,41 @@ def test_module_actual_build_default_and_error_modes_preserve_recorded_result(tm
             capture_output=True,
         )
         assert done.returncode == 2
+
+
+def test_status_overview_records_relations_keep_resolved_identity_beside_missing_folder(tmp_path):
+    from aelix_analytics import writer
+
+    p = _project(tmp_path)
+    answer = build.build_publication(p, origin=ORIGIN)
+    finding = core.record(
+        p,
+        "finding",
+        "Public evidence cites a delivered copy.",
+        refs=[
+            writer.typed_reference(
+                {
+                    "type": "publication",
+                    "publication_id": answer["publication_id"],
+                    "digest": {"sha256": answer["package_sha256"]},
+                    "relation": "cites",
+                    "basis": "declared",
+                }
+            )
+        ],
+        origin=ORIGIN,
+    ).event
+    shutil.rmtree(p.root / answer["path"])
+    overview = core.status(p)
+    entry = next(row for row in overview["key"] if row["id"] == finding["id"])
+    observation = entry["references"]["publications"][0]
+    assert observation["reference_state"] == "resolved"
+    assert (
+        observation["recording_status"] == "complete" and observation["folder_status"] == "missing"
+    )
+    assert "record complete, folder missing" in core.status_text(overview)
+    record = core.retrieve(p, part="records", id=finding["id"])
+    assert record["evidence"]["publications"][0]["folder_status"] == "missing"
+    references = core.retrieve(p, part="relations", id=finding["id"], direction="outgoing")
+    assert references["items"][0]["state"] == "resolved"
+    assert references["items"][0]["publication"]["folder_status"] == "missing"

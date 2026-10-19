@@ -521,6 +521,8 @@ def _publication_command(args):
             observed = state.observe(model, args.zip_of)
             if observed["recording_status"] != "complete":
                 raise PublicationError("publication_not_recorded", "no unique supported completion record", details=observed)
+            if not observed["folder_checked"] or observed["folder_status"] != "same":
+                raise PublicationError("package_check_failed", "completed publication folder is not intact", details=observed)
             _state, _reason, _candidates, event = relations.publication_record(model.journal, args.zip_of)
             path = project.root / event["details"]["location"]
             result = {"ok": True, "publication_id": args.zip_of, "recording_status": "complete",
@@ -546,7 +548,8 @@ def _publication_command(args):
     except (UnicodeError, RecursionError) as exc:
         raise core.AnalyticsError("records_unsupported", "publication input text or nesting is not supported") from exc
     except (ImportError, OSError) as exc:
-        raise core.AnalyticsError("renderer_unavailable", "publication resources are unavailable") from exc
+        code = "package_check_failed" if readonly else "renderer_unavailable"
+        raise core.AnalyticsError(code, "publication resources are unavailable") from exc
     _emit(result)
     return 130 if result.get("interrupted") else 0 if result.get("ok") else 1
 

@@ -1254,3 +1254,18 @@ PR1의 고정 snapshot·모델·read/evidence·공통 닫힘은 PR117로 병합�
 실제 build 폴더/manifest/완료 이벤트는 PR3, Report/collection과 ReportRenderer 주입은 PR4, ZIP 운반·실제 브라우저/다른 독자·CSP·M규모는 PR5다.
 그 사례는 미실행/미지원으로 구별한다. 현재 정적 Plotly 정책의 실행 증거는 프로젝트 환경의 plotly.py6.9.0/plotly.js3.7.0이며,
 다른 표시 라이브러리 판·런타임 네트워크·브라우저 상호작용을 이 증거로 확대하지 않는다. 미리보기는 renderer 판을 응답에 남긴다.
+
+
+## PR3 구현 구체화
+
+실제 manifest의 `included`와 파일 provenance의 `item`은 ADR-0014 결정4의 package key(기존 `key_name`의 16자리 hex)를 쓴다.
+내부 run/visualization 복합 키를 그대로 내보내면 기존 “run 제외 + 해당 run의 그림 선택”에서 제외 ID가 다시 노출되므로,
+내부 모델·TypedRef를 바꾸지 않고 이미 페이지가 쓰는 결정적 대응을 manifest에도 적용한다. 원문과 scope 정책은 유지한다.
+
+공개 CLI profile은 read/evidence다. C11의 등록된 recording 전략 주입은 실제 선택한 ID/rules_version을 manifest·완료 이벤트에
+고정하며 새 공개 profile 설정이나 plugin API를 열지 않는다. Report/collection 요청은 PR4까지 명시적으로 거절한다.
+
+PR3의 실제 I/O 경로에는 ZIP primitive와 명시적 --zip/--zip-of가 함께 구현된다(승인된 구현 지시의 순서 조정).
+PR5의 OS 도구·브라우저/누락·CSP·M규모·Report 결합 검증은 미실행으로 유지한다. ZIP 성공을 독자 수용으로 쓰지 않는다.
+읽기 전용 `publishing/state.py`는 공통 ReadModel과 completion helper를 받아 기록/폴더를 대조한다.
+core/status는 이 낮은 경계만 소비하고 build/renderer에 의존하지 않는다. Workspace publication 관찰 조립은 #100 공유 UI 인계와 조율한다.
