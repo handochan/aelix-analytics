@@ -345,10 +345,11 @@ def write_zip(directory, destination, *, project_root, binding):
     verified = checks.verify_package(source, binding=binding)
     manifest = verified["manifest"]
     names = sorted(["publication.json", *(row["path"] for row in manifest["files"])])
-    owned = False
+    owned = None
     try:
         with target.open("xb") as stream:
-            owned = True
+            stat = os.fstat(stream.fileno())
+            owned = stat.st_dev, stat.st_ino
             with zipfile.ZipFile(
                 stream, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9
             ) as archive:
@@ -364,9 +365,14 @@ def write_zip(directory, destination, *, project_root, binding):
             os.fsync(stream.fileno())
         checks.verify_package(target, binding=binding)
     except BaseException as exc:
-        if owned:
+        if owned is not None:
             try:
+                current = target.lstat()
+                if _platform.is_link(current) or (current.st_dev, current.st_ino) != owned:
+                    raise OSError("ZIP target identity changed")
                 target.unlink()
+            except FileNotFoundError:
+                pass
             except OSError as cleanup:
                 if isinstance(exc, PublicationError):
                     exc.details.update(

@@ -60,7 +60,8 @@ analytics — human CLI for Aelix Analytics projects (the same kit the aelix ext
   analytics reports save ID --files DIR --entry PATH --title TEXT --previous REV|none [--request-id ID] [--metadata JSON_FILE]
   analytics reports list | show ID@REV [--file PATH] | update ID@REV --expected-state STATE --state STATE --reason TEXT
   analytics reports clean --prepared ID@REV    remove one explicitly named prepared attempt
-  analytics build --preview [--profile read|evidence] [--exclude REF]...
+  analytics build [--preview] [--profile read|evidence] [--exclude REF]... [--zip PATH]
+  analytics build --list | --verify FOLDER_OR_ZIP | --zip-of ID --zip PATH
   analytics assets list | show ID | review [ID] | update EVENT --expected STATE --to STATE --reason TEXT
   analytics assets register EVENT --name NAME    copy a validated asset into this project
   analytics assets mode on_demand|always_on      human project suggestion mode
@@ -158,6 +159,11 @@ def _command(args: list[str], kit: Path | None, uv_argv: list[str] | None,
     if command == "migrate":
         return _migrate(args, uv_argv, processes, env, children)
 
+    if command == "build" and any(a in ("--list", "--verify", "--zip-of") or a.startswith(("--verify=", "--zip-of=")) for a in args):
+        # Read-only delivery inspection runs on this launcher's stdlib interpreter, including
+        # standalone verification outside every Project. The kit finds an optional Project.
+        env["PYTHONDONTWRITEBYTECODE"] = "1"
+        return children.run([sys.executable, "-m", "aelix_analytics", "build", *args], env)
     project = find_project()
     if project is None:
         return 1
@@ -218,7 +224,7 @@ def _command(args: list[str], kit: Path | None, uv_argv: list[str] | None,
         # already prepared project interpreter, and suppress import bytecode side writes.
         python = Path(project) / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
         if not python.is_file():
-            _say("analytics: preview needs an existing project environment; run uv sync first")
+            _say(f"analytics: {'preview' if '--preview' in args else 'build'} needs an existing project environment; run uv sync first")
             return 1
         env["PYTHONDONTWRITEBYTECODE"] = "1"
         return children.run([str(python), "-m", "aelix_analytics", "--project", project, command, *args], env)

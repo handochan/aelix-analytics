@@ -335,3 +335,270 @@ def test_saved_build_freezes_selected_strategy_metadata_before_projection(tmp_pa
         == {"id": "recording", "rules_version": 2}
     )
     assert b"Rules version 2." in (folder / "index.html").read_bytes()
+
+
+def test_manifest_uses_opaque_package_keys_when_an_included_figure_has_an_excluded_run(tmp_path):
+    import json
+
+    from aelix_analytics import runner
+    from aelix_analytics.publishing.model import ItemKey
+    from aelix_analytics.publishing.projection import ShareRequest
+
+    p = core.init_project(tmp_path / "project", title="Public", origin=ORIGIN)
+    (p.root / "source.svg").write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg"><text>Public</text></svg>', encoding="utf-8"
+    )
+    (p.scripts / "show.py").write_text(
+        'from pathlib import Path\nimport aelix_analytics as a\na.visualize(Path("source.svg"),"one",title="Public figure")\n',
+        encoding="utf-8",
+    )
+    rid = runner.execute(p, script="scripts/show.py", title="Private run details", origin=ORIGIN)[
+        "run"
+    ]["id"]
+    request = ShareRequest(exclude=frozenset({ItemKey("run", rid)}))
+    _preview, view = build.preview_package(p, request)
+    assert any(name.endswith(".svg") for name in view)
+    answer = build.build_publication(p, request, origin=ORIGIN)
+    folder = p.root / answer["path"]
+    assert rid.encode() not in b"".join(
+        path.read_bytes() for path in folder.rglob("*") if path.is_file()
+    )
+    manifest = json.loads((folder / "publication.json").read_bytes())
+    assert not any(row["category"] == "run" for row in manifest["included"])
+    assert _publications(p)[0]["details"]["exclusions"][0]["run_id"] == rid
+    assert checks.verify_package(folder, binding=_publications(p)[0]["details"])["ok"]
+
+
+@pytest.mark.parametrize("after_write", [False, True])
+def test_binding_keyboard_interrupt_preserves_record_or_unbound_folder(
+    tmp_path, monkeypatch, after_write
+):
+    import json
+
+    from aelix_analytics import writer
+
+    p = core.init_project(tmp_path / "project", title="Public", origin=ORIGIN)
+    original = writer.append_line
+
+    def interrupt(path, line):
+        if json.loads(line)["kind"] == "publication":
+            if after_write:
+                original(path, line)
+            raise KeyboardInterrupt
+        return original(path, line)
+
+    monkeypatch.setattr(writer, "append_line", interrupt)
+    if after_write:
+        result = build.build_publication(p, origin=ORIGIN)
+        assert (
+            result["interrupted"]
+            and result["binding_recovered"]
+            and result["recording_status"] == "complete"
+        )
+        path = p.root / result["path"]
+    else:
+        with pytest.raises(PublicationError) as error:
+            build.build_publication(p, origin=ORIGIN)
+        assert error.value.details["binding"] == "unbound" and error.value.details["interrupted"]
+        path = p.root / error.value.details["path"]
+    assert checks.verify_package(path)["ok"] and len(_publications(p)) == int(after_write)
+
+
+def test_uncertain_reread_failure_is_unknown_and_retains_folder(tmp_path, monkeypatch):
+    import json
+
+    from aelix_analytics import writer
+
+    p = core.init_project(tmp_path / "project", title="Public", origin=ORIGIN)
+    read = writer._journal_bytes
+    append = writer.append_line
+    failed = False
+
+    def unreadable(path):
+        if failed:
+            raise PermissionError("injected reread failure")
+        return read(path)
+
+    def fail(path, line):
+        nonlocal failed
+        if json.loads(line)["kind"] == "publication":
+            failed = True
+            raise OSError("append result unavailable")
+        return append(path, line)
+
+    monkeypatch.setattr(writer, "_journal_bytes", unreadable)
+    monkeypatch.setattr(writer, "append_line", fail)
+    with pytest.raises(PublicationError) as error:
+        build.build_publication(p, origin=ORIGIN)
+    assert error.value.details["binding"] == "unknown"
+    assert checks.verify_package(p.root / error.value.details["path"])["ok"]
+
+
+def test_reread_after_commit_does_not_write_admit_a_future_marker(tmp_path, monkeypatch):
+    import json
+
+    from aelix_analytics import writer
+
+    p = core.init_project(tmp_path / "project", title="Public", origin=ORIGIN)
+    append = writer.append_line
+
+    def future(path, line):
+        append(path, line)
+        if json.loads(line)["kind"] == "publication":
+            marker = json.loads((p.root / "analytics.json").read_bytes())
+            marker["min_writer_version"] = "999.0.0"
+            (p.root / "analytics.json").write_text(json.dumps(marker), encoding="utf-8")
+            raise OSError("response lost after a future writer upgraded")
+
+    monkeypatch.setattr(writer, "append_line", future)
+    result = build.build_publication(p, origin=ORIGIN)
+    assert result["recording_status"] == "complete" and result["binding_recovered"]
+    assert json.loads((p.root / "analytics.json").read_bytes())["min_writer_version"] == "999.0.0"
+
+
+def test_cleanup_refuses_replaced_folder_and_preserves_other_builds(tmp_path, monkeypatch):
+    from aelix_analytics.publishing import package
+
+    p = core.init_project(tmp_path / "project", title="Public", origin=ORIGIN)
+    old = build.build_publication(p, origin=ORIGIN)
+    kept = tmp_path / "original-owned-folder"
+
+    def replace_folder(path, files):
+        path.rename(kept)
+        path.mkdir()
+        (path / "foreign.txt").write_bytes(b"preserve")
+        raise PublicationError("package_check_failed", "injected replacement")
+
+    monkeypatch.setattr(package, "write_files", replace_folder)
+    with pytest.raises(PublicationError) as error:
+        build.build_publication(p, origin=ORIGIN)
+    assert "identity changed" in error.value.details["cleanup_error"]
+    assert (
+        p.root / error.value.details["cleanup_path"] / "foreign.txt"
+    ).read_bytes() == b"preserve"
+    assert kept.exists() and checks.verify_package(p.root / old["path"])["ok"]
+
+
+def test_known_publication_identity_cannot_be_reused_after_folder_removal(tmp_path, monkeypatch):
+    import shutil
+
+    p = core.init_project(tmp_path / "project", title="Public", origin=ORIGIN)
+    old = build.build_publication(p, origin=ORIGIN)
+    shutil.rmtree(p.root / old["path"])
+    monkeypatch.setattr(build, "new_publication_id", lambda: old["publication_id"])
+    with pytest.raises(PublicationError, match="already exists"):
+        build.build_publication(p, origin=ORIGIN)
+    assert len(_publications(p)) == 1 and not (p.root / old["path"]).exists()
+
+
+@pytest.mark.skipif(
+    __import__("os").name == "nt", reason="symlink setup requires privileges on Windows"
+)
+def test_managed_publication_link_is_refused_before_any_target_write(tmp_path):
+    p = core.init_project(tmp_path / "project", title="Public", origin=ORIGIN)
+    target = tmp_path / "outside"
+    target.mkdir()
+    (p.root / ".analytics/publications").symlink_to(target, target_is_directory=True)
+    with pytest.raises(PublicationError):
+        build.build_publication(p, origin=ORIGIN)
+    assert list(target.iterdir()) == [] and not _publications(p)
+
+
+@pytest.mark.parametrize("after_bind", [False, True])
+def test_process_kill_before_or_after_binding_preserves_observable_commit(tmp_path, after_bind):
+    import os
+    import subprocess
+    import sys
+    import time
+    from pathlib import Path
+
+    from aelix_analytics.publishing import state
+
+    p = core.init_project(tmp_path / "project", title="Public", origin=ORIGIN)
+    ready = tmp_path / "ready"
+    script = """
+import sys,time,json
+from pathlib import Path
+from aelix_analytics import core,writer
+from aelix_analytics.publishing import build,checks
+project=core.Project(sys.argv[1]); ready=Path(sys.argv[2]); after=sys.argv[3]=='True'
+def wait():
+ ready.write_bytes(b'ready')
+ time.sleep(90)
+if after:
+ original=writer.append_line
+ def append(path,line):
+  original(path,line)
+  if json.loads(line)['kind']=='publication': wait()
+ writer.append_line=append
+else:
+ original=checks.verify_package
+ def verify(path,*args,**kwargs):
+  result=original(path,*args,**kwargs)
+  if isinstance(path,Path) and path.is_dir(): wait()
+  return result
+ checks.verify_package=verify
+build.build_publication(project,origin=core.Origin('human','cli'))
+"""
+    env = {
+        **os.environ,
+        "PYTHONPATH": str(Path(__file__).resolve().parents[1] / "src"),
+        "PYTHONDONTWRITEBYTECODE": "1",
+    }
+    proc = subprocess.Popen(
+        [sys.executable, "-c", script, str(p.root), str(ready), str(after_bind)],
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    try:
+        deadline = time.monotonic() + 20
+        while not ready.exists() and proc.poll() is None and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert ready.exists(), proc.communicate(timeout=2)
+        proc.kill()
+        proc.communicate(timeout=10)
+        assert proc.returncode != 0
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.communicate(timeout=10)
+    rows = state.list_publications(core.read_model(p))["publications"]
+    assert len(rows) == 1 and rows[0]["folder_status"] == "same"
+    assert rows[0]["recording_status"] == ("complete" if after_bind else "incomplete")
+    assert len(_publications(p)) == int(after_bind)
+
+
+def test_two_process_builds_serialize_snapshot_through_binding(tmp_path):
+    import json
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    p = core.init_project(tmp_path / "project", title="Public", origin=ORIGIN)
+    env = {
+        **os.environ,
+        "PYTHONPATH": str(Path(__file__).resolve().parents[1] / "src"),
+        "PYTHONDONTWRITEBYTECODE": "1",
+    }
+    command = [sys.executable, "-m", "aelix_analytics", "--project", str(p.root), "build"]
+    processes = [
+        subprocess.Popen(command, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        for _ in range(2)
+    ]
+    results = []
+    try:
+        for process in processes:
+            out, err = process.communicate(timeout=30)
+            assert process.returncode == 0, err.decode()
+            results.append(json.loads(out))
+    finally:
+        for process in processes:
+            if process.poll() is None:
+                process.kill()
+                process.communicate(timeout=10)
+    results.sort(key=lambda r: r["record"]["seq"])
+    assert results[1]["basis"]["as_of_seq"] >= results[0]["record"]["seq"]
+    assert results[1]["basis"]["content_seq"] >= results[0]["basis"]["content_seq"]
+    assert results[1]["content_sha256"] == results[0]["content_sha256"]

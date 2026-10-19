@@ -30,7 +30,7 @@ from .model import (
 from .package import prepare_files
 from .projection import ShareRequest, SnapshotItem, freeze
 from .projection import project as project_projection
-from .render import render
+from .render import key_name, render
 from .scope import PROFILES, leak_policy, request_check
 from .snapshot import capture_snapshot
 
@@ -377,7 +377,9 @@ def _exclusion_refs(snapshot, request):
     }
     result = []
     for key in sorted(request.exclude):
-        item = items[key]
+        item = items.get(key)
+        if item is None:
+            raise PublicationError("scope_invalid", "exclude target is unknown")
         ref = {"relation": "about", "basis": "declared", "version_binding": "author"}
         if key.category == "event":
             ref.update(type="event", event_id=item.values.get("id"), token=key.identity)
@@ -433,6 +435,11 @@ def _context_refs(project, snapshot):
 
 
 def _manifest(summary, files, assembled, identity):
+    def package_key(key):
+        # Use the existing package page/anchor key. A selected visualization's private ID
+        # contains its producer run ID, which may itself be explicitly excluded.
+        return {"category": key.category, "identity": key_name(key)}
+
     projection = assembled["projection"]
     slots = {}
     for item in projection.model.items:
@@ -469,7 +476,7 @@ def _manifest(summary, files, assembled, identity):
                 )
                 sources.append(
                     {
-                        "item": asdict(key),
+                        "item": package_key(key),
                         "role": entry.role,
                         "verified": slot.verified,
                         "recorded_sha256": entry.recorded_sha256,
@@ -480,7 +487,7 @@ def _manifest(summary, files, assembled, identity):
         if path in assembled["details"]["derived"]:
             row["derived_from"] = [
                 {
-                    "item": asdict(d["item"]),
+                    "item": package_key(d["item"]),
                     "role": d["role"],
                     "recorded_sha256": d["recorded_sha256"],
                     "source_sha256": d["source_sha256"],
@@ -505,7 +512,7 @@ def _manifest(summary, files, assembled, identity):
         "ui_locale": "en",
         "profile": summary["profile"],
         "scope": {"kind": assembled["request"].scope, "reports": []},
-        "included": [asdict(k) for k in sorted(projection.ledger.included)],
+        "included": [package_key(k) for k in sorted(projection.ledger.included)],
         "not_included": summary["not_included"],
         "reader_features": [
             "read",
@@ -554,7 +561,7 @@ def _observe_completion(record_writer, pid, digest):
                 return "unbound", None
             return ("unbound" if state == "missing" else "unknown"), None
 
-    except Exception:
+    except (Exception, KeyboardInterrupt):
         return "unknown", None
 
 
@@ -648,6 +655,7 @@ def build_publication(
                         "publication folder retained; completion was not confirmed",
                         details={
                             "binding": state,
+                            "interrupted": isinstance(exc, KeyboardInterrupt),
                             "publication_id": pid,
                             "path": details["location"],
                             "package_sha256": digest,
