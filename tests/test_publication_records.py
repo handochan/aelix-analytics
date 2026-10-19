@@ -174,6 +174,8 @@ def test_bad_completion_header_and_recovered_rows_cannot_resolve(tmp_path):
         ("recorded_at", "2026-10-19"),
         ("refs", {}),
         ("id", "e99"),
+        ("id", []),
+        ("id", {}),
     ]:
         event = completion()
         event[field] = value

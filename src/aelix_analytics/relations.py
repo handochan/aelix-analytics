@@ -2245,8 +2245,8 @@ class ReadModel:
                 return "ambiguous", None, [f"journal:{line}" for line, _ in rows]
             line, value = rows[0]
             if (line in self.journal.recovered or self.journal.is_unsupported(line)
-                    or len(self.journal.lines_of.get(value.get("id"), ())) != 1
-                    or publication_event_problem(value)):
+                    or publication_event_problem(value)
+                    or len(self.journal.lines_of.get(value["id"], ())) != 1):
                 return "unsupported", "invalid_publication_record", None
             if _digest(ref) != value["details"]["package_sha256"]:
                 return "missing", "digest_mismatch", None
