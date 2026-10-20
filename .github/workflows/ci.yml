@@ -2,9 +2,8 @@ name: CI
 
 # The repository CI. Linux, Windows and macOS run on every pull request, every push to main, a manual
 # run and the weekly run (the repository is public, where standard hosted runners are free; owner
-# decision of 2026-10-21, Issue #22). The main branch's ruleset requires the lint job and the Linux and
-# Windows platform and floor jobs to pass before a merge (CONTRIBUTING.md lists them); the process in
-# CONTRIBUTING.md also keeps a red macOS job from being merged.
+# decision of 2026-10-21, Issue #22). The main branch's ruleset requires every job here to pass before a
+# merge: lint, and platform and floor on each of the three systems (CONTRIBUTING.md lists them).
 #
 # Every leg runs even when an earlier one failed (`!cancelled()`), and any failed leg fails its job;
 # no step keeps going past a failure. Each job uploads what it measured, and the run's context, so a
