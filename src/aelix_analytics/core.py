@@ -1101,6 +1101,16 @@ def slugify(text, max_len: int = 48) -> str:
     return s[:max_len].strip("-")
 
 
+TOML_ESCAPES = {"\\": "\\\\", '"': '\\"', "\b": "\\b", "\t": "\\t", "\n": "\\n", "\f": "\\f", "\r": "\\r"}
+
+
+def toml_basic(text: str) -> str:
+    """`text` as the inside of a TOML basic string ("…"), so that reading it gives `text` back: a
+    backslash, a quote and every control character escaped (Issue #65)."""
+    return "".join(TOML_ESCAPES.get(c) or (f"\\u{ord(c):04X}" if ord(c) < 0x20 or ord(c) == 0x7F else c)
+                   for c in text)
+
+
 def sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
@@ -3947,16 +3957,17 @@ def init_project(target, *, title=None, goal=None, template_dir=None, origin: Or
                                 "created_at": created, "min_writer_version": KIT_VERSION,
                                 "kit_version": KIT_VERSION}, platform=project.platform)
     # The copies are text the kit writes, LF on every platform (ADR-0007 decision 2): the template is
-    # read in text mode, and a line end inside a value filled in is made LF as well.
+    # read in text mode, and a line end inside a value filled in is made LF as well. pyproject.toml takes
+    # its values as TOML strings, escaped, so any title reads back whole. Every place is filled in one
+    # pass: a title that holds `{{date}}` is the title as written, not a date (Issue #65).
     fill = {"title": title, "date": created[:10],
             "goal": (goal or "").strip() or "- (The question this analysis answers, and who will use the "
                                              "result for which decision)",
             "slug": slugify(title, 40) or "analysis"}
     for src, dest in (("CONTEXT.md", project.context), ("pyproject.toml", "pyproject.toml"),
                       ("gitignore", ".gitignore"), ("gitattributes", ".gitattributes")):
-        text = texts[src]
-        for k, v in fill.items():
-            text = text.replace("{{" + k + "}}", newlines_as_lf(v))
+        value = toml_basic if src == "pyproject.toml" else newlines_as_lf
+        text = re.sub(r"\{\{(" + "|".join(fill) + r")\}\}", lambda m, value=value: value(fill[m.group(1)]), texts[src])
         write_text(project.path(dest), text)
     write_text(project.path(".python-version"), "3.12\n")
     project.journal.touch()
