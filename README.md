@@ -500,14 +500,16 @@ kit이 쓰는 텍스트(기록·템플릿 사본·inline 스크립트·Workspace
 
 ```sh
 cd $PACK
-uv sync
-uv run pytest -q                                  # kit, 런처, 배포본(wheel을 빌드해 새 환경에 설치)
+uv sync --locked
+uv run --locked pytest -q --timeout 600 --timeout-method=thread   # kit, 런처, 배포본(wheel을 빌드해 새 환경에 설치)
+AELIX_ANALYTICS_TEST_INSTALL=1 uv run --locked pytest -q --timeout 600 --timeout-method=thread tests/test_packaging.py   # aelix 0.1.0b2와 실제 uv로 끝까지 (네트워크)
 uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 \
-  python -m pytest -q -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_extension.py tests/test_usage_report.py \
-  tests/test_agent_cli.py                         # aelix 통합 (CI와 같은 환경)
-AELIX_ANALYTICS_TEST_INSTALL=1 uv run pytest -q tests/test_packaging.py   # aelix 0.1.0b2와 실제 uv로 끝까지 (네트워크)
-uv run ruff check tests extension src tools
+  python -m pytest -q -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_extension.py tests/test_asset_extension.py \
+  tests/test_checkpoint_extension.py tests/test_usage_report.py tests/test_agent_cli.py   # aelix 통합 (CI와 같은 환경)
+uv run --locked ruff check tests extension src tools
 ```
+
+CI가 돌리는 명령 전체(문서 검사, 플랫폼 스모크, 표준 라이브러리만의 하한)와 고정값은 [기여 가이드](CONTRIBUTING.md#현재-개발-검증)에 있습니다.
 
 ```text
 src/aelix_analytics/          kit이자 배포본의 package. src/가 자식에게 주는 실행 루트(설치본은 aelix_analytics/kit/의 사본)

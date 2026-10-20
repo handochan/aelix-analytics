@@ -87,6 +87,22 @@ uv run --locked ruff check tests extension src tools
 pytest-timeout은 `--timeout-method=thread`로 씁니다. 기본 방식(SIGALRM)은 run 가드가 프로세스 안의 run 동안 쓰는 시그널과
 겹칩니다.
 
+CI의 `lint`·`platform` 작업은 위 명령에 더해 다음을 돌립니다([저장소 CI](#저장소-ci)). 저장소 시험은 배포본 end-to-end 단계까지
+돌고(네트워크 필요, 아래), Windows의 콘솔 시험은 단계를 따로 둡니다. CI는 보고용으로 `-ra`·`--junitxml`을 더합니다(aelix 레그는 `--basetemp`도).
+
+```sh
+uv run --locked python tools/check_docs.py --output .devstate/runs/<run-id>/evidence/docs.json
+uv run --locked python tools/platform_smoke.py --gate required --output .devstate/runs/<run-id>/evidence/smoke.json
+AELIX_ANALYTICS_TEST_INSTALL=1 uv run --locked pytest -q -p no:cacheprovider --timeout 600 --timeout-method=thread --ignore tests/test_windows_console.py
+```
+
+`floor` 작업은 uv 없이 CPython 3.11과 표준 라이브러리만으로 aelix 프로세스가 로드하는 쪽을 봅니다(분석 라이브러리를 설치하지 않은
+3.11에서):
+
+```sh
+python3.11 tools/platform_smoke.py --stdlib-only --gate required --output .devstate/runs/<run-id>/evidence/stdlib-smoke.json
+```
+
 저장소는 루트 `.gitattributes`로 모든 텍스트를 LF로 체크아웃합니다(ADR-0007). 이 파일이 생기기 전에 만든 Windows 체크아웃은
 커밋을 받아도 git이 바뀌지 않은 작업 파일을 다시 쓰지 않아 CRLF로 남고, 거기서 빌드한 wheel과 `kit_sha256`이 다른 플랫폼과 달라
 `tests/test_line_endings.py`·`tests/test_packaging.py`의 줄 끝 시험이 실패합니다. 로컬 변경을 먼저 commit하거나 stash한 뒤 한 번
@@ -116,19 +132,22 @@ kit 0.3.0부터 옛 이름의 환경 변수(`LAB_*`·`AELIX_LAB_*`)는 그것을
 `AELIX_LAB_PROJECT`·`AELIX_LAB_UV`·`AELIX_LAB_TRUST_FILE`와 파일 로드의 `AELIX_LAB_KIT`([현재 계약](docs/CONTRACTS.md) A·D). 셸이나 도구 설정에 남아 있으면 그 진입점을
 거치는 시험과 측정이 그 오류로 멈추므로 `AELIX_ANALYTICS_*`로 바꾸세요(시험 helper와 `tools/usage_report.py`는 상속한 옛 이름을 지웁니다).
 
-Aelix 통합 시험은 aelix 0.1.0b2(와 그 의존성), pytest, pytest-timeout만 있는 새 환경에서 실행합니다. CI와 같은 격리 환경과 시험
-제한 시간입니다(CI는 보고용으로 `-ra`와 `--junitxml`을 더합니다):
+Aelix 통합 시험은 aelix 0.1.0b2(와 그 의존성), pytest, pytest-timeout만 있는 새 환경에서 실행합니다. CI와 같은 격리 환경, 시험
+파일, 제한 시간입니다(CI는 보고용으로 `-ra`와 `--junitxml`을 더합니다). pytest·pytest-timeout의 번호는 `uv.lock`의 것과 같습니다:
 
 ```sh
 uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 \
-  python -m pytest -q -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_extension.py tests/test_usage_report.py \
-  tests/test_agent_cli.py
+  python -m pytest -q -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_extension.py tests/test_asset_extension.py \
+  tests/test_checkpoint_extension.py tests/test_usage_report.py tests/test_agent_cli.py
 ```
+
+이 다섯 파일은 모듈 머리에서 `pytest.importorskip("aelix_coding_agent")`로 aelix가 없으면 건너뜁니다. 그런 파일을 더하면 위 명령과
+CI의 두 aelix 레그에 함께 넣습니다. 빠지면 어디에서도 돌지 않습니다(`tests/test_ci_workflow.py`가 확인합니다).
 
 3.11은 `--python 3.11`입니다. `--isolated`를 빼지 마세요. 빼면 3.12에서 uv가 체크아웃의 개발 `.venv` 위에 임시 환경을 얹어
 aelix 프로세스가 분석 라이브러리를 import할 수 있게 되고, 이 시험이 보이려는 것(호스트가 분석 라이브러리를 로드하지 않음)이
 가려집니다. 런처의 하한 시험은 같은 방식으로 `--python 3.11 --with pytest==9.1.1 --with pytest-timeout==2.4.0`에서
-`tests/test_launcher.py`를 실행합니다. 개발 환경의 저장소 시험에는 aelix가 없어 세 aelix 시험 파일을 건너뜁니다.
+`tests/test_launcher.py`를 실행합니다. 개발 환경의 저장소 시험에는 aelix가 없어 위 다섯 aelix 시험 파일을 건너뜁니다.
 `tests/test_agent_cli.py`는 aelix의 확장 로더와 hook 버스로 확장을 실제로 등록하고, aelix의 bash 도구와 `!` 명령 처리로 kit CLI를 불러
 기록된 작성 주체를 확인합니다(모델·네트워크·로그인 없음, HOME과 aelix 에이전트 디렉터리는 시험의 임시 디렉터리). 줄 전체가 kit 명령
 하나인 `!` 명령과 다른 명령과 합친 줄을 셸을 돌려주는 확장·막는 확장과 두 등록 순서로 나눠 봅니다. `tests/test_extension.py`의 함정 줄
@@ -163,7 +182,23 @@ uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with tokeni
 합니다([계약 A1](docs/CONTRACTS.md#a1-모델에-가는-텍스트의-생략과-다시-읽을-위치)).
 
 시험은 변경에 맞게 선택합니다. 기록·사용량 계측·근거 변경에는 의미 있는 회귀 사례를, UI에는 실제 HTML의 연결과 복귀 확인을 포함합니다.
-문서만 바뀌면 링크·예시·현재 코드와의 일치 여부를 검사합니다.
+문서만 바뀌면 링크·예시·현재 코드와의 일치 여부를 검사합니다(`tools/check_docs.py`, CI의 `lint`).
+
+**문서만의 변경**은 시험·도구가 읽지 않는 문서만 바꾼 변경입니다. 다음은 시험의 입력이라, 바꾸면 그 시험을 돌리고 측정 기록의
+신선도([운영 정책](docs/PROJECT-OPERATIONS.md#검증-증거의-기준))에서도 코드 변경으로 셉니다.
+
+| 문서 | 읽는 시험·도구 |
+|---|---|
+| `docs/CONTRACTS.md` | `tests/test_packaging.py`, G절의 선언 문장은 `tools/platform_smoke.py`의 `DECLARED`(`tests/test_platform_smoke.py`) |
+| `docs/ARCHITECTURE.md` | 계층표: `tests/test_layers.py` |
+| `docs/BETA-QUALITY-GATES.md` | `tests/test_eval_fixtures.py` |
+| `docs/schemas/` | 기록·상태 schema: `tests/test_record_contract.py`·`tests/test_writer.py` 등과 `tests/test_doc_checks.py` |
+| `docs/templates/WORK-STATE.example.json` | `tests/test_doc_checks.py` |
+| `README.md` | wheel의 설명(`pyproject.toml`의 `readme`), `tests/test_packaging.py`, 개발 명령의 aelix 고정값: `tests/test_ci_workflow.py` |
+| `CONTRIBUTING.md` | 명령과 고정값: `tests/test_ci_workflow.py` |
+| `.github/project.json` | 연결 값: `tools/check_docs.py` |
+
+`src/` 아래의 Markdown(새 프로젝트의 템플릿 등)은 배포본에 들어가는 kit 파일이라 문서가 아닙니다.
 
 현재 동작의 합성 분석 fixture, 사람용 CLI·SDK 회귀와 Aelix 통합의 분리 검증은
 [회귀 기준 안내](docs/BASELINE-VERIFICATION.md)를 따릅니다. 실행 증거와 미실행 범위를 함께 남깁니다.
@@ -250,17 +285,18 @@ uv run --locked python tools/check_docs.py --output .devstate/runs/<run-id>/evid
 
 | 작업 | 언제 | 무엇 | artifact (90일) |
 |---|---|---|---|
-| `lint` | 모든 PR과 main push | ruff, 문서 검사 | 문서 검사 결과, 실행 맥락 |
-| `platform` | Linux(`ubuntu-24.04`)·Windows(`windows-2025`)는 모든 PR과 main push, macOS(`macos-26`)는 아래의 경우 | 플랫폼 스모크(`tools/platform_smoke.py --gate required`), 저장소 시험(`AELIX_ANALYTICS_TEST_INSTALL=1`, 배포본 end-to-end 포함), aelix 0.1.0b2 통합(CPython 3.12·3.11, `tests/test_extension.py`·`tests/test_usage_report.py`·`tests/test_agent_cli.py`), 사용량 보고서(`tools/usage_report.py`, CPython 3.12, 판정 없이 보고만), 런처 시험(CPython 3.11). Windows는 저장소 시험 뒤에 네이티브 콘솔 시험(`tests/test_windows_console.py`, 단계 따로)을, 시험 레그의 마지막에 LongPathsEnabled를 0으로 바꾸고 긴 경로 시험(`tests/test_windows_long_paths.py`)을 새 프로세스로 한 번 더 돌립니다 | 레그별 JUnit, 스모크 JSON(러너 설정 포함), 사용량 보고서(`usage/`: JSON·MD·`texts/`), 시험이 관찰해 남긴 것(`evidence/`, `evidence-long-paths-off/`, aelix 통합 레그의 `evidence-aelix-py3.12/`·`evidence-aelix-py3.11/`; 콘솔 사례는 단언하는 것까지 모두), 인터프리터, aelix 환경의 배포판 목록, 실행 맥락 |
+| `lint` | 모든 PR, main push, 수동·주간 실행 | ruff, 문서 검사 | 문서 검사 결과, 실행 맥락 |
+| `platform` | Linux(`ubuntu-24.04`)·Windows(`windows-2025`)·macOS(`macos-26`), `lint`와 같은 때 | 플랫폼 스모크(`tools/platform_smoke.py --gate required`), 저장소 시험(`AELIX_ANALYTICS_TEST_INSTALL=1`, 배포본 end-to-end 포함), aelix 0.1.0b2 통합(CPython 3.12·3.11, [위의 다섯 시험 파일](#현재-개발-검증)), 사용량 보고서(`tools/usage_report.py`, CPython 3.12, 판정 없이 보고만), 런처 시험(CPython 3.11). Windows는 저장소 시험 뒤에 네이티브 콘솔 시험(`tests/test_windows_console.py`, 단계 따로)을, 시험 레그의 마지막에 LongPathsEnabled를 0으로 바꾸고 긴 경로 시험(`tests/test_windows_long_paths.py`)을 새 프로세스로 한 번 더 돌립니다 | 레그별 JUnit, 스모크 JSON(러너 설정 포함), 사용량 보고서(`usage/`: JSON·MD·`texts/`), 시험이 관찰해 남긴 것(`evidence/`, `evidence-long-paths-off/`, aelix 통합 레그의 `evidence-aelix-py3.12/`·`evidence-aelix-py3.11/`; 콘솔 사례는 단언하는 것까지 모두), 인터프리터, aelix 환경의 배포판 목록, 실행 맥락 |
 | `floor` | `platform`과 같은 OS | `actions/setup-python`의 CPython 3.11에서 표준 라이브러리만으로 플랫폼 스모크(`--stdlib-only`) | 스모크 JSON, 실행 맥락 |
 
-- macOS runner는 비공개 저장소에서 Linux의 약 10배로 과금되므로 PR에서는 요청할 때만 돕니다. PR에 `ci:macos` 라벨을 붙일
-  때마다 그 순간의 헤드로 한 번 돕니다. 그 뒤의 push로는 다시 돌지 않고, 라벨을 떼고 다시 붙이면 앞선 실행을 취소하지 않고 한 번 더
-  돕니다. 실행이 시작되면 라벨을 떼어 둡니다. 라벨 실행에는 Linux·Windows 작업이 없고 `lint`는 건너뜀(skipped)으로
-  표시됩니다(`ci:macos`가 아닌 라벨이면 모든 작업이 건너뜀). 건너뜀은 검증 결과가 아닙니다. 수동 실행(`workflow_dispatch`, `macos` 선택)과 매주 월요일 03:17 UTC 실행은 세 OS를 모두 돌립니다.
-- 비용(GitHub Free의 월 2,000분 기준): 이 워크플로의 첫 측정(PR #34)에서 Linux+Windows 한 번은 작업마다 분 단위로 올리고
-  Windows를 2배로 세어 58분, macOS 한 번은 10배로 세어 90분이었습니다. 주간 실행만으로 월 약 650분이 듭니다(추정). 레그가 멈춰
-  제한 시간까지 가면 작업 하나가 제한 시간만큼(`platform` 150분, macOS면 그 10배) 과금될 수 있습니다.
+- 세 OS를 모든 PR·main push·수동 실행(`workflow_dispatch`)·매주 월요일 03:17 UTC 실행에서 돌립니다(2026-10-21 소유자 결정, #22).
+  저장소가 공개라 표준 hosted runner는 과금되지 않습니다([GitHub Actions 과금](https://docs.github.com/en/billing/concepts/product-billing/github-actions)).
+  그 전(비공개 저장소)에는 macOS를 `ci:macos` 라벨·수동·주간 실행에서만 돌렸고, 그 시기의 기록은 라벨 실행을 인용합니다.
+  주간 실행(2026-10-19, `d9413a7`)에서 작업 시간은 `platform` Linux 13분, Windows 47분, macOS 22분이었습니다.
+- 고정한 도구: uv `0.11.19`(`astral-sh/setup-uv`), `floor`의 CPython `3.11`(`actions/setup-python`), 격리 레그의 pytest·pytest-timeout은
+  `uv.lock`과 같은 번호, aelix는 `0.1.0b2`. Actions는 commit SHA로 고정하고, Dependabot이 Actions의 새 버전을 매달 PR로 올립니다
+  (`.github/dependabot.yml`). aelix·Python 의존성은 지원 계약의 고정값이라 Dependabot이 올리지 않습니다. 위 명령과 고정값이 CI와
+  같은지는 `tests/test_ci_workflow.py`가 봅니다.
 - 시험 레그 하나가 실패해도 다음 레그는 돌고 작업은 실패로 끝납니다. 개발 환경의 sync가 실패하면 `platform`의 시험 레그는 돌지
   않고 작업이 실패합니다. 플랫폼별 작업은 서로 취소하지 않습니다(`fail-fast: false`). 시험·기록 단계마다 제한 시간이 있고, 작업의
   제한 시간은 그 합보다 깁니다(artifact 올리기에는 작업의 제한 시간만 있습니다). 저장소 전체 시험 단계는 45분,
@@ -269,22 +305,28 @@ uv run --locked python tools/check_docs.py --output .devstate/runs/<run-id>/evid
 - PR 실행은 GitHub가 만드는 병합 커밋이 아니라 PR 헤드를 체크아웃해 측정합니다. 워크플로 파일은 그 병합 커밋의 것이 쓰이므로,
   실행 맥락(`tools/ci_context.py`)에 `GITHUB_WORKFLOW_SHA`도 남깁니다. aelix 환경의 배포판 목록은 같은 요구 사항을 시험 레그들
   뒤에 다시 풀어 얻은 것입니다.
-- 서버가 강제하지 않습니다. 이 요금제에서 branch protection·ruleset 조회는 HTTP 403입니다([운영 정책](docs/PROJECT-OPERATIONS.md) §9).
-  빨간 실행을 병합하지 않는 것은 운영 규칙입니다. aelix의 의존성·PyPI·러너 이미지 같은 상류의 변화로 코드 변경 없이 빨개질 수
-  있으니, 원인이 회귀인지 상류 변화인지 구별해 적습니다.
-- Actions 사용량이 바닥나면 CI가 돌지 않습니다. 그 기간의 플랫폼은 `not_run`이지 통과가 아닙니다.
+- main은 ruleset `main`(id 25484515)이 보호합니다(2026-10-21 소유자 결정, #22): PR을 거치지 않은 push, force push, 삭제를 막고,
+  병합 전에 필수 검사 다섯 개가 GitHub Actions에서 통과해야 합니다: `lint · ruff and documents`, `platform · ubuntu-24.04`,
+  `platform · windows-2025`, `floor · ubuntu-24.04 · CPython 3.11, stdlib only`, `floor · windows-2025 · CPython 3.11, stdlib only`.
+  macOS의 두 검사(`platform · macos-26`, `floor · macos-26 · CPython 3.11, stdlib only`)는 필수 검사가 아닙니다. macOS를 모든 PR에서
+  돌리게 한 #22가 병합된 뒤 더하기로 했고(그 전에 열린 PR에는 macOS 작업이 없어 막히므로), 더할 때 이 문단을 고칩니다. 지금 서버의
+  규칙은 `gh api repos/handochan/aelix-analytics/rules/branches/main`이 보여 줍니다. 필수 검사가 아닌 작업이 빨간 PR을 병합하지 않는
+  것은 운영 규칙입니다. 우회할 수 있는 사람은 없고, 승인 리뷰 수는 0입니다(병합 승인은 [운영 정책](docs/PROJECT-OPERATIONS.md) §4대로
+  소유자가 합니다). 필수 검사가 통과해도 병합은 리뷰·검증 조건을 채워야 하는 운영 절차의 일부입니다. aelix의 의존성·PyPI·러너 이미지 같은 상류의 변화로 코드 변경 없이 빨개질 수 있으니, 원인이
+  회귀인지 상류 변화인지 구별해 적습니다.
+- 장애나 사용 제한으로 CI가 돌지 않은 기간의 플랫폼은 `not_run`이지 통과가 아닙니다.
 - 검증 기록이 인용하는 실행은 다시 돌리지(re-run) 않습니다. 다시 돌리면 이전 시도의 artifact를 볼 수 없습니다. 새로 push하거나
-  라벨을 다시 붙이고, 기록에 실행 번호와 시도(attempt)를 함께 적습니다.
+  수동 실행을 시작하고, 기록에 실행 번호와 시도(attempt)를 함께 적습니다.
 - 플랫폼 스모크는 Windows의 한계를 [현재 계약](docs/CONTRACTS.md) G절의 문장 그대로 읽어 판정합니다(`tools/platform_smoke.py`의
   `DECLARED`). 그 문장을 바꾸면 같은 커밋에서 `DECLARED`도 고칩니다(`tests/test_platform_smoke.py`가 확인합니다). 그래서 그 문장을
-  바꾸는 커밋은 측정 기록의 신선도를 따질 때 문서만의 변경이 아니고, 앞으로 CI에 경로 필터를 두더라도 `docs/CONTRACTS.md`를
-  빼지 않습니다.
+  바꾸는 커밋은 측정 기록의 신선도를 따질 때 문서만의 변경이 아닙니다([문서만의 변경](#현재-개발-검증)).
+- CI에는 경로 필터가 없습니다. 문서만 바꾼 PR도 모든 작업을 돌리므로 필수 검사가 늘 보고됩니다(2026-10-21 결정, #22).
 
 ## 첫 공개 전에 남은 운영 결정
 
 배포 이름은 `aelix-analytics`입니다(2026-10-17 소유자 결정, [#24](https://github.com/handochan/aelix-analytics/issues/24)). 릴리스 절차는 확정해 공개해야 합니다.
 관리자는 GitHub 핸들 [@handochan](https://github.com/handochan)이며 이메일은 적지 않습니다(2026-10-07 결정, `pyproject.toml`의 `authors`·`maintainers`).
-보안 취약점은 GitHub의 비공개 취약점 신고로 받고 공개 Issue로 받지 않습니다([SECURITY.md](SECURITY.md), 2026-10-07 결정). 그 설정은 저장소를 공개할 때 켜며, 그 전에는 비공개 신고 경로가 없습니다. 보안 수정을 받는 버전, 신고의 처리 절차와 공지는 아직 정하지 않았습니다([SECURITY.md](SECURITY.md#아직-정하지-않은-것)).
+보안 취약점은 GitHub의 비공개 취약점 신고로 받고 공개 Issue로 받지 않습니다([SECURITY.md](SECURITY.md), 2026-10-07 결정). 저장소는 공개이고, 그 신고와 secret scanning·push protection·Dependabot 보안 알림을 켰습니다(2026-10-21, #22). 보안 수정을 받는 버전, 신고의 처리 절차와 공지는 아직 정하지 않았습니다([SECURITY.md](SECURITY.md#아직-정하지-않은-것)).
 라이선스는 Apache License 2.0입니다([LICENSE](LICENSE), 2026-09-30 결정).
 지원 플랫폼은 Linux·macOS·Windows이며 Python 하한과 패키징 경계는 [ADR-0002](docs/decisions/0002-python-support-and-platform-scope.md)로 채택했습니다. 채택은 구현 완료가 아니므로, 현재 코드의 상태는 [현재 계약](docs/CONTRACTS.md)의 실행 환경 절을 따릅니다.
 조합별로 실제 설치·실행한 범위는 [지원 범위](docs/SUPPORT.md)에 증거와 함께 적습니다. 실행하지 않은 조합을 `verified`로 적지 않고, 증거가 검사한 commit 뒤에 코드가 바뀌어도 그 칸을 넓히지 않습니다.

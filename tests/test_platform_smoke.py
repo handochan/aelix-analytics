@@ -1,8 +1,7 @@
 """The platform measurement tool keeps working and keeps its record honest.
 
-The repository CI (.github/workflows/ci.yml) runs the tool with `--gate required` on Linux and Windows
-for every pull request and push to main, and on macOS on the `ci:macos` label, a manual run or the weekly
-run. A broken tool fails that job; these tests also run in the suite, and locally before a push.
+The repository CI (.github/workflows/ci.yml) runs the tool with `--gate required` on Linux, Windows and
+macOS for every pull request and push to main, a manual run and the weekly run. A broken tool fails that job; these tests also run in the suite, and locally before a push.
 """
 
 import ast

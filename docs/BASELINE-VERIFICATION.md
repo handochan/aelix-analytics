@@ -36,17 +36,20 @@ From the repository root, use the locked development environment:
 
 ```sh
 uv sync --locked
-uv run --locked pytest -q tests/test_human_baseline.py
-uv run --locked pytest -q tests/test_kit.py tests/test_doc_checks.py
+uv run --locked pytest -q --timeout 600 --timeout-method=thread tests/test_human_baseline.py
+uv run --locked pytest -q --timeout 600 --timeout-method=thread tests/test_kit.py tests/test_doc_checks.py
 uv run --locked ruff check tests extension src tools
 ```
+
+The commands the repository CI runs, and their pins, are in [CONTRIBUTING.md](../CONTRIBUTING.md#현재-개발-검증);
+that guide is the current reference where the two differ.
 
 For retained artifacts, replace `<run-id>` with a fresh UUID and keep each execution's
 directory unique. Pytest deletes an existing `--basetemp` directory; do not reuse a path
 that an earlier handoff cites.
 
 ```sh
-uv run --locked pytest -q tests/test_human_baseline.py \
+uv run --locked pytest -q --timeout 600 --timeout-method=thread tests/test_human_baseline.py \
   --basetemp .devstate/runs/<run-id>/evidence/human \
   --junitxml .devstate/runs/<run-id>/evidence/human.xml
 uv run --locked python tools/check_docs.py \
@@ -57,7 +60,9 @@ Each human scenario writes `commands.jsonl` beside its generated project. It con
 the exact argv, working directory, time, exit code, stdout and stderr. Runs additionally
 retain `run.json`, code snapshots, logs, input hashes, chart files/data and the runtime
 environment. Repository checks must also retain the inspected source revision or dirty
-snapshot as required by [PROJECT-OPERATIONS.md](PROJECT-OPERATIONS.md).
+snapshot as required by [PROJECT-OPERATIONS.md](PROJECT-OPERATIONS.md). A new baseline record lists the
+sha256 of `tests/test_human_baseline.py` beside the fixture files' hashes, since its assertions are part of
+what was checked (the 2026-09-19 record pins them only through its `verification_revision`).
 
 These automated scenarios use `python -m aelix_analytics` (named `labkit` before kit 0.2.0) with the
 checkout's `src/` on `PYTHONPATH` in the locked development environment.
@@ -65,19 +70,34 @@ The shell wrapper is a separate smoke check: use `bin/analytics init` (`bin/lab`
 a fresh project and an isolated `AELIX_ANALYTICS_TRUST_FILE`, then import the fixture and execute its scripts with
 `AELIX_ANALYTICS_PROJECT` pointing at that project. The variables' old names (`AELIX_LAB_*`, `LAB_*`) are
 refused with an error since kit 0.3.0, so unset them first. This exercises the wrapper's project environment
-creation; it is not a distribution-installation or cross-platform support claim.
+creation; it is not a distribution-installation or cross-platform support claim. From the repository root
+(POSIX shell):
+
+```sh
+S=.devstate/runs/<run-id>/evidence/shell
+unset AELIX_LAB_HOME AELIX_LAB_TRUST_FILE AELIX_LAB_PROJECT AELIX_LAB_UV AELIX_LAB_KIT LAB_PROJECT LAB_ACTOR LAB_SESSION LAB_STYLE
+export AELIX_ANALYTICS_TRUST_FILE="$PWD/$S/trust.json"
+bin/analytics init "$S/project" --title "Shell smoke" --goal "Compare regional revenue"
+export AELIX_ANALYTICS_PROJECT="$PWD/$S/project"
+bin/analytics import tests/fixtures/human_baseline/sales.csv --name sales --description "Six synthetic rows"
+cp tests/fixtures/human_baseline/region_summary.py "$S/project/scripts/"
+bin/analytics run scripts/region_summary.py --title "All channels"
+bin/analytics status --part records
+```
+
+Record it as the other checks are recorded: each command's argv and exit code, and the sha256 of the raw
+log (stdout and stderr). The 2026-09-19 record's `shell_wrapper` has only a command count and a result;
+it is the record of a run already made and stays as it is (Issue #22).
 
 ## Reproduce the Aelix integration checks
 
-The extension test module skips when Aelix is absent. A green kit run therefore does not
-establish host integration. Use a separate interpreter with the intended Aelix and pytest
-installed, and record both the package versions and the actual source revision when the
-packages are editable installs:
-
-```sh
-AELIX_TEST_PYTHON=/path/to/aelix-environment/bin/python
-"$AELIX_TEST_PYTHON" -m pytest -q -p no:cacheprovider tests/test_extension.py -o addopts=""
-```
+The extension test modules skip when Aelix is absent. A green kit run therefore does not
+establish host integration. Run them in the isolated environment [CONTRIBUTING.md](../CONTRIBUTING.md#현재-개발-검증)
+gives (`uv run --isolated --no-project … --with aelix==… --with pytest==… --with pytest-timeout==…`, the five
+modules, `--timeout-method=thread`), which is the one the CI runs, and record the resolved package versions.
+The 2026-09-19 baseline ran `tests/test_extension.py` alone with another interpreter
+(`"$AELIX_TEST_PYTHON" -m pytest -q -p no:cacheprovider tests/test_extension.py -o addopts=""`); an editable
+Aelix install also needs its actual source revision recorded.
 
 The [extension suite](../tests/test_extension.py) invokes the real extension loader and
 registered tools/hooks, including a project uv subprocess, error handling and cancellation.
