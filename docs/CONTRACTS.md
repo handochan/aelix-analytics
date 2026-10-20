@@ -1464,7 +1464,7 @@ kit 0.4.0([#42](https://github.com/handochan/aelix-analytics/issues/42), 줄 끝
 - 모든 플랫폼: 새 프로젝트에 `.gitattributes`(`* -text`, B)가 생기고 run의 출력 비교에서 빠집니다. 줄 끝만 바뀐 입력·코드에 사유
   `line_endings_only`가 붙고(E; JSON에 입력의 `reason`, status 차트 행의 `change_reasons`·`code_reason`가 더해짐), 줄 끝만 바뀐 CONTEXT
   버전의 이벤트 글이 `CONTEXT.md line endings changed`입니다(C5). inline 스크립트와 kit이 쓰는 HTML(Workspace 페이지, `html`·altair 차트)은
-  내용의 CR까지 LF로 씁니다. 템플릿에 채우는 제목·목표의 CR도 LF가 됩니다. 해시 캐시 항목에 줄 끝 변형의 해시가 더해질 수
+  내용의 CR까지 LF로 씁니다. 템플릿에 채우는 제목·목표의 CR도 LF가 됩니다(kit 0.24.0의 #65부터 `pyproject.toml`의 값은 TOML escape로 넣어 CR도 `\r`로 보존합니다. 파일의 줄 끝은 LF). 해시 캐시 항목에 줄 끝 변형의 해시가 더해질 수
   있습니다(`.lab/cache/`, 파생물; 옛 kit은 그 항목을 다시 계산합니다). altair 차트는 경로 대신 버퍼로 받아 씁니다.
 - Windows: 기록(JSON·JSONL)·템플릿 사본·`.python-version`·inline 스크립트·Workspace·차트 HTML·JSON·build stamp·데모의 `CONTEXT.md`·
   run 로그(스크립트의 `print`)가 CRLF에서 LF가 됩니다. 그래서 같은 내용의 기록과 inline 스크립트의 `script.sha256`이 다른 플랫폼과

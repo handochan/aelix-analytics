@@ -678,7 +678,7 @@ def test_the_installed_command_drives_a_project_without_aelix(dist, tmp_path, py
     assert again["reproduction"]["verdict"] == "match", again["reproduction"]
     ok([analytics, "record", "decision", "계속"], cwd=project, env=env)
     ok([analytics, "render"], cwd=project, env=env)
-    assert f"project: {title} (" in ok([analytics, "status"], cwd=project, env=env).stdout
+    assert 'project: 설치본 "분석"' in ok([analytics, "status"], cwd=project, env=env).stdout
     ok([analytics, "context"], cwd=project, env=env)
     if POSIX:
         ok([analytics, "open"], cwd=project, env=env)

@@ -3958,7 +3958,7 @@ def init_project(target, *, title=None, goal=None, template_dir=None, origin: Or
                                 "kit_version": KIT_VERSION}, platform=project.platform)
     # The copies are text the kit writes, LF on every platform (ADR-0007 decision 2): the template is
     # read in text mode, and a line end inside a value filled in is made LF as well. pyproject.toml takes
-    # its values as TOML strings, escaped, so any title reads back whole. Every place is filled in one
+    # its values as TOML strings, escaped, so a title reads back whole (any title UTF-8 can write). Every place is filled in one
     # pass: a title that holds `{{date}}` is the title as written, not a date (Issue #65).
     fill = {"title": title, "date": created[:10],
             "goal": (goal or "").strip() or "- (The question this analysis answers, and who will use the "

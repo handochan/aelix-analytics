@@ -31,7 +31,7 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 
 ### Fixed
 
-- #65: 새 프로젝트의 제목에 `"`·`\`·줄바꿈·제어 문자가 있으면 `pyproject.toml`이 TOML로 읽히지 않아 uv가 환경을 만들지 못했습니다.
+- [PR #125](https://github.com/handochan/aelix-analytics/pull/125), #65: 새 프로젝트의 제목에 `"`·`\`·줄바꿈 같은 제어 문자(탭 제외)가 있으면 `pyproject.toml`이 TOML로 읽히지 않아 uv가 환경을 만들지 못했습니다.
   이제 제목을 escape한 TOML 문자열로 넣어 `description`이 제목 그대로 읽힙니다. 템플릿은 한 번에 채워, 제목 안의 `{{date}}` 같은 글도 쓴
   그대로 남습니다(`CONTEXT.md` 포함). kit 번호는 올리지 않았습니다.
 
