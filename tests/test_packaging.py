@@ -9,7 +9,7 @@ AELIX_ANALYTICS_TEST_INSTALL=1 adds the end-to-end leg: aelix 0.1.0b2 from PyPI 
 aelix's own verify, status and loader, README's `uv tool install` lines, and a project driven through
 the installed `analytics` by real uv — which syncs an analysis environment, so it needs the network or
 a warm cache. The repository CI
-(.github/workflows/ci.yml) runs it on Linux and Windows, and on macOS when asked.
+(.github/workflows/ci.yml) runs it on Linux, Windows and macOS.
 """
 
 from __future__ import annotations

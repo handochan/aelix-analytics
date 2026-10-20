@@ -11,8 +11,8 @@ Aelix Analytics는 첫 베타를 준비하고 있고 아직 어떤 버전도 게
 취약점은 GitHub의 비공개 취약점 신고로 받습니다. 저장소의 **Security** 탭에서 **Report a vulnerability**를 고릅니다. 이렇게 보낸
 신고는 공개되지 않은 채 관리자에게 갑니다.
 
-저장소는 지금 비공개이고, 비공개 취약점 신고는 저장소를 공개할 때 켭니다. 그 전에는 비공개로 신고할 경로가 없습니다. 그동안에도
-취약점의 내용을 Issue·pull request·commit에 쓰지 마세요. 비공개 저장소에서도 모든 collaborator가 읽을 수 있습니다.
+저장소는 공개이고, 비공개 취약점 신고를 켰습니다(2026-10-21, [#22](https://github.com/handochan/aelix-analytics/issues/22)). 공개 저장소의
+Issue·pull request·commit은 누구나 읽습니다. 저장소에는 secret scanning과 push protection, Dependabot 보안 알림도 켜 두었습니다.
 
 ## 신고에 적을 것
 

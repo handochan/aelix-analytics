@@ -1,21 +1,28 @@
-## Problem and resulting behavior
+## 바뀌는 것
 
-<!-- Describe the concrete problem and what this change delivers. -->
+<!-- 해결한 문제와 이 변경이 내는 동작. -->
 
-## Work item and decisions
+## 바뀌지 않는 것
 
-<!-- Link the Issue, selected Project, and relevant ADRs/design sections.
-Use a closing keyword only when this PR actually completes that Issue. -->
+<!-- 지키는 계약·기록·화면. 해당이 없으면 이 절을 지운다. -->
 
-## Validation
+## 작업 항목과 결정
 
-| Check | Commit / source snapshot | Result | Evidence |
-|---|---|---|---|
-| Pending | Not specified | not_run | Not available |
+<!-- Issue, Project, 관련 ADR·설계 절, 소유자 결정. 이 PR이 Issue를 실제로 끝낼 때만 닫는 키워드를 쓴다. -->
 
-<!-- Include applicable Q gates, actual environments, and manual/live gaps. -->
+## 검증
 
-## Review and remaining work
+| 검사 | 코드 기준 | 명령·CI 실행(시도) | 결과 | 근거 |
+|---|---|---|---|---|
+| 아직 | — | — | not_run | — |
 
-<!-- Identify self-review vs independent review, resolved findings, and remaining limitations.
-Link the handoff if implementation or verification continues after this PR. -->
+<!-- 해당 Q 게이트, 실제 환경, 수동·실제 화면의 공백도 적는다. 코드를 고치면 새 push로 돈 CI 실행으로 표를 갱신한다
+(docs/PROJECT-OPERATIONS.md의 검증 증거의 기준). 미실행·실패는 통과로 바꾸지 않는다. -->
+
+## 리뷰와 처분
+
+<!-- 자기 검토와 독립 리뷰를 구별한다. 리뷰 예산(docs/PROJECT-OPERATIONS.md의 리뷰 예산)과 지적마다의 처분. -->
+
+## 남은 한계
+
+<!-- 남은 제한과 후속 Issue. 구현이나 검증이 이어지면 handoff를 연결한다. -->

@@ -114,6 +114,41 @@ def test_broken_anchor_and_missing_link_fail_with_file_and_line(repository):
     assert all(e["path"] == "README.md" and e["line"] for e in report["errors"])
 
 
+LINK = {"schema": "aelix-analytics.project-link/1", "repository": "owner/repo",
+        "project_url": "https://github.com/users/owner/projects/7",
+        "default_view_url": "https://github.com/users/owner/projects/7/views/1",
+        "project_node_id": "PVT_kwHOA-ATMs4Bj707"}
+
+
+def test_the_project_link_is_checked_against_itself_and_the_origin(repository):
+    subprocess.run(["git", "-C", str(repository), "remote", "add", "origin", "https://github.com/owner/repo.git"], check=True)
+    write(repository, ".github/project.json", json.dumps(LINK))
+    assert cli(repository).returncode == 0
+    wrong = {**LINK, "repository": "someone/else", "default_view_url": "https://github.com/users/owner/projects/8/views/1",
+             "project_node_id": "7"}
+    write(repository, ".github/project.json", json.dumps(wrong))
+    proc = cli(repository)
+    assert proc.returncode == 1
+    messages = [e["message"] for e in json.loads(proc.stdout)["errors"] if e["path"] == ".github/project.json"]
+    assert len(messages) == 3, messages
+    assert any("origin 'owner/repo'" in m for m in messages)
+    assert any("default_view_url" in m for m in messages) and any("project_node_id" in m for m in messages)
+
+
+def test_an_unlinked_project_link_passes_and_another_family_fails(repository):
+    write(repository, ".github/project.json", json.dumps({**LINK, "project_url": None}))
+    assert cli(repository).returncode == 0
+    write(repository, ".github/project.json", json.dumps({**LINK, "schema": "other/1"}))
+    proc = cli(repository)
+    assert proc.returncode == 1 and "unsupported schema" in proc.stdout
+
+
+def test_this_repositorys_project_link_is_valid():
+    check = checks.Check(ROOT)
+    check.check_json(".github/project.json")
+    assert check.errors == []
+
+
 @pytest.mark.parametrize(("document", "target"), [
     ("README.md", "."),
     ("docs/guide.md", "../"),

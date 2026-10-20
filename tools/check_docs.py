@@ -31,6 +31,11 @@ from referencing.exceptions import Unresolvable
 STATE_SCHEMA = "docs/schemas/dev-state.schema.json"
 STATE_FAMILY = "aelix-analytics.dev-state/1"
 STATE_EXAMPLE = "docs/templates/WORK-STATE.example.json"
+PROJECT_LINK = ".github/project.json"
+PROJECT_FAMILY = "aelix-analytics.project-link/1"
+# A user's or an organization's Project v2, and a view of it: the owner and number name the Project.
+PROJECT_URL = re.compile(r"https://github\.com/(users|orgs)/([\w.-]+)/projects/(\d+)")
+GITHUB_REMOTE = re.compile(r"(?:https://github\.com/|git@github\.com:|ssh://git@github\.com/)([\w.-]+/[\w.-]+?)(?:\.git)?/?")
 MARKDOWN = MarkdownIt("commonmark").enable("table")
 # A drive path (C:\x, C:/x, and C:x, relative to that drive's current directory), or one that
 # starts at a backslash (\x, a UNC \\server\share), as a Windows checkout writes them. Matched after
@@ -231,6 +236,8 @@ class Check:
         if rel == STATE_EXAMPLE and (not isinstance(value, dict)
                                      or value.get("schema") != STATE_FAMILY):
             raise ValueError("unsupported schema in the development-state example")
+        if rel == PROJECT_LINK:
+            self.check_project_link(value)
         if isinstance(value, dict) and "$schema" in value:
             Draft202012Validator.check_schema(value)
         if isinstance(value, dict) and value.get("schema") == STATE_FAMILY:
@@ -242,6 +249,35 @@ class Check:
             for error in validator.iter_errors(value):
                 field = "/".join(str(p) for p in error.absolute_path)
                 self.error(rel, f"state {field or '/'}: {error.message}")
+
+    def check_project_link(self, value):
+        """The Project link agrees with itself and with this checkout (docs/PROJECT-OPERATIONS.md §3).
+        Whether the Project holds that ID is a network question the syncing work answers, not this check."""
+        if not isinstance(value, dict) or value.get("schema") != PROJECT_FAMILY:
+            raise ValueError(f"unsupported schema in the Project link: expected {PROJECT_FAMILY}")
+        repository = value.get("repository")
+        if not isinstance(repository, str) or not re.fullmatch(r"[\w.-]+/[\w.-]+", repository):
+            self.error(PROJECT_LINK, f"repository is not owner/name: {repository!r}")
+        try:
+            remote = git(self.root, "config", "--get", "remote.origin.url").decode().strip()
+        except subprocess.CalledProcessError:
+            remote = ""  # no origin: a fresh clone of a fixture, nothing to compare
+        named = GITHUB_REMOTE.fullmatch(remote)
+        if named and named.group(1).lower() != str(repository).lower():
+            self.error(PROJECT_LINK, f"repository {repository!r} is not this checkout's origin {named.group(1)!r}")
+        url, view = value.get("project_url"), value.get("default_view_url")
+        if url is None:
+            return  # not linked yet (§3): nothing else to agree
+        project = PROJECT_URL.fullmatch(str(url))
+        if not project:
+            self.error(PROJECT_LINK, f"project_url is not a Project URL: {url!r}")
+            return
+        shown = PROJECT_URL.match(str(view or ""))
+        if not shown or shown.groups() != project.groups() or not re.fullmatch(r"/views/\d+", str(view)[shown.end():]):
+            self.error(PROJECT_LINK, f"default_view_url is not a view of {url}: {view!r}")
+        node = value.get("project_node_id")
+        if not isinstance(node, str) or not re.fullmatch(r"PVT_[\w-]+", node):
+            self.error(PROJECT_LINK, f"project_node_id is not a Project node ID: {node!r}")
 
     def run(self):
         source = self.source()
