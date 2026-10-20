@@ -88,7 +88,7 @@ pytest-timeout은 `--timeout-method=thread`로 씁니다. 기본 방식(SIGALRM)
 겹칩니다.
 
 CI의 `lint`·`platform` 작업은 위 명령에 더해 다음을 돌립니다([저장소 CI](#저장소-ci)). 저장소 시험은 배포본 end-to-end 단계까지
-돌고(네트워크 필요, 아래), Windows의 콘솔 시험은 단계를 따로 둡니다. CI는 보고용으로 `-ra`·`--junitxml`·`--basetemp`를 더합니다.
+돌고(네트워크 필요, 아래), Windows의 콘솔 시험은 단계를 따로 둡니다. CI는 보고용으로 `-ra`·`--junitxml`을 더합니다(aelix 레그는 `--basetemp`도).
 
 ```sh
 uv run --locked python tools/check_docs.py --output .devstate/runs/<run-id>/evidence/docs.json
@@ -194,7 +194,7 @@ uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with tokeni
 | `docs/BETA-QUALITY-GATES.md` | `tests/test_eval_fixtures.py` |
 | `docs/schemas/` | 기록·상태 schema: `tests/test_record_contract.py`·`tests/test_writer.py` 등과 `tests/test_doc_checks.py` |
 | `docs/templates/WORK-STATE.example.json` | `tests/test_doc_checks.py` |
-| `README.md` | wheel의 설명(`pyproject.toml`의 `readme`), `tests/test_packaging.py` |
+| `README.md` | wheel의 설명(`pyproject.toml`의 `readme`), `tests/test_packaging.py`, 개발 명령의 aelix 고정값: `tests/test_ci_workflow.py` |
 | `CONTRIBUTING.md` | 명령과 고정값: `tests/test_ci_workflow.py` |
 | `.github/project.json` | 연결 값: `tools/check_docs.py` |
 
@@ -305,11 +305,14 @@ uv run --locked python tools/check_docs.py --output .devstate/runs/<run-id>/evid
 - PR 실행은 GitHub가 만드는 병합 커밋이 아니라 PR 헤드를 체크아웃해 측정합니다. 워크플로 파일은 그 병합 커밋의 것이 쓰이므로,
   실행 맥락(`tools/ci_context.py`)에 `GITHUB_WORKFLOW_SHA`도 남깁니다. aelix 환경의 배포판 목록은 같은 요구 사항을 시험 레그들
   뒤에 다시 풀어 얻은 것입니다.
-- main은 ruleset `main`이 보호합니다(2026-10-21 소유자 결정, #22): PR을 거치지 않은 push, force push, 삭제를 막고, 병합 전에
-  필수 검사 일곱 개가 GitHub Actions에서 통과해야 합니다: `lint · ruff and documents`, 세 OS의 `platform · <OS>`, 세 OS의
-  `floor · <OS> · CPython 3.11, stdlib only`. macOS의 두 검사는 macOS를 모든 PR에서 돌리게 한 PR(#22)이 병합된 뒤 더했습니다.
-  우회할 수 있는 사람은 없고, 승인 리뷰 수는 0입니다(병합 승인은 [운영 정책](docs/PROJECT-OPERATIONS.md) §4대로 소유자가 합니다).
-  필수 검사가 통과해도 병합은 리뷰·검증 조건을 채워야 하는 운영 절차의 일부입니다. aelix의 의존성·PyPI·러너 이미지 같은 상류의 변화로 코드 변경 없이 빨개질 수 있으니, 원인이
+- main은 ruleset `main`(id 25484515)이 보호합니다(2026-10-21 소유자 결정, #22): PR을 거치지 않은 push, force push, 삭제를 막고,
+  병합 전에 필수 검사 다섯 개가 GitHub Actions에서 통과해야 합니다: `lint · ruff and documents`, `platform · ubuntu-24.04`,
+  `platform · windows-2025`, `floor · ubuntu-24.04 · CPython 3.11, stdlib only`, `floor · windows-2025 · CPython 3.11, stdlib only`.
+  macOS의 두 검사(`platform · macos-26`, `floor · macos-26 · CPython 3.11, stdlib only`)는 필수 검사가 아닙니다. macOS를 모든 PR에서
+  돌리게 한 #22가 병합된 뒤 더하기로 했고(그 전에 열린 PR에는 macOS 작업이 없어 막히므로), 더할 때 이 문단을 고칩니다. 지금 서버의
+  규칙은 `gh api repos/handochan/aelix-analytics/rules/branches/main`이 보여 줍니다. 필수 검사가 아닌 작업이 빨간 PR을 병합하지 않는
+  것은 운영 규칙입니다. 우회할 수 있는 사람은 없고, 승인 리뷰 수는 0입니다(병합 승인은 [운영 정책](docs/PROJECT-OPERATIONS.md) §4대로
+  소유자가 합니다). 필수 검사가 통과해도 병합은 리뷰·검증 조건을 채워야 하는 운영 절차의 일부입니다. aelix의 의존성·PyPI·러너 이미지 같은 상류의 변화로 코드 변경 없이 빨개질 수 있으니, 원인이
   회귀인지 상류 변화인지 구별해 적습니다.
 - 장애나 사용 제한으로 CI가 돌지 않은 기간의 플랫폼은 `not_run`이지 통과가 아닙니다.
 - 검증 기록이 인용하는 실행은 다시 돌리지(re-run) 않습니다. 다시 돌리면 이전 시도의 artifact를 볼 수 없습니다. 새로 push하거나

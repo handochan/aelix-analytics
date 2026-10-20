@@ -120,26 +120,50 @@ LINK = {"schema": "aelix-analytics.project-link/1", "repository": "owner/repo",
         "project_node_id": "PVT_kwHOA-ATMs4Bj707"}
 
 
-def test_the_project_link_is_checked_against_itself_and_the_origin(repository):
-    subprocess.run(["git", "-C", str(repository), "remote", "add", "origin", "https://github.com/owner/repo.git"], check=True)
-    write(repository, ".github/project.json", json.dumps(LINK))
-    assert cli(repository).returncode == 0
-    wrong = {**LINK, "repository": "someone/else", "default_view_url": "https://github.com/users/owner/projects/8/views/1",
-             "project_node_id": "7"}
-    write(repository, ".github/project.json", json.dumps(wrong))
-    proc = cli(repository)
-    assert proc.returncode == 1
-    messages = [e["message"] for e in json.loads(proc.stdout)["errors"] if e["path"] == ".github/project.json"]
-    assert len(messages) == 3, messages
-    assert any("origin 'owner/repo'" in m for m in messages)
-    assert any("default_view_url" in m for m in messages) and any("project_node_id" in m for m in messages)
+def outside_ci(**extra):
+    """The environment without the CI's GITHUB_REPOSITORY (the CI that runs these tests sets it)."""
+    env = {k: v for k, v in os.environ.items() if k != "GITHUB_REPOSITORY"}
+    return {**env, **extra}
 
 
-def test_an_unlinked_project_link_passes_and_another_family_fails(repository):
-    write(repository, ".github/project.json", json.dumps({**LINK, "project_url": None}))
-    assert cli(repository).returncode == 0
+def link_errors(root, link, env):
+    write(root, ".github/project.json", json.dumps(link))
+    proc = cli(root, env=env)
+    report = json.loads(proc.stdout)
+    errors = [e["message"] for e in report["errors"] if e["path"] == ".github/project.json"]
+    return proc.returncode, errors, report["not_checked"]["project_link_repository"]
+
+
+@pytest.mark.parametrize("remote", ["https://github.com/owner/repo.git", "https://GitHub.com/owner/repo/",
+                                    "git@github.com:owner/repo.git", "ssh://git@github.com:22/owner/repo.git"])
+def test_the_project_link_agrees_with_the_origin_in_any_url_form(repository, remote):
+    subprocess.run(["git", "-C", str(repository), "remote", "add", "origin", remote], check=True)
+    assert link_errors(repository, LINK, outside_ci()) == (0, [], [])
+
+
+def test_a_wrong_link_fails_and_a_forks_origin_is_a_note(repository):
+    subprocess.run(["git", "-C", str(repository), "remote", "add", "origin", "https://github.com/someone/repo.git"], check=True)
+    code, errors, notes = link_errors(repository, LINK, outside_ci())
+    assert (code, errors) == (0, []) and "names someone/repo, not the link's owner/repo" in notes[0]
+    subprocess.run(["git", "-C", str(repository), "remote", "add", "upstream", "git@github.com:owner/repo.git"], check=True)
+    assert link_errors(repository, LINK, outside_ci()) == (0, [], [])  # upstream first
+    wrong = {**LINK, "default_view_url": "https://github.com/users/owner/projects/8/views/1", "project_node_id": "7"}
+    code, errors, _ = link_errors(repository, wrong, outside_ci())
+    assert code == 1 and len(errors) == 2, errors
+    code, errors, _ = link_errors(repository, LINK, outside_ci(GITHUB_REPOSITORY="someone/else"))
+    assert code == 1 and errors == ["repository 'owner/repo' is not this run's repository 'someone/else' (GITHUB_REPOSITORY)"]
+
+
+def test_an_unlinked_project_link_and_a_missing_key(repository):
+    unlinked = {**LINK, "project_url": None, "default_view_url": None, "project_node_id": None}
+    code, errors, notes = link_errors(repository, unlinked, outside_ci())
+    assert (code, errors) == (0, []) and notes == ["no upstream or origin remote to compare the link's repository with"]
+    code, errors, _ = link_errors(repository, {**unlinked, "project_node_id": "PVT_x"}, outside_ci())
+    assert code == 1 and "not linked" in errors[0]
+    code, errors, _ = link_errors(repository, {k: v for k, v in LINK.items() if k != "project_url"}, outside_ci())
+    assert code == 1 and errors == ["project_url is missing (null means not linked)"]
     write(repository, ".github/project.json", json.dumps({**LINK, "schema": "other/1"}))
-    proc = cli(repository)
+    proc = cli(repository, env=outside_ci())
     assert proc.returncode == 1 and "unsupported schema" in proc.stdout
 
 

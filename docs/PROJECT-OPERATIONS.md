@@ -1,6 +1,6 @@
 # Codex·Claude Code 공통 프로젝트 운영 정책
 
-작성: 2026-09-19 · 상태: 운영 정책 초안. Project 7 연결·초기 Issue 등록은 완료했다. 저장소 CI는 `.github/workflows/ci.yml`([기여 가이드](../CONTRIBUTING.md#저장소-ci))이며, Project 동기화는 Issue Form의 자동 추가(§3)와 Project 7 자체의 기본 workflow뿐이고 그 밖의 자동화는 후속 작업이다.
+작성: 2026-09-19 · 상태: 운영 정책 초안. Project 7 연결·초기 Issue 등록은 완료했다. 저장소 CI는 `.github/workflows/ci.yml`([기여 가이드](../CONTRIBUTING.md#저장소-ci))이며, Project 동기화는 Project 7의 기본 workflow와 Issue Form의 자동 추가(§3)뿐이고 그 밖의 자동화는 후속 작업이다.
 2026-10-03: 소유자 결정([#39](https://github.com/handochan/aelix-analytics/issues/39))으로 다음을 더했다: [리뷰 예산](#리뷰-예산), 측정 기록의 범위, 승인된 다음 작업의 자율 착수, 두 Issue의 병행.
 적용 대상은 `handochan/aelix-analytics` 개발 작업이다. 분석 사용자가 만드는 프로젝트의 `analytics.json`·journal·run 계약과 구별한다.
 
@@ -37,12 +37,19 @@ Codex의 AGENTS.md 탐색과 Claude Code의 `@AGENTS.md` import는 각 도구의
 2026-09-19에 사용자가 지정한 작업 보드는 [Project 7](https://github.com/users/handochan/projects/7/views/1)이다. 같은 이름의 다른 Project와 구별한다.
 이 파일은 공통 연결 설정이며, 파일을 수정하는 것만으로 GitHub의 저장소 연결·자동 추가·필드가 구성되지는 않는다.
 연결 시 URL의 owner·number·실제 Project ID·접근 권한을 확인하고, API 작업은 그 대상과 현재 저장소 범위로 제한한다. 제목 검색의 첫 결과를 선택하지 않는다.
-문서 검사(`tools/check_docs.py`)는 이 파일의 값이 서로 맞는지 본다: `repository`가 이 저장소이고, `project_url`·`default_view_url`이 같은 owner·번호의 Project이며, `project_node_id`가 Project의 node ID 형식이다. 실제 Project에 같은 ID가 있는지는 네트워크가 필요해 검사하지 않으며, 동기화하는 작업이 그때 확인한다.
+문서 검사(`tools/check_docs.py`)는 이 파일의 값이 서로 맞는지 본다: 세 연결 키가 모두 있고(`null`이면 미연결이며 나머지도 `null`), `project_url`·`default_view_url`이 같은 owner·번호의 Project이며, `project_node_id`가 Project의 node ID 형식이다. `repository`는 CI 실행에서는 `GITHUB_REPOSITORY`와 같아야 하고(다르면 실패), 그 밖에서는 `upstream`, 없으면 `origin` remote와 비교해 다르면 보고서의 `not_checked`에 남긴다(fork의 clone은 fork를 가리키므로). 실제 Project에 같은 ID가 있는지는 네트워크가 필요해 검사하지 않으며, 동기화하는 작업이 그때 확인한다.
 
 지금 있는 자동 동기화(2026-10-21 확인, #22):
-- Issue Form(`.github/ISSUE_TEMPLATE/work-item.yml`)의 `projects: handochan/7`이 폼으로 만든 Issue를 Project 7에 더한다. 빈 Issue는 막았다(`config.yml`의 `blank_issues_enabled: false`). 그래서 새 Issue는 모두 이 경로를 지난다.
-- Project 7의 기본 workflow가 닫힌 Issue와 병합된 PR을 Done으로 옮긴다. 이 설정은 Project에 있고 저장소에는 없다.
-- 그 밖의 상태 변경(In progress, In review 등)은 작업하는 에이전트가 `gh`로 하고, `.github/project.json`의 `project_node_id`를 대상으로 쓴다.
+- Project 7의 기본 workflow 일곱 개가 켜져 있다(GraphQL `ProjectV2.workflows`): Auto-add to project, Auto-add sub-issues to project, Item added to project,
+  Item closed, Pull request linked to issue, Pull request merged, Auto-close issue. Issue·PR을 Project에 넣는 것은 Auto-add이고
+  (`github-project-automation`, 예: PR #122는 연 지 2초 뒤 추가되어 Backlog가 됨), 닫힌 Issue와 병합된 PR은 Done이 된다.
+  각 workflow가 고르는 상태와 Auto-add의 필터(대상 저장소·조건)는 API로 읽을 수 없어 Project 설정 화면에서만 확인된다(이 확인은 하지 않았다).
+  Auto-add sub-issues는 다른 저장소의 sub-issue도 넣을 수 있으므로, 이 저장소 밖의 항목이 생기면 운영 범위 밖으로 다룬다.
+- Issue Form(`.github/ISSUE_TEMPLATE/work-item.yml`)의 `projects: handochan/7`도 폼으로 만든 Issue를 넣지만, Project에 쓰기 권한이 있는
+  사람이 만들 때만이다. 빈 Issue는 막았으나(`config.yml`의 `blank_issues_enabled: false`) 이것은 웹 화면의 선택지일 뿐이다. 쓰기 권한자에게는
+  빈 Issue가 보이고, `gh issue create`와 API는 폼을 거치지 않는다.
+- 그 밖의 상태 변경(In progress, In review, Blocked)은 작업하는 에이전트가 `gh`로 하고, `.github/project.json`의 `project_node_id`를 대상으로
+  쓴다. 기본 workflow가 상태를 바꾼 뒤(예: Item added의 Backlog) 에이전트가 고친다.
 - 앞으로 둘 자동화도 이 파일만 읽고, 대상은 이 Project와 이 저장소의 Issue·PR로 제한한다.
 
 권장 Project 필드는 아래와 같다. 개인 소유 Project에서도 사용할 수 있는 custom field로 정의하며 조직 전용 Issue type에 의존하지 않는다.
@@ -243,14 +250,14 @@ handoff만으로 미커밋 코드가 다른 환경에 전달되지는 않는다.
 동일한 이름의 다른 Project는 이 운영 범위에 포함하지 않는다. 원격 연결·등록 결과는 운영 기반 Issue와 PR에서 확인한다.
 Project 7에 현재 저장소를 연결하고 Status의 Blocked·Kind 필드를 구성했다. 기존 Priority와 기본 view는 유지했다.
 상위 계획 포함 24개 Issue, 하위 관계·선행 의존성과 `First official beta` Milestone을 등록했다. 숫자는 도입 시점의 관측이며 현재 현황은 Project를 조회한다.
-현재 저장소의 ruleset·branch protection 조회는 요금제 관련 HTTP 403을 반환했다. 보호가 설정·강제되었다고 간주하지 않는다.
+그때(2026-09-19, 비공개) 저장소의 ruleset·branch protection 조회는 요금제 관련 HTTP 403을 반환했다. 보호가 설정·강제되었다고 간주하지 않았다.
 공개 전환이나 요금제 변경을 이 정책의 자동 단계로 넣지 않는다. 사용할 수 있는 CI·검토 절차로 시작하고 강제 가능한 범위는 별도로 확인한다.
 
 2026-10-21 확인(#22): 저장소는 공개였다(공개한 때는 이벤트 이력으로 확인하지 못했다). main 보호 조회는 404 "Branch not protected", ruleset은 없었다. 비공개 취약점 신고·secret scanning·push protection은 꺼져 있었다.
 소유자 결정(2026-10-21, [#22](https://github.com/handochan/aelix-analytics/issues/22#issuecomment-6294124762))으로 공개를 유지하고 다음을 켰다.
 - ruleset `main`(id 25484515): PR 없는 push·force push·삭제 금지, 필수 검사([기여 가이드](../CONTRIBUTING.md#저장소-ci)), 우회 없음, 승인 리뷰 0.
 - 비공개 취약점 신고, secret scanning·push protection, Dependabot 보안 알림.
-이제 서버가 강제하는 것은 이 ruleset의 규칙뿐이다. 리뷰 예산, 검증 증거, 소유자의 병합 승인은 여전히 이 정책과 에이전트의 절차다.
+이제 서버가 강제하는 것은 이 ruleset의 규칙과 secret scanning의 push protection(비밀 값이 든 push 거절)이다. 리뷰 예산, 검증 증거, 소유자의 병합 승인, 필수 검사가 아닌 macOS 작업은 여전히 이 정책과 에이전트의 절차다.
 
 도입 순서는 공통 문서·양식 → 사용자 Project URL 연결 → Issue 등록·수용 조건 정리 → 수동 작업 흐름 검증 → CI·Project 동기화 자동화다.
 자동화는 저장소 범위를 제한한 Issue 추가·PR 상태 반영·재동기화부터 시작한다. 무인 작업 선택·코드 실행·merge는 별도 운영 결정과 검증이 필요하다.
