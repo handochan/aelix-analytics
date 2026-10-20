@@ -255,9 +255,9 @@ Project 7에 현재 저장소를 연결하고 Status의 Blocked·Kind 필드를 
 
 2026-10-21 확인(#22): 저장소는 공개였다(공개한 때는 이벤트 이력으로 확인하지 못했다). main 보호 조회는 404 "Branch not protected", ruleset은 없었다. 비공개 취약점 신고·secret scanning·push protection은 꺼져 있었다.
 소유자 결정(2026-10-21, [#22](https://github.com/handochan/aelix-analytics/issues/22#issuecomment-6294124762))으로 공개를 유지하고 다음을 켰다.
-- ruleset `main`(id 25484515): PR 없는 push·force push·삭제 금지, 필수 검사([기여 가이드](../CONTRIBUTING.md#저장소-ci)), 우회 없음, 승인 리뷰 0.
+- ruleset `main`(id 25484515): PR 없는 push·force push·삭제 금지, 필수 검사 일곱 개([기여 가이드](../CONTRIBUTING.md#저장소-ci); macOS 두 검사는 PR #122 병합 뒤 더함), 우회 없음, 승인 리뷰 0.
 - 비공개 취약점 신고, secret scanning·push protection, Dependabot 보안 알림.
-이제 서버가 강제하는 것은 이 ruleset의 규칙과 secret scanning의 push protection(비밀 값이 든 push 거절)이다. 리뷰 예산, 검증 증거, 소유자의 병합 승인, 필수 검사가 아닌 macOS 작업은 여전히 이 정책과 에이전트의 절차다.
+이제 서버가 강제하는 것은 이 ruleset의 규칙과 secret scanning의 push protection(비밀 값이 든 push 거절)이다. 리뷰 예산, 검증 증거, 소유자의 병합 승인은 여전히 이 정책과 에이전트의 절차다.
 
 도입 순서는 공통 문서·양식 → 사용자 Project URL 연결 → Issue 등록·수용 조건 정리 → 수동 작업 흐름 검증 → CI·Project 동기화 자동화다.
 자동화는 저장소 범위를 제한한 Issue 추가·PR 상태 반영·재동기화부터 시작한다. 무인 작업 선택·코드 실행·merge는 별도 운영 결정과 검증이 필요하다.

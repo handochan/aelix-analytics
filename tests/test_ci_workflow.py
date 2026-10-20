@@ -16,8 +16,8 @@ same:
 - the uv version every setup-uv step sets up, and the one the guide names;
 - the operating systems: every job's matrix is the three the guide's table names, with no `include:`
   or `exclude:`, and pull requests trigger on opened, synchronize and reopened only;
-- the required checks the guide names (the main ruleset's) are names the jobs report: a renamed job
-  would leave a required check waiting forever;
+- the required checks the guide names (the main ruleset's) are the names the jobs report, every job's:
+  a renamed job would leave a required check waiting forever, and a new job would not be required;
 - the guide's verification commands are the CI's: each is a step's command, give or take the reporting
   options (`--output`, `--junitxml`, `--basetemp`, `-ra`) and the environment it sets.
 """
@@ -163,8 +163,7 @@ def test_the_required_checks_the_guide_names_are_names_the_jobs_report():
     rules = GUIDE[GUIDE.index("- main은 ruleset `main`"):]
     rules = rules[:rules.index("\n- ", 1)]
     named = set(re.findall(r"`((?:lint|platform|floor) · [^`]+)`", rules))
-    assert len(named) == 7, named  # five required now, macOS's two to add
-    assert named <= job_names(), sorted(named - job_names())
+    assert named == job_names(), sorted(named ^ job_names())  # every job is a required check
 
 
 REPORTING = ("--output", "--junitxml", "--basetemp")
