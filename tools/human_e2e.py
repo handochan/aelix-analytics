@@ -17,30 +17,40 @@ What each gate step needs (docs/BETA-QUALITY-GATES.md, Q17):
   fills OUT/env/uv-cache with the analysis libraries; it and the kit's trust list it wrote are removed
   again. OUT/data/orders.csv is the synthetic data (seeded, no network). OUT/sandbox.sb denies, each
   with OUT's tag: every outbound IP connection (TCP and UDP, the loopback included: a local model
-  server is a model too) and the system resolver's socket, the execution of the model clients found
-  on the caller's PATH (aelix, codex, claude, ollama, ...) and the reading of their settings and logins
-  (~/.aelix, ~/.codex, ~/.claude, ...). OUT/prepare.json records what was installed and denied.
+  server is a model too) and every Unix-domain socket connection (the system resolver's among them),
+  the execution of the model clients found on the caller's PATH (aelix, codex, claude, ollama,
+  llama.cpp, LM Studio, ...) and the reading of their settings, logins and model stores (~/.aelix,
+  ~/.codex, ~/.ollama, ~/.cache/huggingface, ...). OUT/prepare.json records what was installed and
+  denied, and what the denial does not cover (`not_covered`): a model the analysis code itself loads
+  from a file elsewhere, or a client not on PATH, makes no connection to deny.
 - **shell**: one session of the person's work. A canary (curl to 127.0.0.1:9 under a profile of its own
   tag) proves first that a denial reaches the unified log; then /bin/zsh -i runs under OUT/sandbox.sb
   with `env -i` and the environment of OUT/prepare.json only (UV_OFFLINE, no Python downloads, managed
   Python only, HOME and the tools of OUT/env; history with times in OUT/env/home/.zsh_history). When
-  the shell ends, the tagged denials of the session's window are read from the unified log into
+  the shell ends, what it left running with a working directory under OUT is waited for (30 s), then
+  stopped; then the tagged denials of the session's window are read from the unified log into
   OUT/sessions/<n>.json.
-- **check**: OUT/zero-model.json. For each session: the canary was logged (else the measurement is
-  unverified, never a zero) and its denials by operation. The model calls are 0 by construction (no
-  connection can leave); the attempts are the session's denials. Besides: aelix is not importable
+- **check**: OUT/zero-model.json. For each session: the canary was logged and the log was read (else
+  the measurement is unverified, never a zero). The model calls are 0 by construction (no connection
+  can leave); the attempts are every tagged denial from prepare until the check, read again then (so
+  that what a process left behind tried after its session ended counts too) and joined with the
+  sessions' own. A session without its end record, a profile that is not the one prepare wrote and,
+  with --project, a record or run not by the agent written outside every session's window fail it.
+  What runs outside the sessions (the editor, the browser) is not measured: the guide asks for an
+  editor without model features and owner-notes.md records it. Besides: aelix is not importable
   in the installed tool's environment or the project's, the session environment holds no credential
   variable, HOME's .aelix holds nothing but the kit's trust list, and the installed kit imports no
   network client (only socket.gethostname).
 - **snapshot / compare**: a project's files by class — immutable (analytics.json, runs/, artifacts/,
-  data/imported/, .analytics/context/), append-only (journal.jsonl and the .analytics/*.jsonl logs,
-  hashed by line), editable (CONTEXT.md, scripts/, data/derived/ and the person's other files) and the
+  data/imported/, assets/candidates/, .analytics/context/, adhoc/, demo/, publications/, migration/),
+  append-only (journal.jsonl and the .analytics/*.jsonl logs, hashed by line with its line end),
+  editable (CONTEXT.md, scripts/, data/derived/ and the person's other files) and the
   kit's other state — without workspace/, .venv/, the cache and the locks; the journal's events (id,
   seq, kind, actor, actor_basis, means, whether a session is named, refs), the runs and the Report
   versions. compare passes when every immutable file is byte for byte the same, every append-only one
   starts with the earlier lines, the project is the same one and (with --expect-actor) every new
-  event and run but the kit's own `system` ones has that actor; it lists what is new and what was
-  edited.
+  event, run and Report version but the kit's own `system` events has that actor; it lists what is new
+  and what was edited.
 - **agent-env**: the separate aelix environment of Q17-b for one model of
   tools/model_eval_data/models: aelix 0.1.0b2 with the same wheel (`uv tool install`), a new agent
   directory with the model's models.json, a new HOME, a copy of the project (without .venv,
@@ -50,12 +60,14 @@ What each gate step needs (docs/BETA-QUALITY-GATES.md, Q17):
 - **agent-usage**: the tokens of an aelix session directory by tools/model_eval.py's conventions, the
   requests and the tools called; nothing of the messages' text.
 
-Nothing here is a sandbox for the agent of Q17-b: its session runs as the person's aelix would.
+Nothing here is a sandbox for the agent of Q17-b: its session runs as the person's aelix would. Its
+session files and the project copies stay local; only counts, hashes and ids go into a record.
 """
 
 from __future__ import annotations
 
 import argparse
+import ast
 import contextlib
 import csv
 import hashlib
@@ -70,6 +82,7 @@ import secrets
 import shlex
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import time
@@ -86,16 +99,24 @@ SNAPSHOT_SCHEMA = "aelix-analytics.q17-snapshot/1"
 # Programs that call a model, looked for on the caller's PATH, and the directories of their settings
 # and logins under the caller's home.
 MODEL_CLIENTS = ("aelix", "codex", "claude", "ollama", "gemini", "opencode", "aider", "llm",
-                 "cursor-agent", "goose", "qwen")
+                 "cursor-agent", "goose", "qwen", "llama-cli", "llama-server", "llama-run", "llamafile",
+                 "lms", "mlx_lm.generate", "mlx_lm.server", "vllm", "gpt4all", "jan")
 MODEL_HOMES = (".aelix", ".codex", ".claude", ".ollama", ".gemini", ".config/opencode",
-               ".config/aelix", ".local/share/uv/tools/aelix", ".cache/uv")
+               ".config/aelix", ".local/share/uv/tools/aelix", ".cache/uv", ".cache/huggingface",
+               ".cache/lm-studio", ".lmstudio", ".cache/llama.cpp", ".cache/gpt4all",
+               "Library/Application Support/LM Studio", "Library/Application Support/Jan")
+NOT_COVERED = ("a model the analysis code loads itself from a file outside the denied stores (no "
+               "connection or listed program to deny)", "a model client that is not on the caller's PATH "
+               "when prepare runs", "what a process left running with its working directory outside OUT "
+               "tries after the check")
 RESOLVER = "/private/var/run/mDNSResponder"
 CREDENTIAL = re.compile(r"TOKEN|KEY|SECRET|PASSWORD|CREDENTIAL|COOKIE", re.I)
 DENIAL = re.compile(r"Sandbox: (?P<process>.+?)\((?P<pid>\d+)\) deny\(\d+\) (?P<operation>\S+)\s*(?P<target>[^\n]*)")
-# The kit's network use: only the host name of the publication build's record. asyncio counts by its
-# network functions only (the extension uses it for subprocesses).
-NETWORK = re.compile(r"^\s*(?:import|from)\s+(socket|ssl|urllib\.request|http\.client|http\.server|"
-                     r"ftplib|smtplib|xmlrpc|websocket|requests|httpx|aiohttp)\b", re.M)
+# The kit's network use: only the host name of the publication build's record. Imports are read with
+# ast (`from urllib import request` and importlib.import_module("http.client") count); asyncio counts
+# by its network functions only (the extension uses it for subprocesses).
+NETWORK_MODULES = ("socket", "ssl", "urllib.request", "http.client", "http.server", "ftplib", "smtplib",
+                   "xmlrpc", "websocket", "websockets", "requests", "httpx", "aiohttp", "urllib3")
 ASYNC_NETWORK = re.compile(r"\b(open_connection|open_unix_connection|start_server|create_connection|"
                            r"create_datagram_endpoint|sock_connect)\b")
 
@@ -197,6 +218,7 @@ def sbpl_string(text: str) -> str:
 def sandbox_profile(tag: str, execs: list[str], reads: list[str]) -> str:
     lines = ["(version 1)", "(allow default)",
              f"(deny network-outbound (remote ip) (with message {sbpl_string(tag)}))",
+             f"(deny network-outbound (remote unix-socket) (with message {sbpl_string(tag)}))",
              f"(deny network-outbound (literal {sbpl_string(RESOLVER)}) (with message {sbpl_string(tag)}))"]
     if execs:
         literal = " ".join(f"(literal {sbpl_string(p)})" for p in execs)
@@ -291,8 +313,10 @@ def prepare(out: Path, checkout: Path, allow_dirty: bool) -> dict:
         "data": {"file": str(data.relative_to(out)), "sha256": sha256_file(data),
                  "rows": data.read_text(encoding="utf-8").count("\n") - 1, "seed": 23},
         "sandbox": {"tag": tag, "canary_tag": canary, "profile_sha256": sha256_file(out / "sandbox.sb"),
-                    "denied_network": "every outbound IP connection (loopback included) and the resolver socket",
-                    "denied_exec": execs, "denied_read": reads},
+                    "canary_sha256": sha256_file(out / "canary.sb"),
+                    "denied_network": "every outbound IP connection (loopback included) and every Unix-domain "
+                                      "socket connection (the resolver's included)",
+                    "denied_exec": execs, "denied_read": reads, "not_covered": list(NOT_COVERED)},
         "session_env": session_env(paths, offline=True),
     }
     write_json(out / "prepare.json", record)
@@ -309,7 +333,10 @@ def read_denials(start: datetime, end: datetime, tags: list[str]) -> dict:
     predicate = " OR ".join(f'eventMessage CONTAINS "{t}"' for t in tags)
     argv = ["/usr/bin/log", "show", "--start", log_time(start), "--end", log_time(end),
             "--style", "ndjson", "--predicate", predicate]
-    done = run(argv, check=False)
+    try:
+        done = run(argv, check=False)
+    except OSError as exc:  # no unified log here: nothing was read, which is never a zero
+        done = subprocess.CompletedProcess(argv, 127, "", f"not started: {exc}")
     found: dict[str, list] = {t: [] for t in tags}
     for line in done.stdout.splitlines():
         with contextlib.suppress(json.JSONDecodeError):
@@ -324,11 +351,64 @@ def read_denials(start: datetime, end: datetime, tags: list[str]) -> dict:
     return {"command": shlex.join(argv), "returncode": done.returncode, "found": found}
 
 
+def left_running(out: Path) -> list[dict]:
+    """The caller's processes whose working directory is under OUT, but this one (lsof)."""
+    done = run(["lsof", "-a", "-u", str(os.getuid()), "-d", "cwd", "-Fpcn"], check=False)
+    found, pid, command = [], None, None
+    for line in done.stdout.splitlines():
+        kind, value = line[:1], line[1:]
+        if kind == "p":
+            pid = int(value)
+        elif kind == "c":
+            command = value
+        elif kind == "n" and pid not in (os.getpid(), os.getppid()):
+            with contextlib.suppress(ValueError):
+                if Path(value).resolve().is_relative_to(out.resolve()):
+                    found.append({"pid": pid, "command": command, "cwd": value})
+    return found
+
+
+def end_left_running(out: Path, wait: float = 30.0) -> list[dict]:
+    """Wait for what the session left running, then stop it: its attempts must fall in the window."""
+    deadline = time.monotonic() + wait
+    seen: dict[int, dict] = {}
+    left = left_running(out)
+    while left:
+        for proc in left:
+            seen.setdefault(proc["pid"], {**proc, "action": "waited for"})
+        if time.monotonic() >= deadline:
+            break
+        time.sleep(1)
+        left = left_running(out)
+    for proc in left:
+        with contextlib.suppress(ProcessLookupError, PermissionError):
+            os.kill(proc["pid"], signal.SIGTERM)
+        seen[proc["pid"]]["action"] = "SIGTERM"
+    if left:
+        time.sleep(5)
+        for proc in left_running(out):
+            with contextlib.suppress(ProcessLookupError, PermissionError):
+                os.kill(proc["pid"], signal.SIGKILL)
+            seen.setdefault(proc["pid"], proc)["action"] = "SIGKILL"
+    return list(seen.values())
+
+
+def reserve_session(sessions: Path) -> int:
+    """The next session number, taken with O_EXCL so that two shells never share one."""
+    number = len(list(sessions.glob("*.json"))) + 1
+    while True:
+        try:
+            os.close(os.open(sessions / f"{number}.json", os.O_CREAT | os.O_EXCL | os.O_WRONLY))
+            return number
+        except FileExistsError:
+            number += 1
+
+
 def shell(out: Path, cwd: Path | None, script: Path | None = None) -> dict:
     record = read_json(out / "prepare.json")
     paths = layout(out)
     tag, canary = record["sandbox"]["tag"], record["sandbox"]["canary_tag"]
-    number = len(list(paths["sessions"].glob("*.json"))) + 1
+    number = reserve_session(paths["sessions"])
     start = datetime.now().astimezone() - timedelta(seconds=1)
     probe = run(["sandbox-exec", "-f", out / "canary.sb", "/usr/bin/curl", "-s", "-m", "2", "http://127.0.0.1:9/"],
                 check=False)
@@ -337,25 +417,33 @@ def shell(out: Path, cwd: Path | None, script: Path | None = None) -> dict:
             *[f"{k}={v}" for k, v in env.items()], f"TERM={os.environ.get('TERM', 'xterm-256color')}",
             "/bin/zsh", *(["-i"] if script is None else [str(script)])]
     started = now()
-    previous = signal.signal(signal.SIGINT, signal.SIG_IGN)  # Ctrl+C is the shell's
+    target = paths["sessions"] / f"{number}.json"
+    write_json(target, {"schema": "aelix-analytics.q17-session/1", "number": number, "started_at": started,
+                        "ended_at": None, "cwd": str(cwd or paths["work"])})
+    # Ctrl+C is the shell's; a closed terminal (SIGHUP) ends the shell, and this still records the session.
+    previous = {sig: signal.signal(sig, signal.SIG_IGN) for sig in (signal.SIGINT, signal.SIGHUP)}
     try:
         code = subprocess.call(argv, cwd=cwd or paths["work"])
     finally:
-        signal.signal(signal.SIGINT, previous)
+        for sig, handler in previous.items():
+            signal.signal(sig, handler)
     ended = now()
+    left = end_left_running(out)
     time.sleep(2)  # the unified log is written asynchronously
     end = datetime.now().astimezone() + timedelta(seconds=1)
     denials = read_denials(start, end, [tag, canary])
     session = {"schema": "aelix-analytics.q17-session/1", "number": number, "started_at": started,
-               "ended_at": ended, "exit_code": code, "cwd": str(cwd or paths["work"]),
+               "ended_at": ended, "exit_code": code, "cwd": str(cwd or paths["work"]), "left_running": left,
                "script": None if script is None else {"file": str(script), "sha256": sha256_file(script)},
                "env_names": sorted(env), "canary": {"curl_returncode": probe.returncode,
                                                     "logged": len(denials["found"][canary])},
                "denials": denials["found"][tag], "log": {"command": denials["command"],
                                                          "returncode": denials["returncode"]}}
-    write_json(paths["sessions"] / f"{number}.json", session)
-    print(f"session {number}: {len(session['denials'])} denial(s), canary logged "
-          f"{session['canary']['logged']} time(s) -> {paths['sessions'] / f'{number}.json'}")
+    write_json(target, session)
+    with contextlib.suppress(OSError):  # the terminal may be gone
+        print(f"session {number}: {len(session['denials'])} denial(s), canary logged "
+              f"{session['canary']['logged']} time(s), log {'read' if denials['returncode'] == 0 else 'NOT read'}, "
+              f"{len(left)} process(es) left running (waited for or stopped) -> {target}")
     return session
 
 
@@ -369,16 +457,65 @@ def importable(python: Path, module: str, env: dict) -> bool | None:
     return done.returncode == 0
 
 
+def network_module(name: str) -> str | None:
+    return next((m for m in NETWORK_MODULES if name == m or name.startswith(m + ".")), None)
+
+
+def imported_names(tree: ast.AST) -> set[str]:
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            names.update(a.name for a in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module and not node.level:
+            names.add(node.module)
+            names.update(f"{node.module}.{a.name}" for a in node.names)
+        elif isinstance(node, ast.Call) and node.args and isinstance(node.args[0], ast.Constant) \
+                and isinstance(node.args[0].value, str):
+            func = node.func
+            called = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", None)
+            if called in ("import_module", "__import__"):
+                names.add(node.args[0].value)
+    return names
+
+
 def kit_network_imports(site: Path) -> list[dict]:
     found = []
     for path in sorted((site / "aelix_analytics").rglob("*.py")):
         text = path.read_text(encoding="utf-8", errors="replace")
-        for match in NETWORK.finditer(text):
-            uses = sorted(set(re.findall(rf"\b{re.escape(match.group(1))}\.(\w+)", text)))
-            found.append({"file": str(path.relative_to(site)), "module": match.group(1), "uses": uses})
+        rel = str(path.relative_to(site))
+        try:
+            tree = ast.parse(text)
+        except SyntaxError:
+            found.append({"file": rel, "module": None, "uses": ["unparsed"]})
+            continue
+        for module in sorted({m for n in imported_names(tree) if (m := network_module(n))}):
+            uses = sorted({node.attr for node in ast.walk(tree) if isinstance(node, ast.Attribute)
+                           and isinstance(node.value, ast.Name) and node.value.id == module.split(".")[-1]})
+            found.append({"file": rel, "module": module, "uses": uses})
         for name in sorted(set(ASYNC_NETWORK.findall(text))):
-            found.append({"file": str(path.relative_to(site)), "module": "asyncio", "uses": [name]})
+            found.append({"file": rel, "module": "asyncio", "uses": [name]})
     return found
+
+
+def recorded_outside(project: Path, sessions: list[dict], slack: float = 5.0) -> list[str]:
+    """The project's events and runs not written by an agent whose time is in no session's window."""
+    windows = [(datetime.fromisoformat(s["started_at"]) - timedelta(seconds=slack),
+                datetime.fromisoformat(s["ended_at"]) + timedelta(seconds=slack)) for s in sessions]
+    snap = snapshot(project)
+    timed = [(e.get("id"), e.get("actor"), e.get("recorded_at")) for e in snap["events"] if not e.get("damaged")]
+    timed += [(f"run {k}", v.get("actor"), v.get("started_at")) for k, v in snap["runs"].items()]
+    out = []
+    for name, actor, when in timed:
+        if actor in ("agent", "system"):  # the agent's are Q17-b's; the kit's own follow a writer's
+            continue
+        try:
+            moment = datetime.fromisoformat(when)
+        except (TypeError, ValueError):
+            out.append(f"{name} (no time)")
+            continue
+        if not any(a <= moment <= b for a, b in windows):
+            out.append(f"{name} at {when}")
+    return out
 
 
 def check(out: Path, project: Path | None) -> dict:
@@ -386,22 +523,55 @@ def check(out: Path, project: Path | None) -> dict:
     paths = layout(out)
     env = record["session_env"]
     problems: list[str] = []
-    sessions = [read_json(p) for p in sorted(paths["sessions"].glob("*.json"), key=lambda p: int(p.stem))]
+    sessions, unfinished = [], []
+    for path in sorted(paths["sessions"].glob("*.json"), key=lambda p: int(p.stem)):
+        try:
+            s = read_json(path)
+        except json.JSONDecodeError:
+            s = {}
+        if s.get("ended_at") and "log" in s:
+            sessions.append(s)
+        else:
+            unfinished.append(int(path.stem))
+    if unfinished:
+        problems.append(f"session(s) {unfinished} have no end record (still open, or their launcher was killed)")
     if not sessions:
         problems.append("no session was recorded")
-    attempts = 0
-    by_operation: dict[str, int] = {}
+    for name, key in (("sandbox.sb", "profile_sha256"), ("canary.sb", "canary_sha256")):
+        expected = record["sandbox"].get(key)
+        if expected is None or not (out / name).is_file() or sha256_file(out / name) != expected:
+            problems.append(f"{name} is not the profile prepare wrote")
+    denied: dict[tuple, dict] = {}
     for s in sessions:
         if s["canary"]["logged"] < 1:
             problems.append(f"session {s['number']}: the canary's denial was not logged, so a zero is unverified")
-        attempts += len(s["denials"])
+        if s["log"]["returncode"] != 0:
+            problems.append(f"session {s['number']}: the unified log was not read ({s['log']['returncode']})")
         for d in s["denials"]:
-            by_operation[d["operation"]] = by_operation.get(d["operation"], 0) + 1
+            denied[(d["time"], d["pid"], d["operation"], d["target"])] = d
         credential = [n for n in s["env_names"] if CREDENTIAL.search(n)]
         if credential:
             problems.append(f"session {s['number']}: credential variables {credential}")
+    reread = None
+    if sessions:
+        first = datetime.fromisoformat(record.get("prepared_at") or sessions[0]["started_at"]) - timedelta(seconds=5)
+        again = read_denials(first, datetime.now().astimezone() + timedelta(seconds=1), [record["sandbox"]["tag"]])
+        reread = {"from": first.isoformat(timespec="seconds"), "returncode": again["returncode"],
+                  "found": len(again["found"][record["sandbox"]["tag"]])}
+        if again["returncode"] != 0:
+            problems.append(f"the unified log was not read again ({again['returncode']})")
+        for d in again["found"][record["sandbox"]["tag"]]:
+            denied[(d["time"], d["pid"], d["operation"], d["target"])] = d
+    attempts = len(denied)
+    by_operation: dict[str, int] = {}
+    for d in denied.values():
+        by_operation[d["operation"]] = by_operation.get(d["operation"], 0) + 1
     if attempts:
         problems.append(f"{attempts} denied attempt(s): {by_operation}")
+    outside = recorded_outside(project, sessions) if project is not None else []
+    if outside:
+        problems.append(f"{len(outside)} record(s) not by the agent were written outside the measured sessions: "
+                        f"{outside[:5]}")
     tool_python = paths["tools"] / "aelix-analytics" / "bin" / "python"
     imports = {"tool_env": {m: importable(tool_python, m, env) for m in ("aelix_coding_agent", "aelix_ai", "aelix")}}
     if project is not None:
@@ -423,13 +593,19 @@ def check(out: Path, project: Path | None) -> dict:
         problems.append(f"the installed kit imports a network client: {unexpected}")
     result = {"schema": "aelix-analytics.q17-zero-model/1", "checked_at": now(),
               "wheel": record["wheel"], "checkout": record["checkout"],
-              "model_calls": 0, "model_calls_basis": "no outbound IP connection and no resolver lookup can leave the "
-                                                       "sandboxed sessions, and no model client can start there",
-              "attempts": attempts, "attempts_by_operation": by_operation,
-              "sessions": [{k: s[k] for k in ("number", "started_at", "ended_at", "exit_code", "canary")}
+              "model_calls": 0, "model_calls_basis": "inside the sandboxed sessions: no outbound IP or Unix-domain "
+                                                       "socket connection can be made and no listed model client can be "
+                                                       "executed by its path; what runs outside them (the editor, the "
+                                                       "browser) is the owner's statement in owner-notes.md",
+              "records_outside_sessions": outside,
+              "attempts": attempts, "attempts_by_operation": by_operation, "denials": list(denied.values()),
+              "log_read_again": reread,
+              "sessions": [{k: s.get(k) for k in ("number", "started_at", "ended_at", "exit_code", "canary",
+                                                   "left_running")}
                            | {"denials": len(s["denials"])} for s in sessions],
               "aelix_importable": imports, "home_aelix_files": home_files, "kit_network_imports": network,
-              "denied": {k: record["sandbox"][k] for k in ("denied_network", "denied_exec", "denied_read")},
+              "denied": {k: record["sandbox"].get(k) for k in ("denied_network", "denied_exec", "denied_read",
+                                                                 "not_covered")},
               "problems": problems, "passed": not problems}
     write_json(out / "zero-model.json", result)
     return result
@@ -439,7 +615,8 @@ def check(out: Path, project: Path | None) -> dict:
 
 EXCLUDED_TOP = {"workspace", ".venv"}
 EXCLUDED_KIT = {".analytics/cache", ".analytics/lock", ".analytics/run.lock", ".analytics/workspace.lock"}
-IMMUTABLE = ("runs/", "artifacts/", "data/imported/", ".analytics/context/", ".analytics/migration/")
+IMMUTABLE = ("runs/", "artifacts/", "data/imported/", "assets/candidates/", ".analytics/context/",
+             ".analytics/adhoc/", ".analytics/demo/", ".analytics/publications/", ".analytics/migration/")
 
 
 def file_class(rel: str) -> str:
@@ -480,10 +657,20 @@ def walk(project: Path):
 
 
 def line_hashes(data: bytes) -> list[str]:
-    lines = data.split(b"\n")
-    if lines and lines[-1] == b"":
-        lines.pop()
-    return [hashlib.sha256(line).hexdigest() for line in lines]
+    """Each line's hash with its LF, the last one's without when the file does not end in LF."""
+    return [hashlib.sha256(line).hexdigest() for line in re.split(rb"(?<=\n)", data) if line]
+
+
+def appended(before: dict, after: dict) -> bool:
+    """after starts with before's bytes: every earlier line the same, the last one also when the
+    writer ended it with the LF it lacked (the kit's append does: ADR-0006 6)."""
+    old, new = before.get("lines", []), after.get("lines", [])
+    if len(new) < len(old) or new[:len(old) - 1] != old[:len(old) - 1]:
+        return False
+    if not old:
+        return True
+    last = old[-1]
+    return new[len(old) - 1] in (last, before.get("open_line_with_lf"))
 
 
 def event_of(line: bytes, number: int) -> dict:
@@ -515,9 +702,15 @@ def snapshot(project: Path) -> dict:
         if path.is_symlink():
             files[rel] = {"class": file_class(rel), "link": os.readlink(path)}
             continue
+        if not stat.S_ISREG(path.lstat().st_mode):  # a FIFO or a device: never opened
+            files[rel] = {"class": file_class(rel), "special": stat.filemode(path.lstat().st_mode)}
+            continue
         entry = {"class": file_class(rel), "sha256": sha256_file(path), "bytes": path.stat().st_size}
         if entry["class"] == "append":
-            entry["lines"] = line_hashes(path.read_bytes())
+            data = path.read_bytes()
+            entry["lines"] = line_hashes(data)
+            if data and not data.endswith(b"\n"):
+                entry["open_line_with_lf"] = hashlib.sha256(data[data.rfind(b"\n") + 1:] + b"\n").hexdigest()
         files[rel] = entry
     raw = (project / "journal.jsonl").read_bytes() if (project / "journal.jsonl").is_file() else b""
     events = [event_of(line, n) for n, line in enumerate(raw.split(b"\n"), 1) if line.strip()]
@@ -538,8 +731,8 @@ def snapshot(project: Path) -> dict:
             reports[f"{manifest.parent.parent.name}@{manifest.parent.name}"] = {
                 "report_id": m.get("report_id"), "revision_id": m.get("revision_id"),
                 "previous_revision": m.get("previous_revision"), "title": m.get("title"),
-                "manifest_sha256": sha256_file(manifest),
-                "actor": (m.get("origin") or {}).get("actor") if isinstance(m.get("origin"), dict) else None}
+                "manifest_sha256": sha256_file(manifest), "actor": m.get("actor"),
+                "actor_basis": m.get("actor_basis"), "means": m.get("means")}
     identity = read_json(project / "analytics.json")
     return {"schema": SNAPSHOT_SCHEMA, "taken_at": now(), "project": str(project),
             "project_id": identity.get("project_id"), "files": files, "events": events, "runs": runs,
@@ -561,7 +754,7 @@ def compare(before: dict, after: dict, expect_actor: str | None = None) -> dict:
         elif b["class"] == "append":
             if a is None:
                 problems.append(f"removed: {rel}")
-            elif a.get("lines", [])[:len(b.get("lines", []))] != b.get("lines", []):
+            elif not appended(b, a):
                 problems.append(f"earlier lines changed: {rel}")
         elif a is None:
             removed_editable.append(rel)
@@ -588,6 +781,9 @@ def compare(before: dict, after: dict, expect_actor: str | None = None) -> dict:
         for k, v in new_runs.items():
             if v.get("actor") != expect_actor:
                 problems.append(f"run {k} has actor {v.get('actor')}, not {expect_actor}")
+        for k, v in new_reports.items():
+            if v.get("actor") != expect_actor:
+                problems.append(f"report {k} has actor {v.get('actor')}, not {expect_actor}")
     by_actor: dict[str, int] = {}
     for e in new_events:
         key = f"{e.get('actor')}/{e.get('actor_basis')}/{e.get('means')}"
@@ -620,7 +816,8 @@ def copy_project(source: Path, target: Path) -> None:
         skip = set()
         for name in names:
             path = name if rel == "." else f"{rel}/{name}"
-            if excluded(path):
+            mode = os.lstat(Path(directory) / name).st_mode
+            if excluded(path) or not (stat.S_ISREG(mode) or stat.S_ISDIR(mode) or stat.S_ISLNK(mode)):
                 skip.add(name)
         return skip
     shutil.copytree(source, target, symlinks=True, ignore=ignore)

@@ -28,8 +28,13 @@ cd $PACK && uv run --locked python tools/human_e2e.py shell $Q17
 ```
 
 프롬프트가 `[q17a]`로 바뀝니다. 이 셸 안의 모든 명령이 막힌 환경에서 돕니다. `exit`로 끝내면 그 세션에서 막힌 시도가 몇 번
-있었는지 출력됩니다(기대값 0). 스크립트·문서는 평소 편집기로 고쳐도 됩니다. 편집기는 이 셸 밖에서 돌아도 됩니다. 명령만 이
-셸에서 실행해 주세요. 확인용으로 `which aelix`를 입력하면 `aelix not found`가 나와야 합니다.
+있었는지 출력됩니다(기대값 0). 확인용으로 `which aelix`를 입력하면 `aelix not found`가 나와야 합니다.
+
+- `analytics`·`python` 명령은 **이 셸에서만** 실행합니다. 이 셸 밖에서 쓴 기록은 `check`가 "측정한 세션 밖의 기록"으로 실패시킵니다.
+- 스크립트·문서는 편집기로 고쳐도 됩니다. 편집기는 이 셸 밖에서 돌기 때문에 측정되지 않습니다. 그래서 **모델 기능이 없거나 끈
+  편집기**를 써 주세요(Copilot·Cursor·AI 자동완성 등을 끔. 예: `vim`, `nano`, 확장을 끈 VS Code). 쓴 편집기와 설정을
+  `owner-notes.md`에 적어 주세요.
+- 백그라운드 작업(`&`)은 남기지 않습니다. 셸을 끝낼 때 이 폴더에서 아직 도는 프로세스는 30초 기다린 뒤 멈춥니다.
 
 ### 1. 프로젝트·맥락·데이터·SQL
 
@@ -186,14 +191,22 @@ analytics reports save q3-review --files report-drafts/q3 --entry 요약.md --ti
 analytics record finding "부산 웹 주문 감소는 약 32%다(6월 대비 8월). 7월 20일 전후로 나뉜다" --ref BUSAN --refs-json '[{"type": "event", "event_id": "부산발견의ID", "relation": "supersedes"}]'
 ```
 
-`요약.md`를 고칩니다(감소 폭 정정, 같은 일수 비교 한 줄 추가). 바꾼 이유를 `../meta2.json`에 씁니다.
+`요약.md`를 고칩니다(감소 폭 정정, 같은 일수 비교 한 줄 추가). 근거는 버전마다 따로라서(이전 버전의 것을 물려받지 않음)
+v2의 근거 `../based-on-2.json`을 씁니다(`SAME`을 더함). 바꾼 이유는 `../meta2.json`에 씁니다.
+
+```json
+{"as_of_seq": null, "context_version": null,
+ "refs": [{"type": "run", "run_id": "BUSAN", "relation": "cites", "basis": "declared", "version_binding": "author"},
+          {"type": "run", "run_id": "MONTHLY", "relation": "cites", "basis": "declared", "version_binding": "author"},
+          {"type": "run", "run_id": "SAME", "relation": "cites", "basis": "declared", "version_binding": "author"}]}
+```
 
 ```json
 {"change_reason": "부산 감소 폭 정정, 같은 일수 비교 추가"}
 ```
 
 ```sh
-analytics reports save q3-review --files report-drafts/q3 --entry 요약.md --title "3분기 매출 중간 보고" --previous REV1 --metadata ../meta2.json
+analytics reports save q3-review --files report-drafts/q3 --entry 요약.md --title "3분기 매출 중간 보고" --previous REV1 --based-on ../based-on-2.json --metadata ../meta2.json
 analytics reports list
 analytics reports show q3-review@REV1 --file 요약.md      # 첫 버전의 본문이 그대로인지(file.data는 base64)
 ```
@@ -267,4 +280,5 @@ exit
 ## 끝난 뒤 (에이전트가 함)
 
 Q17-a와 Q17-b의 결과·증거·미실행 범위를 따로 `docs/verification/`에 정리하고 #23의 완료 조건을 판정합니다. 모델 사용량은
-Q17-b에만 셉니다.
+Q17-b에만 셉니다. aelix 세션 파일(`agents/MODEL/agent/sessions/`)과 프로젝트 사본의 원문은 이 기기에만 두고 커밋하지 않습니다.
+기록에는 수·해시·ID만 옮깁니다.
