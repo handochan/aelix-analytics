@@ -336,7 +336,7 @@ class Reports:
         s = self.site
         view = self.views.get((version["report_id"], version["revision_id"])) or {"href": None, "reasons": ["not_rendered"]}
         if view.get("href"):
-            opener = f'<p><a class="action primary" href="{s.esc(view["href"])}">{t("reports.view.open")}</a></p>'
+            opener = f'<div class="workspace-actions"><a class="action" href="{s.esc(view["href"])}">{t("reports.view.open")}</a></div>'
         else:
             opener = ""
         reasons = "".join(f'<li>{s.words("reports.view.reason", r)}</li>' for r in dict.fromkeys(view.get("reasons") or []))
