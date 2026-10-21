@@ -29,7 +29,8 @@
     "rehearsal-3 sessions 1-6": "tools/human_e2e.py of the 965a46e work tree: leftovers = processes working under OUT (lsof)",
     "owner session 1": "main b4e5b4e: the same lsof rule; it stopped the agent's local Qwen session working under OUT/agents (a defect, fixed)",
     "owner sessions 2-5": "the issue-23 work tree before e380558: the shell's polled descendants and its terminal session's orphans started after it",
-    "rehearsal-3 sessions 7-8 (2026-10-22, Report v1 check)": "the work tree after e380558: descendants and sandboxed orphans of the session",
+    "rehearsal-3 sessions 7-8 (2026-10-22, Report v1 check)": "the work tree after e380558: descendants and this terminal's processes inside a session profile (a rule withdrawn: on CI it matched other sandboxed processes)",
+    "now": "polled descendants only (0.2 s); a job cut loose between two polls is in not_covered",
     "zero_model": "check reads the tagged log again from prepare until the check, whatever rule a session used"
   },
   "q17a": {

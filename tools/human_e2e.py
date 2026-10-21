@@ -112,8 +112,9 @@ MODEL_HOMES = (".aelix", ".codex", ".claude", ".ollama", ".gemini", ".config/ope
 NOT_COVERED = ("a model the analysis code loads itself from a file outside the denied stores (no "
                "connection or listed program to deny)", "a model client that is not on the caller's PATH "
                "when prepare runs, or a copy of one (execution is denied by path)",
-               "what a process the session started tries after the check, when it left the terminal's "
-               "session (setsid) before a poll saw it and so was neither waited for nor stopped")
+               "what a process the session started tries after the check, when it was cut loose "
+               "(setsid, or orphaned as the shell ended) before a poll (0.2 s) saw it and so was neither "
+               "waited for nor stopped")
 RESOLVER = "/private/var/run/mDNSResponder"
 CREDENTIAL = re.compile(r"TOKEN|KEY|SECRET|PASSWORD|CREDENTIAL|COOKIE", re.I)
 DENIAL = re.compile(r"Sandbox: (?P<process>.+?)\((?P<pid>\d+)\) deny\(\d+\) (?P<operation>\S+)\s*(?P<target>[^\n]*)")
@@ -221,7 +222,7 @@ def sbpl_string(text: str) -> str:
 
 
 def sandbox_profile(tag: str, execs: list[str], reads: list[str]) -> str:
-    lines = ["(version 1)", "(allow default)", f"(deny {PROFILE_MARK})",
+    lines = ["(version 1)", "(allow default)",
              f"(deny network-outbound (remote ip) (with message {sbpl_string(tag)}))",
              f"(deny network-outbound (remote unix-socket) (with message {sbpl_string(tag)}))",
              f"(deny network-outbound (literal {sbpl_string(RESOLVER)}) (with message {sbpl_string(tag)}))"]
@@ -356,20 +357,6 @@ def read_denials(start: datetime, end: datetime, tags: list[str]) -> dict:
     return {"command": shlex.join(argv), "returncode": done.returncode, "found": found}
 
 
-PROFILE_MARK = "system-kext-load"  # denied by every session profile, used by no session: its mark
-
-
-def in_profile(pid: int) -> bool:
-    """Whether pid runs under a profile denying PROFILE_MARK (macOS sandbox_check). Only the sessions'
-    profiles do among this terminal's processes; elsewhere (and off macOS) nothing is."""
-    if sys.platform != "darwin":
-        return False
-    import ctypes
-    check = ctypes.CDLL("/usr/lib/libSystem.dylib").sandbox_check
-    check.restype, check.argtypes = ctypes.c_int, [ctypes.c_int, ctypes.c_char_p, ctypes.c_int]
-    return check(pid, PROFILE_MARK.encode(), 0) == 1
-
-
 def process_table() -> dict[int, tuple[int, str, str]]:
     """pid -> (parent pid, start time, command) of every process (ps, in the C locale: lstart is five
     words there, and seven in Korean)."""
@@ -384,14 +371,12 @@ def process_table() -> dict[int, tuple[int, str, str]]:
 
 class Descendants:
     """The processes a session's shell started, seen while they were its descendants (polled), so
-    that only those are waited for or stopped when it ends: never another process under OUT, such
-    as an agent's session in OUT/agents."""
+    that only those are waited for or stopped when it ends: never another process, such as an
+    agent's session in OUT/agents or another process of the same terminal. A job started and cut
+    loose (setsid, or orphaned as the shell ends) between two polls is not seen (NOT_COVERED)."""
 
-    def __init__(self, root: int, interval: float = 0.5):
+    def __init__(self, root: int, interval: float = 0.2):
         self.root, self.interval, self.seen = root, interval, {}
-        # A job the shell disowned just before it ended may never be seen as its descendant: it is still
-        # in this terminal's session and inside the session's sandbox profile (in_profile).
-        self.sid, self.mine = os.getsid(0), {os.getpid(), os.getppid()}
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._run, daemon=True)
 
@@ -421,22 +406,9 @@ class Descendants:
         self._stop.set()
         self._thread.join()
 
-    def orphans(self, table: dict) -> dict[int, tuple[str, str]]:
-        """This terminal session's processes inside the profile (no other process of the session is)."""
-        found = {}
-        for pid, (_, start, command) in table.items():
-            if pid in self.mine:
-                continue
-            with contextlib.suppress(OSError):
-                if os.getsid(pid) == self.sid and in_profile(pid):
-                    found[pid] = (start, command)
-        return found
-
     def alive(self) -> list[dict]:
         table = process_table()
-        for pid, item in self.orphans(table).items():
-            self.seen.setdefault(pid, item)
-        self.poll(table)  # and what those started
+        self.poll(table)  # and what those started since
         return [{"pid": pid, "command": command} for pid, (start, command) in self.seen.items()
                 if pid in table and table[pid][1] == start]
 

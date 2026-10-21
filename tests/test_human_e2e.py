@@ -74,7 +74,7 @@ def test_the_synthetic_orders_are_seeded_and_hold_what_the_guide_looks_for():
 def test_the_profile_tags_every_denial_and_quotes_its_paths():
     profile = he.sandbox_profile("q17a-deny-x", ['/opt/a "b"/aelix'], ["/Users/me/.aelix"])
     assert profile.startswith("(version 1)\n(allow default)\n")
-    assert profile.count('(with message "q17a-deny-x")') == 5 and "(deny system-kext-load)" in profile
+    assert profile.count('(with message "q17a-deny-x")') == 5
     assert '(remote ip)' in profile and '(remote unix-socket)' in profile and f'(literal "{he.RESOLVER}")' in profile
     assert '(literal "/opt/a \\"b\\"/aelix")' in profile and '(subpath "/Users/me/.aelix")' in profile
     assert "process-exec" not in he.sandbox_profile("t", [], []) and "file-read" not in he.sandbox_profile("t", [], [])
@@ -325,28 +325,25 @@ def test_only_what_the_session_started_is_waited_for_or_stopped(tmp_path):
     finally:
         other.kill()
         for p in tracked.seen:
-            with contextlib.suppress(ProcessLookupError):
+            with contextlib.suppress(ProcessLookupError, PermissionError):
                 os.kill(p, 9)
 
 
-@pytest.mark.skipif(sys.platform != "darwin" or shutil.which("sandbox-exec") is None, reason="macOS's sandbox")
-def test_a_job_disowned_in_the_sandbox_is_found_and_an_unrelated_orphan_is_not(tmp_path):
-    profile = tmp_path / "p.sb"
-    profile.write_text(he.sandbox_profile("q17-test", [], []), encoding="utf-8")
-    shell = subprocess.Popen(["sandbox-exec", "-f", str(profile), "/bin/sh", "-c", "(sleep 3; true) &"], cwd=tmp_path)
-    tracked = he.Descendants(shell.pid, interval=60)  # no poll sees it as a descendant
-    shell.wait()
-    # The incident's shape: an orphan of this terminal's session, working under OUT/agents, not sandboxed.
+@pytest.mark.skipif(sys.platform == "win32", reason="ps")
+def test_an_orphan_of_the_same_terminal_is_never_touched(tmp_path):
+    # The incident's shape: an orphan of this terminal's session, working under OUT/agents.
     (tmp_path / "agents" / "m" / "project").mkdir(parents=True)
+    shell = subprocess.Popen(["/bin/sh", "-c", "sleep 0.5"], cwd=tmp_path)
+    tracked = he.Descendants(shell.pid, interval=0.1).start()
     unrelated = subprocess.Popen(["/bin/sh", "-c", "(sleep 20; true) &"], cwd=tmp_path / "agents" / "m" / "project")
     unrelated.wait()
-    left = he.end_left_running(tracked, wait=6)
-    assert {p["action"] for p in left} == {"waited for"} and any(p["command"] == "sleep 3" for p in left)
-    assert not any("sleep 20" in p["command"] for p in left)
+    shell.wait()
+    tracked.stop()
+    assert he.end_left_running(tracked, wait=1) == []
     stray = [pid for pid, (_, _, cmd) in he.process_table().items() if cmd == "sleep 20"]
     assert stray, "the unrelated orphan is left running"
     for pid in stray:
-        with contextlib.suppress(ProcessLookupError):
+        with contextlib.suppress(ProcessLookupError, PermissionError):
             os.kill(pid, 9)
 
 
@@ -412,6 +409,7 @@ def test_the_process_table_reads_the_same_in_a_korean_locale(monkeypatch):
         child.kill()
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX shell scripts")
 def test_the_start_scripts_quote_every_path_and_choose_the_project(tmp_path):
     copy = tmp_path / "프로젝트 $HOME \"q\""
     copy.mkdir()
