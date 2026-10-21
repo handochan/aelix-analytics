@@ -22,6 +22,7 @@ import csv
 import importlib.util
 import io
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -369,7 +370,7 @@ def test_a_link_is_recorded_as_a_link(tmp_path):
     except OSError:
         pytest.skip("no symlinks here")
     files = he.snapshot(root)["files"]
-    assert files["data"] == {"class": "editable", "link": str(tmp_path)}
+    assert files["data"] == {"class": "editable", "link": os.readlink(root / "data")}
 
 
 def test_agent_usage_counts_requests_tokens_and_tools_without_text(tmp_path):
@@ -398,9 +399,8 @@ def test_agent_usage_counts_requests_tokens_and_tools_without_text(tmp_path):
     assert "비밀" not in json.dumps(usage, ensure_ascii=False)
 
 
-@pytest.mark.skipif(not hasattr(__import__("os"), "mkfifo"), reason="FIFOs")
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="FIFOs")
 def test_a_fifo_is_named_never_opened(project, tmp_path):
-    import os
     p, _, _ = project
     os.mkfifo(p.root / "scripts-pipe")
     snap = he.snapshot(p.root)

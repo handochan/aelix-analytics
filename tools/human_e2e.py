@@ -310,7 +310,7 @@ def prepare(out: Path, checkout: Path, allow_dirty: bool) -> dict:
         "python": run([tool_python, "-c", "import platform; print(platform.python_version())"], env=env).stdout.strip(),
         "analysis_packages": {p["name"]: p["version"] for p in packages},
         "cache_bytes": sum(f.stat().st_size for f in paths["cache"].rglob("*") if f.is_file() and not f.is_symlink()),
-        "data": {"file": str(data.relative_to(out)), "sha256": sha256_file(data),
+        "data": {"file": data.relative_to(out).as_posix(), "sha256": sha256_file(data),
                  "rows": data.read_text(encoding="utf-8").count("\n") - 1, "seed": 23},
         "sandbox": {"tag": tag, "canary_tag": canary, "profile_sha256": sha256_file(out / "sandbox.sb"),
                     "canary_sha256": sha256_file(out / "canary.sb"),
@@ -482,7 +482,7 @@ def kit_network_imports(site: Path) -> list[dict]:
     found = []
     for path in sorted((site / "aelix_analytics").rglob("*.py")):
         text = path.read_text(encoding="utf-8", errors="replace")
-        rel = str(path.relative_to(site))
+        rel = path.relative_to(site).as_posix()
         try:
             tree = ast.parse(text)
         except SyntaxError:
@@ -581,7 +581,7 @@ def check(out: Path, project: Path | None) -> dict:
         if any(v for v in found.values()):
             problems.append(f"aelix is importable in the {where}: {found}")
     aelix_home = paths["home"] / ".aelix"
-    home_files = sorted(str(p.relative_to(paths["home"])) for p in aelix_home.rglob("*") if p.is_file()) \
+    home_files = sorted(p.relative_to(paths["home"]).as_posix() for p in aelix_home.rglob("*") if p.is_file()) \
         if aelix_home.is_dir() else []
     other = [f for f in home_files if f != ".aelix/agent/analytics-projects.json"]
     if other:
@@ -895,7 +895,7 @@ def agent_usage(sessions: Path) -> dict:
     messages, tools, users, files = [], {}, 0, []
     times: list[str] = []
     for path in sorted(sessions.rglob("*.jsonl")):
-        files.append(str(path.relative_to(sessions)))
+        files.append(path.relative_to(sessions).as_posix())
         for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
             with contextlib.suppress(json.JSONDecodeError):
                 entry = json.loads(line)
