@@ -1,0 +1,32 @@
+{
+  "schema": "aelix-analytics.model-eval-model/1",
+  "id": "qwen3.8-27b-openrouter",
+  "role": "reference",
+  "what": "Qwen3.8 27B through aelix's built-in openrouter provider and the owner's aelix login (owner decision 2026-10-21 on Issue #23: Q17-b uses OpenRouter instead of the local ollama server). The upstream OpenRouter routes to is not pinned",
+  "provider": "openrouter",
+  "model": "qwen/qwen3.8-27b",
+  "api": "openai-completions",
+  "thinking": "medium",
+  "api_key_env": null,
+  "auth": {
+    "source": "aelix_login",
+    "provider": "openrouter",
+    "what": "the owner's OpenRouter key stored in aelix's own credential store (~/.aelix/agent/auth.json by default); aelix reads it in place through tools/model_eval_aelix.py, the harness never opens it"
+  },
+  "aelix_provider": null,
+  "serving": {
+    "backend": "openrouter",
+    "backend_version": null,
+    "endpoint": "https://openrouter.ai/api/v1 (aelix 0.1.0b2 catalog openrouter/qwen/qwen3.8-27b)",
+    "model_tag": "qwen/qwen3.8-27b",
+    "snapshot": "none named",
+    "quantization": "not pinned: OpenRouter chooses the upstream provider per request unless routing is set (no openRouterRouting is set)",
+    "tokenizer": "not published: counts come from the backend's usage only",
+    "context_window": 262144,
+    "output_reservation": 131072,
+    "listed": "aelix 0.1.0b2 models_generated.json: openrouter qwen/qwen3.8-27b, api openai-completions, baseUrl https://openrouter.ai/api/v1, contextWindow 262,144, maxTokens 131,072, reasoning true",
+    "reasoning": "thinking medium: aelix's openai-completions reasoning effort medium",
+    "billing": "the owner's OpenRouter account",
+    "checked_at": "2026-10-21"
+  }
+}
