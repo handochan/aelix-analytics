@@ -203,6 +203,9 @@ uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with tokeni
 현재 동작의 합성 분석 fixture, 사람용 CLI·SDK 회귀와 Aelix 통합의 분리 검증은
 [회귀 기준 안내](docs/BASELINE-VERIFICATION.md)를 따릅니다. 실행 증거와 미실행 범위를 함께 남깁니다.
 
+Q17(사람의 직접 분석과 인계)의 환경 준비·모델 호출 계측·기록 대조는 `tools/human_e2e.py`가 합니다([Q17 안내서](tools/human_e2e_data/GUIDE.md), #23).
+macOS의 `sandbox-exec`와 unified log를 씁니다.
+
 평가에 쓰는 fixture — Q9의 S/M 규모, Q10의 분석 검사 예제, Q13의 참고 세션 재현 — 는 `tools/eval_fixtures.py`가 만듭니다(#41,
 [평가 fixture 안내](tools/eval_fixtures_data/README.md)). 저장소에 커밋하지 않고 측정할 때 같은 seed로 다시 만듭니다. `--out`은 새
 디렉터리나 빈 디렉터리여야 합니다. fixture는 `lab.*/1` 기록이라 kit 0.8.0 전의 kit이 씁니다: `--kit-root`에 그 kit의 실행 루트를
