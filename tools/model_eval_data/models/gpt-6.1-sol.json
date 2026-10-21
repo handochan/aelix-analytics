@@ -1,0 +1,55 @@
+{
+  "schema": "aelix-analytics.model-eval-model/1",
+  "id": "gpt-6.1-sol",
+  "role": "frontier",
+  "what": "OpenAI GPT-6.1 Sol through aelix's own openai-codex provider and the owner's aelix login, as gpt-5.6-sol (owner decision 2026-10-21 on Issue #23: the Q17-b agent of the updated OpenAI model; aelix 0.1.0b2's catalog does not list it, so models.json adds it to the built-in provider)",
+  "provider": "openai-codex",
+  "model": "gpt-6.1-sol",
+  "api": "openai-codex-responses",
+  "thinking": "medium",
+  "api_key_env": null,
+  "auth": {
+    "source": "aelix_login",
+    "provider": "openai-codex",
+    "what": "the owner's ChatGPT login stored by aelix's /login (OpenAI Codex) in aelix's own credential store, ~/.aelix/agent/auth.json by default; aelix reads and refreshes it in place through tools/model_eval_aelix.py, the harness never opens it"
+  },
+  "aelix_provider": {
+    "models": [
+      {
+        "id": "gpt-6.1-sol",
+        "name": "GPT-6.1 Sol",
+        "reasoning": true,
+        "input": [
+          "text",
+          "image"
+        ],
+        "contextWindow": 500000,
+        "maxTokens": 128000,
+        "cost": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0
+        }
+      }
+    ]
+  },
+  "serving": {
+    "backend": "openai-codex",
+    "backend_version": null,
+    "endpoint": "https://chatgpt.com/backend-api/codex/responses (aelix 0.1.0b2 built-in provider openai-codex: models.json gives the model no api or baseUrl, so aelix takes the provider's, openai-codex-responses and https://chatgpt.com/backend-api; models_json.parse_models)",
+    "model_tag": "gpt-6.1-sol",
+    "snapshot": "none: no dated snapshot is named (2026-10-21)",
+    "quantization": "not published",
+    "tokenizer": "not published: counts come from the backend's usage only",
+    "context_window": 500000,
+    "output_reservation": 128000,
+    "listed": "not in aelix 0.1.0b2's models_generated.json (2026-10-21); listed through this models.json entry",
+    "catalog": "the Codex CLI 0.162.0 model list of the owner's ChatGPT login (~/.codex/models_cache.json, fetched 2026-10-21): gpt-6.1-sol, context_window 500,000 (max_context_window 872,000), input text and image, reasoning levels low to ultra. The output reservation 128,000 is gpt-5.6-sol's in aelix's catalog: the Codex list gives none",
+    "reasoning": "thinking medium: aelix sends reasoning {effort: medium, summary: auto}, as for gpt-5.6-sol (aelix 0.1.0b2's default level)",
+    "request": "aelix's codex body: instructions = the system prompt, store false, stream true, text.verbosity low, include reasoning.encrypted_content, tool_choice auto, parallel_tool_calls true, tools with strict null, prompt_cache_key = the session id (cache retention short); aelix sends no sampling values",
+    "billing": "the ChatGPT subscription of the login; the cost row is 0 because no API price is configured for this entry",
+    "usage": "openai-codex-responses reads the backend's usage with the shared Responses engine: aelix records input = input_tokens - cached_tokens, cache_read = cached_tokens, reasoning = output_tokens_details.reasoning_tokens (0 when absent; a subset of output), cache_write written 0 without reading",
+    "checked_at": "2026-10-21"
+  }
+}
