@@ -2,6 +2,7 @@ import json
 import os
 import re
 import time
+import tomllib
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import unquote, urlparse
@@ -68,6 +69,24 @@ def test_init_layout_and_journal(tmp_path):
         assert exc.code == "init_not_empty"
     else:
         raise AssertionError("init adopted a non-empty directory")
+
+
+@pytest.mark.parametrize("title", ['Say "hi" \\ C:\\path', "two\nlines\r\nand a\ttab", "\x00\x07\x1f\x7f control",
+                                   "{{date}} {{goal}} {{slug}} {{title}} as written", '"""\\u0041'])
+def test_any_title_makes_a_pyproject_toml_that_reads_back_whole(tmp_path, title):
+    """Issue #65: the title fills pyproject.toml as an escaped TOML string, so the file is TOML and its
+    description is the title; every place is filled in one pass, so a title's `{{date}}` stays as written."""
+    from conftest import KIT
+
+    root = tmp_path / "p"
+    core.init_project(root, title=title, goal="목표", template_dir=KIT / "aelix_analytics" / "template",
+                      origin=core.Origin("test", "sdk"))
+    project = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    assert project["description"] == title
+    assert re.fullmatch(r"analytics-[a-z0-9-]+", project["name"]), project["name"]
+    context = (root / "CONTEXT.md").read_text(encoding="utf-8")
+    assert context.startswith("# " + core.newlines_as_lf(title) + "\n")
+    assert "목표" in context and context.count("{{") == title.count("{{")
 
 
 def test_lab_api_run_records_inputs_outputs_chart_and_code(project):
