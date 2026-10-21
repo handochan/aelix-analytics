@@ -27,8 +27,8 @@ What each gate step needs (docs/BETA-QUALITY-GATES.md, Q17):
   tag) proves first that a denial reaches the unified log; then /bin/zsh -i runs under OUT/sandbox.sb
   with `env -i` and the environment of OUT/prepare.json only (UV_OFFLINE, no Python downloads, managed
   Python only, HOME and the tools of OUT/env; history with times in OUT/env/home/.zsh_history). When
-  the shell ends, what it left running with a working directory under OUT is waited for (30 s), then
-  stopped; then the tagged denials of the session's window are read from the unified log into
+  the shell ends, what it started and left running (its descendants, polled while it ran) is waited
+  for (30 s), then stopped; then the tagged denials of the session's window are read from the unified log into
   OUT/sessions/<n>.json.
 - **check**: OUT/zero-model.json. For each session: the canary was logged and the log was read (else
   the measurement is unverified, never a zero). The model calls are 0 by construction (no connection
@@ -55,7 +55,8 @@ What each gate step needs (docs/BETA-QUALITY-GATES.md, Q17):
   tools/model_eval_data/models: aelix 0.1.0b2 with the same wheel (`uv tool install`), a new agent
   directory with the model's models.json, a new HOME, a copy of the project (without .venv,
   workspace/ and the cache), its snapshot, and OUT/agents/<model>/start.sh, which starts aelix in the
-  copy: through tools/model_eval_aelix.py with the caller's own aelix login for a model that uses one
+  copy (start-print.sh: without a terminal, the project chosen by AELIX_ANALYTICS_PROJECT); it refuses
+  an OUT under agent instructions (AGENTS.md, CLAUDE.md) or a git repository, which aelix would read: through tools/model_eval_aelix.py with the caller's own aelix login for a model that uses one
   (the login is opened in place, never copied or linked), else aelix itself.
 - **agent-usage**: the tokens of an aelix session directory by tools/model_eval.py's conventions, the
   requests and the tools called; nothing of the messages' text.
@@ -85,6 +86,7 @@ import signal
 import stat
 import subprocess
 import sys
+import threading
 import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -351,42 +353,95 @@ def read_denials(start: datetime, end: datetime, tags: list[str]) -> dict:
     return {"command": shlex.join(argv), "returncode": done.returncode, "found": found}
 
 
-def left_running(out: Path) -> list[dict]:
-    """The caller's processes whose working directory is under OUT, but this one (lsof)."""
-    done = run(["lsof", "-a", "-u", str(os.getuid()), "-d", "cwd", "-Fpcn"], check=False)
-    found, pid, command = [], None, None
+def process_table() -> dict[int, tuple[int, str, str]]:
+    """pid -> (parent pid, start time, command) of every process (ps)."""
+    done = run(["ps", "-A", "-o", "pid=,ppid=,lstart=,command="], check=False)
+    table = {}
     for line in done.stdout.splitlines():
-        kind, value = line[:1], line[1:]
-        if kind == "p":
-            pid = int(value)
-        elif kind == "c":
-            command = value
-        elif kind == "n" and pid not in (os.getpid(), os.getppid()):
-            with contextlib.suppress(ValueError):
-                if Path(value).resolve().is_relative_to(out.resolve()):
-                    found.append({"pid": pid, "command": command, "cwd": value})
-    return found
+        parts = line.split(None, 7)
+        if len(parts) >= 7 and parts[0].isdigit() and parts[1].isdigit():
+            table[int(parts[0])] = (int(parts[1]), " ".join(parts[2:7]), parts[7] if len(parts) > 7 else "")
+    return table
 
 
-def end_left_running(out: Path, wait: float = 30.0) -> list[dict]:
+class Descendants:
+    """The processes a session's shell started, seen while they were its descendants (polled), so
+    that only those are waited for or stopped when it ends: never another process under OUT, such
+    as an agent's session in OUT/agents."""
+
+    def __init__(self, root: int, interval: float = 0.5):
+        self.root, self.interval, self.seen = root, interval, {}
+        # A job the shell disowned just before it ended may not be seen as its descendant: it is still
+        # in this terminal's session, an orphan started after the session began.
+        self.sid, self.since = os.getsid(0), datetime.now().replace(microsecond=0)
+        self.mine = {os.getpid(), os.getppid()}
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._run, daemon=True)
+
+    def poll(self, table: dict | None = None) -> None:
+        table = process_table() if table is None else table
+        known = {self.root} | {pid for pid, (start, _) in self.seen.items()
+                               if pid in table and table[pid][1] == start}
+        grew = True
+        while grew:
+            grew = False
+            for pid, (ppid, start, command) in table.items():
+                if ppid in known and pid not in known:
+                    known.add(pid)
+                    self.seen.setdefault(pid, (start, command))
+                    grew = True
+
+    def _run(self) -> None:
+        while not self._stop.wait(self.interval):
+            self.poll()
+
+    def start(self) -> Descendants:
+        self.poll()
+        self._thread.start()
+        return self
+
+    def stop(self) -> None:
+        self._stop.set()
+        self._thread.join()
+
+    def orphans(self, table: dict) -> dict[int, tuple[str, str]]:
+        found = {}
+        for pid, (ppid, start, command) in table.items():
+            if ppid != 1 or pid in self.mine:
+                continue
+            with contextlib.suppress(OSError, ValueError):
+                if os.getsid(pid) == self.sid and datetime.strptime(start, "%a %b %d %H:%M:%S %Y") >= self.since:
+                    found[pid] = (start, command)
+        return found
+
+    def alive(self) -> list[dict]:
+        table = process_table()
+        for pid, item in self.orphans(table).items():
+            self.seen.setdefault(pid, item)
+        self.poll(table)  # and what those started
+        return [{"pid": pid, "command": command} for pid, (start, command) in self.seen.items()
+                if pid in table and table[pid][1] == start]
+
+
+def end_left_running(tracked: Descendants, wait: float = 30.0) -> list[dict]:
     """Wait for what the session left running, then stop it: its attempts must fall in the window."""
     deadline = time.monotonic() + wait
     seen: dict[int, dict] = {}
-    left = left_running(out)
+    left = tracked.alive()
     while left:
         for proc in left:
             seen.setdefault(proc["pid"], {**proc, "action": "waited for"})
         if time.monotonic() >= deadline:
             break
         time.sleep(1)
-        left = left_running(out)
+        left = tracked.alive()
     for proc in left:
         with contextlib.suppress(ProcessLookupError, PermissionError):
             os.kill(proc["pid"], signal.SIGTERM)
         seen[proc["pid"]]["action"] = "SIGTERM"
     if left:
         time.sleep(5)
-        for proc in left_running(out):
+        for proc in tracked.alive():
             with contextlib.suppress(ProcessLookupError, PermissionError):
                 os.kill(proc["pid"], signal.SIGKILL)
             seen.setdefault(proc["pid"], proc)["action"] = "SIGKILL"
@@ -423,12 +478,15 @@ def shell(out: Path, cwd: Path | None, script: Path | None = None) -> dict:
     # Ctrl+C is the shell's; a closed terminal (SIGHUP) ends the shell, and this still records the session.
     previous = {sig: signal.signal(sig, signal.SIG_IGN) for sig in (signal.SIGINT, signal.SIGHUP)}
     try:
-        code = subprocess.call(argv, cwd=cwd or paths["work"])
+        child = subprocess.Popen(argv, cwd=cwd or paths["work"])
+        tracked = Descendants(child.pid).start()
+        code = child.wait()
+        tracked.stop()
     finally:
         for sig, handler in previous.items():
             signal.signal(sig, handler)
     ended = now()
-    left = end_left_running(out)
+    left = end_left_running(tracked)
     time.sleep(2)  # the unified log is written asynchronously
     end = datetime.now().astimezone() + timedelta(seconds=1)
     denials = read_denials(start, end, [tag, canary])
@@ -823,8 +881,26 @@ def copy_project(source: Path, target: Path) -> None:
     shutil.copytree(source, target, symlinks=True, ignore=ignore)
 
 
+CONTEXT_FILES = ("AGENTS.md", "CLAUDE.md", "AGENTS.override.md")
+
+
+def context_above(path: Path) -> list[str]:
+    """Agent instruction files and git repositories at or above path: aelix reads the former as context
+    from every ancestor, so a copy inside a repository would hand the agent that repository's rules."""
+    found = []
+    for directory in [path, *path.parents]:
+        found += [str(directory / n) for n in CONTEXT_FILES if (directory / n).is_file()]
+        if (directory / ".git").exists():
+            found.append(str(directory / ".git"))
+    return found
+
+
 def agent_env(out: Path, model_id: str, project: Path) -> dict:
     record = read_json(out / "prepare.json")
+    above = context_above(out.resolve())
+    if above:
+        raise Fail(f"{out} is under agent instructions or a repository the session would read: {above}; "
+                   "prepare the environment outside them")
     model_path = MODELS / f"{model_id}.json"
     if not model_path.is_file():
         raise Fail(f"no model configuration {model_path}")
@@ -874,6 +950,14 @@ def agent_env(out: Path, model_id: str, project: Path) -> dict:
         f"exec /usr/bin/env -i {exports} TERM=\"${{TERM:-xterm-256color}}\" {shlex.join(command)} \"$@\"\n",
         encoding="utf-8")
     (base / "start.sh").chmod(0o755)
+    # Without a terminal: the project chosen by AELIX_ANALYTICS_PROJECT (an explicit choice, as the
+    # person's /analytics use would be), the request given with -p, aelix's JSON events on stdout.
+    (base / "start-print.sh").write_text(
+        "#!/bin/sh\n# Q17-b without a terminal: start-print.sh --mode json -p \"$(cat REQUEST)\" > events.jsonl\n"
+        f"cd {shlex.quote(str(copy))} || exit 1\n"
+        f"exec /usr/bin/env -i {shlex.quote(f'AELIX_ANALYTICS_PROJECT={copy}')} {exports} TERM=\"${{TERM:-xterm-256color}}\" "
+        f"{shlex.join(command)} \"$@\"\n", encoding="utf-8")
+    (base / "start-print.sh").chmod(0o755)
     listed = run([*head, "--offline", "--list-models",
                   f"{model['provider']} {model['model']}"], env=env, cwd=dirs["agent"], check=False)
     result = {"schema": "aelix-analytics.q17-agent-env/1", "prepared_at": now(), "model": model_id,
@@ -885,7 +969,7 @@ def agent_env(out: Path, model_id: str, project: Path) -> dict:
               "list_models": {"returncode": listed.returncode, "stdout": listed.stdout[-2000:],
                               "stderr": listed.stderr[-2000:]},
               "launcher_sha256": sha256_file(LAUNCHER) if model.get("auth") else None,
-              "start": str(base / "start.sh"), "env_names": sorted(env)}
+              "start": str(base / "start.sh"), "start_print": str(base / "start-print.sh"), "env_names": sorted(env)}
     write_json(base / "agent-env.json", result)
     return result
 

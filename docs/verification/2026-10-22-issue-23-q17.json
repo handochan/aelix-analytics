@@ -1,0 +1,1069 @@
+{
+  "schema": "aelix-analytics.verification/q17-1",
+  "issue": 23,
+  "measured_at": "2026-10-21",
+  "owner_decisions": [
+    {
+      "date": "2026-10-21",
+      "what": "Q17-b with Qwen3.8 27B and gpt-6.1-sol (the updated OpenAI model)"
+    },
+    {
+      "date": "2026-10-21",
+      "what": "Q17-a's person-run replaced by the agent's verification ('사람이 진행한 것처럼 이미 검증했기 때문에 qa 끝으로 보고 진행하세요'): the functions count, the person's usability is not_run",
+      "narrows": "#39 (2026-10-03): the owner performs Q17-a at least once"
+    },
+    {
+      "date": "2026-10-21",
+      "what": "Qwen3.8 27B through OpenRouter instead of the local ollama server"
+    },
+    {
+      "date": "2026-10-21",
+      "what": "the owner performs Q17-b's human review of both copies"
+    }
+  ],
+  "q17a": {
+    "result": "pass (functions, agent run); not_run (a person's usability)",
+    "environment": {
+      "prepared_at": "2026-10-21T14:16:10+09:00",
+      "checkout": {
+        "path": "~/dev/aelix-extensions/.worktrees/aelix-analytics-issue-23",
+        "commit": "93f37a2607059988dc702410e1db4c59649739c2",
+        "dirty": true,
+        "kit_version": "0.25.0"
+      },
+      "wheel": {
+        "file": "aelix_analytics-0.25.0-py3-none-any.whl",
+        "sha256": "660beb63c24d1882c065579b933cf9eeb162d43d49234d7b0360c411eb36ab28",
+        "bytes": 1131782
+      },
+      "python": "3.12.13",
+      "uv": "uv 0.11.19 (Homebrew 2026-06-03 aarch64-apple-darwin)",
+      "analysis_packages": {
+        "contourpy": "1.4.0",
+        "cycler": "0.12.1",
+        "duckdb": "1.5.6",
+        "fonttools": "4.67.0",
+        "kiwisolver": "1.5.1",
+        "markdown-it-py": "4.2.0",
+        "matplotlib": "3.11.2",
+        "mdurl": "0.1.2",
+        "narwhals": "2.27.1",
+        "numpy": "2.5.4",
+        "packaging": "26.3",
+        "pillow": "13.0.0",
+        "plotly": "6.9.0",
+        "polars": "1.44.2",
+        "polars-runtime-32": "1.44.2",
+        "pyarrow": "26.0.0",
+        "pygments": "2.21.0",
+        "pyparsing": "3.3.3",
+        "python-dateutil": "2.9.0.post0",
+        "six": "1.17.0"
+      },
+      "data": {
+        "file": "data/orders.csv",
+        "sha256": "d4d76e8f220b8602c22a4c23031dc02a8512c081637da50f9b05f06e64062037",
+        "rows": 856,
+        "seed": 23
+      },
+      "denied": {
+        "denied_network": "every outbound IP connection (loopback included) and every Unix-domain socket connection (the resolver's included)",
+        "denied_exec": [
+          "/Applications/Ollama.app/Contents/Resources/ollama",
+          "~/.local/bin/aelix",
+          "~/.local/bin/claude",
+          "~/.local/share/claude/versions/2.1.305",
+          "~/.local/share/uv/tools/aelix/bin/aelix",
+          "/opt/homebrew/bin/codex",
+          "/opt/homebrew/bin/gemini",
+          "/opt/homebrew/bin/ollama",
+          "/opt/homebrew/bin/opencode",
+          "/opt/homebrew/bin/qwen",
+          "/opt/homebrew/lib/node_modules/@google/gemini-cli/bundle/gemini.js",
+          "/opt/homebrew/lib/node_modules/@openai/codex/bin/codex.js",
+          "/opt/homebrew/lib/node_modules/@qwen-code/qwen-code/cli-entry.js",
+          "/opt/homebrew/lib/node_modules/opencode-ai/bin/opencode.exe",
+          "/usr/local/bin/ollama"
+        ],
+        "denied_read": [
+          "~/.aelix",
+          "~/.cache/huggingface",
+          "~/.cache/uv",
+          "~/.claude",
+          "~/.codex",
+          "~/.config/aelix",
+          "~/.config/opencode",
+          "~/.gemini",
+          "~/.local/share/uv/tools/aelix",
+          "~/.ollama"
+        ],
+        "not_covered": [
+          "a model the analysis code loads itself from a file outside the denied stores (no connection or listed program to deny)",
+          "a model client that is not on the caller's PATH when prepare runs",
+          "what a process left running with its working directory outside OUT tries after the check"
+        ]
+      }
+    },
+    "sessions": [
+      {
+        "number": 1,
+        "started_at": "2026-10-21T14:16:10+09:00",
+        "ended_at": "2026-10-21T14:16:11+09:00",
+        "exit_code": 0,
+        "cwd": "work",
+        "canary_logged": 1,
+        "log_returncode": 0,
+        "denials": 0,
+        "left_running": [],
+        "script": "rehearse-a1.zsh"
+      },
+      {
+        "number": 2,
+        "started_at": "2026-10-21T14:16:14+09:00",
+        "ended_at": "2026-10-21T14:16:34+09:00",
+        "exit_code": 0,
+        "cwd": "work",
+        "canary_logged": 1,
+        "log_returncode": 0,
+        "denials": 0,
+        "left_running": [],
+        "script": "rehearse-a2.zsh"
+      },
+      {
+        "number": 3,
+        "started_at": "2026-10-21T14:16:37+09:00",
+        "ended_at": "2026-10-21T14:16:41+09:00",
+        "exit_code": 0,
+        "cwd": "work",
+        "canary_logged": 1,
+        "log_returncode": 0,
+        "denials": 0,
+        "left_running": [],
+        "script": "rehearse-a3.zsh"
+      },
+      {
+        "number": 4,
+        "started_at": "2026-10-21T14:16:44+09:00",
+        "ended_at": "2026-10-21T14:16:46+09:00",
+        "exit_code": 0,
+        "cwd": "work",
+        "canary_logged": 1,
+        "log_returncode": 0,
+        "denials": 0,
+        "left_running": [],
+        "script": "rehearse-a4.zsh"
+      },
+      {
+        "number": 5,
+        "started_at": "2026-10-21T14:16:49+09:00",
+        "ended_at": "2026-10-21T14:16:49+09:00",
+        "exit_code": 0,
+        "cwd": "work",
+        "canary_logged": 1,
+        "log_returncode": 0,
+        "denials": 0,
+        "left_running": [],
+        "script": "rehearse-a5.zsh"
+      },
+      {
+        "number": 6,
+        "started_at": "2026-10-21T23:22:16+09:00",
+        "ended_at": "2026-10-21T23:22:17+09:00",
+        "exit_code": 0,
+        "cwd": "work",
+        "canary_logged": 1,
+        "log_returncode": 0,
+        "denials": 0,
+        "left_running": [],
+        "script": "add-refund-question.zsh"
+      }
+    ],
+    "zero_model": {
+      "checked_at": "2026-10-21T23:22:35+09:00",
+      "model_calls": 0,
+      "model_calls_basis": "inside the sandboxed sessions: no outbound IP or Unix-domain socket connection can be made and no listed model client can be executed by its path; what runs outside them (the editor, the browser) is the owner's statement in owner-notes.md",
+      "attempts": 0,
+      "attempts_by_operation": {},
+      "log_read_again": {
+        "from": "2026-10-21T14:16:05+09:00",
+        "returncode": 0,
+        "found": 0
+      },
+      "records_outside_sessions": [],
+      "aelix_importable": {
+        "tool_env": {
+          "aelix_coding_agent": false,
+          "aelix_ai": false,
+          "aelix": false
+        },
+        "project_env": {
+          "aelix_coding_agent": false,
+          "aelix_ai": false,
+          "aelix": false
+        }
+      },
+      "home_aelix_files": [
+        ".aelix/agent/analytics-projects.json"
+      ],
+      "kit_network_imports": [
+        {
+          "file": "aelix_analytics/kit/aelix_analytics/publishing/build.py",
+          "module": "socket",
+          "uses": [
+            "gethostname"
+          ]
+        },
+        {
+          "file": "aelix_analytics/publishing/build.py",
+          "module": "socket",
+          "uses": [
+            "gethostname"
+          ]
+        }
+      ],
+      "problems": [],
+      "passed": true
+    },
+    "baseline_snapshot_sha256": "3a3a597fe9b397abe6a52c576eaa23aaddfd58226eb017602d244e652b8b924f",
+    "owner_partial": {
+      "environment": {
+        "prepared_at": "2026-10-21T15:31:34+09:00",
+        "checkout": {
+          "path": "~/dev/aelix-extensions/aelix-analytics",
+          "commit": "b4e5b4ed93e2bcd15db61c3464442269f43d2bb0",
+          "dirty": false,
+          "kit_version": "0.25.0"
+        },
+        "wheel": {
+          "file": "aelix_analytics-0.25.0-py3-none-any.whl",
+          "sha256": "660beb63c24d1882c065579b933cf9eeb162d43d49234d7b0360c411eb36ab28",
+          "bytes": 1131782
+        },
+        "python": "3.12.13",
+        "uv": "uv 0.11.19 (Homebrew 2026-06-03 aarch64-apple-darwin)",
+        "analysis_packages": {
+          "contourpy": "1.4.0",
+          "cycler": "0.12.1",
+          "duckdb": "1.5.6",
+          "fonttools": "4.67.0",
+          "kiwisolver": "1.5.1",
+          "markdown-it-py": "4.2.0",
+          "matplotlib": "3.11.2",
+          "mdurl": "0.1.2",
+          "narwhals": "2.27.1",
+          "numpy": "2.5.4",
+          "packaging": "26.3",
+          "pillow": "13.0.0",
+          "plotly": "6.9.0",
+          "polars": "1.44.2",
+          "polars-runtime-32": "1.44.2",
+          "pyarrow": "26.0.0",
+          "pygments": "2.21.0",
+          "pyparsing": "3.3.3",
+          "python-dateutil": "2.9.0.post0",
+          "six": "1.17.0"
+        },
+        "data": {
+          "file": "data/orders.csv",
+          "sha256": "d4d76e8f220b8602c22a4c23031dc02a8512c081637da50f9b05f06e64062037",
+          "rows": 856,
+          "seed": 23
+        },
+        "denied": {
+          "denied_network": "every outbound IP connection (loopback included) and every Unix-domain socket connection (the resolver's included)",
+          "denied_exec": [
+            "/Applications/Ollama.app/Contents/Resources/ollama",
+            "~/.local/bin/aelix",
+            "~/.local/bin/claude",
+            "~/.local/share/claude/versions/2.1.305",
+            "~/.local/share/uv/tools/aelix/bin/aelix",
+            "/opt/homebrew/bin/codex",
+            "/opt/homebrew/bin/gemini",
+            "/opt/homebrew/bin/ollama",
+            "/opt/homebrew/bin/opencode",
+            "/opt/homebrew/bin/qwen",
+            "/opt/homebrew/lib/node_modules/@google/gemini-cli/bundle/gemini.js",
+            "/opt/homebrew/lib/node_modules/@openai/codex/bin/codex.js",
+            "/opt/homebrew/lib/node_modules/@qwen-code/qwen-code/cli-entry.js",
+            "/opt/homebrew/lib/node_modules/opencode-ai/bin/opencode.exe",
+            "/usr/local/bin/ollama"
+          ],
+          "denied_read": [
+            "~/.aelix",
+            "~/.cache/huggingface",
+            "~/.cache/uv",
+            "~/.claude",
+            "~/.codex",
+            "~/.config/aelix",
+            "~/.config/opencode",
+            "~/.gemini",
+            "~/.local/share/uv/tools/aelix",
+            "~/.ollama"
+          ],
+          "not_covered": [
+            "a model the analysis code loads itself from a file outside the denied stores (no connection or listed program to deny)",
+            "a model client that is not on the caller's PATH when prepare runs",
+            "what a process left running with its working directory outside OUT tries after the check"
+          ]
+        }
+      },
+      "session": {
+        "number": 1,
+        "started_at": "2026-10-21T23:11:44+09:00",
+        "ended_at": "2026-10-21T23:39:30+09:00",
+        "exit_code": 1,
+        "cwd": "work",
+        "canary_logged": 1,
+        "log_returncode": 0,
+        "denials": 0,
+        "left_running": [
+          {
+            "command": "python3.12",
+            "action": "SIGTERM"
+          }
+        ],
+        "script": null
+      },
+      "did": [
+        "analytics init q3-sales",
+        "analytics status"
+      ]
+    }
+  },
+  "q17b": {
+    "result": "pass",
+    "baseline": "rehearsal-3/work/q3-sales (23 records, 4 runs one failed, Report 2 versions; the agent's rehearsal: its CLI records read human/inferred, since it did not declare itself, but e23 agent/declared)",
+    "models": [
+      {
+        "model": "gpt-6.1-sol",
+        "model_config_sha256": "03ff4e6b3e789baa32b3dd91a2388577378fad7c9bbbec9b9d9e62b321452276",
+        "provider": "openai-codex",
+        "model_name": "gpt-6.1-sol",
+        "thinking": "medium",
+        "auth": "aelix_login",
+        "host": {
+          "aelix": [
+            "0.1.0b2"
+          ],
+          "launcher_sha256": "fecf55ea99760aa5626f36ec74ce2d10df817d08f14942a03d247bd7c2363ce4",
+          "mode": "aelix --mode json -p <tools/human_e2e_data/q17b-request.md>, the project chosen by AELIX_ANALYTICS_PROJECT, started by the agent at the owner's request"
+        },
+        "request_sha256": "afcaff8a37571281334ce1c6d425a9e1cbd6921574362c27450158d44a3d31eb",
+        "session": {
+          "started": "2026-10-21T23:28:22+0900",
+          "ended": "2026-10-21T23:30:43+0900",
+          "exit": "exit 0"
+        },
+        "usage": {
+          "requests": 14,
+          "user_messages": 1,
+          "models": [
+            "openai-codex/gpt-6.1-sol"
+          ],
+          "apis": [
+            "openai-codex-responses"
+          ],
+          "tool_calls": {
+            "analytics_query": 2,
+            "analytics_record": 3,
+            "analytics_run": 2,
+            "analytics_status": 4,
+            "edit": 2,
+            "find": 1,
+            "ls": 2,
+            "read": 5,
+            "write": 1
+          },
+          "tokens": {
+            "requests": 14,
+            "requests_with_usage": 14,
+            "complete": true,
+            "api": "openai-codex-responses",
+            "source": "the model API's usage as aelix 0.1.0b2 records it on each assistant message",
+            "input_uncached": {
+              "status": "measured",
+              "value": 257318
+            },
+            "input_cached": {
+              "status": "measured",
+              "value": 12800
+            },
+            "reasoning": {
+              "status": "measured",
+              "value": 357,
+              "note": "a subset of output; aelix 0.1.0b2 writes 0 when the usage has no output_tokens_details.reasoning_tokens, so a 0 is not told apart from not reported"
+            },
+            "output": {
+              "status": "measured",
+              "value": 4064
+            },
+            "cache_write": {
+              "status": "not_measured",
+              "reason": "aelix 0.1.0b2 writes cache_write = 0 without reading it: the codex adapter reads the backend's usage with the shared Responses engine (_openai_responses_shared.py)"
+            },
+            "per_turn": [
+              {
+                "turn": 1,
+                "requests": 14,
+                "requests_with_usage": 14,
+                "complete": true,
+                "input_uncached": {
+                  "status": "measured",
+                  "value": 257318
+                },
+                "input_cached": {
+                  "status": "measured",
+                  "value": 12800
+                },
+                "reasoning": {
+                  "status": "measured",
+                  "value": 357,
+                  "note": "a subset of output; aelix 0.1.0b2 writes 0 when the usage has no output_tokens_details.reasoning_tokens, so a 0 is not told apart from not reported"
+                },
+                "output": {
+                  "status": "measured",
+                  "value": 4064
+                },
+                "cache_write": {
+                  "status": "not_measured",
+                  "reason": "aelix 0.1.0b2 writes cache_write = 0 without reading it: the codex adapter reads the backend's usage with the shared Responses engine (_openai_responses_shared.py)"
+                }
+              }
+            ],
+            "full_input": {
+              "status": "not_measured",
+              "reason": "aelix 0.1.0b2 emits no request body (system prompt, tool schemas, messages) as an event, so the full input is known only as the API's input tokens; a dry run with the same aelix, surface and checkout records the request's tool-schema and system-prompt bytes (request_body)"
+            }
+          }
+        },
+        "handoff": {
+          "agent": {
+            "passed": true,
+            "problems": [],
+            "before": {
+              "taken_at": "2026-10-21T23:27:29+09:00",
+              "events": 23,
+              "runs": 4,
+              "reports": 2
+            },
+            "after": {
+              "taken_at": "2026-10-21T23:30:56+09:00",
+              "events": 29,
+              "runs": 6,
+              "reports": 2
+            },
+            "kept": {
+              "immutable": 32,
+              "append": 2
+            },
+            "new_events": [
+              {
+                "id": "e24",
+                "kind": "note",
+                "actor": "agent",
+                "actor_basis": "declared",
+                "means": "tool",
+                "session": true
+              },
+              {
+                "id": "e25",
+                "kind": "run",
+                "actor": "agent",
+                "actor_basis": "declared",
+                "means": "tool",
+                "session": true
+              },
+              {
+                "id": "e26",
+                "kind": "run",
+                "actor": "agent",
+                "actor_basis": "declared",
+                "means": "tool",
+                "session": true
+              },
+              {
+                "id": "e27",
+                "kind": "finding",
+                "actor": "agent",
+                "actor_basis": "declared",
+                "means": "tool",
+                "session": true
+              },
+              {
+                "id": "e28",
+                "kind": "todo",
+                "actor": "agent",
+                "actor_basis": "declared",
+                "means": "tool",
+                "session": true
+              },
+              {
+                "id": "e29",
+                "kind": "context",
+                "actor": "system",
+                "actor_basis": "declared",
+                "means": "hook",
+                "session": true
+              }
+            ],
+            "new_runs": {
+              "20261021-232930-refund-segment-review": {
+                "status": "ok",
+                "actor": "agent",
+                "means": "tool"
+              },
+              "20261021-233002-refund-segment-review-checked": {
+                "status": "ok",
+                "actor": "agent",
+                "means": "tool"
+              }
+            },
+            "new_reports": 0,
+            "edited": [
+              "CONTEXT.md"
+            ],
+            "expect_actor": "agent"
+          },
+          "human": {
+            "passed": true,
+            "problems": [],
+            "before": {
+              "taken_at": "2026-10-21T23:30:56+09:00",
+              "events": 29,
+              "runs": 6,
+              "reports": 2
+            },
+            "after": {
+              "taken_at": "2026-10-21T23:57:05+09:00",
+              "events": 30,
+              "runs": 6,
+              "reports": 2
+            },
+            "kept": {
+              "immutable": 41,
+              "append": 3
+            },
+            "new_events": [
+              {
+                "id": "e30",
+                "kind": "decision",
+                "actor": "human",
+                "actor_basis": "inferred",
+                "means": "cli",
+                "session": false
+              }
+            ],
+            "new_runs": {},
+            "new_reports": 0,
+            "edited": [],
+            "expect_actor": "human"
+          },
+          "whole": {
+            "passed": true,
+            "problems": [],
+            "before": {
+              "taken_at": "2026-10-21T23:27:29+09:00",
+              "events": 23,
+              "runs": 4,
+              "reports": 2
+            },
+            "after": {
+              "taken_at": "2026-10-21T23:57:05+09:00",
+              "events": 30,
+              "runs": 6,
+              "reports": 2
+            },
+            "kept": {
+              "immutable": 32,
+              "append": 2
+            },
+            "new_events": [
+              {
+                "id": "e24",
+                "kind": "note",
+                "actor": "agent",
+                "actor_basis": "declared",
+                "means": "tool",
+                "session": true
+              },
+              {
+                "id": "e25",
+                "kind": "run",
+                "actor": "agent",
+                "actor_basis": "declared",
+                "means": "tool",
+                "session": true
+              },
+              {
+                "id": "e26",
+                "kind": "run",
+                "actor": "agent",
+                "actor_basis": "declared",
+                "means": "tool",
+                "session": true
+              },
+              {
+                "id": "e27",
+                "kind": "finding",
+                "actor": "agent",
+                "actor_basis": "declared",
+                "means": "tool",
+                "session": true
+              },
+              {
+                "id": "e28",
+                "kind": "todo",
+                "actor": "agent",
+                "actor_basis": "declared",
+                "means": "tool",
+                "session": true
+              },
+              {
+                "id": "e29",
+                "kind": "context",
+                "actor": "system",
+                "actor_basis": "declared",
+                "means": "hook",
+                "session": true
+              },
+              {
+                "id": "e30",
+                "kind": "decision",
+                "actor": "human",
+                "actor_basis": "inferred",
+                "means": "cli",
+                "session": false
+              }
+            ],
+            "new_runs": {
+              "20261021-232930-refund-segment-review": {
+                "status": "ok",
+                "actor": "agent",
+                "means": "tool"
+              },
+              "20261021-233002-refund-segment-review-checked": {
+                "status": "ok",
+                "actor": "agent",
+                "means": "tool"
+              }
+            },
+            "new_reports": 0,
+            "edited": [
+              "CONTEXT.md"
+            ],
+            "expect_actor": null
+          }
+        }
+      },
+      {
+        "model": "qwen3.8-27b-openrouter",
+        "model_config_sha256": "b753bb9c1022323a4d9dac0945eb7a6df32022584c67acbf68a3d749d659606c",
+        "provider": "openrouter",
+        "model_name": "qwen/qwen3.8-27b",
+        "thinking": "medium",
+        "auth": "aelix_login",
+        "host": {
+          "aelix": [
+            "0.1.0b2"
+          ],
+          "launcher_sha256": "fecf55ea99760aa5626f36ec74ce2d10df817d08f14942a03d247bd7c2363ce4",
+          "mode": "aelix --mode json -p <tools/human_e2e_data/q17b-request.md>, the project chosen by AELIX_ANALYTICS_PROJECT, started by the agent at the owner's request"
+        },
+        "request_sha256": "afcaff8a37571281334ce1c6d425a9e1cbd6921574362c27450158d44a3d31eb",
+        "session": {
+          "started": "2026-10-21T23:43:46+0900",
+          "ended": "2026-10-21T23:45:19+0900",
+          "exit": "exit 0"
+        },
+        "usage": {
+          "requests": 18,
+          "user_messages": 1,
+          "models": [
+            "openrouter/qwen/qwen3.8-27b"
+          ],
+          "apis": [
+            "openai-completions"
+          ],
+          "tool_calls": {
+            "analytics_query": 4,
+            "analytics_record": 2,
+            "analytics_run": 4,
+            "analytics_status": 2,
+            "edit": 6,
+            "write": 1
+          },
+          "tokens": {
+            "requests": 18,
+            "requests_with_usage": 18,
+            "complete": true,
+            "api": "openai-completions",
+            "source": "the model API's usage as aelix 0.1.0b2 records it on each assistant message",
+            "input_uncached": {
+              "status": "measured",
+              "value": 38726
+            },
+            "input_cached": {
+              "status": "measured",
+              "value": 351616
+            },
+            "reasoning": {
+              "status": "not_measured",
+              "reason": "aelix 0.1.0b2 does not read completion_tokens_details; reasoning tokens are inside the output count"
+            },
+            "output": {
+              "status": "measured",
+              "value": 8289
+            },
+            "cache_write": {
+              "status": "not_measured",
+              "reason": "the chat completions usage has no cache-write count (aelix 0.1.0b2 openai_completions._usage_to_dict reads prompt_tokens, completion_tokens and prompt_tokens_details.cached_tokens only)"
+            },
+            "per_turn": [
+              {
+                "turn": 1,
+                "requests": 18,
+                "requests_with_usage": 18,
+                "complete": true,
+                "input_uncached": {
+                  "status": "measured",
+                  "value": 38726
+                },
+                "input_cached": {
+                  "status": "measured",
+                  "value": 351616
+                },
+                "reasoning": {
+                  "status": "not_measured",
+                  "reason": "aelix 0.1.0b2 does not read completion_tokens_details; reasoning tokens are inside the output count"
+                },
+                "output": {
+                  "status": "measured",
+                  "value": 8289
+                },
+                "cache_write": {
+                  "status": "not_measured",
+                  "reason": "the chat completions usage has no cache-write count (aelix 0.1.0b2 openai_completions._usage_to_dict reads prompt_tokens, completion_tokens and prompt_tokens_details.cached_tokens only)"
+                }
+              }
+            ],
+            "full_input": {
+              "status": "not_measured",
+              "reason": "aelix 0.1.0b2 emits no request body (system prompt, tool schemas, messages) as an event, so the full input is known only as the API's input tokens; a dry run with the same aelix, surface and checkout records the request's tool-schema and system-prompt bytes (request_body)"
+            }
+          }
+        },
+        "handoff": {
+          "agent": {
+            "passed": true,
+            "problems": [],
+            "before": {
+              "taken_at": "2026-10-21T23:43:35+09:00",
+              "events": 23,
+              "runs": 4,
+              "reports": 2
+            },
+            "after": {
+              "taken_at": "2026-10-21T23:46:04+09:00",
+              "events": 30,
+              "runs": 8,
+              "reports": 2
+            },
+            "kept": {
+              "immutable": 32,
+              "append": 2
+            },
+            "new_events": [
+              {
+                "id": "e24",
+                "kind": "run",
+                "actor": "agent",
+                "actor_basis": "declared",
+                "means": "tool",
+                "session": true
+              },
+              {
+                "id": "e25",
+                "kind": "run",
+                "actor": "agent",
+                "actor_basis": "declared",
+                "means": "tool",
+                "session": true
+              },
+              {
+                "id": "e26",
+                "kind": "run",
+                "actor": "agent",
+                "actor_basis": "declared",
+                "means": "tool",
+                "session": true
+              },
+              {
+                "id": "e27",
+                "kind": "run",
+                "actor": "agent",
+                "actor_basis": "declared",
+                "means": "tool",
+                "session": true
+              },
+              {
+                "id": "e28",
+                "kind": "finding",
+                "actor": "agent",
+                "actor_basis": "declared",
+                "means": "sdk",
+                "session": true
+              },
+              {
+                "id": "e29",
+                "kind": "finding",
+                "actor": "agent",
+                "actor_basis": "declared",
+                "means": "tool",
+                "session": true
+              },
+              {
+                "id": "e30",
+                "kind": "note",
+                "actor": "agent",
+                "actor_basis": "declared",
+                "means": "tool",
+                "session": true
+              }
+            ],
+            "new_runs": {
+              "20261021-234429-04-refund-trend": {
+                "status": "error",
+                "actor": "agent",
+                "means": "tool"
+              },
+              "20261021-234434-04-refund-trend": {
+                "status": "error",
+                "actor": "agent",
+                "means": "tool"
+              },
+              "20261021-234439-04-refund-trend": {
+                "status": "error",
+                "actor": "agent",
+                "means": "tool"
+              },
+              "20261021-234455-04-refund-trend": {
+                "status": "ok",
+                "actor": "agent",
+                "means": "tool"
+              }
+            },
+            "new_reports": 0,
+            "edited": [],
+            "expect_actor": "agent"
+          },
+          "human": {
+            "passed": true,
+            "problems": [],
+            "before": {
+              "taken_at": "2026-10-21T23:46:04+09:00",
+              "events": 30,
+              "runs": 8,
+              "reports": 2
+            },
+            "after": {
+              "taken_at": "2026-10-21T23:57:05+09:00",
+              "events": 31,
+              "runs": 8,
+              "reports": 2
+            },
+            "kept": {
+              "immutable": 56,
+              "append": 3
+            },
+            "new_events": [
+              {
+                "id": "e31",
+                "kind": "decision",
+                "actor": "human",
+                "actor_basis": "inferred",
+                "means": "cli",
+                "session": false
+              }
+            ],
+            "new_runs": {},
+            "new_reports": 0,
+            "edited": [],
+            "expect_actor": "human"
+          },
+          "whole": {
+            "passed": true,
+            "problems": [],
+            "before": {
+              "taken_at": "2026-10-21T23:43:35+09:00",
+              "events": 23,
+              "runs": 4,
+              "reports": 2
+            },
+            "after": {
+              "taken_at": "2026-10-21T23:57:05+09:00",
+              "events": 31,
+              "runs": 8,
+              "reports": 2
+            },
+            "kept": {
+              "immutable": 32,
+              "append": 2
+            },
+            "new_events": [
+              {
+                "id": "e24",
+                "kind": "run",
+                "actor": "agent",
+                "actor_basis": "declared",
+                "means": "tool",
+                "session": true
+              },
+              {
+                "id": "e25",
+                "kind": "run",
+                "actor": "agent",
+                "actor_basis": "declared",
+                "means": "tool",
+                "session": true
+              },
+              {
+                "id": "e26",
+                "kind": "run",
+                "actor": "agent",
+                "actor_basis": "declared",
+                "means": "tool",
+                "session": true
+              },
+              {
+                "id": "e27",
+                "kind": "run",
+                "actor": "agent",
+                "actor_basis": "declared",
+                "means": "tool",
+                "session": true
+              },
+              {
+                "id": "e28",
+                "kind": "finding",
+                "actor": "agent",
+                "actor_basis": "declared",
+                "means": "sdk",
+                "session": true
+              },
+              {
+                "id": "e29",
+                "kind": "finding",
+                "actor": "agent",
+                "actor_basis": "declared",
+                "means": "tool",
+                "session": true
+              },
+              {
+                "id": "e30",
+                "kind": "note",
+                "actor": "agent",
+                "actor_basis": "declared",
+                "means": "tool",
+                "session": true
+              },
+              {
+                "id": "e31",
+                "kind": "decision",
+                "actor": "human",
+                "actor_basis": "inferred",
+                "means": "cli",
+                "session": false
+              }
+            ],
+            "new_runs": {
+              "20261021-234429-04-refund-trend": {
+                "status": "error",
+                "actor": "agent",
+                "means": "tool"
+              },
+              "20261021-234434-04-refund-trend": {
+                "status": "error",
+                "actor": "agent",
+                "means": "tool"
+              },
+              "20261021-234439-04-refund-trend": {
+                "status": "error",
+                "actor": "agent",
+                "means": "tool"
+              },
+              "20261021-234455-04-refund-trend": {
+                "status": "ok",
+                "actor": "agent",
+                "means": "tool"
+              }
+            },
+            "new_reports": 0,
+            "edited": [],
+            "expect_actor": null
+          }
+        }
+      }
+    ],
+    "owner_review_sessions": [
+      {
+        "number": 2,
+        "started_at": "2026-10-21T23:49:16+09:00",
+        "ended_at": "2026-10-21T23:50:21+09:00",
+        "exit_code": 0,
+        "cwd": "agents/gpt-6.1-sol/project",
+        "canary_logged": 1,
+        "log_returncode": 0,
+        "denials": 0,
+        "left_running": [],
+        "script": null
+      },
+      {
+        "number": 3,
+        "started_at": "2026-10-21T23:50:41+09:00",
+        "ended_at": "2026-10-21T23:51:20+09:00",
+        "exit_code": 127,
+        "cwd": "agents/qwen3.8-27b-openrouter/project",
+        "canary_logged": 1,
+        "log_returncode": 0,
+        "denials": 0,
+        "left_running": [],
+        "script": null
+      },
+      {
+        "number": 4,
+        "started_at": "2026-10-21T23:51:30+09:00",
+        "ended_at": "2026-10-21T23:52:48+09:00",
+        "exit_code": 0,
+        "cwd": "agents/gpt-6.1-sol/project",
+        "canary_logged": 1,
+        "log_returncode": 0,
+        "denials": 0,
+        "left_running": [],
+        "script": null
+      },
+      {
+        "number": 5,
+        "started_at": "2026-10-21T23:52:53+09:00",
+        "ended_at": "2026-10-22T00:00:17+09:00",
+        "exit_code": 0,
+        "cwd": "agents/qwen3.8-27b-openrouter/project",
+        "canary_logged": 1,
+        "log_returncode": 0,
+        "denials": 0,
+        "left_running": [],
+        "script": null
+      }
+    ],
+    "zero_model_owner_env": {
+      "checked_at": "2026-10-22T00:01:07+09:00",
+      "attempts": 0,
+      "log_read_again": {
+        "from": "2026-10-21T15:31:29+09:00",
+        "returncode": 0,
+        "found": 0
+      },
+      "problems": [],
+      "passed": true
+    }
+  }
+}

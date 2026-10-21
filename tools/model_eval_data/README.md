@@ -10,7 +10,7 @@
 |---|---|
 | [`tasks.json`](tasks.json) | 과제 12개: 사용자 요청 글, fixture, 준비 방식, 게이트, Q11 요청 유형, Q5 조건, 제한 시간. 소유자가 과제 목록을 확인했다(`status: confirmed`, 2026-10-18). 하네스는 이 값을 읽지 않는다 |
 | [`answers/`](answers/) | 과제별 정답: 바른 완료(글), 근거 ID, 채점 검사, 쓴 fixture의 seed. 에이전트가 쓴 초안을 소유자가 모두 확인했다(`status: confirmed`, 2026-10-17). T12는 `always_review`(아래 채점) |
-| [`models/`](models/) | 모델 설정: [로컬 Qwen](models/qwen3.8-27b-local.json), [프론티어](models/gpt-5.6-sol.json), [Q17-b의 gpt-6.1-sol](models/gpt-6.1-sol.json), [dry-run](models/dry-run.json) |
+| [`models/`](models/) | 모델 설정: [로컬 Qwen](models/qwen3.8-27b-local.json), [프론티어](models/gpt-5.6-sol.json), [Q17-b의 gpt-6.1-sol](models/gpt-6.1-sol.json), [OpenRouter의 Qwen](models/qwen3.8-27b-openrouter.json), [dry-run](models/dry-run.json) |
 | [`conditions.json`](conditions.json) | 도구 표면(Q11), 제안 조건(Q5), 글 판정에 쓰는 낱말 묶음 |
 | [`dry_run/`](dry_run/) | dry-run의 가짜 모델이 따르는 스크립트(과제별, 없으면 상태 확인 뒤 답 하나) |
 
@@ -221,6 +221,11 @@ UTF-16)에 대비해, 로그인을 쓰는 모델의 run은 런처가 끝에 로�
 Codex CLI 0.162.0 모델 목록(2026-10-21)의 값이다. 출력 예약 128,000은 그 목록에 없어 gpt-5.6-sol의 catalog 값을 쓴다.
 소유자의 로그인으로 `aelix --offline --list-models "openai-codex gpt-6.1-sol"`이 `500K 128K`를 나열했다(2026-10-21, 호출 없음).
 §3 캠페인(#24)의 프론티어 모델을 바꾸는 결정은 아니다.
+
+[`models/qwen3.8-27b-openrouter.json`](models/qwen3.8-27b-openrouter.json): Q17-b의 Qwen3.8 27B를 로컬 ollama 대신 OpenRouter로
+부르기로 한 소유자 결정(2026-10-21, #23)의 설정이다. aelix 0.1.0b2 catalog의 `openrouter qwen/qwen3.8-27b`(context 262,144, 출력
+131,072)를 소유자의 aelix 로그인(OpenRouter 키)으로 쓴다. OpenRouter가 고르는 상위 제공자와 양자화는 고정하지 않는다
+(`openRouterRouting` 없음). 그래서 지원 하단의 로컬 기준(`qwen3.8-27b-local`)과 같은 서빙이 아니다.
 
 ## run 기록
 

@@ -18,6 +18,7 @@ On macOS: the profile really denies an outbound connection, the resolver and a m
 
 from __future__ import annotations
 
+import contextlib
 import csv
 import importlib.util
 import io
@@ -307,19 +308,35 @@ def test_an_open_last_line_ended_by_the_next_append_is_kept(tmp_path):
     assert not he.compare(before, he.snapshot(root))["passed"]
 
 
-@pytest.mark.skipif(sys.platform == "win32" or shutil.which("lsof") is None, reason="lsof")
-def test_what_a_session_left_running_under_out_is_stopped(tmp_path):
+@pytest.mark.skipif(sys.platform == "win32", reason="ps")
+def test_only_what_the_session_started_is_waited_for_or_stopped(tmp_path):
     out = tmp_path / "q17"
-    (out / "work").mkdir(parents=True)
-    child = subprocess.Popen(["sleep", "60"], cwd=out / "work")
-    short = subprocess.Popen(["sleep", "2"], cwd=out / "work")
+    (out / "agents" / "m" / "project").mkdir(parents=True)
+    other = subprocess.Popen(["sleep", "60"], cwd=out / "agents" / "m" / "project")  # an agent's session
+    shell = subprocess.Popen(["/bin/sh", "-c", "sleep 60 & sleep 2 & sleep 0.5"], cwd=out)
+    tracked = he.Descendants(shell.pid, interval=0.1).start()
+    shell.wait()
+    tracked.stop()
     try:
-        left = he.end_left_running(out, wait=4)
-        assert sorted((p["pid"], p["action"]) for p in left) == sorted([(child.pid, "SIGTERM"), (short.pid, "waited for")])
-        assert child.wait(timeout=10) != 0 and short.wait(timeout=10) == 0
+        left = he.end_left_running(tracked, wait=4)
+        assert sorted(p["action"] for p in left) == ["SIGTERM", "waited for"]
+        assert all(p["pid"] != other.pid for p in left) and other.poll() is None
+        assert he.end_left_running(tracked, wait=0) == []
     finally:
-        child.kill()
-    assert he.end_left_running(out, wait=0) == []
+        other.kill()
+        for p in tracked.seen:
+            with contextlib.suppress(ProcessLookupError):
+                os.kill(p, 9)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="ps, sessions")
+def test_a_job_disowned_as_the_shell_ends_is_found_in_its_session(tmp_path):
+    shell = subprocess.Popen(["/bin/sh", "-c", "(sleep 3; true) &"], cwd=tmp_path)
+    tracked = he.Descendants(shell.pid, interval=60)  # no poll catches it as a descendant
+    tracked.since = he.datetime.now().replace(microsecond=0) - he.timedelta(seconds=2)
+    shell.wait()
+    left = he.end_left_running(tracked, wait=6)
+    assert {p["action"] for p in left} == {"waited for"} and any(p["command"] == "sleep 3" for p in left)
 
 
 def test_compare_allows_the_kits_system_records():
@@ -371,6 +388,18 @@ def test_a_link_is_recorded_as_a_link(tmp_path):
         pytest.skip("no symlinks here")
     files = he.snapshot(root)["files"]
     assert files["data"] == {"class": "editable", "link": os.readlink(root / "data")}
+
+
+def test_an_agent_env_under_agent_instructions_or_a_repository_is_refused(tmp_path):
+    (tmp_path / "AGENTS.md").write_text("rules of another project", encoding="utf-8")
+    out = tmp_path / "q17"
+    out.mkdir()
+    he.write_json(out / "prepare.json", {})
+    with pytest.raises(he.Fail, match="AGENTS.md"):
+        he.agent_env(out, "gpt-6.1-sol", tmp_path)
+    (tmp_path / "AGENTS.md").unlink()
+    (tmp_path / ".git").mkdir()
+    assert he.context_above(out) == [str(tmp_path / ".git")]
 
 
 def test_agent_usage_counts_requests_tokens_and_tools_without_text(tmp_path):
