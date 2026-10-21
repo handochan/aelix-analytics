@@ -104,6 +104,9 @@ class Versions:
 
     directory = SCRIPT_DIR
     page_name = staticmethod(script_page)
+    # The folding and range rules, for a history another module shows (workspace_reports).
+    arrange = staticmethod(arrange)
+    number_range = staticmethod(number_range)
 
     def __init__(self, site):
         self.site = site

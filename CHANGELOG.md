@@ -15,6 +15,17 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 없음. 병합된 변경은 그 PR이 병합될 때의 kit 번호 절에 적고, kit 번호를 올리는 PR은 새 절을 엽니다
 ([기여 가이드](CONTRIBUTING.md#첫-공개-전에-남은-운영-결정)).
 
+## [0.25.0] - 2026-10-21
+
+### Added
+
+- [#19](https://github.com/handochan/aelix-analytics/issues/19) PR3: Workspace의 `Reports` 탭(Insights 뒤)과 Report마다의 페이지입니다.
+  탭은 Report마다 최신 버전 한 줄(`Version n of N`, 저장 시각, 철회·파일·content_status·묶음 `n of N complete`를 따로)을 보이고 본문은 읽지 않습니다.
+  페이지는 #99의 버전 표현과, 버전마다 본문보다 먼저 시점·범위(`Created at`·`Based on`·scope), 판정한 근거, 묶음 구성원(사유·정확한 버전),
+  원본 파일, 앞 버전과의 비교, 인용한 기록 수를 보입니다. 본문은 주입한 ReportRenderer가 만든 별도 문서로 열고 Workspace 페이지에 넣지
+  않습니다(HTML·기타 형식과 바뀐 파일은 원본만). report_revision 참조 배지와 관계 페이지가 Report 페이지로 이어집니다.
+  ReadModel에 `report_histories()`·`report_citations()`가 생겼습니다([계약 C19](docs/CONTRACTS.md#c19-workspace의-reports-탭과-페이지-kit-0250-19-pr3)).
+
 ## [0.24.0] - 2026-10-19
 
 ### Added

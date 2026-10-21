@@ -170,6 +170,7 @@ MODULES: dict[str, str] = {
     "src/aelix_analytics/workspace_map.py": "workspace",
     "src/aelix_analytics/workspace_versions.py": "workspace",
     "src/aelix_analytics/workspace_provenance.py": "workspace",
+    "src/aelix_analytics/workspace_reports.py": "workspace",
     "src/aelix_analytics/i18n.py": "messages",
     "src/aelix_analytics/migration.py": "migration",
     "src/aelix_analytics/__init__.py": "sdk",
@@ -206,6 +207,16 @@ ALLOWLIST: dict[tuple[str, str], Allowed] = {
         scopes=frozenset({"Site.__init__"}),
         why="Site constructs the provenance trails (#100) its relation pages show from its one read; the helper takes Site and has no reverse import.",
         remove_when="the Workspace build coordinator injects this view instead of Site constructing it."),
+    ("src/aelix_analytics/workspace.py", "src/aelix_analytics/workspace_reports.py"): Allowed(
+        scopes=frozenset({"Site.__init__"}),
+        why="Site constructs the Reports tab and pages (#19 PR3) from its one read; the helper takes Site and has no reverse import.",
+        remove_when="the Workspace build coordinator injects this view instead of Site constructing it."),
+    ("src/aelix_analytics/workspace.py", "src/aelix_analytics/report_renderers.py"): Allowed(
+        scopes=frozenset({"default_report_renderer"}),
+        why="a build no caller gave a ReportRenderer takes the kit's StaticReportRenderer (ADR-0013 7): every caller "
+            "today (the kit's command line, the run's end runner._finalize, the demo) takes it; tests inject one.",
+        remove_when="every caller of workspace.build is an entry point that injects the renderer (the same "
+                    "condition as runner.py -> workspace.py and demo.py -> workspace.py)."),
     ("src/aelix_analytics/runner.py", "src/aelix_analytics/workspace.py"): Allowed(
         scopes=frozenset({"_finalize"}),
         why="runner._finalize rebuilds the Workspace when a run ends and puts it in the run's result "
@@ -708,6 +719,8 @@ def test_every_allowlist_entry_says_why_and_when_it_goes():
         ("src/aelix_analytics/workspace.py", "src/aelix_analytics/workspace_map.py"),
         ("src/aelix_analytics/workspace.py", "src/aelix_analytics/workspace_versions.py"),
         ("src/aelix_analytics/workspace.py", "src/aelix_analytics/workspace_provenance.py"),
+        ("src/aelix_analytics/workspace.py", "src/aelix_analytics/workspace_reports.py"),
+        ("src/aelix_analytics/workspace.py", "src/aelix_analytics/report_renderers.py"),
         ("src/aelix_analytics/runner.py", "src/aelix_analytics/workspace.py"),
         ("src/aelix_analytics/workspace.py", "src/aelix_analytics/runner.py"),
         ("src/aelix_analytics/workspace.py", "src/aelix_analytics/data.py"),

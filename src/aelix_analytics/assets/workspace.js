@@ -131,6 +131,10 @@
   function show() {
     const id = anchor();
     const target = id ? document.getElementById(id) : null;
+    // What the address names inside a closed fold is shown: a Report's older version (#19), a row of
+    // a folded list. The fold itself may be the target.
+    for (let fold = target && target.closest && target.closest("details:not([open])"); fold;
+      fold = fold.parentElement && fold.parentElement.closest ? fold.parentElement.closest("details:not([open])") : null) fold.open = true;
     const retiredCard = target && target.closest(".chart-card.is-retired");
     if (retired && retiredCard) { retired.checked = true; doc.classList.add("show-retired"); }
     const tab = (target && target.closest("section.tab")) || document.getElementById(state && state.tab) || tabs[0];
@@ -217,8 +221,8 @@
     requestAnimationFrame(() => {
       const target = state && state.card ? document.getElementById(state.card) : document.getElementById(anchor());
       if (state && state.card && !target) warn("notice.state_card_gone");
-      // A row inside a closed fold (Recent activity, the map's smaller flows) is shown before the page
-      // measures and focuses it (#98).
+      // A card a return goes to, inside closed folds (Recent activity, the map's smaller flows), is shown
+      // before the page measures and focuses it (#98); show() opened the address's own target.
       for (let fold = target && target.closest && target.closest("details:not([open])"); fold;
         fold = fold.parentElement && fold.parentElement.closest ? fold.parentElement.closest("details:not([open])") : null) fold.open = true;
       if (state && state.card) {
@@ -244,15 +248,16 @@
   // list the reader came from, or the page a reader opened directly and left (codec.next keeps a
   // page with no origin of its own as the origin).
   const LIST_BACK = { timeline: "back.tab.timeline", insights: "back.tab.insights", charts: "back.tab.charts",
-    runs: "back.tab.runs", data: "back.tab.data", feedback: "back.list.feedback", open: "back.list.open" };
+    runs: "back.tab.runs", data: "back.tab.data", feedback: "back.list.feedback", open: "back.list.open",
+    reports: "back.tab.reports" };
   const PAGE_BACK = { runs: "back.page.run", data: "back.page.data", relations: "back.page.relations",
-    scripts: "back.page.script" };
+    scripts: "back.page.script", reports: "back.page.report" };
   function backKey(origin) {
     if (origin.page === "index.html") return "back.tab." + (origin.tab || "overview");
     if (origin.page === "context.html") return "back.page.context";
     const list = /^lists\/(kind-.+|[a-z]+)-\d+\.html$/.exec(origin.page);
     if (list) return list[1].indexOf("kind-") === 0 ? "back.list.kind" : LIST_BACK[list[1]] || null;
-    const detail = /^(runs|data|relations|scripts)\//.exec(origin.page);
+    const detail = /^(runs|data|relations|scripts|reports)\//.exec(origin.page);
     return detail ? PAGE_BACK[detail[1]] : null;
   }
   // The words of a way back: its origin's, else the page's own (`data-back`). Both are the kit's
@@ -312,7 +317,7 @@
       a.href = url.href; return;
     }
     if (a.hasAttribute("data-return")) return;
-    const card = a.closest(".chart-card[id],li.ev[id],article.panel[id],li[id],tr[id]");
+    const card = a.closest(".chart-card[id],li.ev[id],article.panel[id],li[id],tr[id],details[id]");
     save(false, card);
     if (dest === page && url.hash !== location.hash) return; // native fragment/back behavior
     const next = codec.next(state, dest, identity(url.hash.slice(1)));

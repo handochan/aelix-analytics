@@ -191,10 +191,11 @@ def test_tabs_say_how_many_items_their_sections_list(tmp_path):
     site = workspace.Site(p)
     assert counted == {"insights": str(sum(1 for e in site.events if e.get("kind") in core.KEY_KINDS)),
                        "charts": "2", "timeline": str(len(site.events)), "data": str(len(site.datasets)),
-                       "runs": "4", "evaluation": str(len(site.lists.feedback))}
+                       "runs": "4", "evaluation": str(len(site.lists.feedback)), "reports": str(len(site.reports.order))}
     # The map's tab follows the Visualizations', and the Overview folds what it does not lead with.
     order = re.findall(r'<section id="(\w+)" class="tab"', index)
-    assert order[:4] == ["overview", "insights", "charts", "map"]
+    # Reports beside Insights (#19 PR3; TERMINOLOGY's order: Overview, Insights, Reports, Visualizations).
+    assert order[:5] == ["overview", "insights", "reports", "charts", "map"]
     folds = re.findall(r'<details class="fold"( open)?><summary><h2>(.*?)</h2>', index)
     assert [(bool(opened), re.sub("<[^>]+>", "", words)) for opened, words in folds] == [
         (True, "Recent visualizations"), (False, "Recent activity"), (False, "Record coverage and workflow feedback")]

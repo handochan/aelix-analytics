@@ -497,6 +497,16 @@ section[tabindex="-1"]:focus { outline: none; }
 /* Version histories (design 5.1, mockups 6-B, 6-C, 9-A–9-D): 'Version n of N', a time strip that is a picture
    only (the list after it says the same), the reasons as badges, groups folded, the uses of each version. */
 .vh-showing { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.5rem; margin: 0.625rem 0; color: var(--ink-2); }
+/* Reports (#19 PR3): a version a section of its own, its parts each under a heading; what people
+   wrote in a scope or a generation note as written, wrapped. */
+.report-version { margin: 1rem 0; padding: 0.5rem 0.875rem; border: 1px solid var(--border); border-radius: 8px; background: var(--card); }
+.report-version > details > summary { cursor: pointer; display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.5rem; min-height: 2.75rem; }
+.report-version > details > summary h2 { display: inline; margin: 0; font-size: 1.0625rem; }
+.report-part h3 { margin: 1rem 0 0.375rem; font-size: 0.9375rem; }
+pre.report-json { margin: 0; padding: 0.375rem 0.5rem; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--surface); border-radius: 6px; font-size: 0.8125rem; }
+.report-reasons li { color: var(--ink-2); }
+.report-members > summary { cursor: pointer; min-height: 2.75rem; display: flex; align-items: center; }
+@media (max-width: 40em) { dl.report-facts { grid-template-columns: minmax(0, 1fr); } dl.report-facts dd { margin-bottom: 0.375rem; } }
 .badge.tone-viz { border-color: color-mix(in srgb, var(--k-viz) 45%, transparent); color: var(--ink); }
 .vh { margin-top: 1rem; }
 .vh-fold > summary { cursor: pointer; }

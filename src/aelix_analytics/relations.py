@@ -1408,6 +1408,7 @@ class ReadModel:
         self._prepared_unavailable: list[tuple[str, str]] = []
         self._saved: dict[tuple, tuple[str, dict]] = {}
         self._unsupported_reports: set[tuple[str, str]] = set()
+        self._report_history: dict[str, dict] | None = None
         for directory, staging in _report_dirs(root):
             location = f"{directory}/manifest.json"
             value, problem = _load(root / location) if _report_plain(root, root / location) else (None, "absent_or_link")
@@ -1630,6 +1631,10 @@ class ReadModel:
 
     def _report_completions(self) -> list[tuple[str, str]]:
         """Only unique, bound completion events whose manifest digest and request agree."""
+        return [key for key, _event in self._report_completion_events()]
+
+    def _report_completion_events(self) -> list[tuple[tuple[str, str], Event]]:
+        """`_report_completions` with each revision's completion event, in journal order."""
         out, counts = [], {}
         for event in self.journal.in_order():
             if event.kind == "report_revision" and event.schema == EVENT_V2:
@@ -1655,8 +1660,8 @@ class ReadModel:
                         or "previous_revision" not in event.value["details"]
                         or event.value["details"]["previous_revision"] != manifest["previous_revision"]):
                     continue
-                out.append(key)
-        return [key for key in out if counts[key] == 1]
+                out.append((key, event))
+        return [(key, event) for key, event in out if counts[key] == 1]
 
     def report_revisions(self, *, verify_content=True) -> list[dict]:
         """Every saved and prepared Report revision (ADR-0006 7): its recording status, whether its
@@ -1686,6 +1691,80 @@ class ReadModel:
                            if not problem and "collection" in manifest else {}),
                         **({"problem": problem} if problem else {})})
         return out
+
+    def report_histories(self) -> dict[str, dict]:
+        """Each Report's history, as the Workspace's Reports tab and pages show it (#19 PR3): by
+        `report_id`, its `versions` — numbered 1..N in the order of their completion events (ADR-0013
+        2: Version n of N; a withdrawal, a restoration or a re-render changes neither number nor
+        address), oldest first, each with its manifest, its metadata (`report_metadata`), its
+        completion event (`event`, `seq`, `recorded_at`), its replayed state (`current` or
+        `withdrawn`), whether its files are the bytes its manifest names (`content`) and any
+        `problem` — a version whose manifest is no longer the one its completion bound
+        (`completion_mismatch`), cannot be read (`manifest_unavailable`) or is of a schema this kit
+        does not read (`unsupported_manifest`) keeps its number and says so — and its `attempts`: the
+        revisions with no completion event (`prepared`, `incomplete`), as report_revisions gives
+        them. Kept: one read, every page asks."""
+        if self._report_history is not None:
+            return self._report_history
+        replay = self.journal.replay()
+        rows = {(row["report_id"], row["revision_id"]): row for row in self.report_revisions()}
+        bound = dict(self._report_completion_events())
+        claimed, counts = [], {}
+        for event in self.journal.in_order():
+            if event.kind != "report_revision" or event.schema != EVENT_V2:
+                continue
+            refs = [r for r in _dicts(event.refs) if r.get("type") == "report_revision" and r.get("relation") == "about"]
+            if len(refs) != 1 or not report_name(refs[0].get("report_id")) or not isinstance(refs[0].get("revision_id"), str):
+                continue
+            key = (refs[0]["report_id"], refs[0]["revision_id"])
+            counts[key] = counts.get(key, 0) + 1
+            claimed.append((key, event))
+        out: dict[str, dict] = {}
+        for (rid, rev), event in claimed:
+            if counts[(rid, rev)] != 1:
+                continue  # claimed twice: no version of either (report_revisions keeps it incomplete)
+            directory, manifest = self._saved.get((rid, rev), (None, None))
+            problem = (None if (rid, rev) in bound else "completion_mismatch" if manifest is not None
+                       else "unsupported_manifest" if (rid, rev) in self._unsupported_reports else "manifest_unavailable")
+            row = rows.get((rid, rev), {})
+            state = replay.state_of(report_key(rid, rev)) or {}
+            history = out.setdefault(rid, {"report_id": rid, "versions": [], "attempts": []})
+            history["versions"].append({
+                "number": len(history["versions"]) + 1, "report_id": rid, "revision_id": rev,
+                "directory": directory, "manifest": manifest or {}, "metadata": report_metadata(manifest) if manifest else {},
+                "event": event.id, "seq": event.seq, "recorded_at": event.recorded_at,
+                "state": state.get("state") or "current",
+                "content": row.get("content", "not_checked") if problem is None else "not_checked",
+                "problem": problem or row.get("problem"),
+                "collection_counts": row.get("collection_counts") if problem is None else None})
+        versions = {(v["report_id"], v["revision_id"]) for h in out.values() for v in h["versions"]}
+        for key, row in rows.items():
+            # An attempt whose manifest names no portable Report identity is a damaged file
+            # (report_revisions' problem), not an attempt at a Report a page can name.
+            if (row["recording_status"] != "complete" and key not in versions and report_name(row["report_id"])
+                    and isinstance(row["revision_id"], str)):
+                out.setdefault(row["report_id"], {"report_id": row["report_id"], "versions": [], "attempts": []})[
+                    "attempts"].append(row)
+        self._report_history = out
+        return out
+
+    def report_citations(self, report_id: str, revision_id: str) -> list[str]:
+        """The records citing a Report version (#19 PR3), by source, as a version's uses are counted
+        (#99, `_citations`): what the kit recorded of it (its completion, `about`) cites nothing, nor
+        does what changes its state (`updates`: a withdrawal or a restoration; TRAIL_SKIPPED) or a
+        collection's member relation (structural, `includes`)."""
+        target = report_key(report_id, revision_id)
+        out: dict[str, None] = {}
+        for judged in self.reference_neighborhood(target, "incoming"):
+            relation = judged.get("relation")
+            if judged.get("structural") or relation in TRAIL_SKIPPED or relation == "includes":
+                continue
+            event = self.journal.event_of(judged["from"])
+            kit = event is not None and event.kind == "report_revision"  # the version's own completion
+            if relation == "about" and (judged.get("basis") == "observed" or kit or self._kit_completion(judged["from"])):
+                continue
+            out[judged["from"]] = None
+        return list(out)
 
     def _metadata_binding(self, directory, manifest):
         """Read only the small kit sidecar, never the authored body for a metadata query."""

@@ -59,7 +59,17 @@ class RelationPages:
             return s.run_link(run["id"], depth, "#chart-" + core_href(str(v["id"])))
         if identity in self.context:
             return f"{s.root(depth)}context.html#v-{core_href(self.context[identity].stem)}"
+        report = self.report(identity)
+        if report:
+            return s.reports.link(report[0], depth, report[1])
         return None
+
+    def report(self, identity: str) -> tuple[str, str] | None:
+        """(report_id, revision_id) of a Report version's identity the Workspace has a page for."""
+        if not identity.startswith("report:"):
+            return None
+        rid, _, rev = identity[len("report:"):].partition("/")
+        return (rid, rev) if self.site.reports.has(rid, rev) else None
 
     def what(self, identity: str) -> str:
         """The kit's words for what an identity is: a record's kind, a run, a visualization, data, a
@@ -75,6 +85,8 @@ class RelationPages:
             return t("relations.what.context")
         if identity in s.view_by_path:
             return t("relations.what.data")
+        if self.report(identity):
+            return t("relations.what.report")
         return t("relations.what.name")
 
     def title(self, identity: str) -> str:
@@ -89,6 +101,9 @@ class RelationPages:
             return s.user_text(self.visualizations[identity][1].get("title") or identity)
         if identity in s.view_by_path:
             return s.user_text(s.dataset_name(identity) or identity)
+        report = self.report(identity)
+        if report:
+            return s.user_text(s.reports.title(*report))
         return s.user_text(identity)
 
     def label(self, identity: str) -> str:
@@ -143,7 +158,8 @@ class RelationPages:
         actions = []
         if content:
             kind = ("record" if other in self.events else "run" if other.startswith("run:")
-                    else "chart" if other in self.visualizations else "context" if other in self.context else "")
+                    else "chart" if other in self.visualizations else "context" if other in self.context
+                    else "report" if self.report(other) else "")
             actions.append(f'<a class="primary" href="{esc(content)}">'
                            f'{t("relations.open." + kind) if kind else t("relations.open_exact")}</a>')
         if other:
@@ -206,6 +222,8 @@ class RelationPages:
             link = f"{s.root(1)}{s.history.directory}/{s.history.page_name(script)}" if script else None
         elif identity in s.view_by_path:
             link = f"{s.data_link(identity, 1)}#version-history"
+        elif self.report(identity):
+            link = s.reports.link(self.report(identity)[0], 1) + "#report-history"
         else:
             # A path with versions and no dataset page (its file is gone): how many, as its history counts them.
             path = "/" in identity and not identity.startswith(("report:", "context:"))
