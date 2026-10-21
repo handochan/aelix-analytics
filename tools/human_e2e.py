@@ -55,9 +55,11 @@ What each gate step needs (docs/BETA-QUALITY-GATES.md, Q17):
   tools/model_eval_data/models: aelix 0.1.0b2 with the same wheel (`uv tool install`), a new agent
   directory with the model's models.json, a new HOME, a copy of the project (without .venv,
   workspace/ and the cache), its snapshot, and OUT/agents/<model>/start.sh, which starts aelix in the
-  copy (start-print.sh: without a terminal, the project chosen by AELIX_ANALYTICS_PROJECT); it refuses
-  an OUT under agent instructions (AGENTS.md, CLAUDE.md) or a git repository, which aelix would read: through tools/model_eval_aelix.py with the caller's own aelix login for a model that uses one
-  (the login is opened in place, never copied or linked), else aelix itself.
+  copy through tools/model_eval_aelix.py with the caller's own aelix login for a model that uses one
+  (the login is opened in place, never copied or linked), else aelix itself; start-print.sh does the
+  same without a terminal, the project chosen by AELIX_ANALYTICS_PROJECT. It refuses an OUT under an
+  AGENTS.md (aelix reads it from every ancestor as the session's instructions), a CLAUDE.md (other
+  hosts' instructions) or a git repository.
 - **agent-usage**: the tokens of an aelix session directory by tools/model_eval.py's conventions, the
   requests and the tools called; nothing of the messages' text.
 
@@ -109,8 +111,9 @@ MODEL_HOMES = (".aelix", ".codex", ".claude", ".ollama", ".gemini", ".config/ope
                "Library/Application Support/LM Studio", "Library/Application Support/Jan")
 NOT_COVERED = ("a model the analysis code loads itself from a file outside the denied stores (no "
                "connection or listed program to deny)", "a model client that is not on the caller's PATH "
-               "when prepare runs", "what a process left running with its working directory outside OUT "
-               "tries after the check")
+               "when prepare runs, or a copy of one (execution is denied by path)",
+               "what a process the session started tries after the check, when it left the terminal's "
+               "session (setsid) before a poll saw it and so was neither waited for nor stopped")
 RESOLVER = "/private/var/run/mDNSResponder"
 CREDENTIAL = re.compile(r"TOKEN|KEY|SECRET|PASSWORD|CREDENTIAL|COOKIE", re.I)
 DENIAL = re.compile(r"Sandbox: (?P<process>.+?)\((?P<pid>\d+)\) deny\(\d+\) (?P<operation>\S+)\s*(?P<target>[^\n]*)")
@@ -218,7 +221,7 @@ def sbpl_string(text: str) -> str:
 
 
 def sandbox_profile(tag: str, execs: list[str], reads: list[str]) -> str:
-    lines = ["(version 1)", "(allow default)",
+    lines = ["(version 1)", "(allow default)", f"(deny {PROFILE_MARK})",
              f"(deny network-outbound (remote ip) (with message {sbpl_string(tag)}))",
              f"(deny network-outbound (remote unix-socket) (with message {sbpl_string(tag)}))",
              f"(deny network-outbound (literal {sbpl_string(RESOLVER)}) (with message {sbpl_string(tag)}))"]
@@ -353,9 +356,24 @@ def read_denials(start: datetime, end: datetime, tags: list[str]) -> dict:
     return {"command": shlex.join(argv), "returncode": done.returncode, "found": found}
 
 
+PROFILE_MARK = "system-kext-load"  # denied by every session profile, used by no session: its mark
+
+
+def in_profile(pid: int) -> bool:
+    """Whether pid runs under a profile denying PROFILE_MARK (macOS sandbox_check). Only the sessions'
+    profiles do among this terminal's processes; elsewhere (and off macOS) nothing is."""
+    if sys.platform != "darwin":
+        return False
+    import ctypes
+    check = ctypes.CDLL("/usr/lib/libSystem.dylib").sandbox_check
+    check.restype, check.argtypes = ctypes.c_int, [ctypes.c_int, ctypes.c_char_p, ctypes.c_int]
+    return check(pid, PROFILE_MARK.encode(), 0) == 1
+
+
 def process_table() -> dict[int, tuple[int, str, str]]:
-    """pid -> (parent pid, start time, command) of every process (ps)."""
-    done = run(["ps", "-A", "-o", "pid=,ppid=,lstart=,command="], check=False)
+    """pid -> (parent pid, start time, command) of every process (ps, in the C locale: lstart is five
+    words there, and seven in Korean)."""
+    done = run(["ps", "-A", "-o", "pid=,ppid=,lstart=,command="], env={**os.environ, "LC_ALL": "C"}, check=False)
     table = {}
     for line in done.stdout.splitlines():
         parts = line.split(None, 7)
@@ -371,10 +389,9 @@ class Descendants:
 
     def __init__(self, root: int, interval: float = 0.5):
         self.root, self.interval, self.seen = root, interval, {}
-        # A job the shell disowned just before it ended may not be seen as its descendant: it is still
-        # in this terminal's session, an orphan started after the session began.
-        self.sid, self.since = os.getsid(0), datetime.now().replace(microsecond=0)
-        self.mine = {os.getpid(), os.getppid()}
+        # A job the shell disowned just before it ended may never be seen as its descendant: it is still
+        # in this terminal's session and inside the session's sandbox profile (in_profile).
+        self.sid, self.mine = os.getsid(0), {os.getpid(), os.getppid()}
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._run, daemon=True)
 
@@ -405,12 +422,13 @@ class Descendants:
         self._thread.join()
 
     def orphans(self, table: dict) -> dict[int, tuple[str, str]]:
+        """This terminal session's processes inside the profile (no other process of the session is)."""
         found = {}
-        for pid, (ppid, start, command) in table.items():
-            if ppid != 1 or pid in self.mine:
+        for pid, (_, start, command) in table.items():
+            if pid in self.mine:
                 continue
-            with contextlib.suppress(OSError, ValueError):
-                if os.getsid(pid) == self.sid and datetime.strptime(start, "%a %b %d %H:%M:%S %Y") >= self.since:
+            with contextlib.suppress(OSError):
+                if os.getsid(pid) == self.sid and in_profile(pid):
                     found[pid] = (start, command)
         return found
 
@@ -895,6 +913,21 @@ def context_above(path: Path) -> list[str]:
     return found
 
 
+def write_start_scripts(base: Path, copy: Path, env: dict, command: list[str]) -> None:
+    """start.sh (a terminal) and start-print.sh (none: the project chosen by AELIX_ANALYTICS_PROJECT,
+    an explicit choice as the person's /analytics use would be; the request given with -p)."""
+    exports = " ".join(shlex.quote(f"{k}={v}") for k, v in env.items())
+    for name, extra, note in (("start.sh", "", "start aelix in the project's copy"),
+                              ("start-print.sh", shlex.quote(f"AELIX_ANALYTICS_PROJECT={copy}") + " ",
+                               'without a terminal: start-print.sh --mode json -p "$(cat REQUEST)" > events.jsonl')):
+        (base / name).write_text(
+            f"#!/bin/sh\n# Q17-b, {note} (tools/human_e2e.py agent-env)\n"
+            f"cd {shlex.quote(str(copy))} || exit 1\n"
+            f"exec /usr/bin/env -i {extra}{exports} TERM=\"${{TERM:-xterm-256color}}\" {shlex.join(command)} \"$@\"\n",
+            encoding="utf-8")
+        (base / name).chmod(0o755)
+
+
 def agent_env(out: Path, model_id: str, project: Path) -> dict:
     record = read_json(out / "prepare.json")
     above = context_above(out.resolve())
@@ -943,21 +976,7 @@ def agent_env(out: Path, model_id: str, project: Path) -> dict:
     else:
         head = [str(dirs["bin"] / "aelix")]
     command = [*head, *aelix_args]
-    exports = " ".join(shlex.quote(f"{k}={v}") for k, v in env.items())
-    (base / "start.sh").write_text(
-        "#!/bin/sh\n# Q17-b: start aelix in the project's copy (tools/human_e2e.py agent-env)\n"
-        f"cd {shlex.quote(str(copy))} || exit 1\n"
-        f"exec /usr/bin/env -i {exports} TERM=\"${{TERM:-xterm-256color}}\" {shlex.join(command)} \"$@\"\n",
-        encoding="utf-8")
-    (base / "start.sh").chmod(0o755)
-    # Without a terminal: the project chosen by AELIX_ANALYTICS_PROJECT (an explicit choice, as the
-    # person's /analytics use would be), the request given with -p, aelix's JSON events on stdout.
-    (base / "start-print.sh").write_text(
-        "#!/bin/sh\n# Q17-b without a terminal: start-print.sh --mode json -p \"$(cat REQUEST)\" > events.jsonl\n"
-        f"cd {shlex.quote(str(copy))} || exit 1\n"
-        f"exec /usr/bin/env -i {shlex.quote(f'AELIX_ANALYTICS_PROJECT={copy}')} {exports} TERM=\"${{TERM:-xterm-256color}}\" "
-        f"{shlex.join(command)} \"$@\"\n", encoding="utf-8")
-    (base / "start-print.sh").chmod(0o755)
+    write_start_scripts(base, copy, env, command)
     listed = run([*head, "--offline", "--list-models",
                   f"{model['provider']} {model['model']}"], env=env, cwd=dirs["agent"], check=False)
     result = {"schema": "aelix-analytics.q17-agent-env/1", "prepared_at": now(), "model": model_id,

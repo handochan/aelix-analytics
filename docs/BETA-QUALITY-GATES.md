@@ -379,7 +379,7 @@ PR에는 문제를 재현하는 입력, 변경 후 행동, 바뀐 계약, 비교
 | Gate | 결과(pass/fail/not run) | commit·artifact | 환경·모델 | 수행자 | 증거 경로 | 제한·후속 작업 |
 |---|---|---|---|---|---|---|
 | Q1–Q16 각각 | 미실행 | 미정 | 미정 | 미정 | 미정 | 구현·검증 필요 |
-| Q17-a 기능 | pass | kit 0.25.0 wheel `660beb63…` | macOS 26.6.2, sandbox, 모델 없음 | 에이전트(2026-10-21 소유자 결정으로 갈음) | [2026-10-22-issue-23-q17](verification/2026-10-22-issue-23-q17.md) | 측정 범위의 `not_covered` |
+| Q17-a 기능 | pass(Workspace 이동 미측정) | kit 0.25.0 wheel `660beb63…` | macOS 26.6.2, sandbox, 모델 없음 | 에이전트(2026-10-21 소유자 결정으로 갈음) | [2026-10-22-issue-23-q17](verification/2026-10-22-issue-23-q17.md) | 측정 범위의 `not_covered` |
 | Q17-a 사람의 사용성 | not_run | — | — | — | 같음 | 소유자 결정으로 갈음(#39를 좁힘) |
 | Q17-b | pass | 같음, aelix 0.1.0b2 | gpt-6.1-sol, Qwen3.8 27B(OpenRouter) | 에이전트 세션 + 소유자 검토 | 같음 | 세션은 터미널 없이 에이전트가 띄움. OpenRouter 서빙 미고정 |
 
