@@ -872,8 +872,10 @@ def imported_note(site) -> str:
     return t("data.imported_note.imported")
 
 
-def fingerprint(project: core.Project) -> str:
-    parts = []
+def fingerprint(project: core.Project, report_renderer: str | None = None) -> str:
+    """What the pages are made from: the records' files, the kit, its words, and the `cache_key` of
+    the ReportRenderer the Reports' bodies are made with (#19 PR3)."""
+    parts = [["report_renderer", report_renderer]]
     for path in (*project.markers, project.context, project.journal, project.telemetry,
                  project.queries):
         with contextlib.suppress(OSError):
@@ -930,9 +932,13 @@ def default_report_renderer():
 
 def _build_locked(project: core.Project, if_changed: bool, report_renderer=None) -> dict:
     stamp_file = project.cache / "report-fingerprint"
-    current = fingerprint(project)
+    # A renderer with no cache_key (workspace_reports.renderer_key) names no output to keep: a build
+    # with it is never skipped.
+    key = getattr(report_renderer, "cache_key", None)
+    key = key if isinstance(key, str) and key else None
+    current = fingerprint(project, key)
     index = project.workspace_dir / "index.html"
-    if if_changed and index.is_file():
+    if if_changed and index.is_file() and key is not None:
         with contextlib.suppress(OSError):
             if stamp_file.read_text(encoding="utf-8").strip() == current:
                 return {"path": str(index), "skipped": True}

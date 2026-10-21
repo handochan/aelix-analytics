@@ -390,7 +390,7 @@ kit 0.8.0), 사람용 `analytics`(`launcher`)와 `bin/analytics`는 그것을 �
 | `workspace.py` → `workspace_versions.py` | `workspace.Site.__init__` | 같은 read로 페이지들이 보이는 버전 이력을 구성한다(#99). helper는 Site를 받아 역방향 import 없이 표시한다 | build coordinator가 이 보기를 주입하면 |
 | `workspace.py` → `workspace_provenance.py` | `workspace.Site.__init__` | 같은 read로 관계 페이지가 보이는 출처 경로를 구성한다(#100). helper는 Site를 받아 역방향 import 없이 표시한다 | build coordinator가 이 보기를 주입하면 |
 | `workspace.py` → `workspace_reports.py` | `workspace.Site.__init__` | 같은 read로 Reports 탭과 Report 페이지를 구성한다(#19 PR3). helper는 Site를 받아 역방향 import 없이 표시한다 | build coordinator가 이 보기를 주입하면 |
-| `workspace.py` → `report_renderers.py` | `workspace.default_report_renderer` | 진입점이 ReportRenderer를 주지 않은 빌드(run의 끝 `runner._finalize`, 데모)는 kit의 `StaticReportRenderer`를 쓴다(ADR-0013 §7) | `workspace.build`를 부르는 곳이 모두 renderer를 주입하는 진입점이 되면(`runner.py` → `workspace.py`, `demo.py` → `workspace.py`와 같은 조건) |
+| `workspace.py` → `report_renderers.py` | `workspace.default_report_renderer` | ReportRenderer를 주지 않은 빌드는 kit의 `StaticReportRenderer`를 쓴다(ADR-0013 §7). 지금은 부르는 곳(kit CLI, run의 끝 `runner._finalize`, 데모)이 모두 그렇고 시험만 주입한다 | `workspace.build`를 부르는 곳이 모두 renderer를 주입하는 진입점이 되면(`runner.py` → `workspace.py`, `demo.py` → `workspace.py`와 같은 조건) |
 | `runner.py` → `workspace.py` | `runner._finalize` | run이 끝나면 Workspace를 다시 빌드해 결과에 싣는다 | Workspace 갱신을 진입점이나 공통 쓰기 경로의 후속 처리(§7)가 부르게 되면 |
 | `workspace.py` → `runner.py` | `workspace.fingerprint` | Workspace 지문에 kit의 해시 `runner.kit_sha()`가 들어간다 | `kit_sha`가 둘 다 import해도 되는 계층(`core` 등)으로 옮겨지면 |
 | `workspace.py` → `data.py` | `workspace.dataset_page`, `workspace.Site.frame_preview` | dataset 페이지가 데이터 어댑터로 프로필을 만들고 셀을 서식화한다 | Workspace가 프로필·셀 서식을 읽기 모델이나 진입점이 넘긴 값으로 받게 되면 |

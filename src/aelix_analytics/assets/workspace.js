@@ -131,6 +131,10 @@
   function show() {
     const id = anchor();
     const target = id ? document.getElementById(id) : null;
+    // What the address names inside a closed fold is shown: a Report's older version (#19), a row of
+    // a folded list. The fold itself may be the target.
+    for (let fold = target && target.closest && target.closest("details:not([open])"); fold;
+      fold = fold.parentElement && fold.parentElement.closest ? fold.parentElement.closest("details:not([open])") : null) fold.open = true;
     const retiredCard = target && target.closest(".chart-card.is-retired");
     if (retired && retiredCard) { retired.checked = true; doc.classList.add("show-retired"); }
     const tab = (target && target.closest("section.tab")) || document.getElementById(state && state.tab) || tabs[0];
@@ -217,8 +221,8 @@
     requestAnimationFrame(() => {
       const target = state && state.card ? document.getElementById(state.card) : document.getElementById(anchor());
       if (state && state.card && !target) warn("notice.state_card_gone");
-      // A row inside a closed fold (Recent activity, the map's smaller flows) is shown before the page
-      // measures and focuses it (#98).
+      // A card a return goes to, inside closed folds (Recent activity, the map's smaller flows), is shown
+      // before the page measures and focuses it (#98); show() opened the address's own target.
       for (let fold = target && target.closest && target.closest("details:not([open])"); fold;
         fold = fold.parentElement && fold.parentElement.closest ? fold.parentElement.closest("details:not([open])") : null) fold.open = true;
       if (state && state.card) {
@@ -313,7 +317,7 @@
       a.href = url.href; return;
     }
     if (a.hasAttribute("data-return")) return;
-    const card = a.closest(".chart-card[id],li.ev[id],article.panel[id],li[id],tr[id]");
+    const card = a.closest(".chart-card[id],li.ev[id],article.panel[id],li[id],tr[id],details[id]");
     save(false, card);
     if (dest === page && url.hash !== location.hash) return; // native fragment/back behavior
     const next = codec.next(state, dest, identity(url.hash.slice(1)));

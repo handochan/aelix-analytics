@@ -1694,31 +1694,55 @@ class ReadModel:
 
     def report_histories(self) -> dict[str, dict]:
         """Each Report's history, as the Workspace's Reports tab and pages show it (#19 PR3): by
-        `report_id`, its `versions` — the revisions with a valid completion event, numbered 1..N in
-        completion order (ADR-0013 2: Version n of N; a withdrawal, a restoration or a re-render
-        changes neither number nor address), oldest first, each with its manifest, its metadata
-        (`report_metadata`), its completion event (`event`, `seq`, `recorded_at`), its replayed state
-        (`current` or `withdrawn`), whether its files are the bytes its manifest names (`content`) and
-        any `problem` — and its `attempts`: the revisions that are no version (`prepared`,
-        `incomplete`), as report_revisions gives them. Kept: one read, every page asks."""
+        `report_id`, its `versions` — numbered 1..N in the order of their completion events (ADR-0013
+        2: Version n of N; a withdrawal, a restoration or a re-render changes neither number nor
+        address), oldest first, each with its manifest, its metadata (`report_metadata`), its
+        completion event (`event`, `seq`, `recorded_at`), its replayed state (`current` or
+        `withdrawn`), whether its files are the bytes its manifest names (`content`) and any
+        `problem` — a version whose manifest is no longer the one its completion bound
+        (`completion_mismatch`), cannot be read (`manifest_unavailable`) or is of a schema this kit
+        does not read (`unsupported_manifest`) keeps its number and says so — and its `attempts`: the
+        revisions with no completion event (`prepared`, `incomplete`), as report_revisions gives
+        them. Kept: one read, every page asks."""
         if self._report_history is not None:
             return self._report_history
         replay = self.journal.replay()
         rows = {(row["report_id"], row["revision_id"]): row for row in self.report_revisions()}
+        bound = dict(self._report_completion_events())
+        claimed, counts = [], {}
+        for event in self.journal.in_order():
+            if event.kind != "report_revision" or event.schema != EVENT_V2:
+                continue
+            refs = [r for r in _dicts(event.refs) if r.get("type") == "report_revision" and r.get("relation") == "about"]
+            if len(refs) != 1 or not report_name(refs[0].get("report_id")) or not isinstance(refs[0].get("revision_id"), str):
+                continue
+            key = (refs[0]["report_id"], refs[0]["revision_id"])
+            counts[key] = counts.get(key, 0) + 1
+            claimed.append((key, event))
         out: dict[str, dict] = {}
-        for (rid, rev), event in self._report_completion_events():
-            directory, manifest = self._saved[(rid, rev)]
-            history = out.setdefault(rid, {"report_id": rid, "versions": [], "attempts": []})
+        for (rid, rev), event in claimed:
+            if counts[(rid, rev)] != 1:
+                continue  # claimed twice: no version of either (report_revisions keeps it incomplete)
+            directory, manifest = self._saved.get((rid, rev), (None, None))
+            problem = (None if (rid, rev) in bound else "completion_mismatch" if manifest is not None
+                       else "unsupported_manifest" if (rid, rev) in self._unsupported_reports else "manifest_unavailable")
             row = rows.get((rid, rev), {})
             state = replay.state_of(report_key(rid, rev)) or {}
+            history = out.setdefault(rid, {"report_id": rid, "versions": [], "attempts": []})
             history["versions"].append({
                 "number": len(history["versions"]) + 1, "report_id": rid, "revision_id": rev,
-                "directory": directory, "manifest": manifest, "metadata": report_metadata(manifest),
+                "directory": directory, "manifest": manifest or {}, "metadata": report_metadata(manifest) if manifest else {},
                 "event": event.id, "seq": event.seq, "recorded_at": event.recorded_at,
-                "state": state.get("state") or "current", "content": row.get("content", "not_checked"),
-                "problem": row.get("problem"), "collection_counts": row.get("collection_counts")})
-        for row in rows.values():
-            if row["recording_status"] != "complete":
+                "state": state.get("state") or "current",
+                "content": row.get("content", "not_checked") if problem is None else "not_checked",
+                "problem": problem or row.get("problem"),
+                "collection_counts": row.get("collection_counts") if problem is None else None})
+        versions = {(v["report_id"], v["revision_id"]) for h in out.values() for v in h["versions"]}
+        for key, row in rows.items():
+            # An attempt whose manifest names no portable Report identity is a damaged file
+            # (report_revisions' problem), not an attempt at a Report a page can name.
+            if (row["recording_status"] != "complete" and key not in versions and report_name(row["report_id"])
+                    and isinstance(row["revision_id"], str)):
                 out.setdefault(row["report_id"], {"report_id": row["report_id"], "versions": [], "attempts": []})[
                     "attempts"].append(row)
         self._report_history = out

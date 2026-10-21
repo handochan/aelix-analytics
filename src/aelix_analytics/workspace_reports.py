@@ -42,8 +42,11 @@ STAMP = "view.json"
 # A history this long or shorter shows every version as a row of its own; a longer one folds the
 # versions between the first and the latest into one row (each keeps its section and anchor).
 FOLD_AFTER = 5
-# How many lines a version's comparison with the one before shows.
-DIFF_LINES = 200
+# The problems that leave a version with no manifest to trust (ReadModel.report_histories): no body.
+MANIFEST_PROBLEMS = frozenset({"completion_mismatch", "manifest_unavailable", "unsupported_manifest"})
+# Originals a browser shows as data: any other (HTML, SVG, scripts, unknown) is linked to download,
+# never opened in place (C17: download only).
+INERT = frozenset({".md", ".markdown", ".txt", ".csv", ".tsv", ".json", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".pdf"})
 TEXT_ENTRY = (".md", ".markdown", ".txt")
 # The renderer's reasons for a version it has no body for (CONTRACTS: StaticReportRenderer): no document
 # is written, the page links the originals. Any other reason is said beside a document that is made.
@@ -145,7 +148,9 @@ class Reports:
             tone, mark = CONTENT_TONE.get(version["content"], ("muted", "?"))
             out.append(s.badge(tone, mark, s.words("reports.content", version["content"])))
         if version.get("problem"):
-            out.append(s.badge("warning", "⚠", t("reports.problem")))
+            problem = version["problem"]
+            out.append(s.badge("critical" if problem in MANIFEST_PROBLEMS else "warning", "⚠",
+                               s.words("reports.problem", problem) if problem in MANIFEST_PROBLEMS else t("reports.problem")))
         status = version["metadata"].get("content_status")
         if status:
             out.append(s.badge("muted", "◐" if status == "partial" else "●", s.words("reports.content_status", status)))
@@ -232,7 +237,7 @@ class Reports:
                    f' {" ".join(self.badges(version))}')
         parts = [self.facts_html(version), self.evidence_html(version), self.members_html(version),
                  self.files_html(version), self.compare_html(version, versions), self.cited_html(version)]
-        return (f'<section class="report-version" id="v-{s.esc(self.site.href(rev))}"><details{" open" if latest else ""}>'
+        return (f'<section class="report-version"><details id="v-{s.esc(self.site.href(rev))}"{" open" if latest else ""}>'
                 f'<summary>{summary}</summary>{"".join(p for p in parts if p)}</details></section>')
 
     def facts_html(self, version: dict) -> str:
@@ -251,7 +256,10 @@ class Reports:
             context = basis.get("context_version")
             if isinstance(context, str) and context:
                 stem = PurePosixPath(context).stem
-                said.append(f'<a href="{s.esc(s.root(1))}context.html#v-{s.esc(self.site.href(stem))}">CONTEXT.md</a>')
+                if stem in {v.stem for v in s.versions}:
+                    said.append(f'<a href="{s.esc(s.root(1))}context.html#v-{s.esc(self.site.href(stem))}">CONTEXT.md</a>')
+                else:  # a version the records do not keep: named, not linked
+                    said.append(f'<code{s.user_language}>{s.esc(context)}</code> {t("reports.based_on.context_missing")}')
             refs = basis.get("refs") if isinstance(basis.get("refs"), list) else []
             said.append(t("reports.based_on.refs", n=len(refs)))
             rows.append(("based_on", " · ".join(said)))
@@ -263,7 +271,7 @@ class Reports:
                 rows.append((key, f"<span{s.user_language}>{s.esc(meta[key])}</span>"))
         if meta.get("content_status"):
             rows.append(("content_status", s.words("reports.content_status", meta["content_status"])))
-        rows.append(("author", f"<span{s.user_language}>{s.esc(manifest.get('actor'))}</span>"))
+        rows.append(("author", f"<span{s.user_language}>{s.esc(manifest.get('actor') or '')}</span>"))
         rows.append(("state", t("record.withdrawn") if version["state"] == "withdrawn" else t("reports.state.current")))
         tone, mark = CONTENT_TONE.get(version["content"], ("muted", "?"))
         rows.append(("content", s.badge(tone, mark, s.words("reports.content", version["content"]))))
@@ -306,8 +314,10 @@ class Reports:
                 judged = structural.get(index)
                 mid, mrev = member.get("report_id"), member.get("revision_id")
                 if judged and judged["state"] == "resolved" and self.has(mid, mrev):
+                    now = (" " + s.badge("muted", "⊘", t("record.withdrawn"))
+                           if self.by_revision[(mid, mrev)]["state"] == "withdrawn" else "")
                     target = (f'<a href="{s.esc(self.link(mid, 1, mrev))}"{s.user_language}>{s.esc(self.title(mid, mrev))}</a> '
-                              f'{s.badge("good", "✓", t("ref.resolved"))}')
+                              f'{s.badge("good", "✓", t("ref.resolved"))}{now}')
                 else:
                     target = (f"<code>{s.esc(mid)}@{s.esc(mrev)}</code> "
                               + (s.ref_words(judged["state"], judged.get("reason")) if judged else t("reports.member.unjudged")))
@@ -347,7 +357,8 @@ class Reports:
             path = str(item.get("path"))
             original = s.file_link(f'{version["directory"]}/content/{path}', 1)
             mark = f' <span class="badge tone-muted">{t("reports.file.entry")}</span>' if path == entry else ""
-            rows.append(f'<tr><td><a href="{s.esc(original)}"><code{s.user_language}>{s.esc(path)}</code></a>{mark}</td>'
+            download = "" if PurePosixPath(path).suffix.lower() in INERT else " download"
+            rows.append(f'<tr><td><a href="{s.esc(original)}"{download}><code{s.user_language}>{s.esc(path)}</code></a>{mark}</td>'
                         f'<td class="num">{s.fmt_bytes(item.get("bytes"))}</td><td class="sha">{s.short(item.get("sha256"), 12)}</td></tr>')
         head = "".join(f"<th>{t('reports.file.col.' + c)}</th>" for c in ("path", "size", "sha"))
         return (f'<section class="report-part"><h3>{t("reports.files")}</h3>{opener}{notes}'
@@ -359,8 +370,10 @@ class Reports:
         entry = version["manifest"].get("entry")
         if version["content"] != "resolved" or not isinstance(entry, str) or not entry.lower().endswith(TEXT_ENTRY):
             return None
+        named = next((f for f in self.user_files(version) if f.get("path") == entry), None)
         try:
-            return (self.model.root / version["directory"] / "content" / entry).read_bytes().decode("utf-8").splitlines()
+            data = (self.model.root / version["directory"] / "content" / entry).read_bytes()
+            return data.decode("utf-8").splitlines() if named and _as_saved(data, named) else None
         except (OSError, UnicodeError):
             return None
 
@@ -369,24 +382,21 @@ class Reports:
         lines when both are text, else that they cannot be compared here."""
         if version["number"] == 1:
             return ""
-        s = self.site
         before = versions[version["number"] - 2]
         a, b = self.text_of(before), self.text_of(version)
         heading = f'<h3>{t("reports.compare", n=before["number"])}</h3>'
         if a is None or b is None:
             return f'<section class="report-part">{heading}<p class="muted">{t("reports.compare_no")}</p></section>'
-        lines = [line for line in difflib.unified_diff(a, b, lineterm="", n=1)][2:]
+        lines = [line for line in difflib.unified_diff(a, b, lineterm="", n=0)][2:]
+        lines = [line for line in lines if not line.startswith("@@")]
         if not lines:
             return f'<section class="report-part">{heading}<p class="muted">{t("reports.compare_same")}</p></section>'
         added = sum(1 for line in lines if line.startswith("+"))
         removed = sum(1 for line in lines if line.startswith("-"))
-        shown = lines[:DIFF_LINES]
-        more = len(lines) - len(shown)
-        marks = {"+": "add", "-": "del", "@": "hunk"}
-        body = "\n".join(f'<span class="{marks[line[:1]]}">{s.esc(line)}</span>' if line[:1] in marks else s.esc(line)
-                         for line in shown) + (f"\n{t('list.and_more', n=more)}" if more > 0 else "")
-        return (f'<section class="report-part">{heading}<details><summary>{t("reports.compare_lines", added=added, removed=removed)}'
-                f'</summary><pre class="diff"{s.user_language}>{body}</pre></details></section>')
+        # How many lines, not which: the body's text stays out of the Workspace's pages (owner decision
+        # of 2026-10-21); the two bodies are each a document of its own.
+        return (f'<section class="report-part">{heading}<p>{t("reports.compare_lines", added=added, removed=removed)}</p>'
+                f'<p class="muted">{t("reports.compare_open")}</p></section>')
 
     def cited_by(self, version: dict) -> list[str]:
         """The records citing this exact version (ReadModel.report_citations)."""
@@ -413,60 +423,112 @@ class Reports:
 
     def write_views(self, out: Path) -> int:
         """Each version's body document, from the renderer, in its view folder: written when the
-        version's files are the bytes it names, kept as it is when its folder already holds the view
-        of those bytes by this renderer, and every other folder under reports/ removed. Returns how
-        many documents there are."""
+        version's files are the bytes it names, kept as it is when its folder holds the view of those
+        bytes by a renderer of the same `cache_key` (and its files are as written), and every other
+        folder under reports/ removed. Nothing is written or removed through a link: a link under
+        reports/ is no view folder. Returns how many documents there are."""
         folder_root = out / REPORT_DIR
+        if _linked(folder_root):
+            folder_root.unlink()  # a link where the Workspace keeps its Reports: removed as a link, its target untouched
         folder_root.mkdir(parents=True, exist_ok=True)
         keep: set[str] = set()
-        identity = (f"{type(self.renderer).__module__}.{type(self.renderer).__qualname__}" if self.renderer else None)
+        key = renderer_key(self.renderer)
+        unsafe = _linked(folder_root)
         for (rid, rev), version in self.by_revision.items():
             name = view_folder(rid, rev)
             if self.renderer is None:
                 self.views[(rid, rev)] = {"href": None, "reasons": ["no_renderer"]}
                 continue
+            if version.get("problem") in MANIFEST_PROBLEMS:
+                self.views[(rid, rev)] = {"href": None, "reasons": ["manifest_problem"]}
+                continue
             if version["content"] != "resolved":
                 self.views[(rid, rev)] = {"href": None, "reasons": ["content_not_resolved"]}
                 continue
+            folder = folder_root / name
+            if unsafe or any(_linked(folder_root / part) for part in (name.partition("/")[0], name)):
+                self.views[(rid, rev)] = {"href": None, "reasons": ["view_folder_unsafe"]}
+                continue
             files = self.user_files(version)
             stamp = {"report_id": rid, "revision_id": rev, "entry": version["manifest"].get("entry"),
-                     "files": [[f.get("path"), f.get("sha256")] for f in files], "renderer": identity,
+                     "files": [[f.get("path"), f.get("sha256")] for f in files], "renderer": key,
                      "kit": core.KIT_VERSION}
-            folder = folder_root / name
-            kept = _read_stamp(folder / STAMP)
-            if kept is None or kept.get("stamp") != stamp:
+            kept = _read_stamp(folder / STAMP) if key is not None else None
+            if kept is None or kept.get("stamp") != stamp or not _outputs_kept(folder, kept):
                 kept = self._render(version, files, folder, stamp)
             href = f"{name}/{PREVIEW}" if kept.get("written") else None
             self.views[(rid, rev)] = {"href": href, "reasons": kept.get("reasons") or []}
             if kept.get("written"):
                 keep.add(name)
-        _prune_views(folder_root, keep)
+        if not unsafe:
+            _prune_views(folder_root, keep)
         return len(keep)
 
     def _render(self, version: dict, files: list[dict], folder: Path, stamp: dict) -> dict:
         root = self.model.root / version["directory"] / "content"
         try:
             data = {str(f["path"]): (root / str(f["path"])).read_bytes() for f in files}
+        except (OSError, KeyError):
+            return {"stamp": stamp, "written": False, "reasons": ["content_not_resolved"]}
+        # The bytes handed on are the bytes the manifest names, checked here (not only when the read
+        # judged them): a file changed since then gets no body.
+        if not all(_as_saved(data[str(f["path"])], f) for f in files):
+            return {"stamp": stamp, "written": False, "reasons": ["content_not_resolved"]}
+        try:
             view = self.renderer.render(data, entry=str(version["manifest"].get("entry")),
                                         paths={path: f"{COPIES}/{path}" for path in data})
-        except (OSError, ValueError, KeyError):
-            # Bytes that vanished since the read, or inputs the renderer refuses: no document.
+        except ValueError:
             return {"stamp": stamp, "written": False, "reasons": ["renderer_refused"]}
         kept = {"stamp": stamp, "written": PREVIEW in view.files and not NO_BODY.intersection(view.reasons),
                 "reasons": list(view.reasons)}
-        if folder.exists():
+        if folder.is_symlink():
+            folder.unlink()
+        elif folder.exists():
             shutil.rmtree(folder)
         if not kept["written"]:
             # No body: nothing of it (nor a copy of an authored HTML file) stays in the Workspace.
             return kept
+        outputs = {}
         for path, content in {**view.files, **{f"{COPIES}/{p}": b for p, b in data.items()}}.items():
             target = folder / path
             if not target.resolve().is_relative_to(folder.resolve()):
                 continue  # a path out of its folder is no view file (the renderer checks this too)
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(content)
+            outputs[path] = hashlib.sha256(content).hexdigest()
+        kept["outputs"] = outputs
         core.write_text(folder / STAMP, json.dumps(kept, ensure_ascii=False, sort_keys=True))
         return kept
+
+
+def renderer_key(renderer) -> str | None:
+    """What names a renderer's output for reuse: its `cache_key` (a renderer that changes what it
+    makes changes its key), else None — a renderer with none renders every build."""
+    key = getattr(renderer, "cache_key", None) if renderer is not None else None
+    return key if isinstance(key, str) and key else None
+
+
+def _as_saved(data: bytes, item: dict) -> bool:
+    return (hashlib.sha256(data).hexdigest() == item.get("sha256")
+            and ("bytes" not in item or len(data) == item["bytes"]))
+
+
+def _linked(path: Path) -> bool:
+    """Whether `path` is a symbolic link or a junction (a view folder is never one)."""
+    return path.is_symlink() or bool(getattr(path, "is_junction", lambda: False)())
+
+
+def _outputs_kept(folder: Path, kept: dict) -> bool:
+    """Whether a kept view's files are there as it wrote them."""
+    outputs = kept.get("outputs")
+    if not kept.get("written"):
+        return True
+    if not isinstance(outputs, dict) or not outputs:
+        return False
+    try:
+        return all(hashlib.sha256((folder / path).read_bytes()).hexdigest() == digest for path, digest in outputs.items())
+    except OSError:
+        return False
 
 
 def _read_stamp(path: Path) -> dict | None:
@@ -479,12 +541,19 @@ def _read_stamp(path: Path) -> dict | None:
 
 def _prune_views(root: Path, keep: set[str]) -> None:
     """Remove the view folders no version has now (`<page stem>/<revision>`), and a page stem's
-    folder left empty; the pages (`*.html` beside them) are pruned by the build."""
+    folder left empty; the pages (`*.html` beside them) are pruned by the build. A link under
+    reports/ is removed as a link: nothing it points at is listed or deleted."""
     for stem in root.iterdir() if root.is_dir() else []:
+        if _linked(stem):
+            if not stem.suffix == ".html":
+                stem.unlink()
+            continue
         if not stem.is_dir():
             continue
         for revision in stem.iterdir():
-            if revision.is_dir() and f"{stem.name}/{revision.name}" not in keep:
+            if _linked(revision):
+                revision.unlink()
+            elif revision.is_dir() and f"{stem.name}/{revision.name}" not in keep:
                 shutil.rmtree(revision, ignore_errors=True)
         if not any(stem.iterdir()):
             stem.rmdir()

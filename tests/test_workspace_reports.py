@@ -144,7 +144,8 @@ def test_a_reports_page_shows_its_versions_then_each_versions_facts_before_its_b
     assert "Version 2 of 2" in shown and 'class="vh-strip kind-report"' in page
     assert f'id="v-{second["revision_id"]}"' in page and f'id="v-{first["revision_id"]}"' in page
     latest = section(page, f'v-{second["revision_id"]}')
-    assert "<details open>" in latest
+    # The anchor is the version's fold itself, which the page opens when the address names it.
+    assert f'<details id="v-{second["revision_id"]}" open>' in page
     words = text(latest)
     # When and on what before the body (REPORT-ARTIFACTS 5): the facts come before the files and the body.
     assert words.index("Created at") < words.index("Based on") < words.index("Files ✓") < words.index("Open the report")
@@ -155,7 +156,7 @@ def test_a_reports_page_shows_its_versions_then_each_versions_facts_before_its_b
     assert 'data-state="resolved"' in evidence and f'Finding {reports["finding"]["id"]}' in text(evidence)
     # The older version: withdrawn, folded, its own facts.
     older = section(page, f'v-{first["revision_id"]}')
-    assert "<details>" in older and "Withdrawn" in text(older) and "서울 중심" in text(older)
+    assert f'<details id="v-{first["revision_id"]}">' in page and "Withdrawn" in text(older) and "서울 중심" in text(older)
     assert "This version names no evidence (not linked)." in text(older)
     # Compared with the one before: the text's changed lines.
     assert "Compared with v1" in words and "Changed lines: 1 added" in words
@@ -316,3 +317,159 @@ assert.deepEqual(codec.decode(codec.search(state)).state, state);
 assert.throws(() => codec.decode(codec.search({...state, page:"reports/x/01ABC/preview/report.html"})));
 '''
     subprocess.run([node, "-e", script, str(codec)], check=True, encoding="utf-8")
+
+
+# --- review of 20934ef (Codex R1–R7) ---------------------------------------------------------------
+
+def test_nothing_is_listed_or_removed_through_a_link_under_reports(reports, tmp_path):
+    """R1: a link where a view folder would be is removed as a link; what it points at stays."""
+    p = reports["p"]
+    workspace.build(p)
+    outside = tmp_path / "outside"
+    (outside / "01KEEP").mkdir(parents=True)
+    (outside / "01KEEP" / "canary.txt").write_text("keep", encoding="utf-8")
+    root = p.workspace_dir / "reports"
+    (root / "gone-0123456789").symlink_to(outside, target_is_directory=True)
+    stem = root / workspace_reports.view_folder("weekly", reports["first"]["revision_id"]).split("/")[0]
+    (stem / "01LINKED").symlink_to(outside / "01KEEP", target_is_directory=True)
+    workspace.build(p)
+    assert (outside / "01KEEP" / "canary.txt").read_text(encoding="utf-8") == "keep"
+    assert not (root / "gone-0123456789").exists() and not (stem / "01LINKED").exists()
+
+
+def test_a_view_folder_that_is_a_link_gets_no_body(reports, tmp_path):
+    p, second = reports["p"], reports["second"]
+    workspace.build(p)
+    folder = p.workspace_dir / "reports" / workspace_reports.view_folder("weekly", second["revision_id"])
+    shutil.rmtree(folder)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    folder.symlink_to(elsewhere, target_is_directory=True)
+    workspace.build(p)
+    assert list(elsewhere.iterdir()) == []  # nothing written through it
+    assert "no body is written through it" in text(page_of(p, "weekly"))
+
+
+def test_a_manifest_without_an_identity_does_not_stop_the_build(reports):
+    """R2: an attempt whose manifest names no Report is a damaged file, not a page."""
+    p, first = reports["p"], reports["first"]
+    source = p.root / "artifacts/reports/weekly" / first["revision_id"]
+    broken = source.parent / "01BROKENREVISION0000000000"
+    shutil.copytree(source, broken)
+    manifest = json.loads((broken / "manifest.json").read_text(encoding="utf-8"))
+    del manifest["report_id"]
+    (broken / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    workspace.build(p)
+    assert None not in core.read_model(p, core.HashCache(p)).report_histories()
+    assert (p.workspace_dir / "reports" / workspace_reports.report_page("weekly")).is_file()
+
+
+def test_bytes_changed_after_the_read_judged_them_get_no_body(reports, monkeypatch):
+    """R3: the bytes handed to the renderer are checked against the manifest, not only judged."""
+    p, second = reports["p"], reports["second"]
+    monkeypatch.setattr(relations.ReadModel, "_content", lambda self, directory, manifest: "resolved")
+    (p.root / "artifacts/reports/weekly" / second["revision_id"] / "content" / "요약.md").write_bytes(b"# changed\n")
+    renderer = RecordingReportRenderer()
+    workspace.build(p, report_renderer=renderer)
+    assert all(b"# changed" not in files.get("요약.md", b"") for files, _entry, _paths in renderer.calls)
+    assert not (p.workspace_dir / "reports" / workspace_reports.view_folder("weekly", second["revision_id"])).exists()
+    part = text(section(page_of(p, "weekly"), f'v-{second["revision_id"]}'))
+    assert "Its files are not the bytes it was saved with" in part and "Changed lines" not in part
+
+
+def test_a_kept_view_whose_files_went_is_made_again(reports):
+    """R4: a view is reused only while its files are as it wrote them."""
+    p, second = reports["p"], reports["second"]
+    workspace.build(p)
+    folder = p.workspace_dir / "reports" / workspace_reports.view_folder("weekly", second["revision_id"])
+    (folder / "preview" / "report.html").unlink()
+    (folder / "files" / "첨부.csv").write_bytes(b"edited")
+    workspace.build(p)
+    assert "Content-Security-Policy" in (folder / "preview" / "report.html").read_text(encoding="utf-8")
+    assert (folder / "files" / "첨부.csv").read_bytes().startswith(b"region,sales")
+
+
+def test_a_renderer_without_a_cache_key_renders_every_build_and_is_never_skipped(reports):
+    """R5: reuse needs the renderer's cache_key; the kit's renderer has one, a keyless one renders again."""
+    from aelix_analytics.report_renderers import StaticReportRenderer
+
+    p = reports["p"]
+    assert workspace_reports.renderer_key(StaticReportRenderer()) == StaticReportRenderer.cache_key
+    renderer = RecordingReportRenderer()  # no cache_key
+    workspace.build(p, report_renderer=renderer)
+    first = len(renderer.calls)
+    again = workspace.build(p, if_changed=True, report_renderer=renderer)
+    assert not again.get("skipped") and len(renderer.calls) == 2 * first
+    workspace.build(p)  # the kit's renderer: a fingerprint of its own
+    assert workspace.build(p, if_changed=True).get("skipped")
+
+
+def test_a_context_version_the_records_do_not_keep_is_named_not_linked(reports, tmp_path):
+    """R7: Based on names a CONTEXT.md version only by a link when it is kept."""
+    p = reports["p"]
+    folder = tmp_path / "ctx"
+    folder.mkdir()
+    (folder / "a.md").write_text("# a\n", encoding="utf-8")
+    save(p, "ctx-report", folder, "a.md", "맥락 보고서",
+         based_on={"as_of_seq": 1, "context_version": "missing.md", "refs": []})
+    workspace.build(p)
+    page = page_of(p, "ctx-report")
+    assert "context.html#v-missing" not in page and "(CONTEXT.md version not kept)" in text(page)
+
+
+# --- independent review of 20934ef (I1, I3, I6, I7, I9) --------------------------------------------
+
+def test_a_reports_folder_that_is_a_link_is_replaced_and_its_target_kept(reports):
+    """I1: workspace/reports a link (here to the records' own Reports): removed as a link, nothing of
+    its target written or removed."""
+    p = reports["p"]
+    artifacts = p.root / "artifacts" / "reports"
+    before = {path: path.read_bytes() for path in artifacts.rglob("*") if path.is_file()}
+    p.workspace_dir.mkdir(parents=True, exist_ok=True)
+    (p.workspace_dir / "reports").symlink_to(artifacts, target_is_directory=True)
+    workspace.build(p)
+    assert not (p.workspace_dir / "reports").is_symlink() and (p.workspace_dir / "reports").is_dir()
+    assert {path: path.read_bytes() for path in artifacts.rglob("*") if path.is_file()} == before
+
+
+def test_a_rewritten_manifest_keeps_the_numbers_and_says_what_is_wrong(reports):
+    """I3: Version n of N is the completion events' order; a version whose manifest is no longer the one
+    its completion bound keeps its number, says so and gets no body."""
+    p, first, second = reports["p"], reports["first"], reports["second"]
+    manifest = p.root / "artifacts/reports/weekly" / first["revision_id"] / "manifest.json"
+    manifest.write_text(json.dumps(json.loads(manifest.read_text(encoding="utf-8")), indent=4), encoding="utf-8")
+    versions = core.read_model(p, core.HashCache(p)).report_histories()["weekly"]["versions"]
+    assert [(v["number"], v["revision_id"], v["problem"]) for v in versions] == [
+        (1, first["revision_id"], "completion_mismatch"), (2, second["revision_id"], None)]
+    workspace.build(p)
+    page = page_of(p, "weekly")
+    older = text(section(page, f'v-{first["revision_id"]}'))
+    assert "Its manifest is not the one its completion recorded" in older and "its body is not shown" in older
+    assert "Version 2 of 2" in text(main(page)) and "Saving attempts that are no version" not in text(page)
+
+
+def test_the_comparison_counts_lines_and_puts_no_body_text_in_the_page(reports):
+    """I6: the body's text stays out of the Workspace's pages (owner decision of 2026-10-21)."""
+    p, second = reports["p"], reports["second"]
+    workspace.build(p)
+    part = section(page_of(p, "weekly"), f'v-{second["revision_id"]}')
+    assert "Changed lines: 1 added, 1 removed" in text(part)
+    assert "서울 매출이" not in part and "<pre" not in part
+
+
+def test_originals_a_browser_would_run_are_linked_to_download(reports):
+    """I7: an HTML original is never opened in place from the Workspace (C17: download only)."""
+    p = reports["p"]
+    workspace.build(p)
+    assert re.search(r'<a href="[^"]*content/index\.html" download>', page_of(p, "html-one"))
+    assert re.search(r'<a href="[^"]*content/%EC%9A%94%EC%95%BD\.md">', page_of(p, "weekly"))  # Markdown opens as text
+
+
+def test_a_member_whose_version_is_withdrawn_says_so_now(reports):
+    """I9: the snapshot keeps the member complete; its version's state now is said beside it."""
+    p = reports["p"]
+    member = core.read_model(p, core.HashCache(p)).report_histories()["region-1"]["versions"][0]["revision_id"]
+    core.update_report(p, "region-1", member, expected="current", new="withdrawn", reason="틀림", origin=HUMAN)
+    workspace.build(p)
+    row = re.search(r'<tr id="m-[^"]+-1">(.*?)</tr>', page_of(p, "regions")).group(1)
+    assert "Complete" in text(row) and "Exact version" in text(row) and "Withdrawn" in text(row)

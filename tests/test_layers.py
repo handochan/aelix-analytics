@@ -213,8 +213,8 @@ ALLOWLIST: dict[tuple[str, str], Allowed] = {
         remove_when="the Workspace build coordinator injects this view instead of Site constructing it."),
     ("src/aelix_analytics/workspace.py", "src/aelix_analytics/report_renderers.py"): Allowed(
         scopes=frozenset({"default_report_renderer"}),
-        why="a build no entry point gave a ReportRenderer takes the kit's StaticReportRenderer (ADR-0013 7): the run's "
-            "end (runner._finalize) and the demo build the Workspace as well as the kit's command line.",
+        why="a build no caller gave a ReportRenderer takes the kit's StaticReportRenderer (ADR-0013 7): every caller "
+            "today (the kit's command line, the run's end runner._finalize, the demo) takes it; tests inject one.",
         remove_when="every caller of workspace.build is an entry point that injects the renderer (the same "
                     "condition as runner.py -> workspace.py and demo.py -> workspace.py)."),
     ("src/aelix_analytics/runner.py", "src/aelix_analytics/workspace.py"): Allowed(

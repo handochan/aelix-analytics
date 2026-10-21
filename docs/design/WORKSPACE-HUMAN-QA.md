@@ -58,7 +58,8 @@ fixture/source revision, task outcome and screenshots when this checklist is run
    words, and that What can be checked lists its seven lines apart. Without JavaScript and at 360/390/430 px, read the same trail as a
    vertical list whose boxes each say how they join the next. Follow a box's link and come back; switch a run's page between Where it
    comes from and What uses it; open All relations and History. Repeat in Korean.
-11. (kit 0.25.0, #19 PR3) Open the supplied Reports project (the S/M fixtures hold no Report). In Reports, beside Insights, each Report
+11. (kit 0.25.0, #19 PR3) Open the supplied Reports project (the S/M fixtures hold no Report; the implementation run builds one with
+   its `probe/make_reports.py <dir>` and its handoff names the path). In Reports, beside Insights, each Report
    is one row: its latest `Version n of N`, its time and its states apart (withdrawn, files, the author's content status, a collection's
    `n of N complete`). Open the weekly Report: the history shows v1 withdrawn and v2 latest; v2's section says when and on what it was
    made before its files, judges its evidence, compares it with v1, and opens its body as a document of its own; come back with the

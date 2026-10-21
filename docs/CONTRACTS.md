@@ -1077,24 +1077,32 @@ ReportRenderer는 교체 계약과 원본 불변성 검증을 마친 내부 adap
   최근 50개 밖은 `lists/reports-<n>.html`로 잇습니다. 저장된 버전 없이 시도(prepared·incomplete)만 있는 Report도 보입니다.
 - **Report 페이지** `reports/<id 줄임>-<sha256 10자>.html`:
   - 버전은 [C15](#c15-버전-기록-kit-0190-99)의 공통 표현(`Version n of N`, 띠와 목록, 많으면 가운데를 접음)입니다. n/N은 완료 이벤트 순서이고,
-    철회·복원·다시 빌드로 바뀌지 않습니다. 버전마다 `#v-<revision_id>` 구역이 있고 최신만 열려 있습니다.
+    철회·복원·다시 빌드로 바뀌지 않습니다. manifest가 완료 기록이 묶은 것과 다르거나 읽히지 않는 버전도 번호를 지키고 그 문제를 보이며 본문은 만들지 않습니다. 버전마다 `#v-<revision_id>` 구역이 있고 최신만 열려 있습니다.
   - 구역은 본문보다 먼저 그 버전의 시점·범위를 보입니다: `Created at`, 저장, `Based on`(as_of_seq·CONTEXT.md 버전·참조 수), scope·generation(쓴
     그대로의 JSON), summary·purpose·change_reason, content_status, 작성 주체, 상태, 파일 무결성, 검토는 별도 기록이라는 문장.
   - `Evidence`: based_on.refs를 지금의 기록으로 판정한 배지입니다. 참조가 없으면 "근거를 가리키지 않음(연결 없음)"이라고 적습니다. 인용은 결론의 확인이
     아닙니다.
   - 묶음: members에서 센 `n of N complete · 실패 · 미생성`과 구성원 표(member_key·상태·사유·scope는 쓴 그대로, complete는 그 구성원 Report 페이지의
     정확한 버전으로 가는 링크와 판정)입니다. 구성원 관계는 문서의 근거가 아니고 근거 수를 늘리지 않습니다. JS 없이 읽힙니다.
-  - 파일: 원본은 `artifacts/reports/<id>/<revision>/content/<path>`를 바로 가리킵니다(복사 없음). 크기·sha256, 본문 파일 표시. kit의
-    metadata sidecar는 빼고 보입니다.
-  - 앞 버전과의 비교: 둘 다 글(`.md`·`.markdown`·`.txt`)이고 파일이 저장한 그대로면 바뀐 줄을 접어 보이고, 아니면 비교하지 않는다고 적습니다.
+  - 파일: 원본은 복사하지 않고 `artifacts/reports/<id>/<revision>/content/<path>`를 바로 가리킵니다(본문 문서의 링크용 사본만 보기 폴더에 있음). 크기·sha256,
+    본문 파일 표시. HTML·SVG처럼 브라우저가 실행할 형식은 `download`로 링크합니다. kit의 metadata sidecar는 빼고 보입니다.
+  - 앞 버전과의 비교: 둘 다 글(`.md`·`.markdown`·`.txt`)이고 파일이 저장한 그대로면 더하고 뺀 줄 수를 보이고(본문의 글은 페이지에 넣지 않음), 아니면
+    비교하지 않는다고 적습니다.
   - `Who cites it`: 그 버전을 인용한 기록 수입니다. 완료 이벤트(`about`), 철회·복원(`updates`), 묶음 구성원(`includes`)은 인용이 아닙니다.
   - 저장 시도(prepared·incomplete)는 버전이 아니며 따로 보입니다.
 - **본문**: Workspace 페이지에 넣지 않습니다(소유자 결정 2026-10-21, [#19](https://github.com/handochan/aelix-analytics/issues/19#issuecomment-6305151201)).
   주입한 ReportRenderer(진입점이 주지 않으면 kit의 StaticReportRenderer)가 버전마다 별도 문서 `reports/<…>/<revision>/preview/report.html`
   (Content-Security-Policy 유지)을 만듭니다. 그 문서가 가리키는 파일의 사본이 같은 폴더의 `files/`에 있습니다(renderer는 폴더 밖 경로를 받지 않음).
-  - 파일이 저장한 바이트가 아니면 본문을 만들지 않습니다. HTML·SVG·기타 형식과 UTF-8이 아닌 글도 문서를 만들지 않고 원본만 둡니다.
-  - 같은 바이트를 같은 renderer로 만든 문서는 다시 쓰지 않습니다(`view.json`). 없어진 버전의 폴더는 지웁니다. 다시 빌드해도 `artifacts/reports`의
-    원본은 바뀌지 않습니다.
+  - 파일이 저장한 바이트가 아니면 본문을 만들지 않습니다. renderer에 넘기는 바이트를 넘기기 직전에 manifest의 sha256·크기와 대조합니다(앞 버전과의
+    비교도 같음). HTML·SVG·기타 형식과 UTF-8이 아닌 글도 문서를 만들지 않고 원본만 둡니다.
+  - 같은 바이트를 같은 `cache_key`의 renderer로 만든 문서는, 그 문서의 파일이 쓴 그대로일 때 다시 쓰지 않습니다(`view.json`에 파일 해시). renderer는
+    선택 속성 `cache_key`(문자열)로 출력을 이름 짓고 출력이 바뀌면 키를 바꿉니다. kit의 StaticReportRenderer는
+    `aelix_analytics.StaticReportRenderer/1`입니다. 키가 없는 renderer의 문서는 빌드마다 다시 만들고, 그런 빌드는 `--if-changed`로 건너뛰지 않습니다.
+    키는 Workspace 지문에도 들어갑니다.
+  - 없어진 버전의 폴더는 지웁니다. `workspace/reports/` 아래의 링크(symlink·junction)는 따라가지 않습니다. 링크는 링크만 지우고, 링크인 보기
+    폴더에는 본문을 쓰지 않습니다. 다시 빌드해도 `artifacts/reports`의 원본은 바뀌지 않습니다.
+  - 버전 구역의 앵커는 그 버전의 접힌 `<details>`이며, 주소가 그 버전을 가리키면 열립니다. `Based on`의 CONTEXT.md 버전은 보존된 버전일 때만
+    링크하고, 아니면 이름과 '보존되지 않음'을 적습니다. Report를 가리키지 않는 손상된 manifest는 페이지를 만들지 않습니다.
   - 본문 안의 위치는 URL 상태에 담지 않고 브라우저의 뒤로 가기가 지킵니다. 버전·구성원·페이지 위치는 [C11](#c11-선택-버전-관계와-workspace-복귀-kit-0150-18)대로
     돌아옵니다(`reports` 탭, `reports/` 페이지가 URL 상태에 들어감). 그만큼 설계의 '섹션 위치 유지'를 좁힌 것이며 소유자가 받아들였습니다.
   - 본문 문서의 `<title>Report</title>`과 다운로드 목록은 renderer의 글이라 화면 언어를 따르지 않습니다(C17의 StaticReportRenderer).
