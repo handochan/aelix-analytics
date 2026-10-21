@@ -211,7 +211,8 @@ def test_the_body_is_a_document_of_its_own_and_never_in_a_workspace_page(reports
                   / "preview" / "report.html").read_text(encoding="utf-8")
     assert "<b>raw</b>" not in first_body and "&lt;b&gt;raw&lt;/b&gt;" in first_body
     # The copies its links take sit beside it; the originals stay where the records keep them.
-    assert (folder / "files" / "첨부.csv").read_bytes() == b"region,sales\n\xec\x84\x9c\xec\x9a\xb8,10\n"
+    original = p.root / "artifacts/reports/weekly" / second["revision_id"] / "content" / "첨부.csv"
+    assert (folder / "files" / "첨부.csv").read_bytes() == original.read_bytes()  # the bytes saved, any line ends
     assert f'href="../../artifacts/reports/weekly/{second["revision_id"]}/content/첨부.csv"' in unquote(page)
 
 
