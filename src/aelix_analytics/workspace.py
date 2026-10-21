@@ -67,7 +67,7 @@ SHOWN_CANDIDATES = 3
 # The index section a page's way back goes to when the page a reader came from is not known: the
 # section its kind is listed in (`back.tab.<section>` names it).
 BACK = {"run": "runs", "dataset": "data", "relations": "insights", "context": "context", "list": "timeline",
-        "script": "runs"}
+        "script": "runs", "report": "reports"}
 # The pages are lang="en" (the kit's words). What people and scripts wrote is in a language the
 # records do not name, so its element says "unknown" (lang=""): a screen reader reads it in the
 # reader's own voice rather than an English one, and nothing guesses the language (TERMINOLOGY 7).
@@ -252,10 +252,11 @@ class Site:
     REF_STATE = REF_STATE
     RECORD_STATE = RECORD_STATE
 
-    def __init__(self, project: core.Project):
+    def __init__(self, project: core.Project, report_renderer=None):
         from .workspace_map import AnalysisMap, AnalysisStatus
         from .workspace_provenance import Provenance
         from .workspace_relations import RelationPages
+        from .workspace_reports import Reports
         from .workspace_versions import Versions
 
         self.p = project
@@ -314,6 +315,8 @@ class Site:
         self.history = Versions(self)
         # The provenance trails of the relation pages (design WORKSPACE-READABILITY 6, #100), from the same read.
         self.provenance = Provenance(self)
+        # The Reports tab and pages (#19 PR3), from the same read; their bodies by the injected renderer.
+        self.reports = Reports(self, report_renderer)
 
     # --- links (depth 0 = workspace/, 1 = workspace/runs|data/) ---
 
@@ -503,6 +506,14 @@ class Site:
             shown = (f'<a href="{esc(self.root(depth))}context.html#v-{esc(Path(label).stem)}" '
                      f'title="{esc(label)}">CONTEXT.md</a>')
             return self.ref_badge(tone, t("ref.resolved"), shown, state, sep=True)
+        if kind == "report_revision":
+            # A Report version: its title as written, linked to its section of the Report's page when
+            # the read found that version (#19 PR3); the address stays the badge's title.
+            rid, rev = target.get("report_id"), target.get("revision_id")
+            if found and self.reports.has(rid, rev):
+                shown = (f'<a href="{esc(self.reports.link(rid, depth, rev))}" title="{esc(label)}"{USER}>'
+                         f'{esc(self.reports.title(rid, rev))}</a>')
+                return self.ref_badge(tone, t("refs.report"), shown, state, sep=True)
         return self.ref_badge(tone, t("ref.resolved") if found else problem, f"<span{USER}>{esc(label)}</span>",
                               state, sep=True, note=self.candidates_note(judged))
 
@@ -876,6 +887,14 @@ def fingerprint(project: core.Project) -> str:
                 with contextlib.suppress(OSError):
                     st = os.stat(os.path.join(dirpath, name))
                     parts.append([os.path.join(dirpath, name), st.st_size, st.st_mtime_ns])
+    # A Report saved, prepared or damaged changes the Reports pages: every file under artifacts/reports.
+    reports = project.root / "artifacts" / "reports"
+    if reports.is_dir():
+        for dirpath, _dirs, files in os.walk(reports):
+            for name in files:
+                with contextlib.suppress(OSError):
+                    st = os.stat(os.path.join(dirpath, name))
+                    parts.append([os.path.relpath(os.path.join(dirpath, name), project.root), st.st_size, st.st_mtime_ns])
     # data/ as the datasets are listed: the namespace walk from it (core.Project.walk).
     for rel, real, _name, _entry, _place in project.walk(start="data"):
         with contextlib.suppress(OSError):
@@ -889,16 +908,27 @@ def fingerprint(project: core.Project) -> str:
     return hashlib.sha256(json.dumps(parts, sort_keys=True).encode()).hexdigest()
 
 
-def build(project: core.Project, *, if_changed: bool = False) -> dict:
+def build(project: core.Project, *, if_changed: bool = False, report_renderer=None) -> dict:
     """Build the Workspace. Builds are serialized per project; a waiting --if-changed build rechecks
     the fingerprint after the lock, so queued triggers collapse into one build. A write: refused
-    before its lock file is made where this kit does not write (core.admit, Issue #13)."""
+    before its lock file is made where this kit does not write (core.admit, Issue #13).
+    `report_renderer`: the ReportRenderer the Reports pages' bodies are made with (ADR-0013 7); left
+    out, the kit's own (default_report_renderer)."""
     core.admit(project, "render")
     with project.platform.locks.exclusive(project.state_dir / project.layout.workspace_lock):
-        return _build_locked(project, if_changed)
+        return _build_locked(project, if_changed, report_renderer or default_report_renderer())
 
 
-def _build_locked(project: core.Project, if_changed: bool) -> dict:
+def default_report_renderer():
+    """The kit's ReportRenderer (report_renderers.StaticReportRenderer), for a build no entry point
+    gave one: the run's end (runner._finalize) and the demo build the Workspace too (test_layers
+    ALLOWLIST)."""
+    from .report_renderers import StaticReportRenderer
+
+    return StaticReportRenderer()
+
+
+def _build_locked(project: core.Project, if_changed: bool, report_renderer=None) -> dict:
     stamp_file = project.cache / "report-fingerprint"
     current = fingerprint(project)
     index = project.workspace_dir / "index.html"
@@ -906,7 +936,7 @@ def _build_locked(project: core.Project, if_changed: bool) -> dict:
         with contextlib.suppress(OSError):
             if stamp_file.read_text(encoding="utf-8").strip() == current:
                 return {"path": str(index), "skipped": True}
-    site = Site(project)
+    site = Site(project, report_renderer)
     out = project.workspace_dir
     (out / "runs").mkdir(parents=True, exist_ok=True)
     (out / "data").mkdir(parents=True, exist_ok=True)
@@ -938,6 +968,15 @@ def _build_locked(project: core.Project, if_changed: bool) -> dict:
             relation_names.add(filename)
             pages += 1
     _prune(out / "relations", relation_names)
+    # A page per Report (#19 PR3), after the bodies its versions open (their view folders beside it).
+    site.reports.write_views(out)
+    report_names = set()
+    for history in site.reports.order:
+        name = site.reports.page_name(history["report_id"])
+        _write(out / site.reports.directory / name, site.reports.page_html(history), project.platform)
+        report_names.add(name)
+        pages += 1
+    _prune(out / site.reports.directory, report_names)
     pages += write_list_pages(site, out)
     _write(out / "context.html", context_page(site), project.platform)
     _write(index, index_page(site), project.platform)
@@ -1274,7 +1313,7 @@ def index_page(site: Site) -> str:
   </div>
 </section>"""
 
-    return site.page(0, "", "", overview + insights_section(site) + charts + site.map.tab_html() + timeline + data + runs + context
+    return site.page(0, "", "", overview + insights_section(site) + reports_section(site) + charts + site.map.tab_html() + timeline + data + runs + context
                      + asset_section(site) + evaluation_section(site), "index", title_key="page.workspace")
 
 
@@ -1445,9 +1484,18 @@ def insights_section(site: Site) -> str:
             + (f'<ol class="records">{rows}</ol>' if rows else f'<div class="empty">{t("insights.empty")}</div>') + '</section>')
 
 
+def reports_section(site: Site) -> str:
+    """The Reports (#19 PR3; design REPORT-ARTIFACTS 5): the latest version of each, newest first,
+    each state apart, and where the rest are. The list never reads a body."""
+    order = site.reports.order
+    return (f'<section id="reports" class="tab" data-count="{len(order)}"><div class="toolbar"><h2>{t("tab.reports")}</h2></div>'
+            f'<p class="muted">{t("reports.lead")}</p>' + list_notice("reports", len(order), INDEX_LIMIT)
+            + site.reports.table(order[:INDEX_LIMIT], 0) + '</section>')
+
+
 # The index section a list family continues: where its pages' way back goes.
 LIST_TAB = {"timeline": "timeline", "insights": "insights", "feedback": "evaluation", "charts": "charts",
-            "runs": "runs", "data": "data", "open": "overview"}
+            "runs": "runs", "data": "data", "open": "overview", "reports": "reports"}
 
 
 def list_page(site: Site, out: Path, filename: str, heading: str, scope: str, content: str, nav: str, *,
@@ -1465,7 +1513,8 @@ def write_list_pages(site: Site, out: Path) -> int:
     the kind filters of the Timeline and Insights link to: every record of the kind, newest first."""
     groups = {"timeline": list(reversed(site.events)), "insights": [e for e in reversed(site.events) if e.get("kind") in core.KEY_KINDS],
               "feedback": list(reversed(site.lists.feedback)), "charts": site.charts,
-              "runs": list(reversed(site.runs)), "data": site.datasets, "open": list(reversed(site.lists.open))}
+              "runs": list(reversed(site.runs)), "data": site.datasets, "open": list(reversed(site.lists.open)),
+              "reports": site.reports.order}
     keep = set()
     for kind, records in groups.items():
         limit = CHART_INDEX_LIMIT if kind == "charts" else INDEX_LIMIT
@@ -1483,6 +1532,8 @@ def write_list_pages(site: Site, out: Path) -> int:
                     if subset else f'<div class="empty">{t("insights.empty")}</div>')
             elif kind == "feedback":
                 content = site.events_html(subset, 1)
+            elif kind == "reports":
+                content = site.reports.table(subset, 1)
             elif kind == "charts":
                 content = (f'<label class="toggle"><input type="checkbox" id="show-retired"> {t("charts.show_retired")}</label>'
                            + '<div class="gallery">' + ''.join(site.chart_card(c, 1, full=True) for c in subset) + '</div>')

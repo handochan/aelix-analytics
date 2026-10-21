@@ -244,15 +244,16 @@
   // list the reader came from, or the page a reader opened directly and left (codec.next keeps a
   // page with no origin of its own as the origin).
   const LIST_BACK = { timeline: "back.tab.timeline", insights: "back.tab.insights", charts: "back.tab.charts",
-    runs: "back.tab.runs", data: "back.tab.data", feedback: "back.list.feedback", open: "back.list.open" };
+    runs: "back.tab.runs", data: "back.tab.data", feedback: "back.list.feedback", open: "back.list.open",
+    reports: "back.tab.reports" };
   const PAGE_BACK = { runs: "back.page.run", data: "back.page.data", relations: "back.page.relations",
-    scripts: "back.page.script" };
+    scripts: "back.page.script", reports: "back.page.report" };
   function backKey(origin) {
     if (origin.page === "index.html") return "back.tab." + (origin.tab || "overview");
     if (origin.page === "context.html") return "back.page.context";
     const list = /^lists\/(kind-.+|[a-z]+)-\d+\.html$/.exec(origin.page);
     if (list) return list[1].indexOf("kind-") === 0 ? "back.list.kind" : LIST_BACK[list[1]] || null;
-    const detail = /^(runs|data|relations|scripts)\//.exec(origin.page);
+    const detail = /^(runs|data|relations|scripts|reports)\//.exec(origin.page);
     return detail ? PAGE_BACK[detail[1]] : null;
   }
   // The words of a way back: its origin's, else the page's own (`data-back`). Both are the kit's

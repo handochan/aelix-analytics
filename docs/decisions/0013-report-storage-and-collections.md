@@ -5,7 +5,7 @@
 [ADR-0006 §7·§8](0006-common-record-contract.md)의 채택된 저장·재시도 골격을 구현하기 위한 선택이다.
 기존 필수 필드·저장 순서·지문 알고리즘을 유지하고, 선택 메타데이터와 묶음의 표현을 구체화한다.
 PR-1의 저장·조회·철회/복원·prepared 정리와 CLI/SDK는 kit 0.21.0에 구현한다.
-PR-2의 선택 metadata·collection·ReportRenderer는 kit0.22.0에 구현한다. Reports 화면은 PR-3 범위다. 실제 기능은 [현재 계약](../CONTRACTS.md)을 따른다.
+PR-2의 선택 metadata·collection·ReportRenderer는 kit0.22.0에 구현한다. Reports 화면은 PR-3으로 kit 0.25.0에 구현한다(본문은 별도 문서, 2026-10-21 소유자 결정). 실제 기능은 [현재 계약](../CONTRACTS.md)을 따른다.
 제품 범위는 [Report 설계](../REPORT-ARTIFACTS.md), 다른 흐름과의 순서는
 [#1의 세 흐름 배정](https://github.com/handochan/aelix-analytics/issues/1#issuecomment-6232550803)이다.
 

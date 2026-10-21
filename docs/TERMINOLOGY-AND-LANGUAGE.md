@@ -313,9 +313,9 @@ HTML을 그리지 않아 주석이 글자로 보이고, 목표를 읽는 쪽은 
   기본 음성으로 읽는다(#10 전에는 페이지가 `ko`라 한국어 프로젝트의 글을 한국어로 읽었고, 이 접근성을 잃지 않음). kit의 label은 화면
   언어의 범위에 남는다. 사람이 쓴 글은 화면 언어와 관계없이 `lang=""`이고 메시지 값으로 넘기지 않는다. 문서 제목(`<title>`)은 kit의 글과
   사용자 글을 한 문자열로 이으며, 화면 언어를 바꾸면 kit의 글 부분만 바뀐다. CSS 글꼴 목록은 macOS·Windows·Linux의 한국어 글꼴을 포함한다.
-- 지금 탭은 `Overview`, `Insights`, `Visualizations`, `Analysis map`, `Timeline`, `Data`, `Runs`, `Context`, `Analysis assets`, `Evaluation`이다
-  (`Insights`는 [#18](https://github.com/handochan/aelix-analytics/issues/18), `Analysis map`은 [#98](https://github.com/handochan/aelix-analytics/issues/98)).
-  `Reports`는 그 기능의 Issue([#19](https://github.com/handochan/aelix-analytics/issues/19))가 만든다.
+- 지금 탭은 `Overview`, `Insights`, `Reports`, `Visualizations`, `Analysis map`, `Timeline`, `Data`, `Runs`, `Context`, `Analysis assets`,
+  `Evaluation`이다(`Insights`는 [#18](https://github.com/handochan/aelix-analytics/issues/18), `Analysis map`은 [#98](https://github.com/handochan/aelix-analytics/issues/98),
+  `Reports`는 [#19](https://github.com/handochan/aelix-analytics/issues/19) PR3, 한국어 `보고서`).
   `Evaluation`은 옛 '평가' 탭의 이름을 옮긴 것이고, 안의 구역은 `Workflow feedback`·`Record coverage`·`Tool usage`다. 탭의 URL anchor
   (`#charts`, `#evaluation` 등)는 안정 식별자라 그대로다.
 - 사람과 스크립트가 쓴 글은 번역하거나 Unicode 정규화(NFC 등)하지 않고 쓴 그대로 보인다. `CONTEXT.md`는 Markdown으로 그린다(HTML은

@@ -1003,7 +1003,7 @@ kit0.21.0은 개별 저장 계약을 도입했습니다. kit0.22.0은 아래 met
   이미지는 다운로드로 남깁니다. HTML/SVG·PDF/Office·모르는 형식은 **다운로드만** 제공하며 authored HTML을 DOM에 넣지 않습니다.
   이는 공유 적합성 통과가 아닙니다. #20의 형식·제외 내용 검사는 별도로 적용합니다.
 
-ReportRenderer는 교체 계약과 원본 불변성 검증을 마친 내부 adapter이며 Workspace 조립·Reports 탭은 PR3 범위입니다.
+ReportRenderer는 교체 계약과 원본 불변성 검증을 마친 내부 adapter입니다. Workspace의 Reports 탭과 페이지는 [C19](#c19-workspace의-reports-탭과-페이지-kit-0250-19-pr3)입니다.
 실제 모델 생성·브라우저/사람의 열람 수용은 후속 검증이며 합성 저장/renderer 시험과 구별합니다.
 
 ### C18. 출처 추적 (kit 0.24.0, #100)
@@ -1066,6 +1066,42 @@ ReportRenderer는 교체 계약과 원본 불변성 검증을 마친 내부 adap
 
 크기: 기록 페이지마다 경로가 들어가 전체 HTML이 늘어납니다(설계 §9의 측정). 설계 §9의 전체 HTML 예산을 넘는 것은 소유자가 받아들였습니다
 (2026-10-18, [#100](https://github.com/handochan/aelix-analytics/issues/100#issuecomment-6247410089)). 첫 HTML과 페이지 수는 그대로입니다.
+
+### C19. Workspace의 Reports 탭과 페이지 (kit 0.25.0, #19 PR3)
+
+[ADR-0013 §7](decisions/0013-report-storage-and-collections.md)과 [Report 설계 §5](REPORT-ARTIFACTS.md)의 화면입니다. 읽기는 ReadModel이 맡고
+(`report_histories()`, `report_citations()`), Workspace는 보이기만 합니다. 기록 형식은 바뀌지 않습니다.
+
+- **Reports 탭**(`#reports`, Insights 바로 뒤): Report마다 최신 버전 한 줄입니다. 제목(쓴 그대로), `Version n of N`, 저장 시각, 상태, summary·purpose를
+  보입니다. 상태는 철회, 파일 무결성, 작성자가 준 content_status, 묶음의 `n of N complete`이며 하나로 합치지 않습니다. 목록은 본문을 읽지 않고,
+  최근 50개 밖은 `lists/reports-<n>.html`로 잇습니다. 저장된 버전 없이 시도(prepared·incomplete)만 있는 Report도 보입니다.
+- **Report 페이지** `reports/<id 줄임>-<sha256 10자>.html`:
+  - 버전은 [C15](#c15-버전-기록-kit-0190-99)의 공통 표현(`Version n of N`, 띠와 목록, 많으면 가운데를 접음)입니다. n/N은 완료 이벤트 순서이고,
+    철회·복원·다시 빌드로 바뀌지 않습니다. 버전마다 `#v-<revision_id>` 구역이 있고 최신만 열려 있습니다.
+  - 구역은 본문보다 먼저 그 버전의 시점·범위를 보입니다: `Created at`, 저장, `Based on`(as_of_seq·CONTEXT.md 버전·참조 수), scope·generation(쓴
+    그대로의 JSON), summary·purpose·change_reason, content_status, 작성 주체, 상태, 파일 무결성, 검토는 별도 기록이라는 문장.
+  - `Evidence`: based_on.refs를 지금의 기록으로 판정한 배지입니다. 참조가 없으면 "근거를 가리키지 않음(연결 없음)"이라고 적습니다. 인용은 결론의 확인이
+    아닙니다.
+  - 묶음: members에서 센 `n of N complete · 실패 · 미생성`과 구성원 표(member_key·상태·사유·scope는 쓴 그대로, complete는 그 구성원 Report 페이지의
+    정확한 버전으로 가는 링크와 판정)입니다. 구성원 관계는 문서의 근거가 아니고 근거 수를 늘리지 않습니다. JS 없이 읽힙니다.
+  - 파일: 원본은 `artifacts/reports/<id>/<revision>/content/<path>`를 바로 가리킵니다(복사 없음). 크기·sha256, 본문 파일 표시. kit의
+    metadata sidecar는 빼고 보입니다.
+  - 앞 버전과의 비교: 둘 다 글(`.md`·`.markdown`·`.txt`)이고 파일이 저장한 그대로면 바뀐 줄을 접어 보이고, 아니면 비교하지 않는다고 적습니다.
+  - `Who cites it`: 그 버전을 인용한 기록 수입니다. 완료 이벤트(`about`), 철회·복원(`updates`), 묶음 구성원(`includes`)은 인용이 아닙니다.
+  - 저장 시도(prepared·incomplete)는 버전이 아니며 따로 보입니다.
+- **본문**: Workspace 페이지에 넣지 않습니다(소유자 결정 2026-10-21, [#19](https://github.com/handochan/aelix-analytics/issues/19#issuecomment-6305151201)).
+  주입한 ReportRenderer(진입점이 주지 않으면 kit의 StaticReportRenderer)가 버전마다 별도 문서 `reports/<…>/<revision>/preview/report.html`
+  (Content-Security-Policy 유지)을 만듭니다. 그 문서가 가리키는 파일의 사본이 같은 폴더의 `files/`에 있습니다(renderer는 폴더 밖 경로를 받지 않음).
+  - 파일이 저장한 바이트가 아니면 본문을 만들지 않습니다. HTML·SVG·기타 형식과 UTF-8이 아닌 글도 문서를 만들지 않고 원본만 둡니다.
+  - 같은 바이트를 같은 renderer로 만든 문서는 다시 쓰지 않습니다(`view.json`). 없어진 버전의 폴더는 지웁니다. 다시 빌드해도 `artifacts/reports`의
+    원본은 바뀌지 않습니다.
+  - 본문 안의 위치는 URL 상태에 담지 않고 브라우저의 뒤로 가기가 지킵니다. 버전·구성원·페이지 위치는 [C11](#c11-선택-버전-관계와-workspace-복귀-kit-0150-18)대로
+    돌아옵니다(`reports` 탭, `reports/` 페이지가 URL 상태에 들어감). 그만큼 설계의 '섹션 위치 유지'를 좁힌 것이며 소유자가 받아들였습니다.
+  - 본문 문서의 `<title>Report</title>`과 다운로드 목록은 renderer의 글이라 화면 언어를 따르지 않습니다(C17의 StaticReportRenderer).
+- **연결**: report_revision 참조 배지는 그 버전 구역으로, 관계 페이지의 Report 버전은 Report 페이지로 갑니다(`Report version`, `Open report version`).
+  Timeline의 완료·철회 기록도 그 배지로 이어집니다.
+- **두지 않는 것**: 공유(미리보기·build·publish) 진입점(#20 PR4 전이라 Report 범위가 거절됨), HTML 격리 보기, Markdown 그림 표시(renderer가
+  `img-src 'none'`), 목차·컬럼 선택기. Report를 저장했다고 결론이 검토되거나 원본 데이터가 보존되는 것이 아닙니다.
 
 ## D. kit CLI
 
@@ -1342,7 +1378,7 @@ leak_found로 멈추고 모델 필드 또는 사본 ItemKey/역할을 짚습니�
 | 파일명 — 차트 | kit이 저장하는 차트 파일(`analytics.visualize`의 이미지·plotly JSON·플롯 데이터)만 이식 가능한 이름으로 바꿉니다(`con` → `con_.png`). 정체성 `script::id`는 생성된 id까지 그대로입니다. 이 대응은 단사입니다 — 차트 id는 slug이라 `_`를 포함할 수 없으므로 `con-file` 같은 보통 id와 충돌하지 않습니다. 스크립트가 차트 id 본래 이름에 쓴 파일(차트 `con`의 `charts/con.png`, 대소문자를 구별하지 않는 파일 시스템에서는 `charts/CON.png`도)은 이전 구현이 그 차트를 쓰거나 덮어쓴 파일이므로 따로 차트로 기록하지도 경고하지도 않고, 그 차트가 버려지면 함께 지웁니다. 그 밖에 스크립트가 run 디렉터리에 직접 쓴 파일(`register_loose_files`)은 스크립트가 정한 이름 그대로 차트가 되며 위 경고로만 알립니다 |
 | 경로·인코딩 | 리포트의 절대 경로 링크는 기록한 플랫폼 기준으로 해석한 `file://` URL입니다(`C:\…` → `file:///C:/…`, `\\server\share\…` → `file://server/share/…`). 그래서 POSIX에서 이름이 `X:\`나 `\\`로 시작하는 프로젝트 파일은 그 Windows 경로로 링크되거나, 공유 이름이 없으면 링크되지 않습니다. CLI는 인자를 읽기 전에 표준 스트림을 UTF-8(`errors='replace'`)로 고정하고, 텍스트를 읽는 파일·자식 프로세스 호출은 인코딩을 명시합니다. run 로그도 UTF-8이며 인코딩할 수 없는 문자(짝 없는 surrogate)는 `?`로 씁니다. kit이 쓰는 텍스트 파일(B)은 `core.open_text`·`core.write_text`로만 쓰며(UTF-8, `_platform.TEXT_NEWLINE` = LF, 번역 없음; `tests/test_line_endings.py`의 가드가 확인), run 로그를 감싸는 스트림도 줄 끝을 번역하지 않습니다(kit 0.4.0부터). run 동안 stdout·stderr는 파일 기술자와 Python 스트림을 함께 바꾸고, 출력은 이전처럼 블록 단위로 버퍼링됩니다. 이렇게 해서 콘솔 전용 스트림이 파일에 쓰지 못하는 문제를 피합니다. Windows에서는 설치본 `analytics`를 의사 콘솔(ConPTY)에서 실행해 확인했습니다(측정): run의 stdout 로그에 스크립트의 한국어 출력이 남았고, 콘솔 코드 페이지 437과 949에서 한국어 제목이 콘솔에 그대로 보였습니다. 이것은 Python의 콘솔 경로로 쓴 kit의 출력(결과 줄의 한국어 제목)에 대한 결과입니다. 런처의 글도 같은 경로로 쓰인다고 봅니다(코드에서 읽음, 실행하지 않았습니다). 콘솔 파일 기술자에 바이트를 직접 쓰는 출력과, 출력 파이프가 없는 고전 콘솔의 글 순서·인코딩은 실행하지 않았습니다(`not_run`) |
 | 사람용 진입점 | 체크아웃의 `bin/analytics`(POSIX 셸, kit 0.3.0 전 `bin/lab`)과 설치본의 `analytics`(stdlib Python 런처, 모든 플랫폼; Windows에서는 `analytics.exe`)입니다. `bin/analytics`는 wheel로 설치하지 않습니다. 하위 명령은 둘 다 `record`·`render` 등이고 옛 `note`·`report`는 usage와 2입니다. 둘은 같은 명령·인자·usage(바이트까지)·종료 코드와 옛 환경 변수의 오류(D)를 지키고 kit의 출력을 바이트 그대로 넘기며, POSIX에서 같은 stand-in uv로 동등성을 시험합니다. 런처는 자식을 같은 process group·콘솔에서 표준 스트림을 물려준 채 기다리고 SIGINT·SIGBREAK를 기록만 하므로, 터미널의 Ctrl+C를 런처는 다시 보내지 않고 kit의 기록을 기다려 kit의 종료 코드로 끝납니다. uv는 자기 표준 입력이 터미널이 아니면 200 ms 뒤 kit에 한 번 더 보냅니다(`bin/analytics`에서도 같습니다). 런처가 무시된 SIGINT를 물려받으면(셸의 백그라운드 작업) 그대로 두어 kit도 무시한 채 시작합니다. 자식을 시작하는 순간에 온 Ctrl+C는 자식이 뜬 뒤 한 번 더 보냅니다(POSIX). 그 순간 터미널의 Ctrl+C를 이미 받은 자식에게는 두 번 갑니다. Windows에서는 다시 보내지 않습니다 — 한 프로세스에 SIGINT를 보낼 방법이 없고, 시험이 이를 고정합니다. 같은 콘솔의 자식은 콘솔의 Ctrl+C를 직접 받습니다. Windows 콘솔의 Ctrl+C도 런처가 다시 보내지 않고 kit의 기록을 기다려 kit의 종료 코드로 끝납니다(측정: 의사 콘솔과 고전 콘솔에서 런처가 `cancelled` 기록 뒤 3으로 끝났고 남은 프로세스가 없었습니다. Ctrl+Break는 G). 두 번 오더라도 kit은 run을 구간마다 한 번만 중단합니다(D1). 런처와 `bin/analytics`의 차이: 런처만 받은 SIGTERM은 kit의 `run`에만 전하고(run이 `cancelled`로 기록), 그 밖의 단계(init·migrate·sync·status·context·import·query·record·render·demo와 `analytics open`의 문서 열기)는 끝까지 두고 다음 단계를 시작하지 않은 채 143으로 끝납니다(`bin/analytics`의 셸은 그 자식을 남기고 곧바로 끝납니다). 이 SIGTERM은 POSIX의 것입니다 — Windows에서는 다른 프로세스가 처리기에 SIGTERM을 보낼 수 없고 `os.kill`·`taskkill /F`가 런처를 곧바로 끝냅니다(강제 종료, D1). 런처가 Ctrl+C나 SIGTERM을 기록한 뒤에는 다음 단계를 — `analytics open`의 문서 열기도 — 시작하지 않습니다. 단계를 시작하는 그 짧은 순간 온 신호는 그 단계를 막지 못할 수 있습니다. 그러면 Ctrl+C는 그 단계에 다시 보내고 SIGTERM은 kit의 `run`에만 보내며, 문서를 여는 프로그램에는 어느 것도 보내지 않으므로 리포트가 열릴 수 있습니다. uv가 없으면 런처는 자기 문구로 127입니다(`bin/analytics`은 셸의 오류로 끝나며, macOS의 sh는 없는 경로에 1). 런처는 macOS에서만 `open`을 씁니다(`bin/analytics`은 `open`이 있으면 어디서나). dash로 도는 `bin/analytics`은 Ctrl+C 뒤 SIGINT로 끝납니다. 측정한 경계 사례의 차이: 빈 첫 인자(`analytics ""`)는 `bin/analytics`에서 status, 런처에서 usage와 2입니다. 실행할 수 없는 uv(디렉터리이거나 실행 권한이 없는 파일인 `AELIX_ANALYTICS_UV`, PATH에서 실행 권한이 없는 `uv` 파일)는 `bin/analytics`에서 셸의 오류와 셸·플랫폼에 따른 종료 코드(126·127·1), 런처에서 uv를 찾지 못했다는 문구와 127입니다. 찾았지만 시작할 수 없는 uv(없는 인터프리터를 가리키는 스크립트)는 `bin/analytics`에서 셸의 오류와 126(macOS의 sh)·127(dash), 런처에서 시작할 수 없다는 문구와 127입니다. 문서를 여는 프로그램이 없으면 둘 다 127이고, 런처는 자기 문구를, `bin/analytics`은 셸의 오류를 냅니다. 작업 디렉터리가 지워졌으면 런처는 읽을 수 없다는 문구와 1로 끝나고, `bin/analytics`은 macOS의 sh에서 셸의 오류와 1로 끝나지만 dash에서는 프로젝트를 찾는 반복이 끝나지 않습니다(kit 0.3.0 전의 `bin/lab`과 같습니다). `AELIX_ANALYTICS_UV`의 `~`와 끝의 `/`는 런처만 풀어 uv를 실행합니다(`bin/analytics`은 dash 127, macOS의 sh 1). 런처 자신의 글을 닫힌 파이프에 쓰면 `bin/analytics`은 141, 런처는 `BrokenPipeError`와 120이고, 표준 출력을 닫은 채(`>&-`) `--help`를 부르면 `bin/analytics`은 2, 런처는 traceback과 1입니다. symlink로 들어온 작업 디렉터리에서 `init ../DIR`은 `bin/analytics`에서 kit이 프로젝트를 만든 뒤 실패하고(셸에 따라 1이나 2), 런처에서는 끝까지 진행합니다. 런처 자신의 글(usage, 안내)은 로캘과 상관없이 UTF-8 바이트입니다. 그 안의 경로·값은 Python의 파일 시스템 인코딩이 글자로 읽은 부분을 그 글자의 UTF-8로, 읽지 못한 바이트를 받은 그대로 씁니다. 그 인코딩이 UTF-8이면(macOS; Linux의 UTF-8 로캘과, Python이 기본으로 UTF-8 모드로 도는 C 로캘) 모든 경로·값이 받은 바이트 그대로이고, 그 인코딩이 Latin-1·EUC-KR 같은 것이면(그런 로캘의 Linux) UTF-8인 이름도 바뀝니다(`bin/analytics`은 늘 받은 바이트). 런처는 `AELIX_ANALYTICS_RUNTIME_PATH`를 따르지 않고 자기 kit을 씁니다 |
-| 배포 형태 | wheel 하나를 hatchling이 체크아웃에서 만듭니다(`uv build`): package `aelix_analytics` — kit 전체(체크아웃의 `src/aelix_analytics`: 템플릿·assets·데모 스크립트 포함, 런처 `cli.py`, 실행 루트 위치 `_install.py`, manifest)와 확장 `extension.py`(체크아웃의 `extension/aelix_analytics.py`) — 와, 같은 소스의 사본 `aelix_analytics/kit/aelix_analytics`(실행 루트 `aelix_analytics/kit`). 자식은 실행 루트만 `PYTHONPATH`로 받고 사본에는 `extension.py`가 없습니다. 버전은 0.24.0입니다(`KIT_VERSION`, manifest와 같음). 의존성은 없고, 분석 라이브러리는 프로젝트 환경에만 설치됩니다. aelix 연동은 이 wheel을 aelix의 환경에 설치하는 것이며 extra는 없습니다. 개발 환경은 `package = false`로 프로젝트를 설치하지 않습니다. 라이선스는 Apache-2.0입니다(`LICENSE`; wheel의 `License-Expression`과 manifest의 `license`). 관리자는 GitHub 핸들 `handochan`이고 이메일은 적지 않습니다(wheel의 `Author`·`Maintainer`, manifest의 `authors`). 배포 이름은 `aelix-analytics`입니다(2026-10-17 소유자 결정, #24). 이 wheel은 어디에도 게시하지 않았습니다 |
+| 배포 형태 | wheel 하나를 hatchling이 체크아웃에서 만듭니다(`uv build`): package `aelix_analytics` — kit 전체(체크아웃의 `src/aelix_analytics`: 템플릿·assets·데모 스크립트 포함, 런처 `cli.py`, 실행 루트 위치 `_install.py`, manifest)와 확장 `extension.py`(체크아웃의 `extension/aelix_analytics.py`) — 와, 같은 소스의 사본 `aelix_analytics/kit/aelix_analytics`(실행 루트 `aelix_analytics/kit`). 자식은 실행 루트만 `PYTHONPATH`로 받고 사본에는 `extension.py`가 없습니다. 버전은 0.25.0입니다(`KIT_VERSION`, manifest와 같음). 의존성은 없고, 분석 라이브러리는 프로젝트 환경에만 설치됩니다. aelix 연동은 이 wheel을 aelix의 환경에 설치하는 것이며 extra는 없습니다. 개발 환경은 `package = false`로 프로젝트를 설치하지 않습니다. 라이선스는 Apache-2.0입니다(`LICENSE`; wheel의 `License-Expression`과 manifest의 `license`). 관리자는 GitHub 핸들 `handochan`이고 이메일은 적지 않습니다(wheel의 `Author`·`Maintainer`, manifest의 `authors`). 배포 이름은 `aelix-analytics`입니다(2026-10-17 소유자 결정, #24). 이 wheel은 어디에도 게시하지 않았습니다 |
 
 ### F1. 이전 구현(`48b79cc`)과 달라진 POSIX 동작
 
