@@ -1,0 +1,309 @@
+{
+  "completion": {
+    "schema": "analytics.event/2",
+    "seq": 3,
+    "id": "e3",
+    "recorded_at": "2026-10-19T22:53:52.938+09:00",
+    "kind": "publication",
+    "actor": "human",
+    "actor_basis": "declared",
+    "means": "cli",
+    "text": "Built publication pub-01m5a71b8c3h80dybdy0sa7haj (read; records up to e2)",
+    "refs": [
+      {
+        "type": "context_version",
+        "version": "20261019-225352-904800_fe3f7db0bfd1.md",
+        "digest": {
+          "sha256": "fe3f7db0bfd167b5741aefd95657c96e1c831af3ea5a381efe2aaa6c2dded80d"
+        },
+        "relation": "includes",
+        "basis": "observed",
+        "version_binding": "author"
+      }
+    ],
+    "details": {
+      "publication_id": "pub-01m5a71b8c3h80dybdy0sa7haj",
+      "format": "analytics.publication/1",
+      "package_sha256": "6f4ba60285442e08009821df818aaae4b284655aeb1e334b4e899fa34423d4cd",
+      "content_sha256": "14e7dc4a7074714a6cfaafd5b0336ffd23a71b0867962a04f286e352094033be",
+      "profile": {
+        "id": "read",
+        "rules_version": 1
+      },
+      "scope": "project",
+      "basis": {
+        "as_of_seq": 2,
+        "content_seq": 2,
+        "context_version": "20261019-225352-904800_fe3f7db0bfd1.md"
+      },
+      "analysis_state": {
+        "value": "in_progress",
+        "basis": "declared"
+      },
+      "exclusions": [],
+      "location": ".analytics/publications/pub-01m5a71b8c3h80dybdy0sa7haj",
+      "checks": {
+        "format": 1,
+        "result": "pass",
+        "inspection": {
+          "inspected": 7,
+          "pinned_scanned": 2,
+          "not_inspectable": 0
+        }
+      }
+    }
+  },
+  "manifest": {
+    "analysis_state": {
+      "basis": "declared",
+      "value": "in_progress"
+    },
+    "basis": {
+      "as_of_seq": 2,
+      "content_recorded_at": "2026-10-19T22:53:52.904+09:00",
+      "content_seq": 2,
+      "context_version": "20261019-225352-904800_fe3f7db0bfd1.md"
+    },
+    "built_at": "2026-10-19T22:53:52.908+09:00",
+    "checks": {
+      "format": 1,
+      "inspection": {
+        "inspected": 7,
+        "not_inspectable": 0,
+        "pinned_scanned": 2
+      },
+      "result": "pass"
+    },
+    "content_sha256": "14e7dc4a7074714a6cfaafd5b0336ffd23a71b0867962a04f286e352094033be",
+    "entry": "index.html",
+    "files": [
+      {
+        "bytes": 123,
+        "format": "text",
+        "inspection": "inspected",
+        "origin": "generated",
+        "path": "README.txt",
+        "sha256": "e353397f4cfbc1249c2566e6f4d2b9b6d1989afbadb3fbe8cd8022a449be21a0"
+      },
+      {
+        "bytes": 2220,
+        "format": "html",
+        "inspection": "inspected",
+        "origin": "identity",
+        "path": "about.html",
+        "sha256": "e4c2859afe704714a225bf64a606014bc88b8bce3f78cc63a4a5d2c7a5b7bdf9"
+      },
+      {
+        "bytes": 54,
+        "format": "text",
+        "inspection": "inspected",
+        "origin": "generated",
+        "path": "assets/NOTICE.txt",
+        "sha256": "4357fa71f9cc0524f778b5f4b82f7de88d520256a4d5d671b2747a09a915669c"
+      },
+      {
+        "bytes": 140,
+        "format": "javascript",
+        "inspection": "inspected",
+        "origin": "identity",
+        "path": "assets/identity.js",
+        "sha256": "44336fc5a4862fab88a276af90858151613eaf656ff1b8bc4bd38402fd24a1c5"
+      },
+      {
+        "bytes": 1638,
+        "format": "css",
+        "inspection": "pinned_scanned",
+        "origin": "bundled",
+        "path": "assets/publication.css",
+        "sha256": "73d131cb53eddc7ceb2a323adb551b16907234428b3a98d11c89107ff3462392"
+      },
+      {
+        "bytes": 1394,
+        "format": "javascript",
+        "inspection": "pinned_scanned",
+        "origin": "bundled",
+        "path": "assets/publication.js",
+        "sha256": "f8a6ce0c0d2c1554b9f33173c3cddd8124d70a3644849f24f70215288f0bc2ae"
+      },
+      {
+        "bytes": 3401,
+        "format": "html",
+        "inspection": "inspected",
+        "origin": "generated",
+        "path": "index.html",
+        "sha256": "669ca7a980b804daf5809dc969f5b5cf88149f68f03ba2b69f366a27929aad35"
+      },
+      {
+        "bytes": 2936,
+        "format": "html",
+        "inspection": "inspected",
+        "origin": "generated",
+        "path": "pages/context/0d9d00f4ee960153.html",
+        "sha256": "49bbd933557d6127a2560436b82a94fe600191860a13359adffb7ac71f54681a"
+      }
+    ],
+    "included": [
+      {
+        "category": "context",
+        "identity": "0d9d00f4ee960153"
+      },
+      {
+        "category": "project",
+        "identity": "13ca2a31bc0b0321"
+      }
+    ],
+    "limits": {
+      "interactive_figure_points": 0,
+      "longest_relative_path": 66,
+      "no_recorded_hash": 0,
+      "warnings": []
+    },
+    "not_included": [
+      {
+        "category": "event",
+        "count": 2,
+        "reason": "profile"
+      }
+    ],
+    "profile": {
+      "id": "read",
+      "rules_version": 1
+    },
+    "publication_id": "pub-01m5a71b8c3h80dybdy0sa7haj",
+    "reader_features": [
+      "read",
+      "relations",
+      "downloads"
+    ],
+    "remote_links": [],
+    "renderer": {
+      "format": 1,
+      "kit_version": "0.24.0",
+      "libraries": [
+        {
+          "name": "markdown-it-py",
+          "version": "4.2.0"
+        }
+      ]
+    },
+    "schema": "analytics.publication/1",
+    "scope": {
+      "kind": "project",
+      "reports": []
+    },
+    "ui_locale": "en"
+  },
+  "negative_shapes": [
+    {
+      "name": "uppercase_new_publication_id",
+      "target": "completion",
+      "path": [
+        "details",
+        "publication_id"
+      ],
+      "value": "pub-AAAAAAAAAAAAAAAAAAAAAAAAAA"
+    },
+    {
+      "name": "unknown_manifest_version",
+      "target": "completion",
+      "path": [
+        "details",
+        "format"
+      ],
+      "value": "analytics.publication/99"
+    },
+    {
+      "name": "boolean_basis_seq",
+      "target": "completion",
+      "path": [
+        "details",
+        "basis",
+        "content_seq"
+      ],
+      "value": true
+    },
+    {
+      "name": "uninspectable_completed_package",
+      "target": "completion",
+      "path": [
+        "details",
+        "checks",
+        "inspection",
+        "not_inspectable"
+      ],
+      "value": 1
+    },
+    {
+      "name": "incomplete_typed_exclusion",
+      "target": "completion",
+      "path": [
+        "details",
+        "exclusions"
+      ],
+      "value": [
+        {
+          "type": "run",
+          "run_id": "private-run"
+        }
+      ]
+    },
+    {
+      "name": "unregistered_analysis_basis",
+      "target": "completion",
+      "path": [
+        "details",
+        "analysis_state",
+        "basis"
+      ],
+      "value": "verified"
+    },
+    {
+      "name": "external_location",
+      "target": "completion",
+      "path": [
+        "details",
+        "location"
+      ],
+      "value": "/private/publication"
+    },
+    {
+      "name": "nonpositive_rules",
+      "target": "manifest",
+      "path": [
+        "profile",
+        "rules_version"
+      ],
+      "value": 0
+    },
+    {
+      "name": "unlisted_reader_feature",
+      "target": "manifest",
+      "path": [
+        "reader_features"
+      ],
+      "value": [
+        "search"
+      ]
+    },
+    {
+      "name": "unknown_file_inspection",
+      "target": "manifest",
+      "path": [
+        "files",
+        0,
+        "inspection"
+      ],
+      "value": "not_inspectable"
+    },
+    {
+      "name": "nonportable_file_path",
+      "target": "manifest",
+      "path": [
+        "files",
+        0,
+        "path"
+      ],
+      "value": "../outside"
+    }
+  ]
+}

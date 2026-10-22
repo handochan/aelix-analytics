@@ -1,14 +1,15 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Aelix Analytics record contract: analytics.project/2, analytics.event/2, analytics.report_revision/1, analytics.run/2, analytics.dataset/1, analytics.trust/1, analytics.migration/1",
+  "title": "Aelix Analytics record contract: analytics.project/2, analytics.event/2, analytics.report_revision/1, analytics.publication/1, analytics.run/2, analytics.dataset/1, analytics.trust/1, analytics.migration/1",
   "description": "ADR-0006 (docs/decisions/0006-common-record-contract.md), adopted 2026-10-03; analytics.run/2, analytics.dataset/1 and analytics.trust/1 from the record writer design (docs/design/RECORD-WRITER-AND-MIGRATION.md 2.6 and 2.7, OQ5). Kit 0.7.0 (Issue #13 PR 1) reads analytics.run/2 runs and analytics.dataset/1 import records under data/imported/, and lists analytics.event/2 records; kit 0.8.0 (Issue #13 PR 3) writes analytics.project/2, analytics.event/2, analytics.run/2, analytics.dataset/1 and the trust list analytics.trust/1 (outside the project). analytics.migration/1 is the copy migration's plan, mapping and report (design 2.7 and 6.3-6.8, Issue #13 PR 2), told apart by `record`: the migration engine writes them, analytics.project/2's optional `migration` binds the report by its sha256, and a migration's ledger lines (progress.jsonl, named by its plan) carry no family tag: migration_progress_line is their shape. Fields the contract does not name are allowed so that a reader keeps the optional fields a later writer adds. Kinds, reference types, relations, bases and bindings are closed: a reader reports a value outside them as unsupported and keeps the record. Rules a schema cannot state are in the ADR: Report file paths in NFC and distinct under casefold (section 7), request_id compared without case (section 8), the record_update transitions (section 6) and the digest of a reference equal to the hash its target record holds (section 3).",
   "type": "object",
   "required": ["schema"],
   "properties": {
     "schema": {"enum": ["analytics.project/2", "analytics.event/2", "analytics.report_revision/1", "analytics.run/2",
-                        "analytics.dataset/1", "analytics.trust/1", "analytics.migration/1"]}
+                        "analytics.dataset/1", "analytics.trust/1", "analytics.migration/1", "analytics.publication/1"]}
   },
   "allOf": [
+    {"if": {"properties": {"schema": {"const": "analytics.publication/1"}}}, "then": {"$ref": "#/$defs/publication_1"}},
     {"if": {"properties": {"schema": {"const": "analytics.project/2"}}}, "then": {"$ref": "#/$defs/project_2"}},
     {"if": {"properties": {"schema": {"const": "analytics.event/2"}}}, "then": {"$ref": "#/$defs/event_2"}},
     {"if": {"properties": {"schema": {"const": "analytics.report_revision/1"}}}, "then": {"$ref": "#/$defs/report_revision_1"}},
@@ -18,6 +19,656 @@
     {"if": {"properties": {"schema": {"const": "analytics.migration/1"}}}, "then": {"$ref": "#/$defs/migration_1"}}
   ],
   "$defs": {
+    "publication_id": {
+      "type": "string",
+      "pattern": "^pub-[0-9a-hjkmnp-tv-z]{26}$"
+    },
+    "publication_profile": {
+      "type": "object",
+      "required": [
+        "id",
+        "rules_version"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "rules_version": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "publication_basis": {
+      "type": "object",
+      "required": [
+        "as_of_seq",
+        "content_seq",
+        "context_version"
+      ],
+      "properties": {
+        "as_of_seq": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "content_seq": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "context_version": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "publication_analysis_state": {
+      "type": "object",
+      "required": [
+        "value",
+        "basis"
+      ],
+      "properties": {
+        "value": {
+          "enum": [
+            "in_progress",
+            "complete"
+          ]
+        },
+        "basis": {
+          "const": "declared"
+        }
+      },
+      "additionalProperties": false
+    },
+    "publication_checks": {
+      "type": "object",
+      "required": [
+        "format",
+        "result",
+        "inspection"
+      ],
+      "properties": {
+        "format": {
+          "const": 1
+        },
+        "result": {
+          "const": "pass"
+        },
+        "inspection": {
+          "type": "object",
+          "required": [
+            "inspected",
+            "pinned_scanned",
+            "not_inspectable"
+          ],
+          "properties": {
+            "inspected": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "pinned_scanned": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "not_inspectable": {
+              "const": 0
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "publication_details": {
+      "type": "object",
+      "required": [
+        "publication_id",
+        "format",
+        "package_sha256",
+        "content_sha256",
+        "profile",
+        "scope",
+        "basis",
+        "analysis_state",
+        "exclusions",
+        "location",
+        "checks"
+      ],
+      "properties": {
+        "publication_id": {
+          "$ref": "#/$defs/publication_id"
+        },
+        "format": {
+          "const": "analytics.publication/1"
+        },
+        "package_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "content_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "profile": {
+          "$ref": "#/$defs/publication_profile"
+        },
+        "scope": {
+          "enum": [
+            "project",
+            "reports"
+          ]
+        },
+        "basis": {
+          "$ref": "#/$defs/publication_basis"
+        },
+        "analysis_state": {
+          "$ref": "#/$defs/publication_analysis_state"
+        },
+        "exclusions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/reference"
+          }
+        },
+        "location": {
+          "type": "string",
+          "pattern": "^\\.analytics/publications/pub-[0-9a-hjkmnp-tv-z]{26}$"
+        },
+        "checks": {
+          "$ref": "#/$defs/publication_checks"
+        }
+      }
+    },
+    "publication_item_key": {
+      "type": "object",
+      "required": [
+        "category",
+        "identity"
+      ],
+      "properties": {
+        "category": {
+          "enum": [
+            "project",
+            "event",
+            "run",
+            "visualization",
+            "context",
+            "code",
+            "dataset",
+            "data_observation",
+            "report"
+          ]
+        },
+        "identity": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "publication_source": {
+      "type": "object",
+      "required": [
+        "item",
+        "role",
+        "verified"
+      ],
+      "properties": {
+        "item": {
+          "$ref": "#/$defs/publication_item_key"
+        },
+        "role": {
+          "enum": [
+            "figure",
+            "code_snapshot",
+            "attached_data",
+            "report_file"
+          ]
+        },
+        "verified": {
+          "enum": [
+            "recorded_hash",
+            "no_recorded_hash",
+            "kit_generated"
+          ]
+        },
+        "sha256": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recorded_sha256": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "current_sha256": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "publication_derived_source": {
+      "type": "object",
+      "required": [
+        "item",
+        "role",
+        "recorded_sha256",
+        "source_sha256"
+      ],
+      "properties": {
+        "item": {
+          "$ref": "#/$defs/publication_item_key"
+        },
+        "role": {
+          "enum": [
+            "figure",
+            "code_snapshot",
+            "attached_data",
+            "report_file"
+          ]
+        },
+        "recorded_sha256": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_sha256": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "publication_file": {
+      "type": "object",
+      "required": [
+        "path",
+        "bytes",
+        "sha256",
+        "origin",
+        "format",
+        "inspection"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/content_path"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "origin": {
+          "enum": [
+            "generated",
+            "bundled",
+            "copied",
+            "identity"
+          ]
+        },
+        "format": {
+          "enum": [
+            "html",
+            "css",
+            "javascript",
+            "payload",
+            "png",
+            "jpeg",
+            "gif",
+            "webp",
+            "svg",
+            "plotly",
+            "parquet",
+            "python",
+            "text"
+          ]
+        },
+        "inspection": {
+          "enum": [
+            "inspected",
+            "pinned_scanned"
+          ]
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/publication_source"
+          },
+          "minItems": 1
+        },
+        "derived_from": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/publication_derived_source"
+          },
+          "minItems": 1
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "origin": {
+                "const": "copied"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "sources"
+            ]
+          }
+        }
+      ]
+    },
+    "publication_1": {
+      "type": "object",
+      "required": [
+        "schema",
+        "publication_id",
+        "built_at",
+        "entry",
+        "basis",
+        "analysis_state",
+        "ui_locale",
+        "profile",
+        "scope",
+        "included",
+        "not_included",
+        "reader_features",
+        "renderer",
+        "remote_links",
+        "limits",
+        "checks",
+        "content_sha256",
+        "files"
+      ],
+      "properties": {
+        "schema": {
+          "const": "analytics.publication/1"
+        },
+        "publication_id": {
+          "$ref": "#/$defs/publication_id"
+        },
+        "built_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "entry": {
+          "const": "index.html"
+        },
+        "basis": {
+          "type": "object",
+          "required": [
+            "as_of_seq",
+            "content_seq",
+            "content_recorded_at",
+            "context_version"
+          ],
+          "properties": {
+            "as_of_seq": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "content_seq": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "content_recorded_at": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/timestamp"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "context_version": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "analysis_state": {
+          "$ref": "#/$defs/publication_analysis_state"
+        },
+        "ui_locale": {
+          "const": "en"
+        },
+        "profile": {
+          "$ref": "#/$defs/publication_profile"
+        },
+        "scope": {
+          "type": "object",
+          "required": [
+            "kind",
+            "reports"
+          ],
+          "properties": {
+            "kind": {
+              "enum": [
+                "project",
+                "reports"
+              ]
+            },
+            "reports": {
+              "type": "array",
+              "maxItems": 0
+            }
+          },
+          "additionalProperties": false
+        },
+        "included": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/publication_item_key"
+          },
+          "uniqueItems": true
+        },
+        "not_included": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "category",
+              "reason",
+              "count"
+            ],
+            "properties": {
+              "category": {
+                "type": "string",
+                "minLength": 1
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              },
+              "count": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "reader_features": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "read",
+              "relations",
+              "downloads",
+              "interactive_figures"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "renderer": {
+          "type": "object",
+          "required": [
+            "kit_version",
+            "format",
+            "libraries"
+          ],
+          "properties": {
+            "kit_version": {
+              "$ref": "#/$defs/kit_version"
+            },
+            "format": {
+              "const": 1
+            },
+            "libraries": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "version"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "version": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "sha256": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/$defs/sha256"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "license": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "remote_links": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(https?://|mailto:)"
+          }
+        },
+        "limits": {
+          "type": "object",
+          "required": [
+            "no_recorded_hash",
+            "longest_relative_path",
+            "interactive_figure_points",
+            "warnings"
+          ],
+          "properties": {
+            "no_recorded_hash": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "longest_relative_path": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "interactive_figure_points": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "warnings": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "reason",
+                  "count"
+                ],
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "count": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "checks": {
+          "$ref": "#/$defs/publication_checks"
+        },
+        "content_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/publication_file"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
     "analysis_checkpoint_details": {
       "type": "object",
       "required": [
@@ -747,7 +1398,9 @@
                                  "details": {"required": ["previous_revision"],
                                              "properties": {"previous_revision": {"anyOf": [{"$ref": "#/$defs/opaque_id"},
                                                                                             {"type": "null"}]}}}}}},
-        {"if": {"properties": {"kind": {"enum": ["publication", "publish_receipt"]}}},
+        {"if": {"properties": {"kind": {"const": "publication"}}},
+         "then": {"required": ["details"], "properties": {"details": {"$ref": "#/$defs/publication_details"}}}},
+        {"if": {"properties": {"kind": {"const": "publish_receipt"}}},
          "then": {"required": ["details"], "properties": {"details": {"required": ["publication_id"]}}}}
       ]
     },

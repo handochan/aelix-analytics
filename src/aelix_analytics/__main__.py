@@ -301,9 +301,13 @@ def _command(argv) -> int:
     p = sub.add_parser("render", help="rebuild the Workspace (HTML)")
     p.add_argument("--if-changed", action="store_true")
 
-    p = sub.add_parser("build", help="inspect a sharing preview without writing a publication")
-    p.add_argument("--preview", action="store_true", required=True,
-                   help="inspect in memory without saving a publication")
+    p = sub.add_parser("build", allow_abbrev=False, help="build a private publication or inspect its delivery bytes")
+    mode = p.add_mutually_exclusive_group()
+    mode.add_argument("--preview", action="store_true", help="inspect in memory without saving a publication")
+    mode.add_argument("--list", action="store_true", dest="list_publications")
+    mode.add_argument("--verify", metavar="FOLDER_OR_ZIP")
+    mode.add_argument("--zip-of", metavar="PUBLICATION_ID")
+    p.add_argument("--zip", metavar="PATH")
     p.add_argument("--profile", default="read")
     p.add_argument("--scope", default="project")
     p.add_argument("--report", action="append", default=[])
@@ -340,6 +344,8 @@ def _command(argv) -> int:
             _emit(migration.migrate(_migration_source(args), args.to, origin=origin,
                                     dry_run=args.dry_run))
             return 0
+        if args.command == "build":
+            return _publication_command(args)
         project = _project(args)
         # Before anything is written — a lock file, a context version, a cache — and before the
         # analysis libraries are imported: a write where this kit does not write is refused, a read
@@ -348,24 +354,6 @@ def _command(argv) -> int:
             core.admit(project, args.command)
         else:
             core.readable(project, args.command)
-        if args.command == "build":
-            from .publishing.build import preview_package
-            from .publishing.model import PublicationError
-            from .publishing.projection import ShareRequest
-
-            request = ShareRequest(scope="collection" if args.collection is not None else args.scope,
-                                   reports=tuple((r, "") for r in args.report),
-                                   analysis_state=args.analysis_state, allow_withdrawn=args.allow_withdrawn)
-            try:
-                result, _ = preview_package(project, request, profile=args.profile, exclude=args.exclude)
-            except PublicationError as exc:
-                raise core.AnalyticsError(exc.code, exc.message, details=exc.details) from exc
-            except (UnicodeError, RecursionError) as exc:
-                raise core.AnalyticsError("records_unsupported", "the preview input text or nesting is not supported") from exc
-            except (ImportError, OSError) as exc:
-                raise core.AnalyticsError("renderer_unavailable", "the preview's rendering resources are unavailable") from exc
-            _emit(result)
-            return 0
         if args.command == "reports":
             action = args.report_action
             if action == "save":
@@ -499,6 +487,74 @@ def _command(argv) -> int:
     except core.AnalyticsError as exc:
         _emit(exc.to_json())
         return 1
+
+
+def _publication_command(args):
+    from . import relations
+    from .publishing import state
+    from .publishing.model import PublicationError
+
+    readonly = args.list_publications or args.verify is not None or args.zip_of is not None
+    if readonly and (args.exclude or args.report or args.collection or args.scope != "project"
+                     or args.profile != "read" or args.analysis_state != "in_progress" or args.allow_withdrawn):
+        raise core.AnalyticsError("scope_invalid", "scope and profile options apply only to build or preview")
+    if args.zip and (args.preview or args.list_publications or args.verify is not None):
+        raise core.AnalyticsError("zip_path_invalid", "--zip applies only to build or --zip-of")
+    if args.zip_of is not None and not args.zip:
+        raise core.AnalyticsError("zip_path_invalid", "--zip-of requires --zip PATH")
+    project = None
+    if args.verify is not None:
+        start = args.project or os.environ.get("AELIX_ANALYTICS_PROJECT") or os.getcwd()
+        root = core.find_project(start)
+        if root is not None or args.project or os.environ.get("AELIX_ANALYTICS_PROJECT"):
+            project = _project(args)
+    else:
+        project = _project(args)
+    if project is not None:
+        core.readable(project, "inspect publication")
+    try:
+        if args.verify is not None:
+            result = state.verify(args.verify, model=core.read_model(project) if project else None)
+        elif args.list_publications:
+            result = state.list_publications(core.read_model(project))
+        elif args.zip_of is not None:
+            from .publishing.package import write_zip
+
+            model = core.read_model(project)
+            observed = state.observe(model, args.zip_of)
+            if observed["recording_status"] != "complete":
+                raise PublicationError("publication_not_recorded", "no unique supported completion record", details=observed)
+            if not observed["folder_checked"] or observed["folder_status"] != "same":
+                raise PublicationError("package_check_failed", "completed publication folder is not intact", details=observed)
+            _state, _reason, _candidates, event = relations.publication_record(model.journal, args.zip_of)
+            path = project.root / event["details"]["location"]
+            result = {"ok": True, "publication_id": args.zip_of, "recording_status": "complete",
+                      "zip": write_zip(path, args.zip, project_root=project.root, binding=event["details"])}
+        else:
+            from .publishing.build import build_publication, preview_package
+            from .publishing.projection import ShareRequest
+
+            request = ShareRequest(scope="collection" if args.collection is not None else args.scope,
+                                   reports=tuple((r, "") for r in args.report),
+                                   analysis_state=args.analysis_state, allow_withdrawn=args.allow_withdrawn)
+            if args.preview:
+                result, _ = preview_package(project, request, profile=args.profile, exclude=args.exclude)
+            else:
+                result = build_publication(project, request, profile=args.profile, exclude=args.exclude,
+                                           zip_path=args.zip, origin=_origin())
+    except PublicationError as exc:
+        error = core.AnalyticsError(exc.code, exc.message, details=exc.details)
+        if exc.details.get("interrupted"):
+            _emit(error.to_json())
+            return 130
+        raise error from exc
+    except (UnicodeError, RecursionError) as exc:
+        raise core.AnalyticsError("records_unsupported", "publication input text or nesting is not supported") from exc
+    except (ImportError, OSError) as exc:
+        code = "package_check_failed" if readonly else "renderer_unavailable"
+        raise core.AnalyticsError(code, "publication resources are unavailable") from exc
+    _emit(result)
+    return 130 if result.get("interrupted") else 0 if result.get("ok") else 1
 
 
 def _safe_render(workspace, project) -> dict:

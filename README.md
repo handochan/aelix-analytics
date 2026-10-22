@@ -93,9 +93,9 @@ aelix 안에서: `/analytics`(현황) · `/analytics open`(리포트) · "지역
 배포본은 아직 어디에도 게시하지 않았으므로 체크아웃에서 직접 만듭니다.
 
 ```sh
-cd $PACK && uv build                                   # dist/aelix_analytics-0.25.0-py3-none-any.whl
-uv tool install --python 3.12 dist/aelix_analytics-0.25.0-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
-uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.25.0-py3-none-any.whl   # aelix와 함께
+cd $PACK && uv build                                   # dist/aelix_analytics-0.26.0-py3-none-any.whl
+uv tool install --python 3.12 dist/aelix_analytics-0.26.0-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
+uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.26.0-py3-none-any.whl   # aelix와 함께
 ```
 
 - `analytics`는 체크아웃의 `bin/analytics`와 같은 명령·인자·usage(바이트까지 같음)를 쓰고 kit의 출력을 바이트 그대로 넘깁니다
@@ -494,7 +494,11 @@ kit이 쓰는 텍스트(기록·템플릿 사본·inline 스크립트·Workspace
   `--profile read|evidence`와 `--exclude REF`를 쓰며 기록·CONTEXT 버전·캐시·잠금·패키지 폴더를 만들지 않습니다.
   터미널과 `/analytics build --preview`는 이미 준비된 프로젝트 `.venv`를 쓰고 환경을 새로 만들거나 동기화하지 않습니다.
   없으면 먼저 별도로 `uv sync`로 환경을 준비합니다. SDK build 함수는 없습니다.
-  저장·결박하는 build, Report/collection 범위, ZIP·publish는 아직 제공하지 않습니다.
+  `analytics build`는 `.analytics/publications/<publication_id>/`에 독립 사본과 manifest를 만들고 완료 이벤트로 결박합니다.
+  `--list`는 기록 완료와 현재 폴더 same/changed/missing을 따로 표시합니다. `--verify FOLDER_OR_ZIP`는 원본 프로젝트 없이 Python 표준 라이브러리로도 검사하며,
+  프로젝트 안에서는 완료 기록과도 대조합니다. `--zip PATH` 또는 `--zip-of ID --zip PATH`는 프로젝트 밖의 새 ZIP 경로만 받습니다.
+  공유 전에 결과의 `index.html`을 직접 확인하세요. Report/collection 범위와 publish는 아직 제공하지 않습니다.
+  ZIP 운반·다른 독자·브라우저/다른 OS 도구의 수용은 별도 검증이며, 검사는 분석 결론이나 비밀 탐지 인증이 아닙니다.
 
 ## 개발
 

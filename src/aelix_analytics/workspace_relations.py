@@ -125,6 +125,8 @@ class RelationPages:
         s = self.site
         state = row["state"]
         tone, mark = s.REF_STATE.get(state, ("muted", "?"))
+        if state == "resolved" and row.get("type") == "publication":
+            return s.badge(tone, mark, t("publication.reference_found"))
         if state == "resolved":
             found = ("record" if row.get("type") in relations.EVENT_TARGETS
                      else "run" if row.get("type") == "run" else "")
@@ -171,6 +173,10 @@ class RelationPages:
         name = self.title(other) if other else t("relations.unknown_target")
         sub = s.user_text(other) if other and not named else ""
         target = row.get("target") or {}
+        if row.get("type") == "publication":
+            what = t("kind.publication")
+            name = s.user_text(target.get("publication_id") or "")
+            sub = ""
         if row["direction"] == "outgoing" and row.get("type") in ("data_observation", "dataset_import", "code_snapshot"):
             # A file a run read or wrote, or a script it kept: named by its path (the query identity
             # of a run's observation is the run), its id line the path and the run.
@@ -179,12 +185,14 @@ class RelationPages:
             if isinstance(path, str):
                 name = s.user_text(s.dataset_name(path) or path)
                 sub = s.user_text(path) + (f' · {t("refs.run")} {esc(run)}' if isinstance(run, str) else "")
+        publication = (s.publication_html(target.get("publication_id"), 1)
+                       if row.get("type") == "publication" else "")
         return (f'<li class="relation-item" data-direction="{row["direction"]}">'
                 f'<div class="relation-head"><div class="relation-what"><p class="kicker">{what}{named} · {relation}</p>'
                 f'<p class="relation-name">{name}</p>'
                 + (f'<p class="relation-id">{sub}</p>' if sub else "")
                 + f'</div>{self.judgment(row)}</div>'
-                f'<div class="relation-actions">{" ".join(actions)}</div>{self.details(row, location)}</li>')
+                f'{publication}<div class="relation-actions">{" ".join(actions)}</div>{self.details(row, location)}</li>')
 
     def note(self, identity: str) -> str:
         """What a reader of a record needs first when it is no longer as it was made (ADR-0006 6):
@@ -243,6 +251,8 @@ class RelationPages:
             target = target if isinstance(target, str) else None
             other = row["from"] if row["direction"] == "incoming" else target
             label = self.label(other) if other else t("relations.unknown_target")
+            if row.get("type") == "publication" and row["direction"] == "outgoing":
+                label = s.user_text((row.get("target") or {}).get("publication_id") or "")
             sides[row["direction"]].append(
                 f'<div class="relation-node ref-{esc(row["state"])}" data-direction="{row["direction"]}" data-edge="{i}">'
                 f'<div>{label}</div><small>{self.judgment(row)}</small></div>')
@@ -325,7 +335,9 @@ class RelationPages:
         # Three tabs (design 6.4): Provenance first where the item has a trail, the one-hop relations of
         # #18 as they were, and History. Without a script they read one after the other.
         provenance = s.provenance.tab_html(identity) if not page else ""
-        body = f'''{head}{self.note(identity)}{provenance}
+        publication = (s.publication_event_html(event.value, 1)
+                       if event and event.kind == "publication" else "")
+        body = f'''{head}{self.note(identity)}{publication}{provenance}
 <section id="related" class="tab" data-count="{len(rows)}"><h2>{t("relations.heading")}</h2>
 <p class="relation-scope">{t("relations.scope")}{updating}</p><p>{counts}</p>
 {filters}

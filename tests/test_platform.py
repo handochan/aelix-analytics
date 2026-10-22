@@ -2954,7 +2954,7 @@ def test_loading_the_kit_pulls_no_analysis_library_into_the_host_process(monkeyp
         "print('LOADED:' + ','.join(loaded))\n"
         "print('KIT_OK:' + mod.core.SCHEMA_RUN)\n"
         "print('OURS:' + ','.join(sorted(n for n in sys.modules if n.split('.')[0] == 'aelix_analytics')))\n"
-        "print('RUNTIME:' + ','.join(sorted({n.rsplit('.', 1)[-1] for n in imported\n"
+        "print('RUNTIME:' + ','.join(sorted({n.split('.', 1)[1] for n in imported\n"
         "                                    if n.startswith('aelix_analytics_runtime') and '.' in n})))\n"
     )
     proc = subprocess.run([sys.executable, "-c", code], capture_output=True, timeout=120,
@@ -2968,11 +2968,14 @@ def test_loading_the_kit_pulls_no_analysis_library_into_the_host_process(monkeyp
     assert "OURS:" in proc.stdout.splitlines(), proc.stdout
     # What the synthetic package imported (the audit hook's `import` events; the package itself is
     # gone from sys.modules after the load; core itself is loaded by its file): core binds these
-    # stdlib siblings before namespace cleanup so asset readers work after load. It still imports
+    # stdlib siblings before namespace cleanup so asset/publication readers work after load. Keep
+    # qualified names exact, including the publication reader's stdlib dependencies (C1). It imports
     # no migration or analysis engine (Issue #13 PR 2, design 3.2; Issue #17 B3-b).
     runtime = next(line for line in proc.stdout.splitlines() if line.startswith("RUNTIME:"))
     assert set(runtime[len("RUNTIME:"):].split(",")) == {
-        "_platform", "relations", "writer", "asset_app", "asset_contract", "asset_policy", "asset_suggestions", "checkpoints"}, runtime
+        "_platform", "relations", "writer", "asset_app", "asset_contract", "asset_policy", "asset_suggestions", "checkpoints",
+        "publishing", "publishing.basis", "publishing.checks", "publishing.inspections",
+        "publishing.model", "publishing.state"}, runtime
 
 
 def test_importing_the_package_imports_nothing_of_the_kit():
@@ -3004,7 +3007,10 @@ def test_importing_the_package_imports_nothing_of_the_kit():
                                      "aelix_analytics._platform", "aelix_analytics.asset_app",
                                      "aelix_analytics.asset_contract", "aelix_analytics.asset_policy",
                                      "aelix_analytics.asset_suggestions", "aelix_analytics.checkpoints", "aelix_analytics.cli",
-                                     "aelix_analytics.core", "aelix_analytics.relations",
+                                     "aelix_analytics.core", "aelix_analytics.publishing",
+                                     "aelix_analytics.publishing.basis", "aelix_analytics.publishing.checks",
+                                     "aelix_analytics.publishing.inspections", "aelix_analytics.publishing.model",
+                                     "aelix_analytics.publishing.state", "aelix_analytics.relations",
                                      "aelix_analytics.writer"]
 
 

@@ -445,9 +445,11 @@ async def run_kit(project, args, *, timeout: float, actor: str = "agent", means:
     processes = project.platform.processes
     try:
         if args[:1] == ["build"]:
-            python = project.root / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+            readonly = any(a in ("--list", "--verify", "--zip-of") or a.startswith(("--verify=", "--zip-of=")) for a in args[1:])
+            python = Path(sys.executable) if readonly else project.root / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
             if not python.is_file():
-                raise core.AnalyticsError("renderer_unavailable", "preview needs an existing project environment; run uv sync first")
+                mode = "preview" if "--preview" in args else "build"
+                raise core.AnalyticsError("renderer_unavailable", f"{mode} needs an existing project environment; run uv sync first")
             argv = [str(python), "-m", "aelix_analytics", "--project", str(project.root), *args]
         else:
             uv = resolve_uv(processes)
@@ -1783,7 +1785,8 @@ HELP = """/analytics — Aelix Analytics project
   /analytics demo DIR           new project with synthetic data and example runs
   /analytics use DIR            make DIR the active project for this aelix process
   /analytics render | open      rebuild the report | open it in the browser
-  /analytics build --preview    inspect a sharing preview without writing a publication
+  /analytics build [--preview]  build privately or inspect a sharing preview
+  /analytics build --list | --verify PATH | --zip-of ID --zip PATH
   /analytics record KIND TEXT   journal entry as a human (finding, decision, question, ...);
                                 KIND workflow_feedback: something this analysis workflow lacked
                                 or made awkward
@@ -1903,11 +1906,11 @@ async def analytics_command(args, ctx=None):
             return f"report rebuilt: {index}"
         if sub == "build":
             project, _ = resolve_project()
-            await asyncio.to_thread(core.readable, project, "preview publication")
+            await asyncio.to_thread(core.readable, project, "inspect publication")
             try:
                 args = shlex.split(rest)
             except ValueError as exc:
-                raise core.AnalyticsError("scope_invalid", "quote the preview arguments") from exc
+                raise core.AnalyticsError("scope_invalid", "quote the build arguments") from exc
             ok, value = await run_kit(project, ["build", *args], timeout=1200, actor="human", means="command")
             return json.dumps(value, ensure_ascii=False, indent=2) if ok else render_error("/analytics build", value)
         if sub == "record":

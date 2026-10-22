@@ -1,0 +1,550 @@
+{
+  "record_kind": "aelix-analytics-publication-build-pr3-backend",
+  "observed_at": "2026-10-19T14:14:45.747775+00:00",
+  "issue": "https://github.com/handochan/aelix-analytics/issues/20",
+  "project": "https://github.com/users/handochan/projects/7",
+  "pull_request": null,
+  "base_revision": "d9413a7af9982a20028581419ab4d016b3ba3991",
+  "measured_source": "6866c92b3840ef2c2b3a7bc6c0eb80f69deed74e",
+  "kit_version": "0.24.0 provisional until actual merge order",
+  "reader_format": 6,
+  "scope": "Actual PR3 backend; Workspace publication observation/Timeline waits #100 shared-file handoff; not merge-ready",
+  "raw_byte_measurement": {
+    "schema": "aelix-analytics.publication-build-eval/1",
+    "observed_at": "2026-10-19T14:12:57.359220+00:00",
+    "source_commit": "6866c92b3840ef2c2b3a7bc6c0eb80f69deed74e",
+    "tracked_dirty": false,
+    "kit_version": "0.24.0",
+    "python": "3.12.13",
+    "platform": "Darwin",
+    "command": "PYTHONPATH=src python tools/publication_build_eval.py --out <new directory>",
+    "scope": "small synthetic project; timing observations are not a performance gate or M-scale claim",
+    "observations": [
+      {
+        "profile": "read",
+        "attempt": 1,
+        "seconds_observed": 0.028272499999729916,
+        "publication_id": "pub-01m5a848p28p174rvv4hstjtc4",
+        "files": 10,
+        "bytes": 16796,
+        "manifest_bytes": 2870,
+        "event_bytes_with_lf": 1366,
+        "package_sha256": "00fb1778f9b3d29314cbd0c3f442f3310aacd95ffd7ea9f49f31c237c0e78eea",
+        "content_sha256": "03dfd7b8841454340b4d4eea8f5b275382a7cd2c5af34dc06fb9c8abe2fca778",
+        "record": {
+          "id": "e5",
+          "seq": 5
+        },
+        "basis": {
+          "content_seq": 4,
+          "content_recorded_at": "2026-10-19T23:12:57.124+09:00",
+          "context_version": "20261019-231257-122989_afb391a8f55c.md",
+          "as_of_seq": 4,
+          "context_status": "recorded"
+        },
+        "checks": {
+          "format": 1,
+          "result": "pass",
+          "inspection": {
+            "inspected": 8,
+            "pinned_scanned": 2,
+            "not_inspectable": 0
+          }
+        },
+        "renderer": {
+          "kit_version": "0.24.0",
+          "format": 1,
+          "libraries": [
+            {
+              "name": "markdown-it-py",
+              "version": "4.2.0"
+            }
+          ]
+        }
+      },
+      {
+        "profile": "read",
+        "attempt": 2,
+        "seconds_observed": 0.027857375011080876,
+        "publication_id": "pub-01m5a848q8swvx00hzgnzj6w1r",
+        "files": 10,
+        "bytes": 16796,
+        "manifest_bytes": 2870,
+        "event_bytes_with_lf": 1366,
+        "package_sha256": "f4701c0133a478d25415e799b893d9f9b1d782e18fcfabe49c26db786ba47222",
+        "content_sha256": "03dfd7b8841454340b4d4eea8f5b275382a7cd2c5af34dc06fb9c8abe2fca778",
+        "record": {
+          "id": "e6",
+          "seq": 6
+        },
+        "basis": {
+          "content_seq": 4,
+          "content_recorded_at": "2026-10-19T23:12:57.124+09:00",
+          "context_version": "20261019-231257-122989_afb391a8f55c.md",
+          "as_of_seq": 5,
+          "context_status": "recorded"
+        },
+        "checks": {
+          "format": 1,
+          "result": "pass",
+          "inspection": {
+            "inspected": 8,
+            "pinned_scanned": 2,
+            "not_inspectable": 0
+          }
+        },
+        "renderer": {
+          "kit_version": "0.24.0",
+          "format": 1,
+          "libraries": [
+            {
+              "name": "markdown-it-py",
+              "version": "4.2.0"
+            }
+          ]
+        }
+      },
+      {
+        "profile": "evidence",
+        "attempt": 1,
+        "seconds_observed": 0.02777920800144784,
+        "publication_id": "pub-01m5a848sc5tnjxm9wjbdb0vmz",
+        "files": 10,
+        "bytes": 16899,
+        "manifest_bytes": 2874,
+        "event_bytes_with_lf": 1374,
+        "package_sha256": "c5aee8ce18f971dcbf58bb197db3dee72d23ad6527bfb859b63b8717348bd8fb",
+        "content_sha256": "91350b8269eef9e403e8829ccd18b1ac7f386b67a17b24a9595ec8be08f6475d",
+        "record": {
+          "id": "e7",
+          "seq": 7
+        },
+        "basis": {
+          "content_seq": 4,
+          "content_recorded_at": "2026-10-19T23:12:57.124+09:00",
+          "context_version": "20261019-231257-122989_afb391a8f55c.md",
+          "as_of_seq": 6,
+          "context_status": "recorded"
+        },
+        "checks": {
+          "format": 1,
+          "result": "pass",
+          "inspection": {
+            "inspected": 8,
+            "pinned_scanned": 2,
+            "not_inspectable": 0
+          }
+        },
+        "renderer": {
+          "kit_version": "0.24.0",
+          "format": 1,
+          "libraries": [
+            {
+              "name": "markdown-it-py",
+              "version": "4.2.0"
+            }
+          ]
+        }
+      },
+      {
+        "profile": "evidence",
+        "attempt": 2,
+        "seconds_observed": 0.028334207978332415,
+        "publication_id": "pub-01m5a848tj83fbsyj9p50679dw",
+        "files": 10,
+        "bytes": 16899,
+        "manifest_bytes": 2874,
+        "event_bytes_with_lf": 1374,
+        "package_sha256": "dea08eb3e080aab16e3933f3dfc0e83f23a5724163c8e1fa67ac1269ca7dde32",
+        "content_sha256": "91350b8269eef9e403e8829ccd18b1ac7f386b67a17b24a9595ec8be08f6475d",
+        "record": {
+          "id": "e8",
+          "seq": 8
+        },
+        "basis": {
+          "content_seq": 4,
+          "content_recorded_at": "2026-10-19T23:12:57.124+09:00",
+          "context_version": "20261019-231257-122989_afb391a8f55c.md",
+          "as_of_seq": 7,
+          "context_status": "recorded"
+        },
+        "checks": {
+          "format": 1,
+          "result": "pass",
+          "inspection": {
+            "inspected": 8,
+            "pinned_scanned": 2,
+            "not_inspectable": 0
+          }
+        },
+        "renderer": {
+          "kit_version": "0.24.0",
+          "format": 1,
+          "libraries": [
+            {
+              "name": "markdown-it-py",
+              "version": "4.2.0"
+            }
+          ]
+        }
+      }
+    ],
+    "assertions": {
+      "read_preview_no_writes": true,
+      "read_0_bound": true,
+      "read_0_canary_absent": true,
+      "read_1_bound": true,
+      "read_1_canary_absent": true,
+      "read_new_identity": true,
+      "read_equal_content": true,
+      "read_basis_monotonic": true,
+      "read_zip_repeat_bytes": true,
+      "read_zip_verified": true,
+      "evidence_preview_no_writes": true,
+      "evidence_0_bound": true,
+      "evidence_0_canary_absent": true,
+      "evidence_1_bound": true,
+      "evidence_1_canary_absent": true,
+      "evidence_new_identity": true,
+      "evidence_equal_content": true,
+      "evidence_basis_monotonic": true,
+      "evidence_zip_repeat_bytes": true,
+      "evidence_zip_verified": true,
+      "all_complete": true
+    },
+    "hold": true,
+    "not_run": [
+      "Workspace publication UI (#100 integration)",
+      "record-format implementation reviews1+1/correctiondiff1",
+      "browser/CSP/owner/other-reader/OS ZIP tools/M-scale",
+      "Report/collection sharing (PR4)",
+      "model/token measurement",
+      "remote final-head CI at measurement time"
+    ]
+  },
+  "input_manifest": [
+    {
+      "path": "bin/analytics",
+      "bytes": 13721,
+      "sha256": "727f8d74d8ce7742b2cea694d6774a254159944830047b555a82d8ff25d5c959"
+    },
+    {
+      "path": "docs/schemas/analytics-records.schema.json",
+      "bytes": 65201,
+      "sha256": "0ba8c0f9ef55bc7284e775e5d27eb242af3599b6df5973bf08540ddd0c9ad2d3"
+    },
+    {
+      "path": "extension/aelix_analytics.py",
+      "bytes": 117702,
+      "sha256": "6da5042c9b349474154129058648670c1eb27807aa1cea08796bfde6a45ddb1b"
+    },
+    {
+      "path": "pyproject.toml",
+      "bytes": 3009,
+      "sha256": "91a28712b959e4e24821ed79f0dabb287bac9e7650a327e379a92cddb2566d06"
+    },
+    {
+      "path": "src/aelix_analytics/__main__.py",
+      "bytes": 31571,
+      "sha256": "eca462cf72ecbcd74c6d2ad408d4597f5e1b0e21bb55dc5c1edeb7a2ae858ce1"
+    },
+    {
+      "path": "src/aelix_analytics/aelix-plugin.toml",
+      "bytes": 1607,
+      "sha256": "05331e0ed4b4404da809c6dea941a3d23863bfbb7a0063e82b23e4ca8431998c"
+    },
+    {
+      "path": "src/aelix_analytics/cli.py",
+      "bytes": 32171,
+      "sha256": "51f981696f8453b5d8f73139794b54c2a16cfefcd193c28c75a14f82bf01859e"
+    },
+    {
+      "path": "src/aelix_analytics/core.py",
+      "bytes": 207603,
+      "sha256": "b739c6a667661f76ddf4b41011df0e79d11d586821a80ef473dcba0bbb388054"
+    },
+    {
+      "path": "src/aelix_analytics/publishing/basis.py",
+      "bytes": 3620,
+      "sha256": "d6b8bca8f941d4c6d1171769143f5a5068fd72ca6c82942dce78c7cd007e96b0"
+    },
+    {
+      "path": "src/aelix_analytics/publishing/build.py",
+      "bytes": 29734,
+      "sha256": "6818b22b6f1a433714f68c02550e924052bc3f92e0fc6bde9958717bf379dd93"
+    },
+    {
+      "path": "src/aelix_analytics/publishing/checks.py",
+      "bytes": 30723,
+      "sha256": "a92e03bcea1c1a4125094628d6d174110f6d1ef576a448eaa535fff8bb4020d1"
+    },
+    {
+      "path": "src/aelix_analytics/publishing/field_policy.py",
+      "bytes": 22850,
+      "sha256": "ff738bd333b0f207e574c0b6b4bc4379fa166d9b58cb9cb2a9d01bd61401d30a"
+    },
+    {
+      "path": "src/aelix_analytics/publishing/model.py",
+      "bytes": 4259,
+      "sha256": "4275a245ba4d0c0288b70e17fad7423c5dc7a3b177654a21fac220c84dafc850"
+    },
+    {
+      "path": "src/aelix_analytics/publishing/package.py",
+      "bytes": 15754,
+      "sha256": "deaabceabe6466bd4f0dc14e0799a15bfb805401d07d70e8768f6098e06fa64f"
+    },
+    {
+      "path": "src/aelix_analytics/publishing/render.py",
+      "bytes": 17290,
+      "sha256": "d8d4325bdac788488e285c0732075dd0f339602e3d2c36471862c6104d319319"
+    },
+    {
+      "path": "src/aelix_analytics/publishing/scope.py",
+      "bytes": 13189,
+      "sha256": "806f752217f3497a0ccd41e24ade308b569a490a0c3ca42d36d27f063c883b45"
+    },
+    {
+      "path": "src/aelix_analytics/publishing/snapshot.py",
+      "bytes": 16426,
+      "sha256": "5b0e4fcbf636a8852126f6dbb59b8493a1140c8daa63fbc9ebf5e8e219d87a9b"
+    },
+    {
+      "path": "src/aelix_analytics/publishing/state.py",
+      "bytes": 6251,
+      "sha256": "ea0c334e2e4fe44eb6b965071d01e03b6c6c1223235b52f0eeb9440dfc7ad748"
+    },
+    {
+      "path": "src/aelix_analytics/relations.py",
+      "bytes": 216713,
+      "sha256": "f615c342b22f1f5cce9cb73c1dcc28e685bcd8c4c22f318d7d4593805aaa1566"
+    },
+    {
+      "path": "src/aelix_analytics/writer.py",
+      "bytes": 99150,
+      "sha256": "047e76f3b03655deba23648c72e77a58a374a1b5fde75c4918b74eb34440da77"
+    },
+    {
+      "path": "tests/fixtures/publication-binding.json",
+      "bytes": 7518,
+      "sha256": "39282cf4ea876bb1135e8bd9773a76b9bfd2d7e3003c4979f17f56f91965343b"
+    },
+    {
+      "path": "tests/test_contracts.py",
+      "bytes": 48306,
+      "sha256": "edbbcf0042d32f98c3b81ced21b668954c46ac338aaa7e22058fb6382ae0bb67"
+    },
+    {
+      "path": "tests/test_extension.py",
+      "bytes": 124285,
+      "sha256": "f590b55693cc26e90cfd337ace6f53764c28957efe3be8e5b2da414e7a970e9c"
+    },
+    {
+      "path": "tests/test_kit.py",
+      "bytes": 95641,
+      "sha256": "4f5066bccfca304f6cda89f029320d102271fe1941d426dc8935ecb32e3139e9"
+    },
+    {
+      "path": "tests/test_layers.py",
+      "bytes": 65128,
+      "sha256": "55db6787044dc96ba48de1cd782f0260367cd21db7f84f194e94c71e7e592093"
+    },
+    {
+      "path": "tests/test_migration_reader.py",
+      "bytes": 10779,
+      "sha256": "5ac31aa7f429aabcfdfd7ea0b60cd73ec5add9a92c7693b09b6a6375f2e603cf"
+    },
+    {
+      "path": "tests/test_publication_build.py",
+      "bytes": 27684,
+      "sha256": "fd21c9e5098d3f3911618c5d5ce76be9c66c3889228468753aa47a3fb253fce0"
+    },
+    {
+      "path": "tests/test_publication_preview.py",
+      "bytes": 49263,
+      "sha256": "ac70a5fde5125e673e15dfa34f6a6a421ec80e9e0cff767dce615ee715852589"
+    },
+    {
+      "path": "tests/test_publication_projection.py",
+      "bytes": 32841,
+      "sha256": "6dcd40acae46c1f468829fd81c7dad5c9ca6cdccd40423517b1d1a1130708975"
+    },
+    {
+      "path": "tests/test_publication_records.py",
+      "bytes": 9302,
+      "sha256": "3bbba4ec338fed71c7b1b1d29cfdab3aa8c2949f41a71673684929df425964e2"
+    },
+    {
+      "path": "tests/test_publication_schema.py",
+      "bytes": 4328,
+      "sha256": "18c75fb8303ba7b6865120c53ea2e312f39f5ad1f992edbb566dadd4376fcd0b"
+    },
+    {
+      "path": "tests/test_publication_state.py",
+      "bytes": 10879,
+      "sha256": "21d51b696ab15c902c674e9ff8f25bfc3557127bcd76c6b39e1fdf1df84cb26c"
+    },
+    {
+      "path": "tools/publication_build_eval.py",
+      "bytes": 6632,
+      "sha256": "abfb4116a24bac21bc4bcb616e366fd36ca77f174ffa59d5ab25af6d848909c7"
+    },
+    {
+      "path": "uv.lock",
+      "bytes": 240071,
+      "sha256": "8c9ffcfd48eddef68077df2e1a389e121350b01f25c238bada91a18c380478fe"
+    }
+  ],
+  "verification": [
+    {
+      "check": "exact backend/projection/preview/contracts/layers",
+      "source": "6866c92b3840ef2c2b3a7bc6c0eb80f69deed74e",
+      "result": "pass",
+      "passed": 355,
+      "skipped": 62,
+      "seconds": 21.67,
+      "evidence": "author run evidence/exact-6866-backend.txt"
+    },
+    {
+      "check": "prior broader impacted platform/schema/preview/records/contracts",
+      "source": "working snapshot after e24dbcc fixes, before warning multiplicity refinement",
+      "result": "pass",
+      "passed": 762,
+      "skipped": 67,
+      "seconds": 190.19,
+      "evidence": "author run evidence/backend8.txt"
+    },
+    {
+      "check": "full local suite",
+      "source": "runtime e24dbcc; test/tool additions appeared during run and static scan observed new tool; not a clean exact full-pass claim",
+      "result": "fail",
+      "passed": 2717,
+      "failed": 2,
+      "skipped": 119,
+      "seconds": 573.22,
+      "disposition": "explicit tool subprocess encoding and obsolete preview-only default-build expectation fixed; full failed log retained; not rerun as local full",
+      "evidence": "author run evidence/full-backend7.txt"
+    },
+    {
+      "check": "host CPython3.11 explicit build paths",
+      "source": "runtime e24dbcc extension unchanged in6866c92",
+      "result": "pass",
+      "passed": 4,
+      "deselected": 856,
+      "seconds": 0.45
+    },
+    {
+      "check": "actual CPython3.11 -S independent verify after removing original Project",
+      "source": "e24dbcc verification modules unchanged in6866c92",
+      "result": "pass",
+      "observed": "no site packages, analysis/rendering/host imports, Project environment or writes"
+    }
+  ],
+  "negative_controls": [
+    {
+      "case": "raw composite manifest key reintroduces explicitly excluded run ID",
+      "result_before": "fail leak_found",
+      "fix": "existing page key_name serialization; internal key algorithm and exact private TypedRefs preserved"
+    },
+    {
+      "case": "manifest contains private raw warning-location dicts instead of schema count entries",
+      "result_before": "fail schema count required",
+      "fix": "closed reason/count totals, preserve multiplicity; private preview/CLI diagnostics retain locations"
+    },
+    {
+      "case": "interrupt during uncertain reread loses interrupted marker",
+      "result_before": "fail expected interrupted",
+      "fix": "carry interrupt observation separately; unknown folder retained and CLI130; complete recovered result remains complete"
+    },
+    {
+      "case": "500 typed exclusions exceed journal50KiB",
+      "result": "pass explicit refusal; binding unbound, intact retained folder, old0.23 floor unchanged; no trimming/limit increase"
+    },
+    {
+      "case": "new Project floor expected below current kit",
+      "result_before": "fail test premise",
+      "fix": "fixture explicitly models old0.23 marker; separate control passed"
+    }
+  ],
+  "contracts": {
+    "C1": {
+      "status": "pass for declared project capabilities; Report/collection portions not_run PR4",
+      "evidence": "tests/test_publication_projection.py, test_publication_preview.py, test_contracts.py; exact355PASS62SKIP"
+    },
+    "C2": {
+      "status": "pass for declared project capabilities; Report/collection portions not_run PR4",
+      "evidence": "tests/test_publication_projection.py, test_publication_preview.py, test_contracts.py; exact355PASS62SKIP"
+    },
+    "C3": {
+      "status": "pass for declared project capabilities; Report/collection portions not_run PR4",
+      "evidence": "tests/test_publication_projection.py, test_publication_preview.py, test_contracts.py; exact355PASS62SKIP"
+    },
+    "C4": {
+      "status": "pass for declared project capabilities; Report/collection portions not_run PR4",
+      "evidence": "tests/test_publication_projection.py, test_publication_preview.py, test_contracts.py; exact355PASS62SKIP"
+    },
+    "C5": {
+      "status": "pass for declared project capabilities; Report/collection portions not_run PR4",
+      "evidence": "tests/test_publication_projection.py, test_publication_preview.py, test_contracts.py; exact355PASS62SKIP"
+    },
+    "C6": {
+      "status": "pass for declared project capabilities; Report/collection portions not_run PR4",
+      "evidence": "tests/test_publication_projection.py, test_publication_preview.py, test_contracts.py; exact355PASS62SKIP"
+    },
+    "C7": {
+      "status": "pass for declared project capabilities; Report/collection portions not_run PR4",
+      "evidence": "tests/test_publication_projection.py, test_publication_preview.py, test_contracts.py; exact355PASS62SKIP"
+    },
+    "C8": {
+      "status": "pass for declared project capabilities; Report/collection portions not_run PR4",
+      "evidence": "tests/test_publication_projection.py, test_publication_preview.py, test_contracts.py; exact355PASS62SKIP"
+    },
+    "C9": {
+      "status": "pass for declared project capabilities; Report/collection portions not_run PR4",
+      "evidence": "tests/test_publication_projection.py, test_publication_preview.py, test_contracts.py; exact355PASS62SKIP"
+    },
+    "C10": {
+      "status": "pass for declared project capabilities; Report/collection portions not_run PR4",
+      "evidence": "tests/test_publication_projection.py, test_publication_preview.py, test_contracts.py; exact355PASS62SKIP"
+    },
+    "C11": {
+      "status": "pass for declared project capabilities; Report/collection portions not_run PR4",
+      "evidence": "tests/test_publication_projection.py, test_publication_preview.py, test_contracts.py; exact355PASS62SKIP"
+    },
+    "C12": {
+      "status": "pass for declared project capabilities; Report/collection portions not_run PR4",
+      "evidence": "tests/test_publication_projection.py, test_publication_preview.py, test_contracts.py; exact355PASS62SKIP"
+    },
+    "C13": {
+      "status": "pass for declared project capabilities; Report/collection portions not_run PR4",
+      "evidence": "tests/test_publication_projection.py, test_publication_preview.py, test_contracts.py; exact355PASS62SKIP"
+    }
+  },
+  "field_coverage": {
+    "status": "pass",
+    "new_family": "analytics.publication/1 delivery_only_excluded",
+    "details": "publication_details + nested event paths explicitly delivery-only; preserve Report metadata/collection deferredPR4; new field/family negative controls remain closed"
+  },
+  "reviews": {
+    "classification": "record-format",
+    "design": "AcceptedADR14/PR105 independent1+Codex1 already completed; not repeated",
+    "implementation_independent": "not_run; hold until Workspace integration scope fixed and one complete frozen SHA",
+    "implementation_codex": "not_run; same reason",
+    "correction_diff": "not_run; not yet applicable"
+  },
+  "remote_ci": {
+    "status_at_measurement": "not_run",
+    "final_exact_head_receipt": "Draft PR/Issue checkpoint will cite observed current-head runs; no stale SHA success counts"
+  },
+  "remaining": [
+    "Workspace publication observation and Timeline/i18n after #100 handoff; ADR14 first-writer acceptance, not waived",
+    "implementation independent1+Codex1 and correctiondiff1 on complete frozen source",
+    "exact current-head3OSCI and artifact checks",
+    "actual main/version/merge order recheck"
+  ],
+  "not_run": [
+    "Report/collection sharing PR4",
+    "browser/CSP/mobile/keyboard/owner/other-reader/OS ZIP tools/M-scale PR5",
+    "model/token measurement",
+    "publication delivery/latest/receipt #21"
+  ]
+}

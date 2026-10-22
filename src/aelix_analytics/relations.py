@@ -276,7 +276,8 @@ def metric_event_problem(kind, details, refs) -> str | None:
 # (core.mapped_identity, design 5.4), and analytics.migration/1 is a family this reader knows.
 # 4 since ADR-0011: invalid/unsupported tagged metric content cannot change another record state.
 # 5 since Issue #15: CONTEXT version stat changes and bounded historical query knowledge.
-READER_FORMAT = 5
+# 6 since Issue #20 PR3: publication bindings resolve independently of current package folders.
+READER_FORMAT = 6
 
 EVENT_V1 = "lab.event/1"
 EVENT_V2 = "analytics.event/2"
@@ -289,6 +290,9 @@ DATASET_V1 = "lab.dataset/1"
 # The import record of the new writer (design 2.7): lab.dataset/1's fields, under data/imported/.
 DATASET_V2 = "analytics.dataset/1"
 REPORT_V1 = "analytics.report_revision/1"
+PUBLICATION_V1 = "analytics.publication/1"
+PUBLICATION_WRITER_SINCE = "0.26.0"  # first publication writer after main 0.25.0
+PUBLICATION_ID = re.compile(r"pub-[0-9a-hjkmnp-tv-z]{26}\Z")
 # A migration's plan, mapping and report (design 2.7 and 6.8), told apart by their `record`.
 MIGRATION_V1 = "analytics.migration/1"
 # Where import records are, each with the family it holds (design 2.3).
@@ -620,6 +624,9 @@ class Journal:
         self.seq_of: dict[int, int | None] = {}
         self._unsupported_lines: set[int] = set()
         self._event_at: dict[int, Event] = {}
+        # Include uninterpretable rows: an unknown publication format must be unsupported,
+        # rather than disappearing from logical-ID lookup as though no record existed.
+        self._publications: dict[str, list[tuple[int, dict]]] = {}
         self._ordered: list[Event] | None = None
         self._replay: Replay | None = None
         top = 0
@@ -642,6 +649,11 @@ class Journal:
                 top = max(top, seq)
             if isinstance(value, dict) and isinstance(value.get("id"), str):
                 self.lines_of.setdefault(value["id"], []).append(number)
+            if isinstance(value, dict) and value.get("kind") == "publication":
+                details = value.get("details")
+                pid = details.get("publication_id") if isinstance(details, dict) else None
+                if isinstance(pid, str):
+                    self._publications.setdefault(pid, []).append((number, value))
             reason = unsupported_reason(value, JOURNAL_FAMILIES)
             if reason:
                 self.unsupported.append({"location": f"journal:{number}", "reason": reason})
@@ -1127,6 +1139,120 @@ def reference_problem(ref) -> str | None:
         if missing:
             return f"a {binding} reference to a {kind} holds " + ", ".join(missing)
     return None
+
+
+def publication_details_problem(value, *, refs=None, seq=None, validate_reference=None) -> str | None:
+    """Pure ADR-0014 completion fields shared by writer, reference reader and content basis.
+
+    Profile IDs identify registered strategies (public CLI: read/evidence). Reading a binding
+    never executes that strategy or treats its recorded analysis declaration as a verification.
+    Exclusions remain ordinary typed references; no new reference enum or fingerprint is added.
+    """
+    fields = {"publication_id", "format", "package_sha256", "content_sha256", "profile", "scope",
+              "basis", "analysis_state", "exclusions", "location", "checks"}
+    if not isinstance(value, dict) or not fields <= value.keys():
+        return "missing publication completion fields"
+    try:
+        json.dumps(value, ensure_ascii=False, allow_nan=False).encode("utf-8")
+    except (ValueError, TypeError, RecursionError):
+        return "publication completion is not finite UTF-8 JSON"
+    pid = value["publication_id"]
+    if not isinstance(pid, str) or not PUBLICATION_ID.fullmatch(pid):
+        return "invalid publication identity"
+    if value["format"] != PUBLICATION_V1:
+        return "unknown publication format"
+    if any(not _reference_digest({"sha256": value[k]}) for k in ("package_sha256", "content_sha256")):
+        return "invalid publication digest"
+    profile = value["profile"]
+    if (not isinstance(profile, dict) or set(profile) != {"id", "rules_version"}
+            or not isinstance(profile["id"], str) or not profile["id"]
+            or type(profile["rules_version"]) is not int or profile["rules_version"] < 1):
+        return "invalid publication profile"
+    basis = value["basis"]
+    if (not isinstance(basis, dict) or set(basis) != {"as_of_seq", "content_seq", "context_version"}
+            or type(basis["as_of_seq"]) is not int or type(basis["content_seq"]) is not int
+            or not 0 <= basis["content_seq"] <= basis["as_of_seq"]
+            or seq is not None and (type(seq) is not int or basis["as_of_seq"] >= seq)
+            or basis["context_version"] is not None and not _file_name(basis["context_version"])):
+        return "invalid publication basis"
+    if value["scope"] not in ("project", "reports"):
+        return "invalid publication scope"
+    if value["analysis_state"] not in ({"value": "in_progress", "basis": "declared"},
+                                       {"value": "complete", "basis": "declared"}):
+        return "invalid declared analysis state"
+    if value["location"] != f".analytics/publications/{pid}":
+        return "invalid publication location"
+    checks = value["checks"]
+    if (not isinstance(checks, dict) or type(checks.get("format")) is not int
+            or checks["format"] != 1 or checks.get("result") != "pass"):
+        return "invalid publication checks"
+    inspection = checks.get("inspection")
+    if (not isinstance(inspection, dict)
+            or set(inspection) != {"inspected", "pinned_scanned", "not_inspectable"}
+            or any(type(v) is not int or v < 0 for v in inspection.values())
+            or inspection["not_inspectable"] != 0):
+        return "invalid publication inspection counts"
+    validate_reference = reference_problem if validate_reference is None else validate_reference
+    exclusions = value["exclusions"]
+    try:
+        if not isinstance(exclusions, list) or any(validate_reference(r) for r in exclusions):
+            return "invalid publication exclusion reference"
+        if refs is not None:
+            if not isinstance(refs, list) or any(validate_reference(r) for r in refs):
+                return "invalid publication completion reference"
+            for ref in refs:
+                if (ref["type"] not in ("context_version", "report_revision")
+                        or ref["relation"] != "includes" or ref["version_binding"] != "author"
+                        or ref["basis"] != ("observed" if ref["type"] == "context_version" else "declared")
+                        or not _reference_digest(ref.get("digest"))):
+                    return "invalid publication completion reference meaning"
+            contexts = [r for r in refs if r["type"] == "context_version"]
+            if (len(contexts) != (0 if basis["context_version"] is None else 1)
+                    or contexts and contexts[0]["version"] != basis["context_version"]):
+                return "publication CONTEXT reference differs from its basis"
+    except Exception:
+        return "publication references cannot be interpreted"
+    return None
+
+
+def publication_event_problem(event, *, validate_reference=None) -> str | None:
+    """A complete understood /2 publication row; folder bytes are deliberately not consulted."""
+    if (not isinstance(event, dict) or event.get("schema") != EVENT_V2
+            or event.get("kind") != "publication" or type(event.get("seq")) is not int
+            or event["seq"] < 1 or event.get("id") != f"e{event['seq']}"
+            or not isinstance(event.get("actor"), str) or not event["actor"]
+            or not isinstance(event.get("text"), str)):
+        return "invalid publication event"
+    try:
+        json.dumps(event, ensure_ascii=False, allow_nan=False).encode("utf-8")
+    except (ValueError, TypeError, RecursionError):
+        return "publication event is not finite UTF-8 JSON"
+    stamp = _instant(event.get("recorded_at"))
+    if stamp is None or stamp.utcoffset() is None:
+        return "invalid publication record time"
+    if not isinstance(event.get("refs"), list):
+        return "invalid publication completion references"
+    return publication_details_problem(event.get("details"), refs=event["refs"], seq=event["seq"],
+                                       validate_reference=validate_reference)
+
+
+def publication_record(journal, publication_id, *, before=None, validate_reference=None):
+    """(state, reason, candidates, event) for one logical completed identity, without file I/O."""
+    if not isinstance(publication_id, str):
+        return "unsupported", "invalid_publication_identity", None, None
+    boundary = journal.next_seq if before is None else before
+    rows = [(line, value) for line, value in journal._publications.get(publication_id, ())
+            if journal.seq_of[line] is not None and journal.seq_of[line] < boundary]
+    if not rows:
+        return "missing", "record_absent", None, None
+    if len(rows) > 1:
+        return "ambiguous", None, [f"journal:{line}" for line, _ in rows], None
+    line, value = rows[0]
+    if (line in journal.recovered or journal.is_unsupported(line)
+            or publication_event_problem(value, validate_reference=validate_reference)
+            or len(journal.lines_of.get(value["id"], ())) != 1):
+        return "unsupported", "invalid_publication_record", None, None
+    return "resolved", None, None, value
 
 
 
@@ -2106,7 +2232,7 @@ class ReadModel:
                       if k not in ("type", "relation", "basis", "version_binding")}
             binding, basis = ref.get("version_binding"), ref.get("basis")
             inferred = None
-            if not _known_ref(ref):
+            if not _known_ref(ref) or (ref.get("type") == "publication" and reference_problem(ref)):
                 state, reason, candidates = "unsupported", None, None
             elif binding == "none":
                 state, reason, candidates, inferred = self._unbound(ref, before)
@@ -2237,7 +2363,12 @@ class ReadModel:
         if kind in EVENT_TARGETS:
             return self.journal.event_target(kind, ref, self.journal.next_seq if before is None else before)
         if kind == "publication":
-            return "unsupported", None, None  # publications are #20's family, unknown here
+            state, reason, candidates, value = publication_record(self.journal, ref.get("publication_id"), before=before)
+            if state != "resolved":
+                return state, reason, candidates
+            if _digest(ref) != value["details"]["package_sha256"]:
+                return "missing", "digest_mismatch", None
+            return "resolved", None, None
         if kind == "context_version":
             path = self._context_file(ref.get("version"))
             if path is None:

@@ -1,0 +1,538 @@
+{
+  "record_kind": "aelix-analytics-publication-build-pr3-workspace",
+  "observed_at": "2026-10-22T00:42:03.504542+00:00",
+  "issue": "https://github.com/handochan/aelix-analytics/issues/20",
+  "pull_request": "https://github.com/handochan/aelix-analytics/pull/120",
+  "run_id": "7397fe0a-2fa9-465a-ae18-76caccbfee2e",
+  "previous_run_id": "666ed175-faf9-4637-ad03-838a2f611906",
+  "base_revision": "5559ff6a3abd17a69636dcf5fa9f4b1b45025d4a",
+  "measured_source": {
+    "head": "d6281e5b005ed14fe145d9ecb9e0932217ff0219",
+    "tracked_dirty": false,
+    "runtime_and_measurement_sha256": {
+      "pyproject.toml": "2400854eeedd3c2aa150395e752c678106fc6db79fbb1f18ce99cdcf24a25b67",
+      "src/aelix_analytics/__init__.py": "78c68036833435ca9fc6d4b7b3d52b19268bd972d5a825a54fe57c57f13ddd68",
+      "src/aelix_analytics/__main__.py": "d99be5d3d0bfded923def8baae5bf1db81a8687237f3152e6ba512fea016b123",
+      "src/aelix_analytics/_install.py": "b015715ff2025cc17edd9816b56b61975849a2b7c3ee1da482a29dc96e13d153",
+      "src/aelix_analytics/_platform.py": "da87a074f5415b135b31f52f8c6e70181136ba14edf3c98d27e8edb5b019460a",
+      "src/aelix_analytics/aelix-plugin.toml": "eb2e2c89f02eedcfb42e042e5f568daddf68d76a8bc102e83ebd003f35745049",
+      "src/aelix_analytics/asset_app.py": "1d084b03ce4429273f62725ed3e0a54dabba99abed19c31622f457b96acd9e7b",
+      "src/aelix_analytics/asset_contract.py": "cd7d71d78eef72cda8f20b640aaac9e8176e046c98c5f360b6e7a48a24640549",
+      "src/aelix_analytics/asset_policy.py": "e15e6c623ef4b4ee33feab263b74b32c32e1b1c3867577c04b9623f559a9cf0d",
+      "src/aelix_analytics/asset_suggestions.py": "1088ccc46ae4a93d9d55d75ac3df2aa17af878c767bc9c22fcde7f4a482068b4",
+      "src/aelix_analytics/assets/i18n/en.json": "161cfb79e47b8329d8681164ee836796c0b2edb3b7a26a0ca00d26f9f7e9ee1a",
+      "src/aelix_analytics/assets/i18n/ko.json": "b2813ae064b32c1aa47acfc3a1a79c3c1b44dc25b60eb6e96e336ffbb482ab81",
+      "src/aelix_analytics/assets/workspace-i18n.js": "30bde05c498e34ccb3069e63527a9c857992b905c233d0b951d83a894d42cc20",
+      "src/aelix_analytics/assets/workspace-state.js": "ec47b2422e850bd63c25acf2f47a78d75c555e766b2f5adff5f7c00a6a97f7f1",
+      "src/aelix_analytics/assets/workspace.css": "57e14455d9d6bac60c1fade709e6671411595cf22229b4364a7f023382fd64f3",
+      "src/aelix_analytics/assets/workspace.js": "76513506ca6a720d225ed495cdd5988814ae8f3089ca8449601428c43285db04",
+      "src/aelix_analytics/capture.py": "b0fd3b4db6d4810056b1da4cd68c7e499acef62c438a727d4c8f8e47ab1d0517",
+      "src/aelix_analytics/checkpoints.py": "dc38f6288c8464a21122f61fed84f7ce663f9a6444e1b2ccd0abfbdf50ea3b8b",
+      "src/aelix_analytics/cli.py": "78b62530733aad0d5ad92859268b618a8115c3e5f4d238ad477d043861bd44fe",
+      "src/aelix_analytics/core.py": "ef43197f76796e1bc677207fb52905f668af76e2a02503057179b1280b354645",
+      "src/aelix_analytics/data.py": "bbd549f39132976750bab6eb77d17f058e0f7ad31c96fb144ff6d625e69e4634",
+      "src/aelix_analytics/demo.py": "b25446715a6a7b45a63f2b39fbcefca6af805f242c1bb4486708c30087a999ac",
+      "src/aelix_analytics/demo_scripts/01_monthly_revenue.py": "141872b576b6764242b3782f9942a4dccb43f9a1e37971839f81d518d324051c",
+      "src/aelix_analytics/demo_scripts/02_channel_mix.py": "3921fb6afc89c40a8edd31b732ea1f2b671335b28da065b58a50292600144f32",
+      "src/aelix_analytics/demo_scripts/03_region_growth.py": "5137ee2886979ce1013beb2804756d6ae4496eb308dd647c4dcf1fe5b0e82d6d",
+      "src/aelix_analytics/i18n.py": "60cd3a9341506c144842d762ae69784ca0e6b9b4e6ca453643bd740296e0ab3f",
+      "src/aelix_analytics/migration.py": "f23a344eb95b13dbf0706919dd671b5c22efac141752417235e44972f01e2841",
+      "src/aelix_analytics/publishing/__init__.py": "29e22bd8347e1061d644688ff16552b32007f00d32cc331a74c3157b72eda076",
+      "src/aelix_analytics/publishing/assets/publication.css": "73d131cb53eddc7ceb2a323adb551b16907234428b3a98d11c89107ff3462392",
+      "src/aelix_analytics/publishing/assets/publication.js": "f8a6ce0c0d2c1554b9f33173c3cddd8124d70a3644849f24f70215288f0bc2ae",
+      "src/aelix_analytics/publishing/basis.py": "d6b8bca8f941d4c6d1171769143f5a5068fd72ca6c82942dce78c7cd007e96b0",
+      "src/aelix_analytics/publishing/build.py": "6818b22b6f1a433714f68c02550e924052bc3f92e0fc6bde9958717bf379dd93",
+      "src/aelix_analytics/publishing/checks.py": "a92e03bcea1c1a4125094628d6d174110f6d1ef576a448eaa535fff8bb4020d1",
+      "src/aelix_analytics/publishing/extract.py": "dfa4c45ea963a3a63826ea46e286172513e15119f5df783a1d7c9d8b43f31ca8",
+      "src/aelix_analytics/publishing/field_policy.py": "ff738bd333b0f207e574c0b6b4bc4379fa166d9b58cb9cb2a9d01bd61401d30a",
+      "src/aelix_analytics/publishing/inspections.py": "76019014bfee935b3aa402093ecbbbda263373b660b53438dfdac929b107bfab",
+      "src/aelix_analytics/publishing/model.py": "4275a245ba4d0c0288b70e17fad7423c5dc7a3b177654a21fac220c84dafc850",
+      "src/aelix_analytics/publishing/package.py": "deaabceabe6466bd4f0dc14e0799a15bfb805401d07d70e8768f6098e06fa64f",
+      "src/aelix_analytics/publishing/projection.py": "e9cc07bcc6aee01bb4cf54cb75e32bf0671cd3ed96df0b754fc33e84c1a79648",
+      "src/aelix_analytics/publishing/render.py": "d8d4325bdac788488e285c0732075dd0f339602e3d2c36471862c6104d319319",
+      "src/aelix_analytics/publishing/scope.py": "806f752217f3497a0ccd41e24ade308b569a490a0c3ca42d36d27f063c883b45",
+      "src/aelix_analytics/publishing/snapshot.py": "5b0e4fcbf636a8852126f6dbb59b8493a1140c8daa63fbc9ebf5e8e219d87a9b",
+      "src/aelix_analytics/publishing/state.py": "ea0c334e2e4fe44eb6b965071d01e03b6c6c1223235b52f0eeb9440dfc7ad748",
+      "src/aelix_analytics/relations.py": "df51ddc19d4ff270af4e493eae52aa8a1af08106bba8c60e72e0a910e2cf9d7c",
+      "src/aelix_analytics/report_app.py": "70d3dafa958da99ccda6ddf030417b0736b74ddd8668adf02452edfbb3e7e2d9",
+      "src/aelix_analytics/report_renderer.py": "af9d54549cb4b64191997f504c85b5ca052a8f08c47ce8cb5f8b0c7820e27dca",
+      "src/aelix_analytics/report_renderers.py": "0c442ee9eb2e76e136ef2055d36137d0e56f9cf369b41c10c580e8dd7f92e401",
+      "src/aelix_analytics/runner.py": "f8c8891cac21e390391613b12c71db791fa6b6dae5c58a48e3e1019f141766cf",
+      "src/aelix_analytics/template/CONTEXT.md": "ae31dc4fc7178a26ce8ad85ba43acc980af7f1cec06073eeea46828bc77c3769",
+      "src/aelix_analytics/template/gitattributes": "66b748264be11611b9428c43a486454118278853b83c13397133c946929b6c15",
+      "src/aelix_analytics/template/gitignore": "9a7128ef037b02a37df92002ecc27e3f2901b95f2a19d85f440e98cd830da87f",
+      "src/aelix_analytics/template/pyproject.toml": "db355e0b3bdad632c33724468a91903dea6a4e26fb9a4d065dfe31c3eb6d994c",
+      "src/aelix_analytics/workspace.py": "4a0490fd8cfa6acc7c3a5b2c289b99fc03bc76d613476963047804b0f25fe647",
+      "src/aelix_analytics/workspace_map.py": "2d59fba3cc788cb448ea2947aec11097ebba58a819aac5786eca45865157967f",
+      "src/aelix_analytics/workspace_provenance.py": "0e1f4a8b76c2390921c3ea148aa4b5da427d284e44dc68e7b47d675f7bd07e84",
+      "src/aelix_analytics/workspace_relations.py": "e33c8dc415fd6be8c85d6bb0119045dad36568c4969ac33e4c132a62b41b32bb",
+      "src/aelix_analytics/workspace_reports.py": "d8e5d69cb38e1d0d5bc84c7b229c7f1374af48b754e899c7ae1d62013aec82d5",
+      "src/aelix_analytics/workspace_versions.py": "40ab5b5a6ff33dfd7b2090dda29bafc1894670c80b9954feaa228d225da59c6e",
+      "src/aelix_analytics/writer.py": "047e76f3b03655deba23648c72e77a58a374a1b5fde75c4918b74eb34440da77",
+      "tests/test_workspace_publications.py": "6268b76ef326d0e258aaccedb0076338d4389804800bbaee38a0d966524535d1",
+      "tools/publication_build_eval.py": "eab9a3df72f6b949693fa12ec505d258702e1b869b0209363a7969804882c897",
+      "uv.lock": "6aa7a6f2aab4b87c122277a11f6c75693579a7af0513323be210618b4531bb52"
+    }
+  },
+  "kit_version": "0.26.0",
+  "reader_format": 6,
+  "status": "clean 커밋 측정 완료; 로컬 전체 시험은 세션 환경 한계로 실패; Draft·외부 구현 리뷰 대기",
+  "raw_byte_measurement": {
+    "schema": "aelix-analytics.publication-build-eval/1",
+    "observed_at": "2026-10-22T00:13:33.913252+00:00",
+    "source_commit": "d6281e5b005ed14fe145d9ecb9e0932217ff0219",
+    "tracked_dirty": false,
+    "kit_version": "0.26.0",
+    "python": "3.12.13",
+    "platform": "Darwin",
+    "command": "PYTHONPATH=src python tools/publication_build_eval.py --out <new directory>",
+    "scope": "small synthetic project; timing observations are not a performance gate or M-scale claim",
+    "observations": [
+      {
+        "profile": "read",
+        "attempt": 1,
+        "seconds_observed": 0.03770029102452099,
+        "publication_id": "pub-01m5gf9ecy013wsttc4mmpzx1r",
+        "files": 10,
+        "bytes": 16796,
+        "manifest_bytes": 2870,
+        "event_bytes_with_lf": 1366,
+        "package_sha256": "180e8068d6940b2977c4008b8da7a0e266beaaabccd30508cf4cc5a8329a0974",
+        "content_sha256": "a0715c156702df37570e5d3e417fbad49018dcaa745ef35a7efe85c4705946a3",
+        "record": {
+          "id": "e5",
+          "seq": 5
+        },
+        "basis": {
+          "content_seq": 4,
+          "content_recorded_at": "2026-10-22T09:13:33.416+09:00",
+          "context_version": "20261022-091333-412324_6c2b5c1248d5.md",
+          "as_of_seq": 4,
+          "context_status": "recorded"
+        },
+        "checks": {
+          "format": 1,
+          "result": "pass",
+          "inspection": {
+            "inspected": 8,
+            "pinned_scanned": 2,
+            "not_inspectable": 0
+          }
+        },
+        "renderer": {
+          "kit_version": "0.26.0",
+          "format": 1,
+          "libraries": [
+            {
+              "name": "markdown-it-py",
+              "version": "4.2.0"
+            }
+          ]
+        }
+      },
+      {
+        "profile": "read",
+        "attempt": 2,
+        "seconds_observed": 0.03755583299789578,
+        "publication_id": "pub-01m5gf9eehf9hby72pz20zhxey",
+        "files": 10,
+        "bytes": 16796,
+        "manifest_bytes": 2870,
+        "event_bytes_with_lf": 1366,
+        "package_sha256": "adf7c60af760caf9bbccc94bc9a6cd3f22854b714062b6c720b83563ccf8986b",
+        "content_sha256": "a0715c156702df37570e5d3e417fbad49018dcaa745ef35a7efe85c4705946a3",
+        "record": {
+          "id": "e6",
+          "seq": 6
+        },
+        "basis": {
+          "content_seq": 4,
+          "content_recorded_at": "2026-10-22T09:13:33.416+09:00",
+          "context_version": "20261022-091333-412324_6c2b5c1248d5.md",
+          "as_of_seq": 5,
+          "context_status": "recorded"
+        },
+        "checks": {
+          "format": 1,
+          "result": "pass",
+          "inspection": {
+            "inspected": 8,
+            "pinned_scanned": 2,
+            "not_inspectable": 0
+          }
+        },
+        "renderer": {
+          "kit_version": "0.26.0",
+          "format": 1,
+          "libraries": [
+            {
+              "name": "markdown-it-py",
+              "version": "4.2.0"
+            }
+          ]
+        }
+      },
+      {
+        "profile": "evidence",
+        "attempt": 1,
+        "seconds_observed": 0.037015541980508715,
+        "publication_id": "pub-01m5gf9ehd87bfpr2vpg6zpsv2",
+        "files": 10,
+        "bytes": 16899,
+        "manifest_bytes": 2874,
+        "event_bytes_with_lf": 1374,
+        "package_sha256": "e7e5399f7b0ea8b6ac139da7bf2874bc5e5382a7378e3558b3a22d420ee0b037",
+        "content_sha256": "78275b9f2ebd2b2e9374ff51c801e78ceb7fd9c4b28198c5ac4af76fdca8f390",
+        "record": {
+          "id": "e7",
+          "seq": 7
+        },
+        "basis": {
+          "content_seq": 4,
+          "content_recorded_at": "2026-10-22T09:13:33.416+09:00",
+          "context_version": "20261022-091333-412324_6c2b5c1248d5.md",
+          "as_of_seq": 6,
+          "context_status": "recorded"
+        },
+        "checks": {
+          "format": 1,
+          "result": "pass",
+          "inspection": {
+            "inspected": 8,
+            "pinned_scanned": 2,
+            "not_inspectable": 0
+          }
+        },
+        "renderer": {
+          "kit_version": "0.26.0",
+          "format": 1,
+          "libraries": [
+            {
+              "name": "markdown-it-py",
+              "version": "4.2.0"
+            }
+          ]
+        }
+      },
+      {
+        "profile": "evidence",
+        "attempt": 2,
+        "seconds_observed": 0.038832582999020815,
+        "publication_id": "pub-01m5gf9ejzdwmwwpkg7wx7w0np",
+        "files": 10,
+        "bytes": 16899,
+        "manifest_bytes": 2874,
+        "event_bytes_with_lf": 1374,
+        "package_sha256": "7c905da257c78f2aca95d7fa9673642908ac3a84c59e69e760e058c17b4bd190",
+        "content_sha256": "78275b9f2ebd2b2e9374ff51c801e78ceb7fd9c4b28198c5ac4af76fdca8f390",
+        "record": {
+          "id": "e8",
+          "seq": 8
+        },
+        "basis": {
+          "content_seq": 4,
+          "content_recorded_at": "2026-10-22T09:13:33.416+09:00",
+          "context_version": "20261022-091333-412324_6c2b5c1248d5.md",
+          "as_of_seq": 7,
+          "context_status": "recorded"
+        },
+        "checks": {
+          "format": 1,
+          "result": "pass",
+          "inspection": {
+            "inspected": 8,
+            "pinned_scanned": 2,
+            "not_inspectable": 0
+          }
+        },
+        "renderer": {
+          "kit_version": "0.26.0",
+          "format": 1,
+          "libraries": [
+            {
+              "name": "markdown-it-py",
+              "version": "4.2.0"
+            }
+          ]
+        }
+      }
+    ],
+    "workspace_observations": [
+      {
+        "folder_status": "same",
+        "first_html_bytes": 41055,
+        "relation_html_bytes": 9513
+      },
+      {
+        "folder_status": "changed",
+        "first_html_bytes": 41055,
+        "relation_html_bytes": 9513
+      },
+      {
+        "folder_status": "missing",
+        "first_html_bytes": 41199,
+        "relation_html_bytes": 9537
+      }
+    ],
+    "assertions": {
+      "read_preview_no_writes": true,
+      "read_0_bound": true,
+      "read_0_canary_absent": true,
+      "read_1_bound": true,
+      "read_1_canary_absent": true,
+      "read_new_identity": true,
+      "read_equal_content": true,
+      "read_basis_monotonic": true,
+      "read_zip_repeat_bytes": true,
+      "read_zip_verified": true,
+      "evidence_preview_no_writes": true,
+      "evidence_0_bound": true,
+      "evidence_0_canary_absent": true,
+      "evidence_1_bound": true,
+      "evidence_1_canary_absent": true,
+      "evidence_new_identity": true,
+      "evidence_equal_content": true,
+      "evidence_basis_monotonic": true,
+      "evidence_zip_repeat_bytes": true,
+      "evidence_zip_verified": true,
+      "all_complete": true,
+      "workspace_same_timeline": true,
+      "workspace_same_relation": true,
+      "workspace_same_journal_unchanged": true,
+      "workspace_same_reference_resolved": true,
+      "workspace_changed_timeline": true,
+      "workspace_changed_relation": true,
+      "workspace_changed_journal_unchanged": true,
+      "workspace_changed_reference_resolved": true,
+      "workspace_missing_timeline": true,
+      "workspace_missing_relation": true,
+      "workspace_missing_journal_unchanged": true,
+      "workspace_missing_reference_resolved": true,
+      "restored_folder_valid": true
+    },
+    "hold": true,
+    "not_run": [
+      "record-format implementation reviews1+1/correctiondiff1",
+      "browser/CSP/owner/other-reader/OS ZIP tools/M-scale",
+      "Report/collection sharing (PR4)",
+      "model/token measurement",
+      "remote final-head CI at measurement time"
+    ]
+  },
+  "verification": {
+    "measurement": {
+      "command": [
+        "uv",
+        "run",
+        "--locked",
+        "python",
+        "tools/publication_build_eval.py",
+        "--out",
+        ".devstate/runs/7397fe0a-2fa9-465a-ae18-76caccbfee2e/evidence/measurement"
+      ],
+      "started_at": "2026-10-22T00:13:33.255281+00:00",
+      "completed_at": "2026-10-22T00:13:33.928683+00:00",
+      "head_commit": "d6281e5b005ed14fe145d9ecb9e0932217ff0219",
+      "dirty_before": false,
+      "dirty_after": false,
+      "result": "pass",
+      "exit_code": 0,
+      "source_unchanged": true
+    },
+    "full_suite": {
+      "command": [
+        "uv",
+        "run",
+        "--locked",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "--timeout",
+        "600",
+        "--timeout-method=thread",
+        "--ignore",
+        "tests/test_windows_console.py"
+      ],
+      "started_at": "2026-10-22T00:13:33.255393+00:00",
+      "completed_at": "2026-10-22T00:41:06.309905+00:00",
+      "head_commit": "d6281e5b005ed14fe145d9ecb9e0932217ff0219",
+      "dirty_before": false,
+      "dirty_after": false,
+      "result": "fail",
+      "exit_code": 1,
+      "source_unchanged": true,
+      "counts": {
+        "failed": 13,
+        "passed": 2840,
+        "skipped": 89,
+        "seconds": 1652.33
+      },
+      "environment": {
+        "AELIX_ANALYTICS_TEST_INSTALL": "1",
+        "AELIX_ANALYTICS_TRUST_FILE": "임시 파일; 종료 뒤 제거",
+        "AELIX_LAB_HOME": "unset",
+        "AELIX_LAB_TRUST_FILE": "unset"
+      }
+    },
+    "ruff": {
+      "command": [
+        "uv",
+        "run",
+        "--locked",
+        "ruff",
+        "check",
+        "tests",
+        "extension",
+        "src",
+        "tools"
+      ],
+      "started_at": "2026-10-22T00:13:33.255548+00:00",
+      "completed_at": "2026-10-22T00:13:33.389736+00:00",
+      "head_commit": "d6281e5b005ed14fe145d9ecb9e0932217ff0219",
+      "dirty_before": false,
+      "dirty_after": false,
+      "result": "pass",
+      "exit_code": 0,
+      "source_unchanged": true
+    },
+    "docs": {
+      "command": [
+        "uv",
+        "run",
+        "--locked",
+        "python",
+        "tools/check_docs.py",
+        "--output",
+        ".devstate/runs/7397fe0a-2fa9-465a-ae18-76caccbfee2e/evidence/docs.json"
+      ],
+      "started_at": "2026-10-22T00:13:33.255291+00:00",
+      "completed_at": "2026-10-22T00:13:34.842337+00:00",
+      "head_commit": "d6281e5b005ed14fe145d9ecb9e0932217ff0219",
+      "dirty_before": false,
+      "dirty_after": false,
+      "result": "pass",
+      "exit_code": 0,
+      "source_unchanged": true,
+      "counts": {
+        "json_files": 23,
+        "markdown_files": 90,
+        "local_links": 938,
+        "python_examples": 9,
+        "json_examples": 11,
+        "dev_state_examples": 1
+      }
+    },
+    "session_environment_failures": {
+      "classification": "이번 Codex sandbox의 환경 한계; 원래 시험 유지·추가 skip 없음; 세션 밖 exact-head macOS CI로 확인",
+      "probes": {
+        "nested_sandbox": {
+          "command": [
+            "sandbox-exec",
+            "-p",
+            "(version 1) (allow default)",
+            "/usr/bin/true"
+          ],
+          "executed_at": "2026-10-22T00:14:00.216400+00:00",
+          "exit_code": 71,
+          "stdout": "",
+          "stderr": "sandbox-exec: sandbox_apply: Operation not permitted\n"
+        },
+        "process_list": {
+          "command": [
+            "ps",
+            "-axo",
+            "pid=,ppid=,command="
+          ],
+          "executed_at": "2026-10-22T00:16:25.624631+00:00",
+          "exit_code": null,
+          "error_type": "PermissionError",
+          "errno": 1,
+          "message": "[Errno 1] Operation not permitted: 'ps'"
+        }
+      },
+      "failures": [
+        {
+          "test_id": "tests/test_human_e2e.py::test_only_what_the_session_started_is_waited_for_or_stopped",
+          "cause": "Descendants.start()의 ps 실행이 PermissionError errno1로 거부되어 자식 관찰을 시작하지 못함.",
+          "disposition": "환경 한계로 원시 실패 보존; PASS 처분 아님"
+        },
+        {
+          "test_id": "tests/test_human_e2e.py::test_an_orphan_of_the_same_terminal_is_never_touched",
+          "cause": "Descendants.start()의 ps 실행이 PermissionError errno1로 거부되어 orphan 경계 시험을 시작하지 못함.",
+          "disposition": "환경 한계로 원시 실패 보존; PASS 처분 아님"
+        },
+        {
+          "test_id": "tests/test_human_e2e.py::test_the_process_table_reads_the_same_in_a_korean_locale",
+          "cause": "한국어 locale에서 process_table()의 ps 실행이 PermissionError errno1로 거부됨.",
+          "disposition": "환경 한계로 원시 실패 보존; PASS 처분 아님"
+        },
+        {
+          "test_id": "tests/test_human_e2e.py::test_the_profile_denies_a_connection_the_resolver_and_a_model_client",
+          "cause": "nested sandbox-exec가 sandbox_apply 거부(exit71)로 시작하지 못해 stdout이 비고 IndexError 발생.",
+          "disposition": "환경 한계로 원시 실패 보존; PASS 처분 아님"
+        },
+        {
+          "test_id": "tests/test_model_eval.py::test_the_dry_run_goes_through_aelix_and_is_scored",
+          "cause": "분석 dry-run은 success이나 ps 조회 거부로 after_exit.checked=false·processes_unchecked가 되어 하네스 exit1.",
+          "disposition": "환경 한계로 원시 실패 보존; PASS 처분 아님"
+        },
+        {
+          "test_id": "tests/test_model_eval.py::test_a_key_the_model_echoes_is_in_no_file_of_the_run",
+          "cause": "ps 조회 거부로 안전 확인이 processes_unchecked를 기록하여 기대 exit0 대신 exit1.",
+          "disposition": "환경 한계로 원시 실패 보존; PASS 처분 아님"
+        },
+        {
+          "test_id": "tests/test_model_eval.py::test_the_child_gets_no_credential_variable_and_the_runs_own_home[0]",
+          "cause": "ps 조회 거부로 안전 확인이 processes_unchecked를 기록하여 기대 exit0 대신 exit1.",
+          "disposition": "환경 한계로 원시 실패 보존; PASS 처분 아님"
+        },
+        {
+          "test_id": "tests/test_model_eval.py::test_a_job_left_in_the_background_is_waited_for_before_the_scan",
+          "cause": "ps 조회 거부로 after_exit.checked=false·processes_unchecked가 되고 background 작업을 기다리지 못해 late-copy.json 생성 단언 실패.",
+          "disposition": "환경 한계로 원시 실패 보존; PASS 처분 아님"
+        },
+        {
+          "test_id": "tests/test_model_eval.py::test_a_timeout_stops_aelix_and_what_the_model_left_running",
+          "cause": "ps 조회 거부로 종료 후 안전 확인이 processes_unchecked를 기록하여 기대 exit0 대신 exit1.",
+          "disposition": "환경 한계로 원시 실패 보존; PASS 처분 아님"
+        },
+        {
+          "test_id": "tests/test_model_eval.py::test_a_login_the_api_refuses_is_not_run",
+          "cause": "가짜 로그인 API 거절과 별개로 ps 조회 거부에 따른 processes_unchecked가 추가되어 secret_scan의 passed 기대가 failed로 실패.",
+          "disposition": "환경 한계로 원시 실패 보존; PASS 처분 아님"
+        },
+        {
+          "test_id": "tests/test_model_eval.py::test_the_launcher_masks_the_logins_exact_values_in_every_form_and_place",
+          "cause": "ps 조회 거부로 토큰을 넣은 background command line이 run.json에 관찰되지 않아 exact.masked_files의 run.json 포함 단언 실패.",
+          "disposition": "환경 한계로 원시 실패 보존; PASS 처분 아님"
+        },
+        {
+          "test_id": "tests/test_model_eval.py::test_a_harness_asked_to_stop_stops_aelix_and_still_searches_the_run",
+          "cause": "ps 조회 거부로 sleeping()이 항상 빈 목록을 반환하여 bash 시작 관찰을 180초 기다린 뒤 실패.",
+          "disposition": "환경 한계로 원시 실패 보존; PASS 처분 아님"
+        },
+        {
+          "test_id": "tests/test_model_eval.py::test_a_killed_harness_leaves_nothing_running_and_scan_secures_the_run",
+          "cause": "ps 조회 거부로 sleeping()이 항상 빈 목록을 반환하여 bash 시작 관찰을 180초 기다린 뒤 실패.",
+          "disposition": "환경 한계로 원시 실패 보존; PASS 처분 아님"
+        }
+      ]
+    }
+  },
+  "reviews": {
+    "independent": "not_run",
+    "codex": "not_run",
+    "fix_diff": "not_run"
+  },
+  "previous_evidence": "이전 dirty 예비 측정·전체2827PASS/17FAIL/89SKIP·수정 영향165PASS는 이전 run과 이 문서의 이전 Git 리비전에 보존한다. 현재 clean 측정과 합쳐 통과로 바꾸지 않는다.",
+  "not_run_at_measurement": [
+    "새 최종 HEAD의 Linux/Windows/macOS CI — 완료 결과는 PR 본문의 실행 번호·시도로 연결",
+    "동일 frozen commit의 구현 독립1·별도 Codex1 및 이후 수정 diff1",
+    "브라우저/CSP/키보드/모바일/다른 독자/소유자 수용",
+    "OS ZIP 도구/M 규모",
+    "Report·collection 공유(PR4)",
+    "publish·receipt(#21)",
+    "실제 모델·토큰 측정"
+  ]
+}

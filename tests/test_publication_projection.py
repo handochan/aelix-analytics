@@ -423,6 +423,7 @@ def test_content_basis_uses_injected_common_reference_validation_and_retains_ref
     value = publication(2)
     value["refs"] = [{"type": "context_version", "version": "context.md", "digest": {"sha256": HASH},
                       "relation": "includes", "basis": "observed", "version_binding": "author"}]
+    value["details"]["basis"]["context_version"] = "context.md"
     seen = []
 
     def refuse(ref):

@@ -252,7 +252,8 @@ class Site:
     REF_STATE = REF_STATE
     RECORD_STATE = RECORD_STATE
 
-    def __init__(self, project: core.Project, report_renderer=None):
+    def __init__(self, project: core.Project, report_renderer=None, *, model=None,
+                 cache=None, publication_observations=None):
         from .workspace_map import AnalysisMap, AnalysisStatus
         from .workspace_provenance import Provenance
         from .workspace_relations import RelationPages
@@ -260,8 +261,8 @@ class Site:
         from .workspace_versions import Versions
 
         self.p = project
-        self.cache = core.HashCache(project)
-        self.model = core.read_model(project, self.cache)
+        self.cache = cache if cache is not None else core.HashCache(project)
+        self.model = model if model is not None else core.read_model(project, self.cache)
         journal = self.model.journal
         # lab.event/1 and analytics.event/2 records alike, in seq order (design 5.2).
         self.lists = core.JournalLists(journal)
@@ -281,6 +282,8 @@ class Site:
                                            sha=self.cache.sha)
         # The timeline shows every event, so every reference is judged once, here.
         self.model.references()
+        self._publication_observations = (publication_observations
+                                          if publication_observations is not None else {})
         # The events that name each run in refs.runs, in journal order (a run page's journal).
         self.related: dict[str, list[dict]] = {}
         for event in self.events:
@@ -474,6 +477,10 @@ class Site:
                 return self.ref_badge(tone, words("kind", event.kind) if event else t("ref.resolved"), shown, state)
             return self.ref_badge(tone, problem, shown, state, sep=True,
                                   note=self.recorded_later(judged, depth) + self.candidates_note(judged))
+        if kind == "publication":
+            lead = t("publication.reference_found") if found else problem
+            return self.ref_badge(tone, lead, f"<span{USER}>{esc(label)}</span>", state,
+                                  sep=True, note=self.publication_html(target.get("publication_id"), depth))
         if kind == "run":
             if found:
                 return self.ref_badge(tone, t("refs.run_found"), f'<a href="{esc(self.run_link(label, depth))}">{esc(label)}</a>', state)
@@ -516,6 +523,37 @@ class Site:
                 return self.ref_badge(tone, t("refs.report"), shown, state, sep=True)
         return self.ref_badge(tone, t("ref.resolved") if found else problem, f"<span{USER}>{esc(label)}</span>",
                               state, sep=True, note=self.candidates_note(judged))
+
+    def publication_event_html(self, event: dict, depth: int) -> str:
+        details = event.get("details")
+        pid = details.get("publication_id") if isinstance(details, dict) else None
+        return self.publication_html(pid, depth)
+
+    def publication_observation(self, publication_id):
+        if not isinstance(publication_id, str):
+            return core.publication_observation(self.model, {"target": {"publication_id": publication_id}})
+        if publication_id not in self._publication_observations:
+            self._publication_observations[publication_id] = core.publication_observation(
+                self.model, {"target": {"publication_id": publication_id}})
+        return self._publication_observations[publication_id]
+
+    def publication_html(self, publication_id, depth: int) -> str:
+        row = self.publication_observation(publication_id)
+        record = row.get("recording_status") or "not_checked"
+        folder = row.get("folder_status") if row.get("folder_checked") else "not_checked"
+        folder = folder or "not_checked"
+        reason = row.get("recording_reason") or row.get("record_state")
+        explanation = (" · " + words("publication.reason", reason)
+                       if record == "incomplete" and reason else "")
+        recorded = t("publication.record") + ": " + words("publication.record", record) + explanation
+        if row.get("record"):
+            source = row["record"]["id"]
+            link = self.relations.content(source, depth) or self.relations.link(source, depth)
+            recorded += f' · <a href="{esc(link)}">{t("publication.open_record")}</a>'
+        return (f'<span class="publication-observation" data-recording="{esc(record)}" '
+                f'data-folder="{esc(folder)}">{user_text(publication_id)} · {recorded} · {t("publication.folder")}: '
+                f'{words("publication.folder", folder)} '
+                f'<small>{t("publication.observation_note")}</small></span>')
 
     @staticmethod
     def ref_badge(tone: str, lead: str, target: str, state: str, *, sep: bool = False,
@@ -612,12 +650,15 @@ class Site:
         if self.anchor(ev) != ev.get("id"):
             shown_id += f' <small{attr("title", "events.shared_id_title")}>{esc(source)}</small>'
         state = self.record_state_html(ev, depth)
+        event = self.relations.events.get(source)
+        publication = (self.publication_event_html(event.value, depth)
+                       if kind == "publication" and event else "")
         return (f'<li class="ev rec" id="{esc(row_id)}" data-kind="{esc(kind)}" data-selection="{quote(source or "", safe="")}">'
                 f'<span class="rec-kind kind-{esc(kind)}"><span class="dot" aria-hidden="true"></span>{words("kind", kind)}</span>'
                 f'<div class="rec-main"><div class="rec-line"><span class="rec-text"{USER}>{esc(ev.get("text"))}</span>{state}</div>'
                 f'<div class="rec-meta"><span class="rec-id">{shown_id}</span> · {fmt_time(ev.get("ts"), with_date=not time_only)} · '
                 f'<span class="actor">{words("actor", ev.get("actor"))}</span>'
-                f'{self.refs_html(ev, depth, limit=ROW_REFS, empty=kind in core.KEY_KINDS)}</div></div>'
+                f'{self.refs_html(ev, depth, limit=ROW_REFS, empty=kind in core.KEY_KINDS)}</div>{publication}</div>'
                 f'{self.relation_link(source, depth, record=True)}</li>')
 
     def kind_nav(self, family: str, depth: int, current: str | None = None) -> str:
@@ -872,7 +913,8 @@ def imported_note(site) -> str:
     return t("data.imported_note.imported")
 
 
-def fingerprint(project: core.Project, report_renderer: str | None = None) -> str:
+def fingerprint(project: core.Project, report_renderer: str | None = None, *, model=None,
+                publication_observations=None) -> str:
     """What the pages are made from: the records' files, the kit, its words, and the `cache_key` of
     the ReportRenderer the Reports' bodies are made with (#19 PR3)."""
     parts = [["report_renderer", report_renderer]]
@@ -907,6 +949,22 @@ def fingerprint(project: core.Project, report_renderer: str | None = None) -> st
     parts.append(kit_sha())
     # The catalogs are .json, which kit_sha leaves out: a change of words alone rebuilds the pages.
     parts.append(i18n.digest())
+    model = model if model is not None else core.read_model(project)
+    publications = set(model.journal._publications)
+    # Only typed publication references can name an unrecorded delivery folder. Do not resolve
+    # unrelated run/data references just to decide whether the Workspace needs rebuilding.
+    for event in model.journal.events:
+        refs = event.value.get("refs")
+        for ref in refs if isinstance(refs, list) else ():
+            if (isinstance(ref, dict) and ref.get("type") == "publication"
+                    and isinstance(ref.get("publication_id"), str)):
+                publications.add(ref["publication_id"])
+    observations = publication_observations if publication_observations is not None else {}
+    inspections = {}
+    for pid in sorted(p for p in publications if isinstance(p, str)):
+        observations[pid] = core.publication_observation(
+            model, {"target": {"publication_id": pid}}, inspection_cache=inspections)
+    parts.append(list(observations.values()))
     return hashlib.sha256(json.dumps(parts, sort_keys=True).encode()).hexdigest()
 
 
@@ -936,13 +994,17 @@ def _build_locked(project: core.Project, if_changed: bool, report_renderer=None)
     # with it is never skipped.
     key = getattr(report_renderer, "cache_key", None)
     key = key if isinstance(key, str) and key else None
-    current = fingerprint(project, key)
+    cache = core.HashCache(project)
+    model = core.read_model(project, cache)
+    observations = {}
+    current = fingerprint(project, key, model=model, publication_observations=observations)
     index = project.workspace_dir / "index.html"
     if if_changed and index.is_file() and key is not None:
         with contextlib.suppress(OSError):
             if stamp_file.read_text(encoding="utf-8").strip() == current:
                 return {"path": str(index), "skipped": True}
-    site = Site(project, report_renderer)
+    site = Site(project, report_renderer, model=model, cache=cache,
+                publication_observations=observations)
     out = project.workspace_dir
     (out / "runs").mkdir(parents=True, exist_ok=True)
     (out / "data").mkdir(parents=True, exist_ok=True)

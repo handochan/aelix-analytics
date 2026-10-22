@@ -8,13 +8,15 @@ import hashlib
 import json
 import os
 import re
+import zipfile
 from collections import Counter
 from dataclasses import replace
 from importlib import metadata
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
-from .. import relations
+from .. import _platform, relations
+from . import checks
 from .checks import check_names
 from .extract import parquet_strings
 from .inspections import detect_format, inspect_bytes
@@ -293,11 +295,105 @@ def write_package(directory, files):
     if root.exists():
         raise PublicationError("package_check_failed", "package destination already exists")
     root.mkdir()
+    write_files(root, files)
+    return root
+
+
+def write_files(directory, files):
+    """Write checked files exclusively into a folder the caller has already created and owns."""
+    check_names(files)
+    root = Path(directory)
     for name, data in sorted(files.items()):
         path = root / name
+        current = root
+        candidates = [root]
+        for part in path.relative_to(root).parts:
+            current = current / part
+            candidates.append(current)
+        for current in candidates:
+            try:
+                if _platform.is_link(current.lstat()):
+                    raise PublicationError(
+                        "package_check_failed", "package writes cannot follow a link"
+                    )
+            except FileNotFoundError:
+                pass
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("xb") as stream:
             stream.write(data)
             stream.flush()
             os.fsync(stream.fileno())
-    return root
+
+
+class _UTF8ZipInfo(zipfile.ZipInfo):
+    def _encodeFilenameFlags(self):
+        return self.filename.encode("utf-8"), self.flag_bits | 0x800
+
+
+def write_zip(directory, destination, *, project_root, binding):
+    """A deterministic transport of an already bound folder, never an overwrite or project output."""
+    source = Path(directory)
+    target = Path(destination).expanduser().absolute()
+    root = Path(project_root).absolute()
+    # Compare directory identities too: resolve() retains alternate case spellings on
+    # case-insensitive volumes. The migration overlap check uses the same inode rule.
+    from ..core import same_file
+
+    if (
+        target.is_relative_to(root)
+        or target.resolve().is_relative_to(root.resolve())
+        or any(same_file(parent, root) for parent in target.parents)
+        or target.exists()
+        or target.is_symlink()
+    ):
+        raise PublicationError(
+            "zip_path_invalid", "ZIP target must be outside the project and must not exist"
+        )
+    verified = checks.verify_package(source, binding=binding)
+    manifest = verified["manifest"]
+    names = sorted(["publication.json", *(row["path"] for row in manifest["files"])])
+    owned = None
+    try:
+        with target.open("xb") as stream:
+            stat = os.fstat(stream.fileno())
+            owned = stat.st_dev, stat.st_ino
+            with zipfile.ZipFile(
+                stream, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9
+            ) as archive:
+                for name in names:
+                    info = _UTF8ZipInfo(
+                        manifest["publication_id"] + "/" + name, (1980, 1, 1, 0, 0, 0)
+                    )
+                    info.create_system = 3
+                    info.external_attr = 0o100644 << 16
+                    info.compress_type = zipfile.ZIP_DEFLATED
+                    archive.writestr(info, (source / name).read_bytes(), compresslevel=9)
+            stream.flush()
+            os.fsync(stream.fileno())
+        checks.verify_package(target, binding=binding)
+    except BaseException as exc:
+        if owned is not None:
+            try:
+                current = target.lstat()
+                if _platform.is_link(current) or (current.st_dev, current.st_ino) != owned:
+                    raise OSError("ZIP target identity changed")
+                target.unlink()
+            except FileNotFoundError:
+                pass
+            except OSError as cleanup:
+                if isinstance(exc, PublicationError):
+                    exc.details.update(cleanup_path=str(target), cleanup_error=str(cleanup))
+                else:
+                    raise PublicationError(
+                        "package_check_failed",
+                        "failed ZIP could not be cleaned up",
+                        details={
+                            "cleanup_path": str(target),
+                            "cleanup_error": str(cleanup),
+                            "cause": type(exc).__name__,
+                        },
+                    ) from exc
+        if isinstance(exc, FileExistsError):
+            raise PublicationError("zip_path_invalid", "ZIP target already exists") from exc
+        raise
+    return str(target)

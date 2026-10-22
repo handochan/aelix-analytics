@@ -1,4 +1,5 @@
 """Immutable publication values. No record objects, project objects or I/O adapters."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -27,6 +28,7 @@ class Text:
 @dataclass(frozen=True)
 class Object:
     """User-authored structured values; keys are user text too, never HTML attributes."""
+
     entries: tuple[tuple[Text, object], ...]
 
 
@@ -98,6 +100,15 @@ class SnapshotBasis:
     content: ContentBasis
 
 
+@dataclass(frozen=True)
+class PublicationIdentity:
+    """Coordinator-generated technical identity, never supplied by a projection."""
+
+    publication_id: str
+    built_at: str
+    as_of_seq: int
+
+
 @dataclass(frozen=True, order=True)
 class Omission:
     category: str
@@ -123,6 +134,7 @@ class ReaderNotice:
 @dataclass(frozen=True)
 class RenderFacts:
     """Trusted inspection facts, filled after projection validation. No authored raw strings."""
+
     inspection: tuple[tuple[str, int], ...] = ()
     notices: tuple[ReaderNotice, ...] = ()
     no_recorded_hash: int = 0

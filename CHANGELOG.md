@@ -15,6 +15,14 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 없음. 병합된 변경은 그 PR이 병합될 때의 kit 번호 절에 적고, kit 번호를 올리는 PR은 새 절을 엽니다
 ([기여 가이드](CONTRIBUTING.md#첫-공개-전에-남은-운영-결정)).
 
+## [0.26.0] - 2026-10-22
+
+### Added
+
+- [#120](https://github.com/handochan/aelix-analytics/pull/120), #20 PR3: 사적 build·`analytics.publication/1` manifest와 완료 이벤트 결박,
+  불확실 append 재조회, `--list`·독립 `--verify`, 프로젝트 밖 ZIP 생성/재생성을 더합니다. Workspace의 Timeline과 publication 참조는
+  기록된 정체성·완료 상태와 현재 폴더 검사 결과를 따로 표시합니다. Report/collection 공유·publish·독자 수용은 후속입니다.
+
 ## [0.25.0] - 2026-10-21
 
 ### Added

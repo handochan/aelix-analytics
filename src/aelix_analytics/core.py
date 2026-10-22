@@ -2,7 +2,8 @@
 
 The aelix extension loads this file inside the aelix process, so it must not import polars, duckdb,
 plotting libraries or any other aelix_analytics module except `_platform`, `relations` (the records
-read as ADR-0006 says) and `writer` (who may write a project's records, and how: Issue #13), which
+read as ADR-0006 says), `writer` (who may write a project's records, and how: Issue #13) and the
+stdlib publication observation reader (bound while the extension's namespace still exists), which
 are standard library only for the same reason. Code that needs the analysis libraries runs inside a
 project's own uv environment (runner, data, workspace).
 
@@ -32,6 +33,7 @@ from . import _platform, asset_app, asset_suggestions, checkpoints, relations, w
 from ._platform import newlines_as_lf as newlines_as_lf
 from ._platform import open_text as open_text
 from ._platform import write_text as write_text
+from .publishing import state as publication_state
 from .writer import DATASET_NAME_RE as DATASET_NAME_RE
 from .writer import EVENT_ID_RE as EVENT_ID_RE
 from .writer import RECORD_KINDS as RECORD_KINDS
@@ -45,7 +47,7 @@ from .writer import migration_record as migration_record
 from .writer import new_request_id as new_request_id
 from .writer import present_marker as present_marker
 
-KIT_VERSION = "0.25.0"
+KIT_VERSION = "0.26.0"
 # The marker and the record families of the projects this kit writes: the new format's, through
 # the common writer (writer.Writer, Issue #13 PR 3; writer.FAMILIES). A project is found by either
 # marker, analytics.json or lab.json, and judged by writer.marker_state: a lab.json project
@@ -2721,7 +2723,7 @@ def status(project: Project, limit: int = STATUS_LIMIT, *, part=None, asset_sess
     key_rows = []
     for e in key_items[-limit * 2:]:
         name = source[id(e)]
-        key_rows.append({**_brief(e, name), "references": references_summary(model.references(name))})
+        key_rows.append({**_brief(e, name), "references": references_summary(model.references(name), model=model)})
     refused = writer.refusal(marker, "writes", writer_version=KIT_VERSION)
     _, migrated = (migration_mapping(project.root, marker.value) if marker.state == writer.CURRENT
                    else (None, None))
@@ -3002,13 +3004,17 @@ def retrieve(project: Project, *, part="records", query="", id=None, cursor=None
             raise AnalyticsError(error.code, str(error), details=error.details) from None
         if part == "records" and id is None:
             for row in result["items"]:
-                row["evidence"] = references_summary(model.references(row["id"]))
+                row["evidence"] = references_summary(model.references(row["id"]), model=model)
                 row["interpretation"] = "recorded judgment; data may have changed; conclusion review is separate"
         elif part == "records":
             result.update(id=id, location=location, record_state=model.journal.replay().state_of(id),
                           legacy_resolved_by=legacy_resolved.get(id, []),
-                          evidence=references_summary(model.references(id)),
+                          evidence=references_summary(model.references(id), model=model),
                           interpretation="recorded judgment; data may have changed; conclusion review is separate")
+        elif part == "relations":
+            for row in result["items"]:
+                if row.get("type") == "publication":
+                    row["publication"] = publication_observation(model, row)
         elif part == "context":
             if not checkpoint_id:
                 result.update(location=location, checkpoint=checkpoint_view(model, limit=limit),
@@ -3104,7 +3110,7 @@ def reference_label(judgment: dict) -> str:
         return f"{run}/{target['visualization_id']}" if run else str(target["visualization_id"])
     if "report_id" in target:
         return f"report:{target.get('report_id')}/{target.get('revision_id')}"
-    for field in ("event_id", "run_id", "version", "path", "token"):
+    for field in ("event_id", "run_id", "version", "path", "publication_id", "token"):
         if field in target:
             return str(target[field])
     ref = judgment.get("ref") or {}
@@ -3113,16 +3119,33 @@ def reference_label(judgment: dict) -> str:
     return f"refs[{ref['index']}]" if ref.get("index") is not None else "refs"
 
 
-def references_summary(judgments: list[dict]) -> dict:
+def references_summary(judgments: list[dict], *, model=None) -> dict:
     """How many of a record's references are in each state, how many are confirmed links (ADR-0006
     3), and the target of every one that is not `resolved`."""
     states: dict[str, int] = {}
     for judged in judgments:
         states[judged["state"]] = states.get(judged["state"], 0) + 1
-    return {"states": {s: states[s] for s in REFERENCE_STATES if s in states},
-            "confirmed": sum(1 for judged in judgments if judged["confirmed"] and not judged.get("structural")),
-            "not_resolved": [{"state": judged["state"], "target": reference_label(judged)}
-                             for judged in judgments if judged["state"] != "resolved"]}
+    summary = {"states": {s: states[s] for s in REFERENCE_STATES if s in states},
+               "confirmed": sum(1 for judged in judgments if judged["confirmed"] and not judged.get("structural")),
+               "not_resolved": [{"state": judged["state"], "target": reference_label(judged)}
+                                for judged in judgments if judged["state"] != "resolved"]}
+    publications = [publication_observation(model, judged) for judged in judgments
+                    if judged.get("type") == "publication"] if model is not None else []
+    if publications:
+        summary["publications"] = publications
+    return summary
+
+
+def publication_observation(model, judgment, *, inspection_cache=None):
+    """Augment a journal reference with a separate current delivery observation, without changing it."""
+    target = judgment.get("target")
+    pid = target.get("publication_id") if isinstance(target, dict) else None
+    try:
+        observation = publication_state.observe(model, pid, inspection_cache=inspection_cache)
+    except publication_state.PublicationError as exc:
+        observation = {"publication_id": pid, "recording_status": None, "folder_status": None,
+                       "folder_checked": False, "folder_problem": {"code": exc.code, "message": exc.message}}
+    return {**observation, "reference_state": judgment.get("state"), "ref": judgment.get("ref")}
 
 
 def _version_time(path: Path) -> str | None:
@@ -3622,8 +3645,13 @@ def _references_text(summary: dict | None) -> str:
     unsupported (the first STATUS_TARGETS of a state; the rest are in the entry's refs in the
     journal). An entry whose references are all resolved, version_unbound or unknown says nothing
     here: its counts are in the JSON's `references`, and the overview keeps its room for entries."""
+    publications = []
+    for row in (summary or {}).get("publications", ()):
+        folder = row.get("folder_status") if row.get("folder_checked") else "not checked"
+        publications.append(f"publication {row.get('publication_id')}: record {row.get('recording_status') or 'not checked'}, folder {folder}")
+    delivery = " · " + "; ".join(publications) if publications else ""
     if not summary or not any(state in NAMED_STATES for state in summary.get("states") or {}):
-        return ""
+        return delivery
     targets: dict[str, list[str]] = {}
     for item in summary.get("not_resolved") or []:
         targets.setdefault(item["state"], []).append(_one_line(item["target"], 80))
@@ -3636,7 +3664,7 @@ def _references_text(summary: dict | None) -> str:
             parts.append(f"{count} {state} ({named})")
         else:
             parts.append(f"{count} {state}")
-    return " · refs: " + ", ".join(parts)
+    return " · refs: " + ", ".join(parts) + delivery
 
 
 def _status_cut(lines: list[tuple[str, str, bool]], root: Path, max_chars: int) -> str:

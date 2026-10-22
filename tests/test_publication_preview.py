@@ -346,7 +346,7 @@ def test_model_refusal_names_source_and_adversarial_scope_never_reaches_the_load
         checks.check_strings((ScanText(run["id"], "raw"),), policy, path="adversarial.txt")
 
 
-def test_public_preview_cli_real_project_has_no_side_writes_and_no_implicit_build(tmp_path):
+def test_public_preview_cli_real_project_preserves_preview_and_explicit_build_writes(tmp_path):
     p = core.init_project(tmp_path / "p", title="Public", origin=ORIGIN)
     before = tree_bytes(p.root)
     done = subprocess.run(
@@ -389,7 +389,11 @@ def test_public_preview_cli_real_project_has_no_side_writes_and_no_implicit_buil
         text=True,
         encoding="utf-8",
     )
-    assert done.returncode == 2 and tree_bytes(p.root) == before
+    assert done.returncode == 0, done.stderr
+    built = json.loads(done.stdout)
+    assert not built["preview"] and built["recording_status"] == "complete"
+    assert (p.root / built["path"] / "publication.json").is_file()
+    assert tree_bytes(p.root) != before
 
 
 def test_same_preview_bytes_and_static_file_and_http_subpath_crawler(tmp_path):
