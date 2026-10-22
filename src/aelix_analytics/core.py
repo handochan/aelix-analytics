@@ -2,7 +2,8 @@
 
 The aelix extension loads this file inside the aelix process, so it must not import polars, duckdb,
 plotting libraries or any other aelix_analytics module except `_platform`, `relations` (the records
-read as ADR-0006 says) and `writer` (who may write a project's records, and how: Issue #13), which
+read as ADR-0006 says), `writer` (who may write a project's records, and how: Issue #13) and the
+stdlib publication observation reader (bound while the extension's namespace still exists), which
 are standard library only for the same reason. Code that needs the analysis libraries runs inside a
 project's own uv environment (runner, data, workspace).
 
@@ -32,6 +33,7 @@ from . import _platform, asset_app, asset_suggestions, checkpoints, relations, w
 from ._platform import newlines_as_lf as newlines_as_lf
 from ._platform import open_text as open_text
 from ._platform import write_text as write_text
+from .publishing import state as publication_state
 from .writer import DATASET_NAME_RE as DATASET_NAME_RE
 from .writer import EVENT_ID_RE as EVENT_ID_RE
 from .writer import RECORD_KINDS as RECORD_KINDS
@@ -3134,14 +3136,13 @@ def references_summary(judgments: list[dict], *, model=None) -> dict:
     return summary
 
 
-def publication_observation(model, judgment):
+def publication_observation(model, judgment, *, inspection_cache=None):
     """Augment a journal reference with a separate current delivery observation, without changing it."""
-    from .publishing import state
     target = judgment.get("target")
     pid = target.get("publication_id") if isinstance(target, dict) else None
     try:
-        observation = state.observe(model, pid)
-    except state.PublicationError as exc:
+        observation = publication_state.observe(model, pid, inspection_cache=inspection_cache)
+    except publication_state.PublicationError as exc:
         observation = {"publication_id": pid, "recording_status": None, "folder_status": None,
                        "folder_checked": False, "folder_problem": {"code": exc.code, "message": exc.message}}
     return {**observation, "reference_state": judgment.get("state"), "ref": judgment.get("ref")}

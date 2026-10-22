@@ -335,9 +335,14 @@ def write_zip(directory, destination, *, project_root, binding):
     source = Path(directory)
     target = Path(destination).expanduser().absolute()
     root = Path(project_root).absolute()
+    # Compare directory identities too: resolve() retains alternate case spellings on
+    # case-insensitive volumes. The migration overlap check uses the same inode rule.
+    from ..core import same_file
+
     if (
         target.is_relative_to(root)
         or target.resolve().is_relative_to(root.resolve())
+        or any(same_file(parent, root) for parent in target.parents)
         or target.exists()
         or target.is_symlink()
     ):

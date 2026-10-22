@@ -2328,3 +2328,26 @@ def test_explicit_build_delivery_reads_use_host_stdlib_without_project_environme
     assert calls[0][0] == [sys.executable, "-m", "aelix_analytics", "--project", str(root), "build", *options]
     assert calls[0][1]["PYTHONDONTWRITEBYTECODE"] == "1" and calls[0][2] is None
     assert not (root / ".venv").exists()
+
+
+def test_loaded_publication_reader_works_after_namespace_cleanup(tmp_path, monkeypatch):
+    from aelix_analytics import core as sdk_core
+    from aelix_analytics.publishing import build
+
+    origin = sdk_core.Origin("human", "cli")
+    p = sdk_core.init_project(tmp_path / "publication", title="Public", origin=origin)
+    result = build.build_publication(p, origin=origin)
+    sdk_core.record(p, "finding", "Cites saved build", origin=origin, refs=[{
+        "type": "publication", "publication_id": result["publication_id"],
+        "digest": {"sha256": result["package_sha256"]}, "relation": "cites",
+        "basis": "declared", "version_binding": "author",
+    }])
+    module = fresh_module()
+    assert not any(name.startswith("aelix_analytics_runtime_") for name in sys.modules)
+    host_project = module.core.Project(p.root)
+    monkeypatch.setattr(module, "resolve_project", lambda: (host_project, "synthetic publication"))
+    summary = module.core.status(host_project)
+    assert '"folder_status": "same"' in json.dumps(summary)
+    answer = call(tools_of(module)["analytics_status"], {})
+    assert not answer.is_error, text_of(answer)
+    assert not any(name.startswith("aelix_analytics_runtime_") for name in sys.modules)

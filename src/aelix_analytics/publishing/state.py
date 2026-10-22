@@ -34,7 +34,7 @@ def _folder(root, pid):
         raise  # the caller reports an unknown observation, not a byte mismatch
 
 
-def observe(model, publication_id):
+def observe(model, publication_id, *, inspection_cache=None):
     """One observation: journal completion and current folder verification are separate facts."""
     _ready(model)
     if not isinstance(publication_id, str) or not relations.PUBLICATION_ID.fullmatch(
@@ -70,7 +70,10 @@ def observe(model, publication_id):
                 row["recording_reason"] = (
                     "no_completion_event" if (path / "publication.json").is_file() else "not_final"
                 )
-            verified = checks.verify_package(path, binding=event["details"] if complete else None)
+            verified = checks.verify_package(
+                path, binding=event["details"] if complete else None,
+                inspection_cache=inspection_cache,
+            )
             if verified["manifest"]["publication_id"] != publication_id:
                 raise PublicationError(
                     "package_check_failed", "folder and manifest identities differ"

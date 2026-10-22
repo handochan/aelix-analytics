@@ -10,11 +10,14 @@ import re
 import stat
 import unicodedata
 import zipfile
+import zlib
 from dataclasses import fields, is_dataclass
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
-from .inspections import detect_format, inspect_bytes
+from .. import relations
+from .basis import _time
+from .inspections import HTMLInspection, detect_format, inspect_bytes
 from .model import LeakPolicy, PublicationError, ScanText, Text
 
 IDENTITY_FILES = frozenset({"publication.json", "about.html", "assets/identity.js"})
@@ -259,8 +262,6 @@ def check_package(files, roles, *, policy=None, parquet_extractor=None, pinned=N
             )
         if path.endswith(".html"):
             # Generated pages may use scripts but not executable navigation or hidden fetch paths.
-            from .inspections import HTMLInspection
-
             parsed = HTMLInspection(data.decode("utf-8"))
             if parsed.forbidden or any(
                 name in script for script in parsed.script_text for name in NETWORK_APIS
@@ -350,9 +351,6 @@ def _folder_files(root):
 
 def _manifest_shape(value):
     """Validate the accepted manifest fields, without creating a stored publication (PR3)."""
-    from .. import relations
-    from .basis import _time
-
     def exact(part, keys):
         return isinstance(part, dict) and set(part) == set(keys)
 
@@ -617,7 +615,25 @@ def _manifest_shape(value):
     need(counts == summary["inspection"], "inspection inventory differs from summary")
 
 
-def verify_package(path, binding=None):
+def _verification_view(data, role, name):
+    observed = detect_format(data, role=role, path=name)
+    view = None
+    if observed in ("html", "css", "svg", "payload"):
+        view = inspect_bytes(data, role=role, path=name)
+        if view is None:
+            reject("file role does not allow its format", path=name)
+        if observed == "html":
+            parsed = HTMLInspection(data.decode("utf-8"))
+            if parsed.forbidden or any(
+                word in script for script in parsed.script_text for word in NETWORK_APIS
+            ):
+                reject("forbidden executable HTML behavior", path=name)
+    if name == "assets/publication.js" and any(word in data.decode("utf-8") for word in NETWORK_APIS):
+        reject("publication runtime contains a network API", path=name)
+    return observed, view
+
+
+def verify_package(path, binding=None, *, inspection_cache=None):
     """Verify a folder or deterministic ZIP against its own manifest; #21 reuses this function."""
     metadata = []
     zip_root = None
@@ -661,7 +677,7 @@ def verify_package(path, binding=None):
                         files[name] = z.read(info)
                     if z.comment:
                         reject("ZIP has a comment")
-            except (OSError, zipfile.BadZipFile, RuntimeError) as exc:
+            except (OSError, zipfile.BadZipFile, RuntimeError, zlib.error, UnicodeError) as exc:
                 reject(f"cannot inspect package ZIP: {exc}")
     check_names(files)
     try:
@@ -744,32 +760,28 @@ def verify_package(path, binding=None):
             )
             if origin == "copied":
                 role = row["sources"][0]["role"]
-            observed = detect_format(files[name], role=role, path=name)
+            # Only memoize pure inspections within this observation batch. Every invocation
+            # still walks the folder, reads all bytes and checks their hashes above, even when
+            # size/mtime/ctime are unchanged. Never trust a stat key or a persisted cache.
+            cache_key = (role, name, row["sha256"])
+            if inspection_cache is not None and cache_key in inspection_cache:
+                observed, inspection = inspection_cache[cache_key]
+            else:
+                observed, inspection = _verification_view(files[name], role, name)
+                if inspection_cache is not None:
+                    if len(inspection_cache) >= 64:
+                        inspection_cache.pop(next(iter(inspection_cache)))
+                    inspection_cache[cache_key] = observed, inspection
             declared = "text" if row["format"] == "python" else row["format"]
             if observed != declared:
                 reject("file format differs from the manifest", path=name)
-            if observed in ("html", "css", "svg", "payload"):
-                inspection = inspect_bytes(files[name], role=role, path=name)
-                if inspection is None:
-                    reject("file role does not allow its format", path=name)
+            if inspection is not None:
                 views[name] = inspection
-            if name == "assets/publication.js" and any(
-                word in files[name].decode("utf-8") for word in NETWORK_APIS
-            ):
-                reject("publication runtime contains a network API", path=name)
         ids = {
             name: set(value.ids) for name, value in views.items() if value.format in ("html", "svg")
         }
         remote = set()
         for name, view in views.items():
-            if view.format == "html":
-                from .inspections import HTMLInspection
-
-                parsed = HTMLInspection(files[name].decode("utf-8"))
-                if parsed.forbidden or any(
-                    word in script for script in parsed.script_text for word in NETWORK_APIS
-                ):
-                    reject("forbidden executable HTML behavior", path=name)
             for link in view.links:
                 target = resolve_link(name, link, files, ids)
                 if target:
@@ -793,7 +805,7 @@ def verify_package(path, binding=None):
                 binding.get(k) != v for k, v in expected.items()
             ):
                 reject("manifest differs from its binding")
-    except (KeyError, TypeError, ValueError, UnicodeError) as exc:
+    except (KeyError, TypeError, ValueError, UnicodeError, RecursionError) as exc:
         if isinstance(exc, PublicationError):
             raise
         reject(f"invalid publication manifest: {type(exc).__name__}")

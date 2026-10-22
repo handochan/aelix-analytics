@@ -664,7 +664,7 @@ def test_zip_cleanup_never_deletes_a_replacement_target(tmp_path, monkeypatch):
     assert "identity changed" in caught.value.details["cleanup_error"]
 
 
-def test_actual_build_large_exclusion_record_is_explicitly_unbound_without_raising_floor(tmp_path):
+def test_actual_build_large_exclusion_record_cleans_its_folder_without_raising_floor(tmp_path):
     import json
 
     from aelix_analytics import relations
@@ -691,11 +691,62 @@ def test_actual_build_large_exclusion_record_is_explicitly_unbound_without_raisi
     with pytest.raises(PublicationError) as caught:
         build.build_publication(p, exclude=[row["id"] for row in rows], origin=ORIGIN)
     assert (
-        caught.value.code == "publication_not_recorded"
-        and caught.value.details["binding"] == "unbound"
+        caught.value.code == "text_too_long"
     )
     assert (
-        not _publications(p) and checks.verify_package(p.root / caught.value.details["path"])["ok"]
+        not _publications(p) and not list((p.root / ".analytics/publications").glob("pub-*"))
     )
     marker = json.loads((p.root / "analytics.json").read_bytes())
     assert relations.version_key(marker["min_writer_version"]) < relations.version_key(relations.PUBLICATION_WRITER_SINCE)
+
+
+def test_zip_target_cannot_use_another_case_spelling_of_project(tmp_path):
+    from aelix_analytics.publishing import package
+
+    p = core.init_project(tmp_path / "project", title="Public", origin=ORIGIN)
+    alias = p.root.with_name("PROJECT")
+    if not core.same_file(alias, p.root):
+        pytest.skip("requires a case-insensitive filesystem")
+    result = build.build_publication(p, origin=ORIGIN)
+    with pytest.raises(PublicationError) as caught:
+        package.write_zip(p.root / result["path"], alias / "inside.zip",
+                          project_root=p.root, binding=_publications(p)[0]["details"])
+    assert caught.value.code == "zip_path_invalid"
+    assert not (p.root / "inside.zip").exists()
+
+
+@pytest.mark.parametrize("corruption", ["deflate", "utf8_name"])
+def test_damaged_zip_is_a_package_failure_without_traceback(tmp_path, corruption):
+    import struct
+    import zipfile
+
+    p = core.init_project(tmp_path / "project", title="Public", origin=ORIGIN)
+    path = tmp_path / "package.zip"
+    build.build_publication(p, origin=ORIGIN, zip_path=path)
+    with zipfile.ZipFile(path) as z:
+        info = z.infolist()[0]
+    raw = bytearray(path.read_bytes())
+    offset = info.header_offset
+    name_size, extra_size = struct.unpack_from("<HH", raw, offset + 26)
+    if corruption == "deflate":
+        # Reserved DEFLATE block type: always rejected by zlib, independent of its version.
+        raw[offset + 30 + name_size + extra_size] = 7
+    else:
+        raw[offset + 30] = 255
+    path.write_bytes(raw)
+    with pytest.raises(PublicationError) as caught:
+        checks.verify_package(path)
+    assert caught.value.code == "package_check_failed"
+
+
+def test_publication_status_docs_match_build_commands_and_deferred_scope():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    architecture = (root / "docs/ARCHITECTURE.md").read_text(encoding="utf-8")
+    status = (root / "docs/design/PUBLICATION-BUILD.md").read_text(encoding="utf-8").split("- 작업:")[0]
+    assert "manifest 결박·Report 범위는 아직 구현 전" not in architecture
+    assert "공유 패키지 생성은 아직 없다" not in status
+    for text in (architecture, status):
+        assert "PR3" in text and "`analytics build`" in text and "ZIP" in text
+        assert "PR4" in text and "PR5" in text and "#21" in text

@@ -252,7 +252,8 @@ class Site:
     REF_STATE = REF_STATE
     RECORD_STATE = RECORD_STATE
 
-    def __init__(self, project: core.Project, report_renderer=None):
+    def __init__(self, project: core.Project, report_renderer=None, *, model=None,
+                 cache=None, publication_observations=None):
         from .workspace_map import AnalysisMap, AnalysisStatus
         from .workspace_provenance import Provenance
         from .workspace_relations import RelationPages
@@ -260,8 +261,8 @@ class Site:
         from .workspace_versions import Versions
 
         self.p = project
-        self.cache = core.HashCache(project)
-        self.model = core.read_model(project, self.cache)
+        self.cache = cache if cache is not None else core.HashCache(project)
+        self.model = model if model is not None else core.read_model(project, self.cache)
         journal = self.model.journal
         # lab.event/1 and analytics.event/2 records alike, in seq order (design 5.2).
         self.lists = core.JournalLists(journal)
@@ -281,7 +282,8 @@ class Site:
                                            sha=self.cache.sha)
         # The timeline shows every event, so every reference is judged once, here.
         self.model.references()
-        self._publication_observations = {}
+        self._publication_observations = (publication_observations
+                                          if publication_observations is not None else {})
         # The events that name each run in refs.runs, in journal order (a run page's journal).
         self.related: dict[str, list[dict]] = {}
         for event in self.events:
@@ -911,7 +913,8 @@ def imported_note(site) -> str:
     return t("data.imported_note.imported")
 
 
-def fingerprint(project: core.Project, report_renderer: str | None = None) -> str:
+def fingerprint(project: core.Project, report_renderer: str | None = None, *, model=None,
+                publication_observations=None) -> str:
     """What the pages are made from: the records' files, the kit, its words, and the `cache_key` of
     the ReportRenderer the Reports' bodies are made with (#19 PR3)."""
     parts = [["report_renderer", report_renderer]]
@@ -946,7 +949,7 @@ def fingerprint(project: core.Project, report_renderer: str | None = None) -> st
     parts.append(kit_sha())
     # The catalogs are .json, which kit_sha leaves out: a change of words alone rebuilds the pages.
     parts.append(i18n.digest())
-    model = core.read_model(project)
+    model = model if model is not None else core.read_model(project)
     publications = set(model.journal._publications)
     # Only typed publication references can name an unrecorded delivery folder. Do not resolve
     # unrelated run/data references just to decide whether the Workspace needs rebuilding.
@@ -956,8 +959,12 @@ def fingerprint(project: core.Project, report_renderer: str | None = None) -> st
             if (isinstance(ref, dict) and ref.get("type") == "publication"
                     and isinstance(ref.get("publication_id"), str)):
                 publications.add(ref["publication_id"])
-    parts.append([core.publication_observation(model, {"target": {"publication_id": pid}})
-                  for pid in sorted(p for p in publications if isinstance(p, str))])
+    observations = publication_observations if publication_observations is not None else {}
+    inspections = {}
+    for pid in sorted(p for p in publications if isinstance(p, str)):
+        observations[pid] = core.publication_observation(
+            model, {"target": {"publication_id": pid}}, inspection_cache=inspections)
+    parts.append(list(observations.values()))
     return hashlib.sha256(json.dumps(parts, sort_keys=True).encode()).hexdigest()
 
 
@@ -987,13 +994,17 @@ def _build_locked(project: core.Project, if_changed: bool, report_renderer=None)
     # with it is never skipped.
     key = getattr(report_renderer, "cache_key", None)
     key = key if isinstance(key, str) and key else None
-    current = fingerprint(project, key)
+    cache = core.HashCache(project)
+    model = core.read_model(project, cache)
+    observations = {}
+    current = fingerprint(project, key, model=model, publication_observations=observations)
     index = project.workspace_dir / "index.html"
     if if_changed and index.is_file() and key is not None:
         with contextlib.suppress(OSError):
             if stamp_file.read_text(encoding="utf-8").strip() == current:
                 return {"path": str(index), "skipped": True}
-    site = Site(project, report_renderer)
+    site = Site(project, report_renderer, model=model, cache=cache,
+                publication_observations=observations)
     out = project.workspace_dir
     (out / "runs").mkdir(parents=True, exist_ok=True)
     (out / "data").mkdir(parents=True, exist_ok=True)

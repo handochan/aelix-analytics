@@ -1,8 +1,9 @@
 # 공유 build 설계 — 선택 범위의 독립 HTML·ZIP 패키지
 
 - 상태: **설계 채택·단계별 구현 중.** PR1은 내부 `PublicationProjection`·공유 모델·공통 닫힘·snapshot의 순수 경계를 구현했다.
-  `analytics build`·preview·`publication.json` 쓰기/결박·Report 범위·패키지 검사·독자 검증은 후속 PR이다.
-  현재 공개 동작은 [현재 계약](../CONTRACTS.md)이 설명한다. Workspace는 프로젝트의 파일을 참조하며 공유 패키지 생성은 아직 없다.
+  PR2–PR3은 `analytics build`·preview·private saved build·`publication.json` 쓰기/결박·패키지 검사·ZIP을 구현했다.
+  Report/collection 범위는 PR4, 독자 수용은 PR5, publish/receipt는 #21의 후속 범위다.
+  현재 공개 동작은 [현재 계약](../CONTRACTS.md)이 설명한다. Workspace와 별도로 독립 공유 패키지를 생성한다.
 - 작업: [#20](https://github.com/handochan/aelix-analytics/issues/20) `[B4-s/P0]`.
   [2026-10-17 순서 완화](https://github.com/handochan/aelix-analytics/issues/20#issuecomment-6232441606)로 PR-0~PR-3은
   [#19](https://github.com/handochan/aelix-analytics/issues/19) 앞에 시작할 수 있다. Report 범위 PR-4는 #19 뒤다.

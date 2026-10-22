@@ -148,3 +148,42 @@ def test_malformed_completion_stays_visible_without_stopping_workspace(tmp_path,
         assert 'data-recording="not_checked"' in page and 'data-folder="not_checked"' in page
         assert "Not checked" in page
     assert p.journal.read_bytes() == journal
+
+
+def test_deep_manifest_damage_does_not_stop_status_list_or_workspace(tmp_path):
+    p, result, citing, completion = publication(tmp_path)
+    (p.root / result["path"] / "publication.json").write_bytes(b"[" * 10000 + b"0" + b"]" * 10000)
+    row = state.list_publications(core.read_model(p))["publications"][0]
+    assert row["recording_status"] == "complete" and row["folder_status"] == "changed"
+    assert row["folder_problem"]["code"] == "package_check_failed"
+    assert "changed" in json.dumps(core.status(p))
+    workspace.build(p)
+    assert all('data-folder="changed"' in page for page in pages(p, citing, completion))
+
+
+def test_workspace_reads_each_folder_once_and_reuses_equal_byte_inspections(tmp_path, monkeypatch):
+    p, first, _citing, _completion = publication(tmp_path)
+    second = build.build_publication(p, origin=ORIGIN)
+    third = build.build_publication(p, origin=ORIGIN)
+    folders, inspections = [], []
+    read_folder = state.checks._folder_files
+    inspect = state.checks._verification_view
+
+    def reading(path):
+        folders.append(path.name)
+        return read_folder(path)
+
+    def inspecting(data, role, name):
+        inspections.append((role, name, data))
+        return inspect(data, role, name)
+
+    monkeypatch.setattr(state.checks, "_folder_files", reading)
+    monkeypatch.setattr(state.checks, "_verification_view", inspecting)
+    workspace.build(p)
+    assert sorted(folders) == sorted(r["publication_id"] for r in (first, second, third))
+    # The last two builds have identical content files. Their identity files still differ.
+    index = (p.root / second["path"] / "index.html").read_bytes()
+    assert sum(name == "index.html" and data == index for _role, name, data in inspections) == 1
+    folders.clear()
+    assert workspace.build(p, if_changed=True)["skipped"]
+    assert len(folders) == 3  # Even the skipped path reads every folder again.

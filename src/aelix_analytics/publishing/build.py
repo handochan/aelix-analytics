@@ -657,6 +657,11 @@ def build_publication(
                         requires=relations.PUBLICATION_WRITER_SINCE,
                     )
             except BaseException as exc:
+                if isinstance(exc, writer.AnalyticsError) and exc.code == "text_too_long":
+                    # Writer checks this before raising the floor or appending any bytes.
+                    # This is a definite pre-binding rejection, not an uncertain append.
+                    binding_started = False
+                    raise PublicationError(exc.code, exc.message, details=exc.details) from exc
                 state, event, reread_interrupted = _observe_completion(w, pid, digest)
                 if state != "complete":
                     raise PublicationError(

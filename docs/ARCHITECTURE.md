@@ -422,4 +422,4 @@ Issue #15의 `relations.QueryPolicy`는 stdlib 어휘 순위·페이지 정책�
 
 이 패턴들을 이 프로젝트의 변경 축에 적용하는 방식과 인터페이스 이름은 본 문서의 설계 제안이다.
 
-Issue #20 PR1은 순수 공유 모델·투영·공통 범위 닫힘과 snapshot adapter를 더합니다. `analytics build`·preview·publication writer·manifest 결박·Report 범위는 아직 구현 전입니다. `publishing`의 수준은 현재 core2/Workspace3/진입점4에 맞춘3이며, 설계 문서의 옛 수준2 숫자를 그대로 따르지 않습니다.
+Issue #20 PR1–PR3은 순수 공유 모델·투영·공통 범위 닫힘·snapshot adapter, `analytics build`·preview·private saved build·publication writer·manifest 결박·독립 검사·ZIP을 구현합니다. Report/collection 범위는 PR4, 독자 수용은 PR5, publish/receipt는 #21의 후속 범위입니다. `publishing`의 수준은 현재 core2/Workspace3/진입점4에 맞춘3이며, 설계 문서의 옛 수준2 숫자를 그대로 따르지 않습니다.
