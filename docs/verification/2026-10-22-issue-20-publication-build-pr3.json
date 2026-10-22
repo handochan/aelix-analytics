@@ -1,36 +1,16 @@
 {
   "record_kind": "aelix-analytics-publication-build-pr3-workspace",
-  "observed_at": "2026-10-21T16:36:25.946940+00:00",
+  "observed_at": "2026-10-22T00:42:03.504542+00:00",
   "issue": "https://github.com/handochan/aelix-analytics/issues/20",
   "pull_request": "https://github.com/handochan/aelix-analytics/pull/120",
-  "run_id": "666ed175-faf9-4637-ad03-838a2f611906",
-  "base_revision": "184910c775009dd0468837c4d89b6e42cf9f12bb",
+  "run_id": "7397fe0a-2fa9-465a-ae18-76caccbfee2e",
+  "previous_run_id": "666ed175-faf9-4637-ad03-838a2f611906",
+  "base_revision": "5559ff6a3abd17a69636dcf5fa9f4b1b45025d4a",
   "measured_source": {
-    "head": "ef0b44ba32fd8d843531bac86687f2909793466f",
-    "tracked_dirty": true,
-    "snapshot": {
-      "head": "ef0b44ba32fd8d843531bac86687f2909793466f",
-      "tracked_patch": "measurement-final.patch",
-      "tracked_patch_sha256": "a6cf7950bfdb7d57dd522e8b291d1561cb6af701f00621cda60b673356115f6f",
-      "untracked_sha256": {
-        ".github/ISSUE_TEMPLATE/config.yml": "3c5216fb53fafaff54d5a65345785850e817631fc049ee66ccb53f50036dc570",
-        ".github/dependabot.yml": "ff23e4d9753f4ae7e38237cc2152d5ca5844c140c7103aa5d3ae03d1a4004d34",
-        "src/aelix_analytics/workspace_provenance.py": "0e1f4a8b76c2390921c3ea148aa4b5da427d284e44dc68e7b47d675f7bd07e84",
-        "src/aelix_analytics/workspace_reports.py": "d8e5d69cb38e1d0d5bc84c7b229c7f1374af48b754e899c7ae1d62013aec82d5",
-        "tests/test_ci_workflow.py": "842950946a8fdf8e29beb93104e3549a73f9ff8907257d5e2bc383081602d658",
-        "tests/test_human_e2e.py": "ad8b9da9267693755f6d2aa79a1bcf943148bba1f314b0dd3cd418d439aa29fb",
-        "tests/test_provenance.py": "37fcc01cbe9e4e799e065419f6d76c504757bc87a23aa3a747b299e6f5aaedab",
-        "tests/test_workspace_publications.py": "6268b76ef326d0e258aaccedb0076338d4389804800bbaee38a0d966524535d1",
-        "tests/test_workspace_reports.py": "590ae956e6d80421e4362a4adb43b37646caa8cf111dc1a673f157423321fe5f",
-        "tests/workspace_provenance.cjs": "f8eec42d9e1be0333758890504dcb5f14543416e83c63ac0c70b4ca97f0bd620",
-        "tools/human_e2e.py": "e50d67a158e36a28315261bfa585c6e2102cdb857929a1e5484a57bdbba060a4",
-        "tools/human_e2e_data/GUIDE.md": "6cb940d885f7e4a313b9988e551cd6c93ac7ca32734725fd38a688bb8a8c604a",
-        "tools/human_e2e_data/owner-notes.md": "ab5734a9c56de3bcce1a1fbc2ed6d543f36792a3674df8cb6aa8153f1b4dc786",
-        "tools/human_e2e_data/q17b-request.md": "afcaff8a37571281334ce1c6d425a9e1cbd6921574362c27450158d44a3d31eb",
-        "tools/model_eval_data/models/gpt-6.1-sol.json": "03ff4e6b3e789baa32b3dd91a2388577378fad7c9bbbec9b9d9e62b321452276"
-      }
-    },
+    "head": "d6281e5b005ed14fe145d9ecb9e0932217ff0219",
+    "tracked_dirty": false,
     "runtime_and_measurement_sha256": {
+      "pyproject.toml": "2400854eeedd3c2aa150395e752c678106fc6db79fbb1f18ce99cdcf24a25b67",
       "src/aelix_analytics/__init__.py": "78c68036833435ca9fc6d4b7b3d52b19268bd972d5a825a54fe57c57f13ddd68",
       "src/aelix_analytics/__main__.py": "d99be5d3d0bfded923def8baae5bf1db81a8687237f3152e6ba512fea016b123",
       "src/aelix_analytics/_install.py": "b015715ff2025cc17edd9816b56b61975849a2b7c3ee1da482a29dc96e13d153",
@@ -89,20 +69,19 @@
       "src/aelix_analytics/workspace_reports.py": "d8e5d69cb38e1d0d5bc84c7b229c7f1374af48b754e899c7ae1d62013aec82d5",
       "src/aelix_analytics/workspace_versions.py": "40ab5b5a6ff33dfd7b2090dda29bafc1894670c80b9954feaa228d225da59c6e",
       "src/aelix_analytics/writer.py": "047e76f3b03655deba23648c72e77a58a374a1b5fde75c4918b74eb34440da77",
-      "pyproject.toml": "2400854eeedd3c2aa150395e752c678106fc6db79fbb1f18ce99cdcf24a25b67",
-      "uv.lock": "6aa7a6f2aab4b87c122277a11f6c75693579a7af0513323be210618b4531bb52",
+      "tests/test_workspace_publications.py": "6268b76ef326d0e258aaccedb0076338d4389804800bbaee38a0d966524535d1",
       "tools/publication_build_eval.py": "eab9a3df72f6b949693fa12ec505d258702e1b869b0209363a7969804882c897",
-      "tests/test_workspace_publications.py": "6268b76ef326d0e258aaccedb0076338d4389804800bbaee38a0d966524535d1"
+      "uv.lock": "6aa7a6f2aab4b87c122277a11f6c75693579a7af0513323be210618b4531bb52"
     }
   },
   "kit_version": "0.26.0",
   "reader_format": 6,
-  "status": "로컬 예비 측정; 커밋·리뷰·CI·Ready 미완료",
+  "status": "clean 커밋 측정 완료; 로컬 전체 시험은 세션 환경 한계로 실패; Draft·외부 구현 리뷰 대기",
   "raw_byte_measurement": {
     "schema": "aelix-analytics.publication-build-eval/1",
-    "observed_at": "2026-10-21T16:35:16.838420+00:00",
-    "source_commit": "ef0b44ba32fd8d843531bac86687f2909793466f",
-    "tracked_dirty": true,
+    "observed_at": "2026-10-22T00:13:33.913252+00:00",
+    "source_commit": "d6281e5b005ed14fe145d9ecb9e0932217ff0219",
+    "tracked_dirty": false,
     "kit_version": "0.26.0",
     "python": "3.12.13",
     "platform": "Darwin",
@@ -112,22 +91,22 @@
       {
         "profile": "read",
         "attempt": 1,
-        "seconds_observed": 0.037376708001829684,
-        "publication_id": "pub-01m5fn29vbp4pnhzf9m0k0kwff",
+        "seconds_observed": 0.03770029102452099,
+        "publication_id": "pub-01m5gf9ecy013wsttc4mmpzx1r",
         "files": 10,
         "bytes": 16796,
         "manifest_bytes": 2870,
         "event_bytes_with_lf": 1366,
-        "package_sha256": "d4c932654e0f49c1ddaa64d981280a89f1e00a74405a916c827dae172f3dd842",
-        "content_sha256": "5bf65c0591bcc53cad3c4c0a3f123c2402170b6bc093618c88e3f9ea89df8ae4",
+        "package_sha256": "180e8068d6940b2977c4008b8da7a0e266beaaabccd30508cf4cc5a8329a0974",
+        "content_sha256": "a0715c156702df37570e5d3e417fbad49018dcaa745ef35a7efe85c4705946a3",
         "record": {
           "id": "e5",
           "seq": 5
         },
         "basis": {
           "content_seq": 4,
-          "content_recorded_at": "2026-10-22T01:35:16.423+09:00",
-          "context_version": "20261022-013516-419583_6c2b5c1248d5.md",
+          "content_recorded_at": "2026-10-22T09:13:33.416+09:00",
+          "context_version": "20261022-091333-412324_6c2b5c1248d5.md",
           "as_of_seq": 4,
           "context_status": "recorded"
         },
@@ -154,22 +133,22 @@
       {
         "profile": "read",
         "attempt": 2,
-        "seconds_observed": 0.03156337502878159,
-        "publication_id": "pub-01m5fn29wvb6b8vy5attvqrbky",
+        "seconds_observed": 0.03755583299789578,
+        "publication_id": "pub-01m5gf9eehf9hby72pz20zhxey",
         "files": 10,
         "bytes": 16796,
         "manifest_bytes": 2870,
         "event_bytes_with_lf": 1366,
-        "package_sha256": "788614adc3f00095b127aa4856709656771e92d3e4128201d5b2dce8ab054d04",
-        "content_sha256": "5bf65c0591bcc53cad3c4c0a3f123c2402170b6bc093618c88e3f9ea89df8ae4",
+        "package_sha256": "adf7c60af760caf9bbccc94bc9a6cd3f22854b714062b6c720b83563ccf8986b",
+        "content_sha256": "a0715c156702df37570e5d3e417fbad49018dcaa745ef35a7efe85c4705946a3",
         "record": {
           "id": "e6",
           "seq": 6
         },
         "basis": {
           "content_seq": 4,
-          "content_recorded_at": "2026-10-22T01:35:16.423+09:00",
-          "context_version": "20261022-013516-419583_6c2b5c1248d5.md",
+          "content_recorded_at": "2026-10-22T09:13:33.416+09:00",
+          "context_version": "20261022-091333-412324_6c2b5c1248d5.md",
           "as_of_seq": 5,
           "context_status": "recorded"
         },
@@ -196,22 +175,22 @@
       {
         "profile": "evidence",
         "attempt": 1,
-        "seconds_observed": 0.03345879103289917,
-        "publication_id": "pub-01m5fn29z9rcggd992kf6bh2rg",
+        "seconds_observed": 0.037015541980508715,
+        "publication_id": "pub-01m5gf9ehd87bfpr2vpg6zpsv2",
         "files": 10,
         "bytes": 16899,
         "manifest_bytes": 2874,
         "event_bytes_with_lf": 1374,
-        "package_sha256": "6d775632fa852a6c9df8def1e5500a0229e0efbdd87eb0f4bd54eec59fc292e2",
-        "content_sha256": "578122f9ff91fb915bcbbee80254a72e1bad65b1125c644bb65a65dab5b87816",
+        "package_sha256": "e7e5399f7b0ea8b6ac139da7bf2874bc5e5382a7378e3558b3a22d420ee0b037",
+        "content_sha256": "78275b9f2ebd2b2e9374ff51c801e78ceb7fd9c4b28198c5ac4af76fdca8f390",
         "record": {
           "id": "e7",
           "seq": 7
         },
         "basis": {
           "content_seq": 4,
-          "content_recorded_at": "2026-10-22T01:35:16.423+09:00",
-          "context_version": "20261022-013516-419583_6c2b5c1248d5.md",
+          "content_recorded_at": "2026-10-22T09:13:33.416+09:00",
+          "context_version": "20261022-091333-412324_6c2b5c1248d5.md",
           "as_of_seq": 6,
           "context_status": "recorded"
         },
@@ -238,22 +217,22 @@
       {
         "profile": "evidence",
         "attempt": 2,
-        "seconds_observed": 0.03244012501090765,
-        "publication_id": "pub-01m5fn2a0p9bhwrp9gn1h6gydk",
+        "seconds_observed": 0.038832582999020815,
+        "publication_id": "pub-01m5gf9ejzdwmwwpkg7wx7w0np",
         "files": 10,
         "bytes": 16899,
         "manifest_bytes": 2874,
         "event_bytes_with_lf": 1374,
-        "package_sha256": "656767e27c5681fb8b81362d509051592ccb9df1c7fb8e71e7fb5e6c77de8293",
-        "content_sha256": "578122f9ff91fb915bcbbee80254a72e1bad65b1125c644bb65a65dab5b87816",
+        "package_sha256": "7c905da257c78f2aca95d7fa9673642908ac3a84c59e69e760e058c17b4bd190",
+        "content_sha256": "78275b9f2ebd2b2e9374ff51c801e78ceb7fd9c4b28198c5ac4af76fdca8f390",
         "record": {
           "id": "e8",
           "seq": 8
         },
         "basis": {
           "content_seq": 4,
-          "content_recorded_at": "2026-10-22T01:35:16.423+09:00",
-          "context_version": "20261022-013516-419583_6c2b5c1248d5.md",
+          "content_recorded_at": "2026-10-22T09:13:33.416+09:00",
+          "context_version": "20261022-091333-412324_6c2b5c1248d5.md",
           "as_of_seq": 7,
           "context_status": "recorded"
         },
@@ -281,17 +260,17 @@
     "workspace_observations": [
       {
         "folder_status": "same",
-        "first_html_bytes": 41061,
+        "first_html_bytes": 41055,
         "relation_html_bytes": 9513
       },
       {
         "folder_status": "changed",
-        "first_html_bytes": 41061,
+        "first_html_bytes": 41055,
         "relation_html_bytes": 9513
       },
       {
         "folder_status": "missing",
-        "first_html_bytes": 41205,
+        "first_html_bytes": 41199,
         "relation_html_bytes": 9537
       }
     ],
@@ -341,7 +320,26 @@
     ]
   },
   "verification": {
-    "full_initial_snapshot": {
+    "measurement": {
+      "command": [
+        "uv",
+        "run",
+        "--locked",
+        "python",
+        "tools/publication_build_eval.py",
+        "--out",
+        ".devstate/runs/7397fe0a-2fa9-465a-ae18-76caccbfee2e/evidence/measurement"
+      ],
+      "started_at": "2026-10-22T00:13:33.255281+00:00",
+      "completed_at": "2026-10-22T00:13:33.928683+00:00",
+      "head_commit": "d6281e5b005ed14fe145d9ecb9e0932217ff0219",
+      "dirty_before": false,
+      "dirty_after": false,
+      "result": "pass",
+      "exit_code": 0,
+      "source_unchanged": true
+    },
+    "full_suite": {
       "command": [
         "uv",
         "run",
@@ -356,62 +354,170 @@
         "--ignore",
         "tests/test_windows_console.py"
       ],
-      "cwd": "<worktree>",
-      "executed_at": "2026-10-21T16:04:12.006111+00:00",
-      "exit_code": 1,
+      "started_at": "2026-10-22T00:13:33.255393+00:00",
+      "completed_at": "2026-10-22T00:41:06.309905+00:00",
+      "head_commit": "d6281e5b005ed14fe145d9ecb9e0932217ff0219",
+      "dirty_before": false,
+      "dirty_after": false,
       "result": "fail",
-      "seconds": 1780.97,
-      "source_snapshot": "full-suite-source.json",
-      "evidence_path": "full-suite.txt",
-      "trust": "임시 디렉터리의 trust.json; 종료 후 제거",
-      "legacy_env": "AELIX_LAB_HOME/AELIX_LAB_TRUST_FILE 제거",
+      "exit_code": 1,
+      "source_unchanged": true,
       "counts": {
-        "passed": 2827,
-        "failed": 17,
-        "skipped": 89
+        "failed": 13,
+        "passed": 2840,
+        "skipped": 89,
+        "seconds": 1652.33
       },
       "environment": {
         "AELIX_ANALYTICS_TEST_INSTALL": "1",
-        "AELIX_ANALYTICS_TRUST_FILE": "temporary file",
+        "AELIX_ANALYTICS_TRUST_FILE": "임시 파일; 종료 뒤 제거",
         "AELIX_LAB_HOME": "unset",
         "AELIX_LAB_TRUST_FILE": "unset"
       }
     },
-    "affected_after_fixes": {
+    "ruff": {
       "command": [
         "uv",
         "run",
         "--locked",
-        "pytest",
-        "-q",
-        "-p",
-        "no:cacheprovider",
-        "tests/test_workspace_publications.py",
-        "tests/test_workspace_i18n.py",
-        "tests/test_workspace_relations.py",
-        "tests/test_workspace_lists.py",
-        "tests/test_workspace_reports.py",
-        "tests/test_publication_records.py",
-        "tests/test_publication_state.py",
-        "tests/test_publication_schema.py",
-        "tests/test_layers.py",
-        "tests/test_language.py::test_the_kit_s_own_files_hold_no_hangul_but_the_legacy_readers",
-        "--timeout",
-        "600",
-        "--timeout-method=thread"
+        "ruff",
+        "check",
+        "tests",
+        "extension",
+        "src",
+        "tools"
       ],
-      "cwd": "<worktree>",
-      "executed_at": "2026-10-21T16:34:53.156013+00:00",
-      "exit_code": 0,
+      "started_at": "2026-10-22T00:13:33.255548+00:00",
+      "completed_at": "2026-10-22T00:13:33.389736+00:00",
+      "head_commit": "d6281e5b005ed14fe145d9ecb9e0932217ff0219",
+      "dirty_before": false,
+      "dirty_after": false,
       "result": "pass",
-      "seconds": 21.71,
-      "source_snapshot": "affected-final-source.json",
-      "evidence_path": "affected-final.txt",
-      "trust": "임시 디렉터리의 trust.json; 종료 후 제거",
-      "legacy_env": "AELIX_LAB_HOME/AELIX_LAB_TRUST_FILE 제거",
+      "exit_code": 0,
+      "source_unchanged": true
+    },
+    "docs": {
+      "command": [
+        "uv",
+        "run",
+        "--locked",
+        "python",
+        "tools/check_docs.py",
+        "--output",
+        ".devstate/runs/7397fe0a-2fa9-465a-ae18-76caccbfee2e/evidence/docs.json"
+      ],
+      "started_at": "2026-10-22T00:13:33.255291+00:00",
+      "completed_at": "2026-10-22T00:13:34.842337+00:00",
+      "head_commit": "d6281e5b005ed14fe145d9ecb9e0932217ff0219",
+      "dirty_before": false,
+      "dirty_after": false,
+      "result": "pass",
+      "exit_code": 0,
+      "source_unchanged": true,
       "counts": {
-        "passed": 165
+        "json_files": 23,
+        "markdown_files": 90,
+        "local_links": 938,
+        "python_examples": 9,
+        "json_examples": 11,
+        "dev_state_examples": 1
       }
+    },
+    "session_environment_failures": {
+      "classification": "이번 Codex sandbox의 환경 한계; 원래 시험 유지·추가 skip 없음; 세션 밖 exact-head macOS CI로 확인",
+      "probes": {
+        "nested_sandbox": {
+          "command": [
+            "sandbox-exec",
+            "-p",
+            "(version 1) (allow default)",
+            "/usr/bin/true"
+          ],
+          "executed_at": "2026-10-22T00:14:00.216400+00:00",
+          "exit_code": 71,
+          "stdout": "",
+          "stderr": "sandbox-exec: sandbox_apply: Operation not permitted\n"
+        },
+        "process_list": {
+          "command": [
+            "ps",
+            "-axo",
+            "pid=,ppid=,command="
+          ],
+          "executed_at": "2026-10-22T00:16:25.624631+00:00",
+          "exit_code": null,
+          "error_type": "PermissionError",
+          "errno": 1,
+          "message": "[Errno 1] Operation not permitted: 'ps'"
+        }
+      },
+      "failures": [
+        {
+          "test_id": "tests/test_human_e2e.py::test_only_what_the_session_started_is_waited_for_or_stopped",
+          "cause": "Descendants.start()의 ps 실행이 PermissionError errno1로 거부되어 자식 관찰을 시작하지 못함.",
+          "disposition": "환경 한계로 원시 실패 보존; PASS 처분 아님"
+        },
+        {
+          "test_id": "tests/test_human_e2e.py::test_an_orphan_of_the_same_terminal_is_never_touched",
+          "cause": "Descendants.start()의 ps 실행이 PermissionError errno1로 거부되어 orphan 경계 시험을 시작하지 못함.",
+          "disposition": "환경 한계로 원시 실패 보존; PASS 처분 아님"
+        },
+        {
+          "test_id": "tests/test_human_e2e.py::test_the_process_table_reads_the_same_in_a_korean_locale",
+          "cause": "한국어 locale에서 process_table()의 ps 실행이 PermissionError errno1로 거부됨.",
+          "disposition": "환경 한계로 원시 실패 보존; PASS 처분 아님"
+        },
+        {
+          "test_id": "tests/test_human_e2e.py::test_the_profile_denies_a_connection_the_resolver_and_a_model_client",
+          "cause": "nested sandbox-exec가 sandbox_apply 거부(exit71)로 시작하지 못해 stdout이 비고 IndexError 발생.",
+          "disposition": "환경 한계로 원시 실패 보존; PASS 처분 아님"
+        },
+        {
+          "test_id": "tests/test_model_eval.py::test_the_dry_run_goes_through_aelix_and_is_scored",
+          "cause": "분석 dry-run은 success이나 ps 조회 거부로 after_exit.checked=false·processes_unchecked가 되어 하네스 exit1.",
+          "disposition": "환경 한계로 원시 실패 보존; PASS 처분 아님"
+        },
+        {
+          "test_id": "tests/test_model_eval.py::test_a_key_the_model_echoes_is_in_no_file_of_the_run",
+          "cause": "ps 조회 거부로 안전 확인이 processes_unchecked를 기록하여 기대 exit0 대신 exit1.",
+          "disposition": "환경 한계로 원시 실패 보존; PASS 처분 아님"
+        },
+        {
+          "test_id": "tests/test_model_eval.py::test_the_child_gets_no_credential_variable_and_the_runs_own_home[0]",
+          "cause": "ps 조회 거부로 안전 확인이 processes_unchecked를 기록하여 기대 exit0 대신 exit1.",
+          "disposition": "환경 한계로 원시 실패 보존; PASS 처분 아님"
+        },
+        {
+          "test_id": "tests/test_model_eval.py::test_a_job_left_in_the_background_is_waited_for_before_the_scan",
+          "cause": "ps 조회 거부로 after_exit.checked=false·processes_unchecked가 되고 background 작업을 기다리지 못해 late-copy.json 생성 단언 실패.",
+          "disposition": "환경 한계로 원시 실패 보존; PASS 처분 아님"
+        },
+        {
+          "test_id": "tests/test_model_eval.py::test_a_timeout_stops_aelix_and_what_the_model_left_running",
+          "cause": "ps 조회 거부로 종료 후 안전 확인이 processes_unchecked를 기록하여 기대 exit0 대신 exit1.",
+          "disposition": "환경 한계로 원시 실패 보존; PASS 처분 아님"
+        },
+        {
+          "test_id": "tests/test_model_eval.py::test_a_login_the_api_refuses_is_not_run",
+          "cause": "가짜 로그인 API 거절과 별개로 ps 조회 거부에 따른 processes_unchecked가 추가되어 secret_scan의 passed 기대가 failed로 실패.",
+          "disposition": "환경 한계로 원시 실패 보존; PASS 처분 아님"
+        },
+        {
+          "test_id": "tests/test_model_eval.py::test_the_launcher_masks_the_logins_exact_values_in_every_form_and_place",
+          "cause": "ps 조회 거부로 토큰을 넣은 background command line이 run.json에 관찰되지 않아 exact.masked_files의 run.json 포함 단언 실패.",
+          "disposition": "환경 한계로 원시 실패 보존; PASS 처분 아님"
+        },
+        {
+          "test_id": "tests/test_model_eval.py::test_a_harness_asked_to_stop_stops_aelix_and_still_searches_the_run",
+          "cause": "ps 조회 거부로 sleeping()이 항상 빈 목록을 반환하여 bash 시작 관찰을 180초 기다린 뒤 실패.",
+          "disposition": "환경 한계로 원시 실패 보존; PASS 처분 아님"
+        },
+        {
+          "test_id": "tests/test_model_eval.py::test_a_killed_harness_leaves_nothing_running_and_scan_secures_the_run",
+          "cause": "ps 조회 거부로 sleeping()이 항상 빈 목록을 반환하여 bash 시작 관찰을 180초 기다린 뒤 실패.",
+          "disposition": "환경 한계로 원시 실패 보존; PASS 처분 아님"
+        }
+      ]
     }
   },
   "reviews": {
@@ -419,14 +525,10 @@
     "codex": "not_run",
     "fix_diff": "not_run"
   },
-  "blockers": [
-    "sandbox가 연결 worktree의 ORIG_HEAD.lock/index.lock 쓰기를 거부함; main 작업 파일 통합은 실제 merge commit이 아님",
-    "nested sandbox-exec/프로세스 조회 제한으로 로컬 전체 시험의 환경 사례가 실패함"
-  ],
-  "not_run": [
-    "실제 통합 커밋에서의 clean 재측정",
-    "동일 frozen commit의 구현 독립1+Codex1 및 수정 diff1",
-    "새 정확한 head의 Linux/Windows/macOS CI",
+  "previous_evidence": "이전 dirty 예비 측정·전체2827PASS/17FAIL/89SKIP·수정 영향165PASS는 이전 run과 이 문서의 이전 Git 리비전에 보존한다. 현재 clean 측정과 합쳐 통과로 바꾸지 않는다.",
+  "not_run_at_measurement": [
+    "새 최종 HEAD의 Linux/Windows/macOS CI — 완료 결과는 PR 본문의 실행 번호·시도로 연결",
+    "동일 frozen commit의 구현 독립1·별도 Codex1 및 이후 수정 diff1",
     "브라우저/CSP/키보드/모바일/다른 독자/소유자 수용",
     "OS ZIP 도구/M 규모",
     "Report·collection 공유(PR4)",
