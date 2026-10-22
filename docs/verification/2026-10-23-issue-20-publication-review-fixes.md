@@ -43,3 +43,15 @@ I7–I9는 [현재 계약 D3](../CONTRACTS.md#d3-사적-공유-build와-완료-�
 수정 후 로컬 전체·새 exact-head 3OS CI 결과는 PR 본문과 run evidence에 별도로 연결한다.
 브라우저/CSP/키보드/모바일/OS ZIP/다른 독자/소유자 수용·실제 모델/토큰은 not_run이다. Report/collection 공유는 PR4, publish/receipt는 #21이다.
 병합·릴리스·force-push는 하지 않는다.
+
+## CI가 확인한 C1 import 목록의 정합화
+
+첫 새 HEAD `da59418`의 CI39815284869(attempt1)에서 Linux·macOS 각각 repository2858PASS/2FAIL/88SKIP였다.
+실패2건은 C1의 eager stdlib publication reader6개가 `test_platform.py`의 기존 정확 import 목록에 빠진 것이었다.
+분석라이브러리 차단과 두 OS의 Aelix3.11·3.12 각각997개는 통과했다. Windows는 이 추가 기록 시 실행 중이며 최종 상태는 PR에 따로 남긴다.
+같은 HEAD의 로컬 전체는 소스불변 **2844PASS/15FAIL/89SKIP**, 1676.88초였다. 15건은 기존 환경13건과 같은 import 목록2건이다. 원시 실패를 보존했다.
+
+시험 목록 정합화 clean `5413e7783401184e84b12dff19e0deeafdb9ae5c`에서 새 reader의 정확한 qualified 이름만 허용하고, 분석라이브러리 차단·namespace 정리·정확 목록 비교를 유지했다.
+CPython3.12의 두 시험+계층 검사 **49PASS**, stdlib 위주의 격리3.11에서 두 시험 **2PASS**, Ruff PASS다. skip이나 완화로 해결하지 않았다.
+제품·도구 소스는 측정 caca19f와 바이트 동일하므로 합성/성능 재측정 대상 동작은 바뀌지 않았다. 새 final HEAD의 전체 시험·3OS CI는 PR 본문에 연결한다.
+기존 작성자 점검1회와 두 구현 리뷰의 완료분을 유지하며 리뷰를 반복하지 않았다.

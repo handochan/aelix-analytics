@@ -871,5 +871,154 @@
     "수정 후 로컬 전체 시험 결과는 PR 본문과 run evidence에 별도 기록",
     "브라우저/CSP/키보드/모바일/OS ZIP/다른 독자/소유자 수용",
     "Report/collection 공유(PR4), publish/receipt(#21), 실제 모델/토큰"
-  ]
+  ],
+  "ci_inventory_addendum": {
+    "source_commit": "5413e7783401184e84b12dff19e0deeafdb9ae5c",
+    "product_sources_equal_to_measured_caca19f": true,
+    "comparison_command": [
+      "git",
+      "diff",
+      "--name-only",
+      "caca19f",
+      "HEAD",
+      "--",
+      "src",
+      "extension",
+      "tools",
+      "pyproject.toml",
+      "uv.lock"
+    ],
+    "changes": "C1가 요구하는 eager stdlib publication reader6개를 tests/test_platform.py 두 정확 목록에 추가. leaf 이름 대신 qualified 이름 비교로 경로까지 고정. 분석라이브러리 차단·namespace 정리·정확 목록 비교 단언 유지. 시험 약화/skip 없음. 제품 변경 없음.",
+    "old_ci": {
+      "run_id": 39815284869,
+      "attempt": 1,
+      "head": "da59418d13c76c43dfb70b75a360d93a7ac4cdd9",
+      "linux_macos_repository_each": {
+        "passed": 2858,
+        "failed": 2,
+        "skipped": 88
+      },
+      "cause": "C1의 새 stdlib 모듈이 이전 정확 목록에 빠진 두 inventory 시험. 분석라이브러리 차단 통과.",
+      "linux_macos_aelix_each_python": {
+        "3.11_passed": 997,
+        "3.12_passed": 997
+      },
+      "windows": "이 기록 시 실행 중; 새 push 뒤 최종 PR 본문에 상태 기록"
+    },
+    "old_local_full": {
+      "head": "da59418d13c76c43dfb70b75a360d93a7ac4cdd9",
+      "source_unchanged": true,
+      "counts": {
+        "passed": 2844,
+        "failed": 15,
+        "skipped": 89
+      },
+      "environment_failures": [
+        "tests/test_human_e2e.py::test_an_orphan_of_the_same_terminal_is_never_touched",
+        "tests/test_human_e2e.py::test_only_what_the_session_started_is_waited_for_or_stopped",
+        "tests/test_human_e2e.py::test_the_process_table_reads_the_same_in_a_korean_locale",
+        "tests/test_human_e2e.py::test_the_profile_denies_a_connection_the_resolver_and_a_model_client",
+        "tests/test_model_eval.py::test_a_harness_asked_to_stop_stops_aelix_and_still_searches_the_run",
+        "tests/test_model_eval.py::test_a_job_left_in_the_background_is_waited_for_before_the_scan",
+        "tests/test_model_eval.py::test_a_key_the_model_echoes_is_in_no_file_of_the_run",
+        "tests/test_model_eval.py::test_a_killed_harness_leaves_nothing_running_and_scan_secures_the_run",
+        "tests/test_model_eval.py::test_a_login_the_api_refuses_is_not_run",
+        "tests/test_model_eval.py::test_a_timeout_stops_aelix_and_what_the_model_left_running",
+        "tests/test_model_eval.py::test_the_child_gets_no_credential_variable_and_the_runs_own_home[0]",
+        "tests/test_model_eval.py::test_the_dry_run_goes_through_aelix_and_is_scored",
+        "tests/test_model_eval.py::test_the_launcher_masks_the_logins_exact_values_in_every_form_and_place"
+      ],
+      "inventory_failures": [
+        "tests/test_platform.py::test_importing_the_package_imports_nothing_of_the_kit",
+        "tests/test_platform.py::test_loading_the_kit_pulls_no_analysis_library_into_the_host_process"
+      ],
+      "inventory_cause": "C1 eager stdlib reader6개의 정확 import 목록 정합화 필요; 분석 라이브러리 차단 통과; 실패 보존"
+    },
+    "verification": {
+      "python312_inventory_and_layers": {
+        "command": [
+          "uv",
+          "run",
+          "--locked",
+          "pytest",
+          "-q",
+          "-p",
+          "no:cacheprovider",
+          "--timeout",
+          "600",
+          "--timeout-method=thread",
+          "tests/test_platform.py::test_loading_the_kit_pulls_no_analysis_library_into_the_host_process",
+          "tests/test_platform.py::test_importing_the_package_imports_nothing_of_the_kit",
+          "tests/test_layers.py"
+        ],
+        "cwd": "/Users/handochan/dev/aelix-extensions/.worktrees/aelix-analytics-issue-20-pr3",
+        "started_at": "2026-10-22T17:04:11.964552+00:00",
+        "head_commit": "5413e7783401184e84b12dff19e0deeafdb9ae5c",
+        "dirty_before": false,
+        "result": "pass",
+        "exit_code": 0,
+        "completed_at": "2026-10-22T17:04:24.855919+00:00",
+        "source_unchanged": true,
+        "dirty_after": false
+      },
+      "python311_inventory": {
+        "command": [
+          "uv",
+          "run",
+          "--isolated",
+          "--no-project",
+          "--python",
+          "3.11",
+          "--with",
+          "pytest==9.1.1",
+          "--with",
+          "pytest-timeout==2.4.0",
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "-p",
+          "no:cacheprovider",
+          "--timeout",
+          "120",
+          "--timeout-method=thread",
+          "tests/test_platform.py::test_loading_the_kit_pulls_no_analysis_library_into_the_host_process",
+          "tests/test_platform.py::test_importing_the_package_imports_nothing_of_the_kit"
+        ],
+        "cwd": "/Users/handochan/dev/aelix-extensions/.worktrees/aelix-analytics-issue-20-pr3",
+        "started_at": "2026-10-22T17:04:11.964764+00:00",
+        "head_commit": "5413e7783401184e84b12dff19e0deeafdb9ae5c",
+        "dirty_before": false,
+        "result": "pass",
+        "exit_code": 0,
+        "completed_at": "2026-10-22T17:04:12.913176+00:00",
+        "source_unchanged": true,
+        "dirty_after": false
+      },
+      "ruff": {
+        "command": [
+          "uv",
+          "run",
+          "--locked",
+          "ruff",
+          "check",
+          "tests",
+          "extension",
+          "src",
+          "tools"
+        ],
+        "cwd": "/Users/handochan/dev/aelix-extensions/.worktrees/aelix-analytics-issue-20-pr3",
+        "started_at": "2026-10-22T17:04:11.964562+00:00",
+        "head_commit": "5413e7783401184e84b12dff19e0deeafdb9ae5c",
+        "dirty_before": false,
+        "result": "pass",
+        "exit_code": 0,
+        "completed_at": "2026-10-22T17:04:12.042579+00:00",
+        "source_unchanged": true,
+        "dirty_after": false
+      }
+    },
+    "measurement_disposition": "제품·도구 소스가 측정 caca19f와 같으므로 합성/성능 수치는 그 clean 커밋 측정으로 유지. 목록 시험만 바꾸어 재측정 대상 동작은 변경 없음. 새 final HEAD의 전체 시험과 3OS CI는 PR 본문에 별도 기록.",
+    "author_check_disposition": "기존 작성자 수정 diff 점검1회 유지. CI로 발견한 시험 목록의 정합화는 해당 시험과 새 CI로 확인하며 구현 리뷰/독립 리뷰를 반복하지 않음."
+  }
 }
