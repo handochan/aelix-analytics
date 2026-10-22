@@ -18,6 +18,7 @@ On macOS: the profile really denies an outbound connection, the resolver and a m
 
 from __future__ import annotations
 
+import contextlib
 import csv
 import importlib.util
 import io
@@ -307,19 +308,43 @@ def test_an_open_last_line_ended_by_the_next_append_is_kept(tmp_path):
     assert not he.compare(before, he.snapshot(root))["passed"]
 
 
-@pytest.mark.skipif(sys.platform == "win32" or shutil.which("lsof") is None, reason="lsof")
-def test_what_a_session_left_running_under_out_is_stopped(tmp_path):
+@pytest.mark.skipif(sys.platform == "win32", reason="ps")
+def test_only_what_the_session_started_is_waited_for_or_stopped(tmp_path):
     out = tmp_path / "q17"
-    (out / "work").mkdir(parents=True)
-    child = subprocess.Popen(["sleep", "60"], cwd=out / "work")
-    short = subprocess.Popen(["sleep", "2"], cwd=out / "work")
+    (out / "agents" / "m" / "project").mkdir(parents=True)
+    other = subprocess.Popen(["sleep", "60"], cwd=out / "agents" / "m" / "project")  # an agent's session
+    shell = subprocess.Popen(["/bin/sh", "-c", "sleep 60 & sleep 2 & sleep 0.5"], cwd=out)
+    tracked = he.Descendants(shell.pid, interval=0.1).start()
+    shell.wait()
+    tracked.stop()
     try:
-        left = he.end_left_running(out, wait=4)
-        assert sorted((p["pid"], p["action"]) for p in left) == sorted([(child.pid, "SIGTERM"), (short.pid, "waited for")])
-        assert child.wait(timeout=10) != 0 and short.wait(timeout=10) == 0
+        left = he.end_left_running(tracked, wait=4)
+        assert sorted(p["action"] for p in left) == ["SIGTERM", "waited for"]
+        assert all(p["pid"] != other.pid for p in left) and other.poll() is None
+        assert he.end_left_running(tracked, wait=0) == []
     finally:
-        child.kill()
-    assert he.end_left_running(out, wait=0) == []
+        other.kill()
+        for p in tracked.seen:
+            with contextlib.suppress(ProcessLookupError, PermissionError):
+                os.kill(p, 9)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="ps")
+def test_an_orphan_of_the_same_terminal_is_never_touched(tmp_path):
+    # The incident's shape: an orphan of this terminal's session, working under OUT/agents.
+    (tmp_path / "agents" / "m" / "project").mkdir(parents=True)
+    shell = subprocess.Popen(["/bin/sh", "-c", "sleep 0.5"], cwd=tmp_path)
+    tracked = he.Descendants(shell.pid, interval=0.1).start()
+    unrelated = subprocess.Popen(["/bin/sh", "-c", "(sleep 20; true) &"], cwd=tmp_path / "agents" / "m" / "project")
+    unrelated.wait()
+    shell.wait()
+    tracked.stop()
+    assert he.end_left_running(tracked, wait=1) == []
+    stray = [pid for pid, (_, _, cmd) in he.process_table().items() if cmd == "sleep 20"]
+    assert stray, "the unrelated orphan is left running"
+    for pid in stray:
+        with contextlib.suppress(ProcessLookupError, PermissionError):
+            os.kill(pid, 9)
 
 
 def test_compare_allows_the_kits_system_records():
@@ -371,6 +396,42 @@ def test_a_link_is_recorded_as_a_link(tmp_path):
         pytest.skip("no symlinks here")
     files = he.snapshot(root)["files"]
     assert files["data"] == {"class": "editable", "link": os.readlink(root / "data")}
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="ps")
+def test_the_process_table_reads_the_same_in_a_korean_locale(monkeypatch):
+    monkeypatch.setenv("LC_ALL", "ko_KR.UTF-8")
+    child = subprocess.Popen(["sleep", "30"])
+    try:
+        ppid, start, command = he.process_table()[child.pid]
+        assert command == "sleep 30" and ppid == os.getpid() and len(start.split()) == 5
+    finally:
+        child.kill()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX shell scripts")
+def test_the_start_scripts_quote_every_path_and_choose_the_project(tmp_path):
+    copy = tmp_path / "프로젝트 $HOME \"q\""
+    copy.mkdir()
+    he.write_start_scripts(tmp_path, copy, {"HOME": str(tmp_path / "h o"), "PATH": "/usr/bin:/bin"},
+                           ["/usr/bin/env"])
+    for name, chosen in (("start.sh", False), ("start-print.sh", True)):
+        done = subprocess.run(["/bin/sh", str(tmp_path / name)], capture_output=True, text=True, encoding="utf-8")
+        seen = dict(line.split("=", 1) for line in done.stdout.splitlines() if "=" in line)
+        assert seen["HOME"] == str(tmp_path / "h o") and seen["PATH"] == "/usr/bin:/bin"
+        assert seen.get("AELIX_ANALYTICS_PROJECT") == (str(copy) if chosen else None), done.stderr
+
+
+def test_an_agent_env_under_agent_instructions_or_a_repository_is_refused(tmp_path):
+    (tmp_path / "AGENTS.md").write_text("rules of another project", encoding="utf-8")
+    out = tmp_path / "q17"
+    out.mkdir()
+    he.write_json(out / "prepare.json", {})
+    with pytest.raises(he.Fail, match="AGENTS.md"):
+        he.agent_env(out, "gpt-6.1-sol", tmp_path)
+    (tmp_path / "AGENTS.md").unlink()
+    (tmp_path / ".git").mkdir()
+    assert he.context_above(out) == [str(tmp_path / ".git")]
 
 
 def test_agent_usage_counts_requests_tokens_and_tools_without_text(tmp_path):

@@ -251,21 +251,27 @@ exit
 
 ## Q17-b — 사람 → 에이전트 → 사람 (모델마다)
 
-모델은 `gpt-6.1-sol`(소유자의 aelix 로그인)과 `qwen3.8-27b-local`(이 Mac의 ollama)입니다. 모델마다 Q17-a 프로젝트의
-**사본**에서 따로 합니다. 원본은 그대로 둡니다.
+모델은 `gpt-6.1-sol`(소유자의 aelix 로그인)과 `qwen3.8-27b-openrouter`(소유자 aelix 로그인의 OpenRouter, 2026-10-21 소유자 결정)입니다.
+이 Mac의 ollama로 도는 `qwen3.8-27b-local`도 쓸 수 있습니다. 모델마다 Q17-a 프로젝트의 **사본**에서 따로 합니다. 원본은 그대로 둡니다.
+`$Q17`은 git 저장소나 `AGENTS.md`·`CLAUDE.md`가 있는 폴더 아래에 두지 않습니다. aelix는 상위 폴더의 `AGENTS.md`를 세션의
+지침으로 읽고(다른 호스트는 `CLAUDE.md`), `agent-env`는 그런 위치를 거절합니다.
 
 1. **환경 준비(에이전트가 함):**
    ```sh
    uv run --locked python tools/human_e2e.py agent-env $Q17 --model MODEL --project $Q17/work/q3-sales
    ```
-   그러면 `$Q17/agents/MODEL/`이 생깁니다. 안에는 aelix 0.1.0b2와 같은 wheel, 새 agent 디렉터리·HOME, 프로젝트 사본, `start.sh`가 있습니다.
-   Qwen은 먼저 [로컬 Qwen 서빙](../model_eval_data/README.md#로컬-qwen-서빙)의 `ollama serve`와 `serving-check`를 합니다.
+   그러면 `$Q17/agents/MODEL/`이 생깁니다. 안에는 aelix 0.1.0b2와 같은 wheel, 새 agent 디렉터리·HOME, 프로젝트 사본,
+   `start.sh`·`start-print.sh`가 있습니다. 로컬 Qwen은 먼저 [로컬 Qwen 서빙](../model_eval_data/README.md#로컬-qwen-서빙)의
+   `ollama serve`와 `serving-check`를 합니다.
 2. **소유자가 세션 시작:** 새 터미널에서 `$Q17/agents/MODEL/start.sh`를 실행합니다. aelix가 프로젝트 사본에서 열립니다.
    - `/analytics use .`를 입력해 이 프로젝트를 고릅니다.
    - [`q17b-request.md`](q17b-request.md)의 요청 글을 그대로 붙여 넣습니다.
    - 이전 대화나 Q17-a의 설명은 붙여 넣지 않습니다.
    - 에이전트가 묻는 것에는 답해도 됩니다(그 내용을 메모).
    - 끝나면 aelix를 닫습니다(`/exit` 또는 Ctrl+D).
+   - 터미널 없이 하려면(2026-10-21의 수행): `start-print.sh --mode json -p "$(cat q17b-request.md)" > events.jsonl`.
+     프로젝트는 `AELIX_ANALYTICS_PROJECT`로 고릅니다. 오래 걸리는 모델은 호출한 쪽과 분리된 프로세스(`nohup`과 새 세션,
+     예: Python의 `os.setsid()`)로 띄웁니다. macOS에는 `timeout`·`setsid` 명령이 없습니다.
 3. **대조(에이전트가 함):** 사본의 이전·이후 snapshot을 `compare --expect-actor agent`로 비교하고, `agent-usage`로 토큰·요청 수·도구 호출을 셉니다.
 4. **소유자의 검토·수정(모델 없이):**
    ```sh

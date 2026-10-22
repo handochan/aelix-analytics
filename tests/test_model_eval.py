@@ -147,7 +147,13 @@ def test_the_configuration_has_twelve_tasks_with_confirmed_answers_and_both_mode
     assert entry["id"] == "gpt-6.1-sol" and "api" not in entry and "baseUrl" not in entry
     assert (entry["contextWindow"], entry["maxTokens"]) == (
         newer["serving"]["context_window"], newer["serving"]["output_reservation"]) == (500000, 128000)
-    assert sorted(config.models) == ["dry-run", "gpt-5.6-sol", "gpt-6.1-sol", "qwen3.8-27b-local"]
+    # Q17-b's Qwen3.8 27B through OpenRouter (owner decision 2026-10-21, #23): aelix's own provider
+    # and login, the upstream not pinned.
+    hosted = config.models["qwen3.8-27b-openrouter"]
+    assert (hosted["provider"], hosted["model"], hosted["api"], hosted["auth"]["source"], hosted["auth"]["provider"]) == (
+        "openrouter", "qwen/qwen3.8-27b", "openai-completions", "aelix_login", "openrouter")
+    assert hosted["aelix_provider"] is None and hosted["api_key_env"] is None
+    assert sorted(config.models) == ["dry-run", "gpt-5.6-sol", "gpt-6.1-sol", "qwen3.8-27b-local", "qwen3.8-27b-openrouter"]
 
 
 def copy_data(tmp_path: Path) -> Path:
