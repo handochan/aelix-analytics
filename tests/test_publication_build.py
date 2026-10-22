@@ -698,4 +698,4 @@ def test_actual_build_large_exclusion_record_is_explicitly_unbound_without_raisi
         not _publications(p) and checks.verify_package(p.root / caught.value.details["path"])["ok"]
     )
     marker = json.loads((p.root / "analytics.json").read_bytes())
-    assert relations.version_key(marker["min_writer_version"]) < relations.version_key("0.24.0")
+    assert relations.version_key(marker["min_writer_version"]) < relations.version_key(relations.PUBLICATION_WRITER_SINCE)

@@ -206,7 +206,9 @@ def _command(argv) -> int:
     p.add_argument("--part", choices=("records", "relations", "context"))
     for name in ("query", "id", "cursor", "kind", "state", "since", "until"):
         p.add_argument("--" + name)
-    p.add_argument("--direction", choices=("both", "incoming", "outgoing"))
+    p.add_argument("--direction", choices=("both", "incoming", "outgoing", "sources", "uses"),
+                   help="relations: one hop (both, incoming, outgoing) or a provenance trail (sources, uses)")
+    p.add_argument("--depth", type=int, help="relations trail: how many runs away (default: as far as it goes)")
     p.add_argument("--as-of-seq", type=int)
     p.add_argument("--limit", type=int)
     sub.add_parser("context", help="the context block injected into agent prompts")
@@ -384,7 +386,8 @@ def _command(argv) -> int:
             _emit({"ok": True, **result})
         elif args.command == "status":
             options = {name: getattr(args, name) for name in
-                       ("part", "query", "id", "cursor", "kind", "state", "since", "until", "direction", "as_of_seq", "limit")
+                       ("part", "query", "id", "cursor", "kind", "state", "since", "until", "direction", "depth",
+                        "as_of_seq", "limit")
                        if getattr(args, name) is not None}
             # Validate and read the requested surface before an ordinary overview may publish.
             st = core.status(project, asset_session=origin.session, **options)

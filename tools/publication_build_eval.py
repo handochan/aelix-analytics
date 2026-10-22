@@ -14,7 +14,7 @@ from pathlib import Path
 
 PACK = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PACK / "src"))
-from aelix_analytics import core  # noqa: E402
+from aelix_analytics import core, workspace, workspace_relations  # noqa: E402
 from aelix_analytics.publishing import build, checks, package, state  # noqa: E402
 
 
@@ -112,6 +112,39 @@ def main():
         row["recording_status"] == "complete" and row["folder_status"] == "same"
         for row in state.list_publications(core.read_model(p))["publications"]
     )
+    # 같은 원장의 정체성과 현재 전달 폴더를 Workspace에서도 따로 관찰한다.
+    selected = observations[0]
+    ref = {"type": "publication", "publication_id": selected["publication_id"],
+           "digest": {"sha256": selected["package_sha256"]}, "relation": "cites",
+           "basis": "declared", "version_binding": "author"}
+    citing = core.record(p, "finding", "Publication delivery observation", refs=[ref], origin=origin).event
+    folder = p.root / ".analytics/publications" / selected["publication_id"]
+    index_file = folder / "index.html"
+    original = index_file.read_bytes()
+    workspace_observations = []
+    for folder_status in ("same", "changed", "missing"):
+        if folder_status == "changed":
+            index_file.write_bytes(b"changed")
+        elif folder_status == "missing":
+            index_file.unlink()
+            # 실제 폴더 부재를 관찰하되 다른 build 폴더는 건드리지 않는다.
+            hidden_folder = folder.with_name("measurement-held-folder")
+            folder.rename(hidden_folder)
+        journal_before = p.journal.read_bytes()
+        workspace.build(p, if_changed=True)
+        html = (p.workspace_dir / "index.html").read_text(encoding="utf-8")
+        relation = (p.workspace_dir / "relations" / workspace_relations.name(citing["id"])).read_text(encoding="utf-8")
+        for page_name, page in (("timeline", html), ("relation", relation)):
+            assertions[f"workspace_{folder_status}_{page_name}"] = (
+                'data-recording="complete"' in page and f'data-folder="{folder_status}"' in page
+                and selected["publication_id"] in page and "Recorded package found" in page)
+        assertions[f"workspace_{folder_status}_journal_unchanged"] = p.journal.read_bytes() == journal_before
+        assertions[f"workspace_{folder_status}_reference_resolved"] = core.read_model(p).reference(ref)["state"] == "resolved"
+        workspace_observations.append({"folder_status": folder_status, "first_html_bytes": len(html.encode("utf-8")),
+                                       "relation_html_bytes": len(relation.encode("utf-8"))})
+    hidden_folder.rename(folder)
+    index_file.write_bytes(original)
+    assertions["restored_folder_valid"] = state.observe(core.read_model(p), selected["publication_id"])["folder_status"] == "same"
     result = {
         "schema": "aelix-analytics.publication-build-eval/1",
         "observed_at": datetime.now(UTC).isoformat(),
@@ -123,10 +156,10 @@ def main():
         "command": "PYTHONPATH=src python tools/publication_build_eval.py --out <new directory>",
         "scope": "small synthetic project; timing observations are not a performance gate or M-scale claim",
         "observations": observations,
+        "workspace_observations": workspace_observations,
         "assertions": assertions,
         "hold": all(assertions.values()),
         "not_run": [
-            "Workspace publication UI (#100 integration)",
             "record-format implementation reviews1+1/correctiondiff1",
             "browser/CSP/owner/other-reader/OS ZIP tools/M-scale",
             "Report/collection sharing (PR4)",

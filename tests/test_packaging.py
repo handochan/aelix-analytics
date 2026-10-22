@@ -9,7 +9,7 @@ AELIX_ANALYTICS_TEST_INSTALL=1 adds the end-to-end leg: aelix 0.1.0b2 from PyPI 
 aelix's own verify, status and loader, README's `uv tool install` lines, and a project driven through
 the installed `analytics` by real uv — which syncs an analysis environment, so it needs the network or
 a warm cache. The repository CI
-(.github/workflows/ci.yml) runs it on Linux and Windows, and on macOS when asked.
+(.github/workflows/ci.yml) runs it on Linux, Windows and macOS.
 """
 
 from __future__ import annotations
@@ -632,8 +632,11 @@ def test_the_installed_command_drives_a_project_without_aelix(dist, tmp_path, py
         env["PATH"] = f"{opener_dir}{os.pathsep}{env['PATH']}"
     work = tmp_path / "work"
     work.mkdir()
-    ok([analytics, "init", "proj", "--title", "설치본 분석"], cwd=work, env=env)
+    # A title TOML would take apart (Issue #65): uv builds the environment from pyproject.toml all the same.
+    title = '설치본 "분석" \\ C:\\path {{date}}\n둘째 줄'
+    ok([analytics, "init", "proj", "--title", title], cwd=work, env=env)
     project = work / "proj"
+    assert tomllib.loads((project / "pyproject.toml").read_text(encoding="utf-8"))["project"]["description"] == title
     csv = tmp_path / "sales.csv"
     csv.write_text("month,region,revenue\n2025-01,서울,100\n2025-02,부산,250\n", encoding="utf-8")
     ok([analytics, "import", csv, "--name", "sales"], cwd=project, env=env)
@@ -675,7 +678,7 @@ def test_the_installed_command_drives_a_project_without_aelix(dist, tmp_path, py
     assert again["reproduction"]["verdict"] == "match", again["reproduction"]
     ok([analytics, "record", "decision", "계속"], cwd=project, env=env)
     ok([analytics, "render"], cwd=project, env=env)
-    assert "설치본 분석" in ok([analytics, "status"], cwd=project, env=env).stdout
+    assert 'project: 설치본 "분석"' in ok([analytics, "status"], cwd=project, env=env).stdout
     ok([analytics, "context"], cwd=project, env=env)
     if POSIX:
         ok([analytics, "open"], cwd=project, env=env)

@@ -106,6 +106,10 @@ class _MappedHTML(HTMLParser):
 
 
 class StaticReportRenderer:
+    # What a Workspace keeps a view of these bytes by (workspace_reports.renderer_key): a change of
+    # what this renderer makes changes the key.
+    cache_key = "aelix_analytics.StaticReportRenderer/1"
+
     def render(self, files: Mapping[str, bytes], *, entry: str, paths: Mapping[str, str]) -> ReportView:
         files, paths = _inputs(files, entry, paths)
         originals = {name: _link(path) for name, path in paths.items()}

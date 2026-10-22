@@ -124,9 +124,17 @@
   if (state && selectedIdentity() && state.selection && state.selection !== selectedIdentity()) warn("notice.state_selection_absent");
   const tabs = Array.from(document.querySelectorAll("main > section.tab"));
   let nav;
+  // A relation page's provenance trails, one direction shown at a time (design WORKSPACE-READABILITY 6.3).
+  const trails = Array.from(document.querySelectorAll(".pv-trail"));
+  let shownTrail = trails.length ? trails[0].id : "";
+  if (trails.length) doc.classList.add("js-trail");
   function show() {
     const id = anchor();
     const target = id ? document.getElementById(id) : null;
+    // What the address names inside a closed fold is shown: a Report's older version (#19), a row of
+    // a folded list. The fold itself may be the target.
+    for (let fold = target && target.closest && target.closest("details:not([open])"); fold;
+      fold = fold.parentElement && fold.parentElement.closest ? fold.parentElement.closest("details:not([open])") : null) fold.open = true;
     const retiredCard = target && target.closest(".chart-card.is-retired");
     if (retired && retiredCard) { retired.checked = true; doc.classList.add("show-retired"); }
     const tab = (target && target.closest("section.tab")) || document.getElementById(state && state.tab) || tabs[0];
@@ -135,9 +143,13 @@
       a.classList.toggle("on", a.dataset.tab === (tab && tab.id));
       if (a.classList.contains("on")) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
     });
+    // A trail's box or direction in the address shows that direction (design 6.3: one at a time).
+    const trail = target && target.closest && target.closest(".pv-trail");
+    if (trails.length) direction(trail ? trail.id : shownTrail);
     revealTab();
     renderVisiblePlots();
     drawRelations();
+    drawTrails();
   }
   if (tabs.length) {
     doc.classList.add("js-tabs");
@@ -159,7 +171,9 @@
       }
       nav.appendChild(a);
     });
-    document.querySelector("main").prepend(nav);
+    // A relation page names its item first and then its sections (design 6.4, mockup 7-B); the index starts with them.
+    if (/^relations\//.test(page || "") && tabs[0].before) tabs[0].before(nav);
+    else document.querySelector("main").prepend(nav);
   }
   const retired = document.getElementById("show-retired");
   // A relation page's direction filter (this page's relations): what the record cites, or what cites it.
@@ -207,8 +221,8 @@
     requestAnimationFrame(() => {
       const target = state && state.card ? document.getElementById(state.card) : document.getElementById(anchor());
       if (state && state.card && !target) warn("notice.state_card_gone");
-      // A row inside a closed fold (Recent activity, the map's smaller flows) is shown before the page
-      // measures and focuses it (#98).
+      // A card a return goes to, inside closed folds (Recent activity, the map's smaller flows), is shown
+      // before the page measures and focuses it (#98); show() opened the address's own target.
       for (let fold = target && target.closest && target.closest("details:not([open])"); fold;
         fold = fold.parentElement && fold.parentElement.closest ? fold.parentElement.closest("details:not([open])") : null) fold.open = true;
       if (state && state.card) {
@@ -234,15 +248,16 @@
   // list the reader came from, or the page a reader opened directly and left (codec.next keeps a
   // page with no origin of its own as the origin).
   const LIST_BACK = { timeline: "back.tab.timeline", insights: "back.tab.insights", charts: "back.tab.charts",
-    runs: "back.tab.runs", data: "back.tab.data", feedback: "back.list.feedback", open: "back.list.open" };
+    runs: "back.tab.runs", data: "back.tab.data", feedback: "back.list.feedback", open: "back.list.open",
+    reports: "back.tab.reports" };
   const PAGE_BACK = { runs: "back.page.run", data: "back.page.data", relations: "back.page.relations",
-    scripts: "back.page.script" };
+    scripts: "back.page.script", reports: "back.page.report" };
   function backKey(origin) {
     if (origin.page === "index.html") return "back.tab." + (origin.tab || "overview");
     if (origin.page === "context.html") return "back.page.context";
     const list = /^lists\/(kind-.+|[a-z]+)-\d+\.html$/.exec(origin.page);
     if (list) return list[1].indexOf("kind-") === 0 ? "back.list.kind" : LIST_BACK[list[1]] || null;
-    const detail = /^(runs|data|relations|scripts)\//.exec(origin.page);
+    const detail = /^(runs|data|relations|scripts|reports)\//.exec(origin.page);
     return detail ? PAGE_BACK[detail[1]] : null;
   }
   // The words of a way back: its origin's, else the page's own (`data-back`). Both are the kit's
@@ -302,7 +317,7 @@
       a.href = url.href; return;
     }
     if (a.hasAttribute("data-return")) return;
-    const card = a.closest(".chart-card[id],li.ev[id],article.panel[id],li[id],tr[id]");
+    const card = a.closest(".chart-card[id],li.ev[id],article.panel[id],li[id],tr[id],details[id]");
     save(false, card);
     if (dest === page && url.hash !== location.hash) return; // native fragment/back behavior
     const next = codec.next(state, dest, identity(url.hash.slice(1)));
@@ -368,6 +383,91 @@
     });
   }
   window.addEventListener("resize", drawRelations);
+  // A provenance trail (design WORKSPACE-READABILITY 6): the boxes are the list the page holds; on a wide screen the
+  // style sheet places them on their grid (--graph) and the lines between them are drawn here from data-e, each
+  // `from>to` with its kind (c cites, r read, w wrote, m made) and flags (a one of several sources, i inferred, y cycle).
+  function direction(id) {
+    const wanted = trails.find(tr => tr.id === id) || trails[0];
+    shownTrail = wanted.id;
+    trails.forEach(tr => { tr.hidden = trails.length > 1 && tr !== wanted; });
+    document.querySelectorAll(".pv-dir a").forEach(a => {
+      const on = a.getAttribute("href") === "#" + wanted.id;
+      a.classList.toggle("on", on);
+      if (on) a.setAttribute("aria-current", "true"); else a.removeAttribute("aria-current");
+    });
+  }
+  const SVG = "http://www.w3.org/2000/svg";
+  const LINE_WORDS = { c: "provenance.line.cites", r: "provenance.line.read", w: "provenance.line.wrote", m: "provenance.line.made" };
+  function drawTrails() {
+    if (!document.createElementNS) return;
+    document.querySelectorAll(".pv-list").forEach(list => {
+      const scroll = list.parentElement;
+      let svg = scroll.querySelector("svg.pv-lines");
+      let legend = scroll.parentElement.querySelector(".pv-legend");
+      const graph = !!list.offsetWidth && window.getComputedStyle(list).getPropertyValue("--graph").trim() === "1";
+      if (!graph) {
+        if (svg) svg.replaceChildren();
+        if (legend) legend.hidden = true;
+        return;
+      }
+      if (!svg) {
+        svg = document.createElementNS(SVG, "svg");
+        svg.setAttribute("class", "pv-lines"); svg.setAttribute("aria-hidden", "true"); svg.setAttribute("focusable", "false");
+        scroll.insertBefore(svg, list);
+      }
+      if (!legend) {
+        legend = document.createElement("p"); legend.className = "pv-legend";
+        kitWords(legend, "provenance.legend");
+        scroll.after(legend);
+      }
+      legend.hidden = false;
+      svg.replaceChildren();
+      const area = list.getBoundingClientRect();
+      svg.setAttribute("width", area.width); svg.setAttribute("height", area.height);
+      svg.style.left = list.offsetLeft + "px"; svg.style.top = list.offsetTop + "px";
+      const first = list.querySelector("li[id]");
+      const prefix = first ? first.id.replace(/-\d+$/, "") : "";
+      (list.dataset.e || "").split(" ").forEach(spec => {
+        const m = /^(\d+)>(\d+)([crwm])([aiy]*)$/.exec(spec);
+        const a = m && document.getElementById(prefix + "-" + m[1]), b = m && document.getElementById(prefix + "-" + m[2]);
+        if (!a || !b || a.hidden || b.hidden) return;
+        const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+        const ax = (ra.left + ra.right) / 2 - area.left, ay = (ra.top + ra.bottom) / 2 - area.top;
+        const bx = (rb.left + rb.right) / 2 - area.left, by = (rb.top + rb.bottom) / 2 - area.top;
+        let x1, y1, x2, y2, d, dx = 0, dy = 0, lx, ly;
+        if (Math.abs(ax - bx) < Math.min(ra.width, rb.width) / 2) {
+          // In one column: from one box's top or bottom edge to the other's.
+          x1 = ax; x2 = bx; y1 = ay < by ? ra.bottom - area.top : ra.top - area.top; y2 = ay < by ? rb.top - area.top : rb.bottom - area.top;
+          d = `M${x1},${y1} L${x2},${y2}`; dy = y2 > y1 ? 1 : -1; lx = x1 + 6; ly = (y1 + y2) / 2 + 4;
+        } else {
+          // In other columns: from the facing sides, through the gap beside the first box, so a line never runs
+          // behind a box and seems to leave it.
+          x1 = ax < bx ? ra.right - area.left : ra.left - area.left; x2 = ax < bx ? rb.left - area.left : rb.right - area.left;
+          y1 = ay; y2 = by; dx = x2 > x1 ? 1 : -1;
+          const gap = Math.min(Math.abs(x2 - x1) / 2, 28), gx = x1 + dx * gap, r = Math.min(8, Math.abs(y2 - y1) / 2);
+          const dv = y2 > y1 ? 1 : -1;
+          d = Math.abs(y2 - y1) < 1 ? `M${x1},${y1} L${x2},${y2}`
+            : `M${x1},${y1} L${gx - dx * r},${y1} Q${gx},${y1} ${gx},${y1 + dv * r} L${gx},${y2 - dv * r} Q${gx},${y2} ${gx + dx * r},${y2} L${x2},${y2}`;
+          // A bent line has no label: the gap is too narrow for one, and the boxes' words say it.
+          if (Math.abs(y2 - y1) < 1) { lx = (x1 + x2) / 2; ly = y1 - 5; }
+        }
+        const tone = m[3] === "c" ? "c" : /[ai]/.test(m[4]) ? "maybe" : "";
+        const path = document.createElementNS(SVG, "path"); path.setAttribute("d", d); if (tone) path.setAttribute("class", tone);
+        const head = document.createElementNS(SVG, "path");
+        head.setAttribute("class", "head " + tone);
+        head.setAttribute("d", dy ? `M${x2 - 4},${y2 - 6 * dy} L${x2},${y2} L${x2 + 4},${y2 - 6 * dy}Z` : `M${x2 - 6 * dx},${y2 - 4} L${x2},${y2} L${x2 - 6 * dx},${y2 + 4}Z`);
+        svg.append(path, head);
+        if (lx === undefined) return;
+        // The kind of a line beside it: right of a vertical line, centred above a horizontal one.
+        const label = document.createElementNS(SVG, "text");
+        label.setAttribute("x", lx); label.setAttribute("y", ly);
+        if (dx) label.setAttribute("text-anchor", "middle");
+        kitWords(label, LINE_WORDS[m[3]]);
+        svg.append(label);
+      });
+    });
+  }
+  window.addEventListener("resize", drawTrails);
   document.querySelectorAll(".relation-diagram").forEach(el => el.addEventListener("toggle", drawRelations));
   // The diagram is a secondary disclosure: it opens by default only where its three columns fit.
   if (window.matchMedia && !window.matchMedia("(max-width: 40em)").matches) {

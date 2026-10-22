@@ -93,9 +93,9 @@ aelix 안에서: `/analytics`(현황) · `/analytics open`(리포트) · "지역
 배포본은 아직 어디에도 게시하지 않았으므로 체크아웃에서 직접 만듭니다.
 
 ```sh
-cd $PACK && uv build                                   # dist/aelix_analytics-0.24.0-py3-none-any.whl
-uv tool install --python 3.12 dist/aelix_analytics-0.24.0-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
-uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.24.0-py3-none-any.whl   # aelix와 함께
+cd $PACK && uv build                                   # dist/aelix_analytics-0.26.0-py3-none-any.whl
+uv tool install --python 3.12 dist/aelix_analytics-0.26.0-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
+uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.26.0-py3-none-any.whl   # aelix와 함께
 ```
 
 - `analytics`는 체크아웃의 `bin/analytics`와 같은 명령·인자·usage(바이트까지 같음)를 쓰고 kit의 출력을 바이트 그대로 넘깁니다
@@ -504,14 +504,16 @@ kit이 쓰는 텍스트(기록·템플릿 사본·inline 스크립트·Workspace
 
 ```sh
 cd $PACK
-uv sync
-uv run pytest -q                                  # kit, 런처, 배포본(wheel을 빌드해 새 환경에 설치)
+uv sync --locked
+uv run --locked pytest -q --timeout 600 --timeout-method=thread   # kit, 런처, 배포본(wheel을 빌드해 새 환경에 설치)
+AELIX_ANALYTICS_TEST_INSTALL=1 uv run --locked pytest -q --timeout 600 --timeout-method=thread tests/test_packaging.py   # aelix 0.1.0b2와 실제 uv로 끝까지 (네트워크)
 uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 \
-  python -m pytest -q -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_extension.py tests/test_usage_report.py \
-  tests/test_agent_cli.py                         # aelix 통합 (CI와 같은 환경)
-AELIX_ANALYTICS_TEST_INSTALL=1 uv run pytest -q tests/test_packaging.py   # aelix 0.1.0b2와 실제 uv로 끝까지 (네트워크)
-uv run ruff check tests extension src tools
+  python -m pytest -q -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_extension.py tests/test_asset_extension.py \
+  tests/test_checkpoint_extension.py tests/test_usage_report.py tests/test_agent_cli.py   # aelix 통합 (CI와 같은 환경)
+uv run --locked ruff check tests extension src tools
 ```
+
+CI가 돌리는 명령 전체(문서 검사, 플랫폼 스모크, 표준 라이브러리만의 하한)와 고정값은 [기여 가이드](CONTRIBUTING.md#현재-개발-검증)에 있습니다.
 
 ```text
 src/aelix_analytics/          kit이자 배포본의 package. src/가 자식에게 주는 실행 루트(설치본은 aelix_analytics/kit/의 사본)

@@ -1,0 +1,13 @@
+# Version updates for the GitHub Actions the workflows pin by commit SHA (owner decision of 2026-10-21,
+# Issue #22). aelix and the Python dependencies are not updated here: their versions are pinned by the
+# support contract (CONTRIBUTING.md, docs/SUPPORT.md) and change in a pull request of their own.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    groups:
+      actions:
+        patterns: ["*"]

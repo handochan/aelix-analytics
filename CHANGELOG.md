@@ -15,11 +15,44 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 없음. 병합된 변경은 그 PR이 병합될 때의 kit 번호 절에 적고, kit 번호를 올리는 PR은 새 절을 엽니다
 ([기여 가이드](CONTRIBUTING.md#첫-공개-전에-남은-운영-결정)).
 
+## [0.26.0] - 2026-10-22
+
+### Added
+
+- [#120](https://github.com/handochan/aelix-analytics/pull/120), #20 PR3: 사적 build·`analytics.publication/1` manifest와 완료 이벤트 결박,
+  불확실 append 재조회, `--list`·독립 `--verify`, 프로젝트 밖 ZIP 생성/재생성을 더합니다. Workspace의 Timeline과 publication 참조는
+  기록된 정체성·완료 상태와 현재 폴더 검사 결과를 따로 표시합니다. Report/collection 공유·publish·독자 수용은 후속입니다.
+
+## [0.25.0] - 2026-10-21
+
+### Added
+
+- [#19](https://github.com/handochan/aelix-analytics/issues/19) PR3: Workspace의 `Reports` 탭(Insights 뒤)과 Report마다의 페이지입니다.
+  탭은 Report마다 최신 버전 한 줄(`Version n of N`, 저장 시각, 철회·파일·content_status·묶음 `n of N complete`를 따로)을 보이고 본문은 읽지 않습니다.
+  페이지는 #99의 버전 표현과, 버전마다 본문보다 먼저 시점·범위(`Created at`·`Based on`·scope), 판정한 근거, 묶음 구성원(사유·정확한 버전),
+  원본 파일, 앞 버전과의 비교, 인용한 기록 수를 보입니다. 본문은 주입한 ReportRenderer가 만든 별도 문서로 열고 Workspace 페이지에 넣지
+  않습니다(HTML·기타 형식과 바뀐 파일은 원본만). report_revision 참조 배지와 관계 페이지가 Report 페이지로 이어집니다.
+  ReadModel에 `report_histories()`·`report_citations()`가 생겼습니다([계약 C19](docs/CONTRACTS.md#c19-workspace의-reports-탭과-페이지-kit-0250-19-pr3)).
+
 ## [0.24.0] - 2026-10-19
 
 ### Added
 
-- #20 PR3: 실제 사적 build·`analytics.publication/1` manifest와 완료 이벤트 결박, 불확실 append 재조회, `--list`·독립 `--verify`, 프로젝트 밖 새 ZIP 생성/재생성을 더합니다. publication 참조의 기록 정체성과 현재 폴더 관찰은 분리합니다. Report/collection 공유와 publish, Workspace 통합·독자/브라우저 수용은 아직 후속입니다.
+- #100: 관계 페이지에 `Provenance`·`All relations`·`History` 탭이 생겼습니다. `Provenance`는 기록·run·시각화 버전·데이터 파일이 무엇에서
+  만들어졌는지(`Where it comes from`)와 무엇이 그것을 썼는지(`What uses it`)를 run 단위로 따라간 경로입니다: 인용 → run → 입력 → 그 바이트의
+  생산자 후보 run → … → 가져온 데이터, 각 run이 만든 시각화는 곁가지로. 상자는 종류 이름·색·모양(run은 육각형), 상태(`Unchanged`·
+  `Changed since read`·`Missing now`, 바뀐 파일은 지금 바이트를 쓴 run 후보)와 잇는 문장을 담고, JS 없이나 좁은 화면에서는 세로 목록,
+  넓은 화면에서는 그림입니다. 노드 20개·선 30개를 넘으면 생략 수와 `Continue from here`를 보이고, 순환과 생산자 후보 여러 개를 표시합니다.
+  `What can be checked`가 인용·run·코드 보존·가져온 데이터·중간 데이터·재실행 비교·분석 검사/결론 검토를 따로 말합니다. 결론의 증명이나 행
+  단위 계보가 아닙니다.
+- #100: `analytics_status`·`analytics status`·SDK `status`의 `part=relations`가 `direction=sources|uses`와 `depth`를 받아 같은 경로를
+  같은 예산으로 돌려줍니다(새 도구·명령 이름 없음, 설계 §12의 3). 한 단계 조회는 그대로입니다.
+
+### Fixed
+
+- [PR #125](https://github.com/handochan/aelix-analytics/pull/125), #65: 새 프로젝트의 제목에 `"`·`\`·줄바꿈 같은 제어 문자(탭 제외)가 있으면 `pyproject.toml`이 TOML로 읽히지 않아 uv가 환경을 만들지 못했습니다.
+  이제 제목을 escape한 TOML 문자열로 넣어 `description`이 제목 그대로 읽힙니다. 템플릿은 한 번에 채워, 제목 안의 `{{date}}` 같은 글도 쓴
+  그대로 남습니다(`CONTEXT.md` 포함). kit 번호는 올리지 않았습니다.
 
 ## [0.23.0] - 2026-10-19
 

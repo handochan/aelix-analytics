@@ -10,6 +10,7 @@ import argparse
 import ast
 import hashlib
 import json
+import os
 import platform
 import re
 import shlex
@@ -31,6 +32,26 @@ from referencing.exceptions import Unresolvable
 STATE_SCHEMA = "docs/schemas/dev-state.schema.json"
 STATE_FAMILY = "aelix-analytics.dev-state/1"
 STATE_EXAMPLE = "docs/templates/WORK-STATE.example.json"
+PROJECT_LINK = ".github/project.json"
+PROJECT_FAMILY = "aelix-analytics.project-link/1"
+# A user's or an organization's Project v2, and a view of it: the owner and number name the Project.
+PROJECT_URL = re.compile(r"https://github\.com/(users|orgs)/([\w.-]+)/projects/(\d+)")
+
+
+def github_repository(remote: str) -> str | None:
+    """`owner/name` of a remote URL that names a repository on github.com (https or ssh, any case of the
+    host, a port, a user, `.git` or a trailing slash), else None: another host, an SSH alias, a path."""
+    remote = remote.strip()
+    if "://" in remote:
+        parts = urlsplit(remote)
+        host, path = (parts.hostname or "").lower(), parts.path
+    else:
+        scp = re.fullmatch(r"(?:[^@/]+@)?([^:/]+):(.+)", remote)  # git@github.com:owner/name.git
+        if not scp:
+            return None
+        host, path = scp.group(1).lower(), scp.group(2)
+    name = re.fullmatch(r"/?([\w.-]+/[\w.-]+?)(?:\.git)?/?", path)
+    return name.group(1) if host == "github.com" and name else None
 MARKDOWN = MarkdownIt("commonmark").enable("table")
 # A drive path (C:\x, C:/x, and C:x, relative to that drive's current directory), or one that
 # starts at a backslash (\x, a UNC \\server\share), as a Windows checkout writes them. Matched after
@@ -128,6 +149,7 @@ class Check:
         self.counts = Counter()
         self.external_links = []
         self.unchecked_fragments = []
+        self.unchecked_link = []
         self.deleted = []
 
     def names(self, *args):
@@ -231,6 +253,8 @@ class Check:
         if rel == STATE_EXAMPLE and (not isinstance(value, dict)
                                      or value.get("schema") != STATE_FAMILY):
             raise ValueError("unsupported schema in the development-state example")
+        if rel == PROJECT_LINK:
+            self.check_project_link(value)
         if isinstance(value, dict) and "$schema" in value:
             Draft202012Validator.check_schema(value)
         if isinstance(value, dict) and value.get("schema") == STATE_FAMILY:
@@ -242,6 +266,54 @@ class Check:
             for error in validator.iter_errors(value):
                 field = "/".join(str(p) for p in error.absolute_path)
                 self.error(rel, f"state {field or '/'}: {error.message}")
+
+    def check_project_link(self, value):
+        """The Project link agrees with itself and with the repository it is checked in (docs/PROJECT-OPERATIONS.md
+        §3). That repository is GITHUB_REPOSITORY in a CI run, which a mismatch fails; outside CI it is the
+        `upstream` remote, else `origin`, and a mismatch there is a note, since a fork's clone names the fork.
+        Whether the Project holds that ID is a network question the syncing work answers, not this check."""
+        if not isinstance(value, dict) or value.get("schema") != PROJECT_FAMILY:
+            raise ValueError(f"unsupported schema in the Project link: expected {PROJECT_FAMILY}")
+        repository = value.get("repository")
+        if not isinstance(repository, str) or not re.fullmatch(r"[\w.-]+/[\w.-]+", repository):
+            self.error(PROJECT_LINK, f"repository is not owner/name: {repository!r}")
+        if os.environ.get("GITHUB_REPOSITORY"):
+            if os.environ["GITHUB_REPOSITORY"].lower() != str(repository).lower():
+                self.error(PROJECT_LINK, f"repository {repository!r} is not this run's repository "
+                                         f"{os.environ['GITHUB_REPOSITORY']!r} (GITHUB_REPOSITORY)")
+        else:
+            self.compare_with_remote(str(repository))
+        for key in ("project_url", "default_view_url", "project_node_id"):
+            if key not in value:
+                self.error(PROJECT_LINK, f"{key} is missing (null means not linked)")
+        url, view, node = value.get("project_url"), value.get("default_view_url"), value.get("project_node_id")
+        if url is None:
+            if "project_url" in value and (view is not None or node is not None):
+                self.error(PROJECT_LINK, "project_url is null (not linked) but default_view_url or project_node_id is set")
+            return
+        project = PROJECT_URL.fullmatch(str(url))
+        if not project:
+            self.error(PROJECT_LINK, f"project_url is not a Project URL: {url!r}")
+            return
+        shown = PROJECT_URL.match(str(view or ""))
+        if not shown or shown.groups() != project.groups() or not re.fullmatch(r"/views/\d+", str(view)[shown.end():]):
+            self.error(PROJECT_LINK, f"default_view_url is not a view of {url}: {view!r}")
+        if not isinstance(node, str) or not re.fullmatch(r"PVT_[\w-]+", node):
+            self.error(PROJECT_LINK, f"project_node_id is not a Project node ID: {node!r}")
+
+    def compare_with_remote(self, repository):
+        for remote in ("upstream", "origin"):
+            try:
+                url = git(self.root, "config", "--get", f"remote.{remote}.url").decode().strip()
+            except subprocess.CalledProcessError:
+                continue
+            named = github_repository(url)
+            if named is None:
+                self.unchecked_link.append(f"remote {remote} ({url}) names no repository on github.com")
+            elif named.lower() != repository.lower():
+                self.unchecked_link.append(f"remote {remote} names {named}, not the link's {repository} (a fork's clone?)")
+            return
+        self.unchecked_link.append("no upstream or origin remote to compare the link's repository with")
 
     def run(self):
         source = self.source()
@@ -283,6 +355,7 @@ class Check:
             "errors": self.errors,
             "not_checked": {"external_links": self.external_links,
                             "non_markdown_fragments": self.unchecked_fragments,
+                            "project_link_repository": self.unchecked_link,
                             "execution": ["Python examples", "browser rendering", "product E2E"]},
         }
 

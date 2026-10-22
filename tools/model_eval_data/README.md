@@ -10,7 +10,7 @@
 |---|---|
 | [`tasks.json`](tasks.json) | 과제 12개: 사용자 요청 글, fixture, 준비 방식, 게이트, Q11 요청 유형, Q5 조건, 제한 시간. 소유자가 과제 목록을 확인했다(`status: confirmed`, 2026-10-18). 하네스는 이 값을 읽지 않는다 |
 | [`answers/`](answers/) | 과제별 정답: 바른 완료(글), 근거 ID, 채점 검사, 쓴 fixture의 seed. 에이전트가 쓴 초안을 소유자가 모두 확인했다(`status: confirmed`, 2026-10-17). T12는 `always_review`(아래 채점) |
-| [`models/`](models/) | 모델 설정: [로컬 Qwen](models/qwen3.8-27b-local.json), [프론티어](models/gpt-5.6-sol.json), [dry-run](models/dry-run.json) |
+| [`models/`](models/) | 모델 설정: [로컬 Qwen](models/qwen3.8-27b-local.json), [프론티어](models/gpt-5.6-sol.json), [Q17-b의 gpt-6.1-sol](models/gpt-6.1-sol.json), [dry-run](models/dry-run.json) |
 | [`conditions.json`](conditions.json) | 도구 표면(Q11), 제안 조건(Q5), 글 판정에 쓰는 낱말 묶음 |
 | [`dry_run/`](dry_run/) | dry-run의 가짜 모델이 따르는 스크립트(과제별, 없으면 상태 확인 뒤 답 하나) |
 
@@ -211,6 +211,16 @@ UTF-16)에 대비해, 로그인을 쓰는 모델의 run은 런처가 끝에 로�
   해시는 어디에도 없다. 찾으면 `exact_values`로 검사 실패(`needs_review`, 종료 코드 1). 로그인을 썼는데 가림이 없었으면(Windows:
   런처와의 파이프가 없음, 하네스가 그 전에 죽음, 비교할 값이 없음) `exact_not_run`으로 실패다. 로그인을 쓰지 않는 모델은
   `not_applicable`.
+
+### Q17-b의 gpt-6.1-sol
+
+[`models/gpt-6.1-sol.json`](models/gpt-6.1-sol.json): 갱신된 OpenAI 모델로 Q17-b를 수행하기로 한 소유자 결정(2026-10-21, #23)의
+설정이다. provider·API·로그인·thinking은 gpt-5.6-sol과 같다. aelix 0.1.0b2의 catalog에 이 모델이 없어서, 하네스와
+[`tools/human_e2e.py`](../human_e2e.py)는 run의 에이전트 디렉터리에 `models.json`(provider `openai-codex`에 모델 항목 하나)을 쓴다.
+`api`·`baseUrl`은 적지 않으므로 aelix가 내장 provider의 값을 쓴다(`models_json.parse_models`). context 500,000은 소유자 로그인의
+Codex CLI 0.162.0 모델 목록(2026-10-21)의 값이다. 출력 예약 128,000은 그 목록에 없어 gpt-5.6-sol의 catalog 값을 쓴다.
+소유자의 로그인으로 `aelix --offline --list-models "openai-codex gpt-6.1-sol"`이 `500K 128K`를 나열했다(2026-10-21, 호출 없음).
+§3 캠페인(#24)의 프론티어 모델을 바꾸는 결정은 아니다.
 
 ## run 기록
 

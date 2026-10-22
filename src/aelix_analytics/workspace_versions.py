@@ -104,6 +104,9 @@ class Versions:
 
     directory = SCRIPT_DIR
     page_name = staticmethod(script_page)
+    # The folding and range rules, for a history another module shows (workspace_reports).
+    arrange = staticmethod(arrange)
+    number_range = staticmethod(number_range)
 
     def __init__(self, site):
         self.site = site
@@ -901,7 +904,7 @@ class Versions:
 
     # --- record corrections (a record's relation page) -----------------------------------------------
 
-    def corrections(self, identity: str) -> str:
+    def corrections(self, identity: str, level: int = 2) -> str:
         """A record's correction history (design 5.2): the records its corrections join it to, in
         journal order, without version numbers — each with its time, what it corrects and its state."""
         s = self.site
@@ -933,7 +936,7 @@ class Versions:
             rows.append(f'<li><a href="{s.esc(link)}">{s.esc(source)}</a>{this} {when} {badge}{corrects}<br>{text}</li>')
         if after < len(chain):
             rows.append(f'<li class="muted">{t("versions.chain_later", n=len(chain) - after)}</li>')
-        return (f'<section class="vh-corrections" id="corrections"><h2>{t("versions.correction_history")}</h2>'
+        return (f'<section class="vh-corrections" id="corrections"><h{level}>{t("versions.correction_history")}</h{level}>'
                 f'<p class="muted">{t("versions.correction_lead")}</p><ol class="vh-chain">{"".join(rows)}</ol></section>')
 
 

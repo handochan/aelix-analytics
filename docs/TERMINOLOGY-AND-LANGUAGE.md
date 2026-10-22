@@ -137,6 +137,7 @@ SDK `scan`은 지연 데이터 읽기이고 정적 코드 스캔은 `static_scan
 | Evidence / Evidence reference | 판단을 확인하는 자료 / 그 자료의 정확한 버전 참조 | 참조만 있다고 자료 보존·결론 검토가 완료된 것은 아님 |
 | Provenance / Relations / Row lineage | 생성·관측 출처 / 연결 관계 / 행 수준 대응 | 그래프의 연결을 완전한 행 계보나 인과관계로 부르지 않음 |
 | Analysis map | 스크립트 단위의 프로젝트 흐름: 상자는 스크립트와 그 run, 화살표는 한 스크립트의 run이 쓰고 다른 스크립트의 run이 읽은 같은 경로·바이트의 파일(Workspace 탭, kit 0.18.0, [계약 C14](CONTRACTS.md#c14-overview의-분석-상태와-분석-지도-kit-0180-98)) | 화살표는 생산자 후보이며 확정 연결·행 계보가 아님. Provenance(한 대상에서 거슬러 올라가는 출처)와 구별 |
+| Provenance trail / Where it comes from / What uses it | 한 대상(기록·run·시각화 버전·데이터 파일)에서 기록된 인용과 run의 입력·출력·생산자 후보를 run 단위로 따라간 경로 / 그 대상이 무엇에서 만들어졌는지 / 무엇이 그것을 썼는지(관계 페이지의 `Provenance` 탭과 `analytics_status`의 `part=relations` `direction=sources`·`uses`, kit 0.24.0, [계약 C18](CONTRACTS.md#c18-출처-추적-kit-0240-100)). 상자의 상태는 `Unchanged`·`Changed since read`·`Changed since written`·`Missing now`·`Unknown`, 잇는 말은 `Read by`·`Read`·`Wrote`·`Written by`·`Made`·`Made by`·`Cited by`·`Cites` | 결론의 증명·행 계보·인과가 아님. 생산자 후보는 같은 바이트라는 관측이며 확정 연결이 아님. 분석 지도(스크립트 단위의 프로젝트 흐름)와 구별 |
 | Version history / Version n of N | 한 대상(시각화 key·데이터 파일·스크립트 코드·CONTEXT.md)의 버전들을 시간 순서로 보인 것 / 그 가운데 몇 번째인지(Workspace, kit 0.19.0, [계약 C15](CONTRACTS.md#c15-버전-기록-kit-0190-99)) | 번호는 화면을 만들 때 세는 표시 값이며 주소·인용은 run ID·sha256·스냅샷 이름. Correction history(정정 이력)는 번호 없는 기록의 정정 순서. 사용처 수는 결론의 근거 강도가 아님 |
 | Run / Rerun | 기록된 분석 코드 실행 / 이전 실행과 연결된 재실행 | 호스트 Session·일반 도구 호출·분석 과제 전체와 구별 |
 | Task / Session / Tool call | 사용자가 해결하려는 과제 / 호스트 대화 단위 / 개별 도구 호출 | 세 수치를 모델 요청 횟수·토큰과 혼용하지 않음 |
@@ -312,9 +313,9 @@ HTML을 그리지 않아 주석이 글자로 보이고, 목표를 읽는 쪽은 
   기본 음성으로 읽는다(#10 전에는 페이지가 `ko`라 한국어 프로젝트의 글을 한국어로 읽었고, 이 접근성을 잃지 않음). kit의 label은 화면
   언어의 범위에 남는다. 사람이 쓴 글은 화면 언어와 관계없이 `lang=""`이고 메시지 값으로 넘기지 않는다. 문서 제목(`<title>`)은 kit의 글과
   사용자 글을 한 문자열로 이으며, 화면 언어를 바꾸면 kit의 글 부분만 바뀐다. CSS 글꼴 목록은 macOS·Windows·Linux의 한국어 글꼴을 포함한다.
-- 지금 탭은 `Overview`, `Insights`, `Visualizations`, `Analysis map`, `Timeline`, `Data`, `Runs`, `Context`, `Analysis assets`, `Evaluation`이다
-  (`Insights`는 [#18](https://github.com/handochan/aelix-analytics/issues/18), `Analysis map`은 [#98](https://github.com/handochan/aelix-analytics/issues/98)).
-  `Reports`는 그 기능의 Issue([#19](https://github.com/handochan/aelix-analytics/issues/19))가 만든다.
+- 지금 탭은 `Overview`, `Insights`, `Reports`, `Visualizations`, `Analysis map`, `Timeline`, `Data`, `Runs`, `Context`, `Analysis assets`,
+  `Evaluation`이다(`Insights`는 [#18](https://github.com/handochan/aelix-analytics/issues/18), `Analysis map`은 [#98](https://github.com/handochan/aelix-analytics/issues/98),
+  `Reports`는 [#19](https://github.com/handochan/aelix-analytics/issues/19) PR3, 한국어 `보고서`).
   `Evaluation`은 옛 '평가' 탭의 이름을 옮긴 것이고, 안의 구역은 `Workflow feedback`·`Record coverage`·`Tool usage`다. 탭의 URL anchor
   (`#charts`, `#evaluation` 등)는 안정 식별자라 그대로다.
 - 사람과 스크립트가 쓴 글은 번역하거나 Unicode 정규화(NFC 등)하지 않고 쓴 그대로 보인다. `CONTEXT.md`는 Markdown으로 그린다(HTML은

@@ -1,0 +1,4 @@
+# The web form is the way to open an Issue here: no blank Issue for those without write access
+# (maintainers still see one, and `gh issue create` or the API skip the form). Project 7's Auto-add
+# workflow adds new Issues to the Project (docs/PROJECT-OPERATIONS.md §3).
+blank_issues_enabled: false

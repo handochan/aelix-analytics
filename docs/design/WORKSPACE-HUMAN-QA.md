@@ -51,6 +51,21 @@ fixture/source revision, task outcome and screenshots when this checklist is run
    `v1 again`, and v3's diff), and the Context page (13 versions, the pinned sections last changed in version 2). Check that the
    numbers agree across the gallery card, the run pages and the dataset page, and that each list reads without JavaScript and at
    360/390/430 px. Repeat in Korean.
+10. (kit 0.24.0, #100) In S, open Insights' finding e151 (`장바구니 이탈 — 기준 기간보다 12% 높다`). Its Provenance tab is first: at
+   1366×900 the trail goes up from e151 through funnel_check #6, cohort_view #5 and anomaly_scan #4 to sensor_03, with sensor_04
+   and sales_kr on the left, the three charts on the right, and t04_anomaly_scan and t05_cohort_view marked `Changed since read`
+   with the runs whose output they are now. Check that each kind reads by its colour, shape and words, that each state has a mark and
+   words, and that What can be checked lists its seven lines apart. Without JavaScript and at 360/390/430 px, read the same trail as a
+   vertical list whose boxes each say how they join the next. Follow a box's link and come back; switch a run's page between Where it
+   comes from and What uses it; open All relations and History. Repeat in Korean.
+11. (kit 0.25.0, #19 PR3) Open the supplied Reports project (the S/M fixtures hold no Report; the implementation run builds one with
+   its `probe/make_reports.py <dir>` and its handoff names the path). In Reports, beside Insights, each Report
+   is one row: its latest `Version n of N`, its time and its states apart (withdrawn, files, the author's content status, a collection's
+   `n of N complete`). Open the weekly Report: the history shows v1 withdrawn and v2 latest; v2's section says when and on what it was
+   made before its files, judges its evidence, compares it with v1, and opens its body as a document of its own; come back with the
+   browser's Back. Follow an evidence badge and come back to the same version. Open the collection: 3 of 5 complete, the failed and the
+   not generated members with their reasons, each complete member linking its exact version. Open the HTML Report: no body, the
+   original only. Without JavaScript and at 360/390/430 px and 150% text, every state, reason and member reads. Repeat in Korean.
 
 The agent records measured HTML bytes and Workspace generation/cache-rebuild costs separately.
 The owner's actual-screen task results fulfill the remaining Issue #18 acceptance condition.

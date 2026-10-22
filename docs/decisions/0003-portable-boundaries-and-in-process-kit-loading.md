@@ -107,6 +107,7 @@ ADR-0002 결정 5는 "파일 잠금·실행 타임아웃·자식 프로세스 �
 5. 잠금의 상호 배제, 자식 종료, 제한 시간을 Linux·macOS·Windows에서 측정 도구로 실행했다(PR-1, [측정 기록](../verification/2026-09-24-issue-8-platforms.md)).
    저장소 CI(`.github/workflows/ci.yml`, Issue #8 PR-3a)가 같은 측정 도구와 저장소 시험을 Linux·Windows에서는 모든 PR과
    main push마다, macOS에서는 `ci:macos` 라벨·수동 실행·주간 실행에서 돌린다(소유자 결정, 2026-10-02).
+   2026-10-21부터는 세 OS 모두 모든 PR과 main push에서 돈다(소유자 결정, #22: 저장소가 공개라 표준 러너가 과금되지 않음).
 6. 예약 이름은 Windows Server 2025의 파일 시스템에서 확인했다(`con.txt`·`nul.parquet`는 보통 파일로 저장되고 확장자 없는
    `nul`은 여전히 장치다). 콘솔: 설치본 `analytics`의 run에 Ctrl+C와 Ctrl+Break를 보내 측정했다 — 의사 콘솔(ConPTY)에서는
    입력 `\x03`(Ctrl+C)과 도우미 프로세스의 `GenerateConsoleCtrlEvent`·win32-input-mode 입력(Ctrl+Break)으로, 고전 콘솔에서는

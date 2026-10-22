@@ -1,44 +1,36 @@
 name: CI
 
-# The repository CI. Linux and Windows run on every pull request and every push to main; macOS runs
-# when asked for: the `ci:macos` label (each time it is added, on the head at that moment), a manual
-# run with `macos` ticked, and the weekly run. A macOS runner bills about ten times a Linux one on this
-# private repository. Nothing here is enforced by the server (branch protection is not available on
-# this plan): a red run is a reason not to merge, by the process in CONTRIBUTING.md.
+# The repository CI. Linux, Windows and macOS run on every pull request, every push to main, a manual
+# run and the weekly run (the repository is public, where standard hosted runners are free; owner
+# decision of 2026-10-21, Issue #22). The main branch's ruleset requires every job here to pass before a
+# merge: lint, and platform and floor on each of the three systems (CONTRIBUTING.md lists them).
 #
 # Every leg runs even when an earlier one failed (`!cancelled()`), and any failed leg fails its job;
 # no step keeps going past a failure. Each job uploads what it measured, and the run's context, so a
-# verification record can cite one run (CONTRIBUTING.md lists what each job uploads). A record's run is never re-run: push again, or add the label
-# again, and cite that run.
+# verification record can cite one run (CONTRIBUTING.md lists what each job uploads). A record's run is never re-run: push again, or start a
+# manual run, and cite that run.
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled]
+    types: [opened, synchronize, reopened]
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      macos:
-        description: Also run the macOS legs
-        type: boolean
-        default: false
   schedule:
     - cron: "17 3 * * 1"
 
 permissions:
   contents: read
 
-# A pull request's code runs share one group, and a new push cancels the old run. Every other run — a
-# labelled one, a push to main, a manual or scheduled run — is a group of its own, so nothing cancels
-# a ci:macos run (adding the label again starts another) and every push to main keeps its result.
+# A pull request's runs share one group, and a new push cancels the old run. Every other run — a push
+# to main, a manual or scheduled run — is a group of its own, so every push to main keeps its result.
 concurrency:
-  group: ${{ github.event_name == 'pull_request' && github.event.action != 'labeled' && format('ci-pr-{0}-code', github.event.pull_request.number) || format('ci-run-{0}', github.run_id) }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action != 'labeled' }}
+  group: ${{ github.event_name == 'pull_request' && format('ci-pr-{0}-code', github.event.pull_request.number) || format('ci-run-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   lint:
     name: lint · ruff and documents
-    if: ${{ github.event.action != 'labeled' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
@@ -46,7 +38,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: "0.11.19"
       - name: Sync the development environment
@@ -70,7 +62,7 @@ jobs:
           CI_ACTION: ${{ github.event.action }}
           CI_JOB: lint
         run: uv run --no-project --python 3.12 python tools/ci_context.py context --output .devstate/ci/context.json
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}
         with:
           name: ci-lint
@@ -80,7 +72,6 @@ jobs:
 
   platform:
     name: platform · ${{ matrix.os }}
-    if: ${{ github.event.action != 'labeled' || github.event.label.name == 'ci:macos' }}
     runs-on: ${{ matrix.os }}
     # Longer than the step limits below added up (148 minutes), so a hung leg is ended by its own
     # limit and the later legs and the upload still run. A step added below raises this too.
@@ -88,7 +79,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(github.event.action == 'labeled' && '["macos-26"]' || (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.macos)) && '["ubuntu-24.04","windows-2025","macos-26"]' || '["ubuntu-24.04","windows-2025"]') }}
+        os: [ubuntu-24.04, windows-2025, macos-26]
     steps:
       # The whole history: tests/test_eval_fixtures.py makes the v1 fixtures' kit from an older commit of
       # this repository (tools/eval_fixtures.py V1_KIT_COMMIT, git archive; design OQ7), which a shallow
@@ -98,7 +89,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
           fetch-depth: 0
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: "0.11.19"
       - name: Sync the development environment
@@ -141,7 +132,7 @@ jobs:
         timeout-minutes: 12
         env:
           AELIX_ANALYTICS_TEST_EVIDENCE_DIR: ${{ runner.temp }}/ci/evidence-aelix-py3.12
-        run: uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread --basetemp "${{ runner.temp }}/pytest-aelix-py3.12" --junitxml "${{ runner.temp }}/ci/aelix-py3.12.xml" tests/test_extension.py tests/test_asset_extension.py tests/test_usage_report.py tests/test_agent_cli.py
+        run: uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread --basetemp "${{ runner.temp }}/pytest-aelix-py3.12" --junitxml "${{ runner.temp }}/ci/aelix-py3.12.xml" tests/test_extension.py tests/test_asset_extension.py tests/test_checkpoint_extension.py tests/test_usage_report.py tests/test_agent_cli.py
       # What the extension gives a model, measured on synthetic fixtures (Issue #11): a report, not a
       # gate. It exits 0 when a target is exceeded or a fact is lost; tests/test_usage_report.py in
       # the two integration steps judges. Its trust list and uv are inside its own temporary
@@ -155,7 +146,7 @@ jobs:
         timeout-minutes: 12
         env:
           AELIX_ANALYTICS_TEST_EVIDENCE_DIR: ${{ runner.temp }}/ci/evidence-aelix-py3.11
-        run: uv run --isolated --no-project --python 3.11 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread --basetemp "${{ runner.temp }}/pytest-aelix-py3.11" --junitxml "${{ runner.temp }}/ci/aelix-py3.11.xml" tests/test_extension.py tests/test_asset_extension.py tests/test_usage_report.py tests/test_agent_cli.py
+        run: uv run --isolated --no-project --python 3.11 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest -q -ra -p no:cacheprovider --timeout 300 --timeout-method=thread --basetemp "${{ runner.temp }}/pytest-aelix-py3.11" --junitxml "${{ runner.temp }}/ci/aelix-py3.11.xml" tests/test_extension.py tests/test_asset_extension.py tests/test_checkpoint_extension.py tests/test_usage_report.py tests/test_agent_cli.py
       - name: The launcher on the entry-point floor, CPython 3.11
         if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
         timeout-minutes: 5
@@ -194,11 +185,10 @@ jobs:
           CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           CI_ACTION: ${{ github.event.action }}
-          CI_LABEL: ${{ github.event.label.name }}
           CI_JOB: platform
         timeout-minutes: 3
         run: uv run --no-project --python 3.12 python tools/ci_context.py context --output "${{ runner.temp }}/ci/context.json"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}
         with:
           name: ci-platform-${{ matrix.os }}
@@ -210,13 +200,12 @@ jobs:
   # but the standard library: no uv and no analysis libraries is the point of this leg.
   floor:
     name: floor · ${{ matrix.os }} · CPython 3.11, stdlib only
-    if: ${{ github.event.action != 'labeled' || github.event.label.name == 'ci:macos' }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(github.event.action == 'labeled' && '["macos-26"]' || (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.macos)) && '["ubuntu-24.04","windows-2025","macos-26"]' || '["ubuntu-24.04","windows-2025"]') }}
+        os: [ubuntu-24.04, windows-2025, macos-26]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -234,11 +223,10 @@ jobs:
           CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           CI_ACTION: ${{ github.event.action }}
-          CI_LABEL: ${{ github.event.label.name }}
           CI_JOB: floor
         timeout-minutes: 3
         run: python tools/ci_context.py context --output "${{ runner.temp }}/ci/context.json"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}
         with:
           name: ci-floor-${{ matrix.os }}

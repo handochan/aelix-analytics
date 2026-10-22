@@ -5,7 +5,7 @@
     python tools/ci_context.py interpreters --output FILE   the CPython 3.11 and 3.12 uv finds outside any venv
 
 `context` reads GitHub's variables and the ones the workflow passes (CI_HEAD_SHA, CI_BASE_SHA,
-CI_ACTION, CI_LABEL, CI_JOB). The commit CI measures is the pull request's head, not the merge
+CI_ACTION, CI_JOB). The commit CI measures is the pull request's head, not the merge
 commit GitHub builds, and a record names it. `environment` runs inside an environment built from the
 same requirements as the leg it describes (for an aelix leg, the same `uv run --isolated --with ...`
 set, resolved again after the test legs), because those resolve fresh from the index on every run. Stdlib only, so it runs on the setup-python floor as well.
@@ -24,7 +24,7 @@ from pathlib import Path
 
 GITHUB = ("GITHUB_EVENT_NAME", "GITHUB_SHA", "GITHUB_WORKFLOW_SHA", "GITHUB_REF", "GITHUB_RUN_ID",
           "GITHUB_RUN_ATTEMPT", "GITHUB_JOB", "RUNNER_OS", "RUNNER_ARCH", "ImageOS", "ImageVersion")
-PASSED = ("CI_HEAD_SHA", "CI_BASE_SHA", "CI_ACTION", "CI_LABEL", "CI_JOB")
+PASSED = ("CI_HEAD_SHA", "CI_BASE_SHA", "CI_ACTION", "CI_JOB")
 
 
 def context() -> dict:
