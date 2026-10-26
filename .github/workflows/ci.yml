@@ -158,7 +158,9 @@ jobs:
         id: browser
         if: ${{ !cancelled() && steps.sync.outcome == 'success' && matrix.os == 'ubuntu-24.04' }}
         timeout-minutes: 10
-        run: uv sync --locked --python 3.12 --group browser && uv run --locked --group browser playwright install --with-deps chromium
+        # Not --with-deps: the runner image ships Chrome and its system libraries, and apt mirrors made
+        # that step outlast its limit (run 40352383852).
+        run: uv sync --locked --python 3.12 --group browser && uv run --locked --group browser playwright install chromium
       - name: Browser E2E — every page of a saved copy over file:// and an HTTP subpath, Linux
         if: ${{ !cancelled() && steps.browser.outcome == 'success' && matrix.os == 'ubuntu-24.04' }}
         timeout-minutes: 15

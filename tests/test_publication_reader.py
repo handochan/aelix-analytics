@@ -192,3 +192,42 @@ def test_package_pages_hold_korean_only_in_user_text(received):
     for name, data in package_files(folder).items():
         if name.endswith(".html") and "/content/" not in name and not name.endswith("/preview/report.html"):
             assert Language(data.decode("utf-8")).found == [], name
+
+
+# What the M fixture (#41) showed: two copies of an ordinary project that the leak check stopped.
+
+def test_a_dataset_a_run_reads_is_named_in_both_profiles(tmp_path):
+    from aelix_analytics import core, data, runner
+    from aelix_analytics.publishing import build
+
+    p = core.init_project(tmp_path / "p", title="Public", origin=core.Origin("human", "cli"))
+    source = tmp_path / "regional_sales.csv"
+    source.write_text("region,sales\nnorth,3\nsouth,2\n", encoding="utf-8")
+    data.import_file(p, str(source), name="regional_sales", origin=core.Origin("human", "cli"))
+    (p.scripts / "sum.py").write_text(
+        "import polars as pl\nimport plotly.graph_objects as go\nimport aelix_analytics as a\n"
+        "frame = pl.read_parquet('data/imported/regional_sales.parquet')\n"
+        "a.visualize(go.Figure(go.Bar(y=frame['sales'].to_list())), 'total', title='Total',"
+        " caption='regional_sales summed by region')\n", encoding="utf-8")
+    run = runner.execute(p, script="scripts/sum.py", title="Sum", origin=core.Origin("human", "cli"))["run"]
+    assert run["status"] == "ok", run
+    for profile in ("read", "evidence"):
+        summary, files = build.preview_package(p, profile=profile)
+        assert summary["included"]["dataset"] == 1, profile
+        assert b"regional_sales" in b"".join(files.values()), profile
+
+
+def test_an_earlier_context_version_s_lines_are_not_a_leak_of_the_basis_version(tmp_path):
+    from aelix_analytics import core
+    from aelix_analytics.publishing import build
+
+    p = core.init_project(tmp_path / "p", title="Public", origin=core.Origin("human", "cli"))
+    lines = ["- The north region grew for four weeks in a row", "- Compare the same weeks of each year"]
+    (p.root / "CONTEXT.md").write_text("# Goals\n\n" + "\n".join(lines) + "\n", encoding="utf-8")
+    core.sync_context(p, origin=core.system_origin(core.Origin("human", "cli")))
+    (p.root / "CONTEXT.md").write_text("# Goals\n\n" + "\n".join([*lines, "- Check the south next"]) + "\n",
+                                       encoding="utf-8")
+    core.sync_context(p, origin=core.system_origin(core.Origin("human", "cli")))
+    summary, files = build.preview_package(p, profile="read")
+    assert summary["included"]["context"] == 1
+    assert lines[0].encode() in b"".join(files.values())

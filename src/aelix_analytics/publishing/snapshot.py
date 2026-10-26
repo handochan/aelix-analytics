@@ -210,6 +210,9 @@ def capture_snapshot(project, *, reader=core.read_model, validate_reference=rela
             if status["recording_status"] == "complete" and status["execution_status"] == "ok" and not run.get("rerun_of"):
                 latest[script] = rid
                 break
+    # A run's imported inputs bring their dataset (5.2, 5.3: the name of a dataset an included run cites;
+    # in evidence its metadata). Keys are the dataset items' own, made below from the same metadata.
+    imported = {meta["path"] for _place, meta in model._metas if isinstance(meta.get("path"), str)}
     for rid, status in sorted(run_status.items()):
         run = model.run(rid)
         complete = status["recording_status"] == "complete" and status["execution_status"] != "running"
@@ -242,8 +245,10 @@ def capture_snapshot(project, *, reader=core.read_model, validate_reference=rela
                     meta["observation"] = ("missing" if not observed_file.current_sha256 else
                                            "unknown" if not observed_file.recorded_sha256 else
                                            "same" if observed_file.current_sha256 == observed_file.recorded_sha256 else "changed")
-                items.append(SnapshotItem(key, "data_observation", freeze(meta), complete=complete))
-                attachments.append(key)
+                dataset = (identity("dataset", entry["path"]),) if entry.get("path") in imported else ()
+                items.append(SnapshotItem(key, "data_observation", freeze(meta), complete=complete,
+                                          attachments=dataset))
+                attachments.extend((key, *dataset))
         items.append(SnapshotItem(ItemKey("run", rid), "run", freeze(values), model.completion_seq(rid) or 0,
                                   complete=complete, attachments=tuple(attachments)))
         script = (run.get("script") or {}).get("path")

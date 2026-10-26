@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from .checks import check_names
+from .checks import check_names, normalized
 from .model import ItemKey, PublicationError, page_key
 
 PROJECT_KINDS = frozenset({"finding", "decision", "assumption", "question", "todo", "analysis_focus",
@@ -233,10 +233,13 @@ def leak_policy(snapshot, request, profile, projection, *, environment=()):
     allowed = labels | {word for label in labels for word in re.findall(r"[\w-]+", label)}
     allowed |= {value.lower() for value in allowed}
 
+    shared = []
+
     def allow(value):
         if isinstance(value, Text):
             if value.origin == "kit" or value.source and value.source[0] in included:
                 allowed.add(value.value)
+                shared.append(" ".join(normalized(value.value).split()))
         elif is_dataclass(value):
             for f in fields(value):
                 allow(getattr(value, f.name))
@@ -256,10 +259,15 @@ def leak_policy(snapshot, request, profile, projection, *, environment=()):
                                if isinstance(value, str))
     tokens = set()
     short = 0
+    # A sentence that included text also says is not an outside item's own words (an earlier CONTEXT
+    # version repeats most of the basis version's lines).
+    shared_text = "\n".join(shared)
 
     def add(value, mode, key=None, field=None, exempt=True):
         nonlocal short
         if not isinstance(value, str) or not value or exempt and value in allowed:
+            return
+        if mode == "sentence" and exempt and " ".join(normalized(value).split()) in shared_text:
             return
         if mode != "weak" and len(value) < 8:
             short += 1
