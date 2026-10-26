@@ -83,6 +83,8 @@ KIT_VOCABULARY = frozenset({
     "AnalyticsPublication", "window.AnalyticsPublication",
     "Copy identity", "Built at", "Records through", "Resource counts exclude publication.json, which is checked separately when a copy is saved.",
     "This copy is a fixed snapshot. Its source may have changed.",
+    # #20 PR5 attachment links.
+    "Made by run", "Code snapshot", "Input or output", "Attached",
     # #20 PR4 Report pages.
     "Report version", "Version identity", "Entry file", "Author role", "State at this point", "Created", "Summary",
     "Purpose", "Reason for this version", "Content status (as the author declared)", "Based on", "Records up to",

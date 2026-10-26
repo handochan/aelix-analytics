@@ -3,7 +3,8 @@
 - 상태: **설계 채택·단계별 구현 중.** PR1은 내부 `PublicationProjection`·공유 모델·공통 닫힘·snapshot의 순수 경계를 구현했다.
   PR2–PR3은 `analytics build`·preview·private saved build·`publication.json` 쓰기/결박·패키지 검사·ZIP을 구현했다.
   PR4는 Report·묶음 범위(`--report`·`--scope`·`--collection`·`--allow-withdrawn`, ReportRenderer 주입, `scope.reports`)를 구현했다.
-  독자 수용은 PR5, publish/receipt는 #21의 후속 범위다.
+  PR5는 독자 환경의 검증(원본 없는 위치·HTTP 하위 경로·OS 도구 ZIP·브라우저 E2E)과 CSP·frame 결정, M 규모 측정을 했다.
+  publish/receipt는 #21, 실제 다른 독자의 열람은 #24다.
   현재 공개 동작은 [현재 계약](../CONTRACTS.md)이 설명한다. Workspace와 별도로 독립 공유 패키지를 생성한다.
 - 작업: [#20](https://github.com/handochan/aelix-analytics/issues/20) `[B4-s/P0]`.
   [2026-10-17 순서 완화](https://github.com/handochan/aelix-analytics/issues/20#issuecomment-6232441606)로 PR-0~PR-3은
@@ -553,7 +554,7 @@ was built"를 붙인다. 게시본이 원본을 계속 보는 것처럼 쓰지 �
 - 모든 페이지에 `<meta name="referrer" content="no-referrer">`와 `<meta name="robots" content="noindex">`를 둔다. 원격 이동 링크에는
   `rel="noopener noreferrer"`를 단다. 버전 주소와 사내 경로가 Referer로 나가지 않고, 사내 HTTP로 내보낸 폴더가 색인되지 않는다.
 - CSP meta(`connect-src 'none'`, 자원을 패키지 안으로 묶는 지시)는 브라우저 측정 뒤에만 채택한다. `file://`에서 `'self'`의 해석이 엔진마다 다르기
-  때문이다. 측정 전에는 넣지 않는다(PR-5).
+  때문이다. PR-5가 Chromium·Firefox·WebKit × `file://`·HTTP 하위 경로에서 재고 채택했다(2026-10-27 소유자 결정, "PR5 구현 구체화").
 
 ### 7.5 그림과 사용자 HTML·SVG(OQ8)
 
@@ -562,7 +563,7 @@ was built"를 붙인다. 게시본이 원본을 계속 보는 것처럼 쓰지 �
 | png·jpg·gif·webp | `files/<sha256>.<ext>`로 복사, `<img alt>`(제목, `lang=""`) | 못 불러오면 "Missing from this copy" |
 | svg | 아래 조건을 통과할 때만 복사하고 `<img>`로만 보인다. SVG 파일로 가는 이동 링크를 만들지 않는다 | 통과하지 못하면 `not_included`(`scripts` 또는 `remote_resources`) |
 | plotly | 7.4의 payload. 원격 자원이 필요한 trace·layout(`scattergeo`, `choropleth`, `scattermapbox`, `choroplethmapbox`, `densitymapbox`, `scattermap`, `choroplethmap`, `densitymap`, layout `geo`·`mapbox`·`map`, 원격 `layout.images[].source`)이 있으면 담지 않는다 | `not_included`(`remote_resources`)와 제목·caption, `evidence`면 첨부 표 링크. 목록은 구현 PR이 plotly 판마다 측정해 고정한다 |
-| html(altair·`_repr_html_`) | 아래 조건을 통과할 때만 `files/<sha256>.html`로 복사하고 `allow-scripts`·`allow-same-origin` 없는 `<iframe sandbox>`로 연다 | 통과하지 못하면 `not_included`. altair 기본 HTML은 vega를 CDN에서 부르므로 대개 여기에 든다(측정 안 함) |
+| html(altair·`_repr_html_`) | 아래 조건을 통과할 때만 `files/<sha256>.html`로 복사하고 `allow-scripts` 없는 `<iframe sandbox="allow-same-origin">`으로 연다(2026-10-27 소유자 결정: `file://`에서 자기 파일을 불러오게) | 통과하지 못하면 `not_included`. altair 기본 HTML은 vega를 CDN에서 부르므로 대개 여기에 든다(측정 안 함) |
 
 - **조건.** 스크립트(`<script>`, `on*` 이벤트 속성, `javascript:` URL), 원격 자원 참조(ADR-0009 결정 9의 자원 참조 가운데 scheme이 있는 것,
   CSS `url()`·`@import` 포함), `<base>`, meta refresh, 중첩 문서(`iframe`·`object`·`embed`), SVG `foreignObject`·외부 `href`가 하나도 없어야 한다.
@@ -588,7 +589,7 @@ was built"를 붙인다. 게시본이 원본을 계속 보는 것처럼 쓰지 �
   "Missing from this copy: <패키지 경로>"로 바꾼다. 처리기보다 먼저 실패한 이미지는 `DOMContentLoaded` 뒤 `complete && naturalWidth === 0`으로
   다시 찾는다.
 - `iframe`(사용자 HTML 그림, HTML Report 본문)은 이 처리기의 대상이 아니다. 브라우저는 iframe 문서를 불러오지 못해도 `error`가 아니라 `load`를
-  내고(MDN iframe의 error·load 이벤트 동작), `allow-same-origin` 없는 sandbox iframe이라 부모가 그 내용을 볼 수도 없다. 그래서 iframe 옆에 늘
+  내고(MDN iframe의 error·load 이벤트 동작), 부모의 스크립트는 frame 문서를 판정하지 않는다. 그래서 iframe 옆에 늘
   보이는 글 "If this frame is empty, its file is missing from this copy: <패키지 경로>"를 둔다. iframe 문서가 빠진 것을 페이지가 스스로 판정하지
   못한다는 것은 범위 구역과 현재 계약 G에 한계로 적는다.
 - CSS가 없을 때만 보이는 글을 모든 페이지 머리에 둔다: "This page could not load its files. If you opened it from inside a ZIP archive, extract
@@ -1284,3 +1285,21 @@ core/status는 이 낮은 경계만 소비하고 build/renderer에 의존하지 
   있으면 `renderer_unavailable`이다. renderer의 문서는 역할 `report_view`로 사용자 문서처럼 검사한다.
 - 링크 검사(`resolve_link`)는 URL을 나눈 뒤 경로를 디코딩한다. Report 파일 이름의 `#`·`%`가 fragment·이스케이프로 읽히지 않게 하기 위해서다.
 - 12.4의 사례는 `tests/test_publication_reports.py`가 덮는다. 브라우저 E2E·다른 독자·OS ZIP 도구·M 규모는 PR5다.
+
+## PR5 구현 구체화
+
+- **소유자 결정(2026-10-27)**: 측정을 보고 두 가지를 채택했다.
+  - 사용자 HTML(Visualization의 html, Report HTML 본문)과 renderer 문서를 여는 iframe은 `sandbox="allow-same-origin"`이다. `allow-scripts`는 없다.
+    `allow-scripts`·`allow-same-origin` 둘 다 없으면 세 엔진 모두 `file://`에서 frame이 자기 그림을 불러오지 못했다("Not allowed to load local resource").
+    사용자 HTML의 스크립트·이벤트 속성은 검사가 이미 거절하고, frame 안에서는 스크립트가 실행되지 않는다. 검사기는 sandbox의 다른 값을 거절한다.
+  - kit 페이지에 CSP meta를 둔다: `default-src 'self'; script-src 'self' 'sha256-<머리 inline script>'; style-src 'self' 'unsafe-inline';
+    img-src 'self' data:; frame-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'`. plotly가 inline style을
+    쓰므로 `style-src`에 `'unsafe-inline'`이 있다. 세 엔진 × `file://`·HTTP 하위 경로에서 12쪽 모두 그림·plotly·CSS가 정상이고 CSP 위반이 없었다.
+- 페이지 머리에 `<link rel="icon" href="data:,">`를 둔다. WebKit은 아이콘이 없으면 사이트 루트의 `/favicon.ico`를 요청해 HTTP 하위 경로 밖으로 나갔다.
+- 7.6의 머리 inline script는 `publication.js`가 실행되지 않았으면 "could not load" 안내를 보인다. "Missing from this copy"는 `<html data-root>`로 푼 패키지 경로를 적는다.
+- 5.2의 부속 간선(Visualization 버전 → run, run → 코드·입력/출력)을 공유 모델의 `attachments`로 옮겨 페이지가 링크한다(발견 → 그림 → run → 코드의 이동, 12.6).
+- **CI**: 브라우저 E2E는 별도 job이 아니라 필수 검사인 `platform · ubuntu-24.04` 레그의 단계로 둔다. 저장소의 모든 CI job은 필수 검사라는 규칙(#22,
+  `tests/test_ci_workflow.py`) 때문에, 별도 job은 ruleset 변경 없이는 병합을 막지 못한다. Playwright는 `browser` 의존성 그룹이고 그 단계만 설치한다(OQ22).
+  Firefox·WebKit은 손으로 돌린다.
+- **한계**: `<meta charset>`이 없는 사용자 HTML은 엔진이 다른 인코딩으로 읽을 수 있다(WebKit이 한국어 상대 경로를 잘못 풀어 404, Firefox는 경고). 사용자
+  바이트는 바꾸지 않는다. iframe 문서가 빠진 것은 페이지가 판정하지 못한다(옆의 대체 글). OS의 보관 도구(탐색기·보관 유틸리티)로 연 확인과 실제 다른 독자는 소유자 몫이다.

@@ -91,6 +91,8 @@ class ShareItem:
     references: tuple[Reference, ...] = ()
     files: tuple[FileSlot, ...] = ()
     file_notices: tuple[FileNotice, ...] = ()
+    # Fixed attachment edges inside this copy (5.2): a Visualization version's run, a run's code and data.
+    attachments: tuple[ItemKey, ...] = ()
 
 
 @dataclass(frozen=True)

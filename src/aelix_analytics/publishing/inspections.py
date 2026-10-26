@@ -290,12 +290,11 @@ class HTMLInspection(HTMLParser):
             and (values.get("http-equiv") or "").strip().lower() == "refresh"
         ):
             self.forbidden.append(tag)
+        # The kit opens checked user HTML in a frame that may load its own files (owner 2026-10-27:
+        # allow-same-origin, measured in three engines) and never runs scripts: no other token.
         if tag == "iframe" and (
             "sandbox" not in values
-            or any(
-                flag in (values.get("sandbox") or "").lower().split()
-                for flag in ("allow-scripts", "allow-same-origin")
-            )
+            or not set((values.get("sandbox") or "").lower().split()) <= {"allow-same-origin"}
         ):
             self.forbidden.append("iframe sandbox")
         if tag == "script":

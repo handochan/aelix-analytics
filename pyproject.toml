@@ -1,6 +1,6 @@
 [project]
 name = "aelix-analytics"
-version = "0.27.0"
+version = "0.28.0"
 description = "Agent-native analytics projects with durable context, metrics, evidence, and reports"
 readme = "README.md"
 license = "Apache-2.0"
@@ -61,12 +61,17 @@ dev = [
   "ruff>=0.12",
   "jsonschema[format-nongpl]>=4,<5",
 ]
+# The publication browser E2E (#20 PR5, design OQ22): its own CI job installs it and its browsers.
+browser = [
+  "playwright==1.64.0",
+]
 
 [tool.uv]
 package = false
 
 [tool.uv.dependency-groups]
 dev = { requires-python = ">=3.12" }
+browser = { requires-python = ">=3.12" }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
