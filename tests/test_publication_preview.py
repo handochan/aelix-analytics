@@ -1305,19 +1305,21 @@ def test_indexed_leak_check_finds_what_one_pass_over_every_token_finds():
 
 
 DROPPED = "detail-dropped-later"
+MAKE = 'a.visualize(go.Figure(go.Scatter(y=[1, 2])), "{}", title="{}")\n'
+HEAD = "import plotly.graph_objects as go\nimport aelix_analytics as a\n"
 
 
-def _dropped_figure_project(root, *, later_comment=""):
+def _run(p, name, body, title):
+    (p.scripts / name).write_text(HEAD + body, encoding="utf-8")
+    return runner.execute(p, script=f"scripts/{name}", title=title, origin=ORIGIN)["run"]
+
+
+def _dropped_figure_project(root):
     """v1 of a script makes two figures; v2 drops the second. A finding cites v1's first figure, so
     the evidence copy includes the v1 run and its code, which names the dropped, uncited figure."""
     p = core.init_project(root, title="Dropped figure", origin=ORIGIN)
-    script = p.scripts / "charts.py"
-    make = 'a.visualize(go.Figure(go.Scatter(y=[1, 2])), "{}", title="{}")\n'
-    head = "import plotly.graph_objects as go\nimport aelix_analytics as a\n"
-    script.write_text(head + make.format("trend", "Trend") + make.format(DROPPED, "Detail"), encoding="utf-8")
-    first = runner.execute(p, script="scripts/charts.py", title="v1", origin=ORIGIN)["run"]
-    script.write_text(head + later_comment + make.format("trend", "Trend"), encoding="utf-8")
-    second = runner.execute(p, script="scripts/charts.py", title="v2", origin=ORIGIN)["run"]
+    first = _run(p, "charts.py", MAKE.format("trend", "Trend") + MAKE.format(DROPPED, "Detail"), "v1")
+    second = _run(p, "charts.py", MAKE.format("trend", "Trend"), "v2")
     assert first["status"] == second["status"] == "ok"
     trend = next(v for v in first["visualizations"] if v["visualization_id"] == "trend")
     core.record(p, "finding", "the first version rose", origin=ORIGIN, refs=[core.kit_reference(
@@ -1325,20 +1327,36 @@ def _dropped_figure_project(root, *, later_comment=""):
     return p, first
 
 
+def _left_out(files, first):
+    code = [data for name, data in files.items() if name.endswith(".py") and DROPPED.encode() in data]
+    assert code, "a copied code snapshot names the dropped figure"
+    others = b"".join(data for name, data in files.items() if not name.endswith(".py"))
+    assert DROPPED.encode() not in others and b'"Detail"' not in others
+    assert f"{first['id']}/{DROPPED}".encode() not in b"".join(files.values())
+
+
 def test_an_included_runs_code_may_name_that_runs_figures_the_copy_leaves_out(tmp_path):
     """2026-10-27 owner decision: only in that run's copied code; the figure itself stays out."""
     p, first = _dropped_figure_project(tmp_path / "p")
     summary, files = build.preview_package(p, profile="evidence")
-    code = [data for name, data in files.items() if name.endswith(".py") and DROPPED.encode() in data]
-    assert code, "the v1 code snapshot is in the copy and names its dropped figure"
-    others = b"".join(data for name, data in files.items() if not name.endswith(".py"))
-    assert DROPPED.encode() not in others and b'"Detail"' not in others
-    assert f"{first['id']}/{DROPPED}".encode() not in b"".join(files.values())
+    _left_out(files, first)
     assert summary["not_included"]
 
 
-def test_another_runs_code_naming_a_left_out_figure_still_stops(tmp_path):
-    p, first = _dropped_figure_project(tmp_path / "p", later_comment=f"# {DROPPED} moved to a notebook\n")
+def test_a_failed_runs_code_may_name_the_figures_its_script_made(tmp_path):
+    """The second 2026-10-27 decision: a run that stopped before making them names its script's figures."""
+    p, first = _dropped_figure_project(tmp_path / "p")
+    failed = _run(p, "charts.py", 'raise RuntimeError("stopped early")\n' + MAKE.format(DROPPED, "Detail"), "v3")
+    assert failed["status"] == "error" and not failed.get("visualizations")
+    _run(p, "charts.py", MAKE.format("trend", "Trend"), "v4")
+    core.record(p, "finding", "the third version failed", refs=[failed["id"]], origin=ORIGIN)
+    _summary, files = build.preview_package(p, profile="evidence")
+    _left_out(files, first)
+
+
+def test_another_scripts_code_naming_a_left_out_figure_still_stops(tmp_path):
+    p, _first = _dropped_figure_project(tmp_path / "p")
+    _run(p, "other.py", f"# {DROPPED} moved to charts.py\n" + MAKE.format("other", "Other"), "other")
     with pytest.raises(PublicationError) as caught:
         build.preview_package(p, profile="evidence")
     assert caught.value.code == "leak_found"
