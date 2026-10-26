@@ -1242,3 +1242,63 @@ def test_unselected_report_metadata_and_collection_stay_out_of_a_project_copy(tm
         with pytest.raises(PublicationError) as caught:
             build.preview_package(p, ShareRequest(scope=scope), profile=profile)
         assert caught.value.code == "scope_invalid"
+
+
+def _one_pass(values, policy, *, path, strong_only=False):
+    """The check before PR5's index: every token tried against every text, in policy order."""
+    import re
+
+    warnings = []
+    for part in values:
+        text = checks.normalized(part.value)
+        collapsed = " ".join(text.split())
+        for token in policy.tokens:
+            value = checks.normalized(token.value)
+            if token.mode == "weak" and not part.name_slot or strong_only and token.mode != "strong":
+                continue
+            found = (
+                " ".join(value.split()) in collapsed
+                if token.mode in ("sentence", "warning")
+                else bool(re.search(r"(?<!\w)" + re.escape(value) + r"(?!\w)", text))
+                if token.mode == "weak"
+                else value in text
+            )
+            if found:
+                detail = {"path": path, "location": part.location, "cause": "copied_file"}
+                if token.mode != "warning":
+                    return ("leak_found", detail)
+                warnings.append({**detail, "reason": "excluded_field_line"})
+        if not strong_only and checks.PATH_PATTERN.search(text):
+            warnings.append({"path": path, "location": part.location, "reason": "path_pattern"})
+    return ("ok", tuple(warnings))
+
+
+def test_indexed_leak_check_finds_what_one_pass_over_every_token_finds():
+    import random
+    import unicodedata
+
+    rng = random.Random(20)
+    pieces = ["a", "B", "7", "_", "-", "/", ".", " ", "\t", "\n", "%2F", "%", "매출", "북쪽",
+              unicodedata.normalize("NFD", "지역"), "é", "e\u0301", "\\/", "C:\\", "~/", "file://"]
+
+    def text(n):
+        return "".join(rng.choice(pieces) for _ in range(n))
+
+    for _case in range(400):
+        texts = [text(rng.randint(0, 40)) for _ in range(rng.randint(1, 4))]
+        tokens = set()
+        for _ in range(rng.randint(0, 12)):
+            source = rng.choice(texts)
+            start = rng.randint(0, len(source))
+            value = source[start : start + rng.randint(1, 30)] if rng.random() < 0.7 else text(rng.randint(1, 12))
+            if value:
+                tokens.add(BanToken(value, rng.choice(("strong", "weak", "sentence", "warning"))))
+        policy = LeakPolicy(tuple(sorted(tokens, key=lambda t: (t.mode, t.value))))
+        values = tuple(ScanText(t, f"part{n}", name_slot=rng.random() < 0.5) for n, t in enumerate(texts))
+        for strong_only in (False, True):
+            expected = _one_pass(values, policy, path="files/copy.txt", strong_only=strong_only)
+            try:
+                got = ("ok", checks.check_strings(values, policy, path="files/copy.txt", strong_only=strong_only))
+            except PublicationError as exc:
+                got = (exc.code, exc.details)
+            assert got == expected, (values, policy, strong_only)

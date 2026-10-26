@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import bisect
 import hashlib
 import json
 import os
@@ -172,29 +173,81 @@ def check_model(model, policy: LeakPolicy):
     return tuple(warnings)
 
 
+class _Literals:
+    """Every value of a set found in a text, in time linear in the text (12.7: thousands of tokens)."""
+
+    WIDTH = 8
+
+    def __init__(self, entries):
+        self.prefixes, self.short = {}, {}
+        for value, n in entries:
+            group = self.prefixes.setdefault(value[: self.WIDTH], {}) if len(value) >= self.WIDTH else self.short
+            group.setdefault(value, []).append(n)
+
+    def find(self, text):
+        found = [n for value, ns in self.short.items() if value in text for n in ns]
+        prefixes, width = self.prefixes, self.WIDTH
+        for i in range(len(text) - width + 1):
+            group = prefixes.get(text[i : i + width])
+            if group:
+                found.extend(n for value, ns in group.items() if text.startswith(value, i) for n in ns)
+        return found
+
+
+class _Words:
+    """Values with a non-word character or an end on both sides, as `(?<!\\w)value(?!\\w)` finds them."""
+
+    def __init__(self, entries):
+        self.values = {}
+        for value, n in entries:
+            self.values.setdefault(value, []).append(n)
+        self.longest = max(map(len, self.values), default=0)
+
+    def find(self, text):
+        if not self.values:
+            return []
+        starts = [m.start() for m in re.finditer(r"(?<!\w)", text)]
+        ends = [m.start() for m in re.finditer(r"(?!\w)", text)]
+        found = []
+        for start in starts:
+            window = ends[bisect.bisect_right(ends, start) : bisect.bisect_right(ends, start + self.longest)]
+            for end in window:
+                found.extend(self.values.get(text[start:end], ()))
+        return found
+
+
+_MATCHERS = None
+
+
+def _matchers(policy):
+    """Normalise and index a policy's tokens once; check_model and check_package reuse one policy."""
+    global _MATCHERS
+    cached = _MATCHERS
+    if cached is None or cached[0] is not policy:
+        groups = {"lines": [], "strong": [], "weak": []}
+        for n, token in enumerate(policy.tokens):
+            value = normalized(token.value)
+            if token.mode in ("sentence", "warning"):
+                groups["lines"].append((" ".join(value.split()), n))
+            else:
+                groups[token.mode].append((value, n))
+        cached = (policy, _Literals(groups["lines"]), _Literals(groups["strong"]), _Words(groups["weak"]))
+        _MATCHERS = cached
+    return cached[1:]
+
+
 def check_strings(values, policy, *, path, source=None, strong_only=False):
     warnings = []
+    lines, strong, weak = _matchers(policy)
     for part in values:
         text = normalized(part.value)
-        collapsed = " ".join(text.split())
-        for token in policy.tokens:
-            value = normalized(token.value)
-            if (
-                token.mode == "weak"
-                and not part.name_slot
-                or strong_only
-                and token.mode != "strong"
-            ):
-                continue
-            found = (
-                " ".join(value.split()) in collapsed
-                if token.mode in ("sentence", "warning")
-                else bool(re.search(r"(?<!\w)" + re.escape(value) + r"(?!\w)", text))
-                if token.mode == "weak"
-                else value in text
-            )
-            if not found:
-                continue
+        found = strong.find(text)
+        if not strong_only:
+            found += lines.find(" ".join(text.split()))
+            if part.name_slot:
+                found += weak.find(text)
+        # Policy order and one finding per token, as one pass over every token gave them.
+        for token in (policy.tokens[n] for n in sorted(set(found))):
             detail = {
                 "path": path,
                 "location": part.location,
