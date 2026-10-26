@@ -156,7 +156,7 @@ def prepare_files(project, projection):
             inspection = inspect_bytes(
                 data, role=entry.role, path=entry.package_path, parquet_extractor=parquet_strings
             )
-            if inspection and inspection.format in ("html", "svg", "plotly"):
+            if inspection and inspection.format in ("html", "svg", "plotly", "css"):
                 _user_links(inspection)
         except PublicationError as exc:
             if exc.code == "figure_not_shareable" and entry.role == "report_file":
@@ -218,10 +218,12 @@ def prepare_files(project, projection):
     for entry in projection.copy_plan:
         if entry.role == "report_file":
             version_files.setdefault(entry.item, set()).add(entry.package_path)
+    ids = {entry.package_path: set(inspection.ids) for entry, inspection in report_links
+           if inspection.format in ("html", "svg")}
     for entry, inspection in report_links:
         for link in inspection.links:
             try:
-                resolve_link(entry.package_path, link, dict.fromkeys(version_files[entry.item], b""))
+                resolve_link(entry.package_path, link, dict.fromkeys(version_files[entry.item], b""), ids)
             except PublicationError as exc:
                 raise _report_refusal(entry, "link", target=exc.details.get("target")) from exc
     items = []

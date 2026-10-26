@@ -37,6 +37,10 @@ NETWORK_APIS = (
 )
 
 
+# What a ReportRenderer made in a Report's folder: not its page, not its original files (#20 PR4).
+REPORT_VIEW = re.compile(r"reports/[0-9a-f]{16}/(?!content/|index\.html$).+")
+
+
 def reject(message, **details):
     raise PublicationError("package_check_failed", message, details=details)
 
@@ -436,7 +440,7 @@ def _manifest_shape(value):
         and isinstance(scope["reports"], list),
         "scope",
     )
-    need((scope["kind"] == "reports") == bool(scope["reports"]), "a Report copy names its selected versions")
+    need(scope["kind"] == "project" or bool(scope["reports"]), "a Report copy names its selected versions")
     need(
         isinstance(value["included"], list) and all(item_key(k) for k in value["included"]),
         "included keys",
@@ -657,7 +661,13 @@ def _verification_view(data, role, name):
     observed = detect_format(data, role=role, path=name)
     view = None
     if observed in ("html", "css", "svg", "payload"):
-        view = inspect_bytes(data, role=role, path=name)
+        try:
+            view = inspect_bytes(data, role=role, path=name)
+        except PublicationError as exc:
+            if exc.code != "figure_not_shareable":
+                raise
+            # As check_package: unsafe user content in a saved copy is a package defect.
+            reject("an unsafe user document is in the package", path=name, reason=exc.message)
         if view is None:
             reject("file role does not allow its format", path=name)
         if observed == "html":
@@ -798,6 +808,8 @@ def verify_package(path, binding=None, *, inspection_cache=None):
             )
             if origin == "copied":
                 role = row["sources"][0]["role"]
+            elif origin == "generated" and REPORT_VIEW.fullmatch(name):
+                role = "report_view"  # a ReportRenderer's document, checked as authored content
             # Only memoize pure inspections within this observation batch. Every invocation
             # still walks the folder, reads all bytes and checks their hashes above, even when
             # size/mtime/ctime are unchanged. Never trust a stat key or a persisted cache.

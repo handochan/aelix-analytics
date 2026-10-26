@@ -92,7 +92,7 @@ def _file(project, sha, source, role, recorded=None):
         return SnapshotFile(source, role, "", recorded, None, reason="file_absent")
     if hashlib.sha256(data).hexdigest() != digest:
         raise PublicationError("source_changed", "file changed after its digest was observed")
-    format_ = detect_format(data, role=role) or "unsupported"
+    format_ = detect_format(data, role=role, path=source) or "unsupported"
     if role == "code_snapshot" and format_ == "text" and path.suffix.lower() == ".py":
         format_ = "python"
     suffix = {"png": ".png", "jpeg": ".jpg", "gif": ".gif", "webp": ".webp", "svg": ".svg",
@@ -119,7 +119,7 @@ def _report_items(project, sha, model, by_source):
                 "created_at": manifest.get("created_at"), "entry": manifest.get("entry"),
                 "actor_role": manifest.get("actor") if manifest.get("actor") in ("human", "agent", "system") else "unknown",
                 "state": version["state"], "number": version["number"], "total": total,
-                "based_on": {k: basis[k] for k in ("as_of_seq", "context_version") if k in basis},
+                "based_on": {k: basis[k] for k in ("as_of_seq", "context_version") if basis.get(k) is not None},
                 **{k: metadata[k] for k in REPORT_TEXT_FIELDS if isinstance(metadata.get(k), str)},
                 # Private judgments for the scope check and the manifest, never projected fields.
                 "_problem": version["problem"], "_content": version["content"], "_directory": version["directory"],

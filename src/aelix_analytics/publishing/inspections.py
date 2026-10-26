@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import binascii
 import json
+import posixpath
 import re
 import struct
 import xml.etree.ElementTree as ET
@@ -79,6 +80,18 @@ def detect_format(data: bytes, *, role="", path=""):
         return None
     if role == "code_snapshot":
         return "text"
+    if role == "report_file":
+        # A Report keeps its authored names, and a browser goes by them: what its name says is a
+        # stylesheet or a document is inspected as one, whatever its first bytes look like (OQ8).
+        suffix = posixpath.splitext(path)[1].lower()
+        if suffix in (".xml", ".xsl", ".xslt"):
+            return None  # a browser may apply a stylesheet the checks do not interpret
+        if suffix == ".css":
+            return "css"
+        if suffix in (".html", ".htm", ".xhtml", ".xht"):
+            return "html"
+        if suffix == ".svg":
+            return "svg"
     stripped = text.lstrip("\ufeff \t\r\n")
     # Comments before the document element do not turn an HTML/SVG fragment into plain text.
     stripped = re.sub(r"^(?:<!--.*?-->\s*)+", "", stripped, flags=re.S)
@@ -98,7 +111,9 @@ def detect_format(data: bytes, *, role="", path=""):
             and isinstance(value.get("layout", {}), dict)
         ):
             return "plotly"
-    if re.match(r"<(?:!doctype\s+html|html\b|[a-zA-Z][\w:-]*(?:\s|>))", stripped, re.I):
+    # An XML declaration does not make markup plain text (an XHTML document still runs scripts).
+    markup = re.sub(r"^<\?xml[^>]*>\s*", "", stripped, flags=re.I)
+    if re.match(r"<(?:!doctype\s+html|html\b|[a-zA-Z][\w:-]*(?:\s|>))", markup, re.I):
         return "html"
     if role == "library":
         return "css" if path.endswith(".css") else "javascript"

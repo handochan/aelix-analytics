@@ -403,3 +403,102 @@ def test_html_entry_needs_no_derived_view_document(tmp_path):
     v1 = save(p, "weekly", folder(tmp_path, "v1", {"r.html": "<!doctype html><p>Body</p>"}), "r.html")
     _summary, files = preview(p, ("weekly", v1["revision_id"]))
     assert not any(k.endswith("/preview/report.html") for k in files)
+
+
+@pytest.mark.parametrize(
+    ("files", "reason"),
+    [
+        ({"r.html": '<!doctype html><link rel="stylesheet" href="style.css"><p>Body</p>',
+          "style.css": '@import url("https://example.com/private.css");'}, "remote_resources"),
+        ({"r.html": '<?xml version="1.0"?><html><body><script>alert(1)</script></body></html>'}, "scripts"),
+        ({"r.md": "text\n", "notes.htm": "plain words <img src=https://example.com/a.png>"}, "remote_resources"),
+    ],
+)
+def test_report_files_are_inspected_as_what_their_names_say(tmp_path, files, reason):
+    p = project(tmp_path)
+    entry = "r.md" if "r.md" in files else "r.html"
+    v1 = save(p, "weekly", folder(tmp_path, "v1", files), entry)
+    error = refused(lambda: preview(p, ("weekly", v1["revision_id"])))
+    assert (error.code, error.details["reason"]) == ("report_not_shareable", reason)
+
+
+def test_report_xml_file_is_not_shareable(tmp_path):
+    p = project(tmp_path)
+    v1 = save(p, "weekly", folder(tmp_path, "v1", {"r.md": "text\n",
+                                                    "data.xml": '<?xml-stylesheet href="x.xsl"?><root/>'}), "r.md")
+    error = refused(lambda: preview(p, ("weekly", v1["revision_id"])))
+    assert (error.code, error.details["reason"], error.details["file"]) == ("report_not_shareable", "format", "data.xml")
+
+
+def test_project_copy_with_a_selected_report_builds_and_verifies(tmp_path):
+    p = project(tmp_path)
+    core.record(p, "finding", "Project finding stays", origin=ORIGIN)
+    v1 = save(p, "weekly", folder(tmp_path, "v1", {"r.md": "text\n"}), "r.md")
+    built = build.build_publication(p, ShareRequest(scope="project", reports=(("weekly", v1["revision_id"]),)),
+                                    origin=ORIGIN, report_renderer=RENDERER)
+    manifest = json.loads((p.root / built["path"] / "publication.json").read_text(encoding="utf-8"))
+    assert manifest["scope"]["kind"] == "project"
+    assert [r["revision_id"] for r in manifest["scope"]["reports"]] == [v1["revision_id"]]
+    assert checks.verify_package(p.root / built["path"])["package_sha256"] == built["package_sha256"]
+
+
+@pytest.mark.parametrize(
+    ("files", "code", "reason"),
+    [
+        ({"r.md": "x\n", "notes.html": "Plain start <script>alert(1)</script>"}, "report_not_shareable", "scripts"),
+        ({"r.md": "x\n", "a.svg": '<!DOCTYPE svg><svg xmlns="http://www.w3.org/2000/svg" onload="x()"/>'},
+         "inspection_failed", None),
+        ({"r.html": '<!doctype html><a href="#missing">x</a>'}, "report_not_shareable", "link"),
+    ],
+)
+def test_more_report_file_shapes_are_checked(tmp_path, files, code, reason):
+    p = project(tmp_path)
+    v1 = save(p, "weekly", folder(tmp_path, "v1", files), "r.md" if "r.md" in files else "r.html")
+    error = refused(lambda: preview(p, ("weekly", v1["revision_id"])))
+    assert error.code == code and error.details.get("reason") == reason
+
+
+def test_a_null_basis_is_not_printed(tmp_path):
+    p = project(tmp_path)
+    v1 = save(p, "weekly", folder(tmp_path, "v1", {"r.md": "x\n"}), "r.md",
+              based_on={"as_of_seq": None, "context_version": None, "refs": []})
+    _summary, files = preview(p, ("weekly", v1["revision_id"]))
+    data = b"".join(files.values())
+    assert b"eNone" not in data and b">null" not in data
+
+
+def test_a_gap_between_selected_versions_is_named(tmp_path):
+    p = project(tmp_path)
+    v1 = save(p, "weekly", folder(tmp_path, "v1", {"r.md": "one\n"}), "r.md")
+    v2 = save(p, "weekly", folder(tmp_path, "v2", {"r.md": "two\n"}), "r.md", previous=v1["revision_id"])
+    v3 = save(p, "weekly", folder(tmp_path, "v3", {"r.md": "three\n"}), "r.md", previous=v2["revision_id"])
+    _summary, files = preview(p, ("weekly", v1["revision_id"]), ("weekly", v3["revision_id"]))
+    assert "A later version existed" in report_page(files, "weekly", v1["revision_id"])
+    assert "A later version existed" not in report_page(files, "weekly", v3["revision_id"])
+
+
+def test_read_only_modes_still_accept_the_default_scope(tmp_path):
+    p = project(tmp_path)
+    code, out = kit(p, "--list", "--scope", "project")
+    assert code == 0 and out["ok"]
+
+
+def test_verify_checks_a_report_view_as_authored_content(tmp_path):
+    p = project(tmp_path)
+    v1 = save(p, "weekly", folder(tmp_path, "v1", {"r.md": "text\n"}), "r.md")
+    built = build.build_publication(p, ShareRequest(scope="reports", reports=(("weekly", ""),)), origin=ORIGIN,
+                                    report_renderer=RENDERER)
+    root = p.root / built["path"]
+    files = {f.relative_to(root).as_posix(): f.read_bytes() for f in root.rglob("*") if f.is_file()}
+    token = page_key(ItemKey("report", f"weekly/{v1['revision_id']}"))
+    view = f"reports/{token}/preview/report.html"
+    tampered = files[view].replace(b"</body>", b"<script>alert(1)</script></body>")
+    files[view] = tampered
+    manifest = json.loads(files["publication.json"])
+    import hashlib
+
+    row = next(r for r in manifest["files"] if r["path"] == view)
+    row.update(sha256=hashlib.sha256(tampered).hexdigest(), bytes=len(tampered))
+    manifest["content_sha256"] = checks.content_hash({k: v for k, v in files.items() if k != "publication.json"})
+    files["publication.json"] = json.dumps(manifest).encode()
+    assert refused(lambda: checks.verify_package(files)).code == "package_check_failed"

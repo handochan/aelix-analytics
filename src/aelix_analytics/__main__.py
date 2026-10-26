@@ -521,7 +521,7 @@ def _publication_command(args):
     from .publishing.model import PublicationError
 
     readonly = args.list_publications or args.verify is not None or args.zip_of is not None
-    if readonly and (args.exclude or args.report or args.collection or args.scope is not None
+    if readonly and (args.exclude or args.report or args.collection or args.scope not in (None, "project")
                      or args.profile != "read" or args.analysis_state != "in_progress" or args.allow_withdrawn):
         raise core.AnalyticsError("scope_invalid", "scope and profile options apply only to build or preview")
     if args.zip and (args.preview or args.list_publications or args.verify is not None):

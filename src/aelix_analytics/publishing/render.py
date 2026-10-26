@@ -356,9 +356,8 @@ def render(
         number, total = values.get("number"), values.get("total")
         body += f"<p>Version {esc(number)} of {esc(total)}</p>"
         report_id = _plain(values.get("report_id"))
-        if (type(number) is int and type(total) is int and number < total
-                and not any(_plain(fields(o).get("report_id")) == report_id and type(fields(o).get("number")) is int
-                            and fields(o)["number"] > number for o in report_items)):
+        shared = {fields(o).get("number") for o in report_items if _plain(fields(o).get("report_id")) == report_id}
+        if type(number) is int and type(total) is int and any(n not in shared for n in range(number + 1, total + 1)):
             body += "<p>A later version existed when this copy was built — not included.</p>"
         if withdrawn(item):
             body += "<p><strong>Withdrawn</strong> — this version was withdrawn when this copy was built.</p>"

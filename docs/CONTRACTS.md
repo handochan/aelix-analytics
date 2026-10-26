@@ -2198,7 +2198,9 @@ D2의 미리보기와 D3의 build가 같은 경로를 씁니다.
 - **버전 단위로만**: 고른 버전은 모든 파일이 manifest가 기록한 바이트일 때만 담습니다. 다음은 `report_not_shareable`과
   `details.reason`(·`file`)으로 멈춥니다: `not_saved`(저장 시도), Report 판정의 problem(`completion_mismatch` 등), `missing`·`content_changed`,
   `withdrawn`(`--allow-withdrawn` 없이), `format`(PDF·Office·기타 검사할 수 없는 바이트), `scripts`·`remote_resources`(HTML·SVG), `link`(HTML·SVG의
-  상대 참조가 그 버전의 파일이 아님), `path`(이식할 수 있는 패키지 경로가 아님). 고친 새 Report 버전을 저장해 고르는 것이 길입니다.
+  상대 참조가 그 버전의 파일·id가 아님), `path`(이식할 수 있는 패키지 경로가 아님). 고친 새 Report 버전을 저장해 고르는 것이 길입니다.
+  브라우저가 이름으로 다루므로 `.css`·`.html`·`.htm`·`.xhtml`·`.xht`·`.svg` 이름의 파일은 첫 바이트와 관계없이 그 형식으로 검사하고,
+  `.xml`·`.xsl`·`.xslt`는 `format`입니다. XML 선언으로 시작하는 HTML도 HTML로 검사합니다. 검사기가 해석하지 못하는 SVG(DOCTYPE 등)는 `inspection_failed`입니다.
   본문·첨부에 사본 밖 대상의 ID·문장·경로가 남으면 D2의 누출 검사대로 `leak_found`입니다.
 - **필드**: 제목, `created_at`, 작성 역할, entry, 기준 시점 상태(`current`·`withdrawn`), Version n of N, `based_on`의 `as_of_seq`·
   `context_version`과 참조 판정, summary·purpose·change_reason·content_status(2026-10-26 소유자 결정 OD1)입니다. scope·generation·알 수 없는
@@ -2214,6 +2216,8 @@ D2의 미리보기와 D3의 build가 같은 경로를 씁니다.
   `manifest_sha256`·`files[{path, sha256, package_path}]`입니다. 완료 이벤트는 고른 버전마다 `report_revision` 참조(`includes`·`declared`·`author`·
   manifest digest)를 더합니다. `--verify`는 고른 파일이 manifest가 기록한 사본인지도 대조합니다. 0.26.0 이하의 kit은 Report 사본의 manifest를
   검사하지 못합니다(`--list`의 폴더 상태가 정확하지 않을 수 있음). writer floor는 바뀌지 않습니다.
-- **한계**: 사본 밖 run의 경로와 같은 이름의 Report 파일(예: 프로젝트의 `outputs/…`를 그대로 담은 Report)은 누출 검사가 멈춥니다. 그 run을
+- **한계**: 완료 이벤트는 ADR-0014 결정 3대로 사본의 기준 CONTEXT 버전을 `includes` 참조로 남깁니다. Report 범위에서 그 본문이 없어도
+  같으며, 이 참조는 사본의 기준을 기록한 것입니다(manifest `included`가 실제 포함을 말함). HTML의 `ping` 속성 주소는 원격 참조로
+  세지 않습니다(그림 검사기와 같은 경계). 사본 밖 run의 경로와 같은 이름의 Report 파일(예: 프로젝트의 `outputs/…`를 그대로 담은 Report)은 누출 검사가 멈춥니다. 그 run을
   `based_on`으로 인용하거나 이름을 바꾼 새 버전을 저장합니다. Markdown 본문의 그림은 StaticReportRenderer가 다운로드로만 보입니다. 브라우저·
   다른 독자·ZIP 도구의 수용, M 규모, CSP 측정은 PR5까지 미실행입니다.
